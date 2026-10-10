@@ -15,8 +15,8 @@ use std::time::Duration;
 
 const QUOTE_BATCH_SIZE: usize = 60;
 const MAX_CONNECTIONS: usize = 35;
-const RUSTDX_VERSION: &str = "1.12.0";
-const RUSTDX_SOURCE_REV: &str = "fac771a18cd218c90852254e59b040874d156722";
+const RUSTDX_VERSION: &str = "1.12.2";
+const RUSTDX_SOURCE_REV: &str = "904b33e514d4e368e633622c96a9e63af8a53d37";
 
 fn validate_security(market: u16, code: &str) -> PyResult<()> {
     if !matches!(market, 0 | 1) || code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {

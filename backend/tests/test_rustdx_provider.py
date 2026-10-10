@@ -164,10 +164,10 @@ def test_provider_caps_full_market_workers_at_35(monkeypatch):
 
 def test_native_bridge_clamps_direct_constructor_to_35():
     native_module = pytest.importorskip("tsp_rustdx_native")
-    assert native_module.RUSTDX_VERSION == "1.12.0"
+    assert native_module.RUSTDX_VERSION == "1.12.2"
     assert (
         native_module.RUSTDX_SOURCE_REV
-        == "fac771a18cd218c90852254e59b040874d156722"
+        == "904b33e514d4e368e633622c96a9e63af8a53d37"
     )
     client = native_module.RustdxClient(100)
     try:

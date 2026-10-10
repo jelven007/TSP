@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "tsp-rustdx-native"
 version = "0.1.0"
 requires-python = ">=3.11"
-description = "TSP native bridge for rustdx-complete"
+description = "TSP native bridge for jelven-rustdx-complete"
 license = { text = "MIT" }
 
 [tool.maturin]
