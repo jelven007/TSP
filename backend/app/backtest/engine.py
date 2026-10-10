@@ -18,6 +18,7 @@ import numpy as np
 import polars as pl
 import pyarrow as pa
 
+from app.backtest.costs import historical_stamp_tax_pct
 from app.backtest.matrix import (
     MarketDataMatrix,
     MarketMatrix,
@@ -74,6 +75,8 @@ class MatcherConfig:
     minute_fill: bool = False
     # 回测资产类型: 分钟K按资产类型分开存储, 精确成交据此路由分钟分区 (不凭代码格式猜测)。
     asset_type: str = "stock"
+    # Low-level matcher keeps legacy fixed costs; strategy service opts into history.
+    stamp_tax_mode: Literal["fixed", "historical"] = "fixed"
 
     def __post_init__(self) -> None:
         # 解析最终口径: 优先 entry_fill/exit_fill, 否则回退到 matching (向后兼容)。
@@ -90,9 +93,16 @@ class MatcherConfig:
         # 买入腿: 佣金 + 滑点。
         return self._commission_pct() + self.slippage_bps / 10000.0
 
-    def sell_cost_pct(self) -> float:
+    def sell_cost_pct(self, trade_date: date | str | None = None) -> float:
         # 卖出腿: 佣金 + 印花税 + 滑点。印花税未设时为 0 (向后兼容)。
-        stamp = self.stamp_tax_pct if self.stamp_tax_pct is not None else 0.0
+        if self.stamp_tax_pct is not None:
+            stamp = self.stamp_tax_pct
+        elif self.stamp_tax_mode == "historical":
+            if trade_date is None:
+                raise ValueError("历史印花税需要实际卖出日期")
+            stamp = historical_stamp_tax_pct(trade_date, self.asset_type)
+        else:
+            stamp = 0.0
         return self._commission_pct() + stamp + self.slippage_bps / 10000.0
 
 
@@ -791,7 +801,7 @@ class BacktestEngine:
                     if exit_triggered:
                         exit_price = float(sym_exit_prices[i])
                         pnl_pct = (exit_price - entry_price) / entry_price if entry_price > 0 else 0.0
-                        fee_cost = config.buy_cost_pct() + config.sell_cost_pct()
+                        fee_cost = config.buy_cost_pct() + config.sell_cost_pct(str(sym_dates[i])[:10])
                         pnl_pct -= fee_cost
 
                         e_date = sym_dates[entry_idx]
@@ -880,7 +890,6 @@ class BacktestEngine:
         entry_prices = self._resolve_entry_prices(matrix, config)
         exit_prices = matrix.open if config.exit_fill == "open_t+1" else matrix.close
         buy_cost_pct = config.buy_cost_pct()
-        sell_cost_pct = config.sell_cost_pct()
         trades: list[TradeRecord] = []
         execution_stats = {
             "buy_invalid_price": 0,
@@ -1093,6 +1102,7 @@ class BacktestEngine:
             )
             shares = 100.0
             entry_value = shares * pos["entry_price"] * (1 + buy_cost_pct)
+            sell_cost_pct = config.sell_cost_pct(matrix.timestamp_labels[time_id][:10])
             exit_value = shares * exit_price * (1 - sell_cost_pct)
             pnl_amount = exit_value - entry_value
             trades.append(TradeRecord(
@@ -1363,7 +1373,6 @@ class BacktestEngine:
             rows.append(i)
 
         buy_cost_pct = config.buy_cost_pct()
-        sell_cost_pct = config.sell_cost_pct()
         score_min = getattr(config, "score_min", None)
         score_max = getattr(config, "score_max", None)
         trades: list[TradeRecord] = []
@@ -1519,6 +1528,7 @@ class BacktestEngine:
                 exit_price = _refill_price(idx, "sell", float(exit_prices[idx]))
             shares = 100.0
             entry_value = shares * float(pos["entry_price"]) * (1 + buy_cost_pct)
+            sell_cost_pct = config.sell_cost_pct(self._date_str(panel_dates[idx]))
             exit_value = shares * exit_price * (1 - sell_cost_pct)
             pnl_amount = exit_value - entry_value
             pnl_pct = pnl_amount / entry_value if entry_value > 0 else 0.0
@@ -1848,7 +1858,6 @@ class BacktestEngine:
         entry_prices = self._resolve_entry_prices(matrix, config)
         exit_prices = matrix.open if config.exit_fill == "open_t+1" else matrix.close
         buy_cost_pct = config.buy_cost_pct()
-        sell_cost_pct = config.sell_cost_pct()
         cash = float(config.initial_capital)
         peak = cash
         max_positions = max(int(config.max_positions), 0)
@@ -2014,6 +2023,7 @@ class BacktestEngine:
             exit_price = float(override) if override is not None else _refill_price(
                 time_id, asset_id, "sell", float(exit_prices[time_id, asset_id])
             )
+            sell_cost_pct = config.sell_cost_pct(matrix.timestamp_labels[time_id][:10])
             exit_value = pos["shares"] * exit_price * (1 - sell_cost_pct)
             cash += exit_value
             pnl_amount = exit_value - pos["entry_value"]
@@ -2408,7 +2418,6 @@ class BacktestEngine:
             return self._empty_result()
 
         buy_cost_pct = config.buy_cost_pct()
-        sell_cost_pct = config.sell_cost_pct()
         cash = float(config.initial_capital)
         peak = cash
         max_positions = max(int(config.max_positions), 0)
@@ -2583,6 +2592,7 @@ class BacktestEngine:
                 exit_price = float(exit_price_override)
             else:
                 exit_price = _refill_price(idx, "sell", float(exit_prices[idx]))
+            sell_cost_pct = config.sell_cost_pct(self._date_str(panel_dates[idx]))
             exit_value = pos["shares"] * exit_price * (1 - sell_cost_pct)
             cash += exit_value
             pnl_amount = exit_value - pos["entry_value"]

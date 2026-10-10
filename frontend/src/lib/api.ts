@@ -1282,6 +1282,18 @@ export interface BacktestProvenance {
   config_hash: string
   strategy_hash: string | null
   release_error: string | null
+  research_governance?: {
+    strict: boolean
+    cost_model_version: string
+    status_quality: {
+      observations?: number
+      unknown_status_observations?: number
+      status_coverage?: number | null
+      historical_status_complete: boolean
+    } | null
+    issues: string[]
+    status_and_cost_gate_passed: boolean
+  } | null
 }
 
 export interface BacktestResult {
@@ -3182,6 +3194,7 @@ export const api = {
     position_sizing?: 'equal' | 'score_weight'
     asset_type?: 'stock' | 'etf' | 'index'
     minute_fill?: boolean
+    strict_research?: boolean
   }) =>
     request<StrategyBacktestResult>('/api/backtest/strategy/run', {
       method: 'POST',

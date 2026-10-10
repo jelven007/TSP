@@ -89,7 +89,9 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "GET /api/strategies/{strategy_id}/source",
 }
 
-EXPECTED_TIER_A_SCHEMA_SHA256 = "462928db77217143c3a429eeb3c1fb6c2d76c1cbdf1b8b7ba742775ea3dfd469"
+# 契约变更记录: 策略回测新增可选字段 strict_research (默认 false, 向后兼容) —
+# 严格研究校验开关, 旧客户端不传时行为不变。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "9b32fd114bad0e1ea72702f3185cc1122b1d8b7ee5798bd417e6731639b7a018"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

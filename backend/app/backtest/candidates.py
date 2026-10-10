@@ -57,6 +57,7 @@ _CONFIG_FIELDS: dict[str, frozenset[str]] = {
             "fees_pct",
             "commission_pct",
             "stamp_tax_pct",
+            "strict_research",
             "slippage_bps",
             "max_positions",
             "max_exposure_pct",

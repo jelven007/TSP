@@ -19,8 +19,10 @@ from typing import Literal
 import numpy as np
 import polars as pl
 
+from app.backtest.costs import COST_MODEL_VERSION
 from app.backtest.engine import BacktestEngine, MatcherConfig, SimResult, SimulationOptions
 from app.backtest.fundamentals import FUNDAMENTAL_FACTOR_NAMES
+from app.backtest.governance import STATUS_FIELDS, research_preflight, status_quality
 from app.backtest.matrix import (
     MarketDataMatrix,
     MatrixCacheProfile,
@@ -94,6 +96,15 @@ class ResolvedFeaturePlan:
     execution_backend: str = "polars_expr"
     # 财务因子列不落 enriched 存储, 由 engine 在加载口按公告日门控附加。
     fundamental_columns: frozenset[str] = frozenset()
+
+
+def _with_status_fields(plan: ResolvedFeaturePlan, asset_type: str) -> ResolvedFeaturePlan:
+    if asset_type != "stock":
+        return plan
+    return replace(
+        plan,
+        matrix_columns=plan.matrix_columns | STATUS_FIELDS,
+    )
 
 
 def _merge_resolved_feature_plans(
@@ -577,6 +588,8 @@ class StrategyBacktestConfig:
     # 市场环境过滤: {"states": ["strong",...], "min_score": 60}。
     # 强制 T-1: regime[T-1] 决定 entry[T](防未来函数)。None=不过滤。
     regime_filter: dict | None = None
+    # Exploratory legacy runs remain available with explicit quality warnings.
+    strict_research: bool = False
 
     def __post_init__(self) -> None:
         if self.entry_fill is None:
@@ -983,7 +996,7 @@ class StrategyBacktestService:
                 minute_fill=config.minute_fill,
                 asset_type=config.asset_type,
             ))
-        feature_plan = _merge_resolved_feature_plans(plans)
+        feature_plan = _with_status_fields(_merge_resolved_feature_plans(plans), first.asset_type)
 
         max_hold_days = self._override_value(overrides, "max_hold_days", strategy.max_hold_days)
         full_horizon_days = max(int(max_hold_days or first.holding_days or 5), 1)
@@ -1267,6 +1280,7 @@ class StrategyBacktestService:
         except ValueError as e:
             return _err(str(e))
 
+        feature_plan = _with_status_fields(feature_plan, config.asset_type)
         timing_ms: dict[str, float] = {}
         matrix_data_cache_hit = False
         matrix_data_cache_status = "none"
@@ -1393,6 +1407,16 @@ class StrategyBacktestService:
                 return _err("正式回测区间内无数据")
             feature_width = int(panel.width)
 
+        quality_data = prepared.market_data if prepared is not None else (
+            market_data if market_data is not None else panel
+        )
+        quality = status_quality(quality_data, config.start, sim_end) if config.asset_type == "stock" else {
+            "historical_status_complete": True,
+        }
+        issues = research_preflight(config, provenance, quality)
+        if config.strict_research and issues:
+            return _err("严格研究校验未通过: " + "; ".join(issues))
+
         matcher_config = MatcherConfig(
             matching=config.matching,
             entry_fill=config.entry_fill,
@@ -1400,6 +1424,7 @@ class StrategyBacktestService:
             fees_pct=config.fees_pct,
             commission_pct=config.commission_pct,
             stamp_tax_pct=config.stamp_tax_pct,
+            stamp_tax_mode="historical",
             slippage_bps=config.slippage_bps,
             stop_loss_pct=stop_loss,
             take_profit_pct=take_profit,
@@ -1890,7 +1915,7 @@ class StrategyBacktestService:
 
         # 日线面板一次加载: 覆盖首个回测日的日线窗口 + 模拟区间 (含 full 模式尾部)。
         daily_bars = int(s.minute_daily_bars or 0)
-        feature_plan = minute_replay_feature_plan(daily_bars)
+        feature_plan = _with_status_fields(minute_replay_feature_plan(daily_bars), "stock")
         load_start = minute_panel_start(config.start, daily_bars)
         full_horizon_days = int(max_hold_days or config.holding_days or 5)
         load_end = config.end
@@ -1913,6 +1938,10 @@ class StrategyBacktestService:
         timing_ms["load_panel"] = round((time.perf_counter() - t_load) * 1000, 1)
         if panel.is_empty():
             return _err("无日线数据, 请检查日期范围或先运行盘后管道")
+
+        issues = research_preflight(config, provenance, status_quality(panel, config.start, sim_end))
+        if config.strict_research and issues:
+            return _err("严格研究校验未通过: " + "; ".join(issues))
 
         replayer = MinuteSignalReplayer(self.engine, self.strategy_engine)
         replay = replayer.replay(
@@ -1999,6 +2028,7 @@ class StrategyBacktestService:
             fees_pct=config.fees_pct,
             commission_pct=config.commission_pct,
             stamp_tax_pct=config.stamp_tax_pct,
+            stamp_tax_mode="historical",
             slippage_bps=config.slippage_bps,
             stop_loss_pct=stop_loss,
             take_profit_pct=take_profit,
@@ -2618,6 +2648,9 @@ class StrategyBacktestService:
             "fees_pct": c.fees_pct,
             "commission_pct": c.commission_pct,
             "stamp_tax_pct": c.stamp_tax_pct,
+            "stamp_tax_mode": "historical" if c.stamp_tax_pct is None else "fixed",
+            "cost_model_version": COST_MODEL_VERSION,
+            "strict_research": c.strict_research,
             "slippage_bps": c.slippage_bps,
             "max_positions": c.max_positions,
             "max_exposure_pct": c.max_exposure_pct,

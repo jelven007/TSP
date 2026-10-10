@@ -208,6 +208,23 @@ def _monitor_name_map(repo) -> dict[str, str]:
     return {s: n for s, n in repo.get_name_map().items() if n}
 
 
+_POLL_SLEEP_SLICE_S = 0.5
+
+
+def _poll_sleep_slice(next_cycle: float, now: float) -> float | None:
+    """Return the next sliced sleep toward ``next_cycle``, or ``None`` if due.
+
+    Fixed-cadence scheduling: the wait targets a cycle start time, so fetch cost
+    is absorbed into the interval instead of being added on top. When the fetch
+    overruns the interval the deadline is already in the past and the loop fires
+    immediately without accumulating a backlog.
+    """
+    remaining = next_cycle - now
+    if remaining <= 0:
+        return None
+    return min(_POLL_SLEEP_SLICE_S, remaining)
+
+
 class QuoteService:
     """全局实时行情服务 — 单例。"""
 
@@ -264,6 +281,10 @@ class QuoteService:
         self._index_symbol_count: int = 0
         self._etf_symbol_count: int = 0
         self._index_quotes_cache: pl.DataFrame | None = None
+        # ETF/指数 enriched 走全量回退路径 (无 live_agg 递推): 当日历史窗口帧
+        # (截止昨日, 盘中不变) 按资产类型缓存, 盘中每轮只拼接当天行, 省去重复
+        # scan+sort。键含 today 跨日自愈, mtime 变化 (盘后回补) 时失效重读。
+        self._enriched_hist_cache: dict[str, tuple[date, int, pl.DataFrame]] = {}
         self._intraday_signal_evaluator = IntradaySignalEvaluator()
         self._intraday_signal_bucket: dict[str, str] = {}
         # 收盘最终同步状态: 15:00 后的轮询会确认边界快照, 15:15 到点停止。
@@ -614,6 +635,7 @@ class QuoteService:
 
     def _poll_loop(self) -> None:
         while self._running and self._enabled:
+            cycle_started = time.monotonic()
             try:
                 # 管道/数据修正运行期间临时暂停取数, 防止与管道写同一批 parquet 竞态。
                 # 线程继续存活 + 分片 sleep, resume() 后即时恢复, 无需重启线程。
@@ -667,10 +689,16 @@ class QuoteService:
             except Exception as e:  # noqa: BLE001
                 logger.warning("行情轮询异常: %s", e)
 
-            waited = 0.0
-            while self._running and self._enabled and waited < self._interval:
-                time.sleep(0.5)
-                waited += 0.5
+            # 固定起点节奏: 下一轮在 cycle_started + interval 触发, 不把 fetch 耗时
+            # 叠加进等待 (旧实现 cycle = fetch + interval 会随耗时漂移, 1Hz 实际退化到
+            # ~1.3-1.5Hz)。fetch 超过 interval 时 remaining<=0, 立即进入下一轮但不补偿
+            # 累积赤字, 避免追帧风暴。分片 sleep 保留, 使 stop()/disable() 及时生效。
+            next_cycle = cycle_started + self._interval
+            while self._running and self._enabled:
+                remaining = _poll_sleep_slice(next_cycle, time.monotonic())
+                if remaining is None:
+                    break
+                time.sleep(remaining)
 
     def _cleanup_day_scoped_state(self) -> None:
         """按日清理 final 同步状态 (键为 (date, phase), 严格无界累积)。
@@ -1840,6 +1868,55 @@ class QuoteService:
     # enriched 增量计算
     # ================================================================
 
+    def _load_enriched_history_window(
+        self,
+        asset_type: str,
+        table: str,
+        ohlcv_cols: list[str],
+        today: date,
+        cutoff: date,
+    ) -> pl.DataFrame | None:
+        """Return the pre-today history window for full enriched recompute.
+
+        ETF/index have no live_agg recursion, so the full fallback would scan and
+        sort ~90 days of parquet every poll just to emit today's row. The window
+        ends at yesterday and is immutable within a trading day, so cache it per
+        asset type keyed by ``today`` plus the directory mtime. Only today's row,
+        appended by the caller, changes between polls.
+        """
+        from datetime import timedelta
+
+        from app.tickflow.repository import _live_agg_window_start
+
+        root = self._repo.store.data_dir / table
+        try:
+            dir_mtime_ns = root.stat().st_mtime_ns
+        except OSError:
+            dir_mtime_ns = 0
+
+        cached = self._enriched_hist_cache.get(asset_type)
+        if cached is not None and cached[0] == today and cached[1] == dir_mtime_ns:
+            return cached[2]
+
+        daily_glob = str(root / "**" / "*.parquet")
+        hist_df = guarded_collect(
+            scan_daily_parquet(daily_glob)
+            # 多读一段自然日, 再按交易日计数确定窗口起点 (长假前后 90 个自然日不足 60 个交易日)
+            .filter(pl.col("date") >= cutoff - timedelta(days=60))
+            .sort(["symbol", "date"]),
+            priority="background",
+        )
+        if hist_df.is_empty():
+            return hist_df
+
+        hist_cols = [c for c in ohlcv_cols if c in hist_df.columns]
+        hist_df = hist_df.select(hist_cols).filter(pl.col("date") != today)
+        # 与股票盘中递推窗口同口径: 至少覆盖 60 个交易日, 否则 MA60/60 日极值/60 日动量为空
+        window_start = _live_agg_window_start(hist_df["date"], today, cutoff)
+        hist_df = hist_df.filter(pl.col("date") >= window_start)
+        self._enriched_hist_cache[asset_type] = (today, dir_mtime_ns, hist_df)
+        return hist_df
+
     def _flush_live_enriched(self, daily_df: pl.DataFrame, quote_extra: pl.DataFrame = None, asset_type: str = "stock", merge: bool = False) -> None:
         """增量计算今天的 enriched: 用昨天的递推状态 + 今天 OHLCV → 只算今天 5500 行。
 
@@ -1896,30 +1973,19 @@ class QuoteService:
             if not use_incremental:
                 from datetime import timedelta
                 from app.indicators.pipeline import compute_enriched
-                from app.tickflow.repository import _live_agg_window_start
 
                 logger.info("enriched 全量计算 (live_agg=%s, 上次日期=%s)",
                             "ok" if not live_agg.is_empty() else "空", prev_date)
 
                 cutoff = today - timedelta(days=90)
                 table = {"etf": "kline_etf_daily", "index": "kline_index_daily"}.get(asset_type, "kline_daily")
-                daily_glob = str(self._repo.store.data_dir / table / "**" / "*.parquet")
                 ohlcv_cols = ["symbol", "date", "open", "high", "low", "close", "volume", "amount", "quote_ts"]
-                hist_df = guarded_collect(
-                    scan_daily_parquet(daily_glob)
-                    # 多读一段自然日, 再按交易日计数确定窗口起点 (长假前后 90 个自然日不足 60 个交易日)
-                    .filter(pl.col("date") >= cutoff - timedelta(days=60))
-                    .sort(["symbol", "date"]),
-                    priority="background",
+                hist_df = self._load_enriched_history_window(
+                    asset_type, table, ohlcv_cols, today, cutoff
                 )
-                if hist_df.is_empty():
+                if hist_df is None or hist_df.is_empty():
                     return
 
-                hist_cols = [c for c in ohlcv_cols if c in hist_df.columns]
-                hist_df = hist_df.select(hist_cols).filter(pl.col("date") != today)
-                # 与股票盘中递推窗口同口径: 至少覆盖 60 个交易日, 否则 MA60/60 日极值/60 日动量为空
-                window_start = _live_agg_window_start(hist_df["date"], today, cutoff)
-                hist_df = hist_df.filter(pl.col("date") >= window_start)
                 daily_ohlcv = daily_df.select([c for c in ohlcv_cols if c in daily_df.columns])
                 full_df = pl.concat([hist_df, daily_ohlcv], how="diagonal_relaxed")
                 full_df = full_df.sort(["symbol", "date"])

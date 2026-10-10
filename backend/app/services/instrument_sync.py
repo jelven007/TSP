@@ -8,6 +8,8 @@ Starter+ 盘后可用 quotes.get(universes) 顺便补充 name。
 from __future__ import annotations
 
 import logging
+import math
+from datetime import date
 from pathlib import Path
 
 import polars as pl
@@ -25,6 +27,44 @@ from app.tickflow.client import get_client
 logger = logging.getLogger(__name__)
 
 _EXCHANGES = ["SH", "SZ"]
+_PERSISTENT_METADATA = ("listing_date", "total_shares", "float_shares", "tick_size")
+
+
+def _metadata_value(field: str, value):
+    if field == "listing_date":
+        try:
+            return date.fromisoformat(str(value)[:10]).isoformat()
+        except (TypeError, ValueError):
+            return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number > 0 else None
+
+
+def _preserve_metadata(
+    rows: list[dict], previous: pl.DataFrame, *, as_of: date, source: str,
+) -> list[dict]:
+    """Keep last valid metadata with its original age; daily limits expire."""
+    prior = {
+        str(row["symbol"]): row for row in previous.iter_rows(named=True)
+    } if "symbol" in previous.columns else {}
+    for row in rows:
+        old = prior.get(row["symbol"], {})
+        row["name"] = row["name"] or old.get("name") or ""
+        for field in _PERSISTENT_METADATA:
+            fresh = _metadata_value(field, row.get(field))
+            retained = _metadata_value(field, old.get(field))
+            row[field] = fresh if fresh is not None else retained
+            row[f"{field}_source"] = source if fresh is not None else (
+                old.get(f"{field}_source") if retained is not None else None
+            )
+            row[f"{field}_as_of"] = as_of if fresh is not None else (
+                old.get(f"{field}_as_of", old.get("as_of"))
+                if retained is not None else None
+            )
+    return rows
 
 
 def _flatten_instruments(items: list[dict]) -> list[dict]:
@@ -140,11 +180,18 @@ def sync_instruments(data_dir: Path) -> int:
     if not all_rows:
         return 0
 
-    df = pl.DataFrame(all_rows)
     as_of = cn_today()
-    df = df.with_columns(pl.lit(as_of).alias("as_of"))
-
     out = data_dir / "instruments" / "instruments.parquet"
+    # Read failures abort before either snapshot is changed.
+    previous = pl.read_parquet(out) if out.exists() else pl.DataFrame()
+    all_rows = _preserve_metadata(all_rows, previous, as_of=as_of, source=source)
+    df = pl.DataFrame(all_rows, schema_overrides={
+        "listing_date": pl.String,
+        **{field: pl.Float64 for field in _PERSISTENT_METADATA if field != "listing_date"},
+        **{f"{field}_source": pl.String for field in _PERSISTENT_METADATA},
+        **{f"{field}_as_of": pl.Date for field in _PERSISTENT_METADATA},
+    }).with_columns(pl.lit(as_of).alias("as_of"))
+
     out.parent.mkdir(parents=True, exist_ok=True)
     update_instrument_history(data_dir, df, as_of=as_of, source=source)
     atomic_write_parquet(df, out)

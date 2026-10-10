@@ -52,7 +52,7 @@ except ImportError:
     prange = range
 
 _MATRIX_CACHE_VERSION = 1
-_DIRECT_MATRIX_LOADER_VERSION = 5
+_DIRECT_MATRIX_LOADER_VERSION = 6
 _MATRIX_AXIS_INDEX_VERSION = 2
 _ARROW_BATCH_SIZE = 131_072
 _SCORE_ASSET_CHUNK_SIZE = 256
@@ -932,8 +932,9 @@ def _resolve_matrix_storage_fields(
             vector_fields.add("float_shares")
     if "price_limit_pct" in wanted_fields:
         matrix_fields.add("price_limit_pct")
-    if "is_risk_warning" in wanted_fields:
-        matrix_fields.add("is_risk_warning")
+    matrix_fields.update(
+        wanted_fields & {"is_risk_warning", "instrument_status_known", "is_listed"}
+    )
     resolved = matrix_fields | vector_fields
     unresolved = wanted_fields - resolved
     if unresolved:
@@ -1478,21 +1479,28 @@ def _populate_matrix_derived_arrays(
             dtype=np.float32,
         )
         fields["is_risk_warning"][:] = current_risk[None, :]
-    if "is_risk_warning" in wanted_fields and trading_dates is not None:
+    if "instrument_status_known" in fields and "instrument_status_known" not in parquet_fields:
+        fields["instrument_status_known"][:] = 0.0
+    if wanted_fields & {"is_risk_warning", "instrument_status_known", "is_listed"} and trading_dates is not None:
         _apply_instrument_risk_history(
-            fields["is_risk_warning"],
+            fields.get("is_risk_warning"),
             trading_dates,
             actual_symbols,
             instrument_history,
+            known=fields.get("instrument_status_known"),
+            listed=fields.get("is_listed"),
         )
     return names, latest_limits
 
 
 def _apply_instrument_risk_history(
-    target: np.ndarray,
+    target: np.ndarray | None,
     trading_dates: list[date],
     symbols: list[str],
     history: pl.DataFrame | None,
+    *,
+    known: np.ndarray | None = None,
+    listed: np.ndarray | None = None,
 ) -> None:
     """Overlay SCD2 risk-warning intervals on a time-by-asset matrix."""
     if (
@@ -1507,7 +1515,8 @@ def _apply_instrument_risk_history(
         ["symbol", "valid_from"]
     )
     for row in relevant.select(
-        "symbol", "valid_from", "valid_to", "is_risk_warning"
+        "symbol", "valid_from", "valid_to", "is_risk_warning",
+        *("is_listed",) if "is_listed" in relevant.columns else (),
     ).iter_rows(named=True):
         asset_id = symbol_to_id.get(str(row["symbol"]))
         valid_from = row["valid_from"]
@@ -1521,9 +1530,14 @@ def _apply_instrument_risk_history(
             else len(trading_dates)
         )
         if start < stop:
-            target[start:stop, asset_id] = (
-                1.0 if bool(row["is_risk_warning"]) else 0.0
-            )
+            if target is not None:
+                target[start:stop, asset_id] = (
+                    1.0 if bool(row["is_risk_warning"]) else 0.0
+                )
+            if known is not None:
+                known[start:stop, asset_id] = 1.0
+            if listed is not None and "is_listed" in row:
+                listed[start:stop, asset_id] = float(bool(row["is_listed"]))
 
 
 def _write_turnover_rate_matrix(

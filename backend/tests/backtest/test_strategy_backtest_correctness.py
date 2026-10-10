@@ -368,7 +368,9 @@ def test_full_mode_executes_every_candidate_with_strategy_rules():
     assert result.stats["n_trades"] == 1
     assert result.trades[0]["entry_date"] == str(start + timedelta(days=1))
     assert result.trades[0]["exit_reason"] == "max_hold"
-    assert result.stats["avg_return"] == round(20 / 11 - 1, 4)
+    # 默认按成交日计入历史卖出印花税 (2024-01-03 减半后 0.0005): 买入 11 → 卖出 20。
+    # 费用为零时成交价不变, 唯一成本是卖出腿印花税, avg_return 据此下修。
+    assert result.stats["avg_return"] == round((20 * (1 - 0.0005)) / 11 - 1, 4)
 
 
 def test_matrix_native_strategy_uses_shared_orchestrator_path():

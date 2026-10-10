@@ -966,7 +966,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     saved ? (saved.exitFill ?? saved.matching ?? 'close_t') : 'open_t+1',
   )
   const [fees, setFees] = useState(saved?.fees ?? '2')
-  const [stampTax, setStampTax] = useState(saved?.stampTax ?? '1')
+  const [stampTax, setStampTax] = useState(saved?.stampTax ?? '')
+  const [strictResearch, setStrictResearch] = useState(false)
   const [slippage, setSlippage] = useState(saved?.slippage ?? '5')
   const [maxPositions, setMaxPositions] = useState(saved?.maxPositions ?? '10')
   const [maxExposure, setMaxExposure] = useState(saved?.maxExposure ?? '100')
@@ -1015,7 +1016,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
       setExitFill(cfg.exit_fill)
     }
     if (cfg.commission_pct != null) setFees(String(Math.round(Number(cfg.commission_pct) * 10000)))
-    if (cfg.stamp_tax_pct != null) setStampTax(String(Number(cfg.stamp_tax_pct) * 1000))
+    setStampTax(cfg.stamp_tax_pct != null ? String(Number(cfg.stamp_tax_pct) * 1000) : '')
+    setStrictResearch(!!cfg.strict_research)
     if (cfg.slippage_bps != null) setSlippage(String(cfg.slippage_bps))
     if (cfg.max_positions != null) setMaxPositions(String(cfg.max_positions))
     if (cfg.max_exposure_pct != null) setMaxExposure(String(Math.round(Number(cfg.max_exposure_pct) * 100)))
@@ -1219,7 +1221,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
       entry_fill: entryFill,
       exit_fill: exitFill,
       commission_pct: Number(fees) / 10000,
-      stamp_tax_pct: Number(stampTax) / 1000,
+      stamp_tax_pct: stampTax === '' ? undefined : Number(stampTax) / 1000,
+      strict_research: strictResearch,
       slippage_bps: Number(slippage),
       max_positions: Number(maxPositions),
       max_exposure_pct: Number(maxExposure) / 100,
@@ -1955,7 +1958,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
           <div>
             <label className="text-[10px] font-medium text-secondary block mb-1">印花税 ‰</label>
-            <input type="number" min={0} value={stampTax} onChange={e => setStampTax(e.target.value)} className={INPUT_CLS} />
+            <input type="number" min={0} value={stampTax} placeholder="按卖出日自动"
+              onChange={e => setStampTax(e.target.value)} className={INPUT_CLS} />
           </div>
           <div>
             <label className="text-[10px] font-medium text-secondary block mb-1">滑点 ‱</label>
@@ -1963,6 +1967,13 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
         </div>
         )}
+        <div className="space-y-1.5 text-[11px] leading-4 text-secondary">
+          <div>印花税留空时按卖出日期自动计算：2023-08-28 前 1‰，之后 0.5‰；ETF 免征。</div>
+          <label className="flex items-start gap-2">
+            <input type="checkbox" checked={strictResearch} onChange={e => setStrictResearch(e.target.checked)} className="mt-0.5" />
+            <span>严格研究校验：要求数据发布一致、历史 ST/上市状态完整，并计入股票卖出印花税。</span>
+          </label>
+        </div>
         {simMode === 'position' && (
         <div className="text-[10px] leading-4 text-muted">
           单票目标约 {Number.isFinite(targetPositionPct) ? targetPositionPct.toFixed(1) : '—'}%。最大总仓位控制资金投入；剩余现金不是新增持仓名额，只有实际卖出成功才释放持仓数。
@@ -2104,6 +2115,11 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
         </div>
 
+        {!!result?.provenance?.research_governance?.issues.length && (
+          <div className="rounded-btn border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-secondary" role="status">
+            研究数据校验：{result.provenance.research_governance.issues.join('；')}。当前结果不能作为完整历史治理下的正式结论。
+          </div>
+        )}
         {result?.error && (
           <div className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-btn px-3 py-2">
             {result.error}
