@@ -394,6 +394,7 @@ class BacktestProvenance(ContractModel):
     providers: dict[str, str]
     config_hash: str
     strategy_hash: str | None
+    research_governance: JsonRecord | None = None
 
 
 class SignalBacktestResponse(ContractModel):

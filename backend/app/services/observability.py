@@ -65,6 +65,54 @@ def _empty_status_classes() -> dict[str, int]:
     return {f"{value}xx": 0 for value in range(1, 6)}
 
 
+# 固定对数桶上界 (ms): 覆盖 <1ms 到 >1min, 桶数有界 → 内存不随请求量增长。
+# 分位数由累计计数定位目标桶后在桶内线性插值, 误差受桶宽约束 (低延迟段更密)。
+_DURATION_BUCKET_BOUNDS_MS: tuple[float, ...] = (
+    1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 34.0, 55.0, 89.0,
+    150.0, 250.0, 400.0, 650.0, 1000.0, 1600.0, 2600.0, 4200.0,
+    7000.0, 11000.0, 18000.0, 30000.0, 60000.0,
+)
+
+
+def _new_duration_histogram() -> list[int]:
+    # 末桶为溢出桶 (> 最大上界)。
+    return [0] * (len(_DURATION_BUCKET_BOUNDS_MS) + 1)
+
+
+def _record_duration_bucket(histogram: list[int], duration_ms: float) -> None:
+    for index, bound in enumerate(_DURATION_BUCKET_BOUNDS_MS):
+        if duration_ms <= bound:
+            histogram[index] += 1
+            return
+    histogram[-1] += 1
+
+
+def _percentile_from_histogram(
+    histogram: list[int],
+    total: int,
+    quantile: float,
+    observed_max_ms: float,
+) -> float | None:
+    """Linear-interpolated percentile within the target bucket; capped at observed max."""
+    if total <= 0:
+        return None
+    target = quantile * total
+    cumulative = 0
+    lower = 0.0
+    for index, bound in enumerate(_DURATION_BUCKET_BOUNDS_MS):
+        count = histogram[index]
+        if count and cumulative + count >= target:
+            span = bound - lower
+            within = (target - cumulative) / count
+            estimate = lower + span * within
+            return round(min(estimate, observed_max_ms), 3)
+        cumulative += count
+        lower = bound
+    # 落在溢出桶: 用观测最大值作为上界估计。
+    return round(observed_max_ms, 3)
+
+
+
 class _HttpMetrics:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -86,6 +134,7 @@ class _HttpMetrics:
             "status_classes": _empty_status_classes(),
             "duration_sum_ms": 0.0,
             "duration_max_ms": 0.0,
+            "duration_histogram": _new_duration_histogram(),
         }
 
     def begin(self) -> None:
@@ -102,9 +151,41 @@ class _HttpMetrics:
     ) -> None:
         with self._lock:
             self._in_flight = max(0, self._in_flight - 1)
-            route_entry = self._routes.setdefault((method, route), self._new_entry())
-            self._record(self._totals, status_code, duration_ms)
-            self._record(route_entry, status_code, duration_ms)
+            self._observe_locked(
+                method=method,
+                route=route,
+                status_code=status_code,
+                duration_ms=duration_ms,
+            )
+
+    def observe(
+        self,
+        *,
+        method: str,
+        route: str,
+        status_code: int,
+        duration_ms: float,
+    ) -> None:
+        """Record a completed exchange without touching the in-flight gauge."""
+        with self._lock:
+            self._observe_locked(
+                method=method,
+                route=route,
+                status_code=status_code,
+                duration_ms=duration_ms,
+            )
+
+    def _observe_locked(
+        self,
+        *,
+        method: str,
+        route: str,
+        status_code: int,
+        duration_ms: float,
+    ) -> None:
+        route_entry = self._routes.setdefault((method, route), self._new_entry())
+        self._record(self._totals, status_code, duration_ms)
+        self._record(route_entry, status_code, duration_ms)
 
     @staticmethod
     def _record(entry: dict[str, Any], status_code: int, duration_ms: float) -> None:
@@ -116,19 +197,25 @@ class _HttpMetrics:
         entry["status_classes"][status_class] += 1
         entry["duration_sum_ms"] += duration_ms
         entry["duration_max_ms"] = max(entry["duration_max_ms"], duration_ms)
+        _record_duration_bucket(entry["duration_histogram"], duration_ms)
 
     @staticmethod
     def _serialize_entry(entry: dict[str, Any]) -> dict[str, Any]:
         requests = int(entry["requests"])
         duration_sum_ms = float(entry["duration_sum_ms"])
+        duration_max_ms = float(entry["duration_max_ms"])
+        histogram = entry["duration_histogram"]
         return {
             "requests": requests,
             "errors": int(entry["errors"]),
             "status_classes": dict(entry["status_classes"]),
             "duration_ms": {
                 "sum": round(duration_sum_ms, 3),
-                "max": round(float(entry["duration_max_ms"]), 3),
+                "max": round(duration_max_ms, 3),
                 "average": round(duration_sum_ms / requests, 3) if requests else 0.0,
+                "p50": _percentile_from_histogram(histogram, requests, 0.50, duration_max_ms),
+                "p95": _percentile_from_histogram(histogram, requests, 0.95, duration_max_ms),
+                "p99": _percentile_from_histogram(histogram, requests, 0.99, duration_max_ms),
             },
         }
 
@@ -169,6 +256,22 @@ def http_metrics_snapshot() -> dict[str, Any]:
 def reset_http_metrics() -> None:
     """Reset process-local counters. Intended for tests and controlled diagnostics."""
     _http_metrics.reset()
+
+
+def observe_http_duration(
+    *,
+    method: str,
+    route: str,
+    status_code: int,
+    duration_ms: float,
+) -> None:
+    """Record one completed request's latency outside the ASGI middleware path."""
+    _http_metrics.observe(
+        method=method,
+        route=route,
+        status_code=status_code,
+        duration_ms=duration_ms,
+    )
 
 
 async def request_id_server_error(

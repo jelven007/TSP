@@ -190,6 +190,7 @@ export function startBacktest(params: {
   fees_pct?: number
   commission_pct?: number
   stamp_tax_pct?: number
+  strict_research?: boolean
   slippage_bps?: number
   max_positions?: number
   max_exposure_pct?: number
@@ -224,6 +225,7 @@ export function startBacktest(params: {
     fees_pct: params.fees_pct,
     commission_pct: params.commission_pct,
     stamp_tax_pct: params.stamp_tax_pct,
+    strict_research: params.strict_research,
     slippage_bps: params.slippage_bps,
     max_positions: params.max_positions,
     max_exposure_pct: params.max_exposure_pct,
