@@ -9,8 +9,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
-_RUSTDX_CRATE_VERSION = "1.12.0"
-_RUSTDX_SOURCE_REV = "fac771a18cd218c90852254e59b040874d156722"
+_RUSTDX_CRATE_VERSION = "1.12.2"
+_RUSTDX_SOURCE_REV = "904b33e514d4e368e633622c96a9e63af8a53d37"
 _MAX_CONNECTIONS = 35
 _DEFAULT_SERVER = "117.34.114.13:7709"
 _NATIVE_LOCK = threading.Lock()
@@ -70,7 +70,7 @@ def availability() -> tuple[bool, str]:
         return False, "rustdx 原生桥接依赖版本与项目锁定版本不一致"
     return (
         True,
-        f"rustdx-complete {_RUSTDX_CRATE_VERSION} "
+        f"jelven-rustdx-complete {_RUSTDX_CRATE_VERSION} "
         f"(jelven007/rustdx@{_RUSTDX_SOURCE_REV[:7]}) / bridge {version}",
     )
 

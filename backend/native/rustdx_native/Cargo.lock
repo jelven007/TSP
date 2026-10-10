@@ -161,6 +161,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "jelven-rustdx-complete"
+version = "1.12.2"
+source = "git+https://github.com/jelven007/rustdx.git?rev=904b33e514d4e368e633622c96a9e63af8a53d37#904b33e514d4e368e633622c96a9e63af8a53d37"
+dependencies = [
+ "chrono",
+ "encoding_rs",
+ "log",
+ "miniz_oxide",
+ "serde",
+ "thiserror",
+ "trade_date_a",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -321,20 +335,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustdx-complete"
-version = "1.12.0"
-source = "git+https://github.com/jelven007/rustdx.git?rev=fac771a18cd218c90852254e59b040874d156722#fac771a18cd218c90852254e59b040874d156722"
-dependencies = [
- "chrono",
- "encoding_rs",
- "log",
- "miniz_oxide",
- "serde",
- "thiserror",
- "trade_date_a",
-]
-
-[[package]]
 name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -378,9 +378,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.151"
+version = "1.0.152"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+checksum = "1741ab7a6cc54a03a89b5d563ed60075c277d9e3cfa73ad0c1f23f23974703c6"
 dependencies = [
  "itoa",
  "memchr",
@@ -468,8 +468,8 @@ dependencies = [
 name = "tsp-rustdx-native"
 version = "0.1.0"
 dependencies = [
+ "jelven-rustdx-complete",
  "pyo3",
- "rustdx-complete",
  "serde",
  "serde_json",
 ]
