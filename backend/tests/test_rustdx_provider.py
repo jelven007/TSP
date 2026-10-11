@@ -382,6 +382,58 @@ def test_counted_full_minute_repair_reports_zero_requests_for_empty_universe(nat
     assert native.bar_calls == []
 
 
+@pytest.mark.parametrize("requests", [0, 3])
+def test_counted_bars_raise_protocol_failure_even_with_returned_rows(native, requests):
+    rows = json.loads(native.bars_json(1, "600519", 8, 0, 3, False))
+    native.bars_json = lambda *args, **kwargs: json.dumps({
+        "rows": rows, "requests": requests, "error": "injected protocol failure",
+    })
+
+    with pytest.raises(RustdxError, match="injected protocol failure") as caught:
+        RustdxClient().bars_with_count("600519.SH", frequency=8, offset=3)
+
+    assert caught.value.requests == requests
+
+
+def test_counted_bars_successfully_empty_is_not_protocol_failure(native):
+    native.bars_json = lambda *args, **kwargs: json.dumps({
+        "rows": [], "requests": 1, "error": None,
+    })
+    assert RustdxClient().bars_with_count("600519.SH", frequency=8, offset=3) == ([], 1)
+
+
+@pytest.mark.parametrize(
+    "method", ["get_intraday_latest_with_count", "get_intraday_batch_with_count"],
+)
+@pytest.mark.parametrize("workers", [1, 2])
+def test_counted_minutes_reject_failed_window_and_preserve_all_request_counts(
+    native, monkeypatch, method, workers,
+):
+    from app.plugins.rustdx import provider as provider_module
+
+    monkeypatch.setenv("RUSTDX_WORKERS", str(workers))
+    monkeypatch.setattr(provider_module, "cn_now", lambda: datetime(2026, 10, 9, 15, 1))
+    bars = native.bars_json
+
+    def counted(market, code, *args, **kwargs):
+        rows = json.loads(bars(market, code, *args))
+        return json.dumps({
+            "rows": [] if code == "000001" else rows,
+            "requests": 3 if code == "000001" else 1,
+            "error": "injected protocol failure" if code == "000001" else None,
+        })
+
+    native.bars_json = counted
+    symbols = ["600519.SH", "000001.SZ", "300750.SZ", "600000.SH", "000002.SZ"]
+    with pytest.raises(RustdxError, match=r"000001\.SZ") as caught:
+        getattr(RustdxProvider(), method)(symbols)
+
+    assert caught.value.requests == workers * 2 + 2
+    assert {call[1] for call in native.bar_calls} == {
+        symbol.split(".")[0] for symbol in symbols[:workers * 2]
+    }
+
+
 def test_plugin_covers_all_core_datasets_and_is_default_provider():
     plugins = {plugin["name"]: plugin for plugin in custom_sources.list_plugins()}
 

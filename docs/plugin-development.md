@@ -241,6 +241,9 @@ provider 不应自行切换或回退到其他数据源。
 > - `get_intraday_latest_with_count(symbols, count=3)` /
 >   `get_intraday_batch_with_count(symbols)` — 可选，返回 `(DataFrame, requests)`，
 >   请求数统计本次调用的实际协议请求及重试；未实现时沿用既有估算。
+>   协议失败必须抛异常，不能用部分帧表示成功；异常可携带 `requests` 保存已执行
+>   的请求数。边界层转换为 `MinuteFetchError`，刷新服务保留错误和请求数，
+>   不落盘、不增加成功轮数、不更新最后成功时间；完整成功轮后恢复健康。
 >
 > 两个方法的返回帧都过 `_enforce_minute_beijing_wallclock` 时区守卫(与
 > `get_minute` 同纪律);失败抛异常或返回空 df 均按空轮处理,连续空轮触发
