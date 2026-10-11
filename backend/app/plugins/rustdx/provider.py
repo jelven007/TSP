@@ -678,13 +678,14 @@ class RustdxProvider:
         if not supported:
             return []
         names = self._name_map() if include_names else {}
-        fetched_ms = int(time.time() * 1000)
+        request_started_ms = int(time.time() * 1000)
         result: list[dict] = []
         try:
             rows = self._persistent_quotes(supported, operation="实时行情")
         except RustdxError as exc:
             logger.warning("%s 实时行情连接失败: %s", self.name, exc)
             return []
+        received_ms = int(time.time() * 1000)
         supported_set = set(supported)
         for row in rows:
             market = row.get("market")
@@ -719,7 +720,12 @@ class RustdxProvider:
                 "change_amount": change,
                 "amplitude": None,
                 "turnover_rate": None,
-                "timestamp": fetched_ms,
+                "timestamp": received_ms,
+                "timestamp_basis": "received",
+                "request_started_at": request_started_ms,
+                "received_at": received_ms,
+                "source_timestamp": None,
+                "source_time": str(row.get("servertime") or "") or None,
                 "session": None,
             }
             if include_depth:
@@ -728,7 +734,6 @@ class RustdxProvider:
                     "bid1_volume": _to_float(row.get("bid_vol1")),
                     "ask1": _to_float(row.get("ask1")),
                     "ask1_volume": _to_float(row.get("ask_vol1")),
-                    "source_time": str(row.get("servertime") or "") or None,
                 })
             result.append(record)
         return result
@@ -756,13 +761,14 @@ class RustdxProvider:
         ]
         if not supported:
             return {}
-        fetched_ms = int(time.time() * 1000)
+        request_started_ms = int(time.time() * 1000)
         result: dict[str, dict] = {}
         try:
             rows = self._persistent_quotes(supported, operation="五档")
         except RustdxError as exc:
             logger.warning("%s 五档连接失败: %s", self.name, exc)
             return {}
+        received_ms = int(time.time() * 1000)
         supported_set = set(supported)
         for row in rows:
             market = row.get("market")
@@ -787,7 +793,12 @@ class RustdxProvider:
                     _to_float(row.get(f"bid_vol{level}"))
                     for level in range(1, 6)
                 ],
-                "timestamp": fetched_ms,
+                "timestamp": received_ms,
+                "timestamp_basis": "received",
+                "request_started_at": request_started_ms,
+                "received_at": received_ms,
+                "source_timestamp": None,
+                "source_time": str(row.get("servertime") or "") or None,
             }
         return result
 
@@ -1130,8 +1141,15 @@ class RustdxProvider:
                 if on_chunk_done:
                     on_chunk_done(done, len(valid))
 
-    def get_intraday_latest(self, symbols, count=3, asset_type="stock") -> pl.DataFrame:
+    def get_intraday_latest(
+        self,
+        symbols: list[str] | None = None,
+        count: int = 3,
+        asset_type: str = "stock",
+    ) -> pl.DataFrame:
         del asset_type
+        if symbols is None:
+            symbols = [row["symbol"] for row in self.get_instruments("stock")]
         valid = [symbol for symbol in symbols if _symbol(symbol)]
         if not valid:
             return pl.DataFrame()

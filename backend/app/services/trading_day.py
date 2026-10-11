@@ -1,26 +1,9 @@
 """交易日探针 (oracle) — 回答「今天是否 A 股交易日」。
 
-消费方 (实时行情轮询 / 盘中分钟增量) 在周几+时段门控之后调用, 用于把
-「工作日但休市」的节假日从轮询窗口里剔除; 返回 None (未知) 时调用方
-维持现状行为 (周几近似 + 快照新鲜度判据兜底), 不引入新依赖。
-
-探测链 (按当前实时数据源路由, 不跨源):
-  1. 自定义源优先使用 trading_days(); 未提供时用该源指数日线的最新日期。
-     今天有指数日线 ⇔ 交易日；开盘缓冲窗内若仍停在昨日则返回未知。
-  2. 明确选择 tickflow 时才用实时行情时间戳: 拉一篮流动性票快照,
-     max(timestamp)
-     日期 == 今天 ⇔ 交易日。非交易日全市场戳停在上一交易日 (2026-08-29 周六
-     实测 5551/5551, 含停牌股 — 戳是快照定版时刻, 非最后成交时刻);
-     交易日集合竞价阶段 (9:15-9:30) 戳是否已翻新未实测 → 开盘缓冲窗内
-     戳过期不作数, 保守视为未知。
-  3. 均不可用 → None: 调用方按周几近似继续。
-
-安全约束:
-  - 周末直接返回 False (周几判断零成本, 不打任何请求)。
-  - 探针是纯读: 只产出一个布尔判定, 不落盘、不进行情管道、不碰归属链路。
-  - 只用于「降档」(休市不轮询); 休市结论 TTL 较短 (30 分钟) 定期复探,
-    探针误判最坏损失一段快照且可自愈; 未知结论短 TTL (5 分钟) 防止
-    轮询循环每拍重打失败的探测。
+优先使用版本化的交易所休市安排。未覆盖年份按当前实时源探测, 不跨源:
+完整覆盖目标日期的 provider 日历可以判定休市; 当日指数 K 或可信快照可证明
+交易。旧行情只能说明源端未更新, 不能证明休市, 因此返回 None。
+盘中采集可在未知时保留诊断; 自动盘后定版必须取得 True。本模块不落盘。
 """
 
 from __future__ import annotations
@@ -28,13 +11,9 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, time as dt_time, timedelta
+from datetime import datetime, timedelta
 
-from app.market_time import CN_TZ, cn_now
-
-# tickflow 戳探针的开盘缓冲窗: 此时刻之前戳仍是上一交易日属正常 (集合竞价),
-# 不据此判休市。周一实测竞价戳翻新时机后可收紧。仅上午首个窗口需要。
-_STALE_BUFFER_UNTIL = dt_time(9, 40)
+from app.market_time import CN_TZ, as_cn_datetime, cn_now, published_trading_day
 
 # 一篮流动性票: 探 max(timestamp), 任一戳为今日即交易日 (OR 语义)。
 # 大盘蓝筹同日全部停牌 = 市场性事件, 与休市同处理无碍。
@@ -50,6 +29,7 @@ _CACHE_LOCK = threading.Lock()
 @dataclass
 class _Cache:
     day: object | None = None
+    provider: str | None = None
     verdict: bool | None = None
     probed_at: float = 0.0
 
@@ -61,6 +41,7 @@ def reset_cache() -> None:
     """清空探针缓存 (测试用)。"""
     with _CACHE_LOCK:
         _CACHE.day = None
+        _CACHE.provider = None
         _CACHE.verdict = None
         _CACHE.probed_at = 0.0
 
@@ -82,7 +63,12 @@ def _probe_fuyao(now: datetime) -> bool | None:
         trading_days = getattr(provider, "trading_days", None)
         if callable(trading_days):
             days = trading_days()
-            return now.date() in days if days else None
+            if days and now.date() in days:
+                return True
+            # 历史日期集合不能推断最后一日之后的未来休市安排。
+            if days and min(days) <= now.date() <= max(days):
+                return False
+            return None
 
         if not custom_sources.provider_has_dataset(provider_name, "daily"):
             return None
@@ -97,9 +83,7 @@ def _probe_fuyao(now: datetime) -> bool | None:
         latest = frame["date"].max()
         if latest == now.date():
             return True
-        if now.time() < _STALE_BUFFER_UNTIL:
-            return None
-        return False
+        return None
     except Exception:  # noqa: BLE001 — 探针失败按未知处理, 不上抛
         return None
 
@@ -107,7 +91,7 @@ def _probe_fuyao(now: datetime) -> bool | None:
 def _probe_tickflow(now: datetime) -> bool | None:
     """tickflow 行情时间戳: max(timestamp) 日期 == 今天 ⇔ 交易日。
 
-    戳停在上一交易日: 开盘缓冲窗内 → None (可能是竞价未翻新), 窗后 → False。
+    戳停在上一交易日: None (可能是源端延迟或缓存, 不能反证休市)。
     无实时权限 / 网络失败 / 无有效戳 → None。
     """
     try:
@@ -124,9 +108,7 @@ def _probe_tickflow(now: datetime) -> bool | None:
         latest_day = datetime.fromtimestamp(max(valid) / 1000, tz=CN_TZ).date()
         if latest_day == now.date():
             return True
-        if now.time() < _STALE_BUFFER_UNTIL:
-            return None
-        return False
+        return None
     except Exception:  # noqa: BLE001 — 无权限/网络失败按未知处理
         return None
 
@@ -134,12 +116,15 @@ def _probe_tickflow(now: datetime) -> bool | None:
 def is_trading_day(now: datetime | None = None) -> bool | None:
     """今天是否 A 股交易日。True=交易日, False=确定休市, None=未知 (维持周几近似)。
 
-    周末零成本直判; 工作日走探测链 (fuyao 日历 → tickflow 时间戳),
-    结论按 TTL 缓存。线程安全: 实时行情与分钟增量两个线程共用。
+    公布的休市表零请求判断; 覆盖外使用当前源证据, 按日期、源及 TTL 缓存。
     """
-    now = now or cn_now()
-    if now.weekday() >= 5:
-        return False
+    from app.services import preferences
+
+    now = as_cn_datetime(now or cn_now())
+    published = published_trading_day(now.date())
+    if published is not None:
+        return published
+    provider_name = preferences.get_realtime_data_provider()
 
     with _CACHE_LOCK:
         # 「未知」(None) 也是一个结论, 同样按 TTL 缓存 —— 它正是 _TTL_UNKNOWN_S 要
@@ -147,6 +132,7 @@ def is_trading_day(now: datetime | None = None) -> bool | None:
         # _CACHE.day 只在探测写回时设置, 因此「当天已探过」用它判定即可。
         if (
             _CACHE.day == now.date()
+            and _CACHE.provider == provider_name
             and (time.monotonic() - _CACHE.probed_at) < _ttl_of(_CACHE.verdict)
         ):
             return _CACHE.verdict
@@ -157,6 +143,7 @@ def is_trading_day(now: datetime | None = None) -> bool | None:
 
     with _CACHE_LOCK:
         _CACHE.day = now.date()
+        _CACHE.provider = provider_name
         _CACHE.verdict = verdict
         _CACHE.probed_at = time.monotonic()
     return verdict

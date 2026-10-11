@@ -6,7 +6,9 @@
 """
 from __future__ import annotations
 
-from datetime import date, datetime, time as dt_time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from datetime import time as dt_time
+from functools import lru_cache
 
 CN_TZ = timezone(timedelta(hours=8))
 
@@ -35,9 +37,53 @@ def cn_today() -> date:
     return datetime.now(CN_TZ).date()
 
 
+def as_cn_datetime(value: datetime) -> datetime:
+    """显式时区转北京; 兼容既有北京墙钟 naive 输入。"""
+    return value.astimezone(CN_TZ) if value.tzinfo else value.replace(tzinfo=CN_TZ)
+
+
+# 上证公告(2025)45号, 2025-12-22 发布; 覆盖 2026 全年沪深 A 股。
+# https://www.sse.com.cn/disclosure/dealinstruc/closed/
+# 不使用行政调休工作日: 周六/周日即使补班也不交易。
+TRADING_CALENDAR_VERSION = "SSE-2026-20251222"
+_PUBLISHED_HOLIDAYS = {
+    2026: (
+        (date(2026, 1, 1), date(2026, 1, 3)),
+        (date(2026, 2, 15), date(2026, 2, 23)),
+        (date(2026, 4, 4), date(2026, 4, 6)),
+        (date(2026, 5, 1), date(2026, 5, 5)),
+        (date(2026, 6, 19), date(2026, 6, 21)),
+        (date(2026, 9, 25), date(2026, 9, 27)),
+        (date(2026, 10, 1), date(2026, 10, 7)),
+    ),
+}
+
+
+def published_trading_day(day: date) -> bool | None:
+    """版本化休市安排; 未覆盖年份返回未知, 不猜测法定假日。"""
+    if day.weekday() >= 5:
+        return False
+    holidays = _PUBLISHED_HOLIDAYS.get(day.year)
+    if holidays is None:
+        return None
+    return not any(start <= day <= end for start, end in holidays)
+
+
+@lru_cache(maxsize=4)
+def published_trading_days(year: int) -> frozenset[date] | None:
+    """返回公布年份的完整交易日集合, 供无网络健康检查使用。"""
+    if year not in _PUBLISHED_HOLIDAYS:
+        return None
+    start, end = date(year, 1, 1), date(year + 1, 1, 1)
+    return frozenset(
+        day for offset in range((end - start).days)
+        if published_trading_day(day := start + timedelta(days=offset))
+    )
+
+
 def in_continuous_session(now: datetime | None = None) -> bool:
     """A股连续竞价时段 (北京时间): 9:30-11:30 / 13:00-15:00, 仅工作日。"""
-    now = now or cn_now()
+    now = as_cn_datetime(now or cn_now())
     return now.weekday() < 5 and (
         _MORNING_START <= now.time() <= _MORNING_END
         or _AFTERNOON_START <= now.time() <= _AFTERNOON_END
@@ -49,7 +95,7 @@ def in_intraday_polling_window(now: datetime | None = None) -> bool:
 
     节假日由调用方通过交易日探针判断; 本函数只负责北京时间、周末和双时段边界。
     """
-    now = now or cn_now()
+    now = as_cn_datetime(now or cn_now())
     return now.weekday() < 5 and (
         _INTRADAY_POLL_MORNING_START <= now.time() < _INTRADAY_POLL_MORNING_END
         or _INTRADAY_POLL_AFTERNOON_START <= now.time() < _INTRADAY_POLL_AFTERNOON_END
@@ -63,6 +109,7 @@ def trading_minutes_elapsed_from_dt(dt: datetime) -> float:
     - 开盘前 = 0; 午休(11:30-13:00) = 120(保持上午累计); 收盘后 = 240。
     - 非交易日(周末) = 240 (视作全天, 避免量比被折算成 0)。
     """
+    dt = as_cn_datetime(dt)
     if dt.weekday() >= 5:
         return float(_TRADING_TOTAL_MINUTES)
     t = dt.time()

@@ -160,6 +160,9 @@ class MyProvider:
 
     def get_intraday_latest(self, symbols=None, count=3) -> pl.DataFrame:
         """(可选, full_minute 稳态增量轮) 尽量单请求返回全市场每只最新 count 根;
+        服务显式传入当日股票池 symbols; 空股票池不发请求。
+        兼容旧的 count-only 方法, 返回结果仍限制在服务股票池内。
+        symbols=None 仅供 provider 独立调用时使用其默认目录。
         未实现则服务降级为仅修复轮 (节奏下限 60s)。"""
 
     def get_realtime(self) -> list[dict]:
@@ -269,9 +272,18 @@ provider 不应自行切换或回退到其他数据源。
 | `amount` | 建议 | 成交额(元) |
 | `change_pct` | 建议 | **小数制**; 缺失时下游按 change_amount/prev_close 推导 |
 | `change_amount` | 建议 | 涨跌额(元) |
-| `timestamp` | 建议 | 毫秒; 优先用服务端时间(行情归属), 缺失退本地时间 |
+| `timestamp` | 建议 | epoch 毫秒; 若使用本地接收时间，必须同时声明 `timestamp_basis=received` |
+| `timestamp_basis` | 本地时钟必需 | `source_snapshot` / `source_event` / `received`；未声明的旧插件按源端快照契约兼容 |
+| `request_started_at` / `received_at` | 建议 | 本地请求开始及响应接收的 epoch 毫秒，不作为源端日期或收盘证据 |
 | `name` | 可选 | 快照无名称时置 None, 下游用标的维表关联 |
 | `amplitude` / `turnover_rate` / `session` | 可选 | 缺失置 None, 不启发式伪造; turnover_rate 入口为小数制 |
+| `source_time` | 秒级研究建议 | 源返回的时间原文；rustdx 为不带日期的单证券最后事件时间，不是批次时间 |
+| `source_timestamp` | 可选 | 源显式返回的 epoch 毫秒；没有则留空，不填本地采集时间 |
+
+收盘确认逐条检查源端快照时间属于目标交易日且达到收盘边界。本地接收时间、
+无日期事件时间和研究归档推断出的日期都不能确认定版；源端缺少证据时保留未确认状态，
+交由盘后源端日线同步校正。盘中日线保留 `quote_time_basis`，完整性检查不能把
+本地接收时间或未知时间当作权威历史。已有未带标记的历史分区仍按旧契约读取。
 
 ### config.datasets 的作用
 

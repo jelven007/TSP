@@ -4,7 +4,8 @@
 盘后管道的「今天已有数据 → 只刷今天」分支会让停机日的盘中快照永久留存
 (close=停机时刻价, volume=半日累计, 技术指标全错且污染后续 lookback 类指标)。
 
-判据 (quote_ts 列, 毫秒 Unix 时间戳, 仅实时 flush 写入真实值):
+判据 (quote_ts 毫秒时间戳 + 可选 quote_time_basis):
+- quote_time_basis 非 source_snapshot → 未确认源端时间的临时数据, 不能按收盘时间定版
 - null              → batch 拉取 / 盘后计算写入的权威历史 → 完整
 - d < 今天 且 时刻 < d 15:00 → 盘中快照 (停机前实时写的) → 坏
 - d < 今天 且 时刻 ≥ d 15:00 → 尾盘定版 (close_final) → 完整
@@ -30,7 +31,7 @@ from pathlib import Path
 
 import polars as pl
 
-from app.market_time import CN_TZ
+from app.market_time import CN_TZ, published_trading_day
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,19 @@ def _partition_is_snapshot(day: date, part_dir: Path, quote_ts_max_ms: int | Non
     孤立行。若分区已有 batch 行, 且当日收盘前的实时行全部零成交, 则它们不应
     让整个分区反复进入修复。整分区都是实时行时仍按快照处理, 包括盘前零成交。
     """
-    if not _is_snapshot(day, quote_ts_max_ms):
+    # 新版本地接收时钟即使过了 15:00 也不是收盘证据; 旧分区仍按原契约读取。
+    has_unconfirmed_clock = False
+    for path in sorted(part_dir.glob("*.parquet")):
+        try:
+            if "quote_time_basis" in pl.read_parquet_schema(path):
+                bases = pl.read_parquet(path, columns=["quote_time_basis"])["quote_time_basis"]
+                if (bases != "source_snapshot").fill_null(False).any():
+                    has_unconfirmed_clock = True
+                    break
+        except Exception as exc:
+            logger.warning("quote clock scan failed %s: %s", path, exc)
+            return True
+    if not has_unconfirmed_clock and not _is_snapshot(day, quote_ts_max_ms):
         return False
 
     start_ms = int(datetime.combine(day, dt_time.min, tzinfo=CN_TZ).timestamp() * 1000)
@@ -134,15 +147,22 @@ def _partition_is_snapshot(day: date, part_dir: Path, quote_ts_max_ms: int | Non
             if "quote_ts" not in schema:
                 continue
             columns = [
-                name for name in ("quote_ts", "volume", "amount")
+                name for name in ("quote_ts", "quote_time_basis", "volume", "amount")
                 if name in schema
             ]
             frame = pl.read_parquet(path, columns=columns).with_columns(
                 pl.col("quote_ts").cast(pl.Int64, strict=False),
             )
-            authoritative_rows += frame["quote_ts"].null_count()
+            unconfirmed = (
+                (pl.col("quote_time_basis") != "source_snapshot").fill_null(False)
+                if "quote_time_basis" in frame.columns else pl.lit(False)
+            )
+            authoritative_rows += frame.filter(
+                pl.col("quote_ts").is_null() & ~unconfirmed,
+            ).height
             suspicious = frame.filter(
                 pl.col("quote_ts").is_between(start_ms, cutoff_ms, closed="left")
+                | unconfirmed
             )
             if suspicious.is_empty():
                 continue
@@ -171,15 +191,22 @@ def _partition_is_snapshot(day: date, part_dir: Path, quote_ts_max_ms: int | Non
 def _candidate_days(today: date, lookback_days: int) -> list[date]:
     """最近 lookback_days 自然日内、严格早于今天的交易日。
 
-    当前日线源交易日历可用时按真实日历过滤 (休市日不进候选, 消除节假日误报 —
-    2026 中秋 09-25 休市日曾被当缺失日, realtime_gate 409 死锁);
-    从未取到日历时回退工作日近似 (历史行为)。
+    优先使用公布的年度日历, 覆盖外使用当前日线源历史日期。
+    未覆盖且从未取到日历时保留旧的工作日近似, 不伪装成完整日历。
     """
-    calendar = _trading_calendar()
+    candidates = [today - timedelta(days=offset) for offset in range(1, lookback_days + 1)]
+    # 公布年份无需启动网络日历探针; 覆盖外才查 provider 的历史日期。
+    calendar = (
+        _trading_calendar()
+        if any(published_trading_day(d) is None for d in candidates) else None
+    )
     days: list[date] = []
-    for offset in range(1, lookback_days + 1):
-        d = today - timedelta(days=offset)
-        if calendar is not None:
+    for d in candidates:
+        published = published_trading_day(d)
+        if published is not None:
+            if published:
+                days.append(d)
+        elif calendar is not None:
             if d in calendar:
                 days.append(d)
         elif d.weekday() < 5:

@@ -127,6 +127,72 @@ def test_normal_poll_ignores_boundary(service) -> None:
     assert events["enriched"] == 1
 
 
+@pytest.mark.parametrize("basis", ["received", "source_event", "unknown"])
+def test_local_or_event_time_does_not_confirm_close(service, basis):
+    qs, repo, events = service
+    boundary = _beijing_ms(15, 0)
+    record = {**_record(boundary + 30_000), "timestamp_basis": basis}
+    qs._process_full_market_records(
+        [record], t0=0.0, now_ts=0.0, final_boundary_ms=boundary,
+    )
+    assert qs._last_final_confirmed is False
+    assert repo.calls == []
+    assert events["enriched"] == 0
+
+
+def test_explicit_source_timestamp_overrides_receive_clock(service):
+    qs, repo, _ = service
+    boundary = _beijing_ms(15, 0)
+    record = {
+        **_record(boundary + 60_000), "timestamp_basis": "received",
+        "source_timestamp": boundary - 60_000,
+    }
+    qs._process_full_market_records(
+        [record], t0=0.0, now_ts=0.0, final_boundary_ms=boundary,
+    )
+    assert qs._last_final_confirmed is False
+    assert repo.calls == []
+
+
+@pytest.mark.parametrize("offset", [86_400_000, -86_400_000])
+def test_another_days_timestamp_never_confirms_today(service, offset):
+    qs, repo, _ = service
+    boundary = _beijing_ms(15, 0)
+    qs._process_full_market_records(
+        [_record(boundary + offset)], t0=0.0, now_ts=0.0, final_boundary_ms=boundary,
+    )
+    assert qs._last_final_confirmed is False
+    assert repo.calls == []
+
+
+def test_one_fresh_record_cannot_hide_stale_records(service):
+    qs, repo, _ = service
+    boundary = _beijing_ms(15, 0)
+    records = [
+        _record(boundary + 30_000),
+        {**_record(boundary - 60_000), "symbol": "600000.SH"},
+    ]
+    qs._process_full_market_records(
+        records, t0=0.0, now_ts=0.0, final_boundary_ms=boundary,
+    )
+    assert qs._last_final_confirmed is False
+    assert repo.calls == []
+
+
+def test_manual_refresh_after_1515_still_requires_close_evidence(service, monkeypatch):
+    qs, _, _ = service
+    monkeypatch.setattr(qs, "_holiday_gate", lambda: True)
+    monkeypatch.setattr(
+        qs_module, "cn_now",
+        lambda: datetime.combine(cn_today(), dt_time(16, 0), tzinfo=CN_TZ),
+    )
+    calls = []
+    monkeypatch.setattr(qs, "_fetch_quotes", lambda **kw: calls.append(kw))
+    monkeypatch.setattr(qs, "status", dict)
+    qs.refresh()
+    assert calls == [{"final": True, "final_boundary_ms": _beijing_ms(15, 0)}]
+
+
 def test_final_boundary_ms_matches_beijing_close(monkeypatch) -> None:
     fake_now = datetime.combine(cn_today(), dt_time(15, 10), tzinfo=CN_TZ)
     monkeypatch.setattr(qs_module, "cn_now", lambda: fake_now)

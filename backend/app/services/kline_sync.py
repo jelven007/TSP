@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import contextlib
+import inspect
 import logging
 import shutil
 import threading
@@ -1440,28 +1441,40 @@ def fetch_intraday_custom_latest(
     provider: object,
     provider_name: str,
     *,
+    symbols: list[str] | None = None,
     count: int = 3,
 ) -> tuple[pl.DataFrame, int] | None:
     """自定义源全量分钟稳态增量轮 (不落盘)。
 
-    provider 可选实现 get_intraday_latest(symbols=None, count) → 每只标的最新
-    count 根分钟K, 尽量单请求/低请求量 (TickFlow 的 intraday.universe 同义)。
+    显式传递服务股票池; 旧的 count-only provider 在调用前按签名识别,
+    返回结果仍限制在股票池内。不能在请求后的 TypeError 上重试, 以免重复取数。
     未实现返回 None — 调用方降级为仅修复轮模式。失败返回 (空 df, 0) 按空轮处理。
     """
     method = getattr(provider, "get_intraday_latest", None)
     if not callable(method):
         return None
+    from app.market_scope import filter_market_frame, removed_market_symbol
+
+    if symbols is not None:
+        symbols = list(dict.fromkeys(s for s in symbols if not removed_market_symbol(s)))
+        if not symbols:
+            return (pl.DataFrame(), 0)
     try:
-        df = method(count=count)
+        parameters = inspect.signature(method).parameters
+        accepts_symbols = "symbols" in parameters or any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters.values()
+        )
+        df = method(symbols=symbols, count=count) if accepts_symbols else method(count=count)
     except Exception as e:  # noqa: BLE001
         logger.warning("custom full_minute latest via %s failed: %s", provider_name, e)
         return (pl.DataFrame(), 0)
     try:
         df = _enforce_minute_beijing_wallclock(df, source=provider_name)
+        if symbols is not None and not df.is_empty():
+            df = df.filter(pl.col("symbol").is_in(symbols))
     except Exception as e:  # noqa: BLE001
         logger.warning("custom full_minute datetime 契约校验失败 (%s): %s", provider_name, e)
         return (pl.DataFrame(), 0)
-    from app.market_scope import filter_market_frame
     return (filter_market_frame(df), 1)
 
 
