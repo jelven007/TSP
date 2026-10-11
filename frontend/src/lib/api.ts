@@ -1284,6 +1284,12 @@ export interface BacktestProvenance {
   config_hash: string
   strategy_hash: string | null
   release_error: string | null
+  research_inputs?: {
+    files: Record<string, { sha256: string; bytes: number } | null>
+    trading_calendar: { version: string; covered_years: number[]; sha256: string; unknown_year_policy: string }
+  } | null
+  research_inputs_error?: string | null
+  research_inputs_match_release?: boolean
   research_governance?: {
     strict: boolean
     cost_model_version: string
@@ -2385,6 +2391,7 @@ export const api = {
       provider_effective?: string
       repair_only?: boolean
       interval_seconds?: number
+      effective_interval_seconds?: number
       capability_ok?: boolean
       in_trading_hours?: boolean
       gate_reason?: string | null

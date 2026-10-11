@@ -59,7 +59,29 @@ TABLE_FAMILY = {
 class IntegrityIssue:
     day: date
     table: str
-    kind: str  # "snapshot"=盘中快照 | "missing"=分区缺失
+    kind: str  # snapshot=未定版 | missing=分区缺失 | coverage=已成交证券缺失
+
+
+def _daily_missing_traded_symbols(data_dir: Path, day: date) -> set[str]:
+    """Minute activity proves a daily gap without treating suspended stocks as missing."""
+    minute = data_dir / "kline_minute" / f"date={day}" / "part.parquet"
+    daily = data_dir / "kline_daily" / f"date={day}" / "part.parquet"
+    if not minute.exists() or not daily.exists():
+        return set()
+    try:
+        schema = pl.read_parquet_schema(minute)
+        if not {"symbol", "volume"} <= set(schema):
+            return set()
+        traded = (
+            pl.scan_parquet(minute)
+            .filter(pl.col("volume") > 0)
+            .select("symbol").unique().collect()
+        )
+        present = pl.read_parquet(daily, columns=["symbol"])
+        return set(traded["symbol"].to_list()) - set(present["symbol"].to_list())
+    except (OSError, pl.exceptions.PolarsError) as exc:
+        logger.warning("daily symbol coverage check failed for %s: %s", day, exc)
+        return set()
 
 
 def _quote_ts_max_ms(part_dir: Path) -> int | None:
@@ -206,7 +228,7 @@ def _candidate_days(today: date, lookback_days: int) -> list[date]:
         if published is not None:
             if published:
                 days.append(d)
-        elif calendar is not None:
+        elif calendar and min(calendar) <= d <= max(calendar):
             if d in calendar:
                 days.append(d)
         elif d.weekday() < 5:
@@ -223,18 +245,25 @@ def _candidate_days(today: date, lookback_days: int) -> list[date]:
 _CAL_TTL_S = 1800.0  # 成功/失败结论统一 30 分钟复取 (日历变化极稀疏)
 _CAL_LOCK = threading.Lock()
 _CAL: tuple[float, set[date] | None] = (0.0, None)  # (取数时刻, 交易日集合)
+_CAL_PROVIDER: str | None = None
 
 
 def reset_calendar_cache() -> None:
     """Clear the provider-owned trading calendar after a source change."""
-    global _CAL
+    global _CAL, _CAL_PROVIDER
     with _CAL_LOCK:
         _CAL = (0.0, None)
+        _CAL_PROVIDER = None
 
 
 def cached_trading_calendar() -> set[date]:
     """只读已获取的交易日证据; 健康探针不得触发 Provider 请求。"""
+    from app.services import preferences
+
+    provider_name = preferences.get_daily_data_provider()
     with _CAL_LOCK:
+        if _CAL_PROVIDER is not None and provider_name != _CAL_PROVIDER:
+            return set()
         return set(_CAL[1] or ())
 
 
@@ -245,18 +274,21 @@ def _trading_calendar() -> set[date] | None:
     没有独立日历时读取该源上证指数日线日期。线程安全 (gate / boot / 修复
     管道共用)。
     """
+    from app.services import preferences
+
+    provider_name = preferences.get_daily_data_provider()
     now = time.monotonic()
-    global _CAL
+    global _CAL, _CAL_PROVIDER
     with _CAL_LOCK:
+        if provider_name != _CAL_PROVIDER:
+            _CAL = (0.0, None)
+            _CAL_PROVIDER = provider_name
         fetched_at, cached = _CAL
         if fetched_at and now - fetched_at < _CAL_TTL_S:
             return cached
     fetched: set[date] | None = None
     try:
         from app.data_providers import custom as custom_sources
-        from app.services import preferences
-
-        provider_name = preferences.get_daily_data_provider()
         if custom_sources.is_custom_provider(provider_name):
             provider = custom_sources.get_provider(provider_name)
             trading_days = getattr(provider, "trading_days", None)
@@ -277,6 +309,9 @@ def _trading_calendar() -> set[date] | None:
     except Exception:  # noqa: BLE001 — 日历不可用不上抛, 回退 stale/近似
         fetched = None
     with _CAL_LOCK:
+        # A source switch during a slow fetch must not publish old-source data.
+        if provider_name != _CAL_PROVIDER or preferences.get_daily_data_provider() != provider_name:
+            return None
         _CAL = (now, fetched if fetched is not None else cached)
         return _CAL[1]
 
@@ -322,6 +357,8 @@ def scan_recent_integrity(
             quote_ts = _quote_ts_max_ms(part_dir)
             if _partition_is_snapshot(day, part_dir, quote_ts):
                 issues.append(IntegrityIssue(day=day, table=table, kind="snapshot"))
+            elif table == "kline_daily" and _daily_missing_traded_symbols(data_dir, day):
+                issues.append(IntegrityIssue(day=day, table=table, kind="coverage"))
 
     issues.sort(key=lambda i: (i.day, i.table))
     return issues

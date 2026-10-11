@@ -165,3 +165,47 @@ def test_financial_server_switch_uses_existing_slots():
         client.close()
         quotes.close()
         reports.close()
+
+
+def test_native_fails_over_to_configured_server_without_extra_sockets():
+    module = pytest.importorskip("tsp_rustdx_native")
+    broken = _Server(incomplete=True)
+    healthy = _Server()
+    client = module.RustdxClient(1, broken.address, 2, fallback_servers=[healthy.address])
+    try:
+        rows = json.loads(client.quotes_json([(0, "000001")]))
+        assert rows[0]["code"] == "000001"
+        stats = json.loads(client.stats_json())
+        assert stats["active_server"] == healthy.address
+        assert stats["retries"] == 1
+        assert stats["total_connections"] == 1
+        client.quotes_json([(0, "000001")])
+        assert len(broken.batches) == 1
+        assert healthy.total == 1
+    finally:
+        client.close()
+        broken.close()
+        healthy.close()
+
+
+def test_background_budget_and_counted_minute_requests():
+    module = pytest.importorskip("tsp_rustdx_native")
+    server = _Server()
+    client = module.RustdxClient(4, server.address, 2, background_connections=1)
+    try:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            values = list(pool.map(
+                lambda _: client.report_file("tdxfin/gpcw.txt", 512_000), range(4),
+            ))
+        assert all(bytes(value) == b"financial listing" for value in values)
+        assert json.loads(client.stats_json())["scheduler"]["background_peak"] == 1
+        result = json.loads(client.bars_json(0, "000001", 8, with_request_count=True))
+        assert result["requests"] == 3
+        assert result["error"]
+        stats = json.loads(client.stats_json())
+        assert stats["minute_requests"] == 3
+        assert stats["scheduler"]["background_limit"] == 1
+        assert stats["scheduler"]["waiting_requests"] == 0
+    finally:
+        client.close()
+        server.close()

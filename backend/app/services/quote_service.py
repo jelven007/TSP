@@ -1012,6 +1012,20 @@ class QuoteService:
             self._broadcast_quote_updated()
             return
 
+        # A partial universe must not truncate an authoritative day partition.
+        # Keep the previous persisted snapshot until a complete capture arrives.
+        if self._repo and callable(getattr(self._repo, "get_instruments", None)):
+            instruments = self._repo.get_instruments()
+            if not instruments.is_empty() and "symbol" in instruments.columns:
+                expected = set(instruments["symbol"].drop_nulls().to_list())
+                returned = [record.get("symbol") for record in stock_records]
+                missing = expected - set(returned)
+                if stock_records and (missing or len(returned) != len(set(returned))):
+                    self._last_final_confirmed = False if final_boundary_ms is not None else None
+                    logger.warning("股票快照不完整, 跳过整分区覆写: 返回 %d, 缺少 %d", len(returned), len(missing))
+                    self._broadcast_quote_updated()
+                    return
+
         # 轮询放量状态更新 (volume_delta 规则的差值来源)
         self._update_volume_delta(stock_records, fetched_at)
 

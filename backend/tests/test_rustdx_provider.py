@@ -212,6 +212,19 @@ def test_native_bridge_dependency_mismatch_is_rejected(monkeypatch):
     assert "依赖版本与项目锁定版本不一致" in reason
 
 
+def test_old_bridge_with_current_sdk_requires_rebuild(monkeypatch):
+    from types import SimpleNamespace
+
+    old = SimpleNamespace(
+        MAX_CONNECTIONS=35, __version__="0.1.0",
+        RUSTDX_VERSION="1.12.2", RUSTDX_SOURCE_REV=rustdx_client._RUSTDX_SOURCE_REV,
+    )
+    monkeypatch.setattr(rustdx_client.importlib, "import_module", lambda name: old)
+    available, reason = rustdx_client.availability()
+    assert available is False
+    assert "重新构建" in reason
+
+
 def test_provider_uses_one_native_full_market_call():
     calls = []
 
@@ -338,6 +351,35 @@ def test_incremental_minutes_defaults_to_stock_universe(native, monkeypatch):
 
     assert len(native.bar_calls) == 2
     assert frame["symbol"].to_list() == ["000001.SZ", "600519.SH"]
+
+
+def test_counted_increment_uses_actual_attempts_and_deduplicates_symbols(native, monkeypatch):
+    from app.plugins.rustdx import provider as provider_module
+    from app.services.kline_sync import fetch_intraday_custom_latest
+
+    monkeypatch.setattr(provider_module, "cn_now", lambda: datetime(2026, 10, 9, 15, 1))
+    bars = native.bars_json
+
+    def counted(*args, **kwargs):
+        assert kwargs == {"with_request_count": True}
+        return json.dumps({"rows": json.loads(bars(*args)), "requests": 2, "error": None})
+
+    native.bars_json = counted
+    frame, requests = fetch_intraday_custom_latest(
+        RustdxProvider(), "rustdx", symbols=["600519.SH", "600519.SH", "000001.SZ"],
+    )
+    assert requests == 4
+    assert len(native.bar_calls) == 2
+    assert frame.height == 2
+
+
+def test_counted_full_minute_repair_reports_zero_requests_for_empty_universe(native):
+    from app.services.kline_sync import fetch_intraday_custom_batch
+
+    frame, requests = fetch_intraday_custom_batch(RustdxProvider(), "rustdx", [])
+    assert frame.is_empty()
+    assert requests == 0
+    assert native.bar_calls == []
 
 
 def test_plugin_covers_all_core_datasets_and_is_default_provider():

@@ -54,6 +54,8 @@ def research_preflight(config, provenance: dict, quality: dict | None = None) ->
     issues = []
     if not provenance.get("release_consistent"):
         issues.append("当前数据尚未纳入一致的数据发布版本")
+    if "research_inputs_match_release" in provenance and not provenance["research_inputs_match_release"]:
+        issues.append("研究输入文件或交易日历与发布时的指纹不一致")
     if config.asset_type == "stock":
         if config.stamp_tax_pct is not None and config.stamp_tax_pct <= 0:
             issues.append("股票卖出印花税为零")

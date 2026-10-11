@@ -6,15 +6,18 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import threading
-from datetime import datetime, timezone
+import uuid
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import polars as pl
 
-from app.services.fs_utils import atomic_write_parquet
+from app.services.fs_utils import atomic_write_parquet, atomic_write_text
 from app.tickflow.capabilities import Cap, CapabilitySet
 
 logger = logging.getLogger(__name__)
@@ -24,6 +27,72 @@ _BATCH_SIZE = 100
 
 # 财务报表 + 历史股本表
 FINANCIAL_TABLES = ("metrics", "income", "balance_sheet", "cash_flow", "shares")
+_REVISION_LOCK = threading.Lock()
+
+
+def _retain_table_revision(table: str, frame: pl.DataFrame, data_dir: Path) -> None:
+    """Preserve observations; report period/announcement dates do not backdate them."""
+    if frame.is_empty():
+        return
+    canonical = frame.select(sorted(frame.columns)).sort(
+        [column for column in ("symbol", "period_end", "announce_date") if column in frame.columns],
+        nulls_last=False,
+    )
+    payload = json.dumps(canonical.to_dicts(), sort_keys=True, default=str)
+    digest = hashlib.sha256(payload.encode()).hexdigest()
+    root = data_dir / "financials" / "revisions" / table
+    root.mkdir(parents=True, exist_ok=True)
+    snapshot = root / f"{digest}.parquet"
+    metadata = snapshot.with_suffix(".json")
+    if not snapshot.exists():
+        atomic_write_parquet(canonical, snapshot)
+    if not metadata.exists():
+        from app.services import preferences
+
+        with snapshot.open("rb") as stream:
+            file_digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        atomic_write_text(metadata, json.dumps({
+            "content_hash": digest,
+            "sha256": file_digest,
+            "first_observed_at": datetime.now(UTC).isoformat(),
+            "provider": preferences.get_financial_provider(),
+            "publication_time_verified": False,
+        }, sort_keys=True))
+    # A -> B -> A must retain the later observation of A as well as its first.
+    latest = root / "latest.json"
+    previous = json.loads(latest.read_text(encoding="utf-8")) if latest.exists() else {}
+    if previous.get("content_hash") != digest:
+        observation = json.loads(metadata.read_text(encoding="utf-8"))
+        observation["observed_at"] = datetime.now(UTC).isoformat()
+        observations = root / "observations"
+        observations.mkdir(exist_ok=True)
+        text = json.dumps(observation, sort_keys=True)
+        atomic_write_text(observations / f"{uuid.uuid4().hex}.json", text)
+        atomic_write_text(latest, text)
+
+
+def get_financial_revision(data_dir: Path, table: str, observed_at: datetime) -> pl.DataFrame:
+    """Read the latest retained observation available by an aware timestamp."""
+    if table not in FINANCIAL_TABLES or observed_at.tzinfo is None:
+        raise ValueError("financial revision requires a valid table and aware observed_at")
+    root = Path(data_dir) / "financials" / "revisions" / table
+    candidates = []
+    for path in (root / "observations").glob("*.json"):
+        metadata = json.loads(path.read_text(encoding="utf-8"))
+        first = datetime.fromisoformat(metadata["observed_at"])
+        if first <= observed_at:
+            candidates.append((first, path, metadata))
+    if not candidates:
+        return pl.DataFrame()
+    _, _, metadata = max(candidates, key=lambda item: item[0])
+    digest = metadata["content_hash"]
+    if len(digest) != 64 or any(value not in "0123456789abcdef" for value in digest):
+        raise ValueError("invalid financial revision content hash")
+    snapshot = root / f"{digest}.parquet"
+    with snapshot.open("rb") as stream:
+        if hashlib.file_digest(stream, "sha256").hexdigest() != metadata["sha256"]:
+            raise ValueError("financial revision checksum mismatch")
+    return pl.read_parquet(snapshot)
 
 
 # ================================================================
@@ -139,7 +208,11 @@ def _write_table(table: str, df: pl.DataFrame, data_dir: Path) -> int:
     out_dir = data_dir / "financials" / table
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / "part.parquet"
-    atomic_write_parquet(df, out_file)
+    with _REVISION_LOCK:
+        if out_file.is_file():
+            _retain_table_revision(table, pl.read_parquet(out_file), data_dir)
+        _retain_table_revision(table, df, data_dir)
+        atomic_write_parquet(df, out_file)
 
     logger.info("sync_%s done: %d records written", table, len(df))
     return len(df)
@@ -165,7 +238,7 @@ def _merge_report_history(*frames: pl.DataFrame) -> pl.DataFrame:
 
     语义(区分"覆盖"与"填空"): 每列独立取 announce_date 最新的非空值 —
     新同步行有值则覆盖旧值, 新行缺的列(如 fuyao 不提供的字段)由旧行补齐,
-    实现多数据源并集共存。历史报告期不可变, 合并不会引入过期数据。
+    实现多数据源并集共存。当前视图仍取最新值, 观察快照由写入边界另行保留。
     无 announce_date 的帧按输入顺序, 后写优先(与旧行为 keep="last" 一致);
     公告日为空视为最旧, 不得压过带公告日的行。
     """

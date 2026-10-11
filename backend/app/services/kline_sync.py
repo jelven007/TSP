@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import inspect
 import logging
+import os
 import shutil
 import threading
 import time
@@ -37,6 +38,43 @@ logger = logging.getLogger(__name__)
 # 后续所有重任务无限排队(「分钟K同步卡死空转」的持有侧根因)。
 # 正常单批(限速+重试)远低于该值; 超时按分块失败处理, 心跳与协作取消照常推进。
 _SDK_CALL_DEADLINE_S = 600.0
+_MINUTE_WRITE_LOCKS = tuple(threading.Lock() for _ in range(64))
+
+
+@contextlib.contextmanager
+def _minute_partition_lock(out):
+    """Serialize the complete read/merge/replace across threads and processes."""
+    lock = _MINUTE_WRITE_LOCKS[hash(str(out.resolve())) % len(_MINUTE_WRITE_LOCKS)]
+    with lock, out.with_name(".minute-write.lock").open("a+b") as stream:
+        if os.name == "nt":
+            import msvcrt
+
+            if stream.seek(0, os.SEEK_END) == 0:
+                stream.write(b"0")
+                stream.flush()
+            deadline = time.monotonic() + 60
+            while True:
+                stream.seek(0)
+                try:
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("minute partition writer lock timed out") from None
+                    time.sleep(0.05)
+            try:
+                yield
+            finally:
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
 class SDKCallTimeoutError(TimeoutError):
@@ -902,25 +940,25 @@ def _write_minute_partition(df: pl.DataFrame, minute_dir) -> int:
         trade_date = day_df["_trade_date"][0]
         out = minute_dir / f"date={trade_date}" / "part.parquet"
         out.parent.mkdir(parents=True, exist_ok=True)
-        if out.exists():
-            existing = pl.read_parquet(out)
-            if "datetime" in existing.columns:
-                existing = existing.filter(pl.col("datetime").is_not_null())
-            new_rows = day_df.drop("_trade_date")
-            # 只对本次触及的 symbol 合并去重, 未触及行原样保留: 单股补齐时避免
-            # 为合并几行数据把全市场分区整体 unique 的写放大 (issue #305)。
-            touched = new_rows["symbol"].unique().to_list()
-            same = existing.filter(pl.col("symbol").is_in(touched))
-            other = existing.filter(~pl.col("symbol").is_in(touched))
-            merged = pl.concat([same, new_rows]).unique(
+        with _minute_partition_lock(out):
+            new_rows = day_df.drop("_trade_date").unique(
                 subset=["symbol", "datetime"], keep="last",
             )
-            day_df = pl.concat([other, merged])
-        else:
-            day_df = day_df.drop("_trade_date")
-        day_df = day_df.sort("symbol", "datetime")
-        _atomic_write_parquet(day_df, out)
-        written += day_df.height
+            if out.exists():
+                existing = pl.read_parquet(out)
+                if "datetime" in existing.columns:
+                    existing = existing.filter(pl.col("datetime").is_not_null())
+                # Only deduplicate touched symbols; preserve the rest verbatim.
+                touched = new_rows["symbol"].unique().to_list()
+                same = existing.filter(pl.col("symbol").is_in(touched))
+                other = existing.filter(~pl.col("symbol").is_in(touched))
+                merged = pl.concat([same, new_rows], how="diagonal_relaxed").unique(
+                    subset=["symbol", "datetime"], keep="last",
+                )
+                new_rows = pl.concat([other, merged], how="diagonal_relaxed")
+            new_rows = new_rows.sort("symbol", "datetime")
+            _atomic_write_parquet(new_rows, out)
+            written += new_rows.height
     return written
 
 
@@ -1409,8 +1447,11 @@ def fetch_intraday_custom_batch(
     from app.market_scope import filter_market_frame, removed_market_symbol
     symbols = [symbol for symbol in symbols if not removed_market_symbol(symbol)]
     try:
+        counted_method = getattr(provider, "get_intraday_batch_with_count", None)
         method = getattr(provider, "get_intraday_batch", None)
-        if callable(method):
+        if callable(counted_method):
+            df, requests = counted_method(symbols)
+        elif callable(method):
             df = method(symbols)
             requests = 1
         else:
@@ -1434,7 +1475,7 @@ def fetch_intraday_custom_batch(
     except Exception as e:  # noqa: BLE001
         logger.warning("custom full_minute datetime 契约校验失败 (%s): %s", provider_name, e)
         return (pl.DataFrame(), 0)
-    return (filter_market_frame(df), max(requests, 1))
+    return (filter_market_frame(df), requests if callable(counted_method) else max(requests, 1))
 
 
 def fetch_intraday_custom_latest(
@@ -1464,7 +1505,12 @@ def fetch_intraday_custom_latest(
         accepts_symbols = "symbols" in parameters or any(
             p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters.values()
         )
-        df = method(symbols=symbols, count=count) if accepts_symbols else method(count=count)
+        counted_method = getattr(provider, "get_intraday_latest_with_count", None)
+        if callable(counted_method):
+            df, requests = counted_method(symbols=symbols, count=count)
+        else:
+            df = method(symbols=symbols, count=count) if accepts_symbols else method(count=count)
+            requests = 1
     except Exception as e:  # noqa: BLE001
         logger.warning("custom full_minute latest via %s failed: %s", provider_name, e)
         return (pl.DataFrame(), 0)
@@ -1475,7 +1521,7 @@ def fetch_intraday_custom_latest(
     except Exception as e:  # noqa: BLE001
         logger.warning("custom full_minute datetime 契约校验失败 (%s): %s", provider_name, e)
         return (pl.DataFrame(), 0)
-    return (filter_market_frame(df), 1)
+    return (filter_market_frame(df), requests)
 
 
 def fetch_minute_single(

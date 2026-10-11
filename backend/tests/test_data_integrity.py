@@ -681,6 +681,7 @@ def _no_trading_calendar_by_default(monkeypatch):
         "app.services.preferences.get_daily_data_provider", lambda: "tickflow"
     )
     saved = di._CAL
+    monkeypatch.setattr(di, "_CAL_PROVIDER", None)
     di._CAL = (0.0, None)
     yield
     di._CAL = saved
@@ -761,7 +762,6 @@ def test_calendar_fetch_failure_serves_last_known(monkeypatch):
     """fuyao 抖动时沿用上次成功结果 (stale-while-error), 不退回周几近似。"""
     _patch_fuyao_calendar(monkeypatch, _CAL_FAKE_2026_09)
     assert _trading_calendar() == _CAL_FAKE_2026_09
-
     def _boom():
         raise RuntimeError("fuyao down")
 
@@ -770,8 +770,49 @@ def test_calendar_fetch_failure_serves_last_known(monkeypatch):
         get_provider=lambda name: SimpleNamespace(trading_days=_boom),
     )
     monkeypatch.setattr(app.data_providers, "custom", fake)
-    di._CAL = (0.0, _CAL_FAKE_2026_09)  # fetched_at=0 → TTL 过期 → 重新探测失败
+    di._CAL = (0.0, _CAL_FAKE_2026_09)
     assert _trading_calendar() == _CAL_FAKE_2026_09
+
+
+def test_calendar_cache_does_not_cross_provider_boundaries(monkeypatch):
+    from app.data_providers import custom
+
+    selected = ["rustdx"]
+    monkeypatch.setattr(
+        "app.services.preferences.get_daily_data_provider", lambda: selected[0],
+    )
+    monkeypatch.setattr(custom, "is_custom_provider", lambda name: True)
+    monkeypatch.setattr(
+        custom, "get_provider",
+        lambda name: SimpleNamespace(trading_days=lambda: {date(2026, 9, 30)}),
+    )
+    assert di._trading_calendar() == {date(2026, 9, 30)}
+    selected[0] = "fuyao"
+    assert di.cached_trading_calendar() == set()
+    monkeypatch.setattr(custom, "get_provider", lambda name: (_ for _ in ()).throw(RuntimeError()))
+    assert di._trading_calendar() is None
+
+
+def test_partial_historical_calendar_does_not_hide_uncovered_dates(monkeypatch):
+    monkeypatch.setattr(di, "published_trading_day", lambda day: None)
+    monkeypatch.setattr(di, "_trading_calendar", lambda: {date(2027, 1, 4)})
+    assert di._candidate_days(date(2027, 1, 7), 3) == [
+        date(2027, 1, 4), date(2027, 1, 5), date(2027, 1, 6),
+    ]
+
+
+def test_minute_activity_detects_missing_daily_symbol(tmp_path):
+    _write_daily_partition(tmp_path, "kline_daily", FRIDAY, None, symbols=("600001.SH",))
+    minute = tmp_path / "kline_minute" / f"date={FRIDAY}" / "part.parquet"
+    minute.parent.mkdir(parents=True)
+    pl.DataFrame({
+        "symbol": ["600001.SH", "600002.SH", "600003.SH"],
+        "datetime": [datetime.combine(FRIDAY, time(15))] * 3,
+        "volume": [100.0, 200.0, 0.0],
+    }).write_parquet(minute)
+    issues = scan_recent_integrity(tmp_path, today=TODAY)
+    assert issues == [IntegrityIssue(day=FRIDAY, table="kline_daily", kind="coverage")]
+    assert di._daily_missing_traded_symbols(tmp_path, FRIDAY) == {"600002.SH"}
 
 
 def test_scan_no_false_missing_when_etf_lags_over_holiday(tmp_path, monkeypatch):

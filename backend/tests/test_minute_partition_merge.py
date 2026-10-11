@@ -106,3 +106,59 @@ def test_existing_null_datetime_rows_are_dropped_on_merge(tmp_path):
     stored = _read(out)
     assert stored["datetime"].null_count() == 0
     assert stored.height == 2
+
+
+def test_concurrent_writers_preserve_every_symbol(tmp_path, monkeypatch):
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.services import kline_sync
+
+    minute_dir = tmp_path / "kline_minute"
+    _write_minute_partition(
+        _bars({"600000.SH": [("2026-01-05 09:31:00", 8.0)]}), minute_dir,
+    )
+    write = kline_sync._atomic_write_parquet
+
+    def slow_write(frame, path):
+        time.sleep(0.02)
+        write(frame, path)
+
+    monkeypatch.setattr(kline_sync, "_atomic_write_parquet", slow_write)
+    frames = [
+        _bars({f"{index:06d}.SZ": [("2026-01-05 09:32:00", float(index))]})
+        for index in range(1, 9)
+    ]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda frame: _write_minute_partition(frame, minute_dir), frames))
+    result = _read(minute_dir / "date=2026-01-05" / "part.parquet")
+    assert result.height == 9
+    assert result["symbol"].n_unique() == 9
+
+
+def test_independent_process_writers_do_not_lose_updates(tmp_path):
+    import subprocess
+    import sys
+
+    minute_dir = tmp_path / "kline_minute"
+    code = """
+import sys
+from pathlib import Path
+from datetime import datetime
+import polars as pl
+from app.services.kline_sync import _write_minute_partition
+frame = pl.DataFrame({
+    "symbol": [sys.argv[2]],
+    "datetime": [datetime(2026, 1, 5, 9, 31)],
+    "close": [10.0],
+})
+_write_minute_partition(frame, Path(sys.argv[1]))
+"""
+    processes = [
+        subprocess.Popen([sys.executable, "-c", code, str(minute_dir), f"{index:06d}.SZ"])
+        for index in range(1, 5)
+    ]
+    for process in processes:
+        assert process.wait(timeout=30) == 0
+    result = _read(minute_dir / "date=2026-01-05" / "part.parquet")
+    assert result["symbol"].to_list() == [f"{index:06d}.SZ" for index in range(1, 5)]

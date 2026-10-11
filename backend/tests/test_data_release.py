@@ -321,3 +321,22 @@ def filter(df, params):
     second = _strategy_definition_hash(engine.get("traceable"), engine)
 
     assert first != second
+
+
+def test_research_fingerprints_detect_input_change_without_generation_change(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_release, "audit_provider_routes", _audit)
+    get_enriched_generation(tmp_path, "stock")
+    path = tmp_path / "financials" / "shares" / "part.parquet"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"first financial observation")
+    manifest = data_release.publish_data_release(tmp_path, reason="baseline")
+    before = data_release.backtest_provenance(tmp_path, asset_type="stock", config={})
+    assert before["research_inputs_match_release"] is True
+    calendar = before["research_inputs"]["trading_calendar"]
+    assert calendar["covered_years"] == [2026]
+    assert len(calendar["sha256"]) == 64
+    path.write_bytes(b"revised financial observation")
+    after = data_release.backtest_provenance(tmp_path, asset_type="stock", config={})
+    assert after["release_consistent"] is True
+    assert after["research_inputs_match_release"] is False
+    assert before["research_inputs"] == manifest["research_inputs"]

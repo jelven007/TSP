@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import os
 import threading
 from pathlib import Path
@@ -15,6 +16,7 @@ _MAX_CONNECTIONS = 35
 _DEFAULT_SERVER = "117.34.114.13:7709"
 _NATIVE_LOCK = threading.Lock()
 _NATIVE_CLIENT = None
+logger = logging.getLogger(__name__)
 
 
 class RustdxError(RuntimeError):
@@ -37,16 +39,35 @@ def _timeout_seconds() -> int:
     return max(2, min(configured, 60))
 
 
+def _background_connections() -> int:
+    try:
+        value = int(os.getenv("RUSTDX_BACKGROUND_CONNECTIONS", "5"))
+    except ValueError:
+        value = 5
+    return max(1, min(value, _connection_count()))
+
+
 def _native_client():
     global _NATIVE_CLIENT
     with _NATIVE_LOCK:
         if _NATIVE_CLIENT is None:
             module = importlib.import_module("tsp_rustdx_native")
+            if getattr(module, "POOL_API_VERSION", 0) != 2:
+                raise RustdxError("rustdx 原生桥接需要重新构建: 连接池接口版本不一致")
             server = os.getenv("RUSTDX_SERVER", _DEFAULT_SERVER).strip() or _DEFAULT_SERVER
             _NATIVE_CLIENT = module.RustdxClient(
                 _connection_count(),
                 server,
                 _timeout_seconds(),
+                background_connections=_background_connections(),
+                fallback_servers=[
+                    value.strip()
+                    for value in os.getenv(
+                        "RUSTDX_FALLBACK_SERVERS",
+                        "" if os.getenv("RUSTDX_SERVER") else "115.238.56.198:7709,180.153.18.170:7709",
+                    ).split(",")
+                    if value.strip()
+                ],
             )
         return _NATIVE_CLIENT
 
@@ -68,6 +89,8 @@ def availability() -> tuple[bool, str]:
         or rustdx_source_rev != _RUSTDX_SOURCE_REV
     ):
         return False, "rustdx 原生桥接依赖版本与项目锁定版本不一致"
+    if getattr(module, "POOL_API_VERSION", 0) != 2:
+        return False, "rustdx 原生桥接需要重新构建: 连接池接口版本不一致"
     return (
         True,
         f"jelven-rustdx-complete {_RUSTDX_CRATE_VERSION} "
@@ -193,20 +216,34 @@ class RustdxClient:
         start: int = 0,
         offset: int = 800,
     ) -> list[dict]:
+        rows, _ = self._bars(code, frequency=frequency, start=start, offset=offset, counted=False)
+        return rows
+
+    def bars_with_count(self, code: str, *, frequency: int, offset: int) -> tuple[list[dict], int]:
+        return self._bars(code, frequency=frequency, start=0, offset=offset, counted=True)
+
+    def _bars(self, code: str, *, frequency: int, start: int, offset: int, counted: bool):
         market, raw_code = _security(code)
         index = _is_index(market, raw_code)
         wire_frequency = 4 if index and frequency == 9 else frequency
         try:
-            rows = _records(
-                _native_client().bars_json(
-                    market,
-                    raw_code,
-                    wire_frequency,
-                    start,
-                    min(max(offset, 1), 800),
-                    index,
-                )
+            payload = _native_client().bars_json(
+                market,
+                raw_code,
+                wire_frequency,
+                start,
+                min(max(offset, 1), 800),
+                index,
+                **({"with_request_count": True} if counted else {}),
             )
+            if counted:
+                result = json.loads(payload)
+                rows = _records(json.dumps(result["rows"]))
+                requests = int(result["requests"])
+                if result.get("error"):
+                    logger.warning("rustdx minute %s failed after %d requests: %s", code, requests, result["error"])
+            else:
+                rows, requests = _records(payload), 1
         except Exception as exc:
             raise RustdxError(f"rustdx bars 调用失败: {exc}") from exc
         for row in rows:
@@ -216,7 +253,7 @@ class RustdxClient:
                     row[field] = 0.0
             if index and frequency in {0, 1, 2, 3, 7, 8}:
                 row["vol"] = None
-        return rows
+        return rows, requests
 
     def stocks(self, market: int) -> list[dict]:
         if market not in {0, 1}:

@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as dt_time
 from functools import lru_cache
@@ -79,6 +80,22 @@ def published_trading_days(year: int) -> frozenset[date] | None:
         day for offset in range((end - start).days)
         if published_trading_day(day := start + timedelta(days=offset))
     )
+
+
+def trading_calendar_provenance() -> dict:
+    """Fingerprint the published schedule without probing a data provider."""
+    years = sorted(_PUBLISHED_HOLIDAYS)
+    content = "\n".join(
+        day.isoformat()
+        for year in years
+        for day in sorted(published_trading_days(year) or ())
+    )
+    return {
+        "version": TRADING_CALENDAR_VERSION,
+        "covered_years": years,
+        "sha256": hashlib.sha256(content.encode()).hexdigest(),
+        "unknown_year_policy": "provider_evidence",
+    }
 
 
 def in_continuous_session(now: datetime | None = None) -> bool:

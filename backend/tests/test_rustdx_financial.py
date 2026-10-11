@@ -92,3 +92,29 @@ def test_financial_rejects_archive_with_multiple_members(tmp_path):
         archive.writestr("../extra.dat", b"x")
     with pytest.raises(ValueError, match="结构"):
         parse_archive(path, {"600519"}, {"col1"}, "20260630")
+
+
+def test_changed_archive_retains_both_observed_revisions(tmp_path):
+    import json
+
+    payloads = [archive_bytes(announcement=20260820), archive_bytes(announcement=20260822)]
+    current = [0]
+
+    class Native:
+        def report_file(self, filename, max_bytes):
+            payload = payloads[current[0]]
+            if filename.endswith(".txt"):
+                return f"gpcw20260630.zip,{hashlib.md5(payload).hexdigest()},{len(payload)}".encode()
+            return payload
+
+    kwargs = dict(periods=1, columns={"col1", "col314"}, cache_dir=tmp_path)
+    financial_history(Native(), ["600519.SH"], **kwargs)
+    current[0] = 1
+    rows = financial_history(Native(), ["600519.SH"], **kwargs)
+    revisions = tmp_path / "revisions" / "20260630"
+    assert {path.read_bytes() for path in revisions.glob("*.zip")} == set(payloads)
+    assert rows[0]["col314"] == 20260822.0
+    assert (tmp_path / "gpcw20260630.zip").read_bytes() == payloads[1]
+    metadata = [json.loads(path.read_text()) for path in revisions.glob("*.json")]
+    assert all(item["publication_time_verified"] is False for item in metadata)
+    assert all(item["first_observed_at"] for item in metadata)
