@@ -104,6 +104,7 @@ def _daily_panel(days: list[date], symbols: list[str]) -> pl.DataFrame:
                 "name": f"股票{sym_idx}",
                 "total_shares": 5e8,
                 "float_shares": 4e8,
+                "listing_age_days": 365,
                 "signal_limit_up": False,
                 "signal_limit_down": False,
             })
@@ -177,7 +178,10 @@ def _make_service(
         df = panel.filter((pl.col("date") >= start) & (pl.col("date") <= end))
         if symbols:
             df = df.filter(pl.col("symbol").is_in(list(symbols)))
-        keep = set(feature_plan.base_columns) | set(feature_plan.instrument_columns) | {"symbol", "date"}
+        keep = (
+            set(feature_plan.base_columns) | set(feature_plan.instrument_columns)
+            | set(feature_plan.matrix_columns) | {"symbol", "date"}
+        )
         return df.select(sorted(c for c in df.columns if c in keep))
 
     bt_engine.load_panel_for_backtest = _load_panel.__get__(bt_engine)
@@ -263,6 +267,24 @@ def test_daily_window_strictly_before_trigger_day(scenario):
     result = service.run(_config(days["t1"], days["t3"]))
     assert not result.error, result.error
     assert result.trades, "日线窗口若含触发日, 测试策略会拒绝命中 — 信号归零"
+
+
+@pytest.mark.parametrize("blocked_by_st", [False, True])
+def test_minute_eligibility_uses_trigger_day_not_previous_close(scenario, tmp_path, blocked_by_st):
+    _, panel, days, frames = scenario
+    # A stock reaches the age threshold on T, while another turns ST on T.
+    panel = panel.with_columns(
+        pl.when(pl.col("date") < days["t1"]).then(29).otherwise(30).alias("listing_age_days"),
+        (
+            (pl.col("symbol") == "000001.SZ")
+            & (pl.col("date") >= days["t1"]) & pl.lit(blocked_by_st)
+        ).alias("is_risk_warning"),
+    )
+    service = _make_service(tmp_path, panel, frames)
+    result = service.run(_config(days["t1"], days["t3"]))
+    assert not result.error
+    matches = [t for t in result.trades if t["symbol"] == "000001.SZ"]
+    assert bool(matches) is not blocked_by_st
 
 
 def test_limit_up_entry_rejected(scenario):

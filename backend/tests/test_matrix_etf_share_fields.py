@@ -274,14 +274,13 @@ def test_basic_filter_for_asset_neutralizes_stock_only_runtime_keys() -> None:
     for key in (
         "price_min", "price_max", "boards",
         "market_cap_min", "float_cap_min", "float_cap_max",
-        "turnover_min", "turnover_max",
+        "turnover_min", "turnover_max", "exclude_new_days",
     ):
         assert sanitized[key] is None, f"{key} 应被中和"
 
     # 与资产类型无关的键保留原值
     assert sanitized["amount_min"] == DEFAULT_BASIC_FILTER["amount_min"]
     assert sanitized["exclude_st"] is True
-    assert sanitized["exclude_new_days"] == 30
 
     # 股票口径完全不变
     stock = _basic_filter_for_asset(dict(DEFAULT_BASIC_FILTER), "stock")

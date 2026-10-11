@@ -730,7 +730,7 @@ def test_matrix_cache_prunes_by_bytes_and_leaves_no_staging_directory(tmp_path):
     del first
     gc.collect()
     assert second.close[0, 0] == pytest.approx(11.0)
-    assert len(list(cache_root.glob("v6-*"))) == 1
+    assert len(list(cache_root.glob("v7-*"))) == 1
     assert list(cache_root.glob(".*.tmp")) == []
     assert len(list(cache_root.glob(".axes-v2-*.json"))) == 1
 
@@ -783,7 +783,7 @@ def test_managed_source_generation_skips_file_walk_and_invalidates_explicitly(tm
     assert changed.cache_path != first.cache_path
     del first, repeated
     gc.collect()
-    assert len(list(cache_root.glob("v6-*"))) == 1
+    assert len(list(cache_root.glob("v7-*"))) == 1
 
 
 def test_registered_builtin_matrix_strategies_share_one_cache_profile():

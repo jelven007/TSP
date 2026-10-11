@@ -35,6 +35,7 @@ from app.price_limits import (
     numpy_limit_price,
     write_numpy_price_limit_matrix,
 )
+from app.strategy.eligibility import attach_listing_age, new_stock_min_days
 from app.strategy.scoring import SCORING_DIRECTION_LOW
 
 try:
@@ -52,7 +53,7 @@ except ImportError:
     prange = range
 
 _MATRIX_CACHE_VERSION = 1
-_DIRECT_MATRIX_LOADER_VERSION = 6
+_DIRECT_MATRIX_LOADER_VERSION = 7
 _MATRIX_AXIS_INDEX_VERSION = 2
 _ARROW_BATCH_SIZE = 131_072
 _SCORE_ASSET_CHUNK_SIZE = 256
@@ -555,6 +556,8 @@ class MarketMatrix:
     # 逐格入场价覆盖 (time x asset, NaN=回退 open/close 惯例)。分钟策略回测用:
     # 信号在盘中第 m 根触发, 入场价 = 触发分钟收盘价, 而非当日开盘/收盘。
     entry_price: np.ndarray | None = None
+    # Evaluated at execution time, separately from price/volume and sellability.
+    entry_eligible: np.ndarray | None = None
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -932,9 +935,9 @@ def _resolve_matrix_storage_fields(
             vector_fields.add("float_shares")
     if "price_limit_pct" in wanted_fields:
         matrix_fields.add("price_limit_pct")
-    matrix_fields.update(
-        wanted_fields & {"is_risk_warning", "instrument_status_known", "is_listed"}
-    )
+    matrix_fields.update(wanted_fields & {
+        "is_risk_warning", "instrument_status_known", "is_listed", "listing_age_days",
+    })
     resolved = matrix_fields | vector_fields
     unresolved = wanted_fields - resolved
     if unresolved:
@@ -1438,6 +1441,16 @@ def _populate_matrix_derived_arrays(
         instruments,
         time_count=seen.shape[0],
     )
+    if "listing_age_days" in wanted_fields and trading_dates is not None:
+        # A single date per symbol suffices; advance by calendar offsets below.
+        first = attach_listing_age(pl.DataFrame({
+            "symbol": actual_symbols, "date": [trading_dates[0]] * len(actual_symbols),
+        }), instruments)
+        age = first["listing_age_days"].cast(pl.Float32).to_numpy()
+        offsets = np.array(
+            [(day - trading_dates[0]).days for day in trading_dates], dtype=np.float32,
+        )
+        fields["listing_age_days"][:] = offsets[:, None] + age[None, :]
     for name, values in instrument_fields.items():
         if name in parquet_fields:
             continue
@@ -1481,6 +1494,8 @@ def _populate_matrix_derived_arrays(
         fields["is_risk_warning"][:] = current_risk[None, :]
     if "instrument_status_known" in fields and "instrument_status_known" not in parquet_fields:
         fields["instrument_status_known"][:] = 0.0
+    if "is_listed" in fields and "is_listed" not in parquet_fields:
+        fields["is_listed"][:] = np.nan
     if wanted_fields & {"is_risk_warning", "instrument_status_known", "is_listed"} and trading_dates is not None:
         _apply_instrument_risk_history(
             fields.get("is_risk_warning"),
@@ -1690,7 +1705,10 @@ def _instrument_fingerprint(
 ) -> bytes:
     columns = [
         name
-        for name in ("symbol", "name", "total_shares", "float_shares", "limit_up", "limit_down")
+        for name in (
+            "symbol", "name", "total_shares", "float_shares", "limit_up", "limit_down",
+            "listing_date",
+        )
         if instruments is not None and name in instruments.columns
     ]
     current = (
@@ -2443,6 +2461,7 @@ def build_market_matrix_from_signals(
     reference_price: np.ndarray | None = None,
     minute_exit_trigger: bool = False,
     entry_price_override: np.ndarray | None = None,
+    basic_filter: dict | None = None,
 ) -> MarketMatrix:
     """Combine base data and strategy signals into the matcher input matrix."""
     if entry_delay_bars not in (0, 1) or exit_delay_bars not in (0, 1):
@@ -2453,7 +2472,7 @@ def build_market_matrix_from_signals(
 
     present = _present_matrix(market.open, market.high, market.low, market.close, market.volume)
     entry, entry_signal_time, entry_signal_code = _delay_signal_matrix(
-        signals.entry,
+        (signals.entry.astype(bool) & ~signals.exit.astype(bool)).astype(np.uint8),
         signals.entry_signal_code,
         present,
         entry_delay_bars,
@@ -2537,6 +2556,7 @@ def build_market_matrix_from_signals(
             if entry_price_override is not None
             else None
         ),
+        entry_eligible=build_entry_eligibility_mask(market, basic_filter or {}),
     )
 
 
@@ -2550,13 +2570,17 @@ def build_market_matrix(
     entry_signal_ids: list[str] | None = None,
     exit_signal_ids: list[str] | None = None,
     minute_exit_trigger: bool = False,
+    basic_filter: dict | None = None,
 ) -> MarketMatrix:
     """Backward-compatible long-panel boundary used by legacy/Polars strategies."""
     if panel.is_empty():
         raise ValueError("cannot build MarketMatrix from an empty panel")
     market = build_market_data_matrix(
         panel,
-        field_columns={"score", "ma5", "ma10", "ma20"},
+        field_columns={
+            "score", "ma5", "ma10", "ma20", "is_risk_warning",
+            "instrument_status_known", "is_listed", "listing_age_days",
+        },
     )
     _, _, _, time_id, asset_id = _encode_axes(panel)
     shape = market.shape
@@ -2594,6 +2618,7 @@ def build_market_matrix(
         entry_delay_bars=entry_delay_bars,
         exit_delay_bars=exit_delay_bars,
         minute_exit_trigger=minute_exit_trigger,
+        basic_filter=basic_filter,
     )
 
 
@@ -3681,7 +3706,9 @@ class MatrixStrategyPipeline:
         )
         with cache_scope:
             basic_mask = build_pipeline_filter_mask(market, config)
-            entry = (signals.entry.astype(bool) & basic_mask).astype(np.uint8)
+            entry = (
+                signals.entry.astype(bool) & basic_mask & ~signals.exit.astype(bool)
+            ).astype(np.uint8)
             score = build_matrix_score(
                 market,
                 entry.astype(bool),
@@ -3784,6 +3811,10 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
     _apply_bound(mask, _required_field_for_bound(market, config, "amount"), config, "amount")
     _apply_bound(mask, _optional_field(market, "turnover_rate"), config, "turnover")
 
+    minimum_age = new_stock_min_days(config)
+    if minimum_age:
+        mask &= _optional_field(market, "listing_age_days") >= minimum_age
+
     if config.get("exclude_st"):
         historical_risk = market.fields.get("is_risk_warning")
         if historical_risk is not None:
@@ -3818,6 +3849,21 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
         for asset_id, symbol in enumerate(market.symbols):
             board_mask[asset_id] = _symbol_in_boards(symbol, boards)
         mask &= board_mask[None, :]
+    return mask
+
+
+def build_entry_eligibility_mask(market: MarketDataMatrix, config: dict) -> np.ndarray:
+    """Recheck only security status/age at the fill, never future daily OHLCV."""
+    mask = build_basic_filter_mask(market, {
+        "enabled": config.get("enabled", True),
+        "exclude_st": config.get("exclude_st", False),
+        "exclude_new_days": config.get("exclude_new_days", 0),
+    }).copy()
+    listed = market.fields.get("is_listed")
+    if listed is not None:
+        # Unknown history remains governed by research_preflight/strict_research.
+        mask &= ~np.isfinite(listed) | (listed >= 0.5)
+    _make_read_only(mask)
     return mask
 
 

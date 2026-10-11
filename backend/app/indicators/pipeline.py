@@ -2435,6 +2435,8 @@ def compute_enriched_today(
 
 def _compute_limit_signals_today(df: pl.DataFrame, instruments: pl.DataFrame) -> pl.DataFrame:
     """盘中增量版的涨跌停/换手率/炸板/连板计算。"""
+    from app.strategy.eligibility import attach_listing_age
+    df = attach_listing_age(df, instruments)
     inst_cols = ["symbol"]
     for c in ["float_shares", "limit_up", "limit_down", "listing_date"]:
         if c in instruments.columns:

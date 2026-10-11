@@ -93,7 +93,10 @@ def test_build_strategy_context_loads_history_for_param_lookback(tmp_path, monke
     engine = _make_engine(
         _filter_history_strategy("custom_window", lookback_days=1, param_default=22)
     )
-    repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    repo = SimpleNamespace(
+        store=SimpleNamespace(data_dir=tmp_path),
+        get_instruments_asset=lambda asset_type: pl.DataFrame(),
+    )
     svc = ScreenerService(repo)
 
     captured: dict[str, int] = {}

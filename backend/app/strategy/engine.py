@@ -22,6 +22,7 @@ import numpy as np
 import polars as pl
 
 from app.config import settings
+from app.strategy.eligibility import new_stock_min_days
 from app.strategy.scoring import (
     SCORING_DIRECTION_LOW,
     effective_scoring,
@@ -1032,6 +1033,8 @@ class StrategyEngine:
         bf = dict(s.basic_filter) if s.basic_filter else {}
         if overrides and overrides.get("basic_filter"):
             bf.update(overrides["basic_filter"])
+        from app.backtest.strategy import _basic_filter_for_asset
+        bf = _basic_filter_for_asset(bf, context.asset_type)
 
         # Stage 1: 基础过滤（enabled 默认开启; 显式 enabled=false 才跳过）
         if bf and bf.get("enabled", True):
@@ -1045,6 +1048,12 @@ class StrategyEngine:
         if s.filter_fn:
             expr = s.filter_fn(df, params)
             df = df.filter(expr)
+
+        # Exit wins on the signal date, before ranking or publishing entry hits.
+        if exit_signal_hits:
+            df = df.filter(~pl.col("symbol").is_in([
+                hit["symbol"] for hit in exit_signal_hits
+            ]))
 
         # Stage 3: 评分
         df = self._apply_scoring(df, scoring, scoring_directions)
@@ -1272,6 +1281,9 @@ class StrategyEngine:
         basic_filter = dict(strategy.basic_filter or {})
         if (overrides or {}).get("basic_filter"):
             basic_filter.update(overrides["basic_filter"])
+        fields.update({"is_risk_warning", "instrument_status_known", "is_listed"})
+        if new_stock_min_days(basic_filter):
+            fields.add("listing_age_days")
         for prefix, field_name in (
             ("market_cap", "total_shares"),
             ("float_cap", "float_shares"),
@@ -1569,7 +1581,15 @@ class StrategyEngine:
         """构建基础过滤表达式。回测可复用为买入候选 mask，不删除行情行。"""
         from app.market_scope import clean_market_config
         bf = clean_market_config(bf)
+        if not bf.get("enabled", True):
+            return None
         exprs: list[pl.Expr] = []
+        minimum_age = new_stock_min_days(bf)
+        if minimum_age:
+            exprs.append(
+                (pl.col("listing_age_days") >= minimum_age).fill_null(False)
+                if "listing_age_days" in df.columns else pl.lit(False)
+            )
         if bf.get("price_min") is not None:
             exprs.append(pl.col("close") >= bf["price_min"])
         if bf.get("price_max") is not None:
@@ -1644,6 +1664,7 @@ class StrategyEngine:
     MINUTE_JOIN_COLUMNS: tuple[str, ...] = (
         "name", "total_shares", "float_shares", "amount",
         "turnover_rate", "change_pct", "pre_close",
+        "listing_age_days", "is_risk_warning", "instrument_status_known", "is_listed",
     )
 
     def _user_data_dir(self) -> Path | None:

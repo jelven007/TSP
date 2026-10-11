@@ -368,6 +368,7 @@ def test_minute_run_injects_daily_history(tmp_path):
             "float_shares": [5e7],
             "amount": [3e8],
             "change_pct": [0.01],
+            "listing_age_days": [365],
         }),
         history=_bars("600001.SH", [(10.0, 10.2, 10.3)] * 7),
         daily_history=_daily("600001.SH", 10, {2}),
@@ -394,6 +395,7 @@ def test_minute_context_run_applies_enriched_basic_filter(tmp_path):
         "float_shares": [5e7, 5e7, 5e7, 5e7],
         "amount": [3e8, 3e8, 3e8, 3e8],
         "change_pct": [0.01, 0.01, 0.01, 0.01],
+        "listing_age_days": [365] * 4,
     })
     context = StrategyDataContext(
         asset_type="stock",
@@ -433,6 +435,9 @@ def test_minute_strategy_rejects_daily_context(tmp_path):
 class _FakeMinuteRepo:
     def __init__(self, partitions: dict[date, pl.DataFrame]):
         self.partitions = partitions
+
+    def get_instruments_asset(self, asset_type):
+        return pl.DataFrame()
 
     def get_minute_by_dates(self, symbols, dates, asset_type="stock"):
         frames = [self.partitions[d] for d in dates if d in self.partitions]

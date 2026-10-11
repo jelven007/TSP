@@ -451,6 +451,11 @@ class ScreenerService:
 
         if current is None:
             current = self._load_enriched_for_date(as_of)
+        from app.strategy.eligibility import attach_listing_age
+        instruments = None
+        if self.asset_type == "stock":
+            instruments = self.repo.get_instruments_asset(self.asset_type)
+            current = attach_listing_age(current, instruments)
         if timeframe == "1m":
             # 分钟策略数据源是本地当日分钟K分区 (单分区文件直读), 与日线
             # enriched 历史窗口无关, 不走 required_history_bars 日线路径。
@@ -480,6 +485,8 @@ class ScreenerService:
         history = None
         if history_bars > 1:
             history = self._load_enriched_history(as_of, history_bars)
+            if self.asset_type == "stock":
+                history = attach_listing_age(history, instruments)
         return StrategyDataContext(
             asset_type=self.asset_type,
             timeframe=timeframe,

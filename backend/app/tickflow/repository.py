@@ -2407,6 +2407,9 @@ class KlineRepository:
         instruments = self.get_instruments_asset(asset_type)
         if instruments.is_empty() or "symbol" not in instruments.columns:
             return df
+        if asset_type == "stock":
+            from app.strategy.eligibility import attach_listing_age
+            df = attach_listing_age(df, instruments)
         metadata_cols = [
             c for c in ("name", "total_shares", "float_shares")
             if c in instruments.columns and c not in df.columns
