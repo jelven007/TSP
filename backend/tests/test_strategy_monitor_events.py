@@ -254,7 +254,8 @@ def test_matrix_signal_hits_map_codes_and_keep_unlabelled_hits():
     ]
 
 
-def test_matrix_strategy_pool_masks_rows_and_both_signal_directions():
+@pytest.mark.parametrize("exit_active", [False, True])
+def test_matrix_strategy_pool_masks_rows_and_both_signal_directions(exit_active):
     day = date(2026, 7, 24)
     panel = pl.DataFrame({
         "symbol": ["A", "B"],
@@ -283,7 +284,7 @@ def test_matrix_strategy_pool_masks_rows_and_both_signal_directions():
             return make_signal_matrix(
                 market.shape,
                 entry=active,
-                exit=active,
+                exit=active if exit_active else np.zeros_like(active),
                 entry_signal_code=codes,
                 exit_signal_code=codes,
                 entry_signal_ids=("signal_buy",),
@@ -322,9 +323,13 @@ def test_matrix_strategy_pool_masks_rows_and_both_signal_directions():
     )
 
     assert calls == 1
-    assert [row["symbol"] for row in result.rows] == ["A"]
-    assert result.entry_signal_hits == [{"symbol": "A", "signals": ["signal_buy"]}]
-    assert result.exit_signal_hits == [{"symbol": "A", "signals": ["signal_sell"]}]
+    assert [row["symbol"] for row in result.rows] == ([] if exit_active else ["A"])
+    assert result.entry_signal_hits == (
+        [] if exit_active else [{"symbol": "A", "signals": ["signal_buy"]}]
+    )
+    assert result.exit_signal_hits == (
+        [{"symbol": "A", "signals": ["signal_sell"]}] if exit_active else []
+    )
 
 
 def test_ordinary_strategy_uses_signal_overrides_and_ignores_malformed_values():

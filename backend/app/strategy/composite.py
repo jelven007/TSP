@@ -202,6 +202,7 @@ def merge_signal_matrices(
     for i, s in enumerate(sigs):
         child_exit = np.asarray(s.exit, dtype=bool)
         merged_exit |= child_exit & hold_masks[i]
+    merged_entry &= ~merged_exit
 
     # ── score 标准化排名加权 ──
     # 对每个 (time, asset), 在命中的子策略间按权重加权各自的内部排名归一值。
@@ -247,7 +248,7 @@ def merge_signal_matrices(
     entry_codes = np.full(shape, -1, dtype=np.int16)
     for i in range(n_children):
         # 只给尚未标记的命中点打 code(第一个命中优先), 避免覆盖。
-        untagged = (entry_codes == -1) & entries[i]
+        untagged = (entry_codes == -1) & entries[i] & merged_entry
         entry_codes[untagged] = i
 
     # exit_signal_code 沿用 -1(无独立信号来源); 回测按 "signal" reason 归因即可。

@@ -54,6 +54,7 @@ from app.indicators.pipeline import (
     LIMIT_SIGNAL_OUTPUTS,
     get_signal_dependencies,
 )
+from app.strategy.eligibility import ENTRY_POLICY_VERSION
 from app.strategy.engine import StrategyDataContext, StrategyDef, StrategyEngine
 from app.strategy.scoring import (
     SCORING_DIRECTION_LOW,
@@ -103,7 +104,7 @@ def _with_status_fields(plan: ResolvedFeaturePlan, asset_type: str) -> ResolvedF
         return plan
     return replace(
         plan,
-        matrix_columns=plan.matrix_columns | STATUS_FIELDS,
+        matrix_columns=plan.matrix_columns | STATUS_FIELDS | {"listing_age_days"},
     )
 
 
@@ -213,6 +214,8 @@ class StrategyDependencyResolver:
         instrument_columns = frozenset(required_features & set(_INSTRUMENT_COLUMNS))
         instrument_columns = frozenset(set(instrument_columns) | {"name"})
         matrix_columns = set(_EXECUTION_COLUMNS) | required_signals
+        if basic_filter.get("exclude_new_days"):
+            matrix_columns.add("listing_age_days")
         if minute_fill:
             indicator_columns = frozenset(set(indicator_columns) | {"ma5", "ma10", "ma20"})
             matrix_columns.update({"ma5", "ma10", "ma20"})
@@ -289,6 +292,8 @@ class StrategyDependencyResolver:
         }
         if "price_limit_pct" in required_features:
             matrix_columns.add("price_limit_pct")
+        if "listing_age_days" in required_features:
+            matrix_columns.add("listing_age_days")
         return ResolvedFeaturePlan(
             base_columns=base_columns,
             intermediate_columns=frozenset(),
@@ -492,6 +497,8 @@ def _basic_filter_dependencies(config: dict) -> set[str]:
         dependencies.add("float_shares")
     if config.get("exclude_st"):
         dependencies.add("is_risk_warning")
+    if config.get("exclude_new_days"):
+        dependencies.add("listing_age_days")
     return dependencies
 
 
@@ -522,6 +529,7 @@ _STOCK_ONLY_FILTER_KEYS = (
     "price_max",
     "boards",
     "market_scope_empty",
+    "exclude_new_days",
 )
 
 
@@ -1535,6 +1543,7 @@ class StrategyBacktestService:
                 exit_delay_bars=1 if matcher_config.exit_fill == "open_t+1" else 0,
                 reference_price=reference_price,
                 minute_exit_trigger=matcher_config.exit_fill == "signal_next_minute",
+                basic_filter=basic_filter,
             )
             timing_ms["matrix_build"] = round((time.perf_counter() - t_matrix) * 1000, 1)
             del sim_market_data, sim_signal_matrix
@@ -1653,6 +1662,7 @@ class StrategyBacktestService:
                 exit_delay_bars=1 if matcher_config.exit_fill == "open_t+1" else 0,
                 reference_price=reference_price,
                 minute_exit_trigger=matcher_config.exit_fill == "signal_next_minute",
+                basic_filter=basic_filter,
             )
             timing_ms["matrix_build"] = round((time.perf_counter() - t_matrix) * 1000, 1)
             del sim_market_data, sim_signal_matrix
@@ -1671,7 +1681,8 @@ class StrategyBacktestService:
                         return _err(f"基础过滤计算失败: {e}")
 
             candidate_filter_mask = self._build_candidate_filter_mask(panel, s, params)
-            candidate_mask = basic_mask & candidate_filter_mask
+            raw_exit_mask = self._build_signal_mask(panel, exit_signals, "_exit")
+            candidate_mask = basic_mask & candidate_filter_mask & ~raw_exit_mask
             panel = self._apply_score(panel, s, overrides, universe_mask=candidate_mask, factor_snapshot=factor_snapshot)
             formal_candidate_mask = candidate_mask & formal_range
             entry_mask = self._build_entry_mask_from_candidate(panel, candidate_mask, s, entry_signals)
@@ -1697,7 +1708,6 @@ class StrategyBacktestService:
                     regime_row_mask = panel.get_column("date").is_in(allowed_dates).fill_null(False)
                     formal_candidate_mask = formal_candidate_mask & regime_row_mask
                     entry_mask = entry_mask & regime_row_mask
-            raw_exit_mask = self._build_signal_mask(panel, exit_signals, "_exit")
             exit_range = self._date_range_mask(panel, config.start, load_end) if config.mode == "full" else formal_range
             exit_mask = raw_exit_mask & exit_range
             timing_ms["signals_score"] = round((time.perf_counter() - t_signal) * 1000, 1)
@@ -1732,6 +1742,7 @@ class StrategyBacktestService:
                 entry_signal_ids=entry_signals,
                 exit_signal_ids=exit_signals,
                 minute_exit_trigger=matcher_config.exit_fill == "signal_next_minute",
+                basic_filter=basic_filter,
             )
             timing_ms["matrix_build"] = round((time.perf_counter() - t_matrix) * 1000, 1)
             del panel, sim_panel, sim_entry_mask, sim_exit_mask
@@ -2048,7 +2059,9 @@ class StrategyBacktestService:
         )
 
         t_matrix = time.perf_counter()
-        market_data = build_market_data_matrix(sim_panel)
+        market_data = build_market_data_matrix(
+            sim_panel, field_columns=STATUS_FIELDS | {"listing_age_days"},
+        )
         market_matrix = build_market_matrix_from_signals(
             market_data,
             signals,
@@ -2056,6 +2069,7 @@ class StrategyBacktestService:
             entry_delay_bars=0,
             exit_delay_bars=1 if matcher_config.exit_fill == "open_t+1" else 0,
             entry_price_override=entry_price_override,
+            basic_filter=self._effective_basic_filter(s, overrides),
         )
         timing_ms["matrix_build"] = round((time.perf_counter() - t_matrix) * 1000, 1)
         del sim_panel, market_data
@@ -2650,6 +2664,7 @@ class StrategyBacktestService:
             "stamp_tax_pct": c.stamp_tax_pct,
             "stamp_tax_mode": "historical" if c.stamp_tax_pct is None else "fixed",
             "cost_model_version": COST_MODEL_VERSION,
+            "entry_policy_version": ENTRY_POLICY_VERSION,
             "strict_research": c.strict_research,
             "slippage_bps": c.slippage_bps,
             "max_positions": c.max_positions,

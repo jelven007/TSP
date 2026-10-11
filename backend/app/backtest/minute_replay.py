@@ -213,6 +213,21 @@ class MinuteSignalReplayer:
                 )
                 adj_factor.clear()
                 adj_factor.update(_adj_factors(day_rows))
+                # Security eligibility is known at the start of T; price/volume
+                # features still come exclusively from completed T-1 daily bars.
+                eligibility_columns = [
+                    name for name in (
+                        "is_risk_warning", "instrument_status_known",
+                        "is_listed", "listing_age_days",
+                    ) if name in panel.columns
+                ]
+                if eligibility_columns:
+                    current = current.drop(eligibility_columns).join(
+                        panel.filter(pl.col("date") == day).select(
+                            "symbol", *eligibility_columns,
+                        ),
+                        on="symbol", how="left",
+                    )
 
             context = StrategyDataContext(
                 asset_type="stock",

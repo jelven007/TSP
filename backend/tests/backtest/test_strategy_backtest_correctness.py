@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import polars as pl
+import pytest
 
 from app.backtest.engine import BacktestEngine, SimResult
 from app.backtest.matrix import build_market_data_matrix, make_signal_matrix, rolling_mean
@@ -163,6 +164,48 @@ def test_basic_filter_only_limits_entries_not_panel_rows():
         "entry_trigger_filtered": 0,
         "entry_trigger_enabled": False,
     }
+
+
+@pytest.mark.parametrize("backend", ["polars_expr", "matrix_native"])
+def test_service_wires_age_exit_priority_and_fill_day_status(backend):
+    start = date(2024, 1, 1)
+    panel = pl.DataFrame({
+        "symbol": ["600001.SH"] * 5, "name": ["正常公司"] * 5,
+        "date": [start + timedelta(days=i) for i in range(5)],
+        **{c: [10.0] * 5 for c in ("open", "high", "low", "close")},
+        "volume": [100_000] * 5,
+        "listing_age_days": [29, 30, 31, 32, 33],
+        "is_risk_warning": [False, False, True, False, False],
+        "instrument_status_known": [True] * 5, "is_listed": [True] * 5,
+        "signal_ma20_breakdown": [False, False, False, True, False],
+    })
+
+    class RawSignals:
+        def required_fields(self):
+            return frozenset({"close"})
+
+        def required_warmup_bars(self, params):
+            return 1
+
+        def compute_signals(self, market, params):
+            exit_ = np.zeros(market.shape, dtype=np.uint8)
+            exit_[3, 0] = 1
+            return make_signal_matrix(market.shape, entry=np.ones_like(exit_), exit=exit_)
+
+    strategy = _strategy(
+        basic_filter={"exclude_st": True, "exclude_new_days": 30},
+        exit_signals=["signal_ma20_breakdown"],
+        execution_backend=backend,
+        matrix_strategy=RawSignals() if backend == "matrix_native" else None,
+    )
+    engine = _EngineStub(panel)
+    result = StrategyBacktestService(engine, _StrategyEngineStub(strategy)).run(
+        StrategyBacktestConfig("test", None, start, start + timedelta(days=4)),
+    )
+    assert not result.error
+    assert engine.sim_matrix.entry[:, 0].tolist() == [0, 0, 1, 0, 0]
+    assert not engine.sim_matrix.entry_eligible[2, 0]
+    assert engine.sim_matrix.exit[4, 0] == 1
 
 
 def test_non_matrix_strategy_applies_regime_filter_and_reports_config(tmp_path):

@@ -18,6 +18,7 @@ def _repo(tmp_path) -> KlineRepository:
         "name": ["浦发银行", "平安银行"],
         "total_shares": [29_352_080_397.0, 19_405_918_198.0],
         "float_shares": [29_352_080_397.0, 19_405_918_198.0],
+        "listing_date": ["1999-11-10", "1991-04-03"],
     })
     return repo
 
@@ -52,6 +53,7 @@ def test_live_enriched_cache_keeps_instrument_metadata_without_persisting_it(tmp
     ]
     assert cached["total_shares"].null_count() == 0
     assert cached["float_shares"].null_count() == 0
+    assert cached["listing_age_days"].min() >= 365
 
     persisted = pl.read_parquet(
         tmp_path / "kline_daily_enriched" / f"date={cn_today().isoformat()}" / "part.parquet"
@@ -59,6 +61,7 @@ def test_live_enriched_cache_keeps_instrument_metadata_without_persisting_it(tmp
     assert "name" not in persisted.columns
     assert "total_shares" not in persisted.columns
     assert "float_shares" not in persisted.columns
+    assert "listing_age_days" not in persisted.columns
 
 
 def test_history_strategy_monitor_keeps_live_row_with_exclude_st_enabled(tmp_path):

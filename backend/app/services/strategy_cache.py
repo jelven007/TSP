@@ -22,6 +22,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from app.strategy.eligibility import ENTRY_POLICY_VERSION
+
 
 def _json_default(obj: Any) -> Any:
     """处理 date/datetime 等 JSON 不认识的类型。"""
@@ -104,6 +106,8 @@ def _read_cache_unlocked(data_dir: Path) -> dict | None:
         logger.warning("读取策略缓存失败: %s", e)
         return None
 
+    if not isinstance(cached, dict) or cached.get("entry_policy_version") != ENTRY_POLICY_VERSION:
+        return None
     return cached
 
 
@@ -180,6 +184,7 @@ def _write_cache_locked(
     enriched_mtime = _get_enriched_mtime(data_dir, as_of)
 
     payload = {
+        "entry_policy_version": ENTRY_POLICY_VERSION,
         "as_of": as_of,
         "results": merged_results,
         "today_ever_matched": today_ever_matched,

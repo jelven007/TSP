@@ -455,6 +455,9 @@ class BacktestEngine:
             if self.repo is not None
             else pl.DataFrame()
         )
+        if asset_type == "stock":
+            from app.strategy.eligibility import attach_listing_age
+            df = attach_listing_age(df, instruments)
         matrix_native = feature_plan.execution_backend == "matrix_native"
         if not matrix_native:
             df = compute_indicators(df, needed=set(feature_plan.indicator_columns))
@@ -969,6 +972,8 @@ class BacktestEngine:
             return bool(flags[time_id, asset_id]) and same
 
         def _can_buy(time_id: int, asset_id: int) -> tuple[bool, str]:
+            if matrix.entry_eligible is not None and not matrix.entry_eligible[time_id, asset_id]:
+                return False, "buy_ineligible"
             if not matrix.tradable[time_id, asset_id]:
                 return False, "buy_suspended"
             if not _valid_price(entry_prices[time_id, asset_id]):
@@ -1961,6 +1966,8 @@ class BacktestEngine:
             return bool(flag[time_id, asset_id]) and same_price
 
         def _can_buy(time_id: int, asset_id: int) -> tuple[bool, str]:
+            if matrix.entry_eligible is not None and not matrix.entry_eligible[time_id, asset_id]:
+                return False, "buy_ineligible"
             if not matrix.tradable[time_id, asset_id]:
                 return False, "buy_suspended"
             if not _valid_price(entry_prices[time_id, asset_id]):
