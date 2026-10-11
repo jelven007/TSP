@@ -35,6 +35,7 @@ from app.api import (
     regime,
     rps,
     screener,
+    second_quotes,
     sector_rotation,
     signals,
     stock_analysis,
@@ -557,6 +558,7 @@ app.include_router(kline.router)
 app.include_router(watchlist.router)
 app.include_router(screener.router)
 app.include_router(backtest.router)
+app.include_router(second_quotes.router)
 app.include_router(factors.router)
 app.include_router(mining.router)
 app.include_router(intraday.router)

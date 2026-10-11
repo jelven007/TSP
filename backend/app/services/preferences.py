@@ -113,6 +113,32 @@ def set_realtime_quote_interval(interval: float) -> float:
     return interval
 
 
+_SECOND_QUOTE_RETENTION_MIN_DAYS = 0
+_SECOND_QUOTE_RETENTION_MAX_DAYS = 365
+_SECOND_QUOTE_RETENTION_DEFAULT_DAYS = 0
+
+
+def get_second_quote_archive_enabled() -> bool:
+    """秒级全市场快照归档默认关闭, 避免无意产生大体量数据。"""
+    return bool(load().get("second_quote_archive_enabled", False))
+
+
+def get_second_quote_archive_retention_days() -> int:
+    """秒级快照保留自然日数; 0 表示永久保留, 默认不删除研究原始样本。"""
+    raw = load().get(
+        "second_quote_archive_retention_days",
+        _SECOND_QUOTE_RETENTION_DEFAULT_DAYS,
+    )
+    try:
+        days = int(raw)
+    except (TypeError, ValueError):
+        days = _SECOND_QUOTE_RETENTION_DEFAULT_DAYS
+    return max(
+        _SECOND_QUOTE_RETENTION_MIN_DAYS,
+        min(_SECOND_QUOTE_RETENTION_MAX_DAYS, days),
+    )
+
+
 def get_minute_sync_enabled() -> bool:
     return load().get("minute_sync_enabled", False)
 

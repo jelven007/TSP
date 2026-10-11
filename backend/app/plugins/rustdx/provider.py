@@ -27,7 +27,12 @@ from app.data_providers.instrument_status import (
 )
 from app.data_providers.normalizer import normalize_daily
 from app.market_time import cn_now
-from app.plugins.rustdx.client import RustdxClient, RustdxError
+from app.plugins.rustdx.client import (
+    _RUSTDX_CRATE_VERSION,
+    _RUSTDX_SOURCE_REV,
+    RustdxClient,
+    RustdxError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -677,6 +682,9 @@ class RustdxProvider:
         ]
         if not supported:
             return []
+        # The same quote response already carries L1 depth; preserving it adds
+        # no network request and enables conservative execution replay.
+        del include_depth
         names = self._name_map() if include_names else {}
         request_started_ms = int(time.time() * 1000)
         result: list[dict] = []
@@ -720,21 +728,21 @@ class RustdxProvider:
                 "change_amount": change,
                 "amplitude": None,
                 "turnover_rate": None,
+                # servertime is an undated per-security event time. Neither it
+                # nor our receive clock proves the source snapshot's date/finality.
                 "timestamp": received_ms,
                 "timestamp_basis": "received",
                 "request_started_at": request_started_ms,
                 "received_at": received_ms,
                 "source_timestamp": None,
                 "source_time": str(row.get("servertime") or "") or None,
+                "provider_version": f"{_RUSTDX_CRATE_VERSION}@{_RUSTDX_SOURCE_REV}",
                 "session": None,
+                "bid1": _to_float(row.get("bid1")),
+                "bid1_volume": _to_float(row.get("bid_vol1")),
+                "ask1": _to_float(row.get("ask1")),
+                "ask1_volume": _to_float(row.get("ask_vol1")),
             }
-            if include_depth:
-                record.update({
-                    "bid1": _to_float(row.get("bid1")),
-                    "bid1_volume": _to_float(row.get("bid_vol1")),
-                    "ask1": _to_float(row.get("ask1")),
-                    "ask1_volume": _to_float(row.get("ask_vol1")),
-                })
             result.append(record)
         return result
 
