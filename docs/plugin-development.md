@@ -279,11 +279,17 @@ provider 不应自行切换或回退到其他数据源。
 | `amplitude` / `turnover_rate` / `session` | 可选 | 缺失置 None, 不启发式伪造; turnover_rate 入口为小数制 |
 | `source_time` | 秒级研究建议 | 源返回的时间原文；rustdx 为不带日期的单证券最后事件时间，不是批次时间 |
 | `source_timestamp` | 可选 | 源显式返回的 epoch 毫秒；没有则留空，不填本地采集时间 |
+| `provider_version` | 秒级研究必需 | 实际运行版本及固定源码提交；未知版本无法通过研究门禁 |
+| `bid1` / `ask1` | 秒级执行必需 | 买一/卖一原始价格（元），与同轮 quotes 共用响应 |
+| `bid1_volume` / `ask1_volume` | 秒级执行必需 | 一档挂单量（手），缺失不伪造 |
 
 收盘确认逐条检查源端快照时间属于目标交易日且达到收盘边界。本地接收时间、
 无日期事件时间和研究归档推断出的日期都不能确认定版；源端缺少证据时保留未确认状态，
 交由盘后源端日线同步校正。盘中日线保留 `quote_time_basis`，完整性检查不能把
 本地接收时间或未知时间当作权威历史。已有未带标记的历史分区仍按旧契约读取。
+
+归档独立保留 `collected_at_ms`、源时间和源日期推断标记。详见
+[秒级回测升级方案](second-level-backtest-upgrade.md)。
 
 ### config.datasets 的作用
 

@@ -260,6 +260,7 @@ class QuoteService:
         self._interval = self.DEFAULT_INTERVAL
         self._thread: threading.Thread | None = None
         self._repo = None          # 延迟注入, 避免循环导入
+        self._second_quote_archive = None  # 延迟创建; 默认关闭时不启动写线程
         # SSE 订阅者集合: 每个 /stream 连接一个 QuoteSubscriber, 事件广播到所有订阅者
         self._subscribers: set[QuoteSubscriber] = set()
         self._strategy_monitor = None            # 延迟注入
@@ -316,6 +317,7 @@ class QuoteService:
             from app.services import preferences
             interval = preferences.get_realtime_quote_interval()
         self._interval = self._clamp_interval(interval)
+        self.configure_second_quote_archive(True)
         self._running = True
         self._enabled = True
         self._thread = threading.Thread(target=self._poll_loop, daemon=True)
@@ -330,6 +332,9 @@ class QuoteService:
         if self._thread:
             self._thread.join(timeout=10)
             self._thread = None
+        archive = self._second_quote_archive
+        if archive is not None and not archive.stop(timeout=10):
+            logger.warning("秒级行情归档未在停机时限内排空")
         # 此处不持久化关闭: lifespan shutdown (容器停止/重启) 也调用 stop,
         # 持久化 False 会让每次重启后实时行情都变关闭、需手动再开。
         # 持久化语义归 disable() (用户主动关闭)。
@@ -344,6 +349,7 @@ class QuoteService:
         if not self.is_realtime_allowed():
             logger.warning("实时行情开启被拒:当前档位(none)无实时行情权限")
             return False
+        self.configure_second_quote_archive(True)
         self._enabled = True
         self._save_enabled(True)
         if not self._running:
@@ -417,10 +423,27 @@ class QuoteService:
     def set_repo(self, repo) -> None:
         """注入 KlineRepository, 用于实时落盘。"""
         self._repo = repo
+        if self._second_quote_archive is None:
+            from app.services import preferences
+            from app.services.second_quote_archive import SecondQuoteArchive
+
+            self._second_quote_archive = SecondQuoteArchive(
+                repo.store.data_dir,
+                enabled=preferences.get_second_quote_archive_enabled,
+                retention_days=preferences.get_second_quote_archive_retention_days,
+            )
 
     def set_app_state(self, app_state) -> None:
         """注入 FastAPI app.state, 用于获取 strategy_monitor 等单例。"""
         self._app_state = app_state
+
+    def configure_second_quote_archive(self, enabled: bool) -> None:
+        archive = self._second_quote_archive
+        if archive is not None:
+            if enabled:
+                archive.reopen()
+            elif not archive.stop(timeout=10):
+                raise RuntimeError("second quote archive is still draining")
 
     def set_interval(self, interval: float) -> float:
         """运行时更新轮询间隔（立即生效）。"""
@@ -596,7 +619,7 @@ class QuoteService:
         final_key = self._final_sync_key(phase)
         final_done = bool(final_key and final_key in self._final_sync_done)
         final_failed = self._final_sync_failed.get(final_key) if final_key else None
-        return {
+        result = {
             "enabled": self._enabled,
             "running": self._running,
             "paused": self._paused,
@@ -615,6 +638,9 @@ class QuoteService:
             "final_sync_failed": final_failed,
             "last_fetch_ms": round(self._fetched_at, 0) if self._fetched_at else None,
         }
+        if self._second_quote_archive is not None:
+            result["second_quote_archive"] = self._second_quote_archive.status()
+        return result
 
     def refresh(self) -> dict:
         """手动触发一次行情拉取。
@@ -790,6 +816,7 @@ class QuoteService:
                     now_ts=now_ts,
                     replace_index_cache=replace_index_cache,
                     final_boundary_ms=final_boundary_ms,
+                    provider_name=provider_name,
                 )
             logger.warning("selected realtime provider %s is unavailable", provider_name)
             return
@@ -879,7 +906,11 @@ class QuoteService:
             })
 
         return self._process_full_market_records(
-            records, t0=t0, now_ts=now_ts, final_boundary_ms=final_boundary_ms
+            records,
+            t0=t0,
+            now_ts=now_ts,
+            final_boundary_ms=final_boundary_ms,
+            provider_name="tickflow",
         )
 
     def _process_full_market_records(
@@ -890,6 +921,7 @@ class QuoteService:
         now_ts: float,
         replace_index_cache: bool = True,
         final_boundary_ms: int | None = None,
+        provider_name: str | None = None,
     ) -> tuple[pl.DataFrame, pl.DataFrame | None] | None:
         """把全市场 records 写盘并增量计算 enriched。
 
@@ -897,8 +929,8 @@ class QuoteService:
         则只更新展示缓存, 不写 daily/enriched、不评估监控 —— 防止收盘后数据源仍
         返回竞价前旧价时把陈旧收盘价固化到当日分区。
         """
-        from app.services import preferences
         from app.market_scope import removed_market_symbol
+
         records = [r for r in records if not removed_market_symbol(r.get("symbol"))]
         all_index_symbols = set(self._repo.get_index_symbol_set()) if self._repo else set()
         core_index_symbols = set(CORE_INDEX_SYMBOLS)
@@ -949,6 +981,26 @@ class QuoteService:
 
         _persist_last_fetch(fetched_at)
         logger.info("行情刷新: %d 只股票, %d 只ETF, %d 只指数, 耗时 %.0fms", len(stock_records), len(etf_records), len(index_records), fetch_ms)
+
+        if self._second_quote_archive is not None and in_intraday_polling_window(cn_now()):
+            try:
+                from app.services import trading_day
+
+                archive_allowed = trading_day.is_trading_day() is not False
+                if archive_allowed:
+                    self._second_quote_archive.submit(
+                        {
+                            "stock": stock_records,
+                            "etf": etf_records,
+                            "index": index_records,
+                        },
+                        provider=provider_name or "unknown",
+                        collected_at_ms=int(fetched_at),
+                        trade_date=cn_today(),
+                    )
+            except Exception as e:
+                # 研究归档是旁路线; 失败必须可观测, 但不能中断实时展示和日K落盘。
+                logger.warning("秒级行情归档入队失败: %s", e)
 
         if confirmed_final is False:
             # 边界前的陈旧快照: 展示缓存已更新, 落盘与监控评估留待边界后快照。

@@ -4,6 +4,7 @@
 // Prod:同源(FastAPI 托管前端 dist)
 
 import { toast } from '@/components/Toast'
+import { secondQuotesApi, type SecondQuoteArchiveStatus } from '@/lib/api/secondQuotes'
 import {
   COMPUTE_REQUEST_TIMEOUT_MS,
   extPullTimeoutMs,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/api/client'
 
 export { ApiError } from '@/lib/api/client'
+export type * from '@/lib/api/secondQuotes'
 
 /**
  * 把浏览器 fetch 抛出的裸网络错误文案翻译成可操作的提示。
@@ -2000,6 +2002,9 @@ export interface ApiTokenRecord {
 
 export interface Preferences {
   realtime_quotes_enabled: boolean
+  second_quote_archive_enabled?: boolean
+  /** 0 = 不自动删除；1–365 = 保留自然日数。 */
+  second_quote_archive_retention_days?: number
   watchlist_groups_in_nav: boolean
   minute_sync_enabled: boolean
   minute_sync_days: number
@@ -2198,6 +2203,7 @@ export interface AuthResult {
 
 // ===== API surface =====
 export const api = {
+  ...secondQuotesApi,
   health: () => request<{ status: string; version: string; mode: string }>('/health'),
 
   // ===== Auth =====
@@ -2420,6 +2426,18 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ realtime_quotes_enabled: enabled }),
     }),
+  updateSecondQuoteArchive: (enabled: boolean, retentionDays = 0) =>
+    request<{
+      second_quote_archive_enabled: boolean
+      second_quote_archive_retention_days: number
+      status?: SecondQuoteArchiveStatus
+    }>('/api/settings/preferences/second-quote-archive', {
+      method: 'PUT',
+      body: JSON.stringify({
+        second_quote_archive_enabled: enabled,
+        second_quote_archive_retention_days: retentionDays,
+      }),
+    }),
   updateRealtimeQuoteScope: (cfg: Partial<Pick<Preferences, 'realtime_pull_stock' | 'realtime_pull_etf'>>) =>
     request<Partial<Preferences>>('/api/settings/preferences/realtime-quote-scope', {
       method: 'PUT',
@@ -2449,6 +2467,7 @@ export const api = {
       final_sync_done?: boolean
       final_sync_failed?: string | null
       last_fetch_ms: number | null
+      second_quote_archive?: SecondQuoteArchiveStatus
     }>('/api/intraday/status'),
   quoteInterval: () =>
     request<{ interval: number; min_interval: number; max_interval: number }>(

@@ -26,6 +26,7 @@ _DATASET_PATHS = {
     "stock_daily": "kline_daily",
     "stock_enriched": "kline_daily_enriched",
     "stock_minute": "kline_minute",
+    "second_quotes": "quote_second",
     "stock_adj_factor": "adj_factor",
     "instruments": "instruments",
     "instrument_status": "instrument_status",

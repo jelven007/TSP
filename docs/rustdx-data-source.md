@@ -51,7 +51,7 @@ APScheduler 编排目录同步、竞价和盘后流水线。实时行情、分�
 
 后端通过 PyO3 原生扩展调用
 [`jelven007/rustdx`](https://github.com/jelven007/rustdx) 中固定提交
-`fac771a18cd218c90852254e59b040874d156722` 的 `rustdx-complete 1.12.0`。
+`904b33e514d4e368e633622c96a9e63af8a53d37` 的 `rustdx-complete 1.12.2`。
 依赖固定到提交而不是浮动分支。源码环境需要 Rust toolchain：
 
 ```bash
@@ -93,6 +93,11 @@ RUSTDX_TIMEOUT=8
 
 固定股票池的 8–30 连接 P95 压测脚本、验收口径和结果文件见
 [`rustdx 行情连接数压测`](rustdx-quote-benchmark.md)。
+
+秒级回测新增可选的不可变快照归档、质量门禁和执行验证 API，复用既有轮询结果及
+买卖一档数据，不增加行情请求。启用方法、时间语义和分阶段验收见
+[`秒级行情回测优化与实施方案`](second-level-backtest-upgrade.md)。
+该能力保存采样快照；1.12.2 的成交查询时间精度仍不足以补齐历史真实秒级逐笔数据。
 
 ## 数据口径
 

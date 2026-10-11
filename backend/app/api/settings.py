@@ -509,6 +509,10 @@ def get_preferences() -> dict:
     return {
         "realtime_quotes_enabled": preferences.get_realtime_quotes_enabled(),
         "realtime_allowed": _realtime_allowed(),
+        "second_quote_archive_enabled": preferences.get_second_quote_archive_enabled(),
+        "second_quote_archive_retention_days": (
+            preferences.get_second_quote_archive_retention_days()
+        ),
         "watchlist_groups_in_nav": preferences.get_watchlist_groups_in_nav(),
         "minute_sync_enabled": preferences.get_minute_sync_enabled(),
         "minute_sync_days": preferences.get_minute_sync_days(),
@@ -957,9 +961,40 @@ class RealtimeQuotesPrefs(BaseModel):
     realtime_quotes_enabled: bool
 
 
+class SecondQuoteArchivePrefs(BaseModel):
+    second_quote_archive_enabled: bool
+    second_quote_archive_retention_days: int = Field(default=0, ge=0, le=365)
+
+
 class RealtimeQuoteScopePrefs(BaseModel):
     realtime_pull_stock: bool | None = None
     realtime_pull_etf: bool | None = None
+
+
+@router.put("/preferences/second-quote-archive")
+def update_second_quote_archive(
+    req: SecondQuoteArchivePrefs,
+    request: Request,
+) -> dict:
+    """配置秒级全市场快照归档; 默认关闭, 防止无意占满磁盘。"""
+    from app.services import preferences
+
+    preferences.save(req.model_dump())
+    result = {
+        "second_quote_archive_enabled": preferences.get_second_quote_archive_enabled(),
+        "second_quote_archive_retention_days": (
+            preferences.get_second_quote_archive_retention_days()
+        ),
+    }
+    quote_service = getattr(request.app.state, "quote_service", None)
+    if quote_service is not None:
+        try:
+            quote_service.configure_second_quote_archive(req.second_quote_archive_enabled)
+        except RuntimeError as exc:
+            preferences.save({"second_quote_archive_enabled": False})
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        result["status"] = quote_service.status().get("second_quote_archive")
+    return result
 
 
 @router.put("/preferences/realtime-quotes")
