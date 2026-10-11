@@ -254,6 +254,9 @@ class RustdxProvider:
     builtin = True
     minute_history_days = 30
     enrich_instruments_with_finance = False
+    # TDX bars are one security per request; the full universe is not a cheap
+    # single-request incremental endpoint. Keep persisted preferences intact.
+    intraday_min_interval_seconds = 60
 
     def __init__(self, client_factory: Callable[[], RustdxClient] = RustdxClient) -> None:
         self.config = _RustdxConfig()
@@ -474,6 +477,7 @@ class RustdxProvider:
             return
         frames: list[pl.DataFrame] = []
         failures = 0
+        failed_symbols: list[str] = []
         try:
             with self._client_factory() as client:
                 for index, symbol in enumerate(valid):
@@ -491,6 +495,7 @@ class RustdxProvider:
                             frames.append(frame)
                     except RustdxError as exc:
                         failures += 1
+                        failed_symbols.append(symbol)
                         logger.warning("%s 日K %s 拉取失败: %s", self.name, symbol, exc)
                     if on_chunk_done:
                         on_chunk_done(index + 1, len(valid))
@@ -500,8 +505,10 @@ class RustdxProvider:
                     if len(frames) >= _DAILY_YIELD_SYMBOLS:
                         yield pl.concat(frames, how="diagonal_relaxed")
                         frames.clear()
-        except RustdxError as exc:
-            logger.warning("%s 日K连接失败: %s", self.name, exc)
+        except RustdxError:
+            raise
+        if failed_symbols:
+            raise RustdxError(f"日K取数不完整, 拒绝提交: {failed_symbols[:5]}")
         if frames:
             yield pl.concat(frames, how="diagonal_relaxed")
 
@@ -531,6 +538,7 @@ class RustdxProvider:
         symbol: str,
         start_time: datetime | None,
         end_time: datetime | None,
+        frequency: int = 8,
     ) -> pl.DataFrame:
         rows: list[dict] = []
         for item in raw:
@@ -542,6 +550,13 @@ class RustdxProvider:
             if end_time and timestamp > _as_beijing_datetime(end_time):
                 continue
             volume = _to_float(item.get("volume", item.get("vol")))
+            amount = _to_float(item.get("amount"))
+            if frequency == 8:
+                minute = timestamp.hour * 60 + timestamp.minute
+                if not (571 <= minute <= 690 or 781 <= minute <= 900):
+                    if volume == 0 and amount == 0:
+                        continue  # Suspended-security placeholders have no trade to preserve.
+                    raise RustdxError(f"分钟K时间不在收盘标记区间: {symbol} {timestamp}")
             rows.append(
                 {
                     "symbol": symbol,
@@ -553,7 +568,7 @@ class RustdxProvider:
                     # TDX intraday bars use shares; frequency=9 daily and
                     # security quotes use lots. Verified against amount/VWAP.
                     "volume": volume / 100.0 if volume is not None else None,
-                    "amount": _to_float(item.get("amount")),
+                    "amount": amount,
                 }
             )
         if not rows:
@@ -581,6 +596,7 @@ class RustdxProvider:
     ) -> list[pl.DataFrame]:
         frames: list[pl.DataFrame] = []
         failures = 0
+        failed_symbols: list[str] = []
         try:
             with self._client_factory() as client:
                 for symbol in symbols:
@@ -592,18 +608,21 @@ class RustdxProvider:
                             start_time,
                             end_time,
                         )
-                        frame = self._minute_frame(raw, symbol, start_time, end_time)
+                        frame = self._minute_frame(raw, symbol, start_time, end_time, frequency)
                         failures = 0
                         if not frame.is_empty():
                             frames.append(frame)
                     except RustdxError as exc:
                         failures += 1
+                        failed_symbols.append(symbol)
                         logger.warning("%s 分钟K %s 拉取失败: %s", self.name, symbol, exc)
                     if failures >= 3:
                         logger.warning("%s 分钟K连续连接/协议失败, 终止本批次", self.name)
                         break
-        except RustdxError as exc:
-            logger.warning("%s 分钟K连接失败: %s", self.name, exc)
+        except RustdxError:
+            raise
+        if failed_symbols:
+            raise RustdxError(f"分钟K取数不完整, 拒绝提交: {failed_symbols[:5]}")
         return frames
 
     def get_minute(
@@ -1155,30 +1174,56 @@ class RustdxProvider:
         count: int = 3,
         asset_type: str = "stock",
     ) -> pl.DataFrame:
+        frame, _ = self._intraday_latest(symbols, count, asset_type, counted=False)
+        return frame
+
+    def get_intraday_latest_with_count(self, symbols, count=3) -> tuple[pl.DataFrame, int]:
+        """Return protocol request count, including retries, for this call only."""
+        return self._intraday_latest(symbols, count, "stock", counted=True)
+
+    def get_intraday_batch_with_count(self, symbols) -> tuple[pl.DataFrame, int]:
+        # 800 bars cover today's full session; _minute_frame excludes prior days.
+        return self._intraday_latest(symbols, 800, "stock", counted=True)
+
+    def _intraday_latest(self, symbols, count, asset_type, *, counted):
         del asset_type
         if symbols is None:
             symbols = [row["symbol"] for row in self.get_instruments("stock")]
-        valid = [symbol for symbol in symbols if _symbol(symbol)]
+        valid = list(dict.fromkeys(symbol for symbol in symbols if _symbol(symbol)))
         if not valid:
-            return pl.DataFrame()
+            return pl.DataFrame(), 0
         end = cn_now().replace(tzinfo=None)
         start = end.replace(hour=0, minute=0, second=0, microsecond=0)
 
         def fetch(symbol):
             with self._client_factory() as client:
-                raw = client.bars(symbol, frequency=8, offset=max(1, min(int(count), 800)))
-            return self._minute_frame(raw, symbol, start, end)
+                if counted:
+                    raw, requests = client.bars_with_count(
+                        symbol, frequency=8, offset=max(1, min(int(count), 800)),
+                    )
+                else:
+                    raw = client.bars(symbol, frequency=8, offset=max(1, min(int(count), 800)))
+                    requests = 1
+            return self._minute_frame(raw, symbol, start, end), requests
 
         # Native pool is shared with quotes/history/finance and enforces 35
         # sockets across all consumers, including simultaneous calls.
         with ThreadPoolExecutor(
             max_workers=self._workers(len(valid)), thread_name_prefix="rustdx-latest"
         ) as pool:
-            frames = [frame for frame in pool.map(fetch, valid) if not frame.is_empty()]
+            frames, requests = [], 0
+            # Submit bounded windows instead of queuing the entire stock universe.
+            workers = self._workers(len(valid))
+            for offset in range(0, len(valid), workers * 2):
+                for frame, calls in pool.map(fetch, valid[offset:offset + workers * 2]):
+                    requests += calls
+                    if not frame.is_empty():
+                        frames.append(frame)
         return (
             pl.concat(frames, how="diagonal_relaxed").sort(["symbol", "datetime"])
             if frames
-            else pl.DataFrame()
+            else pl.DataFrame(),
+            requests,
         )
 
     def get_adj_factors(

@@ -177,3 +177,33 @@ def test_data_status_includes_share_history(tmp_path):
     assert result is not None
     assert result["rows"] == 3
     assert result["tables"]["shares"] == {"rows": 3, "symbols": 2}
+
+
+def test_financial_revision_replay_uses_observation_time_and_detects_tampering(tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    from app.services.financial_sync import _write_table, get_financial_revision
+
+    before = datetime.now(UTC) - timedelta(seconds=1)
+    old = pl.DataFrame({
+        "symbol": ["600000.SH"], "period_end": ["2025-12-31"],
+        "announce_date": ["2026-04-01"], "float_shares": [100.0],
+    })
+    new = old.with_columns(pl.lit(200.0).alias("float_shares"))
+    _write_table("shares", old, tmp_path)
+    first = datetime.now(UTC)
+    _write_table("shares", new, tmp_path)
+    second = datetime.now(UTC)
+    _write_table("shares", old, tmp_path)
+    third = datetime.now(UTC)
+    assert get_financial_revision(tmp_path, "shares", before).is_empty()
+    assert get_financial_revision(tmp_path, "shares", first)["float_shares"].item() == 100.0
+    assert get_financial_revision(tmp_path, "shares", second)["float_shares"].item() == 200.0
+    assert get_financial_revision(tmp_path, "shares", third)["float_shares"].item() == 100.0
+    revisions = tmp_path / "financials" / "revisions" / "shares"
+    assert len(list(revisions.glob("*.parquet"))) == 2
+    assert len(list((revisions / "observations").glob("*.json"))) == 3
+    for path in revisions.glob("*.parquet"):
+        path.write_bytes(b"corrupt")
+    with pytest.raises(ValueError, match="checksum"):
+        get_financial_revision(tmp_path, "shares", third)

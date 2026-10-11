@@ -58,3 +58,14 @@ def test_strategy_serializes_cost_policy_to_make_defaults_reproducible():
     assert serialized["cost_model_version"] == "cn_stock_tax_v1"
     cfg.stamp_tax_pct = 0.0
     assert StrategyBacktestService._config_to_dict(cfg)["stamp_tax_mode"] == "fixed"
+
+
+def test_research_gate_reports_changed_auxiliary_inputs():
+    from app.backtest.governance import research_preflight
+
+    config = StrategyBacktestConfig("s", None, date(2016, 1, 1), date(2026, 10, 9))
+    trace = {"release_consistent": True, "research_inputs_match_release": False}
+    issues = research_preflight(config, trace)
+    assert len(issues) == 1
+    assert "指纹" in issues[0]
+    assert trace["research_governance"]["status_and_cost_gate_passed"] is False

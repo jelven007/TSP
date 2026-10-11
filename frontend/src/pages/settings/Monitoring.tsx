@@ -482,7 +482,7 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
               <div className="min-w-0">
                 <div className="text-sm text-foreground">刷新间隔</div>
                 <div className="text-[11px] text-muted">
-                  交易时段内全市场分钟K增量落盘的间隔; 稳态单请求增量, 冷启动/断档自动全天回补
+                  交易时段内全市场分钟K增量落盘的目标间隔，实际周期取决于数据源请求成本；冷启动和断档自动回补
                 </div>
               </div>
               <span className="text-[11px] font-mono text-foreground shrink-0 tabular-nums">
@@ -504,6 +504,14 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
                 {minuteRefreshIntervalDraft !== minuteRefreshInterval ? '2秒后保存' : '1s — 120s'}
               </span>
             </div>
+            {rs?.effective_interval_seconds != null && (
+              <div className="mt-2 text-[11px] text-muted">
+                当前生效周期 {rs.effective_interval_seconds}s
+                {rs.effective_interval_seconds > (rs.interval_seconds ?? minuteRefreshInterval)
+                  ? ' · 数据源按请求成本限制刷新频率，已保存的间隔设置保留'
+                  : ''}
+              </div>
+            )}
             {rs?.available && rs.rounds != null && rs.rounds > 0 && (
               <div className="mt-2 text-[10px] text-muted">
                 已 {rs.rounds} 轮 · 最近 {rs.last_symbols} 标的 / {rs.last_rows} 行 / {rs.last_requests} 请求

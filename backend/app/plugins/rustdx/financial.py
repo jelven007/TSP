@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import struct
@@ -27,6 +28,45 @@ def _verified(path: Path, size: int, checksum: str) -> bool:
         return False
     with path.open("rb") as source:
         return hashlib.file_digest(source, "md5").hexdigest() == checksum
+
+
+def _retain_revision(path: Path, cache_dir: Path, report_date: str, observed_at: str) -> Path:
+    """Keep immutable observed bytes without assigning a historical publication date."""
+    with path.open("rb") as source:
+        digest = hashlib.file_digest(source, "sha256").hexdigest()
+    revision_dir = cache_dir / "revisions" / report_date
+    revision_dir.mkdir(parents=True, exist_ok=True)
+    revision = revision_dir / f"{digest}.zip"
+    if not revision.exists():
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=revision_dir, delete=False) as out:
+                temporary = Path(out.name)
+                with path.open("rb") as source:
+                    while block := source.read(64_000):
+                        out.write(block)
+            os.replace(temporary, revision)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+    metadata = revision.with_suffix(".json")
+    if not metadata.exists():
+        payload = {
+            "report_date": report_date,
+            "sha256": digest,
+            "first_observed_at": observed_at,
+            "publication_time_verified": False,
+        }
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=revision_dir, delete=False) as out:
+                temporary = Path(out.name)
+                json.dump(payload, out, sort_keys=True)
+            os.replace(temporary, metadata)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+    return revision
 
 
 def parse_archive(path: Path, codes: set[str], columns: set[str], report_date: str) -> list[dict]:
@@ -120,9 +160,20 @@ def financial_history(native, symbols, *, periods, columns, cache_dir: Path) -> 
                         out.write(payload)
                     if not _verified(temporary, size, checksum):
                         raise ValueError(f"财务文件校验失败: {filename}")
+                    # Validate before advancing the mutable current cache.
+                    parse_archive(temporary, codes, set(columns), report_date)
+                    if path.is_file():
+                        try:
+                            parse_archive(path, codes, set(columns), report_date)
+                        except (ValueError, OSError, zipfile.BadZipFile):
+                            pass
+                        else:
+                            _retain_revision(path, cache_dir, report_date, cn_now().isoformat())
+                    _retain_revision(temporary, cache_dir, report_date, cn_now().isoformat())
                     os.replace(temporary, path)
                 finally:
                     if temporary is not None:
                         temporary.unlink(missing_ok=True)
+            _retain_revision(path, cache_dir, report_date, cn_now().isoformat())
             records.extend(parse_archive(path, codes, set(columns), report_date))
     return records

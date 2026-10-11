@@ -524,7 +524,7 @@ def test_partial_instrument_catalog_is_not_published_or_cached():
 
 
 @pytest.mark.parametrize("dataset", ["daily", "minute"])
-def test_protocol_outage_stops_after_three_failures_but_preserves_received_rows(dataset, monkeypatch):
+def test_protocol_outage_stops_after_three_failures_and_rejects_partial_result(dataset, monkeypatch):
     monkeypatch.setenv("RUSTDX_WORKERS", "1")
     fake = _FakeClient()
     calls = []
@@ -540,12 +540,29 @@ def test_protocol_outage_stops_after_three_failures_but_preserves_received_rows(
 
     fake.bars = bars
     provider = _provider(fake)
-    frame = getattr(provider, f"get_{dataset}")(
-        [f"{600000 + i}.SH" for i in range(20)],
-        datetime(2026, 9, 30), datetime(2026, 9, 30, 15),
-    )
+    with pytest.raises(RustdxError, match="不完整"):
+        getattr(provider, f"get_{dataset}")(
+            [f"{600000 + i}.SH" for i in range(20)],
+            datetime(2026, 9, 30), datetime(2026, 9, 30, 15),
+        )
     assert len(calls) == 4
-    assert frame["symbol"].to_list() == ["600000.SH"]
+
+
+def test_one_minute_boundary_rejects_lunch_start_label_and_keeps_final_bars():
+    rows = [
+        {"datetime": stamp, "close": 10.0}
+        for stamp in ["2026-10-09 11:30", "2026-10-09 13:01", "2026-10-09 15:00"]
+    ]
+    frame = RustdxProvider._minute_frame(rows, "600519.SH", None, None)
+    assert frame.height == 3
+    with pytest.raises(RustdxError, match="时间"):
+        RustdxProvider._minute_frame(
+            [{"datetime": "2026-10-09 13:00", "close": 10.0}], "600519.SH", None, None,
+        )
+    assert RustdxProvider._minute_frame(
+        [{"datetime": "2026-10-09 13:00", "close": 10.0, "vol": 0, "amount": 0}],
+        "600519.SH", None, None,
+    ).is_empty()
 
 
 def test_empty_trial_reports_no_data_and_can_recover():

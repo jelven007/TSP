@@ -148,6 +148,34 @@ def collect_dataset_snapshot(data_dir: Path) -> dict[str, dict[str, Any]]:
     return datasets
 
 
+def research_input_fingerprints(data_dir: Path) -> dict[str, Any]:
+    """Hash compact research inputs; detect replacement while reading each file."""
+    from app.market_time import trading_calendar_provenance
+
+    paths = [
+        "instruments/instruments.parquet",
+        "instrument_status/history.parquet",
+        *(f"financials/{table}/part.parquet"
+          for table in ("metrics", "income", "balance_sheet", "cash_flow", "shares")),
+    ]
+    files = {}
+    for relative in paths:
+        path = Path(data_dir) / relative
+        if not path.exists():
+            files[relative] = None
+            continue
+        before = path.stat()
+        with path.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        after = path.stat()
+        if (before.st_ino, before.st_mtime_ns, before.st_size) != (
+            after.st_ino, after.st_mtime_ns, after.st_size,
+        ):
+            raise DataReleaseError(f"research input changed while hashing: {relative}")
+        files[relative] = {"sha256": digest, "bytes": after.st_size}
+    return {"files": files, "trading_calendar": trading_calendar_provenance()}
+
+
 def publish_data_release(data_dir: Path, *, reason: str) -> dict[str, Any]:
     """Publish an immutable manifest, then atomically advance current.json."""
     data_dir = Path(data_dir)
@@ -166,6 +194,7 @@ def publish_data_release(data_dir: Path, *, reason: str) -> dict[str, Any]:
         },
         "provider_audit": provider_audit,
         "datasets": collect_dataset_snapshot(data_dir),
+        "research_inputs": research_input_fingerprints(data_dir),
     }
     after = _publication_generations(data_dir)
     captured = {
@@ -180,6 +209,8 @@ def publish_data_release(data_dir: Path, *, reason: str) -> dict[str, Any]:
     current_path = release_root / "current.json"
     try:
         with guard_enriched_generations(data_dir, after):
+            if research_input_fingerprints(data_dir) != manifest["research_inputs"]:
+                raise DataReleaseError("research inputs changed before publishing release")
             _atomic_write_json(history_path, manifest)
             _atomic_write_json(current_path, manifest)
     except EnrichedGenerationUnavailableError as exc:
@@ -310,6 +341,12 @@ def backtest_provenance(
     except DataReleaseError as exc:
         release = None
         release_error = str(exc)
+    try:
+        research_inputs = research_input_fingerprints(data_dir)
+        research_inputs_error = None
+    except (OSError, DataReleaseError) as exc:
+        research_inputs = None
+        research_inputs_error = str(exc)
 
     if data_generation is None:
         data_generation = _generation(data_dir, asset_type)
@@ -338,6 +375,13 @@ def backtest_provenance(
         "config_hash": stable_hash(config),
         "strategy_hash": strategy_hash,
         "release_error": release_error,
+        "research_inputs": research_inputs,
+        "research_inputs_error": research_inputs_error,
+        "research_inputs_match_release": bool(
+            research_inputs is not None
+            and release is not None
+            and release.get("research_inputs") == research_inputs
+        ),
     }
 
 

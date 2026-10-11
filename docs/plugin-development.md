@@ -236,6 +236,11 @@ provider 不应自行切换或回退到其他数据源。
 > - `get_intraday_latest(symbols=None, count=3) -> pl.DataFrame` — **可选**,
 >   稳态增量轮专用:尽量单请求返回全市场每只标的最新 `count` 根。未实现时
 >   服务自动降级为仅修复轮,节奏下限抬到 60s(全天批量打不住 1s 节奏)。
+> - `intraday_min_interval_seconds` — 可选类属性，声明取数成本要求的最小轮次间隔。
+>   服务取此值与用户偏好的较大值；rustdx 声明 60 秒，不修改已保存的间隔。
+> - `get_intraday_latest_with_count(symbols, count=3)` /
+>   `get_intraday_batch_with_count(symbols)` — 可选，返回 `(DataFrame, requests)`，
+>   请求数统计本次调用的实际协议请求及重试；未实现时沿用既有估算。
 >
 > 两个方法的返回帧都过 `_enforce_minute_beijing_wallclock` 时区守卫(与
 > `get_minute` 同纪律);失败抛异常或返回空 df 均按空轮处理,连续空轮触发

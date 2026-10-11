@@ -84,7 +84,7 @@ class _RefreshState:
     last_round_ms: float | None = None      # 单轮耗时
     last_rows: int = 0                      # 上轮写入行数 (合并后)
     last_symbols: int = 0                   # 上轮覆盖标的数
-    last_requests: int = 0                  # 上轮请求数 (增量恒 1, 修复=分块数+重试)
+    last_requests: int = 0                  # 上轮请求数, provider 可包含协议重试
     last_mode: str | None = None            # 上轮模式: "increment" / "full"
     last_error: str | None = None
     next_round_at: float | None = None      # epoch 秒
@@ -195,6 +195,9 @@ class MinuteRefreshService:
     def _effective_interval(self) -> int:
         """本轮间隔: 偏好值; 仅修复轮的自定义源下限 60s (全天批量打不住 6s 节奏)。"""
         interval = preferences.get_minute_refresh_interval()
+        provider, _ = self._resolve_custom()
+        if provider is not None:
+            interval = max(interval, int(getattr(provider, "intraday_min_interval_seconds", 1)))
         if self.repair_only():
             return max(interval, _REPAIR_ONLY_MIN_INTERVAL_S)
         return interval
@@ -226,20 +229,22 @@ class MinuteRefreshService:
                 if reason is None:
                     interval = self._effective_interval()
                     started = time.time()
+                    started_mono = time.monotonic()
                     self._run_round()
                     # 固定节奏: 下一轮 = max(本轮起点+间隔, 本轮完成), 不补跑
                     finish = time.time()
+                    next_mono = max(started_mono + interval, time.monotonic())
                     self._state.next_round_at = max(started + interval, finish)
                     # 等到下一轮 (小步睡眠保持可停/偏好热切换)
                     while not self._stop.is_set():
-                        now = time.time()
                         gate = self._gate_reason()
                         if gate is not None:
                             self._state.next_round_at = None
                             break  # 门控关闭 → 回外层等待重评估
-                        if now >= self._state.next_round_at:
+                        remaining = next_mono - time.monotonic()
+                        if remaining <= 0:
                             break
-                        self._stop.wait(min(_LOOP_STEP_S, max(0.0, self._state.next_round_at - now)))
+                        self._stop.wait(min(_LOOP_STEP_S, remaining))
                     continue
             except Exception as e:
                 self._state.last_error = f"round failed: {e}"
@@ -296,7 +301,9 @@ class MinuteRefreshService:
             # 无廉价增量端点的源: 增量轮退化为修复轮 (全天批量幂等覆盖, 数据不丢)
             mode = "full"
         mode_label = "增量" if mode == "increment" else "全天修复"
-        with self._round_lock:
+        if not self._round_lock.acquire(blocking=False):
+            return
+        try:
             if mode == "increment":
                 # fetch 计时只覆盖网络取数; full 分支的 universe 维表读取不计入
                 fetch_started = time.perf_counter()
@@ -345,6 +352,8 @@ class MinuteRefreshService:
                 df, self._repo.store.data_dir / "kline_minute",
             )
             write_ms = (time.perf_counter() - write_started) * 1000
+        finally:
+            self._round_lock.release()
 
         self._state.rounds += 1
         self._state.last_round_at = time.time()
@@ -387,7 +396,7 @@ class MinuteRefreshService:
         last = self._state.last_round_at
         if last is None:
             return False
-        interval = preferences.get_minute_refresh_interval()
+        interval = self._effective_interval()
         return (time.time() - float(last)) <= max(2.0 * interval, 30.0)
 
     def status(self) -> dict[str, Any]:
@@ -405,6 +414,7 @@ class MinuteRefreshService:
             "provider_effective": self._resolve_custom()[1],
             "repair_only": self.repair_only(),
             "interval_seconds": preferences.get_minute_refresh_interval(),
+            "effective_interval_seconds": self._effective_interval(),
             "capability_ok": self.capability_ok(),
             "in_trading_hours": _in_refresh_window(),
             "gate_reason": gate if (enabled and running) else (gate or "disabled"),

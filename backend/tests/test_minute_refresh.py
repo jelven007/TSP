@@ -71,6 +71,20 @@ def test_refresh_window_boundaries():
     assert not _in_refresh_window(datetime(2026, 8, 22, 10, 0))        # 周六
 
 
+def test_rustdx_effective_cadence_keeps_preference_and_accounts_for_cost(tmp_path, monkeypatch):
+    svc = _svc(
+        tmp_path, monkeypatch, full_minute_provider="rustdx",
+        custom=type("Provider", (), {
+            "intraday_min_interval_seconds": 60,
+            "get_intraday_latest": lambda self, **kwargs: pl.DataFrame(),
+        })(),
+    )
+    preferences.save({"minute_refresh_interval": 1})
+    assert svc._effective_interval() == 60
+    assert svc.status()["interval_seconds"] == 1
+    assert svc.status()["effective_interval_seconds"] == 60
+
+
 # ── 门控链 ──────────────────────────────────────────────────────────
 
 

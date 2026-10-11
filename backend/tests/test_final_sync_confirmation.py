@@ -127,6 +127,20 @@ def test_normal_poll_ignores_boundary(service) -> None:
     assert events["enriched"] == 1
 
 
+def test_partial_stock_snapshot_cannot_replace_full_day(service):
+    import polars as pl
+
+    qs, repo, events = service
+    repo.get_instruments = lambda: pl.DataFrame({"symbol": ["002084.SZ", "600000.SH"]})
+    boundary = _beijing_ms(15, 0)
+    qs._process_full_market_records(
+        [_record(boundary + 30_000)], t0=0.0, now_ts=0.0, final_boundary_ms=boundary,
+    )
+    assert qs._last_final_confirmed is False
+    assert repo.calls == []
+    assert events["enriched"] == 0
+
+
 @pytest.mark.parametrize("basis", ["received", "source_event", "unknown"])
 def test_local_or_event_time_does_not_confirm_close(service, basis):
     qs, repo, events = service
