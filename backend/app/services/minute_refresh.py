@@ -352,6 +352,12 @@ class MinuteRefreshService:
                 df, self._repo.store.data_dir / "kline_minute",
             )
             write_ms = (time.perf_counter() - write_started) * 1000
+        except kline_sync.MinuteFetchError as exc:
+            self._empty_rounds += 1
+            self._state.last_requests = exc.requests
+            self._state.last_error = str(exc)
+            logger.warning("全量分钟[%s] 取数失败, 不提交本轮: %s", mode_label, exc)
+            return
         finally:
             self._round_lock.release()
 
@@ -384,7 +390,8 @@ class MinuteRefreshService:
 
         条件: 偏好开启 + 轮询线程存活 + 最近一轮距现在 ≤ max(2*间隔, 30s)。
         健康时消费方 (自选分时等) 可信任本地分区、跳过批量补拉;
-        连续失败轮不更新 last_round_at → 自动超时判不健康, 无需单独盯 last_error。
+        失败轮不更新 last_round_at, 且有 last_error 时立即判不健康;
+        后续完整成功轮清除错误并恢复健康。
         """
         try:
             if not preferences.get_minute_refresh_enabled():
@@ -392,6 +399,8 @@ class MinuteRefreshService:
         except Exception:  # noqa: BLE001 — 偏好文件异常按不健康处理
             return False
         if self._thread is None or not self._thread.is_alive():
+            return False
+        if self._state.last_error is not None:
             return False
         last = self._state.last_round_at
         if last is None:

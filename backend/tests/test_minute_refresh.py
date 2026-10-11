@@ -14,9 +14,11 @@ monkeypatch 替换; 自定义源侧用内存 fake provider 走真实边界包装
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 import polars as pl
+import pytest
 
 from app.services import minute_refresh, preferences
 from app.services.minute_refresh import MinuteRefreshService, _in_refresh_window
@@ -363,6 +365,107 @@ def test_custom_provider_increment_round_via_latest(tmp_path, monkeypatch):
     assert st["last_mode"] == "increment"
     assert st["last_requests"] == 1
     assert st["repair_only"] is False
+
+
+@pytest.mark.parametrize("mode", ["increment", "full"])
+def test_rustdx_protocol_failure_preserves_last_success_and_recovers(tmp_path, monkeypatch, mode):
+    from app.plugins.rustdx import client as rustdx_client
+    from app.plugins.rustdx import provider as provider_module
+
+    failed = [False]
+    requests = []
+
+    class Native:
+        def bars_json(self, market, code, category, start, count, index, **kwargs):
+            requests.append((code, count))
+            error = failed[0] and code == "000001"
+            rows = [] if error else [{
+                "dt": {"year": 2026, "month": 10, "day": 9, "hour": 15, "minute": 0},
+                "open": 10, "high": 10, "low": 10, "close": 10, "vol": 100, "amount": 1000,
+            }]
+            return json.dumps({
+                "rows": rows, "requests": 3 if error else 1,
+                "error": "injected protocol failure" if error else None,
+            })
+
+    monkeypatch.setenv("RUSTDX_WORKERS", "1")
+    monkeypatch.setattr(rustdx_client, "_native_client", lambda: Native())
+    monkeypatch.setattr(provider_module, "cn_now", lambda: datetime(2026, 10, 9, 15, 1))
+    svc = _svc(
+        tmp_path, monkeypatch, full_minute_provider="rustdx",
+        custom=provider_module.RustdxProvider(),
+    )
+    svc._repo = _FakeRepo(["600519.SH", "000001.SZ"])
+    svc._repo.store.data_dir = tmp_path
+    svc._thread = type("Thread", (), {"is_alive": lambda self: True})()
+    monkeypatch.setattr(svc, "_select_mode", lambda: mode)
+    written = []
+
+    def write(frame, minute_dir):
+        written.append(frame)
+        return frame.height
+
+    monkeypatch.setattr("app.services.kline_sync._write_minute_partition", write)
+    svc._run_round()
+    before = svc.status()
+    assert before["rounds"] == 1 and before["healthy"]
+
+    failed[0] = True
+    svc._run_round()
+    after = svc.status()
+    assert len(written) == 1
+    assert after["rounds"] == before["rounds"]
+    assert after["last_round_at"] == before["last_round_at"]
+    assert after["last_rows"] == before["last_rows"]
+    assert after["last_requests"] == 4
+    assert "000001.SZ" in after["last_error"]
+    assert "injected protocol failure" in after["last_error"]
+    assert not after["healthy"]
+    assert svc._empty_rounds == 1
+    assert not svc._round_lock.locked()
+
+    failed[0] = False
+    svc._run_round()
+    recovered = svc.status()
+    assert recovered["rounds"] == 2
+    assert recovered["last_error"] is None
+    assert recovered["last_requests"] == 2
+    assert recovered["healthy"]
+    assert svc._empty_rounds == 0
+    assert len(written) == 2
+    assert all(count == (3 if mode == "increment" else 800) for _, count in requests)
+
+
+def test_counted_minute_failures_escalate_without_success_or_writes(tmp_path, monkeypatch):
+    from app.services.kline_sync import MinuteFetchError
+
+    modes = []
+
+    class Provider:
+        def get_intraday_latest(self, symbols, count=3):
+            raise AssertionError("counted method must be used")
+
+        def get_intraday_latest_with_count(self, symbols, count=3):
+            modes.append("increment")
+            raise MinuteFetchError("protocol failure", requests=3)
+
+        def get_intraday_batch_with_count(self, symbols):
+            modes.append("full")
+            raise MinuteFetchError("protocol failure", requests=3)
+
+    svc = _svc(tmp_path, monkeypatch, full_minute_provider="counted", custom=Provider())
+    monkeypatch.setattr(svc, "_today_coverage_lag_minutes", lambda: 0.2)
+    write_calls = _patch_write(monkeypatch)
+    for _ in range(3):
+        svc._run_round()
+
+    assert modes == ["increment", "increment", "full"]
+    assert write_calls["rows"] is None
+    state = svc.status()
+    assert state["rounds"] == 0
+    assert state["last_round_at"] is None
+    assert state["last_requests"] == 3
+    assert "protocol failure" in state["last_error"]
 
 
 def test_custom_provider_latest_missing_forces_full_with_minute_fallback(tmp_path, monkeypatch):

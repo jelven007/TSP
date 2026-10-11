@@ -1196,15 +1196,19 @@ class RustdxProvider:
         start = end.replace(hour=0, minute=0, second=0, microsecond=0)
 
         def fetch(symbol):
-            with self._client_factory() as client:
-                if counted:
-                    raw, requests = client.bars_with_count(
-                        symbol, frequency=8, offset=max(1, min(int(count), 800)),
-                    )
-                else:
-                    raw = client.bars(symbol, frequency=8, offset=max(1, min(int(count), 800)))
-                    requests = 1
-            return self._minute_frame(raw, symbol, start, end), requests
+            requests = 0
+            try:
+                with self._client_factory() as client:
+                    if counted:
+                        raw, requests = client.bars_with_count(
+                            symbol, frequency=8, offset=max(1, min(int(count), 800)),
+                        )
+                    else:
+                        raw = client.bars(symbol, frequency=8, offset=max(1, min(int(count), 800)))
+                        requests = 1
+                return self._minute_frame(raw, symbol, start, end), requests, None
+            except RustdxError as exc:
+                return pl.DataFrame(), max(requests, exc.requests), exc
 
         # Native pool is shared with quotes/history/finance and enforces 35
         # sockets across all consumers, including simultaneous calls.
@@ -1215,10 +1219,20 @@ class RustdxProvider:
             # Submit bounded windows instead of queuing the entire stock universe.
             workers = self._workers(len(valid))
             for offset in range(0, len(valid), workers * 2):
-                for frame, calls in pool.map(fetch, valid[offset:offset + workers * 2]):
+                failures = []
+                # Drain the submitted window so its successful and failed calls
+                # are all counted; do not submit another window after failure.
+                for frame, calls, error in pool.map(fetch, valid[offset:offset + workers * 2]):
                     requests += calls
+                    if error is not None:
+                        failures.append(str(error))
                     if not frame.is_empty():
                         frames.append(frame)
+                if failures:
+                    raise RustdxError(
+                        f"分钟K取数不完整, 拒绝提交: {failures[0]}",
+                        requests=requests,
+                    )
         return (
             pl.concat(frames, how="diagonal_relaxed").sort(["symbol", "datetime"])
             if frames

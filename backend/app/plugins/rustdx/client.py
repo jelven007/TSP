@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib
 import json
-import logging
 import os
 import threading
 from pathlib import Path
@@ -16,11 +15,14 @@ _MAX_CONNECTIONS = 35
 _DEFAULT_SERVER = "117.34.114.13:7709"
 _NATIVE_LOCK = threading.Lock()
 _NATIVE_CLIENT = None
-logger = logging.getLogger(__name__)
 
 
 class RustdxError(RuntimeError):
     """rustdx protocol, bridge, or connection failure."""
+
+    def __init__(self, message: str, *, requests: int = 0) -> None:
+        super().__init__(message)
+        self.requests = requests
 
 
 def _connection_count() -> int:
@@ -226,6 +228,7 @@ class RustdxClient:
         market, raw_code = _security(code)
         index = _is_index(market, raw_code)
         wire_frequency = 4 if index and frequency == 9 else frequency
+        requests = 0
         try:
             payload = _native_client().bars_json(
                 market,
@@ -238,14 +241,19 @@ class RustdxClient:
             )
             if counted:
                 result = json.loads(payload)
-                rows = _records(json.dumps(result["rows"]))
                 requests = int(result["requests"])
-                if result.get("error"):
-                    logger.warning("rustdx minute %s failed after %d requests: %s", code, requests, result["error"])
+                if result.get("error") is not None:
+                    raise RustdxError(
+                        f"rustdx minute {code} failed after {requests} requests: {result['error']}",
+                        requests=requests,
+                    )
+                rows = _records(json.dumps(result["rows"]))
             else:
                 rows, requests = _records(payload), 1
+        except RustdxError:
+            raise
         except Exception as exc:
-            raise RustdxError(f"rustdx bars 调用失败: {exc}") from exc
+            raise RustdxError(f"rustdx bars 调用失败: {exc}", requests=requests) from exc
         for row in rows:
             row["datetime"] = _datetime_text(row.pop("dt", None))
             for field in ("vol", "amount"):

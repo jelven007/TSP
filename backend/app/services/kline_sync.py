@@ -81,6 +81,14 @@ class SDKCallTimeoutError(TimeoutError):
     """单次 SDK 批量调用超过守护 deadline 仍未返回(调用线程已放弃等待)。"""
 
 
+class MinuteFetchError(RuntimeError):
+    """A counted minute fetch failed; its partial data must not be persisted."""
+
+    def __init__(self, message: str, *, requests: int = 0) -> None:
+        super().__init__(message)
+        self.requests = requests
+
+
 def _sdk_call_with_deadline(fn: Callable[[], Any], *, timeout_s: float = _SDK_CALL_DEADLINE_S) -> Any:
     """在 daemon 线程执行一次 SDK 调用, join 超时即放弃并抛 SDKCallTimeoutError。
 
@@ -1442,12 +1450,13 @@ def fetch_intraday_custom_batch(
     - 未实现则回退 get_minute(symbols, 当日窗口) — 复用逐标的分钟K机制,
       请求数按 chunk 回调统计。
     帧统一过北京墙钟守卫 (与 _try_custom_minute 同纪律)。
-    返回 (当日分钟K, 请求数); 失败返回空 df 由调用方按空轮处理。
+    返回 (当日分钟K, 请求数); 计数接口失败抛 MinuteFetchError 并保留请求数,
+    非计数接口失败沿用空 df 语义。
     """
     from app.market_scope import filter_market_frame, removed_market_symbol
     symbols = [symbol for symbol in symbols if not removed_market_symbol(symbol)]
+    counted_method = getattr(provider, "get_intraday_batch_with_count", None)
     try:
-        counted_method = getattr(provider, "get_intraday_batch_with_count", None)
         method = getattr(provider, "get_intraday_batch", None)
         if callable(counted_method):
             df, requests = counted_method(symbols)
@@ -1468,11 +1477,20 @@ def fetch_intraday_custom_batch(
             )
             requests = counted["requests"]
     except Exception as e:  # noqa: BLE001
+        if callable(counted_method):
+            raise MinuteFetchError(
+                f"full_minute batch via {provider_name} failed: {e}",
+                requests=getattr(e, "requests", 0),
+            ) from e
         logger.warning("custom full_minute batch via %s failed: %s", provider_name, e)
         return (pl.DataFrame(), 0)
     try:
         df = _enforce_minute_beijing_wallclock(df, source=provider_name)
     except Exception as e:  # noqa: BLE001
+        if callable(counted_method):
+            raise MinuteFetchError(
+                f"full_minute batch via {provider_name} invalid: {e}", requests=requests,
+            ) from e
         logger.warning("custom full_minute datetime 契约校验失败 (%s): %s", provider_name, e)
         return (pl.DataFrame(), 0)
     return (filter_market_frame(df), requests if callable(counted_method) else max(requests, 1))
@@ -1489,7 +1507,8 @@ def fetch_intraday_custom_latest(
 
     显式传递服务股票池; 旧的 count-only provider 在调用前按签名识别,
     返回结果仍限制在股票池内。不能在请求后的 TypeError 上重试, 以免重复取数。
-    未实现返回 None — 调用方降级为仅修复轮模式。失败返回 (空 df, 0) 按空轮处理。
+    未实现返回 None — 调用方降级为仅修复轮模式。计数接口失败抛 MinuteFetchError,
+    非计数接口失败沿用 (空 df, 0) 语义。
     """
     method = getattr(provider, "get_intraday_latest", None)
     if not callable(method):
@@ -1500,18 +1519,23 @@ def fetch_intraday_custom_latest(
         symbols = list(dict.fromkeys(s for s in symbols if not removed_market_symbol(s)))
         if not symbols:
             return (pl.DataFrame(), 0)
+    counted_method = getattr(provider, "get_intraday_latest_with_count", None)
     try:
         parameters = inspect.signature(method).parameters
         accepts_symbols = "symbols" in parameters or any(
             p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters.values()
         )
-        counted_method = getattr(provider, "get_intraday_latest_with_count", None)
         if callable(counted_method):
             df, requests = counted_method(symbols=symbols, count=count)
         else:
             df = method(symbols=symbols, count=count) if accepts_symbols else method(count=count)
             requests = 1
     except Exception as e:  # noqa: BLE001
+        if callable(counted_method):
+            raise MinuteFetchError(
+                f"full_minute latest via {provider_name} failed: {e}",
+                requests=getattr(e, "requests", 0),
+            ) from e
         logger.warning("custom full_minute latest via %s failed: %s", provider_name, e)
         return (pl.DataFrame(), 0)
     try:
@@ -1519,6 +1543,10 @@ def fetch_intraday_custom_latest(
         if symbols is not None and not df.is_empty():
             df = df.filter(pl.col("symbol").is_in(symbols))
     except Exception as e:  # noqa: BLE001
+        if callable(counted_method):
+            raise MinuteFetchError(
+                f"full_minute latest via {provider_name} invalid: {e}", requests=requests,
+            ) from e
         logger.warning("custom full_minute datetime 契约校验失败 (%s): %s", provider_name, e)
         return (pl.DataFrame(), 0)
     return (filter_market_frame(df), requests)
