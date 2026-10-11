@@ -1290,6 +1290,11 @@ export interface BacktestProvenance {
   } | null
   research_inputs_error?: string | null
   research_inputs_match_release?: boolean
+  financial_revisions?: {
+    captured_at: string
+    error: string | null
+    tables: Record<string, { observed_at: string; content_hash: string; publication_time_verified: boolean } | null>
+  } | null
   research_governance?: {
     strict: boolean
     cost_model_version: string

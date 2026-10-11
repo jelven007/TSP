@@ -325,6 +325,32 @@ def persist_backtest_manifest(
     return manifest
 
 
+def _financial_revision_provenance(data_dir: Path) -> dict[str, Any]:
+    """Bind a backtest to the newest retained financial observation per table.
+
+    Consumes the observation store written at each financial sync so a run is
+    reproducible against the exact restatement it saw. Observation time, not the
+    report/announcement date, keys the store; a missing table stays ``None``
+    before its first retained observation. Failures degrade to an error string
+    rather than blocking the run.
+    """
+    from datetime import UTC, datetime
+
+    from app.services.financial_sync import (
+        FINANCIAL_TABLES,
+        latest_financial_revision_meta,
+    )
+
+    now = datetime.now(UTC)
+    tables: dict[str, Any] = {}
+    try:
+        for table in FINANCIAL_TABLES:
+            tables[table] = latest_financial_revision_meta(data_dir, table, now)
+    except (OSError, ValueError, KeyError) as exc:
+        return {"captured_at": _utc_now(), "error": str(exc), "tables": {}}
+    return {"captured_at": _utc_now(), "error": None, "tables": tables}
+
+
 def backtest_provenance(
     data_dir: Path,
     *,
@@ -347,6 +373,8 @@ def backtest_provenance(
     except (OSError, DataReleaseError) as exc:
         research_inputs = None
         research_inputs_error = str(exc)
+
+    financial_revisions = _financial_revision_provenance(data_dir)
 
     if data_generation is None:
         data_generation = _generation(data_dir, asset_type)
@@ -382,6 +410,7 @@ def backtest_provenance(
             and release is not None
             and release.get("research_inputs") == research_inputs
         ),
+        "financial_revisions": financial_revisions,
     }
 
 

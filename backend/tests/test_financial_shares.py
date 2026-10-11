@@ -207,3 +207,44 @@ def test_financial_revision_replay_uses_observation_time_and_detects_tampering(t
         path.write_bytes(b"corrupt")
     with pytest.raises(ValueError, match="checksum"):
         get_financial_revision(tmp_path, "shares", third)
+
+
+def test_read_financials_as_of_replays_observation_or_reads_live(tmp_path):
+    from datetime import UTC, datetime
+
+    from app.services.financial_sync import (
+        _write_table,
+        latest_financial_revision_meta,
+        read_financials_as_of,
+    )
+
+    old = pl.DataFrame({
+        "symbol": ["600000.SH"], "period_end": ["2025-12-31"],
+        "announce_date": ["2026-04-01"], "float_shares": [100.0],
+    })
+    _write_table("shares", old, tmp_path)
+    first = datetime.now(UTC)
+    _write_table("shares", old.with_columns(pl.lit(200.0).alias("float_shares")), tmp_path)
+
+    # observed_at=None reads the live current file (latest sync wins).
+    assert read_financials_as_of(tmp_path, "shares")["float_shares"].item() == 200.0
+    # A past observation time replays the restatement visible back then.
+    assert read_financials_as_of(tmp_path, "shares", first)["float_shares"].item() == 100.0
+
+    meta = latest_financial_revision_meta(tmp_path, "shares", first)
+    assert meta["content_hash"] and meta["publication_time_verified"] is False
+    assert meta["observed_at"] <= first.isoformat()
+
+
+def test_read_financials_as_of_falls_back_before_first_observation(tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    from app.services.financial_sync import _write_table, read_financials_as_of
+
+    _write_table("shares", pl.DataFrame({
+        "symbol": ["600000.SH"], "period_end": ["2025-12-31"], "float_shares": [100.0],
+    }), tmp_path)
+    before_any_observation = datetime.now(UTC) - timedelta(days=1)
+    # No retained observation that early → fall back to the live file, not empty.
+    frame = read_financials_as_of(tmp_path, "shares", before_any_observation)
+    assert frame["float_shares"].item() == 100.0

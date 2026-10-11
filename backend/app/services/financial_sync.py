@@ -95,6 +95,48 @@ def get_financial_revision(data_dir: Path, table: str, observed_at: datetime) ->
     return pl.read_parquet(snapshot)
 
 
+def latest_financial_revision_meta(
+    data_dir: Path, table: str, observed_at: datetime,
+) -> dict[str, Any] | None:
+    """Content hash + observation time of the newest retained observation by a timestamp.
+
+    No parquet read: callers that only need reproducibility provenance (not the
+    rows) avoid hashing a snapshot. Returns ``None`` before the first retained
+    observation, matching ``get_financial_revision`` returning an empty frame.
+    """
+    if table not in FINANCIAL_TABLES or observed_at.tzinfo is None:
+        raise ValueError("financial revision requires a valid table and aware observed_at")
+    observations = Path(data_dir) / "financials" / "revisions" / table / "observations"
+    best: tuple[datetime, dict[str, Any]] | None = None
+    for path in observations.glob("*.json"):
+        metadata = json.loads(path.read_text(encoding="utf-8"))
+        first = datetime.fromisoformat(metadata["observed_at"])
+        if first <= observed_at and (best is None or first > best[0]):
+            best = (first, metadata)
+    if best is None:
+        return None
+    return {
+        "observed_at": best[1]["observed_at"],
+        "content_hash": best[1]["content_hash"],
+        "publication_time_verified": bool(best[1].get("publication_time_verified", False)),
+    }
+
+
+def read_financials_as_of(
+    data_dir: Path, table: str, observed_at: datetime | None = None,
+) -> pl.DataFrame:
+    """Read a financial table, replaying a retained observation when asked.
+
+    ``observed_at`` 为 None 时读当前生效文件 (与既有消费方一致, 行为不变);
+    给定带时区的观察时刻时, 返回那一刻可见的已保留观察 (校验文件摘要),
+    尚无任何观察时回退当前文件 — 研究复现用, 不改变默认实时视图。
+    """
+    if observed_at is None:
+        return get_financial_df(data_dir, table)
+    revision = get_financial_revision(data_dir, table, observed_at)
+    return revision if not revision.is_empty() else get_financial_df(data_dir, table)
+
+
 # ================================================================
 # 同步函数
 # ================================================================
