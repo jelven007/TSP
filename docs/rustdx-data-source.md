@@ -116,6 +116,11 @@ SHA-256。未公布年份不能按工作日冒充权威日历；历史日历缓�
 内容未变不复制快照，A→B→A 仍保留三次观察。研究端可用
 `financial_sync.get_financial_revision(data_dir, table, observed_at)` 按带时区的观察时刻
 读取已知快照，读取时校验文件摘要。首次观察前返回空，不倒填历史修订版本。
+`read_financials_as_of(data_dir, table, observed_at=None)` 为统一读入口：不传观察时刻
+读当前生效文件（默认实时视图不变），传入时回放那一刻可见的观察，无观察时回退当前文件。
+回测追溯 `backtest_provenance` 的 `financial_revisions` 字段按表绑定运行时可见的最新观察
+（内容哈希 + 观察时刻），使一次回测可复现其所见的财报重述；该绑定按观察时刻存证，
+不改写股本/换手率的 `announce_date` 时点口径。
 
 数据发布和回测追溯记录维表、历史证券状态、五张财务表及日历指纹；
 严格研究检查辅助输入与 release 是否一致。既有 release 可读取，但缺指纹时不能通过

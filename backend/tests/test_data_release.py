@@ -340,3 +340,30 @@ def test_research_fingerprints_detect_input_change_without_generation_change(tmp
     assert after["release_consistent"] is True
     assert after["research_inputs_match_release"] is False
     assert before["research_inputs"] == manifest["research_inputs"]
+
+
+def test_backtest_provenance_binds_latest_financial_revision(tmp_path, monkeypatch):
+    import polars as pl
+
+    from app.services.financial_sync import _write_table
+
+    monkeypatch.setattr(data_release, "audit_provider_routes", _audit)
+    get_enriched_generation(tmp_path, "stock")
+
+    # No retained observation yet → every table reports None, no error.
+    empty = data_release.backtest_provenance(tmp_path, asset_type="stock", config={})
+    assert empty["financial_revisions"]["error"] is None
+    assert empty["financial_revisions"]["tables"]["shares"] is None
+
+    _write_table("shares", pl.DataFrame({
+        "symbol": ["600000.SH"], "period_end": ["2025-12-31"], "float_shares": [100.0],
+    }), tmp_path)
+    _write_table("shares", pl.DataFrame({
+        "symbol": ["600000.SH"], "period_end": ["2025-12-31"], "float_shares": [200.0],
+    }), tmp_path)
+
+    bound = data_release.backtest_provenance(tmp_path, asset_type="stock", config={})
+    shares = bound["financial_revisions"]["tables"]["shares"]
+    assert shares is not None
+    assert len(shares["content_hash"]) == 64
+    assert shares["publication_time_verified"] is False
