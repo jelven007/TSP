@@ -21,6 +21,12 @@ CN = timezone(timedelta(hours=8))
 
 @pytest.fixture(autouse=True)
 def _clean_cache(monkeypatch):
+    # 本文件验证公布日历覆盖之外的 provider 探测与缓存;
+    # 内置 2026 日历优先级由 test_collection_contract_fixes 单独覆盖。
+    monkeypatch.setattr(
+        trading_day, "published_trading_day",
+        lambda day: False if day.weekday() >= 5 else None,
+    )
     monkeypatch.setattr(
         "app.services.preferences.get_realtime_data_provider", lambda: "tickflow"
     )
@@ -92,7 +98,7 @@ def test_tickflow_stale_stamp_before_buffer_is_unknown(monkeypatch):
     assert trading_day._probe_tickflow(monday_935) is None
 
 
-def test_tickflow_stale_stamp_after_buffer_is_holiday(monkeypatch):
+def test_tickflow_stale_stamp_after_buffer_remains_unknown(monkeypatch):
     monday_1041 = datetime(2026, 9, 7, 10, 41, tzinfo=CN)
     import app.tickflow.client as tf_client_mod
 
@@ -104,7 +110,7 @@ def test_tickflow_stale_stamp_after_buffer_is_holiday(monkeypatch):
         quotes = _FakeQuotes()
 
     monkeypatch.setattr(tf_client_mod, "get_client", lambda: _FakeClient())
-    assert trading_day._probe_tickflow(monday_1041) is False
+    assert trading_day._probe_tickflow(monday_1041) is None
 
 
 def test_tickflow_fresh_stamp_is_trading_anytime(monkeypatch):
@@ -139,7 +145,7 @@ def test_tickflow_error_returns_none(monkeypatch):
     assert trading_day._probe_tickflow(monday) is None
 
 
-def test_custom_source_uses_its_daily_calendar_without_tickflow(monkeypatch):
+def test_custom_source_stale_daily_cannot_prove_holiday(monkeypatch):
     monday = datetime(2026, 10, 5, 10, 41, tzinfo=CN)
 
     class _Provider:
@@ -165,7 +171,7 @@ def test_custom_source_uses_its_daily_calendar_without_tickflow(monkeypatch):
         lambda: (_ for _ in ()).throw(AssertionError("must not call TickFlow")),
     )
 
-    assert is_trading_day(monday) is False
+    assert is_trading_day(monday) is None
 
 
 def test_custom_source_current_daily_bar_is_trading_day(monkeypatch):

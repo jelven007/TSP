@@ -42,6 +42,7 @@ from app.market_time import (
 from app.parquet import scan_daily_parquet
 from app.polars_guard import guarded_collect
 from app.services.index_const import CORE_INDEX_SYMBOLS
+from app.services.quote_time import confirms_boundary, source_snapshot_ms
 from app.strategy.intraday_signals import IntradaySignalEvaluator
 from app.strategy.monitor import format_alert_quote
 
@@ -621,7 +622,12 @@ class QuoteService:
         午休/收盘定版阶段同样走边界确认: 避免盘后手动刷新把竞价前的陈旧收盘价
         重新写回当日分区, 覆盖盘后管道按官方日线重建的结果。
         """
+        if not self._holiday_gate():
+            return self.status()
         phase = self._market_phase()
+        # 15:15 后手动刷新同样必须确认收盘, 避免覆盖盘后权威日线。
+        if cn_now().time() >= _FINAL_BOUNDARY["close_final"]:
+            phase = "close_final"
         is_final = phase in {"morning_final", "close_final"}
         self._fetch_quotes(
             final=is_final,
@@ -887,8 +893,8 @@ class QuoteService:
     ) -> tuple[pl.DataFrame, pl.DataFrame | None] | None:
         """把全市场 records 写盘并增量计算 enriched。
 
-        final_boundary_ms (final 定版边界) 传入时, 快照最大时间戳未达边界的本轮
-        只更新展示缓存, 不写 daily/enriched、不评估监控 —— 防止收盘后数据源仍
+        final_boundary_ms (final 定版边界) 传入时, 任一记录缺少同日源端收盘证据
+        则只更新展示缓存, 不写 daily/enriched、不评估监控 —— 防止收盘后数据源仍
         返回竞价前旧价时把陈旧收盘价固化到当日分区。
         """
         from app.services import preferences
@@ -907,13 +913,12 @@ class QuoteService:
             logger.warning("行情数据为空")
             return
 
-        # ---- final 定版确认: 快照最大时间戳达到边界 (含容差) 才允许落盘 ----
+        # ---- 收盘证据逐行检查, 不让一个新时间戳掩盖其他旧行情 ----
         confirmed_final: bool | None = None
         if final_boundary_ms is not None:
-            ts_vals = [t for t in (r.get("timestamp") for r in records) if t]
-            max_ts = max(ts_vals) if ts_vals else None
-            confirmed_final = bool(
-                max_ts is not None and max_ts >= final_boundary_ms - _FINAL_CONFIRM_SLACK_MS
+            confirmed_final = all(
+                confirms_boundary(r, final_boundary_ms, slack_ms=_FINAL_CONFIRM_SLACK_MS)
+                for r in records
             )
             self._last_final_confirmed = confirmed_final
 
@@ -949,8 +954,8 @@ class QuoteService:
             # 边界前的陈旧快照: 展示缓存已更新, 落盘与监控评估留待边界后快照。
             # 轮询线程会在定版窗口内持续重试, 窗口结束由 _poll_loop 放弃并告警。
             logger.info(
-                "final 快照未达定版边界 (max quote_ts=%s, 边界=%s), 本轮跳过落盘",
-                max_ts, final_boundary_ms,
+                "final 快照缺少同交易日的源端收盘证据 (边界=%s), 本轮跳过落盘",
+                final_boundary_ms,
             )
             self._broadcast_quote_updated()
             return
@@ -1025,7 +1030,19 @@ class QuoteService:
         """将 API records 转为日K格式 DataFrame (OHLCV + quote_ts, 写 kline_daily 用)。"""
         if not records:
             return pl.DataFrame()
-        df = pl.DataFrame(records)
+        # quote_ts 保留旧列及量比用途, 新增来源标记防止接收时间被完整性检查
+        # 当作权威收盘。绝不能将未知源端时间置 null 后冒充历史 batch 数据。
+        df = pl.DataFrame([
+            {
+                **record,
+                "timestamp": source_snapshot_ms(record) or record.get("timestamp"),
+                "quote_time_basis": (
+                    "source_snapshot" if source_snapshot_ms(record) is not None
+                    else record.get("timestamp_basis", "received")
+                ),
+            }
+            for record in records
+        ])
         cols_map = {
             "symbol": "symbol",
             "last_price": "close",
@@ -1035,6 +1052,7 @@ class QuoteService:
             "volume": "volume",
             "amount": "amount",
             "timestamp": "quote_ts",
+            "quote_time_basis": "quote_time_basis",
         }
         select_exprs = []
         for src, dst in cols_map.items():

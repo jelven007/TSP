@@ -146,14 +146,14 @@ def _freshness_files(tmp_path, latest="2026-09-30"):
 
 def test_long_holiday_uses_calendar_instead_of_elapsed_days(tmp_path, monkeypatch):
     _freshness_files(tmp_path)
-    # 人工交易日历用于验证长假边界, 不代表现实交易所日历。
+    # 国庆期间最新应有数据仍是 09-30, 官方日历覆盖时不依赖源端请求。
     monkeypatch.setattr(health, "cached_trading_calendar", lambda: {
         date(2026, 9, 30), date(2026, 10, 12),
     })
-    monkeypatch.setattr(health, "cn_now", lambda: datetime(2026, 10, 8, 19, tzinfo=CN_TZ))
+    monkeypatch.setattr(health, "cn_now", lambda: datetime(2026, 10, 7, 19, tzinfo=CN_TZ))
     result = health._check_data_freshness(tmp_path)
     assert result["status"] == "ok"
-    assert result["calendar_lag_days"] == 8
+    assert result["calendar_lag_days"] == 7
     assert result["observed_trading_lag"] == 0
     assert result["reference_trading_date"] == "2026-09-30"
 
@@ -171,7 +171,7 @@ def test_one_missing_session_is_detected_after_close_grace(tmp_path, monkeypatch
     assert result["stale_datasets"] == ["stock_daily", "stock_enriched", "stock_minute"]
 
 
-def test_missing_calendar_is_unknown_and_never_fetches_provider(tmp_path, monkeypatch):
+def test_published_calendar_detects_missing_session_without_network(tmp_path, monkeypatch):
     from app.services import data_integrity
 
     _freshness_files(tmp_path)
@@ -183,6 +183,15 @@ def test_missing_calendar_is_unknown_and_never_fetches_provider(tmp_path, monkey
     monkeypatch.setattr(data_integrity, "_trading_calendar", network_forbidden)
     monkeypatch.setattr(health, "cn_now", lambda: datetime(2026, 10, 8, 19, tzinfo=CN_TZ))
     result = health._check_data_freshness(tmp_path)
-    assert result["calendar_coverage"] == "unknown"
-    assert result["stale_datasets"] == []
+    assert result["calendar_coverage"] == "complete"
+    assert result["reference_trading_date"] == "2026-10-08"
+    assert result["stale_datasets"] == ["stock_daily", "stock_enriched", "stock_minute"]
     assert result["status"] == "warning"
+
+
+def test_unpublished_year_remains_unknown(tmp_path, monkeypatch):
+    _freshness_files(tmp_path, "2027-01-04")
+    monkeypatch.setattr(health, "cached_trading_calendar", set)
+    monkeypatch.setattr(health, "cn_now", lambda: datetime(2027, 1, 5, 19, tzinfo=CN_TZ))
+    result = health._check_data_freshness(tmp_path)
+    assert result["calendar_coverage"] == "unknown"

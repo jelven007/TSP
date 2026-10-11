@@ -953,8 +953,26 @@ def _run_tracked(fn, job_label: str) -> bool:
     return succeeded
 
 
+def _scheduled_day_allowed(label: str) -> bool:
+    """定时写入任务须有交易日证据; cron 的 mon-fri 不能识别休市日。"""
+    from app.services import trading_day
+
+    verdict = trading_day.is_trading_day(cn_now())
+    if verdict is not True:
+        logger.info("scheduled %s skipped: %s", label, "holiday" if verdict is False else "calendar_unknown")
+        return False
+    return True
+
+
+def _scheduled_instruments_task(instruments_fn) -> None:
+    if _scheduled_day_allowed("instruments_sync"):
+        _run_tracked(instruments_fn, "instruments_sync")
+
+
 def _scheduled_pipeline_task(pipeline_fn) -> None:
     """Run weekly mining only after the tracked daily pipeline has fully succeeded."""
+    if not _scheduled_day_allowed("daily_pipeline"):
+        return
     if not _run_tracked(pipeline_fn, "daily_pipeline"):
         return
     try:
@@ -984,6 +1002,8 @@ async def _run_scheduled_review(repo) -> None:
     """
     import json
 
+    if not _scheduled_day_allowed("review"):
+        return
     try:
         from app.services import market_recap_reports
         from app import secrets_store as ss
@@ -1301,7 +1321,7 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
         return result
 
     scheduler.add_job(
-        lambda: _run_tracked(_instruments_task, "instruments_sync"),
+        lambda: _scheduled_instruments_task(_instruments_task),
         trigger=CronTrigger(day_of_week="mon-fri",
                             hour=inst_sched["hour"], minute=inst_sched["minute"],
                             timezone="Asia/Shanghai"),

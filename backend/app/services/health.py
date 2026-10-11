@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
-from app.market_time import cn_now
+from app.market_time import cn_now, published_trading_days
 from app.services.data_integrity import cached_trading_calendar
 from app.services.data_release import collect_dataset_snapshot, release_health
 from app.services.provider_audit import audit_provider_routes
@@ -70,11 +70,18 @@ def _check_data_freshness(data_dir: Path) -> dict[str, Any]:
     cutoff = today if now.time() >= time(18) else today - timedelta(days=1)
     calendar = cached_trading_calendar()
     covered = bool(calendar and min(calendar) <= cutoff <= max(calendar))
+    published = published_trading_days(cutoff.year)
+    if published is not None:
+        calendar = {day for day in calendar if day.year != cutoff.year} | set(published)
+        covered = True
     observed = set(calendar)
     for path in (data_dir / "kline_index_daily").glob("date=*"):
         try:
             if path.is_dir():
-                observed.add(date.fromisoformat(path.name.removeprefix("date=")))
+                day = date.fromisoformat(path.name.removeprefix("date="))
+                # 已公布年份不能被历史误写的节假日目录推翻。
+                if published is None or day.year != cutoff.year or day in published:
+                    observed.add(day)
         except ValueError:
             continue
     completed = {day for day in observed if day <= cutoff}

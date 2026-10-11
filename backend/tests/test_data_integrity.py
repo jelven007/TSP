@@ -746,14 +746,14 @@ def test_calendar_follows_selected_daily_provider_index_bars(monkeypatch):
     ]
 
 
-def test_candidate_days_falls_back_to_weekday_without_calendar(monkeypatch):
-    """从未取到日历 (fuyao 未配置/失败) → 回退周几近似 (历史行为)。"""
+def test_candidate_days_uses_published_calendar_without_provider(monkeypatch):
+    """数据源不可用时也应正确排除已公布的中秋休市日。"""
     fake = SimpleNamespace(is_custom_provider=lambda name: False)
     monkeypatch.setattr(app.data_providers, "custom", fake)
     got = _candidate_days(date(2026, 9, 28), 7)
     assert got == [
         date(2026, 9, 21), date(2026, 9, 22), date(2026, 9, 23),
-        date(2026, 9, 24), date(2026, 9, 25),
+        date(2026, 9, 24),
     ]
 
 

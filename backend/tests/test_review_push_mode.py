@@ -92,6 +92,7 @@ def _patch_scheduled_review(monkeypatch, pushed: list, archived: list):
     async def _fake_stream(*a, **k):
         return "正文", {"as_of": "2026-07-18", "emotion_label": "中性"}
 
+    monkeypatch.setattr("app.services.trading_day.is_trading_day", lambda now=None: True)
     monkeypatch.setattr("app.secrets_store.get_ai_key", lambda: "sk-test")
     monkeypatch.setattr(daily_pipeline, "_stream_review_with_retry", _fake_stream)
     monkeypatch.setattr(
@@ -133,3 +134,16 @@ def test_scheduled_review_auto_pushes(monkeypatch):
     # auto 模式: 归档并外发
     assert len(archived) == 1
     assert pushed == [{"as_of": "2026-07-18", "emotion_label": "中性"}]
+
+
+@pytest.mark.parametrize("verdict", [False, None])
+def test_scheduled_review_skips_unconfirmed_day(monkeypatch, verdict):
+    from app.jobs import daily_pipeline
+
+    pushed, archived = [], []
+    _patch_scheduled_review(monkeypatch, pushed, archived)
+    monkeypatch.setattr("app.services.trading_day.is_trading_day", lambda now=None: verdict)
+    preferences.set_review_push_mode("auto")
+    asyncio.run(daily_pipeline._run_scheduled_review(None))
+    assert archived == []
+    assert pushed == []

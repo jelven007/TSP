@@ -233,6 +233,31 @@ def test_provider_uses_one_native_full_market_call():
     assert calls == [["600519.SH", "000001.SZ"]]
 
 
+def test_realtime_quote_preserves_rustdx_source_time() -> None:
+    class Client:
+        def quotes(self, _symbols):
+            return [{
+                "market": 1,
+                "code": "600519",
+                "price": 10.5,
+                "last_close": 10.0,
+                "vol": 123,
+                "amount": 129_150,
+                "servertime": "09:30:01.250",
+            }]
+
+        @staticmethod
+        def close_shared():
+            pass
+
+    rows = RustdxProvider(client_factory=Client)._quote_rows(
+        ["600519.SH"],
+        include_names=False,
+    )
+
+    assert rows[0]["source_time"] == "09:30:01.250"
+
+
 def test_rustdx_instrument_directory_skips_per_symbol_finance():
     class CatalogClient:
         def __enter__(self):
@@ -293,6 +318,26 @@ def test_incremental_minutes_request_only_latest_real_bars(native, monkeypatch):
     assert all(call[2:5] == (8, 0, 3) for call in native.bar_calls)
     assert frame["volume"].to_list() == [1.23, 1.23]
     assert frame["datetime"].to_list() == [datetime(2026, 10, 9, 15)] * 2
+
+
+def test_incremental_minutes_defaults_to_stock_universe(native, monkeypatch):
+    from app.plugins.rustdx import provider as provider_module
+
+    monkeypatch.setattr(provider_module, "cn_now", lambda: datetime(2026, 10, 9, 15, 1))
+    provider = RustdxProvider()
+    monkeypatch.setattr(
+        provider,
+        "get_instruments",
+        lambda asset_type: [
+            {"symbol": "600519.SH"},
+            {"symbol": "000001.SZ"},
+        ] if asset_type == "stock" else [],
+    )
+
+    frame = provider.get_intraday_latest(count=3)
+
+    assert len(native.bar_calls) == 2
+    assert frame["symbol"].to_list() == ["000001.SZ", "600519.SH"]
 
 
 def test_plugin_covers_all_core_datasets_and_is_default_provider():

@@ -27,7 +27,7 @@ import threading
 import time
 from datetime import date, time as dt_time
 
-from app.market_time import cn_now, cn_today
+from app.market_time import cn_now
 from pathlib import Path
 
 import polars as pl
@@ -99,14 +99,16 @@ class DepthService:
     # ================================================================
 
     def boot_check(self) -> None:
-        """启动补跑: 当天 depth5 文件不存在则 finalize 一次; 已存在则恢复内存缓存。"""
+        """恢复已有缓存; 仅确认交易日且到达收盘任务时刻后补跑。"""
         if not self._has_capability():
             logger.info("depth sealed: 无 DEPTH5_BATCH 能力, 跳过启动补跑")
             return
-        today = cn_today()
+        today = cn_now().date()
         if self._persisted_for_date(today):
             # parquet 已存在: 恢复内存缓存(避免重启后每次查询都读 parquet)
             self._restore_from_parquet(today)
+            return
+        if not self._can_finalize():
             return
         logger.info("depth sealed: 启动补跑今天定版")
         try:
@@ -191,6 +193,10 @@ class DepthService:
         """
         if not self._has_capability():
             return {"ok": False, "count": 0, "msg": "无五档盘口能力(需 Pro+)"}
+        from app.services import trading_day
+
+        if trading_day.is_trading_day(cn_now()) is False:
+            return {"ok": False, "count": 0, "msg": "休市日不采集五档盘口"}
         try:
             self._fetch_and_seal(persist=True)  # 落盘, 刷新页面不丢
             with self._lock:
@@ -218,6 +224,9 @@ class DepthService:
         if prepared is None:
             return
         depth_data, syms_up, syms_down, enriched_date = prepared
+        if enriched_date != cn_now().date():
+            logger.warning("depth sealed: 指标日期 %s 与采集日不一致, 跳过", enriched_date)
+            return
         with self._fetch_lock:
             self._seal_locked(depth_data, syms_up, syms_down, enriched_date, persist)
 
@@ -229,6 +238,9 @@ class DepthService:
         # 只读 enriched 内存缓存(线程安全, 避免和 quote_service 写盘竞态)
         enriched, enriched_date = self._repo.get_enriched_latest()
         if enriched.is_empty():
+            return None
+        if enriched_date != cn_now().date():
+            logger.warning("depth sealed: 指标日期 %s 未更新到采集日, 跳过取数", enriched_date)
             return None
 
         # 筛涨跌停名单(用 fill_null 防止列缺失)
@@ -268,8 +280,8 @@ class DepthService:
             bid_vols = d.get("bid_volumes") or []
             ask1 = ask_vols[0] if ask_vols else None
             bid1 = bid_vols[0] if bid_vols else None
-            # depth 返回的 timestamp(毫秒 epoch), 回退到当前 wall-clock
-            depth_ts = d.get("timestamp")
+            # fetched_ts 是采集时间, 不能用单票最后成交时间计算采集年龄。
+            depth_ts = d.get("received_at", d.get("timestamp"))
             fetched = (depth_ts / 1000.0) if isinstance(depth_ts, (int, float)) and depth_ts else now_wall
             entry = {
                 # 涨停真封: 涨停价上卖一(主动卖压)为 0
@@ -354,9 +366,18 @@ class DepthService:
                 # 单批失败不影响其他批
         return result
 
+    @staticmethod
+    def _can_finalize() -> bool:
+        from app.services import preferences, trading_day
+
+        now = cn_now()
+        schedule = preferences.get_depth_finalize_time()
+        cutoff = max(dt_time(15, 0), dt_time(schedule["hour"], schedule["minute"]))
+        return now.time() >= cutoff and trading_day.is_trading_day(now) is True
+
     def finalize(self) -> None:
-        """盘后定版: 拉一次 + 落盘。"""
-        if not self._has_capability():
+        """确认交易日且到达定版时刻后才拉取, 防止启动时伪造当天数据。"""
+        if not self._has_capability() or not self._can_finalize():
             return
         self._fetch_and_seal(persist=True)
 
@@ -516,6 +537,10 @@ class DepthService:
 
     def _poll_once(self) -> None:
         """单次轮询: 算间隔(三层防护) → 拉取 → 检测系统接管通知。"""
+        from app.services import trading_day
+
+        if trading_day.is_trading_day(cn_now()) is False:
+            return
         # 数当前涨跌停股
         n = self._count_limit_stocks()
         if n == 0:

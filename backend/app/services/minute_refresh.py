@@ -13,7 +13,7 @@
   TickFlow (Expert 档, intraday.batch + intraday.universe) 或声明 full_minute
   数据集的插件/自定义源。
 - 自定义源契约 (docs/plugin-development.md): get_intraday_batch(symbols) 修复轮
-  (未实现自动回退 get_minute 当日窗口); get_intraday_latest(count) 稳态增量
+  (未实现自动回退 get_minute 当日窗口); get_intraday_latest(symbols, count) 稳态增量
   (可选, 未实现自动降级为仅修复轮并放慢节奏至 >=60s)。
 - 能力门控 Cap.INTRADAY_UNIVERSE: TickFlow 按档位探测, 自定义源声明数据集且
   被路由时由 policy._augment_custom_sources 补授 — 门控口径对两类源统一。
@@ -301,7 +301,13 @@ class MinuteRefreshService:
                 # fetch 计时只覆盖网络取数; full 分支的 universe 维表读取不计入
                 fetch_started = time.perf_counter()
                 if custom is not None:
-                    latest = kline_sync.fetch_intraday_custom_latest(custom, provider_name)
+                    symbols = self._universe()
+                    if not symbols:
+                        self._state.last_error = "empty universe (instruments 未加载)"
+                        return
+                    latest = kline_sync.fetch_intraday_custom_latest(
+                        custom, provider_name, symbols=symbols,
+                    )
                     df, requests = latest if latest is not None else (pl.DataFrame(), 0)
                 else:
                     df, requests = kline_sync.fetch_intraday_universe_increment()
