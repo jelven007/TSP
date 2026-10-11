@@ -43,9 +43,9 @@ def _timeout_seconds() -> int:
 
 def _background_connections() -> int:
     try:
-        value = int(os.getenv("RUSTDX_BACKGROUND_CONNECTIONS", "5"))
+        value = int(os.getenv("RUSTDX_BACKGROUND_CONNECTIONS", "12"))
     except ValueError:
-        value = 5
+        value = 12
     return max(1, min(value, _connection_count()))
 
 

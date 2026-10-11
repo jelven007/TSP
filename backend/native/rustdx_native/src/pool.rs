@@ -51,7 +51,9 @@ impl Scheduler {
                 closed: false,
             }),
             changed: Condvar::new(),
-            background_limit: background_limit.clamp(1, size),
+            // Reserve the floor strictly below pool size so at least one slot is
+            // always reachable by foreground; a single-slot pool keeps floor 1.
+            background_limit: background_limit.clamp(1, size.saturating_sub(1).max(1)),
         }
     }
 
@@ -70,9 +72,16 @@ impl Scheduler {
                 }
                 return Err("rustdx connection pool is closed".into());
             }
-            let allowed = !background
-                || (state.foreground_waiting == 0
-                    && state.background_active < self.background_limit);
+            // Background holds a guaranteed floor of up to `background_limit`
+            // concurrent leases even while foreground is waiting; above that floor
+            // it yields. Foreground is never blocked beyond the floor because the
+            // floor is clamped below pool size, so idle slots always remain for it.
+            // Without this reservation, one-per-second quote polling keeps
+            // `foreground_waiting > 0` almost continuously and starves the
+            // background minute sweep (full-market pass stuck ~94s regardless of
+            // the limit); the floor lets the sweep keep steady parallelism while
+            // quotes still take every other slot.
+            let allowed = !background || state.background_active < self.background_limit;
             let size = state.busy.len();
             let idle = (0..size)
                 .map(|offset| (preferred + offset) % size)
@@ -140,31 +149,43 @@ mod tests {
     }
 
     #[test]
-    fn foreground_precedes_waiting_background_and_reuses_slots() {
-        let pool = Scheduler::new(1, 1);
-        let occupied = pool.acquire(0, true).unwrap();
+    fn background_floor_holds_while_foreground_still_reaches_a_slot() {
+        // size=4, requested floor=2: background keeps up to 2 concurrent leases
+        // even with foreground waiting, and foreground still acquires a slot.
+        let pool = Scheduler::new(4, 2);
+        assert_eq!(pool.background_limit, 2);
+        let bg1 = pool.acquire(0, true).unwrap();
+        let bg2 = pool.acquire(0, true).unwrap();
+        // Third background is above the floor and must not run while all other
+        // slots are free-for-foreground; prove by taking foreground first.
+        let fg = pool.acquire(0, false).unwrap();
+        assert_eq!(pool.stats()["background_active"], 2);
+        assert_eq!(pool.stats()["background_peak"], 2);
+        assert!(fg.index != bg1.index && fg.index != bg2.index);
+    }
+
+    #[test]
+    fn background_above_floor_yields_until_a_lease_frees() {
+        let pool = Scheduler::new(2, 1);
+        let held = pool.acquire(0, true).unwrap();
         let (sender, receiver) = mpsc::channel();
         std::thread::scope(|scope| {
-            let sender_bg = sender.clone();
             let pool_ref = &pool;
             scope.spawn(move || {
+                // Second background is above the floor of 1 → must wait for a free lease.
                 let _lease = pool_ref.acquire(0, true).unwrap();
-                sender_bg.send("background").unwrap();
-            });
-            scope.spawn(|| {
-                let _lease = pool.acquire(0, false).unwrap();
-                sender.send("foreground").unwrap();
+                sender.send("background").unwrap();
             });
             let deadline = std::time::Instant::now() + Duration::from_secs(2);
-            while pool.stats()["waiting_requests"] != 2 {
+            while pool.stats()["waiting_requests"] != 1 {
                 assert!(std::time::Instant::now() < deadline);
                 std::thread::yield_now();
             }
-            drop(occupied);
-            assert_eq!(
-                receiver.recv_timeout(Duration::from_secs(2)).unwrap(),
-                "foreground"
-            );
+            // A foreground request still reaches the other idle slot immediately.
+            let fg = pool.acquire(0, false).unwrap();
+            assert_eq!(fg.index, 1);
+            drop(fg);
+            drop(held);
             assert_eq!(
                 receiver.recv_timeout(Duration::from_secs(2)).unwrap(),
                 "background"

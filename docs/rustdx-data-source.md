@@ -72,7 +72,7 @@ Rust。
 ```env
 RUSTDX_QUOTE_CONNECTIONS=35
 RUSTDX_WORKERS=35
-RUSTDX_BACKGROUND_CONNECTIONS=5
+RUSTDX_BACKGROUND_CONNECTIONS=12
 RUSTDX_MAX_PAGES=64
 RUSTDX_SERVER=117.34.114.13:7709
 RUSTDX_FINANCIAL_SERVER=120.76.152.87:7709
@@ -81,9 +81,11 @@ RUSTDX_TIMEOUT=8
 
 - `RUSTDX_QUOTE_CONNECTIONS`：全市场行情连接池大小，范围 `1..35`。
 - `RUSTDX_WORKERS`：日 K、分钟 K、除权等按标的并行任务数，范围 `1..35`。
-- `RUSTDX_BACKGROUND_CONNECTIONS`：共享池中 bars、财务等后台请求的并发上限，
-  默认 5，范围 `1..连接总数`。报价优先取得空闲槽，空闲后台槽可以用于报价；
-  这是请求预算，不创建第二个连接池，也不保证 30/5 分配已经通过交易时段压测。
+- `RUSTDX_BACKGROUND_CONNECTIONS`：共享池中 bars、财务等后台请求的并发**保底下限**，
+  默认 12，范围 `1..连接总数`（内部钳制在池容量之下，确保报价始终有可用槽）。
+  后台始终可占用到该下限的并发，即使报价在排队；高于下限才让路。报价占用其余所有
+  槽。这是请求预算，不创建第二个连接池。离线单节点压测下 12 使全市场分钟一轮降到
+  约 36s、报价 P95 约 548ms（见采集建议文档性能验收），交易时段仍需复测。
 - `RUSTDX_MAX_PAGES`：单标的 K 线最大翻页数，范围 `1..80`。
 - `RUSTDX_SERVER`：行情主站，格式为 `IP:PORT`。
 - `RUSTDX_FALLBACK_SERVERS`：逗号分隔的备选行情节点。未显式设置主站时默认使用
