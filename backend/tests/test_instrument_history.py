@@ -376,3 +376,63 @@ def test_paper_limit_uses_status_effective_on_fill_date(tmp_path) -> None:
         trade_date=date(2026, 7, 3),
         is_risk_warning=True,
     ) == (10.5, 9.5)
+
+
+def test_active_universe_current_status_follows_name_and_future_delisting_records(tmp_path):
+    """今日有效股票的当前状态由当前名称决定; 未来退市按正常 tombstone 记录。
+
+    研究口径收窄为「只认今天有效股票的当前状态」后, 这是必须保持的不变量:
+    - 每只在册标的都有一条开区间 (valid_to 为空) 状态;
+    - is_risk_warning 完全跟随当前名称 (ST → True, 非 ST → False), 不被更早一次
+      观察的保守猜测污染当前判定;
+    - 之后从股票池消失的标的, 下一次同步正常写 is_listed=False 的退市 tombstone,
+      不需要回填其历史。
+    """
+    first = date(2026, 7, 1)
+    update_instrument_history(
+        tmp_path,
+        _instruments(
+            ("600001.SH", "ST示例", "2020-01-01"),   # 当前名称即 ST
+            ("000001.SZ", "平安银行", "1991-04-03"),
+            ("300001.SZ", "特锐德", "2009-10-30"),
+        ),
+        as_of=first,
+        source="rustdx",
+    )
+
+    inst = _instruments(
+        ("600001.SH", "ST示例", "2020-01-01"),
+        ("000001.SZ", "平安银行", "1991-04-03"),
+        ("300001.SZ", "特锐德", "2009-10-30"),
+    )
+    active = set(inst["symbol"].to_list())
+    history = load_instrument_history(tmp_path)
+    open_rows = {
+        row["symbol"]: row
+        for row in history.filter(pl.col("valid_to").is_null()).iter_rows(named=True)
+    }
+    # 每只在册标的都有当前开区间, 且全部 is_listed。
+    assert active <= set(open_rows)
+    assert all(open_rows[s]["is_listed"] for s in active)
+    # 当前 is_risk_warning 完全由当前名称决定。
+    assert {s: open_rows[s]["is_risk_warning"] for s in active} == {
+        "600001.SH": True,
+        "000001.SZ": False,
+        "300001.SZ": False,
+    }
+
+    # 未来退市: 下一次同步该标的从池中消失 → 正常写退市 tombstone。
+    second = date(2026, 7, 2)
+    update_instrument_history(
+        tmp_path,
+        _instruments(
+            ("000001.SZ", "平安银行", "1991-04-03"),
+            ("300001.SZ", "特锐德", "2009-10-30"),
+        ),
+        as_of=second,
+        source="rustdx",
+    )
+    retired = load_instrument_history(tmp_path).filter(
+        (pl.col("symbol") == "600001.SH") & (pl.col("valid_from") == second)
+    ).row(0, named=True)
+    assert retired["is_listed"] is False
