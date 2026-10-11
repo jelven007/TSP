@@ -254,11 +254,9 @@ def _run_strategies(
         ),
         key=lambda item: str(item["id"]),
     )
-    if len(strategies) != 25:
+    if not strategies:
         store.db.close()
-        raise RuntimeError(
-            f"expected 25 public builtin strategies, found {len(strategies)}"
-        )
+        raise RuntimeError("no public builtin strategies found")
 
     policy = BacktestResultPolicy(
         include_monte_carlo=False,
@@ -590,11 +588,11 @@ def _render_report(
     best_comparison = comparison_by_id.get(best["strategy_id"])
 
     lines = [
-        "# 治理后全市场 25 个内置策略历史回测",
+        f"# 治理后全市场 {len(rows)} 个内置策略历史回测",
         "",
         "## 核心结论",
         "",
-        f"- 25 个公开内置策略全部完成，运行错误 `{audit['backtest']['error_count']}` 个；"
+        f"- {len(rows)} 个公开内置策略全部完成，运行错误 `{audit['backtest']['error_count']}` 个；"
         f"正收益策略 `{len(positive)}` 个。",
         f"- 总收益排名第一为 **{best['strategy_name']}**：总收益 `{_pct(best['total_return'])}`、"
         f"年化 `{_pct(best['annual_return'])}`、最大回撤 `{_pct(best['max_drawdown'])}`、"
@@ -694,6 +692,21 @@ def _render_report(
     return "\n".join(lines)
 
 
+def _validate_report_checkpoint(payload: dict[str, Any]) -> None:
+    """Validate against the frozen run, not today's changing builtin catalog."""
+    strategies = payload.get("strategies") or []
+    expected = (payload.get("run_spec") or {}).get("strategy_count", len(strategies))
+    ids = [item.get("strategy_id") for item in strategies]
+    if (
+        not strategies
+        or len(strategies) != expected
+        or not all(ids)
+        or len(set(ids)) != len(ids)
+        or any(item.get("error") for item in strategies)
+    ):
+        raise RuntimeError("report-only mode requires a complete successful strategy checkpoint")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -731,11 +744,7 @@ def main() -> int:
     if args.report_only:
         results_path = output_dir / "results.json"
         payload = json.loads(results_path.read_text(encoding="utf-8"))
-        if (
-            len(payload.get("strategies", [])) != 25
-            or any(item.get("error") for item in payload["strategies"])
-        ):
-            raise RuntimeError("report-only mode requires a successful 25-strategy checkpoint")
+        _validate_report_checkpoint(payload)
         service, _, store = _open_service(data_dir)
     else:
         payload, service, store = _run_strategies(data_dir, output_dir)
