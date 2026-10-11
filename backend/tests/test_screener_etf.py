@@ -104,14 +104,14 @@ def test_all_builtin_matrix_formulas_accept_base_market_matrix():
 
 def test_limit_up_strategies_are_stock_only():
     engine = _engine()
-    for sid in ("broken_board_recovery", "consecutive_limit_ups"):
+    for sid in ("near_limit_up", "consecutive_limit_ups", "active_limit_gene"):
         assert engine.get(sid).meta["asset_types"] == ["stock"]
 
 
 def test_pure_technical_strategies_support_etf():
     engine = _engine()
     for sid in (
-        "trend_breakout", "ma_golden_cross", "macd_golden",
+        "breakout_new_high_60d", "ma_golden_cross", "macd_golden",
         "volume_price_surge", "low_volatility_leader", "oversold_bounce",
         "boll_breakout", "bullish_alignment", "pullback_to_support",
         "n_day_low_reversal",
@@ -169,7 +169,7 @@ def test_etf_strategy_runs_through_engine_context(tmp_path):
     current = history.filter(pl.col("date") == target_date)
     engine = _engine()
     result = engine.run(
-        "trend_breakout",
+        "breakout_new_high_60d",
         StrategyDataContext(
             asset_type="etf",
             timeframe="1d",
@@ -177,7 +177,10 @@ def test_etf_strategy_runs_through_engine_context(tmp_path):
             current=current,
             history=history,
         ),
-        overrides={"basic_filter": {"enabled": False}},
+        overrides={
+            "basic_filter": {"enabled": False},
+            "params": {"min_change_pct": 0.0},
+        },
     )
     assert result.total == 1
     assert result.rows[0]["symbol"] == "510300"

@@ -415,7 +415,7 @@ _DEMO_RULES_TEMPLATE = [
 
 # 策略类型单独声明 (格式不同: 含 strategy_id + direction)
 _DEMO_STRATEGY_RULES: list[dict] = [
-    {"name": "策略监控 · 趋势突破", "strategy_id": "trend_breakout", "direction": "entry"},
+    {"name": "策略监控 · 放量创60日新高", "strategy_id": "breakout_new_high_60d", "direction": "entry"},
     {"name": "策略监控 · MACD金叉", "strategy_id": "macd_golden", "direction": "both"},
 ]
 
