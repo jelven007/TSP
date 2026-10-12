@@ -316,7 +316,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
 
   return (
     <HighlightContext.Provider value={highlight ?? ''}>
-    <div className="space-y-5 max-w-2xl">
+    <div className="w-full max-w-5xl space-y-5">
       <Card icon={Plug} title="连接状态" anchor="ai-connection" right={
         configured && (
           <button onClick={handleTest} disabled={testing}

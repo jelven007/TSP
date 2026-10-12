@@ -46,7 +46,7 @@ export function SettingsApiTokensPanel() {
   const tokens = (tokensQ.data?.tokens ?? []).filter(t => !t.revoked)
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="w-full max-w-5xl space-y-5">
       <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">

@@ -4,5 +4,9 @@
 import { JobTimeoutCard } from './JobTimeoutCard'
 
 export function SettingsTimeoutPanel() {
-  return <JobTimeoutCard />
+  return (
+    <div className="w-full max-w-5xl space-y-5">
+      <JobTimeoutCard />
+    </div>
+  )
 }

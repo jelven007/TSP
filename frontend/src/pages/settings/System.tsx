@@ -10,7 +10,6 @@ import { Settings2, Trash2, RefreshCw, Bell, Volume2, Info, ExternalLink, CheckC
 import { usePreferences, useVersion } from '@/lib/useSharedQueries'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { PageHeader } from '@/components/PageHeader'
 import { refreshAlertToastConfig } from '@/components/AlertToast'
 import { SOUND_OPTIONS, previewSound } from '@/lib/notificationSound'
 import {
@@ -128,15 +127,10 @@ export function SettingsSystemPanel() {
   }, [qc])
 
   return (
-    <>
-      <PageHeader
-        title="系统设置"
-        subtitle="全局行为开关"
-      />
-
+    <div className="w-full max-w-5xl space-y-5">
       <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Settings2 className="h-4 w-4 text-accent" />
+          <Settings2 className="h-4 w-4 text-secondary" />
           <h3 className="text-sm font-medium text-foreground">策略页</h3>
         </div>
 
@@ -149,9 +143,9 @@ export function SettingsSystemPanel() {
         />
       </section>
 
-      <section className="rounded-card border border-border bg-surface p-5 mt-6">
+      <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Bell className="h-4 w-4 text-accent" />
+          <Bell className="h-4 w-4 text-secondary" />
           <h3 className="text-sm font-medium text-foreground">通知弹窗</h3>
         </div>
 
@@ -232,9 +226,9 @@ export function SettingsSystemPanel() {
         </div>
       </section>
 
-      <section className="rounded-card border border-border bg-surface p-5 mt-6">
+      <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Volume2 className="h-4 w-4 text-accent" />
+          <Volume2 className="h-4 w-4 text-secondary" />
           <h3 className="text-sm font-medium text-foreground">语音播报</h3>
         </div>
 
@@ -319,9 +313,9 @@ export function SettingsSystemPanel() {
         </div>
       </section>
 
-      <section className="rounded-card border border-border bg-surface p-5 mt-6">
+      <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
-          <ExternalLink className="h-4 w-4 text-accent" />
+          <ExternalLink className="h-4 w-4 text-secondary" />
           <h3 className="text-sm font-medium text-foreground">个股详情外链</h3>
         </div>
 
@@ -343,9 +337,9 @@ export function SettingsSystemPanel() {
         </div>
       </section>
 
-      <section className="rounded-card border border-border bg-surface p-5 mt-6">
+      <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Trash2 className="h-4 w-4 text-accent" />
+          <Trash2 className="h-4 w-4 text-secondary" />
           <h3 className="text-sm font-medium text-foreground">缓存</h3>
         </div>
 
@@ -373,9 +367,9 @@ export function SettingsSystemPanel() {
         </div>
       </section>
 
-      <section className="rounded-card border border-border bg-surface p-5 mt-6">
+      <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
-          <ZoomIn className="h-4 w-4 text-accent" />
+          <ZoomIn className="h-4 w-4 text-secondary" />
           <h3 className="text-sm font-medium text-foreground">界面</h3>
         </div>
 
@@ -423,9 +417,9 @@ export function SettingsSystemPanel() {
         </div>
       </section>
 
-      <section className="rounded-card border border-border bg-surface p-5 mt-6">
+      <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Info className="h-4 w-4 text-accent" />
+          <Info className="h-4 w-4 text-secondary" />
           <h3 className="text-sm font-medium text-foreground">关于</h3>
         </div>
 
@@ -501,7 +495,7 @@ export function SettingsSystemPanel() {
           </div>
         </div>
       </section>
-    </>
+    </div>
   )
 }
 

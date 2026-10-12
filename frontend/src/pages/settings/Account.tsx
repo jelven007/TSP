@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, KeyRound, Loader2, LogOut, Mail, ShieldAlert, UserRound } from 'lucide-react'
-import { PageHeader } from '@/components/PageHeader'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 
@@ -65,12 +64,10 @@ export function SettingsAccountPanel() {
     : '--'
 
   return (
-    <>
-      <PageHeader title="账户" subtitle="管理登录邮箱、密码和当前会话" />
-
+    <div className="w-full max-w-5xl space-y-5">
       <section className="rounded-card border border-border bg-surface p-5">
         <div className="mb-4 flex items-center gap-2">
-          <UserRound className="h-4 w-4 text-accent" />
+          <UserRound className="h-4 w-4 text-secondary" />
           <h3 className="text-sm font-medium text-foreground">账户信息</h3>
         </div>
         <dl className="divide-y divide-border/60">
@@ -90,9 +87,9 @@ export function SettingsAccountPanel() {
         </dl>
       </section>
 
-      <section className="mt-6 rounded-card border border-border bg-surface p-5">
+      <section className="rounded-card border border-border bg-surface p-5">
         <div className="mb-4 flex items-center gap-2">
-          <KeyRound className="h-4 w-4 text-accent" />
+          <KeyRound className="h-4 w-4 text-secondary" />
           <div>
             <h3 className="text-sm font-medium text-foreground">修改密码</h3>
             <p className="mt-0.5 text-[11px] text-muted">修改后当前账户的所有会话都会退出</p>
@@ -152,7 +149,7 @@ export function SettingsAccountPanel() {
         </form>
       </section>
 
-      <section className="mt-6 border-t border-border pt-5">
+      <section className="border-t border-border pt-5">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-medium text-foreground">退出当前设备</h3>
@@ -171,6 +168,6 @@ export function SettingsAccountPanel() {
           </button>
         </div>
       </section>
-    </>
+    </div>
   )
 }
