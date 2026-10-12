@@ -108,8 +108,8 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
     && emailSmtpConfig.to_addresses.length
     && (!emailSmtpConfig.username || emailSmtpPasswordSet)
   )
-  const [emailDraft, setEmailDraft] = useState<EmailSmtpConfig>(emailSmtpConfig)
-  const [emailPasswordDraft, setEmailPasswordDraft] = useState('')
+  const emailRecipients = emailSmtpConfig.to_addresses.join(', ')
+  const [emailRecipientsDraft, setEmailRecipientsDraft] = useState(emailRecipients)
   const [emailError, setEmailError] = useState('')
   // 企业微信智能机器人 (BotID + Secret, 长连接通道)
   const wecomBotId = prefs?.wecom_bot_id ?? ''
@@ -139,9 +139,8 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
     setCustomSecretDraft('')
   }, [customWebhookUrl, customWebhookSecretSet])
   useEffect(() => {
-    setEmailDraft(emailSmtpConfig)
-    setEmailPasswordDraft('')
-  }, [emailSmtpConfig, emailSmtpPasswordSet])
+    setEmailRecipientsDraft(emailRecipients)
+  }, [emailRecipients])
   useEffect(() => {
     setBotIdDraft(wecomBotId)
     setBotSecretDraft(wecomBotSecret)
@@ -248,28 +247,20 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
   })
 
   const saveEmailSmtp = useMutation({
-    mutationFn: ({ config, password }: { config: EmailSmtpConfig; password?: string }) =>
-      api.updateEmailSmtp(config, password),
-    onSuccess: () => {
+    mutationFn: (recipients: string[]) => api.updateEmailSmtp(recipients),
+    onSuccess: (data) => {
       setEmailError('')
-      setEmailPasswordDraft('')
-      toast('邮件推送配置已保存', 'success')
+      setEmailRecipientsDraft(data.email_smtp_config.to_addresses.join(', '))
+      toast('邮件收件人已保存', 'success')
       qc.invalidateQueries({ queryKey: QK.preferences })
     },
     onError: (err: any) => setEmailError(String(err?.message ?? '保存失败')),
   })
   const submitEmail = useCallback(() => {
-    saveEmailSmtp.mutate({
-      config: {
-        ...emailDraft,
-        host: emailDraft.host.trim(),
-        username: emailDraft.username.trim(),
-        from_address: emailDraft.from_address.trim(),
-        to_addresses: emailDraft.to_addresses.map(item => item.trim()).filter(Boolean),
-      },
-      ...(emailPasswordDraft ? { password: emailPasswordDraft } : {}),
-    })
-  }, [emailDraft, emailPasswordDraft, saveEmailSmtp])
+    saveEmailSmtp.mutate(
+      emailRecipientsDraft.split(/[,;，；\n]/).map(item => item.trim()).filter(Boolean),
+    )
+  }, [emailRecipientsDraft, saveEmailSmtp])
   const testEmail = useMutation({
     mutationFn: () => api.sendTestWebhook('email'),
   })
@@ -837,20 +828,20 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
               {emailOpen && (
                 <div className="border-t border-border/60 bg-base/30 p-3">
                   <p className="mb-3 text-[11px] leading-relaxed text-muted">
-                    未单独设置时复用注册邮件服务，收件人默认为当前账户的注册邮箱。保存后使用自定义配置。
+                    发信参数由系统统一维护，复用注册邮件服务，仅支持修改收件人。收件人默认为当前账户的注册邮箱。
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_6rem_8rem]">
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">SMTP 主机</span>
-                      <input value={emailDraft.host} onChange={e => setEmailDraft(d => ({ ...d, host: e.target.value }))} placeholder="smtp.example.com" className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs font-mono text-foreground" />
+                      <input value={emailSmtpConfig.host} disabled placeholder="由系统配置" className="h-9 w-full rounded-btn border border-border bg-surface px-3 text-xs font-mono text-muted" />
                     </label>
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">端口</span>
-                      <input type="number" min={1} max={65535} value={emailDraft.port} onChange={e => setEmailDraft(d => ({ ...d, port: Number(e.target.value) }))} className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                      <input type="number" value={emailSmtpConfig.port} disabled className="h-9 w-full rounded-btn border border-border bg-surface px-3 text-xs text-muted" />
                     </label>
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">加密</span>
-                      <select value={emailDraft.security} onChange={e => setEmailDraft(d => ({ ...d, security: e.target.value as EmailSmtpConfig['security'] }))} className="h-9 w-full rounded-btn border border-border bg-base px-2 text-xs text-foreground">
+                      <select value={emailSmtpConfig.security} disabled className="h-9 w-full rounded-btn border border-border bg-surface px-2 text-xs text-muted">
                         <option value="ssl">SSL</option>
                         <option value="starttls">STARTTLS</option>
                         <option value="none">无</option>
@@ -859,20 +850,20 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
                   </div>
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <label className="space-y-1.5">
-                      <span className="text-[11px] text-muted">登录用户名 (可选)</span>
-                      <input value={emailDraft.username} onChange={e => setEmailDraft(d => ({ ...d, username: e.target.value }))} placeholder="bot@example.com" className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs font-mono text-foreground" />
+                      <span className="text-[11px] text-muted">登录用户名</span>
+                      <input value={emailSmtpConfig.username} disabled placeholder="由系统配置" className="h-9 w-full rounded-btn border border-border bg-surface px-3 text-xs font-mono text-muted" />
                     </label>
                     <label className="space-y-1.5">
-                      <span className="text-[11px] text-muted">密码 / 授权码 (可选)</span>
-                      <input type="password" value={emailPasswordDraft} onChange={e => setEmailPasswordDraft(e.target.value)} placeholder={emailSmtpPasswordSet ? '已配置；留空保持不变' : '无认证服务器可留空'} className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs font-mono text-foreground" />
+                      <span className="text-[11px] text-muted">密码 / 授权码</span>
+                      <input type="password" value="" disabled placeholder={emailSmtpPasswordSet ? '已配置' : '未配置'} className="h-9 w-full rounded-btn border border-border bg-surface px-3 text-xs font-mono text-muted" />
                     </label>
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">发件人</span>
-                      <input value={emailDraft.from_address} onChange={e => setEmailDraft(d => ({ ...d, from_address: e.target.value }))} placeholder="bot@example.com" className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs font-mono text-foreground" />
+                      <input value={emailSmtpConfig.from_address} disabled placeholder="由系统配置" className="h-9 w-full rounded-btn border border-border bg-surface px-3 text-xs font-mono text-muted" />
                     </label>
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">收件人 (多个用逗号分隔)</span>
-                      <input value={emailDraft.to_addresses.join(', ')} onChange={e => setEmailDraft(d => ({ ...d, to_addresses: e.target.value.split(/[,;，；\n]/) }))} placeholder="alerts@example.com" className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs font-mono text-foreground" />
+                      <input value={emailRecipientsDraft} onChange={e => setEmailRecipientsDraft(e.target.value)} placeholder="alerts@example.com" className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs font-mono text-foreground" />
                     </label>
                   </div>
                   {emailError && <div className="mt-2 text-[11px] text-danger">{emailError}</div>}

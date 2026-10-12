@@ -41,47 +41,32 @@ def test_custom_webhook_settings_validate_url_and_store_secret(monkeypatch):
         update_custom_webhook(CustomWebhookPrefsIn(url="file:///tmp/hook"))
 
 
-def test_email_settings_validate_and_store_password_separately(monkeypatch):
+def test_email_settings_validate_and_save_only_recipients(monkeypatch):
     saved = {}
     monkeypatch.setattr(
-        "app.services.preferences.set_email_smtp_config",
-        lambda config: saved.update(config=config) or config,
+        "app.services.preferences.set_email_recipients",
+        lambda recipients: saved.update(to_addresses=recipients),
     )
     monkeypatch.setattr(
-        "app.secrets_store.set_email_smtp_password",
-        lambda password: saved.update(password=password) or password,
-    )
-    monkeypatch.setattr(
-        "app.secrets_store.get_email_smtp_password",
-        lambda: saved.get("password", ""),
+        "app.services.email_adapter.get_notification_smtp",
+        lambda recipient: ({
+            "host": "smtp.example.com", "to_addresses": saved["to_addresses"],
+        }, "system-secret"),
     )
 
     result = update_email_smtp(EmailSmtpPrefsIn(
-        host="smtp.example.com",
-        port=587,
-        security="starttls",
-        username="bot@example.com",
-        password="smtp-password",
-        from_address="bot@example.com",
-        to_addresses=["alerts@example.com", "alerts@example.com"],
+        to_addresses=[" alerts@example.com ", "alerts@example.com"],
     ))
 
-    assert saved["password"] == "smtp-password"
-    assert saved["config"]["to_addresses"] == ["alerts@example.com"]
+    assert saved == {"to_addresses": ["alerts@example.com"]}
+    assert result["email_smtp_config"]["to_addresses"] == ["alerts@example.com"]
     assert result["email_smtp_password_set"] is True
 
-    with pytest.raises(HTTPException, match="收件人"):
-        update_email_smtp(EmailSmtpPrefsIn(
-            host="smtp.example.com",
-            from_address="bot@example.com",
-            to_addresses=["not-an-email"],
-        ))
-
     saved.clear()
-    with pytest.raises(HTTPException, match="密码或授权码"):
-        update_email_smtp(EmailSmtpPrefsIn(
-            host="smtp.example.com",
-            username="bot@example.com",
-            from_address="bot@example.com",
-            to_addresses=["alerts@example.com"],
-        ))
+    with pytest.raises(HTTPException, match="收件人"):
+        update_email_smtp(EmailSmtpPrefsIn(to_addresses=["not-an-email"]))
+    assert saved == {}
+
+    with pytest.raises(HTTPException, match="收件人"):
+        update_email_smtp(EmailSmtpPrefsIn(to_addresses=[]))
+    assert saved == {}

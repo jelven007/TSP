@@ -961,6 +961,18 @@ def set_email_smtp_config(config: dict) -> dict:
     return get_email_smtp_config()
 
 
+def set_email_recipients(recipients: list[str]) -> None:
+    """Change only recipients, retaining any legacy registration transport."""
+    with _SAVE_LOCK:
+        current = load()
+        raw = current.get("email_smtp_config")
+        config = dict(raw) if isinstance(raw, dict) else {}
+        config["to_addresses"] = list(recipients)
+        current["email_smtp_config"] = config
+        atomic_write_text(_path(), json.dumps(current, indent=2, ensure_ascii=False))
+        _invalidate_cache()
+
+
 # ===== 企业微信智能机器人 (API 模式 / 长连接) =====
 
 

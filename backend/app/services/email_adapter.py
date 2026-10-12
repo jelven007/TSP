@@ -57,20 +57,15 @@ def get_registration_smtp(recipient: str) -> tuple[dict, str]:
 
 
 def get_notification_smtp(recipient: str | None = None) -> tuple[dict, str]:
-    """Apply registration defaults; requests use their user, shared jobs use all users.
+    """Use the system registration transport with editable notification recipients.
 
-    An explicitly saved SMTP group (including a cleared host) takes precedence.
-    Resolving defaults never persists the registration secret or a user's address.
+    Historical SMTP settings remain the registration fallback when AUTH_SMTP is unset.
+    Notifications can override recipients but never the registration transport.
     """
-    from app import secrets_store
     from app.services import auth, preferences
 
-    saved = preferences.load().get("email_smtp_config")
-    if isinstance(saved, dict):
-        config = preferences.get_email_smtp_config()
-        password = secrets_store.get_email_smtp_password() if config["host"] else ""
-    else:
-        config, password = get_registration_smtp("")
+    config, password = get_registration_smtp("")
+    config = {**config, "to_addresses": preferences.get_email_smtp_config()["to_addresses"]}
     if config["host"] and not config["to_addresses"]:
         config = {
             **config,

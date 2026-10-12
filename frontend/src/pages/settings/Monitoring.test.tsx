@@ -7,6 +7,12 @@ import type { Preferences } from '@/lib/api'
 import { SettingsMonitoringPanel } from './Monitoring'
 
 let prefs: Partial<Preferences> | undefined
+const { updateEmailSmtp } = vi.hoisted(() => ({
+  updateEmailSmtp: vi.fn((toAddresses: string[]) => Promise.resolve({
+    email_smtp_config: { to_addresses: toAddresses },
+    email_smtp_password_set: true,
+  })),
+}))
 vi.mock('@/lib/useSharedQueries', () => ({
   usePreferences: () => ({ data: prefs }),
   useCapabilities: () => ({ data: undefined }),
@@ -19,7 +25,10 @@ vi.mock('@/lib/useSharedMutations', () => ({
 }))
 vi.mock('@/components/data/DepthConfigCard', () => ({ DepthConfigContent: () => null }))
 vi.mock('@/lib/api', () => ({
-  api: { minuteRefreshStatus: () => Promise.resolve({ available: false }) },
+  api: {
+    minuteRefreshStatus: () => Promise.resolve({ available: false }),
+    updateEmailSmtp,
+  },
 }))
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -33,6 +42,7 @@ afterEach(async () => {
   host?.remove()
   root = null
   prefs = undefined
+  vi.clearAllMocks()
 })
 
 function render() {
@@ -77,6 +87,12 @@ it('hydrates registration mail defaults after preferences load without a plainte
   const password = section.querySelector('input[type="password"]') as HTMLInputElement
   expect(password.value).toBe('')
   expect(password.placeholder).toContain('已配置')
+  expect(password.disabled).toBe(true)
+  expect(inputs.filter(input => input.type !== 'checkbox' && !input.disabled).map(input => input.value))
+    .toEqual(['user@example.com'])
+  const security = section.querySelector('select') as HTMLSelectElement
+  expect(security.value).toBe('starttls')
+  expect(security.disabled).toBe(true)
   expect(section.textContent).toContain('注册邮箱')
   const testButton = [...section.querySelectorAll('button')].find(button => button.textContent === '测试')
   expect(testButton?.disabled).toBe(false)
@@ -90,4 +106,34 @@ it('keeps saved channel opt-out and disables testing for an unconfigured transpo
   act(() => section.querySelector('span')!.parentElement!.click())
   const testButton = [...section.querySelectorAll('button')].find(button => button.textContent === '测试')
   expect(testButton?.disabled).toBe(true)
+})
+
+it('saves only editable recipients while system SMTP fields remain unchanged', async () => {
+  prefs = {
+    email_smtp_config: {
+      host: 'smtp.example.com', port: 587, security: 'starttls',
+      username: 'sender@example.com', from_address: 'sender@example.com',
+      to_addresses: ['user@example.com'],
+    },
+    email_smtp_password_set: true,
+  }
+  render()
+  const section = emailSection()
+  act(() => section.querySelector('span')!.parentElement!.click())
+  const recipient = section.querySelector('input[placeholder="alerts@example.com"]') as HTMLInputElement
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+  act(() => {
+    setValue.call(recipient, ' chosen@example.com；second@example.com, ')
+    recipient.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  expect(recipient.value).toBe(' chosen@example.com；second@example.com, ')
+  const saveButton = [...section.querySelectorAll('button')].find(button => button.textContent === '保存')!
+  await act(async () => saveButton.click())
+
+  expect(updateEmailSmtp.mock.calls).toEqual([[['chosen@example.com', 'second@example.com']]])
+  expect(recipient.value).toBe('chosen@example.com, second@example.com')
+  const lockedInputs = [...section.querySelectorAll('input:disabled')] as HTMLInputElement[]
+  expect(lockedInputs.map(input => input.value)).toEqual([
+    'smtp.example.com', '587', 'sender@example.com', '', 'sender@example.com',
+  ])
 })

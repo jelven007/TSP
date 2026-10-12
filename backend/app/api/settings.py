@@ -1337,71 +1337,27 @@ def update_custom_webhook(req: CustomWebhookPrefsIn) -> dict:
 
 
 class EmailSmtpPrefsIn(BaseModel):
-    host: str
-    port: int = Field(default=465, ge=1, le=65535)
-    security: Literal["ssl", "starttls", "none"] = "ssl"
-    username: str = ""
-    # None preserves the stored password; an explicit empty string clears it.
-    password: str | None = None
-    from_address: str = ""
+    model_config = ConfigDict(extra="forbid")
     to_addresses: list[str] = Field(default_factory=list)
 
 
 @router.put("/preferences/email-smtp")
 def update_email_smtp(req: EmailSmtpPrefsIn, request: Request = None) -> dict:
-    """Configure the SMTP transport shared by monitor alerts and review reports."""
+    """Update notification recipients; the registration SMTP transport is read-only."""
     from app.services import email_adapter, preferences
 
-    host = (req.host or "").strip()
-    username = (req.username or "").strip()
-    from_address = (req.from_address or username).strip()
     recipients = list(dict.fromkeys(item.strip() for item in req.to_addresses if item.strip()))
-    effective_password = req.password or ""
-    if host:
-        if not recipients:
-            recipient = _current_email(request)
-            if recipient:
-                recipients = [recipient]
-        if not from_address or not email_adapter.is_valid_email(from_address):
-            raise HTTPException(status_code=400, detail="请填写有效的发件人邮箱")
-        if not recipients or any(not email_adapter.is_valid_email(item) for item in recipients):
-            raise HTTPException(status_code=400, detail="请至少填写一个有效的收件人邮箱")
-        if req.password is None:
-            current_config, current_password = email_adapter.get_notification_smtp(
-                _current_email(request),
-            )
-            # A retained credential belongs to its original SMTP connection.
-            if (
-                host == current_config["host"]
-                and req.port == current_config["port"]
-                and req.security == current_config["security"]
-                and username == current_config["username"]
-            ):
-                effective_password = current_password
-        if username and not effective_password:
-            raise HTTPException(status_code=400, detail="已填写 SMTP 登录用户名, 请同时填写密码或授权码")
-    else:
-        username = ""
-        from_address = ""
-        recipients = []
-
-    config = preferences.set_email_smtp_config({
-        "host": host,
-        "port": req.port,
-        "security": req.security,
-        "username": username,
-        "from_address": from_address,
-        "to_addresses": recipients,
-    })
-    if not host or not username:
-        secrets_store.set_email_smtp_password("")
-    elif req.password is not None or (
-        effective_password and not secrets_store.get_email_smtp_password()
-    ):
-        secrets_store.set_email_smtp_password(effective_password)
+    if not recipients:
+        recipient = _current_email(request)
+        if recipient:
+            recipients = [recipient]
+    if not recipients or any(not email_adapter.is_valid_email(item) for item in recipients):
+        raise HTTPException(status_code=400, detail="请至少填写一个有效的收件人邮箱")
+    preferences.set_email_recipients(recipients)
+    config, password = email_adapter.get_notification_smtp(_current_email(request))
     return {
         "email_smtp_config": config,
-        "email_smtp_password_set": bool(secrets_store.get_email_smtp_password()),
+        "email_smtp_password_set": bool(password),
     }
 
 
