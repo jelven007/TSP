@@ -119,7 +119,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => toggleTheme()}
-      className="flex items-center justify-center rounded-btn p-2 text-foreground/80 transition-colors duration-150 ease-smooth hover:bg-elevated hover:text-foreground cursor-pointer"
+      className="flex items-center justify-center rounded-btn p-2 text-foreground/80 transition-colors duration-150 ease-smooth hover:bg-elevated hover:text-foreground cursor-pointer md:p-1.5"
       title={dark ? '切换到亮色模式' : '切换到暗色模式'}
     >
       {dark ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
@@ -163,7 +163,7 @@ function SidebarIndexQuotes({ rows, items }: { rows: IndexQuote[] | undefined; i
   if (items.length === 0) return null
   const quoteBySymbol = new Map((rows ?? []).map(q => [q.symbol, q]))
   return (
-    <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border/60 pt-2">
+    <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border/60 pt-2 md:mt-1.5 md:gap-1 md:pt-1.5">
       {items.map(item => {
         const q = quoteBySymbol.get(item.symbol)
         const value = q?.last_price ?? q?.close
@@ -172,7 +172,7 @@ function SidebarIndexQuotes({ rows, items }: { rows: IndexQuote[] | undefined; i
           <NavLink
             key={item.symbol}
             to={`/indices?symbol=${encodeURIComponent(item.symbol)}`}
-            className="block rounded bg-elevated/60 px-2 py-1.5 transition-colors hover:bg-elevated"
+            className="block rounded bg-elevated/60 px-2 py-1.5 transition-colors hover:bg-elevated md:py-1"
             title={`${item.name} ${item.symbol}`}
           >
             <div className="flex items-center justify-between gap-1">
@@ -248,7 +248,7 @@ function DataSourceHealthBadge({ matrix }: { matrix: CapabilityMatrix | undefine
         onFocus={openPop}
         onBlur={closePop}
         onKeyDown={e => { if (e.key === 'Escape') setPopPos(null) }}
-        className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70"
+        className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70 md:py-1"
       >
         <span className="pointer-events-none absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-accent/50 transition-colors group-hover:bg-accent" />
         <DatabaseZap className="h-3.5 w-3.5 shrink-0 text-muted group-hover:text-accent transition-colors" />
@@ -331,7 +331,7 @@ function AIConfigBadge({ configured, model }: { configured?: boolean; model?: st
   return (
     <NavLink
       to="/settings?tab=ai"
-      className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70"
+      className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70 md:py-1"
       title={`AI 配置 — ${descText}`}
     >
       <span className="pointer-events-none absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-purple-400/50 transition-colors group-hover:bg-purple-400" />
@@ -695,7 +695,7 @@ export function Layout() {
           overlayPreview && 'fixed inset-y-0 left-0 z-50 w-56 shadow-2xl border-r border-border',
         )}
       >
-        <div className={cn('border-b border-border shrink-0', railMode ? 'px-2 pt-3 pb-2' : 'px-4 pt-4 pb-3')}>
+        <div className={cn('border-b border-border shrink-0', railMode ? 'px-2 pt-3 pb-2 md:pt-2 md:pb-1.5' : 'px-4 pt-4 pb-3 md:pt-3 md:pb-2')}>
           {/* Brand block — 收起时只显 logo 居中 */}
           <div className={cn('flex', railMode ? 'flex-col items-center gap-2' : 'items-center gap-2')}>
             <Logo
@@ -739,7 +739,7 @@ export function Layout() {
 
             {/* 状态卡 — 收起时隐藏 */}
             {!railMode && (
-              <div className="mt-2.5 border-t border-border/60 pt-1">
+              <div className="mt-2.5 border-t border-border/60 pt-1 md:mt-1.5">
                 <DataSourceHealthBadge matrix={matrix} />
               <div className="mx-2 border-t border-border/45" aria-hidden="true" />
               <AIConfigBadge
@@ -750,7 +750,7 @@ export function Layout() {
           )}
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3 space-y-0.5">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3 space-y-0.5 md:py-2 md:space-y-px">
           {visibleNavItems.map(({ to, label, icon: Icon, badge }) => {
             // 「自选」项 — 开启分组侧栏且未整体收起时, 渲染为可展开父项 + 二级分组
             const isWatchlistExpandable = to === '/watchlist' && groupsInNav && !railMode && watchlistGroups.length > 0
@@ -761,7 +761,7 @@ export function Layout() {
                   <button
                     onClick={() => setWatchlistNavExpanded(v => !v)}
                     className={cn(
-                      'group relative flex w-full items-center gap-3 rounded-btn px-3 py-2 text-sm transition-all duration-150 ease-smooth',
+                      'group relative flex w-full items-center gap-3 rounded-btn px-3 py-2 text-sm transition-all duration-150 ease-smooth md:gap-2.5 md:px-2.5 md:py-[3px]',
                       location.pathname === '/watchlist'
                         ? 'bg-elevated text-foreground font-medium'
                         : 'text-foreground/75 hover:bg-elevated/70 hover:text-foreground',
@@ -788,7 +788,7 @@ export function Layout() {
                     className={({ isActive }) =>
                       cn(
                         'group relative flex items-center rounded-btn text-sm transition-all duration-150 ease-smooth',
-                        railMode ? 'justify-center px-0 py-2' : 'gap-3 px-3 py-2',
+                        railMode ? 'justify-center px-0 py-2 md:py-[5px]' : 'gap-3 px-3 py-2 md:gap-2.5 md:px-2.5 md:py-[3px]',
                         isActive
                           ? 'bg-elevated text-foreground font-medium'
                           : 'text-foreground/75 hover:bg-elevated/70 hover:text-foreground',
@@ -827,11 +827,11 @@ export function Layout() {
 
                 {/* 自选分组二级子菜单 — 展开时显示 */}
                 {isWatchlistExpandable && watchlistNavExpanded && (
-                  <div className="mt-0.5 space-y-0.5">
+                  <div className="mt-0.5 space-y-0.5 md:mt-px md:space-y-px">
                     <NavLink
                       to="/watchlist"
                       className={({ isActive }) => cn(
-                        'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth',
+                        'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth md:py-0.5',
                         isActive && !location.search
                           ? 'text-accent font-medium'
                           : 'text-foreground/60 hover:text-foreground hover:bg-elevated/50',
@@ -858,7 +858,7 @@ export function Layout() {
                           key={group.id}
                           to={groupPath}
                           className={cn(
-                            'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth',
+                            'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth md:py-0.5',
                             isGroupActive
                               ? 'text-accent font-medium'
                               : 'text-foreground/60 hover:text-foreground hover:bg-elevated/50',
@@ -888,7 +888,7 @@ export function Layout() {
 
         {/* 全局行情开关 — 收起时只显示状态指示点 */}
         {railMode ? (
-          <div className="border-t border-border px-2 py-2.5 shrink-0 flex justify-center">
+          <div className="border-t border-border px-2 py-2.5 shrink-0 flex justify-center md:py-2">
             <button
               onClick={() => handleToggle(!realtimeEnabled)}
               disabled={realtimeToggleDisabled}
@@ -901,7 +901,7 @@ export function Layout() {
             </button>
           </div>
         ) : (
-        <div className="border-t border-border px-3 py-2.5 shrink-0">
+        <div className="border-t border-border px-3 py-2.5 shrink-0 md:py-2">
           {realtimeUnavailable && !realtimeProviderName ? (
             <div>
               <div className="flex items-center justify-between">
@@ -999,7 +999,7 @@ export function Layout() {
         </div>
         )}
 
-        <div className={cn('border-t border-border py-3 shrink-0', railMode ? 'px-2 flex flex-col items-center gap-1' : 'px-2')}>
+        <div className={cn('border-t border-border py-3 shrink-0 md:py-2', railMode ? 'px-2 flex flex-col items-center gap-1' : 'px-2')}>
           <div className={railMode ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}>
             <ThemeToggle />
             <NavLink
@@ -1008,7 +1008,7 @@ export function Layout() {
               className={({ isActive }) =>
                 cn(
                   'group relative flex items-center rounded-btn text-sm transition-all duration-150 ease-smooth',
-                  railMode ? 'justify-center px-0 py-2' : 'flex-1 gap-3 px-3 py-2',
+                  railMode ? 'justify-center px-0 py-2 md:py-[5px]' : 'flex-1 gap-3 px-3 py-2 md:gap-2.5 md:px-2.5 md:py-[3px]',
                   isActive
                     ? 'bg-elevated text-foreground font-medium'
                     : 'text-foreground/75 hover:bg-elevated/70 hover:text-foreground',
