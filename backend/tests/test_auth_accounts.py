@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import stat
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
@@ -123,7 +124,9 @@ def test_registration_secret_is_hashed_and_preserved(
     assert auth.verify_registration_secret(secret) is True
     assert auth.verify_registration_secret("wrong-secret") is False
     assert secret not in auth_path.read_text(encoding="utf-8")
-    assert stat.S_IMODE(auth_path.stat().st_mode) == 0o600
+    if sys.platform != "win32":
+        # Windows 无 POSIX 权限位, chmod 只影响只读位, st_mode 无法表达 0600。
+        assert stat.S_IMODE(auth_path.stat().st_mode) == 0o600
 
     auth.register_user("user@example.com", "password-123")
 
@@ -299,7 +302,9 @@ def test_verification_code_is_hashed_and_consumed_once(
 
     assert code == "654321"
     assert "654321" not in verification_path.read_text(encoding="utf-8")
-    assert stat.S_IMODE(verification_path.stat().st_mode) == 0o600
+    if sys.platform != "win32":
+        # Windows 无 POSIX 权限位, chmod 只影响只读位, st_mode 无法表达 0600。
+        assert stat.S_IMODE(verification_path.stat().st_mode) == 0o600
     auth_verification.consume_code("user@example.com", code)
     with pytest.raises(
         auth_verification.VerificationCodeInvalidError,
