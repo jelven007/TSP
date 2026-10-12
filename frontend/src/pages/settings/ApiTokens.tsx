@@ -46,15 +46,21 @@ export function SettingsApiTokensPanel() {
   const tokens = (tokensQ.data?.tokens ?? []).filter(t => !t.revoked)
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <div className="rounded-card border border-border bg-surface p-4">
-        <div className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4 text-accent" />
-          <div className="text-sm font-medium">API Token</div>
-          <span className="text-[10px] text-muted">外部调用方的第二认证通道 — 与面板密码并行, 互不影响</span>
+    <div className="max-w-3xl space-y-5">
+      <section className="rounded-card border border-border bg-surface p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5">
+              <KeyRound className="h-4 w-4 shrink-0 text-secondary" />
+              <h2 className="text-sm font-medium text-foreground">API Token</h2>
+            </div>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted">
+              外部调用方的第二认证通道，与面板密码并行，互不影响。
+            </p>
+          </div>
           <button
             onClick={() => setCreating(v => !v)}
-            className="ml-auto flex items-center gap-1 rounded-btn border border-border px-2 py-1 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-accent"
+            className="flex shrink-0 items-center gap-1 rounded-btn border border-border px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-accent"
           >
             <Plus className="h-3 w-3" /> 新建 Token
           </button>
@@ -164,7 +170,7 @@ export function SettingsApiTokensPanel() {
             </div>
           )}
         </div>
-      </div>
+      </section>
     </div>
   )
 }
