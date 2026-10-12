@@ -1,3 +1,4 @@
+import sys
 from datetime import date
 
 import polars as pl
@@ -80,7 +81,9 @@ def test_migration_deletes_old_orders_and_cleans_line_records(tmp_path):
     assert not old_order.exists()
     assert fills.read_text() == kept + "\n"
     assert '"api_key": "830001"' in secrets.read_text()
-    assert secrets.stat().st_mode & 0o777 == 0o600
+    if sys.platform != "win32":
+        # Windows 无 POSIX 权限位, chmod 只影响只读位, st_mode 无法表达 0600。
+        assert secrets.stat().st_mode & 0o777 == 0o600
 
 
 def test_legacy_board_only_filter_does_not_become_all_market():

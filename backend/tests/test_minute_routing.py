@@ -1094,6 +1094,9 @@ def test_minute_refresh_is_healthy_requires_recent_round(monkeypatch):
 
     monkeypatch.setattr(mr.preferences, "get_minute_refresh_enabled", lambda: True)
     monkeypatch.setattr(mr.preferences, "get_minute_refresh_interval", lambda: 6)
+    # 生效间隔只取偏好值: 本机默认全量分钟源 (rustdx) 会把下限抬到 60s, 与本用例
+    # 验证的 max(2*间隔, 30s) 阈值无关, 固定住避免依赖运行环境的数据源配置。
+    monkeypatch.setattr(svc, "_effective_interval", lambda: 6)
     # 线程未启动 → False
     assert svc.is_healthy() is False
 
