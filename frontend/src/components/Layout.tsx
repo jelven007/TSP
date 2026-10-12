@@ -248,12 +248,12 @@ function DataSourceHealthBadge({ matrix }: { matrix: CapabilityMatrix | undefine
         onFocus={openPop}
         onBlur={closePop}
         onKeyDown={e => { if (e.key === 'Escape') setPopPos(null) }}
-        className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70"
+        className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70 md:gap-1.5"
       >
         <span className="pointer-events-none absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-accent/50 transition-colors group-hover:bg-accent" />
         <DatabaseZap className="h-3.5 w-3.5 shrink-0 text-muted group-hover:text-accent transition-colors" />
         {/* 能力方格 (按注册顺序: 实时/日K/分钟/除权/财务), 与悬浮卡逐格同色对应 */}
-        <span className="flex items-center gap-1 shrink-0">
+        <span className="flex items-center gap-1 shrink-0 md:gap-0.5">
           {loading
             ? Array.from({ length: 5 }, (_, i) => (
                 <span key={i} className="h-2 w-2 rounded-[2px] bg-muted animate-pulse" />
