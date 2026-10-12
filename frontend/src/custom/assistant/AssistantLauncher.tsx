@@ -1,15 +1,13 @@
 /**
  * AI 助手宿主 — 挂载于 layout.navigation.extra 插槽(全站常驻渲染点),
- * 但不在侧栏菜单里渲染任何入口。聚合三件套:
- * ① 可拖动悬浮球(位置持久化); ② 左上角 AI 配置徽标右侧的打开入口
- * (DOM 锚定); ③ 从页面右缘滑入的非模态面板。
+ * 但不在侧栏菜单里渲染任何入口。聚合可拖动悬浮球(位置持久化)
+ * 与从页面右缘滑入的非模态面板。
  * 另负责全局快捷键 ⌘K/Ctrl+K 与 Esc、按当前路由上报页面上下文。
  */
 import { useEffect } from 'react'
 import type { FrontendSlotContextMap } from '@/extensions/types'
 import { closeAssistant, setPageContext, toggleAssistant, useAssistantStore } from './store'
 import { AssistantFloatingButton } from './ui/AssistantFloatingButton'
-import { AiConfigEntry } from './ui/AiConfigEntry'
 import { AssistantDrawer } from './ui/AssistantDrawer'
 
 // 插槽注册表把组件 props 定为所有插槽上下文的联合类型(保守契约);
@@ -64,7 +62,6 @@ export function AssistantLauncher(props: AnySlotContext) {
   return (
     <>
       <AssistantFloatingButton />
-      <AiConfigEntry />
       <AssistantDrawer />
     </>
   )
