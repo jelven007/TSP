@@ -355,7 +355,9 @@ class SecondQuoteArchive:
                 frame.write_parquet(
                     temporary, compression="zstd", compression_level=3, statistics=True,
                 )
-                with temporary.open("rb") as stream:
+                # Windows 下 fsync 走 _commit, 只读句柄会 EBADF; 用读写句柄才是跨平台
+                # 可靠地把数据刷盘后再原子替换。
+                with temporary.open("rb+") as stream:
                     os.fsync(stream.fileno())
                 replace_with_retry(temporary, out)
                 published = True
