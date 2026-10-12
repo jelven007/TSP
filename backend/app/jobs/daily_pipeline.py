@@ -1179,14 +1179,14 @@ def _maybe_push_review(content: str, meta: dict) -> None:
                 )
                 logger.info("review push(custom) %s", "sent" if ok else "failed")
             elif ch == "email":
-                config = preferences.get_email_smtp_config()
+                config, password = email_adapter.get_notification_smtp()
                 if not email_adapter.is_configured(config):
                     logger.info("review push(email) skipped: SMTP not configured")
                     continue
                 email_body = (f"{subtitle}\n\n{content}" if subtitle else content)
                 ok = email_adapter.send_email(
                     config,
-                    secrets_store.get_email_smtp_password(),
+                    password,
                     "每日复盘",
                     email_body,
                 )

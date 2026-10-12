@@ -135,26 +135,7 @@ def issue_code(email: str) -> str:
 
 
 def _registration_smtp(email: str) -> tuple[dict, str]:
-    from app.config import settings
-
-    if settings.auth_smtp_host.strip():
-        return {
-            "host": settings.auth_smtp_host.strip(),
-            "port": settings.auth_smtp_port,
-            "security": settings.auth_smtp_security.strip().lower(),
-            "username": settings.auth_smtp_username.strip(),
-            "from_address": (
-                settings.auth_smtp_from_address.strip()
-                or settings.auth_smtp_username.strip()
-            ),
-            "to_addresses": [email],
-        }, settings.auth_smtp_password
-
-    from app import secrets_store
-    from app.services import preferences
-
-    config = {**preferences.get_email_smtp_config(), "to_addresses": [email]}
-    return config, secrets_store.get_email_smtp_password()
+    return email_adapter.get_registration_smtp(email)
 
 
 def send_registration_code(email: str) -> int:
