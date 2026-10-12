@@ -119,7 +119,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => toggleTheme()}
-      className="flex items-center justify-center rounded-btn p-2 text-foreground/80 transition-colors duration-150 ease-smooth hover:bg-elevated hover:text-foreground cursor-pointer md:p-1.5"
+      className="flex items-center justify-center rounded-btn p-2 text-foreground/80 transition-colors duration-150 ease-smooth hover:bg-elevated hover:text-foreground cursor-pointer"
       title={dark ? '切换到亮色模式' : '切换到暗色模式'}
     >
       {dark ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
@@ -163,7 +163,7 @@ function SidebarIndexQuotes({ rows, items }: { rows: IndexQuote[] | undefined; i
   if (items.length === 0) return null
   const quoteBySymbol = new Map((rows ?? []).map(q => [q.symbol, q]))
   return (
-    <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border/60 pt-2 md:mt-1.5 md:gap-1 md:pt-1.5">
+    <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-border/60 pt-2">
       {items.map(item => {
         const q = quoteBySymbol.get(item.symbol)
         const value = q?.last_price ?? q?.close
@@ -172,10 +172,10 @@ function SidebarIndexQuotes({ rows, items }: { rows: IndexQuote[] | undefined; i
           <NavLink
             key={item.symbol}
             to={`/indices?symbol=${encodeURIComponent(item.symbol)}`}
-            className="block rounded bg-elevated/60 px-2 py-1.5 transition-colors hover:bg-elevated md:py-1"
+            className="block rounded bg-elevated/60 px-2 py-1.5 transition-colors hover:bg-elevated md:px-0.5"
             title={`${item.name} ${item.symbol}`}
           >
-            <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center justify-between gap-1 md:gap-0">
               <span className="text-[10px] text-secondary">{item.shortName}</span>
               <span className={`text-[10px] font-mono ${indexPctClass(pct)}`}>{fmtIndexPct(pct)}</span>
             </div>
@@ -248,7 +248,7 @@ function DataSourceHealthBadge({ matrix }: { matrix: CapabilityMatrix | undefine
         onFocus={openPop}
         onBlur={closePop}
         onKeyDown={e => { if (e.key === 'Escape') setPopPos(null) }}
-        className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70 md:py-1"
+        className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70"
       >
         <span className="pointer-events-none absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-accent/50 transition-colors group-hover:bg-accent" />
         <DatabaseZap className="h-3.5 w-3.5 shrink-0 text-muted group-hover:text-accent transition-colors" />
@@ -331,7 +331,7 @@ function AIConfigBadge({ configured, model }: { configured?: boolean; model?: st
   return (
     <NavLink
       to="/settings?tab=ai"
-      className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70 md:py-1"
+      className="group relative flex items-center gap-2 overflow-hidden rounded-md py-1.5 pl-2.5 pr-2 transition-colors duration-150 hover:bg-elevated/70"
       title={`AI 配置 — ${descText}`}
     >
       <span className="pointer-events-none absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-purple-400/50 transition-colors group-hover:bg-purple-400" />
@@ -351,7 +351,7 @@ function AIConfigBadge({ configured, model }: { configured?: boolean; model?: st
   )
 }
 
-// 侧边栏桌面三态: expanded(14rem) / rail(3.5rem 图标条) / hidden(0 + 左缘悬浮按钮)。
+// 侧边栏桌面三态: expanded(9.8rem) / rail(3.5rem 图标条) / hidden(0 + 左缘悬浮按钮)。
 // 移动端 (<768px) 不参与三态 — aside 以抽屉呈现 (见 Layout 内 drawerOpen)。
 type NavState = 'expanded' | 'rail' | 'hidden'
 
@@ -390,7 +390,7 @@ export function Layout() {
   // 自选二级菜单展开状态 — 默认当前在自选页时展开
   const [watchlistNavExpanded, setWatchlistNavExpanded] = useState(location.pathname === '/watchlist')
 
-  // 侧边栏三态 — expanded(14rem) / rail(3.5rem 图标条) / hidden(0, 左缘悬浮按钮唤出)。
+  // 侧边栏三态 — expanded(9.8rem) / rail(3.5rem 图标条) / hidden(0, 左缘悬浮按钮唤出)。
   // 仅桌面 (≥768px) 参与三态; 移动端 aside 以抽屉呈现, 由 drawerOpen 控制, 恒渲染完整形态。
   // 持久化到 localStorage; 迁移旧两态键 tf-nav-collapsed (收起 → 图标条)。
   const [navState, setNavState] = useState<NavState>(() => {
@@ -644,7 +644,7 @@ export function Layout() {
   return (
     <div
       className="h-full grid bg-base text-foreground overflow-hidden transition-[grid-template-columns] duration-200 ease-smooth"
-      style={{ gridTemplateColumns: isDesktop && !overlayPreview ? (navState === 'expanded' ? '14rem 1fr' : navState === 'rail' ? '3.5rem 1fr' : '0 1fr') : '1fr' }}
+      style={{ gridTemplateColumns: isDesktop && !overlayPreview ? (navState === 'expanded' ? '9.8rem 1fr' : navState === 'rail' ? '3.5rem 1fr' : '0 1fr') : '1fr' }}
     >
       {/* 移动端抽屉遮罩 */}
       {!isDesktop && drawerOpen && (
@@ -692,10 +692,10 @@ export function Layout() {
                 'transition-transform duration-200 ease-smooth',
                 drawerOpen ? 'translate-x-0' : '-translate-x-full',
               ),
-          overlayPreview && 'fixed inset-y-0 left-0 z-50 w-56 shadow-2xl border-r border-border',
+          overlayPreview && 'fixed inset-y-0 left-0 z-50 w-[9.8rem] shadow-2xl border-r border-border',
         )}
       >
-        <div className={cn('border-b border-border shrink-0', railMode ? 'px-2 pt-3 pb-2 md:pt-2 md:pb-1.5' : 'px-4 pt-4 pb-3 md:pt-3 md:pb-2')}>
+        <div className={cn('border-b border-border shrink-0', railMode ? 'px-2 pt-3 pb-2' : 'px-4 pt-4 pb-3 md:px-3')}>
           {/* Brand block — 收起时只显 logo 居中 */}
           <div className={cn('flex', railMode ? 'flex-col items-center gap-2' : 'items-center gap-2')}>
             <Logo
@@ -739,7 +739,7 @@ export function Layout() {
 
             {/* 状态卡 — 收起时隐藏 */}
             {!railMode && (
-              <div className="mt-2.5 border-t border-border/60 pt-1 md:mt-1.5">
+              <div className="mt-2.5 border-t border-border/60 pt-1">
                 <DataSourceHealthBadge matrix={matrix} />
               <div className="mx-2 border-t border-border/45" aria-hidden="true" />
               <AIConfigBadge
@@ -750,7 +750,7 @@ export function Layout() {
           )}
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3 space-y-0.5 md:py-2 md:space-y-px">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3 space-y-0.5">
           {visibleNavItems.map(({ to, label, icon: Icon, badge }) => {
             // 「自选」项 — 开启分组侧栏且未整体收起时, 渲染为可展开父项 + 二级分组
             const isWatchlistExpandable = to === '/watchlist' && groupsInNav && !railMode && watchlistGroups.length > 0
@@ -761,7 +761,7 @@ export function Layout() {
                   <button
                     onClick={() => setWatchlistNavExpanded(v => !v)}
                     className={cn(
-                      'group relative flex w-full items-center gap-3 rounded-btn px-3 py-2 text-sm transition-all duration-150 ease-smooth md:gap-2.5 md:px-2.5 md:py-[3px]',
+                      'group relative flex w-full items-center gap-3 rounded-btn px-3 py-2 text-sm transition-all duration-150 ease-smooth md:gap-2 md:px-2',
                       location.pathname === '/watchlist'
                         ? 'bg-elevated text-foreground font-medium'
                         : 'text-foreground/75 hover:bg-elevated/70 hover:text-foreground',
@@ -774,7 +774,7 @@ export function Layout() {
                       )}
                     />
                     <Icon className={cn('h-4 w-4 shrink-0 transition-colors', location.pathname === '/watchlist' ? 'text-accent' : 'text-foreground/60 group-hover:text-foreground/85')} />
-                    <span className="flex-1 text-left">{label}</span>
+                    <span className="flex-1 whitespace-nowrap text-left">{label}</span>
                     {watchlistNavExpanded
                       ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted" />
                       : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" />
@@ -788,7 +788,7 @@ export function Layout() {
                     className={({ isActive }) =>
                       cn(
                         'group relative flex items-center rounded-btn text-sm transition-all duration-150 ease-smooth',
-                        railMode ? 'justify-center px-0 py-2 md:py-[5px]' : 'gap-3 px-3 py-2 md:gap-2.5 md:px-2.5 md:py-[3px]',
+                        railMode ? 'justify-center px-0 py-2' : 'gap-3 px-3 py-2 md:gap-2 md:px-2',
                         isActive
                           ? 'bg-elevated text-foreground font-medium'
                           : 'text-foreground/75 hover:bg-elevated/70 hover:text-foreground',
@@ -805,7 +805,7 @@ export function Layout() {
                           )}
                         />
                         <Icon className={cn('h-4 w-4 shrink-0 transition-colors', isActive ? 'text-accent' : 'text-foreground/60 group-hover:text-foreground/85')} />
-                        {!railMode && <span className="flex-1">{label}</span>}
+                        {!railMode && <span className="min-w-0 flex-1 truncate">{label}</span>}
                         {!railMode && badge && (
                           <span className="ml-auto inline-flex items-center rounded-full border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-400 shrink-0">
                             {badge}
@@ -827,11 +827,11 @@ export function Layout() {
 
                 {/* 自选分组二级子菜单 — 展开时显示 */}
                 {isWatchlistExpandable && watchlistNavExpanded && (
-                  <div className="mt-0.5 space-y-0.5 md:mt-px md:space-y-px">
+                  <div className="mt-0.5 space-y-0.5">
                     <NavLink
                       to="/watchlist"
                       className={({ isActive }) => cn(
-                        'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth md:py-0.5',
+                        'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth md:pl-8 md:pr-2',
                         isActive && !location.search
                           ? 'text-accent font-medium'
                           : 'text-foreground/60 hover:text-foreground hover:bg-elevated/50',
@@ -858,7 +858,7 @@ export function Layout() {
                           key={group.id}
                           to={groupPath}
                           className={cn(
-                            'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth md:py-0.5',
+                            'flex items-center gap-2 rounded-btn py-1.5 pl-9 pr-3 text-[12px] transition-colors duration-150 ease-smooth md:pl-8 md:pr-2',
                             isGroupActive
                               ? 'text-accent font-medium'
                               : 'text-foreground/60 hover:text-foreground hover:bg-elevated/50',
@@ -888,7 +888,7 @@ export function Layout() {
 
         {/* 全局行情开关 — 收起时只显示状态指示点 */}
         {railMode ? (
-          <div className="border-t border-border px-2 py-2.5 shrink-0 flex justify-center md:py-2">
+          <div className="border-t border-border px-2 py-2.5 shrink-0 flex justify-center">
             <button
               onClick={() => handleToggle(!realtimeEnabled)}
               disabled={realtimeToggleDisabled}
@@ -901,7 +901,7 @@ export function Layout() {
             </button>
           </div>
         ) : (
-        <div className="border-t border-border px-3 py-2.5 shrink-0 md:py-2">
+        <div className="border-t border-border px-3 py-2.5 shrink-0 md:px-2">
           {realtimeUnavailable && !realtimeProviderName ? (
             <div>
               <div className="flex items-center justify-between">
@@ -923,8 +923,8 @@ export function Layout() {
             </div>
           ) : (
             /* 实时可用 — 开关 + 跳转设置 */
-            <div className="flex items-center gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="flex items-center gap-2 md:gap-1.5">
+              <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-1.5">
                 <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${realtimeIndicatorClass}`} />
                 <div className="min-w-0">
                   <div className="text-xs font-medium leading-none text-foreground">实时行情</div>
@@ -939,7 +939,7 @@ export function Layout() {
                 <button
                   onClick={() => navigate('/settings?tab=monitoring&highlight=quotes')}
                   aria-label="打开实时监控设置"
-                  className="flex h-7 w-7 items-center justify-center rounded-btn text-muted transition-colors hover:bg-elevated hover:text-foreground"
+                  className="flex h-7 w-7 items-center justify-center rounded-btn text-muted transition-colors hover:bg-elevated hover:text-foreground md:w-6"
                   title="实时监控设置"
                 >
                   <Settings className="h-3.5 w-3.5" />
@@ -999,8 +999,8 @@ export function Layout() {
         </div>
         )}
 
-        <div className={cn('border-t border-border py-3 shrink-0 md:py-2', railMode ? 'px-2 flex flex-col items-center gap-1' : 'px-2')}>
-          <div className={railMode ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1'}>
+        <div className={cn('border-t border-border py-3 shrink-0', railMode ? 'px-2 flex flex-col items-center gap-1' : 'px-2')}>
+          <div className={railMode ? 'flex flex-col items-center gap-1' : 'flex items-center gap-1 md:gap-0'}>
             <ThemeToggle />
             <NavLink
               to="/settings"
@@ -1008,7 +1008,7 @@ export function Layout() {
               className={({ isActive }) =>
                 cn(
                   'group relative flex items-center rounded-btn text-sm transition-all duration-150 ease-smooth',
-                  railMode ? 'justify-center px-0 py-2 md:py-[5px]' : 'flex-1 gap-3 px-3 py-2 md:gap-2.5 md:px-2.5 md:py-[3px]',
+                  railMode ? 'justify-center px-0 py-2' : 'min-w-0 flex-1 gap-3 px-3 py-2 md:gap-1 md:px-1',
                   isActive
                     ? 'bg-elevated text-foreground font-medium'
                     : 'text-foreground/75 hover:bg-elevated/70 hover:text-foreground',
@@ -1026,8 +1026,8 @@ export function Layout() {
                   <Settings className={cn('h-4 w-4 shrink-0 transition-colors', isActive ? 'text-accent' : 'text-foreground/60 group-hover:text-foreground/85')} />
                   {!railMode && <span className="whitespace-nowrap">设置</span>}
                   {!railMode && version && (
-                    <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px] text-muted/50 select-none shrink-0">
-                      {version}
+                    <span className="ml-auto flex min-w-0 items-center gap-1.5 font-mono text-[10px] text-muted/50 select-none" title={version}>
+                      <span className="truncate">{version}</span>
                       {hasUpdate && update.info && (
                         <span
                           role="button"
@@ -1045,7 +1045,7 @@ export function Layout() {
                               navigate('/settings?tab=system&autoupdate=1')
                             }
                           }}
-                          className="inline-flex cursor-pointer text-amber-400 transition-transform hover:scale-110 animate-breath"
+                          className="inline-flex shrink-0 cursor-pointer text-amber-400 transition-transform hover:scale-110 animate-breath"
                         >
                           <Download className="h-3 w-3" />
                         </span>
