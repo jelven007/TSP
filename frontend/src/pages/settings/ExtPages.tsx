@@ -129,14 +129,13 @@ export function SettingsExtPagesPanel() {
   })
 
   return (
-    <div className="max-w-6xl space-y-6">
-      <section className="rounded-2xl border border-border bg-surface p-6 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_38%)]">
+    <div className="w-full max-w-5xl space-y-5">
+      <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.2em] text-accent/80">扩展页面</div>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">把扩展数据配置成左侧分析菜单</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-secondary">
-              选择扩展数据源、分析模板、分组字段和列表列后，系统会生成一个可访问的动态分析页面。
+          <div className="min-w-0">
+            <h2 className="text-sm font-medium text-foreground">扩展页面</h2>
+            <p className="mt-1.5 max-w-3xl text-xs leading-relaxed text-muted">
+              将扩展数据配置成左侧分析菜单；选择数据源、模板、分组字段和列表列后即可生成动态分析页面。
             </p>
           </div>
           <button

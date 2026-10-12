@@ -357,9 +357,9 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
 
   return (
     <HighlightContext.Provider value={highlight ?? ''}>
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-6 max-w-5xl">
+    <div className="grid w-full max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       {/* ========== 左列 ========== */}
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* 行情状态 — 开关 + 间隔 */}
         <Card icon={Activity} title="行情轮询" anchor="quotes">
           <ToggleRow
@@ -462,7 +462,7 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
       </div>
 
       {/* ========== 右列 ========== */}
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* 全量分钟: 盘中全市场分钟落盘, 按能力路由 (TickFlow Expert 或声明 full_minute 的插件/自定义源) */}
         <Card icon={Zap} title="全量分钟" anchor="minute-refresh">
           <ToggleRow
