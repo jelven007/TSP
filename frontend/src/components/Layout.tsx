@@ -82,10 +82,10 @@ const BRAND = '#8B5CF6'
 
 // 核心四只指数 — 与后端 index_const.py 单一权威对齐 (前端展示层固定清单)
 export const CORE_INDEXES = [
-  { symbol: '000001.SH', name: '上证指数' },
-  { symbol: '399001.SZ', name: '深证成指' },
-  { symbol: '399006.SZ', name: '创业板指' },
-  { symbol: '000680.SH', name: '科创综指' },
+  { symbol: '000001.SH', name: '上证指数', shortName: '上指' },
+  { symbol: '399001.SZ', name: '深证成指', shortName: '深成' },
+  { symbol: '399006.SZ', name: '创业板指', shortName: '创指' },
+  { symbol: '000680.SH', name: '科创综指', shortName: '科综' },
 ] as const
 
 type CoreIndex = (typeof CORE_INDEXES)[number]
@@ -176,7 +176,7 @@ function SidebarIndexQuotes({ rows, items }: { rows: IndexQuote[] | undefined; i
             title={`${item.name} ${item.symbol}`}
           >
             <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] text-secondary">{item.name}</span>
+              <span className="text-[10px] text-secondary">{item.shortName}</span>
               <span className={`text-[10px] font-mono ${indexPctClass(pct)}`}>{fmtIndexPct(pct)}</span>
             </div>
             <div className={`mt-0.5 truncate font-mono text-[10px] ${indexPctClass(pct)}`}>
