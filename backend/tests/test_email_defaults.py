@@ -1,9 +1,6 @@
 """Registration SMTP defaults and account-specific notification recipients."""
 from __future__ import annotations
 
-import stat
-import sys
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -103,56 +100,54 @@ def test_test_email_uses_current_account_and_inherited_password(monkeypatch):
     assert sent[0][2] == {"max_attempts": 1}
 
 
-def test_saving_inherited_settings_preserves_password_and_defaults_recipient(isolated_email_settings):
+def test_saving_recipients_preserves_registration_transport_and_secret():
     client = client_for("user@example.com")
-    smtp, _ = email_adapter.get_notification_smtp("user@example.com")
-    smtp["to_addresses"] = []
-
-    response = client.put("/api/settings/preferences/email-smtp", json=smtp)
+    response = client.put("/api/settings/preferences/email-smtp", json={"to_addresses": []})
 
     assert response.status_code == 200
     assert response.json()["email_smtp_config"]["to_addresses"] == ["user@example.com"]
     assert response.json()["email_smtp_password_set"] is True
-    assert secrets_store.get_email_smtp_password() == "registration-secret"
+    assert email_adapter.get_notification_smtp()[1] == "registration-secret"
+    assert preferences.load() == {"email_smtp_config": {"to_addresses": ["user@example.com"]}}
+    assert secrets_store.load() == {}
     assert "registration-secret" not in response.text
     assert "registration-secret" not in preferences._path().read_text()
-    if sys.platform != "win32":
-        assert stat.S_IMODE((isolated_email_settings / "user_data/secrets.json").stat().st_mode) == 0o600
 
 
 @pytest.mark.parametrize(
     ("field", "value"),
     [("host", "different.example.com"), ("port", 465), ("security", "ssl"),
-     ("username", "different@example.com")],
+     ("username", "different@example.com"), ("password", "replacement-secret"),
+     ("from_address", "different@example.com")],
 )
-def test_registration_password_is_not_reused_for_different_connection(field, value):
+def test_notification_api_rejects_all_transport_changes(field, value):
     client = client_for("user@example.com")
-    smtp, _ = email_adapter.get_notification_smtp("user@example.com")
-    smtp[field] = value
+    response = client.put(
+        "/api/settings/preferences/email-smtp",
+        json={"to_addresses": ["chosen@example.com"], field: value},
+    )
 
-    response = client.put("/api/settings/preferences/email-smtp", json=smtp)
-
-    assert response.status_code == 400
-    assert "密码或授权码" in response.json()["detail"]
+    assert response.status_code == 422
     assert preferences.load() == {}
     assert secrets_store.load() == {}
 
 
-def test_saved_registration_password_stays_bound_to_original_connection():
+def test_saving_custom_recipients_does_not_change_registration_delivery():
     client = client_for("user@example.com")
-    smtp, _ = email_adapter.get_notification_smtp("user@example.com")
-    assert client.put("/api/settings/preferences/email-smtp", json=smtp).status_code == 200
-    previous = preferences.load()
-    smtp["host"] = "different.example.com"
+    response = client.put(
+        "/api/settings/preferences/email-smtp",
+        json={"to_addresses": [" chosen@example.com ", "chosen@example.com"]},
+    )
 
-    response = client.put("/api/settings/preferences/email-smtp", json=smtp)
+    assert response.status_code == 200
+    assert response.json()["email_smtp_config"]["to_addresses"] == ["chosen@example.com"]
+    registration, password = auth_verification._registration_smtp("new@example.com")
+    assert registration["to_addresses"] == ["new@example.com"]
+    assert password == "registration-secret"
+    assert secrets_store.load() == {}
 
-    assert response.status_code == 400
-    assert preferences.load() == previous
-    assert secrets_store.get_email_smtp_password() == "registration-secret"
 
-
-def test_explicit_settings_and_channel_opt_out_override_defaults():
+def test_registration_transport_overrides_old_custom_smtp_but_keeps_recipients():
     auth.register_user("user@example.com", "password-123")
     smtp = {
         "host": "custom.example.com", "port": 465, "security": "ssl",
@@ -163,21 +158,46 @@ def test_explicit_settings_and_channel_opt_out_override_defaults():
     secrets_store.set_email_smtp_password("custom-secret")
     preferences.set_webhook_default_channels([])
 
-    assert email_adapter.get_notification_smtp("user@example.com") == (smtp, "custom-secret")
+    effective, password = email_adapter.get_notification_smtp("user@example.com")
+    assert effective["host"] == "smtp.example.com"
+    assert effective["username"] == "registration@example.com"
+    assert effective["to_addresses"] == ["chosen@example.com"]
+    assert password == "registration-secret"
     assert preferences.get_webhook_default_channels() == []
     assert auth_verification._registration_smtp("new@example.com")[1] == "registration-secret"
 
 
-def test_explicitly_cleared_smtp_does_not_restore_registration_defaults():
+def test_legacy_empty_smtp_group_uses_system_transport():
     preferences.set_email_smtp_config({"host": ""})
     auth.register_user("user@example.com", "password-123")
 
     smtp, password = email_adapter.get_notification_smtp()
 
-    assert smtp["host"] == ""
-    assert smtp["to_addresses"] == []
-    assert password == ""
-    assert preferences.get_webhook_default_channels() == []
+    assert smtp["host"] == "smtp.example.com"
+    assert smtp["to_addresses"] == ["user@example.com"]
+    assert password == "registration-secret"
+    assert preferences.get_webhook_default_channels() == ["email"]
+
+
+def test_recipient_save_preserves_legacy_system_transport_when_env_is_unset(monkeypatch):
+    monkeypatch.setattr(config.settings, "auth_smtp_host", "")
+    client = client_for("user@example.com")
+    preferences.set_email_smtp_config({
+        "host": "legacy.example.com", "port": 465, "security": "ssl",
+        "username": "legacy@example.com", "from_address": "legacy@example.com",
+        "to_addresses": ["old@example.com"],
+    })
+    secrets_store.set_email_smtp_password("legacy-secret")
+    previous_secrets = secrets_store._path().read_bytes()
+
+    response = client.put(
+        "/api/settings/preferences/email-smtp", json={"to_addresses": ["new@example.com"]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["email_smtp_config"]["host"] == "legacy.example.com"
+    assert preferences.get_email_smtp_config()["to_addresses"] == ["new@example.com"]
+    assert secrets_store._path().read_bytes() == previous_secrets
 
 
 def test_legacy_channel_opt_out_overrides_new_email_default():

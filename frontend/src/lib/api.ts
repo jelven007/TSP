@@ -2536,10 +2536,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ url, ...(secret !== undefined ? { secret } : {}) }),
     }),
-  updateEmailSmtp: (config: EmailSmtpConfig, password?: string) =>
+  updateEmailSmtp: (toAddresses: string[]) =>
     request<{ email_smtp_config: EmailSmtpConfig; email_smtp_password_set: boolean }>('/api/settings/preferences/email-smtp', {
       method: 'PUT',
-      body: JSON.stringify({ ...config, ...(password !== undefined ? { password } : {}) }),
+      body: JSON.stringify({ to_addresses: toAddresses }),
     }),
   sendTestWebhook: (channel: 'feishu' | 'wecom' | 'custom' | 'email') =>
     request<{ ok: boolean; detail: string }>('/api/settings/preferences/webhook-test', {
