@@ -1810,8 +1810,7 @@ class QuoteService:
             wecom_url = preferences.get_wecom_webhook_url()
             custom_url = preferences.get_custom_webhook_url()
             custom_secret = secrets_store.get_custom_webhook_secret()
-            email_config = preferences.get_email_smtp_config()
-            email_password = secrets_store.get_email_smtp_password()
+            email_config, email_password = email_adapter.get_notification_smtp()
             if not any((feishu_url, wecom_url, custom_url, email_adapter.is_configured(email_config))):
                 return
 

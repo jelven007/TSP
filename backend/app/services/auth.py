@@ -327,6 +327,27 @@ def current_user(token: str) -> dict | None:
         return _public_user(user) if isinstance(user, dict) else None
 
 
+def registered_emails() -> list[str]:
+    """Registered account recipients for shared notifications, independent of sessions."""
+    from app.config import authentication_required
+
+    if not authentication_required():
+        return []
+    with _lock:
+        users = list(_users(_load()).values())
+    emails = []
+    for user in users:
+        if not isinstance(user, dict):
+            continue
+        try:
+            email = normalize_email(user.get("email", ""))
+        except ValueError:
+            continue
+        if email not in emails:
+            emails.append(email)
+    return emails
+
+
 def change_password(token: str, old_password: str, new_password: str) -> bool:
     """Change the current account password and revoke all its sessions."""
     _validate_password(new_password)

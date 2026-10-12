@@ -34,6 +34,55 @@ def is_configured(config: dict) -> bool:
     return bool(config.get("host") and sender and recipients)
 
 
+def get_registration_smtp(recipient: str) -> tuple[dict, str]:
+    """Resolve the registration transport without exposing its password to clients."""
+    from app import secrets_store
+    from app.config import settings
+    from app.services import preferences
+
+    if settings.auth_smtp_host.strip():
+        return {
+            "host": settings.auth_smtp_host.strip(),
+            "port": settings.auth_smtp_port,
+            "security": settings.auth_smtp_security.strip().lower(),
+            "username": settings.auth_smtp_username.strip(),
+            "from_address": (
+                settings.auth_smtp_from_address.strip()
+                or settings.auth_smtp_username.strip()
+            ),
+            "to_addresses": [recipient] if recipient else [],
+        }, settings.auth_smtp_password
+    config = {**preferences.get_email_smtp_config(), "to_addresses": [recipient] if recipient else []}
+    return config, secrets_store.get_email_smtp_password()
+
+
+def get_notification_smtp(recipient: str | None = None) -> tuple[dict, str]:
+    """Apply registration defaults; requests use their user, shared jobs use all users.
+
+    An explicitly saved SMTP group (including a cleared host) takes precedence.
+    Resolving defaults never persists the registration secret or a user's address.
+    """
+    from app import secrets_store
+    from app.services import auth, preferences
+
+    saved = preferences.load().get("email_smtp_config")
+    if isinstance(saved, dict):
+        config = preferences.get_email_smtp_config()
+        password = secrets_store.get_email_smtp_password() if config["host"] else ""
+    else:
+        config, password = get_registration_smtp("")
+    if config["host"] and not config["to_addresses"]:
+        config = {
+            **config,
+            "to_addresses": (
+                auth.registered_emails()
+                if recipient is None
+                else [recipient] if is_valid_email(recipient) else []
+            ),
+        }
+    return config, password
+
+
 def send_email(
     config: dict,
     password: str,

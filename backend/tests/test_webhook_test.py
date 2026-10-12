@@ -128,8 +128,10 @@ def test_email_sends_with_saved_smtp_config(monkeypatch):
         "from_address": "bot@example.com",
         "to_addresses": ["alerts@example.com"],
     }
-    monkeypatch.setattr("app.services.preferences.get_email_smtp_config", lambda: config)
-    monkeypatch.setattr("app.secrets_store.get_email_smtp_password", lambda: "password")
+    monkeypatch.setattr(
+        "app.services.email_adapter.get_notification_smtp",
+        lambda recipient=None: (config, "password"),
+    )
     monkeypatch.setattr(
         "app.services.email_adapter.send_email",
         lambda cfg, password, subject, body, max_attempts=2:

@@ -836,6 +836,9 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
 
               {emailOpen && (
                 <div className="border-t border-border/60 bg-base/30 p-3">
+                  <p className="mb-3 text-[11px] leading-relaxed text-muted">
+                    未单独设置时复用注册邮件服务，收件人默认为当前账户的注册邮箱。保存后使用自定义配置。
+                  </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_6rem_8rem]">
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">SMTP 主机</span>
@@ -861,7 +864,7 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
                     </label>
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">密码 / 授权码 (可选)</span>
-                      <input type="password" value={emailPasswordDraft} onChange={e => setEmailPasswordDraft(e.target.value)} placeholder={emailSmtpPasswordSet ? '已保存；留空保持不变' : '无认证服务器可留空'} className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs font-mono text-foreground" />
+                      <input type="password" value={emailPasswordDraft} onChange={e => setEmailPasswordDraft(e.target.value)} placeholder={emailSmtpPasswordSet ? '已配置；留空保持不变' : '无认证服务器可留空'} className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs font-mono text-foreground" />
                     </label>
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">发件人</span>

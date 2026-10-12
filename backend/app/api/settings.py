@@ -502,10 +502,22 @@ class MiningSchedulePrefs(BaseModel):
     mining_budget_profile: Literal["balanced", "strict"]
 
 
+def _current_email(request: Request | None) -> str:
+    if request is None:
+        return ""
+    from app.api.auth import COOKIE_NAME
+    from app.services import auth
+
+    user = auth.current_user(request.cookies.get(COOKIE_NAME, ""))
+    return str(user.get("email") or "") if user else ""
+
+
 @router.get("/preferences")
-def get_preferences() -> dict:
+def get_preferences(request: Request = None) -> dict:
     """返回用户偏好设置。"""
-    from app.services import preferences
+    from app.services import email_adapter, preferences
+
+    email_config, email_password = email_adapter.get_notification_smtp(_current_email(request))
     return {
         "realtime_quotes_enabled": preferences.get_realtime_quotes_enabled(),
         "realtime_allowed": _realtime_allowed(),
@@ -554,8 +566,8 @@ def get_preferences() -> dict:
         "wecom_webhook_url": preferences.get_wecom_webhook_url(),
         "custom_webhook_url": preferences.get_custom_webhook_url(),
         "custom_webhook_secret_set": bool(secrets_store.get_custom_webhook_secret()),
-        "email_smtp_config": preferences.get_email_smtp_config(),
-        "email_smtp_password_set": bool(secrets_store.get_email_smtp_password()),
+        "email_smtp_config": email_config,
+        "email_smtp_password_set": bool(email_password),
         "wecom_bot_id": preferences.get_wecom_bot_id(),
         "wecom_bot_secret": preferences.get_wecom_bot_secret(),
         "wecom_bot_enabled": preferences.get_wecom_bot_enabled(),
@@ -1336,7 +1348,7 @@ class EmailSmtpPrefsIn(BaseModel):
 
 
 @router.put("/preferences/email-smtp")
-def update_email_smtp(req: EmailSmtpPrefsIn) -> dict:
+def update_email_smtp(req: EmailSmtpPrefsIn, request: Request = None) -> dict:
     """Configure the SMTP transport shared by monitor alerts and review reports."""
     from app.services import email_adapter, preferences
 
@@ -1344,16 +1356,28 @@ def update_email_smtp(req: EmailSmtpPrefsIn) -> dict:
     username = (req.username or "").strip()
     from_address = (req.from_address or username).strip()
     recipients = list(dict.fromkeys(item.strip() for item in req.to_addresses if item.strip()))
+    effective_password = req.password or ""
     if host:
+        if not recipients:
+            recipient = _current_email(request)
+            if recipient:
+                recipients = [recipient]
         if not from_address or not email_adapter.is_valid_email(from_address):
             raise HTTPException(status_code=400, detail="请填写有效的发件人邮箱")
         if not recipients or any(not email_adapter.is_valid_email(item) for item in recipients):
             raise HTTPException(status_code=400, detail="请至少填写一个有效的收件人邮箱")
-        effective_password = (
-            secrets_store.get_email_smtp_password()
-            if req.password is None
-            else req.password
-        )
+        if req.password is None:
+            current_config, current_password = email_adapter.get_notification_smtp(
+                _current_email(request),
+            )
+            # A retained credential belongs to its original SMTP connection.
+            if (
+                host == current_config["host"]
+                and req.port == current_config["port"]
+                and req.security == current_config["security"]
+                and username == current_config["username"]
+            ):
+                effective_password = current_password
         if username and not effective_password:
             raise HTTPException(status_code=400, detail="已填写 SMTP 登录用户名, 请同时填写密码或授权码")
     else:
@@ -1371,8 +1395,10 @@ def update_email_smtp(req: EmailSmtpPrefsIn) -> dict:
     })
     if not host or not username:
         secrets_store.set_email_smtp_password("")
-    elif req.password is not None:
-        secrets_store.set_email_smtp_password(req.password)
+    elif req.password is not None or (
+        effective_password and not secrets_store.get_email_smtp_password()
+    ):
+        secrets_store.set_email_smtp_password(effective_password)
     return {
         "email_smtp_config": config,
         "email_smtp_password_set": bool(secrets_store.get_email_smtp_password()),
@@ -1384,7 +1410,7 @@ class WebhookTestIn(BaseModel):
 
 
 @router.post("/preferences/webhook-test")
-def test_webhook(req: WebhookTestIn) -> dict:
+def test_webhook(req: WebhookTestIn, request: Request = None) -> dict:
     """向已保存的 Webhook 地址发送一条测试消息，验证配置是否正确。
 
     只测试已保存的配置（与生产推送同源），不测试未保存草稿。
@@ -1430,12 +1456,12 @@ def test_webhook(req: WebhookTestIn) -> dict:
     else:  # email
         from app.services import email_adapter
 
-        config = preferences.get_email_smtp_config()
+        config, password = email_adapter.get_notification_smtp(_current_email(request))
         if not email_adapter.is_configured(config):
             return {"ok": False, "detail": "尚未完整配置邮件 SMTP, 请先保存"}
         ok = email_adapter.send_email(
             config,
-            secrets_store.get_email_smtp_password(),
+            password,
             title,
             body,
             max_attempts=1,

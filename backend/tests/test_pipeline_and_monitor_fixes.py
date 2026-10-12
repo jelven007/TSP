@@ -116,7 +116,7 @@ def test_ladder_webhook_uses_chinese_title_without_brand(monkeypatch):
     monkeypatch.setattr("app.services.preferences.get_feishu_webhook_secret", lambda: "secret")
     monkeypatch.setattr("app.services.preferences.get_wecom_webhook_url", lambda: "wecom-key")
     monkeypatch.setattr("app.services.preferences.get_custom_webhook_url", lambda: "")
-    monkeypatch.setattr("app.services.preferences.get_email_smtp_config", lambda: {})
+    monkeypatch.setattr("app.services.email_adapter.get_notification_smtp", lambda: ({}, ""))
     monkeypatch.setattr("app.secrets_store.get_custom_webhook_secret", lambda: "")
     monkeypatch.setattr("app.secrets_store.get_email_smtp_password", lambda: "")
 
@@ -157,7 +157,10 @@ def test_ladder_dispatches_custom_webhook_and_email(monkeypatch):
     monkeypatch.setattr("app.services.preferences.get_feishu_webhook_secret", lambda: "")
     monkeypatch.setattr("app.services.preferences.get_wecom_webhook_url", lambda: "")
     monkeypatch.setattr("app.services.preferences.get_custom_webhook_url", lambda: "https://example.com/hook")
-    monkeypatch.setattr("app.services.preferences.get_email_smtp_config", lambda: email_config)
+    monkeypatch.setattr(
+        "app.services.email_adapter.get_notification_smtp",
+        lambda: (email_config, "smtp-password"),
+    )
     monkeypatch.setattr("app.secrets_store.get_custom_webhook_secret", lambda: "hook-secret")
     monkeypatch.setattr("app.secrets_store.get_email_smtp_password", lambda: "smtp-password")
 
@@ -209,7 +212,10 @@ def test_review_pushes_custom_webhook_and_email(monkeypatch):
     }
     monkeypatch.setattr("app.services.preferences.get_review_push_channels", lambda: ["custom", "email"])
     monkeypatch.setattr("app.services.preferences.get_custom_webhook_url", lambda: "https://example.com/hook")
-    monkeypatch.setattr("app.services.preferences.get_email_smtp_config", lambda: email_config)
+    monkeypatch.setattr(
+        "app.services.email_adapter.get_notification_smtp",
+        lambda: (email_config, "smtp-password"),
+    )
     monkeypatch.setattr("app.secrets_store.get_custom_webhook_secret", lambda: "hook-secret")
     monkeypatch.setattr("app.secrets_store.get_email_smtp_password", lambda: "smtp-password")
     monkeypatch.setattr(

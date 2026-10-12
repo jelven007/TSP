@@ -1023,14 +1023,20 @@ def get_webhook_default_channels() -> list[str]:
 
     向后兼容: 老版本只有布尔 webhook_enabled_default (勾选即飞书+企业微信双推),
     这里把 True 迁移为 ['feishu','wecom'], 还原当时的实际行为。
+    未保存渠道选择时, 可用的注册邮件服务默认提供 email 渠道。
     """
     d = load()
     raw = d.get("webhook_default_channels")
     if isinstance(raw, list):
         return [c for c in raw if c in PUSH_CHANNELS]
     # 兼容老布尔开关 (勾选即双推)
-    if d.get("webhook_enabled_default") is True:
-        return ["feishu", "wecom"]
+    if "webhook_enabled_default" in d:
+        return ["feishu", "wecom"] if d["webhook_enabled_default"] is True else []
+    from app.services import email_adapter
+
+    config, password = email_adapter.get_notification_smtp()
+    if email_adapter.is_configured(config) and (not config["username"] or password):
+        return ["email"]
     return []
 
 
