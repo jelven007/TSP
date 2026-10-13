@@ -537,6 +537,13 @@ def run_now(
     etf_adj_symbols = 0
     pull_index = _prefs.get_pipeline_pull_index()
     pull_etf = _prefs.get_pipeline_pull_etf()
+    if override_start_date is not None and not pull_etf:
+        # 显式数据修正必须覆盖已存在的 ETF 数据，即使用户关闭了日常 ETF
+        # 自动同步；否则完整性门禁会重复发现同一坏分区并循环创建修复任务。
+        pull_etf = any(
+            (repo.store.data_dir / table).exists()
+            for table in ("kline_etf_daily", "kline_etf_enriched")
+        )
 
     if capset.has(Cap.KLINE_DAILY_BATCH) and (pull_index or pull_etf):
         _types = []

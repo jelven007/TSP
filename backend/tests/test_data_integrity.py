@@ -686,7 +686,8 @@ def test_pipeline_override_repairs_etf_from_requested_start(tmp_path, monkeypatc
     monkeypatch.setattr(kline_sync, "sync_and_persist_daily_batch", lambda *args, **kwargs: 0)
     monkeypatch.setattr(app_settings, "data_dir", tmp_path)
     monkeypatch.setattr(daily_pipeline._prefs, "get_pipeline_pull_index", lambda: False)
-    monkeypatch.setattr(daily_pipeline._prefs, "get_pipeline_pull_etf", lambda: True)
+    # 用户关闭日常 ETF 自动同步时，显式完整性修正仍须覆盖已有 ETF 数据。
+    monkeypatch.setattr(daily_pipeline._prefs, "get_pipeline_pull_etf", lambda: False)
     monkeypatch.setattr(index_sync, "sync_etf_instruments", lambda repo: 1)
 
     etf_starts: list[date] = []
