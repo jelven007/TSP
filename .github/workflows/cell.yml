@@ -1,0 +1,91 @@
+name: Cell isolation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/app/cell/**
+      - backend/tests/test_cell*
+      - backend/scripts/benchmark_cell.py
+      - backend/pyproject.toml
+      - backend/uv.lock
+      - backend/app/strategy/**
+      - backend/app/main.py
+      - frontend/**
+      - deploy/cell/**
+      - .github/workflows/cell.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - backend/app/cell/**
+      - backend/tests/test_cell*
+      - backend/scripts/benchmark_cell.py
+      - backend/pyproject.toml
+      - backend/uv.lock
+      - backend/app/strategy/**
+      - backend/app/main.py
+      - frontend/**
+      - deploy/cell/**
+      - .github/workflows/cell.yml
+
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install test dependencies
+        working-directory: backend
+        run: uv sync --extra dev --extra cell --frozen --python 3.12
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run -d --name tsp-cell-postgres \
+            -e POSTGRES_PASSWORD=tsp-ci-only \
+            -p 127.0.0.1:55439:5432 postgres:17-alpine
+          for attempt in $(seq 1 30); do
+            if docker exec tsp-cell-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Build isolated API image
+        run: docker build -f deploy/cell/Dockerfile -t tsp-cell-api:test .
+      - name: Build strategy and realtime Worker image
+        run: docker build -f deploy/cell/Worker.Dockerfile -t tsp-cell-worker:test .
+      - name: Check Cell code
+        working-directory: backend
+        run: uv run --frozen --no-sync ruff check app/cell tests/test_cell* scripts/benchmark_cell.py ../deploy/cell/select_requirements.py
+      - name: PostgreSQL isolation and container smoke
+        working-directory: backend
+        env:
+          TSP_TEST_POSTGRES_DSN: postgresql://postgres:tsp-ci-only@127.0.0.1:55439/postgres
+          TSP_TEST_CELL_IMAGE: tsp-cell-api:test
+          TSP_TEST_CELL_WORKER_IMAGE: tsp-cell-worker:test
+          TSP_TEST_POSTGRES_CONTAINER: tsp-cell-postgres
+        run: uv run --frozen --no-sync pytest tests/test_cell_isolation.py tests/test_cell_business.py tests/test_cell_scheduler.py tests/test_cell_placement.py tests/test_cell_notifications.py tests/test_cell_automation.py tests/test_cell_market.py tests/test_cell_container.py tests/test_paper_trading.py tests/test_paper_api.py -q
+      - name: Reproducible Cell scheduling benchmark
+        working-directory: backend
+        env:
+          TSP_TEST_POSTGRES_DSN: postgresql://postgres:tsp-ci-only@127.0.0.1:55439/postgres
+          PYTHONPATH: .
+        run: uv run --frozen --no-sync python scripts/benchmark_cell.py --tenants 200 --rounds 5 --quote-delay-ms 20 --output /tmp/cell-capacity.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cell-capacity
+          path: /tmp/cell-capacity.json
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.10.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Frontend isolation and legacy regressions
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test
+          pnpm exec eslint src/pages/CellApp.tsx src/lib/cellApi.ts src/lib/cellApi.test.ts src/pages/CellApp.test.tsx
+      - name: Stop PostgreSQL
+        if: always()
+        run: docker rm -f tsp-cell-postgres || true

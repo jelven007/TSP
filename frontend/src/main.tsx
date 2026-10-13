@@ -52,6 +52,13 @@ const queryClient = new QueryClient({
 })
 
 async function bootstrap() {
+  if (import.meta.env.VITE_CELL_MODE === 'true') {
+    const { CellApp } = await import('./pages/CellApp')
+    ReactDOM.createRoot(document.getElementById('root')!).render(
+      <React.StrictMode><CellApp /></React.StrictMode>,
+    )
+    return
+  }
   await initializeFrontendExtensions()
   const { router } = await import('./router')
   ReactDOM.createRoot(document.getElementById('root')!).render(

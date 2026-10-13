@@ -48,6 +48,7 @@ from app.price_limits import (
     price_limit_pct as stock_price_limit_pct,
 )
 from app.services.fs_utils import atomic_write_text
+from app.strategy.paper_math import apply_slippage, buy_fee, sell_fee
 
 logger = logging.getLogger(__name__)
 
@@ -267,20 +268,6 @@ def update_settings(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID, **fiel
 
 
 # ── 费用 (纯函数) ───────────────────────────────────────
-def apply_slippage(price: float, side: str, slippage_bps: float) -> float:
-    """买入向上滑、卖出向下滑 (对成交价不利方向)。"""
-    adj = price * (1 + slippage_bps / 10000.0) if side == "buy" else price * (1 - slippage_bps / 10000.0)
-    return round(max(adj, 0.01), 4)
-
-
-def buy_fee(qty: int, price: float, commission_pct: float) -> float:
-    return round(max(qty * price * commission_pct, MIN_COMMISSION), 2)
-
-
-def sell_fee(qty: int, price: float, commission_pct: float, stamp_tax_pct: float) -> float:
-    return round(max(qty * price * commission_pct, MIN_COMMISSION) + qty * price * stamp_tax_pct, 2)
-
-
 # ── 涨跌停 (纯函数, 金融口径须测试) ─────────────────────
 def limit_pct(
     symbol: str,
