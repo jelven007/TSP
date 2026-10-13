@@ -24,6 +24,7 @@ from app.services.data_integrity import (
     _trading_calendar,
     earliest_issue_day,
     prune_enriched_partitions,
+    prune_realtime_residue_rows,
     scan_recent_integrity,
     within_auto_repair_window,
 )
@@ -325,6 +326,41 @@ def test_prune_enriched_partitions_removes_only_range(tmp_path):
     assert (base / f"date={THURSDAY.isoformat()}").exists()
     assert not (base / f"date={FRIDAY.isoformat()}").exists()
     assert not (base / f"date={TODAY.isoformat()}").exists()
+
+
+def test_prune_realtime_residue_rows_keeps_batch_and_current_rows(tmp_path):
+    base = tmp_path / "kline_etf_daily"
+    historical = base / f"date={FRIDAY.isoformat()}"
+    historical.mkdir(parents=True)
+    pl.DataFrame({
+        "symbol": ["510300.SH", "158046.SZ"],
+        "date": [FRIDAY, FRIDAY],
+        "close": [4.36, 1.23],
+        "volume": [1000.0, 200.0],
+        "quote_ts": [None, _ts_ms(FRIDAY, time(11, 58))],
+        "quote_time_basis": [None, "received"],
+    }).write_parquet(historical / "part.parquet")
+    current = base / f"date={TODAY.isoformat()}"
+    current.mkdir(parents=True)
+    pl.DataFrame({
+        "symbol": ["510300.SH"],
+        "date": [TODAY],
+        "close": [4.40],
+        "volume": [1000.0],
+        "quote_ts": [_ts_ms(TODAY, time(10, 0))],
+        "quote_time_basis": ["source_snapshot"],
+    }).write_parquet(current / "part.parquet")
+
+    removed = prune_realtime_residue_rows(
+        tmp_path,
+        FRIDAY,
+        "kline_etf_daily",
+        today=TODAY,
+    )
+
+    assert removed == 1
+    assert pl.read_parquet(historical / "part.parquet")["symbol"].to_list() == ["510300.SH"]
+    assert pl.read_parquet(current / "part.parquet").height == 1
 
 
 # ── 管道起点决策 (分支3降级后的起点) ────────────────────────────────
