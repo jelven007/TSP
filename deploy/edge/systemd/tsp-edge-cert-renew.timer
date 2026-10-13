@@ -1,9 +1,9 @@
 [Unit]
-Description=Renew TSP edge TLS certificate twice daily
+Description=Check TSP local TLS certificate daily
 
 [Timer]
 OnBootSec=15min
-OnUnitActiveSec=12h
+OnCalendar=*-*-* 03:15:00
 RandomizedDelaySec=30min
 Persistent=true
 
