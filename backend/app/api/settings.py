@@ -1057,7 +1057,9 @@ def update_realtime_quotes(req: RealtimeQuotesPrefs, request: Request) -> dict:
         # 历史完整性门禁: 检测到最近交易日的盘中快照/缺口时禁止开启 —
         # 实时 flush 写出"今天"分区后, 盘后管道的"只刷今天"分支会让停机日的
         # 半日快照永久留存。同时自动创建修复任务, 修完即可正常开启。
-        from app.services import data_integrity
+        # 已确认休市时行情轮询会被 holiday gate 挡住, 不会写入当天分区;
+        # 此时允许保存开启意图并等待下一交易日, 修复任务仍在后台运行。
+        from app.services import data_integrity, trading_day
 
         repo = getattr(request.app.state, "repo", None)
         if repo is not None:
@@ -1070,7 +1072,7 @@ def update_realtime_quotes(req: RealtimeQuotesPrefs, request: Request) -> dict:
                 job_id, is_new = data_integrity.launch_integrity_repair(
                     request.app.state, earliest, "realtime_gate",
                 )
-                if job_id is not None:
+                if job_id is not None and trading_day.is_trading_day() is not False:
                     detail = (
                         f"检测到{data_integrity.describe_issues(issues)}，"
                         + ("已自动创建修复任务，完成后即可开启实时行情"

@@ -619,6 +619,7 @@ class QuoteService:
         final_key = self._final_sync_key(phase)
         final_done = bool(final_key and final_key in self._final_sync_done)
         final_failed = self._final_sync_failed.get(final_key) if final_key else None
+        is_polling_window = self._should_poll_for_phase(phase)
         result = {
             "enabled": self._enabled,
             "running": self._running,
@@ -631,8 +632,9 @@ class QuoteService:
             "etf_symbol_count": self._etf_symbol_count,
             "quote_age_ms": round(age, 0) if age >= 0 else None,
             # 交易时段 = 连续竞价; polling_window 另行返回,避免竞价预热/收盘定版误显示为交易中。
-            "is_trading_hours": self._is_continuous_trading(),
-            "is_polling_window": self._should_poll_for_phase(phase),
+            # holiday gate 已在上方刷新，工作日节假日不能误显示为交易中。
+            "is_trading_hours": self._is_continuous_trading() and not self._holiday_active,
+            "is_polling_window": is_polling_window,
             "market_phase": phase,
             "final_sync_done": final_done,
             "final_sync_failed": final_failed,

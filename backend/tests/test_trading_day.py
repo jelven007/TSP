@@ -256,6 +256,25 @@ def test_quote_service_polls_when_trading_or_unknown(monkeypatch):
     assert qs._should_poll_for_phase("morning") is True
 
 
+def test_quote_status_reports_holiday_as_waiting_not_trading(monkeypatch):
+    from app.services.quote_service import QuoteService
+
+    qs = QuoteService()
+    qs._enabled = True
+    qs._running = True
+    monkeypatch.setattr(qs, "realtime_mode", lambda: "full_market")
+    monkeypatch.setattr(qs, "_market_phase", lambda: "morning")
+    monkeypatch.setattr(qs, "_is_continuous_trading", lambda: True)
+    monkeypatch.setattr(trading_day, "is_trading_day", lambda now=None: False)
+
+    status = qs.status()
+
+    assert status["enabled"] is True
+    assert status["running"] is True
+    assert status["is_trading_hours"] is False
+    assert status["is_polling_window"] is False
+
+
 # ---- 消费方 2: 分钟增量 gate_reason ----
 
 def _minute_service(monkeypatch):

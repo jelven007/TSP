@@ -358,7 +358,8 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
             desc={
               isPaused ? '数据同步运行中，已临时暂停'
               : isRunning && isTrading ? '运行中'
-              : isRunning ? '运行中 (非交易时段)'
+              : realtimeEnabled && !isTrading ? '已开启，等待下一交易日'
+              : isRunning ? '正在连接'
               : '已关闭'
             }
             checked={realtimeEnabled}
