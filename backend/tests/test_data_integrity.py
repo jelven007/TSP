@@ -664,6 +664,53 @@ def test_pipeline_self_heals_snapshot_day(tmp_path, monkeypatch):
     assert result["enriched_days"] > 0
 
 
+def test_pipeline_override_repairs_etf_from_requested_start(tmp_path, monkeypatch):
+    """显式数据修正必须让 ETF 日K使用同一起点，不能只刷新最新分区。"""
+    from app.config import settings as app_settings
+    from app.jobs import daily_pipeline
+    from app.services import index_sync, instrument_sync, kline_sync
+    from app.tickflow.capabilities import Cap
+    from app.tickflow.repository import DataStore, KlineRepository
+
+    today = datetime.now(CN_TZ).date()
+    repair_day = _recent_trading_day_before(today)
+    _write_full_partition(tmp_path, "kline_daily", today, None)
+    _write_full_partition(
+        tmp_path, "kline_etf_daily", repair_day,
+        _ts_ms(repair_day, time(11, 58)),
+    )
+    _write_full_partition(tmp_path, "kline_etf_enriched", today, None)
+
+    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir: 0)
+    monkeypatch.setattr(daily_pipeline, "_resolve_universe", lambda capset, repo=None: ["600001.SH"])
+    monkeypatch.setattr(kline_sync, "sync_and_persist_daily_batch", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(app_settings, "data_dir", tmp_path)
+    monkeypatch.setattr(daily_pipeline._prefs, "get_pipeline_pull_index", lambda: False)
+    monkeypatch.setattr(daily_pipeline._prefs, "get_pipeline_pull_etf", lambda: True)
+    monkeypatch.setattr(index_sync, "sync_etf_instruments", lambda repo: 1)
+
+    etf_starts: list[date] = []
+
+    def _fake_etf_daily(repo, capset, start_date=None, end_date=None, on_chunk_done=None):
+        etf_starts.append(start_date.date())
+        return 0
+
+    monkeypatch.setattr(index_sync, "sync_and_persist_etf_daily", _fake_etf_daily)
+
+    repo = KlineRepository(DataStore(tmp_path))
+    monkeypatch.setattr(
+        repo,
+        "get_etf_instruments",
+        lambda: pl.DataFrame({"symbol": ["510300.SH"]}),
+    )
+    monkeypatch.setattr(repo, "refresh_index_views", lambda: None)
+    capset = SimpleNamespace(has=lambda key: key in {Cap.QUOTE_POOL, Cap.KLINE_DAILY_BATCH})
+
+    daily_pipeline.run_now(repo, capset, override_start_date=repair_day)  # type: ignore[arg-type]
+
+    assert etf_starts == [repair_day]
+
+
 def test_quotes_flush_partition_keeps_quote_ts_for_integrity_scan(tmp_path, monkeypatch):
     """实时行情覆写当日分区必须写 quote_ts, 否则停机后自检漏判盘中快照。
 

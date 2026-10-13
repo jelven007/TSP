@@ -616,7 +616,10 @@ def run_now(
                     d.name[5:] for d in etf_dir.glob("date=*")
                     if d.is_dir() and d.name.startswith("date=")
                 ) if etf_dir.exists() else []
-                etf_start = _date.fromisoformat(etf_dates[-1]) if etf_dates else today - _td(days=365)
+                if override_start_date:
+                    etf_start = override_start_date
+                else:
+                    etf_start = _date.fromisoformat(etf_dates[-1]) if etf_dates else today - _td(days=365)
                 # 同指数: 完整性修复时把 ETF 起点提前到最早坏日
                 if etf_stale_day is not None and etf_start > etf_stale_day:
                     etf_start = etf_stale_day
