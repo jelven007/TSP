@@ -3,6 +3,18 @@
 The edge stack binds public ports 80 and 443. It keeps the legacy platform and
 the Cell API on private Docker networks.
 
+## Production entry
+
+`https.conf` serves the full application at `app:3018`. The separate Cell UI
+does not provide all existing product pages and must not replace the public
+entry. The 2026-10-14 rollback restored image `app-app:32be445` and stopped the
+Cell API and its four Workers. Local CA HTTPS remains enabled.
+
+Future multi-tenant releases must preserve the full application's routes and
+pass new-user registration, first-login market dashboard, tenant isolation
+and feature coverage checks before public cutover. See
+[`docs/multitenant-roadmap.md`](../../docs/multitenant-roadmap.md).
+
 ## Locally issued IP certificate
 
 This deployment uses a private root CA and an IP SAN certificate, without a
