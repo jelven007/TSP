@@ -8,6 +8,9 @@
 // ===== Query Key 工厂 =====
 
 export const QK = {
+  cellDirectory: ['cell-directory'] as const,
+  cell: (tenant: string, epoch: number, resource: string, detail = '') =>
+    ['cell', tenant, epoch, resource, detail] as const,
   // 全局 / 共享 (Layout 预取)
   capabilities:   ['capabilities'] as const,
   authStatus:     ['auth-status'] as const,

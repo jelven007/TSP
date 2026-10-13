@@ -45,6 +45,7 @@ from app.api import (
 from app.api import auth as auth_api
 from app.api import settings as settings_api
 from app.api.routes import router as core_router
+from app.cell.platform_market import router as platform_market_router
 from app.config import authentication_required, settings
 from app.enriched_generation import EnrichedGenerationUnavailableError
 from app.extensions.loader import (
@@ -552,6 +553,7 @@ app.add_middleware(ObservabilityMiddleware, router=app.router)
 
 
 # 路由
+app.include_router(platform_market_router)
 app.include_router(core_router)
 app.include_router(auth_api.router)
 app.include_router(kline.router)

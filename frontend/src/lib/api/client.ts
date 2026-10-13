@@ -3,6 +3,8 @@ import { toast } from '@/components/Toast'
 const API_BASE = ''
 
 export type RequestOptions = RequestInit & {
+  /** Trusted API origin selected from the authenticated workspace directory. */
+  baseUrl?: string
   /** Suppress the shared error toast when the caller presents an aggregate error. */
   quiet?: boolean
   /** Request timeout in milliseconds. Set to null to disable it. */
@@ -27,7 +29,7 @@ export function extPullTimeoutMs(timeoutSeconds?: number): number {
 }
 
 export async function request<T>(path: string, init?: RequestOptions): Promise<T> {
-  const { quiet, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...fetchInit } = init ?? {}
+  const { quiet, baseUrl = API_BASE, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...fetchInit } = init ?? {}
   const isFormData = fetchInit.body instanceof FormData
   const headers: Record<string, string> = {}
   if (!isFormData) headers['Content-Type'] = 'application/json'
@@ -42,7 +44,7 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
 
   let response: Response
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(`${baseUrl}${path}`, {
       ...fetchInit,
       headers,
       ...(controller ? { signal: controller.signal } : {}),
@@ -78,5 +80,6 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
     throw new ApiError(message, response.status)
   }
 
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
