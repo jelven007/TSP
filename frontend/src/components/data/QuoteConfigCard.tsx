@@ -27,7 +27,7 @@ export function QuoteConfigCard({ enabled, running, isTrading, lastFetchMs, inte
   const statusText = !enabled
     ? '已关闭'
     : !isTrading
-      ? '非交易时段'
+      ? '已开启 · 等待交易日'
       : running
         ? '行情运行中'
         : '已停止'

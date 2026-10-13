@@ -440,6 +440,7 @@ def test_realtime_gate_blocks_on_snapshot_and_launches_repair(tmp_path, monkeypa
         data_integrity, "launch_integrity_repair",
         lambda state, day, reason: (launched.append((day, reason)) or ("job-x", True)),
     )
+    monkeypatch.setattr("app.services.trading_day.is_trading_day", lambda now=None: True)
     saved = {}
     monkeypatch.setattr(
         "app.services.preferences.save", lambda payload: saved.update(payload),
@@ -458,6 +459,46 @@ def test_realtime_gate_blocks_on_snapshot_and_launches_repair(tmp_path, monkeypa
     # 修复任务以最早坏日为起点, 且实时行情未被开启
     assert launched == [(snapshot_day, "realtime_gate")]
     assert saved == {}
+
+
+def test_realtime_gate_allows_enable_on_non_trading_day_while_repair_runs(tmp_path, monkeypatch):
+    """休市日允许保存开启意图；holiday gate 会阻止实际拉取和当天落盘。"""
+    from app.api import settings as settings_api
+    from app.services import data_integrity
+
+    real_today = datetime.now(CN_TZ).date()
+    snapshot_day = _recent_trading_day_before(real_today)
+    _write_daily_partition(
+        tmp_path, "kline_daily", snapshot_day,
+        _ts_ms(snapshot_day, time(11, 58)),
+    )
+    _write_daily_partition(
+        tmp_path, "kline_daily", real_today,
+        _ts_ms(real_today, time(10, 0)),
+    )
+
+    launched = []
+    monkeypatch.setattr(
+        data_integrity, "launch_integrity_repair",
+        lambda state, day, reason: (launched.append((day, reason)) or ("job-holiday", True)),
+    )
+    monkeypatch.setattr("app.services.trading_day.is_trading_day", lambda now=None: False)
+    saved = {}
+    monkeypatch.setattr(
+        "app.services.preferences.save", lambda payload: saved.update(payload),
+    )
+
+    qs = _QuoteServiceStub()
+    request = _gate_state(tmp_path, qs, repo=None)
+    result = settings_api.update_realtime_quotes(
+        settings_api.RealtimeQuotesPrefs(realtime_quotes_enabled=True),
+        request,
+    )
+
+    assert result["realtime_quotes_enabled"] is True
+    assert qs.enabled is True
+    assert saved == {"realtime_quotes_enabled": True}
+    assert launched == [(snapshot_day, "realtime_gate")]
 
 
 def test_realtime_gate_blocks_when_no_local_data(tmp_path, monkeypatch):
