@@ -21,7 +21,7 @@ services:
       - /var/run:size=1m,noexec,nosuid
       - /tmp:size=4m,noexec,nosuid
     cap_drop: [ALL]
-    cap_add: [NET_BIND_SERVICE, SETGID, SETUID]
+    cap_add: [CHOWN, NET_BIND_SERVICE, SETGID, SETUID]
     security_opt:
       - no-new-privileges:true
     healthcheck:
