@@ -338,7 +338,8 @@ API 镜像包含 Cell API、纯费用函数和 Cell 前端，依赖从项目锁�
 先取得停写后的 `data/user_data` 一致副本。账号 ID 和 PBKDF2 密码摘要原样导入，
 身份冲突立即中止。旧纯密码模式先在旧系统绑定邮箱。
 所有旧账号只导入身份；成员关系逐个显式添加，只有指定 owner 获得原共享自选的权限。
-会话、旧全局 Token、SMTP/AI/交易凭据以及其他业务数据不自动迁移。
+共享自选、分组和历史告警迁入指定租户。会话、旧全局 Token、
+SMTP/AI/交易凭据以及没有 Cell 数据模型的派生报告不自动迁移。
 
 ```bash
 .venv/bin/python -m app.cell.admin import-users --directory /path/to/offline-user_data --owner-id <旧账号ID>
@@ -350,7 +351,8 @@ API 镜像包含 Cell API、纯费用函数和 Cell 前端，依赖从项目锁�
 .venv/bin/python -m app.cell.admin tenant-status --tenant-id legacy --status active --actor-id <操作人ID>
 ```
 
-目标必须为空，导入不会覆盖。保留原自选添加时间，旧单值 `group_id` 转为多值归属。
+目标必须为空，导入不会覆盖。保留原自选添加时间，旧单值 `group_id` 转为多值归属；
+历史告警使用内容哈希生成稳定 ID 和去重键，并保留原始触发时间。
 管理端即使能绕过 RLS，也在目标检查中显式过滤 tenant。
 身份与业务分别提交，不声称跨库原子性；失败保持租户停用，
 应核对两库结果后再激活，禁止直接覆盖重试。

@@ -347,6 +347,9 @@ def test_migration_idempotence_and_import_legacy(cluster, tmp_path):
     user = {"id": suffix, "email": suffix + "@example.test", "password_salt": salt, "password_hash": digest}
     (tmp_path / "auth.json").write_text(json.dumps({"users": {suffix: user}, "sessions": {"must-not-import": {}}}))
     (tmp_path / "watchlist_groups.json").write_text(json.dumps([{"id": "g", "name": "旧分组"}]))
+    (tmp_path / "alerts.jsonl").write_text(
+        json.dumps({"ts": 1791422755310, "source": "legacy", "message": "旧告警"}) + "\n"
+    )
     import polars as pl
 
     pl.DataFrame({"symbol": ["000001.SZ"], "note": ["legacy-private"], "group_id": ["g"],
@@ -358,7 +361,7 @@ def test_migration_idempotence_and_import_legacy(cluster, tmp_path):
         import_legacy(control, data, tmp_path, tenant_id, suffix)
     set_tenant_status(control, tenant_id, "suspended", suffix)
     counts = import_legacy(control, data, tmp_path, tenant_id, suffix)
-    assert counts == {"users": 1, "groups": 1, "items": 1}
+    assert counts == {"users": 1, "groups": 1, "items": 1, "alerts": 1}
     with pytest.raises(ValueError, match="empty"):
         import_legacy(control, data, tmp_path, tenant_id, suffix)
     set_tenant_status(control, tenant_id, "active", suffix)
@@ -370,4 +373,8 @@ def test_migration_idempotence_and_import_legacy(cluster, tmp_path):
         }).json()["symbols"]
         assert rows[0]["note"] == "legacy-private" and rows[0]["group_ids"] == ["g"]
         assert rows[0]["added_at"].startswith("2026-10-12")
+        alerts = client.get(f"/api/tenants/{tenant_id}/alerts", headers={
+            "Authorization": "Bearer " + response.json()["token"], "X-Routing-Epoch": "1",
+        }).json()["alerts"]
+        assert alerts[0]["event"]["message"] == "旧告警"
     assert not control.execute("SELECT 1 FROM control.sessions WHERE digest = %s", (token_hash("must-not-import"),)).fetchone()

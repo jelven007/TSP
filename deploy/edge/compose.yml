@@ -1,0 +1,43 @@
+services:
+  edge:
+    image: ${TSP_EDGE_NGINX_IMAGE:-nginx:1.27-alpine}
+    container_name: tsp-edge
+    entrypoint: ["/usr/sbin/nginx"]
+    command: ["-g", "daemon off;"]
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./active.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - platform
+      - cell
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=16m,noexec,nosuid
+      - /var/run:size=1m,noexec,nosuid
+      - /tmp:size=4m,noexec,nosuid
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE, SETGID, SETUID]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/edge-health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    stop_grace_period: 15s
+    mem_limit: 256m
+    cpus: 0.5
+
+networks:
+  platform:
+    external: true
+    name: ${TSP_EDGE_PLATFORM_NETWORK:-app_default}
+  cell:
+    external: true
+    name: ${TSP_EDGE_CELL_NETWORK:-tsp-cell_default}

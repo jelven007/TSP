@@ -11,6 +11,7 @@ from pathlib import Path
 import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from app.cell.passwords import hash_password, normalize_email, valid_record
 
@@ -257,6 +258,21 @@ def import_legacy(control, data, directory: Path, tenant_id: str, owner_id: str)
     groups = json.loads(groups_path.read_text(encoding="utf-8")) if groups_path.exists() else []
     if not isinstance(groups, list):
         raise ValueError("invalid legacy groups")
+    alerts = []
+    alerts_path = directory / "alerts.jsonl"
+    if alerts_path.exists():
+        for line in alerts_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            event = json.loads(line)
+            timestamp = event.get("ts") if isinstance(event, dict) else None
+            if (
+                isinstance(timestamp, bool)
+                or not isinstance(timestamp, (int, float))
+                or timestamp <= 0
+            ):
+                raise ValueError("invalid legacy alert")
+            alerts.append(event)
     rows = []
     watchlist_path = directory / "watchlist.parquet"
     if watchlist_path.exists():
@@ -288,6 +304,8 @@ def import_legacy(control, data, directory: Path, tenant_id: str, owner_id: str)
                 "SELECT 1 FROM business.watchlist_items WHERE tenant_id = %s LIMIT 1", (tenant_id,)
             ).fetchone() or data.execute(
                 "SELECT 1 FROM business.watchlist_groups WHERE tenant_id = %s LIMIT 1", (tenant_id,)
+            ).fetchone() or data.execute(
+                "SELECT 1 FROM business.alerts WHERE tenant_id = %s LIMIT 1", (tenant_id,)
             ).fetchone():
                 raise ValueError("destination must be empty; import never overwrites")
             for position, group in enumerate(groups):
@@ -307,7 +325,16 @@ def import_legacy(control, data, directory: Path, tenant_id: str, owner_id: str)
                         "INSERT INTO business.watchlist_group_items VALUES (%s, %s, %s)",
                         (tenant_id, group_id, row["symbol"]),
                     )
-    return {"users": len(users), "groups": len(groups), "items": len(rows)}
+            for event in alerts:
+                encoded = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                digest = hashlib.sha256(encoded.encode()).hexdigest()
+                data.execute(
+                    """INSERT INTO business.alerts
+                       (tenant_id,id,dedupe_key,event,created_at)
+                       VALUES (%s,%s,%s,%s,to_timestamp(%s / 1000.0))""",
+                    (tenant_id, digest[:32], "legacy:" + digest, Jsonb(event), event["ts"]),
+                )
+    return {"users": len(users), "groups": len(groups), "items": len(rows), "alerts": len(alerts)}
 
 
 def connect_admin(variable: str):
@@ -317,8 +344,6 @@ def connect_admin(variable: str):
     return psycopg.connect(value, autocommit=True, row_factory=dict_row)
 
 def sync_catalog(control) -> int:
-    from psycopg.types.json import Jsonb
-
     from app.cell.compute import catalog
 
     definitions = catalog()
