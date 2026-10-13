@@ -412,6 +412,65 @@ def prune_enriched_partitions(
     return removed
 
 
+def prune_realtime_residue_rows(
+    data_dir: Path,
+    start: date,
+    table: str,
+    *,
+    today: date | None = None,
+) -> int:
+    """删除权威 batch 重拉后仍残留的历史实时行。
+
+    Provider 对新上市、停牌或已失效标的可能不返回历史 bar，merge-upsert 会保留
+    旧盘中快照。显式修正成功后，这类未被权威数据覆盖的行应删除而不是继续阻塞
+    完整性门禁。当日分区仍在实时更新，绝不处理。
+    """
+    if table not in _DAILY_TABLES:
+        raise ValueError(f"unsupported daily table: {table}")
+    today = today or datetime.now(CN_TZ).date()
+    base = Path(data_dir) / table
+    if not base.exists():
+        return 0
+
+    import shutil
+
+    from app.services.fs_utils import atomic_write_parquet
+
+    removed = 0
+    for part in sorted(base.glob("date=*")):
+        try:
+            day = date.fromisoformat(part.name[5:])
+        except ValueError:
+            continue
+        if day < start or day >= today:
+            continue
+        files = sorted(part.glob("*.parquet"))
+        if not files:
+            continue
+        frame = pl.concat([pl.read_parquet(path) for path in files], how="diagonal_relaxed")
+        if "quote_ts" not in frame.columns:
+            continue
+        quote_ts = pl.col("quote_ts").cast(pl.Int64, strict=False)
+        start_ms = int(datetime.combine(day, dt_time.min, tzinfo=CN_TZ).timestamp() * 1000)
+        cutoff_ms = int(datetime.combine(day, CLOSE_CUTOFF, tzinfo=CN_TZ).timestamp() * 1000)
+        suspicious = quote_ts.is_between(start_ms, cutoff_ms, closed="left")
+        if "quote_time_basis" in frame.columns:
+            suspicious = suspicious | (
+                (pl.col("quote_time_basis") != "source_snapshot").fill_null(False)
+            )
+        cleaned = frame.filter(~suspicious.fill_null(False))
+        removed += frame.height - cleaned.height
+        if cleaned.is_empty():
+            shutil.rmtree(part)
+            continue
+        out = part / "part.parquet"
+        atomic_write_parquet(cleaned.sort(["symbol", "date"]), out)
+        for path in files:
+            if path != out:
+                path.unlink(missing_ok=True)
+    return removed
+
+
 def describe_issues(issues: list[IntegrityIssue]) -> str:
     """面向用户的一句话描述 (409 详情 / 日志用)。"""
     if not issues:

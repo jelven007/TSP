@@ -642,6 +642,20 @@ def run_now(
                     end_date=_dt.combine(today, _dt.min.time()),
                     on_chunk_done=_etf_chunk,
                 )
+                if override_start_date is not None and written_etf_daily:
+                    from app.services.data_integrity import prune_realtime_residue_rows
+
+                    removed = prune_realtime_residue_rows(
+                        repo.store.data_dir,
+                        override_start_date,
+                        "kline_etf_daily",
+                        today=today,
+                    )
+                    if removed:
+                        logger.info(
+                            "integrity: 已删除 %d 行未被 batch 覆盖的 ETF 实时残留",
+                            removed,
+                        )
                 emit("sync_index", 88, f"ETF 日K完成,{written_etf_daily} 行")
                 _invalidate("etf_instruments")
                 _invalidate("etf_daily")
