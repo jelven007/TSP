@@ -1,0 +1,41 @@
+# 多租户 Cell 的 PostgreSQL 控制面 + 数据面。独立 compose project(tsp-pg),
+# 与线上单租户 app 栈完全隔离:独立网络、独立数据卷、只绑 127.0.0.1。
+# control 与 data 各用一个库;runtime 角色由 bootstrap.sh 创建(非超级用户、无 BYPASSRLS)。
+services:
+  postgres:
+    image: postgres:16
+    container_name: tsp-pg
+    environment:
+      POSTGRES_USER: tsp_admin
+      POSTGRES_PASSWORD: ${TSP_PG_ADMIN_PASSWORD:?admin password required}
+      POSTGRES_DB: tsp_control
+      TSP_PG_RUNTIME_PASSWORD: ${TSP_PG_RUNTIME_PASSWORD:?runtime password required}
+      # 初始化期间的本地连接用 scram-sha-256;容器内 socket 可信。
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "shared_buffers=2GB"
+      - "-c"
+      - "work_mem=32MB"
+    ports:
+      # 只对本机开放,外部不可达;Cell 容器通过 docker 网络或 host.docker.internal 连。
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - tsp_pg_data:/var/lib/postgresql/data
+      # 首次初始化自动执行:建 data 库 + runtime 角色 + 基础授权。
+      - ./bootstrap.sh:/docker-entrypoint-initdb.d/10-bootstrap.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tsp_admin -d tsp_control"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: 1g
+
+volumes:
+  tsp_pg_data:
+    name: tsp_pg_data
