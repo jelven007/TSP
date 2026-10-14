@@ -70,6 +70,11 @@ services:
     command: ["/app/.venv/bin/python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3018", "--workers", "${TSP_FULL_API_WORKERS:-4}", "--proxy-headers", "--forwarded-allow-ips", "*"]
     ports:
       - "127.0.0.1:${TSP_FULL_API_PORT:-3030}:3018"
+    networks:
+      default:
+      pg:
+      edge:
+        aliases: [tsp-full-api]
     depends_on:
       platform: {condition: service_healthy}
     mem_limit: 16g
@@ -133,3 +138,6 @@ networks:
   pg:
     external: true
     name: ${TSP_FULL_PG_NETWORK:-tsp-pg_default}
+  edge:
+    external: true
+    name: ${TSP_FULL_EDGE_NETWORK:-app_default}

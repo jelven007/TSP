@@ -25,6 +25,7 @@ Compose 通过以下变量选择资源，私密值应置于权限 `0600` 的环�
 | `TSP_COMPUTE_SOCKET_DIR` | 主机 Broker socket 目录，默认 `/run/tsp-full` |
 | `TSP_FULL_API_PORT` | 候选 API 仅监听主机回环，默认 3030 |
 | `TSP_FULL_PG_NETWORK` | PostgreSQL 外部 Docker network，默认 `tsp-pg_default` |
+| `TSP_FULL_EDGE_NETWORK` | HTTPS Edge 外部 Docker network，默认 `app_default`；API 在其中使用 `tsp-full-api` 别名 |
 
 API/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TSP_CELL_MARKET_TOKEN`；其值必须与平台的 `TSP_PLATFORM_MARKET_TOKEN` 一致。两端的 `TSP_PLATFORM_ADMIN_TOKEN` 也必须一致，并与市场 Token 不同。
 
@@ -63,6 +64,6 @@ docker compose -p tsp-full-candidate -f deploy/full/compose.yml up -d research r
 
 发布前必须完成旧数据/产物对账、注册与邮件、管理员改密、全部 18/19 业务页面关键操作、角色与数据隔离、真实模型、交易窗口与跨日结算，以及 100 个独立活跃身份混合负载。
 
-切流前暂停旧写入者，最终增量复制并重新对账、发布公共版本，确认候选深度健康后修改 Nginx 上游，沿用已签发的本地 CA HTTPS。保存切流时间和镜像/配置/数据版本。
+切流前暂停旧写入者，最终增量复制并重新对账、发布公共版本，确认候选深度健康后将 Nginx upstream 从旧 `app:3018` 改为 `tsp-full-api:3018`，沿用已签发的本地 CA HTTPS。执行 `nginx -t` 后仅 reload，保存切流时间和镜像/配置/数据版本。
 
 恢复时先阻止候选写入，保存切流后的两个数据库及私有产物，恢复原 Nginx、镜像和备份，再启动唯一旧行情写入者。不能让两个版本同时写共享目录，也不能恢复旧快照后直接丢弃切流后新注册账号或业务写入；恢复需要对这部分增量明确对账。
