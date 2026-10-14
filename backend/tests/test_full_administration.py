@@ -170,6 +170,7 @@ def test_admin_platform_forwarding_preserves_body_and_excludes_browser_credentia
     import json
 
     import httpx
+    from starlette.requests import ClientDisconnect, Request
 
     from app.multitenancy.platform import PlatformAdmin
 
@@ -199,6 +200,20 @@ def test_admin_platform_forwarding_preserves_body_and_excludes_browser_credentia
     assert json.loads(body) == {"years": 1}
     assert request.headers["authorization"] == "Bearer internal-test-token"
     assert "cookie" not in request.headers and "x-tenant-id" not in request.headers
+
+    async def disconnected():
+        raise ClientDisconnect
+
+    read_request = Request({
+        "type": "http", "method": "GET", "scheme": "https",
+        "server": ("api.test", 443), "client": ("127.0.0.1", 1),
+        "root_path": "", "path": "/api/settings", "raw_path": b"/api/settings",
+        "query_string": b"", "headers": [], "state": {},
+    }, disconnected)
+    read_request.state.account = {"email": "admin@example.com"}
+    read_response = asyncio.run(gateway.forward(read_request))
+    assert read_response.status_code == 200
+    assert seen[-1][1] == b""
     asyncio.run(gateway.close())
 
 

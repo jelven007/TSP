@@ -81,7 +81,8 @@ class PlatformAdmin:
         try:
             response = await self.client.send(self.client.build_request(
                 request.method, request.url.path, params=request.query_params,
-                content=request.stream(), headers=headers,
+                content=None if request.method in READ_METHODS else request.stream(),
+                headers=headers,
             ), stream=True)
         except httpx.HTTPError:
             return JSONResponse({"detail": "平台管理服务暂不可用"}, status_code=503)
