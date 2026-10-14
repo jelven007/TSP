@@ -4,6 +4,7 @@
  * 独立于实时监控, 放置影响整体应用行为的开关项。
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Settings2, Trash2, RefreshCw, Bell, Volume2, Info, ExternalLink, CheckCircle2, Download, ZoomIn, Minus, Plus, Sparkles } from 'lucide-react'

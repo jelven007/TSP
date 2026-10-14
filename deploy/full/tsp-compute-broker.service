@@ -1,0 +1,27 @@
+[Unit]
+Description=TSP full-product bounded compute broker
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+Group=10001
+WorkingDirectory=/opt/tsp-full
+Environment=PYTHONPATH=/opt/tsp-full/backend
+Environment=PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=/etc/tsp-full/broker.env
+RuntimeDirectory=tsp-full
+RuntimeDirectoryMode=0750
+ExecStartPre=/usr/bin/test ! -e /run/tsp-full/compute.sock
+ExecStart=/opt/tsp-full/python/bin/python -m app.multitenancy.compute_broker --socket /run/tsp-full/compute.sock --image ${TSP_COMPUTE_IMAGE} --market-root ${TSP_PUBLIC_MARKET_DIR} --capacity 4
+ExecStopPost=/usr/bin/rm -f /run/tsp-full/compute.sock
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=60
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

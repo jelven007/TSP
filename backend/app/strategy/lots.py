@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from datetime import date as _date
 from pathlib import Path
 
+from app.multitenancy.documents import TenantDocuments
 from app.services.fs_utils import atomic_write_text
 from app.strategy import monitor_rules
 from app.strategy.monitor import MonitorRuleEngine  # 复用条件文本拼装 (静态方法)
@@ -86,6 +87,8 @@ def normalize_lot(lot: dict) -> dict:
 # ── 持久化 ─────────────────────────────────────────────
 def load_all(data_dir: Path) -> list[dict]:
     """读取全部批次。损坏的文件被跳过。"""
+    if isinstance(data_dir, TenantDocuments):
+        return [normalize_lot(lot) for lot in data_dir.values("lots")]
     out: list[dict] = []
     for f in sorted(_dir(data_dir).glob("lot_*.json")):
         try:
@@ -96,12 +99,20 @@ def load_all(data_dir: Path) -> list[dict]:
 
 
 def save_one(data_dir: Path, lot: dict) -> None:
+    if isinstance(data_dir, TenantDocuments):
+        validate_lot(lot)
+        data_dir.mutate("lots", lot["id"], lambda old: {
+            **lot, "created_at": old["created_at"] if old and old.get("created_at") else lot.get("created_at", _now_iso()),
+        })
+        return
     p = _path(data_dir, lot["id"])
     p.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(p, json.dumps(lot, ensure_ascii=False, indent=2))
 
 
 def delete_one(data_dir: Path, lot_id: str) -> bool:
+    if isinstance(data_dir, TenantDocuments):
+        return data_dir.delete("lots", lot_id)
     p = _path(data_dir, lot_id)
     if p.exists():
         p.unlink()

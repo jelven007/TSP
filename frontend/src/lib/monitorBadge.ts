@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { accountStorage as localStorage } from './accountSession'
 
 /**
  * 监控中心未读触发记录徽标 — 全局 store + localStorage 持久化。

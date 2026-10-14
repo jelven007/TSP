@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import shutil
 import threading
@@ -41,6 +42,7 @@ import polars as pl
 
 from app.instrument_history import instrument_status_on
 from app.market_time import CN_TZ, cn_now, cn_today
+from app.multitenancy.paper_storage import PaperSession, market_path, paper_lock, paper_operation
 from app.price_limits import (
     is_risk_warning_name,
 )
@@ -152,7 +154,11 @@ def _order_sort_key(order: dict) -> tuple:
 
 
 # ── 账户 ────────────────────────────────────────────────
+@paper_operation()
 def get_account(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict | None:
+    validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        return data_dir.account(account_id)
     p = _root(data_dir, account_id) / "account.json"
     if not p.exists():
         return None
@@ -163,6 +169,7 @@ def get_account(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict | 
         return None
 
 
+@paper_operation(write=True)
 def create_account(
     data_dir: Path,
     initial_cash: float,
@@ -176,12 +183,18 @@ def create_account(
 ) -> dict:
     """创建账户 (同 id 已存在则原样返回, 不覆盖 — 幂等)。"""
     validate_account_id(account_id)
-    with PAPER_LOCK:
+    with paper_lock(data_dir, PAPER_LOCK):
         existing = get_account(data_dir, account_id)
         if existing is not None:
             return existing
-        if isinstance(initial_cash, bool) or not isinstance(initial_cash, (int, float)) or initial_cash <= 0:
+        if isinstance(initial_cash, bool) or not isinstance(initial_cash, (int, float)) or not math.isfinite(initial_cash) or initial_cash <= 0:
             raise ValueError("初始资金必须是正数")
+        for key, value, maximum in (
+            ("commission_pct", commission_pct, 0.01),
+            ("stamp_tax_pct", stamp_tax_pct, 0.05), ("slippage_bps", slippage_bps, 200),
+        ):
+            if isinstance(value, bool) or not math.isfinite(value) or not 0 <= value <= maximum:
+                raise ValueError(f"{key} 超出合理范围 (0~{maximum})")
         acc = {
             "id": account_id,
             "name": (name or "").strip() or account_id,
@@ -194,19 +207,27 @@ def create_account(
             "status": "active",  # active / frozen
             "created_at": _now_iso(),
         }
-        atomic_write_text(_root(data_dir, account_id) / "account.json", json.dumps(acc, ensure_ascii=False, indent=2))
+        save_account(data_dir, acc, account_id)
         return acc
 
 
+@paper_operation(write=True)
 def save_account(data_dir: Path, acc: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
+    validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        data_dir.save_account(account_id, acc)
+        return
     atomic_write_text(
         _root(data_dir, account_id) / "account.json",
         json.dumps(acc, ensure_ascii=False, indent=2),
     )
 
 
+@paper_operation()
 def list_account_ids(data_dir: Path) -> list[str]:
     """全部账户 id (按创建时间; 供钩子/结算遍历)。"""
+    if isinstance(data_dir, PaperSession):
+        return data_dir.account_ids()
     base = accounts_base(data_dir)
     if not base.exists():
         return []
@@ -220,6 +241,7 @@ def list_account_ids(data_dir: Path) -> list[str]:
     return [aid for _, aid in sorted(out)]
 
 
+@paper_operation()
 def list_accounts(data_dir: Path) -> list[dict]:
     """账户列表 (带最新净值摘要, 供切换器展示)。"""
     out: list[dict] = []
@@ -240,12 +262,13 @@ def list_accounts(data_dir: Path) -> list[dict]:
     return out
 
 
+@paper_operation(write=True)
 def update_settings(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID, **fields) -> dict:
     """更新账户设置 (涨跌停排队 / 费用三参数); 未知字段忽略。返回更新后账户。
 
     费用只影响之后的新成交 (与回测费用模型同口径), 已有台账不重算。
     """
-    with PAPER_LOCK:
+    with paper_lock(data_dir, PAPER_LOCK):
         acc = get_account(data_dir, account_id)
         if acc is None:
             raise ValueError("尚未创建模拟账户")
@@ -263,6 +286,17 @@ def update_settings(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID, **fiel
             if not (lo <= v <= hi):
                 raise ValueError(f"{key} 超出合理范围 ({lo}~{hi})")
             acc[key] = v
+        save_account(data_dir, acc, account_id)
+        return acc
+
+
+@paper_operation(write=True)
+def set_frozen(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID, *, frozen: bool = True) -> dict:
+    with paper_lock(data_dir, PAPER_LOCK):
+        acc = get_account(data_dir, account_id)
+        if acc is None:
+            raise ValueError("尚未创建模拟账户")
+        acc["status"] = "frozen" if frozen else "active"
         save_account(data_dir, acc, account_id)
         return acc
 
@@ -319,7 +353,11 @@ def qty_from_amount(amount: float, ref_price: float) -> int:
 
 
 # ── 订单 ────────────────────────────────────────────────
+@paper_operation()
 def load_orders(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
+    validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        return data_dir.orders(account_id)
     out: list[dict] = []
     for f in sorted(_orders_dir(data_dir, account_id).glob("order_*.json")):
         try:
@@ -329,12 +367,21 @@ def load_orders(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[di
     return out
 
 
+@paper_operation(write=True)
 def save_order(data_dir: Path, order: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
+    validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        data_dir.save_order(account_id, order)
+        return
     p = _orders_dir(data_dir, account_id) / f"{order['id']}.json"
     atomic_write_text(p, json.dumps(order, ensure_ascii=False, indent=2))
 
 
+@paper_operation()
 def get_order(data_dir: Path, order_id: str, account_id: str = DEFAULT_ACCOUNT_ID) -> dict | None:
+    validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        return data_dir.order(account_id, order_id)
     p = _orders_dir(data_dir, account_id) / f"{order_id}.json"
     if not p.exists():
         return None
@@ -344,6 +391,7 @@ def get_order(data_dir: Path, order_id: str, account_id: str = DEFAULT_ACCOUNT_I
         return None
 
 
+@paper_operation(write=True)
 def create_order(
     data_dir: Path,
     symbol: str,
@@ -356,6 +404,7 @@ def create_order(
     asset_type: str | None = None,
     ref_price: float | None = None,
     source: str = "manual",
+    idempotency_key: str | None = None,
 ) -> tuple[dict | None, str | None]:
     """创建订单并校验。qty 与 amount 二选一 (amount 按参考价折算百股)。
 
@@ -363,7 +412,15 @@ def create_order(
     ETF 即时单自动转 next_open (盘中钩子只喂股票快照)。
     返回 (order, None) 或 (None, 错误信息)。
     """
-    with PAPER_LOCK:
+    with paper_lock(data_dir, PAPER_LOCK):
+        digest = None
+        if isinstance(data_dir, PaperSession):
+            previous, digest = data_dir.idempotent_order(account_id, idempotency_key, {
+                "symbol": symbol, "side": side, "qty": qty, "amount": amount, "order_type": order_type,
+                "asset_type": asset_type, "ref_price": ref_price, "source": source,
+            })
+            if previous:
+                return previous, None
         acc = get_account(data_dir, account_id)
         if acc is None:
             raise ValueError("尚未创建模拟账户")
@@ -452,12 +509,15 @@ def create_order(
             "reason": None,
         }
         save_order(data_dir, order, account_id)
+        if isinstance(data_dir, PaperSession):
+            data_dir.bind_order_request(account_id, order["id"], idempotency_key, digest)
         return order, None
 
 
+@paper_operation(write=True)
 def cancel_order(data_dir: Path, order_id: str, account_id: str = DEFAULT_ACCOUNT_ID) -> tuple[dict | None, str | None]:
     """撤销 pending 订单; 已成交/已过期不可撤。"""
-    with PAPER_LOCK:
+    with paper_lock(data_dir, PAPER_LOCK):
         order = get_order(data_dir, order_id, account_id)
         if order is None:
             return None, f"订单不存在: {order_id}"
@@ -474,7 +534,11 @@ def _fills_path(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> Path:
     return _root(data_dir, account_id) / "fills.jsonl"
 
 
+@paper_operation()
 def load_fills(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
+    validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        return data_dir.fills(account_id)
     p = _fills_path(data_dir, account_id)
     if not p.exists():
         return []
@@ -490,8 +554,13 @@ def load_fills(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dic
     return out
 
 
+@paper_operation()
 def load_positions(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict[str, dict]:
     """读物化持仓 (无文件时从台账重建)。"""
+    validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        positions = data_dir.positions(account_id)
+        return positions if positions is not None else replay_positions(data_dir, account_id=account_id)[0]
     p = _root(data_dir, account_id) / "positions.json"
     if p.exists():
         try:
@@ -502,6 +571,7 @@ def load_positions(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict
     return replay_positions(data_dir, account_id=account_id)[0]
 
 
+@paper_operation()
 def replay_positions(
     data_dir: Path,
     fills: list[dict] | None = None,
@@ -573,12 +643,17 @@ def _available_of(pos: dict, today: str | None = None) -> int:
     return int(sum(lot["qty"] for lot in pos["lots"] if lot["date"] < today))
 
 
+@paper_operation(write=True)
 def _append_fill(data_dir: Path, fill: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
+    if isinstance(data_dir, PaperSession):
+        data_dir.append_fill(account_id, fill)
+        return
     p = _fills_path(data_dir, account_id)
     with PAPER_LOCK, p.open("a", encoding="utf-8") as f:
         f.write(json.dumps(fill, ensure_ascii=False) + "\n")
 
 
+@paper_operation(write=True)
 def _materialize(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
     """由台账重建 positions.json (每次成交后调用, 保持物化缓存与台账一致)。"""
     positions, _cash = replay_positions(data_dir, account_id=account_id)
@@ -587,15 +662,19 @@ def _materialize(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
         today = cn_today().isoformat()
         for pos in positions.values():
             pos["available_qty"] = _available_of(pos, today)
+    if isinstance(data_dir, PaperSession):
+        data_dir.save_positions(account_id, positions)
+        return
     atomic_write_text(
         _root(data_dir, account_id) / "positions.json",
         json.dumps({"updated_at": _now_iso(), "positions": positions}, ensure_ascii=False, indent=2),
     )
 
 
+@paper_operation(write=True)
 def rebuild_positions(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict[str, dict]:
     """修复兜底: 强制由台账重建物化持仓。"""
-    with PAPER_LOCK:
+    with paper_lock(data_dir, PAPER_LOCK):
         positions, cash = replay_positions(data_dir, account_id=account_id)
         acc = get_account(data_dir, account_id)
         if acc is not None:
@@ -604,6 +683,9 @@ def rebuild_positions(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> d
         today = cn_today().isoformat()
         for pos in positions.values():
             pos["available_qty"] = _available_of(pos, today)
+        if isinstance(data_dir, PaperSession):
+            data_dir.save_positions(account_id, positions)
+            return positions
         atomic_write_text(
             _root(data_dir, account_id) / "positions.json",
             json.dumps({"updated_at": _now_iso(), "positions": positions}, ensure_ascii=False, indent=2),
@@ -612,13 +694,23 @@ def rebuild_positions(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> d
 
 
 # ── 撮合 ────────────────────────────────────────────────
+@paper_operation(write=True)
 def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -> dict | None:
     """按指定 raw 价成交一笔订单 (费用/滑点/资金与持仓校验), 返回 fill 或 None。
 
     调用方持锁。涨跌停按账户 queue_limit_orders 开关: 关 → expired 留痕;
     开 → 转 next_open 排队次日重试 (计顺延, 超限过期)。资金/可卖不足直接过期。
     """
+    if isinstance(data_dir, PaperSession):
+        current = get_order(data_dir, order["id"], account_id)
+        if current is None or current["status"] != "pending":
+            return None
+        order.update(current)
+    if not math.isfinite(raw_price) or raw_price <= 0:
+        return None
     acc = get_account(data_dir, account_id)
+    if isinstance(data_dir, PaperSession) and acc["status"] != "active":
+        return None
     symbol, side, qty = order["symbol"], order["side"], int(order["qty"])
     asset_type = order.get("asset_type", "stock")
     price = apply_slippage(raw_price, side, float(acc["slippage_bps"]))
@@ -706,6 +798,10 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
     save_account(data_dir, acc, account_id)
     _materialize(data_dir, account_id)
 
+    if isinstance(data_dir, PaperSession):
+        data_dir.alert({**_fill_event(fill, account_id), "id": f"fill:{account_id}:{order['id']}"})
+        return fill
+
     # 成交落告警记录 (监控中心触发历史可见; source=paper 走前端通用渲染)
     try:
         label = "模拟盘" if account_id == DEFAULT_ACCOUNT_ID else f"模拟盘[{acc.get('name') or account_id}]"
@@ -735,6 +831,7 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
 
 
 def _risk_warning_on(data_dir: Path, symbol: str, day: _date) -> bool:
+    data_dir = market_path(data_dir)
     if day <= cn_today():
         status = instrument_status_on(data_dir, symbol, day)
         if status is not None:
@@ -782,6 +879,7 @@ def _queue_or_expire(data_dir: Path, order: dict, acc: dict, reason: str, accoun
     _expire(data_dir, order, reason, account_id)
 
 
+@paper_operation()
 def day_fill_events(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
     """指定交易日的全部成交 → 推送事件。
 
@@ -815,7 +913,11 @@ def _fill_event(fill: dict, account_id: str) -> dict:
     }
 
 
-def evaluate_intraday(data_dir: Path, snapshot: dict[str, float], account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
+@paper_operation(write=True)
+def evaluate_intraday(
+    data_dir: Path, snapshot: dict[str, float], account_id: str = DEFAULT_ACCOUNT_ID,
+    *, quote_times: dict[str, float] | None = None,
+) -> list[dict]:
     """盘中钩子: 用最新快照价撮合 pending 即时单。返回本次成交事件列表。
 
     snapshot: {symbol: raw 最新价} (来自 enriched raw_close)。仅处理 market 单;
@@ -823,13 +925,23 @@ def evaluate_intraday(data_dir: Path, snapshot: dict[str, float], account_id: st
     事件由调用方广播 (SSE/语音/系统通知/留痕/Webhook), 域模块只产出不投递。
     """
     events: list[dict] = []
-    with PAPER_LOCK:
+    with paper_lock(data_dir, PAPER_LOCK):
         today = cn_today().isoformat()
         pending_orders = sorted(
             (o for o in load_orders(data_dir, account_id) if o["status"] == "pending" and o["order_type"] == "market"),
             key=_order_sort_key,
         )
         for order in pending_orders:
+            if quote_times is not None:
+                stamp = quote_times.get(order["symbol"])
+                try:
+                    placed = datetime.fromisoformat(order["created_at"])
+                    if placed.tzinfo is None:
+                        placed = placed.replace(tzinfo=CN_TZ)
+                except (ValueError, TypeError, KeyError):
+                    continue
+                if stamp is None or not math.isfinite(stamp) or stamp <= placed.timestamp():
+                    continue
             price = snapshot.get(order["symbol"])
             if price is None or price <= 0:
                 continue  # 无快照顺延
@@ -841,6 +953,7 @@ def evaluate_intraday(data_dir: Path, snapshot: dict[str, float], account_id: st
 
 # ── 行情读取 (结算用, 与账户无关) ───────────────────────
 def _daily_path(data_dir: Path, asset_type: str) -> Path:
+    data_dir = market_path(data_dir)
     sub = "kline_etf_daily" if asset_type == "etf" else "kline_daily"
     return data_dir / sub
 
@@ -888,6 +1001,7 @@ def _prev_close(data_dir: Path, symbol: str, asset_type: str, day: str) -> float
 
 def _index_close(data_dir: Path, day: str) -> float | None:
     """沪深300 当日 raw close (基准对比); 指数日K缺失返回 None。"""
+    data_dir = market_path(data_dir)
     base = data_dir / "kline_index_daily"
     if not base.exists():
         return None
@@ -908,6 +1022,7 @@ def _index_close(data_dir: Path, day: str) -> float | None:
 
 def _factor_on(data_dir: Path, symbol: str, asset_type: str, day: str) -> float | None:
     """symbol 在 day 的除权因子 (无因子文件/无当日事件返回 None)。"""
+    data_dir = market_path(data_dir)
     sub = "adj_factor_etf" if asset_type == "etf" else "adj_factor"
     p = data_dir / sub / "all.parquet"
     if not p.exists():
@@ -950,6 +1065,7 @@ def _placed_after_price_time(order: dict, day: str) -> bool:
     return ts.time() >= price_time
 
 
+@paper_operation(write=True)
 def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
     """盘后管道阶段: 撮合顺延单 → 除权调整 → 定版净值。幂等 (重跑同日安全)。
 
@@ -959,7 +1075,7 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
     当日不成交也不计顺延, 留到下一交易日 (见 _placed_after_price_time)。
     """
     summary = {"filled": 0, "expired": 0, "corp_actions": 0, "nav": None, "account": account_id}
-    with PAPER_LOCK:
+    with paper_lock(data_dir, PAPER_LOCK):
         acc = get_account(data_dir, account_id)
         if acc is None:
             return summary
@@ -968,6 +1084,15 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
             key=_order_sort_key,
         )
         for order in pending_orders:
+            if isinstance(data_dir, PaperSession):
+                if order.get("last_settled_day", "") >= day:
+                    continue
+                try:
+                    if datetime.fromisoformat(order["created_at"]).date().isoformat() > day:
+                        continue
+                except (KeyError, TypeError, ValueError):
+                    pass
+                order["last_settled_day"] = day
             bar = read_daily_bar(data_dir, order["symbol"], order.get("asset_type", "stock"), day)
             if bar is None:
                 order["postponed"] = int(order.get("postponed", 0)) + 1
@@ -981,6 +1106,8 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
                 continue
             if _placed_after_price_time(order, day):
                 continue  # 下单/排队时该价已打印, 留到下一交易日 (不计顺延)
+            if isinstance(data_dir, PaperSession):
+                save_order(data_dir, order, account_id)
             # next_open 用开盘价; close 与 market 兜底用收盘价
             raw = bar["open"] if order["order_type"] == "next_open" else bar["close"]
             before = order["status"]
@@ -1032,6 +1159,7 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
 
 
 # ── 净值与总览 ──────────────────────────────────────────
+@paper_operation()
 def latest_prices_from_daily(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -> dict[str, float]:
     """day 收盘后各持仓标的 raw_close (定版用)。"""
     out: dict[str, float] = {}
@@ -1044,6 +1172,7 @@ def latest_prices_from_daily(data_dir: Path, day: str, account_id: str = DEFAULT
     return out
 
 
+@paper_operation()
 def daily_nav(
     data_dir: Path,
     day: str,
@@ -1068,7 +1197,11 @@ def daily_nav(
     return {"date": day, "cash": round(float(acc["cash"]), 2), "mv": round(mv, 2), "nav": round(float(acc["cash"]) + mv, 2)}
 
 
+@paper_operation(write=True)
 def _write_nav_line(data_dir: Path, day: str, nav: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
+    if isinstance(data_dir, PaperSession):
+        data_dir.save_nav(account_id, day, nav)
+        return
     p = _nav_dir(data_dir, account_id) / "daily.jsonl"
     lines: list[str] = []
     if p.exists():
@@ -1083,7 +1216,11 @@ def _write_nav_line(data_dir: Path, day: str, nav: dict, account_id: str = DEFAU
     atomic_write_text(p, "\n".join(lines) + "\n")
 
 
+@paper_operation()
 def load_nav(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
+    validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        return data_dir.nav(account_id)
     p = _nav_dir(data_dir, account_id) / "daily.jsonl"
     if not p.exists():
         return []
@@ -1096,6 +1233,7 @@ def load_nav(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]
     return out
 
 
+@paper_operation()
 def overview(data_dir: Path, price_map: dict[str, float] | None = None, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
     """总览 (盘中实时估算): 现金 + 持仓市值 + 估算净值。"""
     acc = get_account(data_dir, account_id)
@@ -1139,13 +1277,18 @@ def overview(data_dir: Path, price_map: dict[str, float] | None = None, account_
 
 
 # ── 回合统计 (FIFO) ─────────────────────────────────────
+@paper_operation()
 def round_trips(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
     """FIFO 配对的开→平回合: 入场价含买入费, 出场净额扣卖出费。"""
-    fills = [f for f in load_fills(data_dir, account_id) if f.get("kind", "fill") == "fill"]
+    fills = load_fills(data_dir, account_id)
     lots: dict[str, list[dict]] = {}
     rounds: list[dict] = []
     for f in fills:
         symbol = f["symbol"]
+        if f.get("kind") == "corp_action":
+            for lot in lots.get(symbol, []):
+                lot["qty"] = round(lot["qty"] * float(f["factor"]), 6)
+            continue
         if f["side"] == "buy":
             lots.setdefault(symbol, []).append({
                 "date": f["date"], "qty": int(f["qty"]),
@@ -1190,6 +1333,7 @@ def max_drawdown(nav_values: list[float]) -> float | None:
     return mdd
 
 
+@paper_operation()
 def stats(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
     """回合汇总: 胜率/盈亏比/平均持有天数/已实现盈亏/最大回撤(定版净值)。"""
     rounds = round_trips(data_dir, account_id)

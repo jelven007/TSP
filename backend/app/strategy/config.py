@@ -47,6 +47,10 @@ def _path(data_dir: Path, strategy_id: str, *, ensure_dir: bool = True) -> Path:
 
 def load_override(data_dir: Path, strategy_id: str) -> dict:
     """读取策略的用户覆盖配置，不存在返回空 dict (带 mtime 签名缓存, 返回深拷贝)"""
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        return clean_market_config(data_dir.get("strategy_overrides", strategy_id, {}))
     p = _path(data_dir, strategy_id, ensure_dir=False)
     key = str(p)
     try:
@@ -78,6 +82,11 @@ def load_override(data_dir: Path, strategy_id: str) -> dict:
 
 def save_override(data_dir: Path, strategy_id: str, overrides: dict) -> None:
     """保存策略的用户覆盖配置（全量覆盖写）"""
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        data_dir.put("strategy_overrides", strategy_id, clean_market_config(overrides))
+        return
     p = _path(data_dir, strategy_id)
     p.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(p, json.dumps(clean_market_config(overrides), ensure_ascii=False, indent=2))
@@ -86,6 +95,11 @@ def save_override(data_dir: Path, strategy_id: str, overrides: dict) -> None:
 
 def delete_override(data_dir: Path, strategy_id: str) -> None:
     """删除策略的用户覆盖配置（重置为默认值）"""
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        data_dir.delete("strategy_overrides", strategy_id)
+        return
     p = _path(data_dir, strategy_id)
     _invalidate_override_cache(p)
     if p.exists():
@@ -94,6 +108,10 @@ def delete_override(data_dir: Path, strategy_id: str) -> None:
 
 def list_overrides(data_dir: Path) -> dict[str, dict]:
     """返回所有策略的覆盖配置 {strategy_id: overrides}"""
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        return {row["id"]: clean_market_config(row["value"]) for row in data_dir.records("strategy_overrides")}
     d = _overrides_dir(data_dir)
     result: dict[str, dict] = {}
     for f in d.glob("*.json"):

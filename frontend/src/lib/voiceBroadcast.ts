@@ -12,6 +12,7 @@
  */
 
 import type { AlertEvent } from './api'
+import { accountStorage as localStorage } from './accountSession'
 import { strategyEventMeta, strategyName } from './strategyMonitorEvents'
 
 const LS = {

@@ -17,6 +17,9 @@ import logging
 import threading
 from pathlib import Path
 
+from app.multitenancy.alerts import Alerts
+from app.multitenancy.documents import TenantDocuments
+
 logger = logging.getLogger(__name__)
 
 # 保留策略
@@ -37,6 +40,9 @@ def _path(data_dir: Path) -> Path:
 
 def append(data_dir: Path, event: dict) -> None:
     """追加一条触发记录。event 应含 ts(毫秒)、rule_id、source 等字段。"""
+    if isinstance(data_dir, TenantDocuments):
+        Alerts(data_dir).append_many([event])
+        return
     line = json.dumps(event, ensure_ascii=False)
     with _lock:
         p = _path(data_dir)
@@ -53,6 +59,9 @@ def append(data_dir: Path, event: dict) -> None:
 def append_many(data_dir: Path, events: list[dict]) -> None:
     """批量追加。"""
     if not events:
+        return
+    if isinstance(data_dir, TenantDocuments):
+        Alerts(data_dir).append_many(events)
         return
     with _lock:
         p = _path(data_dir)
@@ -89,6 +98,8 @@ def list_recent(
 
     持锁读: prune/delete/clear 会整文件重写, 无锁读可能读到截断内容。
     """
+    if isinstance(data_dir, TenantDocuments):
+        return Alerts(data_dir).list_recent(days, limit, source, type)
     import time
     cutoff = (time.time() - days * 86400) * 1000  # 毫秒
     out: list[dict] = []
@@ -122,6 +133,8 @@ def list_recent(
 
 def clear(data_dir: Path) -> int:
     """清空全部记录,返回清除的条数。"""
+    if isinstance(data_dir, TenantDocuments):
+        return Alerts(data_dir).clear()
     with _lock:
         p = _path(data_dir)
         if not p.exists():
@@ -142,6 +155,8 @@ def delete_one(data_dir: Path, ts: int) -> bool:
     JSONL 无主键, 用 ts(毫秒时间戳) 作为标识。
     若存在多条同 ts, 只删第一条。
     """
+    if isinstance(data_dir, TenantDocuments):
+        return Alerts(data_dir).delete_one(ts)
     with _lock:
         p = _path(data_dir)
         if not p.exists():
@@ -179,6 +194,8 @@ def delete_one(data_dir: Path, ts: int) -> bool:
 
 def count(data_dir: Path) -> int:
     """返回当前记录总数。持锁读, 防与整文件重写并发。"""
+    if isinstance(data_dir, TenantDocuments):
+        return Alerts(data_dir).count()
     p = _path(data_dir)
     if not p.exists():
         return 0

@@ -1,5 +1,9 @@
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { api } from './lib/api'
+import { QK } from './lib/queryKeys'
+import { multitenancyEnabled } from './lib/accountSession'
 import { Layout } from './components/Layout'
 import { useSettings } from './lib/useSharedQueries'
 import { Logo } from './components/Logo'
@@ -113,6 +117,22 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function AccountGuard({ children, permission }: { children: React.ReactNode; permission?: string }) {
+  const { data, isPending } = useQuery({
+    queryKey: QK.authStatus,
+    queryFn: api.authStatus,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    retry: false,
+  })
+  if (isPending) return <RouteFallback />
+  if (!data || (data.auth_required && !data.authenticated)) return <Navigate to="/login" replace />
+  if (multitenancyEnabled() && permission && !data.user?.permissions?.includes(permission)) {
+    return <div className="p-8 text-sm text-muted" role="alert">当前账户无权访问此功能。</div>
+  }
+  return <>{children}</>
+}
+
 // 按需路由的加载占位 (与 OnboardingGuard 的加载态同风格)
 function RouteFallback() {
   return (
@@ -127,7 +147,7 @@ export const router = createBrowserRouter([
     path: '/onboarding',
     element: (
       <Suspense fallback={<RouteFallback />}>
-        <Onboarding />
+        <AccountGuard permission="settings:manage"><Onboarding /></AccountGuard>
       </Suspense>
     ),
   },
@@ -142,9 +162,11 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: (
-      <OnboardingGuard>
-        <Layout />
-      </OnboardingGuard>
+      <AccountGuard>
+        <OnboardingGuard>
+          <Layout />
+        </OnboardingGuard>
+      </AccountGuard>
     ),
     children: [
       { index: true, element: <Dashboard /> },
@@ -161,7 +183,7 @@ export const router = createBrowserRouter([
       { path: 'factors', element: <Factors /> },
       { path: 'mining', element: <MiningRedirect /> },
       { path: 'financials', element: <Financials /> },
-      { path: 'data', element: <Data /> },
+      { path: 'data', element: <AccountGuard permission="data:manage"><Data /></AccountGuard> },
       { path: 'monitor', element: <Monitor /> },
       { path: 'lots', element: <Lots /> },
       { path: 'paper', element: <Paper /> },
@@ -173,7 +195,7 @@ export const router = createBrowserRouter([
       { path: 'branding', element: <Branding /> },
       { path: 'settings', element: <Settings /> },
       // 隐藏路由：开发者工具（不暴露在菜单，仅供调试）
-      { path: 'dev', element: <Dev /> },
+      { path: 'dev', element: <AccountGuard permission="settings:manage"><Dev /></AccountGuard> },
       // 旧路由兼容重定向
       { path: 'settings/keys', element: <Navigate to="/settings?tab=data-sources" replace /> },
       { path: 'settings/ai', element: <Navigate to="/settings?tab=ai" replace /> },

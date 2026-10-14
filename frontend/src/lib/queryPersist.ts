@@ -9,9 +9,10 @@
  * 键首段精确匹配 (不是前缀匹配): 'watchlist' 不会误命中 'watchlist-enriched'。
  */
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { accountStorage } from './accountSession'
 
 /** 持久化结构版本: 序列化结构变化时递增, 旧缓存整体作废 */
-export const PERSIST_BUSTER = 'v2-sh-sz'
+export const PERSIST_BUSTER = 'v3-account'
 
 /** 允许持久化的查询键首段 (对齐 lib/queryKeys.ts 各工厂首段与个别内联键) */
 const PERSISTABLE_KEY_ROOTS = new Set([
@@ -42,7 +43,7 @@ export function shouldPersistQuery(query: { queryKey: readonly unknown[]; state:
 /** localStorage 同步 persister (throttle 2s 合并高频写) */
 export function createAppPersister() {
   return createSyncStoragePersister({
-    storage: window.localStorage,
+    storage: accountStorage,
     key: 'tf-query-cache',
     throttleTime: 2_000,
   })

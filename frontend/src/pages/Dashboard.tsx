@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowUpRight, Check, Database, Gauge, GripVertical, Info, Loader2, Play, RefreshCw, RotateCcw, Sparkles, Timer } from 'lucide-react'
 import { DatePicker } from '@/components/DatePicker'
 import { api, type AlertEvent } from '@/lib/api'
+import { hasPermission, scopedStorageKey } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
 import { DimensionMembersDialog, type DimensionMembersTarget } from '@/components/DimensionMembersDialog'
 import { useDataStatus, useCapabilities, useSettings, usePreferences } from '@/lib/useSharedQueries'
@@ -24,6 +25,7 @@ import { cloneItems, GRID_COLS, type WidgetType } from '@/components/dashboard/l
 type PreviewSource = 'gain' | 'loss' | 'amount' | 'active' | 'concept' | 'industry' | 'alert'
 
 export function Dashboard() {
+  const canManageData = hasPermission('data:manage')
   const qc = useQueryClient()
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
   const [manualFetching, setManualFetching] = useState(false)
@@ -78,6 +80,7 @@ export function Dashboard() {
   const dataSourceList = useQuery({
     queryKey: QK.dataSources,
     queryFn: api.dataSources,
+    enabled: canManageData,
     staleTime: 60_000,
   })
   const activeProvider = prefs.data?.daily_data_provider || 'rustdx'
@@ -120,12 +123,12 @@ export function Dashboard() {
   // 「开始获取」前若无除权因子能力, 先弹前置确认 (adjGate.guard)
   const adjGate = useAdjFactorSyncGate()
   useEffect(() => {
-    if (!hasNoData) return
+    if (!canManageData || !hasNoData) return
     if (settings.data?.onboarding_completed === false) return  // 还在引导流程中,不重复弹
-    if (sessionStorage.getItem('tf_welcome_shown')) return
-    sessionStorage.setItem('tf_welcome_shown', '1')
+    if (sessionStorage.getItem(scopedStorageKey('tf_welcome_shown'))) return
+    sessionStorage.setItem(scopedStorageKey('tf_welcome_shown'), '1')
     setShowWelcomeModal(true)
-  }, [hasNoData, settings.data?.onboarding_completed])
+  }, [canManageData, hasNoData, settings.data?.onboarding_completed])
 
   // 同步完成后刷新看板数据
   useEffect(() => {
@@ -140,6 +143,7 @@ export function Dashboard() {
   // 修复: 挂载时若无本地数据且未跟踪任何 job, 查一次后端是否有 active job, 有则接管。
   const resumeTriedRef = useRef(false)
   useEffect(() => {
+    if (!canManageData) return
     if (resumeTriedRef.current) return
     if (!hasNoData) return
     if (fetchJobId) return
@@ -147,11 +151,15 @@ export function Dashboard() {
     api.pipelineJobs(1).then(({ active_id }) => {
       if (active_id) setFetchJobId(active_id)
     }).catch(() => { /* 查询失败不阻塞, 用户仍可手动点击获取 */ })
-  }, [hasNoData, fetchJobId])
+  }, [canManageData, hasNoData, fetchJobId])
 
   // 手动刷新: 先重建后端 Polars 缓存(解决跨天残留), 再重新拉看板数据
   const handleRefresh = () => {
     setManualFetching(true)
+    if (!canManageData) {
+      void overview.refetch().finally(() => setManualFetching(false))
+      return
+    }
     api.refreshCache()
       .then(() => qc.invalidateQueries({ queryKey: ['overview-market'] }))
       .finally(() => {
@@ -207,7 +215,12 @@ export function Dashboard() {
   return (
     <div className="min-h-full bg-base p-1.5">
       {/* 无本地数据常驻引导卡片 —— 一键触发盘后管道获取数据(无 Key 也可) */}
-      {hasNoData && (
+      {hasNoData && !canManageData && (
+        <p role="status" className="mb-3 rounded-card border border-border bg-surface p-4 text-sm text-muted">
+          平台行情正在准备，数据就绪后会自动显示。
+        </p>
+      )}
+      {hasNoData && canManageData && (
         <FetchDataCard
           isFetching={isFetching}
           isStarting={startFetch.isPending}

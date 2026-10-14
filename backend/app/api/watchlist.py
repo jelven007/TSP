@@ -28,6 +28,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 
+def _service(request: Request | None):
+    from app.config import settings
+    if settings.multitenancy_enabled or (request is not None and getattr(request.app.state, "account_identity", None)):
+        from app.cell.context import AccessError
+        from app.multitenancy.watchlist import Watchlist
+        context = getattr(request.state, "tenant_context", None) if request is not None else None
+        if context is None:
+            raise AccessError(409, "请先选择目标租户")
+        return Watchlist(request.app.state.account_identity.db, context)
+    return watchlist
+
 _MAX_IMPORT_IMAGE_BYTES = 12 * 1024 * 1024  # 12MB
 _IMPORT_IMAGE_TYPES = {
     "image/jpeg",
@@ -116,13 +127,13 @@ def _with_names(rows: list[dict], request: Request) -> list[dict]:
 
 @router.get("")
 def list_all(request: Request):
-    return {"symbols": _with_names(watchlist.list_symbols(), request)}
+    return {"symbols": _with_names(_service(request).list_symbols(), request)}
 
 
 @router.post("")
 def add_one(req: AddRequest, request: Request):
     try:
-        rows = watchlist.add(req.symbol, req.note, req.group_id)
+        rows = _service(request).add(req.symbol, req.note, req.group_id)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {"symbols": _with_names(rows, request)}
@@ -131,7 +142,7 @@ def add_one(req: AddRequest, request: Request):
 @router.post("/batch")
 def add_batch(req: BatchAddRequest, request: Request):
     try:
-        rows, added = watchlist.add_batch(
+        rows, added = _service(request).add_batch(
             req.symbols,
             req.note,
             group_id=req.group_id,
@@ -143,33 +154,33 @@ def add_batch(req: BatchAddRequest, request: Request):
 
 
 @router.get("/groups")
-def list_groups():
-    return {"groups": watchlist.list_groups()}
+def list_groups(request: Request = None):
+    return {"groups": _service(request).list_groups()}
 
 
 @router.post("/groups")
-def create_group(req: GroupNameRequest):
+def create_group(req: GroupNameRequest, request: Request = None):
     try:
-        groups, group = watchlist.create_group(req.name, req.color)
+        groups, group = _service(request).create_group(req.name, req.color)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {"groups": groups, "group": group}
 
 
 @router.put("/groups/reorder")
-def reorder_groups(req: GroupReorderRequest):
+def reorder_groups(req: GroupReorderRequest, request: Request = None):
     """重排分组前后顺序 (json 数组顺序即定义顺序, 侧边栏/标签栏/分组视图共用)。"""
     try:
-        groups = watchlist.reorder_groups(req.ordered_ids)
+        groups = _service(request).reorder_groups(req.ordered_ids)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {"groups": groups}
 
 
 @router.put("/groups/{group_id}")
-def rename_group(group_id: str, req: GroupNameRequest):
+def rename_group(group_id: str, req: GroupNameRequest, request: Request = None):
     try:
-        groups = watchlist.rename_group(group_id, req.name, req.color)
+        groups = _service(request).rename_group(group_id, req.name, req.color)
     except KeyError as e:
         raise HTTPException(404, "自选分组不存在") from e
     except ValueError as e:
@@ -180,7 +191,7 @@ def rename_group(group_id: str, req: GroupNameRequest):
 @router.delete("/groups/{group_id}")
 def delete_group(group_id: str, request: Request):
     try:
-        groups, rows = watchlist.delete_group(group_id)
+        groups, rows = _service(request).delete_group(group_id)
     except KeyError as e:
         raise HTTPException(404, "自选分组不存在") from e
     return {"groups": groups, "symbols": _with_names(rows, request)}
@@ -190,7 +201,7 @@ def delete_group(group_id: str, request: Request):
 def clear_group(group_id: str, request: Request):
     """清空分组成员:把该分组内所有股票转为未分组,保留分组定义。"""
     try:
-        rows = watchlist.clear_group(group_id)
+        rows = _service(request).clear_group(group_id)
     except KeyError as e:
         raise HTTPException(404, "自选分组不存在") from e
     return {"symbols": _with_names(rows, request)}
@@ -218,7 +229,7 @@ async def import_from_image(request: Request, file: UploadFile = File(...)):
     if not data:
         raise HTTPException(400, "空文件")
 
-    existing = {r["symbol"] for r in watchlist.list_symbols()}
+    existing = {r["symbol"] for r in _service(request).list_symbols()}
     data_dir = request.app.state.repo.store.data_dir
     try:
         # OCR 为同步 CPU/子进程；独立 limiter 限制并发，避免卡住事件循环（行情 SSE 等）
@@ -279,7 +290,7 @@ async def import_from_csv(request: Request, file: UploadFile = File(...)):
             lambda: import_watchlist_csv(
                 data,
                 data_dir,
-                existing_symbols={r["symbol"] for r in watchlist.list_symbols()},
+                existing_symbols={r["symbol"] for r in _service(request).list_symbols()},
             ),
             "文件中未识别到股票代码或名称",
         )
@@ -293,7 +304,7 @@ def import_from_codes(req: ImportCodesRequest, request: Request):
     if not text:
         raise HTTPException(400, "请输入要导入的股票代码")
 
-    existing = {r["symbol"] for r in watchlist.list_symbols()}
+    existing = {r["symbol"] for r in _service(request).list_symbols()}
     data_dir = request.app.state.repo.store.data_dir
     return _run_candidate_import(
         lambda: import_watchlist_codes(text, data_dir, existing_symbols=existing),
@@ -303,7 +314,7 @@ def import_from_codes(req: ImportCodesRequest, request: Request):
 
 @router.post("/{symbol}/top")
 def move_one_to_top(symbol: str, request: Request):
-    rows = watchlist.move_to_top(symbol)
+    rows = _service(request).move_to_top(symbol)
     return {"symbols": _with_names(rows, request)}
 
 
@@ -311,7 +322,7 @@ def move_one_to_top(symbol: str, request: Request):
 def assign_group(symbol: str, req: GroupAssignRequest, request: Request):
     """互斥设定分组(仅保留此组; None=移出全部分组)。多组操作用 members 端点。"""
     try:
-        rows = watchlist.set_group(symbol, req.group_id)
+        rows = _service(request).set_group(symbol, req.group_id)
     except KeyError as e:
         raise HTTPException(404, "自选标的不存在") from e
     except ValueError as e:
@@ -323,7 +334,7 @@ def assign_group(symbol: str, req: GroupAssignRequest, request: Request):
 def add_member(group_id: str, symbol: str, request: Request):
     """把标的加入分组(多组成员关系: 不影响其他分组)。"""
     try:
-        rows = watchlist.add_to_group(symbol, group_id)
+        rows = _service(request).add_to_group(symbol, group_id)
     except KeyError as e:
         raise HTTPException(404, "自选标的不存在") from e
     except ValueError as e:
@@ -335,7 +346,7 @@ def add_member(group_id: str, symbol: str, request: Request):
 def remove_member(group_id: str, symbol: str, request: Request):
     """把标的移出分组(仅摘本组标签; 标的仍在自选, 可能落入未分组)。"""
     try:
-        rows = watchlist.remove_from_group(symbol, group_id)
+        rows = _service(request).remove_from_group(symbol, group_id)
     except KeyError as e:
         raise HTTPException(404, "自选标的不存在") from e
     except ValueError as e:
@@ -345,14 +356,14 @@ def remove_member(group_id: str, symbol: str, request: Request):
 
 @router.delete("/{symbol}")
 def remove_one(symbol: str, request: Request):
-    rows = watchlist.remove(symbol)
+    rows = _service(request).remove(symbol)
     return {"symbols": _with_names(rows, request)}
 
 
 @router.delete("")
-def clear_all():
+def clear_all(request: Request = None):
     """清空自选列表。"""
-    count = watchlist.clear()
+    count = _service(request).clear()
     return {"removed": count}
 
 
@@ -472,7 +483,7 @@ def watchlist_enriched(
     t0 = time.perf_counter()
 
     repo = request.app.state.repo
-    entries = watchlist.list_symbols()
+    entries = _service(request).list_symbols()
     symbols = [r["symbol"] for r in entries]
     if not symbols:
         return {"rows": [], "as_of": None, "elapsed_ms": 0}

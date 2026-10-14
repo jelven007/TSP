@@ -8,13 +8,14 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.api import contracts
+from app.multitenancy.documents import private_storage
 from app.services import alert_store
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
 def _data_dir(request: Request) -> Path:
-    return request.app.state.repo.store.data_dir
+    return private_storage(request) or request.app.state.repo.store.data_dir
 
 
 @router.get("", response_model=contracts.AlertsResponse)
@@ -139,7 +140,7 @@ def seed_demo_alerts(request: Request, count: int = 12, recent: bool = True):
 
     # 同步推入 SSE 队列, 让所有连着 SSE 的客户端实时收到 (不依赖轮询)
     qs = getattr(request.app.state, "quote_service", None)
-    if qs:
+    if qs and private_storage(request) is None:
         # 转成 SSE 推送格式 (和 _evaluate_monitors 一致)
         sse_alerts = [{
             "source": ev["source"],

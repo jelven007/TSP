@@ -10,6 +10,8 @@ import { resolveWatchlistGroupColor } from '@/lib/watchlist-group-colors'
 import { SignalPicker } from '@/components/screener/SignalPicker'
 import { MONITOR_INTRADAY_SIGNAL_OPTIONS, SIGNAL_OPTIONS, cnSignal } from '@/lib/signals'
 import { usePreferences, useQuoteStatus } from '@/lib/useSharedQueries'
+import { multitenancyEnabled } from '@/lib/accountSession'
+import { CHANNELS_KEY, NOTIFICATION_PREFS_KEY } from './NotificationsPanel'
 
 interface Props {
   /** 编辑现有规则;null=新建 */
@@ -81,6 +83,10 @@ const emptyRule = (preset?: Partial<MonitorRule>): MonitorRule => ({
 export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
   const qc = useQueryClient()
   const options = useQuery({ queryKey: QK.monitorRuleOptions, queryFn: api.monitorRuleOptions })
+  const full = multitenancyEnabled()
+  const channels = useQuery({ queryKey: CHANNELS_KEY, queryFn: api.notificationChannels, enabled: full })
+  const notificationPrefs = useQuery({ queryKey: NOTIFICATION_PREFS_KEY, queryFn: api.notificationPreferences, enabled: full })
+  const defaultsApplied = useRef(!!rule || preset?.webhook_channels !== undefined)
   const { data: prefs } = usePreferences()
   const { data: quoteStatus } = useQuoteStatus()
   const quoteInterval = quoteStatus?.interval_s
@@ -109,13 +115,18 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
     }
     const initial = {
       ...emptyRule(preset),
-      webhook_channels: preset?.webhook_channels ?? (prefs?.webhook_default_channels ?? []),
+      webhook_channels: preset?.webhook_channels ?? (full ? [] : prefs?.webhook_default_channels ?? []),
     }
     if (initial.type === 'strategy' && !initial.notify_events) {
       initial.notify_events = [...DEFAULT_STRATEGY_NOTIFY_EVENTS]
     }
     return initial
   })
+  useEffect(() => {
+    if (!full || defaultsApplied.current || !notificationPrefs.data) return
+    defaultsApplied.current = true
+    setDraft(current => ({ ...current, webhook_channels: notificationPrefs.data!.default_channels }))
+  }, [full, notificationPrefs.data])
   const assetType = draft.asset_type ?? 'stock'
   // 策略列表跟随资产类型: ETF 只列技术类策略。
   const strategies = useQuery({
@@ -377,11 +388,13 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
   }
 
   // 勾选/取消勾选某个外部推送渠道。
-  const toggleChannel = (ch: string) =>
+  const toggleChannel = (ch: string) => {
+    defaultsApplied.current = true
     setDraft(d => {
       const cur = d.webhook_channels ?? []
       return { ...d, webhook_channels: cur.includes(ch) ? cur.filter(c => c !== ch) : [...cur, ch] }
     })
+  }
 
   const toggleStrategyEvent = (event: StrategyNotifyEvent) =>
     setDraft(d => {
@@ -1510,6 +1523,19 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
         </div>
 
         {/* 渠道列表 */}
+        {full ? (
+          <div className="space-y-2">
+            {channels.data?.channels.map(channel => (
+              <label key={channel.id} className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={draft.webhook_channels?.includes(channel.id) ?? false} onChange={() => toggleChannel(channel.id)} />
+                {channel.name}<span className={channel.enabled ? 'text-muted' : 'text-warning'}>{channel.enabled ? '已启用' : '已停用'}</span>
+              </label>
+            ))}
+            {channels.error && <p role="alert" className="text-xs text-danger">{channels.error.message}</p>}
+            {!channels.data?.channels.length && <p className="text-xs text-muted">{channels.isLoading ? '加载通知渠道…' : '尚未配置通知渠道'}</p>}
+            <Link to="/monitor?notifications=1" className="text-xs text-accent" onClick={onClose}>管理通知渠道与投递历史 →</Link>
+          </div>
+        ) : (<>
         <div className="space-y-1.5">
           {/* 飞书 (可用) */}
           <label className="flex items-center gap-2 cursor-pointer">
@@ -1609,6 +1635,7 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
             </p>
           )
         })()}
+        </>)}
       </div>
 
       {error && <div className="rounded-btn border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger">{error}</div>}

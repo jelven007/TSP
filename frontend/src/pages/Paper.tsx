@@ -10,6 +10,7 @@
  * 多账户: 所有查询按账户隔离 (queryKey 前缀 'paper'), 切换即换一套数据。
  */
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as echarts from 'echarts'
 import { Banknote, ChevronDown, ChevronUp, CircleDollarSign, GitCompare, PieChart, Plus, RefreshCw, Settings, TrendingUp, Wallet, X } from 'lucide-react'
@@ -381,16 +382,12 @@ function OrderForm({ acc, onDone }: { acc: string; onDone: () => void }) {
   const [qtyMode, setQtyMode] = useState<'qty' | 'amount'>('qty')
   const [orderType, setOrderType] = useState<'market' | 'next_open' | 'close'>('market')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const pendingRequest = useRef<{ signature: string; id: string } | null>(null)
 
   const m = useMutation({
-    mutationFn: () =>
-      api.paperOrderCreate({
-        symbol: symbol.trim().toUpperCase(),
-        side,
-        ...(qtyMode === 'qty' ? { qty: Number(qty) } : { amount: Number(amount) }),
-        order_type: orderType,
-      }, acc),
+    mutationFn: (body: Parameters<typeof api.paperOrderCreate>[0]) => api.paperOrderCreate(body, acc),
     onSuccess: r => {
+      pendingRequest.current = null
       setMsg({ ok: true, text: `已提交 ${ORDER_TYPE_LABEL[r.order.order_type]}单 ${r.order.side === 'buy' ? '买入' : '卖出'} ${r.order.symbol} x ${r.order.qty}` })
       onDone()
     },
@@ -399,6 +396,20 @@ function OrderForm({ acc, onDone }: { acc: string; onDone: () => void }) {
 
   const canSubmit = symbol.trim().length >= 6
     && (qtyMode === 'qty' ? Number(qty) > 0 && Number(qty) % 100 === 0 : Number(amount) > 0)
+
+  const submitOrder = () => {
+    if (!canSubmit || m.isPending) return
+    const body = {
+      symbol: symbol.trim().toUpperCase(), side,
+      ...(qtyMode === 'qty' ? { qty: Number(qty) } : { amount: Number(amount) }),
+      order_type: orderType,
+    }
+    const signature = JSON.stringify([acc, body])
+    if (pendingRequest.current?.signature !== signature) {
+      pendingRequest.current = { signature, id: crypto.randomUUID() }
+    }
+    m.mutate({ ...body, request_id: pendingRequest.current.id })
+  }
 
   // 标的联想: 代码 / 中文名 / 拼音首字母, 与自选搜索同一后端 (ETF 可一并搜出)
   const symbolSearch = useQuery({
@@ -492,7 +503,7 @@ function OrderForm({ acc, onDone }: { acc: string; onDone: () => void }) {
           </div>
         </div>
         <button
-          onClick={() => canSubmit && m.mutate()}
+          onClick={submitOrder}
           disabled={!canSubmit || m.isPending}
           className={cn(
             'w-full rounded-btn py-2 text-sm font-medium text-white transition-all duration-150 ease-smooth disabled:opacity-40 disabled:cursor-not-allowed',

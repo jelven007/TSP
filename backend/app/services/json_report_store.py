@@ -19,6 +19,7 @@ import logging
 import os
 import threading
 import time
+import uuid
 from pathlib import Path
 
 from app.market_time import cn_now
@@ -49,8 +50,10 @@ class JsonReportStore:
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
 
-    def list_reports(self) -> list[dict]:
+    def list_reports(self, *, documents=None) -> list[dict]:
         """返回全部报告(按 created_at 降序)。"""
+        if documents is not None:
+            return documents.get("ai_reports", self.filename, [])
         p = self._path()
         if not p.exists():
             return []
@@ -84,11 +87,21 @@ class JsonReportStore:
             return f"{base}_{report.get('symbol', 'x')}"
         return base
 
-    def save_report(self, report: dict) -> dict:
+    def save_report(self, report: dict, *, documents=None) -> dict:
         """新增一条报告并持久化。返回保存后的报告(含 id / created_at)。
 
         自动补全 id 与 created_at(若缺),并裁剪到上限。
         """
+        if documents is not None:
+            saved = {**report, "id": f"{self.id_prefix}_{uuid.uuid4().hex}",
+                     "created_at": report.get("created_at") or self._now_iso()}
+
+            def append(previous):
+                rows = [saved, *(previous or [])]
+                return sorted(rows, key=lambda row: row.get("created_at", ""), reverse=True)[:self.max_reports]
+
+            documents.mutate("ai_reports", self.filename, append)
+            return saved
         with self._lock:
             reports = self.list_reports()
             if not report.get("id"):
@@ -101,8 +114,20 @@ class JsonReportStore:
         logger.info("report saved: %s → %s, total %d", self.filename, report.get("id"), total)
         return report
 
-    def delete_report(self, report_id: str) -> bool:
+    def delete_report(self, report_id: str, *, documents=None) -> bool:
         """删除指定报告。返回是否删除成功。"""
+        if documents is not None:
+            removed = False
+
+            def remove(previous):
+                nonlocal removed
+                rows = previous or []
+                remaining = [row for row in rows if row.get("id") != report_id]
+                removed = len(rows) != len(remaining)
+                return remaining
+
+            documents.mutate("ai_reports", self.filename, remove)
+            return removed
         with self._lock:
             reports = self.list_reports()
             before = len(reports)
@@ -112,8 +137,18 @@ class JsonReportStore:
                 return True
         return False
 
-    def clear_reports(self) -> int:
+    def clear_reports(self, *, documents=None) -> int:
         """清空全部报告。返回删除数量。"""
+        if documents is not None:
+            count = 0
+
+            def clear(previous):
+                nonlocal count
+                count = len(previous or [])
+                return []
+
+            documents.mutate("ai_reports", self.filename, clear)
+            return count
         with self._lock:
             reports = self.list_reports()
             n = len(reports)

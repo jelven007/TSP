@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { accountStorage as localStorage } from '@/lib/accountSession'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Check, AlertCircle } from 'lucide-react'
 import { useBubbleTasks, restoreDialog } from '@/lib/stockAnalysisStore'

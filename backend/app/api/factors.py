@@ -203,6 +203,11 @@ class CompositeFactorCreateRequest(BaseModel):
 def _data_dir(request: Request):
     from pathlib import Path
 
+    from app.multitenancy.documents import private_storage
+
+    documents = private_storage(request)
+    if documents is not None:
+        return documents
     data_dir = getattr(getattr(request.app.state, "repo", None), "store", None)
     root = getattr(data_dir, "data_dir", None) if data_dir is not None else None
     if root is None:
@@ -357,9 +362,19 @@ def update_custom_factor(factor_id: str, req: CustomFactorUpdateRequest, request
 
 def _find_references(data_dir, factor_id: str) -> list[str]:
     """扫描策略与复合因子定义中的引用 (删除前 fail-closed 检查)。"""
+    from app.multitenancy.documents import TenantDocuments
+
     references: list[str] = []
-    strategies_dir = data_dir / "strategies"
-    if strategies_dir.is_dir():
+    if isinstance(data_dir, TenantDocuments):
+        import json
+
+        for namespace in ("strategy_sources", "strategy_overrides", "custom_signals"):
+            references.extend(f"{namespace}/{row['id']}" for row in data_dir.records(namespace)
+                              if factor_id in json.dumps(row["value"], ensure_ascii=False))
+        strategies_dir = None
+    else:
+        strategies_dir = data_dir / "strategies"
+    if strategies_dir is not None and strategies_dir.is_dir():
         for file in strategies_dir.glob("*.json"):
             try:
                 text = file.read_text(encoding="utf-8")

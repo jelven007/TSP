@@ -7,6 +7,7 @@
  * 提交 React state + 持久化。视觉全部走设计令牌; 动画用全站统一缓动。
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { accountStorage as localStorage } from '@/lib/accountSession'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'

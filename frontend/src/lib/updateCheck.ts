@@ -175,7 +175,7 @@ const HOURLY_MS = 60 * 60 * 1000
  * 此后每小时静默复检 (silent+force 绕过 24h 缓存, 捕捉使用期间发布的新版本);
  * `check` 为手动入口, 绕过缓存立即刷新。
  */
-export function useUpdateCheck(): {
+export function useUpdateCheck(enabled = true): {
   status: UpdateStatus
   info: UpdateInfo | null
   checkedAt: number
@@ -185,19 +185,19 @@ export function useUpdateCheck(): {
   const { data: versionData } = useVersion()
   const current = (versionData?.version ?? '').trim()
   useEffect(() => {
-    if (!current || silentStarted) return
+    if (!enabled || !current || silentStarted) return
     silentStarted = true
     void checkForUpdate(current)
-  }, [current])
+  }, [current, enabled])
   // 每小时复检: 模块级单例 (Layout 常驻持有; 多消费者不重复起定时器)
   useEffect(() => {
-    if (!current || hourlyStarted) return
+    if (!enabled || !current || hourlyStarted) return
     hourlyStarted = true
     const id = setInterval(() => {
       void checkForUpdate(current, { force: true, silent: true })
     }, HOURLY_MS)
     return () => clearInterval(id)
-  }, [current])
+  }, [current, enabled])
   const check = useCallback(() => {
     void checkForUpdate(current, { force: true })
   }, [current])

@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from app.api import contracts
 from app.config import settings
 from app.db_safe import is_valid_ext_ident, quote_ident
+from app.multitenancy.documents import TenantDocuments
 from app.services import strategy_cache, strategy_run_queue
 from app.services.screener import ScreenerService
 from app.strategy import config as strategy_config
@@ -25,6 +26,21 @@ from app.strategy import config as strategy_config
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/screener", tags=["screener"])
+
+
+def _private_data_dir(request: Request):
+    from app.multitenancy.documents import private_storage
+
+    documents = private_storage(request)
+    return documents if documents is not None else request.app.state.repo.store.data_dir
+
+
+def _strategy_engine(request: Request):
+    if getattr(request.app.state, "account_identity", None) is not None:
+        from app.api.strategy import _get_engine
+
+        return _get_engine(request)
+    return getattr(request.app.state, "strategy_engine", None)
 
 
 class CustomRequest(BaseModel):
@@ -261,8 +277,8 @@ def strategies(
     timeframe: str = Query("1d"),
 ):
     """兼容策略清单端点；唯一数据源为 StrategyEngine。"""
-    data_dir = request.app.state.repo.store.data_dir
-    engine = getattr(request.app.state, "strategy_engine", None)
+    data_dir = _private_data_dir(request)
+    engine = _strategy_engine(request)
     if engine is None:
         raise HTTPException(status_code=503, detail="策略引擎未初始化")
     presets = []
@@ -316,10 +332,10 @@ def run_preset(req: PresetRequest, request: Request):
         raise HTTPException(status_code=400, detail="无可用数据日期")
 
     # 加载用户保存的策略配置
-    data_dir = request.app.state.repo.store.data_dir
+    data_dir = _private_data_dir(request)
     ext_values = _load_ext_value_maps(repo, req.ext_columns)
     overrides = strategy_config.load_override(data_dir, req.strategy_id)
-    engine = getattr(request.app.state, "strategy_engine", None)
+    engine = _strategy_engine(request)
     if not engine:
         raise HTTPException(status_code=404, detail=f"策略引擎未初始化或策略 {req.strategy_id} 不存在")
 
@@ -367,10 +383,25 @@ def run_preset(req: PresetRequest, request: Request):
 
 def _cached_with_realtime(request: Request) -> dict:
     """读取盘后缓存，并用监控引擎的实时结果覆盖同策略。"""
-    data_dir = request.app.state.repo.store.data_dir
+    data_dir = _private_data_dir(request)
     cached = strategy_cache.read_cache(data_dir)
     if cached is None:
         cached = {"as_of": None, "results": {}, "updated_at": None}
+
+    if isinstance(data_dir, TenantDocuments):
+        from app.multitenancy.runtime import fingerprint
+
+        with data_dir.transaction(write=False) as unit:
+            realtime = unit.get("monitor_results", "default")
+            if (realtime and 0 <= time.time() * 1000 - realtime["sequence"] <= 30000
+                    and realtime["fingerprint"] == fingerprint(unit.connection, include_state=False)):
+                cached = {**cached, "results": {**cached["results"], **realtime["results"]},
+                          "updated_at": realtime["sequence"],
+                          "as_of": cached["as_of"] or max(
+                              (value.get("as_of") for value in realtime["results"].values() if value.get("as_of")),
+                              default=None,
+                          )}
+        return cached
 
     # 叠加监控引擎内存里的实时结果 (若有), 用新鲜数据覆盖同策略的盘后结果
     monitor_engine = getattr(request.app.state, "monitor_engine", None)
@@ -673,7 +704,7 @@ def run_all(request: Request, body: Optional[dict] = None):
     asset_type = str(body.get("asset_type") or "stock")
     timeframe = str(body.get("timeframe") or "1d")
     svc = ScreenerService(repo, asset_type=asset_type)
-    engine = getattr(request.app.state, "strategy_engine", None)
+    engine = _strategy_engine(request)
     if engine is None:
         raise HTTPException(status_code=503, detail="策略引擎未初始化")
 
@@ -694,7 +725,7 @@ def run_all(request: Request, body: Optional[dict] = None):
     if not as_of:
         return {"as_of": None, "results": {}}
 
-    data_dir = request.app.state.repo.store.data_dir
+    data_dir = _private_data_dir(request)
 
     requested_ids = body.get("strategy_ids")
     if requested_ids and isinstance(requested_ids, list):
@@ -733,7 +764,8 @@ def run_all(request: Request, body: Optional[dict] = None):
     # 返回, 慢策略转后台继续算并逐个写入策略缓存, 前端轮询 cached-summary 点亮。
     # 仅日线 + summary_only (策略页卡片) 启用; 分钟/明细请求保持整段阻塞。
     first_return_s = settings.strategy_run_all_first_return_s
-    if body.get("summary_only") and timeframe == "1d" and first_return_s > 0:
+    if (body.get("summary_only") and timeframe == "1d" and first_return_s > 0
+            and not getattr(engine, "remote_context", False)):
         return _run_all_progressive(
             repo=repo,
             engine=engine,

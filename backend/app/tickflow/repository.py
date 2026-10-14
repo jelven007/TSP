@@ -102,8 +102,15 @@ def _last_available_rows(df: pl.DataFrame, cutoff: date) -> pl.DataFrame:
 class DataStore:
     """唯一的存储入口 — 进程启动时创建。"""
 
-    def __init__(self, data_dir: Path | None = None) -> None:
+    def __init__(self, data_dir: Path | None = None, *, read_only: bool = False) -> None:
         self.data_dir = Path(data_dir or settings.data_dir)
+        self.read_only = read_only
+        if read_only:
+            if not self.data_dir.is_dir():
+                raise ValueError("public market directory is unavailable")
+            self.db = duckdb.connect(database=":memory:")
+            self._register_views()
+            return
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
         # 一次性数据迁移: 旧桌面版把数据放在 exe 同级的兄弟目录 TickFlowStockPanel_Data/,
@@ -2092,6 +2099,8 @@ class KlineRepository:
 
     def get_matrix_data_generation(self, asset_type: str = "stock") -> str:
         """Return the stable generation for managed enriched readers."""
+        if getattr(self.store, "read_only", False):
+            return get_enriched_generation(self.store.data_dir, asset_type, initialize=False)
         return get_enriched_generation(self.store.data_dir, asset_type)
 
     def _bump_matrix_data_generation(self, asset_type: str) -> str:
@@ -2498,6 +2507,24 @@ class KlineRepository:
         df_sorted = df.sort(["symbol", "date"])
         with self._write_lock:
             self._atomic_write_parquet(df_sorted, out)
+
+    def install_public_snapshot(self, asset_type: str, df: pl.DataFrame) -> None:
+        """Replace read caches from the platform without touching shared files."""
+        if not self.store.read_only:
+            raise RuntimeError("public snapshot bridge requires a read-only repository")
+        if df.is_empty() or "date" not in df.columns:
+            return
+        fields = {
+            "stock": ("_enriched_cache", "_enriched_cache_date"),
+            "etf": ("_etf_enriched_cache", "_etf_enriched_cache_date"),
+            "index": ("_index_enriched_cache", "_index_enriched_cache_date"),
+        }
+        if asset_type not in fields:
+            raise ValueError("unknown snapshot asset type")
+        cache_name, day_name = fields[asset_type]
+        with self._write_lock:
+            setattr(self, cache_name, df)
+            setattr(self, day_name, df["date"][0])
 
     def flush_live_enriched(self, df: pl.DataFrame) -> None:
         """覆写当天 kline_daily_enriched 分区 (实时 enriched 落盘, 非merge)。

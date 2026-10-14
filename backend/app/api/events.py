@@ -31,6 +31,8 @@ def issue_ticket(request: Request):
     """Bearer Token (任意 scope) → 一次性 SSE 票据。"""
     # 认证与限流已在网关中间件完成 (scope 规则 "*"); 端点内再验一次
     # 明文是为了拿到 Token 记录、让票据继承 scope (不放大权限)。
+    if getattr(request.app.state, "account_identity", None) is not None:
+        raise HTTPException(409, "请使用当前账户的租户事件流")
     authz = request.headers.get("authorization", "")
     plaintext = authz[len("Bearer "):].strip() if authz.startswith("Bearer ") else ""
 
@@ -56,8 +58,13 @@ def issue_ticket(request: Request):
         },
     },
 )
-async def event_stream(ticket: str = ""):
+async def event_stream(request: Request = None, ticket: str = ""):
     """SSE 事件流; 票据一次性, 重连需 POST /ticket 换新。"""
+    if request is not None and getattr(request.app.state, "account_identity", None) is not None:
+        from sse_starlette.sse import EventSourceResponse
+
+        from app.multitenancy.events import stream
+        return EventSourceResponse(stream(request))
     scopes = event_tickets.consume(ticket) if ticket else None
     if scopes is None:
         return JSONResponse(status_code=401, content={"detail": "票据无效、已使用或过期"})

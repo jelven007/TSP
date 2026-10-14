@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import json
 import logging
 import math
 import threading
@@ -268,11 +269,11 @@ def _watchlist_groups_snapshot() -> dict[str, frozenset[str]]:
     return frozen
 
 
-def _group_members_or_none(rule: dict) -> frozenset[str] | None:
+def _group_members_or_none(rule: dict, groups: dict | None = None) -> frozenset[str] | None:
     """解析规则绑定的分组成员; 分组已删除返回 None, 解析异常返回 None 并记日志。"""
     group_id = str(rule.get("group_id") or "")
     try:
-        groups = _watchlist_groups_snapshot()
+        groups = _watchlist_groups_snapshot() if groups is None else groups
     except Exception as exc:  # noqa: BLE001
         logger.warning("自选分组数据读取失败, 规则 %s 本轮跳过: %s", rule.get("id"), exc)
         return None
@@ -331,8 +332,10 @@ class MonitorRuleEngine:
       - ★ cooldown 去重: 同一 (rule_id, symbol, event_type) 在冷却期内不重复触发
     """
 
-    def __init__(self, alert_handler: Callable[[dict], None] | None = None):
+    def __init__(self, alert_handler: Callable[[dict], None] | None = None, *, groups: dict | None = None):
         self._alert_handler = alert_handler
+        # An explicit snapshot never falls back to the legacy global cache.
+        self._groups = groups
         self._rules: dict[str, dict] = {}  # rule_id → rule
         # (rule_id, symbol, event_type) → 上次触发时间戳(秒)。用于 cooldown 去重。
         self._last_fire: dict[tuple[str, str, str], float] = {}
@@ -373,6 +376,45 @@ class MonitorRuleEngine:
         # abnormal 规则边缘触发状态: (rule_id, symbol) → 上一轮是否已达阈值。
         # 只在 False → True 跳变时告警 (首轮观测不触发, 防止新建规则瞬间刷屏)。
         self._abnormal_condition_state: dict[tuple[str, str], bool] = {}
+
+    def export_state(self) -> dict:
+        """Serializable domain state; a worker commits it with its alerts."""
+        def pairs(values):
+            return [[list(key), sorted(value) if isinstance(value, set) else value]
+                    for key, value in values.items()]
+
+        return {
+            "version": 1, "rules": list(self._rules.values()),
+            "rules_version": self._rules_version,
+            "last_fire": pairs(self._last_fire),
+            "date_eval_day": self._date_eval_day,
+            "date_eval_rules_version": self._date_eval_rules_version,
+            "strategy_pools": pairs(self._strategy_pools),
+            "strategy_signal_state": [
+                [list(key), [day, sorted(symbols)]]
+                for key, (day, symbols) in self._strategy_signal_state.items()
+            ],
+            "strategy_signal_seen": pairs(self._strategy_signal_seen),
+            "sector_condition_state": pairs(self._sector_condition_state),
+            "abnormal_condition_state": pairs(self._abnormal_condition_state),
+        }
+
+    def restore_state(self, state: dict | None) -> None:
+        """Restore before set_rules, so edited/removed rules invalidate state."""
+        if not state:
+            return
+        if state.get("version") != 1:
+            raise ValueError("unsupported monitor state")
+        self._rules = {rule["id"]: rule for rule in state["rules"]}
+        self._rules_version = int(state["rules_version"])
+        self._date_eval_day = state.get("date_eval_day")
+        self._date_eval_rules_version = int(state["date_eval_rules_version"])
+        for name in ("last_fire", "strategy_signal_seen", "sector_condition_state", "abnormal_condition_state"):
+            setattr(self, "_" + name, {tuple(key): value for key, value in state.get(name, [])})
+        self._strategy_pools = {tuple(key): set(value) for key, value in state.get("strategy_pools", [])}
+        self._strategy_signal_state = {
+            tuple(key): (value[0], set(value[1])) for key, value in state.get("strategy_signal_state", [])
+        }
 
     def set_strategy_engine(self, engine) -> None:
         """注入 StrategyEngine, type=strategy 规则据此跑选股。"""
@@ -459,6 +501,13 @@ class MonitorRuleEngine:
             rule.get("abnormal_window"),
             rule.get("remind_date"),
             rule.get("lead_days"),
+            rule.get("group_id"),
+            rule.get("logic", "and"),
+            json.dumps(rule.get("conditions", []), sort_keys=True),
+            json.dumps(rule.get("basic_filter", {}), sort_keys=True),
+            tuple(rule.get("notify_events") or []),
+            rule.get("metric"), rule.get("threshold"),
+            rule.get("threshold_volume"), rule.get("threshold_amount"),
         )
 
     def set_rules(self, rules: list[dict]) -> None:
@@ -989,7 +1038,7 @@ class MonitorRuleEngine:
             scope_symbols = {str(s) for s in rule.get("symbols", []) if s}
         elif rule.get("scope") == "watchlist_group":
             # 异动规则同样支持动态分组; 分组已删除返回 None → 本轮整体跳过
-            members = _group_members_or_none(rule)
+            members = _group_members_or_none(rule, self._groups)
             if members is None:
                 return events
             scope_symbols = set(members)
@@ -1080,7 +1129,7 @@ class MonitorRuleEngine:
     def _evaluate_rule(self, df: pl.DataFrame, rule: dict, now: float) -> list[dict]:
         """评估单条规则,返回触发的 events。"""
         # 1. 按 scope 过滤作用域
-        scoped = self._apply_scope(df, rule)
+        scoped = self._apply_scope(df, rule, self._groups)
         if scoped.is_empty():
             return []
 
@@ -1164,7 +1213,7 @@ class MonitorRuleEngine:
         return events
 
     @staticmethod
-    def _apply_scope(df: pl.DataFrame, rule: dict) -> pl.DataFrame:
+    def _apply_scope(df: pl.DataFrame, rule: dict, groups: dict | None = None) -> pl.DataFrame:
         """按 scope 过滤 DataFrame。"""
         scope = rule.get("scope", "symbols")
         if scope == "all":
@@ -1177,7 +1226,7 @@ class MonitorRuleEngine:
         if scope == "watchlist_group":
             # 动态绑定自选分组: 每轮评估按分组当前成员过滤 (带版本号缓存)。
             # 分组已删除/暂时为空 → fail-closed 返回空, 绝不退化为全市场。
-            members = _group_members_or_none(rule)
+            members = _group_members_or_none(rule, groups)
             if not members:
                 return df.head(0)
             return df.filter(pl.col("symbol").is_in(list(members)))

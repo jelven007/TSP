@@ -22,8 +22,9 @@ from pydantic import BaseModel
 
 from app.indicators.levels import compute_levels, summarize_levels
 from app.market_time import cn_today
+from app.multitenancy.ai import authorized_lines, report_options
+from app.multitenancy.documents import private_storage
 from app.services import stock_reports
-from app.services.ndjson_heartbeat import with_heartbeat
 from app.services.stock_analyzer import analyze_stock_stream
 
 logger = logging.getLogger(__name__)
@@ -165,10 +166,14 @@ async def analyze_stock(request: Request, req: AnalyzeRequest):
 
     repo = request.app.state.repo
     data_dir = repo.store.data_dir
+    documents = private_storage(request)
+    options = {"private_data": documents} if documents is not None else {}
 
     async def stream_gen():
-        async for chunk in with_heartbeat(analyze_stock_stream(repo, data_dir, req.symbol, req.focus)):
-            yield chunk + "\n"
+        async for line in authorized_lines(
+            request, analyze_stock_stream(repo, data_dir, req.symbol, req.focus, **options),
+        ):
+            yield line
 
     return StreamingResponse(
         stream_gen(),
@@ -195,7 +200,7 @@ class SaveReportRequest(BaseModel):
 @router.get("/reports")
 def list_reports(request: Request):
     """获取全部历史报告(按时间降序,后端已裁剪到上限)。"""
-    return {"reports": stock_reports.list_reports()}
+    return {"reports": stock_reports.list_reports(**report_options(request))}
 
 
 @router.post("/reports")
@@ -209,12 +214,12 @@ def save_report(request: Request, req: SaveReportRequest):
         "summary": req.summary,
         "close": req.close,
         "levels": req.levels,
-    })
+    }, **report_options(request))
     return {"ok": True, "report": report}
 
 
 @router.delete("/reports/{report_id}")
 def delete_report(request: Request, report_id: str):
     """删除一条报告。"""
-    ok = stock_reports.delete_report(report_id)
+    ok = stock_reports.delete_report(report_id, **report_options(request))
     return {"ok": ok}

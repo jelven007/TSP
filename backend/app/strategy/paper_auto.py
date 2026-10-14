@@ -14,6 +14,7 @@ paper_auto.on_rule_events → paper.create_order(source=f"auto:{rule_id}")。
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import uuid
@@ -22,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.market_time import cn_now
+from app.multitenancy.paper_storage import PaperSession, paper_lock, paper_operation
 from app.services.fs_utils import atomic_write_text
 from app.strategy import paper
 
@@ -79,7 +81,12 @@ def normalize_rule(rule: dict) -> dict:
     return d
 
 
+@paper_operation()
 def load_auto_rules(data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID, enabled_only: bool = False) -> list[dict]:
+    paper.validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        rules = [normalize_rule(rule) for rule in data_dir.document_values(f"paper_auto:{account_id}")]
+        return [rule for rule in rules if not enabled_only or rule.get("enabled")]
     out: list[dict] = []
     for f in sorted(_dir(data_dir, account_id).glob("arule_*.json")):
         try:
@@ -92,19 +99,33 @@ def load_auto_rules(data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID, 
     return out
 
 
+@paper_operation(write=True)
 def save_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> dict:
     validate_rule(rule)
+    if isinstance(data_dir, PaperSession):
+        if paper.get_account(data_dir, account_id) is None:
+            raise ValueError("尚未创建模拟账户")
+        namespace = f"paper_auto:{account_id}"
+        if data_dir.document(namespace, rule["id"]) is None and len(data_dir.document_values(namespace)) >= 100:
+            raise ValueError("自动跟单规则数量已达上限")
+        data_dir.put_document(namespace, rule["id"], rule)
+        return rule
     atomic_write_text(_dir(data_dir, account_id) / f"{rule['id']}.json", json.dumps(rule, ensure_ascii=False, indent=2))
     return rule
 
 
+@paper_operation(write=True)
 def create_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> dict:
     rule = normalize_rule({**rule, "id": _new_id()})
     validate_rule(rule)
     return save_auto_rule(data_dir, rule, account_id)
 
 
+@paper_operation(write=True)
 def delete_auto_rule(data_dir: Path, rule_id: str, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> bool:
+    paper.validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        return data_dir.delete_document(f"paper_auto:{account_id}", rule_id)
     p = _dir(data_dir, account_id) / f"{rule_id}.json"
     if p.exists():
         p.unlink()
@@ -112,7 +133,15 @@ def delete_auto_rule(data_dir: Path, rule_id: str, account_id: str = paper.DEFAU
     return False
 
 
+@paper_operation(write=True)
 def set_enabled(data_dir: Path, rule_id: str, enabled: bool, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> dict | None:
+    if isinstance(data_dir, PaperSession):
+        rule = data_dir.document(f"paper_auto:{account_id}", rule_id)
+        if rule is None:
+            return None
+        rule = normalize_rule(rule)
+        rule["enabled"] = enabled
+        return save_auto_rule(data_dir, rule, account_id)
     p = _dir(data_dir, account_id) / f"{rule_id}.json"
     if not p.exists():
         return None
@@ -160,6 +189,7 @@ def _sizing_qty(data_dir: Path, rule: dict, ref_price: float, account_id: str) -
     return paper.qty_from_amount(amount, ref_price)
 
 
+@paper_operation(write=True)
 def on_rule_events(data_dir: Path, events: list[dict], account_id: str = paper.DEFAULT_ACCOUNT_ID) -> list[dict]:
     """监控事件 → 自动下单。返回本次创建的订单列表 (被拒订单只记日志)。
 
@@ -172,7 +202,7 @@ def on_rule_events(data_dir: Path, events: list[dict], account_id: str = paper.D
     rules = load_auto_rules(data_dir, account_id, enabled_only=True)
     if not rules:
         return created
-    with paper.PAPER_LOCK:
+    with paper_lock(data_dir, paper.PAPER_LOCK):
         for ev in events:
             symbol = (ev.get("symbol") or "").strip()
             price = ev.get("price")
@@ -181,6 +211,14 @@ def on_rule_events(data_dir: Path, events: list[dict], account_id: str = paper.D
             for rule in rules:
                 if not _matches(rule, ev):
                     continue
+                receipt = hashlib.sha256(json.dumps([rule["id"], ev], sort_keys=True).encode()).hexdigest()
+                if isinstance(data_dir, PaperSession):
+                    if data_dir.document(f"paper_event:{account_id}", receipt):
+                        continue
+                    # Persist a receipt in the same transaction as any new
+                    # order. A worker replay cannot place a duplicate even
+                    # with zero cooldown or after a rule has been edited.
+                    data_dir.put_document(f"paper_event:{account_id}", receipt, {"processed": True})
                 if _in_cooldown(data_dir, rule, symbol, int(rule.get("cooldown_days", 0)), account_id):
                     continue
                 qty = _sizing_qty(data_dir, rule, float(price), account_id)
@@ -199,6 +237,9 @@ def on_rule_events(data_dir: Path, events: list[dict], account_id: str = paper.D
                     logger.info("paper auto %s: %s 下单被拒: %s", rule["name"], symbol, err)
                     continue
                 created.append(order)
+                if isinstance(data_dir, PaperSession):
+                    event = auto_order_events([order], account_id)[0]
+                    data_dir.alert({**event, "id": f"auto:{account_id}:{order['id']}"})
                 logger.info("paper auto %s: %s 触发 %s %d 股 (%s)", rule["name"], symbol, rule["side"], qty, order["id"])
     return created
 

@@ -33,8 +33,10 @@ _DATA_PROVIDER_FIELDS = (
 
 def _path() -> Path:
     from app.config import settings
-    p = settings.data_dir / "user_data" / "preferences.json"
-    p.parent.mkdir(parents=True, exist_ok=True)
+    root = settings.platform_config_dir or settings.data_dir / "user_data"
+    p = root / "preferences.json"
+    if settings.service_role != "api":
+        p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
 
@@ -44,8 +46,12 @@ def _invalidate_cache() -> None:
     _cache_sig = None
 
 
-def load() -> dict:
+def load(data_dir=None) -> dict:
     """读取 preferences.json (带 mtime 签名缓存)。返回深拷贝, 调用方可自由修改。"""
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        return data_dir.get("preferences", "default", {})
     global _cache, _cache_sig
     p = _path()
     try:
@@ -74,12 +80,16 @@ def load() -> dict:
 _SAVE_LOCK = threading.Lock()
 
 
-def save(updates: dict) -> dict:
+def save(updates: dict, data_dir=None) -> dict:
     """合并写入。返回新内容。
 
     锁内 read-modify-write: FastAPI 同步端点跑线程池, 并行 PUT 各自基于旧快照
     写盘会互相覆盖 (实测: 压缩总开关并行写分时/日K两键, 后写者把先写者覆盖)。
     """
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        return data_dir.mutate("preferences", "default", lambda current: {**(current or {}), **updates})
     with _SAVE_LOCK:
         current = load()
         current.update(updates)
@@ -694,9 +704,9 @@ def set_review_schedule(enabled: bool, hour: int, minute: int) -> dict:
 MINING_BUDGET_PROFILES = frozenset({"balanced", "strict"})
 
 
-def get_mining_schedule() -> dict:
+def get_mining_schedule(data_dir=None) -> dict:
     """返回周度自动 mining 配置。历史配置缺字段时默认关闭。"""
-    data = load()
+    data = load(data_dir) if data_dir is not None else load()
     weekday = data.get("mining_schedule_weekday", 4)
     if isinstance(weekday, bool) or not isinstance(weekday, int) or not 0 <= weekday <= 4:
         weekday = 4
@@ -713,7 +723,7 @@ def get_mining_schedule() -> dict:
     }
 
 
-def set_mining_schedule(enabled: bool, weekday: int, profile: str) -> dict:
+def set_mining_schedule(enabled: bool, weekday: int, profile: str, data_dir=None) -> dict:
     """校验并一次写入周度自动 mining 的整组配置。"""
     if isinstance(weekday, bool) or not isinstance(weekday, int) or not 0 <= weekday <= 4:
         raise ValueError("mining schedule weekday must be between 0 and 4")
@@ -724,7 +734,7 @@ def set_mining_schedule(enabled: bool, weekday: int, profile: str) -> dict:
         "mining_schedule_weekday": weekday,
         "mining_budget_profile": profile,
     }
-    save(result)
+    save(result, data_dir) if data_dir is not None else save(result)
     return result
 
 
@@ -1223,8 +1233,14 @@ def set_dashboard_layout(value: dict | None) -> dict | None:
     护栏: items 数量、字段类型/取值范围、整体 JSON 体积;
     前端渲染前还会再做一轮规范化(未知组件剔除等), 此处只防脏数据写盘。
     """
+    blob = normalize_dashboard_layout(value)
+    save({"dashboard_layout": blob})
+    return blob
+
+
+def normalize_dashboard_layout(value: dict | None) -> dict | None:
+    """Pure validation shared by desktop files and PostgreSQL user preferences."""
     if value is None:
-        save({"dashboard_layout": None})
         return None
     items = value.get("items") if isinstance(value, dict) else None
     if not isinstance(items, list) or not items:
@@ -1251,5 +1267,4 @@ def set_dashboard_layout(value: dict | None) -> dict | None:
     blob = {"v": 1, "items": cleaned}
     if len(json.dumps(blob, ensure_ascii=False)) > _DASHBOARD_LAYOUT_MAX_JSON:
         raise ValueError("布局数据过大 (>64KB)")
-    save({"dashboard_layout": blob})
     return blob

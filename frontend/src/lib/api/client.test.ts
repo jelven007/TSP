@@ -28,6 +28,7 @@ function response(
     ok,
     status,
     statusText,
+    headers: new Headers(),
     json: async () => body,
     text: async () => JSON.stringify(body),
   } as Response

@@ -164,6 +164,13 @@ class Settings(BaseSettings):
     auth_smtp_password: str = ""
     auth_smtp_from_address: str = ""
 
+    # Full application multi-tenancy is opt-in while the candidate is verified.
+    # Credentials come from TSP_CELL_* and are never read from legacy auth.json.
+    multitenancy_enabled: bool = False
+    service_role: str = Field(default="standalone", pattern=r"^(standalone|api|platform)$")
+    platform_config_dir: Path | None = None
+    tenant_artifacts_dir: Path | None = None
+
     # Data — frozen: exe 同级 data/ 子目录; 非 frozen: 项目根 data/
     # (均可被环境变量 DATA_DIR 覆盖, pydantic-settings 自动注入)
     data_dir: Path = _user_data_root()

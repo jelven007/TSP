@@ -7,6 +7,8 @@
  * 的注释一一对应; 未知事件类型(如 ping)静默忽略。
  */
 
+import { accountFetch as fetch } from '@/lib/accountSession'
+
 export interface AssistantStatus {
   configured: boolean
   provider: string

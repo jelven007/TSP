@@ -41,6 +41,8 @@ def plugins_dir() -> Path:
 
 
 def data_sources_dir() -> Path:
+    if settings.platform_config_dir:
+        return settings.platform_config_dir / "data_sources"
     return settings.data_dir / "data_sources"
 
 
@@ -51,7 +53,8 @@ def load_all(path: Path | None = None) -> None:
     _LOAD_ERRORS = []
 
     base = path or data_sources_dir()
-    base.mkdir(parents=True, exist_ok=True)
+    if settings.service_role != "api":
+        base.mkdir(parents=True, exist_ok=True)
     for file in sorted([*base.glob("*.yaml"), *base.glob("*.yml")]):
         try:
             config = load_config(file)

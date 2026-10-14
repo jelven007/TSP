@@ -5,6 +5,8 @@ import { QueryClient, QueryCache } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { initializeFrontendExtensions } from './extensions/bootstrap'
 import { ApiError } from './lib/api/client'
+import { api } from './lib/api'
+import { accountScope, clearAccountCache } from './lib/accountSession'
 import { createAppPersister, shouldPersistQuery, PERSIST_BUSTER } from './lib/queryPersist'
 // 字体自托管 (@fontsource): 替代 rsms.me / Google Fonts 渲染阻塞外链,
 // 内网/离线部署不再白屏等字体。权重覆盖 tailwind 全部用量 (300-900)。
@@ -31,6 +33,7 @@ const _redirectToLogin = (() => {
     if (!needsAuth) return
     if (window.location.pathname === '/login') return
     redirecting = true
+    clearAccountCache()
     const redirect = encodeURIComponent(window.location.pathname + window.location.search)
     window.location.href = `/login?redirect=${redirect}`
   }
@@ -52,13 +55,10 @@ const queryClient = new QueryClient({
 })
 
 async function bootstrap() {
-  if (import.meta.env.VITE_CELL_MODE === 'true') {
-    const { CellApp } = await import('./pages/CellApp')
-    ReactDOM.createRoot(document.getElementById('root')!).render(
-      <React.StrictMode><CellApp /></React.StrictMode>,
-    )
-    return
-  }
+  // Confirm identity before importing stores or restoring any private cache.
+  const auth = await api.authStatus()
+  try { window.localStorage.removeItem('tf-query-cache') } catch { /* Storage unavailable. */ }
+  queryClient.setQueryData(['auth-status'], auth)
   await initializeFrontendExtensions()
   const { router } = await import('./router')
   ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -67,7 +67,7 @@ async function bootstrap() {
         client={queryClient}
         persistOptions={{
           persister: createAppPersister(),
-          buster: PERSIST_BUSTER,
+          buster: `${PERSIST_BUSTER}:${accountScope()}`,
           // 恢复超过 1 天的缓存直接丢弃 (慢变族一天内必然后台刷新过)
           maxAge: 24 * 60 * 60 * 1000,
           dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
@@ -79,4 +79,13 @@ async function bootstrap() {
   )
 }
 
-void bootstrap()
+void bootstrap().catch(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <main className="grid min-h-screen place-items-center bg-base text-foreground">
+      <div className="space-y-4 text-center">
+        <p>暂时无法连接服务，请重试。</p>
+        <button className="rounded-btn bg-accent px-4 py-2 text-white" onClick={() => window.location.reload()}>重新连接</button>
+      </div>
+    </main>,
+  )
+})

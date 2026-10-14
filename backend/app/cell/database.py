@@ -41,11 +41,13 @@ class Databases:
         self.control.close()
 
     def check(self) -> None:
+        runtime_roles = []
         for pool, schema in ((self.control, "control"), (self.data, "business")):
             with pool.connection() as conn:
                 role = conn.execute(
-                    "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
+                    "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
                 ).fetchone()
+                runtime_roles.append(role["rolname"])
                 owners = conn.execute(
                     """SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                        WHERE n.nspname = %s AND pg_has_role(current_user, c.relowner, 'MEMBER')
@@ -57,8 +59,15 @@ class Databases:
                 version = conn.execute(
                     f"SELECT version FROM {schema}.schema_version ORDER BY version DESC LIMIT 1"
                 ).fetchone()
-                if not version or version["version"] != 4:
+                if not version or version["version"] != self.settings.schema_version:
                     raise RuntimeError("unsupported Cell database schema")
+        if self.settings.schema_version >= 5:
+            if runtime_roles[0] == runtime_roles[1]:
+                raise RuntimeError("full-product identity and business runtime roles must be separate")
+            for pool, other in ((self.control, runtime_roles[1]), (self.data, runtime_roles[0])):
+                with pool.connection() as conn:
+                    if conn.execute("SELECT pg_has_role(current_user,%s,'MEMBER') AS inherited", (other,)).fetchone()["inherited"]:
+                        raise RuntimeError("full-product runtime roles must not inherit each other")
         with self.data.connection() as conn:
             identity = conn.execute("SELECT cell_id FROM business.cell_identity").fetchone()
             if not identity or identity["cell_id"] != self.settings.id:
@@ -69,6 +78,10 @@ class Databases:
                 "paper_accounts", "paper_orders", "paper_fills",
                 "notification_channels", "notification_outbox", "trade_automations", "trade_intents",
             }
+            if self.settings.schema_version >= 5:
+                expected.update({"documents", "research_jobs", "research_artifacts", "full_events",
+                                 "full_paper_accounts", "full_paper_orders", "full_paper_fills", "full_paper_nav",
+                                 "legacy_artifacts"})
             unsafe = conn.execute(
                 """SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                    WHERE n.nspname = 'business' AND c.relname = ANY(%s)

@@ -20,6 +20,9 @@ from pydantic import BaseModel, Field
 
 from app.api import contracts
 from app.backtest.minute_trigger import MINUTE_EXIT_TRIGGER_SIGNALS
+from app.cell.context import AccessError
+from app.multitenancy.ai import authorized_lines
+from app.services.ndjson_heartbeat import with_heartbeat
 from app.strategy import config as strategy_config
 from app.strategy.ai_generator import AIStrategyGenerator, find_meta_assignment
 from app.strategy.engine import StrategyDef, StrategyEngine
@@ -30,7 +33,6 @@ from app.strategy.scoring import (
     effective_scoring,
     effective_scoring_directions,
 )
-from app.services.ndjson_heartbeat import with_heartbeat
 
 router = APIRouter(prefix="/api/strategies", tags=["strategies"])
 logger = logging.getLogger(__name__)
@@ -42,6 +44,19 @@ def _get_engine(request: Request) -> StrategyEngine:
     engine = getattr(request.app.state, "strategy_engine", None)
     if not engine:
         raise HTTPException(status_code=503, detail="策略引擎未初始化")
+    from app.multitenancy.documents import private_storage
+    from app.multitenancy.strategies import TenantStrategyEngine
+
+    documents = private_storage(request)
+    if documents is not None:
+        scoped = getattr(request.state, "strategy_engine", None)
+        if scoped is None:
+            scoped = TenantStrategyEngine(documents, engine, request.app.state.compute_executor)
+            manifest = request.app.state.repo.store.data_dir / ".public_release.json"
+            if manifest.exists():
+                scoped.public_release_id = json.loads(manifest.read_text())["id"]
+            request.state.strategy_engine = scoped
+        return scoped
     return engine
 
 
@@ -63,13 +78,18 @@ def _get_monitor(request: Request) -> StrategyMonitorService:
 
 
 def _data_dir(request: Request) -> Path:
-    return request.app.state.repo.store.data_dir
+    from app.multitenancy.documents import private_storage
+
+    documents = private_storage(request)
+    return documents if documents is not None else request.app.state.repo.store.data_dir
 
 
 def _invalidate_strategy_runtime(request: Request) -> None:
     from app.services import strategy_cache
 
     strategy_cache.clear_cache(_data_dir(request))
+    if getattr(request.app.state, "account_identity", None) is not None:
+        return
     monitor_engine = getattr(request.app.state, "monitor_engine", None)
     if monitor_engine is not None:
         monitor_engine.invalidate_strategy_state()
@@ -98,6 +118,19 @@ def _cleanup_deleted_strategy(request: Request, strategy_id: str) -> list[str]:
 
     data_dir = _data_dir(request)
     warnings: list[str] = []
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        # Rules and cached state belong to this tenant. No platform preference
+        # or process-wide registry is changed by deleting a private strategy.
+        data_dir.delete("strategy_overrides", strategy_id)
+        data_dir.delete("strategy_cache", "default")
+        for row in data_dir.records("monitor_rules"):
+            rule = row["value"]
+            if rule.get("strategy_id") == strategy_id:
+                data_dir.put("monitor_rules", row["id"], {**rule, "enabled": False},
+                             expected_revision=row["revision"])
+        return warnings
 
     try:
         strategy_config.delete_override(data_dir, strategy_id)
@@ -754,6 +787,15 @@ def _save_strategy_code(req: StrategyCodeSaveRequest, request: Request, *, legac
         if req.target_source == "custom" and not sid.startswith("custom_"):
             raise ValueError("自定义策略 ID 必须以 custom_ 开头")
 
+    from app.multitenancy.strategies import TenantStrategyEngine
+
+    if isinstance(engine, TenantStrategyEngine):
+        prepared = _prepare_strategy_code(req)
+        source = existing.source if req.mode == "update" and existing else req.target_source
+        if source == "ai" and (legacy_ai_path or req.mode == "create"):
+            prepared["code"] = _set_meta_bool_field(prepared["code"], "research_only", True)
+        return engine.save_source(sid, prepared["code"], source, mode=req.mode)
+
     if legacy_ai_path:
         out_dir = _target_dir(data_dir, "ai")
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -847,6 +889,10 @@ def get_strategy_source(strategy_id: str, request: Request):
     engine = _get_engine(request)
     s = _get_public_strategy(engine, strategy_id)
 
+    from app.multitenancy.strategies import TenantStrategyEngine
+
+    if isinstance(engine, TenantStrategyEngine):
+        return {"code": engine.source_code(strategy_id), "source": s.source}
     path = s.file_path
     if not path or not path.exists():
         raise HTTPException(status_code=404, detail="策略源文件不存在")
@@ -944,8 +990,8 @@ async def build_strategy_stream(req: BuildRequest, request: Request):
     # 与复盘/个股/财务/轮动的流式端点同口径: 事件行不带换行, 由外层统一补换行。
     # with_heartbeat 插入的 ping 行本身不带换行, 事件行若自带换行, ping 会与下一行粘成一行。
     async def stream_gen():
-        async for line in with_heartbeat(event_generator()):
-            yield line + "\n"
+        async for line in authorized_lines(request, event_generator(), heartbeat=with_heartbeat):
+            yield line
 
     return StreamingResponse(
         stream_gen(),
@@ -988,7 +1034,19 @@ async def ai_iterate(req: AIIterateRequest, request: Request):
             strategy_id="", execution_backend=req.execution_backend,
         )
         iterator = AIStrategyIterator(max_rounds=req.max_rounds)
-        result = await iterator.iterate(prompt, engine=engine, data_dir=str(data_dir))
+        from app.multitenancy.access import verify_live_access
+        from app.multitenancy.ai import connected_result
+        from app.multitenancy.documents import TenantDocuments
+
+        if isinstance(data_dir, TenantDocuments):
+            result = await connected_result(request, iterator.iterate(
+                prompt, engine=engine, data_dir=data_dir,
+                verify_access=lambda: verify_live_access(request),
+            ))
+        else:
+            result = await iterator.iterate(prompt, engine=engine, data_dir=str(data_dir))
+    except AccessError:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception:
@@ -1011,6 +1069,8 @@ def validate_strategy_code(req: StrategyCodeValidateRequest, request: Request):
 def save_strategy_code(req: StrategyCodeSaveRequest, request: Request):
     try:
         return _save_strategy_code(req, request)
+    except AccessError:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -1104,6 +1164,10 @@ def _save_composite_strategy(req: StrategyCompositeSaveRequest, request: Request
         sid, req.name, req.description, children, req.merge_mode, req.min_confirm
     )
 
+    from app.multitenancy.strategies import TenantStrategyEngine
+
+    if isinstance(engine, TenantStrategyEngine):
+        return engine.save_source(sid, code, "composite", mode=req.mode)
     out_dir = _target_dir(data_dir, "composite")
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{sid}.py"
@@ -1138,6 +1202,8 @@ def _save_composite_strategy(req: StrategyCompositeSaveRequest, request: Request
 def save_composite_strategy(req: StrategyCompositeSaveRequest, request: Request):
     try:
         return _save_composite_strategy(req, request)
+    except AccessError:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -1156,6 +1222,8 @@ async def ai_save(req: AISaveRequest, request: Request):
         )
         result = _save_strategy_code(save_req, request, legacy_ai_path=True)
         return {"ok": True, "path": result["path"]}
+    except AccessError:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -1179,6 +1247,12 @@ def publish_ai_strategy(strategy_id: str, request: Request):
     if not s.meta.get("research_only"):
         raise HTTPException(status_code=400, detail="该策略已是公开状态")
 
+    from app.multitenancy.strategies import TenantStrategyEngine
+
+    if isinstance(engine, TenantStrategyEngine):
+        engine.save_source(sid, _set_meta_bool_field(engine.source_code(sid), "research_only", False),
+                           "ai", mode="update")
+        return {"ok": True, "strategy_id": sid}
     path = s.file_path
     if path is None:
         raise HTTPException(status_code=400, detail="策略源文件路径无效, 无法发布")
@@ -1220,6 +1294,12 @@ def delete_strategy(strategy_id: str, request: Request):
             detail=f"该策略被叠加策略 {dependents} 引用，请先解除引用后再删除",
         )
 
+    from app.multitenancy.strategies import TenantStrategyEngine
+
+    if isinstance(engine, TenantStrategyEngine):
+        engine.delete_source(strategy_id)
+        warnings = _cleanup_deleted_strategy(request, strategy_id)
+        return {"ok": True, "warnings": warnings}
     path = s.file_path
     data_dir = _data_dir(request)
     if path is None or s.source not in {"custom", "ai", "composite"}:

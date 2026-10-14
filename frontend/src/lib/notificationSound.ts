@@ -108,6 +108,8 @@ const SOUND_PRESETS: Record<string, (ctx: AudioContext) => void> = {
   },
 }
 
+import { accountStorage as localStorage } from './accountSession'
+
 /** 播放通知声效 (从 localStorage 读配置) */
 export function playNotificationSound() {
   try {

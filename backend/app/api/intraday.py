@@ -128,6 +128,9 @@ async def quote_stream(request: Request):
     事件由 QuoteService 广播 — 多客户端 (多标签页/设备) 各自收到全量事件。
     此前四通道共用服务级 Event + pop 取走语义, 告警只会被先醒的连接消费。
     """
+    if getattr(request.app.state, "account_identity", None) is not None:
+        from app.multitenancy.events import stream
+        return EventSourceResponse(stream(request))
     qs = _get_quote_service(request)
 
     async def event_generator():

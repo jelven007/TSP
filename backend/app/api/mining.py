@@ -201,10 +201,12 @@ def list_runs(
 @router.post("/runs")
 def start_run(payload: MiningStartRequest, request: Request) -> dict[str, Any]:
     manager = _manager(request)
+    from app.api.strategy import _get_engine
+
     worker_request = payload.model_dump(mode="json", exclude={"force"})
     try:
         _validate_selected_strategies(
-            request.app.state.strategy_engine,
+            _get_engine(request),
             payload.strategy_ids,
             payload.asset_type,
         )
@@ -217,7 +219,7 @@ def start_run(payload: MiningStartRequest, request: Request) -> dict[str, Any]:
         )
         fingerprint = build_data_fingerprint(
             request.app.state.repo,
-            request.app.state,
+            _fingerprint_state(request),
             worker_request,
         )
         existing = None
@@ -240,7 +242,7 @@ def start_run(payload: MiningStartRequest, request: Request) -> dict[str, Any]:
             source="manual",
         )
         projected = _project_run(manager.store, manifest)
-        projected["reused"] = existing is not None
+        projected["reused"] = manifest.get("reused", existing is not None)
         return projected
     except (MiningRunValidationError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -299,13 +301,21 @@ def start_auto_run(payload: MiningAutoStartRequest, request: Request) -> dict[st
             request.app.state.backtest_engine = engine
         all_dates = enriched_partition_dates(data_dir, payload.asset_type)
         screen_end = payload.end or (all_dates[-1] if all_dates else date.today())
-        screening = screen_all_factors(
-            engine,
-            asset_type=payload.asset_type,
-            start=payload.start,
-            end=screen_end,
-            profile=payload.budget_profile,
-        )
+        from app.multitenancy.research import jobs_for, run_sync
+
+        if jobs_for(request):
+            screening = run_sync(request, "auto_screen", {
+                "asset_type": payload.asset_type, "start": payload.start,
+                "end": screen_end, "profile": payload.budget_profile,
+            })
+        else:
+            screening = screen_all_factors(
+                engine,
+                asset_type=payload.asset_type,
+                start=payload.start,
+                end=screen_end,
+                profile=payload.budget_profile,
+            )
     except (MiningRunValidationError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except EnrichedGenerationUnavailableError as exc:
@@ -338,7 +348,7 @@ def start_auto_run(payload: MiningAutoStartRequest, request: Request) -> dict[st
     try:
         fingerprint = build_data_fingerprint(
             request.app.state.repo,
-            request.app.state,
+            _fingerprint_state(request),
             worker_request,
         )
         manifest = manager.start(
@@ -405,6 +415,14 @@ def stream_events(
         terminal_sent = False
         first_batch = True
         while not await request.is_disconnected():
+            from app.multitenancy.access import verify_live_access
+            from app.cell.context import AccessError
+
+            try:
+                await asyncio.to_thread(verify_live_access, request)
+            except AccessError as exc:
+                yield {"event": "failed", "data": json.dumps({"message": str(exc)}, ensure_ascii=False)}
+                return
             events = await asyncio.to_thread(store.read_events, run_id, after_id=cursor)
             if first_batch and events and int(events[0]["id"]) > cursor + 1:
                 summary = await asyncio.to_thread(store.read_summary, run_id)
@@ -484,28 +502,57 @@ def publish_candidate(run_id: str, signature: str, request: Request) -> dict[str
 
 
 @router.get("/config")
-def get_config() -> dict[str, Any]:
-    return preferences.get_mining_schedule()
+def get_config(request: Request = None) -> dict[str, Any]:
+    from app.multitenancy.documents import private_storage
+
+    documents = private_storage(request) if request else None
+    return preferences.get_mining_schedule(documents) if documents else preferences.get_mining_schedule()
 
 
 @router.patch("/config")
-def update_config(payload: MiningSchedulePatch) -> dict[str, Any]:
-    current = preferences.get_mining_schedule()
+def update_config(payload: MiningSchedulePatch, request: Request = None) -> dict[str, Any]:
+    from app.multitenancy.documents import private_storage
+
+    data_dir = private_storage(request) if request else None
+    current = preferences.get_mining_schedule(data_dir) if data_dir else preferences.get_mining_schedule()
     updates = payload.model_dump(exclude_none=True)
     if not updates:
         raise HTTPException(status_code=400, detail="at least one mining config field is required")
     merged = {**current, **updates}
     try:
+        if data_dir:
+            from app.multitenancy.identity import AccountIdentity
+            from app.multitenancy.research import authorize
+
+            account, context = request.state.account, data_dir.context
+            with (authorize(AccountIdentity(data_dir.db), context, account["auth_version"]),
+                  data_dir.transaction() as unit):
+                saved = preferences.set_mining_schedule(
+                    merged["mining_schedule_enabled"], merged["mining_schedule_weekday"],
+                    merged["mining_budget_profile"], data_dir=unit,
+                )
+                unit.put("mining_schedule", "default", {
+                    **saved, "user_id": account["id"], "auth_version": account["auth_version"],
+                    "policy_version": context.policy_version, "routing_epoch": context.routing_epoch,
+                })
+                return saved
         return preferences.set_mining_schedule(
             merged["mining_schedule_enabled"],
             merged["mining_schedule_weekday"],
             merged["mining_budget_profile"],
+            **({"data_dir": data_dir} if data_dir else {}),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _manager(request: Request):
+    from app.api.strategy import _get_engine
+    from app.multitenancy.research import SQLMiningManager, jobs_for
+
+    scoped_jobs = jobs_for(request)
+    if scoped_jobs:
+        return SQLMiningManager(scoped_jobs, _get_engine(request))
     manager = getattr(request.app.state, "mining_manager", None)
     if manager is None:
         raise HTTPException(status_code=503, detail="mining manager is unavailable")
@@ -513,6 +560,13 @@ def _manager(request: Request):
 
 
 def _candidate_service(request: Request):
+    from app.api.strategy import _get_engine
+    from app.multitenancy.candidates import SQLMiningCandidates
+    from app.multitenancy.documents import private_storage
+
+    documents = private_storage(request)
+    if documents:
+        return SQLMiningCandidates(documents, _manager(request).store, _get_engine(request))
     service = getattr(request.app.state, "mining_candidate_service", None)
     if service is not None:
         return service
@@ -535,6 +589,13 @@ def _candidate_service(request: Request):
     )
     request.app.state.mining_candidate_service = service
     return service
+
+
+def _fingerprint_state(request: Request):
+    from types import SimpleNamespace
+    from app.api.strategy import _get_engine
+
+    return SimpleNamespace(strategy_engine=_get_engine(request))
 
 
 def _required_manifest(store: MiningRunStore, run_id: str) -> dict[str, Any]:
@@ -623,6 +684,8 @@ def _read_registered_artifact(
     manifest: Mapping[str, Any],
     name: str,
 ) -> pl.DataFrame:
+    if hasattr(store, "read_artifact"):
+        return store.read_artifact(str(manifest["run_id"]), name)
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, Mapping) or name not in artifacts:
         raise ValueError(f"mining artifact is not registered: {name}")

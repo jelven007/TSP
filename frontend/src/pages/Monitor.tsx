@@ -23,6 +23,8 @@ import { StockPreviewDialog } from '@/components/StockPreviewDialog'
 import { toNavItems, type NavItem } from '@/lib/listNav'
 import { DimensionMembersDialog, type DimensionKind, type DimensionMembersTarget } from '@/components/DimensionMembersDialog'
 import { usePreferences, useQuoteStatus } from '@/lib/useSharedQueries'
+import { hasPermission, multitenancyEnabled } from '@/lib/accountSession'
+import { NotificationsPanel } from '@/components/monitor/NotificationsPanel'
 
 const TYPE_LABEL: Record<string, string> = {
   signal: '信号', price: '价格/涨跌', market: '市场异动', strategy: '策略监控', sector: '板块监控',
@@ -126,6 +128,7 @@ export function Monitor() {
 
   // 深链: /monitor?new=abnormal (异动监控页「告警规则」入口) → 直接弹出预置类型的编辑器
   const [searchParams, setSearchParams] = useSearchParams()
+  const notificationsOpen = multitenancyEnabled() && searchParams.get('notifications') === '1'
   useEffect(() => {
     const kind = searchParams.get('new')
     if (kind === 'abnormal') {
@@ -199,20 +202,28 @@ export function Monitor() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="监控中心" subtitle="实时信号与规则管理" />
+      <PageHeader title="监控中心" subtitle="实时信号与规则管理" right={multitenancyEnabled() && (
+        <button type="button" aria-expanded={notificationsOpen} className="rounded-btn border border-border px-3 py-1.5 text-xs text-secondary" onClick={() => {
+          const next = new URLSearchParams(searchParams)
+          if (notificationsOpen) next.delete('notifications')
+          else next.set('notifications', '1')
+          setSearchParams(next)
+        }}>{notificationsOpen ? '收起通知配置' : '通知配置'}</button>
+      )} />
+      {notificationsOpen && <NotificationsPanel />}
       {realtimeUnavailable && (
         <div className="px-5 pb-1">
           <div className="mx-auto flex max-w-7xl items-center gap-2.5 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-2.5">
             <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
             <span className="text-xs leading-relaxed text-secondary">
-              实时行情当前不可用 — 监控与预警收不到最新价。可接入提供实时行情的数据源。
+              实时行情当前不可用，监控与预警收不到最新价。{hasPermission('data:manage') ? '可接入提供实时行情的数据源。' : '请联系管理员检查行情服务。'}
             </span>
-            <Link
+            {hasPermission('data:manage') && <Link
               to="/settings?tab=data-sources"
               className="ml-auto shrink-0 rounded-btn bg-warning/15 px-2.5 py-1 text-[11px] font-medium text-warning hover:bg-warning/25 transition-colors"
             >
               前往数据源配置
-            </Link>
+            </Link>}
           </div>
         </div>
       )}
@@ -239,7 +250,7 @@ export function Monitor() {
               </div>
               {/* 数量 + 清空 + 字段配置 */}
               <div className="ml-auto flex items-center gap-2 shrink-0">
-                <button
+                {hasPermission('settings:manage') && <button
                   onClick={() => setExtConfigOpen(true)}
                   title="配置行业/概念标签"
                   className={cn(
@@ -248,7 +259,7 @@ export function Monitor() {
                   )}
                 >
                   <Tags className="h-3.5 w-3.5" />
-                </button>
+                </button>}
                 <span className="rounded-md bg-elevated/50 px-1.5 py-0.5 text-[10px] font-medium text-muted">{total}</span>
                 {total > 0 && (
                   <button
@@ -316,11 +327,11 @@ export function Monitor() {
         pending={clearRulesMut.isPending}
       />
 
-      <MonitorExtConfigDialog
+      {hasPermission('settings:manage') && <MonitorExtConfigDialog
         open={extConfigOpen}
         fields={monitorExtFields}
         onClose={() => setExtConfigOpen(false)}
-      />
+      />}
     </div>
   )
 }

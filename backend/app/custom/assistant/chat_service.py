@@ -150,13 +150,19 @@ async def chat_stream(
     depth_service: Any = None,
     capabilities: Any = None,
     financial_scheduler: Any = None,
+    documents: Any = None,
+    account: dict | None = None,
+    action_registry: Any = None,
+    verify_access: Any = None,
 ) -> AsyncIterator[str]:
     """执行一轮对话, 逐行 yield NDJSON 事件(见模块 __init__ 的协议注释)。"""
+    tenant_account = account is not None and account["role"] == "tenant"
+    settings_hint = "" if tenant_account else _SETTINGS_HINT
     if not ai_configured():
         yield _line(_error_event(
             "no_key",
-            "AI 未配置: 请先在设置页配置 AI 供应商和 API Key。",
-            _SETTINGS_HINT,
+            "AI 服务尚未配置, 请联系管理员。" if tenant_account else "AI 未配置: 请先在设置页配置 AI 供应商和 API Key。",
+            settings_hint,
         ))
         yield _line({"type": "done"})
         return
@@ -165,7 +171,7 @@ async def chat_stream(
         yield _line(_error_event(
             "provider",
             "当前 AI 供应商(Codex CLI)不支持工具调用, AI 助手需要 OpenAI 兼容模型。",
-            _SETTINGS_HINT,
+            settings_hint,
         ))
         yield _line({"type": "done"})
         return
@@ -183,7 +189,8 @@ async def chat_stream(
         {"role": "system", "content": build_system_prompt(context)},
         *truncated,
     ]
-    schemas = assistant_tools.build_tool_schemas()
+    schemas = assistant_tools.build_tool_schemas(**({"account": account} if account is not None else {}))
+    pending_registry = action_registry or assistant_actions.registry
     tool_ctx = assistant_tools.ToolContext.build(
         repo=repo,
         quote_service=quote_service,
@@ -192,12 +199,17 @@ async def chat_stream(
         data_dir=data_dir,
         capabilities=capabilities,
         financial_scheduler=financial_scheduler,
+        documents=documents,
+        account=account,
+        verify_access=verify_access,
     )
 
     queue: asyncio.Queue = asyncio.Queue()
     sentinel: object = object()
 
     async def execute(name: str, args: dict[str, Any]) -> dict[str, Any]:
+        if verify_access is not None:
+            await asyncio.to_thread(verify_access)
         call_id = assistant_actions.new_call_id()
         await queue.put({
             "type": "tool_call",
@@ -210,7 +222,7 @@ async def chat_stream(
         # 动作工具确认闸门: 先发确认卡事件并挂起, 用户点确认后才真正执行。
         # 拒绝/超时按工具错误契约回填(ok=False), 模型据此改走文字建议而非重试。
         if name in assistant_actions.ACTION_TOOLS:
-            action = await assistant_actions.registry.register(call_id, name, args)
+            action = await pending_registry.register(call_id, name, args)
             meta = assistant_actions.ACTION_META.get(name, {"label": name, "risk": ""})
             await queue.put({
                 "type": "action_confirm",
@@ -218,14 +230,14 @@ async def chat_stream(
                 "name": name,
                 "label": meta["label"],
                 "risk": meta["risk"],
-                "expires_in": int(assistant_actions.registry.timeout_s),
+                "expires_in": int(pending_registry.timeout_s),
             })
-            decision = await assistant_actions.registry.await_decision(action)
+            decision = await pending_registry.await_decision(action)
             if decision != "approved":
                 denied = (
                     "用户已拒绝该操作, 未执行。不要重复尝试同一操作。"
                     if decision == "denied"
-                    else f"确认超时({int(assistant_actions.registry.timeout_s)} 秒未确认), 未执行。"
+                    else f"确认超时({int(pending_registry.timeout_s)} 秒未确认), 未执行。"
                 )
                 result = {"ok": False, "error": denied}
                 await queue.put({
@@ -237,6 +249,8 @@ async def chat_stream(
                     "elapsed_ms": int((time.monotonic() - started) * 1000),
                 })
                 return result
+        if verify_access is not None:
+            await asyncio.to_thread(verify_access)
         result = await assistant_tools.execute_assistant_tool(name, args, tool_ctx)
         elapsed_ms = int((time.monotonic() - started) * 1000)
         event = {
@@ -262,9 +276,13 @@ async def chat_stream(
             tool_rounds = 0
             round_checkpoint = _round_checkpoint()
             while True:
+                if verify_access is not None:
+                    await asyncio.to_thread(verify_access)
                 round_text: list[str] = []
                 tool_calls: list[dict[str, Any]] = []
                 async for event in stream_openai_round(req_messages, schemas, temperature=0.3, timeout=240.0):
+                    if verify_access is not None:
+                        await asyncio.to_thread(verify_access)
                     if event["type"] == "text":
                         round_text.append(event["delta"])
                         await queue.put({"type": "delta", "content": event["delta"]})
@@ -281,16 +299,16 @@ async def chat_stream(
                     # 轮次检查点: 复用动作确认闸门(PendingRegistry + 决策端点)。
                     # 批准 → 重置计数继续; 拒绝/超时 → 保留已生成内容, 优雅收尾。
                     checkpoint_id = assistant_actions.new_call_id()
-                    action = await assistant_actions.registry.register(
+                    action = await pending_registry.register(
                         checkpoint_id, "rounds_continue", {"reached": tool_rounds},
                     )
                     await queue.put({
                         "type": "rounds_confirm",
                         "call_id": checkpoint_id,
                         "reached": tool_rounds,
-                        "expires_in": int(assistant_actions.registry.timeout_s),
+                        "expires_in": int(pending_registry.timeout_s),
                     })
-                    decision = await assistant_actions.registry.await_decision(action)
+                    decision = await pending_registry.await_decision(action)
                     if decision != "approved":
                         await queue.put({
                             "type": "notice",

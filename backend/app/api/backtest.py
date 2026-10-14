@@ -77,11 +77,25 @@ def _resolve_start(req: BaseModel, end: date, default_days: int) -> date:
 
 
 def _guard_server_backtest_range(start: date, end: date):
+    if start > end:
+        raise HTTPException(status_code=400, detail="起始日期不能晚于结束日期")
     if not settings.backtest_range_guard:
         return
     days = (end - start).days + 1
     if days > BACKTEST_MAX_SERVER_DAYS:
         raise HTTPException(status_code=400, detail=BACKTEST_SERVER_GUARD_MESSAGE)
+
+
+def _json_object(raw: str | None, field: str, default=None):
+    if not raw:
+        return default
+    try:
+        value = json.loads(raw)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, detail=f"{field} 必须是有效的 JSON 对象") from exc
+    if not isinstance(value, dict):
+        raise HTTPException(400, detail=f"{field} 必须是 JSON 对象")
+    return value
 
 
 # ================================================================
@@ -133,6 +147,10 @@ def run(req: BacktestRequest, request: Request):
         matching=req.matching,
         asset_type=req.asset_type,
     )
+    from app.multitenancy.research import jobs_for, run_sync
+
+    if jobs_for(request):
+        return run_sync(request, "signal_backtest", asdict(cfg))
     try:
         result = svc.run(cfg)
     except VectorbtUnavailable as e:
@@ -198,6 +216,10 @@ def factor_run(req: FactorBacktestRequest, request: Request):
         slippage_bps=req.slippage_bps,
         asset_type=req.asset_type,
     )
+    from app.multitenancy.research import jobs_for, run_sync
+
+    if jobs_for(request):
+        return run_sync(request, "factor_backtest", asdict(cfg))
     result = svc.run(cfg)
     payload = asdict(result)
     _persist_backtest_trace(request, kind="factor", payload=payload)
@@ -243,7 +265,7 @@ def factor_batch(req: FactorBatchRequest, request: Request):
         )
 
     svc = FactorBacktestService(_get_engine(request))
-    result = svc.run_batch(FactorBatchConfig(
+    cfg = FactorBatchConfig(
         factor_names=factor_names,
         symbols=symbols,
         start=start,
@@ -254,7 +276,12 @@ def factor_batch(req: FactorBatchRequest, request: Request):
         fees_pct=req.fees_pct,
         slippage_bps=req.slippage_bps,
         asset_type=req.asset_type,
-    ))
+    )
+    from app.multitenancy.research import jobs_for, run_sync
+
+    if jobs_for(request):
+        return run_sync(request, "factor_batch", asdict(cfg))
+    result = svc.run_batch(cfg)
     payload = asdict(result)
     _persist_backtest_trace(request, kind="factor_batch", payload=payload)
     return payload
@@ -264,7 +291,66 @@ def factor_batch(req: FactorBatchRequest, request: Request):
 # 研究候选方案
 # ================================================================
 
+@router.get("/jobs")
+def research_jobs(request: Request):
+    from app.multitenancy.research import jobs_for
+
+    jobs = jobs_for(request)
+    if not jobs:
+        return {"items": []}
+    with jobs.db.business_transaction(jobs.context) as conn:
+        rows = conn.execute(
+            """SELECT id,kind,state AS status,signature AS key,error,created_at,updated_at,metadata,
+                      input->'config' AS config
+               FROM business.research_jobs ORDER BY created_at DESC LIMIT 200"""
+        ).fetchall()
+    return {"items": rows}
+
+
+@router.get("/jobs/{job_id}")
+def research_job_read(job_id: str, request: Request):
+    from app.multitenancy.research import jobs_for
+
+    jobs = jobs_for(request)
+    row = jobs.get(job_id) if jobs else None
+    if not row:
+        raise HTTPException(404, detail="研究任务不存在")
+    return {key: row[key] for key in ("id", "kind", "state", "result", "error", "created_at", "metadata")}
+
+
+@router.get("/jobs/{job_id}/stream")
+def research_job_stream(job_id: str, request: Request):
+    from app.multitenancy.research import jobs_for, stream
+
+    jobs = jobs_for(request)
+    row = jobs.get(job_id) if jobs else None
+    if not row:
+        raise HTTPException(404, detail="研究任务不存在")
+    return stream(request, jobs, row, row["signature"])
+
+
+@router.post("/jobs/{job_id}/cancel")
+def research_job_cancel(job_id: str, request: Request):
+    from app.multitenancy.research import jobs_for
+
+    jobs = jobs_for(request)
+    if not jobs or not jobs.get(job_id):
+        raise HTTPException(404, detail="研究任务不存在")
+    return {"ok": jobs.cancel(job_id)}
+
+
+@router.delete("/jobs/{job_id}")
+def research_job_delete(job_id: str, request: Request):
+    from app.multitenancy.research import jobs_for
+
+    jobs = jobs_for(request)
+    if not jobs:
+        raise HTTPException(404, detail="研究任务不存在")
+    jobs.delete(job_id)
+    return {"ok": True}
+
 class CandidateCreateRequest(BaseModel):
+    kind: Literal["factor", "strategy"]
     kind: Literal["factor", "strategy"]
     name: str = Field(..., min_length=1, max_length=80)
     source_id: str = Field(..., min_length=1, max_length=120)
@@ -279,9 +365,14 @@ class CandidateUpdateRequest(BaseModel):
     status: Literal["pending", "validated", "rejected"] | None = None
 
 
-def _candidate_store():
+def _candidate_store(request: Request | None = None):
     from app.backtest.candidates import CandidateStore
+    from app.multitenancy.candidates import SQLCandidateStore
+    from app.multitenancy.documents import private_storage
 
+    documents = private_storage(request) if request is not None else None
+    if documents:
+        return SQLCandidateStore(documents)
     return CandidateStore(settings.data_dir)
 
 
@@ -293,17 +384,17 @@ def _raise_candidate_error(exc: Exception) -> None:
 
 
 @router.get("/candidates", response_model=contracts.CandidatesResponse)
-def candidates_list():
+def candidates_list(request: Request = None):
     try:
-        return {"items": _candidate_store().list()}
+        return {"items": _candidate_store(request).list()}
     except Exception as exc:
         _raise_candidate_error(exc)
 
 
 @router.post("/candidates")
-def candidate_create(req: CandidateCreateRequest):
+def candidate_create(req: CandidateCreateRequest, request: Request = None):
     try:
-        return _candidate_store().create(
+        return _candidate_store(request).create(
             kind=req.kind,
             name=req.name,
             source_id=req.source_id,
@@ -317,11 +408,11 @@ def candidate_create(req: CandidateCreateRequest):
 
 
 @router.patch("/candidates/{candidate_id}")
-def candidate_update(candidate_id: str, req: CandidateUpdateRequest):
+def candidate_update(candidate_id: str, req: CandidateUpdateRequest, request: Request = None):
     if req.name is None and req.status is None:
         raise HTTPException(status_code=400, detail="至少提供一个需要更新的字段")
     try:
-        return _candidate_store().update(candidate_id, name=req.name, status=req.status)
+        return _candidate_store(request).update(candidate_id, name=req.name, status=req.status)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="候选方案不存在") from exc
     except Exception as exc:
@@ -329,9 +420,9 @@ def candidate_update(candidate_id: str, req: CandidateUpdateRequest):
 
 
 @router.delete("/candidates/{candidate_id}")
-def candidate_delete(candidate_id: str):
+def candidate_delete(candidate_id: str, request: Request = None):
     try:
-        _candidate_store().delete(candidate_id)
+        _candidate_store(request).delete(candidate_id)
         return {"ok": True}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="候选方案不存在") from exc
@@ -374,7 +465,9 @@ def _guard_minute_strategy_backtest(
     request: Request, strategy_id: str, start: date, asset_type: str,
 ) -> None:
     """分钟策略回测入口守卫: 仅 A 股 + 本地分钟K覆盖检查 (fail-fast)。"""
-    engine = getattr(request.app.state, "strategy_engine", None)
+    from app.api.strategy import _get_engine as strategy_engine
+
+    engine = strategy_engine(request) if getattr(request.app.state, "strategy_engine", None) else None
     if engine is None:
         return
     try:
@@ -433,6 +526,10 @@ def strategy_run(req: StrategyBacktestRequest, request: Request):
         regime_filter=req.regime_filter,
         strict_research=req.strict_research,
     )
+    from app.multitenancy.research import jobs_for, run_sync
+
+    if jobs_for(request):
+        return run_sync(request, "backtest", asdict(cfg))
     task = make_worker_task("backtest", settings.data_dir, cfg)
     from app.services.heavy_job_limiter import shared_heavy_job_limiter
 
@@ -583,6 +680,42 @@ async def strategy_stream(
         regime_filter=regime_filter,
         strict_research=strict_research,
     )
+
+    from app.multitenancy.research import jobs_for, stream
+
+    scoped_jobs = jobs_for(request)
+    if scoped_jobs:
+        _guard_server_backtest_range(start_date, end_date)
+        from app.api.strategy import _get_engine as strategy_engine
+
+        values = locals()
+        cfg_values = {key: values[key] for key in StrategyBacktestRequest.model_fields if key in values}
+        cfg_values.update(
+            start=start_date, end=end_date,
+            symbols=[s.strip() for s in symbols.split(",") if s.strip()] if symbols else None,
+            params=_json_object(params, "params"),
+            overrides=_json_object(overrides, "overrides"),
+            regime_filter=_json_object(regime_filter, "regime_filter"),
+        )
+        from pydantic import ValidationError
+
+        try:
+            validated = StrategyBacktestRequest(**cfg_values)
+        except ValidationError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+        if minute_fill:
+            from app.tickflow.capabilities import Cap
+
+            if not request.app.state.capabilities.has(Cap.KLINE_MINUTE_BATCH):
+                raise HTTPException(400, detail="分钟K精确回测需要 kline.minute.batch 权限")
+            earliest_minute = request.app.state.repo.earliest_minute_date()
+            if earliest_minute is None or start_date < earliest_minute:
+                raise HTTPException(400, detail="本地分钟K历史无法覆盖回测区间")
+        cfg = StrategyBacktestConfig(**validated.model_dump())
+        row = await asyncio.to_thread(
+            scoped_jobs.submit, strategy_engine(request).task("backtest", config=asdict(cfg)), key=job_key,
+        )
+        return stream(request, scoped_jobs, row, job_key)
 
     _cleanup_stale_jobs()
 
@@ -753,6 +886,11 @@ async def strategy_cancel(request: Request):
         regime_filter=_get("regime_filter") or None,
         strict_research=_get("strict_research", "false").lower() == "true",
     )
+    from app.multitenancy.research import jobs_for
+
+    scoped_jobs = jobs_for(request)
+    if scoped_jobs:
+        return {"ok": await asyncio.to_thread(scoped_jobs.cancel_key, job_key, "backtest")}
     # 持锁读任务表: 与 _cleanup_stale_jobs 的 pop、stream 的写入互斥
     with _jobs_lock:
         job = _running_jobs.get(job_key)
@@ -897,6 +1035,28 @@ async def optimize_stream(
         matrix_cache_max_mb,
     )
 
+    from app.multitenancy.research import jobs_for, stream
+
+    scoped_jobs = jobs_for(request)
+    if scoped_jobs:
+        _guard_server_backtest_range(start_date, end_date)
+        from app.api.strategy import _get_engine as strategy_engine
+
+        grid = _json_object(param_grid, "param_grid")
+        if not isinstance(grid, dict) or not grid:
+            raise HTTPException(400, detail="param_grid 必须是非空的参数网格对象")
+        cfg = OptimizeConfig(
+            strategy_id=strategy_id, symbols=symbols.split(",") if symbols else None,
+            start=start_date, end=end_date, param_grid=grid, objective=objective, direction=direction,
+            max_workers=min(max(1, max_workers), 2), matrix_cache_max_mb=min(max(0, matrix_cache_max_mb), 512),
+            base_params=_json_object(params, "params", {}), overrides=_json_object(overrides, "overrides"),
+            backtest_kwargs=bt_kwargs,
+        )
+        row = await asyncio.to_thread(
+            scoped_jobs.submit, strategy_engine(request).task("optimize", config=asdict(cfg)), key=job_key,
+        )
+        return stream(request, scoped_jobs, row, job_key)
+
     _cleanup_stale_jobs()
     with _jobs_lock:
         job = _running_jobs.get(job_key)
@@ -1017,6 +1177,11 @@ async def optimize_cancel(request: Request):
     """
     body = await request.json()
     job_key = body.get("job_key", "")
+    from app.multitenancy.research import jobs_for
+
+    scoped_jobs = jobs_for(request)
+    if scoped_jobs:
+        return {"ok": await asyncio.to_thread(scoped_jobs.cancel_key, job_key, "optimize")}
     job = _running_jobs.get(job_key)
     if job and not job.done:
         job.cancel_event.set()
@@ -1123,6 +1288,30 @@ async def walkforward_stream(
         settings.backtest_range_guard
         and max(int(train_days), int(test_days)) > BACKTEST_MAX_SERVER_DAYS
     )
+
+    from app.multitenancy.research import jobs_for, stream
+
+    scoped_jobs = jobs_for(request)
+    if scoped_jobs:
+        if wf_guard_violated:
+            raise HTTPException(400, detail="单折回测窗口超过当前服务器限制")
+        from app.api.strategy import _get_engine as strategy_engine
+
+        grid = _json_object(param_grid, "param_grid")
+        if not isinstance(grid, dict) or not grid:
+            raise HTTPException(400, detail="param_grid 必须是非空的参数网格对象")
+        cfg = WalkForwardConfig(
+            strategy_id=strategy_id, symbols=symbols.split(",") if symbols else None,
+            start=start_date, end=end_date, param_grid=grid, objective=objective, direction=direction,
+            train_days=train_days, test_days=test_days, step_days=step_days,
+            max_workers=min(max(1, max_workers), 2), matrix_cache_max_mb=min(max(0, matrix_cache_max_mb), 512),
+            base_params=_json_object(params, "params", {}), overrides=_json_object(overrides, "overrides"),
+            backtest_kwargs=bt_kwargs,
+        )
+        row = await asyncio.to_thread(
+            scoped_jobs.submit, strategy_engine(request).task("walkforward", config=asdict(cfg)), key=job_key,
+        )
+        return stream(request, scoped_jobs, row, job_key)
 
     _cleanup_stale_jobs()
     with _jobs_lock:
@@ -1239,6 +1428,11 @@ async def walkforward_cancel(request: Request):
     """取消 walk-forward 任务 — 传 stream 首事件回吐的 job_key。"""
     body = await request.json()
     job_key = body.get("job_key", "")
+    from app.multitenancy.research import jobs_for
+
+    scoped_jobs = jobs_for(request)
+    if scoped_jobs:
+        return {"ok": await asyncio.to_thread(scoped_jobs.cancel_key, job_key, "walkforward")}
     job = _running_jobs.get(job_key)
     if job and not job.done:
         job.cancel_event.set()

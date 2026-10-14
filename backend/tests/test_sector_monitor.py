@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
 
 import polars as pl
 import pytest
 
-from app.services import sector_monitor
 from app.services.ext_data import ExtConfig, ExtConfigStore, ExtField
 from app.services.sector_monitor import SectorMonitorService
 from app.strategy import monitor_rules
@@ -127,6 +127,55 @@ def test_index_targets_always_available(tmp_path):
         pl.DataFrame(), changed_quote, [first], {5}, now=1300.0,
     )
     assert snapshot["index:000001.SH"]["window_changes"][5] is not None
+
+
+def test_concurrent_snapshot_builds_serialize_history_updates(tmp_path, monkeypatch):
+    service = SectorMonitorService(_Repo(tmp_path))
+    target = next(
+        item for item in service.list_targets()["index"] if item["symbol"] == "000001.SH"
+    )
+    quote = pl.DataFrame({"symbol": ["000001.SH"], "change_pct": [0.2]})
+    first_entered = threading.Event()
+    second_entered = threading.Event()
+    release_first = threading.Event()
+    calls_lock = threading.Lock()
+    calls = 0
+    errors: list[BaseException] = []
+    original = service._window_change
+
+    def paused(history, now, window, current):
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call = calls
+        if call == 1:
+            first_entered.set()
+            assert release_first.wait(2)
+        else:
+            second_entered.set()
+        return original(history, now, window, current)
+
+    monkeypatch.setattr(service, "_window_change", paused)
+
+    def build(now):
+        try:
+            service.build_snapshots(pl.DataFrame(), quote, [target], {5}, now=now)
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=build, args=(1000.0,))
+    second = threading.Thread(target=build, args=(1001.0,))
+    first.start()
+    assert first_entered.wait(2)
+    second.start()
+    assert not second_entered.wait(0.1)
+    release_first.set()
+    first.join(2)
+    second.join(2)
+
+    assert not errors
+    assert not first.is_alive() and not second.is_alive()
+    assert second_entered.is_set()
 
 
 def test_concept_snapshot_uses_member_average_and_full_window(tmp_path):

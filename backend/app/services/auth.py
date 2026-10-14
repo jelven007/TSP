@@ -52,6 +52,8 @@ class LegacyMigrationRequiredError(ValueError):
 def _path() -> Path:
     from app.config import settings
 
+    if settings.service_role != "standalone" or settings.multitenancy_enabled:
+        raise RuntimeError("legacy identity files are unavailable in the full multitenant runtime")
     path = settings.data_dir / "user_data" / "auth.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
@@ -501,6 +503,10 @@ def _persist_sessions_locked() -> None:
 
 
 def _restore_sessions() -> None:
+    from app.config import settings
+
+    if settings.service_role != "standalone" or settings.multitenancy_enabled:
+        return
     with _lock:
         data = _load()
         now = time.time()

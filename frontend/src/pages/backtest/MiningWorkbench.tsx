@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { accountStorage as localStorage, hasPermission } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -357,6 +358,7 @@ export function MiningWorkbench() {
   const { data: prefs } = usePreferences()
   const realtimeToggle = useToggleRealtimeQuotes()
   const realtimeOn = !!prefs?.realtime_quotes_enabled
+  const canManageData = hasPermission('data:manage')
   const [pendingMining, setPendingMining] = useState<MiningRequestV1 | null>(null)
   const confirmBackdrop = useDialogBackdrop(() => setPendingMining(null), () => !realtimeToggle.isPending)
   const submitMining = (payload: MiningRequestV1) => {
@@ -557,7 +559,7 @@ export function MiningWorkbench() {
       return
     }
     if (!regimeLatestQuery.data.row) {
-      toast('尚未计算市场环境数据：挖掘含市场环境分组评估，请先在数据页完成市场环境计算', 'error')
+      toast(canManageData ? '尚未计算市场环境数据，请先在数据页完成计算' : '尚未计算市场环境数据，请联系管理员补齐后再挖掘', 'error')
       return
     }
     const commissionBps = parseBoundedNumber(draft.commissionBps, '佣金', 0, 500)
@@ -584,7 +586,7 @@ export function MiningWorkbench() {
       max_finalists: maxFinalists!,
       force: draft.force,
     }
-    if (realtimeOn) {
+    if (realtimeOn && hasPermission('settings:manage')) {
       setPendingMining(payload)
       return
     }
@@ -634,6 +636,11 @@ export function MiningWorkbench() {
     }
     if (!task.error || !REGIME_COVERAGE_ERROR_RE.test(task.error)) return
     if (regimeErrorHandled.current === task.error) return
+    if (!canManageData) {
+      regimeErrorHandled.current = task.error
+      toast('市场环境数据不完整，请联系管理员补齐后重试', 'error')
+      return
+    }
     const request = task.run?.request
     if (!request) return
     regimeErrorHandled.current = task.error
@@ -641,7 +648,7 @@ export function MiningWorkbench() {
       payload: stripMiningRequestExtras(request),
       start: REGIME_FIRST_MISSING_RE.exec(task.error)?.[1],
     })
-  }, [task.error, task.isPending, task.run])
+  }, [task.error, task.isPending, task.run, canManageData])
   const regimeRecomputeAndRun = useMutation({
     mutationFn: async (job: { payload: MiningRequestV1; start?: string }) => {
       // start 缺省(环境数据为空)时后端从 enriched 最早日全量重算; 有 start 则只补缺口区间

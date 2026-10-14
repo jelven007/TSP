@@ -19,9 +19,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.multitenancy.ai import authorized_lines, report_options
 from app.services import auction_benchmark, dragon_tiger, market_recap_reports, preferences
 from app.services.market_recap import recap_market_stream
-from app.services.ndjson_heartbeat import with_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +101,10 @@ async def analyze_market(request: Request, req: AnalyzeRequest):
             raise HTTPException(400, f"as_of 格式应为 YYYY-MM-DD,收到: {req.as_of}")
 
     async def stream_gen():
-        async for chunk in with_heartbeat(
-            recap_market_stream(repo, quote_service, depth_service, as_of, req.focus),
+        async for line in authorized_lines(
+            request, recap_market_stream(repo, quote_service, depth_service, as_of, req.focus),
         ):
-            yield chunk + "\n"
+            yield line
 
     return StreamingResponse(
         stream_gen(),
@@ -131,12 +131,13 @@ class SaveReportRequest(BaseModel):
 @router.get("/reports")
 def list_reports(request: Request):
     """获取全部历史复盘(按时间降序,后端已裁剪到上限)。"""
-    return {"reports": market_recap_reports.list_reports()}
+    return {"reports": market_recap_reports.list_reports(**report_options(request))}
 
 
 @router.post("/reports")
 def save_report(request: Request, req: SaveReportRequest):
     """保存一条复盘报告。req.push=True 或 review_push_mode=auto 时才推送到外部渠道。"""
+    options = report_options(request)
     report = market_recap_reports.save_report({
         "as_of": req.as_of,
         "focus": req.focus,
@@ -144,7 +145,18 @@ def save_report(request: Request, req: SaveReportRequest):
         "summary": req.summary,
         "emotion_score": req.emotion_score,
         "emotion_label": req.emotion_label,
-    })
+    }, **options)
+    if options:
+        documents = options["documents"]
+        config = documents.get("notification_preferences", "default", {})
+        if req.push or config.get("review_push_mode", "manual") == "auto":
+            account = request.state.account
+            documents.put("notification_requests", report["id"], {
+                "kind": "review", "report_id": report["id"], "content": req.content,
+                "as_of": req.as_of, "emotion_label": req.emotion_label,
+                "user_id": account["id"], "auth_version": account["auth_version"], "state": "queued",
+            }, expected_revision=0)
+        return {"ok": True, "report": report}
     # 推送门控: manual 模式需显式 push=True; auto 模式保持归档即推。
     # 内部 try/except 静默降级, 不影响归档返回值。
     if req.push or preferences.get_review_push_mode() == "auto":
@@ -159,5 +171,5 @@ def save_report(request: Request, req: SaveReportRequest):
 @router.delete("/reports/{report_id}")
 def delete_report(request: Request, report_id: str):
     """删除一条复盘报告。"""
-    ok = market_recap_reports.delete_report(report_id)
+    ok = market_recap_reports.delete_report(report_id, **report_options(request))
     return {"ok": ok}

@@ -16,7 +16,10 @@ router = APIRouter(prefix="/api/custom-signals", tags=["custom-signals"])
 
 
 def _data_dir(request: Request) -> Path:
-    return request.app.state.repo.store.data_dir
+    from app.multitenancy.documents import private_storage
+
+    documents = private_storage(request)
+    return documents if documents is not None else request.app.state.repo.store.data_dir
 
 
 def _invalidate(request: Request) -> None:
@@ -27,6 +30,11 @@ def _invalidate(request: Request) -> None:
     需要一并清除, 否则创建信号后立即运行策略仍会报缺列。
     盘中信号定义缓存(intraday)一并失效, 下一分钟 bucket 即生效。
     """
+    if getattr(request.app.state, "account_identity", None) is not None:
+        from app.services import strategy_cache
+
+        strategy_cache.clear_cache(_data_dir(request))
+        return
     custom_signals.invalidate_intraday_cache()
     from app.indicators.pipeline import invalidate_custom_signals
     invalidate_custom_signals()

@@ -22,6 +22,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { QK } from '@/lib/queryKeys'
+import { accountStorage as localStorage, hasPermission, multitenancyEnabled } from '@/lib/accountSession'
 
 // ===== Tab 定义 =====
 
@@ -55,11 +56,12 @@ export function Settings() {
     staleTime: 30_000,
   })
   const tabParam = searchParams.get('tab') as TabKey | null
-  const availableTabs = authStatus?.auth_required
-    ? TABS
-    : TABS.filter(tab => tab.key !== 'account')
+  const tenant = multitenancyEnabled() && !hasPermission('settings:manage')
+  const availableTabs = tenant
+    ? TABS.filter(tab => tab.key === 'account')
+    : authStatus?.auth_required ? TABS : TABS.filter(tab => tab.key !== 'account')
   const activeTab = availableTabs.find((t) => t.key === tabParam) ?? availableTabs[0]
-  const highlight = searchParams.get('highlight') ?? ''
+  const highlight = tenant ? '' : searchParams.get('highlight') ?? ''
 
   // 设置菜单收起状态 — 持久化到 localStorage
   const [collapsed, setCollapsed] = useState(() => {
@@ -77,10 +79,13 @@ export function Settings() {
     <>
       <PageHeader
         title="设置"
-        subtitle="管理数据刷新策略和高级功能配置。"
+        subtitle={tenant ? '查看账户信息、修改密码和退出登录。' : '管理数据刷新策略和高级功能配置。'}
       />
 
       <div className="px-8 py-6">
+        {tenant && ((tabParam && tabParam !== 'account') || searchParams.has('highlight')) && (
+          <p role="status" className="mb-4 text-sm text-muted">当前账户无权访问该设置。</p>
+        )}
         <div className="flex gap-6 items-stretch">
           {/* ===== 竖向 Tab 侧栏 ===== */}
           <nav className={cn('shrink-0 transition-all duration-200 ease-smooth', collapsed ? 'w-10' : 'w-36')}>

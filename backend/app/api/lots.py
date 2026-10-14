@@ -8,11 +8,13 @@ import logging
 import secrets
 import threading
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.multitenancy.documents import TenantDocuments, private_storage
 from app.strategy import lots as lots_domain
 from app.strategy import monitor_rules
 
@@ -23,7 +25,7 @@ _write_lock = threading.Lock()
 
 
 def _data_dir(request: Request) -> Path:
-    return request.app.state.repo.store.data_dir
+    return private_storage(request) or request.app.state.repo.store.data_dir
 
 
 def _resolve_asset_type(request: Request, symbol: str) -> str:
@@ -66,8 +68,12 @@ def sync_lot(request: Request, lot: dict) -> None:
     from app.services import preferences
 
     data_dir = _data_dir(request)
-    with _write_lock:
-        default_channels = preferences.get_webhook_default_channels()
+    unit = data_dir.transaction() if isinstance(data_dir, TenantDocuments) else nullcontext(data_dir)
+    with unit as data_dir, (nullcontext() if isinstance(data_dir, TenantDocuments) else _write_lock):
+        default_channels = (
+            data_dir.get("notification_preferences", "default", {}).get("default_channels", [])
+            if isinstance(data_dir, TenantDocuments) else preferences.get_webhook_default_channels()
+        )
         # ETF/指数等资产类型解析 (止盈止损价格规则须走对应资产监控轮才会触发)
         asset_type = _resolve_asset_type(request, lot["symbol"])
         price_rule, date_rule = lots_domain.lot_to_rules(lot)
@@ -90,7 +96,7 @@ def sync_lot(request: Request, lot: dict) -> None:
             rules_to_write.append(monitor_rules.normalize(rule))
         lots_domain.save_one(data_dir, lot)
         for rid in rules_to_delete:
-            monitor_rules.delete_one(data_dir, rid)
+            monitor_rules.delete_one(data_dir, rid, managed=True)
         for rule in rules_to_write:
             monitor_rules.save_one(data_dir, rule)
     _reload_engine(request)
@@ -121,11 +127,12 @@ def delete_lot(lot_id: str, request: Request):
     if not monitor_rules.ID_RE.match(lot_id):
         raise HTTPException(status_code=400, detail="批次 id 非法")
     data_dir = _data_dir(request)
-    with _write_lock:
+    unit = data_dir.transaction() if isinstance(data_dir, TenantDocuments) else nullcontext(data_dir)
+    with unit as data_dir, (nullcontext() if isinstance(data_dir, TenantDocuments) else _write_lock):
         deleted = lots_domain.delete_one(data_dir, lot_id)
         # 两条派生规则都要删 (用 or 会短路跳过第二条)
-        deleted_p = monitor_rules.delete_one(data_dir, f"{lot_id}_p")
-        deleted_d = monitor_rules.delete_one(data_dir, f"{lot_id}_d")
+        deleted_p = monitor_rules.delete_one(data_dir, f"{lot_id}_p", managed=True)
+        deleted_d = monitor_rules.delete_one(data_dir, f"{lot_id}_d", managed=True)
     if deleted or deleted_p or deleted_d:
         _reload_engine(request)
     return {"ok": True}

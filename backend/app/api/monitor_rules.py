@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.multitenancy.documents import private_storage
 from app.strategy import monitor_rules
 from app.strategy.intraday_signals import INTRADAY_SIGNAL_LABELS, uses_intraday_signals
 
@@ -17,7 +18,22 @@ router = APIRouter(prefix="/api/monitor-rules", tags=["monitor-rules"])
 
 
 def _data_dir(request: Request) -> Path:
-    return request.app.state.repo.store.data_dir
+    return private_storage(request) or request.app.state.repo.store.data_dir
+
+
+def _groups(request: Request):
+    from app.api.watchlist import _service
+
+    return _service(request).list_groups()
+
+
+def _monitor_engine(request: Request):
+    if private_storage(request) is not None:
+        from app.strategy.monitor import MonitorRuleEngine
+        engine = MonitorRuleEngine()
+        engine.set_rules(monitor_rules.load_all(_data_dir(request)))
+        return engine
+    return getattr(request.app.state, "monitor_engine", None)
 
 
 def _reconcile_index_asset_type(rule: dict, repo) -> dict:
@@ -45,6 +61,8 @@ def _reconcile_index_asset_type(rule: dict, repo) -> dict:
 
 def _sync_engine(request: Request) -> None:
     """保存/删除后,把最新规则集 reload 到引擎内存态。"""
+    if private_storage(request) is not None:
+        return
     engine = getattr(request.app.state, "monitor_engine", None)
     if engine is not None:
         repo = request.app.state.repo
@@ -246,10 +264,8 @@ def list_rules(request: Request):
     # 分组作用域规则: 绑定的分组被删除 → 标注运行时警告 (引擎侧已 fail-closed 跳过)
     group_rules = [rule for rule in rules if rule.get("scope") == "watchlist_group"]
     if group_rules:
-        from app.services import watchlist as watchlist_service
-
         try:
-            existing_ids = {g["id"] for g in watchlist_service.list_groups()}
+            existing_ids = {g["id"] for g in _groups(request)}
             for rule in group_rules:
                 if rule.get("group_id") not in existing_ids:
                     rule["runtime_warning"] = "绑定的自选分组已删除, 规则已暂停监控, 编辑可重新选择"
@@ -276,9 +292,10 @@ def save_rule(req: RuleModel, request: Request):
                 detail="封单监控需要 Pro+ 套餐 (批量五档能力),请升级后在「设置」页配置",
             )
     if rule.get("type") == "strategy":
+        from app.api.strategy import _get_engine
         from app.strategy.engine import StrategyDataContext
 
-        strategy_engine = getattr(request.app.state, "strategy_engine", None)
+        strategy_engine = _get_engine(request)
         if strategy_engine is None:
             raise HTTPException(status_code=503, detail="策略引擎未初始化")
         try:
@@ -306,11 +323,9 @@ def save_rule(req: RuleModel, request: Request):
         raise HTTPException(status_code=400, detail=str(e)) from e
     if rule.get("scope") == "watchlist_group":
         # 绑定的分组必须存在 (strategy 层校验形状, 存在性在本层校验)
-        from app.services import watchlist as watchlist_service
-
         group_id = str(rule.get("group_id") or "")
         try:
-            group_ids = {g["id"] for g in watchlist_service.list_groups()}
+            group_ids = {g["id"] for g in _groups(request)}
         except Exception as e:  # noqa: BLE001
             raise HTTPException(status_code=503, detail=f"自选分组读取失败: {e}") from e
         if group_id not in group_ids:
@@ -458,7 +473,7 @@ def test_ladder(request: Request):
 
     repo = request.app.state.repo
     depth_svc = getattr(request.app.state, "depth_service", None)
-    engine = getattr(request.app.state, "monitor_engine", None)
+    engine = _monitor_engine(request)
 
     if not depth_svc:
         raise HTTPException(status_code=503, detail="depth 服务未初始化")
@@ -573,7 +588,7 @@ def trigger_ladder(request: Request):
 
     repo = request.app.state.repo
     depth_svc = getattr(request.app.state, "depth_service", None)
-    engine = getattr(request.app.state, "monitor_engine", None)
+    engine = _monitor_engine(request)
     quote_svc = getattr(request.app.state, "quote_service", None)
 
     if not depth_svc:
@@ -663,12 +678,12 @@ def trigger_ladder(request: Request):
 
     # 1. 落盘到 alerts.jsonl
     try:
-        alert_store.append_many(repo.store.data_dir, rule_events)
+        alert_store.append_many(_data_dir(request), rule_events)
     except Exception:  # noqa: BLE001
         pass  # 落盘失败不阻断推送
 
     # 2. SSE 推送 (入 pending_alerts 队列)
-    if quote_svc:
+    if quote_svc and private_storage(request) is None:
         sse_alerts = [{
             "source": ev["source"], "type": ev["type"], "rule_id": ev["rule_id"],
             "strategy_id": None, "symbol": ev["symbol"], "name": ev["name"],
@@ -682,7 +697,7 @@ def trigger_ladder(request: Request):
             pass
 
     # 3. 飞书推送
-    if quote_svc:
+    if quote_svc and private_storage(request) is None:
         try:
             quote_svc._maybe_send_webhook(rule_events, engine)
         except Exception:  # noqa: BLE001

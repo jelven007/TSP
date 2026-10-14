@@ -4,6 +4,7 @@
 // Prod:同源(FastAPI 托管前端 dist)
 
 import { toast } from '@/components/Toast'
+import { accountFetch as fetch, confirmAccount, hasPermission, multitenancyEnabled } from './accountSession'
 import { secondQuotesApi, type SecondQuoteArchiveStatus } from '@/lib/api/secondQuotes'
 import {
   COMPUTE_REQUEST_TIMEOUT_MS,
@@ -13,6 +14,18 @@ import {
 
 export { ApiError } from '@/lib/api/client'
 export type * from '@/lib/api/secondQuotes'
+
+export interface ResearchJob {
+  id: string
+  kind: string
+  status: string
+  key: string
+  error: string | null
+  created_at: string
+  updated_at: string
+  metadata: { source?: string; finished_at?: string | null }
+  config: { strategy_id?: string; start?: string; end?: string; request?: { start?: string; end?: string } }
+}
 
 /**
  * 把浏览器 fetch 抛出的裸网络错误文案翻译成可操作的提示。
@@ -2009,6 +2022,50 @@ export interface ApiTokenRecord {
   created_at: string
   last_used_at?: string | null
   revoked: boolean
+  tenant_id?: string
+  expires_at?: string
+}
+
+export interface TenantDirectoryEntry {
+  id: string
+  name: string
+  status: 'active' | 'suspended' | 'moving'
+  cell_id: string
+}
+
+export interface ManagedUser {
+  id: string
+  email: string | null
+  username: string | null
+  roles: Array<'admin' | 'tenant'>
+  active: boolean
+  account_state: string
+  default_tenant_id: string | null
+}
+
+export interface NotificationChannel {
+  id: string
+  version: number
+  name: string
+  kind: 'email' | 'webhook'
+  destination: string
+  enabled: boolean
+}
+
+export interface NotificationPreferences {
+  default_channels: string[]
+  review_channels: string[]
+  review_push_mode: 'manual' | 'auto'
+}
+
+export interface NotificationDelivery {
+  id: string
+  channel_id: string
+  status: 'queued' | 'sending' | 'sent' | 'dead' | 'cancelled'
+  attempts: number
+  error: string | null
+  created_at: string
+  sent_at: string | null
 }
 
 export interface Preferences {
@@ -2190,7 +2247,12 @@ export interface SectorRotationUniverseItem {
 
 export interface AuthUser {
   id: string
-  email: string
+  email: string | null
+  username?: string | null
+  role?: 'admin' | 'tenant'
+  permissions?: string[]
+  default_tenant_id?: string | null
+  auth_version?: number
   created_at: number
 }
 
@@ -2203,6 +2265,7 @@ export interface AuthStatus {
   email_verification_required: boolean
   authenticated: boolean
   user: AuthUser | null
+  multitenancy_enabled?: boolean
 }
 
 export interface AuthResult {
@@ -2210,6 +2273,7 @@ export interface AuthResult {
   authenticated: boolean
   legacy_migration_required?: boolean
   user: AuthUser | null
+  redirect?: string
 }
 
 // ===== API surface =====
@@ -2218,8 +2282,11 @@ export const api = {
   health: () => request<{ status: string; version: string; mode: string }>('/health'),
 
   // ===== Auth =====
-  authStatus: () =>
-    request<AuthStatus>('/api/auth/status'),
+  authStatus: async () => {
+    const result = await request<AuthStatus>('/api/auth/status', { cache: 'no-store' })
+    confirmAccount(result)
+    return result
+  },
   authSendRegistrationCode: (email: string, registrationSecret: string) =>
     request<{ ok: boolean; cooldown_seconds: number }>('/api/auth/register/code', {
       method: 'POST',
@@ -2240,10 +2307,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ password }),
     }),
-  authLogin: (email: string, password: string) =>
+  authLogin: (identifier: string, password: string) =>
     request<AuthResult>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(multitenancyEnabled() ? { identifier, password } : { email: identifier, password }),
     }),
   authLogout: () =>
     request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
@@ -2252,8 +2319,38 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
     }),
+  accountTenants: () => request<{ tenants: TenantDirectoryEntry[] }>('/api/account/tenants'),
+  accountSelectTenant: (tenant_id: string) =>
+    request<{ ok: boolean }>('/api/account/tenant', { method: 'POST', body: JSON.stringify({ tenant_id }) }),
+  adminUsers: () => request<{ users: ManagedUser[] }>('/api/admin/users'),
+  adminUpdateUser: (id: string, role: 'admin' | 'tenant', active: boolean) =>
+    request<{ ok: boolean }>(`/api/admin/users/${encodeURIComponent(id)}`, {
+      method: 'PUT', body: JSON.stringify({ role, active }),
+    }),
+  adminRegistrationSecret: (registration_secret: string) =>
+    request<{ ok: boolean }>('/api/admin/registration-secret', {
+      method: 'PUT', body: JSON.stringify({ registration_secret }),
+    }),
+  notificationChannels: () =>
+    request<{ channels: NotificationChannel[] }>('/api/monitor-rules/notifications/channels'),
+  notificationSaveChannel: (channel: Omit<NotificationChannel, 'id' | 'version'> & { id?: string; version?: number }) =>
+    request<{ channels: NotificationChannel[] }>('/api/monitor-rules/notifications/channels', {
+      method: 'POST', body: JSON.stringify(channel),
+    }),
+  notificationPreferences: () =>
+    request<NotificationPreferences>('/api/monitor-rules/notifications/preferences'),
+  notificationSavePreferences: (preferences: NotificationPreferences) =>
+    request<NotificationPreferences>('/api/monitor-rules/notifications/preferences', {
+      method: 'PUT', body: JSON.stringify(preferences),
+    }),
+  notificationDeliveries: () =>
+    request<{ deliveries: NotificationDelivery[] }>('/api/monitor-rules/notifications/deliveries'),
+  notificationRetry: (id: string) =>
+    request<{ ok: boolean }>(`/api/monitor-rules/notifications/deliveries/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
 
-  settings: () => request<SettingsState>('/api/settings'),
+  settings: () => request<SettingsState>(
+    multitenancyEnabled() && !hasPermission('settings:manage') ? '/api/business/settings' : '/api/settings',
+  ),
   saveTickflowKey: (api_key: string) =>
     request<SaveTickflowKeyResult>('/api/settings/tickflow-key', {
       method: 'POST',
@@ -2284,10 +2381,10 @@ export const api = {
     request<{ tokens: ApiTokenRecord[] }>('/api/settings/api-tokens'),
 
   /** 创建 Token — 明文只在本次响应出现一次 */
-  apiTokenCreate: (name: string, scopes: string[]) =>
+  apiTokenCreate: (name: string, scopes: string[], days = 90) =>
     request<{ token: ApiTokenRecord; plaintext: string }>('/api/settings/api-tokens', {
       method: 'POST',
-      body: JSON.stringify({ name, scopes }),
+      body: JSON.stringify({ name, scopes, ...(multitenancyEnabled() ? { days } : {}) }),
     }),
 
   apiTokenRevoke: (id: string) =>
@@ -2295,9 +2392,13 @@ export const api = {
       method: 'DELETE',
     }),
 
-  preferences: () => request<Preferences>('/api/settings/preferences'),
+  preferences: () => request<Preferences>(
+    multitenancyEnabled() ? '/api/business/preferences' : '/api/settings/preferences',
+  ),
   dataSources: () => request<DataSourcesResponse>('/api/settings/data-sources'),
-  capabilityMatrix: () => request<CapabilityMatrix>('/api/settings/capability-matrix'),
+  capabilityMatrix: () => request<CapabilityMatrix>(
+    multitenancyEnabled() && !hasPermission('settings:manage') ? '/api/business/capabilities' : '/api/settings/capability-matrix',
+  ),
   dataSource: (name: string) => request<CustomSourceConfig>(`/api/settings/data-sources/${encodeURIComponent(name)}`),
   saveDataSource: (config: CustomSourceConfig) =>
     request<DataSourcesResponse>('/api/settings/data-sources', {
@@ -2577,15 +2678,23 @@ export const api = {
       body: JSON.stringify({ hour, minute }),
     }),
   updateReviewSchedule: (enabled: boolean, hour: number, minute: number) =>
-    request<{ enabled: boolean; hour: number; minute: number }>('/api/settings/preferences/review-schedule', {
-      method: 'PUT',
+    request<{ enabled: boolean; hour: number; minute: number }>(multitenancyEnabled() ? '/api/monitor-rules/notifications/review-schedule' : '/api/settings/preferences/review-schedule', {
+      method: multitenancyEnabled() ? 'POST' : 'PUT',
       body: JSON.stringify({ enabled, hour, minute }),
     }),
-  updateReviewPush: (channels: string[], mode?: 'auto' | 'manual') =>
-    request<{ review_push_channels: string[]; review_push_mode: 'auto' | 'manual' }>('/api/settings/preferences/review-push', {
+  updateReviewPush: async (channels: string[], mode?: 'auto' | 'manual') => {
+    if (multitenancyEnabled()) {
+      const current = await request<NotificationPreferences>('/api/monitor-rules/notifications/preferences')
+      const saved = await request<NotificationPreferences>('/api/monitor-rules/notifications/preferences', {
+        method: 'PUT', body: JSON.stringify({ ...current, review_channels: channels, review_push_mode: mode ?? current.review_push_mode }),
+      })
+      return { review_push_channels: saved.review_channels, review_push_mode: saved.review_push_mode }
+    }
+    return request<{ review_push_channels: string[]; review_push_mode: 'auto' | 'manual' }>('/api/settings/preferences/review-push', {
       method: 'PUT',
       body: JSON.stringify({ channels, mode: mode ?? null }),
-    }),
+    })
+  },
   updateDepthPollingInterval: (interval: number) =>
     request<{ depth_polling_interval: number }>('/api/settings/preferences/depth-polling-interval', {
       method: 'PUT',
@@ -2617,7 +2726,7 @@ export const api = {
     }),
   /** 保存看板自定义布局; layout=null 恢复默认布局 */
   saveDashboardLayout: (layout: Preferences['dashboard_layout']) =>
-    request<{ dashboard_layout: Preferences['dashboard_layout'] }>('/api/settings/preferences/dashboard-layout', {
+    request<{ dashboard_layout: Preferences['dashboard_layout'] }>(`${multitenancyEnabled() ? '/api/business' : '/api/settings'}/preferences/dashboard-layout`, {
       method: 'PUT',
       body: JSON.stringify({ layout }),
     }),
@@ -2639,24 +2748,24 @@ export const api = {
 
   // 自选列表列配置
   watchlistColumns: () =>
-    request<{ columns: any[] | null }>('/api/settings/preferences/watchlist-columns'),
+    request<{ columns: any[] | null }>(`${multitenancyEnabled() ? '/api/business' : '/api/settings'}/preferences/watchlist-columns`),
   updateWatchlistColumns: (columns: any[]) =>
-    request<{ columns: any[] }>('/api/settings/preferences/watchlist-columns', {
+    request<{ columns: any[] }>(`${multitenancyEnabled() ? '/api/business' : '/api/settings'}/preferences/watchlist-columns`, {
       method: 'PUT',
       body: JSON.stringify({ columns }),
     }),
 
   // 策略结果列表列配置
   screenerResultColumns: () =>
-    request<{ columns: any[] | null }>('/api/settings/preferences/screener-result-columns'),
+    request<{ columns: any[] | null }>(`${multitenancyEnabled() ? '/api/business' : '/api/settings'}/preferences/screener-result-columns`),
   updateScreenerResultColumns: (columns: any[]) =>
-    request<{ columns: any[] }>('/api/settings/preferences/screener-result-columns', {
+    request<{ columns: any[] }>(`${multitenancyEnabled() ? '/api/business' : '/api/settings'}/preferences/screener-result-columns`, {
       method: 'PUT',
       body: JSON.stringify({ columns }),
     }),
 
   capabilities: () => request<CapabilitiesResponse>('/api/capabilities'),
-  version: () => request<{ version: string }>('/api/data/version'),
+  version: () => request<{ version: string }>(multitenancyEnabled() ? '/api/business/version' : '/api/data/version'),
   redetectCapabilities: () =>
     request<CapabilitiesResponse>('/api/capabilities/redetect', { method: 'POST' }),
 
@@ -3183,6 +3292,17 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  researchJobs: () => request<{ items: ResearchJob[] }>('/api/backtest/jobs'),
+  researchJobCancel: (id: string) => request<{ ok: boolean }>(`/api/backtest/jobs/${id}/cancel`, { method: 'POST' }),
+  researchJobDelete: (id: string) => request<{ ok: boolean }>(`/api/backtest/jobs/${id}`, { method: 'DELETE' }),
+  researchJob: (id: string) => request<Record<string, unknown>>(`/api/backtest/jobs/${id}`),
+  researchOriginals: () => request<{ items: { path: string; sha256: string; bytes: number }[] }>('/api/backtest/legacy'),
+  researchOriginal: async (path: string, sha256: string) => {
+    const response = await fetch(`/api/backtest/legacy/download?${new URLSearchParams({ path, sha256 })}`)
+    if (!response.ok) throw new Error('历史文件下载失败，请刷新后重试')
+    return response.blob()
+  },
+
   researchCandidates: () =>
     request<{ items: ResearchCandidate[] }>('/api/backtest/candidates'),
 
@@ -3244,7 +3364,9 @@ export const api = {
       `/api/pipeline/jobs?limit=${limit}`,
     ),
 
-  dataStatus: () => request<DataStatus>('/api/data/status'),
+  dataStatus: () => request<DataStatus>(
+    multitenancyEnabled() && !hasPermission('data:manage') ? '/api/business/data-availability' : '/api/data/status',
+  ),
   dataClear: () => request<{ deleted_files: number }>('/api/data/clear', { method: 'POST' }),
   refreshCache: () => request<{ ok: boolean }>('/api/data/refresh-cache', { method: 'POST' }),
   enrichedSchema: (table: string) => request<EnrichedField[]>(`/api/data/schema/${table}`),
@@ -3903,7 +4025,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  paperOrderCreate: (body: { symbol: string; side: 'buy' | 'sell'; qty?: number; amount?: number; order_type: 'market' | 'next_open' | 'close'; ref_price?: number }, account?: string) =>
+  paperOrderCreate: (body: { symbol: string; side: 'buy' | 'sell'; qty?: number; amount?: number; order_type: 'market' | 'next_open' | 'close'; ref_price?: number; request_id?: string }, account?: string) =>
     request<{ order: PaperOrder }>(accUrl('/api/paper/orders', account), {
       method: 'POST',
       body: JSON.stringify(body),
