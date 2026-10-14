@@ -11,6 +11,7 @@ import { buildCustomTemplate, renderBasicFilterPy } from './StrategyBuilderDialo
 import { storage } from '@/lib/storage'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
+import { confirmAccount } from '@/lib/accountSession'
 
 vi.mock('@/components/Toast', () => ({ toast: vi.fn() }))
 
@@ -52,6 +53,10 @@ async function render(props: { show: boolean; onClose?: () => void }) {
 }
 
 beforeEach(() => {
+  confirmAccount({
+    auth_required: false, configured: false, has_users: false, legacy_migration_required: false,
+    registration_enabled: false, email_verification_required: false, authenticated: true, user: null,
+  })
   localStorage.clear()
   mockPatchConfig.mockClear()
 })

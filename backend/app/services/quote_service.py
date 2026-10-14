@@ -1331,6 +1331,9 @@ class QuoteService:
 
     def _evaluate_monitors(self, daily_df: pl.DataFrame, quote_extra: pl.DataFrame | None) -> None:
         """行情更新后评估统一监控规则引擎,并刷新策略结果缓存。"""
+        from app.config import settings
+        if settings.service_role == "platform":
+            return
         try:
             # 仅在「交易日 + 连续竞价时段」评估监控 —— 避开集合竞价指示价、盘前/收盘后
             # 缓冲。轮询窗口(_is_trading_hours)更宽是为盘前预热/收盘捕捉, 但告警不应
@@ -1666,6 +1669,9 @@ class QuoteService:
 
     def _load_intraday_signal_defs(self) -> list[dict]:
         """加载自定义盘中信号定义(带指纹缓存); 失败时退化为仅内置 4 信号。"""
+        from app.config import settings
+        if settings.service_role == "platform":
+            return []
         try:
             from app.strategy import custom_signals
 

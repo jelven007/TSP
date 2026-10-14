@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronDown, ChevronUp, FolderCog, FolderInput, Pencil, Plus, Trash2, X, Eraser } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { api } from '@/lib/api'
+import { hasPermission } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
 import { usePreferences } from '@/lib/useSharedQueries'
 import { fmtPct } from '@/lib/format'
@@ -379,7 +380,7 @@ function GroupManagerDialog({
       </div>
 
       {/* 显示在侧边栏 开关 */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+      {hasPermission('settings:manage') && <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <div className="min-w-0">
           <div className="text-xs font-medium text-foreground">显示在侧边栏</div>
           <div className="mt-0.5 text-[10px] text-muted">开启后可在左侧菜单展开分组子菜单</div>
@@ -397,7 +398,7 @@ function GroupManagerDialog({
             groupsInNav ? 'translate-x-[18px]' : 'translate-x-0.5'
           }`} />
         </button>
-      </div>
+      </div>}
 
       <div className="px-4 py-3">
         <div className="flex gap-2">

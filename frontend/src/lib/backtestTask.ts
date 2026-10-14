@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { accountFetch as fetch, accountStorage as localStorage, accountStreamUrl } from './accountSession'
 import type { StrategyBacktestResult } from './api'
 
 /**
@@ -95,7 +96,7 @@ async function connectSSE(url: string): Promise<void> {
     await probe.body?.cancel().catch(() => {})
   } catch { /* 网络层异常: 交给下方 EventSource 的重连逻辑 */ }
 
-  const es = new EventSource(url)
+  const es = new EventSource(accountStreamUrl(url))
   eventSource = es
 
   // 本次连接的重连计数 (EventSource 断开会自动重连并再次触发 onerror)
@@ -258,7 +259,7 @@ export async function stopBacktest(): Promise<void> {
       // 替代: 前端直接关闭 SSE 连接 + 调一个带参数的 cancel 接口。
       // 简化: 关闭连接即可, 后端检测断开后 (不取消)。需要 cancel 用 POST。
       // 这里用 cancel 接口: POST /strategy/cancel, body 带 qs 的参数。
-      await fetch('/api/backtest/strategy/cancel', {
+      await fetch(qs.startsWith('job:') ? `/api/backtest/jobs/${qs.slice(4)}/cancel` : '/api/backtest/strategy/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ qs }),
@@ -286,12 +287,20 @@ export function clearBacktest(): void {
 export function tryReconnect(): boolean {
   const qs = localStorage.getItem(RECONNECT_KEY)
   if (!qs) return false
+  if (qs.startsWith('job:')) { attachBacktestJob(qs.slice(4)); return true }
   // 有未完成的任务, 重连
   const id = ++taskSeq
   current = { id, isPending: true, result: null, progress: null, error: null, reconnecting: false }
   emit()
   connectSSE(`/api/backtest/strategy/stream?${qs}`)
   return true
+}
+
+export function attachBacktestJob(id: string): void {
+  localStorage.setItem(RECONNECT_KEY, `job:${id}`)
+  current = { id: ++taskSeq, isPending: true, result: null, progress: null, error: null, reconnecting: false }
+  emit()
+  void connectSSE(`/api/backtest/jobs/${encodeURIComponent(id)}/stream`)
 }
 
 /** React hook: 读取当前全局回测任务状态 */

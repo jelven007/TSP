@@ -14,16 +14,19 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.api.auth import COOKIE_NAME
 from app.custom.assistant import actions as assistant_actions
 from app.custom.assistant import tools as assistant_tools
 from app.custom.assistant.chat_service import chat_stream
+from app.multitenancy.access import verify_live_access
+from app.multitenancy.ai import SQLPendingRegistry, authorized_lines
+from app.multitenancy.documents import private_storage
 from app.services.ai_provider import (
     ai_configured,
     current_ai_model,
     current_ai_provider,
     is_codex_cli_provider,
 )
-from app.services.ndjson_heartbeat import with_heartbeat
 
 
 class HistoryMessage(BaseModel):
@@ -54,9 +57,21 @@ def build_router() -> APIRouter:
         repo = getattr(request.app.state, "repo", None)
         data_dir = str(repo.store.data_dir) if repo is not None else None
         context = req.context.model_dump() if req.context else None
+        documents = private_storage(request)
+        options = {}
+        if documents is not None:
+            from app.api.strategy import _get_engine
+
+            engine = _get_engine(request)
+            account = request.state.account
+            options = {"documents": documents, "account": account,
+                       "verify_access": lambda: verify_live_access(request),
+                       "action_registry": SQLPendingRegistry(
+                           documents, account, request.cookies.get(COOKIE_NAME, ""),
+                       )}
 
         async def gen():
-            async for line in with_heartbeat(chat_stream(
+            async for line in authorized_lines(request, chat_stream(
                 history=[m.model_dump() for m in req.messages],
                 context=context,
                 engine=engine,
@@ -66,8 +81,9 @@ def build_router() -> APIRouter:
                 depth_service=getattr(request.app.state, "depth_service", None),
                 capabilities=getattr(request.app.state, "capabilities", None),
                 financial_scheduler=getattr(request.app.state, "financial_scheduler", None),
+                **options,
             )):
-                yield line + "\n"
+                yield line
 
         return StreamingResponse(
             gen(),
@@ -86,13 +102,21 @@ def build_router() -> APIRouter:
         }
 
     @router.get("/suggests")
-    def suggests() -> dict:
-        return {"suggests": assistant_tools.QUICK_SUGGESTS}
+    def suggests(request: Request) -> dict:
+        items = assistant_tools.QUICK_SUGGESTS
+        account = getattr(request.state, "account", None)
+        if account is not None and "data:manage" not in account["permissions"]:
+            items = [row for row in items if row["group"] != "数据与扩展"]
+        return {"suggests": items}
 
     @router.post("/actions/{call_id}/decision")
-    async def action_decision(call_id: str, req: ActionDecisionRequest) -> dict:
+    async def action_decision(request: Request, call_id: str, req: ActionDecisionRequest) -> dict:
         """确认卡回调: 唤醒挂起中的动作工具(批准执行或拒绝)。"""
-        action = await assistant_actions.registry.resolve(call_id, req.approve)
+        documents = private_storage(request)
+        registry = assistant_actions.registry
+        if documents is not None:
+            registry = SQLPendingRegistry(documents, request.state.account, request.cookies.get(COOKIE_NAME, ""))
+        action = await registry.resolve(call_id, req.approve)
         if action is None:
             raise HTTPException(status_code=404, detail="确认请求不存在或已过期")
         return {"ok": True, "call_id": call_id, "decision": "approved" if req.approve else "denied"}

@@ -107,10 +107,23 @@ COPY backend/pyproject.toml backend/uv.lock* ./
 # present during frozen resolution even though the runtime wheel is installed
 # separately below.
 COPY backend/native ./native
-# uv 原生支持同时挂多个 index(主源 + 备用源),会自动在两源中查找,
-# 比逐个重试更稳健 —— 任一源缺包时另一源补位。
+# Frozen sync follows the artifact URLs in uv.lock, even with an index override.
+# Preinstall the same hash-pinned closure through a mirror, then let frozen sync
+# verify the environment and install the local project without changing the lock.
+ARG PYPI_LOCK_MIRROR=https://repo.huaweicloud.com/repository/pypi/simple
 RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
       export UV_DEFAULT_INDEX="$PYPI_INDEX" UV_EXTRA_INDEX_URL="$PYPI_FALLBACK"; \
+      set -- --no-dev --extra rustdx --no-emit-package tsp-rustdx-native --no-emit-project; \
+      for extra in $BACKEND_EXTRAS; do \
+        set -- "$@" --extra "$extra"; \
+      done; \
+      uv export --quiet --frozen "$@" --output-file /tmp/runtime-locked.txt \
+      && uv venv \
+      && UV_EXTRA_INDEX_URL= UV_INDEX= UV_DEFAULT_INDEX="$PYPI_LOCK_MIRROR" \
+         UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=2 \
+         uv pip sync --python /app/.venv/bin/python --require-hashes /tmp/runtime-locked.txt \
+      && rm /tmp/runtime-locked.txt \
+      || exit 1; \
     fi; \
     set -- --no-dev --extra rustdx --no-install-package tsp-rustdx-native; \
     for extra in $BACKEND_EXTRAS; do \

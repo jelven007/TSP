@@ -1,0 +1,68 @@
+# 完整产品单机多租户部署
+
+本目录用于一期候选部署，沿用原 `app.main`、完整前端和原业务引擎。不能与旧单进程版本同时写同一个行情目录。候选数据、数据库及监听端口必须与生产分离；完整验收后才切流。
+
+## 运行组成
+
+- `platform`：唯一行情写入者、盘前/盘后与分钟任务、盘口和扩展/财务同步。禁止加载旧账户、私有因子/策略、全局监控、模拟盘、挖掘及复盘任务。
+- `api`：默认四个 HTTP 进程，完整前端、持久身份和租户业务；公共行情与平台配置只读。管理员数据/设置操作经过服务端权限验证后转发至平台。
+- `research`、`realtime`、`notifications`、`scheduled`：独立任务进程，分别处理受限研究、监控与模拟盘、通知 outbox、租户周度挖掘和每日复盘。
+- 主机计算 Broker：固定计算镜像、每租户一个/全机四个容器；仅 Broker 有 Docker 权限。API/Worker 只挂载 Unix socket。计算容器无网络、无凭据、UID 10001、只读公共文件。
+- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，均迁移到 v5。
+
+## 配置与目录
+
+Compose 通过以下变量选择资源，私密值应置于权限 `0600` 的环境文件，不进入 Git：
+
+| 变量 | 内容 |
+| --- | --- |
+| `TSP_FULL_IMAGE` | 以原 Dockerfile、`BACKEND_EXTRAS=cell` 构建的确切完整镜像版本 |
+| `TSP_FULL_ENV_FILE` | API/Worker 私密环境文件，包含 `TSP_CELL_ID`、两个 runtime DSN、市场网关和邮件配置 |
+| `TSP_PLATFORM_ENV_FILE` | 平台环境文件，仅有供应商/系统配置和两个内部网关 Token，无数据库 DSN |
+| `TSP_PLATFORM_DATA_DIR` | 平台可写原行情目录；候选阶段使用独立复制件 |
+| `TSP_PLATFORM_CONFIG_DIR` | 平台配置：`preferences.json`、`secrets.json`、`data_sources/`；不包含旧用户业务文件 |
+| `TSP_PUBLIC_MARKET_DIR` | 独立公共版本目录，包含 `releases/<id>/` 与原子 `current` 链接 |
+| `TSP_COMPUTE_SOCKET_DIR` | 主机 Broker socket 目录，默认 `/run/tsp-full` |
+| `TSP_FULL_API_PORT` | 候选 API 仅监听主机回环，默认 3030 |
+| `TSP_FULL_PG_NETWORK` | PostgreSQL 外部 Docker network，默认 `tsp-pg_default` |
+
+API/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TSP_CELL_MARKET_TOKEN`；其值必须与平台的 `TSP_PLATFORM_MARKET_TOKEN` 一致。两端的 `TSP_PLATFORM_ADMIN_TOKEN` 也必须一致，并与市场 Token 不同。
+
+注册邮件使用原 `AUTH_SMTP_*` 配置，未设置时读取平台 SMTP 设置。通知复用该传输配置，目的地使用本租户渠道。原 `TSP_CELL_SMTP_*` 仅为未配置原邮件服务时的通知后备。Webhook 的允许 origin 使用 `TSP_CELL_WEBHOOK_ORIGINS`。
+
+平台配置与数据目录必须可由 UID 10001 读写；API 挂载同一配置目录只读。迁移目录前保存原所有权和文件权限；候选目录调整权限不得触碰原生产目录。公共版本文件中不会发布 `user_data`、环境文件或数据源凭据，扩展数据配置的 `pull` 信息也不进入公共版本。
+
+平台与 API/Worker 均须设置可写的 `NUMBA_CACHE_DIR=/tmp/numba`，不能让 UID 10001 在镜像源码目录写计算缓存。主机须存在 GID 10001 的组，Broker 的 systemd `Group=10001` 与 socket 权限、容器挂载权限使用同一 GID。
+
+完整镜像的国内镜像构建先从未修改的冻结锁导出依赖，再用 `--require-hashes` 安装，最后执行冻结同步。`PYPI_LOCK_MIRROR` 只改变下载链路，不改变版本或文件哈希；仅设置普通索引变量不能替换冻结锁内的官方下载地址。
+
+## 初始化与启动
+
+1. 备份两个 PostgreSQL 库、原 `data/user_data`、策略/研究/模拟盘目录、平台配置、镜像及 Nginx 配置，记录可恢复路径。
+2. 对独立候选库执行原 `app.cell.admin migrate --target-version 5`，分别指定 control/business runtime 角色；登记 Cell 后运行 `bootstrap-full-identity`。初始化只创建缺失的 `admin/Admin123`，不会重置已改密码。
+3. 对明确暂停的 legacy 租户执行 `import-full-product --directory <原data的一致备份> --tenant-id <id> --owner-id <原owner> --report <摘要路径>`，随后执行 `verify-full-import --directory <同一备份> --tenant-id <id> --report <对账路径>`。该命令覆盖账号与完整业务；仅 `import-full-accounts` 或旧 v4 导入不够。旧通知名称须通过 `--channel-map '{"email":"legacy-email"}'` 明确绑定至该租户的已有渠道，实际值以对账结果为准。
+4. 将平台偏好、密钥和 `data_sources/` 从旧目录复制到独立平台配置目录，完成数量/内容对账。保留管理员维护的全局菜单配置；个人布局/列配置和租户定时/通知配置分别导入其 SQL 归属。保留旧文件用于恢复。
+5. 启动独立 `platform` 并等待首个完整公共版本。版本发布逐项复制新文件、复用上一不可变版本的相同文件，并在数据世代或文件清单变化时放弃本次发布。
+6. 以完整镜像构建 `Compute.Dockerfile`（传入 `RUNTIME_IMAGE`）。配置 `/etc/tsp-full/broker.env` 的确切 `TSP_COMPUTE_IMAGE` 和主机 `TSP_PUBLIC_MARKET_DIR`。主机 Python 需 3.11+，项目代码部署到 `/opt/tsp-full/backend`；Broker 本身只需标准库。
+7. 确认主机 GID 10001 已存在；若不存在，使用 `groupadd --gid 10001 tsp-runtime` 创建。安装 `tsp-compute-broker.service`，准备 `/opt/tsp-full/python/bin/python` 后启动 Broker，再启动 API 和四个 Worker。
+8. `/health/ready` 必须同时通过数据库、公共文件、平台连接、指标缓存、计算 Broker 及四类 Worker 心跳。只看容器运行或 `/health/live` 不算功能就绪。
+
+```bash
+docker compose -p tsp-full-candidate -f deploy/full/compose.yml config --quiet
+docker compose -p tsp-full-candidate -f deploy/full/compose.yml up -d platform
+docker compose -p tsp-full-candidate -f deploy/full/compose.yml up -d research realtime notifications scheduled api
+```
+
+同一计算任务固定挂载一个发布版本，后续数据发布不能改变其历史输入。当前不自动删除旧版本；验收与上线时记录占用，清理前须确认无排队任务或 API 引用该版本。二期再实施引用计数和自动保留策略。
+
+完整导入保存逐条目标内容散列和源文件清单。最终增量仍要求租户暂停，且先核对候选中的上次导入记录；候选业务编辑、源快照变化、缺失文件或模拟盘台账改写都会阻止覆盖。模拟盘按原成交台账核对现金与持仓；原始业务文件可在研究任务历史中导出。旧会话、验证码、全局 Token 和平台凭据不进入租户归档。导入账本仅离线管理员可用。
+
+若旧 Cell 数据含不同模型的策略/交易活动，导入会拒绝继续，需先进行明确的域转换；不能将其标记为已迁移或用完整产品默认值替代。候选与正式库均应保留导入摘要、源快照与内容对账报告。
+
+## 切流与恢复门槛
+
+发布前必须完成旧数据/产物对账、注册与邮件、管理员改密、全部 18/19 业务页面关键操作、角色与数据隔离、真实模型、交易窗口与跨日结算，以及 100 个独立活跃身份混合负载。
+
+切流前暂停旧写入者，最终增量复制并重新对账、发布公共版本，确认候选深度健康后修改 Nginx 上游，沿用已签发的本地 CA HTTPS。保存切流时间和镜像/配置/数据版本。
+
+恢复时先阻止候选写入，保存切流后的两个数据库及私有产物，恢复原 Nginx、镜像和备份，再启动唯一旧行情写入者。不能让两个版本同时写共享目录，也不能恢复旧快照后直接丢弃切流后新注册账号或业务写入；恢复需要对这部分增量明确对账。

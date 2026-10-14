@@ -5,6 +5,8 @@
  * - 类型安全，不再散落 try/catch。
  */
 
+import { accountStorage as localStorage } from './accountSession'
+
 function kv<T>(key: string) {
   return {
     get(fallback: T): T {

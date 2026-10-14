@@ -15,6 +15,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from app.api import contracts
+from app.multitenancy.documents import private_storage
+from app.multitenancy.paper_storage import TenantPaper, paper_transaction
 from app.strategy import paper
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,9 @@ router = APIRouter(prefix="/api/paper", tags=["paper"])
 
 
 def _data_dir(request: Request) -> Path:
+    documents = private_storage(request)
+    if documents is not None:
+        return TenantPaper(documents.db, documents.context, request.app.state.repo.store.data_dir)
     return request.app.state.repo.store.data_dir
 
 
@@ -50,6 +55,7 @@ class OrderModel(BaseModel):
     amount: float | None = None
     order_type: str = "market"      # market / next_open / close
     ref_price: float | None = None  # amount 模式折算 & 买入资金预检
+    request_id: str | None = None
 
 
 class SettingsModel(BaseModel):
@@ -160,12 +166,16 @@ def create_order(request: Request, body: OrderModel, account: str = Query(paper.
     ref_price = body.ref_price
     if ref_price is None:
         ref_price = _last_close(data_dir, body.symbol, asset_type)
-    order, err = paper.create_order(
-        data_dir, body.symbol, body.side,
-        account_id=acc_id,
-        qty=body.qty, amount=body.amount,
-        order_type=body.order_type, asset_type=asset_type, ref_price=ref_price,
-    )
+    try:
+        order, err = paper.create_order(
+            data_dir, body.symbol, body.side,
+            account_id=acc_id,
+            qty=body.qty, amount=body.amount,
+            order_type=body.order_type, asset_type=asset_type, ref_price=ref_price,
+            idempotency_key=request.headers.get("idempotency-key") or body.request_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     if err:
         raise HTTPException(status_code=400, detail=err)
     return {"order": order}
@@ -288,11 +298,10 @@ def freeze(request: Request, frozen: bool = True, account: str = Query(paper.DEF
     """冻结/解冻账户: 冻结后拒绝新订单, 持仓只读。"""
     data_dir = _data_dir(request)
     acc_id = _acc(request, account)
-    acc = paper.get_account(data_dir, acc_id)
-    if acc is None:
-        raise HTTPException(status_code=400, detail="尚未创建模拟账户")
-    acc["status"] = "frozen" if frozen else "active"
-    paper.save_account(data_dir, acc, acc_id)
+    try:
+        acc = paper.set_frozen(data_dir, acc_id, frozen=frozen)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return {"account": acc}
 
 
@@ -414,19 +423,20 @@ def arena_batch_create(request: Request, body: ArenaBatchModel):
             prepared.append((rule, acc_name))
 
         created = []
-        for rule, acc_name in prepared:
-            account_id = f"arena_{uuid.uuid4().hex[:10]}"
-            paper.create_account(
-                data_dir, body.initial_cash,
-                account_id=paper.validate_account_id(account_id),
-                name=acc_name,
-                commission_pct=body.commission_pct,
-                stamp_tax_pct=body.stamp_tax_pct,
-                slippage_bps=body.slippage_bps,
-                queue_limit_orders=body.queue_limit_orders,
-            )
-            saved = paper_auto.create_auto_rule(data_dir, rule, account_id=account_id)
-            created.append({"account": account_id, "name": acc_name, "rule_id": saved["id"]})
+        with paper_transaction(data_dir) as storage:
+            for rule, acc_name in prepared:
+                account_id = f"arena_{uuid.uuid4().hex[:10]}"
+                paper.create_account(
+                    storage, body.initial_cash,
+                    account_id=paper.validate_account_id(account_id),
+                    name=acc_name,
+                    commission_pct=body.commission_pct,
+                    stamp_tax_pct=body.stamp_tax_pct,
+                    slippage_bps=body.slippage_bps,
+                    queue_limit_orders=body.queue_limit_orders,
+                )
+                saved = paper_auto.create_auto_rule(storage, rule, account_id=account_id)
+                created.append({"account": account_id, "name": acc_name, "rule_id": saved["id"]})
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return {"created": created}

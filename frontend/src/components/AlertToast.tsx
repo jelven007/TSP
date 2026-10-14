@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Bell, TrendingUp, TrendingDown, X } from 'lucide-react'

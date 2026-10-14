@@ -6,6 +6,7 @@
  * 未超过阈值视为点击, 切换助手面板。生成中显示脉冲状态点。
  */
 import { useEffect, useRef, useState } from 'react'
+import { accountStorage as localStorage } from '@/lib/accountSession'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { Sparkles } from 'lucide-react'

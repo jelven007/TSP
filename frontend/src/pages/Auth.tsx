@@ -6,6 +6,7 @@ import { Logo } from '@/components/Logo'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { QK } from '@/lib/queryKeys'
+import { safeLoginRedirect } from '@/lib/accountSession'
 
 type AuthMode = 'login' | 'register' | 'migrate'
 
@@ -38,7 +39,7 @@ export function Auth() {
       return
     }
     if (status.authenticated && status.user) {
-      navigate(searchParams.get('redirect') || '/', { replace: true })
+      navigate(safeLoginRedirect(searchParams.get('redirect')), { replace: true })
       return
     }
     if (!status.has_users) setMode('register')
@@ -69,8 +70,10 @@ export function Auth() {
       return api.authLogin(email, password)
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: QK.authStatus })
-      navigate(searchParams.get('redirect') || '/', { replace: true })
+      await queryClient.cancelQueries()
+      queryClient.clear()
+      await api.authStatus()
+      window.location.replace(mode === 'register' ? '/' : safeLoginRedirect(searchParams.get('redirect')))
     },
     onError: (error: Error) => setLocalError(error.message || '认证失败'),
   })
@@ -112,8 +115,8 @@ export function Auth() {
     event.preventDefault()
     setLocalError('')
     const normalizedEmail = email.trim()
-    if (!normalizedEmail || !normalizedEmail.includes('@')) {
-      setLocalError('请输入有效的邮箱地址')
+    if (!normalizedEmail || (mode !== 'login' && !normalizedEmail.includes('@'))) {
+      setLocalError(mode === 'login' ? '请输入用户名或邮箱' : '请输入有效的邮箱地址')
       return
     }
     const minimum = mode === 'register' ? 8 : mode === 'migrate' ? 6 : 1
@@ -205,15 +208,15 @@ export function Auth() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-secondary">邮箱</span>
+            <span className="mb-1.5 block text-xs font-medium text-secondary">{isRegister || isMigrate ? '邮箱' : '用户名 / 邮箱'}</span>
             <span className="relative block">
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
               <input
-                type="email"
+                type={isRegister || isMigrate ? 'email' : 'text'}
                 value={email}
                 onChange={(event) => handleEmailChange(event.target.value)}
-                placeholder="name@example.com"
-                autoComplete="email"
+                placeholder={isRegister || isMigrate ? 'name@example.com' : 'admin 或注册邮箱'}
+                autoComplete={isRegister || isMigrate ? 'email' : 'username'}
                 autoFocus
                 className="h-11 w-full rounded-btn border border-border bg-surface pl-10 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-accent/60"
               />

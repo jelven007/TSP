@@ -6,6 +6,7 @@
  * 展示, 不进入请求历史。
  */
 import { useSyncExternalStore } from 'react'
+import { accountStorage as localStorage } from '@/lib/accountSession'
 import {
   assistantChatStream,
   decideAssistantAction,

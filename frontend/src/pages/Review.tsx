@@ -26,6 +26,8 @@ import { PageHeader } from '@/components/PageHeader'
 import { MarkdownRenderer } from '@/components/financials/MarkdownRenderer'
 import { toast } from '@/components/Toast'
 import { usePreferences } from '@/lib/useSharedQueries'
+import { hasPermission, multitenancyEnabled } from '@/lib/accountSession'
+import { CHANNELS_KEY, NOTIFICATION_PREFS_KEY } from '@/components/monitor/NotificationsPanel'
 import { useReviewState } from '@/lib/useReviewStore'
 import {
   startReviewGeneration, resetReview, isReviewGenerating, cancelReviewGeneration,
@@ -101,6 +103,8 @@ export function Review() {
   // ===== 定时复盘 =====
   const [showSchedule, setShowSchedule] = useState(false)
   const prefs = usePreferences()
+  const full = multitenancyEnabled()
+  const channels = useQuery({ queryKey: CHANNELS_KEY, queryFn: api.notificationChannels, enabled: full })
   const reviewSched = prefs.data?.review_schedule ?? { enabled: false, hour: 15, minute: 10 }
   const feishuConfigured = !!(prefs.data?.feishu_webhook_url)
   const wecomConfigured = !!(prefs.data?.wecom_webhook_url)
@@ -137,6 +141,7 @@ export function Review() {
     mutationFn: (channels: string[]) => api.updateReviewPush(channels),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: QK.preferences })
+      qc.invalidateQueries({ queryKey: NOTIFICATION_PREFS_KEY })
       toast(vars.length === 0 ? '已关闭复盘推送' : '已更新复盘推送渠道', 'success')
     },
     onError: () => { /* request() 已 toast */ },
@@ -152,6 +157,7 @@ export function Review() {
     mutationFn: (mode: 'auto' | 'manual') => api.updateReviewPush(reviewPushChannels, mode),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QK.preferences })
+      qc.invalidateQueries({ queryKey: NOTIFICATION_PREFS_KEY })
       toast('已更新推送触发方式', 'success')
     },
     onError: () => { /* request() 已 toast */ },
@@ -447,6 +453,16 @@ export function Review() {
                   <span className="text-[10px] text-muted/70">{reviewPushChannels.length === 0 ? '未开启' : `${reviewPushChannels.length} 个渠道`}</span>
                 </div>
                 <div className="mt-2 space-y-1.5">
+                  {full ? (<>
+                    {channels.data?.channels.map(channel => (
+                      <label key={channel.id} className="flex items-center gap-2 py-1 text-xs text-foreground">
+                        <input type="checkbox" disabled={pushMut.isPending || !prefs.data} checked={reviewPushChannels.includes(channel.id)} onChange={() => togglePushChannel(channel.id)} />
+                        {channel.name}<span className={channel.enabled ? 'text-muted' : 'text-warning'}>{channel.enabled ? '已启用' : '已停用'}</span>
+                      </label>
+                    ))}
+                    {!channels.data?.channels.length && <p className="text-xs text-muted">{channels.isLoading ? '加载中…' : '尚未配置通知渠道'}</p>}
+                    <Link to="/monitor?notifications=1" className="text-xs text-accent" onClick={() => setShowSchedule(false)}>管理通知渠道与投递历史 →</Link>
+                  </>) : (<>
                   {/* 飞书(可用, 多选) */}
                   <button
                     type="button"
@@ -529,6 +545,7 @@ export function Review() {
                       {emailConfigured ? '已配置' : '未配置'}
                     </span>
                   </button>
+                  </>)}
                 </div>
 
                 {/* 推送触发方式: auto=归档即推 / manual=仅归档不自动外发 */}
@@ -564,8 +581,8 @@ export function Review() {
                   {reviewPushMode === 'auto'
                     ? '定时与手动生成的复盘归档后都会自动推送完整报告。'
                     : '复盘仅归档保存，不自动外发。'}
-                  复用「设置 → 实时监控」的渠道配置。
-                  {(
+                  {!full && '复用「设置 → 实时监控」的渠道配置。'}
+                  {!full && (
                     (reviewPushChannels.includes('feishu') && !feishuConfigured)
                     || (reviewPushChannels.includes('wecom') && !wecomConfigured)
                     || (reviewPushChannels.includes('custom') && !customConfigured)
@@ -1274,10 +1291,10 @@ function DragonTigerCard({ date, onOpenStock }: {
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded bg-elevated/60">
           <Trophy className="h-4 w-4 text-muted/50" />
         </span>
-        <span className="text-[11px] text-muted">龙虎榜需要 fuyao 数据源 (同花顺特色数据)</span>
-        <Link to="/settings?tab=data-sources" className="ml-auto inline-flex items-center gap-0.5 text-[10px] text-accent hover:underline">
+        <span className="text-[11px] text-muted">{hasPermission('data:manage') ? '龙虎榜需要 fuyao 数据源（同花顺特色数据）' : '龙虎榜数据暂不可用，请联系管理员配置数据源'}</span>
+        {hasPermission('data:manage') && <Link to="/settings?tab=data-sources" className="ml-auto inline-flex items-center gap-0.5 text-[10px] text-accent hover:underline">
           前往配置 <ChevronRight className="h-3 w-3" />
-        </Link>
+        </Link>}
       </div>
     )
   }

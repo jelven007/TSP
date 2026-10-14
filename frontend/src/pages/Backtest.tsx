@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { BookmarkCheck, FlaskConical, ShieldCheck } from 'lucide-react'
+import { BookmarkCheck, FlaskConical, History, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { ResearchCandidatesDialog } from './backtest/ResearchCandidatesDialog'
 import { RobustnessValidation } from './backtest/RobustnessValidation'
 import { StrategyBacktest } from './backtest/StrategyBacktest'
 import { type ResearchCandidate } from '@/lib/api'
+import { multitenancyEnabled } from '@/lib/accountSession'
+import { ResearchHistoryDialog } from './backtest/ResearchHistoryDialog'
 
 type Tab = 'strategy' | 'robustness'
 
@@ -28,6 +30,7 @@ export function Backtest() {
   const navigate = useNavigate()
   const requestedTab = searchParams.get('tab')
   const [candidatesOpen, setCandidatesOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   // 候选「载入复测」: 弹窗选定 → 关闭弹窗切到策略页 → StrategyBacktest 消费后清空
   const [pendingLoad, setPendingLoad] = useState<ResearchCandidate | null>(null)
 
@@ -72,6 +75,7 @@ export function Backtest() {
         className="shrink-0 flex-wrap gap-x-4 gap-y-2 bg-base/95 px-3 lg:flex-nowrap lg:px-5"
         right={(
           <div className="flex w-full min-w-0 items-center gap-1.5 sm:gap-2 lg:w-auto">
+            {multitenancyEnabled() && <button type="button" onClick={() => setHistoryOpen(true)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-btn border border-border bg-surface px-2 text-[11px] text-secondary hover:text-accent"><History className="h-3.5 w-3.5" /><span>任务历史</span></button>}
             <button
               type="button"
               onClick={() => setCandidatesOpen(true)}
@@ -131,6 +135,7 @@ export function Backtest() {
           }}
         />
       )}
+      {historyOpen && <ResearchHistoryDialog onClose={() => setHistoryOpen(false)} />}
     </div>
   )
 }

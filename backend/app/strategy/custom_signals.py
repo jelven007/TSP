@@ -15,9 +15,12 @@
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 import polars as pl
@@ -25,6 +28,20 @@ import polars as pl
 from app.services.fs_utils import atomic_write_text
 
 logger = logging.getLogger(__name__)
+_SCOPED_SIGNALS: ContextVar[list[dict] | None] = ContextVar("custom_signal_definitions", default=None)
+
+
+@contextmanager
+def private_signal_registry(definitions: list[dict]):
+    token = _SCOPED_SIGNALS.set(copy.deepcopy(definitions))
+    try:
+        yield
+    finally:
+        _SCOPED_SIGNALS.reset(token)
+
+
+def scoped_definitions() -> list[dict] | None:
+    return _SCOPED_SIGNALS.get()
 
 # ── 常量 ────────────────────────────────────────────────
 PREFIX = "csg_"                       # 自定义信号列名前缀
@@ -142,6 +159,12 @@ def _path(data_dir: Path, signal_id: str) -> Path:
 
 def load_all(data_dir: Path) -> list[dict]:
     """读取全部自定义信号定义。损坏的文件被跳过。"""
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        return data_dir.values("custom_signals")
+    if scoped_definitions() is not None:
+        return copy.deepcopy(scoped_definitions())
     d = _dir(data_dir)
     out: list[dict] = []
     for f in sorted(d.glob("*.json")):
@@ -153,12 +176,22 @@ def load_all(data_dir: Path) -> list[dict]:
 
 
 def save_one(data_dir: Path, sig: dict) -> None:
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        validate(sig)
+        data_dir.put("custom_signals", sig["id"], sig)
+        return
     p = _path(data_dir, sig["id"])
     p.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(p, json.dumps(sig, ensure_ascii=False, indent=2))
 
 
 def delete_one(data_dir: Path, signal_id: str) -> bool:
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        return data_dir.delete("custom_signals", signal_id)
     p = _path(data_dir, signal_id)
     if p.exists():
         p.unlink()
@@ -522,6 +555,11 @@ def load_intraday_all(data_dir: Path) -> list[dict]:
     盘中评估与引擎注入每分钟执行, 不宜每次全量读盘; save/delete 端点
     调用 invalidate_intraday_cache() 主动失效。
     """
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments) or scoped_definitions() is not None:
+        return [sig for sig in load_all(data_dir)
+                if sig.get("timeframe") == TIMEFRAME_INTRADAY and sig.get("enabled") is not False]
     d = _dir(data_dir)
     fp = _dir_fingerprint(d)
     cached = _intraday_cache.get(data_dir)
@@ -548,6 +586,11 @@ def signal_names(data_dir: Path) -> dict[str, str]:
 
     指纹含文件名 + mtime, 保存/删除信号后自动失效重载, 调用方无需配合失效。
     """
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments) or scoped_definitions() is not None:
+        return {prefix + sig["id"]: sig["name"] for sig in load_all(data_dir)
+                if sig.get("id") and sig.get("name") for prefix in (PREFIX, INTRADAY_PREFIX)}
     d = _dir(data_dir)
     fp = _dir_fingerprint(d)
     cached = _names_cache.get(data_dir)

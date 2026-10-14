@@ -27,24 +27,24 @@ MAX_REPORTS = 20
 _store = JsonReportStore("ai_reports.json", MAX_REPORTS, id_prefix="rpt")
 
 
-def list_reports() -> list[dict]:
+def list_reports(*, documents=None) -> list[dict]:
     """返回全部报告(按 created_at 降序)。"""
-    return _store.list_reports()
+    return _store.list_reports(documents=documents)
 
 
-def save_report(report: dict) -> dict:
+def save_report(report: dict, *, documents=None) -> dict:
     """新增一条报告并持久化。返回保存后的报告(含 id / created_at)。
 
     自动补全 id 与 created_at(若缺),并裁剪到上限。
     """
-    return _store.save_report(report)
+    return _store.save_report(report, documents=documents)
 
 
-def delete_report(report_id: str) -> bool:
+def delete_report(report_id: str, *, documents=None) -> bool:
     """删除指定报告。返回是否删除成功。"""
-    return _store.delete_report(report_id)
+    return _store.delete_report(report_id, documents=documents)
 
 
-def clear_reports() -> int:
+def clear_reports(*, documents=None) -> int:
     """清空全部报告。返回删除数量。"""
-    return _store.clear_reports()
+    return _store.clear_reports(documents=documents)

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { accountFetch as fetch, accountStorage as localStorage, accountStreamUrl } from './accountSession'
 
 /** Walk-forward 任务管理 (SSE + job_key 回吐 + 重连)。镜像 optimizerTask。 */
 
@@ -104,7 +105,7 @@ function connectSSE(url: string): void {
     eventSource = null
   }
 
-  const es = new EventSource(url)
+  const es = new EventSource(accountStreamUrl(url))
   eventSource = es
 
   es.addEventListener('job', (e: MessageEvent) => {
@@ -265,11 +266,22 @@ export function clearWalkForward(): void {
 export function tryReconnectWalkForward(): boolean {
   const qs = localStorage.getItem(RECONNECT_KEY)
   if (!qs) return false
+  if (qs.startsWith('job:')) { attachWalkForwardJob(qs.slice(4)); return true }
   const id = ++taskSeq
   current = { id, isPending: true, result: null, progress: null, error: null }
   emit()
   connectSSE(`/api/backtest/walkforward/stream?${qs}`)
   return true
+}
+
+export function attachWalkForwardJob(id: string): void {
+  cancelRequested = false
+  currentJobKey = null
+  reconnectAttempts = 0
+  localStorage.setItem(RECONNECT_KEY, `job:${id}`)
+  current = { id: ++taskSeq, isPending: true, result: null, progress: null, error: null }
+  emit()
+  connectSSE(`/api/backtest/jobs/${encodeURIComponent(id)}/stream`)
 }
 
 export function useWalkForwardTask(): WalkForwardTask | null {

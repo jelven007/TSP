@@ -505,6 +505,12 @@ class MiningSchedulePrefs(BaseModel):
 def _current_email(request: Request | None) -> str:
     if request is None:
         return ""
+    account = getattr(request.state, "account", None)
+    if account is not None:
+        return str(account.get("email") or "")
+    from app.config import settings
+    if settings.service_role in {"api", "platform"}:
+        return ""
     from app.api.auth import COOKIE_NAME
     from app.services import auth
 

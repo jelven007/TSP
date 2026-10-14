@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { SlidersHorizontal, Waypoints } from 'lucide-react'
 import { StrategyOptimizer } from './StrategyOptimizer'
 import { StrategyWalkForward } from './StrategyWalkForward'
@@ -6,7 +6,13 @@ import { StrategyWalkForward } from './StrategyWalkForward'
 type Mode = 'sensitivity' | 'walkforward'
 
 export function RobustnessValidation() {
-  const [mode, setMode] = useState<Mode>('sensitivity')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const mode: Mode = searchParams.get('mode') === 'walkforward' ? 'walkforward' : 'sensitivity'
+  const setMode = (next: Mode) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('mode', next)
+    setSearchParams(params, { replace: true })
+  }
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex shrink-0 items-center border-b border-border/70 px-1 pb-2">

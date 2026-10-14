@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { accountStorage as localStorage, accountStreamUrl } from './accountSession'
 import { api, type MiningResult, type MiningRun, type MiningRunProgress, type MiningRunStatus } from './api'
 
 export interface MiningTask {
@@ -182,7 +183,7 @@ function startStatusPolling(runId: string, token: number, restart = false) {
 function connect(runId: string) {
   closeEvents()
   const token = connectionToken
-  const source = new EventSource(`/api/backtest/mining/runs/${encodeURIComponent(runId)}/events`)
+  const source = new EventSource(accountStreamUrl(`/api/backtest/mining/runs/${encodeURIComponent(runId)}/events`))
   eventSource = source
 
   source.onopen = () => {

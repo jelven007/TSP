@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { RefreshCw, Download, Lock, Loader2, X, Search, FileText, Database, Clock, CheckCircle2, Hourglass, Lightbulb, ExternalLink, ChartPie } from 'lucide-react'
+import { RefreshCw, Download, Lock, Loader2, X, Search, FileText, Database, Clock, CheckCircle2, Hourglass, ChartPie } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { useCapabilities, useCapabilityMatrix } from '@/lib/useSharedQueries'
@@ -13,6 +13,7 @@ import { LastStockChip } from '@/components/LastStockChip'
 import { useLastStock } from '@/lib/useLastStock'
 import { fmtBigNum } from '@/lib/format'
 import { toast } from '@/components/Toast'
+import { hasPermission } from '@/lib/accountSession'
 
 const TABLE_LABELS: Record<string, string> = {
   metrics: '核心指标',
@@ -76,33 +77,14 @@ export function Financials() {
             </div>
             <h3 className="mt-4 text-[16px] leading-6 font-semibold text-foreground">财务数据不可用</h3>
             <p className="mt-2 text-xs leading-relaxed text-secondary">
-              当前数据源未提供财务数据。配置提供财务数据的数据源后,此页自动显示财务数据面板。
+              当前数据源未提供财务数据。{hasPermission('data:manage') ? '配置财务数据源后，此页自动显示财务数据面板。' : '请联系管理员配置财务数据源。'}
             </p>
-            <Link
+            {hasPermission('data:manage') && <Link
               to="/settings?tab=data-sources"
               className="mt-4 inline-flex items-center gap-1.5 rounded-btn bg-accent/90 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-accent transition-colors"
             >
               前往数据源配置
-            </Link>
-            {/* 当前财务数据源(TickFlow)需付费,后续将接入免费数据源;期间欢迎在 issues 推荐免费源 */}
-            <div className="mt-5 rounded-btn border border-accent/25 bg-accent/[0.05] px-3.5 py-3 text-left">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-accent">
-                <Lightbulb className="h-3.5 w-3.5 shrink-0" />
-                关于数据源
-              </div>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-secondary">
-                当前部分财务数据源需要单独授权。可在项目 Issues 中提交其他合规数据源的接入建议。
-              </p>
-              <a
-                href="https://github.com/jelven007/TSP/issues"
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline"
-              >
-                前往 Issues 推荐
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
+            </Link>}
           </div>
         </div>
       </>
@@ -185,7 +167,7 @@ export function Financials() {
                     : '同步中…'}
               </span>
             )}
-            <button
+            {hasPermission('data:manage') && <button
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-btn bg-gradient-to-r from-accent/25 to-accent/10 border border-accent/30 text-accent text-xs font-medium hover:from-accent/35 hover:to-accent/20 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
               onClick={() => handleSync('all')}
               disabled={syncing}
@@ -195,7 +177,7 @@ export function Financials() {
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 : <RefreshCw className="h-3.5 w-3.5" />}
               {syncing ? '同步中…' : '全部同步'}
-            </button>
+            </button>}
           </div>
         }
       />
@@ -247,7 +229,7 @@ export function Financials() {
                         )}
                         <span className="text-xs font-medium text-foreground">{label}</span>
                       </div>
-                      <button
+                      {hasPermission('data:manage') && <button
                         className="text-muted hover:text-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         onClick={() => handleSync(key)}
                         disabled={syncing}
@@ -256,7 +238,7 @@ export function Financials() {
                         {syncing
                           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           : <Download className="h-3.5 w-3.5" />}
-                      </button>
+                      </button>}
                     </div>
                     <div className="mt-2 text-xl font-semibold tabular-nums text-foreground">
                       {fmtBigNum(info?.rows ?? 0)}

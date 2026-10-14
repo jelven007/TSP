@@ -12,6 +12,7 @@ function ok(body: unknown): Response {
     ok: true,
     status: 200,
     statusText: 'OK',
+    headers: new Headers(),
     json: async () => body,
     text: async () => JSON.stringify(body),
   } as Response

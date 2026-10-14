@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { accountStorage as localStorage } from './accountSession'
 
 /**
  * 记忆"上次查看的个股"(按页面维度,localStorage 持久化)。

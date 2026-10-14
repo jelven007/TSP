@@ -14,6 +14,8 @@ P1 边界 (诚实声明):
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -301,14 +303,60 @@ _CATALOG: tuple[FactorSpec, ...] = (
 )
 
 _REGISTRY: dict[str, FactorSpec] = {}
+_SCOPED_REGISTRY: ContextVar[dict[str, FactorSpec] | None] = ContextVar("factor_registry", default=None)
+
+
+def _registry() -> dict[str, FactorSpec]:
+    scoped = _SCOPED_REGISTRY.get()
+    return _REGISTRY if scoped is None else scoped
+
+
+@contextmanager
+def private_factor_registry(definitions: list[dict], *, strict: bool = False):
+    """A request/job snapshot; private registrations never mutate the catalog."""
+    _ensure_ext_factors()
+    snapshot = {spec.id: spec for spec in _CATALOG}
+    snapshot.update({key: spec for key, spec in _REGISTRY.items() if key.startswith("ext_")})
+    token = _SCOPED_REGISTRY.set(snapshot)
+    try:
+        from app.factors.store import register_definition
+
+        pending = list(definitions)
+        for _ in range(len(pending) + 1):
+            deferred = []
+            for definition in pending:
+                try:
+                    register_definition(definition)
+                except ValueError as exc:
+                    if definition.get("kind") != "composite":
+                        if strict:
+                            raise
+                        import logging
+
+                        logging.getLogger(__name__).warning("private factor disabled %s: %s", definition.get("id"), exc)
+                        continue
+                    deferred.append(definition)
+            if not deferred:
+                break
+            if len(deferred) == len(pending):
+                if strict:
+                    raise ValueError("private composite factors contain invalid dependencies")
+                break
+            pending = deferred
+        yield snapshot
+    finally:
+        _SCOPED_REGISTRY.reset(token)
 
 
 def register_factor(spec: FactorSpec) -> None:
     """注册因子; 重复 id 且版本未增时拒绝 (fail-closed)。"""
-    existing = _REGISTRY.get(spec.id)
+    registry = _registry()
+    existing = registry.get(spec.id)
     if existing is not None and existing.version >= spec.version:
         raise ValueError(f"factor id 已注册且版本未提升: {spec.id}")
-    _REGISTRY[spec.id] = spec
+    if _SCOPED_REGISTRY.get() is not None and any(item.id == spec.id for item in _CATALOG):
+        raise ValueError(f"内置因子不可覆盖: {spec.id}")
+    registry[spec.id] = spec
 
 
 for _spec in _CATALOG:
@@ -316,21 +364,21 @@ for _spec in _CATALOG:
 
 
 def get_factor(fid: str) -> FactorSpec | None:
-    return _REGISTRY.get(fid)
+    return _registry().get(fid)
 
 
 def unregister_factor(fid: str) -> FactorSpec | None:
     """注销动态注册的因子 (内置目录因子不可注销, fail-closed)。"""
     if any(spec.id == fid for spec in _CATALOG):
         raise ValueError(f"内置因子不可注销: {fid}")
-    return _REGISTRY.pop(fid, None)
+    return _registry().pop(fid, None)
 
 
 def _ordered_specs() -> list[FactorSpec]:
     """内置目录顺序在前, 动态注册因子 (custom/composite) 按注册顺序追加。"""
     ordered: list[FactorSpec] = list(_CATALOG)
     known = {spec.id for spec in _CATALOG}
-    ordered.extend(spec for fid, spec in _REGISTRY.items() if fid not in known)
+    ordered.extend(spec for fid, spec in _registry().items() if fid not in known)
     return ordered
 
 
@@ -367,7 +415,7 @@ def factor_dependencies(fids) -> frozenset[str]:
     """递归展开依赖到 enriched base 列; 未知 id 原样保留 (与 scoring_dependencies 历史语义一致)。"""
     resolved: set[str] = set()
     for fid in fids:
-        spec = _REGISTRY.get(str(fid))
+        spec = _registry().get(str(fid))
         if spec is None:
             resolved.add(str(fid))
         elif spec.dependencies:

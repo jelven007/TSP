@@ -5,6 +5,7 @@ import { Activity, Loader2, Lock, RefreshCw } from 'lucide-react'
 import { api, type IndexInstrument, type KlineRow, type MinuteKlineRow } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { useCapabilities } from '@/lib/useSharedQueries'
+import { hasPermission } from '@/lib/accountSession'
 import { EChartsCandlestick, type OHLC } from '@/components/EChartsCandlestick'
 import { EChartsIntraday } from '@/components/EChartsIntraday'
 
@@ -181,14 +182,14 @@ export function Indices() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          {hasPermission('data:manage') && <button
             onClick={() => syncDaily.mutate()}
             disabled={syncDaily.isPending}
             className="inline-flex items-center gap-1.5 rounded-btn bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
           >
             {syncDaily.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             同步指数日K
-          </button>
+          </button>}
         </div>
       </div>
 

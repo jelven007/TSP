@@ -36,6 +36,11 @@ def _path(data_dir: Path, factor_id: str) -> Path:
 
 def load_all(data_dir: Path) -> list[dict]:
     """读取全部自定义/复合因子定义; 损坏文件跳过。"""
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        return [{**row["value"], "_storage_revision": row["revision"]}
+                for row in data_dir.records("custom_factors")]
     out: list[dict] = []
     for file in sorted(_dir(data_dir).glob("*.json")):
         try:
@@ -46,12 +51,32 @@ def load_all(data_dir: Path) -> list[dict]:
 
 
 def save_one(data_dir: Path, definition: dict) -> None:
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        value = {key: item for key, item in definition.items() if key != "_storage_revision"}
+
+        def replace(previous):
+            if (previous and "_storage_revision" not in definition
+                    and int(previous.get("version", 1)) >= int(value.get("version", 1))):
+                from app.cell.context import AccessError
+
+                raise AccessError(409, "因子已更新, 请刷新后重试")
+            return value
+
+        data_dir.mutate("custom_factors", str(definition["id"]), replace,
+                        expected_revision=definition.get("_storage_revision"))
+        return
     target = _path(data_dir, str(definition["id"]))
     target.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(target, json.dumps(definition, ensure_ascii=False, indent=2))
 
 
 def delete_one(data_dir: Path, factor_id: str) -> bool:
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        return data_dir.delete("custom_factors", factor_id)
     target = _path(data_dir, factor_id)
     if target.exists():
         target.unlink()

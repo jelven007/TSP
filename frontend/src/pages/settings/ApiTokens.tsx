@@ -4,6 +4,8 @@ import { Copy, KeyRound, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { cn } from '@/lib/cn'
+import { multitenancyEnabled } from '@/lib/accountSession'
+import { TenantSelector } from '@/components/TenantSelector'
 
 /** 对外开放 scope 清单 (与后端 api_tokens.SCOPES 同步) */
 const SCOPES: { key: string; label: string; desc: string; default: boolean }[] = [
@@ -24,9 +26,11 @@ export function SettingsApiTokensPanel() {
   const [plaintext, setPlaintext] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const [days, setDays] = useState(90)
+  const full = multitenancyEnabled()
 
   const createM = useMutation({
-    mutationFn: () => api.apiTokenCreate(name, scopes),
+    mutationFn: () => api.apiTokenCreate(name, scopes, days),
     onSuccess: r => {
       setPlaintext(r.plaintext)
       setCreating(false)
@@ -47,6 +51,7 @@ export function SettingsApiTokensPanel() {
 
   return (
     <div className="w-full max-w-5xl space-y-5">
+      {full && <TenantSelector />}
       <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -55,7 +60,7 @@ export function SettingsApiTokensPanel() {
               <h2 className="text-sm font-medium text-foreground">API Token</h2>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-muted">
-              外部调用方的第二认证通道，与面板密码并行，互不影响。
+              {full ? '凭据绑定当前业务租户，受账户权限、租户状态和有效期约束。' : '外部调用方的第二认证通道，与面板密码并行。'}
             </p>
           </div>
           <button
@@ -80,7 +85,7 @@ export function SettingsApiTokensPanel() {
             </div>
             <div className="space-y-1.5">
               <div className="text-[11px] text-muted">权限 (scope)</div>
-              {SCOPES.map(s => (
+              {SCOPES.filter(s => !full || s.key !== 'write:ext').map(s => (
                 <label key={s.key} className="flex cursor-pointer items-start gap-2 rounded-btn px-2 py-1.5 hover:bg-elevated/50">
                   <input
                     type="checkbox"
@@ -98,14 +103,21 @@ export function SettingsApiTokensPanel() {
                   </span>
                 </label>
               ))}
+              {full && (
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  有效期（天）
+                  <input type="number" min={1} max={365} value={days} onChange={event => setDays(Number(event.target.value))} className="w-20 rounded-btn border border-border bg-base px-2 py-1 text-foreground" />
+                </label>
+              )}
               <div className="text-[10px] text-muted">
-                扩展表的结构配置/上传/拉取、数据同步、设置等管理接口永不开放给 Token (行数据写入走 write:ext)。调用方式: <span className="font-mono">Authorization: Bearer tsp_...</span>, 默认限流 120 次/分钟, 契约文档 <span className="font-mono text-accent/80">/api/openapi.json?tier=a</span>
+                {full ? 'Token 仅访问所选租户的开放业务接口。' : '扩展表结构、数据同步、设置等管理接口永不开放给 Token。'}
+                调用方式: <span className="font-mono">Authorization: Bearer {full ? 'tsp_ft_' : 'tsp_'}...</span>，默认限流 120 次/分钟。
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => name.trim() && scopes.length > 0 && createM.mutate()}
-                disabled={!name.trim() || scopes.length === 0 || createM.isPending}
+                disabled={!name.trim() || scopes.length === 0 || (full && (!Number.isInteger(days) || days < 1 || days > 365)) || createM.isPending}
                 className="rounded-btn bg-accent px-4 py-1.5 text-xs font-medium text-white transition-opacity hover:bg-accent/90 disabled:opacity-50"
               >
                 {createM.isPending ? '创建中…' : '创建'}
@@ -155,6 +167,7 @@ export function SettingsApiTokensPanel() {
                       <span className="ml-1 text-[9px] text-muted">
                         创建 {t.created_at?.slice(0, 16).replace('T', ' ')}
                         {t.last_used_at ? ` · 最近使用 ${t.last_used_at.slice(11, 16)}` : ' · 未使用过'}
+                        {t.expires_at && ` · 到期 ${t.expires_at.slice(0, 10)}`}
                       </span>
                     </div>
                   </div>

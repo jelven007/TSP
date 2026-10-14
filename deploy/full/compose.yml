@@ -1,0 +1,135 @@
+# Build the original full-product Dockerfile with BACKEND_EXTRAS=cell.
+# Runtime DSNs and delivery credentials belong in the private TSP_FULL_ENV_FILE.
+x-common: &common
+  image: ${TSP_FULL_IMAGE:?Pinned full-product runtime image required}
+  user: "10001:10001"
+  env_file:
+    - ${TSP_FULL_ENV_FILE:?Private full-product runtime environment required}
+  environment: &environment
+    SERVICE_ROLE: api
+    MULTITENANCY_ENABLED: "true"
+    TSP_CELL_SCHEMA_VERSION: "5"
+    DATA_DIR: /public/current
+    PLATFORM_CONFIG_DIR: /platform-config
+    TICKFLOW_ENV_FILE: /dev/null
+    TSP_COMPUTE_SOCKET: /run/tsp/compute.sock
+    POLARS_MAX_THREADS: "2"
+    NUMBA_NUM_THREADS: "2"
+    OPENBLAS_NUM_THREADS: "1"
+    OMP_NUM_THREADS: "1"
+    NUMBA_CACHE_DIR: /tmp/numba
+  volumes:
+    - ${TSP_PUBLIC_MARKET_DIR:?Public release directory required}:/public:ro
+    - ${TSP_PLATFORM_CONFIG_DIR:?Platform configuration directory required}:/platform-config:ro
+    - ${TSP_COMPUTE_SOCKET_DIR:?Broker socket directory required}:/run/tsp:ro
+  networks: [default, pg]
+  read_only: true
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,size=512m,uid=10001,gid=10001
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+  stop_grace_period: 40s
+
+services:
+  platform:
+    image: ${TSP_FULL_IMAGE:?Pinned full-product runtime image required}
+    user: "10001:10001"
+    env_file:
+      - ${TSP_PLATFORM_ENV_FILE:?Private provider environment required}
+    environment:
+      SERVICE_ROLE: platform
+      MULTITENANCY_ENABLED: "false"
+      DATA_DIR: /app/data
+      PLATFORM_CONFIG_DIR: /platform-config
+      TSP_PUBLIC_MARKET_DIR: /public
+      TICKFLOW_ENV_FILE: /dev/null
+      POLARS_MAX_THREADS: "8"
+      OPENBLAS_NUM_THREADS: "1"
+      NUMBA_CACHE_DIR: /tmp/numba
+    command: ["/app/.venv/bin/python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3018"]
+    volumes:
+      - ${TSP_PLATFORM_DATA_DIR:?Writable platform market directory required}:/app/data
+      - ${TSP_PUBLIC_MARKET_DIR:?Public release directory required}:/public
+      - ${TSP_PLATFORM_CONFIG_DIR:?Platform configuration directory required}:/platform-config
+    networks: [default]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    stop_grace_period: 60s
+    mem_limit: 24g
+    cpus: 8
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3018/health/ready', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+  api:
+    <<: *common
+    command: ["/app/.venv/bin/python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3018", "--workers", "${TSP_FULL_API_WORKERS:-4}", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    ports:
+      - "127.0.0.1:${TSP_FULL_API_PORT:-3030}:3018"
+    depends_on:
+      platform: {condition: service_healthy}
+    mem_limit: 16g
+    cpus: 8
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3018/health/ready', timeout=6)"]
+      interval: 30s
+      timeout: 8s
+      start_period: 60s
+      retries: 3
+  research:
+    <<: *common
+    environment:
+      <<: *environment
+      TSP_CELL_WORKER_CONCURRENCY: "4"
+      TSP_CELL_POOL_SIZE: "4"
+    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.research_worker"]
+    depends_on:
+      platform: {condition: service_healthy}
+    mem_limit: 2g
+    cpus: 2
+    healthcheck: {disable: true}
+  realtime:
+    <<: *common
+    environment:
+      <<: *environment
+      TSP_CELL_WORKER_CONCURRENCY: "8"
+      TSP_CELL_POOL_SIZE: "12"
+    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.runtime"]
+    depends_on:
+      platform: {condition: service_healthy}
+    mem_limit: 4g
+    cpus: 4
+    healthcheck: {disable: true}
+  notifications:
+    <<: *common
+    environment:
+      <<: *environment
+      TSP_CELL_WORKER_CONCURRENCY: "4"
+      TSP_CELL_POOL_SIZE: "4"
+    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.notification_worker"]
+    depends_on:
+      platform: {condition: service_healthy}
+    mem_limit: 1g
+    cpus: 1
+    healthcheck: {disable: true}
+  scheduled:
+    <<: *common
+    environment:
+      <<: *environment
+      TSP_CELL_WORKER_CONCURRENCY: "2"
+      TSP_CELL_POOL_SIZE: "4"
+    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.scheduled_worker"]
+    depends_on:
+      platform: {condition: service_healthy}
+    mem_limit: 4g
+    cpus: 2
+    healthcheck: {disable: true}
+
+networks:
+  pg:
+    external: true
+    name: ${TSP_FULL_PG_NETWORK:-tsp-pg_default}

@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 # 落盘到 data/backend.log 与桌面版 (desktop.py:_setup_logging → desktop.log) 行为对齐,
 # 事后可查。桌面版 (frozen) 已由 desktop.py 写 desktop.log, 此处跳过避免重复落盘。
 # RotatingFileHandler 防止长期运行/频繁 reload 导致文件无限增长。
-if not getattr(sys, "frozen", False):
+if not getattr(sys, "frozen", False) and settings.service_role != "api":
     try:
         from logging.handlers import RotatingFileHandler
 
@@ -436,6 +436,16 @@ async def _application_lifespan(app: FastAPI):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.service_role == "platform":
+        from app.multitenancy.platform import lifespan as platform_lifespan
+        async with platform_lifespan(app):
+            yield
+        return
+    if settings.multitenancy_enabled:
+        from app.multitenancy.lifespan import lifespan as full_product_lifespan
+        async with full_product_lifespan(app):
+            yield
+        return
     mining_process_lock = MiningProcessLock(settings.data_dir)
     mining_process_lock.acquire()
     try:
@@ -489,6 +499,21 @@ _AUTH_WHITELIST_EXACT = (
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
+    if settings.service_role == "platform":
+        from app.multitenancy.platform import market_read_access, platform_access
+        if market_read_access(request):
+            from app.multitenancy.read_cache import cached_read
+            return await cached_read(request, call_next)
+        if platform_access(request):
+            request.state.account = {"role": "admin", "email": request.headers.get("x-tsp-admin-email")}
+            return await call_next(request)
+        if (request.url.path in {"/health", "/health/live", "/health/ready"}
+                or request.url.path.startswith("/internal/cell-market/")):
+            return await call_next(request)
+        return JSONResponse(status_code=403, content={"detail": "platform_internal_only"})
+    if settings.multitenancy_enabled:
+        from app.multitenancy.access import middleware
+        return await middleware(request, call_next)
     path = request.url.path
     # 仅 /api/ 走认证; 静态资源(前端页面/assets)放行, 由前端处理跳转
     if not path.startswith("/api/"):
@@ -555,7 +580,21 @@ app.add_middleware(ObservabilityMiddleware, router=app.router)
 # 路由
 app.include_router(platform_market_router)
 app.include_router(core_router)
-app.include_router(auth_api.router)
+if settings.multitenancy_enabled:
+    from app.cell.context import AccessError
+    from app.multitenancy import access, bootstrap
+    from app.multitenancy import routes as account_routes
+    from app.multitenancy.legacy_archive import router as legacy_archive_router
+    from app.multitenancy.notifications import router as full_notifications_router
+    from app.multitenancy.tokens import router as full_tokens_router
+    app.add_exception_handler(AccessError, access.access_error)
+    app.include_router(account_routes.router)
+    app.include_router(bootstrap.router)
+    app.include_router(full_notifications_router)
+    app.include_router(full_tokens_router)
+    app.include_router(legacy_archive_router)
+else:
+    app.include_router(auth_api.router)
 app.include_router(kline.router)
 app.include_router(watchlist.router)
 app.include_router(screener.router)

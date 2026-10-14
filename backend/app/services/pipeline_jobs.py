@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar
 
+from app.config import settings
 from app.services.task_state import (
     ACTIVE_TASK_STATUSES,
     TERMINAL_TASK_STATUSES,
@@ -627,8 +628,9 @@ def _duration_s(j: dict[str, Any]) -> float | None:
         return None
 
 
-# 进程内单例
-job_store = JobStore()
+# Only the standalone/platform writer owns global pipeline jobs. Importing the
+# full API must not create or recover files in its read-only public release.
+job_store = None if settings.service_role == "api" else JobStore()
 
 _Result = TypeVar("_Result")
 

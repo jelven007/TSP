@@ -304,6 +304,13 @@ def _selected_strategy_metadata(
         strategy = engine.get(strategy_id)
         if strategy.execution_backend != "matrix_native":
             raise ValueError(f"scheduled mining strategy is not matrix-native: {strategy_id}")
+        if getattr(engine, "remote_context", False):
+            metadata.append({
+                "strategy_id": strategy_id,
+                "source": hashlib.sha256(engine.source_code(strategy_id).encode()).hexdigest(),
+                "override": engine.documents.get("strategy_overrides", strategy_id, {}),
+            })
+            continue
         source_path = Path(strategy.file_path) if strategy.file_path is not None else None
         override_path = data_dir / "user_data" / "strategy_overrides" / f"{strategy_id}.json"
         metadata.append(

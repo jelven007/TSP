@@ -24,6 +24,7 @@ import { useChartTheme } from '@/lib/theme'
 import { toast } from '@/components/Toast'
 import { Modal } from '@/components/Modal'
 import { cn } from '@/lib/cn'
+import { hasPermission } from '@/lib/accountSession'
 
 const STATE_ORDER: RegimeState[] = ['strong', 'lean_strong', 'range', 'lean_weak', 'weak']
 
@@ -696,11 +697,11 @@ export function Regime() {
               </button>
             </div>
             {/* 重算 */}
-            <button onClick={handleRecompute} disabled={recomputing}
+            {hasPermission('data:manage') && <button onClick={handleRecompute} disabled={recomputing}
               className="inline-flex items-center gap-1.5 h-7 px-3 rounded-btn border border-border bg-base text-xs text-secondary hover:text-accent disabled:opacity-50">
               {recomputing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               {recomputing ? '重算中…' : '重算'}
-            </button>
+            </button>}
           </div>
         </div>
       </div>
@@ -789,7 +790,7 @@ export function Regime() {
         </div>
       ) : (
         <div className="rounded-card border border-dashed border-border p-4 text-center text-xs text-muted">
-          市场阶段(情绪周期)数据尚未生成 — 点击右上角「重算」即可回填全部历史阶段与主线
+          市场阶段（情绪周期）数据尚未生成。{hasPermission('data:manage') ? '点击右上角「重算」即可回填历史阶段与主线。' : '请联系管理员完成数据计算。'}
         </div>
       )}
 
@@ -954,13 +955,13 @@ export function Regime() {
           hint={
             <span className="flex items-center gap-2">
               <span className="hidden sm:inline text-[9px] text-muted">{mainline.data?.membership_note}</span>
-              <button
+              {hasPermission('settings:manage') && <button
                 onClick={() => setFilterOpen(v => !v)}
                 className={cn('inline-flex items-center gap-1 rounded-btn border px-2 py-0.5 text-[10px] transition-colors',
                   filterOpen ? 'border-accent/50 text-accent' : 'border-border bg-base text-secondary hover:text-accent')}
               >
                 <Filter className="h-3 w-3" /> 过滤
-              </button>
+              </button>}
             </span>
           }
         />
@@ -976,7 +977,7 @@ export function Regime() {
           </div>
           <span className="text-[10px] text-muted">窗口内 top1 天数排序 · 点击「过滤」配置宽基概念屏蔽</span>
         </div>
-        {filterOpen && (
+        {filterOpen && hasPermission('settings:manage') && (
           <MainlineFilterPanel
             filter={mainline.data?.filter}
             onDone={async () => {

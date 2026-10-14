@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, KeyRound, Loader2, LogOut, Mail, ShieldAlert, UserRound } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
+import { clearAccountCache } from '@/lib/accountSession'
+import { AdminUsersPanel } from './Users'
 
 export function SettingsAccountPanel() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -19,10 +19,11 @@ export function SettingsAccountPanel() {
     staleTime: 30_000,
   })
 
-  const clearSessionAndRedirect = (path: string) => {
-    window.localStorage.removeItem('tf-query-cache')
+  const clearSessionAndRedirect = async (path: string) => {
+    await queryClient.cancelQueries()
+    clearAccountCache()
     queryClient.clear()
-    navigate(path, { replace: true })
+    window.location.replace(path)
   }
 
   const logoutMutation = useMutation({
@@ -74,12 +75,18 @@ export function SettingsAccountPanel() {
           <div className="flex items-center justify-between gap-4 py-3">
             <dt className="flex items-center gap-2 text-xs text-muted">
               <Mail className="h-3.5 w-3.5" />
-              登录邮箱
+              登录账号
             </dt>
             <dd className="truncate text-sm text-foreground">
-              {statusQuery.isLoading ? '加载中…' : user?.email || '--'}
+              {statusQuery.isLoading ? '加载中…' : user?.username || user?.email || '--'}
             </dd>
           </div>
+          {user?.role && (
+            <div className="flex items-center justify-between gap-4 py-3">
+              <dt className="text-xs text-muted">系统角色</dt>
+              <dd className="text-xs text-secondary">{user.role === 'admin' ? '管理员' : '租户'}</dd>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-4 py-3">
             <dt className="text-xs text-muted">创建时间</dt>
             <dd className="text-xs text-secondary">{createdAt}</dd>
@@ -149,6 +156,7 @@ export function SettingsAccountPanel() {
         </form>
       </section>
 
+      <AdminUsersPanel />
       <section className="border-t border-border pt-5">
         <div className="flex items-center justify-between gap-4">
           <div>

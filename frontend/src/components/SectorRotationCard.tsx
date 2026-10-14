@@ -12,6 +12,7 @@
  * 强度图与展示图 x 轴窗口一致, 经 echarts.connect 联动指针; 榜单行与展示图双向高亮。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useQuery } from '@tanstack/react-query'
 import * as echarts from 'echarts'
 import { Activity, Database, RefreshCw } from 'lucide-react'

@@ -769,7 +769,8 @@ def run_now(
         from app.strategy import paper as paper_trading
         # 逐账户结算 (账户间订单/台账隔离), 汇总合并供日志与结果展示
         totals = {"filled": 0, "expired": 0, "corp_actions": 0, "nav": None, "accounts": []}
-        for acc_id in paper_trading.list_account_ids(repo.store.data_dir):
+        for acc_id in (paper_trading.list_account_ids(repo.store.data_dir)
+                       if settings.service_role != "platform" else []):
             s = paper_trading.settle_day(repo.store.data_dir, today.isoformat(), account_id=acc_id)
             totals["filled"] += s.get("filled", 0)
             totals["expired"] += s.get("expired", 0)
@@ -839,6 +840,19 @@ def run_now(
         reason="daily_pipeline",
     )
     result["data_release_id"] = release["release_id"]
+    if settings.service_role == "platform":
+        import json
+        from datetime import time as clock_time
+
+        from app.services.fs_utils import atomic_write_text
+
+        current = cn_now()
+        if current.date() == today and current.time().replace(tzinfo=None) >= clock_time(15, 1):
+            # Published only after the complete pipeline succeeds. Tenant
+            # settlement must never infer final OHLC from an intraday file.
+            atomic_write_text(repo.store.data_dir / "settlement_ready.json", json.dumps({
+                "day": today.isoformat(), "release_id": release["release_id"],
+            }))
     return result
 
 
@@ -999,6 +1013,8 @@ def _scheduled_pipeline_task(pipeline_fn) -> None:
         return
     if not _run_tracked(pipeline_fn, "daily_pipeline"):
         return
+    if settings.service_role == "platform":
+        return
     try:
         from app.services.mining_schedule import run_weekly_mining
 
@@ -1026,7 +1042,7 @@ async def _run_scheduled_review(repo) -> None:
     """
     import json
 
-    if not _scheduled_day_allowed("review"):
+    if settings.service_role == "platform" or not _scheduled_day_allowed("review"):
         return
     try:
         from app.services import market_recap_reports
@@ -1230,6 +1246,8 @@ def _register_review_job(scheduler, repo, hour: int, minute: int) -> None:
     add_job, 而非用 lambda 包裹 —— 否则 APScheduler 会把 lambda 当同步函数在线程池
     执行, 仅得到一个未 await 的协程对象, 复盘实际不会运行。
     """
+    if settings.service_role == "platform":
+        return
     scheduler.add_job(
         _run_scheduled_review,
         args=[repo],
@@ -1256,7 +1274,7 @@ def _run_auction_snapshot(
     state = result.get("state")
     if state not in {"ready", "already_captured", "market_closed"}:
         logger.warning("09:25 auction snapshot not published: %s", result)
-        if notify_on_failure:
+        if notify_on_failure and settings.service_role != "platform":
             app_state = _get_app_state()
             quote_service = getattr(app_state, "quote_service", None) if app_state else None
             notify_capture_failure(
@@ -1444,7 +1462,7 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     # 复用 recap_market_once(非流式) + market_recap_reports.save_report(落盘)。
     # quote_service / depth_service 通过 _get_app_state() 延迟取用。
     review_sched = preferences.get_review_schedule()
-    if review_sched["enabled"]:
+    if review_sched["enabled"] and settings.service_role != "platform":
         _register_review_job(scheduler, repo, review_sched["hour"], review_sched["minute"])
         logger.info("scheduled_review enabled @%02d:%02d mon-fri",
                     review_sched["hour"], review_sched["minute"])

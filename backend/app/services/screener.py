@@ -449,6 +449,8 @@ class ScreenerService:
         """按调用方要求装配标准策略数据上下文，不解释策略公式。"""
         from app.strategy.engine import StrategyDataContext
 
+        if getattr(engine, "remote_context", False):
+            return StrategyDataContext(self.asset_type, timeframe, as_of)
         if current is None:
             current = self._load_enriched_for_date(as_of)
         from app.strategy.eligibility import attach_listing_age

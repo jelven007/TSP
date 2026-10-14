@@ -7,6 +7,7 @@ import { toast } from '@/components/Toast'
 import { pushAlertToasts } from '@/components/AlertToast'
 import { feedReviewEvent } from './reviewStore'
 import type { KlineDailyResponse, StrategyAlertEvent } from './api'
+import { accountStreamUrl } from './accountSession'
 
 // ===== 全局 SSE 连接状态 (模块级 store, 仿 AlertToast.tsx 模式) =====
 // 实时行情 SSE 断开时 UI 无感知 → 会漏掉策略告警。这里暴露连接状态,
@@ -113,10 +114,19 @@ export function useQuoteStream(
     // 连续失败计数 (用于指数退避 + 到阈值弹一次 toast)
     let failCount = 0
     let toastFired = false
+    let lastEventId = ''
+    const acceptEvent = (event: MessageEvent): boolean => {
+      if (!event.lastEventId) return true
+      if (lastEventId && BigInt(event.lastEventId) <= BigInt(lastEventId)) return false
+      lastEventId = event.lastEventId
+      return true
+    }
 
     const connect = () => {
       _setStatus(failCount > 0 ? 'reconnecting' : _streamStatus)
-      const es = new EventSource('/api/intraday/stream')
+      const url = new URL(accountStreamUrl('/api/intraday/stream'), window.location.origin)
+      if (lastEventId) url.searchParams.set('last_event_id', lastEventId)
+      const es = new EventSource(url.pathname + url.search)
       esRef.current = es
 
       es.onopen = () => {
@@ -184,7 +194,8 @@ export function useQuoteStream(
         }
       })
 
-      es.addEventListener('strategy_results_updated', () => {
+      es.addEventListener('strategy_results_updated', (event: MessageEvent) => {
+        if (!acceptEvent(event)) return
         // 策略监控完成后只刷新策略结果缓存，不扩散到其他行情页面。
         qc.invalidateQueries({ queryKey: ['screener-cached'] })
       })
@@ -198,6 +209,7 @@ export function useQuoteStream(
 
       es.addEventListener('strategy_alert', (e: MessageEvent) => {
         try {
+          if (!acceptEvent(e)) return
           const data = JSON.parse(e.data)
             const alerts: StrategyAlertEvent[] = data.alerts || []
             if (alerts.length > 0) {
@@ -215,6 +227,7 @@ export function useQuoteStream(
       // 开着复盘页可看到「边生成边显示」, 切走再回来也能看到生成中/已生成
       es.addEventListener('review_progress', (e: MessageEvent) => {
         try {
+          if (!acceptEvent(e)) return
           const evt = JSON.parse(e.data)
           feedReviewEvent(evt)
           // done(后端已归档) → 刷新历史列表, 让新报告出现并可查看
@@ -224,6 +237,15 @@ export function useQuoteStream(
         } catch {
           // 忽略解析错误
         }
+      })
+
+      es.addEventListener('events_reset', (event: MessageEvent) => {
+        acceptEvent(event)
+        void qc.invalidateQueries()
+      })
+      es.addEventListener('access_revoked', () => {
+        es.close()
+        window.location.reload()
       })
 
       es.onerror = () => {

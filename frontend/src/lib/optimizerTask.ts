@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { accountFetch as fetch, accountStorage as localStorage, accountStreamUrl } from './accountSession'
 
 /**
  * 参数优化任务管理 (SSE 模式 + 重连)。镜像 backtestTask, 结果为排名 dict。
@@ -112,7 +113,7 @@ function connectSSE(url: string): void {
     eventSource = null
   }
 
-  const es = new EventSource(url)
+  const es = new EventSource(accountStreamUrl(url))
   eventSource = es
 
   // 首事件: 后端回吐 job_key, 存下供 cancel 直接引用 (无需前端重算)
@@ -286,11 +287,22 @@ export function clearOptimize(): void {
 export function tryReconnectOptimize(): boolean {
   const qs = localStorage.getItem(RECONNECT_KEY)
   if (!qs) return false
+  if (qs.startsWith('job:')) { attachOptimizeJob(qs.slice(4)); return true }
   const id = ++taskSeq
   current = { id, isPending: true, result: null, progress: null, error: null }
   emit()
   connectSSE(`/api/backtest/optimize/stream?${qs}`)
   return true
+}
+
+export function attachOptimizeJob(id: string): void {
+  cancelRequested = false
+  currentJobKey = null
+  reconnectAttempts = 0
+  localStorage.setItem(RECONNECT_KEY, `job:${id}`)
+  current = { id: ++taskSeq, isPending: true, result: null, progress: null, error: null }
+  emit()
+  connectSSE(`/api/backtest/jobs/${encodeURIComponent(id)}/stream`)
 }
 
 export function useOptimizerTask(): OptimizerTask | null {

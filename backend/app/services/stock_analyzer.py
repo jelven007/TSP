@@ -320,6 +320,8 @@ async def analyze_stock_stream(
     data_dir: Path,
     symbol: str,
     focus: str = "",
+    *,
+    private_data=None,
 ) -> AsyncIterator[str]:
     """流式个股分析:yield 出每个 NDJSON 事件。
 
@@ -364,8 +366,9 @@ async def analyze_stock_stream(
         paper_positions: list[dict] = []
         try:
             from app.strategy import paper as paper_trading
-            for acc_id in paper_trading.list_account_ids(data_dir):
-                pos = paper_trading.load_positions(data_dir, account_id=acc_id).get(symbol)
+            owned_data = private_data if private_data is not None else data_dir
+            for acc_id in paper_trading.list_account_ids(owned_data):
+                pos = paper_trading.load_positions(owned_data, account_id=acc_id).get(symbol)
                 if pos and (pos.get("qty") or 0) > 0:
                     paper_positions.append({"account_id": acc_id, **pos})
         except Exception as e:  # noqa: BLE001

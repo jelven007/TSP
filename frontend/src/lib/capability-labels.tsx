@@ -1,6 +1,7 @@
 // capability 内部名 → 用户能理解的中文标签
 import { useNavigate } from 'react-router-dom'
 import type { CapabilityMatrix, CapabilityRoute } from './api'
+import { hasPermission, multitenancyEnabled } from './accountSession'
 
 export const CAP_LABELS: Record<string, { name: string; hint: string }> = {
   'quote.by_symbol':         { name: '自选股实时监控', hint: 'Free 可按标的查询实时行情,用于少量自选股监控' },
@@ -41,7 +42,7 @@ export function MissingCapChip({ capKey, label, to = '/settings?tab=data-sources
       {text ? `${text} · 不可用` : '不可用'}
     </>
   )
-  if (to == null) {
+  if (to == null || (multitenancyEnabled() && !hasPermission('settings:manage'))) {
     return (
       <span className={`text-[10px] text-warning/90 bg-warning/8 rounded px-1.5 py-px font-medium ${className}`} title="该数据当前不可用">
         {content}
@@ -174,4 +175,3 @@ export function TierTag({ label, className = '' }: { label: string; className?: 
     </span>
   )
 }
-

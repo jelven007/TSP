@@ -63,6 +63,13 @@ _custom_signal_exprs_today: dict[str, pl.Expr] | None = None
 
 def _get_custom_signal_exprs() -> dict[str, pl.Expr]:
     """懒加载自定义信号表达式（带模块级缓存，allow_shift=True）。"""
+    from app.strategy import custom_signals
+
+    scoped = custom_signals.scoped_definitions()
+    if scoped is not None:
+        return custom_signals.build_expressions(scoped)
+    if settings.multitenancy_enabled or settings.service_role == "platform":
+        return {}
     global _custom_signal_exprs
     if _custom_signal_exprs is None:
         from app.strategy import custom_signals
@@ -81,6 +88,13 @@ def _get_custom_signal_exprs_today() -> dict[str, pl.Expr]:
     与全量版分开缓存：盘中单日快照上 .shift 跨 symbol 语义不正确,
     build_expressions(allow_shift=False) 会跳过带偏移的信号, 结果集不同。
     """
+    from app.strategy import custom_signals
+
+    scoped = custom_signals.scoped_definitions()
+    if scoped is not None:
+        return custom_signals.build_expressions(scoped, allow_shift=False)
+    if settings.multitenancy_enabled or settings.service_role == "platform":
+        return {}
     global _custom_signal_exprs_today
     if _custom_signal_exprs_today is None:
         from app.strategy import custom_signals

@@ -25,8 +25,10 @@ _cache_sig: tuple[int, int] | None = None
 
 def _path() -> Path:
     from app.config import settings
-    p = settings.data_dir / "user_data" / "secrets.json"
-    p.parent.mkdir(parents=True, exist_ok=True)
+    root = settings.platform_config_dir or settings.data_dir / "user_data"
+    p = root / "secrets.json"
+    if settings.service_role != "api":
+        p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
 

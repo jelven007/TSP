@@ -71,12 +71,22 @@ def read_cache(data_dir: Path) -> dict | None:
     保护价值有限。故移除: 盘后缓存总能读出, 实时新鲜度由 /api/screener/cached
     端点叠加监控引擎的内存实时结果 (latest_strategy_results) 来保证。
     """
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        cached = data_dir.get("strategy_cache", "default")
+        return cached if cached and cached.get("entry_policy_version") == ENTRY_POLICY_VERSION else None
     with _file_lock:
         return _read_cache_unlocked(data_dir)
 
 
 def clear_cache(data_dir: Path) -> None:
     """删除策略结果缓存；策略代码 reload 后避免继续展示旧公式结果。"""
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        data_dir.delete("strategy_cache", "default")
+        return
     import traceback
 
     # 运维可见性: 策略页依赖本缓存秒加载, 被清空即整页回退到全量重算。
@@ -131,6 +141,11 @@ def write_cache(
     - 日期变更时重置 today_ever_matched 和 today_ever_rows
     - 同一天内合并 (并集) 之前曾命中的 symbol，并用最新行数据更新
     """
+    from app.multitenancy.documents import TenantDocuments
+
+    if isinstance(data_dir, TenantDocuments):
+        data_dir.mutate("strategy_cache", "default", lambda old: _merged_payload(old, as_of, results, None))
+        return
     path = _cache_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -148,6 +163,20 @@ def _write_cache_locked(
     """持 _file_lock 后的实际写入逻辑 (read-merge-write + 原子替换)。"""
     # 读取旧缓存 (已持锁, 走不重入的 _read_cache_unlocked)
     old = _read_cache_unlocked(data_dir)
+    payload = _merged_payload(old, as_of, results, _get_enriched_mtime(data_dir, as_of))
+    try:
+        # 原子写: 先写临时文件再 os.replace, 避免读侧读到半写的 JSON
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, default=_json_default), encoding="utf-8")
+        os.replace(tmp, path)
+        total_rows = sum(len(r.get("rows", [])) for r in payload["results"].values())
+        total_ever = sum(len(v) for v in payload["today_ever_matched"].values())
+        logger.info("策略缓存已写入: %s, %d 策略, %d 命中, %d 曾命中", as_of, len(payload["results"]), total_rows, total_ever)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("写入策略缓存失败: %s", e)
+
+
+def _merged_payload(old: dict | None, as_of: str, results: dict, enriched_mtime) -> dict:
     old_as_of = old.get("as_of") if old else None
     old_ever_rows: dict[str, dict[str, dict]] = old.get("today_ever_rows", {}) if old else {}
 
@@ -181,9 +210,7 @@ def _write_cache_locked(
 
     # enriched_mtime: 盘后缓存写入时记录 (向后兼容旧字段)。read_cache 已不再用它
     # 做过期校验, 实时新鲜度改由 /cached 端点叠加监控引擎内存结果保证。
-    enriched_mtime = _get_enriched_mtime(data_dir, as_of)
-
-    payload = {
+    return {
         "entry_policy_version": ENTRY_POLICY_VERSION,
         "as_of": as_of,
         "results": merged_results,
@@ -192,13 +219,3 @@ def _write_cache_locked(
         "enriched_mtime": enriched_mtime,
         "updated_at": int(time.time() * 1000),
     }
-    try:
-        # 原子写: 先写临时文件再 os.replace, 避免读侧读到半写的 JSON
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(json.dumps(payload, ensure_ascii=False, default=_json_default), encoding="utf-8")
-        os.replace(tmp, path)
-        total_rows = sum(len(r.get("rows", [])) for r in merged_results.values())
-        total_ever = sum(len(v) for v in today_ever_matched.values())
-        logger.info("策略缓存已写入: %s, %d 策略, %d 命中, %d 曾命中", as_of, len(merged_results), total_rows, total_ever)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("写入策略缓存失败: %s", e)

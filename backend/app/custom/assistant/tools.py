@@ -163,6 +163,13 @@ class ToolContext:
     data_dir: Path | None = None
     capabilities: Any = None
     financial_scheduler: Any = None
+    documents: Any = None
+    account: dict | None = None
+    verify_access: Any = None
+
+    @property
+    def private_data(self):
+        return self.documents if self.documents is not None else self.data_dir
 
     @classmethod
     def build(
@@ -175,6 +182,9 @@ class ToolContext:
         data_dir: str | Path | None = None,
         capabilities: Any = None,
         financial_scheduler: Any = None,
+        documents: Any = None,
+        account: dict | None = None,
+        verify_access: Any = None,
     ) -> ToolContext:
         return cls(
             repo=repo,
@@ -184,6 +194,9 @@ class ToolContext:
             data_dir=Path(data_dir) if data_dir else None,
             capabilities=capabilities,
             financial_scheduler=financial_scheduler,
+            documents=documents,
+            account=account,
+            verify_access=verify_access,
         )
 
 
@@ -505,6 +518,9 @@ def _get_financials(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
 def _get_watchlist(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
     from app.services import watchlist as watchlist_service
 
+    if ctx.documents is not None:
+        from app.multitenancy.watchlist import Watchlist
+        watchlist_service = Watchlist(ctx.documents.db, ctx.documents.context)
     items = watchlist_service.list_symbols()
     if not items:
         return {"count": 0, "rows": [], "note": "自选列表为空。"}
@@ -611,7 +627,7 @@ def _get_lots(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
 
     if ctx.data_dir is None:
         raise ValueError("数据目录未就绪。")
-    lots = load_all(ctx.data_dir)
+    lots = ctx.documents.values("lots") if ctx.documents is not None else load_all(ctx.data_dir)
     if not lots:
         return {"count": 0, "rows": [], "note": "暂无持仓提醒记录。"}
     symbols = [str(lot.get("symbol") or "") for lot in lots if lot.get("symbol")]
@@ -640,7 +656,7 @@ def _list_signals(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
 
     if ctx.data_dir is None:
         raise ValueError("数据目录未就绪。")
-    rows = [_clean_obj(r) for r in load_all(ctx.data_dir)[:100]]
+    rows = [_clean_obj(r) for r in load_all(ctx.private_data)[:100]]
     return {"count": len(rows), "rows": rows}
 
 
@@ -668,7 +684,7 @@ def _run_strategy(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
     as_of = svc.latest_date()
     if as_of is None:
         raise ValueError("本地暂无行情数据, 无法执行策略。")
-    overrides = load_override(ctx.data_dir, strategy_id) or {} if ctx.data_dir else {}
+    overrides = load_override(ctx.private_data, strategy_id) or {} if ctx.private_data else {}
     context = svc.build_strategy_context(
         ctx.engine, as_of, [strategy_id], overrides_map={strategy_id: overrides},
     )
@@ -781,8 +797,11 @@ def _create_signal_strategy(args: dict[str, Any], ctx: ToolContext) -> dict[str,
         custom_signals.validate(sig)
     except ValueError as exc:
         raise ValueError(f"{exc}。{_SIGNAL_FIELD_HINT}") from exc
-    custom_signals.save_one(ctx.data_dir, sig)
-    _invalidate_custom_signals(ctx.data_dir, ctx.repo)
+    custom_signals.save_one(ctx.private_data, sig)
+    if ctx.documents is not None:
+        ctx.documents.delete("strategy_cache", "default")
+    else:
+        _invalidate_custom_signals(ctx.data_dir, ctx.repo)
     return {
         "created": True,
         "signal": {"id": sig["id"], "name": name, "kind": kind, "conditions": conditions},
@@ -795,6 +814,14 @@ def _add_to_watchlist(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
 
     symbol = _validate_symbol(args.get("symbol"))
     note = str(args.get("note") or "").strip()[:80]
+    if ctx.documents is not None:
+        from app.multitenancy.watchlist import Watchlist
+
+        rows, added = Watchlist(ctx.documents.db, ctx.documents.context).add_batch(
+            [symbol], note, only_new=True,
+        )
+        return {"added": bool(added), "symbol": symbol, "total": len(rows),
+                "note": f"已把 {symbol} 加入自选列表。" if added else f"{symbol} 已在自选列表中, 未重复添加。"}
     current = watchlist_service.list_symbols()
     if symbol in {str(r.get("symbol")) for r in current}:
         return {
@@ -1417,9 +1444,12 @@ def _local_tool_schemas() -> list[dict[str, Any]]:
     ]
 
 
-def build_tool_schemas() -> list[dict[str, Any]]:
+def build_tool_schemas(*, account=None) -> list[dict[str, Any]]:
     """核心工具目录(因子/策略/能力/回测) + 本模块的页面查询工具。"""
-    return [*tool_catalog.build_tool_schemas(), *_local_tool_schemas()]
+    schemas = [*tool_catalog.build_tool_schemas(), *_local_tool_schemas()]
+    if account is not None and "data:manage" not in account["permissions"]:
+        schemas = [row for row in schemas if row["function"]["name"] not in {"sync_data", "get_sync_status"}]
+    return schemas
 
 
 async def execute_assistant_tool(name: str, args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
@@ -1427,6 +1457,11 @@ async def execute_assistant_tool(name: str, args: dict[str, Any], ctx: ToolConte
 
     契约与核心 tool_catalog.execute_tool 一致: {"ok": bool, "result"|"error"}。
     """
+    if ctx.verify_access is not None:
+        await asyncio.to_thread(ctx.verify_access)
+    if (ctx.account is not None and name in {"sync_data", "get_sync_status"}
+            and "data:manage" not in ctx.account["permissions"]):
+        return {"ok": False, "error": "无权使用数据管理功能"}
     handler = _LOCAL_TOOLS.get(name)
     if handler is not None:
         try:
@@ -1442,7 +1477,8 @@ async def execute_assistant_tool(name: str, args: dict[str, Any], ctx: ToolConte
         name,
         args,
         engine=ctx.engine,
-        data_dir=str(ctx.data_dir) if ctx.data_dir else None,
+        data_dir=ctx.private_data,
+        **({"verify_access": ctx.verify_access} if ctx.documents is not None else {}),
     )
 
 

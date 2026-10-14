@@ -251,6 +251,7 @@ async def execute_tool(
     *,
     engine=None,
     data_dir: str | Path | None = None,
+    verify_access=None,
 ) -> dict[str, Any]:
     """按 name 分发执行, 返回 {"ok": bool, "result": ... | "error": str}。
 
@@ -258,6 +259,8 @@ async def execute_tool(
     list_data_capabilities 不需要二者, 传 None 亦可。
     """
     try:
+        if verify_access is not None:
+            await asyncio.to_thread(verify_access)
         if name == LIST_FACTORS:
             result = list_factors(
                 asset_type=args.get("asset_type"),
@@ -285,15 +288,19 @@ async def execute_tool(
                     available = ""
                 hint = f"; 可用策略: {available}" if available else "; 可先用 list_strategies 查询"
                 return {"ok": False, "error": f"策略 {strategy_id} 不存在{hint}"}
-            result = await asyncio.to_thread(
-                run_backtest,
-                data_dir,
-                strategy_id=strategy_id,
-                params=args.get("params"),
-                start=args.get("start"),
-                end=args.get("end"),
-                asset_type=args.get("asset_type") or "stock",
-            )
+            from app.multitenancy.documents import TenantDocuments
+
+            kwargs = {"strategy_id": strategy_id, "params": args.get("params"),
+                      "start": args.get("start"), "end": args.get("end"),
+                      "asset_type": args.get("asset_type") or "stock"}
+            if isinstance(data_dir, TenantDocuments):
+                from app.multitenancy.ai import run_tool_backtest
+
+                if engine is None or getattr(engine, "documents", None) != data_dir:
+                    raise ValueError("租户策略引擎未注入")
+                result = await run_tool_backtest(engine, **kwargs, verify_access=verify_access)
+            else:
+                result = await asyncio.to_thread(run_backtest, data_dir, **kwargs)
         else:
             return {"ok": False, "error": f"未知工具: {name}"}
         return {"ok": True, "result": result}

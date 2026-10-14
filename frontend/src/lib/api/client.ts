@@ -1,4 +1,5 @@
 import { toast } from '@/components/Toast'
+import { accountScope, multitenancyEnabled, verifyResponseScope } from '../accountSession'
 
 const API_BASE = ''
 
@@ -29,11 +30,15 @@ export function extPullTimeoutMs(timeoutSeconds?: number): number {
 }
 
 export async function request<T>(path: string, init?: RequestOptions): Promise<T> {
+  const startedScope = accountScope()
   const { quiet, baseUrl = API_BASE, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...fetchInit } = init ?? {}
   const isFormData = fetchInit.body instanceof FormData
   const headers: Record<string, string> = {}
   if (!isFormData) headers['Content-Type'] = 'application/json'
   Object.assign(headers, fetchInit.headers as Record<string, string> | undefined)
+  if (multitenancyEnabled() && path.startsWith('/api/') && !path.startsWith('/api/auth/')) {
+    headers['X-TSP-Account-Scope'] = startedScope
+  }
 
   const controller = timeoutMs == null || fetchInit.signal ? undefined : new AbortController()
   const timeoutSeconds = Math.round((timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS) / 1000)
@@ -60,6 +65,9 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
     if (timer !== undefined) window.clearTimeout(timer)
   }
 
+  if (startedScope !== accountScope() || !verifyResponseScope(response.headers.get('X-TSP-Account-Scope'))) {
+    throw new DOMException('账户已切换', 'AbortError')
+  }
   if (!response.ok) {
     let detail = ''
     try {
@@ -81,5 +89,7 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
   }
 
   if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  const result = await response.json() as T
+  if (startedScope !== accountScope()) throw new DOMException('账户已切换', 'AbortError')
+  return result
 }

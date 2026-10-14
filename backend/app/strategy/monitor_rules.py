@@ -22,6 +22,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from app.market_scope import clean_market_config, removed_market_symbol
+from app.multitenancy.documents import TenantDocuments
 from app.services.fs_utils import atomic_write_text
 from app.strategy.custom_signals import ALLOWED_FIELDS
 from app.strategy.intraday_signals import uses_intraday_signals
@@ -78,6 +79,10 @@ def _path(data_dir: Path, rule_id: str) -> Path:
 
 def load_all(data_dir: Path) -> list[dict]:
     """读取全部监控规则。损坏的文件被跳过。"""
+    if isinstance(data_dir, TenantDocuments):
+        from app.multitenancy.monitor_rules import Rules
+
+        return [normalize(rule) for rule in Rules(data_dir).load_all()]
     d = _dir(data_dir)
     out: list[dict] = []
     for f in sorted(d.glob("*.json")):
@@ -89,6 +94,11 @@ def load_all(data_dir: Path) -> list[dict]:
 
 
 def load_one(data_dir: Path, rule_id: str) -> dict | None:
+    if isinstance(data_dir, TenantDocuments):
+        from app.multitenancy.monitor_rules import Rules
+
+        rule = Rules(data_dir).load_one(rule_id)
+        return normalize(rule) if rule else None
     p = _path(data_dir, rule_id)
     if not p.exists():
         return None
@@ -100,12 +110,23 @@ def load_one(data_dir: Path, rule_id: str) -> dict | None:
 
 
 def save_one(data_dir: Path, rule: dict) -> None:
+    if isinstance(data_dir, TenantDocuments):
+        from app.multitenancy.monitor_rules import Rules
+
+        rule = normalize(rule)
+        validate(rule)
+        Rules(data_dir).save_one(rule)
+        return
     p = _path(data_dir, rule["id"])
     p.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(p, json.dumps(clean_market_config(rule), ensure_ascii=False, indent=2))
 
 
-def delete_one(data_dir: Path, rule_id: str) -> bool:
+def delete_one(data_dir: Path, rule_id: str, *, managed: bool = False) -> bool:
+    if isinstance(data_dir, TenantDocuments):
+        from app.multitenancy.monitor_rules import Rules
+
+        return Rules(data_dir).delete_one(rule_id, managed=managed)
     p = _path(data_dir, rule_id)
     if p.exists():
         p.unlink()
@@ -407,6 +428,7 @@ def normalize(rule: dict) -> dict:
         # 防御性过滤, 只保留合法渠道
         r["webhook_channels"] = [
             c for c in r["webhook_channels"] if c in ("feishu", "wecom", "custom", "email")
+            or (isinstance(c, str) and re.fullmatch(r"[a-f0-9]{32}", c))
         ]
     r.setdefault("created_at", datetime.now(timezone.utc).isoformat())
     return r

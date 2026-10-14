@@ -4,7 +4,10 @@ import math
 import os
 import re
 import secrets
+import threading
+import time
 from datetime import UTC, date, datetime
+from functools import wraps
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -12,6 +15,16 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from app.cell.context import SYMBOL_PATTERN
 
 router = APIRouter(prefix="/internal/cell-market", tags=["internal-market"])
+_FULL_SNAPSHOT_LOCK = threading.Lock()
+
+
+def _serialize_full_snapshot(function):
+    @wraps(function)
+    def guarded(*args, **kwargs):
+        with _FULL_SNAPSHOT_LOCK:
+            return function(*args, **kwargs)
+
+    return guarded
 
 
 def _authorize(authorization: str | None) -> None:
@@ -127,3 +140,80 @@ def history(
         "release_id": hashlib.sha256(encoded.encode()).hexdigest(),
         "basis": "shared_enriched_observed_snapshot",
     }
+
+
+@router.get("/snapshot")
+@_serialize_full_snapshot
+def full_snapshot(request: Request, authorization: Annotated[str | None, Header()] = None):
+    """One shared enriched snapshot for full APIs and tenant workers."""
+    _authorize(authorization)
+    from app.multitenancy.market import encode_frame, settlement_days
+
+    state = request.app.state
+    cached = getattr(state, "full_public_snapshot", None)
+    if cached and time.monotonic() - cached[0] < 1:
+        return cached[1]
+    service = getattr(state, "quote_service", None)
+    if service is None:
+        raise HTTPException(503, "market_unavailable")
+    repo = state.repo
+    status = service.status()
+    frames, days = {}, {}
+    for asset in ("stock", "etf", "index"):
+        frame, day = repo.get_enriched_latest_asset(asset, refresh=False)
+        # Only standardized public fields enter the bridge. Platform process
+        # configuration must also disable legacy private registry injection.
+        frame = frame.drop([name for name in frame.columns if name.startswith(("csg_", "csgi_", "custom_"))])
+        if asset == "stock" and day is not None:
+            frame = service._inject_volume_delta(frame)
+            frame = service._inject_sealed_vol(frame, day)
+        frames[asset] = encode_frame(frame)
+        days[asset] = str(day) if day else None
+    sector_service = getattr(state, "sector_monitor_service", None)
+    sectors = {}
+    if sector_service:
+        targets = [target for values in sector_service.list_targets().values() for target in values]
+        sectors = sector_service.build_snapshots(
+            repo.get_enriched_latest()[0], service.get_index_quotes(), targets, set(range(1, 31)), now=time.time(),
+        )
+    abnormal = []
+    if status.get("is_trading_hours"):
+        from app.services.abnormal_moves import build_overview
+
+        abnormal_cache = getattr(state, "full_public_abnormal", None)
+        if not abnormal_cache or time.monotonic() - abnormal_cache[0] >= 30:
+            abnormal_cache = (time.monotonic(), build_overview(repo, service, min_closeness=0, limit=10000).get("rows", []))
+            state.full_public_abnormal = abnormal_cache
+        abnormal = abnormal_cache[1]
+    value = {
+        "sequence": int(status.get("last_fetch_ms") or 0), "captured_at": time.time(),
+        "status": status, "frames": frames, "days": days, "sectors": sectors, "abnormal": abnormal,
+        "indices": encode_frame(service.get_index_quotes()), "names": repo.get_name_map(),
+        "settlement_days": settlement_days(repo.store.data_dir),
+    }
+    publisher = getattr(state, "public_publisher", None)
+    if publisher:
+        import json
+
+        from app.multitenancy.publication import release_path
+        from app.services.health import readiness
+
+        public = release_path(publisher.root)
+        manifest = json.loads((public / ".public_release.json").read_text())
+        value["public_release"] = {key: manifest[key] for key in ("id", "generations", "published_at")}
+        platform_health = getattr(state, "full_platform_health", None)
+        if not platform_health or time.monotonic() - platform_health[0] > 10:
+            platform_health = (time.monotonic(), readiness(state, repo.store.data_dir))
+            state.full_platform_health = platform_health
+        value["platform_ready"] = platform_health[1]["ready"]
+    depth = getattr(state, "depth_service", None)
+    if depth:
+        with depth._lock:
+            value["depth"] = {
+                "entries": dict(depth._sealed_cache),
+                "day": str(depth._sealed_date) if depth._sealed_date else None,
+                "ready": depth._sealed_ready,
+                "age": (time.perf_counter() - depth._sealed_fetched_ts) if depth._sealed_fetched_ts else None,
+            }
+    state.full_public_snapshot = (time.monotonic(), value)
+    return value
