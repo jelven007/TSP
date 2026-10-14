@@ -58,16 +58,16 @@ export function BreadthBar({ data }: { data: OverviewMarket['breadth'] }) {
   const flatW = Math.max(0, 100 - upW - downW)
   return (
     <div className="space-y-2">
-      {/* 与上方涨跌分布同向: 左跌(绿) 右涨(红) */}
+      {/* 与上方涨跌分布同向: 左涨(红) 右跌(绿) */}
       <div className="flex h-2.5 overflow-hidden rounded-full bg-elevated">
-        <div className="bg-bear/85" style={{ width: `${downW}%` }} />
-        <div className="bg-muted/45" style={{ width: `${flatW}%` }} />
         <div className="bg-bull/85" style={{ width: `${upW}%` }} />
+        <div className="bg-muted/45" style={{ width: `${flatW}%` }} />
+        <div className="bg-bear/85" style={{ width: `${downW}%` }} />
       </div>
       <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-        <div className="rounded bg-bear/8 px-2 py-1 text-bear">跌 <span className="font-mono">{data.down}</span></div>
-        <div className="rounded bg-elevated/70 px-2 py-1 text-muted">平 <span className="font-mono">{data.flat}</span></div>
         <div className="rounded bg-bull/8 px-2 py-1 text-bull">涨 <span className="font-mono">{data.up}</span></div>
+        <div className="rounded bg-elevated/70 px-2 py-1 text-muted">平 <span className="font-mono">{data.flat}</span></div>
+        <div className="rounded bg-bear/8 px-2 py-1 text-bear">跌 <span className="font-mono">{data.down}</span></div>
       </div>
     </div>
   )
@@ -76,10 +76,12 @@ export function BreadthBar({ data }: { data: OverviewMarket['breadth'] }) {
 // ===== 涨跌分布直方 =====
 export function DistributionBars({ rows }: { rows: OverviewMarket['distribution'] }) {
   const maxCount = Math.max(...rows.map(r => r.count), 1)
+  // 左涨右跌: 后端按 <-5% → >5% 下行到上行排列, 展示时反转为涨在左、跌在右
+  const ordered = [...rows].reverse()
   return (
     <div className="grid h-24 grid-cols-8 items-end gap-1 pt-1">
-      {rows.map((r, i) => {
-        const positive = i >= 4
+      {ordered.map((r, i) => {
+        const positive = i < 4
         return (
           <div key={r.label} className="flex h-full min-w-0 flex-col items-center justify-end gap-0.5">
             <div className="font-mono text-[9px] text-muted">{r.count || ''}</div>
