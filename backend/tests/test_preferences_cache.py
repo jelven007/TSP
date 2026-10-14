@@ -103,27 +103,24 @@ def test_data_provider_defaults_to_rustdx_but_preserves_explicit_choice(
     assert getter() == "tickflow"
 
 
-def test_retired_routes_normalize_on_read_and_persist_on_next_save(_isolated):
-    stored = dict.fromkeys(preferences._DATA_PROVIDER_FIELDS, "MOOTDX")
+def test_retired_route_values_fall_back_to_rustdx_via_getter(_isolated):
+    # 退役/未知来源 (如已下线的 mootdx) 不在白名单内: load() 原样返回历史值,
+    # 但 getter 统一回退默认源 rustdx。无需在读盘时就地改写历史文件。
+    stored = dict.fromkeys(preferences._DATA_PROVIDER_FIELDS, "mootdx")
     stored["financial_data_provider"] = "tickflow"
     stored["theme"] = "dark"
     _isolated.write_text(json.dumps(stored), encoding="utf-8")
     original = _isolated.read_bytes()
 
-    loaded = preferences.load()
-    assert loaded["financial_data_provider"] == "tickflow"
-    assert all(
-        loaded[field] == "rustdx"
-        for field in preferences._DATA_PROVIDER_FIELDS
-        if field != "financial_data_provider"
-    )
+    assert preferences.get_daily_data_provider() == "rustdx"
+    assert preferences.get_adj_factor_provider() == "rustdx"
+    assert preferences.get_minute_data_provider() == "rustdx"
+    assert preferences.get_full_minute_data_provider() == "rustdx"
+    assert preferences.get_depth5_data_provider() == "rustdx"
+    assert preferences.get_realtime_data_provider() == "rustdx"
+    assert preferences.get_financial_provider() == "tickflow"
+    # 读取不改写历史文件
     assert _isolated.read_bytes() == original
-
-    preferences.save({"realtime_quote_interval": 1.0})
-    persisted = json.loads(_isolated.read_text())
-    assert persisted["daily_data_provider"] == "rustdx"
-    assert persisted["financial_data_provider"] == "tickflow"
-    assert persisted["theme"] == "dark"
 
 
 def test_removing_source_resets_all_its_routes_and_preserves_alternatives(_isolated):

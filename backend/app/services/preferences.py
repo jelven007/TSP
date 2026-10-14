@@ -67,11 +67,6 @@ def load(data_dir=None) -> dict:
     except Exception as e:
         logger.warning("preferences.json malformed: %s", e)
         return {}
-    # Retired routes resolve to the default without rewriting historical data.
-    # The next ordinary save persists the normalized preferences.
-    for field in _DATA_PROVIDER_FIELDS:
-        if str(data.get(field) or "").strip().lower() == "mootdx":
-            data[field] = _DEFAULT_DATA_PROVIDER
     _cache = data
     _cache_sig = sig
     return copy.deepcopy(_cache)
