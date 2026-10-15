@@ -1089,6 +1089,8 @@ export interface PaperHolding {
   qty: number
   avg_cost: number
   last_price: number
+  /** 该持仓最新价来源: 盘中实时 / 最近日线收盘 / 无行情退回成本占位 */
+  price_source?: 'live' | 'daily_close' | 'cost'
   market_value: number
   pnl: number
   pnl_pct: number
@@ -1103,6 +1105,17 @@ export interface PaperNavItem {
   benchmark_close?: number
 }
 
+/** 总览估值口径标记 (估算, 非收盘定版净值)。 */
+export interface PaperValuation {
+  basis: 'live' | 'daily_close' | 'cost'
+  as_of: string
+  /** 实时快照数据时间 (Unix 秒); 非实时口径为 null */
+  quote_ts?: number | null
+  covered: number
+  total: number
+  missing: string[]
+}
+
 export interface PaperOverview {
   initialized: boolean
   account_id?: string
@@ -1115,6 +1128,7 @@ export interface PaperOverview {
   total_pnl?: number
   initial_cash?: number
   estimating?: boolean
+  valuation?: PaperValuation
   holdings?: PaperHolding[]
   fees?: { commission_pct: number; stamp_tax_pct: number; slippage_bps: number }
 }
@@ -1171,6 +1185,46 @@ export interface PaperFill {
   factor?: number
   qty_before?: number
   cost_before?: number
+}
+
+/** FIFO 配对片段 (一次卖出与一个买入批次的配对, 非完整持仓周期) */
+export interface PaperRoundPairing {
+  kind: 'pairing'
+  symbol: string
+  cycle_seq: number
+  open_date: string
+  close_date: string
+  qty: number
+  cost_basis: number
+  pnl: number
+  pnl_pct: number
+  holding_days: number
+}
+
+/** 完整持仓周期 (从零建仓到清零, 收益率资金加权) */
+export interface PaperPositionCycle {
+  symbol: string
+  cycle_seq: number
+  open_date: string
+  close_date: string
+  pairings: number
+  qty: number
+  cost_basis: number
+  pnl: number
+  pnl_pct: number
+  holding_days: number
+}
+
+/** 自动跟单未执行原因 (诊断用, 不影响撮合) */
+export interface PaperAutoSkip {
+  ts: string
+  rule_id?: string
+  rule_name?: string
+  symbol: string
+  side?: 'buy' | 'sell' | 'auto'
+  reason: string
+  message: string
+  detail?: Record<string, unknown> | null
 }
 
 export interface VDBasicFilter {
@@ -4061,7 +4115,20 @@ export const api = {
     request<{ nav: Array<{ date: string; cash: number; mv: number; nav: number }> }>(accUrl('/api/paper/nav', account)),
 
   paperStats: (account?: string) =>
-    request<{ rounds: number; win_rate: number; profit_loss_ratio: number | null; avg_holding_days: number; realized_pnl: number; max_drawdown: number | null }>(accUrl('/api/paper/stats', account)),
+    request<{
+      rounds: number; win_rate: number; profit_loss_ratio: number | null
+      avg_holding_days: number; realized_pnl: number; max_drawdown: number | null
+      cycles?: {
+        count: number; pairings: number; win_rate: number
+        avg_holding_days: number; money_weighted_return_pct: number | null
+      }
+    }>(accUrl('/api/paper/stats', account)),
+
+  paperRounds: (account?: string) =>
+    request<{ pairings: PaperRoundPairing[]; cycles: PaperPositionCycle[] }>(accUrl('/api/paper/rounds', account)),
+
+  paperAutoSkips: (account?: string) =>
+    request<{ skips: PaperAutoSkip[] }>(accUrl('/api/paper/auto_skips', account)),
 
   paperCompare: () =>
     request<{ accounts: PaperCompareRow[] }>('/api/paper/compare'),

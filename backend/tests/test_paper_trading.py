@@ -392,6 +392,70 @@ def test_round_trips_fifo_stats(tmp_path):
     assert st["rounds"] == 2 and st["win_rate"] == 100.0
 
 
+# ── 第四批: 估值价源标记 / 回合口径 ─────────────────────
+def test_overview_marks_price_source_and_valuation_basis(tmp_path, monkeypatch):
+    day = date(2026, 9, 24)
+    monkeypatch.setattr(paper, "cn_today", lambda: day)
+    _cap_account(tmp_path, 100_000.0)
+    _write_daily(tmp_path, [(day - timedelta(days=1), 10.0, 10.0)])
+    paper.create_order(tmp_path, SYM, "buy", qty=1000, ref_price=10.0)
+    paper.evaluate_intraday(tmp_path, {SYM: 10.0})
+
+    # 实时估算: 全持仓命中 → basis=live, 覆盖 1/1, 带 quote_ts; 逐持仓 price_source=live
+    live = paper.overview(tmp_path, {SYM: 11.0}, basis="live", quote_ts=1_700_000_000.4)
+    assert live["valuation"]["basis"] == "live"
+    assert live["valuation"]["covered"] == 1 and live["valuation"]["total"] == 1
+    assert live["valuation"]["quote_ts"] == 1_700_000_000
+    assert live["valuation"]["missing"] == []
+    assert live["holdings"][0]["price_source"] == "live"
+
+    # 缺价: 无 price_map → 退回成本, 口径降级 cost, 该持仓计入 missing
+    cost = paper.overview(tmp_path, basis="live")
+    assert cost["valuation"]["basis"] == "cost"
+    assert cost["valuation"]["missing"] == [SYM]
+    assert cost["holdings"][0]["price_source"] == "cost"
+    assert cost["holdings"][0]["last_price"] == pytest.approx(cost["holdings"][0]["avg_cost"])
+
+
+def test_round_trips_and_cycles_distinguish_pairings_from_position_cycles(tmp_path):
+    day = date(2026, 9, 1)
+    _cap_account(tmp_path)
+    # 一个持仓周期内分两批买、一次清仓 (3 片段=2 配对), 清零后再建仓再平 (第二周期)
+    fills = [
+        {"seq": 1, "date": day.isoformat(), "order_id": "o1", "symbol": SYM, "asset_type": "stock",
+         "side": "buy", "qty": 100, "price": 10.0, "fee": 0.0, "kind": "fill"},
+        {"seq": 2, "date": day.isoformat(), "order_id": "o2", "symbol": SYM, "asset_type": "stock",
+         "side": "buy", "qty": 100, "price": 12.0, "fee": 0.0, "kind": "fill"},
+        {"seq": 3, "date": (day + timedelta(days=3)).isoformat(), "order_id": "o3", "symbol": SYM,
+         "asset_type": "stock", "side": "sell", "qty": 200, "price": 15.0, "fee": 0.0, "kind": "fill"},
+        {"seq": 4, "date": (day + timedelta(days=5)).isoformat(), "order_id": "o4", "symbol": SYM,
+         "asset_type": "stock", "side": "buy", "qty": 100, "price": 20.0, "fee": 0.0, "kind": "fill"},
+        {"seq": 5, "date": (day + timedelta(days=6)).isoformat(), "order_id": "o5", "symbol": SYM,
+         "asset_type": "stock", "side": "sell", "qty": 100, "price": 18.0, "fee": 0.0, "kind": "fill"},
+    ]
+    for f in fills:
+        paper._append_fill(tmp_path, f)
+
+    pairings = paper.round_trips(tmp_path)
+    assert [p["cycle_seq"] for p in pairings] == [1, 1, 2]  # 第一周期两配对, 第二周期一配对
+    assert all(p["kind"] == "pairing" for p in pairings)
+
+    cycles = paper.position_cycles(tmp_path)
+    assert len(cycles) == 2
+    first = cycles[0]
+    assert first["pairings"] == 2 and first["qty"] == 200
+    # 资金加权: (15-10)*100 + (15-12)*100 = 800 盈利 / 2200 成本
+    assert first["pnl"] == pytest.approx(800.0)
+    assert first["pnl_pct"] == pytest.approx(800.0 / 2200.0 * 100, abs=0.01)
+    assert first["holding_days"] == 3
+
+    st = paper.stats(tmp_path)
+    assert st["rounds"] == 3            # 配对片段 (历史口径)
+    assert st["cycles"]["count"] == 2   # 完整持仓周期
+    assert st["cycles"]["pairings"] == 3
+    assert st["cycles"]["money_weighted_return_pct"] is not None
+
+
 # ── 自动跟单 (V2) ───────────────────────────────────────
 def _auto_rule(**overrides) -> dict:
     base = {
@@ -455,6 +519,47 @@ def test_auto_trigger_matches_strategy_event(tmp_path, monkeypatch):
         paper.save_order(tmp_path, o)
     orders2 = paper_auto.on_rule_events(tmp_path, [ev])
     assert len(orders2) == 1
+
+
+def test_auto_skip_reasons_recorded_for_cooldown_and_max_positions(tmp_path, monkeypatch):
+    from app.strategy import paper_auto
+    day = date(2026, 9, 24)
+    monkeypatch.setattr(paper, "cn_today", lambda: day)
+    _write_daily(tmp_path, [(day - timedelta(days=1), 10.0, 10.0)])
+    _cap_account(tmp_path)
+    paper_auto.create_auto_rule(tmp_path, _auto_rule(max_positions=1))
+
+    ev = {"source": "strategy", "strategy_id": "strat_1", "rule_id": "r1", "symbol": SYM, "price": 10.0}
+    assert len(paper_auto.on_rule_events(tmp_path, [ev])) == 1
+    assert paper_auto.load_auto_skips(tmp_path) == []  # 首单成功, 无跳过
+
+    # 冷却期内再触发同标的 → 记一条 cooldown
+    assert paper_auto.on_rule_events(tmp_path, [ev]) == []
+    skips = paper_auto.load_auto_skips(tmp_path)
+    assert len(skips) == 1
+    assert skips[0]["reason"] == "cooldown" and skips[0]["symbol"] == SYM
+    assert skips[0]["message"]  # 有人类可读文案
+
+    # 名额已满: 另一标的触发 → 记一条 max_positions (新的在前)
+    other = {**ev, "symbol": "000002.SZ", "price": 10.0}
+    assert paper_auto.on_rule_events(tmp_path, [other]) == []
+    skips = paper_auto.load_auto_skips(tmp_path)
+    assert skips[0]["reason"] == "max_positions"
+    assert skips[0]["detail"]["max_positions"] == 1
+
+
+def test_auto_skip_reason_missing_entry_policy_for_risk_follow(tmp_path, monkeypatch):
+    from app.strategy import paper_auto
+    day = date(2026, 9, 24)
+    monkeypatch.setattr(paper, "cn_today", lambda: day)
+    _write_daily(tmp_path, [(day - timedelta(days=1), 10.0, 10.0)])
+    _cap_account(tmp_path)
+    paper_auto.create_auto_rule(tmp_path, _auto_rule(risk_follow=True))
+    # risk_follow 规则但事件缺 entry_policy → 不买入, 记 missing_entry_policy
+    ev = {"source": "strategy", "strategy_id": "strat_1", "rule_id": "r1", "symbol": SYM, "price": 10.0}
+    assert paper_auto.on_rule_events(tmp_path, [ev]) == []
+    skips = paper_auto.load_auto_skips(tmp_path)
+    assert len(skips) == 1 and skips[0]["reason"] == "missing_entry_policy"
 
 
 def test_auto_trigger_non_matching_events_ignored(tmp_path):

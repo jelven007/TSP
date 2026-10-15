@@ -1415,20 +1415,44 @@ def load_nav(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]
 
 
 @paper_operation()
-def overview(data_dir: Path, price_map: dict[str, float] | None = None, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
-    """总览 (盘中实时估算): 现金 + 持仓市值 + 估算净值。"""
+def overview(
+    data_dir: Path,
+    price_map: dict[str, float] | None = None,
+    account_id: str = DEFAULT_ACCOUNT_ID,
+    *,
+    quote_ts: float | None = None,
+    basis: str | None = None,
+) -> dict:
+    """总览估值: 现金 + 持仓市值 + 估算总资产。
+
+    估值永远是估算口径, 不是收盘定版净值 (后者走 load_nav)。每个持仓标注价源:
+      - live        盘中实时快照 (price_map 命中, basis=live)
+      - daily_close 最近日线收盘 (price_map 命中, basis=daily_close)
+      - cost        无可用行情, 退回持仓成本 (last_price=avg_cost, 市值≈成本, 仅占位)
+    返回的 valuation 块给出整体口径、快照时间与覆盖情况, 供前端标注而非与定版混用。
+    """
     acc = get_account(data_dir, account_id)
     if acc is None:
         return {"initialized": False}
     positions = load_positions(data_dir, account_id)
     today = cn_today().isoformat()
+    # basis 显式优先; 否则有 price_map 视为实时估算, 无则纯成本占位。
+    priced_basis = basis if basis in ("live", "daily_close") else ("live" if price_map else "cost")
     holdings = []
     mv = 0.0
+    covered = 0
+    missing: list[str] = []
     for symbol, pos in sorted(positions.items()):
         if pos["qty"] <= 0:
             continue
         price = (price_map or {}).get(symbol)
-        last = price if price is not None else pos["avg_cost"]
+        has_quote = price is not None and valid_price(price)
+        last = float(price) if has_quote else pos["avg_cost"]
+        source = priced_basis if has_quote else "cost"
+        if has_quote:
+            covered += 1
+        else:
+            missing.append(symbol)
         mv += pos["qty"] * last
         holdings.append({
             "symbol": symbol,
@@ -1436,11 +1460,15 @@ def overview(data_dir: Path, price_map: dict[str, float] | None = None, account_
             "qty": pos["qty"],
             "avg_cost": pos["avg_cost"],
             "last_price": round(last, 4),
+            "price_source": source,
             "market_value": round(pos["qty"] * last, 2),
             "pnl": round(pos["qty"] * (last - pos["avg_cost"]), 2),
             "pnl_pct": round((last / pos["avg_cost"] - 1) * 100, 2) if pos["avg_cost"] else 0.0,
             "available_qty": _available_of(pos, today),
         })
+    total_holdings = len(holdings)
+    # 整体口径: 任一持仓缺价退回成本时, 口径保守降级到 cost (不假装全量实时)。
+    overall_basis = priced_basis if total_holdings and not missing else "cost"
     return {
         "initialized": True,
         "account_id": account_id,
@@ -1453,6 +1481,14 @@ def overview(data_dir: Path, price_map: dict[str, float] | None = None, account_
         "total_pnl": round(float(acc["cash"]) + mv - float(acc["initial_cash"]), 2),
         "initial_cash": float(acc["initial_cash"]),
         "estimating": price_map is not None,
+        "valuation": {
+            "basis": overall_basis,
+            "as_of": today,
+            "quote_ts": int(quote_ts) if quote_ts is not None and math.isfinite(quote_ts) else None,
+            "covered": covered,
+            "total": total_holdings,
+            "missing": missing,
+        },
         "holdings": holdings,
     }
 
@@ -1460,20 +1496,35 @@ def overview(data_dir: Path, price_map: dict[str, float] | None = None, account_
 # ── 回合统计 (FIFO) ─────────────────────────────────────
 @paper_operation()
 def round_trips(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
-    """FIFO 配对的开→平回合: 入场价含买入费, 出场净额扣卖出费。"""
+    """FIFO 配对片段 (开→平): 入场价含买入费, 出场净额扣卖出费。
+
+    每条是一次卖出与一个买入批次的配对, 不是一次完整持仓周期 —— 一次分批建仓/
+    分批平仓会产生多条相关片段 (kind="pairing")。cycle_seq 标注该片段所属的持仓周期
+    (从零建仓到再次清零为一个周期, 按证券分别计数), 供上层区分片段数与周期数。
+    """
     fills = load_fills(data_dir, account_id)
     lots: dict[str, list[dict]] = {}
+    held: dict[str, float] = {}      # 当前每标的持仓数量 (判定清零=周期结束)
+    cycle_no: dict[str, int] = {}    # 每标的当前持仓周期序号 (从 1 起)
     rounds: list[dict] = []
     for f in fills:
         symbol = f["symbol"]
         if f.get("kind") == "corp_action":
+            factor = float(f["factor"])
             for lot in lots.get(symbol, []):
-                lot["qty"] = round(lot["qty"] * float(f["factor"]), 6)
+                lot["qty"] = round(lot["qty"] * factor, 6)
+            if symbol in held:
+                held[symbol] = round(held[symbol] * factor, 6)
             continue
         if f["side"] == "buy":
+            qty = int(f["qty"])
+            # 从清零状态再次建仓 → 新的持仓周期。
+            if held.get(symbol, 0) <= 0:
+                cycle_no[symbol] = cycle_no.get(symbol, 0) + 1
+            held[symbol] = held.get(symbol, 0) + qty
             lots.setdefault(symbol, []).append({
-                "date": f["date"], "qty": int(f["qty"]),
-                "cost": float(f["price"]) * int(f["qty"]) + float(f.get("fee", 0)),
+                "date": f["date"], "qty": qty,
+                "cost": float(f["price"]) * qty + float(f.get("fee", 0)),
             })
             continue
         remain = int(f["qty"])
@@ -1485,10 +1536,13 @@ def round_trips(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[di
             cost_part = lot["cost"] * take / lot["qty"]
             pnl = proceeds_unit * take - cost_part
             rounds.append({
+                "kind": "pairing",
                 "symbol": symbol,
+                "cycle_seq": cycle_no.get(symbol, 1),
                 "open_date": lot["date"],
                 "close_date": f["date"],
                 "qty": take,
+                "cost_basis": round(cost_part, 2),
                 "pnl": round(pnl, 2),
                 "pnl_pct": round(pnl / cost_part * 100, 2) if cost_part else 0.0,
                 "holding_days": _days_between(lot["date"], f["date"]),
@@ -1498,7 +1552,43 @@ def round_trips(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[di
             if lot["qty"] <= 0:
                 pool.pop(0)
             remain -= take
+        held[symbol] = round(held.get(symbol, 0) - int(f["qty"]), 6)
     return rounds
+
+
+@paper_operation()
+def position_cycles(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
+    """把配对片段按 (证券, 持仓周期) 聚合成完整持仓周期 (从零建仓到清零)。
+
+    一个周期的收益是其所含片段 pnl 之和, 收益率按周期总成本的资金加权 (非片段
+    pnl_pct 的简单平均), 持有天数取周期首个开仓日到末个平仓日的自然日跨度。
+    仍有未平仓余量的周期不在此列 (尚未闭合, 无最终收益)。
+    """
+    pairings = round_trips(data_dir, account_id)
+    grouped: dict[tuple[str, int], list[dict]] = {}
+    for p in pairings:
+        grouped.setdefault((p["symbol"], p.get("cycle_seq", 1)), []).append(p)
+    cycles: list[dict] = []
+    for (symbol, seq), parts in grouped.items():
+        pnl = sum(p["pnl"] for p in parts)
+        cost = sum(p.get("cost_basis", 0.0) for p in parts)
+        open_date = min(p["open_date"] for p in parts)
+        close_date = max(p["close_date"] for p in parts)
+        cycles.append({
+            "symbol": symbol,
+            "cycle_seq": seq,
+            "open_date": open_date,
+            "close_date": close_date,
+            "pairings": len(parts),
+            "qty": sum(p["qty"] for p in parts),
+            "cost_basis": round(cost, 2),
+            "pnl": round(pnl, 2),
+            # 资金加权: 周期总收益 / 周期总成本, 不是各片段收益率的算术平均。
+            "pnl_pct": round(pnl / cost * 100, 2) if cost else 0.0,
+            "holding_days": _days_between(open_date, close_date),
+        })
+    cycles.sort(key=lambda c: (c["close_date"], c["symbol"], c["cycle_seq"]))
+    return cycles
 
 
 def max_drawdown(nav_values: list[float]) -> float | None:
@@ -1516,13 +1606,25 @@ def max_drawdown(nav_values: list[float]) -> float | None:
 
 @paper_operation()
 def stats(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
-    """回合汇总: 胜率/盈亏比/平均持有天数/已实现盈亏/最大回撤(定版净值)。"""
+    """回合汇总。
+
+    口径明确区分两层:
+      - 配对片段 (rounds/win_rate/profit_loss_ratio/avg_holding_days): FIFO 卖出与买入
+        批次的配对, 胜率与盈亏比按片段计, 一次分批平仓会拆成多条。沿用历史字段名。
+      - 持仓周期 (cycles.*): 从零建仓到清零的完整周期, 收益率资金加权, 胜率按周期计。
+    已实现盈亏对两层相等 (同一批成交), 最大回撤取定版净值序列。
+    """
     rounds = round_trips(data_dir, account_id)
     wins = [r for r in rounds if r["pnl"] > 0]
     losses = [r for r in rounds if r["pnl"] <= 0]
     avg_win = sum(r["pnl"] for r in wins) / len(wins) if wins else 0.0
     avg_loss = abs(sum(r["pnl"] for r in losses) / len(losses)) if losses else 0.0
     mdd = max_drawdown([n["nav"] for n in load_nav(data_dir, account_id)])
+
+    cycles = position_cycles(data_dir, account_id)
+    cycle_wins = [c for c in cycles if c["pnl"] > 0]
+    cycle_cost = sum(c["cost_basis"] for c in cycles)
+    cycle_pnl = sum(c["pnl"] for c in cycles)
     return {
         "rounds": len(rounds),
         "win_rate": round(len(wins) / len(rounds) * 100, 2) if rounds else 0.0,
@@ -1530,6 +1632,15 @@ def stats(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
         "avg_holding_days": round(sum(r["holding_days"] for r in rounds) / len(rounds), 1) if rounds else 0.0,
         "realized_pnl": round(sum(r["pnl"] for r in rounds), 2),
         "max_drawdown": round(mdd * 100, 2) if mdd is not None else None,
+        # 持仓周期口径 (资金加权), 与片段并列展示, 不互相覆盖。
+        "cycles": {
+            "count": len(cycles),
+            "pairings": len(rounds),
+            "win_rate": round(len(cycle_wins) / len(cycles) * 100, 2) if cycles else 0.0,
+            "avg_holding_days": round(sum(c["holding_days"] for c in cycles) / len(cycles), 1) if cycles else 0.0,
+            # 资金加权总收益率: 周期总盈亏 / 周期总成本。
+            "money_weighted_return_pct": round(cycle_pnl / cycle_cost * 100, 2) if cycle_cost else None,
+        },
     }
 
 

@@ -139,7 +139,15 @@ def overview(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
     acc = paper.get_account(data_dir, acc_id)
     if acc is None:
         return {"initialized": False, "account_id": acc_id}
-    ov = paper.overview(data_dir, account_id=acc_id)
+    # 非实时口径: 用各持仓最近日线收盘估值 (与收盘定版同源); 缺行情的持仓在 overview
+    # 内退回成本并计入 valuation.missing, 口径降级为 cost, 不与实时估算混淆。
+    base_ov = paper.overview(data_dir, account_id=acc_id)
+    daily_close = {}
+    for holding in base_ov.get("holdings", []):
+        close = _last_close(data_dir, holding["symbol"], holding.get("asset_type", "stock"))
+        if close is not None:
+            daily_close[holding["symbol"]] = close
+    ov = paper.overview(data_dir, daily_close or None, account_id=acc_id, basis="daily_close")
     ov["fees"] = {k: acc[k] for k in ("commission_pct", "stamp_tax_pct", "slippage_bps")}
 
     # 盘中实时估算: 从行情服务的当日 enriched 快照取 raw_close (软失败, 降级日线)
@@ -150,7 +158,13 @@ def overview(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
             from app.market_time import cn_today
             if not enriched.is_empty() and enriched_date == cn_today() and ov.get("holdings"):
                 snapshot = dict(zip(enriched["symbol"].to_list(), enriched["raw_close"].to_list(), strict=False))
-                live = paper.overview(data_dir, snapshot, account_id=acc_id)
+                quote_ts = None
+                if "quote_ts" in enriched.columns:
+                    stamps = [s for s in enriched["quote_ts"].to_list() if s is not None]
+                    if stamps:
+                        # quote_ts 为毫秒; 统一成秒级供前端标注"数据时间"。
+                        quote_ts = max(stamps) / 1000
+                live = paper.overview(data_dir, snapshot, account_id=acc_id, basis="live", quote_ts=quote_ts)
                 live["fees"] = ov["fees"]
                 return live
         except Exception as e:
@@ -220,6 +234,21 @@ def list_nav(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
 @router.get("/stats", response_model=contracts.PaperStatsResponse)
 def get_stats(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
     return paper.stats(_data_dir(request), _acc(request, account))
+
+
+@router.get("/rounds", response_model=contracts.PaperRoundsResponse)
+def list_rounds(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
+    """回合明细: 配对片段 (pairings) 与聚合后的持仓周期 (cycles) 并列返回。
+
+    片段是 FIFO 卖出/买入批次配对, 周期是从零建仓到清零的完整持仓; 前端分别展示,
+    避免把相关片段当作独立样本统计。
+    """
+    data_dir = _data_dir(request)
+    acc_id = _acc(request, account)
+    return {
+        "pairings": paper.round_trips(data_dir, acc_id),
+        "cycles": paper.position_cycles(data_dir, acc_id),
+    }
 
 
 @router.get("/compare", response_model=contracts.PaperCompareResponse)
@@ -338,6 +367,13 @@ class AutoRuleModel(BaseModel):
 def list_auto_rules(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
     from app.strategy import paper_auto
     return {"rules": paper_auto.load_auto_rules(_data_dir(request), _acc(request, account))}
+
+
+@router.get("/auto_skips", response_model=contracts.PaperAutoSkipsResponse)
+def list_auto_skips(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
+    """自动跟单未执行原因 (新的在前, 有界): 冷却/名额/缺价/风控快照缺失/下单被拒等。"""
+    from app.strategy import paper_auto
+    return {"skips": paper_auto.load_auto_skips(_data_dir(request), _acc(request, account))}
 
 
 @router.post("/auto_rules", response_model=contracts.PaperAutoRuleResponse)
