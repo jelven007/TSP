@@ -396,7 +396,16 @@ class AccountIdentity:
         with self.db.control.connection() as conn:
             if user["role"] == "admin":
                 return conn.execute(
-                    "SELECT id,name,status,cell_id,routing_epoch FROM control.tenants ORDER BY created_at,id"
+                    """SELECT t.id,t.name,t.status,t.cell_id,t.routing_epoch,
+                              coalesce(owner.account_name,t.name) AS display_name
+                       FROM control.tenants t
+                       LEFT JOIN LATERAL (
+                           SELECT coalesce(u.username,u.email) AS account_name
+                           FROM control.memberships m JOIN control.users u ON u.id=m.user_id
+                           WHERE m.tenant_id=t.id AND m.role='owner'
+                           ORDER BY u.created_at,u.id LIMIT 1
+                       ) owner ON true
+                       ORDER BY t.created_at,t.id"""
                 ).fetchall()
             return conn.execute(
                 """SELECT t.id,t.name,t.status,t.cell_id,t.routing_epoch FROM control.tenants t

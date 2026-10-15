@@ -12,6 +12,63 @@ from app.multitenancy.research import authorize
 from app.multitenancy.tokens import Tokens, router
 
 
+def test_admin_tenant_directory_displays_owner_accounts_for_legacy_names(env):
+    tenant_token, first = register(env)
+    _, second = register(env)
+    env["control"].execute(
+        "UPDATE control.tenants SET name='个人工作空间' WHERE id=%s",
+        (first["default_tenant_id"],),
+    )
+    admin_token, _ = env["identity"].login("admin", "Admin123", uuid.uuid4().hex)
+    client = env["client"]
+    client.cookies.set("tf_session", admin_token)
+    response = client.get("/api/account/tenants")
+    assert response.status_code == 200, response.text
+    entries = {entry["id"]: entry for entry in response.json()["tenants"]}
+    assert entries[first["default_tenant_id"]]["name"] == "个人工作空间"
+    assert entries[first["default_tenant_id"]]["display_name"] == first["email"]
+    assert entries[second["default_tenant_id"]]["display_name"] == second["email"]
+
+    client.cookies.set("tf_session", tenant_token)
+    entries = client.get("/api/account/tenants").json()["tenants"]
+    assert [entry["id"] for entry in entries] == [first["default_tenant_id"]]
+    assert "display_name" not in entries[0]
+
+
+def test_admin_tenant_directory_prefers_owner_username_without_duplicate_spaces(env):
+    _, first = register(env)
+    _, second = register(env)
+    username = "tenant_" + uuid.uuid4().hex[:12]
+    env["control"].execute(
+        "UPDATE control.users SET username=%s WHERE id=%s", (username, first["id"]),
+    )
+    env["control"].execute(
+        "INSERT INTO control.memberships(tenant_id,user_id,role) VALUES(%s,%s,'owner')",
+        (first["default_tenant_id"], second["id"]),
+    )
+    _, admin = env["identity"].login("admin", "Admin123", uuid.uuid4().hex)
+    entries = [
+        entry for entry in env["identity"].directory(admin)
+        if entry["id"] == first["default_tenant_id"]
+    ]
+    assert len(entries) == 1
+    assert entries[0]["display_name"] == username
+
+
+def test_admin_tenant_directory_preserves_named_spaces_without_an_owner(env):
+    _, account = register(env)
+    tenant_id = account["default_tenant_id"]
+    env["control"].execute(
+        "UPDATE control.tenants SET name='机构研究组' WHERE id=%s", (tenant_id,),
+    )
+    env["control"].execute(
+        "DELETE FROM control.memberships WHERE tenant_id=%s", (tenant_id,),
+    )
+    _, admin = env["identity"].login("admin", "Admin123", uuid.uuid4().hex)
+    entry = next(entry for entry in env["identity"].directory(admin) if entry["id"] == tenant_id)
+    assert entry["display_name"] == "机构研究组"
+
+
 def test_admin_selection_persists_and_old_ui_scope_is_rejected(env):
     _, first = register(env)
     _, second = register(env)
