@@ -4,8 +4,6 @@ import { accountScope, multitenancyEnabled, verifyResponseScope } from '../accou
 const API_BASE = ''
 
 export type RequestOptions = RequestInit & {
-  /** Trusted API origin selected from the authenticated workspace directory. */
-  baseUrl?: string
   /** Suppress the shared error toast when the caller presents an aggregate error. */
   quiet?: boolean
   /** Request timeout in milliseconds. Set to null to disable it. */
@@ -31,7 +29,7 @@ export function extPullTimeoutMs(timeoutSeconds?: number): number {
 
 export async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   const startedScope = accountScope()
-  const { quiet, baseUrl = API_BASE, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...fetchInit } = init ?? {}
+  const { quiet, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...fetchInit } = init ?? {}
   const isFormData = fetchInit.body instanceof FormData
   const headers: Record<string, string> = {}
   if (!isFormData) headers['Content-Type'] = 'application/json'
@@ -49,7 +47,7 @@ export async function request<T>(path: string, init?: RequestOptions): Promise<T
 
   let response: Response
   try {
-    response = await fetch(`${baseUrl}${path}`, {
+    response = await fetch(`${API_BASE}${path}`, {
       ...fetchInit,
       headers,
       ...(controller ? { signal: controller.signal } : {}),

@@ -49,7 +49,12 @@ Windows、macOS 和 Linux 桌面安装包采用本地免登录模式：
 
 ### 服务端部署
 
-源码、Docker Compose 和 Web 部署保留邮箱账户认证：
+完整单机多租户版本已完成一期部署，支持管理员和租户角色、邮箱验证码注册、
+自动创建个人租户、PostgreSQL 业务隔离以及 100 个独立用户混合负载。
+部署入口见[deploy/full](deploy/full/README.md)，发布记录见
+[一期实施与验收](docs/phase1-implementation.md)。
+
+下方快速开始使用根目录 Compose 的独立运行模式；该模式保留邮箱账户认证：
 
 - 首次部署可通过环境变量预置账户。
 - 可通过注册口令和 SMTP 开放邮箱验证码注册。

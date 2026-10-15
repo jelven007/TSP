@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -110,3 +111,61 @@ def test_compare_arena_fields_with_nav(tmp_path: Path):
     row = c.get("/api/paper/compare").json()["accounts"][0]
     assert row["last_nav_date"] == "2026-10-04"
     assert row["day_change_pct"] == 1.5  # (101500/100000 - 1) * 100
+
+
+def test_auto_direction_and_position_limit_api_roundtrip(tmp_path):
+    c = _client(tmp_path)
+    c.post("/api/paper/account", json={"initial_cash": 100000})
+    body = {
+        "name": "自动方向", "match_kind": "strategy", "match_id": "local-strategy",
+        "side": "auto", "size_mode": "fixed_amount", "size_value": 5000, "max_positions": 3,
+    }
+    response = c.post("/api/paper/auto_rules", json=body)
+    assert response.status_code == 200, response.text
+    rule = response.json()["rule"]
+    assert rule["side"] == "auto" and rule["max_positions"] == 3
+    assert c.get("/api/paper/auto_rules").json()["rules"][0]["max_positions"] == 3
+    toggled = c.post(f"/api/paper/auto_rules/{rule['id']}/enabled?enabled=false").json()["rule"]
+    assert toggled["max_positions"] == 3 and toggled["side"] == "auto"
+    summary = c.get("/api/paper/compare").json()["accounts"][0]["auto_rules"][0]
+    assert summary["max_positions"] == 3 and summary["side"] == "auto"
+    result = c.post("/api/paper/arena/batch_create", json={
+        "initial_cash": 100000, "sources": [body],
+    })
+    assert result.status_code == 200, result.text
+    account_id = result.json()["created"][0]["account"]
+    saved = c.get(f"/api/paper/auto_rules?account={account_id}").json()["rules"][0]
+    assert saved["side"] == "auto" and saved["max_positions"] == 3
+
+
+@pytest.mark.parametrize("value", [-1, True, 1.5, "2", None])
+def test_position_limit_api_rejects_invalid_values_before_batch_write(tmp_path, value):
+    c = _client(tmp_path)
+    body = {
+        "name": "非法限额", "match_kind": "strategy", "match_id": "s",
+        "size_value": 1000, "max_positions": value,
+    }
+    assert c.post("/api/paper/auto_rules", json=body).status_code == 422
+    batch = c.post("/api/paper/arena/batch_create", json={
+        "initial_cash": 100000,
+        "sources": [{"match_kind": "strategy", "match_id": "valid"}, body],
+    })
+    assert batch.status_code == 422
+    assert c.get("/api/paper/accounts").json()["accounts"] == []
+
+
+def test_auto_monitor_rule_batch_is_rejected_and_old_payload_keeps_defaults(tmp_path):
+    c = _client(tmp_path)
+    batch = c.post("/api/paper/arena/batch_create", json={
+        "initial_cash": 100000, "sources": [
+            {"match_kind": "strategy", "match_id": "valid", "side": "auto"},
+            {"match_kind": "rule", "match_id": "price-rule", "side": "auto"},
+        ],
+    })
+    assert batch.status_code == 400 and "策略" in batch.json()["detail"]
+    assert c.get("/api/paper/accounts").json()["accounts"] == []
+    c.post("/api/paper/account", json={"initial_cash": 100000})
+    old = c.post("/api/paper/auto_rules", json={
+        "name": "旧客户端", "match_kind": "strategy", "match_id": "old", "size_value": 1000,
+    }).json()["rule"]
+    assert old["side"] == "buy" and old["max_positions"] == 0

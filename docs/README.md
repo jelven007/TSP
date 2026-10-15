@@ -3,6 +3,14 @@
 本文档是项目文档的统一入口。当前基线版本为 `0.3.11`，代码、测试和运行时
 行为仍是最终事实来源；文档与代码冲突时，应先核对实现和测试，再同步修正文档。
 
+当前完整单机多租户部署使用 `deploy/full/compose.yml`，启用
+`MULTITENANCY_ENABLED=true`。保留完整前端与业务引擎，API 默认四进程；
+平台负责唯一行情写入，四类 Worker 分别负责研究、实时监控/模拟盘、通知和调度。
+身份与租户业务持久化到 PostgreSQL v5，公共行情按不可变版本只读共享。
+部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
+已完成的一期发布与 100 用户验收见[实施记录](./phase1-implementation.md)。
+
+
 ## 生命周期覆盖
 
 | 阶段 | 主文档 | 配套文档 | 覆盖状态 |
@@ -22,6 +30,7 @@
 | 领域 | 文档 |
 | --- | --- |
 | 产品与使用 | [功能手册](./features.md)、[操作说明书](../操作说明书.md) |
+| 单机多租户 | [完整部署](../deploy/full/README.md)、[两期技术方案](./multitenant-roadmap.md)、[一期实施与验收](./phase1-implementation.md) |
 | 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md) |
 | 数据源 | [自定义数据源](./custom-data-source.md)、[rustdx 数据源](./rustdx-data-source.md)、[插件开发](./plugin-development.md) |
 | TickFlow 专项 | [Pro 一阶段探测](./tickflow-pro-phase1-probe.md)、[共享限流](./tickflow-pro-shared-rate-limit.md) |

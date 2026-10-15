@@ -1,20 +1,22 @@
 # TSP 多租户两期技术方案 v3.1
 
-日期：2026-10-14。状态：v3.1 已获用户批准，候选分支正在实施；新增能力按实施跟踪记录验收，容量指标仍为待验收目标。
+日期：2026-10-14；状态更新：2026-10-15。一期完整单机多租户已于 2026-10-14 完成生产切流和 100 用户验收，实际结果见[一期实施记录](phase1-implementation.md)。本文的设计容量指标保留为验收口径，二期 100,000 用户仍是目标。
 
 本次修订补入一期 RBAC、预置管理员 `admin/Admin123`、保留中文注册口令、租户功能限制及三个侧栏展示入口移除。修订以用户最新要求为准，替换 v3 中“注册口令可选”和“租户可访问数据/其他设置”的安排。
 
 目标：一期交付完整产品的单机多租户版本，支持 100 人同时登录使用；二期建设面向 100,000 人同时在线使用的 DFX 能力。DFX 在本文包括容量与性能、可靠性、安全性、可观测性、可维护性、可部署性和成本管理。
 
-本方案取代 v2 的实施顺序。现有 Cell 代码作为可复用的隔离、权限和调度基础，独立简化前端不再作为生产产品入口。
+本方案为当前两期设计基线。`app/cell` 中仍被完整产品使用的数据库、身份、权限、调度与投递基础继续保留；废弃的独立简化前端、API、Worker 和专属部署已删除。
 
-## 1. 回退结果与本次设计修正
+## 1. 当前完整产品基线
 
-2026-10-14 已将公网入口恢复到完整产品镜像 `app-app:32be445`，版本号 `0.3.11`，后端为原 `app.main`。Cell API 和实时、策略、自动交易、通知四类 Worker 已停止；本地 CA HTTPS 与自动续签继续运行。
+一期沿用完整 `router.tsx + Layout + Dashboard` 和 `app.main`，保留原业务页面及
+计算逻辑。API 默认四进程，平台为唯一行情写入者；研究、实时监控/模拟盘、通知
+及调度分别运行。身份与业务库均为 v5，私有业务使用明确租户上下文与强制 RLS。
 
-回退核验包括：公网首页与原服务首页内容一致、原认证和注册入口存在、原设置与自选 API 恢复、原服务及网关健康。Cell 库和原用户数据分别备份，未使用旧快照覆盖当前数据。
-
-此前上线失败的关键原因是 `VITE_CELL_MODE=true` 切换了整个前端启动分支：原 `router.tsx + Layout + Dashboard` 被仅含自选、策略、告警、模拟盘的 `CellApp` 替代。数据库隔离与局部接口测试不能证明完整产品交付合格。后续上线必须同时通过功能覆盖、真实新用户流程和租户隔离验收。[证据 S1、S2]
+生产发布、镜像版本、迁移对账、HTTPS 与 100 个独立用户的验收记录以
+[一期实施记录](phase1-implementation.md)为准。当前部署入口是
+[deploy/full](../deploy/full/README.md)。源码清理不改变历史生产数据或迁移校验和。
 
 ### 固定设计原则
 
@@ -286,7 +288,7 @@ API Token 保持单租户、权限、有效期和撤销版本绑定，管理功�
 
 容器 CPU/内存、数据库池总量、行情出口、磁盘和研究槽位写入运行配置。数据库连接按服务副本和任务槽位预算，不为每用户保留连接；采集、Worker 或邮件发送不能长期占用看盘请求预算。
 
-旧 200 单位 / 1.477 秒压测仅证明受控调度样本，不证明完整产品、真实行情与 100 用户端到端目标。完整版本接线后需重新校准容量权重，不能原样外推。[证据 S8]
+实际容量结果以一期实施记录中的 100 个独立身份混合负载为依据；完整业务负载、资源配额、版本和错误率必须一起核对，不能用局部调度样本外推端到端容量。[证据 S8]
 
 ### 6.2 一期发布门槛
 
@@ -407,7 +409,7 @@ PostgreSQL 仍是业务和任务事实源。Outbox 可靠投递；跨服务分�
 | 二期 B：扩容与 DFX | 多 Cell、故障接管、安全、观测、迁移/恢复 | 明确故障域与恢复指标，故障注入通过 |
 | 二期 C：10 万签收 | 真实用户模型、持续运行、洪峰、成本 | 第 7、8 节完整签收，保持完整产品功能 |
 
-当前阶段在已完成生产回退的基础上实施一期，以 v3.1 的角色权限、功能覆盖与验收口径为依据。进展与实际验证记录见[一期实施跟踪](phase1-implementation.md)，公网切流必须等一期发布门槛通过。
+一期已按 v3.1 的角色权限与完整功能基线完成，实际结果见[一期实施跟踪](phase1-implementation.md)。后续发布继续执行隔离候选、数据对账和完整业务验收。
 
 任何下一次切流都需要提供新账号操作记录、全部页面关键操作结果、容量报告和数据对账。新版本已有业务写入后，回退要先停写并核对增量；禁止简单恢复旧快照丢弃新数据，或让两套系统同时接受同一租户写入。
 
@@ -416,14 +418,14 @@ PostgreSQL 仍是业务和任务事实源。Outbox 可靠投递；跨服务分�
 以下是本次实际核对的工程资料。新增接口、架构组件、SLO 和容量值是设计目标，引用不代表它们已经实现。
 
 - **S1：前端启动与完整路由。** [main.tsx](../frontend/src/main.tsx)、[router.tsx](../frontend/src/router.tsx)、[Layout.tsx](../frontend/src/components/Layout.tsx)、[Dashboard.tsx](../frontend/src/pages/Dashboard.tsx)。
-- **S2：独立简化入口。** [CellApp.tsx](../frontend/src/pages/CellApp.tsx)、[cellApi.ts](../frontend/src/lib/cellApi.ts)、[Cell 架构实现记录](cell-architecture.md)。
+- **S2：完整产品与身份缓存。** [accountSession.ts](../frontend/src/lib/accountSession.ts)、[queryPersist.ts](../frontend/src/lib/queryPersist.ts)、[一期实施](phase1-implementation.md)。
 - **S3：租户与数据库基础。** [identity.py](../backend/app/cell/identity.py)、[database.py](../backend/app/cell/database.py)、[admin.py](../backend/app/cell/admin.py)、[SQL 迁移](../backend/app/cell/sql/)。
-- **S4：共享行情与部署角色。** [platform_market.py](../backend/app/cell/platform_market.py)、[main.py](../backend/app/main.py)、[Cell Compose](../deploy/cell/compose.yml)。
+- **S4：共享行情与部署角色。** [platform_market.py](../backend/app/cell/platform_market.py)、[main.py](../backend/app/main.py)、[完整 Compose](../deploy/full/compose.yml)。
 - **S5：原完整业务与私有全局状态。** [API 目录](../backend/app/api/)、[preferences.py](../backend/app/services/preferences.py)、[secrets_store.py](../backend/app/secrets_store.py)、[queryPersist.ts](../frontend/src/lib/queryPersist.ts)。
 - **S6：邮箱注册与首次路由。** [auth.py](../backend/app/api/auth.py)、[Auth.tsx](../frontend/src/pages/Auth.tsx)、[原认证 Service](../backend/app/services/auth.py)。
-- **S7：自动交易日期与任务。** [automation.py](../backend/app/cell/automation.py)、[worker.py](../backend/app/cell/worker.py)、[paper.py](../backend/app/cell/paper.py)、[notifications.py](../backend/app/cell/notifications.py)。
-- **S8：旧容量验证边界。** [Cell 发布记录](releases/2026-10-13-cell.md)、[benchmark_cell.py](../backend/scripts/benchmark_cell.py)。受控模拟行情和局部调度结果不等于完整站点用户容量。
+- **S7：完整监控与模拟盘。** [runtime.py](../backend/app/multitenancy/runtime.py)、[paper_storage.py](../backend/app/multitenancy/paper_storage.py)、[paper_auto.py](../backend/app/strategy/paper_auto.py)、[notifications.py](../backend/app/cell/notifications.py)。
+- **S8：完整容量验收。** [一期实施记录](phase1-implementation.md)中的 100 个独立身份混合负载与生产发布记录；设计目标与实测结果分别记录。
 - **S9：已部署本地证书与入口。** [edge README](../deploy/edge/README.md)、[issue-local-cert.sh](../deploy/edge/issue-local-cert.sh)、[https.conf](../deploy/edge/https.conf)。
 - **S10：本次 RBAC 与侧栏接线依据。** [Settings.tsx](../frontend/src/pages/Settings.tsx) 当前仅按是否需要认证过滤页签；[Account.tsx](../frontend/src/pages/settings/Account.tsx) 已提供改密和退出；[useSharedQueries.ts](../frontend/src/lib/useSharedQueries.ts) 与 Layout/看盘守卫共享管理设置查询，限制接口前需拆出业务启动契约。
 
-当前生产基线是完整镜像 `32be445`。复用 Cell 的 schema v4 与代码能力时逐项检验，不能将“代码存在”写成“产品已验收”。
+当前一期生产发布记录为 `91b8154`；共享 schema v1–v4 及其校验和是 v5 迁移链的一部分，不能删除。实际代码与验证结果见一期实施记录。

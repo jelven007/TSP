@@ -7,7 +7,9 @@
 
 ## 1. 运行边界
 
-- 推荐生产形态是单容器、单 Uvicorn worker。
+- 当前完整单机多租户按角色运行平台、API 和四类 Worker，API 默认四进程；
+  PostgreSQL、公共版本、Broker、备份和恢复见[完整部署](../deploy/full/README.md)。
+- 下方根目录 Compose 操作适用于独立运行模式，其生产形态是单容器、单 Uvicorn worker。
 - 同一 `DATA_DIR` 只能由一个 TSP 主实例写入。
 - 默认服务端口为 `3018`。
 - Docker Compose 将主机 `./data` 挂载到容器 `/app/data`。

@@ -29,6 +29,13 @@ const ORDER_TYPE_LABEL: Record<string, string> = {
   close: '当日收盘',
 }
 
+type AutoRuleSide = 'auto' | 'buy' | 'sell'
+const AUTO_SIDE_LABEL: Record<AutoRuleSide, string> = { auto: '自动', buy: '买入', sell: '卖出' }
+
+function isNonnegativeInteger(value: string) {
+  return value.trim() !== '' && Number.isSafeInteger(Number(value)) && Number(value) >= 0
+}
+
 const STATUS_LABEL: Record<string, string> = {
   pending: '待成交',
   filled: '已成交',
@@ -767,7 +774,10 @@ function AutoRulesPanel({ acc }: { acc: string }) {
   const rules = rulesQ.data?.rules ?? []
   const [creating, setCreating] = useState(false)
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: QK.paperAutoRules(acc) })
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: QK.paperAutoRules(acc) })
+    void qc.invalidateQueries({ queryKey: QK.paperCompare })
+  }
 
   const toggleM = useMutation({
     mutationFn: (args: { id: string; enabled: boolean }) => api.paperAutoRuleSetEnabled(args.id, args.enabled, acc),
@@ -790,23 +800,26 @@ function AutoRulesPanel({ acc }: { acc: string }) {
         </button>
       </div>
       <div className="mt-1 text-[11px] leading-relaxed text-muted">
-        监控规则/策略触发时自动按规则下单 (默认次日开盘成交), 同标的 {`冷却 N 天`}内不重复触发
+        策略可自动跟随买卖信号，退出时全平；自动退出不受冷却限制，仍遵守 T+1 和待成交卖单校验。
       </div>
       {rules.length === 0 ? (
         <div className="py-8 text-center text-xs text-muted">暂无规则 — 新建一条, 让策略信号自动进入模拟盘</div>
       ) : (
         <div className="mt-2 space-y-1">
           {rules.map(r => (
-            <div key={r.id} className="flex items-center gap-2 rounded-btn px-2 py-1.5 text-xs transition-colors hover:bg-elevated/40">
+            <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-btn px-2 py-1.5 text-xs transition-colors hover:bg-elevated/40">
               <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', r.enabled ? 'bg-bear' : 'bg-muted')} />
               <span className="w-28 shrink-0 truncate font-medium">{r.name}</span>
               <span className="w-20 shrink-0 text-muted">{r.match_kind === 'strategy' ? '跟策略' : '跟规则'}</span>
               <span className="w-32 shrink-0 truncate font-mono text-[11px] text-muted" title={r.match_id}>{r.match_id}</span>
-              <span className={cn('w-8 shrink-0 font-medium', r.side === 'buy' ? 'text-bull' : 'text-bear')}>{r.side === 'buy' ? '买' : '卖'}</span>
-              <span className="w-24 shrink-0 font-mono text-[11px] text-muted">
+              <span className={cn('shrink-0 font-medium', r.side === 'auto' ? 'text-accent' : r.side === 'buy' ? 'text-bull' : 'text-bear')}>{AUTO_SIDE_LABEL[r.side]}</span>
+              <span className="shrink-0 font-mono text-[11px] text-muted">
+                {r.side === 'auto' && '买 '}
                 {r.size_mode === 'fixed_amount' ? fmtMoney(r.size_value, 0) : `${r.size_value}% 权益`}
+                {r.side === 'auto' && ' · 卖全平'}
               </span>
-              <span className="w-16 shrink-0 text-[11px] text-muted">{ORDER_TYPE_LABEL[r.order_type]} · 冷却{r.cooldown_days}天</span>
+              <span className="shrink-0 text-[11px] text-muted">持仓上限 {(r.max_positions ?? 0) > 0 ? `${r.max_positions}只` : '不限'}</span>
+              <span className="shrink-0 text-[11px] text-muted">{ORDER_TYPE_LABEL[r.order_type]} · {r.side === 'auto' ? '买入' : ''}冷却{r.cooldown_days}天</span>
               <button
                 onClick={() => toggleM.mutate({ id: r.id, enabled: !r.enabled })}
                 className={cn('ml-auto shrink-0 rounded-btn px-2 py-0.5 text-[10px] transition-colors',
@@ -829,11 +842,12 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
   const [name, setName] = useState('')
   const [matchKind, setMatchKind] = useState<'strategy' | 'rule'>('strategy')
   const [matchId, setMatchId] = useState('')
-  const [side, setSide] = useState<'buy' | 'sell'>('buy')
+  const [side, setSide] = useState<AutoRuleSide>('auto')
   const [sizeMode, setSizeMode] = useState<'fixed_amount' | 'pct_equity'>('fixed_amount')
   const [sizeValue, setSizeValue] = useState('10000')
   const [orderType, setOrderType] = useState<'market' | 'next_open' | 'close'>('next_open')
   const [cooldown, setCooldown] = useState('5')
+  const [maxPositions, setMaxPositions] = useState('0')
   const [msg, setMsg] = useState<string | null>(null)
 
   const m = useMutation({
@@ -847,6 +861,7 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
         size_value: Number(sizeValue),
         order_type: orderType,
         cooldown_days: Number(cooldown),
+        max_positions: Number(maxPositions),
         enabled: true,
       }, acc),
     onSuccess: onDone,
@@ -854,6 +869,9 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
   })
 
   const valid = name.trim() && matchId.trim() && Number(sizeValue) > 0
+    && (sizeMode !== 'pct_equity' || Number(sizeValue) <= 100)
+    && isNonnegativeInteger(cooldown) && isNonnegativeInteger(maxPositions)
+    && (side !== 'auto' || matchKind === 'strategy')
 
   // ID 联想: 跟策略 → 策略引擎列表; 跟监控规则 → 监控规则列表。本地按中文名/ID 过滤。
   const strategiesQ = useQuery({
@@ -901,7 +919,7 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
           <label className="text-[11px] text-muted">跟什么</label>
           <div className="mt-1 flex gap-1.5">
             {(['strategy', 'rule'] as const).map(k => (
-              <button key={k} onClick={() => { setMatchKind(k); setMatchId('') }}
+              <button key={k} onClick={() => { setMatchKind(k); setMatchId(''); if (k === 'rule' && side === 'auto') setSide('buy') }}
                 className={cn('flex-1 rounded-btn border py-1 text-[11px] transition-colors',
                   matchKind === k ? 'border-accent/40 bg-accent/10 text-accent' : 'border-border text-muted hover:text-secondary')}>
                 {k === 'strategy' ? '跟策略' : '跟监控规则'}
@@ -924,13 +942,18 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
         <div>
           <label className="text-[11px] text-muted">方向</label>
           <div className="mt-1 flex gap-1.5">
-            {(['buy', 'sell'] as const).map(sd => (
-              <button key={sd} onClick={() => setSide(sd)}
+            {(['auto', 'buy', 'sell'] as const).map(sd => (
+              <button key={sd} onClick={() => setSide(sd)} disabled={sd === 'auto' && matchKind !== 'strategy'}
+                aria-pressed={side === sd}
                 className={cn('flex-1 rounded-btn border py-1 text-[11px] font-medium transition-colors',
-                  side === sd ? (sd === 'buy' ? 'border-bull/50 bg-bull/10 text-bull' : 'border-bear/50 bg-bear/10 text-bear') : 'border-border text-muted')}>
-                {sd === 'buy' ? '买入' : '卖出'}
+                  side === sd ? (sd === 'auto' ? 'border-accent/40 bg-accent/10 text-accent' : sd === 'buy' ? 'border-bull/50 bg-bull/10 text-bull' : 'border-bear/50 bg-bear/10 text-bear') : 'border-border text-muted',
+                  'disabled:cursor-not-allowed disabled:opacity-40')}>
+                {AUTO_SIDE_LABEL[sd]}
               </button>
             ))}
+          </div>
+          <div className="mt-1 text-[10px] text-muted">
+            {matchKind === 'rule' ? '监控规则需指定固定买卖方向。' : '自动：买入信号/入池买入，卖出信号/出池全平。'}
           </div>
         </div>
         <div>
@@ -943,7 +966,7 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
           </div>
         </div>
         <div>
-          <label className="text-[11px] text-muted">{sizeMode === 'fixed_amount' ? '每笔金额 (元)' : '每笔占权益 %'}</label>
+          <label className="text-[11px] text-muted">{side === 'auto' ? '买入' : '每笔'}{sizeMode === 'fixed_amount' ? '金额 (元)' : '占权益 %'}</label>
           <input type="number" value={sizeValue} onChange={e => setSizeValue(e.target.value)}
             className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 font-mono text-sm outline-none focus:border-accent/50" />
         </div>
@@ -960,9 +983,15 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
           </div>
         </div>
         <div>
-          <label className="text-[11px] text-muted">冷却天数 (同标的)</label>
-          <input type="number" value={cooldown} onChange={e => setCooldown(e.target.value)}
+          <label className="text-[11px] text-muted">{side === 'auto' ? '买入冷却天数 (同标的)' : '冷却天数 (同标的)'}</label>
+          <input type="number" min="0" step="1" value={cooldown} onChange={e => setCooldown(e.target.value)}
             className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 font-mono text-sm outline-none focus:border-accent/50" />
+        </div>
+        <div>
+          <label htmlFor="auto-rule-max-positions" className="text-[11px] text-muted">最大持仓标的数 (0 不限)</label>
+          <input id="auto-rule-max-positions" type="number" min="0" step="1" value={maxPositions} onChange={e => setMaxPositions(e.target.value)}
+            className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 font-mono text-sm outline-none focus:border-accent/50" />
+          <div className="mt-1 text-[10px] text-muted">实际持仓和待成交买单均占名额；加仓已有标的不受限，账户上限仍为 50 只。</div>
         </div>
       </div>
       <div className="mt-3 flex gap-2">
@@ -1246,9 +1275,9 @@ function CompareView({ onCreateSingle }: { onCreateSingle: () => void }) {
                                   <span
                                     key={`${ar.match_id}-${j}`}
                                     className={cn('max-w-32 truncate rounded-full px-1.5 py-px text-[9px] leading-4', ar.enabled ? 'bg-accent/10 text-accent' : 'bg-elevated text-muted')}
-                                    title={`${ar.name} · ${ar.match_kind === 'strategy' ? '跟策略' : '跟规则'} ${ar.match_id}${ar.side === 'sell' ? ' · 卖出方向' : ''}`}
+                                    title={`${ar.name} · ${ar.match_kind === 'strategy' ? '跟策略' : '跟规则'} ${ar.match_id} · ${ar.side === 'auto' ? '自动方向，退出全平' : AUTO_SIDE_LABEL[ar.side]} · 持仓上限 ${(ar.max_positions ?? 0) > 0 ? `${ar.max_positions}只` : '不限'}`}
                                   >
-                                    {ar.name}{ar.side === 'sell' ? '·卖' : ''}
+                                    {ar.name}{ar.side === 'auto' ? '·自动' : ar.side === 'sell' ? '·卖' : ''}
                                   </span>
                                 ))}
                                 {(r.auto_rules?.length ?? 0) > 2 && (
@@ -1318,11 +1347,13 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [quickKind, setQuickKind] = useState<'strategy' | 'rule'>('strategy')
   const [quickId, setQuickId] = useState('')
   // 共享跟单参数 (应用到全部来源 → 同规格对比)
-  const [side, setSide] = useState<'buy' | 'sell'>('buy')
+  const [side, setSide] = useState<AutoRuleSide>('auto')
   const [sizeMode, setSizeMode] = useState<'fixed_amount' | 'pct_equity'>('pct_equity')
   const [sizeValue, setSizeValue] = useState('10')
   const [orderType, setOrderType] = useState<'market' | 'next_open' | 'close'>('next_open')
   const [cooldown, setCooldown] = useState('5')
+  const [maxPositions, setMaxPositions] = useState('0')
+  const hasMonitorSource = rows.some(row => row.kind === 'rule')
 
   const strategiesQ = useQuery({
     queryKey: QK.screenerStrategies('any', 'all'),
@@ -1348,6 +1379,7 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
           size_value: Number(sizeValue),
           order_type: orderType,
           cooldown_days: Number(cooldown),
+          max_positions: Number(maxPositions),
         })),
       }),
     onSuccess: r => {
@@ -1371,9 +1403,13 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
   }
 
   const valid = rows.length >= 1
+    && rows.length <= 20
     && rows.every(r => r.matchId.trim().length > 0)
     && Number(cash) > 0
     && Number(sizeValue) > 0
+    && (sizeMode !== 'pct_equity' || Number(sizeValue) <= 100)
+    && isNonnegativeInteger(cooldown) && isNonnegativeInteger(maxPositions)
+    && (side !== 'auto' || !hasMonitorSource)
     && Number(commissionWan) >= 0 && Number(stampQian) >= 0 && Number(slippageBps) >= 0
 
   const quickQuery = quickId.trim().toLowerCase()
@@ -1480,13 +1516,18 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
           <div>
             <label className={labelCls}>方向 (全部来源)</label>
             <div className="mt-1 flex gap-1.5">
-              {(['buy', 'sell'] as const).map(sd => (
-                <button key={sd} onClick={() => setSide(sd)}
+              {(['auto', 'buy', 'sell'] as const).map(sd => (
+                <button key={sd} onClick={() => setSide(sd)} disabled={sd === 'auto' && hasMonitorSource}
+                  aria-pressed={side === sd}
                   className={cn('flex-1 rounded-btn border py-1 text-[11px] font-medium transition-colors',
-                    side === sd ? (sd === 'buy' ? 'border-bull/50 bg-bull/10 text-bull' : 'border-bear/50 bg-bear/10 text-bear') : 'border-border text-muted')}>
-                  {sd === 'buy' ? '买入' : '卖出'}
+                    side === sd ? (sd === 'auto' ? 'border-accent/40 bg-accent/10 text-accent' : sd === 'buy' ? 'border-bull/50 bg-bull/10 text-bull' : 'border-bear/50 bg-bear/10 text-bear') : 'border-border text-muted',
+                    'disabled:cursor-not-allowed disabled:opacity-40')}>
+                  {AUTO_SIDE_LABEL[sd]}
                 </button>
               ))}
+            </div>
+            <div className="mt-1 text-[10px] text-muted">
+              {hasMonitorSource ? '包含监控规则，请选择固定买入或卖出方向。' : '自动：买入信号/入池买入，卖出信号/出池全平。'}
             </div>
           </div>
           <div>
@@ -1499,7 +1540,7 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
             </div>
           </div>
           <div>
-            <label className={labelCls}>{sizeMode === 'fixed_amount' ? '每笔金额 (元)' : '每笔占权益 %'}</label>
+            <label className={labelCls}>{side === 'auto' ? '买入' : '每笔'}{sizeMode === 'fixed_amount' ? '金额 (元)' : '占权益 %'}</label>
             <input type="number" value={sizeValue} onChange={e => setSizeValue(e.target.value)} className={cn(inputCls, 'mt-1')} />
           </div>
           <div>
@@ -1515,8 +1556,13 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
             </div>
           </div>
           <div>
-            <label className={labelCls}>冷却天数 (同标的)</label>
-            <input type="number" value={cooldown} onChange={e => setCooldown(e.target.value)} className={cn(inputCls, 'mt-1')} />
+            <label className={labelCls}>{side === 'auto' ? '买入冷却天数 (同标的)' : '冷却天数 (同标的)'}</label>
+            <input type="number" min="0" step="1" value={cooldown} onChange={e => setCooldown(e.target.value)} className={cn(inputCls, 'mt-1')} />
+          </div>
+          <div>
+            <label htmlFor="arena-max-positions" className={labelCls}>最大持仓标的数 (0 不限)</label>
+            <input id="arena-max-positions" type="number" min="0" step="1" value={maxPositions} onChange={e => setMaxPositions(e.target.value)} className={cn(inputCls, 'mt-1')} />
+            <div className="mt-1 text-[10px] text-muted">每户独立计数，含待成交买单；账户上限仍为 50 只。</div>
           </div>
           <div className="grid grid-cols-3 gap-2 md:col-span-2">
             <div>

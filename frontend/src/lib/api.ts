@@ -1065,7 +1065,7 @@ export interface PaperCompareRow {
   last_nav_date?: string | null
   /** 最近两个定版净值的涨跌 (百分数值, 1.5 = +1.5%) */
   day_change_pct?: number | null
-  auto_rules?: Array<{ name: string; match_kind: string; match_id: string; side: 'buy' | 'sell'; enabled: boolean }>
+  auto_rules?: Array<{ name: string; match_kind: string; match_id: string; side: 'buy' | 'sell' | 'auto'; max_positions?: number; enabled: boolean }>
   auto_enabled?: number
 }
 
@@ -1074,11 +1074,12 @@ export interface PaperArenaSource {
   name?: string
   match_kind: 'strategy' | 'rule'
   match_id: string
-  side?: 'buy' | 'sell'
+  side?: 'buy' | 'sell' | 'auto'
   size_mode?: 'fixed_amount' | 'pct_equity'
   size_value?: number
   order_type?: 'market' | 'next_open' | 'close'
   cooldown_days?: number
+  max_positions?: number
 }
 
 export interface PaperHolding {
@@ -1140,11 +1141,12 @@ export interface PaperAutoRule {
   name: string
   match_kind: 'strategy' | 'rule'
   match_id: string
-  side: 'buy' | 'sell'
+  side: 'buy' | 'sell' | 'auto'
   size_mode: 'fixed_amount' | 'pct_equity'
   size_value: number
   order_type: 'market' | 'next_open' | 'close'
   cooldown_days: number
+  max_positions?: number
   enabled: boolean
   created_at: string
 }
