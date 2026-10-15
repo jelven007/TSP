@@ -362,6 +362,66 @@ def _created_order(data_dir, order, account_id):
         data_dir.alert({**event, "id": f"auto:{account_id}:{order['id']}"})
 
 
+# ── 未执行原因留痕 ─────────────────────────────────────────
+# 自动跟单一轮里被跳过的候选 (冷却/名额/缺价/风控快照缺失/额度不足/下单被拒等) 记入
+# 一个按账户的有界环形列表, 供诊断"为什么没下单", 与成交/退出待办分开, 不影响撮合。
+_MAX_SKIPS = 200
+_SKIP_LABELS = {
+    "active_exit": "该标的有未完成的退出待办, 暂不自动买入",
+    "cooldown": "买入冷却期内",
+    "max_positions": "持仓数已达规则上限",
+    "missing_entry_policy": "缺入场政策快照, 风控跟随规则不买入",
+    "no_reference_price": "缺有效参考价",
+    "zero_qty": "按现金与仓位余量算得可买数量为 0",
+    "duplicate": "同规则同标的本轮已下过单",
+    "order_rejected": "下单被拒 (资金/涨跌停/仓位额度等)",
+}
+
+
+def _skip_namespace(account_id: str) -> str:
+    return f"paper_auto_skips:{account_id}"
+
+
+def _record_skip(data_dir, account_id, rule, ev, reason, detail=None):
+    """追加一条未执行原因 (有界, 新的在前)。文件与 SQL 两种存储都写单条列表文档。"""
+    entry = {
+        "ts": _now_iso(),
+        "rule_id": rule.get("id"),
+        "rule_name": rule.get("name"),
+        "symbol": (ev.get("symbol") or "").strip(),
+        "side": rule.get("side"),
+        "reason": reason,
+        "message": _SKIP_LABELS.get(reason, reason),
+        "detail": detail,
+    }
+    existing = load_auto_skips(data_dir, account_id)
+    updated = [entry, *existing][:_MAX_SKIPS]
+    if isinstance(data_dir, PaperSession):
+        data_dir.put_document(_skip_namespace(account_id), "default", {"items": updated})
+    else:
+        atomic_write_text(
+            _record_dir(data_dir, "auto_skips", account_id) / "default.json",
+            json.dumps({"items": updated}, ensure_ascii=False, indent=2),
+        )
+    return entry
+
+
+@paper_operation()
+def load_auto_skips(data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> list[dict]:
+    """读取未执行原因列表 (新的在前, 有界)。"""
+    paper.validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        doc = data_dir.document(_skip_namespace(account_id), "default")
+        return list(doc.get("items", [])) if doc else []
+    path = _record_dir(data_dir, "auto_skips", account_id) / "default.json"
+    if not path.exists():
+        return []
+    try:
+        return list(json.loads(path.read_text(encoding="utf-8")).get("items", []))
+    except Exception:
+        return []
+
+
 @paper_operation(write=True)
 def retry_exit_intents(
     data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID, *,
@@ -584,6 +644,8 @@ def on_rule_events(
                 continue
             price = prices.get(symbol, ev.get("price")) if prices is not None else ev.get("price")
             if side is None or (not auto_exit and not _valid_price(price)):
+                if side == "buy":
+                    _record_skip(data_dir, account_id, rule, ev, "no_reference_price")
                 continue
             receipt = hashlib.sha256(json.dumps([rule["id"], ev], sort_keys=True).encode()).hexdigest()
             durable_receipt = isinstance(data_dir, PaperSession) or "id" in ev or "ts" in ev
@@ -619,19 +681,26 @@ def on_rule_events(
                 intent["symbol"] == symbol and intent["status"] in _ACTIVE_EXITS
                 for intent in load_exit_intents(data_dir, account_id, active_only=True)
             ):
+                _record_skip(data_dir, account_id, rule, ev, "active_exit")
                 continue
             if _in_cooldown(data_dir, rule, symbol, int(rule.get("cooldown_days", 0)), account_id):
+                _record_skip(data_dir, account_id, rule, ev, "cooldown")
                 continue
             if side == "buy" and rule.get("max_positions", 0) > 0:
                 used = _position_slots_used(data_dir, account_id)
                 if symbol not in used and len(used) >= rule["max_positions"]:
+                    _record_skip(data_dir, account_id, rule, ev, "max_positions",
+                                 detail={"used": len(used), "max_positions": rule["max_positions"]})
                     continue
             if side == "buy" and rule.get("risk_follow") and not ev.get("entry_policy"):
+                _record_skip(data_dir, account_id, rule, ev, "missing_entry_policy")
                 continue
             qty = _sizing_qty(data_dir, {**rule, "_symbol": symbol}, float(price), account_id, allocation_prices)
             if qty <= 0:
+                _record_skip(data_dir, account_id, rule, ev, "zero_qty")
                 continue
             if side == "buy" and (rule["id"], symbol) in bought:
+                _record_skip(data_dir, account_id, rule, ev, "duplicate")
                 continue
             order, error = paper.create_order(
                 data_dir, symbol, side, account_id=account_id, qty=qty,
@@ -642,6 +711,7 @@ def on_rule_events(
             )
             if error:
                 logger.info("paper auto %s: %s 下单被拒: %s", rule["name"], symbol, error)
+                _record_skip(data_dir, account_id, rule, ev, "order_rejected", detail={"error": error})
                 continue
             created.append(order)
             if side == "buy":

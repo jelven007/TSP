@@ -13,8 +13,8 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as echarts from 'echarts'
-import { Banknote, ChevronDown, ChevronUp, CircleDollarSign, GitCompare, PieChart, Plus, RefreshCw, Settings, TrendingUp, Wallet, X } from 'lucide-react'
-import { api, type PaperCompareRow, type PaperFill, type PaperOrder } from '@/lib/api'
+import { Banknote, ChevronDown, ChevronUp, CircleDollarSign, Clock, GitCompare, Info, PieChart, Plus, RefreshCw, Settings, TrendingUp, Wallet, X } from 'lucide-react'
+import { api, type PaperAutoSkip, type PaperCompareRow, type PaperFill, type PaperOrder, type PaperValuation } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { useQuoteStatus } from '@/lib/useSharedQueries'
 import { cn } from '@/lib/cn'
@@ -58,6 +58,33 @@ function normalizeBase(values: Array<number | null | undefined>): Array<number |
   const first = values.find((v): v is number => v != null && v > 0)
   if (!first) return values.map(() => null)
   return values.map(v => (v != null && v > 0 ? Number(((v / first) * 100).toFixed(2)) : null))
+}
+
+const VALUATION_BASIS_LABEL: Record<PaperValuation['basis'], string> = {
+  live: '盘中实时估算',
+  daily_close: '最近日线收盘估算',
+  cost: '成本占位 (缺行情)',
+}
+
+/** 估值口径徽章: 标注估算口径、数据时间与覆盖, 区别于按收盘定版的净值曲线。 */
+function ValuationBadge({ v }: { v: PaperValuation }) {
+  const tone = v.basis === 'live' ? 'text-accent border-accent/30 bg-accent/5'
+    : v.basis === 'daily_close' ? 'text-muted border-border bg-elevated/40'
+    : 'text-warning border-warning/30 bg-warning/5'
+  const ts = v.quote_ts ? new Date(v.quote_ts * 1000).toLocaleTimeString('zh-CN', { hour12: false }) : null
+  return (
+    <div className={cn('mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-btn border px-2.5 py-1 text-[11px]', tone)}>
+      <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{VALUATION_BASIS_LABEL[v.basis]}</span>
+      <span className="text-muted">估值, 非收盘定版净值</span>
+      {ts && <span className="font-mono text-muted">数据时间 {ts}</span>}
+      <span className="text-muted">覆盖 {v.covered}/{v.total}</span>
+      {v.missing.length > 0 && (
+        <span className="text-warning" title={`以下持仓缺当前行情, 按成本占位: ${v.missing.join('、')}`}>
+          {v.missing.length} 只缺价按成本计
+        </span>
+      )}
+    </div>
+  )
 }
 
 /** 净值曲线 (echarts line, 跟随主题色): 账户归一化 vs 沪深300 归一化 (首日=100) */
@@ -766,6 +793,30 @@ function CompareChart({ rows }: { rows: PaperCompareRow[] }) {
   }, [rows])
 
   return <div ref={elRef} className="h-56 w-full" />
+}
+
+function AutoSkipsPanel({ skips }: { skips: PaperAutoSkip[] }) {
+  if (skips.length === 0) return null
+  const shown = skips.slice(0, 12)
+  return (
+    <div className="rounded-card border border-border bg-surface p-4">
+      <div className="flex items-center gap-1.5 text-sm font-medium">
+        <Info className="h-3.5 w-3.5 text-muted" /> 未执行原因
+        <span className="ml-1 text-[10px] text-muted">自动跟单跳过留痕 · 诊断用, 不影响撮合</span>
+      </div>
+      <div className="mt-2 space-y-1">
+        {shown.map((s, i) => (
+          <div key={`${s.ts}-${i}`} className="flex items-center gap-2 rounded-btn px-2 py-1 text-[11px] hover:bg-elevated/50">
+            <span className="w-24 shrink-0 font-mono text-muted">{s.symbol || '—'}</span>
+            <span className="min-w-0 flex-1 truncate text-secondary" title={s.rule_name ? `规则「${s.rule_name}」: ${s.message}` : s.message}>
+              {s.message}
+            </span>
+            <span className="shrink-0 font-mono text-[10px] text-muted">{s.ts.slice(11, 19)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function AutoRulesPanel({ acc }: { acc: string }) {
@@ -1716,6 +1767,7 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
   const tradesQ = useQuery({ queryKey: QK.paperTrades(acc), queryFn: () => api.paperTrades(acc) })
   const navQ = useQuery({ queryKey: QK.paperNav(acc), queryFn: () => api.paperNav(acc) })
   const statsQ = useQuery({ queryKey: QK.paperStats(acc), queryFn: () => api.paperStats(acc) })
+  const autoSkipsQ = useQuery({ queryKey: QK.paperAutoSkips(acc), queryFn: () => api.paperAutoSkips(acc) })
 
   // 'paper' 前缀兜底失效: 覆盖全部账户的全部查询 (订单变动可能影响净值/统计)
   const invalidateAll = () => qc.invalidateQueries({ queryKey: QK.paperAll })
@@ -1759,6 +1811,8 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
   const allFills: PaperFill[] = tradesQ.data?.fills ?? []
   const nav = navQ.data?.nav ?? []
   const stats = statsQ.data
+  const valuation = ov.valuation
+  const autoSkips = autoSkipsQ.data?.skips ?? []
   const pnlPct = ov.initial_cash && ov.initial_cash > 0 ? ((ov.total_pnl ?? 0) / ov.initial_cash) * 100 : 0
 
   /** 导出全部成交台账 CSV (带 BOM, Excel 可直接打开); 口径与页面「成交台账」一致 */
@@ -1828,6 +1882,8 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
           />
         </div>
 
+        {valuation && <ValuationBadge v={valuation} />}
+
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
           {/* 左列: 净值 + 持仓 + 流水 */}
           <div className="min-w-0 space-y-4">
@@ -1895,12 +1951,18 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
                   </button>
                 )}
                 {stats && (
-                  <span className="ml-auto text-[11px] text-muted" title="回合为 FIFO 配对的完整买卖; 回撤按定版净值序列">
-                    回合 {stats.rounds} · 胜率 {stats.win_rate}% · 盈亏比 {stats.profit_loss_ratio ?? '--'} · 均持 {stats.avg_holding_days}天 · 回撤{' '}
+                  <span className="ml-auto text-[11px] text-muted" title="配对片段为 FIFO 卖出与买入批次的配对; 持仓周期为从零建仓到清零的完整周期 (收益率资金加权); 回撤按定版净值序列">
+                    配对 {stats.rounds} · 胜率 {stats.win_rate}% · 盈亏比 {stats.profit_loss_ratio ?? '--'} · 均持 {stats.avg_holding_days}天 · 回撤{' '}
                     {stats.max_drawdown != null ? `-${stats.max_drawdown}%` : '--'} ·{' '}
                     <span className={cn('font-mono', priceColorClass(stats.realized_pnl))}>
                       已实现 {stats.realized_pnl >= 0 ? '+' : ''}{fmtMoney(stats.realized_pnl, 0)}
                     </span>
+                    {stats.cycles && (
+                      <span className="ml-1 border-l border-border/60 pl-1">
+                        周期 {stats.cycles.count} · 周期胜率 {stats.cycles.win_rate}% · 资金加权{' '}
+                        {stats.cycles.money_weighted_return_pct != null ? `${stats.cycles.money_weighted_return_pct}%` : '--'}
+                      </span>
+                    )}
                   </span>
                 )}
               </div>
@@ -1970,6 +2032,7 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
           <div className="space-y-4">
             <OrderForm acc={acc} onDone={invalidateAll} />
             <AutoRulesPanel acc={acc} />
+            <AutoSkipsPanel skips={autoSkips} />
             <CandidateCompareCard paper={{
               total_return_pct: nav.length >= 2 && nav[0].nav > 0 ? (nav[nav.length - 1].nav / nav[0].nav - 1) * 100 : null,
               annual_pct: nav.length >= 2 && nav[0].nav > 0

@@ -554,10 +554,20 @@ class PaperHolding(ContractModel):
     qty: int
     avg_cost: float
     last_price: float
+    price_source: Literal["live", "daily_close", "cost"] = "cost"
     market_value: float
     pnl: float
     pnl_pct: float
     available_qty: int
+
+
+class PaperValuation(ContractModel):
+    basis: Literal["live", "daily_close", "cost"]
+    as_of: str
+    quote_ts: int | None = None
+    covered: int
+    total: int
+    missing: list[str] = Field(default_factory=list)
 
 
 class PaperOverviewResponse(ContractModel):
@@ -570,6 +580,8 @@ class PaperOverviewResponse(ContractModel):
     total: float | None = None
     total_pnl: float | None = None
     initial_cash: float | None = None
+    estimating: bool | None = None
+    valuation: PaperValuation | None = None
     holdings: list[PaperHolding] = Field(default_factory=list)
 
 
@@ -607,6 +619,14 @@ class PaperNavResponse(ContractModel):
     nav: list[JsonRecord]
 
 
+class PaperStatsCycles(ContractModel):
+    count: int
+    pairings: int
+    win_rate: float
+    avg_holding_days: float
+    money_weighted_return_pct: float | None = None
+
+
 class PaperStatsResponse(ContractModel):
     rounds: int
     win_rate: float
@@ -614,6 +634,12 @@ class PaperStatsResponse(ContractModel):
     avg_holding_days: float
     realized_pnl: float
     max_drawdown: float | None
+    cycles: PaperStatsCycles | None = None
+
+
+class PaperRoundsResponse(ContractModel):
+    pairings: list[JsonRecord] = Field(default_factory=list)
+    cycles: list[JsonRecord] = Field(default_factory=list)
 
 
 class PaperCompareResponse(ContractModel):
@@ -649,6 +675,10 @@ class PaperAutoRulesResponse(ContractModel):
 
 class PaperAutoRuleResponse(ContractModel):
     rule: PaperAutoRule
+
+
+class PaperAutoSkipsResponse(ContractModel):
+    skips: list[JsonRecord] = Field(default_factory=list)
 
 
 class OkResponse(ContractModel):

@@ -189,21 +189,41 @@ ETF 不进入股票实时快照撮合池，因此 ETF 即时单会自动转为�
 DSR 只用完整夏普网格的真实每日组合收益统计计算，明确标记本次网格和独立试验近似，
 不替代样本外验证。配置、记录字段与边界详见 [研究配置与试验记录](research-configuration.md)。
 
+### 诊断与体验：估值标记、回合口径与未执行原因（第四批）
+
+总览估值永远是估算口径，与收盘定版净值分开。`overview` 为每个持仓标注价源
+（`live` 实时快照 / `daily_close` 最近日线收盘 / `cost` 无行情退回成本占位），
+并返回 `valuation`：整体口径、数据时间 `quote_ts`、覆盖 `covered/total` 与缺价 `missing`。
+任一持仓缺当前行情退回成本时整体口径保守降级为 `cost`。前端净值曲线仍标「按交易日收盘定版」，
+总览另挂估值徽章标注口径、数据时间与覆盖，二者不混用。
+
+回合统计区分两层口径：配对片段（`round_trips`，一次卖出与一个买入批次的 FIFO 配对，
+`kind="pairing"`，`cycle_seq` 标注所属持仓周期）与持仓周期（`position_cycles`，从零建仓到
+清零的完整周期，收益率按周期总成本资金加权）。`stats` 沿用历史的片段字段
+（`rounds`/`win_rate`/`profit_loss_ratio`/`avg_holding_days`），并新增 `cycles` 块
+（周期数、周期胜率、资金加权收益率）；`/api/paper/rounds` 并列返回两层明细，不把相关片段当独立样本。
+
+自动跟单每轮被跳过的候选记入按账户的有界列表（`load_auto_skips`）：冷却、持仓名额已满、
+缺有效参考价、缺入场政策快照、可买数量为 0、同轮重复、下单被拒等，各带人类可读文案与明细。
+它只用于诊断「为什么没下单」，与成交和退出待办分开，不影响撮合。前端在账户面板展示未执行原因列表。
+
 ## 6. API 设计(`/api/paper/*`, 薄胶水 + 域模块)
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET / POST | `/api/paper/account` | 读取/创建账户；`account` 查询参数选择账户 |
 | GET | `/api/paper/accounts` | 账户列表与最新净值摘要 |
-| GET | `/api/paper/overview` | 现金、持仓、总资产与盘中估算净值 |
+| GET | `/api/paper/overview` | 现金、持仓、总资产与估算净值，含逐持仓价源与估值口径标记 |
 | POST | `/api/paper/orders` | 手动下单 {symbol, side, qty \| amount, order_type} |
 | GET | `/api/paper/orders` | 订单列表(可按 status 过滤) |
 | DELETE | `/api/paper/orders/{id}` | 撤销 pending 订单 |
 | GET | `/api/paper/trades` | 完整成交台账 |
 | GET | `/api/paper/nav` | 净值序列 + 基准(沪深300 归一化) |
-| GET | `/api/paper/stats` | 回合统计: 胜率/盈亏比/平均持有天数/已实现盈亏/最大回撤 |
+| GET | `/api/paper/stats` | 配对片段统计 + 持仓周期(资金加权)统计 + 最大回撤 |
+| GET | `/api/paper/rounds` | 回合明细: 配对片段(pairings)与持仓周期(cycles)并列 |
 | GET | `/api/paper/compare` | 全账户净值、收益、回合和跟单规则摘要 |
 | GET / POST / DELETE | `/api/paper/auto_rules` | 查询、新建、启停和删除自动跟单规则 |
+| GET | `/api/paper/auto_skips` | 自动跟单未执行原因(诊断用, 有界, 新的在前) |
 | POST | `/api/paper/settings` | 更新费用、滑点与涨跌停排队设置 |
 | POST | `/api/paper/freeze` | 冻结或解冻账户 |
 | POST | `/api/paper/rebuild` | 由 fills.jsonl 重建 positions(修复兜底, 管理入口) |
@@ -259,6 +279,8 @@ DSR 只用完整夏普网格的真实每日组合收益统计计算，明确标�
 | **V2 自动化** | ✅ 自动跟单、涨跌停排队、多账户、费用设置与统计 |
 | **V3 对比增强** | ✅ 成交通知、CSV、回测候选对比、批量竞技账户与净值叠加；AI 复盘注入尚未实现 |
 | **第二批风控与组合** | ✅ 共用政策、首笔成交快照、持久风险退出、候选排序、单股/总仓位与限定范围的实时开盘入账 |
+| **第三批研究配置** | ✅ 入场叠加条件统一接入、试验族记录与样本外机制接线 |
+| **第四批诊断与体验** | ✅ 逐持仓价源与估值口径标记、配对/持仓周期双口径统计、自动跟单未执行原因留痕 |
 
 实现以 `backend/app/strategy/paper.py`、`paper_auto.py`、`api/paper.py` 和
 `frontend/src/pages/Paper.tsx` 为准。
