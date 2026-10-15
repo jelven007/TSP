@@ -167,6 +167,46 @@ def test_basic_filter_only_limits_entries_not_panel_rows():
 
 
 @pytest.mark.parametrize("backend", ["polars_expr", "matrix_native"])
+def test_overlay_runs_before_scoring_and_never_removes_exit_or_price_rows(backend):
+    start = date(2024, 1, 1)
+    panel = pl.DataFrame({
+        "symbol": ["600001.SH"] * 4, "name": ["正常公司"] * 4,
+        "date": [start + timedelta(days=i) for i in range(4)],
+        **{c: [10., 12., 11., 13.] for c in ("open", "high", "low", "close")},
+        "volume": [100_000] * 4, "amount": [1000.] * 4,
+        "signal_ma20_breakdown": [False, False, True, False],
+    })
+
+    class Signals:
+        def required_fields(self):
+            return frozenset({"close"})
+
+        def required_warmup_bars(self, params):
+            return 1
+
+        def compute_signals(self, market, params):
+            exit_ = np.zeros(market.shape, dtype=np.uint8)
+            exit_[2, 0] = 1
+            return make_signal_matrix(market.shape, entry=np.ones_like(exit_), exit=exit_)
+
+    strategy = _strategy(
+        execution_backend=backend, matrix_strategy=Signals() if backend == "matrix_native" else None,
+        exit_signals=["signal_ma20_breakdown"],
+    )
+    engine = _EngineStub(panel)
+    result = StrategyBacktestService(engine, _StrategyEngineStub(strategy)).run(StrategyBacktestConfig(
+        strategy_id="test", symbols=None, start=start, end=start + timedelta(days=3),
+        entry_fill="close_t", exit_fill="close_t",
+        overrides={"overlay_filter": [{"left": "close", "op": ">", "right": "field:close", "rightDays": 1}]},
+    ))
+    assert result.error is None
+    assert engine.sim_matrix.shape == (4, 1)
+    assert engine.sim_matrix.entry[:, 0].tolist() == [0, 1, 0, 1]
+    assert engine.sim_matrix.exit[:, 0].tolist() == [0, 0, 1, 0]
+    assert np.isfinite(engine.sim_matrix.close).all()
+
+
+@pytest.mark.parametrize("backend", ["polars_expr", "matrix_native"])
 def test_service_wires_age_exit_priority_and_fill_day_status(backend):
     start = date(2024, 1, 1)
     panel = pl.DataFrame({

@@ -85,6 +85,21 @@ def _quotes() -> pl.DataFrame:
     })
 
 
+def test_missing_entry_inputs_keep_previous_pool_and_deliver_real_sell_signal():
+    day = date(2026, 7, 24)
+    unavailable = _result(day, sells=("A",))
+    unavailable.entry_filter_error = "入场叠加条件缺少字段: amount"
+    engine = MonitorRuleEngine()
+    engine.set_strategy_engine(_SequenceStrategyEngine([_result(day, pool=("A", "B")), unavailable]))
+    engine.set_rules([_rule("sell_signal", "pool_exit", "buy_signal")])
+    assert engine.evaluate(_quotes()) == []
+    execution = []
+    engine.evaluate(_quotes(), execution_events=execution)
+    assert [(event["type"], event["symbol"]) for event in execution] == [("sell_signal", "A")]
+    assert next(iter(engine._strategy_pools.values())) == {"A", "B"}
+    assert engine.latest_strategy_results()["demo"]["warnings"] == [unavailable.entry_filter_error]
+
+
 def test_strategy_rule_compatibility_and_validation(tmp_path):
     legacy = {
         "id": "legacy", "name": "旧规则", "type": "strategy",
@@ -257,7 +272,10 @@ def test_execution_metadata_carries_effective_policy_score_and_raw_price(tmp_pat
     strategy_engine.strategy.stop_loss = -.06
     strategy_engine.strategy.max_hold_days = 15
     strategy_engine.strategy.meta["params"] = [{"id": "window", "default": 20}]
-    config.save_override(tmp_path, "demo", {"take_profit": .2, "params": {"window": 30}})
+    config.save_override(tmp_path, "demo", {
+        "take_profit": .2, "params": {"window": 30},
+        "overlay_filter": [{"left": "close", "op": ">", "right": "field:ma20"}],
+    })
     engine = MonitorRuleEngine()
     engine.set_strategy_engine(strategy_engine)
     engine.set_data_dir(tmp_path)
@@ -270,6 +288,7 @@ def test_execution_metadata_carries_effective_policy_score_and_raw_price(tmp_pat
     assert events[0]["entry_policy"]["policy"]["stop_loss_pct"] == .06
     assert events[0]["entry_policy"]["policy"]["take_profit_pct"] == .2
     assert events[0]["entry_policy"]["params"] == {"window": 30}
+    assert events[0]["entry_policy"]["overlay_filter"] == config.load_override(tmp_path, "demo")["overlay_filter"]
 
 
 def test_execution_pool_edges_survive_notification_cooldown():

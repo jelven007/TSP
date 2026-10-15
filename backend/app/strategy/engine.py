@@ -22,6 +22,7 @@ import numpy as np
 import polars as pl
 
 from app.config import settings
+from app.strategy import overlay
 from app.strategy.eligibility import new_stock_min_days
 from app.strategy.scoring import (
     SCORING_DIRECTION_LOW,
@@ -223,6 +224,7 @@ class StrategyResult:
     scores: dict[str, float] = field(default_factory=dict)
     entry_signal_hits: list[dict] = field(default_factory=list)
     exit_signal_hits: list[dict] = field(default_factory=list)
+    entry_filter_error: str | None = None
 
 
 @dataclass
@@ -731,6 +733,7 @@ class StrategyEngine:
             overrides = overrides_map.get(strategy_id) or {}
             scoring = effective_scoring(strategy.meta.get("scoring"), overrides)
             required = max(required, scoring_warmup_bars(scoring))
+            required = max(required, overlay.warmup_bars(overlay.effective_conditions(overrides)))
             if strategy.execution_backend == "matrix_native":
                 params = self.resolve_params(
                     strategy,
@@ -749,7 +752,14 @@ class StrategyEngine:
                 child_ids = [c.strategy_id for c in strategy.composite.children]
                 required = max(
                     required,
-                    self.required_history_bars(child_ids, params_map=params_map),
+                    self.required_history_bars(
+                        child_ids, params_map=params_map,
+                        overrides_map={
+                            cid: overrides_map.get(cid) or (
+                                self._override_loader(cid) if self._override_loader else {}
+                            ) for cid in child_ids
+                        },
+                    ),
                 )
             elif strategy.filter_history_fn:
                 # lookback_days 优先取自解析后的参数(默认值/保存覆盖/本次调用),
@@ -802,6 +812,7 @@ class StrategyEngine:
             matrix_ids.append(strategy_id)
             max_warmup = max(
                 max_warmup,
+                overlay.warmup_bars(overlay.effective_conditions(overrides_map.get(strategy_id))),
                 int(strategy.matrix_strategy.required_warmup_bars(params)) + 1,
                 scoring_warmup_bars(
                     effective_scoring(
@@ -904,6 +915,9 @@ class StrategyEngine:
         self.validate_context(s, context)
         as_of = context.as_of
         overrides = overrides or {}
+        conditions = overlay.effective_conditions(overrides)
+        if conditions and s.execution_backend == "minute_filter":
+            raise ValueError("日线入场叠加条件暂不支持分钟策略, 请使用分钟策略自身的条件")
         params = self.resolve_params(s, params, overrides)
         entry_signals = self._effective_signals(overrides, "entry_signals", s.entry_signals)
         exit_signals = self._effective_signals(overrides, "exit_signals", s.exit_signals)
@@ -1048,6 +1062,18 @@ class StrategyEngine:
         if s.filter_fn:
             expr = s.filter_fn(df, params)
             df = df.filter(expr)
+
+        try:
+            df = overlay.filter_candidates(
+                df, conditions,
+                history=context.daily_history if s.execution_backend == "minute_filter" else history,
+                current=current,
+            )
+        except overlay.OverlayDataError as error:
+            return StrategyResult(
+                as_of=as_of, strategy_id=strategy_id, exit_signal_hits=exit_signal_hits,
+                entry_filter_error=str(error), elapsed_ms=(time.perf_counter() - t0) * 1000,
+            )
 
         # Exit wins on the signal date, before ranking or publishing entry hits.
         if exit_signal_hits:
@@ -1297,6 +1323,8 @@ class StrategyEngine:
                 fields.add(field_name)
         scoring = effective_scoring(strategy.meta.get("scoring"), overrides)
         fields.update(scoring_dependencies(scoring))
+        conditions = overlay.effective_conditions(overrides)
+        fields.update(overlay.dependencies(conditions))
         order_by = strategy.meta.get("order_by")
         if order_by and order_by != "score":
             fields.add(str(order_by))
@@ -1355,19 +1383,23 @@ class StrategyEngine:
                 count=len(market.symbols),
             )
 
-        signals = MatrixStrategyPipeline().run(
-            strategy.matrix_strategy,
-            market,
-            params,
-            MatrixPipelineConfig(
-                basic_filter=basic_filter,
-                scoring=scoring,
-                scoring_directions=effective_scoring_directions(overrides),
-                order_by=strategy.meta.get("order_by"),
-                descending=bool(strategy.meta.get("descending", True)),
-                asset_mask=asset_mask,
-            ),
+        pipeline_config = MatrixPipelineConfig(
+            basic_filter=basic_filter,
+            scoring=scoring,
+            scoring_directions=effective_scoring_directions(overrides),
+            order_by=strategy.meta.get("order_by"),
+            descending=bool(strategy.meta.get("descending", True)),
+            asset_mask=asset_mask,
+            overlay_filter=overlay.effective_conditions(overrides),
         )
+        entry_filter_error = None
+        try:
+            signals = MatrixStrategyPipeline().run(strategy.matrix_strategy, market, params, pipeline_config)
+        except overlay.OverlayDataError as error:
+            # Only entry-filter data failed. Reuse cached signals to deliver exits.
+            entry_filter_error = str(error)
+            pipeline_config = replace(pipeline_config, overlay_filter=[])
+            signals = MatrixStrategyPipeline().run(strategy.matrix_strategy, market, params, pipeline_config)
         target_ids = [
             time_id
             for time_id, label in enumerate(market.timestamp_labels)
@@ -1393,6 +1425,12 @@ class StrategyEngine:
             signals.exit_signal_ids,
             market.symbols,
         )
+        if entry_filter_error:
+            return StrategyResult(
+                as_of=as_of, strategy_id=strategy_id, exit_signal_hits=exit_signal_hits,
+                entry_filter_error=entry_filter_error,
+                elapsed_ms=(time.perf_counter() - started_at) * 1000,
+            )
         selected_assets = np.flatnonzero(entry_active != 0)
         if selected_assets.size == 0:
             return StrategyResult(
@@ -1508,6 +1546,14 @@ class StrategyEngine:
             as_of=context.as_of,
             strategy_id=strategy_id,
         )
+        conditions = overlay.effective_conditions(overrides)
+        if conditions and merged.scores:
+            source = context.current if context.current is not None else context.history
+            allowed = overlay.filter_candidates(
+                source.filter(pl.col("symbol").is_in(list(merged.scores))),
+                conditions, history=context.history, current=context.current,
+            )["symbol"].to_list()
+            merged.scores = {sid: score for sid, score in merged.scores.items() if sid in allowed}
 
         # 构造展示行: 按 symbol 从各子结果取首个命中的行(含 name/价格等展示字段),
         # 融合 score。子策略间 schema 可能不同, 保留首个命中子的字段即可。

@@ -3651,6 +3651,7 @@ class MatrixPipelineConfig:
     scoring_directions: dict[str, str] = field(default_factory=dict)
     asset_mask: np.ndarray | None = None
     protect_strategy_cache: bool = False
+    overlay_filter: list[dict] = field(default_factory=list)
 
 
 class MatrixStrategyPipeline:
@@ -3706,6 +3707,8 @@ class MatrixStrategyPipeline:
         )
         with cache_scope:
             basic_mask = build_pipeline_filter_mask(market, config)
+            if config.overlay_filter:
+                basic_mask = basic_mask & build_overlay_mask(market, config.overlay_filter)
             entry = (
                 signals.entry.astype(bool) & basic_mask & ~signals.exit.astype(bool)
             ).astype(np.uint8)
@@ -3735,6 +3738,53 @@ class MatrixStrategyPipeline:
             entry_signal_ids=signals.entry_signal_ids,
             exit_signal_ids=signals.exit_signal_ids,
         )
+
+
+def build_overlay_mask(market: MarketDataMatrix, conditions: list[dict]) -> np.ndarray:
+    from app.strategy import overlay
+    from app.strategy.custom_signals import _string_ext_fields
+
+    conditions = overlay.normalize_conditions(conditions)
+    if overlay.fields(conditions) & _string_ext_fields():
+        raise ValueError("矩阵策略的入场叠加条件暂不支持字符串字段")
+    operators = {
+        ">": np.greater, ">=": np.greater_equal, "<": np.less,
+        "<=": np.less_equal, "==": np.equal, "!=": np.not_equal,
+    }
+
+    def evaluate():
+        result = np.ones(market.shape, dtype=bool)
+        index = market.valid_bars
+
+        def shifted(values, days):
+            # Offset by observed market rows even when the field itself is null.
+            if not days:
+                return values
+            out = np.full(market.shape, np.nan, dtype=np.float32)
+            for asset_id in range(market.shape[1]):
+                rows = index.rows[index.offsets[asset_id]:index.offsets[asset_id + 1]]
+                out[rows[days:], asset_id] = values[rows[:-days], asset_id]
+            return out
+
+        def feature(name):
+            try:
+                return matrix_feature(market, name)
+            except (ValueError, KeyError) as error:
+                raise overlay.OverlayDataError(f"入场叠加条件缺少可计算字段: {name}") from error
+
+        for c in conditions:
+            left = shifted(feature(c["left"]), c["leftDays"])
+            right = c["right"]
+            if isinstance(right, str) and right.startswith("field:"):
+                right = shifted(feature(right[6:]), c["rightDays"])
+            else:
+                right = float(right)
+            result &= operators[c["op"]](left, right) & np.isfinite(left) & np.isfinite(right)
+        return result
+
+    if not conditions:
+        return np.ones(market.shape, dtype=bool)
+    return _cached_matrix_operation("overlay_filter", (market.close,), conditions, evaluate)
 
 
 def _estimate_pipeline_cache_bytes(

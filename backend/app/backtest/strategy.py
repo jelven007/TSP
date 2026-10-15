@@ -154,6 +154,9 @@ class StrategyDependencyResolver:
         asset_type: str = "stock",
     ) -> ResolvedFeaturePlan:
         overrides = overrides or {}
+        from app.strategy import overlay
+
+        conditions = overlay.effective_conditions(overrides)
         basic_filter = _basic_filter_for_asset(basic_filter, asset_type)
         if strategy.execution_backend == "matrix_native":
             return self._resolve_matrix_native(
@@ -164,6 +167,7 @@ class StrategyDependencyResolver:
             )
 
         required_features = set(strategy.required_features)
+        required_features.update(overlay.dependencies(conditions))
         required_signals = {
             _normalize_signal_name(signal)
             for signal in [*entry_signals, *exit_signals]
@@ -225,7 +229,10 @@ class StrategyDependencyResolver:
         plan = FeaturePlan(
             required_features=frozenset(required_features),
             required_signals=frozenset(required_signals),
-            warmup_bars=max(60, int(strategy.lookback_days or 1), scoring_warmup_bars(scoring)),
+            warmup_bars=max(
+                60, int(strategy.lookback_days or 1), scoring_warmup_bars(scoring),
+                overlay.warmup_bars(conditions),
+            ),
         )
         return ResolvedFeaturePlan(
             base_columns=base_columns,
@@ -257,6 +264,13 @@ class StrategyDependencyResolver:
             )
 
         required_features = set(strategy.required_features)
+        from app.strategy import overlay
+        from app.strategy.custom_signals import _string_ext_fields
+
+        conditions = overlay.effective_conditions(overrides)
+        if overlay.fields(conditions) & _string_ext_fields():
+            raise ValueError("矩阵策略的入场叠加条件暂不支持字符串字段")
+        required_features.update(overlay.dependencies(conditions))
         required_features.update(strategy.matrix_strategy.required_fields())
         parameter_fields = getattr(
             strategy.matrix_strategy,
@@ -286,6 +300,7 @@ class StrategyDependencyResolver:
             int(strategy.matrix_strategy.required_warmup_bars(params)),
             scoring_warmup_bars(scoring),
             scoring_warmup_bars(parameter_scoring),
+            overlay.warmup_bars(conditions),
         )
         matrix_columns = set(base_columns) | set(instrument_columns) | {
             "signal_limit_up",
@@ -689,7 +704,7 @@ class BacktestResultPolicy:
     @classmethod
     def optimizer_trial(cls, objective: str) -> BacktestResultPolicy:
         return cls(
-            required_stats=frozenset({str(objective)}),
+            required_stats=frozenset({str(objective), "return_moments"}),
             include_monte_carlo=str(objective).startswith("mc_maxdd_"),
             include_curves=False,
             include_trades=False,
@@ -841,6 +856,7 @@ class StrategyBacktestService:
         子策略必须全为 matrix_native, 否则 fail-closed(首版硬约束)。
         """
         from app.strategy import composite as composite_mod
+        from app.strategy import overlay
         from app.strategy.engine import _parse_composite_children
 
         assert strategy.composite is not None
@@ -895,9 +911,17 @@ class StrategyBacktestService:
                 order_by=child_def.meta.get("order_by"),
                 descending=bool(child_def.meta.get("descending", True)),
                 protect_strategy_cache=False,
+                overlay_filter=overlay.effective_conditions(child_override),
             )
             resolved_children.append((child_def, child_params, child_pipeline_cfg))
 
+        conditions = overlay.effective_conditions(overrides)
+        if conditions:
+            plans.append(resolver.resolve(
+                child_def, params=child_params, basic_filter=basic_filter,
+                entry_signals=[], exit_signals=[], overrides={"overlay_filter": conditions},
+                asset_type=asset_type,
+            ))
         merged_plan = _merge_resolved_feature_plans(plans)
         # composite 模块用于合并时读取权重列表(顺序对齐 resolved_children)。
         self._composite_children_weights = [(c.strategy_id, c.weight) for c in children]
@@ -1490,6 +1514,21 @@ class StrategyBacktestService:
                     composite_max_hold,
                     timing_ms,
                 )
+                from app.backtest.matrix import build_overlay_mask, make_signal_matrix
+                from app.strategy import overlay
+
+                conditions = overlay.effective_conditions(overrides)
+                if conditions:
+                    allowed = build_overlay_mask(market_data, conditions)
+                    filtered_entry = (signal_matrix.entry.astype(bool) & allowed).astype(np.uint8)
+                    signal_matrix = make_signal_matrix(
+                        market_data.shape, entry=filtered_entry, exit=signal_matrix.exit,
+                        score=signal_matrix.score,
+                        entry_signal_code=np.where(filtered_entry, signal_matrix.entry_signal_code, -1),
+                        exit_signal_code=signal_matrix.exit_signal_code,
+                        entry_signal_ids=signal_matrix.entry_signal_ids,
+                        exit_signal_ids=signal_matrix.exit_signal_ids,
+                    )
             except ValueError as e:
                 return _err(str(e))
 
@@ -1591,6 +1630,7 @@ class StrategyBacktestService:
                     order_by=s.meta.get("order_by"),
                     descending=bool(s.meta.get("descending", True)),
                     protect_strategy_cache=prepared is not None,
+                    overlay_filter=overrides.get("overlay_filter") or [],
                 )
                 if prepared is None:
                     signal_matrix = MatrixStrategyPipeline().run(
@@ -1660,7 +1700,13 @@ class StrategyBacktestService:
 
             candidate_filter_mask = self._build_candidate_filter_mask(panel, s, params)
             raw_exit_mask = self._build_signal_mask(panel, exit_signals, "_exit")
-            candidate_mask = basic_mask & candidate_filter_mask & ~raw_exit_mask
+            from app.strategy import overlay
+
+            try:
+                overlay_mask = overlay.frame_mask(panel, overlay.effective_conditions(overrides))
+            except (ValueError, pl.exceptions.PolarsError) as e:
+                return _err(f"入场叠加条件计算失败: {e}")
+            candidate_mask = basic_mask & candidate_filter_mask & overlay_mask & ~raw_exit_mask
             panel = self._apply_score(panel, s, overrides, universe_mask=candidate_mask, factor_snapshot=factor_snapshot)
             formal_candidate_mask = candidate_mask & formal_range
             entry_mask = self._build_entry_mask_from_candidate(panel, candidate_mask, s, entry_signals)
@@ -1891,6 +1937,8 @@ class StrategyBacktestService:
 
         if config.asset_type != "stock":
             return _err("分钟策略回测当前仅支持 A 股 (stock)")
+        if overrides.get("overlay_filter"):
+            return _err("日线入场叠加条件暂不支持分钟策略, 请使用分钟策略自身的条件")
         if config.exit_fill == "signal_next_minute":
             return _err("分钟策略回测暂不支持「信号触发卖出」离场口径")
 

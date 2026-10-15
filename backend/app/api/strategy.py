@@ -205,6 +205,7 @@ def _strategy_detail(
     scoring = effective_scoring(s.meta.get("scoring"), overrides)
     scoring_directions = effective_scoring_directions(overrides)
     params_defaults = {p["id"]: p["default"] for p in s.meta.get("params", [])}
+    from app.strategy.overlay import effective_conditions
 
     if overrides:
         if overrides.get("basic_filter"):
@@ -232,6 +233,7 @@ def _strategy_detail(
         "params": s.meta.get("params", []),
         "params_defaults": params_defaults,
         "scoring": scoring,
+        "overlay_filter": effective_conditions(overrides),
         "scoring_directions": {
             name: direction
             for name, direction in scoring_directions.items()
@@ -488,9 +490,10 @@ def run_all(req: RunAllRequest, request: Request):
 @router.post("/config")
 def save_config(req: SaveConfigRequest, request: Request):
     engine = _get_engine(request)
-    _get_public_strategy(engine, req.strategy_id)
+    strategy = _get_public_strategy(engine, req.strategy_id)
 
     _validate_scoring_config(req.overrides)
+    _validate_overlay_config(req.overrides, strategy)
     # 剥离与策略默认值相同的字段，只保存用户真正修改过的值
     overrides = _strip_defaults(req.strategy_id, req.overrides, engine)
 
@@ -501,17 +504,34 @@ def save_config(req: SaveConfigRequest, request: Request):
 @router.patch("/config")
 def patch_config(req: SaveConfigRequest, request: Request):
     engine = _get_engine(request)
-    _get_public_strategy(engine, req.strategy_id)
+    strategy = _get_public_strategy(engine, req.strategy_id)
     data_dir = _data_dir(request)
     overrides = strategy_config.load_override(data_dir, req.strategy_id)
     overrides.update(req.overrides)
     _validate_scoring_config(overrides)
+    _validate_overlay_config(overrides, strategy)
     strategy_config.save_override(
         data_dir,
         req.strategy_id,
         _strip_defaults(req.strategy_id, overrides, engine),
     )
     return {"ok": True}
+
+
+def _validate_overlay_config(overrides: dict, strategy: StrategyDef) -> None:
+    from app.strategy.custom_signals import _string_ext_fields
+    from app.strategy.overlay import effective_conditions, fields
+
+    try:
+        conditions = effective_conditions(overrides)
+        if conditions and strategy.execution_backend == "minute_filter":
+            raise ValueError("日线入场叠加条件暂不支持分钟策略, 请使用分钟策略自身的条件")
+        if strategy.execution_backend in ("matrix_native", "composite") and fields(conditions) & _string_ext_fields():
+            raise ValueError("矩阵策略的入场叠加条件暂不支持字符串字段")
+        if "overlay_filter" in overrides:
+            overrides["overlay_filter"] = conditions
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 def _validate_scoring_config(overrides: dict) -> None:

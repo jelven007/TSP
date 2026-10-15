@@ -359,3 +359,81 @@ def test_invalid_objective_rejected():
         return _FakeResult(stats={"sortino": 1.0})
     with pytest.raises(ValueError, match="不支持的优化目标"):
         _optimizer(score).optimize(_cfg(objective="not_a_metric"))
+
+
+def test_trial_records_freeze_overlay_and_fixed_params_between_runs():
+    from copy import deepcopy
+
+    cfg = _cfg(
+        base_params={"fixed": {"value": 7}},
+        overrides={"overlay_filter": [{"left": "close", "op": ">", "right": "10"}]},
+    )
+    original = deepcopy(cfg.overrides)
+
+    class MutatingService(_FakeService):
+        def run(self, config, **kwargs):
+            assert config.overrides == original
+            assert config.params["fixed"] == {"value": 7}
+            config.overrides["overlay_filter"][0]["right"] = "999"
+            config.params["fixed"]["value"] = 999
+            return _FakeResult(stats={"sortino": config.params["ma_proximity"]})
+
+    out = StrategyOptimizer(MutatingService(None), _FakeEngine(PARAMS_META)).optimize(cfg)
+    assert cfg.overrides == original
+    assert cfg.base_params["fixed"] == {"value": 7}
+    assert out["research"]["config"]["overrides"] == original
+    assert out["research"]["n_succeeded"] == 3
+    assert len({row["trial_id"] for row in out["results"]}) == 3
+    assert all(row["full_params"]["fixed"] == {"value": 7} for row in out["results"])
+
+
+def test_selection_correction_uses_actual_daily_returns_and_completed_trials():
+    import numpy as np
+
+    from app.backtest.engine import BacktestEngine
+    from app.backtest.stats_v2 import deflated_sharpe_psr, expected_max_sharpe
+
+    samples = {
+        0.01: [-.03, .01, .02, -.01, .04, .005],
+        0.02: [-.02, .03, .01, -.005, .04, .015],
+        0.03: [-.01, .04, .02, -.003, .06, .01],
+    }
+
+    def score(p):
+        equity = [100.0]
+        for r in samples[p["ma_proximity"]]:
+            equity.append(equity[-1] * (1 + r))
+        return _FakeResult(stats=BacktestEngine._calc_portfolio_stats_from_values(equity, [], [], 100))
+
+    out = _optimizer(score).optimize(_cfg(objective="sharpe", backtest_kwargs={"mode": "position"}))
+    correction = out["research"]["selection_correction"]
+    moments = [row["stats"]["return_moments"] for row in out["results"]]
+    threshold = expected_max_sharpe(3, float(np.var([m["sharpe"] for m in moments], ddof=1)))
+    winner = moments[0]
+    expected = deflated_sharpe_psr(
+        winner["sharpe"], winner["n_obs"], winner["skewness"], winner["kurtosis"], threshold,
+    )
+    assert correction["status"] == "available"
+    assert correction["n_trials"] == 3  # best 的完整重跑不能再算一次试验
+    assert correction["scope"] == "current_grid"
+    assert correction["probability"] == pytest.approx(expected)
+    assert correction["expected_max_sharpe"] == pytest.approx(threshold)
+
+
+def test_failed_or_cancelled_search_never_reports_a_complete_selection_correction():
+    event = threading.Event()
+
+    def score(p):
+        event.set()
+        return _FakeResult(stats={"sharpe": 1.0})
+
+    out = _optimizer(score).optimize(_cfg(objective="sharpe"), cancel_event=event)
+    assert out["research"]["status"] == "cancelled"
+    assert out["research"]["n_attempted"] == 1
+    assert out["research"]["selection_correction"]["status"] == "incomplete_search"
+
+
+def test_nonfinite_objective_is_recorded_and_cannot_be_selected():
+    out = _optimizer(lambda p: _FakeResult(stats={"sharpe": float("nan")})).optimize(_cfg(objective="sharpe"))
+    assert out["best_params"] is None
+    assert all(row["status"] == "invalid" and row["objective_raw"] is None for row in out["results"])

@@ -287,7 +287,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
 
 // ── 字段选择器: 搜索 + 分组居中对话框 ───────────────────
 
-function FieldPicker({ value, fields, groups, onChange }: {
+export function FieldPicker({ value, fields, groups, onChange }: {
   value: string
   fields: { key: string; label: string }[]
   groups?: CustomSignalFieldGroup[]
@@ -406,7 +406,7 @@ function FieldPicker({ value, fields, groups, onChange }: {
 
 // ── 日期偏移控件: "最新" / "前N日" ───────────────────────
 
-function DaysInput({ value, max, onChange }: { value: number; max: number; onChange: (v: number) => void }) {
+export function DaysInput({ value, max, onChange }: { value: number; max: number; onChange: (v: number) => void }) {
   if (!value) {
     return (
       <button
@@ -450,7 +450,7 @@ function DaysInput({ value, max, onChange }: { value: number; max: number; onCha
 
 // ── 右操作数: 字段(弹出) / 常量 切换 ─────────────────────
 
-function RightValueInput({ cond, fields, groups, maxDays, onChangeRight, onChangeDays }: {
+export function RightValueInput({ cond, fields, groups, maxDays, onChangeRight, onChangeDays }: {
   cond: CustomSignalCondition
   fields: { key: string; label: string }[]
   groups?: CustomSignalFieldGroup[]

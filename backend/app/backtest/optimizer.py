@@ -12,6 +12,7 @@ import itertools
 import logging
 import threading
 import time
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import date
 from typing import Protocol
@@ -220,7 +221,10 @@ class StrategyOptimizer:
         prepared_market_data=None,
     ) -> dict:
         from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
+        from app.backtest.trials import config_snapshot, family_record, selection_correction
+        from app.strategy.engine import StrategyEngine
 
+        cfg = deepcopy(cfg)
         t0 = time.perf_counter()
         if cfg.objective not in VALID_OBJECTIVES:
             raise ValueError(f"不支持的优化目标 '{cfg.objective}', 可选: {sorted(VALID_OBJECTIVES)}")
@@ -230,20 +234,22 @@ class StrategyOptimizer:
             raise ValueError("matrix_cache_max_mb 必须为正整数")
 
         s = self.strategy_engine.get(cfg.strategy_id)  # 可能抛 ValueError
+        cfg.base_params = deepcopy(StrategyEngine.resolve_params(s, cfg.base_params, cfg.overrides))
         params_meta = s.meta.get("params", [])
         combos = expand_param_grid(params_meta, cfg.param_grid)
         n_total = len(combos)
+        research = family_record(cfg, "optimization")
 
         results: list[dict] = []
         backtest_configs = [
             StrategyBacktestConfig(
                 strategy_id=cfg.strategy_id,
-                symbols=cfg.symbols,
+                symbols=deepcopy(cfg.symbols),
                 start=cfg.start,
                 end=cfg.end,
-                params={**cfg.base_params, **combo},
-                overrides=cfg.overrides,
-                **cfg.backtest_kwargs,
+                params=deepcopy({**cfg.base_params, **combo}),
+                overrides=deepcopy(cfg.overrides),
+                **deepcopy(cfg.backtest_kwargs),
             )
             for combo in combos
         ]
@@ -257,6 +263,7 @@ class StrategyOptimizer:
         cache_summary = None
         output: dict = {}
         trial_policy = BacktestResultPolicy.optimizer_trial(cfg.objective)
+        research["backtest_config"] = config_snapshot(backtest_configs[0])
 
         def _run_one(combo: dict, bt_cfg: StrategyBacktestConfig) -> dict | None:
             if cancel_event is not None and cancel_event.is_set():
@@ -292,6 +299,12 @@ class StrategyOptimizer:
             objective_started = time.perf_counter()
             sort_value = objective_value(res.stats, cfg.objective, direction)
             objective_ms = round((time.perf_counter() - objective_started) * 1000, 3)
+            if sort_value == float("-inf"):
+                return {
+                    "params": combo, "status": "invalid",
+                    "error": f"优化目标 '{cfg.objective}' 没有有限数值",
+                    "objective_raw": None, "_sort": sort_value,
+                }
             return {
                 "params": combo,
                 "objective_raw": res.stats.get(cfg.objective),
@@ -342,6 +355,15 @@ class StrategyOptimizer:
             ):
                 r = _run_one(combo, bt_cfg)
                 if r is not None:
+                    r.update({
+                        "trial_id": f"{research['family_id']}:{done}",
+                        "sequence": done,
+                        "full_params": deepcopy({**cfg.base_params, **combo}),
+                        "status": r.get("status") or (
+                            "cancelled" if r.get("error") == "cancelled" else
+                            "failed" if r.get("error") else "succeeded"
+                        ),
+                    })
                     results.append(r)
                 if progress_cb is not None:
                     br = _best_raw()
@@ -375,13 +397,14 @@ class StrategyOptimizer:
                     })
                 best_config = StrategyBacktestConfig(
                     strategy_id=cfg.strategy_id,
-                    symbols=cfg.symbols,
+                    symbols=deepcopy(cfg.symbols),
                     start=cfg.start,
                     end=cfg.end,
-                    params={**cfg.base_params, **best["params"]},
-                    overrides=cfg.overrides,
-                    **cfg.backtest_kwargs,
+                    params=deepcopy({**cfg.base_params, **best["params"]}),
+                    overrides=deepcopy(cfg.overrides),
+                    **deepcopy(cfg.backtest_kwargs),
                 )
+                research["selected_config"] = config_snapshot(best_config)
                 final_started = time.perf_counter()
                 if rss_sampler is not None:
                     rss_sampler.reset_phase()
@@ -426,6 +449,17 @@ class StrategyOptimizer:
                     "best_backtest_peak_rss_bytes": final_backtest_peak_rss_bytes,
                     "parallel_evaluated": False,
                 },
+            }
+            cancelled = cancel_event is not None and cancel_event.is_set()
+            output["research"] = {
+                **research, "status": "cancelled" if cancelled else "completed",
+                "n_planned": n_total, "n_attempted": len(results),
+                "n_succeeded": sum(r["status"] == "succeeded" for r in ranked),
+                "n_failed": sum(r["status"] in {"failed", "invalid"} for r in ranked),
+                "n_cancelled": sum(r["status"] == "cancelled" for r in ranked),
+                "selection_correction": selection_correction(
+                    ranked, objective=cfg.objective, complete=not cancelled and len(results) == n_total,
+                ),
             }
         finally:
             if prepared is not None:

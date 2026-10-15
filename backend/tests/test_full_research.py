@@ -118,6 +118,40 @@ def test_private_source_or_date_change_never_reuses_completed_result(env):
         worker.close()
 
 
+def test_research_config_and_trial_family_survive_restart_without_cross_tenant_reuse(env):
+    from copy import deepcopy
+
+    _, _, jobs = tenant(env)
+    _, _, other = tenant(env)
+    config = {"strategy_id": "s", "param_grid": {"p": [1, 2]},
+              "overrides": {"overlay_filter": [{"left": "close", "op": ">", "right": "10"}]}}
+    task = payload(jobs, kind="optimize", config=config, public_release_id="frozen-market-v1")
+    original = deepcopy(task)
+    row = jobs.submit(task, key="frozen-family")
+    config["overrides"]["overlay_filter"][0]["right"] = "99"
+    assert jobs.get(row["id"])["input"] == original
+    assert row["metadata"]["research"]["input_snapshot"] == row["metadata"]["snapshot"]
+    assert row["metadata"]["research"]["public_release_id"] == "frozen-market-v1"
+    assert jobs.submit(original, key="frozen-family")["id"] == row["id"]
+    changed = jobs.submit(task, key="frozen-family")
+    assert changed["id"] != row["id"]
+    jobs.cancel(changed["id"])
+    compute = Compute({"research": {"family_id": "actual-grid"},
+                       "results": [{"trial_id": "actual-grid:1", "status": "succeeded",
+                                    "full_params": {"p": 1}, "objective_raw": .5}]})
+    worker = ResearchWorker(env["db"], compute)
+    try:
+        worker.run(jobs.context, worker.claim(jobs.context))
+    finally:
+        worker.close()
+    restored = ResearchJobs(TenantDocuments(env["db"], jobs.context)).get(row["id"])
+    assert compute.calls[0]["config"] == original["config"]
+    assert restored["result"]["research"]["provenance"] == row["metadata"]["research"]
+    assert restored["result"]["results"][0]["full_params"] == {"p": 1}
+    assert other.get(row["id"]) is None
+    assert other.submit({**original, "tenant_id": other.context.tenant_id}, key="frozen-family")["id"] != row["id"]
+
+
 def test_result_and_progress_recover_in_new_store_and_expired_attempt_cannot_commit(env):
     _, _, jobs = tenant(env)
     first = jobs.submit(payload(jobs))

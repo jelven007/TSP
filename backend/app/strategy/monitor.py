@@ -28,6 +28,7 @@ from app.strategy.custom_signals import _OP_BUILDERS  # type: ignore  # 复用�
 from app.strategy.custom_signals import signal_names as _custom_signal_names
 from app.strategy.intraday_signals import INTRADAY_SIGNAL_LABELS, uses_intraday_signals
 from app.strategy.monitor_rules import date_rule_in_window
+from app.strategy.overlay import effective_conditions
 from app.strategy.risk_policy import strategy_policy
 
 logger = logging.getLogger(__name__)
@@ -1310,35 +1311,39 @@ class MonitorRuleEngine:
             s.filter_history_fn or required_history_bars > 1
         ):
             history_loader = self._history_loader_for(rule)
-            if history_loader is None:
+            if history_loader is None and s.filter_history_fn:
                 logger.debug("策略 %s 需要历史数据但未注入 history_loader (asset_type=%s), 跳过实时监控",
                              sid, rule.get("asset_type", "stock"))
                 return []
             try:
                 today = cn_today()
                 lookback = max(1, getattr(s, "lookback_days", 1), required_history_bars)
-                hist_df = history_loader(today, lookback)
+                hist_df = history_loader(today, lookback) if history_loader is not None else None
                 if hist_df is None or hist_df.is_empty():
                     logger.debug("策略 %s 历史数据为空, 跳过本轮实时监控", sid)
-                    return []
+                    if s.filter_history_fn:
+                        return []
                 # 历史窗口可能与今日已落盘数据重叠: 排掉 hist_df 中 date==today 的行,
                 # 今日行情始终以实时 df 为准 (盘中逐轮更新, 最接近收盘真相)。
                 # 否则 today 行重复会污染 filter_history 的 .over("symbol") 窗口判定。
-                if "date" in hist_df.columns:
-                    hist_df = hist_df.filter(pl.col("date") != today)
-                # 拼接历史窗口 + 今日实时行情 (filter_history 用 .over("symbol") 窗口, 多日天然可用)
-                current_context = StrategyDataContext(
-                    asset_type=at,
-                    timeframe="1d",
-                    as_of=today,
-                    current=df,
-                    history=pl.concat(
-                        [hist_df, df], how="diagonal_relaxed"
-                    ),
-                )
+                if hist_df is not None and not hist_df.is_empty():
+                    if "date" in hist_df.columns:
+                        hist_df = hist_df.filter(pl.col("date") != today)
+                    if not hist_df.is_empty():
+                        # Offset conditions use history and the latest live row.
+                        current_context = StrategyDataContext(
+                            asset_type=at,
+                            timeframe="1d",
+                            as_of=today,
+                            current=df,
+                            history=pl.concat(
+                                [hist_df, df], how="diagonal_relaxed"
+                            ),
+                        )
             except Exception as e:
                 logger.warning("策略 %s 加载历史窗口失败, 跳过: %s", sid, e)
-                return []
+                if s.filter_history_fn:
+                    return []
         try:
             result = self._strategy_engine.run(
                 sid,
@@ -1353,6 +1358,9 @@ class MonitorRuleEngine:
             logger.warning("策略 %s 选股执行失败: %s", sid, e)
             return []
 
+        entry_filter_error = getattr(result, "entry_filter_error", None)
+        if entry_filter_error:
+            logger.warning("策略 %s 入场已关闭, 仍处理退出信号: %s", sid, entry_filter_error)
         # 记录本轮完整选股结果 (供策略页实时回显: /cached 端点直接读取, 不落盘)。
         # 与下面的事件无关, 无论是否产生通知结果都用于策略页实时回显。
         # 策略结果缓存仅用于股票策略页 /cached 回显; ETF 策略页走实时单跑, 不写入。
@@ -1369,6 +1377,8 @@ class MonitorRuleEngine:
                         for row in result.rows
                     ],
                 }
+                if entry_filter_error:
+                    self._building_strategy_results[sid]["warnings"] = [entry_filter_error]
                 self._latest_strategy_result_ids.add(sid)
             except Exception:  # noqa: BLE001
                 pass
@@ -1395,7 +1405,11 @@ class MonitorRuleEngine:
 
         current_pool = eligible_symbols
         prev_pool = self._strategy_pools.get(pool_key)
-        self._strategy_pools[pool_key] = current_pool
+        if entry_filter_error:
+            # A failed filter is not evidence that previous candidates exited.
+            current_pool = prev_pool or set()
+        else:
+            self._strategy_pools[pool_key] = current_pool
 
         notify_events = set(rule.get("notify_events") or ("pool_entry", "pool_exit"))
         sname = s.meta.get("name", "") or s.meta.get("id", sid)
@@ -1445,6 +1459,7 @@ class MonitorRuleEngine:
             entry_policy = {
                 "version": 1, "strategy_id": sid,
                 "policy": strategy_policy(s, overrides).to_dict(),
+                "overlay_filter": effective_conditions(overrides),
                 "params": {
                     **{item["id"]: item.get("default") for item in s.meta.get("params", [])
                        if isinstance(item, dict) and item.get("id")},

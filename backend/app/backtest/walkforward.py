@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from bisect import bisect_left
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -175,12 +176,12 @@ class WalkForwardService:
         configs = [
             StrategyBacktestConfig(
                 strategy_id=cfg.strategy_id,
-                symbols=cfg.symbols,
+                symbols=deepcopy(cfg.symbols),
                 start=shared_start,
                 end=shared_end,
-                params={**cfg.base_params, **combo},
-                overrides=cfg.overrides,
-                **cfg.backtest_kwargs,
+                params=deepcopy({**cfg.base_params, **combo}),
+                overrides=deepcopy(cfg.overrides),
+                **deepcopy(cfg.backtest_kwargs),
             )
             for combo in combos
         ]
@@ -197,8 +198,11 @@ class WalkForwardService:
     ) -> dict:
         from app.backtest.optimizer import OptimizeConfig, default_direction
         from app.backtest.strategy import StrategyBacktestConfig
+        from app.backtest.trials import config_snapshot, family_record
 
+        cfg = deepcopy(cfg)
         t0 = time.perf_counter()
+        research = family_record(cfg, "walkforward")
         direction = cfg.direction or default_direction(cfg.objective)
         folds = generate_folds(cfg.start, cfg.end, cfg.train_days, cfg.test_days, cfg.step_days)
         n_total = len(folds)
@@ -256,16 +260,17 @@ class WalkForwardService:
             # 训练区间: 网格优化选最优参数
             opt_cfg = OptimizeConfig(
                 strategy_id=cfg.strategy_id,
-                symbols=cfg.symbols,
+                symbols=deepcopy(cfg.symbols),
                 start=f.train_start,
                 end=f.train_end,
-                param_grid=cfg.param_grid,
+                param_grid=deepcopy(cfg.param_grid),
                 objective=cfg.objective,
                 direction=cfg.direction,
                 max_workers=cfg.max_workers,
-                base_params=cfg.base_params,
-                overrides=cfg.overrides,
-                backtest_kwargs=is_backtest_kwargs,  # IS 强制 position, 堵前视泄漏
+                base_params=deepcopy(cfg.base_params),
+                overrides=deepcopy(cfg.overrides),
+                backtest_kwargs=deepcopy(is_backtest_kwargs),  # IS 强制 position, 堵前视泄漏
+                matrix_cache_max_mb=cfg.matrix_cache_max_mb,
             )
             if shared_market_data is None:
                 opt_res = self.optimizer.optimize(opt_cfg, cancel_event=cancel_event)
@@ -277,6 +282,10 @@ class WalkForwardService:
                 )
             best_params = opt_res.get("best_params")
             is_score = opt_res.get("best_score")
+            base["training"] = deepcopy({
+                key: opt_res.get(key)
+                for key in ("research", "results", "n_combinations", "n_completed", "best_params", "best_score")
+            })
             done += 1
 
             # 训练区间没优化出参数 (全组失败/取消) -> 跳过, 不用默认参数硬跑 OOS 伪装成有效折
@@ -290,14 +299,16 @@ class WalkForwardService:
             merged = {**cfg.base_params, **best_params}
             oos_cfg = StrategyBacktestConfig(
                 strategy_id=cfg.strategy_id,
-                symbols=cfg.symbols,
+                symbols=deepcopy(cfg.symbols),
                 start=f.test_start,
                 end=f.test_end,
-                params=merged,
-                overrides=cfg.overrides,
-                **cfg.backtest_kwargs,
+                params=deepcopy(merged),
+                overrides=deepcopy(cfg.overrides),
+                **deepcopy(cfg.backtest_kwargs),
             )
+            base["validation"] = {"config": config_snapshot(oos_cfg), "basis": "held_out_window"}
             oos_prepared = None
+            oos_error = None
             try:
                 if shared_market_data is not None:
                     oos_prepared = self.service.prepare_matrix_optimization(
@@ -316,17 +327,23 @@ class WalkForwardService:
                         cancel_event=cancel_event,
                         prepared=oos_prepared,
                     )
+                oos_error = oos_res.error
+            except Exception as error:
+                oos_error = repr(error)
             finally:
                 if oos_prepared is not None:
                     oos_prepared.compute_cache.close()
 
             # OOS 失败 (含 cancelled) -> 跳过, 不把空/0 收益混入复利曲线
-            if oos_res.error:
-                skipped.append({**base, "best_params": best_params, "reason": f"OOS 回测失败: {oos_res.error}"})
+            if oos_error:
+                base["validation"]["status"] = "cancelled" if oos_error == "cancelled" else "failed"
+                base["validation"]["error"] = oos_error
+                skipped.append({**base, "best_params": best_params, "reason": f"OOS 回测失败: {oos_error}"})
                 if progress_cb is not None:
                     progress_cb({"type": "walkforward_progress", "done": done, "total": n_total, "fold": f.index})
                 continue
 
+            base["validation"]["status"] = "succeeded"
             oos_objective = oos_res.stats.get(cfg.objective)
             # 该折 OOS 是否较 IS 退化 (方向感知: min 类目标数值更大才是退化)
             oos_degraded = (
@@ -383,6 +400,14 @@ class WalkForwardService:
             "folds": valid_records,
             "skipped": skipped,
             "summary": summary,
+            "research": {
+                **research,
+                "status": "cancelled" if cancel_event is not None and cancel_event.is_set() else "completed",
+                "n_attempted": sum((f.get("training") or {}).get("n_completed") or 0
+                                   for f in [*valid_records, *skipped]),
+                "validation_basis": "rolling_held_out_windows",
+                "selection_correction_scope": "per_training_grid",
+            },
             "cache_telemetry": cache_telemetry,
             "shared_market_data": shared_prepared is not None,
             "shared_market_data_bytes": shared_matrix_bytes,

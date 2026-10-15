@@ -187,8 +187,9 @@ class _MonitorWithUpdate:
     def has_asset_rules(self, asset_type: str) -> bool:
         return False
 
-    def evaluate(self, df, asset_type: str):
+    def evaluate(self, df, asset_type: str, execution_events=None):
         assert asset_type == "stock"
+        assert isinstance(execution_events, list)
         return []
 
     def consume_strategy_result_updates(self) -> bool:

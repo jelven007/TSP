@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { accountFetch as fetch, accountStorage as localStorage, accountStreamUrl } from './accountSession'
+import type { ResearchRecord } from './researchRecord'
 
 /**
  * 参数优化任务管理 (SSE 模式 + 重连)。镜像 backtestTask, 结果为排名 dict。
@@ -20,9 +21,14 @@ export interface OptimizeResultRow {
   stats?: Record<string, any>
   rank: number
   error?: string
+  trial_id?: string
+  sequence?: number
+  full_params?: Record<string, unknown>
+  status?: string
 }
 
 export interface OptimizeResult {
+  research?: ResearchRecord
   objective: string
   direction: string
   n_combinations: number

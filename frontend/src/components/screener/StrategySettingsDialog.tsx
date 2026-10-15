@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Settings2, RotateCcw, Save, ChevronDown, Filter, Star, TrendingUp, Sparkles, Download, Layers, Plus, Trash2 } from 'lucide-react'
-import { api, type StrategyDetail, type StrategyParamDef, type CompositeChildInfo, type ScoringDirection } from '@/lib/api'
+import { api, type StrategyDetail, type StrategyParamDef, type CompositeChildInfo, type ScoringDirection, type CustomSignalCondition } from '@/lib/api'
 import { toPercentages, normalizeWeights } from '@/lib/weights'
 import { BUILTIN_COLUMNS } from '@/lib/watchlist-columns'
 import { color } from '@/lib/colors'
@@ -9,6 +9,7 @@ import { SignalPicker } from './SignalPicker'
 import { SignalTriggerActions } from '@/components/signals/SignalTriggerActions'
 import { Modal } from '@/components/Modal'
 import { ScoringEditor } from '@/components/ScoringEditor'
+import { OverlayFilterEditor } from './OverlayFilterEditor'
 
 // 内置列名 → 中文标签
 const FIELD_LABEL: Record<string, string> = {}
@@ -202,6 +203,8 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const [params, setParams] = useState<Record<string, any>>({})
   const [scoring, setScoring] = useState<Record<string, number>>({})
   const [scoringDirections, setScoringDirections] = useState<Record<string, ScoringDirection>>({})
+  const [overlayFilter, setOverlayFilter] = useState<CustomSignalCondition[]>([])
+  const [saveError, setSaveError] = useState('')
   const [stopLoss, setStopLoss] = useState<number | null>(null)
   const [maxHoldDays, setMaxHoldDays] = useState<number | null>(null)
   const [entrySignals, setEntrySignals] = useState<string[]>([])
@@ -229,6 +232,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
     if (!strategyId) return
     setEditingChildId(null)
     setLoading(true)
+    setSaveError('')
     api.strategyGet(strategyId)
       .then(d => {
         setDetail(d)
@@ -241,6 +245,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
         setParams(d.params_defaults)
         setScoring(d.scoring)
         setScoringDirections(d.scoring_directions ?? {})
+        setOverlayFilter((d.overlay_filter ?? []).map(c => ({ ...c })))
         setStopLoss(d.stop_loss)
         setMaxHoldDays(d.max_hold_days)
         setEntrySignals(d.entry_signals ?? [])
@@ -279,12 +284,14 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const handleSave = async () => {
     if (!strategyId) return
     setSaving(true)
+    setSaveError('')
     try {
       await api.strategySaveConfig(strategyId, {
         name: strategyName,
         description: strategyDesc,
         basic_filter: { ...basicFilter, enabled: basicFilterEnabled },
         params,
+        overlay_filter: overlayFilter,
         ...(detail?.source !== 'composite' ? {
           scoring,
           scoring_directions: scoringDirections,
@@ -306,6 +313,8 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
       })
       onSaved?.(displayLimit)
       onClose()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '保存失败，请稍后重试')
     } finally {
       setSaving(false)
     }
@@ -328,6 +337,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
       setParams(d.params_defaults)
       setScoring(d.scoring)
       setScoringDirections(d.scoring_directions ?? {})
+      setOverlayFilter((d.overlay_filter ?? []).map(c => ({ ...c })))
       setStopLoss(d.stop_loss)
       setMaxHoldDays(d.max_hold_days)
       setEntrySignals(d.entry_signals ?? [])
@@ -434,6 +444,12 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                     <span className="text-[10px] text-muted/50">只</span>
                   </div>
                 </div>
+
+                {detail.source === 'composite' && (
+                  <Section icon={Filter} title="入场叠加条件" accent="text-accent">
+                    <OverlayFilterEditor value={overlayFilter} onChange={setOverlayFilter} numericOnly />
+                  </Section>
+                )}
 
                 {/* 叠加策略: 子策略列表 + 权重(替换三列参数, composite 专属) */}
                 {detail.source === 'composite' ? (() => {
@@ -569,6 +585,12 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
 
                   {/* 列2：策略参数 */}
                   <div className="space-y-3">
+                    {detail.execution_backend !== 'minute_filter' && (
+                      <Section icon={Filter} title="入场叠加条件" accent="text-accent">
+                        <OverlayFilterEditor value={overlayFilter} onChange={setOverlayFilter}
+                          numericOnly={['matrix_native', 'composite'].includes(detail.execution_backend)} />
+                      </Section>
+                    )}
                     {detail.params.length > 0 ? (
                       <Section icon={Settings2} title="策略参数" accent="text-muted">
                         <div className="space-y-1.5">
@@ -639,7 +661,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                     </Section>
 
                     <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2 text-[10px] leading-4 text-muted">
-                      出入场触发器保存后对<b className="text-secondary">回测和监控</b>生效;选股扫描仍按策略本身的筛选规则,不受此影响。
+                      入场叠加条件对选股、回测和监控统一生效。出场触发器及风控退出独立执行。
                     </div>
 
                   </div>
@@ -652,6 +674,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
           </div>
 
           {/* 底部按钮 */}
+          {saveError && <p role="alert" className="px-5 py-2 text-xs text-danger">{saveError}</p>}
           <div className="flex items-center justify-between px-5 py-3 border-t border-border/50 bg-surface/50">
             <div className="flex items-center gap-2">
               <button onClick={handleReset} disabled={resetting}

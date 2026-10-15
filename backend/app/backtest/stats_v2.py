@@ -19,6 +19,28 @@ import numpy as np
 EULER_GAMMA = 0.5772156649015329
 
 
+def portfolio_return_moments(returns) -> dict:
+    """Unrounded daily account-return moments; never replace missing samples."""
+    values = np.asarray(returns, dtype=float)
+    result = {"basis": "daily_portfolio", "annualized": False, "n_obs": int(values.size)}
+    if not np.all(np.isfinite(values)):
+        return {**result, "status": "invalid_returns"}
+    if values.size < 5:
+        return {**result, "status": "insufficient_samples"}
+    centered = values - values.mean()
+    variance = float(np.mean(centered ** 2))
+    if variance <= 0:
+        return {**result, "status": "zero_variance"}
+    result.update({
+        "sharpe": float(values.mean() / values.std(ddof=1)),
+        "skewness": float(np.mean(centered ** 3) / variance ** 1.5),
+        "kurtosis": float(np.mean(centered ** 4) / variance ** 2),
+    })
+    if not all(np.isfinite(result[k]) for k in ("sharpe", "skewness", "kurtosis")):
+        return {**result, "status": "invalid_returns"}
+    return {**result, "status": "available"}
+
+
 def _clean_values(values) -> np.ndarray:
     array = np.asarray([value for value in values if value is not None and np.isfinite(value)], dtype=float)
     return array
