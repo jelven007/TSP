@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { accountFetch as fetch, accountStorage as localStorage, accountStreamUrl } from './accountSession'
+import type { ResearchRecord } from './researchRecord'
+import type { OptimizeResultRow } from './optimizerTask'
 
 /** Walk-forward 任务管理 (SSE + job_key 回吐 + 重连)。镜像 optimizerTask。 */
 
@@ -21,6 +23,12 @@ export interface WFFold {
   oos_objective: number | null
   oos_degraded: boolean | null
   oos_stats: Record<string, any>
+  training?: {
+    research?: ResearchRecord
+    results: OptimizeResultRow[]
+    n_completed?: number
+  }
+  validation?: { config: Record<string, unknown>; basis: string; status: string; error?: string }
 }
 
 export interface WFSummary {
@@ -34,13 +42,14 @@ export interface WFSummary {
 }
 
 export interface WalkForwardResult {
+  research?: ResearchRecord
   objective: string
   direction: string
   n_folds: number
   n_skipped: number
   n_planned_folds: number
   folds: WFFold[]
-  skipped: { index: number; test_start: string; test_end: string; reason: string }[]
+  skipped: (Partial<WFFold> & { index: number; test_start: string; test_end: string; reason: string })[]
   summary: WFSummary
   elapsed_ms: number
 }

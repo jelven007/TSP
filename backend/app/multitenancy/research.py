@@ -166,6 +166,11 @@ class ResearchJobs:
                 "routing_epoch": ctx.routing_epoch, "token_id": ctx.token_id,
                 "created_at": now, "started_at": None, "finished_at": None,
             }
+            if kind in {"backtest", "optimize", "walkforward"}:
+                metadata["research"] = {
+                    "schema_version": 1, "job_id": job_id, "input_snapshot": snapshot_digest,
+                    "public_release_id": payload.get("public_release_id"),
+                }
             initial = "skipped_prerequisite" if prerequisite_error else "queued"
             event = {"id": 1, "timestamp": now, "type": initial,
                      "payload": {"status": initial, "source": source, "message": prerequisite_error}}
@@ -436,6 +441,11 @@ class ResearchWorker:
                 raise ValueError("invalid compute terminal state")
             if status in SUCCESS_TASK_STATUSES:
                 result = dict(result)
+                if current["metadata"].get("research"):
+                    result["research"] = {
+                        **result.get("research", {}),
+                        "provenance": current["metadata"]["research"],
+                    }
                 artifacts = result.pop("artifact_data", {})
                 if sum(len(value) for value in artifacts.values()) > 96 * 1024 * 1024:
                     raise ValueError("research artifacts exceed total size limit")

@@ -83,6 +83,11 @@ def load_override(data_dir: Path, strategy_id: str) -> dict:
 def save_override(data_dir: Path, strategy_id: str, overrides: dict) -> None:
     """保存策略的用户覆盖配置（全量覆盖写）"""
     from app.multitenancy.documents import TenantDocuments
+    from app.strategy.overlay import effective_conditions
+
+    overrides = copy.deepcopy(overrides)
+    if "overlay_filter" in overrides:
+        overrides["overlay_filter"] = effective_conditions(overrides)
 
     if isinstance(data_dir, TenantDocuments):
         data_dir.put("strategy_overrides", strategy_id, clean_market_config(overrides))

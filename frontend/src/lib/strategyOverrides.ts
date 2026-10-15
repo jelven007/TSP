@@ -14,6 +14,7 @@ export function buildDefaultOverrides(detail: StrategyDetail): Record<string, an
     scoring: { ...detail.scoring },
     scoring_directions: { ...(detail.scoring_directions ?? {}) },
     scoring_replace: true,
+    overlay_filter: (detail.overlay_filter ?? []).map(c => ({ ...c })),
     stop_loss: detail.stop_loss,
     take_profit: detail.take_profit,
     trailing_stop: detail.trailing_stop,

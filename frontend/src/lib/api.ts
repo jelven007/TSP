@@ -768,6 +768,7 @@ export interface StrategyDetail {
   params_defaults: Record<string, any>
   scoring: Record<string, number>
   scoring_directions: Record<string, ScoringDirection>
+  overlay_filter?: CustomSignalCondition[]
   entry_signals: string[]
   exit_signals: string[]
   minute_exit_trigger_supported_signals: string[]

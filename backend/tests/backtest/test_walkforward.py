@@ -239,6 +239,38 @@ def test_walkforward_reports_degradation():
     assert abs(out["summary"]["degradation"] - 1.0) < 1e-9
 
 
+def test_walkforward_freezes_train_selection_and_retains_trials_on_oos_failure():
+    from copy import deepcopy
+
+    cfg = _wf_cfg(overrides={"overlay_filter": [{"left": "close", "op": ">", "right": "10"}]})
+    original = deepcopy(cfg.overrides)
+
+    class RecordedOptimizer(_FakeOptimizer):
+        def optimize(self, config, **kwargs):
+            assert config.overrides == original
+            config.overrides["overlay_filter"][0]["right"] = "999"
+            return {
+                "best_params": {"p": 2}, "best_score": 2.0,
+                "results": [{"trial_id": "trial-1", "params": {"p": 1}, "objective_raw": 1.0},
+                            {"trial_id": "trial-2", "params": {"p": 2}, "objective_raw": 2.0}],
+                "research": {"family_id": "training-family"}, "n_completed": 2,
+            }
+
+    class FailedOOS(_FakeService):
+        def run(self, config, **kwargs):
+            assert config.overrides == original
+            config.overrides["overlay_filter"][0]["right"] = "888"
+            return _FakeResult(stats={}, error="missing test data")
+
+    out = WalkForwardService(RecordedOptimizer(), FailedOOS(), None).run(cfg)
+    assert cfg.overrides == original
+    assert out["research"]["config"]["overrides"] == original
+    assert out["research"]["n_attempted"] == 2 * out["n_planned_folds"]
+    assert all(len(f["training"]["results"]) == 2 for f in out["skipped"])
+    assert all(f["validation"]["config"]["overrides"] == original for f in out["skipped"])
+    assert all(f["validation"]["config"]["params"] == {"p": 2} for f in out["skipped"])
+
+
 # ---------------------------------------------------------------
 # 非矩阵后端的闸门: filter_history/内置走通用路径, 其余 fail-closed
 # ---------------------------------------------------------------

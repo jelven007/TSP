@@ -3157,6 +3157,8 @@ class BacktestEngine:
     ) -> dict:
         if not equity_values:
             return {"total_return": 0, "n_trades": 0}
+        from app.backtest.stats_v2 import portfolio_return_moments
+
         final_equity = float(equity_values[-1])
         total_return = final_equity / initial_capital - 1 if initial_capital > 0 else 0.0
         values = np.array(equity_values, dtype=float)
@@ -3192,6 +3194,7 @@ class BacktestEngine:
             "initial_capital": round(float(initial_capital), 2),
             "avg_exposure": round(float(np.mean(exposures)), 4) if len(exposures) else 0.0,
             "max_exposure": round(float(np.max(exposures)), 4) if len(exposures) else 0.0,
+            "return_moments": portfolio_return_moments(daily),
         }
         if include_monte_carlo:
             stats.update(BacktestEngine._mc_drawdown_percentiles(pnls))

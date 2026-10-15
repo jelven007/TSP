@@ -13,6 +13,7 @@ import {
   useOptimizerTask,
 } from '@/lib/optimizerTask'
 import { buildDefaultOverrides } from '@/lib/strategyOverrides'
+import { ResearchRecordSummary } from './components/ResearchRecordSummary'
 import {
   INPUT_CLS,
   OBJECTIVES,
@@ -143,6 +144,7 @@ export function StrategyOptimizer() {
 
         {result && (
           <div className="space-y-4">
+            <ResearchRecordSummary research={result.research} result={result} />
             {result.best_params && (
               <div className="rounded-card border border-accent/30 bg-accent/5 p-3">
                 <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-accent">

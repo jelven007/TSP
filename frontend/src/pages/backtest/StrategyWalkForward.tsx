@@ -13,6 +13,7 @@ import {
   useWalkForwardTask,
 } from '@/lib/walkforwardTask'
 import { buildDefaultOverrides } from '@/lib/strategyOverrides'
+import { ResearchRecordSummary } from './components/ResearchRecordSummary'
 import {
   INPUT_CLS,
   OBJECTIVES,
@@ -214,6 +215,8 @@ export function StrategyWalkForward() {
             hint="每折在训练区间网格优化选最优参数，再在紧邻的测试区间做样本外(OOS)验证。样本内漂亮、样本外崩溃即过拟合。"
           />
         )}
+
+        {result && <ResearchRecordSummary research={result.research} result={result} />}
 
         {result && result.n_folds === 0 && (
           <EmptyState title="未产生有效折"

@@ -374,6 +374,8 @@ def run_preset(req: PresetRequest, request: Request):
             params_map={req.strategy_id: params},
             overrides_map={req.strategy_id: overrides or {}},
         )
+        if entry_error := getattr(result, "entry_filter_error", None):
+            warnings.append(entry_error + "; 本轮入场已关闭, 退出信号仍有效")
         if warnings:
             safe_data["warnings"] = warnings
         _update_cache_strategy(data_dir, str(as_of), req.strategy_id, safe_data)
@@ -649,6 +651,8 @@ def _run_all_progressive(
                     svc, as_of, engine=engine, strategy_ids=[sid],
                     params_map=params_map, overrides_map=overrides_map,
                 )
+                if entry_error := getattr(result, "entry_filter_error", None):
+                    w.append(entry_error + "; 本轮入场已关闭, 退出信号仍有效")
                 if w:
                     payload["warnings"] = w
             all_results[sid] = payload
@@ -811,6 +815,8 @@ def run_all(request: Request, body: Optional[dict] = None):
                 svc, as_of, engine=engine, strategy_ids=[sid],
                 params_map=params_map, overrides_map=overrides_map,
             )
+            if entry_error := getattr(result, "entry_filter_error", None):
+                w.append(entry_error + "; 本轮入场已关闭, 退出信号仍有效")
             if w:
                 results[sid]["warnings"] = w
 
