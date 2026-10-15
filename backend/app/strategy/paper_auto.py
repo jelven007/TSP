@@ -1,9 +1,10 @@
 """自动跟单规则域 — 监控事件触发模拟盘自动下单 (V2)。
 
 规则匹配: 事件 source=="strategy" 且 strategy_id 相等 (跟策略), 或 rule_id 相等
-(跟任意监控规则, 含信号/价格规则)。仓位: 固定金额 或 账户权益百分比。
-冷却: 同规则同 symbol 最近一次自动下单后 N 个交易日内不再触发 (按订单
-created_at 日期判断, 无独立状态文件 — 可由订单列表重放推导)。
+(跟任意监控规则, 含信号/价格规则)。策略可自动跟随入场/退出方向, 自动退出全平。
+仓位: 固定金额 或 账户权益百分比; 最大持仓计入当前持仓和待成交买单标的。
+冷却: 同规则同 symbol 最近一次自动下单后 N 个日历日内不再触发 (按订单
+created_at 日期判断); 自动退出不受冷却限制。
 
 规则按账户存放 (accounts/{account_id}/auto_rules/), 账户间隔离;
 on_rule_events 由钩子对每个账户各调一次。
@@ -52,8 +53,10 @@ def validate_rule(rule: dict) -> None:
         raise ValueError(f"match_kind 非法: {rule.get('match_kind')!r} (应为 strategy / rule)")
     if not (rule.get("match_id") or "").strip():
         raise ValueError("match_id 不能为空")
-    if rule.get("side") not in ("buy", "sell"):
+    if rule.get("side") not in ("buy", "sell", "auto"):
         raise ValueError(f"side 非法: {rule.get('side')!r}")
+    if rule.get("side") == "auto" and rule.get("match_kind") != "strategy":
+        raise ValueError("自动方向仅支持跟策略, 监控规则请指定买入或卖出")
     if rule.get("size_mode") not in ("fixed_amount", "pct_equity"):
         raise ValueError(f"size_mode 非法: {rule.get('size_mode')!r}")
     value = rule.get("size_value")
@@ -66,6 +69,9 @@ def validate_rule(rule: dict) -> None:
     cooldown = rule.get("cooldown_days", 0)
     if isinstance(cooldown, bool) or not isinstance(cooldown, int) or cooldown < 0:
         raise ValueError("cooldown_days 必须是非负整数")
+    max_positions = rule.get("max_positions", 0)
+    if isinstance(max_positions, bool) or not isinstance(max_positions, int) or max_positions < 0:
+        raise ValueError("max_positions 必须是非负整数 (0 表示不限)")
 
 
 def normalize_rule(rule: dict) -> dict:
@@ -76,6 +82,7 @@ def normalize_rule(rule: dict) -> dict:
     d.setdefault("size_mode", "fixed_amount")
     d.setdefault("order_type", "next_open")
     d.setdefault("cooldown_days", 5)
+    d.setdefault("max_positions", 0)
     d.setdefault("enabled", True)
     d.setdefault("created_at", _now_iso())
     return d
@@ -189,11 +196,39 @@ def _sizing_qty(data_dir: Path, rule: dict, ref_price: float, account_id: str) -
     return paper.qty_from_amount(amount, ref_price)
 
 
+def _resolve_side(rule: dict, ev: dict) -> str | None:
+    """固定方向保持原行为; 自动方向只接受策略入场/退出事件。"""
+    side = rule.get("side", "buy")
+    if side != "auto":
+        return side
+    if rule["match_kind"] != "strategy" or ev.get("source") != "strategy":
+        return None
+    if ev.get("type") in ("buy_signal", "pool_entry"):
+        return "buy"
+    if ev.get("type") in ("sell_signal", "pool_exit"):
+        return "sell"
+    return None
+
+
+def _position_slots_used(data_dir: Path, account_id: str) -> set[str]:
+    """当前持仓与待成交买单占用的标的; 调用方在账户写事务/锁内检查并下单。"""
+    used = {
+        symbol for symbol, pos in paper.load_positions(data_dir, account_id).items()
+        if pos["qty"] > 0
+    }
+    used.update(
+        order["symbol"] for order in paper.load_orders(data_dir, account_id)
+        if order["status"] == "pending" and order["side"] == "buy"
+    )
+    return used
+
+
 @paper_operation(write=True)
 def on_rule_events(data_dir: Path, events: list[dict], account_id: str = paper.DEFAULT_ACCOUNT_ID) -> list[dict]:
     """监控事件 → 自动下单。返回本次创建的订单列表 (被拒订单只记日志)。
 
-    触发条件: 事件带 symbol 与价格、有规则匹配、未冷却; 下单复用 paper.create_order
+    触发条件: 事件带 symbol 与价格、有规则匹配、方向适用、未冷却、持仓未超限;
+    自动退出忽略冷却、按全部持仓下单。下单复用 paper.create_order
     (冻结/资金/T+1/涨跌停等校验自动生效), ref_price 用事件价格 (当前快照价)。
     """
     created: list[dict] = []
@@ -219,14 +254,33 @@ def on_rule_events(data_dir: Path, events: list[dict], account_id: str = paper.D
                     # order. A worker replay cannot place a duplicate even
                     # with zero cooldown or after a rule has been edited.
                     data_dir.put_document(f"paper_event:{account_id}", receipt, {"processed": True})
-                if _in_cooldown(data_dir, rule, symbol, int(rule.get("cooldown_days", 0)), account_id):
+                side = _resolve_side(rule, ev)
+                if side is None:
                     continue
-                qty = _sizing_qty(data_dir, rule, float(price), account_id)
+                auto_exit = rule["side"] == "auto" and side == "sell"
+                if not auto_exit and _in_cooldown(
+                    data_dir, rule, symbol, int(rule.get("cooldown_days", 0)), account_id,
+                ):
+                    continue
+                max_positions = rule.get("max_positions", 0)
+                if side == "buy" and max_positions > 0:
+                    used = _position_slots_used(data_dir, account_id)
+                    if symbol not in used and len(used) >= max_positions:
+                        logger.info("paper auto %s: %s 已达最大持仓 %d", rule["name"], symbol, max_positions)
+                        continue
+                if auto_exit:
+                    position = paper.load_positions(data_dir, account_id).get(symbol)
+                    qty = int(position["qty"]) if position else 0
+                else:
+                    qty = _sizing_qty(data_dir, rule, float(price), account_id)
                 if qty <= 0:
-                    logger.info("paper auto %s: %s 金额不足以一手 (价 %s)", rule["name"], symbol, price)
+                    logger.info(
+                        "paper auto %s: %s %s", rule["name"], symbol,
+                        "无持仓可平" if auto_exit else f"金额不足以一手 (价 {price})",
+                    )
                     continue
                 order, err = paper.create_order(
-                    data_dir, symbol, rule["side"],
+                    data_dir, symbol, side,
                     account_id=account_id,
                     qty=qty,
                     order_type=rule["order_type"],
@@ -240,7 +294,7 @@ def on_rule_events(data_dir: Path, events: list[dict], account_id: str = paper.D
                 if isinstance(data_dir, PaperSession):
                     event = auto_order_events([order], account_id)[0]
                     data_dir.alert({**event, "id": f"auto:{account_id}:{order['id']}"})
-                logger.info("paper auto %s: %s 触发 %s %d 股 (%s)", rule["name"], symbol, rule["side"], qty, order["id"])
+                logger.info("paper auto %s: %s 触发 %s %d 股 (%s)", rule["name"], symbol, side, qty, order["id"])
     return created
 
 

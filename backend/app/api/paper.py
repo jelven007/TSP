@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api import contracts
 from app.multitenancy.documents import private_storage
@@ -277,6 +277,7 @@ def compare_accounts(request: Request):
                     "match_kind": r.get("match_kind"),
                     "match_id": r.get("match_id"),
                     "side": r.get("side"),
+                    "max_positions": r.get("max_positions", 0),
                     "enabled": bool(r.get("enabled")),
                 }
                 for r in rules
@@ -325,6 +326,7 @@ class AutoRuleModel(BaseModel):
     size_value: float
     order_type: str = "next_open"
     cooldown_days: int = 5
+    max_positions: int = Field(default=0, ge=0, strict=True)
     enabled: bool = True
 
 
@@ -374,6 +376,7 @@ class ArenaSourceModel(BaseModel):
     size_value: float = 10.0
     order_type: str = "next_open"
     cooldown_days: int = 5
+    max_positions: int = Field(default=0, ge=0, strict=True)
 
 
 class ArenaBatchModel(BaseModel):
@@ -414,6 +417,7 @@ def arena_batch_create(request: Request, body: ArenaBatchModel):
                 "size_value": src.size_value,
                 "order_type": src.order_type,
                 "cooldown_days": src.cooldown_days,
+                "max_positions": src.max_positions,
                 "enabled": True,
             }
             paper_auto.validate_rule(rule)  # 全部通过前不落盘 (fail-closed)

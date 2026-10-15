@@ -204,6 +204,73 @@ def test_auto_trigger_atomic_zero_cooldown_and_restart_isolation(owned):
     assert paper_auto.on_rule_events(own, [{**ev, "id": "event-two"}]) == []
 
 
+def test_auto_position_slots_are_atomic_across_workers_rules_and_tenants(owned):
+    own, other = owned
+    config = {
+        "name": "自动方向限额", "match_kind": "strategy", "match_id": "s",
+        "side": "auto", "size_mode": "fixed_amount", "size_value": 1000,
+        "max_positions": 1, "cooldown_days": 0, "order_type": "next_open",
+    }
+    for storage in (own, other):
+        paper.create_account(storage, 100000)
+        for _ in range(2):
+            paper_auto.create_auto_rule(storage, config)
+    events = [{
+        "id": f"buy-{i}", "source": "strategy", "strategy_id": "s", "type": "buy_signal",
+        "symbol": f"600{i:03}.SH", "price": 10,
+    } for i in range(12)]
+
+    def trigger(ev):
+        restart = TenantPaper(own.db, own.context, own.public_data_dir)
+        return paper_auto.on_rule_events(restart, [ev])
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        list(pool.map(trigger, events))
+    orders = paper.load_orders(own)
+    assert len(orders) == 2  # Both rules can add to the same reserved symbol.
+    assert len({order["symbol"] for order in orders}) == 1
+    assert paper_auto.on_rule_events(own, events) == []  # All receipts survived.
+    assert len(paper_auto.on_rule_events(other, [events[-1]])) == 2
+    for order in orders:
+        paper.cancel_order(own, order["id"])
+    assert paper_auto.on_rule_events(own, events) == []  # Skipped events stay consumed.
+    fresh = {**events[0], "id": "new-after-cancel", "symbol": "000001.SZ"}
+    assert len(trigger(fresh)) == 2
+
+
+def test_auto_full_exit_cooldown_t1_pending_and_replay_on_sql(owned, monkeypatch):
+    own, other = owned
+    paper.create_account(own, 100000)
+    paper_auto.create_auto_rule(own, {
+        "name": "自动全平", "match_kind": "strategy", "match_id": "s", "side": "auto",
+        "size_mode": "pct_equity", "size_value": 1, "max_positions": 1,
+        "cooldown_days": 5, "order_type": "market",
+    })
+    entry = {"id": "entry", "source": "strategy", "strategy_id": "s",
+             "type": "pool_entry", "symbol": SYM, "price": 10}
+    assert len(paper_auto.on_rule_events(own, [entry])) == 1
+    paper.evaluate_intraday(own, {SYM: 10})
+    # Add manually: full exit must include the entire account position.
+    paper.create_order(own, SYM, "buy", qty=600, ref_price=10)
+    paper.evaluate_intraday(own, {SYM: 10})
+    exit_ev = {**entry, "id": "exit-today", "type": "pool_exit"}
+    assert paper_auto.on_rule_events(own, [exit_ev]) == []  # T+1 still applies.
+    monkeypatch.setattr(paper, "cn_today", lambda: NEXT)
+    monkeypatch.setattr(paper, "cn_now", lambda: datetime.combine(NEXT, time(14), CN_TZ))
+    restart = TenantPaper(own.db, own.context, own.public_data_dir)
+    assert paper_auto.on_rule_events(restart, [exit_ev]) == []  # Do not replay rejected events.
+    exit_next = {**exit_ev, "id": "exit-next"}
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        responses = list(pool.map(lambda _: paper_auto.on_rule_events(restart, [exit_next]), range(12)))
+    sells = [order for result in responses for order in result]
+    assert len(sells) == 1 and sells[0]["side"] == "sell" and sells[0]["qty"] == 700
+    assert paper_auto.on_rule_events(restart, [{**exit_next, "id": "exit-pending"}]) == []
+    assert paper.load_orders(other) == []
+    assert len(paper.evaluate_intraday(restart, {SYM: 10})) == 1
+    assert paper.load_positions(restart)[SYM]["qty"] == 0
+    assert_ledger(restart)
+
+
 def test_original_http_paper_contract_alerts_and_no_shared_file_leak(env, owned):
     own, other = owned
     from app.multitenancy.alerts import Alerts

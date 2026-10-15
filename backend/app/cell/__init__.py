@@ -1,1 +1,1 @@
-"""Independent cloud Cell API; deliberately does not load the legacy application."""
+"""Shared PostgreSQL, identity, scheduling and delivery foundations for the full product."""

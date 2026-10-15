@@ -5,7 +5,16 @@
 
 ## 1. 架构摘要
 
-TSP 是数据工程优先的模块化单体：
+TSP 保留模块化单体的完整业务引擎，提供完整单机多租户与独立运行两种模式。
+
+当前完整单机多租户部署使用 `deploy/full/compose.yml`，启用
+`MULTITENANCY_ENABLED=true`。保留完整前端与业务引擎，API 默认四进程；
+平台负责唯一行情写入，四类 Worker 分别负责研究、实时监控/模拟盘、通知和调度。
+身份与租户业务持久化到 PostgreSQL v5，公共行情按不可变版本只读共享。
+部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
+已完成的一期发布与 100 用户验收见[实施记录](./phase1-implementation.md)。
+
+以下单进程拓扑描述 `MULTITENANCY_ENABLED=false` 的独立运行模式：
 
 - FastAPI 提供 Web、API、SSE、调度和业务编排。
 - React 单页应用提供研究与管理界面。
@@ -78,9 +87,12 @@ Vite :3011  --代理/API-->  FastAPI :3018  -->  ./data
 桌面入口在本机选择可用端口，在线程中启动仅监听回环地址的 Uvicorn，再由
 pywebview 打开界面。桌面安装包与 Docker 镜像是不同发布产物。
 
-## 4. 单进程约束
+## 4. 独立运行模式的单进程约束
 
-生产 API 服务必须保持单实例、单 Uvicorn worker。原因是以下状态位于进程内：
+本节只适用于 `MULTITENANCY_ENABLED=false`；完整多租户 API 使用持久任务、
+租户事件和数据库事务，可运行默认四个 HTTP 进程。
+
+独立运行模式的 API 服务必须保持单实例、单 Uvicorn worker。原因是以下状态位于进程内：
 
 - SSE 事件广播与 ticket。
 - 部分任务管理器、缓存和并发控制。
@@ -308,7 +320,8 @@ URL、查询参数、请求体或认证头，避免高基数和敏感信息泄�
 告警平台。
 
 公网部署必须在应用认证之外配置 HTTPS、网络访问控制和凭据管理。当前仓库不提供
-完整的 WAF、集中审计或多租户隔离。
+完整的 WAF 或集中审计。完整多租户模式已有 RBAC 与强制 RLS；
+二期安全与可靠性目标见[两期技术方案](./multitenant-roadmap.md)。
 
 ## 12. 故障边界与降级
 

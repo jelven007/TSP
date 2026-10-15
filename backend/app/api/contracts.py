@@ -634,6 +634,7 @@ class PaperAutoRule(ContractModel):
     size_value: float
     order_type: str
     cooldown_days: int
+    max_positions: int = Field(default=0, ge=0)
     enabled: bool
     created_at: str
 

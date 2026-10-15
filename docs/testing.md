@@ -64,6 +64,11 @@ uv run ruff check app/path.py tests/path.py
 
 高风险共享模块改动应先跑定向用例定位问题，再跑后端全量测试。
 
+完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
+通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。
+未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、
+模拟盘事务、迁移与平台边界；发布验收见[一期记录](./phase1-implementation.md)。
+
 发布与健康检查故障回归:
 
 ```bash

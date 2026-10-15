@@ -14,7 +14,6 @@ services:
       - /etc/tsp-edge/tls:/etc/tsp-edge/tls:ro
     networks:
       - platform
-      - cell
     read_only: true
     tmpfs:
       - /var/cache/nginx:size=16m,noexec,nosuid
@@ -38,6 +37,3 @@ networks:
   platform:
     external: true
     name: ${TSP_EDGE_PLATFORM_NETWORK:-app_default}
-  cell:
-    external: true
-    name: ${TSP_EDGE_CELL_NETWORK:-tsp-cell_default}
