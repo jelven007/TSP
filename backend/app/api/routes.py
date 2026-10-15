@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from app import __version__
 from app.config import settings
@@ -54,7 +55,7 @@ def health() -> dict:
 
 
 @router.get("/health/live")
-def health_live() -> dict:
+async def health_live() -> dict:
     """Process liveness only; external dependencies are intentionally excluded."""
     return {
         "status": "ok",
@@ -62,7 +63,7 @@ def health_live() -> dict:
     }
 
 
-def _readiness_response(request: Request) -> JSONResponse:
+async def _readiness_response(request: Request) -> JSONResponse:
     from app.services.health import readiness
     if settings.multitenancy_enabled and settings.service_role == "api":
         from app.multitenancy.health import readiness
@@ -72,7 +73,11 @@ def _readiness_response(request: Request) -> JSONResponse:
         "data_dir",
         settings.data_dir,
     )
-    payload = readiness(request.app.state, data_dir)
+    monitor = getattr(request.app.state, "readiness_monitor", None)
+    payload = (
+        monitor.snapshot() if monitor is not None
+        else await run_in_threadpool(readiness, request.app.state, data_dir)
+    )
     payload["version"] = __version__
     payload["mode"] = tf_client.current_mode()
     return JSONResponse(
@@ -82,15 +87,15 @@ def _readiness_response(request: Request) -> JSONResponse:
 
 
 @router.get("/health/ready")
-def health_ready(request: Request) -> JSONResponse:
+async def health_ready(request: Request) -> JSONResponse:
     """Deep local readiness check for orchestrators and operators."""
-    return _readiness_response(request)
+    return await _readiness_response(request)
 
 
 @router.get("/api/health")
-def api_health(request: Request) -> JSONResponse:
+async def api_health(request: Request) -> JSONResponse:
     """Authenticated-product alias kept public by the API gateway whitelist."""
-    return _readiness_response(request)
+    return await _readiness_response(request)
 
 
 @router.get("/api/observability", response_model=ObservabilitySnapshot)

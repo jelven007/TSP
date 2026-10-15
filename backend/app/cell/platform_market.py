@@ -196,16 +196,12 @@ def full_snapshot(request: Request, authorization: Annotated[str | None, Header(
         import json
 
         from app.multitenancy.publication import release_path
-        from app.services.health import readiness
+        from app.services.health import readiness_snapshot
 
         public = release_path(publisher.root)
         manifest = json.loads((public / ".public_release.json").read_text())
         value["public_release"] = {key: manifest[key] for key in ("id", "generations", "published_at")}
-        platform_health = getattr(state, "full_platform_health", None)
-        if not platform_health or time.monotonic() - platform_health[0] > 10:
-            platform_health = (time.monotonic(), readiness(state, repo.store.data_dir))
-            state.full_platform_health = platform_health
-        value["platform_ready"] = platform_health[1]["ready"]
+        value["platform_ready"] = readiness_snapshot(state, repo.store.data_dir)["ready"]
     depth = getattr(state, "depth_service", None)
     if depth:
         with depth._lock:

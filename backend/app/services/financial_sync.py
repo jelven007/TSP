@@ -437,8 +437,12 @@ class FinancialScheduler:
         self._last_sync: dict[str, str] = {}  # {table: iso_timestamp}
         # 手动同步(run_now)是否正在进行。前端据此显示"同步中"并防重复点击。
         self._is_syncing = False
+        self._write_lock = None
 
-    def start(self, data_dir: Path, capset: CapabilitySet, *, auto_schedule: bool = False) -> None:
+    def start(
+        self, data_dir: Path, capset: CapabilitySet, *,
+        auto_schedule: bool = False, write_lock=None,
+    ) -> None:
         """初始化调度器，并按需启动周期同步后台任务。
 
         auto_schedule=False (默认): 仅初始化 (设置数据目录/能力 + 恢复 last_sync),
@@ -451,6 +455,7 @@ class FinancialScheduler:
         # 即便 app.state.capabilities 已更新, 调度器仍报 "no FINANCIAL capability"。
         self._data_dir = data_dir
         self._capset = capset
+        self._write_lock = write_lock
         if not capset.has(Cap.FINANCIAL) and not _financial_is_custom():
             logger.info("FinancialScheduler skipped: no FINANCIAL capability")
             return
@@ -571,6 +576,7 @@ class FinancialScheduler:
             publish_data_release(
                 self._data_dir,
                 reason=f"financial_sync:{table}",
+                write_lock=self._write_lock,
             )
             return {table: rows}
         # 全部同步
@@ -587,6 +593,7 @@ class FinancialScheduler:
         publish_data_release(
             self._data_dir,
             reason="financial_sync:all",
+            write_lock=self._write_lock,
         )
         return result
 

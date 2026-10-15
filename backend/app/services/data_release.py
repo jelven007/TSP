@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from collections.abc import Mapping
+from contextlib import AbstractContextManager, nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -176,12 +177,23 @@ def research_input_fingerprints(data_dir: Path) -> dict[str, Any]:
     return {"files": files, "trading_calendar": trading_calendar_provenance()}
 
 
-def publish_data_release(data_dir: Path, *, reason: str) -> dict[str, Any]:
-    """Publish an immutable manifest, then atomically advance current.json."""
+def publish_data_release(
+    data_dir: Path, *, reason: str,
+    write_lock: AbstractContextManager[Any] | None = None,
+) -> dict[str, Any]:
+    """Serialize bounded release metadata/commit with repository file writers."""
     data_dir = Path(data_dir)
+    # Capability detection may import providers; do it before blocking file writes.
+    provider_audit = audit_provider_routes()
+    with write_lock if write_lock is not None else nullcontext():
+        return _publish_data_release(data_dir, reason=reason, provider_audit=provider_audit)
+
+
+def _publish_data_release(
+    data_dir: Path, *, reason: str, provider_audit: dict[str, Any],
+) -> dict[str, Any]:
     generations = _publication_generations(data_dir)
     release_id = uuid.uuid4().hex
-    provider_audit = audit_provider_routes()
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "release_id": release_id,

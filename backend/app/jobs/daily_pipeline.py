@@ -194,6 +194,7 @@ def run_instruments_sync(repo: KlineRepository) -> dict:
     release = publish_data_release(
         repo.store.data_dir,
         reason="instruments_sync",
+        write_lock=getattr(repo, "_write_lock", None),
     )
     return {
         "instruments_rows": rows,
@@ -843,6 +844,7 @@ def run_now(
     release = publish_data_release(
         repo.store.data_dir,
         reason="daily_pipeline",
+        write_lock=getattr(repo, "_write_lock", None),
     )
     result["data_release_id"] = release["release_id"]
     if settings.service_role == "platform":
@@ -1275,7 +1277,9 @@ def _run_auction_snapshot(
         notify_capture_failure,
     )
 
-    result = capture_auction_snapshot(repo.store.data_dir)
+    result = capture_auction_snapshot(
+        repo.store.data_dir, write_lock=getattr(repo, "_write_lock", None),
+    )
     state = result.get("state")
     if state not in {"ready", "already_captured", "market_closed"}:
         logger.warning("09:25 auction snapshot not published: %s", result)
@@ -1290,8 +1294,16 @@ def _run_auction_snapshot(
     return result
 
 
+def _retry_auction_publication(repo: KlineRepository) -> dict:
+    from app.services.auction_snapshot import retry_pending_publication
+
+    return retry_pending_publication(
+        repo.store.data_dir, write_lock=getattr(repo, "_write_lock", None),
+    )
+
+
 def _register_auction_jobs(scheduler, repo: KlineRepository) -> None:
-    """Register bounded retries and an in-window startup catch-up."""
+    """Bound capture to the auction window; resume saved publications at any time."""
     for second in (8, 25, 45):
         scheduler.add_job(
             _run_auction_snapshot,
@@ -1345,6 +1357,16 @@ def _register_auction_jobs(scheduler, repo: KlineRepository) -> None:
             next_run_time=auction_now,
             replace_existing=True,
         )
+
+    scheduler.add_job(
+        _retry_auction_publication,
+        args=[repo],
+        trigger="interval", seconds=60,
+        id="auction_publication_retry",
+        next_run_time=auction_now,
+        max_instances=1,
+        replace_existing=True,
+    )
 
 
 def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOScheduler:
