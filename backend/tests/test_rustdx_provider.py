@@ -382,6 +382,40 @@ def test_counted_full_minute_repair_reports_zero_requests_for_empty_universe(nat
     assert native.bar_calls == []
 
 
+@pytest.mark.parametrize("fetcher", ["fetch_intraday_custom_latest", "fetch_intraday_custom_batch"])
+def test_counted_minutes_preserve_afternoon_opening_label(native, monkeypatch, fetcher):
+    from app.plugins.rustdx import provider as provider_module
+    from app.services import kline_sync
+
+    monkeypatch.setattr(provider_module, "cn_now", lambda: datetime(2026, 10, 14, 13, 2))
+
+    def counted(market, code, category, start, count, index, **kwargs):
+        native.bar_calls.append((market, code, category, start, count, index))
+        assert kwargs == {"with_request_count": True}
+        return json.dumps({
+            "rows": [
+                {
+                    "dt": {"year": 2026, "month": 10, "day": 14, "hour": 13, "minute": minute},
+                    "code": code, "close": 10.0, "vol": 100, "amount": 1000,
+                }
+                for minute in (0, 1, 2)
+            ],
+            "requests": 2,
+            "error": None,
+        })
+
+    native.bars_json = counted
+    frame, requests = getattr(kline_sync, fetcher)(
+        RustdxProvider(), "rustdx", symbols=["600519.SH", "000001.SZ"],
+    )
+    assert requests == 4
+    assert frame.height == 6
+    assert frame["datetime"].to_list() == [
+        datetime(2026, 10, 14, 13, minute) for minute in (0, 1, 2)
+    ] * 2
+    assert frame["volume"].to_list() == [1.0] * 6
+
+
 @pytest.mark.parametrize("requests", [0, 3])
 def test_counted_bars_raise_protocol_failure_even_with_returned_rows(native, requests):
     rows = json.loads(native.bars_json(1, "600519", 8, 0, 3, False))

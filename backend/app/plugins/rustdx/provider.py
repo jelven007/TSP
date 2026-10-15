@@ -553,10 +553,12 @@ class RustdxProvider:
             amount = _to_float(item.get("amount"))
             if frequency == 8:
                 minute = timestamp.hour * 60 + timestamp.minute
-                if not (571 <= minute <= 690 or 781 <= minute <= 900):
+                # Live TDX bars can carry opening labels (09:30/13:00), while
+                # history uses closing labels. Preserve both without shifting.
+                if not (570 <= minute <= 690 or 780 <= minute <= 900):
                     if volume == 0 and amount == 0:
                         continue  # Suspended-security placeholders have no trade to preserve.
-                    raise RustdxError(f"分钟K时间不在收盘标记区间: {symbol} {timestamp}")
+                    raise RustdxError(f"分钟K时间不在交易时段: {symbol} {timestamp}")
             rows.append(
                 {
                     "symbol": symbol,

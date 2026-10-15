@@ -548,21 +548,62 @@ def test_protocol_outage_stops_after_three_failures_and_rejects_partial_result(d
     assert len(calls) == 4
 
 
-def test_one_minute_boundary_rejects_lunch_start_label_and_keeps_final_bars():
+def test_one_minute_preserves_opening_labels_and_session_final_bars():
+    stamps = ["09:30", "09:31", "11:30", "13:00", "13:01", "15:00"]
     rows = [
-        {"datetime": stamp, "close": 10.0}
-        for stamp in ["2026-10-09 11:30", "2026-10-09 13:01", "2026-10-09 15:00"]
+        {"datetime": f"2026-10-09 {stamp}", "close": 10.0, "vol": 100, "amount": 1000}
+        for stamp in stamps
     ]
     frame = RustdxProvider._minute_frame(rows, "600519.SH", None, None)
-    assert frame.height == 3
+    assert frame["datetime"].to_list() == [
+        datetime.fromisoformat(f"2026-10-09 {stamp}") for stamp in stamps
+    ]
+    assert frame["volume"].to_list() == [1.0] * len(stamps)
+
+
+@pytest.mark.parametrize("stamp", ["09:29", "11:31", "12:00", "12:59", "15:01"])
+def test_one_minute_rejects_nonzero_trades_outside_sessions(stamp):
     with pytest.raises(RustdxError, match="时间"):
         RustdxProvider._minute_frame(
-            [{"datetime": "2026-10-09 13:00", "close": 10.0}], "600519.SH", None, None,
+            [{"datetime": f"2026-10-09 {stamp}", "close": 10.0, "vol": 100, "amount": 1000}],
+            "600519.SH", None, None,
         )
+
+
+def test_one_minute_filters_only_out_of_session_zero_placeholders():
     assert RustdxProvider._minute_frame(
-        [{"datetime": "2026-10-09 13:00", "close": 10.0, "vol": 0, "amount": 0}],
+        [{"datetime": "2026-10-09 12:59", "close": 10.0, "vol": 0, "amount": 0}],
         "600519.SH", None, None,
     ).is_empty()
+    frame = RustdxProvider._minute_frame(
+        [{"datetime": "2026-10-09 13:00", "close": 10.0, "vol": 0, "amount": 0}],
+        "600519.SH", None, None,
+    )
+    assert frame["datetime"].to_list() == [datetime(2026, 10, 9, 13)]
+
+
+def test_minute_history_and_intraday_batch_keep_afternoon_after_opening_label(monkeypatch):
+    monkeypatch.setenv("RUSTDX_WORKERS", "1")
+    monkeypatch.setattr(
+        "app.plugins.rustdx.provider.cn_now", lambda: datetime(2026, 10, 14, 15, 1),
+    )
+    fake = _FakeClient()
+    fake.bars_by_frequency[8] = [
+        {"datetime": f"2026-10-14 {stamp}", "close": 10.0, "vol": 100, "amount": 1000}
+        for stamp in ("11:30", "13:00", "13:01", "15:00")
+    ]
+    provider = _provider(fake)
+    history = provider.get_minute(
+        ["000001.SZ"], datetime(2026, 10, 14), datetime(2026, 10, 14, 15),
+    )
+    intraday = provider.get_intraday_batch(["000001.SZ"])
+    assert history["datetime"].to_list() == [
+        datetime(2026, 10, 14, 11, 30),
+        datetime(2026, 10, 14, 13),
+        datetime(2026, 10, 14, 13, 1),
+        datetime(2026, 10, 14, 15),
+    ]
+    assert intraday.equals(history)
 
 
 def test_empty_trial_reports_no_data_and_can_recover():
