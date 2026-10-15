@@ -263,9 +263,9 @@ def test_pending_buy_occupies_cash_at_fill(tmp_path, monkeypatch):
         (day, 10.0, 10.0),  # 当日有行情, close 单才会在 settle 撮合
     ])
     _cap_account(tmp_path, 10_000.0)  # 只够一张 500 股 x 10 元 + 费用
-    a, _ = paper.create_order(tmp_path, SYM, "buy", qty=500, order_type="close", ref_price=10.0)
-    b, err = paper.create_order(tmp_path, SYM, "buy", qty=500, order_type="close", ref_price=10.0)
-    assert err is None  # 预检按单张各自通过, 由撮合侧 (资金/占用双闸) 兜底
+    a, _ = paper.create_order(tmp_path, SYM, "buy", qty=500, order_type="close", ref_price=9.0)
+    b, err = paper.create_order(tmp_path, SYM, "buy", qty=500, order_type="close", ref_price=9.0)
+    assert err is None  # 两笔估算总额可预留; 成交涨价后仍须由撮合侧兜底
     paper.settle_day(tmp_path, day.isoformat())
     assert paper.get_order(tmp_path, a["id"])["status"] == "filled"
     got_b = paper.get_order(tmp_path, b["id"])

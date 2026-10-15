@@ -308,6 +308,68 @@ def test_exit_intent_receipt_order_and_alert_roll_back_together(owned, monkeypat
     assert not (own.public_data_dir / "paper").exists()
 
 
+def test_risk_snapshot_concurrent_entries_recovery_and_isolation(owned, monkeypatch):
+    own, other = owned
+    paper.create_account(own, 100000)
+    paper.create_account(other, 100000)
+    paper_auto.create_auto_rule(own, {
+        "name": "政策跟单", "match_kind": "strategy", "match_id": "demo", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 3000, "order_type": "market",
+        "cooldown_days": 0, "risk_follow": True, "max_total_exposure_pct": 30,
+    })
+    event = {"id": "entry", "source": "strategy", "strategy_id": "demo",
+             "type": "buy_signal", "symbol": SYM, "price": 10,
+             "entry_policy": {"version": 1, "policy": {"stop_loss_pct": .06}}}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        responses = list(pool.map(lambda _: paper_auto.on_rule_events(own, [event]), range(8)))
+    assert sum(map(len, responses)) == 1
+    paper.evaluate_intraday(own, {SYM: 10})
+    restart = TenantPaper(own.db, own.context, own.public_data_dir)
+    paper.rebuild_positions(restart)
+    assert paper.load_positions(restart)[SYM]["entry_policy"]["policy"]["stop_loss_pct"] == .06
+    assert paper_auto.evaluate_position_risk(restart, {SYM: 9}) == []
+    assert paper_auto.load_exit_intents(restart)[0]["risk_reason"] == "stop_loss"
+    assert paper_auto.load_exit_intents(other) == []
+    assert other.values("paper_risk:default") == []
+    monkeypatch.setattr(paper, "cn_today", lambda: NEXT)
+    sells = paper_auto.on_rule_events(restart, [], prices={SYM: 10})
+    assert len(sells) == 1 and sells[0]["qty"] == 300
+    paper.evaluate_intraday(restart, {SYM: 10})
+    assert_ledger(restart)
+    assert paper.load_positions(restart)[SYM]["qty"] == 0
+
+
+def test_risk_peak_and_intent_rollback_together(owned, monkeypatch):
+    own, _ = owned
+    paper.create_account(own, 100000)
+    paper_auto.create_auto_rule(own, {
+        "name": "回滚政策", "match_kind": "strategy", "match_id": "demo", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 3000, "order_type": "market",
+        "risk_follow": True,
+    })
+    paper_auto.on_rule_events(own, [{
+        "source": "strategy", "strategy_id": "demo", "type": "buy_signal", "symbol": SYM, "price": 10,
+        "entry_policy": {"version": 1, "policy": {"stop_loss_pct": .06}},
+    }])
+    paper.evaluate_intraday(own, {SYM: 10})
+    original = PaperSession.put_document
+
+    def fail_intent(self, namespace, key, value):
+        if namespace.startswith("paper_exit:"):
+            raise RuntimeError("intent persistence failed")
+        return original(self, namespace, key, value)
+
+    with monkeypatch.context() as changes:
+        changes.setattr(PaperSession, "put_document", fail_intent)
+        with pytest.raises(RuntimeError, match="intent persistence failed"):
+            paper_auto.evaluate_position_risk(own, {SYM: 9})
+    assert own.values("paper_risk:default") == []
+    assert paper_auto.load_exit_intents(own) == []
+    paper_auto.evaluate_position_risk(own, {SYM: 9})
+    assert len(own.values("paper_risk:default")) == 1
+    assert len(paper_auto.load_exit_intents(own)) == 1
+
+
 def test_sql_exit_cancel_and_expiry_recover_without_signal(owned, monkeypatch):
     own, _ = owned
     paper.create_account(own, 100000)

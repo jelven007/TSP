@@ -140,9 +140,19 @@ it('creates a single strategy rule with auto direction and rejects a fractional 
   await input('最大持仓标的数 (0 不限)', '1.5')
   expect(button('创建规则').disabled).toBe(true)
   await input('最大持仓标的数 (0 不限)', '2')
+  await input('单股仓位上限 %（0 不限）', '101')
+  expect(button('创建规则').disabled).toBe(true)
+  await input('单股仓位上限 %（0 不限）', '25')
+  await input('账户总仓位上限 %（0 不限）', '80')
+  const risk = host.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+  expect(risk).not.toBeNull()
+  await act(async () => risk.click())
+  await settle()
   await click('创建规则')
   expect(calls.rule).toHaveBeenCalledWith(expect.objectContaining({
     side: 'auto', match_kind: 'strategy', max_positions: 2,
+    candidate_priority: 'score', max_symbol_exposure_pct: 25,
+    max_total_exposure_pct: 80, risk_follow: true,
   }), 'test')
   expect([...host.querySelectorAll<HTMLElement>('span[title]')].some(item =>
     item.title.includes('自动方向，退出全平') && item.title.includes('持仓上限 2只'),

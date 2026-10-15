@@ -29,6 +29,7 @@ from app.backtest.matrix import (
 from app.config import settings
 from app.enriched_generation import EnrichedGenerationUnavailableError
 from app.parquet import scan_enriched_parquet
+from app.strategy.risk_policy import price_exit
 from app.tickflow.repository import KlineRepository
 
 logger = logging.getLogger(__name__)
@@ -1031,30 +1032,7 @@ class BacktestEngine:
                 # 已安排开盘离场, 只能检查开盘跳空风险, 后续日内高低点不可抢先。
                 low_price = high_price = open_price
             peak_price = float(pos["max_high"])
-            lines: list[tuple[float, str]] = []
-            if config.stop_loss_pct is not None:
-                lines.append((entry_price * (1 - abs(config.stop_loss_pct)), "stop_loss"))
-            if config.trailing_stop_pct is not None:
-                lines.append((peak_price * (1 - abs(config.trailing_stop_pct)), "trailing_stop"))
-            activate = config.trailing_take_profit_activate_pct
-            drawdown = config.trailing_take_profit_drawdown_pct
-            if activate is not None and drawdown is not None and peak_price > entry_price:
-                if peak_price / entry_price - 1 >= abs(float(activate)):
-                    lines.append((peak_price * (1 - abs(float(drawdown))), "trailing_take_profit"))
-            valid_lines = [(line, reason) for line, reason in lines if _valid_price(line)]
-            if valid_lines:
-                stop_price, reason = max(valid_lines, key=lambda item: item[0])
-                if _valid_price(open_price) and open_price <= stop_price:
-                    return reason, open_price
-                if _valid_price(low_price) and low_price <= stop_price:
-                    return reason, stop_price
-            if config.take_profit_pct is not None:
-                take_profit = entry_price * (1 + abs(float(config.take_profit_pct)))
-                if _valid_price(open_price) and open_price >= take_profit:
-                    return "take_profit", open_price
-                if _valid_price(high_price) and high_price >= take_profit:
-                    return "take_profit", take_profit
-            return None, None
+            return price_exit(config, entry_price, peak_price, open_price, low_price, high_price)
 
         def _try_close(
             pos: dict,
@@ -1476,41 +1454,7 @@ class BacktestEngine:
             low_price = float(low_prices[idx])
             high_price = float(high_prices[idx])
             peak_price = float(pos.get("max_high", entry_price))
-            risk_lines: list[tuple[float, str]] = []
-
-            if config.stop_loss_pct is not None:
-                risk_lines.append((entry_price * (1 - abs(config.stop_loss_pct)), "stop_loss"))
-            if config.trailing_stop_pct is not None and peak_price > 0:
-                risk_lines.append((peak_price * (1 - abs(config.trailing_stop_pct)), "trailing_stop"))
-
-            activate_pct = getattr(config, "trailing_take_profit_activate_pct", None)
-            drawdown_pct = getattr(config, "trailing_take_profit_drawdown_pct", None)
-            if activate_pct is not None and drawdown_pct is not None and peak_price > entry_price:
-                peak_profit = peak_price / entry_price - 1
-                if peak_profit >= abs(float(activate_pct)):
-                    # 回撤止盈触发线: 相对峰值价回撤 drawdown 个点 (纯峰值口径)
-                    risk_lines.append((peak_price * (1 - abs(float(drawdown_pct))), "trailing_take_profit"))
-
-            risk_lines = [(line, reason) for line, reason in risk_lines if _valid_price(line)]
-            # 止损/移损/回撤止盈: 价格跌破风控线触发 (取最高优先级线)
-            if risk_lines:
-                stop_price, reason = max(risk_lines, key=lambda item: item[0])
-                if _valid_price(open_price) and open_price <= stop_price:
-                    return reason, open_price
-                if _valid_price(low_price) and low_price <= stop_price:
-                    return reason, stop_price
-
-            # 固定止盈: 价格涨破止盈线触发
-            tp_pct = getattr(config, "take_profit_pct", None)
-            if tp_pct is not None:
-                tp_line = entry_price * (1 + abs(float(tp_pct)))
-                if _valid_price(tp_line):
-                    # 开盘即超过止盈线 → 以开盘价成交; 否则当日触及高点止盈
-                    if _valid_price(open_price) and open_price >= tp_line:
-                        return "take_profit", open_price
-                    if _valid_price(high_price) and high_price >= tp_line:
-                        return "take_profit", tp_line
-            return None, None
+            return price_exit(config, entry_price, peak_price, open_price, low_price, high_price)
 
         def _try_close(pos: dict, idx: int, reason: str, signal_date: str, exit_price_override: float | None = None, force: bool = False) -> bool:
             if force:
@@ -2139,33 +2083,9 @@ class BacktestEngine:
                     low_price = high_price = open_price
                 entry_price = float(pos["entry_price"])
                 peak_price = float(pos["max_high"])
-                risk_lines: list[tuple[float, str]] = []
-                if config.stop_loss_pct is not None:
-                    risk_lines.append((entry_price * (1 - abs(config.stop_loss_pct)), "stop_loss"))
-                if config.trailing_stop_pct is not None:
-                    risk_lines.append((peak_price * (1 - abs(config.trailing_stop_pct)), "trailing_stop"))
-                activate = config.trailing_take_profit_activate_pct
-                drawdown = config.trailing_take_profit_drawdown_pct
-                if activate is not None and drawdown is not None and peak_price > entry_price:
-                    if peak_price / entry_price - 1 >= abs(float(activate)):
-                        risk_lines.append((peak_price * (1 - abs(float(drawdown))), "trailing_take_profit"))
-                valid_lines = [(line, reason) for line, reason in risk_lines if _valid_price(line)]
-                if valid_lines:
-                    stop_price, reason = max(valid_lines, key=lambda item: item[0])
-                    override = None
-                    if _valid_price(open_price) and open_price <= stop_price:
-                        override = open_price
-                    elif _valid_price(low_price) and low_price <= stop_price:
-                        override = stop_price
-                    if override is not None:
-                        _try_sell(time_id, asset_id, reason, date_text, sold_today, override)
-                        continue
-                if config.take_profit_pct is not None:
-                    take_profit = entry_price * (1 + abs(float(config.take_profit_pct)))
-                    if _valid_price(open_price) and open_price >= take_profit:
-                        _try_sell(time_id, asset_id, "take_profit", date_text, sold_today, open_price)
-                    elif _valid_price(high_price) and high_price >= take_profit:
-                        _try_sell(time_id, asset_id, "take_profit", date_text, sold_today, take_profit)
+                reason, override = price_exit(config, entry_price, peak_price, open_price, low_price, high_price)
+                if reason:
+                    _try_sell(time_id, asset_id, reason, date_text, sold_today, override)
 
             for asset_id in list(positions):
                 pos = positions.get(asset_id)
@@ -2691,46 +2611,9 @@ class BacktestEngine:
                 high_price = float(high_prices[idx])
                 entry_price = float(pos["entry_price"])
                 peak_price = float(pos.get("max_high", entry_price))
-                risk_lines: list[tuple[float, str]] = []
-
-                if config.stop_loss_pct is not None:
-                    risk_lines.append((entry_price * (1 - abs(config.stop_loss_pct)), "stop_loss"))
-
-                if config.trailing_stop_pct is not None and peak_price > 0:
-                    risk_lines.append((peak_price * (1 - abs(config.trailing_stop_pct)), "trailing_stop"))
-
-                activate_pct = getattr(config, "trailing_take_profit_activate_pct", None)
-                drawdown_pct = getattr(config, "trailing_take_profit_drawdown_pct", None)
-                if activate_pct is not None and drawdown_pct is not None and peak_price > entry_price:
-                    peak_profit = peak_price / entry_price - 1
-                    if peak_profit >= abs(float(activate_pct)):
-                        # 回撤止盈触发线: 相对峰值价回撤 drawdown 个点 (纯峰值口径)
-                        # 启动门槛用成本基准的浮盈率, 触发线用峰值基准, 与 trailing_stop 同口径
-                        take_profit_line = peak_price * (1 - abs(float(drawdown_pct)))
-                        risk_lines.append((take_profit_line, "trailing_take_profit"))
-
-                # 止损/移损/回撤止盈: 价格跌破风控线触发
-                risk_lines = [(line, reason) for line, reason in risk_lines if _valid_price(line)]
-                if risk_lines:
-                    stop_price, reason = max(risk_lines, key=lambda item: item[0])
-                    exit_price_override = None
-                    if _valid_price(open_price) and open_price <= stop_price:
-                        exit_price_override = open_price
-                    elif _valid_price(low_price) and low_price <= stop_price:
-                        exit_price_override = stop_price
-                    if exit_price_override is not None:
-                        _try_sell(sym, idx, reason, d_str, sold_today, exit_price_override)
-                        continue
-
-                # 固定止盈: 价格涨破止盈线触发
-                tp_pct = getattr(config, "take_profit_pct", None)
-                if tp_pct is not None:
-                    tp_line = entry_price * (1 + abs(float(tp_pct)))
-                    if _valid_price(tp_line):
-                        if _valid_price(open_price) and open_price >= tp_line:
-                            _try_sell(sym, idx, "take_profit", d_str, sold_today, open_price)
-                        elif _valid_price(high_price) and high_price >= tp_line:
-                            _try_sell(sym, idx, "take_profit", d_str, sold_today, tp_line)
+                reason, override = price_exit(config, entry_price, peak_price, open_price, low_price, high_price)
+                if reason:
+                    _try_sell(sym, idx, reason, d_str, sold_today, override)
 
         def _process_entries(
             d_str: str,

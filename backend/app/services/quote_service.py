@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -1508,16 +1509,34 @@ class QuoteService:
                     from app.strategy import paper as paper_trading
                     from app.strategy import paper_auto
                     data_dir = self._app_state.repo.store.data_dir
-                    snapshot = dict(zip(
-                        enriched_today["symbol"].to_list(),
-                        enriched_today["raw_close"].to_list(),
-                        strict=False,
-                    ))
+                    quote_rows = {row["symbol"]: row for row in enriched_today.iter_rows(named=True)}
+                    if self._repo is not None:
+                        try:
+                            etf_frame, etf_day = self._repo.get_enriched_latest_asset("etf", refresh=False)
+                            if etf_day == cn_today():
+                                quote_rows.update({row["symbol"]: row for row in etf_frame.iter_rows(named=True)})
+                        except Exception as exc:
+                            logger.warning("模拟盘 ETF 快照读取失败: %s", exc)
+                    snapshot, quote_times = {}, {}
+                    observed_now = cn_now().timestamp()
+                    for symbol, row in quote_rows.items():
+                        stamp = row.get("quote_ts") or row.get("timestamp")
+                        if not isinstance(stamp, (float, int)) or not math.isfinite(stamp):
+                            continue
+                        stamp = stamp / 1000 if stamp > 1e12 else stamp
+                        if -2 <= observed_now - stamp <= 15 and row.get("raw_close"):
+                            snapshot[symbol] = row["raw_close"]
+                            quote_times[symbol] = stamp
                     paper_events: list[dict] = []
                     for acc_id in paper_trading.list_account_ids(data_dir):
                         paper_auto.retry_exit_intents(data_dir, account_id=acc_id, submit=False)
+                        paper_events.extend(paper_trading.evaluate_opening(data_dir, quote_rows, acc_id))
                         paper_events.extend(
-                            paper_trading.evaluate_intraday(data_dir, snapshot, account_id=acc_id))
+                            paper_trading.evaluate_intraday(data_dir, snapshot, account_id=acc_id,
+                                                            quote_times=quote_times))
+                        risk_orders = paper_auto.evaluate_position_risk(
+                            data_dir, snapshot, acc_id, quote_times=quote_times)
+                        paper_events.extend(paper_auto.auto_order_events(risk_orders, acc_id))
                         created = paper_auto.on_rule_events(
                             data_dir,
                             execution_events + [ev for ev in rule_events if ev["source"] != "strategy"],

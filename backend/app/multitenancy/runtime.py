@@ -185,19 +185,28 @@ class FullWorker:
                     0 <= commit_now - float(snapshot.get("captured_at", 0)) < 15
                     and -2 <= commit_now - sequence / 1000 <= 15
                 )
-                prices = {}
+                prices, opening_rows = {}, {}
                 if fresh:
-                    frame = decode_frame(snapshot["frames"]["stock"])
-                    for row in frame.iter_rows(named=True):
-                        stamp = row.get("quote_ts") or row.get("timestamp")
-                        if isinstance(stamp, (float, int)):
-                            stamp = stamp / 1000 if stamp > 1e12 else stamp
-                            if -2 <= commit_now - stamp <= 15 and row.get("raw_close"):
-                                prices[row["symbol"]] = (row["raw_close"], stamp)
+                    for asset in ("stock", "etf"):
+                        if snapshot.get("days", {}).get(asset) != cn_today().isoformat():
+                            continue
+                        frame = decode_frame(snapshot["frames"][asset])
+                        for row in frame.iter_rows(named=True):
+                            stamp = row.get("quote_ts") or row.get("timestamp")
+                            if isinstance(stamp, (float, int)):
+                                stamp = stamp / 1000 if stamp > 1e12 else stamp
+                                if -2 <= commit_now - stamp <= 15 and row.get("raw_close"):
+                                    prices[row["symbol"]] = (row["raw_close"], stamp)
+                                    opening_rows[row["symbol"]] = row
                 for account_id in session.account_ids():
                     paper_auto.retry_exit_intents(session, account_id, submit=False)
                     if fresh:
+                        paper.evaluate_opening(session, opening_rows, account_id)
                         paper.evaluate_intraday(
+                            session, {symbol: quote[0] for symbol, quote in prices.items()}, account_id,
+                            quote_times={symbol: quote[1] for symbol, quote in prices.items()},
+                        )
+                        paper_auto.evaluate_position_risk(
                             session, {symbol: quote[0] for symbol, quote in prices.items()}, account_id,
                             quote_times={symbol: quote[1] for symbol, quote in prices.items()},
                         )

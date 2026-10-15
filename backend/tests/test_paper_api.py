@@ -166,3 +166,18 @@ def test_compare_accounts(client: TestClient):
     # 字段完整性 (对比表依赖)
     for key in ("cash", "market_value", "total_pnl", "profit_loss_ratio", "max_drawdown", "avg_holding_days", "realized_pnl"):
         assert key in row
+
+
+def test_auto_rule_portfolio_fields_roundtrip_and_validation(client):
+    client.post("/api/paper/account", json={"initial_cash": 100000})
+    body = {"name": "风控跟单", "match_kind": "strategy", "match_id": "demo",
+            "side": "auto", "size_value": 10000, "candidate_priority": "score",
+            "max_symbol_exposure_pct": 25, "max_total_exposure_pct": 80, "risk_follow": True}
+    response = client.post("/api/paper/auto_rules", json=body)
+    assert response.status_code == 200, response.text
+    stored = client.get("/api/paper/auto_rules").json()["rules"][0]
+    for key in ("candidate_priority", "max_symbol_exposure_pct", "max_total_exposure_pct", "risk_follow"):
+        assert stored[key] == body[key]
+    assert client.post("/api/paper/auto_rules", json={**body, "max_total_exposure_pct": 101}).status_code == 422
+    assert client.post("/api/paper/auto_rules", json={**body, "candidate_priority": "random"}).status_code == 400
+    assert client.post("/api/paper/auto_rules", json={**body, "match_kind": "rule"}).status_code == 400

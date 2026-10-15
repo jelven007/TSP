@@ -28,6 +28,7 @@ from app.strategy.custom_signals import _OP_BUILDERS  # type: ignore  # 复用�
 from app.strategy.custom_signals import signal_names as _custom_signal_names
 from app.strategy.intraday_signals import INTRADAY_SIGNAL_LABELS, uses_intraday_signals
 from app.strategy.monitor_rules import date_rule_in_window
+from app.strategy.risk_policy import strategy_policy
 
 logger = logging.getLogger(__name__)
 
@@ -1188,7 +1189,8 @@ class MonitorRuleEngine:
         return events
 
     def _rule_event(self, rule: dict, hit: tuple, now: float) -> dict:
-        ev_type, sym, name, price, pct, signals = hit
+        ev_type, sym, name, price, pct, signals = hit[:6]
+        metadata = hit[6] if len(hit) > 6 else {}
         rtype = rule.get("type", "signal")
         is_batch = sym == "_batch"
         resolved_name = "" if is_batch else (name or self._name_map.get(sym))
@@ -1205,6 +1207,7 @@ class MonitorRuleEngine:
             "signals": signals, "severity": rule.get("severity", "info"),
             "conditions": list(rule.get("conditions", [])) if rtype != "strategy" else [],
             "logic": rule.get("logic", "and") if rtype != "strategy" else "and",
+            **metadata,
         }
 
     @staticmethod
@@ -1399,7 +1402,8 @@ class MonitorRuleEngine:
         row_map: dict[str, dict] = {r["symbol"]: r for r in result.rows}
         try:
             for row in df.iter_rows(named=True):
-                row_map.setdefault(str(row.get("symbol", "")), row)
+                symbol = str(row.get("symbol", ""))
+                row_map[symbol] = {**row, **row_map.get(symbol, {})}
         except Exception:
             pass
 
@@ -1437,6 +1441,20 @@ class MonitorRuleEngine:
             "pool_entry": "进入选股结果",
             "pool_exit": "移出选股结果",
         }
+        try:
+            entry_policy = {
+                "version": 1, "strategy_id": sid,
+                "policy": strategy_policy(s, overrides).to_dict(),
+                "params": {
+                    **{item["id"]: item.get("default") for item in s.meta.get("params", [])
+                       if isinstance(item, dict) and item.get("id")},
+                    **(overrides.get("params") or {}),
+                },
+                "as_of": str(result.as_of),
+            }
+        except ValueError as exc:
+            logger.warning("策略 %s 风控配置无效, 不生成入场执行事件: %s", sid, exc)
+            entry_policy = None
         for event_type, symbols in changes.items():
             if event_type not in notify_events or not symbols:
                 continue
@@ -1449,8 +1467,18 @@ class MonitorRuleEngine:
                     row.get("close"), row.get("change_pct"),
                     signal_map.get(event_type, {}).get(symbol, []),
                 ))
-            if execution_rows is not None:
-                execution_rows.extend(individual)
+            if execution_rows is not None and (
+                entry_policy is not None or event_type in ("sell_signal", "pool_exit")
+            ):
+                for hit in individual:
+                    row = row_map.get(hit[1], {})
+                    score = row.get("score", result.scores.get(hit[1]))
+                    score = score if isinstance(score, (float, int)) and not isinstance(score, bool) and math.isfinite(score) else None
+                    # Notifications retain their display price; executions use raw money.
+                    execution_rows.append((
+                        *hit[:3], row.get("raw_close", hit[3]), *hit[4:],
+                        {"score": score, "entry_policy": entry_policy},
+                    ))
             if len(symbol_list) > 5:
                 names = [
                     str(row_map.get(symbol, {}).get("name") or self._name_map.get(symbol, symbol))

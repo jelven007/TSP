@@ -1147,6 +1147,10 @@ export interface PaperAutoRule {
   order_type: 'market' | 'next_open' | 'close'
   cooldown_days: number
   max_positions?: number
+  candidate_priority?: 'event' | 'score' | 'symbol'
+  max_symbol_exposure_pct?: number
+  max_total_exposure_pct?: number
+  risk_follow?: boolean
   enabled: boolean
   created_at: string
 }

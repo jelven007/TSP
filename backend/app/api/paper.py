@@ -327,6 +327,10 @@ class AutoRuleModel(BaseModel):
     order_type: str = "next_open"
     cooldown_days: int = 5
     max_positions: int = Field(default=0, ge=0, strict=True)
+    candidate_priority: str = "event"
+    max_symbol_exposure_pct: float = Field(default=0, ge=0, le=100, allow_inf_nan=False)
+    max_total_exposure_pct: float = Field(default=0, ge=0, le=100, allow_inf_nan=False)
+    risk_follow: bool = False
     enabled: bool = True
 
 

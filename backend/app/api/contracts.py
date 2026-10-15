@@ -635,6 +635,10 @@ class PaperAutoRule(ContractModel):
     order_type: str
     cooldown_days: int
     max_positions: int = Field(default=0, ge=0)
+    candidate_priority: str = "event"
+    max_symbol_exposure_pct: float = 0
+    max_total_exposure_pct: float = 0
+    risk_follow: bool = False
     enabled: bool
     created_at: str
 

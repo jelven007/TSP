@@ -119,7 +119,7 @@ ENRICHED_STORAGE_COLS = [
     "symbol", "date",
     "open", "high", "low", "close",          # 前复权
     "volume", "amount",
-    "raw_close", "raw_high", "raw_low",       # 不复权原始价
+    "raw_open", "raw_close", "raw_high", "raw_low",       # 不复权原始价
     "turnover_rate",                           # 依赖当时的 float_shares, 不可回推
     "consecutive_limit_ups",                   # 递推状态, 需从历史 cum_sum
     "consecutive_limit_downs",
@@ -127,6 +127,7 @@ ENRICHED_STORAGE_COLS = [
     "instrument_status_known",                 # False 表示历史状态尚未开始采集
     "is_listed",                               # Point-in-Time 上市状态
     "quote_ts",                                # 行情时间戳(ms): 盘后校验/量比折算/跨天完整性
+    "quote_time_basis",                        # 源端快照时间 / 本机接收时间
 ]
 
 
@@ -145,6 +146,7 @@ ENRICHED_COLUMNS: dict[str, dict[str, str]] = {
     "close":                   "前复权收盘价",
     "volume":                  "成交量",
     "amount":                  "成交额",
+    "raw_open":                "原始开盘价(未复权)",
     "raw_close":               "原始收盘价(未复权)",
     "raw_high":                "原始最高价(未复权)",
     "raw_low":                 "原始最低价(未复权)",
@@ -1200,6 +1202,7 @@ def compute_enriched(
 
     # 保留不复权原始价格（涨停/炸板/跌停判断需用不复权价格）
     raw = raw.with_columns(
+        pl.col("open").alias("raw_open"),
         pl.col("close").alias("raw_close"),
         pl.col("high").alias("raw_high"),
         pl.col("low").alias("raw_low"),
@@ -1771,7 +1774,7 @@ def run_pipeline(data_dir: Path | None = None,
             if not hist_df.is_empty():
                 # 只取基础行情列做历史前缀
                 hist_cols = [c for c in ["symbol", "date", "open", "high", "low", "close",
-                                         "volume", "amount", "raw_close", "raw_high", "raw_low"]
+                                         "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low"]
                              if c in hist_df.columns]
                 raw_full = pl.concat([hist_df.select(hist_cols), raw_new], how="diagonal_relaxed")
             else:
@@ -2071,7 +2074,7 @@ def _load_recent_history(enriched_base: Path, symbols: list[str], days: int) -> 
             .sort(["symbol", "date"])
         )
         hist_cols = [c for c in ["symbol", "date", "open", "high", "low", "close",
-                                 "volume", "amount", "raw_close", "raw_high", "raw_low"]
+                                 "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low"]
                     if c in lf.schema]
         return lf.select(hist_cols).collect()
     except Exception as e:  # noqa: BLE001
@@ -2135,6 +2138,7 @@ def compute_enriched_today(
 
     # ---- 前复权: 保存原始价 → 调整 OHLCV ----
     df = df.with_columns([
+        pl.col("open").alias("raw_open"),
         pl.col("close").alias("raw_close"),
         pl.col("high").alias("raw_high"),
         pl.col("low").alias("raw_low"),
