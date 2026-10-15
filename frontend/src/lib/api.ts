@@ -2081,6 +2081,8 @@ export interface Preferences {
   second_quote_archive_enabled?: boolean
   /** 0 = 不自动删除；1–365 = 保留自然日数。 */
   second_quote_archive_retention_days?: number
+  /** full = 全交易时段；preopen = 仅 09:15–09:25 盘前集合竞价。 */
+  second_quote_archive_window?: 'full' | 'preopen'
   watchlist_groups_in_nav: boolean
   minute_sync_enabled: boolean
   minute_sync_days: number
@@ -2547,16 +2549,18 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ realtime_quotes_enabled: enabled }),
     }),
-  updateSecondQuoteArchive: (enabled: boolean, retentionDays = 0) =>
+  updateSecondQuoteArchive: (enabled: boolean, retentionDays = 0, window: 'full' | 'preopen' = 'full') =>
     request<{
       second_quote_archive_enabled: boolean
       second_quote_archive_retention_days: number
+      second_quote_archive_window: 'full' | 'preopen'
       status?: SecondQuoteArchiveStatus
     }>('/api/settings/preferences/second-quote-archive', {
       method: 'PUT',
       body: JSON.stringify({
         second_quote_archive_enabled: enabled,
         second_quote_archive_retention_days: retentionDays,
+        second_quote_archive_window: window,
       }),
     }),
   updateRealtimeQuoteScope: (cfg: Partial<Pick<Preferences, 'realtime_pull_stock' | 'realtime_pull_etf'>>) =>

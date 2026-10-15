@@ -39,6 +39,7 @@ from app.market_time import (
     cn_now,
     cn_today,
     in_intraday_polling_window,
+    in_preopen_auction_window,
 )
 from app.parquet import scan_daily_parquet
 from app.polars_guard import guarded_collect
@@ -985,7 +986,7 @@ class QuoteService:
         _persist_last_fetch(fetched_at)
         logger.info("行情刷新: %d 只股票, %d 只ETF, %d 只指数, 耗时 %.0fms", len(stock_records), len(etf_records), len(index_records), fetch_ms)
 
-        if self._second_quote_archive is not None and in_intraday_polling_window(cn_now()):
+        if self._second_quote_archive is not None and self._archive_window_open(cn_now()):
             try:
                 from app.services import trading_day
 
@@ -1227,6 +1228,19 @@ class QuoteService:
         if "last_price" in df.columns and "close" not in df.columns:
             df = df.with_columns(pl.col("last_price").alias("close"))
         return df
+
+    @staticmethod
+    def _archive_window_open(now: datetime) -> bool:
+        """秒级归档采样窗口门控。
+
+        window=preopen 仅在 09:15-09:25 盘前集合竞价采样; 其余 (含默认 full)
+        沿用整个盘中拉取窗口。节假日由调用方的交易日探针另行剔除。
+        """
+        from app.services import preferences
+
+        if preferences.get_second_quote_archive_window() == "preopen":
+            return in_preopen_auction_window(now)
+        return in_intraday_polling_window(now)
 
     @staticmethod
     def _market_phase() -> str:

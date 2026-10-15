@@ -144,6 +144,17 @@ def get_second_quote_archive_retention_days() -> int:
     )
 
 
+_SECOND_QUOTE_WINDOWS = ("full", "preopen")
+_SECOND_QUOTE_WINDOW_DEFAULT = "full"
+
+
+def get_second_quote_archive_window() -> str:
+    """秒级归档采样窗口: full=全交易时段 (默认, 兼容既有秒级回放),
+    preopen=仅 09:15-09:25 盘前集合竞价。非法值自愈回退 full。"""
+    raw = load().get("second_quote_archive_window", _SECOND_QUOTE_WINDOW_DEFAULT)
+    return raw if raw in _SECOND_QUOTE_WINDOWS else _SECOND_QUOTE_WINDOW_DEFAULT
+
+
 def get_minute_sync_enabled() -> bool:
     return load().get("minute_sync_enabled", False)
 

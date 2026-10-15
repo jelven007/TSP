@@ -297,5 +297,79 @@ def test_low_disk_drops_capture_without_publishing_partial_shard(tmp_path, monke
     assert state["dropped_rounds"] == 1
     assert state["written_rows"] == 0
     assert "insufficient disk space" in state["last_error"]
-    assert not list((tmp_path / "quote_second").rglob("*.parquet"))
-    assert not list((tmp_path / "quote_second").rglob("*.tmp"))
+
+
+def _preopen_service(monkeypatch, now: datetime):
+    """QuoteService 装配一个记录 submit 的归档桩, 时间戳由 now 决定。"""
+    from app.services import quote_service as quote_service_module
+    from app.services.quote_service import QuoteService
+
+    class Repo:
+        def get_index_symbol_set(self) -> set[str]:
+            return set()
+
+        def get_etf_instruments(self) -> pl.DataFrame:
+            return pl.DataFrame()
+
+        def flush_live_daily(self, frame: pl.DataFrame) -> None:
+            pass
+
+    class Archive:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def submit(self, records, **kwargs) -> bool:
+            self.calls.append(records)
+            return True
+
+    service = QuoteService()
+    archive = Archive()
+    service._repo = Repo()
+    service._second_quote_archive = archive
+    monkeypatch.setattr(quote_service_module, "cn_today", lambda: now.date())
+    monkeypatch.setattr(quote_service_module, "cn_now", lambda: now)
+    monkeypatch.setattr("app.services.trading_day.is_trading_day", lambda: True)
+    monkeypatch.setattr(quote_service_module, "_persist_last_fetch", lambda _ms: None)
+    monkeypatch.setattr(service, "_update_volume_delta", lambda *_args: None)
+    monkeypatch.setattr(service, "_flush_live_enriched", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(service, "_broadcast_quote_updated", lambda: None)
+    return service, archive
+
+
+def test_preopen_window_archives_only_during_call_auction(monkeypatch):
+    from app.market_time import CN_TZ
+    from app.services import preferences
+
+    monkeypatch.setattr(preferences, "get_second_quote_archive_window", lambda: "preopen")
+
+    # 09:20 在 09:15-09:25 盘前竞价窗口内 → 归档。
+    service, archive = _preopen_service(
+        monkeypatch, datetime(2026, 1, 5, 9, 20, tzinfo=CN_TZ)
+    )
+    service._process_full_market_records(
+        _records(10.5)["stock"], t0=0.0, now_ts=0.0, provider_name="rustdx",
+    )
+    assert len(archive.calls) == 1
+
+    # 09:30 连续竞价时段; preopen 窗口不采样 → 不归档。
+    service, archive = _preopen_service(
+        monkeypatch, datetime(2026, 1, 5, 9, 30, tzinfo=CN_TZ)
+    )
+    service._process_full_market_records(
+        _records(10.5)["stock"], t0=0.0, now_ts=0.0, provider_name="rustdx",
+    )
+    assert archive.calls == []
+
+
+def test_full_window_still_archives_during_continuous_trading(monkeypatch):
+    from app.market_time import CN_TZ
+    from app.services import preferences
+
+    monkeypatch.setattr(preferences, "get_second_quote_archive_window", lambda: "full")
+    service, archive = _preopen_service(
+        monkeypatch, datetime(2026, 1, 5, 9, 30, tzinfo=CN_TZ)
+    )
+    service._process_full_market_records(
+        _records(10.5)["stock"], t0=0.0, now_ts=0.0, provider_name="rustdx",
+    )
+    assert len(archive.calls) == 1

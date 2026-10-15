@@ -27,6 +27,11 @@ _INTRADAY_POLL_MORNING_END = dt_time(11, 30)
 _INTRADAY_POLL_AFTERNOON_START = dt_time(13, 0)
 _INTRADAY_POLL_AFTERNOON_END = dt_time(15, 15)
 
+# 盘前集合竞价采样窗口: 09:15-09:25 (半开区间)。覆盖竞价指示价的持续变化;
+# 09:25 撮合终态由独立的 auction_snapshot 采集, 不在此窗口内。
+_PREOPEN_AUCTION_START = dt_time(9, 15)
+_PREOPEN_AUCTION_END = dt_time(9, 25)
+
 
 def cn_now() -> datetime:
     """当前北京时间 (带时区)。"""
@@ -117,6 +122,15 @@ def in_intraday_polling_window(now: datetime | None = None) -> bool:
         _INTRADAY_POLL_MORNING_START <= now.time() < _INTRADAY_POLL_MORNING_END
         or _INTRADAY_POLL_AFTERNOON_START <= now.time() < _INTRADAY_POLL_AFTERNOON_END
     )
+
+
+def in_preopen_auction_window(now: datetime | None = None) -> bool:
+    """盘前集合竞价采样窗口: 09:15-09:25 (半开区间), 仅工作日。
+
+    节假日由调用方通过交易日探针判断; 本函数只负责北京时间、周末和边界。
+    """
+    now = as_cn_datetime(now or cn_now())
+    return now.weekday() < 5 and _PREOPEN_AUCTION_START <= now.time() < _PREOPEN_AUCTION_END
 
 
 def trading_minutes_elapsed_from_dt(dt: datetime) -> float:
