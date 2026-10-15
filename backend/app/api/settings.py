@@ -531,6 +531,7 @@ def get_preferences(request: Request = None) -> dict:
         "second_quote_archive_retention_days": (
             preferences.get_second_quote_archive_retention_days()
         ),
+        "second_quote_archive_window": preferences.get_second_quote_archive_window(),
         "watchlist_groups_in_nav": preferences.get_watchlist_groups_in_nav(),
         "minute_sync_enabled": preferences.get_minute_sync_enabled(),
         "minute_sync_days": preferences.get_minute_sync_days(),
@@ -982,6 +983,7 @@ class RealtimeQuotesPrefs(BaseModel):
 class SecondQuoteArchivePrefs(BaseModel):
     second_quote_archive_enabled: bool
     second_quote_archive_retention_days: int = Field(default=0, ge=0, le=365)
+    second_quote_archive_window: Literal["full", "preopen"] = "full"
 
 
 class RealtimeQuoteScopePrefs(BaseModel):
@@ -1003,6 +1005,7 @@ def update_second_quote_archive(
         "second_quote_archive_retention_days": (
             preferences.get_second_quote_archive_retention_days()
         ),
+        "second_quote_archive_window": preferences.get_second_quote_archive_window(),
     }
     quote_service = getattr(request.app.state, "quote_service", None)
     if quote_service is not None:
