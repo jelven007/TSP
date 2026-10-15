@@ -647,7 +647,8 @@ class MonitorRuleEngine:
         )
 
     def evaluate(self, df: pl.DataFrame, asset_type: str = "stock",
-                 reset_strategy_results: bool = True) -> list[dict]:
+                 reset_strategy_results: bool = True,
+                 execution_events: list[dict] | None = None) -> list[dict]:
         """行情更新后评估规则。
 
         按 asset_type 只评估匹配资产类型的规则; ETF 规则应传 ETF enriched 快照。
@@ -658,6 +659,8 @@ class MonitorRuleEngine:
             df: 实时 enriched 数据 (含 signal_/csg_/指标列)
             asset_type: 只评估该资产类型的规则 (默认 stock, 向后兼容)
             reset_strategy_results: 是否重置策略结果缓存 (多轮评估时仅首轮 True)
+            execution_events: 可选输出容器, 追加逐证券策略事件, 不做通知汇总或通知冷却。
+                信号 K 线去重和选股池边缘判定仍生效; 每轮由调用方提供新的容器。
         Returns:
             触发的 AlertEvent dict 列表 (含 ts/rule_id/source/type/symbol/...)
         """
@@ -758,7 +761,7 @@ class MonitorRuleEngine:
                 # evaluate_date_rules 专用路径
                 continue
             try:
-                events.extend(self._evaluate_rule(df, rule, now))
+                events.extend(self._evaluate_rule(df, rule, now, execution_events))
             except Exception as e:
                 logger.warning("规则评估失败 %s: %s", rule_id, e)
 
@@ -1126,7 +1129,10 @@ class MonitorRuleEngine:
             f"接近度{closeness * 100:.0f}%, {state}"
         )
 
-    def _evaluate_rule(self, df: pl.DataFrame, rule: dict, now: float) -> list[dict]:
+    def _evaluate_rule(
+        self, df: pl.DataFrame, rule: dict, now: float,
+        execution_events: list[dict] | None = None,
+    ) -> list[dict]:
         """评估单条规则,返回触发的 events。"""
         # 1. 按 scope 过滤作用域
         scoped = self._apply_scope(df, rule, self._groups)
@@ -1140,7 +1146,10 @@ class MonitorRuleEngine:
         rtype = rule.get("type", "signal")
         if rtype == "strategy":
             # 策略类型: 跑策略选股, 同时产出所选的信号和结果池变更事件
-            hit_rows = self._match_strategy(scoped, rule)
+            execution_rows: list[tuple] = []
+            hit_rows = self._match_strategy(scoped, rule, execution_rows=execution_rows)
+            if execution_events is not None:
+                execution_events.extend(self._rule_event(rule, hit, now) for hit in execution_rows)
         elif rtype == "ladder":
             # 连板梯队封单监控: 独立处理 (需带预警封单值, 走专属 message)
             return self._evaluate_ladder(scoped, rule, now)
@@ -1157,9 +1166,6 @@ class MonitorRuleEngine:
 
         # 3. cooldown 去重 + 生成 events
         cooldown = rule.get("cooldown_seconds", 3600)
-        severity = rule.get("severity", "info")
-        source = rtype
-
         events: list[dict] = []
         for ev_type, sym, name, price, pct, hit_sigs in hit_rows:
             # cooldown 键包含事件类型, 同股不同策略事件互不压制。
@@ -1171,38 +1177,7 @@ class MonitorRuleEngine:
                 continue  # 冷却期内, 跳过
             self._last_fire[key] = now
 
-            # 批量事件: name 存放预构建的消息文本
-            if is_batch:
-                resolved_name = ""
-                message = name  # name 字段即批量消息
-            else:
-                resolved_name = name if name else self._name_map.get(sym)
-                message = rule.get("message", "") or self._default_message(
-                    rule, ev_type=ev_type, sym=sym, name=resolved_name,
-                    pct=pct, price=price,
-                    conditions=list(rule.get("conditions", [])) if rule.get("type") != "strategy" else None,
-                    signals=hit_sigs,
-                )
-
-            ev = {
-                "ts": int(now * 1000),
-                "rule_id": rule["id"],
-                "rule_name": rule.get("name", ""),
-                "strategy_id": rule.get("strategy_id") if rtype == "strategy" else None,
-                "source": source,
-                "type": ev_type,
-                "symbol": "" if is_batch else sym,
-                "name": resolved_name,
-                "message": message,
-                "price": price,
-                "change_pct": pct,
-                "signals": hit_sigs,
-                "severity": severity,
-                # 触发条件快照 (signal/price/market 类型): 用于触发记录展示
-                # 「命中了什么条件」。strategy 类型靠策略选股池 diff, 不写条件。
-                "conditions": list(rule.get("conditions", [])) if rtype != "strategy" else [],
-                "logic": rule.get("logic", "and") if rtype != "strategy" else "and",
-            }
+            ev = self._rule_event(rule, (ev_type, sym, name, price, pct, hit_sigs), now)
             events.append(ev)
             if self._alert_handler:
                 try:
@@ -1211,6 +1186,26 @@ class MonitorRuleEngine:
                     logger.warning("alert handler failed: %s", e)
 
         return events
+
+    def _rule_event(self, rule: dict, hit: tuple, now: float) -> dict:
+        ev_type, sym, name, price, pct, signals = hit
+        rtype = rule.get("type", "signal")
+        is_batch = sym == "_batch"
+        resolved_name = "" if is_batch else (name or self._name_map.get(sym))
+        message = name if is_batch else (rule.get("message", "") or self._default_message(
+            rule, ev_type=ev_type, sym=sym, name=resolved_name, pct=pct, price=price,
+            conditions=list(rule.get("conditions", [])) if rtype != "strategy" else None,
+            signals=signals,
+        ))
+        return {
+            "ts": int(now * 1000), "rule_id": rule["id"], "rule_name": rule.get("name", ""),
+            "strategy_id": rule.get("strategy_id") if rtype == "strategy" else None,
+            "source": rtype, "type": ev_type, "symbol": "" if is_batch else sym,
+            "name": resolved_name, "message": message, "price": price, "change_pct": pct,
+            "signals": signals, "severity": rule.get("severity", "info"),
+            "conditions": list(rule.get("conditions", [])) if rtype != "strategy" else [],
+            "logic": rule.get("logic", "and") if rtype != "strategy" else "and",
+        }
 
     @staticmethod
     def _apply_scope(df: pl.DataFrame, rule: dict, groups: dict | None = None) -> pl.DataFrame:
@@ -1241,13 +1236,14 @@ class MonitorRuleEngine:
         return df
 
     def _match_strategy(
-        self, df: pl.DataFrame, rule: dict,
+        self, df: pl.DataFrame, rule: dict, *, execution_rows: list[tuple] | None = None,
     ) -> list[tuple[str, str, Any, Any, Any, list[str]]]:
         """策略类型评估: 一次执行同时产出交易信号和结果池变更事件。
 
         返回 [(event_type, symbol, name, price, pct, signals)]
         event_type: buy_signal | sell_signal | pool_entry | pool_exit
         同类事件超过 5 只时合并为一条批量事件 (symbol="_batch")
+        execution_rows 在合并前收集完整逐证券事件, 与通知表现独立。
         """
         if self._strategy_engine is None:
             return []
@@ -1445,6 +1441,16 @@ class MonitorRuleEngine:
             if event_type not in notify_events or not symbols:
                 continue
             symbol_list = sorted(symbols)
+            individual = []
+            for symbol in symbol_list:
+                row = row_map.get(symbol, {})
+                individual.append((
+                    event_type, symbol, row.get("name") or self._name_map.get(symbol, symbol),
+                    row.get("close"), row.get("change_pct"),
+                    signal_map.get(event_type, {}).get(symbol, []),
+                ))
+            if execution_rows is not None:
+                execution_rows.extend(individual)
             if len(symbol_list) > 5:
                 names = [
                     str(row_map.get(symbol, {}).get("name") or self._name_map.get(symbol, symbol))
@@ -1461,17 +1467,7 @@ class MonitorRuleEngine:
                 })
                 results.append((event_type, "_batch", message, None, None, hit_signals))
                 continue
-            for symbol in symbol_list:
-                row = row_map.get(symbol, {})
-                name = row.get("name") or self._name_map.get(symbol, symbol)
-                results.append((
-                    event_type,
-                    symbol,
-                    name,
-                    row.get("close"),
-                    row.get("change_pct"),
-                    signal_map.get(event_type, {}).get(symbol, []),
-                ))
+            results.extend(individual)
 
         return results
 

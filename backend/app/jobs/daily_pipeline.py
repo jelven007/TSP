@@ -767,11 +767,16 @@ def run_now(
     try:
         emit("paper_settle", 94, "模拟盘结算…")
         from app.strategy import paper as paper_trading
+        from app.strategy import paper_auto
         # 逐账户结算 (账户间订单/台账隔离), 汇总合并供日志与结果展示
         totals = {"filled": 0, "expired": 0, "corp_actions": 0, "nav": None, "accounts": []}
+        retry_events = []
         for acc_id in (paper_trading.list_account_ids(repo.store.data_dir)
                        if settings.service_role != "platform" else []):
+            paper_auto.retry_exit_intents(repo.store.data_dir, account_id=acc_id, submit=False)
             s = paper_trading.settle_day(repo.store.data_dir, today.isoformat(), account_id=acc_id)
+            retry_orders = paper_auto.retry_exit_intents(repo.store.data_dir, account_id=acc_id)
+            retry_events.extend(paper_auto.auto_order_events(retry_orders, account_id=acc_id))
             totals["filled"] += s.get("filled", 0)
             totals["expired"] += s.get("expired", 0)
             totals["corp_actions"] += s.get("corp_actions", 0)
@@ -783,10 +788,10 @@ def run_now(
             logger.info("paper_settle: %s", paper_summary)
         # 结算成交留痕 (V3): next_open/close 单的成交发生在盘后管道内, 盘中钩子
         # 覆盖不到; 管道无 SSE 广播器, 这里补 alert_store 留痕进监控中心即可见。
-        if totals["filled"]:
+        if totals["filled"] or retry_events:
             try:
                 from app.services import alert_store
-                settle_events = []
+                settle_events = list(retry_events)
                 for acc_id in paper_trading.list_account_ids(repo.store.data_dir):
                     settle_events.extend(paper_trading.day_fill_events(
                         repo.store.data_dir, today.isoformat(), account_id=acc_id))

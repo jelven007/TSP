@@ -216,6 +216,53 @@ def test_strategy_sell_and_pool_exit_are_independent_events():
     }
 
 
+def test_batch_notifications_preserve_each_execution_and_restart_dedupe():
+    day = date(2026, 10, 14)
+    symbols = tuple(f"600{i:03}.SH" for i in range(7))
+    quotes = pl.DataFrame({"symbol": symbols, "close": [10.] * 7})
+    engine = MonitorRuleEngine()
+    engine.set_rules([_rule("buy_signal", "sell_signal", "pool_entry", "pool_exit")])
+    engine.set_strategy_engine(_SequenceStrategyEngine([
+        _result(day), _result(day, pool=symbols, buys=symbols),
+        _result(day, sells=symbols),
+    ]))
+    executions = []
+    assert engine.evaluate(quotes, execution_events=executions) == []
+    notifications = engine.evaluate(quotes, execution_events=executions)
+    assert len(notifications) == 2 and all(ev["symbol"] == "" for ev in notifications)
+    assert len(executions) == 14
+    assert {(ev["type"], ev["symbol"]) for ev in executions} == {
+        (kind, symbol) for kind in ("buy_signal", "pool_entry") for symbol in symbols
+    }
+    assert all(ev["price"] == 10 and ev["strategy_id"] == "demo" for ev in executions)
+    exits = []
+    assert len(engine.evaluate(quotes, execution_events=exits)) == 2
+    assert len(exits) == 14
+    restarted = MonitorRuleEngine()
+    restarted.restore_state(engine.export_state())
+    restarted.set_rules([_rule("buy_signal", "sell_signal", "pool_entry", "pool_exit")])
+    restarted.set_strategy_engine(_SequenceStrategyEngine([_result(day, sells=symbols)]))
+    replay = []
+    assert restarted.evaluate(quotes, execution_events=replay) == []
+    assert replay == []
+
+
+def test_execution_pool_edges_survive_notification_cooldown():
+    day = date(2026, 10, 14)
+    engine = MonitorRuleEngine()
+    engine.set_rules([_rule("pool_entry")])
+    engine.set_strategy_engine(_SequenceStrategyEngine([
+        _result(day), _result(day, pool=("A",)), _result(day), _result(day, pool=("A",)),
+    ]))
+    with patch("app.strategy.monitor.time.time", side_effect=[100, 101, 102, 103]):
+        assert engine.evaluate(_quotes()) == []
+        assert len(engine.evaluate(_quotes())) == 1
+        assert engine.evaluate(_quotes()) == []
+        executions = []
+        assert engine.evaluate(_quotes(), execution_events=executions) == []
+    assert [(ev["type"], ev["symbol"]) for ev in executions] == [("pool_entry", "A")]
+
+
 def test_strategy_rule_reload_preserves_state_and_semantic_edit_resets_it():
     day = date(2026, 7, 24)
     engine = MonitorRuleEngine()
@@ -411,7 +458,9 @@ def test_quote_service_forwards_real_strategy_id(monkeypatch, tmp_path):
         def has_asset_rules(self, asset_type: str) -> bool:
             return False
 
-        def evaluate(self, df, asset_type: str):
+        def evaluate(self, df, asset_type: str, execution_events=None):
+            if execution_events is not None:
+                execution_events.append(event)
             return [event]
 
         def consume_strategy_result_updates(self) -> bool:
@@ -436,3 +485,51 @@ def test_quote_service_forwards_real_strategy_id(monkeypatch, tmp_path):
         service._evaluate_monitors(pl.DataFrame(), None)
 
     assert subscriber.pop()["alerts"][0]["strategy_id"] == "demo"
+
+
+def test_standalone_collector_uses_unbatched_events_and_retries_without_alerts(monkeypatch, tmp_path):
+    from datetime import datetime, time, timedelta
+
+    from app.market_time import CN_TZ
+    from app.strategy import paper, paper_auto
+
+    day = date(2026, 10, 14)
+    current_day = {"day": day}
+    monkeypatch.setattr(paper, "cn_today", lambda: current_day["day"])
+    monkeypatch.setattr(quote_service, "cn_today", lambda: current_day["day"])
+    monkeypatch.setattr(paper, "cn_now", lambda: datetime.combine(current_day["day"], time(14), CN_TZ))
+    monkeypatch.setattr(paper_auto, "cn_now", lambda: paper.cn_now())
+    monkeypatch.setattr(preferences, "get_system_notify_enabled", lambda: False)
+    monkeypatch.setattr(alert_store, "append_many", lambda *args: None)
+    symbols = tuple(f"600{i:03}.SH" for i in range(7))
+    frame = pl.DataFrame({"symbol": symbols, "close": [10.] * 7, "raw_close": [10.] * 7})
+    engine = MonitorRuleEngine()
+    engine.set_rules([_rule("pool_entry", "pool_exit")])
+    engine.set_strategy_engine(_SequenceStrategyEngine([
+        _result(day), _result(day, pool=symbols), _result(day),
+        _result(day), _result(day), _result(day),
+    ]))
+    paper.create_account(tmp_path, 100000)
+    paper_auto.create_auto_rule(tmp_path, {
+        "name": "批量方向", "match_kind": "strategy", "match_id": "demo", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 1000, "order_type": "market", "cooldown_days": 0,
+    })
+    repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    service = QuoteService()
+    service.set_app_state(SimpleNamespace(monitor_engine=engine, repo=repo))
+    service._repo = repo
+    service.get_enriched_today = lambda: (frame, current_day["day"])
+    with patch.object(QuoteService, "_is_continuous_trading", return_value=True):
+        service._evaluate_monitors(pl.DataFrame(), None)  # baseline
+        service._evaluate_monitors(pl.DataFrame(), None)  # 7 entries, one notification
+        assert len(paper.load_orders(tmp_path)) == 7
+        service._evaluate_monitors(pl.DataFrame(), None)  # fill entries, queue T+1 exits
+        assert len(paper_auto.load_exit_intents(tmp_path, active_only=True)) == 7
+        current_day["day"] += timedelta(days=1)
+        service._evaluate_monitors(pl.DataFrame(), None)  # no alert; retry exits
+        assert len(paper.load_orders(tmp_path)) == 14
+        service._evaluate_monitors(pl.DataFrame(), None)  # fills and completes
+        assert all(pos["qty"] == 0 for pos in paper.load_positions(tmp_path).values())
+        assert paper_auto.load_exit_intents(tmp_path, active_only=True) == []
+        service._evaluate_monitors(pl.DataFrame(), None)
+        assert len(paper.load_orders(tmp_path)) == 14

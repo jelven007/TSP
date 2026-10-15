@@ -2,6 +2,7 @@
 
 规则匹配: 事件 source=="strategy" 且 strategy_id 相等 (跟策略), 或 rule_id 相等
 (跟任意监控规则, 含信号/价格规则)。策略可自动跟随入场/退出方向, 自动退出全平。
+退出目标按持仓周期持久保存, T+1/待卖单/撮合拒绝后继续重试, 完成或取消后归档。
 仓位: 固定金额 或 账户权益百分比; 最大持仓计入当前持仓和待成交买单标的。
 冷却: 同规则同 symbol 最近一次自动下单后 N 个日历日内不再触发 (按订单
 created_at 日期判断); 自动退出不受冷却限制。
@@ -9,8 +10,9 @@ created_at 日期判断); 自动退出不受冷却限制。
 规则按账户存放 (accounts/{account_id}/auto_rules/), 账户间隔离;
 on_rule_events 由钩子对每个账户各调一次。
 
-触发链路: quote_service._evaluate_monitors 产出的 rule_events →
+触发链路: 监控引擎逐证券策略事件 + 通用规则事件 →
 paper_auto.on_rule_events → paper.create_order(source=f"auto:{rule_id}")。
+重试链路: 实时轮询/盘后结算 → retry_exit_intents (没有新信号也推进)。
 所有下单走 paper 域的同一把锁与校验, 账户冻结/资金/涨跌停等约束自动生效。
 """
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import uuid
 from datetime import date as _date
 from datetime import datetime
@@ -109,16 +112,21 @@ def load_auto_rules(data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID, 
 @paper_operation(write=True)
 def save_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> dict:
     validate_rule(rule)
-    if isinstance(data_dir, PaperSession):
-        if paper.get_account(data_dir, account_id) is None:
-            raise ValueError("尚未创建模拟账户")
-        namespace = f"paper_auto:{account_id}"
-        if data_dir.document(namespace, rule["id"]) is None and len(data_dir.document_values(namespace)) >= 100:
-            raise ValueError("自动跟单规则数量已达上限")
-        data_dir.put_document(namespace, rule["id"], rule)
+    with paper_lock(data_dir, paper.PAPER_LOCK):
+        old = next((r for r in load_auto_rules(data_dir, account_id) if r["id"] == rule["id"]), None)
+        if not rule.get("enabled", True) or (old and _exit_rule_signature(old) != _exit_rule_signature(rule)):
+            _cancel_rule_exits(data_dir, rule["id"], account_id, "自动规则停用或执行配置已变更")
+        if isinstance(data_dir, PaperSession):
+            if paper.get_account(data_dir, account_id) is None:
+                raise ValueError("尚未创建模拟账户")
+            namespace = f"paper_auto:{account_id}"
+            if old is None and len(data_dir.document_values(namespace)) >= 100:
+                raise ValueError("自动跟单规则数量已达上限")
+            data_dir.put_document(namespace, rule["id"], rule)
+        else:
+            atomic_write_text(_dir(data_dir, account_id) / f"{rule['id']}.json",
+                              json.dumps(rule, ensure_ascii=False, indent=2))
         return rule
-    atomic_write_text(_dir(data_dir, account_id) / f"{rule['id']}.json", json.dumps(rule, ensure_ascii=False, indent=2))
-    return rule
 
 
 @paper_operation(write=True)
@@ -131,30 +139,25 @@ def create_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT
 @paper_operation(write=True)
 def delete_auto_rule(data_dir: Path, rule_id: str, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> bool:
     paper.validate_account_id(account_id)
-    if isinstance(data_dir, PaperSession):
-        return data_dir.delete_document(f"paper_auto:{account_id}", rule_id)
-    p = _dir(data_dir, account_id) / f"{rule_id}.json"
-    if p.exists():
-        p.unlink()
-        return True
-    return False
+    with paper_lock(data_dir, paper.PAPER_LOCK):
+        _cancel_rule_exits(data_dir, rule_id, account_id, "自动规则已删除")
+        if isinstance(data_dir, PaperSession):
+            return data_dir.delete_document(f"paper_auto:{account_id}", rule_id)
+        p = _dir(data_dir, account_id) / f"{rule_id}.json"
+        if p.exists():
+            p.unlink()
+            return True
+        return False
 
 
 @paper_operation(write=True)
 def set_enabled(data_dir: Path, rule_id: str, enabled: bool, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> dict | None:
-    if isinstance(data_dir, PaperSession):
-        rule = data_dir.document(f"paper_auto:{account_id}", rule_id)
+    with paper_lock(data_dir, paper.PAPER_LOCK):
+        rule = next((r for r in load_auto_rules(data_dir, account_id) if r["id"] == rule_id), None)
         if rule is None:
             return None
-        rule = normalize_rule(rule)
         rule["enabled"] = enabled
         return save_auto_rule(data_dir, rule, account_id)
-    p = _dir(data_dir, account_id) / f"{rule_id}.json"
-    if not p.exists():
-        return None
-    rule = normalize_rule(json.loads(p.read_text(encoding="utf-8")))
-    rule["enabled"] = enabled
-    return save_auto_rule(data_dir, rule, account_id)
 
 
 def _matches(rule: dict, ev: dict) -> bool:
@@ -223,78 +226,287 @@ def _position_slots_used(data_dir: Path, account_id: str) -> set[str]:
     return used
 
 
-@paper_operation(write=True)
-def on_rule_events(data_dir: Path, events: list[dict], account_id: str = paper.DEFAULT_ACCOUNT_ID) -> list[dict]:
-    """监控事件 → 自动下单。返回本次创建的订单列表 (被拒订单只记日志)。
+_ACTIVE_EXITS = {"pending", "submitted"}
 
-    触发条件: 事件带 symbol 与价格、有规则匹配、方向适用、未冷却、持仓未超限;
-    自动退出忽略冷却、按全部持仓下单。下单复用 paper.create_order
-    (冻结/资金/T+1/涨跌停等校验自动生效), ref_price 用事件价格 (当前快照价)。
+
+def _record_dir(data_dir: Path, kind: str, account_id: str) -> Path:
+    path = paper._root(data_dir, account_id) / kind
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _record(data_dir, kind, key, account_id):
+    if isinstance(data_dir, PaperSession):
+        return data_dir.document(f"paper_{kind}:{account_id}", key)
+    path = _record_dir(data_dir, kind, account_id) / f"{key}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def _put_record(data_dir, kind, key, value, account_id):
+    if isinstance(data_dir, PaperSession):
+        if kind == "exit" and value["status"] not in _ACTIVE_EXITS:
+            data_dir.put_document(f"paper_exit_archive:{account_id}", key, value)
+            data_dir.delete_document(f"paper_exit:{account_id}", key)
+        else:
+            data_dir.put_document(f"paper_{kind}:{account_id}", key, value)
+    else:
+        atomic_write_text(_record_dir(data_dir, kind, account_id) / f"{key}.json",
+                          json.dumps(value, ensure_ascii=False, indent=2))
+        if kind == "exit" and value["status"] not in _ACTIVE_EXITS:
+            # Atomic rename keeps terminal history out of the polling path.
+            (_record_dir(data_dir, kind, account_id) / f"{key}.json").replace(
+                _record_dir(data_dir, "exit_archive", account_id) / f"{key}.json",
+            )
+
+
+@paper_operation()
+def load_exit_intents(
+    data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID, *, active_only: bool = False,
+) -> list[dict]:
+    """账户持久退出待办及终态; 读取损坏的文件时失败, 避免静默丢失退出。"""
+    paper.validate_account_id(account_id)
+    if isinstance(data_dir, PaperSession):
+        values = data_dir.document_values(f"paper_exit:{account_id}")
+        if not active_only:
+            values += data_dir.document_values(f"paper_exit_archive:{account_id}")
+        return values
+    paths = list(_record_dir(data_dir, "exit", account_id).glob("*.json"))
+    if not active_only:
+        paths.extend(_record_dir(data_dir, "exit_archive", account_id).glob("*.json"))
+    values = {path.stem: json.loads(path.read_text(encoding="utf-8")) for path in sorted(paths)}
+    return [value for value in values.values() if not active_only or value["status"] in _ACTIVE_EXITS]
+
+
+def _exit_rule_signature(rule: dict) -> list:
+    # 金额、买入冷却、持仓上限、显示文案不改变全平意图。
+    return [rule.get(key) for key in ("match_kind", "match_id", "side", "order_type")]
+
+
+def _update_intent(data_dir, intent, account_id, **changes):
+    if all(intent.get(key) == value for key, value in changes.items()):
+        return
+    intent.update(changes, updated_at=_now_iso())
+    _put_record(data_dir, "exit", intent["id"], intent, account_id)
+
+
+def _finish_intent(data_dir, intent, account_id, status, reason):
+    for order in paper.load_orders(data_dir, account_id):
+        if order.get("exit_intent_id") == intent["id"] and order["status"] == "pending":
+            paper.cancel_order(data_dir, order["id"], account_id)
+    _update_intent(data_dir, intent, account_id, status=status, last_error=reason)
+
+
+def _cancel_rule_exits(data_dir, rule_id, account_id, reason):
+    for intent in load_exit_intents(data_dir, account_id, active_only=True):
+        if intent["rule_id"] == rule_id and intent["status"] in _ACTIVE_EXITS:
+            _finish_intent(data_dir, intent, account_id, "cancelled", reason)
+
+
+def _position_cycle(data_dir, symbol, position, account_id):
+    if position.get("cycle_id"):
+        return position["cycle_id"]
+    # Existing materialized positions predate cycle_id. Derive their identity
+    # from the ledger rather than quantity/date, which can repeat after reentry.
+    paper._materialize(data_dir, account_id)
+    replayed = paper.load_positions(data_dir, account_id).get(symbol, {})
+    position.update(replayed)
+    return replayed.get("cycle_id")
+
+
+def _valid_price(value):
+    return (not isinstance(value, bool) and isinstance(value, (int, float))
+            and math.isfinite(value) and value > 0)
+
+
+def _created_order(data_dir, order, account_id):
+    if isinstance(data_dir, PaperSession):
+        event = auto_order_events([order], account_id)[0]
+        data_dir.alert({**event, "id": f"auto:{account_id}:{order['id']}"})
+
+
+@paper_operation(write=True)
+def retry_exit_intents(
+    data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID, *,
+    prices: dict[str, float] | None = None, allow_market: bool = False, submit: bool = True,
+) -> list[dict]:
+    """对账并重试自动全平。即时单须有调用方已验证的新鲜行情; 顺延单可无行情。
+
+    submit=False 用于撮合前核对持仓周期/规则, 撤销失效的旧退出单。
+    T+1 或其他待卖单阻塞时等待全量可卖, 不自动切换为部分卖出。
     """
-    created: list[dict] = []
-    if not events:
-        return created
-    rules = load_auto_rules(data_dir, account_id, enabled_only=True)
-    if not rules:
-        return created
+    created = []
     with paper_lock(data_dir, paper.PAPER_LOCK):
-        for ev in events:
-            symbol = (ev.get("symbol") or "").strip()
-            price = ev.get("price")
-            if not symbol or price is None or price <= 0:
+        intents = load_exit_intents(data_dir, account_id, active_only=True)
+        if not intents:
+            return created
+        rules = {rule["id"]: rule for rule in load_auto_rules(data_dir, account_id)}
+        positions = paper.load_positions(data_dir, account_id)
+        account = paper.get_account(data_dir, account_id)
+        orders = paper.load_orders(data_dir, account_id)
+        for intent in intents:
+            if intent["status"] not in _ACTIVE_EXITS:
                 continue
-            for rule in rules:
-                if not _matches(rule, ev):
-                    continue
-                receipt = hashlib.sha256(json.dumps([rule["id"], ev], sort_keys=True).encode()).hexdigest()
-                if isinstance(data_dir, PaperSession):
-                    if data_dir.document(f"paper_event:{account_id}", receipt):
-                        continue
-                    # Persist a receipt in the same transaction as any new
-                    # order. A worker replay cannot place a duplicate even
-                    # with zero cooldown or after a rule has been edited.
-                    data_dir.put_document(f"paper_event:{account_id}", receipt, {"processed": True})
-                side = _resolve_side(rule, ev)
-                if side is None:
-                    continue
-                auto_exit = rule["side"] == "auto" and side == "sell"
-                if not auto_exit and _in_cooldown(
-                    data_dir, rule, symbol, int(rule.get("cooldown_days", 0)), account_id,
-                ):
-                    continue
-                max_positions = rule.get("max_positions", 0)
-                if side == "buy" and max_positions > 0:
-                    used = _position_slots_used(data_dir, account_id)
-                    if symbol not in used and len(used) >= max_positions:
-                        logger.info("paper auto %s: %s 已达最大持仓 %d", rule["name"], symbol, max_positions)
-                        continue
-                if auto_exit:
-                    position = paper.load_positions(data_dir, account_id).get(symbol)
-                    qty = int(position["qty"]) if position else 0
-                else:
-                    qty = _sizing_qty(data_dir, rule, float(price), account_id)
-                if qty <= 0:
-                    logger.info(
-                        "paper auto %s: %s %s", rule["name"], symbol,
-                        "无持仓可平" if auto_exit else f"金额不足以一手 (价 {price})",
-                    )
-                    continue
-                order, err = paper.create_order(
-                    data_dir, symbol, side,
-                    account_id=account_id,
-                    qty=qty,
-                    order_type=rule["order_type"],
-                    ref_price=float(price),
-                    source=f"auto:{rule['id']}",
+            rule = rules.get(intent["rule_id"])
+            if (not rule or not rule.get("enabled")
+                    or _exit_rule_signature(rule) != intent["rule_signature"]):
+                _finish_intent(data_dir, intent, account_id, "cancelled", "自动规则停用、删除或执行配置已变更")
+                continue
+            symbol = intent["symbol"]
+            pos = positions.get(symbol)
+            if not pos or pos["qty"] <= 0:
+                _finish_intent(data_dir, intent, account_id, "completed", None)
+                continue
+            if _position_cycle(data_dir, symbol, pos, account_id) != intent["cycle_id"]:
+                _finish_intent(data_dir, intent, account_id, "cancelled", "原持仓周期已结束")
+                continue
+            linked = [order for order in orders if order.get("exit_intent_id") == intent["id"]]
+            pending = [order for order in linked if order["status"] == "pending"]
+            for order in pending:
+                if order["qty"] != pos["qty"]:
+                    paper.cancel_order(data_dir, order["id"], account_id)
+                    order["status"] = "cancelled"
+            if any(order["status"] == "pending" for order in pending):
+                _update_intent(data_dir, intent, account_id, status="submitted",
+                               order_ids=[order["id"] for order in linked], last_error=None)
+                continue
+            _update_intent(data_dir, intent, account_id, status="pending",
+                           order_ids=[order["id"] for order in linked])
+            if not submit:
+                continue
+            if not account or account.get("status") != "active":
+                _update_intent(data_dir, intent, account_id, last_error="账户已冻结, 退出暂停")
+                continue
+            if paper._available_of(pos, paper.cn_today().isoformat()) < pos["qty"]:
+                _update_intent(data_dir, intent, account_id, last_error="可卖数量不足 (T+1), 等待全量可卖")
+                continue
+            if any(order["status"] == "pending" and order["side"] == "sell" and order["symbol"] == symbol
+                   for order in orders):
+                _update_intent(data_dir, intent, account_id, last_error="已有待成交卖单, 等待其完成或撤销")
+                continue
+            price = (prices or {}).get(symbol)
+            is_market = rule["order_type"] == "market" and pos.get("asset_type", "stock") == "stock"
+            if is_market and (not allow_market or not _valid_price(price)):
+                _update_intent(data_dir, intent, account_id, last_error="等待新鲜行情")
+                continue
+            if is_market and linked:
+                limit_error = paper._limit_price_error(
+                    data_dir, symbol, "sell", pos.get("asset_type", "stock"),
+                    paper.apply_slippage(float(price), "sell", float(account["slippage_bps"])),
+                    paper.cn_today().isoformat(),
                 )
-                if err:
-                    logger.info("paper auto %s: %s 下单被拒: %s", rule["name"], symbol, err)
+                if limit_error:
+                    _update_intent(data_dir, intent, account_id, last_error=limit_error)
                     continue
-                created.append(order)
-                if isinstance(data_dir, PaperSession):
-                    event = auto_order_events([order], account_id)[0]
-                    data_dir.alert({**event, "id": f"auto:{account_id}:{order['id']}"})
-                logger.info("paper auto %s: %s 触发 %s %d 股 (%s)", rule["name"], symbol, side, qty, order["id"])
+            if not _valid_price(price):
+                price = intent.get("signal_price")
+            qty = int(pos["qty"])
+            if qty != pos["qty"]:
+                _update_intent(data_dir, intent, account_id, last_error="全平数量不符合当前订单数量规则")
+                continue
+            order, error = paper.create_order(
+                data_dir, symbol, "sell", account_id=account_id, qty=qty,
+                order_type=rule["order_type"], asset_type=pos.get("asset_type", "stock"),
+                ref_price=float(price) if _valid_price(price) else None,
+                source=f"auto:{rule['id']}", exit_intent_id=intent["id"],
+                idempotency_key=f"exit:{intent['id']}:{len(linked)}",
+            )
+            if error:
+                _update_intent(data_dir, intent, account_id, last_error=error)
+                continue
+            _update_intent(data_dir, intent, account_id, status="submitted", last_error=None,
+                           order_ids=[item["id"] for item in linked] + [order["id"]])
+            _created_order(data_dir, order, account_id)
+            created.append(order)
+            orders.append(order)
+    return created
+
+
+@paper_operation(write=True)
+def on_rule_events(
+    data_dir: Path, events: list[dict], account_id: str = paper.DEFAULT_ACCOUNT_ID, *,
+    prices: dict[str, float] | None = None, allow_entries: bool = True,
+) -> list[dict]:
+    """逐证券事件 → 跟单。先保存退出意图, 再处理入场, 最后重试全部退出待办。
+
+    带 id/ts 的事件在文件模式也保存处理回执。退出回执与待办分离, 重放
+    不重复创建意图, 空事件仍可推进待办; prices 应由调用方提供当前有效行情。
+    allow_entries=False 时只接收自动退出目标, 供计算后行情失效的 Worker 使用。
+    """
+    created = []
+    with paper_lock(data_dir, paper.PAPER_LOCK):
+        retry_exit_intents(data_dir, account_id, submit=False)
+        rules = load_auto_rules(data_dir, account_id, enabled_only=True)
+        matches = [(rule, ev, _resolve_side(rule, ev))
+                   for ev in events if (ev.get("symbol") or "").strip()
+                   for rule in rules if _matches(rule, ev)]
+        # Persist exit instructions before any entry can add to the same position.
+        matches.sort(key=lambda item: not (item[0]["side"] == "auto" and item[2] == "sell"))
+        event_prices = {}
+        for rule, ev, side in matches:
+            symbol = ev["symbol"].strip()
+            auto_exit = rule["side"] == "auto" and side == "sell"
+            if not allow_entries and not auto_exit:
+                continue
+            price = ev.get("price")
+            if side is None or (not auto_exit and not _valid_price(price)):
+                continue
+            receipt = hashlib.sha256(json.dumps([rule["id"], ev], sort_keys=True).encode()).hexdigest()
+            durable_receipt = isinstance(data_dir, PaperSession) or "id" in ev or "ts" in ev
+            if durable_receipt and _record(data_dir, "event", receipt, account_id):
+                continue
+            if auto_exit:
+                pos = paper.load_positions(data_dir, account_id).get(symbol)
+                if pos and pos["qty"] > 0:
+                    cycle = _position_cycle(data_dir, symbol, pos, account_id)
+                    if cycle is None:
+                        raise ValueError("无法从成交台账确定持仓周期")
+                    active = next((intent for intent in load_exit_intents(data_dir, account_id, active_only=True)
+                                   if intent["rule_id"] == rule["id"] and intent["symbol"] == symbol
+                                   and intent["cycle_id"] == cycle and intent["status"] in _ACTIVE_EXITS), None)
+                    if active is None:
+                        intent = {
+                            "id": hashlib.sha256(json.dumps([receipt, cycle]).encode()).hexdigest(),
+                            "rule_id": rule["id"], "symbol": symbol,
+                            "cycle_id": cycle, "rule_signature": _exit_rule_signature(rule),
+                            "status": "pending", "signal_price": price if _valid_price(price) else None,
+                            "event": ev, "order_ids": [], "last_error": None,
+                            "created_at": _now_iso(), "updated_at": _now_iso(),
+                        }
+                        _put_record(data_dir, "exit", intent["id"], intent, account_id)
+                if _valid_price(price):
+                    event_prices[symbol] = float(price)
+                if durable_receipt:
+                    _put_record(data_dir, "event", receipt, {"processed": True}, account_id)
+                continue
+            if durable_receipt:
+                _put_record(data_dir, "event", receipt, {"processed": True}, account_id)
+            if side == "buy" and any(
+                intent["symbol"] == symbol and intent["status"] in _ACTIVE_EXITS
+                for intent in load_exit_intents(data_dir, account_id, active_only=True)
+            ):
+                continue
+            if _in_cooldown(data_dir, rule, symbol, int(rule.get("cooldown_days", 0)), account_id):
+                continue
+            if side == "buy" and rule.get("max_positions", 0) > 0:
+                used = _position_slots_used(data_dir, account_id)
+                if symbol not in used and len(used) >= rule["max_positions"]:
+                    continue
+            qty = _sizing_qty(data_dir, rule, float(price), account_id)
+            if qty <= 0:
+                continue
+            order, error = paper.create_order(
+                data_dir, symbol, side, account_id=account_id, qty=qty,
+                order_type=rule["order_type"], ref_price=float(price), source=f"auto:{rule['id']}",
+            )
+            if error:
+                logger.info("paper auto %s: %s 下单被拒: %s", rule["name"], symbol, error)
+                continue
+            created.append(order)
+            _created_order(data_dir, order, account_id)
+        created.extend(retry_exit_intents(
+            data_dir, account_id, prices=event_prices if prices is None else prices,
+            allow_market=True,
+        ))
     return created
 
 

@@ -1351,6 +1351,7 @@ class QuoteService:
 
             all_alerts: list[dict] = []
             rule_events: list[dict] = []
+            execution_events: list[dict] = []
             engine = None
 
             # 通用监控规则评估 (统一引擎: signal/price/market/strategy)
@@ -1374,7 +1375,9 @@ class QuoteService:
                         if engine.has_rule_type("volume_delta"):
                             eval_df = self._inject_volume_delta(eval_df)
                         eval_df = self._inject_intraday_signals(eval_df, engine, "stock")
-                        rule_events = engine.evaluate(eval_df, asset_type="stock")
+                        rule_events = engine.evaluate(
+                            eval_df, asset_type="stock", execution_events=execution_events,
+                        )
                         if engine.consume_strategy_result_updates():
                             self.notify_strategy_results_updated()
                     if engine.has_rule_type("sector"):
@@ -1418,6 +1421,7 @@ class QuoteService:
                                 etf_enriched = self._inject_intraday_signals(etf_enriched, engine, "etf")
                                 rule_events = rule_events + engine.evaluate(
                                     etf_enriched, asset_type="etf", reset_strategy_results=False,
+                                    execution_events=execution_events,
                                 )
                         except Exception as e:  # noqa: BLE001
                             logger.warning("ETF 监控评估失败 (不影响股票告警): %s", e)
@@ -1431,6 +1435,7 @@ class QuoteService:
                                 index_enriched = self._inject_intraday_signals(index_enriched, engine, "index")
                                 rule_events = rule_events + engine.evaluate(
                                     index_enriched, asset_type="index", reset_strategy_results=False,
+                                    execution_events=execution_events,
                                 )
                         except Exception as e:  # noqa: BLE001
                             logger.warning("指数监控评估失败 (不影响股票/ETF 告警): %s", e)
@@ -1495,7 +1500,7 @@ class QuoteService:
                 self._maybe_send_webhook(rule_events, engine)
 
             # 模拟盘钩子: 与监控评估同频 —— ① 用同一份实时快照撮合 pending 即时单;
-            # ② rule_events 喂给自动跟单规则触发自动下单。逐账户执行 (账户间规则与订单隔离)。
+            # ② 逐证券策略事件和通用规则通知喂给自动跟单, 空事件也重试持久退出。
             # 即时撮合仅股票 (ETF 即时单在下单时已转次日开盘); 独立 try ——
             # 模拟盘任何异常只留痕, 不得影响监控告警链路。
             if stock_ready and self._app_state is not None:
@@ -1510,11 +1515,15 @@ class QuoteService:
                     ))
                     paper_events: list[dict] = []
                     for acc_id in paper_trading.list_account_ids(data_dir):
+                        paper_auto.retry_exit_intents(data_dir, account_id=acc_id, submit=False)
                         paper_events.extend(
                             paper_trading.evaluate_intraday(data_dir, snapshot, account_id=acc_id))
-                        if rule_events:
-                            created = paper_auto.on_rule_events(data_dir, rule_events, account_id=acc_id)
-                            paper_events.extend(paper_auto.auto_order_events(created, account_id=acc_id))
+                        created = paper_auto.on_rule_events(
+                            data_dir,
+                            execution_events + [ev for ev in rule_events if ev["source"] != "strategy"],
+                            account_id=acc_id, prices=snapshot,
+                        )
+                        paper_events.extend(paper_auto.auto_order_events(created, account_id=acc_id))
                     # 成交/自动跟单下单推送 (V3): 复用监控中心既有管道 —— SSE toast /
                     # 语音 (前端按 source 拼文案) / 系统通知 / alert_store 留痕 /
                     # Webhook。全部静默降级。

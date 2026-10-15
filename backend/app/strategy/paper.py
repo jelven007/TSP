@@ -405,6 +405,7 @@ def create_order(
     ref_price: float | None = None,
     source: str = "manual",
     idempotency_key: str | None = None,
+    exit_intent_id: str | None = None,
 ) -> tuple[dict | None, str | None]:
     """创建订单并校验。qty 与 amount 二选一 (amount 按参考价折算百股)。
 
@@ -418,6 +419,7 @@ def create_order(
             previous, digest = data_dir.idempotent_order(account_id, idempotency_key, {
                 "symbol": symbol, "side": side, "qty": qty, "amount": amount, "order_type": order_type,
                 "asset_type": asset_type, "ref_price": ref_price, "source": source,
+                **({"exit_intent_id": exit_intent_id} if exit_intent_id is not None else {}),
             })
             if previous:
                 return previous, None
@@ -508,6 +510,8 @@ def create_order(
             "fees": None,
             "reason": None,
         }
+        if exit_intent_id is not None:
+            order["exit_intent_id"] = exit_intent_id
         save_order(data_dir, order, account_id)
         if isinstance(data_dir, PaperSession):
             data_dir.bind_order_request(account_id, order["id"], idempotency_key, digest)
@@ -607,6 +611,10 @@ def replay_positions(
                 "asset_type": f.get("asset_type", "stock"),
                 "qty": 0, "avg_cost": 0.0, "available_qty": 0, "lots": [],
             })
+            if pos["qty"] <= 0:
+                # Stable through partial sales/additions; changes only after
+                # flattening and reentry. Rebuilt from the authoritative ledger.
+                pos["cycle_id"] = f["order_id"]
             total_cost = pos["avg_cost"] * pos["qty"] + qty * price + fee
             pos["qty"] += qty
             pos["avg_cost"] = round(total_cost / pos["qty"], 6) if pos["qty"] else 0.0
@@ -694,6 +702,25 @@ def rebuild_positions(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> d
 
 
 # ── 撮合 ────────────────────────────────────────────────
+def _limit_price_error(
+    data_dir: Path, symbol: str, side: str, asset_type: str, price: float, day: str,
+) -> str | None:
+    """成交价(已含滑点)的涨跌停约束; 撮合与退出重试共用同一口径。"""
+    prev = _prev_close(data_dir, symbol, asset_type, day)
+    if prev is None:
+        return None
+    trade_date = _date.fromisoformat(day)
+    up, down = limit_prices(
+        prev, symbol, asset_type, trade_date=trade_date,
+        is_risk_warning=_risk_warning_on(data_dir, symbol, trade_date),
+    )
+    if side == "buy" and price >= up:
+        return f"触及涨停 {up} 买不进 (模拟)"
+    if side == "sell" and price <= down:
+        return f"触及跌停 {down} 卖不出 (模拟)"
+    return None
+
+
 @paper_operation(write=True)
 def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -> dict | None:
     """按指定 raw 价成交一笔订单 (费用/滑点/资金与持仓校验), 返回 fill 或 None。
@@ -709,30 +736,17 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
     if not math.isfinite(raw_price) or raw_price <= 0:
         return None
     acc = get_account(data_dir, account_id)
-    if isinstance(data_dir, PaperSession) and acc["status"] != "active":
+    if acc["status"] != "active":
         return None
     symbol, side, qty = order["symbol"], order["side"], int(order["qty"])
     asset_type = order.get("asset_type", "stock")
     price = apply_slippage(raw_price, side, float(acc["slippage_bps"]))
 
     # 涨跌停检查 (基于上一交易日 raw close; 无上日收盘则跳过检查 — 新股/数据缺失)
-    prev = _prev_close(data_dir, symbol, asset_type, day)
-    if prev is not None:
-        trade_date = _date.fromisoformat(day)
-        is_risk_warning = _risk_warning_on(data_dir, symbol, trade_date)
-        up, down = limit_prices(
-            prev,
-            symbol,
-            asset_type,
-            trade_date=trade_date,
-            is_risk_warning=is_risk_warning,
-        )
-        if side == "buy" and price >= up:
-            _queue_or_expire(data_dir, order, acc, f"触及涨停 {up} 买不进 (模拟)", account_id)
-            return None
-        if side == "sell" and price <= down:
-            _queue_or_expire(data_dir, order, acc, f"触及跌停 {down} 卖不出 (模拟)", account_id)
-            return None
+    limit_error = _limit_price_error(data_dir, symbol, side, asset_type, price, day)
+    if limit_error:
+        _queue_or_expire(data_dir, order, acc, limit_error, account_id)
+        return None
 
     fee = buy_fee(qty, price, acc["commission_pct"]) if side == "buy" else sell_fee(qty, price, acc["commission_pct"], acc["stamp_tax_pct"])
     gross = qty * price

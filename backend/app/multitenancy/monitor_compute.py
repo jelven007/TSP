@@ -62,7 +62,7 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
     intraday._last_bar = {
         tuple(key): datetime.fromisoformat(value) for key, value in previous.get("intraday", [])
     }
-    events, current_frames = [], {}
+    events, execution_events, current_frames = [], [], {}
     if snapshot["status"].get("is_trading_hours"):
         for asset in ("stock", "etf", "index"):
             if snapshot.get("days", {}).get(asset) != cn_today().isoformat():
@@ -95,7 +95,10 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
                 )
                 frame = intraday.inject(frame, signals)
             current_frames[asset] = frame
-            events.extend(engine.evaluate(frame, asset_type=asset, reset_strategy_results=asset == "stock"))
+            events.extend(engine.evaluate(
+                frame, asset_type=asset, reset_strategy_results=asset == "stock",
+                execution_events=execution_events,
+            ))
         events.extend(engine.evaluate_sectors(
             current_frames.get("stock", pl.DataFrame()), decode_frame(snapshot["indices"]),
         ))
@@ -106,7 +109,7 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
         ]))
         events.extend(engine.evaluate_date_rules())
     return {
-        "events": events, "results": engine.latest_strategy_results(),
+        "events": events, "execution_events": execution_events, "results": engine.latest_strategy_results(),
         "state": {
             "engine": engine.export_state(),
             "intraday": [[list(key), value.isoformat()] for key, value in intraday._last_bar.items()],

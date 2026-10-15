@@ -258,16 +258,108 @@ def test_auto_full_exit_cooldown_t1_pending_and_replay_on_sql(owned, monkeypatch
     monkeypatch.setattr(paper, "cn_today", lambda: NEXT)
     monkeypatch.setattr(paper, "cn_now", lambda: datetime.combine(NEXT, time(14), CN_TZ))
     restart = TenantPaper(own.db, own.context, own.public_data_dir)
-    assert paper_auto.on_rule_events(restart, [exit_ev]) == []  # Do not replay rejected events.
-    exit_next = {**exit_ev, "id": "exit-next"}
     with ThreadPoolExecutor(max_workers=6) as pool:
-        responses = list(pool.map(lambda _: paper_auto.on_rule_events(restart, [exit_next]), range(12)))
+        responses = list(pool.map(
+            lambda _: paper_auto.on_rule_events(restart, [], prices={SYM: 10}), range(12),
+        ))
     sells = [order for result in responses for order in result]
     assert len(sells) == 1 and sells[0]["side"] == "sell" and sells[0]["qty"] == 700
-    assert paper_auto.on_rule_events(restart, [{**exit_next, "id": "exit-pending"}]) == []
+    assert paper_auto.on_rule_events(restart, [exit_ev]) == []  # Receipt does not duplicate the intent.
+    assert paper_auto.on_rule_events(restart, [{**exit_ev, "id": "exit-pending"}]) == []
     assert paper.load_orders(other) == []
+    assert paper_auto.load_exit_intents(other) == []
     assert len(paper.evaluate_intraday(restart, {SYM: 10})) == 1
     assert paper.load_positions(restart)[SYM]["qty"] == 0
+    paper_auto.retry_exit_intents(restart)
+    assert paper_auto.load_exit_intents(restart)[0]["status"] == "completed"
+    assert_ledger(restart)
+
+
+def test_exit_intent_receipt_order_and_alert_roll_back_together(owned, monkeypatch):
+    own, other = owned
+    paper.create_account(own, 100000)
+    paper.create_order(own, SYM, "buy", qty=700, ref_price=10)
+    paper.evaluate_intraday(own, {SYM: 10})
+    paper_auto.create_auto_rule(own, {
+        "name": "退出回滚", "match_kind": "strategy", "match_id": "s", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 1, "cooldown_days": 5, "order_type": "market",
+    })
+    monkeypatch.setattr(paper, "cn_today", lambda: NEXT)
+    original = PaperSession.put_document
+
+    def crash(self, namespace, key, value):
+        if namespace.startswith("paper_exit:") and value.get("status") == "submitted":
+            raise RuntimeError("crash after exit order saved")
+        return original(self, namespace, key, value)
+
+    ev = {"id": "rollback-exit", "source": "strategy", "strategy_id": "s",
+          "type": "sell_signal", "symbol": SYM, "price": 10}
+    monkeypatch.setattr(PaperSession, "put_document", crash)
+    with pytest.raises(RuntimeError, match="crash after exit"):
+        paper_auto.on_rule_events(own, [ev])
+    assert len(paper.load_orders(own)) == 1
+    assert paper_auto.load_exit_intents(own) == []
+    assert own.values("paper_event:default") == []
+    monkeypatch.setattr(PaperSession, "put_document", original)
+    assert len(paper_auto.on_rule_events(own, [ev])) == 1
+    assert len(own.values("paper_event:default")) == 1
+    assert paper_auto.load_exit_intents(other) == []
+    assert other.values("paper_event:default") == []
+    assert not (own.public_data_dir / "paper").exists()
+
+
+def test_sql_exit_cancel_and_expiry_recover_without_signal(owned, monkeypatch):
+    own, _ = owned
+    paper.create_account(own, 100000)
+    paper.create_order(own, SYM, "buy", qty=700, ref_price=10)
+    paper.evaluate_intraday(own, {SYM: 10})
+    rule = paper_auto.create_auto_rule(own, {
+        "name": "退出重试", "match_kind": "strategy", "match_id": "s", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 1, "cooldown_days": 5, "order_type": "next_open",
+    })
+    paper_auto.on_rule_events(own, [{
+        "id": "exit", "source": "strategy", "strategy_id": "s", "type": "pool_exit",
+        "symbol": SYM, "price": 10,
+    }])
+    monkeypatch.setattr(paper, "cn_today", lambda: NEXT)
+    first = paper_auto.retry_exit_intents(own)[0]
+    paper.cancel_order(own, first["id"])
+    second = paper_auto.retry_exit_intents(own)[0]
+    paper.save_order(own, {**second, "status": "expired"})
+    third = paper_auto.retry_exit_intents(own)[0]
+    assert len({first["id"], second["id"], third["id"]}) == 3
+    paper_auto.set_enabled(own, rule["id"], False)
+    assert paper.get_order(own, third["id"])["status"] == "cancelled"
+    paper_auto.set_enabled(own, rule["id"], True)
+    assert paper_auto.retry_exit_intents(own) == []
+    assert paper_auto.load_exit_intents(own)[0]["status"] == "cancelled"
+
+
+def test_sql_old_t1_exit_does_not_liquidate_same_quantity_reentry(owned, monkeypatch):
+    own, _ = owned
+    paper.create_account(own, 100000)
+    paper.create_order(own, SYM, "buy", qty=700, ref_price=10)
+    paper.evaluate_intraday(own, {SYM: 10})
+    paper_auto.create_auto_rule(own, {
+        "name": "周期隔离", "match_kind": "strategy", "match_id": "s", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 1, "cooldown_days": 5, "order_type": "market",
+    })
+    paper_auto.on_rule_events(own, [{
+        "id": "old", "source": "strategy", "strategy_id": "s", "type": "sell_signal",
+        "symbol": SYM, "price": 10,
+    }])
+    old_cycle = paper_auto.load_exit_intents(own)[0]["cycle_id"]
+    monkeypatch.setattr(paper, "cn_today", lambda: NEXT)
+    paper.create_order(own, SYM, "sell", qty=700, ref_price=10)
+    paper.evaluate_intraday(own, {SYM: 10})
+    paper.create_order(own, SYM, "buy", qty=700, ref_price=10)
+    paper.evaluate_intraday(own, {SYM: 10})
+    monkeypatch.setattr(paper, "cn_today", lambda: NEXT + timedelta(days=1))
+    restart = TenantPaper(own.db, own.context, own.public_data_dir)
+    assert paper_auto.on_rule_events(restart, [], prices={SYM: 10}) == []
+    assert paper.load_positions(restart)[SYM]["qty"] == 700
+    assert paper.load_positions(restart)[SYM]["cycle_id"] != old_cycle
+    assert paper_auto.load_exit_intents(restart)[0]["status"] == "cancelled"
     assert_ledger(restart)
 
 
