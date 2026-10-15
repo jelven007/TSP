@@ -123,6 +123,7 @@ def test_capture_uses_fresh_active_catalog_and_publishes_atomically(tmp_path, mo
     metadata = json.loads((root / "metadata.json").read_text())
     assert metadata["capture_id"] == frame["capture_id"][0]
     assert metadata["universe_as_of"] == DAY.isoformat()
+    assert metadata["data_release_id"] == result["data_release_id"]
 
     payload = auction_snapshot.get_auction_snapshot(tmp_path)
     assert payload["state"] == "ready"
@@ -266,6 +267,48 @@ def test_ready_partition_prevents_duplicate_network_capture(tmp_path, monkeypatc
     assert len(provider.calls) == 1
 
 
+def test_failed_publication_recovers_after_window_without_recapturing(tmp_path, monkeypatch):
+    from app.services import data_release
+
+    _seed(tmp_path)
+    provider = _Provider()
+    publish = data_release.publish_data_release
+
+    def broken(*args, **kwargs):
+        raise data_release.DataReleaseError("enriched generation changed")
+
+    monkeypatch.setattr(data_release, "publish_data_release", broken)
+    result = _capture(monkeypatch, tmp_path, provider)
+    assert result["state"] == "publication_pending"
+    root = tmp_path / "auction_snapshot" / f"date={DAY.isoformat()}"
+    before = (root / "part.parquet").read_bytes()
+    assert not json.loads((root / "metadata.json").read_text()).get("data_release_id")
+
+    monkeypatch.setattr(data_release, "publish_data_release", publish)
+    result = auction_snapshot.retry_pending_publication(
+        tmp_path, now=NOW.replace(hour=10),
+    )
+    assert result["state"] == "ready"
+    assert result["data_release_id"] == data_release.read_current_release(tmp_path)["release_id"]
+    assert (root / "part.parquet").read_bytes() == before
+    assert json.loads((root / "metadata.json").read_text())["data_release_id"] == result["data_release_id"]
+    assert len(provider.calls) == 1
+    assert auction_snapshot.retry_pending_publication(
+        tmp_path, now=NOW.replace(hour=10),
+    )["state"] == "already_captured"
+    assert len(list((tmp_path / "data_releases/manifests").glob("*.json"))) == 1
+
+
+def test_publication_retry_never_fetches_missing_or_other_day_snapshot(tmp_path, monkeypatch):
+    _seed(tmp_path)
+    provider = _Provider()
+    _capture(monkeypatch, tmp_path, provider)
+    assert auction_snapshot.retry_pending_publication(
+        tmp_path, now=NOW.replace(day=12, hour=10),
+    )["state"] == "no_pending_publication"
+    assert len(provider.calls) == 1
+
+
 def test_outside_window_and_holiday_are_fail_closed(tmp_path, monkeypatch):
     _seed(tmp_path)
     provider = _Provider()
@@ -392,7 +435,7 @@ def test_runner_notifies_only_when_requested(tmp_path, monkeypatch):
     monkeypatch.setattr(
         auction_snapshot,
         "capture_auction_snapshot",
-        lambda data_dir: result,
+        lambda data_dir, *, write_lock=None: result,
     )
     monkeypatch.setattr(
         auction_snapshot,
@@ -430,9 +473,10 @@ def test_scheduler_registers_retries_and_in_window_catchup(monkeypatch):
         "auction_snapshot_45",
         "auction_snapshot_final",
         "auction_snapshot_catchup",
+        "auction_publication_retry",
     ]
     assert all(call["args"] == [repo] for call in calls)
-    assert [call["kwargs"]["notify_on_failure"] for call in calls] == [
+    assert [call["kwargs"]["notify_on_failure"] for call in calls[:-1]] == [
         False,
         False,
         False,
@@ -441,6 +485,9 @@ def test_scheduler_registers_retries_and_in_window_catchup(monkeypatch):
     ]
     assert "minute='29'" in str(calls[3]["trigger"])
     assert "second='15'" in str(calls[3]["trigger"])
+    assert calls[-1]["seconds"] == 60
+    assert calls[-1]["next_run_time"] == NOW
+    assert calls[-1]["func"] is daily_pipeline._retry_auction_publication
 
 
 def test_scheduler_marks_late_catchup_as_final_attempt(monkeypatch):

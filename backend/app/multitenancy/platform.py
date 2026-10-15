@@ -147,7 +147,9 @@ async def lifespan(app):
         pull_scheduler.refresh(store.data_dir)
         app.state.pull_scheduler = pull_scheduler
         resources.callback(pull_scheduler.stop)
-        financial_scheduler.start(store.data_dir, app.state.capabilities)
+        financial_scheduler.start(
+            store.data_dir, app.state.capabilities, write_lock=repo._write_lock,
+        )
         app.state.financial_scheduler = financial_scheduler
         resources.callback(financial_scheduler.stop)
 
@@ -164,4 +166,10 @@ async def lifespan(app):
         quotes.boot_check()
         depth.boot_check()
         depth.start_polling()
+        from app.services.health import ReadinessMonitor
+
+        monitor = ReadinessMonitor(app.state, store.data_dir)
+        app.state.readiness_monitor = monitor
+        monitor.start()
+        resources.callback(monitor.close)
         yield

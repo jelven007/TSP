@@ -154,11 +154,64 @@ def test_publish_rejects_generation_change_during_snapshot(tmp_path, monkeypatch
     assert data_release.read_current_release(tmp_path) == before
 
 
+def test_release_snapshot_serializes_with_realtime_writer(tmp_path, monkeypatch):
+    import threading
+
+    monkeypatch.setattr(data_release, "audit_provider_routes", _audit)
+    get_enriched_generation(tmp_path)
+    write_lock = threading.Lock()
+    entered, attempted, finished = threading.Event(), threading.Event(), threading.Event()
+    collect = data_release.collect_dataset_snapshot
+
+    def writer():
+        assert entered.wait(2)
+        attempted.set()
+        with write_lock:
+            bump_enriched_generation(tmp_path)
+        finished.set()
+
+    def collect_during_write(data_dir):
+        entered.set()
+        assert attempted.wait(2)
+        assert not finished.wait(.05), "writer must wait until the release is committed"
+        return collect(data_dir)
+
+    monkeypatch.setattr(data_release, "collect_dataset_snapshot", collect_during_write)
+    thread = threading.Thread(target=writer)
+    thread.start()
+    try:
+        release = data_release.publish_data_release(
+            tmp_path, reason="auction_snapshot", write_lock=write_lock,
+        )
+        assert data_release.read_current_release(tmp_path) == release
+    finally:
+        entered.set()
+        thread.join(2)
+    assert finished.is_set()
+    assert release["datasets"]["stock_enriched"]["generation"] != get_enriched_generation(tmp_path)
+
+
 def test_release_health_reports_first_generation_after_empty_baseline(tmp_path, monkeypatch):
     monkeypatch.setattr(data_release, "audit_provider_routes", _audit)
     data_release.publish_data_release(tmp_path, reason="empty_baseline")
     get_enriched_generation(tmp_path)
     assert data_release.release_health(tmp_path)["generation_mismatches"] == ["stock_enriched"]
+
+
+def test_provider_audit_does_not_hold_repository_write_lock(tmp_path, monkeypatch):
+    import threading
+
+    lock = threading.Lock()
+
+    def audit():
+        assert lock.acquire(blocking=False)
+        lock.release()
+        return _audit()
+
+    monkeypatch.setattr(data_release, "audit_provider_routes", audit)
+    assert data_release.publish_data_release(
+        tmp_path, reason="audit", write_lock=lock,
+    )["release_id"]
 
 
 def test_release_guard_rechecks_after_manifest_validation(tmp_path, monkeypatch):

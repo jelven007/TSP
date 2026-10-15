@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import threading
+import time as clock_time
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
@@ -15,6 +17,70 @@ from app.services.provider_audit import audit_provider_routes
 
 _DISK_WARNING_BYTES = 1024 * 1024 * 1024
 _DISK_ERROR_BYTES = 100 * 1024 * 1024
+
+
+class ReadinessMonitor:
+    """Dedicated local checks keep HTTP probes out of the business thread pool."""
+
+    def __init__(self, app_state: object, data_dir: Path, *, interval=5, max_age=15):
+        self.app_state, self.data_dir = app_state, Path(data_dir)
+        self.interval, self.max_age = interval, max_age
+        self._result: tuple[float, dict[str, Any]] | None = None
+        self._stop = threading.Event()
+        self._first_check = threading.Event()
+        self._thread = threading.Thread(
+            target=self._run, name="platform-readiness", daemon=True,
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            started = clock_time.monotonic()
+            try:
+                payload = readiness(self.app_state, self.data_dir)
+            except Exception as exc:
+                payload = {
+                    "ready": False, "status": "error", "checks": {
+                        "readiness_monitor": {"status": "error", "message": str(exc)},
+                    },
+                }
+            if self._stop.is_set():
+                return
+            self._result = (started, payload)
+            self._first_check.set()
+            if self._stop.wait(self.interval):
+                return
+
+    def snapshot(self) -> dict[str, Any]:
+        result = self._result
+        if self._stop.is_set():
+            reason = "stopped"
+        elif result is None:
+            reason = "initializing"
+        elif clock_time.monotonic() - result[0] > self.max_age:
+            reason = "stale"
+        else:
+            return dict(result[1])
+        previous = result[1] if result else {}
+        return {
+            **previous, "ready": False, "status": "error",
+            "checks": {
+                **previous.get("checks", {}),
+                "readiness_monitor": {"status": "error", "reason": reason},
+            },
+        }
+
+    def close(self) -> None:
+        self._stop.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=1)
+
+
+def readiness_snapshot(app_state: object, data_dir: Path) -> dict[str, Any]:
+    monitor = getattr(app_state, "readiness_monitor", None)
+    return monitor.snapshot() if monitor is not None else readiness(app_state, data_dir)
 
 
 def _check_data_dir(data_dir: Path) -> dict[str, Any]:

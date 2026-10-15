@@ -12,9 +12,11 @@ import math
 import re
 import threading
 import uuid
+from contextlib import AbstractContextManager
 from datetime import date, datetime
 from datetime import time as dt_time
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 
@@ -220,6 +222,7 @@ def capture_auction_snapshot(
     data_dir: Path,
     *,
     now: datetime | None = None,
+    write_lock: AbstractContextManager[Any] | None = None,
 ) -> dict:
     """Capture one verified full-market snapshot during the 09:25-09:30 window."""
     now = (now or cn_now()).astimezone(CN_TZ)
@@ -232,6 +235,8 @@ def capture_auction_snapshot(
     with _LOCK:
         ready = _ready_partition(data_dir, day)
         if ready is not None:
+            if not ready[0].get("data_release_id"):
+                return _publish_snapshot(data_dir, day, ready[0], write_lock=write_lock)
             return {**ready[0], "state": "already_captured"}
 
         universe, universe_meta = _active_universe(data_dir, day)
@@ -409,18 +414,48 @@ def capture_auction_snapshot(
             _metadata_path(data_dir, day),
             json.dumps(metadata, ensure_ascii=False, sort_keys=True),
         )
-        from app.services.data_release import publish_data_release
-
-        release = publish_data_release(
-            data_dir,
-            reason=f"auction_snapshot:{day.isoformat()}",
-        )
-        metadata["data_release_id"] = release["release_id"]
+        result = _publish_snapshot(data_dir, day, metadata, write_lock=write_lock)
         logger.info(
-            "09:25 竞价快照完成: %s, universe=%d quotes=%d matched=%d",
-            day, universe.height, quote_count, matched_count,
+            "09:25 竞价快照落盘: %s, universe=%d quotes=%d matched=%d state=%s",
+            day, universe.height, quote_count, matched_count, result["state"],
         )
-        return metadata
+        return result
+
+
+def _publish_snapshot(
+    data_dir: Path, day: date, metadata: dict, *,
+    write_lock: AbstractContextManager[Any] | None,
+) -> dict:
+    from app.services.data_release import DataReleaseError, publish_data_release
+
+    try:
+        release = publish_data_release(
+            data_dir, reason=f"auction_snapshot:{day.isoformat()}", write_lock=write_lock,
+        )
+        metadata = {**metadata, "data_release_id": release["release_id"], "state": "ready"}
+        atomic_write_text(
+            _metadata_path(data_dir, day),
+            json.dumps(metadata, ensure_ascii=False, sort_keys=True),
+        )
+    except (DataReleaseError, OSError) as exc:
+        logger.warning("09:25 竞价已落盘, 等待版本发布: %s: %s", day, exc)
+        return {**metadata, "state": "publication_pending", "message": str(exc)}
+    return metadata
+
+
+def retry_pending_publication(
+    data_dir: Path, *, now: datetime | None = None,
+    write_lock: AbstractContextManager[Any] | None = None,
+) -> dict:
+    """Resume today's verified local snapshot only; never request new quotes."""
+    day = (now or cn_now()).astimezone(CN_TZ).date()
+    with _LOCK:
+        ready = _ready_partition(data_dir, day)
+        if ready is None:
+            return {"state": "no_pending_publication", "trade_date": day.isoformat()}
+        if ready[0].get("data_release_id"):
+            return {**ready[0], "state": "already_captured"}
+        return _publish_snapshot(data_dir, day, ready[0], write_lock=write_lock)
 
 
 def notify_capture_failure(

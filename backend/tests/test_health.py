@@ -195,3 +195,101 @@ def test_unpublished_year_remains_unknown(tmp_path, monkeypatch):
     monkeypatch.setattr(health, "cn_now", lambda: datetime(2027, 1, 5, 19, tzinfo=CN_TZ))
     result = health._check_data_freshness(tmp_path)
     assert result["calendar_coverage"] == "unknown"
+
+
+def test_platform_probes_do_not_queue_behind_busy_request_threads(tmp_path, monkeypatch):
+    import asyncio
+    import threading
+
+    import anyio
+    import httpx
+
+    def check(_state, _dir):
+        return {"status": "ok", "ready": True, "checks": {}, "checked_at": "now"}
+
+    monkeypatch.setattr(health, "readiness", check)
+    app = FastAPI()
+    app.include_router(routes.router)
+    app.state.repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    monitor = SimpleNamespace(snapshot=lambda: check(app.state, tmp_path))
+    app.state.readiness_monitor = monitor
+
+    async def exercise():
+        limiter = anyio.to_thread.current_default_thread_limiter()
+        previous = limiter.total_tokens
+        limiter.total_tokens = 1
+        release, busy = threading.Event(), threading.Event()
+
+        def occupied():
+            busy.set()
+            release.wait(2)
+
+        worker = asyncio.create_task(anyio.to_thread.run_sync(occupied))
+        try:
+            while not busy.is_set() or not monitor.snapshot()["ready"]:
+                await asyncio.sleep(.001)
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app), base_url="http://test",
+            ) as client:
+                for path in ("/health/live", "/health/ready", "/api/health"):
+                    response = await asyncio.wait_for(client.get(path), timeout=.3)
+                    assert response.status_code == 200
+            assert monitor.snapshot().get("version") is None
+        finally:
+            release.set()
+            await worker
+            limiter.total_tokens = previous
+
+    asyncio.run(exercise())
+
+
+def test_readiness_monitor_fails_closed_on_start_stall_and_shutdown(tmp_path, monkeypatch):
+    import threading
+
+    started, release = threading.Event(), threading.Event()
+    clock = [100.0]
+    monkeypatch.setattr(health.clock_time, "monotonic", lambda: clock[0])
+
+    def stalled(*args):
+        started.set()
+        release.wait(2)
+        return {"ready": True, "status": "ok", "checks": {}, "checked_at": "now"}
+
+    monkeypatch.setattr(health, "readiness", stalled)
+    monitor = health.ReadinessMonitor(object(), tmp_path, max_age=15)
+    assert not monitor.snapshot()["ready"]
+    monitor.start()
+    try:
+        assert started.wait(1)
+        assert not monitor.snapshot()["ready"]
+        clock[0] += 16
+        release.set()
+        assert monitor._first_check.wait(1)
+        assert monitor.snapshot()["ready"] is False
+        assert monitor.snapshot()["checks"]["readiness_monitor"]["status"] == "error"
+    finally:
+        release.set()
+        monitor.close()
+    assert not monitor.snapshot()["ready"]
+
+
+def test_monitor_retains_dependency_failure_for_http_and_market_snapshot(tmp_path, monkeypatch):
+    payload = {"ready": False, "status": "error", "checks": {"scheduler": {"status": "error"}}}
+    monkeypatch.setattr(health, "readiness", lambda *args: payload)
+    app = FastAPI()
+    app.include_router(routes.router)
+    monitor = health.ReadinessMonitor(app.state, tmp_path)
+    app.state.readiness_monitor = monitor
+    monitor.start()
+    try:
+        assert monitor._first_check.wait(1)
+        monkeypatch.setattr(
+            health, "readiness", lambda *args: pytest.fail("request repeated deep checks"),
+        )
+        for path in ("/health/ready", "/api/health"):
+            response = TestClient(app).get(path)
+            assert response.status_code == 503
+            assert response.json()["checks"]["scheduler"]["status"] == "error"
+        assert health.readiness_snapshot(app.state, tmp_path) == payload
+    finally:
+        monitor.close()
