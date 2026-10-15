@@ -32,7 +32,7 @@ export function TenantSelector({ compact = false }: { compact?: boolean }) {
         <option value="" disabled>选择租户</option>
         {tenants.data?.tenants.map(tenant => (
           <option key={tenant.id} value={tenant.id} disabled={tenant.status !== 'active'}>
-            {tenant.name}{tenant.status !== 'active' ? '（不可用）' : ''}
+            {tenant.display_name ?? tenant.name}{tenant.status !== 'active' ? '（不可用）' : ''}
           </option>
         ))}
       </select>

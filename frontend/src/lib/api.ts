@@ -2036,6 +2036,7 @@ export interface ApiTokenRecord {
 export interface TenantDirectoryEntry {
   id: string
   name: string
+  display_name?: string
   status: 'active' | 'suspended' | 'moving'
   cell_id: string
 }
