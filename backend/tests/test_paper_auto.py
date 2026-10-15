@@ -152,3 +152,170 @@ def test_invalid_position_limits_rejected(account, value):
 def test_auto_requires_a_strategy_source(account):
     with pytest.raises(ValueError, match="策略"):
         make_rule(account, match_kind="rule")
+
+
+def next_day(monkeypatch):
+    monkeypatch.setattr(paper, "cn_today", lambda: DAY + timedelta(days=1))
+
+
+def test_exit_survives_t1_restart_cancel_and_no_new_signal(account, monkeypatch):
+    make_rule(account, cooldown_days=0)
+    buy_and_fill(account)
+    ev = event("sell_signal", id="exit-one")
+    assert paper_auto.on_rule_events(account, [ev]) == []
+    intents = paper_auto.load_exit_intents(account)
+    assert len(intents) == 1 and intents[0]["status"] == "pending"
+    assert "T+1" in intents[0]["last_error"]
+    next_day(monkeypatch)
+    # A fresh Path and empty events model a restarted collector without a new signal.
+    sells = paper_auto.on_rule_events(type(account)(str(account)), [], prices={SYM: 10})
+    assert len(sells) == 1 and sells[0]["qty"] == 700
+    assert paper_auto.on_rule_events(account, [ev], prices={SYM: 10}) == []
+    paper.cancel_order(account, sells[0]["id"])
+    retried = paper_auto.on_rule_events(account, [], prices={SYM: 11})
+    assert len(retried) == 1 and retried[0]["ref_price"] == 11
+    paper.evaluate_intraday(account, {SYM: 10})
+    assert paper_auto.on_rule_events(account, [], prices={SYM: 10}) == []
+    assert paper_auto.load_exit_intents(account)[0]["status"] == "completed"
+
+
+def test_exit_retries_remaining_after_manual_partial_sale(account, monkeypatch):
+    make_rule(account)
+    buy_and_fill(account)
+    paper_auto.on_rule_events(account, [event("pool_exit", id="partial")])
+    next_day(monkeypatch)
+    manual, error = paper.create_order(account, SYM, "sell", qty=200, ref_price=10)
+    assert error is None
+    assert paper_auto.on_rule_events(account, [], prices={SYM: 10}) == []
+    paper.evaluate_intraday(account, {SYM: 10})
+    assert paper.get_order(account, manual["id"])["status"] == "filled"
+    sells = paper_auto.on_rule_events(account, [], prices={SYM: 10})
+    assert len(sells) == 1 and sells[0]["qty"] == 500
+
+
+@pytest.mark.parametrize("change", ["disabled", "deleted", "direction", "target", "order_type"])
+def test_rule_changes_cancel_pending_exit_and_do_not_revive(account, monkeypatch, change):
+    rule = make_rule(account)
+    buy_and_fill(account)
+    next_day(monkeypatch)
+    sell = paper_auto.on_rule_events(account, [event("sell_signal", id="cancel")])[0]
+    if change == "disabled":
+        paper_auto.set_enabled(account, rule["id"], False)
+        paper_auto.set_enabled(account, rule["id"], True)
+    elif change == "deleted":
+        paper_auto.delete_auto_rule(account, rule["id"])
+    else:
+        fields = {"direction": {"side": "buy"}, "target": {"match_id": "other"},
+                  "order_type": {"order_type": "close"}}
+        paper_auto.save_auto_rule(account, {**rule, **fields[change]})
+    assert paper.get_order(account, sell["id"])["status"] == "cancelled"
+    assert paper_auto.on_rule_events(account, [], prices={SYM: 10}) == []
+    assert paper_auto.load_exit_intents(account)[0]["status"] == "cancelled"
+
+
+def test_freeze_pauses_exit_and_market_retry_requires_quote(account, monkeypatch):
+    make_rule(account)
+    buy_and_fill(account)
+    paper_auto.on_rule_events(account, [event("sell_signal", id="frozen")])
+    next_day(monkeypatch)
+    paper.set_frozen(account)
+    assert paper_auto.on_rule_events(account, [], prices={SYM: 10}) == []
+    paper.set_frozen(account, frozen=False)
+    assert paper_auto.retry_exit_intents(account) == []
+    assert paper_auto.on_rule_events(account, [], prices={OTHER: 10}) == []
+    assert len(paper_auto.on_rule_events(account, [], prices={SYM: 10})) == 1
+
+
+def test_old_exit_cannot_sell_reentered_position_even_before_matching(account, monkeypatch):
+    make_rule(account)
+    buy_and_fill(account)
+    next_day(monkeypatch)
+    sell = paper_auto.on_rule_events(account, [event("pool_exit", id="old-cycle")])[0]
+    # Flatten through another ledger entry, then buy the same security again.
+    manual = {**sell, "id": "manual-flatten", "source": "manual", "status": "filled"}
+    paper._append_fill(account, {
+        "kind": "fill", "order_id": manual["id"], "symbol": SYM, "side": "sell",
+        "qty": 700, "price": 10., "fee": 5., "date": paper.cn_today().isoformat(),
+        "ts": 1, "asset_type": "stock",
+    })
+    paper._materialize(account)
+    buy, error = paper.create_order(account, SYM, "buy", qty=200, ref_price=10)
+    assert error is None
+    # Model a fill arriving from settlement; do not match the stale sell first.
+    with paper.PAPER_LOCK:
+        assert paper._fill_order(account, buy, 10., paper.cn_today().isoformat()) is not None
+    paper_auto.retry_exit_intents(account, submit=False)
+    assert paper.get_order(account, sell["id"])["status"] == "cancelled"
+    assert paper_auto.load_exit_intents(account)[0]["status"] == "cancelled"
+    assert paper_auto.on_rule_events(account, [], prices={SYM: 10}) == []
+
+
+def test_queued_exit_retries_without_live_quotes(account, monkeypatch):
+    make_rule(account, order_type="next_open")
+    buy_and_fill(account)
+    paper_auto.on_rule_events(account, [event("pool_exit", id="queued")])
+    next_day(monkeypatch)
+    sells = paper_auto.retry_exit_intents(account)
+    assert len(sells) == 1 and sells[0]["order_type"] == "next_open"
+    expired = {**sells[0], "status": "expired", "reason": "无行情"}
+    paper.save_order(account, expired)
+    assert len(paper_auto.retry_exit_intents(account)) == 1
+
+
+def test_live_exit_blocks_new_auto_buy_for_same_position(account, monkeypatch):
+    make_rule(account, cooldown_days=0)
+    buy_and_fill(account)
+    assert paper_auto.on_rule_events(account, [
+        event("buy_signal", id="contradictory-buy"), event("sell_signal", id="exit-first"),
+    ]) == []
+    next_day(monkeypatch)
+    sells = paper_auto.on_rule_events(account, [event("buy_signal", id="later-buy")], prices={SYM: 10})
+    assert len(sells) == 1 and sells[0]["side"] == "sell"
+
+
+def test_file_exit_recovers_crash_between_order_and_intent_update(account, monkeypatch):
+    make_rule(account)
+    buy_and_fill(account)
+    next_day(monkeypatch)
+    original = paper_auto._put_record
+
+    def crash(storage, kind, key, value, account_id):
+        if kind == "exit" and value["status"] == "submitted":
+            raise RuntimeError("crash after order write")
+        return original(storage, kind, key, value, account_id)
+
+    monkeypatch.setattr(paper_auto, "_put_record", crash)
+    with pytest.raises(RuntimeError, match="crash after order"):
+        paper_auto.on_rule_events(account, [event("sell_signal", id="file-crash")])
+    assert len(paper.load_orders(account)) == 2  # buy + one durably linked sell
+    monkeypatch.setattr(paper_auto, "_put_record", original)
+    assert paper_auto.on_rule_events(account, [], prices={SYM: 10}) == []
+    assert paper_auto.load_exit_intents(account)[0]["status"] == "submitted"
+    assert len(paper.load_orders(account)) == 2
+
+
+def test_expired_exit_waits_while_limit_down_persists(account, monkeypatch):
+    make_rule(account)
+    buy_and_fill(account)
+    next_day(monkeypatch)
+    monkeypatch.setattr(paper, "_prev_close", lambda *_: 10.)
+    sell = paper_auto.on_rule_events(account, [event("pool_exit", id="limit-down")])[0]
+    assert paper.evaluate_intraday(account, {SYM: 9.}) == []
+    assert paper.get_order(account, sell["id"])["status"] == "expired"
+    for _ in range(3):
+        assert paper_auto.on_rule_events(account, [], prices={SYM: 9.}) == []
+    assert len(paper.load_orders(account)) == 2
+    assert "跌停" in paper_auto.load_exit_intents(account)[0]["last_error"]
+    assert len(paper_auto.on_rule_events(account, [], prices={SYM: 10.})) == 1
+
+
+def test_freeze_also_pauses_already_submitted_exit(account, monkeypatch):
+    make_rule(account)
+    buy_and_fill(account)
+    next_day(monkeypatch)
+    sell = paper_auto.on_rule_events(account, [event("sell_signal", id="freeze-pending")])[0]
+    paper.set_frozen(account)
+    assert paper.evaluate_intraday(account, {SYM: 10.}) == []
+    assert paper.get_order(account, sell["id"])["status"] == "pending"
+    paper.set_frozen(account, frozen=False)
+    assert len(paper.evaluate_intraday(account, {SYM: 10.})) == 1

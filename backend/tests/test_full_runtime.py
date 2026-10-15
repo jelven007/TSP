@@ -184,6 +184,102 @@ def test_full_worker_atomic_auto_order_and_fresh_quote_match(owned, monkeypatch)
     assert Alerts(owned.other).count() == 0
 
 
+def test_private_strategy_batch_executes_every_security_but_notifies_once(owned):
+    from test_strategy_monitor_events import _result, _SequenceStrategyEngine
+
+    symbols = tuple(f"600{i:03}.SH" for i in range(7))
+    storage = TenantPaper(owned.env["db"], owned.documents.context, owned.repo.store.data_dir)
+    paper.create_account(storage, 100000)
+    paper_auto.create_auto_rule(storage, {
+        "name": "批量跟单", "match_kind": "strategy", "match_id": "demo", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 1000, "order_type": "market", "cooldown_days": 0,
+    })
+    Rules(owned.documents).save_one(monitor_rules.normalize({
+        "id": "batch-strategy", "name": "策略监控", "type": "strategy", "scope": "all",
+        "strategy_id": "demo", "notify_events": ["pool_entry"], "cooldown_seconds": 3600,
+    }))
+    engine = _SequenceStrategyEngine([_result(cn_today()), _result(cn_today(), pool=symbols)])
+
+    class Executor:
+        def execute(self, payload, **_kwargs):
+            return monitor_compute.evaluate_snapshot(
+                payload, owned.repo, strategy_engine=engine, private_root=owned.repo.store.data_dir,
+            )
+
+    owned.worker.executor = Executor()
+    frame = pl.DataFrame({
+        "symbol": symbols, "close": [10.] * 7, "raw_close": [10.] * 7,
+        "quote_ts": [owned.clock["now"] * 1000] * 7,
+    })
+    snapshot = owned.snapshot(frames={"stock": encode_frame(frame)})
+    tenant = storage.context.tenant_id
+    assert owned.worker.evaluate(tenant, snapshot) == 0
+    owned.clock["now"] += 1
+    snapshot = owned.snapshot(frames={"stock": encode_frame(frame)})
+    assert owned.worker.evaluate(tenant, snapshot) == 1
+    orders = paper.load_orders(storage)
+    assert len(orders) == 7 and {order["symbol"] for order in orders} == set(symbols)
+    assert len(Alerts(owned.documents).list_recent(source="strategy")) == 1
+    assert Alerts(owned.other).count() == 0
+    assert owned.worker.evaluate(tenant, snapshot) == 0
+    assert len(paper.load_orders(storage)) == 7
+
+
+def test_worker_retries_t1_exit_after_restart_without_monitor_events(owned, monkeypatch):
+    storage = TenantPaper(owned.env["db"], owned.documents.context, owned.repo.store.data_dir)
+    paper.create_account(storage, 100000)
+    monkeypatch.setattr(paper, "_prev_close", lambda *_: 11.)
+    paper.create_order(storage, "600519.SH", "buy", qty=700, ref_price=11.)
+    paper.evaluate_intraday(storage, {"600519.SH": 11.})
+    paper_auto.create_auto_rule(storage, {
+        "name": "持久退出", "match_kind": "strategy", "match_id": "demo", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 1, "order_type": "market", "cooldown_days": 5,
+    })
+    paper_auto.on_rule_events(storage, [{
+        "id": "t1-exit", "source": "strategy", "strategy_id": "demo", "type": "sell_signal",
+        "symbol": "600519.SH", "price": 11.,
+    }])
+    tomorrow = cn_today() + timedelta(days=1)
+    monkeypatch.setattr(paper, "cn_today", lambda: tomorrow)
+    monkeypatch.setattr(runtime, "cn_today", lambda: tomorrow)
+    placed = datetime.combine(tomorrow, time(14), CN_TZ)
+    monkeypatch.setattr(paper, "cn_now", lambda: placed)
+    monkeypatch.setattr(paper_auto, "cn_now", lambda: placed)
+    owned.clock["now"] = placed.timestamp() + 2
+    frame = owned.frame.with_columns(pl.lit(owned.clock["now"] * 1000).alias("quote_ts"))
+    snapshot = owned.snapshot(frames={"stock": encode_frame(frame)}, days={"stock": str(tomorrow)})
+    restarted = FullWorker(owned.env["db"], owned.repo, None)
+    tenant = storage.context.tenant_id
+    assert restarted.evaluate(tenant, snapshot) == 0
+    sells = [order for order in paper.load_orders(storage) if order["side"] == "sell"]
+    assert len(sells) == 1 and sells[0]["qty"] == 700
+    assert restarted.evaluate(tenant, snapshot) == 0
+    assert paper.load_positions(storage)["600519.SH"]["qty"] == 0
+    assert paper_auto.load_exit_intents(storage)[0]["status"] == "completed"
+
+
+def test_slow_compute_cannot_place_entries_with_expired_prices(owned):
+    storage = TenantPaper(owned.env["db"], owned.documents.context, owned.repo.store.data_dir)
+    paper.create_account(storage, 100000)
+    Rules(owned.documents).save_one(price_rule(conditions=[{"field": "csg_private", "op": "truth"}]))
+    paper_auto.create_auto_rule(storage, {
+        "name": "新鲜度", "match_kind": "rule", "match_id": "my_price", "side": "buy",
+        "size_mode": "fixed_amount", "size_value": 1000, "order_type": "market", "cooldown_days": 0,
+    })
+
+    class Executor:
+        def execute(self, payload, **_kwargs):
+            owned.clock["now"] += 20
+            return {"events": [{
+                "source": "signal", "rule_id": "my_price", "symbol": "600519.SH",
+                "price": 11., "message": "过期信号",
+            }], "results": {}, "state": {}}
+
+    owned.worker.executor = Executor()
+    owned.worker.evaluate(storage.context.tenant_id, owned.snapshot())
+    assert paper.load_orders(storage) == []
+
+
 def test_notification_outbox_is_atomic_deduplicated_and_review_consumed(owned):
     sent = []
 

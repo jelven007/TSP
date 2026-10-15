@@ -156,13 +156,19 @@ class FullWorker:
                 valid_claim(conn, claim)
                 if fingerprint(conn) != observed:
                     raise AccessError(409, "监控配置已更新")
-                events = []
+                events, execution_events = [], []
                 if result is not None:
                     for index, event in enumerate(result["events"]):
                         event["id"] = hashlib.sha256(
                             f"{tenant_id}:{sequence}:{observed}:{index}".encode(),
                         ).hexdigest()
                     events = append_in_transaction(conn, tenant_id, result["events"])
+                    for index, event in enumerate(result.get("execution_events", [])):
+                        execution_events.append({
+                            **event, "id": hashlib.sha256(
+                                f"execution:{tenant_id}:{sequence}:{observed}:{index}".encode(),
+                            ).hexdigest(),
+                        })
                     unit.put("monitor_runtime", "default", {**result["state"], "sequence": sequence})
                     if result["results"]:
                         unit.put("monitor_results", "default", {
@@ -172,22 +178,40 @@ class FullWorker:
                         append_event(conn, tenant_id, "strategy_results_updated", {"ts": int(now * 1000)})
                 paper_documents = TenantPaper(self.db, context, self.repo.store.data_dir)
                 session = PaperSession(paper_documents, conn, True)
+                # Private computation can consume the quote's validity window.
+                # Recheck before placing or retrying market orders.
+                commit_now = time.time()
+                fresh = fresh and (
+                    0 <= commit_now - float(snapshot.get("captured_at", 0)) < 15
+                    and -2 <= commit_now - sequence / 1000 <= 15
+                )
+                prices = {}
                 if fresh:
                     frame = decode_frame(snapshot["frames"]["stock"])
-                    prices = {}
                     for row in frame.iter_rows(named=True):
                         stamp = row.get("quote_ts") or row.get("timestamp")
                         if isinstance(stamp, (float, int)):
                             stamp = stamp / 1000 if stamp > 1e12 else stamp
-                            if -2 <= now - stamp <= 15 and row.get("raw_close"):
+                            if -2 <= commit_now - stamp <= 15 and row.get("raw_close"):
                                 prices[row["symbol"]] = (row["raw_close"], stamp)
-                    for account_id in session.account_ids():
+                for account_id in session.account_ids():
+                    paper_auto.retry_exit_intents(session, account_id, submit=False)
+                    if fresh:
                         paper.evaluate_intraday(
                             session, {symbol: quote[0] for symbol, quote in prices.items()}, account_id,
                             quote_times={symbol: quote[1] for symbol, quote in prices.items()},
                         )
-                        paper_auto.on_rule_events(session, events, account_id)
+                    # Strategy notifications may be batched/cooling down. Only
+                    # their separate per-security output drives strategy orders.
+                    paper_auto.on_rule_events(
+                        session,
+                        execution_events + [event for event in events if event["source"] != "strategy"],
+                        account_id, prices={symbol: quote[0] for symbol, quote in prices.items()},
+                        allow_entries=fresh,
+                    )
                 self.settle(session, snapshot)
+                for account_id in session.account_ids():
+                    paper_auto.retry_exit_intents(session, account_id)
                 valid_claim(conn, claim)
         return len(events)
 
@@ -199,7 +223,9 @@ class FullWorker:
             last_day = session.document("paper_settlement", account_id)
             start = last_day["day"] if last_day else account["created_at"][:10]
             for day in [day for day in days if day > start or (last_day is None and day == start)][:32]:
+                paper_auto.retry_exit_intents(session, account_id, submit=False)
                 paper.settle_day(session, day, account_id)
+                paper_auto.retry_exit_intents(session, account_id)
                 session.put_document("paper_settlement", account_id, {"day": day})
 
     def tick(self):
