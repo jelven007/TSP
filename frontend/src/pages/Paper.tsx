@@ -819,6 +819,12 @@ function AutoRulesPanel({ acc }: { acc: string }) {
                 {r.side === 'auto' && ' · 卖全平'}
               </span>
               <span className="shrink-0 text-[11px] text-muted">持仓上限 {(r.max_positions ?? 0) > 0 ? `${r.max_positions}只` : '不限'}</span>
+              <span className="shrink-0 text-[11px] text-muted">
+                {r.candidate_priority === 'score' ? '评分优先' : r.candidate_priority === 'symbol' ? '代码排序' : '事件顺序'}
+                {(r.max_symbol_exposure_pct ?? 0) > 0 && ` · 单股≤${r.max_symbol_exposure_pct}%`}
+                {(r.max_total_exposure_pct ?? 0) > 0 && ` · 总仓≤${r.max_total_exposure_pct}%`}
+                {r.risk_follow && ' · 策略风控'}
+              </span>
               <span className="shrink-0 text-[11px] text-muted">{ORDER_TYPE_LABEL[r.order_type]} · {r.side === 'auto' ? '买入' : ''}冷却{r.cooldown_days}天</span>
               <button
                 onClick={() => toggleM.mutate({ id: r.id, enabled: !r.enabled })}
@@ -848,6 +854,10 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
   const [orderType, setOrderType] = useState<'market' | 'next_open' | 'close'>('next_open')
   const [cooldown, setCooldown] = useState('5')
   const [maxPositions, setMaxPositions] = useState('0')
+  const [candidatePriority, setCandidatePriority] = useState<'event' | 'score' | 'symbol'>('score')
+  const [symbolExposure, setSymbolExposure] = useState('0')
+  const [totalExposure, setTotalExposure] = useState('0')
+  const [riskFollow, setRiskFollow] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
   const m = useMutation({
@@ -862,6 +872,10 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
         order_type: orderType,
         cooldown_days: Number(cooldown),
         max_positions: Number(maxPositions),
+        candidate_priority: candidatePriority,
+        max_symbol_exposure_pct: Number(symbolExposure),
+        max_total_exposure_pct: Number(totalExposure),
+        risk_follow: riskFollow && matchKind === 'strategy' && side !== 'sell',
         enabled: true,
       }, acc),
     onSuccess: onDone,
@@ -871,6 +885,7 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
   const valid = name.trim() && matchId.trim() && Number(sizeValue) > 0
     && (sizeMode !== 'pct_equity' || Number(sizeValue) <= 100)
     && isNonnegativeInteger(cooldown) && isNonnegativeInteger(maxPositions)
+    && [symbolExposure, totalExposure].every(v => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 100)
     && (side !== 'auto' || matchKind === 'strategy')
 
   // ID 联想: 跟策略 → 策略引擎列表; 跟监控规则 → 监控规则列表。本地按中文名/ID 过滤。
@@ -993,6 +1008,34 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
             className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 font-mono text-sm outline-none focus:border-accent/50" />
           <div className="mt-1 text-[10px] text-muted">实际持仓和待成交买单均占名额；加仓已有标的不受限，账户上限仍为 50 只。</div>
         </div>
+        <div>
+          <label htmlFor="auto-rule-priority" className="text-[11px] text-muted">候选买入顺序</label>
+          <select id="auto-rule-priority" value={candidatePriority} onChange={e => setCandidatePriority(e.target.value as typeof candidatePriority)}
+            className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 text-sm">
+            <option value="score">评分从高到低（同分按代码，缺分最后）</option>
+            <option value="symbol">按证券代码</option>
+            <option value="event">按事件到达顺序</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="auto-rule-symbol-exposure" className="text-[11px] text-muted">单股仓位上限 %（0 不限）</label>
+          <input id="auto-rule-symbol-exposure" type="number" min="0" max="100" value={symbolExposure} onChange={e => setSymbolExposure(e.target.value)}
+            className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 font-mono text-sm" />
+        </div>
+        <div>
+          <label htmlFor="auto-rule-total-exposure" className="text-[11px] text-muted">账户总仓位上限 %（0 不限）</label>
+          <input id="auto-rule-total-exposure" type="number" min="0" max="100" value={totalExposure} onChange={e => setTotalExposure(e.target.value)}
+            className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 font-mono text-sm" />
+          <div className="mt-1 text-[10px] text-muted">包含账户全部持仓、待成交买单和加仓；待卖单成交前不释放额度。</div>
+        </div>
+        {matchKind === 'strategy' && side !== 'sell' && (
+          <label className="flex items-start gap-2 text-xs text-secondary">
+            <input type="checkbox" checked={riskFollow} onChange={e => setRiskFollow(e.target.checked)} className="mt-0.5" />
+            <span>跟随入场时策略风控
+              <span className="mt-1 block text-[10px] text-muted">保存止损、止盈、移动风控和持有期。后续改策略不改变本轮政策；无入场快照的旧持仓从下一轮新开仓生效。</span>
+            </span>
+          </label>
+        )}
       </div>
       <div className="mt-3 flex gap-2">
         <button onClick={() => valid && m.mutate()} disabled={!valid || m.isPending}

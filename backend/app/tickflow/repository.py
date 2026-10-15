@@ -640,7 +640,7 @@ class KlineRepository:
                 from app.indicators.pipeline import compute_enriched_history_window
                 start_full = latest - timedelta(days=300)
                 read_cols = [c for c in ["symbol", "date", "open", "high", "low", "close",
-                                         "volume", "amount", "raw_close", "raw_high", "raw_low"]
+                                         "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low"]
                              if c in df_latest.columns]
                 lf = (
                     scan_enriched_parquet(self._enriched_glob)
@@ -810,7 +810,7 @@ class KlineRepository:
                 # 从历史缓存中提取所需列 (历史缓存已有指标列)
                 base_cols = [
                     "symbol", "date", "open", "high", "low", "close", "volume",
-                    "raw_close", "raw_high", "raw_low",
+                    "raw_open", "raw_close", "raw_high", "raw_low",
                     "consecutive_limit_ups", "consecutive_limit_downs",
                 ]
                 needed = [c for c in base_cols if c in hist_all.columns]
@@ -1036,7 +1036,7 @@ class KlineRepository:
         )
 
         read_cols = [c for c in ["symbol", "date", "open", "high", "low", "close", "volume",
-                                 "raw_close", "raw_high", "raw_low",
+                                 "raw_open", "raw_close", "raw_high", "raw_low",
                                  "consecutive_limit_ups", "consecutive_limit_downs"]
                      if c in lf.collect_schema().names()]
         df_hist = guarded_collect(lf.select(read_cols), priority="background")
@@ -1086,7 +1086,7 @@ class KlineRepository:
             from app.indicators.pipeline import compute_indicators, compute_signals
             start_full = latest - timedelta(days=300)
             read_cols = [c for c in ["symbol", "date", "open", "high", "low", "close",
-                                     "volume", "amount", "raw_close", "raw_high", "raw_low"]
+                                     "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low"]
                          if c in df_latest.columns]
             df_hist = guarded_collect(
                 scan_enriched_parquet(self._etf_enriched_glob,

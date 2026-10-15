@@ -56,6 +56,7 @@ from app.indicators.pipeline import (
 )
 from app.strategy.eligibility import ENTRY_POLICY_VERSION
 from app.strategy.engine import StrategyDataContext, StrategyDef, StrategyEngine
+from app.strategy.risk_policy import normalize_pct, strategy_policy
 from app.strategy.scoring import (
     SCORING_DIRECTION_LOW,
     effective_scoring,
@@ -1203,39 +1204,16 @@ class StrategyBacktestService:
             unsupported = unsupported_minute_exit_signals(exit_signals)
             if unsupported:
                 return _err(f"以下卖出信号暂不支持分钟触发回放: {', '.join(unsupported)}")
-        stop_loss = self._override_value(overrides, "stop_loss", s.stop_loss)
-        take_profit = self._normalize_pct(
-            self._override_value(overrides, "take_profit", getattr(s, "take_profit", None)),
-            0.01,
-            5.0,
-        )
-        trailing_stop = self._normalize_pct(
-            self._override_value(overrides, "trailing_stop", getattr(s, "trailing_stop", None)),
-            0.005,
-            0.5,
-        )
-        trailing_take_profit_activate = self._normalize_pct(
-            self._override_value(overrides, "trailing_take_profit_activate", getattr(s, "trailing_take_profit_activate", None)),
-            0.01,
-            2.0,
-        )
-        trailing_take_profit_drawdown = self._normalize_pct(
-            self._override_value(overrides, "trailing_take_profit_drawdown", getattr(s, "trailing_take_profit_drawdown", None)),
-            0.005,
-            0.5,
-        )
-        if (
-            trailing_take_profit_activate is not None
-            and trailing_take_profit_drawdown is not None
-            and trailing_take_profit_drawdown > trailing_take_profit_activate
-        ):
-            # 不再静默钳制: 旧 min() 会把用户填的回撤改写成激活值, 配置"不生效"
-            # 却无任何提示。组合无意义时显式报错, 让用户调整参数后重跑。
-            return _err(
-                f"移动止盈回撤({trailing_take_profit_drawdown:.0%})不能大于"
-                f"激活涨幅({trailing_take_profit_activate:.0%}), 请调整后再试"
-            )
-        max_hold_days = self._override_value(overrides, "max_hold_days", s.max_hold_days)
+        try:
+            risk = strategy_policy(s, overrides)
+        except ValueError as exc:
+            return _err(str(exc))
+        stop_loss = risk.stop_loss_pct
+        take_profit = risk.take_profit_pct
+        trailing_stop = risk.trailing_stop_pct
+        trailing_take_profit_activate = risk.trailing_take_profit_activate_pct
+        trailing_take_profit_drawdown = risk.trailing_take_profit_drawdown_pct
+        max_hold_days = risk.max_hold_days
         score_min, score_max = self._normalize_score_range(
             overrides.get("score_min"),
             overrides.get("score_max"),
@@ -2551,13 +2529,7 @@ class StrategyBacktestService:
 
     @staticmethod
     def _normalize_pct(value, min_value: float, max_value: float) -> float | None:
-        if value is None or value == "":
-            return None
-        try:
-            pct = abs(float(value))
-        except (TypeError, ValueError):
-            return None
-        return min(max(pct, min_value), max_value)
+        return normalize_pct(value, min_value, max_value)
 
     @staticmethod
     def _normalize_score_range(min_value, max_value) -> tuple[float | None, float | None]:

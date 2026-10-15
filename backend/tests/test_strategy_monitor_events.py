@@ -247,6 +247,31 @@ def test_batch_notifications_preserve_each_execution_and_restart_dedupe():
     assert replay == []
 
 
+def test_execution_metadata_carries_effective_policy_score_and_raw_price(tmp_path):
+    from app.strategy import config
+
+    day = date(2026, 10, 14)
+    selected = _result(day, pool=("A",), buys=("A",), scores={"A": 85})
+    selected.rows[0]["raw_close"] = 20
+    strategy_engine = _SequenceStrategyEngine([_result(day), selected])
+    strategy_engine.strategy.stop_loss = -.06
+    strategy_engine.strategy.max_hold_days = 15
+    strategy_engine.strategy.meta["params"] = [{"id": "window", "default": 20}]
+    config.save_override(tmp_path, "demo", {"take_profit": .2, "params": {"window": 30}})
+    engine = MonitorRuleEngine()
+    engine.set_strategy_engine(strategy_engine)
+    engine.set_data_dir(tmp_path)
+    engine.set_rules([_rule("buy_signal")])
+    engine.evaluate(_quotes())
+    events = []
+    notifications = engine.evaluate(_quotes(), execution_events=events)
+    assert notifications[0]["price"] == 10
+    assert events[0]["price"] == 20 and events[0]["score"] == 85
+    assert events[0]["entry_policy"]["policy"]["stop_loss_pct"] == .06
+    assert events[0]["entry_policy"]["policy"]["take_profit_pct"] == .2
+    assert events[0]["entry_policy"]["params"] == {"window": 30}
+
+
 def test_execution_pool_edges_survive_notification_cooldown():
     day = date(2026, 10, 14)
     engine = MonitorRuleEngine()
@@ -498,6 +523,7 @@ def test_standalone_collector_uses_unbatched_events_and_retries_without_alerts(m
     monkeypatch.setattr(paper, "cn_today", lambda: current_day["day"])
     monkeypatch.setattr(quote_service, "cn_today", lambda: current_day["day"])
     monkeypatch.setattr(paper, "cn_now", lambda: datetime.combine(current_day["day"], time(14), CN_TZ))
+    monkeypatch.setattr(quote_service, "cn_now", lambda: paper.cn_now())
     monkeypatch.setattr(paper_auto, "cn_now", lambda: paper.cn_now())
     monkeypatch.setattr(preferences, "get_system_notify_enabled", lambda: False)
     monkeypatch.setattr(alert_store, "append_many", lambda *args: None)
@@ -518,7 +544,12 @@ def test_standalone_collector_uses_unbatched_events_and_retries_without_alerts(m
     service = QuoteService()
     service.set_app_state(SimpleNamespace(monitor_engine=engine, repo=repo))
     service._repo = repo
-    service.get_enriched_today = lambda: (frame, current_day["day"])
+    service.get_enriched_today = lambda: (
+        frame.with_columns(
+            pl.lit(current_day["day"]).alias("date"),
+            pl.lit((paper.cn_now().timestamp() + 1) * 1000).alias("quote_ts"),
+        ), current_day["day"],
+    )
     with patch.object(QuoteService, "_is_continuous_trading", return_value=True):
         service._evaluate_monitors(pl.DataFrame(), None)  # baseline
         service._evaluate_monitors(pl.DataFrame(), None)  # 7 entries, one notification

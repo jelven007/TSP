@@ -41,7 +41,7 @@ from pathlib import Path
 import polars as pl
 
 from app.instrument_history import instrument_status_on
-from app.market_time import CN_TZ, cn_now, cn_today
+from app.market_time import CN_TZ, cn_now, cn_today, published_trading_day
 from app.multitenancy.paper_storage import PaperSession, market_path, paper_lock, paper_operation
 from app.price_limits import (
     is_risk_warning_name,
@@ -51,6 +51,7 @@ from app.price_limits import (
 )
 from app.services.fs_utils import atomic_write_text
 from app.strategy.paper_math import apply_slippage, buy_fee, sell_fee
+from app.strategy.risk_policy import RiskPolicy, valid_price
 
 logger = logging.getLogger(__name__)
 
@@ -352,6 +353,76 @@ def qty_from_amount(amount: float, ref_price: float) -> int:
     return normalize_qty(int(amount / ref_price))
 
 
+@paper_operation()
+def portfolio_budget(data_dir, account_id=DEFAULT_ACCOUNT_ID, *, prices=None, exclude_order=None):
+    """Mark held shares and reserve pending buys, including slip and fees.
+
+    Pending sales never release exposure before a fill. Unknown pending buy
+    prices consume all remaining cash, so automated allocation cannot overbook.
+    """
+    acc = get_account(data_dir, account_id)
+    prices = prices or {}
+    holdings, pending = {}, {}
+    positions = load_positions(data_dir, account_id)
+    fallback = {}
+    for asset in ("stock", "etf"):
+        missing = [symbol for symbol, pos in positions.items() if pos["qty"] > 0
+                   and pos.get("asset_type", "stock") == asset and not valid_price(prices.get(symbol))]
+        base = _daily_path(data_dir, asset)
+        if missing and base.exists():
+            try:
+                rows = (pl.scan_parquet((base / "**" / "*.parquet").as_posix())
+                        .filter(pl.col("symbol").is_in(missing) & (pl.col("date") <= cn_today()))
+                        .group_by("symbol").agg(pl.col("close").sort_by("date").last())
+                        .collect())
+                fallback.update({row["symbol"]: row["close"] for row in rows.iter_rows(named=True)})
+            except Exception as exc:
+                logger.warning("paper portfolio marks unavailable: %s", exc)
+    for symbol, pos in positions.items():
+        if pos["qty"] <= 0:
+            continue
+        price = prices.get(symbol)
+        if not valid_price(price):
+            price = fallback.get(symbol)
+        if not valid_price(price):
+            price = pos["avg_cost"]
+        holdings[symbol] = pos["qty"] * float(price)
+    reserved = 0.0
+    unknown = False
+    for order in load_orders(data_dir, account_id):
+        if order["status"] != "pending" or order["side"] != "buy" or order["id"] == exclude_order:
+            continue
+        price = order.get("ref_price")
+        if not valid_price(price):
+            unknown = True
+            continue
+        mark = prices.get(order["symbol"])
+        if valid_price(mark):
+            price = max(float(price), float(mark))
+        execution = apply_slippage(float(price), "buy", acc["slippage_bps"])
+        value = order["qty"] * execution
+        pending[order["symbol"]] = pending.get(order["symbol"], 0.0) + value
+        reserved += value + buy_fee(order["qty"], execution, acc["commission_pct"])
+    equity = float(acc["cash"]) + sum(holdings.values())
+    return {"equity": equity, "holdings": holdings, "pending": pending,
+            "exposure": sum(holdings.values()) + sum(pending.values()),
+            "available_cash": 0.0 if unknown else max(0.0, float(acc["cash"]) - reserved),
+            "unknown_pending": unknown}
+
+
+def exposure_error(budget, symbol, value, limits):
+    if budget["unknown_pending"]:
+        return "待成交买单缺少参考价, 无法核定仓位预算"
+    for key, used in (
+        ("max_symbol_exposure_pct", budget["holdings"].get(symbol, 0) + budget["pending"].get(symbol, 0)),
+        ("max_total_exposure_pct", budget["exposure"]),
+    ):
+        cap = limits.get(key, 0)
+        if cap and used + value > budget["equity"] * cap / 100 + 1e-6:
+            return f"{key} 仓位上限不足"
+    return None
+
+
 # ── 订单 ────────────────────────────────────────────────
 @paper_operation()
 def load_orders(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]:
@@ -406,6 +477,9 @@ def create_order(
     source: str = "manual",
     idempotency_key: str | None = None,
     exit_intent_id: str | None = None,
+    entry_policy: dict | None = None,
+    risk_limits: dict | None = None,
+    valuation_prices: dict | None = None,
 ) -> tuple[dict | None, str | None]:
     """创建订单并校验。qty 与 amount 二选一 (amount 按参考价折算百股)。
 
@@ -420,6 +494,8 @@ def create_order(
                 "symbol": symbol, "side": side, "qty": qty, "amount": amount, "order_type": order_type,
                 "asset_type": asset_type, "ref_price": ref_price, "source": source,
                 **({"exit_intent_id": exit_intent_id} if exit_intent_id is not None else {}),
+                **({"entry_policy": entry_policy} if entry_policy is not None else {}),
+                **({"risk_limits": risk_limits} if risk_limits is not None else {}),
             })
             if previous:
                 return previous, None
@@ -457,12 +533,18 @@ def create_order(
         if qty <= 0 or qty % LOT_SIZE != 0:
             return None, f"数量必须是 {LOT_SIZE} 的整数倍"
 
-        acc_cash = float(acc["cash"])
         if side == "buy":
             # 买入资金预检 (按参考价上界估算, 撮合时二次校验)
             est_price = float(ref_price) if ref_price else 0.0
-            if est_price > 0 and qty * est_price * (1 + acc["slippage_bps"] / 10000) + buy_fee(qty, est_price, acc["commission_pct"]) > acc_cash:
-                return None, f"可用资金不足 (需约 {qty * est_price:.0f}, 可用 {acc_cash:.0f})"
+            budget = portfolio_budget(data_dir, account_id, prices={**(valuation_prices or {}), symbol: est_price})
+            execution = apply_slippage(est_price, "buy", acc["slippage_bps"])
+            if est_price > 0 and qty * execution + buy_fee(qty, execution, acc["commission_pct"]) > budget["available_cash"]:
+                return None, f"可用资金不足 (需约 {qty * est_price:.0f}, 扣待成交买单后可用 {budget['available_cash']:.0f})"
+            if risk_limits:
+                projected = {**budget, "equity": budget["equity"] - buy_fee(qty, execution, acc["commission_pct"])}
+                error = exposure_error(projected, symbol, qty * execution, risk_limits)
+                if error:
+                    return None, error
         else:
             pos = load_positions(data_dir, account_id).get(symbol)
             if pos is None or pos["qty"] <= 0:
@@ -486,11 +568,10 @@ def create_order(
 
         # 持仓标的数上限 (仅新开仓的买入; 加仓已有持仓不受限)
         positions = load_positions(data_dir, account_id)
-        if (
-            side == "buy"
-            and symbol not in positions
-            and len([p for p in positions.values() if p["qty"] > 0]) >= MAX_POSITION_SYMBOLS
-        ):
+        used = {sym for sym, pos in positions.items() if pos["qty"] > 0}
+        used.update(o["symbol"] for o in load_orders(data_dir, account_id)
+                    if o["side"] == "buy" and o["status"] == "pending")
+        if side == "buy" and symbol not in used and len(used) >= MAX_POSITION_SYMBOLS:
             return None, f"持仓标的数已达上限 {MAX_POSITION_SYMBOLS}, 不能再开新仓"
 
         order = {
@@ -512,6 +593,11 @@ def create_order(
         }
         if exit_intent_id is not None:
             order["exit_intent_id"] = exit_intent_id
+        if side == "buy" and entry_policy is not None:
+            RiskPolicy.from_mapping(entry_policy.get("policy", {}))
+            order["entry_policy"] = json.loads(json.dumps(entry_policy, allow_nan=False))
+        if side == "buy" and risk_limits:
+            order["risk_limits"] = dict(risk_limits)
         save_order(data_dir, order, account_id)
         if isinstance(data_dir, PaperSession):
             data_dir.bind_order_request(account_id, order["id"], idempotency_key, digest)
@@ -602,6 +688,9 @@ def replay_positions(
                 lot["qty"] = round(lot["qty"] * factor, 6)
             pos["qty"] = round(pos["qty"] * factor, 6)
             pos["avg_cost"] = round(pos["avg_cost"] / factor, 6) if factor else 0.0
+            if pos.get("risk_entry_price") and factor:
+                pos["risk_entry_price"] /= factor
+                pos["risk_factor"] = pos.get("risk_factor", 1.0) * factor
             pos["available_qty"] = round(sum(lot["qty"] for lot in pos["lots"]), 6)
             continue
         side, qty, price, fee = f["side"], int(f["qty"]), float(f["price"]), float(f.get("fee", 0))
@@ -615,6 +704,11 @@ def replay_positions(
                 # Stable through partial sales/additions; changes only after
                 # flattening and reentry. Rebuilt from the authoritative ledger.
                 pos["cycle_id"] = f["order_id"]
+                # The first fill owns the immutable policy for this cycle.
+                pos["entry_policy"] = f.get("entry_policy")
+                pos["entry_date"] = f.get("date")
+                pos["risk_entry_price"] = price
+                pos["risk_factor"] = 1.0
             total_cost = pos["avg_cost"] * pos["qty"] + qty * price + fee
             pos["qty"] += qty
             pos["avg_cost"] = round(total_cost / pos["qty"], 6) if pos["qty"] else 0.0
@@ -722,7 +816,8 @@ def _limit_price_error(
 
 
 @paper_operation(write=True)
-def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -> dict | None:
+def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account_id: str = DEFAULT_ACCOUNT_ID,
+                *, valuation_prices=None) -> dict | None:
     """按指定 raw 价成交一笔订单 (费用/滑点/资金与持仓校验), 返回 fill 或 None。
 
     调用方持锁。涨跌停按账户 queue_limit_orders 开关: 关 → expired 留痕;
@@ -751,6 +846,14 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
     fee = buy_fee(qty, price, acc["commission_pct"]) if side == "buy" else sell_fee(qty, price, acc["commission_pct"], acc["stamp_tax_pct"])
     gross = qty * price
     if side == "buy":
+        if order.get("risk_limits"):
+            budget = portfolio_budget(data_dir, account_id, prices={**(valuation_prices or {}), symbol: raw_price},
+                                      exclude_order=order["id"])
+            budget["equity"] -= fee
+            error = exposure_error(budget, symbol, gross, order["risk_limits"])
+            if error:
+                _expire(data_dir, order, error, account_id)
+                return None
         if gross + fee > float(acc["cash"]) + 1e-6:
             _expire(data_dir, order, f"资金不足 (需 {gross + fee:.2f}, 可用 {acc['cash']:.2f})", account_id)
             return None
@@ -758,7 +861,8 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
         # 早单优先成交, 晚单不占早单的额度) — 防止多张 pending 买入各自通过预检、
         # 成交时逐张扣现金而穿透。
         earlier_cash = sum(
-            int(o["qty"]) * float(o["ref_price"] or 0)
+            int(o["qty"]) * apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"])
+            + buy_fee(int(o["qty"]), apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"]), acc["commission_pct"])
             for o in load_orders(data_dir, account_id)
             if o["status"] == "pending" and o["side"] == "buy"
             and o["id"] != order["id"]
@@ -798,6 +902,8 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
         "fee": fee,
         "kind": "fill",
     }
+    if side == "buy" and order.get("entry_policy") is not None:
+        fill["entry_policy"] = order["entry_policy"]
     _append_fill(data_dir, fill, account_id)
 
     order["status"] = "filled"
@@ -959,13 +1065,66 @@ def evaluate_intraday(
             price = snapshot.get(order["symbol"])
             if price is None or price <= 0:
                 continue  # 无快照顺延
-            fill = _fill_order(data_dir, order, float(price), today, account_id)
+            fill = _fill_order(data_dir, order, float(price), today, account_id, valuation_prices=snapshot)
             if fill is not None:
                 events.append(_fill_event(fill, account_id))
     return events
 
 
 # ── 行情读取 (结算用, 与账户无关) ───────────────────────
+@paper_operation(write=True)
+def evaluate_opening(data_dir, rows, account_id=DEFAULT_ACCOUNT_ID):
+    """Book next_open at the first fresh authoritative raw opening print.
+
+    Old enriched versions lacking raw_open retain daily settlement. Require
+    an unambiguous placement/queue time before this open; never backdate an
+    order submitted after the price was printed.
+    """
+    now = cn_now()
+    today = now.date().isoformat()
+    if (published_trading_day(now.date()) is not True or now.time() < _SESSION_OPEN
+            or now.time() > _SESSION_CLOSE or _time(11, 30) < now.time() < _time(13)):
+        return []
+    events = []
+    with paper_lock(data_dir, PAPER_LOCK):
+        for order in sorted(load_orders(data_dir, account_id), key=_order_sort_key):
+            if order["status"] != "pending" or order["order_type"] != "next_open":
+                continue
+            row = rows.get(order["symbol"], {})
+            raw = row.get("raw_open")
+            stamp = row.get("quote_ts") or row.get("timestamp")
+            if row.get("quote_time_basis") in ("received", "unknown"):
+                continue
+            if not valid_price(raw) or str(row.get("date"))[:10] != today:
+                continue
+            if row.get("volume") is not None and row["volume"] <= 0:
+                continue
+            if not isinstance(stamp, (float, int)) or not math.isfinite(stamp):
+                continue
+            stamp = stamp / 1000 if stamp > 1e12 else stamp
+            if not -2 <= now.timestamp() - stamp <= 15:
+                continue
+            opening = datetime.combine(now.date(), _SESSION_OPEN, CN_TZ)
+            if stamp < opening.timestamp():
+                continue
+            try:
+                placed = datetime.fromisoformat(order.get("queued_at") or order["created_at"])
+                placed = placed.replace(tzinfo=CN_TZ) if placed.tzinfo is None else placed.astimezone(CN_TZ)
+            except (ValueError, TypeError, KeyError):
+                continue
+            if placed >= opening:
+                continue
+            factor = _factor_on(data_dir, order["symbol"], order.get("asset_type", "stock"), today)
+            if factor not in (None, 1.0):
+                continue  # Corporate-action execution is reconciled by daily settlement.
+            fill = _fill_order(data_dir, order, float(raw), today, account_id,
+                               valuation_prices={sym: values.get("raw_open") for sym, values in rows.items()
+                                                 if str(values.get("date"))[:10] == today})
+            if fill:
+                events.append(_fill_event(fill, account_id))
+    return events
+
+
 def _daily_path(data_dir: Path, asset_type: str) -> Path:
     data_dir = market_path(data_dir)
     sub = "kline_etf_daily" if asset_type == "etf" else "kline_daily"
@@ -1160,6 +1319,14 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
             summary["corp_actions"] += 1
         if summary["corp_actions"]:
             _materialize(data_dir, account_id)
+
+        # Closing observations latch risks without inventing an earlier fill.
+        # Fresh realtime execution or the next valid opening advances the exit.
+        from app.strategy import paper_auto
+        paper_auto.evaluate_position_risk(
+            data_dir, latest_prices_from_daily(data_dir, day, account_id),
+            account_id, day=day, submit=False,
+        )
 
         # 定版净值 (幂等: 重写当日行); 顺带记录沪深300 收盘作基准对比
         nav = daily_nav(data_dir, day, account_id=account_id)

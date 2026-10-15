@@ -26,10 +26,11 @@ from datetime import date as _date
 from datetime import datetime
 from pathlib import Path
 
-from app.market_time import cn_now
+from app.market_time import cn_now, published_trading_days
 from app.multitenancy.paper_storage import PaperSession, paper_lock, paper_operation
 from app.services.fs_utils import atomic_write_text
 from app.strategy import paper
+from app.strategy.risk_policy import RiskPolicy, price_exit
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ def validate_rule(rule: dict) -> None:
     if rule.get("size_mode") not in ("fixed_amount", "pct_equity"):
         raise ValueError(f"size_mode 非法: {rule.get('size_mode')!r}")
     value = rule.get("size_value")
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
         raise ValueError("size_value 必须是正数")
     if rule.get("size_mode") == "pct_equity" and value > 100:
         raise ValueError("pct_equity 的 size_value 不能超过 100 (%)")
@@ -75,6 +76,16 @@ def validate_rule(rule: dict) -> None:
     max_positions = rule.get("max_positions", 0)
     if isinstance(max_positions, bool) or not isinstance(max_positions, int) or max_positions < 0:
         raise ValueError("max_positions 必须是非负整数 (0 表示不限)")
+    if rule.get("candidate_priority", "event") not in ("event", "score", "symbol"):
+        raise ValueError("candidate_priority 应为 event / score / symbol")
+    for key in ("max_symbol_exposure_pct", "max_total_exposure_pct"):
+        value = rule.get(key, 0)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 100:
+            raise ValueError(f"{key} 必须在 0~100 (%) 内, 0 表示不限")
+    if not isinstance(rule.get("risk_follow", False), bool):
+        raise ValueError("risk_follow 必须是布尔值")
+    if rule.get("risk_follow") and (rule["match_kind"] != "strategy" or rule["side"] == "sell"):
+        raise ValueError("策略风控仅支持跟策略买入或自动方向")
 
 
 def normalize_rule(rule: dict) -> dict:
@@ -86,6 +97,10 @@ def normalize_rule(rule: dict) -> dict:
     d.setdefault("order_type", "next_open")
     d.setdefault("cooldown_days", 5)
     d.setdefault("max_positions", 0)
+    d.setdefault("candidate_priority", "event")
+    d.setdefault("max_symbol_exposure_pct", 0)
+    d.setdefault("max_total_exposure_pct", 0)
+    d.setdefault("risk_follow", False)
     d.setdefault("enabled", True)
     d.setdefault("created_at", _now_iso())
     return d
@@ -116,6 +131,10 @@ def save_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT_A
         old = next((r for r in load_auto_rules(data_dir, account_id) if r["id"] == rule["id"]), None)
         if not rule.get("enabled", True) or (old and _exit_rule_signature(old) != _exit_rule_signature(rule)):
             _cancel_rule_exits(data_dir, rule["id"], account_id, "自动规则停用或执行配置已变更")
+        elif old and old.get("risk_follow") and not rule.get("risk_follow"):
+            for intent in load_exit_intents(data_dir, account_id, active_only=True):
+                if intent["rule_id"] == rule["id"] and intent.get("kind") == "risk":
+                    _finish_intent(data_dir, intent, account_id, "cancelled", "策略风控已关闭")
         if isinstance(data_dir, PaperSession):
             if paper.get_account(data_dir, account_id) is None:
                 raise ValueError("尚未创建模拟账户")
@@ -184,19 +203,38 @@ def _in_cooldown(data_dir: Path, rule: dict, symbol: str, cooldown_days: int, ac
     return False
 
 
-def _sizing_qty(data_dir: Path, rule: dict, ref_price: float, account_id: str) -> int:
+def _sizing_qty(data_dir: Path, rule: dict, ref_price: float, account_id: str, prices=None) -> int:
     if ref_price <= 0:
         return 0
+    budget = paper.portfolio_budget(data_dir, account_id, prices=prices)
     if rule["size_mode"] == "fixed_amount":
         amount = float(rule["size_value"])
     else:  # pct_equity: 按账户总权益 (现金 + 最新定版持仓市值)
         acc = paper.get_account(data_dir, account_id)
         if acc is None:
             return 0
-        nav_rows = paper.load_nav(data_dir, account_id)
-        equity = nav_rows[-1]["nav"] if nav_rows else float(acc["cash"])
-        amount = equity * float(rule["size_value"]) / 100.0
-    return paper.qty_from_amount(amount, ref_price)
+        amount = budget["equity"] * float(rule["size_value"]) / 100.0
+    if rule["side"] == "sell":
+        return paper.qty_from_amount(amount, ref_price)
+    exposure_room = math.inf
+    for key, used in (
+        ("max_symbol_exposure_pct", budget["holdings"].get(rule.get("_symbol"), 0) + budget["pending"].get(rule.get("_symbol"), 0)),
+        ("max_total_exposure_pct", budget["exposure"]),
+    ):
+        if rule.get(key):
+            exposure_room = min(exposure_room, max(0.0, budget["equity"] * rule[key] / 100 - used))
+    acc = paper.get_account(data_dir, account_id)
+    execution = paper.apply_slippage(ref_price, "buy", acc["slippage_bps"])
+    qty = min(paper.qty_from_amount(amount, ref_price),
+              paper.qty_from_amount(min(exposure_room, budget["available_cash"]), execution))
+    while qty > 0:
+        fee = paper.buy_fee(qty, execution, acc["commission_pct"])
+        projected = {**budget, "equity": budget["equity"] - fee}
+        if (qty * execution + fee <= budget["available_cash"] + 1e-6
+                and not paper.exposure_error(projected, rule.get("_symbol"), qty * execution, rule)):
+            break
+        qty -= paper.LOT_SIZE
+    return qty
 
 
 def _resolve_side(rule: dict, ev: dict) -> str | None:
@@ -347,11 +385,14 @@ def retry_exit_intents(
             if intent["status"] not in _ACTIVE_EXITS:
                 continue
             rule = rules.get(intent["rule_id"])
+            is_risk = intent.get("kind") == "risk"
             if (not rule or not rule.get("enabled")
-                    or _exit_rule_signature(rule) != intent["rule_signature"]):
+                    or (is_risk and not rule.get("risk_follow"))
+                    or (not is_risk and _exit_rule_signature(rule) != intent["rule_signature"])):
                 _finish_intent(data_dir, intent, account_id, "cancelled", "自动规则停用、删除或执行配置已变更")
                 continue
             symbol = intent["symbol"]
+            execution_rule = intent["execution_rule"] if is_risk else rule
             pos = positions.get(symbol)
             if not pos or pos["qty"] <= 0:
                 _finish_intent(data_dir, intent, account_id, "completed", None)
@@ -384,7 +425,7 @@ def retry_exit_intents(
                 _update_intent(data_dir, intent, account_id, last_error="已有待成交卖单, 等待其完成或撤销")
                 continue
             price = (prices or {}).get(symbol)
-            is_market = rule["order_type"] == "market" and pos.get("asset_type", "stock") == "stock"
+            is_market = execution_rule["order_type"] == "market" and pos.get("asset_type", "stock") == "stock"
             if is_market and (not allow_market or not _valid_price(price)):
                 _update_intent(data_dir, intent, account_id, last_error="等待新鲜行情")
                 continue
@@ -405,7 +446,7 @@ def retry_exit_intents(
                 continue
             order, error = paper.create_order(
                 data_dir, symbol, "sell", account_id=account_id, qty=qty,
-                order_type=rule["order_type"], asset_type=pos.get("asset_type", "stock"),
+                order_type=execution_rule["order_type"], asset_type=pos.get("asset_type", "stock"),
                 ref_price=float(price) if _valid_price(price) else None,
                 source=f"auto:{rule['id']}", exit_intent_id=intent["id"],
                 idempotency_key=f"exit:{intent['id']}:{len(linked)}",
@@ -418,6 +459,85 @@ def retry_exit_intents(
             _created_order(data_dir, order, account_id)
             created.append(order)
             orders.append(order)
+    return created
+
+
+@paper_operation(write=True)
+def evaluate_position_risk(data_dir, prices, account_id=paper.DEFAULT_ACCOUNT_ID, *,
+                           day=None, quote_times=None, submit=True):
+    """Latch risks using a cycle's first-fill policy and previously observed peak.
+
+    No current strategy lookup or private code execution. Missing old snapshots
+    remain unmanaged. T+1/frozen accounts retain the intent until executable.
+    """
+    day = day or paper.cn_today().isoformat()
+    created = []
+    with paper_lock(data_dir, paper.PAPER_LOCK):
+        rules = {rule["id"]: rule for rule in load_auto_rules(data_dir, account_id, enabled_only=True)}
+        for symbol, pos in paper.load_positions(data_dir, account_id).items():
+            snapshot = pos.get("entry_policy")
+            if pos["qty"] <= 0 or not snapshot:
+                continue
+            rule_id = snapshot.get("auto_rule_id")
+            rule = rules.get(rule_id)
+            if not rule or not rule.get("risk_follow"):
+                continue
+            factor_today = paper._factor_on(data_dir, symbol, pos.get("asset_type", "stock"), day)
+            if (factor_today not in (None, 1.0) and pos.get("entry_date", day) < day
+                    and not any(fill.get("kind") == "corp_action" and fill["symbol"] == symbol and fill["date"] == day
+                                for fill in paper.load_fills(data_dir, account_id))):
+                continue  # Await ledger adjustment; raw ex-price alone is not a loss.
+            policy = RiskPolicy.from_mapping(snapshot["policy"])
+            key = str(pos["cycle_id"])
+            entry = float(pos["risk_entry_price"])
+            factor = pos.get("risk_factor", 1.0)
+            state = _record(data_dir, "risk", key, account_id) or {
+                "peak": entry, "factor": factor, "last_day": pos["entry_date"],
+            }
+            if state.get("last_day", "") > day:
+                continue
+            peak = state["peak"] * state.get("factor", 1.0) / factor
+            price = prices.get(symbol)
+            stamp = (quote_times or {}).get(symbol)
+            if quote_times is not None:
+                if not isinstance(stamp, (float, int)) or not math.isfinite(stamp):
+                    continue
+                stamp = stamp / 1000 if stamp > 1e12 else stamp
+                if day != paper.cn_today().isoformat() or not -2 <= paper.cn_now().timestamp() - stamp <= 15:
+                    continue
+                if stamp <= state.get("last_quote_ts", 0):
+                    continue
+            reason = None
+            if _valid_price(price):
+                reason, _ = price_exit(policy, entry, peak, float(price), float(price), float(price))
+            if reason is None and policy.max_hold_days:
+                start, end = _date.fromisoformat(pos["entry_date"]), _date.fromisoformat(day)
+                calendars = [published_trading_days(year) for year in range(start.year, end.year + 1)]
+                if all(calendar is not None for calendar in calendars):
+                    held = sum(start < trading_day <= end for calendar in calendars for trading_day in calendar)
+                    if held >= policy.max_hold_days:
+                        reason = "max_hold"
+            state.update(peak=max(peak, float(price)) if _valid_price(price) else peak,
+                         factor=factor, last_day=day)
+            if stamp is not None:
+                state["last_quote_ts"] = stamp
+            _put_record(data_dir, "risk", key, state, account_id)
+            if reason and not any(
+                intent["symbol"] == symbol and intent["cycle_id"] == key
+                for intent in load_exit_intents(data_dir, account_id, active_only=True)
+            ):
+                intent_id = hashlib.sha256(f"risk:{rule_id}:{key}:{uuid.uuid4().hex}".encode()).hexdigest()
+                intent = {
+                    "id": intent_id, "kind": "risk", "rule_id": rule_id, "symbol": symbol,
+                    "cycle_id": key, "rule_signature": _exit_rule_signature(rule),
+                    "execution_rule": {"order_type": "market" if pos.get("asset_type", "stock") == "stock" else "next_open"},
+                    "risk_reason": reason, "status": "pending", "signal_price": price,
+                    "event": {"type": "risk_exit", "day": day}, "order_ids": [],
+                    "last_error": None, "created_at": _now_iso(), "updated_at": _now_iso(),
+                }
+                _put_record(data_dir, "exit", intent_id, intent, account_id)
+        if submit:
+            created = retry_exit_intents(data_dir, account_id, prices=prices, allow_market=True)
     return created
 
 
@@ -440,14 +560,29 @@ def on_rule_events(
                    for ev in events if (ev.get("symbol") or "").strip()
                    for rule in rules if _matches(rule, ev)]
         # Persist exit instructions before any entry can add to the same position.
-        matches.sort(key=lambda item: not (item[0]["side"] == "auto" and item[2] == "sell"))
+        def priority(item):
+            rule, ev, side = item
+            mode = rule.get("candidate_priority", "event")
+            score = ev.get("score")
+            valid = not isinstance(score, bool) and isinstance(score, (float, int)) and math.isfinite(score)
+            rank = -float(score) if mode == "score" and valid else (math.inf if mode == "score" else 0)
+            return (not (rule["side"] == "auto" and side == "sell"), rank,
+                    ev["symbol"] if mode in ("score", "symbol") else "", rule["id"])
+        matches.sort(key=priority)
+        allocation_prices = dict(prices or {})
+        for _, ev, _ in matches:
+            if _valid_price(ev.get("price")):
+                allocation_prices.setdefault(ev["symbol"], ev["price"])
         event_prices = {}
+        bought = set()
         for rule, ev, side in matches:
             symbol = ev["symbol"].strip()
             auto_exit = rule["side"] == "auto" and side == "sell"
             if not allow_entries and not auto_exit:
                 continue
-            price = ev.get("price")
+            if not auto_exit and prices is not None and symbol not in prices:
+                continue
+            price = prices.get(symbol, ev.get("price")) if prices is not None else ev.get("price")
             if side is None or (not auto_exit and not _valid_price(price)):
                 continue
             receipt = hashlib.sha256(json.dumps([rule["id"], ev], sort_keys=True).encode()).hexdigest()
@@ -491,17 +626,26 @@ def on_rule_events(
                 used = _position_slots_used(data_dir, account_id)
                 if symbol not in used and len(used) >= rule["max_positions"]:
                     continue
-            qty = _sizing_qty(data_dir, rule, float(price), account_id)
+            if side == "buy" and rule.get("risk_follow") and not ev.get("entry_policy"):
+                continue
+            qty = _sizing_qty(data_dir, {**rule, "_symbol": symbol}, float(price), account_id, allocation_prices)
             if qty <= 0:
+                continue
+            if side == "buy" and (rule["id"], symbol) in bought:
                 continue
             order, error = paper.create_order(
                 data_dir, symbol, side, account_id=account_id, qty=qty,
                 order_type=rule["order_type"], ref_price=float(price), source=f"auto:{rule['id']}",
+                entry_policy={**ev["entry_policy"], "auto_rule_id": rule["id"]} if side == "buy" and ev.get("entry_policy") else None,
+                risk_limits={key: rule[key] for key in ("max_symbol_exposure_pct", "max_total_exposure_pct")} if side == "buy" else None,
+                valuation_prices=allocation_prices,
             )
             if error:
                 logger.info("paper auto %s: %s 下单被拒: %s", rule["name"], symbol, error)
                 continue
             created.append(order)
+            if side == "buy":
+                bought.add((rule["id"], symbol))
             _created_order(data_dir, order, account_id)
         created.extend(retry_exit_intents(
             data_dir, account_id, prices=event_prices if prices is None else prices,
