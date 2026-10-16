@@ -301,6 +301,31 @@ def test_rustdx_instrument_directory_skips_per_symbol_finance():
     assert all(row["ext"]["float_shares"] is None for row in rows)
 
 
+def test_rustdx_explicit_metadata_normalizes_ipo_and_shares_and_caches():
+    calls = []
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def finance(self, symbol):
+            calls.append(symbol)
+            return [{"ipo_date": 19910403, "zongguben": 1e9, "liutongguben": 8e8}]
+
+    provider = RustdxProvider(client_factory=Client)
+    symbols = ["000001.SZ", "000001.SZ", "000001.SH", "510300.SH"]
+    expected = [{
+        "symbol": "000001.SZ", "listing_date": "1991-04-03",
+        "total_shares": 1e9, "float_shares": 8e8,
+    }]
+    assert provider.get_instrument_metadata(symbols) == expected
+    assert provider.get_instrument_metadata(symbols) == expected
+    assert calls == ["000001.SZ"]
+
+
 @pytest.mark.parametrize(
     ("bars", "finance", "expected"),
     [
