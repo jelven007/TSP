@@ -70,6 +70,55 @@ def test_realtime_quote_interval_defaults_to_one_second(_isolated):
     assert preferences.get_realtime_quote_interval() == 1.0
 
 
+@pytest.mark.parametrize("existing", [False, True])
+def test_data_initial_defaults_match_configured_baseline(_isolated, existing):
+    if existing:
+        preferences.save({"theme": "dark"})
+
+    assert preferences.get_minute_sync_enabled() is True
+    assert preferences.get_minute_sync_days() == 5
+    assert preferences.get_minute_sync_segment_days() == 20
+    assert preferences.get_minute_refresh_enabled() is True
+    assert preferences.get_minute_refresh_interval() == 1
+    assert preferences.get_pipeline_pull_a_share() is True
+    assert preferences.get_pipeline_pull_index() is True
+    assert preferences.get_pipeline_pull_etf() is False
+    assert preferences.get_instruments_schedule() == {"hour": 9, "minute": 10}
+    assert preferences.get_pipeline_schedule() == {"hour": 15, "minute": 35}
+    assert preferences.get_pipeline_regime_enabled() is True
+    assert preferences.get_regime_batch_days() == 120
+    assert preferences.get_regime_warmup_days() == 40
+    assert preferences.get_enriched_batch_size() == 1000
+    assert preferences.get_index_daily_batch_size() == 100
+    # 读取缺省值不写入运行时文件, 已有无关设置也不受影响。
+    assert preferences.load() == ({"theme": "dark"} if existing else {})
+
+
+def test_data_initial_defaults_preserve_saved_overrides_after_reload(_isolated):
+    preferences.save({
+        "minute_sync_enabled": False,
+        "minute_sync_days": 10,
+        "minute_sync_segment_days": 15,
+        "pipeline_regime_enabled": False,
+        "regime_batch_days": 60,
+        "regime_warmup_days": 45,
+    })
+    preferences._invalidate_cache()
+
+    assert preferences.get_minute_sync_enabled() is False
+    assert preferences.get_minute_sync_days() == 10
+    assert preferences.get_minute_sync_segment_days() == 15
+    assert preferences.get_pipeline_regime_enabled() is False
+    assert preferences.get_regime_batch_days() == 60
+    assert preferences.get_regime_warmup_days() == 45
+
+
+@pytest.mark.parametrize("invalid", [None, "invalid", {}])
+def test_invalid_regime_batch_uses_initial_default(_isolated, invalid):
+    preferences.save({"regime_batch_days": invalid})
+    assert preferences.get_regime_batch_days() == 120
+
+
 def test_load_returns_copy_not_cached_object(_isolated):
     _isolated.write_text(json.dumps({"k": [1, 2]}), encoding="utf-8")
     first = preferences.load()

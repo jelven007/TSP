@@ -741,8 +741,8 @@ def run_now(
 
     # Step 2.6: 市场环境(regime) 增量计算 — enriched 已就绪后聚合环境指标。
     # 双检测(缺口+stale), 自动补算遗漏/被覆写的日。软失败: 不阻断主管道。
-    # 默认关闭: regime 是本地聚合计算(非拉取), 首次/regime 表为空时需全量回填
-    # 多日, 内存与耗时较高。用户可在数据页「市场环境」卡片设置里开启自动计算,
+    # 默认开启: regime 是本地聚合计算(非拉取), 首次/regime 表为空时分批全量回填。
+    # 用户可在数据页「市场环境」卡片设置里关闭自动计算,
     # 或直接在该页面点「重算」手动触发(不受此开关影响)。
     regime_days = 0
     from app.services import preferences as _prefs_regime

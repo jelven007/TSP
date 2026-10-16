@@ -216,8 +216,8 @@ export function Data() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tfCaps, matrix.data])
 
-  const minuteAuto = prefs.data?.minute_sync_enabled ?? false
-  const pipelineSched = prefs.data?.pipeline_schedule ?? { hour: 15, minute: 30 }
+  const minuteAuto = prefs.data?.minute_sync_enabled ?? true
+  const pipelineSched = prefs.data?.pipeline_schedule ?? { hour: 15, minute: 35 }
   const instrumentsSched = prefs.data?.instruments_schedule ?? { hour: 9, minute: 10 }
   const indexDailyBatchSize = prefs.data?.index_daily_batch_size ?? 100
 
@@ -579,7 +579,7 @@ export function Data() {
             stagePct={activeCard === 'regime' ? (job.data?.stage_pct ?? 0) : 0}
             tierKey="regime"
             capLimits={mergedCaps}
-            auto={prefs.data?.pipeline_regime_enabled === true}
+            auto={prefs.data?.pipeline_regime_enabled ?? true}
             subLabel="状态 · 综合分 · 指标"
             onSettings={hasData ? () => setOpenSettings(v => v === 'regime' ? null : 'regime') : undefined}
             settingsOpen={openSettings === 'regime'}

@@ -28,7 +28,7 @@ import { getBoardType } from '@/lib/board'
  * - 偏移异动 (多日累计): 交易所异动规则口径 (3日±20%/30%, 10日+100%, 30日+200%)
  *   实时计算个股「偏离值/阈值」接近度, 找出处于异动边缘的标的。
  *
- * 偏移异动计算量可控: 主开关默认关闭, 开启后才发起轮询 (每 60s 一次); 关闭后
+ * 偏移异动主开关默认开启, 按交易时段轮询 (盘中每 60s 一次); 关闭后
  * 保留展示上次计算结果 (含计算时间, 取自 localStorage)。规则口径通过工具栏「?」
  * 展开查看。告警走系统监控体系: 在「监控中心」创建异动监控规则后由后端持续评估,
  * 统一触发记录/站内通知/外部渠道推送。
@@ -683,8 +683,8 @@ const IntradayRowView = memo(function IntradayRowView({ row, rank, onPreview }: 
 function DeviationView({ onPreview }: {
   onPreview: (r: AbnormalRow, navList?: NavItem[]) => void
 }) {
-  // 主开关: 默认关闭, 开启后才轮询计算 (仅控制本页计算, 后台告警由监控规则驱动)
-  const [enabled, setEnabled] = useState(() => storage.abnormalEnabled.get(false))
+  // 主开关: 缺省开启, 保留已保存的关闭状态 (后台告警由监控规则驱动)
+  const [enabled, setEnabled] = useState(() => storage.abnormalEnabled.get(true))
   // 规则口径面板 (工具栏「?」)
   const [rulesOpen, setRulesOpen] = useState(false)
   // 上次计算结果: 开启时每次成功计算都落本地, 关闭后仍展示
@@ -816,7 +816,7 @@ function DeviationView({ onPreview }: {
             <p className="mx-auto mt-2 max-w-lg text-xs leading-relaxed text-muted">
               开启后按交易所异动规则实时计算全市场个股的涨跌幅偏离值 (个股 N 日累计涨跌 −
               对应指数同期), 找出接近触发「异常波动 / 严重异常波动」的标的。
-              计算量较大, 默认关闭; 每次计算的结果会保留, 关闭后仍可查看 (不再实时更新)。
+              每次计算的结果会保留, 关闭后仍可查看 (不再实时更新)。
             </p>
             <p className="mx-auto mt-2 max-w-lg text-[11px] leading-relaxed text-muted/80">
               需要告警推送时, 在<Link to="/monitor?new=abnormal" className="text-accent hover:underline">监控中心</Link>
