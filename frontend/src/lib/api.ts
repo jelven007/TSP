@@ -4409,6 +4409,10 @@ export interface PipelineJob {
   duration_s: number | null
   result: {
     universe_size: number
+    universe_as_of?: string | null
+    universe_source?: string
+    universe_boards?: string[]
+    universe_refreshed?: boolean
     daily_days: number
     adj_factor_symbols: number
     enriched_days: number

@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import logging
 import math
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
 import polars as pl
 
 from app.data_providers.instrument_status import (
+    CURRENT_A_SHARE_BOARDS,
+    current_a_share_board,
     current_a_share_identity,
     is_delisted_name,
     normalize_instrument_name,
@@ -28,6 +31,89 @@ logger = logging.getLogger(__name__)
 
 _EXCHANGES = ["SH", "SZ"]
 _PERSISTENT_METADATA = ("listing_date", "total_shares", "float_shares", "tick_size")
+
+
+class InstrumentSnapshotUnavailableError(RuntimeError):
+    """No usable persisted current-stock snapshot exists."""
+
+
+@dataclass(frozen=True)
+class InstrumentPoolSnapshot:
+    symbols: tuple[str, ...]
+    as_of: date | None
+    source: str
+    boards: tuple[str, ...]
+
+
+def load_current_stock_pool(
+    data_dir: Path,
+    *,
+    require_complete: bool = False,
+) -> InstrumentPoolSnapshot:
+    """Load the last valid persisted four-board stock snapshot.
+
+    Board classification is derived from the symbol so snapshots written by
+    older versions remain usable.
+    """
+    path = Path(data_dir) / "instruments" / "instruments.parquet"
+    if not path.exists():
+        raise InstrumentSnapshotUnavailableError(
+            "没有可用的股票池快照；请先恢复股票目录数据源并完成一次标的同步"
+        )
+    try:
+        frame = pl.read_parquet(path)
+    except Exception as exc:
+        raise InstrumentSnapshotUnavailableError(f"股票池快照无法读取: {exc}") from exc
+
+    rows: list[tuple[str, str]] = []
+    for row in frame.iter_rows(named=True):
+        identity = current_a_share_identity(
+            row.get("symbol"),
+            code=row.get("code"),
+            exchange=row.get("exchange"),
+        )
+        if identity is None or is_delisted_name(row.get("name")):
+            continue
+        symbol, code, exchange = identity
+        board = current_a_share_board(code=code, exchange=exchange)
+        if board is not None:
+            rows.append((symbol, board))
+    if not rows:
+        raise InstrumentSnapshotUnavailableError(
+            "股票池快照不包含有效的沪主板、深主板、创业板或科创板股票"
+        )
+
+    as_of: date | None = None
+    if "as_of" in frame.columns:
+        values = frame["as_of"].drop_nulls().to_list()
+        if values:
+            latest = max(values)
+            try:
+                as_of = latest if isinstance(latest, date) else date.fromisoformat(str(latest)[:10])
+            except ValueError:
+                as_of = None
+    source = "legacy"
+    if "snapshot_source" in frame.columns:
+        sources = {
+            str(value) for value in frame["snapshot_source"].drop_nulls().to_list()
+            if str(value)
+        }
+        if len(sources) == 1:
+            source = sources.pop()
+
+    unique = dict(rows)
+    boards = set(unique.values())
+    missing_boards = set(CURRENT_A_SHARE_BOARDS) - boards
+    if require_complete and missing_boards:
+        raise InstrumentSnapshotUnavailableError(
+            "股票池快照板块不完整,缺少: " + ",".join(sorted(missing_boards))
+        )
+    return InstrumentPoolSnapshot(
+        symbols=tuple(sorted(unique)),
+        as_of=as_of,
+        source=source,
+        boards=tuple(sorted(boards)),
+    )
 
 
 def _metadata_value(field: str, value):
@@ -85,6 +171,7 @@ def _flatten_instruments(items: list[dict]) -> list[dict]:
             "name": name,
             "code": code,
             "exchange": exchange,
+            "board": current_a_share_board(code=code, exchange=exchange),
             "region": item.get("region") or "CN",
             "type": "stock",
         }
@@ -184,13 +271,32 @@ def sync_instruments(data_dir: Path) -> int:
     out = data_dir / "instruments" / "instruments.parquet"
     # Read failures abort before either snapshot is changed.
     previous = pl.read_parquet(out) if out.exists() else pl.DataFrame()
+    candidate_boards = {row["board"] for row in all_rows if row.get("board")}
+    if not previous.is_empty():
+        previous_boards = {
+            current_a_share_board(row.get("symbol"))
+            for row in previous.iter_rows(named=True)
+        }
+        previous_boards.discard(None)
+        if (
+            set(CURRENT_A_SHARE_BOARDS).issubset(previous_boards)
+            and not set(CURRENT_A_SHARE_BOARDS).issubset(candidate_boards)
+        ):
+            logger.warning(
+                "incomplete instrument catalog (%s); keeping complete previous snapshot",
+                sorted(candidate_boards),
+            )
+            return 0
     all_rows = _preserve_metadata(all_rows, previous, as_of=as_of, source=source)
     df = pl.DataFrame(all_rows, schema_overrides={
         "listing_date": pl.String,
         **{field: pl.Float64 for field in _PERSISTENT_METADATA if field != "listing_date"},
         **{f"{field}_source": pl.String for field in _PERSISTENT_METADATA},
         **{f"{field}_as_of": pl.Date for field in _PERSISTENT_METADATA},
-    }).with_columns(pl.lit(as_of).alias("as_of"))
+    }).with_columns(
+        pl.lit(as_of).alias("as_of"),
+        pl.lit(source).alias("snapshot_source"),
+    )
 
     out.parent.mkdir(parents=True, exist_ok=True)
     update_instrument_history(data_dir, df, as_of=as_of, source=source)
