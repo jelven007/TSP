@@ -44,13 +44,13 @@
 - `backend/app/__init__.py` 的 fallback
 - 根目录 `VERSION`
 
-桌面发布输入使用带 `v` 前缀的版本，例如 `v0.3.11`。workflow 会校验它与
+桌面发布输入使用带 `v` 前缀的版本，例如 `v0.4.0`。workflow 会校验它与
 `frontend/package.json` 一致，不一致时失败。
 
 版本升级至少检查：
 
 ```bash
-rg -n '0\.3\.11|version' \
+rg -n '0\.4\.0|version' \
   VERSION frontend/package.json backend/pyproject.toml backend/app/__init__.py
 ```
 
@@ -155,7 +155,7 @@ docker image inspect "${IMAGE_REF}:<commit-sha>"
 
 ```bash
 gh workflow run release.yml \
-  -f version=v0.3.11 \
+  -f version=v0.4.0 \
   -f platforms=windows \
   -f prerelease=false
 ```

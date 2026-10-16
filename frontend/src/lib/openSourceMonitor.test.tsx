@@ -92,7 +92,7 @@ afterEach(async () => {
 
 describe('independent open-source monitor', () => {
   it('首次建立基准，共享请求，与应用更新缓存互不影响', async () => {
-    const appCache = JSON.stringify({ current: '0.3.11', latest: '0.3.12', found: true })
+    const appCache = JSON.stringify({ current: '0.4.0', latest: '0.4.1', found: true })
     localStorage.setItem('update_check_cache', appCache)
     const fetch = vi.spyOn(api, 'openSourceRelease').mockResolvedValue(first)
     await render()
