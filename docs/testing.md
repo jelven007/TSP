@@ -58,6 +58,15 @@ pnpm install --frozen-lockfile
 wheel 和完整镜像验收。Windows 启动和桌面安装包未在本机运行，需对应平台
 流水线验证；该记录不代表生产部署已更新。
 
+同日修复基础镜像拉取路径后，通过 `BASE_IMAGE_REGISTRY=public.ecr.aws/docker`
+完成 Linux arm64 的完整运行镜像与 Compute Worker 镜像构建。Rust、Node、Python
+基础镜像在 ECR 与 DaoCloud 的清单摘要一致。固定 rustdx Git 提交使用已验证
+的本地 Cargo 缓存构建，不读取主机凭据或修改依赖锁。
+运行镜像内原生连接池测试 `5 passed`，桥接版本校验、启动、存活及就绪端点、
+七项默认 Provider 能力和前端静态页面均通过。启动测试使用隔离临时数据及禁用
+外部网络；空数据的新鲜度警告保留，不代表全量数据同步验收。
+Linux amd64 和 Windows 产物仍需对应平台验证，现有运行服务与生产部署未切换。
+
 ## 4. 标准命令
 
 ### 4.1 后端
