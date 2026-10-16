@@ -50,6 +50,19 @@ docker compose up --build -d
 
 访问 <http://localhost:3018>。
 
+基础镜像默认从 Docker Hub 拉取。若 `registry-1.docker.io` 超时或返回
+`Bad Gateway`，可通过构建参数切换拉取仓库：
+
+```bash
+BASE_IMAGE_REGISTRY=public.ecr.aws/docker docker compose build app
+```
+
+也可在 `.env` 中保存 `BASE_IMAGE_REGISTRY=public.ecr.aws/docker`。
+直接构建使用 `docker build --build-arg BASE_IMAGE_REGISTRY=public.ecr.aws/docker -t tsp:local .`。
+该参数只替换 Node、Python、Rust 基础镜像的仓库前缀，版本和依赖锁不变；
+使用备选仓库时应核对镜像摘要。`USE_CN_MIRROR` 仅控制构建中的 npm、PyPI、
+APT 和 Cargo 源，不控制 Docker Hub 拉取。
+
 查看状态和日志：
 
 ```bash
