@@ -10,12 +10,14 @@ import { AiReportBubble } from '@/components/financials/AiReportBubble'
 import { StockAnalysisHost } from '@/components/stock-analysis/StockAnalysisHost'
 import { StockAnalysisBubble } from '@/components/stock-analysis/StockAnalysisBubble'
 import { TenantSelector } from '@/components/TenantSelector'
+import { OpenSourceReleaseNotice } from '@/components/OpenSourceReleaseMonitor'
 import {
   usePreferences,
   useQuoteStatus,
   useVersion,
 } from '@/lib/useSharedQueries'
 import { useUpdateCheck } from '@/lib/updateCheck'
+import { useOpenSourceMonitor } from '@/lib/openSourceMonitor'
 import { QK } from '@/lib/queryKeys'
 import {
   Settings,
@@ -145,6 +147,7 @@ export function Layout() {
   // 更新检查 (单例 store): 启动静默查一次 GitHub Releases, 供左下角版本号徽标
   const update = useUpdateCheck(canManageSettings)
   const hasUpdate = canManageSettings && update.status === 'found'
+  const openSourceMonitor = useOpenSourceMonitor({ enabled: canManageSettings, poll: true })
   const { data: prefs } = usePreferences()
   // poll=true: 全局唯一开启条件轮询 (非交易时段 60s 兜底, 交易时段靠 SSE)
   const { data: quoteStatus } = useQuoteStatus({ poll: true })
@@ -636,6 +639,9 @@ export function Layout() {
             <WifiOff className="h-3 w-3 shrink-0 animate-pulse" />
             与服务连接已断开 · 正在重连
           </div>
+        )}
+        {!(location.pathname === '/settings' && new URLSearchParams(location.search).get('tab') === 'system') && (
+          <OpenSourceReleaseNotice monitor={openSourceMonitor} />
         )}
         <Suspense
           fallback={

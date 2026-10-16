@@ -6,6 +6,7 @@
 import { toast } from '@/components/Toast'
 import { accountFetch as fetch, confirmAccount, hasPermission, multitenancyEnabled } from './accountSession'
 import { secondQuotesApi, type SecondQuoteArchiveStatus } from '@/lib/api/secondQuotes'
+import { openSourceReleaseApi } from '@/lib/api/openSourceRelease'
 import {
   COMPUTE_REQUEST_TIMEOUT_MS,
   extPullTimeoutMs,
@@ -2343,6 +2344,7 @@ export interface AuthResult {
 // ===== API surface =====
 export const api = {
   ...secondQuotesApi,
+  ...openSourceReleaseApi,
   health: () => request<{ status: string; version: string; mode: string }>('/health'),
 
   // ===== Auth =====
