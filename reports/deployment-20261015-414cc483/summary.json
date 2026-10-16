@@ -1,0 +1,50 @@
+{
+  "release": "/opt/tsp-full/release-2a3b395",
+  "compose": "/opt/tsp-full/backups/pre-414cc483-20261015-203346/old-compose.yml",
+  "compose_overrides": [
+    "/opt/tsp-full/backups/pre-414cc483-20261015-203346/old-platform.override.yml"
+  ],
+  "runtime_images": {
+    "platform": "sha256:e6b05afebcd1f3fd8301ed0cf6020bcb5783c382e32a49c69f8d0386c4048400",
+    "api": "sha256:5effa7cf27a610aac65640828f8313ddc5e4eda3a53ac0b8a868966c81967ef2",
+    "research": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6",
+    "realtime": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6",
+    "notifications": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6",
+    "scheduled": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6"
+  },
+  "compute_image": "sha256:7fe4633a333525a4742e6a1e6bf0c7327fbafd8ffb5b3eed8fcc41a7b7900f22",
+  "postgres_user": "tsp_admin",
+  "databases": [
+    "tsp_full_candidate_control",
+    "tsp_full_candidate_data"
+  ],
+  "state": {
+    "workers": [
+      {
+        "kind": "research",
+        "owner": "be8f312e3bb243f1ab113bfbcfb92a13",
+        "healthy": true
+      },
+      {
+        "kind": "notifications",
+        "owner": "0ed70aa2338c4a80a0b1971d010f2be9",
+        "healthy": true
+      },
+      {
+        "kind": "realtime",
+        "owner": "71c496c42a8344be91fb0a091c1f0f6f",
+        "healthy": true
+      },
+      {
+        "kind": "scheduled",
+        "owner": "6c21f22cee1e42d897fe59d7f6a6f6ca",
+        "healthy": true
+      }
+    ],
+    "counts": {
+      "users": 3,
+      "tenants": 2,
+      "memberships": 2
+    }
+  }
+}

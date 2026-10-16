@@ -1,0 +1,12 @@
+{
+  "COMMIT_SHA": "3cc5d24c872b64f9d060d7a5a415b6f83026fe66c0e4e9366f271333e77a3184",
+  "deploy/full/compose.yml": "28922f4eccfc253e73aa213247d169677b88163d7160f150ef0b98116c39bbec",
+  "deploy/full/tsp-compute-broker.service": "6bfc941772ace312668e91bcf0c643de4e8a4e7f7e97e705354e1a0f72440ddf",
+  "frontend/src/components/Layout.tsx": "9aeb32a1e9d9a6cd52a1eb35a961953603188412c77fe6c97f53895569363d3f",
+  "frontend/src/components/OpenSourceReleaseMonitor.tsx": "0a3d7cae2bb96f1fc984d040c020939eb67989c7a53b556ae80dfa51f54cfc10",
+  "frontend/src/lib/api.ts": "692164f8d25295b72183d5910e22253ba3260665c42ce0d38a2703a7a75751a8",
+  "frontend/src/lib/api/openSourceRelease.ts": "68915a63b9f5d9fb3eef65348ce46dad15b2ab4f2e806e6768280cec8a8c6ae1",
+  "frontend/src/lib/openSourceMonitor.ts": "7a1e4ca10993d759c5b5afcd957cbc846270b1d38ffd195eebc9c9ce97b22905",
+  "frontend/src/lib/queryKeys.ts": "e78e20587f895a93feaa5e8e6f4f1b953f3a8bcfad973e3b29b1b86847d881c0",
+  "frontend/src/pages/settings/System.tsx": "32f80e60310d2fabaf21cefa3753266d349904be75e16a16ca76021844678c3d"
+}

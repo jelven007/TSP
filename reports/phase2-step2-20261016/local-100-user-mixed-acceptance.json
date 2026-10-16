@@ -1,0 +1,536 @@
+{
+  "status": "passed",
+  "scope": "local_disposable_postgresql_100_user_mixed_acceptance",
+  "limits": [
+    "not a production or candidate-host deployment",
+    "HTTP uses an in-process ASGI transport; Nginx and container network capacity are not measured",
+    "event subscribers exercise the PostgreSQL event hub, not 100 external SSE sockets",
+    "public quote subscribers receive synthetic update markers; no market source or display freshness is measured",
+    "research uses a deterministic fast compute stub; real backtest throughput is not measured",
+    "notification channels are disabled and no email or webhook is sent",
+    "harness RSS and CPU exclude PostgreSQL server processes",
+    "not a complete trading-day, 72-hour, restart, backup, or restore acceptance"
+  ],
+  "parameters": {
+    "users": 100,
+    "rounds": 2,
+    "pool_size_per_database": 32,
+    "ledger_rows_per_tenant": 240,
+    "nav_rows_per_tenant": 180,
+    "research_concurrency": 4,
+    "research_delay_seconds": 0.02,
+    "steady_request_interval_seconds": 5.0
+  },
+  "git": {
+    "head": "d06acc1d8fe27f263f8e7d63fe5093b03e62ae9f",
+    "dirty": true,
+    "status_sha256": "53e865973fed9b2588ca94863b6ae4a56b597235f5695247d91e97d005294f7b"
+  },
+  "schema_version": 6,
+  "database_size_before_bytes": {
+    "tsp_p2s2_075274aa18_control": 8682519,
+    "tsp_p2s2_075274aa18_data": 9411607
+  },
+  "identity": {
+    "users": 100,
+    "login": {
+      "elapsed_ms": 1108.106,
+      "latency": {
+        "count": 100,
+        "p50_ms": 310.099,
+        "p95_ms": 424.696,
+        "p99_ms": 511.472,
+        "max_ms": 690.446
+      }
+    }
+  },
+  "private_dataset": {
+    "elapsed_ms": 13151.277,
+    "accounts": 100,
+    "orders": 24000,
+    "fills": 24000,
+    "nav_rows": 18000,
+    "disabled_notification_channels": 100
+  },
+  "research_submission": {
+    "submitted": 100,
+    "elapsed_ms": 1042.953
+  },
+  "dataset_counts_before_load": {
+    "full_paper_accounts": 100,
+    "full_paper_orders": 24000,
+    "full_paper_fills": 24000,
+    "full_paper_nav": 18000,
+    "notification_channels": 100,
+    "research_jobs": 100,
+    "scheduler_research_rows": 100
+  },
+  "burst_http_rounds": [
+    {
+      "profile": "synchronized_burst",
+      "round": 1,
+      "users": 100,
+      "peak_active_workflows": 100,
+      "successes": 100,
+      "failures": 0,
+      "errors": [],
+      "elapsed_ms": 7049.854,
+      "workflow_latency": {
+        "count": 100,
+        "p50_ms": 6909.61,
+        "p95_ms": 6957.918,
+        "p99_ms": 6963.363,
+        "max_ms": 6990.304
+      },
+      "request_latency": {
+        "count": 1200,
+        "p50_ms": 470.027,
+        "p95_ms": 1111.012,
+        "p99_ms": 1643.687,
+        "max_ms": 1863.946
+      },
+      "operation_latency": {
+        "event_ticket": {
+          "count": 100,
+          "p50_ms": 676.81,
+          "p95_ms": 737.286,
+          "p99_ms": 745.586,
+          "max_ms": 763.994
+        },
+        "notification_channels": {
+          "count": 100,
+          "p50_ms": 331.61,
+          "p95_ms": 367.951,
+          "p99_ms": 371.574,
+          "max_ms": 377.656
+        },
+        "notification_preferences_write": {
+          "count": 100,
+          "p50_ms": 401.476,
+          "p95_ms": 706.708,
+          "p99_ms": 805.455,
+          "max_ms": 835.925
+        },
+        "paper_nav_page_1": {
+          "count": 100,
+          "p50_ms": 402.737,
+          "p95_ms": 475.775,
+          "p99_ms": 485.82,
+          "max_ms": 505.196
+        },
+        "paper_nav_page_2": {
+          "count": 100,
+          "p50_ms": 419.163,
+          "p95_ms": 480.632,
+          "p99_ms": 490.149,
+          "max_ms": 503.522
+        },
+        "paper_orders_page_1": {
+          "count": 100,
+          "p50_ms": 674.769,
+          "p95_ms": 810.55,
+          "p99_ms": 829.417,
+          "max_ms": 860.097
+        },
+        "paper_orders_page_2": {
+          "count": 100,
+          "p50_ms": 450.629,
+          "p95_ms": 519.461,
+          "p99_ms": 524.483,
+          "max_ms": 543.04
+        },
+        "paper_trades_page_1": {
+          "count": 100,
+          "p50_ms": 471.068,
+          "p95_ms": 500.83,
+          "p99_ms": 523.13,
+          "max_ms": 530.937
+        },
+        "paper_trades_page_2": {
+          "count": 100,
+          "p50_ms": 429.042,
+          "p95_ms": 461.599,
+          "p99_ms": 477.412,
+          "max_ms": 477.492
+        },
+        "strategy_catalog": {
+          "count": 100,
+          "p50_ms": 724.205,
+          "p95_ms": 890.706,
+          "p99_ms": 912.434,
+          "max_ms": 918.354
+        },
+        "watchlist_read": {
+          "count": 100,
+          "p50_ms": 898.103,
+          "p95_ms": 1226.629,
+          "p99_ms": 1264.797,
+          "max_ms": 1283.7
+        },
+        "watchlist_write": {
+          "count": 100,
+          "p50_ms": 960.98,
+          "p95_ms": 1708.698,
+          "p99_ms": 1790.896,
+          "max_ms": 1863.946
+        }
+      },
+      "requests": 1200,
+      "http_5xx": 0,
+      "http_4xx": 0,
+      "transport_errors": 0
+    },
+    {
+      "profile": "synchronized_burst",
+      "round": 2,
+      "users": 100,
+      "peak_active_workflows": 100,
+      "successes": 100,
+      "failures": 0,
+      "errors": [],
+      "elapsed_ms": 9525.475,
+      "workflow_latency": {
+        "count": 100,
+        "p50_ms": 9419.533,
+        "p95_ms": 9506.86,
+        "p99_ms": 9513.599,
+        "max_ms": 9515.565
+      },
+      "request_latency": {
+        "count": 1200,
+        "p50_ms": 705.463,
+        "p95_ms": 1457.868,
+        "p99_ms": 1662.97,
+        "max_ms": 1799.955
+      },
+      "operation_latency": {
+        "event_ticket": {
+          "count": 100,
+          "p50_ms": 334.367,
+          "p95_ms": 414.434,
+          "p99_ms": 437.457,
+          "max_ms": 437.927
+        },
+        "notification_channels": {
+          "count": 100,
+          "p50_ms": 736.776,
+          "p95_ms": 1082.618,
+          "p99_ms": 1373.86,
+          "max_ms": 1381.618
+        },
+        "notification_preferences_write": {
+          "count": 100,
+          "p50_ms": 501.649,
+          "p95_ms": 553.488,
+          "p99_ms": 563.496,
+          "max_ms": 573.012
+        },
+        "paper_nav_page_1": {
+          "count": 100,
+          "p50_ms": 1307.588,
+          "p95_ms": 1570.022,
+          "p99_ms": 1678.973,
+          "max_ms": 1732.919
+        },
+        "paper_nav_page_2": {
+          "count": 100,
+          "p50_ms": 1394.143,
+          "p95_ms": 1730.155,
+          "p99_ms": 1747.673,
+          "max_ms": 1799.955
+        },
+        "paper_orders_page_1": {
+          "count": 100,
+          "p50_ms": 675.096,
+          "p95_ms": 813.453,
+          "p99_ms": 869.465,
+          "max_ms": 874.81
+        },
+        "paper_orders_page_2": {
+          "count": 100,
+          "p50_ms": 957.548,
+          "p95_ms": 1099.032,
+          "p99_ms": 1141.726,
+          "max_ms": 1145.712
+        },
+        "paper_trades_page_1": {
+          "count": 100,
+          "p50_ms": 457.91,
+          "p95_ms": 986.242,
+          "p99_ms": 1005.234,
+          "max_ms": 1023.824
+        },
+        "paper_trades_page_2": {
+          "count": 100,
+          "p50_ms": 422.849,
+          "p95_ms": 570.628,
+          "p99_ms": 928.625,
+          "max_ms": 932.653
+        },
+        "strategy_catalog": {
+          "count": 100,
+          "p50_ms": 769.378,
+          "p95_ms": 957.766,
+          "p99_ms": 968.178,
+          "max_ms": 989.837
+        },
+        "watchlist_read": {
+          "count": 100,
+          "p50_ms": 956.695,
+          "p95_ms": 1264.789,
+          "p99_ms": 1344.373,
+          "max_ms": 1439.674
+        },
+        "watchlist_write": {
+          "count": 100,
+          "p50_ms": 791.168,
+          "p95_ms": 1536.632,
+          "p99_ms": 1577.076,
+          "max_ms": 1628.465
+        }
+      },
+      "requests": 1200,
+      "http_5xx": 0,
+      "http_4xx": 0,
+      "transport_errors": 0
+    }
+  ],
+  "burst_http_summary": {
+    "rounds": 2,
+    "workflows": 200,
+    "successful_workflows": 200,
+    "failed_workflows": 0,
+    "requests": 2400,
+    "http_5xx": 0,
+    "http_4xx": 0,
+    "transport_errors": 0,
+    "effective_request_error_rate": 0.0,
+    "peak_active_workflows": 100,
+    "worst_round_request_p95_ms": 1457.868,
+    "worst_round_request_p99_ms": 1662.97
+  },
+  "research": {
+    "completed": 100,
+    "elapsed_ms": 22199.403,
+    "queue_latency": {
+      "count": 100,
+      "p50_ms": 13835.478,
+      "p95_ms": 21537.199,
+      "p99_ms": 22174.545,
+      "max_ms": 22175.199
+    },
+    "execution_latency": {
+      "count": 100,
+      "p50_ms": 184.685,
+      "p95_ms": 855.303,
+      "p99_ms": 989.506,
+      "max_ms": 1025.282
+    },
+    "completion_latency": {
+      "count": 100,
+      "p50_ms": 13903.078,
+      "p95_ms": 21613.465,
+      "p99_ms": 22167.991,
+      "max_ms": 22172.622
+    },
+    "attempts": {
+      "minimum": 1,
+      "maximum": 1
+    },
+    "remaining_due_tenants": 0,
+    "slots": {
+      "total": 4,
+      "occupied": 0
+    }
+  },
+  "private_events": {
+    "subscribers": 100,
+    "successes": 100,
+    "elapsed_ms": 5295.264,
+    "hub": {
+      "listener_connected": true,
+      "subscriptions": 100,
+      "poll_runs": 6,
+      "tenant_reads": 185,
+      "notifications": 100,
+      "full_sweeps": 0,
+      "last_event_at": 1792127633.562411
+    }
+  },
+  "public_markers": {
+    "successes": 100,
+    "elapsed_ms": 270.193
+  },
+  "steady_http_rounds": [
+    {
+      "profile": "steady_20_rps",
+      "round": 1,
+      "users": 100,
+      "peak_active_workflows": 100,
+      "successes": 100,
+      "failures": 0,
+      "errors": [],
+      "elapsed_ms": 65357.039,
+      "workflow_latency": {
+        "count": 100,
+        "p50_ms": 60564.832,
+        "p95_ms": 60943.863,
+        "p99_ms": 61036.282,
+        "max_ms": 61052.774
+      },
+      "request_latency": {
+        "count": 1200,
+        "p50_ms": 39.31,
+        "p95_ms": 102.288,
+        "p99_ms": 171.595,
+        "max_ms": 482.759
+      },
+      "operation_latency": {
+        "event_ticket": {
+          "count": 100,
+          "p50_ms": 34.575,
+          "p95_ms": 63.877,
+          "p99_ms": 85.692,
+          "max_ms": 88.902
+        },
+        "notification_channels": {
+          "count": 100,
+          "p50_ms": 44.795,
+          "p95_ms": 125.169,
+          "p99_ms": 131.998,
+          "max_ms": 139.563
+        },
+        "notification_preferences_write": {
+          "count": 100,
+          "p50_ms": 45.785,
+          "p95_ms": 71.72,
+          "p99_ms": 90.489,
+          "max_ms": 91.682
+        },
+        "paper_nav_page_1": {
+          "count": 100,
+          "p50_ms": 46.137,
+          "p95_ms": 146.68,
+          "p99_ms": 150.861,
+          "max_ms": 151.579
+        },
+        "paper_nav_page_2": {
+          "count": 100,
+          "p50_ms": 52.515,
+          "p95_ms": 94.034,
+          "p99_ms": 98.49,
+          "max_ms": 112.529
+        },
+        "paper_orders_page_1": {
+          "count": 100,
+          "p50_ms": 35.338,
+          "p95_ms": 54.318,
+          "p99_ms": 60.817,
+          "max_ms": 106.425
+        },
+        "paper_orders_page_2": {
+          "count": 100,
+          "p50_ms": 36.094,
+          "p95_ms": 59.692,
+          "p99_ms": 71.036,
+          "max_ms": 74.679
+        },
+        "paper_trades_page_1": {
+          "count": 100,
+          "p50_ms": 37.024,
+          "p95_ms": 55.59,
+          "p99_ms": 102.286,
+          "max_ms": 102.432
+        },
+        "paper_trades_page_2": {
+          "count": 100,
+          "p50_ms": 36.407,
+          "p95_ms": 48.774,
+          "p99_ms": 68.449,
+          "max_ms": 76.637
+        },
+        "strategy_catalog": {
+          "count": 100,
+          "p50_ms": 40.607,
+          "p95_ms": 52.166,
+          "p99_ms": 55.048,
+          "max_ms": 56.017
+        },
+        "watchlist_read": {
+          "count": 100,
+          "p50_ms": 32.762,
+          "p95_ms": 147.315,
+          "p99_ms": 430.751,
+          "max_ms": 482.759
+        },
+        "watchlist_write": {
+          "count": 100,
+          "p50_ms": 41.888,
+          "p95_ms": 186.13,
+          "p99_ms": 203.053,
+          "max_ms": 217.683
+        }
+      },
+      "requests": 1200,
+      "http_5xx": 0,
+      "http_4xx": 0,
+      "transport_errors": 0
+    }
+  ],
+  "steady_http_summary": {
+    "rounds": 1,
+    "workflows": 100,
+    "successful_workflows": 100,
+    "failed_workflows": 0,
+    "requests": 1200,
+    "http_5xx": 0,
+    "http_4xx": 0,
+    "transport_errors": 0,
+    "effective_request_error_rate": 0.0,
+    "peak_active_workflows": 100,
+    "worst_round_request_p95_ms": 102.288,
+    "worst_round_request_p99_ms": 171.595
+  },
+  "cross_tenant_isolation": {
+    "checks": 100,
+    "leaks": 0,
+    "elapsed_ms": 646.727
+  },
+  "dataset_counts_after_load": {
+    "full_paper_accounts": 100,
+    "full_paper_orders": 24000,
+    "full_paper_fills": 24000,
+    "full_paper_nav": 18000,
+    "notification_channels": 100,
+    "research_jobs": 100,
+    "scheduler_research_rows": 100
+  },
+  "database_size_after_bytes": {
+    "tsp_p2s2_075274aa18_control": 9305111,
+    "tsp_p2s2_075274aa18_data": 54189079
+  },
+  "resource_observation": {
+    "samples": 734,
+    "sampling_errors": 0,
+    "harness_process": {
+      "rss_start_bytes": 188039168,
+      "rss_peak_bytes": 244678656,
+      "rss_end_bytes": 228802560,
+      "cpu_user_seconds": 12.727,
+      "cpu_system_seconds": 7.66,
+      "peak_cpu_percent": 135.7,
+      "peak_threads": 71
+    },
+    "postgresql": {
+      "peak_connections_to_acceptance_databases": 61,
+      "peak_active_connections": 20,
+      "peak_waiting_active_connections": 10
+    },
+    "research": {
+      "peak_queued": 99,
+      "peak_running": 4,
+      "peak_due_tenants": 100
+    }
+  },
+  "elapsed_seconds": 110.745
+}

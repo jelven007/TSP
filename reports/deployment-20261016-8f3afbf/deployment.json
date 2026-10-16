@@ -1,0 +1,89 @@
+{
+  "commit": "8f3afbf7ca82047d59ddb7d2b758903b38ce6eb1",
+  "runtime": "sha256:905493c93d2a94a06fdc523bea10764113077f24b163c031108a762fdd6ad2ca",
+  "compute": "sha256:8e2b94f16f52563ab64f49212a12391086601d29222046088e196f6bcc0c2720",
+  "compose_env": "/opt/tsp-full/production/compose.env",
+  "compose_file": "/opt/tsp-full/release-8f3afbf/deploy/full/compose.yml",
+  "compose_project": "tsp-full",
+  "release": "/opt/tsp-full/release-8f3afbf",
+  "cutover_at": 1792117323.554232,
+  "cutover_started_at": 1792117298.294008,
+  "previous": {
+    "release": "/opt/tsp-full/release-414cc483",
+    "compose": "/opt/tsp-full/release-414cc483/deploy/full/compose.yml",
+    "compose_overrides": [],
+    "runtime_images": {
+      "platform": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+      "api": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+      "research": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+      "realtime": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+      "notifications": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+      "scheduled": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e"
+    },
+    "compute_image": "sha256:8e2b94f16f52563ab64f49212a12391086601d29222046088e196f6bcc0c2720",
+    "postgres_user": "tsp_admin",
+    "databases": [
+      "tsp_full_candidate_control",
+      "tsp_full_candidate_data"
+    ],
+    "state": {
+      "workers": [
+        {
+          "kind": "realtime",
+          "owner": "3f1a3b090c7a4ea2afcdd9b76116458b",
+          "healthy": true
+        },
+        {
+          "kind": "notifications",
+          "owner": "2ab390730691403da48a09e13964c918",
+          "healthy": true
+        },
+        {
+          "kind": "research",
+          "owner": "b5e340e66d3146d2a0714f9360fe806c",
+          "healthy": true
+        },
+        {
+          "kind": "scheduled",
+          "owner": "964ba7da420a487996aa76e4eb5c3237",
+          "healthy": true
+        }
+      ],
+      "counts": {
+        "users": 3,
+        "tenants": 2,
+        "memberships": 2
+      }
+    }
+  },
+  "backup": "/opt/tsp-full/backups/pre-8f3afbf-20261016-102131",
+  "databases": [
+    {
+      "kind": "control",
+      "database": "tsp_full_candidate_control",
+      "schema_version": 5,
+      "bytes": 46575,
+      "sha256": "46856d6b6ad2ac2260aeb92b9e833e24fadc1f516874298593c783337f7ab444",
+      "restore_verification": {
+        "database": "tsp_restore_control_92117300",
+        "schema_version": 5,
+        "table_count": 20,
+        "restored": true
+      }
+    },
+    {
+      "kind": "data",
+      "database": "tsp_full_candidate_data",
+      "schema_version": 5,
+      "bytes": 180384,
+      "sha256": "91dd32270d6a91389df836600ab94d378eb4abcbee4edafbc9cf840939f3de1d",
+      "restore_verification": {
+        "database": "tsp_restore_data_92117300",
+        "schema_version": 5,
+        "table_count": 34,
+        "restored": true
+      }
+    }
+  ],
+  "rollback_command": "python3 /opt/tsp-full/backups/pre-8f3afbf-20261016-102131/rollback.py --rollback /opt/tsp-full/backups/pre-8f3afbf-20261016-102131"
+}

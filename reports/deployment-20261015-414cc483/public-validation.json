@@ -1,0 +1,115 @@
+{
+  "endpoints": {
+    "/health/live": {
+      "status": "ok",
+      "version": "0.3.11"
+    },
+    "/health/ready": {
+      "status": "ok",
+      "ready": true,
+      "checked_at": "2026-10-15T12:37:26.370670+00:00",
+      "checks": {
+        "databases": {
+          "status": "ok"
+        },
+        "research_worker": {
+          "status": "ok"
+        },
+        "realtime_worker": {
+          "status": "ok"
+        },
+        "notifications_worker": {
+          "status": "ok"
+        },
+        "scheduled_worker": {
+          "status": "ok"
+        },
+        "public_files": {
+          "status": "ok",
+          "release_id": "657f854836a141078b8e4e80c575c671"
+        },
+        "platform": {
+          "status": "ok",
+          "connected": true
+        },
+        "indicator_cache": {
+          "status": "ok"
+        },
+        "compute_broker": {
+          "status": "ok"
+        }
+      },
+      "version": "0.3.11",
+      "mode": "none"
+    },
+    "/api/health": {
+      "status": "ok",
+      "ready": true,
+      "checked_at": "2026-10-15T12:37:26.403358+00:00",
+      "checks": {
+        "databases": {
+          "status": "ok"
+        },
+        "research_worker": {
+          "status": "ok"
+        },
+        "realtime_worker": {
+          "status": "ok"
+        },
+        "notifications_worker": {
+          "status": "ok"
+        },
+        "scheduled_worker": {
+          "status": "ok"
+        },
+        "public_files": {
+          "status": "ok",
+          "release_id": "657f854836a141078b8e4e80c575c671"
+        },
+        "platform": {
+          "status": "ok",
+          "connected": true
+        },
+        "indicator_cache": {
+          "status": "ok"
+        },
+        "compute_broker": {
+          "status": "ok"
+        }
+      },
+      "version": "0.3.11",
+      "mode": "none"
+    }
+  },
+  "openapi_routes": [
+    "/api/paper/rounds",
+    "/api/paper/auto_skips",
+    "/api/paper/overview",
+    "/api/paper/stats",
+    "/api/screener/run",
+    "/api/strategies"
+  ],
+  "unauthorized": {
+    "/api/paper/overview": 401,
+    "/api/paper/rounds": 401,
+    "/api/paper/auto_skips": 401,
+    "/api/strategies": 401
+  },
+  "assets": {
+    "api_chunk": {
+      "name": "index-Dv3AVLjv.js",
+      "sha256": "a5b6391ea710ac62fdcb45eb718e35952f2d5d3c473bf20f42a4dfcf0669bc50",
+      "status": 200
+    },
+    "paper_chunk": {
+      "name": "Paper-5qwuakJ4.js",
+      "sha256": "94b177ce19c925f1e1776577b7d58a33b0cb6f52f3ab55ceb68a3b5d0081974d",
+      "status": 200
+    }
+  },
+  "index": {
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "bytes": 1499
+  }
+}

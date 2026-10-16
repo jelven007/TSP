@@ -1,0 +1,117 @@
+{
+  "status": "passed",
+  "scope": "local_disposable_postgresql_functional_acceptance",
+  "limits": [
+    "not a production or candidate-host deployment",
+    "not a real trading-session market freshness measurement",
+    "ASGI requests run in process; network proxy capacity is not measured"
+  ],
+  "parameters": {
+    "users": 100,
+    "rounds": 5,
+    "pool_size": 32
+  },
+  "git": {
+    "head": "d06acc1d8fe27f263f8e7d63fe5093b03e62ae9f",
+    "dirty": true,
+    "status_sha256": "add4eb7738fe64cefb5567e70fb6f8471e13b7d17aa9a7f6efa79cdef7e6b77d"
+  },
+  "login": {
+    "elapsed_ms": 1091.87,
+    "latency": {
+      "count": 100,
+      "p50_ms": 293.791,
+      "p95_ms": 477.038,
+      "p99_ms": 499.512,
+      "max_ms": 502.981
+    }
+  },
+  "http_workflows": [
+    {
+      "round": 1,
+      "successes": 100,
+      "elapsed_ms": 1693.291,
+      "workflow_latency": {
+        "count": 100,
+        "p50_ms": 1633.166,
+        "p95_ms": 1659.499,
+        "p99_ms": 1660.975,
+        "max_ms": 1662.74
+      }
+    },
+    {
+      "round": 2,
+      "successes": 100,
+      "elapsed_ms": 1708.604,
+      "workflow_latency": {
+        "count": 100,
+        "p50_ms": 1666.407,
+        "p95_ms": 1698.705,
+        "p99_ms": 1700.065,
+        "max_ms": 1700.074
+      }
+    },
+    {
+      "round": 3,
+      "successes": 100,
+      "elapsed_ms": 1947.296,
+      "workflow_latency": {
+        "count": 100,
+        "p50_ms": 1906.761,
+        "p95_ms": 1934.581,
+        "p99_ms": 1935.346,
+        "max_ms": 1935.936
+      }
+    },
+    {
+      "round": 4,
+      "successes": 100,
+      "elapsed_ms": 1527.947,
+      "workflow_latency": {
+        "count": 100,
+        "p50_ms": 1497.318,
+        "p95_ms": 1517.921,
+        "p99_ms": 1519.16,
+        "max_ms": 1522.097
+      }
+    },
+    {
+      "round": 5,
+      "successes": 100,
+      "elapsed_ms": 1438.931,
+      "workflow_latency": {
+        "count": 100,
+        "p50_ms": 1403.296,
+        "p95_ms": 1426.298,
+        "p99_ms": 1430.395,
+        "max_ms": 1431.36
+      }
+    }
+  ],
+  "private_events": {
+    "successes": 100,
+    "elapsed_ms": 598.04,
+    "hub": {
+      "listener_connected": true,
+      "subscriptions": 100,
+      "poll_runs": 1,
+      "tenant_reads": 100,
+      "notifications": 100,
+      "full_sweeps": 0,
+      "last_event_at": 1792123997.782341
+    }
+  },
+  "public_markers": {
+    "successes": 100,
+    "elapsed_ms": 147.208
+  },
+  "revocation": {
+    "revoked": true,
+    "latency_ms": 23.917,
+    "listener": {
+      "connected": true,
+      "last_notification_at": 1792123998.51868
+    }
+  },
+  "elapsed_seconds": 19.241
+}

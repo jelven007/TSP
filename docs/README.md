@@ -6,10 +6,12 @@
 当前完整单机多租户部署使用 `deploy/full/compose.yml`，启用
 `MULTITENANCY_ENABLED=true`。保留完整前端与业务引擎，API 默认四进程；
 平台负责唯一行情写入，四类 Worker 分别负责研究、实时监控/模拟盘、通知和调度。
-身份与租户业务持久化到 PostgreSQL v5，公共行情按不可变版本只读共享。
+身份与租户业务持久化到 PostgreSQL v6，公共行情按不可变版本只读共享。
 部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
 已完成的一期发布与 100 用户验收见[实施记录](./phase1-implementation.md)。
-
+二期执行范围见[三步实施计划](./phase2-implementation-plan.md)：单机关键迭代、
+单机百账号/百人活跃、DFX 与万人并发；第二步本地证据见
+[实施记录](../reports/phase2-step2-20261016/implementation.md)，各步仍需完成对应候选与持续运行验收。
 
 ## 生命周期覆盖
 
@@ -30,7 +32,7 @@
 | 领域 | 文档 |
 | --- | --- |
 | 产品与使用 | [功能手册](./features.md)、[操作说明书](../操作说明书.md) |
-| 单机多租户 | [完整部署](../deploy/full/README.md)、[两期技术方案](./multitenant-roadmap.md)、[一期实施与验收](./phase1-implementation.md) |
+| 单机多租户 | [完整部署](../deploy/full/README.md)、[两期技术方案](./multitenant-roadmap.md)、[一期实施与验收](./phase1-implementation.md)、[二期三步实施](./phase2-implementation-plan.md) |
 | 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md) |
 | 数据源 | [自定义数据源](./custom-data-source.md)、[rustdx 数据源](./rustdx-data-source.md)、[插件开发](./plugin-development.md) |
 | TickFlow 专项 | [Pro 一阶段探测](./tickflow-pro-phase1-probe.md)、[共享限流](./tickflow-pro-shared-rate-limit.md) |

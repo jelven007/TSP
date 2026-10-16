@@ -69,6 +69,39 @@ uv run ruff check app/path.py tests/path.py
 未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、
 模拟盘事务、迁移与平台边界；发布验收见[一期记录](./phase1-implementation.md)。
 
+二期第一步的本地百人关键链路验收使用同类一次性 PostgreSQL 服务：
+
+```bash
+cd backend
+TSP_TEST_POSTGRES_DSN='<一次性 PostgreSQL 根 DSN>' \
+  uv run python -m scripts.accept_phase2_step1 \
+  --users 100 --rounds 5 --pool-size 32 \
+  --output ../reports/phase2-step1-20261016/local-100-user-acceptance.json
+```
+
+该脚本会创建并删除临时两库和运行角色，覆盖独立登录、私有业务读写、策略读取、
+流换票/重放拒绝、租户事件 LISTEN/RLS 隔离、公共 marker 及真实撤权通知。
+请求在进程内 ASGI 执行，不经过 Nginx、容器网络和真实行情源，不能替代候选主机
+容量、SSE 长连接或交易时段验收。
+
+二期第二步的本地长台账与 100 用户混合负载验收：
+
+```bash
+cd backend
+TSP_TEST_POSTGRES_DSN='<一次性 PostgreSQL 根 DSN>' \
+  uv run python -m scripts.accept_phase2_step2 \
+  --users 100 --rounds 2 --pool-size 32 \
+  --ledger-rows 240 --nav-rows 180 \
+  --research-concurrency 4 --steady-request-interval 5 \
+  --output ../reports/phase2-step2-20261016/local-100-user-mixed-acceptance.json
+```
+
+该脚本为每个租户构造模拟盘长历史、禁用通知渠道和研究任务，同时运行私有事件、
+公共 marker、研究 Worker、100 人同步突发和每用户五秒一次的错峰稳态请求。
+通知不会外发。脚本记录逐请求分位数、研究完成时间、进程 RSS/CPU 和 PostgreSQL
+连接峰值；它仍是进程内 ASGI 与快速研究替身，不能替代外部 SSE、真实行情、
+完整交易日、72 小时、重启或恢复验收。
+
 发布与健康检查故障回归:
 
 ```bash

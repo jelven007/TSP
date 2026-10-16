@@ -1,0 +1,114 @@
+{
+  "commit": "414cc48379cd6ecdb664d373b22d37dcdac5b29a",
+  "runtime": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+  "candidate_container": "4161ff42bf6d928552dbc9e327bca5ad575a5224e6e3eeadf6889371b87a3049",
+  "candidate_aliases": [
+    "tsp-414cc48-candidate"
+  ],
+  "ready": {
+    "status": "ok",
+    "ready": true,
+    "checked_at": "2026-10-15T12:27:16.338126+00:00",
+    "checks": {
+      "databases": {
+        "status": "ok"
+      },
+      "research_worker": {
+        "status": "ok"
+      },
+      "realtime_worker": {
+        "status": "ok"
+      },
+      "notifications_worker": {
+        "status": "ok"
+      },
+      "scheduled_worker": {
+        "status": "ok"
+      },
+      "public_files": {
+        "status": "ok",
+        "release_id": "657f854836a141078b8e4e80c575c671"
+      },
+      "platform": {
+        "status": "ok",
+        "connected": true
+      },
+      "indicator_cache": {
+        "status": "ok"
+      },
+      "compute_broker": {
+        "status": "ok"
+      }
+    },
+    "version": "0.3.11",
+    "mode": "none"
+  },
+  "new_routes": true,
+  "overlay_runtime": true,
+  "unauthenticated": {
+    "/api/paper/overview": 401,
+    "/api/paper/rounds": 401,
+    "/api/paper/auto_skips": 401,
+    "/api/strategies": 401
+  },
+  "business": {
+    "tenant_count": 2,
+    "paper_account_count": 0,
+    "paper_initialized": false,
+    "valuation": null,
+    "pairings": 0,
+    "cycles": 0,
+    "auto_skips": 0,
+    "stats_cycles": {
+      "count": 0,
+      "pairings": 0,
+      "win_rate": 0.0,
+      "avg_holding_days": 0.0,
+      "money_weighted_return_pct": null
+    },
+    "strategies_with_overlay": 22
+  },
+  "api_chunk": {
+    "name": "index-Dv3AVLjv.js",
+    "sha256": "a5b6391ea710ac62fdcb45eb718e35952f2d5d3c473bf20f42a4dfcf0669bc50"
+  },
+  "paper_chunk": {
+    "name": "Paper-5qwuakJ4.js",
+    "sha256": "94b177ce19c925f1e1776577b7d58a33b0cb6f52f3ab55ceb68a3b5d0081974d"
+  },
+  "production_unchanged": {
+    "platform": {
+      "container_id": "9aae74e9d23d1f81deff0a76aa40a8688e902a9befb08533f2072fad9a3a8f96",
+      "image": "sha256:e6b05afebcd1f3fd8301ed0cf6020bcb5783c382e32a49c69f8d0386c4048400",
+      "running": true
+    },
+    "api": {
+      "container_id": "09a748a2d7ca7017231cd07afd2f3130e49a2a6da09f03c99530c6578decae14",
+      "image": "sha256:5effa7cf27a610aac65640828f8313ddc5e4eda3a53ac0b8a868966c81967ef2",
+      "running": true
+    },
+    "research": {
+      "container_id": "896e1c0f5b0709b1de8793cab8d304e3fd7270757ce13103f8449a3efe6ac157",
+      "image": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6",
+      "running": true
+    },
+    "realtime": {
+      "container_id": "5af4d06ab8338552aa06fef8a73d19c6946bede70cb539dc1faa90f5549d047a",
+      "image": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6",
+      "running": true
+    },
+    "notifications": {
+      "container_id": "91159806bc0b6b4edd42730c5e27d4ce79df1b7a8454da5d49827e02d22314eb",
+      "image": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6",
+      "running": true
+    },
+    "scheduled": {
+      "container_id": "2dd2b86232c5b1692ffd9d8587f58efb9d4b62c7b49bdfdc682ffca3097f8b0d",
+      "image": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6",
+      "running": true
+    }
+  },
+  "worker_imports": "passed",
+  "compute_imports_with_runtime_policy": "passed",
+  "validated_at": 1792067236.5296886
+}

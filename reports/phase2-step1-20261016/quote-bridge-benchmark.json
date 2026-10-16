@@ -1,0 +1,54 @@
+{
+  "method": {
+    "frames_per_snapshot": 4,
+    "marker_rate_hz": 1,
+    "note": "New-path counts execute PublicQuoteBridge; old-path counts are the removed 1 Hz loop model.",
+    "startup_refresh_excluded": true
+  },
+  "new_marker_driven": {
+    "all_active_workers": {
+      "active_workers": 4,
+      "decodes_per_marker": 16.0,
+      "execution_ms": 39.742,
+      "fetches_per_marker": 4.0,
+      "frame_decodes": 960,
+      "markers": 60,
+      "measured": true,
+      "requests_per_marker": 20,
+      "snapshot_fetches": 240,
+      "workers": 4
+    },
+    "idle": {
+      "active_workers": 0,
+      "decodes_per_marker": 0.0,
+      "execution_ms": 0.164,
+      "fetches_per_marker": 0.0,
+      "frame_decodes": 0,
+      "markers": 60,
+      "measured": true,
+      "requests_per_marker": 20,
+      "snapshot_fetches": 0,
+      "workers": 4
+    },
+    "one_active_worker": {
+      "active_workers": 1,
+      "decodes_per_marker": 4.0,
+      "execution_ms": 10.715,
+      "fetches_per_marker": 1.0,
+      "frame_decodes": 240,
+      "markers": 60,
+      "measured": true,
+      "requests_per_marker": 20,
+      "snapshot_fetches": 60,
+      "workers": 4
+    }
+  },
+  "old_fixed_poll_model": {
+    "decodes_per_second_at_1hz": 16,
+    "fetches_per_second_at_1hz": 4,
+    "frame_decodes": 960,
+    "measured": false,
+    "snapshot_fetches": 240,
+    "workers": 4
+  }
+}

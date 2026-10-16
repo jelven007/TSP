@@ -5,7 +5,7 @@
 部署相关配置(端口/密码/老 CPU 兼容)的实操见 [deployment.md](./deployment.md)。
 
 完整单机多租户通过 `MULTITENANCY_ENABLED`、`SERVICE_ROLE` 和
-`TSP_CELL_SCHEMA_VERSION=5` 接线，使用独立控制库/业务库 runtime DSN。
+`TSP_CELL_SCHEMA_VERSION=6` 接线，使用独立控制库/业务库 runtime DSN。
 `TSP_CELL_*` 名称为当前共享基础的兼容配置，仍在使用。
 平台配置、公共版本、Broker 和各服务环境文件见
 [完整部署配置](../deploy/full/README.md)。本页其余初始化说明适用于独立运行模式。
