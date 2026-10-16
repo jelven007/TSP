@@ -2363,6 +2363,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password, code }),
     }),
+  authSendRecoveryCode: (email: string, registrationSecret: string) =>
+    request<{ ok: boolean; cooldown_seconds: number; message: string }>('/api/auth/recovery/code', {
+      method: 'POST',
+      body: JSON.stringify({ email, registration_secret: registrationSecret }),
+    }),
+  authResetPassword: (
+    email: string,
+    registrationSecret: string,
+    code: string,
+    newPassword: string,
+  ) =>
+    request<{ ok: boolean; message: string }>('/api/auth/recovery/reset', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        registration_secret: registrationSecret,
+        code,
+        new_password: newPassword,
+      }),
+    }),
   authMigrate: (email: string, password: string) =>
     request<AuthResult>('/api/auth/migrate', {
       method: 'POST',

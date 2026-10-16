@@ -38,11 +38,13 @@ def isolated_auth_store(
     auth._configured_cache = None
     auth_api._fail_counter.clear()
     auth_api._registration_attempts.clear()
+    auth_api._recovery_attempts.clear()
     yield auth
     auth._sessions.clear()
     auth._configured_cache = None
     auth_api._fail_counter.clear()
     auth_api._registration_attempts.clear()
+    auth_api._recovery_attempts.clear()
 
 
 def test_register_normalizes_email_and_rejects_duplicate(
@@ -287,6 +289,107 @@ def test_registration_code_endpoint_sends_and_enforces_cooldown(
         },
     )
     assert registered.status_code == 201
+
+
+def test_password_recovery_requires_secret_and_code_and_revokes_sessions(
+    isolated_auth_store: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auth = isolated_auth_store
+    first_token, _ = auth.register_user("owner@example.com", "password-123")
+    second_login = auth.authenticate_user("owner@example.com", "password-123")
+    assert second_login is not None
+    second_token, _ = second_login
+    auth.set_registration_secret("test-registration-secret")
+    app_config.settings.auth_smtp_host = "smtp.example.com"
+    app_config.settings.auth_smtp_username = "sender@example.com"
+    app_config.settings.auth_smtp_password = "smtp-secret"
+    monkeypatch.setattr(auth_verification, "_generate_code", lambda: "654321")
+    deliveries: list[tuple[str, str]] = []
+
+    def fake_send(config: dict, password: str, subject: str, body: str, **_kwargs) -> bool:
+        assert password == "smtp-secret"
+        deliveries.append((config["to_addresses"][0], subject))
+        assert "654321" in body
+        return True
+
+    monkeypatch.setattr(email_adapter, "send_email", fake_send)
+    app = FastAPI()
+    app.include_router(auth_api.router)
+    client = TestClient(app)
+
+    wrong_secret = client.post(
+        "/api/auth/recovery/code",
+        json={"email": "owner@example.com", "registration_secret": "wrong-secret"},
+    )
+    assert wrong_secret.status_code == 403
+    assert deliveries == []
+
+    unknown = client.post(
+        "/api/auth/recovery/code",
+        json={
+            "email": "unknown@example.com",
+            "registration_secret": "test-registration-secret",
+        },
+    )
+    assert unknown.status_code == 200
+    assert deliveries == []
+    cannot_register_with_recovery_code = client.post(
+        "/api/auth/register",
+        json={
+            "email": "unknown@example.com",
+            "password": "another-password",
+            "code": "654321",
+        },
+    )
+    assert cannot_register_with_recovery_code.status_code == 400
+
+    sent = client.post(
+        "/api/auth/recovery/code",
+        json={
+            "email": "OWNER@example.com",
+            "registration_secret": "test-registration-secret",
+        },
+    )
+    assert sent.status_code == 200
+    assert sent.json()["cooldown_seconds"] == 60
+    assert deliveries == [("owner@example.com", "TSP 密码找回验证码")]
+
+    rejected_reset = client.post(
+        "/api/auth/recovery/reset",
+        json={
+            "email": "owner@example.com",
+            "registration_secret": "wrong-secret",
+            "code": "654321",
+            "new_password": "new-password-456",
+        },
+    )
+    assert rejected_reset.status_code == 403
+    reset = client.post(
+        "/api/auth/recovery/reset",
+        json={
+            "email": "owner@example.com",
+            "registration_secret": "test-registration-secret",
+            "code": "654321",
+            "new_password": "new-password-456",
+        },
+    )
+    assert reset.status_code == 200
+    assert auth.is_valid_session(first_token) is False
+    assert auth.is_valid_session(second_token) is False
+    assert auth.authenticate_user("owner@example.com", "password-123") is None
+    assert auth.authenticate_user("owner@example.com", "new-password-456") is not None
+
+    replay = client.post(
+        "/api/auth/recovery/reset",
+        json={
+            "email": "owner@example.com",
+            "registration_secret": "test-registration-secret",
+            "code": "654321",
+            "new_password": "third-password-789",
+        },
+    )
+    assert replay.status_code == 400
 
 
 def test_verification_code_is_hashed_and_consumed_once(

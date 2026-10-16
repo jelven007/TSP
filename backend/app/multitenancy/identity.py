@@ -17,6 +17,10 @@ from app.services import email_adapter
 _PASSWORD_BUDGET = threading.BoundedSemaphore(4)
 CODE_TTL = 600
 RESEND_SECONDS = 60
+# Schema v5 only permits purpose='registration'. Recovery records therefore
+# use an email key that normalize_email can never accept, keeping both code
+# namespaces isolated without changing an already-deployed schema checksum.
+RECOVERY_KEY_PREFIX = "password-recovery "
 
 
 def _email(value: str) -> str:
@@ -256,6 +260,180 @@ class AccountIdentity:
         if not sent:
             raise AccessError(503, "验证码邮件发送失败，请稍后重试")
         return RESEND_SECONDS
+
+    def send_recovery_code(self, email: str, secret: str, ip: str) -> int:
+        email = _email(email)
+        self.limit("recovery:ip:" + ip, 10, 3600)
+        self.limit("recovery:account:" + email, 5, 3600)
+        self.limit("recovery:global", 300, 3600)
+        with self.db.control.connection() as conn:
+            config = conn.execute("SELECT * FROM control.registration_config").fetchone()
+            existing = conn.execute(
+                "SELECT 1 FROM control.users WHERE email=%s", (email,),
+            ).fetchone()
+        if not config:
+            raise AccessError(503, "注册口令尚未配置")
+        with _password_budget():
+            valid = verify_password(secret, config["secret_salt"], config["secret_hash"])
+        if not valid:
+            raise AccessError(403, "注册口令错误")
+        smtp, password = email_adapter.get_registration_smtp(email)
+        if not email_adapter.is_configured(smtp):
+            raise AccessError(503, "密码找回邮件服务尚未配置")
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        salt = secrets.token_hex(16)
+        with _password_budget():
+            digest = _hash_value(code, salt)
+        now = datetime.now(UTC)
+        verification_email = RECOVERY_KEY_PREFIX + email
+        with self.db.control.connection() as conn, conn.transaction():
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                ("password-recovery:" + email,),
+            )
+            old = conn.execute(
+                """SELECT resend_at FROM control.verification_codes
+                   WHERE email=%s AND purpose='registration'""",
+                (verification_email,),
+            ).fetchone()
+            if old and old["resend_at"] > now:
+                wait = max(1, int((old["resend_at"] - now).total_seconds()))
+                raise AccessError(429, f"请 {wait} 秒后重新发送")
+            conn.execute(
+                """INSERT INTO control.verification_codes
+                   (email,purpose,salt,code_hash,secret_version,expires_at,resend_at,attempts_left)
+                   VALUES(%s,'registration',%s,%s,%s,%s,%s,5)
+                   ON CONFLICT(email,purpose) DO UPDATE SET salt=excluded.salt,
+                     code_hash=excluded.code_hash,secret_version=excluded.secret_version,
+                     expires_at=excluded.expires_at,resend_at=excluded.resend_at,
+                     attempts_left=5,delivered=false,consumed_at=NULL""",
+                (
+                    verification_email,
+                    salt,
+                    digest,
+                    config["version"],
+                    now + timedelta(seconds=CODE_TTL),
+                    now + timedelta(seconds=RESEND_SECONDS),
+                ),
+            )
+        if not existing:
+            return RESEND_SECONDS
+
+        sent = email_adapter.send_email(
+            smtp,
+            password,
+            "TSP 密码找回验证码",
+            f"你的密码找回验证码是: {code}\n\n验证码将在 10 分钟后失效，请勿转发给他人。\n"
+            "如果不是你本人操作，请忽略此邮件。",
+            max_attempts=1,
+        )
+        with self.db.control.connection() as conn:
+            if sent:
+                conn.execute(
+                    """UPDATE control.verification_codes SET delivered=true
+                       WHERE email=%s AND purpose='registration' AND code_hash=%s""",
+                    (verification_email, digest),
+                )
+            else:
+                conn.execute(
+                    """DELETE FROM control.verification_codes
+                       WHERE email=%s AND purpose='registration' AND code_hash=%s""",
+                    (verification_email, digest),
+                )
+        if not sent:
+            raise AccessError(503, "验证码邮件发送失败，请稍后重试")
+        return RESEND_SECONDS
+
+    def reset_password(
+        self,
+        email: str,
+        secret: str,
+        code: str,
+        new_password: str,
+    ) -> None:
+        email = _email(email)
+        if not 8 <= len(new_password) <= 128:
+            raise AccessError(400, "新密码长度必须在 8 到 128 位之间")
+        if len(code) != 6 or not code.isascii() or not code.isdigit():
+            raise AccessError(400, "请输入六位邮箱验证码")
+        with self.db.control.connection() as conn:
+            config = conn.execute("SELECT * FROM control.registration_config").fetchone()
+        if not config:
+            raise AccessError(503, "注册口令尚未配置")
+        with _password_budget():
+            valid_secret = verify_password(
+                secret,
+                config["secret_salt"],
+                config["secret_hash"],
+            )
+            salt, digest = hash_password(new_password)
+        if not valid_secret:
+            raise AccessError(403, "注册口令错误")
+
+        verification_email = RECOVERY_KEY_PREFIX + email
+        error = None
+        with self.db.control.connection() as conn, conn.transaction():
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                ("password-recovery:" + email,),
+            )
+            verification = conn.execute(
+                """SELECT v.*,c.version AS current_version
+                   FROM control.verification_codes v
+                   JOIN control.registration_config c ON c.singleton
+                   WHERE v.email=%s AND v.purpose='registration' FOR UPDATE OF v""",
+                (verification_email,),
+            ).fetchone()
+            if not verification or not verification["delivered"] or verification["consumed_at"]:
+                error = "请先发送验证码"
+            elif verification["expires_at"] <= datetime.now(UTC):
+                error = "验证码已过期，请重新发送"
+            elif verification["attempts_left"] <= 0:
+                error = "验证码错误次数过多，请重新发送"
+            elif verification["secret_version"] != verification["current_version"]:
+                error = "注册口令已更新，请重新发送验证码"
+            else:
+                with _password_budget():
+                    valid_code = verify_password(
+                        code,
+                        verification["salt"],
+                        verification["code_hash"],
+                    )
+                if not valid_code:
+                    conn.execute(
+                        """UPDATE control.verification_codes SET attempts_left=attempts_left-1
+                           WHERE email=%s AND purpose='registration'""",
+                        (verification_email,),
+                    )
+                    error = "验证码错误，请重试"
+            user = None
+            if not error:
+                user = conn.execute(
+                    "SELECT id FROM control.users WHERE email=%s FOR UPDATE",
+                    (email,),
+                ).fetchone()
+                if not user:
+                    error = "验证码无效，请重新获取"
+            if not error:
+                conn.execute(
+                    """UPDATE control.users
+                       SET password_salt=%s,password_hash=%s,auth_version=auth_version+1
+                       WHERE id=%s""",
+                    (salt, digest, user["id"]),
+                )
+                conn.execute("DELETE FROM control.sessions WHERE user_id=%s", (user["id"],))
+                conn.execute(
+                    "UPDATE control.api_tokens SET revoked_at=now() WHERE user_id=%s",
+                    (user["id"],),
+                )
+                conn.execute(
+                    """UPDATE control.verification_codes SET consumed_at=now()
+                       WHERE email=%s AND purpose='registration'""",
+                    (verification_email,),
+                )
+        if error:
+            raise AccessError(400, error)
 
     def register(self, email: str, password: str, code: str) -> tuple[str, dict]:
         email = _email(email)

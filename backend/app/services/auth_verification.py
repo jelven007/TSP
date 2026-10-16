@@ -1,4 +1,4 @@
-"""Email verification codes used by public account registration."""
+"""Email verification codes used by account registration and recovery."""
 from __future__ import annotations
 
 import hashlib
@@ -19,9 +19,10 @@ CODE_TTL_SECONDS = 10 * 60
 RESEND_COOLDOWN_SECONDS = 60
 MAX_VERIFY_ATTEMPTS = 5
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 _PBKDF2_ITERATIONS = 120_000
 _SALT_BYTES = 16
+_PURPOSES = frozenset({"registration", "recovery"})
 _lock = threading.Lock()
 
 
@@ -92,30 +93,38 @@ def _generate_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
-def _discard_code(email: str, expected_hash: str) -> None:
+def _code_key(email: str, purpose: str) -> str:
+    if purpose not in _PURPOSES:
+        raise ValueError("不支持的验证码用途")
+    return email if purpose == "registration" else f"{purpose}:{email}"
+
+
+def _discard_code(email: str, expected_hash: str, *, purpose: str) -> None:
+    key = _code_key(email, purpose)
     with _lock:
         data = _load()
-        record = data["codes"].get(email)
+        record = data["codes"].get(key)
         if isinstance(record, dict) and record.get("code_hash") == expected_hash:
-            data["codes"].pop(email, None)
+            data["codes"].pop(key, None)
             _save(data)
 
 
-def issue_code(email: str) -> str:
+def issue_code(email: str, *, purpose: str = "registration") -> str:
     """Create and persist a code, returning the plaintext for immediate delivery."""
     normalized = auth.normalize_email(email)
+    key = _code_key(normalized, purpose)
     now = time.time()
     with _lock:
         data = _load()
-        for saved_email, saved_record in list(data["codes"].items()):
+        for saved_key, saved_record in list(data["codes"].items()):
             expires_at = (
                 saved_record.get("expires_at", 0)
                 if isinstance(saved_record, dict)
                 else 0
             )
             if not isinstance(expires_at, (int, float)) or expires_at <= now:
-                data["codes"].pop(saved_email, None)
-        record = data["codes"].get(normalized)
+                data["codes"].pop(saved_key, None)
+        record = data["codes"].get(key)
         resend_at = record.get("resend_at", 0) if isinstance(record, dict) else 0
         if isinstance(resend_at, (int, float)) and resend_at > now:
             raise VerificationCodeCooldownError(int(resend_at - now + 0.999))
@@ -123,7 +132,8 @@ def issue_code(email: str) -> str:
         code = _generate_code()
         salt = os.urandom(_SALT_BYTES)
         data["schema_version"] = _SCHEMA_VERSION
-        data["codes"][normalized] = {
+        data["codes"][key] = {
+            "purpose": purpose,
             "code_hash": _hash_code(code, salt),
             "salt": salt.hex(),
             "expires_at": now + CODE_TTL_SECONDS,
@@ -145,8 +155,8 @@ def send_registration_code(email: str) -> int:
     if not email_adapter.is_configured(config):
         raise VerificationEmailUnavailableError("注册邮件服务尚未配置")
 
-    code = issue_code(normalized)
-    record = _load()["codes"].get(normalized, {})
+    code = issue_code(normalized, purpose="registration")
+    record = _load()["codes"].get(_code_key(normalized, "registration"), {})
     code_hash = str(record.get("code_hash") or "")
     sent = email_adapter.send_email(
         config,
@@ -160,24 +170,56 @@ def send_registration_code(email: str) -> int:
         max_attempts=1,
     )
     if not sent:
-        _discard_code(normalized, code_hash)
+        _discard_code(normalized, code_hash, purpose="registration")
         raise VerificationEmailUnavailableError("验证码邮件发送失败, 请稍后重试")
     return RESEND_COOLDOWN_SECONDS
 
 
-def consume_code(email: str, code: str) -> None:
+def send_recovery_code(email: str, *, deliver: bool) -> int:
+    """Issue a recovery code, sending it only when the account exists."""
+    normalized = auth.normalize_email(email)
+    config, password = _registration_smtp(normalized)
+    if not email_adapter.is_configured(config):
+        raise VerificationEmailUnavailableError("密码找回邮件服务尚未配置")
+
+    code = issue_code(normalized, purpose="recovery")
+    record = _load()["codes"].get(_code_key(normalized, "recovery"), {})
+    code_hash = str(record.get("code_hash") or "")
+    if not deliver:
+        return RESEND_COOLDOWN_SECONDS
+
+    sent = email_adapter.send_email(
+        config,
+        password,
+        "TSP 密码找回验证码",
+        (
+            f"你的密码找回验证码是: {code}\n\n"
+            f"验证码将在 {CODE_TTL_SECONDS // 60} 分钟后失效, 请勿转发给他人。\n"
+            "如果不是你本人操作, 请忽略此邮件。"
+        ),
+        max_attempts=1,
+    )
+    if not sent:
+        _discard_code(normalized, code_hash, purpose="recovery")
+        raise VerificationEmailUnavailableError("验证码邮件发送失败, 请稍后重试")
+    return RESEND_COOLDOWN_SECONDS
+
+
+def consume_code(email: str, code: str, *, purpose: str = "registration") -> None:
     """Validate and consume a code. Invalid attempts are persisted."""
     normalized = auth.normalize_email(email)
+    key = _code_key(normalized, purpose)
     now = time.time()
     with _lock:
         data = _load()
-        record = data["codes"].get(normalized)
-        if not isinstance(record, dict):
+        record = data["codes"].get(key)
+        saved_purpose = record.get("purpose", "registration") if isinstance(record, dict) else None
+        if not isinstance(record, dict) or saved_purpose != purpose:
             raise VerificationCodeInvalidError("请先发送验证码")
 
         expires_at = record.get("expires_at", 0)
         if not isinstance(expires_at, (int, float)) or expires_at <= now:
-            data["codes"].pop(normalized, None)
+            data["codes"].pop(key, None)
             _save(data)
             raise VerificationCodeExpiredError("验证码已过期, 请重新发送")
 
@@ -195,7 +237,7 @@ def consume_code(email: str, code: str) -> None:
             except (TypeError, ValueError):
                 attempts_left = 0
             if attempts_left == 0:
-                data["codes"].pop(normalized, None)
+                data["codes"].pop(key, None)
                 message = "验证码错误次数过多, 请重新发送"
             else:
                 record["attempts_left"] = attempts_left
@@ -203,5 +245,5 @@ def consume_code(email: str, code: str) -> None:
             _save(data)
             raise VerificationCodeInvalidError(message)
 
-        data["codes"].pop(normalized, None)
+        data["codes"].pop(key, None)
         _save(data)

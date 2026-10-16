@@ -87,4 +87,46 @@ describe('auth API', () => {
       }),
     )
   })
+
+  it('sends both recovery factors when resetting a password', async () => {
+    const fetchMock = vi.fn(async () => ok({
+      ok: true,
+      cooldown_seconds: 60,
+      message: 'ok',
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.authSendRecoveryCode('owner@example.com', 'registration-secret')
+    await api.authResetPassword(
+      'owner@example.com',
+      'registration-secret',
+      '654321',
+      'new-password-456',
+    )
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/auth/recovery/code',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          email: 'owner@example.com',
+          registration_secret: 'registration-secret',
+        }),
+      }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/auth/recovery/reset',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          email: 'owner@example.com',
+          registration_secret: 'registration-secret',
+          code: '654321',
+          new_password: 'new-password-456',
+        }),
+      }),
+    )
+  })
 })

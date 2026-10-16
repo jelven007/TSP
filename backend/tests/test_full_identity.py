@@ -223,6 +223,109 @@ def test_expiry_attempts_cooldown_and_secret_rotation(env):
         identity.register(another, PASSWORD, env["codes"][another])
 
 
+def test_password_recovery_is_purpose_bound_and_revokes_credentials(env):
+    token, user = register(env)
+    second_token, _ = env["identity"].login(user["email"], PASSWORD, uuid.uuid4().hex)
+    old_version = user["auth_version"]
+    token_id = uuid.uuid4().hex
+    env["control"].execute(
+        """INSERT INTO control.api_tokens
+           (id,tenant_id,user_id,digest,name,permissions,policy_version,expires_at,
+            full_scopes,auth_version,routing_epoch)
+           SELECT %s,t.id,u.id,%s,'recovery-test',ARRAY['watchlist:read'],
+                  t.policy_version,now()+interval '1 day',ARRAY['read:market'],
+                  u.auth_version,t.routing_epoch
+           FROM control.users u JOIN control.tenants t ON t.id=u.default_tenant_id
+           WHERE u.id=%s""",
+        (token_id, uuid.uuid4().hex, user["id"]),
+    )
+
+    wrong_secret = env["client"].post(
+        "/api/auth/recovery/code",
+        json={"email": user["email"], "registration_secret": "错误口令"},
+    )
+    assert wrong_secret.status_code == 403
+
+    unknown_email = uuid.uuid4().hex + "@example.test"
+    unknown = env["client"].post(
+        "/api/auth/recovery/code",
+        json={"email": unknown_email, "registration_secret": SECRET},
+    )
+    assert unknown.status_code == 200
+    assert unknown_email not in env["codes"]
+    unknown_record = env["control"].execute(
+        """SELECT delivered FROM control.verification_codes
+           WHERE email=%s AND purpose='registration'""",
+        ("password-recovery " + unknown_email,),
+    ).fetchone()
+    assert unknown_record and not unknown_record["delivered"]
+
+    sent = env["client"].post(
+        "/api/auth/recovery/code",
+        json={"email": user["email"], "registration_secret": SECRET},
+    )
+    assert sent.status_code == 200
+    recovery_code = env["codes"][user["email"]]
+    keys = env["control"].execute(
+        """SELECT email FROM control.verification_codes
+           WHERE email IN (%s,%s) ORDER BY email""",
+        (user["email"], "password-recovery " + user["email"]),
+    ).fetchall()
+    assert {row["email"] for row in keys} == {
+        user["email"],
+        "password-recovery " + user["email"],
+    }
+
+    rejected = env["client"].post(
+        "/api/auth/recovery/reset",
+        json={
+            "email": user["email"],
+            "registration_secret": "错误口令",
+            "code": recovery_code,
+            "new_password": "recovered-password",
+        },
+    )
+    assert rejected.status_code == 403
+    wrong_code = "000000" if recovery_code != "000000" else "000001"
+    invalid = env["client"].post(
+        "/api/auth/recovery/reset",
+        json={
+            "email": user["email"],
+            "registration_secret": SECRET,
+            "code": wrong_code,
+            "new_password": "recovered-password",
+        },
+    )
+    assert invalid.status_code == 400
+    reset = env["client"].post(
+        "/api/auth/recovery/reset",
+        json={
+            "email": user["email"],
+            "registration_secret": SECRET,
+            "code": recovery_code,
+            "new_password": "recovered-password",
+        },
+    )
+    assert reset.status_code == 200
+
+    with pytest.raises(AccessError, match="会话已过期"):
+        env["identity"].current_user(token)
+    with pytest.raises(AccessError, match="会话已过期"):
+        env["identity"].current_user(second_token)
+    with pytest.raises(AccessError, match="用户名/邮箱或密码错误"):
+        env["identity"].login(user["email"], PASSWORD, uuid.uuid4().hex)
+    _, recovered = env["identity"].login(
+        user["email"],
+        "recovered-password",
+        uuid.uuid4().hex,
+    )
+    assert recovered["auth_version"] == old_version + 1
+    assert env["control"].execute(
+        "SELECT revoked_at IS NOT NULL AS revoked FROM control.api_tokens WHERE id=%s",
+        (token_id,),
+    ).fetchone()["revoked"]
+
+
 def test_interrupted_two_database_creation_recovers_same_user_and_tenant(env):
     email = uuid.uuid4().hex + "@example.test"
     identity = env["identity"]

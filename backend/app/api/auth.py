@@ -28,6 +28,7 @@ _LOCK_SECONDS = 300
 # Bound verification-email attempts per source to prevent a public instance
 # from becoming an SMTP relay without adding a database or external limiter.
 _registration_attempts: dict[str, list[float]] = defaultdict(list)
+_recovery_attempts: dict[str, list[float]] = defaultdict(list)
 _MAX_REGISTRATIONS_PER_HOUR = 10
 
 
@@ -129,6 +130,27 @@ def _record_registration_attempt(ip: str) -> None:
         _registration_attempts[ip] = recent
 
 
+def _record_recovery_attempt(ip: str) -> None:
+    now = time.time()
+    cutoff = now - 3600
+    with _fail_lock:
+        if len(_recovery_attempts) > 1000:
+            for stale_ip in [
+                key
+                for key, timestamps in _recovery_attempts.items()
+                if not timestamps or timestamps[-1] <= cutoff
+            ]:
+                _recovery_attempts.pop(stale_ip, None)
+        recent = [timestamp for timestamp in _recovery_attempts[ip] if timestamp > cutoff]
+        if len(recent) >= _MAX_REGISTRATIONS_PER_HOUR:
+            raise HTTPException(
+                status_code=429,
+                detail="密码找回请求过于频繁, 请稍后重试",
+            )
+        recent.append(now)
+        _recovery_attempts[ip] = recent
+
+
 def _set_session_cookie(response: Response, request: Request, token: str) -> None:
     direct = request.client.host if request.client else ""
     forwarded_proto = request.headers.get("x-forwarded-proto", "")
@@ -168,6 +190,11 @@ class AccountIn(BaseModel):
 class RegistrationCodeIn(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     registration_secret: str = Field(min_length=1, max_length=128)
+
+
+class RecoveryResetIn(RegistrationCodeIn):
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class LegacyMigrationIn(BaseModel):
@@ -275,6 +302,59 @@ def register(req: AccountIn, request: Request, response: Response) -> dict:
     _set_session_cookie(response, request, token)
     logger.info("auth registration completed from %s", _client_ip(request))
     return {"ok": True, "authenticated": True, "user": user}
+
+
+@router.post("/recovery/code", include_in_schema=authentication_required())
+def send_recovery_code(req: RegistrationCodeIn, request: Request) -> dict:
+    """Verify the registration secret and issue a password recovery code."""
+    try:
+        normalized = auth.normalize_email(req.email)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _record_recovery_attempt(_client_ip(request))
+    if not auth.has_registration_secret():
+        raise HTTPException(status_code=503, detail="注册口令尚未配置")
+    if not auth.verify_registration_secret(req.registration_secret):
+        raise HTTPException(status_code=403, detail="注册口令错误")
+    try:
+        cooldown = auth_verification.send_recovery_code(
+            normalized,
+            deliver=auth.is_email_registered(normalized),
+        )
+    except auth_verification.VerificationCodeCooldownError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+    except auth_verification.VerificationEmailUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        "ok": True,
+        "cooldown_seconds": cooldown,
+        "message": "若该邮箱已注册, 验证码将发送至邮箱",
+    }
+
+
+@router.post("/recovery/reset", include_in_schema=authentication_required())
+def reset_password(req: RecoveryResetIn, request: Request) -> dict:
+    """Reset an email account after validating both shared secret and email code."""
+    _record_recovery_attempt(_client_ip(request))
+    if not auth.has_registration_secret():
+        raise HTTPException(status_code=503, detail="注册口令尚未配置")
+    if not auth.verify_registration_secret(req.registration_secret):
+        raise HTTPException(status_code=403, detail="注册口令错误")
+    try:
+        auth_verification.consume_code(req.email, req.code, purpose="recovery")
+        changed = auth.reset_password(req.email, req.new_password)
+    except auth_verification.VerificationCodeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not changed:
+        raise HTTPException(status_code=400, detail="验证码无效, 请重新获取")
+    logger.info("auth password recovery completed from %s", _client_ip(request))
+    return {"ok": True, "message": "密码已重置, 请使用新密码登录"}
 
 
 @router.post("/migrate", include_in_schema=authentication_required())

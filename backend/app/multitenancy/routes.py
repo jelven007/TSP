@@ -55,6 +55,11 @@ class RegisterIn(BaseModel):
     code: str = Field(pattern=r"^[0-9]{6}$")
 
 
+class RecoveryResetIn(CodeIn):
+    code: str = Field(pattern=r"^[0-9]{6}$")
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class PasswordIn(BaseModel):
     old_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
@@ -111,6 +116,32 @@ def register(body: RegisterIn, request: Request, response: Response) -> dict:
     token, account = identity(request).register(body.email, body.password, body.code)
     _cookie(response, request, token)
     return {"ok": True, "authenticated": True, "user": account, "redirect": "/"}
+
+
+@router.post("/api/auth/recovery/code")
+def send_recovery_code(body: CodeIn, request: Request) -> dict:
+    cooldown = identity(request).send_recovery_code(
+        body.email,
+        body.registration_secret,
+        _client_ip(request),
+    )
+    return {
+        "ok": True,
+        "cooldown_seconds": cooldown,
+        "message": "若该邮箱已注册，验证码将发送至邮箱",
+    }
+
+
+@router.post("/api/auth/recovery/reset")
+def reset_password(body: RecoveryResetIn, request: Request) -> dict:
+    identity(request).limit("recovery-reset:ip:" + _client_ip(request), 30, 3600)
+    identity(request).reset_password(
+        body.email,
+        body.registration_secret,
+        body.code,
+        body.new_password,
+    )
+    return {"ok": True, "message": "密码已重置，请使用新密码登录"}
 
 
 @router.post("/api/auth/logout")
