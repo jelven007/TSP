@@ -12,6 +12,7 @@
   cd frontend && pnpm build                     # 先构建前端到 frontend/dist
   pyinstaller packaging/tsp.spec                # 产物在 dist/TSP/
 """
+import subprocess
 import sys
 from importlib.util import find_spec
 from pathlib import Path
@@ -30,6 +31,11 @@ block_cipher = None
 
 # ── 资源路径基准: 项目根 (spec 文件在 packaging/ 下) ──────────────────
 ROOT = Path(SPECPATH).parent
+subprocess.run(
+    [sys.executable, "-m", "app.plugins.rustdx.client"],
+    cwd=ROOT / "backend",
+    check=True,
+)
 FRONTEND_DIST = str(ROOT / "frontend" / "dist")
 TIERS_YAML = str(ROOT / "tiers.yaml")
 BUILTIN_STRATEGIES = str(ROOT / "backend" / "app" / "strategy" / "builtin")

@@ -1,0 +1,150 @@
+{
+  "baseline_commit": "a95cc9d",
+  "snapshot_sha256": "9d59e1d8ff671c9cf19f85ee6c6c3d642aa2a879558e0f35a412e5d75a1024ca",
+  "snapshot_hashes_in_results": [
+    "9d59e1d8ff671c9cf19f85ee6c6c3d642aa2a879558e0f35a412e5d75a1024ca"
+  ],
+  "snapshot": {
+    "identity": {
+      "schema": 1,
+      "provider": "rustdx",
+      "start": "2020-10-01",
+      "end": "2026-10-16",
+      "batch_size": 160,
+      "metadata": {
+        "instruments/instruments.parquet": "3b28280d7dff9c664c773b6fe5e57ceb7b1bc8f4005d69ea0f0145e2426f1a47",
+        "instrument_status/history.parquet": "0bae67739b0b592229917756d01d5f3ed8f444653f9842eb463c2adc9350557d",
+        "financials/shares/part.parquet": "6508e136a1ffe140799a0aa9712d8e0ab15566f9383904225c0b0a4a3e021110"
+      },
+      "universe": "current_survivors_exploratory"
+    },
+    "state": "ready",
+    "symbols": 5224,
+    "daily_rows": 6965134,
+    "enriched_rows": 6965134,
+    "factor_rows": 23491,
+    "factor_symbols": 4554,
+    "dates": 1460,
+    "first_date": "2020-10-09",
+    "last_date": "2026-10-16",
+    "cover_start_symbols": 4312,
+    "limitations": [
+      "当前在市股票池，未覆盖历史退市证券，存在生存者偏差",
+      "历史证券状态首次采集前未知，当前ST名称仅兼容降级",
+      "早期历史股本缺失时流水线使用当前股本，换手/市值有时点偏差",
+      "上市日期缺失时无法精确复原新股无涨跌幅限制窗口"
+    ],
+    "metadata_coverage": {
+      "listing_date": 5224,
+      "total_shares": 5224,
+      "float_shares": 5224
+    },
+    "enriched_metadata_hashes": {
+      "instruments/instruments.parquet": "5e5747eb649400f5b670d05ac6a55c20fc80ffe044b713ee642c3f4834843111",
+      "instrument_status/history.parquet": "f1df11a81535bfdb89d7dc691120cd5a17ebc459d73a3eb559557948be3f0e1d",
+      "financials/shares/part.parquet": "6508e136a1ffe140799a0aa9712d8e0ab15566f9383904225c0b0a4a3e021110"
+    }
+  },
+  "data_audit": {
+    "observations": 6965134,
+    "invalid_ohlcv_rows": 0,
+    "large_adjusted_return_rows_after_60_bars": 13,
+    "large_adjusted_return_symbols": 13,
+    "year_coverage": [
+      {
+        "year": 2020,
+        "rows": 232068,
+        "trading_days": 60,
+        "symbols": 3931
+      },
+      {
+        "year": 2021,
+        "rows": 1012914,
+        "trading_days": 243,
+        "symbols": 4414
+      },
+      {
+        "year": 2022,
+        "rows": 1107682,
+        "trading_days": 242,
+        "symbols": 4758
+      },
+      {
+        "year": 2023,
+        "rows": 1181091,
+        "trading_days": 242,
+        "symbols": 4994
+      },
+      {
+        "year": 2024,
+        "rows": 1216627,
+        "trading_days": 242,
+        "symbols": 5071
+      },
+      {
+        "year": 2025,
+        "rows": 1240660,
+        "trading_days": 243,
+        "symbols": 5161
+      },
+      {
+        "year": 2026,
+        "rows": 974092,
+        "trading_days": 188,
+        "symbols": 5224
+      }
+    ],
+    "policy": "异常仅标记，不依据事后收益删除证券；终审检查对应成交影响"
+  },
+  "results_by_phase": {
+    "five_year": 23,
+    "holdout": 23,
+    "train": 70,
+    "validation": 39
+  },
+  "baseline_source_sha256": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "active_limit_gene.py": "ad024a696ba5af51d5d3fa776bd8eb29ca37899a8fd015220df32d92feed4e55",
+    "boll_breakout.py": "8c9a08ab642941837ea1fb4a95d9c938c2452086719d109386a8ad955369fe2e",
+    "breakout_new_high_60d.py": "5cda885bd965b113fdbaadcaefe635d2f27e263e348467e70af0523144bb950b",
+    "bullish_alignment.py": "26bc48a1688e9342d96471d65d410e9b1ef3499bfeebe6565e28cb52bf8e26b9",
+    "consecutive_limit_ups.py": "fcfce8ea0119f77807392b18838d35fc18b41932d374202740557a288829e02b",
+    "factor_rank_research.py": "908f53dd067200ab8b49016f0be04e6c6b97778602a0cc41ea83337af7715c21",
+    "high_turnover_surge.py": "2a33b12a4f878e9561a198ffa210a4ca41468077c4977cee9041000ad01db1aa",
+    "long_lower_shadow_reversal.py": "741c4b8477a3368b5ae9734a23c60b2a1fedc76124f9ea1bf74166c77121477f",
+    "low_volatility_leader.py": "357f87df12545eb9762629a2c3c3d1d0ec636c39986e7de76a9e33fc4ebf6aa1",
+    "ma_convergence_breakout.py": "3d8b8b596bc6060a1ff2a976019942aa000f4b46b4806ebb76f0ff56598ea4eb",
+    "ma_golden_cross.py": "958711a5e6defd25b359f1a9efbf9e874525946f34de841f50abc2d96bb38cc3",
+    "macd_below_zero_revival.py": "251d3e1c427f1e80829301ada2c23a9fe93af1baa945b27a8e9c6dc6f38c8e03",
+    "macd_golden.py": "930971800b798001704981381991f0aad15cec470075b7443822a8d9ca11bf3e",
+    "n_day_low_reversal.py": "9e696768cfb2957fba2d6262bcd128d05809d46d5409bdf60452b86a081a19d5",
+    "near_limit_up.py": "385153e9ffeded4eca2b62d663274f961c8ccbe9b44b33db00ffce76140145e8",
+    "oversold_bounce.py": "8428f485720616f6ea5525bc21ba646ae8bde350da7833856fb0adebf2ad804f",
+    "oversold_reversal.py": "5e43d33b78cbfd7a86e7d93347ceef4bbbfad315bd3cf60002807c9160bf1dfc",
+    "platform_consolidation_breakout.py": "f8bd5fa63744e92b9777f9df570200f62b25a7a0fe2d82f9e6d294a89034f419",
+    "pullback_ma20_bounce.py": "09ad7e446d19797591a71c6cfb0a532872c37ff539eb293662424dbe7d2c0b0c",
+    "pullback_to_support.py": "4cc6172232a184d36bd5190e4ec7e6f0a178ef5de02ed279f081356b131022cf",
+    "rsi_midline_pullback.py": "0341a78d17b354886b9c506833e18d07d772735f0cf178593494e8bc14f83416",
+    "strong_open.py": "f1ee5cd08d47b8e1039a63088394c6e2df63dc0ca8b78ddbf6cb4bcd8684c5ce",
+    "volume_price_surge.py": "76d37878f73a772873680bfcc94eefd3b9371b6b170def2cbdbb292ae3798246"
+  },
+  "backend_tests": {
+    "passed": 351,
+    "warnings": 2
+  },
+  "frontend_tests": {
+    "passed": 18,
+    "files": 3
+  },
+  "frontend_build": "passed; existing bundle size warning",
+  "ruff": {
+    "baseline_diagnostics": 29,
+    "current_diagnostics": 29,
+    "added_diagnostics": 0
+  },
+  "fill_spot_check": {
+    "cases": 3,
+    "scope": "T+1 stop exits against corresponding daily OHLC; not an exhaustive fill audit"
+  },
+  "market_data_and_trade_files_committed": false
+}

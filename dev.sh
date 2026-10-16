@@ -57,7 +57,7 @@ if [[ -z "${BACKEND_EXTRAS+x}" && -f "$ROOT/.env" ]]; then
   BACKEND_EXTRAS="$(read_dotenv_value BACKEND_EXTRAS)"
 fi
 BACKEND_EXTRAS="${BACKEND_EXTRAS:-}"
-BACKEND_EXTRA_ARGS=(--extra rustdx)
+BACKEND_EXTRA_ARGS=()
 if [[ -n "$BACKEND_EXTRAS" ]]; then
   read -r -a backend_extras <<< "$BACKEND_EXTRAS"
   for extra in "${backend_extras[@]}"; do
@@ -121,17 +121,13 @@ free_port backend  "$BACKEND_PORT"
 free_port frontend "$FRONTEND_PORT"
 
 # ===== 3. 依赖安装 =====
-if [ ! -d "$BACKEND_DIR/.venv" ] || [ "${#BACKEND_EXTRA_ARGS[@]}" -gt 0 ]; then
-  if [ "${#BACKEND_EXTRA_ARGS[@]}" -gt 0 ]; then
-    info "同步后端 Python 依赖，extras: $BACKEND_EXTRAS"
-  else
-    info "后端首次启动 — 安装 Python 依赖(约 1-2 分钟)..."
-  fi
-  # macOS 自带 bash 3.2 在 set -u 下展开空数组会报 unbound variable,
-  # ${arr[@]+"${arr[@]}"} 守卫:数组为空时展开为零个参数,非空时逐个带引号展开。
-  ( cd "$BACKEND_DIR" && uv sync --frozen --inexact ${BACKEND_EXTRA_ARGS[@]+"${BACKEND_EXTRA_ARGS[@]}"} )
-  ok "后端依赖装好了"
-fi
+# 每次同步，确保已有 .venv 的升级也会安装新增的默认原生依赖。
+info "同步后端 Python 依赖（含 rustdx 原生桥接），extras: ${BACKEND_EXTRAS:-无}"
+# macOS 自带 bash 3.2 在 set -u 下展开空数组会报 unbound variable,
+# ${arr[@]+"${arr[@]}"} 守卫:数组为空时展开为零个参数,非空时逐个带引号展开。
+( cd "$BACKEND_DIR" && uv sync --frozen --inexact ${BACKEND_EXTRA_ARGS[@]+"${BACKEND_EXTRA_ARGS[@]}"} )
+( cd "$BACKEND_DIR" && .venv/bin/python -m app.plugins.rustdx.client )
+ok "后端依赖与 rustdx 原生桥接已就绪"
 
 if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
   info "前端首次启动 — 安装 Node 依赖..."

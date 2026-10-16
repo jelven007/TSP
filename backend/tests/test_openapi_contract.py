@@ -58,6 +58,7 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "DELETE /api/paper/auto_rules/{rule_id}",
     "GET /api/paper/auto_rules",
     "POST /api/paper/auto_rules/{rule_id}/enabled",
+    "GET /api/paper/auto_skips",
     "GET /api/paper/compare",
     "POST /api/paper/freeze",
     "GET /api/paper/nav",
@@ -67,6 +68,7 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "GET /api/paper/overview",
     "GET /api/paper/positions",
     "POST /api/paper/rebuild",
+    "GET /api/paper/rounds",
     "POST /api/paper/settings",
     "GET /api/paper/stats",
     "GET /api/paper/trades",
@@ -89,9 +91,9 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "GET /api/strategies/{strategy_id}/source",
 }
 
-# 契约变更记录: 策略回测新增可选字段 strict_research (默认 false, 向后兼容) —
-# 严格研究校验开关, 旧客户端不传时行为不变。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "9b32fd114bad0e1ea72702f3185cc1122b1d8b7ee5798bd417e6731639b7a018"
+# Additive contract changes: paper rounds/auto_skips and nullable strategy family.
+# See docs/paper-trading-plan.md and docs/strategy.md for the public semantics.
+EXPECTED_TIER_A_SCHEMA_SHA256 = "9576f81ddcec7c2bc2db43e763ed6346f5b397adcd1bb65bf9e8a1cdee084bdf"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

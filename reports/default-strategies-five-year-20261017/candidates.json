@@ -1,0 +1,592 @@
+[
+  {
+    "id": "trend_A",
+    "strategy_id": "ma_golden_cross",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_B",
+    "strategy_id": "ma_golden_cross",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_A",
+    "strategy_id": "macd_golden",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_B",
+    "strategy_id": "macd_golden",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_A",
+    "strategy_id": "bullish_alignment",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_B",
+    "strategy_id": "bullish_alignment",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_A",
+    "strategy_id": "low_volatility_leader",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_B",
+    "strategy_id": "low_volatility_leader",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_A",
+    "strategy_id": "volume_price_surge",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_B",
+    "strategy_id": "volume_price_surge",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_A",
+    "strategy_id": "boll_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_B",
+    "strategy_id": "boll_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_A",
+    "strategy_id": "breakout_new_high_60d",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_B",
+    "strategy_id": "breakout_new_high_60d",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_A",
+    "strategy_id": "platform_consolidation_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_B",
+    "strategy_id": "platform_consolidation_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_A",
+    "strategy_id": "ma_convergence_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_B",
+    "strategy_id": "ma_convergence_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "pullback_A",
+    "strategy_id": "pullback_to_support",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "pullback_B",
+    "strategy_id": "pullback_to_support",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pullback_A",
+    "strategy_id": "pullback_ma20_bounce",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "pullback_B",
+    "strategy_id": "pullback_ma20_bounce",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "pullback_A",
+    "strategy_id": "rsi_midline_pullback",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "pullback_B",
+    "strategy_id": "rsi_midline_pullback",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_A",
+    "strategy_id": "n_day_low_reversal",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_B",
+    "strategy_id": "n_day_low_reversal",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_A",
+    "strategy_id": "oversold_bounce",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_B",
+    "strategy_id": "oversold_bounce",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_A",
+    "strategy_id": "oversold_reversal",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_B",
+    "strategy_id": "oversold_reversal",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_A",
+    "strategy_id": "long_lower_shadow_reversal",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_B",
+    "strategy_id": "long_lower_shadow_reversal",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_A",
+    "strategy_id": "macd_below_zero_revival",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_B",
+    "strategy_id": "macd_below_zero_revival",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "momentum_A",
+    "strategy_id": "high_turnover_surge",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "annual_vol_20d",
+          "op": "<=",
+          "right": "0.6"
+        }
+      ]
+    }
+  },
+  {
+    "id": "momentum_B",
+    "strategy_id": "high_turnover_surge",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "annual_vol_20d",
+          "op": "<=",
+          "right": "0.8"
+        }
+      ]
+    }
+  },
+  {
+    "id": "momentum_A",
+    "strategy_id": "strong_open",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "annual_vol_20d",
+          "op": "<=",
+          "right": "0.6"
+        }
+      ]
+    }
+  },
+  {
+    "id": "momentum_B",
+    "strategy_id": "strong_open",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "annual_vol_20d",
+          "op": "<=",
+          "right": "0.8"
+        }
+      ]
+    }
+  },
+  {
+    "id": "momentum_A",
+    "strategy_id": "near_limit_up",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "annual_vol_20d",
+          "op": "<=",
+          "right": "0.6"
+        }
+      ]
+    }
+  },
+  {
+    "id": "momentum_B",
+    "strategy_id": "near_limit_up",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "annual_vol_20d",
+          "op": "<=",
+          "right": "0.8"
+        }
+      ]
+    }
+  },
+  {
+    "id": "limit_A",
+    "strategy_id": "active_limit_gene",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma20"
+        }
+      ]
+    }
+  },
+  {
+    "id": "limit_B",
+    "strategy_id": "active_limit_gene",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "limit_A",
+    "strategy_id": "consecutive_limit_ups",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "consecutive_limit_ups",
+          "op": "<=",
+          "right": "2"
+        }
+      ]
+    }
+  },
+  {
+    "id": "limit_B",
+    "strategy_id": "consecutive_limit_ups",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "consecutive_limit_ups",
+          "op": "<=",
+          "right": "3"
+        }
+      ]
+    }
+  }
+]

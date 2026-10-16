@@ -146,24 +146,25 @@ if (-not (Test-Path Env:BACKEND_EXTRAS)) {
     $BackendExtras = Read-DotEnvValue $EnvFile 'BACKEND_EXTRAS'
 }
 
-$BackendExtraArgs = @('--extra', 'rustdx')
+$BackendExtraArgs = @()
 if (-not [string]::IsNullOrWhiteSpace($BackendExtras)) {
     foreach ($extra in ($BackendExtras -split '\s+' | Where-Object { $_ })) {
         $BackendExtraArgs += '--extra', $extra
     }
 }
 
-if (-not (Test-Path (Join-Path $BackendDir '.venv')) -or $BackendExtraArgs.Count) {
-    if ($BackendExtraArgs.Count) {
-        Log-Info "syncing Python deps with extras: $BackendExtras"
-    } else {
-        Log-Info 'first run - installing Python deps (1-2 min)...'
-    }
-    Push-Location $BackendDir
-    try { & uv sync --frozen --inexact @BackendExtraArgs } finally { Pop-Location }
+# Always sync so upgrades with an existing .venv receive new default dependencies.
+Log-Info "syncing Python deps (including rustdx native bridge), extras: $BackendExtras"
+Push-Location $BackendDir
+try {
+    & uv sync --frozen --inexact @BackendExtraArgs
     if ($LASTEXITCODE -ne 0) { Log-Err 'uv sync failed'; exit 1 }
-    Log-Ok 'backend deps installed'
+    & .\.venv\Scripts\python.exe -m app.plugins.rustdx.client
+    if ($LASTEXITCODE -ne 0) { Log-Err 'rustdx native bridge check failed'; exit 1 }
+} finally {
+    Pop-Location
 }
+Log-Ok 'backend deps and rustdx native bridge ready'
 
 if (-not (Test-Path (Join-Path $FrontendDir 'node_modules'))) {
     Log-Info 'first run - installing Node deps...'

@@ -163,7 +163,8 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "jelven-rustdx-complete"
 version = "1.12.2"
-source = "git+https://github.com/jelven007/rustdx.git?rev=904b33e514d4e368e633622c96a9e63af8a53d37#904b33e514d4e368e633622c96a9e63af8a53d37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a880ef2ae2f2514d05ded71d8898f6de5af777c8dc29cb2f1d0e8824cf81747"
 dependencies = [
  "chrono",
  "encoding_rs",

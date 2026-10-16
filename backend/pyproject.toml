@@ -1,6 +1,6 @@
 [project]
 name = "tsp-backend"
-version = "0.4.1"
+version = "0.4.2"
 description = "A 股选股 + 监控 + 回测面板 — TickFlow 适配"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -26,6 +26,8 @@ dependencies = [
     "pypinyin>=0.50",             # 股票名拼音首字母搜索 (同花顺式 payh → 平安银行)
     # TickFlow 官方 SDK
     "tickflow[all]>=0.1.23",
+    # 默认 rustdx 路由必需的本地 PyO3 桥接，普通 uv sync 即构建安装。
+    "tsp-rustdx-native",
     # Scheduling
     "apscheduler>=3.10",
     # Config
@@ -46,11 +48,8 @@ dependencies = [
 tsp-rustdx-native = { path = "native/rustdx_native" }
 
 [project.optional-dependencies]
-# 默认 rustdx 路由所需原生扩展。未安装时明确显示不可用，可手动选择 TickFlow 或 fuyao。
-# 启用: `uv sync --extra rustdx` (需要 Rust toolchain)
-rustdx = [
-    "tsp-rustdx-native",
-]
+# 保留旧 --extra rustdx 命令兼容；原生桥接已经是默认依赖。
+rustdx = []
 
 # Legacy CPU runtime: install the Polars compatibility kernel on
 # machines without AVX2/FMA support.

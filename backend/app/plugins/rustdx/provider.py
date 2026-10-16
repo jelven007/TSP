@@ -339,6 +339,18 @@ class RustdxProvider:
                             )
                         if not matches:
                             continue
+                        if asset_type == "stock" and item.get("pre_close") in (0, 2.0**-127):
+                            # TDX catalogs include pending IPOs. Verify only empty-price
+                            # candidates, retaining suspended stocks with listing evidence.
+                            symbol = f"{code}.{exchange}"
+                            if not client.bars(symbol, frequency=_DAILY_FREQUENCY, offset=1):
+                                finance = client.finance(symbol)
+                                if finance and all(
+                                    _to_float(finance[0].get(field)) == 0
+                                    for field in ("ipo_date", "zongguben", "liutongguben")
+                                ):
+                                    logger.info("%s 目录排除待上市证券 %s", self.name, symbol)
+                                    continue
                         rows.append({
                             "symbol": f"{code}.{exchange}", "name": name, "code": code,
                             "exchange": exchange, "region": "CN", "type": asset_type,
@@ -376,6 +388,22 @@ class RustdxProvider:
                 self._instrument_cache[asset_type] = rows
                 self._instrument_cache_date = today
         return deepcopy(rows)
+
+    def get_instrument_metadata(self, symbols: list[str]) -> list[dict]:
+        """Explicit daily enrichment; catalog/name lookups stay inexpensive."""
+        selected = list(dict.fromkeys(
+            symbol for symbol in symbols if current_a_share_identity(symbol) is not None
+        ))
+        rows = []
+        for snapshot in self._snapshot_rows(selected):
+            listing_date = _as_date(snapshot.get("ipo_date"))
+            rows.append({
+                "symbol": snapshot["symbol"],
+                "listing_date": listing_date.isoformat() if listing_date else None,
+                "total_shares": _to_float(snapshot.get("zongguben"), zero_is_null=True),
+                "float_shares": _to_float(snapshot.get("liutongguben"), zero_is_null=True),
+            })
+        return rows
 
     def _name_map(self) -> dict[str, str]:
         return {

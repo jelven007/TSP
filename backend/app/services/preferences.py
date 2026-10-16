@@ -156,7 +156,7 @@ def get_second_quote_archive_window() -> str:
 
 
 def get_minute_sync_enabled() -> bool:
-    return load().get("minute_sync_enabled", False)
+    return load().get("minute_sync_enabled", True)
 
 
 def get_minute_intraday_refresh() -> bool:
@@ -410,13 +410,13 @@ def get_pipeline_pull_index() -> bool:
 
 
 def get_pipeline_regime_enabled() -> bool:
-    """盘后管道是否自动计算市场环境(regime)。默认 False。
+    """盘后管道是否自动计算市场环境(regime)。默认 True。
 
     regime 是本地聚合计算(非拉取), 首次/regime 表为空时需全量回填多日,
-    内存与耗时较高, 故默认关闭; 用户可在数据页「市场环境」卡片设置里开启,
+    按配置分批控制内存; 用户可在数据页「市场环境」卡片设置里关闭自动计算,
     或直接在该页面点「重算」手动触发(不受此开关影响)。
     """
-    return load().get("pipeline_regime_enabled", False)
+    return load().get("pipeline_regime_enabled", True)
 
 
 # regime 全量回填分批参数范围:
@@ -431,15 +431,15 @@ _REGIME_WARMUP_DAYS_MAX = 90
 
 
 def get_regime_batch_days() -> int:
-    """regime 全量回填每批目标交易日数。默认 60(约一季度)。
+    """regime 全量回填每批目标交易日数。默认 120(约半年)。
 
     超过此天数的范围会被切成多批, 每批独立算指标后拼接, 控制内存峰值。
     """
-    v = load().get("regime_batch_days", 60)
+    v = load().get("regime_batch_days", 120)
     try:
         return max(_REGIME_BATCH_DAYS_MIN, min(_REGIME_BATCH_DAYS_MAX, int(v)))
     except (TypeError, ValueError):
-        return 60
+        return 120
 
 
 def get_regime_warmup_days() -> int:

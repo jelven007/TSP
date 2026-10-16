@@ -290,12 +290,18 @@ class StrategyParam(ContractModel):
     default: Any
 
 
+class StrategyFamily(ContractModel):
+    id: str
+    name: str
+
+
 class StrategyDetailResponse(ContractModel):
     id: str
     name: str
     description: str
     tags: list[str]
     source: str
+    family: StrategyFamily | None = None
     research_only: bool = False
     execution_backend: str
     asset_types: list[str]

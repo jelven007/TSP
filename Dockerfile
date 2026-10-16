@@ -1,5 +1,6 @@
 # 两阶段构建:前端 dist 拷进后端镜像,单容器运行
 # 可选:构建网络无法直连官方源时,传入 --build-arg USE_CN_MIRROR=1 启用国内镜像
+ARG BASE_IMAGE_REGISTRY=docker.io
 ARG USE_CN_MIRROR=1
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG PYPI_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -10,7 +11,7 @@ ARG CODEX_CLI_VERSION=0.144.3
 ARG UV_VERSION=0.12.17
 
 # === Stage 1: 前端构建 ===
-FROM node:20-alpine AS frontend-builder
+FROM ${BASE_IMAGE_REGISTRY}/library/node:20-alpine AS frontend-builder
 ARG USE_CN_MIRROR=1
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 WORKDIR /build
@@ -28,7 +29,7 @@ RUN pnpm build
 
 # === Stage 1b: Codex CLI ===
 # 固定版本保证镜像可复现；只复制安装产物到运行镜像，不保留 npm。
-FROM node:20-bookworm-slim AS codex-builder
+FROM ${BASE_IMAGE_REGISTRY}/library/node:20-bookworm-slim AS codex-builder
 ARG USE_CN_MIRROR=1
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 # 版本由顶层 ARG CODEX_CLI_VERSION 提供, 这里仅声明以继承, 不再重复默认值。
@@ -44,11 +45,14 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then npm config set registry "$NPM_REGISTRY";
 # === Stage 1c: rustdx native bridge ===
 # Build once outside the runtime image. The resulting CPython 3.11 wheel is
 # architecture-specific, so Buildx produces it independently for amd64/arm64.
-FROM rust:1.99-slim-bookworm AS rustdx-builder
+FROM ${BASE_IMAGE_REGISTRY}/library/rust:1.99-slim-bookworm AS rustdx-builder
 ARG USE_CN_MIRROR=1
 ARG PYPI_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3-dev python3-venv \
+RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
+        sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources; \
+    fi \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends git python3-dev python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /maturin \
     && if [ "$USE_CN_MIRROR" = "1" ]; then \
@@ -57,20 +61,23 @@ RUN apt-get update \
          /maturin/bin/pip install --no-cache-dir "maturin==1.9.6"; \
        fi \
     && if [ "$USE_CN_MIRROR" = "1" ]; then \
-         mkdir -p /root/.cargo; \
+         mkdir -p "$CARGO_HOME"; \
          printf '%s\n' \
            '[source.crates-io]' \
            'replace-with = "rsproxy-sparse"' \
            '[source.rsproxy-sparse]' \
            'registry = "sparse+https://rsproxy.cn/index/"' \
-           > /root/.cargo/config.toml; \
+           > "$CARGO_HOME/config.toml"; \
        fi
 WORKDIR /build
 COPY backend/native/rustdx_native ./
-RUN /maturin/bin/maturin build --locked --release --interpreter python3 --out /wheels
+RUN --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/usr/local/cargo/registry \
+    CARGO_NET_GIT_FETCH_WITH_CLI=true \
+    /maturin/bin/maturin build --locked --release --interpreter python3 --out /wheels
 
 # === Stage 2: Python 运行时 ===
-FROM python:3.11-slim-bookworm AS runtime
+FROM ${BASE_IMAGE_REGISTRY}/library/python:3.11-slim-bookworm AS runtime
 ARG USE_CN_MIRROR=1
 ARG PYPI_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG PYPI_FALLBACK=https://mirrors.aliyun.com/pypi/simple
@@ -103,7 +110,7 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
 # Backend deps
 COPY README.md /README.md
 COPY backend/pyproject.toml backend/uv.lock* ./
-# uv.lock contains the optional local rustdx path source. Keep the source path
+# uv.lock contains the default local rustdx path source. Keep the source path
 # present during frozen resolution even though the runtime wheel is installed
 # separately below.
 COPY backend/native ./native
@@ -113,7 +120,7 @@ COPY backend/native ./native
 ARG PYPI_LOCK_MIRROR=https://repo.huaweicloud.com/repository/pypi/simple
 RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
       export UV_DEFAULT_INDEX="$PYPI_INDEX" UV_EXTRA_INDEX_URL="$PYPI_FALLBACK"; \
-      set -- --no-dev --extra rustdx --no-emit-package tsp-rustdx-native --no-emit-project; \
+      set -- --no-dev --no-emit-package tsp-rustdx-native --no-emit-project; \
       for extra in $BACKEND_EXTRAS; do \
         set -- "$@" --extra "$extra"; \
       done; \
@@ -125,7 +132,7 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
       && rm /tmp/runtime-locked.txt \
       || exit 1; \
     fi; \
-    set -- --no-dev --extra rustdx --no-install-package tsp-rustdx-native; \
+    set -- --no-dev --no-install-package tsp-rustdx-native; \
     for extra in $BACKEND_EXTRAS; do \
       set -- "$@" --extra "$extra"; \
     done; \
@@ -141,6 +148,7 @@ RUN uv pip install --python /app/.venv/bin/python /tmp/rustdx-wheels/*.whl \
 # (<root>/backend/app/) 推导的, 容器内会错算到 /。这里用环境变量显式指定
 # 三个关键路径, 确保 static / tiers / data 都指向容器内正确位置。
 COPY backend/app ./app
+RUN .venv/bin/python -m app.plugins.rustdx.client
 COPY tiers.yaml /app/tiers.yaml
 ENV STATIC_DIR=/app/static \
     TIERS_YAML=/app/tiers.yaml \

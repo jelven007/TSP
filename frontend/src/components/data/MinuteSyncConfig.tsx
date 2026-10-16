@@ -19,7 +19,7 @@ export function MinuteSyncConfig({ hasCap, onJobStart }: { hasCap: boolean; onJo
   })
 
   const hasMinuteCap = hasCap
-  const enabled = prefs.data?.minute_sync_enabled ?? false
+  const enabled = prefs.data?.minute_sync_enabled ?? true
   const days = prefs.data?.minute_sync_days ?? 5
   const segmentDays = prefs.data?.minute_sync_segment_days ?? 20
   const [localDays, setLocalDays] = useState(days)

@@ -1,6 +1,8 @@
 """均线回踩反弹 — 价格在 MA20 附近(±2%)且 MA 多头排列, 回踩买入"""
 
 import numpy as np
+from _shared_signals import ma20_breakdown as support_breakdown
+from _shared_signals import ma20_proximity
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -66,14 +68,12 @@ class PullbackMA20BounceMatrixStrategy:
         entry = np.ones(market.shape, dtype=bool)
         if params.get("use_ma20_proximity", True):
             proximity = float(params.get("ma_proximity", 2.0)) / 100.0
-            entry &= (market.close > ma20 * (1.0 - proximity)) & (
-                market.close < ma20 * (1.0 + proximity)
-            )
+            entry &= ma20_proximity(market, ma20, proximity)
         if params.get("require_ma_alignment", True):
             entry &= (ma5 > ma20) & (ma20 > ma60)
         if params.get("require_positive_change", True):
             entry &= matrix_feature(market, "change_pct") > 0
-        ma20_breakdown = (market.close < ma20) & (shift(market.close, 1) >= shift(ma20, 1))
+        ma20_breakdown = support_breakdown(market, ma20)
         ma_dead = (ma5 < ma20) & (shift(ma5, 1) >= shift(ma20, 1))
         exit_ = ma20_breakdown | ma_dead
         return make_signal_matrix(

@@ -167,7 +167,7 @@ def test_native_bridge_clamps_direct_constructor_to_35():
     assert native_module.RUSTDX_VERSION == "1.12.2"
     assert (
         native_module.RUSTDX_SOURCE_REV
-        == "904b33e514d4e368e633622c96a9e63af8a53d37"
+        == "9dfc024c9662fa5091099c1f17610569ee2eca8b"
     )
     client = native_module.RustdxClient(100)
     try:
@@ -299,6 +299,93 @@ def test_rustdx_instrument_directory_skips_per_symbol_finance():
 
     assert [row["symbol"] for row in rows] == ["000001.SZ", "600519.SH"]
     assert all(row["ext"]["float_shares"] is None for row in rows)
+
+
+def test_rustdx_explicit_metadata_normalizes_ipo_and_shares_and_caches():
+    calls = []
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def finance(self, symbol):
+            calls.append(symbol)
+            return [{"ipo_date": 19910403, "zongguben": 1e9, "liutongguben": 8e8}]
+
+    provider = RustdxProvider(client_factory=Client)
+    symbols = ["000001.SZ", "000001.SZ", "000001.SH", "510300.SH"]
+    expected = [{
+        "symbol": "000001.SZ", "listing_date": "1991-04-03",
+        "total_shares": 1e9, "float_shares": 8e8,
+    }]
+    assert provider.get_instrument_metadata(symbols) == expected
+    assert provider.get_instrument_metadata(symbols) == expected
+    assert calls == ["000001.SZ"]
+
+
+@pytest.mark.parametrize(
+    ("bars", "finance", "expected"),
+    [
+        ([], [{"ipo_date": 0, "zongguben": 0, "liutongguben": 0}], False),
+        ([{"close": 10}], [], True),
+        ([], [{"ipo_date": 20260101, "zongguben": 1000, "liutongguben": 500}], True),
+        ([], [], True),
+        ([], [{"ipo_date": 0}], True),
+    ],
+)
+def test_catalog_excludes_only_confirmed_pending_listings(bars, finance, expected):
+    calls = []
+
+    class CatalogClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def stocks(self, market):
+            return [
+                {"code": "001381", "name": "待上市股票", "pre_close": 2.0**-127},
+                {"code": "000001", "name": "平安银行", "pre_close": 10},
+            ] if market == 0 else [{"code": "600519", "name": "贵州茅台"}]
+
+        def bars(self, symbol, **kwargs):
+            calls.append(("bars", symbol, kwargs))
+            return bars
+
+        def finance(self, symbol):
+            calls.append(("finance", symbol))
+            return finance
+
+    rows = RustdxProvider(client_factory=CatalogClient).get_instruments("stock")
+
+    symbols = {row["symbol"] for row in rows}
+    assert ("001381.SZ" in symbols) is expected
+    assert {"000001.SZ", "600519.SH"} <= symbols
+    assert calls[0] == ("bars", "001381.SZ", {"frequency": 9, "offset": 1})
+    assert all(call[1] == "001381.SZ" for call in calls)
+
+
+def test_pending_listing_verification_failure_preserves_previous_catalog():
+    class CatalogClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def stocks(self, market):
+            return [
+                {"code": "001381", "name": "待上市股票", "pre_close": 2.0**-127},
+            ] if market == 0 else [{"code": "600519", "name": "贵州茅台"}]
+
+        def bars(self, *_args, **_kwargs):
+            raise RustdxError("verification unavailable")
+
+    assert RustdxProvider(client_factory=CatalogClient).get_instruments("stock") == []
 
 
 def test_rustdx_daily_rows_follow_shared_unit_contract():

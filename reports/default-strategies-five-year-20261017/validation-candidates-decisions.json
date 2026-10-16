@@ -1,0 +1,847 @@
+[
+  {
+    "trial": {
+      "id": "limit_A",
+      "strategy_id": "active_limit_gene",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma20"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved",
+      "expectancy_not_improved",
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "ea994d1ca080676ab6f85c6fbf159d4e5e6072d364c302e8519ffbcc97ca5fda"
+  },
+  {
+    "trial": {
+      "id": "limit_B",
+      "strategy_id": "active_limit_gene",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved",
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "9de227e73830ed65dbe68ce58fc54ee242230ee70459c69b818eee2d426f4cfe"
+  },
+  {
+    "trial": {
+      "id": "breakout_A",
+      "strategy_id": "boll_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved",
+      "expectancy_not_improved",
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "eaf799c565df1c13d0d4001ba520471ab6a747d60f58a5254e29866d8ea54e3e"
+  },
+  {
+    "trial": {
+      "id": "breakout_B",
+      "strategy_id": "boll_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "c1d6b73cd7682d701bc0ce4efdb05bee43f1667c1a2217f01174bd26f5eb202a"
+  },
+  {
+    "trial": {
+      "id": "breakout_A",
+      "strategy_id": "breakout_new_high_60d",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "d91b52f6a1110a4f0a430e98474dc740fbc64f4d32a523be01b9cf84497c4187"
+  },
+  {
+    "trial": {
+      "id": "breakout_B",
+      "strategy_id": "breakout_new_high_60d",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "c135715e5b12c4df22e4fe5b80945ee03c0f2c39eb7c263353ff8673976f948c"
+  },
+  {
+    "trial": {
+      "id": "trend_A",
+      "strategy_id": "bullish_alignment",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "f023e704865193fd424f7ef9666a491f3a0824ab0124bcc6c5195c08acfd9c5a"
+  },
+  {
+    "trial": {
+      "id": "trend_B",
+      "strategy_id": "bullish_alignment",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "7ada19b300af6563496566b9bb2b9841fb1bed594ab85179efcd6281a54cd651"
+  },
+  {
+    "trial": {
+      "id": "limit_A",
+      "strategy_id": "consecutive_limit_ups",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "consecutive_limit_ups",
+            "op": "<=",
+            "right": "2"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved",
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "06247c5364ff83f957f3f381937a980349d300b246d90deb31a6ad4a8f3ca0fd"
+  },
+  {
+    "trial": {
+      "id": "limit_B",
+      "strategy_id": "consecutive_limit_ups",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "consecutive_limit_ups",
+            "op": "<=",
+            "right": "3"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved",
+      "expectancy_not_improved",
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "9b9788791bee8a8fa5516e8eb2c3a314228535feb31e46b948b8d3240db68fc6"
+  },
+  {
+    "trial": {
+      "id": "momentum_A",
+      "strategy_id": "high_turnover_surge",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "annual_vol_20d",
+            "op": "<=",
+            "right": "0.6"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "2c9bd96749876abbadc634c7a9655aa140ed80e0065289dace18aa4d91cf87fd"
+  },
+  {
+    "trial": {
+      "id": "momentum_B",
+      "strategy_id": "high_turnover_surge",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "annual_vol_20d",
+            "op": "<=",
+            "right": "0.8"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "b97532cbcde9efee1848cb536177507e8f2b61d2b6c36aace6a98909ba56c9c3"
+  },
+  {
+    "trial": {
+      "id": "reversal_A",
+      "strategy_id": "long_lower_shadow_reversal",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "60e3933b93c4ab2aa68763605db838407658e6990156d232feb9d859d63f8dfb"
+  },
+  {
+    "trial": {
+      "id": "reversal_B",
+      "strategy_id": "long_lower_shadow_reversal",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "cf5162aab95681fa1d0145c7d16109651cfc53047ff7ba320e92a517d22744bf"
+  },
+  {
+    "trial": {
+      "id": "trend_A",
+      "strategy_id": "low_volatility_leader",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "54a52af0ff1c48aaf364d9233a21f1bf6647f971a86b7deff4602113e234108c"
+  },
+  {
+    "trial": {
+      "id": "trend_B",
+      "strategy_id": "low_volatility_leader",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "c358c71f32d549bdef77f3c4fd5f5cc99b85c0ea1e8768a66ef6274da76f2cef"
+  },
+  {
+    "trial": {
+      "id": "breakout_A",
+      "strategy_id": "ma_convergence_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved",
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "829db429abeb081282ec4db81132a10ffb145a3695b8796a74f246aa1cf34f94"
+  },
+  {
+    "trial": {
+      "id": "breakout_B",
+      "strategy_id": "ma_convergence_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "a0e39f7dce8ec94fb382f3e7488d145a7ffe06820471b650f6a6a4dba4265e79"
+  },
+  {
+    "trial": {
+      "id": "trend_A",
+      "strategy_id": "ma_golden_cross",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "6c0b868e4d1bba8522d3dee557dea8184d4846042bef61a9b242276b69f697a8"
+  },
+  {
+    "trial": {
+      "id": "trend_B",
+      "strategy_id": "ma_golden_cross",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "f0e1b2e6cdd62e17d52c3f9b82b9bcc381b0f2e5767e0644a0d56868723f8658"
+  },
+  {
+    "trial": {
+      "id": "reversal_A",
+      "strategy_id": "macd_below_zero_revival",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_unavailable",
+      "expectancy_unavailable",
+      "profit_factor_unavailable"
+    ],
+    "evidence_sha256": "bfb268e8ec5b05377651269e59f6d3472ba9f43481a4f66bef57b48e1e55270a"
+  },
+  {
+    "trial": {
+      "id": "reversal_B",
+      "strategy_id": "macd_below_zero_revival",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_unavailable",
+      "expectancy_unavailable",
+      "profit_factor_unavailable"
+    ],
+    "evidence_sha256": "3a529ef038e77e67d1d671a5a0e866105bcf333bf3adec5c1842377c8a4f6233"
+  },
+  {
+    "trial": {
+      "id": "trend_A",
+      "strategy_id": "macd_golden",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "17481ca8f281b9ad44006c98d599ece2fd1283ffe2466e371ab56653623262c1"
+  },
+  {
+    "trial": {
+      "id": "trend_B",
+      "strategy_id": "macd_golden",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "af3d53bd148e69238f8172b2267c59bfc83e0d8d474468cbbaef53173f314b5c"
+  },
+  {
+    "trial": {
+      "id": "reversal_A",
+      "strategy_id": "n_day_low_reversal",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_unavailable",
+      "expectancy_unavailable",
+      "profit_factor_unavailable"
+    ],
+    "evidence_sha256": "8002e6f2e3210c1de50f6cb39e39f842bbc382a7659a3d7e14b0841380ec9af6"
+  },
+  {
+    "trial": {
+      "id": "reversal_B",
+      "strategy_id": "n_day_low_reversal",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_unavailable",
+      "expectancy_unavailable",
+      "profit_factor_unavailable"
+    ],
+    "evidence_sha256": "4d1255af0c3f9625514e808a3b0ec009c59433d4a1ce6d6aa74f6c370186c2be"
+  },
+  {
+    "trial": {
+      "id": "momentum_A",
+      "strategy_id": "near_limit_up",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "annual_vol_20d",
+            "op": "<=",
+            "right": "0.6"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved"
+    ],
+    "evidence_sha256": "28c4a689194e4492b45cfd8b6aa31bc224c2f04b196be723b86a27f9934a7895"
+  },
+  {
+    "trial": {
+      "id": "momentum_B",
+      "strategy_id": "near_limit_up",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "annual_vol_20d",
+            "op": "<=",
+            "right": "0.8"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved"
+    ],
+    "evidence_sha256": "4dd61b6f9e117838695dd5398f2c6746424670d709761fee634a145768c3bf3f"
+  },
+  {
+    "trial": {
+      "id": "reversal_A",
+      "strategy_id": "oversold_bounce",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "398d04e6741f6377ccf8fff5235084103326f011999456b5e48558340ac8b8a9"
+  },
+  {
+    "trial": {
+      "id": "reversal_B",
+      "strategy_id": "oversold_bounce",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "de589091cdcc733c02bd19f39e9533e8beeb7b47516510b56df5ac434ed1839e"
+  },
+  {
+    "trial": {
+      "id": "reversal_A",
+      "strategy_id": "oversold_reversal",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "34ca07a0766f8aee74fa50d683bc1795c2057fac9c194b1ecccf589034c9119e"
+  },
+  {
+    "trial": {
+      "id": "reversal_B",
+      "strategy_id": "oversold_reversal",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "02ca774e685736fcddd03a48f4e0f9aeaff672568e28a7378fa64d7b10a74c29"
+  },
+  {
+    "trial": {
+      "id": "breakout_A",
+      "strategy_id": "platform_consolidation_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "0cc4e30ab10ef48e5caddf2385e5a1faf0e8f492777cb9328ca74dc0589c2dc9"
+  },
+  {
+    "trial": {
+      "id": "breakout_B",
+      "strategy_id": "platform_consolidation_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "f60d6fb3a47cc360429240b6f2d8a798c765e54b8e032e467ea0e0e512cdb055"
+  },
+  {
+    "trial": {
+      "id": "pullback_A",
+      "strategy_id": "pullback_ma20_bounce",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "f598e02e4dcc7a1e461d812879a364d8f486f33f98fa4439a267595c49f87b3d"
+  },
+  {
+    "trial": {
+      "id": "pullback_B",
+      "strategy_id": "pullback_ma20_bounce",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "949a5fc410a7de82eb9384b3065c1c422df1c2f8680bba9e830836689a8941e7"
+  },
+  {
+    "trial": {
+      "id": "pullback_A",
+      "strategy_id": "pullback_to_support",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "ce1001e4a87897986fd131037b534b5a331c3324bdc41900260db7d882ab13c7"
+  },
+  {
+    "trial": {
+      "id": "pullback_B",
+      "strategy_id": "pullback_to_support",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "4a0ea5697733b9fee71869485d2276d824d227cdbf915b808a24b889978d2057"
+  },
+  {
+    "trial": {
+      "id": "pullback_A",
+      "strategy_id": "rsi_midline_pullback",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "fc13fc2caf220ccb4237f028d3c678c1f243bc8a8bd4b626b14d93b0a9fc34e9"
+  },
+  {
+    "trial": {
+      "id": "pullback_B",
+      "strategy_id": "rsi_midline_pullback",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "0f551bc7fd1fe34a576ed3d54bfde5c18d72c3f03a4cf70eaf65412494af5577"
+  },
+  {
+    "trial": {
+      "id": "momentum_A",
+      "strategy_id": "strong_open",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "annual_vol_20d",
+            "op": "<=",
+            "right": "0.6"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "dd55d10d9cf225de0834b0909a3e56c322283043355a671152f3c17554b23370"
+  },
+  {
+    "trial": {
+      "id": "momentum_B",
+      "strategy_id": "strong_open",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "annual_vol_20d",
+            "op": "<=",
+            "right": "0.8"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "2347da31963a6dae0a96691260bd155c228ab6613c86ebf04053bae0470ae17d"
+  },
+  {
+    "trial": {
+      "id": "breakout_A",
+      "strategy_id": "volume_price_surge",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "3042ca46d5ea6b89971a00c8f7ea782e0c9b58260e30262847e0ffe7d8607a6a"
+  },
+  {
+    "trial": {
+      "id": "breakout_B",
+      "strategy_id": "volume_price_surge",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "0617f4c4bc4abfaad0b3f4d8952f5bbc5f134ed7131fab49499964c3796b797e"
+  }
+]
