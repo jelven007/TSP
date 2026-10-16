@@ -1,0 +1,58 @@
+[
+  {
+    "strategy_id": "oversold_bounce",
+    "params": {},
+    "reference_id": "baseline",
+    "reference_sha256": "915ff4a093cd2e0fb6e2bc5a50e2d6f9d3655e2e573bbefddf6d59bb10eb29de",
+    "trades": 1113,
+    "exact_trade_and_stats_match": true,
+    "error": null
+  },
+  {
+    "strategy_id": "oversold_reversal",
+    "params": {},
+    "reference_id": "baseline",
+    "reference_sha256": "e13630cdb02d565453be03bd9aaad45e43d83dc8c70933fcbeeb1170e74a3dbe",
+    "trades": 786,
+    "exact_trade_and_stats_match": true,
+    "error": null
+  },
+  {
+    "strategy_id": "pullback_to_support",
+    "params": {},
+    "reference_id": "baseline",
+    "reference_sha256": "06ca5eb78c15cee3b1ef4664fd5c444832484fb75be820e8fc299fb049cef01a",
+    "trades": 3400,
+    "exact_trade_and_stats_match": true,
+    "error": null
+  },
+  {
+    "strategy_id": "pullback_ma20_bounce",
+    "params": {},
+    "reference_id": "baseline",
+    "reference_sha256": "99fa79037c0712cc6ee8d5684fbab1ff404f1306886b1128124d0b3177329766",
+    "trades": 3823,
+    "exact_trade_and_stats_match": true,
+    "error": null
+  },
+  {
+    "strategy_id": "ma_golden_cross",
+    "params": {},
+    "reference_id": "trend_B",
+    "reference_sha256": "1ae14476ca856c6847fde758668adfd21b9eff293bafad68c550d41c48a23721",
+    "trades": 1792,
+    "exact_trade_and_stats_match": true,
+    "error": null
+  },
+  {
+    "strategy_id": "ma_golden_cross",
+    "params": {
+      "require_ma60_non_declining": false
+    },
+    "reference_id": "baseline",
+    "reference_sha256": "5bcb7017cdaf71ff109d0d330757ea1c93661836a95b07ed0540fbf58e6572fa",
+    "trades": 1875,
+    "exact_trade_and_stats_match": true,
+    "error": null
+  }
+]

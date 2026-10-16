@@ -11,37 +11,64 @@ on:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # PR 可取消旧检查；每次 main 集成都必须保留自己的递增任务。
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
   version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      revision: ${{ steps.revision.outputs.revision }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: ${{ github.event_name == 'push' }}
 
-      - name: 校验版本格式与主线递增规则
+      - name: PR 校验版本；远程 main 集成后自动递增
+        id: revision
         shell: bash
-        env:
-          VERSION_PUSH_BASE: ${{ github.event.before }}
-          VERSION_PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            previous="$(git show "$VERSION_PUSH_BASE:VERSION")"
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            # GITHUB_TOKEN 的自动提交不会再次触发 push workflow。
+            python3 scripts/advance_version.py
           else
-            previous="$(git show "$VERSION_PR_BASE:VERSION")"
+            python3 scripts/check_version.py --current VERSION
+            echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
-          python3 scripts/check_version.py --current VERSION --previous "$previous"
+
+      - name: 记录本次质量门实际检查的提交
+        env:
+          TESTED_REVISION: ${{ steps.revision.outputs.revision }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-revision"
+          printf '%s\n' "$TESTED_REVISION" > "$RUNNER_TEMP/ci-revision/revision.txt"
+          printf 'Quality checks target commit: `%s`\n' "$TESTED_REVISION" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-revision
+          path: ${{ runner.temp }}/ci-revision/revision.txt
+          if-no-files-found: error
+          overwrite: true
 
   backend:
+    needs: version
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.revision }}
+          persist-credentials: false
 
       - name: 安装 uv
         uses: astral-sh/setup-uv@v3
@@ -56,11 +83,14 @@ jobs:
         with:
           toolchain: 1.99.0
 
-      - name: 安装依赖 (含 dev 测试链与 rustdx)
-        run: uv sync --extra dev --extra rustdx --frozen
+      - name: 安装依赖 (含 dev、cell 测试链与 rustdx)
+        run: uv sync --extra dev --extra cell --frozen
+
+      - name: 校验默认安装的 rustdx 原生桥接
+        run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
       - name: 版本规则测试
-        run: uv run --frozen --no-sync pytest ../scripts/test_versioning.py tests/test_version_source.py -q
+        run: uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
 
       - name: 检查 rustdx 原生桥接
         run: cargo test --locked --manifest-path native/rustdx_native/Cargo.toml
@@ -69,12 +99,16 @@ jobs:
         run: uv run --frozen --no-sync pytest tests -q
 
   frontend:
+    needs: version
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.revision }}
+          persist-credentials: false
 
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4

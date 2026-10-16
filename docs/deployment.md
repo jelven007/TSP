@@ -50,6 +50,19 @@ docker compose up --build -d
 
 访问 <http://localhost:3018>。
 
+基础镜像默认从 Docker Hub 拉取。若 `registry-1.docker.io` 超时或返回
+`Bad Gateway`，可通过构建参数切换拉取仓库：
+
+```bash
+BASE_IMAGE_REGISTRY=public.ecr.aws/docker docker compose build app
+```
+
+也可在 `.env` 中保存 `BASE_IMAGE_REGISTRY=public.ecr.aws/docker`。
+直接构建使用 `docker build --build-arg BASE_IMAGE_REGISTRY=public.ecr.aws/docker -t tsp:local .`。
+该参数只替换 Node、Python、Rust 基础镜像的仓库前缀，版本和依赖锁不变；
+使用备选仓库时应核对镜像摘要。`USE_CN_MIRROR` 仅控制构建中的 npm、PyPI、
+APT 和 Cargo 源，不控制 Docker Hub 拉取。
+
 查看状态和日志：
 
 ```bash
@@ -97,6 +110,7 @@ docker compose down
 - Node.js 20+
 - [`uv`](https://docs.astral.sh/uv/)
 - pnpm 9
+- [Rust 编译工具链](https://www.rust-lang.org/tools/install)（源码安装默认原生桥接）
 
 macOS / Linux：
 
@@ -127,7 +141,8 @@ BACKEND_PORT=8000 FRONTEND_PORT=5173 ./dev.sh
 
 ```bash
 cd backend
-uv sync --extra backtest --extra rustdx
+uv sync --frozen
+uv run --frozen --no-sync python -m app.plugins.rustdx.client
 uv run --no-sync uvicorn app.main:app --reload --port 3018
 ```
 
@@ -136,6 +151,11 @@ cd frontend
 pnpm install --frozen-lockfile
 pnpm dev
 ```
+
+rustdx 原生桥接是后端默认依赖，不需要额外指定 `--extra rustdx`。开发脚本在
+已有 `.venv` 时也同步依赖，并在启动前校验桥接。Docker 镜像和桌面包在构建时
+内置扩展并校验，目标机器不需要 Rust。旧源码环境的桥接不匹配时执行
+`uv sync --frozen --reinstall-package tsp-rustdx-native` 重建。
 
 ## 桌面安装包
 
@@ -191,16 +211,18 @@ AUTH_SMTP_FROM_ADDRESS='no-reply@example.com'
 
 ## 扩展概念与行业上游
 
-新安装不再隐式连接任何个人服务。需要内置扩展概念/行业自动拉取时，在 `.env`
-中配置自有或已授权的 JSON 接口：
+新安装的扩展概念、扩展行业默认使用内置 JSON 接口并自动拉取，
+无需配置环境变量。需要替换上游时，可在 `.env` 中独立覆盖：
 
 ```ini
 EXT_CONCEPT_DATA_URL='https://data.example.com/concepts'
 EXT_INDUSTRY_DATA_URL='https://data.example.com/industries'
 ```
 
-配置后，新建预设会在交易日 `09:15-11:30`、`13:00-15:15` 每分钟拉取，
-并在调度器启动时执行首轮。未配置时预设保留但默认关闭。已有用户配置不被覆盖。
+未配置或为空时保留内置默认接口。新建预设会在交易日
+`09:15-11:30`、`13:00-15:15` 每分钟拉取，并在调度器启动时执行首轮。
+旧版未使用的空默认配置会自动修复；已有用户自定义配置和主动关闭状态不被覆盖。
+自动拉取的关闭入口及默认地址见[配置说明](./configuration.md#内置扩展概念与行业)。
 
 ## 老 CPU 兼容
 

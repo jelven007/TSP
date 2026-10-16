@@ -11,7 +11,7 @@
 
 ## 版本状态
 
-仓库最新集成线为 `main`，应用语义版本为 `0.4.1`。当前生产固定在提交
+仓库最新集成线为 `main`，应用语义版本为 `0.4.2`。当前生产固定在提交
 `d06acc1d`，而 `main` 还包含尚未生产签收的二期实时网关和百用户迭代，二者不能
 混称为“当前版本”。稳定标签、生产提交、源码候选和开源观察对象的完整分类见
 [版本基线](docs/version-baseline.md)。
@@ -94,6 +94,7 @@ docker compose up --build -d
 - Node.js 20+
 - [`uv`](https://docs.astral.sh/uv/)
 - pnpm 9
+- [Rust 编译工具链](https://www.rust-lang.org/tools/install)（源码安装默认原生桥接）
 
 macOS / Linux：
 
@@ -126,7 +127,8 @@ Copy-Item .env.example .env
 5. 按需配置 AI、监控通知、Open API Token 和 MCP。
 
 全新安装的七项基础数据能力默认路由到 `rustdx`，全市场请求最多共用 35 个连接，
-已保存的路由保持原值。数据源实际可用性受公开服务器、
+原生桥接随后端依赖默认安装，Docker 和桌面包内置对应平台的扩展；构建和开发
+启动会检查桥接是否就绪。已保存的路由保持原值。数据源实际可用性受公开服务器、
 网络和协议覆盖影响，系统不会在失败时静默切换到其他数据源。
 
 初始化覆盖沪主板、深主板、创业板、科创板的当前有效股票：一年日线及对应除权、
@@ -153,14 +155,15 @@ AI_BASE_URL=https://api.deepseek.com/v1
 AI_API_KEY=
 AI_MODEL=deepseek-chat
 
-# 可选内置扩展概念/行业上游
+# 可选覆盖内置扩展概念/行业上游，留空使用默认接口
 EXT_CONCEPT_DATA_URL=
 EXT_INDUSTRY_DATA_URL=
 ```
 
-扩展概念和扩展行业不再绑定任何个人服务。只有显式配置可信 JSON 上游后，新安装
-才会启用自动拉取；调度保持交易日 `09:15-11:30`、`13:00-15:15` 每分钟一次。
-已有用户保存的 URL、启停状态和调度设置不会被升级覆盖。
+扩展概念和扩展行业默认可直接拉取，环境变量可独立替换对应上游；调度保持交易日
+`09:15-11:30`、`13:00-15:15` 每分钟一次，启动时立即刷新。
+旧版未使用的空预设会恢复默认配置；已有用户保存的 URL、主动关闭状态和定制
+调度设置保持不变。默认地址及关闭入口见[配置说明](./docs/configuration.md#内置扩展概念与行业)。
 
 配置全集见[配置说明](./docs/configuration.md)。
 
@@ -212,7 +215,8 @@ EXT_INDUSTRY_DATA_URL=
 
 ```bash
 cd backend
-uv sync --extra backtest --extra rustdx
+uv sync --extra dev --extra backtest --frozen
+uv run --frozen --no-sync python -m app.plugins.rustdx.client
 uv run --no-sync pytest
 ```
 

@@ -1,0 +1,179 @@
+[
+  {
+    "id": "breakout_A",
+    "strategy_id": "breakout_new_high_60d",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_B",
+    "strategy_id": "breakout_new_high_60d",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_B",
+    "strategy_id": "bullish_alignment",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_A",
+    "strategy_id": "long_lower_shadow_reversal",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_B",
+    "strategy_id": "long_lower_shadow_reversal",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_B",
+    "strategy_id": "ma_convergence_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_A",
+    "strategy_id": "ma_golden_cross",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "trend_B",
+    "strategy_id": "ma_golden_cross",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_A",
+    "strategy_id": "oversold_bounce",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "reversal_B",
+    "strategy_id": "oversold_bounce",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:ma5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_A",
+    "strategy_id": "platform_consolidation_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma20",
+          "op": ">=",
+          "right": "field:ma60"
+        }
+      ]
+    }
+  },
+  {
+    "id": "breakout_B",
+    "strategy_id": "platform_consolidation_breakout",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "ma60",
+          "op": ">=",
+          "right": "field:ma60",
+          "rightDays": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "pullback_A",
+    "strategy_id": "pullback_to_support",
+    "overrides": {
+      "overlay_filter": [
+        {
+          "left": "close",
+          "op": ">",
+          "right": "field:close",
+          "rightDays": 1
+        }
+      ]
+    }
+  }
+]

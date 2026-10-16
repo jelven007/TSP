@@ -253,6 +253,7 @@ def test_matrix_pipeline_builds_and_reuses_one_compact_valid_bar_index():
                 "require_ma_golden": True,
                 "use_volume_filter": False,
                 "require_above_ma60": False,
+                "require_ma60_non_declining": False,
             },
         ),
         (
@@ -316,7 +317,7 @@ def test_matrix_crossovers_skip_missing_asset_bars_like_polars_signals(
 def test_builtin_matrix_strategies_use_their_declared_formula_modules():
     strategy_dir = REPO_ROOT / "backend" / "app" / "strategy" / "builtin"
     strategy_files = sorted(
-        path for path in strategy_dir.glob("*.py") if path.name != "__init__.py"
+        path for path in strategy_dir.glob("*.py") if not path.name.startswith("_")
     )
     loaded_strategies = [
         (path, StrategyEngine._load_file(path))

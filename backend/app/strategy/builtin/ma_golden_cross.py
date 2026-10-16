@@ -15,7 +15,7 @@ from app.backtest.matrix import (
 META = {
     "id": "ma_golden_cross",
     "name": "MA 金叉",
-    "description": "MA5上穿MA20当日触发, 量能配合",
+    "description": "MA5上穿MA20当日触发, 量能配合, MA60近5个交易日不下降",
     "tags": ["均线", "金叉"],
     "asset_types": ["stock", "etf"],
     "timeframes": ["1d"],
@@ -34,6 +34,12 @@ META = {
         {
             "id": "require_above_ma60",
             "label": "要求收盘价在MA60上方",
+            "type": "bool",
+            "default": True,
+        },
+        {
+            "id": "require_ma60_non_declining",
+            "label": "要求MA60近5个交易日不下降",
             "type": "bool",
             "default": True,
         },
@@ -56,8 +62,7 @@ class MAGoldenCrossMatrixStrategy:
         return frozenset({"close", "volume"})
 
     def required_warmup_bars(self, params: dict) -> int:
-        del params
-        return 60
+        return 65 if params.get("require_ma60_non_declining", True) else 60
 
     def compute_signals(self, market: MarketDataMatrix, params: dict) -> SignalMatrix:
         ma5 = matrix_feature(market, "ma5")
@@ -73,6 +78,9 @@ class MAGoldenCrossMatrixStrategy:
             )
         if params.get("require_above_ma60", True):
             entry &= market.close > matrix_feature(market, "ma60")
+        if params.get("require_ma60_non_declining", True):
+            ma60 = matrix_feature(market, "ma60")
+            entry &= ma60 >= shift(ma60, 5)
         return make_signal_matrix(
             market.shape,
             entry=entry.astype(np.uint8),

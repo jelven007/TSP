@@ -22,7 +22,7 @@ export function RegimeConfigCard() {
   })
 
   // 分批参数本地草稿(失焦/回车时整体保存), 避免每次按键都请求
-  const batchDays = prefs.data?.regime_batch_days ?? 60
+  const batchDays = prefs.data?.regime_batch_days ?? 120
   const warmupDays = prefs.data?.regime_warmup_days ?? 40
   const [draftBatch, setDraftBatch] = useState(String(batchDays))
   const [draftWarmup, setDraftWarmup] = useState(String(warmupDays))
@@ -66,8 +66,8 @@ export function RegimeConfigCard() {
     if (n !== warmupDays) updateParams.mutate({ warmup_days: n })
   }
 
-  // 默认关闭: 未设置过时视为 false
-  const on = prefs.data?.pipeline_regime_enabled ?? false
+  // 缺省开启, 保留已保存的关闭状态。
+  const on = prefs.data?.pipeline_regime_enabled ?? true
 
   return (
     <div className="space-y-3">
@@ -93,7 +93,7 @@ export function RegimeConfigCard() {
             <span className="text-xs font-medium text-foreground">盘后自动计算</span>
           </div>
           <div className="text-[10px] text-muted leading-snug mt-0.5">
-            默认关闭。开启后每次盘后管道自动增量计算环境状态; 首次或数据缺口较大时全量回填, 耗时与内存较高。
+            默认开启。每次盘后管道自动增量计算环境状态; 首次或数据缺口较大时分批全量回填。
           </div>
         </div>
       </label>
@@ -122,7 +122,7 @@ export function RegimeConfigCard() {
               disabled={updateParams.isPending}
               className="mt-1 h-7 w-full rounded-input border border-border bg-base px-2 text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
             />
-            <div className="mt-0.5 text-[9px] text-muted">范围 25 ~ 500 · 默认 60</div>
+            <div className="mt-0.5 text-[9px] text-muted">范围 25 ~ 500 · 默认 120</div>
           </div>
           <div>
             <label className="text-[10px] text-muted">预热天数(日历日)</label>
@@ -146,8 +146,8 @@ export function RegimeConfigCard() {
           <span className="text-[10px] text-muted">快捷:</span>
           {[
             { label: '省内存', batch: 30, warmup: 40 },
-            { label: '默认', batch: 60, warmup: 40 },
-            { label: '更快', batch: 120, warmup: 40 },
+            { label: '均衡', batch: 60, warmup: 40 },
+            { label: '默认', batch: 120, warmup: 40 },
           ].map(p => (
             <button
               key={p.label}

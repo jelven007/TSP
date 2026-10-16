@@ -1,15 +1,15 @@
 """内置扩展数据预设 — 概念/行业可在交易日双时段内每分钟自动更新。
 
 设计原则:
-  - 扩展数据通用逻辑零改动 (ExtConfig / fetch_and_ingest / API / 前端均不动)
+  - 复用扩展数据配置与通用拉取链路
   - 仅在本模块做「接口结构 → 本地 schema」的转换
-  - 「已存在则跳过」: 绝不覆盖用户已有数据, 老用户零影响
+  - 仅修复未使用的空默认配置, 保留用户已有数据及自定义设置
   - 定时拉取由 PullScheduler 异步执行, 拉取失败不阻断启动
 
-数据来源由环境变量独立配置:
+内置概念与行业默认可拉取, 环境变量可独立覆盖上游:
   - EXT_CONCEPT_DATA_URL
   - EXT_INDUSTRY_DATA_URL
-未配置 URL 时仍创建表结构, 但自动拉取保持关闭。
+未配置或 URL 为空时沿用默认接口。
 
 接入点: app.main.lifespan → ensure_builtin_presets(store.data_dir)
 """
@@ -25,10 +25,12 @@ from app.services.ext_data import (
     ExtConfigStore,
     ExtField,
     PullConfig,
-    rows_to_parquet,
 )
 
 logger = logging.getLogger(__name__)
+
+_CONCEPT_DATA_URL = "https://shy313.com/api/plugins/market_flow/exports/ths-concepts"
+_INDUSTRY_DATA_URL = "https://shy313.com/api/plugins/market_flow/exports/ths-industries"
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +43,7 @@ def _concept_preset() -> ExtConfig:
     接口结构: [{symbol, name, concepts: [概念1, 概念2, ...]}]
     本地 schema: 股票代码 / 股票简称 / 所属概念(分号拼接) / symbol / code
     """
-    data_url = settings.ext_concept_data_url.strip()
+    data_url = settings.ext_concept_data_url.strip() or _CONCEPT_DATA_URL
     return ExtConfig(
         id="ext_gn_ths",
         label="扩展概念",
@@ -53,7 +55,7 @@ def _concept_preset() -> ExtConfig:
             ExtField("股票简称", "string", "股票简称"),
             ExtField("所属概念", "string", "所属概念"),
         ],
-        description="同花顺概念分类 (配置上游后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)",
+        description="同花顺概念分类 (交易日 09:15-11:30 / 13:00-15:15 每分钟更新, 启动时立即刷新)",
         symbol_map={"type": "mapped", "col": "股票代码"},
         code_map={"type": "computed", "from": "symbol", "method": "strip_exchange"},
         pull=PullConfig(
@@ -73,7 +75,7 @@ def _industry_preset() -> ExtConfig:
     接口结构: [{symbol, name, industries: [一级行业, 二级行业, 三级行业]}]
     本地 schema: 股票代码 / 股票简称 / 所属同花顺行业(横杠拼接) / symbol / code
     """
-    data_url = settings.ext_industry_data_url.strip()
+    data_url = settings.ext_industry_data_url.strip() or _INDUSTRY_DATA_URL
     return ExtConfig(
         id="ext_hy_ths",
         label="扩展行业",
@@ -85,7 +87,7 @@ def _industry_preset() -> ExtConfig:
             ExtField("股票简称", "string", "股票简称"),
             ExtField("所属同花顺行业", "string", "所属同花顺行业"),
         ],
-        description="同花顺行业分类 (配置上游后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)",
+        description="同花顺行业分类 (交易日 09:15-11:30 / 13:00-15:15 每分钟更新, 启动时立即刷新)",
         symbol_map={"type": "mapped", "col": "股票代码"},
         code_map={"type": "computed", "from": "symbol", "method": "strip_exchange"},
         pull=PullConfig(
@@ -165,61 +167,28 @@ def _flatten_industry_rows(raw_rows: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 拉取执行 (复用 httpx, 不依赖 fetch_and_ingest 的 PullConfig 路径)
+# 旧版空默认配置识别
 # ---------------------------------------------------------------------------
 
-# 部分网络环境 (CDN/WAF/网关) 会把数组包成 {data: [...]}/{list: [...]}/{rows: [...]} 信封。
-# 这里做一次兼容解包, 避免误判为「接口返回不是数组」。
-_ENVELOPE_KEYS = ("data", "list", "rows", "result", "results")
-
-
-async def _fetch_json(url: str) -> list[dict]:
-    """请求 JSON 接口, 返回行数组。超时 30s, 失败抛异常由调用方兜底。
-
-    兼容两种上游返回形态:
-      - 直接是数组: [{...}, ...]          → 原样返回
-      - 信封包裹: {data: [{...}]} 等       → 自动解包
-    """
-    import httpx
-
-    # 延迟导入避免与 ext_pull 循环依赖; 出站请求带 tsp 标识头
-    from app.services.ext_pull import outbound_headers
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(url, headers=outbound_headers())
-        resp.raise_for_status()
-        data = resp.json()
-
-    if isinstance(data, list):
-        return data
-
-    # 信封解包: 在常见键里找第一个值为数组的
-    if isinstance(data, dict):
-        for key in _ENVELOPE_KEYS:
-            inner = data.get(key)
-            if isinstance(inner, list):
-                return inner
-        # 兜底: 遍历所有值, 取第一个数组
-        for v in data.values():
-            if isinstance(v, list):
-                return v
-
-    raise ValueError(
-        f"接口返回不是数组 (type={type(data).__name__}), "
-        f"响应预览: {str(data)[:200]}"
-    )
-
-
-async def _seed_one(config: ExtConfig, flatten, data_dir: Path) -> int:
-    """拉取 + 转换 + 写入单个预设。返回写入行数。"""
-    from datetime import date
-
-    raw = await _fetch_json(config.pull.url)
-    rows = flatten(raw)
-    if not rows:
-        raise ValueError(f"接口返回 0 行: {config.pull.url}")
-    n = rows_to_parquet(rows, config, data_dir, snapshot_date=date.today())
-    return n
+def _is_unused_empty_preset(existing: ExtConfig, preset: ExtConfig, data_dir: Path) -> bool:
+    """只修复原样生成且没有数据的空预设, 不能覆盖用户关闭或定制的配置。"""
+    if not existing.pull or existing.pull.url or existing.pull.enabled:
+        return False
+    if any((data_dir / "ext_data" / existing.id).rglob("*.parquet")):
+        return False
+    original = existing.to_dict()
+    expected = preset.to_dict()
+    legacy_description = preset.description.replace(
+        "(交易日", "(配置上游后, 交易日"
+    ).replace(", 启动时立即刷新", "")
+    if existing.description not in {preset.description, legacy_description}:
+        return False
+    for value in (original, expected):
+        for key in ("created_at", "updated_at", "description"):
+            value.pop(key, None)
+    expected["pull"]["url"] = ""
+    expected["pull"]["enabled"] = False
+    return original == expected
 
 
 # ---------------------------------------------------------------------------
@@ -237,22 +206,25 @@ def get_preset(config_id: str) -> ExtConfig | None:
 async def ensure_builtin_presets(data_dir: Path) -> None:
     """启动时为缺失的预设创建 config.json, 由调度器异步拉取。
 
-    配置上游 URL 时, 新建预设默认启用交易日
+    新建预设默认启用交易日
     09:15-11:30 / 13:00-15:15 每分钟拉取; PullScheduler 在启动后
-    无视时段立即执行首轮。未配置 URL 时预设保持关闭, 可在扩展数据设置中补充。
+    无视时段立即执行首轮。环境变量可覆盖默认地址。
 
     安全保证:
-      - 已存在则完全跳过 (绝不覆盖用户数据)
+      - 仅修复没有数据且未经定制的旧空预设, 其余配置完全保留
       - 本函数只写 config.json, 不直接发起网络请求
     """
     store = ExtConfigStore(data_dir)
 
     for config in _presets():
         existing = store.get(config.id)
-        if existing is not None:
-            # 用户已有此表 (老用户 / 自己重建过) → 一律不动
-            continue
         try:
+            if existing is not None:
+                if not _is_unused_empty_preset(existing, config, data_dir):
+                    continue
+                existing.pull = config.pull
+                existing.description = config.description
+                config = existing
             store.upsert(config)
             logger.info(
                 "内置扩展表 %s 配置已就绪 "
@@ -275,13 +247,14 @@ async def fetch_preset(config_id: str, data_dir: Path) -> int:
     if config is None:
         raise ValueError(f"未知的内置预设: {config_id}")
 
-    flatten = _flatten_concept_rows if config_id == "ext_gn_ths" else _flatten_industry_rows
+    # 与定时及扩展数据页手动拉取共用用户保存的请求、转换和北京时间落盘链路。
+    from app.services.ext_pull import fetch_and_ingest
 
-    # 确保 config.json 存在 (用户可能从未启动过 ensure_builtin_presets)
+    await ensure_builtin_presets(data_dir)
     store = ExtConfigStore(data_dir)
-    if store.get(config_id) is None:
-        store.upsert(config)
-
-    n = await _seed_one(config, flatten, data_dir)
+    config = store.get(config_id)
+    if config is None:
+        raise ValueError(f"内置预设配置不可用: {config_id}")
+    n, _ = await fetch_and_ingest(config, data_dir)
     logger.info("内置扩展表 %s 手动拉取成功: %d 行", config_id, n)
     return n

@@ -1,0 +1,29 @@
+[
+  {"id": "baseline", "strategy_id": "active_limit_gene"},
+  {"id": "baseline", "strategy_id": "boll_breakout"},
+  {"id": "baseline", "strategy_id": "breakout_new_high_60d"},
+  {"id": "baseline", "strategy_id": "bullish_alignment"},
+  {"id": "baseline", "strategy_id": "consecutive_limit_ups"},
+  {"id": "baseline", "strategy_id": "high_turnover_surge"},
+  {"id": "baseline", "strategy_id": "long_lower_shadow_reversal"},
+  {"id": "baseline", "strategy_id": "low_volatility_leader"},
+  {"id": "baseline", "strategy_id": "ma_convergence_breakout"},
+  {"id": "baseline", "strategy_id": "ma_golden_cross"},
+  {"id": "baseline", "strategy_id": "macd_below_zero_revival"},
+  {"id": "baseline", "strategy_id": "macd_golden"},
+  {"id": "baseline", "strategy_id": "n_day_low_reversal"},
+  {"id": "baseline", "strategy_id": "near_limit_up"},
+  {"id": "baseline", "strategy_id": "oversold_bounce"},
+  {"id": "baseline", "strategy_id": "oversold_reversal"},
+  {"id": "baseline", "strategy_id": "platform_consolidation_breakout"},
+  {"id": "baseline", "strategy_id": "pullback_ma20_bounce"},
+  {"id": "baseline", "strategy_id": "pullback_to_support"},
+  {"id": "baseline", "strategy_id": "rsi_midline_pullback"},
+  {"id": "baseline", "strategy_id": "strong_open"},
+  {"id": "baseline", "strategy_id": "volume_price_surge"},
+  {
+    "id": "trend_B",
+    "strategy_id": "ma_golden_cross",
+    "overrides": {"overlay_filter": [{"left": "ma60", "op": ">=", "right": "field:ma60", "rightDays": 5}]}
+  }
+]

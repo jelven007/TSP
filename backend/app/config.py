@@ -87,8 +87,8 @@ class Settings(BaseSettings):
     # TickFlow
     tickflow_api_key: str = Field(default="", description="留空启用 free 模式")
 
-    # Optional upstreams for built-in extended concept/industry presets.
-    # Empty values keep the presets available but disable automatic pulling.
+    # Optional overrides for the built-in concept/industry data endpoints.
+    # Empty values retain preset defaults; automatic pulling is controlled in the UI.
     ext_concept_data_url: str = ""
     ext_industry_data_url: str = ""
 
