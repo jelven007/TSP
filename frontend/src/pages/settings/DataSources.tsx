@@ -167,7 +167,7 @@ const TICKFLOW_ROUTING: Record<ProviderField, string> = {
 }
 
 /** 单个能力卡: 当前生效提供方 + 候选切换标签。
- *  candidates 只含当前可提供该能力的源; 未就绪源 (pending) 置灰提示;
+ *  candidates 只含当前可提供该能力的源; 未就绪源 (pending) 可保存路由并提示;
  *  生效源无法提供该能力 (usable=False, 无论档位不足还是源未就绪) 时显示琥珀警示。 */
 function CapabilityCard({ cap, pendingKey, onSelect }: {
   cap: CapabilityRoute
@@ -198,7 +198,7 @@ function CapabilityCard({ cap, pendingKey, onSelect }: {
             title={`「${cap.label}」当前路由的源无法提供该能力 — 可切换下方可用源, 或在数据源区接入其他源`}
           >
             <AlertTriangle className="h-3 w-3 shrink-0" />
-            能力不可用
+            {cap.effective_display} · 未就绪
           </span>
         ) : (
           <>
@@ -240,16 +240,19 @@ function CapabilityCard({ cap, pendingKey, onSelect }: {
             </button>
           )
         })}
-        {/* 未就绪源: 声明了该能力但依赖/Key 未配好, 置灰并说明原因 */}
+        {/* 未就绪源可先保存路由，实际可用性仍由后端检测决定 */}
         {cap.pending.map(c => (
-          <span
+          <button
             key={c.name}
+            type="button"
+            disabled={cap.field == null || pendingKey != null}
+            onClick={() => cap.field != null && onSelect(cap.field, c.name)}
             title={c.note || c.status || '该源当前不可用'}
-            className={tagCls(false, true)}
+            className={tagCls(cap.current === c.name, false)}
           >
             <AlertCircle className="h-2.5 w-2.5" />
-            {c.display}
-          </span>
+            {c.display} · 未就绪
+          </button>
         ))}
         {chipsEmpty && (
           <span className="text-[10px] text-muted/50">
@@ -324,8 +327,7 @@ function CapabilityRoutingSection() {
         </div>
       </div>
       <p className="text-[11px] text-muted mb-4">
-        每个能力独立选择提供方 — 点标签即刻生效。选项只列出当前可提供该能力的源
-        (各源按自身可用性过滤, 详见下方数据源介绍); 未就绪的源置灰提示。
+        每个能力独立选择提供方。未就绪的源也可保存为目标源, 完成依赖安装或 Key 配置后才能取数。
       </p>
 
       {matrix.isError ? (
@@ -751,10 +753,11 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
                 if (!c.tf_available) servingSet.delete(c.id)
               }
             }
-            const servingCount = servingSet.size
             const isSelected = selected === item.name
             const plugin = pluginMap.get(item.name)
             const pluginUnavailable = plugin && !plugin.available
+            if (pluginUnavailable) servingSet.clear()
+            const servingCount = servingSet.size
             const installing = installMut.isPending && installMut.variables === item.name
             const uninstalling = uninstallMut.isPending && uninstallMut.variables === item.name
             const declared = new Set(item.datasets)
@@ -766,8 +769,6 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
               <div
                 key={item.name}
                 onClick={() => {
-                  // 未就绪插件仅当支持界面配 Key 时可点开(进详情配置); 其余不可选
-                  if (pluginUnavailable && !plugin?.api_key_env) return
                   setSelected(item.name)
                   // 只有用户自定义源 (YAML) 才进编辑器; tickflow 和插件不可编辑
                   if (customNames.has(item.name)) {
@@ -775,9 +776,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
                   }
                 }}
                 className={`relative text-left rounded-lg border px-3.5 py-3 transition-all ${
-                  pluginUnavailable && !plugin?.api_key_env
-                    ? 'border-border/40 bg-elevated/10 opacity-70'
-                    : isSelected
+                  isSelected
                       ? 'border-accent/50 bg-accent/5 ring-1 ring-accent/20 cursor-pointer'
                       : 'border-border/60 bg-elevated/20 hover:bg-elevated/40 cursor-pointer'
                 }`}
@@ -795,7 +794,9 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
                   {isTf && matrix.data?.tickflow_tier && (
                     <TierTag label={matrix.data.tickflow_tier} />
                   )}
-                  {!customNames.has(item.name) && (
+                  {item.name === 'rustdx' ? (
+                    <span className="shrink-0 rounded bg-accent/10 px-1 py-0.5 text-[9px] font-medium leading-none text-accent">默认</span>
+                  ) : !customNames.has(item.name) && (
                     <span className="shrink-0 rounded bg-warning/15 px-1 py-0.5 text-[9px] font-medium leading-none text-warning">第三方</span>
                   )}
                 </div>
@@ -811,10 +812,19 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
                     {servingCount > 0
                       ? `服务中 ${servingCount} 项能力`
                       : pluginUnavailable
-                        ? (plugin?.runtime === 'none' ? '点击配置 Key' : (plugin?.install_hint || plugin?.status || ''))
+                        ? (plugin?.status || plugin?.install_hint || '未就绪')
                         : ''}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
+                    {pluginUnavailable && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); switchProvider.mutate(item.name) }}
+                        disabled={switchProvider.isPending}
+                        className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-50"
+                      >
+                        套用
+                      </button>
+                    )}
                     {pluginUnavailable ? (
                       plugin?.runtime !== 'none' && (
                         installing ? (
@@ -1026,8 +1036,11 @@ function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
         <div className="min-w-0">
           {/* 独立状态行仅用于无 Key 配置区的插件; 有 Key 区时「状态」行已展示, 避免重复 */}
           {!plugin.available && !plugin.api_key_env && (
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted">{plugin.status}</span>
+            <div className="space-y-2">
+              <p className="text-xs text-warning">{plugin.status}</p>
+              {plugin.install_hint && (
+                <p className="text-xs text-secondary leading-relaxed break-words">{plugin.install_hint}</p>
+              )}
             </div>
           )}
 

@@ -197,6 +197,8 @@ def test_api_jobs_wait_before_computing(
         return result
 
     monkeypatch.setattr(importlib.import_module(module_name), function_name, compute)
+    # These tests exercise capacity ownership on a populated deployment.
+    monkeypatch.setattr("app.services.initial_sync.needs_initial_sync", lambda path: False)
     monkeypatch.setattr(pipeline, "job_store", store)
     # Match the capability stub below without relying on optional provider installs.
     monkeypatch.setattr(preferences, "get_minute_data_provider", lambda: "tickflow")
@@ -237,10 +239,11 @@ def test_api_jobs_wait_before_computing(
 
 
 @pytest.mark.parametrize("fail", [False, True])
-def test_manual_pipeline_holds_capacity_through_refresh_off_event_loop(capacity, monkeypatch, fail):
+def test_manual_pipeline_holds_capacity_through_refresh_off_event_loop(capacity, monkeypatch, tmp_path, fail):
     from app.api import pipeline
 
     store, limiter = capacity
+    monkeypatch.setattr("app.services.initial_sync.needs_initial_sync", lambda path: False)
     refreshing, finish = threading.Event(), threading.Event()
 
     def compute(*args, **kwargs):
@@ -257,7 +260,7 @@ def test_manual_pipeline_holds_capacity_through_refresh_off_event_loop(capacity,
     monkeypatch.setattr(pipeline.daily_pipeline, "run_now", compute)
     app = FastAPI()
     app.include_router(pipeline.router)
-    app.state.repo = SimpleNamespace(refresh_cache=refresh)
+    app.state.repo = SimpleNamespace(refresh_cache=refresh, store=SimpleNamespace(data_dir=tmp_path))
     app.state.capabilities = object()
     with TestClient(app) as client:
         try:

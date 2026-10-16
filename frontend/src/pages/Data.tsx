@@ -599,7 +599,9 @@ export function Data() {
         right={
           <div className="flex items-center gap-3">
             {!hasData && !isLoading && (
-              <span className="text-xs text-accent animate-pulse">首次使用请点击右侧按钮同步数据</span>
+              <span className="text-xs text-accent animate-pulse">
+                {isRunning ? '首次全量同步正在进行' : '首次启动自动同步；失败后可点击立即同步重试'}
+              </span>
             )}
             <button
               onClick={() => adjGate.guard(() => startSync.mutate())}

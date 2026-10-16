@@ -169,6 +169,7 @@ def _fetch_table(
     symbols: list[str],
     capset: CapabilitySet,
     latest_only: bool = True,
+    strict: bool = False,
 ) -> pl.DataFrame:
     """通过当前财务数据源拉取一张标准化财务表。"""
     from app.services import preferences
@@ -192,6 +193,8 @@ def _fetch_table(
             provider = custom_sources.get_provider(preferences.get_financial_provider())
             df = provider.get_financials(table, symbols, latest_only=latest_only)
         except Exception as e:  # noqa: BLE001
+            if strict:
+                raise
             logger.warning("sync_%s custom provider failed: %s", table, e)
             return pl.DataFrame()
         if df.is_empty() or "symbol" not in df.columns:
@@ -231,6 +234,8 @@ def _fetch_table(
                                 all_records.append(rec)
             logger.debug("sync_%s batch %d/%d: %d records", table, batch_num, total_batches, len(data) if isinstance(data, dict) else 0)
         except Exception as e:
+            if strict:
+                raise
             logger.warning("sync_%s batch %d/%d failed: %s", table, batch_num, total_batches, e)
 
     if not all_records:
@@ -368,18 +373,34 @@ def sync_shares(data_dir: Path, capset: CapabilitySet) -> int:
     return _sync_history_table_for_symbols("shares", symbols, data_dir, capset)
 
 
-def sync_all(data_dir: Path, capset: CapabilitySet) -> dict[str, int]:
+def sync_all(
+    data_dir: Path, capset: CapabilitySet, *, symbols: list[str] | None = None,
+    on_table_done=None, force_history: bool = False,
+) -> dict[str, int]:
     """同步所有财务表。返回 {table: rows}。"""
     if not capset.has(Cap.FINANCIAL) and not _financial_is_custom():
         logger.info("sync_all financials skipped: no FINANCIAL capability")
         return {}
 
-    symbols = _get_symbols(data_dir)
+    symbols = _get_symbols(data_dir) if symbols is None else symbols
     results: dict[str, int] = {}
     for table in FINANCIAL_TABLES:
-        results[table] = _sync_history_table_for_symbols(
-            table, symbols, data_dir, capset
-        )
+        if force_history:
+            # Retrying initialization must not count a previous partial file as
+            # a successful new fetch. Preserve it, but require fresh history.
+            fetched = _fetch_table(table, symbols, capset, latest_only=False, strict=True)
+            results[table] = (
+                _write_table(table, _merge_report_history(
+                    get_financial_df(data_dir, table), fetched,
+                ), data_dir)
+                if not fetched.is_empty() else 0
+            )
+        else:
+            results[table] = _sync_history_table_for_symbols(
+                table, symbols, data_dir, capset
+            )
+        if on_table_done:
+            on_table_done(table, results[table])
 
     # 同步完成后注册 DuckDB 视图
     _refresh_financials_views(data_dir)

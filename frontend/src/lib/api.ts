@@ -4413,6 +4413,12 @@ export interface PipelineJob {
     universe_source?: string
     universe_boards?: string[]
     universe_refreshed?: boolean
+    initial_sync?: boolean
+    daily_rows?: number
+    financial_rows?: Record<string, number>
+    quote_rows?: number
+    depth_rows?: number
+    data_release_id?: string
     daily_days: number
     adj_factor_symbols: number
     enriched_days: number

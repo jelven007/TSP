@@ -839,6 +839,7 @@ class RustdxProvider:
         end_time: datetime | None,
         asset_type: str = "stock",
         on_chunk_done: Callable[[int, int], None] | None = None,
+        strict: bool = False,
     ) -> pl.DataFrame:
         schema = {"symbol": pl.String, "trade_date": pl.Date, "ex_factor": pl.Float64}
         valid = [symbol for symbol in symbols if _symbol(symbol) is not None]
@@ -944,6 +945,8 @@ class RustdxProvider:
                                     }
                                 )
                     except RustdxError as exc:
+                        if strict:
+                            raise
                         logger.warning(
                             "%s 除权因子 %s 拉取失败: %s",
                             self.name,
@@ -953,6 +956,8 @@ class RustdxProvider:
                     if on_chunk_done:
                         on_chunk_done(index + 1, len(valid))
         except RustdxError as exc:
+            if strict:
+                raise
             logger.warning("%s 除权因子连接失败: %s", self.name, exc)
         if not output:
             return pl.DataFrame(schema=schema)
@@ -1243,7 +1248,8 @@ class RustdxProvider:
         )
 
     def get_adj_factors(
-        self, symbols, start_time, end_time, asset_type="stock", on_chunk_done=None
+        self, symbols, start_time, end_time, asset_type="stock", on_chunk_done=None,
+        strict=False,
     ) -> pl.DataFrame:
         valid = [symbol for symbol in symbols if _symbol(symbol)]
         if not valid:
@@ -1257,6 +1263,7 @@ class RustdxProvider:
                 start_time,
                 end_time,
                 asset_type=asset_type,
+                strict=strict,
             )
 
         with ThreadPoolExecutor(

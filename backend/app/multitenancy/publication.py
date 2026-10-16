@@ -19,6 +19,7 @@ PUBLIC_DIRS = frozenset({
     "instruments_etf", "instruments_ext", "kline_ext", "depth5", "auction_snapshot",
     "quote_second", "regime_history", "mainline_history", "ext_data", "analysis_menus",
     "instrument_status", "data_releases",
+    "market_snapshot",
 })
 PUBLIC_FILES = frozenset({
     ".matrix_generation_stock.json", ".matrix_generation_etf.json", ".matrix_generation_index.json",

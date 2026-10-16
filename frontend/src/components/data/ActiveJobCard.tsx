@@ -9,6 +9,8 @@ export const STAGE_LABELS: Record<string, string> = {
   init: '初始化',
   resolve_universe: '解析标的池',
   sync_instruments: '同步个股维表',
+  sync_financial: '同步历史财务与股本',
+  sync_snapshots: '同步实时行情与五档盘口',
   sync_daily: '同步日 K',
   sync_adj: '同步除权因子',
   compute_enriched: '计算技术指标',

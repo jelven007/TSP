@@ -349,6 +349,7 @@ def sync_and_persist_daily_batch(
     end_date: datetime | None = None,
     on_chunk_done: Callable[[int, int], None] | None = None,
     zero_row_out: list[str] | None = None,
+    strict: bool = False,
 ) -> int:
     """批量同步日 K 并落到 Parquet。返回写入的行数。
 
@@ -364,6 +365,11 @@ def sync_and_persist_daily_batch(
 
     def _finalize(written: int) -> int:
         zero_full = [s for s in requested if s not in seen and s not in failed_syms]
+        if strict and (failed_syms or zero_full or skipped_bare):
+            raise RuntimeError(
+                f"首次日K同步不完整: {len(failed_syms)} 只拉取失败, "
+                f"{len(zero_full) + len(skipped_bare)} 只无数据,请重试",
+            )
         if zero_full or skipped_bare:
             zero = [orig_by_full.get(s, s) for s in zero_full] + skipped_bare
             logger.warning(
@@ -619,7 +625,8 @@ def sync_adj_factor(symbols: list[str], repo: KlineRepository,
                     start_time: datetime | None = None,
                     end_time: datetime | None = None,
                     on_chunk_done: Callable[[int, int], None] | None = None,
-                    asset_type: str = "stock") -> tuple[int, list[str]]:
+                    asset_type: str = "stock",
+                    strict: bool = False) -> tuple[int, list[str]]:
     """同步除权因子(Starter+)。SDK 接口:`tf.klines.ex_factors(symbols=...)`。
 
     支持增量: 传 start_time/end_time 只拉取该时间范围内的新除权事件。
@@ -641,6 +648,7 @@ def sync_adj_factor(symbols: list[str], repo: KlineRepository,
                 end_time=end_time,
                 asset_type=asset_type,
                 on_chunk_done=on_chunk_done,
+                **({"strict": True} if strict and provider_name == "rustdx" else {}),
             )
             if new_data.is_empty():
                 return 0, []
@@ -707,6 +715,8 @@ def sync_adj_factor(symbols: list[str], repo: KlineRepository,
     # 部分失败可见化: 失败分块的标的不在 affected 里 → enriched 不会重算它们,
     # 它们会保持**旧的前复权价**直到下次成功同步。聚合一条 WARNING 让其可见。
     if failed_syms:
+        if strict:
+            raise RuntimeError(f"首次除权同步不完整: {len(failed_syms)} 只拉取失败,请重试")
         logger.warning("adj_factor 同步部分失败: %d/%d 标的未获取复权因子, 将保持旧复权价 (样例: %s)",
                        len(failed_syms), len(symbols), failed_syms[:10])
 
@@ -1005,6 +1015,7 @@ def _try_custom_minute(
     asset_type: AssetType,
     freq: str = "1m",
     on_chunk_done: Callable[[int, int, str], None] | None = None,
+    strict: bool = False,
 ) -> tuple[pl.DataFrame | None, bool]:
     """尝试从自定义分钟源拉取。返回 (df, should_fallback_to_tickflow)。
 
@@ -1025,6 +1036,8 @@ def _try_custom_minute(
     if fallback:
         return (None, True)
     if err is not None:
+        if strict:
+            raise RuntimeError(f"分钟数据源 {provider_name} 不可用: {err}")
         logger.warning("minute provider %s unavailable: %s", provider_name, err)
         return (pl.DataFrame(), False)
 
@@ -1041,6 +1054,8 @@ def _try_custom_minute(
             asset_type=asset_type, freq=freq, on_chunk_done=wrapped_cb,
         )
     except Exception as e:
+        if strict:
+            raise
         logger.warning("custom minute provider %s call failed; keeping local data: %s",
                        provider_name, e)
         return (pl.DataFrame(), False)
@@ -1049,6 +1064,8 @@ def _try_custom_minute(
         from app.market_scope import filter_market_frame
         df = filter_market_frame(_enforce_minute_beijing_wallclock(df, source=provider_name))
     except Exception as e:
+        if strict:
+            raise
         logger.warning("custom minute provider %s datetime contract failed: %s",
                        provider_name, e)
         return (pl.DataFrame(), False)
@@ -1067,6 +1084,7 @@ def sync_minute_batch(
     on_segment: Callable[[pl.DataFrame], None] | None = None,
     asset_type: AssetType = "stock",
     raw_basis: bool = False,
+    strict: bool = False,
 ) -> pl.DataFrame:
     """批量拉取多股分钟 K。
 
@@ -1101,6 +1119,7 @@ def sync_minute_batch(
             df, fallback = _try_custom_minute(
                 batch, start_time=start_time, end_time=end_time,
                 asset_type=asset_type, freq="1m",
+                **({"strict": True} if strict else {}),
             )
             if fallback:
                 raise RuntimeError("分钟同步期间数据源已变更, 请重新启动任务")
@@ -1113,6 +1132,7 @@ def sync_minute_batch(
     df, fallback = _try_custom_minute(
         symbols, start_time=start_time, end_time=end_time,
         asset_type=asset_type, freq="1m", on_chunk_done=on_chunk_done,
+        **({"strict": True} if strict else {}),
     )
     if not fallback:
         # 自定义源成功: 遵守与 TickFlow 路径一致的 on_segment 契约。
@@ -1182,6 +1202,8 @@ def sync_minute_batch(
                         adjust="none" if raw_basis else "forward",
                         as_dataframe=False, show_progress=False))
             except SDKCallTimeoutError as e:
+                if strict:
+                    raise
                 logger.warning("minute batch fetch timed out for %d symbols: %s", len(chunk), e)
                 if on_chunk_done:
                     # 心跳: 持续超时时保留进度上报与取消检查点(分钟路径的成功
@@ -1189,6 +1211,8 @@ def sync_minute_batch(
                     on_chunk_done(step, total_steps, seg_label)
                 continue
             except Exception as e:  # noqa: BLE001
+                if strict:
+                    raise
                 logger.warning("minute batch fetch failed for %d symbols: %s", len(chunk), e)
                 continue
 
@@ -1750,6 +1774,7 @@ def sync_and_persist_minute(
     on_chunk_done: Callable[[int, int, str], None] | None = None,
     extend_backward: bool = False,
     force_full_days: bool = False,
+    strict: bool = False,
 ) -> int:
     """同步分钟 K 并存到 Parquet。返回写入行数。
 
@@ -1764,6 +1789,8 @@ def sync_and_persist_minute(
     _, fallback, resolve_err = _resolve_minute_provider(minute_provider)
     minute_is_custom = not fallback
     if resolve_err is not None:
+        if strict:
+            raise RuntimeError(f"分钟数据源 {minute_provider} 不可用: {resolve_err}")
         logger.warning("custom minute provider %s unavailable at sync_and_persist_minute: %s",
                        minute_provider, resolve_err)
         return 0
@@ -1843,6 +1870,7 @@ def sync_and_persist_minute(
         on_segment=_persist,
         asset_type="stock",
         raw_basis=minute_adjust.minute_basis_is_raw(repo.store.data_dir),
+        **({"strict": True} if strict else {}),
     )
 
     if written_box[0] == 0:
