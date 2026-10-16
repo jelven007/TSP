@@ -1,8 +1,10 @@
 from datetime import date
+from types import SimpleNamespace
 
 import polars as pl
 import pytest
 
+from app.data_providers import custom as custom_sources
 from app.services import instrument_sync
 
 
@@ -66,3 +68,48 @@ def test_invalid_provider_share_value_cannot_erase_valid_legacy_metadata(
     assert row["total_shares"] == 1000.0
     assert row["total_shares_source"] is None
     assert row["total_shares_as_of"] == date(2026, 7, 1)
+
+
+def test_sync_enriches_fresh_catalog_through_optional_provider_metadata(tmp_path, monkeypatch):
+    calls = []
+
+    def metadata(symbols):
+        calls.append(symbols)
+        return [{
+            "symbol": "600001.SH", "listing_date": "2000-01-01",
+            "total_shares": 1e9, "float_shares": 8e8,
+        }, {"symbol": "600999.SH", "total_shares": 99.0}]
+
+    provider = SimpleNamespace(
+        get_instruments=lambda asset: [{"symbol": "600001.SH", "name": "示例"}],
+        get_instrument_metadata=metadata,
+    )
+    monkeypatch.setattr("app.services.preferences.get_daily_data_provider", lambda: "rustdx")
+    monkeypatch.setattr(custom_sources, "is_custom_provider", lambda name: True)
+    monkeypatch.setattr(custom_sources, "get_provider", lambda name: provider)
+
+    assert instrument_sync.sync_instruments(tmp_path) == 1
+    row = pl.read_parquet(tmp_path / "instruments/instruments.parquet").row(0, named=True)
+    assert calls == [["600001.SH"]]
+    assert row["listing_date"] == "2000-01-01"
+    assert row["total_shares"] == 1e9
+    assert row["float_shares"] == 8e8
+    assert row["total_shares_source"] == "rustdx"
+
+
+def test_optional_metadata_failure_keeps_valid_catalog_fields(monkeypatch):
+    def unavailable(_symbols):
+        raise RuntimeError("metadata unavailable")
+
+    provider = SimpleNamespace(
+        get_instruments=lambda asset: [{
+            "symbol": "600001.SH", "name": "示例", "ext": {"total_shares": 1e9},
+        }],
+        get_instrument_metadata=unavailable,
+    )
+    monkeypatch.setattr("app.services.preferences.get_daily_data_provider", lambda: "rustdx")
+    monkeypatch.setattr(custom_sources, "is_custom_provider", lambda name: True)
+    monkeypatch.setattr(custom_sources, "get_provider", lambda name: provider)
+    rows = instrument_sync._fetch_instruments_via_provider()
+    assert len(rows) == 1
+    assert rows[0]["total_shares"] == 1e9

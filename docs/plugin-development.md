@@ -183,6 +183,13 @@ class MyProvider:
     def get_instruments(self, asset_type="stock") -> list[dict]:
         """(可选)标的维表: 返回 tickflow Instrument 形状的行, 供 instrument_sync 复用 flatten"""
 
+    def get_instrument_metadata(self, symbols: list[str]) -> list[dict]:
+        """(可选)显式股票维表同步时补充元数据，不在实时名称查询中调用。
+        行含 symbol、listing_date(真实上市日ISO日期)、total_shares/float_shares(股)，
+        可选 tick_size。可只返回可用字段；不得用首根K线日期冒充上市日。
+        服务只合并当前目录内的标的；失败/无效值保留旧值及其采集日期。
+        provider 应限制并发并缓存，不能将网络取数放入实时行情热路径。"""
+
     def test_dataset(self, dataset: str, symbols=None) -> dict:
         """(强烈建议)设置页"试拉"按钮。
         返回 {provider, dataset, rows, columns, preview, error?}; 未支持的数据集
@@ -260,6 +267,7 @@ provider 不应自行切换或回退到其他数据源。
 | `get_depth_batch` | 单批异常由服务隔离并保留其他批次; 不跨数据源回退 |
 | `get_minute` | 异常隔离并记录日志, 返回空帧且不跨源回退 |
 | `get_instruments` | 不完整目录不得作为完整快照发布; 异常或空列表保留原维表 |
+| `get_instrument_metadata` | 可选补充；异常隔离并记录日志，有效目录和旧元数据仍可发布；首次缺字段保持未知，默认新股/市值过滤不放行 |
 | `get_daily` / `get_adj_factors` / `get_financials` | 异常由上层同步流程捕获记录; 无数据返回空 DataFrame |
 | `iter_daily` | 可选; 每批必须符合 `get_daily` 契约。流正常结束后才提交 staging; 未捕获异常会丢弃 staging。provider 内已定义的单标的软失败语义保持不变 |
 

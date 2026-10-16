@@ -218,6 +218,22 @@ def _fetch_instruments_via_provider(asset_type: str = "stock") -> list[dict] | N
                 and not str(item["symbol"]).startswith(("4", "8", "92"))
             ]
         )
+        metadata_fetch = getattr(provider, "get_instrument_metadata", None)
+        if asset_type == "stock" and rows and callable(metadata_fetch):
+            try:
+                metadata = metadata_fetch([row["symbol"] for row in rows])
+                if isinstance(metadata, pl.DataFrame):
+                    metadata = metadata.to_dicts()
+                by_symbol = {item["symbol"]: item for item in (metadata or [])}
+                for row in rows:
+                    extra = by_symbol.get(row["symbol"], {})
+                    for field in _PERSISTENT_METADATA:
+                        value = _metadata_value(field, extra.get(field))
+                        if value is not None:
+                            row[field] = value
+            except Exception as exc:
+                # Keep catalog availability and previously observed metadata.
+                logger.warning("provider %s metadata enrichment failed: %s", provider_name, exc)
     except Exception as e:  # noqa: BLE001
         logger.warning("provider %s get_instruments 失败: %s", provider_name, e)
         return []

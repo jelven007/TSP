@@ -389,6 +389,22 @@ class RustdxProvider:
                 self._instrument_cache_date = today
         return deepcopy(rows)
 
+    def get_instrument_metadata(self, symbols: list[str]) -> list[dict]:
+        """Explicit daily enrichment; catalog/name lookups stay inexpensive."""
+        selected = list(dict.fromkeys(
+            symbol for symbol in symbols if current_a_share_identity(symbol) is not None
+        ))
+        rows = []
+        for snapshot in self._snapshot_rows(selected):
+            listing_date = _as_date(snapshot.get("ipo_date"))
+            rows.append({
+                "symbol": snapshot["symbol"],
+                "listing_date": listing_date.isoformat() if listing_date else None,
+                "total_shares": _to_float(snapshot.get("zongguben"), zero_is_null=True),
+                "float_shares": _to_float(snapshot.get("liutongguben"), zero_is_null=True),
+            })
+        return rows
+
     def _name_map(self) -> dict[str, str]:
         return {
             row["symbol"]: row["name"]
