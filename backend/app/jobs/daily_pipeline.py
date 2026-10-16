@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import date as _date, datetime as _dt, timedelta as _td
+from datetime import date as _date
+from datetime import datetime as _dt
+from datetime import timedelta as _td
 from pathlib import Path
 
 import polars as pl
@@ -28,7 +30,6 @@ from app.market_time import cn_now, cn_today
 from app.services import index_sync, instrument_sync, kline_sync
 from app.services import preferences as _prefs
 from app.tickflow.capabilities import Cap, CapabilitySet
-from app.tickflow.pools import DEMO_SYMBOLS, get_pool
 from app.tickflow.repository import KlineRepository
 
 logger = logging.getLogger(__name__)
@@ -141,39 +142,19 @@ def _invalidate(table: str | None = None) -> None:
 
 
 def _resolve_universe(capset: CapabilitySet, repo=None) -> list[str]:
-    """解析标的池 — 以沪深 A 股目录为主。
+    """Resolve the stock universe from the persisted four-board snapshot only.
 
-    有 batch 能力 → 直接拉 CN_Equity_A universe
-    其他用户 → 用 instruments parquet + watchlist 兜底
-
-    repo 传入时过滤自选兜底里的指数 symbol (指数日K走独立 kline_index_* 存储,
-    进股票池会污染 kline_daily/kline_minute)。ETF 刻意保留 (既有行为)。
+    ``capset`` remains in the signature because callers share this resolver,
+    but provider capabilities must not change the authoritative stock pool.
     """
-    if capset.has(Cap.KLINE_DAILY_BATCH):
-        try:
-            all_a = get_pool("CN_Equity_A", refresh=True)
-            if all_a:
-                return sorted(all_a)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("CN_Equity_A pool unavailable, fallback: %s", e)
-
-    # Free 用户兜底: instruments parquet + watchlist + demo
-    base: set[str] = set(DEMO_SYMBOLS)
-    base.update(get_pool("watchlist"))
-    d = Path(settings.data_dir)
-    inst_path = d / "instruments" / "instruments.parquet"
-    if inst_path.exists():
-        try:
-            inst = pl.read_parquet(inst_path, columns=["symbol"])
-            base.update(inst["symbol"].to_list())
-        except Exception as e:  # noqa: BLE001
-            logger.warning("instruments supplement failed: %s", e)
-    # 过滤自选兜底里的指数 symbol (指数日K走独立 kline_index_* 存储,
-    # 进股票池会污染 kline_daily/kline_minute)。ETF 刻意保留 (既有行为)。
-    if repo is not None:
-        base -= set(repo.get_index_symbol_set())
-    from app.market_scope import removed_market_symbol
-    return sorted(s for s in base if not removed_market_symbol(s))
+    del capset
+    data_dir = repo.store.data_dir if repo is not None else Path(settings.data_dir)
+    return list(
+        instrument_sync.load_current_stock_pool(
+            data_dir,
+            require_complete=True,
+        ).symbols
+    )
 
 
 def run_instruments_sync(repo: KlineRepository) -> dict:
@@ -183,6 +164,10 @@ def run_instruments_sync(repo: KlineRepository) -> dict:
     确保跨天后连板梯队/选股等读到的是基于最新维表的数据 (而非前一交易日残留)。
     """
     rows = instrument_sync.sync_instruments(repo.store.data_dir)
+    snapshot = instrument_sync.load_current_stock_pool(
+        repo.store.data_dir,
+        require_complete=True,
+    )
     _refresh_instruments_view(repo)
     _invalidate("instruments")
     # 维表更新后重建 enriched 缓存 (clear + refresh, 与设置页「清理并刷新」同等效果)
@@ -197,7 +182,11 @@ def run_instruments_sync(repo: KlineRepository) -> dict:
         write_lock=getattr(repo, "_write_lock", None),
     )
     return {
-        "instruments_rows": rows,
+        "instruments_rows": len(snapshot.symbols),
+        "instruments_refreshed": rows > 0,
+        "instruments_as_of": snapshot.as_of.isoformat() if snapshot.as_of else None,
+        "instruments_source": snapshot.source,
+        "instruments_boards": list(snapshot.boards),
         "data_release_id": release["release_id"],
     }
 
@@ -227,11 +216,20 @@ def run_now(
     inst_rows = instrument_sync.sync_instruments(repo.store.data_dir)
     if inst_rows > 0:
         _refresh_instruments_view(repo)
-    emit("sync_instruments", 8, f"个股维表同步完成,{inst_rows} 只标的")
+    snapshot = instrument_sync.load_current_stock_pool(
+        repo.store.data_dir,
+        require_complete=True,
+    )
+    snapshot_state = "已刷新" if inst_rows > 0 else "沿用最近有效快照"
+    emit(
+        "sync_instruments",
+        8,
+        f"个股维表{snapshot_state},{len(snapshot.symbols)} 只标的",
+    )
     _invalidate("instruments")
 
     emit("resolve_universe", 9, "解析标的池…")
-    universe = _resolve_universe(capset, repo)
+    universe = list(snapshot.symbols)
     emit("resolve_universe", 10, f"标的池规模:{len(universe)} 只")
 
     # Step 1: 日 K 同步
@@ -718,8 +716,8 @@ def run_now(
     else:
         try:
             emit("compute_regime", 90, "计算市场环境…")
-            from app.services import regime_builder
             from app.api.regime import invalidate_regime_cache
+            from app.services import regime_builder
             new_regime = regime_builder.compute_regime_incremental(repo, repo.store.data_dir)
             regime_days = new_regime.height if not new_regime.is_empty() else 0
             if regime_days:
@@ -814,6 +812,10 @@ def run_now(
 
     result = {
         "universe_size": len(universe),
+        "universe_as_of": snapshot.as_of.isoformat() if snapshot.as_of else None,
+        "universe_source": snapshot.source,
+        "universe_boards": list(snapshot.boards),
+        "universe_refreshed": inst_rows > 0,
         "daily_days": new_daily_days,
         "adj_factor_symbols": len(affected_symbols),
         "enriched_days": written_enriched,
@@ -966,7 +968,13 @@ def _run_tracked(fn, job_label: str) -> bool:
     重任务执行槽: 再挡一层僵尸并发(reap 后线程仍活时不得并行写 parquet)。
     返回 True 仅表示任务已成功并且执行槽已释放。
     """
-    from app.services.pipeline_jobs import JobCancelledError, job_store, release_run_slot, run_with_capacity, try_acquire_run_slot
+    from app.services.pipeline_jobs import (
+        JobCancelledError,
+        job_store,
+        release_run_slot,
+        run_with_capacity,
+        try_acquire_run_slot,
+    )
 
     job_id, is_new = job_store.create(kind=job_label, source="scheduled")
     if not is_new:
@@ -1052,8 +1060,8 @@ async def _run_scheduled_review(repo) -> None:
     if settings.service_role == "platform" or not _scheduled_day_allowed("review"):
         return
     try:
-        from app.services import market_recap_reports
         from app import secrets_store as ss
+        from app.services import market_recap_reports
 
         # AI Key 未配置时跳过(避免每日报错刷日志)
         if not ss.get_ai_key():
@@ -1118,6 +1126,7 @@ async def _stream_review_with_retry(repo, quote_service, depth_service) -> tuple
     """
     import asyncio
     import json
+
     from app.services.market_recap import recap_market_stream
 
     max_attempts = 3  # 初次 + 2 次重试

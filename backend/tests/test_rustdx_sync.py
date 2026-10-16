@@ -31,7 +31,11 @@ def selected(monkeypatch):
 def test_instrument_failure_does_not_fall_back_or_overwrite(tmp_path, selected, monkeypatch):
     target = tmp_path / "instruments" / "instruments.parquet"
     target.parent.mkdir()
-    pl.DataFrame({"symbol": ["600519.SH"], "name": ["贵州茅台"]}).write_parquet(target)
+    pl.DataFrame({
+        "symbol": ["600519.SH"],
+        "name": ["贵州茅台"],
+        "as_of": [date(2026, 10, 15)],
+    }).write_parquet(target)
     before = target.read_bytes()
 
     def fail(_asset_type):
@@ -40,6 +44,9 @@ def test_instrument_failure_does_not_fall_back_or_overwrite(tmp_path, selected, 
     monkeypatch.setattr(selected, "get_instruments", fail)
     assert instrument_sync.sync_instruments(tmp_path) == 0
     assert target.read_bytes() == before
+    snapshot = instrument_sync.load_current_stock_pool(tmp_path)
+    assert snapshot.symbols == ("600519.SH",)
+    assert snapshot.as_of == date(2026, 10, 15)
 
 
 def test_index_and_etf_catalogs_follow_daily_provider(tmp_path, selected, monkeypatch):

@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
-SH_A_SHARE_PREFIXES = ("600", "601", "603", "605", "688", "689")
-SZ_A_SHARE_PREFIXES = ("000", "001", "002", "003", "300", "301")
+SH_MAIN_BOARD_PREFIXES = ("600", "601", "603", "605")
+SZ_MAIN_BOARD_PREFIXES = ("000", "001", "002", "003")
+CHINEXT_PREFIXES = ("300", "301")
+STAR_MARKET_PREFIXES = ("688", "689")
+
+SH_A_SHARE_PREFIXES = SH_MAIN_BOARD_PREFIXES + STAR_MARKET_PREFIXES
+SZ_A_SHARE_PREFIXES = SZ_MAIN_BOARD_PREFIXES + CHINEXT_PREFIXES
+
+CURRENT_A_SHARE_BOARDS = ("沪主板", "深主板", "创业板", "科创板")
 
 
 def normalize_instrument_name(value: object) -> str:
@@ -80,3 +87,27 @@ def is_current_a_share(
         code=code,
         exchange=exchange,
     ) is not None
+
+
+def current_a_share_board(
+    symbol: object = None,
+    *,
+    code: object = None,
+    exchange: object = None,
+) -> str | None:
+    """Return the supported board for one normalized current A-share."""
+    identity = current_a_share_identity(symbol, code=code, exchange=exchange)
+    if identity is None:
+        return None
+    _, normalized_code, normalized_exchange = identity
+    if normalized_exchange == "SH":
+        return (
+            "科创板"
+            if normalized_code.startswith(STAR_MARKET_PREFIXES)
+            else "沪主板"
+        )
+    return (
+        "创业板"
+        if normalized_code.startswith(CHINEXT_PREFIXES)
+        else "深主板"
+    )

@@ -194,6 +194,16 @@ def test_pruned_interior_date_is_rebuilt_without_new_daily_or_factors(tmp_path, 
         "minute_sync_enabled": False, "adj_factor_provider": "tickflow",
     })
     monkeypatch.setattr(daily_pipeline.instrument_sync, "sync_instruments", lambda *_: 0)
+    monkeypatch.setattr(
+        daily_pipeline.instrument_sync,
+        "load_current_stock_pool",
+        lambda *_, **__: SimpleNamespace(
+            symbols=(),
+            as_of=date.fromisoformat(dates[-1]),
+            source="test",
+            boards=(),
+        ),
+    )
     monkeypatch.setattr(daily_pipeline, "_resolve_universe", lambda *_: [])
     monkeypatch.setattr(daily_pipeline, "_invalidate", lambda *_: None)
     monkeypatch.setattr(daily_pipeline, "_refresh_single_view", lambda *_: None)

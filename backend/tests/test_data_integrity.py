@@ -670,6 +670,16 @@ def test_pipeline_self_heals_snapshot_day(tmp_path, monkeypatch):
 
     # 网络函数离线化: 维表同步 + 日K batch 拉取(记录参数)
     monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir: 0)
+    monkeypatch.setattr(
+        instrument_sync,
+        "load_current_stock_pool",
+        lambda data_dir, **kwargs: SimpleNamespace(
+            symbols=("600001.SH",),
+            as_of=yesterday,
+            source="test",
+            boards=("沪主板",),
+        ),
+    )
     batch_calls: list[dict] = []
 
     def _fake_batch(universe, repo, capset, start_date=None, end_date=None, on_chunk_done=None):
@@ -718,6 +728,16 @@ def test_pipeline_override_repairs_etf_from_requested_start(tmp_path, monkeypatc
     _write_full_partition(tmp_path, "kline_etf_enriched", today, None)
 
     monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir: 0)
+    monkeypatch.setattr(
+        instrument_sync,
+        "load_current_stock_pool",
+        lambda data_dir, **kwargs: SimpleNamespace(
+            symbols=("600001.SH",),
+            as_of=repair_day,
+            source="test",
+            boards=("沪主板",),
+        ),
+    )
     monkeypatch.setattr(daily_pipeline, "_resolve_universe", lambda capset, repo=None: ["600001.SH"])
     monkeypatch.setattr(kline_sync, "sync_and_persist_daily_batch", lambda *args, **kwargs: 0)
     monkeypatch.setattr(app_settings, "data_dir", tmp_path)
