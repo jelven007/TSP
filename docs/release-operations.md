@@ -33,6 +33,10 @@
 
 ## 3. 版本规则
 
+版本状态按[版本基线](./version-baseline.md)分为应用语义版本、Git 提交、稳定标签、
+生产部署和开源观察对象。发布记录必须同时写语义版本与完整 commit SHA；生产状态
+还必须写 schema 和镜像 digest。禁止用“当前版本”代替这些字段。
+
 主应用版本的发布权威输入是 `frontend/package.json`，同时保持以下位置一致：
 
 - `frontend/package.json`
@@ -46,12 +50,15 @@
 版本升级至少检查：
 
 ```bash
-rg -n '0\.3\.3|version' \
+rg -n '0\.3\.11|version' \
   VERSION frontend/package.json backend/pyproject.toml backend/app/__init__.py
 ```
 
 命令中的版本号替换为本次目标值。README、操作说明书和需求基线中的适用版本也要
 同步，但不应通过无差别全仓替换修改历史验证记录。
+
+`shy3130/tick-stock-panel` 是独立开源观察对象，不参与本仓库应用版本计算、
+`latest.json`、稳定标签或生产部署判定。
 
 ## 4. 角色与职责
 

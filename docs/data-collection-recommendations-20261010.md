@@ -246,7 +246,8 @@ rustdx `get_realtime()` 当前自行合并 stock、ETF 目录，未按调用方�
 - `backend/app/services/ext_presets.py`、`ext_pull.py`：显式扩展配置与刷新。
 - `backend/app/plugins/rustdx/client.py`、`backend/native/rustdx_native/src/lib.rs`：共享池、原生能力及连接限制。
 - `backend/native/rustdx_native/Cargo.toml`：当前上游来源与锁定 revision。
-- [完整压测报告](../data/research/rustdx-quotes-full-20261010T2140/report.md)、[原始结果](../data/research/rustdx-quotes-full-20261010T2140/results.json)。
+- 完整压测报告与原始结果保存在未纳入 Git 的运行时归档
+  `data/research/rustdx-quotes-full-20261010T2140/`；仓库文档不提供失效链接。
 - [当前 rustdx 技术方案](rustdx-data-source.md)。
 
 ## 11. 2026-10-11 首批实施记录

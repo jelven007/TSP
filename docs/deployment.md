@@ -4,6 +4,9 @@
 [配置说明](./configuration.md)，备份与恢复见[运维手册](./operations.md)，
 正式放行见[发布流程](./release-operations.md)。
 
+部署前先核对[版本基线](./version-baseline.md)。`main`、最新 `v*` 标签和当前生产
+可能指向不同提交；所有部署命令必须固定 commit、tag 或镜像 digest。
+
 ## 部署方式
 
 | 方式 | 适用场景 | 认证模式 |
@@ -13,12 +16,15 @@
 | Dev 模式 | 二次开发和本地调试 | 保留邮箱账户认证 |
 | 桌面安装包 | 单机直接使用 | 本地免登录 |
 
-当前完整单机多租户部署使用 `deploy/full/compose.yml`，启用
+`main` 源码候选的完整单机多租户拓扑使用 `deploy/full/compose.yml`，启用
 `MULTITENANCY_ENABLED=true`。保留完整前端与业务引擎，API 默认四进程；
-平台负责唯一行情写入，四类 Worker 分别负责研究、实时监控/模拟盘、通知和调度。
+独立实时网关负责 SSE，平台负责唯一行情写入，四类 Worker 分别负责研究、
+实时监控/模拟盘、通知和调度。
 身份与租户业务持久化到 PostgreSQL v6，公共行情按不可变版本只读共享。
 部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
 已完成的一期发布与 100 用户验收见[实施记录](./phase1-implementation.md)。
+当前生产为 `d06acc1d`/schema v5；`main` 中的实时网关和 schema v6 仍是候选，
+不得直接按源码文档推断生产拓扑。
 
 下方根目录 Compose、Dev 和桌面步骤适用于独立运行模式。
 

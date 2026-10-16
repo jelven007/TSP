@@ -1,7 +1,8 @@
 # 测试与验收指南
 
 本文档定义 TSP 的测试层次、最低门禁和版本验收流程。功能验收依据
-[需求基线](./requirements.md)，工程细则依据[贡献与复审指南](../CONTRIBUTING.md)。
+[需求基线](./requirements.md)，工程细则依据[贡献与复审指南](../CONTRIBUTING.md)，
+被测源码、生产和标签状态依据[版本基线](./version-baseline.md)。
 
 ## 1. 测试目标
 
@@ -132,10 +133,33 @@ pnpm build
 ```bash
 git diff --check
 git status --short
+git branch -vv
 ```
 
 提交前还应检查最终 diff 中是否包含密钥、真实用户数据、绝对路径、调试输出或
 无关生成文件。
+
+版本候选还必须记录完整 commit SHA，并校验四个应用版本输入一致：
+
+```bash
+python3 - <<'PY'
+import json
+import pathlib
+import re
+
+root = pathlib.Path(".")
+frontend = json.loads((root / "frontend/package.json").read_text())["version"]
+backend = re.search(r'^version = "([^"]+)"', (root / "backend/pyproject.toml").read_text(), re.M).group(1)
+fallback = re.search(r'_FALLBACK_VERSION = "([^"]+)"', (root / "backend/app/__init__.py").read_text()).group(1)
+version_file = (root / "VERSION").read_text().strip().removeprefix("v")
+assert len({frontend, backend, fallback, version_file}) == 1
+print(frontend)
+PY
+git rev-parse HEAD
+```
+
+语义版本一致只证明包元数据一致，不证明源码、标签和生产部署相同；验收报告仍须
+记录 commit、schema、产物摘要和环境。
 
 ## 5. 当前 CI 门禁
 
