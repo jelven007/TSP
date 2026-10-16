@@ -1,0 +1,67 @@
+{
+  "ready": {
+    "status": "ok",
+    "ready": true,
+    "checked_at": "2026-10-15T12:36:57.399566+00:00",
+    "checks": {
+      "databases": {
+        "status": "ok"
+      },
+      "research_worker": {
+        "status": "ok"
+      },
+      "realtime_worker": {
+        "status": "ok"
+      },
+      "notifications_worker": {
+        "status": "ok"
+      },
+      "scheduled_worker": {
+        "status": "ok"
+      },
+      "public_files": {
+        "status": "ok",
+        "release_id": "657f854836a141078b8e4e80c575c671"
+      },
+      "platform": {
+        "status": "ok",
+        "connected": true
+      },
+      "indicator_cache": {
+        "status": "ok"
+      },
+      "compute_broker": {
+        "status": "ok"
+      }
+    },
+    "version": "0.3.11",
+    "mode": "none"
+  },
+  "containers": {
+    "platform": {
+      "container_id": "8384f847bf618fdf23c80e069b59c9ea332c8bee60ce54c2f14827c6aa0b6372",
+      "image": "sha256:e6b05afebcd1f3fd8301ed0cf6020bcb5783c382e32a49c69f8d0386c4048400"
+    },
+    "api": {
+      "container_id": "7a6c85bad360b99be9cf4012382d30ab4633fbff6dda117cf38e4463a9c4655f",
+      "image": "sha256:5effa7cf27a610aac65640828f8313ddc5e4eda3a53ac0b8a868966c81967ef2"
+    },
+    "research": {
+      "container_id": "d2496e6ffc9a480a5e81521cf22ad07aab6dc3db69b71d06ef0113854ab02755",
+      "image": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6"
+    },
+    "realtime": {
+      "container_id": "1b6b718e5987e6eb9fc7e5dbfa3d993542087c82cd2924c1c28c4da9ecb30181",
+      "image": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6"
+    },
+    "notifications": {
+      "container_id": "893d2e938046a614cf476f9b63f91240f0ef33d7eafd6d10a1405437a873ef0f",
+      "image": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6"
+    },
+    "scheduled": {
+      "container_id": "b3a8491d0778c34283bbcdf3d558e15672924d1a2e43dcf250422b24e10bfa78",
+      "image": "sha256:20e44fe2f0f1cc1904f5e9514f83915ac8ecaecaf2f9f1f713de4766b48144b6"
+    }
+  },
+  "validated_at": 1792067817.783455
+}

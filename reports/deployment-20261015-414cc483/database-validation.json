@@ -1,0 +1,28 @@
+[
+  {
+    "kind": "control",
+    "database": "tsp_full_candidate_control",
+    "schema_version": 5,
+    "bytes": 46671,
+    "sha256": "15b231146525000fadf763f91a0715ebba60475e81f70dee81298b17e1abc9b8",
+    "restore_verification": {
+      "database": "tsp_restore_control_92067825",
+      "schema_version": 5,
+      "table_count": 20,
+      "restored": true
+    }
+  },
+  {
+    "kind": "data",
+    "database": "tsp_full_candidate_data",
+    "schema_version": 5,
+    "bytes": 173725,
+    "sha256": "f7c4554b7995dd4dbebf837bc60f0c625f78ab77031047748cb8f3bf1fa8e0fc",
+    "restore_verification": {
+      "database": "tsp_restore_data_92067826",
+      "schema_version": 5,
+      "table_count": 34,
+      "restored": true
+    }
+  }
+]

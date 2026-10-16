@@ -1,0 +1,48 @@
+{
+  "release": "/opt/tsp-full/release-414cc483",
+  "compose": "/opt/tsp-full/release-414cc483/deploy/full/compose.yml",
+  "compose_overrides": [],
+  "runtime_images": {
+    "platform": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+    "api": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+    "research": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+    "realtime": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+    "notifications": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e",
+    "scheduled": "sha256:8ddc0f4ad866985b2038d83bf30f961209cd692f460f17f5ce406a83d92f2c6e"
+  },
+  "compute_image": "sha256:8e2b94f16f52563ab64f49212a12391086601d29222046088e196f6bcc0c2720",
+  "postgres_user": "tsp_admin",
+  "databases": [
+    "tsp_full_candidate_control",
+    "tsp_full_candidate_data"
+  ],
+  "state": {
+    "workers": [
+      {
+        "kind": "realtime",
+        "owner": "3f1a3b090c7a4ea2afcdd9b76116458b",
+        "healthy": true
+      },
+      {
+        "kind": "notifications",
+        "owner": "2ab390730691403da48a09e13964c918",
+        "healthy": true
+      },
+      {
+        "kind": "research",
+        "owner": "b5e340e66d3146d2a0714f9360fe806c",
+        "healthy": true
+      },
+      {
+        "kind": "scheduled",
+        "owner": "964ba7da420a487996aa76e4eb5c3237",
+        "healthy": true
+      }
+    ],
+    "counts": {
+      "users": 3,
+      "tenants": 2,
+      "memberships": 2
+    }
+  }
+}

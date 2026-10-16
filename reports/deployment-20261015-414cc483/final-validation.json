@@ -1,0 +1,73 @@
+{
+  "commit": "414cc48379cd6ecdb664d373b22d37dcdac5b29a",
+  "api_ready": {
+    "status": "ok",
+    "ready": true,
+    "checked_at": "2026-10-15T12:37:25.764795+00:00",
+    "checks": {
+      "databases": {
+        "status": "ok"
+      },
+      "research_worker": {
+        "status": "ok"
+      },
+      "realtime_worker": {
+        "status": "ok"
+      },
+      "notifications_worker": {
+        "status": "ok"
+      },
+      "scheduled_worker": {
+        "status": "ok"
+      },
+      "public_files": {
+        "status": "ok",
+        "release_id": "657f854836a141078b8e4e80c575c671"
+      },
+      "platform": {
+        "status": "ok",
+        "connected": true
+      },
+      "indicator_cache": {
+        "status": "ok"
+      },
+      "compute_broker": {
+        "status": "ok"
+      }
+    },
+    "version": "0.3.11",
+    "mode": "none"
+  },
+  "identities_preserved": true,
+  "identity_counts": {
+    "users": 3,
+    "tenants": 2,
+    "memberships": 2
+  },
+  "workers": [
+    {
+      "kind": "research",
+      "owner": "b5e340e66d3146d2a0714f9360fe806c",
+      "healthy": true
+    },
+    {
+      "kind": "notifications",
+      "owner": "2ab390730691403da48a09e13964c918",
+      "healthy": true
+    },
+    {
+      "kind": "realtime",
+      "owner": "3f1a3b090c7a4ea2afcdd9b76116458b",
+      "healthy": true
+    },
+    {
+      "kind": "scheduled",
+      "owner": "964ba7da420a487996aa76e4eb5c3237",
+      "healthy": true
+    }
+  ],
+  "runtime_images_unified": true,
+  "api_edge_alias": true,
+  "nginx_config": "valid",
+  "validated_at": 1792067846.8907547
+}

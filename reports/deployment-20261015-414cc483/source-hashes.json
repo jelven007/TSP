@@ -1,0 +1,10 @@
+{
+  "COMMIT_SHA": "ef288520f42052c14216d2149ba3a03b20c621debfbed7814218326af8c57008",
+  "deploy/full/compose.yml": "28922f4eccfc253e73aa213247d169677b88163d7160f150ef0b98116c39bbec",
+  "deploy/full/tsp-compute-broker.service": "6bfc941772ace312668e91bcf0c643de4e8a4e7f7e97e705354e1a0f72440ddf",
+  "backend/app/api/paper.py": "cf5a857dc4848c3d026096075f51acccc010e2361975c6d560d57ebdac936fb9",
+  "backend/app/strategy/paper.py": "a0b0736cda31e3ff4e629d6cfd7a41f6ee0a79c87293221da4a0bd112e082632",
+  "backend/app/strategy/paper_auto.py": "99699053bdc61f01c9533702951dc0d0c5b01e93552c42874099747476254b74",
+  "backend/app/plugins/rustdx/provider.py": "b53c06c63654179d0ba8598099bb1dee333cba5071833e377d8f71280047f578",
+  "frontend/src/pages/Paper.tsx": "0cef87782a65c98a0d049b56da61fb26a777d08d14ca4867bfd327fb4b19a088"
+}
