@@ -47,15 +47,21 @@
 桌面发布输入使用带 `v` 前缀的版本，例如 `v0.4.0`。workflow 会校验它与
 `frontend/package.json` 一致，不一致时失败。
 
-版本升级至少检查：
+主线应用版本统一采用 `a.b.cd`，其中 `a=0..9`、`b=0..9`、`cd=0..99`，当前默认
+为 `0.4.0`。每次推进主线版本时，`cd` 加一；`cd=99` 后 `b` 加一且 `cd=0`；
+`b=9` 且 `cd=99` 后 `a` 加一并将后两段归零。版本推进示例：
+`0.4.98 → 0.4.99 → 0.5.0 → 1.0.0`。达到 `9.9.99` 后停止并要求重新制定规则。
+
+CI 会校验当前版本格式；如果当前版本与目标主线的上一版本不同，还会要求它是
+精确后继。普通不涉及版本推进的提交可以保持版本不变。统一检查命令：
 
 ```bash
-rg -n '0\.4\.0|version' \
-  VERSION frontend/package.json backend/pyproject.toml backend/app/__init__.py
+python3 scripts/check_version.py --current VERSION
+python3 scripts/check_version.py --current VERSION --previous <上一主线 VERSION 内容>
 ```
 
-命令中的版本号替换为本次目标值。README、操作说明书和需求基线中的适用版本也要
-同步，但不应通过无差别全仓替换修改历史验证记录。
+版本变化时，README、操作说明书、需求基线和版本基线中的适用版本也要同步，但不应
+通过无差别全仓替换修改历史验证记录。
 
 `shy3130/tick-stock-panel` 是独立开源观察对象，不参与本仓库应用版本计算、
 `latest.json`、稳定标签或生产部署判定。
