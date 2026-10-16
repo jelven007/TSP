@@ -55,8 +55,8 @@ def test_progression_requires_exact_successor() -> None:
     ("current", "expected_success"),
     [("0.4.0", False), ("0.4.1", True), ("0.4.2", False), ("0.3.99", False)],
 )
-def test_mainline_check_requires_increment(tmp_path, current, expected_success):
-    """Exercise the same CLI used by CI, including the unchanged-version bug."""
+def test_explicit_progression_check_requires_increment(tmp_path, current, expected_success):
+    """The optional progression audit still requires an exact successor."""
     (tmp_path / "frontend").mkdir()
     (tmp_path / "backend" / "app").mkdir(parents=True)
     (tmp_path / "VERSION").write_text(f"v{current}\n", encoding="utf-8")

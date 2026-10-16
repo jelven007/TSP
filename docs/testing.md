@@ -190,14 +190,16 @@ git rev-parse HEAD
 
 ```bash
 python3 scripts/check_version.py --current VERSION
-python3 scripts/check_version.py --current VERSION --previous <更新前主线 VERSION 内容>
 cd backend
-uv run --frozen pytest ../scripts/test_versioning.py tests/test_version_source.py -q
+uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
 ```
 
-覆盖格式范围、`cd` 溢出进位、`b`/`a` 进位，以及 CI 使用的 CLI 对版本不变、
-跳号和倒退的拒绝。提供 `--previous` 时，每次主线更新都必须是精确后继；
-不提供时只检查格式和事实源一致性，不代表主线递增检查通过。
+本地与 PR 允许版本不变，只校验格式和事实源一致性。`check_version.py --previous`
+保留为显式的相邻版本审计工具，要求精确后继，不用于本地或 PR 的日常门禁。
+测试覆盖格式范围、进位和上限、全部当前版本文件同步、历史报告及依赖版本保留、
+非法输入不写文件，并使用临时 bare Git 仓库验证远程合并后递增、重跑去重、并发
+冲突重试、权限拒绝和未推送提交的保护。workflow 测试还验证质量门与镜像构建使用
+同一 SHA，以及版本 artifact 缺失或非法时停止构建。
 
 ## 5. 当前 CI 门禁
 
@@ -205,9 +207,13 @@ uv run --frozen pytest ../scripts/test_versioning.py tests/test_version_source.p
 
 | Job | 环境 | 命令 |
 | --- | --- | --- |
-| Version | Ubuntu、Python 3 | `check_version.py --previous`；push 对比更新前的主线，PR 对比目标主线基线；缺失基线失败 |
+| Version | Ubuntu、Python 3 | PR 运行 `check_version.py`；远程 `main` push 运行 `advance_version.py` 自动递增并输出实际待测 SHA |
 | Backend | Ubuntu、Python 3.12 | `uv sync --extra dev --frozen`；`uv run pytest tests -q` |
 | Frontend | Ubuntu、Node 20、pnpm 9 | `pnpm test`；`pnpm lint`；`pnpm build` |
+
+Backend 和 Frontend 均依赖 Version，检出其输出的 SHA。每个主线 push 保留独立
+运行，PR 可取消旧检查。自动版本提交使用 `GITHUB_TOKEN`，不触发递归 CI；
+版本写回失败会阻止后续质量门，质量门失败不会撤销已分配的版本。
 
 后端全量测试包含 Tier A OpenAPI 契约门禁，检查：
 
@@ -220,9 +226,10 @@ uv run --frozen pytest ../scripts/test_versioning.py tests/test_version_source.p
 JSON 注入处理函数未返回的缺省字段。快照失败时必须确认兼容性影响，再同步更新
 指纹、测试和开放平台文档。
 
-`.github/workflows/docker.yml` 的 `main` 构建只接受成功的 CI `workflow_run`；
-tag 和手动构建会在 workflow 内重新运行同等的后端与前端质量门。镜像依赖安装
-使用 frozen lockfile，锁文件漂移直接失败。
+`.github/workflows/docker.yml` 的 `main` 构建只接受主线 push 的成功 CI
+`workflow_run`，从该次运行的 `ci-revision` artifact 读取实际通过测试的 SHA，
+不使用触发 CI 时尚未加号的 `head_sha`。tag 和手动构建会在 workflow 内重新运行
+同等的后端与前端质量门。镜像依赖安装使用 frozen lockfile，锁文件漂移直接失败。
 
 `.github/workflows/release.yml` 的手动桌面发版也有独立质量门：后端执行 frozen
 依赖安装和全量 pytest，前端执行 frozen 安装、Vitest、ESLint 与生产构建。只有
