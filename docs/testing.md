@@ -34,7 +34,7 @@ Node 20、pnpm 9。首次准备：
 
 ```bash
 cd backend
-uv sync --extra dev --frozen
+uv sync --extra dev --extra cell --frozen
 uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
 cd ../frontend
@@ -208,7 +208,7 @@ uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_a
 | Job | 环境 | 命令 |
 | --- | --- | --- |
 | Version | Ubuntu、Python 3 | PR 运行 `check_version.py`；远程 `main` push 运行 `advance_version.py` 自动递增并输出实际待测 SHA |
-| Backend | Ubuntu、Python 3.12 | `uv sync --extra dev --frozen`；`uv run pytest tests -q` |
+| Backend | Ubuntu、Python 3.12 | `uv sync --extra dev --extra cell --frozen`；`uv run pytest tests -q` |
 | Frontend | Ubuntu、Node 20、pnpm 9 | `pnpm test`；`pnpm lint`；`pnpm build` |
 
 Backend 和 Frontend 均依赖 Version，检出其输出的 SHA。每个主线 push 保留独立

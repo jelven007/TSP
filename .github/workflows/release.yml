@@ -101,7 +101,7 @@ jobs:
 
       - name: 安装后端测试依赖
         working-directory: backend
-        run: uv sync --extra dev --frozen
+        run: uv sync --extra dev --extra cell --frozen
 
       - name: 校验默认安装的 rustdx 原生桥接
         working-directory: backend

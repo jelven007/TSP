@@ -33,6 +33,11 @@ Cargo.lock 固定发布包 SHA256：
 桥接和 Python 的来源标识同步为实际发布提交，版本仍为 rustdx 1.12.2 / bridge 0.1.1。
 原生包的 uv 缓存键加入 Cargo 声明、锁文件和 Rust 源码，避免已有环境复用旧桥接。
 
+第二轮 GitHub CI 的依赖安装、桥接检查和六项 Rust 测试已通过；
+全量 Python 测试收集时发现环境未安装 `cell` extra，17 个模块因缺少 `psycopg` 导入失败。
+CI、Docker 和桌面发布的全量测试质量门统一补充 `--extra cell`，
+测试准备文档同步更新，不跳过相关多租户测试。
+
 ## 实际验证
 
 - 全量前端：164 passed；`pnpm lint` 零错误、77 条存量 warning；`pnpm build` 通过。
@@ -45,6 +50,8 @@ Cargo.lock 固定发布包 SHA256：
 - 本次追加修改的 Python 文件：Ruff 原有 11 条、当前 11 条，新增 0 条。
 - `scripts/check_version.py --current VERSION` 通过，应用仍为 0.4.2。
 - `git diff --check` 通过。
+- 三条工作流通过 actionlint；工作流契约测试 9 passed。
+- 隔离环境按修正后的命令安装 `dev + cell`，全量后端收集成功：3368 tests collected。
 
 全量后端及脚本命令（从仓库根目录）：
 
