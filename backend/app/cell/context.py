@@ -40,6 +40,7 @@ class TenantContext:
     routing_epoch: int
     request_id: str
     token_id: str | None = None
+    token_scopes: frozenset[str] | None = None
 
     def require(self, permission: str) -> None:
         if permission not in self.permissions:

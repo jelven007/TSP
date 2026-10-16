@@ -13,7 +13,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as echarts from 'echarts'
-import { Banknote, ChevronDown, ChevronUp, CircleDollarSign, Clock, GitCompare, Info, PieChart, Plus, RefreshCw, Settings, TrendingUp, Wallet, X } from 'lucide-react'
+import { Banknote, ChevronDown, ChevronUp, CircleDollarSign, Clock, Download, GitCompare, Info, PieChart, Plus, RefreshCw, Settings, TrendingUp, Wallet, X } from 'lucide-react'
 import { api, type PaperAutoSkip, type PaperCompareRow, type PaperFill, type PaperOrder, type PaperValuation } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { useQuoteStatus } from '@/lib/useSharedQueries'
@@ -22,6 +22,7 @@ import { fmtPct, priceColorClass } from '@/lib/format'
 import { boardTag } from '@/components/stock-table/primitives'
 import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/Modal'
+import { toast } from '@/components/Toast'
 
 const ORDER_TYPE_LABEL: Record<string, string> = {
   market: '即时',
@@ -46,6 +47,29 @@ const STATUS_LABEL: Record<string, string> = {
 function fmtMoney(v: number | null | undefined, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return '--'
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+}
+
+function downloadTradesCsv(account: string, fills: PaperFill[]) {
+  const esc = (value: string | number | null | undefined) => {
+    const text = value == null ? '' : String(value)
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  }
+  const lines = ['日期,代码,方向,数量,成交价,费用,类型,订单号']
+  for (const fill of fills) {
+    lines.push([
+      fill.date, fill.symbol,
+      fill.kind === 'corp_action' ? '除权' : fill.side === 'buy' ? '买入' : '卖出',
+      fill.qty ?? '', fill.price ?? '', fill.fee ?? '',
+      fill.kind ?? 'fill', fill.order_id ?? '',
+    ].map(esc).join(','))
+  }
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `模拟盘成交台账_${account}_${new Date().toISOString().slice(0, 10)}.csv`
+  anchor.click()
+  URL.revokeObjectURL(url)
 }
 
 /** 账户 id: 字母数字开头短横线/下划线, 与后端校验一致 */
@@ -1780,6 +1804,13 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
     mutationFn: (on: boolean) => api.paperSettings({ queue_limit_orders: on }, acc),
     onSuccess: invalidateAll,
   })
+  const exportTradesM = useMutation({
+    mutationFn: () => api.paperTradesAll(acc),
+    onSuccess: fills => {
+      if (fills.length > 0) downloadTradesCsv(acc, fills)
+    },
+    onError: error => toast(`成交台账导出失败 · ${String((error as Error).message || error)}`, 'error'),
+  })
 
   if (overviewQ.isLoading) {
     return <div className="py-8 text-center text-xs text-muted">加载中…</div>
@@ -1808,37 +1839,11 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
   const holdings = ov.holdings ?? []
   const orders = (ordersQ.data?.orders ?? []).filter(o => o.status === 'pending' || o.status === 'expired' || o.status === 'cancelled').slice(0, 20)
   const trades: PaperFill[] = (tradesQ.data?.fills ?? []).slice(0, 30)
-  const allFills: PaperFill[] = tradesQ.data?.fills ?? []
   const nav = navQ.data?.nav ?? []
   const stats = statsQ.data
   const valuation = ov.valuation
   const autoSkips = autoSkipsQ.data?.skips ?? []
   const pnlPct = ov.initial_cash && ov.initial_cash > 0 ? ((ov.total_pnl ?? 0) / ov.initial_cash) * 100 : 0
-
-  /** 导出全部成交台账 CSV (带 BOM, Excel 可直接打开); 口径与页面「成交台账」一致 */
-  const exportTradesCsv = () => {
-    if (allFills.length === 0) return
-    const esc = (v: string | number | null | undefined) => {
-      const s = v == null ? '' : String(v)
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-    }
-    const lines = ['日期,代码,方向,数量,成交价,费用,类型,订单号']
-    for (const f of allFills) {
-      lines.push([
-        f.date, f.symbol,
-        f.kind === 'corp_action' ? '除权' : f.side === 'buy' ? '买入' : '卖出',
-        f.qty ?? '', f.price ?? '', f.fee ?? '',
-        f.kind ?? 'fill', f.order_id ?? '',
-      ].map(esc).join(','))
-    }
-    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `模拟盘成交台账_${acc}_${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
 
   return (
     <div>
@@ -1942,12 +1947,13 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
                 ))}
                 {tab === 'trades' && (
                   <button
-                    onClick={exportTradesCsv}
-                    disabled={allFills.length === 0}
-                    className="ml-auto rounded-btn border border-border px-2 py-1 text-[10px] text-muted transition-colors hover:border-accent/30 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => exportTradesM.mutate()}
+                    disabled={(tradesQ.data?.total ?? 0) === 0 || exportTradesM.isPending}
+                    className="ml-auto inline-flex items-center gap-1 rounded-btn border border-border px-2 py-1 text-[10px] text-muted transition-colors hover:border-accent/30 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
                     title="导出全部成交台账 (CSV, Excel 可直接打开)"
                   >
-                    导出 CSV
+                    <Download className="h-3 w-3" />
+                    {exportTradesM.isPending ? '导出中' : '导出 CSV'}
                   </button>
                 )}
                 {stats && (
@@ -2040,7 +2046,7 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
                 : null,
               max_drawdown: stats?.max_drawdown ?? null,
               win_rate: stats?.win_rate ?? null,
-              n_trades: allFills.filter(f => f.kind !== 'corp_action').length,
+              n_trades: tradesQ.data?.execution_total ?? 0,
               profit_loss_ratio: stats?.profit_loss_ratio ?? null,
             }} />
             <div className="rounded-card border border-border/60 bg-base/40 p-3 text-[11px] leading-relaxed text-muted">

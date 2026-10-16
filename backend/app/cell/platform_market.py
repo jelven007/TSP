@@ -1,5 +1,6 @@
 """Internal read facade over the existing standardized repository/quote service."""
 
+import asyncio
 import math
 import os
 import re
@@ -11,6 +12,7 @@ from functools import wraps
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
+from sse_starlette.sse import EventSourceResponse
 
 from app.cell.context import SYMBOL_PATTERN
 
@@ -213,3 +215,31 @@ def full_snapshot(request: Request, authorization: Annotated[str | None, Header(
             }
     state.full_public_snapshot = (time.monotonic(), value)
     return value
+
+
+@router.get("/events")
+async def market_events(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+):
+    """Lightweight update markers for the realtime gateway; no market frames."""
+    _authorize(authorization)
+    service = getattr(request.app.state, "quote_service", None)
+    if service is None:
+        raise HTTPException(503, "market_unavailable")
+
+    async def generate():
+        subscriber = service.subscribe()
+        try:
+            while True:
+                await asyncio.to_thread(subscriber.wait, 5)
+                data = subscriber.pop()
+                timestamp = int(time.time() * 1000)
+                if data["quote_updated"]:
+                    yield {"event": "quotes_updated", "data": f'{{"ts":{timestamp}}}'}
+                if data["depth_updated"]:
+                    yield {"event": "depth_updated", "data": f'{{"ts":{timestamp}}}'}
+        finally:
+            service.unsubscribe(subscriber)
+
+    return EventSourceResponse(generate())

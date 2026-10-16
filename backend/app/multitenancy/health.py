@@ -49,10 +49,18 @@ def readiness(state, data_dir):
         checks["public_files"] = {"status": "error"}
     quotes = getattr(state, "quote_service", None)
     snapshot = getattr(quotes, "snapshot", None)
-    connected = bool(snapshot and time.monotonic() - quotes.received_at <= 15)
+    bridge = quotes.bridge_status() if quotes and hasattr(quotes, "bridge_status") else {}
+    connected = bool(
+        snapshot
+        and (
+            bridge.get("connected")
+            or time.monotonic() - quotes.received_at <= 15
+        )
+    )
     checks["platform"] = {
         "status": "ok" if connected and snapshot.get("platform_ready") else "error",
         "connected": connected,
+        **bridge,
     }
     checks["indicator_cache"] = {"status": "ok" if getattr(state, "indicators_ready", False) else "error"}
     try:

@@ -4119,22 +4119,65 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  paperOrders: (status?: string, account?: string) => {
+  paperOrders: (status?: string, account?: string, cursor?: string, limit = 100) => {
     const p = new URLSearchParams()
     if (status) p.set('status', status)
     if (account) p.set('account', account)
+    if (cursor) p.set('cursor', cursor)
+    p.set('limit', String(limit))
     const q = p.toString()
-    return request<{ orders: PaperOrder[] }>(`/api/paper/orders${q ? `?${q}` : ''}`)
+    return request<{ orders: PaperOrder[]; total: number; next_cursor: string | null }>(`/api/paper/orders${q ? `?${q}` : ''}`)
   },
 
   paperOrderCancel: (id: string, account?: string) =>
     request<{ order: PaperOrder }>(accUrl(`/api/paper/orders/${encodeURIComponent(id)}`, account), { method: 'DELETE' }),
 
-  paperTrades: (account?: string) =>
-    request<{ fills: PaperFill[] }>(accUrl('/api/paper/trades', account)),
+  paperTrades: (account?: string, cursor?: string, limit = 100) => {
+    const p = new URLSearchParams({ limit: String(limit) })
+    if (account) p.set('account', account)
+    if (cursor) p.set('cursor', cursor)
+    return request<{
+      fills: PaperFill[]
+      total: number
+      execution_total: number
+      next_cursor: string | null
+    }>(`/api/paper/trades?${p}`)
+  },
 
-  paperNav: (account?: string) =>
-    request<{ nav: Array<{ date: string; cash: number; mv: number; nav: number }> }>(accUrl('/api/paper/nav', account)),
+  paperTradesAll: async (account?: string) => {
+    const fills: PaperFill[] = []
+    const seen = new Set<string>()
+    let cursor: string | undefined
+    do {
+      const p = new URLSearchParams({ limit: '500' })
+      if (account) p.set('account', account)
+      if (cursor) p.set('cursor', cursor)
+      const page = await request<{
+        fills: PaperFill[]
+        total: number
+        execution_total: number
+        next_cursor: string | null
+      }>(`/api/paper/trades?${p}`)
+      fills.push(...page.fills)
+      cursor = page.next_cursor ?? undefined
+      if (cursor) {
+        if (seen.has(cursor)) throw new Error('成交分页游标重复')
+        seen.add(cursor)
+      }
+    } while (cursor)
+    return fills
+  },
+
+  paperNav: (account?: string, cursor?: string, limit = 500) => {
+    const p = new URLSearchParams({ limit: String(limit) })
+    if (account) p.set('account', account)
+    if (cursor) p.set('cursor', cursor)
+    return request<{
+      nav: Array<{ date: string; cash: number; mv: number; nav: number }>
+      total: number
+      next_cursor: string | null
+    }>(`/api/paper/nav?${p}`)
+  },
 
   paperStats: (account?: string) =>
     request<{

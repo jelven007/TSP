@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 # 落盘到 data/backend.log 与桌面版 (desktop.py:_setup_logging → desktop.log) 行为对齐,
 # 事后可查。桌面版 (frozen) 已由 desktop.py 写 desktop.log, 此处跳过避免重复落盘。
 # RotatingFileHandler 防止长期运行/频繁 reload 导致文件无限增长。
-if not getattr(sys, "frozen", False) and settings.service_role != "api":
+if not getattr(sys, "frozen", False) and settings.service_role not in {"api", "gateway"}:
     try:
         from logging.handlers import RotatingFileHandler
 
@@ -439,6 +439,11 @@ async def lifespan(app: FastAPI):
     if settings.service_role == "platform":
         from app.multitenancy.platform import lifespan as platform_lifespan
         async with platform_lifespan(app):
+            yield
+        return
+    if settings.service_role == "gateway":
+        from app.multitenancy.gateway import lifespan as gateway_lifespan
+        async with gateway_lifespan(app):
             yield
         return
     if settings.multitenancy_enabled:

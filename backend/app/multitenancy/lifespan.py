@@ -27,12 +27,16 @@ async def lifespan(app: FastAPI):
         # Admin initialization and legacy import are offline operations. API
         # startup must never reset a password or grant itself DDL credentials.
         app.state.account_identity = account_identity
+        from app.multitenancy.stream_auth import StreamTicketCodec
+
+        app.state.stream_tickets = StreamTicketCodec(db.settings.stream_ticket_secret)
         account_identity.recover_pending()
 
         from app.data_providers import custom as custom_sources
         from app.multitenancy.events import EventHub
         from app.multitenancy.market import PublicMarket
         from app.multitenancy.quote_bridge import PublicQuoteBridge
+        from app.multitenancy.quote_markers import QuoteMarkerBridge
         from app.tickflow.policy import detect_capabilities
         from app.tickflow.repository import DataStore, KlineRepository
 
@@ -51,10 +55,16 @@ async def lifespan(app: FastAPI):
         # This instance supplies the existing public read contracts only.
         # boot_check/start_polling/schedulers belong to the platform process.
         quotes = PublicQuoteBridge(repo, PublicMarket(db.settings), app.state)
+        quotes.attach_markers(QuoteMarkerBridge(
+            db.settings.market_url,
+            db.settings.market_token.get_secret_value(),
+            on_event=quotes.mark_event,
+        ))
         app.state.quote_service = quotes
         app.state.depth_service = quotes.depth
         app.state.scheduler = None
         resources.callback(quotes.close)
+        quotes.refresh()
         hub = EventHub(db)
         app.state.tenant_event_hub = hub
         hub.start()

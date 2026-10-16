@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import queue
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 
 from psycopg.types.json import Jsonb
 from starlette.concurrency import run_in_threadpool
@@ -14,6 +16,23 @@ from starlette.concurrency import run_in_threadpool
 from app.cell.context import AccessError
 from app.multitenancy.access import verify_live_access
 from app.multitenancy.documents import TenantDocuments, json_value
+
+logger = logging.getLogger(__name__)
+_FULL_SWEEP_SECONDS = 30.0
+_API_PRIVATE_EVENT_SCOPES = {
+    "strategy_alert": "read:analysis",
+    "strategy_results_updated": "read:analysis",
+    "review_progress": "read:analysis",
+}
+
+
+def private_event_visible(context, event) -> bool:
+    """API credentials receive only private event kinds covered by their scopes."""
+    scopes = context.token_scopes
+    if scopes is None or event["kind"] == "events_reset":
+        return True
+    required = _API_PRIVATE_EVENT_SCOPES.get(event["kind"])
+    return required is not None and required in scopes
 
 
 def append_event(conn, tenant_id, kind, payload):
@@ -56,7 +75,7 @@ class EventSubscription:
         try:
             self.pending.put_nowait(event)
         except queue.Full:
-            # History remains available through REST. Explicitly tell a slow
+            # Authoritative state remains available through REST. Tell a slow
             # client to refresh before resuming from the latest event.
             while not self.pending.empty():
                 try:
@@ -81,8 +100,15 @@ class EventHub:
         self.stop = threading.Event()
         self.lock = threading.Lock()
         self.subscriptions = set()
+        self.wakeups: queue.Queue[str] = queue.Queue(maxsize=4096)
         self.pool = ThreadPoolExecutor(max_workers=min(4, db.settings.pool_size))
         self.thread = threading.Thread(target=self._loop, daemon=True, name="tenant-events")
+        self.listener_connected = False
+        self.poll_runs = 0
+        self.tenant_reads = 0
+        self.notifications = 0
+        self.full_sweeps = 0
+        self.last_event_at = None
 
     def start(self):
         self.thread.start()
@@ -103,18 +129,33 @@ class EventHub:
         sub = EventSubscription(documents, max(0, min(cursor, head)))
         with self.lock:
             self.subscriptions.add(sub)
+        self.notify(documents.context.tenant_id)
         return sub
 
     def unsubscribe(self, sub):
         with self.lock:
             self.subscriptions.discard(sub)
 
-    def poll(self):
+    def notify(self, tenant_id):
+        with suppress(queue.Full):
+            self.wakeups.put_nowait(tenant_id)
+
+    def _drain_wakeups(self):
+        tenants = set()
+        while True:
+            try:
+                tenants.add(self.wakeups.get_nowait())
+            except queue.Empty:
+                return tenants
+
+    def poll(self, tenant_ids=None):
         with self.lock:
             subscribed = list(self.subscriptions)
         tenants = {}
         for sub in subscribed:
-            tenants.setdefault(sub.documents.context.tenant_id, []).append(sub)
+            tenant_id = sub.documents.context.tenant_id
+            if tenant_ids is None or tenant_id in tenant_ids:
+                tenants.setdefault(tenant_id, []).append(sub)
 
         def read(subscribers):
             cursor = min(sub.cursor for sub in subscribers)
@@ -127,13 +168,56 @@ class EventHub:
                     if event["sequence"] > sub.cursor:
                         sub.push(event)
 
+        self.poll_runs += 1
+        self.tenant_reads += len(tenants)
         list(self.pool.map(read, tenants.values()))
 
     def _loop(self):
-        # One SQL reader per tenant regardless of tabs. Live streams separately
-        # re-authorize before delivering either private or public events.
-        while not self.stop.wait(.5):
-            self.poll()
+        # LISTEN only wakes readers. SQL remains the durable source, and the
+        # full sweep recovers missed notifications or a listener reconnect.
+        import psycopg
+
+        next_sweep = time.monotonic() + _FULL_SWEEP_SECONDS
+        while not self.stop.is_set():
+            try:
+                with psycopg.connect(
+                    self.db.settings.data_dsn.get_secret_value(),
+                    autocommit=True,
+                    connect_timeout=5,
+                ) as conn:
+                    conn.execute("LISTEN tsp_full_events")
+                    self.listener_connected = True
+                    while not self.stop.is_set():
+                        tenants = self._drain_wakeups()
+                        for notification in conn.notifies(timeout=.5, stop_after=256):
+                            tenants.add(notification.payload)
+                            self.notifications += 1
+                            self.last_event_at = time.time()
+                        if tenants:
+                            self.poll(tenants)
+                        if time.monotonic() >= next_sweep:
+                            self.poll()
+                            self.full_sweeps += 1
+                            next_sweep = time.monotonic() + _FULL_SWEEP_SECONDS
+            except Exception:
+                logger.warning("tenant event listener unavailable")
+                # During listener failure, temporarily poll at low frequency so
+                # durable private events still progress until LISTEN recovers.
+                self.poll()
+                self.stop.wait(1)
+            finally:
+                self.listener_connected = False
+
+    def status(self):
+        return {
+            "listener_connected": self.listener_connected,
+            "subscriptions": len(self.subscriptions),
+            "poll_runs": self.poll_runs,
+            "tenant_reads": self.tenant_reads,
+            "notifications": self.notifications,
+            "full_sweeps": self.full_sweeps,
+            "last_event_at": self.last_event_at,
+        }
 
 
 def sse_event(event):
@@ -143,7 +227,7 @@ def sse_event(event):
     }
 
 
-async def stream(request):
+async def stream(request, claims=None):
     quotes = request.app.state.quote_service
     public = quotes.subscribe()
     hub = request.app.state.tenant_event_hub
@@ -159,10 +243,18 @@ async def stream(request):
         while True:
             if await request.is_disconnected():
                 return
-            await run_in_threadpool(verify_live_access, request)
+            if claims is None:
+                await run_in_threadpool(verify_live_access, request)
+            else:
+                revocations = getattr(request.app.state, "stream_revocations", None)
+                if revocations is not None:
+                    revocations.ensure_active(claims)
+                elif claims.expires_at <= time.time():
+                    raise AccessError(401, "流授权已过期,请重新连接")
             if private:
                 for event in private.pop():
-                    yield sse_event(event)
+                    if private_event_visible(context, event):
+                        yield sse_event(event)
             data = public.pop()
             for flag, kind in (("quote_updated", "quotes_updated"), ("depth_updated", "depth_updated")):
                 if data[flag]:

@@ -167,7 +167,7 @@ class Settings(BaseSettings):
     # Full application multi-tenancy is opt-in while the candidate is verified.
     # Credentials come from TSP_CELL_* and are never read from legacy auth.json.
     multitenancy_enabled: bool = False
-    service_role: str = Field(default="standalone", pattern=r"^(standalone|api|platform)$")
+    service_role: str = Field(default="standalone", pattern=r"^(standalone|api|gateway|platform)$")
     platform_config_dir: Path | None = None
     tenant_artifacts_dir: Path | None = None
 

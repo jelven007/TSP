@@ -56,6 +56,19 @@ export function accountStreamUrl(path: string): string {
   return url.pathname + url.search
 }
 
+export async function accountEventStreamUrl(lastEventId = ''): Promise<string> {
+  if (!multitenancyEnabled()) return accountStreamUrl('/api/intraday/stream')
+  const response = await accountFetch('/api/events/ticket', { method: 'POST' })
+  if (!response.ok) throw new Error(`事件流授权失败 (${response.status})`)
+  const result = await response.json() as { stream?: string }
+  const url = new URL(result.stream || '', window.location.origin)
+  if (url.origin !== window.location.origin || url.pathname !== '/api/events' || !url.searchParams.get('ticket')) {
+    throw new Error('事件流授权响应无效')
+  }
+  if (lastEventId) url.searchParams.set('last_event_id', lastEventId)
+  return url.pathname + url.search
+}
+
 export function scopedStorageKey(key: string): string {
   if (!confirmed) throw new Error('请先确认登录身份')
   return status?.auth_required ? `${accountScope()}:${key}` : key

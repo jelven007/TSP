@@ -8,7 +8,7 @@ x-common: &common
   environment: &environment
     SERVICE_ROLE: api
     MULTITENANCY_ENABLED: "true"
-    TSP_CELL_SCHEMA_VERSION: "5"
+    TSP_CELL_SCHEMA_VERSION: "6"
     DATA_DIR: /public/current
     PLATFORM_CONFIG_DIR: /platform-config
     TICKFLOW_ENV_FILE: /dev/null
@@ -64,6 +64,31 @@ services:
       interval: 30s
       timeout: 5s
       start_period: 120s
+      retries: 3
+  gateway:
+    <<: *common
+    environment:
+      <<: *environment
+      SERVICE_ROLE: gateway
+      TSP_CELL_POOL_SIZE: "8"
+    command: ["/app/.venv/bin/python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3018", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    ports:
+      - "127.0.0.1:${TSP_FULL_GATEWAY_PORT:-3031}:3018"
+    volumes: []
+    networks:
+      default:
+      pg:
+      edge:
+        aliases: [tsp-full-gateway]
+    depends_on:
+      platform: {condition: service_healthy}
+    mem_limit: 1g
+    cpus: 1
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3018/health/ready', timeout=6)"]
+      interval: 30s
+      timeout: 8s
+      start_period: 30s
       retries: 3
   api:
     <<: *common

@@ -118,6 +118,56 @@ def test_duplicate_request_and_concurrent_matching_recover_exactly_once(owned):
     assert_ledger(restart)
 
 
+def test_sql_history_pages_are_bounded_while_domain_replay_stays_complete(owned, monkeypatch):
+    own, _ = owned
+    paper.create_account(own, 100000)
+    for _ in range(7):
+        order, error = paper.create_order(own, SYM, "buy", qty=100, ref_price=10)
+        assert error is None and order is not None
+    assert len(paper.evaluate_intraday(own, {SYM: 10})) == 7
+    all_orders = sorted(
+        paper.load_orders(own),
+        key=lambda order: (order["created_at"], order["id"]),
+        reverse=True,
+    )
+    all_fills = list(reversed(paper.load_fills(own)))
+    assert len(all_orders) == len(all_fills) == 7
+    assert paper.replay_positions(own)[0][SYM]["qty"] == 700
+    for offset in range(5):
+        day = (DAY + timedelta(days=offset)).isoformat()
+        paper._write_nav_line(own, day, {"date": day, "cash": 1, "mv": 2, "nav": 3})
+
+    def unbounded(*_args, **_kwargs):
+        pytest.fail("HTTP history page used an unbounded SQL loader")
+
+    monkeypatch.setattr(PaperSession, "orders", unbounded)
+    monkeypatch.setattr(PaperSession, "fills", unbounded)
+    monkeypatch.setattr(PaperSession, "nav", unbounded)
+
+    orders, total, cursor = paper.load_orders_page(own, limit=2)
+    assert total == 7 and [row["id"] for row in orders] == [row["id"] for row in all_orders[:2]]
+    orders2, total2, _ = paper.load_orders_page(own, limit=2, before=cursor)
+    assert total2 == 7 and [row["id"] for row in orders2] == [row["id"] for row in all_orders[2:4]]
+
+    fills, fill_total, execution_total, fill_cursor = paper.load_fills_page(own, limit=3)
+    assert fill_total == execution_total == 7
+    assert [row["order_id"] for row in fills] == [row["order_id"] for row in all_fills[:3]]
+    fills2, _, _, _ = paper.load_fills_page(own, limit=3, before=fill_cursor)
+    assert [row["order_id"] for row in fills2] == [row["order_id"] for row in all_fills[3:6]]
+
+    nav, nav_total, nav_cursor = paper.load_nav_page(own, limit=2)
+    assert nav_total == 5
+    assert [row["date"] for row in nav] == [
+        (DAY + timedelta(days=3)).isoformat(),
+        (DAY + timedelta(days=4)).isoformat(),
+    ]
+    older, _, _ = paper.load_nav_page(own, limit=2, before=nav_cursor)
+    assert [row["date"] for row in older] == [
+        (DAY + timedelta(days=1)).isoformat(),
+        (DAY + timedelta(days=2)).isoformat(),
+    ]
+
+
 def test_fill_transaction_rollback_after_ledger_append(owned, monkeypatch):
     own, _ = owned
     paper.create_account(own, 100000)
@@ -456,7 +506,9 @@ def test_original_http_paper_contract_alerts_and_no_shared_file_leak(env, owned)
         assert len(Alerts(TenantDocuments(own.db, own.context)).list_recent()) == 1
         client.cookies.set("tf_session", other_token)
         assert client.get("/api/paper/accounts").json() == {"accounts": []}
-        assert client.get("/api/paper/trades").json() == {"fills": []}
+        assert client.get("/api/paper/trades").json() == {
+            "fills": [], "total": 0, "execution_total": 0, "next_cursor": None,
+        }
         assert client.delete("/api/paper/orders/" + order_id).status_code == 400
         assert Alerts(other).list_recent() == []
     assert not (own.public_data_dir / "paper").exists()

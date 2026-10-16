@@ -71,6 +71,26 @@ class PaperSession:
             (account_id,),
         ).fetchall()]
 
+    def order_page(self, account_id, *, status=None, limit=100, before=None):
+        created_at, order_id = before or (None, None)
+        total = self.conn.execute(
+            """SELECT count(*) AS n FROM business.full_paper_orders
+               WHERE account_id=%s AND (%s::text IS NULL OR value->>'status'=%s)""",
+            (account_id, status, status),
+        ).fetchone()["n"]
+        rows = self.conn.execute(
+            """SELECT value,coalesce(value->>'created_at','') AS created_key,id
+               FROM business.full_paper_orders
+               WHERE account_id=%s AND (%s::text IS NULL OR value->>'status'=%s)
+                 AND (%s::text IS NULL OR
+                      (coalesce(value->>'created_at',''),id)<(%s,%s))
+               ORDER BY coalesce(value->>'created_at','') DESC,id DESC LIMIT %s""",
+            (account_id, status, status, created_at, created_at, order_id, limit + 1),
+        ).fetchall()
+        page = rows[:limit]
+        next_key = (page[-1]["created_key"], page[-1]["id"]) if len(rows) > limit else None
+        return [row["value"] for row in page], total, next_key
+
     def save_order(self, account_id, value):
         if self.order(account_id, value["id"]) is None:
             count = self.conn.execute(
@@ -89,6 +109,29 @@ class PaperSession:
             "SELECT value FROM business.full_paper_fills WHERE account_id=%s ORDER BY ordinal",
             (account_id,),
         ).fetchall()]
+
+    def fill_page(self, account_id, *, limit=100, before=None):
+        counts = self.conn.execute(
+            """SELECT count(*) AS total,
+                      count(*) FILTER (WHERE coalesce(value->>'kind','fill')<>'corp_action')
+                          AS execution_total
+               FROM business.full_paper_fills WHERE account_id=%s""",
+            (account_id,),
+        ).fetchone()
+        rows = self.conn.execute(
+            """SELECT value,ordinal FROM business.full_paper_fills
+               WHERE account_id=%s AND (%s::bigint IS NULL OR ordinal<%s)
+               ORDER BY ordinal DESC LIMIT %s""",
+            (account_id, before, before, limit + 1),
+        ).fetchall()
+        page = rows[:limit]
+        next_key = page[-1]["ordinal"] if len(rows) > limit else None
+        return (
+            [row["value"] for row in page],
+            counts["total"],
+            counts["execution_total"],
+            next_key,
+        )
 
     def append_fill(self, account_id, value):
         key = (
@@ -130,6 +173,21 @@ class PaperSession:
             "SELECT value FROM business.full_paper_nav WHERE account_id=%s ORDER BY day",
             (account_id,),
         ).fetchall()]
+
+    def nav_page(self, account_id, *, limit=500, before=None):
+        total = self.conn.execute(
+            "SELECT count(*) AS n FROM business.full_paper_nav WHERE account_id=%s",
+            (account_id,),
+        ).fetchone()["n"]
+        rows = self.conn.execute(
+            """SELECT value,day FROM business.full_paper_nav
+               WHERE account_id=%s AND (%s::date IS NULL OR day<%s::date)
+               ORDER BY day DESC LIMIT %s""",
+            (account_id, before, before, limit + 1),
+        ).fetchall()
+        page = rows[:limit]
+        next_key = page[-1]["day"].isoformat() if len(rows) > limit else None
+        return [row["value"] for row in reversed(page)], total, next_key
 
     def save_nav(self, account_id, day, nav):
         self.conn.execute(

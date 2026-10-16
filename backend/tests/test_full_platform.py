@@ -9,7 +9,12 @@ import pytest
 
 from app.enriched_generation import bump_enriched_generation, get_enriched_generation
 from app.multitenancy.market import encode_frame
-from app.multitenancy.platform import management_path, platform_access
+from app.multitenancy.platform import (
+    management_path,
+    market_read_access,
+    market_read_path,
+    platform_access,
+)
 from app.multitenancy.publication import PublicPublisher, release_path
 from app.multitenancy.quote_bridge import PublicQuoteBridge
 
@@ -114,6 +119,28 @@ def test_platform_only_accepts_explicit_management_paths(monkeypatch):
         assert not management_path(method, path)
 
 
+def test_public_market_read_model_has_an_explicit_pure_read_allowlist(monkeypatch):
+    monkeypatch.setenv("TSP_PLATFORM_MARKET_TOKEN", "market-read-token")
+    for path in (
+        "/api/intraday/status",
+        "/api/overview/market",
+        "/api/abnormal/overview",
+        "/api/screener/market-snapshot",
+        "/api/screener/limit-ladder",
+        "/api/regime/mainline",
+        "/api/sector-rotation",
+    ):
+        assert market_read_path("GET", path)
+        request = SimpleNamespace(
+            method="GET",
+            url=SimpleNamespace(path=path),
+            headers={"authorization": "Bearer market-read-token"},
+        )
+        assert market_read_access(request)
+    for path in ("/api/watchlist", "/api/strategies", "/api/paper/accounts", "/api/events"):
+        assert not market_read_path("GET", path)
+
+
 def test_quote_bridge_keeps_depth_age_and_replaces_repository_on_new_release(tmp_path, monkeypatch):
     from app.config import settings
     from app.services.sector_monitor import SectorMonitorService
@@ -151,6 +178,64 @@ def test_quote_bridge_keeps_depth_age_and_replaces_repository_on_new_release(tmp
     assert not bridge.status()["is_trading_hours"]
     bridge.close()
     store.db.close()
+
+
+def test_api_quote_bridge_uses_markers_and_refreshes_frames_only_on_demand(tmp_path):
+    from app.tickflow.repository import DataStore, KlineRepository
+
+    store = DataStore(tmp_path, read_only=True)
+    repo = KlineRepository(store)
+    frame = encode_frame(pl.DataFrame({
+        "symbol": ["600000.SH"],
+        "date": [date(2026, 10, 16)],
+        "close": [10.0],
+    }))
+    snapshot = {
+        "sequence": 1,
+        "captured_at": time.time(),
+        "status": {"symbol_count": 1, "quote_age_ms": 10, "is_trading_hours": True},
+        "frames": {"stock": frame, "etf": frame, "index": frame},
+        "indices": encode_frame(pl.DataFrame()),
+    }
+
+    class Market:
+        calls = 0
+
+        def snapshot(self):
+            self.calls += 1
+            return snapshot
+
+        def close(self):
+            pass
+
+    class Markers:
+        started = False
+
+        def start(self):
+            self.started = True
+
+        def close(self):
+            pass
+
+        def status(self):
+            return {"connected": True}
+
+    market, markers = Market(), Markers()
+    bridge = PublicQuoteBridge(repo, market)
+    bridge.attach_markers(markers)
+    try:
+        bridge.start()
+        assert markers.started and market.calls == 0
+        bridge.update(snapshot)
+        assert bridge.frame_decodes == 4
+        bridge.mark_event("quotes_updated")
+        bridge.ensure_fresh()
+        assert market.calls == 1 and bridge.frame_decodes == 8
+        bridge.ensure_fresh()
+        assert market.calls == 1 and bridge.frame_decodes == 8
+    finally:
+        bridge.close()
+        store.db.close()
 
 
 def test_platform_quote_evaluation_never_reads_old_private_signals(monkeypatch):
@@ -233,6 +318,30 @@ def test_platform_full_snapshot_serializes_cache_fill():
 
     assert calls == 1
     assert results == [{"sequence": 1}] * 40
+
+
+def test_platform_marker_stream_never_sends_market_frames(monkeypatch):
+    import asyncio
+
+    from app.cell.platform_market import market_events
+    from app.services.quote_service import QuoteService
+
+    monkeypatch.setenv("TSP_PLATFORM_MARKET_TOKEN", "market-read-token")
+    quotes = QuoteService()
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(quote_service=quotes)))
+
+    async def check():
+        response = await market_events(request, authorization="Bearer market-read-token")
+        pending = asyncio.create_task(response.body_iterator.__anext__())
+        await asyncio.sleep(0)
+        quotes._broadcast_quote_updated()
+        event = await asyncio.wait_for(pending, timeout=2)
+        assert event["event"] == "quotes_updated"
+        assert "frames" not in event["data"]
+        await response.body_iterator.aclose()
+
+    asyncio.run(check())
+    assert not quotes._subscribers
 
 
 def test_full_api_import_never_creates_legacy_files(tmp_path):

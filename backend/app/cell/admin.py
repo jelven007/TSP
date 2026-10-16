@@ -21,7 +21,7 @@ SQL_ROOT = Path(__file__).with_name("sql")
 def migrate(
     conn, kind: str, runtime_role: str, cell_id: str | None = None, *, target_version: int = 4,
 ) -> None:
-    if target_version not in {4, 5}:
+    if target_version not in {4, 5, 6}:
         raise ValueError("unsupported migration target")
     schema = "control" if kind == "control" else "business"
     role = conn.execute(
@@ -66,7 +66,7 @@ def migrate(
             if identity["cell_id"] != cell_id:
                 raise ValueError("database belongs to a different Cell")
         grant_runtime(conn, kind, runtime_role)
-        if target_version == 5:
+        if target_version >= 5:
             grant_full_runtime(conn, kind, runtime_role)
 
 
@@ -519,7 +519,7 @@ def main() -> None:
     migration.add_argument("--kind", choices=["control", "data"], required=True)
     migration.add_argument("--runtime-role", required=True)
     migration.add_argument("--cell-id")
-    migration.add_argument("--target-version", type=int, choices=[4, 5], default=4)
+    migration.add_argument("--target-version", type=int, choices=[4, 5, 6], default=4)
     cell = commands.add_parser("register-cell")
     cell.add_argument("--cell-id", required=True)
     cell.add_argument("--api-url", required=True)

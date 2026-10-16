@@ -604,10 +604,15 @@ class PaperOrderResponse(ContractModel):
 
 class PaperOrdersResponse(ContractModel):
     orders: list[PaperOrder]
+    total: int
+    next_cursor: str | None
 
 
 class PaperTradesResponse(ContractModel):
     fills: list[JsonRecord]
+    total: int
+    execution_total: int
+    next_cursor: str | None
 
 
 class PaperPositionsResponse(ContractModel):
@@ -617,6 +622,8 @@ class PaperPositionsResponse(ContractModel):
 
 class PaperNavResponse(ContractModel):
     nav: list[JsonRecord]
+    total: int
+    next_cursor: str | None
 
 
 class PaperStatsCycles(ContractModel):

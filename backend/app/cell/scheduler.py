@@ -44,6 +44,11 @@ class Scheduler:
                 """SELECT min(CASE WHEN status='sending' THEN lease_until ELSE due_at END) AS due
                    FROM business.notification_outbox WHERE status IN ('queued','sending')"""
             ).fetchone()["due"]
+        if kind == "research":
+            return conn.execute(
+                """SELECT min(CASE WHEN state='queued' THEN now() ELSE lease_until END) AS due
+                   FROM business.research_jobs WHERE state IN ('queued','running','cancelling')"""
+            ).fetchone()["due"]
         active = conn.execute(
             """SELECT EXISTS(SELECT 1 FROM business.trade_automations WHERE enabled)
                OR EXISTS(SELECT 1 FROM business.trade_intents WHERE status='queued') AS active"""

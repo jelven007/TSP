@@ -67,6 +67,8 @@ async def _readiness_response(request: Request) -> JSONResponse:
     from app.services.health import readiness
     if settings.multitenancy_enabled and settings.service_role == "api":
         from app.multitenancy.health import readiness
+    elif settings.multitenancy_enabled and settings.service_role == "gateway":
+        from app.multitenancy.gateway import readiness
 
     data_dir = getattr(
         getattr(getattr(request.app.state, "repo", None), "store", None),
