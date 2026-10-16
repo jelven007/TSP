@@ -38,7 +38,7 @@ def next_version(value: str) -> str:
 
 
 def validate_progression(previous: str, current: str) -> None:
-    """Validate a changed version is exactly one mainline increment."""
+    """Require exactly one mainline increment, including for ordinary updates."""
     previous_parts = parse_version(previous)
     current_version = format_version(parse_version(current))
     expected = next_version(format_version(previous_parts))

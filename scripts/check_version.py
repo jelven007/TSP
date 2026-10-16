@@ -43,7 +43,7 @@ def main() -> int:
     parser.add_argument("--current", default="VERSION", help="current VERSION file")
     parser.add_argument(
         "--previous",
-        help="previous VERSION value or file; unchanged versions are allowed",
+        help="previous mainline VERSION value or file; requires its exact successor",
     )
     args = parser.parse_args()
 
@@ -68,10 +68,6 @@ def main() -> int:
         else args.previous
     )
     previous_canonical = format_version(parse_version(previous))
-    if previous_canonical == current_canonical:
-        print(f"version unchanged: {current_canonical}")
-        return 0
-
     validate_progression(previous_canonical, current_canonical)
     print(f"version progression: {previous_canonical} -> {current_canonical}")
     return 0

@@ -10,15 +10,15 @@ name: 桌面客户端发布
 #   - 版本号通过 input 传入, 与 tag 解耦, 更灵活
 #
 # 使用:
-#   gh workflow run release.yml -f version=v0.4.0 -f platforms=windows
+#   gh workflow run release.yml -f version=v0.4.1 -f platforms=windows
 #   或 GitHub 网页 Actions → 桌面客户端发布 → Run workflow
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号 (格式 va.b.cd, a/b=0-9、cd=0-99, 如 v0.4.0; 必须与 frontend/package.json 的 version 一致, 否则流水线直接失败)'
+        description: '版本号 (格式 va.b.cd, a/b=0-9、cd=0-99, 如 v0.4.1; 必须与 frontend/package.json 的 version 一致, 否则流水线直接失败)'
         required: true
-        default: 'v0.4.0'
+        default: 'v0.4.1'
       platforms:
         description: '要构建的平台 (逗号分隔: windows,macos,linux)'
         required: true
@@ -67,10 +67,10 @@ jobs:
           import json, sys
           requested = '${{ github.event.inputs.platforms }}'.split(',')
           requested = [r.strip() for r in requested if r.strip()]
-          ver = '${{ github.event.inputs.version }}'.lstrip('v')  # v0.4.0 → 0.4.0
+          ver = '${{ github.event.inputs.version }}'.lstrip('v')  # v0.4.1 → 0.4.1
           all_platforms = json.loads('''$ALL''')
           selected = [p for p in all_platforms if p['platform'] in requested]
-          # 产物文件名带版本号 (TSP-Setup-x64-0.4.0.exe): 用户下载后一眼可辨版本
+          # 产物文件名带版本号 (TSP-Setup-x64-0.4.1.exe): 用户下载后一眼可辨版本
           for p in selected:
               stem, _, ext = p['artifact'].rpartition('.')
               p['artifact'] = f'{stem}-{ver}.{ext}'

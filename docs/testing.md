@@ -165,11 +165,14 @@ git rev-parse HEAD
 
 ```bash
 python3 scripts/check_version.py --current VERSION
+python3 scripts/check_version.py --current VERSION --previous <更新前主线 VERSION 内容>
 cd backend
 uv run --frozen pytest ../scripts/test_versioning.py tests/test_version_source.py -q
 ```
 
-覆盖格式范围、`cd` 溢出进位、`b`/`a` 进位和非连续版本拒绝。
+覆盖格式范围、`cd` 溢出进位、`b`/`a` 进位，以及 CI 使用的 CLI 对版本不变、
+跳号和倒退的拒绝。提供 `--previous` 时，每次主线更新都必须是精确后继；
+不提供时只检查格式和事实源一致性，不代表主线递增检查通过。
 
 ## 5. 当前 CI 门禁
 
@@ -177,6 +180,7 @@ uv run --frozen pytest ../scripts/test_versioning.py tests/test_version_source.p
 
 | Job | 环境 | 命令 |
 | --- | --- | --- |
+| Version | Ubuntu、Python 3 | `check_version.py --previous`；push 对比更新前的主线，PR 对比目标主线基线；缺失基线失败 |
 | Backend | Ubuntu、Python 3.12 | `uv sync --extra dev --frozen`；`uv run pytest tests -q` |
 | Frontend | Ubuntu、Node 20、pnpm 9 | `pnpm test`；`pnpm lint`；`pnpm build` |
 

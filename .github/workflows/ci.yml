@@ -24,17 +24,16 @@ jobs:
 
       - name: 校验版本格式与主线递增规则
         shell: bash
+        env:
+          VERSION_PUSH_BASE: ${{ github.event.before }}
+          VERSION_PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ] && \
-             git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
-            previous="$(git show "${{ github.event.before }}:VERSION")"
-            python3 scripts/check_version.py --current VERSION --previous "$previous"
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            previous="$(git show "origin/${{ github.base_ref }}:VERSION")"
-            python3 scripts/check_version.py --current VERSION --previous "$previous"
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            previous="$(git show "$VERSION_PUSH_BASE:VERSION")"
           else
-            python3 scripts/check_version.py --current VERSION
+            previous="$(git show "$VERSION_PR_BASE:VERSION")"
           fi
+          python3 scripts/check_version.py --current VERSION --previous "$previous"
 
   backend:
     runs-on: ubuntu-latest
