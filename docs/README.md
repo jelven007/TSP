@@ -1,17 +1,22 @@
 # TSP 文档中心
 
-本文档是项目文档的统一入口。当前基线版本为 `0.3.11`，代码、测试和运行时
-行为仍是最终事实来源；文档与代码冲突时，应先核对实现和测试，再同步修正文档。
+本文档是项目文档的统一入口。应用语义版本为 `0.3.11`；源码、稳定标签、生产部署
+和开源观察对象的当前值与边界统一见[版本基线](./version-baseline.md)。代码、测试
+和运行时行为仍是最终事实来源；文档与代码冲突时，应先核对实现和测试，再同步修正。
 
-当前完整单机多租户部署使用 `deploy/full/compose.yml`，启用
+`main` 中的完整单机多租户候选使用 `deploy/full/compose.yml`，启用
 `MULTITENANCY_ENABLED=true`。保留完整前端与业务引擎，API 默认四进程；
-平台负责唯一行情写入，四类 Worker 分别负责研究、实时监控/模拟盘、通知和调度。
+独立实时网关负责 SSE，平台负责唯一行情写入，四类 Worker 分别负责研究、
+实时监控/模拟盘、通知和调度。
 身份与租户业务持久化到 PostgreSQL v6，公共行情按不可变版本只读共享。
 部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
 已完成的一期发布与 100 用户验收见[实施记录](./phase1-implementation.md)。
 二期执行范围见[三步实施计划](./phase2-implementation-plan.md)：单机关键迭代、
 单机百账号/百人活跃、DFX 与万人并发；第二步本地证据见
 [实施记录](../reports/phase2-step2-20261016/implementation.md)，各步仍需完成对应候选与持续运行验收。
+
+当前生产仍为 `d06acc1d`/schema v5；`main` 中的二期 Step 1/2 与 schema v6 是
+源码候选，不能据此宣称生产已升级。
 
 ## 生命周期覆盖
 
@@ -31,6 +36,7 @@
 
 | 领域 | 文档 |
 | --- | --- |
+| 版本与状态 | [版本基线](./version-baseline.md)、[发布与上线运营](./release-operations.md) |
 | 产品与使用 | [功能手册](./features.md)、[操作说明书](../操作说明书.md) |
 | 单机多租户 | [完整部署](../deploy/full/README.md)、[两期技术方案](./multitenant-roadmap.md)、[一期实施与验收](./phase1-implementation.md)、[二期三步实施](./phase2-implementation-plan.md) |
 | 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md) |
@@ -66,9 +72,10 @@
 4. 当前基线文档。
 5. 专项设计方案和历史验证记录。
 
-版本以 `frontend/package.json` 为发布流水线权威输入，并与
+应用语义版本以 `frontend/package.json` 为发布流水线权威输入，并与
 `backend/pyproject.toml`、`backend/app/__init__.py` 的 fallback 和根目录
-`VERSION` 保持一致。MCP 服务器是独立包，可单独维护版本号。
+`VERSION` 保持一致。源码、标签和生产提交以[版本基线](./version-baseline.md)
+分类，不能只凭语义版本判断代码是否相同。MCP 服务器是独立包，可单独维护版本号。
 
 ## 按角色阅读
 

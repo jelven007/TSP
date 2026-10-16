@@ -5,10 +5,16 @@
 [配置说明](./configuration.md)，正式发版流程见
 [发布与上线运营](./release-operations.md)。
 
+当前生产提交、源码候选、稳定标签和 schema 边界统一见
+[版本基线](./version-baseline.md)。巡检和故障记录必须写完整提交 SHA，不能只写
+`0.3.11`。
+
 ## 1. 运行边界
 
 - 当前完整单机多租户按角色运行平台、API 和四类 Worker，API 默认四进程；
   PostgreSQL、公共版本、Broker、备份和恢复见[完整部署](../deploy/full/README.md)。
+- 生产当前为 `d06acc1d`/schema v5。`main` 中的独立实时网关和 schema v6 尚未
+  生产签收；网关操作只有部署相应候选后才适用。
 - 下方根目录 Compose 操作适用于独立运行模式，其生产形态是单容器、单 Uvicorn worker。
 - 同一 `DATA_DIR` 只能由一个 TSP 主实例写入。
 - 默认服务端口为 `3018`。
@@ -435,7 +441,9 @@ df -h
 - 定期轮换外部密钥和通知 Webhook。
 - 不直接公开 `DATA_DIR`、备份目录、日志、OpenAPI 管理入口或 Docker socket。
 - 第三方 Provider、策略和插件按可执行代码审查。
-- 忘记密码时按[部署指南](./deployment.md)的受控流程操作认证文件，先停服和备份。
+- 忘记密码优先使用登录页找回流程，校验注册口令和专用邮箱验证码；成功后确认该
+  账户全部会话和 API Token 已撤销。只有认证存储损坏时才按
+  [邮箱账户初始化](./deploy-password.md)执行离线恢复。
 
 ## 13. 变更与值班交接
 
