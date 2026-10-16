@@ -7,7 +7,7 @@
 
 当前生产提交、源码候选、稳定标签和 schema 边界统一见
 [版本基线](./version-baseline.md)。巡检和故障记录必须写完整提交 SHA，不能只写
-`0.4.0`。
+`0.4.1`。
 
 ## 1. 运行边界
 
@@ -120,7 +120,7 @@ curl -fsS http://127.0.0.1:3018/health/live
 ```json
 {
   "status": "ok",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "mode": "none"
 }
 ```
