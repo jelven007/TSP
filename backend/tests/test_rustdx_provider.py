@@ -167,7 +167,7 @@ def test_native_bridge_clamps_direct_constructor_to_35():
     assert native_module.RUSTDX_VERSION == "1.12.2"
     assert (
         native_module.RUSTDX_SOURCE_REV
-        == "904b33e514d4e368e633622c96a9e63af8a53d37"
+        == "9dfc024c9662fa5091099c1f17610569ee2eca8b"
     )
     client = native_module.RustdxClient(100)
     try:

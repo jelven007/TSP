@@ -52,9 +52,11 @@ rustdx 全市场分钟逐股取数，有效轮次间隔至少 60 秒，保留原
 ## 原生运行时
 
 后端通过 PyO3 原生扩展调用
-[`jelven007/rustdx`](https://github.com/jelven007/rustdx) 中固定提交
-`904b33e514d4e368e633622c96a9e63af8a53d37` 的 `jelven-rustdx-complete 1.12.2`。
-依赖固定到提交而不是浮动分支。`tsp-rustdx-native` 已纳入后端默认依赖，
+[`jelven-rustdx-complete 1.12.2`](https://crates.io/crates/jelven-rustdx-complete/1.12.2)。
+Cargo 使用精确版本 `=1.12.2`，锁文件保存发布包校验和，构建无需 GitHub 私有仓库凭据。
+发布来源提交为 `9dfc024c9662fa5091099c1f17610569ee2eca8b`；
+原固定提交 `904b33e514d4e368e633622c96a9e63af8a53d37` 仅追加发布文档，
+两者的 Rust 源码和构建声明一致。`tsp-rustdx-native` 已纳入后端默认依赖，
 普通 `uv sync --frozen` 会自动构建安装，后续同步也不会因遗漏 extra 移除桥接。
 旧命令中的 `--extra rustdx` 保留兼容，但不再是安装前提。源码环境需要 Rust toolchain：
 
