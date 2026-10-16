@@ -161,6 +161,16 @@ git rev-parse HEAD
 语义版本一致只证明包元数据一致，不证明源码、标签和生产部署相同；验收报告仍须
 记录 commit、schema、产物摘要和环境。
 
+版本规则测试：
+
+```bash
+python3 scripts/check_version.py --current VERSION
+cd backend
+uv run --frozen pytest ../scripts/test_versioning.py tests/test_version_source.py -q
+```
+
+覆盖格式范围、`cd` 溢出进位、`b`/`a` 进位和非连续版本拒绝。
+
 ## 5. 当前 CI 门禁
 
 `.github/workflows/ci.yml` 在推送到 `main` 和面向 `main` 的 Pull Request 上运行：

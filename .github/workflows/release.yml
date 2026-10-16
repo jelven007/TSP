@@ -10,13 +10,13 @@ name: 桌面客户端发布
 #   - 版本号通过 input 传入, 与 tag 解耦, 更灵活
 #
 # 使用:
-#   gh workflow run release.yml -f version=v0.2.0 -f platforms=windows
+#   gh workflow run release.yml -f version=v0.4.0 -f platforms=windows
 #   或 GitHub 网页 Actions → 桌面客户端发布 → Run workflow
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号 (如 v0.1.33, 用作 Release tag 和标题; 必须与 frontend/package.json 的 version 一致, 否则流水线直接失败)'
+        description: '版本号 (格式 va.b.cd, a/b=0-9、cd=0-99, 如 v0.4.0; 必须与 frontend/package.json 的 version 一致, 否则流水线直接失败)'
         required: true
         default: 'v0.4.0'
       platforms:
@@ -45,6 +45,7 @@ jobs:
 
       - id: filter
         run: |
+          python3 scripts/check_version.py --current VERSION
           # 版本号唯一权威 = frontend/package.json (安装包、页面显示、更新检查同源)。
           # 发版输入与它不一致直接失败, 防止 tag/安装包/页面三处版本漂移。
           PKG_VER=$(python3 -c "import json; print(json.load(open('frontend/package.json'))['version'])")
