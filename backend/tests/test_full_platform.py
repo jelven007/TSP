@@ -104,6 +104,7 @@ def test_platform_only_accepts_explicit_management_paths(monkeypatch):
     for method, path in (
         ("GET", "/api/settings"), ("POST", "/api/pipeline/run"),
         ("POST", "/api/kline/rebuild_enriched"), ("POST", "/api/ext-data/concept/pull/run"),
+        ("GET", "/api/ext-data"), ("HEAD", "/api/ext-data"),
     ):
         assert management_path(method, path)
         request = SimpleNamespace(method=method, url=SimpleNamespace(path=path),
@@ -115,6 +116,7 @@ def test_platform_only_accepts_explicit_management_paths(monkeypatch):
         ("GET", "/api/watchlist"), ("POST", "/api/kline/daily-batch"),
         ("GET", "/api/settings/api-tokens"), ("POST", "/api/auth/login"),
         ("GET", "/api/strategies"), ("GET", "/api/data-other"),
+        ("GET", "/api/ext-data/concept/rows"), ("GET", "/api/ext-data/schema-all"),
     ):
         assert not management_path(method, path)
 
