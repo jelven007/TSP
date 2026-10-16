@@ -19,6 +19,7 @@ from app.api.data import invalidate_storage_cache
 
 # 长时间任务专用线程池（隔离于 FastAPI 默认线程池，防止阻塞请求处理）
 _long_task_executor = _cf.ThreadPoolExecutor(max_workers=2, thread_name_prefix="long-task")
+_background_tasks: dict[str, asyncio.Task] = {}
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ async def run_now(request: Request) -> dict:
     )
 
 
-async def trigger_pipeline_job(repo, capset, quote_service=None) -> dict:
+async def trigger_pipeline_job(repo, capset, quote_service=None, *, source="manual") -> dict:
     """触发盘后管道后台任务(HTTP 端点与 AI 助手共用同一条触发路径)。
 
     若已有任务在跑,**返回该任务 id 而不是开新任务**(防止并发拉数据撞限流)。
@@ -46,9 +47,19 @@ async def trigger_pipeline_job(repo, capset, quote_service=None) -> dict:
     job_store.reap_stale()
 
     # 单飞: 复用任何活跃任务, is_new=False 时不再调度新任务
-    job_id, is_new = job_store.create(kind="daily_pipeline", source="manual")
+    job_id, is_new = job_store.create(kind="daily_pipeline", source=source)
     if not is_new:
         return {"job_id": job_id, "reused": True}
+
+    from app.services import initial_sync
+
+    try:
+        initialize = initial_sync.needs_initial_sync(repo.store.data_dir)
+        if initialize:
+            initial_sync.mark_pending(repo.store.data_dir)
+    except Exception as exc:
+        job_store.fail(job_id, f"无法准备首次同步: {exc}")
+        return {"job_id": job_id, "reused": False}
 
     # 在 executor 里跑同步任务(pipeline 内部都是阻塞 IO + CPU)
     async def task() -> None:
@@ -67,10 +78,11 @@ async def trigger_pipeline_job(repo, capset, quote_service=None) -> dict:
 
             def _run() -> dict:
                 try:
+                    run = initial_sync.run_initial_sync if initialize else daily_pipeline.run_now
                     if qs:
                         with qs.paused():
-                            return daily_pipeline.run_now(repo, capset, on_progress=progress)
-                    return daily_pipeline.run_now(repo, capset, on_progress=progress)
+                            return run(repo, capset, on_progress=progress)
+                    return run(repo, capset, on_progress=progress)
                 finally:
                     repo.refresh_cache()
 
@@ -87,8 +99,19 @@ async def trigger_pipeline_job(repo, capset, quote_service=None) -> dict:
         finally:
             release_run_slot(job_id)
 
-    asyncio.create_task(task())
+    background = asyncio.create_task(task())
+    _background_tasks[job_id] = background
+    background.add_done_callback(lambda _: _background_tasks.pop(job_id, None))
     return {"job_id": job_id, "reused": False}
+
+
+async def stop_initial_sync_job(job_id: str | None) -> None:
+    """Drain the startup worker before its repository and providers are closed."""
+    background = _background_tasks.get(job_id) if job_id else None
+    if background is not None:
+        job_store.terminate(job_id, "服务关闭,首次同步将在下次启动重试")
+        # Cancelling the asyncio wrapper would leave its executor thread writing.
+        await asyncio.shield(background)
 
 
 @router.get("/jobs/{job_id}")

@@ -196,6 +196,8 @@ def run_now(
     capset: CapabilitySet,
     on_progress: ProgressCb | None = None,
     override_start_date: _date | None = None,
+    *,
+    initial_sync: bool = False,
 ) -> dict:
     """立即执行一次盘后管道,支持进度回调。
 
@@ -206,6 +208,8 @@ def run_now(
         拉取起点(到今天),用于「数据修正/补数据」场景。None 时走原有自动判定逻辑。
     """
     emit = on_progress or _noop
+    if initial_sync and override_start_date is None:
+        override_start_date = cn_today() - _td(days=365)
     skipped: list[str] = []
     # 阶段软失败累积: 下列阶段 try/except 吞异常以不中断管道, 但失败即代表数据可能陈旧。
     # 管道末尾若非空则抛 PipelineStageError, 让任务终态如实标记为 failed(而非误报成功)。
@@ -231,6 +235,26 @@ def run_now(
     emit("resolve_universe", 9, "解析标的池…")
     universe = list(snapshot.symbols)
     emit("resolve_universe", 10, f"标的池规模:{len(universe)} 只")
+
+    financial_rows: dict[str, int] = {}
+    if initial_sync:
+        from app.services import financial_sync
+
+        emit("sync_financial", 10, "首次同步全市场历史财务与股本…")
+        financial_rows = financial_sync.sync_all(
+            repo.store.data_dir, capset, symbols=universe, force_history=True,
+            on_table_done=lambda table, rows: emit(
+                "sync_financial", 10, f"历史财务 {table}: {rows} 行",
+            ),
+        )
+        missing_tables = [
+            table for table in financial_sync.FINANCIAL_TABLES
+            if financial_rows.get(table, 0) == 0
+        ]
+        if missing_tables:
+            raise PipelineStageError([
+                "首次财务同步返回 0 行: " + ", ".join(missing_tables),
+            ])
 
     # Step 1: 日 K 同步
     #   override_start_date 传入 → 强制 batch 拉取 [override_start_date ~ today] (数据修正)
@@ -275,6 +299,9 @@ def run_now(
     # A 股日K拉取开关(默认开);关闭时跳过日K同步,保留已有数据。
     # 数据修正(override_start_date)时即使关闭开关也强制拉取 — 修正就是来补数据的。
     pull_a_share = _prefs.get_pipeline_pull_a_share()
+    written_daily = 0
+    if initial_sync:
+        pull_a_share = True
     if not pull_a_share and not override_start_date:
         emit("sync_daily", 45, "已跳过 A 股日K同步(拉取内容未勾选)")
         logger.info("sync_daily: skipped (pipeline_pull_a_share=False)")
@@ -293,6 +320,7 @@ def run_now(
             start_date=_dt.combine(start_date, _dt.min.time()),
             end_date=_dt.combine(today, _dt.min.time()),
             on_chunk_done=_daily_chunk_progress,
+            **({"strict": True} if initial_sync else {}),
         )
         gap_days = (today - start_date).days
         new_daily_days = gap_days
@@ -358,6 +386,8 @@ def run_now(
         new_daily_days = 365
         emit("sync_daily", 45, "日K 完成")
         logger.info("sync_daily: [%s ~ %s] done", start_date, today)
+    if initial_sync and written_daily == 0:
+        raise PipelineStageError(["首次股票日K同步返回 0 行,请检查日线数据源"])
     _invalidate("daily")
 
     # 完整性修复时删除股票 enriched 的坏分区: 增量重算只算 enriched 里不存在
@@ -421,6 +451,7 @@ def run_now(
             universe, repo, capset,
             start_time=adj_start, end_time=adj_end,
             on_chunk_done=_adj_chunk_progress,
+            **({"strict": True} if initial_sync else {}),
         )
         if affected_symbols:
             _refresh_single_view(repo, "adj_factor")
@@ -675,7 +706,7 @@ def run_now(
 
     # Step 2.5: 分钟 K 同步(可选) — 未启用或无 capability 时静默跳过(不 emit)
     from app.services import preferences
-    minute_on = preferences.get_minute_sync_enabled()
+    minute_on = initial_sync or preferences.get_minute_sync_enabled()
     minute_days = preferences.get_minute_sync_days()
     written_minute = 0
     if minute_on and capset.has(Cap.KLINE_MINUTE_BATCH):
@@ -690,7 +721,10 @@ def run_now(
         written_minute = kline_sync.sync_and_persist_minute(
             minute_symbols, repo, capset, days=minute_days,
             on_chunk_done=_minute_chunk_progress,
+            **({"force_full_days": True, "strict": True} if initial_sync else {}),
         )
+        if initial_sync and written_minute == 0:
+            raise PipelineStageError(["首次分钟K同步返回 0 行,请检查分钟数据源"])
         minute_dir = repo.store.data_dir / "kline_minute"
         minute_cover_days = len(list(minute_dir.glob("date=*"))) if minute_dir.exists() else 0
         emit("sync_minute", 93, f"分钟K完成,覆盖 {minute_cover_days} 天")
@@ -698,6 +732,8 @@ def run_now(
         _invalidate("minute")
     else:
         skipped.append("sync_minute")
+        if initial_sync:
+            raise PipelineStageError(["首次同步缺少分钟K能力"])
         if minute_on:
             logger.info("sync_minute skipped: no KLINE_MINUTE_BATCH capability")
         else:
@@ -807,7 +843,8 @@ def run_now(
     emit("refresh_views", 95, "刷新 DuckDB 视图…")
     _refresh_views(repo)
 
-    emit("done", 100, "完成")
+    if not initial_sync:
+        emit("done", 100, "完成")
     _invalidate(None)  # 兜底:全清
 
     result = {
@@ -816,6 +853,9 @@ def run_now(
         "universe_source": snapshot.source,
         "universe_boards": list(snapshot.boards),
         "universe_refreshed": inst_rows > 0,
+        "daily_rows": written_daily,
+        "financial_rows": financial_rows,
+        "initial_sync": initial_sync,
         "daily_days": new_daily_days,
         "adj_factor_symbols": len(affected_symbols),
         "enriched_days": written_enriched,
@@ -841,6 +881,14 @@ def run_now(
     if stage_errors:
         raise PipelineStageError(stage_errors)
 
+    if initial_sync:
+        from app.services.initial_sync import sync_current_snapshots
+
+        emit("sync_snapshots", 99, "首次同步全市场实时行情与五档盘口…")
+        result.update(sync_current_snapshots(
+            repo.store.data_dir, universe, write_lock=getattr(repo, "_write_lock", None),
+        ))
+
     from app.services.data_release import publish_data_release
 
     release = publish_data_release(
@@ -862,6 +910,8 @@ def run_now(
             atomic_write_text(repo.store.data_dir / "settlement_ready.json", json.dumps({
                 "day": today.isoformat(), "release_id": release["release_id"],
             }))
+    if initial_sync:
+        emit("done", 100, "首次全量同步完成")
     return result
 
 

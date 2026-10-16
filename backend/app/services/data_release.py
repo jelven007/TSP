@@ -40,6 +40,7 @@ _DATASET_PATHS = {
     "etf_minute": "kline_etf_minute",
     "etf_adj_factor": "adj_factor_etf",
     "depth5": "depth5",
+    "market_snapshot": "market_snapshot",
 }
 
 

@@ -122,6 +122,9 @@ async def lifespan(app):
         resources.callback(store.db.close)
         repo = KlineRepository(store)
         app.state.datastore, app.state.repo = store, repo
+        from app.services.initial_sync import prepare_initial_sync
+
+        prepare_initial_sync(store.data_dir)
         app.state.service_role = "platform"
         custom.load_all()
         resources.callback(custom.close_all)
@@ -181,4 +184,12 @@ async def lifespan(app):
         app.state.readiness_monitor = monitor
         monitor.start()
         resources.callback(monitor.close)
-        yield
+        from app.services.initial_sync import start_initial_sync
+
+        await start_initial_sync(app.state)
+        try:
+            yield
+        finally:
+            from app.api.pipeline import stop_initial_sync_job
+
+            await stop_initial_sync_job(getattr(app.state, "initial_sync_job_id", None))

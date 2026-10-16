@@ -121,6 +121,9 @@ async def _application_lifespan(app: FastAPI):
     repo = KlineRepository(store)
     app.state.datastore = store
     app.state.repo = repo
+    from app.services.initial_sync import prepare_initial_sync
+
+    prepare_initial_sync(store.data_dir)
     # 自定义/复合因子载入注册表 (P3); 单个失败只跳过该因子 (fail-隔离)
     from app.factors.store import load_into_registry
 
@@ -202,7 +205,7 @@ async def _application_lifespan(app: FastAPI):
     depth_service.set_app_state(app.state)
     app.state.depth_service = depth_service
 
-    # 启动调度器(若 enriched 数据为空,首次启动可手动 POST /api/pipeline/run)
+    # 定时增量任务与首次部署初始化共用同一同步管道。
     try:
         daily_pipeline.set_app_state(app.state)  # 供 depth_finalize job 访问 depth_service
         scheduler = daily_pipeline.start_scheduler(repo, capset)
@@ -389,9 +392,16 @@ async def _application_lifespan(app: FastAPI):
         extension_registry,
     )
 
+    from app.services.initial_sync import start_initial_sync
+
+    await start_initial_sync(app.state)
+
     try:
         yield
     finally:
+        from app.api.pipeline import stop_initial_sync_job
+
+        await stop_initial_sync_job(getattr(app.state, "initial_sync_job_id", None))
         repo._on_refresh_done = None  # noqa: SLF001
         wd = getattr(app.state, "watchdog", None)
         if wd:

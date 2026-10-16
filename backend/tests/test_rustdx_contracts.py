@@ -240,6 +240,21 @@ def test_realtime_and_depth_normalize_quote_contracts():
     assert depth["bid_volumes"] == [200, 400, 600, 800, 1000]
 
 
+def test_first_sync_adjustment_transport_error_is_not_treated_as_no_events():
+    fake = _FakeClient()
+    def fail(_symbol):
+        raise RustdxError("xdxr offline")
+    fake.xdxr = fail
+    provider = RustdxProvider(client_factory=lambda: fake)
+    with pytest.raises(RustdxError, match="xdxr offline"):
+        provider.get_adj_factors(
+            ["600519.SH"], start_time=None, end_time=None, strict=True,
+        )
+    assert provider.get_adj_factors(
+        ["600519.SH"], start_time=None, end_time=None,
+    ).is_empty()
+
+
 def test_adjustment_factor_uses_per_ten_share_event_and_previous_raw_close():
     fake = _FakeClient()
     fake.xdxr_rows = [
