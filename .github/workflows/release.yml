@@ -18,7 +18,6 @@ on:
       version:
         description: '版本号 (格式 va.b.cd, a/b=0-9、cd=0-99, 如 v0.4.2; 必须与 frontend/package.json 的 version 一致, 否则流水线直接失败)'
         required: true
-        default: 'v0.4.2'
       platforms:
         description: '要构建的平台 (逗号分隔: windows,macos,linux)'
         required: true
