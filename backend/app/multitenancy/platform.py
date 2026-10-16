@@ -13,12 +13,21 @@ READ_METHODS = frozenset({"GET", "HEAD"})
 QUERY_POSTS = frozenset({
     "/api/kline/instruments/names", "/api/kline/daily-batch", "/api/kline/minute-batch",
 })
+PUBLIC_MARKET_GETS = frozenset({
+    "/api/kline/instruments/search", "/api/kline/daily", "/api/kline/daily/latest",
+    "/api/kline/minute", "/api/kline/minute-range", "/api/index/daily", "/api/index/minute",
+    "/api/intraday/status", "/api/intraday/indices", "/api/overview/market",
+    "/api/abnormal/auction", "/api/abnormal/intraday", "/api/abnormal/overview",
+    "/api/screener/market-snapshot", "/api/screener/limit-ladder",
+    "/api/regime/history", "/api/regime/latest", "/api/regime/states", "/api/regime/coverage",
+    "/api/regime/phases", "/api/regime/mainline", "/api/sector-rotation",
+})
 
 def market_read_path(method: str, path: str) -> bool:
-    return ((method in READ_METHODS and path in {
-        "/api/kline/instruments/search", "/api/kline/daily", "/api/kline/daily/latest",
-        "/api/kline/minute", "/api/kline/minute-range", "/api/index/daily", "/api/index/minute",
-    }) or (method == "POST" and path in QUERY_POSTS))
+    return (
+        (method in READ_METHODS and path in PUBLIC_MARKET_GETS)
+        or (method == "POST" and path in QUERY_POSTS)
+    )
 
 
 def market_read_access(request) -> bool:

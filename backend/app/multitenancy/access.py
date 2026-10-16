@@ -34,6 +34,10 @@ PRIVATE_PREFIXES = (
 PUBLIC_QUERY_POSTS = frozenset({
     "/api/kline/instruments/names", "/api/kline/daily-batch", "/api/kline/minute-batch",
 })
+MARKET_REFRESH_EXEMPT_PREFIXES = (
+    "/api/auth", "/api/account", "/api/admin", "/api/events", "/api/settings",
+    "/api/data", "/api/pipeline", "/api/observability", "/api/capabilities", "/api/health",
+)
 
 
 def csrf(request: Request) -> None:
@@ -51,8 +55,18 @@ def csrf(request: Request) -> None:
 async def middleware(request: Request, call_next):
     request.state.request_id = getattr(request.state, "request_id", None) or uuid.uuid4().hex
     path = request.url.path
+    service_role = getattr(request.app.state, "service_role", "api")
+    if service_role == "gateway" and path not in {
+        "/health", "/health/live", "/health/ready", "/api/health",
+        "/api/events", "/api/events/ticket",
+    }:
+        return JSONResponse(status_code=404, content={"detail": "gateway_route_not_found"})
     if not path.startswith("/api/") or request.method == "OPTIONS":
         return await call_next(request)
+    if path == "/api/events" and request.method == "GET" and request.query_params.get("ticket"):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        return response
     try:
         service = request.app.state.account_identity
         credential = request.headers.get("authorization", "")
@@ -80,7 +94,11 @@ async def middleware(request: Request, call_next):
             if expected_scope and expected_scope != current_scope:
                 raise AccessError(401, "账户已切换，请重新登录")
             request.state.account = account
-            permission = "business:read" if request.method in {"GET", "HEAD"} else "business:write"
+            permission = (
+                "business:read"
+                if request.method in {"GET", "HEAD"} or path == "/api/events/ticket"
+                else "business:write"
+            )
             for prefix, admin_permission in ADMIN_PREFIXES.items():
                 if path == prefix or path.startswith(prefix + "/"):
                     permission = admin_permission
@@ -124,6 +142,21 @@ async def middleware(request: Request, call_next):
                 return response
         elif credential:
             raise AccessError(403, "该接口不接受 API Token")
+        if service_role == "gateway":
+            response = await call_next(request)
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-TSP-Account-Scope"] = (
+                f"tsp-v1:{account['id']}:{account['default_tenant_id'] or 'market'}:{account['auth_version']}"
+            )
+            return response
+        if service_role == "api" and not any(
+            path == prefix or path.startswith(prefix + "/")
+            for prefix in MARKET_REFRESH_EXEMPT_PREFIXES
+        ):
+            quotes = getattr(request.app.state, "quote_service", None)
+            ensure_fresh = getattr(quotes, "ensure_fresh", None)
+            if callable(ensure_fresh):
+                await run_in_threadpool(ensure_fresh)
         from app.factors.registry import private_factor_registry
         from app.multitenancy.documents import TenantDocuments
 

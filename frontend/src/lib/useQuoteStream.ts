@@ -7,7 +7,7 @@ import { toast } from '@/components/Toast'
 import { pushAlertToasts } from '@/components/AlertToast'
 import { feedReviewEvent } from './reviewStore'
 import type { KlineDailyResponse, StrategyAlertEvent } from './api'
-import { accountStreamUrl } from './accountSession'
+import { accountEventStreamUrl } from './accountSession'
 
 // ===== 全局 SSE 连接状态 (模块级 store, 仿 AlertToast.tsx 模式) =====
 // 实时行情 SSE 断开时 UI 无感知 → 会漏掉策略告警。这里暴露连接状态,
@@ -115,6 +115,7 @@ export function useQuoteStream(
     let failCount = 0
     let toastFired = false
     let lastEventId = ''
+    let cancelled = false
     const acceptEvent = (event: MessageEvent): boolean => {
       if (!event.lastEventId) return true
       if (lastEventId && BigInt(event.lastEventId) <= BigInt(lastEventId)) return false
@@ -122,11 +123,30 @@ export function useQuoteStream(
       return true
     }
 
-    const connect = () => {
+    const scheduleReconnect = () => {
+      if (cancelled) return
+      failCount += 1
+      _setStatus('reconnecting')
+      if (failCount >= FAILS_BEFORE_TOAST && !toastFired) {
+        toastFired = true
+        toast('实时连接已断开，正在重连…', 'error')
+      }
+      const base = getQueryConfig().sse.reconnectDelay
+      const delay = Math.min(base * 2 ** (failCount - 1), BACKOFF_CAP_MS)
+      retryRef.current = setTimeout(() => void connect(), delay)
+    }
+
+    async function connect() {
       _setStatus(failCount > 0 ? 'reconnecting' : _streamStatus)
-      const url = new URL(accountStreamUrl('/api/intraday/stream'), window.location.origin)
-      if (lastEventId) url.searchParams.set('last_event_id', lastEventId)
-      const es = new EventSource(url.pathname + url.search)
+      let streamUrl: string
+      try {
+        streamUrl = await accountEventStreamUrl(lastEventId)
+      } catch {
+        scheduleReconnect()
+        return
+      }
+      if (cancelled) return
+      const es = new EventSource(streamUrl)
       esRef.current = es
 
       es.onopen = () => {
@@ -250,24 +270,16 @@ export function useQuoteStream(
 
       es.onerror = () => {
         es.close()
+        if (esRef.current !== es) return
         esRef.current = null
-        failCount += 1
-        _setStatus('reconnecting')
-        // 连续失败到阈值 → 弹一次 toast (漏行情=可能漏策略告警, 需明确告知)
-        if (failCount >= FAILS_BEFORE_TOAST && !toastFired) {
-          toastFired = true
-          toast('实时连接已断开，正在重连…', 'error')
-        }
-        // 指数退避 (base * 2^(n-1), 上限 60s), 替代原来固定 5s
-        const base = getQueryConfig().sse.reconnectDelay
-        const delay = Math.min(base * 2 ** (failCount - 1), BACKOFF_CAP_MS)
-        retryRef.current = setTimeout(connect, delay)
+        scheduleReconnect()
       }
     }
 
-    connect()
+    void connect()
 
     return () => {
+      cancelled = true
       clearTimeout(retryRef.current)
       if (esRef.current) {
         esRef.current.close()

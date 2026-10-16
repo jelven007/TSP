@@ -32,7 +32,24 @@ def issue_ticket(request: Request):
     # 认证与限流已在网关中间件完成 (scope 规则 "*"); 端点内再验一次
     # 明文是为了拿到 Token 记录、让票据继承 scope (不放大权限)。
     if getattr(request.app.state, "account_identity", None) is not None:
-        raise HTTPException(409, "请使用当前账户的租户事件流")
+        from app.api.auth import COOKIE_NAME
+        from app.cell.passwords import token_hash
+
+        account = request.state.account
+        context = request.state.tenant_context
+        principal = (
+            "api:" + context.token_id
+            if context.token_id
+            else "session:" + token_hash(request.cookies.get(COOKIE_NAME, ""))
+        )
+        ticket, ttl = request.app.state.stream_tickets.issue(
+            account, context, principal=principal,
+        )
+        return {
+            "ticket": ticket,
+            "expires_in": int(ttl),
+            "stream": "/api/events?ticket=" + ticket,
+        }
     authz = request.headers.get("authorization", "")
     plaintext = authz[len("Bearer "):].strip() if authz.startswith("Bearer ") else ""
 
@@ -64,7 +81,12 @@ async def event_stream(request: Request = None, ticket: str = ""):
         from sse_starlette.sse import EventSourceResponse
 
         from app.multitenancy.events import stream
-        return EventSourceResponse(stream(request))
+        claims = request.app.state.stream_tickets.consume(ticket) if ticket else None
+        if claims is None:
+            return JSONResponse(status_code=401, content={"detail": "票据无效、已使用或过期"})
+        request.state.tenant_context = claims.context(request.state.request_id)
+        request.state.stream_claims = claims
+        return EventSourceResponse(stream(request, claims))
     scopes = event_tickets.consume(ticket) if ticket else None
     if scopes is None:
         return JSONResponse(status_code=401, content={"detail": "票据无效、已使用或过期"})

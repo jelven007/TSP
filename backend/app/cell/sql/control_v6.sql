@@ -1,0 +1,1 @@
+-- Schema v6 only changes Cell business scheduling metadata.

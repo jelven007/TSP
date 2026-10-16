@@ -121,8 +121,12 @@ def test_freeze_before_init_rejected(client: TestClient):
 
 def test_trades_nav_stats_empty(client: TestClient):
     client.post("/api/paper/account", json={"initial_cash": 100000})
-    assert client.get("/api/paper/trades").json() == {"fills": []}
-    assert client.get("/api/paper/nav").json() == {"nav": []}
+    assert client.get("/api/paper/trades").json() == {
+        "fills": [], "total": 0, "execution_total": 0, "next_cursor": None,
+    }
+    assert client.get("/api/paper/nav").json() == {
+        "nav": [], "total": 0, "next_cursor": None,
+    }
     stats = client.get("/api/paper/stats").json()
     assert stats["rounds"] == 0 and stats["win_rate"] == 0.0
 

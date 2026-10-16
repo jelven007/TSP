@@ -55,6 +55,25 @@ it('rejects private late responses after an account change', async () => {
   await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
 })
 
+it('exchanges the browser session for a tenant event ticket', async () => {
+  const session = await import('./accountSession')
+  session.confirmAccount(authenticated('first'))
+  const fetch = vi.fn(async (_path: string, _init?: RequestInit) => new Response(JSON.stringify({
+    ticket: 'tss_signed',
+    expires_in: 60,
+    stream: '/api/events?ticket=tss_signed',
+  }), { status: 200 }))
+  vi.stubGlobal('fetch', fetch)
+
+  await expect(session.accountEventStreamUrl('42')).resolves.toBe(
+    '/api/events?ticket=tss_signed&last_event_id=42',
+  )
+  const [path, init] = fetch.mock.calls[0]
+  expect(path).toBe('/api/events/ticket')
+  expect(init?.method).toBe('POST')
+  expect(new Headers(init?.headers).get('X-TSP-Account-Scope')).toContain('tsp-v1:first:')
+})
+
 it('rejects external, login and forbidden redirects while retaining business links', async () => {
   const session = await import('./accountSession')
   session.confirmAccount(authenticated('first'))

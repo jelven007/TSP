@@ -54,12 +54,13 @@ class Tokens:
         if row["policy_version"] != context.policy_version or row["routing_epoch"] != context.routing_epoch:
             raise AccessError(401, "Token 租户授权已变更")
         scope = required_scope(method, path)
+        stream_ticket = method == "POST" and path == "/api/events/ticket"
         if scope == "read:ext" and not (
             path == "/api/ext-data/schema-all" or path.startswith("/api/ext-data/schema/")
             or path.endswith(("/rows", "/values"))
         ):
             scope = None
-        if scope not in SCOPES or scope not in row["full_scopes"]:
+        if not stream_ticket and (scope not in SCOPES or scope not in row["full_scopes"]):
             raise AccessError(403, "Token 无权访问该接口")
         if touch:
             self.identity.limit("full-token:" + row["id"], rate_limit_per_min(), 60)
@@ -72,7 +73,12 @@ class Tokens:
         # of the administrator's current UI selection.
         account = {**account, "default_tenant_id": context.tenant_id}
         permissions = context.permissions & frozenset(row["permissions"])
-        return account, replace(context, token_id=row["id"], permissions=permissions)
+        return account, replace(
+            context,
+            token_id=row["id"],
+            token_scopes=frozenset(row["full_scopes"]),
+            permissions=permissions,
+        )
 
     def create(self, account, name, scopes, days, request_id):
         if "tokens:manage" not in account["permissions"]:
@@ -139,6 +145,9 @@ class Tokens:
                    VALUES(%s,%s,'full-token.revoke',%s,%s)""",
                 (context.tenant_id, account["id"], item_id, request_id),
             )
+            from app.multitenancy.stream_auth import notify_access_change
+
+            notify_access_change(conn, principal="api:" + item_id)
 
 
 class TokenIn(BaseModel):

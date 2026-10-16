@@ -14,7 +14,7 @@ from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -281,10 +281,12 @@ class _Cancellation:
 class ResearchWorker:
     """Bounded scheduler. SQL rows survive process restarts and SSE disconnects."""
     def __init__(self, db, executor, *, concurrency=4):
+        from app.cell.scheduler import Scheduler
         from app.multitenancy.identity import AccountIdentity
 
         self.db, self.executor = db, executor
         self.identity = AccountIdentity(db)
+        self.scheduler = Scheduler(db)
         self.stop = threading.Event()
         self.pool = ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix="research")
         self.capacity = concurrency
@@ -300,17 +302,35 @@ class ResearchWorker:
             self.thread.join(timeout=2)
         self.pool.shutdown(wait=True, cancel_futures=True)
 
-    def _contexts(self):
+    def _context(self, tenant_id):
         # Scheduling uses an internal binding context. Authorization is checked
         # separately for the row's actual submitter before execution and commit.
         with self.db.control.connection() as conn:
-            tenants = conn.execute(
+            row = conn.execute(
                 """SELECT id,policy_version,routing_epoch FROM control.tenants
-                   WHERE cell_id=%s AND status='active' ORDER BY id""", (self.db.settings.id,),
-            ).fetchall()
-        return [TenantContext(row["id"], "research-scheduler", self.db.settings.id, Role.OWNER,
-                              ROLE_PERMISSIONS[Role.OWNER], row["policy_version"], row["routing_epoch"],
-                              uuid.uuid4().hex) for row in tenants]
+                   WHERE id=%s AND cell_id=%s AND status='active'""",
+                (tenant_id, self.db.settings.id),
+            ).fetchone()
+        if row is None:
+            return None
+        return TenantContext(row["id"], "research-scheduler", self.db.settings.id, Role.OWNER,
+                             ROLE_PERMISSIONS[Role.OWNER], row["policy_version"], row["routing_epoch"],
+                             uuid.uuid4().hex)
+
+    def _next_due(self, context):
+        from app.cell.scheduler import Scheduler
+
+        try:
+            with self.db.business_transaction(context) as conn:
+                return Scheduler.next_due(conn, "research", 0)
+        except AccessError:
+            return datetime.now(UTC) + timedelta(seconds=60)
+
+    def _run_claim(self, context, row, scheduler_claim):
+        try:
+            self.run(context, row)
+        finally:
+            self.scheduler.finish(scheduler_claim, self._next_due(context))
 
     def _loop(self):
         import logging
@@ -326,12 +346,23 @@ class ResearchWorker:
                     if future.exception():
                         logger.error("Research execution failed: %s", future.exception())
             try:
-                for context in self._contexts():
-                    if self.stop.is_set() or len(self.futures) >= self.capacity:
+                available = self.capacity - len(self.futures)
+                for scheduler_claim in self.scheduler.claim("research", available) if available else ():
+                    if self.stop.is_set():
                         break
+                    context = self._context(scheduler_claim["tenant_id"])
+                    if context is None:
+                        self.scheduler.finish(
+                            scheduler_claim, datetime.now(UTC) + timedelta(seconds=60),
+                        )
+                        continue
                     row = self.claim(context)
                     if row:
-                        self.futures.add(self.pool.submit(self.run, context, row))
+                        self.futures.add(
+                            self.pool.submit(self._run_claim, context, row, scheduler_claim),
+                        )
+                    else:
+                        self.scheduler.finish(scheduler_claim, self._next_due(context))
                 health.record()
             except Exception:
                 logger.exception("Research dispatch failed")

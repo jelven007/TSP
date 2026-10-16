@@ -7,8 +7,12 @@
 """
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import logging
 import uuid
+from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -36,6 +40,27 @@ def _acc(request: Request, account: str) -> str:
         return paper.validate_account_id(account)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+def _encode_cursor(kind: str, *values) -> str | None:
+    if not values or any(value is None for value in values):
+        return None
+    payload = json.dumps({"kind": kind, "values": values}, separators=(",", ":")).encode()
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+
+def _decode_cursor(value: str | None, kind: str, size: int) -> list | None:
+    if value is None:
+        return None
+    try:
+        padding = "=" * (-len(value) % 4)
+        payload = json.loads(base64.b64decode(value + padding, altchars=b"-_", validate=True))
+        values = payload["values"]
+        if payload["kind"] != kind or not isinstance(values, list) or len(values) != size:
+            raise ValueError
+        return values
+    except (binascii.Error, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="分页游标无效") from exc
 
 
 class AccountModel(BaseModel):
@@ -196,12 +221,25 @@ def create_order(request: Request, body: OrderModel, account: str = Query(paper.
 
 
 @router.get("/orders", response_model=contracts.PaperOrdersResponse)
-def list_orders(request: Request, status: str | None = None, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
-    orders = paper.load_orders(_data_dir(request), _acc(request, account))
-    if status:
-        orders = [o for o in orders if o["status"] == status]
-    orders.sort(key=lambda o: o["created_at"], reverse=True)
-    return {"orders": orders}
+def list_orders(
+    request: Request,
+    status: str | None = None,
+    account: str = Query(paper.DEFAULT_ACCOUNT_ID),
+    limit: int = Query(100, ge=1, le=500),
+    cursor: str | None = Query(None, max_length=512),
+):
+    before = _decode_cursor(cursor, "orders", 2)
+    if before is not None and not all(isinstance(value, str) for value in before):
+        raise HTTPException(status_code=400, detail="分页游标无效")
+    orders, total, next_key = paper.load_orders_page(
+        _data_dir(request), _acc(request, account), status=status or None,
+        limit=limit, before=tuple(before) if before else None,
+    )
+    return {
+        "orders": orders,
+        "total": total,
+        "next_cursor": _encode_cursor("orders", *next_key) if next_key else None,
+    }
 
 
 @router.delete("/orders/{order_id}", response_model=contracts.PaperOrderResponse)
@@ -213,10 +251,28 @@ def cancel_order(request: Request, order_id: str, account: str = Query(paper.DEF
 
 
 @router.get("/trades", response_model=contracts.PaperTradesResponse)
-def list_trades(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
-    fills = paper.load_fills(_data_dir(request), _acc(request, account))
-    fills.sort(key=lambda f: f.get("seq", 0), reverse=True)
-    return {"fills": fills}
+def list_trades(
+    request: Request,
+    account: str = Query(paper.DEFAULT_ACCOUNT_ID),
+    limit: int = Query(100, ge=1, le=500),
+    cursor: str | None = Query(None, max_length=512),
+):
+    decoded = _decode_cursor(cursor, "fills", 1)
+    try:
+        before = int(decoded[0]) if decoded else None
+        if before is not None and before < 1:
+            raise ValueError
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="分页游标无效") from exc
+    fills, total, execution_total, next_key = paper.load_fills_page(
+        _data_dir(request), _acc(request, account), limit=limit, before=before,
+    )
+    return {
+        "fills": fills,
+        "total": total,
+        "execution_total": execution_total,
+        "next_cursor": _encode_cursor("fills", next_key),
+    }
 
 
 @router.get("/positions", response_model=contracts.PaperPositionsResponse)
@@ -227,8 +283,27 @@ def list_positions(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_
 
 
 @router.get("/nav", response_model=contracts.PaperNavResponse)
-def list_nav(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
-    return {"nav": paper.load_nav(_data_dir(request), _acc(request, account))}
+def list_nav(
+    request: Request,
+    account: str = Query(paper.DEFAULT_ACCOUNT_ID),
+    limit: int = Query(500, ge=1, le=1000),
+    cursor: str | None = Query(None, max_length=512),
+):
+    decoded = _decode_cursor(cursor, "nav", 1)
+    try:
+        before = str(decoded[0]) if decoded else None
+        if before is not None:
+            date.fromisoformat(before)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="分页游标无效") from exc
+    nav, total, next_key = paper.load_nav_page(
+        _data_dir(request), _acc(request, account), limit=limit, before=before,
+    )
+    return {
+        "nav": nav,
+        "total": total,
+        "next_cursor": _encode_cursor("nav", next_key),
+    }
 
 
 @router.get("/stats", response_model=contracts.PaperStatsResponse)

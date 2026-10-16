@@ -48,8 +48,8 @@ def _password_budget():
 
 class AccountIdentity:
     def __init__(self, db: Databases):
-        if db.settings.schema_version != 5:
-            raise ValueError("full-product identity requires schema v5")
+        if db.settings.schema_version < 5:
+            raise ValueError("full-product identity requires schema v5 or newer")
         self.db = db
 
     def limit(self, key: str, maximum: int, window: int) -> None:
@@ -147,8 +147,12 @@ class AccountIdentity:
         return self._session(user["id"], user["auth_version"])
 
     def logout(self, token: str) -> None:
-        with self.db.control.connection() as conn:
-            conn.execute("DELETE FROM control.sessions WHERE digest=%s", (token_hash(token),))
+        digest = token_hash(token)
+        with self.db.control.connection() as conn, conn.transaction():
+            conn.execute("DELETE FROM control.sessions WHERE digest=%s", (digest,))
+            from app.multitenancy.stream_auth import notify_access_change
+
+            notify_access_change(conn, principal="session:" + digest)
 
     def change_password(self, token: str, old_password: str, new_password: str) -> None:
         user = self.current_user(token)
@@ -174,6 +178,9 @@ class AccountIdentity:
             conn.execute(
                 "UPDATE control.api_tokens SET revoked_at=now() WHERE user_id=%s", (user["id"],),
             )
+            from app.multitenancy.stream_auth import notify_access_change
+
+            notify_access_change(conn, user_id=user["id"])
 
     def registration_enabled(self) -> bool:
         with self.db.control.connection() as conn:
@@ -427,6 +434,9 @@ class AccountIdentity:
                     "UPDATE control.api_tokens SET revoked_at=now() WHERE user_id=%s",
                     (user["id"],),
                 )
+                from app.multitenancy.stream_auth import notify_access_change
+
+                notify_access_change(conn, user_id=user["id"])
                 conn.execute(
                     """UPDATE control.verification_codes SET consumed_at=now()
                        WHERE email=%s AND purpose='registration'""",
@@ -627,6 +637,9 @@ class AccountIdentity:
             conn.execute(
                 "UPDATE control.users SET default_tenant_id=%s WHERE id=%s", (tenant_id, user["id"]),
             )
+            from app.multitenancy.stream_auth import notify_access_change
+
+            notify_access_change(conn, user_id=user["id"])
             if user["role"] == "admin":
                 conn.execute(
                     """INSERT INTO control.audit(tenant_id,actor_id,action,target_id,request_id)
@@ -680,6 +693,9 @@ class AccountIdentity:
             )
             conn.execute("DELETE FROM control.sessions WHERE user_id=%s", (user_id,))
             conn.execute("UPDATE control.api_tokens SET revoked_at=now() WHERE user_id=%s", (user_id,))
+            from app.multitenancy.stream_auth import notify_access_change
+
+            notify_access_change(conn, user_id=user_id)
             conn.execute(
                 """INSERT INTO control.audit(tenant_id,actor_id,action,target_id,request_id)
                    VALUES(%s,%s,'user.role_status.set',%s,%s)""",

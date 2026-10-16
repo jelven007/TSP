@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import threading
 import time
 import weakref
@@ -12,8 +11,6 @@ from app.config import settings
 from app.multitenancy.market import decode_frame
 from app.services.depth_service import DepthService
 from app.services.quote_service import QuoteService
-
-logger = logging.getLogger(__name__)
 
 
 class PublicQuoteBridge(QuoteService):
@@ -26,16 +23,23 @@ class PublicQuoteBridge(QuoteService):
         self.snapshot = None
         self.received_at = 0
         self.update_lock = threading.Lock()
-        self.stop = threading.Event()
-        self.thread = threading.Thread(target=self._loop, daemon=True, name="public-market-bridge")
+        self.refresh_lock = threading.Lock()
+        self.markers = None
+        self.update_generation = 0
+        self.loaded_generation = -1
+        self.snapshot_fetches = 0
+        self.frame_decodes = 0
 
     def start(self):
-        self.thread.start()
+        if self.markers is not None:
+            self.markers.start()
+
+    def attach_markers(self, markers):
+        self.markers = markers
 
     def close(self):
-        self.stop.set()
-        if self.thread.is_alive():
-            self.thread.join(timeout=20)
+        if self.markers is not None:
+            self.markers.close()
         self.market.close()
 
     def status(self):
@@ -52,20 +56,42 @@ class PublicQuoteBridge(QuoteService):
             value.update(running=False, is_trading_hours=False)
         return value
 
-    def refresh(self):
-        self.update(self.market.snapshot())
+    def refresh(self, *, force=True, max_age=5):
+        with self.refresh_lock:
+            marker_connected = bool(self.markers and self.markers.status()["connected"])
+            stale = not self.snapshot or self.loaded_generation < self.update_generation
+            fallback_stale = not marker_connected and time.monotonic() - self.received_at >= max_age
+            if not force and not stale and not fallback_stale:
+                return self.status()
+            generation = self.update_generation
+            snapshot = self.market.snapshot()
+            self.snapshot_fetches += 1
+            with self.update_lock:
+                self._update(snapshot)
+                self.loaded_generation = generation
+            return self.status()
+
+    def ensure_fresh(self, max_age=5):
+        marker_connected = bool(self.markers and self.markers.status()["connected"])
+        stale = not self.snapshot or self.loaded_generation < self.update_generation
+        fallback_stale = not marker_connected and time.monotonic() - self.received_at >= max_age
+        if stale or fallback_stale:
+            return self.refresh(force=False, max_age=max_age)
         return self.status()
 
     def update(self, snapshot):
         with self.update_lock:
             if self.snapshot and snapshot.get("captured_at", 0) < self.snapshot.get("captured_at", 0):
                 return
-            return self._update(snapshot)
+            result = self._update(snapshot)
+            self.loaded_generation = self.update_generation
+            return result
 
     def _update(self, snapshot):
         previous = self.snapshot
         frames = {asset: decode_frame(encoded) for asset, encoded in snapshot["frames"].items()}
         indices = decode_frame(snapshot["indices"])
+        self.frame_decodes += len(frames) + 1
         repo = self._repo
         release = snapshot.get("public_release")
         if release and (not previous or previous.get("public_release", {}).get("id") != release["id"]):
@@ -110,13 +136,23 @@ class PublicQuoteBridge(QuoteService):
         # Depth can change independently of the stock quote cycle.
         self.notify_depth_updated()
 
-    def _loop(self):
-        while not self.stop.is_set():
-            try:
-                self.update(self.market.snapshot())
-            except Exception:
-                logger.warning("public market bridge unavailable")
-            self.stop.wait(1)
+    def mark_event(self, event):
+        with self.update_lock:
+            self.update_generation += 1
+        if event == "quotes_updated":
+            self._broadcast_quote_updated()
+        elif event == "depth_updated":
+            self.notify_depth_updated()
+
+    def bridge_status(self):
+        marker_status = self.markers.status() if self.markers is not None else {"connected": False}
+        return {
+            **marker_status,
+            "update_generation": self.update_generation,
+            "loaded_generation": self.loaded_generation,
+            "snapshot_fetches": self.snapshot_fetches,
+            "frame_decodes": self.frame_decodes,
+        }
 
 
 class PublicDepthBridge(DepthService):

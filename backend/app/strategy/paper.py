@@ -438,6 +438,34 @@ def load_orders(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[di
     return out
 
 
+@paper_operation()
+def load_orders_page(
+    data_dir: Path,
+    account_id: str = DEFAULT_ACCOUNT_ID,
+    *,
+    status: str | None = None,
+    limit: int = 100,
+    before: tuple[str, str] | None = None,
+) -> tuple[list[dict], int, tuple[str, str] | None]:
+    """Newest-first HTTP history page; domain replay keeps using ``load_orders``."""
+    validate_account_id(account_id)
+    if not 1 <= limit <= 500:
+        raise ValueError("订单分页大小无效")
+    if isinstance(data_dir, PaperSession):
+        return data_dir.order_page(account_id, status=status, limit=limit, before=before)
+    orders = load_orders(data_dir, account_id)
+    if status is not None:
+        orders = [order for order in orders if order.get("status") == status]
+    total = len(orders)
+    orders.sort(key=_order_sort_key, reverse=True)
+    if before is not None:
+        orders = [order for order in orders if _order_sort_key(order) < before]
+    rows = orders[:limit + 1]
+    page = rows[:limit]
+    next_key = _order_sort_key(page[-1]) if len(rows) > limit else None
+    return page, total, next_key
+
+
 @paper_operation(write=True)
 def save_order(data_dir: Path, order: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
     validate_account_id(account_id)
@@ -642,6 +670,33 @@ def load_fills(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dic
         except Exception as e:
             logger.warning("paper fill line skipped: %s", e)
     return out
+
+
+@paper_operation()
+def load_fills_page(
+    data_dir: Path,
+    account_id: str = DEFAULT_ACCOUNT_ID,
+    *,
+    limit: int = 100,
+    before: int | None = None,
+) -> tuple[list[dict], int, int, int | None]:
+    """Newest-first fill page with stable append ordinals."""
+    validate_account_id(account_id)
+    if not 1 <= limit <= 500:
+        raise ValueError("成交分页大小无效")
+    if isinstance(data_dir, PaperSession):
+        return data_dir.fill_page(account_id, limit=limit, before=before)
+    fills = load_fills(data_dir, account_id)
+    total = len(fills)
+    execution_total = sum(fill.get("kind", "fill") != "corp_action" for fill in fills)
+    rows = list(enumerate(fills, start=1))
+    if before is not None:
+        rows = [row for row in rows if row[0] < before]
+    rows.sort(key=lambda row: row[0], reverse=True)
+    selected = rows[:limit + 1]
+    page = selected[:limit]
+    next_key = page[-1][0] if len(selected) > limit else None
+    return [fill for _, fill in page], total, execution_total, next_key
 
 
 @paper_operation()
@@ -1412,6 +1467,31 @@ def load_nav(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[dict]
         except Exception:
             continue
     return out
+
+
+@paper_operation()
+def load_nav_page(
+    data_dir: Path,
+    account_id: str = DEFAULT_ACCOUNT_ID,
+    *,
+    limit: int = 500,
+    before: str | None = None,
+) -> tuple[list[dict], int, str | None]:
+    """Latest NAV window in chronological order for chart rendering."""
+    validate_account_id(account_id)
+    if not 1 <= limit <= 1000:
+        raise ValueError("净值分页大小无效")
+    if isinstance(data_dir, PaperSession):
+        return data_dir.nav_page(account_id, limit=limit, before=before)
+    rows = load_nav(data_dir, account_id)
+    total = len(rows)
+    if before is not None:
+        rows = [row for row in rows if row.get("date", "") < before]
+    rows.sort(key=lambda row: row.get("date", ""), reverse=True)
+    selected = rows[:limit + 1]
+    page = selected[:limit]
+    next_key = page[-1].get("date") if len(selected) > limit else None
+    return list(reversed(page)), total, next_key
 
 
 @paper_operation()

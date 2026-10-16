@@ -13,10 +13,11 @@ class CellSettings(BaseSettings):
     data_dsn: SecretStr
     pool_size: int = Field(default=4, ge=1, le=32)
     pool_timeout: float = Field(default=5, gt=0, le=30)
-    schema_version: int = Field(default=4, ge=4, le=5)
+    schema_version: int = Field(default=4, ge=4, le=6)
     session_ttl_seconds: int = Field(default=86400, ge=300, le=2592000)
     market_url: str = ""
     market_token: SecretStr = SecretStr("")
+    stream_ticket_secret: SecretStr = SecretStr("")
     static_dir: Path | None = None
     cors_origins: list[str] = []
     worker_timeout: int = Field(default=60, ge=5, le=300)

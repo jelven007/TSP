@@ -58,11 +58,11 @@ def full_cluster():
                     make_conninfo(dsn, dbname=name), autocommit=True, row_factory=dict_row,
                 )) for name in dbnames]
                 for kind, conn, role in zip(("control", "data"), admins, role_names, strict=True):
-                    migrate(conn, kind, role, "full", target_version=5)
+                    migrate(conn, kind, role, "full", target_version=6)
                 register_cell(admins[0], "full", "https://full.example.test")
                 bootstrap_full_identity(admins[0])
                 settings = CellSettings(
-                    id="full", schema_version=5, pool_size=8,
+                    id="full", schema_version=6, pool_size=8,
                     control_dsn=make_conninfo(dsn, dbname=dbnames[0], user=role_names[0], password=PASSWORD),
                     data_dsn=make_conninfo(dsn, dbname=dbnames[1], user=role_names[1], password=PASSWORD),
                 )

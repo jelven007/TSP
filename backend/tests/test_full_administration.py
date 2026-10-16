@@ -109,8 +109,11 @@ def test_tokens_bind_admin_target_and_scope_not_current_selection(env):
     assert tokens.authenticate(value, None, "after-switch", "GET", "/api/kline/daily")[1].tenant_id == context.tenant_id
     with pytest.raises(AccessError, match="目标租户"):
         tokens.authenticate(value, second["default_tenant_id"], "forge", "GET", "/api/kline/daily")
+    _, stream_context = tokens.authenticate(value, None, "stream", "POST", "/api/events/ticket")
+    assert stream_context.token_id == created["token"]["id"]
+    assert stream_context.token_scopes == frozenset({"read:market"})
     for method, path in [("GET", "/api/settings"), ("GET", "/api/alerts"), ("POST", "/api/paper/orders"),
-                         ("POST", "/api/ext-data/private/ingest"), ("POST", "/api/events/ticket")]:
+                         ("POST", "/api/ext-data/private/ingest")]:
         with pytest.raises(AccessError, match="无权访问"):
             tokens.authenticate(value, None, "deny", method, path)
     with pytest.raises(AccessError, match="不存在"):

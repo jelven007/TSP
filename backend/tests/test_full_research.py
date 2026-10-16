@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import io
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import date
@@ -95,6 +96,36 @@ def test_same_parameters_are_owned_by_tenant_and_duplicate_submits_are_atomic(en
     assert b.cancel_key("same-ui-key", "backtest") is True
     assert a.get(rows[0]["id"])["state"] == "queued"
     assert a.cancel_key("same-ui-key", "backtest") is True
+
+
+def test_triggered_scheduler_skips_empty_tenants_and_advances_every_queued_tenant(env):
+    empty = [tenant(env)[2] for _ in range(4)]
+    queued = [tenant(env)[2] for _ in range(8)]
+    rows = [jobs.submit(payload(jobs), force=True) for jobs in queued]
+    empty_ids = [jobs.context.tenant_id for jobs in empty]
+    queued_ids = [jobs.context.tenant_id for jobs in queued]
+    work = env["data"].execute(
+        """SELECT tenant_id FROM scheduler.work
+           WHERE kind='research' AND tenant_id=ANY(%s) AND due_at IS NOT NULL""",
+        (empty_ids + queued_ids,),
+    ).fetchall()
+    assert {row["tenant_id"] for row in work} == set(queued_ids)
+
+    compute = Compute()
+    worker = ResearchWorker(env["db"], compute, concurrency=2)
+    worker.start()
+    try:
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            if all(jobs.get(row["id"])["state"] == "succeeded"
+                   for jobs, row in zip(queued, rows, strict=True)):
+                break
+            time.sleep(.05)
+        assert all(jobs.get(row["id"])["state"] == "succeeded"
+                   for jobs, row in zip(queued, rows, strict=True))
+        assert {task["tenant_id"] for task in compute.calls} == set(queued_ids)
+    finally:
+        worker.close()
 
 
 def test_private_source_or_date_change_never_reuses_completed_result(env):
