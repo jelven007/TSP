@@ -1,0 +1,270 @@
+[
+  {
+    "trial": {
+      "id": "breakout_A",
+      "strategy_id": "breakout_new_high_60d",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved"
+    ],
+    "evidence_sha256": "e0c96278780ced8400e7c98ee4bf078cffb86548b7c44c820cf60f2463ed7283"
+  },
+  {
+    "trial": {
+      "id": "breakout_B",
+      "strategy_id": "breakout_new_high_60d",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved",
+      "profit_factor_not_improved",
+      "drawdown_worse_or_unavailable"
+    ],
+    "evidence_sha256": "6b450d5773a9345197afc157ca4c7e46d86403f7e28ab80d3f3d7c5aab7b9250"
+  },
+  {
+    "trial": {
+      "id": "trend_B",
+      "strategy_id": "bullish_alignment",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "1a475e4fdfbe589e098badb63f8db3e6868bf13587d9a2add637298196617059"
+  },
+  {
+    "trial": {
+      "id": "reversal_A",
+      "strategy_id": "long_lower_shadow_reversal",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "fewer_than_100_trades"
+    ],
+    "evidence_sha256": "d25a324cf6ea2f948811de5db28676da6c4e8937614595158ee963f1ea52d7f2"
+  },
+  {
+    "trial": {
+      "id": "reversal_B",
+      "strategy_id": "long_lower_shadow_reversal",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved",
+      "fewer_than_100_trades"
+    ],
+    "evidence_sha256": "c58926d71de761c363a982b5f26174fbb9388f1fae3c425d90f83eebae5f5005"
+  },
+  {
+    "trial": {
+      "id": "breakout_B",
+      "strategy_id": "ma_convergence_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved"
+    ],
+    "evidence_sha256": "f68251a08c71b6fa2ae9bb6fc7844ff263c8b7ee4fc0afef91a36e5a71c08b09"
+  },
+  {
+    "trial": {
+      "id": "trend_A",
+      "strategy_id": "ma_golden_cross",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved",
+      "expectancy_not_improved",
+      "profit_factor_not_improved",
+      "drawdown_worse_or_unavailable"
+    ],
+    "evidence_sha256": "f2b6f498ab857059c469a85d533b7ca6cdb16e862868c3aa19b75b21c2b61365"
+  },
+  {
+    "trial": {
+      "id": "trend_B",
+      "strategy_id": "ma_golden_cross",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [],
+    "evidence_sha256": "4512193457f8c1e227b6d3b0283e222123d46b57ee089ac001eaa4d79967e72b"
+  },
+  {
+    "trial": {
+      "id": "reversal_A",
+      "strategy_id": "oversold_bounce",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved",
+      "fewer_than_100_trades"
+    ],
+    "evidence_sha256": "81b2229dc1300cfa92b312d14aaa295dd0cb6a9450c6a7c928422af8123f2770"
+  },
+  {
+    "trial": {
+      "id": "reversal_B",
+      "strategy_id": "oversold_bounce",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:ma5"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved",
+      "profit_factor_not_improved",
+      "fewer_than_100_trades",
+      "fewer_than_half_baseline_trades"
+    ],
+    "evidence_sha256": "4b67da3feeea1e11b81440acfd5e36b1f49927d5489796b1c271e6e30ef04f80"
+  },
+  {
+    "trial": {
+      "id": "breakout_A",
+      "strategy_id": "platform_consolidation_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma20",
+            "op": ">=",
+            "right": "field:ma60"
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved",
+      "expectancy_not_improved",
+      "profit_factor_not_improved",
+      "drawdown_worse_or_unavailable"
+    ],
+    "evidence_sha256": "3f98eda99c563377c962a627922d03a34729c0f81603e70acb63bb53addedd3e"
+  },
+  {
+    "trial": {
+      "id": "breakout_B",
+      "strategy_id": "platform_consolidation_breakout",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "ma60",
+            "op": ">=",
+            "right": "field:ma60",
+            "rightDays": 5
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "win_rate_not_improved",
+      "expectancy_not_improved",
+      "profit_factor_not_improved",
+      "drawdown_worse_or_unavailable"
+    ],
+    "evidence_sha256": "dad429581423d4c1b4b6697ee3bfbbf1aa61ec39c8705863d86204e3e2cd3c4e"
+  },
+  {
+    "trial": {
+      "id": "pullback_A",
+      "strategy_id": "pullback_to_support",
+      "overrides": {
+        "overlay_filter": [
+          {
+            "left": "close",
+            "op": ">",
+            "right": "field:close",
+            "rightDays": 1
+          }
+        ]
+      }
+    },
+    "rejected": [
+      "expectancy_not_improved",
+      "profit_factor_not_improved"
+    ],
+    "evidence_sha256": "a73cb2d3a62136bd51d0a38c62c629cd42f75bfc77bf2dae82f9726d45aa609e"
+  }
+]

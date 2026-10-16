@@ -1,0 +1,22 @@
+[
+  {
+    "id": "stability_3d",
+    "strategy_id": "ma_golden_cross",
+    "overrides": {"overlay_filter": [{"left": "ma60", "op": ">=", "right": "field:ma60", "rightDays": 3}]}
+  },
+  {
+    "id": "stability_7d",
+    "strategy_id": "ma_golden_cross",
+    "overrides": {"overlay_filter": [{"left": "ma60", "op": ">=", "right": "field:ma60", "rightDays": 7}]}
+  },
+  {
+    "id": "stability_3d",
+    "strategy_id": "bullish_alignment",
+    "overrides": {"overlay_filter": [{"left": "ma60", "op": ">=", "right": "field:ma60", "rightDays": 3}]}
+  },
+  {
+    "id": "stability_7d",
+    "strategy_id": "bullish_alignment",
+    "overrides": {"overlay_filter": [{"left": "ma60", "op": ">=", "right": "field:ma60", "rightDays": 7}]}
+  }
+]

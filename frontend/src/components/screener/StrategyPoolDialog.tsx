@@ -53,7 +53,9 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
   const [draftPool, setDraftPool] = useState<string[]>(() => [...pool])
   const [allStrategies, setAllStrategies] = useState<StrategyDetail[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [activeTab, setActiveTab] = useState<SourceTab>('all')
+  const [activeFamily, setActiveFamily] = useState('all')
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState('')
   const [importMsg, setImportMsg] = useState('')
@@ -62,13 +64,14 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
 
   const loadStrategies = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     try {
       // 不按周期过滤: 日线+分钟策略合并展示, 分钟策略以徽章区分
       // include_research=true 同时拉取 research_only 草稿, 供 AI 标签「草稿」分区展示/发布
       const d = await api.strategyList(undefined, 'all', true)
       setAllStrategies(d.strategies)
     } catch {
-      setAllStrategies([])
+      setLoadError('策略列表加载失败，请重试')
     } finally {
       setLoading(false)
     }
@@ -102,13 +105,27 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
   )
 
   // 按 Tab 分组过滤待选; 叠加策略(composite)并入「自定义」分组
-  const filteredAvailable = useMemo(() => {
+  const sourceAvailable = useMemo(() => {
     if (activeTab === 'all') return available
     if (activeTab === 'custom') {
       return available.filter(s => s.source === 'custom' || s.source === 'composite')
     }
     return available.filter(s => s.source === activeTab)
   }, [available, activeTab])
+
+  const families = useMemo(() => {
+    const groups = new Map<string, string>()
+    for (const s of allStrategies) {
+      if (s.family) groups.set(s.family.id, s.family.name)
+    }
+    return [...groups].map(([id, name]) => ({ id, name }))
+  }, [allStrategies])
+
+  const filteredAvailable = useMemo(
+    () => sourceAvailable.filter(s =>
+      activeFamily === 'all' || (s.family?.id ?? 'uncategorized') === activeFamily),
+    [sourceAvailable, activeFamily],
+  )
 
   const handleAdd = useCallback((id: string) => {
     setDraftPool(prev => prev.includes(id) ? prev : [...prev, id])
@@ -171,6 +188,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
       })
       await loadStrategies()
       setActiveTab(result.source === 'ai' ? 'ai' : 'custom')
+      setActiveFamily('all')
       const srcLabel = result.source === 'ai'
         ? (result.research_only ? 'AI 草稿(发布后可用)' : 'AI 策略')
         : '自定义策略'
@@ -197,13 +215,13 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="w-[680px] max-h-[78vh] bg-surface border border-border rounded-card shadow-xl flex flex-col"
+          className="w-[760px] max-w-[calc(100vw-24px)] max-h-[86vh] bg-surface border border-border rounded-card shadow-xl flex flex-col"
         >
           {/* 标题 */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
             <span className="text-sm font-medium text-foreground">
               策略池 <span className="text-muted font-normal text-xs">{validDraft.length} / {allStrategies.length}</span>
-              {invalidPoolCount > 0 && <span className="ml-2 text-[10px] text-danger">{invalidPoolCount} 个失效</span>}
+              {!loading && !loadError && invalidPoolCount > 0 && <span className="ml-2 text-[10px] text-danger">{invalidPoolCount} 个失效</span>}
             </span>
             <div className="flex items-center gap-2">
               <input
@@ -240,11 +258,16 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
             <div className="flex items-center justify-center py-16">
               <div className="w-5 h-5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
             </div>
+          ) : loadError ? (
+            <div role="alert" className="px-4 py-12 text-center text-xs text-danger">
+              {loadError}
+              <button onClick={() => void loadStrategies()} className="ml-3 underline">重试</button>
+            </div>
           ) : (
-            <div className="flex-1 min-h-0 grid grid-cols-2 gap-0">
+            <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1 gap-0">
               {/* 左侧: 待选 (Tab 分组) */}
               <div className="flex flex-col min-h-0 border-r border-border">
-                <div className="flex items-center gap-0.5 px-3 py-2 border-b border-border/60 shrink-0">
+                <div className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-border/60 shrink-0">
                   {TABS.map(tab => {
                     const count = tab.id === 'all'
                       ? available.length
@@ -254,7 +277,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => { setActiveTab(tab.id); setActiveFamily('all') }}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-btn transition-colors cursor-pointer ${
                           activeTab === tab.id
                             ? 'bg-accent/10 text-accent'
@@ -276,7 +299,24 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                     本组全加
                   </button>
                 </div>
-                <div className="flex-1 overflow-y-auto px-2 py-2">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60 shrink-0">
+                  <label htmlFor="strategy-family-filter" className="text-[11px] text-muted shrink-0">交易逻辑</label>
+                  <select
+                    id="strategy-family-filter"
+                    value={activeFamily}
+                    onChange={e => setActiveFamily(e.target.value)}
+                    className="min-w-0 flex-1 text-xs bg-surface text-foreground border border-border rounded-btn px-2 py-1"
+                  >
+                    <option value="all">全部类别 · {sourceAvailable.length}</option>
+                    {families.map(family => (
+                      <option key={family.id} value={family.id}>
+                        {family.name} · {sourceAvailable.filter(s => s.family?.id === family.id).length}
+                      </option>
+                    ))}
+                    <option value="uncategorized">未分类 · {sourceAvailable.filter(s => !s.family).length}</option>
+                  </select>
+                </div>
+                <div className="flex-1 overflow-y-auto max-h-[28vh] sm:max-h-none px-2 py-2">
                   {activeTab === 'ai' && drafts.length > 0 && (
                     <div className="mb-3">
                       <div className="flex items-center justify-between px-1 mb-1">
@@ -314,7 +354,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                   <div className="space-y-0.5">
                     {filteredAvailable.length === 0 ? (
                       <div className="flex items-center justify-center h-24 text-[11px] text-muted">
-                        {available.length === 0 ? '全部已加入策略池' : '此分组无待选策略'}
+                        {allStrategies.length === 0 ? '暂无可用策略' : available.length === 0 ? '全部已加入策略池' : '此分组无待选策略'}
                       </div>
                     ) : filteredAvailable.map(s => (
                       <button
@@ -327,7 +367,9 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                           <span className="text-[12px] text-foreground group-hover:text-accent transition-colors block truncate">
                             {s.name} <span className="text-[10px] text-muted font-mono">{s.id}</span>
                           </span>
-                          <span className="text-[10px] text-muted truncate block">{s.description}</span>
+                          <span className="text-[10px] text-muted truncate block" title={s.description}>
+                            {s.family ? `${s.family.name} · ` : ''}{s.description}
+                          </span>
                         </span>
                         <span className={`text-[8px] px-1 py-px rounded border leading-tight shrink-0 ${SOURCE_CLS[s.source] ?? SOURCE_CLS.builtin}`}>
                           {SOURCE_LABEL[s.source] ?? '内置'}
@@ -357,7 +399,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                     清空
                   </button>
                 </div>
-                <div className="flex-1 overflow-y-auto px-2 py-2">
+                <div className="flex-1 overflow-y-auto max-h-[28vh] sm:max-h-none px-2 py-2">
                   {draftPool.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-[11px] text-muted">
                       从左侧点击策略添加
@@ -383,8 +425,9 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                             whileDrag={{ scale: 1.02, zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
                           >
                             <GripVertical className="h-3.5 w-3.5 text-accent/40 group-hover:text-accent/70 shrink-0" />
-                            <span className="flex-1 min-w-0 text-[12px] text-foreground truncate">
-                              {s?.name ?? id} <span className="text-[10px] text-muted font-mono">{id}</span>
+                            <span className="flex-1 min-w-0 text-[12px] text-foreground">
+                              <span className="block truncate">{s?.name ?? id} <span className="text-[10px] text-muted font-mono">{id}</span></span>
+                              {s?.family && <span className="block text-[10px] text-muted">{s.family.name}</span>}
                             </span>
                             <span className={`text-[8px] px-1 py-px rounded border leading-tight shrink-0 ${SOURCE_CLS[src] ?? SOURCE_CLS.builtin}`}>
                               {SOURCE_LABEL[src] ?? '内置'}
@@ -421,7 +464,8 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
               </button>
               <button
                 onClick={() => { onConfirm(draftPool); onClose() }}
-                className="px-3 py-1 text-xs rounded-btn bg-accent text-white hover:bg-accent/90 transition-colors cursor-pointer"
+                disabled={loading || !!loadError}
+                className="px-3 py-1 text-xs rounded-btn bg-accent text-white hover:bg-accent/90 disabled:opacity-40 transition-colors cursor-pointer"
               >
                 确定
               </button>
