@@ -1,15 +1,13 @@
 """缩量回踩 — 回踩MA20附近 + 缩量 + 中期趋势向上"""
 
 import numpy as np
+from _shared_signals import ma20_breakdown, ma20_proximity
 
 from app.backtest.matrix import (
     MarketDataMatrix,
     SignalMatrix,
     make_signal_matrix,
     matrix_feature,
-)
-from app.backtest.matrix import (
-    valid_shift as shift,
 )
 
 META = {
@@ -79,9 +77,7 @@ class PullbackToSupportMatrixStrategy:
         entry = np.ones(market.shape, dtype=bool)
         if params.get("use_ma20_proximity", True):
             proximity = float(params.get("ma_proximity", 0.02))
-            entry &= (market.close > ma20 * (1.0 - proximity)) & (
-                market.close < ma20 * (1.0 + proximity)
-            )
+            entry &= ma20_proximity(market, ma20, proximity)
         if params.get("use_volume_filter", True):
             entry &= matrix_feature(market, "vol_ratio_5d") < float(
                 params.get("vol_ratio_max", 0.8)
@@ -90,7 +86,7 @@ class PullbackToSupportMatrixStrategy:
             entry &= market.close > matrix_feature(market, "ma60")
         if params.get("require_positive_momentum", True):
             entry &= matrix_feature(market, "momentum_20d") > 0
-        exit_ = (market.close < ma20) & (shift(market.close, 1) >= shift(ma20, 1))
+        exit_ = ma20_breakdown(market, ma20)
         return make_signal_matrix(
             market.shape,
             entry=entry.astype(np.uint8),

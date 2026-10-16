@@ -1,15 +1,13 @@
 """超跌反弹 — RSI14 < 30 + 涨幅 > 1% + 站上 MA5, 超卖反弹信号"""
 
 import numpy as np
+from _shared_signals import ma20_breakdown, rsi_oversold_entry
 
 from app.backtest.matrix import (
     MarketDataMatrix,
     SignalMatrix,
     make_signal_matrix,
     matrix_feature,
-)
-from app.backtest.matrix import (
-    valid_shift as shift,
 )
 
 META = {
@@ -69,9 +67,7 @@ class OversoldReversalMatrixStrategy:
         return 60
 
     def compute_signals(self, market: MarketDataMatrix, params: dict) -> SignalMatrix:
-        entry = np.ones(market.shape, dtype=bool)
-        if params.get("use_rsi_filter", True):
-            entry &= matrix_feature(market, "rsi_14") < float(params.get("rsi_max", 30.0))
+        entry = rsi_oversold_entry(market, params)
         if params.get("use_change_filter", True):
             entry &= (
                 matrix_feature(market, "change_pct") > float(params.get("min_change", 1.0)) / 100.0
@@ -79,7 +75,7 @@ class OversoldReversalMatrixStrategy:
         if params.get("require_above_ma5", True):
             entry &= market.close > matrix_feature(market, "ma5")
         ma20 = matrix_feature(market, "ma20")
-        exit_ = (market.close < ma20) & (shift(market.close, 1) >= shift(ma20, 1))
+        exit_ = ma20_breakdown(market, ma20)
         return make_signal_matrix(
             market.shape,
             entry=entry.astype(np.uint8),

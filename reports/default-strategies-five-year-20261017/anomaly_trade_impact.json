@@ -1,0 +1,1382 @@
+[
+  {
+    "phase": "five_year",
+    "strategy_id": "active_limit_gene",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1284,
+      "win_rate": 0.15809968847352024,
+      "win_rate_wilson95": [
+        0.13916745956110194,
+        0.17907167792288675
+      ],
+      "expectancy": -0.034243538161993776,
+      "profit_factor": 0.587925880192813,
+      "payoff_ratio": 2.8781081094765644,
+      "net_pnl": -984951.3300000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1284,
+      "win_rate": 0.15809968847352024,
+      "win_rate_wilson95": [
+        0.13916745956110194,
+        0.17907167792288675
+      ],
+      "expectancy": -0.034243538161993776,
+      "profit_factor": 0.587925880192813,
+      "payoff_ratio": 2.8781081094765644,
+      "net_pnl": -984951.3300000001
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "boll_breakout",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1848,
+      "win_rate": 0.18398268398268397,
+      "win_rate_wilson95": [
+        0.16697821122817602,
+        0.20229829708657404
+      ],
+      "expectancy": -0.030125240259740258,
+      "profit_factor": 0.6158737694683014,
+      "payoff_ratio": 2.3439510431000783,
+      "net_pnl": -993655.9700000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1848,
+      "win_rate": 0.18398268398268397,
+      "win_rate_wilson95": [
+        0.16697821122817602,
+        0.20229829708657404
+      ],
+      "expectancy": -0.030125240259740258,
+      "profit_factor": 0.6158737694683014,
+      "payoff_ratio": 2.3439510431000783,
+      "net_pnl": -993655.9700000001
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "breakout_new_high_60d",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1452,
+      "win_rate": 0.15426997245179064,
+      "win_rate_wilson95": [
+        0.13660508250760836,
+        0.17375945165599846
+      ],
+      "expectancy": -0.040377446280991734,
+      "profit_factor": 0.5944706346393459,
+      "payoff_ratio": 2.5040273493792062,
+      "net_pnl": -995115.48
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1452,
+      "win_rate": 0.15426997245179064,
+      "win_rate_wilson95": [
+        0.13660508250760836,
+        0.17375945165599846
+      ],
+      "expectancy": -0.040377446280991734,
+      "profit_factor": 0.5944706346393459,
+      "payoff_ratio": 2.5040273493792062,
+      "net_pnl": -995115.48
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "bullish_alignment",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1489,
+      "win_rate": 0.1229012760241773,
+      "win_rate_wilson95": [
+        0.10718816735484041,
+        0.14055519671004094
+      ],
+      "expectancy": -0.03627339422431162,
+      "profit_factor": 0.5516299254209809,
+      "payoff_ratio": 3.55347323523355,
+      "net_pnl": -992563.6
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1489,
+      "win_rate": 0.1229012760241773,
+      "win_rate_wilson95": [
+        0.10718816735484041,
+        0.14055519671004094
+      ],
+      "expectancy": -0.03627339422431162,
+      "profit_factor": 0.5516299254209809,
+      "payoff_ratio": 3.55347323523355,
+      "net_pnl": -992563.6
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "consecutive_limit_ups",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 2175,
+      "win_rate": 0.2128735632183908,
+      "win_rate_wilson95": [
+        0.19618431328038904,
+        0.23057530063555604
+      ],
+      "expectancy": -0.02824357471264368,
+      "profit_factor": 0.7241037124390528,
+      "payoff_ratio": 2.1524946267523206,
+      "net_pnl": -996240.0600000002
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 2175,
+      "win_rate": 0.2128735632183908,
+      "win_rate_wilson95": [
+        0.19618431328038904,
+        0.23057530063555604
+      ],
+      "expectancy": -0.02824357471264368,
+      "profit_factor": 0.7241037124390528,
+      "payoff_ratio": 2.1524946267523206,
+      "net_pnl": -996240.0600000002
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "high_turnover_surge",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 2076,
+      "win_rate": 0.16377649325626203,
+      "win_rate_wilson95": [
+        0.14848061071159457,
+        0.18031442829522204
+      ],
+      "expectancy": -0.028764533236994218,
+      "profit_factor": 0.6811232389735603,
+      "payoff_ratio": 2.8091925627576835,
+      "net_pnl": -994561.6399999999
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 2076,
+      "win_rate": 0.16377649325626203,
+      "win_rate_wilson95": [
+        0.14848061071159457,
+        0.18031442829522204
+      ],
+      "expectancy": -0.028764533236994218,
+      "profit_factor": 0.6811232389735603,
+      "payoff_ratio": 2.8091925627576835,
+      "net_pnl": -994561.6399999999
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "long_lower_shadow_reversal",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 435,
+      "win_rate": 0.3195402298850575,
+      "win_rate_wilson95": [
+        0.27746328816926,
+        0.3647766453283847
+      ],
+      "expectancy": 0.0021523425287356315,
+      "profit_factor": 1.0243313429243155,
+      "payoff_ratio": 2.279755429722968,
+      "net_pnl": 31569.96999999995
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 435,
+      "win_rate": 0.3195402298850575,
+      "win_rate_wilson95": [
+        0.27746328816926,
+        0.3647766453283847
+      ],
+      "expectancy": 0.0021523425287356315,
+      "profit_factor": 1.0243313429243155,
+      "payoff_ratio": 2.279755429722968,
+      "net_pnl": 31569.96999999995
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "low_volatility_leader",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1408,
+      "win_rate": 0.23224431818181818,
+      "win_rate_wilson95": [
+        0.21093424750570283,
+        0.25501150731551797
+      ],
+      "expectancy": -0.010068534090909092,
+      "profit_factor": 0.6085395467922251,
+      "payoff_ratio": 2.310430646299101,
+      "net_pnl": -776490.6400000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1408,
+      "win_rate": 0.23224431818181818,
+      "win_rate_wilson95": [
+        0.21093424750570283,
+        0.25501150731551797
+      ],
+      "expectancy": -0.010068534090909092,
+      "profit_factor": 0.6085395467922251,
+      "payoff_ratio": 2.310430646299101,
+      "net_pnl": -776490.6400000001
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "ma_convergence_breakout",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 2245,
+      "win_rate": 0.24276169265033407,
+      "win_rate_wilson95": [
+        0.2254748873817914,
+        0.26092735633337283
+      ],
+      "expectancy": -0.01471130066815145,
+      "profit_factor": 0.609660176040454,
+      "payoff_ratio": 2.0384593699961218,
+      "net_pnl": -958424.1499999999
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 2245,
+      "win_rate": 0.24276169265033407,
+      "win_rate_wilson95": [
+        0.2254748873817914,
+        0.26092735633337283
+      ],
+      "expectancy": -0.01471130066815145,
+      "profit_factor": 0.609660176040454,
+      "payoff_ratio": 2.0384593699961218,
+      "net_pnl": -958424.1499999999
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "ma_golden_cross",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1875,
+      "win_rate": 0.20426666666666668,
+      "win_rate_wilson95": [
+        0.18663102925583164,
+        0.22311165474690708
+      ],
+      "expectancy": -0.022299036799999998,
+      "profit_factor": 0.545070965690005,
+      "payoff_ratio": 2.300915650188583,
+      "net_pnl": -981665.0
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1875,
+      "win_rate": 0.20426666666666668,
+      "win_rate_wilson95": [
+        0.18663102925583164,
+        0.22311165474690708
+      ],
+      "expectancy": -0.022299036799999998,
+      "profit_factor": 0.545070965690005,
+      "payoff_ratio": 2.300915650188583,
+      "net_pnl": -981665.0
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "ma_golden_cross",
+    "trial_id": "trend_B",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1792,
+      "win_rate": 0.23493303571428573,
+      "win_rate_wilson95": [
+        0.2158833854513013,
+        0.2551167294808842
+      ],
+      "expectancy": -0.011192545200892854,
+      "profit_factor": 0.6995415092744782,
+      "payoff_ratio": 2.533126435185107,
+      "net_pnl": -890002.92
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1792,
+      "win_rate": 0.23493303571428573,
+      "win_rate_wilson95": [
+        0.2158833854513013,
+        0.2551167294808842
+      ],
+      "expectancy": -0.011192545200892854,
+      "profit_factor": 0.6995415092744782,
+      "payoff_ratio": 2.533126435185107,
+      "net_pnl": -890002.92
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "macd_below_zero_revival",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1093,
+      "win_rate": 0.3979871912168344,
+      "win_rate_wilson95": [
+        0.3693740784245927,
+        0.4273148874206123
+      ],
+      "expectancy": -0.0037409011893870074,
+      "profit_factor": 0.8387584110810392,
+      "payoff_ratio": 1.344962312607903,
+      "net_pnl": -417614.04000000004
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1093,
+      "win_rate": 0.3979871912168344,
+      "win_rate_wilson95": [
+        0.3693740784245927,
+        0.4273148874206123
+      ],
+      "expectancy": -0.0037409011893870074,
+      "profit_factor": 0.8387584110810392,
+      "payoff_ratio": 1.344962312607903,
+      "net_pnl": -417614.04000000004
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "macd_golden",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1777,
+      "win_rate": 0.21384355655599324,
+      "win_rate_wilson95": [
+        0.19540737991010976,
+        0.23351431643840326
+      ],
+      "expectancy": -0.021579712999437253,
+      "profit_factor": 0.5161424237699777,
+      "payoff_ratio": 2.212143438319632,
+      "net_pnl": -976265.84
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1777,
+      "win_rate": 0.21384355655599324,
+      "win_rate_wilson95": [
+        0.19540737991010976,
+        0.23351431643840326
+      ],
+      "expectancy": -0.021579712999437253,
+      "profit_factor": 0.5161424237699777,
+      "payoff_ratio": 2.212143438319632,
+      "net_pnl": -976265.84
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "n_day_low_reversal",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 768,
+      "win_rate": 0.44921875,
+      "win_rate_wilson95": [
+        0.41437839602706905,
+        0.48456459953056863
+      ],
+      "expectancy": 0.011184158854166668,
+      "profit_factor": 1.335074285915137,
+      "payoff_ratio": 1.6552052912683417,
+      "net_pnl": 959780.1300000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 768,
+      "win_rate": 0.44921875,
+      "win_rate_wilson95": [
+        0.41437839602706905,
+        0.48456459953056863
+      ],
+      "expectancy": 0.011184158854166668,
+      "profit_factor": 1.335074285915137,
+      "payoff_ratio": 1.6552052912683417,
+      "net_pnl": 959780.1300000001
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "near_limit_up",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 2640,
+      "win_rate": 0.23333333333333334,
+      "win_rate_wilson95": [
+        0.21759374150361477,
+        0.2498478782969058
+      ],
+      "expectancy": -0.022081554545454546,
+      "profit_factor": 0.6082622528418637,
+      "payoff_ratio": 1.9633581101110347,
+      "net_pnl": -994715.6400000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 2640,
+      "win_rate": 0.23333333333333334,
+      "win_rate_wilson95": [
+        0.21759374150361477,
+        0.2498478782969058
+      ],
+      "expectancy": -0.022081554545454546,
+      "profit_factor": 0.6082622528418637,
+      "payoff_ratio": 1.9633581101110347,
+      "net_pnl": -994715.6400000001
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "oversold_bounce",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1113,
+      "win_rate": 0.35489667565139266,
+      "win_rate_wilson95": [
+        0.32732887989074977,
+        0.3834626952081721
+      ],
+      "expectancy": -0.0040514168912848154,
+      "profit_factor": 0.8236625302338229,
+      "payoff_ratio": 1.5951980851398715,
+      "net_pnl": -439065.8999999999
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1113,
+      "win_rate": 0.35489667565139266,
+      "win_rate_wilson95": [
+        0.32732887989074977,
+        0.3834626952081721
+      ],
+      "expectancy": -0.0040514168912848154,
+      "profit_factor": 0.8236625302338229,
+      "payoff_ratio": 1.5951980851398715,
+      "net_pnl": -439065.8999999999
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "oversold_reversal",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 786,
+      "win_rate": 0.36005089058524176,
+      "win_rate_wilson95": [
+        0.32724809703351826,
+        0.3942150419047196
+      ],
+      "expectancy": -0.00013028371501272353,
+      "profit_factor": 0.9563163901368135,
+      "payoff_ratio": 1.769833981211698,
+      "net_pnl": -99192.03000000003
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 786,
+      "win_rate": 0.36005089058524176,
+      "win_rate_wilson95": [
+        0.32724809703351826,
+        0.3942150419047196
+      ],
+      "expectancy": -0.00013028371501272353,
+      "profit_factor": 0.9563163901368135,
+      "payoff_ratio": 1.769833981211698,
+      "net_pnl": -99192.03000000003
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "platform_consolidation_breakout",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1657,
+      "win_rate": 0.24260712130356066,
+      "win_rate_wilson95": [
+        0.22257789046165766,
+        0.26382707434654556
+      ],
+      "expectancy": -0.0149920012070006,
+      "profit_factor": 0.6091865697852544,
+      "payoff_ratio": 2.0631006235101172,
+      "net_pnl": -920696.4400000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1657,
+      "win_rate": 0.24260712130356066,
+      "win_rate_wilson95": [
+        0.22257789046165766,
+        0.26382707434654556
+      ],
+      "expectancy": -0.0149920012070006,
+      "profit_factor": 0.6091865697852544,
+      "payoff_ratio": 2.0631006235101172,
+      "net_pnl": -920696.4400000001
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "pullback_ma20_bounce",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 3823,
+      "win_rate": 0.29060946900340046,
+      "win_rate_wilson95": [
+        0.27643235188809945,
+        0.30520698223014564
+      ],
+      "expectancy": -0.004936136018833377,
+      "profit_factor": 0.6788987300123646,
+      "payoff_ratio": 1.9382153429230131,
+      "net_pnl": -870337.7899999999
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 3823,
+      "win_rate": 0.29060946900340046,
+      "win_rate_wilson95": [
+        0.27643235188809945,
+        0.30520698223014564
+      ],
+      "expectancy": -0.004936136018833377,
+      "profit_factor": 0.6788987300123646,
+      "payoff_ratio": 1.9382153429230131,
+      "net_pnl": -870337.7899999999
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "pullback_to_support",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 3400,
+      "win_rate": 0.23441176470588235,
+      "win_rate_wilson95": [
+        0.22047658944582424,
+        0.24894642953367238
+      ],
+      "expectancy": -0.01205499411764706,
+      "profit_factor": 0.4052917020629408,
+      "payoff_ratio": 1.9015008927767332,
+      "net_pnl": -979460.8199999998
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 3400,
+      "win_rate": 0.23441176470588235,
+      "win_rate_wilson95": [
+        0.22047658944582424,
+        0.24894642953367238
+      ],
+      "expectancy": -0.01205499411764706,
+      "profit_factor": 0.4052917020629408,
+      "payoff_ratio": 1.9015008927767332,
+      "net_pnl": -979460.8199999998
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "rsi_midline_pullback",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 2450,
+      "win_rate": 0.20775510204081632,
+      "win_rate_wilson95": [
+        0.1921537645886018,
+        0.22427148470214295
+      ],
+      "expectancy": -0.017232144897959184,
+      "profit_factor": 0.5273383322328051,
+      "payoff_ratio": 2.23687311673734,
+      "net_pnl": -982177.7299999999
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 2450,
+      "win_rate": 0.20775510204081632,
+      "win_rate_wilson95": [
+        0.1921537645886018,
+        0.22427148470214295
+      ],
+      "expectancy": -0.017232144897959184,
+      "profit_factor": 0.5273383322328051,
+      "payoff_ratio": 2.23687311673734,
+      "net_pnl": -982177.7299999999
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "strong_open",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 2118,
+      "win_rate": 0.18555240793201133,
+      "win_rate_wilson95": [
+        0.16957081909310176,
+        0.20267261321588873
+      ],
+      "expectancy": -0.026971234183191688,
+      "profit_factor": 0.6141306648541377,
+      "payoff_ratio": 2.3115462380726335,
+      "net_pnl": -994088.52
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 2118,
+      "win_rate": 0.18555240793201133,
+      "win_rate_wilson95": [
+        0.16957081909310176,
+        0.20267261321588873
+      ],
+      "expectancy": -0.026971234183191688,
+      "profit_factor": 0.6141306648541377,
+      "payoff_ratio": 2.3115462380726335,
+      "net_pnl": -994088.52
+    }
+  },
+  {
+    "phase": "five_year",
+    "strategy_id": "volume_price_surge",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 1837,
+      "win_rate": 0.23189983669025585,
+      "win_rate_wilson95": [
+        0.213171211821304,
+        0.2517474427766798
+      ],
+      "expectancy": -0.015846289602612956,
+      "profit_factor": 0.6594714329767742,
+      "payoff_ratio": 2.192037880856809,
+      "net_pnl": -947464.21
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 1837,
+      "win_rate": 0.23189983669025585,
+      "win_rate_wilson95": [
+        0.213171211821304,
+        0.2517474427766798
+      ],
+      "expectancy": -0.015846289602612956,
+      "profit_factor": 0.6594714329767742,
+      "payoff_ratio": 2.192037880856809,
+      "net_pnl": -947464.21
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "active_limit_gene",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 280,
+      "win_rate": 0.18928571428571428,
+      "win_rate_wilson95": [
+        0.147724063265369,
+        0.23925797178516625
+      ],
+      "expectancy": -0.019558342857142863,
+      "profit_factor": 0.7219030558221377,
+      "payoff_ratio": 3.1525449460675494,
+      "net_pnl": -432771.97
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 280,
+      "win_rate": 0.18928571428571428,
+      "win_rate_wilson95": [
+        0.147724063265369,
+        0.23925797178516625
+      ],
+      "expectancy": -0.019558342857142863,
+      "profit_factor": 0.7219030558221377,
+      "payoff_ratio": 3.1525449460675494,
+      "net_pnl": -432771.97
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "boll_breakout",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 453,
+      "win_rate": 0.2052980132450331,
+      "win_rate_wilson95": [
+        0.1706536391901601,
+        0.24489870980782955
+      ],
+      "expectancy": -0.0069664900662251604,
+      "profit_factor": 0.8711438796112211,
+      "payoff_ratio": 3.4085019304634274,
+      "net_pnl": -313126.00999999995
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 453,
+      "win_rate": 0.2052980132450331,
+      "win_rate_wilson95": [
+        0.1706536391901601,
+        0.24489870980782955
+      ],
+      "expectancy": -0.0069664900662251604,
+      "profit_factor": 0.8711438796112211,
+      "payoff_ratio": 3.4085019304634274,
+      "net_pnl": -313126.00999999995
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "breakout_new_high_60d",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 387,
+      "win_rate": 0.19121447028423771,
+      "win_rate_wilson95": [
+        0.15514342176006218,
+        0.23335565305694805
+      ],
+      "expectancy": -0.008838454780361757,
+      "profit_factor": 0.837522038295996,
+      "payoff_ratio": 3.67467718225736,
+      "net_pnl": -364338.37
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 387,
+      "win_rate": 0.19121447028423771,
+      "win_rate_wilson95": [
+        0.15514342176006218,
+        0.23335565305694805
+      ],
+      "expectancy": -0.008838454780361757,
+      "profit_factor": 0.837522038295996,
+      "payoff_ratio": 3.67467718225736,
+      "net_pnl": -364338.37
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "bullish_alignment",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 521,
+      "win_rate": 0.14779270633397312,
+      "win_rate_wilson95": [
+        0.11989870683358042,
+        0.18084269781117338
+      ],
+      "expectancy": -0.02454956621880998,
+      "profit_factor": 0.6595886683745383,
+      "payoff_ratio": 3.7320214729883947,
+      "net_pnl": -736174.23
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 521,
+      "win_rate": 0.14779270633397312,
+      "win_rate_wilson95": [
+        0.11989870683358042,
+        0.18084269781117338
+      ],
+      "expectancy": -0.02454956621880998,
+      "profit_factor": 0.6595886683745383,
+      "payoff_ratio": 3.7320214729883947,
+      "net_pnl": -736174.23
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "consecutive_limit_ups",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 948,
+      "win_rate": 0.2468354430379747,
+      "win_rate_wilson95": [
+        0.22044623934283247,
+        0.27526817364352996
+      ],
+      "expectancy": -0.01947118776371308,
+      "profit_factor": 0.6490907559940299,
+      "payoff_ratio": 2.053088015237475,
+      "net_pnl": -859569.1000000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 948,
+      "win_rate": 0.2468354430379747,
+      "win_rate_wilson95": [
+        0.22044623934283247,
+        0.27526817364352996
+      ],
+      "expectancy": -0.01947118776371308,
+      "profit_factor": 0.6490907559940299,
+      "payoff_ratio": 2.053088015237475,
+      "net_pnl": -859569.1000000001
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "high_turnover_surge",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 690,
+      "win_rate": 0.1681159420289855,
+      "win_rate_wilson95": [
+        0.1420661793718008,
+        0.19784079651433803
+      ],
+      "expectancy": -0.022311868115942032,
+      "profit_factor": 0.6187128881543805,
+      "payoff_ratio": 3.0577229106857975,
+      "net_pnl": -766337.68
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 690,
+      "win_rate": 0.1681159420289855,
+      "win_rate_wilson95": [
+        0.1420661793718008,
+        0.19784079651433803
+      ],
+      "expectancy": -0.022311868115942032,
+      "profit_factor": 0.6187128881543805,
+      "payoff_ratio": 3.0577229106857975,
+      "net_pnl": -766337.68
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "long_lower_shadow_reversal",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 143,
+      "win_rate": 0.2867132867132867,
+      "win_rate_wilson95": [
+        0.2189351892355547,
+        0.36565119500433374
+      ],
+      "expectancy": 0.0036383216783216765,
+      "profit_factor": 1.042025852671274,
+      "payoff_ratio": 2.7442327093479717,
+      "net_pnl": 20913.999999999996
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 143,
+      "win_rate": 0.2867132867132867,
+      "win_rate_wilson95": [
+        0.2189351892355547,
+        0.36565119500433374
+      ],
+      "expectancy": 0.0036383216783216765,
+      "profit_factor": 1.042025852671274,
+      "payoff_ratio": 2.7442327093479717,
+      "net_pnl": 20913.999999999996
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "low_volatility_leader",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 284,
+      "win_rate": 0.22183098591549297,
+      "win_rate_wilson95": [
+        0.17740166640534985,
+        0.2736853203262415
+      ],
+      "expectancy": -0.004151510563380283,
+      "profit_factor": 0.8491672331856402,
+      "payoff_ratio": 3.0683348877911722,
+      "net_pnl": -140728.15999999997
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 284,
+      "win_rate": 0.22183098591549297,
+      "win_rate_wilson95": [
+        0.17740166640534985,
+        0.2736853203262415
+      ],
+      "expectancy": -0.004151510563380283,
+      "profit_factor": 0.8491672331856402,
+      "payoff_ratio": 3.0683348877911722,
+      "net_pnl": -140728.15999999997
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "ma_convergence_breakout",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 426,
+      "win_rate": 0.28169014084507044,
+      "win_rate_wilson95": [
+        0.24107156626672183,
+        0.3262108931322753
+      ],
+      "expectancy": 0.002705171361502353,
+      "profit_factor": 1.0145759097321132,
+      "payoff_ratio": 2.7249259030347215,
+      "net_pnl": 29616.719999999972
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 426,
+      "win_rate": 0.28169014084507044,
+      "win_rate_wilson95": [
+        0.24107156626672183,
+        0.3262108931322753
+      ],
+      "expectancy": 0.002705171361502353,
+      "profit_factor": 1.0145759097321132,
+      "payoff_ratio": 2.7249259030347215,
+      "net_pnl": 29616.719999999972
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "ma_golden_cross",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 394,
+      "win_rate": 0.20304568527918782,
+      "win_rate_wilson95": [
+        0.1662803567389025,
+        0.24554585751320185
+      ],
+      "expectancy": -0.01807364974619289,
+      "profit_factor": 0.6695675066157345,
+      "payoff_ratio": 2.6448604656850643,
+      "net_pnl": -522243.8999999999
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 394,
+      "win_rate": 0.20304568527918782,
+      "win_rate_wilson95": [
+        0.1662803567389025,
+        0.24554585751320185
+      ],
+      "expectancy": -0.01807364974619289,
+      "profit_factor": 0.6695675066157345,
+      "payoff_ratio": 2.6448604656850643,
+      "net_pnl": -522243.8999999999
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "ma_golden_cross",
+    "trial_id": "trend_B",
+    "affected_trades": 0,
+    "all": {
+      "trades": 372,
+      "win_rate": 0.23118279569892472,
+      "win_rate_wilson95": [
+        0.19121909691871447,
+        0.27664183172782175
+      ],
+      "expectancy": -0.005428059139784944,
+      "profit_factor": 0.8457620922169414,
+      "payoff_ratio": 2.9793727913873553,
+      "net_pnl": -258889.93999999997
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 372,
+      "win_rate": 0.23118279569892472,
+      "win_rate_wilson95": [
+        0.19121909691871447,
+        0.27664183172782175
+      ],
+      "expectancy": -0.005428059139784944,
+      "profit_factor": 0.8457620922169414,
+      "payoff_ratio": 2.9793727913873553,
+      "net_pnl": -258889.93999999997
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "macd_below_zero_revival",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 212,
+      "win_rate": 0.3915094339622642,
+      "win_rate_wilson95": [
+        0.3282959277913711,
+        0.45858482179536303
+      ],
+      "expectancy": -0.006207759433962264,
+      "profit_factor": 0.7815732110672444,
+      "payoff_ratio": 1.2430387761615005,
+      "net_pnl": -132913.21000000002
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 212,
+      "win_rate": 0.3915094339622642,
+      "win_rate_wilson95": [
+        0.3282959277913711,
+        0.45858482179536303
+      ],
+      "expectancy": -0.006207759433962264,
+      "profit_factor": 0.7815732110672444,
+      "payoff_ratio": 1.2430387761615005,
+      "net_pnl": -132913.21000000002
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "macd_golden",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 380,
+      "win_rate": 0.21052631578947367,
+      "win_rate_wilson95": [
+        0.17253553440985342,
+        0.25431137327289904
+      ],
+      "expectancy": -0.01988991052631579,
+      "profit_factor": 0.6615285460971239,
+      "payoff_ratio": 2.335550424263172,
+      "net_pnl": -513187.00999999995
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 380,
+      "win_rate": 0.21052631578947367,
+      "win_rate_wilson95": [
+        0.17253553440985342,
+        0.25431137327289904
+      ],
+      "expectancy": -0.01988991052631579,
+      "profit_factor": 0.6615285460971239,
+      "payoff_ratio": 2.335550424263172,
+      "net_pnl": -513187.00999999995
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "n_day_low_reversal",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 162,
+      "win_rate": 0.4382716049382716,
+      "win_rate_wilson95": [
+        0.3641710562462771,
+        0.5152319403480636
+      ],
+      "expectancy": 0.011350104938271604,
+      "profit_factor": 1.3118442919262812,
+      "payoff_ratio": 1.7687855407063464,
+      "net_pnl": 162089.74
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 162,
+      "win_rate": 0.4382716049382716,
+      "win_rate_wilson95": [
+        0.3641710562462771,
+        0.5152319403480636
+      ],
+      "expectancy": 0.011350104938271604,
+      "profit_factor": 1.3118442919262812,
+      "payoff_ratio": 1.7687855407063464,
+      "net_pnl": 162089.74
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "near_limit_up",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 910,
+      "win_rate": 0.27802197802197803,
+      "win_rate_wilson95": [
+        0.24989174669821093,
+        0.3080185082081098
+      ],
+      "expectancy": -0.008099009890109891,
+      "profit_factor": 0.8123220120143879,
+      "payoff_ratio": 2.1556159885363786,
+      "net_pnl": -551634.5700000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 910,
+      "win_rate": 0.27802197802197803,
+      "win_rate_wilson95": [
+        0.24989174669821093,
+        0.3080185082081098
+      ],
+      "expectancy": -0.008099009890109891,
+      "profit_factor": 0.8123220120143879,
+      "payoff_ratio": 2.1556159885363786,
+      "net_pnl": -551634.5700000001
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "oversold_bounce",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 256,
+      "win_rate": 0.34375,
+      "win_rate_wilson95": [
+        0.2882631127603376,
+        0.4038570096527018
+      ],
+      "expectancy": -0.010958875000000003,
+      "profit_factor": 0.6338424278405981,
+      "payoff_ratio": 1.2564592793035143,
+      "net_pnl": -252764.61
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 256,
+      "win_rate": 0.34375,
+      "win_rate_wilson95": [
+        0.2882631127603376,
+        0.4038570096527018
+      ],
+      "expectancy": -0.010958875000000003,
+      "profit_factor": 0.6338424278405981,
+      "payoff_ratio": 1.2564592793035143,
+      "net_pnl": -252764.61
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "oversold_reversal",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 180,
+      "win_rate": 0.35555555555555557,
+      "win_rate_wilson95": [
+        0.28931215725066883,
+        0.42783564825145926
+      ],
+      "expectancy": -0.005722738888888892,
+      "profit_factor": 0.783940648285052,
+      "payoff_ratio": 1.4848132839199615,
+      "net_pnl": -111405.20999999999
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 180,
+      "win_rate": 0.35555555555555557,
+      "win_rate_wilson95": [
+        0.28931215725066883,
+        0.42783564825145926
+      ],
+      "expectancy": -0.005722738888888892,
+      "profit_factor": 0.783940648285052,
+      "payoff_ratio": 1.4848132839199615,
+      "net_pnl": -111405.20999999999
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "platform_consolidation_breakout",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 313,
+      "win_rate": 0.26517571884984026,
+      "win_rate_wilson95": [
+        0.21933315357245498,
+        0.3167126181948887
+      ],
+      "expectancy": -0.0008342140575079838,
+      "profit_factor": 0.9621898191883943,
+      "payoff_ratio": 2.714219679613539,
+      "net_pnl": -53448.14000000004
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 313,
+      "win_rate": 0.26517571884984026,
+      "win_rate_wilson95": [
+        0.21933315357245498,
+        0.3167126181948887
+      ],
+      "expectancy": -0.0008342140575079838,
+      "profit_factor": 0.9621898191883943,
+      "payoff_ratio": 2.714219679613539,
+      "net_pnl": -53448.14000000004
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "pullback_ma20_bounce",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 766,
+      "win_rate": 0.31723237597911225,
+      "win_rate_wilson95": [
+        0.28525563687228006,
+        0.3510331789048875
+      ],
+      "expectancy": -0.00031871932114882576,
+      "profit_factor": 0.965244419587899,
+      "payoff_ratio": 2.126055247560123,
+      "net_pnl": -81837.81999999995
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 766,
+      "win_rate": 0.31723237597911225,
+      "win_rate_wilson95": [
+        0.28525563687228006,
+        0.3510331789048875
+      ],
+      "expectancy": -0.00031871932114882576,
+      "profit_factor": 0.965244419587899,
+      "payoff_ratio": 2.126055247560123,
+      "net_pnl": -81837.81999999995
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "pullback_to_support",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 727,
+      "win_rate": 0.2696011004126547,
+      "win_rate_wilson95": [
+        0.23861684612219175,
+        0.3030074949114879
+      ],
+      "expectancy": -0.007989986244841818,
+      "profit_factor": 0.7543335921815245,
+      "payoff_ratio": 1.9952725435880885,
+      "net_pnl": -456869.00000000006
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 727,
+      "win_rate": 0.2696011004126547,
+      "win_rate_wilson95": [
+        0.23861684612219175,
+        0.3030074949114879
+      ],
+      "expectancy": -0.007989986244841818,
+      "profit_factor": 0.7543335921815245,
+      "payoff_ratio": 1.9952725435880885,
+      "net_pnl": -456869.00000000006
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "rsi_midline_pullback",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 576,
+      "win_rate": 0.2309027777777778,
+      "win_rate_wilson95": [
+        0.1983383301840605,
+        0.26703290223527615
+      ],
+      "expectancy": -0.006156557291666666,
+      "profit_factor": 0.8360590570703293,
+      "payoff_ratio": 2.8620239270715255,
+      "net_pnl": -357671.37
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 576,
+      "win_rate": 0.2309027777777778,
+      "win_rate_wilson95": [
+        0.1983383301840605,
+        0.26703290223527615
+      ],
+      "expectancy": -0.006156557291666666,
+      "profit_factor": 0.8360590570703293,
+      "payoff_ratio": 2.8620239270715255,
+      "net_pnl": -357671.37
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "strong_open",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 630,
+      "win_rate": 0.2126984126984127,
+      "win_rate_wilson95": [
+        0.18253415289845426,
+        0.24634523905057526
+      ],
+      "expectancy": -0.007688593650793651,
+      "profit_factor": 0.8472625494086747,
+      "payoff_ratio": 3.1310710387806973,
+      "net_pnl": -410185.7100000001
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 630,
+      "win_rate": 0.2126984126984127,
+      "win_rate_wilson95": [
+        0.18253415289845426,
+        0.24634523905057526
+      ],
+      "expectancy": -0.007688593650793651,
+      "profit_factor": 0.8472625494086747,
+      "payoff_ratio": 3.1310710387806973,
+      "net_pnl": -410185.7100000001
+    }
+  },
+  {
+    "phase": "holdout",
+    "strategy_id": "volume_price_surge",
+    "trial_id": "baseline",
+    "affected_trades": 0,
+    "all": {
+      "trades": 356,
+      "win_rate": 0.2612359550561798,
+      "win_rate_wilson95": [
+        0.21832244057738703,
+        0.30924746796014735
+      ],
+      "expectancy": -0.005698969101123593,
+      "profit_factor": 0.8679302403679481,
+      "payoff_ratio": 2.457290450517452,
+      "net_pnl": -203161.09
+    },
+    "excluding_flagged_trades_sensitivity_only": {
+      "trades": 356,
+      "win_rate": 0.2612359550561798,
+      "win_rate_wilson95": [
+        0.21832244057738703,
+        0.30924746796014735
+      ],
+      "expectancy": -0.005698969101123593,
+      "profit_factor": 0.8679302403679481,
+      "payoff_ratio": 2.457290450517452,
+      "net_pnl": -203161.09
+    }
+  }
+]

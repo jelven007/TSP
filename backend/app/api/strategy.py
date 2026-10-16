@@ -205,6 +205,7 @@ def _strategy_detail(
     scoring = effective_scoring(s.meta.get("scoring"), overrides)
     scoring_directions = effective_scoring_directions(overrides)
     params_defaults = {p["id"]: p["default"] for p in s.meta.get("params", [])}
+    from app.strategy.families import builtin_family
     from app.strategy.overlay import effective_conditions
 
     if overrides:
@@ -224,6 +225,7 @@ def _strategy_detail(
         "description": description or s.meta.get("description", ""),
         "tags": s.meta.get("tags", []),
         "source": s.source,
+        "family": builtin_family(s.meta["id"]) if s.source == "builtin" else None,
         "research_only": s.meta.get("research_only", False),
         "execution_backend": s.execution_backend,
         "asset_types": s.meta.get("asset_types", ["stock"]),
