@@ -1,0 +1,67 @@
+{
+  "ready": {
+    "status": "ok",
+    "ready": true,
+    "checked_at": "2026-10-16T05:31:42.861313+00:00",
+    "checks": {
+      "databases": {
+        "status": "ok"
+      },
+      "research_worker": {
+        "status": "ok"
+      },
+      "realtime_worker": {
+        "status": "ok"
+      },
+      "notifications_worker": {
+        "status": "ok"
+      },
+      "scheduled_worker": {
+        "status": "ok"
+      },
+      "public_files": {
+        "status": "ok",
+        "release_id": "c3b7b8988c0d4edba1a1f70141480820"
+      },
+      "platform": {
+        "status": "ok",
+        "connected": true
+      },
+      "indicator_cache": {
+        "status": "ok"
+      },
+      "compute_broker": {
+        "status": "ok"
+      }
+    },
+    "version": "0.3.11",
+    "mode": "none"
+  },
+  "containers": {
+    "platform": {
+      "container_id": "83f10cacb2b59408e2e631f673dfbb7b1c9fad573e7f24ca2e89f6c43e7f927d",
+      "image": "sha256:905493c93d2a94a06fdc523bea10764113077f24b163c031108a762fdd6ad2ca"
+    },
+    "api": {
+      "container_id": "039cf8d04715a53936765c808a0bd3cf4a4b3d7c0a5b43428523e86f049cbc8d",
+      "image": "sha256:905493c93d2a94a06fdc523bea10764113077f24b163c031108a762fdd6ad2ca"
+    },
+    "research": {
+      "container_id": "763ce02711fcbc5e6941456af7ccefe3f5be7b3ab6893a39afbeec0f8a590817",
+      "image": "sha256:905493c93d2a94a06fdc523bea10764113077f24b163c031108a762fdd6ad2ca"
+    },
+    "realtime": {
+      "container_id": "ad6477325b4bb387625e910b01d7554fe0204820485d8643c71d8ad9fc5be824",
+      "image": "sha256:905493c93d2a94a06fdc523bea10764113077f24b163c031108a762fdd6ad2ca"
+    },
+    "notifications": {
+      "container_id": "eb1f96cd8cd81c7651642699f84d9907e11c5bc8e7549c9e784127041e1cd1cd",
+      "image": "sha256:905493c93d2a94a06fdc523bea10764113077f24b163c031108a762fdd6ad2ca"
+    },
+    "scheduled": {
+      "container_id": "d537aa0baa0287998b5823b8a1497bef078bc5a360a7435e78fc7d896ddc981f",
+      "image": "sha256:905493c93d2a94a06fdc523bea10764113077f24b163c031108a762fdd6ad2ca"
+    }
+  },
+  "validated_at": 1792128703.3310673
+}

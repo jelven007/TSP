@@ -1,0 +1,31 @@
+{
+  "base_url": "https://118.196.108.188",
+  "tls_verified_with_local_ca": true,
+  "endpoints": {
+    "/health/live": {
+      "status": 200
+    },
+    "/health/ready": {
+      "status": 200,
+      "ready": true,
+      "check_count": 9
+    },
+    "/api/health": {
+      "status": 200,
+      "ready": true,
+      "check_count": 9
+    }
+  },
+  "recovery_routes": {
+    "/api/auth/recovery/code": true,
+    "/api/auth/recovery/reset": true
+  },
+  "recovery_schema_guard_status": 422,
+  "auth_asset": {
+    "name": "Auth-DeLA9JeG.js",
+    "status": 200,
+    "bytes": 11467,
+    "sha256": "ce88fc0c23f05af3c07781a612a95e56126930ccdc3b066f366e733677fca383"
+  },
+  "validated_at": "2026-10-16T13:33:00+08:00"
+}
