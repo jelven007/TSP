@@ -14,6 +14,7 @@ export const QK = {
   settings:       ['settings'] as const,
   endpoints:      ['endpoints'] as const,
   version:        ['version'] as const,
+  openSourceRelease: (scope: string) => ['open-source-release', scope] as const,
   preferences:    ['preferences'] as const,
   dataSources:    ['data-sources'] as const,
   capabilityMatrix: ['capability-matrix'] as const,
