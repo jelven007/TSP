@@ -287,6 +287,11 @@ def _append_query_params(url: str, params: dict[str, str]) -> str:
 
 def _parse_rows_payload(config: ExtConfig, pull: PullConfig, data: Any) -> list[dict]:
     """单次响应 → 行列表 (提取/预设转换/字段映射)。与写入链共用, 不含日期校验。"""
+    if config.id in _MARKET_HOURS_PRESET_IDS and not pull.response_path and isinstance(data, dict):
+        # 保留旧预设手动拉取的信封兼容; 用户显式配置的 response_path 仍优先。
+        keys = ("data", "list", "rows", "result", "results")
+        candidates = [data.get(key) for key in keys] + list(data.values())
+        data = next((value for value in candidates if isinstance(value, list)), data)
     rows = _extract_rows(data, pull.response_path)
 
     # 内置预设 (概念/行业): 应用结构转换, 让产出 schema 与分析页一致。

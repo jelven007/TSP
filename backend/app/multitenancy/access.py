@@ -116,6 +116,9 @@ async def middleware(request: Request, call_next):
                     permission = "settings:manage"
             if path.startswith("/api/ext-data/") and path.endswith("/api-key"):
                 permission = "settings:manage"
+            ext_config_read = request.method in {"GET", "HEAD"} and path == "/api/ext-data"
+            if ext_config_read and "settings:manage" in account["permissions"]:
+                permission = "settings:manage"
             if path.startswith("/api/analysis-menus/") and request.method not in {"GET", "HEAD"}:
                 permission = "settings:manage"
             account_only = path.startswith("/api/auth/") or path.startswith("/api/account/")
@@ -125,7 +128,9 @@ async def middleware(request: Request, call_next):
                 raise AccessError(403, "无权使用该功能")
             from app.multitenancy.platform import management_path, market_read_path
 
-            if management_path(request.method, path):
+            if management_path(request.method, path) and (
+                not ext_config_read or permission == "settings:manage"
+            ):
                 response = await request.app.state.platform_admin.forward(request)
                 response.headers["Cache-Control"] = "no-store"
                 return response

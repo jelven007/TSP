@@ -49,7 +49,7 @@ def management_path(method: str, path: str) -> bool:
     if path.startswith("/api/ext-data/") and path.endswith("/api-key"):
         return True
     if method in READ_METHODS:
-        return False
+        return path == "/api/ext-data"
     return (
         (path.startswith("/api/kline/") and path not in QUERY_POSTS)
         or path.startswith("/api/index/sync")

@@ -299,3 +299,71 @@ def test_tenant_public_market_forwarding_keeps_scope_and_uses_only_market_creden
                            (user["default_tenant_id"],))
     assert client.get("/api/kline/minute").status_code == 403
     assert len(seen) == 1
+
+
+@pytest.mark.parametrize("method", ["GET", "HEAD"])
+def test_ext_config_reads_return_platform_pull_only_to_admin_sessions(env, tmp_path, method):
+    import asyncio
+    from types import SimpleNamespace
+
+    import httpx
+
+    from app.api.ext_data import router as ext_router
+    from app.multitenancy.platform import PlatformAdmin
+    from app.services.ext_data import ExtConfigStore
+    from app.services.ext_presets import _concept_preset
+
+    preset = _concept_preset()
+    private_config = preset.to_dict()
+    private_config["pull"]["headers"] = {"X-Upstream-Key": "private-upstream-key"}
+    preset.pull = None
+    ExtConfigStore(tmp_path).upsert(preset)
+    client = env["client"]
+    client.app.state.repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    client.app.include_router(ext_router)
+    seen = []
+
+    async def remote(request):
+        seen.append(request)
+        return httpx.Response(200, json={"items": [private_config]})
+
+    gateway = PlatformAdmin("https://platform.test", token="internal-test-token")
+    asyncio.run(gateway.client.aclose())
+    gateway.client = httpx.AsyncClient(
+        base_url="https://platform.test",
+        transport=httpx.MockTransport(remote),
+        headers={"Authorization": "Bearer internal-test-token"},
+    )
+    client.app.state.platform_admin = gateway
+    try:
+        tenant_session, tenant = register(env)
+        client.cookies.set("tf_session", tenant_session)
+        public = client.get("/api/ext-data")
+        assert public.status_code == 200, public.text
+        assert "pull" not in public.json()["items"][0]
+        assert "private-upstream-key" not in public.text
+        assert not seen
+
+        admin_session, admin = env["identity"].login("admin", "Admin123", uuid.uuid4().hex)
+        env["identity"].choose_tenant(admin, tenant["default_tenant_id"], "ext-config-read")
+        client.cookies.set("tf_session", admin_session)
+        response = client.request(method, "/api/ext-data", params={"source": "data-page"})
+        assert response.status_code == 200, response.text
+        assert response.headers["cache-control"] == "no-store"
+        if method == "GET":
+            assert response.json()["items"][0]["pull"] == private_config["pull"]
+        assert len(seen) == 1
+        forwarded = seen[0]
+        assert forwarded.method == method
+        assert forwarded.url.params["source"] == "data-page"
+        assert forwarded.headers["authorization"] == "Bearer internal-test-token"
+        assert "cookie" not in forwarded.headers and "x-tenant-id" not in forwarded.headers
+
+        created = Tokens(env["identity"]).create(
+            env["identity"].current_user(admin_session), "ext reader", ["read:ext"], 1, "ext-token",
+        )
+        headers = {"Authorization": "Bearer " + created["plaintext"]}
+        assert client.get("/api/ext-data", headers=headers).status_code == 403
+        assert len(seen) == 1
+    finally:
+        asyncio.run(gateway.close())
