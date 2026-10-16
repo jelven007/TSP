@@ -5,12 +5,13 @@ import threading
 import time
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import polars as pl
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from PIL import Image
 
 from app.api import watchlist as watchlist_api
@@ -60,11 +61,12 @@ def _mock_upload(
     return file
 
 
-def _mock_request(data_dir: Path) -> MagicMock:
-    request = MagicMock()
-    request.app.state.repo.store.data_dir = data_dir
-    request.app.state.repo.get_name_map = lambda _symbols: {}
-    return request
+def _mock_request(data_dir: Path) -> Request:
+    app = FastAPI()
+    app.state.repo = SimpleNamespace(
+        store=SimpleNamespace(data_dir=data_dir), get_name_map=lambda _symbols: {},
+    )
+    return Request({"type": "http", "app": app})
 
 
 def test_extract_codes_order_and_dedupe():

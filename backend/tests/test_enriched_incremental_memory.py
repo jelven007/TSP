@@ -25,7 +25,10 @@ def sample(tmp_path, monkeypatch):
                 "close": close, "volume": 0.0 if i == 4 else 1000.0 + day,
                 "amount": 0.0 if i == 4 else 10000.0, "quote_ts": 0,
             })
-    raw = pl.DataFrame(rows)
+    # Match the daily storage schema's nullable provenance field.
+    raw = pl.DataFrame(rows).with_columns(
+        pl.lit(None, dtype=pl.Utf8).alias("quote_time_basis"),
+    )
     for frame in raw.partition_by("date"):
         out = tmp_path / "kline_daily" / f"date={frame['date'][0]}" / "part.parquet"
         out.parent.mkdir(parents=True)

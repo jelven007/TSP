@@ -42,7 +42,7 @@ def _bridge(**overrides) -> SimpleNamespace:
             "MAX_CONNECTIONS": 35,
             "__version__": "0.1.1",
             "RUSTDX_VERSION": "1.12.2",
-            "RUSTDX_SOURCE_REV": "904b33e514d4e368e633622c96a9e63af8a53d37",
+            "RUSTDX_SOURCE_REV": "9dfc024c9662fa5091099c1f17610569ee2eca8b",
             "POOL_API_VERSION": 2,
             "RustdxClient": unexpected_connection,
             **overrides,
@@ -56,7 +56,7 @@ def test_installation_check_accepts_locked_bridge_without_network(monkeypatch, c
     assert client.main() == 0
     output = capsys.readouterr()
     assert "1.12.2" in output.out
-    assert "904b33e" in output.out
+    assert "9dfc024" in output.out
     assert output.err == ""
 
 

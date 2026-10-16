@@ -13,3 +13,12 @@ license = { text = "MIT" }
 bindings = "pyo3"
 module-name = "tsp_rustdx_native"
 features = ["pyo3/extension-module"]
+
+[tool.uv]
+# Rebuild the local wheel when its Rust dependency or source changes.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+    { file = "src/**/*.rs" },
+]

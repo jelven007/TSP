@@ -61,6 +61,7 @@ def test_instrument_normalization_drops_delisted_labels():
         "name": "平安银行",
         "code": "000001",
         "exchange": "SZ",
+        "board": "深主板",
         "region": "CN",
         "type": "stock",
         "listing_date": None,
