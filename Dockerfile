@@ -103,7 +103,7 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
 # Backend deps
 COPY README.md /README.md
 COPY backend/pyproject.toml backend/uv.lock* ./
-# uv.lock contains the optional local rustdx path source. Keep the source path
+# uv.lock contains the default local rustdx path source. Keep the source path
 # present during frozen resolution even though the runtime wheel is installed
 # separately below.
 COPY backend/native ./native
@@ -113,7 +113,7 @@ COPY backend/native ./native
 ARG PYPI_LOCK_MIRROR=https://repo.huaweicloud.com/repository/pypi/simple
 RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
       export UV_DEFAULT_INDEX="$PYPI_INDEX" UV_EXTRA_INDEX_URL="$PYPI_FALLBACK"; \
-      set -- --no-dev --extra rustdx --no-emit-package tsp-rustdx-native --no-emit-project; \
+      set -- --no-dev --no-emit-package tsp-rustdx-native --no-emit-project; \
       for extra in $BACKEND_EXTRAS; do \
         set -- "$@" --extra "$extra"; \
       done; \
@@ -125,7 +125,7 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
       && rm /tmp/runtime-locked.txt \
       || exit 1; \
     fi; \
-    set -- --no-dev --extra rustdx --no-install-package tsp-rustdx-native; \
+    set -- --no-dev --no-install-package tsp-rustdx-native; \
     for extra in $BACKEND_EXTRAS; do \
       set -- "$@" --extra "$extra"; \
     done; \
@@ -141,6 +141,7 @@ RUN uv pip install --python /app/.venv/bin/python /tmp/rustdx-wheels/*.whl \
 # (<root>/backend/app/) 推导的, 容器内会错算到 /。这里用环境变量显式指定
 # 三个关键路径, 确保 static / tiers / data 都指向容器内正确位置。
 COPY backend/app ./app
+RUN .venv/bin/python -m app.plugins.rustdx.client
 COPY tiers.yaml /app/tiers.yaml
 ENV STATIC_DIR=/app/static \
     TIERS_YAML=/app/tiers.yaml \

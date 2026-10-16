@@ -10,15 +10,15 @@ name: 桌面客户端发布
 #   - 版本号通过 input 传入, 与 tag 解耦, 更灵活
 #
 # 使用:
-#   gh workflow run release.yml -f version=v0.4.1 -f platforms=windows
+#   gh workflow run release.yml -f version=v0.4.2 -f platforms=windows
 #   或 GitHub 网页 Actions → 桌面客户端发布 → Run workflow
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号 (格式 va.b.cd, a/b=0-9、cd=0-99, 如 v0.4.1; 必须与 frontend/package.json 的 version 一致, 否则流水线直接失败)'
+        description: '版本号 (格式 va.b.cd, a/b=0-9、cd=0-99, 如 v0.4.2; 必须与 frontend/package.json 的 version 一致, 否则流水线直接失败)'
         required: true
-        default: 'v0.4.1'
+        default: 'v0.4.2'
       platforms:
         description: '要构建的平台 (逗号分隔: windows,macos,linux)'
         required: true
@@ -67,10 +67,10 @@ jobs:
           import json, sys
           requested = '${{ github.event.inputs.platforms }}'.split(',')
           requested = [r.strip() for r in requested if r.strip()]
-          ver = '${{ github.event.inputs.version }}'.lstrip('v')  # v0.4.1 → 0.4.1
+          ver = '${{ github.event.inputs.version }}'.lstrip('v')  # v0.4.2 → 0.4.2
           all_platforms = json.loads('''$ALL''')
           selected = [p for p in all_platforms if p['platform'] in requested]
-          # 产物文件名带版本号 (TSP-Setup-x64-0.4.1.exe): 用户下载后一眼可辨版本
+          # 产物文件名带版本号 (TSP-Setup-x64-0.4.2.exe): 用户下载后一眼可辨版本
           for p in selected:
               stem, _, ext = p['artifact'].rpartition('.')
               p['artifact'] = f'{stem}-{ver}.{ext}'
@@ -102,7 +102,11 @@ jobs:
 
       - name: 安装后端测试依赖
         working-directory: backend
-        run: uv sync --extra dev --extra rustdx --frozen
+        run: uv sync --extra dev --frozen
+
+      - name: 校验默认安装的 rustdx 原生桥接
+        working-directory: backend
+        run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
       - name: 后端全量测试
         working-directory: backend
@@ -186,7 +190,11 @@ jobs:
         #   rtcompat 会在运行时自动探测 CPU 能力 —— 有 AVX2 用 AVX2, 没有则回退,
         #   对新 CPU 性能几乎无损 (Polars 1.x 官方推荐方案)。
         # 不加 --extra backtest, 主包不含 vectorbt/numba/llvmlite
-        run: uv sync --no-dev --extra desktop --extra legacy-cpu --extra rustdx
+        run: uv sync --frozen --no-dev --extra desktop --extra legacy-cpu
+
+      - name: 打包前校验 rustdx 原生桥接
+        working-directory: backend
+        run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
       - name: 安装 PyInstaller
         # 必须装进 backend 的 uv 环境 (pywebview/polars 等依赖都在那里),
