@@ -339,6 +339,18 @@ class RustdxProvider:
                             )
                         if not matches:
                             continue
+                        if asset_type == "stock" and item.get("pre_close") in (0, 2.0**-127):
+                            # TDX catalogs include pending IPOs. Verify only empty-price
+                            # candidates, retaining suspended stocks with listing evidence.
+                            symbol = f"{code}.{exchange}"
+                            if not client.bars(symbol, frequency=_DAILY_FREQUENCY, offset=1):
+                                finance = client.finance(symbol)
+                                if finance and all(
+                                    _to_float(finance[0].get(field)) == 0
+                                    for field in ("ipo_date", "zongguben", "liutongguben")
+                                ):
+                                    logger.info("%s 目录排除待上市证券 %s", self.name, symbol)
+                                    continue
                         rows.append({
                             "symbol": f"{code}.{exchange}", "name": name, "code": code,
                             "exchange": exchange, "region": "CN", "type": asset_type,
