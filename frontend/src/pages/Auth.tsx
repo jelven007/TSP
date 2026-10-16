@@ -8,7 +8,7 @@ import { cn } from '@/lib/cn'
 import { QK } from '@/lib/queryKeys'
 import { safeLoginRedirect } from '@/lib/accountSession'
 
-type AuthMode = 'login' | 'register' | 'migrate'
+type AuthMode = 'login' | 'register' | 'recover' | 'migrate'
 
 export function Auth() {
   const navigate = useNavigate()
@@ -23,6 +23,8 @@ export function Auth() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [localError, setLocalError] = useState('')
+  const [codeNotice, setCodeNotice] = useState('')
+  const [recoveryComplete, setRecoveryComplete] = useState(false)
 
   const statusQuery = useQuery({
     queryKey: QK.authStatus,
@@ -54,10 +56,13 @@ export function Auth() {
   }, [resendSeconds])
 
   const sendCodeMutation = useMutation({
-    mutationFn: () => api.authSendRegistrationCode(email.trim(), registrationSecret),
+    mutationFn: () => mode === 'recover'
+      ? api.authSendRecoveryCode(email.trim(), registrationSecret)
+      : api.authSendRegistrationCode(email.trim(), registrationSecret),
     onSuccess: (result) => {
       setResendSeconds(result.cooldown_seconds)
-      setRegistrationSecret('')
+      if (mode === 'register') setRegistrationSecret('')
+      setCodeNotice(mode === 'recover' ? '验证码请求已受理，请检查邮箱' : '')
       setLocalError('')
     },
     onError: (error: Error) => setLocalError(error.message || '验证码发送失败'),
@@ -66,10 +71,24 @@ export function Auth() {
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (mode === 'register') return api.authRegister(email, password, verificationCode)
+      if (mode === 'recover') {
+        return api.authResetPassword(email, registrationSecret, verificationCode, password)
+      }
       if (mode === 'migrate') return api.authMigrate(email, password)
       return api.authLogin(email, password)
     },
     onSuccess: async () => {
+      if (mode === 'recover') {
+        setMode('login')
+        setPassword('')
+        setConfirmPassword('')
+        setRegistrationSecret('')
+        setVerificationCode('')
+        setResendSeconds(0)
+        setCodeNotice('')
+        setRecoveryComplete(true)
+        return
+      }
       await queryClient.cancelQueries()
       queryClient.clear()
       await api.authStatus()
@@ -84,7 +103,10 @@ export function Auth() {
     setConfirmPassword('')
     setRegistrationSecret('')
     setVerificationCode('')
+    setResendSeconds(0)
     setLocalError('')
+    setCodeNotice('')
+    setRecoveryComplete(false)
     sendCodeMutation.reset()
     submitMutation.reset()
   }
@@ -94,11 +116,13 @@ export function Auth() {
     setVerificationCode('')
     setResendSeconds(0)
     setLocalError('')
+    setCodeNotice('')
     sendCodeMutation.reset()
   }
 
   const handleSendCode = () => {
     setLocalError('')
+    setCodeNotice('')
     const normalizedEmail = email.trim()
     if (!normalizedEmail || !normalizedEmail.includes('@')) {
       setLocalError('请输入有效的邮箱地址')
@@ -119,16 +143,20 @@ export function Auth() {
       setLocalError(mode === 'login' ? '请输入用户名或邮箱' : '请输入有效的邮箱地址')
       return
     }
-    const minimum = mode === 'register' ? 8 : mode === 'migrate' ? 6 : 1
+    if (mode === 'recover' && !registrationSecret) {
+      setLocalError('请输入注册口令')
+      return
+    }
+    const minimum = mode === 'register' || mode === 'recover' ? 8 : mode === 'migrate' ? 6 : 1
     if (password.length < minimum) {
       setLocalError(`密码至少 ${minimum} 位`)
       return
     }
-    if (mode === 'register' && password !== confirmPassword) {
+    if ((mode === 'register' || mode === 'recover') && password !== confirmPassword) {
       setLocalError('两次输入的密码不一致')
       return
     }
-    if (mode === 'register' && !/^\d{6}$/.test(verificationCode)) {
+    if ((mode === 'register' || mode === 'recover') && !/^\d{6}$/.test(verificationCode)) {
       setLocalError('请输入 6 位邮箱验证码')
       return
     }
@@ -149,11 +177,14 @@ export function Auth() {
 
   const isMigrate = mode === 'migrate'
   const isRegister = mode === 'register'
-  const title = isMigrate ? '升级现有账户' : isRegister ? '创建账户' : '登录'
+  const isRecover = mode === 'recover'
+  const title = isMigrate ? '升级现有账户' : isRegister ? '创建账户' : isRecover ? '找回密码' : '登录'
   const subtitle = isMigrate
     ? '使用原访问密码绑定邮箱，现有数据和设置不会变化'
     : isRegister
       ? '输入注册口令并验证邮箱后创建账户'
+      : isRecover
+        ? '验证注册口令和邮箱后设置新密码'
       : '登录后继续使用量化工作台'
 
   return (
@@ -171,7 +202,7 @@ export function Auth() {
           <p className="mt-2 text-sm leading-6 text-secondary">{subtitle}</p>
         </header>
 
-        {!isMigrate && status?.has_users && status.registration_enabled && (
+        {!isMigrate && !isRecover && status?.has_users && status.registration_enabled && (
           <div className="mb-5 grid h-9 grid-cols-2 rounded-btn bg-elevated p-1" role="tablist">
             <button
               type="button"
@@ -206,24 +237,30 @@ export function Auth() {
           </div>
         )}
 
+        {recoveryComplete && (
+          <div className="mb-4 rounded-btn border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-accent">
+            密码已重置，请使用新密码登录
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-secondary">{isRegister || isMigrate ? '邮箱' : '用户名 / 邮箱'}</span>
+            <span className="mb-1.5 block text-xs font-medium text-secondary">{isRegister || isRecover || isMigrate ? '邮箱' : '用户名 / 邮箱'}</span>
             <span className="relative block">
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
               <input
-                type={isRegister || isMigrate ? 'email' : 'text'}
+                type={isRegister || isRecover || isMigrate ? 'email' : 'text'}
                 value={email}
                 onChange={(event) => handleEmailChange(event.target.value)}
-                placeholder={isRegister || isMigrate ? 'name@example.com' : 'admin 或注册邮箱'}
-                autoComplete={isRegister || isMigrate ? 'email' : 'username'}
+                placeholder={isRegister || isRecover || isMigrate ? 'name@example.com' : 'admin 或注册邮箱'}
+                autoComplete={isRegister || isRecover || isMigrate ? 'email' : 'username'}
                 autoFocus
                 className="h-11 w-full rounded-btn border border-border bg-surface pl-10 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-accent/60"
               />
             </span>
           </label>
 
-          {isRegister && (
+          {(isRegister || isRecover) && (
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-secondary">注册口令</span>
               <span className="relative block">
@@ -234,6 +271,7 @@ export function Auth() {
                   onChange={(event) => {
                     setRegistrationSecret(event.target.value)
                     setLocalError('')
+                    setCodeNotice('')
                     sendCodeMutation.reset()
                   }}
                   placeholder="输入注册口令"
@@ -245,7 +283,7 @@ export function Auth() {
             </label>
           )}
 
-          {isRegister && (
+          {(isRegister || isRecover) && (
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-secondary">邮箱验证码</span>
               <span className="flex gap-2">
@@ -257,6 +295,7 @@ export function Auth() {
                     onChange={(event) => {
                       setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))
                       setLocalError('')
+                      setCodeNotice('')
                     }}
                     placeholder="6 位验证码"
                     inputMode="numeric"
@@ -286,9 +325,15 @@ export function Auth() {
             </label>
           )}
 
+          {codeNotice && (
+            <div className="rounded-btn border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-accent">
+              {codeNotice}
+            </div>
+          )}
+
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-secondary">
-              {isMigrate ? '原访问密码' : '密码'}
+              {isMigrate ? '原访问密码' : isRecover ? '新密码' : '密码'}
             </span>
             <span className="relative block">
               <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -296,8 +341,8 @@ export function Auth() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder={isMigrate ? '输入当前访问密码' : isRegister ? '至少 8 位' : '输入密码'}
-                autoComplete={isRegister ? 'new-password' : 'current-password'}
+                placeholder={isMigrate ? '输入当前访问密码' : isRegister || isRecover ? '至少 8 位' : '输入密码'}
+                autoComplete={isRegister || isRecover ? 'new-password' : 'current-password'}
                 className="h-11 w-full rounded-btn border border-border bg-surface pl-10 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-accent/60"
               />
               <button
@@ -311,7 +356,19 @@ export function Auth() {
             </span>
           </label>
 
-          {isRegister && (
+          {!isMigrate && !isRegister && !isRecover && status?.registration_enabled && (
+            <div className="-mt-2 text-right">
+              <button
+                type="button"
+                onClick={() => switchMode('recover')}
+                className="text-xs font-medium text-accent hover:underline"
+              >
+                忘记密码
+              </button>
+            </div>
+          )}
+
+          {(isRegister || isRecover) && (
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-secondary">确认密码</span>
               <input
@@ -338,7 +395,8 @@ export function Auth() {
               submitMutation.isPending
               || !email
               || !password
-              || (isRegister && verificationCode.length !== 6)
+              || (isRecover && !registrationSecret)
+              || ((isRegister || isRecover) && verificationCode.length !== 6)
             }
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-btn bg-accent text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -347,9 +405,27 @@ export function Auth() {
               : isRegister
                 ? <UserPlus className="h-4 w-4" />
                 : <LockKeyhole className="h-4 w-4" />}
-            {submitMutation.isPending ? '处理中…' : isMigrate ? '绑定邮箱并进入' : isRegister ? '注册并进入' : '登录'}
+            {submitMutation.isPending
+              ? '处理中…'
+              : isMigrate
+                ? '绑定邮箱并进入'
+                : isRegister
+                  ? '注册并进入'
+                  : isRecover
+                    ? '重置密码'
+                    : '登录'}
           </button>
         </form>
+
+        {isRecover && (
+          <button
+            type="button"
+            onClick={() => switchMode('login')}
+            className="mt-5 text-center text-xs font-medium text-secondary hover:text-foreground"
+          >
+            返回登录
+          </button>
+        )}
 
         {isMigrate && (
           <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted">

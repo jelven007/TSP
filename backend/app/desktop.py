@@ -405,6 +405,8 @@ def _run_smoke_checks(port: int) -> None:
         disabled_auth_paths = {
             "/api/auth/register",
             "/api/auth/register/code",
+            "/api/auth/recovery/code",
+            "/api/auth/recovery/reset",
             "/api/auth/login",
             "/api/auth/logout",
             "/api/auth/change-password",

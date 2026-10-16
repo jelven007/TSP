@@ -14,7 +14,7 @@ from app.cell.context import AccessError
 
 PUBLIC_ENDPOINTS = frozenset({
     "/api/auth/status", "/api/auth/login", "/api/auth/register/code", "/api/auth/register",
-    "/api/auth/logout", "/api/health",
+    "/api/auth/recovery/code", "/api/auth/recovery/reset", "/api/auth/logout", "/api/health",
 })
 ADMIN_PREFIXES = {
     "/api/settings": "settings:manage",

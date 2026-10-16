@@ -1,8 +1,8 @@
 """Email account authentication for the self-hosted web UI.
 
 Accounts only control access to the shared application data. This first phase
-does not introduce tenants, roles, or password recovery. Public registration
-requires a short-lived email verification code.
+does not introduce tenants or roles. Public registration and password recovery
+require short-lived, purpose-bound email verification codes.
 Legacy password-only installations remain readable until the owner binds an
 email address with the existing password.
 """
@@ -367,6 +367,32 @@ def change_password(token: str, old_password: str, new_password: str) -> bool:
         ):
             return False
         salt_hex, hash_hex = _hash_password(new_password)
+        user["password_salt"] = salt_hex
+        user["password_hash"] = hash_hex
+        user["updated_at"] = int(time.time())
+        for saved_token, (_, saved_user_id) in list(_sessions.items()):
+            if saved_user_id == user_id:
+                _sessions.pop(saved_token, None)
+        data["sessions"] = {
+            saved_token: {"expires_at": expires_at, "user_id": saved_user_id}
+            for saved_token, (expires_at, saved_user_id) in _sessions.items()
+        }
+        data["updated_at"] = int(time.time())
+        _save(data)
+    return True
+
+
+def reset_password(email: str, new_password: str) -> bool:
+    """Reset an email account password and revoke all of its sessions."""
+    normalized = normalize_email(email)
+    _validate_password(new_password)
+    salt_hex, hash_hex = _hash_password(new_password)
+    with _lock:
+        data = _load()
+        user = _find_user_by_email(data, normalized)
+        if user is None:
+            return False
+        user_id = str(user["id"])
         user["password_salt"] = salt_hex
         user["password_hash"] = hash_hex
         user["updated_at"] = int(time.time())
