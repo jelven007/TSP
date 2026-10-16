@@ -53,16 +53,31 @@ rustdx 全市场分钟逐股取数，有效轮次间隔至少 60 秒，保留原
 后端通过 PyO3 原生扩展调用
 [`jelven007/rustdx`](https://github.com/jelven007/rustdx) 中固定提交
 `904b33e514d4e368e633622c96a9e63af8a53d37` 的 `jelven-rustdx-complete 1.12.2`。
-依赖固定到提交而不是浮动分支。源码环境需要 Rust toolchain：
+依赖固定到提交而不是浮动分支。`tsp-rustdx-native` 已纳入后端默认依赖，
+普通 `uv sync --frozen` 会自动构建安装，后续同步也不会因遗漏 extra 移除桥接。
+旧命令中的 `--extra rustdx` 保留兼容，但不再是安装前提。源码环境需要 Rust toolchain：
 
 ```bash
+rustc --version
+cargo --version
 cd backend
-uv sync --extra dev --extra rustdx --frozen
+uv sync --extra dev --frozen
+uv run --frozen --no-sync python -m app.plugins.rustdx.client
 uv run --frozen --no-sync pytest tests/test_rustdx_provider.py tests/test_rustdx_contracts.py tests/test_rustdx_sync.py tests/test_rustdx_financial.py tests/test_rustdx_native_pool.py -q
 ```
 
+未安装 Rust 时，先按 [Rust 官方安装说明](https://www.rust-lang.org/tools/install)
+安装工具链。固定 Git 源需要授权时，使用已有 Git 凭据并设置
+`CARGO_NET_GIT_FETCH_WITH_CLI=true`，让 Cargo 通过 Git CLI 获取源码。
+不要将凭据写入 Cargo 依赖 URL，也不要切换旧提交绕过版本校验。
+
 Docker 镜像和桌面安装包会在构建阶段编译并包含原生扩展，运行目标机器不需要安装
-Rust。
+Rust。开发启动脚本每次同步后端依赖；脚本启动、Docker 构建、CI 和桌面打包均
+检查实际安装模块的依赖版本、来源提交、池接口和连接上限。检查不连接行情服务器；
+缺失或不匹配时停止启动或构建，避免生成缺少默认源的产物。
+
+源码环境遇到旧桥接时，在 `backend` 目录执行
+`uv sync --frozen --reinstall-package tsp-rustdx-native`，然后重新运行上面的检查。
 
 ## 首次启动初始化
 

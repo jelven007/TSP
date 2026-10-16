@@ -57,7 +57,10 @@ jobs:
           toolchain: 1.99.0
 
       - name: 安装依赖 (含 dev 测试链与 rustdx)
-        run: uv sync --extra dev --extra rustdx --frozen
+        run: uv sync --extra dev --frozen
+
+      - name: 校验默认安装的 rustdx 原生桥接
+        run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
       - name: 版本规则测试
         run: uv run --frozen --no-sync pytest ../scripts/test_versioning.py tests/test_version_source.py -q

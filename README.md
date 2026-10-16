@@ -11,7 +11,7 @@
 
 ## 版本状态
 
-仓库最新集成线为 `main`，应用语义版本为 `0.4.1`。当前生产固定在提交
+仓库最新集成线为 `main`，应用语义版本为 `0.4.2`。当前生产固定在提交
 `d06acc1d`，而 `main` 还包含尚未生产签收的二期实时网关和百用户迭代，二者不能
 混称为“当前版本”。稳定标签、生产提交、源码候选和开源观察对象的完整分类见
 [版本基线](docs/version-baseline.md)。
@@ -94,6 +94,7 @@ docker compose up --build -d
 - Node.js 20+
 - [`uv`](https://docs.astral.sh/uv/)
 - pnpm 9
+- [Rust 编译工具链](https://www.rust-lang.org/tools/install)（源码安装默认原生桥接）
 
 macOS / Linux：
 
@@ -126,7 +127,8 @@ Copy-Item .env.example .env
 5. 按需配置 AI、监控通知、Open API Token 和 MCP。
 
 全新安装的七项基础数据能力默认路由到 `rustdx`，全市场请求最多共用 35 个连接，
-已保存的路由保持原值。数据源实际可用性受公开服务器、
+原生桥接随后端依赖默认安装，Docker 和桌面包内置对应平台的扩展；构建和开发
+启动会检查桥接是否就绪。已保存的路由保持原值。数据源实际可用性受公开服务器、
 网络和协议覆盖影响，系统不会在失败时静默切换到其他数据源。
 
 初始化覆盖沪主板、深主板、创业板、科创板的当前有效股票：一年日线及对应除权、
@@ -212,7 +214,8 @@ EXT_INDUSTRY_DATA_URL=
 
 ```bash
 cd backend
-uv sync --extra backtest --extra rustdx
+uv sync --extra dev --extra backtest --frozen
+uv run --frozen --no-sync python -m app.plugins.rustdx.client
 uv run --no-sync pytest
 ```
 

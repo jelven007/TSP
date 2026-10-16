@@ -29,11 +29,13 @@
 
 ## 3. 本地测试环境
 
-后端使用 Python 3.11+ 和 `uv`，前端使用 Node 20、pnpm 9。首次准备：
+后端使用 Python 3.11+、`uv` 和 Rust 编译工具链（构建默认原生桥接），前端使用
+Node 20、pnpm 9。首次准备：
 
 ```bash
 cd backend
 uv sync --extra dev --frozen
+uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
 cd ../frontend
 pnpm install --frozen-lockfile
@@ -41,6 +43,20 @@ pnpm install --frozen-lockfile
 
 自动化测试默认应使用临时目录、fixture 和 mock，不应读取或修改真实 `data/`。
 需要真实 Provider 的测试必须单独标记和运行，不能把密钥写入命令、日志或测试文件。
+原生桥接安装检查不连接外部节点；缺失、依赖版本、来源提交、接口或连接上限不匹配
+均以非零状态退出。默认依赖回归见 `tests/test_rustdx_installation.py`，本地协议
+连接池回归见 `tests/test_rustdx_native_pool.py`。
+
+2026-10-17 默认安装专项验证：macOS arm64、CPython 3.11 的全新隔离环境使用
+普通 `uv sync --frozen` 构建安装桥接；再次默认同步和旧 `--extra rustdx` 命令
+均保留可用桥接。安装、Provider、初始化、原生连接池、桌面打包与版本专项
+`170 passed`，Rust 单元测试 `6 passed`，前端生产构建、定向 Ruff 和版本递增
+检查通过。Rust 本地测试显式指定 `PYO3_PYTHON` 为后端虚拟环境解释器。
+
+实际 Worker 镜像构建能拒绝缺少桥接的旧运行镜像；Linux 原生构建在拉取
+`rust:1.99-slim-bookworm` 时被 Docker Hub `Bad Gateway` 阻断，未完成 Linux
+wheel 和完整镜像验收。Windows 启动和桌面安装包未在本机运行，需对应平台
+流水线验证；该记录不代表生产部署已更新。
 
 ## 4. 标准命令
 

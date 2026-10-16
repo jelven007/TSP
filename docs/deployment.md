@@ -97,6 +97,7 @@ docker compose down
 - Node.js 20+
 - [`uv`](https://docs.astral.sh/uv/)
 - pnpm 9
+- [Rust 编译工具链](https://www.rust-lang.org/tools/install)（源码安装默认原生桥接）
 
 macOS / Linux：
 
@@ -127,7 +128,8 @@ BACKEND_PORT=8000 FRONTEND_PORT=5173 ./dev.sh
 
 ```bash
 cd backend
-uv sync --extra backtest --extra rustdx
+uv sync --frozen
+uv run --frozen --no-sync python -m app.plugins.rustdx.client
 uv run --no-sync uvicorn app.main:app --reload --port 3018
 ```
 
@@ -136,6 +138,11 @@ cd frontend
 pnpm install --frozen-lockfile
 pnpm dev
 ```
+
+rustdx 原生桥接是后端默认依赖，不需要额外指定 `--extra rustdx`。开发脚本在
+已有 `.venv` 时也同步依赖，并在启动前校验桥接。Docker 镜像和桌面包在构建时
+内置扩展并校验，目标机器不需要 Rust。旧源码环境的桥接不匹配时执行
+`uv sync --frozen --reinstall-package tsp-rustdx-native` 重建。
 
 ## 桌面安装包
 

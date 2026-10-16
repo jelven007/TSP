@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -321,3 +322,23 @@ class RustdxClient:
             )
         except Exception as exc:
             raise RustdxError(f"rustdx 历史财务读取失败: {exc}") from exc
+
+
+def main() -> int:
+    """Validate the installed bridge before launching or packaging the app."""
+    available, detail = availability()
+    if not available:
+        print(
+            f"{detail}\n"
+            "源码环境安装 Rust 编译工具后, 在 backend 目录执行 "
+            "uv sync --frozen --reinstall-package tsp-rustdx-native; "
+            "Docker 或桌面包请重新构建包含原生桥接的产物。",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"rustdx 原生桥接已就绪: {detail}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

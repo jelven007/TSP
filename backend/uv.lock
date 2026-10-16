@@ -2629,7 +2629,7 @@ wheels = [
 
 [[package]]
 name = "tsp-backend"
-version = "0.4.1"
+version = "0.4.2"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
@@ -2655,6 +2655,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "sse-starlette" },
     { name = "tickflow", extra = ["all"] },
+    { name = "tsp-rustdx-native" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "winotify", marker = "sys_platform == 'win32'" },
 ]
@@ -2677,9 +2678,6 @@ dev = [
 ]
 legacy-cpu = [
     { name = "polars", extra = ["rtcompat"] },
-]
-rustdx = [
-    { name = "tsp-rustdx-native" },
 ]
 
 [package.metadata]
@@ -2714,7 +2712,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "sse-starlette", specifier = ">=2.0" },
     { name = "tickflow", extras = ["all"], specifier = ">=0.1.23" },
-    { name = "tsp-rustdx-native", marker = "extra == 'rustdx'", directory = "native/rustdx_native" },
+    { name = "tsp-rustdx-native", directory = "native/rustdx_native" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
     { name = "vectorbt", marker = "extra == 'backtest'", specifier = ">=0.26" },
     { name = "winotify", marker = "sys_platform == 'win32'", specifier = ">=1.1" },
