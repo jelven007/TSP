@@ -7,6 +7,11 @@ from pathlib import Path
 
 import pytest
 
+if not hasattr(socket, "AF_UNIX"):
+    # The broker is a host-only Unix-socket service; Windows builds without
+    # AF_UNIX cannot host it, and its module cannot even be imported there.
+    pytest.skip("Unix domain sockets are unavailable on this platform", allow_module_level=True)
+
 from app.cell.context import AccessError
 from app.multitenancy.compute_broker import ComputeBroker
 from app.multitenancy.executor import ComputeExecutor

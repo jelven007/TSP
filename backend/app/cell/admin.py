@@ -33,11 +33,13 @@ def migrate(
         conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"tsp-migrate-{schema}",))
         exists = conn.execute("SELECT to_regclass(%s) AS relation", (f"{schema}.schema_version",)).fetchone()
         if not exists["relation"]:
-            source = (SQL_ROOT / f"{kind}_v1.sql").read_text(encoding="utf-8")
-            conn.execute(source)
+            # Hash the same bytes the guard below re-reads. Decoding to text first
+            # normalises CRLF to LF, which breaks the checksum on Windows checkouts.
+            source = (SQL_ROOT / f"{kind}_v1.sql").read_bytes()
+            conn.execute(source.decode("utf-8"))
             conn.execute(
                 sql.SQL("INSERT INTO {}.schema_version VALUES (1, %s)").format(sql.Identifier(schema)),
-                (hashlib.sha256(source.encode()).hexdigest(),),
+                (hashlib.sha256(source).hexdigest(),),
             )
         versions = conn.execute(
             sql.SQL("SELECT * FROM {}.schema_version ORDER BY version").format(sql.Identifier(schema))
@@ -49,11 +51,11 @@ def migrate(
         if len(versions) > target_version:
             raise ValueError("database is newer than requested migration target")
         for number in range(len(versions) + 1, target_version + 1):
-            source = (SQL_ROOT / f"{kind}_v{number}.sql").read_text(encoding="utf-8")
-            conn.execute(source)
+            source = (SQL_ROOT / f"{kind}_v{number}.sql").read_bytes()
+            conn.execute(source.decode("utf-8"))
             conn.execute(
                 sql.SQL("INSERT INTO {}.schema_version VALUES (%s, %s)").format(sql.Identifier(schema)),
-                (number, hashlib.sha256(source.encode()).hexdigest()),
+                (number, hashlib.sha256(source).hexdigest()),
             )
         if kind == "data":
             if not cell_id:
