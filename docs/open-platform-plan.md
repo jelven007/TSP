@@ -1,6 +1,6 @@
 # 核心能力开放与插件化改造说明
 
-> 状态: V1/V2 已实现，当前版本的 Tier A 包含 6 个 scope、65 个端点、
+> 状态: V1/V2 已实现，当前版本的 Tier A 包含 6 个 scope、69 个端点、
 > Token 限流、`/api/openapi.json?tier=a` 契约视图、设置页 Token 管理和
 > SSE 一次性票据。V3 的通用运行钩子与模拟盘插件化拆分仍为设计，模拟盘
 > 业务本身已在核心仓库实现。使用说明见
@@ -159,6 +159,9 @@
 | `GET /api/paper/trades` | 成交台账（append-only 事实源） |
 | `POST /api/paper/account` `/settings` `/freeze` `/rebuild` | 建户、费用/撮合设置、冻结和账务重建 |
 | `GET/POST/DELETE /api/paper/auto_rules...` | 自动跟单规则查询、新建、启停和删除 |
+| `GET /api/paper/auto_skips` `/rounds` | 自动跟单跳过原因与完整交易往返记录 |
+| `GET /api/paper/corporate-actions` | 公司行为、证据状态和账务阻断读取 |
+| `POST /api/paper/corporate-actions/subscribe` | 在登记权益和缴款期内认购配股 |
 | `POST /api/paper/arena/batch_create` | 批量创建同口径对比账户 |
 
 ### 5.6 系统
@@ -205,7 +208,7 @@
 ## 7. 风险与守住的边界
 
 - **Token 泄漏 = 面板数据泄漏**: 默认只读 scope、可随时吊销、创建时明文只显一次; paper:trade 永不默认。
-- **契约演进**: Tier A 当前由 65 端点快照测试冻结；新增、移除或改方法必须
+- **契约演进**: Tier A 当前由 69 端点快照测试冻结；新增、移除或改方法必须
   显式更新契约快照，破坏性变更需提供版本迁移。
 - **限流误伤本机 UI**: Token 限流只作用于 Bearer 路径; UI 会话不受 Token 桶约束。
 - **不因开放破坏内部演进**: 开放面是「视图 + 网关」, 不重写内部路由; 内部 API 与开放 API 解耦, 由标注层衔接。
