@@ -36,6 +36,7 @@ import polars as pl
 from app.market_time import trading_minutes_elapsed_from_dt
 from app.services.ext_data import ExtConfigStore
 from app.services.rps_rotation import _load_concept_map_df
+from app.services.sector_minute import minute_returns
 
 logger = logging.getLogger(__name__)
 
@@ -96,80 +97,6 @@ def _latest_minute_partition(minute_dir: Path) -> str | None:
         if d.is_dir() and d.name.startswith("date=") and (d / "part.parquet").is_file()
     )
     return parts[-1] if parts else None
-
-
-def _prev_daily_close(data_dir: Path, target_date: str) -> pl.DataFrame | None:
-    """目标日前最近一个日K分区的收盘价 → (_bare, prev_close); 无则 None。
-
-    与 api/ext_data._prev_daily_close 同口径 (服务层不依赖 api 层, 就地实现)。
-    """
-    daily = data_dir / "kline_daily"
-    if not daily.exists():
-        return None
-    dates = sorted(
-        d.name[5:]
-        for d in daily.iterdir()
-        if d.is_dir() and d.name.startswith("date=") and (d / "part.parquet").is_file()
-    )
-    prevs = [d for d in dates if d < target_date]
-    if not prevs:
-        return None
-    try:
-        df = pl.read_parquet(daily / f"date={prevs[-1]}" / "part.parquet", columns=["symbol", "close"])
-    except Exception:
-        return None
-    return (
-        df.with_columns(_bare().alias("_bare"))
-        .select([pl.col("_bare"), pl.col("close").cast(pl.Float64).alias("prev_close")])
-        # 前收 <= 0 / 非有限视为缺失 (否则 close/ref 为 inf, 整个响应 JSON 渲染 500),
-        # 缺失时由调用方退化为当日首根有效分钟 close
-        .filter(pl.col("prev_close").is_finite() & (pl.col("prev_close") > 0))
-        .unique(subset=["_bare"], keep="last")
-    )
-
-
-def _minute_pcts(minute_dir: Path, target: str) -> tuple[pl.DataFrame | None, str, bool]:
-    """当日全市场分钟 → (_bare, _bucket, _pct[, amount]); 读取失败返回 (None, reason, False)。
-
-    amount 列缺失 (旧 schema) 时走精简读取, has_amount=False 由上层降级活跃度。
-    """
-    path = minute_dir / f"date={target}" / "part.parquet"
-    try:
-        bars = pl.read_parquet(path, columns=["symbol", "datetime", "close", "amount"])
-        has_amount = True
-    except Exception:
-        try:
-            bars = pl.read_parquet(path, columns=["symbol", "datetime", "close"])
-            has_amount = False
-        except Exception as exc:
-            logger.warning("sector_rotation read minute partition failed: %s", exc)
-            return None, "minute_schema", False
-    # close <= 0 / 非有限的分钟行无效: 作基准时 pct 为 inf, 作分子时是 -100% 假跌幅
-    bars = bars.drop_nulls(subset=["datetime", "close"]).filter(
-        pl.col("close").cast(pl.Float64).is_finite() & (pl.col("close") > 0)
-    )
-    if bars.is_empty():
-        return None, "minute_empty", has_amount
-    bars = bars.with_columns(_bare().alias("_bare"))
-
-    prev = _prev_daily_close(minute_dir.parent, target)
-    joined = bars.join(prev, on="_bare", how="left") if prev is not None else bars.with_columns(
-        pl.lit(None, dtype=pl.Float64).alias("prev_close")
-    )
-    refs = joined.group_by("_bare").agg(
-        pl.col("prev_close").first().alias("_prev"),
-        pl.col("close").sort_by("datetime").first().alias("_first"),
-    ).with_columns(pl.coalesce(["_prev", "_first"]).alias("_ref"))
-    n_prev = refs["_prev"].is_not_null().sum()
-    basis = "prev_close" if n_prev == refs.height else ("first_close" if n_prev == 0 else "mixed")
-    out = (
-        joined.join(refs.select(["_bare", "_ref"]), on="_bare", how="left")
-        .with_columns((pl.col("close") / pl.col("_ref") - 1.0).alias("_pct"))
-        .drop_nulls(subset=["_pct"])
-    )
-    if out.is_empty():
-        return None, "minute_empty", has_amount
-    return out, basis, has_amount
 
 
 def _load_sector_flow(data_dir: Path, flow_field: str) -> pl.DataFrame | None:
@@ -383,7 +310,8 @@ def build_sector_rotation(
 
     data_dir: Path = repo.store.data_dir
     cache_key = (
-        kind, flow_field or "", top, bucket_minutes, tuple(series_names or ()),
+        str(data_dir.resolve()), kind, flow_field or "", top, bucket_minutes,
+        tuple(series_names or ()),
         exclude_effective, rows_limit, sort_by,
     )
     now = time.monotonic()
@@ -413,12 +341,28 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
     if map_df.is_empty() or member_count == 0:
         return {"status": "no_data", "reason": "members_missing", "date": target, "kind": kind}
 
-    pcts, basis, has_amount = _minute_pcts(minute_dir, target)
+    pcts, basis, has_amount, quality = minute_returns(data_dir, target)
     if pcts is None:
-        return {"status": "no_data", "reason": basis, "date": target, "kind": kind}
+        return {
+            "status": "no_data",
+            "reason": basis,
+            "date": target,
+            "kind": kind,
+            "quality": quality,
+        }
+    if not quality["valid_rows"]:
+        return {
+            "status": "empty",
+            "reason": "minute_anomalies",
+            "date": target,
+            "kind": kind,
+            "quality": quality,
+        }
 
     # 桶化 + 板块聚合: 先每股桶内均值 (成交额按桶合计), 再板块等权均值 (停牌/缺分钟不放大权重)
-    member_df = map_df.rename({"_sym_up": "_bare", kind: "_member"})
+    member_df = map_df.rename(
+        {"_sym_up": "_bare", kind: "_member"},
+    ).unique(["_bare", "_member"])
     buckets = pcts.with_columns(pl.col("datetime").dt.truncate(f"{bucket_minutes}m").alias("_bucket"))
     stock_agg = [pl.col("_pct").mean().alias("_sym_pct")]
     if has_amount:
@@ -427,6 +371,7 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
         buckets.join(member_df, on="_bare", how="inner")
         .group_by(["_bucket", "_member", "_bare"])
         .agg(stock_agg)
+        .filter(pl.col("_sym_pct").is_not_null())
         .group_by(["_bucket", "_member"])
         .agg(
             pl.col("_sym_pct").mean().alias("_spct"),
@@ -436,7 +381,19 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
         .sort(["_bucket", "_spct"], descending=[False, True])
     )
     if by_sector.is_empty():
-        return {"status": "empty", "reason": "no_member_bars", "date": target, "kind": kind}
+        rejected_members = buckets.filter(pl.col("_excluded")).join(
+            member_df,
+            on="_bare",
+            how="inner",
+        )
+        reason = "minute_anomalies" if not rejected_members.is_empty() else "no_member_bars"
+        return {
+            "status": "empty",
+            "reason": reason,
+            "date": target,
+            "kind": kind,
+            "quality": quality,
+        }
 
     market = (
         buckets.group_by("_bucket").agg(pl.col("_pct").mean().alias("_mpct")).sort("_bucket")
@@ -447,7 +404,10 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
     per_bucket: list[dict[str, Any]] = []
     cross_events: list[dict[str, Any]] = []
     prev_sign: dict[str, int] = {}
-    for (bucket,), frame in by_sector.group_by("_bucket", maintain_order=True):
+    sector_buckets = dict(by_sector.group_by("_bucket", maintain_order=True))
+    for bucket in market["_bucket"]:
+        # 保留整桶异常的时间点, 避免最新行情倒退到上一有效桶。
+        frame = sector_buckets.get((bucket,), by_sector.head(0))
         names = frame["_member"].to_list()
         pcts = frame["_spct"].to_list()
         cross_up = cross_down = 0
@@ -462,13 +422,14 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
                     cross_down += 1
                 cross_events.append(event)
             prev_sign[name] = sign
+        prev_sign = {name: prev_sign[name] for name in names}
         per_bucket.append({
             "bucket": bucket,
             "names": names,
             "pct": pcts,
             "top_set": set(names[:_TOP_OVERLAP]),
-            "leader": names[0],
-            "leader_pct": frame["_spct"][0],
+            "leader": names[0] if names else None,
+            "leader_pct": frame["_spct"][0] if names else None,
             "cross_up": cross_up,
             "cross_down": cross_down,
         })
@@ -496,16 +457,21 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
     timeline = []
     for index, item in enumerate(per_bucket):
         back = _reference_index(index)
+        rotation = 0.0 if item["names"] else None
         if back is not None:
             # 除数取梯队宽与两侧实际板块数的较小值: 板块总数不足 10 时
             # top 集合恒为全集, 按 10 归一会稀释换血信号
             width = min(_TOP_OVERLAP, len(item["top_set"]), len(per_bucket[back]["top_set"]))
-            overlap = len(item["top_set"] & per_bucket[back]["top_set"]) / width if width else 1.0
-        else:
-            overlap = 1.0
+            rotation = (
+                round(
+                    1.0 - len(item["top_set"] & per_bucket[back]["top_set"]) / width,
+                    4,
+                )
+                if width else None
+            )
         timeline.append({
             "time": item["bucket"].strftime("%H:%M"),
-            "rotation": round(1.0 - min(1.0, max(0.0, overlap)), 4),
+            "rotation": rotation,
             "leader": item["leader"],
             "leader_pct": _r4(item["leader_pct"]),
             "market_pct": _r4(market_map.get(item["bucket"])),
@@ -551,7 +517,15 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
             .agg(pl.col("_amt").sum().alias("_amt"))
             .iter_rows(named=True)
         }
-    all_names = sorted({name for item in per_bucket for name in item["names"]})
+    # 全异常板块仍在选择器中显示缺数据, 不伪造零收益或让它无提示消失。
+    all_names = sorted(members_count_by_sector)
+    excluded_by_sector = {
+        row["_member"]: row["_excluded"]
+        for row in buckets.join(member_df, on="_bare", how="inner")
+        .group_by("_member")
+        .agg(pl.col("_excluded").sum())
+        .iter_rows(named=True)
+    }
     names = per_bucket[-1]["names"]
     pcts_now = dict(zip(names, per_bucket[-1]["pct"], strict=True))
     pct_values = [pcts_now.get(name) for name in names]
@@ -580,6 +554,11 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
             "score": round(score, 2) if score is not None else None,
             "n_members": members_count_by_sector.get(name, 0),
             "n_members_with_bars": n_with_bars.get(name, 0),
+            "coverage": (
+                n_with_bars.get(name, 0)
+                / max(1, members_count_by_sector.get(name, 0))
+            ),
+            "excluded_rows": excluded_by_sector.get(name, 0),
         })
     sectors.sort(key=lambda item: (item["score"] is not None, item["score"] or 0.0), reverse=True)
 
@@ -591,6 +570,11 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
             "activity": _r4(activity_map.get(name)) if has_amount else None,
             "n_members": members_count_by_sector.get(name, 0),
             "n_members_with_bars": n_with_bars.get(name, 0),
+            "coverage": (
+                n_with_bars.get(name, 0)
+                / max(1, members_count_by_sector.get(name, 0))
+            ),
+            "excluded_rows": excluded_by_sector.get(name, 0),
             "excluded": not _auto_eligible(name, members_count_by_sector.get(name, 0), exclude_sectors),
         }
         for name in all_names
@@ -631,6 +615,7 @@ def _compute(repo, data_dir: Path, kind: str, flow_field: str | None, top: int, 
         "date": target,
         "kind": kind,
         "basis": basis,
+        "quality": quality,
         "flow_field": flow_field,
         "flow_available": flow_available,
         "bucket_minutes": bucket_minutes,
