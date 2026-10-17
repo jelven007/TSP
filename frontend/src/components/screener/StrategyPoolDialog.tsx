@@ -81,11 +81,16 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
     loadStrategies()
   }, [loadStrategies])
 
+  const poolStrategies = useMemo(
+    () => allStrategies.filter(s => !s.research_only),
+    [allStrategies]
+  )
+
   const stratMap = useMemo(() => {
     const m = new Map<string, StrategyDetail>()
-    allStrategies.forEach(s => m.set(s.id, s))
+    poolStrategies.forEach(s => m.set(s.id, s))
     return m
-  }, [allStrategies])
+  }, [poolStrategies])
 
   const validDraft = useMemo(
     () => draftPool.filter(id => stratMap.has(id)),
@@ -94,13 +99,13 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
   const invalidPoolCount = draftPool.length - validDraft.length
 
   const available = useMemo(
-    () => allStrategies.filter(s => !s.research_only && !draftPool.includes(s.id)),
-    [allStrategies, draftPool]
+    () => poolStrategies.filter(s => !draftPool.includes(s.id)),
+    [poolStrategies, draftPool]
   )
 
   // research_only 草稿(AI 来源)单独列出, 供「发布」操作; 不进待选列表
   const drafts = useMemo(
-    () => allStrategies.filter(s => s.research_only),
+    () => allStrategies.filter(s => s.research_only && s.source === 'ai'),
     [allStrategies]
   )
 
@@ -115,11 +120,11 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
 
   const families = useMemo(() => {
     const groups = new Map<string, string>()
-    for (const s of allStrategies) {
+    for (const s of poolStrategies) {
       if (s.family) groups.set(s.family.id, s.family.name)
     }
     return [...groups].map(([id, name]) => ({ id, name }))
-  }, [allStrategies])
+  }, [poolStrategies])
 
   const filteredAvailable = useMemo(
     () => sourceAvailable.filter(s =>
@@ -220,7 +225,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
           {/* 标题 */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
             <span className="text-sm font-medium text-foreground">
-              策略池 <span className="text-muted font-normal text-xs">{validDraft.length} / {allStrategies.length}</span>
+              策略池 <span className="text-muted font-normal text-xs">{validDraft.length} / {poolStrategies.length}</span>
               {!loading && !loadError && invalidPoolCount > 0 && <span className="ml-2 text-[10px] text-danger">{invalidPoolCount} 个失效</span>}
             </span>
             <div className="flex items-center gap-2">
@@ -354,7 +359,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                   <div className="space-y-0.5">
                     {filteredAvailable.length === 0 ? (
                       <div className="flex items-center justify-center h-24 text-[11px] text-muted">
-                        {allStrategies.length === 0 ? '暂无可用策略' : available.length === 0 ? '全部已加入策略池' : '此分组无待选策略'}
+                        {poolStrategies.length === 0 ? '暂无可用策略' : available.length === 0 ? '全部已加入策略池' : '此分组无待选策略'}
                       </div>
                     ) : filteredAvailable.map(s => (
                       <button
