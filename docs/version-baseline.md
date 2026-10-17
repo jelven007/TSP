@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | 集成分支 | `main` | 仓库唯一最新集成线；已快进包含原 `feat/phase1-full-multitenancy` 全部提交 |
 | 功能集成基线 | `b360d775fcb1af1350a6ffd3cb478fb555b0afdc` | 已包含密码找回、二期 Step 1/2，以及四板股票池和首次启动数据初始化修复 |
-| 应用语义版本 | `0.4.6` | 默认安装 rustdx 原生桥接；`frontend/package.json`、后端包、运行时 fallback 和 `VERSION` 保持一致 |
+| 应用语义版本 | `0.4.7` | 默认安装 rustdx 原生桥接；`frontend/package.json`、后端包、运行时 fallback 和 `VERSION` 保持一致 |
 | 最新稳定 Release | 暂无保留 | 历史桌面 Release 已按维护策略清理；源码标签不自动等同稳定安装包 |
 | 自动源码标签 | 主线 CI 成功后创建，首次为 `v0.4.4` / `21333e616007e061c25f04217f32a9df4b12b1e2` | 后续值从远程标签和 CI 核对，不等同桌面稳定 Release |
 | 保留的源码标签 | 最近三个 `v*` 标签 | 按版本顺序滚动保留；更早标签、关联 Release 和已归并远程分支删除，提交历史保留 |
