@@ -80,6 +80,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
   const s = settings.data
 
   const [provider, setProvider] = useState(OPENAI_COMPAT_PROVIDER)
+  const [protocol, setProtocol] = useState<'chat_completions' | 'responses'>('chat_completions')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
@@ -152,6 +153,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
       draftsInitialized.current = true
     }
     setProvider(savedProvider)
+    setProtocol(s.ai_protocol ?? 'chat_completions')
     setSelectedPresetLabel(savedPreset.label)
     setBaseUrl(savedBaseUrl)
     setModel(savedOpenAIModel)
@@ -169,6 +171,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
 
   const payload = () => ({
     provider,
+    protocol: isCodexProvider ? undefined : protocol,
     base_url: baseUrl,
     api_key: apiKey || undefined,
     model: isCodexProvider ? codexModel : model,
@@ -189,6 +192,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
       qc.setQueryData<SettingsState>(QK.settings, prev => prev ? {
         ...prev,
         ai_provider: result.ai_provider ?? provider,
+        ai_protocol: result.ai_protocol ?? protocol,
         ai_base_url: baseUrl,
         ai_model: result.ai_model ?? (isCodexProvider ? codexModel : model),
         ai_openai_model: result.ai_openai_model ?? model,
@@ -215,6 +219,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
     onSuccess: () => {
       setConfirmClear(false)
       setProvider(OPENAI_COMPAT_PROVIDER)
+      setProtocol('chat_completions')
       setSelectedPresetLabel(PRESETS[0].label)
       setBaseUrl('')
       setApiKey('')
@@ -234,6 +239,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
       qc.setQueryData<SettingsState>(QK.settings, prev => prev ? {
         ...prev,
         ai_provider: OPENAI_COMPAT_PROVIDER,
+        ai_protocol: 'chat_completions',
         ai_base_url: '',
         ai_model: '',
         ai_openai_model: '',
@@ -381,8 +387,8 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
         icon={Settings2}
         title={configTitle}
         right={
-          <span className="inline-flex items-center gap-1.5 text-[10px] text-muted/60" title={isCodexProvider ? 'Use local Codex CLI via codex exec' : 'Use OpenAI-compatible Chat Completions API'}>
-            <span className="rounded-full border border-border/40 bg-base/50 px-1.5 py-px font-mono">{isCodexProvider ? 'codex exec' : 'Chat Completions'}</span>
+          <span className="inline-flex items-center gap-1.5 text-[10px] text-muted/60">
+            <span className="rounded-full border border-border/40 bg-base/50 px-1.5 py-px font-mono">{isCodexProvider ? 'codex exec' : protocol === 'responses' ? 'Responses' : 'Chat Completions'}</span>
             {isCodexProvider ? 'CLI' : '接口'}
           </span>
         }
@@ -417,6 +423,13 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
             </div>
           ) : (
             <>
+              <Field label="接口协议" hint="按服务商支持情况选择；保存后用于报告、策略生成和助手。接口失败时不会自动切换协议。">
+                <select aria-label="接口协议" value={protocol}
+                  onChange={e => setProtocol(e.target.value as typeof protocol)} className={INPUT_CLS}>
+                  <option value="chat_completions">Chat Completions（默认）</option>
+                  <option value="responses">Responses</option>
+                </select>
+              </Field>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="API 地址">
                   <input type="text" value={baseUrl} onChange={e => handleBaseUrlChange(e.target.value)} placeholder="https://api.example.com/v1" className={INPUT_CLS} />

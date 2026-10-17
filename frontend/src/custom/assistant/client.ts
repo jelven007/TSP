@@ -8,6 +8,31 @@
  */
 
 import { accountFetch as fetch } from '@/lib/accountSession'
+import type { AssistantSession } from './store'
+
+export interface SessionCollection {
+  revision: number
+  sessions: AssistantSession[]
+}
+
+export class SessionSyncError extends Error {
+  constructor(public status: number, message: string) { super(message) }
+}
+
+export async function assistantSessions(body?: SessionCollection): Promise<SessionCollection> {
+  const response = await fetch('/api/custom/assistant/sessions', body ? {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  } : undefined)
+  if (!response.ok) {
+    throw new SessionSyncError(response.status, response.status === 409
+      ? '会话已在其他设备更新，本机草稿已保留。'
+      : response.status === 413 ? '历史超过 4 MiB，请删除部分会话后重试。'
+        : `会话同步失败 (${response.status})，本机草稿已保留。`)
+  }
+  return response.json() as Promise<SessionCollection>
+}
 
 export interface AssistantStatus {
   configured: boolean
