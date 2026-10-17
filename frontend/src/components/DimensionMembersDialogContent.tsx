@@ -13,7 +13,6 @@ import {
 import { Activity, Building2, ChevronRight, Database, RefreshCw, Search, Tags, Users, X } from 'lucide-react'
 import { MinuteQualityNote } from '@/components/MinuteQualityNote'
 import { Modal } from '@/components/Modal'
-import { MinuteQualityNote } from '@/components/MinuteQualityNote'
 import { boardTag } from '@/components/stock-table/primitives'
 import { toNavItems } from '@/lib/listNav'
 import { api, type DimensionIntradayPoint, type MarketSnapshotRow } from '@/lib/api'

@@ -9,7 +9,7 @@
 
 第一步当前证据见[实施记录](../reports/phase2-step1-20261016/implementation.md)与[单机实时网关契约](realtime-gateway-contract.md)。本地代码、定向回归、热路径基准及一次性 PostgreSQL 百人功能验收已完成；真实 Nginx/容器网络下的换票、公共/私有事件和断线恢复已通过，本机隔离边界的 100 客户端突发扇出也已通过。候选主机持续百用户容量、真实交易时段、生产切流及回退仍未执行，因此第一步尚未完成候选签收。
 
-第二步当前证据见[实施记录](../reports/phase2-step2-20261016/implementation.md)与[原始验收结果](../reports/phase2-step2-20261016/local-100-user-mixed-acceptance.json)。本地长台账、研究 due 调度、100 人同步突发及约 20 RPS 错峰稳态已通过；另已取得周末全股票池快照和四板样本的 Provider→落盘→指标→平台 marker/快照→页面链路、Linux AMD64 全 Compute 功能仿真及双库/目录联合恢复和损坏备份阻断证据，见[剩余 P2 验收](../reports/p2-remaining-20261017/verification.md#c3真实链路分段量测与平台产物)。完整交易日和 72 小时任务正在观察；源端实时新鲜度、主动百用户持续负载、进程重启故障注入和候选发布尚未签收。
+第二步当前证据见[实施记录](../reports/phase2-step2-20261016/implementation.md)与[原始验收结果](../reports/phase2-step2-20261016/local-100-user-mixed-acceptance.json)。本地长台账、研究 due 调度、100 人同步突发及约 20 RPS 错峰稳态已通过；另已取得周末全股票池快照和四板样本的 Provider→落盘→指标→平台 marker/快照→页面链路、Linux AMD64 全 Compute 功能仿真及双库/目录联合恢复和损坏备份阻断证据，范围汇总见[主线整合记录](../reports/main-consolidation-20261018/verification.md)。完整交易日和 72 小时任务正在观察；源端实时新鲜度、主动百用户持续负载、进程重启故障注入和候选发布尚未签收。
 
 ## 1. 三步目标与规模口径
 
