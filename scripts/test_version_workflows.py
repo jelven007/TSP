@@ -69,6 +69,14 @@ def test_quality_jobs_and_docker_use_same_recorded_commit():
     assert metadata["labels"].strip() == (
         "org.opencontainers.image.revision=${{ steps.revision.outputs.revision }}"
     )
+    assert (
+        "type=raw,value=${{ steps.application-version.outputs.version }},"
+        "enable=${{ github.event_name == 'workflow_run' }}"
+    ) in metadata["tags"]
+    application_version = next(
+        step for step in docker["steps"] if step.get("id") == "application-version"
+    )
+    assert "python3 scripts/check_version.py --current VERSION" in application_version["run"]
     assert "workflow_run.head_sha" not in str(docker)
 
 
@@ -115,3 +123,25 @@ def test_desktop_release_requires_explicit_version_without_stale_default():
     version = workflow("release.yml")["on"]["workflow_dispatch"]["inputs"]["version"]
     assert version["required"] == "true"
     assert "default" not in version
+
+
+def test_version_tag_requires_successful_main_quality_gates():
+    ci = workflow("ci.yml")
+    tag = ci["jobs"]["tag"]
+    assert set(tag["needs"]) == {"version", "backend", "frontend"}
+    assert tag["if"] == (
+        "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    )
+    assert tag["permissions"]["contents"] == "write"
+    checkout = step_using(tag, "actions/checkout@v4")["with"]
+    assert checkout["ref"] == "${{ needs.version.outputs.revision }}"
+    assert checkout["fetch-depth"] == "0"
+    assert checkout["persist-credentials"] == "true"
+    publish = next(step for step in tag["steps"] if step.get("id") == "tag")
+    assert publish["env"]["TESTED_REVISION"] == "${{ needs.version.outputs.revision }}"
+    assert publish["run"] == 'python3 scripts/tag_version.py "$TESTED_REVISION"'
+    version_tests = next(
+        step for step in ci["jobs"]["backend"]["steps"]
+        if step.get("name") == "版本规则测试"
+    )
+    assert "../scripts/test_tag_version.py" in version_tests["run"]
