@@ -36,6 +36,8 @@ import { PicksSymbolKlineModal } from './components/PicksSymbolKlineModal'
 import { SignalTriggerActions } from '@/components/signals/SignalTriggerActions'
 import { WatchlistGroupMenu } from '@/components/WatchlistAddMenu'
 import { ScoringEditor } from '@/components/ScoringEditor'
+import { StrategyParamGroups } from '@/components/StrategyParamGroups'
+import { applyParamValue } from '@/lib/strategyParams'
 import { strategyResultCandidate } from './researchCandidates'
 import { buildDailyNavItems, buildTradeKeyMap, buildTradesNavItems, type TradeNavItem } from './tradeNav'
 
@@ -2865,16 +2867,22 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               {settingsTab === 'params' && (
                 <ConfigSection title="策略参数" hint="自动限制 min/max">
                   {detail.params.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {detail.params.map(param => (
+                    <StrategyParamGroups
+                      params={detail.params}
+                      values={strategyParams}
+                      className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                    >
+                      {param => (
                         <StrategyParamInput
                           key={param.id}
                           param={param}
-                          value={strategyParams[param.id]}
-                          onChange={value => setStrategyParams(prev => ({ ...prev, [param.id]: value }))}
+                          value={strategyParams[param.id] ?? param.default}
+                          onChange={value => setStrategyParams(prev => (
+                            applyParamValue(detail.params, prev, param.id, value)
+                          ))}
                         />
-                      ))}
-                    </div>
+                      )}
+                    </StrategyParamGroups>
                   ) : (
                     <div className="text-xs text-muted">当前策略没有可调参数。</div>
                   )}

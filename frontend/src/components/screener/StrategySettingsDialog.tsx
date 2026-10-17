@@ -10,6 +10,8 @@ import { SignalTriggerActions } from '@/components/signals/SignalTriggerActions'
 import { Modal } from '@/components/Modal'
 import { ScoringEditor } from '@/components/ScoringEditor'
 import { OverlayFilterEditor } from './OverlayFilterEditor'
+import { StrategyParamGroups } from '@/components/StrategyParamGroups'
+import { applyParamValue } from '@/lib/strategyParams'
 
 // 内置列名 → 中文标签
 const FIELD_LABEL: Record<string, string> = {}
@@ -134,6 +136,7 @@ function ParamField({ def, value, onChange }: {
             checked ? 'bg-accent' : 'bg-elevated'
           }`}
           aria-pressed={checked}
+          aria-label={def.label}
         >
           <span className={`inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200 ${
             checked ? 'translate-x-[14px]' : 'translate-x-0.5'
@@ -147,6 +150,7 @@ function ParamField({ def, value, onChange }: {
       <div className="flex items-center gap-2">
         <span className="text-[11px] text-secondary w-16 shrink-0 text-right">{def.label}</span>
         <select
+          aria-label={def.label}
           value={value ?? def.default}
           onChange={e => onChange(e.target.value)}
           className="w-24 px-1.5 py-0.5 rounded bg-base border border-border text-[11px] font-mono text-foreground focus:outline-none focus:border-accent/50"
@@ -162,6 +166,7 @@ function ParamField({ def, value, onChange }: {
         <span className="text-[11px] text-secondary w-16 shrink-0 text-right">{def.label}</span>
         <input
           type="text"
+          aria-label={def.label}
           value={value ?? def.default ?? ''}
           onChange={e => onChange(e.target.value)}
           className="flex-1 min-w-0 px-1.5 py-0.5 rounded bg-base border border-border text-[11px] font-mono text-foreground focus:outline-none focus:border-accent/50"
@@ -176,6 +181,7 @@ function ParamField({ def, value, onChange }: {
       <span className="text-[11px] text-secondary w-16 shrink-0 text-right">{def.label}</span>
       <input
         type="number"
+        aria-label={def.label}
         value={value ?? def.default}
         onChange={e => onChange(e.target.value === '' ? def.default : Number(e.target.value))}
         step={def.step ?? 0.1}
@@ -545,7 +551,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                   )
                 })()
                 : (
-                <div className="grid grid-cols-3 gap-5 items-start">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
                   {/* 列1：选股条件 */}
                     <Section icon={Filter} title="基础参数" accent="text-sky-400">
                       <div className="flex items-center justify-between mb-1">
@@ -593,9 +599,16 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                     )}
                     {detail.params.length > 0 ? (
                       <Section icon={Settings2} title="策略参数" accent="text-muted">
-                        <div className="space-y-1.5">
-                          {detail.params.map(p => <ParamField key={p.id} def={p} value={params[p.id]} onChange={v => setParams({ ...params, [p.id]: v })} />)}
-                        </div>
+                        <StrategyParamGroups params={detail.params} values={params}>
+                          {p => (
+                            <ParamField
+                              key={p.id}
+                              def={p}
+                              value={params[p.id] ?? p.default}
+                              onChange={v => setParams(prev => applyParamValue(detail.params, prev, p.id, v))}
+                            />
+                          )}
+                        </StrategyParamGroups>
                       </Section>
                     ) : (
                       <div className="rounded-xl border border-border/15 bg-surface/20 px-3.5 py-4 text-[11px] text-muted/50 text-center">无策略参数</div>

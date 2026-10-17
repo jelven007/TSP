@@ -58,9 +58,9 @@ export function StrategyOptimizer() {
       strategy_id: sweep.strategyId,
       param_grid: sweep.buildGrid(),
       objective,
-      // 未扫描参数固定为策略当前默认值; overrides 让 basic_filter/信号/风控按当前策略参与,
+      // 未扫描参数使用当前固定值; overrides 让 basic_filter/信号/风控按当前策略参与,
       // 保证优化的就是用户实际回测的策略 (而非被剥离配置的裸策略)。
-      params: sweep.selected?.params_defaults,
+      params: sweep.values,
       overrides: sweep.selected ? buildDefaultOverrides(sweep.selected) : undefined,
       start,
       end,
@@ -106,7 +106,14 @@ export function StrategyOptimizer() {
           </select>
         </div>
 
-        <SweepParamList params={sweep.params} sweeps={sweep.sweeps} updateSweep={sweep.updateSweep} />
+        <SweepParamList
+          params={sweep.params}
+          sweeps={sweep.sweeps}
+          updateSweep={sweep.updateSweep}
+          values={sweep.values}
+          updateValue={sweep.updateValue}
+          fixedIds={sweep.fixedIds}
+        />
         <CombosHint show={!!sweep.strategyId} combos={sweep.combos} gridError={sweep.gridError} />
 
         {task?.isPending ? (

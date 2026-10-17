@@ -11,6 +11,7 @@ import {
   type Time,
 } from 'lightweight-charts'
 import { Activity, Building2, ChevronRight, Database, RefreshCw, Search, Tags, Users, X } from 'lucide-react'
+import { MinuteQualityNote } from '@/components/MinuteQualityNote'
 import { Modal } from '@/components/Modal'
 import { boardTag } from '@/components/stock-table/primitives'
 import { toNavItems } from '@/lib/listNav'
@@ -337,18 +338,22 @@ function DimensionIntradaySection({ configId, field, value, date, kind }: {
 
   return (
     <section className="shrink-0 border-b border-border bg-surface/30">
-      <div className="flex items-center gap-2 px-4 pt-2">
+      <div className="flex flex-wrap items-center gap-2 px-4 pt-2">
         <Activity className="h-3 w-3 text-muted" />
         <span className="text-[10px] font-medium text-muted">分时走势 · 等权</span>
         {data?.member_count != null && data.members_with_minute != null && (
-          <span className="rounded bg-elevated px-1 py-px font-mono text-[9px] text-muted" title="有当日分钟数据的成分股数">
+          <span className="rounded bg-elevated px-1 py-px font-mono text-[9px] text-muted" title="当日有有效分钟数据的成分股数">
             {data.members_with_minute}/{data.member_count}只
           </span>
         )}
+        {data?.coverage != null && (
+          <span className="text-[10px] text-muted">当前覆盖 {(data.coverage * 100).toFixed(0)}%</span>
+        )}
+        <MinuteQualityNote quality={data?.quality} />
         {data?.basis && data.basis !== 'prev_close' && (
           <span
             className="rounded bg-amber-500/10 px-1 py-px text-[9px] text-amber-600 dark:text-amber-400"
-            title="前一交易日收盘缺失, 部分标的以当日首根分钟价为基准, 曲线起点约为 0"
+            title="前一交易日收盘缺失或旧分钟复权基准无法确认, 部分标的以当日首根分钟价为基准"
           >
             基准:当日首价
           </span>
@@ -383,13 +388,16 @@ function DimensionIntradaySection({ configId, field, value, date, kind }: {
       ) : data?.status === 'no_data' ? (
         <div className="mx-4 mb-2 mt-1 flex h-[96px] flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border">
           <Database className="h-4 w-4 text-muted" />
-          <p className="text-[11px] text-muted">分钟数据未落盘, 暂无分时走势</p>
-          <p className="text-[10px] text-muted/70">需 TickFlow Pro+ 盘后分钟同步 / Expert 盘中增量, 或自定义分钟源</p>
+          <p className="text-[11px] text-muted">
+            {data.reason === 'minute_reference' ? '价格基准或证券历史读取失败, 暂停计算' : '分钟数据不可用, 暂无分时走势'}
+          </p>
+          <p className="text-[10px] text-muted/70">请在数据页检查分钟同步及数据状态</p>
           <Link to="/data" className="text-[10px] text-accent hover:text-accent/80">前往数据页 →</Link>
         </div>
       ) : !data || data.status === 'empty' || data.points.length < 2 ? (
         <div className="grid h-[44px] place-items-center text-[11px] text-muted">
-          {data?.reason === 'no_member_bars' ? '成分股当日无分钟数据 (ETF 等标的无分钟落盘)' : '暂无成分股分时数据'}
+          {data?.reason === 'minute_anomalies' ? '成分股分钟价格均未通过校验, 暂无可用走势'
+            : data?.reason === 'no_member_bars' ? '成分股当日无分钟数据 (ETF 等标的无分钟落盘)' : '暂无成分股分时数据'}
         </div>
       ) : (
         <IntradayChart points={data.points} kind={kind} />
