@@ -97,3 +97,31 @@ it('shows an empty catalog without calling it a fully selected pool', async () =
   expect(container.textContent).toContain('暂无可用策略')
   expect(button('本组全加').disabled).toBe(true)
 })
+
+it('excludes research templates from the pool total and AI draft section', async () => {
+  list.mockResolvedValueOnce({
+    strategies: [
+      ...strategies,
+      {
+        id: 'factor_rank_research',
+        name: '因子排名研究',
+        source: 'builtin',
+        research_only: true,
+      },
+      {
+        id: 'ai_draft',
+        name: 'AI 草稿',
+        source: 'ai',
+        research_only: true,
+      },
+    ],
+  })
+
+  await render()
+
+  expect(container.textContent).toContain('策略池 0 / 4')
+  act(() => button('AI').click())
+  expect(container.textContent).toContain('1 个待发布')
+  expect(container.textContent).toContain('AI 草稿')
+  expect(container.textContent).not.toContain('因子排名研究')
+})
