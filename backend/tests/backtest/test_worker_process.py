@@ -165,6 +165,15 @@ def test_spawn_worker_returns_compact_result_and_memory_metrics(tmp_path):
     assert worker["serialized_result_bytes"] > 0
     assert worker["worker_exitcode"] == 0
     assert worker["parent_rss_after_worker_exit_bytes"] > 0
+    snapshot_id = result["provenance"]["input_snapshot"]["id"]
+    assert result["input_snapshot"]["id"] == snapshot_id
+    # Replaying an explicit retained version must not read a corrected live file.
+    (data_dir / "kline_daily_enriched/date=2024-01-01/part.parquet").write_bytes(b"changed")
+    replay_task = {**make_worker_task("backtest", data_dir, config), "input_snapshot_id": snapshot_id}
+    replay = run_worker_task(replay_task)
+    assert replay["error"] is None
+    assert replay["trades"] == result["trades"]
+    assert replay["equity_curve"] == result["equity_curve"]
 
 
 def test_spawn_optimizer_reuses_one_matrix_and_exits(tmp_path):
@@ -197,6 +206,7 @@ def test_spawn_optimizer_reuses_one_matrix_and_exits(tmp_path):
     assert result["shared_market_data_bytes"] > 0
     assert result["best_backtest"]["equity_curve"]
     assert result["best_backtest"]["trades"]
+    assert result["research"]["data_snapshot"]["id"] == result["best_backtest"]["provenance"]["input_snapshot"]["id"]
     assert "mc_maxdd_p50" in result["best_backtest"]["stats"]
     assert result["matrix_compute_cache"]["released"] is True
     assert result["performance"]["trial_peak_rss_bytes"] > 0
