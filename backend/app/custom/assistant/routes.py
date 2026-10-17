@@ -18,6 +18,7 @@ from app.api.auth import COOKIE_NAME
 from app.custom.assistant import actions as assistant_actions
 from app.custom.assistant import tools as assistant_tools
 from app.custom.assistant.chat_service import chat_stream
+from app.custom.assistant.sessions import SessionCollection, SessionStore
 from app.multitenancy.access import verify_live_access
 from app.multitenancy.ai import SQLPendingRegistry, authorized_lines
 from app.multitenancy.documents import private_storage
@@ -50,6 +51,38 @@ class ActionDecisionRequest(BaseModel):
 
 def build_router() -> APIRouter:
     router = APIRouter(prefix="/api/custom/assistant", tags=["custom-assistant"])
+
+    def session_store(request: Request) -> SessionStore:
+        documents = private_storage(request)
+        if documents is not None:
+            return SessionStore(documents=documents)
+        from app.services import auth
+
+        if request.headers.get("authorization"):
+            raise HTTPException(status_code=403, detail="会话同步需要账户登录")
+        repo = getattr(request.app.state, "repo", None)
+        user = auth.current_user(request.cookies.get(COOKIE_NAME, ""))
+        return SessionStore(
+            data_dir=repo.store.data_dir if repo is not None else None,
+            owner=str(user["id"]) if user else "standalone",
+        )
+
+    @router.get("/sessions")
+    def read_sessions(request: Request):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(session_store(request).read(), headers={"Cache-Control": "no-store"})
+
+    @router.put("/sessions")
+    def save_sessions(request: Request, req: SessionCollection):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            session_store(request).write(
+                [row.model_dump(exclude_unset=True) for row in req.sessions], req.revision,
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
 
     @router.post("/chat")
     async def chat(request: Request, req: ChatRequest):
