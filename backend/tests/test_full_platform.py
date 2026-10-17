@@ -58,12 +58,17 @@ def test_publication_copies_source_and_reuses_only_immutable_files(tmp_path):
     assert (release / "capabilities.json").exists()
     assert not (release / "user_data").exists() and not (release / ".env").exists()
     assert "excluded" not in (release / "ext_data/concept/config.json").read_text()
+    import hashlib
+    assert set(first["checksums"]) == set(first["files"])
+    for name, digest in first["checksums"].items():
+        assert hashlib.sha256((release / name).read_bytes()).hexdigest() == digest
     assert (release / "instruments/instruments.parquet").stat().st_ino != path.stat().st_ino
     assert publisher.publish()["id"] == first["id"]
     # An in-place source write cannot mutate a published release.
     pl.DataFrame({"symbol": ["000001.SZ"], "name": ["新版本"]}).write_parquet(path)
     second = publisher.publish()
     assert second["id"] != first["id"]
+    assert second["checksums"]["instruments/instruments.parquet"] != first["checksums"]["instruments/instruments.parquet"]
     assert pl.read_parquet(release / "instruments/instruments.parquet")["symbol"].to_list() == ["600000.SH"]
     assert (release / "ext_data/concept/config.json").stat().st_ino == (
         release_path(target) / "ext_data/concept/config.json"
@@ -346,7 +351,8 @@ def test_platform_marker_stream_never_sends_market_frames(monkeypatch):
     assert not quotes._subscribers
 
 
-def test_full_api_import_never_creates_legacy_files(tmp_path):
+@pytest.mark.parametrize("role", ["api", "gateway"])
+def test_stateless_service_import_never_creates_legacy_files(tmp_path, role):
     import os
     import subprocess
     import sys
@@ -367,7 +373,7 @@ else:
     raise AssertionError("legacy identity files remain accessible")
 """],
         cwd=Path(__file__).resolve().parents[1],
-        env={**os.environ, "SERVICE_ROLE": "api", "MULTITENANCY_ENABLED": "true",
+        env={**os.environ, "SERVICE_ROLE": role, "MULTITENANCY_ENABLED": "true",
              "DATA_DIR": str(public), "NUMBA_CACHE_DIR": str(tmp_path / "numba"),
              "PYTHONDONTWRITEBYTECODE": "1"},
         text=True, capture_output=True, timeout=40,

@@ -33,7 +33,7 @@ class PublicReadCache:
                     self.values.move_to_end(key)
                     return Response(cached[1], headers=cached[2])
                 response = await call_next(request)
-                if response.status_code != 200:
+                if response.status_code != 200 or "no-store" in response.headers.get("cache-control", "").lower():
                     return response
                 content = b"".join([chunk async for chunk in response.body_iterator])
                 headers = {name: value for name, value in response.headers.items()

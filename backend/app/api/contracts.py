@@ -212,6 +212,15 @@ class DimensionPoint(ContractModel):
     time: str
     sector: float | None
     market: float | None
+    coverage: float | None = None
+
+
+class MinutePriceQuality(ContractModel):
+    total_rows: int
+    valid_rows: int
+    excluded_rows: int
+    unknown_rule_rows: int
+    unlimited_rows: int
 
 
 class DimensionIntradayResponse(ContractModel):
@@ -221,6 +230,9 @@ class DimensionIntradayResponse(ContractModel):
     basis: Literal["prev_close", "first_close", "mixed"] | None = None
     member_count: int | None = None
     members_with_minute: int | None = None
+    coverage: float | None = None
+    excluded_rows: int | None = None
+    quality: MinutePriceQuality | None = None
     points: list[DimensionPoint]
 
 
@@ -517,6 +529,22 @@ class RegimeMainlineResponse(ContractModel):
 # Paper trading
 
 
+class PaperCorporateActionsResponse(ContractModel):
+    mode: Literal["events", "legacy_factor"]
+    events: list[JsonRecord]
+    blocked: list[JsonRecord]
+
+
+class PaperRightsSubscriptionResponse(ContractModel):
+    kind: Literal["corporate_action"]
+    action_id: str
+    stage: Literal["rights_subscribed"]
+    symbol: str
+    date: str
+    qty: int
+    cash_amount: float
+
+
 class PaperAccount(ContractModel):
     id: str
     name: str | None = None
@@ -528,6 +556,8 @@ class PaperAccount(ContractModel):
     queue_limit_orders: bool = False
     status: Literal["active", "frozen"]
     created_at: str
+    corporate_action_mode: Literal["events", "legacy_factor"] = "legacy_factor"
+    stamp_tax_mode: Literal["fixed"] = "fixed"
 
 
 class PaperAccountSummary(ContractModel):
@@ -577,6 +607,9 @@ class PaperOverviewResponse(ContractModel):
     status: str | None = None
     cash: float | None = None
     market_value: float | None = None
+    receivables: float = 0
+    corporate_action_mode: Literal["events", "legacy_factor"] = "legacy_factor"
+    stamp_tax_mode: Literal["fixed"] = "fixed"
     total: float | None = None
     total_pnl: float | None = None
     initial_cash: float | None = None

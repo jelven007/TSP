@@ -24,6 +24,22 @@ from app.services.ext_presets import (
 _PRESET_IDS = ("ext_gn_ths", "ext_hy_ths")
 
 
+def test_feature_manual_matches_fresh_install_defaults(monkeypatch):
+    monkeypatch.setattr(settings, "ext_concept_data_url", "")
+    monkeypatch.setattr(settings, "ext_industry_data_url", "")
+    manual = (Path(__file__).resolve().parents[2] / "docs/features.md").read_text()
+    for preset in (_concept_preset(), _industry_preset()):
+        assert preset.pull.url and preset.pull.enabled
+    assert "新安装默认启用定时拉取" in manual
+    assert "环境变量未配置或为空时使用默认 URL" in manual
+    assert "未配置 URL 时默认关闭" not in manual
+    assert "首次自动同步" in manual and "确认默认 rustdx" in manual
+    guide = (Path(__file__).resolve().parents[2] / "操作说明书.md").read_text()
+    assert "未配置 URL 时默认关闭" not in guide
+    assert "新安装需要在 `.env` 设置" not in guide
+    assert "自带默认拉取地址" in guide
+
+
 def test_builtin_presets_have_enabled_defaults_with_empty_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
