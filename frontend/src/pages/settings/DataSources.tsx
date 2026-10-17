@@ -50,6 +50,7 @@ const DATASET_LABEL: Record<string, string> = {
   daily: '日K',
   minute: '分钟',
   adj_factor: '除权',
+  corporate_actions: '公司行为',
   depth5: '五档',
   financial: '财务',
   full_minute: '全量分钟',
@@ -149,6 +150,7 @@ function patchMatrix(
 const DEFAULT_ROUTING: Record<ProviderField, string> = {
   daily_data_provider: 'rustdx',
   adj_factor_provider: 'rustdx',
+  corporate_actions_provider: 'rustdx',
   minute_data_provider: 'rustdx',
   full_minute_data_provider: 'rustdx',
   depth5_data_provider: 'rustdx',
@@ -156,7 +158,7 @@ const DEFAULT_ROUTING: Record<ProviderField, string> = {
   financial_data_provider: 'rustdx',
 }
 
-const TICKFLOW_ROUTING: Record<ProviderField, string> = {
+const TICKFLOW_ROUTING: Partial<Record<ProviderField, string>> = {
   daily_data_provider: 'tickflow',
   adj_factor_provider: 'tickflow',
   minute_data_provider: 'tickflow',
@@ -546,7 +548,7 @@ function CapabilityChips({ caps, servingSet, isTickFlow }: {
         const title = servingNow
           ? `正在提供「${cap.label}」`
           : locked
-            ? `TickFlow 需 ${tierReqText(cap.tf_tier)} · 当前档位未解锁`
+            ? (cap.tf_tier ? `TickFlow 需 ${tierReqText(cap.tf_tier)} · 当前档位未解锁` : 'TickFlow 未提供此能力')
             : `已适配「${cap.label}」`
         return (
           <span
@@ -603,6 +605,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
     realtime: prefs.data?.realtime_data_provider || 'rustdx',
     depth5: prefs.data?.depth5_data_provider || 'rustdx',
     financial: prefs.data?.financial_data_provider || 'rustdx',
+    corporate_actions: prefs.data?.corporate_actions_provider || 'rustdx',
   }
   const servingDatasets = (name: string) =>
     Object.entries(effProvider).filter(([, v]) => v === name).map(([k]) => k)
@@ -651,6 +654,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
       return api.updateDataProviders({
         daily_data_provider: pick('daily'),
         adj_factor_provider: pick('adj_factor'),
+        corporate_actions_provider: pick('corporate_actions'),
         realtime_data_provider: pick('realtime'),
         minute_data_provider: pick('minute'),
         full_minute_data_provider: pick('full_minute'),
@@ -1197,13 +1201,13 @@ function TickFlowDetail({ active, matrix }: { active: boolean; matrix?: Capabili
                       <span className="text-xs text-foreground">{cap.label}</span>
                       <span className="ml-1.5 text-[10px] text-muted/60">{cap.desc}</span>
                     </div>
-                    <TierReqChip tier={cap.tf_tier} currentLabel={tier} />
+                    {cap.tf_tier && <TierReqChip tier={cap.tf_tier} currentLabel={tier} />}
                     {cap.tf_available ? (
                       <span className="w-[52px] text-right text-[10px] text-bear inline-flex items-center justify-end gap-0.5 shrink-0">
                         <Check className="h-2.5 w-2.5" />可用
                       </span>
                     ) : (
-                      <span className="w-[52px] text-right text-[10px] text-warning/80 shrink-0">未解锁</span>
+                      <span className="w-[52px] text-right text-[10px] text-warning/80 shrink-0">{cap.tf_tier ? '未解锁' : '未提供'}</span>
                     )}
                   </div>
                 )

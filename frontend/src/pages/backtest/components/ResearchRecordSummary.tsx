@@ -32,6 +32,9 @@ export function ResearchRecordSummary({ research, result }: {
       </div>
       {research.n_failed != null && research.n_failed > 0 && <p>{research.n_failed} 组失败或目标无有效值，记录中保留原因。</p>}
       {research.provenance?.public_release_id && <p>行情版本：{research.provenance.public_release_id}</p>}
+      {research.data_snapshot && (
+        <p className="break-all">固定输入版本：{research.data_snapshot.id} · {research.data_snapshot.file_count} 个文件</p>
+      )}
       {correction && (
         <p>
           {correction.status === 'available' && correction.probability != null
