@@ -2,12 +2,12 @@ name: 桌面客户端发布
 
 # 触发方式: 手动 (workflow_dispatch)。
 # 在 GitHub Actions 页面点 "Run workflow", 选择要构建的平台 + 版本号,
-# 构建完成后自动创建/更新 Release 并上传安装包。
+# 选择已有版本标签，所有质量门和平台均固定到同一 SHA。
 #
 # 为什么不用 tag 自动触发:
 #   - 多平台并行构建, mac/linux 未就绪时会自动失败污染 Release
-#   - 手动触发可精确控制 "今天只发 Windows, 明天补 mac"
-#   - 版本号通过 input 传入, 与 tag 解耦, 更灵活
+#   - 所选平台全部成功后才发布并冻结 Release
+#   - 已发布的 immutable Release 不能追加或覆盖安装包
 #
 # 使用:
 #   gh workflow run release.yml -f version=v0.4.2 -f platforms=windows
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号 (格式 va.b.cd, a/b=0-9、cd=0-99, 如 v0.4.2; 必须与 frontend/package.json 的 version 一致, 否则流水线直接失败)'
+        description: '已有源码标签 (格式 va.b.cd，例如 v0.4.4；所有构建固定到该标签的提交)'
         required: true
       platforms:
         description: '要构建的平台 (逗号分隔: windows,macos,linux)'
@@ -28,7 +28,11 @@ on:
         default: false
 
 permissions:
-  contents: write   # 创建 Release 需要写权限
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ inputs.version }}
+  cancel-in-progress: false
 
 jobs:
   # 第一步: 过滤出本次要构建的平台
@@ -37,54 +41,47 @@ jobs:
     outputs:
       matrix: ${{ steps.filter.outputs.matrix }}
       ver: ${{ steps.filter.outputs.ver }}
+      revision: ${{ steps.filter.outputs.revision }}
     steps:
       - name: 检出代码
-        # 仅为校验版本一致性 (读 frontend/package.json), 浅检出足够
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - id: filter
+        env:
+          RELEASE_TAG: ${{ inputs.version }}
+          RELEASE_PLATFORMS: ${{ inputs.platforms }}
         run: |
-          python3 scripts/check_version.py --current VERSION
-          # 版本号唯一权威 = frontend/package.json (安装包、页面显示、更新检查同源)。
-          # 发版输入与它不一致直接失败, 防止 tag/安装包/页面三处版本漂移。
-          PKG_VER=$(python3 -c "import json; print(json.load(open('frontend/package.json'))['version'])")
-          REQ_VER='${{ github.event.inputs.version }}'
-          if [ "v$PKG_VER" != "$REQ_VER" ]; then
-            echo "::error::版本不一致: 发版输入 $REQ_VER, frontend/package.json 为 v$PKG_VER。请以 frontend/package.json 为准, 统一版本号后再发版。"
-            exit 1
-          fi
+          python3 scripts/prepare_release.py
 
-          REQUESTED="${{ github.event.inputs.platforms }}"
-          # macOS 仅构建 ARM64 (Apple Silicon), 不构建 Intel:
-          #   1) GitHub 最后一个原生 Intel runner (macos-13) 已于 2025-12-04 退役;
-          #   2) 项目依赖 polars, 而 polars 自 1.33 起移除了 macOS x86_64 原生 wheel
-          #      (改 py3-none-any), 在 arm64 runner 上经 Rosetta 无法产出可运行的 x64 包。
-          #   runner 用 macos-26 (2026-02 GA, 免费, arm64 原生, SDK 更新)。
-          ALL='[{"os":"windows-latest","artifact":"TSP-Setup-x64.exe","platform":"windows"},{"os":"macos-26","artifact":"TSP-macos-arm64.dmg","platform":"macos","arch":"arm64"},{"os":"ubuntu-latest","artifact":"TSP-linux-x64.tar.gz","platform":"linux"}]'
-          # 按 input 过滤平台 (macos → arm64 单项)
-          python3 -c "
-          import json, sys
-          requested = '${{ github.event.inputs.platforms }}'.split(',')
-          requested = [r.strip() for r in requested if r.strip()]
-          ver = '${{ github.event.inputs.version }}'.lstrip('v')  # v0.4.2 → 0.4.2
-          all_platforms = json.loads('''$ALL''')
-          selected = [p for p in all_platforms if p['platform'] in requested]
-          # 产物文件名带版本号 (TSP-Setup-x64-0.4.2.exe): 用户下载后一眼可辨版本
-          for p in selected:
-              stem, _, ext = p['artifact'].rpartition('.')
-              p['artifact'] = f'{stem}-{ver}.{ext}'
-          print('matrix=' + json.dumps({'include': selected}))
-          with open('$GITHUB_OUTPUT', 'a') as f:
-              f.write('matrix=' + json.dumps({'include': selected}) + '\n')
-              f.write('ver=' + ver + '\n')
-          "
+      - name: 拒绝覆盖已发布版本
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.version }}
+        run: |
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          pages = json.loads((Path(os.environ["RUNNER_TEMP"]) / "releases.json").read_text())
+          if any(item["tag_name"] == os.environ["RELEASE_TAG"] and not item["draft"]
+                 for page in pages for item in page):
+              raise SystemExit("该版本已经发布并冻结；请选择新的源码版本标签")
+          PY
 
   # 第二步: 发版质量门。手动发布不能绕过测试、Lint 和生产构建。
   quality:
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          persist-credentials: false
 
       - name: 安装 uv
         uses: astral-sh/setup-uv@v3
@@ -142,6 +139,8 @@ jobs:
   # 第三步: 质量门通过后, 各平台并行构建
   build:
     needs: [prepare, quality]
+    permissions:
+      contents: write
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false   # 单平台失败不影响其他平台
@@ -149,6 +148,9 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+          persist-credentials: false
 
       - name: 安装 pnpm
         uses: pnpm/action-setup@v4
@@ -467,6 +469,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.version }}
+          target_commitish: ${{ needs.prepare.outputs.revision }}
           name: ${{ github.event.inputs.version }}
           files: ${{ matrix.artifact }}
           prerelease: ${{ github.event.inputs.prerelease }}
@@ -500,17 +503,18 @@ jobs:
 
   # 第四步: 生成 latest.json 更新清单 (客户端「检查更新」的稳定契约)
   manifest:
-    needs: build
-    # fail-fast: false 时部分平台失败会让 build 整体标红, 但已成功的平台资产
-    # 依然有效 — 清单照样生成 (以 Release 上实际存在的资产为准, 天然支持
-    # "今天发 Windows, 明天补 mac" 的分批发布: 每次按当前 Release 全量重建)。
-    if: ${{ !cancelled() && needs.build.result != 'skipped' }}
+    needs: [prepare, build]
+    # 任一所选平台失败时保留草稿；修复并补齐后才能冻结。
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: 生成并上传 latest.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.inputs.version }}
+          EXPECTED_MATRIX: ${{ needs.prepare.outputs.matrix }}
+          RELEASE_REVISION: ${{ needs.prepare.outputs.revision }}
         run: |
           set -euo pipefail
           python3 - <<'EOF'
@@ -567,6 +571,10 @@ jobs:
               f"TSP-linux-x64-{version}.tar.gz": "linux-x64",
           }
           assets = {asset["name"]: asset for asset in release.get("assets", [])}
+          expected = json.loads(os.environ["EXPECTED_MATRIX"])["include"]
+          missing = [item["artifact"] for item in expected if item["artifact"] not in assets]
+          if missing:
+              raise SystemExit(f"selected installer assets are missing: {missing}")
           channels = {}
           for name, channel in channel_names.items():
               asset = assets.get(name)
@@ -602,6 +610,7 @@ jobs:
           manifest = {
               "version": version,
               "tag": tag,
+              "revision": os.environ["RELEASE_REVISION"],
               "released_at": release.get("created_at"),
               "prerelease": bool(release.get("prerelease")),
               "notes_url": f"https://github.com/{repo}/releases/tag/{tag}",

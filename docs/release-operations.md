@@ -20,13 +20,14 @@
 | Git 版本标签 | CI 的 Tag Job | 主线版本和前后端质量门成功 | 自动创建 `v<应用版本>`，固定到实际通过测试的 SHA |
 | 容器镜像 | `.github/workflows/docker.yml` | `main` CI 成功、`v*` tag、手动 | 发布到当前仓库配置的 GHCR；使用前必须核验可见性与 digest |
 | 桌面安装包 | `.github/workflows/release.yml` | 手动且质量门通过 | Windows x64、macOS ARM64、Linux x64 |
-| GitHub Release | 桌面发布 workflow | 手动 | 允许分平台追加资产 |
+| GitHub Release | 桌面发布 workflow | 手动 | 所选平台全部成功后发布并冻结；草稿可补齐 |
 | 更新清单 | `latest.json` | 桌面产物后 | 仅列实际存在资产及 SHA-256 |
 | MCP 包 | `mcp-server/` | 独立维护 | 版本不必与主应用完全同步 |
 
 `main` 的 CI 先写回自动版本提交，前后端质量门均检查该提交；Docker 读取该次
-成功 CI 的 `ci-revision` artifact，构建相同提交并更新 `latest`、提交 SHA 和应用版本
-镜像标签。CI 事件的原始 `head_sha` 是触发集成的提交，不能代替实际通过质量门的 SHA。
+成功 CI 的 `ci-revision` artifact，构建相同提交并写入提交 SHA 和应用版本镜像标签。
+`latest` 单独串行提升，只接受提升时仍为当前 main 的构建 SHA；手动和旧 tag
+构建不更新它。CI 事件的原始 `head_sha` 不能代替实际通过质量门的 SHA。
 `v*` tag 和手动触发会在 Docker workflow 内重新执行后端、前端质量门，通过后
 才构建镜像。Dockerfile 的 pnpm 与 uv 安装使用锁文件冻结模式，不允许锁文件
 不一致时退回非冻结解析；Codex CLI 使用固定版本构建参数。
@@ -49,7 +50,8 @@
 - 根目录 `VERSION`
 
 桌面发布输入使用带 `v` 前缀的版本，例如 `v0.4.1`。workflow 会校验它与
-`frontend/package.json` 一致，不一致时失败。
+所选已存在 tag 中的 `VERSION` 和包元数据一致，再将所有构建固定到该 SHA。
+不存在的 tag、未归并 main 的 tag 和已发布的 immutable Release 均拒绝。
 
 主线应用版本统一采用 `a.b.cd`，其中 `a=0..9`、`b=0..9`、`cd=0..99`，末段
 不补零，规则起始值为 `0.4.0`，当前值见[版本基线](./version-baseline.md)。
@@ -61,7 +63,9 @@
 `0.4.98 → 0.4.99 → 0.5.0`；跨大版本时 `0.9.99 → 1.0.0`。
 达到 `9.9.99` 后停止并要求重新制定规则。
 
-本地及 PR 只校验格式和事实源一致性，允许版本不变，不要求人工预先改号。
+本地检查格式和事实源一致性；PR 额外检查实际分支 head 保留共同 main 祖先的
+`VERSION`，拒绝人工加号或回退。多人分支更新及远程权限见
+[多人协作与版本管理](./collaborative-versioning.md)。
 远程主线 CI 通过 `scripts/advance_version.py` 从最新主线版本计算精确后继，
 自动提交版本文件、后端锁文件和当前适用文档。来源提交 SHA 用于防止重跑重复
 加号；并发推送冲突重新获取主线后有限重试，不强制推送。常用检查命令：
@@ -194,7 +198,7 @@ gh workflow run release.yml \
 `platforms` 支持逗号分隔的 `windows,macos,linux`。当前 macOS 只构建 Apple
 Silicon。workflow 会：
 
-1. 校验输入版本与 `frontend/package.json`。
+1. 校验输入为已有 main 标签，解析完整 SHA，并校验该源码中的版本一致。
 2. 在 Ubuntu 质量门中执行后端 frozen 安装和全量 pytest。
 3. 在同一质量门中执行前端 frozen 安装、Vitest、ESLint 和生产构建。
 4. 质量门通过后构建前端和各平台后端运行环境。
@@ -203,9 +207,10 @@ Silicon。workflow 会：
 7. Windows 安装包执行静默安装、启动自检、静默卸载和用户数据保留验证。
 8. 生成所选平台安装包并上传 Draft Release。
 9. 汇总 Draft Release 上的目标资产，生成带 SHA-256 的 `latest.json`。
-10. 清单上传完成后发布 Release；仓库的 immutable 规则从此刻冻结资产。
+10. 所选平台全部通过且资产齐备后发布 Release；immutable 规则从此刻冻结资产。
 
-允许分批补齐平台，因此单个平台成功不代表所有平台已发布。每次发布后检查：
+失败时保留草稿，重跑补齐后再发布；已发布的冻结版本不能追加平台资产。
+单个平台成功不代表所有平台已发布。每次发布后检查：
 
 - Release tag、标题、预发布标记和说明。
 - 文件名中的版本号。
