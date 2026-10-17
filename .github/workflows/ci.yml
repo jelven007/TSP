@@ -90,7 +90,7 @@ jobs:
         run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
       - name: 版本规则测试
-        run: uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
+        run: uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_tag_version.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
 
       - name: 检查 rustdx 原生桥接
         run: cargo test --locked --manifest-path native/rustdx_native/Cargo.toml
@@ -133,3 +133,29 @@ jobs:
 
       - name: 构建 (tsc + vite)
         run: pnpm build
+
+  tag:
+    needs: [version, backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.revision }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: 为通过质量门的主线提交创建版本标签
+        id: tag
+        env:
+          TESTED_REVISION: ${{ needs.version.outputs.revision }}
+        run: python3 scripts/tag_version.py "$TESTED_REVISION"
+
+      - name: 记录版本标签
+        env:
+          VERSION_TAG: ${{ steps.tag.outputs.tag }}
+          TESTED_REVISION: ${{ steps.tag.outputs.revision }}
+        run: |
+          printf 'Version tag: `%s` → `%s`\n' "$VERSION_TAG" "$TESTED_REVISION" >> "$GITHUB_STEP_SUMMARY"

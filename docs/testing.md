@@ -191,7 +191,7 @@ git rev-parse HEAD
 ```bash
 python3 scripts/check_version.py --current VERSION
 cd backend
-uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
+uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_tag_version.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
 ```
 
 本地与 PR 允许版本不变，只校验格式和事实源一致性。`check_version.py --previous`
@@ -200,6 +200,8 @@ uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_a
 非法输入不写文件，并使用临时 bare Git 仓库验证远程合并后递增、重跑去重、并发
 冲突重试、权限拒绝和未推送提交的保护。workflow 测试还验证质量门与镜像构建使用
 同一 SHA，以及版本 artifact 缺失或非法时停止构建。
+自动标签测试使用临时 bare Git 仓库验证精确提交、主线归属、版本一致性、
+重跑和并发幂等、已有 annotated tag 复用、同名冲突不覆盖及权限拒绝。
 
 ## 5. 当前 CI 门禁
 
@@ -210,10 +212,13 @@ uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_a
 | Version | Ubuntu、Python 3 | PR 运行 `check_version.py`；远程 `main` push 运行 `advance_version.py` 自动递增并输出实际待测 SHA |
 | Backend | Ubuntu、Python 3.12 | `uv sync --extra dev --extra cell --frozen`；`uv run pytest tests -q` |
 | Frontend | Ubuntu、Node 20、pnpm 9 | `pnpm test`；`pnpm lint`；`pnpm build` |
+| Tag | Ubuntu、Python 3 | 仅主线 push，Version/Backend/Frontend 全部成功后运行 `tag_version.py`，创建同一 SHA 的版本标签 |
 
 Backend 和 Frontend 均依赖 Version，检出其输出的 SHA。每个主线 push 保留独立
 运行，PR 可取消旧检查。自动版本提交使用 `GITHUB_TOKEN`，不触发递归 CI；
 版本写回失败会阻止后续质量门，质量门失败不会撤销已分配的版本。
+Tag 失败会使 CI 失败并阻止后续 Docker 构建。重跑复用同一提交的现有标签；
+冲突标签保持原样，流程不使用强制推送。自动标签不表示桌面包或生产验收完成。
 
 后端全量测试包含 Tier A OpenAPI 契约门禁，检查：
 
@@ -230,6 +235,8 @@ JSON 注入处理函数未返回的缺省字段。快照失败时必须确认兼
 `workflow_run`，从该次运行的 `ci-revision` artifact 读取实际通过测试的 SHA，
 不使用触发 CI 时尚未加号的 `head_sha`。tag 和手动构建会在 workflow 内重新运行
 同等的后端与前端质量门。镜像依赖安装使用 frozen lockfile，锁文件漂移直接失败。
+Actions 使用 `GITHUB_TOKEN` 创建 Git 标签不会触发 tag push 构建；
+主线成功 CI 的现有构建链路同时写入 `latest`、提交 SHA 和 `v<应用版本>` 镜像标签。
 
 `.github/workflows/release.yml` 的手动桌面发版也有独立质量门：后端执行 frozen
 依赖安装和全量 pytest，前端执行 frozen 安装、Vitest、ESLint 与生产构建。只有

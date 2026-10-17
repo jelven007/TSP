@@ -112,6 +112,12 @@ jobs:
           ref: ${{ steps.revision.outputs.revision }}
           persist-credentials: false
 
+      - name: Read application version
+        id: application-version
+        run: |
+          python3 scripts/check_version.py --current VERSION
+          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -133,6 +139,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' }}
             type=raw,value=${{ steps.revision.outputs.revision }},enable=${{ github.event_name == 'workflow_run' }}
+            type=raw,value=${{ steps.application-version.outputs.version }},enable=${{ github.event_name == 'workflow_run' }}
             type=sha,prefix=,enable=${{ github.event_name != 'workflow_run' }}
             type=ref,event=tag
           labels: |

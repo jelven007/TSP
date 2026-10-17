@@ -17,6 +17,7 @@
 | 产物 | 自动化 | 触发 | 说明 |
 | --- | --- | --- | --- |
 | CI 结果 | `.github/workflows/ci.yml` | push/PR 到 `main` | 后端全量测试；前端 test、lint、build |
+| Git 版本标签 | CI 的 Tag Job | 主线版本和前后端质量门成功 | 自动创建 `v<应用版本>`，固定到实际通过测试的 SHA |
 | 容器镜像 | `.github/workflows/docker.yml` | `main` CI 成功、`v*` tag、手动 | 发布到当前仓库配置的 GHCR；使用前必须核验可见性与 digest |
 | 桌面安装包 | `.github/workflows/release.yml` | 手动且质量门通过 | Windows x64、macOS ARM64、Linux x64 |
 | GitHub Release | 桌面发布 workflow | 手动 | 允许分平台追加资产 |
@@ -24,8 +25,8 @@
 | MCP 包 | `mcp-server/` | 独立维护 | 版本不必与主应用完全同步 |
 
 `main` 的 CI 先写回自动版本提交，前后端质量门均检查该提交；Docker 读取该次
-成功 CI 的 `ci-revision` artifact，构建相同提交并更新 `latest` 与提交 SHA
-标签。CI 事件的原始 `head_sha` 是触发集成的提交，不能代替实际通过质量门的 SHA。
+成功 CI 的 `ci-revision` artifact，构建相同提交并更新 `latest`、提交 SHA 和应用版本
+镜像标签。CI 事件的原始 `head_sha` 是触发集成的提交，不能代替实际通过质量门的 SHA。
 `v*` tag 和手动触发会在 Docker workflow 内重新执行后端、前端质量门，通过后
 才构建镜像。Dockerfile 的 pnpm 与 uv 安装使用锁文件冻结模式，不允许锁文件
 不一致时退回非冻结解析；Codex CLI 使用固定版本构建参数。
@@ -80,6 +81,12 @@ python3 scripts/check_version.py --current VERSION --previous <上一主线 VERS
 提交，并让前后端测试与 Docker 使用同一 SHA。README、文档入口、操作说明书、
 需求基线和版本基线中的当前版本字段会自动同步；独立包、依赖版本和历史验证记录
 保持原值。桌面发布仍需手动填写所选提交的版本，自动改号不创建 Release 或部署。
+
+前后端质量门通过后，CI 的 Tag Job 自动为版本提交创建 `v<应用版本>` Git 标签。
+重跑复用同一提交的标签；同名标签指向其他提交时停止，禁止强制覆盖。
+失败的质量门、PR 和功能分支不创建标签。自动标签不增加应用版本、不表示安装包
+或生产已验收。标签使用 `GITHUB_TOKEN` 创建，不触发第二次 tag push 构建；
+Docker 通过该次成功 CI 的 `workflow_run` 构建并同步版本镜像标签。
 
 `shy3130/tick-stock-panel` 是独立开源观察对象，不参与本仓库应用版本计算、
 `latest.json`、稳定标签或生产部署判定。
@@ -163,9 +170,9 @@ docker image inspect "${IMAGE_REF}:<commit-sha>"
 
 ### 7.2 稳定版本
 
-1. 完成发布前检查并冻结版本提交。
-2. 创建与版本一致的 `v*` tag。
-3. 确认 tag 对应的 Docker workflow 质量门和镜像构建均成功。
+1. 完成发布前检查并冻结已通过主线 CI 的版本提交。
+2. 核对 CI 自动创建的 `v*` Git 标签指向该提交。
+3. 确认该次 CI 触发的 Docker workflow 和版本镜像标签均成功。
 4. 使用版本 tag 在验收环境复测。
 5. 发布变更说明和升级/回滚指引。
 6. 生产环境按维护窗口备份并部署固定版本。
