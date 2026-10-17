@@ -283,7 +283,8 @@ def build_plan(root: Path, tenant_id: str, author: dict, *, executor=None, chann
             plan.add("full_paper_orders", account_id=account_id, id=order["id"], value=order)
         seen_fills = set()
         for ordinal, fill in enumerate(fills, 1):
-            key = (f"corp:{fill['symbol']}:{fill['date']}" if fill.get("kind") == "corp_action"
+            key = (f"action:{fill['action_id']}:{fill['stage']}" if fill.get("kind") == "corporate_action"
+                   else f"corp:{fill['symbol']}:{fill['date']}" if fill.get("kind") == "corp_action"
                    else f"fill:{fill['order_id']}")
             if key in seen_fills:
                 raise ValueError("duplicate legacy paper fill")

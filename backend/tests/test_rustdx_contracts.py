@@ -397,6 +397,7 @@ def test_plugin_manifest_declares_all_routable_datasets():
         "depth5",
         "financial",
         "full_minute",
+        "corporate_actions",
     }
     assert custom_sources.is_builtin("rustdx")
 

@@ -4,7 +4,7 @@
 和开源观察对象的当前值与边界统一见[版本基线](./version-baseline.md)。代码、测试
 和运行时行为仍是最终事实来源；文档与代码冲突时，应先核对实现和测试，再同步修正。
 
-`main` 中的完整单机多租户候选使用 `deploy/full/compose.yml`，启用
+本文档所在源码的完整单机多租户候选使用 `deploy/full/compose.yml`，启用
 `MULTITENANCY_ENABLED=true`。保留完整前端与业务引擎，API 默认四进程；
 独立实时网关负责 SSE，平台负责唯一行情写入，四类 Worker 分别负责研究、
 实时监控/模拟盘、通知和调度。
@@ -42,12 +42,13 @@
 | 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md) |
 | 数据源 | [自定义数据源](./custom-data-source.md)、[rustdx 数据源](./rustdx-data-source.md)、[插件开发](./plugin-development.md) |
 | TickFlow 专项 | [Pro 一阶段探测](./tickflow-pro-phase1-probe.md)、[共享限流](./tickflow-pro-shared-rate-limit.md) |
-| 策略与研究 | [策略开发](./strategy.md)、[策略迭代](./strategy-iteration.md)、[因子平台方案](./factor-platform-plan.md)、[因子系统设计](./factor-system-design.md)、[因子挖掘](./mining.md) |
+| 策略与研究 | [策略开发](./strategy.md)、[策略迭代](./strategy-iteration.md)、[固定输入与研究记录](./research-configuration.md)、[因子平台方案](./factor-platform-plan.md)、[因子系统设计](./factor-system-design.md)、[因子挖掘](./mining.md) |
+| AI | [接口协议](./ai-protocols.md)、[助手会话同步](./assistant-sessions.md) |
 | 市场与交易 | [市场阶段](./market-phase.md)、[模拟盘](./paper-trading-plan.md) |
 | 开放能力 | [开放平台](./open-platform-plan.md)、[MCP 服务器](../mcp-server/README.md)、[Open API 示例](../examples/open-api/README.md) |
 | 验证记录 | [技术验证记录](./technical-validation.md) |
 | 当前项目分析 | [2026-10-10 架构、rustdx 与生产状态分析](./project-analysis-20261010.md) |
-| 二次开发 | [二次开发指南](./secondary-development.md)、[自定义数据源示例](./examples/custom-data-source/README.md) |
+| 二次开发 | [二次开发指南](./secondary-development.md)、[构建与升级备份](./build-upgrade-evidence.md)、[自定义数据源示例](./examples/custom-data-source/README.md) |
 
 ## 文档类型与状态
 

@@ -14,6 +14,7 @@
 """
 import subprocess
 import sys
+import tempfile
 from importlib.util import find_spec
 from pathlib import Path
 
@@ -31,6 +32,16 @@ block_cipher = None
 
 # ── 资源路径基准: 项目根 (spec 文件在 packaging/ 下) ──────────────────
 ROOT = Path(SPECPATH).parent
+_manifest_temp = tempfile.TemporaryDirectory(prefix="tsp-source-manifest-")
+_source_manifest_path = Path(_manifest_temp.name) / "source-manifest.json"
+_source_command = [
+    sys.executable, str(ROOT / "scripts" / "build_manifest.py"), "create",
+    "--root", str(ROOT), "--profile", "source", "--version-file", str(ROOT / "VERSION"),
+    "--output", str(_source_manifest_path),
+]
+if (ROOT / ".git").exists():
+    _source_command += ["--git-root", str(ROOT)]
+subprocess.run(_source_command, check=True)
 subprocess.run(
     [sys.executable, "-m", "app.plugins.rustdx.client"],
     cwd=ROOT / "backend",
@@ -74,6 +85,8 @@ for pkg in ("_polars_runtime_32", "_polars_runtime_compat"):
 
 # Polars 新 ABI 运行时由加载器选择，需显式收集子模块。
 hiddenimports += collect_submodules("polars")
+# Backend extensions are discovered through pkgutil/importlib at runtime.
+hiddenimports += collect_submodules("app.custom")
 
 # ── 内置插件 (app/plugins/*) ─────────────────────────────────────────
 # loader._load_builtin_plugins() 在文件系统扫 <_internal>/app/plugins/*/plugin.yaml,
@@ -151,6 +164,9 @@ datas += [(TIERS_YAML, ".")]
 # frontend/package.json → 包根 (app/__init__.py frozen 模式读 _MEIPASS/package.json,
 # __version__ 与安装包 AppVersion / 页面显示同源, 版本号只改 package.json 一处)
 datas += [(str(ROOT / "frontend" / "package.json"), ".")]
+# Source identity is embedded; a separate runtime index is generated after BUNDLE,
+# without altering the signed .app after PyInstaller has finished.
+datas += [(str(_source_manifest_path), ".")]
 # 内置策略 → app/strategy/builtin/ (importlib 动态加载, 不能进 PYZ)
 datas += [(BUILTIN_STRATEGIES, "app/strategy/builtin")]
 
@@ -250,3 +266,22 @@ if _IS_MACOS:
             "LSMinimumSystemVersion": "10.13",
         },
     )
+
+import json
+
+_source_manifest = json.loads(_source_manifest_path.read_text(encoding="utf-8"))
+sys.path.insert(0, str(ROOT / "scripts"))
+import build_manifest
+
+_runtime_manifest = build_manifest.create(
+    Path(DISTPATH),
+    ["TSP.app" if _IS_MACOS else "TSP"],
+    version=_source_manifest["version"],
+    commit=_source_manifest["commit"],
+)
+_runtime_manifest["commit_origin"] = _source_manifest["commit_origin"]
+_runtime_manifest["source_dirty"] = _source_manifest["source_dirty"]
+(Path(DISTPATH) / "build-manifest.json").write_bytes(build_manifest._json(_runtime_manifest))
+if any(build_manifest.verify(Path(DISTPATH), _runtime_manifest).values()):
+    raise RuntimeError("desktop runtime changed after packaging")
+_manifest_temp.cleanup()

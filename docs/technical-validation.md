@@ -58,7 +58,7 @@ manifest 是不可变的追溯清单, 底层数据仍可变化。发布锁保护
 | 回测追溯 | 信号、因子、批量因子和策略回测返回 provenance，并持久化配置、数据 release、generation、统计和策略源码哈希 |
 | 健康检查 | 新增 `/health/live`、`/health/ready` 与 `/api/health`；Docker HEALTHCHECK 使用 readiness |
 | 构建发布 | `main` 仅在同一提交 CI 成功后构建镜像；tag/手动构建重跑质量门；pnpm、uv 使用冻结锁文件 |
-| API 契约 | Tier A 的 65 个开放端点具备显式成功响应 schema；JSON 响应使用 Pydantic 模型校验，SSE 声明媒体类型 |
+| API 契约 | Tier A 的 69 个开放端点具备显式成功响应 schema；JSON 响应使用 Pydantic 模型校验，SSE 声明媒体类型 |
 | 契约门禁 | 冻结 Tier A 方法/路径集合，并对可达请求、响应 schema 计算 SHA-256 指纹 |
 | 前端工程 | 从 `api.ts` 抽出通用 Fetch、超时和错误处理到 `lib/api/client.ts`，保持原领域导出兼容 |
 | 运行时观测 | 增加请求 ID、日志上下文、低基数进程内 HTTP 指标和受会话保护的诊断接口 |

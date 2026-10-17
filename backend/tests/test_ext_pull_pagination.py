@@ -73,9 +73,10 @@ async def test_pagination_respects_max_pages_cap(monkeypatch: pytest.MonkeyPatch
     seen = _install_pages(monkeypatch, {
         1: [{"symbol": "a", "heat": 1}], 2: [{"symbol": "b", "heat": 1}], 3: [{"symbol": "c", "heat": 1}],
     })
-    # 每页都满 (无 page_size 信息) → 达上限 3 页停
-    rows = await ext_pull.fetch_rows_for_date(_cfg(pull), TARGET)
-    assert len(rows) == 3 and len(seen) == 3
+    # 达上限仍无终页证据，拒绝把部分结果当作成功快照。
+    with pytest.raises(ValueError, match="上限"):
+        await ext_pull.fetch_rows_for_date(_cfg(pull), TARGET)
+    assert len(seen) == 3
 
 
 async def test_pagination_page_start_zero(monkeypatch: pytest.MonkeyPatch) -> None:

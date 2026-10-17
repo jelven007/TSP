@@ -1,15 +1,16 @@
 /**
  * AI 助手前端状态 — 会话/消息/发送编排, useSyncExternalStore 单例 store。
  *
- * 后端无状态, 会话历史仅存 localStorage(最近 20 个会话); 每轮请求把可见的
- * user/assistant 消息回传, 由后端负责截断。工具往返(footprint)只用于本地
- * 展示, 不进入请求历史。
+ * 账户/租户服务端同步, localStorage 保留有 revision 的离线草稿。
+ * 每轮请求只回传 user/assistant 正文; 工具足迹保存用于展示。
  */
 import { useSyncExternalStore } from 'react'
-import { accountStorage as localStorage } from '@/lib/accountSession'
+import { accountScope, accountStorage as localStorage } from '@/lib/accountSession'
 import {
   assistantChatStream,
+  assistantSessions,
   decideAssistantAction,
+  SessionSyncError,
   type AssistantChart,
   type AssistantContext,
   type AssistantEvent,
@@ -57,6 +58,8 @@ interface AssistantState {
   activeId: string
   open: boolean
   sending: boolean
+  sync: 'idle' | 'syncing' | 'synced' | 'error' | 'conflict'
+  syncMessage: string
 }
 
 const STORAGE_KEY = 'assistant.sessions.v1'
@@ -69,11 +72,19 @@ let state: AssistantState = {
   activeId: '',
   open: false,
   sending: false,
+  sync: 'idle',
+  syncMessage: '',
 }
 
 const listeners = new Set<() => void>()
 let abortController: AbortController | null = null
 let pageContext: AssistantContext = {}
+let loaded = false
+let revision = 0
+let dirty = false
+let editVersion = 0
+let syncTimer: ReturnType<typeof setTimeout> | undefined
+let syncFlight: Promise<void> | null = null
 
 function emit() {
   for (const listener of listeners) listener()
@@ -81,32 +92,135 @@ function emit() {
 
 function setState(partial: Partial<AssistantState>, persist = true) {
   state = { ...state, ...partial }
-  if (persist) persistSessions()
+  if (persist) {
+    dirty = true
+    editVersion += 1
+    persistSessions()
+    clearTimeout(syncTimer)
+    syncTimer = setTimeout(() => { void syncAssistant() }, 300)
+  }
   emit()
+}
+
+function retainedSessions(): AssistantSession[] {
+  return state.sessions.slice(0, MAX_SESSIONS).map(session => ({
+    ...session,
+    messages: session.messages.slice(-MAX_SESSION_MESSAGES).map(message => {
+      if (message.role === 'assistant') return { ...message, streaming: false }
+      if (message.role === 'footprint') return {
+        ...message,
+        calls: message.calls.map(call => ['running', 'awaiting', 'approved'].includes(call.status)
+          ? { ...call, status: 'denied' as const } : call),
+      }
+      return message
+    }),
+  }))
 }
 
 function persistSessions() {
   try {
-    const trimmed = state.sessions
-      .slice(0, MAX_SESSIONS)
-      .map(session => ({ ...session, messages: session.messages.slice(-MAX_SESSION_MESSAGES) }))
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessions: trimmed, activeId: state.activeId }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      sessions: retainedSessions(), activeId: state.activeId, revision, dirty,
+    }))
   } catch { /* 存储满/隐私模式时静默降级为内存态 */ }
 }
 
 function loadSessions() {
+  if (loaded) return
+  loaded = true
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return
-    const parsed = JSON.parse(raw) as { sessions?: AssistantSession[]; activeId?: string }
+    const parsed = JSON.parse(raw) as {
+      sessions?: AssistantSession[]; activeId?: string; revision?: number; dirty?: boolean
+    }
     if (!Array.isArray(parsed.sessions)) return
     // 旧数据兼容: 只校验结构, 不校验具体消息形状(未知消息渲染为空)。
-    const sessions = parsed.sessions.filter(s => s && typeof s.id === 'string' && Array.isArray(s.messages))
+    const sessions = parsed.sessions.filter(s => s && typeof s.id === 'string' && Array.isArray(s.messages)).slice(0, MAX_SESSIONS)
+    revision = Number.isSafeInteger(parsed.revision) && parsed.revision! >= 0 ? parsed.revision! : 0
+    dirty = parsed.dirty ?? sessions.length > 0
     const activeId = parsed.activeId && sessions.some(s => s.id === parsed.activeId)
       ? parsed.activeId
       : sessions[0]?.id ?? ''
     state = { ...state, sessions, activeId }
+    state = { ...state, sessions: retainedSessions() }
   } catch { /* 损坏数据视为无历史 */ }
+}
+
+/** Collection CAS prevents stale devices from resurrecting deleted sessions. */
+export function syncAssistant(): Promise<void> {
+  loadSessions()
+  if (syncFlight) return syncFlight
+  if (state.sending || state.sync === 'conflict') return Promise.resolve()
+  const scope = accountScope()
+  const current = () => scope === accountScope()
+  setState({ sync: 'syncing', syncMessage: '' }, false)
+  syncFlight = (async () => {
+    try {
+      const remote = await assistantSessions()
+      if (!current() || state.sending) return
+      if (dirty) {
+        if (remote.revision !== revision) throw new SessionSyncError(409, '会话已在其他设备更新，本机草稿已保留。')
+        const version = editVersion
+        const saved = await assistantSessions({ revision, sessions: retainedSessions() })
+        if (!current()) return
+        revision = saved.revision
+        if (editVersion === version) dirty = false
+      } else {
+        revision = remote.revision
+        setState({
+          sessions: remote.sessions,
+          activeId: remote.sessions.some(s => s.id === state.activeId) ? state.activeId : remote.sessions[0]?.id ?? '',
+        }, false)
+      }
+      persistSessions()
+      setState({ sync: 'synced', syncMessage: '' }, false)
+    } catch (error) {
+      if (!current()) return
+      setState({
+        sync: error instanceof SessionSyncError && error.status === 409 ? 'conflict' : 'error',
+        syncMessage: error instanceof Error ? error.message : '同步失败，本机草稿已保留。',
+      }, false)
+    }
+  })().finally(() => {
+    syncFlight = null
+    if (current() && dirty && state.sync === 'synced' && !state.sending) {
+      syncTimer = setTimeout(() => { void syncAssistant() }, 300)
+    }
+  })
+  return syncFlight
+}
+
+/** Explicit conflict resolution; preserve the discarded draft in this account's cache. */
+export async function adoptServerSessions() {
+  if (state.sending || syncFlight) return
+  const scope = accountScope()
+  const version = editVersion
+  try {
+    const remote = await assistantSessions()
+    if (scope !== accountScope() || version !== editVersion || state.sending) return
+    localStorage.setItem('assistant.sessions.conflict-backup.v1', JSON.stringify(retainedSessions()))
+    revision = remote.revision
+    dirty = false
+    setState({
+      sessions: remote.sessions, activeId: remote.sessions[0]?.id ?? '',
+      sync: 'synced', syncMessage: '',
+    }, false)
+    persistSessions()
+  } catch (error) {
+    if (scope !== accountScope()) return
+    setState({ syncMessage: error instanceof Error ? error.message : '读取失败，本机草稿已保留。' }, false)
+  }
+}
+
+export function exportLocalSessions() {
+  const blob = new Blob([JSON.stringify(retainedSessions(), null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'assistant-sessions.json'
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function uid(): string {
@@ -294,6 +408,7 @@ function applyEvent(event: AssistantEvent, footprintId: string, assistantId: str
 // ===== 对外动作 =====
 
 export function sendMessage(textRaw: string) {
+  loadSessions()
   const text = textRaw.trim().slice(0, MAX_INPUT_CHARS)
   if (!text || state.sending) return
   const session = ensureSession()
@@ -319,8 +434,9 @@ export function stopSending() {
 }
 
 export function openAssistant() {
+  loadSessions()
   setState({ open: true }, false)
-  ensureSession()
+  void syncAssistant()
 }
 
 export function closeAssistant() {
@@ -333,19 +449,20 @@ export function toggleAssistant() {
 }
 
 export function newSession() {
-  if (state.sending) stopSending()
+  loadSessions()
+  if (state.sending) return
   const session: AssistantSession = { id: uid(), title: '新对话', createdAt: Date.now(), messages: [] }
   setState({ sessions: [session, ...state.sessions].slice(0, MAX_SESSIONS), activeId: session.id })
 }
 
 export function selectSession(id: string) {
   if (id === state.activeId) return
-  if (state.sending) stopSending()
+  if (state.sending) return
   setState({ activeId: id }, false)
 }
 
 export function deleteSession(id: string) {
-  if (state.sending && id === state.activeId) stopSending()
+  if (state.sending) return
   const sessions = state.sessions.filter(s => s.id !== id)
   const activeId = id === state.activeId ? sessions[0]?.id ?? '' : state.activeId
   setState({ sessions, activeId })
@@ -393,5 +510,3 @@ function subscribe(listener: () => void) {
 export function useAssistantStore(): AssistantState {
   return useSyncExternalStore(subscribe, () => state, () => state)
 }
-
-loadSessions()

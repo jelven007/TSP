@@ -36,13 +36,16 @@ import {
   type QuickSuggest,
 } from '../client'
 import {
+  adoptServerSessions,
   closeAssistant,
   deleteSession,
+  exportLocalSessions,
   newSession,
   retryLast,
   selectSession,
   sendMessage,
   stopSending,
+  syncAssistant,
   useAssistantStore,
 } from '../store'
 import { AssistantMessageView } from './messages'
@@ -99,7 +102,7 @@ function DrawerPanel({
   sending: boolean
   messages: DrawerMessages
 }) {
-  const { sessions, activeId } = useAssistantStore()
+  const { sessions, activeId, sync, syncMessage } = useAssistantStore()
   const [status, setStatus] = useState<AssistantStatus | null>(null)
   const [suggests, setSuggests] = useState<QuickSuggest[]>([])
   const [width, setWidth] = useState(() => clampWidth(loadWidth()))
@@ -111,6 +114,16 @@ function DrawerPanel({
     fetchAssistantStatus().then(s => { if (!cancelled) setStatus(s) }).catch(() => {})
     fetchAssistantSuggests().then(list => { if (!cancelled) setSuggests(list) }).catch(() => {})
     return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    const refresh = () => { if (!document.hidden) void syncAssistant() }
+    const timer = setInterval(refresh, 30000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+    }
   }, [])
 
   // 窗口缩放后重新夹取宽度, 保证面板不越出视口。
@@ -155,6 +168,19 @@ function DrawerPanel({
       aria-label="AI 助手"
     >
       <DrawerHeader status={status} sessions={sessions} activeId={activeId} sending={sending} />
+      <div className="shrink-0 border-b border-border px-4 py-2 text-xs text-muted" role="status">
+        {sync === 'syncing' ? '正在同步会话…'
+          : sync === 'synced' ? '会话已同步 · 最多保留 20 个会话，每个 200 条消息'
+            : syncMessage || '本机会话草稿'}
+        {(sync === 'error' || sync === 'conflict') && (
+          <div className="mt-2 flex flex-wrap gap-3 text-accent">
+            <button type="button" onClick={exportLocalSessions}>下载本机草稿</button>
+            {sync === 'conflict'
+              ? <button type="button" disabled={sending} onClick={() => { void adoptServerSessions() }}>改用服务端记录</button>
+              : <button type="button" disabled={sending} onClick={() => { void syncAssistant() }}>重试同步</button>}
+          </div>
+        )}
+      </div>
       <MessageList messages={messages} sending={sending} status={status} suggests={suggests} />
       <InputArea sending={sending} blocked={status ? !status.supports_tools : false} />
 

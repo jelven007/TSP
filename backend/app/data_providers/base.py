@@ -25,6 +25,7 @@ class ProviderCapabilities:
     realtime: bool = False
     depth5: bool = False
     financial: bool = False
+    corporate_actions: bool = False
 
 
 class MarketDataProvider(Protocol):
@@ -51,6 +52,16 @@ class MarketDataProvider(Protocol):
         asset_type: AssetType,
     ) -> pl.DataFrame:
         """Return normalized adjustment factors: symbol/trade_date/ex_factor."""
+
+    def get_corporate_actions(
+        self, symbols: list[str], start_time: datetime | None,
+        end_time: datetime | None, asset_type: AssetType = "stock",
+    ) -> pl.DataFrame:
+        """Return CorporateAction fields; unknown event dates remain null.
+
+        Amounts are yuan/share, share ratios are shares/share. Fetch failure
+        raises; an empty frame certifies no events in the requested window.
+        """
 
     def get_minute(
         self,

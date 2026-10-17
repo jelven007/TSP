@@ -72,7 +72,8 @@ fuyao 或自定义数据源(YAML 声明自有接口见
 用于自然语言生成策略。**所有配置留空即跳过**,不影响核心功能。支持任意 OpenAI 兼容接口。
 
 ```ini
-AI_PROVIDER=openai_compat              # openai_compat | ollama
+AI_PROVIDER=openai_compat              # openai_compat | openai | codex_cli
+AI_PROTOCOL=chat_completions           # chat_completions | responses
 AI_BASE_URL=https://api.deepseek.com/v1
 AI_API_KEY=                            # 留空 = 关闭 AI
 AI_MODEL=deepseek-chat
@@ -81,8 +82,10 @@ AI_DAILY_TOKEN_BUDGET=500000           # 每日 token 预算上限
 
 | 配置项 | 说明 |
 | :--- | :--- |
-| `AI_PROVIDER` | `openai_compat`(OpenAI 兼容,支持 DeepSeek / GLM / OpenAI 等)或 `ollama`(本地模型) |
+| `AI_PROVIDER` | `openai_compat`（兼容服务）、`openai`（支持推理强度配置）、`codex_cli`（本机 CLI） |
+| `AI_PROTOCOL` | 默认 `chat_completions`；服务商支持时显式选择 `responses`。Codex CLI 不使用此项 |
 | `AI_BASE_URL` | 接口地址,如 DeepSeek `https://api.deepseek.com/v1` |
+| `AI_PROTOCOL` | 显式选择 `chat_completions`（默认）或 `responses`；设置页保存值优先，不自动切换协议 |
 | `AI_API_KEY` | 留空则关闭 AI 功能 |
 | `AI_MODEL` | 模型名,如 `deepseek-chat` |
 | `AI_DAILY_TOKEN_BUDGET` | 每日 token 预算,超限后当日不再调用 |
@@ -90,6 +93,11 @@ AI_DAILY_TOKEN_BUDGET=500000           # 每日 token 预算上限
 页面预设包括自定义、OpenAI、DeepSeek、GLM 和 Codex CLI。
 通义千问与 Kimi 不再单列预设；已有其他 OpenAI 兼容配置会显示为“自定义”，
 其地址、模型和密钥仍按原配置使用。
+
+「接口协议」用于报告、策略生成及助手。页面保存的协议优先于环境变量；
+旧客户端省略协议字段时保留已保存值，清空 AI 配置后恢复 Chat Completions。
+现有「测试」按钮先保存表单再测试，选择协议本身不触发请求。
+Responses 的工具、完整性及取消约定见 [AI 协议](./ai-protocols.md)。
 
 接入示例见 [strategy.md](./strategy.md) 的「AI 生成策略」章节。
 
@@ -219,6 +227,8 @@ BACKEND_EXTRAS=             # 留空默认;legacy-cpu 兼容老 CPU
 ```
 
 老 CPU 无 AVX2/FMA 支持时设为 `legacy-cpu`,会给 Polars 切到 `rtcompat` 运行时;需回测则 `legacy-cpu backtest`。Docker 构建和 `./dev.sh` / `.\dev.ps1` 都会读取此值并同步依赖。详见 [deployment.md → 老 CPU 兼容](./deployment.md#老-cpu-兼容avx2fma-缺失)。
+PostgreSQL 客户端由单机和 full-product 共用的模拟盘/告警模块直接引用，已属于默认
+运行依赖；旧 `--extra cell` 命令仍兼容，但不再决定主应用能否导入。
 
 ---
 

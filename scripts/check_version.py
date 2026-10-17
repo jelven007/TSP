@@ -11,6 +11,31 @@ import subprocess
 
 from versioning import format_version, parse_version, validate_progression
 
+DOCUMENT_VERSION_PATTERNS = {
+    "README.md": (r"应用语义版本为 `([0-9.]+)`",),
+    "docs/README.md": (r"应用语义版本为 `([0-9.]+)`",),
+    "docs/version-baseline.md": (r"\| 应用语义版本 \| `([0-9.]+)` \|",),
+    "docs/requirements.md": (
+        r"(?m)^# TSP v([0-9.]+) 需求基线",
+        r"本文档定义 TSP `([0-9.]+)` 的产品目标",
+    ),
+    "操作说明书.md": (r"适用版本：([0-9.]+)（",),
+}
+
+
+def _check_document_versions(root: Path, expected: str) -> None:
+    for name, patterns in DOCUMENT_VERSION_PATTERNS.items():
+        path = root / name
+        if not path.is_file():
+            raise SystemExit(f"missing current version document: {name}")
+        content = path.read_text(encoding="utf-8")
+        for pattern in patterns:
+            values = re.findall(pattern, content)
+            if values != [expected]:
+                raise SystemExit(
+                    f"document version mismatch: {name}, expected {expected}, got {values}"
+                )
+
 
 def check_branch_version(root: Path, base: str, head: str) -> None:
     """A developer branch retains the version at its latest shared main ancestor."""
@@ -81,6 +106,7 @@ def main() -> int:
             f"got {current!r}"
         )
     _check_source_versions(root, current_canonical)
+    _check_document_versions(root, current_canonical)
     if args.branch_base or args.branch_head:
         if not (args.branch_base and args.branch_head):
             raise ValueError("branch version check requires both base and head")

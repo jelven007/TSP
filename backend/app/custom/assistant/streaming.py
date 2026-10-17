@@ -2,10 +2,11 @@
 
 为什么不复用核心: generate_ai_text_with_tools 是非流式的(全部工具轮次
 结束后一次性返回全文); stream_ai_text 流式但不支持 tools 协议。这里只
-复用核心的公开配置读取(Key/模型/Base URL/URL 规范化), 自行驱动
+Chat 路径复用核心的公开配置读取(Key/模型/Base URL/URL 规范化), 自行驱动
 stream=True + tools= 的对话: 文本 delta 逐段产出, 同一个流里累积
 tool_calls 分片, 流结束时统一返回本轮结果, 由 chat_service 决定是否
 执行工具并进入下一轮。
+Responses 路径复用 services.ai_responses 的完整响应、工具与资源释放契约。
 
 输出为归一化事件流:
 - {"type": "text", "delta": str}             正文增量(可能多次)
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Sequence
+from contextlib import aclosing
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -26,7 +28,9 @@ from app import secrets_store
 from app.config import settings
 from app.services.ai_provider import (
     OPENAI_PROVIDER,
+    current_ai_max_output_tokens,
     current_ai_model,
+    current_ai_protocol,
     current_ai_provider,
     current_openai_reasoning_effort,
     normalize_openai_base_url,
@@ -88,6 +92,17 @@ async def stream_openai_round(
     timeout: float = 240.0,
 ) -> AsyncIterator[dict[str, Any]]:
     """执行一轮流式补全: yield 文本 delta, 最后 yield 一个 round_end 事件。"""
+    if current_ai_protocol() == "responses":
+        from app.services.ai_responses import stream_round
+        async with aclosing(stream_round(
+            messages, tools, temperature=temperature,
+            max_tokens=current_ai_max_output_tokens(), timeout=timeout,
+        )) as response_stream:
+            async for event in response_stream:
+                yield event
+        return
+    if any("_responses_output" in message for message in messages):
+        raise RuntimeError("AI 协议在工具轮次间发生变更, 请重新发起对话")
     client = _client(timeout)
     model = current_ai_model()
     kwargs = _build_kwargs(temperature)

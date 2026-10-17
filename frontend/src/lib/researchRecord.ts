@@ -5,6 +5,7 @@ export interface ResearchRecord {
   n_attempted?: number
   n_succeeded?: number
   n_failed?: number
+  data_snapshot?: { id: string; file_count: number }
   provenance?: {
     job_id: string
     input_snapshot: string
