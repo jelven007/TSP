@@ -383,6 +383,9 @@ python3 scripts/upgrade_check.py <目标Tag或分支>
 
 脚本不会执行 merge、修改索引或工作区。它会报告共同基线、双方修改的同一文件以及 Git 三方预演可识别的文本冲突。未提交内容不会进入预演，因此正式评估前应先提交到临时二开分支。
 
+可附加 `--bundle .dbg/upgrade-review` 保存三方源码、暂存及工作区差异；
+产物清单和离线差异备份见[构建升级证据](./build-upgrade-evidence.md)。
+
 ## 9. 完成检查表
 
 - [ ] 已确认需求属于 L1、L2 或 L3。

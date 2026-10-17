@@ -73,6 +73,7 @@ fuyao 或自定义数据源(YAML 声明自有接口见
 
 ```ini
 AI_PROVIDER=openai_compat              # openai_compat | ollama
+AI_PROTOCOL=chat_completions           # chat_completions | responses
 AI_BASE_URL=https://api.deepseek.com/v1
 AI_API_KEY=                            # 留空 = 关闭 AI
 AI_MODEL=deepseek-chat
@@ -83,6 +84,7 @@ AI_DAILY_TOKEN_BUDGET=500000           # 每日 token 预算上限
 | :--- | :--- |
 | `AI_PROVIDER` | `openai_compat`(OpenAI 兼容,支持 DeepSeek / GLM / OpenAI 等)或 `ollama`(本地模型) |
 | `AI_BASE_URL` | 接口地址,如 DeepSeek `https://api.deepseek.com/v1` |
+| `AI_PROTOCOL` | 显式选择 `chat_completions`（默认）或 `responses`；设置页保存值优先，不自动切换协议 |
 | `AI_API_KEY` | 留空则关闭 AI 功能 |
 | `AI_MODEL` | 模型名,如 `deepseek-chat` |
 | `AI_DAILY_TOKEN_BUDGET` | 每日 token 预算,超限后当日不再调用 |

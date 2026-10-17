@@ -90,6 +90,53 @@ uv run ruff check app/path.py tests/path.py
 
 高风险共享模块改动应先跑定向用例定位问题，再跑后端全量测试。
 
+策略校验与加载的安全回归：
+
+```bash
+uv run pytest tests/test_strategy_safety_validation.py tests/test_strategy_code_save.py tests/test_strategy_registry.py tests/test_full_compute.py -q
+```
+
+覆盖危险函数别名、dunder 拼接、模块句柄、文件原语及通配/相对导入;
+主文件和辅助文件读取、解码、语法与校验异常均须在模块执行前拒绝。
+同时验证全部内置策略、合法 Polars/矩阵表达式、辅助依赖、保存失败不落盘、
+拒绝更新保留旧策略,以及租户保存拒绝发生在计算服务和私有存储调用前。
+载荷仅参与 AST 解析或由模拟加载器阻止执行,测试不读取真实用户策略。
+
+业务日期与模拟盘日线 schema 回归：
+
+```bash
+uv run pytest tests/test_ashare_date_defaults_beijing_today.py \
+  tests/test_paper_daily_scan_schema.py -q
+```
+
+业务默认日期必须走北京时间；模拟盘读取新旧日线分区时允许 `quote_ts` 等附加列，
+但仍使用统一日线存储 schema。
+
+缓存换代、固定自动卖出和板块分钟质量回归：
+
+```bash
+uv run pytest tests/test_enriched_warmup_retry.py tests/test_paper_auto.py \
+  tests/test_sector_minute_quality.py tests/test_sector_rotation.py \
+  tests/test_dimension_intraday.py -q
+```
+
+覆盖预热换代后恢复、持续换代上限、读取失败、重复预热，以及固定卖出封顶、
+T+1、待卖占用和账户隔离。分钟样本覆盖除权前收、历史 ST、新股无价格限制、
+未知规则、异常缺口、全异常和 API 空值序列化。
+
+参数、扩展拉取及 AI 回归：
+
+```bash
+uv run pytest tests/test_strategy_param_normalize.py tests/test_ext_pull_complete.py \
+  tests/test_assistant_sessions.py tests/test_ai_responses.py \
+  tests/test_build_manifest.py tests/test_upgrade_check.py -q
+```
+
+前端对应测试覆盖参数显隐和预设、拉取状态、离线会话冲突及协议保存；
+数据库隔离另运行 `test_full_assistant_sessions.py`。
+未配置 PostgreSQL 而跳过的用例不算已验证。构建升级工具以临时 Git 和文件目录
+检查哈希、并发变更和备份，不替代镜像、桌面安装包或生产恢复验收。
+
 完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
 通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。
 未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、
