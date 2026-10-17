@@ -48,6 +48,7 @@
 | 验证记录 | [技术验证记录](./technical-validation.md) |
 | 当前项目分析 | [2026-10-10 架构、rustdx 与生产状态分析](./project-analysis-20261010.md) |
 | 二次开发 | [二次开发指南](./secondary-development.md)、[自定义数据源示例](./examples/custom-data-source/README.md) |
+| 新增扩展能力 | [拉取配方](./ext-pull-recipes.md)、[会话同步](./assistant-sessions.md)、[AI 协议](./ai-protocols.md)、[构建升级证据](./build-upgrade-evidence.md) |
 
 ## 文档类型与状态
 
