@@ -36,7 +36,7 @@
 
 | 领域 | 文档 |
 | --- | --- |
-| 版本与状态 | [版本基线](./version-baseline.md)、[发布与上线运营](./release-operations.md) |
+| 版本与状态 | [版本基线](./version-baseline.md)、[多人协作与版本管理](./collaborative-versioning.md)、[发布与上线运营](./release-operations.md) |
 | 产品与使用 | [功能手册](./features.md)、[操作说明书](../操作说明书.md) |
 | 单机多租户 | [完整部署](../deploy/full/README.md)、[两期技术方案](./multitenant-roadmap.md)、[一期实施与验收](./phase1-implementation.md)、[二期三步实施](./phase2-implementation-plan.md) |
 | 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md) |

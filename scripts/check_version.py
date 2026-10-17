@@ -7,8 +7,30 @@ import argparse
 import json
 from pathlib import Path
 import re
+import subprocess
 
 from versioning import format_version, parse_version, validate_progression
+
+
+def check_branch_version(root: Path, base: str, head: str) -> None:
+    """A developer branch retains the version at its latest shared main ancestor."""
+    if not all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in (base, head)):
+        raise ValueError("branch version check requires full base and head SHAs")
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], check=True,
+            capture_output=True, text=True,
+        ).stdout.strip()
+
+    ancestor = git("merge-base", base, head)
+    previous = git("show", f"{ancestor}:VERSION")
+    current = git("show", f"{head}:VERSION")
+    if current != previous:
+        raise ValueError(
+            "branch must retain its shared main version; do not manually change "
+            f"VERSION ({previous} -> {current}). Merge main to update the baseline."
+        )
 
 
 def _check_source_versions(root: Path, expected: str) -> None:
@@ -45,9 +67,12 @@ def main() -> int:
         "--previous",
         help="previous mainline VERSION value or file; requires its exact successor",
     )
+    parser.add_argument("--branch-base", help="PR base commit SHA")
+    parser.add_argument("--branch-head", help="actual PR head commit SHA")
     args = parser.parse_args()
 
     current_path = Path(args.current)
+    root = current_path.resolve().parent
     current = current_path.read_text(encoding="utf-8").strip()
     current_canonical = format_version(parse_version(current))
     if current.removeprefix("v") != current_canonical:
@@ -55,7 +80,11 @@ def main() -> int:
             f"{current_path}: use canonical version {current_canonical!r}, "
             f"got {current!r}"
         )
-    _check_source_versions(current_path.resolve().parent, current_canonical)
+    _check_source_versions(root, current_canonical)
+    if args.branch_base or args.branch_head:
+        if not (args.branch_base and args.branch_head):
+            raise ValueError("branch version check requires both base and head")
+        check_branch_version(root, args.branch_base, args.branch_head)
 
     if args.previous is None:
         print(f"valid application version: {current_canonical}")

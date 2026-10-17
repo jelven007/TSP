@@ -1,7 +1,7 @@
 name: Build and Push Docker Image
 
 # 触发:
-#   - main 的 CI 成功: 覆盖刷新 :latest + :sha
+#   - main 的 CI 成功: 固定版本与 SHA，仍为当前 main 时再提升 latest
 #   - 打 v* tag / 手动: 先在本 workflow 重跑质量门, 再构建镜像
 on:
   workflow_run:
@@ -75,6 +75,8 @@ jobs:
         )
       )
     runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.revision.outputs.revision }}
 
     permissions:
       actions: read
@@ -137,8 +139,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' }}
-            type=raw,value=${{ steps.revision.outputs.revision }},enable=${{ github.event_name == 'workflow_run' }}
+            type=raw,value=${{ steps.revision.outputs.revision }}
             type=raw,value=${{ steps.application-version.outputs.version }},enable=${{ github.event_name == 'workflow_run' }}
             type=sha,prefix=,enable=${{ github.event_name != 'workflow_run' }}
             type=ref,event=tag
@@ -160,3 +161,46 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  promote-latest:
+    needs: build-and-push
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    # 仅可变指针串行化；版本镜像构建仍独立运行，不取消其他版本构建。
+    concurrency:
+      group: docker-latest-main
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 仅将当前主线的镜像提升为 latest
+        env:
+          BUILD_REVISION: ${{ needs.build-and-push.outputs.revision }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          sys.path.insert(0, "scripts")
+          from prepare_release import is_current_main
+          revision = os.environ["BUILD_REVISION"]
+          if is_current_main(Path.cwd(), revision):
+              image = "ghcr.io/" + os.environ["GITHUB_REPOSITORY"].lower()
+              subprocess.run([
+                  "docker", "buildx", "imagetools", "create",
+                  "--tag", image + ":latest", image + ":" + revision,
+              ], check=True)
+          else:
+              print("main has advanced; keep the version image without replacing latest")
+          PY
