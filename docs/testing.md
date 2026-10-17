@@ -102,6 +102,17 @@ uv run pytest tests/test_strategy_safety_validation.py tests/test_strategy_code_
 拒绝更新保留旧策略，以及租户保存拒绝发生在计算服务和私有存储调用前。
 载荷仅参与 AST 解析或由模拟加载器阻止执行，测试不读取真实用户策略。
 
+模拟盘日线 schema 回归：
+
+```bash
+uv run pytest tests/test_paper_daily_scan_schema.py tests/test_paper_trading.py \
+  tests/test_paper_api.py tests/test_paper_settle_price_time.py -q
+```
+
+模拟盘应通过统一日线存储 schema 读取新旧股票、ETF 与指数日线分区，
+允许 `quote_ts` 等附加列并补齐历史缺列。固定样本断言当日开收盘、
+前收盘和沪深 300 基准价格，相关回归覆盖涨跌停判断、T+1 与结算时间。
+
 完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
 通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。
 未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、
