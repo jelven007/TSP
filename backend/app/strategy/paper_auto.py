@@ -215,7 +215,21 @@ def _sizing_qty(data_dir: Path, rule: dict, ref_price: float, account_id: str, p
             return 0
         amount = budget["equity"] * float(rule["size_value"]) / 100.0
     if rule["side"] == "sell":
-        return paper.qty_from_amount(amount, ref_price)
+        symbol = rule["_symbol"]
+        position = paper.load_positions(data_dir, account_id).get(symbol)
+        if position is None:
+            return 0
+        available = paper._available_of(position, cn_now().date().isoformat())
+        pending = sum(
+            int(order["qty"])
+            for order in paper.load_orders(data_dir, account_id)
+            if order["status"] == "pending"
+            and order["side"] == "sell"
+            and order["symbol"] == symbol
+        )
+        # 调用方持有账户写锁/事务; 金额可表达清仓, 但仍保留 T+1 与待卖占用。
+        remaining = max(0, available - pending) // paper.LOT_SIZE * paper.LOT_SIZE
+        return min(paper.qty_from_amount(amount, ref_price), remaining)
     exposure_room = math.inf
     for key, used in (
         ("max_symbol_exposure_pct", budget["holdings"].get(rule.get("_symbol"), 0) + budget["pending"].get(rule.get("_symbol"), 0)),
@@ -373,6 +387,7 @@ _SKIP_LABELS = {
     "missing_entry_policy": "缺入场政策快照, 风控跟随规则不买入",
     "no_reference_price": "缺有效参考价",
     "zero_qty": "按现金与仓位余量算得可买数量为 0",
+    "no_sellable_qty": "按规则金额、T+1 可卖数量及待卖占用算得可卖数量为 0",
     "duplicate": "同规则同标的本轮已下过单",
     "order_rejected": "下单被拒 (资金/涨跌停/仓位额度等)",
 }
@@ -697,7 +712,8 @@ def on_rule_events(
                 continue
             qty = _sizing_qty(data_dir, {**rule, "_symbol": symbol}, float(price), account_id, allocation_prices)
             if qty <= 0:
-                _record_skip(data_dir, account_id, rule, ev, "zero_qty")
+                reason = "no_sellable_qty" if side == "sell" else "zero_qty"
+                _record_skip(data_dir, account_id, rule, ev, reason)
                 continue
             if side == "buy" and (rule["id"], symbol) in bought:
                 _record_skip(data_dir, account_id, rule, ev, "duplicate")

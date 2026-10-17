@@ -21,6 +21,7 @@ import uuid
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 import duckdb
 import polars as pl
@@ -30,6 +31,7 @@ from app.enriched_generation import (
     EnrichedGenerationUnavailableError,
     EnrichedPublication,
     bump_enriched_generation,
+    enriched_publication_incomplete,
     get_enriched_generation,
 )
 from app.market_time import cn_today
@@ -38,6 +40,10 @@ from app.polars_guard import guarded_collect
 from app.services.minute_adjust import apply_minute_adjustment, minute_basis_is_raw
 
 logger = logging.getLogger(__name__)
+
+_ENRICHED_WARMUP_MAX_ATTEMPTS = 3
+_ENRICHED_WARMUP_PUBLISH_WAIT_SECONDS = 5.0
+_RefreshResult = Literal["ready", "empty", "stale", "failed"]
 
 
 def replace_with_retry(src: Path, dst: Path, *, attempts: int = 10, delay_s: float = 0.5) -> None:
@@ -501,9 +507,10 @@ class KlineRepository:
             t0 = time.perf_counter()
             try:
                 logger.info("enriched warmup thread started")
-                self._refresh_enriched()
+                result = self._warmup_enriched()
                 logger.info("enriched warmup thread done (%.1fs)", time.perf_counter() - t0)
-                self._notify_refresh_done()
+                if result == "ready":
+                    self._notify_refresh_done()
             except Exception:  # noqa: BLE001
                 logger.exception("enriched warmup thread failed")
             finally:
@@ -580,13 +587,27 @@ class KlineRepository:
         self._index_enriched_cache = None
         self._index_enriched_cache_date = None
 
-    def _refresh_enriched(self) -> None:
+    def _refresh_enriched(self) -> _RefreshResult:
         from app.services.heavy_job_limiter import shared_heavy_job_limiter
 
         with shared_heavy_job_limiter.slot("exclusive"):
-            self._refresh_enriched_impl()
+            return self._refresh_enriched_impl()
 
-    def _refresh_enriched_impl(self) -> None:
+    def _warmup_enriched(self) -> _RefreshResult:
+        """只在后台换代失败后重建; 前台单次刷新, 磁盘错误不反复重算。"""
+        for attempt in range(_ENRICHED_WARMUP_MAX_ATTEMPTS):
+            if attempt and enriched_publication_incomplete(self.store.data_dir, "stock"):
+                time.sleep(_ENRICHED_WARMUP_PUBLISH_WAIT_SECONDS)
+            result = self._refresh_enriched()
+            if result != "stale":
+                return result
+        logger.warning(
+            "enriched 预热持续换代, %d 轮后停止重建",
+            _ENRICHED_WARMUP_MAX_ATTEMPTS,
+        )
+        return "stale"
+
+    def _refresh_enriched_impl(self) -> _RefreshResult:
         """从 parquet 加载 enriched 最新日到内存 + 构建聚合表。
 
         enriched parquet 仅存基础行情、证券时点状态和递推数据。启动时读入历史数据并即时计算完整指标，
@@ -614,7 +635,7 @@ class KlineRepository:
                 # (清数据后看板仍显示旧数据的根因)
                 self.clear_cache()
                 logger.info("enriched refresh skipped: no latest date (%.2fs)", time.perf_counter() - started)
-                return
+                return "empty"
 
             # Step 1: 直接读最新日期的窄表分区文件
             enriched_dir = self.store.data_dir / "kline_daily_enriched"
@@ -623,7 +644,7 @@ class KlineRepository:
 
             if not target_parquet.exists():
                 logger.info("enriched refresh skipped: %s not found (%.2fs)", target_parquet, time.perf_counter() - started)
-                return
+                return "empty"
 
             step = time.perf_counter()
             logger.info("enriched refresh step start: read latest parquet %s", target_parquet)
@@ -631,7 +652,7 @@ class KlineRepository:
             logger.info("enriched refresh step done: read latest parquet rows=%d (%.2fs)", len(df_latest), time.perf_counter() - step)
             if df_latest.is_empty():
                 logger.info("enriched refresh skipped: latest parquet empty (%.2fs)", time.perf_counter() - started)
-                return
+                return "empty"
 
             # Step 2: 读近 300 天存储列 → compute → filter(latest) → 缓存
             # 300 日历天 ≈ 210 交易日, 覆盖 filter_history 最大 lookback(90) + warmup(60)
@@ -709,7 +730,7 @@ class KlineRepository:
                             df_today = repaired_today
                         logger.info("enriched 缓存已计算: %d 只, 日期 %s (即时计算)", len(df_today), latest)
                         logger.info("enriched refresh done (%.2fs)", time.perf_counter() - started)
-                        return
+                        return "ready"
             except EnrichedGenerationUnavailableError:
                 raise
             except Exception as e:  # noqa: BLE001
@@ -725,8 +746,13 @@ class KlineRepository:
 
             logger.info("enriched 缓存已加载: %d 只, 日期 %s", len(df_latest), latest)
             logger.info("enriched refresh done fallback (%.2fs)", time.perf_counter() - started)
+            return "ready"
+        except EnrichedGenerationUnavailableError as e:
+            logger.warning("enriched 缓存因数据换代未发布: %s", e)
+            return "stale"
         except Exception as e:  # noqa: BLE001
             logger.warning("enriched 缓存刷新失败: %s", e)
+            return "failed"
 
     def _restore_missing_latest_rows(
         self,

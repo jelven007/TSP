@@ -212,6 +212,15 @@ class DimensionPoint(ContractModel):
     time: str
     sector: float | None
     market: float | None
+    coverage: float | None = None
+
+
+class MinutePriceQuality(ContractModel):
+    total_rows: int
+    valid_rows: int
+    excluded_rows: int
+    unknown_rule_rows: int
+    unlimited_rows: int
 
 
 class DimensionIntradayResponse(ContractModel):
@@ -221,6 +230,9 @@ class DimensionIntradayResponse(ContractModel):
     basis: Literal["prev_close", "first_close", "mixed"] | None = None
     member_count: int | None = None
     members_with_minute: int | None = None
+    coverage: float | None = None
+    excluded_rows: int | None = None
+    quality: MinutePriceQuality | None = None
     points: list[DimensionPoint]
 
 

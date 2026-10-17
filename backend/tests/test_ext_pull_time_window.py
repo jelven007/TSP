@@ -165,7 +165,25 @@ def test_custom_pull_is_not_forced_to_follow_a_share_trading_days(
     ) is None
 
 
-async def test_default_landing_date_is_the_beijing_date(at_beijing, monkeypatch) -> None:
+def _landing_config(tmp_path):
+    from app.services.ext_data import ExtConfig, ExtConfigStore, ExtField, PullConfig
+
+    config = ExtConfig(
+        id="landing",
+        label="landing",
+        mode="timeseries",
+        fields=[ExtField("symbol")],
+        pull=PullConfig(url="https://example.test/data"),
+    )
+    ExtConfigStore(tmp_path).upsert(config)
+    return config
+
+
+async def test_default_landing_date_is_the_beijing_date(
+    at_beijing,
+    monkeypatch,
+    tmp_path,
+) -> None:
     """不传 target_date 时按北京日期落盘。
 
     北京 00:30 对应 UTC 前一天 16:30, 裸 date.today() 在 UTC 容器上会把当天的
@@ -178,22 +196,26 @@ async def test_default_landing_date_is_the_beijing_date(at_beijing, monkeypatch)
         seen["fetched"] = target_date
         return [{"symbol": "000001.SZ", "v": 1}]
 
-    def fake_write(rows, config, data_dir, snapshot_date, **kwargs):
-        seen["written"] = snapshot_date
-        return len(rows)
-
     monkeypatch.setattr(ext_pull, "fetch_rows_for_date", fake_fetch)
-    monkeypatch.setattr(ext_pull, "rows_to_parquet", fake_write)
 
-    written, day_str = await ext_pull.fetch_and_ingest(object(), "/tmp")
+    written, day_str = await ext_pull.fetch_and_ingest(
+        _landing_config(tmp_path),
+        tmp_path,
+    )
 
     assert written == 1
     assert seen["fetched"] == date(2026, 3, 2)
-    assert seen["written"] == date(2026, 3, 2)
+    assert (
+        tmp_path / "ext_data/landing/timeseries/date=2026-03-02/part.parquet"
+    ).exists()
     assert day_str == "2026-03-02"
 
 
-async def test_an_explicit_target_date_still_wins(at_beijing, monkeypatch) -> None:
+async def test_an_explicit_target_date_still_wins(
+    at_beijing,
+    monkeypatch,
+    tmp_path,
+) -> None:
     # 历史回补路径不受影响。
     at_beijing(datetime(2026, 3, 2, 10, 0, tzinfo=CN_TZ))
     seen: dict[str, date] = {}
@@ -203,9 +225,15 @@ async def test_an_explicit_target_date_still_wins(at_beijing, monkeypatch) -> No
         return [{"symbol": "000001.SZ", "v": 1}]
 
     monkeypatch.setattr(ext_pull, "fetch_rows_for_date", fake_fetch)
-    monkeypatch.setattr(ext_pull, "rows_to_parquet", lambda *a, **k: 1)
 
-    _, day_str = await ext_pull.fetch_and_ingest(object(), "/tmp", date(2026, 1, 5))
+    _, day_str = await ext_pull.fetch_and_ingest(
+        _landing_config(tmp_path),
+        tmp_path,
+        date(2026, 1, 5),
+    )
 
     assert seen["fetched"] == date(2026, 1, 5)
+    assert (
+        tmp_path / "ext_data/landing/timeseries/date=2026-01-05/part.parquet"
+    ).exists()
     assert day_str == "2026-01-05"

@@ -6,11 +6,13 @@ import copy
 import json
 import logging
 import re
+import threading
 from datetime import date, datetime
 from pathlib import Path
 from typing import Literal
 
 import polars as pl
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.market_time import cn_today
 from app.services.fs_utils import atomic_write_parquet, atomic_write_text
@@ -44,6 +46,51 @@ class ExtField:
 PULL_DATE_FORMATS = ("iso", "compact", "ts_s", "ts_ms")
 
 
+class FanoutConfig(BaseModel):
+    """Bounded catalog-to-member pull recipe."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    member_url: str = Field(min_length=1, max_length=2048)
+    id_field: str = Field(default="id", min_length=1, max_length=64)
+    member_param: str = Field(default="id", min_length=1, max_length=64)
+    member_path: str = Field(default="", max_length=256)
+    inject_fields: dict[str, str] = Field(default_factory=dict, max_length=16)
+    group_by: str = Field(default="symbol", min_length=1, max_length=64)
+    join_fields: dict[str, str] = Field(default_factory=dict, max_length=16)
+    member_page_param: str | None = None
+    member_page_size_param: str | None = None
+    member_page_size: int = Field(default=0, ge=0, le=10000)
+    member_page_start: int = Field(default=1, ge=0)
+    member_max_pages: int = Field(default=20, ge=1, le=200)
+    concurrency: int = Field(default=4, ge=1, le=8)
+    max_items: int = Field(default=2000, ge=1, le=5000)
+    max_rows: int = Field(default=200000, ge=1, le=200000)
+    min_interval_seconds: float = Field(default=0.1, ge=0, le=60)
+    retries: int = Field(default=2, ge=0, le=3)
+    backoff_seconds: float = Field(default=1, ge=0, le=30)
+    timeout_seconds: int = Field(default=300, ge=1, le=900)
+
+
+_PULL_STATE_FIELDS = frozenset({
+    "last_run",
+    "last_status",
+    "last_message",
+    "last_rows",
+    "next_run",
+    "last_attempt",
+    "last_complete",
+    "previous_complete",
+})
+_EXT_WRITE_LOCKS = [threading.RLock() for _ in range(32)]
+
+
+def ext_write_lock(data_dir: Path, config_id: str):
+    """Serialize same-process configuration and publication writes for one source."""
+    key = (str(Path(data_dir).resolve()), config_id)
+    return _EXT_WRITE_LOCKS[hash(key) % len(_EXT_WRITE_LOCKS)]
+
+
 class PullConfig:
     """定时拉取配置。"""
     __slots__ = (
@@ -53,6 +100,8 @@ class PullConfig:
         "next_run", "time_window_start", "time_window_end", "date_param",
         "date_format", "time_field", "auth", "timeout_seconds",
         "page_param", "page_size_param", "page_size", "page_start", "max_pages",
+        "fanout", "transform", "snapshot_policy",
+        "last_attempt", "last_complete", "previous_complete",
     )
 
     def __init__(
@@ -82,6 +131,12 @@ class PullConfig:
         page_size: int = 0,
         page_start: int = 1,
         max_pages: int = 20,
+        fanout: dict | None = None,
+        transform: str = "auto",
+        snapshot_policy: str = "auto",
+        last_attempt: dict | None = None,
+        last_complete: dict | None = None,
+        previous_complete: dict | None = None,
     ) -> None:
         self.url = url
         self.method = method              # GET | POST
@@ -135,6 +190,40 @@ class PullConfig:
             int(max_pages) if isinstance(max_pages, (int, float))
             and 1 <= max_pages <= 200 else 20
         )
+        self.fanout = (
+            FanoutConfig.model_validate(fanout).model_dump()
+            if fanout is not None
+            else None
+        )
+        if transform not in {"auto", "none"}:
+            raise ValueError("未知拉取转换模式")
+        if snapshot_policy not in {"auto", "merge", "replace"}:
+            raise ValueError("未知快照写入模式")
+        self.transform = transform
+        self.snapshot_policy = snapshot_policy
+        self.last_attempt = last_attempt
+        self.last_complete = last_complete
+        self.previous_complete = previous_complete
+        if self.fanout:
+            from urllib.parse import urlsplit
+
+            root = urlsplit(url)
+            member = urlsplit(self.fanout["member_url"])
+            if (
+                root.scheme not in {"http", "https"}
+                or (root.scheme, root.netloc) != (member.scheme, member.netloc)
+                or root.username
+                or member.username
+                or method.upper() != "GET"
+            ):
+                raise ValueError("两级配方仅支持同源 HTTP(S) GET 接口")
+
+    def definition(self) -> dict:
+        return {
+            key: value
+            for key, value in self.to_dict().items()
+            if key not in _PULL_STATE_FIELDS
+        }
 
     def to_dict(self) -> dict:
         return {
@@ -163,6 +252,12 @@ class PullConfig:
             "page_size": self.page_size,
             "page_start": self.page_start,
             "max_pages": self.max_pages,
+            "fanout": self.fanout,
+            "transform": self.transform,
+            "snapshot_policy": self.snapshot_policy,
+            "last_attempt": self.last_attempt,
+            "last_complete": self.last_complete,
+            "previous_complete": self.previous_complete,
         }
 
     @classmethod
@@ -195,6 +290,12 @@ class PullConfig:
             page_size=d.get("page_size", 0),
             page_start=d.get("page_start", 1),
             max_pages=d.get("max_pages", 20),
+            fanout=d.get("fanout"),
+            transform=d.get("transform", "auto"),
+            snapshot_policy=d.get("snapshot_policy", "auto"),
+            last_attempt=d.get("last_attempt"),
+            last_complete=d.get("last_complete"),
+            previous_complete=d.get("previous_complete"),
         )
 
 
@@ -366,6 +467,10 @@ class ExtConfigStore:
             return None
 
     def upsert(self, config: ExtConfig, *, keep_strategy_cache: bool = False) -> None:
+        with ext_write_lock(self._base.parent, config.id):
+            self._upsert(config, keep_strategy_cache=keep_strategy_cache)
+
+    def _upsert(self, config: ExtConfig, *, keep_strategy_cache: bool) -> None:
         config.updated_at = datetime.now().isoformat()
         cp = self._config_path(config.id)
         cp.parent.mkdir(parents=True, exist_ok=True)
@@ -378,6 +483,10 @@ class ExtConfigStore:
         _invalidate_ext_derived(self._base.parent, keep_strategy_cache=keep_strategy_cache)
 
     def delete(self, config_id: str) -> bool:
+        with ext_write_lock(self._base.parent, config_id):
+            return self._delete(config_id)
+
+    def _delete(self, config_id: str) -> bool:
         import shutil
         try:
             cp = self._config_path(config_id)
@@ -666,6 +775,27 @@ def write_ext_parquet(
     snapshot_date: date | None = None,
     *,
     keep_strategy_cache: bool = False,
+    replace_snapshot: bool = False,
+) -> int:
+    with ext_write_lock(data_dir, config.id):
+        return _write_ext_parquet(
+            df,
+            config,
+            data_dir,
+            snapshot_date,
+            keep_strategy_cache=keep_strategy_cache,
+            replace_snapshot=replace_snapshot,
+        )
+
+
+def _write_ext_parquet(
+    df: pl.DataFrame,
+    config: ExtConfig,
+    data_dir: Path,
+    snapshot_date: date | None = None,
+    *,
+    keep_strategy_cache: bool = False,
+    replace_snapshot: bool = False,
 ) -> int:
     """将 DataFrame 写入扩展数据 Parquet。
 
@@ -691,7 +821,7 @@ def write_ext_parquet(
         out_path = cfg_dir / "part.parquet"
 
         # 如果已有文件，合并去重后覆盖
-        if out_path.exists():
+        if out_path.exists() and not replace_snapshot:
             try:
                 existing = pl.read_parquet(out_path)
                 key = "symbol" if "symbol" in df.columns else df.columns[0]
@@ -723,6 +853,16 @@ def write_ext_parquet(
 
     from app.market_scope import filter_market_frame
     df = cast_df_to_schema(filter_market_frame(df), config.fields)
+    if replace_snapshot:
+        if df.is_empty():
+            raise ValueError("标准化后无有效数据, 保留上一完整快照")
+        missing = {field.name for field in config.fields} - set(df.columns)
+        if missing:
+            raise ValueError(f"完整快照缺少字段: {', '.join(sorted(missing))}")
+        if "symbol" in df.columns:
+            if df["symbol"].null_count():
+                raise ValueError("完整快照存在空标的")
+            df = df.unique(subset=["symbol"], keep="last", maintain_order=True)
     if config.mode != "snapshot":
         # 日内序列表: 分区内按 [symbol, 时间列] 升序落盘。读侧 (screener._load_ext_value_maps、
         # ext_factors 因子帧、板块资金流) 按 symbol unique(keep="last") 收敛到一行, 只认行序;
@@ -731,6 +871,15 @@ def write_ext_parquet(
         if tf and tf in df.columns:
             df = df.sort(["symbol", tf] if "symbol" in df.columns else [tf], maintain_order=True)
     # 原子写: 中断时半截文件会让下一次写入走「合并去重失败, 将覆盖写入」, 静默丢掉已有行
+    if replace_snapshot and out_path.exists():
+        import shutil
+
+        from app.tickflow.repository import replace_with_retry
+
+        backup = cfg_dir / "previous-complete.parquet.bak"
+        temporary = backup.with_suffix(".bak.tmp")
+        shutil.copyfile(out_path, temporary)
+        replace_with_retry(temporary, backup)
     atomic_write_parquet(df, out_path)
     logger.info("扩展表写入: %s → %s (%d 行)", config.id, out_path, len(df))
     # 扩展列已接入 enriched 帧/因子注册表: 写入后必须失效相关缓存
@@ -754,6 +903,11 @@ def _invalidate_ext_derived(data_dir: Path, *, keep_strategy_cache: bool = False
 
 
 def delete_ext_parquet(config_id: str, data_dir: Path) -> None:
+    with ext_write_lock(data_dir, config_id):
+        _delete_ext_parquet(config_id, data_dir)
+
+
+def _delete_ext_parquet(config_id: str, data_dir: Path) -> None:
     """删除扩展数据源关联的所有 Parquet 数据（保留 config.json）。
 
     - snapshot: 删除 ext_data/{id}/part.parquet
@@ -764,6 +918,7 @@ def delete_ext_parquet(config_id: str, data_dir: Path) -> None:
     snap = cfg_dir / "part.parquet"
     if snap.exists():
         snap.unlink()
+    (cfg_dir / "previous-complete.parquet.bak").unlink(missing_ok=True)
     # 删除时序目录
     ts_dir = cfg_dir / "timeseries"
     if ts_dir.exists():
@@ -773,6 +928,11 @@ def delete_ext_parquet(config_id: str, data_dir: Path) -> None:
 
 
 def fix_symbol_format(config: ExtConfig, data_dir: Path) -> int:
+    with ext_write_lock(data_dir, config.id):
+        return _fix_symbol_format(config, data_dir)
+
+
+def _fix_symbol_format(config: ExtConfig, data_dir: Path) -> int:
     """扫描该扩展配置的所有 Parquet 文件，将 symbol 列标准化为 代码.交易所 格式。
 
     - snapshot: 扫描 ext_data/{id}/part.parquet
@@ -828,6 +988,7 @@ def rows_to_parquet(
     snapshot_date: date | None = None,
     *,
     keep_strategy_cache: bool = False,
+    replace_snapshot: bool = False,
 ) -> int:
     """将 JSON 行列表转为 DataFrame 写入 Parquet，复用 write_ext_parquet 的存储逻辑。
 
@@ -841,4 +1002,5 @@ def rows_to_parquet(
     return write_ext_parquet(
         df, config, data_dir, snapshot_date=snapshot_date,
         keep_strategy_cache=keep_strategy_cache,
+        replace_snapshot=replace_snapshot,
     )

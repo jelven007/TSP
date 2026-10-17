@@ -22,19 +22,22 @@ from app.services.ext_data import (
     ExtConfig,
     ExtConfigStore,
     ExtField,
+    FanoutConfig,
     PullConfig,
     apply_config_mapping,
     detect_symbol_candidates,
     ensure_utf8_csv,
     ext_api_key_field,
+    ext_write_lock,
     fix_symbol_format,
     get_ext_api_key,
     infer_fields_from_df,
-    parse_upload_file,
-    write_ext_parquet,
     rows_to_parquet,
+    write_ext_parquet,
 )
-from app.services.ext_pull import _request_json, fetch_and_ingest, pull_scheduler
+from app.services.ext_fanout import error_message
+from app.services.ext_pull import fetch_and_ingest, pull_scheduler
+from app.services.sector_minute import minute_returns
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ext-data", tags=["ext-data"])
@@ -109,6 +112,14 @@ class PullConfigReq(BaseModel):
     auth: PullAuthReq | None = None
     # 单次拉取请求超时 (秒), 默认 30 与历史行为一致; 大响应接口可调高
     timeout_seconds: int = Field(30, ge=5, le=300)
+    page_param: str | None = Field(None, max_length=64)
+    page_size_param: str | None = Field(None, max_length=64)
+    page_size: int = Field(0, ge=0, le=10000)
+    page_start: int = Field(1, ge=0)
+    max_pages: int = Field(20, ge=1, le=200)
+    fanout: FanoutConfig | None = None
+    transform: Literal["auto", "none"] = "auto"
+    snapshot_policy: Literal["auto", "merge", "replace"] = "auto"
 
 
 class ApiKeyReq(BaseModel):
@@ -724,33 +735,6 @@ def _dimension_member_bares(matched: pl.DataFrame, config: ExtConfig) -> list[st
     return sorted({s for s in series.to_list() if s})
 
 
-def _prev_daily_close(data_dir: Path, target_date: str) -> pl.DataFrame | None:
-    """目标日前最近一个日K分区的收盘价 → (_bare, prev_close); 无则 None。"""
-    daily = data_dir / "kline_daily"
-    if not daily.exists():
-        return None
-    dates = sorted(
-        d.name[5:]
-        for d in daily.iterdir()
-        if d.is_dir() and d.name.startswith("date=") and (d / "part.parquet").exists()
-    )
-    prevs = [d for d in dates if d < target_date]
-    if not prevs:
-        return None
-    path = daily / f"date={prevs[-1]}" / "part.parquet"
-    if not path.exists():
-        return None
-    df = pl.read_parquet(path, columns=["symbol", "close"])
-    return (
-        df.with_columns(_bare_symbol_expr().alias("_bare"))
-        .select([pl.col("_bare"), pl.col("close").cast(pl.Float64).alias("prev_close")])
-        # 前收 <= 0 / 非有限视为缺失 (否则 close/ref 为 inf, 整个响应 JSON 渲染 500),
-        # 缺失时由调用方退化为当日首根有效分钟 close
-        .filter(pl.col("prev_close").is_finite() & (pl.col("prev_close") > 0))
-        .unique(subset=["_bare"], keep="last")
-    )
-
-
 def _dimension_intraday_compute(
     config: ExtConfig,
     data_dir: Path,
@@ -787,45 +771,34 @@ def _dimension_intraday_compute(
     if not member_bares:
         return {"status": "empty", "reason": "no_members", "date": target, "points": []}
 
-    try:
-        bars = pl.read_parquet(
-            minute_dir / f"date={target}" / "part.parquet",
-            columns=["symbol", "datetime", "close"],
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("dimension-intraday read minute partition failed: %s", exc)
-        return {"status": "no_data", "reason": "minute_schema", "date": target, "points": []}
-    # close <= 0 / 非有限的分钟行无效: 作基准时 pct 为 inf, 作分子时是 -100% 假跌幅
-    bars = bars.drop_nulls(subset=["datetime", "close"]).filter(
-        pl.col("close").cast(pl.Float64).is_finite() & (pl.col("close") > 0)
-    )
-    if bars.is_empty():
-        return {"status": "no_data", "reason": "minute_empty", "date": target, "points": []}
-    bars = bars.with_columns(_bare_symbol_expr().alias("_bare"))
-
-    prev = _prev_daily_close(data_dir, target)
-    joined = bars.join(prev, on="_bare", how="left") if prev is not None else bars.with_columns(
-        pl.lit(None, dtype=pl.Float64).alias("prev_close")
-    )
-    refs = joined.group_by("_bare").agg(
-        pl.col("prev_close").first().alias("_prev"),
-        pl.col("close").sort_by("datetime").first().alias("_first"),
-    ).with_columns(pl.coalesce(["_prev", "_first"]).alias("_ref"))
-    n_prev = refs["_prev"].is_not_null().sum()
-    basis = "prev_close" if n_prev == refs.height else ("first_close" if n_prev == 0 else "mixed")
-    joined = (
-        joined.join(refs.select(["_bare", "_ref"]), on="_bare", how="left")
-        .with_columns((pl.col("close") / pl.col("_ref") - 1.0).alias("_pct"))
-    )
+    joined, basis, _, quality = minute_returns(data_dir, target)
+    if joined is None:
+        return {
+            "status": "no_data",
+            "reason": basis,
+            "date": target,
+            "points": [],
+            "quality": quality,
+        }
 
     market = joined.group_by("datetime").agg(pl.col("_pct").mean().alias("_market"))
 
     member_bars = joined.filter(pl.col("_bare").is_in(member_bares))
-    members_with_minute = member_bars["_bare"].n_unique() if not member_bars.is_empty() else 0
+    members_with_minute = member_bars.filter(
+        pl.col("_pct").is_not_null(),
+    )["_bare"].n_unique()
+    excluded_rows = member_bars["_excluded"].sum()
     if members_with_minute == 0:
         return {
-            "status": "empty", "reason": "no_member_bars", "date": target,
-            "member_count": len(member_bares), "members_with_minute": 0, "points": [],
+            "status": "empty",
+            "reason": "minute_anomalies" if excluded_rows else "no_member_bars",
+            "date": target,
+            "member_count": len(member_bares),
+            "members_with_minute": 0,
+            "points": [],
+            "quality": quality,
+            "coverage": 0.0,
+            "excluded_rows": excluded_rows,
         }
     if members_with_minute <= _DIMENSION_INTRADAY_FFILL_CAP:
         # 网格化 (成分股 × 全时间轴) + 逐股 ffill: 停牌分钟冻结在最后价而非退出均值
@@ -834,11 +807,26 @@ def _dimension_intraday_compute(
             .join(joined.select(pl.col("datetime").unique()), how="cross")
         )
         member_bars = (
-            grid.join(member_bars.select(["_bare", "datetime", "_pct"]), on=["_bare", "datetime"], how="left")
+            grid.join(
+                member_bars.select(["_bare", "datetime", "_pct", "_excluded"]),
+                on=["_bare", "datetime"],
+                how="left",
+            )
             .sort(["_bare", "datetime"])
-            .with_columns(pl.col("_pct").forward_fill().over("_bare"))
+            .with_columns(
+                pl.col("_excluded")
+                .fill_null(False)
+                .cast(pl.Int64)
+                .cum_sum()
+                .over("_bare")
+                .alias("_segment"),
+            )
+            .with_columns(pl.col("_pct").forward_fill().over(["_bare", "_segment"]))
         )
-    sector = member_bars.group_by("datetime").agg(pl.col("_pct").mean().alias("_sector"))
+    sector = member_bars.group_by("datetime").agg(
+        pl.col("_pct").mean().alias("_sector"),
+        (pl.col("_pct").count() / len(member_bares)).alias("_coverage"),
+    )
 
     combined = market.join(sector, on="datetime", how="left").sort("datetime")
 
@@ -850,6 +838,7 @@ def _dimension_intraday_compute(
             "time": row["datetime"].strftime("%H:%M"),
             "sector": _r4(row["_sector"]),
             "market": _r4(row["_market"]),
+            "coverage": row["_coverage"] or 0.0,
         }
         for row in combined.iter_rows(named=True)
     ]
@@ -859,6 +848,9 @@ def _dimension_intraday_compute(
         "basis": basis,
         "member_count": len(member_bares),
         "members_with_minute": members_with_minute,
+        "coverage": points[-1]["coverage"] if points else 0.0,
+        "excluded_rows": excluded_rows,
+        "quality": quality,
         "points": points,
     }
 
@@ -879,7 +871,13 @@ def dimension_intraday(
     if not config:
         raise HTTPException(404, f"配置 '{config_id}' 不存在")
 
-    cache_key = (config_id, field, value.strip(), snapshot_date)
+    cache_key = (
+        str(_data_dir(request).resolve()),
+        config_id,
+        field,
+        value.strip(),
+        snapshot_date,
+    )
     now = time.monotonic()
     hit = _DIMENSION_INTRADAY_CACHE.get(cache_key)
     if hit is not None and now - hit[0] < _DIMENSION_INTRADAY_CACHE_TTL_S:
@@ -1024,6 +1022,11 @@ def ingest_data(request: Request, config_id: str, body: IngestReq):
 @router.put("/{config_id}/pull")
 def configure_pull(request: Request, config_id: str, body: PullConfigReq):
     """配置（或更新）定时拉取。"""
+    with ext_write_lock(_data_dir(request), config_id):
+        return _configure_pull(request, config_id, body)
+
+
+def _configure_pull(request: Request, config_id: str, body: PullConfigReq):
     store = _store(request)
     config = store.get(config_id)
     if not config:
@@ -1031,6 +1034,43 @@ def configure_pull(request: Request, config_id: str, body: PullConfigReq):
 
     # 保留历史状态字段; auth 缺省时沿用现有配置 (关闭鉴权需显式传 {"type":"none"})
     old_pull = config.pull
+    additional = (
+        "page_param",
+        "page_size_param",
+        "page_size",
+        "page_start",
+        "max_pages",
+        "fanout",
+        "transform",
+        "snapshot_policy",
+    )
+    payload = body.model_dump()
+    extra = {
+        key: (
+            payload[key]
+            if key in body.model_fields_set or not old_pull
+            else getattr(old_pull, key)
+        )
+        for key in additional
+    }
+    try:
+        return _save_pull_config(
+            request,
+            store,
+            config,
+            old_pull,
+            body,
+            extra,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            422,
+            "拉取配方无效: 请检查同源 GET、字段和资源上限",
+        ) from exc
+
+
+def _save_pull_config(request, store, config, old_pull, body, extra):
+    config_id = config.id
     config.pull = PullConfig(
         url=body.url,
         method=body.method,
@@ -1051,6 +1091,10 @@ def configure_pull(request: Request, config_id: str, body: PullConfigReq):
         last_status=old_pull.last_status if old_pull else None,
         last_message=old_pull.last_message if old_pull else None,
         last_rows=old_pull.last_rows if old_pull else None,
+        last_attempt=old_pull.last_attempt if old_pull else None,
+        last_complete=old_pull.last_complete if old_pull else None,
+        previous_complete=old_pull.previous_complete if old_pull else None,
+        **extra,
     )
     store.upsert(config)
 
@@ -1109,22 +1153,18 @@ async def test_pull(request: Request, config_id: str):
     if not config.pull or not config.pull.url:
         raise HTTPException(400, "拉取未配置或 URL 为空")
 
-    # 复用正式拉取的请求实现 (UA 标识头 + 鉴权注入同一套口径), 不带日期参数
-    from app.services.ext_pull import _apply_field_map, _extract_rows
+    from app.services.ext_pull import fetch_rows_for_date
 
-    pull = config.pull
     try:
-        data = await _request_json(pull, config.id)
-        rows = _extract_rows(data, pull.response_path)
-        preview = _apply_field_map(rows[:5], pull.field_map)
+        rows = await fetch_rows_for_date(config, cn_today())
         return {
             "status": "ok",
             "total_rows": len(rows),
-            "preview": preview,
+            "preview": rows[:5],
             "has_symbol": bool(rows and "symbol" in rows[0]),
         }
     except Exception as e:
-        raise HTTPException(400, f"测试失败: {e}") from e
+        raise HTTPException(400, f"测试失败: {error_message(e)}") from e
 
 
 @router.post("/{config_id}/pull/run")
@@ -1140,26 +1180,9 @@ async def run_pull(request: Request, config_id: str):
     try:
         n, d = await fetch_and_ingest(config, _data_dir(request))
         _refresh_views(request)
-        # 写回执行状态, 让前端"上次执行"面板立即反映
-        updated = store.get(config_id)
-        if updated and updated.pull:
-            from datetime import datetime, timezone
-            updated.pull.last_run = datetime.now(timezone.utc).isoformat()
-            updated.pull.last_status = "success"
-            updated.pull.last_message = f"{n} rows @ {d}"
-            updated.pull.last_rows = n
-            store.upsert(updated)
         return {"status": "ok", "rows": n, "date": d}
     except Exception as e:
-        # 失败也写回状态, 记录错误信息
-        failed = store.get(config_id)
-        if failed and failed.pull:
-            from datetime import datetime, timezone
-            failed.pull.last_run = datetime.now(timezone.utc).isoformat()
-            failed.pull.last_status = "error"
-            failed.pull.last_message = str(e)[:200]
-            store.upsert(failed)
-        raise HTTPException(400, f"拉取失败: {e}") from e
+        raise HTTPException(400, f"拉取失败: {error_message(e)}") from e
 
 
 @router.post("/{config_id}/backfill")
@@ -1287,8 +1310,9 @@ def _find_row_arrays(data, prefix: str = "", limit: int = 8) -> list[str]:
 @router.post("/detect-url")
 async def detect_url(body: DetectUrlReq):
     """请求外部 URL，自动检测 JSON 行数据的字段和标的代码列。"""
-    from app.services.ext_pull import _extract_rows, _apply_field_map
     import httpx
+
+    from app.services.ext_pull import _apply_field_map, _extract_rows
 
     method = body.method.upper()
     if method not in ("GET", "POST"):
