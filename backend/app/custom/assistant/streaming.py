@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Sequence
+from contextlib import aclosing
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -26,7 +27,9 @@ from app import secrets_store
 from app.config import settings
 from app.services.ai_provider import (
     OPENAI_PROVIDER,
+    current_ai_max_output_tokens,
     current_ai_model,
+    current_ai_protocol,
     current_ai_provider,
     current_openai_reasoning_effort,
     normalize_openai_base_url,
@@ -88,6 +91,18 @@ async def stream_openai_round(
     timeout: float = 240.0,
 ) -> AsyncIterator[dict[str, Any]]:
     """执行一轮流式补全: yield 文本 delta, 最后 yield 一个 round_end 事件。"""
+    if current_ai_protocol() == "responses":
+        from app.services.ai_responses import stream_round
+
+        async with aclosing(stream_round(
+            messages, tools, temperature=temperature,
+            max_tokens=current_ai_max_output_tokens(), timeout=timeout,
+        )) as response_stream:
+            async for event in response_stream:
+                yield event
+        return
+    if any("_responses_output" in message for message in messages):
+        raise RuntimeError("AI 协议在工具轮次间发生变更, 请重新发起对话")
     client = _client(timeout)
     model = current_ai_model()
     kwargs = _build_kwargs(temperature)

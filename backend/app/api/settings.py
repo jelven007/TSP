@@ -57,15 +57,16 @@ def get_settings() -> dict:
     from app.services import preferences
     from app.services.ai_provider import (
         ai_configured,
+        current_ai_context_window,
+        current_ai_max_output_tokens,
         current_ai_model,
+        current_ai_protocol,
+        current_ai_round_checkpoint,
         current_codex_command,
         current_codex_model,
         current_codex_reasoning_effort,
         current_openai_model,
         current_openai_reasoning_effort,
-        current_ai_context_window,
-        current_ai_max_output_tokens,
-        current_ai_round_checkpoint,
     )
 
     key = secrets_store.get_tickflow_key()
@@ -83,6 +84,7 @@ def get_settings() -> dict:
         "onboarding_completed": preferences.get_onboarding_completed(),
         # AI 配置
         "ai_provider": ai_provider,
+        "ai_protocol": current_ai_protocol(),
         "ai_base_url": secrets_store.get_ai_config("ai_base_url", settings.ai_base_url),
         "ai_api_key_masked": secrets_store.mask(secrets_store.get_ai_key()),
         "has_ai_key": bool(secrets_store.get_ai_key()),
@@ -250,6 +252,7 @@ def complete_onboarding() -> dict:
 
 class AiSettingsIn(BaseModel):
     provider: str = "openai_compat"
+    protocol: Literal["chat_completions", "responses"] | None = None
     base_url: str = ""
     api_key: str | None = None
     model: str = ""
@@ -269,16 +272,17 @@ def save_ai_settings(req: AiSettingsIn) -> dict:
     from app.services.ai_provider import (
         OPENAI_PROVIDER,
         ai_configured,
+        current_ai_context_window,
+        current_ai_max_output_tokens,
         current_ai_model,
+        current_ai_protocol,
         current_ai_provider,
+        current_ai_round_checkpoint,
         current_codex_command,
         current_codex_model,
         current_codex_reasoning_effort,
         current_openai_model,
         current_openai_reasoning_effort,
-        current_ai_context_window,
-        current_ai_max_output_tokens,
-        current_ai_round_checkpoint,
         normalize_codex_command,
         normalize_codex_model,
         normalize_codex_reasoning_effort,
@@ -300,6 +304,9 @@ def save_ai_settings(req: AiSettingsIn) -> dict:
         settings.ai_codex_command = codex_command
         settings.ai_codex_reasoning_effort = codex_reasoning_effort
     else:
+        if req.protocol is not None:
+            updates["ai_protocol"] = req.protocol
+            settings.ai_protocol = req.protocol
         if req.base_url:
             updates["ai_base_url"] = req.base_url
             settings.ai_base_url = req.base_url
@@ -344,6 +351,7 @@ def save_ai_settings(req: AiSettingsIn) -> dict:
     return {
         "ok": True,
         "ai_provider": provider,
+        "ai_protocol": current_ai_protocol(),
         "ai_model": current_ai_model(),
         "ai_openai_model": current_openai_model(),
         "ai_reasoning_effort": current_openai_reasoning_effort(),
@@ -367,6 +375,7 @@ def clear_ai_settings() -> dict:
 
     secrets_store.clear(
         "ai_provider",
+        "ai_protocol",
         "ai_base_url",
         "ai_api_key",
         "ai_model",
@@ -378,6 +387,7 @@ def clear_ai_settings() -> dict:
     secrets_store.clear("ai_provider", "ai_base_url", "ai_api_key", "ai_model", "ai_codex_command", "ai_codex_reasoning_effort", "ai_max_output_tokens", "ai_context_window")
     # 同步重置运行时内存(provider 回默认值,其余置空)
     settings.ai_provider = "openai_compat"
+    settings.ai_protocol = "chat_completions"
     settings.ai_base_url = ""
     settings.ai_api_key = ""
     settings.ai_model = ""

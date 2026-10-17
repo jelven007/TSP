@@ -1,7 +1,7 @@
 """AI 对话助手扩展 — 完全解耦的 L2 二开模块。
 
 通过 AI 对话调用面板已有能力(因子目录 / 策略目录 / 数据能力 / 策略回测)。
-删除本目录即可整体卸载, 不影响核心功能; 详见模块内 README 说明与
+删除本目录即可整体卸载, 不影响核心功能; 会话存储见 docs/assistant-sessions.md 与
 docs/secondary-development.md 的扩展契约。
 
 事件流协议(NDJSON, 每行一个 JSON):
@@ -37,5 +37,5 @@ def setup(registrar: BackendExtensionRegistrar) -> None:
 
 
 def startup(context: ExtensionContext) -> None:
-    # 对话无状态, 无需启动期初始化; 策略引擎与数据目录在请求期从 app.state 获取。
+    # 会话存储在请求期按账户/租户打开, 无需全局启动状态。
     _ = context
