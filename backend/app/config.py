@@ -94,6 +94,7 @@ class Settings(BaseSettings):
 
     # AI
     ai_provider: str = "openai_compat"
+    ai_protocol: str = "chat_completions"
     ai_base_url: str = ""
     ai_api_key: str = ""
     ai_model: str = ""
