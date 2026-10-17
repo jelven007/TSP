@@ -342,3 +342,7 @@ datasets:
 ```
 
 把这段 YAML 保存为 `data/data_sources/my_source.yaml`,然后在设置页重新加载即可。
+
+公司行为可配置独立的 `corporate_actions` 数据集，字段映射目标及日期证据要求见
+[公司行为数据与模拟盘账务](corporate-actions.md)。每股金额/股份比例在数据源边界
+显式转换；整轮任一批次失败不发布部分事件，未知日期不得填成除权日。

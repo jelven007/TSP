@@ -151,8 +151,14 @@ def _build_max_hold_exits(entries: pd.DataFrame, max_hold_days: int) -> pd.DataF
 
 
 class BacktestService:
-    def __init__(self, repo: KlineRepository) -> None:
+    def __init__(
+        self,
+        repo: KlineRepository,
+        *,
+        persist_result: bool = True,
+    ) -> None:
         self.repo = repo
+        self.persist_result = persist_result
 
     def _load_panel(
         self,
@@ -404,7 +410,8 @@ class BacktestService:
         )
 
         # 落盘
-        self._persist(result)
+        if self.persist_result:
+            self._persist(result)
         return result
 
     def _persist(self, result: BacktestResult) -> None:

@@ -70,6 +70,16 @@ def _wait_cache_results(tmp_path, want_ids, timeout=8.0) -> dict:
     return (strategy_cache.read_cache(tmp_path) or {}).get("results") or {}
 
 
+def _wait_run_timings(tmp_path, want_ids, timeout=8.0) -> dict:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        timings = strategy_run_queue.load_run_timings(tmp_path)
+        if all(i in timings for i in want_ids):
+            return timings
+        time.sleep(0.05)
+    return strategy_run_queue.load_run_timings(tmp_path)
+
+
 @pytest.fixture()
 def fast_first_return(monkeypatch):
     monkeypatch.setattr(settings, "strategy_run_all_first_return_s", 0.4)
@@ -105,7 +115,7 @@ def test_run_all_returns_fast_first_then_background_fills_cache(
     assert all(r.get("computed_at") for r in results.values())
 
     # 耗时已记录 → 下次按耗时升序 (快策略先算)
-    timings = strategy_run_queue.load_run_timings(tmp_path)
+    timings = _wait_run_timings(tmp_path, ["fast_a", "fast_b", "slow_c"])
     assert set(timings) == {"fast_a", "fast_b", "slow_c"}
     assert timings["slow_c"] > timings["fast_a"]
 

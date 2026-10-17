@@ -120,6 +120,7 @@ export const QK = {
   paperStats:           (acc: string) => ['paper', 'stats', acc] as const,
   paperRounds:          (acc: string) => ['paper', 'rounds', acc] as const,
   paperAutoSkips:       (acc: string) => ['paper', 'auto-skips', acc] as const,
+  paperCorporateActions: (acc: string) => ['paper', 'corporate-actions', acc] as const,
   paperCompare:         ['paper', 'compare'] as const,
   paperAutoRules:       (acc: string) => ['paper', 'auto-rules', acc] as const,
   alerts:               (source?: string) => ['alerts', source ?? ''] as const,

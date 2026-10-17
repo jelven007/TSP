@@ -1,6 +1,7 @@
 """Spawn-isolated strategy backtest and optimizer task runner."""
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import multiprocessing as mp
@@ -188,8 +189,19 @@ def _worker_entry(task: dict[str, Any], event_queue, cancel_event) -> None:
         from app.strategy.engine import StrategyEngine
         from app.tickflow.repository import DataStore, KlineRepository
 
-        data_dir = Path(task["data_dir"])
-        store = DataStore(data_dir)
+        output_dir = data_dir = Path(task["data_dir"])
+        snapshot = None
+        if task["kind"] in {"backtest", "optimize", "walkforward"}:
+            from app.config import settings
+            from app.services.research_snapshot import capture_research_snapshot
+
+            event_queue.put({"type": "progress", "payload": {"phase": "freeze_inputs"}})
+            data_dir, snapshot = capture_research_snapshot(
+                output_dir, cancel=cancel_event, snapshot_id=task.get("input_snapshot_id"),
+            )
+            # The child owns these settings; custom signal loaders also use this root.
+            settings.data_dir = data_dir
+        store = DataStore(data_dir, read_only=snapshot is not None)
         repo = KlineRepository(store)
         # 子进程不继承主进程的因子注册表; 自定义/复合因子 (uf_/cf_) 在任何
         # 涉及因子物化的 worker 任务里都依赖注册表, 启动时从存储加载。
@@ -241,11 +253,18 @@ def _worker_entry(task: dict[str, Any], event_queue, cancel_event) -> None:
         else:
             raise ValueError(f"unsupported worker task kind: {kind}")
 
+        if snapshot is not None:
+            from app.services.research_snapshot import snapshot_summary, verify_research_snapshot
+
+            verify_research_snapshot(data_dir, cancel=cancel_event)
+            result["input_snapshot"] = snapshot_summary(snapshot)
+            if kind in {"optimize", "walkforward"}:
+                result.setdefault("research", {})["data_snapshot"] = snapshot_summary(snapshot)
         if kind == "backtest":
             from app.services.data_release import persist_backtest_manifest
 
             persist_backtest_manifest(
-                data_dir,
+                output_dir,
                 kind="strategy",
                 result=result,
             )
@@ -297,6 +316,7 @@ def run_worker_task(
     cancel_event: threading.Event | None = None,
 ) -> dict[str, Any]:
     """Run one complete task in a spawned process and wait for deterministic exit."""
+    task = copy.deepcopy(task)
     context = mp.get_context("spawn")
     events = context.Queue()
     process_cancel = context.Event()

@@ -69,6 +69,20 @@ def test_account_create_idempotent(client: TestClient):
     assert r2.json()["account"]["cash"] == 500000  # 幂等: 不覆盖
 
 
+def test_corporate_action_api_returns_mode_and_rejects_invalid_election(client):
+    client.post("/api/paper/account", json={"initial_cash": 100_000})
+    assert client.get("/api/paper/corporate-actions").json() == {
+        "mode": "events", "events": [], "blocked": [],
+    }
+    assert client.post("/api/paper/corporate-actions/subscribe", json={
+        "action_id": "missing", "qty": 100,
+    }).status_code == 400
+    assert client.post("/api/paper/corporate-actions/subscribe", json={
+        "action_id": "missing", "qty": 1.5,
+    }).status_code == 422
+    assert client.get("/api/paper/corporate-actions?account=../x").status_code == 400
+
+
 def test_account_rejects_non_positive_cash(client: TestClient):
     assert client.post("/api/paper/account", json={"initial_cash": 0}).status_code == 400
     assert client.post("/api/paper/account", json={"initial_cash": -1}).status_code == 400

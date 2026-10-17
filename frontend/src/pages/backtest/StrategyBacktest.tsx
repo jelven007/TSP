@@ -33,9 +33,12 @@ import { StrategyNavChart } from './charts/StrategyNavChart'
 import { ReturnDistributionChart } from './charts/ReturnDistributionChart'
 import { TradeKlineModal, type TradeNavSource } from './components/TradeKlineModal'
 import { PicksSymbolKlineModal } from './components/PicksSymbolKlineModal'
+import { ResearchInputSummary } from './components/ResearchInputSummary'
 import { SignalTriggerActions } from '@/components/signals/SignalTriggerActions'
 import { WatchlistGroupMenu } from '@/components/WatchlistAddMenu'
 import { ScoringEditor } from '@/components/ScoringEditor'
+import { StrategyParamGroups } from '@/components/StrategyParamGroups'
+import { applyParamValue } from '@/lib/strategyParams'
 import { strategyResultCandidate } from './researchCandidates'
 import { buildDailyNavItems, buildTradeKeyMap, buildTradesNavItems, type TradeNavItem } from './tradeNav'
 
@@ -2115,6 +2118,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
         </div>
 
+        <ResearchInputSummary provenance={result?.provenance} />
         {!!result?.provenance?.research_governance?.issues.length && (
           <div className="rounded-btn border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-secondary" role="status">
             研究数据校验：{result.provenance.research_governance.issues.join('；')}。当前结果不能作为完整历史治理下的正式结论。
@@ -2865,16 +2869,17 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               {settingsTab === 'params' && (
                 <ConfigSection title="策略参数" hint="自动限制 min/max">
                   {detail.params.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {detail.params.map(param => (
+                    <StrategyParamGroups params={detail.params} values={strategyParams}
+                      className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {param => (
                         <StrategyParamInput
                           key={param.id}
                           param={param}
-                          value={strategyParams[param.id]}
-                          onChange={value => setStrategyParams(prev => ({ ...prev, [param.id]: value }))}
+                          value={strategyParams[param.id] ?? param.default}
+                          onChange={value => setStrategyParams(prev => applyParamValue(detail.params, prev, param.id, value))}
                         />
-                      ))}
-                    </div>
+                      )}
+                    </StrategyParamGroups>
                   ) : (
                     <div className="text-xs text-muted">当前策略没有可调参数。</div>
                   )}

@@ -60,6 +60,8 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "POST /api/paper/auto_rules/{rule_id}/enabled",
     "GET /api/paper/auto_skips",
     "GET /api/paper/compare",
+    "GET /api/paper/corporate-actions",
+    "POST /api/paper/corporate-actions/subscribe",
     "POST /api/paper/freeze",
     "GET /api/paper/nav",
     "POST /api/paper/orders",
@@ -91,9 +93,9 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "GET /api/strategies/{strategy_id}/source",
 }
 
-# Additive contract changes: paper rounds/auto_skips and nullable strategy family.
-# See docs/paper-trading-plan.md and docs/strategy.md for the public semantics.
-EXPECTED_TIER_A_SCHEMA_SHA256 = "9576f81ddcec7c2bc2db43e763ed6346f5b397adcd1bb65bf9e8a1cdee084bdf"
+# 契约变更记录: 保留 strict_research 兼容缺省; 补既有自动跳过/往返记录端点,
+# 新增公司行为读取/认购和账务加法字段, 策略参数元数据保留在开放响应中。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "e57d6e01e520cb201ca8079cc3a1ee4002fd846728a049c9f55ae534c7c3c8fa"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

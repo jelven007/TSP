@@ -9,6 +9,7 @@ from app.services import preferences
 _PROVIDER_GETTERS = {
     "daily_data_provider": preferences.get_daily_data_provider,
     "adj_factor_provider": preferences.get_adj_factor_provider,
+    "corporate_actions_provider": preferences.get_corporate_actions_provider,
     "realtime_data_provider": preferences.get_realtime_data_provider,
     "minute_data_provider": preferences.get_minute_data_provider,
     "depth5_data_provider": preferences.get_depth5_data_provider,

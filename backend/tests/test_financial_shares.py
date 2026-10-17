@@ -236,7 +236,7 @@ def test_read_financials_as_of_replays_observation_or_reads_live(tmp_path):
     assert meta["observed_at"] <= first.isoformat()
 
 
-def test_read_financials_as_of_falls_back_before_first_observation(tmp_path):
+def test_read_financials_as_of_is_unknown_before_first_observation(tmp_path):
     from datetime import UTC, datetime, timedelta
 
     from app.services.financial_sync import _write_table, read_financials_as_of
@@ -245,6 +245,6 @@ def test_read_financials_as_of_falls_back_before_first_observation(tmp_path):
         "symbol": ["600000.SH"], "period_end": ["2025-12-31"], "float_shares": [100.0],
     }), tmp_path)
     before_any_observation = datetime.now(UTC) - timedelta(days=1)
-    # No retained observation that early → fall back to the live file, not empty.
+    # A later live file is not evidence of the values visible at an earlier time.
     frame = read_financials_as_of(tmp_path, "shares", before_any_observation)
-    assert frame["float_shares"].item() == 100.0
+    assert frame.is_empty()

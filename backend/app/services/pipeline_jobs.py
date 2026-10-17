@@ -628,9 +628,13 @@ def _duration_s(j: dict[str, Any]) -> float | None:
         return None
 
 
-# Only the standalone/platform writer owns global pipeline jobs. Importing the
-# full API must not create or recover files in its read-only public release.
-job_store = None if settings.service_role == "api" else JobStore()
+# Only the standalone/platform writer owns global pipeline jobs. Importing a
+# stateless API or gateway must not create files in its read-only filesystem.
+job_store = (
+    JobStore()
+    if settings.service_role in {"standalone", "platform"}
+    else None
+)
 
 _Result = TypeVar("_Result")
 

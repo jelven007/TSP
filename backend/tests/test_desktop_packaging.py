@@ -253,6 +253,25 @@ def test_windows_smoke_log_checks_use_explicit_powershell_parameters() -> None:
     ) in workflow
 
 
+def test_windows_release_matrix_keeps_native_runtime_install_and_manifest_gates() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"os":"windows-latest"' in workflow
+    assert "$env:PROCESSOR_ARCHITECTURE -ne 'AMD64'" in workflow
+    assert "_polars_runtime_32/_polars_runtime.pyd" in workflow
+    assert "_polars_runtime_compat/_polars_runtime.pyd" in workflow
+    assert "python -m app.plugins.rustdx.client" in workflow
+    assert "backend/dist/TSP/TSP.exe" in workflow
+    assert "ISCC.exe" in workflow
+    assert "'DESKTOP_GUI_SMOKE_TEST_OK renderer=edgechromium'" in workflow
+    assert "'ci-uninstall-preserve.txt'" in workflow
+    assert "Uninstall removed user data without explicit confirmation" in workflow
+    assert "build_manifest.py seal --root backend/dist" in workflow
+    assert '${{ matrix.artifact }}.manifest.json' in workflow
+
+
 def test_release_stays_draft_until_update_manifest_is_uploaded() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 

@@ -65,7 +65,24 @@ wheel 和完整镜像验收。Windows 启动和桌面安装包未在本机运行
 运行镜像内原生连接池测试 `5 passed`，桥接版本校验、启动、存活及就绪端点、
 七项默认 Provider 能力和前端静态页面均通过。启动测试使用隔离临时数据及禁用
 外部网络；空数据的新鲜度警告保留，不代表全量数据同步验收。
-Linux amd64 和 Windows 产物仍需对应平台验证，现有运行服务与生产部署未切换。
+Linux amd64 API/Compute 已通过本机 Buildx/QEMU 的构建、清单、原生桥接、
+Gateway/SSE 与 Compute 元数据烟测；Apple ARM 仿真缺少 AVX/AVX2，不能替代
+原生 amd64 重负载或容量。Windows 产物仍需 `windows-latest` 和 Windows 10/11
+真机验证，现有运行服务与生产部署未切换。
+
+同日 P2 候选又从当前未提交源码构建 Linux arm64 API/Compute 镜像，两份构建清单
+离线核验无修改、缺失或新增文件；Compute 以 UID 10001、无网络和只读公共数据
+执行完整策略计算及独立恢复验收。`backend/scripts/accept_market_pipeline.py` 可在新的隔离
+目录对真实历史数据执行 Provider→标准化→落盘→指标→平台 marker/Arrow 快照→
+页面 API 的有界分段量测；结果必须保留 `source_freshness_certified` 和
+`trading_day_soak_certified`，历史或周末样本不得把这两个字段标为真。
+实际结果及未签收范围见[剩余 P2 验收](../reports/p2-remaining-20261017/verification.md#c3真实链路分段量测与平台产物)。
+默认 Docker 镜像必须直接执行主应用启动烟测；仅运行 Compute 或桥接自检不足以发现
+API 导入依赖缺失。PostgreSQL 适配器现为默认依赖，空 `BACKEND_EXTRAS` 构建也须
+通过 `/health/live`，旧 `--extra cell` 只作为兼容命令保留。
+完整产品的 Compute 镜像还必须通过 `scripts/verify_full_compute.py`；该验收包含
+`signal_backtest`，用于证明 Compute 层已经按冻结锁安装 `backtest` extra，而不是
+只验证不依赖 `vectorbt` 的矩阵回测、优化和挖掘路径。
 
 ## 4. 标准命令
 
@@ -124,6 +141,28 @@ uv run pytest tests/test_ashare_date_defaults_beijing_today.py \
 把服务器本地日期与北京日期错开，验证信号、因子、策略回测及三类 SSE 入口、
 因子试算和保存前校验、市场状态与主线重算、日线修复使用 `cn_today()`。
 显式日期保持原有语义；北京当日应通过未来日期检查，北京次日须被拒绝。
+
+P2 缓存换代、固定自动卖出和板块分钟质量回归：
+
+```bash
+uv run pytest tests/test_enriched_warmup_retry.py tests/test_paper_auto.py \
+  tests/test_sector_minute_quality.py tests/test_sector_rotation.py \
+  tests/test_dimension_intraday.py -q
+```
+
+覆盖预热换代后恢复、持续换代上限、读取失败、重复预热，以及固定卖出封顶、
+T+1、待卖占用、账户隔离和事件重放。分钟样本覆盖除权前收、历史 ST、
+新股无涨跌幅限制、未知规则、异常缺口、全异常和 API 空值序列化；
+前端同时检查质量提示、覆盖率和不可计算状态。
+完整定向集合、性能样本及全量失败详情见
+[P2 验收记录](../reports/p2-correctness-port-20261017/verification.md)。
+其中 OpenAPI 指纹基线原已不一致，本次新增字段进一步改变指纹，不能视为无关失败。
+
+P2 参数交互补充验证 `test_strategy_param_normalize.py` 的 API 保存/读取，
+前端 `strategyParams.test.ts` 和 `paramSweep.test.tsx` 的分组、递归显隐、
+预设填值、隐藏值保留和扫描排除。页面联调需验证设置保存后在回测回显同一值，
+控制条件切换后组合数变化，以及浅/深色窄屏可操作性。
+证据见[剩余 P2 验收记录](../reports/p2-remaining-20261017/verification.md)。
 
 完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
 通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。
@@ -323,6 +362,11 @@ runner 会实际运行 PyInstaller 便携版，并对 Inno Setup 产物执行静
 - 样本外验证不能复用验证区间拟合出的方向或参数。
 - 历史证券状态从首次成功目录同步开始积累；`instrument_status_known=false` 的
   旧日期仍要说明限制，不能视为严格 Point-in-Time 样本。
+- 指定财务观察时点早于首次留档时返回未知，不得回退当前值；原公告时间与采集时间
+  分别核对。报告中的未知比例须明确分母，历史退市股票池分母缺失时不能标成 0%。
+- 单机回测、优化、步进优化验证完整固定输入：暖机/退出/全部折文件哈希、
+  原数据更正后的旧版本重放、运行期修改拒绝、源码/依赖/日历变化、取消及保留容量。
+  具体边界见[研究配置](./research-configuration.md)。
 
 ### 7.2 单位和价格
 
@@ -404,6 +448,20 @@ rustdx 的专项验证见[rustdx 数据源说明](./rustdx-data-source.md)。
 
 没有实际构建的平台不能在发布说明中标记为已验证。Release 的 `latest.json` 只列
 出实际存在的产物，也应检查版本、URL、大小和 SHA-256。
+
+构建/升级清单回归：
+
+```bash
+uv run --project backend --no-sync pytest backend/tests/test_build_manifest.py \
+  backend/tests/test_upgrade_check.py backend/tests/test_desktop_packaging.py \
+  scripts/test_version_workflows.py -q
+```
+
+覆盖文件增删改、内部/外部链接、容量限制、备份期间变更、真实 Git 的暂存/
+未暂存/二进制差异、提交身份与上传前核验。实际平台仍须运行
+`build_manifest.py verify`，检查 Docker `/app/build-manifest.json` 或安装包
+`.manifest.json`。离线工具测试不代替完整镜像、安装包和升级后启动验收；
+恢复步骤见[构建清单与离线升级备份](./build-upgrade-evidence.md)。
 
 ## 11. 缺陷严重级别与放行
 

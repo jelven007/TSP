@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Mapping
 from contextlib import AbstractContextManager, nullcontext
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -364,6 +365,67 @@ def _financial_revision_provenance(data_dir: Path) -> dict[str, Any]:
     return {"captured_at": _utc_now(), "error": None, "tables": tables}
 
 
+@lru_cache(maxsize=64)
+def _parquet_rows(path: str, signature: tuple) -> int:
+    import pyarrow.parquet as pq
+
+    return pq.ParquetFile(path).metadata.num_rows
+
+
+def historical_input_quality(data_dir: Path) -> dict[str, Any]:
+    """Counts describe retained input rows, not an unknowable missing universe."""
+    from app.services.financial_sync import FINANCIAL_TABLES
+
+    tables, rows, errors = {}, 0, []
+    for table in FINANCIAL_TABLES:
+        count = 0
+        try:
+            for path in (data_dir / "financials" / table).glob("*.parquet"):
+                stat = path.stat()
+                count += _parquet_rows(str(path), (stat.st_ino, stat.st_mtime_ns, stat.st_size))
+        except (OSError, ValueError) as exc:
+            errors.append(f"{table}: {type(exc).__name__}")
+            tables[table] = {"rows": None, "unknown_publication_ratio": None}
+            continue
+        rows += count
+        # Current providers retain observations, not certified original disclosures.
+        tables[table] = {"rows": count, "unknown_publication_ratio": 1.0 if count else None}
+    return {
+        "universe": {
+            "survivorship_verified": False,
+            "missing_delisted_ratio": None,
+            "reason": "historical_universe_denominator_unavailable",
+        },
+        "financial_publication": {
+            "basis": "retained_input_rows", "rows": None if errors else rows,
+            "unknown_rows": None if errors else rows,
+            "unknown_ratio": 1.0 if rows and not errors else None, "tables": tables, "errors": errors,
+            "publication_time_verified": False,
+        },
+    }
+
+
+@lru_cache(maxsize=8)
+def _retained_input_metadata(path: str, signature: tuple) -> dict:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if Path(path).name == ".research_snapshot.json":
+        from app.services.research_snapshot import snapshot_summary
+
+        return {"mode": "local_snapshot", **snapshot_summary(payload)}
+    return {"mode": "public_release", "id": payload["id"], "file_count": len(payload["files"])}
+
+
+def retained_input_provenance(data_dir: Path) -> dict | None:
+    for name in (".research_snapshot.json", ".public_release.json"):
+        path = data_dir / name
+        if path.is_file():
+            stat = path.stat()
+            return _retained_input_metadata(
+                str(path), (stat.st_ino, stat.st_mtime_ns, stat.st_size),
+            ).copy()
+    return None
+
+
 def backtest_provenance(
     data_dir: Path,
     *,
@@ -424,6 +486,8 @@ def backtest_provenance(
             and release.get("research_inputs") == research_inputs
         ),
         "financial_revisions": financial_revisions,
+        "historical_inputs": historical_input_quality(data_dir),
+        "input_snapshot": retained_input_provenance(data_dir),
     }
 
 

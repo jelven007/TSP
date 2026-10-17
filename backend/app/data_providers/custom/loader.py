@@ -53,7 +53,7 @@ def load_all(path: Path | None = None) -> None:
     _LOAD_ERRORS = []
 
     base = path or data_sources_dir()
-    if settings.service_role != "api":
+    if settings.service_role in {"standalone", "platform"}:
         base.mkdir(parents=True, exist_ok=True)
     for file in sorted([*base.glob("*.yaml"), *base.glob("*.yml")]):
         try:
@@ -488,7 +488,7 @@ def _sanitize_for_yaml(config: dict) -> dict:
 
     datasets_out: dict = {}
     for ds_name, ds_cfg in (config.get("datasets") or {}).items():
-        if ds_name not in {"daily", "adj_factor", "realtime", "minute", "full_minute", "financial"}:
+        if ds_name not in {"daily", "adj_factor", "corporate_actions", "realtime", "minute", "full_minute", "financial"}:
             continue
         if not isinstance(ds_cfg, dict):
             continue

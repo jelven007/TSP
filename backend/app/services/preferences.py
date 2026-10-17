@@ -23,6 +23,7 @@ _cache_sig: tuple[int, int] | None = None
 _DATA_PROVIDER_FIELDS = (
     "daily_data_provider",
     "adj_factor_provider",
+    "corporate_actions_provider",
     "minute_data_provider",
     "full_minute_data_provider",
     "depth5_data_provider",
@@ -35,7 +36,7 @@ def _path() -> Path:
     from app.config import settings
     root = settings.platform_config_dir or settings.data_dir / "user_data"
     p = root / "preferences.json"
-    if settings.service_role != "api":
+    if settings.service_role in {"standalone", "platform"}:
         p.parent.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -354,6 +355,11 @@ def get_adj_factor_provider() -> str:
     provider = str(
         load().get("adj_factor_provider", _DEFAULT_DATA_PROVIDER) or _DEFAULT_DATA_PROVIDER
     ).lower()
+    return provider if provider in _allowed_data_providers() else _DEFAULT_DATA_PROVIDER
+
+
+def get_corporate_actions_provider() -> str:
+    provider = str(load().get("corporate_actions_provider") or _DEFAULT_DATA_PROVIDER).lower()
     return provider if provider in _allowed_data_providers() else _DEFAULT_DATA_PROVIDER
 
 
