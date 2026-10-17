@@ -85,6 +85,8 @@ for pkg in ("_polars_runtime_32", "_polars_runtime_compat"):
 
 # Polars 新 ABI 运行时由加载器选择，需显式收集子模块。
 hiddenimports += collect_submodules("polars")
+# Backend extensions are discovered through pkgutil/importlib at runtime.
+hiddenimports += collect_submodules("app.custom")
 
 # ── 内置插件 (app/plugins/*) ─────────────────────────────────────────
 # loader._load_builtin_plugins() 在文件系统扫 <_internal>/app/plugins/*/plugin.yaml,

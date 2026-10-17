@@ -462,11 +462,12 @@ jobs:
       - name: 校验运行文件并生成安装包清单
         env:
           ARTIFACT_NAME: ${{ matrix.artifact }}
+          SOURCE_REVISION: ${{ needs.prepare.outputs.revision }}
         shell: bash
         run: |
           python scripts/build_manifest.py seal --root backend/dist \
             --manifest backend/dist/build-manifest.json \
-            --artifact "$ARTIFACT_NAME" --commit "$GITHUB_SHA" \
+            --artifact "$ARTIFACT_NAME" --commit "$SOURCE_REVISION" \
             --output "$ARTIFACT_NAME.manifest.json"
 
       - name: 上传产物为构建产物 (备查)

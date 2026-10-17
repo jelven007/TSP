@@ -85,6 +85,7 @@ AI_DAILY_TOKEN_BUDGET=500000           # 每日 token 预算上限
 | `AI_PROVIDER` | `openai_compat`（兼容服务）、`openai`（支持推理强度配置）、`codex_cli`（本机 CLI） |
 | `AI_PROTOCOL` | 默认 `chat_completions`；服务商支持时显式选择 `responses`。Codex CLI 不使用此项 |
 | `AI_BASE_URL` | 接口地址,如 DeepSeek `https://api.deepseek.com/v1` |
+| `AI_PROTOCOL` | 显式选择 `chat_completions`（默认）或 `responses`；设置页保存值优先，不自动切换协议 |
 | `AI_API_KEY` | 留空则关闭 AI 功能 |
 | `AI_MODEL` | 模型名,如 `deepseek-chat` |
 | `AI_DAILY_TOKEN_BUDGET` | 每日 token 预算,超限后当日不再调用 |

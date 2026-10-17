@@ -125,7 +125,6 @@ def test_all_shipped_builtin_strategies_pass():
 ])
 def test_module_handles_follow_loaded_library_namespace(monkeypatch, code):
     monkeypatch.setattr(pl, "_tsp_probe_module", ModuleType("probe"), raising=False)
-
     monkeypatch.setattr(ai_generator, "_MODULE_ATTR_CACHE", {}, raising=False)
     with pytest.raises(ValueError, match="模块对象"):
         AIStrategyGenerator._validate_safety(code)
