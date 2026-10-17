@@ -205,11 +205,11 @@ uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_a
 
 ## 5. 当前 CI 门禁
 
-`.github/workflows/ci.yml` 在推送到 `main` 和面向 `main` 的 Pull Request 上运行：
+`.github/workflows/ci.yml` 在推送到 `main`、面向 `main` 的 PR 和 merge_group 检查运行：
 
 | Job | 环境 | 命令 |
 | --- | --- | --- |
-| Version | Ubuntu、Python 3 | PR 运行 `check_version.py`；远程 `main` push 运行 `advance_version.py` 自动递增并输出实际待测 SHA |
+| Version | Ubuntu、Python 3 | PR 校验分支未人工改号；merge_group 只读检查；远程 `main` push 自动递增并输出实际待测 SHA |
 | Backend | Ubuntu、Python 3.12 | `uv sync --extra dev --extra cell --frozen`；`uv run pytest tests -q` |
 | Frontend | Ubuntu、Node 20、pnpm 9 | `pnpm test`；`pnpm lint`；`pnpm build` |
 | Tag | Ubuntu、Python 3 | 仅主线 push，Version/Backend/Frontend 全部成功后运行 `tag_version.py`，创建同一 SHA 的版本标签 |
@@ -236,13 +236,17 @@ JSON 注入处理函数未返回的缺省字段。快照失败时必须确认兼
 不使用触发 CI 时尚未加号的 `head_sha`。tag 和手动构建会在 workflow 内重新运行
 同等的后端与前端质量门。镜像依赖安装使用 frozen lockfile，锁文件漂移直接失败。
 Actions 使用 `GITHUB_TOKEN` 创建 Git 标签不会触发 tag push 构建；
-主线成功 CI 的现有构建链路同时写入 `latest`、提交 SHA 和 `v<应用版本>` 镜像标签。
+主线成功 CI 的现有构建链路写入提交 SHA 和 `v<应用版本>` 镜像标签。
+`latest` 独立串行提升，只有提升时仍为当前 main 的构建 SHA 可更新。
 
 `.github/workflows/release.yml` 的手动桌面发版也有独立质量门：后端执行 frozen
 依赖安装和全量 pytest，前端执行 frozen 安装、Vitest、ESLint 与生产构建。只有
 版本校验和质量门都通过后，Windows、macOS、Linux 打包矩阵才会启动。Windows
 runner 会实际运行 PyInstaller 便携版，并对 Inno Setup 产物执行静默安装、启动、
 健康检查、默认 rustdx 插件检查、卸载及用户数据保留验证。
+所有 Job 固定到所选既有 tag 的完整 SHA，所选平台全部成功后才能发布冻结版本。
+协作回归覆盖旧分支基线、人工改号、版本回退、来源 trailer 伪造、自动提交再触发、
+旧 tag 发布、非法平台选择和过期镜像指针提升；规则模板不等于远程已生效。
 
 当前 CI 不自动执行以下检查，发布负责人需按变更风险补充：
 
