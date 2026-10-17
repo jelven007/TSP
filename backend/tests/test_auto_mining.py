@@ -154,6 +154,7 @@ def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> Any:
     app.include_router(mining_api.router)
     app.state.repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
     app.state.mining_manager = manager
+    app.state.strategy_engine = SimpleNamespace()
 
     monkeypatch.setattr(mining_api, "require_mining_availability", lambda *a, **k: None)
     monkeypatch.setattr(mining_api, "enriched_partition_dates", lambda *a, **k: ["2026-08-31"])

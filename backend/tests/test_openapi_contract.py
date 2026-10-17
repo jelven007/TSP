@@ -58,7 +58,10 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "DELETE /api/paper/auto_rules/{rule_id}",
     "GET /api/paper/auto_rules",
     "POST /api/paper/auto_rules/{rule_id}/enabled",
+    "GET /api/paper/auto_skips",
     "GET /api/paper/compare",
+    "GET /api/paper/corporate-actions",
+    "POST /api/paper/corporate-actions/subscribe",
     "POST /api/paper/freeze",
     "GET /api/paper/nav",
     "POST /api/paper/orders",
@@ -67,6 +70,7 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "GET /api/paper/overview",
     "GET /api/paper/positions",
     "POST /api/paper/rebuild",
+    "GET /api/paper/rounds",
     "POST /api/paper/settings",
     "GET /api/paper/stats",
     "GET /api/paper/trades",
@@ -89,9 +93,9 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "GET /api/strategies/{strategy_id}/source",
 }
 
-# 契约变更记录: 策略回测新增可选字段 strict_research (默认 false, 向后兼容) —
-# 严格研究校验开关, 旧客户端不传时行为不变。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "9b32fd114bad0e1ea72702f3185cc1122b1d8b7ee5798bd417e6731639b7a018"
+# 契约变更记录: 保留 strict_research 兼容缺省; 补既有自动跳过/往返记录端点,
+# 新增公司行为读取/认购和账务加法字段, 策略参数元数据保留在开放响应中。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "e57d6e01e520cb201ca8079cc3a1ee4002fd846728a049c9f55ae534c7c3c8fa"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

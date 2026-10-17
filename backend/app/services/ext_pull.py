@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -14,12 +15,15 @@ from app.services.ext_data import (
     ExtConfig,
     ExtConfigStore,
     PullConfig,
+    ext_write_lock,
     rows_to_parquet,
 )
+from app.services.ext_fanout import error_message
 
 logger = logging.getLogger(__name__)
 
 _MARKET_HOURS_PRESET_IDS = frozenset({"ext_gn_ths", "ext_hy_ths"})
+_ACTIVE_PULLS: set[tuple[str, str]] = set()
 
 
 def outbound_headers(user_headers: dict[str, str] | None = None) -> dict[str, str]:
@@ -227,7 +231,7 @@ def _assert_rows_date(rows: list[dict], day: date) -> None:
     ?date= 的接口)。date 字段缺省的接口不做校验。
     """
     want = day.isoformat()
-    for r in rows[:20]:
+    for r in rows:
         if not isinstance(r, dict):
             continue
         raw = r.get("date")
@@ -285,78 +289,94 @@ def _append_query_params(url: str, params: dict[str, str]) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(merged), parts.fragment))
 
 
-def _parse_rows_payload(config: ExtConfig, pull: PullConfig, data: Any) -> list[dict]:
-    """单次响应 → 行列表 (提取/预设转换/字段映射)。与写入链共用, 不含日期校验。"""
+def _response_rows(config: ExtConfig, pull: PullConfig, data: Any) -> list[dict]:
+    """提取原始行; 保留旧预设的响应信封兼容。"""
     if config.id in _MARKET_HOURS_PRESET_IDS and not pull.response_path and isinstance(data, dict):
         # 保留旧预设手动拉取的信封兼容; 用户显式配置的 response_path 仍优先。
         keys = ("data", "list", "rows", "result", "results")
         candidates = [data.get(key) for key in keys] + list(data.values())
         data = next((value for value in candidates if isinstance(value, list)), data)
-    rows = _extract_rows(data, pull.response_path)
+    return _extract_rows(data, pull.response_path)
 
-    # 内置预设 (概念/行业): 应用结构转换, 让产出 schema 与分析页一致。
-    # 否则 raw 接口列 (concepts/industries 数组、name) 会直接覆盖正确的 part.parquet,
-    # 导致分析页因找不到维度字段 (所属概念/所属同花顺行业) 而"数据消失"。
-    # 见 ext_presets._flatten_* —— 手动拉取 / 定时拉取都必须走同一套转换。
-    rows = _apply_preset_flatten(config.id, rows)
 
-    # 字段映射
-    return _apply_field_map(rows, pull.field_map)
+async def _fetch_raw_pages(
+    config: ExtConfig, pull: PullConfig, day: date, *,
+    request=None, extra_params: dict | None = None, max_rows: int = 200000,
+) -> list[dict]:
+    request = request or _request_json
+    collected = []
+    pages = range(pull.max_pages) if pull.page_param and pull.method.upper() == "GET" else range(1)
+    for offset in pages:
+        extra = dict(extra_params or {})
+        if pull.page_param and pull.method.upper() == "GET":
+            extra[pull.page_param] = str(pull.page_start + offset)
+            if pull.page_size_param and pull.page_size > 0:
+                extra[pull.page_size_param] = str(pull.page_size)
+        data = await request(pull, config.id, day=day, **({"extra_params": extra} if extra else {}))
+        rows = _response_rows(config, pull, data)
+        if any(not isinstance(row, dict) for row in rows):
+            raise ValueError("响应行必须为对象")
+        _assert_rows_date(rows, day)
+        collected.extend(rows)
+        if len(collected) > max_rows:
+            raise ValueError("拉取行数超过上限, 结果未写入")
+        if not rows or (pull.page_size > 0 and len(rows) < pull.page_size):
+            return collected
+    if pull.page_param and pull.method.upper() == "GET":
+        raise ValueError(f"分页达到上限 {pull.max_pages}, 无法确认完整性, 结果未写入")
+    return collected
+
+
+class FetchedRows(list):
+    def __init__(self, rows: list[dict], metadata: dict) -> None:
+        super().__init__(rows)
+        self.metadata = metadata
 
 
 async def fetch_rows_for_date(config: ExtConfig, target_date: date) -> list[dict]:
-    """按日期请求外部 API 并解析为行 (不写盘)。空数据返回 []。
-
-    与 fetch_and_ingest 共用同一解析链 (response_path/预设转换/字段映射/
-    关联字段校验), 历史回补与当日拉取不产生第二套口径。
-    配置了 pull.page_param 时按页循环拉取 (仅 GET), 空页/短页/达 max_pages 停。
-    """
+    """完整拉取后才返回, 分页/两级请求共用鉴权、日期校验与映射。"""
     pull = config.pull
     if not pull or not pull.url:
         raise ValueError("拉取未配置或 URL 为空")
+    if pull.fanout:
+        from app.services.ext_fanout import fetch_members
 
-    if pull.page_param and pull.method.upper() == "GET":
-        collected: list[dict] = []
-        page = pull.page_start
-        for _ in range(pull.max_pages):
-            extra: dict[str, str] = {pull.page_param: str(page)}
-            if pull.page_size_param and pull.page_size > 0:
-                extra[pull.page_size_param] = str(pull.page_size)
-            data = await _request_json(pull, config.id, day=target_date, extra_params=extra)
-            page_rows = _parse_rows_payload(config, pull, data)
-            if not page_rows:
-                break
-            collected.extend(page_rows)
-            # 短页 (不足一页) 说明已是最后一页, 免去再一次空请求
-            if pull.page_size > 0 and len(page_rows) < pull.page_size:
-                break
-            page += 1
-        else:
-            logger.warning(
-                "ext pull %s: 分页拉取达到 max_pages=%d 上限, 结果可能不完整",
-                config.id, pull.max_pages,
-            )
-        rows = collected
+        rows, metadata = await fetch_members(config, target_date)
     else:
-        data = await _request_json(pull, config.id, day=target_date)
-        rows = _parse_rows_payload(config, pull, data)
+        rows = await _fetch_raw_pages(config, pull, target_date)
+        metadata = {"total": 1, "completed": 1, "coverage": 1.0, "failed": []}
+    dates = {str(row["date"])[:10] for row in rows if row.get("date") is not None}
+    metadata["source_date"] = (
+        next(iter(dates)) if len(dates) == 1 and all(row.get("date") is not None for row in rows) else None
+    )
+    # 两级配方输出已声明的分类字段, 不再套用默认聚合源的 flatten。
+    if pull.transform == "auto" and not pull.fanout:
+        if config.id in _MARKET_HOURS_PRESET_IDS:
+            field = "concepts" if config.id == "ext_gn_ths" else "industries"
+            if any(not row.get("symbol") or not isinstance(row.get(field), list) for row in rows):
+                raise ValueError("默认来源缺少标的或分类数组, 请选择正确的来源结构")
+        rows = _apply_preset_flatten(config.id, rows)
+    rows = _apply_field_map(rows, pull.field_map)
+    if pull.fanout:
+        from app.services.ext_fanout import join_members
+
+        rows = join_members(rows, pull.fanout)
 
     # 校验可关联标的的字段：直接 symbol/code，或配置里声明的映射源列。
     # 市场级表 (market_level, 行=全市场一条, 无标的列) 跳过该校验。
     if config.market_level:
         _assert_rows_date(rows, target_date)
-        return rows
-    row_keys = set(rows[0]) if rows else set()
+        return FetchedRows(rows, metadata)
     mapped_cols = {
         m.get("col")
         for m in (config.symbol_map or {}, config.code_map or {})
         if m.get("type") == "mapped" and m.get("col")
     }
-    if rows and not ({"symbol", "code"} & row_keys or mapped_cols & row_keys):
+    if any(not ({"symbol", "code"} & set(row) or mapped_cols & set(row)) for row in rows):
         raise ValueError("数据行中缺少 symbol/code 字段，请配置字段映射或标的映射")
 
     _assert_rows_date(rows, target_date)
-    return rows
+    return FetchedRows(rows, metadata)
 
 
 async def fetch_and_ingest(
@@ -375,14 +395,106 @@ async def fetch_and_ingest(
     """
     # 同上: 落盘分区按北京日期, 否则 UTC 容器在北京时间 08:00 之前写的是前一天。
     day = target_date or cn_today()
-    rows = await fetch_rows_for_date(config, day)
-    if not rows:
-        raise ValueError("提取到的行数为 0")
-    n = rows_to_parquet(
-        rows, config, data_dir, snapshot_date=day,
-        keep_strategy_cache=keep_strategy_cache,
-    )
-    return n, day.isoformat()
+    store = ExtConfigStore(Path(data_dir))
+    active_key = (str(Path(data_dir).resolve()), config.id)
+    with ext_write_lock(Path(data_dir), config.id):
+        if active_key in _ACTIVE_PULLS:
+            raise ValueError("该扩展数据正在拉取, 请等待本轮完成")
+        _ACTIVE_PULLS.add(active_key)
+    attempt = {"received_at": datetime.now(UTC).isoformat()}
+    try:
+        rows = await fetch_rows_for_date(config, day)
+        attempt.update(getattr(rows, "metadata", {}))
+        attempt["received_at"] = datetime.now(UTC).isoformat()
+        if not rows:
+            raise ValueError("提取到的行数为 0")
+        with ext_write_lock(Path(data_dir), config.id):
+            latest = store.get(config.id)
+            if latest and (
+                not latest.pull or latest.pull.definition() != config.pull.definition()
+                or latest.mode != config.mode
+                or [f.to_dict() for f in latest.fields] != [f.to_dict() for f in config.fields]
+                or latest.symbol_map != config.symbol_map or latest.code_map != config.code_map
+            ):
+                raise ValueError("拉取期间配置已变更, 旧来源结果未写入")
+            if latest is None:
+                raise ValueError("拉取配置已删除, 结果未写入")
+            replace = config.mode == "snapshot" and (
+                config.pull.snapshot_policy == "replace"
+                or (config.pull.snapshot_policy == "auto"
+                    and (config.id in _MARKET_HOURS_PRESET_IDS or config.pull.fanout))
+            )
+            path = (Path(data_dir) / "ext_data" / config.id / "part.parquet"
+                    if config.mode == "snapshot" else _day_partition(data_dir, config.id, day))
+            previous = latest.pull.last_complete
+            if replace and previous and (
+                not previous.get("replaced") or not path.exists()
+                or hashlib.sha256(path.read_bytes()).hexdigest() != previous.get("sha256")
+            ):
+                # 上传/ingest 可能在两次拉取之间修改当前文件; 不能沿用旧认证信息。
+                previous = None
+            n = rows_to_parquet(
+                rows, config, data_dir, snapshot_date=day,
+                keep_strategy_cache=keep_strategy_cache, replace_snapshot=bool(replace),
+            )
+            latest.pull.last_attempt = attempt
+            latest.pull.last_run = attempt["received_at"]
+            latest.pull.last_status = "success"
+            latest.pull.last_message = f"{n} rows @ {day.isoformat()}"
+            latest.pull.last_rows = n
+            meta = {
+                **attempt, "rows": n, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "source": _source_label(config.pull.url), "replaced": bool(replace),
+                "stock_coverage": _stock_coverage(path, Path(data_dir)),
+            }
+            if replace:
+                latest.pull.previous_complete = previous
+            latest.pull.last_complete = meta
+            store.upsert(latest, keep_strategy_cache=keep_strategy_cache)
+        return n, day.isoformat()
+    except Exception as exc:
+        attempt.update(getattr(exc, "metadata", {}))
+        with ext_write_lock(Path(data_dir), config.id):
+            latest = store.get(config.id)
+            if latest and latest.pull and latest.pull.definition() == config.pull.definition():
+                latest.pull.last_attempt = attempt
+                latest.pull.last_run = datetime.now(UTC).isoformat()
+                latest.pull.last_status = "error"
+                latest.pull.last_message = error_message(exc)
+                store.upsert(latest, keep_strategy_cache=keep_strategy_cache)
+        raise
+    finally:
+        with ext_write_lock(Path(data_dir), config.id):
+            _ACTIVE_PULLS.discard(active_key)
+
+
+def _source_label(url: str) -> str:
+    from urllib.parse import urlsplit
+
+    parsed = urlsplit(url)
+    host = parsed.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    authority = f"{host}:{parsed.port}" if parsed.port else host
+    return f"{parsed.scheme}://{authority}{parsed.path}"
+
+
+def _stock_coverage(path: Path, data_dir: Path) -> dict | None:
+    """以本地当前标的维表为分母; 目录不在或无 symbol 时明确未知。"""
+    import polars as pl
+
+    instruments = data_dir / "instruments/instruments.parquet"
+    if not instruments.exists():
+        return None
+    try:
+        from app.market_scope import filter_market_frame
+
+        expected = set(filter_market_frame(pl.read_parquet(instruments, columns=["symbol"]))["symbol"].drop_nulls())
+        actual = set(pl.read_parquet(path, columns=["symbol"])["symbol"].drop_nulls())
+        return {"matched": len(actual & expected), "total": len(expected),
+                "ratio": len(actual & expected) / len(expected) if expected else None}
+    except (OSError, pl.exceptions.PolarsError, KeyError):
+        return None
 
 
 MAX_BACKFILL_DAYS = 120  # 单次回补上限: 同步端点, 控制请求时长
@@ -619,23 +731,12 @@ class PullScheduler:
                 try:
                     # 例行定时刷新: 不清策略结果缓存 (见 invalidate_ext_caches),
                     # 否则策略页每轮拉取后整页空白, 直到下次全量重算完成。
-                    n, d = await fetch_and_ingest(
+                    n, _ = await fetch_and_ingest(
                         fresh, self._data_dir, keep_strategy_cache=True
                     )
-                    fresh.pull.last_run = datetime.now(UTC).isoformat()
-                    fresh.pull.last_status = "success"
-                    fresh.pull.last_message = f"{n} rows @ {d}"
-                    fresh.pull.last_rows = n
-                    store.upsert(fresh, keep_strategy_cache=True)
                     logger.info("PullScheduler: %s success, %d rows", config.id, n)
                 except Exception as e:
-                    fresh2 = store.get(config.id)
-                    if fresh2 and fresh2.pull:
-                        fresh2.pull.last_run = datetime.now(UTC).isoformat()
-                        fresh2.pull.last_status = "error"
-                        fresh2.pull.last_message = str(e)[:200]
-                        store.upsert(fresh2, keep_strategy_cache=True)
-                    logger.warning("PullScheduler: %s error: %s", config.id, e)
+                    logger.warning("PullScheduler: %s error: %s", config.id, error_message(e))
 
                 is_startup_run = False
                 # 间隔取自最新配置 (每次重新读取, 修复改间隔不生效)

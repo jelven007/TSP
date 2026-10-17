@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import anyio
 import polars as pl
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from PIL import Image
 
 from app.api import watchlist as watchlist_api
@@ -60,8 +60,12 @@ def _mock_upload(
     return file
 
 
-def _mock_request(data_dir: Path) -> MagicMock:
-    request = MagicMock()
+def _mock_request(data_dir: Path) -> Request:
+    from types import SimpleNamespace
+
+    app = FastAPI()
+    app.state.repo = SimpleNamespace(store=SimpleNamespace(data_dir=data_dir))
+    request = Request({"type": "http", "app": app, "state": {}, "headers": []})
     request.app.state.repo.store.data_dir = data_dir
     request.app.state.repo.get_name_map = lambda _symbols: {}
     return request

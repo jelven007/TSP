@@ -27,7 +27,7 @@ def _path() -> Path:
     from app.config import settings
     root = settings.platform_config_dir or settings.data_dir / "user_data"
     p = root / "secrets.json"
-    if settings.service_role != "api":
+    if settings.service_role in {"standalone", "platform"}:
         p.parent.mkdir(parents=True, exist_ok=True)
     return p
 

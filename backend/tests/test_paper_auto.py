@@ -319,3 +319,49 @@ def test_freeze_also_pauses_already_submitted_exit(account, monkeypatch):
     assert paper.get_order(account, sell["id"])["status"] == "pending"
     paper.set_frozen(account, frozen=False)
     assert len(paper.evaluate_intraday(account, {SYM: 10.})) == 1
+
+
+@pytest.mark.parametrize("mode,value,pending,expected", [
+    ("fixed_amount", 10_000_000, 0, 500),
+    ("fixed_amount", 10_000_000, 200, 300),
+    ("fixed_amount", 1000, 200, 100),
+    ("pct_equity", 100, 200, 300),
+    ("fixed_amount", 10_000_000, 500, 0),
+])
+def test_fixed_sell_caps_to_remaining_available(
+    account, monkeypatch, mode, value, pending, expected,
+):
+    make_rule(account, side="sell", size_mode=mode, size_value=value, cooldown_days=0)
+    buy_and_fill(account, qty=500)
+    next_day(monkeypatch)
+    if pending:
+        _, error = paper.create_order(account, SYM, "sell", qty=pending, ref_price=10)
+        assert error is None
+    ev = event("sell_signal", id="fixed-sell")
+    orders = paper_auto.on_rule_events(account, [ev, ev])
+    assert [order["qty"] for order in orders] == ([expected] if expected else [])
+    assert paper_auto.on_rule_events(account, [ev]) == []
+    assert sum(
+        o["qty"] for o in paper.load_orders(account)
+        if o["side"] == "sell" and o["status"] == "pending"
+    ) == pending + expected
+    assert paper_auto.load_exit_intents(account) == []
+    if not expected:
+        skipped = paper_auto.load_auto_skips(account)[0]
+        assert skipped["reason"] == "no_sellable_qty"
+        assert "可卖数量为 0" in skipped["message"]
+
+
+def test_fixed_sell_excludes_t1_and_other_accounts(account, monkeypatch):
+    make_rule(account, side="sell", size_value=10_000_000, cooldown_days=0)
+    buy_and_fill(account, qty=500)
+    assert paper_auto.on_rule_events(account, [event("sell_signal")]) == []
+    assert paper_auto.load_auto_skips(account)[0]["reason"] == "no_sellable_qty"
+    next_day(monkeypatch)
+    buy_and_fill(account, qty=200)
+    paper.create_account(account, 100000, account_id="second")
+    rule = paper_auto.load_auto_rules(account)[0]
+    paper_auto.create_auto_rule(account, rule, account_id="second")
+    assert paper_auto.on_rule_events(account, [event("sell_signal")], "second") == []
+    sells = paper_auto.on_rule_events(account, [event("sell_signal")])
+    assert [o["qty"] for o in sells] == [500]
