@@ -21,8 +21,7 @@
   - 涨跌停: 触及涨停的买单 / 跌停的卖单默认拒单 (expired 留痕); 账户开启
     queue_limit_orders 后转「排队次日重试」(转 next_open, 计顺延, 超限过期);
   - 停牌/缺行情: 顺延, 连续顺延超过 max_postpone 日自动过期;
-  - 除权: 按 ex_factor 调整持仓数量(乘 factor)与成本(除以 factor), 台账记 corp_action;
-    现金分红金额不在因子数据中, 不处理。
+  - 新账户按有日期证据的公司行为登记红利/送转/配股; 存量因子账本保留兼容。
 """
 from __future__ import annotations
 
@@ -181,6 +180,7 @@ def create_account(
     stamp_tax_pct: float = DEFAULT_STAMP_TAX_PCT,
     slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
     queue_limit_orders: bool = False,
+    corporate_action_mode: str = "events",
 ) -> dict:
     """创建账户 (同 id 已存在则原样返回, 不覆盖 — 幂等)。"""
     validate_account_id(account_id)
@@ -188,6 +188,8 @@ def create_account(
         existing = get_account(data_dir, account_id)
         if existing is not None:
             return existing
+        if corporate_action_mode not in {"events", "legacy_factor"}:
+            raise ValueError("公司行为账务模式无效")
         if isinstance(initial_cash, bool) or not isinstance(initial_cash, (int, float)) or not math.isfinite(initial_cash) or initial_cash <= 0:
             raise ValueError("初始资金必须是正数")
         for key, value, maximum in (
@@ -205,6 +207,8 @@ def create_account(
             "stamp_tax_pct": float(stamp_tax_pct),
             "slippage_bps": float(slippage_bps),
             "queue_limit_orders": bool(queue_limit_orders),
+            "corporate_action_mode": corporate_action_mode,
+            "stamp_tax_mode": "fixed",
             "status": "active",  # active / frozen
             "created_at": _now_iso(),
         }
@@ -387,6 +391,13 @@ def portfolio_budget(data_dir, account_id=DEFAULT_ACCOUNT_ID, *, prices=None, ex
         if not valid_price(price):
             price = pos["avg_cost"]
         holdings[symbol] = pos["qty"] * float(price)
+    from app.strategy.paper_actions import receivable_assets
+
+    cash_receivable, pending_shares = receivable_assets(
+        load_fills(data_dir, account_id), cn_today().isoformat(), {**fallback, **prices},
+    )
+    for symbol, value in pending_shares.items():
+        holdings[symbol] = holdings.get(symbol, 0) + value
     reserved = 0.0
     unknown = False
     for order in load_orders(data_dir, account_id):
@@ -403,7 +414,7 @@ def portfolio_budget(data_dir, account_id=DEFAULT_ACCOUNT_ID, *, prices=None, ex
         value = order["qty"] * execution
         pending[order["symbol"]] = pending.get(order["symbol"], 0.0) + value
         reserved += value + buy_fee(order["qty"], execution, acc["commission_pct"])
-    equity = float(acc["cash"]) + sum(holdings.values())
+    equity = float(acc["cash"]) + sum(holdings.values()) + cash_receivable
     return {"equity": equity, "holdings": holdings, "pending": pending,
             "exposure": sum(holdings.values()) + sum(pending.values()),
             "available_cash": 0.0 if unknown else max(0.0, float(acc["cash"]) - reserved),
@@ -558,7 +569,7 @@ def create_order(
             if qty <= 0:
                 return None, f"金额不足以买一手 (参考价 {ref_price})"
         qty = int(qty)
-        if qty <= 0 or qty % LOT_SIZE != 0:
+        if qty <= 0 or (side == "buy" and qty % LOT_SIZE != 0):
             return None, f"数量必须是 {LOT_SIZE} 的整数倍"
 
         if side == "buy":
@@ -580,6 +591,8 @@ def create_order(
             # 可卖数量按当前交易日现算 (与 _fill_order / overview 同口径): 物化文件里的
             # available_qty 是上次重建时的 T+1 口径, 跨日后不会更新, 次日仍会是 0
             available = _available_of(pos, cn_today().isoformat())
+            if qty % LOT_SIZE and qty != pos["qty"]:
+                return None, "零股只能随全部持仓一次卖出"
             if qty > available:
                 return None, f"可卖数量不足 (T+1): 可卖 {available}, 请求数量 {qty}"
             # 超卖防护: pending 卖出单占用可卖额度 — 同 symbol 的 pending 卖出合计
@@ -688,7 +701,7 @@ def load_fills_page(
         return data_dir.fill_page(account_id, limit=limit, before=before)
     fills = load_fills(data_dir, account_id)
     total = len(fills)
-    execution_total = sum(fill.get("kind", "fill") != "corp_action" for fill in fills)
+    execution_total = sum(fill.get("kind", "fill") == "fill" for fill in fills)
     rows = list(enumerate(fills, start=1))
     if before is not None:
         rows = [row for row in rows if row[0] < before]
@@ -734,6 +747,11 @@ def replay_positions(
     for f in fills if fills is not None else load_fills(data_dir, account_id):
         kind = f.get("kind", "fill")
         symbol = f["symbol"]
+        if kind == "corporate_action":
+            from app.strategy.paper_actions import apply_entry
+
+            cash += apply_entry(positions, f)
+            continue
         if kind == "corp_action":
             pos = positions.get(symbol)
             if pos is None:
@@ -782,6 +800,8 @@ def replay_positions(
             for lot in pos["lots"]:
                 if remain <= 0:
                     break
+                if lot.get("available_on", "") > f.get("date", ""):
+                    continue
                 take = min(lot["qty"], remain)
                 lot["qty"] -= take
                 remain -= take
@@ -797,7 +817,8 @@ def _available_of(pos: dict, today: str | None = None) -> int:
     """T+1 可卖数量: buy_date < today 的批次之和。today 为空则全部可卖 (重建口径)。"""
     if today is None:
         return int(sum(lot["qty"] for lot in pos["lots"]))
-    return int(sum(lot["qty"] for lot in pos["lots"] if lot["date"] < today))
+    return int(sum(lot["qty"] for lot in pos["lots"]
+                   if (lot["available_on"] <= today if lot.get("available_on") else lot["date"] < today)))
 
 
 @paper_operation(write=True)
@@ -858,6 +879,16 @@ def _limit_price_error(
     prev = _prev_close(data_dir, symbol, asset_type, day)
     if prev is None:
         return None
+    from app.services.corporate_actions import load_actions
+
+    actions = [action for action in load_actions(market_path(data_dir), {symbol})
+               if action.ex_date.isoformat() == day and not action.missing_evidence()]
+    if actions:
+        dividend = sum(action.cash_per_share for action in actions)
+        bonus = sum(action.bonus_per_share for action in actions)
+        rights = sum(action.rights_per_share for action in actions)
+        payment = sum(action.rights_per_share * (action.rights_price or 0) for action in actions)
+        prev = round((prev - dividend + payment) / (1 + bonus + rights), 3 if asset_type == "etf" else 2)
     trade_date = _date.fromisoformat(day)
     up, down = limit_prices(
         prev, symbol, asset_type, trade_date=trade_date,
@@ -890,6 +921,18 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
         return None
     symbol, side, qty = order["symbol"], order["side"], int(order["qty"])
     asset_type = order.get("asset_type", "stock")
+    from app.strategy import paper_actions
+
+    if paper_actions.event_mode(acc):
+        report = paper_actions.advance(data_dir, day, account_id)
+        blocked = [row for row in report["blocked"] if row["symbol"] == symbol]
+        known = any(row["symbol"] == symbol and row["ex_date"] == day and not row.get("reason")
+                    for row in report["events"])
+        if blocked or (_factor_on(data_dir, symbol, asset_type, day) not in (None, 1.0) and not known):
+            order["reason"] = "公司行为日期或历史账务待核对, 暂停撮合"
+            save_order(data_dir, order, account_id)
+            return None
+        acc = get_account(data_dir, account_id)
     price = apply_slippage(raw_price, side, float(acc["slippage_bps"]))
 
     # 涨跌停检查 (基于上一交易日 raw close; 无上日收盘则跳过检查 — 新股/数据缺失)
@@ -1102,6 +1145,9 @@ def evaluate_intraday(
     events: list[dict] = []
     with paper_lock(data_dir, PAPER_LOCK):
         today = cn_today().isoformat()
+        from app.strategy import paper_actions
+
+        paper_actions.advance(data_dir, today, account_id)
         pending_orders = sorted(
             (o for o in load_orders(data_dir, account_id) if o["status"] == "pending" and o["order_type"] == "market"),
             key=_order_sort_key,
@@ -1170,7 +1216,9 @@ def evaluate_opening(data_dir, rows, account_id=DEFAULT_ACCOUNT_ID):
             if placed >= opening:
                 continue
             factor = _factor_on(data_dir, order["symbol"], order.get("asset_type", "stock"), today)
-            if factor not in (None, 1.0):
+            from app.strategy.paper_actions import event_mode
+
+            if factor not in (None, 1.0) and not event_mode(get_account(data_dir, account_id)):
                 continue  # Corporate-action execution is reconciled by daily settlement.
             fill = _fill_order(data_dir, order, float(raw), today, account_id,
                                valuation_prices={sym: values.get("raw_open") for sym, values in rows.items()
@@ -1295,7 +1343,7 @@ def _placed_after_price_time(order: dict, day: str) -> bool:
 
 @paper_operation(write=True)
 def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
-    """盘后管道阶段: 撮合顺延单 → 除权调整 → 定版净值。幂等 (重跑同日安全)。
+    """事件入账 → 撮合顺延单 → 收盘权益登记 → 定版净值。幂等 (重跑同日安全)。
 
     撮合顺序: close 单用 raw_close; next_open 单用 raw_open; 仍 pending 的
     market 单 (当日无快照) 也按 raw_close 兜底成交 — 避免停牌外无限顺延。
@@ -1307,6 +1355,11 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
         acc = get_account(data_dir, account_id)
         if acc is None:
             return summary
+        from app.strategy import paper_actions
+
+        action_report = paper_actions.advance(data_dir, day, account_id)
+        summary["corp_actions"] += action_report.get("posted", 0)
+        summary["corporate_action_blocks"] = action_report["blocked"]
         pending_orders = sorted(
             (o for o in load_orders(data_dir, account_id) if o["status"] == "pending"),
             key=_order_sort_key,
@@ -1352,6 +1405,8 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
             if f.get("kind") == "corp_action"
         }
         for symbol, pos in positions.items():
+            if paper_actions.event_mode(acc):
+                break
             if pos["qty"] <= 0:
                 continue
             factor = _factor_on(data_dir, symbol, pos.get("asset_type", "stock"), day)
@@ -1374,6 +1429,9 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
             summary["corp_actions"] += 1
         if summary["corp_actions"]:
             _materialize(data_dir, account_id)
+        closing_actions = paper_actions.advance(data_dir, day, account_id, record_close=True)
+        summary["corp_actions"] += closing_actions.get("posted", 0)
+        summary["corporate_action_blocks"] = closing_actions["blocked"]
 
         # Closing observations latch risks without inventing an earlier fill.
         # Fresh realtime execution or the next valid opening advances the exit.
@@ -1384,6 +1442,8 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
         )
 
         # 定版净值 (幂等: 重写当日行); 顺带记录沪深300 收盘作基准对比
+        if summary["corporate_action_blocks"]:
+            return summary  # Unresolved entitlements cannot produce a certified closing NAV.
         nav = daily_nav(data_dir, day, account_id=account_id)
         if nav is not None:
             benchmark = _index_close(data_dir, day)
@@ -1430,7 +1490,11 @@ def daily_nav(
             continue
         price = prices.get(symbol, pos["avg_cost"])
         mv += pos["qty"] * price
-    return {"date": day, "cash": round(float(acc["cash"]), 2), "mv": round(mv, 2), "nav": round(float(acc["cash"]) + mv, 2)}
+    from app.strategy.paper_actions import receivables
+
+    pending = receivables(load_fills(data_dir, account_id), day, prices)
+    return {"date": day, "cash": round(float(acc["cash"]), 2), "mv": round(mv, 2),
+            "receivables": pending, "nav": round(float(acc["cash"]) + mv + pending, 2)}
 
 
 @paper_operation(write=True)
@@ -1549,6 +1613,9 @@ def overview(
     total_holdings = len(holdings)
     # 整体口径: 任一持仓缺价退回成本时, 口径保守降级到 cost (不假装全量实时)。
     overall_basis = priced_basis if total_holdings and not missing else "cost"
+    from app.strategy.paper_actions import receivables
+
+    pending = receivables(load_fills(data_dir, account_id), today, price_map or {})
     return {
         "initialized": True,
         "account_id": account_id,
@@ -1557,8 +1624,11 @@ def overview(
         "queue_limit_orders": bool(acc.get("queue_limit_orders")),
         "cash": round(float(acc["cash"]), 2),
         "market_value": round(mv, 2),
-        "total": round(float(acc["cash"]) + mv, 2),
-        "total_pnl": round(float(acc["cash"]) + mv - float(acc["initial_cash"]), 2),
+        "receivables": pending,
+        "corporate_action_mode": acc.get("corporate_action_mode", "legacy_factor"),
+        "stamp_tax_mode": "fixed",
+        "total": round(float(acc["cash"]) + mv + pending, 2),
+        "total_pnl": round(float(acc["cash"]) + mv + pending - float(acc["initial_cash"]), 2),
         "initial_cash": float(acc["initial_cash"]),
         "estimating": price_map is not None,
         "valuation": {
@@ -1589,6 +1659,17 @@ def round_trips(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[di
     rounds: list[dict] = []
     for f in fills:
         symbol = f["symbol"]
+        if f.get("kind") == "corporate_action":
+            if f["stage"] in {"ex", "rights_listed"} and f.get("qty"):
+                if held.get(symbol, 0) <= 0:
+                    cycle_no[symbol] = cycle_no.get(symbol, 0) + 1
+                held[symbol] = held.get(symbol, 0) + f["qty"]
+                lots.setdefault(symbol, []).append({
+                    "date": f["date"], "qty": f["qty"],
+                    "cost": f["cash_amount"] if f["stage"] == "rights_listed" else 0,
+                    "available_on": f["available_on"],
+                })
+            continue
         if f.get("kind") == "corp_action":
             factor = float(f["factor"])
             for lot in lots.get(symbol, []):
@@ -1610,8 +1691,11 @@ def round_trips(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[di
         remain = int(f["qty"])
         proceeds_unit = float(f["price"]) - float(f.get("fee", 0)) / max(int(f["qty"]), 1)
         pool = lots.get(symbol, [])
-        while remain > 0 and pool:
-            lot = pool[0]
+        for lot in list(pool):
+            if remain <= 0:
+                break
+            if lot.get("available_on", "") > f["date"]:
+                continue
             take = min(lot["qty"], remain)
             cost_part = lot["cost"] * take / lot["qty"]
             pnl = proceeds_unit * take - cost_part
@@ -1630,7 +1714,7 @@ def round_trips(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> list[di
             lot["qty"] -= take
             lot["cost"] -= cost_part
             if lot["qty"] <= 0:
-                pool.pop(0)
+                pool.remove(lot)
             remain -= take
         held[symbol] = round(held.get(symbol, 0) - int(f["qty"]), 6)
     return rounds
@@ -1705,7 +1789,13 @@ def stats(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict:
     cycle_wins = [c for c in cycles if c["pnl"] > 0]
     cycle_cost = sum(c["cost_basis"] for c in cycles)
     cycle_pnl = sum(c["pnl"] for c in cycles)
+    corporate_income = sum(
+        fill["cash_amount"] for fill in load_fills(data_dir, account_id)
+        if fill.get("kind") == "corporate_action" and fill["stage"] == "cash_paid"
+    )
     return {
+        "corporate_income": round(corporate_income, 2),
+        "corporate_income_basis": "gross_cash_separate_from_trade_pairings",
         "rounds": len(rounds),
         "win_rate": round(len(wins) / len(rounds) * 100, 2) if rounds else 0.0,
         "profit_loss_ratio": round(avg_win / avg_loss, 2) if avg_loss else None,

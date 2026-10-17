@@ -16,6 +16,7 @@ from app.data_providers.capabilities import CAPABILITY_REGISTRY, build_capabilit
 DEFAULT_CURRENT = {
     "daily_data_provider": "tickflow",
     "adj_factor_provider": "tickflow",
+    "corporate_actions_provider": "rustdx",
     "minute_data_provider": "tickflow",
     "full_minute_data_provider": "tickflow",
     "depth5_data_provider": "tickflow",
@@ -41,13 +42,14 @@ def test_registry_covers_all_routing_fields():
     assert len(set(routable)) == len(routable)
     assert {c["id"] for c in CAPABILITY_REGISTRY} == {
         "realtime", "daily", "minute", "full_minute", "depth5", "adj_factor", "financial",
+        "corporate_actions",
     }
     full_minute = next(c for c in CAPABILITY_REGISTRY if c["id"] == "full_minute")
     assert full_minute["field"] == "full_minute_data_provider"
     assert full_minute["tf_tier"] == "expert"
     for cap in CAPABILITY_REGISTRY:
         assert cap["default"] == "rustdx"
-        assert cap["tf_tier"] in ("none", "starter", "pro", "expert")
+        assert cap["tf_tier"] in (None, "none", "starter", "pro", "expert")
         assert "follow" not in cap
 
 
@@ -67,7 +69,7 @@ def test_matrix_defaults_all_capabilities_to_rustdx(monkeypatch):
 
     matrix = build_capability_matrix({}, tickflow_tier="none")
 
-    assert len(matrix["capabilities"]) == 7
+    assert len(matrix["capabilities"]) == 8
     for cap in matrix["capabilities"]:
         assert cap["current"] == cap["effective"] == "rustdx"
         assert cap["usable"] is True
@@ -78,9 +80,14 @@ def test_matrix_without_third_party_sources(monkeypatch):
     _fake_sources(monkeypatch, [])
     matrix = build_capability_matrix(dict(DEFAULT_CURRENT), tickflow_tier="expert")
     assert matrix["tickflow_tier"] == "expert"
-    assert len(matrix["capabilities"]) == 7
+    assert len(matrix["capabilities"]) == 8
     for cap in matrix["capabilities"]:
         names = [c["name"] for c in cap["candidates"]]
+        if cap["id"] == "corporate_actions":
+            assert names == []
+            assert cap["tf_available"] is False
+            assert cap["usable"] is False
+            continue
         assert names == ["tickflow"]
         assert cap["candidates"][0]["kind"] == "builtin"
         assert cap["tf_available"] is True
@@ -310,6 +317,7 @@ def test_api_endpoint_injects_all_routing_preferences(monkeypatch):
         "full_minute_data_provider": "fm-src",
         "depth5_data_provider": "d5-src",
         "adj_factor_provider": "adj-src",
+        "corporate_actions_provider": "action-src",
         "financial_data_provider": "fin-src",
     }
     getter_names = {
@@ -319,6 +327,7 @@ def test_api_endpoint_injects_all_routing_preferences(monkeypatch):
         "full_minute_data_provider": "get_full_minute_data_provider",
         "depth5_data_provider": "get_depth5_data_provider",
         "adj_factor_provider": "get_adj_factor_provider",
+        "corporate_actions_provider": "get_corporate_actions_provider",
         "financial_data_provider": "get_financial_provider",
     }
     for field, getter in getter_names.items():

@@ -90,6 +90,29 @@ class SettingsModel(BaseModel):
     slippage_bps: float | None = None     # 滑点 (5 = 5bps)
 
 
+class RightsSubscriptionModel(BaseModel):
+    action_id: str = Field(min_length=1, max_length=160)
+    qty: int = Field(gt=0, strict=True)
+
+
+@router.get("/corporate-actions", response_model=contracts.PaperCorporateActionsResponse)
+def corporate_actions(request: Request, account: str = paper.DEFAULT_ACCOUNT_ID) -> dict:
+    from app.strategy import paper_actions
+
+    return paper_actions.status(_data_dir(request), paper.cn_today().isoformat(), _acc(request, account))
+
+
+@router.post("/corporate-actions/subscribe", response_model=contracts.PaperRightsSubscriptionResponse)
+def subscribe_rights(req: RightsSubscriptionModel, request: Request,
+                     account: str = paper.DEFAULT_ACCOUNT_ID) -> dict:
+    from app.strategy import paper_actions
+
+    try:
+        return paper_actions.subscribe(_data_dir(request), req.action_id, req.qty, _acc(request, account))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 def _resolve_asset_type(request: Request, symbol: str) -> str:
     repo = getattr(request.app.state, "repo", None)
     try:
