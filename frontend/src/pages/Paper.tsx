@@ -23,6 +23,7 @@ import { boardTag } from '@/components/stock-table/primitives'
 import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/Modal'
 import { toast } from '@/components/Toast'
+import { PaperCorporateActions } from '@/components/PaperCorporateActions'
 
 const ORDER_TYPE_LABEL: Record<string, string> = {
   market: '即时',
@@ -54,13 +55,13 @@ function downloadTradesCsv(account: string, fills: PaperFill[]) {
     const text = value == null ? '' : String(value)
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
   }
-  const lines = ['日期,代码,方向,数量,成交价,费用,类型,订单号']
+  const lines = ['日期,代码,方向,数量,成交价,费用,类型,订单号,公司行为,现金金额']
   for (const fill of fills) {
     lines.push([
       fill.date, fill.symbol,
-      fill.kind === 'corp_action' ? '除权' : fill.side === 'buy' ? '买入' : '卖出',
+      fill.kind === 'corporate_action' ? fill.label : fill.kind === 'corp_action' ? '除权' : fill.side === 'buy' ? '买入' : '卖出',
       fill.qty ?? '', fill.price ?? '', fill.fee ?? '',
-      fill.kind ?? 'fill', fill.order_id ?? '',
+      fill.kind ?? 'fill', fill.order_id ?? '', fill.action_id ?? '', fill.cash_amount ?? '',
     ].map(esc).join(','))
   }
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
@@ -1888,6 +1889,7 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
         </div>
 
         {valuation && <ValuationBadge v={valuation} />}
+        <PaperCorporateActions key={acc} account={acc} receivables={ov.receivables} />
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
           {/* 左列: 净值 + 持仓 + 流水 */}
@@ -2012,9 +2014,11 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
                 <div className="mt-2 space-y-1">
                   {trades.length === 0 && <div className="py-6 text-center text-xs text-muted">暂无成交</div>}
                   {trades.map((f: PaperFill) => (
-                    <div key={`${f.seq}-${f.order_id ?? 'corp'}`} className="flex items-center gap-2 rounded-btn px-2 py-1.5 font-mono text-xs hover:bg-elevated/50">
+                    <div key={`${f.seq}-${f.order_id ?? f.action_id ?? 'corp'}-${f.stage ?? ''}`} className="flex items-center gap-2 rounded-btn px-2 py-1.5 font-mono text-xs hover:bg-elevated/50">
                       <span className="w-14 shrink-0 text-muted">{f.date}</span>
-                      {f.kind === 'corp_action' ? (
+                      {f.kind === 'corporate_action' ? (
+                        <span className="text-accent">{f.symbol} {f.label} {f.qty ? `${f.qty}股 ` : ''}{f.cash_amount ? `¥${f.cash_amount.toFixed(2)}` : ''}</span>
+                      ) : f.kind === 'corp_action' ? (
                         <span className="text-accent">除权 ×{f.factor} ({f.symbol}: {f.qty_before} → )</span>
                       ) : (
                         <>

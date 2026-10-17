@@ -271,23 +271,28 @@ async def chat_stream(
 
     async def run() -> None:
         try:
-            _guard_input_budget(req_messages)
             text_seen = False
             tool_rounds = 0
             round_checkpoint = _round_checkpoint()
             while True:
+                _guard_input_budget(req_messages)
                 if verify_access is not None:
                     await asyncio.to_thread(verify_access)
                 round_text: list[str] = []
                 tool_calls: list[dict[str, Any]] = []
-                async for event in stream_openai_round(req_messages, schemas, temperature=0.3, timeout=240.0):
-                    if verify_access is not None:
-                        await asyncio.to_thread(verify_access)
-                    if event["type"] == "text":
-                        round_text.append(event["delta"])
-                        await queue.put({"type": "delta", "content": event["delta"]})
-                    elif event["type"] == "round_end":
-                        tool_calls = event.get("tool_calls") or []
+                responses_output = None
+                async with contextlib.aclosing(stream_openai_round(
+                    req_messages, schemas, temperature=0.3, timeout=240.0,
+                )) as stream:
+                    async for event in stream:
+                        if verify_access is not None:
+                            await asyncio.to_thread(verify_access)
+                        if event["type"] == "text":
+                            round_text.append(event["delta"])
+                            await queue.put({"type": "delta", "content": event["delta"]})
+                        elif event["type"] == "round_end":
+                            tool_calls = event.get("tool_calls") or []
+                            responses_output = event.get("_responses_output")
 
                 if not tool_calls:
                     if not round_text and not text_seen:
@@ -330,6 +335,8 @@ async def chat_stream(
                     "role": "assistant",
                     "tool_calls": [_assistant_tool_call(call) for call in tool_calls],
                 }
+                if responses_output is not None:
+                    assistant_message["_responses_output"] = responses_output
                 if round_text:
                     assistant_message["content"] = "".join(round_text)
                     text_seen = True

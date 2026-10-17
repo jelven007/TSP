@@ -8,6 +8,42 @@ import pytest
 
 from versioning import next_version, parse_version, validate_progression
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def copy_version_docs(target, version):
+    from check_version import DOCUMENT_VERSION_PATTERNS
+
+    current = (ROOT / "VERSION").read_text().strip().removeprefix("v")
+    for name in DOCUMENT_VERSION_PATTERNS:
+        path = target / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text((ROOT / name).read_text().replace(current, version))
+
+
+def test_repository_document_versions_match_application():
+    from check_version import _check_document_versions
+
+    root = Path(__file__).resolve().parents[1]
+    expected = (root / "VERSION").read_text().strip().removeprefix("v")
+    _check_document_versions(root, expected)
+
+
+@pytest.mark.parametrize("change", ["stale", "missing", "duplicate"])
+def test_document_version_checker_rejects_drift(tmp_path, change):
+    from check_version import _check_document_versions
+
+    copy_version_docs(tmp_path, "1.2.3")
+    path = tmp_path / "README.md"
+    if change == "missing":
+        path.unlink()
+    elif change == "stale":
+        path.write_text(path.read_text().replace("1.2.3", "1.2.2"))
+    else:
+        path.write_text(path.read_text() + "\n应用语义版本为 `1.2.3`\n")
+    with pytest.raises(SystemExit, match="README.md"):
+        _check_document_versions(tmp_path, "1.2.3")
+
 
 @pytest.mark.parametrize(
     ("value", "expected"),
@@ -57,6 +93,7 @@ def test_progression_requires_exact_successor() -> None:
 )
 def test_explicit_progression_check_requires_increment(tmp_path, current, expected_success):
     """The optional progression audit still requires an exact successor."""
+    copy_version_docs(tmp_path, current)
     (tmp_path / "frontend").mkdir()
     (tmp_path / "backend" / "app").mkdir(parents=True)
     (tmp_path / "VERSION").write_text(f"v{current}\n", encoding="utf-8")

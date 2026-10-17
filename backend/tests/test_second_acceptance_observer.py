@@ -93,6 +93,39 @@ def test_weekend_wait_does_not_read_or_create_market_data(observer):
     assert not (observer.data_dir / "quote_second").exists()
 
 
+def test_full_trading_day_profile_records_sessions_and_milestones(tmp_path):
+    data_dir = tmp_path / "data"
+    (data_dir / "user_data").mkdir(parents=True)
+    write_json(data_dir / "user_data" / "preferences.json", PREFERENCES)
+    record = arm(
+        tmp_path / "full-day",
+        data_dir,
+        START.date(),
+        15,
+        START - timedelta(days=1),
+        profile="full-trading-day",
+    )
+
+    assert record["window_start"].endswith("09:15:00+08:00")
+    assert record["window_end"].endswith("15:40:00+08:00")
+    assert [
+        (item["name"], item["start"][11:16], item["end"][11:16])
+        for item in record["quality_segments"]
+    ] == [
+        ("morning", "09:30", "11:30"),
+        ("afternoon", "13:00", "15:00"),
+    ]
+    assert record["minute_window_end"][11:16] == "15:00"
+    assert set(record["milestones"]) == {
+        "auction",
+        "open",
+        "morning_close",
+        "afternoon_open",
+        "close",
+        "post_close",
+    }
+
+
 def test_complete_parallel_window_passes_with_fixed_universe_and_manifest(observer):
     observer.step(START)
     write_quotes(observer)

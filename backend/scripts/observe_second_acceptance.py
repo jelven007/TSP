@@ -9,7 +9,10 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import shutil
+import subprocess
+import sys
 import time
 import urllib.request
 from datetime import date, datetime, timedelta
@@ -32,12 +35,33 @@ from app.services.task_state import (
 
 PREFERENCE_KEYS = (
     "second_quote_archive_enabled", "second_quote_archive_retention_days",
+    "second_quote_archive_window",
     "realtime_quotes_enabled", "realtime_pull_stock", "realtime_quote_interval",
     "minute_refresh_enabled", "minute_refresh_interval",
     "realtime_data_provider", "full_minute_data_provider",
 )
+PREFERENCE_DEFAULTS = {
+    "second_quote_archive_enabled": False,
+    "second_quote_archive_retention_days": 0,
+    "second_quote_archive_window": "full",
+    "realtime_quotes_enabled": True,
+    "realtime_pull_stock": True,
+    "realtime_quote_interval": 1.0,
+    "minute_refresh_enabled": True,
+    "minute_refresh_interval": 1,
+    "realtime_data_provider": "rustdx",
+    "full_minute_data_provider": "rustdx",
+}
 SAMPLE_SECONDS = 5
 SETTLE_SECONDS = 20
+FULL_DAY_MILESTONES = {
+    "auction": (9, 25),
+    "open": (9, 30),
+    "morning_close": (11, 30),
+    "afternoon_open": (13, 0),
+    "close": (15, 0),
+    "post_close": (15, 35),
+}
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -65,9 +89,16 @@ def next_candidate(now: datetime) -> date:
     return day
 
 
-def selected_preferences(data_dir: Path) -> dict:
-    value = json.loads((data_dir / "user_data" / "preferences.json").read_text())
-    return {key: value.get(key) for key in PREFERENCE_KEYS}
+def selected_preferences(
+    data_dir: Path,
+    preferences_path: Path | None = None,
+) -> dict:
+    path = preferences_path or data_dir / "user_data" / "preferences.json"
+    value = json.loads(path.read_text())
+    return {
+        key: value.get(key, PREFERENCE_DEFAULTS[key])
+        for key in PREFERENCE_KEYS
+    }
 
 
 def valid_preferences(value: dict) -> bool:
@@ -76,6 +107,7 @@ def valid_preferences(value: dict) -> bool:
             "second_quote_archive_enabled", "realtime_quotes_enabled",
             "realtime_pull_stock", "minute_refresh_enabled",
         ))
+        and value.get("second_quote_archive_window") == "full"
         and value.get("realtime_quote_interval") == 1
         and value.get("minute_refresh_interval") == 1
         and value.get("realtime_data_provider") == "rustdx"
@@ -145,19 +177,74 @@ def minute_coverage(path: Path, symbols: list[str], start: datetime, end: dateti
     }
 
 
-def arm(run_dir: Path, data_dir: Path, day: date, minutes: int, now: datetime) -> dict:
-    if not 1 <= minutes <= 60 or day.weekday() >= 5:
-        raise ValueError("require a weekday candidate and a 1..60 minute window")
+def arm(
+    run_dir: Path,
+    data_dir: Path,
+    day: date,
+    minutes: int,
+    now: datetime,
+    *,
+    profile: str = "open-window",
+    preferences_path: Path | None = None,
+) -> dict:
+    if day.weekday() >= 5:
+        raise ValueError("require a weekday candidate")
+    if profile == "open-window":
+        if not 1 <= minutes <= 60:
+            raise ValueError("open-window profile requires a 1..60 minute window")
+        start = datetime.combine(day, datetime.min.time(), CN_TZ).replace(
+            hour=9,
+            minute=30,
+        )
+        end = start + timedelta(minutes=minutes)
+        segments = [{"name": "open", "start": start.isoformat(), "end": end.isoformat()}]
+        minute_start, minute_end = start, end
+        milestones = {}
+    elif profile == "full-trading-day":
+        start = datetime.combine(day, datetime.min.time(), CN_TZ).replace(
+            hour=9,
+            minute=15,
+        )
+        end = start.replace(hour=15, minute=40)
+        morning_start = start.replace(hour=9, minute=30)
+        morning_end = start.replace(hour=11, minute=30)
+        afternoon_start = start.replace(hour=13, minute=0)
+        afternoon_end = start.replace(hour=15, minute=0)
+        segments = [
+            {
+                "name": "morning",
+                "start": morning_start.isoformat(),
+                "end": morning_end.isoformat(),
+            },
+            {
+                "name": "afternoon",
+                "start": afternoon_start.isoformat(),
+                "end": afternoon_end.isoformat(),
+            },
+        ]
+        minute_start, minute_end = morning_start, afternoon_end
+        milestones = {
+            name: start.replace(hour=hour, minute=minute).isoformat()
+            for name, (hour, minute) in FULL_DAY_MILESTONES.items()
+        }
+    else:
+        raise ValueError(f"unsupported observer profile: {profile}")
     run_dir.mkdir(parents=True, exist_ok=True)
     path = run_dir / "status.json"
     if path.exists():
         raise FileExistsError(f"existing run must not be overwritten: {path}")
-    start = datetime.combine(day, datetime.min.time(), CN_TZ).replace(hour=9, minute=30)
     record = normalize_task_record({
         "id": run_dir.name, "status": "queued", "created_at": now.isoformat(),
         "phase": "waiting_for_market", "data_dir": str(data_dir.resolve()),
         "window_start": start.isoformat(),
-        "window_end": (start + timedelta(minutes=minutes)).isoformat(),
+        "window_end": end.isoformat(), "profile": profile,
+        "preferences_path": str(
+            (preferences_path or data_dir / "user_data" / "preferences.json").resolve()
+        ),
+        "quality_segments": segments,
+        "minute_window_start": minute_start.isoformat(),
+        "minute_window_end": minute_end.isoformat(),
+        "milestones": milestones,
         "candidate_trading_date": day.isoformat(),
         "trading_date_confirmed": False,
         "sample_seconds": SAMPLE_SECONDS, "settle_seconds": SETTLE_SECONDS,
@@ -166,11 +253,67 @@ def arm(run_dir: Path, data_dir: Path, day: date, minutes: int, now: datetime) -
             "stock_coverage": 1.0, "minute_coverage": 0.99,
             "minute_max_lag_s": 120, "max_observer_gap_s": 15,
         },
-        "armed_preferences": selected_preferences(data_dir),
+        "armed_preferences": selected_preferences(data_dir, preferences_path),
         "heartbeat_at": now.isoformat(),
     })
     write_json(path, record)
     return record
+
+
+def daemonize(run_dir: Path, health_url: str) -> dict:
+    run_dir = run_dir.resolve()
+    if not (run_dir / "status.json").exists():
+        raise FileNotFoundError("arm the observation before daemonizing")
+    launch_path = run_dir / "launch.json"
+    if launch_path.exists():
+        raise FileExistsError(f"launch record already exists: {launch_path}")
+    backend = Path(__file__).resolve().parents[1]
+    stdout_path = run_dir / "observer.stdout.log"
+    stderr_path = run_dir / "observer.stderr.log"
+    with (
+        stdout_path.open("ab", buffering=0) as stdout,
+        stderr_path.open("ab", buffering=0) as stderr,
+    ):
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "scripts.observe_second_acceptance",
+                "--run-dir",
+                str(run_dir),
+                "--health-url",
+                health_url,
+            ],
+            cwd=backend,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout,
+            stderr=stderr,
+            start_new_session=True,
+            env={
+                **os.environ,
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "POLARS_MAX_THREADS": "2",
+            },
+        )
+    launch = {
+        "pid": process.pid,
+        "started_at": datetime.now(CN_TZ).isoformat(),
+        "command": [
+            sys.executable,
+            "-m",
+            "scripts.observe_second_acceptance",
+            "--run-dir",
+            str(run_dir),
+            "--health-url",
+            health_url,
+        ],
+        "cwd": str(backend),
+        "stdout": str(stdout_path),
+        "stderr": str(stderr_path),
+        "detached_session": True,
+    }
+    write_json(launch_path, launch)
+    return launch
 
 
 class Observer:
@@ -181,6 +324,30 @@ class Observer:
         self.data_dir = Path(self.record["data_dir"])
         self.start = datetime.fromisoformat(self.record["window_start"])
         self.end = datetime.fromisoformat(self.record["window_end"])
+        self.segments = [
+            (
+                item["name"],
+                datetime.fromisoformat(item["start"]),
+                datetime.fromisoformat(item["end"]),
+            )
+            for item in self.record.get("quality_segments", [{
+                "name": "window",
+                "start": self.start.isoformat(),
+                "end": self.end.isoformat(),
+            }])
+        ]
+        self.minute_start = datetime.fromisoformat(
+            self.record.get("minute_window_start", self.start.isoformat())
+        )
+        self.minute_end = datetime.fromisoformat(
+            self.record.get("minute_window_end", self.end.isoformat())
+        )
+        self.preferences_path = Path(
+            self.record.get(
+                "preferences_path",
+                self.data_dir / "user_data" / "preferences.json",
+            )
+        )
         self.day = self.start.date()
         self.minute_path = self.data_dir / "kline_minute" / f"date={self.day}" / "part.parquet"
         self.health_url = health_url
@@ -229,7 +396,10 @@ class Observer:
             "symbols": symbols, "fingerprint": fingerprint(symbols),
             "instruments_sha256": digest, "frozen_at": now.isoformat(),
         })
-        preferences = selected_preferences(self.data_dir)
+        preferences = selected_preferences(
+            self.data_dir,
+            self.preferences_path,
+        )
         if not valid_preferences(preferences):
             self.finish("skipped_prerequisite", now, "required archive/quote/minute preferences unavailable")
             return
@@ -250,7 +420,13 @@ class Observer:
         for key, callback in (
             ("sessions", self.sessions),
             ("minute", lambda: minute_footer(self.minute_path)),
-            ("preferences", lambda: selected_preferences(self.data_dir)),
+            (
+                "preferences",
+                lambda: selected_preferences(
+                    self.data_dir,
+                    self.preferences_path,
+                ),
+            ),
             ("free_bytes", lambda: shutil.disk_usage(self.data_dir).free),
         ):
             try:
@@ -280,20 +456,83 @@ class Observer:
         samples = [row for row in telemetry if self.start <= datetime.fromisoformat(row["at"]) <= self.end]
         replay = SecondQuoteReplay(self.data_dir)
         start_ms, end_ms = int(self.start.timestamp() * 1000), int(self.end.timestamp() * 1000)
-        quality = replay.validate(
-            self.day, self.day, symbols=symbols, start_ms=start_ms, end_ms=end_ms,
-            trading_dates=[self.day], expected_interval_s=1, min_coverage_ratio=1,
-        )
+        segment_quality = []
+        for name, segment_start, segment_end in self.segments:
+            result = replay.validate(
+                self.day,
+                self.day,
+                symbols=symbols,
+                start_ms=int(segment_start.timestamp() * 1000),
+                end_ms=int(segment_end.timestamp() * 1000),
+                trading_dates=[self.day],
+                expected_interval_s=1,
+                min_coverage_ratio=1,
+            )
+            segment_quality.append({
+                "name": name,
+                "start": segment_start.isoformat(),
+                "end": segment_end.isoformat(),
+                **result,
+            })
+        if len(segment_quality) == 1:
+            quality = {
+                key: value
+                for key, value in segment_quality[0].items()
+                if key not in {"name", "start", "end"}
+            }
+        else:
+            quality = {
+                "status": (
+                    "ready"
+                    if all(item["status"] == "ready" for item in segment_quality)
+                    else "failed"
+                ),
+                "providers": sorted({
+                    provider
+                    for item in segment_quality
+                    for provider in item.get("providers", [])
+                }),
+                "captures": sum(item.get("captures", 0) for item in segment_quality),
+                "gap_count": sum(item.get("gap_count", 0) for item in segment_quality),
+                "missing_dates": sorted({
+                    value
+                    for item in segment_quality
+                    for value in item.get("missing_dates", [])
+                }),
+                "issues": [
+                    f"{item['name']}: {issue}"
+                    for item in segment_quality
+                    for issue in item.get("issues", [])
+                ],
+                "segments": segment_quality,
+            }
         manifest = replay.manifest(self.day, self.day)
         write_json(self.run_dir / "manifest.json", manifest)
         stamps, coverage = [], []
-        for snapshot in replay.iter_snapshots(
-            self.day, self.day, symbols=symbols, asset_type="stock", start_ms=start_ms, end_ms=end_ms,
-        ):
-            stamps.append(snapshot.collected_at_ms)
-            coverage.append(snapshot.frame.height / len(symbols))
-        gaps = [(right - left) / 1000 for left, right in pairwise(stamps)]
-        minute = minute_coverage(self.minute_path, symbols, self.start, self.end)
+        gaps = []
+        for _, segment_start, segment_end in self.segments:
+            segment_stamps = []
+            for snapshot in replay.iter_snapshots(
+                self.day,
+                self.day,
+                symbols=symbols,
+                asset_type="stock",
+                start_ms=int(segment_start.timestamp() * 1000),
+                end_ms=int(segment_end.timestamp() * 1000),
+            ):
+                segment_stamps.append(snapshot.collected_at_ms)
+                coverage.append(snapshot.frame.height / len(symbols))
+            stamps.extend(segment_stamps)
+            gaps.extend(
+                (right - left) / 1000
+                for left, right in pairwise(segment_stamps)
+            )
+        minute = minute_coverage(
+            self.minute_path,
+            symbols,
+            self.minute_start,
+            self.minute_end,
+        )
         write_json(self.run_dir / "minute_quality.json", minute)
         sample_times = [self.start, *(datetime.fromisoformat(row["at"]) for row in samples), self.end]
         observer_gaps = [
@@ -334,8 +573,33 @@ class Observer:
             meta = pq.read_metadata(path)
             column = meta.schema.names.index("collected_at_ms")
             stats = [meta.row_group(i).column(column).statistics for i in range(meta.num_row_groups)]
-            if min(s.min for s in stats) <= end_ms and max(s.max for s in stats) >= start_ms:
+            if any(
+                min(s.min for s in stats) <= int(segment_end.timestamp() * 1000)
+                and max(s.max for s in stats) >= int(segment_start.timestamp() * 1000)
+                for _, segment_start, segment_end in self.segments
+            ):
                 window_bytes += part["size"]
+        milestone_results = {}
+        for name, value in self.record.get("milestones", {}).items():
+            target = datetime.fromisoformat(value)
+            nearest = min(
+                samples,
+                key=lambda row: abs(
+                    (datetime.fromisoformat(row["at"]) - target).total_seconds()
+                ),
+                default=None,
+            )
+            delta = (
+                abs((datetime.fromisoformat(nearest["at"]) - target).total_seconds())
+                if nearest is not None
+                else None
+            )
+            milestone_results[name] = {
+                "target": value,
+                "sample_at": nearest.get("at") if nearest else None,
+                "delta_seconds": delta,
+                "health": nearest.get("health") if nearest else None,
+            }
         config_stable = bool(samples) and all(
             fingerprint(row.get("preferences")) == self.record["config_fingerprint"] for row in samples
         )
@@ -355,9 +619,17 @@ class Observer:
             "minute_keys_and_clock": minute.get("duplicate_keys", 0) == 0 and minute.get("future_rows", 0) == 0,
             "disk_headroom": bool(samples) and all(row.get("free_bytes", 0) >= 1024**3 for row in samples),
         }
+        if milestone_results:
+            checks["full_day_milestones_observed"] = all(
+                value["delta_seconds"] is not None
+                and value["delta_seconds"] <= self.record["thresholds"]["max_observer_gap_s"]
+                for value in milestone_results.values()
+            )
         failures = [key for key, passed in checks.items() if not passed]
+        self.record["trading_date_confirmed"] = quality["status"] == "ready"
         report = {
             "status": "succeeded" if not failures else "failed",
+            "profile": self.record.get("profile", "open-window"),
             "window_start": self.start.isoformat(), "window_end": self.end.isoformat(),
             "evaluated_at": now.isoformat(), "checks": checks, "failures": failures,
             "thresholds": self.record["thresholds"],
@@ -377,7 +649,7 @@ class Observer:
                 "session_ids": sorted(active_sessions),
             },
             "minute": minute, "observed_minute_file_updates": updates,
-            "health_samples": health_samples,
+            "health_samples": health_samples, "milestones": milestone_results,
             "limitations": [
                 "Weekday is a candidate; absent live data fails acceptance, never proves a holiday.",
                 "Full A-share denominator includes suspended/inactive instruments; no automatic exclusions.",
@@ -385,6 +657,7 @@ class Observer:
                 "Quote intervals measure completed snapshots, not request latency or per-security receive time.",
                 "Minute freshness is checked at the window end; 99% allows up to 1% missing/stale symbols listed separately.",
                 "No archive-off control run, exchange tick reconstruction, or guaranteed exchange event time.",
+                "Full-day milestones prove observer continuity only; each business task still requires its own terminal evidence.",
             ],
         }
         write_json(self.run_dir / "report.json", report)
@@ -430,10 +703,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--preferences-path", type=Path)
     parser.add_argument("--date", type=date.fromisoformat)
     parser.add_argument("--minutes", type=int, default=15)
+    parser.add_argument(
+        "--profile",
+        choices=("open-window", "full-trading-day"),
+        default="open-window",
+    )
     parser.add_argument("--health-url", default="http://127.0.0.1:3018/api/health")
     parser.add_argument("--arm", action="store_true", help="create durable queued task and exit")
+    parser.add_argument(
+        "--daemonize",
+        action="store_true",
+        help="launch an already armed task in a detached session",
+    )
     parser.add_argument("--once", action="store_true", help="one observer step; no blocking wait")
     args = parser.parse_args()
     now = datetime.now(CN_TZ)
@@ -441,8 +725,23 @@ def main() -> None:
     if args.arm:
         if args.data_dir is None:
             parser.error("--arm requires --data-dir")
-        print(json.dumps(arm(args.run_dir, args.data_dir, args.date or next_candidate(now), args.minutes, now),
+        print(json.dumps(arm(
+            args.run_dir,
+            args.data_dir,
+            args.date or next_candidate(now),
+            args.minutes,
+            now,
+            profile=args.profile,
+            preferences_path=args.preferences_path,
+        ),
                          ensure_ascii=False, indent=2))
+        return
+    if args.daemonize:
+        print(json.dumps(
+            daemonize(args.run_dir, args.health_url),
+            ensure_ascii=False,
+            indent=2,
+        ))
         return
     # macOS/Linux operational observer: prevent two agents from writing one run.
     import fcntl

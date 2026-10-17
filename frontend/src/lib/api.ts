@@ -735,6 +735,13 @@ export interface AuctionSnapshotPayload {
 }
 
 // ===== Strategy Engine =====
+export interface ParamVisibleIf {
+  param?: string
+  in?: (number | string | boolean | null)[]
+  all?: ParamVisibleIf[]
+  any?: ParamVisibleIf[]
+}
+
 export interface StrategyParamDef {
   id: string
   label: string
@@ -744,6 +751,9 @@ export interface StrategyParamDef {
   max?: number
   step?: number
   options?: string[]
+  group?: string
+  visible_if?: ParamVisibleIf
+  option_applies?: Record<string, Record<string, number | string | boolean | null>>
 }
 
 export interface CompositeChildInfo {
@@ -1030,6 +1040,8 @@ export interface PaperAccount {
   queue_limit_orders?: boolean
   status: 'active' | 'frozen'
   created_at: string
+  corporate_action_mode?: 'events' | 'legacy_factor'
+  stamp_tax_mode?: 'fixed'
 }
 
 export interface PaperAccountSummary {
@@ -1126,6 +1138,9 @@ export interface PaperOverview {
   queue_limit_orders?: boolean
   cash?: number
   market_value?: number
+  receivables?: number
+  corporate_action_mode?: 'events' | 'legacy_factor'
+  stamp_tax_mode?: 'fixed'
   total?: number
   total_pnl?: number
   initial_cash?: number
@@ -1179,14 +1194,37 @@ export interface PaperFill {
   order_id: string | null
   symbol: string
   asset_type: string
-  side: 'buy' | 'sell' | 'corp_action'
+  side: 'buy' | 'sell' | 'corp_action' | 'corporate_action'
   qty?: number
   price?: number
   fee?: number
-  kind?: 'fill' | 'corp_action'
+  kind?: 'fill' | 'corp_action' | 'corporate_action'
+  action_id?: string
+  stage?: string
+  label?: string
+  cash_amount?: number
   factor?: number
   qty_before?: number
   cost_before?: number
+}
+
+export interface PaperCorporateAction {
+  id: string
+  symbol: string
+  ex_date: string
+  record_date: string | null
+  cash_pay_date: string | null
+  bonus_listing_date: string | null
+  rights_listing_date: string | null
+  cash_per_share: number
+  bonus_per_share: number
+  rights_per_share: number
+  rights_price: number | null
+  base_qty: number
+  subscribed_qty: number
+  stages: string[]
+  reason?: string
+  can_subscribe: boolean
 }
 
 /** FIFO 配对片段 (一次卖出与一个买入批次的配对, 非完整持仓周期) */
@@ -1366,6 +1404,16 @@ export interface BacktestProvenance {
   } | null
   research_inputs_error?: string | null
   research_inputs_match_release?: boolean
+  input_snapshot?: {
+    id: string
+    mode: 'local_snapshot' | 'public_release'
+    file_count: number
+    bytes?: number
+  } | null
+  historical_inputs?: {
+    universe: { survivorship_verified: boolean; missing_delisted_ratio: number | null }
+    financial_publication: { rows: number | null; unknown_rows: number | null; unknown_ratio: number | null }
+  }
   financial_revisions?: {
     captured_at: string
     error: string | null
@@ -1378,6 +1426,7 @@ export interface BacktestProvenance {
       observations?: number
       unknown_status_observations?: number
       status_coverage?: number | null
+      unknown_status_ratio?: number | null
       historical_status_complete: boolean
     } | null
     issues: string[]
@@ -1912,6 +1961,7 @@ export interface SettingsState {
   onboarding_completed: boolean
   // AI 配置
   ai_provider: string
+  ai_protocol?: 'chat_completions' | 'responses'
   ai_base_url: string
   ai_api_key_masked: string
   has_ai_key: boolean
@@ -1967,6 +2017,7 @@ export interface PluginDataSourceItem {
 export type ProviderField =
   | 'daily_data_provider'
   | 'adj_factor_provider'
+  | 'corporate_actions_provider'
   | 'minute_data_provider'
   | 'full_minute_data_provider'
   | 'depth5_data_provider'
@@ -1990,7 +2041,7 @@ export interface CapabilityRoute {
   desc: string
   field: ProviderField | null                    // null = 不可路由能力 (仅 TickFlow 提供)
   default: string
-  tf_tier: string                                  // TickFlow 所需最低订阅档位
+  tf_tier: string | null                           // null 表示无对应 TickFlow 能力
   tf_available: boolean                            // 当前 TickFlow 档位是否提供该能力
   usable: boolean                                  // 生效源当前能否真正提供 (各页能力门控的统一判定)
   current: string                                  // 原始偏好值
@@ -2147,6 +2198,7 @@ export interface Preferences {
   minute_refresh_interval: number
   daily_data_provider?: string
   adj_factor_provider?: string
+  corporate_actions_provider?: string
   minute_data_provider?: string
   /** 全量分钟 (盘中全市场分钟落盘) 生效源; 默认 rustdx */
   full_minute_data_provider?: string
@@ -2239,8 +2291,8 @@ export interface StrategyAlertEvent {
 // ===== 板块切换 (盘中轮动, 全量分钟聚合) =====
 export interface SectorRotationPoint {
   time: string
-  rotation: number
-  leader: string
+  rotation: number | null
+  leader: string | null
   leader_pct: number | null
   market_pct: number | null
   /** 该桶上穿 0 轴 (转强) 的板块数 */
@@ -2268,6 +2320,16 @@ export interface SectorRotationSector {
   score: number | null
   n_members: number
   n_members_with_bars: number
+  coverage?: number
+  excluded_rows?: number
+}
+
+export interface MinutePriceQuality {
+  total_rows: number
+  valid_rows: number
+  excluded_rows: number
+  unknown_rule_rows: number
+  unlimited_rows: number
 }
 
 export interface SectorRotation {
@@ -2276,6 +2338,7 @@ export interface SectorRotation {
   date?: string
   kind?: 'concept' | 'industry'
   basis?: string
+  quality?: MinutePriceQuality
   flow_field?: string | null
   flow_available?: boolean
   bucket_minutes?: number
@@ -2307,6 +2370,8 @@ export interface SectorRotationUniverseItem {
   activity: number | null
   n_members: number
   n_members_with_bars: number
+  coverage?: number
+  excluded_rows?: number
   /** 被自动活跃榜过滤 (排除名单/成员数超限); 仅影响自动选取, 仍可手动加入自定义 */
   excluded?: boolean
 }
@@ -2453,8 +2518,8 @@ export const api = {
     ),
 
   /** 保存 AI 配置 */
-  saveAiSettings: (ai: { provider?: string; base_url?: string; api_key?: string; model?: string; reasoning_effort?: string; codex_command?: string; codex_reasoning_effort?: string; user_agent?: string; max_output_tokens?: number; context_window?: number; round_checkpoint?: number }) =>
-    request<{ ok: boolean; ai_provider?: string; ai_model?: string; ai_openai_model?: string; ai_reasoning_effort?: string; ai_codex_model?: string; ai_codex_command?: string; ai_codex_reasoning_effort?: string; ai_configured?: boolean; ai_max_output_tokens?: number; ai_context_window?: number; ai_round_checkpoint?: number }>('/api/settings/ai', {
+  saveAiSettings: (ai: { provider?: string; protocol?: 'chat_completions' | 'responses'; base_url?: string; api_key?: string; model?: string; reasoning_effort?: string; codex_command?: string; codex_reasoning_effort?: string; user_agent?: string; max_output_tokens?: number; context_window?: number; round_checkpoint?: number }) =>
+    request<{ ok: boolean; ai_provider?: string; ai_protocol?: 'chat_completions' | 'responses'; ai_model?: string; ai_openai_model?: string; ai_reasoning_effort?: string; ai_codex_model?: string; ai_codex_command?: string; ai_codex_reasoning_effort?: string; ai_configured?: boolean; ai_max_output_tokens?: number; ai_context_window?: number; ai_round_checkpoint?: number }>('/api/settings/ai', {
       method: 'POST',
       body: JSON.stringify(ai),
     }),
@@ -3611,6 +3676,9 @@ export const api = {
     page_size?: number;
     page_start?: number;
     max_pages?: number;
+    fanout?: ExtFanoutRecipe | null;
+    transform?: 'auto' | 'none';
+    snapshot_policy?: 'auto' | 'merge' | 'replace';
   }) =>
     request<{ status: string; pull: PullConfig }>(
       `/api/ext-data/${id}/pull`,
@@ -4102,6 +4170,14 @@ export const api = {
   paperOverview: (account?: string) =>
     request<PaperOverview>(accUrl('/api/paper/overview', account)),
 
+  paperCorporateActions: (account: string) =>
+    request<{ mode: 'events' | 'legacy_factor'; events: PaperCorporateAction[]; blocked: PaperCorporateAction[] }>(
+      accUrl('/api/paper/corporate-actions', account)),
+  paperSubscribeRights: (account: string, action_id: string, qty: number) =>
+    request<PaperFill>(accUrl('/api/paper/corporate-actions/subscribe', account), {
+      method: 'POST', body: JSON.stringify({ action_id, qty }),
+    }),
+
   paperCreateAccount: (body: { initial_cash: number; account_id?: string; name?: string; commission_pct?: number; stamp_tax_pct?: number; slippage_bps?: number; queue_limit_orders?: boolean }) =>
     request<{ account: PaperAccount }>('/api/paper/account', {
       method: 'POST',
@@ -4521,6 +4597,45 @@ export interface ExtPullAuth {
   param?: string
 }
 
+export interface ExtFanoutRecipe {
+  member_url: string
+  id_field?: string
+  member_param?: string
+  member_path?: string
+  inject_fields?: Record<string, string>
+  group_by?: string
+  join_fields?: Record<string, string>
+  member_page_param?: string | null
+  member_page_size_param?: string | null
+  member_page_size?: number
+  member_page_start?: number
+  member_max_pages?: number
+  concurrency?: number
+  max_items?: number
+  max_rows?: number
+  min_interval_seconds?: number
+  retries?: number
+  backoff_seconds?: number
+  timeout_seconds?: number
+}
+
+export interface ExtPullAttempt {
+  received_at?: string
+  source_date?: string | null
+  total?: number
+  completed?: number
+  coverage?: number
+  failed?: { id: string; reason: string }[]
+}
+
+export interface ExtCompleteSnapshot extends ExtPullAttempt {
+  source: string
+  rows: number
+  sha256: string
+  replaced: boolean
+  stock_coverage?: { matched: number; total: number; ratio: number | null } | null
+}
+
 export interface PullConfig {
   url: string
   method: string
@@ -4556,6 +4671,12 @@ export interface PullConfig {
   page_start?: number
   /** 分页安全上限, 默认 20 (防接口永远返回数据拖死循环) */
   max_pages?: number
+  fanout?: ExtFanoutRecipe | null
+  transform?: 'auto' | 'none'
+  snapshot_policy?: 'auto' | 'merge' | 'replace'
+  last_attempt?: ExtPullAttempt | null
+  last_complete?: ExtCompleteSnapshot | null
+  previous_complete?: ExtCompleteSnapshot | null
 }
 
 export interface ExtDataBackfillResult {
@@ -4631,6 +4752,7 @@ export interface DimensionIntradayPoint {
   time: string
   sector: number | null
   market: number | null
+  coverage?: number | null
 }
 
 export interface DimensionIntradayResult {
@@ -4640,6 +4762,9 @@ export interface DimensionIntradayResult {
   basis?: 'prev_close' | 'first_close' | 'mixed' | null
   member_count?: number
   members_with_minute?: number
+  coverage?: number | null
+  excluded_rows?: number | null
+  quality?: MinutePriceQuality | null
   points: DimensionIntradayPoint[]
 }
 

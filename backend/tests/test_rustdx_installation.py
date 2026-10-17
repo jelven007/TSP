@@ -22,7 +22,9 @@ def test_default_install_requires_native_bridge_without_extra() -> None:
     backend = next(package for package in lock["package"] if package["name"] == "tsp-backend")
 
     assert "tsp-rustdx-native" in project["project"]["dependencies"]
+    assert "psycopg[binary,pool]>=3.2,<4" in project["project"]["dependencies"]
     assert {"name": "tsp-rustdx-native"} in backend["dependencies"]
+    assert {"name": "psycopg", "extra": ["binary", "pool"]} in backend["dependencies"]
     native = next(
         dependency
         for dependency in backend["metadata"]["requires-dist"]
@@ -30,6 +32,13 @@ def test_default_install_requires_native_bridge_without_extra() -> None:
     )
     assert "marker" not in native
     assert native["directory"] == "native/rustdx_native"
+    postgres = next(
+        dependency
+        for dependency in backend["metadata"]["requires-dist"]
+        if dependency["name"] == "psycopg"
+    )
+    assert "marker" not in postgres
+    assert postgres["extras"] == ["binary", "pool"]
     assert "rustdx" in project["project"]["optional-dependencies"]
 
 

@@ -8,8 +8,7 @@ TypeError, 导致整个 /api/strategies 列表 500. 加载边界归一化后保�
 from __future__ import annotations
 
 from app.api.strategy import _strategy_detail
-from app.strategy.engine import _normalize_param_defs, StrategyDef
-
+from app.strategy.engine import StrategyDef, _normalize_param_defs
 
 # ── 归一化各格式分支 ──────────────────────────────────────────────────
 
@@ -145,3 +144,42 @@ def test_strategy_detail_survives_empty_params():
     detail = _strategy_detail(s)
     assert detail["params_defaults"] == {}
     assert detail["params"] == []
+
+
+def test_detail_preserves_group_conditions_presets_and_saved_hidden_values(tmp_path):
+    from types import SimpleNamespace
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.strategy import router
+    from app.strategy.engine import StrategyEngine
+
+    raw = {
+        "mode": {"default": "simple", "type": "select", "options": ["simple", "advanced"],
+                 "group": "模式", "option_applies": {"advanced": {"window": 12}}},
+        "window": {"default": 5, "type": "int", "group": "趋势",
+                   "visible_if": {"all": [{"param": "mode", "in": ["advanced"]}]}},
+    }
+    strategy = _make_strategy_with_params(_normalize_param_defs(raw))
+    detail = _strategy_detail(strategy, overrides={"params": {"mode": "simple", "window": 8}})
+    assert detail["params"][0]["option_applies"] == {"advanced": {"window": 12}}
+    assert detail["params"][1]["visible_if"] == raw["window"]["visible_if"]
+    assert detail["params"][1]["group"] == "趋势"
+    assert detail["params_defaults"] == {"mode": "simple", "window": 8}
+
+    app = FastAPI()
+    app.include_router(router)
+    engine = StrategyEngine(strategy_dirs=[])
+    engine._strategies["test_strat"] = strategy
+    app.state.strategy_engine = engine
+    app.state.repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    with TestClient(app) as client:
+        saved = client.post("/api/strategies/config", json={
+            "strategy_id": "test_strat", "overrides": {"params": {"mode": "simple", "window": 8}},
+        })
+        assert saved.status_code == 200, saved.text
+        response = client.get("/api/strategies/test_strat")
+        assert response.status_code == 200, response.text
+        assert response.json()["params"] == detail["params"]
+        assert response.json()["params_defaults"] == detail["params_defaults"]

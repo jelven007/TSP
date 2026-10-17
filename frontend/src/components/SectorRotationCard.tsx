@@ -22,6 +22,7 @@ import { useChartTheme } from '@/lib/theme'
 import { cn } from '@/lib/cn'
 import { toast } from '@/components/Toast'
 import { CORE_INDEXES } from '@/components/Layout'
+import { MinuteQualityNote } from '@/components/MinuteQualityNote'
 
 const FLOW_LS_PREFIX = 'sector_rotation_flow_'
 const INDEX_LS_PREFIX = 'sector_rotation_index_'
@@ -170,6 +171,8 @@ const NO_DATA_HINTS: Record<string, string> = {
   minute_missing: '尚无全市场分钟数据 — 需开启全量分钟落盘 (数据源设置 → 全量分钟路由)',
   minute_schema: '分钟数据分区读取失败, 请检查数据目录',
   minute_empty: '当日分钟数据为空',
+  minute_reference: '价格基准或证券历史读取失败, 暂停计算',
+  minute_anomalies: '分钟价格均未通过校验, 暂无可用走势',
   members_missing: '板块成分数据缺失 — 请先在数据页获取概念/行业分类扩展数据',
   no_member_bars: '当日分钟数据中没有板块成分股的行情',
 }
@@ -358,7 +361,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
           if (!point) return ''
           const lines = [
             `<b>${point.time}</b>`,
-            `领涨${dimLabel} ${point.leader} (${fmtPct(point.leader_pct)})`,
+            `领涨${dimLabel} ${point.leader ?? '暂无有效数据'} (${fmtPct(point.leader_pct)})`,
             `全市场 ${fmtPct(point.market_pct)}`,
           ]
           const withValues = list
@@ -387,7 +390,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
         symbol: 'none',
         data: (heatSeries.matrix[i] ?? []).slice(startCol),
         lineStyle: { color: TREND_COLORS[i % TREND_COLORS.length], width: 1.4 },
-        connectNulls: true,
+        connectNulls: false,
         // 悬停聚焦 (图上线条或榜单行均可触发): 目标线加粗并在末端浮出板块名,
         // 其余线压到近透明 — 多线并行时不用再靠颜色逐一匹配
         emphasis: {
@@ -551,11 +554,13 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
     if (!buckets.length) return null
     const switchIndices: number[] = []
     for (let index = 1; index < timeline.length; index++) {
-      if (timeline[index - 1].leader !== timeline[index].leader) switchIndices.push(index)
+      if (timeline[index - 1].leader && timeline[index].leader
+        && timeline[index].rotation != null
+        && timeline[index - 1].leader !== timeline[index].leader) switchIndices.push(index)
     }
     const inWindow = switchIndices.filter(index => index >= startCol)
     const byRotation = [...inWindow].sort(
-      (a, b) => timeline[a].rotation - timeline[b].rotation,
+      (a, b) => (timeline[a].rotation ?? 0) - (timeline[b].rotation ?? 0),
     )
     const highIdx = new Set(byRotation.slice(-2))
     const lowIdx = new Set(byRotation.slice(0, 2))
@@ -565,8 +570,8 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
     })
     const intensityData = timeline.slice(startCol).map((point, offset) => {
       const index = startCol + offset
-      if (highIdx.has(index)) return { value: point.rotation, label: switchLabel(point.leader, '#f59e0b') }
-      if (lowIdx.has(index)) return { value: point.rotation, label: switchLabel(point.leader, 'rgba(128,140,160,0.95)') }
+      if (highIdx.has(index)) return { value: point.rotation, label: switchLabel(point.leader ?? '', '#f59e0b') }
+      if (lowIdx.has(index)) return { value: point.rotation, label: switchLabel(point.leader ?? '', 'rgba(128,140,160,0.95)') }
       return point.rotation
     })
     return {
@@ -583,8 +588,8 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
           if (!point) return ''
           const lines = [
             `<b>${point.time}</b>`,
-            `切换强度 ${point.rotation.toFixed(2)}`,
-            `领涨${dimLabel} ${point.leader} (${fmtPct(point.leader_pct)})`,
+            `切换强度 ${point.rotation?.toFixed(2) ?? '—'}`,
+            `领涨${dimLabel} ${point.leader ?? '暂无有效数据'} (${fmtPct(point.leader_pct)})`,
             `全市场 ${fmtPct(point.market_pct)}`,
           ]
           const idxVal = indexLine ? indexLine.points[startCol + idx] : null
@@ -711,7 +716,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
           )
         )}
         <span className="text-[10px] text-muted">
-          {data?.status === 'ok' && latest ? `${data.date} ${data.as_of} · 切换强度 ${latest.rotation.toFixed(2)} · 领涨 ${latest.leader}` : '全量分钟聚合'}
+          {data?.status === 'ok' && latest ? `${data.date} ${data.as_of} · 切换强度 ${latest.rotation?.toFixed(2) ?? '—'} · 领涨 ${latest.leader ?? '暂无有效数据'}` : '全量分钟聚合'}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <span className="text-[9px] text-muted">显示</span>
@@ -1011,7 +1016,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
                       hoverName === sector.name && 'bg-accent/10',
                     )}
                   >
-                    <span className="truncate font-medium text-foreground" title={`${sector.name} · 成分 ${sector.n_members_with_bars}/${sector.n_members}`}>
+                    <span className="truncate font-medium text-foreground" title={`${sector.name} · 有效成分 ${sector.n_members_with_bars}/${sector.n_members} · 剔除 ${sector.excluded_rows ?? 0} 条异常`}>
                       <span
                         aria-hidden
                         className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
@@ -1037,7 +1042,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
               </div>
             </div>
           </div>
-          <div className="mt-1.5 flex items-center gap-1.5 text-[9px] text-muted">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[9px] text-muted">
             <Database className="h-3 w-3" />
             {`${data.member_count} 个${dimLabel} · ${data.bucket_minutes}分钟桶 · 基准 ${data.basis === 'prev_close' ? '昨收' : data.basis === 'first_close' ? '今开' : '混合'}`}
             {data.flow_available ? ` · 资金流 ${data.flow_field}` : ' · 未启用资金流'}
@@ -1049,6 +1054,9 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
           </div>
         </>
       )}
+      <div className="mt-1 flex flex-wrap gap-2">
+        <MinuteQualityNote quality={data?.quality} />
+      </div>
     </section>
   )
 }

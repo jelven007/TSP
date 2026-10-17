@@ -102,7 +102,11 @@ def execute(payload: dict, private_root: Path) -> dict:
             if kind == "signal_backtest":
                 from app.services.backtest import BacktestConfig, BacktestService
 
-                return asdict(BacktestService(repo).run(BacktestConfig(**values)))
+                return asdict(
+                    BacktestService(repo, persist_result=False).run(
+                        BacktestConfig(**values)
+                    )
+                )
             from app.backtest.factor import FactorBacktestService, FactorBatchConfig, FactorConfig
 
             factors = FactorBacktestService(backtest_engine)
