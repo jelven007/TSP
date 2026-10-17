@@ -149,6 +149,7 @@ jobs:
           # 本地/国内手动 docker build 仍走 Dockerfile 默认的 CN 镜像。
           build-args: |
             USE_CN_MIRROR=0
+            SOURCE_COMMIT=${{ steps.revision.outputs.revision }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

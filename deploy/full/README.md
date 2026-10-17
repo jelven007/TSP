@@ -19,7 +19,7 @@ Compose 通过以下变量选择资源，私密值应置于权限 `0600` 的环�
 
 | 变量 | 内容 |
 | --- | --- |
-| `TSP_FULL_IMAGE` | 以原 Dockerfile、`BACKEND_EXTRAS=cell` 构建的确切完整镜像版本 |
+| `TSP_FULL_IMAGE` | 以原 Dockerfile、`BACKEND_EXTRAS=cell` 构建的确切完整镜像版本；Compute 层会按冻结锁补装 `backtest` extra |
 | `TSP_FULL_ENV_FILE` | API/Gateway/Worker 私密环境文件，包含 `TSP_CELL_ID`、两个 runtime DSN、市场网关、流票据密钥和邮件配置 |
 | `TSP_PLATFORM_ENV_FILE` | 平台环境文件，仅有供应商/系统配置和两个内部网关 Token，无数据库 DSN |
 | `TSP_PLATFORM_DATA_DIR` | 平台可写原行情目录；候选阶段使用独立复制件 |
@@ -50,7 +50,11 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 3. 对明确暂停的 legacy 租户执行 `import-full-product --directory <原data的一致备份> --tenant-id <id> --owner-id <原owner> --report <摘要路径>`，随后执行 `verify-full-import --directory <同一备份> --tenant-id <id> --report <对账路径>`。该命令覆盖账号与完整业务；仅 `import-full-accounts` 或旧 v4 导入不够。旧通知名称须通过 `--channel-map '{"email":"legacy-email"}'` 明确绑定至该租户的已有渠道，实际值以对账结果为准。
 4. 将平台偏好、密钥和 `data_sources/` 从旧目录复制到独立平台配置目录，完成数量/内容对账。保留管理员维护的全局菜单配置；个人布局/列配置和租户定时/通知配置分别导入其 SQL 归属。保留旧文件用于恢复。
 5. 启动独立 `platform` 并等待首个完整公共版本。版本发布逐项复制新文件、复用上一不可变版本的相同文件，并在数据世代或文件清单变化时放弃本次发布。
-6. 以完整镜像构建 `Compute.Dockerfile`（传入 `RUNTIME_IMAGE`）。配置 `/etc/tsp-full/broker.env` 的确切 `TSP_COMPUTE_IMAGE` 和主机 `TSP_PUBLIC_MARKET_DIR`。主机 Python 需 3.11+，项目代码部署到 `/opt/tsp-full/backend`；Broker 本身只需标准库。
+6. 以完整镜像构建 `Compute.Dockerfile`（传入 `RUNTIME_IMAGE`）。该层使用冻结锁补装
+   `backtest` extra，并执行 `vectorbt` 导入检查；否则公开的 `signal_backtest`
+   计算类型会在运行时失败。配置 `/etc/tsp-full/broker.env` 的确切
+   `TSP_COMPUTE_IMAGE` 和主机 `TSP_PUBLIC_MARKET_DIR`。主机 Python 需 3.11+，
+   项目代码部署到 `/opt/tsp-full/backend`；Broker 本身只需标准库。
 7. 确认主机 GID 10001 已存在；若不存在，使用 `groupadd --gid 10001 tsp-runtime` 创建。安装 `tsp-compute-broker.service`，准备 `/opt/tsp-full/python/bin/python` 后启动 Broker，再启动 Gateway、API 和四个 Worker。
 8. API 的 `/health/ready` 必须通过数据库、公共文件、平台连接、指标缓存、计算 Broker 及四类 Worker 心跳。Gateway 的 `/health/ready` 必须分别通过双库、私有事件 LISTEN、撤权 LISTEN 和平台 marker 流。只看容器运行或 `/health/live` 不算功能就绪。
 
