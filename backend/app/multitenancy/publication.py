@@ -19,7 +19,7 @@ PUBLIC_DIRS = frozenset({
     "instruments_etf", "instruments_ext", "kline_ext", "depth5", "auction_snapshot",
     "quote_second", "regime_history", "mainline_history", "ext_data", "analysis_menus",
     "instrument_status", "data_releases",
-    "market_snapshot",
+    "market_snapshot", "corporate_actions",
 })
 PUBLIC_FILES = frozenset({
     ".matrix_generation_stock.json", ".matrix_generation_etf.json", ".matrix_generation_index.json",
@@ -88,7 +88,7 @@ class PublicPublisher:
             previous_manifest = json.loads((previous / ".public_release.json").read_text())
         except (OSError, ValueError):
             previous_manifest = {}
-        if previous_manifest.get("digest") == digest:
+        if previous_manifest.get("digest") == digest and "checksums" in previous_manifest:
             return previous_manifest
         release_id = uuid.uuid4().hex
         releases = self.root / "releases"
@@ -96,6 +96,7 @@ class PublicPublisher:
         stage = releases / ("." + release_id)
         stage.mkdir()
         try:
+            checksums = {}
             for name, signature in files.items():
                 source, target = self.source / name, stage / name
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -109,10 +110,16 @@ class PublicPublisher:
                     os.utime(target, ns=(signature[1], signature[1]))
                 else:
                     shutil.copy2(source, target)
+                retained_hash = previous_manifest.get("checksums", {}).get(name)
+                if retained_hash and previous_manifest.get("files", {}).get(name) == signature:
+                    checksums[name] = retained_hash
+                else:
+                    with target.open("rb") as stream:
+                        checksums[name] = hashlib.file_digest(stream, "sha256").hexdigest()
             if self.generations() != generations or self.inventory() != files:
                 raise ValueError("public files changed during publication; retry")
             manifest = {"id": release_id, "digest": digest, "generations": generations,
-                        "files": files, "published_at": time.time()}
+                        "files": files, "checksums": checksums, "published_at": time.time()}
             (stage / ".public_release.json").write_text(json.dumps(manifest, sort_keys=True))
             os.rename(stage, releases / release_id)
             link = self.root / ("." + release_id)
