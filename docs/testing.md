@@ -90,6 +90,18 @@ uv run ruff check app/path.py tests/path.py
 
 高风险共享模块改动应先跑定向用例定位问题，再跑后端全量测试。
 
+A 股业务默认日期回归：
+
+```bash
+uv run pytest tests/test_ashare_date_defaults_beijing_today.py \
+  tests/test_backtest_stream_date_guard.py tests/backtest/test_factor_default_range.py \
+  tests/test_factor_api.py tests/test_regime_builder.py tests/test_market_mainline.py -q
+```
+
+把服务器本地日期与北京日期错开，验证信号、因子、策略回测及三类 SSE 入口、
+因子试算和保存前校验、市场状态与主线重算、日线修复使用 `cn_today()`。
+显式日期保持原有语义；北京当日应通过未来日期检查，北京次日须被拒绝。
+
 完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
 通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。
 未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、
