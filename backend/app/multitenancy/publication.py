@@ -117,12 +117,26 @@ class PublicPublisher:
             os.rename(stage, releases / release_id)
             link = self.root / ("." + release_id)
             link.symlink_to(Path("releases") / release_id, target_is_directory=True)
-            os.replace(link, self.root / "current")
+            self._swap_current(link)
             self.error = None
             return manifest
         finally:
             if stage.exists():
                 shutil.rmtree(stage)
+
+    @staticmethod
+    def _swap_current(link):
+        current = link.parent / "current"
+        try:
+            os.replace(link, current)
+        except OSError:
+            # Windows MoveFileEx cannot swap a directory entry for a link, so the
+            # stale link is dropped first. POSIX keeps the atomic rename; only the
+            # publisher's own link is removed, never a real directory holding data.
+            if os.name != "nt" or not current.is_symlink():
+                raise
+            current.unlink()
+            os.replace(link, current)
 
     def start(self):
         # The first complete public release is a deployment readiness gate.
