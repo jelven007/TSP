@@ -9,6 +9,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
+    types: [checks_requested]
 
 concurrency:
   # PR 可取消旧检查；每次 main 集成都必须保留自己的递增任务。
@@ -34,12 +36,18 @@ jobs:
       - name: PR 校验版本；远程 main 集成后自动递增
         id: revision
         shell: bash
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
             # GITHUB_TOKEN 的自动提交不会再次触发 push workflow。
             python3 scripts/advance_version.py
           else
             python3 scripts/check_version.py --current VERSION
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              python3 scripts/check_version.py --branch-base "$PR_BASE" --branch-head "$PR_HEAD"
+            fi
             echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
@@ -90,7 +98,7 @@ jobs:
         run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
       - name: 版本规则测试
-        run: uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_tag_version.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
+        run: uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_tag_version.py ../scripts/test_collaborative_versioning.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
 
       - name: 检查 rustdx 原生桥接
         run: cargo test --locked --manifest-path native/rustdx_native/Cargo.toml

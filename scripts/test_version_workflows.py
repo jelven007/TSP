@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 import subprocess
 
@@ -35,6 +36,8 @@ def test_main_events_are_not_cancelled_and_prs_only_check_versions():
     assert '[ "$GITHUB_REF" = "refs/heads/main" ]' in selection["run"]
     assert "python3 scripts/advance_version.py" in selection["run"]
     assert "python3 scripts/check_version.py --current VERSION" in selection["run"]
+    assert '--branch-base "$PR_BASE" --branch-head "$PR_HEAD"' in selection["run"]
+    assert ci["on"]["merge_group"]["types"] == ["checks_requested"]
     assert "--previous" not in selection["run"]
 
 
@@ -145,3 +148,87 @@ def test_version_tag_requires_successful_main_quality_gates():
         if step.get("name") == "版本规则测试"
     )
     assert "../scripts/test_tag_version.py" in version_tests["run"]
+    assert "../scripts/test_collaborative_versioning.py" in version_tests["run"]
+
+
+def test_desktop_release_pins_every_job_to_existing_tag_revision():
+    release = workflow("release.yml")
+    assert release["permissions"]["contents"] == "read"
+    assert release["concurrency"]["cancel-in-progress"] == "false"
+    assert "inputs.version" in release["concurrency"]["group"]
+    prepare = release["jobs"]["prepare"]
+    select = next(step for step in prepare["steps"] if step.get("id") == "filter")
+    assert select["run"].strip() == "python3 scripts/prepare_release.py"
+    assert select["env"]["RELEASE_TAG"] == "${{ inputs.version }}"
+    assert select["env"]["RELEASE_PLATFORMS"] == "${{ inputs.platforms }}"
+    assert release["jobs"]["quality"]["needs"] == "prepare"
+    for name in ("quality", "build"):
+        checkout = step_using(release["jobs"][name], "actions/checkout@v4")["with"]
+        assert checkout["ref"] == "${{ needs.prepare.outputs.revision }}"
+        assert checkout["persist-credentials"] == "false"
+    manifest = release["jobs"]["manifest"]
+    assert set(manifest["needs"]) == {"prepare", "build"}
+    assert "if" not in manifest
+    upload = step_using(release["jobs"]["build"], "softprops/action-gh-release@v2")
+    assert upload["with"]["target_commitish"] == "${{ needs.prepare.outputs.revision }}"
+    assert upload["with"]["draft"] == "true"
+
+
+def test_docker_latest_only_promoted_for_current_main_after_build():
+    docker = workflow("docker.yml")
+    build = docker["jobs"]["build-and-push"]
+    tags = step_using(build, "docker/metadata-action@v5")["with"]["tags"]
+    assert "value=latest" not in tags
+    assert "type=raw,value=${{ steps.revision.outputs.revision }}\n" in tags
+    promotion = docker["jobs"]["promote-latest"]
+    assert promotion["needs"] == "build-and-push"
+    assert promotion["if"] == "github.event_name == 'workflow_run'"
+    assert promotion["concurrency"]["cancel-in-progress"] == "false"
+    publish = promotion["steps"][-1]
+    assert "is_current_main(Path.cwd(), revision)" in publish["run"]
+    assert publish["env"]["BUILD_REVISION"] == "${{ needs.build-and-push.outputs.revision }}"
+
+
+def test_history_and_tags_are_protected_even_when_automation_bypasses_integration():
+    policies = {
+        name: json.loads((ROOT / ".github/rulesets" / f"{name}.json").read_text())
+        for name in ("main-history", "main-integration", "main-quality", "version-tags")
+    }
+    for name in ("main-history", "version-tags"):
+        assert policies[name]["bypass_actors"] == []
+    assert {rule["type"] for rule in policies["main-history"]["rules"]} == {
+        "deletion", "non_fast_forward",
+    }
+    assert {rule["type"] for rule in policies["version-tags"]["rules"]} == {
+        "update", "deletion",
+    }
+    assert policies["version-tags"]["conditions"]["ref_name"]["include"] == ["refs/tags/v*"]
+    quality = policies["main-quality"]
+    assert all(actor["actor_type"] == "Integration" for actor in quality["bypass_actors"])
+    checks = quality["rules"][0]["parameters"]
+    assert checks["strict_required_status_checks_policy"] is True
+    assert {check["context"] for check in checks["required_status_checks"]} == {
+        "version", "backend", "frontend",
+    }
+
+
+@pytest.mark.parametrize("draft", [True, False])
+def test_desktop_preflight_accepts_draft_and_rejects_published_release(tmp_path, draft):
+    prepare = workflow("release.yml")["jobs"]["prepare"]
+    step = next(step for step in prepare["steps"] if step.get("name") == "拒绝覆盖已发布版本")
+    sample = [[{"tag_name": "v0.4.4", "draft": draft}]]
+    fake_gh = tmp_path / "gh"
+    fake_gh.write_text("#!/bin/sh\nprintf '%s' '" + json.dumps(sample) + "'\n")
+    fake_gh.chmod(0o755)
+    result = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", step["run"]],
+        env={
+            **os.environ, "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"],
+            "RUNNER_TEMP": str(tmp_path), "RELEASE_TAG": "v0.4.4",
+            "GITHUB_REPOSITORY": "example/repository",
+        },
+        capture_output=True, text=True,
+    )
+    assert (result.returncode == 0) is draft
+    if not draft:
+        assert "已经发布并冻结" in result.stderr

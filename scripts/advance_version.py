@@ -65,6 +65,36 @@ def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
     )
 
 
+def _validate_version_commit(root: Path, revision: str) -> str:
+    """Recognize a version commit by its exact changes, not a copied trailer."""
+    message = _git(root, "show", "-s", "--format=%B", revision).stdout
+    sources = re.findall(r"(?m)^TSP-Version-Source: ([0-9a-f]{40})$", message)
+    parents = _git(root, "show", "-s", "--format=%P", revision).stdout.split()
+    if len(sources) != 1 or len(parents) != 1:
+        raise ValueError(f"invalid automatic version commit: {revision}")
+    parent = parents[0]
+    previous = _git(root, "show", f"{parent}:VERSION").stdout.strip()
+    version = next_version(previous)
+    changes = _git(root, "diff", "--name-only", "-z", parent, revision).stdout.rstrip("\0").split("\0")
+    if set(changes) != {"VERSION", *REPLACEMENTS}:
+        raise ValueError(f"invalid automatic version commit: {revision}")
+    if _git(root, "show", f"{revision}:VERSION").stdout != f"v{version}\n":
+        raise ValueError(f"invalid automatic version commit: {revision}")
+    for name, patterns in REPLACEMENTS.items():
+        content = _git(root, "show", f"{parent}:{name}").stdout
+        for pattern in patterns:
+            content, count = re.subn(
+                pattern, lambda match: f"{match[1]}{version}{match[2]}", content,
+            )
+            if count != 1:
+                raise ValueError(f"invalid automatic version commit: {revision}")
+        if content != _git(root, "show", f"{revision}:{name}").stdout:
+            raise ValueError(f"invalid automatic version commit: {revision}")
+    if _git(root, "merge-base", "--is-ancestor", sources[0], parent, check=False).returncode:
+        raise ValueError(f"invalid automatic version commit: {revision}")
+    return sources[0]
+
+
 def advance_main(root: Path, source: str, *, attempts: int = 5) -> str:
     """Publish one increment per source commit, retrying only concurrent pushes."""
     if (
@@ -85,6 +115,11 @@ def advance_main(root: Path, source: str, *, attempts: int = 5) -> str:
         if integrated.returncode != 0:
             raise ValueError(f"{source} is not integrated into origin/main")
 
+        message = _git(root, "show", "-s", "--format=%B", source).stdout
+        if re.search(r"(?m)^TSP-Version-Source:", message):
+            _validate_version_commit(root, source)
+            return source
+
         # The trailer survives a workflow rerun and also deduplicates two workers
         # handling the same push. Search only the mainline's own commits.
         existing = _git(
@@ -92,7 +127,22 @@ def advance_main(root: Path, source: str, *, attempts: int = 5) -> str:
             f"--grep=^TSP-Version-Source: {source}$", base,
         ).stdout.strip()
         if existing:
+            _validate_version_commit(root, existing)
             return existing
+
+        last_version = _git(
+            root, "log", "--first-parent", "-1", "--format=%H",
+            "--grep=^TSP-Version-Source:", base,
+        ).stdout.strip()
+        if last_version:
+            _validate_version_commit(root, last_version)
+            expected = _git(root, "show", f"{last_version}:VERSION").stdout.strip()
+            actual = _git(root, "show", f"{base}:VERSION").stdout.strip()
+            if actual != expected:
+                raise ValueError(
+                    f"main must retain the last allocated version {expected}, got {actual}; "
+                    "restore version metadata through a PR before rerunning CI"
+                )
 
         _git(root, "checkout", "--detach", base)
         version = update_versions(root)
