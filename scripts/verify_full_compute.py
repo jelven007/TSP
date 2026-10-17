@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
@@ -27,11 +29,15 @@ for offset in range(400):
     for symbol,price in [('000001.SZ',11.),('600000.SH',21.)]:
         price += offset * (0.001 if symbol=='000001.SZ' else 0.003)
         rows.append(dict(symbol=symbol,date=day,open=price,high=price+0.2,low=price-0.2,
-            close=price,raw_close=price,raw_high=price+0.2,raw_low=price-0.2,volume=1000000.,
+            close=price,raw_open=price,raw_close=price,raw_high=price+0.2,raw_low=price-0.2,
+            volume=1000000.,
             amount=200000000.,turnover_rate=1. if symbol=='000001.SZ' else 2.,
-            consecutive_limit_ups=0,consecutive_limit_downs=0,
-            is_risk_warning=False,instrument_status_known=True,is_listed=True))
-frame=pl.DataFrame(rows)
+            consecutive_limit_ups=0,consecutive_limit_downs=0,quote_ts=0,
+            quote_time_basis='source_trading_date',
+            is_risk_warning=False,instrument_status_known=True,is_listed=True,
+            signal_n_day_low=offset==10,signal_ma20_breakdown=offset==20))
+frame=pl.DataFrame(rows).with_columns(
+    pl.col('consecutive_limit_ups','consecutive_limit_downs').cast(pl.UInt32))
 for day in frame['date'].unique().to_list():
     for directory in ['kline_daily','kline_daily_enriched']:
         target=root/directory/('date='+str(day))
@@ -171,6 +177,12 @@ def run(args) -> dict:
                 assert backtest["error"] is None, backtest
                 assert backtest["stats"]["n_trades"] > 0, backtest["stats"]
                 assert progress
+                signal_backtest = executor.execute({**base, "kind": "signal_backtest", "config": {
+                    "symbols": ["000001.SZ", "600000.SH"], "start": "2025-01-01",
+                    "end": as_of, "entries": ["rsi_oversold"], "exits": [],
+                    "rsi_oversold_threshold": 101, "matching": "open_t+1",
+                    "asset_type": "stock"}})
+                assert signal_backtest["trades"], signal_backtest
                 factor = executor.execute({**base, "kind": "factor_batch", "config": {
                     "factor_names": ["turnover_rate"], "symbols": None, "start": "2025-01-01",
                     "end": as_of, "n_groups": 2}})
@@ -200,6 +212,7 @@ def run(args) -> dict:
                 return {**isolation, "metadata": "passed", "strategy": "passed",
                         "selected": ["600000.SH"], "unsafe_import": "rejected",
                         "independent_recovery": "passed", "backtest": "passed",
+                        "signal_backtest": "passed",
                         "factor_batch": "passed", "optimize": "passed",
                         "walkforward": "passed", "mining_artifacts": "passed"}
             finally:
@@ -212,4 +225,40 @@ if __name__ == "__main__":
     parser.add_argument("--image", required=True)
     parser.add_argument("--work-dir", type=Path, default=Path("/tmp"))
     parser.add_argument("--monitor-only", action="store_true")
-    print(json.dumps(run(parser.parse_args()), ensure_ascii=False))
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+    started = time.time()
+    result = run(args)
+    if args.output is None:
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        inspected = json.loads(subprocess.run(
+            ["docker", "image", "inspect", args.image, "--format", "{{json .}}"],
+            capture_output=True, text=True, timeout=15, check=True,
+        ).stdout)
+        report = {
+            "status": "passed",
+            "scope": "local_emulated_full_compute_image_acceptance",
+            "limits": [
+                "Apple ARM host using Linux AMD64 emulation; not native performance evidence",
+                "disposable deterministic market fixture; not production data",
+            ],
+            "artifact": {
+                "reference": args.image,
+                "id": inspected["Id"],
+                "architecture": inspected["Architecture"],
+                "os": inspected["Os"],
+                "repo_digests": inspected.get("RepoDigests") or [],
+            },
+            "results": result,
+            "elapsed_seconds": round(time.time() - started, 3),
+        }
+        report["report_sha256"] = hashlib.sha256(
+            json.dumps(report, ensure_ascii=False, sort_keys=True).encode()
+        ).hexdigest()
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(json.dumps(report, ensure_ascii=False, indent=2))

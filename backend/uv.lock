@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -2645,6 +2645,7 @@ dependencies = [
     { name = "plyer" },
     { name = "polars" },
     { name = "psutil" },
+    { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -2663,9 +2664,6 @@ dependencies = [
 [package.optional-dependencies]
 backtest = [
     { name = "vectorbt" },
-]
-cell = [
-    { name = "psycopg", extra = ["binary", "pool"] },
 ]
 desktop = [
     { name = "pywebview" },
@@ -2697,7 +2695,7 @@ requires-dist = [
     { name = "polars", specifier = ">=1.44,<1.45" },
     { name = "polars", extras = ["rtcompat"], marker = "extra == 'legacy-cpu'", specifier = ">=1.44,<1.45" },
     { name = "psutil", specifier = ">=5.9" },
-    { name = "psycopg", extras = ["binary", "pool"], marker = "extra == 'cell'", specifier = ">=3.2,<4" },
+    { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2,<4" },
     { name = "pyarrow", specifier = ">=16.0" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-settings", specifier = ">=2.4" },
