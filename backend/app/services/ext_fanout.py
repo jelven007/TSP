@@ -1,4 +1,4 @@
-"""有界的目录→成员拉取。共享限速器、有限重试, 部分结果永不发布。"""
+"""Bounded catalog-to-member pulls with shared pacing and no partial publication."""
 from __future__ import annotations
 
 import asyncio
@@ -20,7 +20,7 @@ class IncompletePullError(ValueError):
 
 
 def error_message(exc: Exception) -> str:
-    """httpx 异常含完整请求 URL, 禁止把查询鉴权写进状态或日志。"""
+    """Return a bounded error without leaking authenticated request URLs."""
     if isinstance(exc, httpx.HTTPStatusError):
         return f"上游 HTTP {exc.response.status_code}"
     if isinstance(exc, httpx.RequestError):
@@ -41,16 +41,27 @@ class RequestBudget:
 
         loop = asyncio.get_running_loop()
         for attempt in range(self.recipe.retries + 1):
-            # 在锁内等候, 确保 429 的共享冷却也作用于尚未发出的成员请求。
-            async with self.lock:
-                await asyncio.sleep(max(0.0, self.next_at - loop.time()))
-                self.next_at = loop.time() + self.recipe.min_interval_seconds
+            # Recheck shared cooldown after sleeping; never prevent an in-flight
+            # 429 response from extending that cooldown by holding the lock.
+            while True:
+                async with self.lock:
+                    delay = self.next_at - loop.time()
+                    if delay <= 0:
+                        self.next_at = loop.time() + self.recipe.min_interval_seconds
+                        break
+                await asyncio.sleep(delay)
             try:
                 return await _request_json(*args, **kwargs)
             except (httpx.RequestError, httpx.HTTPStatusError) as exc:
-                code = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
-                if attempt == self.recipe.retries or (code is not None and code != 429 and code < 500):
+                code = (
+                    exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else None
+                )
+                terminal_4xx = code is not None and code != 429 and code < 500
+                if attempt == self.recipe.retries or terminal_4xx:
                     raise
+
                 delay = self.recipe.backoff_seconds * 2 ** attempt
                 if isinstance(exc, httpx.HTTPStatusError):
                     retry_after = exc.response.headers.get("Retry-After", "")
@@ -58,9 +69,15 @@ class RequestBudget:
                         delay = max(delay, float(retry_after))
                     except ValueError:
                         with suppress(ValueError, TypeError, OverflowError):
-                            delay = max(delay, parsedate_to_datetime(retry_after).timestamp() - time())
-                # 不提前于 Retry-After 重试; 超过整轮时限时由 timeout 取消。
-                self.next_at = max(self.next_at, loop.time() + max(0.0, delay))
+                            delay = max(
+                                delay,
+                                parsedate_to_datetime(retry_after).timestamp() - time(),
+                            )
+                async with self.lock:
+                    self.next_at = max(
+                        self.next_at,
+                        loop.time() + max(0.0, delay),
+                    )
 
 
 async def fetch_members(config: ExtConfig, day: date) -> tuple[list[dict], dict]:
@@ -73,13 +90,19 @@ async def fetch_members(config: ExtConfig, day: date) -> tuple[list[dict], dict]
     try:
         async with asyncio.timeout(recipe.timeout_seconds):
             catalog = await _fetch_raw_pages(
-                config, config.pull, day, request=budget.request, max_rows=recipe.max_items,
+                config,
+                config.pull,
+                day,
+                request=budget.request,
+                max_rows=recipe.max_items,
             )
             if not catalog:
                 raise IncompletePullError("目录为空, 保留上一完整快照", metadata)
+
             ids = [str(row.get(recipe.id_field, "")) for row in catalog]
             if any(not key or len(key) > 128 for key in ids) or len(set(ids)) != len(ids):
                 raise ValueError("目录 ID 缺失、重复或过长")
+
             metadata["total"] = len(catalog)
             unfinished.update(ids)
             results: list[list[dict] | None] = [None] * len(catalog)
@@ -101,43 +124,68 @@ async def fetch_members(config: ExtConfig, day: date) -> tuple[list[dict], dict]
                         if any(source not in directory for source in recipe.inject_fields):
                             raise ValueError("目录缺少注入字段")
                         rows = await _fetch_raw_pages(
-                            config, member, day, request=budget.request,
+                            config,
+                            member,
+                            day,
+                            request=budget.request,
                             extra_params={recipe.member_param: ids[index]},
                             max_rows=recipe.max_rows,
                         )
-                        # 空成员响应可合法存在; 目录覆盖统计仍包含该项。
                         row_count += len(rows)
                         if row_count > recipe.max_rows:
                             raise ValueError("两级拉取行数超过上限")
                         results[index] = [
-                            {**row, **{target: directory[source] for source, target in recipe.inject_fields.items()}}
+                            {
+                                **row,
+                                **{
+                                    target: directory[source]
+                                    for source, target in recipe.inject_fields.items()
+                                },
+                            }
                             for row in rows
                         ]
                         metadata["completed"] += 1
                         unfinished.discard(ids[index])
                     except Exception as exc:
-                        metadata["failed"].append({"id": ids[index], "reason": error_message(exc)})
+                        metadata["failed"].append({
+                            "id": ids[index],
+                            "reason": error_message(exc),
+                        })
                         unfinished.discard(ids[index])
 
-            # 仅创建固定 worker 数量; 取消会等待全部子任务释放请求。
             async with asyncio.TaskGroup() as group:
                 for _ in range(min(recipe.concurrency, len(catalog))):
                     group.create_task(worker())
+
             metadata["coverage"] = metadata["completed"] / metadata["total"]
             if metadata["failed"]:
                 metadata["failed"].sort(key=lambda item: item["id"])
-                raise IncompletePullError("两级拉取不完整, 已保留上一完整快照", metadata)
+                raise IncompletePullError(
+                    "两级拉取不完整, 已保留上一完整快照",
+                    metadata,
+                )
             return [row for rows in results for row in (rows or [])], metadata
     except TimeoutError as exc:
-        metadata["failed"].extend({"id": key, "reason": "整轮超时"} for key in sorted(unfinished))
-        metadata["coverage"] = metadata["completed"] / metadata["total"] if metadata["total"] else 0.0
-        raise IncompletePullError("两级拉取超时, 已保留上一完整快照", metadata) from exc
+        metadata["failed"].extend(
+            {"id": key, "reason": "整轮超时"}
+            for key in sorted(unfinished)
+        )
+        metadata["coverage"] = (
+            metadata["completed"] / metadata["total"]
+            if metadata["total"]
+            else 0.0
+        )
+        raise IncompletePullError(
+            "两级拉取超时, 已保留上一完整快照",
+            metadata,
+        ) from exc
 
 
 def join_members(rows: list[dict], recipe: dict) -> list[dict]:
-    """字段映射之后按稳定目录顺序合并分类, 不把多概念悄悄丢到最后一项。"""
+    """Merge mapped labels in stable catalog order without dropping memberships."""
     if not recipe["join_fields"]:
         return rows
+
     key = recipe["group_by"]
     groups: dict[str, dict] = {}
     labels: dict[str, dict[str, list[str]]] = {}
@@ -146,7 +194,10 @@ def join_members(rows: list[dict], recipe: dict) -> list[dict]:
         if not isinstance(identity, str) or not identity:
             raise ValueError("两级合并缺少有效分组字段")
         groups.setdefault(identity, dict(row))
-        fields = labels.setdefault(identity, {field: [] for field in recipe["join_fields"]})
+        fields = labels.setdefault(
+            identity,
+            {field: [] for field in recipe["join_fields"]},
+        )
         for field in fields:
             value = row.get(field)
             if value is None:

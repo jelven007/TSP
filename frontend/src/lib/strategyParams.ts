@@ -4,38 +4,49 @@ type Values = Record<string, any>
 
 function conditionMatches(cond: ParamVisibleIf, values: Values, defs: StrategyParamDef[], depth = 0): boolean {
   if (!cond || typeof cond !== 'object' || depth > 32) return false
-  if (cond.all !== undefined) return Array.isArray(cond.all) && cond.all.every(c => conditionMatches(c, values, defs, depth + 1))
-  if (cond.any !== undefined) return Array.isArray(cond.any) && cond.any.some(c => conditionMatches(c, values, defs, depth + 1))
+  if (cond.all !== undefined) {
+    return Array.isArray(cond.all) && cond.all.every(item => conditionMatches(item, values, defs, depth + 1))
+  }
+  if (cond.any !== undefined) {
+    return Array.isArray(cond.any) && cond.any.some(item => conditionMatches(item, values, defs, depth + 1))
+  }
   if (!cond.param || !Array.isArray(cond.in)) return false
-  const definition = defs.find(p => p.id === cond.param)
-  const actual = values[cond.param] ?? definition?.default
-  const normalize = (v: unknown) => definition?.type === 'bool' && typeof v === 'string'
-    && ['true', 'false'].includes(v.toLowerCase()) ? v.toLowerCase() === 'true' : v
+
+  const definition = defs.find(param => param.id === cond.param)
+  const actual = Object.hasOwn(values, cond.param) ? values[cond.param] : definition?.default
+  const normalize = (value: unknown) => (
+    definition?.type === 'bool'
+    && typeof value === 'string'
+    && ['true', 'false'].includes(value.toLowerCase())
+      ? value.toLowerCase() === 'true'
+      : value
+  )
   return cond.in.some(expected => normalize(actual) === normalize(expected))
 }
 
-/** 显隐只影响编辑/扫描，不删除保存值，也不改变策略执行参数。 */
+/** Visibility changes the editor only; hidden values remain available to strategy execution. */
 export function visibleParams(defs: StrategyParamDef[], values: Values): StrategyParamDef[] {
-  return defs.filter(p => p.visible_if == null || conditionMatches(p.visible_if, values, defs))
+  return defs.filter(param => param.visible_if == null || conditionMatches(param.visible_if, values, defs))
 }
 
 export function groupParams(defs: StrategyParamDef[]): { name: string | null; items: StrategyParamDef[] }[] {
   const groups: { name: string | null; items: StrategyParamDef[] }[] = []
-  for (const p of defs) {
-    const name = typeof p.group === 'string' && p.group.trim() ? p.group : null
+  for (const param of defs) {
+    const name = typeof param.group === 'string' && param.group.trim() ? param.group : null
     const last = groups[groups.length - 1]
-    if (last && last.name === name) last.items.push(p)
-    else groups.push({ name, items: [p] })
+    if (last && last.name === name) last.items.push(param)
+    else groups.push({ name, items: [param] })
   }
   return groups
 }
 
-/** 选项预设仅在用户选择时应用一次；忽略未知参数，不递归触发预设。 */
+/** Apply a select preset once without recursively triggering another preset. */
 export function applyParamValue(defs: StrategyParamDef[], values: Values, id: string, value: any): Values {
-  const def = defs.find(p => p.id === id)
-  if (!def) return values
+  const definition = defs.find(param => param.id === id)
+  if (!definition) return values
+
   const next = { ...values }
-  const presets = def.option_applies
+  const presets = definition.option_applies
   const patch = presets && Object.hasOwn(presets, String(value)) ? presets[String(value)] : undefined
   if (patch && typeof patch === 'object' && !Array.isArray(patch)) {
     for (const target of defs) {
@@ -47,18 +58,18 @@ export function applyParamValue(defs: StrategyParamDef[], values: Values, id: st
   return { ...next, [id]: value }
 }
 
-/** 条件控制器/预设选择器固定后分别扫描，保证每个网格属于同一适用条件。 */
+/** Controllers and preset selectors remain fixed so each scan uses one applicable parameter set. */
 export function fixedParamIds(defs: StrategyParamDef[]): Set<string> {
   const fixed = new Set<string>()
   const visit = (cond?: ParamVisibleIf, depth = 0) => {
     if (!cond || typeof cond !== 'object' || depth > 32) return
     if (cond.param) fixed.add(cond.param)
-    if (Array.isArray(cond.all)) cond.all.forEach(c => visit(c, depth + 1))
-    if (Array.isArray(cond.any)) cond.any.forEach(c => visit(c, depth + 1))
+    if (Array.isArray(cond.all)) cond.all.forEach(item => visit(item, depth + 1))
+    if (Array.isArray(cond.any)) cond.any.forEach(item => visit(item, depth + 1))
   }
-  for (const p of defs) {
-    visit(p.visible_if)
-    if (p.option_applies && Object.keys(p.option_applies).length) fixed.add(p.id)
+  for (const param of defs) {
+    visit(param.visible_if)
+    if (param.option_applies && Object.keys(param.option_applies).length) fixed.add(param.id)
   }
   return fixed
 }

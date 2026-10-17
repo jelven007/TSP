@@ -47,7 +47,8 @@ PULL_DATE_FORMATS = ("iso", "compact", "ts_s", "ts_ms")
 
 
 class FanoutConfig(BaseModel):
-    """目录 → 成员配方。URL 为管理员固定值, 目录数据仅进入编码后的查询参数。"""
+    """Bounded catalog-to-member pull recipe."""
+
     model_config = ConfigDict(extra="forbid")
 
     member_url: str = Field(min_length=1, max_length=2048)
@@ -72,15 +73,22 @@ class FanoutConfig(BaseModel):
 
 
 _PULL_STATE_FIELDS = frozenset({
-    "last_run", "last_status", "last_message", "last_rows", "next_run",
-    "last_attempt", "last_complete", "previous_complete",
+    "last_run",
+    "last_status",
+    "last_message",
+    "last_rows",
+    "next_run",
+    "last_attempt",
+    "last_complete",
+    "previous_complete",
 })
 _EXT_WRITE_LOCKS = [threading.RLock() for _ in range(32)]
 
 
 def ext_write_lock(data_dir: Path, config_id: str):
-    """同进程配置与发布互斥; 部署维持公共数据单写者约束。网络请求不持锁。"""
-    return _EXT_WRITE_LOCKS[hash((str(Path(data_dir).resolve()), config_id)) % len(_EXT_WRITE_LOCKS)]
+    """Serialize same-process configuration and publication writes for one source."""
+    key = (str(Path(data_dir).resolve()), config_id)
+    return _EXT_WRITE_LOCKS[hash(key) % len(_EXT_WRITE_LOCKS)]
 
 
 class PullConfig:
@@ -182,7 +190,11 @@ class PullConfig:
             int(max_pages) if isinstance(max_pages, (int, float))
             and 1 <= max_pages <= 200 else 20
         )
-        self.fanout = FanoutConfig.model_validate(fanout).model_dump() if fanout is not None else None
+        self.fanout = (
+            FanoutConfig.model_validate(fanout).model_dump()
+            if fanout is not None
+            else None
+        )
         if transform not in {"auto", "none"}:
             raise ValueError("未知拉取转换模式")
         if snapshot_policy not in {"auto", "merge", "replace"}:
@@ -195,16 +207,23 @@ class PullConfig:
         if self.fanout:
             from urllib.parse import urlsplit
 
-            root, member = urlsplit(url), urlsplit(self.fanout["member_url"])
+            root = urlsplit(url)
+            member = urlsplit(self.fanout["member_url"])
             if (
                 root.scheme not in {"http", "https"}
                 or (root.scheme, root.netloc) != (member.scheme, member.netloc)
-                or root.username or member.username or method.upper() != "GET"
+                or root.username
+                or member.username
+                or method.upper() != "GET"
             ):
                 raise ValueError("两级配方仅支持同源 HTTP(S) GET 接口")
 
     def definition(self) -> dict:
-        return {k: v for k, v in self.to_dict().items() if k not in _PULL_STATE_FIELDS}
+        return {
+            key: value
+            for key, value in self.to_dict().items()
+            if key not in _PULL_STATE_FIELDS
+        }
 
     def to_dict(self) -> dict:
         return {
@@ -464,6 +483,10 @@ class ExtConfigStore:
         _invalidate_ext_derived(self._base.parent, keep_strategy_cache=keep_strategy_cache)
 
     def delete(self, config_id: str) -> bool:
+        with ext_write_lock(self._base.parent, config_id):
+            return self._delete(config_id)
+
+    def _delete(self, config_id: str) -> bool:
         import shutil
         try:
             cp = self._config_path(config_id)
@@ -765,6 +788,26 @@ def _write_ext_parquet(
     keep_strategy_cache: bool = False,
     replace_snapshot: bool = False,
 ) -> int:
+    with ext_write_lock(data_dir, config.id):
+        return _write_ext_parquet(
+            df,
+            config,
+            data_dir,
+            snapshot_date,
+            keep_strategy_cache=keep_strategy_cache,
+            replace_snapshot=replace_snapshot,
+        )
+
+
+def _write_ext_parquet(
+    df: pl.DataFrame,
+    config: ExtConfig,
+    data_dir: Path,
+    snapshot_date: date | None = None,
+    *,
+    keep_strategy_cache: bool = False,
+    replace_snapshot: bool = False,
+) -> int:
     """将 DataFrame 写入扩展数据 Parquet。
 
     目录结构:
@@ -844,7 +887,6 @@ def _write_ext_parquet(
 
         from app.tickflow.repository import replace_with_retry
 
-        # .bak 不参与 *.parquet 视图扫描; 保留原始字节以匹配上一版哈希。
         backup = cfg_dir / "previous-complete.parquet.bak"
         temporary = backup.with_suffix(".bak.tmp")
         shutil.copyfile(out_path, temporary)
@@ -872,6 +914,11 @@ def _invalidate_ext_derived(data_dir: Path, *, keep_strategy_cache: bool = False
 
 
 def delete_ext_parquet(config_id: str, data_dir: Path) -> None:
+    with ext_write_lock(data_dir, config_id):
+        _delete_ext_parquet(config_id, data_dir)
+
+
+def _delete_ext_parquet(config_id: str, data_dir: Path) -> None:
     """删除扩展数据源关联的所有 Parquet 数据（保留 config.json）。
 
     - snapshot: 删除 ext_data/{id}/part.parquet
@@ -892,6 +939,11 @@ def delete_ext_parquet(config_id: str, data_dir: Path) -> None:
 
 
 def fix_symbol_format(config: ExtConfig, data_dir: Path) -> int:
+    with ext_write_lock(data_dir, config.id):
+        return _fix_symbol_format(config, data_dir)
+
+
+def _fix_symbol_format(config: ExtConfig, data_dir: Path) -> int:
     """扫描该扩展配置的所有 Parquet 文件，将 symbol 列标准化为 代码.交易所 格式。
 
     - snapshot: 扫描 ext_data/{id}/part.parquet

@@ -42,6 +42,7 @@ it('excludes hidden and controller parameters from count and payload while prese
   expect(sweep.combos).toBe(0)
   expect(sweep.buildGrid()).toEqual({})
   expect(sweep.values.period).toBe(4)
+
   act(() => sweep.updateValue('mode', 'on'))
   expect(sweep.combos).toBe(3)
   expect(sweep.values.text).toBe('保留')

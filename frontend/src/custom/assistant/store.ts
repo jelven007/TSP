@@ -449,6 +449,7 @@ export function toggleAssistant() {
 }
 
 export function newSession() {
+  loadSessions()
   if (state.sending) return
   const session: AssistantSession = { id: uid(), title: '新对话', createdAt: Date.now(), messages: [] }
   setState({ sessions: [session, ...state.sessions].slice(0, MAX_SESSIONS), activeId: session.id })

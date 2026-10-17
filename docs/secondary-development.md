@@ -390,6 +390,9 @@ Docker、Compute、桌面产物的提交/文件清单及已安装产物差异备
 [构建清单与离线升级备份](./build-upgrade-evidence.md)。生产代码通过重新构建发布
 恢复；没有在线覆盖运行代码或自动重启入口。
 
+可附加 `--bundle .dbg/upgrade-review` 保存三方源码、暂存及工作区差异；
+产物清单和离线差异备份见[构建升级证据](./build-upgrade-evidence.md)。
+
 ## 9. 完成检查表
 
 - [ ] 已确认需求属于 L1、L2 或 L3。

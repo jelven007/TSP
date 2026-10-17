@@ -123,6 +123,11 @@ export function ExtDataPullPanel({ config, onSaved }: {
     }
   }
 
+  const requestBudgetSeconds = (fanout: ExtFanoutRecipe | null) => (
+    fanout?.timeout_seconds
+    ?? (fanout ? 300 : effTimeoutSec * (pageParam.trim() ? maxPages : 1))
+  )
+
   // Key 输入有改动时随配置一起保存 (空输入=清除); 未改动则跳过
   const saveKeyIfNeeded = () =>
     keyDirty
@@ -153,7 +158,7 @@ export function ExtDataPullPanel({ config, onSaved }: {
     if (!payload) { setTesting(false); return }
     saveKeyIfNeeded()
       .then(() => api.extDataPullConfig(config.id, payload))
-      .then(() => api.extDataPullTest(config.id, payload.fanout?.timeout_seconds ?? (payload.fanout ? 300 : effTimeoutSec * maxPages)))
+      .then(() => api.extDataPullTest(config.id, requestBudgetSeconds(payload.fanout)))
       .then(r => { setTestResult(r); onSaved() })
       .catch(e => setError(e.message || '测试失败'))
       .finally(() => setTesting(false))
@@ -165,7 +170,7 @@ export function ExtDataPullPanel({ config, onSaved }: {
     setRunning(true); setError(''); setRunResult(null)
     saveKeyIfNeeded()
       .then(() => api.extDataPullConfig(config.id, payload))
-      .then(() => api.extDataPullRun(config.id, payload.fanout?.timeout_seconds ?? (payload.fanout ? 300 : effTimeoutSec * maxPages)))
+      .then(() => api.extDataPullRun(config.id, requestBudgetSeconds(payload.fanout)))
       .then(r => {
         setRunResult({ rows: r.rows, date: r.date })
         onSaved()
