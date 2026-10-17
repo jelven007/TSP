@@ -11,9 +11,9 @@
 
 ## 版本状态
 
-仓库最新集成线为 `main`，应用语义版本为 `0.4.2`。当前生产固定在提交
-`d06acc1d`，而 `main` 还包含尚未生产签收的二期实时网关和百用户迭代，二者不能
-混称为“当前版本”。稳定标签、生产提交、源码候选和开源观察对象的完整分类见
+仓库集成线为 `main`，本文档所在源码的应用语义版本为 `0.4.2`。
+源码候选、远程主线与生产状态分别核验，生产固定在提交 `d06acc1d`。
+稳定标签、生产提交、源码候选和开源观察对象的完整分类见
 [版本基线](docs/version-baseline.md)。
 
 ## 项目定位
@@ -38,7 +38,7 @@ TSP 是持续维护的专用版本，当前重点是：
 | 回测 | T+1、手续费、卖出印花税、滑点、止损止盈、分钟回放、归因与导出 |
 | 盘中 | 自选、实时行情、集合竞价、异动、连板梯队、监控与通知 |
 | 交易辅助 | 持仓提醒、模拟盘、多账户对比、自动跟单规则 |
-| AI | OpenAI、DeepSeek、GLM、Codex CLI 和自定义 OpenAI 兼容接口 |
+| AI | OpenAI、DeepSeek、GLM、Codex CLI 和自定义兼容接口；显式选择 Chat Completions / Responses |
 | 开放能力 | API Token、Open API、SSE 事件流、MCP 服务器 |
 
 ## 运行模式
@@ -151,6 +151,7 @@ TICKFLOW_API_KEY=
 
 # 可选 AI
 AI_PROVIDER=openai_compat
+AI_PROTOCOL=chat_completions
 AI_BASE_URL=https://api.deepseek.com/v1
 AI_API_KEY=
 AI_MODEL=deepseek-chat
@@ -171,7 +172,7 @@ EXT_INDUSTRY_DATA_URL=
 
 - 实时行情：交易日 `09:15-11:30`、`13:00-15:15`，默认每秒一次。
 - 盘中分钟增量：相同交易时段，默认每秒一轮；不支持增量能力的 Provider 会降级。
-- 扩展概念/行业：配置上游后，交易日双时段每分钟一次。
+- 扩展概念/行业：内置默认上游，交易日双时段每分钟一次，可替换来源或关闭。
 - 盘后主管道：同步日线、除权因子、分钟数据并重算 enriched 指标。
 - 所有边界采用半开区间，午休期间不拉取。
 

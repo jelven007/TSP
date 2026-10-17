@@ -21,6 +21,7 @@
 | 桌面安装包 | `.github/workflows/release.yml` | 手动且质量门通过 | Windows x64、macOS ARM64、Linux x64 |
 | GitHub Release | 桌面发布 workflow | 手动 | 允许分平台追加资产 |
 | 更新清单 | `latest.json` | 桌面产物后 | 仅列实际存在资产及 SHA-256 |
+| 构建与运行文件清单 | `build-manifest.json` / 安装包 `.manifest.json` | 构建及安装包封装 | 源码 SHA、工作区状态、文件哈希及安装包哈希，见[离线升级备份](./build-upgrade-evidence.md) |
 | MCP 包 | `mcp-server/` | 独立维护 | 版本不必与主应用完全同步 |
 
 `main` 的 CI 先写回自动版本提交，前后端质量门均检查该提交；Docker 读取该次
@@ -32,6 +33,10 @@
 
 桌面 workflow 同样先执行后端全量测试和前端 test、lint、build，再启动所选平台
 的打包矩阵。手动触发不再构成绕过质量门的路径。
+打包嵌入源码清单，生成包外运行文件清单；上传前再次核验运行文件，拒绝源码
+dirty、提交不符或包后文件变化。运行清单不修改已签名的 macOS `.app`。
+Docker 清单包括 app/static、锁文件和原生 wheel；Compute 先验证基础镜像清单，
+再对当前源码生成清单。旧镜像没有清单时应先重新构建 API 基础镜像。
 
 ## 3. 版本规则
 
@@ -131,6 +136,7 @@ python3 scripts/check_version.py --current VERSION --previous <上一主线 VERS
 - [ ] 升级副本完成旧数据读取或迁移验证。
 - [ ] 备份和回滚步骤在兼容版本上演练。
 - [ ] `git diff --check`、文档链接和代码围栏检查通过。
+- [ ] 构建清单的提交、版本、文件哈希与目标产物相符；二开差异备份已核验完整。
 
 ### 6.3 安全和合规
 
