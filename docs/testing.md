@@ -90,6 +90,18 @@ uv run ruff check app/path.py tests/path.py
 
 高风险共享模块改动应先跑定向用例定位问题，再跑后端全量测试。
 
+策略校验与加载的安全回归：
+
+```bash
+uv run pytest tests/test_strategy_safety_validation.py tests/test_strategy_code_save.py tests/test_strategy_registry.py tests/test_full_compute.py -q
+```
+
+覆盖危险函数别名、dunder 拼接、模块句柄、文件原语及通配/相对导入；
+主文件和辅助文件读取、解码、语法与校验异常均须在模块执行前拒绝。
+同时验证全部内置策略、合法 Polars/矩阵表达式、辅助依赖、保存失败不落盘、
+拒绝更新保留旧策略，以及租户保存拒绝发生在计算服务和私有存储调用前。
+载荷仅参与 AST 解析或由模拟加载器阻止执行，测试不读取真实用户策略。
+
 完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
 通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。
 未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、

@@ -110,7 +110,7 @@ MA 金叉默认增加“要求MA60近5个交易日不下降”过滤,按该证�
    AI_MODEL=deepseek-chat
    ```
 2. 在选股页打开「AI 策略生成器」,用自然语言描述你的策略思路
-3. 前端流式接收生成代码,后端经 `ast` 安全校验(禁止 import os/sys/subprocess 等危险模块)后返回结果
+3. 前端流式接收生成代码,后端经 `ast` 安全校验后返回结果; 保存及文件加载时再次校验
 4. 保存后落入 `data/strategies/ai/`,文件名/ID 用 `ai_` 前缀
 
 生成策略相关提示词位于 `backend/app/strategy/prompts/`:
@@ -129,6 +129,18 @@ MA 金叉默认增加“要求MA60近5个交易日不下降”过滤,按该证�
 可以在选股页「自定义编写」中直接编辑策略代码并保存,新建自定义策略会落入 `data/strategies/custom/`,文件名/ID 用 `custom_` 前缀。也可以手动把已有策略改写为 Polars 文件后放入该目录,引擎会自动发现。
 
 手写策略需遵循 [`strategy-guide.md`](../backend/app/strategy/prompts/strategy-guide.md) 的文件结构(META / basic_filter / scoring / ENTRY_SIGNALS / filter 等),完整规范见该文档。
+
+策略代码仅能导入校验器白名单中的模块。危险内建函数的引用和别名
+(如 `run = eval`、`g = getattr`)、dunder 属性及字符串拼接、
+模块命名空间句柄、文件读写及进程执行原语、通配和相对导入均会被拒绝。
+读取行情应使用策略数据上下文或 `app.strategy.market_data`,不要自行读写文件。
+普通行情列 `market.open`、`__name__ == "__main__"` 和说明性文档字符串仍可使用。
+
+引擎会同时校验同目录下的 `_*.py` 辅助文件,辅助文件也不能使用 `vars()` 等内省入口。
+主文件或辅助文件无法读取、无法按 UTF-8 解码、存在语法错误或校验异常时,
+引擎停止加载并报告错误。旧策略若依赖上述被禁用能力,需改为显式参数及公开数据接口。
+AST 检查只拦截已知攻击模式; 多租户私有策略继续由 ComputeExecutor 在受限容器执行。
+单机文件加载仍在本进程执行,不能把静态校验当作完整沙箱。
 
 ---
 
