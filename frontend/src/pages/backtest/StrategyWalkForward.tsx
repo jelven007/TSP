@@ -106,9 +106,9 @@ export function StrategyWalkForward() {
       train_days: Number(trainDays),
       test_days: Number(testDays),
       step_days: Number(stepDays),
-      // 未扫描参数固定为策略当前默认值; overrides 让 basic_filter/信号/风控按当前策略参与,
+      // 未扫描参数使用当前固定值; overrides 让 basic_filter/信号/风控按当前策略参与,
       // 否则 walk-forward 优化的策略与用户实际回测的不一致 (同 PR #82 优化器修复)。
-      params: sweep.selected?.params_defaults,
+      params: sweep.values,
       overrides: sweep.selected ? buildDefaultOverrides(sweep.selected) : undefined,
       start,
       end,
@@ -177,7 +177,14 @@ export function StrategyWalkForward() {
           </select>
         </div>
 
-        <SweepParamList params={sweep.params} sweeps={sweep.sweeps} updateSweep={sweep.updateSweep} />
+        <SweepParamList
+          params={sweep.params}
+          sweeps={sweep.sweeps}
+          updateSweep={sweep.updateSweep}
+          values={sweep.values}
+          updateValue={sweep.updateValue}
+          fixedIds={sweep.fixedIds}
+        />
         <CombosHint show={!!sweep.strategyId} combos={sweep.combos} gridError={sweep.gridError} />
         <div className="text-[11px] text-secondary">每折跑 {sweep.combos || 0} 组优化 × N 折，耗时较长</div>
 
