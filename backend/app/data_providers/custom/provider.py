@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 _REQUIRED = {
     "daily": {"symbol", "date", "open", "high", "low", "close", "volume", "amount"},
     "adj_factor": {"symbol", "trade_date", "ex_factor"},
+    "corporate_actions": {"id", "symbol", "ex_date"},
     "realtime": {"symbol", "last_price", "prev_close", "open", "high", "low", "volume"},
     "minute": {"symbol", "datetime", "open", "high", "low", "close", "volume", "amount"},
     # full_minute (全量分钟) 与 minute 同形: 当日窗口批量拉取, 字段映射一致
@@ -232,6 +233,24 @@ class GenericHTTPProvider:
                 len(failed), len(symbols), ", ".join(failed[:20]),
             )
         return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
+
+    def get_corporate_actions(
+        self, symbols: list[str], start_time: datetime | None = None,
+        end_time: datetime | None = None, asset_type: str = "stock",
+    ) -> pl.DataFrame:
+        from app.data_providers.corporate_actions import CorporateAction
+
+        cfg = self._dataset("corporate_actions")
+        output = []
+        for index, batch in enumerate(chunked(symbols, cfg.batch)):
+            sleep_between_batches(index, cfg.rpm)
+            rows = self._request_rows_retry(cfg, batch, start_time=start_time, end_time=end_time)
+            for row in self._mapped_frame(cfg, rows).to_dicts():
+                action = CorporateAction.model_validate({
+                    **row, "source": self.name, "asset_type": asset_type,
+                })
+                output.append(action.model_dump())
+        return pl.from_dicts(output) if output else pl.DataFrame()
 
     def get_realtime(self) -> list[dict]:
         cfg = self._dataset("realtime")

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Search, Check, Clock, Zap, Settings2, AlertCircle, CheckCircle2, Calendar, History, KeyRound } from 'lucide-react'
-import { api, type ExtDataBackfillResult, type ExtDataConfig, type ExtPullAuth } from '@/lib/api'
+import { api, type ExtDataBackfillResult, type ExtDataConfig, type ExtPullAuth, type ExtFanoutRecipe } from '@/lib/api'
 import { toast } from '@/components/Toast'
 
 const AUTH_TYPE_LABELS: Record<ExtPullAuth['type'], string> = {
@@ -37,6 +37,10 @@ export function ExtDataPullPanel({ config, onSaved }: {
   const [pageSizeParam, setPageSizeParam] = useState(pull?.page_size_param ?? '')
   const [pageSize, setPageSize] = useState(pull?.page_size ?? 0)
   const [maxPages, setMaxPages] = useState(pull?.max_pages ?? 20)
+  const [pageStart, setPageStart] = useState(pull?.page_start ?? 1)
+  const [transform, setTransform] = useState(pull?.transform ?? 'auto')
+  const [snapshotPolicy, setSnapshotPolicy] = useState(pull?.snapshot_policy ?? 'auto')
+  const [recipeText, setRecipeText] = useState(pull?.fanout ? JSON.stringify(pull.fanout, null, 2) : '')
   const [enabled, setEnabled] = useState(pull?.enabled ?? false)
 
   // 接口鉴权: 方式入 pull 配置; Key 本体只存后端 secrets.json
@@ -82,6 +86,19 @@ export function ExtDataPullPanel({ config, onSaved }: {
     if (headers === null) return null
     const field_map = parseJson(fieldMapStr, '字段映射')
     if (field_map === null) return null
+    let fanout: ExtFanoutRecipe | null = null
+    if (recipeText.trim()) {
+      try {
+        const value = JSON.parse(recipeText)
+        if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.member_url !== 'string') {
+          throw new Error('invalid recipe')
+        }
+        fanout = value
+      } catch {
+        setError('两级配方需为包含 member_url 的 JSON 对象')
+        return null
+      }
+    }
     const auth: ExtPullAuth = {
       type: authType,
       header: authHeader.trim() || 'Authorization',
@@ -100,10 +117,16 @@ export function ExtDataPullPanel({ config, onSaved }: {
       page_param: pageParam.trim() || null,
       page_size_param: pageSizeParam.trim() || null,
       page_size: pageSize > 0 ? pageSize : 0,
-      page_start: pull?.page_start ?? 1,   // UI 不暴露, 保留已有值 (从 0 计数的接口手改 config.json)
+      page_start: pageStart,
       max_pages: maxPages >= 1 && maxPages <= 200 ? maxPages : 20,
+      fanout, transform, snapshot_policy: snapshotPolicy,
     }
   }
+
+  const requestBudgetSeconds = (fanout: ExtFanoutRecipe | null) => (
+    fanout?.timeout_seconds
+    ?? (fanout ? 300 : effTimeoutSec * (pageParam.trim() ? maxPages : 1))
+  )
 
   // Key 输入有改动时随配置一起保存 (空输入=清除); 未改动则跳过
   const saveKeyIfNeeded = () =>
@@ -135,21 +158,25 @@ export function ExtDataPullPanel({ config, onSaved }: {
     if (!payload) { setTesting(false); return }
     saveKeyIfNeeded()
       .then(() => api.extDataPullConfig(config.id, payload))
-      .then(() => api.extDataPullTest(config.id, effTimeoutSec))
+      .then(() => api.extDataPullTest(config.id, requestBudgetSeconds(payload.fanout)))
       .then(r => { setTestResult(r); onSaved() })
       .catch(e => setError(e.message || '测试失败'))
       .finally(() => setTesting(false))
   }
 
   const handleRun = () => {
+    const payload = buildPayload()
+    if (!payload) return
     setRunning(true); setError(''); setRunResult(null)
-    api.extDataPullRun(config.id, effTimeoutSec)
+    saveKeyIfNeeded()
+      .then(() => api.extDataPullConfig(config.id, payload))
+      .then(() => api.extDataPullRun(config.id, requestBudgetSeconds(payload.fanout)))
       .then(r => {
         setRunResult({ rows: r.rows, date: r.date })
         onSaved()
         toast(`拉取成功 · ${r.rows} 行`, 'success')
       })
-      .catch(e => setError(e.message || '执行失败'))
+      .catch(e => { setError(e.message || '执行失败'); onSaved() })
       .finally(() => setRunning(false))
   }
 
@@ -401,7 +428,7 @@ export function ExtDataPullPanel({ config, onSaved }: {
             <input
               value={pageParam} onChange={e => setPageParam(e.target.value)}
               placeholder="页码参数名 · 如 page"
-              title="配置后按页循环拉取, 直到空页/最后一页/达上限"
+              title="配置后按页循环拉取; 达上限仍无终页证据时拒绝写入"
               className="rounded-btn border border-border bg-elevated px-2 py-1.5 text-[10px] font-mono text-foreground placeholder:text-muted/40"
             />
             <input
@@ -427,8 +454,46 @@ export function ExtDataPullPanel({ config, onSaved }: {
               className="rounded-btn border border-border bg-elevated px-2 py-1.5 text-[10px] font-mono text-foreground placeholder:text-muted/40"
             />
           </div>
+          <label className="mt-1.5 flex items-center gap-2 text-[10px] text-muted">
+            起始页码
+            <input type="number" min={0} aria-label="起始页码" value={pageStart}
+              onChange={e => setPageStart(Number(e.target.value))}
+              className="min-w-0 flex-1 rounded-btn border border-border bg-elevated px-2 py-1.5 text-foreground" />
+          </label>
         </div>
 
+        <div className="rounded-card border border-border/60 p-2.5 space-y-2">
+          <label className="block text-[10px] text-muted">
+            来源结构
+            <select aria-label="来源结构" value={transform} onChange={e => setTransform(e.target.value as 'auto' | 'none')}
+              className="mt-1 w-full rounded-btn border border-border bg-elevated px-2 py-1.5 text-foreground">
+              <option value="auto">默认聚合源结构（概念 / 行业）</option>
+              <option value="none">已标准化行（仅应用字段映射）</option>
+            </select>
+          </label>
+          {config.mode === 'snapshot' && (
+            <label className="block text-[10px] text-muted">
+              快照写入
+              <select aria-label="快照写入" value={snapshotPolicy} onChange={e => setSnapshotPolicy(e.target.value as typeof snapshotPolicy)}
+                className="mt-1 w-full rounded-btn border border-border bg-elevated px-2 py-1.5 text-foreground">
+                <option value="auto">自动（内置分类 / 两级配方完整替换）</option>
+                <option value="replace">完整替换并保留上一份</option>
+                <option value="merge">合并已有标的</option>
+              </select>
+            </label>
+          )}
+          <label className="block text-[10px] text-muted">
+            两级配方（JSON，留空为单级请求）
+            <textarea aria-label="两级配方" value={recipeText} onChange={e => setRecipeText(e.target.value)}
+              rows={6} spellCheck={false}
+              placeholder={'{"member_url":"https://api.example.com/members","id_field":"id","member_param":"sector","inject_fields":{"name":"所属概念"},"join_fields":{"所属概念":";"}}'}
+              className="mt-1 w-full rounded-btn border border-border bg-elevated px-2 py-1.5 text-[10px] font-mono text-foreground" />
+          </label>
+          <p className="text-[9px] text-muted leading-relaxed">
+            上方 URL 和响应路径读取目录；成员接口限同源 GET，共用鉴权。配方可设并发、重试、成员分页及整轮超时。
+            两级输出仅应用字段映射。失败会列出未完成目录，并保留当前快照。
+          </p>
+        </div>
 
         <div>
           <div className="text-[10px] text-muted mb-1">字段映射 (外部名 → 内部名，JSON，可选)</div>
@@ -504,6 +569,35 @@ export function ExtDataPullPanel({ config, onSaved }: {
               )}
             </div>
           </div>
+        )}
+        {pull?.last_attempt?.total != null && (
+          <div className="text-[10px] text-secondary">
+            请求完成 {pull.last_attempt.completed ?? 0} / {pull.last_attempt.total}
+            {' · '}{Math.round((pull.last_attempt.coverage ?? 0) * 100)}%
+            <span className="block text-[9px] text-muted">此比例表示目录或请求完成度，不代表全市场股票覆盖率。</span>
+          </div>
+        )}
+        {pull?.last_complete && (
+          <div className="border-t border-border/40 pt-1.5 text-[10px] text-secondary space-y-1 break-words">
+            <div>最后成功：{fmtTime(pull.last_complete.received_at)} · {pull.last_complete.rows} 行</div>
+            <div>实际来源：{pull.last_complete.source}</div>
+            <div>来源日期：{pull.last_complete.source_date ?? '未知（接口未提供完整日期）'}</div>
+            <div>本地当前股票池覆盖：{pull.last_complete.stock_coverage
+              ? `${pull.last_complete.stock_coverage.matched} / ${pull.last_complete.stock_coverage.total}`
+              : '未知（无可用标的维表）'}</div>
+            <div className="text-muted">接收时间独立记录，不作为源端日期证明。</div>
+            {pull.previous_complete && (
+              <div>上一完整快照：{fmtTime(pull.previous_complete.received_at)} · {pull.previous_complete.rows} 行，已保留</div>
+            )}
+          </div>
+        )}
+        {!!pull?.last_attempt?.failed?.length && (
+          <details className="text-[10px] text-danger">
+            <summary className="cursor-pointer">未完成目录 {pull.last_attempt.failed.length} 项</summary>
+            <ul className="mt-1 max-h-32 overflow-y-auto break-words">
+              {pull.last_attempt.failed.map(item => <li key={item.id}>{item.id} · {item.reason}</li>)}
+            </ul>
+          </details>
         )}
       </div>
 

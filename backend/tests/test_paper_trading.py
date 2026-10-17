@@ -317,7 +317,7 @@ def test_settle_idempotent_no_double_fill(tmp_path):
 
 def test_corporate_action_adjusts_position_and_idempotent(tmp_path):
     day = date(2026, 9, 24)
-    _cap_account(tmp_path)
+    paper.create_account(tmp_path, 1_000_000, corporate_action_mode="legacy_factor")
     _write_daily(tmp_path, [
         (day - timedelta(days=1), 10.0, 10.0),
         (day, 8.0, 8.0),  # 除权后价格

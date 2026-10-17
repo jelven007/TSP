@@ -55,6 +55,46 @@ def assert_ledger(storage):
     assert cash >= 0
 
 
+def test_event_cash_rights_concurrency_isolation_and_transaction_recovery(owned, monkeypatch):
+    from app.data_providers.corporate_actions import CorporateAction
+    from app.services.corporate_actions import save_actions
+    from app.strategy import paper_actions
+
+    own, other = owned
+    for storage in (own, other):
+        paper.create_account(storage, 100_000, slippage_bps=0)
+    paper.create_order(own, SYM, "buy", qty=1000, ref_price=10)
+    paper.evaluate_intraday(own, {SYM: 10})
+    cash_before = paper.get_account(own)["cash"]
+    event = CorporateAction(
+        id="verified", symbol=SYM, source="fixture", record_date=DAY, ex_date=NEXT,
+        cash_per_share=1, cash_pay_date=NEXT, dates_verified=True, evidence="fixture",
+        rights_per_share=.2, rights_price=5, rights_start_date=NEXT,
+        rights_end_date=NEXT, rights_listing_date=NEXT + timedelta(days=1),
+    )
+    save_actions(own.public_data_dir, [event])
+    original = paper.rebuild_positions
+    monkeypatch.setattr(paper, "rebuild_positions", lambda *a, **kw: (_ for _ in ()).throw(OSError("fault")))
+    with pytest.raises(OSError):
+        paper_actions.advance(own, NEXT.isoformat())
+    assert len(paper.load_fills(own)) == 1  # Entire SQL operation rolled back.
+    monkeypatch.setattr(paper, "rebuild_positions", original)
+    monkeypatch.setattr(paper, "cn_today", lambda: NEXT)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(lambda _: paper_actions.advance(own, NEXT.isoformat()), range(4)))
+    assert paper.get_account(own)["cash"] == cash_before + 1000
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(lambda _: paper_actions.subscribe(own, "verified", 200), range(4)))
+    assert paper.get_account(own)["cash"] == cash_before
+    paper_actions.advance(own, (NEXT + timedelta(days=1)).isoformat())
+    assert paper.load_positions(own)[SYM]["qty"] == 1200
+    _, total, executions, _ = paper.load_fills_page(own)
+    assert total == 6 and executions == 1
+    assert paper.load_fills(other) == []
+    assert paper_actions.status(other, NEXT.isoformat())["events"] == []
+    assert_ledger(own)
+
+
 def test_full_original_fees_t1_multi_account_and_rls(env, owned, monkeypatch):
     own, other = owned
     paper.create_account(own, 100000)
@@ -212,7 +252,7 @@ def test_delayed_price_cutoff_missing_quote_retry_and_freeze(owned):
 
 def test_corporate_action_fifo_stats_and_nav_replay(owned, monkeypatch):
     own, _ = owned
-    paper.create_account(own, 100000)
+    paper.create_account(own, 100000, corporate_action_mode="legacy_factor")
     paper.create_order(own, SYM, "buy", qty=100, ref_price=10)
     paper.evaluate_intraday(own, {SYM: 10})
     base = own.public_data_dir / "adj_factor"

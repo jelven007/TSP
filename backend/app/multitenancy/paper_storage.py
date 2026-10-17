@@ -113,7 +113,7 @@ class PaperSession:
     def fill_page(self, account_id, *, limit=100, before=None):
         counts = self.conn.execute(
             """SELECT count(*) AS total,
-                      count(*) FILTER (WHERE coalesce(value->>'kind','fill')<>'corp_action')
+                      count(*) FILTER (WHERE coalesce(value->>'kind','fill')='fill')
                           AS execution_total
                FROM business.full_paper_fills WHERE account_id=%s""",
             (account_id,),
@@ -135,7 +135,8 @@ class PaperSession:
 
     def append_fill(self, account_id, value):
         key = (
-            f"corp:{value['symbol']}:{value['date']}" if value.get("kind") == "corp_action"
+            f"action:{value['action_id']}:{value['stage']}" if value.get("kind") == "corporate_action"
+            else f"corp:{value['symbol']}:{value['date']}" if value.get("kind") == "corp_action"
             else f"fill:{value['order_id']}"
         )
         existing = self.conn.execute(

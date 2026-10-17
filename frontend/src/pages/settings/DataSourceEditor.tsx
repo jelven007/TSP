@@ -9,12 +9,13 @@ import { toast } from '@/components/Toast'
 const INPUT_CLS =
   'w-full h-9 px-2.5 rounded-lg bg-base border-0 ring-1 ring-border/40 text-xs text-foreground placeholder:text-muted/30 focus:outline-none focus:ring-2 focus:ring-accent/40 transition-shadow'
 
-const DATASETS = ['daily', 'adj_factor', 'realtime', 'minute', 'full_minute'] as const
+const DATASETS = ['daily', 'adj_factor', 'corporate_actions', 'realtime', 'minute', 'full_minute'] as const
 type DatasetKey = typeof DATASETS[number]
 
 const DATASET_LABEL: Record<DatasetKey, string> = {
   daily: '日K',
   adj_factor: '除权因子',
+  corporate_actions: '公司行为',
   realtime: '实时行情',
   minute: '分钟K',
   full_minute: '全量分钟',
@@ -23,6 +24,9 @@ const DATASET_LABEL: Record<DatasetKey, string> = {
 const TARGET_FIELDS: Record<DatasetKey, string[]> = {
   daily: ['symbol', 'date', 'open', 'high', 'low', 'close', 'volume', 'amount'],
   adj_factor: ['symbol', 'trade_date', 'ex_factor'],
+  corporate_actions: ['id', 'symbol', 'ex_date', 'record_date', 'cash_per_share', 'cash_pay_date',
+    'bonus_per_share', 'bonus_listing_date', 'rights_per_share', 'rights_price', 'rights_start_date',
+    'rights_end_date', 'rights_listing_date', 'dates_verified', 'evidence'],
   realtime: ['symbol', 'name', 'last_price', 'prev_close', 'open', 'high', 'low', 'volume', 'amount', 'change_pct', 'change_amount', 'amplitude', 'turnover_rate', 'timestamp', 'session'],
   minute: ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume', 'amount'],
   full_minute: ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume', 'amount'],

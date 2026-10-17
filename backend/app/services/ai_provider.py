@@ -13,6 +13,7 @@ import tempfile
 import time
 import tomllib
 from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import aclosing
 from pathlib import Path
 from types import TracebackType
 from urllib.parse import urlsplit, urlunsplit
@@ -122,6 +123,13 @@ def build_focus_instruction(focus: str, *, report_name: str = "分析报告") ->
 
 def current_ai_provider() -> str:
     return secrets_store.get_ai_config("ai_provider", settings.ai_provider) or OPENAI_COMPAT_PROVIDER
+
+
+def current_ai_protocol() -> str:
+    protocol = secrets_store.get_ai_config("ai_protocol", settings.ai_protocol)
+    if protocol not in {"chat_completions", "responses"}:
+        raise ValueError("AI 协议无效, 请在设置页选择 Chat Completions 或 Responses")
+    return protocol
 
 
 def current_openai_model() -> str:
@@ -266,6 +274,8 @@ def normalize_openai_base_url(url: str) -> str:
     base = (url or "").strip().rstrip("/")
     if base.endswith("/chat/completions"):
         base = base[: -len("/chat/completions")].rstrip("/")
+    elif base.endswith("/responses"):
+        base = base[: -len("/responses")].rstrip("/")
     if _VERSION_SEGMENT_RE.search(base):
         return base
     return f"{base}/v1"
@@ -378,6 +388,8 @@ async def generate_ai_text_with_tools(
         }
         if message.content:
             assistant["content"] = message.content
+        if getattr(message, "responses_output", None) is not None:
+            assistant["_responses_output"] = message.responses_output
         req_messages.append(assistant)
 
         for tc in tool_calls:
@@ -446,14 +458,15 @@ async def stream_ai_text(
         yield await _run_codex_cli(messages, max_tokens=max_tokens, timeout=max(timeout, 600.0))
         return
 
-    async for chunk in _stream_openai(
+    async with aclosing(_stream_openai(
         messages,
         temperature=temperature,
         max_tokens=max_tokens,
         timeout=timeout,
         prefer_final_answer=prefer_final_answer,
-    ):
-        yield chunk
+    )) as stream:
+        async for chunk in stream:
+            yield chunk
 
 
 async def _run_openai_once(
@@ -487,6 +500,13 @@ async def _run_openai_message_once(
     _run_openai_once 只取 .content; 工具循环需要 .tool_calls 以回填 role:tool,
     故在此返回完整消息对象。tools 非空时以 tools= 透传, 否则走纯文本路径。
     """
+    if current_ai_protocol() == "responses":
+        from app.services.ai_responses import run_message_once
+        return await run_message_once(
+            messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout, tools=tools,
+        )
+    if any("_responses_output" in message for message in messages):
+        raise RuntimeError("AI 协议在工具轮次间发生变更, 请重新发起任务")
     ai_key = secrets_store.get_ai_key()
     if not ai_key:
         raise RuntimeError("AI API Key 未配置, 请在设置页配置")
@@ -524,6 +544,15 @@ async def _stream_openai(
     timeout: float,
     prefer_final_answer: bool,
 ) -> AsyncIterator[str]:
+    if current_ai_protocol() == "responses":
+        from app.services.ai_responses import stream_round
+        async with aclosing(stream_round(
+            messages, temperature=temperature, max_tokens=max_tokens, timeout=timeout,
+        )) as stream:
+            async for event in stream:
+                if event["type"] == "text":
+                    yield event["delta"]
+        return
     ai_key = secrets_store.get_ai_key()
     if not ai_key:
         raise RuntimeError("AI API Key 未配置, 请在设置页配置")

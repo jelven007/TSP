@@ -129,12 +129,11 @@ def read_financials_as_of(
 
     ``observed_at`` 为 None 时读当前生效文件 (与既有消费方一致, 行为不变);
     给定带时区的观察时刻时, 返回那一刻可见的已保留观察 (校验文件摘要),
-    尚无任何观察时回退当前文件 — 研究复现用, 不改变默认实时视图。
+    尚无任何观察时返回空表, 不把后来值倒填到历史时点。
     """
     if observed_at is None:
         return get_financial_df(data_dir, table)
-    revision = get_financial_revision(data_dir, table, observed_at)
-    return revision if not revision.is_empty() else get_financial_df(data_dir, table)
+    return get_financial_revision(data_dir, table, observed_at)
 
 
 # ================================================================

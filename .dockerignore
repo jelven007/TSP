@@ -46,7 +46,8 @@ backend/build
 # ===== 开发脚本(本地启服务用, 镜像不用) =====
 dev.sh
 dev.ps1
-scripts
+scripts/*
+!scripts/build_manifest.py
 
 # ===== 密钥(防止误打进公开镜像) =====
 .env
@@ -56,3 +57,6 @@ backend/.env
 # ===== 其他构建产物 =====
 **/node_modules
 *.log
+.dbg
+.tools
+reports

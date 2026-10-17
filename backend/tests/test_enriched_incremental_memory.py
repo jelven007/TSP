@@ -57,6 +57,9 @@ def test_incremental_batches_preserve_values_and_generation(sample, tmp_path, mo
     expected = pipeline._select_storage_cols(pipeline.compute_enriched(
         raw, instruments=instruments, factors=factors, historical_shares=shares,
     )).sort("symbol", "date")
+    if not adjustment_only:
+        # The disk reader inserts unknown provenance for pre-marker partitions.
+        expected = expected.with_columns(pl.lit(None, dtype=pl.Utf8).alias("quote_time_basis"))
     if adjustment_only:
         for frame in raw.partition_by("date"):
             out = tmp_path / "kline_daily_enriched" / f"date={frame['date'][0]}" / "part.parquet"

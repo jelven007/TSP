@@ -40,6 +40,7 @@ _DATASETS = (
     "realtime",
     "daily",
     "adj_factor",
+    "corporate_actions",
     "minute",
     "depth5",
     "financial",
@@ -859,6 +860,59 @@ class RustdxProvider:
             }
         return result
 
+    def get_corporate_actions(
+        self, symbols: list[str], start_time: datetime | None = None,
+        end_time: datetime | None = None, asset_type: str = "stock",
+    ) -> pl.DataFrame:
+        """TDX category 1 has only ex-date; never infer registration/payment dates."""
+        from app.data_providers.corporate_actions import CorporateAction
+
+        if asset_type not in {"stock", "etf"}:
+            return pl.DataFrame()
+        output = []
+        # Bound each task to one symbol, share the existing native pool. Any
+        # failed symbol rejects the batch so a partial snapshot isn't published.
+        def fetch(symbol):
+            with self._client_factory() as client:
+                return client.xdxr(symbol)
+
+        valid = list(dict.fromkeys(symbol for symbol in symbols if _symbol(symbol)))
+        with ThreadPoolExecutor(max_workers=self._workers(len(valid))) as pool:
+            for symbol, rows in zip(valid, pool.map(fetch, valid), strict=True):
+                grouped = {}
+                for row in rows:
+                    if int(row.get("category") or 0) != 1:
+                        continue
+                    day = _as_date(f"{int(row.get('year') or 0):04d}-"
+                                   f"{int(row.get('month') or 0):02d}-{int(row.get('day') or 0):02d}")
+                    if day is None:
+                        raise ValueError("rustdx corporate action has invalid ex-date")
+                    if (start_time and day < start_time.date()) or (end_time and day > end_time.date()):
+                        continue
+                    grouped.setdefault(day, []).append(row)
+                for day, items in grouped.items():
+                    def total(key, records=items):
+                        values = [_to_float(item.get(key)) for item in records]
+                        if any(value is None or value < 0 for value in values):
+                            raise ValueError(f"rustdx corporate action has invalid {key}")
+                        return sum(values)
+
+                    rights = total("peigu") / 10
+                    rights_price = None
+                    if rights:
+                        prices = [_to_float(item.get("peigujia")) for item in items]
+                        if all(price is not None and price >= 0 for price in prices):
+                            rights_price = sum(item["peigu"] * price for item, price in zip(items, prices, strict=True)) / (rights * 10)
+                    action = CorporateAction(
+                        id=f"rustdx:{symbol}:{day.isoformat()}", symbol=symbol,
+                        source="rustdx", asset_type=asset_type, ex_date=day,
+                        cash_per_share=total("fenhong") / 10,
+                        bonus_per_share=total("songzhuangu") / 10,
+                        rights_per_share=rights, rights_price=rights_price,
+                    )
+                    output.append(action.model_dump())
+        return pl.from_dicts(output) if output else pl.DataFrame()
+
     # ---- adjustment factors ----
     def _get_adj_factors_serial(
         self,
@@ -1159,6 +1213,10 @@ class RustdxProvider:
                     infer_schema_length=None,
                 ) if depth else pl.DataFrame()
                 return _preview(self.name, dataset, frame)
+            if dataset == "corporate_actions":
+                return _preview(self.name, dataset, self.get_corporate_actions(
+                    selected, start_time=end - timedelta(days=365), end_time=end,
+                ))
             if dataset == "realtime":
                 rows = self._quote_rows(selected, include_names=False)
                 frame = pl.from_dicts(rows, infer_schema_length=None) if rows else pl.DataFrame()

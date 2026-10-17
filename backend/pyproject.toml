@@ -20,6 +20,8 @@ dependencies = [
     "pyarrow>=16.0",
     "pandas>=2.2",                # 仅在 BacktestService 边界使用,见 §7.4 / ADR-19
     "psutil>=5.9",                # 独立回测 worker 的峰值 RSS 与退出后内存指标
+    # 单机和 full-product 共用模拟盘/告警模块，主应用导入时即需要 SQL 适配类型。
+    "psycopg[binary,pool]>=3.2,<4",
     # llvmlite 不再提供 macOS Intel wheel；该平台使用 Matrix 纯 Python fallback。
     "numba>=0.65.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "fastexcel>=0.10",            # Polars 读取 xlsx/xls
@@ -77,9 +79,8 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
 ]
-cell = [
-    "psycopg[binary,pool]>=3.2,<4",
-]
+# 保留旧 --extra cell 构建命令兼容；PostgreSQL 运行依赖已是默认依赖。
+cell = []
 
 [build-system]
 requires = ["hatchling"]

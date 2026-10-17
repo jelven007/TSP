@@ -794,6 +794,17 @@ def run_now(
             stage_errors.append(f"compute_mainline: {e}")
             skipped.append("mainline")
 
+    # Independent provider route; publish the normalized events before settlement.
+    try:
+        from app.services.corporate_actions import sync_actions
+
+        emit("corporate_actions", 94, "同步公司行为事件…")
+        action_count = sync_actions(repo.store.data_dir, universe)
+        emit("corporate_actions", 94, f"公司行为事件 {action_count} 条")
+    except Exception as exc:
+        logger.warning("corporate_actions failed: %s", exc)
+        stage_errors.append(f"corporate_actions: {exc}")
+
     # Step 2.8: 模拟盘结算: 顺延单按当日开盘/收盘撮合 → 除权调整 → 定版净值。
     # 幂等: 重跑同日不会重复成交/二次除权 (订单状态与 corp_action 台账守卫)。
     # 必须在日K/除权同步之后, 才能读到当日 raw OHLC 与因子。核心账务不受
