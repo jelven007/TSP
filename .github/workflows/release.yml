@@ -459,11 +459,24 @@ jobs:
           cd backend/dist
           tar -czf ../../${{ matrix.artifact }} TSP
 
+      - name: 校验运行文件并生成安装包清单
+        env:
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+          SOURCE_REVISION: ${{ needs.prepare.outputs.revision }}
+        shell: bash
+        run: |
+          python scripts/build_manifest.py seal --root backend/dist \
+            --manifest backend/dist/build-manifest.json \
+            --artifact "$ARTIFACT_NAME" --commit "$SOURCE_REVISION" \
+            --output "$ARTIFACT_NAME.manifest.json"
+
       - name: 上传产物为构建产物 (备查)
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.manifest.json
 
       - name: 上传到 GitHub Release
         uses: softprops/action-gh-release@v2
@@ -471,7 +484,9 @@ jobs:
           tag_name: ${{ github.event.inputs.version }}
           target_commitish: ${{ needs.prepare.outputs.revision }}
           name: ${{ github.event.inputs.version }}
-          files: ${{ matrix.artifact }}
+          files: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.manifest.json
           prerelease: ${{ github.event.inputs.prerelease }}
           # 仓库启用了 Immutable Releases。先保持 draft，让所有平台资产及
           # latest.json 都可上传；manifest job 完成后再一次性发布并冻结。

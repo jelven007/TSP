@@ -139,9 +139,8 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
     uv sync --frozen "$@"
 
 # Install the default rustdx route's wheel built for this target architecture.
-COPY --from=rustdx-builder /wheels /tmp/rustdx-wheels
-RUN uv pip install --python /app/.venv/bin/python /tmp/rustdx-wheels/*.whl \
-    && rm -rf /tmp/rustdx-wheels
+COPY --from=rustdx-builder /wheels /app/native-wheels
+RUN uv pip install --python /app/.venv/bin/python /app/native-wheels/*.whl
 
 # Backend code
 # 注意:Docker 里 WORKDIR=/app, 而 config.py 的 _PROJECT_ROOT 是按开发布局
@@ -161,6 +160,16 @@ COPY --from=frontend-builder /build/dist ./static
 # Codex CLI 使用官方 npm 包携带的当前平台原生二进制，无需运行时 Node.js。
 COPY --from=codex-builder /opt/codex-native /usr/local/bin/codex
 RUN codex --version
+
+ARG SOURCE_COMMIT=
+COPY VERSION /app/VERSION
+COPY scripts/build_manifest.py /app/build_manifest.py
+RUN python /app/build_manifest.py create --root /app \
+    --include app --include static --include tiers.yaml --include VERSION \
+    --include pyproject.toml --include uv.lock --include native-wheels \
+    --include build_manifest.py --version-file /app/VERSION \
+    --commit "$SOURCE_COMMIT" --output /app/build-manifest.json \
+    && python /app/build_manifest.py verify --root /app --manifest /app/build-manifest.json
 
 ENV PYTHONPATH=/app
 # 运行时 uv 镜像源持久化: CMD 用 `uv run` 启动, 锁与 pyproject 不一致等场景下
