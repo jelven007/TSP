@@ -76,7 +76,7 @@ Gateway/SSE 与 Compute 元数据烟测；Apple ARM 仿真缺少 AVX/AVX2，不�
 目录对真实历史数据执行 Provider→标准化→落盘→指标→平台 marker/Arrow 快照→
 页面 API 的有界分段量测；结果必须保留 `source_freshness_certified` 和
 `trading_day_soak_certified`，历史或周末样本不得把这两个字段标为真。
-实际结果及未签收范围见[剩余 P2 验收](../reports/p2-remaining-20261017/verification.md#c3真实链路分段量测与平台产物)。
+历史结果与未签收范围汇总见[主线整合记录](../reports/main-consolidation-20261018/verification.md)。
 默认 Docker 镜像必须直接执行主应用启动烟测；仅运行 Compute 或桥接自检不足以发现
 API 导入依赖缺失。PostgreSQL 适配器现为默认依赖，空 `BACKEND_EXTRAS` 构建也须
 通过 `/health/live`，旧 `--extra cell` 只作为兼容命令保留。
@@ -154,15 +154,14 @@ uv run pytest tests/test_enriched_warmup_retry.py tests/test_paper_auto.py \
 T+1、待卖占用、账户隔离和事件重放。分钟样本覆盖除权前收、历史 ST、
 新股无涨跌幅限制、未知规则、异常缺口、全异常和 API 空值序列化；
 前端同时检查质量提示、覆盖率和不可计算状态。
-完整定向集合、性能样本及全量失败详情见
-[P2 验收记录](../reports/p2-correctness-port-20261017/verification.md)。
-其中 OpenAPI 指纹基线原已不一致，本次新增字段进一步改变指纹，不能视为无关失败。
+最终合并回归及源码范围见
+[主线整合记录](../reports/main-consolidation-20261018/verification.md)。
 
 P2 参数交互补充验证 `test_strategy_param_normalize.py` 的 API 保存/读取，
 前端 `strategyParams.test.ts` 和 `paramSweep.test.tsx` 的分组、递归显隐、
 预设填值、隐藏值保留和扫描排除。页面联调需验证设置保存后在回测回显同一值，
 控制条件切换后组合数变化，以及浅/深色窄屏可操作性。
-证据见[剩余 P2 验收记录](../reports/p2-remaining-20261017/verification.md)。
+合并结果见[主线整合记录](../reports/main-consolidation-20261018/verification.md)。
 
 完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
 通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。

@@ -254,11 +254,24 @@ def test_windows_smoke_log_checks_use_explicit_powershell_parameters() -> None:
 
 
 def test_windows_release_matrix_keeps_native_runtime_install_and_manifest_gates() -> None:
+    import importlib.util
+
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
         encoding="utf-8"
     )
 
-    assert '"os":"windows-latest"' in workflow
+    scripts = str(ROOT / "scripts")
+    sys.path.insert(0, scripts)
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_test_release_platforms", ROOT / "scripts" / "prepare_release.py",
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert module.PLATFORMS["windows"]["os"] == "windows-latest"
+        assert "scripts/prepare_release.py" in workflow
+    finally:
+        sys.path.remove(scripts)
     assert "$env:PROCESSOR_ARCHITECTURE -ne 'AMD64'" in workflow
     assert "_polars_runtime_32/_polars_runtime.pyd" in workflow
     assert "_polars_runtime_compat/_polars_runtime.pyd" in workflow
