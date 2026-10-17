@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { StrategyDetail, StrategyParamDef } from '@/lib/api'
+import { applyParamValue, fixedParamIds, visibleParams } from '@/lib/strategyParams'
+import { StrategyParamGroups } from '@/components/StrategyParamGroups'
 
 /** 参数扫描配置的共享逻辑与 UI — 优化器与 walk-forward 复用。 */
 
@@ -67,9 +69,13 @@ function sweepError(p: StrategyParamDef, s: Sweep): string | null {
 export function useParamSweep(strategies: StrategyDetail[], onStrategyChange?: () => void) {
   const [strategyId, setStrategyId] = useState<string>('')
   const [sweeps, setSweeps] = useState<Record<string, Sweep>>({})
+  const [values, setValues] = useState<Record<string, any>>({})
 
   const selected = strategies.find(s => s.id === strategyId)
-  const params = selected?.params ?? []
+  const definitions = selected?.params ?? []
+  const params = definitions
+  const fixedIds = fixedParamIds(definitions)
+  const scanParams = visibleParams(definitions, values).filter(p => !fixedIds.has(p.id) && p.type !== 'string')
 
   const selectStrategy = (id: string) => {
     setStrategyId(id)
@@ -78,30 +84,33 @@ export function useParamSweep(strategies: StrategyDetail[], onStrategyChange?: (
     const init: Record<string, Sweep> = {}
     for (const p of s?.params ?? []) init[p.id] = defaultSweep(p)
     setSweeps(init)
+    setValues({ ...Object.fromEntries((s?.params ?? []).map(p => [p.id, p.default])), ...s?.params_defaults })
   }
 
+  const updateValue = (pid: string, value: any) =>
+    setValues(prev => applyParamValue(definitions, prev, pid, value))
   const updateSweep = (pid: string, patch: Partial<Sweep>) =>
     setSweeps(prev => ({ ...prev, [pid]: { ...prev[pid], ...patch } }))
 
   const combos = useMemo(() => {
-    const enabled = params.filter(p => sweeps[p.id]?.enabled)
+    const enabled = scanParams.filter(p => sweeps[p.id]?.enabled)
     if (!enabled.length) return 0
     return enabled.reduce((acc, p) => acc * candidateCount(p, sweeps[p.id]), 1)
-  }, [params, sweeps])
+  }, [scanParams, sweeps])
 
   // 网格合法性 (与后端展开同口径): 步长不整除/越界会被后端拒, 前端提前拦。
   const gridError = useMemo(() => {
-    for (const p of params) {
+    for (const p of scanParams) {
       if (!sweeps[p.id]?.enabled) continue
       const err = sweepError(p, sweeps[p.id])
       if (err) return err
     }
     return null
-  }, [params, sweeps])
+  }, [scanParams, sweeps])
 
   const buildGrid = (): Record<string, any> => {
     const grid: Record<string, any> = {}
-    for (const p of params) {
+    for (const p of scanParams) {
       const s = sweeps[p.id]
       if (!s?.enabled) continue
       if (p.type === 'bool') grid[p.id] = [true, false]
@@ -112,7 +121,8 @@ export function useParamSweep(strategies: StrategyDetail[], onStrategyChange?: (
     return grid
   }
 
-  return { strategyId, selected, selectStrategy, params, sweeps, updateSweep, combos, gridError, buildGrid }
+  return { strategyId, selected, selectStrategy, params, sweeps, updateSweep, combos, gridError, buildGrid,
+    values, updateValue, fixedIds }
 }
 
 /** 策略选择器。 */
@@ -130,28 +140,32 @@ export function StrategySelect({ strategies, value, onChange }: {
 }
 
 /** 可扫参数列表 (勾选 + min/max/step)。 */
-export function SweepParamList({ params, sweeps, updateSweep }: {
+export function SweepParamList({ params, sweeps, updateSweep, values, updateValue, fixedIds }: {
   params: StrategyParamDef[]
   sweeps: Record<string, Sweep>
   updateSweep: (pid: string, patch: Partial<Sweep>) => void
+  values: Record<string, any>
+  updateValue: (pid: string, value: any) => void
+  fixedIds: Set<string>
 }) {
   if (!params.length) return null
   return (
     <div>
-      <div className="mb-1.5 text-xs font-medium text-secondary">扫描参数 (勾选后设范围)</div>
-      <div className="space-y-2">
-        {params.map(p => {
+      <div className="mb-1.5 text-xs font-medium text-secondary">参数 (勾选扫描，其余使用固定值)</div>
+      <StrategyParamGroups params={params} values={values} className="space-y-2">
+        {p => {
           const s = sweeps[p.id] ?? defaultSweep(p)
           const numeric = p.type === 'float' || p.type === 'int'
-          const sweepable = numeric || p.type === 'bool' || p.type === 'select'
+          const sweepable = !fixedIds.has(p.id) && (numeric || p.type === 'bool' || p.type === 'select')
           if (!sweepable) {
             return (
               <div key={p.id} className="rounded-input border border-border/60 p-2">
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-medium text-muted">{p.label}</span>
                   <span className="text-muted">({p.type})</span>
-                  <span className="text-[11px] text-muted">文本参数不可扫描</span>
+                  <span className="text-[11px] text-muted">{fixedIds.has(p.id) ? '固定条件，切换后分别扫描' : '文本参数不可扫描'}</span>
                 </div>
+                <FixedValue param={p} value={values[p.id]} onChange={v => updateValue(p.id, v)} />
               </div>
             )
           }
@@ -162,6 +176,7 @@ export function SweepParamList({ params, sweeps, updateSweep }: {
                 <span className="font-medium text-foreground">{p.label}</span>
                 <span className="text-secondary">({p.type})</span>
               </label>
+              {!s.enabled && <FixedValue param={p} value={values[p.id]} onChange={v => updateValue(p.id, v)} />}
               {s.enabled && numeric && (
                 <div className="mt-2 grid grid-cols-3 gap-1.5">
                   <input type="number" value={s.min} onChange={e => updateSweep(p.id, { min: e.target.value })} placeholder="min" className={INPUT_CLS} />
@@ -176,10 +191,33 @@ export function SweepParamList({ params, sweeps, updateSweep }: {
               )}
             </div>
           )
-        })}
-      </div>
+        }}
+      </StrategyParamGroups>
     </div>
   )
+}
+
+function FixedValue({ param: p, value, onChange }: {
+  param: StrategyParamDef; value: any; onChange: (value: any) => void
+}) {
+  const current = value ?? p.default
+  if (p.type === 'bool') {
+    return <label className="mt-1 flex items-center gap-2 text-xs text-secondary">
+      <input type="checkbox" aria-label={`${p.label}固定值`}
+        checked={current === true || String(current).toLowerCase() === 'true'}
+        onChange={e => onChange(e.target.checked)} />启用
+    </label>
+  }
+  if (p.type === 'select') {
+    return <select aria-label={`${p.label}固定值`} className={`${INPUT_CLS} mt-1`} value={current}
+      onChange={e => onChange(e.target.value)}>
+      {(p.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  }
+  return <input aria-label={`${p.label}固定值`} className={`${INPUT_CLS} mt-1`}
+    type={p.type === 'string' ? 'text' : 'number'} value={current} min={p.min} max={p.max}
+    step={p.step ?? (p.type === 'int' ? 1 : 0.01)}
+    onChange={e => onChange(p.type === 'string' ? e.target.value : e.target.value === '' ? p.default : Number(e.target.value))} />
 }
 
 /** 组合数 / 校验提示 (含上限与网格错误告警)。 */
