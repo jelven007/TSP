@@ -6,9 +6,12 @@
 from __future__ import annotations
 
 import ast
+import importlib
 import logging
 import math
 import re
+import sys
+import types
 from pathlib import Path
 
 from app.indicators.pipeline import ENRICHED_COLUMNS
@@ -62,6 +65,100 @@ _MATRIX_SCORING_FIELDS = frozenset({
     "momentum_20d", "momentum_30d", "momentum_60d", "annual_vol_20d",
     "rsi_6", "rsi_14", "rsi_24", "vol_ratio_5d", "ma20_bias",
 })
+
+
+# GH #475: 直接调用黑名单会漏掉别名赋值、字符串拼接和模块命名空间句柄。
+_DUNDER_RE = re.compile(r"__[A-Za-z0-9_]*__")
+_BENIGN_DUNDER_NAMES = frozenset({"__name__"})
+_BENIGN_DUNDER_TEXTS = frozenset({"__name__", "__main__"})
+_FORBIDDEN_REF_NAMES = frozenset({
+    "open", "exec", "eval", "compile", "__import__",
+    "globals", "locals", "vars", "dir", "getattr",
+    "setattr", "delattr", "type", "input", "breakpoint",
+    "memoryview", "exit", "quit",
+})
+
+# 按属性名拦截任意接收者; open/type/dir 等不能收录, market.open 是合法行情列。
+_FORBIDDEN_ATTR_NAMES = frozenset({
+    "system", "popen", "Popen", "spawn", "spawnl", "spawnle", "spawnlp",
+    "spawnlpe", "spawnv", "spawnve", "spawnvp", "spawnvpe", "posix_spawn",
+    "posix_spawnp", "fork", "forkpty", "execv", "execve", "execvp", "execvpe",
+    "execl", "execle", "execlp", "execlpe", "check_call", "check_output",
+    "getoutput", "getstatusoutput", "startfile", "kill", "killpg",
+    "os", "sys", "io", "importlib", "builtins", "subprocess", "ctypes",
+    "ctypeslib", "pickle", "marshal", "shutil", "socket", "runpy", "pathlib",
+    "posix", "nt", "ntpath", "posixpath", "genericpath", "platform",
+    "sysconfig", "types", "typing", "dataclasses", "contextlib", "contextvars",
+    "weakref", "multiprocessing", "asyncio", "threading", "webbrowser",
+    "inspect", "faulthandler", "atexit", "distutils", "setuptools",
+    "pkg_resources", "pip",
+    "write_csv", "write_parquet", "write_json", "write_ndjson", "write_ipc",
+    "write_database", "write_excel", "sink_parquet", "sink_csv", "sink_ndjson",
+    "sink_ipc", "savetxt", "savez", "savez_compressed", "tofile", "fromfile",
+    "read_csv", "read_parquet", "read_json", "read_ndjson", "read_ipc",
+    "read_excel", "read_database", "scan_csv", "scan_parquet", "scan_ndjson",
+    "scan_ipc", "loadtxt", "genfromtxt", "memmap", "load_module", "save",
+    "load", "loads",
+    "Path", "PurePath", "ModuleType", "CodeType", "FunctionType", "MethodType",
+    "BuiltinFunctionType", "LambdaType", "MappingProxyType",
+})
+
+_MODULE_ATTR_CACHE: dict[str, frozenset[str]] = {}
+# 不导入策略自定义的依赖模块, 避免校验本身执行用户代码。
+_INTROSPECTABLE_ROOTS = frozenset({"polars", "numpy", "app", "datetime", "__future__"})
+
+
+def _module_attr_names(module_path: str) -> frozenset[str]:
+    """探测白名单模块的模块对象属性, 跟随依赖库版本封堵命名空间句柄。"""
+    cached = _MODULE_ATTR_CACHE.get(module_path)
+    if cached is not None:
+        return cached
+    try:
+        module = sys.modules.get(module_path)
+        if module is None:
+            if module_path.split(".", 1)[0] not in _INTROSPECTABLE_ROOTS:
+                raise ImportError(module_path)
+            module = importlib.import_module(module_path)
+        names = frozenset(
+            name
+            for name, value in vars(module).items()
+            if isinstance(value, types.ModuleType)
+        )
+    except Exception:
+        # 探测失败仍由静态危险属性名单兜底。
+        names = frozenset()
+    _MODULE_ATTR_CACHE[module_path] = names
+    return names
+
+
+def _is_dunder(name: str) -> bool:
+    return bool(_DUNDER_RE.fullmatch(name))
+
+
+def _fold_string(node: ast.AST) -> str | None:
+    """折叠全常量字符串加法; 含变量的表达式不猜测结果。"""
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, str) else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _fold_string(node.left)
+        right = _fold_string(node.right) if left is not None else None
+        if left is None or right is None:
+            return None
+        return left + right
+    return None
+
+
+def _dotted_name(node: ast.AST) -> str | None:
+    """还原纯名字属性链, 用于定位导入模块的属性。"""
+    parts: list[str] = []
+    current = node
+    while isinstance(current, ast.Attribute):
+        parts.append(current.attr)
+        current = current.value
+    if not isinstance(current, ast.Name):
+        return None
+    parts.append(current.id)
+    return ".".join(reversed(parts))
 
 
 def _top_level_assignment(
@@ -359,21 +456,15 @@ META = {{...}}，{entrypoint_requirement}。只输出完整 Python 代码。
         extra_allowed_import_modules: frozenset[str] = frozenset(),
         extra_allowed_calls: frozenset[str] = frozenset(),
     ) -> None:
-        """AST 级安全检查: import 白名单 + 危险内建调用拦截 + dunder 遍历拦截。
+        """拦截危险引用、dunder 遍历、模块句柄和文件/进程原语。
 
-        注意: AST 名单不是真正的沙箱, 只能拦截常见攻击模式。真正的隔离需要
-        在受限子进程里执行策略 (后续 P0)。此处拦截已知的逃逸技巧:
-        - __globals__ / __builtins__ / __class__ / __subclasses__ / __mro__ 等属性访问
-        - ["__import__"] / ["__builtins__"] 等字符串下标访问
+        AST 校验仅封堵已知攻击模式, 不能替代运行时隔离。
+        多租户私有策略仍须通过 ComputeExecutor 在受限容器内执行。
         """
         tree = ast.parse(code)
 
         allowed_import_modules = cls._ALLOWED_IMPORT_MODULES | extra_allowed_import_modules
-        forbidden_calls = {
-            "open", "exec", "eval", "compile", "__import__",
-            "globals", "locals", "vars", "dir", "getattr",
-            "setattr", "delattr", "type", "input", "breakpoint",
-        } - extra_allowed_calls
+        forbidden_names = _FORBIDDEN_REF_NAMES - extra_allowed_calls
 
         def _module_allowed(module: str) -> bool:
             return (
@@ -381,16 +472,37 @@ META = {{...}}，{entrypoint_requirement}。只输出完整 Python 代码。
                 or module.split(".", 1)[0] in allowed_import_modules
             )
 
-        # dunder 属性名: 访问这些属性可逃逸出策略沙箱拿到 os/subprocess 等
-        forbidden_dunder_attrs = {
-            "__globals__", "__builtins__", "__class__", "__subclasses__",
-            "__mro__", "__bases__", "__base__", "__dict__", "__code__",
-            "__import__", "__loader__", "__spec__", "__wrapped__",
-        }
-        # 字符串下标访问的危险名: x["__builtins__"] / x["__import__"]
-        forbidden_subscript_strs = {
-            "__builtins__", "__import__", "__globals__",
-        }
+        def _path_allowed(path: str) -> bool:
+            return path in allowed_import_modules or any(
+                allowed.startswith(f"{path}.") for allowed in allowed_import_modules
+            )
+
+        module_aliases: dict[str, str] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.asname:
+                        module_aliases[alias.asname] = alias.name
+                    else:
+                        root = alias.name.split(".", 1)[0]
+                        module_aliases[root] = root
+
+        def _reject_dunder_text(text: str, where: str) -> None:
+            matches = _DUNDER_RE.findall(text)
+            if matches and any(m not in _BENIGN_DUNDER_TEXTS for m in matches):
+                raise ValueError(
+                    f"禁止{where} {text[:40]!r} (策略不允许 dunder 遍历逃逸)"
+                )
+
+        # 说明性文档字符串不参与求值, 允许在其中提及被禁用的 dunder 名字。
+        docstrings: set[int] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                body = node.body
+                if body and isinstance(body[0], ast.Expr) \
+                        and isinstance(body[0].value, ast.Constant) \
+                        and isinstance(body[0].value.value, str):
+                    docstrings.add(id(body[0].value))
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -399,20 +511,56 @@ META = {{...}}，{entrypoint_requirement}。只输出完整 Python 代码。
                         raise ValueError(f"禁止 import {alias.name} (不在策略安全白名单)")
             if isinstance(node, ast.ImportFrom):
                 mod = node.module or ""
-                if not _module_allowed(mod):
+                if node.level or not _module_allowed(mod):
                     raise ValueError(f"禁止 from {node.module} import (不在策略安全白名单)")
-            if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name) and node.func.id in forbidden_calls:
-                    raise ValueError(f"禁止调用 {node.func.id}()")
-            # 拦截 dunder 属性访问: x.__globals__ / ().__class__ 等
-            if isinstance(node, ast.Attribute) and node.attr in forbidden_dunder_attrs:
-                raise ValueError(f"禁止访问属性 {node.attr} (策略不允许 dunder 遍历逃逸)")
-            # 拦截字符串下标访问危险名: x["__builtins__"]
+                module_attrs = _module_attr_names(mod)
+                for alias in node.names:
+                    if alias.name == "*":
+                        raise ValueError(f"禁止 from {mod} import * (通配导入绕过白名单)")
+                    if _is_dunder(alias.name) or alias.name in forbidden_names \
+                            or alias.name in _FORBIDDEN_ATTR_NAMES:
+                        raise ValueError(f"禁止导入 {mod}.{alias.name} (策略不允许的危险符号)")
+                    if alias.name in module_attrs:
+                        raise ValueError(
+                            f"禁止导入 {mod}.{alias.name} (模块对象可绕道执行任意命令)"
+                        )
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                if node.id in forbidden_names:
+                    raise ValueError(f"禁止引用 {node.id} (策略不允许的执行/内省入口)")
+                if _is_dunder(node.id) and node.id not in _BENIGN_DUNDER_NAMES:
+                    raise ValueError(f"禁止引用 {node.id} (策略不允许 dunder 逃逸入口)")
+            if isinstance(node, ast.Attribute):
+                if _is_dunder(node.attr):
+                    raise ValueError(f"禁止访问属性 {node.attr} (策略不允许 dunder 遍历逃逸)")
+                dotted = _dotted_name(node)
+                root = dotted.split(".", 1)[0] if dotted else None
+                if dotted is not None and root in module_aliases:
+                    resolved = module_aliases[root] + dotted[len(root):]
+                    if _path_allowed(resolved):
+                        continue
+                    if node.attr in _FORBIDDEN_ATTR_NAMES:
+                        raise ValueError(
+                            f"禁止访问 {resolved} (模块/进程/文件句柄, 可绕道执行任意命令)"
+                        )
+                    parent = resolved.rsplit(".", 1)[0]
+                    if _path_allowed(parent) and node.attr in _module_attr_names(parent):
+                        raise ValueError(
+                            f"禁止访问 {resolved} (模块对象可绕道执行任意命令)"
+                        )
+                    continue
+                if node.attr in _FORBIDDEN_ATTR_NAMES:
+                    raise ValueError(f"禁止访问属性 {node.attr} (策略不允许的进程/文件原语)")
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) \
+                    and id(node) not in docstrings:
+                _reject_dunder_text(node.value, "字符串常量")
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                folded = _fold_string(node)
+                if folded is not None:
+                    _reject_dunder_text(folded, "拼接字符串")
             if isinstance(node, ast.Subscript):
-                sl = node.slice
-                if isinstance(sl, ast.Constant) and isinstance(sl.value, str) \
-                        and sl.value in forbidden_subscript_strs:
-                    raise ValueError(f"禁止下标访问 {sl.value} (策略不允许 dunder 遍历逃逸)")
+                folded = _fold_string(node.slice)
+                if folded is not None:
+                    _reject_dunder_text(folded, "下标访问")
 
     @staticmethod
     def _extract_meta(code: str) -> dict:
