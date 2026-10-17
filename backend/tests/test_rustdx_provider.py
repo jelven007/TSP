@@ -537,6 +537,7 @@ def test_plugin_covers_all_core_datasets_and_is_default_provider():
         "realtime",
         "daily",
         "adj_factor",
+        "corporate_actions",
         "minute",
         "depth5",
         "financial",

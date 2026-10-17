@@ -46,6 +46,14 @@ CAPABILITY_REGISTRY: list[dict] = [
         # 复权口径一致性改由未来的一致性警示保障, 不做路由耦合)
     },
     {
+        "id": "corporate_actions",
+        "label": "公司行为",
+        "desc": "分红、送转与配股事件; 日期证据不足时不自动入账",
+        "field": "corporate_actions_provider",
+        "default": "rustdx",
+        "tf_tier": None,
+    },
+    {
         "id": "realtime",
         "label": "实时行情",
         "desc": "全市场实时快照",
@@ -164,7 +172,7 @@ def build_capability_matrix(current: dict[str, str], tickflow_tier: str = "none"
     for cap in CAPABILITY_REGISTRY:
         # field=None → 不可路由能力 (仅 TickFlow 提供, 无路由偏好), 生效源恒为默认
         effective = current.get(cap["field"], cap["default"]) if cap["field"] else cap["default"]
-        tf_available = tier_rank >= _TIER_RANK[cap["tf_tier"]]
+        tf_available = cap["tf_tier"] is not None and tier_rank >= _TIER_RANK[cap["tf_tier"]]
         candidates: list[dict] = []
         pending: list[dict] = []
         if tf_available:
