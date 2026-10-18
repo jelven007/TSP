@@ -182,7 +182,9 @@ class TenantSchedules:
                     ).fetchone()["valid"]
                 if not valid:
                     raise AccessError(409, "定时任务租约已过期")
-                await asyncio.to_thread(self.health.record)
+                # Renewing a lease must not hide a stalled execution batch from
+                # the container supervisor; only the outer loop proves progress.
+                await asyncio.to_thread(self.health.record, progress=False)
 
         async def work():
             if now.date().isoformat() not in snapshot.get("settlement_days", []):
@@ -227,7 +229,9 @@ async def run(db, market, stopped):
     schedules = TenantSchedules(db, market)
     try:
         while not stopped.is_set():
-            claims = await asyncio.to_thread(schedules.scheduler.claim, "scheduled", 2)
+            claims = await asyncio.to_thread(
+                schedules.scheduler.claim, "scheduled", db.settings.worker_concurrency,
+            )
             await asyncio.to_thread(schedules.health.record)
             if not claims:
                 await asyncio.sleep(.5)

@@ -10,6 +10,21 @@
 平台配置、公共版本、Broker 和各服务环境文件见
 [完整部署配置](../deploy/full/README.md)。本页其余初始化说明适用于独立运行模式。
 
+完整单机资源配置补充：
+
+| 配置 | 作用 |
+| --- | --- |
+| `TSP_*_MEMORY` / `TSP_*_CPUS` | 各 Compose 角色的内存和 CPU 上限 |
+| `TSP_*_POOL_SIZE` | API、Gateway 及四类 Worker 的每库连接池上限 |
+| `TSP_*_CONCURRENCY` | 四类 Worker 的并行执行上限 |
+| `TSP_COMPUTE_CAPACITY` | 同时运行的 Compute 容器数 |
+| `TSP_COMPUTE_MEMORY_MB` / `TSP_COMPUTE_CPUS` | 每个 Compute 容器的资源上限 |
+| `TSP_COMPUTE_QUEUE_SECONDS` | 执行槽满时的最大短等待时间，范围 0–30 秒 |
+
+`deploy/full/production-16g.env` 是单 Compute 的 16 GiB 预算，应用角色 8,704 MiB、
+双库连接上界 36。该文件不含密钥；DSN、内部 Token 和外发凭据仍放在权限 0600 的
+私密环境文件中。
+
 ---
 
 ## 数据源

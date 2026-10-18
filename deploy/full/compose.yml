@@ -1,5 +1,11 @@
 # Build the original full-product Dockerfile with BACKEND_EXTRAS=cell.
 # Runtime DSNs and delivery credentials belong in the private TSP_FULL_ENV_FILE.
+x-logging: &logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-common: &common
   image: ${TSP_FULL_IMAGE:?Pinned full-product runtime image required}
   user: "10001:10001"
@@ -13,6 +19,7 @@ x-common: &common
     PLATFORM_CONFIG_DIR: /platform-config
     TICKFLOW_ENV_FILE: /dev/null
     TSP_COMPUTE_SOCKET: /run/tsp/compute.sock
+    TSP_CELL_POOL_SIZE: "${TSP_FULL_POOL_SIZE:-4}"
     POLARS_MAX_THREADS: "2"
     NUMBA_NUM_THREADS: "2"
     OPENBLAS_NUM_THREADS: "1"
@@ -29,6 +36,7 @@ x-common: &common
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
   restart: unless-stopped
+  logging: *logging
   stop_grace_period: 40s
 
 services:
@@ -44,7 +52,7 @@ services:
       PLATFORM_CONFIG_DIR: /platform-config
       TSP_PUBLIC_MARKET_DIR: /public
       TICKFLOW_ENV_FILE: /dev/null
-      POLARS_MAX_THREADS: "8"
+      POLARS_MAX_THREADS: "${TSP_PLATFORM_THREADS:-8}"
       OPENBLAS_NUM_THREADS: "1"
       NUMBA_CACHE_DIR: /tmp/numba
     command: ["/app/.venv/bin/python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3018"]
@@ -55,10 +63,14 @@ services:
     networks: [default]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m,uid=10001,gid=10001
     restart: unless-stopped
+    logging: *logging
     stop_grace_period: 60s
-    mem_limit: 24g
-    cpus: 8
+    mem_limit: ${TSP_PLATFORM_MEMORY:-24g}
+    cpus: ${TSP_PLATFORM_CPUS:-8}
     healthcheck:
       test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3018/health/ready', timeout=4)"]
       interval: 30s
@@ -70,8 +82,9 @@ services:
     environment:
       <<: *environment
       SERVICE_ROLE: gateway
-      TSP_CELL_POOL_SIZE: "8"
-    command: ["/app/.venv/bin/python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3018", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]
+      TSP_CELL_POOL_SIZE: "${TSP_GATEWAY_POOL_SIZE:-8}"
+    # Stream tickets are query parameters; do not retain them in access logs.
+    command: ["/app/.venv/bin/python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3018", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log"]
     ports:
       - "127.0.0.1:${TSP_FULL_GATEWAY_PORT:-3031}:3018"
     volumes: []
@@ -82,8 +95,8 @@ services:
         aliases: [tsp-full-gateway]
     depends_on:
       platform: {condition: service_healthy}
-    mem_limit: 1g
-    cpus: 1
+    mem_limit: ${TSP_GATEWAY_MEMORY:-1g}
+    cpus: ${TSP_GATEWAY_CPUS:-1}
     healthcheck:
       test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3018/health/ready', timeout=6)"]
       interval: 30s
@@ -102,8 +115,8 @@ services:
         aliases: [tsp-full-api]
     depends_on:
       platform: {condition: service_healthy}
-    mem_limit: 16g
-    cpus: 8
+    mem_limit: ${TSP_API_MEMORY:-16g}
+    cpus: ${TSP_API_CPUS:-8}
     healthcheck:
       test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3018/health/ready', timeout=6)"]
       interval: 30s
@@ -114,50 +127,70 @@ services:
     <<: *common
     environment:
       <<: *environment
-      TSP_CELL_WORKER_CONCURRENCY: "4"
-      TSP_CELL_POOL_SIZE: "4"
-    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.research_worker"]
+      TSP_CELL_POOL_SIZE: "${TSP_RESEARCH_POOL_SIZE:-4}"
+      TSP_CELL_WORKER_CONCURRENCY: "${TSP_RESEARCH_CONCURRENCY:-4}"
+    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "research"]
     depends_on:
       platform: {condition: service_healthy}
-    mem_limit: 2g
-    cpus: 2
-    healthcheck: {disable: true}
+    mem_limit: ${TSP_RESEARCH_MEMORY:-2g}
+    cpus: ${TSP_RESEARCH_CPUS:-2}
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "research", "--check"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
   realtime:
     <<: *common
     environment:
       <<: *environment
-      TSP_CELL_WORKER_CONCURRENCY: "8"
-      TSP_CELL_POOL_SIZE: "12"
-    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.runtime"]
+      TSP_CELL_WORKER_CONCURRENCY: "${TSP_REALTIME_CONCURRENCY:-8}"
+      TSP_CELL_POOL_SIZE: "${TSP_REALTIME_POOL_SIZE:-12}"
+    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "realtime"]
     depends_on:
       platform: {condition: service_healthy}
-    mem_limit: 4g
-    cpus: 4
-    healthcheck: {disable: true}
+    mem_limit: ${TSP_REALTIME_MEMORY:-4g}
+    cpus: ${TSP_REALTIME_CPUS:-4}
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "realtime", "--check"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
   notifications:
     <<: *common
     environment:
       <<: *environment
-      TSP_CELL_WORKER_CONCURRENCY: "4"
-      TSP_CELL_POOL_SIZE: "4"
-    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.notification_worker"]
+      TSP_CELL_POOL_SIZE: "${TSP_NOTIFICATIONS_POOL_SIZE:-4}"
+      TSP_CELL_WORKER_CONCURRENCY: "${TSP_NOTIFICATIONS_CONCURRENCY:-4}"
+    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "notifications"]
     depends_on:
       platform: {condition: service_healthy}
-    mem_limit: 1g
-    cpus: 1
-    healthcheck: {disable: true}
+    mem_limit: ${TSP_NOTIFICATIONS_MEMORY:-1g}
+    cpus: ${TSP_NOTIFICATIONS_CPUS:-1}
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "notifications", "--check"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
   scheduled:
     <<: *common
     environment:
       <<: *environment
-      TSP_CELL_WORKER_CONCURRENCY: "2"
-      TSP_CELL_POOL_SIZE: "4"
-    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.scheduled_worker"]
+      TSP_CELL_POOL_SIZE: "${TSP_SCHEDULED_POOL_SIZE:-4}"
+      TSP_CELL_WORKER_CONCURRENCY: "${TSP_SCHEDULED_CONCURRENCY:-2}"
+    command: ["/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "scheduled"]
     depends_on:
       platform: {condition: service_healthy}
-    mem_limit: 4g
-    cpus: 2
-    healthcheck: {disable: true}
+    mem_limit: ${TSP_SCHEDULED_MEMORY:-4g}
+    cpus: ${TSP_SCHEDULED_CPUS:-2}
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "scheduled", "--check"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
 
 networks:
   pg:

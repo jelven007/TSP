@@ -13,8 +13,10 @@
 
 - 当前完整单机多租户按角色运行平台、API 和四类 Worker，API 默认四进程；
   PostgreSQL、公共版本、Broker、备份和恢复见[完整部署](../deploy/full/README.md)。
-- 生产当前为 `d06acc1d`/schema v5。`main` 中的独立实时网关和 schema v6 尚未
-  生产签收；网关操作只有部署相应候选后才适用。
+- 火山引擎生产当前为 v0.4.8、`9b4bc2c5`、schema v6，独立 Gateway、Platform、
+  四类 Worker 和 Compute Broker 已切流，详见
+  [线上升级结果](../reports/online-upgrade-20261018/deployment-result.md)。
+- 本次主线加固提交 `47b1738d` 正在隔离候选执行 24 小时观察，尚未替换生产固定镜像。
 - 下方根目录 Compose 操作适用于独立运行模式，其生产形态是单容器、单 Uvicorn worker。
 - 同一 `DATA_DIR` 只能由一个 TSP 主实例写入。
 - 默认服务端口为 `3018`。
@@ -140,6 +142,11 @@ curl -fsS http://127.0.0.1:3018/health/ready
 和内部行情快照共用检查结果。HTTP 探针不占用业务请求线程池；首次检查尚未完成、
 检查结果距开始检查已超过 15 秒或服务正在关闭时，返回未就绪，HTTP 探针返回 503。
 `/health/live` 仅确认事件循环可以响应，不执行深度检查。
+
+完整多租户 API readiness 还检查两个数据库、公共文件、Platform、指标缓存、
+Compute Broker 和四类 Worker。Worker freshness 与 Supervisor 共享按类型阈值；
+Broker 检查实际运行无网络沙箱，不只检查镜像是否存在。持续观察器在运行目录
+`alerts.jsonl` 写入去重的 `firing`/`resolved` 事件；部署环境应采集该文件并转发。
 
 每个检查独立捕获异常: 单项读取失败仍返回完整 `checks` 和 HTTP 503。
 数据新鲜度按北京时间判断, 18:00 前保留盘后处理宽限, 不要求当天完整分区。
@@ -308,7 +315,38 @@ GET /api/observability
 `.env` 和认证数据包含敏感信息，备份应加密或放入访问受控的位置。不要将备份提交
 到 Git。
 
-### 8.2 Docker Compose 停机备份
+### 8.2 完整多租户双库备份
+
+完整多租户必须先停止 API、Gateway、四类 Worker 和 Platform 写入，再执行：
+
+```bash
+cd backend
+python -m scripts.backup_full_host \
+  --postgres-container tsp-pg \
+  --control-database CONTROL_DB \
+  --data-database DATA_DB \
+  --output /opt/tsp-full/backups/final-YYYYMMDD-HHMMSS \
+  --include platform-config=/opt/tsp-full/platform-config \
+  --include edge=/opt/tsp-full/edge \
+  --confirm-quiesced
+```
+
+脚本生成两个 custom-format dump，并逐库恢复到临时数据库读取 schema 版本；任何
+dump、恢复或附加目录复制校验失败都不会发布最终备份目录。`--confirm-quiesced`
+只是操作员确认，不会代替实际停写。
+
+公共 release 与 Docker 缓存维护先执行 dry-run：
+
+```bash
+TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.maintain_full_host \
+  --release-root /opt/tsp-full/public --prune-docker-cache
+```
+
+确认 JSON 清单后才添加 `--apply`。缺少业务库 DSN 时脚本拒绝清理 release；
+`current`、最近版本和仍被研究任务引用的版本必须保留。Docker 只清理到期 BuildKit
+缓存和悬空镜像，不使用 `image prune -a`，带 tag 的回滚镜像不删除。
+
+### 8.3 独立模式 Docker Compose 停机备份
 
 以下示例在仓库根目录执行：
 
@@ -329,7 +367,7 @@ shasum -a 256 "backups/tsp-data-${stamp}.tar.gz"
 
 备份清单可读和哈希可计算只证明归档可访问，不等于业务恢复成功。
 
-### 8.3 备份频率
+### 8.4 备份频率
 
 频率取决于可接受的数据损失：
 

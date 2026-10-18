@@ -42,7 +42,7 @@ class ComputeExecutor:
                 client.sendall(encoded)
                 client.settimeout(1)
                 pending = bytearray()
-                deadline = time.monotonic() + (5 if payload["kind"] == "health" else 7500)
+                deadline = time.monotonic() + (25 if payload["kind"] == "health" else 7500)
                 while True:
                     if time.monotonic() > deadline:
                         raise AccessError(503, "计算服务响应超时")

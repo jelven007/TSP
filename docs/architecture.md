@@ -1,6 +1,6 @@
-# TSP v0.4.1 当前架构
+# TSP v0.4.8 当前架构
 
-本文档描述 `0.4.1` 已实现的系统结构和运行约束，不是未来架构提案。专项模块的目标
+本文档描述 `0.4.8` 已实现的系统结构和运行约束，不是未来架构提案。专项模块的目标
 设计见各自方案；开发规则见[贡献与复审指南](../CONTRIBUTING.md)。本文以 `main`
 源码为准，生产是否已部署这些能力以[版本基线](./version-baseline.md)为准。
 
@@ -63,7 +63,36 @@ TSP 保留模块化单体的完整业务引擎，提供完整单机多租户与�
 
 ## 3. 运行拓扑
 
-### 3.1 Docker
+### 3.1 完整多租户 Compose
+
+```text
+HTTPS Edge
+  ├─ 普通 HTTP / 静态资源 -> API
+  └─ /api/events*          -> Gateway
+
+Platform -> 可写行情目录 -> 完整性校验 -> 公共不可变 releases/current
+API / Research / Realtime / Notifications / Scheduled -> 双 PostgreSQL
+API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期 Compute
+```
+
+- Platform 是唯一行情写入者。公共发布在同一写锁内核对最新 stock/ETF/index
+  原始日分区与 enriched 标的覆盖；失败保留旧 `current`。
+- API 和 Platform 生产角色的公共日线读请求不调用 Provider 补数。缺少已发布历史时
+  返回 `503 market_history_unavailable`；独立模式保留原请求内补数能力。
+- API 到 Platform 的行情读代理使用 12 秒读超时和 5 秒连接超时；管理面仍保留
+  300 秒长任务超时。Platform 内已有相同请求合并和 2 秒短缓存。
+- Research、Realtime、Notifications、Scheduled 的 Supervisor 与 API readiness
+  共享按类型区分的 freshness 上限（120/420/120/660 秒）。
+- Broker 健康检查实际启动一个同约束沙箱并缓存成功结果；执行槽和等待者均有界，
+  并发满最多短时等待，失败诊断最多保留 8 KiB stderr 尾部。
+- `production-16g.env` 将七类应用角色限制为 8,704 MiB，单 Compute 为 2,048 MiB，
+  六类数据库客户端的双库连接上界为 36；其余内存留给 PostgreSQL、Edge/Broker、
+  内核、Docker 和文件缓存。
+
+生产部署与当前源码主线是不同状态。火山引擎生产已运行 v0.4.8/schema v6；本次
+主线整合增加上述可靠性门槛，不自动替换生产固定镜像。
+
+### 3.2 独立模式 Docker
 
 ```text
 主机端口（默认 3018）
@@ -76,7 +105,7 @@ TSP 保留模块化单体的完整业务引擎，提供完整单机多租户与�
 镜像内包含构建后的前端静态资源和 FastAPI 服务。`docker-compose.yml` 将
 `DATA_DIR` 固定为 `/app/data`，并使用 `restart: unless-stopped`。
 
-### 3.2 Dev 模式
+### 3.3 Dev 模式
 
 ```text
 Vite :3011  --代理/API-->  FastAPI :3018  -->  ./data
@@ -84,7 +113,7 @@ Vite :3011  --代理/API-->  FastAPI :3018  -->  ./data
 
 `dev.sh` 或 `dev.ps1` 启动前后端开发服务。此模式适合开发，不代表生产拓扑。
 
-### 3.3 桌面客户端
+### 3.4 桌面客户端
 
 桌面入口在本机选择可用端口，在线程中启动仅监听回环地址的 Uvicorn，再由
 pywebview 打开界面。桌面安装包与 Docker 镜像是不同发布产物。
@@ -164,6 +193,11 @@ API 层不应直接实现供应商协议或全量数据计算。前端不应复�
   其他数据集仍是元数据摘要, 这不构成跨数据集的不可变数据快照。
 - 读取 manifest 校验嵌套数据集类型、状态、日期、计数、generation 和 Provider
   映射。未完成 generation 属于 readiness 错误; 正常增量超前于 release 属于告警。
+
+完整多租户的 `PublicPublisher` 还会发布独立的不可变文件版本。对于 stock、ETF
+和 index，只要最新原始日线分区存在，就要求同日 enriched 分区存在，且原始标的
+集合是 enriched 标的集合的子集。校验、清单、复制和最终世代复核均在平台写锁内；
+任何失败都不会切换公共 `current`。
 
 ### 6.2 enriched 流水线
 
