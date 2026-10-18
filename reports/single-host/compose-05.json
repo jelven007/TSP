@@ -1,0 +1,149 @@
+{
+  "status": "failed",
+  "project": "tsp-candidate-0d21776cc4",
+  "build": {
+    "status": "passed",
+    "base_commit": "bb8ea7045b613f189159e7ebd84162567ffb09e5",
+    "source_dirty": true,
+    "source_tree": "ad50bc0ee28990b62f73618ab1bb67ae5e0cf255e55de6fdf62a2f4862f2f46a",
+    "version": "0.4.8",
+    "artifacts": {
+      "runtime": {
+        "reference": "tsp-full-runtime:tree-ad50bc0ee28990b6",
+        "id": "sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89",
+        "architecture": "arm64",
+        "repo_digests": [
+          "tsp-full-runtime@sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89"
+        ],
+        "files_sha256": "daa7c3a7b3ca670f053ac375decc75d554dad6078cdf82f21a7adb78f6dcbe32"
+      },
+      "compute": {
+        "reference": "tsp-full-compute:tree-ad50bc0ee28990b6",
+        "id": "sha256:0680b3402dbd97c3ad34b0aa4f8f6bb2eca5a475655b1b141127061a31a336e7",
+        "architecture": "arm64",
+        "repo_digests": [
+          "tsp-full-compute@sha256:0680b3402dbd97c3ad34b0aa4f8f6bb2eca5a475655b1b141127061a31a336e7"
+        ],
+        "files_sha256": "daa7c3a7b3ca670f053ac375decc75d554dad6078cdf82f21a7adb78f6dcbe32"
+      },
+      "broker": {
+        "reference": "tsp-full-broker:tree-ad50bc0ee28990b6",
+        "id": "sha256:e318b31ac47646dfaf97e31f5a37b1a96a2442f1025577e56ed1d56a5350201c",
+        "architecture": "arm64",
+        "repo_digests": [
+          "tsp-full-broker@sha256:e318b31ac47646dfaf97e31f5a37b1a96a2442f1025577e56ed1d56a5350201c"
+        ],
+        "files_sha256": "daa7c3a7b3ca670f053ac375decc75d554dad6078cdf82f21a7adb78f6dcbe32"
+      }
+    }
+  },
+  "scope": "isolated_compose_small_fixture",
+  "limits": [
+    "two tenants; not sustained capacity",
+    "historical fixture; not market freshness",
+    "loopback HTTP; not public TLS",
+    "no production cutover"
+  ],
+  "budget": {
+    "container_memory_limit_bytes": 5435817984,
+    "compute_capacity": 1
+  },
+  "readiness": {
+    "status": "ok",
+    "ready": true,
+    "checked_at": "2026-10-17T23:17:36.618926+00:00",
+    "checks": {
+      "databases": {
+        "status": "ok"
+      },
+      "research_worker": {
+        "status": "ok"
+      },
+      "realtime_worker": {
+        "status": "ok"
+      },
+      "notifications_worker": {
+        "status": "ok"
+      },
+      "scheduled_worker": {
+        "status": "ok"
+      },
+      "public_files": {
+        "status": "ok",
+        "release_id": "474c67e40f704db2968e86bd65b37e77"
+      },
+      "platform": {
+        "status": "ok",
+        "connected": true,
+        "last_marker_at": null,
+        "reconnects": 0,
+        "update_generation": 0,
+        "loaded_generation": 0,
+        "snapshot_fetches": 1,
+        "frame_decodes": 4
+      },
+      "indicator_cache": {
+        "status": "ok"
+      },
+      "compute_broker": {
+        "status": "ok"
+      }
+    },
+    "version": "0.4.8",
+    "mode": "none"
+  },
+  "roles": {
+    "platform": {
+      "image": "sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89",
+      "healthy": true,
+      "memory_limit": 1073741824,
+      "read_only": true
+    },
+    "gateway": {
+      "image": "sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89",
+      "healthy": true,
+      "memory_limit": 268435456,
+      "read_only": true
+    },
+    "api": {
+      "image": "sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89",
+      "healthy": true,
+      "memory_limit": 1073741824,
+      "read_only": true
+    },
+    "research": {
+      "image": "sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89",
+      "healthy": true,
+      "memory_limit": 268435456,
+      "read_only": true
+    },
+    "realtime": {
+      "image": "sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89",
+      "healthy": true,
+      "memory_limit": 402653184,
+      "read_only": true
+    },
+    "notifications": {
+      "image": "sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89",
+      "healthy": true,
+      "memory_limit": 268435456,
+      "read_only": true
+    },
+    "scheduled": {
+      "image": "sha256:288ba3e32e61a5123ca973cd2eb0b645c5831fe58c21d8056f7533ce71ebac89",
+      "healthy": true,
+      "memory_limit": 402653184,
+      "read_only": true
+    },
+    "broker": {
+      "image": "sha256:e318b31ac47646dfaf97e31f5a37b1a96a2442f1025577e56ed1d56a5350201c",
+      "healthy": true,
+      "memory_limit": 134217728,
+      "read_only": true
+    }
+  },
+  "tenant_isolation": true,
+  "error_type": "TimeoutError",
+  "cleanup_completed": true,
+  "elapsed_seconds": 63.508
+}

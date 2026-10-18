@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import selectors
 import signal
@@ -22,9 +23,15 @@ from app.multitenancy.executor import KINDS, MAX_MESSAGE_BYTES
 class ComputeBroker(socketserver.ThreadingUnixStreamServer):
     daemon_threads = False
 
-    def __init__(self, socket_path: Path, image: str, market_root: Path, capacity: int):
+    def __init__(self, socket_path: Path, image: str, market_root: Path, capacity: int,
+                 *, memory_mb: int = 4096, cpus: float = 2):
+        if (not 1 <= capacity <= 16 or not 256 <= memory_mb <= 65536
+                or not math.isfinite(cpus) or not .25 <= cpus <= 16):
+            raise ValueError("invalid compute resource budget")
         self.image = image
         self.market_root = market_root
+        self.memory = "4g" if memory_mb == 4096 else f"{memory_mb}m"
+        self.cpus = f"{cpus:g}"
         self.permits = threading.BoundedSemaphore(capacity)
         self.tenant_lock = threading.Lock()
         self.active_tenants: set[str] = set()
@@ -37,8 +44,8 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
         return [
             "docker", "run", "--rm", "--name", name, "-i", "--network", "none",
             "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-            "--user", "10001:10001", "--pids-limit", "128", "--memory", "4g",
-            "--memory-swap", "4g", "--cpus", "2", "--ulimit", "nofile=256:256",
+            "--user", "10001:10001", "--pids-limit", "128", "--memory", self.memory,
+            "--memory-swap", self.memory, "--cpus", self.cpus, "--ulimit", "nofile=256:256",
             "--tmpfs", "/tmp:rw,nosuid,nodev,size=512m,uid=10001,gid=10001",
             "--mount", f"type=bind,src={market_path or self.market_root},dst=/market,readonly",
             "--entrypoint", "/usr/bin/env", self.image, "-i",
@@ -172,6 +179,8 @@ def main():
     parser.add_argument("--image", required=True)
     parser.add_argument("--market-root", type=Path, required=True)
     parser.add_argument("--capacity", type=int, default=4)
+    parser.add_argument("--memory-mb", type=int, default=4096)
+    parser.add_argument("--cpus", type=float, default=2)
     args = parser.parse_args()
     market = args.market_root.resolve(strict=True)
     if not market.is_dir() or not 1 <= args.capacity <= 16:
@@ -181,7 +190,8 @@ def main():
     args.socket.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
     # A stale socket is removed by the service manager, never blindly unlink an
     # active broker's socket at startup.
-    with ComputeBroker(args.socket, args.image, market, args.capacity) as server:
+    with ComputeBroker(args.socket, args.image, market, args.capacity,
+                       memory_mb=args.memory_mb, cpus=args.cpus) as server:
         os.chmod(args.socket, 0o660)
         def shutdown(*_):
             server.stopped.set()

@@ -164,6 +164,9 @@ RUN codex --version
 # Hash project runtime files and the exact native wheel; dependency closure remains
 # governed by uv.lock. An omitted commit is explicitly unknown for local builds.
 ARG SOURCE_COMMIT=
+ARG SOURCE_TREE_SHA=
+LABEL org.opencontainers.image.revision=$SOURCE_COMMIT \
+      io.tsp.source-tree=$SOURCE_TREE_SHA
 COPY VERSION /app/VERSION
 COPY scripts/build_manifest.py /app/build_manifest.py
 RUN python /app/build_manifest.py create --root /app \

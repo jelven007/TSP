@@ -33,4 +33,5 @@ RUN python /app/build_manifest.py create --root /app \
     && mv /app/compute-build-manifest.json /app/build-manifest.json \
     && python /app/build_manifest.py verify --root /app --manifest /app/build-manifest.json
 USER 10001:10001
+HEALTHCHECK NONE
 ENTRYPOINT ["/app/.venv/bin/python", "-m", "app.multitenancy.compute_worker"]

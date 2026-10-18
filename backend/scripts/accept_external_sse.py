@@ -339,6 +339,8 @@ def _stream_acceptance(
     token: str,
     cluster,
     principal: dict,
+    *,
+    wait_for_private_subscription=None,
 ) -> dict:
     context = cluster.identity.context(
         principal["account"],
@@ -378,11 +380,18 @@ def _stream_acceptance(
 
             public_latency_ms: float | None = None
             live_sequence: int | None = None
+            # Offline Compose fixtures do not generate live market updates.
+            # Their caller supplies a subscription barrier before appending.
+            if wait_for_private_subscription is not None:
+                wait_for_private_subscription()
+                live_sequence = _append(cluster, context, live_marker)
             for frame in _frames(response):
                 captured.append(frame)
-                if frame.get("event") == "quotes_updated" and live_sequence is None:
-                    public_latency_ms = (time.monotonic() - started) * 1000
-                    live_sequence = _append(cluster, context, live_marker)
+                if frame.get("event") == "quotes_updated":
+                    if public_latency_ms is None:
+                        public_latency_ms = (time.monotonic() - started) * 1000
+                    if live_sequence is None:
+                        live_sequence = _append(cluster, context, live_marker)
                 if frame.get("event") == "strategy_results_updated":
                     payload = json.loads(frame.get("data", "{}"))
                     if payload.get("marker") == baseline_marker:
@@ -394,7 +403,9 @@ def _stream_acceptance(
             else:
                 raise AssertionError("live private event was not received")
 
-            if public_latency_ms is None or public_latency_ms > 4_000:
+            if wait_for_private_subscription is None and (
+                public_latency_ms is None or public_latency_ms > 4_000
+            ):
                 raise AssertionError(
                     f"Nginx-buffered or delayed public marker: {public_latency_ms}"
                 )
@@ -428,8 +439,9 @@ def _stream_acceptance(
     return {
         "ticket_single_use": True,
         "public_marker": {
-            "received": True,
-            "latency_ms": round(public_latency_ms, 3),
+            "received": public_latency_ms is not None,
+            "latency_ms": round(public_latency_ms, 3) if public_latency_ms is not None else None,
+            "required": wait_for_private_subscription is None,
             "x_accel_buffering": accel_buffering,
         },
         "private_event": {
