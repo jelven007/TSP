@@ -1,0 +1,27 @@
+{
+  "version": "0.4.8",
+  "commit": "bb8ea7045b613f189159e7ebd84162567ffb09e5",
+  "source": "git archive of exact commit",
+  "archive": {
+    "path": ".tools/releases/online-v0.4.8-bb8ea704/source.tar.gz",
+    "bytes": 3436712,
+    "sha256": "a849080bb8d68a2684ea280d9caa488c9a91cc971151c6c8d2e0fc466f61d341"
+  },
+  "runtime_registry": {
+    "repository": "ghcr.io/jelven007/tsp",
+    "digest": "sha256:db5cbca3a69d9f66b30982d722225552097b6ab6aea4885b43ff7ded6b257d73",
+    "platforms": [
+      {
+        "platform": "linux/amd64",
+        "digest": "sha256:81616604de1bd314e87f4c0e861960403b59fbd2dff7b37a3646b7a9098cfef1"
+      },
+      {
+        "platform": "linux/arm64",
+        "digest": "sha256:b40643c67d2818ce8139310a6d85fead9d8c96267df701b272b87e5df884102f"
+      }
+    ],
+    "compute_derived_image": "not_built_for_target_host_in_this_run"
+  },
+  "deployment": "not_executed",
+  "unmerged_containerization_included": false
+}
