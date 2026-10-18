@@ -4,7 +4,12 @@ import json
 from datetime import datetime, timedelta
 
 from app.market_time import CN_TZ
-from scripts.observe_candidate_soak import Observer, arm, parse_endpoints
+from scripts.observe_candidate_soak import (
+    Observer,
+    arm,
+    parse_endpoints,
+    record_alert_transitions,
+)
 
 START = datetime(2026, 10, 17, 16, 0, tzinfo=CN_TZ)
 
@@ -91,3 +96,35 @@ def test_endpoint_declarations_are_named_unique_urls():
         "api": "http://127.0.0.1:3018/health/ready",
         "gateway": "http://127.0.0.1:3031/health/ready",
     }
+
+
+def test_monitor_alerts_fire_once_and_record_resolution(tmp_path):
+    record = {
+        "initial_containers": {
+            "api": {"ok": True, "restart_count": 0},
+        },
+    }
+    failing = {
+        "at": START.isoformat(),
+        "endpoints": {"api": {"ok": False, "error": "HTTP 503"}},
+        "containers": {"api": {"ok": True, "restart_count": 1}},
+        "disks": {"/data": {"ok": True, "free_bytes": 512 * 1024**2}},
+    }
+    record_alert_transitions(tmp_path, record, failing)
+    record_alert_transitions(tmp_path, record, failing)
+    healthy = {
+        "at": (START + timedelta(seconds=30)).isoformat(),
+        "endpoints": {"api": {"ok": True}},
+        "containers": {"api": {"ok": True, "restart_count": 0}},
+        "disks": {"/data": {"ok": True, "free_bytes": 10 * 1024**3}},
+    }
+    record_alert_transitions(tmp_path, record, healthy)
+
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "alerts.jsonl").read_text().splitlines()
+    ]
+    assert len(events) == 6
+    assert [event["state"] for event in events] == ["firing"] * 3 + ["resolved"] * 3
+    assert record["active_alerts"] == []
+    assert record["alert_events"] == 6

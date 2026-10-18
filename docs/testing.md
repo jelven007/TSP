@@ -168,6 +168,46 @@ P2 参数交互补充验证 `test_strategy_param_normalize.py` 的 API 保存/�
 未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、
 模拟盘事务、迁移与平台边界；发布验收见[一期记录](./phase1-implementation.md)。
 
+单机容器化可靠性回归：
+
+```bash
+cd backend
+uv run pytest -q \
+  tests/test_kline_daily_latest.py tests/test_full_platform.py \
+  tests/test_full_administration.py tests/test_continuous_acceptance.py \
+  tests/test_worker_process.py tests/test_full_compute.py \
+  tests/test_full_compose_config.py tests/test_full_host_maintenance.py \
+  tests/test_candidate_soak_observer.py
+```
+
+该组覆盖：
+
+- 多租户 API/Platform 空历史快速 503，且不调用 Provider。
+- 行情代理短超时、管理代理长超时及稳定错误契约。
+- stock/ETF/index 最新原始日分区与 enriched symbol 覆盖门槛。
+- 隔离违规与同租户一致性违规分离、旧验收状态兼容。
+- Worker 按类型 freshness、真实 Broker 沙箱探针、有界等待和 stderr 尾部。
+- 16 GiB Compose 预算、36 条双库连接上界。
+- 双库备份恢复、release 引用保护、保守 Docker 清理和告警状态转换。
+
+本批相关回归实际结果为 `86 passed, 15 skipped`。跳过项来自测试容器没有
+`TSP_TEST_POSTGRES_DSN` 或 Docker CLI；Compose 在宿主机另行完成解析，双库备份脚本
+在一次性 PostgreSQL 16 中实际完成 dump、restore 和 schema v6 校验。相关文件 Ruff
+和 `git diff --check` 通过。`kline.py` 保留既有全文件 Ruff 技术债，不能把本批
+未新增告警写成全文件 Ruff 通过。
+
+当前长时验收以固定提交 `47b1738d` 和同源镜像执行：
+
+- Active/Passive：2026-10-18 18:37:24 至 2026-10-19 18:37:24。
+- 100 个独立用户每 20 秒执行真实登录、自选写读和日线请求，保持 100 条 SSE。
+- 私有探针每分钟注入，研究任务每 15 分钟轮换提交。
+- 完整交易日：2026-10-19 09:15 至 15:40，单独检查秒级归档、分钟和公共事件。
+- 24 小时通过不设置 `certified_72h_100_active_users=true`，也不替代原生
+  Windows/AMD64 或生产恢复验收。
+
+实时状态与证据位置见
+[单机持续验收记录](../reports/single-host/continuous-acceptance.md)。
+
 二期第一步的本地百人关键链路验收使用同类一次性 PostgreSQL 服务：
 
 ```bash
@@ -199,7 +239,7 @@ TSP_TEST_POSTGRES_DSN='<一次性 PostgreSQL 根 DSN>' \
 公共 marker、研究 Worker、100 人同步突发和每用户五秒一次的错峰稳态请求。
 通知不会外发。脚本记录逐请求分位数、研究完成时间、进程 RSS/CPU 和 PostgreSQL
 连接峰值；它仍是进程内 ASGI 与快速研究替身，不能替代外部 SSE、真实行情、
-完整交易日、72 小时、重启或恢复验收。
+完整交易日、当前 24 小时持续窗口、更高等级 72 小时认证、重启或恢复验收。
 
 发布与健康检查故障回归:
 

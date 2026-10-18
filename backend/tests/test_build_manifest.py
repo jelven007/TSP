@@ -52,6 +52,16 @@ def test_runtime_secrets_caches_and_data_are_never_scanned(tmp_path):
     assert sorted(baseline(root)["files"]) == ["app/main.py", "static/index.html"]
 
 
+def test_frontend_data_components_are_source_not_runtime_data(tmp_path):
+    component = tmp_path / "frontend/src/components/data/Skeleton.tsx"
+    component.parent.mkdir(parents=True)
+    component.write_text("export const Skeleton = () => null")
+    payload = manifest.create(tmp_path, ["frontend/src"], version="0.4.8", commit=None)
+    assert "frontend/src/components/data/Skeleton.tsx" in payload["files"]
+    component.write_text("export const Skeleton = () => 'loading'")
+    assert manifest.verify(tmp_path, payload)["changed"] == ["frontend/src/components/data/Skeleton.tsx"]
+
+
 @pytest.mark.parametrize("scope", ["../outside", "/etc", ".", "app/../data", r"app\other", "app:stream"])
 def test_invalid_scope_rejected(tmp_path, scope):
     with pytest.raises(ValueError):

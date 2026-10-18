@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import polars as pl
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -266,3 +267,42 @@ def test_get_daily_default_end_is_beijing_today(monkeypatch) -> None:
     assert captured, "应查询日K"
     _start, end = captured[0]
     assert end == BJ, f"窗口右端必须是北京日期 {BJ}, 实际 {end} (服务器本地 {date.today()})"
+
+
+@pytest.mark.parametrize("service_role", ["api", "platform"])
+def test_get_daily_service_role_never_fetches_missing_public_history(
+    monkeypatch, service_role,
+) -> None:
+    """生产服务只能读平台发布的数据, 不能在请求线程内同步补数。"""
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    from app.api import kline as kline_api
+
+    class _Repo:
+        def resolve_asset_type(self, symbol: str) -> str:
+            return "stock"
+
+        def get_instruments(self) -> pl.DataFrame:
+            return pl.DataFrame()
+
+        def get_daily_asset(self, asset_type, symbol, start, end, columns=None):
+            return pl.DataFrame()
+
+    monkeypatch.setattr(
+        kline_api.kline_sync,
+        "sync_daily_batch",
+        lambda *args, **kwargs: pytest.fail("API role must not call the market provider"),
+    )
+    req = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        repo=_Repo(), quote_service=None, capabilities=None, service_role=service_role,
+    )))
+
+    with pytest.raises(HTTPException) as exc:
+        kline_api.get_daily(
+            req, symbol="000016.SZ", days=30,
+            start_date=None, end_date=None, ext_columns=None,
+        )
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "market_history_unavailable"

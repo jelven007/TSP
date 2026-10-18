@@ -277,6 +277,44 @@ def test_admin_platform_forwarding_preserves_body_and_excludes_browser_credentia
     asyncio.run(gateway.close())
 
 
+def test_market_forwarding_uses_short_timeout_and_stable_unavailable_response():
+    import asyncio
+    import json
+
+    import httpx
+    from starlette.requests import Request
+
+    from app.multitenancy.platform import PlatformAdmin, market_read_path
+
+    admin = PlatformAdmin("https://platform.test", token="admin-token")
+    market = PlatformAdmin(
+        "https://platform.test", token="market-token", allowed=market_read_path,
+    )
+    assert admin.client.timeout.read == 300
+    assert market.client.timeout.read == 12
+    asyncio.run(market.client.aclose())
+
+    async def timeout(request):
+        raise httpx.ReadTimeout("platform read timed out", request=request)
+
+    market.client = httpx.AsyncClient(
+        base_url="https://platform.test",
+        transport=httpx.MockTransport(timeout),
+        headers={"Authorization": "Bearer market-token"},
+    )
+    request = Request({
+        "type": "http", "method": "GET", "scheme": "https",
+        "server": ("api.test", 443), "client": ("127.0.0.1", 1),
+        "root_path": "", "path": "/api/kline/daily", "raw_path": b"/api/kline/daily",
+        "query_string": b"symbol=000016.SZ", "headers": [],
+    })
+    response = asyncio.run(market.forward(request))
+    assert response.status_code == 503
+    assert json.loads(response.body) == {"detail": "market_history_unavailable"}
+    asyncio.run(market.close())
+    asyncio.run(admin.close())
+
+
 def test_tenant_public_market_forwarding_keeps_scope_and_uses_only_market_credentials(env):
     from fastapi.responses import JSONResponse
 

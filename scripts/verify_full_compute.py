@@ -116,7 +116,8 @@ def run(args) -> dict:
         )
         market_info = json.loads(fixture.stdout.strip().splitlines()[-1])
         as_of = market_info["as_of"]
-        with ComputeBroker(root / "compute.sock", args.image, market, 4) as broker:
+        with ComputeBroker(root / "compute.sock", args.image, market, 1,
+                           memory_mb=args.memory_mb, cpus=args.cpus) as broker:
             command = broker.command("tsp-compute-isolation-probe")
             command = command[:-2] + ["-c", PROBE]
             probe = subprocess.run(command, capture_output=True, text=True, timeout=60, check=True)
@@ -226,6 +227,8 @@ if __name__ == "__main__":
     parser.add_argument("--work-dir", type=Path, default=Path("/tmp"))
     parser.add_argument("--monitor-only", action="store_true")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--memory-mb", type=int, default=4096)
+    parser.add_argument("--cpus", type=float, default=2)
     args = parser.parse_args()
     started = time.time()
     result = run(args)
@@ -236,13 +239,19 @@ if __name__ == "__main__":
             ["docker", "image", "inspect", args.image, "--format", "{{json .}}"],
             capture_output=True, text=True, timeout=15, check=True,
         ).stdout)
+        docker_arch = subprocess.run(
+            ["docker", "info", "--format", "{{.Architecture}}"],
+            capture_output=True, text=True, timeout=15, check=True,
+        ).stdout.strip()
         report = {
             "status": "passed",
-            "scope": "local_emulated_full_compute_image_acceptance",
+            "scope": "local_full_compute_image_acceptance",
             "limits": [
-                "Apple ARM host using Linux AMD64 emulation; not native performance evidence",
+                "local Docker functional test; not native-host performance acceptance",
                 "disposable deterministic market fixture; not production data",
             ],
+            "docker_architecture": docker_arch,
+            "budget": {"capacity": 1, "memory_mb": args.memory_mb, "cpus": args.cpus},
             "artifact": {
                 "reference": args.image,
                 "id": inspected["Id"],

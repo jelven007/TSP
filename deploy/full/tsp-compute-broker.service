@@ -10,11 +10,15 @@ Group=10001
 WorkingDirectory=/opt/tsp-full
 Environment=PYTHONPATH=/opt/tsp-full/backend
 Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=TSP_COMPUTE_CAPACITY=4
+Environment=TSP_COMPUTE_MEMORY_MB=4096
+Environment=TSP_COMPUTE_CPUS=2
+Environment=TSP_COMPUTE_QUEUE_SECONDS=2
 EnvironmentFile=/etc/tsp-full/broker.env
 RuntimeDirectory=tsp-full
 RuntimeDirectoryMode=0750
 ExecStartPre=/usr/bin/test ! -e /run/tsp-full/compute.sock
-ExecStart=/opt/tsp-full/python/bin/python -m app.multitenancy.compute_broker --socket /run/tsp-full/compute.sock --image ${TSP_COMPUTE_IMAGE} --market-root ${TSP_PUBLIC_MARKET_DIR} --capacity 4
+ExecStart=/opt/tsp-full/python/bin/python -m app.multitenancy.compute_broker --socket /run/tsp-full/compute.sock --image ${TSP_COMPUTE_IMAGE} --market-root ${TSP_PUBLIC_MARKET_DIR} --capacity ${TSP_COMPUTE_CAPACITY} --memory-mb ${TSP_COMPUTE_MEMORY_MB} --cpus ${TSP_COMPUTE_CPUS} --queue-seconds ${TSP_COMPUTE_QUEUE_SECONDS}
 ExecStopPost=/usr/bin/rm -f /run/tsp-full/compute.sock
 Restart=on-failure
 RestartSec=3

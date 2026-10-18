@@ -1,5 +1,27 @@
 # 技术方案复核与修正
 
+## 2026-10-18 单机容器化可靠性复核
+
+结论：七角色 Compose、PostgreSQL schema v6、公共不可变行情和受限 Compute 的
+总体方向保持不变；必须补齐请求内同步补数、公共发布覆盖、健康阈值、单机预算、
+备份恢复与长期观测边界。实现基线为 `47b1738d`。
+
+| 优先级 | 调整 | 实际证据 |
+| --- | --- | --- |
+| P0 | 多租户 API/Platform 空历史快速 503，不调用 Provider；行情代理 12 秒超时 | 回归覆盖 API/Platform 两角色和上游 ReadTimeout |
+| P0 | stock/ETF/index 最新原始日分区必须被同日 enriched 完整覆盖 | 三资产发布门槛测试确认失败时 `current` 不切换 |
+| P0 | 同租户旧写入归一致性违规，跨租户数据才归隔离违规 | 新旧状态兼容及 marker 分类回归 |
+| P1 | Supervisor/readiness 共用按类型 Worker freshness | 120/420/120/660 秒边界测试 |
+| P1 | Broker 运行真实无网络探针、短队列和 8 KiB stderr 尾部 | 资源预算、缓存和诊断测试 |
+| P1 | 16 GiB 正式预算和 36 条双库连接上界 | 宿主 `docker compose config` 解析和数值断言 |
+| P1 | 双库恢复验证、release 引用保护、保守 Docker 清理与告警转换 | 一次性 PostgreSQL 16 实际 dump/restore schema v6；维护和告警单测 |
+
+相关回归为 `86 passed, 15 skipped`；跳过项对应测试容器未提供一次性 PostgreSQL DSN
+或 Docker CLI，分别由宿主 Compose 解析和真实 PostgreSQL 烟测补证。相关改动 Ruff
+及 `git diff --check` 通过。固定实现镜像正在执行 2026-10-18 18:37 至
+2026-10-19 18:37 的 24 小时百用户 Active/Passive 和独立完整交易日验收。
+24 小时通过不声明 72 小时认证，生产仍固定到 `9b4bc2c5` 镜像。
+
 ## 2026-10-08 优先级复核
 
 结论: 保持单服务主进程的模块化单体, 沿用当时已配置的行情/财务链路。

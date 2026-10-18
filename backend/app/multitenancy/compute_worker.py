@@ -186,11 +186,20 @@ def execute(payload: dict, private_root: Path) -> dict:
         store.db.close()
 
 
+def execute_request(payload: dict, private_root: Path) -> dict:
+    if payload.get("kind") == "health":
+        return {"ready": True}
+    return execute(payload, private_root)
+
+
 def main():
     raw = sys.stdin.buffer.readline(MAX_MESSAGE_BYTES + 1)
     if len(raw) > MAX_MESSAGE_BYTES:
         raise ValueError("compute input exceeds limit")
     payload = json.loads(raw)
+    if payload.get("kind") == "health":
+        emit("result", payload=execute_request(payload, Path("/tmp")))
+        return
     # No global private caches, disk writes, or unmanaged generation creation.
     from app.config import settings
     from app.factors.registry import private_factor_registry
@@ -202,7 +211,7 @@ def main():
           private_signal_registry(payload.get("signals", [])),
           contextlib.redirect_stdout(sys.stderr)):
         try:
-            result = execute(payload, Path(directory))
+            result = execute_request(payload, Path(directory))
             emit("result", payload=result)
         except Exception as exc:
             emit("error", status=400, message=str(exc))

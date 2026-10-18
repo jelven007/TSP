@@ -6,7 +6,7 @@ import secrets
 from contextlib import ExitStack, asynccontextmanager
 
 import httpx
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
 READ_METHODS = frozenset({"GET", "HEAD"})
@@ -71,9 +71,11 @@ class PlatformAdmin:
         token = token or os.environ.get("TSP_PLATFORM_ADMIN_TOKEN", "")
         if not url or not token:
             raise RuntimeError("platform administration gateway is not configured")
+        self.market_reader = allowed is market_read_path
         self.client = httpx.AsyncClient(
             base_url=url.rstrip("/"), headers={"Authorization": "Bearer " + token},
-            timeout=httpx.Timeout(300, connect=5), trust_env=False, follow_redirects=False,
+            timeout=httpx.Timeout(12 if self.market_reader else 300, connect=5),
+            trust_env=False, follow_redirects=False,
         )
         self.allowed = allowed
 
@@ -92,11 +94,16 @@ class PlatformAdmin:
                 request.method, request.url.path, params=request.query_params,
                 content=None if request.method in READ_METHODS else request.stream(),
                 headers=headers,
-            ), stream=True)
+            ), stream=not self.market_reader)
         except httpx.HTTPError:
-            return JSONResponse({"detail": "平台管理服务暂不可用"}, status_code=503)
+            detail = "market_history_unavailable" if self.market_reader else "平台管理服务暂不可用"
+            return JSONResponse({"detail": detail}, status_code=503)
         kept = {key: value for key, value in response.headers.items()
                 if key in {"content-type", "content-disposition", "x-request-id"}}
+        if self.market_reader:
+            content = response.content
+            await response.aclose()
+            return Response(content, status_code=response.status_code, headers=kept)
         return StreamingResponse(
             response.aiter_bytes(), status_code=response.status_code, headers=kept,
             background=BackgroundTask(response.aclose),

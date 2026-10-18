@@ -423,6 +423,8 @@ def get_daily(
     df = repo.get_daily_asset(asset_type, symbol, start, end)
 
     if df.is_empty():
+        if getattr(request.app.state, "service_role", "standalone") != "standalone":
+            raise HTTPException(status_code=503, detail="market_history_unavailable")
         try:
             raw = kline_sync.sync_daily_batch([symbol], count=days + 30)
         except Exception as e:
