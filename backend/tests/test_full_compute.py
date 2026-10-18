@@ -1,9 +1,11 @@
 """Transport and execution boundary checks for full-product private strategies."""
 import json
 import socket
+import subprocess
 import tempfile
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -13,7 +15,8 @@ if not hasattr(socket, "AF_UNIX"):
     pytest.skip("Unix domain sockets are unavailable on this platform", allow_module_level=True)
 
 from app.cell.context import AccessError
-from app.multitenancy.compute_broker import ComputeBroker
+from app.multitenancy.compute_broker import STDERR_TAIL_BYTES, ComputeBroker, append_stderr_tail
+from app.multitenancy.compute_worker import execute_request
 from app.multitenancy.executor import ComputeExecutor
 from app.multitenancy.strategies import definition_payload, metadata_definition
 from app.strategy.engine import StrategyEngine
@@ -63,8 +66,9 @@ def test_broker_owns_image_entrypoint_and_only_mounts_public_market(socket_dir):
 
 def test_broker_small_host_budget_keeps_swap_and_memory_equal(socket_dir):
     with ComputeBroker(socket_dir / "small.sock", "pinned-image:digest", socket_dir, 1,
-                       memory_mb=1536, cpus=1) as broker:
+                       memory_mb=1536, cpus=1, queue_seconds=.25) as broker:
         command = broker.command("small-job")
+        assert broker.queue_seconds == .25
         assert broker.permits.acquire(blocking=False)
         assert not broker.permits.acquire(blocking=False)
         broker.permits.release()
@@ -74,9 +78,49 @@ def test_broker_small_host_budget_keeps_swap_and_memory_equal(socket_dir):
     assert "--network" in command and "--read-only" in command
 
 
+def test_broker_health_runs_one_real_sandbox_probe_and_caches_it(socket_dir, monkeypatch):
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(
+            returncode=0,
+            stdout=b'{"type":"result","payload":{"ready":true}}\n',
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with ComputeBroker(
+        socket_dir / "health.sock", "pinned-image:digest", socket_dir, 1,
+        health_cache_seconds=60,
+    ) as broker:
+        first = broker.health(socket_dir)
+        second = broker.health(socket_dir)
+    assert first == {"ready": True, "cached": False, "age_seconds": 0.0}
+    assert second["ready"] is True and second["cached"] is True
+    assert len(calls) == 1
+    command, options = calls[0]
+    assert command[:3] == ["docker", "run", "--rm"]
+    assert options["input"] == b'{"kind":"health"}\n'
+    assert options["timeout"] == 20
+
+
+def test_compute_health_probe_avoids_loading_market_or_private_strategy_state(tmp_path):
+    assert execute_request({"kind": "health"}, tmp_path) == {"ready": True}
+
+
+def test_broker_stderr_tail_is_bounded_to_latest_diagnostics():
+    tail = bytearray()
+    append_stderr_tail(tail, b"old-" + b"x" * STDERR_TAIL_BYTES)
+    append_stderr_tail(tail, b"-latest")
+    assert len(tail) == STDERR_TAIL_BYTES
+    assert tail.endswith(b"-latest")
+
+
 @pytest.mark.parametrize("options", [
     {"capacity": 0}, {"capacity": 17}, {"memory_mb": 0},
     {"memory_mb": 65537}, {"cpus": 0}, {"cpus": float("nan")},
+    {"queue_seconds": -1}, {"queue_seconds": 31},
 ])
 def test_broker_rejects_invalid_host_budget_before_binding(socket_dir, options):
     values = {"capacity": 1, **options}

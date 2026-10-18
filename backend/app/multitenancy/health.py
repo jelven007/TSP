@@ -7,6 +7,13 @@ import uuid
 from datetime import UTC, datetime
 
 
+def worker_fresh(kind: str, healthy: bool, age_seconds: float) -> bool:
+    from app.multitenancy.worker_process import MAX_AGE
+
+    max_age = MAX_AGE.get(kind)
+    return bool(healthy and max_age is not None and 0 <= age_seconds <= max_age)
+
+
 class WorkerHealth:
     def __init__(self, db, kind):
         self.db, self.kind = db, kind
@@ -40,15 +47,25 @@ def readiness(state, data_dir):
     try:
         with identity.db.control.connection() as conn:
             workers = conn.execute(
-                """SELECT kind,healthy,checked_at>clock_timestamp()-interval '120 seconds' AS fresh
+                """SELECT kind,healthy,
+                          extract(epoch FROM clock_timestamp()-checked_at) AS age_seconds
                    FROM control.full_worker_health WHERE cell_id=%s""", (identity.db.settings.id,),
             ).fetchall()
         with identity.db.data.connection() as conn:
             conn.execute("SELECT 1").fetchone()
         checks["databases"] = {"status": "ok"}
-        found = {row["kind"]: bool(row["healthy"] and row["fresh"]) for row in workers}
+        found = {row["kind"]: row for row in workers}
+        from app.multitenancy.worker_process import MAX_AGE
+
         for kind in ("research", "realtime", "notifications", "scheduled"):
-            checks[kind + "_worker"] = {"status": "ok" if found.get(kind) else "error"}
+            row = found.get(kind)
+            age = float(row["age_seconds"]) if row is not None else None
+            fresh = row is not None and worker_fresh(kind, row["healthy"], age)
+            checks[kind + "_worker"] = {
+                "status": "ok" if fresh else "error",
+                "age_seconds": age,
+                "max_age_seconds": MAX_AGE[kind],
+            }
     except Exception:
         checks["databases"] = {"status": "error"}
     try:

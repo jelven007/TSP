@@ -19,19 +19,25 @@
 `small-host.env` 是约 8 GiB Docker 主机上的小夹具功能验收预算，不能据此声称
 可承载全市场多年行情或 100 个持续活跃用户。默认生产配置的既有资源上限保留；
 可通过各角色 `TSP_*_MEMORY`、`TSP_*_CPUS`、连接池和并发参数独立调整。
+`production-16g.env` 是单 Compute、36 个数据库连接上界的 16 GiB 正式预算；
+应用角色 8704 MiB，连同 Compute、PostgreSQL、Broker/Edge 和宿主保留共
+15744 MiB。更改 Worker 数、连接池或 Compute 并发后必须重新验算。
 
 四类 Worker 由 `app.multitenancy.worker_process` 监督实际调度循环。
 本实例心跳包含 PID、随机实例标识和单调时钟；只有成功写入数据库后才记录进展。
 研究/通知 120 秒、实时 420 秒、定时批次 660 秒无进展时，监督进程先发送终止信号，
 25 秒后仍未退出则强制回收，并以非零状态退出，交由 Compose 重启。
 首次启动最多等待 120 秒。定时任务租约续期不刷新本地进展。
-API 原有 120 秒数据库 Worker 就绪判定保留，因此慢批次期间可能先撤出 API 就绪。
+API 深度就绪使用同一组按类型区分的 freshness，不会在监督器仍判定健康时因固定
+120 秒阈值提前撤出。
 监督器检查的是调度循环，单个研究任务继续由原计算超时、取消和数据库租约管理。
 所有角色日志按每文件 10 MiB、最多 3 个文件轮转。
 
 `tsp-compute-broker.service` 支持在私密 `broker.env` 配置
-`TSP_COMPUTE_CAPACITY`、`TSP_COMPUTE_MEMORY_MB`、`TSP_COMPUTE_CPUS`；
-默认仍为 4、4096、2。计算请求不能覆盖这些宿主配置。资源预算须包含
+`TSP_COMPUTE_CAPACITY`、`TSP_COMPUTE_MEMORY_MB`、`TSP_COMPUTE_CPUS` 和
+`TSP_COMPUTE_QUEUE_SECONDS`；默认仍为 4、4096、2、2。并发满时最多等待该
+短窗口，等待者数量与执行容量相同。健康检查实际启动无网络沙箱并缓存 60 秒，
+而非只检查镜像存在；失败日志保留最多 8 KiB stderr 尾部。计算请求不能覆盖这些宿主配置。资源预算须包含
 “最大并发 × 每个计算容器内存”，不能只计算常驻服务。
 
 ## 配置与目录
@@ -88,7 +94,30 @@ docker compose -p tsp-full-candidate -f deploy/full/compose.yml up -d research r
 
 Edge 只将精确路径 `/api/events` 和 `/api/events/ticket` 路由至 Gateway，其余请求继续进入 API。`/api/events/ticket` 先由权威 Cookie/API Token 身份核验签发 60 秒一次性票据；Gateway 消费后本地校验，并通过 PostgreSQL 专用 direct/session `LISTEN` 连接接收撤权和私有事件唤醒。该连接不能经过 PgBouncer 事务池。通知丢失时私有事件最多 30 秒全扫追赶；撤权广播失效时已有流由 60 秒硬 TTL 收敛。
 
-同一计算任务固定挂载一个发布版本，后续数据发布不能改变其历史输入。当前不自动删除旧版本；验收与上线时记录占用，清理前须确认无排队任务或 API 引用该版本。二期再实施引用计数和自动保留策略。
+同一计算任务固定挂载一个发布版本，后续数据发布不能改变其历史输入。
+`scripts.maintain_full_host` 从业务库研究任务提取受保护 release ID，同时保留
+`current`、最近版本和最小存龄；缺少 `TSP_DATA_ADMIN_DSN` 时拒绝清理 release。
+Docker 维护只清理到期 BuildKit 缓存和悬空镜像，不使用 `image prune -a`，不会
+删除带 tag 的回滚镜像。命令默认 dry-run，复核 JSON 清单后才传 `--apply`。
+
+停写后的双库备份使用 `scripts.backup_full_host`。它先生成两个 custom-format dump，
+再分别恢复到临时数据库并读取 schema 版本，全部成功后才原子发布备份目录：
+
+```bash
+cd backend
+python -m scripts.backup_full_host \
+  --postgres-container tsp-pg --control-database CONTROL_DB --data-database DATA_DB \
+  --output /opt/tsp-full/backups/final-YYYYMMDD-HHMMSS \
+  --include platform-config=/opt/tsp-full/platform-config \
+  --include edge=/opt/tsp-full/edge --confirm-quiesced
+
+TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.maintain_full_host \
+  --release-root /opt/tsp-full/public --prune-docker-cache
+# 复核输出后追加 --apply。
+```
+
+持续观察器在 `alerts.jsonl` 写入去重的 `firing`/`resolved` 事件，覆盖深度健康、
+容器退出/重启及磁盘低于 1 GiB；该文件应由主机告警采集器转发。
 
 完整导入保存逐条目标内容散列和源文件清单。最终增量仍要求租户暂停，且先核对候选中的上次导入记录；候选业务编辑、源快照变化、缺失文件或模拟盘台账改写都会阻止覆盖。模拟盘按原成交台账核对现金与持仓；原始业务文件可在研究任务历史中导出。旧会话、验证码、全局 Token 和平台凭据不进入租户归档。导入账本仅离线管理员可用。
 

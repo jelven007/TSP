@@ -25,6 +25,11 @@ PUBLIC_FILES = frozenset({
     ".matrix_generation_stock.json", ".matrix_generation_etf.json", ".matrix_generation_index.json",
     "settlement_ready.json", "capabilities.json",
 })
+DAILY_COVERAGE_DIRS = (
+    ("stock", "kline_daily", "kline_daily_enriched"),
+    ("etf", "kline_etf_daily", "kline_etf_enriched"),
+    ("index", "kline_index_daily", "kline_index_enriched"),
+)
 
 
 def release_path(root: Path, release_id: str | None = None) -> Path:
@@ -78,7 +83,48 @@ class PublicPublisher:
         with self.write_lock:
             return self._publish()
 
+    def validate_daily_coverage(self):
+        import polars as pl
+
+        for asset, raw_name, enriched_name in DAILY_COVERAGE_DIRS:
+            raw_root = self.source / raw_name
+            raw_partition = max(
+                (path for path in raw_root.glob("date=????-??-??") if path.is_dir()),
+                default=None,
+            )
+            if raw_partition is None:
+                continue
+            enriched_partition = self.source / enriched_name / raw_partition.name
+            raw_files = sorted(raw_partition.rglob("*.parquet"))
+            enriched_files = (
+                sorted(enriched_partition.rglob("*.parquet"))
+                if enriched_partition.is_dir() else []
+            )
+            if not raw_files or not enriched_files:
+                raise ValueError(
+                    f"public enriched coverage missing for {asset} {raw_partition.name}",
+                )
+            try:
+                raw_symbols = set(
+                    pl.read_parquet(raw_files, columns=["symbol"])["symbol"].drop_nulls().to_list(),
+                )
+                enriched_symbols = set(
+                    pl.read_parquet(enriched_files, columns=["symbol"])["symbol"].drop_nulls().to_list(),
+                )
+            except Exception as exc:
+                raise ValueError(
+                    f"public enriched coverage unreadable for {asset} {raw_partition.name}",
+                ) from exc
+            missing = raw_symbols - enriched_symbols
+            if missing:
+                sample = ",".join(sorted(missing)[:5])
+                raise ValueError(
+                    f"public enriched coverage incomplete for {asset} "
+                    f"{raw_partition.name}: {len(missing)} missing ({sample})",
+                )
+
     def _publish(self):
+        self.validate_daily_coverage()
         generations, files = self.generations(), self.inventory()
         digest = hashlib.sha256(json.dumps([generations, files], sort_keys=True).encode()).hexdigest()
         self.root.mkdir(parents=True, exist_ok=True)

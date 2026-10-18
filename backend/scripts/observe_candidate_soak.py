@@ -219,6 +219,48 @@ def disk_snapshot(paths: list[Path]) -> dict:
     return values
 
 
+def alert_conditions(sample: dict, initial_containers: dict) -> dict[str, dict]:
+    conditions = {}
+    for name, value in sample["endpoints"].items():
+        if value.get("ok") is not True:
+            conditions[f"endpoint:{name}"] = {"kind": "endpoint", "name": name, "value": value}
+    for name, value in sample["containers"].items():
+        initial = initial_containers.get(name, {})
+        restarted = int(value.get("restart_count", 0)) > int(initial.get("restart_count", 0))
+        if value.get("ok") is not True or restarted:
+            conditions[f"container:{name}"] = {
+                "kind": "container", "name": name, "value": value,
+                "restarted": restarted,
+            }
+    for name, value in sample["disks"].items():
+        low = value.get("ok") is not True or value.get("free_bytes", 0) < 1024**3
+        if low:
+            conditions[f"disk:{name}"] = {"kind": "disk", "name": name, "value": value}
+    return conditions
+
+
+def record_alert_transitions(run_dir: Path, record: dict, sample: dict) -> None:
+    current = alert_conditions(sample, record.get("initial_containers", {}))
+    previous = set(record.get("active_alerts", []))
+    active = set(current)
+    events = [
+        {
+            "at": sample["at"], "state": "firing", "key": key,
+            **current[key],
+        }
+        for key in sorted(active - previous)
+    ]
+    events.extend({
+        "at": sample["at"], "state": "resolved", "key": key,
+    } for key in sorted(previous - active))
+    if events:
+        with (run_dir / "alerts.jsonl").open("a", encoding="utf-8") as stream:
+            for event in events:
+                stream.write(json.dumps(event, ensure_ascii=False) + "\n")
+    record["active_alerts"] = sorted(active)
+    record["alert_events"] = record.get("alert_events", 0) + len(events)
+
+
 def arm(
     run_dir: Path,
     *,
@@ -383,6 +425,7 @@ class Observer:
             "containers": containers,
             "disks": disk_snapshot(self.disk_paths),
         }
+        record_alert_transitions(self.run_dir, self.record, value)
         with (self.run_dir / "telemetry.jsonl").open(
             "a",
             encoding="utf-8",

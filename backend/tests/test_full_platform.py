@@ -104,6 +104,36 @@ def test_publication_rejects_a_changed_generation_and_keeps_previous(tmp_path, m
     assert len(list((target / "releases").iterdir())) == 1
 
 
+@pytest.mark.parametrize(("raw_dir", "enriched_dir"), [
+    ("kline_daily", "kline_daily_enriched"),
+    ("kline_etf_daily", "kline_etf_enriched"),
+    ("kline_index_daily", "kline_index_enriched"),
+])
+def test_publication_rejects_incomplete_latest_enriched_partition(
+    tmp_path, raw_dir, enriched_dir,
+):
+    source, target = tmp_path / "source", tmp_path / "public"
+    market_files(source)
+    raw = source / raw_dir / "date=2026-10-16"
+    enriched = source / enriched_dir / "date=2026-10-16"
+    raw.mkdir(parents=True)
+    enriched.mkdir(parents=True)
+    frame = pl.DataFrame({"symbol": ["600000.SH"], "close": [10.0]})
+    frame.write_parquet(raw / "part.parquet")
+    frame.write_parquet(enriched / "part.parquet")
+    publisher = PublicPublisher(source, target)
+    first = publisher.publish()
+
+    pl.DataFrame({
+        "symbol": ["600000.SH", "000016.SZ"], "close": [10.0, 12.0],
+    }).write_parquet(raw / "part.parquet")
+
+    with pytest.raises(ValueError, match="enriched coverage"):
+        publisher.publish()
+    assert release_path(target).name == first["id"]
+    assert len(list((target / "releases").iterdir())) == 1
+
+
 def test_platform_only_accepts_explicit_management_paths(monkeypatch):
     monkeypatch.setenv("TSP_PLATFORM_ADMIN_TOKEN", "private-internal-token")
     for method, path in (
