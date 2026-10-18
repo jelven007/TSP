@@ -1,0 +1,14 @@
+{
+  "base_url": "https://118.196.108.188",
+  "tls_verification": "system_trust",
+  "endpoints": {
+    "/health/live": {
+      "error": "URLError",
+      "message": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self signed certificate in certificate chain (_ssl.c:1129)>"
+    },
+    "/health/ready": {
+      "error": "URLError",
+      "message": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self signed certificate in certificate chain (_ssl.c:1129)>"
+    }
+  }
+}
