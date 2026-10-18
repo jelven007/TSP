@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import math
 import os
 import selectors
@@ -19,22 +20,39 @@ from pathlib import Path
 
 from app.multitenancy.executor import KINDS, MAX_MESSAGE_BYTES
 
+STDERR_TAIL_BYTES = 8 * 1024
+logger = logging.getLogger(__name__)
+
+
+def append_stderr_tail(tail: bytearray, block: bytes) -> None:
+    tail.extend(block)
+    if len(tail) > STDERR_TAIL_BYTES:
+        del tail[:-STDERR_TAIL_BYTES]
+
 
 class ComputeBroker(socketserver.ThreadingUnixStreamServer):
     daemon_threads = False
 
     def __init__(self, socket_path: Path, image: str, market_root: Path, capacity: int,
-                 *, memory_mb: int = 4096, cpus: float = 2):
+                 *, memory_mb: int = 4096, cpus: float = 2, queue_seconds: float = 2,
+                 health_cache_seconds: float = 60):
         if (not 1 <= capacity <= 16 or not 256 <= memory_mb <= 65536
-                or not math.isfinite(cpus) or not .25 <= cpus <= 16):
+                or not math.isfinite(cpus) or not .25 <= cpus <= 16
+                or not math.isfinite(queue_seconds) or not 0 <= queue_seconds <= 30
+                or not math.isfinite(health_cache_seconds) or not 1 <= health_cache_seconds <= 300):
             raise ValueError("invalid compute resource budget")
         self.image = image
         self.market_root = market_root
         self.memory = "4g" if memory_mb == 4096 else f"{memory_mb}m"
         self.cpus = f"{cpus:g}"
+        self.queue_seconds = queue_seconds
+        self.health_cache_seconds = health_cache_seconds
         self.permits = threading.BoundedSemaphore(capacity)
+        self.waiters = threading.BoundedSemaphore(capacity)
         self.tenant_lock = threading.Lock()
         self.active_tenants: set[str] = set()
+        self.health_lock = threading.Lock()
+        self.health_cache: tuple[float, bool] | None = None
         self.stopped = threading.Event()
         super().__init__(str(socket_path), Handler)
 
@@ -58,6 +76,70 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
             "app.multitenancy.compute_worker",
         ]
 
+    def health(self, market_path: Path) -> dict:
+        now = time.monotonic()
+        cached = self.health_cache
+        cache_age = now - cached[0] if cached is not None else None
+        cache_ttl = self.health_cache_seconds if cached and cached[1] else 5
+        if cached is not None and cache_age <= cache_ttl:
+            return {
+                "ready": cached[1], "cached": True,
+                "age_seconds": round(cache_age, 3),
+            }
+        with self.health_lock:
+            now = time.monotonic()
+            cached = self.health_cache
+            cache_age = now - cached[0] if cached is not None else None
+            cache_ttl = self.health_cache_seconds if cached and cached[1] else 5
+            if cached is not None and cache_age <= cache_ttl:
+                return {
+                    "ready": cached[1], "cached": True,
+                    "age_seconds": round(cache_age, 3),
+                }
+            if not self.permits.acquire(blocking=False):
+                ready = bool(cached and cached[1] and now - cached[0] <= 300)
+                return {
+                    "ready": ready, "cached": cached is not None,
+                    "age_seconds": round(now - cached[0], 3) if cached else None,
+                }
+            name = "tsp-compute-health-" + uuid.uuid4().hex
+            ready = False
+            try:
+                result = subprocess.run(
+                    self.command(name, market_path),
+                    input=b'{"kind":"health"}\n',
+                    capture_output=True,
+                    timeout=20,
+                    check=False,
+                )
+                try:
+                    message = json.loads(result.stdout.splitlines()[-1])
+                except (IndexError, json.JSONDecodeError):
+                    message = {}
+                ready = bool(
+                    result.returncode == 0
+                    and message.get("type") == "result"
+                    and message.get("payload", {}).get("ready") is True
+                )
+                if not ready:
+                    tail = result.stderr[-STDERR_TAIL_BYTES:].decode(errors="replace")
+                    logger.warning(
+                        "compute health sandbox failed: returncode=%s stderr=%r",
+                        result.returncode, tail,
+                    )
+            except (OSError, subprocess.SubprocessError) as exc:
+                logger.warning("compute health sandbox failed: %s", type(exc).__name__)
+            finally:
+                if not ready:
+                    with suppress(OSError, subprocess.SubprocessError):
+                        subprocess.run(
+                            ["docker", "rm", "-f", name],
+                            capture_output=True, timeout=15, check=False,
+                        )
+                self.permits.release()
+            self.health_cache = (time.monotonic(), ready)
+            return {"ready": ready, "cached": False, "age_seconds": 0.0}
+
 
 class Handler(socketserver.StreamRequestHandler):
     def send(self, message):
@@ -71,6 +153,7 @@ class Handler(socketserver.StreamRequestHandler):
         process = None
         acquired = False
         terminal_message = None
+        stderr_tail = bytearray()
         try:
             self.connection.settimeout(30)
             line = self.rfile.readline(MAX_MESSAGE_BYTES + 1)
@@ -81,18 +164,22 @@ class Handler(socketserver.StreamRequestHandler):
 
             market_path = release_path(broker.market_root, payload.get("public_release_id"))
             if payload.get("kind") == "health":
-                checked = subprocess.run(["docker", "image", "inspect", broker.image],
-                                         capture_output=True, timeout=3, check=False)
-                self.send({"type": "result", "payload": {"ready": checked.returncode == 0}})
+                self.send({"type": "result", "payload": broker.health(market_path)})
                 return
             tenant = payload.get("tenant_id")
             if (payload.get("kind") not in KINDS or not isinstance(tenant, str)
                     or not 1 <= len(tenant) <= 128):
                 raise ValueError("计算任务格式错误")
-            if not broker.permits.acquire(blocking=False):
+            if not broker.waiters.acquire(blocking=False):
                 self.send({"type": "error", "status": 429, "message": "计算任务繁忙，请稍后重试"})
                 return
-            acquired = True
+            try:
+                acquired = broker.permits.acquire(timeout=broker.queue_seconds)
+            finally:
+                broker.waiters.release()
+            if not acquired:
+                self.send({"type": "error", "status": 429, "message": "计算任务繁忙，请稍后重试"})
+                return
             with broker.tenant_lock:
                 if tenant in broker.active_tenants:
                     self.send({"type": "error", "status": 429, "message": "当前租户已有计算任务，请稍后重试"})
@@ -134,6 +221,7 @@ class Handler(socketserver.StreamRequestHandler):
                         if output_bytes > MAX_MESSAGE_BYTES:
                             raise ValueError("计算任务输出超过限制")
                         if key.data == "stderr":
+                            append_stderr_tail(stderr_tail, block)
                             continue
                         buffer.extend(block)
                         while b"\n" in buffer:
@@ -160,7 +248,8 @@ class Handler(socketserver.StreamRequestHandler):
                 if process.poll() is None:
                     process.kill()
                 with suppress(subprocess.SubprocessError):
-                    process.communicate(timeout=5)
+                    _stdout, remaining_stderr = process.communicate(timeout=5)
+                    append_stderr_tail(stderr_tail, remaining_stderr)
             if tenant is not None and acquired:
                 with broker.tenant_lock:
                     broker.active_tenants.discard(tenant)
@@ -169,6 +258,11 @@ class Handler(socketserver.StreamRequestHandler):
             # The next task may start as soon as the client receives a terminal
             # event. Release both permits after cleanup, before sending it.
             if terminal_message is not None:
+                if terminal_message.get("type") == "error" and stderr_tail:
+                    logger.warning(
+                        "compute job %s stderr tail: %s",
+                        name, stderr_tail.decode(errors="replace"),
+                    )
                 with suppress(OSError):
                     self.send(terminal_message)
 
@@ -181,6 +275,10 @@ def main():
     parser.add_argument("--capacity", type=int, default=4)
     parser.add_argument("--memory-mb", type=int, default=4096)
     parser.add_argument("--cpus", type=float, default=2)
+    parser.add_argument(
+        "--queue-seconds", type=float,
+        default=float(os.environ.get("TSP_COMPUTE_QUEUE_SECONDS", "2")),
+    )
     args = parser.parse_args()
     market = args.market_root.resolve(strict=True)
     if not market.is_dir() or not 1 <= args.capacity <= 16:
@@ -191,7 +289,8 @@ def main():
     # A stale socket is removed by the service manager, never blindly unlink an
     # active broker's socket at startup.
     with ComputeBroker(args.socket, args.image, market, args.capacity,
-                       memory_mb=args.memory_mb, cpus=args.cpus) as server:
+                       memory_mb=args.memory_mb, cpus=args.cpus,
+                       queue_seconds=args.queue_seconds) as server:
         os.chmod(args.socket, 0o660)
         def shutdown(*_):
             server.stopped.set()

@@ -33,13 +33,14 @@ services:
         --socket /run/tsp/compute.sock
         --image "$$TSP_COMPUTE_IMAGE" --market-root "$$TSP_PUBLIC_MARKET_DIR"
         --capacity "$$TSP_COMPUTE_CAPACITY" --memory-mb "$$TSP_COMPUTE_MEMORY_MB"
-        --cpus "$$TSP_COMPUTE_CPUS"
+        --cpus "$$TSP_COMPUTE_CPUS" --queue-seconds "$$TSP_COMPUTE_QUEUE_SECONDS"
     environment:
       TSP_COMPUTE_IMAGE: ${TSP_COMPUTE_IMAGE:?Pinned compute image required}
       TSP_PUBLIC_MARKET_DIR: ${TSP_PUBLIC_MARKET_DIR}
       TSP_COMPUTE_CAPACITY: ${TSP_COMPUTE_CAPACITY:-1}
       TSP_COMPUTE_MEMORY_MB: ${TSP_COMPUTE_MEMORY_MB:-1024}
       TSP_COMPUTE_CPUS: ${TSP_COMPUTE_CPUS:-1}
+      TSP_COMPUTE_QUEUE_SECONDS: ${TSP_COMPUTE_QUEUE_SECONDS:-2}
       PYTHONDONTWRITEBYTECODE: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -59,7 +60,7 @@ services:
     healthcheck:
       test: ["CMD", "/app/.venv/bin/python", "-c", "from app.multitenancy.executor import ComputeExecutor; assert ComputeExecutor('/run/tsp/compute.sock').health()['ready']"]
       interval: 15s
-      timeout: 5s
+      timeout: 25s
       retries: 3
   api:
     ports: !reset []

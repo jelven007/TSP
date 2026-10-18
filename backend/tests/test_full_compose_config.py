@@ -10,28 +10,36 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose CLI unavailable")
-@pytest.mark.parametrize("live_market", [False, True])
-def test_small_host_composes_all_roles_with_isolated_bounded_dependencies(tmp_path, live_market):
+def _base_environment(tmp_path):
     env_file = tmp_path / "private.env"
     env_file.write_text("")
     values = {
-        "COMPOSE_PROJECT_NAME": "tsp-compose-contract",
         "TSP_FULL_IMAGE": "test-runtime:fixed",
-        "TSP_COMPUTE_IMAGE": "test-compute:fixed",
-        "TSP_BROKER_IMAGE": "test-broker:fixed",
-        "TSP_POSTGRES_IMAGE": "postgres:16",
-        "TSP_NGINX_IMAGE": "nginx:alpine",
         "TSP_FULL_ENV_FILE": str(env_file),
         "TSP_PLATFORM_ENV_FILE": str(env_file),
-        "TSP_CANDIDATE_POSTGRES_ENV_FILE": str(env_file),
-        "TSP_CANDIDATE_NGINX_CONFIG": str(tmp_path / "nginx.conf"),
         **{key: str(tmp_path / key) for key in (
             "TSP_PLATFORM_DATA_DIR", "TSP_PLATFORM_CONFIG_DIR",
             "TSP_PUBLIC_MARKET_DIR", "TSP_COMPUTE_SOCKET_DIR",
         )},
     }
     env = {key: value for key, value in os.environ.items() if not key.startswith("TSP_")}
+    env.update(values)
+    return env, env_file
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose CLI unavailable")
+@pytest.mark.parametrize("live_market", [False, True])
+def test_small_host_composes_all_roles_with_isolated_bounded_dependencies(tmp_path, live_market):
+    env, env_file = _base_environment(tmp_path)
+    values = {
+        "COMPOSE_PROJECT_NAME": "tsp-compose-contract",
+        "TSP_COMPUTE_IMAGE": "test-compute:fixed",
+        "TSP_BROKER_IMAGE": "test-broker:fixed",
+        "TSP_POSTGRES_IMAGE": "postgres:16",
+        "TSP_NGINX_IMAGE": "nginx:alpine",
+        "TSP_CANDIDATE_POSTGRES_ENV_FILE": str(env_file),
+        "TSP_CANDIDATE_NGINX_CONFIG": str(tmp_path / "nginx.conf"),
+    }
     env.update(values)
     budget = "acceptance.env" if live_market else "small-host.env"
     files = ["compose.yml", "compose.isolated.yml"]
@@ -69,3 +77,27 @@ def test_small_host_composes_all_roles_with_isolated_bounded_dependencies(tmp_pa
     for name, network in config["networks"].items():
         assert bool(network.get("internal")) == (name not in {"probe", "market"})
         assert not network.get("external")
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose CLI unavailable")
+def test_production_16g_budget_caps_memory_and_database_connections(tmp_path):
+    env, _env_file = _base_environment(tmp_path)
+    result = subprocess.run([
+        "docker", "compose",
+        "--env-file", str(ROOT / "deploy/full/production-16g.env"),
+        "-f", str(ROOT / "deploy/full/compose.yml"),
+        "config", "--format", "json",
+    ], env=env, capture_output=True, text=True, check=True)
+    services = json.loads(result.stdout)["services"]
+    assert sum(int(service["mem_limit"]) for service in services.values()) == 8704 * 1024**2
+
+    processes = {name: 1 for name in (
+        "gateway", "research", "realtime", "notifications", "scheduled",
+    )}
+    api_command = services["api"]["command"]
+    processes["api"] = int(api_command[api_command.index("--workers") + 1])
+    connection_limit = sum(
+        processes[name] * int(services[name]["environment"]["TSP_CELL_POOL_SIZE"]) * 2
+        for name in processes
+    )
+    assert connection_limit == 36

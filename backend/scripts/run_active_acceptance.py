@@ -40,6 +40,26 @@ def percentile(histogram: list[int], ratio: float) -> int | None:
     return BUCKETS[-1]
 
 
+def classify_watchlist_mismatch(
+    values: list[dict], *, tenant_id: str, symbol: str, round_index: int,
+) -> str | None:
+    expected_note = f"acceptance:{tenant_id}:{round_index}"
+    if (
+        len(values) == 1
+        and values[0].get("note") == expected_note
+        and values[0].get("symbol") == symbol
+    ):
+        return None
+    for value in values:
+        note = value.get("note")
+        if not isinstance(note, str) or not note.startswith("acceptance:"):
+            continue
+        parts = note.split(":", 2)
+        if len(parts) == 3 and parts[1] != tenant_id:
+            return "isolation"
+    return "consistency"
+
+
 def evaluate(record: dict) -> dict:
     users = record["users"]
     expected_rounds = record["duration_hours"] * 3600 / record["round_seconds"]
@@ -58,6 +78,7 @@ def evaluate(record: dict) -> dict:
             (percentile(v["histogram"], .95) or 0) <= 2000
             for route, v in record["requests"].items() if route != "login"),
         "no_isolation_violation": record["isolation_violations"] == 0,
+        "no_consistency_violation": record.get("consistency_violations", 0) == 0,
         "all_private_probes_delivered": record["private_probe_timeouts"] == 0
         and record.get("probe_injection_errors", 0) == 0
         and record.get("pending_private_probes", 0) == 0
@@ -98,6 +119,7 @@ class Load:
             self.record = {
                 "status": "preparing", "created_at": now_text(), "duration_hours": hours,
                 "round_seconds": 20, "requests": {}, "isolation_violations": 0,
+                "consistency_violations": 0,
                 "private_probe_timeouts": 0, "probe_injection_errors": 0, "restarts": 0,
                 "max_sample_gap_s": 0, "samples": 0, "errors": [],
                 "research": {"succeeded": 0, "failed": 0, "user_indices": []},
@@ -109,6 +131,7 @@ class Load:
                     "stream_reconnects": 0, "last_event_id": "",
                 } for p in self.accounts],
             }
+        self.record.setdefault("consistency_violations", 0)
         self.clients = [httpx.AsyncClient(
             base_url=self.base, headers={"Origin": self.base}, trust_env=False,
             timeout=httpx.Timeout(15, connect=5), limits=httpx.Limits(max_connections=5),
@@ -199,10 +222,16 @@ class Load:
             valid = saved is not None and rows is not None and market is not None
             if rows is not None:
                 values = rows.json()["symbols"]
-                if len(values) != 1 or values[0]["note"] != note or values[0]["symbol"] != p["symbol"]:
-                    self.record["isolation_violations"] += 1
+                mismatch = classify_watchlist_mismatch(
+                    values,
+                    tenant_id=p["tenant_id"],
+                    symbol=p["symbol"],
+                    round_index=u["rounds"],
+                )
+                if mismatch is not None:
+                    self.record[f"{mismatch}_violations"] += 1
                     valid = False
-                    self.error("isolation", index, "private watchlist marker mismatch")
+                    self.error(mismatch, index, "private watchlist marker mismatch")
             if u["rounds"] % 3 == 0:
                 auth = await self.request(index, "GET", "/api/auth/status", route="account.status")
                 valid &= auth is not None
@@ -429,7 +458,8 @@ class Load:
                     with (self.run_dir / "telemetry.jsonl").open("a") as stream:
                         stream.write(json.dumps({k: self.record[k] for k in (
                             "heartbeat_at", "active_users_60s", "connected_streams", "observed_seconds",
-                            "isolation_violations", "private_probe_timeouts", "requests", "research",
+                            "isolation_violations", "consistency_violations",
+                            "private_probe_timeouts", "requests", "research",
                         )}) + "\n")
                     if now >= end:
                         report = evaluate(self.record)

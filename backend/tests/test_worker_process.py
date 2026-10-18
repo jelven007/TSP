@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.multitenancy import worker_process
-from app.multitenancy.health import WorkerHealth
+from app.multitenancy.health import WorkerHealth, readiness
 
 
 def test_progress_requires_this_instance_and_successful_database_write(tmp_path, monkeypatch):
@@ -64,6 +64,60 @@ def test_lease_renewal_does_not_hide_stalled_dispatch(tmp_path, monkeypatch):
 def test_invalid_progress_fails_closed(tmp_path, payload):
     (tmp_path / "progress.json").write_text(payload)
     assert worker_process.progress(tmp_path, 1, "instance", "research") is None
+
+
+@pytest.mark.parametrize(("kind", "fresh_age", "stale_age"), [
+    ("research", 119, 121),
+    ("realtime", 419, 421),
+    ("notifications", 119, 121),
+    ("scheduled", 659, 661),
+])
+def test_database_and_process_health_share_kind_specific_freshness(kind, fresh_age, stale_age):
+    from app.multitenancy.health import worker_fresh
+
+    assert worker_fresh(kind, True, fresh_age)
+    assert not worker_fresh(kind, True, stale_age)
+    assert not worker_fresh(kind, False, fresh_age)
+    assert not worker_fresh("unknown", True, 0)
+
+
+def test_api_readiness_uses_the_same_kind_specific_worker_ages(tmp_path):
+    rows = [
+        {"kind": "research", "healthy": True, "age_seconds": 100},
+        {"kind": "realtime", "healthy": True, "age_seconds": 300},
+        {"kind": "notifications", "healthy": True, "age_seconds": 100},
+        {"kind": "scheduled", "healthy": True, "age_seconds": 600},
+    ]
+
+    @contextmanager
+    def control_connection():
+        yield SimpleNamespace(execute=lambda *_: SimpleNamespace(fetchall=lambda: rows))
+
+    @contextmanager
+    def data_connection():
+        yield SimpleNamespace(execute=lambda *_: SimpleNamespace(fetchone=lambda: {"?column?": 1}))
+
+    db = SimpleNamespace(
+        settings=SimpleNamespace(id="full"),
+        control=SimpleNamespace(connection=control_connection),
+        data=SimpleNamespace(connection=data_connection),
+    )
+    (tmp_path / ".public_release.json").write_text('{"id":"release-1"}')
+    state = SimpleNamespace(
+        account_identity=SimpleNamespace(db=db),
+        quote_service=SimpleNamespace(
+            snapshot={"platform_ready": True},
+            received_at=time.monotonic(),
+            bridge_status=lambda: {"connected": True},
+        ),
+        indicators_ready=True,
+        compute_executor=SimpleNamespace(health=lambda: {"ready": True}),
+    )
+
+    result = readiness(state, tmp_path)
+    assert result["ready"]
+    assert result["checks"]["realtime_worker"]["max_age_seconds"] == 420
+    assert result["checks"]["scheduled_worker"]["max_age_seconds"] == 660
 
 
 def test_stalled_child_is_terminated_even_if_old_heartbeat_exists(tmp_path):

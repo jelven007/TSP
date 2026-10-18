@@ -127,6 +127,7 @@ services:
     <<: *common
     environment:
       <<: *environment
+      TSP_CELL_POOL_SIZE: "${TSP_RESEARCH_POOL_SIZE:-4}"
       TSP_CELL_WORKER_CONCURRENCY: "${TSP_RESEARCH_CONCURRENCY:-4}"
     command: ["/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "research"]
     depends_on:
@@ -160,6 +161,7 @@ services:
     <<: *common
     environment:
       <<: *environment
+      TSP_CELL_POOL_SIZE: "${TSP_NOTIFICATIONS_POOL_SIZE:-4}"
       TSP_CELL_WORKER_CONCURRENCY: "${TSP_NOTIFICATIONS_CONCURRENCY:-4}"
     command: ["/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "notifications"]
     depends_on:
@@ -176,6 +178,7 @@ services:
     <<: *common
     environment:
       <<: *environment
+      TSP_CELL_POOL_SIZE: "${TSP_SCHEDULED_POOL_SIZE:-4}"
       TSP_CELL_WORKER_CONCURRENCY: "${TSP_SCHEDULED_CONCURRENCY:-2}"
     command: ["/app/.venv/bin/python", "-m", "app.multitenancy.worker_process", "scheduled"]
     depends_on:
