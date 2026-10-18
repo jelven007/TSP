@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "scope": "local_full_compute_image_acceptance",
+  "limits": [
+    "local Docker functional test; not native-host performance acceptance",
+    "disposable deterministic market fixture; not production data"
+  ],
+  "docker_architecture": "aarch64",
+  "budget": {
+    "capacity": 1,
+    "memory_mb": 1024,
+    "cpus": 1.0
+  },
+  "artifact": {
+    "reference": "sha256:17a6ddc517027b757d729fd8153cb5ef44c588a8b91809d1b3414def8ff48192",
+    "id": "sha256:17a6ddc517027b757d729fd8153cb5ef44c588a8b91809d1b3414def8ff48192",
+    "architecture": "arm64",
+    "os": "linux",
+    "repo_digests": [
+      "tsp-full-compute@sha256:17a6ddc517027b757d729fd8153cb5ef44c588a8b91809d1b3414def8ff48192"
+    ]
+  },
+  "results": {
+    "uid": 10001,
+    "public_readonly": true,
+    "credentials_absent": true,
+    "metadata": "passed",
+    "strategy": "passed",
+    "selected": [
+      "600000.SH"
+    ],
+    "unsafe_import": "rejected",
+    "independent_recovery": "passed",
+    "backtest": "passed",
+    "signal_backtest": "passed",
+    "factor_batch": "passed",
+    "optimize": "passed",
+    "walkforward": "passed",
+    "mining_artifacts": "passed"
+  },
+  "elapsed_seconds": 69.899,
+  "report_sha256": "60b3f4e1d5db48b4905c61e07bf679b40bd9055dcb01690f42c53ff3aa6c746e"
+}

@@ -1,0 +1,14 @@
+# Apply after compose.yml and compose.isolated.yml. Dedicated real-market
+# acceptance only; all storage/credentials still belong to the candidate.
+services:
+  platform:
+    networks: [default, market]
+  edge:
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health/ready"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+networks:
+  # Only the public-data collector needs provider egress.
+  market: {}

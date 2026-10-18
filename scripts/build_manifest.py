@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 EXCLUDED_DIRS = {
-    ".git", ".dbg", ".venv", "venv", "node_modules", "__pycache__", "data", "logs",
+    ".git", ".dbg", ".venv", "venv", "node_modules", "__pycache__", "logs",
     ".pytest_cache", ".ruff_cache", "target",
 }
 EXCLUDED_NAMES = {".DS_Store", "build-manifest.json"}
@@ -28,7 +28,7 @@ SOURCE_SCOPES = [
     "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/index.html",
     "frontend/vite.config.ts", "frontend/tsconfig.json", "frontend/tsconfig.node.json",
     "frontend/tailwind.config.ts", "frontend/postcss.config.js",
-    "packaging", "scripts", "Dockerfile", ".dockerignore", "tiers.yaml", "VERSION",
+    "packaging", "scripts", "deploy/full", "Dockerfile", ".dockerignore", "tiers.yaml", "VERSION",
 ]
 
 
@@ -56,6 +56,7 @@ def _excluded(rel: str) -> bool:
         return True
     return (
         any(part in EXCLUDED_DIRS for part in parts)
+        or ("data" in parts and not rel.startswith(("frontend/src/", "frontend/public/")))
         or any(part == ".env" or part.startswith(".env.") for part in parts)
         or parts[-1] in EXCLUDED_NAMES
         or parts[-1].endswith((".pyc", ".pyo", ".log", ".tmp"))

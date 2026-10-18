@@ -1,0 +1,106 @@
+# Overlay for disposable functional acceptance only. No production volumes,
+# networks, credentials, provider egress or public listener are reused.
+x-logging: &logging
+  driver: local
+  options: {max-size: "10m", max-file: "3"}
+
+services:
+  postgres:
+    image: ${TSP_POSTGRES_IMAGE:?Pinned PostgreSQL image required}
+    env_file: ["${TSP_CANDIDATE_POSTGRES_ENV_FILE:?Disposable PostgreSQL env required}"]
+    ports: ["127.0.0.1::5432"]
+    volumes: [candidate-pg:/var/lib/postgresql/data]
+    networks: [pg, probe]
+    command: ["postgres", "-c", "max_connections=80", "-c", "shared_buffers=64MB"]
+    mem_limit: 384m
+    cpus: 1
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  broker:
+    image: ${TSP_BROKER_IMAGE:?Pinned broker image required}
+    user: "0:10001"
+    # The socket volume belongs exclusively to this candidate broker.
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        rm -f /run/tsp/compute.sock;
+        exec /app/.venv/bin/python -m app.multitenancy.compute_broker
+        --socket /run/tsp/compute.sock
+        --image "$$TSP_COMPUTE_IMAGE" --market-root "$$TSP_PUBLIC_MARKET_DIR"
+        --capacity "$$TSP_COMPUTE_CAPACITY" --memory-mb "$$TSP_COMPUTE_MEMORY_MB"
+        --cpus "$$TSP_COMPUTE_CPUS"
+    environment:
+      TSP_COMPUTE_IMAGE: ${TSP_COMPUTE_IMAGE:?Pinned compute image required}
+      TSP_PUBLIC_MARKET_DIR: ${TSP_PUBLIC_MARKET_DIR}
+      TSP_COMPUTE_CAPACITY: ${TSP_COMPUTE_CAPACITY:-1}
+      TSP_COMPUTE_MEMORY_MB: ${TSP_COMPUTE_MEMORY_MB:-1024}
+      TSP_COMPUTE_CPUS: ${TSP_COMPUTE_CPUS:-1}
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - candidate-socket:/run/tsp
+      # Sibling compute mounts use Docker-host paths, so keep both paths equal.
+      - ${TSP_PUBLIC_MARKET_DIR}:${TSP_PUBLIC_MARKET_DIR}:ro
+    network_mode: none
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=32m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    stop_grace_period: 40s
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "from app.multitenancy.executor import ComputeExecutor; assert ComputeExecutor('/run/tsp/compute.sock').health()['ready']"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+  api:
+    ports: !reset []
+    volumes: [candidate-socket:/run/tsp:ro]
+  gateway:
+    ports: !reset []
+  research:
+    volumes: [candidate-socket:/run/tsp:ro]
+  realtime:
+    volumes: [candidate-socket:/run/tsp:ro]
+  notifications:
+    volumes: [candidate-socket:/run/tsp:ro]
+  scheduled:
+    volumes: [candidate-socket:/run/tsp:ro]
+  edge:
+    image: ${TSP_NGINX_IMAGE:?Pinned Nginx image required}
+    volumes: ["${TSP_CANDIDATE_NGINX_CONFIG:?Candidate edge config required}:/etc/nginx/nginx.conf:ro"]
+    ports: ["127.0.0.1::8080"]
+    networks: [edge, probe]
+    depends_on:
+      api: {condition: service_healthy}
+      gateway: {condition: service_healthy}
+    mem_limit: 64m
+    cpus: 0.5
+    restart: unless-stopped
+    logging: *logging
+
+networks:
+  # Docker does not publish ports on internal-only networks. Only the
+  # database and proxy join this bridge for host-side acceptance access.
+  probe: {}
+  default: {internal: true}
+  pg:
+    external: false
+    internal: true
+    name: ${COMPOSE_PROJECT_NAME}_pg
+  edge:
+    external: false
+    internal: true
+    name: ${COMPOSE_PROJECT_NAME}_edge
+
+volumes:
+  candidate-pg:
+  candidate-socket:

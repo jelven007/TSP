@@ -61,6 +61,30 @@ def test_broker_owns_image_entrypoint_and_only_mounts_public_market(socket_dir):
     assert not any(part.startswith("HOME=/root") for part in command)
 
 
+def test_broker_small_host_budget_keeps_swap_and_memory_equal(socket_dir):
+    with ComputeBroker(socket_dir / "small.sock", "pinned-image:digest", socket_dir, 1,
+                       memory_mb=1536, cpus=1) as broker:
+        command = broker.command("small-job")
+        assert broker.permits.acquire(blocking=False)
+        assert not broker.permits.acquire(blocking=False)
+        broker.permits.release()
+    assert command[command.index("--memory") + 1] == "1536m"
+    assert command[command.index("--memory-swap") + 1] == "1536m"
+    assert command[command.index("--cpus") + 1] == "1"
+    assert "--network" in command and "--read-only" in command
+
+
+@pytest.mark.parametrize("options", [
+    {"capacity": 0}, {"capacity": 17}, {"memory_mb": 0},
+    {"memory_mb": 65537}, {"cpus": 0}, {"cpus": float("nan")},
+])
+def test_broker_rejects_invalid_host_budget_before_binding(socket_dir, options):
+    values = {"capacity": 1, **options}
+    with pytest.raises(ValueError, match="resource budget"):
+        ComputeBroker(socket_dir / "invalid.sock", "pinned", socket_dir, **values)
+    assert not (socket_dir / "invalid.sock").exists()
+
+
 def test_executor_streams_progress_result_and_rejects_unknown_operations(socket_dir):
     tmp_path = socket_dir
     path = tmp_path / "compute.sock"

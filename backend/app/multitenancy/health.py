@@ -11,9 +11,11 @@ class WorkerHealth:
     def __init__(self, db, kind):
         self.db, self.kind = db, kind
         self.owner, self.last = uuid.uuid4().hex, 0
+        self.last_renewal = 0
 
-    def record(self, healthy=True):
-        if healthy and time.monotonic() - self.last < 5:
+    def record(self, healthy=True, *, progress=True):
+        last = self.last if progress else max(self.last, self.last_renewal)
+        if healthy and time.monotonic() - last < 5:
             return
         with self.db.control.connection() as conn:
             conn.execute(
@@ -22,7 +24,14 @@ class WorkerHealth:
                    SET owner=excluded.owner,healthy=excluded.healthy,checked_at=clock_timestamp()""",
                 (self.db.settings.id, self.kind, self.owner, healthy),
             )
-        self.last = time.monotonic()
+        if progress:
+            self.last = time.monotonic()
+            from app.multitenancy.worker_process import record
+
+            record(self.kind, healthy)
+        else:
+            # Lease renewal must not suppress a later dispatch heartbeat.
+            self.last_renewal = time.monotonic()
 
 
 def readiness(state, data_dir):

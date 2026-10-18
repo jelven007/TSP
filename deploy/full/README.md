@@ -11,7 +11,28 @@
 - `gateway`：单进程实时入口，仅开放 `/api/events`、`/api/events/ticket` 和健康端点；本地验签一次性租户票据，监听撤权和私有事件通知，并转发平台行情 marker，不挂载公共行情、平台配置或计算 socket。
 - `research`、`realtime`、`notifications`、`scheduled`：独立任务进程，分别处理受限研究、监控与模拟盘、通知 outbox、租户周度挖掘和每日复盘。
 - 主机计算 Broker：固定计算镜像、每租户一个/全机四个容器；仅 Broker 有 Docker 权限。API/Worker 只挂载 Unix socket。计算容器无网络、无凭据、UID 10001、只读公共文件。
-- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，均迁移到 v5。
+- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，均迁移到 schema v6。
+
+## 小规格单机候选
+
+从最新主线开始的统一容器候选使用[单机验收流程](./single-host.md)。
+`small-host.env` 是约 8 GiB Docker 主机上的小夹具功能验收预算，不能据此声称
+可承载全市场多年行情或 100 个持续活跃用户。默认生产配置的既有资源上限保留；
+可通过各角色 `TSP_*_MEMORY`、`TSP_*_CPUS`、连接池和并发参数独立调整。
+
+四类 Worker 由 `app.multitenancy.worker_process` 监督实际调度循环。
+本实例心跳包含 PID、随机实例标识和单调时钟；只有成功写入数据库后才记录进展。
+研究/通知 120 秒、实时 420 秒、定时批次 660 秒无进展时，监督进程先发送终止信号，
+25 秒后仍未退出则强制回收，并以非零状态退出，交由 Compose 重启。
+首次启动最多等待 120 秒。定时任务租约续期不刷新本地进展。
+API 原有 120 秒数据库 Worker 就绪判定保留，因此慢批次期间可能先撤出 API 就绪。
+监督器检查的是调度循环，单个研究任务继续由原计算超时、取消和数据库租约管理。
+所有角色日志按每文件 10 MiB、最多 3 个文件轮转。
+
+`tsp-compute-broker.service` 支持在私密 `broker.env` 配置
+`TSP_COMPUTE_CAPACITY`、`TSP_COMPUTE_MEMORY_MB`、`TSP_COMPUTE_CPUS`；
+默认仍为 4、4096、2。计算请求不能覆盖这些宿主配置。资源预算须包含
+“最大并发 × 每个计算容器内存”，不能只计算常驻服务。
 
 ## 配置与目录
 

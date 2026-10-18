@@ -1,0 +1,54 @@
+{
+  "status": "failed",
+  "project": "tsp-candidate-517e523518",
+  "build": {
+    "status": "passed",
+    "base_commit": "bb8ea7045b613f189159e7ebd84162567ffb09e5",
+    "source_dirty": true,
+    "source_tree": "8b546b9e176ca3add2d2b8c2e010713afa95fd2a5d1ece107e456fd79dc16a92",
+    "version": "0.4.8",
+    "artifacts": {
+      "runtime": {
+        "reference": "tsp-full-runtime:tree-8b546b9e176ca3ad",
+        "id": "sha256:beba29907bf899089de15210f9112083c6e6b38f61b8f58105c96a14df77ab45",
+        "architecture": "arm64",
+        "repo_digests": [
+          "tsp-full-runtime@sha256:beba29907bf899089de15210f9112083c6e6b38f61b8f58105c96a14df77ab45"
+        ],
+        "files_sha256": "daa7c3a7b3ca670f053ac375decc75d554dad6078cdf82f21a7adb78f6dcbe32"
+      },
+      "compute": {
+        "reference": "tsp-full-compute:tree-8b546b9e176ca3ad",
+        "id": "sha256:e3c4152407668f7b643cbac757bc1c7927d458933bad93a1e96315ecafee1213",
+        "architecture": "arm64",
+        "repo_digests": [
+          "tsp-full-compute@sha256:e3c4152407668f7b643cbac757bc1c7927d458933bad93a1e96315ecafee1213"
+        ],
+        "files_sha256": "daa7c3a7b3ca670f053ac375decc75d554dad6078cdf82f21a7adb78f6dcbe32"
+      },
+      "broker": {
+        "reference": "tsp-full-broker:tree-8b546b9e176ca3ad",
+        "id": "sha256:0313e006ee2d97a5e46e5204f29b978cb4a2db7c53220136dbc5422b743b288a",
+        "architecture": "arm64",
+        "repo_digests": [
+          "tsp-full-broker@sha256:0313e006ee2d97a5e46e5204f29b978cb4a2db7c53220136dbc5422b743b288a"
+        ],
+        "files_sha256": "daa7c3a7b3ca670f053ac375decc75d554dad6078cdf82f21a7adb78f6dcbe32"
+      }
+    }
+  },
+  "scope": "isolated_compose_small_fixture",
+  "limits": [
+    "two tenants; not sustained capacity",
+    "historical fixture; not market freshness",
+    "loopback HTTP; not public TLS",
+    "no production cutover"
+  ],
+  "budget": {
+    "container_memory_limit_bytes": 5435817984,
+    "compute_capacity": 1
+  },
+  "error_type": "CalledProcessError",
+  "cleanup_completed": true,
+  "elapsed_seconds": 7.606
+}
