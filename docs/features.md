@@ -10,6 +10,9 @@
 身份与租户业务持久化到 PostgreSQL v6，公共行情按不可变版本只读共享。
 部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
 已完成的一期发布与 100 用户验收见[实施记录](./phase1-implementation.md)。
+公共历史缺失时，多租户 API 快速返回可诊断的 503，不在请求线程内调用 Provider；
+公共版本切换前核对最新原始日线与 enriched 标的覆盖。Worker、Compute、备份、
+release 保留和持续告警的运行约束见[单机实施记录](../reports/single-host/implementation.md)。
 
 各功能模块的详细说明。配置见 [configuration.md](./configuration.md),部署见 [deployment.md](./deployment.md),策略相关见 [strategy.md](./strategy.md)。
 

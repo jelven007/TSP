@@ -17,8 +17,9 @@
 - 控制库和业务库均为 schema v6。
 - Edge 于 2026-10-18 13:59:53 +08:00 完成切流。
 
-`feat/single-host-compose` 候选尚未合入主线。本次部署使用经过线上候选验证的固定提交，
-不能把生产成功等同于分支已完成复审和 CI 集成。
+本报告生成时 `feat/single-host-compose` 尚未合入主线；现随本次主线整合归档。
+生产仍使用经过线上候选验证的固定提交，不能把生产成功或源码合入等同于后续镜像
+已经部署。
 
 ## 恢复材料
 
@@ -56,5 +57,7 @@ Cell 目录 URL。禁止只切旧容器或丢弃新账号、会话、模拟盘�
 
 ## 未完成项
 
-72 小时持续验收和完整交易日验收尚未完成，不能宣布通过。既有准备期证据继续保留在
-`readiness.json`、`release-artifact.json` 和 `public-readiness-attempt.json`。
+原 72 小时窗口已中止并保留；当前 24 小时持续验收和完整交易日验收尚未完成，
+不能宣布通过。既有准备期证据继续保留在 `readiness.json`、
+`release-artifact.json` 和 `public-readiness-attempt.json`。24 小时通过不等同
+72 小时认证。
