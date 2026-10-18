@@ -23,8 +23,10 @@
 身份与租户业务持久化到 PostgreSQL v6，公共行情按不可变版本只读共享。
 部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
 已完成的一期发布与 100 用户验收见[实施记录](./phase1-implementation.md)。
-当前生产为 `d06acc1d`/schema v5；`main` 中的实时网关和 schema v6 仍是候选，
-不得直接按源码文档推断生产拓扑。
+火山引擎生产当前为 v0.4.8、`9b4bc2c5`、schema v6，独立实时网关与七角色
+Compose 已切流，详见[线上升级结果](../reports/online-upgrade-20261018/deployment-result.md)。
+本次主线加固提交 `47b1738d` 正在隔离 24 小时观察，生产是否包含该提交仍以固定
+镜像和发布记录为准。
 
 下方根目录 Compose、Dev 和桌面步骤适用于独立运行模式。
 
