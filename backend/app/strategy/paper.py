@@ -50,6 +50,7 @@ from app.price_limits import (
     price_limit_pct as stock_price_limit_pct,
 )
 from app.services.fs_utils import atomic_write_text
+from app.strategy.entry_risk import EntryRiskPolicy
 from app.strategy.paper_math import apply_slippage, buy_fee, sell_fee
 from app.strategy.risk_policy import RiskPolicy, valid_price
 
@@ -637,6 +638,7 @@ def create_order(
             order["exit_intent_id"] = exit_intent_id
         if side == "buy" and entry_policy is not None:
             RiskPolicy.from_mapping(entry_policy.get("policy", {}))
+            EntryRiskPolicy.from_mapping(entry_policy.get("entry_risk"))
             order["entry_policy"] = json.loads(json.dumps(entry_policy, allow_nan=False))
         if side == "buy" and risk_limits:
             order["risk_limits"] = dict(risk_limits)
@@ -783,6 +785,7 @@ def replay_positions(
                 pos["entry_date"] = f.get("date")
                 pos["risk_entry_price"] = price
                 pos["risk_factor"] = 1.0
+                pos["frozen_stop_price"] = f.get("frozen_stop_price")
             total_cost = pos["avg_cost"] * pos["qty"] + qty * price + fee
             pos["qty"] += qty
             pos["avg_cost"] = round(total_cost / pos["qty"], 6) if pos["qty"] else 0.0
@@ -942,6 +945,40 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
         _queue_or_expire(data_dir, order, acc, limit_error, account_id)
         return None
 
+    frozen_stop = None
+    if side == "buy":
+        snapshot = order.get("entry_policy") or {}
+        entry_risk = EntryRiskPolicy.from_mapping(snapshot.get("entry_risk"))
+        if entry_risk.enabled:
+            if (load_positions(data_dir, account_id).get(symbol) or {}).get("qty", 0) > 0:
+                _expire(data_dir, order, "启用入场风险时不对已有持仓加仓", account_id)
+                return None
+            reference = _entry_reference_on(data_dir, snapshot, symbol, asset_type, day)
+            if reference is None:
+                _expire(data_dir, order, "入场风险参考日期或除权数据无效", account_id)
+                return None
+            fixed = RiskPolicy.from_mapping(snapshot.get("policy", {})).stop_loss_pct
+            frozen_stop, error = entry_risk.freeze(price, **reference, fixed_stop_pct=fixed)
+            if error:
+                _expire(data_dir, order, {
+                    "buy_entry_premium": "成交价超过信号价溢价上限",
+                    "buy_invalid_stop_reference": "成交价已跌破冻结保护位",
+                }.get(error, "缺少入场风险参考数据"), account_id)
+                return None
+            if entry_risk.risk_per_trade_pct is not None:
+                budget = portfolio_budget(
+                    data_dir, account_id, prices=valuation_prices, exclude_order=order["id"],
+                )
+                cap = entry_risk.cap_notional(budget["equity"], price, frozen_stop, fixed)
+                # Existing paper orders use 100-share lots. Never increase the
+                # requested quantity when recomputing risk at the actual fill.
+                qty = min(qty, int(cap / price / LOT_SIZE) * LOT_SIZE)
+                if qty < LOT_SIZE:
+                    _expire(data_dir, order, "风险额度不足一手", account_id)
+                    return None
+                if qty != order["qty"]:
+                    order["requested_qty"] = order["qty"]
+                    order["qty"] = qty
     fee = buy_fee(qty, price, acc["commission_pct"]) if side == "buy" else sell_fee(qty, price, acc["commission_pct"], acc["stamp_tax_pct"])
     gross = qty * price
     if side == "buy":
@@ -1003,6 +1040,8 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
     }
     if side == "buy" and order.get("entry_policy") is not None:
         fill["entry_policy"] = order["entry_policy"]
+        if frozen_stop is not None:
+            fill["frozen_stop_price"] = frozen_stop
     _append_fill(data_dir, fill, account_id)
 
     order["status"] = "filled"
@@ -1295,6 +1334,33 @@ def _index_close(data_dir: Path, day: str) -> float | None:
     if df.is_empty() or df["close"][0] is None:
         return None
     return float(df["close"][0])
+
+
+def _entry_reference_on(data_dir, snapshot, symbol, asset_type, day):
+    """Convert a signal-day raw snapshot across known intervening ex-dates."""
+    try:
+        start = _date.fromisoformat(str(snapshot["as_of"])[:10])
+        end = _date.fromisoformat(day)
+        if start > end:
+            return None
+        reference = dict(snapshot.get("signal_reference") or {})
+        factor = 1.
+        sub = "adj_factor_etf" if asset_type == "etf" else "adj_factor"
+        path = market_path(data_dir) / sub / "all.parquet"
+        if path.exists() and start < end:
+            factors = pl.scan_parquet(path).filter(
+                (pl.col("symbol") == symbol) & (pl.col("trade_date") > start)
+                & (pl.col("trade_date") <= end),
+            ).select("ex_factor").collect()["ex_factor"].to_list()
+            if any(not valid_price(value) for value in factors):
+                return None
+            factor = math.prod(factors)
+        if not valid_price(factor):
+            return None
+        return {key: value / factor if valid_price(value) else None
+                for key, value in reference.items() if key in ("close", "low", "atr")}
+    except (KeyError, TypeError, ValueError, OSError, pl.exceptions.PolarsError):
+        return None
 
 
 def _factor_on(data_dir: Path, symbol: str, asset_type: str, day: str) -> float | None:

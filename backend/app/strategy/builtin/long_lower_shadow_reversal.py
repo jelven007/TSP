@@ -8,9 +8,7 @@ from app.backtest.matrix import (
     make_signal_matrix,
     matrix_feature,
 )
-from app.backtest.matrix import (
-    valid_shift as shift,
-)
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "long_lower_shadow_reversal",
@@ -87,4 +85,4 @@ class LongLowerShadowReversalMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = LongLowerShadowReversalMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, LongLowerShadowReversalMatrixStrategy())

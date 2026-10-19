@@ -23,27 +23,33 @@ from app.strategy.engine import StrategyEngine
 
 
 def _synthetic_panel() -> pl.DataFrame:
-    """构造上涨趋势的合成 panel: 前 50 天横盘, 后 50 天上涨, 制造金叉信号。"""
+    """构造预热充分的上涨趋势和放量, 制造可评分的金叉信号。"""
     np.random.seed(42)
     n_days = 100
+    breakout_bar = 65
     symbols = ["000001.SZ", "000002.SZ", "600000.SH"]
     rows = []
     for sym_idx, sym in enumerate(symbols):
         base = 10.0 + sym_idx * 5
         for t in range(n_days):
             d = date(2025, 1, 2) + timedelta(days=int(t * 1.5))
-            if t < 50:
+            if t < breakout_bar:
                 close = base + np.random.uniform(-0.3, 0.3)
             else:
-                close = base * (1 + (t - 50) * 0.015) + np.random.uniform(-0.3, 0.3)
+                close = (
+                    base * (1 + (t - breakout_bar) * 0.015)
+                    + np.random.uniform(-0.3, 0.3)
+                )
             open_p = close + np.random.uniform(-0.2, 0.2)
             high = max(open_p, close) + np.random.uniform(0.1, 0.5)
             low = min(open_p, close) - np.random.uniform(0.1, 0.5)
-            vol = float(np.random.uniform(1e6, 5e6))
+            volume_scale = 1e6 if t < breakout_bar else 4e6
+            vol = float(np.random.uniform(volume_scale, volume_scale * 1.2))
             rows.append({
                 "symbol": sym, "date": d, "open": open_p, "high": high,
                 "low": low, "close": close, "volume": vol,
-                "raw_close": close, "raw_high": high, "raw_low": low,
+                "raw_open": open_p, "raw_close": close,
+                "raw_high": high, "raw_low": low,
             })
     return pl.DataFrame(rows).sort(["symbol", "date"])
 

@@ -11,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "n_day_low_reversal",
@@ -77,4 +78,4 @@ class NDayLowReversalMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = NDayLowReversalMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, NDayLowReversalMatrixStrategy())

@@ -9,6 +9,7 @@ from app.backtest.matrix import (
     make_signal_matrix,
     matrix_feature,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "pullback_to_support",
@@ -98,4 +99,4 @@ class PullbackToSupportMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = PullbackToSupportMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, PullbackToSupportMatrixStrategy())

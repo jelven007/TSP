@@ -11,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "bullish_alignment",
@@ -78,4 +79,4 @@ class BullishAlignmentMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = BullishAlignmentMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, BullishAlignmentMatrixStrategy())

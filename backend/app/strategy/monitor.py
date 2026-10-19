@@ -17,8 +17,10 @@ import logging
 import math
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from collections.abc import Callable
+from copy import copy, deepcopy
+from dataclasses import dataclass, field, replace
+from typing import Any
 
 import polars as pl
 
@@ -98,6 +100,128 @@ class StrategyAlert:
     price: float | None = None
     change_pct: float | None = None
     signals: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class StrategyGroupMonitorSnapshot:
+    """Frozen strategy-only input captured by the quote thread."""
+
+    rules_version: int
+    state_generation: int
+    rules: tuple[dict, ...]
+    frames: tuple[tuple[str, pl.DataFrame], ...]
+    name_map: dict[str, str]
+    groups: dict[str, frozenset[str]]
+
+    @property
+    def identity(self) -> str:
+        return f"rules:{self.rules_version}:state:{self.state_generation}"
+
+
+@dataclass(frozen=True)
+class StrategyGroupMonitorEvaluation:
+    """Detached computation result; external effects consume it after publication."""
+
+    rules_version: int
+    state_generation: int
+    state: dict
+    events: tuple[dict, ...]
+    execution_events: tuple[dict, ...]
+    results: dict[str, dict]
+    discarded: bool = False
+    discard_reason: str | None = None
+    failed_strategy_ids: tuple[str, ...] = ()
+    history_load_count: int = 0
+    matrix_prepare_count: int = 0
+    strategy_run_count: int = 0
+
+    @property
+    def partial(self) -> bool:
+        return bool(self.failed_strategy_ids)
+
+
+class _PrecomputedMonitorStrategyEngine:
+    """Serve one full-market strategy result to multiple monitor rules."""
+
+    def __init__(
+        self,
+        source,
+        outcomes: dict[tuple[str, str], Any],
+        overrides: dict[tuple[str, str], dict],
+    ) -> None:
+        self._source = source
+        self._outcomes = outcomes
+        self._overrides = overrides
+        self._strategy_views: dict[str, Any] = {}
+
+    def get(self, strategy_id: str):
+        view = self._strategy_views.get(strategy_id)
+        if view is None:
+            view = copy(self._source.get(strategy_id))
+            view.execution_backend = "polars_expr"
+            view.filter_history_fn = None
+            self._strategy_views[strategy_id] = view
+        return view
+
+    @staticmethod
+    def required_history_bars(_strategy_ids, **_kwargs):
+        return 1
+
+    @staticmethod
+    def prepare_realtime_matrix(_context, _strategy_ids, **_kwargs):
+        return None
+
+    def has_outcome(self, asset_type: str, strategy_id: str) -> bool:
+        return (asset_type, strategy_id) in self._outcomes
+
+    def run(self, strategy_id: str, context, pool=None, **_kwargs):
+        allowed = set(pool) if pool else None
+        if allowed is None and context.current is not None and "symbol" in context.current.columns:
+            allowed = set(context.current["symbol"].cast(pl.Utf8).to_list())
+        return self.result_for(context.asset_type, strategy_id, allowed)
+
+    def result_for(
+        self,
+        asset_type: str,
+        strategy_id: str,
+        allowed: set[str] | None,
+    ):
+        result = self._outcomes[(asset_type, strategy_id)]
+        rows = [
+            row for row in result.rows
+            if allowed is None or str(row.get("symbol", "")) in allowed
+        ]
+        strategy = self.get(strategy_id)
+        overrides = self._overrides.get((asset_type, strategy_id), {})
+        limit_resolver = getattr(self._source, "_result_limit", None)
+        if callable(limit_resolver):
+            limit = limit_resolver(strategy, overrides)
+        else:
+            value = overrides.get("display_limit", strategy.meta.get("limit", 100))
+            limit = None if value in (None, 0) else max(0, int(value))
+        if limit is not None:
+            rows = rows[:limit]
+        symbols = {str(row.get("symbol", "")) for row in rows}
+        scores = {
+            symbol: score
+            for symbol, score in result.scores.items()
+            if symbol in symbols
+        }
+
+        def filter_hits(hits):
+            return [
+                hit for hit in hits
+                if allowed is None or str(hit.get("symbol", "")) in allowed
+            ]
+
+        return replace(
+            result,
+            rows=rows,
+            total=len(rows),
+            scores=scores,
+            entry_signal_hits=filter_hits(result.entry_signal_hits),
+            exit_signal_hits=filter_hits(result.exit_signal_hits),
+        )
 
 
 class StrategyMonitorService:
@@ -354,6 +478,11 @@ class MonitorRuleEngine:
         self._strategy_signal_state: dict[tuple[str, str, str, str], tuple[str, set[str]]] = {}
         # 同一根 K 线的信号即使盘中回落后再次命中也只通知一次。
         self._strategy_signal_seen: dict[tuple[str, str, str, str, str], str] = {}
+        # Strategy-only background cycles keep their edge/cooldown state separate from
+        # per-snapshot realtime rules. Only a fresh coordinator cycle may replace it.
+        self._strategy_runtime_lock = threading.Lock()
+        self._strategy_runtime_state: dict | None = None
+        self._strategy_state_generation = 0
         # 数据目录 (用于加载策略 overrides)
         self._data_dir = None
         # 历史窗口加载器: (target_date, lookback_days) → 多日 enriched DataFrame。
@@ -443,13 +572,16 @@ class MonitorRuleEngine:
 
     def invalidate_strategy_state(self) -> None:
         """策略注册表变更后清除选股池、结果和矩阵快照。"""
-        self._strategy_pools.clear()
-        self._strategy_signal_state.clear()
-        self._strategy_signal_seen.clear()
-        self._latest_strategy_results = {}
-        self._building_strategy_results = {}
-        self._latest_strategy_result_ids.clear()
-        self._active_matrix_snapshots.clear()
+        with self._strategy_runtime_lock:
+            self._strategy_pools.clear()
+            self._strategy_signal_state.clear()
+            self._strategy_signal_seen.clear()
+            self._strategy_runtime_state = None
+            self._strategy_state_generation += 1
+            self._latest_strategy_results = {}
+            self._building_strategy_results = {}
+            self._latest_strategy_result_ids.clear()
+            self._active_matrix_snapshots.clear()
 
     def set_history_loader(self, fn) -> None:
         """注入历史窗口加载器, 用于声明 filter_history 的策略跑实时监控。
@@ -480,7 +612,8 @@ class MonitorRuleEngine:
         enriched DataFrame 在 pipeline 计算后不含 name 列 (见 indicators/pipeline.py),
         触发时从 instruments 表预构建此映射, 保证 AlertEvent.name 有值。
         """
-        self._name_map = name_map or {}
+        with self._strategy_runtime_lock:
+            self._name_map = name_map or {}
 
     # ── 规则管理 ───────────────────────────────────────
     @staticmethod
@@ -518,6 +651,10 @@ class MonitorRuleEngine:
         先构建完整 dict 再原子替换 self._rules, 避免评估线程 (行情轮询)
         读到装载了一半的规则表。
         """
+        with self._strategy_runtime_lock:
+            self._set_rules_locked(rules)
+
+    def _set_rules_locked(self, rules: list[dict]) -> None:
         new_rules: dict[str, dict] = {}
         for r in rules:
             if r.get("enabled") is not False:
@@ -559,39 +696,49 @@ class MonitorRuleEngine:
         }
         logger.info("MonitorRuleEngine: 装载 %d 条规则", len(self._rules))
         self._rules_version += 1
+        if not any(rule.get("type") == "strategy" for rule in self._rules.values()):
+            self._strategy_runtime_state = None
+            self._latest_strategy_results = {}
+            self._latest_strategy_result_ids.clear()
 
     def add_rule(self, rule: dict) -> None:
-        if rule.get("enabled") is not False:
-            self._rules[rule["id"]] = rule
-        else:
-            self._rules.pop(rule["id"], None)
-        self._rules_version += 1
+        with self._strategy_runtime_lock:
+            if rule.get("enabled") is not False:
+                self._rules[rule["id"]] = rule
+            else:
+                self._rules.pop(rule["id"], None)
+            self._rules_version += 1
 
     def remove_rule(self, rule_id: str) -> None:
-        self._rules.pop(rule_id, None)
-        self._last_fire = {k: v for k, v in list(self._last_fire.items()) if k[0] != rule_id}
-        self._strategy_pools = {
-            k: v for k, v in list(self._strategy_pools.items()) if k[0] != rule_id
-        }
-        self._strategy_signal_state = {
-            k: v for k, v in list(self._strategy_signal_state.items()) if k[0] != rule_id
-        }
-        self._strategy_signal_seen = {
-            k: v for k, v in list(self._strategy_signal_seen.items()) if k[0] != rule_id
-        }
-        self._sector_condition_state = {
-            k: v for k, v in self._sector_condition_state.items() if k[0] != rule_id
-        }
-        self._rules_version += 1
+        with self._strategy_runtime_lock:
+            self._rules.pop(rule_id, None)
+            self._last_fire = {k: v for k, v in list(self._last_fire.items()) if k[0] != rule_id}
+            self._strategy_pools = {
+                k: v for k, v in list(self._strategy_pools.items()) if k[0] != rule_id
+            }
+            self._strategy_signal_state = {
+                k: v for k, v in list(self._strategy_signal_state.items()) if k[0] != rule_id
+            }
+            self._strategy_signal_seen = {
+                k: v for k, v in list(self._strategy_signal_seen.items()) if k[0] != rule_id
+            }
+            self._sector_condition_state = {
+                k: v for k, v in self._sector_condition_state.items() if k[0] != rule_id
+            }
+            self._rules_version += 1
 
     def clear(self) -> None:
-        self._rules.clear()
-        self._last_fire.clear()
-        self._strategy_pools.clear()
-        self._strategy_signal_state.clear()
-        self._strategy_signal_seen.clear()
-        self._sector_condition_state.clear()
-        self._rules_version += 1
+        with self._strategy_runtime_lock:
+            self._rules.clear()
+            self._last_fire.clear()
+            self._strategy_pools.clear()
+            self._strategy_signal_state.clear()
+            self._strategy_signal_seen.clear()
+            self._sector_condition_state.clear()
+            self._strategy_runtime_state = None
+            self._latest_strategy_results = {}
+            self._latest_strategy_result_ids.clear()
+            self._rules_version += 1
 
     @property
     def rules(self) -> dict[str, dict]:
@@ -607,13 +754,15 @@ class MonitorRuleEngine:
         供策略页实时回显复用: /api/screener/cached 端点直接读取此内存结果,
         避免对被监控的策略重跑第二遍。无 type=strategy 规则时返回空 dict。
         """
-        return self._latest_strategy_results
+        with self._strategy_runtime_lock:
+            return self._latest_strategy_results
 
     def consume_strategy_result_updates(self) -> bool:
         """返回并清除本轮成功写入的股票策略实时结果标记。"""
-        updated = bool(self._latest_strategy_result_ids)
-        self._latest_strategy_result_ids.clear()
-        return updated
+        with self._strategy_runtime_lock:
+            updated = bool(self._latest_strategy_result_ids)
+            self._latest_strategy_result_ids.clear()
+            return updated
 
     def has_rule_type(self, rtype: str) -> bool:
         """是否存在指定类型的 (已启用) 规则。供 quote_service 判断是否需要注入特殊数据。"""
@@ -646,6 +795,474 @@ class MonitorRuleEngine:
         return any(
             r.get("enabled", True) and r.get("asset_type", "stock") == asset_type
             for r in list(self._rules.values())
+        )
+
+    def evaluate_realtime_rules(
+        self,
+        df: pl.DataFrame,
+        *,
+        asset_type: str = "stock",
+    ) -> list[dict]:
+        """Evaluate non-strategy rules for every quote snapshot.
+
+        Strategy rules are intentionally excluded because their heavier pure
+        computation is scheduled by ``StrategyGroupCoordinator``. Dedicated
+        sector/abnormal/date rules keep their existing explicit entry points.
+        """
+        if df.is_empty():
+            return []
+        with self._strategy_runtime_lock:
+            rules = [
+                (rule_id, rule)
+                for rule_id, rule in self._rules.items()
+                if (
+                    rule.get("enabled", True)
+                    and rule.get("asset_type", "stock") == asset_type
+                    and rule.get("type") not in ("strategy", "sector", "abnormal", "date")
+                )
+            ]
+        if not rules:
+            return []
+        now = time.time()
+        events: list[dict] = []
+        for rule_id, rule in rules:
+            try:
+                events.extend(self._evaluate_rule(df, rule, now))
+            except Exception as exc:
+                logger.warning("规则评估失败 %s: %s", rule_id, exc)
+        return events
+
+    def capture_strategy_group(
+        self,
+        frames: dict[str, pl.DataFrame],
+    ) -> StrategyGroupMonitorSnapshot | None:
+        """Freeze strategy rules and frame references for one background cycle."""
+        available = {
+            asset_type
+            for asset_type, frame in frames.items()
+            if frame is not None and not frame.is_empty()
+        }
+        if not available:
+            return None
+        with self._strategy_runtime_lock:
+            strategy_rules = [
+                deepcopy(rule)
+                for rule in self._rules.values()
+                if (
+                    rule.get("enabled", True)
+                    and rule.get("type") == "strategy"
+                    and rule.get("asset_type", "stock") in available
+                )
+            ]
+            rules = tuple(
+                {**rule, "_strategy_priority": priority}
+                for priority, rule in enumerate(strategy_rules)
+            )
+            if not rules:
+                return None
+            rules_version = self._rules_version
+            state_generation = self._strategy_state_generation
+            name_map = dict(self._name_map)
+            configured_groups = self._groups
+        needs_groups = any(rule.get("scope") == "watchlist_group" for rule in rules)
+        if configured_groups is None and needs_groups:
+            groups = _watchlist_groups_snapshot()
+        elif configured_groups is not None:
+            groups = {
+                str(group_id): frozenset(str(symbol) for symbol in symbols)
+                for group_id, symbols in configured_groups.items()
+            }
+        else:
+            groups = {}
+        order = {"stock": 0, "etf": 1, "index": 2}
+        frozen_frames = tuple(
+            (asset_type, frame.clone())
+            for asset_type, frame in sorted(
+                frames.items(),
+                key=lambda item: (order.get(item[0], 99), item[0]),
+            )
+            if asset_type in available
+            and any(rule.get("asset_type", "stock") == asset_type for rule in rules)
+        )
+        return StrategyGroupMonitorSnapshot(
+            rules_version=rules_version,
+            state_generation=state_generation,
+            rules=rules,
+            frames=frozen_frames,
+            name_map=name_map,
+            groups=groups,
+        )
+
+    def compute_strategy_group(
+        self,
+        snapshot: StrategyGroupMonitorSnapshot,
+    ) -> StrategyGroupMonitorEvaluation:
+        """Compute a strategy cycle on a detached engine without external effects."""
+        with self._strategy_runtime_lock:
+            if (
+                snapshot.rules_version != self._rules_version
+                or snapshot.state_generation != self._strategy_state_generation
+            ):
+                return StrategyGroupMonitorEvaluation(
+                    rules_version=snapshot.rules_version,
+                    state_generation=snapshot.state_generation,
+                    state={},
+                    events=(),
+                    execution_events=(),
+                    results={},
+                    discarded=True,
+                    discard_reason="strategy plan changed",
+                )
+            previous_state = deepcopy(self._strategy_runtime_state)
+            strategy_engine = self._strategy_engine
+            data_dir = self._data_dir
+            history_loader = self._history_loader
+            history_loader_etf = self._history_loader_etf
+
+        (
+            outcomes,
+            overrides,
+            history_load_count,
+            matrix_prepare_count,
+            strategy_run_count,
+            failed_strategy_ids,
+        ) = self._prepare_unique_strategy_outcomes(
+            snapshot,
+            strategy_engine,
+            data_dir,
+            {"stock": history_loader, "etf": history_loader_etf},
+        )
+        proxy = _PrecomputedMonitorStrategyEngine(
+            strategy_engine,
+            outcomes,
+            overrides,
+        )
+        worker = MonitorRuleEngine(groups=snapshot.groups)
+        if previous_state is not None:
+            worker.restore_state(previous_state)
+        worker.set_strategy_engine(proxy)
+        worker.set_data_dir(data_dir)
+        worker.set_name_map(snapshot.name_map)
+        worker.set_rules([deepcopy(rule) for rule in snapshot.rules])
+
+        events: list[dict] = []
+        execution_events: list[dict] = []
+        for asset_type, frame in snapshot.frames:
+            events.extend(worker.evaluate(
+                frame,
+                asset_type=asset_type,
+                reset_strategy_results=asset_type == "stock",
+                execution_events=execution_events,
+            ))
+        published_results = {
+            strategy_id: self._strategy_result_payload(
+                proxy.result_for(asset_type, strategy_id, None),
+            )
+            for asset_type, strategy_id in outcomes
+            if asset_type == "stock"
+        }
+        return StrategyGroupMonitorEvaluation(
+            rules_version=snapshot.rules_version,
+            state_generation=snapshot.state_generation,
+            state=worker.export_state(),
+            events=tuple(deepcopy(events)),
+            execution_events=tuple(deepcopy(execution_events)),
+            results=published_results,
+            failed_strategy_ids=failed_strategy_ids,
+            history_load_count=history_load_count,
+            matrix_prepare_count=matrix_prepare_count,
+            strategy_run_count=strategy_run_count,
+        )
+
+    def _prepare_unique_strategy_outcomes(
+        self,
+        snapshot: StrategyGroupMonitorSnapshot,
+        strategy_engine,
+        data_dir,
+        history_loaders: dict[str, Callable | None],
+    ) -> tuple[
+        dict[tuple[str, str], Any],
+        dict[tuple[str, str], dict],
+        int,
+        int,
+        int,
+        tuple[str, ...],
+    ]:
+        outcomes: dict[tuple[str, str], Any] = {}
+        all_overrides: dict[tuple[str, str], dict] = {}
+        history_load_count = 0
+        matrix_prepare_count = 0
+        strategy_run_count = 0
+        failed: set[tuple[str, str]] = set()
+        if strategy_engine is None:
+            failed_ids = tuple(dict.fromkeys(
+                str(rule.get("strategy_id"))
+                for rule in snapshot.rules
+                if rule.get("strategy_id")
+            ))
+            return outcomes, all_overrides, 0, 0, 0, failed_ids
+
+        today = cn_today()
+        rules_by_asset: dict[str, list[dict]] = {}
+        for rule in snapshot.rules:
+            rules_by_asset.setdefault(rule.get("asset_type", "stock"), []).append(rule)
+        for asset_type, current in snapshot.frames:
+            asset_rules = rules_by_asset.get(asset_type, [])
+            strategy_ids = list(dict.fromkeys(
+                str(rule.get("strategy_id"))
+                for rule in asset_rules
+                if rule.get("strategy_id")
+            ))
+            if not strategy_ids:
+                continue
+
+            strategies: dict[str, Any] = {}
+            overrides_map: dict[str, dict] = {}
+            params_map: dict[str, dict] = {}
+            pools_map: dict[str, list[str] | None] = {}
+            unlimited_results: set[str] = set()
+            runnable_ids: list[str] = []
+            for strategy_id in strategy_ids:
+                try:
+                    strategy = strategy_engine.get(strategy_id)
+                except Exception:
+                    failed.add((asset_type, strategy_id))
+                    continue
+                if strategy is None or getattr(
+                    strategy,
+                    "execution_backend",
+                    "polars_expr",
+                ) == "composite":
+                    failed.add((asset_type, strategy_id))
+                    continue
+                overrides: dict = {}
+                if data_dir is not None:
+                    try:
+                        overrides = _strategy_config.load_override(data_dir, strategy_id)
+                    except Exception as exc:
+                        logger.debug("策略 %s 覆盖配置加载失败: %s", strategy_id, exc)
+                strategies[strategy_id] = strategy
+                overrides_map[strategy_id] = overrides
+                params_map[strategy_id] = dict(overrides.get("params") or {})
+                all_overrides[(asset_type, strategy_id)] = overrides
+                runnable_ids.append(strategy_id)
+            if not runnable_ids:
+                continue
+            for strategy_id in runnable_ids:
+                scope_signatures: set[tuple[str, ...]] = set()
+                union_symbols: set[str] = set()
+                full_market = False
+                for rule in asset_rules:
+                    if str(rule.get("strategy_id") or "") != strategy_id:
+                        continue
+                    scope = rule.get("scope", "symbols")
+                    if scope == "all":
+                        full_market = True
+                        scope_signatures.add(("all",))
+                    elif scope == "symbols":
+                        symbols = {
+                            str(symbol)
+                            for symbol in rule.get("symbols", [])
+                            if symbol
+                        }
+                        union_symbols.update(symbols)
+                        scope_signatures.add(("symbols", *sorted(symbols)))
+                    elif scope == "watchlist_group":
+                        symbols = set(snapshot.groups.get(str(rule.get("group_id") or ""), ()))
+                        union_symbols.update(symbols)
+                        scope_signatures.add(("watchlist_group", *sorted(symbols)))
+                    else:
+                        scope_signatures.add((str(scope),))
+                pools_map[strategy_id] = None if full_market else sorted(union_symbols)
+                if len(scope_signatures) > 1:
+                    unlimited_results.add(strategy_id)
+
+            history_bars = 1
+            resolver = getattr(strategy_engine, "required_history_bars", None)
+            if callable(resolver):
+                try:
+                    history_bars = max(1, int(resolver(
+                        runnable_ids,
+                        params_map=params_map,
+                        overrides_map=overrides_map,
+                    )))
+                except Exception as exc:
+                    logger.warning("%s 策略组历史需求解析失败: %s", asset_type, exc)
+            needs_history = history_bars > 1 or any(
+                getattr(strategies[strategy_id], "execution_backend", "polars_expr")
+                == "matrix_native"
+                or bool(getattr(strategies[strategy_id], "filter_history_fn", None))
+                for strategy_id in runnable_ids
+            )
+            history = pl.DataFrame()
+            loader = history_loaders.get(asset_type)
+            if needs_history and callable(loader):
+                try:
+                    history_load_count += 1
+                    loaded = loader(today, history_bars)
+                    history = loaded if loaded is not None else pl.DataFrame()
+                except Exception as exc:
+                    logger.warning("%s 策略组历史加载失败: %s", asset_type, exc)
+            if not history.is_empty() and "date" in history.columns:
+                history = history.filter(pl.col("date") != today)
+            shared_panel = (
+                pl.concat([history, current], how="diagonal_relaxed")
+                if not history.is_empty()
+                else None
+            )
+
+            matrix_ids = [
+                strategy_id
+                for strategy_id in runnable_ids
+                if getattr(strategies[strategy_id], "execution_backend", "polars_expr")
+                == "matrix_native"
+            ]
+            matrix = None
+            prepare_matrix = getattr(strategy_engine, "prepare_realtime_matrix", None)
+            if matrix_ids and shared_panel is not None and callable(prepare_matrix):
+                try:
+                    matrix_prepare_count += 1
+                    from app.strategy.engine import StrategyDataContext
+
+                    matrix = prepare_matrix(
+                        StrategyDataContext(
+                            asset_type=asset_type,
+                            timeframe="1d",
+                            as_of=today,
+                            current=current,
+                            history=shared_panel,
+                            cache_key=f"monitor:{asset_type}",
+                        ),
+                        matrix_ids,
+                        params_map=params_map,
+                        overrides_map=overrides_map,
+                    )
+                except Exception as exc:
+                    logger.warning("%s 矩阵策略实时缓存准备失败: %s", asset_type, exc)
+
+            from app.strategy.engine import StrategyDataContext
+
+            for strategy_id in runnable_ids:
+                strategy = strategies[strategy_id]
+                backend = getattr(strategy, "execution_backend", "polars_expr")
+                if backend == "matrix_native" and matrix is None:
+                    failed.add((asset_type, strategy_id))
+                    continue
+                if getattr(strategy, "filter_history_fn", None) and shared_panel is None:
+                    failed.add((asset_type, strategy_id))
+                    continue
+                calculation_overrides = deepcopy(overrides_map[strategy_id])
+                if strategy_id in unlimited_results:
+                    calculation_overrides["display_limit"] = None
+                pool = pools_map[strategy_id]
+                if pool == []:
+                    continue
+                context = StrategyDataContext(
+                    asset_type=asset_type,
+                    timeframe="1d",
+                    as_of=today,
+                    current=current,
+                    history=shared_panel,
+                    market=matrix if backend == "matrix_native" else None,
+                    cache_key=f"monitor:{asset_type}",
+                )
+                try:
+                    strategy_run_count += 1
+                    result = strategy_engine.run(
+                        strategy_id,
+                        context,
+                        pool=pool,
+                        overrides=calculation_overrides,
+                        params=params_map[strategy_id],
+                    )
+                except Exception as exc:
+                    logger.warning("策略 %s 选股执行失败: %s", strategy_id, exc)
+                    failed.add((asset_type, strategy_id))
+                    continue
+                outcomes[(asset_type, strategy_id)] = result
+
+        failed_strategy_ids = tuple(dict.fromkeys(
+            str(rule.get("strategy_id"))
+            for rule in snapshot.rules
+            if (
+                rule.get("strategy_id")
+                and (
+                    rule.get("asset_type", "stock"),
+                    str(rule.get("strategy_id")),
+                ) in failed
+            )
+        ))
+        return (
+            outcomes,
+            all_overrides,
+            history_load_count,
+            matrix_prepare_count,
+            strategy_run_count,
+            failed_strategy_ids,
+        )
+
+    @staticmethod
+    def _strategy_result_payload(result) -> dict:
+        payload = {
+            "total": result.total,
+            "as_of": str(result.as_of),
+            "rows": [
+                {
+                    key: None if isinstance(value, float) and not math.isfinite(value) else value
+                    for key, value in row.items()
+                }
+                for row in result.rows
+            ],
+        }
+        if getattr(result, "entry_filter_error", None):
+            payload["warnings"] = [result.entry_filter_error]
+        return payload
+
+    def publish_strategy_group(
+        self,
+        evaluation: StrategyGroupMonitorEvaluation,
+    ) -> StrategyGroupMonitorEvaluation:
+        """Commit fresh strategy edge state without exposing external results."""
+        if evaluation.discarded:
+            return evaluation
+        with self._strategy_runtime_lock:
+            if not self._strategy_group_is_current_locked(evaluation):
+                return replace(
+                    evaluation,
+                    discarded=True,
+                    discard_reason="strategy plan changed",
+                )
+            self._strategy_runtime_state = deepcopy(evaluation.state)
+        return evaluation
+
+    def expose_strategy_group_results(
+        self,
+        evaluation: StrategyGroupMonitorEvaluation,
+    ) -> bool:
+        """Expose one already-published cycle to API/SSE consumers."""
+        if evaluation.discarded:
+            return False
+        with self._strategy_runtime_lock:
+            if not self._strategy_group_is_current_locked(evaluation):
+                return False
+            self._latest_strategy_results = evaluation.results
+            self._latest_strategy_result_ids = set(evaluation.results)
+            return True
+
+    def strategy_group_is_current(
+        self,
+        evaluation: StrategyGroupMonitorEvaluation,
+    ) -> bool:
+        with self._strategy_runtime_lock:
+            return self._strategy_group_is_current_locked(evaluation)
+
+    def _strategy_group_is_current_locked(
+        self,
+        evaluation: StrategyGroupMonitorEvaluation,
+    ) -> bool:
+        return (
+            evaluation.rules_version == self._rules_version
+            and evaluation.state_generation == self._strategy_state_generation
         )
 
     def evaluate(self, df: pl.DataFrame, asset_type: str = "stock",
@@ -1208,6 +1825,9 @@ class MonitorRuleEngine:
             "signals": signals, "severity": rule.get("severity", "info"),
             "conditions": list(rule.get("conditions", [])) if rtype != "strategy" else [],
             "logic": rule.get("logic", "and") if rtype != "strategy" else "and",
+            **({
+                "strategy_priority": int(rule["_strategy_priority"]),
+            } if rtype == "strategy" and "_strategy_priority" in rule else {}),
             **metadata,
         }
 
@@ -1255,6 +1875,9 @@ class MonitorRuleEngine:
         if not sid:
             return []
         at = rule.get("asset_type", "stock")
+        has_outcome = getattr(self._strategy_engine, "has_outcome", None)
+        if callable(has_outcome) and not has_outcome(at, sid):
+            return []
         pool_key = (str(rule.get("id", sid)), sid, at)
         try:
             s = self._strategy_engine.get(sid)
@@ -1456,9 +2079,12 @@ class MonitorRuleEngine:
             "pool_exit": "移出选股结果",
         }
         try:
+            from app.strategy.entry_risk import EntryRiskPolicy, reference_from_row
+
             entry_policy = {
                 "version": 1, "strategy_id": sid,
                 "policy": strategy_policy(s, overrides).to_dict(),
+                "entry_risk": EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).to_dict(),
                 "overlay_filter": effective_conditions(overrides),
                 "params": {
                     **{item["id"]: item.get("default") for item in s.meta.get("params", [])
@@ -1492,7 +2118,9 @@ class MonitorRuleEngine:
                     # Notifications retain their display price; executions use raw money.
                     execution_rows.append((
                         *hit[:3], row.get("raw_close", hit[3]), *hit[4:],
-                        {"score": score, "entry_policy": entry_policy},
+                        {"score": score, "entry_policy": {
+                            **entry_policy, "signal_reference": reference_from_row(row),
+                        } if entry_policy is not None else None},
                     ))
             if len(symbol_list) > 5:
                 names = [

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.services import strategy_cache
 
 
@@ -51,11 +53,14 @@ def test_new_date_resets_results_and_ever_rows(tmp_path):
     assert set(cached["today_ever_rows"]) == {"strategy_b"}
 
 
-def test_old_entry_policy_cannot_restore_invalid_current_or_ever_matches(tmp_path):
+@pytest.mark.parametrize("previous_policy", [None, "security_eligibility_exit_first_v1"])
+def test_old_entry_policy_cannot_restore_invalid_current_or_ever_matches(tmp_path, previous_policy):
     strategy_cache.write_cache(tmp_path, "2026-07-20", {"old": _result("000001.SZ")})
     path = tmp_path / "user_data" / "strategy_cache.json"
     payload = json.loads(path.read_text())
     payload.pop("entry_policy_version")
+    if previous_policy is not None:
+        payload["entry_policy_version"] = previous_policy
     path.write_text(json.dumps(payload))
     assert strategy_cache.read_cache(tmp_path) is None
     strategy_cache.write_cache(tmp_path, "2026-07-20", {"new": _result("600000.SH")})
