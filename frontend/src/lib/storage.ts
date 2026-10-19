@@ -150,6 +150,8 @@ export const storage = {
     exitFill: 'close_t' | 'open_t+1' | 'signal_next_minute'
     fees: string
     stampTax?: string
+    minimumCommission?: string
+    transferFee?: string
     slippage: string
     maxPositions: string
     maxExposure: string

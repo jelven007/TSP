@@ -11,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "rsi_midline_pullback",
@@ -95,4 +96,4 @@ class RSIMidlinePullbackMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = RSIMidlinePullbackMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, RSIMidlinePullbackMatrixStrategy())

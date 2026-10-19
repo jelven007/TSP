@@ -115,6 +115,18 @@ def test_ranks_best_by_objective_max():
     assert out["results"][0]["params"] == {"ma_proximity": 0.03}
 
 
+@pytest.mark.parametrize("objective", ["payoff_ratio", "profit_factor_amount", "net_expectancy"])
+def test_explicit_trade_quality_objectives_skip_unavailable_and_rank_by_value(objective):
+    def score(p):
+        value = {0.01: None, 0.02: 1.2, 0.03: 0.8}[p["ma_proximity"]]
+        return _FakeResult(stats={objective: value})
+
+    out = _optimizer(score).optimize(_cfg(objective=objective))
+    assert out["best_params"] == {"ma_proximity": 0.02}
+    assert out["best_score"] == 1.2
+    assert out["results"][-1]["error"]
+
+
 def test_all_combos_executed_once():
     def score(p):
         return _FakeResult(stats={"sortino": 1.0})

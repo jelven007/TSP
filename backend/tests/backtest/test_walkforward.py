@@ -67,7 +67,8 @@ def test_folds_reject_nonpositive_windows():
 def _rec(index, is_score, total_return, obj):
     return {
         "index": index,
-        "test_end": date(2024, 1, 1),
+        "test_start": date(2024, index + 1, 1),
+        "test_end": date(2024, index + 1, 2),
         "best_params": {"p": index},
         "is_score": is_score,
         "oos_objective": obj,
@@ -215,18 +216,18 @@ def test_walkforward_cache_telemetry_computes_deltas():
     assert tel["load_panel_pct"] >= 0.0  # 扫盘耗时 / WF总耗时, 非负
 
 
-def test_walkforward_forces_position_mode_for_is_optimization():
-    """训练折(IS)强制 position 防前视泄漏(full 会用 OOS 区间 K 线平仓污染 IS);
-    OOS 回测保留用户所选 mode。"""
+def test_walkforward_bounds_both_is_and_oos_to_position_windows():
+    """IS/OOS 都只使用正式窗口, 不以 full 尾部行情越界平仓。"""
     opt, svc = _FakeOptimizer(), _FakeService()
     wf = WalkForwardService(opt, svc, strategy_engine=None)
-    wf.run(_wf_cfg(backtest_kwargs={"mode": "full"}))
+    out = wf.run(_wf_cfg(backtest_kwargs={"mode": "full"}))
 
     assert len(opt.opt_kwargs) > 0 and len(svc.calls) > 0
     # 用户选了 full, 但每折 IS 优化都被强制 position
     assert all(kw["mode"] == "position" for kw in opt.opt_kwargs), "IS 优化未强制 position"
-    # OOS 回测保留用户的 full
-    assert all(c["mode"] == "full" for c in svc.calls), "OOS 未保留用户 mode"
+    assert all(c["mode"] == "position" for c in svc.calls)
+    assert out["window_policy"]["requested_mode"] == "full"
+    assert out["window_policy"]["effective_mode"] == "position"
 
 
 def test_walkforward_reports_degradation():

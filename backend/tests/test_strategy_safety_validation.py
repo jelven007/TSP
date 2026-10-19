@@ -110,6 +110,10 @@ def test_all_shipped_builtin_strategies_pass():
     dependency_names = frozenset(
         path.stem for path in root.glob("_*.py") if path.name != "__init__.py"
     )
+    dependency_names |= frozenset(
+        f"app.strategy.builtin.{name}"
+        for name in dependency_names
+    )
     paths = sorted(path for path in root.glob("*.py") if not path.name.startswith("_"))
     assert paths, "兼容性校验必须覆盖实际内置策略"
     for path in paths:

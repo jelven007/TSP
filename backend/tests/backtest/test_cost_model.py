@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import polars as pl
+import pytest
 
 from app.backtest.engine import BacktestEngine, MatcherConfig
 
@@ -171,3 +172,101 @@ def test_job_key_distinguishes_commission_and_stamp():
     assert k_none != k_comm
     assert k_none != k_stamp
     assert k_comm != k_stamp
+
+
+@pytest.mark.parametrize("method", ["simulate_portfolio", "simulate_portfolio_legacy"])
+@pytest.mark.parametrize("symbol,capital,quantity", [
+    ("688001.SH", 1999.0, 0),
+    ("688001.SH", 2055.0, 205),
+    ("600001.SH", 2055.0, 200),
+])
+@pytest.mark.parametrize("scale", [1.0, 0.4])
+def test_raw_share_sizing_honors_board_rules_and_minimum_fee(method, symbol, capital, quantity, scale):
+    df = _panel([symbol], days=3).with_columns(
+        pl.lit(10.0).alias("raw_close"),
+        *[(pl.col(c) * scale).alias(c) for c in ("open", "high", "low", "close")],
+    )
+    result = getattr(BacktestEngine(None), method)(
+        df, _mask(df, {(symbol, 0)}), _mask(df, set()),
+        MatcherConfig(
+            matching="open_t+1", max_positions=1, initial_capital=capital,
+            commission_pct=0.0002, minimum_commission=5, slippage_bps=0,
+        ),
+    )
+    if quantity == 0:
+        assert not result.trades
+        assert result.stats["execution"]["buy_lot_size"] == 1
+    else:
+        trade = result.trades[0]
+        assert trade.raw_entry_shares == quantity
+        assert trade.raw_entry_price == pytest.approx(10)
+        assert trade.entry_value == pytest.approx(quantity * 10 + 5)
+        assert trade.pnl_amount == pytest.approx(-10)
+        assert result.equity_curve[-1]["cash"] == pytest.approx(capital - 10)
+        from app.backtest.strategy import StrategyBacktestService
+        serialized = StrategyBacktestService._trade_to_dict(trade)
+        assert serialized["raw_entry_shares"] == quantity
+        assert serialized["raw_entry_price"] == pytest.approx(10)
+
+
+def test_minimum_commission_is_per_leg_and_extra_fee_is_separate():
+    cfg = MatcherConfig(
+        commission_pct=0.0002, minimum_commission=5, transfer_fee_pct=0.00001,
+        stamp_tax_pct=0.001, slippage_bps=0,
+    )
+    assert cfg.buy_value(1000) == pytest.approx(1005.01)
+    assert cfg.sell_value(1000, "2024-01-01") == pytest.approx(993.99)
+    assert cfg.buy_value(100_000) == pytest.approx(100_021)
+    assert cfg.buy_value(0) == 0
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"minimum_commission": -1}, {"transfer_fee_pct": float("nan")},
+    {"minimum_commission": float("inf")},
+])
+def test_invalid_additional_costs_rejected(kwargs):
+    with pytest.raises(ValueError):
+        MatcherConfig(**kwargs)
+
+
+def test_additional_costs_reach_worker_and_snapshot(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from app.api import backtest as api
+    from app.backtest.strategy import StrategyBacktestService
+
+    captured = []
+    monkeypatch.setattr(api, "_guard_minute_strategy_backtest", lambda *args: None)
+    monkeypatch.setattr("app.multitenancy.research.jobs_for", lambda request: None)
+    monkeypatch.setattr(
+        "app.backtest.worker.make_worker_task",
+        lambda kind, data_dir, cfg: captured.append(cfg) or {},
+    )
+    monkeypatch.setattr("app.backtest.worker.run_worker_task", lambda task: {"ok": True})
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(repo=MagicMock())))
+    api.strategy_run(api.StrategyBacktestRequest(
+        strategy_id="ma_cross", start=date(2024, 1, 1), end=date(2024, 1, 5),
+        minimum_commission=5, transfer_fee_pct=0.00001,
+    ), request)
+    snapshot = StrategyBacktestService._config_to_dict(captured[0])
+    assert snapshot["minimum_commission"] == 5
+    assert snapshot["transfer_fee_pct"] == 0.00001
+
+
+def test_additional_costs_distinguish_backtest_and_optimization_jobs():
+    from app.api.backtest import _make_job_key, _opt_backtest_kwargs
+
+    base = ("s", None, None, None, "open_t+1", None, None, 0.0002, 5.0, 10, 1.0, 1e6,
+            "equal", None, None)
+    assert len({
+        _make_job_key(*base),
+        _make_job_key(*base, minimum_commission=5),
+        _make_job_key(*base, transfer_fee_pct=0.00001),
+    }) == 3
+    kwargs = _opt_backtest_kwargs(
+        "open_t+1", 0.0002, None, None, 5.0, 10, 1.0, 1e6, "equal", "position", 5,
+        minimum_commission=5, transfer_fee_pct=0.00001,
+    )
+    assert kwargs["minimum_commission"] == 5
+    assert kwargs["transfer_fee_pct"] == 0.00001
