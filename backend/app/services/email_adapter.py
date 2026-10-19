@@ -78,6 +78,23 @@ def get_notification_smtp(recipient: str | None = None) -> tuple[dict, str]:
     return config, password
 
 
+def _authenticate(smtp: smtplib.SMTP, username: str, password: str) -> None:
+    """Log in with AUTH LOGIN first.
+
+    NetEase mailboxes (126/163) advertise AUTH PLAIN but reject it with 535
+    for client authorization codes, so smtplib's default preference fails
+    even when the code is valid.
+    """
+    smtp.ehlo_or_helo_if_needed()
+    if "LOGIN" in (smtp.esmtp_features.get("auth") or "").split():
+        smtp.user, smtp.password = username, password
+        code, resp = smtp.auth("LOGIN", smtp.auth_login, initial_response_ok=False)
+        if 200 <= code < 300:
+            return
+        raise smtplib.SMTPAuthenticationError(code, resp)
+    smtp.login(username, password)
+
+
 def send_email(
     config: dict,
     password: str,
@@ -127,7 +144,7 @@ def send_email(
                     smtp.starttls()
                     smtp.ehlo()
             if username:
-                smtp.login(username, password)
+                _authenticate(smtp, username, password)
             smtp.send_message(message)
             # Delivery already succeeded; a failed QUIT must not retry and duplicate the email.
             try:
