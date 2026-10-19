@@ -9,7 +9,7 @@ from pathlib import Path
 # 改版本须同步包元数据、锁文件、fallback 和 VERSION, CI 校验一致性。
 # dev 模式读仓库文件; PyInstaller 冻结后读 _MEIPASS/package.json
 # (tsp.spec 的 datas 会收集)。读取失败回退硬编码值 —— 版本号绝不阻塞应用启动。
-_FALLBACK_VERSION = "0.4.10"
+_FALLBACK_VERSION = "0.4.11"
 
 
 def _load_version() -> str:
