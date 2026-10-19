@@ -11,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "volume_price_surge",
@@ -78,4 +79,4 @@ class VolumePriceSurgeMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = VolumePriceSurgeMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, VolumePriceSurgeMatrixStrategy())

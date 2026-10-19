@@ -14,6 +14,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "macd_golden",
@@ -96,4 +97,4 @@ class MACDGoldenMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = MACDGoldenMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, MACDGoldenMatrixStrategy())

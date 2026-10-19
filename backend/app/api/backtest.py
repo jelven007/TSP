@@ -449,6 +449,8 @@ class StrategyBacktestRequest(BaseModel):
     fees_pct: float = 0.0002
     commission_pct: float | None = None
     stamp_tax_pct: float | None = None
+    minimum_commission: float = 0.0
+    transfer_fee_pct: float = 0.0
     slippage_bps: float = 5.0
     max_positions: int = 10
     max_exposure_pct: float = 1.0
@@ -515,6 +517,8 @@ def strategy_run(req: StrategyBacktestRequest, request: Request):
         fees_pct=req.fees_pct,
         commission_pct=req.commission_pct,
         stamp_tax_pct=req.stamp_tax_pct,
+        minimum_commission=req.minimum_commission,
+        transfer_fee_pct=req.transfer_fee_pct,
         slippage_bps=req.slippage_bps,
         max_positions=req.max_positions,
         max_exposure_pct=req.max_exposure_pct,
@@ -605,8 +609,11 @@ def _make_job_key(
     minute_fill: bool = False,
     regime_filter: str | None = None,
     strict_research: bool = False,
+    minimum_commission: float = 0.0,
+    transfer_fee_pct: float = 0.0,
 ) -> str:
     raw = f"{strategy_id}|{symbols}|{start}|{end}|{matching}|{entry_fill}|{exit_fill}|{fees_pct}|{slippage_bps}|{max_positions}|{max_exposure_pct}|{initial_capital}|{position_sizing}|{params}|{overrides}|{mode}|{holding_days}|{commission_pct}|{stamp_tax_pct}|{asset_type}|{minute_fill}|{regime_filter}|{strict_research}"
+    raw += f"|minimum_commission={minimum_commission}|transfer_fee_pct={transfer_fee_pct}"
     return hashlib.md5(raw.encode()).hexdigest()[:12]
 
 
@@ -636,6 +643,8 @@ async def strategy_stream(
     minute_fill: bool = False,
     regime_filter: str | None = None,
     strict_research: bool = False,
+    minimum_commission: float = 0.0,
+    transfer_fee_pct: float = 0.0,
 ):
     """SSE 流式策略回测: 实时推送进度, 完成后推送结果, 支持重连 (刷新/切页后恢复)。
 
@@ -680,6 +689,8 @@ async def strategy_stream(
         minute_fill=minute_fill,
         regime_filter=regime_filter,
         strict_research=strict_research,
+        minimum_commission=minimum_commission,
+        transfer_fee_pct=transfer_fee_pct,
     )
 
     from app.multitenancy.research import jobs_for, stream
@@ -767,6 +778,8 @@ async def strategy_stream(
                 fees_pct=fees_pct,
                 commission_pct=commission_pct,
                 stamp_tax_pct=stamp_tax_pct,
+                minimum_commission=minimum_commission,
+                transfer_fee_pct=transfer_fee_pct,
                 slippage_bps=slippage_bps,
                 max_positions=int(max_positions),
                 max_exposure_pct=float(max_exposure_pct),
@@ -886,6 +899,8 @@ async def strategy_cancel(request: Request):
         minute_fill=_get("minute_fill", "false").lower() == "true",
         regime_filter=_get("regime_filter") or None,
         strict_research=_get("strict_research", "false").lower() == "true",
+        minimum_commission=float(_get("minimum_commission", "0")),
+        transfer_fee_pct=float(_get("transfer_fee_pct", "0")),
     )
     from app.multitenancy.research import jobs_for
 
@@ -923,7 +938,7 @@ def _json_safe(obj):
 _OPT_BT_FIELDS = [
     "matching", "fees_pct", "commission_pct", "stamp_tax_pct", "slippage_bps",
     "max_positions", "max_exposure_pct", "initial_capital", "position_sizing",
-    "mode", "holding_days",
+    "mode", "holding_days", "minimum_commission", "transfer_fee_pct",
 ]
 
 
@@ -950,12 +965,15 @@ def _make_opt_job_key(
 def _opt_backtest_kwargs(
     matching, fees_pct, commission_pct, stamp_tax_pct, slippage_bps,
     max_positions, max_exposure_pct, initial_capital, position_sizing, mode, holding_days,
+    minimum_commission=0.0, transfer_fee_pct=0.0,
 ) -> dict:
     return {
         "matching": matching,
         "fees_pct": fees_pct,
         "commission_pct": commission_pct,
         "stamp_tax_pct": stamp_tax_pct,
+        "minimum_commission": minimum_commission,
+        "transfer_fee_pct": transfer_fee_pct,
         "slippage_bps": slippage_bps,
         "max_positions": int(max_positions),
         "max_exposure_pct": float(max_exposure_pct),
@@ -991,6 +1009,8 @@ async def optimize_stream(
     position_sizing: str = "equal",
     mode: str = "position",
     holding_days: int = 5,
+    minimum_commission: float = 0.0,
+    transfer_fee_pct: float = 0.0,
 ):
     """SSE 流式参数优化: 并行跑各参数组回测, 按 objective 排序。
 
@@ -1020,6 +1040,7 @@ async def optimize_stream(
     bt_kwargs = _opt_backtest_kwargs(
         matching, fees_pct, commission_pct, stamp_tax_pct, slippage_bps,
         max_positions, max_exposure_pct, initial_capital, position_sizing, mode, holding_days,
+        minimum_commission, transfer_fee_pct,
     )
     bt_sig = "|".join(f"{k}={bt_kwargs[k]}" for k in _OPT_BT_FIELDS)
     job_key = _make_opt_job_key(
@@ -1243,15 +1264,23 @@ async def walkforward_stream(
     position_sizing: str = "equal",
     mode: str = "position",
     holding_days: int = 5,
+    minimum_commission: float = 0.0,
+    transfer_fee_pct: float = 0.0,
+    window_unit: str = "calendar_days",
+    purge_days: int = 0,
 ):
     """SSE 流式 walk-forward: 每折训练区间网格优化 -> 测试区间 OOS 回测。
 
     事件: job {key} / progress {type:walkforward_progress,done,total,fold} / done {result} / error {message}
     """
-    from app.backtest.walkforward import WalkForwardConfig
+    from app.backtest.walkforward import WalkForwardConfig, generate_folds
     from app.backtest.worker import make_worker_task, run_worker_task
 
     direction = direction or None
+    if window_unit not in {"calendar_days", "trading_days"} or purge_days < 0:
+        raise HTTPException(400, detail="窗口单位无效或隔离期为负")
+    if min(train_days, test_days, step_days) <= 0:
+        raise HTTPException(400, detail="训练、测试和步进窗口必须为正")
 
     try:
         end_date = date.fromisoformat(end) if end else cn_today()
@@ -1265,9 +1294,10 @@ async def walkforward_stream(
     bt_kwargs = _opt_backtest_kwargs(
         matching, fees_pct, commission_pct, stamp_tax_pct, slippage_bps,
         max_positions, max_exposure_pct, initial_capital, position_sizing, mode, holding_days,
+        minimum_commission, transfer_fee_pct,
     )
     bt_sig = "|".join(f"{k}={bt_kwargs[k]}" for k in _OPT_BT_FIELDS)
-    windows = f"{train_days}/{test_days}/{step_days}"
+    windows = f"v2/{window_unit}/{train_days}/{test_days}/{step_days}/purge={purge_days}"
     job_key = _make_wf_job_key(
         strategy_id,
         symbols,
@@ -1285,9 +1315,23 @@ async def walkforward_stream(
 
     # guard 作用于单折窗口 (每折训练/测试各是一次回测), 而非总区间 —— WF 总区间可长达数年,
     # 按总区间拦会误杀; 真正的 OOM 风险在单折窗口过大。
+    max_window_span = max(int(train_days), int(test_days))
+    if window_unit == "trading_days":
+        sessions = request.app.state.repo.list_daily_dates(start_date, end_date)
+        try:
+            planned = generate_folds(
+                start_date, end_date, train_days, test_days, step_days,
+                window_unit=window_unit, purge_days=purge_days, trading_dates=sessions,
+            )
+        except ValueError as error:
+            raise HTTPException(400, detail=str(error)) from error
+        max_window_span = max(
+            max((f.train_end - f.train_start).days, (f.test_end - f.test_start).days)
+            for f in planned
+        )
     wf_guard_violated = (
         settings.backtest_range_guard
-        and max(int(train_days), int(test_days)) > BACKTEST_MAX_SERVER_DAYS
+        and max_window_span > BACKTEST_MAX_SERVER_DAYS
     )
 
     from app.multitenancy.research import jobs_for, stream
@@ -1305,6 +1349,7 @@ async def walkforward_stream(
             strategy_id=strategy_id, symbols=symbols.split(",") if symbols else None,
             start=start_date, end=end_date, param_grid=grid, objective=objective, direction=direction,
             train_days=train_days, test_days=test_days, step_days=step_days,
+            window_unit=window_unit, purge_days=purge_days,
             max_workers=min(max(1, max_workers), 2), matrix_cache_max_mb=min(max(0, matrix_cache_max_mb), 512),
             base_params=_json_object(params, "params", {}), overrides=_json_object(overrides, "overrides"),
             backtest_kwargs=bt_kwargs,
@@ -1366,6 +1411,8 @@ async def walkforward_stream(
                     train_days=int(train_days),
                     test_days=int(test_days),
                     step_days=int(step_days),
+                    window_unit=window_unit,
+                    purge_days=purge_days,
                     max_workers=int(max_workers),
                     base_params=base_params if isinstance(base_params, dict) else {},
                     overrides=ov if isinstance(ov, dict) else None,

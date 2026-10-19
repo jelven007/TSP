@@ -11,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "breakout_new_high_60d",
@@ -80,4 +81,4 @@ class BreakoutNewHigh60dMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = BreakoutNewHigh60dMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, BreakoutNewHigh60dMatrixStrategy())

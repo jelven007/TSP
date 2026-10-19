@@ -9,6 +9,7 @@ from app.backtest.matrix import (
     make_signal_matrix,
     matrix_feature,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "oversold_reversal",
@@ -86,4 +87,4 @@ class OversoldReversalMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = OversoldReversalMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, OversoldReversalMatrixStrategy())

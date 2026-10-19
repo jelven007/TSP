@@ -20,7 +20,13 @@ import numpy as np
 import polars as pl
 
 from app.backtest.costs import COST_MODEL_VERSION
-from app.backtest.engine import BacktestEngine, MatcherConfig, SimResult, SimulationOptions
+from app.backtest.engine import (
+    EXECUTION_MODEL_VERSION,
+    BacktestEngine,
+    MatcherConfig,
+    SimResult,
+    SimulationOptions,
+)
 from app.backtest.fundamentals import FUNDAMENTAL_FACTOR_NAMES
 from app.backtest.governance import STATUS_FIELDS, research_preflight, status_quality
 from app.backtest.matrix import (
@@ -56,6 +62,7 @@ from app.indicators.pipeline import (
 )
 from app.strategy.eligibility import ENTRY_POLICY_VERSION
 from app.strategy.engine import StrategyDataContext, StrategyDef, StrategyEngine
+from app.strategy.entry_risk import EntryRiskPolicy
 from app.strategy.risk_policy import normalize_pct, strategy_policy
 from app.strategy.scoring import (
     SCORING_DIRECTION_LOW,
@@ -167,6 +174,8 @@ class StrategyDependencyResolver:
             )
 
         required_features = set(strategy.required_features)
+        if EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).stop_atr_multiple is not None:
+            required_features.add("atr_14")
         required_features.update(overlay.dependencies(conditions))
         required_signals = {
             _normalize_signal_name(signal)
@@ -219,6 +228,8 @@ class StrategyDependencyResolver:
         instrument_columns = frozenset(required_features & set(_INSTRUMENT_COLUMNS))
         instrument_columns = frozenset(set(instrument_columns) | {"name"})
         matrix_columns = set(_EXECUTION_COLUMNS) | required_signals
+        if EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).stop_atr_multiple is not None:
+            matrix_columns.add("atr_14")
         if basic_filter.get("exclude_new_days"):
             matrix_columns.add("listing_age_days")
         if minute_fill:
@@ -264,6 +275,8 @@ class StrategyDependencyResolver:
             )
 
         required_features = set(strategy.required_features)
+        if EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).stop_atr_multiple is not None:
+            required_features.add("atr_14")
         from app.strategy import overlay
         from app.strategy.custom_signals import _string_ext_fields
 
@@ -306,6 +319,8 @@ class StrategyDependencyResolver:
             "signal_limit_up",
             "signal_limit_down",
         }
+        if EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).stop_atr_multiple is not None:
+            matrix_columns.add("atr_14")
         if "price_limit_pct" in required_features:
             matrix_columns.add("price_limit_pct")
         if "listing_age_days" in required_features:
@@ -503,6 +518,12 @@ def _basic_filter_dependencies(config: dict) -> set[str]:
     if not config or not config.get("enabled", True):
         return set()
     dependencies = {"symbol", "close"}
+    if any(
+        config.get(f"{prefix}_{bound}") is not None
+        for prefix in ("price", "market_cap", "float_cap")
+        for bound in ("min", "max")
+    ):
+        dependencies.add("raw_close")
     if any(config.get(key) is not None for key in ("amount_min", "amount_max")):
         dependencies.add("amount")
     if any(config.get(key) is not None for key in ("turnover_min", "turnover_max")):
@@ -599,6 +620,8 @@ class StrategyBacktestConfig:
     fees_pct: float = 0.0002
     commission_pct: float | None = None
     stamp_tax_pct: float | None = None
+    minimum_commission: float = 0.0
+    transfer_fee_pct: float = 0.0
     slippage_bps: float = 5.0
     max_positions: int = 10
     max_exposure_pct: float = 1.0
@@ -728,6 +751,10 @@ class BacktestResultPolicy:
             return stats
         diagnostic = {
             "error",
+            "pending_exit_positions",
+            "unclosed_candidates",
+            "unclosed_positions",
+            "unrealized_pnl_amount",
             "timing_ms",
             "execution",
             "selection",
@@ -1230,6 +1257,9 @@ class StrategyBacktestService:
                 return _err(f"以下卖出信号暂不支持分钟触发回放: {', '.join(unsupported)}")
         try:
             risk = strategy_policy(s, overrides)
+            entry_risk = EntryRiskPolicy.from_mapping(overrides.get("entry_risk"))
+            if entry_risk.enabled and s.execution_backend == "minute_filter":
+                return _err("冻结日线入场风险暂不支持分钟策略")
         except ValueError as exc:
             return _err(str(exc))
         stop_loss = risk.stop_loss_pct
@@ -1428,12 +1458,15 @@ class StrategyBacktestService:
             return _err("严格研究校验未通过: " + "; ".join(issues))
 
         matcher_config = MatcherConfig(
+            entry_risk=entry_risk,
             matching=config.matching,
             entry_fill=config.entry_fill,
             exit_fill=config.exit_fill,
             fees_pct=config.fees_pct,
             commission_pct=config.commission_pct,
             stamp_tax_pct=config.stamp_tax_pct,
+            minimum_commission=config.minimum_commission,
+            transfer_fee_pct=config.transfer_fee_pct,
             stamp_tax_mode="historical",
             slippage_bps=config.slippage_bps,
             stop_loss_pct=stop_loss,
@@ -1707,7 +1740,11 @@ class StrategyBacktestService:
             except (ValueError, pl.exceptions.PolarsError) as e:
                 return _err(f"入场叠加条件计算失败: {e}")
             candidate_mask = basic_mask & candidate_filter_mask & overlay_mask & ~raw_exit_mask
-            panel = self._apply_score(panel, s, overrides, universe_mask=candidate_mask, factor_snapshot=factor_snapshot)
+            try:
+                panel = self._apply_score(panel, s, overrides, universe_mask=candidate_mask, factor_snapshot=factor_snapshot)
+            except ValueError as e:
+                return _err(str(e))
+            candidate_mask &= panel["score"].is_finite().fill_null(False)
             formal_candidate_mask = candidate_mask & formal_range
             entry_mask = self._build_entry_mask_from_candidate(panel, candidate_mask, s, entry_signals)
             entry_mask = entry_mask & formal_range
@@ -1838,6 +1875,7 @@ class StrategyBacktestService:
             "entry_signals": entry_signals,
             "exit_signals": exit_signals,
             "stop_loss": stop_loss,
+            "entry_risk": entry_risk.to_dict(),
             "take_profit": take_profit,
             "trailing_stop": trailing_stop,
             "trailing_take_profit_activate": trailing_take_profit_activate,
@@ -2059,12 +2097,15 @@ class StrategyBacktestService:
         )
 
         matcher_config = MatcherConfig(
+            entry_risk=EntryRiskPolicy.from_mapping(overrides.get("entry_risk")),
             matching=config.matching,
             entry_fill="close_t",
             exit_fill=config.exit_fill,
             fees_pct=config.fees_pct,
             commission_pct=config.commission_pct,
             stamp_tax_pct=config.stamp_tax_pct,
+            minimum_commission=config.minimum_commission,
+            transfer_fee_pct=config.transfer_fee_pct,
             stamp_tax_mode="historical",
             slippage_bps=config.slippage_bps,
             stop_loss_pct=stop_loss,
@@ -2168,6 +2209,7 @@ class StrategyBacktestService:
             "entry_signals": [],
             "exit_signals": [],
             "stop_loss": stop_loss,
+            "entry_risk": EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).to_dict(),
             "take_profit": take_profit,
             "trailing_stop": trailing_stop,
             "trailing_take_profit_activate": trailing_take_profit_activate,
@@ -2654,6 +2696,9 @@ class StrategyBacktestService:
             "blocked_exit_days": getattr(t, "blocked_exit_days", 0),
             "entry_signal_id": getattr(t, "entry_signal_id", None),
             "exit_signal_id": getattr(t, "exit_signal_id", None),
+            "raw_entry_shares": getattr(t, "raw_entry_shares", None),
+            "raw_entry_price": getattr(t, "raw_entry_price", None),
+            "raw_frozen_stop_price": getattr(t, "raw_frozen_stop_price", None),
         }
 
     @staticmethod
@@ -2682,8 +2727,11 @@ class StrategyBacktestService:
             "fees_pct": c.fees_pct,
             "commission_pct": c.commission_pct,
             "stamp_tax_pct": c.stamp_tax_pct,
+            "minimum_commission": c.minimum_commission,
+            "transfer_fee_pct": c.transfer_fee_pct,
             "stamp_tax_mode": "historical" if c.stamp_tax_pct is None else "fixed",
             "cost_model_version": COST_MODEL_VERSION,
+            "execution_model_version": EXECUTION_MODEL_VERSION,
             "entry_policy_version": ENTRY_POLICY_VERSION,
             "strict_research": c.strict_research,
             "slippage_bps": c.slippage_bps,
@@ -2712,6 +2760,23 @@ class StrategyBacktestService:
         work = materialize_scoring_columns(panel, scoring.keys())
         temporary_scoring_columns = [name for name in scoring if name not in panel.columns and name in work.columns]
         has_universe = universe_mask is not None and len(universe_mask) == len(panel)
+        executable = [
+            (str(col), value, weight)
+            for col, weight in scoring.items()
+            if weight and (value := scoring_value_expr(work.columns, str(col))) is not None
+        ]
+        missing = {str(col) for col, weight in scoring.items() if weight} - {
+            name for name, _, _ in executable
+        }
+        if missing:
+            raise ValueError("评分缺少可计算字段: " + ", ".join(sorted(missing)))
+        if executable:
+            valid = pl.all_horizontal([
+                value.is_finite().fill_null(False) for _, value, _ in executable
+            ])
+            work = work.with_columns(valid.alias("_score_valid"))
+        else:
+            work = work.with_columns(pl.lit(True).alias("_score_valid"))
         if has_universe:
             work = work.with_columns(universe_mask.rename("_score_universe"))
 
@@ -2728,24 +2793,20 @@ class StrategyBacktestService:
                 factor_snapshot["frame"] = frame.select(snapshot_cols)
 
         def _value_in_universe(value: pl.Expr) -> pl.Expr:
+            eligible = pl.col("_score_valid")
             if has_universe:
-                return pl.when(pl.col("_score_universe")).then(value).otherwise(None)
-            return value
+                eligible = eligible & pl.col("_score_universe")
+            return pl.when(eligible).then(value).otherwise(None)
 
         def _finish(df: pl.DataFrame) -> pl.DataFrame:
             temporary = [
                 name
-                for name in ["_score_universe", *temporary_scoring_columns]
+                for name in ["_score_universe", "_score_valid", *temporary_scoring_columns]
                 if name in df.columns
             ]
             return df.drop(temporary) if temporary else df
 
         if scoring:
-            executable = [
-                (str(col), value, weight)
-                for col, weight in scoring.items()
-                if weight and (value := scoring_value_expr(work.columns, str(col))) is not None
-            ]
             total_weight = sum(weight for _, _, weight in executable)
             if total_weight > 0:
                 score_parts: list[pl.Expr] = []
@@ -2760,6 +2821,7 @@ class StrategyBacktestService:
                     ).otherwise(pl.lit(0.5))
                     if directions.get(name) == SCORING_DIRECTION_LOW:
                         normalized = 1.0 - normalized
+                    normalized = pl.when(pl.col("_score_valid")).then(normalized).otherwise(None)
                     if has_universe:
                         normalized = pl.when(pl.col("_score_universe")).then(normalized).otherwise(0.0)
                     score_parts.append(normalized * w)
@@ -2767,12 +2829,14 @@ class StrategyBacktestService:
                     score_expr = score_parts[0]
                     for part in score_parts[1:]:
                         score_expr = score_expr + part
-                    return _finish(work.with_columns((score_expr * 100).fill_null(0).alias("score")))
+                    return _finish(work.with_columns((score_expr * 100).alias("score")))
 
         order_by = s.meta.get("order_by")
         if order_by and order_by != "score" and order_by in work.columns:
             direction = 1 if s.meta.get("descending", True) else -1
-            score_expr = pl.col(order_by).fill_null(0) * direction
+            score_expr = pl.when(pl.col(order_by).is_finite()).then(
+                pl.col(order_by) * direction
+            ).otherwise(None)
             if has_universe:
                 score_expr = pl.when(pl.col("_score_universe")).then(score_expr).otherwise(0.0)
             return _finish(work.with_columns(score_expr.alias("score")))

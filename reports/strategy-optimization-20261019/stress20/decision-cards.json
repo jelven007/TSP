@@ -1,0 +1,5252 @@
+[
+  {
+    "strategy_id": "ma_golden_cross",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "ma20_atr_15",
+        "result_sha256": "b73a8f0acc6b9ff7cdb698aa382fb97f1e09a393355df082772549cd547d86af",
+        "definition_sha256": "c157e9685d9acb73bda7439b59031a9ae6bd29ff0bd77fa499730002998d3bff",
+        "params": {
+          "entry_variant": "ma20_atr_15",
+          "require_ma_golden": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.2,
+          "require_above_ma60": true,
+          "require_ma60_non_declining": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1447,
+          "win_rate": 0.2709053213545266,
+          "win_rate_wilson95": [
+            0.24863490369813038,
+            0.2943889522486525
+          ],
+          "expectancy": -0.011811480995162407,
+          "profit_factor": 0.6854514358218482,
+          "payoff_ratio": 1.9758604581679475,
+          "net_pnl": -836775.94
+        },
+        "stats": {
+          "total_return": -0.8368,
+          "max_drawdown": -0.8585,
+          "avg_exposure": 0.9117,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "exploratory_followup_only",
+        "reasons": [],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.017933778843574565,
+            0.06684840577444846
+          ],
+          "expectancy_delta95": [
+            6.942857091204298e-05,
+            0.01136788682064361
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 351,
+          "missed_winners": 280,
+          "avoided_losers": 986,
+          "removed_metrics": {
+            "trades": 1266,
+            "win_rate": 0.2211690363349131,
+            "win_rate_wilson95": [
+              0.19916913959466667,
+              0.2448560049587957
+            ],
+            "expectancy": -0.01921156477093207,
+            "profit_factor": 0.5921661781532491,
+            "payoff_ratio": 2.2853120378525604,
+            "net_pnl": -805962.41
+          },
+          "added_metrics": {
+            "trades": 1096,
+            "win_rate": 0.2737226277372263,
+            "win_rate_wilson95": [
+              0.2481501036218922,
+              0.30087586520852855
+            ],
+            "expectancy": -0.011890703467153286,
+            "profit_factor": 0.6790638420094366,
+            "payoff_ratio": 1.9354806250199381,
+            "net_pnl": -637197.73
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "ma20_atr_20",
+        "result_sha256": "31ac355b82f29f0949cffd8b0f5c6b8fed30c31e3863d81ef9e2f26e4ef352e1",
+        "definition_sha256": "c157e9685d9acb73bda7439b59031a9ae6bd29ff0bd77fa499730002998d3bff",
+        "params": {
+          "entry_variant": "ma20_atr_20",
+          "require_ma_golden": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.2,
+          "require_above_ma60": true,
+          "require_ma60_non_declining": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1475,
+          "win_rate": 0.26169491525423727,
+          "win_rate_wilson95": [
+            0.23990217226344024,
+            0.28472575272866163
+          ],
+          "expectancy": -0.014054597288135592,
+          "profit_factor": 0.6048750795804623,
+          "payoff_ratio": 1.978594902214151,
+          "net_pnl": -891365.7100000001
+        },
+        "stats": {
+          "total_return": -0.8881,
+          "max_drawdown": -0.8909,
+          "avg_exposure": 0.9055,
+          "unclosed_positions": 1,
+          "pending_exit_positions": 1,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.008888979682126865,
+            0.0544220985052987
+          ],
+          "expectancy_delta95": [
+            -0.0019529161883921485,
+            0.00888397907940952
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 606,
+          "missed_winners": 213,
+          "avoided_losers": 798,
+          "removed_metrics": {
+            "trades": 1011,
+            "win_rate": 0.21068249258160238,
+            "win_rate_wilson95": [
+              0.1866639985210976,
+              0.23689136223667978
+            ],
+            "expectancy": -0.01902882690405539,
+            "profit_factor": 0.604213385538116,
+            "payoff_ratio": 2.460274534573277,
+            "net_pnl": -613092.61
+          },
+          "added_metrics": {
+            "trades": 869,
+            "win_rate": 0.2612197928653625,
+            "win_rate_wilson95": [
+              0.2331077930212573,
+              0.29143365871523186
+            ],
+            "expectancy": -0.013361819332566171,
+            "profit_factor": 0.589387544885602,
+            "payoff_ratio": 2.0082910609155094,
+            "net_pnl": -516846.98
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "9e79d09b96a274ddfb25d2dde290e42efb5835adff7c991354e7d10f3e42cf87",
+        "definition_sha256": "c157e9685d9acb73bda7439b59031a9ae6bd29ff0bd77fa499730002998d3bff",
+        "params": {
+          "entry_variant": "original",
+          "require_ma_golden": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.2,
+          "require_above_ma60": true,
+          "require_ma60_non_declining": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1617,
+          "win_rate": 0.2300556586270872,
+          "win_rate_wilson95": [
+            0.21019594827067506,
+            0.25119497358128146
+          ],
+          "expectancy": -0.01761835250463822,
+          "profit_factor": 0.6132598320921893,
+          "payoff_ratio": 2.2314943086488954,
+          "net_pnl": -945014.95
+        },
+        "stats": {
+          "total_return": -0.9434,
+          "max_drawdown": -0.9483,
+          "avg_exposure": 0.8849,
+          "unclosed_positions": 1,
+          "pending_exit_positions": 1,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "macd_golden",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "dif_negative",
+        "result_sha256": "40db501bc85986ec218bec1f86d41183718b3a9410af94db9c703f93d4e096c2",
+        "definition_sha256": "be8d04dfbb370783e7a35743174745cba5bfb0c8ad3cff28002c5ea773e5f122",
+        "params": {
+          "entry_variant": "dif_negative",
+          "require_macd_golden": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1236,
+          "win_rate": 0.25970873786407767,
+          "win_rate_wilson95": [
+            0.23603473995013124,
+            0.28487180165970016
+          ],
+          "expectancy": -0.014578068770226537,
+          "profit_factor": 0.6665470253705327,
+          "payoff_ratio": 1.982629692463588,
+          "net_pnl": -863454.7300000001
+        },
+        "stats": {
+          "total_return": -0.8635,
+          "max_drawdown": -0.8755,
+          "avg_exposure": 0.9331,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "exploratory_followup_only",
+        "reasons": [],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.019388658480483767,
+            0.07635760272806626
+          ],
+          "expectancy_delta95": [
+            -0.00013032369384436462,
+            0.016396216557431106
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 286,
+          "missed_winners": 271,
+          "avoided_losers": 1046,
+          "removed_metrics": {
+            "trades": 1317,
+            "win_rate": 0.20577069096431283,
+            "win_rate_wilson95": [
+              0.18480769989784118,
+              0.22844518371818062
+            ],
+            "expectancy": -0.022213716780561884,
+            "profit_factor": 0.5556802231030304,
+            "payoff_ratio": 2.3285692581248623,
+            "net_pnl": -861297.1100000001
+          },
+          "added_metrics": {
+            "trades": 950,
+            "win_rate": 0.26526315789473687,
+            "win_rate_wilson95": [
+              0.2381755706310045,
+              0.29424155187654816
+            ],
+            "expectancy": -0.012065804210526316,
+            "profit_factor": 0.6832202223520417,
+            "payoff_ratio": 2.037794379659509,
+            "net_pnl": -601833.8799999999
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "dif_nonnegative",
+        "result_sha256": "44121cd8f2476130e2e58fcb860bb20c51caa73411724e10776de5e8f3e1274f",
+        "definition_sha256": "be8d04dfbb370783e7a35743174745cba5bfb0c8ad3cff28002c5ea773e5f122",
+        "params": {
+          "entry_variant": "dif_nonnegative",
+          "require_macd_golden": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1666,
+          "win_rate": 0.20228091236494597,
+          "win_rate_wilson95": [
+            0.18368636718252682,
+            0.22224530921121013
+          ],
+          "expectancy": -0.026678611644657863,
+          "profit_factor": 0.49371907067654897,
+          "payoff_ratio": 2.0523999519005662,
+          "net_pnl": -983913.77
+        },
+        "stats": {
+          "total_return": -0.9839,
+          "max_drawdown": -0.9858,
+          "avg_exposure": 0.8413,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.026905679516213605,
+            0.007777405088361616
+          ],
+          "expectancy_delta95": [
+            -0.009489715202259172,
+            0.001287485352380441
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 886,
+          "missed_winners": 165,
+          "avoided_losers": 552,
+          "removed_metrics": {
+            "trades": 717,
+            "win_rate": 0.2301255230125523,
+            "win_rate_wilson95": [
+              0.20080254043401266,
+              0.26232500381426593
+            ],
+            "expectancy": -0.017295210599721063,
+            "profit_factor": 0.6244814488148771,
+            "payoff_ratio": 2.275924048438505,
+            "net_pnl": -334774.15
+          },
+          "added_metrics": {
+            "trades": 780,
+            "win_rate": 0.20897435897435898,
+            "win_rate_wilson95": [
+              0.18190176002191097,
+              0.23889958555607319
+            ],
+            "expectancy": -0.02600035512820513,
+            "profit_factor": 0.42848180683761283,
+            "payoff_ratio": 1.9281339662200663,
+            "net_pnl": -518751.0899999999
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "64abaf5984fcbac988f622b398abe1e7b634dfe89f76798484cfe18f6a490d53",
+        "definition_sha256": "be8d04dfbb370783e7a35743174745cba5bfb0c8ad3cff28002c5ea773e5f122",
+        "params": {
+          "entry_variant": "original",
+          "require_macd_golden": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1603,
+          "win_rate": 0.2114784778540237,
+          "win_rate_wilson95": [
+            0.1921895140696306,
+            0.23214702289829456
+          ],
+          "expectancy": -0.0225002164691204,
+          "profit_factor": 0.5767889838045274,
+          "payoff_ratio": 2.2299619601897986,
+          "net_pnl": -970341.1
+        },
+        "stats": {
+          "total_return": -0.9703,
+          "max_drawdown": -0.9741,
+          "avg_exposure": 0.8746,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "bullish_alignment",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "first_alignment",
+        "result_sha256": "3e0976b3dc11dd1d940e3216e13a0b67b5f47f5aedce3052579696ef9f091d94",
+        "definition_sha256": "941bab15f34cb97a3bf839f5637c66915236a69c0e95a1a51b1c1c0a04b1a61a",
+        "params": {
+          "entry_variant": "first_alignment",
+          "require_ma_alignment": true,
+          "require_positive_momentum": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1695,
+          "win_rate": 0.15634218289085547,
+          "win_rate_wilson95": [
+            0.13983148336566217,
+            0.17440711309912896
+          ],
+          "expectancy": -0.03170353569321534,
+          "profit_factor": 0.5408074187425438,
+          "payoff_ratio": 2.756230943754507,
+          "net_pnl": -992802.5
+        },
+        "stats": {
+          "total_return": -0.9928,
+          "max_drawdown": -0.9936,
+          "avg_exposure": 0.7326,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0069402486995395075,
+            0.047036523570284205
+          ],
+          "expectancy_delta95": [
+            -0.0006139001888985547,
+            0.020471945698054113
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 109,
+          "missed_winners": 159,
+          "avoided_losers": 1045,
+          "removed_metrics": {
+            "trades": 1204,
+            "win_rate": 0.13205980066445183,
+            "win_rate_wilson95": [
+              0.11410090987211396,
+              0.15235919549269544
+            ],
+            "expectancy": -0.04099055564784053,
+            "profit_factor": 0.5064934128180528,
+            "payoff_ratio": 3.144522841362875,
+            "net_pnl": -931181.95
+          },
+          "added_metrics": {
+            "trades": 1586,
+            "win_rate": 0.1601513240857503,
+            "win_rate_wilson95": [
+              0.14292592982037183,
+              0.1790190991686797
+            ],
+            "expectancy": -0.030209583228247162,
+            "profit_factor": 0.5504453547745373,
+            "payoff_ratio": 2.755367037913738,
+            "net_pnl": -882931.1000000001
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "912eeab0bdb0afe44970fb489642888f821060ca90fb0581c46396ce5004cef1",
+        "definition_sha256": "941bab15f34cb97a3bf839f5637c66915236a69c0e95a1a51b1c1c0a04b1a61a",
+        "params": {
+          "entry_variant": "original",
+          "require_ma_alignment": true,
+          "require_positive_momentum": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1313,
+          "win_rate": 0.12947448591012947,
+          "win_rate_wilson95": [
+            0.11239012091742102,
+            0.14872070668705323
+          ],
+          "expectancy": -0.042275668697639,
+          "profit_factor": 0.5091447110348744,
+          "payoff_ratio": 3.1279784940825603,
+          "net_pnl": -993485.73
+        },
+        "stats": {
+          "total_return": -0.9935,
+          "max_drawdown": -0.995,
+          "avg_exposure": 0.4957,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "low_volatility_leader",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": "匹配宽基60日相对收益：冻结输入缺少指数历史，未试验",
+    "trials": [
+      {
+        "variant": "original",
+        "result_sha256": "9392f167ec233a262a81fa2cd5961743dfc2e2d780cc463242ac719dc2dc642d",
+        "definition_sha256": "7194420464439cf76430fca26f635d285271025f72cc4b5b2b769601d28212ac",
+        "params": {
+          "require_positive_momentum": true,
+          "use_volatility_filter": true,
+          "vol_max": 0.3,
+          "require_above_ma20": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1337,
+          "win_rate": 0.2206432311144353,
+          "win_rate_wilson95": [
+            0.19923287047850058,
+            0.2436543430447075
+          ],
+          "expectancy": -0.01061285340314136,
+          "profit_factor": 0.6214932258864386,
+          "payoff_ratio": 2.469012290571025,
+          "net_pnl": -784446.05
+        },
+        "stats": {
+          "total_return": -0.7844,
+          "max_drawdown": -0.8213,
+          "avg_exposure": 0.9455,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "volume_price_surge",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "clv_070",
+        "result_sha256": "d61f7b8756245a01499944743d9b6557103764b4430c4934b403a8b0f908b0c0",
+        "definition_sha256": "66ca67db213418c557d50648a178f4af9b253e0c189a0d5e3848ef1543ad082c",
+        "params": {
+          "entry_variant": "clv_070",
+          "require_ma20_breakout": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 2.0,
+          "require_bullish_candle": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1638,
+          "win_rate": 0.23931623931623933,
+          "win_rate_wilson95": [
+            0.21927865653028572,
+            0.26057372386986977
+          ],
+          "expectancy": -0.014705140415140417,
+          "profit_factor": 0.6559919280800725,
+          "payoff_ratio": 2.202004916453453,
+          "net_pnl": -918411.79
+        },
+        "stats": {
+          "total_return": -0.9184,
+          "max_drawdown": -0.9273,
+          "avg_exposure": 0.9089,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.006327980584577888,
+            0.023022031143190902
+          ],
+          "expectancy_delta95": [
+            -0.003779837028517719,
+            0.0047319387623408135
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1107,
+          "missed_winners": 129,
+          "avoided_losers": 444,
+          "removed_metrics": {
+            "trades": 573,
+            "win_rate": 0.225130890052356,
+            "win_rate_wilson95": [
+              0.1928276172650511,
+              0.26109526208345635
+            ],
+            "expectancy": -0.01240132635253054,
+            "profit_factor": 0.6211424623416656,
+            "payoff_ratio": 2.494904654331729,
+            "net_pnl": -310663.34
+          },
+          "added_metrics": {
+            "trades": 531,
+            "win_rate": 0.2504708097928437,
+            "win_rate_wilson95": [
+              0.21549823314148475,
+              0.28902796676517917
+            ],
+            "expectancy": -0.010344318267419963,
+            "profit_factor": 0.6778214885212247,
+            "payoff_ratio": 2.3101179714920694,
+            "net_pnl": -247826.47999999998
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "02c2ec6a704e2d494ed09dd2a31be918d3deffc75e94bd7eb5e1fbadfaea7caf",
+        "definition_sha256": "66ca67db213418c557d50648a178f4af9b253e0c189a0d5e3848ef1543ad082c",
+        "params": {
+          "entry_variant": "original",
+          "require_ma20_breakout": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 2.0,
+          "require_bullish_candle": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1680,
+          "win_rate": 0.23095238095238096,
+          "win_rate_wilson95": [
+            0.21142686562530408,
+            0.2517055335267302
+          ],
+          "expectancy": -0.015299517857142859,
+          "profit_factor": 0.6438019599114141,
+          "payoff_ratio": 2.261896644392215,
+          "net_pnl": -929191.49
+        },
+        "stats": {
+          "total_return": -0.9292,
+          "max_drawdown": -0.9359,
+          "avg_exposure": 0.9077,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "volume_cap_4",
+        "result_sha256": "528fd0d27269dea1d3ef2d65f72dbd6c879eafe2f994b888c89fcb04c4517aec",
+        "definition_sha256": "66ca67db213418c557d50648a178f4af9b253e0c189a0d5e3848ef1543ad082c",
+        "params": {
+          "entry_variant": "volume_cap_4",
+          "require_ma20_breakout": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 2.0,
+          "require_bullish_candle": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1743,
+          "win_rate": 0.23121055651176134,
+          "win_rate_wilson95": [
+            0.21202146188076348,
+            0.2515818779984791
+          ],
+          "expectancy": -0.012667514629948366,
+          "profit_factor": 0.6354075683262866,
+          "payoff_ratio": 2.401970237612431,
+          "net_pnl": -905715.79
+        },
+        "stats": {
+          "total_return": -0.9057,
+          "max_drawdown": -0.9181,
+          "avg_exposure": 0.9131,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.022931116691766715,
+            0.02382969207674832
+          ],
+          "expectancy_delta95": [
+            -0.006131422798677004,
+            0.01041880840034116
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 338,
+          "missed_winners": 316,
+          "avoided_losers": 1026,
+          "removed_metrics": {
+            "trades": 1342,
+            "win_rate": 0.23546944858420268,
+            "win_rate_wilson95": [
+              0.21354340493206067,
+              0.25890565593810416
+            ],
+            "expectancy": -0.012665763040238451,
+            "profit_factor": 0.7001523885888778,
+            "payoff_ratio": 2.365623881304591,
+            "net_pnl": -616394.3300000001
+          },
+          "added_metrics": {
+            "trades": 1405,
+            "win_rate": 0.23558718861209965,
+            "win_rate_wilson95": [
+              0.21413671064712173,
+              0.2584796572965846
+            ],
+            "expectancy": -0.0095256846975089,
+            "profit_factor": 0.6876956571171915,
+            "payoff_ratio": 2.5446018524394685,
+            "net_pnl": -614140.95
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "boll_breakout",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "first_upper_cross",
+        "result_sha256": "5054da14c9a7b91d02613a81ac047f4edd0629ae71f06b9864e37af0b8bd41cb",
+        "definition_sha256": "f29aeadc2483a13f20ef841badb980ba67fd0b36d156be378170b7ba0eb794ea",
+        "params": {
+          "entry_variant": "first_upper_cross",
+          "require_boll_breakout": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1701,
+          "win_rate": 0.1987066431510876,
+          "win_rate_wilson95": [
+            0.18043182644519834,
+            0.21833929692485554
+          ],
+          "expectancy": -0.026034692533803642,
+          "profit_factor": 0.5174037900628735,
+          "payoff_ratio": 2.2311539488328953,
+          "net_pnl": -984143.7799999999
+        },
+        "stats": {
+          "total_return": -0.9841,
+          "max_drawdown": -0.9863,
+          "avg_exposure": 0.8131,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.014157819467315187,
+            0.026331701073752715
+          ],
+          "expectancy_delta95": [
+            -0.007551834621504485,
+            0.00976505800661117
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 693,
+          "missed_winners": 192,
+          "avoided_losers": 892,
+          "removed_metrics": {
+            "trades": 1084,
+            "win_rate": 0.17712177121771217,
+            "win_rate_wilson95": [
+              0.15554635150870166,
+              0.20097761300966194
+            ],
+            "expectancy": -0.0302217278597786,
+            "profit_factor": 0.6253482021350601,
+            "payoff_ratio": 2.7430687297710574,
+            "net_pnl": -746188.13
+          },
+          "added_metrics": {
+            "trades": 1008,
+            "win_rate": 0.18551587301587302,
+            "win_rate_wilson95": [
+              0.16272867341086655,
+              0.21069103971419173
+            ],
+            "expectancy": -0.028324125000000002,
+            "profit_factor": 0.3886459115331879,
+            "payoff_ratio": 2.3104338082745492,
+            "net_pnl": -790106.9199999999
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "23c54bbf714b3358c3c9f091073898ae5810188c9dfc41e3692212bb3fe9cf59",
+        "definition_sha256": "f29aeadc2483a13f20ef841badb980ba67fd0b36d156be378170b7ba0eb794ea",
+        "params": {
+          "entry_variant": "original",
+          "require_boll_breakout": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1777,
+          "win_rate": 0.19189645469893077,
+          "win_rate_wilson95": [
+            0.17425915701633862,
+            0.210863023417901
+          ],
+          "expectancy": -0.027402277996623526,
+          "profit_factor": 0.6620399569350854,
+          "payoff_ratio": 2.487914117021145,
+          "net_pnl": -989737.94
+        },
+        "stats": {
+          "total_return": -0.9897,
+          "max_drawdown": -0.9932,
+          "avg_exposure": 0.8164,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "breakout_new_high_60d",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "breakout_atr_1",
+        "result_sha256": "f7566859a409256cc89d84b6a63cbd81e869d33c2a3a5a2d33a202acef6efa6b",
+        "definition_sha256": "2bd5406bb6a4dd0518ec2fbb1054d1a56bceec4f3f1aa0249ef5fb8233057094",
+        "params": {
+          "entry_variant": "breakout_atr_1",
+          "require_volume": true,
+          "vol_ratio_min": 1.3,
+          "min_change_pct": 2.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1554,
+          "win_rate": 0.17953667953667954,
+          "win_rate_wilson95": [
+            0.16125153643118167,
+            0.19940233235753213
+          ],
+          "expectancy": -0.031469037323037324,
+          "profit_factor": 0.44707096532900864,
+          "payoff_ratio": 2.4065971922316787,
+          "net_pnl": -989467.1599999999
+        },
+        "stats": {
+          "total_return": -0.9895,
+          "max_drawdown": -0.9895,
+          "avg_exposure": 0.8206,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0021525784879638334,
+            0.05154847576803894
+          ],
+          "expectancy_delta95": [
+            -0.0003011773861999144,
+            0.021017227219318667
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 207,
+          "missed_winners": 184,
+          "avoided_losers": 1046,
+          "removed_metrics": {
+            "trades": 1230,
+            "win_rate": 0.14959349593495935,
+            "win_rate_wilson95": [
+              0.13075264775828038,
+              0.17061634482553267
+            ],
+            "expectancy": -0.042481438211382117,
+            "profit_factor": 0.5821460438092237,
+            "payoff_ratio": 2.7247417001896577,
+            "net_pnl": -916081.8200000001
+          },
+          "added_metrics": {
+            "trades": 1347,
+            "win_rate": 0.18040089086859687,
+            "win_rate_wilson95": [
+              0.1607839832324942,
+              0.20183558667118656
+            ],
+            "expectancy": -0.03070132071269488,
+            "profit_factor": 0.41074677458386705,
+            "payoff_ratio": 2.4137415272008194,
+            "net_pnl": -910989.9000000001
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "first_high_break",
+        "result_sha256": "ae8a4dfe1d0753aa793c08f522c7bca36a069b0f08d6f7ef65c079e66ad9bd2c",
+        "definition_sha256": "2bd5406bb6a4dd0518ec2fbb1054d1a56bceec4f3f1aa0249ef5fb8233057094",
+        "params": {
+          "entry_variant": "first_high_break",
+          "require_volume": true,
+          "vol_ratio_min": 1.3,
+          "min_change_pct": 2.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1423,
+          "win_rate": 0.1482782853127196,
+          "win_rate_wilson95": [
+            0.1307611703576161,
+            0.16768933739320926
+          ],
+          "expectancy": -0.04146163457484189,
+          "profit_factor": 0.39080188218285805,
+          "payoff_ratio": 2.433430072314554,
+          "net_pnl": -995242.3899999999
+        },
+        "stats": {
+          "total_return": -0.9952,
+          "max_drawdown": -0.9954,
+          "avg_exposure": 0.6839,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.020888693764218334,
+            0.012077639386368919
+          ],
+          "expectancy_delta95": [
+            -0.0075194862790855755,
+            0.009465572326187494
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 563,
+          "missed_winners": 128,
+          "avoided_losers": 746,
+          "removed_metrics": {
+            "trades": 874,
+            "win_rate": 0.14645308924485126,
+            "win_rate_wilson95": [
+              0.12456019685978711,
+              0.17144035722650816
+            ],
+            "expectancy": -0.04586793707093822,
+            "profit_factor": 0.6141181156441453,
+            "payoff_ratio": 2.7236982825166414,
+            "net_pnl": -680776.22
+          },
+          "added_metrics": {
+            "trades": 860,
+            "win_rate": 0.13837209302325582,
+            "win_rate_wilson95": [
+              0.11689795464939953,
+              0.16306263071717694
+            ],
+            "expectancy": -0.04518714302325581,
+            "profit_factor": 0.29691198463963725,
+            "payoff_ratio": 2.313852287309741,
+            "net_pnl": -787681.66
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "623d77b13c635ea52f6d41c0bb338f71e0548049e14c294793303386037087c0",
+        "definition_sha256": "2bd5406bb6a4dd0518ec2fbb1054d1a56bceec4f3f1aa0249ef5fb8233057094",
+        "params": {
+          "entry_variant": "original",
+          "require_volume": true,
+          "vol_ratio_min": 1.3,
+          "min_change_pct": 2.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1437,
+          "win_rate": 0.15309672929714682,
+          "win_rate_wilson95": [
+            0.13540572922872046,
+            0.17263756990978307
+          ],
+          "expectancy": -0.041999608211551846,
+          "profit_factor": 0.5954074949604027,
+          "payoff_ratio": 2.650675806790131,
+          "net_pnl": -994778.98
+        },
+        "stats": {
+          "total_return": -0.9948,
+          "max_drawdown": -0.9962,
+          "avg_exposure": 0.6672,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "platform_consolidation_breakout",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "original",
+        "result_sha256": "a92a44ffac19b0c46bf86199d13d5b34cebbd0948d5ea310ef9f2c7261e985f9",
+        "definition_sha256": "4f314b85b0a9a488ce330d6bfb62f430f9c62e130aaea3792483e219e0697d3f",
+        "params": {
+          "entry_variant": "original",
+          "platform_days": 10,
+          "range_pct_max": 8.0,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1501,
+          "win_rate": 0.25316455696202533,
+          "win_rate_wilson95": [
+            0.2318159269806715,
+            0.27577344322281033
+          ],
+          "expectancy": -0.01418026315789474,
+          "profit_factor": 0.700985345362053,
+          "payoff_ratio": 2.011370686196452,
+          "net_pnl": -886677.3800000001
+        },
+        "stats": {
+          "total_return": -0.8867,
+          "max_drawdown": -0.909,
+          "avg_exposure": 0.9148,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "platform_volume_contract",
+        "result_sha256": "e3dbfb27c58fb82d332946f57957e22951d31b56b27d172c788f8612ca4ec8be",
+        "definition_sha256": "4f314b85b0a9a488ce330d6bfb62f430f9c62e130aaea3792483e219e0697d3f",
+        "params": {
+          "entry_variant": "platform_volume_contract",
+          "platform_days": 10,
+          "range_pct_max": 8.0,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1391,
+          "win_rate": 0.2595255212077642,
+          "win_rate_wilson95": [
+            0.23717241961885085,
+            0.28320322733633013
+          ],
+          "expectancy": -0.014896127965492452,
+          "profit_factor": 0.6008130797864372,
+          "payoff_ratio": 1.8232610361674595,
+          "net_pnl": -880692.75
+        },
+        "stats": {
+          "total_return": -0.8807,
+          "max_drawdown": -0.8906,
+          "avg_exposure": 0.9038,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.019983819289031864,
+            0.031038479616711644
+          ],
+          "expectancy_delta95": [
+            -0.00681610273471688,
+            0.0049537142384131795
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 603,
+          "missed_winners": 234,
+          "avoided_losers": 664,
+          "removed_metrics": {
+            "trades": 898,
+            "win_rate": 0.26057906458797325,
+            "win_rate_wilson95": [
+              0.23293197637184346,
+              0.29026588897391115
+            ],
+            "expectancy": -0.013399595768374165,
+            "profit_factor": 0.7411706988890334,
+            "payoff_ratio": 1.9895769295817585,
+            "net_pnl": -457546.39000000013
+          },
+          "added_metrics": {
+            "trades": 788,
+            "win_rate": 0.27284263959390864,
+            "win_rate_wilson95": [
+              0.24290044600683103,
+              0.30498892984813786
+            ],
+            "expectancy": -0.014521289340101523,
+            "profit_factor": 0.5573902016208161,
+            "payoff_ratio": 1.6733969746449826,
+            "net_pnl": -529008.55
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "prior_platform_mean",
+        "result_sha256": "a1da2c8755db24c1fcec5f2f5a8fda8ebb7befd5da57624c6254e65dec350417",
+        "definition_sha256": "4f314b85b0a9a488ce330d6bfb62f430f9c62e130aaea3792483e219e0697d3f",
+        "params": {
+          "entry_variant": "prior_platform_mean",
+          "platform_days": 10,
+          "range_pct_max": 8.0,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1422,
+          "win_rate": 0.2714486638537271,
+          "win_rate_wilson95": [
+            0.2489731182339434,
+            0.29515576676983246
+          ],
+          "expectancy": -0.01193899859353024,
+          "profit_factor": 0.7272767439833886,
+          "payoff_ratio": 1.9178321847637914,
+          "net_pnl": -819518.75
+        },
+        "stats": {
+          "total_return": -0.8195,
+          "max_drawdown": -0.8526,
+          "avg_exposure": 0.9181,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0003848387570544655,
+            0.03593897926496441
+          ],
+          "expectancy_delta95": [
+            -0.0027007528812474954,
+            0.006502730829962727
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 864,
+          "missed_winners": 156,
+          "avoided_losers": 481,
+          "removed_metrics": {
+            "trades": 637,
+            "win_rate": 0.24489795918367346,
+            "win_rate_wilson95": [
+              0.21309731916173852,
+              0.2797570773069052
+            ],
+            "expectancy": -0.016223797488226062,
+            "profit_factor": 0.6280133544031058,
+            "payoff_ratio": 2.013137506469952,
+            "net_pnl": -483007.5999999999
+          },
+          "added_metrics": {
+            "trades": 558,
+            "win_rate": 0.2903225806451613,
+            "win_rate_wilson95": [
+              0.25419529879177327,
+              0.32931720722415725
+            ],
+            "expectancy": -0.010877598566308246,
+            "profit_factor": 0.6811480401635674,
+            "payoff_ratio": 1.7817383792105272,
+            "net_pnl": -355528.04999999993
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_atr_2",
+        "result_sha256": "55c975ee20bb53a5b9cb0055ad9b0473505a080a715c11bd272f9fd5ca1e2659",
+        "definition_sha256": "4f314b85b0a9a488ce330d6bfb62f430f9c62e130aaea3792483e219e0697d3f",
+        "params": {
+          "entry_variant": "original",
+          "platform_days": 10,
+          "range_pct_max": 8.0,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_atr_multiple": 2.0
+          }
+        },
+        "metrics": {
+          "trades": 1542,
+          "win_rate": 0.2496757457846952,
+          "win_rate_wilson95": [
+            0.22871210461139563,
+            0.2718835579713684
+          ],
+          "expectancy": -0.013397248378728925,
+          "profit_factor": 0.6854633317940055,
+          "payoff_ratio": 2.0771772470863956,
+          "net_pnl": -884002.4500000001
+        },
+        "stats": {
+          "total_return": -0.884,
+          "max_drawdown": -0.9042,
+          "avg_exposure": 0.9113,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.014716181688087197,
+            0.0073162944546650574
+          ],
+          "expectancy_delta95": [
+            -0.0014436305764522167,
+            0.003045648375262678
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1328,
+          "missed_winners": 35,
+          "avoided_losers": 138,
+          "removed_metrics": {
+            "trades": 173,
+            "win_rate": 0.2023121387283237,
+            "win_rate_wilson95": [
+              0.1492173396987142,
+              0.26834051999040875
+            ],
+            "expectancy": -0.0296689710982659,
+            "profit_factor": 0.40721922346603373,
+            "payoff_ratio": 1.5472378247805356,
+            "net_pnl": -226450.52000000002
+          },
+          "added_metrics": {
+            "trades": 214,
+            "win_rate": 0.2102803738317757,
+            "win_rate_wilson95": [
+              0.16103340474810893,
+              0.26974565673509726
+            ],
+            "expectancy": -0.023962341121495326,
+            "profit_factor": 0.32077239217539416,
+            "payoff_ratio": 1.7377074864556323,
+            "net_pnl": -305410.7
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_budget_0p5pct",
+        "result_sha256": "126e40546f6e74b499cc93cc6d60f852ae39719448286bdfd913c4b9bb4845ad",
+        "definition_sha256": "4f314b85b0a9a488ce330d6bfb62f430f9c62e130aaea3792483e219e0697d3f",
+        "params": {
+          "entry_variant": "original",
+          "platform_days": 10,
+          "range_pct_max": 8.0,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {
+          "entry_risk": {
+            "risk_per_trade_pct": 0.005
+          }
+        },
+        "metrics": {
+          "trades": 1502,
+          "win_rate": 0.25233022636484687,
+          "win_rate_wilson95": [
+            0.23101451597841371,
+            0.2749096130933294
+          ],
+          "expectancy": -0.014366875499334223,
+          "profit_factor": 0.6977550339336317,
+          "payoff_ratio": 2.00884043888829,
+          "net_pnl": -846683.88
+        },
+        "stats": {
+          "total_return": -0.8467,
+          "max_drawdown": -0.8736,
+          "avg_exposure": 0.7844,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.002441389846736121,
+            0.0
+          ],
+          "expectancy_delta95": [
+            -0.0005825297103549994,
+            1.681283615704992e-05
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1500,
+          "missed_winners": 1,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 1,
+            "win_rate": 1.0,
+            "win_rate_wilson95": [
+              0.20654329147389294,
+              1.0
+            ],
+            "expectancy": 0.187887,
+            "profit_factor": null,
+            "payoff_ratio": null,
+            "net_pnl": 3395.72
+          },
+          "added_metrics": {
+            "trades": 2,
+            "win_rate": 0.0,
+            "win_rate_wilson95": [
+              0.0,
+              0.6576280471103807
+            ],
+            "expectancy": -0.064751,
+            "profit_factor": 0.0,
+            "payoff_ratio": null,
+            "net_pnl": -2457.1499999999996
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_signal_low",
+        "result_sha256": "6fef0ff91632f471b27eac0e3a63a85e6fa4774186596d9cc484facebbf78c9c",
+        "definition_sha256": "4f314b85b0a9a488ce330d6bfb62f430f9c62e130aaea3792483e219e0697d3f",
+        "params": {
+          "entry_variant": "original",
+          "platform_days": 10,
+          "range_pct_max": 8.0,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_signal_low": true
+          }
+        },
+        "metrics": {
+          "trades": 1559,
+          "win_rate": 0.24438742783835793,
+          "win_rate_wilson95": [
+            0.22370118504180536,
+            0.2663303063134286
+          ],
+          "expectancy": -0.013303844130853112,
+          "profit_factor": 0.6701993099130481,
+          "payoff_ratio": 2.1369465301616173,
+          "net_pnl": -882145.8300000001
+        },
+        "stats": {
+          "total_return": -0.8821,
+          "max_drawdown": -0.8977,
+          "avg_exposure": 0.9081,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.022541406603996117,
+            0.005681434111387826
+          ],
+          "expectancy_delta95": [
+            -0.00240600779614176,
+            0.004076948126187635
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1266,
+          "missed_winners": 50,
+          "avoided_losers": 185,
+          "removed_metrics": {
+            "trades": 235,
+            "win_rate": 0.2127659574468085,
+            "win_rate_wilson95": [
+              0.1652763229021733,
+              0.26949550914048587
+            ],
+            "expectancy": -0.018674944680851065,
+            "profit_factor": 0.6831396863798327,
+            "payoff_ratio": 2.13674498282215,
+            "net_pnl": -138138.98
+          },
+          "added_metrics": {
+            "trades": 293,
+            "win_rate": 0.24914675767918087,
+            "win_rate_wilson95": [
+              0.20308239078553061,
+              0.3017040003402416
+            ],
+            "expectancy": -0.015135713310580202,
+            "profit_factor": 0.5284140877479945,
+            "payoff_ratio": 1.9414801765029015,
+            "net_pnl": -236789.36999999997
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "ma_convergence_breakout",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "clv_070",
+        "result_sha256": "b30986c263ebe82f85bbd44774616962799c75d271165689b2b2c21516a9cc52",
+        "definition_sha256": "458f1668678799eecde3744ede200445197105a821a3ce6930c9abb52e0420b9",
+        "params": {
+          "entry_variant": "clv_070",
+          "spread_pct_max": 2.5,
+          "squeeze_days": 5,
+          "min_change_pct": 2.0,
+          "require_volume": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 2025,
+          "win_rate": 0.2217283950617284,
+          "win_rate_wilson95": [
+            0.20417137668265292,
+            0.24033922483498157
+          ],
+          "expectancy": -0.022480120493827162,
+          "profit_factor": 0.5539858668516384,
+          "payoff_ratio": 1.8377137372606278,
+          "net_pnl": -986473.94
+        },
+        "stats": {
+          "total_return": -0.9865,
+          "max_drawdown": -0.9885,
+          "avg_exposure": 0.8451,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.019344589842185744,
+            0.008253429904107252
+          ],
+          "expectancy_delta95": [
+            -0.006519636526238587,
+            0.0006333821410007852
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1343,
+          "missed_winners": 190,
+          "avoided_losers": 554,
+          "removed_metrics": {
+            "trades": 744,
+            "win_rate": 0.2553763440860215,
+            "win_rate_wilson95": [
+              0.22535338725333787,
+              0.28791252360265085
+            ],
+            "expectancy": -0.01451476747311828,
+            "profit_factor": 0.6754797428531307,
+            "payoff_ratio": 1.8653299824596385,
+            "net_pnl": -214592.09000000003
+          },
+          "added_metrics": {
+            "trades": 682,
+            "win_rate": 0.24486803519061584,
+            "win_rate_wilson95": [
+              0.2140827533113887,
+              0.2785114550305959
+            ],
+            "expectancy": -0.021482403225806454,
+            "profit_factor": 0.5835278077558969,
+            "payoff_ratio": 1.5644853321305656,
+            "net_pnl": -253492.53
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "first_squeeze_release",
+        "result_sha256": "d867c8b656e9435e79304e0408dde296b27056c0cac9156a9cb13f5d7bbe4f00",
+        "definition_sha256": "458f1668678799eecde3744ede200445197105a821a3ce6930c9abb52e0420b9",
+        "params": {
+          "entry_variant": "first_squeeze_release",
+          "spread_pct_max": 2.5,
+          "squeeze_days": 5,
+          "min_change_pct": 2.0,
+          "require_volume": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 353,
+          "win_rate": 0.32294617563739375,
+          "win_rate_wilson95": [
+            0.2762977129282714,
+            0.37340680582738933
+          ],
+          "expectancy": 0.0002646033994334289,
+          "profit_factor": 0.9880789763729789,
+          "payoff_ratio": 2.1216774809017425,
+          "net_pnl": -10394.970000000001
+        },
+        "stats": {
+          "total_return": -0.0104,
+          "max_drawdown": -0.2385,
+          "avg_exposure": 0.2047,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "coverage_below_half"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.04144803009600131,
+            0.15275292061797605
+          ],
+          "expectancy_delta95": [
+            0.00872676096920044,
+            0.0321564498766975
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 5,
+          "missed_winners": 473,
+          "avoided_losers": 1609,
+          "removed_metrics": {
+            "trades": 2082,
+            "win_rate": 0.2271853986551393,
+            "win_rate_wilson95": [
+              0.2096986179571117,
+              0.24567709225980977
+            ],
+            "expectancy": -0.019555165225744478,
+            "profit_factor": 0.5835242556181881,
+            "payoff_ratio": 1.9429802951808501,
+            "net_pnl": -975847.9400000001
+          },
+          "added_metrics": {
+            "trades": 348,
+            "win_rate": 0.32471264367816094,
+            "win_rate_wilson95": [
+              0.27765897934076567,
+              0.37559407544297785
+            ],
+            "expectancy": 0.000757905172413791,
+            "profit_factor": 1.009411967748233,
+            "payoff_ratio": 2.152149079277512,
+            "net_pnl": 7990.460000000005
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "bb389aef3c85b86a848fbad508013e7892b404b2c7c1920735d63b6e251b88a8",
+        "definition_sha256": "458f1668678799eecde3744ede200445197105a821a3ce6930c9abb52e0420b9",
+        "params": {
+          "entry_variant": "original",
+          "spread_pct_max": 2.5,
+          "squeeze_days": 5,
+          "min_change_pct": 2.0,
+          "require_volume": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 2087,
+          "win_rate": 0.22712026832774318,
+          "win_rate_wilson95": [
+            0.20965575887823906,
+            0.2455875268876458
+          ],
+          "expectancy": -0.01959224197412554,
+          "profit_factor": 0.5831028085033083,
+          "payoff_ratio": 1.940726569069099,
+          "net_pnl": -978468.0599999999
+        },
+        "stats": {
+          "total_return": -0.9785,
+          "max_drawdown": -0.9792,
+          "avg_exposure": 0.8723,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "pullback_to_support",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "confirm_high_3",
+        "result_sha256": "05f95bf24a7a376ffade126f67daea57c3c57c1d9a79c2074778d0e97190378e",
+        "definition_sha256": "ea2c1a6a05b7d32f3192cfcae1cd21a822f35615f13262abf57bf3be92108cf0",
+        "params": {
+          "entry_variant": "confirm_high_3",
+          "use_ma20_proximity": true,
+          "ma_proximity": 0.02,
+          "use_volume_filter": true,
+          "vol_ratio_max": 0.8,
+          "require_above_ma60": true,
+          "require_positive_momentum": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1939,
+          "win_rate": 0.1820526044352759,
+          "win_rate_wilson95": [
+            0.16551051384035764,
+            0.1998520561190255
+          ],
+          "expectancy": -0.019189517276946882,
+          "profit_factor": 0.4536078422791082,
+          "payoff_ratio": 2.3145112491939313,
+          "net_pnl": -971297.6800000002
+        },
+        "stats": {
+          "total_return": -0.9713,
+          "max_drawdown": -0.974,
+          "avg_exposure": 0.842,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.050092428474388544,
+            -0.0027529115915854653
+          ],
+          "expectancy_delta95": [
+            -0.006967627434279782,
+            0.00034404660264181235
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 7,
+          "missed_winners": 630,
+          "avoided_losers": 2382,
+          "removed_metrics": {
+            "trades": 3012,
+            "win_rate": 0.20916334661354583,
+            "win_rate_wilson95": [
+              0.19501338925379938,
+              0.22405424347598327
+            ],
+            "expectancy": -0.01575265272244356,
+            "profit_factor": 0.37791245208034724,
+            "payoff_ratio": 1.8990302180622929,
+            "net_pnl": -984630.74
+          },
+          "added_metrics": {
+            "trades": 1932,
+            "win_rate": 0.18167701863354038,
+            "win_rate_wilson95": [
+              0.16512065083616545,
+              0.19949678480526312
+            ],
+            "expectancy": -0.019175234989648033,
+            "profit_factor": 0.45483785929887266,
+            "payoff_ratio": 2.324519723057954,
+            "net_pnl": -965779.27
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "1096ef7e0a21e0b953d9ba053371aa524ca9b2252dd742342d1a5093ec1cc359",
+        "definition_sha256": "ea2c1a6a05b7d32f3192cfcae1cd21a822f35615f13262abf57bf3be92108cf0",
+        "params": {
+          "entry_variant": "original",
+          "use_ma20_proximity": true,
+          "ma_proximity": 0.02,
+          "use_volume_filter": true,
+          "vol_ratio_max": 0.8,
+          "require_above_ma60": true,
+          "require_positive_momentum": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 3019,
+          "win_rate": 0.20934084133819145,
+          "win_rate_wilson95": [
+            0.1952021182031921,
+            0.2242183370399804
+          ],
+          "expectancy": -0.0157737999337529,
+          "profit_factor": 0.37706103922002127,
+          "payoff_ratio": 1.8939535132659,
+          "net_pnl": -988842.0000000001
+        },
+        "stats": {
+          "total_return": -0.9888,
+          "max_drawdown": -0.9891,
+          "avg_exposure": 0.7924,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "pullback_ma20_bounce",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "first_pullback_10",
+        "result_sha256": "c0d1ecb09caaf772b318dc37b7202b72a9365fcda34a6f8abd4305329bcb711f",
+        "definition_sha256": "8f44cd271439c2350b027e620468a1cc4579b559da38e28cfdbcaa440925120a",
+        "params": {
+          "entry_variant": "first_pullback_10",
+          "use_ma20_proximity": true,
+          "ma_proximity": 2.0,
+          "require_ma_alignment": true,
+          "require_positive_change": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 2495,
+          "win_rate": 0.20400801603206412,
+          "win_rate_wilson95": [
+            0.18865623287028266,
+            0.22026988713668377
+          ],
+          "expectancy": -0.010328664128256513,
+          "profit_factor": 0.5283005540660252,
+          "payoff_ratio": 2.3141589353147145,
+          "net_pnl": -922236.2
+        },
+        "stats": {
+          "total_return": -0.9222,
+          "max_drawdown": -0.9229,
+          "avg_exposure": 0.9115,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.07630571319665344,
+            -0.03509758325816422
+          ],
+          "expectancy_delta95": [
+            -0.005697273605963431,
+            0.0019071436723428145
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 235,
+          "missed_winners": 883,
+          "avoided_losers": 2464,
+          "removed_metrics": {
+            "trades": 3347,
+            "win_rate": 0.26381834478637584,
+            "win_rate_wilson95": [
+              0.24916476109086788,
+              0.2790134732965767
+            ],
+            "expectancy": -0.00800240573648043,
+            "profit_factor": 0.5998285178280212,
+            "payoff_ratio": 1.915205351369262,
+            "net_pnl": -793056.65
+          },
+          "added_metrics": {
+            "trades": 2260,
+            "win_rate": 0.20575221238938052,
+            "win_rate_wilson95": [
+              0.18959139998134844,
+              0.22291166560415893
+            ],
+            "expectancy": -0.009947888938053097,
+            "profit_factor": 0.5698632850188908,
+            "payoff_ratio": 2.3324404457568546,
+            "net_pnl": -734254.47
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "ma20_nondeclining",
+        "result_sha256": "637a93f428456df52a3da357d5d37f58ac7097077c32a12b2a084894aae84748",
+        "definition_sha256": "8f44cd271439c2350b027e620468a1cc4579b559da38e28cfdbcaa440925120a",
+        "params": {
+          "entry_variant": "ma20_nondeclining",
+          "use_ma20_proximity": true,
+          "ma_proximity": 2.0,
+          "require_ma_alignment": true,
+          "require_positive_change": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 3686,
+          "win_rate": 0.25420510037981553,
+          "win_rate_wilson95": [
+            0.2404093948469342,
+            0.2685126141628836
+          ],
+          "expectancy": -0.009182741182854042,
+          "profit_factor": 0.5352615460407047,
+          "payoff_ratio": 1.8776876599362202,
+          "net_pnl": -961917.26
+        },
+        "stats": {
+          "total_return": -0.9619,
+          "max_drawdown": -0.9627,
+          "avg_exposure": 0.88,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.013498336272315682,
+            0.004051793781620737
+          ],
+          "expectancy_delta95": [
+            -0.0022433667582852142,
+            0.0007618707208833186
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 2933,
+          "missed_winners": 174,
+          "avoided_losers": 475,
+          "removed_metrics": {
+            "trades": 649,
+            "win_rate": 0.26810477657935283,
+            "win_rate_wilson95": [
+              0.2354615278655839,
+              0.3034771672175725
+            ],
+            "expectancy": -0.004367204930662558,
+            "profit_factor": 0.5866917223824457,
+            "payoff_ratio": 2.255521639108053,
+            "net_pnl": -157866.99
+          },
+          "added_metrics": {
+            "trades": 753,
+            "win_rate": 0.24701195219123506,
+            "win_rate_wilson95": [
+              0.21754321439835708,
+              0.279048939098491
+            ],
+            "expectancy": -0.007847010624169986,
+            "profit_factor": 0.4597635671793143,
+            "payoff_ratio": 2.0426765184539866,
+            "net_pnl": -200786.05
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "0475e76f58706704339f5e5552a8e435fac52b27db7e45bd4fdee81f28bff399",
+        "definition_sha256": "8f44cd271439c2350b027e620468a1cc4579b559da38e28cfdbcaa440925120a",
+        "params": {
+          "entry_variant": "original",
+          "use_ma20_proximity": true,
+          "ma_proximity": 2.0,
+          "require_ma_alignment": true,
+          "require_positive_change": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 3582,
+          "win_rate": 0.25879396984924624,
+          "win_rate_wilson95": [
+            0.2447147415663068,
+            0.27339001799697116
+          ],
+          "expectancy": -0.008416771635957566,
+          "profit_factor": 0.563372648798872,
+          "payoff_ratio": 1.9252259028808554,
+          "net_pnl": -949350.8899999999
+        },
+        "stats": {
+          "total_return": -0.9494,
+          "max_drawdown": -0.9504,
+          "avg_exposure": 0.8957,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "risk_atr_2",
+        "result_sha256": "e0a982251247c2bc694f50cff941aab67f7c0ceba7ca953d2492fb42a8624c38",
+        "definition_sha256": "8f44cd271439c2350b027e620468a1cc4579b559da38e28cfdbcaa440925120a",
+        "params": {
+          "entry_variant": "original",
+          "use_ma20_proximity": true,
+          "ma_proximity": 2.0,
+          "require_ma_alignment": true,
+          "require_positive_change": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_atr_multiple": 2.0
+          }
+        },
+        "metrics": {
+          "trades": 3582,
+          "win_rate": 0.25879396984924624,
+          "win_rate_wilson95": [
+            0.2447147415663068,
+            0.27339001799697116
+          ],
+          "expectancy": -0.008419419039642658,
+          "profit_factor": 0.5632579763278485,
+          "payoff_ratio": 1.9250042037229214,
+          "net_pnl": -949387.54
+        },
+        "stats": {
+          "total_return": -0.9494,
+          "max_drawdown": -0.9504,
+          "avg_exposure": 0.8955,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0,
+            0.0
+          ],
+          "expectancy_delta95": [
+            -1.6935414013904234e-05,
+            8.917321006798569e-06
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 3582,
+          "missed_winners": 0,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_budget_0p5pct",
+        "result_sha256": "c4e523f0190f98ae7e32d5b98781d0445496eddb3c0b0be2dbb578f2ed8dc69a",
+        "definition_sha256": "8f44cd271439c2350b027e620468a1cc4579b559da38e28cfdbcaa440925120a",
+        "params": {
+          "entry_variant": "original",
+          "use_ma20_proximity": true,
+          "ma_proximity": 2.0,
+          "require_ma_alignment": true,
+          "require_positive_change": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "risk_per_trade_pct": 0.005
+          }
+        },
+        "metrics": {
+          "trades": 3582,
+          "win_rate": 0.25879396984924624,
+          "win_rate_wilson95": [
+            0.2447147415663068,
+            0.27339001799697116
+          ],
+          "expectancy": -0.008416771635957566,
+          "profit_factor": 0.563372648798872,
+          "payoff_ratio": 1.9252259028808554,
+          "net_pnl": -949350.8899999999
+        },
+        "stats": {
+          "total_return": -0.9494,
+          "max_drawdown": -0.9504,
+          "avg_exposure": 0.8957,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0,
+            0.0
+          ],
+          "expectancy_delta95": [
+            0.0,
+            0.0
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 3582,
+          "missed_winners": 0,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_signal_low",
+        "result_sha256": "1ad4411308cd30cd4ce3ef7eaf3feec3fb227f1ddd9e75822e320276f348a39a",
+        "definition_sha256": "8f44cd271439c2350b027e620468a1cc4579b559da38e28cfdbcaa440925120a",
+        "params": {
+          "entry_variant": "original",
+          "use_ma20_proximity": true,
+          "ma_proximity": 2.0,
+          "require_ma_alignment": true,
+          "require_positive_change": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_signal_low": true
+          }
+        },
+        "metrics": {
+          "trades": 3709,
+          "win_rate": 0.2480452952278242,
+          "win_rate_wilson95": [
+            0.23441156014616926,
+            0.2622004148974199
+          ],
+          "expectancy": -0.0059428185494742524,
+          "profit_factor": 0.6364959204822986,
+          "payoff_ratio": 2.2944323588097206,
+          "net_pnl": -903545.86
+        },
+        "stats": {
+          "total_return": -0.9035,
+          "max_drawdown": -0.9131,
+          "avg_exposure": 0.8957,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.01917705350422762,
+            -0.0027566967219494623
+          ],
+          "expectancy_delta95": [
+            0.0008302067287971129,
+            0.004329900864916937
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 3083,
+          "missed_winners": 134,
+          "avoided_losers": 365,
+          "removed_metrics": {
+            "trades": 499,
+            "win_rate": 0.2685370741482966,
+            "win_rate_wilson95": [
+              0.23152692152801752,
+              0.3090838791694586
+            ],
+            "expectancy": -0.0065091963927855715,
+            "profit_factor": 0.4306180396478265,
+            "payoff_ratio": 1.9989543498129483,
+            "net_pnl": -150876.53999999998
+          },
+          "added_metrics": {
+            "trades": 626,
+            "win_rate": 0.25878594249201275,
+            "win_rate_wilson95": [
+              0.22602110911885614,
+              0.2944932551276464
+            ],
+            "expectancy": 0.006185829073482429,
+            "profit_factor": 0.9352675536639965,
+            "payoff_ratio": 3.6396361172338354,
+            "net_pnl": -21115.880000000005
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "rsi_midline_pullback",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "original",
+        "result_sha256": "023ec97b5cb3353507e96b4819f46f75e83ef7fc1f8f375d564538fae04971ad",
+        "definition_sha256": "e666b8b07e45860f11d8e130826ec6d71169e66ccd7c8e4db5104d3dcb3fc3e3",
+        "params": {
+          "entry_variant": "original",
+          "rsi_period": 14,
+          "mid_low": 45.0,
+          "mid_high": 60.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 2228,
+          "win_rate": 0.2127468581687612,
+          "win_rate_wilson95": [
+            0.19625505910512714,
+            0.23022753715080785
+          ],
+          "expectancy": -0.018626109515260322,
+          "profit_factor": 0.5027874277928173,
+          "payoff_ratio": 2.1569461952935676,
+          "net_pnl": -980281.5399999999
+        },
+        "stats": {
+          "total_return": -0.9803,
+          "max_drawdown": -0.9819,
+          "avg_exposure": 0.8114,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "rsi_cross_50",
+        "result_sha256": "28ba4dfea6a821a35b80997a60f29b220ac03f21bbeef2c6fd603f4aba2d0917",
+        "definition_sha256": "e666b8b07e45860f11d8e130826ec6d71169e66ccd7c8e4db5104d3dcb3fc3e3",
+        "params": {
+          "entry_variant": "rsi_cross_50",
+          "rsi_period": 14,
+          "mid_low": 45.0,
+          "mid_high": 60.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1899,
+          "win_rate": 0.21853607161664035,
+          "win_rate_wilson95": [
+            0.2005273773944999,
+            0.23768124701228202
+          ],
+          "expectancy": -0.007582169562927855,
+          "profit_factor": 0.7171964244573471,
+          "payoff_ratio": 2.630111349421185,
+          "net_pnl": -785543.1100000001
+        },
+        "stats": {
+          "total_return": -0.7855,
+          "max_drawdown": -0.8007,
+          "avg_exposure": 0.7291,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.01622125473789131,
+            0.02588868596085567
+          ],
+          "expectancy_delta95": [
+            0.004880727087476127,
+            0.016045245162561776
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 29,
+          "missed_winners": 465,
+          "avoided_losers": 1734,
+          "removed_metrics": {
+            "trades": 2199,
+            "win_rate": 0.21145975443383355,
+            "win_rate_wilson95": [
+              0.19490294033784528,
+              0.22902295610427748
+            ],
+            "expectancy": -0.018616294224647566,
+            "profit_factor": 0.5015642886167347,
+            "payoff_ratio": 2.17855458267902,
+            "net_pnl": -978710.16
+          },
+          "added_metrics": {
+            "trades": 1870,
+            "win_rate": 0.21711229946524063,
+            "win_rate_wilson95": [
+              0.19901594316414256,
+              0.23636856318900917
+            ],
+            "expectancy": -0.00743454385026738,
+            "profit_factor": 0.719984470142925,
+            "payoff_ratio": 2.668078468918479,
+            "net_pnl": -765760.27
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "rsi_turn_up",
+        "result_sha256": "becda4c8bc271631f067b6a5218f12c9ffa4de9a8b53601ec293406379f40ab1",
+        "definition_sha256": "e666b8b07e45860f11d8e130826ec6d71169e66ccd7c8e4db5104d3dcb3fc3e3",
+        "params": {
+          "entry_variant": "rsi_turn_up",
+          "rsi_period": 14,
+          "mid_low": 45.0,
+          "mid_high": 60.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 2268,
+          "win_rate": 0.19973544973544974,
+          "win_rate_wilson95": [
+            0.1837949840985355,
+            0.21669138783866293
+          ],
+          "expectancy": -0.016570313492063494,
+          "profit_factor": 0.47114157564948406,
+          "payoff_ratio": 2.3566246663629005,
+          "net_pnl": -973400.49
+        },
+        "stats": {
+          "total_return": -0.9734,
+          "max_drawdown": -0.9757,
+          "avg_exposure": 0.8582,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.03157919309187804,
+            0.0055533799305763475
+          ],
+          "expectancy_delta95": [
+            -0.0033836963439320823,
+            0.0073196333026738555
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 269,
+          "missed_winners": 410,
+          "avoided_losers": 1549,
+          "removed_metrics": {
+            "trades": 1959,
+            "win_rate": 0.20929045431342522,
+            "win_rate_wilson95": [
+              0.19185357236645967,
+              0.22786526791082
+            ],
+            "expectancy": -0.018620031138335887,
+            "profit_factor": 0.5017265989602434,
+            "payoff_ratio": 2.2044425371608733,
+            "net_pnl": -855943.66
+          },
+          "added_metrics": {
+            "trades": 1999,
+            "win_rate": 0.19409704852426213,
+            "win_rate_wilson95": [
+              0.17735243380449434,
+              0.21201515272855948
+            ],
+            "expectancy": -0.016391533266633316,
+            "profit_factor": 0.46190652487311223,
+            "payoff_ratio": 2.4404392421524967,
+            "net_pnl": -851782.25
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "n_day_low_reversal",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "clv_065",
+        "result_sha256": "3bbeb9511065622fbc105df11b9ea0e7c6deff8128184ef4170800424f6cb464",
+        "definition_sha256": "88824150fd50333bbcf17862e8f5a64cdaac643647b4dfc11b6638ab22905b59",
+        "params": {
+          "entry_variant": "clv_065",
+          "require_n_day_low": true,
+          "require_bullish_candle": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 518,
+          "win_rate": 0.4498069498069498,
+          "win_rate_wilson95": [
+            0.40749161512222426,
+            0.49286128890075903
+          ],
+          "expectancy": 0.010634111969111968,
+          "profit_factor": 1.3166810750694844,
+          "payoff_ratio": 1.6316069101957702,
+          "net_pnl": 539329.63
+        },
+        "stats": {
+          "total_return": 0.5393,
+          "max_drawdown": -0.2016,
+          "avg_exposure": 0.3878,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "total_return_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 59,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.043473447958120574,
+            0.03570032151695628
+          ],
+          "expectancy_delta95": [
+            -0.011345156922444762,
+            0.009204204634118179
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 363,
+          "missed_winners": 180,
+          "avoided_losers": 198,
+          "removed_metrics": {
+            "trades": 378,
+            "win_rate": 0.47619047619047616,
+            "win_rate_wilson95": [
+              0.4263347768117849,
+              0.5265252572965993
+            ],
+            "expectancy": 0.01387128835978836,
+            "profit_factor": 1.320757486836903,
+            "payoff_ratio": 1.5788311972088116,
+            "net_pnl": 520173.77000000014
+          },
+          "added_metrics": {
+            "trades": 155,
+            "win_rate": 0.49032258064516127,
+            "win_rate_wilson95": [
+              0.4128130462366372,
+              0.5683002137657802
+            ],
+            "expectancy": 0.014537077419354836,
+            "profit_factor": 1.486492774467366,
+            "payoff_ratio": 1.5362979295746697,
+            "net_pnl": 227631.19999999998
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "confirm_high_3",
+        "result_sha256": "db0215f46e18b554b790de1c2b9fafc6e253bc74291edafac7f1904107f24e8f",
+        "definition_sha256": "88824150fd50333bbcf17862e8f5a64cdaac643647b4dfc11b6638ab22905b59",
+        "params": {
+          "entry_variant": "confirm_high_3",
+          "require_n_day_low": true,
+          "require_bullish_candle": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 403,
+          "win_rate": 0.4491315136476427,
+          "win_rate_wilson95": [
+            0.4012752983441345,
+            0.4979483798637971
+          ],
+          "expectancy": 0.007163034739454093,
+          "profit_factor": 1.2277761457220564,
+          "payoff_ratio": 1.5462990991770176,
+          "net_pnl": 273599.62
+        },
+        "stats": {
+          "total_return": 0.2736,
+          "max_drawdown": -0.2359,
+          "avg_exposure": 0.2864,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 59,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.06942116561237391,
+            0.06024419393684071
+          ],
+          "expectancy_delta95": [
+            -0.015787975931136185,
+            0.007122442079935231
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 0,
+          "missed_winners": 337,
+          "avoided_losers": 404,
+          "removed_metrics": {
+            "trades": 741,
+            "win_rate": 0.45479082321187586,
+            "win_rate_wilson95": [
+              0.41926207943912414,
+              0.4907859092876065
+            ],
+            "expectancy": 0.011469055330634277,
+            "profit_factor": 1.3078847668585647,
+            "payoff_ratio": 1.6263878712555402,
+            "net_pnl": 970605.7699999998
+          },
+          "added_metrics": {
+            "trades": 403,
+            "win_rate": 0.4491315136476427,
+            "win_rate_wilson95": [
+              0.4012752983441345,
+              0.4979483798637971
+            ],
+            "expectancy": 0.007163034739454094,
+            "profit_factor": 1.2277761457220564,
+            "payoff_ratio": 1.5462990991770178,
+            "net_pnl": 273599.62
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "ba41ca1812da6fe3f541e3388accc5901445c9e1201ecbc77408a78f6556f606",
+        "definition_sha256": "88824150fd50333bbcf17862e8f5a64cdaac643647b4dfc11b6638ab22905b59",
+        "params": {
+          "entry_variant": "original",
+          "require_n_day_low": true,
+          "require_bullish_candle": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 741,
+          "win_rate": 0.45479082321187586,
+          "win_rate_wilson95": [
+            0.41926207943912414,
+            0.4907859092876065
+          ],
+          "expectancy": 0.011469055330634277,
+          "profit_factor": 1.3078847668585645,
+          "payoff_ratio": 1.6263878712555402,
+          "net_pnl": 970605.77
+        },
+        "stats": {
+          "total_return": 0.9706,
+          "max_drawdown": -0.2548,
+          "avg_exposure": 0.565,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "risk_atr_2",
+        "result_sha256": "bfb40f5314573c91124226303106a186623a830c774840a2573225281483d561",
+        "definition_sha256": "88824150fd50333bbcf17862e8f5a64cdaac643647b4dfc11b6638ab22905b59",
+        "params": {
+          "entry_variant": "original",
+          "require_n_day_low": true,
+          "require_bullish_candle": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_atr_multiple": 2.0
+          }
+        },
+        "metrics": {
+          "trades": 756,
+          "win_rate": 0.44312169312169314,
+          "win_rate_wilson95": [
+            0.4080868268417119,
+            0.478731689017383
+          ],
+          "expectancy": 0.010331333333333333,
+          "profit_factor": 1.2644539092581972,
+          "payoff_ratio": 1.6557765891411538,
+          "net_pnl": 823800.4600000001
+        },
+        "stats": {
+          "total_return": 0.8238,
+          "max_drawdown": -0.3114,
+          "avg_exposure": 0.5584,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse",
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 59,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.02231344204725666,
+            -0.0024448250044607047
+          ],
+          "expectancy_delta95": [
+            -0.0024050045823769445,
+            0.00010776649521117628
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 739,
+          "missed_winners": 0,
+          "avoided_losers": 2,
+          "removed_metrics": {
+            "trades": 2,
+            "win_rate": 0.0,
+            "win_rate_wilson95": [
+              0.0,
+              0.6576280471103807
+            ],
+            "expectancy": -0.04702050000000001,
+            "profit_factor": 0.0,
+            "payoff_ratio": null,
+            "net_pnl": -9718.88
+          },
+          "added_metrics": {
+            "trades": 17,
+            "win_rate": 0.17647058823529413,
+            "win_rate_wilson95": [
+              0.0619101371254899,
+              0.41029929017375777
+            ],
+            "expectancy": -0.034908941176470594,
+            "profit_factor": 0.23527103051991455,
+            "payoff_ratio": 1.1657626111634316,
+            "net_pnl": -62817.950000000004
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_budget_0p5pct",
+        "result_sha256": "01c692f0436c32eb96b1c0f968c5cc451eacaa7de3da60fa2a54954e4fe8d99b",
+        "definition_sha256": "88824150fd50333bbcf17862e8f5a64cdaac643647b4dfc11b6638ab22905b59",
+        "params": {
+          "entry_variant": "original",
+          "require_n_day_low": true,
+          "require_bullish_candle": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {
+          "entry_risk": {
+            "risk_per_trade_pct": 0.005
+          }
+        },
+        "metrics": {
+          "trades": 741,
+          "win_rate": 0.45479082321187586,
+          "win_rate_wilson95": [
+            0.41926207943912414,
+            0.4907859092876065
+          ],
+          "expectancy": 0.011469055330634277,
+          "profit_factor": 1.31599635648577,
+          "payoff_ratio": 1.6263878712555402,
+          "net_pnl": 806505.24
+        },
+        "stats": {
+          "total_return": 0.8065,
+          "max_drawdown": -0.2176,
+          "avg_exposure": 0.477,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "total_return_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 59,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0,
+            0.0
+          ],
+          "expectancy_delta95": [
+            0.0,
+            0.0
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 741,
+          "missed_winners": 0,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_signal_low",
+        "result_sha256": "1ba69b5cbeb1ad27aa4f19bbf8b127b67f3b351d207a6959190b153a32db51df",
+        "definition_sha256": "88824150fd50333bbcf17862e8f5a64cdaac643647b4dfc11b6638ab22905b59",
+        "params": {
+          "entry_variant": "original",
+          "require_n_day_low": true,
+          "require_bullish_candle": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.5
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_signal_low": true
+          }
+        },
+        "metrics": {
+          "trades": 869,
+          "win_rate": 0.33716915995397007,
+          "win_rate_wilson95": [
+            0.30651491992880847,
+            0.36925672065294185
+          ],
+          "expectancy": 0.00973312428078251,
+          "profit_factor": 1.3344201337755923,
+          "payoff_ratio": 2.713999058530946,
+          "net_pnl": 938276.62
+        },
+        "stats": {
+          "total_return": 0.9383,
+          "max_drawdown": -0.2884,
+          "avg_exposure": 0.4505,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse",
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 59,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.15309913423548177,
+            -0.08248037745695604
+          ],
+          "expectancy_delta95": [
+            -0.0062353240704905175,
+            0.002770199789240393
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 688,
+          "missed_winners": 19,
+          "avoided_losers": 34,
+          "removed_metrics": {
+            "trades": 53,
+            "win_rate": 0.3584905660377358,
+            "win_rate_wilson95": [
+              0.2430176984112362,
+              0.4930910670000117
+            ],
+            "expectancy": 0.006572509433962259,
+            "profit_factor": 1.3127449374335773,
+            "payoff_ratio": 2.1180991741453483,
+            "net_pnl": 74798.64999999997
+          },
+          "added_metrics": {
+            "trades": 181,
+            "win_rate": 0.30939226519337015,
+            "win_rate_wilson95": [
+              0.246597339342569,
+              0.380110068513671
+            ],
+            "expectancy": 0.0029252872928176793,
+            "profit_factor": 1.0911064717822156,
+            "payoff_ratio": 2.476499805990153,
+            "net_pnl": 51363.029999999984
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "oversold_bounce",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "original",
+        "result_sha256": "7dbb06ce7fa14c25894945d177e0b788f6db33e01160e562ab0a957795d94b15",
+        "definition_sha256": "d760ae577a47a40b2a20d94eddf7434d84f57dd6c6230c655156b2b6dc1fe4df",
+        "params": {
+          "entry_variant": "original",
+          "use_rsi_filter": true,
+          "rsi_max": 30.0,
+          "require_bullish_candle": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.2
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1021,
+          "win_rate": 0.356513222331048,
+          "win_rate_wilson95": [
+            0.3277213292743596,
+            0.38638083051306515
+          ],
+          "expectancy": -0.0037105406464250736,
+          "profit_factor": 0.8374148032900787,
+          "payoff_ratio": 1.6048404383712633,
+          "net_pnl": -397524.23
+        },
+        "stats": {
+          "total_return": -0.3975,
+          "max_drawdown": -0.5308,
+          "avg_exposure": 0.6798,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "rsi_recover",
+        "result_sha256": "045a40357c2882f7a6a0020e17b9c242d1dd316f87e7547e72e56528b5fbe2ae",
+        "definition_sha256": "d760ae577a47a40b2a20d94eddf7434d84f57dd6c6230c655156b2b6dc1fe4df",
+        "params": {
+          "entry_variant": "rsi_recover",
+          "use_rsi_filter": true,
+          "rsi_max": 30.0,
+          "require_bullish_candle": true,
+          "use_volume_filter": true,
+          "vol_ratio_min": 1.2
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1404,
+          "win_rate": 0.31339031339031337,
+          "win_rate_wilson95": [
+            0.2896628569655704,
+            0.3381361795169428
+          ],
+          "expectancy": -0.0058648995726495725,
+          "profit_factor": 0.7921107973865427,
+          "payoff_ratio": 1.7973958775379142,
+          "net_pnl": -608796.05
+        },
+        "stats": {
+          "total_return": -0.6088,
+          "max_drawdown": -0.6775,
+          "avg_exposure": 0.7834,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 60,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.07866932690839919,
+            -0.006430575853548828
+          ],
+          "expectancy_delta95": [
+            -0.00873728991915601,
+            0.005143585218214764
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 0,
+          "missed_winners": 364,
+          "avoided_losers": 657,
+          "removed_metrics": {
+            "trades": 1021,
+            "win_rate": 0.356513222331048,
+            "win_rate_wilson95": [
+              0.3277213292743596,
+              0.38638083051306515
+            ],
+            "expectancy": -0.0037105406464250728,
+            "profit_factor": 0.8374148032900789,
+            "payoff_ratio": 1.6048404383712633,
+            "net_pnl": -397524.23
+          },
+          "added_metrics": {
+            "trades": 1404,
+            "win_rate": 0.31339031339031337,
+            "win_rate_wilson95": [
+              0.2896628569655704,
+              0.3381361795169428
+            ],
+            "expectancy": -0.0058648995726495725,
+            "profit_factor": 0.7921107973865427,
+            "payoff_ratio": 1.797395877537914,
+            "net_pnl": -608796.05
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "oversold_reversal",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "original",
+        "result_sha256": "6d5d2a2a949fafac1b254fd1d739079869bb9d17804b6768ae82a42b73a8ab58",
+        "definition_sha256": "7d1e11f9462246932238c79542e18a4bb376547d589adb313a1e2af2c9f5b804",
+        "params": {
+          "entry_variant": "original",
+          "use_rsi_filter": true,
+          "rsi_max": 30.0,
+          "use_change_filter": true,
+          "min_change": 1.0,
+          "require_above_ma5": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 760,
+          "win_rate": 0.3539473684210526,
+          "win_rate_wilson95": [
+            0.3207616224870653,
+            0.3886022037303075
+          ],
+          "expectancy": -0.0023478868421052627,
+          "profit_factor": 0.8923008608504377,
+          "payoff_ratio": 1.6927120178585426,
+          "net_pnl": -236159.94
+        },
+        "stats": {
+          "total_return": -0.2362,
+          "max_drawdown": -0.3637,
+          "avg_exposure": 0.4931,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "recent_oversold_3",
+        "result_sha256": "8c14b67b8631bb7ae7ece5079da2b9ea5320e6745d3928635caf143200021608",
+        "definition_sha256": "7d1e11f9462246932238c79542e18a4bb376547d589adb313a1e2af2c9f5b804",
+        "params": {
+          "entry_variant": "recent_oversold_3",
+          "use_rsi_filter": true,
+          "rsi_max": 30.0,
+          "use_change_filter": true,
+          "min_change": 1.0,
+          "require_above_ma5": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1603,
+          "win_rate": 0.2613849033063007,
+          "win_rate_wilson95": [
+            0.24046362139220895,
+            0.2834471362082915
+          ],
+          "expectancy": -0.011780048658764818,
+          "profit_factor": 0.6744439821072848,
+          "payoff_ratio": 1.8903951983974197,
+          "net_pnl": -853042.03
+        },
+        "stats": {
+          "total_return": -0.853,
+          "max_drawdown": -0.864,
+          "avg_exposure": 0.8485,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.13589620077354517,
+            -0.052621339564489826
+          ],
+          "expectancy_delta95": [
+            -0.018912736904482322,
+            -0.0006868425369990174
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 32,
+          "missed_winners": 262,
+          "avoided_losers": 466,
+          "removed_metrics": {
+            "trades": 728,
+            "win_rate": 0.3598901098901099,
+            "win_rate_wilson95": [
+              0.32584339303629384,
+              0.3954077629515592
+            ],
+            "expectancy": -0.0016007568681318672,
+            "profit_factor": 0.9129093065703645,
+            "payoff_ratio": 1.6900073024585882,
+            "net_pnl": -181902.33999999997
+          },
+          "added_metrics": {
+            "trades": 1571,
+            "win_rate": 0.2622533418204965,
+            "win_rate_wilson95": [
+              0.2411009518154919,
+              0.2845656295092584
+            ],
+            "expectancy": -0.011625788033099937,
+            "profit_factor": 0.6786715301350996,
+            "payoff_ratio": 1.8934386726508725,
+            "net_pnl": -824799.74
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_atr_2",
+        "result_sha256": "a7eb3e640e64bb703d64438147fee6e8598913ff4aad83bad1ed4228768f5fea",
+        "definition_sha256": "7d1e11f9462246932238c79542e18a4bb376547d589adb313a1e2af2c9f5b804",
+        "params": {
+          "entry_variant": "original",
+          "use_rsi_filter": true,
+          "rsi_max": 30.0,
+          "use_change_filter": true,
+          "min_change": 1.0,
+          "require_above_ma5": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_atr_multiple": 2.0
+          }
+        },
+        "metrics": {
+          "trades": 761,
+          "win_rate": 0.35348226018396844,
+          "win_rate_wilson95": [
+            0.3203301145616557,
+            0.38810624664045457
+          ],
+          "expectancy": -0.0022837976346911947,
+          "profit_factor": 0.8938016506094137,
+          "payoff_ratio": 1.6998278251069283,
+          "net_pnl": -233338.82000000004
+        },
+        "stats": {
+          "total_return": -0.2333,
+          "max_drawdown": -0.3593,
+          "avg_exposure": 0.4908,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 58,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.0025994611717190088,
+            0.0017691127493844171
+          ],
+          "expectancy_delta95": [
+            -0.00024780682808386883,
+            0.0004054725943657565
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 755,
+          "missed_winners": 2,
+          "avoided_losers": 3,
+          "removed_metrics": {
+            "trades": 5,
+            "win_rate": 0.4,
+            "win_rate_wilson95": [
+              0.1176182311592533,
+              0.769280067791163
+            ],
+            "expectancy": -0.013258799999999998,
+            "profit_factor": 0.5865238623149549,
+            "payoff_ratio": 0.8209298196494057,
+            "net_pnl": -5490.070000000001
+          },
+          "added_metrics": {
+            "trades": 6,
+            "win_rate": 0.5,
+            "win_rate_wilson95": [
+              0.18761280689940868,
+              0.8123871931005913
+            ],
+            "expectancy": 0.007019166666666669,
+            "profit_factor": 1.236825282797545,
+            "payoff_ratio": 1.2553352734327634,
+            "net_pnl": 3771.4000000000015
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_budget_0p5pct",
+        "result_sha256": "a97c509e8eaa2321fb329ea20151ad8b612dd4c2ea7ad5e4a9e1700d87aea12a",
+        "definition_sha256": "7d1e11f9462246932238c79542e18a4bb376547d589adb313a1e2af2c9f5b804",
+        "params": {
+          "entry_variant": "original",
+          "use_rsi_filter": true,
+          "rsi_max": 30.0,
+          "use_change_filter": true,
+          "min_change": 1.0,
+          "require_above_ma5": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "risk_per_trade_pct": 0.005
+          }
+        },
+        "metrics": {
+          "trades": 760,
+          "win_rate": 0.3539473684210526,
+          "win_rate_wilson95": [
+            0.3207616224870653,
+            0.3886022037303075
+          ],
+          "expectancy": -0.0023478868421052627,
+          "profit_factor": 0.8923008608504377,
+          "payoff_ratio": 1.6927120178585426,
+          "net_pnl": -236159.94
+        },
+        "stats": {
+          "total_return": -0.2362,
+          "max_drawdown": -0.3637,
+          "avg_exposure": 0.4931,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 58,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0,
+            0.0
+          ],
+          "expectancy_delta95": [
+            0.0,
+            0.0
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 760,
+          "missed_winners": 0,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_signal_low",
+        "result_sha256": "cc8eef94734299c0ca875bc422cec2597d901043d305a1704c876a0fe9e101e6",
+        "definition_sha256": "7d1e11f9462246932238c79542e18a4bb376547d589adb313a1e2af2c9f5b804",
+        "params": {
+          "entry_variant": "original",
+          "use_rsi_filter": true,
+          "rsi_max": 30.0,
+          "use_change_filter": true,
+          "min_change": 1.0,
+          "require_above_ma5": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_signal_low": true
+          }
+        },
+        "metrics": {
+          "trades": 895,
+          "win_rate": 0.2837988826815642,
+          "win_rate_wilson95": [
+            0.25523455234017683,
+            0.3142112766023198
+          ],
+          "expectancy": -0.00015008379888268135,
+          "profit_factor": 0.9525581906016688,
+          "payoff_ratio": 2.508539605881877,
+          "net_pnl": -101932.39000000013
+        },
+        "stats": {
+          "total_return": -0.1019,
+          "max_drawdown": -0.2803,
+          "avg_exposure": 0.4257,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 58,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.09507663858079297,
+            -0.04680943202109456
+          ],
+          "expectancy_delta95": [
+            -0.0011168662515402485,
+            0.005141509947237401
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 719,
+          "missed_winners": 11,
+          "avoided_losers": 30,
+          "removed_metrics": {
+            "trades": 41,
+            "win_rate": 0.2682926829268293,
+            "win_rate_wilson95": [
+              0.15694805281336685,
+              0.41933825276002934
+            ],
+            "expectancy": -0.010478853658536584,
+            "profit_factor": 0.6628535890903209,
+            "payoff_ratio": 1.9666406296473602,
+            "net_pnl": -46551.43
+          },
+          "added_metrics": {
+            "trades": 176,
+            "win_rate": 0.24431818181818182,
+            "win_rate_wilson95": [
+              0.18674294192421537,
+              0.3128166705347485
+            ],
+            "expectancy": -0.004841147727272727,
+            "profit_factor": 0.7764687879179921,
+            "payoff_ratio": 2.48460103405418,
+            "net_pnl": -91763.11
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "volume_cap_4",
+        "result_sha256": "84335dc0fdcdaa1140fcbcb2f7a8815e99cc4fbb9e5b6f1af971bffabc223f98",
+        "definition_sha256": "7d1e11f9462246932238c79542e18a4bb376547d589adb313a1e2af2c9f5b804",
+        "params": {
+          "entry_variant": "volume_cap_4",
+          "use_rsi_filter": true,
+          "rsi_max": 30.0,
+          "use_change_filter": true,
+          "min_change": 1.0,
+          "require_above_ma5": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 760,
+          "win_rate": 0.3539473684210526,
+          "win_rate_wilson95": [
+            0.3207616224870653,
+            0.3886022037303075
+          ],
+          "expectancy": -0.0023478868421052627,
+          "profit_factor": 0.8923008608504377,
+          "payoff_ratio": 1.6927120178585426,
+          "net_pnl": -236159.94
+        },
+        "stats": {
+          "total_return": -0.2362,
+          "max_drawdown": -0.3637,
+          "avg_exposure": 0.4931,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 58,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0,
+            0.0
+          ],
+          "expectancy_delta95": [
+            0.0,
+            0.0
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 760,
+          "missed_winners": 0,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "long_lower_shadow_reversal",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "clv_065",
+        "result_sha256": "de05717578db0c4aa1b619ecab9665a89d60c34fc7e25fae5583d56498da3fb4",
+        "definition_sha256": "e3a352b12f3bdb8b4ae410d50d7bb43c1119d722970720f5e31c3eedaa8e5c8a",
+        "params": {
+          "entry_variant": "clv_065",
+          "shadow_pct_min": 3.0,
+          "drop_pct_max": -5.0,
+          "require_recovery": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 364,
+          "win_rate": 0.2967032967032967,
+          "win_rate_wilson95": [
+            0.25209547801735477,
+            0.345557424753838
+          ],
+          "expectancy": -0.004410266483516482,
+          "profit_factor": 0.8391813169373145,
+          "payoff_ratio": 2.0542016499908677,
+          "net_pnl": -179038.84000000003
+        },
+        "stats": {
+          "total_return": -0.179,
+          "max_drawdown": -0.3103,
+          "avg_exposure": 0.0939,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 57,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.03192864239890514,
+            0.020924412193689946
+          ],
+          "expectancy_delta95": [
+            -0.011108733016869182,
+            0.002756007384615575
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 349,
+          "missed_winners": 28,
+          "avoided_losers": 52,
+          "removed_metrics": {
+            "trades": 80,
+            "win_rate": 0.35,
+            "win_rate_wilson95": [
+              0.2545439440982969,
+              0.4592019767810756
+            ],
+            "expectancy": 0.0169404625,
+            "profit_factor": 1.552354747001495,
+            "payoff_ratio": 2.9528155792526642,
+            "net_pnl": 116044.96
+          },
+          "added_metrics": {
+            "trades": 15,
+            "win_rate": 0.4666666666666667,
+            "win_rate_wilson95": [
+              0.24809225259746442,
+              0.6988336984894921
+            ],
+            "expectancy": 0.009640066666666666,
+            "profit_factor": 1.3930849297970458,
+            "payoff_ratio": 1.5849310697327819,
+            "net_pnl": 13403.519999999997
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "confirm_high_1",
+        "result_sha256": "430716d500a841c7a970afd83b87dab6041dda5b7e6efd5443e7366e21fda311",
+        "definition_sha256": "e3a352b12f3bdb8b4ae410d50d7bb43c1119d722970720f5e31c3eedaa8e5c8a",
+        "params": {
+          "entry_variant": "confirm_high_1",
+          "shadow_pct_min": 3.0,
+          "drop_pct_max": -5.0,
+          "require_recovery": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 760,
+          "win_rate": 0.3236842105263158,
+          "win_rate_wilson95": [
+            0.29137807556263895,
+            0.3577638407718472
+          ],
+          "expectancy": -0.0008269184210526311,
+          "profit_factor": 0.9377098945565207,
+          "payoff_ratio": 2.032013123304551,
+          "net_pnl": -127635.14999999998
+        },
+        "stats": {
+          "total_return": -0.1276,
+          "max_drawdown": -0.36,
+          "avg_exposure": 0.23,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.036949209909370596,
+            0.0788036452463875
+          ],
+          "expectancy_delta95": [
+            -0.014271233699017736,
+            0.012573467327540801
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 9,
+          "missed_winners": 126,
+          "avoided_losers": 294,
+          "removed_metrics": {
+            "trades": 420,
+            "win_rate": 0.3,
+            "win_rate_wilson95": [
+              0.2581472469034196,
+              0.345478258474061
+            ],
+            "expectancy": -0.001595811904761904,
+            "profit_factor": 0.9103442376831349,
+            "payoff_ratio": 2.216196391137555,
+            "net_pnl": -111723.88
+          },
+          "added_metrics": {
+            "trades": 751,
+            "win_rate": 0.3235685752330226,
+            "win_rate_wilson95": [
+              0.2910792587649933,
+              0.3578537094232994
+            ],
+            "expectancy": -0.001203725699067908,
+            "profit_factor": 0.9268965272365829,
+            "payoff_ratio": 2.005643446091465,
+            "net_pnl": -146013.60000000003
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "6a098ead845cd851e3f3a6b72e076778acb1527aca4c70010b72d2f84279878b",
+        "definition_sha256": "e3a352b12f3bdb8b4ae410d50d7bb43c1119d722970720f5e31c3eedaa8e5c8a",
+        "params": {
+          "entry_variant": "original",
+          "shadow_pct_min": 3.0,
+          "drop_pct_max": -5.0,
+          "require_recovery": true
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 429,
+          "win_rate": 0.3006993006993007,
+          "win_rate_wilson95": [
+            0.259231358199678,
+            0.34570495106449617
+          ],
+          "expectancy": -0.0009200489510489497,
+          "profit_factor": 0.927864698003527,
+          "payoff_ratio": 2.2598227248364426,
+          "net_pnl": -93776.94000000003
+        },
+        "stats": {
+          "total_return": -0.0938,
+          "max_drawdown": -0.2595,
+          "avg_exposure": 0.1121,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "risk_atr_2",
+        "result_sha256": "3bc85a99815dd4c1ea716b7e9479c8cc6e649f4d4a473546d970703be1bad5dd",
+        "definition_sha256": "e3a352b12f3bdb8b4ae410d50d7bb43c1119d722970720f5e31c3eedaa8e5c8a",
+        "params": {
+          "entry_variant": "original",
+          "shadow_pct_min": 3.0,
+          "drop_pct_max": -5.0,
+          "require_recovery": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_atr_multiple": 2.0
+          }
+        },
+        "metrics": {
+          "trades": 429,
+          "win_rate": 0.3006993006993007,
+          "win_rate_wilson95": [
+            0.259231358199678,
+            0.34570495106449617
+          ],
+          "expectancy": -0.0009200489510489497,
+          "profit_factor": 0.927864698003527,
+          "payoff_ratio": 2.2598227248364426,
+          "net_pnl": -93776.94000000003
+        },
+        "stats": {
+          "total_return": -0.0938,
+          "max_drawdown": -0.2595,
+          "avg_exposure": 0.1121,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 57,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0,
+            0.0
+          ],
+          "expectancy_delta95": [
+            0.0,
+            0.0
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 429,
+          "missed_winners": 0,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_budget_0p5pct",
+        "result_sha256": "d90a28d68d5abe9391613a245319c5a988ddfee1506d22bc5086827e058ac41a",
+        "definition_sha256": "e3a352b12f3bdb8b4ae410d50d7bb43c1119d722970720f5e31c3eedaa8e5c8a",
+        "params": {
+          "entry_variant": "original",
+          "shadow_pct_min": 3.0,
+          "drop_pct_max": -5.0,
+          "require_recovery": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "risk_per_trade_pct": 0.005
+          }
+        },
+        "metrics": {
+          "trades": 429,
+          "win_rate": 0.3006993006993007,
+          "win_rate_wilson95": [
+            0.259231358199678,
+            0.34570495106449617
+          ],
+          "expectancy": -0.0009200489510489497,
+          "profit_factor": 0.927864698003527,
+          "payoff_ratio": 2.2598227248364426,
+          "net_pnl": -93776.94000000003
+        },
+        "stats": {
+          "total_return": -0.0938,
+          "max_drawdown": -0.2595,
+          "avg_exposure": 0.1121,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 57,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0,
+            0.0
+          ],
+          "expectancy_delta95": [
+            0.0,
+            0.0
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 429,
+          "missed_winners": 0,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_signal_low",
+        "result_sha256": "37d6dbfa6882583dbfc8403c365c038d8880cd61c9e4bcf9078a2c538d172d96",
+        "definition_sha256": "e3a352b12f3bdb8b4ae410d50d7bb43c1119d722970720f5e31c3eedaa8e5c8a",
+        "params": {
+          "entry_variant": "original",
+          "shadow_pct_min": 3.0,
+          "drop_pct_max": -5.0,
+          "require_recovery": true
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_signal_low": true
+          }
+        },
+        "metrics": {
+          "trades": 428,
+          "win_rate": 0.2967289719626168,
+          "win_rate_wilson95": [
+            0.2554134122229053,
+            0.34166107064303447
+          ],
+          "expectancy": -0.0011296565420560738,
+          "profit_factor": 0.9225249400957373,
+          "payoff_ratio": 2.2880223164316957,
+          "net_pnl": -100519.0
+        },
+        "stats": {
+          "total_return": -0.1005,
+          "max_drawdown": -0.2624,
+          "avg_exposure": 0.1111,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse",
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 57,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.011138212474149131,
+            0.0
+          ],
+          "expectancy_delta95": [
+            -0.0007991821198601656,
+            0.00018686180278786946
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 428,
+          "missed_winners": 1,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 1,
+            "win_rate": 1.0,
+            "win_rate_wilson95": [
+              0.20654329147389294,
+              1.0
+            ],
+            "expectancy": 0.012794,
+            "profit_factor": null,
+            "payoff_ratio": null,
+            "net_pnl": 1323.28
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "macd_below_zero_revival",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "dif_rising_2",
+        "result_sha256": "eb46dafd1b84313a00a354dc1aefb6931f12868b0def877c8ec9aee9a4749158",
+        "definition_sha256": "5b377ecf088af245ac689e2da686d4fdb4b541ae6dd69847c4f633489849b765",
+        "params": {
+          "entry_variant": "dif_rising_2",
+          "low_window": 20,
+          "revive_days": 10
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 777,
+          "win_rate": 0.3539253539253539,
+          "win_rate_wilson95": [
+            0.3210956424468375,
+            0.38819238728928296
+          ],
+          "expectancy": -0.0036779021879021884,
+          "profit_factor": 0.8388706288698322,
+          "payoff_ratio": 1.6543505680865693,
+          "net_pnl": -342152.97
+        },
+        "stats": {
+          "total_return": -0.3422,
+          "max_drawdown": -0.5962,
+          "avg_exposure": 0.7112,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "max_drawdown_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.11514384849224024,
+            -0.019860284609082304
+          ],
+          "expectancy_delta95": [
+            -0.008972149630634184,
+            0.00987344569253179
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 29,
+          "missed_winners": 425,
+          "avoided_losers": 578,
+          "removed_metrics": {
+            "trades": 1003,
+            "win_rate": 0.423728813559322,
+            "win_rate_wilson95": [
+              0.39349503598315133,
+              0.45454461593429035
+            ],
+            "expectancy": -0.003218062811565305,
+            "profit_factor": 0.8718767543177234,
+            "payoff_ratio": 1.2275193284314696,
+            "net_pnl": -344677.39
+          },
+          "added_metrics": {
+            "trades": 748,
+            "win_rate": 0.35561497326203206,
+            "win_rate_wilson95": [
+              0.3221266892275489,
+              0.39057875298261874
+            ],
+            "expectancy": -0.0031966243315508045,
+            "profit_factor": 0.8499237382002767,
+            "payoff_ratio": 1.6639717180412048,
+            "net_pnl": -305109.49
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "12b1d5615cde4ad10b6084a404d9908686f99088d17c61312dbf27ea7d7ea850",
+        "definition_sha256": "5b377ecf088af245ac689e2da686d4fdb4b541ae6dd69847c4f633489849b765",
+        "params": {
+          "entry_variant": "original",
+          "low_window": 20,
+          "revive_days": 10
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1032,
+          "win_rate": 0.42054263565891475,
+          "win_rate_wilson95": [
+            0.3907733686196241,
+            0.4509012658032453
+          ],
+          "expectancy": -0.003579817829457365,
+          "profit_factor": 0.8619290648110621,
+          "payoff_ratio": 1.2297284043603236,
+          "net_pnl": -385721.03
+        },
+        "stats": {
+          "total_return": -0.3857,
+          "max_drawdown": -0.5825,
+          "avg_exposure": 0.9136,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "risk_atr_2",
+        "result_sha256": "af3d65e1ae53931628849a776dd8bc066f3fdf03b918f7ae0788c34b5cd9393d",
+        "definition_sha256": "5b377ecf088af245ac689e2da686d4fdb4b541ae6dd69847c4f633489849b765",
+        "params": {
+          "entry_variant": "original",
+          "low_window": 20,
+          "revive_days": 10
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_atr_multiple": 2.0
+          }
+        },
+        "metrics": {
+          "trades": 1155,
+          "win_rate": 0.4,
+          "win_rate_wilson95": [
+            0.3721230260363547,
+            0.4285399808836592
+          ],
+          "expectancy": -0.0010047766233766237,
+          "profit_factor": 0.9254977072584717,
+          "payoff_ratio": 1.4511134443262113,
+          "net_pnl": -220362.69000000006
+        },
+        "stats": {
+          "total_return": -0.2204,
+          "max_drawdown": -0.5277,
+          "avg_exposure": 0.9042,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.040275516132038475,
+            -0.0008573991460120455
+          ],
+          "expectancy_delta95": [
+            -0.0005084416776690691,
+            0.005869192471444212
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 835,
+          "missed_winners": 74,
+          "avoided_losers": 123,
+          "removed_metrics": {
+            "trades": 197,
+            "win_rate": 0.3756345177664975,
+            "win_rate_wilson95": [
+              0.3109932059751582,
+              0.4450334339241455
+            ],
+            "expectancy": -0.014379588832487312,
+            "profit_factor": 0.5987580262174813,
+            "payoff_ratio": 1.0172342504299974,
+            "net_pnl": -229126.28
+          },
+          "added_metrics": {
+            "trades": 320,
+            "win_rate": 0.39375,
+            "win_rate_wilson95": [
+              0.3417814747774372,
+              0.44823932551505147
+            ],
+            "expectancy": -0.0015449968750000016,
+            "profit_factor": 0.8691297245238444,
+            "payoff_ratio": 1.4606618845469785,
+            "net_pnl": -105749.20000000003
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_budget_0p5pct",
+        "result_sha256": "83f4fbc699d1dcc476fe3042a4e9646b51b2a3cd2a49aac9a6bc8bbba24780be",
+        "definition_sha256": "5b377ecf088af245ac689e2da686d4fdb4b541ae6dd69847c4f633489849b765",
+        "params": {
+          "entry_variant": "original",
+          "low_window": 20,
+          "revive_days": 10
+        },
+        "overrides": {
+          "entry_risk": {
+            "risk_per_trade_pct": 0.005
+          }
+        },
+        "metrics": {
+          "trades": 1032,
+          "win_rate": 0.42054263565891475,
+          "win_rate_wilson95": [
+            0.3907733686196241,
+            0.4509012658032453
+          ],
+          "expectancy": -0.003579817829457365,
+          "profit_factor": 0.8663141052821253,
+          "payoff_ratio": 1.2297284043603236,
+          "net_pnl": -324305.57999999996
+        },
+        "stats": {
+          "total_return": -0.3243,
+          "max_drawdown": -0.5124,
+          "avg_exposure": 0.7652,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "exploratory_followup_only",
+        "reasons": [],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0,
+            0.0
+          ],
+          "expectancy_delta95": [
+            0.0,
+            0.0
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1032,
+          "missed_winners": 0,
+          "avoided_losers": 0,
+          "removed_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "added_metrics": {
+            "trades": 0,
+            "win_rate": null,
+            "expectancy": null,
+            "profit_factor": null
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "risk_signal_low",
+        "result_sha256": "25d6e774ca4987d68253e6a442de2ddb02ddb92fc4c7e0d798d25ad122d9e9c2",
+        "definition_sha256": "5b377ecf088af245ac689e2da686d4fdb4b541ae6dd69847c4f633489849b765",
+        "params": {
+          "entry_variant": "original",
+          "low_window": 20,
+          "revive_days": 10
+        },
+        "overrides": {
+          "entry_risk": {
+            "stop_signal_low": true
+          }
+        },
+        "metrics": {
+          "trades": 2910,
+          "win_rate": 0.16288659793814433,
+          "win_rate_wilson95": [
+            0.14991587041059265,
+            0.17674622405603865
+          ],
+          "expectancy": -0.00272600206185567,
+          "profit_factor": 0.8325489681991414,
+          "payoff_ratio": 4.318437814745825,
+          "net_pnl": -596817.75
+        },
+        "stats": {
+          "total_return": -0.5968,
+          "max_drawdown": -0.6441,
+          "avg_exposure": 0.8255,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "risk_return",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse",
+          "max_drawdown_worse",
+          "drawdown_not_improved"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.2975070223130862,
+            -0.21975442500110332
+          ],
+          "expectancy_delta95": [
+            -0.005728449938675989,
+            0.006915731307432035
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 759,
+          "missed_winners": 107,
+          "avoided_losers": 166,
+          "removed_metrics": {
+            "trades": 273,
+            "win_rate": 0.39194139194139194,
+            "win_rate_wilson95": [
+              0.3359139311402807,
+              0.4509678091762036
+            ],
+            "expectancy": -0.01028101098901099,
+            "profit_factor": 0.7386802499450603,
+            "payoff_ratio": 1.1034215564495147,
+            "net_pnl": -206574.13
+          },
+          "added_metrics": {
+            "trades": 2151,
+            "win_rate": 0.1487680148768015,
+            "win_rate_wilson95": [
+              0.13435570288668838,
+              0.16443266281035399
+            ],
+            "expectancy": -0.0035536410971641094,
+            "profit_factor": 0.7891349971014805,
+            "payoff_ratio": 4.519432322432337,
+            "net_pnl": -546652.11
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "high_turnover_surge",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "original",
+        "result_sha256": "290e1f495f449efd814f6c9c752e24fdebf5100d7d650e7f399a1b1afda5b822",
+        "definition_sha256": "ef3a97e528e26ba3bd5f863c5569803efedf3d064a828cb7628e599296e80195",
+        "params": {
+          "entry_variant": "original",
+          "use_turnover_filter": true,
+          "min_turnover": 5.0,
+          "use_change_filter": true,
+          "min_change": 3.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1688,
+          "win_rate": 0.15995260663507108,
+          "win_rate_wilson95": [
+            0.14324046217762218,
+            0.17820901630783412
+          ],
+          "expectancy": -0.035448010071090046,
+          "profit_factor": 0.6487403680562639,
+          "payoff_ratio": 2.638814242268424,
+          "net_pnl": -995647.45
+        },
+        "stats": {
+          "total_return": -0.9956,
+          "max_drawdown": -0.9969,
+          "avg_exposure": 0.4634,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "turnover_cap_15",
+        "result_sha256": "cbb745cd7e2ae6d0dcecb56aa9a047bd56d606e907d8b48d8f1c1e70917dfc81",
+        "definition_sha256": "ef3a97e528e26ba3bd5f863c5569803efedf3d064a828cb7628e599296e80195",
+        "params": {
+          "entry_variant": "turnover_cap_15",
+          "use_turnover_filter": true,
+          "min_turnover": 5.0,
+          "use_change_filter": true,
+          "min_change": 3.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1926,
+          "win_rate": 0.16458982346832815,
+          "win_rate_wilson95": [
+            0.14869980170845187,
+            0.18181520014455
+          ],
+          "expectancy": -0.030577879023883696,
+          "profit_factor": 0.6383550702393254,
+          "payoff_ratio": 2.674985874700441,
+          "net_pnl": -995223.2999999999
+        },
+        "stats": {
+          "total_return": -0.9952,
+          "max_drawdown": -0.9968,
+          "avg_exposure": 0.5414,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.009922277432941716,
+            0.02091532061232928
+          ],
+          "expectancy_delta95": [
+            -0.002153336821221829,
+            0.011344001806866887
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 242,
+          "missed_winners": 224,
+          "avoided_losers": 1222,
+          "removed_metrics": {
+            "trades": 1446,
+            "win_rate": 0.15491009681881052,
+            "win_rate_wilson95": [
+              0.13717743192397153,
+              0.17447150958798402
+            ],
+            "expectancy": -0.036485018672199165,
+            "profit_factor": 0.606083207542957,
+            "payoff_ratio": 2.663200363107463,
+            "net_pnl": -942121.8899999999
+          },
+          "added_metrics": {
+            "trades": 1684,
+            "win_rate": 0.16092636579572447,
+            "win_rate_wilson95": [
+              0.1441502471754713,
+              0.17924597673558768
+            ],
+            "expectancy": -0.0309878919239905,
+            "profit_factor": 0.5855367423745552,
+            "payoff_ratio": 2.686350562825075,
+            "net_pnl": -927829.24
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "strong_open",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": "成交溢价上限已登记；9:35承接仍缺完整分钟覆盖",
+    "trials": [
+      {
+        "variant": "execution_premium_3pct",
+        "result_sha256": "b52d574255ce5533105afd7881201c45eec1d7abc47345a89ece87121c77e04b",
+        "definition_sha256": "3dc0ee29a85c6e24ae272692acd5b249d564f58055bc0f0b1ef314b43b0dd1ac",
+        "params": {
+          "use_open_gap_filter": true,
+          "min_open_gap": 3.0,
+          "require_close_above_open": true,
+          "use_change_filter": true,
+          "min_change": 3.0
+        },
+        "overrides": {
+          "entry_risk": {
+            "max_entry_premium_pct": 0.03
+          }
+        },
+        "metrics": {
+          "trades": 2047,
+          "win_rate": 0.19101123595505617,
+          "win_rate_wilson95": [
+            0.17456680145628542,
+            0.20861325496542946
+          ],
+          "expectancy": -0.027334702491450907,
+          "profit_factor": 0.5736476685013592,
+          "payoff_ratio": 2.1731712425482597,
+          "net_pnl": -993888.8500000001
+        },
+        "stats": {
+          "total_return": -0.9939,
+          "max_drawdown": -0.9949,
+          "avg_exposure": 0.6371,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.007938390999343785,
+            0.02199978089562263
+          ],
+          "expectancy_delta95": [
+            0.00018813569613224693,
+            0.012437717152820233
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1210,
+          "missed_winners": 99,
+          "avoided_losers": 520,
+          "removed_metrics": {
+            "trades": 619,
+            "win_rate": 0.15993537964458804,
+            "win_rate_wilson95": [
+              0.13316957369383425,
+              0.19089612776220205
+            ],
+            "expectancy": -0.03950790468497577,
+            "profit_factor": 0.554549914682182,
+            "payoff_ratio": 2.3937465986456883,
+            "net_pnl": -343692.43
+          },
+          "added_metrics": {
+            "trades": 837,
+            "win_rate": 0.1816009557945042,
+            "win_rate_wilson95": [
+              0.15695709978220215,
+              0.20915418681446482
+            ],
+            "expectancy": -0.02548947789725209,
+            "profit_factor": 0.6299146496636614,
+            "payoff_ratio": 2.496105611448001,
+            "net_pnl": -245391.42
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "execution_premium_5pct",
+        "result_sha256": "4648de911feecb0a156a5c00787bdcb03cb6d5b1d090ca7c318cb8ca4ac8b9ad",
+        "definition_sha256": "3dc0ee29a85c6e24ae272692acd5b249d564f58055bc0f0b1ef314b43b0dd1ac",
+        "params": {
+          "use_open_gap_filter": true,
+          "min_open_gap": 3.0,
+          "require_close_above_open": true,
+          "use_change_filter": true,
+          "min_change": 3.0
+        },
+        "overrides": {
+          "entry_risk": {
+            "max_entry_premium_pct": 0.05
+          }
+        },
+        "metrics": {
+          "trades": 2081,
+          "win_rate": 0.18981259010091303,
+          "win_rate_wilson95": [
+            0.17354093712044757,
+            0.20722736681209095
+          ],
+          "expectancy": -0.02651040509370495,
+          "profit_factor": 0.6202360469216485,
+          "payoff_ratio": 2.307822396993314,
+          "net_pnl": -993572.31
+        },
+        "stats": {
+          "total_return": -0.9936,
+          "max_drawdown": -0.9949,
+          "avg_exposure": 0.6432,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.009401890926429943,
+            0.022382327027940706
+          ],
+          "expectancy_delta95": [
+            0.0020198410560042534,
+            0.012105494504712298
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1310,
+          "missed_winners": 92,
+          "avoided_losers": 427,
+          "removed_metrics": {
+            "trades": 519,
+            "win_rate": 0.17726396917148363,
+            "win_rate_wilson95": [
+              0.14681457266141518,
+              0.2124559980047292
+            ],
+            "expectancy": -0.04180081502890173,
+            "profit_factor": 0.4409914699293454,
+            "payoff_ratio": 1.8650616841855967,
+            "net_pnl": -347331.47
+          },
+          "added_metrics": {
+            "trades": 771,
+            "win_rate": 0.191958495460441,
+            "win_rate_wilson95": [
+              0.16571242408247402,
+              0.22125905499144252
+            ],
+            "expectancy": -0.023589888456549937,
+            "profit_factor": 0.8093238571872544,
+            "payoff_ratio": 2.4975550747619537,
+            "net_pnl": -96362.53999999998
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "3f35739fca353de24e41633e6c287bdadd60184085f7e1b0bf64c8e03184f4a1",
+        "definition_sha256": "3dc0ee29a85c6e24ae272692acd5b249d564f58055bc0f0b1ef314b43b0dd1ac",
+        "params": {
+          "use_open_gap_filter": true,
+          "min_open_gap": 3.0,
+          "require_close_above_open": true,
+          "use_change_filter": true,
+          "min_change": 3.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1829,
+          "win_rate": 0.18370694368507381,
+          "win_rate_wilson95": [
+            0.16662869299162505,
+            0.20211108244778006
+          ],
+          "expectancy": -0.03338683652269,
+          "profit_factor": 0.5511114128942223,
+          "payoff_ratio": 2.0548314376767958,
+          "net_pnl": -995338.3099999999
+        },
+        "stats": {
+          "total_return": -0.9953,
+          "max_drawdown": -0.9963,
+          "avg_exposure": 0.5394,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "near_limit_up",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "closed_limit",
+        "result_sha256": "f479af54995595109e622652583a6c78359f5c8e270866daf8d4c63a3bc29f5b",
+        "definition_sha256": "0ae07466541373819db499ec4b4272df2af8f8a2a352af43feb1902c68bc72ff",
+        "params": {
+          "entry_variant": "closed_limit",
+          "use_change_filter": true,
+          "min_change": 7.0,
+          "use_limit_gap_filter": true,
+          "limit_gap": 3.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 2205,
+          "win_rate": 0.2331065759637188,
+          "win_rate_wilson95": [
+            0.21593195696486334,
+            0.25120955286544766
+          ],
+          "expectancy": -0.02744060136054422,
+          "profit_factor": 0.6005125840672705,
+          "payoff_ratio": 1.7878487850047884,
+          "net_pnl": -995770.8699999999
+        },
+        "stats": {
+          "total_return": -0.9958,
+          "max_drawdown": -0.9962,
+          "avg_exposure": 0.4257,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "expectancy_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.01667393212203336,
+            0.008826328113158345
+          ],
+          "expectancy_delta95": [
+            -0.00392921382442333,
+            0.0023342131183629123
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 1640,
+          "missed_winners": 141,
+          "avoided_losers": 464,
+          "removed_metrics": {
+            "trades": 605,
+            "win_rate": 0.23305785123966943,
+            "win_rate_wilson95": [
+              0.2011171472580766,
+              0.26836719809546034
+            ],
+            "expectancy": -0.02834781487603306,
+            "profit_factor": 0.5734789925969965,
+            "payoff_ratio": 1.6396495266769167,
+            "net_pnl": -199497.43
+          },
+          "added_metrics": {
+            "trades": 565,
+            "win_rate": 0.21946902654867256,
+            "win_rate_wilson95": [
+              0.18729805818611076,
+              0.25542905600525634
+            ],
+            "expectancy": -0.029831219469026546,
+            "profit_factor": 0.3783309120641382,
+            "payoff_ratio": 1.8256479168066237,
+            "net_pnl": -349946.31999999995
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "not_closed_limit",
+        "result_sha256": "e8b5eee51269a5166a2dd8ddf0c86a6da2df237faf6fee815e00751759f2093e",
+        "definition_sha256": "0ae07466541373819db499ec4b4272df2af8f8a2a352af43feb1902c68bc72ff",
+        "params": {
+          "entry_variant": "not_closed_limit",
+          "use_change_filter": true,
+          "min_change": 7.0,
+          "use_limit_gap_filter": true,
+          "limit_gap": 3.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 3163,
+          "win_rate": 0.29402466013278533,
+          "win_rate_wilson95": [
+            0.27840428689668106,
+            0.31014475830974797
+          ],
+          "expectancy": -0.014210754979449888,
+          "profit_factor": 0.6249502808051689,
+          "payoff_ratio": 1.5746840226189058,
+          "net_pnl": -983889.7
+        },
+        "stats": {
+          "total_return": -0.9839,
+          "max_drawdown": -0.9842,
+          "avg_exposure": 0.7247,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "profit_factor_below_registered_gate"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            0.0321807091980544,
+            0.08341906395991482
+          ],
+          "expectancy_delta95": [
+            0.0068175306071765725,
+            0.018646110529010586
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 203,
+          "missed_winners": 480,
+          "avoided_losers": 1562,
+          "removed_metrics": {
+            "trades": 2042,
+            "win_rate": 0.23506366307541626,
+            "win_rate_wilson95": [
+              0.21717949637148384,
+              0.2539428036149864
+            ],
+            "expectancy": -0.027544771792360433,
+            "profit_factor": 0.6332580390918212,
+            "payoff_ratio": 1.760591255376428,
+            "net_pnl": -955172.04
+          },
+          "added_metrics": {
+            "trades": 2960,
+            "win_rate": 0.29662162162162165,
+            "win_rate_wilson95": [
+              0.28043847455779075,
+              0.3133319887490203
+            ],
+            "expectancy": -0.014069425000000002,
+            "profit_factor": 0.6150911044610703,
+            "payoff_ratio": 1.5618810995181827,
+            "net_pnl": -910432.27
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      },
+      {
+        "variant": "original",
+        "result_sha256": "a45e23675cdea29d60adf72794ac3ea56fdde9b77c122285d3fe731204a3b29b",
+        "definition_sha256": "0ae07466541373819db499ec4b4272df2af8f8a2a352af43feb1902c68bc72ff",
+        "params": {
+          "entry_variant": "original",
+          "use_change_filter": true,
+          "min_change": 7.0,
+          "use_limit_gap_filter": true,
+          "limit_gap": 3.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 2245,
+          "win_rate": 0.23652561247216036,
+          "win_rate_wilson95": [
+            0.2194063518611361,
+            0.25454503715621396
+          ],
+          "expectancy": -0.02672496837416481,
+          "profit_factor": 0.6405725400987967,
+          "payoff_ratio": 1.7548961239668976,
+          "net_pnl": -995542.2
+        },
+        "stats": {
+          "total_return": -0.9955,
+          "max_drawdown": -0.9964,
+          "avg_exposure": 0.4379,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "active_limit_gene",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": null,
+    "trials": [
+      {
+        "variant": "original",
+        "result_sha256": "587f7eef630d3b829167608945c50725548cdca7ca34accb1d2aefbde244869c",
+        "definition_sha256": "a989e726a6b8d33ee5670cfb6106d731e46bf926bf2309d6c18ef7cde71fcb85",
+        "params": {
+          "entry_variant": "original",
+          "min_limit_count": 3,
+          "vol_ratio_max": 1.2,
+          "max_change_pct": 7.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1200,
+          "win_rate": 0.1725,
+          "win_rate_wilson95": [
+            0.15217678982922686,
+            0.1949133921349119
+          ],
+          "expectancy": -0.03044821916666667,
+          "profit_factor": 0.6495772863095414,
+          "payoff_ratio": 2.8864849180805128,
+          "net_pnl": -972343.87
+        },
+        "stats": {
+          "total_return": -0.9723,
+          "max_drawdown": -0.9783,
+          "avg_exposure": 0.8689,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      },
+      {
+        "variant": "recent_limit_20",
+        "result_sha256": "2cb2d8d7c9281400589d0e0b4c96da027280be74a50cc6fcb671e96038babdf3",
+        "definition_sha256": "a989e726a6b8d33ee5670cfb6106d731e46bf926bf2309d6c18ef7cde71fcb85",
+        "params": {
+          "entry_variant": "recent_limit_20",
+          "min_limit_count": 3,
+          "vol_ratio_max": 1.2,
+          "max_change_pct": 7.0
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1203,
+          "win_rate": 0.17373233582709893,
+          "win_rate_wilson95": [
+            0.1533694353541726,
+            0.19617237692674314
+          ],
+          "expectancy": -0.029660360764754784,
+          "profit_factor": 0.6060419581463116,
+          "payoff_ratio": 2.915810862990559,
+          "net_pnl": -973638.7700000001
+        },
+        "stats": {
+          "total_return": -0.9736,
+          "max_drawdown": -0.978,
+          "avg_exposure": 0.8656,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "objective": "win_rate",
+        "decision": "rejected_topic",
+        "reasons": [
+          "win_rate_below_registered_gate",
+          "profit_factor_below_registered_gate",
+          "total_return_worse"
+        ],
+        "production_promotion": false,
+        "evidence_limit": "历史开发样本及PIT缺口，缺冻结后前瞻观察；本结果不能验证胜率提升",
+        "monthly_block_comparison": {
+          "months": 61,
+          "draws": 2000,
+          "seed": 20261019,
+          "win_rate_delta95": [
+            -0.010973622012381846,
+            0.01333133474909464
+          ],
+          "expectancy_delta95": [
+            -0.004239061657037436,
+            0.00578521968977245
+          ],
+          "note": "按相同入场月份权重重采样; 未校正多重尝试, 不代表独立交易显著性"
+        },
+        "trade_set_change": {
+          "same_stock_entry_day": 854,
+          "missed_winners": 54,
+          "avoided_losers": 292,
+          "removed_metrics": {
+            "trades": 346,
+            "win_rate": 0.15606936416184972,
+            "win_rate_wilson95": [
+              0.1216284451871229,
+              0.19806366690017607
+            ],
+            "expectancy": -0.034231696531791915,
+            "profit_factor": 0.5953636211584096,
+            "payoff_ratio": 2.9587805954224025,
+            "net_pnl": -301945.61
+          },
+          "added_metrics": {
+            "trades": 349,
+            "win_rate": 0.16045845272206305,
+            "win_rate_wilson95": [
+              0.12567990020361527,
+              0.2026305937970921
+            ],
+            "expectancy": -0.03125319197707737,
+            "profit_factor": 0.4194093428524708,
+            "payoff_ratio": 3.084809809040373,
+            "net_pnl": -390806.26
+          },
+          "note": "账户名额和排序会改变交易集合；不是匹配交易的因果估计"
+        }
+      }
+    ],
+    "status": "exploratory_complete"
+  },
+  {
+    "strategy_id": "consecutive_limit_ups",
+    "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+    "pending_topic": "保留接力观察定义；一进二缺少冻结首板池及分钟承接数据，未试验",
+    "trials": [
+      {
+        "variant": "original",
+        "result_sha256": "eaeae41d1adb13af18899c4703188dc095a24bbf7abe4cc4c452bfdc523bc89d",
+        "definition_sha256": "f56bdd7a9ef8d14ad64cbf6ec8bad0cada7d92faedc029dceecb552d1e0c4a92",
+        "params": {
+          "require_limit_up": true,
+          "use_boards_filter": true,
+          "min_boards": 2
+        },
+        "overrides": {},
+        "metrics": {
+          "trades": 1849,
+          "win_rate": 0.21849648458626283,
+          "win_rate_wilson95": [
+            0.20025520770001315,
+            0.23790507540243871
+          ],
+          "expectancy": -0.03385426663061114,
+          "profit_factor": 0.6717360043765459,
+          "payoff_ratio": 1.918657216420081,
+          "net_pnl": -996819.9899999999
+        },
+        "stats": {
+          "total_return": -0.9968,
+          "max_drawdown": -0.9977,
+          "avg_exposure": 0.3536,
+          "unclosed_positions": 0,
+          "pending_exit_positions": 0,
+          "total_fees": null
+        },
+        "decision": "baseline_retained",
+        "production_promotion": false
+      }
+    ],
+    "status": "exploratory_complete"
+  }
+]

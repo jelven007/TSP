@@ -3,6 +3,7 @@
 import numpy as np
 
 from app.backtest.matrix import MarketDataMatrix, SignalMatrix, make_signal_matrix, matrix_feature
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "boll_breakout",
@@ -72,4 +73,4 @@ class BollBreakoutMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = BollBreakoutMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, BollBreakoutMatrixStrategy())

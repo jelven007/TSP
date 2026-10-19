@@ -11,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "macd_below_zero_revival",
@@ -86,4 +87,4 @@ class MACDBelowZeroRevivalMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = MACDBelowZeroRevivalMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, MACDBelowZeroRevivalMatrixStrategy())
