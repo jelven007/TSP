@@ -243,6 +243,7 @@ class QuoteService:
     CUSTOM_PROVIDER_MIN_INTERVAL = 1.0
     DEFAULT_INTERVAL = 1.0
     MAX_INTERVAL = 60.0
+    STRATEGY_GROUP_STALE_AFTER_S = 15.0
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -253,6 +254,9 @@ class QuoteService:
         # IO/webhook 判定, 留在取数锁内会阻塞下一轮拉取与手动刷新), 此锁保证
         # 两轮评估不并发 (原先由取数锁隐式串行)。
         self._evaluate_lock = threading.Lock()
+        self._strategy_group_coordinator = None
+        self._strategy_group_engine = None
+        self._strategy_group_consumed_sequence = 0
         self._running = False
         self._enabled = False      # 全局开关 (持久化到 preferences)
         # 暂停态: 盘后管道/数据修正运行期间临时暂停取数, 防止与管道写同一批 parquet 竞态。
@@ -334,6 +338,16 @@ class QuoteService:
         if self._thread:
             self._thread.join(timeout=10)
             self._thread = None
+        coordinator = self._strategy_group_coordinator
+        coordinator_stopped = (
+            coordinator is None or coordinator.stop(drain=False, timeout=10)
+        )
+        if coordinator_stopped:
+            self._strategy_group_coordinator = None
+            self._strategy_group_engine = None
+            self._strategy_group_consumed_sequence = 0
+        else:
+            logger.warning("策略组协调器未在停机时限内退出")
         archive = self._second_quote_archive
         if archive is not None and not archive.stop(timeout=10):
             logger.warning("秒级行情归档未在停机时限内排空")
@@ -1344,6 +1358,140 @@ class QuoteService:
     # 策略监控
     # ================================================================
 
+    @staticmethod
+    def _supports_strategy_group_runtime(engine) -> bool:
+        engine_type = type(engine)
+        return all(
+            callable(getattr(engine_type, method, None))
+            for method in (
+                "evaluate_realtime_rules",
+                "capture_strategy_group",
+                "compute_strategy_group",
+                "publish_strategy_group",
+                "expose_strategy_group_results",
+                "strategy_group_is_current",
+            )
+        )
+
+    def _strategy_coordinator(self, engine):
+        coordinator = getattr(self, "_strategy_group_coordinator", None)
+        current_engine = getattr(self, "_strategy_group_engine", None)
+        if coordinator is not None and current_engine is engine:
+            return coordinator
+        if coordinator is not None and not coordinator.stop(drain=False, timeout=1):
+            raise RuntimeError("旧策略组协调器仍在运行")
+
+        from app.services.strategy_group_runtime import StrategyGroupCoordinator
+
+        def compute(snapshot):
+            return engine.compute_strategy_group(snapshot.payload)
+
+        def publish(_snapshot, evaluation):
+            return engine.publish_strategy_group(evaluation)
+
+        coordinator = StrategyGroupCoordinator(
+            compute,
+            publisher=publish,
+            group_id="realtime-monitor",
+            thread_name="strategy-monitor",
+            stale_after_s=self.STRATEGY_GROUP_STALE_AFTER_S,
+        )
+        self._strategy_group_coordinator = coordinator
+        self._strategy_group_engine = engine
+        self._strategy_group_consumed_sequence = 0
+        return coordinator
+
+    def _consume_strategy_group(self, engine) -> tuple[list[dict], list[dict], bool]:
+        coordinator = getattr(self, "_strategy_group_coordinator", None)
+        if coordinator is None or getattr(self, "_strategy_group_engine", None) is not engine:
+            return [], [], False
+        latest = coordinator.latest_success()
+        if latest is None:
+            return [], [], False
+        cycle, evaluation = latest
+        consumed = getattr(self, "_strategy_group_consumed_sequence", 0)
+        if cycle.sequence <= consumed:
+            return [], [], False
+        self._strategy_group_consumed_sequence = cycle.sequence
+        if evaluation.discarded:
+            logger.debug(
+                "策略组周期已丢弃 cycle=%s reason=%s",
+                cycle.cycle_id,
+                evaluation.discard_reason,
+            )
+            return [], [], False
+        if not engine.strategy_group_is_current(evaluation):
+            logger.debug("策略组周期计划已变化, 跳过消费 cycle=%s", cycle.cycle_id)
+            return [], [], False
+
+        def cycle_events(items, state):
+            return [
+                {
+                    **event,
+                    "strategy_cycle_id": cycle.cycle_id,
+                    "strategy_cycle_state": state,
+                }
+                for event in items
+            ]
+
+        age_s = max(0.0, time.time() - cycle.captured_at)
+        if age_s > self.STRATEGY_GROUP_STALE_AFTER_S:
+            exit_types = {"sell_signal", "pool_exit"}
+            logger.warning(
+                "策略组周期消费时已过期, 仅保留退出事件 cycle=%s age=%.3fs",
+                cycle.cycle_id,
+                age_s,
+            )
+            return (
+                cycle_events(
+                    [
+                        event
+                        for event in evaluation.events
+                        if event.get("type") in exit_types
+                    ],
+                    "stale",
+                ),
+                cycle_events([
+                    event
+                    for event in evaluation.execution_events
+                    if event.get("type") in exit_types
+                ], "stale"),
+                False,
+            )
+        if not engine.expose_strategy_group_results(evaluation):
+            return [], [], False
+        updated = engine.consume_strategy_result_updates()
+        state = "partial" if getattr(evaluation, "partial", False) else "succeeded"
+        execution_events = list(evaluation.execution_events)
+        if state == "partial":
+            exit_types = {"sell_signal", "pool_exit"}
+            execution_events = [
+                event
+                for event in execution_events
+                if event.get("type") in exit_types
+            ]
+            logger.warning(
+                "策略组周期部分失败, 禁止新开仓 cycle=%s failed=%s",
+                cycle.cycle_id,
+                ",".join(getattr(evaluation, "failed_strategy_ids", ())),
+            )
+        return (
+            cycle_events(evaluation.events, state),
+            cycle_events(execution_events, state),
+            updated,
+        )
+
+    def _submit_strategy_group(self, engine, frames: dict[str, pl.DataFrame]) -> None:
+        payload = engine.capture_strategy_group(frames)
+        if payload is None:
+            return
+        coordinator = self._strategy_coordinator(engine)
+        coordinator.submit(
+            payload,
+            captured_at=time.time(),
+            identity=payload.identity,
+        )
+
     def _evaluate_monitors(self, daily_df: pl.DataFrame, quote_extra: pl.DataFrame | None) -> None:
         """行情更新后评估统一监控规则引擎,并刷新策略结果缓存。"""
         from app.config import settings
@@ -1373,6 +1521,8 @@ class QuoteService:
             if self._app_state:
                 engine = getattr(self._app_state, "monitor_engine", None)
                 if engine and engine.rule_count > 0:
+                    split_strategy_runtime = self._supports_strategy_group_runtime(engine)
+                    strategy_frames: dict[str, pl.DataFrame] = {}
                     # 预构建 symbol → name 映射 (enriched 已 drop name 列, 引擎触发时回填用)。
                     # 股票 + ETF + 指数三表合并走 _monitor_name_map -> repo.get_name_map()
                     # 的进程内 memo, 避免每轮监控对 ~7000 行维表 iter_rows 重建。
@@ -1382,6 +1532,14 @@ class QuoteService:
                             engine.set_name_map(name_map)
                     except Exception as e:  # noqa: BLE001
                         logger.debug("name_map 构建失败 (不影响监控): %s", e)
+                    if split_strategy_runtime:
+                        strategy_events, strategy_executions, strategy_updated = (
+                            self._consume_strategy_group(engine)
+                        )
+                        rule_events.extend(strategy_events)
+                        execution_events.extend(strategy_executions)
+                        if strategy_updated:
+                            self.notify_strategy_results_updated()
                     # 股票轮: 快照未就绪时跳过 (ladder 封单也依赖股票快照日期, 一并跳过)
                     if stock_ready:
                         eval_df = enriched_today
@@ -1390,11 +1548,17 @@ class QuoteService:
                         if engine.has_rule_type("volume_delta"):
                             eval_df = self._inject_volume_delta(eval_df)
                         eval_df = self._inject_intraday_signals(eval_df, engine, "stock")
-                        rule_events = engine.evaluate(
-                            eval_df, asset_type="stock", execution_events=execution_events,
-                        )
-                        if engine.consume_strategy_result_updates():
-                            self.notify_strategy_results_updated()
+                        if split_strategy_runtime:
+                            rule_events.extend(engine.evaluate_realtime_rules(
+                                eval_df, asset_type="stock",
+                            ))
+                            strategy_frames["stock"] = eval_df
+                        else:
+                            rule_events.extend(engine.evaluate(
+                                eval_df, asset_type="stock", execution_events=execution_events,
+                            ))
+                            if engine.consume_strategy_result_updates():
+                                self.notify_strategy_results_updated()
                     if engine.has_rule_type("sector"):
                         rule_events += engine.evaluate_sectors(
                             enriched_today if stock_ready else pl.DataFrame(),
@@ -1434,10 +1598,17 @@ class QuoteService:
                             etf_enriched, etf_date = self._repo.get_enriched_latest_asset("etf", refresh=False)
                             if not etf_enriched.is_empty() and etf_date == cn_today():
                                 etf_enriched = self._inject_intraday_signals(etf_enriched, engine, "etf")
-                                rule_events = rule_events + engine.evaluate(
-                                    etf_enriched, asset_type="etf", reset_strategy_results=False,
-                                    execution_events=execution_events,
-                                )
+                                if split_strategy_runtime:
+                                    rule_events.extend(engine.evaluate_realtime_rules(
+                                        etf_enriched, asset_type="etf",
+                                    ))
+                                    strategy_frames["etf"] = etf_enriched
+                                else:
+                                    rule_events.extend(engine.evaluate(
+                                        etf_enriched, asset_type="etf",
+                                        reset_strategy_results=False,
+                                        execution_events=execution_events,
+                                    ))
                         except Exception as e:  # noqa: BLE001
                             logger.warning("ETF 监控评估失败 (不影响股票告警): %s", e)
                     # 指数规则轮: 复刻 ETF 轮。快照由指数实时 flush 焐热;
@@ -1448,12 +1619,21 @@ class QuoteService:
                             index_enriched, index_date = self._repo.get_enriched_latest_asset("index", refresh=False)
                             if not index_enriched.is_empty() and index_date == cn_today():
                                 index_enriched = self._inject_intraday_signals(index_enriched, engine, "index")
-                                rule_events = rule_events + engine.evaluate(
-                                    index_enriched, asset_type="index", reset_strategy_results=False,
-                                    execution_events=execution_events,
-                                )
+                                if split_strategy_runtime:
+                                    rule_events.extend(engine.evaluate_realtime_rules(
+                                        index_enriched, asset_type="index",
+                                    ))
+                                    strategy_frames["index"] = index_enriched
+                                else:
+                                    rule_events.extend(engine.evaluate(
+                                        index_enriched, asset_type="index",
+                                        reset_strategy_results=False,
+                                        execution_events=execution_events,
+                                    ))
                         except Exception as e:  # noqa: BLE001
                             logger.warning("指数监控评估失败 (不影响股票/ETF 告警): %s", e)
+                    if split_strategy_runtime:
+                        self._submit_strategy_group(engine, strategy_frames)
                     if rule_events:
                         rule_events = self._format_extension_notifications(rule_events)
                         # 落盘到 alerts.jsonl

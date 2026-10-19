@@ -1,7 +1,6 @@
 """缩量回踩 — 回踩MA20附近 + 缩量 + 中期趋势向上"""
 
 import numpy as np
-from _quality_entries import with_quality_entries
 from _shared_signals import ma20_breakdown, ma20_proximity
 
 from app.backtest.matrix import (
@@ -10,6 +9,7 @@ from app.backtest.matrix import (
     make_signal_matrix,
     matrix_feature,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "pullback_to_support",

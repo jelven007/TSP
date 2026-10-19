@@ -334,7 +334,9 @@ def test_builtin_matrix_strategies_use_their_declared_formula_modules():
         assert strategy.matrix_strategy is not None
         implementation = strategy.matrix_strategy
         if strategy.meta.get("entry_rule_version"):
-            assert implementation.__class__.__module__ == "_quality_entries"
+            assert implementation.__class__.__module__ == (
+                "app.strategy.builtin._quality_entries"
+            )
             implementation = implementation.base
         assert implementation.__class__.__module__ == strategy_path.stem
         assert strategy.filter_fn is None

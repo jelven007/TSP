@@ -390,6 +390,10 @@ _SKIP_LABELS = {
     "zero_qty": "按现金与仓位余量算得可买数量为 0",
     "no_sellable_qty": "按规则金额、T+1 可卖数量及待卖占用算得可卖数量为 0",
     "duplicate": "同规则同标的本轮已下过单",
+    "portfolio_duplicate": "同周期同标的已有更高优先级的组合决策",
+    "portfolio_conflict_exit": "同周期同标的买卖冲突, 退出优先",
+    "portfolio_existing_symbol": "组合策略默认不对已有持仓或待买标的加仓",
+    "portfolio_cycle_not_succeeded": "策略周期未完整成功, 禁止新开仓",
     "order_rejected": "下单被拒 (资金/涨跌停/仓位额度等)",
 }
 
@@ -436,6 +440,191 @@ def load_auto_skips(data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID) 
         return list(json.loads(path.read_text(encoding="utf-8")).get("items", []))
     except Exception:
         return []
+
+
+def _event_receipt(rule: dict, ev: dict) -> str:
+    return hashlib.sha256(json.dumps([rule["id"], ev], sort_keys=True).encode()).hexdigest()
+
+
+def _durable_event(data_dir, ev: dict) -> bool:
+    return isinstance(data_dir, PaperSession) or "id" in ev or "ts" in ev
+
+
+def _consume_match(data_dir, account_id: str, match: dict) -> None:
+    if match["durable_receipt"]:
+        _put_record(
+            data_dir,
+            "event",
+            match["receipt"],
+            {"processed": True},
+            account_id,
+        )
+
+
+def _is_grouped_strategy_match(match: dict) -> bool:
+    ev = match["event"]
+    return (
+        ev.get("source") == "strategy"
+        and bool(ev.get("strategy_cycle_id"))
+        and match["side"] in {"buy", "sell"}
+    )
+
+
+def _strategy_rank(match: dict) -> tuple:
+    ev = match["event"]
+    value = ev.get("strategy_priority")
+    priority = (
+        int(value)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        else math.inf
+    )
+    return (
+        priority,
+        str(ev.get("strategy_id") or ""),
+        str(match["rule"].get("id") or ""),
+    )
+
+
+def _attribution_strategy_ids(matches: list[dict], owner: str | None = None) -> list[str]:
+    strategy_ids = list(dict.fromkeys(
+        str(item["event"].get("strategy_id"))
+        for item in sorted(matches, key=_strategy_rank)
+        if item["event"].get("strategy_id")
+    ))
+    if owner in strategy_ids:
+        strategy_ids.remove(owner)
+        strategy_ids.insert(0, owner)
+    return strategy_ids
+
+
+def _strategy_cycle_limits(matches: list[dict]) -> dict[str, dict]:
+    """Freeze the most conservative non-zero account limits for each cycle."""
+    limits: dict[str, dict] = {}
+    for match in matches:
+        if not _is_grouped_strategy_match(match) or match["side"] != "buy":
+            continue
+        cycle_id = str(match["event"]["strategy_cycle_id"])
+        cycle_limits = limits.setdefault(cycle_id, {})
+        for key in (
+            "max_positions",
+            "max_symbol_exposure_pct",
+            "max_total_exposure_pct",
+        ):
+            value = match["rule"].get(key, 0)
+            if value:
+                cycle_limits[key] = min(value, cycle_limits.get(key, value))
+    return limits
+
+
+def _arbitrate_strategy_matches(
+    data_dir,
+    account_id: str,
+    matches: list[dict],
+) -> list[dict]:
+    """Reduce one strategy cycle to at most one account decision per symbol."""
+    grouped: dict[tuple[str, str], list[dict]] = {}
+    selected = []
+    for match in matches:
+        if not _is_grouped_strategy_match(match):
+            selected.append(match)
+            continue
+        ev = match["event"]
+        if (
+            match["side"] == "buy"
+            and ev.get("strategy_cycle_state") not in (None, "succeeded")
+        ):
+            _record_skip(
+                data_dir,
+                account_id,
+                match["rule"],
+                ev,
+                "portfolio_cycle_not_succeeded",
+                detail={"state": ev.get("strategy_cycle_state")},
+            )
+            _consume_match(data_dir, account_id, match)
+            continue
+        grouped.setdefault(
+            (str(ev["strategy_cycle_id"]), str(ev["symbol"]).strip()),
+            [],
+        ).append(match)
+
+    positions = paper.load_positions(data_dir, account_id)
+    for (_cycle_id, symbol), candidates in grouped.items():
+        sells = [item for item in candidates if item["side"] == "sell"]
+        if sells:
+            position = positions.get(symbol) or {}
+            policy = position.get("entry_policy") or {}
+            owner = policy.get("primary_strategy_id") or policy.get("strategy_id")
+            owner_rule_id = policy.get("auto_rule_id")
+
+            def exit_rank(item, owner=owner, owner_rule_id=owner_rule_id):
+                strategy_id = item["event"].get("strategy_id")
+                ownership = (
+                    0 if owner and strategy_id == owner
+                    else 1 if owner_rule_id and item["rule"].get("id") == owner_rule_id
+                    else 2
+                )
+                return (ownership, *_strategy_rank(item))
+
+            winner_match = min(sells, key=exit_rank)
+            winner_strategy = str(winner_match["event"].get("strategy_id") or "")
+            primary = (
+                str(owner)
+                if owner and any(item["event"].get("strategy_id") == owner for item in sells)
+                else winner_strategy
+            )
+            winner = {
+                **winner_match,
+                "event": {
+                    **winner_match["event"],
+                    "primary_strategy_id": primary,
+                    "attribution_strategy_ids": _attribution_strategy_ids(
+                        sells,
+                        primary,
+                    ),
+                },
+            }
+            selected.append(winner)
+            for candidate in candidates:
+                if candidate is winner_match:
+                    continue
+                reason = (
+                    "portfolio_conflict_exit"
+                    if candidate["side"] == "buy"
+                    else "portfolio_duplicate"
+                )
+                _record_skip(
+                    data_dir,
+                    account_id,
+                    candidate["rule"],
+                    candidate["event"],
+                    reason,
+                )
+                _consume_match(data_dir, account_id, candidate)
+            continue
+
+        winner_match = min(candidates, key=_strategy_rank)
+        primary = str(winner_match["event"].get("strategy_id") or "")
+        selected.append({
+            **winner_match,
+            "event": {
+                **winner_match["event"],
+                "primary_strategy_id": primary,
+                "attribution_strategy_ids": _attribution_strategy_ids(candidates),
+            },
+        })
+        for candidate in candidates:
+            if candidate is winner_match:
+                continue
+            _record_skip(
+                data_dir,
+                account_id,
+                candidate["rule"],
+                candidate["event"],
+                "portfolio_duplicate",
+            )
+            _consume_match(data_dir, account_id, candidate)
+    return selected
 
 
 @paper_operation(write=True)
@@ -645,12 +834,54 @@ def on_rule_events(
     with paper_lock(data_dir, paper.PAPER_LOCK):
         retry_exit_intents(data_dir, account_id, submit=False)
         rules = load_auto_rules(data_dir, account_id, enabled_only=True)
-        matches = [(rule, ev, _resolve_side(rule, ev))
-                   for ev in events if (ev.get("symbol") or "").strip()
-                   for rule in rules if _matches(rule, ev)]
+        matches = []
+        seen_receipts: set[str] = set()
+        for ev in events:
+            if not (ev.get("symbol") or "").strip():
+                continue
+            for rule in rules:
+                if not _matches(rule, ev):
+                    continue
+                receipt = _event_receipt(rule, ev)
+                durable_receipt = _durable_event(data_dir, ev)
+                if durable_receipt:
+                    if receipt in seen_receipts or _record(
+                        data_dir,
+                        "event",
+                        receipt,
+                        account_id,
+                    ):
+                        continue
+                    seen_receipts.add(receipt)
+                matches.append({
+                    "rule": rule,
+                    "event": ev,
+                    "side": _resolve_side(rule, ev),
+                    "receipt": receipt,
+                    "durable_receipt": durable_receipt,
+                })
+        cycle_limits = _strategy_cycle_limits(matches)
+        matches = _arbitrate_strategy_matches(data_dir, account_id, matches)
         # Persist exit instructions before any entry can add to the same position.
         def priority(item):
-            rule, ev, side = item
+            rule, ev, side = item["rule"], item["event"], item["side"]
+            if _is_grouped_strategy_match(item):
+                score = ev.get("score")
+                score_rank = (
+                    -float(score)
+                    if (
+                        isinstance(score, (float, int))
+                        and not isinstance(score, bool)
+                        and math.isfinite(score)
+                    )
+                    else math.inf
+                )
+                return (
+                    side != "sell",
+                    *_strategy_rank(item),
+                    score_rank,
+                    ev["symbol"],
+                )
             mode = rule.get("candidate_priority", "event")
             score = ev.get("score")
             valid = not isinstance(score, bool) and isinstance(score, (float, int)) and math.isfinite(score)
@@ -659,13 +890,20 @@ def on_rule_events(
                     ev["symbol"] if mode in ("score", "symbol") else "", rule["id"])
         matches.sort(key=priority)
         allocation_prices = dict(prices or {})
-        for _, ev, _ in matches:
+        for match in matches:
+            ev = match["event"]
             if _valid_price(ev.get("price")):
                 allocation_prices.setdefault(ev["symbol"], ev["price"])
         event_prices = {}
         bought = set()
-        for rule, ev, side in matches:
+        for match in matches:
+            rule, ev, side = match["rule"], match["event"], match["side"]
             symbol = ev["symbol"].strip()
+            grouped_strategy = _is_grouped_strategy_match(match)
+            effective_rule = {
+                **rule,
+                **cycle_limits.get(str(ev.get("strategy_cycle_id")), {}),
+            } if grouped_strategy else rule
             auto_exit = rule["side"] == "auto" and side == "sell"
             if not allow_entries and not auto_exit:
                 continue
@@ -676,10 +914,8 @@ def on_rule_events(
                 if side == "buy":
                     _record_skip(data_dir, account_id, rule, ev, "no_reference_price")
                 continue
-            receipt = hashlib.sha256(json.dumps([rule["id"], ev], sort_keys=True).encode()).hexdigest()
-            durable_receipt = isinstance(data_dir, PaperSession) or "id" in ev or "ts" in ev
-            if durable_receipt and _record(data_dir, "event", receipt, account_id):
-                continue
+            receipt = match["receipt"]
+            durable_receipt = match["durable_receipt"]
             if auto_exit:
                 pos = paper.load_positions(data_dir, account_id).get(symbol)
                 if pos and pos["qty"] > 0:
@@ -712,16 +948,35 @@ def on_rule_events(
             ):
                 _record_skip(data_dir, account_id, rule, ev, "active_exit")
                 continue
+            if side == "buy" and grouped_strategy and symbol in _position_slots_used(
+                data_dir,
+                account_id,
+            ):
+                _record_skip(
+                    data_dir,
+                    account_id,
+                    rule,
+                    ev,
+                    "portfolio_existing_symbol",
+                )
+                continue
             if _in_cooldown(data_dir, rule, symbol, int(rule.get("cooldown_days", 0)), account_id):
                 _record_skip(data_dir, account_id, rule, ev, "cooldown")
                 continue
-            if side == "buy" and rule.get("max_positions", 0) > 0:
+            if side == "buy" and effective_rule.get("max_positions", 0) > 0:
                 used = _position_slots_used(data_dir, account_id)
-                if symbol not in used and len(used) >= rule["max_positions"]:
+                if symbol not in used and len(used) >= effective_rule["max_positions"]:
                     _record_skip(data_dir, account_id, rule, ev, "max_positions",
-                                 detail={"used": len(used), "max_positions": rule["max_positions"]})
+                                 detail={
+                                     "used": len(used),
+                                     "max_positions": effective_rule["max_positions"],
+                                 })
                     continue
-            if side == "buy" and rule.get("risk_follow") and not ev.get("entry_policy"):
+            if (
+                side == "buy"
+                and (grouped_strategy or rule.get("risk_follow"))
+                and not ev.get("entry_policy")
+            ):
                 _record_skip(data_dir, account_id, rule, ev, "missing_entry_policy")
                 continue
             if side == "buy":
@@ -733,18 +988,47 @@ def on_rule_events(
                 if entry_risk.enabled and not rule.get("risk_follow"):
                     _record_skip(data_dir, account_id, rule, ev, "risk_follow_required")
                     continue
-            qty = _sizing_qty(data_dir, {**rule, "_symbol": symbol}, float(price), account_id, allocation_prices)
+            qty = _sizing_qty(
+                data_dir,
+                {**effective_rule, "_symbol": symbol},
+                float(price),
+                account_id,
+                allocation_prices,
+            )
             if qty <= 0:
                 _record_skip(data_dir, account_id, rule, ev, "no_sellable_qty" if side == "sell" else "zero_qty")
                 continue
             if side == "buy" and (rule["id"], symbol) in bought:
                 _record_skip(data_dir, account_id, rule, ev, "duplicate")
                 continue
+            entry_policy = None
+            if side == "buy" and ev.get("entry_policy"):
+                entry_policy = {
+                    **ev["entry_policy"],
+                    "auto_rule_id": rule["id"],
+                }
+                if grouped_strategy:
+                    entry_policy.update({
+                        "primary_strategy_id": ev["primary_strategy_id"],
+                        "attribution_strategy_ids": ev["attribution_strategy_ids"],
+                        "strategy_cycle_id": ev["strategy_cycle_id"],
+                    })
             order, error = paper.create_order(
                 data_dir, symbol, side, account_id=account_id, qty=qty,
                 order_type=rule["order_type"], ref_price=float(price), source=f"auto:{rule['id']}",
-                entry_policy={**ev["entry_policy"], "auto_rule_id": rule["id"]} if side == "buy" and ev.get("entry_policy") else None,
-                risk_limits={key: rule[key] for key in ("max_symbol_exposure_pct", "max_total_exposure_pct")} if side == "buy" else None,
+                idempotency_key=(
+                    f"portfolio:{ev['strategy_cycle_id']}:{symbol}:buy"
+                    if grouped_strategy and side == "buy"
+                    else None
+                ),
+                entry_policy=entry_policy,
+                risk_limits={
+                    key: effective_rule[key]
+                    for key in (
+                        "max_symbol_exposure_pct",
+                        "max_total_exposure_pct",
+                    )
+                } if side == "buy" else None,
                 valuation_prices=allocation_prices,
             )
             if error:

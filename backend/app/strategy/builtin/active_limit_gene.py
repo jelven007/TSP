@@ -1,7 +1,6 @@
 """涨停基因活跃股 — 近期多次涨停的活跃标的池 (股性筛选, 非追板)"""
 
 import numpy as np
-from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -9,6 +8,7 @@ from app.backtest.matrix import (
     make_signal_matrix,
     matrix_feature,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "active_limit_gene",

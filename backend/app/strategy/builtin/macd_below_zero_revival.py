@@ -1,7 +1,6 @@
 """MACD 零下回升 — 股价新低而 DIF 拒绝新低 (底背离简化形态)"""
 
 import numpy as np
-from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -12,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "macd_below_zero_revival",

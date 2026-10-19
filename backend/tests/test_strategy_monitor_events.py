@@ -556,14 +556,17 @@ def test_standalone_collector_uses_unbatched_events_and_retries_without_alerts(m
     engine.set_rules([_rule("pool_entry", "pool_exit")])
     engine.set_strategy_engine(_SequenceStrategyEngine([
         _result(day), _result(day, pool=symbols), _result(day),
-        _result(day), _result(day), _result(day),
+        _result(day), _result(day), _result(day), _result(day),
     ]))
     paper.create_account(tmp_path, 100000)
     paper_auto.create_auto_rule(tmp_path, {
         "name": "批量方向", "match_kind": "strategy", "match_id": "demo", "side": "auto",
         "size_mode": "fixed_amount", "size_value": 1000, "order_type": "market", "cooldown_days": 0,
     })
-    repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    repo = SimpleNamespace(
+        store=SimpleNamespace(data_dir=tmp_path),
+        get_enriched_latest_asset=lambda *_args, **_kwargs: (pl.DataFrame(), None),
+    )
     service = QuoteService()
     service.set_app_state(SimpleNamespace(monitor_engine=engine, repo=repo))
     service._repo = repo
@@ -574,16 +577,22 @@ def test_standalone_collector_uses_unbatched_events_and_retries_without_alerts(m
         ), current_day["day"],
     )
     with patch.object(QuoteService, "_is_continuous_trading", return_value=True):
-        service._evaluate_monitors(pl.DataFrame(), None)  # baseline
-        service._evaluate_monitors(pl.DataFrame(), None)  # 7 entries, one notification
+        def cycle():
+            service._evaluate_monitors(pl.DataFrame(), None)
+            assert service._strategy_group_coordinator.wait_idle(timeout=2)
+
+        cycle()  # baseline
+        cycle()  # compute 7 entries
+        cycle()  # consume entries and create 7 orders
         assert len(paper.load_orders(tmp_path)) == 7
-        service._evaluate_monitors(pl.DataFrame(), None)  # fill entries, queue T+1 exits
+        cycle()  # fill entries, consume exits and queue T+1 intents
         assert len(paper_auto.load_exit_intents(tmp_path, active_only=True)) == 7
         current_day["day"] += timedelta(days=1)
-        service._evaluate_monitors(pl.DataFrame(), None)  # no alert; retry exits
+        cycle()  # no alert; retry exits
         assert len(paper.load_orders(tmp_path)) == 14
-        service._evaluate_monitors(pl.DataFrame(), None)  # fills and completes
+        cycle()  # fills and completes
         assert all(pos["qty"] == 0 for pos in paper.load_positions(tmp_path).values())
         assert paper_auto.load_exit_intents(tmp_path, active_only=True) == []
-        service._evaluate_monitors(pl.DataFrame(), None)
+        cycle()
         assert len(paper.load_orders(tmp_path)) == 14
+    service.stop()

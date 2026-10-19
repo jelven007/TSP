@@ -109,6 +109,19 @@ ETF 不进入股票实时快照撮合池，因此 ETF 即时单会自动转为�
   逐证券执行事件。所选事件类型、初始基线、同根 K 线去重和选股池边缘判定保持一致；
   通知仍可按超过 5 只汇总并执行通知冷却，执行输出保留每只证券和价格。
   独立行情服务和受限计算容器均传递该输出；策略通知不会再作为第二份下单输入。
+- 独立行情服务中的策略事件由 `StrategyGroupCoordinator` 产出周期 ID、周期状态和
+  冻结规则优先级。通用价格/信号规则仍逐行情快照评估，不进入 latest-only 邮箱。
+  策略周期超过 15 秒或存在部分失败时不创建新买单，已有退出待办继续重试。
+- 带周期 ID 的策略事件在账户锁/事务内按 `(cycle_id, symbol)` 仲裁。退出优先；
+  多买只保留一个主策略并冻结全部归因；多卖合并一个退出意图。落选和冲突候选写入
+  未执行原因并保存处理回执，事件重放不重复决策。
+- 组合入场默认拒绝已有持仓或待买标的加仓；本周期所有匹配入场规则的非零
+  `max_positions`、`max_symbol_exposure_pct`和`max_total_exposure_pct`取最保守值，
+  每笔订单仍通过 `portfolio_budget`按持仓、待买、现金、滑点和费用重新计算。
+  待卖成交前不释放仓位和敞口。入场政策保存`primary_strategy_id`、
+  `attribution_strategy_ids`及`strategy_cycle_id`，首笔成交后不可改写。
+- 上述组合裁决只作用于带周期 ID 的协调器策略事件。不带周期 ID 的旧策略事件、
+  固定方向规则和通用监控事件保持原逐规则兼容行为。
 - 自动跟单规则形态:
   `{match_kind: strategy|rule, match_id, side: buy|sell|auto, size_mode: fixed_amount|pct_equity, size_value, order_type, cooldown_days, max_positions, candidate_priority, max_symbol_exposure_pct, max_total_exposure_pct, risk_follow}`。
 - `side=auto` 仅用于跟策略：`buy_signal` / `pool_entry` 买入，
@@ -286,6 +299,7 @@ DSR 只用完整夏普网格的真实每日组合收益统计计算，明确标�
 | 账务 | fills.jsonl 重放 == positions.json(性质测试)、净值 = cash + Σ市值、冲正成交后曲线连续 |
 | 管道挂点 | 盘后结算幂等(重跑同日不重复成交)、非交易日不结算 |
 | 自动规则 | 自动方向与逐证券事件、T+1 无新信号重试、入场快照与峰值重启恢复、节假日持有期、评分排序、待买资金/仓位占用、涨价后超限拒单、旧固定方向兼容 |
+| 策略组组合 | 同周期同股去重、退出优先、多退出合并、主策略/归因冻结、最保守持仓/单股/总仓限制、已有标的不加仓、partial/stale 禁止入场 |
 | API 契约 | 下单/撤单/overview 成功与错误响应 |
 | 多账户与对比 | 账户隔离、旧目录迁移、批量创建全量预校验、对比指标与空账户过滤；真实 PostgreSQL 多 worker 重试幂等、RLS、退出/回执/订单中途回滚，文件写入中断恢复 |
 | 前端 | Vitest + TypeScript/Vite build；关键交互本地 dev 检查 |
@@ -302,6 +316,7 @@ DSR 只用完整夏普网格的真实每日组合收益统计计算，明确标�
 | **第二批风控与组合** | ✅ 共用政策、首笔成交快照、持久风险退出、候选排序、单股/总仓位与限定范围的实时开盘入账 |
 | **第三批研究配置** | ✅ 入场叠加条件统一接入、试验族记录与样本外机制接线 |
 | **第四批诊断与体验** | ✅ 逐持仓价源与估值口径标记、配对/持仓周期双口径统计、自动跟单未执行原因留痕 |
+| **策略组组合裁决** | ✅ 独立行情链路共享策略周期、同股冲突裁决、账户级预算、持仓归因及失败/陈旧周期入场保护；配置/状态 API 与真实交易日验收待后续 |
 
 实现以 `backend/app/strategy/paper.py`、`paper_auto.py`、`api/paper.py` 和
 `frontend/src/pages/Paper.tsx` 为准。
