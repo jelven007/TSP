@@ -29,9 +29,44 @@ def write_json(path: Path, value: dict) -> None:
     temporary = path.with_name(path.name + "." + uuid.uuid4().hex)
     try:
         temporary.write_text(json.dumps(value), encoding="utf-8")
-        temporary.replace(path)
+        if os.name != "nt":
+            temporary.replace(path)
+            return
+        # Windows refuses to replace a target a reader still holds open (WinError 5).
+        # Supervisors poll progress.json every 0.5s, so a short backoff clears the read window.
+        for attempt in range(20):
+            try:
+                temporary.replace(path)
+                return
+            except PermissionError:
+                if attempt == 19:
+                    raise
+                time.sleep(.05)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def alive(pid: int) -> bool:
+    if os.name != "nt":
+        os.kill(pid, 0)
+        return True
+    # Windows os.kill(pid, 0) opens with PROCESS_ALL_ACCESS and calls TerminateProcess,
+    # so a liveness probe must query the exit code instead.
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.OpenProcess.argtypes = (ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32)
+    kernel32.GetExitCodeProcess.argtypes = (ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32))
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    handle = kernel32.OpenProcess(0x1000, False, pid)      # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return False
+    try:
+        code = ctypes.c_uint32()
+        return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def record(kind: str, healthy: bool) -> None:
@@ -44,10 +79,13 @@ def record(kind: str, healthy: bool) -> None:
         })
 
 
-def progress(directory: Path, pid: int, instance: str, kind: str) -> float | None:
+def progress(directory: Path, instance: str, kind: str) -> float | None:
     try:
         value = json.loads((directory / "progress.json").read_text())
-        if (value["pid"] != pid or value["instance"] != instance
+        # The direct child may be a launcher that re-execs the real interpreter
+        # (uv/venv trampolines on Windows), so the reporting pid differs from the
+        # child pid. The per-spawn instance id is what identifies the live worker.
+        if (value["instance"] != instance
                 or value["kind"] != kind or value["healthy"] is not True):
             return None
         at = float(value["at"])
@@ -59,8 +97,9 @@ def progress(directory: Path, pid: int, instance: str, kind: str) -> float | Non
 def check(directory: Path, kind: str, *, max_age: float) -> bool:
     try:
         owner = json.loads((directory / "owner.json").read_text())
-        os.kill(owner["pid"], 0)
-        at = progress(directory, owner["pid"], owner["instance"], kind)
+        if not alive(owner["pid"]):
+            return False
+        at = progress(directory, owner["instance"], kind)
         return at is not None and time.monotonic() - at <= max_age
     except (OSError, ValueError, KeyError, TypeError):
         return False
@@ -85,7 +124,7 @@ def supervise(command: list[str], *, kind: str, directory: Path, max_age: float,
         while child.poll() is None:
             if stopped.wait(poll):
                 return 0
-            at = progress(directory, child.pid, instance, kind)
+            at = progress(directory, instance, kind)
             if at is not None:
                 deadline = at + max_age
             if time.monotonic() > deadline:
