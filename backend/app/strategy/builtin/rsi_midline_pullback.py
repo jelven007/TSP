@@ -1,7 +1,6 @@
 """RSI 中轴回踩 — 强趋势中 RSI 回落至 50 中轴附近而不破, 低吸点"""
 
 import numpy as np
-from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -12,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "rsi_midline_pullback",

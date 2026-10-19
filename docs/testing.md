@@ -163,6 +163,53 @@ P2 参数交互补充验证 `test_strategy_param_normalize.py` 的 API 保存/�
 控制条件切换后组合数变化，以及浅/深色窄屏可操作性。
 合并结果见[主线整合记录](../reports/main-consolidation-20261018/verification.md)。
 
+策略质量、成交正确性和入场风险回归：
+
+```bash
+cd backend
+uv run --frozen pytest -q \
+  tests/backtest/test_strategy_quality_inputs.py \
+  tests/backtest/test_quality_entry_variants.py \
+  tests/backtest/test_open_limit_execution.py \
+  tests/backtest/test_portfolio_execution_order.py \
+  tests/backtest/test_entry_risk_policy.py \
+  tests/backtest/test_trade_quality_stats.py \
+  tests/backtest/test_walkforward_boundaries.py \
+  tests/test_paper_risk_policy.py tests/test_strategy_monitor_events.py
+```
+
+至少覆盖原始价资格、缺评分排除、开盘封板、最低佣金、原始申报数量、买单过期、
+未平仓、开盘资金阶段、交易日滚动窗口、冻结 ATR/信号低点和权益风险预算。
+研究脚本的现金核算、账户勾稽、输入/源码身份和候选判定属于额外证据，不能替代
+领域回归。该分支最终合并两批逐用例 ID 后为 `704 passed, 6 skipped`；前端
+TypeScript/Vite 构建通过。完整实现与全市场研究限制见
+[策略升级实施记录](../reports/strategy-optimization-20261019/implementation.md)。
+
+策略组协调器、共享计算与组合裁决回归：
+
+```bash
+cd backend
+uv run --frozen pytest -q \
+  tests/test_strategy_group_coordinator.py \
+  tests/test_strategy_group_monitor_runtime.py \
+  tests/test_strategy_portfolio_arbitration.py \
+  tests/test_strategy_monitor_events.py \
+  tests/test_paper_auto.py tests/test_paper_risk_policy.py \
+  tests/test_paper_trading.py tests/test_full_paper.py
+```
+
+专项必须证明容量 1 最新快照、周期唯一性、失败隔离、规则变更丢弃、通用规则逐快照、
+共享历史/矩阵、同策略唯一求值、同股去重、退出优先、账户最保守预算、持仓归因及
+`partial/stale`周期禁止入场。当前相关监控、模拟盘和行情调用链扩大回归为
+`271 passed, 41 skipped`；跳过项主要依赖未提供的一次性 PostgreSQL 环境，
+不能据此宣称多租户真实数据库验收完成。阶段证据见
+[五策略实施记录](../reports/five-strategy-parallel-20261019/implementation.md)。
+
+本次主线集成前最终门禁为：后端全量 `3853 passed, 120 skipped, 89 warnings`
+（232.54 秒）；前端 40 个 Vitest 文件共 `191 passed`；ESLint 0 错误、75 条
+既有警告；TypeScript/Vite 生产构建通过并保留既有大分块提示。数据库相关跳过项
+仍须按下文提供一次性 PostgreSQL 后单独验收，不能把本地全量通过解释为该环境已覆盖。
+
 完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
 通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。
 未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、
@@ -378,10 +425,10 @@ runner 会实际运行 PyInstaller 便携版，并对 Inno Setup 产物执行静
 | Provider 或能力矩阵 | Provider 契约、字段单位、空数据、缺能力、路由和设置页状态 |
 | 日线/分钟/实时数据 | 日期时区、资产路由、分区合并、完整性和缓存失效 |
 | enriched/指标 | 固定数值、复权、停牌、历史股本、增量与全量一致性 |
-| 策略/信号 | 参数、候选、排序、缓存、日线与分钟周期 |
-| 回测 | 信号/成交时间、T+1、费用、滑点、涨跌停、缺口和尾部结算 |
-| 监控/通知 | 规则逻辑、去重、冷却、重启状态和通知失败隔离 |
-| 模拟盘 | 资金持仓守恒、订单状态、T+1、幂等结算和并发 |
+| 策略/信号 | 参数、候选、评分完整性、入场政策、排序、缓存、日线与分钟周期 |
+| 回测 | 信号/成交时间、原始/复权价格、T+1、费用、申报数量、滑点、涨跌停、买单过期和未平仓 |
+| 监控/通知 | 规则逻辑、逐快照通用规则、策略组快照/共享计算、去重、冷却、重启状态和通知失败隔离 |
+| 模拟盘 | 资金持仓守恒、订单状态、T+1、幂等结算、策略组同股裁决、账户预算和并发 |
 | API/Token/MCP | 成功、无数据、错误、scope 越权、响应模型、端点快照和 schema 指纹 |
 | 邮箱账户认证 | 验证码发送失败、重发冷却、过期、错误次数、一次性消费、注册登录和旧账户迁移 |
 | HTTP 观测 | 请求 ID 继承/重生、日志上下文、路由模板聚合、401/403、异常 5xx、认证边界和重置 |
@@ -456,10 +503,13 @@ rustdx 的专项验证见[rustdx 数据源说明](./rustdx-data-source.md)。
 ### 9.3 研究闭环
 
 - 运行一个日线策略并查看候选。
-- 用同一策略运行短区间回测，检查交易明细和费用。
+- 用同一策略运行短区间回测，检查原始入场价格/数量、费用、未平仓和拒单原因。
+- 编辑可选入场风险后重新打开，确认溢价、ATR/低点和计划风险回显一致；切换策略
+  不继承上一策略配置。
 - 导出结果、保存候选并载入复测。
-- 创建监控规则并验证触发记录。
-- 建立模拟账户，完成一笔可成交和一笔应拒绝订单。
+- 创建两条策略监控规则，验证成功周期共享结果且通用价格规则仍逐快照触发。
+- 建立模拟账户，完成一笔可成交和一笔应拒绝订单；同周期两策略命中同股只产生
+  一单，买卖冲突只推进退出。
 
 ### 9.4 开放闭环
 

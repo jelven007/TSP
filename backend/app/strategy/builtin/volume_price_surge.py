@@ -1,7 +1,6 @@
 """量价齐升 — 突破MA20 + 放量 + 收阳"""
 
 import numpy as np
-from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -12,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "volume_price_surge",

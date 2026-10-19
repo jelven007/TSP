@@ -384,12 +384,18 @@ class StrategyEngine:
             if candidate != path
         ]
         dependency_names = frozenset(candidate.stem for candidate in dependency_paths)
+        allowed_dependency_modules = dependency_names
+        if path.parent.name == "builtin":
+            allowed_dependency_modules |= frozenset(
+                f"app.strategy.builtin.{name}"
+                for name in dependency_names
+            )
         try:
             code = path.read_text(encoding="utf-8")
             from app.strategy.ai_generator import AIStrategyGenerator
             AIStrategyGenerator._validate_safety(
                 code,
-                extra_allowed_import_modules=dependency_names,
+                extra_allowed_import_modules=allowed_dependency_modules,
             )
             for dependency_path in dependency_paths:
                 AIStrategyGenerator._validate_safety(

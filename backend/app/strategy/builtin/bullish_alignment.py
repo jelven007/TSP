@@ -1,7 +1,6 @@
 """均线多头 — MA5>MA10>MA20>MA60 + 短期动量为正"""
 
 import numpy as np
-from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -12,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "bullish_alignment",
