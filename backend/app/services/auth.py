@@ -49,10 +49,17 @@ class LegacyMigrationRequiredError(ValueError):
     """Raised when password-only auth must be claimed before registration."""
 
 
+def _legacy_store_available() -> bool:
+    """Legacy ``auth.json`` only exists in the standalone single-user runtime."""
+    from app.config import settings
+
+    return settings.service_role == "standalone" and not settings.multitenancy_enabled
+
+
 def _path() -> Path:
     from app.config import settings
 
-    if settings.service_role != "standalone" or settings.multitenancy_enabled:
+    if not _legacy_store_available():
         raise RuntimeError("legacy identity files are unavailable in the full multitenant runtime")
     path = settings.data_dir / "user_data" / "auth.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -333,7 +340,9 @@ def registered_emails() -> list[str]:
     """Registered account recipients for shared notifications, independent of sessions."""
     from app.config import authentication_required
 
-    if not authentication_required():
+    # The full multitenant runtime keeps accounts in PostgreSQL; there is no
+    # legacy auth.json to read, and callers only need the recipient default.
+    if not authentication_required() or not _legacy_store_available():
         return []
     with _lock:
         users = list(_users(_load()).values())

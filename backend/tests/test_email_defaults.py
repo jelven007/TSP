@@ -45,6 +45,20 @@ def client_for(email: str) -> TestClient:
     return client
 
 
+def test_webhook_defaults_skip_legacy_recipients_in_full_runtime(monkeypatch):
+    # 多租户 API 没有 legacy auth.json, 计算默认渠道时不能因此抛 500。
+    monkeypatch.setattr(config.settings, "service_role", "api")
+    monkeypatch.setattr(config.settings, "multitenancy_enabled", True)
+
+    smtp, password = email_adapter.get_notification_smtp()
+
+    assert smtp["to_addresses"] == []
+    assert password == "registration-secret"
+    assert auth.registered_emails() == []
+    assert preferences.get_webhook_default_channels() == []
+    assert preferences.load() == {}
+
+
 def test_notification_defaults_reuse_registration_transport_without_copying_secret():
     auth.register_user("User@Example.com", "password-123")
 
