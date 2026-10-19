@@ -268,12 +268,14 @@ def test_execution_metadata_carries_effective_policy_score_and_raw_price(tmp_pat
     day = date(2026, 10, 14)
     selected = _result(day, pool=("A",), buys=("A",), scores={"A": 85})
     selected.rows[0]["raw_close"] = 20
+    selected.rows[0].update(low=9., atr_14=.2)
     strategy_engine = _SequenceStrategyEngine([_result(day), selected])
     strategy_engine.strategy.stop_loss = -.06
     strategy_engine.strategy.max_hold_days = 15
     strategy_engine.strategy.meta["params"] = [{"id": "window", "default": 20}]
     config.save_override(tmp_path, "demo", {
         "take_profit": .2, "params": {"window": 30},
+        "entry_risk": {"stop_atr_multiple": 2.},
         "overlay_filter": [{"left": "close", "op": ">", "right": "field:ma20"}],
     })
     engine = MonitorRuleEngine()
@@ -289,6 +291,8 @@ def test_execution_metadata_carries_effective_policy_score_and_raw_price(tmp_pat
     assert events[0]["entry_policy"]["policy"]["take_profit_pct"] == .2
     assert events[0]["entry_policy"]["params"] == {"window": 30}
     assert events[0]["entry_policy"]["overlay_filter"] == config.load_override(tmp_path, "demo")["overlay_filter"]
+    assert events[0]["entry_policy"]["entry_risk"]["stop_atr_multiple"] == 2.
+    assert events[0]["entry_policy"]["signal_reference"] == {"close": 20, "low": 18., "atr": .4}
 
 
 def test_execution_pool_edges_survive_notification_cooldown():

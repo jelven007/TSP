@@ -1,6 +1,7 @@
 """超跌反弹 — RSI14 < 30 + 收阳 + 放量"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 from _shared_signals import ma20_breakdown, rsi_oversold_entry
 
 from app.backtest.matrix import (
@@ -81,4 +82,4 @@ class OversoldBounceMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = OversoldBounceMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, OversoldBounceMatrixStrategy())

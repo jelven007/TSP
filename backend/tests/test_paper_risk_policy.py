@@ -219,3 +219,79 @@ def test_disabling_risk_cancels_pending_sell_and_reenable_creates_new_intent(acc
     second = paper_auto.evaluate_position_risk(account, {SYM: 9})[0]
     assert second["exit_intent_id"] != old_id
     assert len(paper_auto.load_exit_intents(account)) == 2
+
+
+def _entry_risk_snapshot(**policy):
+    return {
+        "version": 1, "as_of": DAY.isoformat(), "policy": {"stop_loss_pct": .1},
+        "entry_risk": policy, "signal_reference": {"close": 10., "low": 9.5, "atr": .2},
+    }
+
+
+def test_paper_premium_is_rechecked_on_actual_fill(account):
+    make_rule(account, risk_follow=True, cooldown_days=0)
+    order = paper_auto.on_rule_events(account, [event(
+        "buy_signal", entry_policy=_entry_risk_snapshot(max_entry_premium_pct=.03),
+    )])[0]
+    assert paper.evaluate_intraday(account, {SYM: 10.5}) == []
+    assert "溢价上限" in paper.get_order(account, order["id"])["reason"]
+
+
+def test_paper_atr_stop_is_frozen_and_survives_replay(account, monkeypatch):
+    make_rule(account, risk_follow=True, cooldown_days=0)
+    paper_auto.on_rule_events(account, [event(
+        "buy_signal", entry_policy=_entry_risk_snapshot(stop_atr_multiple=2.),
+    )])
+    paper.evaluate_intraday(account, {SYM: 10.})
+    fill = paper.load_fills(account)[0]
+    assert fill["frozen_stop_price"] == pytest.approx(fill["price"] - .4)
+    paper.rebuild_positions(account)
+    monkeypatch.setattr(paper, "cn_today", lambda: DAY + timedelta(days=1))
+    assert len(paper_auto.evaluate_position_risk(Path(str(account)), {SYM: 9.5})) == 1
+    assert paper_auto.load_exit_intents(account)[0]["risk_reason"] == "frozen_stop"
+
+
+def test_paper_quantity_is_capped_at_actual_execution_risk(account):
+    make_rule(account, risk_follow=True, cooldown_days=0, size_value=50_000)
+    order = paper_auto.on_rule_events(account, [event(
+        "buy_signal", entry_policy=_entry_risk_snapshot(stop_atr_multiple=2., risk_per_trade_pct=.005),
+    )])[0]
+    fills = paper.evaluate_intraday(account, {SYM: 10.})
+    assert fills[0]["qty"] == 1200
+    fill = paper.load_fills(account)[0]
+    assert fill["qty"] * (fill["price"] - fill["frozen_stop_price"]) <= 500
+    assert paper.get_order(account, order["id"])["requested_qty"] > 1200
+
+
+def test_paper_reference_adjusts_only_after_signal_date(account):
+    snapshot = _entry_risk_snapshot(stop_atr_multiple=2., stop_signal_low=True)
+    folder = account / "adj_factor"
+    folder.mkdir()
+    pl.DataFrame({
+        "symbol": [SYM, SYM], "trade_date": [DAY, DAY + timedelta(days=1)],
+        "ex_factor": [3., 2.],
+    }).write_parquet(folder / "all.parquet")
+    ref = paper._entry_reference_on(account, snapshot, SYM, "stock", (DAY + timedelta(days=1)).isoformat())
+    assert ref == {"close": 5., "low": 4.75, "atr": .1}
+    assert paper._entry_reference_on(account, snapshot, SYM, "stock", DAY.isoformat()) == snapshot["signal_reference"]
+
+
+def test_paper_missing_signal_date_fails_closed(account):
+    snapshot = _entry_risk_snapshot(stop_atr_multiple=2.)
+    del snapshot["as_of"]
+    make_rule(account, risk_follow=True, cooldown_days=0)
+    order = paper_auto.on_rule_events(account, [event("buy_signal", entry_policy=snapshot)])[0]
+    assert paper.evaluate_intraday(account, {SYM: 10.}) == []
+    assert paper.get_order(account, order["id"])["status"] == "expired"
+
+
+def test_entry_risk_requires_risk_follow_and_rejects_additions(account):
+    rule = make_rule(account, risk_follow=False, cooldown_days=0)
+    ev = event("buy_signal", entry_policy=_entry_risk_snapshot(stop_atr_multiple=2.))
+    assert paper_auto.on_rule_events(account, [ev]) == []
+    paper_auto.save_auto_rule(account, {**rule, "risk_follow": True})
+    paper_auto.on_rule_events(account, [ev])
+    paper.evaluate_intraday(account, {SYM: 10.})
+    more = paper_auto.on_rule_events(account, [ev])[0]
+    assert paper.evaluate_intraday(account, {SYM: 10.}) == []
+    assert "不对已有持仓加仓" in paper.get_order(account, more["id"])["reason"]

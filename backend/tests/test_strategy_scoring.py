@@ -31,13 +31,12 @@ def test_virtual_scoring_is_shared_and_does_not_add_virtual_column():
     assert "ma20_bias" not in backtest.columns
 
 
-def test_scoring_reweights_only_available_fields():
-    scored = StrategyEngine._apply_scoring(
-        _candidates().drop("ma20"),
-        {"ma20_bias": 0.6, "vol_ratio_5d": 0.4},
-    )
-
-    assert scored["score"].to_list() == pytest.approx([100.0, 0.0])
+def test_scoring_rejects_missing_required_fields():
+    with pytest.raises(ValueError, match="评分缺少可计算字段: ma20_bias"):
+        StrategyEngine._apply_scoring(
+            _candidates().drop("ma20"),
+            {"ma20_bias": 0.6, "vol_ratio_5d": 0.4},
+        )
 
 
 def test_scoring_can_prefer_lower_factor_values():

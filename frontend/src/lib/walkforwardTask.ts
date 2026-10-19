@@ -33,7 +33,9 @@ export interface WFFold {
 
 export interface WFSummary {
   n_folds: number
-  compounded_oos_return: number
+  compounded_oos_return: number | null
+  aggregation_basis?: string
+  aggregation_unavailable_reason?: string | null
   avg_is_objective: number | null
   avg_oos_objective: number | null
   degradation: number | null
@@ -43,6 +45,12 @@ export interface WFSummary {
 
 export interface WalkForwardResult {
   research?: ResearchRecord
+  window_policy?: {
+    unit: 'calendar_days' | 'trading_days'
+    purge_days: number
+    calendar_source: string
+    effective_mode: string
+  }
   objective: string
   direction: string
   n_folds: number
@@ -69,6 +77,8 @@ export interface StartWalkForwardParams {
   train_days: number
   test_days: number
   step_days: number
+  window_unit?: 'calendar_days' | 'trading_days'
+  purge_days?: number
   params?: Record<string, any> | null       // 未扫描参数固定为用户当前值
   overrides?: Record<string, any> | null     // 策略当前的 basic_filter/信号/风控覆盖
   symbols?: string[] | null
@@ -227,6 +237,8 @@ export function startWalkForward(params: StartWalkForwardParams): void {
     train_days: params.train_days,
     test_days: params.test_days,
     step_days: params.step_days,
+    window_unit: params.window_unit,
+    purge_days: params.purge_days,
     params: params.params ? JSON.stringify(params.params) : undefined,
     overrides: params.overrides ? JSON.stringify(params.overrides) : undefined,
     symbols: params.symbols?.join(','),

@@ -31,6 +31,7 @@ VALID_OBJECTIVES = {
     "total_return", "annual_return", "sharpe", "sortino", "calmar",
     "win_rate", "profit_factor", "max_drawdown", "mc_maxdd_p50", "mc_maxdd_p95",
     "avg_pnl", "median_pnl", "n_trades", "avg_holding_days",
+    "payoff_ratio", "profit_factor_amount", "net_expectancy",
 }
 
 

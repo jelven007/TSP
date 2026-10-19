@@ -1,6 +1,7 @@
 """MACD金叉放量 — MACD金叉当日 + 量能放大"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -96,4 +97,4 @@ class MACDGoldenMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = MACDGoldenMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, MACDGoldenMatrixStrategy())

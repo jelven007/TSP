@@ -14,6 +14,7 @@ const FACTOR_CONFIG_FIELDS = [
 const STRATEGY_CONFIG_FIELDS = [
   'strategy_id', 'symbols', 'start', 'end', 'params', 'overrides', 'matching',
   'entry_fill', 'exit_fill', 'fees_pct', 'commission_pct', 'stamp_tax_pct',
+  'minimum_commission', 'transfer_fee_pct',
   'slippage_bps', 'max_positions', 'max_exposure_pct', 'initial_capital',
   'position_sizing', 'mode', 'holding_days', 'asset_type', 'minute_fill',
   'regime_filter',
@@ -98,6 +99,10 @@ export function strategyResultCandidate(result: StrategyBacktestResult): Researc
       win_rate: stats.win_rate ?? null,
       n_trades: stats.n_trades ?? null,
       profit_factor: stats.profit_factor ?? null,
+      profit_factor_amount: stats.profit_factor_amount ?? null,
+      payoff_ratio: stats.payoff_ratio ?? null,
+      net_expectancy: stats.net_expectancy ?? null,
+      trade_metrics_version: stats.trade_metrics_version ?? null,
       avg_return: stats.avg_return ?? null,
       median_return: stats.median_return ?? null,
       elapsed_ms: result.elapsed_ms,

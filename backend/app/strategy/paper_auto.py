@@ -30,6 +30,7 @@ from app.market_time import cn_now, published_trading_days
 from app.multitenancy.paper_storage import PaperSession, paper_lock, paper_operation
 from app.services.fs_utils import atomic_write_text
 from app.strategy import paper
+from app.strategy.entry_risk import EntryRiskPolicy
 from app.strategy.risk_policy import RiskPolicy, price_exit
 
 logger = logging.getLogger(__name__)
@@ -383,6 +384,8 @@ _SKIP_LABELS = {
     "cooldown": "买入冷却期内",
     "max_positions": "持仓数已达规则上限",
     "missing_entry_policy": "缺入场政策快照, 风控跟随规则不买入",
+    "invalid_entry_policy": "入场风险配置无效",
+    "risk_follow_required": "启用入场风险控制需开启跟随策略风控",
     "no_reference_price": "缺有效参考价",
     "zero_qty": "按现金与仓位余量算得可买数量为 0",
     "no_sellable_qty": "按规则金额、T+1 可卖数量及待卖占用算得可卖数量为 0",
@@ -591,7 +594,11 @@ def evaluate_position_risk(data_dir, prices, account_id=paper.DEFAULT_ACCOUNT_ID
                     continue
             reason = None
             if _valid_price(price):
-                reason, _ = price_exit(policy, entry, peak, float(price), float(price), float(price))
+                frozen = pos.get("frozen_stop_price")
+                reason, _ = price_exit(
+                    policy, entry, peak, float(price), float(price), float(price),
+                    frozen_stop=frozen / factor if _valid_price(frozen) else None,
+                )
             if reason is None and policy.max_hold_days:
                 start, end = _date.fromisoformat(pos["entry_date"]), _date.fromisoformat(day)
                 calendars = [published_trading_days(year) for year in range(start.year, end.year + 1)]
@@ -717,6 +724,15 @@ def on_rule_events(
             if side == "buy" and rule.get("risk_follow") and not ev.get("entry_policy"):
                 _record_skip(data_dir, account_id, rule, ev, "missing_entry_policy")
                 continue
+            if side == "buy":
+                try:
+                    entry_risk = EntryRiskPolicy.from_mapping((ev.get("entry_policy") or {}).get("entry_risk"))
+                except ValueError:
+                    _record_skip(data_dir, account_id, rule, ev, "invalid_entry_policy")
+                    continue
+                if entry_risk.enabled and not rule.get("risk_follow"):
+                    _record_skip(data_dir, account_id, rule, ev, "risk_follow_required")
+                    continue
             qty = _sizing_qty(data_dir, {**rule, "_symbol": symbol}, float(price), account_id, allocation_prices)
             if qty <= 0:
                 _record_skip(data_dir, account_id, rule, ev, "no_sellable_qty" if side == "sell" else "zero_qty")

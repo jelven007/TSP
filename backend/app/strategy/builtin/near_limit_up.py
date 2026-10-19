@@ -1,6 +1,7 @@
 """逼近涨停 — 涨幅 > 7% 且距涨停 < 3%, 盘后选股"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -90,4 +91,4 @@ class NearLimitUpMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = NearLimitUpMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, NearLimitUpMatrixStrategy())

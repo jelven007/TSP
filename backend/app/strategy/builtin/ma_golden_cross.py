@@ -1,6 +1,7 @@
 """MA金叉 — MA5上穿MA20 + 量能配合 + MA60上方"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -92,4 +93,4 @@ class MAGoldenCrossMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = MAGoldenCrossMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, MAGoldenCrossMatrixStrategy())

@@ -1,6 +1,7 @@
 """布林突破 — 突破布林上轨 + 放量"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import MarketDataMatrix, SignalMatrix, make_signal_matrix, matrix_feature
 
@@ -72,4 +73,4 @@ class BollBreakoutMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = BollBreakoutMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, BollBreakoutMatrixStrategy())

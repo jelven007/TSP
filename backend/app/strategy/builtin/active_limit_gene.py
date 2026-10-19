@@ -1,6 +1,7 @@
 """涨停基因活跃股 — 近期多次涨停的活跃标的池 (股性筛选, 非追板)"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -85,4 +86,4 @@ class ActiveLimitGeneMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = ActiveLimitGeneMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, ActiveLimitGeneMatrixStrategy())

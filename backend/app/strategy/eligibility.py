@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import polars as pl
 
-ENTRY_POLICY_VERSION = "security_eligibility_exit_first_v1"
+ENTRY_POLICY_VERSION = "raw_price_complete_score_exit_first_v2"
 
 
 def attach_listing_age(rows: pl.DataFrame, instruments: pl.DataFrame | None) -> pl.DataFrame:

@@ -55,7 +55,9 @@ def test_strategy_serializes_cost_policy_to_make_defaults_reproducible():
     cfg = StrategyBacktestConfig("s", None, date(2016, 1, 1), date(2026, 10, 9))
     serialized = StrategyBacktestService._config_to_dict(cfg)
     assert serialized["stamp_tax_mode"] == "historical"
-    assert serialized["cost_model_version"] == "cn_stock_tax_v1"
+    assert serialized["cost_model_version"] == "cn_stock_tax_minimum_commission_v2"
+    assert serialized["minimum_commission"] == 0
+    assert serialized["transfer_fee_pct"] == 0
     cfg.stamp_tax_pct = 0.0
     assert StrategyBacktestService._config_to_dict(cfg)["stamp_tax_mode"] == "fixed"
 

@@ -90,7 +90,7 @@ def test_tradable_matches_legacy_suspension_rules():
     assert tradable == {"A": 1, "B": 0, "C": 1, "D": 0}
 
 
-def test_open_t_plus_one_keeps_legacy_next_asset_bar_semantics():
+def test_open_t_plus_one_expires_entry_at_missing_market_bar():
     panel = pl.DataFrame([
         _row("A", 0, 10, signal_entry=True),
         _row("B", 1, 20),
@@ -104,8 +104,13 @@ def test_open_t_plus_one_keeps_legacy_next_asset_bar_semantics():
         entry_signal_ids=["signal_entry"],
     )
 
-    assert matrix.entry[:, 0].tolist() == [0, 0, 1]
-    assert matrix.entry_signal_time[2, 0] == 0
+    assert matrix.entry[:, 0].tolist() == [0, 0, 0]
+    assert matrix.expired_entry_count == 1
+    assert matrix.entry_signal_time[2, 0] == -1
+
+    sell = build_market_matrix(panel, None, panel["signal_entry"], exit_delay_bars=1)
+    assert sell.exit[:, 0].tolist() == [0, 0, 1]
+    assert sell.exit_signal_time[2, 0] == 0
 
 
 def test_matrix_matcher_matches_legacy_trade_records_and_equity():

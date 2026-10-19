@@ -59,7 +59,7 @@ function OosEquityChart({ curve }: { curve: { fold: number; date: string; value:
   const up = last >= 1
   return (
     <div>
-      <div className="mb-1 text-xs font-medium text-secondary">OOS 拼接净值 (逐折复利)</div>
+      <div className="mb-1 text-xs font-medium text-secondary">独立测试折净值（逐折复利）</div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 120 }}>
         <line x1={pad} y1={y(1)} x2={W - pad} y2={y(1)} stroke="currentColor" strokeWidth="0.5" className="text-border" strokeDasharray="3 3" />
         <path d={d} fill="none" stroke={up ? '#34d399' : '#f87171'} strokeWidth="1.5" />
@@ -82,10 +82,11 @@ export function StrategyWalkForward() {
   const [objective, setObjective] = useState('sortino')
   const [start, setStart] = useState(THREE_YEARS_AGO)
   const [end, setEnd] = useState(TODAY)
-  const [mode, setMode] = useState<'position' | 'full'>('position')
-  const [trainDays, setTrainDays] = useState('252')
-  const [testDays, setTestDays] = useState('63')
-  const [stepDays, setStepDays] = useState('63')
+  const [windowUnit, setWindowUnit] = useState<'trading_days' | 'calendar_days'>('trading_days')
+  const [trainDays, setTrainDays] = useState('504')
+  const [testDays, setTestDays] = useState('126')
+  const [stepDays, setStepDays] = useState('126')
+  const [purgeDays, setPurgeDays] = useState('30')
 
   useEffect(() => {
     tryReconnectWalkForward()
@@ -95,6 +96,7 @@ export function StrategyWalkForward() {
   const canRun = sweep.strategyId && sweep.combos > 0 && sweep.combos <= GRID_MAX_COMBINATIONS
     && !sweep.gridError
     && Number(trainDays) > 0 && Number(testDays) > 0 && Number(stepDays) > 0 && !task?.isPending
+    && Number(purgeDays) >= 0
 
   const onRun = () => {
     if (!canRun) return
@@ -106,13 +108,15 @@ export function StrategyWalkForward() {
       train_days: Number(trainDays),
       test_days: Number(testDays),
       step_days: Number(stepDays),
+      window_unit: windowUnit,
+      purge_days: Number(purgeDays),
       // 未扫描参数使用当前固定值; overrides 让 basic_filter/信号/风控按当前策略参与,
       // 否则 walk-forward 优化的策略与用户实际回测的不一致 (同 PR #82 优化器修复)。
       params: sweep.values,
       overrides: sweep.selected ? buildDefaultOverrides(sweep.selected) : undefined,
       start,
       end,
-      mode,
+      mode: 'position',
     })
   }
 
@@ -154,6 +158,13 @@ export function StrategyWalkForward() {
         </div>
 
         {/* 滚动窗口 */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-secondary">窗口单位</label>
+          <select value={windowUnit} onChange={e => setWindowUnit(e.target.value as typeof windowUnit)} className={INPUT_CLS}>
+            <option value="trading_days">交易日（本地行情日期）</option>
+            <option value="calendar_days">自然日跨度（兼容旧配置）</option>
+          </select>
+        </div>
         <div className="grid grid-cols-3 gap-1.5">
           <div>
             <label className="mb-1 block text-[11px] text-secondary">训练(天)</label>
@@ -170,12 +181,13 @@ export function StrategyWalkForward() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-secondary">模式</label>
-          <select value={mode} onChange={e => setMode(e.target.value as any)} className={INPUT_CLS}>
-            <option value="position">组合仓位</option>
-            <option value="full">全量独立</option>
-          </select>
+          <label className="mb-1.5 block text-xs font-medium text-secondary">训练与测试之间的隔离期（同窗口单位）</label>
+          <input type="number" min={0} value={purgeDays} onChange={e => setPurgeDays(e.target.value)} className={INPUT_CLS} />
         </div>
+        <p className="text-[11px] text-secondary">
+          每折使用独立组合，只计算窗内行情。期末无法卖出的持仓单列；
+          重叠测试窗或存在期末持仓时不汇总复利。缺失的行情日期不会自动补齐。
+        </p>
 
         <SweepParamList params={sweep.params} sweeps={sweep.sweeps} updateSweep={sweep.updateSweep}
           values={sweep.values} updateValue={sweep.updateValue} fixedIds={sweep.fixedIds} />
@@ -213,7 +225,7 @@ export function StrategyWalkForward() {
         {!result && !task?.isPending && (
           <EmptyState
             title="步进优化"
-            hint="每折在训练区间网格优化选最优参数，再在紧邻的测试区间做样本外(OOS)验证。样本内漂亮、样本外崩溃即过拟合。"
+            hint="每折在训练区间选参数，经过隔离期后在测试区间验证。历史窗口曾参与策略开发时，结果仍属于探索性诊断。"
           />
         )}
 
@@ -228,11 +240,11 @@ export function StrategyWalkForward() {
           <div className="space-y-4">
             {/* 汇总卡 — 可空数值已在上游用 fin() 归一, NaN/Infinity 走 '—' 而非渲染 "NaN" */}
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Stat label="OOS 复利收益" value={fmtPct(compounded)}
+              <Stat label="独立折复利收益" value={fmtPct(compounded)}
                 color={compounded != null && compounded >= 0 ? '#34d399' : '#f87171'} />
               <Stat label="IS→OOS 退化"
                 value={degradation != null ? degradation.toFixed(3) : '—'}
-                hint={degradation != null && degradation > 0 ? '样本外退化=过拟合' : '样本外未退化'}
+                hint={degradation != null && degradation > 0 ? '退化提示过拟合风险' : '未观察到目标退化'}
                 color={degradation != null && degradation > 0 ? '#f87171' : '#34d399'} />
               <Stat label="一致性" value={fmtPct(summary.consistency)} hint="OOS 盈利折占比" />
               <Stat label="有效折" value={result.n_skipped > 0 ? `${result.n_folds} (跳过${result.n_skipped})` : String(result.n_folds)} />
@@ -241,6 +253,19 @@ export function StrategyWalkForward() {
             <div className="text-xs text-secondary">
               IS 目标均值 {avgIs != null ? avgIs.toFixed(3) : '—'} · OOS 目标均值 {avgOos != null ? avgOos.toFixed(3) : '—'} · 耗时 {(result.elapsed_ms / 1000).toFixed(1)}s
             </div>
+            {result.window_policy && <p className="text-[11px] text-secondary">
+              窗口按{result.window_policy.unit === 'trading_days' ? '本地行情交易日' : '自然日跨度'}计算，
+              隔离期 {result.window_policy.purge_days} 天；独立测试折不代表连续换参账户。
+            </p>}
+            {summary.aggregation_unavailable_reason && <p className="text-xs text-secondary">
+              当前结果仅展示逐折诊断：
+              {({
+                overlapping_test_windows: '测试窗口重叠',
+                unclosed_boundary_positions: '窗口结束时存在未平仓',
+                missing_window_dates: '缺少可核验的窗口日期',
+                missing_account_return: '缺少账户收益',
+              } as Record<string, string>)[summary.aggregation_unavailable_reason] ?? '不满足复利汇总条件'}。
+            </p>}
 
             {/* OOS 拼接净值曲线 (walk-forward 核心产出) */}
             <OosEquityChart curve={summary.oos_equity_curve} />

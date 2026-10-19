@@ -1288,7 +1288,14 @@ class StrategyEngine:
         overrides: dict | None = None,
         params: dict | None = None,
     ) -> set[str]:
+        from app.strategy.entry_risk import EntryRiskPolicy
+
         fields = set(strategy.matrix_strategy.required_fields())
+        entry_risk = EntryRiskPolicy.from_mapping((overrides or {}).get("entry_risk"))
+        if entry_risk.enabled:
+            fields.add("raw_close")
+        if entry_risk.stop_atr_multiple is not None:
+            fields.add("atr_14")
         # 参数评分字段 (如挖掘策略的因子组合) 需展开为实际数据依赖,
         # 与 backtest._resolve_matrix_native 保持同一语义, 否则虚拟因子
         # (limit_up_count_* -> consecutive_limit_ups) 在矩阵里缺字段。
@@ -1307,6 +1314,12 @@ class StrategyEngine:
         if (overrides or {}).get("basic_filter"):
             basic_filter.update(overrides["basic_filter"])
         fields.update({"is_risk_warning", "instrument_status_known", "is_listed"})
+        if basic_filter.get("enabled", True) and any(
+            basic_filter.get(f"{prefix}_{bound}") is not None
+            for prefix in ("price", "market_cap", "float_cap")
+            for bound in ("min", "max")
+        ):
+            fields.add("raw_close")
         if new_stock_min_days(basic_filter):
             fields.add("listing_age_days")
         for prefix, field_name in (
@@ -1629,6 +1642,19 @@ class StrategyEngine:
         if not bf.get("enabled", True):
             return None
         exprs: list[pl.Expr] = []
+        price = pl.col("raw_close" if "raw_close" in df.columns else "close")
+        if any(
+            bf.get(f"{prefix}_{bound}") is not None
+            for prefix in ("price", "market_cap", "float_cap")
+            for bound in ("min", "max")
+        ):
+            exprs.append(price.is_finite() & (price > 0))
+        for prefix, name in (("market_cap", "total_shares"), ("float_cap", "float_shares")):
+            if any(bf.get(f"{prefix}_{bound}") is not None for bound in ("min", "max")):
+                exprs.append(
+                    pl.col(name).is_finite() & (pl.col(name) > 0)
+                    if name in df.columns else pl.lit(False)
+                )
         minimum_age = new_stock_min_days(bf)
         if minimum_age:
             exprs.append(
@@ -1636,25 +1662,25 @@ class StrategyEngine:
                 if "listing_age_days" in df.columns else pl.lit(False)
             )
         if bf.get("price_min") is not None:
-            exprs.append(pl.col("close") >= bf["price_min"])
+            exprs.append(price.is_finite() & (price >= bf["price_min"]))
         if bf.get("price_max") is not None:
-            exprs.append(pl.col("close") <= bf["price_max"])
+            exprs.append(price.is_finite() & (price <= bf["price_max"]))
         if bf.get("market_cap_min") is not None and "total_shares" in df.columns:
             exprs.append(
-                pl.col("close") * pl.col("total_shares") >= bf["market_cap_min"]
+                price.is_finite() & (price * pl.col("total_shares") >= bf["market_cap_min"])
             )
         if bf.get("market_cap_max") is not None and "total_shares" in df.columns:
             exprs.append(
-                pl.col("close") * pl.col("total_shares") <= bf["market_cap_max"]
+                price.is_finite() & (price * pl.col("total_shares") <= bf["market_cap_max"])
             )
         # 流通市值
         if bf.get("float_cap_min") is not None and "float_shares" in df.columns:
             exprs.append(
-                pl.col("close") * pl.col("float_shares") >= bf["float_cap_min"]
+                price.is_finite() & (price * pl.col("float_shares") >= bf["float_cap_min"])
             )
         if bf.get("float_cap_max") is not None and "float_shares" in df.columns:
             exprs.append(
-                pl.col("close") * pl.col("float_shares") <= bf["float_cap_max"]
+                price.is_finite() & (price * pl.col("float_shares") <= bf["float_cap_max"])
             )
         if bf.get("amount_min") is not None:
             exprs.append(pl.col("amount") >= bf["amount_min"])
@@ -1785,9 +1811,17 @@ class StrategyEngine:
             for col, weight in weights.items()
             if weight and (value := scoring_value_expr(df.columns, str(col))) is not None
         ]
+        missing = {str(col) for col, weight in weights.items() if weight} - {
+            name for name, _, _ in executable
+        }
+        if missing:
+            raise ValueError("评分缺少可计算字段: " + ", ".join(sorted(missing)))
         total_weight = sum(weight for _, _, weight in executable)
         if total_weight <= 0:
             return df
+        df = df.filter(pl.all_horizontal([
+            value.is_finite().fill_null(False) for _, value, _ in executable
+        ]))
 
         score_parts: list[pl.Expr] = []
         for name, value, weight in executable:

@@ -1,6 +1,7 @@
 """均线多头 — MA5>MA10>MA20>MA60 + 短期动量为正"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -78,4 +79,4 @@ class BullishAlignmentMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = BullishAlignmentMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, BullishAlignmentMatrixStrategy())

@@ -1456,9 +1456,12 @@ class MonitorRuleEngine:
             "pool_exit": "移出选股结果",
         }
         try:
+            from app.strategy.entry_risk import EntryRiskPolicy, reference_from_row
+
             entry_policy = {
                 "version": 1, "strategy_id": sid,
                 "policy": strategy_policy(s, overrides).to_dict(),
+                "entry_risk": EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).to_dict(),
                 "overlay_filter": effective_conditions(overrides),
                 "params": {
                     **{item["id"]: item.get("default") for item in s.meta.get("params", [])
@@ -1492,7 +1495,9 @@ class MonitorRuleEngine:
                     # Notifications retain their display price; executions use raw money.
                     execution_rows.append((
                         *hit[:3], row.get("raw_close", hit[3]), *hit[4:],
-                        {"score": score, "entry_policy": entry_policy},
+                        {"score": score, "entry_policy": {
+                            **entry_policy, "signal_reference": reference_from_row(row),
+                        } if entry_policy is not None else None},
                     ))
             if len(symbol_list) > 5:
                 names = [

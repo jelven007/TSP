@@ -1,6 +1,7 @@
 """放量创60日新高 — 突破前期高点平台 + 量能确认"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -80,4 +81,4 @@ class BreakoutNewHigh60dMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = BreakoutNewHigh60dMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, BreakoutNewHigh60dMatrixStrategy())

@@ -1,6 +1,7 @@
 """新低反转 — 60日新低后收阳放量"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -77,4 +78,4 @@ class NDayLowReversalMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = NDayLowReversalMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, NDayLowReversalMatrixStrategy())
