@@ -73,7 +73,8 @@ def valid_price(value) -> bool:
 
 
 def price_exit(policy, entry: float, peak: float, opening: float,
-               low: float, high: float) -> tuple[str | None, float | None]:
+               low: float, high: float, *,
+               frozen_stop: float | None = None) -> tuple[str | None, float | None]:
     """Evaluate using the peak known BEFORE this observation/bar.
 
     Highest protective line wins; gaps use the actual open. Historical OHLC
@@ -85,6 +86,8 @@ def price_exit(policy, entry: float, peak: float, opening: float,
     lines = []
     if policy.stop_loss_pct is not None:
         lines.append((entry * (1 - abs(policy.stop_loss_pct)), "stop_loss"))
+    if valid_price(frozen_stop):
+        lines.append((frozen_stop, "frozen_stop"))
     if policy.trailing_stop_pct is not None and valid_price(peak):
         lines.append((peak * (1 - abs(policy.trailing_stop_pct)), "trailing_stop"))
     activate = policy.trailing_take_profit_activate_pct

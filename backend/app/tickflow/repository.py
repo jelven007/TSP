@@ -2070,6 +2070,21 @@ class KlineRepository:
             return None
         return None
 
+    def list_daily_dates(self, start: date, end: date, asset_type: str = "stock") -> list[date]:
+        """枚举可回测的日线分区日期; 仅作观测交易日历, 不填补全市场缺失日。"""
+        root = self.store.data_dir / enriched_dirname(asset_type)
+        out: set[date] = set()
+        for partition in root.glob("date=*"):
+            if not partition.is_dir() or not any(partition.glob("*.parquet")):
+                continue
+            try:
+                day = date.fromisoformat(partition.name[5:])
+            except ValueError:
+                continue
+            if start <= day <= end:
+                out.add(day)
+        return sorted(out)
+
     def list_minute_dates(self, start: date, end: date, asset_type: str = "stock") -> list[date]:
         """枚举 [start, end] 内存在的分钟K分区日 (目录名直读, 零 parquet 扫描)。
 

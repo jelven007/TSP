@@ -38,6 +38,21 @@ def test_candidate_crud_and_atomic_file(tmp_path):
     assert store.list() == []
 
 
+def test_strategy_candidate_retains_costs_and_metric_definitions_on_reload(tmp_path):
+    config = {"strategy_id": "ma_cross", "minimum_commission": 5, "transfer_fee_pct": 0.00001}
+    metrics = {
+        "profit_factor": 1.1, "profit_factor_amount": 1.2,
+        "payoff_ratio": 1.3, "net_expectancy": 0.002, "trade_metrics_version": "net_trades_v1",
+    }
+    CandidateStore(tmp_path).create(
+        kind="strategy", name="候选", source_id="ma_cross",
+        config=config, metrics=metrics, data_as_of=None,
+    )
+    restored = CandidateStore(tmp_path).list()[0]
+    assert restored["config"] == config
+    assert restored["metrics"] == metrics
+
+
 def test_candidate_mining_provenance_is_idempotent_and_conflict_safe(tmp_path):
     store = CandidateStore(tmp_path)
     kwargs = {

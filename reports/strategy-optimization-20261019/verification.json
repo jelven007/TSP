@@ -1,0 +1,3422 @@
+{
+  "baseline_commit": "c5583f4b93e15a286583e406fbd32ab521792cb1",
+  "application_version": "0.4.9",
+  "test_status_counts": {
+    "PASSED": 704,
+    "SKIPPED": 6
+  },
+  "test_basis": "last observed result per nodeid across final backtest and integration batches; no sum of overlapping counts",
+  "frontend_build": {
+    "typescript": "passed",
+    "vite_modules": 2873,
+    "vite_elapsed": "1m 10s",
+    "original_large_chunk_warning": true
+  },
+  "suspicious_events": {
+    "csv_sha256": "62850da4f2608c91439bc68c6342c11378037d63ac70c6faaf8d0c8f2549a694",
+    "count": 13,
+    "policy": "existing >22% adjusted daily return flags after 60 bars; no retrospective removal from research input"
+  },
+  "batches": {
+    "strategy-quality-fair-v2": {
+      "identity_sha256": "9bcf0ff64be0dc2392bb004d0e6dadd2a1914d300da3cca3a3004448956c738e",
+      "result_count": 73,
+      "signal_coordinate_files": 73,
+      "complete_strategy_cards": 22,
+      "decision_counts": {
+        "exploratory_followup_only": 5,
+        "baseline_retained": 22,
+        "rejected_topic": 46
+      },
+      "trade_cash_checks": 117306,
+      "trade_cash_failures": 0,
+      "account_reconciliations_passed": 73,
+      "pairwise_comparisons": 231,
+      "trade_contract_checks": [
+        {
+          "model": "active_limit_gene__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "active_limit_gene__recent_limit_20",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "boll_breakout__first_upper_cross",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "boll_breakout__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "breakout_new_high_60d__breakout_atr_1",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "breakout_new_high_60d__first_high_break",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "breakout_new_high_60d__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "bullish_alignment__first_alignment",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "bullish_alignment__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "consecutive_limit_ups__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "high_turnover_surge__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "high_turnover_surge__turnover_cap_15",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__clv_065",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__confirm_high_1",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "low_volatility_leader__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_convergence_breakout__clv_070",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_convergence_breakout__first_squeeze_release",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_convergence_breakout__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_golden_cross__ma20_atr_15",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_golden_cross__ma20_atr_20",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_golden_cross__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__dif_rising_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_golden__dif_negative",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_golden__dif_nonnegative",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_golden__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__clv_065",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__confirm_high_3",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "near_limit_up__closed_limit",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "near_limit_up__not_closed_limit",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "near_limit_up__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_bounce__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_bounce__rsi_recover",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__recent_oversold_3",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__volume_cap_4",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__platform_volume_contract",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__prior_platform_mean",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__first_pullback_10",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__ma20_nondeclining",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_to_support__confirm_high_3",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_to_support__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "rsi_midline_pullback__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "rsi_midline_pullback__rsi_cross_50",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "rsi_midline_pullback__rsi_turn_up",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "strong_open__execution_premium_3pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "strong_open__execution_premium_5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "strong_open__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "volume_price_surge__clv_070",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "volume_price_surge__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "volume_price_surge__volume_cap_4",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        }
+      ],
+      "anomaly_trade_impact": [
+        {
+          "model": "active_limit_gene__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1211,
+            "net_pnl": -967571.54,
+            "win_rate": 0.17423616845582163,
+            "expectancy": -0.027275030553261744,
+            "profit_factor": 0.6616744333188642
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1211,
+            "net_pnl": -967571.54,
+            "win_rate": 0.17423616845582163,
+            "expectancy": -0.027275030553261744,
+            "profit_factor": 0.6616744333188642
+          }
+        },
+        {
+          "model": "active_limit_gene__recent_limit_20",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1209,
+            "net_pnl": -960830.22,
+            "win_rate": 0.17866004962779156,
+            "expectancy": -0.02559483705541769,
+            "profit_factor": 0.6279637790453609
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1209,
+            "net_pnl": -960830.22,
+            "win_rate": 0.17866004962779156,
+            "expectancy": -0.02559483705541769,
+            "profit_factor": 0.6279637790453609
+          }
+        },
+        {
+          "model": "boll_breakout__first_upper_cross",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1736,
+            "net_pnl": -980921.63,
+            "win_rate": 0.19930875576036866,
+            "expectancy": -0.023720524769585215,
+            "profit_factor": 0.5437884440975209
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1736,
+            "net_pnl": -980921.63,
+            "win_rate": 0.19930875576036866,
+            "expectancy": -0.023720524769585215,
+            "profit_factor": 0.5437884440975209
+          }
+        },
+        {
+          "model": "boll_breakout__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1832,
+            "net_pnl": -984716.89,
+            "win_rate": 0.20032751091703058,
+            "expectancy": -0.023373836244541472,
+            "profit_factor": 0.6839269131382868
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1832,
+            "net_pnl": -984716.89,
+            "win_rate": 0.20032751091703058,
+            "expectancy": -0.023373836244541472,
+            "profit_factor": 0.6839269131382868
+          }
+        },
+        {
+          "model": "breakout_new_high_60d__breakout_atr_1",
+          "affected_trades": 1,
+          "all": {
+            "trades": 1572,
+            "net_pnl": -989353.44,
+            "win_rate": 0.178117048346056,
+            "expectancy": -0.03075954961832063,
+            "profit_factor": 0.4637104762811701
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1571,
+            "net_pnl": -986206.85,
+            "win_rate": 0.17823042647994908,
+            "expectancy": -0.030625042011457694,
+            "profit_factor": 0.4645027519056956
+          }
+        },
+        {
+          "model": "breakout_new_high_60d__first_high_break",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1487,
+            "net_pnl": -994116.57,
+            "win_rate": 0.1546738399462004,
+            "expectancy": -0.037993136516476116,
+            "profit_factor": 0.41361196931742866
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1487,
+            "net_pnl": -994116.57,
+            "win_rate": 0.1546738399462004,
+            "expectancy": -0.037993136516476116,
+            "profit_factor": 0.41361196931742866
+          }
+        },
+        {
+          "model": "breakout_new_high_60d__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1529,
+            "net_pnl": -993860.17,
+            "win_rate": 0.15434924787442772,
+            "expectancy": -0.03712778417266192,
+            "profit_factor": 0.6118646768962019
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1529,
+            "net_pnl": -993860.17,
+            "win_rate": 0.15434924787442772,
+            "expectancy": -0.03712778417266192,
+            "profit_factor": 0.6118646768962019
+          }
+        },
+        {
+          "model": "bullish_alignment__first_alignment",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1727,
+            "net_pnl": -992587.9,
+            "win_rate": 0.1592356687898089,
+            "expectancy": -0.03086350144759694,
+            "profit_factor": 0.5582790618371946
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1727,
+            "net_pnl": -992587.9,
+            "win_rate": 0.1592356687898089,
+            "expectancy": -0.03086350144759694,
+            "profit_factor": 0.5582790618371946
+          }
+        },
+        {
+          "model": "bullish_alignment__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1404,
+            "net_pnl": -992426.12,
+            "win_rate": 0.1346153846153846,
+            "expectancy": -0.03819468518518521,
+            "profit_factor": 0.5235124294973963
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1404,
+            "net_pnl": -992426.12,
+            "win_rate": 0.1346153846153846,
+            "expectancy": -0.03819468518518521,
+            "profit_factor": 0.5235124294973963
+          }
+        },
+        {
+          "model": "consecutive_limit_ups__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1995,
+            "net_pnl": -996803.49,
+            "win_rate": 0.21954887218045113,
+            "expectancy": -0.03108128220551376,
+            "profit_factor": 0.6937904073023373
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1995,
+            "net_pnl": -996803.49,
+            "win_rate": 0.21954887218045113,
+            "expectancy": -0.03108128220551376,
+            "profit_factor": 0.6937904073023373
+          }
+        },
+        {
+          "model": "high_turnover_surge__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1758,
+            "net_pnl": -995689.56,
+            "win_rate": 0.16097838452787258,
+            "expectancy": -0.03393304266211595,
+            "profit_factor": 0.6662030493423797
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1758,
+            "net_pnl": -995689.56,
+            "win_rate": 0.16097838452787258,
+            "expectancy": -0.03393304266211595,
+            "profit_factor": 0.6662030493423797
+          }
+        },
+        {
+          "model": "high_turnover_surge__turnover_cap_15",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2001,
+            "net_pnl": -995052.56,
+            "win_rate": 0.16691654172913542,
+            "expectancy": -0.029147011494252896,
+            "profit_factor": 0.6584632218334053
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2001,
+            "net_pnl": -995052.56,
+            "win_rate": 0.16691654172913542,
+            "expectancy": -0.029147011494252896,
+            "profit_factor": 0.6584632218334053
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__clv_065",
+          "affected_trades": 0,
+          "all": {
+            "trades": 364,
+            "net_pnl": -93485.68,
+            "win_rate": 0.3131868131868132,
+            "expectancy": -0.0014179752747252713,
+            "profit_factor": 0.9155726837908844
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 364,
+            "net_pnl": -93485.68,
+            "win_rate": 0.3131868131868132,
+            "expectancy": -0.0014179752747252713,
+            "profit_factor": 0.9155726837908844
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__confirm_high_1",
+          "affected_trades": 0,
+          "all": {
+            "trades": 760,
+            "net_pnl": 87347.71,
+            "win_rate": 0.3394736842105263,
+            "expectancy": 0.002176223684210527,
+            "profit_factor": 1.0406458047353004
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 760,
+            "net_pnl": 87347.71,
+            "win_rate": 0.3394736842105263,
+            "expectancy": 0.002176223684210527,
+            "profit_factor": 1.0406458047353004
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 429,
+            "net_pnl": 30849.54,
+            "win_rate": 0.31934731934731936,
+            "expectancy": 0.002082708624708627,
+            "profit_factor": 1.023640816145865
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 429,
+            "net_pnl": 30849.54,
+            "win_rate": 0.31934731934731936,
+            "expectancy": 0.002082708624708627,
+            "profit_factor": 1.023640816145865
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 429,
+            "net_pnl": 30849.54,
+            "win_rate": 0.31934731934731936,
+            "expectancy": 0.002082708624708627,
+            "profit_factor": 1.023640816145865
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 429,
+            "net_pnl": 30849.54,
+            "win_rate": 0.31934731934731936,
+            "expectancy": 0.002082708624708627,
+            "profit_factor": 1.023640816145865
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 429,
+            "net_pnl": 30849.54,
+            "win_rate": 0.31934731934731936,
+            "expectancy": 0.002082708624708627,
+            "profit_factor": 1.023640816145865
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 429,
+            "net_pnl": 30849.54,
+            "win_rate": 0.31934731934731936,
+            "expectancy": 0.002082708624708627,
+            "profit_factor": 1.023640816145865
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 428,
+            "net_pnl": 23304.27,
+            "win_rate": 0.31542056074766356,
+            "expectancy": 0.0018724626168224302,
+            "profit_factor": 1.0178918407456674
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 428,
+            "net_pnl": 23304.27,
+            "win_rate": 0.31542056074766356,
+            "expectancy": 0.0018724626168224302,
+            "profit_factor": 1.0178918407456674
+          }
+        },
+        {
+          "model": "low_volatility_leader__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1337,
+            "net_pnl": -678440.78,
+            "win_rate": 0.23709798055347794,
+            "expectancy": -0.007630867614061445,
+            "profit_factor": 0.6993595058476386
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1337,
+            "net_pnl": -678440.78,
+            "win_rate": 0.23709798055347794,
+            "expectancy": -0.007630867614061445,
+            "profit_factor": 0.6993595058476386
+          }
+        },
+        {
+          "model": "ma_convergence_breakout__clv_070",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2040,
+            "net_pnl": -967218.82,
+            "win_rate": 0.23823529411764705,
+            "expectancy": -0.017352410784313693,
+            "profit_factor": 0.6065985176666765
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2040,
+            "net_pnl": -967218.82,
+            "win_rate": 0.23823529411764705,
+            "expectancy": -0.017352410784313693,
+            "profit_factor": 0.6065985176666765
+          }
+        },
+        {
+          "model": "ma_convergence_breakout__first_squeeze_release",
+          "affected_trades": 0,
+          "all": {
+            "trades": 353,
+            "net_pnl": 98807.2,
+            "win_rate": 0.34560906515580736,
+            "expectancy": 0.0032709971671388083,
+            "profit_factor": 1.1174621135312939
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 353,
+            "net_pnl": 98807.2,
+            "win_rate": 0.34560906515580736,
+            "expectancy": 0.0032709971671388083,
+            "profit_factor": 1.1174621135312939
+          }
+        },
+        {
+          "model": "ma_convergence_breakout__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2108,
+            "net_pnl": -969710.3,
+            "win_rate": 0.2333965844402277,
+            "expectancy": -0.01724762239089185,
+            "profit_factor": 0.6292439663948507
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2108,
+            "net_pnl": -969710.3,
+            "win_rate": 0.2333965844402277,
+            "expectancy": -0.01724762239089185,
+            "profit_factor": 0.6292439663948507
+          }
+        },
+        {
+          "model": "ma_golden_cross__ma20_atr_15",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1437,
+            "net_pnl": -713812.27,
+            "win_rate": 0.2839248434237996,
+            "expectancy": -0.007754594989561695,
+            "profit_factor": 0.7598081641174534
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1437,
+            "net_pnl": -713812.27,
+            "win_rate": 0.2839248434237996,
+            "expectancy": -0.007754594989561695,
+            "profit_factor": 0.7598081641174534
+          }
+        },
+        {
+          "model": "ma_golden_cross__ma20_atr_20",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1469,
+            "net_pnl": -805593.49,
+            "win_rate": 0.27365554799183117,
+            "expectancy": -0.009922938053097397,
+            "profit_factor": 0.6771449707061798
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1469,
+            "net_pnl": -805593.49,
+            "win_rate": 0.27365554799183117,
+            "expectancy": -0.009922938053097397,
+            "profit_factor": 0.6771449707061798
+          }
+        },
+        {
+          "model": "ma_golden_cross__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1631,
+            "net_pnl": -900482.63,
+            "win_rate": 0.24156958920907418,
+            "expectancy": -0.01301379276517479,
+            "profit_factor": 0.6662834813114533
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1631,
+            "net_pnl": -900482.63,
+            "win_rate": 0.24156958920907418,
+            "expectancy": -0.01301379276517479,
+            "profit_factor": 0.6662834813114533
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__dif_rising_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 777,
+            "net_pnl": -170274.78,
+            "win_rate": 0.36164736164736166,
+            "expectancy": -0.0006832754182754335,
+            "profit_factor": 0.9241954427118295
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 777,
+            "net_pnl": -170274.78,
+            "win_rate": 0.36164736164736166,
+            "expectancy": -0.0006832754182754335,
+            "profit_factor": 0.9241954427118295
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1032,
+            "net_pnl": -166837.16,
+            "win_rate": 0.42926356589147285,
+            "expectancy": -0.0005849234496123969,
+            "profit_factor": 0.9453091686087993
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1032,
+            "net_pnl": -166837.16,
+            "win_rate": 0.42926356589147285,
+            "expectancy": -0.0005849234496123969,
+            "profit_factor": 0.9453091686087993
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1155,
+            "net_pnl": 97562.6,
+            "win_rate": 0.40346320346320347,
+            "expectancy": 0.0019978450216450215,
+            "profit_factor": 1.0297618070721706
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1155,
+            "net_pnl": 97562.6,
+            "win_rate": 0.40346320346320347,
+            "expectancy": 0.0019978450216450215,
+            "profit_factor": 1.0297618070721706
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1032,
+            "net_pnl": -130048.1,
+            "win_rate": 0.42926356589147285,
+            "expectancy": -0.0005849234496123969,
+            "profit_factor": 0.9498935566395208
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1032,
+            "net_pnl": -130048.1,
+            "win_rate": 0.42926356589147285,
+            "expectancy": -0.0005849234496123969,
+            "profit_factor": 0.9498935566395208
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2910,
+            "net_pnl": -53112.22,
+            "win_rate": 0.16460481099656357,
+            "expectancy": 0.0002713432989690725,
+            "profit_factor": 0.9881623955253879
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2910,
+            "net_pnl": -53112.22,
+            "win_rate": 0.16460481099656357,
+            "expectancy": 0.0002713432989690725,
+            "profit_factor": 0.9881623955253879
+          }
+        },
+        {
+          "model": "macd_golden__dif_negative",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1241,
+            "net_pnl": -817110.38,
+            "win_rate": 0.2723609991941982,
+            "expectancy": -0.011837613215148955,
+            "profit_factor": 0.7093024778975389
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1241,
+            "net_pnl": -817110.38,
+            "win_rate": 0.2723609991941982,
+            "expectancy": -0.011837613215148955,
+            "profit_factor": 0.7093024778975389
+          }
+        },
+        {
+          "model": "macd_golden__dif_nonnegative",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1697,
+            "net_pnl": -964883.83,
+            "win_rate": 0.2197996464348851,
+            "expectancy": -0.019711984089569805,
+            "profit_factor": 0.5427979840147389
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1697,
+            "net_pnl": -964883.83,
+            "win_rate": 0.2197996464348851,
+            "expectancy": -0.019711984089569805,
+            "profit_factor": 0.5427979840147389
+          }
+        },
+        {
+          "model": "macd_golden__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1610,
+            "net_pnl": -969316.97,
+            "win_rate": 0.21739130434782608,
+            "expectancy": -0.02176378633540369,
+            "profit_factor": 0.5976912948137718
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1610,
+            "net_pnl": -969316.97,
+            "win_rate": 0.21739130434782608,
+            "expectancy": -0.02176378633540369,
+            "profit_factor": 0.5976912948137718
+          }
+        },
+        {
+          "model": "n_day_low_reversal__clv_065",
+          "affected_trades": 0,
+          "all": {
+            "trades": 518,
+            "net_pnl": 792705.62,
+            "win_rate": 0.4575289575289575,
+            "expectancy": 0.013671743243243214,
+            "profit_factor": 1.4531733059982268
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 518,
+            "net_pnl": 792705.62,
+            "win_rate": 0.4575289575289575,
+            "expectancy": 0.013671743243243214,
+            "profit_factor": 1.4531733059982268
+          }
+        },
+        {
+          "model": "n_day_low_reversal__confirm_high_3",
+          "affected_trades": 0,
+          "all": {
+            "trades": 403,
+            "net_pnl": 430986.04,
+            "win_rate": 0.4665012406947891,
+            "expectancy": 0.010190228287841187,
+            "profit_factor": 1.357663065698975
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 403,
+            "net_pnl": 430986.04,
+            "win_rate": 0.4665012406947891,
+            "expectancy": 0.010190228287841187,
+            "profit_factor": 1.357663065698975
+          }
+        },
+        {
+          "model": "n_day_low_reversal__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 741,
+            "net_pnl": 1447800.26,
+            "win_rate": 0.46153846153846156,
+            "expectancy": 0.014509192982456117,
+            "profit_factor": 1.4266441492423838
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 741,
+            "net_pnl": 1447800.26,
+            "win_rate": 0.46153846153846156,
+            "expectancy": 0.014509192982456117,
+            "profit_factor": 1.4266441492423838
+          }
+        },
+        {
+          "model": "n_day_low_reversal__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 756,
+            "net_pnl": 1268458.47,
+            "win_rate": 0.45105820105820105,
+            "expectancy": 0.013368041005290985,
+            "profit_factor": 1.37873356825098
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 756,
+            "net_pnl": 1268458.47,
+            "win_rate": 0.45105820105820105,
+            "expectancy": 0.013368041005290985,
+            "profit_factor": 1.37873356825098
+          }
+        },
+        {
+          "model": "n_day_low_reversal__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 741,
+            "net_pnl": 1172618.81,
+            "win_rate": 0.46153846153846156,
+            "expectancy": 0.014509192982456117,
+            "profit_factor": 1.4364579767853116
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 741,
+            "net_pnl": 1172618.81,
+            "win_rate": 0.46153846153846156,
+            "expectancy": 0.014509192982456117,
+            "profit_factor": 1.4364579767853116
+          }
+        },
+        {
+          "model": "n_day_low_reversal__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 869,
+            "net_pnl": 1504313.31,
+            "win_rate": 0.34177215189873417,
+            "expectancy": 0.012767955120828534,
+            "profit_factor": 1.5019489028946547
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 869,
+            "net_pnl": 1504313.31,
+            "win_rate": 0.34177215189873417,
+            "expectancy": 0.012767955120828534,
+            "profit_factor": 1.5019489028946547
+          }
+        },
+        {
+          "model": "near_limit_up__closed_limit",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2374,
+            "net_pnl": -995484.45,
+            "win_rate": 0.2367312552653749,
+            "expectancy": -0.024607444397641096,
+            "profit_factor": 0.6274150213676438
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2374,
+            "net_pnl": -995484.45,
+            "win_rate": 0.2367312552653749,
+            "expectancy": -0.024607444397641096,
+            "profit_factor": 0.6274150213676438
+          }
+        },
+        {
+          "model": "near_limit_up__not_closed_limit",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3373,
+            "net_pnl": -971083.27,
+            "win_rate": 0.30299436703231547,
+            "expectancy": -0.011010706789208383,
+            "profit_factor": 0.689458825528201
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3373,
+            "net_pnl": -971083.27,
+            "win_rate": 0.30299436703231547,
+            "expectancy": -0.011010706789208383,
+            "profit_factor": 0.689458825528201
+          }
+        },
+        {
+          "model": "near_limit_up__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2439,
+            "net_pnl": -995317.88,
+            "win_rate": 0.23616236162361623,
+            "expectancy": -0.02398305986059859,
+            "profit_factor": 0.6746012280753404
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2439,
+            "net_pnl": -995317.88,
+            "win_rate": 0.23616236162361623,
+            "expectancy": -0.02398305986059859,
+            "profit_factor": 0.6746012280753404
+          }
+        },
+        {
+          "model": "oversold_bounce__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1021,
+            "net_pnl": -190730.69,
+            "win_rate": 0.3682664054848188,
+            "expectancy": -0.0007160078354554383,
+            "profit_factor": 0.9282983868022451
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1021,
+            "net_pnl": -190730.69,
+            "win_rate": 0.3682664054848188,
+            "expectancy": -0.0007160078354554383,
+            "profit_factor": 0.9282983868022451
+          }
+        },
+        {
+          "model": "oversold_bounce__rsi_recover",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1406,
+            "net_pnl": -418673.36,
+            "win_rate": 0.3236130867709815,
+            "expectancy": -0.0029285874822190527,
+            "profit_factor": 0.8733766669357572
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1406,
+            "net_pnl": -418673.36,
+            "win_rate": 0.3236130867709815,
+            "expectancy": -0.0029285874822190527,
+            "profit_factor": 0.8733766669357572
+          }
+        },
+        {
+          "model": "oversold_reversal__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 760,
+            "net_pnl": -39610.38,
+            "win_rate": 0.36578947368421055,
+            "expectancy": 0.0006507434210526364,
+            "profit_factor": 0.9828969012863312
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 760,
+            "net_pnl": -39610.38,
+            "win_rate": 0.36578947368421055,
+            "expectancy": 0.0006507434210526364,
+            "profit_factor": 0.9828969012863312
+          }
+        },
+        {
+          "model": "oversold_reversal__recent_oversold_3",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1604,
+            "net_pnl": -769007.35,
+            "win_rate": 0.27618453865336656,
+            "expectancy": -0.008589504364089786,
+            "profit_factor": 0.7378026659124566
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1604,
+            "net_pnl": -769007.35,
+            "win_rate": 0.27618453865336656,
+            "expectancy": -0.008589504364089786,
+            "profit_factor": 0.7378026659124566
+          }
+        },
+        {
+          "model": "oversold_reversal__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 761,
+            "net_pnl": -38036.54,
+            "win_rate": 0.36530880420499345,
+            "expectancy": 0.0007150262812089392,
+            "profit_factor": 0.9836062907935944
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 761,
+            "net_pnl": -38036.54,
+            "win_rate": 0.36530880420499345,
+            "expectancy": 0.0007150262812089392,
+            "profit_factor": 0.9836062907935944
+          }
+        },
+        {
+          "model": "oversold_reversal__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 760,
+            "net_pnl": -39610.38,
+            "win_rate": 0.36578947368421055,
+            "expectancy": 0.0006507434210526364,
+            "profit_factor": 0.9828969012863312
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 760,
+            "net_pnl": -39610.38,
+            "win_rate": 0.36578947368421055,
+            "expectancy": 0.0006507434210526364,
+            "profit_factor": 0.9828969012863312
+          }
+        },
+        {
+          "model": "oversold_reversal__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 895,
+            "net_pnl": 165418.42,
+            "win_rate": 0.2916201117318436,
+            "expectancy": 0.0028550413407821204,
+            "profit_factor": 1.0735604151074059
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 895,
+            "net_pnl": 165418.42,
+            "win_rate": 0.2916201117318436,
+            "expectancy": 0.0028550413407821204,
+            "profit_factor": 1.0735604151074059
+          }
+        },
+        {
+          "model": "oversold_reversal__volume_cap_4",
+          "affected_trades": 0,
+          "all": {
+            "trades": 760,
+            "net_pnl": -39610.38,
+            "win_rate": 0.36578947368421055,
+            "expectancy": 0.0006507434210526364,
+            "profit_factor": 0.9828969012863312
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 760,
+            "net_pnl": -39610.38,
+            "win_rate": 0.36578947368421055,
+            "expectancy": 0.0006507434210526364,
+            "profit_factor": 0.9828969012863312
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1509,
+            "net_pnl": -843030.98,
+            "win_rate": 0.25646123260437376,
+            "expectancy": -0.01196842743538774,
+            "profit_factor": 0.7421344270575477
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1509,
+            "net_pnl": -843030.98,
+            "win_rate": 0.25646123260437376,
+            "expectancy": -0.01196842743538774,
+            "profit_factor": 0.7421344270575477
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__platform_volume_contract",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1404,
+            "net_pnl": -841998.57,
+            "win_rate": 0.2621082621082621,
+            "expectancy": -0.012706870370370415,
+            "profit_factor": 0.6455337381434738
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1404,
+            "net_pnl": -841998.57,
+            "win_rate": 0.2621082621082621,
+            "expectancy": -0.012706870370370415,
+            "profit_factor": 0.6455337381434738
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__prior_platform_mean",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1419,
+            "net_pnl": -729436.87,
+            "win_rate": 0.2755461592670895,
+            "expectancy": -0.008866256518675206,
+            "profit_factor": 0.7790387847211877
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1419,
+            "net_pnl": -729436.87,
+            "win_rate": 0.2755461592670895,
+            "expectancy": -0.008866256518675206,
+            "profit_factor": 0.7790387847211877
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1546,
+            "net_pnl": -830079.22,
+            "win_rate": 0.2516170763260026,
+            "expectancy": -0.010885093790426952,
+            "profit_factor": 0.7317217520293836
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1546,
+            "net_pnl": -830079.22,
+            "win_rate": 0.2516170763260026,
+            "expectancy": -0.010885093790426952,
+            "profit_factor": 0.7317217520293836
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1510,
+            "net_pnl": -795669.36,
+            "win_rate": 0.2556291390728477,
+            "expectancy": -0.012006933774834503,
+            "profit_factor": 0.7378817907627896
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1510,
+            "net_pnl": -795669.36,
+            "win_rate": 0.2556291390728477,
+            "expectancy": -0.012006933774834503,
+            "profit_factor": 0.7378817907627896
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1558,
+            "net_pnl": -811220.2,
+            "win_rate": 0.2496790757381258,
+            "expectancy": -0.010251827342747155,
+            "profit_factor": 0.7249413696714094
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1558,
+            "net_pnl": -811220.2,
+            "win_rate": 0.2496790757381258,
+            "expectancy": -0.010251827342747155,
+            "profit_factor": 0.7249413696714094
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__first_pullback_10",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2513,
+            "net_pnl": -844647.66,
+            "win_rate": 0.2240350179068842,
+            "expectancy": -0.007263086748905702,
+            "profit_factor": 0.6259450758662665
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2513,
+            "net_pnl": -844647.66,
+            "win_rate": 0.2240350179068842,
+            "expectancy": -0.007263086748905702,
+            "profit_factor": 0.6259450758662665
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__ma20_nondeclining",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3767,
+            "net_pnl": -827364.46,
+            "win_rate": 0.2925404831430847,
+            "expectancy": -0.0040216405627820535,
+            "profit_factor": 0.6981753881997347
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3767,
+            "net_pnl": -827364.46,
+            "win_rate": 0.2925404831430847,
+            "expectancy": -0.0040216405627820535,
+            "profit_factor": 0.6981753881997347
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3659,
+            "net_pnl": -793451.59,
+            "win_rate": 0.2948893140202241,
+            "expectancy": -0.003556264006559149,
+            "profit_factor": 0.7220902363156058
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3659,
+            "net_pnl": -793451.59,
+            "win_rate": 0.2948893140202241,
+            "expectancy": -0.003556264006559149,
+            "profit_factor": 0.7220902363156058
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3657,
+            "net_pnl": -795837.72,
+            "win_rate": 0.2950505879135904,
+            "expectancy": -0.0035470741044571832,
+            "profit_factor": 0.7202967102853425
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3657,
+            "net_pnl": -795837.72,
+            "win_rate": 0.2950505879135904,
+            "expectancy": -0.0035470741044571832,
+            "profit_factor": 0.7202967102853425
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3659,
+            "net_pnl": -793451.59,
+            "win_rate": 0.2948893140202241,
+            "expectancy": -0.003556264006559149,
+            "profit_factor": 0.7220902363156058
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3659,
+            "net_pnl": -793451.59,
+            "win_rate": 0.2948893140202241,
+            "expectancy": -0.003556264006559149,
+            "profit_factor": 0.7220902363156058
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3746,
+            "net_pnl": -775477.8,
+            "win_rate": 0.2760277629471436,
+            "expectancy": -0.0033138886812600073,
+            "profit_factor": 0.7510491963599468
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3746,
+            "net_pnl": -775477.8,
+            "win_rate": 0.2760277629471436,
+            "expectancy": -0.0033138886812600073,
+            "profit_factor": 0.7510491963599468
+          }
+        },
+        {
+          "model": "pullback_to_support__confirm_high_3",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1957,
+            "net_pnl": -937442.24,
+            "win_rate": 0.20183955033214104,
+            "expectancy": -0.014347394481348965,
+            "profit_factor": 0.5209353496225595
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1957,
+            "net_pnl": -937442.24,
+            "win_rate": 0.20183955033214104,
+            "expectancy": -0.014347394481348965,
+            "profit_factor": 0.5209353496225595
+          }
+        },
+        {
+          "model": "pullback_to_support__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3287,
+            "net_pnl": -968757.09,
+            "win_rate": 0.24216610891390325,
+            "expectancy": -0.010587104046242782,
+            "profit_factor": 0.467767443913167
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3287,
+            "net_pnl": -968757.09,
+            "win_rate": 0.24216610891390325,
+            "expectancy": -0.010587104046242782,
+            "profit_factor": 0.467767443913167
+          }
+        },
+        {
+          "model": "rsi_midline_pullback__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2330,
+            "net_pnl": -968732.12,
+            "win_rate": 0.21802575107296138,
+            "expectancy": -0.01536158025751071,
+            "profit_factor": 0.5471094589670897
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2330,
+            "net_pnl": -968732.12,
+            "win_rate": 0.21802575107296138,
+            "expectancy": -0.01536158025751071,
+            "profit_factor": 0.5471094589670897
+          }
+        },
+        {
+          "model": "rsi_midline_pullback__rsi_cross_50",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1899,
+            "net_pnl": -622323.46,
+            "win_rate": 0.2401263823064771,
+            "expectancy": -0.0045364412848868,
+            "profit_factor": 0.8089963273186143
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1899,
+            "net_pnl": -622323.46,
+            "win_rate": 0.2401263823064771,
+            "expectancy": -0.0045364412848868,
+            "profit_factor": 0.8089963273186143
+          }
+        },
+        {
+          "model": "rsi_midline_pullback__rsi_turn_up",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2313,
+            "net_pnl": -925291.74,
+            "win_rate": 0.22351923908344143,
+            "expectancy": -0.010573584522265426,
+            "profit_factor": 0.5644148385535291
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2313,
+            "net_pnl": -925291.74,
+            "win_rate": 0.22351923908344143,
+            "expectancy": -0.010573584522265426,
+            "profit_factor": 0.5644148385535291
+          }
+        },
+        {
+          "model": "strong_open__execution_premium_3pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2188,
+            "net_pnl": -991326.19,
+            "win_rate": 0.1960694698354662,
+            "expectancy": -0.023341556672760524,
+            "profit_factor": 0.6064125474127748
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2188,
+            "net_pnl": -991326.19,
+            "win_rate": 0.1960694698354662,
+            "expectancy": -0.023341556672760524,
+            "profit_factor": 0.6064125474127748
+          }
+        },
+        {
+          "model": "strong_open__execution_premium_5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2116,
+            "net_pnl": -992990.7,
+            "win_rate": 0.19187145557655955,
+            "expectancy": -0.02540069990548199,
+            "profit_factor": 0.641052511129601
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2116,
+            "net_pnl": -992990.7,
+            "win_rate": 0.19187145557655955,
+            "expectancy": -0.02540069990548199,
+            "profit_factor": 0.641052511129601
+          }
+        },
+        {
+          "model": "strong_open__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1914,
+            "net_pnl": -995221.12,
+            "win_rate": 0.18286311389759666,
+            "expectancy": -0.030938671891327055,
+            "profit_factor": 0.572616089330651
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1914,
+            "net_pnl": -995221.12,
+            "win_rate": 0.18286311389759666,
+            "expectancy": -0.030938671891327055,
+            "profit_factor": 0.572616089330651
+          }
+        },
+        {
+          "model": "volume_price_surge__clv_070",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1629,
+            "net_pnl": -880746.08,
+            "win_rate": 0.2480049109883364,
+            "expectancy": -0.011995925721301409,
+            "profit_factor": 0.6925271268298764
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1629,
+            "net_pnl": -880746.08,
+            "win_rate": 0.2480049109883364,
+            "expectancy": -0.011995925721301409,
+            "profit_factor": 0.6925271268298764
+          }
+        },
+        {
+          "model": "volume_price_surge__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1676,
+            "net_pnl": -882384.23,
+            "win_rate": 0.24105011933174225,
+            "expectancy": -0.011814040572792405,
+            "profit_factor": 0.6892016301327701
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1676,
+            "net_pnl": -882384.23,
+            "win_rate": 0.24105011933174225,
+            "expectancy": -0.011814040572792405,
+            "profit_factor": 0.6892016301327701
+          }
+        },
+        {
+          "model": "volume_price_surge__volume_cap_4",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1740,
+            "net_pnl": -816138.96,
+            "win_rate": 0.23793103448275862,
+            "expectancy": -0.00829477413793108,
+            "profit_factor": 0.7038669480128977
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1740,
+            "net_pnl": -816138.96,
+            "win_rate": 0.23793103448275862,
+            "expectancy": -0.00829477413793108,
+            "profit_factor": 0.7038669480128977
+          }
+        }
+      ]
+    },
+    "strategy-quality-stress20-v1": {
+      "identity_sha256": "fa403034a3cd810547791891ad6ed7d0ab67ac2e4421b5c41f6a1c998fc24d62",
+      "result_count": 73,
+      "signal_coordinate_files": 73,
+      "complete_strategy_cards": 22,
+      "decision_counts": {
+        "exploratory_followup_only": 3,
+        "rejected_topic": 48,
+        "baseline_retained": 22
+      },
+      "trade_cash_checks": 114886,
+      "trade_cash_failures": 0,
+      "account_reconciliations_passed": 73,
+      "pairwise_comparisons": 231,
+      "trade_contract_checks": [
+        {
+          "model": "active_limit_gene__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "active_limit_gene__recent_limit_20",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "boll_breakout__first_upper_cross",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "boll_breakout__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "breakout_new_high_60d__breakout_atr_1",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "breakout_new_high_60d__first_high_break",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "breakout_new_high_60d__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "bullish_alignment__first_alignment",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "bullish_alignment__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "consecutive_limit_ups__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "high_turnover_surge__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "high_turnover_surge__turnover_cap_15",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__clv_065",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__confirm_high_1",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "low_volatility_leader__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_convergence_breakout__clv_070",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_convergence_breakout__first_squeeze_release",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_convergence_breakout__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_golden_cross__ma20_atr_15",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_golden_cross__ma20_atr_20",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "ma_golden_cross__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__dif_rising_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_below_zero_revival__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_golden__dif_negative",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_golden__dif_nonnegative",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "macd_golden__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__clv_065",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__confirm_high_3",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "n_day_low_reversal__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "near_limit_up__closed_limit",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "near_limit_up__not_closed_limit",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "near_limit_up__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_bounce__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_bounce__rsi_recover",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__recent_oversold_3",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "oversold_reversal__volume_cap_4",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__platform_volume_contract",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__prior_platform_mean",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__first_pullback_10",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__ma20_nondeclining",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_atr_2",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_budget_0p5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_signal_low",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_to_support__confirm_high_3",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "pullback_to_support__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "rsi_midline_pullback__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "rsi_midline_pullback__rsi_cross_50",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "rsi_midline_pullback__rsi_turn_up",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "strong_open__execution_premium_3pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "strong_open__execution_premium_5pct",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "strong_open__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "volume_price_surge__clv_070",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "volume_price_surge__original",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        },
+        {
+          "model": "volume_price_surge__volume_cap_4",
+          "chronology_errors": 0,
+          "raw_entry_quantity_errors": 0
+        }
+      ],
+      "anomaly_trade_impact": [
+        {
+          "model": "active_limit_gene__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1200,
+            "net_pnl": -972343.87,
+            "win_rate": 0.1725,
+            "expectancy": -0.030448219166666703,
+            "profit_factor": 0.6495772863095429
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1200,
+            "net_pnl": -972343.87,
+            "win_rate": 0.1725,
+            "expectancy": -0.030448219166666703,
+            "profit_factor": 0.6495772863095429
+          }
+        },
+        {
+          "model": "active_limit_gene__recent_limit_20",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1203,
+            "net_pnl": -973638.77,
+            "win_rate": 0.17373233582709893,
+            "expectancy": -0.029660360764754784,
+            "profit_factor": 0.6060419581463119
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1203,
+            "net_pnl": -973638.77,
+            "win_rate": 0.17373233582709893,
+            "expectancy": -0.029660360764754784,
+            "profit_factor": 0.6060419581463119
+          }
+        },
+        {
+          "model": "boll_breakout__first_upper_cross",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1701,
+            "net_pnl": -984143.78,
+            "win_rate": 0.1987066431510876,
+            "expectancy": -0.02603469253380367,
+            "profit_factor": 0.5174037900628722
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1701,
+            "net_pnl": -984143.78,
+            "win_rate": 0.1987066431510876,
+            "expectancy": -0.02603469253380367,
+            "profit_factor": 0.5174037900628722
+          }
+        },
+        {
+          "model": "boll_breakout__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1777,
+            "net_pnl": -989737.94,
+            "win_rate": 0.19189645469893077,
+            "expectancy": -0.027402277996623547,
+            "profit_factor": 0.6620399569350836
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1777,
+            "net_pnl": -989737.94,
+            "win_rate": 0.19189645469893077,
+            "expectancy": -0.027402277996623547,
+            "profit_factor": 0.6620399569350836
+          }
+        },
+        {
+          "model": "breakout_new_high_60d__breakout_atr_1",
+          "affected_trades": 1,
+          "all": {
+            "trades": 1554,
+            "net_pnl": -989467.16,
+            "win_rate": 0.17953667953667954,
+            "expectancy": -0.0314690373230374,
+            "profit_factor": 0.44707096532900875
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1553,
+            "net_pnl": -986530.2,
+            "win_rate": 0.17965228589826143,
+            "expectancy": -0.03133192916934973,
+            "profit_factor": 0.44780591206511466
+          }
+        },
+        {
+          "model": "breakout_new_high_60d__first_high_break",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1423,
+            "net_pnl": -995242.39,
+            "win_rate": 0.1482782853127196,
+            "expectancy": -0.04146163457484196,
+            "profit_factor": 0.3908018821828578
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1423,
+            "net_pnl": -995242.39,
+            "win_rate": 0.1482782853127196,
+            "expectancy": -0.04146163457484196,
+            "profit_factor": 0.3908018821828578
+          }
+        },
+        {
+          "model": "breakout_new_high_60d__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1437,
+            "net_pnl": -994778.98,
+            "win_rate": 0.15309672929714682,
+            "expectancy": -0.041999608211551846,
+            "profit_factor": 0.5954074949604036
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1437,
+            "net_pnl": -994778.98,
+            "win_rate": 0.15309672929714682,
+            "expectancy": -0.041999608211551846,
+            "profit_factor": 0.5954074949604036
+          }
+        },
+        {
+          "model": "bullish_alignment__first_alignment",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1695,
+            "net_pnl": -992802.5,
+            "win_rate": 0.15634218289085547,
+            "expectancy": -0.03170353569321536,
+            "profit_factor": 0.5408074187425441
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1695,
+            "net_pnl": -992802.5,
+            "win_rate": 0.15634218289085547,
+            "expectancy": -0.03170353569321536,
+            "profit_factor": 0.5408074187425441
+          }
+        },
+        {
+          "model": "bullish_alignment__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1313,
+            "net_pnl": -993485.73,
+            "win_rate": 0.12947448591012947,
+            "expectancy": -0.042275668697639046,
+            "profit_factor": 0.5091447110348754
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1313,
+            "net_pnl": -993485.73,
+            "win_rate": 0.12947448591012947,
+            "expectancy": -0.042275668697639046,
+            "profit_factor": 0.5091447110348754
+          }
+        },
+        {
+          "model": "consecutive_limit_ups__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1849,
+            "net_pnl": -996819.99,
+            "win_rate": 0.21849648458626283,
+            "expectancy": -0.03385426663061118,
+            "profit_factor": 0.671736004376546
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1849,
+            "net_pnl": -996819.99,
+            "win_rate": 0.21849648458626283,
+            "expectancy": -0.03385426663061118,
+            "profit_factor": 0.671736004376546
+          }
+        },
+        {
+          "model": "high_turnover_surge__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1688,
+            "net_pnl": -995647.45,
+            "win_rate": 0.15995260663507108,
+            "expectancy": -0.035448010071090004,
+            "profit_factor": 0.6487403680562627
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1688,
+            "net_pnl": -995647.45,
+            "win_rate": 0.15995260663507108,
+            "expectancy": -0.035448010071090004,
+            "profit_factor": 0.6487403680562627
+          }
+        },
+        {
+          "model": "high_turnover_surge__turnover_cap_15",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1926,
+            "net_pnl": -995223.3,
+            "win_rate": 0.16458982346832815,
+            "expectancy": -0.03057787902388367,
+            "profit_factor": 0.6383550702393264
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1926,
+            "net_pnl": -995223.3,
+            "win_rate": 0.16458982346832815,
+            "expectancy": -0.03057787902388367,
+            "profit_factor": 0.6383550702393264
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__clv_065",
+          "affected_trades": 0,
+          "all": {
+            "trades": 364,
+            "net_pnl": -179038.84,
+            "win_rate": 0.2967032967032967,
+            "expectancy": -0.0044102664835164816,
+            "profit_factor": 0.8391813169373147
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 364,
+            "net_pnl": -179038.84,
+            "win_rate": 0.2967032967032967,
+            "expectancy": -0.0044102664835164816,
+            "profit_factor": 0.8391813169373147
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__confirm_high_1",
+          "affected_trades": 0,
+          "all": {
+            "trades": 760,
+            "net_pnl": -127635.15,
+            "win_rate": 0.3236842105263158,
+            "expectancy": -0.0008269184210526343,
+            "profit_factor": 0.9377098945565209
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 760,
+            "net_pnl": -127635.15,
+            "win_rate": 0.3236842105263158,
+            "expectancy": -0.0008269184210526343,
+            "profit_factor": 0.9377098945565209
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 429,
+            "net_pnl": -93776.94,
+            "win_rate": 0.3006993006993007,
+            "expectancy": -0.0009200489510489538,
+            "profit_factor": 0.9278646980035274
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 429,
+            "net_pnl": -93776.94,
+            "win_rate": 0.3006993006993007,
+            "expectancy": -0.0009200489510489538,
+            "profit_factor": 0.9278646980035274
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 429,
+            "net_pnl": -93776.94,
+            "win_rate": 0.3006993006993007,
+            "expectancy": -0.0009200489510489538,
+            "profit_factor": 0.9278646980035274
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 429,
+            "net_pnl": -93776.94,
+            "win_rate": 0.3006993006993007,
+            "expectancy": -0.0009200489510489538,
+            "profit_factor": 0.9278646980035274
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 429,
+            "net_pnl": -93776.94,
+            "win_rate": 0.3006993006993007,
+            "expectancy": -0.0009200489510489538,
+            "profit_factor": 0.9278646980035274
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 429,
+            "net_pnl": -93776.94,
+            "win_rate": 0.3006993006993007,
+            "expectancy": -0.0009200489510489538,
+            "profit_factor": 0.9278646980035274
+          }
+        },
+        {
+          "model": "long_lower_shadow_reversal__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 428,
+            "net_pnl": -100519.0,
+            "win_rate": 0.2967289719626168,
+            "expectancy": -0.0011296565420560773,
+            "profit_factor": 0.9225249400957373
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 428,
+            "net_pnl": -100519.0,
+            "win_rate": 0.2967289719626168,
+            "expectancy": -0.0011296565420560773,
+            "profit_factor": 0.9225249400957373
+          }
+        },
+        {
+          "model": "low_volatility_leader__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1337,
+            "net_pnl": -784446.05,
+            "win_rate": 0.2206432311144353,
+            "expectancy": -0.010612853403141494,
+            "profit_factor": 0.621493225886439
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1337,
+            "net_pnl": -784446.05,
+            "win_rate": 0.2206432311144353,
+            "expectancy": -0.010612853403141494,
+            "profit_factor": 0.621493225886439
+          }
+        },
+        {
+          "model": "ma_convergence_breakout__clv_070",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2025,
+            "net_pnl": -986473.94,
+            "win_rate": 0.2217283950617284,
+            "expectancy": -0.02248012049382719,
+            "profit_factor": 0.5539858668516378
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2025,
+            "net_pnl": -986473.94,
+            "win_rate": 0.2217283950617284,
+            "expectancy": -0.02248012049382719,
+            "profit_factor": 0.5539858668516378
+          }
+        },
+        {
+          "model": "ma_convergence_breakout__first_squeeze_release",
+          "affected_trades": 0,
+          "all": {
+            "trades": 353,
+            "net_pnl": -10394.97,
+            "win_rate": 0.32294617563739375,
+            "expectancy": 0.00026460339943342983,
+            "profit_factor": 0.9880789763729789
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 353,
+            "net_pnl": -10394.97,
+            "win_rate": 0.32294617563739375,
+            "expectancy": 0.00026460339943342983,
+            "profit_factor": 0.9880789763729789
+          }
+        },
+        {
+          "model": "ma_convergence_breakout__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2087,
+            "net_pnl": -978468.06,
+            "win_rate": 0.22712026832774318,
+            "expectancy": -0.019592241974125568,
+            "profit_factor": 0.5831028085033068
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2087,
+            "net_pnl": -978468.06,
+            "win_rate": 0.22712026832774318,
+            "expectancy": -0.019592241974125568,
+            "profit_factor": 0.5831028085033068
+          }
+        },
+        {
+          "model": "ma_golden_cross__ma20_atr_15",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1447,
+            "net_pnl": -836775.94,
+            "win_rate": 0.2709053213545266,
+            "expectancy": -0.011811480995162374,
+            "profit_factor": 0.6854514358218479
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1447,
+            "net_pnl": -836775.94,
+            "win_rate": 0.2709053213545266,
+            "expectancy": -0.011811480995162374,
+            "profit_factor": 0.6854514358218479
+          }
+        },
+        {
+          "model": "ma_golden_cross__ma20_atr_20",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1475,
+            "net_pnl": -891365.71,
+            "win_rate": 0.26169491525423727,
+            "expectancy": -0.014054597288135552,
+            "profit_factor": 0.6048750795804624
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1475,
+            "net_pnl": -891365.71,
+            "win_rate": 0.26169491525423727,
+            "expectancy": -0.014054597288135552,
+            "profit_factor": 0.6048750795804624
+          }
+        },
+        {
+          "model": "ma_golden_cross__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1617,
+            "net_pnl": -945014.95,
+            "win_rate": 0.2300556586270872,
+            "expectancy": -0.017618352504638227,
+            "profit_factor": 0.6132598320921901
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1617,
+            "net_pnl": -945014.95,
+            "win_rate": 0.2300556586270872,
+            "expectancy": -0.017618352504638227,
+            "profit_factor": 0.6132598320921901
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__dif_rising_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 777,
+            "net_pnl": -342152.97,
+            "win_rate": 0.3539253539253539,
+            "expectancy": -0.0036779021879021685,
+            "profit_factor": 0.8388706288698325
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 777,
+            "net_pnl": -342152.97,
+            "win_rate": 0.3539253539253539,
+            "expectancy": -0.0036779021879021685,
+            "profit_factor": 0.8388706288698325
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1032,
+            "net_pnl": -385721.03,
+            "win_rate": 0.42054263565891475,
+            "expectancy": -0.0035798178294573447,
+            "profit_factor": 0.8619290648110602
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1032,
+            "net_pnl": -385721.03,
+            "win_rate": 0.42054263565891475,
+            "expectancy": -0.0035798178294573447,
+            "profit_factor": 0.8619290648110602
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1155,
+            "net_pnl": -220362.69,
+            "win_rate": 0.4,
+            "expectancy": -0.001004776623376617,
+            "profit_factor": 0.9254977072584697
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1155,
+            "net_pnl": -220362.69,
+            "win_rate": 0.4,
+            "expectancy": -0.001004776623376617,
+            "profit_factor": 0.9254977072584697
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1032,
+            "net_pnl": -324305.58,
+            "win_rate": 0.42054263565891475,
+            "expectancy": -0.0035798178294573447,
+            "profit_factor": 0.866314105282124
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1032,
+            "net_pnl": -324305.58,
+            "win_rate": 0.42054263565891475,
+            "expectancy": -0.0035798178294573447,
+            "profit_factor": 0.866314105282124
+          }
+        },
+        {
+          "model": "macd_below_zero_revival__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2910,
+            "net_pnl": -596817.75,
+            "win_rate": 0.16288659793814433,
+            "expectancy": -0.0027260020618556694,
+            "profit_factor": 0.8325489681991408
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2910,
+            "net_pnl": -596817.75,
+            "win_rate": 0.16288659793814433,
+            "expectancy": -0.0027260020618556694,
+            "profit_factor": 0.8325489681991408
+          }
+        },
+        {
+          "model": "macd_golden__dif_negative",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1236,
+            "net_pnl": -863454.73,
+            "win_rate": 0.25970873786407767,
+            "expectancy": -0.014578068770226549,
+            "profit_factor": 0.6665470253705332
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1236,
+            "net_pnl": -863454.73,
+            "win_rate": 0.25970873786407767,
+            "expectancy": -0.014578068770226549,
+            "profit_factor": 0.6665470253705332
+          }
+        },
+        {
+          "model": "macd_golden__dif_nonnegative",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1666,
+            "net_pnl": -983913.77,
+            "win_rate": 0.20228091236494597,
+            "expectancy": -0.0266786116446579,
+            "profit_factor": 0.4937190706765489
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1666,
+            "net_pnl": -983913.77,
+            "win_rate": 0.20228091236494597,
+            "expectancy": -0.0266786116446579,
+            "profit_factor": 0.4937190706765489
+          }
+        },
+        {
+          "model": "macd_golden__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1603,
+            "net_pnl": -970341.1,
+            "win_rate": 0.2114784778540237,
+            "expectancy": -0.02250021646912041,
+            "profit_factor": 0.5767889838045271
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1603,
+            "net_pnl": -970341.1,
+            "win_rate": 0.2114784778540237,
+            "expectancy": -0.02250021646912041,
+            "profit_factor": 0.5767889838045271
+          }
+        },
+        {
+          "model": "n_day_low_reversal__clv_065",
+          "affected_trades": 0,
+          "all": {
+            "trades": 518,
+            "net_pnl": 539329.63,
+            "win_rate": 0.4498069498069498,
+            "expectancy": 0.010634111969111983,
+            "profit_factor": 1.3166810750694848
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 518,
+            "net_pnl": 539329.63,
+            "win_rate": 0.4498069498069498,
+            "expectancy": 0.010634111969111983,
+            "profit_factor": 1.3166810750694848
+          }
+        },
+        {
+          "model": "n_day_low_reversal__confirm_high_3",
+          "affected_trades": 0,
+          "all": {
+            "trades": 403,
+            "net_pnl": 273599.62,
+            "win_rate": 0.4491315136476427,
+            "expectancy": 0.007163034739454106,
+            "profit_factor": 1.227776145722056
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 403,
+            "net_pnl": 273599.62,
+            "win_rate": 0.4491315136476427,
+            "expectancy": 0.007163034739454106,
+            "profit_factor": 1.227776145722056
+          }
+        },
+        {
+          "model": "n_day_low_reversal__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 741,
+            "net_pnl": 970605.77,
+            "win_rate": 0.45479082321187586,
+            "expectancy": 0.011469055330634281,
+            "profit_factor": 1.307884766858563
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 741,
+            "net_pnl": 970605.77,
+            "win_rate": 0.45479082321187586,
+            "expectancy": 0.011469055330634281,
+            "profit_factor": 1.307884766858563
+          }
+        },
+        {
+          "model": "n_day_low_reversal__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 756,
+            "net_pnl": 823800.46,
+            "win_rate": 0.44312169312169314,
+            "expectancy": 0.010331333333333342,
+            "profit_factor": 1.2644539092581972
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 756,
+            "net_pnl": 823800.46,
+            "win_rate": 0.44312169312169314,
+            "expectancy": 0.010331333333333342,
+            "profit_factor": 1.2644539092581972
+          }
+        },
+        {
+          "model": "n_day_low_reversal__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 741,
+            "net_pnl": 806505.24,
+            "win_rate": 0.45479082321187586,
+            "expectancy": 0.011469055330634281,
+            "profit_factor": 1.3159963564857702
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 741,
+            "net_pnl": 806505.24,
+            "win_rate": 0.45479082321187586,
+            "expectancy": 0.011469055330634281,
+            "profit_factor": 1.3159963564857702
+          }
+        },
+        {
+          "model": "n_day_low_reversal__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 869,
+            "net_pnl": 938276.62,
+            "win_rate": 0.33716915995397007,
+            "expectancy": 0.009733124280782502,
+            "profit_factor": 1.3344201337755928
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 869,
+            "net_pnl": 938276.62,
+            "win_rate": 0.33716915995397007,
+            "expectancy": 0.009733124280782502,
+            "profit_factor": 1.3344201337755928
+          }
+        },
+        {
+          "model": "near_limit_up__closed_limit",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2205,
+            "net_pnl": -995770.87,
+            "win_rate": 0.2331065759637188,
+            "expectancy": -0.027440601360544197,
+            "profit_factor": 0.6005125840672713
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2205,
+            "net_pnl": -995770.87,
+            "win_rate": 0.2331065759637188,
+            "expectancy": -0.027440601360544197,
+            "profit_factor": 0.6005125840672713
+          }
+        },
+        {
+          "model": "near_limit_up__not_closed_limit",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3163,
+            "net_pnl": -983889.7,
+            "win_rate": 0.29402466013278533,
+            "expectancy": -0.014210754979449888,
+            "profit_factor": 0.6249502808051696
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3163,
+            "net_pnl": -983889.7,
+            "win_rate": 0.29402466013278533,
+            "expectancy": -0.014210754979449888,
+            "profit_factor": 0.6249502808051696
+          }
+        },
+        {
+          "model": "near_limit_up__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2245,
+            "net_pnl": -995542.2,
+            "win_rate": 0.23652561247216036,
+            "expectancy": -0.026724968374164767,
+            "profit_factor": 0.6405725400987977
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2245,
+            "net_pnl": -995542.2,
+            "win_rate": 0.23652561247216036,
+            "expectancy": -0.026724968374164767,
+            "profit_factor": 0.6405725400987977
+          }
+        },
+        {
+          "model": "oversold_bounce__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1021,
+            "net_pnl": -397524.23,
+            "win_rate": 0.356513222331048,
+            "expectancy": -0.003710540646425022,
+            "profit_factor": 0.8374148032900796
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1021,
+            "net_pnl": -397524.23,
+            "win_rate": 0.356513222331048,
+            "expectancy": -0.003710540646425022,
+            "profit_factor": 0.8374148032900796
+          }
+        },
+        {
+          "model": "oversold_bounce__rsi_recover",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1404,
+            "net_pnl": -608796.05,
+            "win_rate": 0.31339031339031337,
+            "expectancy": -0.005864899572649538,
+            "profit_factor": 0.7921107973865427
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1404,
+            "net_pnl": -608796.05,
+            "win_rate": 0.31339031339031337,
+            "expectancy": -0.005864899572649538,
+            "profit_factor": 0.7921107973865427
+          }
+        },
+        {
+          "model": "oversold_reversal__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 760,
+            "net_pnl": -236159.94,
+            "win_rate": 0.3539473684210526,
+            "expectancy": -0.00234788684210526,
+            "profit_factor": 0.8923008608504377
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 760,
+            "net_pnl": -236159.94,
+            "win_rate": 0.3539473684210526,
+            "expectancy": -0.00234788684210526,
+            "profit_factor": 0.8923008608504377
+          }
+        },
+        {
+          "model": "oversold_reversal__recent_oversold_3",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1603,
+            "net_pnl": -853042.03,
+            "win_rate": 0.2613849033063007,
+            "expectancy": -0.011780048658764882,
+            "profit_factor": 0.6744439821072836
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1603,
+            "net_pnl": -853042.03,
+            "win_rate": 0.2613849033063007,
+            "expectancy": -0.011780048658764882,
+            "profit_factor": 0.6744439821072836
+          }
+        },
+        {
+          "model": "oversold_reversal__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 761,
+            "net_pnl": -233338.82,
+            "win_rate": 0.35348226018396844,
+            "expectancy": -0.0022837976346911926,
+            "profit_factor": 0.8938016506094139
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 761,
+            "net_pnl": -233338.82,
+            "win_rate": 0.35348226018396844,
+            "expectancy": -0.0022837976346911926,
+            "profit_factor": 0.8938016506094139
+          }
+        },
+        {
+          "model": "oversold_reversal__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 760,
+            "net_pnl": -236159.94,
+            "win_rate": 0.3539473684210526,
+            "expectancy": -0.00234788684210526,
+            "profit_factor": 0.8923008608504377
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 760,
+            "net_pnl": -236159.94,
+            "win_rate": 0.3539473684210526,
+            "expectancy": -0.00234788684210526,
+            "profit_factor": 0.8923008608504377
+          }
+        },
+        {
+          "model": "oversold_reversal__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 895,
+            "net_pnl": -101932.39,
+            "win_rate": 0.2837988826815642,
+            "expectancy": -0.0001500837988826825,
+            "profit_factor": 0.9525581906016694
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 895,
+            "net_pnl": -101932.39,
+            "win_rate": 0.2837988826815642,
+            "expectancy": -0.0001500837988826825,
+            "profit_factor": 0.9525581906016694
+          }
+        },
+        {
+          "model": "oversold_reversal__volume_cap_4",
+          "affected_trades": 0,
+          "all": {
+            "trades": 760,
+            "net_pnl": -236159.94,
+            "win_rate": 0.3539473684210526,
+            "expectancy": -0.00234788684210526,
+            "profit_factor": 0.8923008608504377
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 760,
+            "net_pnl": -236159.94,
+            "win_rate": 0.3539473684210526,
+            "expectancy": -0.00234788684210526,
+            "profit_factor": 0.8923008608504377
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1501,
+            "net_pnl": -886677.38,
+            "win_rate": 0.25316455696202533,
+            "expectancy": -0.01418026315789473,
+            "profit_factor": 0.700985345362052
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1501,
+            "net_pnl": -886677.38,
+            "win_rate": 0.25316455696202533,
+            "expectancy": -0.01418026315789473,
+            "profit_factor": 0.700985345362052
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__platform_volume_contract",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1391,
+            "net_pnl": -880692.75,
+            "win_rate": 0.2595255212077642,
+            "expectancy": -0.014896127965492417,
+            "profit_factor": 0.6008130797864358
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1391,
+            "net_pnl": -880692.75,
+            "win_rate": 0.2595255212077642,
+            "expectancy": -0.014896127965492417,
+            "profit_factor": 0.6008130797864358
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__prior_platform_mean",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1422,
+            "net_pnl": -819518.75,
+            "win_rate": 0.2714486638537271,
+            "expectancy": -0.011938998593530236,
+            "profit_factor": 0.7272767439833888
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1422,
+            "net_pnl": -819518.75,
+            "win_rate": 0.2714486638537271,
+            "expectancy": -0.011938998593530236,
+            "profit_factor": 0.7272767439833888
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1542,
+            "net_pnl": -884002.45,
+            "win_rate": 0.2496757457846952,
+            "expectancy": -0.013397248378728932,
+            "profit_factor": 0.6854633317940062
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1542,
+            "net_pnl": -884002.45,
+            "win_rate": 0.2496757457846952,
+            "expectancy": -0.013397248378728932,
+            "profit_factor": 0.6854633317940062
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1502,
+            "net_pnl": -846683.88,
+            "win_rate": 0.25233022636484687,
+            "expectancy": -0.014366875499334224,
+            "profit_factor": 0.6977550339336314
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1502,
+            "net_pnl": -846683.88,
+            "win_rate": 0.25233022636484687,
+            "expectancy": -0.014366875499334224,
+            "profit_factor": 0.6977550339336314
+          }
+        },
+        {
+          "model": "platform_consolidation_breakout__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1559,
+            "net_pnl": -882145.83,
+            "win_rate": 0.24438742783835793,
+            "expectancy": -0.013303844130853082,
+            "profit_factor": 0.6701993099130483
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1559,
+            "net_pnl": -882145.83,
+            "win_rate": 0.24438742783835793,
+            "expectancy": -0.013303844130853082,
+            "profit_factor": 0.6701993099130483
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__first_pullback_10",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2495,
+            "net_pnl": -922236.2,
+            "win_rate": 0.20400801603206412,
+            "expectancy": -0.010328664128256504,
+            "profit_factor": 0.5283005540660239
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2495,
+            "net_pnl": -922236.2,
+            "win_rate": 0.20400801603206412,
+            "expectancy": -0.010328664128256504,
+            "profit_factor": 0.5283005540660239
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__ma20_nondeclining",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3686,
+            "net_pnl": -961917.26,
+            "win_rate": 0.25420510037981553,
+            "expectancy": -0.00918274118285404,
+            "profit_factor": 0.5352615460407044
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3686,
+            "net_pnl": -961917.26,
+            "win_rate": 0.25420510037981553,
+            "expectancy": -0.00918274118285404,
+            "profit_factor": 0.5352615460407044
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3582,
+            "net_pnl": -949350.89,
+            "win_rate": 0.25879396984924624,
+            "expectancy": -0.008416771635957554,
+            "profit_factor": 0.5633726487988722
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3582,
+            "net_pnl": -949350.89,
+            "win_rate": 0.25879396984924624,
+            "expectancy": -0.008416771635957554,
+            "profit_factor": 0.5633726487988722
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_atr_2",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3582,
+            "net_pnl": -949387.54,
+            "win_rate": 0.25879396984924624,
+            "expectancy": -0.00841941903964264,
+            "profit_factor": 0.5632579763278492
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3582,
+            "net_pnl": -949387.54,
+            "win_rate": 0.25879396984924624,
+            "expectancy": -0.00841941903964264,
+            "profit_factor": 0.5632579763278492
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_budget_0p5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3582,
+            "net_pnl": -949350.89,
+            "win_rate": 0.25879396984924624,
+            "expectancy": -0.008416771635957554,
+            "profit_factor": 0.5633726487988722
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3582,
+            "net_pnl": -949350.89,
+            "win_rate": 0.25879396984924624,
+            "expectancy": -0.008416771635957554,
+            "profit_factor": 0.5633726487988722
+          }
+        },
+        {
+          "model": "pullback_ma20_bounce__risk_signal_low",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3709,
+            "net_pnl": -903545.86,
+            "win_rate": 0.2480452952278242,
+            "expectancy": -0.005942818549474233,
+            "profit_factor": 0.6364959204823005
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3709,
+            "net_pnl": -903545.86,
+            "win_rate": 0.2480452952278242,
+            "expectancy": -0.005942818549474233,
+            "profit_factor": 0.6364959204823005
+          }
+        },
+        {
+          "model": "pullback_to_support__confirm_high_3",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1939,
+            "net_pnl": -971297.68,
+            "win_rate": 0.1820526044352759,
+            "expectancy": -0.019189517276946885,
+            "profit_factor": 0.45360784227910705
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1939,
+            "net_pnl": -971297.68,
+            "win_rate": 0.1820526044352759,
+            "expectancy": -0.019189517276946885,
+            "profit_factor": 0.45360784227910705
+          }
+        },
+        {
+          "model": "pullback_to_support__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 3019,
+            "net_pnl": -988842.0,
+            "win_rate": 0.20934084133819145,
+            "expectancy": -0.015773799933752882,
+            "profit_factor": 0.3770610392200213
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 3019,
+            "net_pnl": -988842.0,
+            "win_rate": 0.20934084133819145,
+            "expectancy": -0.015773799933752882,
+            "profit_factor": 0.3770610392200213
+          }
+        },
+        {
+          "model": "rsi_midline_pullback__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2228,
+            "net_pnl": -980281.54,
+            "win_rate": 0.2127468581687612,
+            "expectancy": -0.018626109515260343,
+            "profit_factor": 0.5027874277928167
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2228,
+            "net_pnl": -980281.54,
+            "win_rate": 0.2127468581687612,
+            "expectancy": -0.018626109515260343,
+            "profit_factor": 0.5027874277928167
+          }
+        },
+        {
+          "model": "rsi_midline_pullback__rsi_cross_50",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1899,
+            "net_pnl": -785543.11,
+            "win_rate": 0.21853607161664035,
+            "expectancy": -0.007582169562927853,
+            "profit_factor": 0.7171964244573485
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1899,
+            "net_pnl": -785543.11,
+            "win_rate": 0.21853607161664035,
+            "expectancy": -0.007582169562927853,
+            "profit_factor": 0.7171964244573485
+          }
+        },
+        {
+          "model": "rsi_midline_pullback__rsi_turn_up",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2268,
+            "net_pnl": -973400.49,
+            "win_rate": 0.19973544973544974,
+            "expectancy": -0.016570313492063525,
+            "profit_factor": 0.4711415756494836
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2268,
+            "net_pnl": -973400.49,
+            "win_rate": 0.19973544973544974,
+            "expectancy": -0.016570313492063525,
+            "profit_factor": 0.4711415756494836
+          }
+        },
+        {
+          "model": "strong_open__execution_premium_3pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2047,
+            "net_pnl": -993888.85,
+            "win_rate": 0.19101123595505617,
+            "expectancy": -0.027334702491450872,
+            "profit_factor": 0.5736476685013602
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2047,
+            "net_pnl": -993888.85,
+            "win_rate": 0.19101123595505617,
+            "expectancy": -0.027334702491450872,
+            "profit_factor": 0.5736476685013602
+          }
+        },
+        {
+          "model": "strong_open__execution_premium_5pct",
+          "affected_trades": 0,
+          "all": {
+            "trades": 2081,
+            "net_pnl": -993572.31,
+            "win_rate": 0.18981259010091303,
+            "expectancy": -0.02651040509370494,
+            "profit_factor": 0.620236046921649
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 2081,
+            "net_pnl": -993572.31,
+            "win_rate": 0.18981259010091303,
+            "expectancy": -0.02651040509370494,
+            "profit_factor": 0.620236046921649
+          }
+        },
+        {
+          "model": "strong_open__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1829,
+            "net_pnl": -995338.31,
+            "win_rate": 0.18370694368507381,
+            "expectancy": -0.03338683652268995,
+            "profit_factor": 0.5511114128942243
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1829,
+            "net_pnl": -995338.31,
+            "win_rate": 0.18370694368507381,
+            "expectancy": -0.03338683652268995,
+            "profit_factor": 0.5511114128942243
+          }
+        },
+        {
+          "model": "volume_price_surge__clv_070",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1638,
+            "net_pnl": -918411.79,
+            "win_rate": 0.23931623931623933,
+            "expectancy": -0.014705140415140384,
+            "profit_factor": 0.6559919280800727
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1638,
+            "net_pnl": -918411.79,
+            "win_rate": 0.23931623931623933,
+            "expectancy": -0.014705140415140384,
+            "profit_factor": 0.6559919280800727
+          }
+        },
+        {
+          "model": "volume_price_surge__original",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1680,
+            "net_pnl": -929191.49,
+            "win_rate": 0.23095238095238096,
+            "expectancy": -0.015299517857142852,
+            "profit_factor": 0.643801959911413
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1680,
+            "net_pnl": -929191.49,
+            "win_rate": 0.23095238095238096,
+            "expectancy": -0.015299517857142852,
+            "profit_factor": 0.643801959911413
+          }
+        },
+        {
+          "model": "volume_price_surge__volume_cap_4",
+          "affected_trades": 0,
+          "all": {
+            "trades": 1743,
+            "net_pnl": -905715.79,
+            "win_rate": 0.23121055651176134,
+            "expectancy": -0.012667514629948348,
+            "profit_factor": 0.6354075683262884
+          },
+          "excluding_flagged_sensitivity_only": {
+            "trades": 1743,
+            "net_pnl": -905715.79,
+            "win_rate": 0.23121055651176134,
+            "expectancy": -0.012667514629948348,
+            "profit_factor": 0.6354075683262884
+          }
+        }
+      ]
+    }
+  },
+  "production_promotions": 0,
+  "prospective_observation_started": false,
+  "desktop_viewport_verified": false,
+  "market_data_or_raw_trades_committed": false
+}

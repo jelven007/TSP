@@ -1,6 +1,7 @@
 """平台缩量整理突破 — 窄幅横盘蓄势后放量突破平台上沿"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -96,4 +97,4 @@ class PlatformConsolidationBreakoutMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = PlatformConsolidationBreakoutMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, PlatformConsolidationBreakoutMatrixStrategy())

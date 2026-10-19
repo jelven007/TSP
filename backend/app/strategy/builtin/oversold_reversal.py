@@ -1,6 +1,7 @@
 """超跌反弹 — RSI14 < 30 + 涨幅 > 1% + 站上 MA5, 超卖反弹信号"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 from _shared_signals import ma20_breakdown, rsi_oversold_entry
 
 from app.backtest.matrix import (
@@ -86,4 +87,4 @@ class OversoldReversalMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = OversoldReversalMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, OversoldReversalMatrixStrategy())

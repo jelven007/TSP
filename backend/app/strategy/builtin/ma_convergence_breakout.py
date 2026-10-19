@@ -1,6 +1,7 @@
 """均线粘合突破 — MA5/10/20 挤压收敛后放量向上突破 (变盘启动点)"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -102,4 +103,4 @@ class MAConvergenceBreakoutMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = MAConvergenceBreakoutMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, MAConvergenceBreakoutMatrixStrategy())

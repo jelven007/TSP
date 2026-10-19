@@ -1,6 +1,7 @@
 """均线回踩反弹 — 价格在 MA20 附近(±2%)且 MA 多头排列, 回踩买入"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 from _shared_signals import ma20_breakdown as support_breakdown
 from _shared_signals import ma20_proximity
 
@@ -87,4 +88,4 @@ class PullbackMA20BounceMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = PullbackMA20BounceMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, PullbackMA20BounceMatrixStrategy())

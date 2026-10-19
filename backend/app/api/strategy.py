@@ -245,6 +245,7 @@ def _strategy_detail(
         "exit_signals": overrides.get("exit_signals", s.exit_signals) if overrides else s.exit_signals,
         "minute_exit_trigger_supported_signals": sorted(MINUTE_EXIT_TRIGGER_SIGNALS),
         "stop_loss": overrides.get("stop_loss", s.stop_loss) if overrides else s.stop_loss,
+        "entry_risk": (overrides or {}).get("entry_risk", {}),
         "take_profit": getattr(s, "take_profit", None),
         "trailing_stop": getattr(s, "trailing_stop", None),
         "trailing_take_profit_activate": getattr(s, "trailing_take_profit_activate", None),
@@ -496,6 +497,7 @@ def save_config(req: SaveConfigRequest, request: Request):
 
     _validate_scoring_config(req.overrides)
     _validate_overlay_config(req.overrides, strategy)
+    _validate_entry_risk(req.overrides, strategy)
     # 剥离与策略默认值相同的字段，只保存用户真正修改过的值
     overrides = _strip_defaults(req.strategy_id, req.overrides, engine)
 
@@ -512,12 +514,31 @@ def patch_config(req: SaveConfigRequest, request: Request):
     overrides.update(req.overrides)
     _validate_scoring_config(overrides)
     _validate_overlay_config(overrides, strategy)
+    _validate_entry_risk(overrides, strategy)
     strategy_config.save_override(
         data_dir,
         req.strategy_id,
         _strip_defaults(req.strategy_id, overrides, engine),
     )
     return {"ok": True}
+
+
+def _validate_entry_risk(overrides: dict, strategy: StrategyDef) -> None:
+    from app.strategy.entry_risk import EntryRiskPolicy
+    from app.strategy.risk_policy import strategy_policy
+
+    try:
+        policy = EntryRiskPolicy.from_mapping(overrides.get("entry_risk"))
+        if not policy.enabled:
+            return
+        if strategy.execution_backend == "minute_filter":
+            raise ValueError("冻结日线入场风险暂不支持分钟策略")
+        risk = strategy_policy(strategy, overrides)
+        if (policy.risk_per_trade_pct is not None and risk.stop_loss_pct is None
+                and policy.stop_atr_multiple is None and not policy.stop_signal_low):
+            raise ValueError("按风险配仓必须配置固定止损、ATR止损或信号日低点保护")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _validate_overlay_config(overrides: dict, strategy: StrategyDef) -> None:

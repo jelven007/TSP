@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Settings2, RotateCcw, Save, ChevronDown, Filter, Star, TrendingUp, Sparkles, Download, Layers, Plus, Trash2 } from 'lucide-react'
-import { api, type StrategyDetail, type StrategyParamDef, type CompositeChildInfo, type ScoringDirection, type CustomSignalCondition } from '@/lib/api'
+import { api, type StrategyDetail, type StrategyParamDef, type CompositeChildInfo, type ScoringDirection, type CustomSignalCondition, type EntryRiskPolicy } from '@/lib/api'
 import { toPercentages, normalizeWeights } from '@/lib/weights'
 import { BUILTIN_COLUMNS } from '@/lib/watchlist-columns'
 import { color } from '@/lib/colors'
@@ -155,7 +155,7 @@ function ParamField({ def, value, onChange }: {
           onChange={e => onChange(e.target.value)}
           className="w-24 px-1.5 py-0.5 rounded bg-base border border-border text-[11px] font-mono text-foreground focus:outline-none focus:border-accent/50"
         >
-          {def.options.map(o => <option key={o} value={o}>{o}</option>)}
+          {def.options.map(o => <option key={o} value={o}>{def.option_labels?.[o] ?? o}</option>)}
         </select>
       </div>
     )
@@ -212,6 +212,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const [overlayFilter, setOverlayFilter] = useState<CustomSignalCondition[]>([])
   const [saveError, setSaveError] = useState('')
   const [stopLoss, setStopLoss] = useState<number | null>(null)
+  const [entryRisk, setEntryRisk] = useState<EntryRiskPolicy>({})
   const [maxHoldDays, setMaxHoldDays] = useState<number | null>(null)
   const [entrySignals, setEntrySignals] = useState<string[]>([])
   const [exitSignals, setExitSignals] = useState<string[]>([])
@@ -253,6 +254,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
         setScoringDirections(d.scoring_directions ?? {})
         setOverlayFilter((d.overlay_filter ?? []).map(c => ({ ...c })))
         setStopLoss(d.stop_loss)
+        setEntryRisk(d.entry_risk ?? {})
         setMaxHoldDays(d.max_hold_days)
         setEntrySignals(d.entry_signals ?? [])
         setExitSignals(d.exit_signals ?? [])
@@ -304,6 +306,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
           scoring_replace: true,
         } : {}),
         stop_loss: stopLoss,
+        entry_risk: entryRisk,
         max_hold_days: maxHoldDays,
         entry_signals: entrySignals,
         exit_signals: exitSignals,
@@ -345,6 +348,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
       setScoringDirections(d.scoring_directions ?? {})
       setOverlayFilter((d.overlay_filter ?? []).map(c => ({ ...c })))
       setStopLoss(d.stop_loss)
+      setEntryRisk(d.entry_risk ?? {})
       setMaxHoldDays(d.max_hold_days)
       setEntrySignals(d.entry_signals ?? [])
       setExitSignals(d.exit_signals ?? [])
@@ -642,6 +646,33 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                           <span className="text-secondary">入场 </span><span className="text-foreground/70">{entrySignals.length > 0 ? `${entrySignals.length} 个触发器` : '无'}</span>
                           <span className="text-secondary ml-3">出场 </span><span className="text-foreground/70">{exitSignals.length > 0 ? `${exitSignals.length} 个触发器` : '无'}</span>
                         </div>
+                        {detail.execution_backend !== 'minute_filter' && (
+                          <div className="space-y-2 pt-2 border-t border-border/20">
+                            <p className="text-[11px] text-secondary">可选入场风险控制</p>
+                            {([
+                              ['max_entry_premium_pct', '成交溢价上限 (%)', 100, 100],
+                              ['stop_atr_multiple', '信号日 ATR 止损倍数', 1, 10],
+                              ['risk_per_trade_pct', '单笔计划风险 / 权益 (%)', 100, 5],
+                            ] as const).map(([key, label, scale, max]) => (
+                              <label key={key} className="flex items-center justify-between gap-2 text-[11px] text-secondary">
+                                <span>{label}</span>
+                                <input type="number" aria-label={label} min={0.01} max={max} step={0.1}
+                                  placeholder="关闭" value={entryRisk[key] == null ? '' : Number((entryRisk[key]! * scale).toFixed(4))}
+                                  onChange={e => setEntryRisk(prev => ({ ...prev, [key]: e.target.value === '' ? null : Number(e.target.value) / scale }))}
+                                  className="w-20 h-7 px-1.5 rounded bg-base border border-border text-foreground text-center" />
+                              </label>
+                            ))}
+                            <label className="flex items-center gap-2 text-[11px] text-secondary">
+                              <input type="checkbox" checked={entryRisk.stop_signal_low ?? false}
+                                onChange={e => setEntryRisk(prev => ({ ...prev, stop_signal_low: e.target.checked }))} />
+                              冻结信号日低点作为保护位
+                            </label>
+                            <p className="text-[10px] leading-4 text-muted">
+                              溢价相对信号价；止损取更严格的保护位。风险配仓只缩减仓位，缺参考数据拒绝入场。
+                              跳空、T+1及费用可能使实际损失超出计划风险。模拟盘需开启跟随策略风控。
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </Section>
 

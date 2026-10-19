@@ -1,6 +1,7 @@
 """长下影反击 — 超跌后放量收长下影线, 多头承接确认"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -87,4 +88,4 @@ class LongLowerShadowReversalMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = LongLowerShadowReversalMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, LongLowerShadowReversalMatrixStrategy())

@@ -1,6 +1,7 @@
 """MACD 零下回升 — 股价新低而 DIF 拒绝新低 (底背离简化形态)"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -86,4 +87,4 @@ class MACDBelowZeroRevivalMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = MACDBelowZeroRevivalMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, MACDBelowZeroRevivalMatrixStrategy())

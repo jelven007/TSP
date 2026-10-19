@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Protocol, runtime_checkable
@@ -31,8 +31,11 @@ from app.backtest.minute_trigger import build_minute_exit_reference
 from app.backtest.numba_runtime import run_numba_parallel
 from app.price_limits import (
     MAIN_BOARD_ST_LIMIT_CHANGE_DATE,
+    NO_LIMIT_CALENDAR_MARGIN_DAYS,
+    no_limit_window_days,
     numpy_limit_pct_vectors,
     numpy_limit_price,
+    parse_listing_date,
     write_numpy_price_limit_matrix,
 )
 from app.strategy.eligibility import attach_listing_age, new_stock_min_days
@@ -53,7 +56,9 @@ except ImportError:
     prange = range
 
 _MATRIX_CACHE_VERSION = 1
-_DIRECT_MATRIX_LOADER_VERSION = 7
+_DIRECT_MATRIX_LOADER_VERSION = 8
+_EXECUTION_LIMIT_FIELDS = frozenset({"execution_limit_up", "execution_limit_down"})
+_EXECUTION_LIMIT_INPUTS = frozenset({"raw_close", "is_risk_warning", "listing_age_days"})
 _MATRIX_AXIS_INDEX_VERSION = 2
 _ARROW_BATCH_SIZE = 131_072
 _SCORE_ASSET_CHUNK_SIZE = 256
@@ -558,6 +563,12 @@ class MarketMatrix:
     entry_price: np.ndarray | None = None
     # Evaluated at execution time, separately from price/volume and sellability.
     entry_eligible: np.ndarray | None = None
+    # Limits converted from exchange raw prices into the OHLC adjustment scale.
+    execution_limit_up: np.ndarray | None = None
+    execution_limit_down: np.ndarray | None = None
+    expired_entry_count: int = 0
+    raw_close: np.ndarray | None = None
+    atr_14: np.ndarray | None = None
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -614,7 +625,7 @@ def build_market_data_matrix(
         "signal_limit_up",
         "signal_limit_down",
     }
-    wanted_fields = set(field_columns or ()) - core_columns
+    wanted_fields = (set(field_columns or ()) | _EXECUTION_LIMIT_INPUTS) - core_columns
     fields: dict[str, np.ndarray] = {}
     for column in sorted(wanted_fields):
         if column == "price_limit_pct":
@@ -629,6 +640,8 @@ def build_market_data_matrix(
             # field is supplied. Keep this explicit compatibility contract for
             # strategies that estimate market value from historical raw prices.
             fields[column] = np.array(close, copy=True)
+        elif column == "atr_14":
+            fields[column] = _atr_from_ohlc(high, low, close)
 
     names = [""] * len(symbol_values)
     if "name" in panel.columns:
@@ -646,6 +659,26 @@ def build_market_data_matrix(
             names,
             valid=np.isfinite(close),
         )
+
+    # Per-row authoritative limits are optional; never borrow today's instrument
+    # prices for historical rows. Keep derived limits through subsequent slicing.
+    execution_inputs = dict(fields)
+    for column in ("limit_up", "limit_down", "raw_pre_close"):
+        if column in panel.columns:
+            execution_inputs[column] = float_matrix(column)
+    if "listing_date" in panel.columns and "listing_age_days" not in fields:
+        ages = panel.with_columns(
+            (pl.col(timestamp_col).cast(pl.Date)
+             - pl.col("listing_date").cast(pl.Date, strict=False))
+            .dt.total_days().alias("listing_age_days"),
+        )
+        execution_inputs["listing_age_days"] = _float_matrix(
+            ages, "listing_age_days", shape, time_id, asset_id,
+        )
+    fields.update(_execution_limit_prices(
+        close, unique_timestamps.cast(pl.Date).to_list(), symbol_values, names,
+        execution_inputs,
+    ))
 
     timestamp_labels = tuple(str(value)[:19] for value in unique_timestamps.to_numpy())
     timestamps = _timestamp_int64(unique_timestamps)
@@ -880,7 +913,7 @@ def _normalize_matrix_cache_fields(
         "signal_limit_up",
         "signal_limit_down",
     }
-    return frozenset(str(name) for name in field_columns if str(name) not in ignored)
+    return frozenset(str(name) for name in field_columns if str(name) not in ignored) | _EXECUTION_LIMIT_INPUTS | _EXECUTION_LIMIT_FIELDS
 
 
 def _normalize_symbol_request(symbols: list[str] | None) -> tuple[str, ...] | None:
@@ -911,10 +944,11 @@ def _resolve_matrix_storage_fields(
     instruments: pl.DataFrame | None,
 ) -> tuple[list[str], list[str], list[str]]:
     available = set(dataset.schema.names)
+    optional_execution_inputs = {"raw_pre_close", "limit_up", "limit_down"} & available
     parquet_fields = sorted(
         name
-        for name in wanted_fields
-        if name != "price_limit_pct"
+        for name in wanted_fields | optional_execution_inputs
+        if name != "price_limit_pct" and name not in _EXECUTION_LIMIT_FIELDS
         and name in available
         and _arrow_numeric(dataset.schema.field(name).type)
     )
@@ -935,9 +969,12 @@ def _resolve_matrix_storage_fields(
             vector_fields.add("float_shares")
     if "price_limit_pct" in wanted_fields:
         matrix_fields.add("price_limit_pct")
+    if "atr_14" in wanted_fields:
+        matrix_fields.add("atr_14")
     matrix_fields.update(wanted_fields & {
         "is_risk_warning", "instrument_status_known", "is_listed", "listing_age_days",
     })
+    matrix_fields.update(_EXECUTION_LIMIT_FIELDS)
     resolved = matrix_fields | vector_fields
     unresolved = wanted_fields - resolved
     if unresolved:
@@ -1463,6 +1500,8 @@ def _populate_matrix_derived_arrays(
             np.copyto(fields[name], values, where=seen)
     if "raw_close" in wanted_fields and "raw_close" not in parquet_fields:
         np.copyto(fields["raw_close"], arrays["close"])
+    if "atr_14" in wanted_fields and "atr_14" not in parquet_fields:
+        np.copyto(fields["atr_14"], _atr_from_ohlc(arrays["high"], arrays["low"], arrays["close"]))
     if "turnover_rate" in wanted_fields and "turnover_rate" not in parquet_fields:
         float_shares = fields.get("float_shares")
         if float_shares is None:
@@ -1504,6 +1543,11 @@ def _populate_matrix_derived_arrays(
             instrument_history,
             known=fields.get("instrument_status_known"),
             listed=fields.get("is_listed"),
+        )
+    if trading_dates is not None:
+        _execution_limit_prices(
+            arrays["close"], trading_dates, actual_symbols, names, fields,
+            instruments=instruments, out=fields,
         )
     return names, latest_limits
 
@@ -1707,7 +1751,7 @@ def _instrument_fingerprint(
         name
         for name in (
             "symbol", "name", "total_shares", "float_shares", "limit_up", "limit_down",
-            "listing_date",
+            "listing_date", "as_of",
         )
         if instruments is not None and name in instruments.columns
     ]
@@ -2296,6 +2340,124 @@ def _instrument_axis_values(
     return names, fields, limits
 
 
+def _execution_limit_prices(
+    close: np.ndarray,
+    trading_dates: Sequence[date],
+    symbols: Sequence[str],
+    names: Sequence[str],
+    fields: Mapping[str, np.ndarray],
+    *,
+    instruments: pl.DataFrame | None = None,
+    out: Mapping[str, np.ndarray] | None = None,
+) -> dict[str, np.ndarray]:
+    """Price-time constraints; no inference from future daily highs/lows.
+
+    Unknown reference prices remain NaN for the old panel compatibility path.
+    Strict research still requires qualified historical inputs. No-limit days
+    are represented by +/- infinity so no queue restriction can be inferred.
+    """
+    shape = close.shape
+    result = {
+        key: out[key] if out is not None else np.full(shape, np.nan, np.float32)
+        for key in _EXECUTION_LIMIT_FIELDS
+    }
+    for values in result.values():
+        values.fill(np.nan)
+    supported = np.array([
+        len(str(s).split(".")[0]) == 6
+        and str(s).startswith(("00", "30", "60", "68"))
+        for s in symbols
+    ])
+    _, base_pct = numpy_limit_pct_vectors(symbols, names)
+    name_risk = np.array(["ST" in str(name).upper() for name in names])
+    raw_close = fields.get("raw_close", close)
+    risk = fields.get("is_risk_warning")
+    age = fields.get("listing_age_days")
+    by_symbol = (
+        {str(row["symbol"]): row for row in instruments.iter_rows(named=True)}
+        if instruments is not None and "symbol" in instruments.columns else {}
+    )
+    date_ordinals = np.array([day.toordinal() for day in trading_dates])
+    ipo_ordinals = np.zeros(shape[1], dtype=int)
+    ipo_windows = np.zeros(shape[1], dtype=int)
+    quote_dates = np.zeros(shape[1], dtype=int)
+    quoted = {name: np.full(shape[1], np.nan) for name in ("limit_up", "limit_down")}
+    for a, symbol in enumerate(symbols):
+        if not supported[a]:
+            continue
+        inst = by_symbol.get(str(symbol), {})
+        ipo = parse_listing_date(inst.get("listing_date"))
+        if ipo is None and age is not None:
+            rows = np.flatnonzero(np.isfinite(age[:, a]))
+            if rows.size:
+                row = int(rows[0])
+                ipo = trading_dates[row] - timedelta(days=int(age[row, a]))
+        if ipo is not None:
+            ipo_ordinals[a] = ipo.toordinal()
+            ipo_windows[a] = no_limit_window_days(str(symbol), ipo)
+        as_of = parse_listing_date(inst.get("as_of"))
+        if as_of is not None:
+            quote_dates[a] = as_of.toordinal()
+            for name in quoted:
+                value = inst.get(name)
+                if value is not None:
+                    quoted[name][a] = float(value)
+    session_ordinals = np.unique(date_ordinals)
+    session_index = np.searchsorted(session_ordinals, date_ordinals)
+    ipo_index = np.searchsorted(session_ordinals, ipo_ordinals)
+    rank_known = np.isin(ipo_ordinals, date_ordinals)
+    previous_close = np.full(shape[1], np.nan)
+    previous_raw = np.full(shape[1], np.nan)
+    previous_scale = np.full(shape[1], np.nan)
+    latest_close, latest_raw, latest_scale = (
+        previous_close.copy(), previous_raw.copy(), previous_scale.copy()
+    )
+    for t, day in enumerate(trading_dates):
+        if t and trading_dates[t - 1] != day:
+            previous_close[:] = latest_close
+            previous_raw[:] = latest_raw
+            previous_scale[:] = latest_scale
+        c, raw = close[t].astype(float), raw_close[t].astype(float)
+        valid = np.isfinite(c) & (c > 0) & np.isfinite(raw) & (raw > 0)
+        scale = np.divide(c, raw, out=np.full(shape[1], np.nan), where=valid)
+        changed = np.isfinite(previous_scale) & (np.abs(scale - previous_scale) > 1e-6)
+        # Historical forward-adjusted prices are on today's scale; on an
+        # ex-right date undo *that day's* scale to recover the exchange reference.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            reference = np.where(changed, previous_close / scale, previous_raw)
+        if "raw_pre_close" in fields:
+            reference = fields["raw_pre_close"][t].astype(float)
+        st = name_risk if risk is None else np.where(np.isfinite(risk[t]), risk[t] != 0, name_risk)
+        pct = base_pct.copy()
+        if day < MAIN_BOARD_ST_LIMIT_CHANGE_DATE:
+            pct[(base_pct == 0.1) & st] = 0.05
+        up = numpy_limit_price(reference, pct, up=True)
+        down = numpy_limit_price(reference, pct, up=False)
+        no_limit = (
+            (ipo_windows > 0) & (date_ordinals[t] >= ipo_ordinals)
+            & (date_ordinals[t] <= ipo_ordinals + NO_LIMIT_CALENDAR_MARGIN_DAYS)
+            & (~rank_known | (session_index[t] - ipo_index + 1 <= ipo_windows))
+        )
+        # Without as_of, an instrument quote cannot establish its date.
+        same_day = quote_dates == date_ordinals[t]
+        for name, target in (("limit_up", up), ("limit_down", down)):
+            value = fields[name][t] if name in fields else np.where(same_day, quoted[name], np.nan)
+            known = np.isfinite(value) & (value > 0)
+            no_limit |= known & (value >= 10_000)
+            authoritative = known & (value < 10_000)
+            target[authoritative] = value[authoritative]
+        usable = valid & supported
+        # Half-cent rounding tolerance is expressed in adjusted units.
+        result["execution_limit_up"][t, usable] = ((up - 0.005) * scale)[usable]
+        result["execution_limit_down"][t, usable] = ((down + 0.005) * scale)[usable]
+        result["execution_limit_up"][t, usable & no_limit] = np.inf
+        result["execution_limit_down"][t, usable & no_limit] = -np.inf
+        latest_close[valid] = c[valid]
+        latest_raw[valid] = raw[valid]
+        latest_scale[valid] = scale[valid]
+    return result
+
+
 def _limit_lock_matrices(
     close: np.ndarray,
     raw_close: np.ndarray,
@@ -2476,6 +2638,7 @@ def build_market_matrix_from_signals(
         signals.entry_signal_code,
         present,
         entry_delay_bars,
+        expire_missing=True,
     )
     exit_, exit_signal_time, exit_signal_code = _delay_signal_matrix(
         signals.exit,
@@ -2557,6 +2720,26 @@ def build_market_matrix_from_signals(
             else None
         ),
         entry_eligible=build_entry_eligibility_mask(market, basic_filter or {}),
+        execution_limit_up=market.fields.get("execution_limit_up"),
+        execution_limit_down=market.fields.get("execution_limit_down"),
+        raw_close=market.fields.get("raw_close"),
+        atr_14=market.fields.get("atr_14"),
+        expired_entry_count=(
+            int(np.count_nonzero(
+                signals.entry[:-1].astype(bool) & ~signals.exit[:-1].astype(bool)
+                & present[:-1] & ~present[1:]
+            )) if entry_delay_bars else 0
+        ),
+    )
+
+
+def panel_execution_limit_prices(panel: pl.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """Project the shared price-limit contract back to legacy long-panel rows."""
+    market = build_market_data_matrix(panel)
+    _, _, _, time_id, asset_id = _encode_axes(panel)
+    return (
+        market.fields["execution_limit_up"][time_id, asset_id],
+        market.fields["execution_limit_down"][time_id, asset_id],
     )
 
 
@@ -2578,7 +2761,7 @@ def build_market_matrix(
     market = build_market_data_matrix(
         panel,
         field_columns={
-            "score", "ma5", "ma10", "ma20", "is_risk_warning",
+            "score", "ma5", "ma10", "ma20", "atr_14", "is_risk_warning",
             "instrument_status_known", "is_listed", "listing_age_days",
         },
     )
@@ -3008,6 +3191,8 @@ def _delay_signal_matrix(
     codes: np.ndarray,
     present: np.ndarray,
     delay_bars: int,
+    *,
+    expire_missing: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     shape = raw.shape
     output = np.zeros(shape, dtype=np.uint8)
@@ -3020,6 +3205,10 @@ def _delay_signal_matrix(
         source_rows = rows[: len(rows) - delay_bars] if delay_bars else rows
         target_rows = rows[delay_bars:] if delay_bars else rows
         active = raw[source_rows, asset_id] != 0
+        if expire_missing:
+            # An entry order is valid only on the next market bar; a suspension
+            # cannot move yesterday's order to an arbitrarily late resumption.
+            active &= target_rows == source_rows + delay_bars
         if not active.any():
             continue
         sources = source_rows[active]
@@ -3712,6 +3901,7 @@ class MatrixStrategyPipeline:
             entry = (
                 signals.entry.astype(bool) & basic_mask & ~signals.exit.astype(bool)
             ).astype(np.uint8)
+            score_valid = np.empty(market.shape, dtype=bool)
             score = build_matrix_score(
                 market,
                 entry.astype(bool),
@@ -3720,7 +3910,9 @@ class MatrixStrategyPipeline:
                 config.descending,
                 fallback=signals.score,
                 directions=config.scoring_directions,
+                valid_out=score_valid,
             )
+            entry &= score_valid
             entry_codes = np.where(entry != 0, signals.entry_signal_code, -1).astype(np.int16)
             exit_codes = np.where(signals.exit != 0, signals.exit_signal_code, -1).astype(np.int16)
         if timing_ms is not None:
@@ -3850,14 +4042,25 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
         return np.ones(market.shape, dtype=bool)
 
     mask = np.ones(market.shape, dtype=bool)
-    close = market.close
+    # Absolute price/capitalization use the observed unadjusted close. Legacy
+    # frames without raw prices retain their explicit close fallback.
+    close = market.fields.get("raw_close", market.close)
+    if any(
+        config.get(f"{prefix}_{bound}") is not None
+        for prefix in ("price", "market_cap", "float_cap")
+        for bound in ("min", "max")
+    ):
+        mask &= np.isfinite(close) & (close > 0)
     if config.get("price_min") is not None:
         mask &= close >= float(config["price_min"])
     if config.get("price_max") is not None:
         mask &= close <= float(config["price_max"])
 
-    _apply_bound(mask, close * _optional_field(market, "total_shares"), config, "market_cap")
-    _apply_bound(mask, close * _optional_field(market, "float_shares"), config, "float_cap")
+    for prefix, name in (("market_cap", "total_shares"), ("float_cap", "float_shares")):
+        if any(config.get(f"{prefix}_{bound}") is not None for bound in ("min", "max")):
+            shares = _optional_field(market, name)
+            mask &= np.isfinite(shares) & (shares > 0)
+            _apply_bound(mask, close * shares, config, prefix)
     _apply_bound(mask, _required_field_for_bound(market, config, "amount"), config, "amount")
     _apply_bound(mask, _optional_field(market, "turnover_rate"), config, "turnover")
 
@@ -3926,9 +4129,24 @@ def build_matrix_score(
     *,
     fallback: np.ndarray,
     directions: Mapping[str, str] | None = None,
+    valid_out: np.ndarray | None = None,
 ) -> np.ndarray:
     weights = {name: float(weight) for name, weight in scoring.items() if float(weight) != 0.0}
     total_weight = sum(weights.values())
+    # Remove incomplete candidates before computing any cross-sectional extrema.
+    # A real zero remains tradable; unavailable inputs never become a zero-score buy.
+    eligible = universe.copy()
+    feature_names = list(weights) if weights and total_weight > 0 else (
+        [order_by] if order_by and order_by != "score" else []
+    )
+    for name in feature_names:
+        values = matrix_feature(market, name)
+        eligible &= np.isfinite(values)
+    if not feature_names:
+        eligible &= np.isfinite(fallback)
+    if valid_out is not None:
+        np.copyto(valid_out, eligible)
+    universe = eligible
     if weights and total_weight > 0:
         score = np.zeros(market.shape, dtype=np.float32)
         all_finite = universe.copy()
@@ -4050,6 +4268,17 @@ def matrix_feature(market: MarketDataMatrix, name: str) -> np.ndarray:
             {"name": name},
             lambda: _compute_matrix_feature(market, name),
         )
+
+
+def _atr_from_ohlc(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> np.ndarray:
+    """Shared causal ATR for computed features and old snapshots without ATR."""
+    close_valid = np.isfinite(close)
+    previous = valid_shift(close, 1, close_valid)
+    true_range = np.fmax.reduce([
+        high - low, np.abs(high - previous), np.abs(low - previous),
+    ]).astype(np.float32, copy=False)
+    true_range[~close_valid] = np.nan
+    return valid_ewm_adjust_false(true_range, np.isfinite(true_range), alpha=1.0 / 14.0)
 
 
 def _compute_matrix_feature(market: MarketDataMatrix, name: str) -> np.ndarray:
@@ -4181,14 +4410,7 @@ def _compute_matrix_feature(market: MarketDataMatrix, name: str) -> np.ndarray:
             return d
         return (np.float32(3.0) * k - np.float32(2.0) * d).astype(np.float32, copy=False)
     if name in {"atr_14", "atr_pct"}:
-        previous = valid_shift(market.close, 1, close_valid)
-        true_range = np.fmax.reduce([
-            market.high - market.low,
-            np.abs(market.high - previous),
-            np.abs(market.low - previous),
-        ]).astype(np.float32, copy=False)
-        true_range[~close_valid] = np.nan
-        atr = valid_ewm_adjust_false(true_range, np.isfinite(true_range), alpha=1.0 / 14.0)
+        atr = _atr_from_ohlc(market.high, market.low, market.close)
         return atr if name == "atr_14" else _matrix_ratio(atr, market.close)
     if name.startswith("rsi_") and name[4:].isdigit():
         window = int(name[4:])

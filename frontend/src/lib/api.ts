@@ -751,6 +751,7 @@ export interface StrategyParamDef {
   max?: number
   step?: number
   options?: string[]
+  option_labels?: Record<string, string>
   group?: string
   visible_if?: ParamVisibleIf
   option_applies?: Record<string, Record<string, number | string | boolean | null>>
@@ -785,6 +786,7 @@ export interface StrategyDetail {
   exit_signals: string[]
   minute_exit_trigger_supported_signals: string[]
   stop_loss: number | null
+  entry_risk?: EntryRiskPolicy
   take_profit: number | null
   trailing_stop: number | null
   trailing_take_profit_activate: number | null
@@ -796,6 +798,13 @@ export interface StrategyDetail {
   limit: number
   // 叠加策略(composite)专属: 子策略列表与合并模式。非 composite 时为 null。
   composite_children?: CompositeChildInfo[] | null
+}
+
+export interface EntryRiskPolicy {
+  max_entry_premium_pct?: number | null
+  stop_atr_multiple?: number | null
+  stop_signal_low?: boolean
+  risk_per_trade_pct?: number | null
 }
 
 export type ScoringDirection = 'high' | 'low'
@@ -1877,12 +1886,27 @@ export interface StrategyBacktestTrade {
   blocked_exit_days?: number
   entry_signal_id?: string | null
   exit_signal_id?: string | null
+  raw_entry_shares?: number | null
+  raw_entry_price?: number | null
+  raw_frozen_stop_price?: number | null
 }
 
 export interface StrategyBacktestResult {
   run_id: string
   config: Record<string, any>
-  stats: Record<string, any>
+  stats: Record<string, any> & {
+    trade_metrics_version?: string
+    /** 净盈利金额总和 / 净亏损金额绝对值总和；没有金额记录或亏损时为 null。 */
+    profit_factor_amount?: number | null
+    /** 平均盈利收益率 / 平均亏损收益率绝对值；零收益不计入两侧均值。 */
+    payoff_ratio?: number | null
+    net_expectancy?: number | null
+    gross_profit_amount?: number | null
+    gross_loss_amount?: number | null
+    n_wins?: number
+    n_losses?: number
+    n_flat?: number
+  }
   equity_curve: { date: string; value: number; cash?: number; positions?: number; exposure?: number }[]
   drawdown_curve: { date: string; value: number }[]
   benchmark_curve?: { date: string; value: number; close?: number; name?: string; symbol?: string }[]
@@ -1908,6 +1932,7 @@ export interface StrategyBacktestResult {
     entry_signals: string[]
     exit_signals: string[]
     stop_loss: number | null
+    entry_risk?: EntryRiskPolicy
     take_profit: number | null
     trailing_stop: number | null
     trailing_take_profit_activate: number | null
@@ -3493,6 +3518,8 @@ export const api = {
     fees_pct?: number
     commission_pct?: number
     stamp_tax_pct?: number
+    minimum_commission?: number
+    transfer_fee_pct?: number
     slippage_bps?: number
     max_positions?: number
     initial_capital?: number

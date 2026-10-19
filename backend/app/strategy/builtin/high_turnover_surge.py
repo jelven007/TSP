@@ -1,6 +1,7 @@
 """高换手拉升 — 换手率 > 5% 且涨幅 > 3%, 资金活跃"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -85,4 +86,4 @@ class HighTurnoverSurgeMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = HighTurnoverSurgeMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, HighTurnoverSurgeMatrixStrategy())

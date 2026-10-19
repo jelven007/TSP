@@ -332,6 +332,7 @@ const buildDefaultOverrides = (detail: StrategyDetail) => normalizeStrategyOverr
   scoring_directions: { ...(detail.scoring_directions ?? {}) },
   scoring_replace: true,
   stop_loss: detail.stop_loss,
+  entry_risk: { ...(detail.entry_risk ?? {}) },
   take_profit: detail.take_profit,
   trailing_stop: detail.trailing_stop,
   trailing_take_profit_activate: detail.trailing_take_profit_activate,
@@ -351,6 +352,7 @@ const strategyBacktestConfigSignature = (detail: StrategyDetail) => JSON.stringi
   entry_signals: detail.entry_signals,
   exit_signals: detail.exit_signals,
   stop_loss: detail.stop_loss,
+  entry_risk: detail.entry_risk,
   take_profit: detail.take_profit,
   trailing_stop: detail.trailing_stop,
   trailing_take_profit_activate: detail.trailing_take_profit_activate,
@@ -392,6 +394,7 @@ function ExitReasonBadge({ reason, signalId, signalNames }: { reason: string; si
   const config: Record<string, { label: string; cls: string }> = {
     signal: { label: '信号', cls: 'bg-accent/10 text-accent border-accent/30' },
     stop_loss: { label: '止损', cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
+    frozen_stop: { label: '冻结保护', cls: 'bg-red-500/10 text-red-400 border-red-500/30' },
     take_profit: { label: '止盈', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
     trailing_stop: { label: '移损', cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
     trailing_take_profit: { label: '回撤止盈', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
@@ -577,7 +580,17 @@ const METRIC_HELP = {
   profitFactor: {
     title: '盈亏比',
     description: '平均盈利幅度 ÷ 平均亏损幅度的绝对值。',
-    note: '大于 1 表示平均单笔盈利大于平均单笔亏损。',
+    note: '新结果的零收益交易不计入两侧均值；历史结果保留旧口径。',
+  },
+  amountProfitFactor: {
+    title: '金额利润因子',
+    description: '已平仓交易的净盈利金额总和 ÷ 净亏损金额绝对值总和。',
+    note: 'PF 大于 1 表示已实现净盈利超过净亏损；缺少金额或没有亏损时显示 —。',
+  },
+  netExpectancy: {
+    title: '单笔净期望',
+    description: '全部已平仓交易扣费后收益率的算术平均值，包含零收益交易。',
+    note: '这是历史样本均值，不代表未来收益；账户收益仍以实际净值计算。',
   },
   totalReturn: {
     title: '总收益',
@@ -745,7 +758,7 @@ function StrategyParamInput({ param, value, onChange }: {
       <label className="block">
         <span className="mb-1 block text-[11px] text-secondary">{param.label}</span>
         <select value={value ?? param.default} onChange={e => onChange(e.target.value)} className={INPUT_CLS}>
-          {(param.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          {(param.options ?? []).map(opt => <option key={opt} value={opt}>{param.option_labels?.[opt] ?? opt}</option>)}
         </select>
       </label>
     )
@@ -970,6 +983,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   )
   const [fees, setFees] = useState(saved?.fees ?? '2')
   const [stampTax, setStampTax] = useState(saved?.stampTax ?? '')
+  const [minimumCommission, setMinimumCommission] = useState(saved?.minimumCommission ?? '0')
+  const [transferFee, setTransferFee] = useState(saved?.transferFee ?? '0')
   const [strictResearch, setStrictResearch] = useState(false)
   const [slippage, setSlippage] = useState(saved?.slippage ?? '5')
   const [maxPositions, setMaxPositions] = useState(saved?.maxPositions ?? '10')
@@ -1020,6 +1035,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     }
     if (cfg.commission_pct != null) setFees(String(Math.round(Number(cfg.commission_pct) * 10000)))
     setStampTax(cfg.stamp_tax_pct != null ? String(Number(cfg.stamp_tax_pct) * 1000) : '')
+    setMinimumCommission(String(cfg.minimum_commission ?? 0))
+    setTransferFee(String(Number(cfg.transfer_fee_pct ?? 0) * 10000))
     setStrictResearch(!!cfg.strict_research)
     if (cfg.slippage_bps != null) setSlippage(String(cfg.slippage_bps))
     if (cfg.max_positions != null) setMaxPositions(String(cfg.max_positions))
@@ -1189,6 +1206,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
         exitFill,
         fees,
         stampTax,
+        minimumCommission,
+        transferFee,
         slippage,
         maxPositions,
         maxExposure,
@@ -1225,6 +1244,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
       exit_fill: exitFill,
       commission_pct: Number(fees) / 10000,
       stamp_tax_pct: stampTax === '' ? undefined : Number(stampTax) / 1000,
+      minimum_commission: Number(minimumCommission),
+      transfer_fee_pct: Number(transferFee) / 10000,
       strict_research: strictResearch,
       slippage_bps: Number(slippage),
       max_positions: Number(maxPositions),
@@ -1274,6 +1295,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     }
     return null
   }
+  const payoffRatio = s && 'payoff_ratio' in s ? s.payoff_ratio : pick('profit_factor')
 
   const benchmarkReturn = useMemo(() => {
     const values = (result?.benchmark_curve ?? [])
@@ -1312,10 +1334,12 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     for (const [label, key] of [
       ['夏普比率', 'sharpe'], ['索提诺', 'sortino'], ['最大回撤', 'max_drawdown'],
       ['胜率', 'win_rate'], ['平均收益', 'avg_return'], ['中位数收益', 'median_return'],
-      ['盈亏比', 'profit_factor'], ['最终权益', 'final_equity'], ['平均持仓天数', 'avg_duration'],
+      ['旧版盈亏比', 'profit_factor'], ['盈亏比', 'payoff_ratio'],
+      ['金额利润因子PF', 'profit_factor_amount'], ['单笔净期望', 'net_expectancy'],
+      ['最终权益', 'final_equity'], ['平均持仓天数', 'avg_duration'],
     ] as const) {
       const v = s[key as keyof typeof s]
-      if (v != null) lines.push(`${label},${key.includes('return') || key === 'win_rate' || key === 'max_drawdown' ? pct(v) : num(v)}`)
+      if (v != null) lines.push(`${label},${key.includes('return') || key === 'net_expectancy' || key === 'win_rate' || key === 'max_drawdown' ? pct(v) : num(v)}`)
     }
 
     const ddMap = new Map((result.drawdown_curve ?? []).map(r => [r.date, r.value]))
@@ -1327,11 +1351,12 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     }
 
     lines.push('', '# 交易明细',
-      'symbol,name,entry_date,entry_price,exit_date,exit_price,pnl_pct,duration,exit_reason,shares,entry_value,exit_value,pnl_amount')
+      'symbol,name,entry_date,entry_price,exit_date,exit_price,pnl_pct,duration,exit_reason,shares,entry_value,exit_value,pnl_amount,raw_entry_shares,raw_entry_price,raw_frozen_stop_price')
     for (const t of result.trades ?? []) {
       lines.push([t.symbol, t.name ?? '', t.entry_date, num(t.entry_price), t.exit_date,
         num(t.exit_price), num(t.pnl_pct), num(t.duration), t.exit_reason ?? '',
-        num(t.shares), num(t.entry_value), num(t.exit_value), num(t.pnl_amount)].map(csvEsc).join(','))
+        num(t.shares), num(t.entry_value), num(t.exit_value), num(t.pnl_amount),
+        num(t.raw_entry_shares), num(t.raw_entry_price), num(t.raw_frozen_stop_price)].map(csvEsc).join(','))
     }
 
     lines.push('', '# 分标的统计', 'symbol,n_trades,total_return,win_rate,best,worst')
@@ -1544,6 +1569,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const trailingTakeProfitActivatePct = overrides.trailing_take_profit_activate == null ? '' : String(round4(Math.abs(Number(overrides.trailing_take_profit_activate)) * 100))
   const trailingTakeProfitDrawdownPct = overrides.trailing_take_profit_drawdown == null ? '' : String(round4(Math.abs(Number(overrides.trailing_take_profit_drawdown)) * 100))
   const maxHoldDaysValue = overrides.max_hold_days == null ? '' : String(overrides.max_hold_days)
+  const entryRisk = overrides.entry_risk ?? {}
   const targetPositionPct = Number(maxPositions) > 0 ? Number(maxExposure) / Number(maxPositions) : 0
 
   useEffect(() => {
@@ -1572,12 +1598,16 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
         `买点 ${entrySignals.length}`,
         `卖点 ${exitSignals.length}`,
         scoreFilterSummary,
+        entryRisk.max_entry_premium_pct != null ? `溢价≤${round4(entryRisk.max_entry_premium_pct * 100)}%` : null,
+        entryRisk.stop_atr_multiple != null ? `ATR ${entryRisk.stop_atr_multiple}倍` : null,
+        entryRisk.stop_signal_low ? '信号低点保护' : null,
+        entryRisk.risk_per_trade_pct != null ? `计划风险 ${round4(entryRisk.risk_per_trade_pct * 100)}%` : null,
         stopLossPct !== '' ? `止损 ${stopLossPct}%` : '止损未设',
         takeProfitPct !== '' ? `止盈 ${takeProfitPct}%` : '止盈未设',
         trailingStopPct !== '' ? `移损 ${trailingStopPct}%` : '移损未设',
         trailingTakeProfitActivatePct !== '' && trailingTakeProfitDrawdownPct !== '' ? `回撤 ${trailingTakeProfitActivatePct}-${trailingTakeProfitDrawdownPct}点` : '回撤未设',
         maxHoldDaysValue !== '' ? `最长 ${maxHoldDaysValue}天` : '不限持仓',
-      ].join(' · ')
+      ].filter(Boolean).join(' · ')
     : '选择策略后可调整参数 / 过滤 / 买卖触发器 / 评分 / 风控'
   const selectedStrategyName = detail?.name ?? strategyList.find(st => st.id === selectedStrategy)?.name ?? '未选择策略'
   const selectedStrategySource = detail?.source ?? strategyList.find(st => st.id === selectedStrategy)?.source
@@ -1618,6 +1648,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     ['buy_exposure', '仓位上限'],
     ['buy_score_filter', '评分过滤'],
     ['buy_limit_up', '涨停未买'],
+    ['buy_entry_premium', '成交溢价超限'],
+    ['buy_missing_risk_reference', '缺入场风险参考'],
+    ['buy_invalid_stop_reference', '保护位已失效'],
     ['buy_suspended', '停牌未买'],
     ['sell_limit_down', '跌停阻塞'],
     ['sell_suspended', '停牌阻塞'],
@@ -1953,7 +1986,6 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
         </div>
         )}
-        {simMode === 'position' && (
         <div className="grid grid-cols-3 gap-2">
           <div>
             <label className="text-[10px] font-medium text-secondary block mb-1">佣金 ‱</label>
@@ -1968,10 +2000,20 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             <label className="text-[10px] font-medium text-secondary block mb-1">滑点 ‱</label>
             <input type="number" min={0} value={slippage} onChange={e => setSlippage(e.target.value)} className={INPUT_CLS} />
           </div>
+          <div>
+            <label className="text-[10px] font-medium text-secondary block mb-1">单笔最低佣金（元）</label>
+            <input type="number" min={0} step={0.01} value={minimumCommission}
+              onChange={e => setMinimumCommission(e.target.value)} className={INPUT_CLS} />
+          </div>
+          <div>
+            <label className="text-[10px] font-medium text-secondary block mb-1">额外过户费 ‱</label>
+            <input type="number" min={0} step={0.01} value={transferFee}
+              onChange={e => setTransferFee(e.target.value)} className={INPUT_CLS} />
+          </div>
         </div>
-        )}
         <div className="space-y-1.5 text-[11px] leading-4 text-secondary">
           <div>印花税留空时按卖出日期自动计算：2023-08-28 前 1‰，之后 0.5‰；ETF 免征。</div>
+          <div>最低佣金和额外费用请按券商费表填写；佣金已包含的费用不要重复填写。旧配置默认均为0。</div>
           <label className="flex items-start gap-2">
             <input type="checkbox" checked={strictResearch} onChange={e => setStrictResearch(e.target.checked)} className="mt-0.5" />
             <span>严格研究校验：要求数据发布一致、历史 ST/上市状态完整，并计入股票卖出印花税。</span>
@@ -2250,7 +2292,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               <Stat label={<MetricLabel label="平均收益" metric="avgReturn" />} value={fmtPct(result.stats.avg_return)} color={statValueColor(result.stats.avg_return)} />
               <Stat label={<MetricLabel label="中位数" metric="medianReturn" />} value={fmtPct(result.stats.median_return)} color={statValueColor(result.stats.median_return)} />
               <Stat label={<MetricLabel label="胜率" metric="winRate" />} value={fmtPct(result.stats.win_rate)} color={statValueColor(result.stats.win_rate)} />
-              <Stat label={<MetricLabel label="盈亏比" metric="profitFactor" />} value={result.stats.profit_factor != null ? Number(result.stats.profit_factor).toFixed(2) : '—'} />
+              <Stat label={<MetricLabel label="盈亏比" metric="profitFactor" />} value={payoffRatio != null ? Number(payoffRatio).toFixed(2) : '—'} />
+              <Stat label={<MetricLabel label="金额PF" metric="amountProfitFactor" />} value={result.stats.profit_factor_amount != null ? Number(result.stats.profit_factor_amount).toFixed(2) : '—'} />
               <Stat label={<MetricLabel label="超额(vs基准)" metric="excessReturn" />} value={fmtPct(result.stats.excess)} color={statValueColor(result.stats.excess)} />
               <Stat label={<MetricLabel label="夏普" metric="sharpe" />} value={result.stats.sharpe != null ? Number(result.stats.sharpe).toFixed(2) : '—'} />
               <Stat label={<MetricLabel label="最大回撤" metric="maxDrawdown" />} value={fmtPct(result.stats.max_drawdown)} color={statValueColor(result.stats.max_drawdown)} />
@@ -2369,6 +2412,15 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             )}
 
             {/* 统计卡片 */}
+            {Number(result.stats.unclosed_candidates ?? result.stats.unclosed_positions ?? result.stats.pending_exit_positions ?? 0) > 0 && (
+              <div className="rounded-card border border-border bg-surface p-3 text-xs text-secondary">
+                期末仍有 {String(result.stats.unclosed_candidates ?? result.stats.unclosed_positions ?? result.stats.pending_exit_positions)} 笔未平仓，
+                其中 {result.stats.pending_exit_positions ?? 0} 笔待卖，未计入已平仓胜率、金额PF及单笔净期望。
+                {result.stats.unrealized_pnl_amount != null && (
+                  <span> 未实现盈亏合计 {fmtPrice(result.stats.unrealized_pnl_amount)} 元。</span>
+                )}
+              </div>
+            )}
             <div className="rounded-card border border-border bg-surface p-4">
               <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3">
                 <Stat label={<MetricLabel label="总收益" metric="totalReturn" />} value={strategyReturn != null ? fmtPct(strategyReturn) : '—'}
@@ -2391,9 +2443,13 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                 <Stat label={<MetricLabel label="胜率" metric="winRate" />} value={pick('win_rate') != null ? fmtPct(pick('win_rate') as number) : '—'} />
                 <Stat
                   label={<MetricLabel label="盈亏比" metric="profitFactor" />}
-                  value={pick('profit_factor') != null ? Number(pick('profit_factor')).toFixed(2) : '—'}
-                  color={pick('profit_factor') != null ? statValueColor(Number(pick('profit_factor')) - 1) : undefined}
+                  value={payoffRatio != null ? Number(payoffRatio).toFixed(2) : '—'}
+                  color={payoffRatio != null ? statValueColor(Number(payoffRatio) - 1) : undefined}
                 />
+                <Stat label={<MetricLabel label="金额PF" metric="amountProfitFactor" />}
+                  value={pick('profit_factor_amount') != null ? Number(pick('profit_factor_amount')).toFixed(2) : '—'} />
+                <Stat label={<MetricLabel label="单笔净期望" metric="netExpectancy" />}
+                  value={pick('net_expectancy') != null ? fmtPct(pick('net_expectancy')) : '—'} />
                 <Stat label={<MetricLabel label="交易数" metric="tradeCount" />} value={pick('n_trades') != null ? String(pick('n_trades')) : '—'} />
                 {result.stats.full_kind === 'candidate_execution' ? (
                   <Stat label={<MetricLabel label="平均持仓" metric="avgDuration" />} value={pick('avg_duration') != null ? `${Number(pick('avg_duration')).toFixed(1)}天` : '—'} />
@@ -2608,8 +2664,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                             <td className="px-4 py-2.5 text-right">
                               <div className="num text-foreground">{fmtPct(t.position_pct, 2)}</div>
                               <div className="mt-0.5 text-[11px] text-muted">
-                                <span className="num">{fmtLots(t.lots)}</span> 手
-                                <span className="ml-1 num">{fmtShares(t.shares)}</span> 股
+                                <span className="num">{fmtLots(t.raw_entry_shares != null ? t.raw_entry_shares / 100 : t.lots)}</span> 手
+                                <span className="ml-1 num">{fmtShares(t.raw_entry_shares ?? t.shares)}</span> 股（入场）
                               </div>
                             </td>
                             <td className={`px-4 py-2.5 text-right num ${priceColorClass(t.pnl_amount ?? t.pnl_pct)}`}>
@@ -3099,6 +3155,44 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                       />
                     </label>
                   </div>
+                  {!isMinuteStrategy && (
+                    <div className="space-y-3 border-t border-border/40 pt-3">
+                      <p className="text-xs font-medium text-secondary">可选入场风险控制</p>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {([
+                          ['max_entry_premium_pct', '成交溢价上限 (%)', 100, 100],
+                          ['stop_atr_multiple', '信号日 ATR 止损倍数', 1, 10],
+                          ['risk_per_trade_pct', '单笔计划风险 / 权益 (%)', 100, 5],
+                        ] as const).map(([key, label, scale, max]) => (
+                          <label key={key} className="block">
+                            <span className="mb-1 block text-[11px] text-secondary">{label}</span>
+                            <NumberField
+                              value={entryRisk[key] == null ? null : round4(Number(entryRisk[key]) * scale)}
+                              min={0.01} max={max} step={0.1} placeholder="关闭"
+                              onChange={n => setOverrides(prev => ({
+                                ...prev,
+                                entry_risk: { ...(prev.entry_risk ?? {}), [key]: n == null ? null : n / scale },
+                              }))}
+                              className={INPUT_CLS}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <label className="flex items-center gap-2 text-xs text-secondary">
+                        <input type="checkbox" checked={entryRisk.stop_signal_low ?? false}
+                          onChange={e => setOverrides(prev => ({
+                            ...prev,
+                            entry_risk: { ...(prev.entry_risk ?? {}), stop_signal_low: e.target.checked },
+                          }))} />
+                        冻结信号日低点作为保护位
+                      </label>
+                      <p className="text-[11px] leading-5 text-muted">
+                        溢价相对信号价；止损取更严格的保护位。缺参考数据拒绝入场。
+                        风险配仓只缩减仓位，在全量模拟中不分配账户资金。
+                        跳空、T+1及费用可能使实际损失超出计划风险。
+                      </p>
+                    </div>
+                  )}
                 </ConfigSection>
               )}
             </div>

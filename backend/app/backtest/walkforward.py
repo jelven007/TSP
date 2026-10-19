@@ -8,7 +8,9 @@
 """
 from __future__ import annotations
 
+import hashlib
 import logging
+import math
 import time
 from bisect import bisect_left
 from copy import deepcopy
@@ -33,13 +35,32 @@ def generate_folds(
     train_days: int,
     test_days: int,
     step_days: int,
+    *,
+    window_unit: str = "calendar_days",
+    purge_days: int = 0,
+    trading_dates: list[date] | None = None,
 ) -> list[Fold]:
-    """滚动窗口 fold 切分: 训练窗口固定长度, 测试窗口紧接其后, 按 step 前移。
-
-    测试区间超出 end 即停止。数据区间放不下一折则抛错。
-    """
+    """按明确单位切窗; 旧自然日配置保持闭区间跨度, 新交易日配置按条数计数。"""
     if train_days <= 0 or test_days <= 0 or step_days <= 0:
         raise ValueError("train_days / test_days / step_days 必须为正")
+    if purge_days < 0 or window_unit not in {"calendar_days", "trading_days"}:
+        raise ValueError("隔离期必须非负, 窗口单位必须是 calendar_days / trading_days")
+
+    if window_unit == "trading_days":
+        if trading_dates is None:
+            raise ValueError("交易日切窗需要真实行情日期, 不回退自然日或工作日")
+        sessions = sorted({day for day in trading_dates if start <= day <= end})
+        width = train_days + purge_days + test_days
+        folds = [
+            Fold(
+                i, sessions[offset], sessions[offset + train_days - 1],
+                sessions[offset + train_days + purge_days], sessions[offset + width - 1],
+            )
+            for i, offset in enumerate(range(0, len(sessions) - width + 1, step_days))
+        ]
+        if not folds:
+            raise ValueError(f"数据区间不足以切出至少一折: 需{width}个交易日, 实有{len(sessions)}个")
+        return folds
 
     folds: list[Fold] = []
     i = 0
@@ -48,7 +69,7 @@ def generate_folds(
         train_end = train_start + timedelta(days=train_days)
         # 测试区间从训练末日的次日开始: 回测区间是闭区间, 若 test_start==train_end 则
         # 该日 K 线同时进训练优化与 OOS 首日, 构成前视泄漏。后移一天隔断。
-        test_start = train_end + timedelta(days=1)
+        test_start = train_end + timedelta(days=1 + purge_days)
         test_end = test_start + timedelta(days=test_days)
         if test_end > end:
             break
@@ -92,10 +113,35 @@ def aggregate_oos(fold_records: list[dict], objective: str, direction: str = "ma
             "oos_equity_curve": [],
         }
 
+    # 独立折只在日期可核验、不重叠且没有待卖持仓时复利。否则保留逐折诊断,
+    # 不把同一市场日期重复记收益, 也不假定跌停/停牌仓能在边界无成本转成现金。
+    records = sorted(fold_records, key=lambda f: str(f.get("test_start", "")))
+    reason = None
+    previous_end = None
+    for f in records:
+        try:
+            first = date.fromisoformat(str(f["test_start"]))
+            last = date.fromisoformat(str(f["test_end"]))
+        except (KeyError, ValueError):
+            reason = "missing_window_dates"
+            break
+        if first > last or (previous_end is not None and first <= previous_end):
+            reason = "overlapping_test_windows"
+            break
+        previous_end = last
+        stats = f["oos_stats"]
+        if stats.get("pending_exit_positions", 0) or stats.get("unclosed_positions", 0):
+            reason = "unclosed_boundary_positions"
+            break
+        total_return = stats.get("total_return")
+        if total_return is None or not math.isfinite(float(total_return)):
+            reason = "missing_account_return"
+            break
+
     equity = 1.0
     curve: list[dict] = []
     n_positive = 0
-    for f in fold_records:
+    for f in records:
         r = float(f["oos_stats"].get("total_return", 0.0) or 0.0)
         equity *= (1 + r)
         if r > 0:
@@ -113,12 +159,14 @@ def aggregate_oos(fold_records: list[dict], objective: str, direction: str = "ma
 
     return {
         "n_folds": n,
-        "compounded_oos_return": round(equity - 1.0, 4),
+        "compounded_oos_return": round(equity - 1.0, 4) if reason is None else None,
+        "aggregation_basis": "independent_flat_windows" if reason is None else "fold_diagnostics_only",
+        "aggregation_unavailable_reason": reason,
         "avg_is_objective": avg_is,
         "avg_oos_objective": avg_oos,
         "degradation": degradation,
         "consistency": round(n_positive / n, 4),
-        "oos_equity_curve": curve,
+        "oos_equity_curve": curve if reason is None else [],
     }
 
 
@@ -139,6 +187,8 @@ class WalkForwardConfig:
     overrides: dict | None = None
     backtest_kwargs: dict = field(default_factory=dict)
     matrix_cache_max_mb: int = 512
+    window_unit: str = "calendar_days"
+    purge_days: int = 0
 
 
 class WalkForwardService:
@@ -148,6 +198,31 @@ class WalkForwardService:
         self.optimizer = optimizer
         self.service = service
         self.strategy_engine = strategy_engine
+
+    def _folds(self, cfg: WalkForwardConfig) -> tuple[list[Fold], dict]:
+        sessions = None
+        if cfg.window_unit == "trading_days":
+            repo = self.service.engine.repo
+            sessions = repo.list_daily_dates(
+                cfg.start, cfg.end, asset_type=cfg.backtest_kwargs.get("asset_type", "stock"),
+            )
+        folds = generate_folds(
+            cfg.start, cfg.end, cfg.train_days, cfg.test_days, cfg.step_days,
+            window_unit=cfg.window_unit, purge_days=cfg.purge_days, trading_dates=sessions,
+        )
+        return folds, {
+            "version": "bounded_market_sessions_v2",
+            "unit": cfg.window_unit,
+            "purge_days": cfg.purge_days,
+            "calendar_source": "observed_daily_partitions" if sessions is not None else "legacy_calendar_span",
+            "calendar_sha256": hashlib.sha256(
+                "\n".join(day.isoformat() for day in sessions).encode()
+            ).hexdigest() if sessions is not None else None,
+            "calendar_count": len(sessions) if sessions is not None else None,
+            "boundary": "position_mode_window_end_mark_or_executable_exit",
+            "requested_mode": cfg.backtest_kwargs.get("mode", "position"),
+            "effective_mode": "position",
+        }
 
     def _prepare_shared_matrix(self, cfg: WalkForwardConfig, folds: list[Fold]):
         """Build one immutable superset matrix for every matrix-native fold.
@@ -204,9 +279,11 @@ class WalkForwardService:
         t0 = time.perf_counter()
         research = family_record(cfg, "walkforward")
         direction = cfg.direction or default_direction(cfg.objective)
-        folds = generate_folds(cfg.start, cfg.end, cfg.train_days, cfg.test_days, cfg.step_days)
+        folds, window_policy = self._folds(cfg)
         n_total = len(folds)
 
+        # 共享矩阵、IS 和 OOS 都只准备各自正式区间; 不为 full 模式加载未来平仓行情。
+        cfg.backtest_kwargs = {**cfg.backtest_kwargs, "mode": "position"}
         shared_prepared = self._prepare_shared_matrix(cfg, folds)
         shared_market_data = (
             shared_prepared.market_data if shared_prepared is not None else None
@@ -230,7 +307,7 @@ class WalkForwardService:
 
         # IS 训练区间强制 position 模式: full 模式会让训练折未平仓持仓用 train_end 之后
         # (即 OOS 区间) 的真实 K 线平仓, IS 分数被未来数据污染 -> 优化选参乐观偏移, 使过拟合
-        # 被掩盖。OOS 回测保留用户所选 mode。参数扫描优化只看正式区间内的表现即可。
+        # 被掩盖。OOS 同样强制 position, 尾部持仓留在本折统计而不向后读取行情。
         is_backtest_kwargs = {**cfg.backtest_kwargs, "mode": "position"}
 
         for f in folds:
@@ -400,6 +477,7 @@ class WalkForwardService:
             "folds": valid_records,
             "skipped": skipped,
             "summary": summary,
+            "window_policy": window_policy,
             "research": {
                 **research,
                 "status": "cancelled" if cancel_event is not None and cancel_event.is_set() else "completed",

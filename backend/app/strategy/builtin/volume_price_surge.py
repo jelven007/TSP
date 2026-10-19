@@ -1,6 +1,7 @@
 """量价齐升 — 突破MA20 + 放量 + 收阳"""
 
 import numpy as np
+from _quality_entries import with_quality_entries
 
 from app.backtest.matrix import (
     MarketDataMatrix,
@@ -78,4 +79,4 @@ class VolumePriceSurgeMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = VolumePriceSurgeMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, VolumePriceSurgeMatrixStrategy())
