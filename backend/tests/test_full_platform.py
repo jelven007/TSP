@@ -35,7 +35,7 @@ def market_files(source):
     (ext / "config.json").write_text(json.dumps({
         "id": "concept", "name": "概念", "columns": [],
         "pull": {"headers": {"Authorization": "excluded"}},
-    }))
+    }), encoding="utf-8")
     return path
 
 
@@ -57,7 +57,7 @@ def test_publication_copies_source_and_reuses_only_immutable_files(tmp_path):
     assert (release / "data_releases/current.json").read_bytes() == (releases / "current.json").read_bytes()
     assert (release / "capabilities.json").exists()
     assert not (release / "user_data").exists() and not (release / ".env").exists()
-    assert "excluded" not in (release / "ext_data/concept/config.json").read_text()
+    assert "excluded" not in (release / "ext_data/concept/config.json").read_text(encoding="utf-8")
     import hashlib
     assert set(first["checksums"]) == set(first["files"])
     for name, digest in first["checksums"].items():

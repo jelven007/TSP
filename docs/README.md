@@ -28,7 +28,7 @@ Gateway、Platform、四类 Worker 和 Compute Broker；详见
 | 设计 | [当前架构](./architecture.md) | [开放平台](./open-platform-plan.md)、[因子系统](./factor-system-design.md)、[模拟盘](./paper-trading-plan.md)、[市场阶段](./market-phase.md) | 完整 |
 | 开发 | [贡献与复审指南](../CONTRIBUTING.md) | [二次开发](./secondary-development.md)、[插件开发](./plugin-development.md)、[策略开发](./strategy.md) | 完整 |
 | 测试 | [测试与验收](./testing.md) | [技术验证记录](./technical-validation.md)、专项文档内测试矩阵、CI workflow | 完整 |
-| 运维 | [运维手册](./operations.md) | [部署](./deployment.md)、[配置](./configuration.md)、[公网密码](./deploy-password.md) | 完整 |
+| 运维 | [运维手册](./operations.md) | [部署](./deployment.md)、[配置](./configuration.md)、[公网密码](./deploy-password.md)、[Windows 10 生产构建与部署](./windows10-production-deployment.md) | 完整 |
 | 上线运营 | [发布与上线运营](./release-operations.md) | GitHub Actions、Release、容器产物、反馈与复盘流程 | 完整 |
 
 这里的“完整”表示每个阶段已有明确责任文档、输入、输出和检查项，不表示所有流程均已
@@ -41,7 +41,7 @@ Gateway、Platform、四类 Worker 和 Compute Broker；详见
 | 版本与状态 | [版本基线](./version-baseline.md)、[多人协作与版本管理](./collaborative-versioning.md)、[发布与上线运营](./release-operations.md) |
 | 产品与使用 | [功能手册](./features.md)、[操作说明书](../操作说明书.md) |
 | 单机多租户 | [完整部署](../deploy/full/README.md)、[单机实施](../reports/single-host/implementation.md)、[持续验收](../reports/single-host/continuous-acceptance.md)、[两期技术方案](./multitenant-roadmap.md)、[一期实施与验收](./phase1-implementation.md)、[二期三步实施](./phase2-implementation-plan.md) |
-| 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md) |
+| 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md)、[Windows 10 生产构建与部署](./windows10-production-deployment.md) |
 | 数据源 | [自定义数据源](./custom-data-source.md)、[rustdx 数据源](./rustdx-data-source.md)、[插件开发](./plugin-development.md) |
 | TickFlow 专项 | [Pro 一阶段探测](./tickflow-pro-phase1-probe.md)、[共享限流](./tickflow-pro-shared-rate-limit.md) |
 | 策略与研究 | [策略开发](./strategy.md)、[策略迭代](./strategy-iteration.md)、[固定输入与研究记录](./research-configuration.md)、[因子平台方案](./factor-platform-plan.md)、[因子系统设计](./factor-system-design.md)、[因子挖掘](./mining.md) |

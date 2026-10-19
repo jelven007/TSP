@@ -31,9 +31,9 @@ def test_progress_requires_this_instance_and_successful_database_write(tmp_path,
     value = json.loads((tmp_path / "progress.json").read_text())
     assert value["pid"] == os.getpid()
     assert value["instance"] == "this-instance"
-    assert worker_process.progress(tmp_path, os.getpid(), "this-instance", "research") == value["at"]
-    assert worker_process.progress(tmp_path, os.getpid(), "another", "research") is None
-    assert worker_process.progress(tmp_path, os.getpid() + 1, "this-instance", "research") is None
+    assert worker_process.progress(tmp_path, "this-instance", "research") == value["at"]
+    assert worker_process.progress(tmp_path, "another", "research") is None
+    assert worker_process.progress(tmp_path, "this-instance", "scheduled") is None
     health.last = 0
     failure.append(True)
     with pytest.raises(RuntimeError, match="database unavailable"):
@@ -57,13 +57,13 @@ def test_lease_renewal_does_not_hide_stalled_dispatch(tmp_path, monkeypatch):
     health.record()
     assert (tmp_path / "progress.json").exists()
     health.record(False)
-    assert worker_process.progress(tmp_path, os.getpid(), "instance", "scheduled") is None
+    assert worker_process.progress(tmp_path, "instance", "scheduled") is None
 
 
 @pytest.mark.parametrize("payload", ["broken", "[]", '{"at":NaN}', '{"at":1e999}'])
 def test_invalid_progress_fails_closed(tmp_path, payload):
     (tmp_path / "progress.json").write_text(payload)
-    assert worker_process.progress(tmp_path, 1, "instance", "research") is None
+    assert worker_process.progress(tmp_path, "instance", "research") is None
 
 
 @pytest.mark.parametrize(("kind", "fresh_age", "stale_age"), [

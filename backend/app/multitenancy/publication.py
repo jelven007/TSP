@@ -150,9 +150,9 @@ class PublicPublisher:
                     # Only link a previous immutable COPY, never mutable source data.
                     os.link(previous / name, target)
                 elif name.startswith("ext_data/") and name.endswith("/config.json"):
-                    config = json.loads(source.read_text())
+                    config = json.loads(source.read_text(encoding="utf-8"))
                     config.pop("pull", None)
-                    target.write_text(json.dumps(config, ensure_ascii=False))
+                    target.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
                     os.utime(target, ns=(signature[1], signature[1]))
                 else:
                     shutil.copy2(source, target)

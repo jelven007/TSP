@@ -266,7 +266,11 @@ def main():
     async def start():
         loop = asyncio.get_running_loop()
         for signum in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(signum, stopped.set)
+            try:
+                loop.add_signal_handler(signum, stopped.set)
+            except NotImplementedError:
+                # Windows ProactorEventLoop has no add_signal_handler.
+                signal.signal(signum, lambda *_: stopped.set())
         await run(db, market, stopped)
     try:
         asyncio.run(start())
