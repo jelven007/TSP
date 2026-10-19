@@ -67,3 +67,59 @@ def test_valid_dates_still_accepted(client, monkeypatch, path, extra):
     resp = client.get(path, params=params)
     assert resp.status_code == 200, resp.text
     assert "event: error" in resp.text
+
+
+@pytest.mark.parametrize("extra", [
+    {"window_unit": "weekdays"}, {"purge_days": -1},
+    {"train_days": 0}, {"test_days": -1}, {"step_days": 0},
+])
+def test_walkforward_invalid_window_policy_returns_400(client, extra):
+    resp = client.get("/api/backtest/walkforward/stream", params={
+        "strategy_id": "s", "param_grid": '{"n":[1]}',
+        "start": "2024-01-01", "end": "2024-12-31", **extra,
+    })
+    assert resp.status_code == 400
+
+
+def test_walkforward_scoped_job_keeps_calendar_purge_costs_and_distinct_key(client, monkeypatch):
+    from datetime import date
+    from types import SimpleNamespace
+
+    from fastapi.responses import JSONResponse
+
+    from app.api import strategy
+    from app.multitenancy import research
+
+    rows = []
+    keys = []
+
+    def submit(task, *, key):
+        rows.append(task)
+        keys.append(key)
+        return task
+
+    monkeypatch.setattr(settings, "backtest_range_guard", False)
+    monkeypatch.setattr(research, "jobs_for", lambda request: SimpleNamespace(submit=submit))
+    monkeypatch.setattr(research, "stream", lambda *args: JSONResponse({"ok": True}))
+    monkeypatch.setattr(strategy, "_get_engine", lambda request: SimpleNamespace(
+        task=lambda kind, config: {"kind": kind, "config": config},
+    ))
+    client.app.state.repo = SimpleNamespace(list_daily_dates=lambda *args: [
+        date(2024, 1, day) for day in (2, 3, 4, 5, 8, 9, 10, 11)
+    ])
+    params = {
+        "strategy_id": "s", "param_grid": '{"n":[1]}',
+        "start": "2024-01-02", "end": "2024-01-11",
+        "train_days": 2, "test_days": 2, "step_days": 2,
+        "purge_days": 1, "window_unit": "trading_days",
+        "minimum_commission": 5, "transfer_fee_pct": 0.00001,
+    }
+    assert client.get("/api/backtest/walkforward/stream", params=params).status_code == 200
+    config = rows[-1]["config"]
+    assert config["window_unit"] == "trading_days"
+    assert config["purge_days"] == 1
+    assert config["backtest_kwargs"]["minimum_commission"] == 5
+    assert config["backtest_kwargs"]["transfer_fee_pct"] == 0.00001
+    for change in ({"purge_days": 0}, {"window_unit": "calendar_days"}):
+        assert client.get("/api/backtest/walkforward/stream", params={**params, **change}).status_code == 200
+    assert len(set(keys)) == 3

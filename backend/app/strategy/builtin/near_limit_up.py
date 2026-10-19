@@ -11,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "near_limit_up",
@@ -90,4 +91,4 @@ class NearLimitUpMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = NearLimitUpMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, NearLimitUpMatrixStrategy())

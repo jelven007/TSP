@@ -17,8 +17,9 @@
 
 火山引擎生产已于 2026-10-18 升级到 v0.4.8、`9b4bc2c5`、schema v6，运行独立
 Gateway、Platform、四类 Worker 和 Compute Broker；详见
-[线上升级结果](../reports/online-upgrade-20261018/deployment-result.md)。本次主线
-加固提交 `47b1738d` 仍在隔离 24 小时候选中，不能据此宣称生产已包含后续修复。
+[线上升级结果](../reports/online-upgrade-20261018/deployment-result.md)。后续源码
+候选还包含单机可靠性、策略成交正确性、入场风险和独立行情链路的策略组运行；
+不能据此宣称生产已包含这些能力。
 
 ## 生命周期覆盖
 
@@ -44,7 +45,7 @@ Gateway、Platform、四类 Worker 和 Compute Broker；详见
 | 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md)、[Windows 10 生产构建与部署](./windows10-production-deployment.md) |
 | 数据源 | [自定义数据源](./custom-data-source.md)、[rustdx 数据源](./rustdx-data-source.md)、[插件开发](./plugin-development.md) |
 | TickFlow 专项 | [Pro 一阶段探测](./tickflow-pro-phase1-probe.md)、[共享限流](./tickflow-pro-shared-rate-limit.md) |
-| 策略与研究 | [策略开发](./strategy.md)、[策略迭代](./strategy-iteration.md)、[固定输入与研究记录](./research-configuration.md)、[因子平台方案](./factor-platform-plan.md)、[因子系统设计](./factor-system-design.md)、[因子挖掘](./mining.md) |
+| 策略与研究 | [策略开发](./strategy.md)、[策略迭代](./strategy-iteration.md)、[策略质量研究](../reports/strategy-optimization-20261019/analysis.md)、[五策略共享运行](../reports/five-strategy-parallel-20261019/implementation.md)、[固定输入与研究记录](./research-configuration.md)、[因子平台方案](./factor-platform-plan.md)、[因子系统设计](./factor-system-design.md)、[因子挖掘](./mining.md) |
 | AI | [接口协议](./ai-protocols.md)、[助手会话同步](./assistant-sessions.md) |
 | 市场与交易 | [市场阶段](./market-phase.md)、[模拟盘](./paper-trading-plan.md) |
 | 开放能力 | [开放平台](./open-platform-plan.md)、[MCP 服务器](../mcp-server/README.md)、[Open API 示例](../examples/open-api/README.md) |

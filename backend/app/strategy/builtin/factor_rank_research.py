@@ -115,6 +115,7 @@ class FactorRankResearchMatrixStrategy:
             raise ValueError("exit_score must not exceed entry_score")
 
         universe = np.isfinite(market.close)
+        score_valid = np.empty(market.shape, dtype=bool)
         score = build_matrix_score(
             market,
             universe,
@@ -123,10 +124,11 @@ class FactorRankResearchMatrixStrategy:
             True,
             fallback=np.zeros(market.shape, dtype=np.float32),
             directions=directions,
+            valid_out=score_valid,
         )
-        entry = universe & (score >= np.float32(entry_score))
+        entry = score_valid & (score >= np.float32(entry_score))
         entry = _limit_top_rank(entry, score, top_rank)
-        exit_ = universe & (score <= np.float32(exit_score))
+        exit_ = score_valid & (score <= np.float32(exit_score))
         return make_signal_matrix(
             market.shape,
             entry=entry.astype(np.uint8),

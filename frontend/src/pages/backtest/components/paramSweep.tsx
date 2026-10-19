@@ -16,7 +16,10 @@ export const OBJECTIVES: { id: string; label: string }[] = [
   { id: 'total_return', label: '总收益' },
   { id: 'annual_return', label: '年化收益' },
   { id: 'win_rate', label: '胜率' },
-  { id: 'profit_factor', label: '盈亏比' },
+  { id: 'payoff_ratio', label: '盈亏比' },
+  { id: 'profit_factor_amount', label: '金额利润因子PF' },
+  { id: 'net_expectancy', label: '单笔净期望' },
+  { id: 'profit_factor', label: '盈亏比（旧口径）' },
   { id: 'max_drawdown', label: '最大回撤(越小越好)' },
   { id: 'mc_maxdd_p95', label: '蒙卡回撤P95(越小越好)' },
   { id: 'avg_holding_days', label: '平均持仓天数' },
@@ -211,7 +214,7 @@ function FixedValue({ param: p, value, onChange }: {
   if (p.type === 'select') {
     return <select aria-label={`${p.label}固定值`} className={`${INPUT_CLS} mt-1`} value={current}
       onChange={e => onChange(e.target.value)}>
-      {(p.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+      {(p.options ?? []).map(o => <option key={o} value={o}>{p.option_labels?.[o] ?? o}</option>)}
     </select>
   }
   return <input aria-label={`${p.label}固定值`} className={`${INPUT_CLS} mt-1`}

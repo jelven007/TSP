@@ -11,6 +11,7 @@ from app.backtest.matrix import (
 from app.backtest.matrix import (
     valid_shift as shift,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "high_turnover_surge",
@@ -85,4 +86,4 @@ class HighTurnoverSurgeMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = HighTurnoverSurgeMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, HighTurnoverSurgeMatrixStrategy())

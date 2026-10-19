@@ -189,7 +189,10 @@ def test_pipeline_reuses_basic_asset_filter_and_raw_scoring_features():
     operations = cache.snapshot()["operations"]
     assert operations["basic_filter_mask"]["hits"] == 1
     assert operations["pipeline_filter_mask"]["hits"] == 1
-    assert operations["matrix_feature"]["hits"] == 1
+    # Complete-input validation also reads the feature before normalization.
+    # Both passes and repeated runs must reuse the one actual computation.
+    assert operations["matrix_feature"]["misses"] == 1
+    assert operations["matrix_feature"]["hits"] >= 1
 
 
 def test_pipeline_protects_strategy_working_set_when_scoring_would_overflow_cache():

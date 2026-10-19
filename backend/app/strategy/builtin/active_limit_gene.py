@@ -8,6 +8,7 @@ from app.backtest.matrix import (
     make_signal_matrix,
     matrix_feature,
 )
+from app.strategy.builtin._quality_entries import with_quality_entries
 
 META = {
     "id": "active_limit_gene",
@@ -85,4 +86,4 @@ class ActiveLimitGeneMatrixStrategy:
         )
 
 
-MATRIX_STRATEGY = ActiveLimitGeneMatrixStrategy()
+MATRIX_STRATEGY = with_quality_entries(META, ActiveLimitGeneMatrixStrategy())

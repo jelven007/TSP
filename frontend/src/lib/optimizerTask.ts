@@ -73,6 +73,8 @@ export interface StartOptimizeParams {
   fees_pct?: number
   commission_pct?: number
   stamp_tax_pct?: number
+  minimum_commission?: number
+  transfer_fee_pct?: number
   slippage_bps?: number
   max_positions?: number
   max_exposure_pct?: number
@@ -242,6 +244,8 @@ export function startOptimize(params: StartOptimizeParams): void {
     fees_pct: params.fees_pct,
     commission_pct: params.commission_pct,
     stamp_tax_pct: params.stamp_tax_pct,
+    minimum_commission: params.minimum_commission,
+    transfer_fee_pct: params.transfer_fee_pct,
     slippage_bps: params.slippage_bps,
     max_positions: params.max_positions,
     max_exposure_pct: params.max_exposure_pct,

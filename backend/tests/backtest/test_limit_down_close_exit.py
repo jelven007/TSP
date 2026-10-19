@@ -109,12 +109,15 @@ def test_open_t1_exit_after_sealed_limit_down_signal_day():
 
 
 def test_stuck_position_at_window_end_is_recorded():
-    """期末仍被封板递延的持仓不再被静默丢弃, 按末日价格强制落账。"""
+    """期末封板持仓保留估值和待卖, 不强造已实现成交或胜率。"""
     days = _normal_panel(8, sealed={7: {"o": 10.30, "h": 10.32, "l": 9.27, "c": 9.27}})
     result = _run(_panel(days), entry_days=[0], exit_days=[7])
-    assert result.stats.get("n_trades") == 1
-    trade = result.trades[0]
-    assert trade.exit_date == "2024-01-08"  # 末日
-    assert trade.exit_reason == "signal"
-    assert trade.blocked_exit_days >= 1
-    assert trade.exit_price == 9.27  # 末日(封板)收盘价
+    assert result.stats["n_trades"] == 0
+    assert result.trades == []
+    assert result.stats["unclosed_candidates"] == 1
+    assert result.stats["pending_exit_positions"] == 1
+    assert result.stats["unrealized_pnl_amount"] < 0
+    position = result.stats["unclosed_positions"][0]
+    assert position["mark_date"] == "2024-01-08"
+    assert position["pending_exit_reason"] == "signal"
+    assert position["blocked_exit_days"] == 1
