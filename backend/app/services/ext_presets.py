@@ -167,7 +167,7 @@ def _flatten_industry_rows(raw_rows: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# 旧版空默认配置识别
+# 旧版默认配置识别
 # ---------------------------------------------------------------------------
 
 def _is_unused_empty_preset(existing: ExtConfig, preset: ExtConfig, data_dir: Path) -> bool:
@@ -189,6 +189,63 @@ def _is_unused_empty_preset(existing: ExtConfig, preset: ExtConfig, data_dir: Pa
     expected["pull"]["url"] = ""
     expected["pull"]["enabled"] = False
     return original == expected
+
+
+def _is_legacy_manual_preset(existing: ExtConfig, preset: ExtConfig) -> bool:
+    """识别未定制的历史「仅手动获取」内置预设。
+
+    这类配置早于默认自动拉取策略，并且可能已经有一份静态快照。不能把
+    「已有 parquet」当成用户定制证据，否则旧快照会永久停在发布时刻。
+    """
+    legacy_description = (
+        f"{preset.label.replace('扩展', '同花顺')}分类 "
+        "(启动仅创建配置, 在概念/行业页手动获取)"
+    )
+    if existing.description != legacy_description:
+        return False
+    if (
+        existing.label != preset.label
+        or existing.mode != preset.mode
+        or [field.to_dict() for field in existing.fields] != [field.to_dict() for field in preset.fields]
+        or existing.symbol_map != preset.symbol_map
+        or existing.code_map != preset.code_map
+        or existing.market_level != preset.market_level
+    ):
+        return False
+    if existing.pull is None or preset.pull is None:
+        return False
+
+    pull = existing.pull
+    default = preset.pull
+    no_auth = pull.auth is None or (
+        isinstance(pull.auth, dict)
+        and pull.auth.get("type", "none") == "none"
+        and set(pull.auth).issubset({"type", "header", "param"})
+    )
+    return (
+        pull.url in {"", default.url}
+        and not pull.enabled
+        and pull.method == default.method
+        and pull.headers == {}
+        and pull.body is None
+        and pull.response_path == ""
+        and pull.field_map == {}
+        and pull.schedule_minutes == default.schedule_minutes
+        and pull.time_window_start == default.time_window_start
+        and pull.time_window_end == default.time_window_end
+        and pull.date_param is None
+        and pull.time_field is None
+        and no_auth
+        and pull.timeout_seconds == default.timeout_seconds
+        and pull.page_param is None
+        and pull.page_size_param is None
+        and pull.page_size == 0
+        and pull.page_start == 1
+        and pull.max_pages == 20
+        and pull.fanout is None
+        and pull.transform == "auto"
+        and pull.snapshot_policy == "auto"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +277,12 @@ async def ensure_builtin_presets(data_dir: Path) -> None:
         existing = store.get(config.id)
         try:
             if existing is not None:
-                if not _is_unused_empty_preset(existing, config, data_dir):
+                empty_repair = _is_unused_empty_preset(existing, config, data_dir)
+                legacy_migration = _is_legacy_manual_preset(existing, config)
+                # #region debug-point A:legacy-preset-branch
+                import json as _debug_json, os as _debug_os, urllib.request as _debug_request; _debug_url = _debug_os.getenv("DEBUG_SERVER_URL"); _debug_session = _debug_os.getenv("DEBUG_SESSION_ID"); _debug_payload = {"sessionId": _debug_session, "runId": _debug_os.getenv("DEBUG_RUN_ID", "pre-fix"), "hypothesisId": "A", "location": "app.services.ext_presets.ensure_builtin_presets", "msg": "[DEBUG] evaluated existing builtin preset", "data": {"config_id": config.id, "has_snapshot": any((data_dir / "ext_data" / existing.id).rglob("*.parquet")), "description": existing.description, "pull_present": existing.pull is not None, "pull_enabled": bool(existing.pull and existing.pull.enabled), "pull_url_configured": bool(existing.pull and existing.pull.url), "eligible_empty_repair": empty_repair, "eligible_legacy_migration": legacy_migration}}; _debug_request.urlopen(_debug_request.Request(_debug_url, data=_debug_json.dumps(_debug_payload).encode(), headers={"Content-Type": "application/json"}), timeout=1).read() if _debug_url and _debug_session else None  # noqa
+                # #endregion
+                if not (empty_repair or legacy_migration):
                     continue
                 existing.pull = config.pull
                 existing.description = config.description
