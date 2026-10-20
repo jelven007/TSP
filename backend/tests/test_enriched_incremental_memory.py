@@ -102,3 +102,32 @@ def test_failed_compute_batch_publishes_no_partial_new_dates(sample, tmp_path, m
         pipeline.run_pipeline(tmp_path, new_dates_only=True)
     assert not list((tmp_path / "kline_daily_enriched").rglob("*.parquet"))
     assert get_enriched_generation(tmp_path) == generation
+
+
+def _write_history_partition(base, day, symbols):
+    part = base / f"date={day}"
+    part.mkdir(parents=True, exist_ok=True)
+    pl.DataFrame({
+        "symbol": symbols,
+        "date": [day] * len(symbols),
+        "open": [1.0] * len(symbols),
+        "high": [1.0] * len(symbols),
+        "low": [1.0] * len(symbols),
+        "close": [1.0] * len(symbols),
+        "volume": [1.0] * len(symbols),
+        "amount": [1.0] * len(symbols),
+    }).write_parquet(part / "part.parquet")
+
+
+def test_history_prefix_stops_before_backfill_start(tmp_path):
+    """回补 2020 时不能把未来(2026)分区当成历史前缀。"""
+    enriched = tmp_path / "kline_daily_enriched"
+    _write_history_partition(enriched, date(2019, 12, 31), ["600000.SH"])
+    _write_history_partition(enriched, date(2020, 1, 2), ["600000.SH"])
+    _write_history_partition(enriched, date(2026, 10, 19), ["600000.SH"])
+
+    prefix = pipeline._load_recent_history(
+        enriched, ["600000.SH"], days=60, before=date(2020, 1, 2),
+    )
+
+    assert prefix["date"].to_list() == [date(2019, 12, 31)]

@@ -21,7 +21,7 @@ import shutil
 import time
 import uuid
 from collections.abc import Callable
-from datetime import timedelta as _timedelta
+from datetime import date, timedelta as _timedelta
 from pathlib import Path
 
 import polars as pl
@@ -1767,9 +1767,13 @@ def run_pipeline(data_dir: Path | None = None,
             raw_new = raw_new.sort(["symbol", "date"]).collect(streaming=True)
 
             # 增量模式: 只算新日期, 但指标需要历史窗口
-            # 读已有 enriched 最近 60 天作为历史前缀
+            # 读已有 enriched 最近 60 天作为历史前缀 (以最早新日期为界,
+            # 避免回补历史时误取未来分区)
             sym_list = raw_new["symbol"].unique().to_list()
-            hist_df = _load_recent_history(enriched_base, sym_list, days=60)
+            first_new = raw_new["date"].min()
+            hist_df = _load_recent_history(
+                enriched_base, sym_list, days=60, before=first_new,
+            )
 
             # 合并历史 + 新数据
             if not hist_df.is_empty():
@@ -2057,13 +2061,22 @@ def _load_factors(factor_path: Path) -> pl.DataFrame:
         return pl.DataFrame()
 
 
-def _load_recent_history(enriched_base: Path, symbols: list[str], days: int) -> pl.DataFrame:
+def _load_recent_history(
+    enriched_base: Path,
+    symbols: list[str],
+    days: int,
+    *,
+    before: date | None = None,
+) -> pl.DataFrame:
     """从已有 enriched parquet 加载最近 N 天的历史数据(用于增量模式的指标计算窗口)。
 
     只读基础行情列, 作为指标计算的历史前缀。
+    before: 前缀截止日(不含)。回补历史时传本次最早的新日期, 否则会按"今天"
+    取窗口, 把未来已算好的分区(如 2026)当成 2020 的前缀。
     """
-    from datetime import date, timedelta
-    cutoff = date.today() - timedelta(days=days + 30)  # 多读 30 天余量
+    from datetime import timedelta
+    end = before or date.today()
+    cutoff = end - timedelta(days=days + 30)  # 多读 30 天余量
 
     cast_options = pl.ScanCastOptions(integer_cast="allow-float")
     try:
@@ -2075,6 +2088,7 @@ def _load_recent_history(enriched_base: Path, symbols: list[str], days: int) -> 
             .filter(
                 (pl.col("symbol").is_in(symbols))
                 & (pl.col("date") >= cutoff)
+                & (pl.col("date") < end)
             )
             .sort(["symbol", "date"])
         )
