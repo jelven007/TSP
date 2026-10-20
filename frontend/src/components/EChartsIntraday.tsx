@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as echarts from 'echarts'
 import type { ECharts, EChartsOption } from 'echarts'
-import type { MinuteKlineRow, PriceLimitInfo } from '@/lib/api'
+import type { NullableMinuteKlineRow, PriceLimitInfo } from '@/lib/api'
 import { computeIntradayAverage, formatMinuteTime, FULL_DAY_TIMES, summarizeMinutes, type DailySummary } from '@/lib/intraday-chart'
 import { useChartTheme, type ChartTheme } from '@/lib/theme'
 
@@ -17,7 +17,7 @@ const THEME = {
 }
 
 interface Props {
-  data: MinuteKlineRow[]
+  data: NullableMinuteKlineRow[]
   height?: number
   prevClose?: number
   date?: string
@@ -38,8 +38,16 @@ function fmtAmt(v: number | null | undefined): string {
   return v.toFixed(0)
 }
 
+function fmtNumber(v: number | null | undefined, digits: number, fallback = '—'): string {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits) : fallback
+}
+
 function isValidPrice(v: number | null | undefined): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v > 0
+}
+
+function isValidVolume(v: number | null | undefined): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0
 }
 
 /** 计算实际涨跌停价 (四舍五入到2位小数) 和实际涨跌停幅度 */
@@ -64,7 +72,7 @@ function getLimitPrices(prevClose: number, priceLimit?: PriceLimitInfo): {
   return { limitUp, limitDown, upPct, downPct }
 }
 
-function buildOption(data: MinuteKlineRow[], prevClose: number | undefined, avgPrices: (number | null)[], lineColor: string, areaColor: string, yMode: YMode, ct: ChartTheme, priceLimit?: PriceLimitInfo, showLimitLines = true, showAvgLine = true, priceLines: Props['priceLines'] = []): EChartsOption {
+function buildOption(data: NullableMinuteKlineRow[], prevClose: number | undefined, avgPrices: (number | null)[], lineColor: string, areaColor: string, yMode: YMode, ct: ChartTheme, priceLimit?: PriceLimitInfo, showLimitLines = true, showAvgLine = true, priceLines: Props['priceLines'] = []): EChartsOption {
   // 无涨跌幅标的 (注册制新股上市初期窗口, 后端 no_limit 标记): 不存在可信
   // 涨跌停带, 自适应/涨跌停两类模式都退化为纯数据对称范围, 也不画涨跌停虚线
   const limitLinesActive = showLimitLines && !priceLimit?.no_limit
@@ -79,28 +87,29 @@ function buildOption(data: MinuteKlineRow[], prevClose: number | undefined, avgP
   const volNeutral = 'rgba(161,161,170,0.5)'
   // 量柱着色基准: 前一分钟 close; 第一根用昨收。
   // 不用 row.open: 部分数据源不提供可靠的分钟 open, close-vs-open 会全偏。
-  let prevRef: number | null = prevClose ?? null
+  let prevRef: number | null = isValidPrice(prevClose) ? prevClose : null
   for (let i = 0; i < data.length; i++) {
     const timeKey = formatMinuteTime(data[i].datetime)
     const idx = timeIndexMap.get(timeKey)
     if (idx !== undefined) {
-      closes[idx] = data[i].close
-      highs[idx] = data[i].high
-      lows[idx] = data[i].low
+      const close = isValidPrice(data[i].close) ? data[i].close : null
+      closes[idx] = close
+      highs[idx] = isValidPrice(data[i].high) ? data[i].high : null
+      lows[idx] = isValidPrice(data[i].low) ? data[i].low : null
       avgData[idx] = avgPrices[i]
       volumes[idx] = {
-        value: data[i].volume,
+        value: isValidVolume(data[i].volume) ? data[i].volume : null,
         itemStyle: {
-          color: prevRef == null
+          color: prevRef == null || close == null
             ? volNeutral
-            : data[i].close > prevRef
+            : close > prevRef
               ? THEME.volUp
-              : data[i].close < prevRef
+              : close < prevRef
                 ? THEME.volDown
                 : volNeutral,
         },
       }
-      prevRef = data[i].close
+      if (close != null) prevRef = close
     }
   }
 
@@ -314,8 +323,7 @@ function buildOption(data: MinuteKlineRow[], prevClose: number | undefined, avgP
         axisPointer: {
           label: {
             formatter: (params: any) => {
-              const v = params.value
-              return typeof v === 'number' ? v.toFixed(2) : ''
+              return fmtNumber(params.value, 2, '')
             },
           },
         },
@@ -323,7 +331,7 @@ function buildOption(data: MinuteKlineRow[], prevClose: number | undefined, avgP
           color: ct.text,
           fontSize: 10,
           fontFamily: 'JetBrains Mono, monospace',
-          formatter: (v: number) => v.toFixed(2),
+          formatter: (v: number | null | undefined) => fmtNumber(v, 2, ''),
         },
       },
       {
@@ -350,7 +358,7 @@ function buildOption(data: MinuteKlineRow[], prevClose: number | undefined, avgP
           label: {
             formatter: (params: any) => {
               const v = params.value
-              if (typeof v !== 'number') return ''
+              if (typeof v !== 'number' || !Number.isFinite(v)) return ''
               const pct = (v - prevClose) / prevClose * 100
               if (Math.abs(pct) < 0.01) return '0.00%'
               return (pct > 0 ? '+' : '') + pct.toFixed(2) + '%'
@@ -361,7 +369,8 @@ function buildOption(data: MinuteKlineRow[], prevClose: number | undefined, avgP
           color: ct.text,
           fontSize: 10,
           fontFamily: 'JetBrains Mono, monospace',
-          formatter: (v: number) => {
+          formatter: (v: number | null | undefined) => {
+            if (typeof v !== 'number' || !Number.isFinite(v)) return ''
             const pct = (v - prevClose) / prevClose * 100
             if (Math.abs(pct) < 0.01) return '0.00%'
             return (pct > 0 ? '+' : '') + pct.toFixed(2) + '%'
@@ -441,9 +450,11 @@ export function EChartsIntraday({
   const summary = useMemo(() => summarizeMinutes(data), [data])
 
   // 分时线颜色：基于最新价 vs 昨收
-  const lastClose = data.length > 0 ? data[data.length - 1].close : null
-  const lineIsUp = lastClose != null && prevClose != null ? lastClose > prevClose : true
-  const lineIsFlat = lastClose != null && prevClose != null ? lastClose === prevClose : false
+  const lastClose = data.length > 0 && isValidPrice(data[data.length - 1].close)
+    ? data[data.length - 1].close
+    : null
+  const lineIsUp = lastClose != null && isValidPrice(prevClose) ? lastClose > prevClose : true
+  const lineIsFlat = lastClose != null && isValidPrice(prevClose) ? lastClose === prevClose : false
   const lineColor = lineIsFlat ? '#A1A1AA' : lineIsUp ? '#C74040' : '#2D9B65'
   const areaFill = lineIsFlat ? 'rgba(180,180,190,0.40)' : lineIsUp ? 'rgba(199,64,64,0.40)' : 'rgba(34,197,94,0.40)'
 
@@ -488,7 +499,7 @@ export function EChartsIntraday({
             setInfoIdx(dataIdx)
             const d = dataRef.current
             if (dataIdx >= 0 && dataIdx < d.length) {
-              onPriceHoverRef.current?.(d[dataIdx].close)
+              onPriceHoverRef.current?.(isValidPrice(d[dataIdx].close) ? d[dataIdx].close : null)
             } else {
               onPriceHoverRef.current?.(null)
             }
@@ -508,7 +519,7 @@ export function EChartsIntraday({
         const coordinate = chart!.convertFromPixel({ xAxisIndex: 0, yAxisIndex: 0 }, pixel)
         const clickedPrice = Array.isArray(coordinate) ? Number(coordinate[1]) : NaN
         const latestPrice = currentPriceRef.current ?? dataRef.current[dataRef.current.length - 1]?.close
-        if (Number.isFinite(clickedPrice) && clickedPrice > 0 && Number.isFinite(latestPrice) && latestPrice > 0) {
+        if (Number.isFinite(clickedPrice) && clickedPrice > 0 && isValidPrice(latestPrice)) {
           onPriceDoubleClickRef.current?.(clickedPrice, latestPrice)
         }
       }
@@ -534,7 +545,7 @@ export function EChartsIntraday({
       fullDayToDataIdx.current = new Map()
       chart.clear()
     }
-  }, [data, prevClose, height, lineColor, areaFill, yMode, ct, priceLimit, showLimitLines, showAvgLine, priceLines])
+  }, [data, prevClose, height, avgPrices, lineColor, areaFill, yMode, ct, priceLimit, showLimitLines, showAvgLine, priceLines])
 
   useEffect(() => {
     return () => {
@@ -557,7 +568,7 @@ export function EChartsIntraday({
   const daily = dailySummary?.date === date ? dailySummary : undefined
   const ohlc = hovered ?? daily ?? summary
   const avg = d != null ? avgPrices[hovered ? infoIdx : data.length - 1] : null
-  const chg = d && prevClose != null ? d.close - prevClose : null
+  const chg = d && isValidPrice(d.close) && isValidPrice(prevClose) ? d.close - prevClose : null
   const isUp = chg != null ? chg > 0 : true
   const isFlat = chg != null ? chg === 0 : false
   const priceClr = isFlat ? '#A1A1AA' : isUp ? '#C74040' : '#2D9B65'
@@ -599,13 +610,13 @@ export function EChartsIntraday({
               {date && <span className="text-muted">{date}</span>}
               <span className="text-muted">{hovered ? `${formatMinuteTime(hovered.datetime)} 分钟` : daily ? '日K（前复权）' : '分时汇总'}</span>
               <span className="text-muted">开</span>
-              <span style={{ color: priceClr }}>{ohlc.open != null ? ohlc.open.toFixed(2) : '—'}</span>
+              <span style={{ color: priceClr }}>{fmtNumber(ohlc.open, 2)}</span>
               <span className="text-muted">高</span>
-              <span style={{ color: priceClr }}>{ohlc.high.toFixed(2)}</span>
+              <span style={{ color: priceClr }}>{fmtNumber(ohlc.high, 2)}</span>
               <span className="text-muted">低</span>
-              <span style={{ color: priceClr }}>{ohlc.low.toFixed(2)}</span>
+              <span style={{ color: priceClr }}>{fmtNumber(ohlc.low, 2)}</span>
               <span className="text-muted">收</span>
-              <span style={{ color: priceClr }} className="font-semibold">{ohlc.close.toFixed(2)}</span>
+              <span style={{ color: priceClr }} className="font-semibold">{fmtNumber(ohlc.close, 2)}</span>
             </>
           )}
         </div>
@@ -615,14 +626,14 @@ export function EChartsIntraday({
             <>
               <span className="flex items-center gap-x-1">
                 <span style={{ display: 'inline-block', width: 14, height: 2, background: priceClr }} />
-                <span style={{ color: priceClr }}>{d.close.toFixed(2)}</span>
+                <span style={{ color: priceClr }}>{fmtNumber(d.close, 2)}</span>
               </span>
               {showAvgLine && <span className="flex items-center gap-x-1">
                 <span style={{ display: 'inline-block', width: 14, height: 2, background: THEME.avgLine }} />
-                <span style={{ color: THEME.avgLine }}>{avg != null ? avg.toFixed(2) : '—'}</span>
+                <span style={{ color: THEME.avgLine }}>{fmtNumber(avg, 2)}</span>
               </span>}
               <span className="text-muted">{hovered ? '量' : '累计量'}</span>
-              <span className="text-secondary">{d.volume.toFixed(0)}</span>
+              <span className="text-secondary">{fmtNumber(d.volume, 0)}</span>
               <span className="text-muted">{hovered ? '额' : '累计额'}</span>
               <span className="text-secondary">{fmtAmt(d.amount)}</span>
             </>
