@@ -8,6 +8,7 @@ import { ApiError } from './lib/api/client'
 import { api } from './lib/api'
 import { accountScope, clearAccountCache } from './lib/accountSession'
 import { createAppPersister, shouldPersistQuery, PERSIST_BUSTER } from './lib/queryPersist'
+import { AccountScopeBoundary } from './components/AccountScopeBoundary'
 // 字体自托管 (@fontsource): 替代 rsms.me / Google Fonts 渲染阻塞外链,
 // 内网/离线部署不再白屏等字体。权重覆盖 tailwind 全部用量 (300-900)。
 import '@fontsource/inter/300.css'
@@ -22,6 +23,8 @@ import '@fontsource/jetbrains-mono/600.css'
 import '@fontsource/jetbrains-mono/700.css'
 import './index.css'
 
+let navigateInApp: ((path: string) => Promise<void>) | null = null
+
 // 全局认证拦截: 会话失效或系统尚无账户时跳转登录页。
 const _redirectToLogin = (() => {
   let redirecting = false
@@ -35,7 +38,16 @@ const _redirectToLogin = (() => {
     redirecting = true
     clearAccountCache()
     const redirect = encodeURIComponent(window.location.pathname + window.location.search)
-    window.location.href = `/login?redirect=${redirect}`
+    const target = `/login?redirect=${redirect}`
+    void queryClient.cancelQueries()
+      .then(() => {
+        queryClient.clear()
+        if (navigateInApp) return navigateInApp(target)
+        window.location.href = target
+      })
+      .finally(() => {
+        redirecting = false
+      })
   }
 })()
 
@@ -61,6 +73,7 @@ async function bootstrap() {
   queryClient.setQueryData(['auth-status'], auth)
   await initializeFrontendExtensions()
   const { router } = await import('./router')
+  navigateInApp = path => router.navigate(path, { replace: true })
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <PersistQueryClientProvider
@@ -73,7 +86,9 @@ async function bootstrap() {
           dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
         }}
       >
-        <RouterProvider router={router} />
+        <AccountScopeBoundary>
+          <RouterProvider router={router} />
+        </AccountScopeBoundary>
       </PersistQueryClientProvider>
     </React.StrictMode>,
   )

@@ -89,10 +89,9 @@ export function Auth() {
         setRecoveryComplete(true)
         return
       }
-      await queryClient.cancelQueries()
-      queryClient.clear()
-      await api.authStatus()
-      window.location.replace(mode === 'register' ? '/' : safeLoginRedirect(searchParams.get('redirect')))
+      const nextStatus = await api.authStatus()
+      queryClient.setQueryData(QK.authStatus, nextStatus)
+      navigate(mode === 'register' ? '/' : safeLoginRedirect(searchParams.get('redirect')), { replace: true })
     },
     onError: (error: Error) => setLocalError(error.message || '认证失败'),
   })

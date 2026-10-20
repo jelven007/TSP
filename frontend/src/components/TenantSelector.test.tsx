@@ -2,9 +2,11 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, type TenantDirectoryEntry } from '@/lib/api'
-import { hasPermission } from '@/lib/accountSession'
+import { clearAccountCache, hasPermission } from '@/lib/accountSession'
+import { QK } from '@/lib/queryKeys'
 import { TenantSelector } from './TenantSelector'
 
 vi.mock('@/lib/api', () => ({
@@ -43,16 +45,18 @@ afterEach(async () => {
   document.body.innerHTML = ''
 })
 
-async function renderSelector(entry: TenantDirectoryEntry) {
-  vi.mocked(api.accountTenants).mockResolvedValue({ tenants: [entry] })
+async function renderSelector(entry: TenantDirectoryEntry | TenantDirectoryEntry[]) {
+  vi.mocked(api.accountTenants).mockResolvedValue({ tenants: Array.isArray(entry) ? entry : [entry] })
   const container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   await act(async () => {
     root?.render(
-      <QueryClientProvider client={queryClient}>
-        <TenantSelector />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <TenantSelector />
+        </QueryClientProvider>
+      </MemoryRouter>,
     )
   })
   await act(async () => {
@@ -98,5 +102,39 @@ describe('administrator tenant labels', () => {
     })
     expect(container.querySelector('select')).toBeNull()
     expect(api.accountTenants).not.toHaveBeenCalled()
+  })
+
+  it('switches tenants through account state and query updates without reloading the page', async () => {
+    vi.mocked(api.accountSelectTenant).mockResolvedValue({ ok: true })
+    vi.mocked(api.authStatus)
+      .mockResolvedValueOnce({
+        auth_required: true, configured: true, has_users: true,
+        legacy_migration_required: false, registration_enabled: true,
+        email_verification_required: true, authenticated: true, multitenancy_enabled: true,
+        user: { id: 'admin', email: null, created_at: 0, default_tenant_id: 'legacy' },
+      })
+      .mockResolvedValueOnce({
+        auth_required: true, configured: true, has_users: true,
+        legacy_migration_required: false, registration_enabled: true,
+        email_verification_required: true, authenticated: true, multitenancy_enabled: true,
+        user: { id: 'admin', email: null, created_at: 0, default_tenant_id: 'research' },
+      })
+    const container = await renderSelector([
+      { id: 'legacy', name: '旧租户', status: 'active', cell_id: 'local' },
+      { id: 'research', name: '研究租户', status: 'active', cell_id: 'local' },
+    ])
+    const select = container.querySelector<HTMLSelectElement>('select')!
+
+    await act(async () => {
+      select.value = 'research'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+      await new Promise(resolve => window.setTimeout(resolve, 0))
+    })
+
+    expect(vi.mocked(api.accountSelectTenant).mock.calls[0][0]).toBe('research')
+    expect(clearAccountCache).toHaveBeenCalledTimes(1)
+    expect(queryClient.getQueryData(QK.authStatus)).toMatchObject({
+      user: { default_tenant_id: 'research' },
+    })
   })
 })
