@@ -45,6 +45,29 @@ def test_daily_and_enriched_status_report_exact_rows_and_symbols(tmp_path):
     assert enriched == {**daily, "fields": 3}
 
 
+def test_status_tolerates_intraday_partition_extra_columns(tmp_path):
+    """当日分区由实时行情写入, 多出 quote_ts 列时仍应统计出真实行数。"""
+    _write_partition(tmp_path / "kline_daily", "2026-01-05", ["A", "B"])
+    intraday = tmp_path / "kline_daily" / "date=2026-01-06"
+    intraday.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "symbol": ["A", "C"],
+            "date": ["2026-01-06", "2026-01-06"],
+            "quote_ts": [1_700_000_000_000, 1_700_000_000_000],
+            "quote_time_basis": ["source_snapshot", "source_snapshot"],
+        }
+    ).with_columns(pl.col("date").str.to_date()).write_parquet(intraday / "part.parquet")
+
+    assert data._safe_aggregate_daily(_repo(tmp_path)) == {
+        "rows": 4,
+        "earliest_date": "2026-01-05",
+        "latest_date": "2026-01-06",
+        "symbols_covered": 3,
+        "trading_days": 2,
+    }
+
+
 def test_minute_status_reports_exact_rows_and_symbols(tmp_path):
     _write_partition(
         tmp_path / "kline_minute", "2026-01-05", ["A", "A", "B"], timestamp=True
