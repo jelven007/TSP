@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
+import type { NullableMinuteKlineRow } from '@/lib/api'
 import { EChartsIntraday } from './EChartsIntraday'
 
 const chart = vi.hoisted(() => ({
@@ -56,6 +57,53 @@ it('aggregates available minutes without inventing a missing opening price', asy
   expect(host.textContent).toContain('119.77')
   expect(host.textContent).toContain('—')
   expect(host.textContent).toContain('155')
+})
+
+it('renders missing minute OHLCV as unknown without crashing', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
+  chart.setOption.mockClear()
+  const host = document.createElement('div')
+  const root = createRoot(host)
+  cleanup = async () => { await act(async () => root.unmount()) }
+  const partialRows = [{
+    datetime: '2026-09-09 09:30:00',
+    open: null,
+    high: null,
+    low: null,
+    close: null,
+    volume: null,
+    amount: null,
+  }] satisfies NullableMinuteKlineRow[]
+
+  await act(async () => root.render(
+    <EChartsIntraday data={partialRows} date="2026-09-09" prevClose={3000} />,
+  ))
+
+  expect(host.textContent).toContain('分时汇总')
+  expect(host.textContent).toContain('—')
+  const option = chart.setOption.mock.calls.at(-1)?.[0]
+  expect(option.series[0].data[0]).toBeNull()
+  expect(option.series.at(-1).data[0].value).toBeNull()
+})
+
+it('formats invalid y-axis values without calling toFixed on them', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
+  chart.setOption.mockClear()
+  const host = document.createElement('div')
+  const root = createRoot(host)
+  cleanup = async () => { await act(async () => root.unmount()) }
+
+  await act(async () => root.render(
+    <EChartsIntraday data={rows} date={daily.date} prevClose={120} />,
+  ))
+
+  const axis = lastYAxis()
+  expect(axis.axisLabel.formatter(null)).toBe('')
+  expect(axis.axisLabel.formatter(Number.NaN)).toBe('')
+  expect(axis.axisPointer.label.formatter({ value: null })).toBe('')
+  expect(axis.axisPointer.label.formatter({ value: Number.NaN })).toBe('')
 })
 
 // ================================================================
