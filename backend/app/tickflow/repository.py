@@ -408,6 +408,9 @@ class KlineRepository:
         self._enriched_warming: bool = False
         self._warmup_thread: threading.Thread | None = None
         self._warmup_lock = threading.Lock()
+        # ETF/指数 enriched 的按需后台预热 (自选/监控首次读到冷缓存时触发)
+        self._asset_enriched_warming: set[str] = set()
+        self._asset_warmup_lock = threading.Lock()
         # 预热完成后的回调 (lifespan 注入, 用于设置 app.state.indicators_ready)
         self._on_warmup_done: Callable[[], None] | None = None
         # parquet/instruments 同步刷新完成后的轻量回调；用于调度派生缓存预热。
@@ -527,6 +530,48 @@ class KlineRepository:
             target=_warmup, name="enriched-warmup", daemon=True,
         )
         self._warmup_thread.start()
+
+    def ensure_enriched_warmup(self, asset_types: tuple[str, ...] = ("stock",)) -> None:
+        """确保指定资产的 enriched 缓存在后台预热, 请求线程不做同步重算。
+
+        供 tick 热路径使用: 缓存冷时起 daemon 线程预热, 调用方随即以
+        ``refresh=False`` 读到空表降级 (指标列为 null), 避免 300 天全量重算
+        (低配机 50s+) 把请求拖过 30s 超时, 也避免并发请求在重任务槽位上
+        排队并各自重复重算一次。
+        """
+        if "stock" in asset_types and self._enriched_cache is None:
+            self._start_enriched_warmup()
+        for asset_type in asset_types:
+            if asset_type == "etf" and self._etf_enriched_cache is None:
+                self._start_asset_enriched_warmup("etf")
+            elif asset_type == "index" and self._index_enriched_cache is None:
+                self._start_asset_enriched_warmup("index")
+
+    def _start_asset_enriched_warmup(self, asset_type: str) -> None:
+        """后台预热 ETF/指数 enriched 缓存; 同一资产同时只跑一个线程。"""
+        refresh = (
+            self._refresh_etf_enriched if asset_type == "etf"
+            else self._refresh_index_enriched
+        )
+        with self._asset_warmup_lock:
+            if asset_type in self._asset_enriched_warming:
+                return
+            self._asset_enriched_warming.add(asset_type)
+
+        def _warmup() -> None:
+            try:
+                logger.info("%s enriched warmup thread started", asset_type)
+                refresh()
+                logger.info("%s enriched warmup thread done", asset_type)
+            except Exception:  # noqa: BLE001
+                logger.exception("%s enriched warmup thread failed", asset_type)
+            finally:
+                with self._asset_warmup_lock:
+                    self._asset_enriched_warming.discard(asset_type)
+
+        threading.Thread(
+            target=_warmup, name=f"{asset_type}-enriched-warmup", daemon=True,
+        ).start()
 
     def _notify_refresh_done(self) -> None:
         callback = self._on_refresh_done
@@ -1221,14 +1266,16 @@ class KlineRepository:
             self._name_map_cache = None
             logger.info("ETF instruments 缓存已加载: %d 只", len(df_all))
 
-    def get_enriched_latest(self) -> tuple[pl.DataFrame, date | None]:
+    def get_enriched_latest(self, refresh: bool = True) -> tuple[pl.DataFrame, date | None]:
         """返回缓存的 enriched 最新日 DataFrame + 日期。如无缓存则懒加载。
 
         后台预热期间 (_enriched_warming=True) 返回空表, 不触发同步重算 ——
         否则首次访问会把异步化想避免的 50s+ 计算拉回同步路径。
+        refresh=False: 缓存冷时不触发同步 _refresh_enriched, 直接返回空表;
+        供 tick 热路径配合 ensure_enriched_warmup 使用, 请求线程永不阻塞在重算上。
         """
         if self._enriched_cache is None:
-            if self._enriched_warming:
+            if self._enriched_warming or not refresh:
                 return pl.DataFrame(), None
             self._refresh_enriched()
         if self._enriched_cache is None:
@@ -1243,7 +1290,7 @@ class KlineRepository:
         flush 焐热, 未焐热(无 ETF 实时数据)时返回空表, 本轮跳过 ETF 评估即可。
         """
         if asset_type == "stock":
-            return self.get_enriched_latest()
+            return self.get_enriched_latest(refresh=refresh)
         if asset_type == "etf":
             if self._etf_enriched_cache is None and refresh:
                 self._refresh_etf_enriched()
