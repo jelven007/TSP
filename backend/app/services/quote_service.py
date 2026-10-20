@@ -262,7 +262,10 @@ class QuoteService:
         # 暂停态: 盘后管道/数据修正运行期间临时暂停取数, 防止与管道写同一批 parquet 竞态。
         # 与 _enabled 不同 — pause 不改 preferences、不 stop 线程, 仅让轮询循环跳过取数;
         # 进程重启后 _paused 归零, 从 preferences 恢复真实开关态, 无"假关闭"副作用。
+        # pause() 可被多个写盘临界区嵌套调用, 用深度计数避免任一作用域退出就提前恢复。
         self._paused = False
+        self._pause_depth = 0
+        self._pause_lock = threading.Lock()
         self._interval = self.DEFAULT_INTERVAL
         self._thread: threading.Thread | None = None
         self._repo = None          # 延迟注入, 避免循环导入
@@ -394,12 +397,21 @@ class QuoteService:
         与 stop() 的区别: 线程继续存活但跳过 _fetch_quotes; preferences 开关态不变,
         管道结束调用 resume() 即恢复。线程级检查, 即时生效, 无 join 等待。
         """
-        self._paused = True
+        with self._pause_lock:
+            self._pause_depth += 1
+            if self._pause_depth > 1:
+                return
+            self._paused = True
         logger.info("行情轮询已临时暂停 (管道/修正运行中)")
 
     def resume(self) -> None:
         """恢复暂停的行情轮询取数 (对应 pause)。"""
-        self._paused = False
+        with self._pause_lock:
+            if self._pause_depth > 0:
+                self._pause_depth -= 1
+            if self._pause_depth > 0:
+                return
+            self._paused = False
         logger.info("行情轮询已恢复")
 
     def is_paused(self) -> bool:

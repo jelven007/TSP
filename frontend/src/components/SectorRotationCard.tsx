@@ -306,10 +306,16 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
     const rows = indexMinuteQuery.data?.rows ?? []
     if (!rows.length) return null
     const daily = (indexDailyQuery.data?.rows ?? []).filter(row => row.date < rotationDate)
-    const prevClose = daily.length ? Number(daily[daily.length - 1].close) : null
-    const refPx = prevClose ?? Number(rows[0].close)
+    const dailyClose = daily.length ? Number(daily[daily.length - 1].close) : Number.NaN
+    const validRows = rows.flatMap(row => (
+      typeof row.close === 'number' && Number.isFinite(row.close) && row.close > 0
+        ? [{ ...row, close: row.close }]
+        : []
+    ))
+    if (!validRows.length) return null
+    const refPx = Number.isFinite(dailyClose) && dailyClose > 0 ? dailyClose : validRows[0].close
     const byTime = new Map<string, { sum: number; n: number }>()
-    for (const row of rows) {
+    for (const row of validRows) {
       const time = row.datetime.slice(11, 16)
       if (!time) continue
       const pct = row.close / refPx - 1

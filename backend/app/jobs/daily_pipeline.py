@@ -29,6 +29,7 @@ from app.indicators.pipeline import filter_halt_days, run_pipeline
 from app.market_time import cn_now, cn_today
 from app.services import index_sync, instrument_sync, kline_sync
 from app.services import preferences as _prefs
+from app.services.realtime_guard import pause_quotes_for_write
 from app.tickflow.capabilities import Cap, CapabilitySet
 from app.tickflow.repository import KlineRepository
 
@@ -50,6 +51,7 @@ def _prune_partial_enriched_partitions(daily_dir: Path, enriched_dir: Path) -> l
     import shutil
 
     pruned: list[str] = []
+    pruned_parts: list[Path] = []
     for part in enriched_dir.glob("date=*"):
         daily_part = daily_dir / part.stem
         if not daily_part.exists():
@@ -71,8 +73,13 @@ def _prune_partial_enriched_partitions(daily_dir: Path, enriched_dir: Path) -> l
             logger.warning("enriched 覆盖检查跳过 %s, 保留分区: %s", part.name, e)
             continue
         if expected - actual:
-            shutil.rmtree(part, ignore_errors=True)
             pruned.append(part.stem.split("=")[1])
+            pruned_parts.append(part)
+    if pruned_parts:
+        # 扫描/比对不写盘, 只在真正删除分区时暂停实时行情
+        with pause_quotes_for_write():
+            for part in pruned_parts:
+                shutil.rmtree(part, ignore_errors=True)
     return pruned
 
 
@@ -98,6 +105,7 @@ def _prune_stale_price_partitions(
         reverse=True,
     )[:max_dates]
     pruned: list[str] = []
+    stale: list[str] = []
     for ds in common:
         try:
             daily = pl.read_parquet(
@@ -113,8 +121,13 @@ def _prune_stale_price_partitions(
             continue
         bad = joined.filter((pl.col("raw_close") - pl.col("close")).abs() > 0.005)
         if not bad.is_empty():
-            shutil.rmtree(enriched_dir / f"date={ds}", ignore_errors=True)
-            pruned.append(ds)
+            stale.append(ds)
+    if stale:
+        # 比对不写盘, 只在真正删除分区时暂停实时行情
+        with pause_quotes_for_write():
+            for ds in stale:
+                shutil.rmtree(enriched_dir / f"date={ds}", ignore_errors=True)
+        pruned.extend(stale)
     return pruned
 
 

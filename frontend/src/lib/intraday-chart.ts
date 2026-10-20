@@ -1,19 +1,36 @@
-import type { MinuteKlineRow } from '@/lib/api'
+import type { NullableMinuteKlineRow } from '@/lib/api'
 
-export type DailySummary = { date: string; open: number | null; high: number; low: number; close: number }
+export type DailySummary = {
+  date: string
+  open: number | null
+  high: number | null
+  low: number | null
+  close: number | null
+}
+
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
 
 /** 仅汇总实际收到的分钟，不将缺失开盘价或成交额伪装为真实值。 */
-export function summarizeMinutes(data: MinuteKlineRow[]): MinuteKlineRow | null {
+export function summarizeMinutes(data: NullableMinuteKlineRow[]): NullableMinuteKlineRow | null {
   if (!data.length) return null
+  const highs = data.map(row => row.high).filter(isFiniteNumber)
+  const lows = data.map(row => row.low).filter(isFiniteNumber)
+  const hasCompleteVolume = data.every(row => isFiniteNumber(row.volume))
+  const hasCompleteAmount = data.every(row => isFiniteNumber(row.amount))
   return {
     datetime: data[0].datetime,
-    open: data[0].open,
-    high: Math.max(...data.map(row => row.high)),
-    low: Math.min(...data.map(row => row.low)),
-    close: data[data.length - 1].close,
-    volume: data.reduce((total, row) => total + row.volume, 0),
-    amount: data.every(row => row.amount != null && Number.isFinite(row.amount))
-      ? data.reduce((total, row) => total + row.amount!, 0) : null,
+    open: isFiniteNumber(data[0].open) ? data[0].open : null,
+    high: highs.length > 0 ? Math.max(...highs) : null,
+    low: lows.length > 0 ? Math.min(...lows) : null,
+    close: isFiniteNumber(data[data.length - 1].close) ? data[data.length - 1].close : null,
+    volume: hasCompleteVolume
+      ? data.reduce((total, row) => total + row.volume!, 0)
+      : null,
+    amount: hasCompleteAmount
+      ? data.reduce((total, row) => total + row.amount!, 0)
+      : null,
   }
 }
 
@@ -24,18 +41,18 @@ export function formatMinuteTime(datetime: string): string {
   return `${match[1]}:${match[2]}`
 }
 
-export function computeIntradayAverage(data: MinuteKlineRow[]): (number | null)[] {
+export function computeIntradayAverage(data: NullableMinuteKlineRow[]): (number | null)[] {
   const result: (number | null)[] = []
   let amount = 0
   let volume = 0
   let hasAmount = true
   for (const row of data) {
-    if (typeof row.amount === 'number' && Number.isFinite(row.amount)) {
+    if (isFiniteNumber(row.amount) && isFiniteNumber(row.volume) && row.volume >= 0) {
       amount += row.amount
+      volume += row.volume * 100
     } else {
       hasAmount = false
     }
-    volume += row.volume * 100
     result.push(hasAmount && volume > 0 ? amount / volume : null)
   }
   return result

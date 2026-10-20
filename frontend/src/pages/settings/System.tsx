@@ -117,15 +117,15 @@ export function SettingsSystemPanel() {
     }
   }, [qc])
 
-  // 刷新前端缓存: 清除 react-query 缓存 + 强制重载 (绕过浏览器缓存)
-  // 不动 localStorage (用户列配置/策略池等偏好保留), 也不影响后端的本地股票数据
-  const handleClearCache = useCallback(() => {
+  // 仅后台刷新当前挂载的查询，保留现有内容直到新数据返回。
+  // 不重载应用，也不影响 localStorage 中的用户偏好。
+  const handleClearCache = useCallback(async () => {
     setClearing(true)
-    qc.clear()
-    // 加时间戳参数强制浏览器重新下载所有静态资源
-    setTimeout(() => {
-      window.location.href = window.location.pathname + '?_t=' + Date.now()
-    }, 300)
+    try {
+      await qc.invalidateQueries({ refetchType: 'active' })
+    } finally {
+      setClearing(false)
+    }
   }, [qc])
 
   return (
@@ -347,9 +347,9 @@ export function SettingsSystemPanel() {
 
         <div className="flex items-center justify-between gap-4 py-2">
           <div className="min-w-0">
-            <div className="text-sm text-foreground">刷新前端缓存</div>
+            <div className="text-sm text-foreground">刷新当前页面数据</div>
             <div className="text-[11px] text-muted truncate">
-              清除页面缓存并强制重新加载 (不影响个人配置和本地股票数据)
+              后台更新当前页面内容，不重新加载应用
             </div>
           </div>
           <button
@@ -364,7 +364,7 @@ export function SettingsSystemPanel() {
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            {clearing ? '清理中…' : '清理并刷新'}
+            {clearing ? '刷新中…' : '刷新数据'}
           </button>
         </div>
       </section>

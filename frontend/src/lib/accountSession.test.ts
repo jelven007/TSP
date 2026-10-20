@@ -55,6 +55,26 @@ it('rejects private late responses after an account change', async () => {
   await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
 })
 
+it('reports account scope changes without navigating the browser', async () => {
+  const session = await import('./accountSession')
+  const changes: Array<{ previousScope: string; nextScope: string }> = []
+  const unsubscribe = session.subscribeAccountScopeChanges(change => changes.push(change))
+  window.history.replaceState(null, '', '/watchlist')
+
+  session.confirmAccount(authenticated('first'))
+  session.confirmAccount(authenticated('second', 'research'))
+
+  expect(changes).toHaveLength(1)
+  expect(changes[0]).toMatchObject({
+    previousScope: 'tsp-v1:first:personal:1',
+    nextScope: 'tsp-v1:second:research:1',
+  })
+  expect(session.accountScope()).toBe('tsp-v1:second:research:1')
+  expect(session.verifyResponseScope('tsp-v1:first:personal:1')).toBe(false)
+  expect(window.location.pathname).toBe('/watchlist')
+  unsubscribe()
+})
+
 it('exchanges the browser session for a tenant event ticket', async () => {
   const session = await import('./accountSession')
   session.confirmAccount(authenticated('first'))

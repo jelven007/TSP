@@ -170,3 +170,12 @@ export const SSE_INVALIDATE_PREFIXES = [
   // 否则停留页面时板块聚合数值一直停留旧值。仅两页打开时才实际发请求。
   'market-snapshot',
 ] as const
+
+// 私有事件积压溢出时只重取可能漏掉推送的权威 REST 数据。
+// 行情由独立公共事件驱动，设置、能力矩阵等静态查询不应被连带刷新。
+export const SSE_EVENT_RESET_ROOTS = new Set([
+  'alerts',
+  'alerts-total',
+  'screener-cached',
+  'review-reports',
+])

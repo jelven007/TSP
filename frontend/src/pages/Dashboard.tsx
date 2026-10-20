@@ -24,6 +24,27 @@ import { cloneItems, GRID_COLS, type WidgetType } from '@/components/dashboard/l
 /** 打开个股预览的来源榜 (用于行高亮与切股导航列表) */
 type PreviewSource = 'gain' | 'loss' | 'amount' | 'active' | 'concept' | 'industry' | 'alert'
 
+export const DASHBOARD_REALTIME_FALLBACK_MS = 5_000
+
+export function dashboardRefetchInterval(
+  selectedDate: string | undefined,
+  data: { quote_status?: { running?: boolean; is_trading_hours?: boolean } } | undefined,
+) {
+  return !selectedDate && data?.quote_status?.running && data.quote_status.is_trading_hours
+    ? DASHBOARD_REALTIME_FALLBACK_MS
+    : false
+}
+
+export function dashboardQuoteIsRealtime(
+  selectedDate: string | undefined,
+  latestDate: string | null,
+  status: { running?: boolean; is_trading_hours?: boolean } | undefined,
+) {
+  return (!selectedDate || selectedDate === latestDate)
+    && !!status?.running
+    && !!status.is_trading_hours
+}
+
 export function Dashboard() {
   const canManageData = hasPermission('data:manage')
   const qc = useQueryClient()
@@ -67,6 +88,9 @@ export function Dashboard() {
     queryFn: () => api.overviewMarket(selectedDate),
     staleTime: 5_000,
     placeholderData: (prev) => prev,
+    // SSE remains the primary path. This bounded foreground poll prevents a
+    // stale dashboard when an existing tab misses an event or is reconnecting.
+    refetchInterval: query => dashboardRefetchInterval(selectedDate, query.state.data),
   })
   const data = overview.data
   const caps = useCapabilities()
@@ -191,7 +215,7 @@ export function Dashboard() {
   const score = data.emotion?.score ?? 50
   const latestDate = dataStatus.data?.enriched?.latest_date ?? null
   const currentDate = selectedDate ?? data.as_of ?? ''
-  const quoteRunning = (!selectedDate || selectedDate === latestDate) && data.quote_status?.running
+  const quoteRunning = dashboardQuoteIsRealtime(selectedDate, latestDate, data.quote_status)
   // 实时模式: none / watchlist / full_market。
   // watchlist 模式仅自选 ≤5 只实时, 看板呈现的大盘数据实为盘后快照, 需提示避免误读。
   const quoteMode = data.quote_status?.mode as ('none' | 'watchlist' | 'full_market') | undefined
