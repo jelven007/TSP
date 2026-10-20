@@ -46,8 +46,8 @@ from app.price_limits import (
     polars_limit_price,
     polars_price_limit_pct,
 )
-from app.share_capital import apply_historical_float_shares, load_share_history
 from app.services.realtime_guard import pause_quotes_for_write
+from app.share_capital import apply_historical_float_shares, load_share_history
 
 logger = logging.getLogger(__name__)
 

@@ -8,9 +8,8 @@ from app.services.quote_service import QuoteService
 
 
 def test_paused_quotes_is_noop_without_service():
-    with realtime_guard.paused_quotes(None):
-        with realtime_guard.pause_quotes_for_write():
-            pass
+    with realtime_guard.paused_quotes(None), realtime_guard.pause_quotes_for_write():
+        pass
 
 
 def test_paused_quotes_ignores_service_without_paused():
@@ -18,9 +17,8 @@ def test_paused_quotes_ignores_service_without_paused():
         def is_paused(self) -> bool:
             return False
 
-    with realtime_guard.paused_quotes(Stub()):
-        with realtime_guard.pause_quotes_for_write():
-            pass
+    with realtime_guard.paused_quotes(Stub()), realtime_guard.pause_quotes_for_write():
+        pass
 
 
 def test_write_gate_pauses_only_inside_write():
