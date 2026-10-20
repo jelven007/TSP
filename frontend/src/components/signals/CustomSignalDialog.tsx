@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Loader2, Plus, Save, Search, Sparkles, X } from 'lucide-react'
 import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup } from '@/lib/api'
@@ -238,7 +239,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     {aiConfigured === false ? (
                       <div className="text-xs text-amber-400/80">
                         AI 未配置，无法生成信号。{' '}
-                        <a href="/settings?tab=ai" className="underline hover:text-amber-300">去设置页配置 API Key</a>
+                        <Link to="/settings?tab=ai" className="underline hover:text-amber-300">去设置页配置 API Key</Link>
                       </div>
                     ) : (
                       <>

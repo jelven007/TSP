@@ -200,6 +200,14 @@ export interface MinuteKlineRow {
   amount: number | null
 }
 
+/** 实时源可能返回尚未形成完整 OHLCV 的分钟行。 */
+export type NullableMinuteKlineRow = Omit<MinuteKlineRow, 'high' | 'low' | 'close' | 'volume'> & {
+  high: number | null
+  low: number | null
+  close: number | null
+  volume: number | null
+}
+
 export interface MinuteKlineSession {
   date: string
   prev_close: number | null
@@ -3022,7 +3030,7 @@ export const api = {
       symbol: string
       name?: string
       date: string | null
-      rows: MinuteKlineRow[]
+      rows: NullableMinuteKlineRow[]
       source?: string
     }>(
       `/api/index/minute?symbol=${encodeURIComponent(symbol)}${date ? `&date=${date}` : ''}`,

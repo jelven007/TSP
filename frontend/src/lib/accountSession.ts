@@ -2,6 +2,22 @@ import type { AuthStatus, AuthUser } from './api'
 
 let status: AuthStatus | undefined
 let confirmed = false
+let scopeRevision = 0
+
+export type AccountScopeChange = {
+  previousScope: string
+  nextScope: string
+  status: AuthStatus | undefined
+  revision: number
+}
+
+const scopeListeners = new Set<(change: AccountScopeChange) => void>()
+let scopeSnapshot: AccountScopeChange = {
+  previousScope: 'tsp-v1:signed-out',
+  nextScope: 'tsp-v1:signed-out',
+  status: undefined,
+  revision: scopeRevision,
+}
 
 export function identityScope(account: AuthUser | null): string {
   return account
@@ -24,15 +40,31 @@ export function hasPermission(permission: string): boolean {
 }
 
 export function confirmAccount(next: AuthStatus): void {
-  const changed = confirmed && accountScope() !== identityScope(next.user)
+  const previousScope = accountScope()
+  const nextScope = identityScope(next.user)
+  const changed = confirmed && previousScope !== nextScope
   status = next
   confirmed = true
-  if (changed && window.location.pathname !== '/login') window.location.reload()
+  if (!changed) {
+    scopeSnapshot = { previousScope: nextScope, nextScope, status: next, revision: scopeRevision }
+    return
+  }
+  scopeRevision += 1
+  scopeSnapshot = { previousScope, nextScope, status: next, revision: scopeRevision }
+  scopeListeners.forEach(listener => listener(scopeSnapshot))
+}
+
+export function subscribeAccountScopeChanges(listener: (change: AccountScopeChange) => void): () => void {
+  scopeListeners.add(listener)
+  return () => scopeListeners.delete(listener)
+}
+
+export function getAccountScopeSnapshot(): AccountScopeChange {
+  return scopeSnapshot
 }
 
 export function verifyResponseScope(scope: string | null): boolean {
   if (!scope || !confirmed || !multitenancyEnabled() || scope === accountScope()) return true
-  window.location.reload()
   return false
 }
 
@@ -80,8 +112,8 @@ export const accountStorage = {
   removeItem: (key: string) => window.localStorage.removeItem(scopedStorageKey(key)),
 }
 
-export function clearAccountCache(): void {
-  const prefix = `${accountScope()}:`
+export function clearAccountCache(scope = accountScope()): void {
+  const prefix = `${scope}:`
   try {
     for (const key of Object.keys(window.localStorage)) {
       if (key.startsWith(prefix)) window.localStorage.removeItem(key)

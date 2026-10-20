@@ -4,6 +4,7 @@ import { Sparkles } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { toast } from '@/components/Toast'
 import { api } from '@/lib/api'
+import { QK } from '@/lib/queryKeys'
 
 const INPUT_CLS = 'h-8 w-full rounded-input border border-border bg-surface px-2.5 text-xs text-foreground focus:border-accent focus:outline-none'
 
@@ -80,7 +81,8 @@ export function GenerateFactorStrategyDialog({
     },
     onSuccess: result => {
       toast(`已生成策略 ${result.strategy_id}，可到回测页运行`, 'success')
-      void queryClient.invalidateQueries()
+      void queryClient.invalidateQueries({ queryKey: ['screener-strategies'] })
+      void queryClient.invalidateQueries({ queryKey: QK.strategyLinkOptions() })
       onClose()
     },
     onError: (error: Error) => toast(`生成失败 · ${error.message}`, 'error'),
