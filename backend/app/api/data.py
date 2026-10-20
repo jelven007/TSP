@@ -129,8 +129,11 @@ def _parquet_row_symbol_stats(directory: Path) -> tuple[int, int]:
     files = [str(path) for path in directory.rglob("*.parquet")]
     if not files:
         return 0, 0
+    # 当日分区由实时行情写入, 会带 quote_ts / quote_time_basis 等额外列;
+    # 历史分区没有这些列。只统计行数与标的数, 用 extra_columns 忽略差异,
+    # 否则首个文件之外的额外列会触发 SchemaError, 整表退化为 rows=0。
     stats = (
-        pl.scan_parquet(files, hive_partitioning=False)
+        pl.scan_parquet(files, hive_partitioning=False, extra_columns="ignore")
         .select(
             pl.len().alias("rows"),
             pl.col("symbol").n_unique().alias("symbols"),
