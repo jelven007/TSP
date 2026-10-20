@@ -15,11 +15,12 @@
 单机百账号/百人活跃、DFX 与万人并发；第二步本地证据见
 [实施记录](../reports/phase2-step2-20261016/implementation.md)，各步仍需完成对应候选与持续运行验收。
 
-火山引擎生产已于 2026-10-18 升级到 v0.4.8、`9b4bc2c5`、schema v6，运行独立
+火山引擎生产已于 2026-10-20 升级到 v0.4.11、`6d16751c`、schema v6，运行独立
 Gateway、Platform、四类 Worker 和 Compute Broker；详见
-[线上升级结果](../reports/online-upgrade-20261018/deployment-result.md)。后续源码
-候选还包含单机可靠性、策略成交正确性、入场风险和独立行情链路的策略组运行；
-不能据此宣称生产已包含这些能力。
+[线上升级结果](../reports/online-upgrade-20261020/deployment-result.md)。同日完成
+2016-01-01 起的日线回填与 raw/enriched 对账，边界见
+[历史回填结果](../reports/history-backfill-20261020/result.md)。后续主线修复和自动
+标签不自动替换生产固定镜像。
 
 ## 生命周期覆盖
 
@@ -50,6 +51,7 @@ Gateway、Platform、四类 Worker 和 Compute Broker；详见
 | 市场与交易 | [市场阶段](./market-phase.md)、[模拟盘](./paper-trading-plan.md) |
 | 开放能力 | [开放平台](./open-platform-plan.md)、[MCP 服务器](../mcp-server/README.md)、[Open API 示例](../examples/open-api/README.md) |
 | 验证记录 | [技术验证记录](./technical-validation.md) |
+| 生产记录 | [v0.4.11 升级结果](../reports/online-upgrade-20261020/deployment-result.md)、[2016 起历史回填](../reports/history-backfill-20261020/result.md) |
 | 当前项目分析 | [2026-10-10 架构、rustdx 与生产状态分析](./project-analysis-20261010.md) |
 | 二次开发 | [二次开发指南](./secondary-development.md)、[构建与升级备份](./build-upgrade-evidence.md)、[自定义数据源示例](./examples/custom-data-source/README.md) |
 
