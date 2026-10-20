@@ -812,6 +812,8 @@ export function Watchlist() {
     queryKey: QK.watchlistEnriched(extColumnsParam),
     queryFn: () => api.watchlistEnriched(extColumnsParam || undefined),
     enabled: (list.data?.symbols.length ?? 0) > 0,
+    // 后端缓存冷时会立即返回空指标并转到后台预热 (as_of 为 null), 就绪前定时补拉
+    refetchInterval: (query) => (query.state.data?.as_of ? false : 5_000),
   })
 
   // symbol 派生只依赖 enriched.data: 旧写法 symbols 每次渲染都是新引用 (击穿 memo)

@@ -39,6 +39,9 @@ class _FakeRepo:
         self._history_span = history_span
         self._hist = hist_df if hist_df is not None else pl.DataFrame()
         self._history_raises = history_raises
+        # 记录热路径请求: 断言端点只读缓存 (refresh=False) 且冷缓存转后台预热
+        self.warmup_calls: list[tuple[str, ...]] = []
+        self.refresh_calls: list[tuple[str, bool]] = []
 
     def get_enriched_history_span(self):
         return self._history_span
@@ -54,10 +57,12 @@ class _FakeRepo:
             & pl.col("symbol").is_in(list(symbols or []))
         )
 
-    def get_enriched_latest(self):
+    def get_enriched_latest(self, refresh=True):
+        self.refresh_calls.append(("stock", refresh))
         return self._enriched, self._enriched_date
 
-    def get_enriched_latest_asset(self, asset):
+    def get_enriched_latest_asset(self, asset, refresh=True):
+        self.refresh_calls.append((asset, refresh))
         if asset == "etf":
             etf = self._etf if self._etf is not None else pl.DataFrame()
             return etf, self._etf_date
@@ -65,6 +70,9 @@ class _FakeRepo:
             idx = self._index if self._index is not None else pl.DataFrame()
             return idx, self._index_date
         return pl.DataFrame(), None
+
+    def ensure_enriched_warmup(self, asset_types=("stock",)):
+        self.warmup_calls.append(tuple(asset_types))
 
     def get_etf_symbol_set(self):
         return self._etf_set
@@ -577,3 +585,32 @@ def test_empty_watchlist_returns_no_rows(monkeypatch):
 
     res = wl_api.watchlist_enriched(_make_request(repo), ext_columns=None)
     assert res == {"rows": [], "as_of": None, "elapsed_ms": 0}
+
+
+def test_cold_cache_never_blocks_request_thread(monkeypatch):
+    """冷缓存 (扩写/信号失效后) 必须转后台预热 + 只读缓存, 不得同步重算.
+
+    回归: 缓存被 invalidate 后, tick 热路径每个请求都同步跑 300 天全量重算,
+    并发请求在重任务槽位排队重复计算, 最终超过前端 30s 超时.
+    """
+    monkeypatch.setattr(wl_api.watchlist, "list_symbols",
+                        lambda: [{"symbol": "600519.SH"},
+                                 {"symbol": "510300.SH"},
+                                 {"symbol": "000001.SH"}])
+    empty = pl.DataFrame(schema={"symbol": pl.Utf8})
+    repo = _FakeRepo(
+        enriched_df=empty, enriched_date=None,
+        etf_df=empty, etf_date=None, etf_set={"510300.SH"},
+        index_df=empty, index_date=None, index_set={"000001.SH"},
+    )
+
+    res = wl_api.watchlist_enriched(_make_request(repo), ext_columns=None)
+
+    # 三类资产都先确保后台预热, 且读取时明确禁止同步刷新
+    assert repo.warmup_calls == [("stock",), ("etf",), ("index",)]
+    assert repo.refresh_calls == [
+        ("stock", False), ("etf", False), ("index", False),
+    ]
+    # 降级: 行仍在 (指标为 null), as_of 为空, 前端据此定时补拉
+    assert {r["symbol"] for r in res["rows"]} == {"600519.SH", "510300.SH", "000001.SH"}
+    assert res["as_of"] is None

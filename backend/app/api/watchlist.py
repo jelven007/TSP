@@ -496,7 +496,10 @@ def watchlist_enriched(
     index_symbols = [s for s in symbols if s not in etf_set and s in index_set]
     stock_symbols = [s for s in symbols if s not in etf_set and s not in index_set]
 
-    df_e, cache_date = repo.get_enriched_latest()
+    # 冷缓存交给后台预热, 请求线程只读: 预热期间返回空表 (指标列为 null),
+    # 避免 tick 热路径同步跑 300 天全量重算而超时/并发重复重算。
+    repo.ensure_enriched_warmup(("stock",))
+    df_e, cache_date = repo.get_enriched_latest(refresh=False)
 
     # 以自选列表为主表 LEFT JOIN enriched, 保证自选的每一只都返回一行;
     # 不在 enriched 缓存里的标的 (新股/冷门股/新用户未同步) 指标为 null, 前端渲染为 "—".
@@ -514,7 +517,8 @@ def watchlist_enriched(
     # ETF 行合并; 缺失列 (换手率/涨跌停信号等) 为 null
     etf_date = None
     if etf_symbols:
-        df_etf_all, etf_date = repo.get_enriched_latest_asset("etf")
+        repo.ensure_enriched_warmup(("etf",))
+        df_etf_all, etf_date = repo.get_enriched_latest_asset("etf", refresh=False)
         etf_watchlist_df = pl.DataFrame({"symbol": etf_symbols})
         if not df_etf_all.is_empty():
             # ETF 同样以自选为主表 LEFT JOIN, 缺失标的指标为 null
@@ -526,7 +530,8 @@ def watchlist_enriched(
     # 指数行合并 (镜像 ETF 分支); 缺失列 (换手率/涨跌停信号等) 为 null
     index_date = None
     if index_symbols:
-        df_idx_all, index_date = repo.get_enriched_latest_asset("index")
+        repo.ensure_enriched_warmup(("index",))
+        df_idx_all, index_date = repo.get_enriched_latest_asset("index", refresh=False)
         idx_watchlist_df = pl.DataFrame({"symbol": index_symbols})
         if not df_idx_all.is_empty():
             df_idx = idx_watchlist_df.join(df_idx_all, on="symbol", how="left")
