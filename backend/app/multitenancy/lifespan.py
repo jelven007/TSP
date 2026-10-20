@@ -15,6 +15,22 @@ from app.multitenancy.identity import AccountIdentity
 logger = logging.getLogger(__name__)
 
 
+def _bootstrap_registration_secret(identity: AccountIdentity) -> None:
+    """Seed the registration secret once from the deployment environment.
+
+    Without this the full-product service silently ignores
+    ``AUTH_REGISTRATION_SECRET``, which turns registration and password
+    recovery off whenever ``control.registration_config`` is empty.
+    """
+    secret = settings.auth_registration_secret.strip()
+    if not secret:
+        return
+    try:
+        identity.set_registration_secret(secret, only_if_missing=True)
+    except Exception as exc:
+        logger.warning("registration secret bootstrap failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.service_role != "api":
@@ -27,6 +43,7 @@ async def lifespan(app: FastAPI):
         # Admin initialization and legacy import are offline operations. API
         # startup must never reset a password or grant itself DDL credentials.
         app.state.account_identity = account_identity
+        _bootstrap_registration_secret(account_identity)
         from app.multitenancy.stream_auth import StreamTicketCodec
 
         app.state.stream_tickets = StreamTicketCodec(db.settings.stream_ticket_secret)

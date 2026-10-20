@@ -145,6 +145,24 @@ def test_admin_username_no_fake_email_and_password_never_reset(env):
     identity.change_password(token, "UpdatedAdmin123", "Admin123")
 
 
+def test_registration_secret_bootstraps_once_from_environment(monkeypatch) -> None:
+    """The full-product API must honour AUTH_REGISTRATION_SECRET like legacy mode."""
+    from app.multitenancy import lifespan as lifespan_module
+
+    calls: list[tuple[str, bool]] = []
+
+    class Recorder:
+        def set_registration_secret(self, value, *, only_if_missing=False):
+            calls.append((value, only_if_missing))
+
+    monkeypatch.setattr(lifespan_module.settings, "auth_registration_secret", " 注册口令 ")
+    lifespan_module._bootstrap_registration_secret(Recorder())
+    monkeypatch.setattr(lifespan_module.settings, "auth_registration_secret", "")
+    lifespan_module._bootstrap_registration_secret(Recorder())
+
+    assert calls == [("注册口令", True)]
+
+
 def test_chinese_secret_is_required_before_any_email(env):
     with pytest.raises(AccessError, match="注册口令错误"):
         env["identity"].send_registration_code("wrong@example.test", "错误口令", uuid.uuid4().hex)

@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
+from typing import ClassVar
 
 from app.services import email_adapter, webhook_adapter
 
@@ -52,6 +53,8 @@ def test_email_adapter_uses_starttls_login_and_multiple_recipients(monkeypatch):
     instances = []
 
     class FakeSmtp:
+        esmtp_features: ClassVar[dict[str, str]] = {}
+
         def __init__(self, host, port, timeout):
             self.host = host
             self.port = port
@@ -61,6 +64,9 @@ def test_email_adapter_uses_starttls_login_and_multiple_recipients(monkeypatch):
 
         def ehlo(self):
             self.calls.append(("ehlo",))
+
+        def ehlo_or_helo_if_needed(self):
+            pass
 
         def starttls(self):
             self.calls.append(("starttls",))
@@ -98,6 +104,61 @@ def test_email_adapter_uses_starttls_login_and_multiple_recipients(monkeypatch):
     message = next(call[1] for call in smtp.calls if call[0] == "send")
     assert message["To"] == "one@example.com, two@example.com"
     assert message["Subject"] == "监控告警"
+    assert smtp.calls[-1] == ("quit",)
+
+
+def test_email_adapter_prefers_auth_login_for_netease_mailboxes(monkeypatch):
+    # 126/163 宣称支持 AUTH PLAIN, 但用客户端授权码会返回 535, 必须优先走 AUTH LOGIN。
+    instances = []
+
+    class FakeSmtp:
+        esmtp_features: ClassVar[dict[str, str]] = {"auth": " LOGIN PLAIN XOAUTH2"}
+
+        def __init__(self, host, port, timeout):
+            self.calls = []
+            self.user = ""
+            self.password = ""
+            instances.append(self)
+
+        def ehlo_or_helo_if_needed(self):
+            pass
+
+        def auth_login(self, challenge):
+            self.calls.append(("auth_login", challenge))
+            return "QTsystem@126.com"
+
+        def auth(self, mechanism, authobject, *, initial_response_ok=True):
+            self.calls.append(("auth", mechanism, initial_response_ok))
+            return 235, b"Authentication successful"
+
+        def login(self, username, password):
+            raise AssertionError("must prefer AUTH LOGIN over AUTH PLAIN")
+
+        def send_message(self, message):
+            self.calls.append(("send", message))
+
+        def quit(self):
+            self.calls.append(("quit",))
+
+        def close(self):
+            self.calls.append(("close",))
+
+    monkeypatch.setattr(email_adapter.smtplib, "SMTP_SSL", FakeSmtp)
+    config = {
+        "host": "smtp.126.com",
+        "port": 465,
+        "security": "ssl",
+        "username": "QTsystem@126.com",
+        "from_address": "QTsystem@126.com",
+        "to_addresses": ["one@example.com"],
+    }
+
+    assert email_adapter.send_email(config, "authorization-code", "验证码", "正文")
+    smtp = instances[0]
+    assert smtp.calls[0] == ("auth", "LOGIN", False)
+    assert smtp.user == "QTsystem@126.com"
+    assert smtp.password == "authorization-code"
+    assert smtp.calls[1][0] == "send"
     assert smtp.calls[-1] == ("quit",)
 
 
