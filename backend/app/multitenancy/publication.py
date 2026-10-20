@@ -32,6 +32,12 @@ DAILY_COVERAGE_DIRS = (
 )
 
 
+def _strip_volatile(config: dict) -> None:
+    """Drop ext config fields the scheduler rewrites on every pull tick."""
+    config.pop("pull", None)
+    config.pop("updated_at", None)
+
+
 def release_path(root: Path, release_id: str | None = None) -> Path:
     root = root.resolve()
     if release_id is not None:
@@ -68,14 +74,32 @@ class PublicPublisher:
             for path in (self.source / directory).rglob("*"):
                 if path.is_symlink() or not path.is_file() or path.suffix not in {".parquet", ".json"}:
                     continue
-                stat = path.stat()
-                files[path.relative_to(self.source).as_posix()] = [stat.st_size, stat.st_mtime_ns]
+                files[path.relative_to(self.source).as_posix()] = self._signature(path)
         for name in PUBLIC_FILES:
             path = self.source / name
             if path.is_file() and not path.is_symlink():
                 stat = path.stat()
                 files[name] = [stat.st_size, stat.st_mtime_ns]
         return files
+
+    @staticmethod
+    def _signature(path: Path):
+        if path.parent.parent.name == "ext_data" and path.name == "config.json":
+            # The ext scheduler rewrites pull progress and updated_at into
+            # config.json every minute. publish() strips those blocks, so the
+            # volatile mtime must not invalidate a release still copying files.
+            try:
+                config = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+            else:
+                _strip_volatile(config)
+                digest = hashlib.sha256(
+                    json.dumps(config, sort_keys=True, ensure_ascii=False).encode(),
+                ).hexdigest()
+                return [0, int(digest[:15], 16)]
+        stat = path.stat()
+        return [stat.st_size, stat.st_mtime_ns]
 
     def publish(self):
         # Serialize the short copy boundary with the platform repository's
@@ -151,7 +175,7 @@ class PublicPublisher:
                     os.link(previous / name, target)
                 elif name.startswith("ext_data/") and name.endswith("/config.json"):
                     config = json.loads(source.read_text(encoding="utf-8"))
-                    config.pop("pull", None)
+                    _strip_volatile(config)
                     target.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
                     os.utime(target, ns=(signature[1], signature[1]))
                 else:

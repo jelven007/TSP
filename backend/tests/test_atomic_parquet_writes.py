@@ -40,7 +40,8 @@ def crash(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     state = SimpleNamespace(armed=False)
 
     def _write(self, file, *args, **kwargs):
-        if state.armed:
+        # 只拦真实文件目标的写入; 内存 buffer 的序列化 (写入前的内容比对) 不算落盘
+        if state.armed and isinstance(file, (str, Path)):
             Path(file).write_bytes(b"PAR1\x15\x00truncated")
             raise OSError("simulated kill during write_parquet")
         return _real_write(self, file, *args, **kwargs)
