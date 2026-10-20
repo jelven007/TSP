@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, KeyRound, Loader2, LogOut, Mail, ShieldAlert, UserRound } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
@@ -8,6 +9,7 @@ import { AdminUsersPanel } from './Users'
 
 export function SettingsAccountPanel() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -22,8 +24,9 @@ export function SettingsAccountPanel() {
   const clearSessionAndRedirect = async (path: string) => {
     await queryClient.cancelQueries()
     clearAccountCache()
-    queryClient.clear()
-    window.location.replace(path)
+    const nextStatus = await api.authStatus()
+    queryClient.setQueryData(QK.authStatus, nextStatus)
+    navigate(path, { replace: true })
   }
 
   const logoutMutation = useMutation({
@@ -35,7 +38,7 @@ export function SettingsAccountPanel() {
     mutationFn: () => api.authChangePassword(oldPassword, newPassword),
     onSuccess: async () => {
       await api.authLogout()
-      clearSessionAndRedirect('/login?passwordChanged=1')
+      await clearSessionAndRedirect('/login?passwordChanged=1')
     },
     onError: (error: Error) => setFormError(error.message || '密码修改失败'),
   })

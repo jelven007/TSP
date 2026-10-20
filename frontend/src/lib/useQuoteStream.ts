@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { SSE_INVALIDATE_PREFIXES, QK } from './queryKeys'
+import { SSE_EVENT_RESET_ROOTS, SSE_INVALIDATE_PREFIXES, QK } from './queryKeys'
 import { klineDailyLatestQueryOptions, mergeLatestKlineRow } from './kline'
 import { getQueryConfig } from './useQueryConfig'
 import { toast } from '@/components/Toast'
@@ -261,11 +261,18 @@ export function useQuoteStream(
 
       es.addEventListener('events_reset', (event: MessageEvent) => {
         acceptEvent(event)
-        void qc.invalidateQueries()
+        void qc.invalidateQueries({
+          predicate: query => SSE_EVENT_RESET_ROOTS.has(String(query.queryKey[0])),
+        })
       })
       es.addEventListener('access_revoked', () => {
         es.close()
-        window.location.reload()
+        if (esRef.current !== es) return
+        esRef.current = null
+        // 短期流票据到期是正常轮换，不涉及页面数据变化。立即换票重连；
+        // 若账户权限确已失效，换票请求会失败并进入既有退避流程。
+        _setStatus('reconnecting')
+        retryRef.current = setTimeout(() => void connect(), 0)
       })
 
       es.onerror = () => {

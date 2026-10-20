@@ -1,20 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { clearAccountCache, hasPermission, multitenancyEnabled } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
 
 export function TenantSelector({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const enabled = multitenancyEnabled() && hasPermission('users:manage')
   const status = useQuery({ queryKey: QK.authStatus, queryFn: api.authStatus, enabled })
   const tenants = useQuery({ queryKey: ['account-tenants'], queryFn: api.accountTenants, enabled, staleTime: 30_000 })
   const select = useMutation({
     mutationFn: api.accountSelectTenant,
     onSuccess: async () => {
-      await qc.cancelQueries()
       clearAccountCache()
-      qc.clear()
-      window.location.replace('/')
+      const nextStatus = await api.authStatus()
+      qc.setQueryData(QK.authStatus, nextStatus)
+      navigate('/', { replace: true })
     },
   })
   if (!enabled) return null
