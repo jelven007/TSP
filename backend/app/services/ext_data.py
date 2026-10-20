@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import codecs
 import copy
+import io
 import json
 import logging
 import re
@@ -881,6 +882,13 @@ def _write_ext_parquet(
         tf = config.pull.time_field if config.pull else None
         if tf and tf in df.columns:
             df = df.sort(["symbol", tf] if "symbol" in df.columns else [tf], maintain_order=True)
+    # 内容未变则不重写: 定时拉取每分钟落一次盘, 无谓的覆盖写会刷新 mtime,
+    # 让公共数据发布在复制窗口内的二次校验失败, 永远切不到新 release。
+    if out_path.exists():
+        buffer = io.BytesIO()
+        df.write_parquet(buffer)
+        if buffer.getvalue() == out_path.read_bytes():
+            return len(df)
     # 原子写: 中断时半截文件会让下一次写入走「合并去重失败, 将覆盖写入」, 静默丢掉已有行
     if replace_snapshot and out_path.exists():
         import shutil
