@@ -470,9 +470,11 @@ def build_market_overview(
     strong_up = sum(1 for v in pct_values if v >= 0.03)
     strong_down = sum(1 for v in pct_values if v <= -0.03)
 
-    limit_up = sum(1 for r in rows if bool(r.get("signal_limit_up")) or (_finite(r.get("consecutive_limit_ups")) or 0) > 0)
+    up_symbols = {r["symbol"] for r in rows if bool(r.get("signal_limit_up")) or (_finite(r.get("consecutive_limit_ups")) or 0) > 0}
+    down_symbols = {r["symbol"] for r in rows if bool(r.get("signal_limit_down"))}
+    limit_up = len(up_symbols)
     broken = sum(1 for r in rows if bool(r.get("signal_broken_limit_up")))
-    limit_down = sum(1 for r in rows if bool(r.get("signal_limit_down")))
+    limit_down = len(down_symbols)
     max_boards = max([int(_finite(r.get("consecutive_limit_ups")) or 0) for r in rows], default=0)
 
     # 五档 sealed 修正: 假涨停/假跌停不计入(需 Pro+ depth5.batch 能力)
@@ -483,13 +485,18 @@ def build_market_overview(
         up_map = depth_service.get_sealed_map(as_of, is_down=False)
         down_map = depth_service.get_sealed_map(as_of, is_down=True)
         sealed_ready = bool(up_map or down_map) and depth_service.is_sealed_ready(as_of)
-        if up_map:
-            fake_up = sum(1 for v in up_map.values() if v.get("sealed") is False)
-        if down_map:
-            fake_down = sum(1 for v in down_map.values() if v.get("sealed") is False)
+        if sealed_ready:
+            fake_up = sum(1 for s in up_symbols if up_map.get(s, {}).get("ready") and up_map[s].get("sealed") is False)
+            fake_down = sum(1 for s in down_symbols if down_map.get(s, {}).get("ready") and down_map[s].get("sealed") is False)
     if sealed_ready:
         limit_up = max(0, limit_up - fake_up)
         limit_down = max(0, limit_down - fake_down)
+
+    # #region debug-point H1:overview-count
+    if os.environ.get("TSP_LIMIT_DEBUG_URL"):
+        import urllib.request
+        urllib.request.urlopen(urllib.request.Request(os.environ["TSP_LIMIT_DEBUG_URL"], data=json.dumps({"sessionId": "limit-count-drift", "runId": os.environ.get("TSP_LIMIT_DEBUG_RUN", "pre-fix"), "hypothesisId": "H1", "location": "market_overview_builder:limit", "msg": "[DEBUG] overview limit count", "data": {"date": str(as_of), "raw_up": sum(1 for r in rows if bool(r.get("signal_limit_up")) or (_finite(r.get("consecutive_limit_ups")) or 0) > 0), "limit_up": limit_up, "fake_up": fake_up, "ready": sealed_ready, "entry": up_map.get("301030.SZ") if depth_service else None}}).encode(), headers={"Content-Type": "application/json"}), timeout=2).close()
+    # #endregion
 
     seal_rate = limit_up / (limit_up + broken) * 100 if (limit_up + broken) > 0 else 0
 

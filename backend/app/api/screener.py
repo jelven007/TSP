@@ -887,8 +887,10 @@ def limit_ladder(
         return {"as_of": str(as_of), "tiers": [], "counts": {"up": 0, "down": 0}}
 
     # 双方向涨跌停计数(不论当前 direction, 前端始终同时显示)
-    count_up_raw = int(df.filter(pl.col("signal_limit_up").fill_null(False)).height) if "signal_limit_up" in df.columns else 0
-    count_down_raw = int(df.filter(pl.col("signal_limit_down").fill_null(False)).height) if "signal_limit_down" in df.columns else 0
+    up_symbols = set(df.filter(pl.col("signal_limit_up").fill_null(False))["symbol"].to_list()) if "signal_limit_up" in df.columns else set()
+    down_symbols = set(df.filter(pl.col("signal_limit_down").fill_null(False))["symbol"].to_list()) if "signal_limit_down" in df.columns else set()
+    count_up_raw = len(up_symbols)
+    count_down_raw = len(down_symbols)
 
     # 双方向 sealed 修正: 减去各自的假涨停(假涨停已归炸板, 不计入涨停数)
     depth_svc_global = getattr(request.app.state, "depth_service", None)
@@ -896,17 +898,32 @@ def limit_ladder(
     fake_down = 0
     sealed_up_ready = False
     sealed_down_ready = False
+    up_map = {}
+    down_map = {}
+
+    def candidate_map(entries: dict, symbols: set) -> dict:
+        result = {}
+        for symbol in symbols:
+            entry = dict(entries.get(symbol, {}))
+            if not entry.get("ready"):
+                entry["sealed"] = None
+            result[symbol] = entry
+        return result
+
     if depth_svc_global:
         up_map = depth_svc_global.get_sealed_map(as_of, is_down=False)
         down_map = depth_svc_global.get_sealed_map(as_of, is_down=True)
+        # Use only this request's candidates and each entry's validation state.
+        up_map = candidate_map(up_map, up_symbols)
+        down_map = candidate_map(down_map, down_symbols)
         sealed_up_ready = bool(up_map) and depth_svc_global.is_sealed_ready(as_of)
         sealed_down_ready = bool(down_map) and depth_svc_global.is_sealed_ready(as_of)
         if up_map:
             fake_up = sum(1 for v in up_map.values() if v.get("sealed") is False)
         if down_map:
             fake_down = sum(1 for v in down_map.values() if v.get("sealed") is False)
-    count_up = count_up_raw - fake_up if sealed_up_ready else count_up_raw
-    count_down = count_down_raw - fake_down if sealed_down_ready else count_down_raw
+    count_up = max(0, count_up_raw - fake_up) if sealed_up_ready else count_up_raw
+    count_down = max(0, count_down_raw - fake_down) if sealed_down_ready else count_down_raw
 
     # 双方向 sealed 明细(供前端弹窗同时显示涨跌停)
     def _count_sealed(m: dict, ready: bool):
@@ -964,17 +981,19 @@ def limit_ladder(
 
         if sealed_map:
             # 构建 sealed 列(symbol → sealed bool, vol)
-            sym_sealed = {s: v.get("sealed") for s, v in sealed_map.items()}
-            sym_vol = {s: v.get("vol") for s, v in sealed_map.items()}
-
             # JOIN sealed: 对每只 status=main 的票, 看 sealed 值
-            sealed_rows = pl.DataFrame({
-                "symbol": list(sym_sealed.keys()),
-                "_sealed": list(sym_sealed.values()),
-                "_sealed_vol": list(sym_vol.values()),
-            }) if sym_sealed else pl.DataFrame()
+            sealed_rows = pl.DataFrame([
+                {
+                    "symbol": symbol,
+                    "_sealed": entry.get("sealed") if sealed_ready else None,
+                    "_sealed_vol": entry.get("vol"),
+                }
+                for symbol, entry in sealed_map.items()
+            ], schema={"symbol": pl.String, "_sealed": pl.Boolean, "_sealed_vol": pl.Float64})
 
             if not sealed_rows.is_empty():
+                # Cached frames may contain scratch columns from an earlier join.
+                df = df.drop([c for c in ("_sealed", "_sealed_vol") if c in df.columns])
                 df = df.join(sealed_rows, on="symbol", how="left")
                 # 假涨停(main 状态但 sealed=False)→ 降级为 broken
                 df = df.with_columns(
