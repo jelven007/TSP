@@ -14,7 +14,7 @@ import polars as pl
 import pytest
 
 from app.config import settings
-from app.services.ext_data import ExtConfigStore
+from app.services.ext_data import ExtConfigStore, PullConfig
 from app.services.ext_presets import (
     _concept_preset,
     _industry_preset,
@@ -101,6 +101,56 @@ def test_ensure_builtin_presets_keeps_existing_user_config(
     refreshed = ExtConfigStore(tmp_path).get("ext_gn_ths")
     assert refreshed is not None and refreshed.pull is not None
     assert refreshed.pull.enabled is False, "已存在配置被静默改写, 违反「绝不覆盖」原则"
+
+
+def test_legacy_manual_preset_with_existing_snapshot_is_migrated(tmp_path):
+    """旧版原生预设已有快照时，也要恢复默认自动拉取。"""
+    legacy = _concept_preset()
+    legacy.description = "同花顺概念分类 (启动仅创建配置, 在概念/行业页手动获取)"
+    legacy.pull = PullConfig(
+        url="",
+        enabled=False,
+        schedule_minutes=1,
+        time_window_start="09:15",
+        time_window_end="15:15",
+        auth={"type": "none", "header": "Authorization", "param": "token"},
+    )
+    store = ExtConfigStore(tmp_path)
+    store.upsert(legacy)
+    snapshot = tmp_path / "ext_data" / legacy.id / "part.parquet"
+    pl.DataFrame({"symbol": ["000001.SZ"], "所属概念": ["旧概念"]}).write_parquet(snapshot)
+
+    asyncio.run(ensure_builtin_presets(tmp_path))
+
+    migrated = store.get(legacy.id)
+    assert migrated is not None and migrated.pull is not None
+    assert migrated.pull.url == _concept_preset().pull.url
+    assert migrated.pull.enabled is True
+    assert migrated.description == _concept_preset().description
+    assert pl.read_parquet(snapshot)["所属概念"].to_list() == ["旧概念"]
+
+
+def test_legacy_manual_preset_with_custom_pull_is_preserved(tmp_path):
+    """旧说明文本本身不足以覆盖用户配置的自定义上游。"""
+    legacy = _concept_preset()
+    legacy.description = "同花顺概念分类 (启动仅创建配置, 在概念/行业页手动获取)"
+    legacy.pull = PullConfig(
+        url="https://data.example/concepts",
+        enabled=False,
+        schedule_minutes=1,
+        time_window_start="09:15",
+        time_window_end="15:15",
+    )
+    store = ExtConfigStore(tmp_path)
+    store.upsert(legacy)
+
+    asyncio.run(ensure_builtin_presets(tmp_path))
+
+    preserved = store.get(legacy.id)
+    assert preserved is not None and preserved.pull is not None
+    assert preserved.pull.url == "https://data.example/concepts"
+    assert preserved.pull.enabled is False
+    assert preserved.description == legacy.description
 
 
 @pytest.mark.parametrize("cid", _PRESET_IDS)
