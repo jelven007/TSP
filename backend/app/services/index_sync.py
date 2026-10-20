@@ -21,6 +21,7 @@ from app.market_time import cn_now
 from app.parquet import scan_daily_parquet
 from app.services import kline_sync, preferences
 from app.services.instrument_sync import _fetch_instruments_via_provider
+from app.services.realtime_guard import pause_quotes_for_write
 from app.tickflow.capabilities import Cap, CapabilitySet
 from app.tickflow.client import get_client
 from app.tickflow.rate_limits import (
@@ -401,7 +402,8 @@ def rebuild_etf_enriched(repo: KlineRepository) -> int:
             for day in dates:
                 frame = staged.filter(pl.col("date") == day).collect().sort("symbol")
                 out = base / f"date={day.isoformat()}" / "part.parquet"
-                publication.write_parquet(frame, out)
+                with pause_quotes_for_write():
+                    publication.write_parquet(frame, out)
                 written += frame.height
             publication.commit()
     finally:

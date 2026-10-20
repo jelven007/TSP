@@ -47,6 +47,7 @@ from app.price_limits import (
     polars_price_limit_pct,
 )
 from app.share_capital import apply_historical_float_shares, load_share_history
+from app.services.realtime_guard import pause_quotes_for_write
 
 logger = logging.getLogger(__name__)
 
@@ -1808,7 +1809,8 @@ def run_pipeline(data_dir: Path | None = None,
                     out = enriched_base / f"date={ds}" / "part.parquet"
                     out.parent.mkdir(parents=True, exist_ok=True)
                     date_df = _select_storage_cols(date_df).sort(["symbol"])
-                    publication.write_parquet(date_df, out)
+                    with pause_quotes_for_write():
+                        publication.write_parquet(date_df, out)
                     written += date_df.height
                 t_write_new = _t.perf_counter()
                 logger.info("增量写入: %.2fs, %d 行", t_write_new - t_new, written)
@@ -1845,7 +1847,8 @@ def run_pipeline(data_dir: Path | None = None,
                         existing = existing.filter(~pl.col("symbol").is_in(list(sym_set)))
                         date_df_storage = pl.concat([existing, date_df_storage], how="diagonal_relaxed")
                     date_df_storage = date_df_storage.sort(["symbol"])
-                    publication.write_parquet(date_df_storage, out)
+                    with pause_quotes_for_write():
+                        publication.write_parquet(date_df_storage, out)
                     written += date_df.height
                 logger.info("除权重算: %d 只, 共写入 %d 行", len(sym_set), written)
 
@@ -1963,7 +1966,8 @@ def run_pipeline(data_dir: Path | None = None,
                             existing = existing.filter(~pl.col("symbol").is_in(batch_syms))
                             date_df_storage = pl.concat([existing, date_df_storage], how="diagonal_relaxed")
                         date_df_storage = date_df_storage.sort(["symbol"])
-                        publication.write_parquet(date_df_storage, out)
+                        with pause_quotes_for_write():
+                            publication.write_parquet(date_df_storage, out)
                         written += date_df_storage.height
                 else:
                     # 全量模式: 写单批暂存文件 (按 date,symbol 排序 →
@@ -2022,7 +2026,8 @@ def run_pipeline(data_dir: Path | None = None,
                     ds_str = ds.isoformat() if hasattr(ds, "isoformat") else str(ds)
                     out = base / f"date={ds_str}" / "part.parquet"
                     out.parent.mkdir(parents=True, exist_ok=True)
-                    publication.write_parquet(date_df.sort(["symbol"]), out)
+                    with pause_quotes_for_write():
+                        publication.write_parquet(date_df.sort(["symbol"]), out)
             gc.collect()
             logger.info("全量暂存合并完成: %d 个日期分区", len(unique_dates))
     except BaseException:

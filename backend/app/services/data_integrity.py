@@ -32,6 +32,7 @@ from pathlib import Path
 import polars as pl
 
 from app.market_time import CN_TZ, published_trading_day
+from app.services.realtime_guard import pause_quotes_for_write
 
 logger = logging.getLogger(__name__)
 
@@ -401,14 +402,15 @@ def prune_enriched_partitions(
     import shutil
 
     removed = 0
-    for part in base.glob("date=*"):
-        try:
-            d = date.fromisoformat(part.name[5:])
-        except ValueError:
-            continue
-        if d >= start:
-            shutil.rmtree(part, ignore_errors=True)
-            removed += 1
+    with pause_quotes_for_write():
+        for part in base.glob("date=*"):
+            try:
+                d = date.fromisoformat(part.name[5:])
+            except ValueError:
+                continue
+            if d >= start:
+                shutil.rmtree(part, ignore_errors=True)
+                removed += 1
     return removed
 
 
@@ -489,7 +491,7 @@ def launch_integrity_repair(app_state, start_date: date, reason: str) -> tuple[s
     - (None, False)  : 无法修复 (无 batch 能力 / 无 repo)
     - (id, False)    : 已有活跃任务复用 (singleflight)
     - (id, True)     : 新建并启动
-    任务体与 /api/kline/repair_daily 完全一致: run slot + 实时 paused 互斥 +
+    任务体与 /api/kline/repair_daily 完全一致: run slot + 写盘期间暂停实时行情 +
     run_repair_daily(override_start_date)。
 
     调度自适应: 调用方在事件循环内 (API 端点) → executor 后台执行;
@@ -535,11 +537,10 @@ def launch_integrity_repair(app_state, start_date: date, reason: str) -> tuple[s
         job_store.progress(job_id, stage, pct, msg, stage_pct=stage_pct, skip_log=skip_log)
 
     def _run() -> dict:
-        # 修复期间暂停实时取数, 防止覆写同一批 parquet 竞态
-        if qs:
-            with qs.paused():
-                return run_repair_daily(repo, capset, start_date, on_progress=progress)
-        return run_repair_daily(repo, capset, start_date, on_progress=progress)
+        # 只在实际写盘/删分区时暂停实时行情; 取数与计算阶段保持轮询
+        return run_repair_daily(
+            repo, capset, start_date, on_progress=progress, quote_service=qs,
+        )
 
     def _execute() -> None:
         try:

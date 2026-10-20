@@ -1562,11 +1562,10 @@ async def repair_daily(request: Request):
                                    stage_pct=stage_pct, skip_log=skip_log)
 
             def _run() -> dict:
-                # 修正运行期间暂停实时行情, 防止覆写同一批 parquet 竞态
-                if qs:
-                    with qs.paused():
-                        return run_repair_daily(repo, capset, start_date, on_progress=progress)
-                return run_repair_daily(repo, capset, start_date, on_progress=progress)
+                # 只在实际写盘/删分区时暂停实时行情; 取数与计算阶段保持轮询
+                return run_repair_daily(
+                    repo, capset, start_date, on_progress=progress, quote_service=qs,
+                )
 
             try:
                 result = await loop.run_in_executor(_long_task_executor, run_with_capacity, job_id, _run)
