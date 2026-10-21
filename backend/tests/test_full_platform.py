@@ -78,6 +78,43 @@ def test_publication_copies_source_and_reuses_only_immutable_files(tmp_path):
             release_path(target, invalid)
 
 
+def test_publication_ignores_volatile_ext_pull_progress(tmp_path):
+    source, target = tmp_path / "source", tmp_path / "public"
+    market_files(source)
+    config = source / "ext_data/concept/config.json"
+    publisher = PublicPublisher(source, target)
+    first = publisher.publish()
+    payload = json.loads(config.read_text(encoding="utf-8"))
+    payload["pull"]["last_run"] = "2026-10-20T23:30:00+00:00"
+    payload["pull"]["last_status"] = "ok"
+    payload["updated_at"] = "2026-10-20T23:30:00"
+    config.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    assert publisher.publish()["id"] == first["id"]
+    payload["description"] = "changed"
+    config.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    assert publisher.publish()["id"] != first["id"]
+
+
+def test_ext_snapshot_rewrite_is_skipped_when_content_is_unchanged(tmp_path):
+    from app.services.ext_data import ExtConfig, ExtField, write_ext_parquet
+
+    config = ExtConfig(
+        id="concept", label="概念", mode="snapshot",
+        fields=[ExtField("symbol", "string"), ExtField("weight", "float")],
+    )
+    frame = pl.DataFrame({"symbol": ["600000.SH"], "weight": [1.5]})
+    write_ext_parquet(frame, config, tmp_path, replace_snapshot=True)
+    path = tmp_path / "ext_data" / "concept" / "part.parquet"
+    before = path.stat().st_mtime_ns
+    # 定时拉取每分钟重写同一份快照: 内容相同时不能刷新 mtime, 否则发布校验必失败
+    write_ext_parquet(frame, config, tmp_path, replace_snapshot=True)
+    assert path.stat().st_mtime_ns == before
+    write_ext_parquet(
+        frame.with_columns(pl.lit(2.0).alias("weight")), config, tmp_path, replace_snapshot=True,
+    )
+    assert pl.read_parquet(path)["weight"].to_list() == [2.0]
+
+
 def test_publication_rejects_a_changed_generation_and_keeps_previous(tmp_path, monkeypatch):
     source, target = tmp_path / "source", tmp_path / "public"
     path = market_files(source)

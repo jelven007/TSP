@@ -476,6 +476,13 @@ def build_market_overview(
     max_boards = max([int(_finite(r.get("consecutive_limit_ups")) or 0) for r in rows], default=0)
 
     # 五档 sealed 修正: 假涨停/假跌停不计入(需 Pro+ depth5.batch 能力)
+    # depth 快照按当日涨停名单采集, 但盘中炸板后名单会缩小; 快照中残留的
+    # sealed=False 标的已不在最终涨停名单内, 不能再从涨停数里扣一次。
+    limit_up_symbols = {
+        r.get("symbol") for r in rows
+        if bool(r.get("signal_limit_up")) or (_finite(r.get("consecutive_limit_ups")) or 0) > 0
+    }
+    limit_down_symbols = {r.get("symbol") for r in rows if bool(r.get("signal_limit_down"))}
     sealed_ready = False
     fake_up = 0
     fake_down = 0
@@ -484,9 +491,15 @@ def build_market_overview(
         down_map = depth_service.get_sealed_map(as_of, is_down=True)
         sealed_ready = bool(up_map or down_map) and depth_service.is_sealed_ready(as_of)
         if up_map:
-            fake_up = sum(1 for v in up_map.values() if v.get("sealed") is False)
+            fake_up = sum(
+                1 for sym, v in up_map.items()
+                if sym in limit_up_symbols and v.get("sealed") is False
+            )
         if down_map:
-            fake_down = sum(1 for v in down_map.values() if v.get("sealed") is False)
+            fake_down = sum(
+                1 for sym, v in down_map.items()
+                if sym in limit_down_symbols and v.get("sealed") is False
+            )
     if sealed_ready:
         limit_up = max(0, limit_up - fake_up)
         limit_down = max(0, limit_down - fake_down)
