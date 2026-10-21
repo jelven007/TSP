@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, EyeOff, KeyRound, Loader2, LockKeyhole, Mail, ShieldAlert, ShieldCheck, UserPlus } from 'lucide-react'
+import { Eye, EyeOff, KeyRound, Loader2, LockKeyhole, Mail, ShieldAlert, ShieldCheck, UserPlus, UserRound } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
@@ -33,9 +33,11 @@ export function Auth() {
     retry: false,
   })
   const status = statusQuery.data
+  const isLocalAdmin = status?.local_admin_mode === true
 
   useEffect(() => {
     if (!status) return
+    if (status.local_admin_mode) setMode('login')
     if (status.legacy_migration_required) {
       setMode('migrate')
       return
@@ -44,7 +46,7 @@ export function Auth() {
       navigate(safeLoginRedirect(searchParams.get('redirect')), { replace: true })
       return
     }
-    if (!status.has_users) setMode('register')
+    if (!status.has_users && !status.local_admin_mode) setMode('register')
   }, [navigate, searchParams, status])
 
   useEffect(() => {
@@ -184,7 +186,7 @@ export function Auth() {
       ? '输入注册口令并验证邮箱后创建账户'
       : isRecover
         ? '验证注册口令和邮箱后设置新密码'
-      : '登录后继续使用量化工作台'
+      : isLocalAdmin ? '登录管理员账号，进入个人空间' : '登录后继续使用量化工作台'
 
   return (
     <main className="min-h-screen bg-base px-4 py-10 text-foreground">
@@ -201,7 +203,7 @@ export function Auth() {
           <p className="mt-2 text-sm leading-6 text-secondary">{subtitle}</p>
         </header>
 
-        {!isMigrate && !isRecover && status?.has_users && status.registration_enabled && (
+        {!isLocalAdmin && !isMigrate && !isRecover && status?.has_users && status.registration_enabled && (
           <div className="mb-5 grid h-9 grid-cols-2 rounded-btn bg-elevated p-1" role="tablist">
             <button
               type="button"
@@ -244,14 +246,16 @@ export function Auth() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-secondary">{isRegister || isRecover || isMigrate ? '邮箱' : '用户名 / 邮箱'}</span>
+            <span className="mb-1.5 block text-xs font-medium text-secondary">{isLocalAdmin ? '用户名' : isRegister || isRecover || isMigrate ? '邮箱' : '用户名 / 邮箱'}</span>
             <span className="relative block">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              {isLocalAdmin
+                ? <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                : <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />}
               <input
                 type={isRegister || isRecover || isMigrate ? 'email' : 'text'}
                 value={email}
                 onChange={(event) => handleEmailChange(event.target.value)}
-                placeholder={isRegister || isRecover || isMigrate ? 'name@example.com' : 'admin 或注册邮箱'}
+                placeholder={isLocalAdmin ? 'admin' : isRegister || isRecover || isMigrate ? 'name@example.com' : 'admin 或注册邮箱'}
                 autoComplete={isRegister || isRecover || isMigrate ? 'email' : 'username'}
                 autoFocus
                 className="h-11 w-full rounded-btn border border-border bg-surface pl-10 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted/60 focus:border-accent/60"
@@ -355,7 +359,7 @@ export function Auth() {
             </span>
           </label>
 
-          {!isMigrate && !isRegister && !isRecover && status?.registration_enabled && (
+          {!isLocalAdmin && !isMigrate && !isRegister && !isRecover && status?.registration_enabled && (
             <div className="-mt-2 text-right">
               <button
                 type="button"

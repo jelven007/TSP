@@ -4,7 +4,7 @@
 function Get-TspResourceEnvironment {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('platform', 'api', 'research', 'realtime', 'notifications', 'scheduled')]
+        [ValidateSet('standalone', 'platform', 'api', 'research', 'realtime', 'notifications', 'scheduled')]
         [string]$Role,
 
         [ValidateSet('native16gb', 'existing')]
@@ -14,6 +14,7 @@ function Get-TspResourceEnvironment {
     if ($ResourceProfile -eq 'existing') { return @{} }
 
     $budgets = @{
+        standalone = 4096
         platform = 3072
         api = 1536
         research = 512

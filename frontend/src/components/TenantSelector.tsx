@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
-import { clearAccountCache, hasPermission, multitenancyEnabled } from '@/lib/accountSession'
+import { clearAccountCache, hasPermission, localAdminMode, multitenancyEnabled } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
 
 export function TenantSelector({ compact = false }: { compact?: boolean }) {
@@ -19,6 +19,11 @@ export function TenantSelector({ compact = false }: { compact?: boolean }) {
       navigate('/', { replace: true })
     },
   })
+  if (localAdminMode()) return (
+    <div className="border-b border-border px-3 py-3 text-xs text-secondary" title="admin 的个人空间">
+      {compact ? '个人' : '个人空间'}
+    </div>
+  )
   if (!enabled) return null
   return (
     <label className="block border-b border-border px-3 py-2">

@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Supervise the TSP multitenant workers natively on Windows 10.
+    Inspect or stop legacy Windows multitenant workers.
 
 .DESCRIPTION
     Starts, stops, restarts and reports the four Compose workers
@@ -55,6 +55,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Action -in @('start', 'restart')) {
+    throw 'Windows multitenancy is paused. Use tsp-service.ps1 -Role standalone; old workers support stop/status only.'
+}
 . (Join-Path $PSScriptRoot 'tsp-resources.ps1')
 
 $BackendDir = Join-Path $RepoRoot 'backend'
