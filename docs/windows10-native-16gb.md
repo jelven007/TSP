@@ -53,6 +53,7 @@ Windows 桌面安装包双击启动，使用安装目录旁的 `data/`，窗口�
 3. 解除新单机服务对平台、PostgreSQL 的 `DependOnService` 依赖，只托管一个
    `tsp-service.ps1 -Role standalone` 进程。`-Role api` 是兼容别名；
    `-Role platform`、`tsp-full.ps1 start/restart` 均拒绝运行。
+   模式检查先于安装路径解析，即使旧安装盘符不存在也会明确拒绝旧平台模式。
    旧 watchdog 入口只提示停用后退出，`tsp-full.ps1 stop/status` 仍可清理旧进程。
 4. 为单机选择可写数据目录。禁止将 `public_market/current` 或 release 目录直接
    作为写目录；脚本拒绝 `PublicMarket` 下的路径。保留旧数据库和公共快照，
@@ -120,6 +121,9 @@ macOS / Linux 打包 smoke 继续验证免登录。
 资源子进程成功，但测试脚本将 `ConvertFrom-Json` 的数组输出再次包入 `@(...)`，
 导致参数数量断言失败。调整为直接接收 JSON 数组，并在 Python 子进程内增加逐项
 参数断言，覆盖空字符串、引号、中文及末尾反斜杠；以重跑终态验证修正。
+第二轮已通过全部七种角色资源与参数检查；随后暴露旧 `platform` 拒绝路径在
+模式检查之前解析 E 盘的问题。将路径初始化放在模式检查之后，并使用随机不存在
+的 PowerShell drive 增强原生拒绝回归；完整 Windows 质量门仍待重跑终态。
 
 本轮没有接入 Win10 22H2 真机，未执行安装包构建。
 不能据本地跨平台测试或 Server 2022 CI 宣称 Windows 全功能实机验收完成。真机还需覆盖真实数据

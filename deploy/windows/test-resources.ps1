@@ -83,7 +83,9 @@ Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding="utf-8")
         }
     }
     $serviceScript = Join-Path $PSScriptRoot 'tsp-service.ps1'
-    $argsList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $serviceScript, '-Role', 'platform')
+    $missingRepo = 'TspMissing' + [guid]::NewGuid().ToString('N') + ':\TSP'
+    $argsList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $serviceScript,
+        '-Role', 'platform', '-RepoRoot', $missingRepo)
     $quoted = @($argsList | ForEach-Object { ConvertTo-TspProcessArgument $_ })
     $errorLog = Join-Path $testDir 'platform.err'
     $child = Start-Process powershell.exe -ArgumentList $quoted -Wait -PassThru -NoNewWindow -RedirectStandardError $errorLog
