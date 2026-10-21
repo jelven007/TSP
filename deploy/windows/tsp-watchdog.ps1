@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Keep the TSP multitenant workers alive on Windows 10.
+    Legacy multitenant watchdog (paused for the Windows single-admin runtime).
 
 .DESCRIPTION
     Polls every <IntervalSeconds> and restarts a worker through
@@ -46,6 +46,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Write-Warning 'Windows multitenancy is paused. Disable this watchdog task; supervise the standalone service with NSSM.'
+return
+
 . (Join-Path $PSScriptRoot 'tsp-resources.ps1')
 
 if ([string]::IsNullOrEmpty($FullScript)) {

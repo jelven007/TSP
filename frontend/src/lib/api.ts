@@ -2417,6 +2417,7 @@ export interface AuthUser {
   permissions?: string[]
   default_tenant_id?: string | null
   auth_version?: number
+  workspace?: { id: string; name: string }
   created_at: number
 }
 
@@ -2430,6 +2431,7 @@ export interface AuthStatus {
   authenticated: boolean
   user: AuthUser | null
   multitenancy_enabled?: boolean
+  local_admin_mode?: boolean
 }
 
 export interface AuthResult {

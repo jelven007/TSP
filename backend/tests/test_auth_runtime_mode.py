@@ -1,4 +1,4 @@
-"""Authentication must be server-only and absent from frozen desktop builds."""
+"""Non-Windows frozen desktop builds retain their authentication bypass."""
 from __future__ import annotations
 
 import pytest
@@ -8,6 +8,11 @@ from fastapi.responses import JSONResponse
 from app import config as app_config
 from app.api import auth as auth_api
 from app.main import auth_middleware
+
+
+@pytest.fixture(autouse=True)
+def non_windows_desktop(monkeypatch):
+    monkeypatch.setattr(app_config.settings, "local_admin_mode", False)
 
 
 def _request(path: str, method: str = "GET") -> Request:

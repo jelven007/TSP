@@ -4,9 +4,10 @@
 > 文档类型：Runbook / 方案（**尚未执行**，命令与配置需按实际域名、路径替换后落地）
 > 关联文档：[Windows 10 完整运行方案](./windows10-full-run-plan.md)、[部署指南](./deployment.md)、[运维手册](./operations.md)、[配置说明](./configuration.md)、[完整单机多租户部署](../deploy/full/README.md)
 
-> **更新**：保留本页历史部署命令供参考，当前 Win10 22H2 x64 / 16 GB 资源配置、
-> 实现状态和验证要求见[原生资源优化](./windows10-native-16gb.md)。
-> “Compute 错误可接受”已不满足当前全功能目标；原生隔离计算后端仍为阻断项。
+> **当前要求更新**：Windows 已暂停多租户，采用 `admin/Admin123` 单机管理员及
+> 个人空间。当前启动、资源配置和旧服务停用步骤见[单机管理员说明](./windows10-native-16gb.md)。
+> 本页以下内容仅保留为 v0.4.9 多租户历史方案，不适用于当前 Windows 版本；
+> 不要按旧命令启动 platform、worker 或 watchdog。
 
 ---
 

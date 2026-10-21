@@ -48,7 +48,7 @@ Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding="utf-8")
     $output = Join-Path $testDir 'result.json'
     $unicodePath = 'C:\' + [char]0x6D4B + [char]0x8BD5 + '\'
     $samples = @('C:\path with spaces\', 'a"b', '', $unicodePath)
-    foreach ($role in @('platform', 'api', 'research', 'realtime', 'notifications', 'scheduled')) {
+    foreach ($role in @('standalone', 'platform', 'api', 'research', 'realtime', 'notifications', 'scheduled')) {
         $resources = Get-TspResourceEnvironment -Role $role
         foreach ($key in $resources.Keys) {
             if (-not $previous.ContainsKey($key)) {
@@ -68,6 +68,24 @@ Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding="utf-8")
     }
     if ((Get-TspResourceEnvironment -Role api -ResourceProfile existing).Count -ne 0) {
         throw 'existing profile must not override resource settings'
+    }
+    foreach ($action in @('start', 'restart')) {
+        $fullScript = Join-Path $PSScriptRoot 'tsp-full.ps1'
+        $argsList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $fullScript, $action)
+        $quoted = @($argsList | ForEach-Object { ConvertTo-TspProcessArgument $_ })
+        $errorLog = Join-Path $testDir "$action.err"
+        $child = Start-Process powershell.exe -ArgumentList $quoted -Wait -PassThru -NoNewWindow -RedirectStandardError $errorLog
+        if ($child.ExitCode -eq 0 -or (Get-Content $errorLog -Raw) -notmatch 'multitenancy is paused') {
+            throw "legacy worker action was not rejected: $action"
+        }
+    }
+    $serviceScript = Join-Path $PSScriptRoot 'tsp-service.ps1'
+    $argsList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $serviceScript, '-Role', 'platform')
+    $quoted = @($argsList | ForEach-Object { ConvertTo-TspProcessArgument $_ })
+    $errorLog = Join-Path $testDir 'platform.err'
+    $child = Start-Process powershell.exe -ArgumentList $quoted -Wait -PassThru -NoNewWindow -RedirectStandardError $errorLog
+    if ($child.ExitCode -eq 0 -or (Get-Content $errorLog -Raw) -notmatch 'multitenancy is paused') {
+        throw 'legacy platform service was not rejected'
     }
     Write-Output 'Native resource profiles, SQL and process argument checks passed.'
 } finally {

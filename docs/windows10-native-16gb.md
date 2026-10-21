@@ -1,155 +1,122 @@
-# Windows 10 22H2 x64 / 16 GB 原生资源优化
+# Windows 10 22H2 x64 / 16 GB 单机管理员版本
 
-本轮以原生 Windows 为目标，保留完整应用、数据源、研究、监控、通知和租户契约。
-不以关闭功能、缩短研究数据窗口或跳过 Compute 健康检查作为验收手段。
-开发基线为 `04b374d0`，版本号沿用分支基线，不提前递增。
-变更分级为 L1 启动资源配置与 L3 核心缓存/批次修改；已有扩展插槽不能表达
-内存预算，直接在原调用链接入，不新增业务引擎。
+Windows 原生版本暂停多租户，保留完整应用与管理员个人空间。默认用户名为
+`admin`，首次密码为 `Admin123`。本说明同时适用于源码运行和 Windows 冻结桌面包。
+Linux / Docker 多租户模式以及 macOS、Linux 桌面包的免登录行为保持原样。
+版本沿用分支基线，集成到远程 main 后再由 CI 递增。
 
-**当前状态：资源优化代码已实现；原生完整多租户验收仍被隔离计算后端缺失阻断。**
-本轮没有 Windows 10 真机连接，也未运行 Windows CI。macOS 测试和 Windows Server
-CI 均不能替代 Windows 10 的全功能验收。历史 Windows 文档中的“不可能实现”
-应理解为旧实现的限制，不能作为操作系统能力结论。
+## 账户与个人空间
 
-## 已实现的资源控制
+- 首次启动创建 `DATA_DIR/user_data/local_admin.json`，只存储加盐密码哈希。
+  该文件已存在时不会覆盖账号、重置密码或重新生成个人空间身份。
+- 登录后可在「设置 → 账户」查看管理员角色、个人空间，修改密码或退出登录。
+  改密会撤销该账号全部会话；重启后仍使用新密码。
+- 关闭注册、邮箱找回、旧账户迁移与租户切换；后端同样拒绝相关写接口。
+  `AUTH_EMAIL`、`AUTH_PASSWORD`、`AUTH_REGISTRATION_SECRET` 不覆盖本地管理员。
+- 单机已有自选、策略、回测、监控和设置继续使用原 `DATA_DIR` 下的本地存储。
+  个人空间是管理员使用完整业务功能的本地空间，不创建 PostgreSQL 租户。
+- 旧 `user_data/auth.json` 保留不动。账号文件损坏时启动失败，须恢复备份，
+  不会自动回退初始密码。备份及回滚应包含整个 `data/`。
 
-`deploy/windows/tsp-resources.ps1` 提供 `native16gb` 配置，服务脚本默认应用：
+默认密码用于首次进入；开始保存个人数据前，在账户页面修改密码。
+源码服务脚本和桌面版均默认只监听本机。
 
-| 角色 | 进程预算提示 MiB | DuckDB 单连接上限 MiB | 面板缓存上限 MiB |
-| --- | ---: | ---: | ---: |
-| platform | 3072 | 384 | 256 |
-| api | 1536 | 192 | 192 |
-| research | 512 | 64 | 64 |
-| realtime | 768 | 96 | 96 |
-| notifications | 256 | 32 | 32 |
-| scheduled | 512 | 64 | 64 |
+## 启动与升级
 
-六类角色的规划预算合计 **6656 MiB（6.5 GiB）**。这是批次与缓存的预算提示，
-不是整棵进程树的硬内存限制；Python 对象、临时矩阵、多个仓库连接、监督进程与
-第三方库均可能额外占用内存。每个缓存和数据库连接分别计费，不能把表中数字当成
-整机占用保证。剩余约 9.5 GiB 还要承担 Windows、浏览器、PostgreSQL、文件缓存和
-尚未落地的计算沙箱，必须实测。
+使用原生 Python 3.11+、Node/pnpm 和 rustdx 构建所需 Rust 工具。
+按仓库安装流程完成 `uv sync --extra dev --extra backtest --frozen` 与
+`pnpm install --frozen-lockfile`、`pnpm build`。
 
-- Polars、Numba 最多 2 线程；BLAS、OpenMP、MKL、NumExpr 为 1 线程。
-- 小于 8 GiB 的有效进程预算下，DuckDB 最多 2 线程，缓冲上限为预算的 1/8，
-  最多 512 MiB。未配置预算的大内存环境保持原 DuckDB 设置。
-- 有效预算取显式 `TSP_MEMORY_BUDGET_MB`、物理内存与适用 cgroup 限制的最小值。
-  原生 Windows 不需要 cgroup。非法或非正预算会明确报错。
-- 小内存历史指标按目标行数分批，去除强制至少 50 个标的的下限；日期、标的和字段
-  不截断，全量重建仍沿用暂存、校验和发布流程。
-- 回测面板缓存增加字节上限（最多 256 MiB），保留 LRU、TTL 和同键请求共享。
-  超大面板完整返回但不驻留；命中率可能降低，后续请求需要重算。
-- 每个 API/worker 的控制库、业务库连接池各最多 2 条；单 API 加四类 worker
-  的池上界为 `5 × 2 × 2 = 20`。通知监听、运维和其他独立连接另计。
-- 四类 worker 每类并发为 1，策略批量执行保持串行；各 worker 仍独立运行，
-  此设置不能替代 Compute 的全局容量闸。
-- API 明确 `--workers 1`，托管完整 `frontend/dist`；静态产物缺失时启动报错。
-  生产无需 Vite 常驻，前端构建与后端安装仍按原部署流程执行。
-- 看门狗把资源配置和自定义路径继续传给重启脚本，支持含空格的进程参数；
-  worker 显式设置 `SERVICE_ROLE=api`、多租户开关和平台配置目录。
-
-这些修改不迁移数据库、不改金融字段和 API 成功响应，不切换 Provider。涉及缓存为
-回测面板 LRU；指标批次与 DuckDB 缓冲只改变计算资源。磁盘矩阵缓存、数据
-generation、SSE 和前端查询失效契约沿用原实现。
-
-## 使用与回滚
-
-在停止旧应用进程、备份配置并完成静态构建后，以当前受控服务账户运行：
+源码服务示例（在仓库根目录运行，路径按实际安装调整）：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\tsp-service.ps1 -Role platform -ResourceProfile native16gb
-powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\tsp-service.ps1 -Role api -ResourceProfile native16gb
-powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\tsp-full.ps1 start -ResourceProfile native16gb
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\tsp-service.ps1 `
+  -RepoRoot E:\Projects\TSP -DataDir E:\TSPData -ResourceProfile native16gb
 ```
 
-路径参数继续接受 `RepoRoot`、`SecretsFile`、`PublicMarket`，worker/watchdog
-还接受 `RunDir`、`LogDir`。三个服务脚本及看门狗必须使用同一配置。脚本在 secrets
-导入后覆盖资源变量，避免旧大机器的并发配置悄悄覆盖本轮预算；身份、DSN 和
-schema 版本仍从现有 secrets 读取。
+打开 `http://127.0.0.1:3030`。省略 `DataDir` 时使用 `<RepoRoot>/data`。
+脚本从仓库 `.env` 读取业务配置，强制 `SERVICE_ROLE=standalone`、
+`LOCAL_ADMIN_MODE=true`、`MULTITENANCY_ENABLED=false`，运行一个 uvicorn worker
+并托管完整 `frontend/dist`。不需要 PostgreSQL、多租户 Broker 或四类常驻 worker。
+独立启动 API、行情同步、监控、通知和定时任务使用既有单机调用链；
+研究任务沿用单机回测、优化、walk-forward、挖掘进程。
 
-如需恢复手工资源参数，改用 `-ResourceProfile existing` 并重启对应进程。
-它保留 secrets/环境中的资源配置；若其中设置过 `TSP_MEMORY_BUDGET_MB`，
-需要同时调整。代码回滚使用前一提交并重建依赖，不需要修改数据或 schema。
-本轮未操作目标机器服务或凭据。
+Windows 桌面安装包双击启动，使用安装目录旁的 `data/`，窗口打开后先登录。
+桌面入口会在加载数值库前应用同一组 4096 MiB、线程和任务并发默认值；
+启动环境中显式设置的同名变量优先，不会被覆盖。
 
-## 原生计算后端的阻断项
+从旧 Windows 多租户部署切换时：
 
-现有 `ComputeExecutor → ComputeBroker → compute_worker` 使用 Unix socket、
-Linux 容器、容器路径和 POSIX 管道轮询。目标 Python 缺少 `AF_UNIX` 时，
-现在会返回明确 503，不再泄漏为 `AttributeError`；这不代表计算功能已补齐。
+1. 备份数据库、公共行情、单机数据目录、服务参数及 edge 配置。
+2. 停止并禁用旧 `TSPWorkerWatchdog`（含计划任务），执行旧 worker 的
+   `tsp-full.ps1 stop`；停止 `TSPApi`、`TSPPlatform` 和旧 Vite 服务。
+3. 解除新单机服务对平台、PostgreSQL 的 `DependOnService` 依赖，只托管一个
+   `tsp-service.ps1 -Role standalone` 进程。`-Role api` 是兼容别名；
+   `-Role platform`、`tsp-full.ps1 start/restart` 均拒绝运行。
+   旧 watchdog 入口只提示停用后退出，`tsp-full.ps1 stop/status` 仍可清理旧进程。
+4. 为单机选择可写数据目录。禁止将 `public_market/current` 或 release 目录直接
+   作为写目录；脚本拒绝 `PublicMarket` 下的路径。保留旧数据库和公共快照，
+   不自动导入、合并或删除租户私有数据。需要的旧租户资产须单独导出后导入。
+5. 启动新服务，检查登录、个人空间、数据源能力与 `/health/ready`，
+   再验证真实业务任务。使用 edge 时确认其 upstream 指向新单机服务。
 
-完整原生实现还必须完成并在 Windows 10 验证：
+配置层的 `LOCAL_ADMIN_MODE` 在原生 Windows 强制开启。若旧 `.env` 保留
+`SERVICE_ROLE=platform/api/gateway`，直接运行 Python 会明确报错；先完成停写切换，
+再改成 `standalone`。仅有旧 `MULTITENANCY_ENABLED=true` 时会被单机模式强制关闭。
+WSL2 / Docker 内的 Linux 不受 Windows 平台默认值影响。
 
-1. 经过身份校验的本地 IPC；不把未认证 TCP 端口当成租户边界。
-2. Windows 10 支持的 AppContainer 等无网络、无凭据隔离，公共行情只读、
-   每任务私有目录、可信运行时代码与 DLL 访问控制。
-3. Job Object 的内存、进程数、子进程树约束和 kill-on-close；
-   Job Object 本身不能替代文件、网络和凭据隔离。
-4. 取消、断连、超时、broker 重启后先回收全部子进程再释放任务许可；
-   全局单重任务和每租户容量限制。
-5. 移除 worker 对 `/market`、`/tmp` 和特权符号链接的依赖，同时保留全部计算种类、
-   私有因子/信号注册表和固定行情版本。
-6. 所有业务计算种类、恶意文件访问/网络访问、资源耗尽和清理路径的真机回归。
+回滚时先停止单机进程，再恢复旧服务配置、对应数据库、目录与路由。不得让两个
+运行模式同时写同一数据目录。新管理员身份文件可随备份保留，旧版本不会读取它。
 
-本轮没有提交未经目标平台验证的沙箱实现，没有用普通子进程替换安全边界。
-完整原生验收仍不通过；`compute_broker=error` 不能列为通过条件。
+## 16 GB 资源控制
 
-## 验证入口
+原生服务默认 `native16gb`，单进程预算提示为 **4096 MiB**：
 
-资源与 Windows PowerShell 5.1 的路径传递检查：
+| 项目 | 设置 |
+| --- | --- |
+| Polars / Numba | 最多 2 线程 |
+| BLAS / OpenMP / MKL / NumExpr | 1 线程 |
+| 策略批量执行 | 1 worker |
+| Polars collect | 前台总计 2，后台最多 1 |
+| 小内存 DuckDB | 最多 2 线程，单连接缓冲上限为有效预算的 1/8，最多 512 MiB |
+| 回测面板缓存 | 字节 LRU / TTL，单缓存最多 256 MiB，超大面板不驻留 |
+| 历史指标 | 按有效预算分批，不截断日期、标的或字段 |
+
+有效预算取显式值、物理内存与适用 cgroup 限制的最小值。预算不等于 Windows
+Job Object 硬限制，也不是整棵进程树 RSS 保证；多个连接、任务进程和临时矩阵仍可
+增加内存。16 GB 机器应避免同时提交多个重计算任务，并保留系统分页文件和 SSD 空间。
+`-ResourceProfile existing` 保留已有资源环境配置。
+
+既有 Provider、金融口径、Parquet 契约、磁盘矩阵缓存、generation 和 SSE 流程不变。
+此次为 L1 启动配置及 L3 核心账号/缓存调整，未新增平行业务引擎。
+单机模式不使用多租户 Compute，原生租户沙箱的实现缺口留待恢复多租户时处理。
+
+此前合成缓存基准（macOS arm64，Python 3.11.17，Polars 1.44.1）：
+固定 1536 MiB 预算、2 线程、三个 `1,000,000 × 16` 面板，各运行三次。
+缓存持有数据中位数从 256,000,000 降至 128,000,000 字节；
+峰值 RSS 从 633,815,040 降至 615,497,728 字节；
+耗时从 0.2353 增至 0.2508 秒，六次校验和一致。
+这只反映该缓存场景，不代表 Windows 整机内存下降 50% 或吞吐提升。
+
+## 验证与边界
+
+后端定向入口：
 
 ```powershell
 cd backend
-uv sync --extra dev --frozen
+uv run --frozen --no-sync pytest tests/test_local_admin.py tests/test_auth_accounts.py tests/test_auth_env_bootstrap.py tests/test_auth_runtime_mode.py tests/test_desktop_packaging.py -q
 $env:PYTHONPATH = (Get-Location).Path
 & ..\deploy\windows\test-resources.ps1 -Python (Resolve-Path .venv\Scripts\python.exe).Path
-uv run --frozen --no-sync pytest tests/test_resource_budget.py tests/test_datastore_memory_budget.py tests/test_compute_unavailable.py tests/backtest/test_panel_cache_budget.py tests/test_enriched_full_rebuild.py tests/test_enriched_incremental_memory.py tests/test_enriched_refresh_memory.py tests/test_pipeline_capacity.py tests/test_multitenancy_worker_process.py tests/backtest/test_worker_process.py tests/test_full_schedules.py -q
 ```
 
-`windows-native.yml` 提供上述 Windows Server 2022 回归；它只覆盖资源与已有原生
-兼容逻辑，不提供 Win10、沙箱隔离或全功能认证。
+前端运行 `pnpm test src/pages/LocalAdmin.test.tsx src/pages/Auth.test.tsx
+src/components/TenantSelector.test.tsx src/components/AccountScopeBoundary.test.tsx
+src/lib/accountSession.test.ts src/lib/auth-api.test.ts` 和 `pnpm build`。
+Windows Server 2022 CI 覆盖原生资源、脚本及账号回归；桌面 release smoke 检查
+默认登录、匿名访问拒绝、个人空间、退出后会话失效和完整 API 路由。
+macOS / Linux 打包 smoke 继续验证免登录。
 
-同规模缓存基准：
-
-```text
-python scripts/benchmark_memory_budget.py --before <旧工作树/backend> --after <新工作树/backend>
-```
-
-同一解释器交替运行前后版本各三次，固定 `1536 MiB` 预算、2 个 Polars 线程、
-3 个 `1,000,000 × 16` 数值面板，检查结果一致并采样 RSS。
-这是合成缓存驻留基准，不代表全市场回测或整机峰值。
-
-2026-10-21 在 macOS arm64、Python 3.11.17、Polars 1.44.1 的实际结果
-（三个独立进程样本的中位数）：
-
-| 指标 | 基线 | 修改后 |
-| --- | ---: | ---: |
-| 缓存持有的数据字节数 | 256,000,000 | 128,000,000 |
-| 进程峰值 RSS 字节数 | 633,815,040 | 615,497,728 |
-| 结束 RSS 字节数 | 587,530,240 | 583,221,248 |
-| 三个面板总耗时秒 | 0.2353 | 0.2508 |
-
-六次运行的校验和一致。缓存持有数据减少 50%，进程 RSS 改善较小且样本波动明显，
-不能推导为整机内存降低 50%；耗时中位数增加约 6.6%，不宣称吞吐提升。
-Python/native 分配器可能保留已释放的内存，字节淘汰不保证操作系统立即回收 RSS。
-
-同日后端实际执行（`backend` 目录，`POLARS_MAX_THREADS=2 PYTHONPATH=.`）：
-
-```text
-python -m pytest tests/backtest tests/test_resource_budget.py tests/test_datastore_memory_budget.py tests/test_compute_unavailable.py tests/test_full_compute.py tests/test_enriched_full_rebuild.py tests/test_enriched_incremental_memory.py tests/test_enriched_refresh_memory.py tests/test_pipeline_capacity.py tests/test_repository_cache_dependencies.py tests/test_get_daily_cache_reuse.py tests/test_enriched_history_window_cache.py tests/test_multitenancy_worker_process.py tests/test_full_schedules.py -q -rs
-```
-
-结果 **734 passed、6 skipped、38 warnings，118.13 秒**。6 项跳过均为
-`test_full_schedules.py` 缺少临时 PostgreSQL 服务的集成用例，不能计为通过。
-首次运行发现新增线程上限遗漏 `os` 导入，修正后以上最终回归无失败。
-DuckDB 线程限制与缺少 `AF_UNIX` 的测试均先复现原失败，再验证修复。
-
-新增 Python 文件及 executor 的 Ruff 检查通过；修改的历史核心文件 Ruff 告警
-与基线同为 162 条，无新增告警。工作流 YAML 解析、Windows 脚本 ASCII 编码、
-文档链接、`git diff --check` 和版本一致性检查通过。未修改前端源码，
-本轮未执行前端构建、Windows PowerShell 运行或 Windows CI。
-
-Windows 10 最终还需记录真实数据版本、数据量、空闲/并发任务时 RSS、系统提交量、
-换页和耗时；覆盖完整 UI、新用户与租户隔离、行情同步、选股、回测、优化、
-walk-forward、挖掘、监控、通知、调度、取消和重启恢复。必须等原生 Compute
-实现与验收完成后，才能宣称“全部功能可用”。
+本轮没有接入 Win10 22H2 真机，未执行 Windows PowerShell、Windows CI 或安装包
+构建。不能据本地跨平台测试宣称 Windows 全功能实机验收完成。真机还需覆盖真实数据
+同步、选股、回测、优化、walk-forward、挖掘、监控、通知、调度、取消和重启恢复，
+并记录系统提交量、进程树峰值内存、换页及耗时。
