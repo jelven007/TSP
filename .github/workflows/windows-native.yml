@@ -1,0 +1,47 @@
+name: Windows native resource regression
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'deploy/windows/**'
+      - 'scripts/benchmark_memory_budget.py'
+      - '.github/workflows/windows-native.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-resources:
+    # Server 2022 exercises native Windows APIs; it is not Windows 10 acceptance.
+    runs-on: windows-2022
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+        shell: powershell
+    env:
+      PYTHONUTF8: '1'
+      POLARS_MAX_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v3
+      - run: uv python install 3.12
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.0
+      - run: uv sync --extra dev --frozen
+      - name: Native bridge
+        run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
+      - name: PowerShell 5.1 profiles and process paths
+        run: |
+          $env:PYTHONPATH = (Get-Location).Path
+          & ..\deploy\windows\test-resources.ps1 -Python (Resolve-Path .venv\Scripts\python.exe).Path
+      - name: Memory, cache, history and worker regression
+        run: |
+          uv run --frozen --no-sync pytest tests/test_resource_budget.py tests/test_datastore_memory_budget.py tests/test_compute_unavailable.py tests/backtest/test_panel_cache_budget.py tests/test_enriched_full_rebuild.py tests/test_enriched_incremental_memory.py tests/test_enriched_refresh_memory.py tests/test_pipeline_capacity.py tests/test_multitenancy_worker_process.py tests/backtest/test_worker_process.py tests/test_full_schedules.py -q

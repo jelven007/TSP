@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -37,6 +38,7 @@ from app.enriched_generation import (
 from app.market_time import cn_today
 from app.parquet import scan_enriched_parquet
 from app.polars_guard import guarded_collect
+from app.resource_budget import cache_budget_bytes, effective_memory_bytes
 from app.services.minute_adjust import apply_minute_adjustment, minute_basis_is_raw
 from app.services.realtime_guard import pause_quotes_for_write
 
@@ -112,10 +114,17 @@ class DataStore:
     def __init__(self, data_dir: Path | None = None, *, read_only: bool = False) -> None:
         self.data_dir = Path(data_dir or settings.data_dir)
         self.read_only = read_only
+        memory = effective_memory_bytes()
+        # DuckDB's default allowance is based on the whole host. Small native
+        # services must leave room for Polars panels and other service roles.
+        db_config = (
+            {"memory_limit": f"{cache_budget_bytes(512)}B", "threads": min(2, os.cpu_count() or 1)}
+            if memory is not None and memory < 8 * 1024**3 else {}
+        )
         if read_only:
             if not self.data_dir.is_dir():
                 raise ValueError("public market directory is unavailable")
-            self.db = duckdb.connect(database=":memory:")
+            self.db = duckdb.connect(database=":memory:", config=db_config)
             self._register_views()
             return
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -159,7 +168,7 @@ class DataStore:
             (self.data_dir / "financials" / sub).mkdir(parents=True, exist_ok=True)
 
         # DuckDB 内存模式 — 不建 .db 文件(§7.1)
-        self.db = duckdb.connect(database=":memory:")
+        self.db = duckdb.connect(database=":memory:", config=db_config)
         self._register_views()
 
     def _migrate_legacy_data_dir(self) -> None:
