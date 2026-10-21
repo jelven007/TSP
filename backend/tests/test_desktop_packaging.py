@@ -54,13 +54,18 @@ def test_smoke_plugin_validation_accepts_default_rustdx_provider() -> None:
     )
 
 
-def test_desktop_smoke_requires_authentication_bypass() -> None:
+def test_desktop_smoke_covers_windows_admin_and_other_platform_bypass() -> None:
     source = (ROOT / "backend" / "app" / "desktop.py").read_text(encoding="utf-8")
 
     assert 'f"{base_url}/api/auth/status"' in source
     assert 'auth_status.get("auth_required") is not False' in source
     assert 'f"{base_url}/api/capabilities"' in source
     assert 'f"{base_url}/api/auth/login"' in source
+    assert '"password": "Admin123"' in source
+    assert 'user.get("username") != "admin"' in source
+    assert 'user.get("default_tenant_id") != "personal"' in source
+    assert '(user.get("workspace") or {}).get("id") != "personal"' in source
+    assert 'logger.info("DESKTOP_LOCAL_ADMIN_SMOKE_TEST_OK")' in source
     assert 'logger.info("DESKTOP_AUTH_BYPASS_SMOKE_TEST_OK")' in source
 
 
@@ -71,6 +76,23 @@ def test_find_free_port_skips_an_active_listener() -> None:
         occupied = listener.getsockname()[1]
 
         assert desktop._find_free_port(occupied, count=20) != occupied
+
+
+def test_windows_desktop_applies_16gb_defaults_without_overriding_operator_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key in desktop._WINDOWS_RESOURCE_DEFAULTS:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("POLARS_MAX_THREADS", "1")
+    monkeypatch.setattr(desktop.sys, "platform", "win32")
+
+    desktop._apply_windows_resource_defaults()
+
+    assert desktop.os.environ["TSP_MEMORY_BUDGET_MB"] == "4096"
+    assert desktop.os.environ["POLARS_COLLECT_PERMITS"] == "2"
+    assert desktop.os.environ["POLARS_COLLECT_BACKGROUND_PERMITS"] == "1"
+    assert desktop.os.environ["STRATEGY_RUN_ALL_WORKERS"] == "1"
+    assert desktop.os.environ["POLARS_MAX_THREADS"] == "1"
 
 
 @pytest.mark.parametrize(
@@ -244,6 +266,7 @@ def test_windows_smoke_log_checks_use_explicit_powershell_parameters() -> None:
     ) == 1
     assert "$env:TSP_DESKTOP_GUI_SMOKE_TEST = '1'" in workflow
     assert "DESKTOP_AUTH_BYPASS_SMOKE_TEST_OK" in workflow
+    assert workflow.count("DESKTOP_LOCAL_ADMIN_SMOKE_TEST_OK") == 2
     assert "matrix.platform == 'macos' || matrix.platform == 'linux'" in workflow
     assert "packaging/smtp_sink.py" not in workflow
     assert "TSP_DESKTOP_SMTP_SMOKE_TEST" not in workflow

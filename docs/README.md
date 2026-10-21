@@ -43,7 +43,7 @@ Gateway、Platform、四类 Worker 和 Compute Broker；详见
 | 版本与状态 | [版本基线](./version-baseline.md)、[多人协作与版本管理](./collaborative-versioning.md)、[发布与上线运营](./release-operations.md) |
 | 产品与使用 | [功能手册](./features.md)、[操作说明书](../操作说明书.md) |
 | 单机多租户 | [完整部署](../deploy/full/README.md)、[单机实施](../reports/single-host/implementation.md)、[持续验收](../reports/single-host/continuous-acceptance.md)、[两期技术方案](./multitenant-roadmap.md)、[一期实施与验收](./phase1-implementation.md)、[二期三步实施](./phase2-implementation-plan.md) |
-| 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md)、[Windows 10 生产构建与部署](./windows10-production-deployment.md) |
+| 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md)、[Windows 10 历史多租户部署](./windows10-production-deployment.md)、[Windows 10 单机管理员、个人空间与 16 GB 资源配置](./windows10-native-16gb.md) |
 | 数据源 | [自定义数据源](./custom-data-source.md)、[rustdx 数据源](./rustdx-data-source.md)、[插件开发](./plugin-development.md) |
 | TickFlow 专项 | [Pro 一阶段探测](./tickflow-pro-phase1-probe.md)、[共享限流](./tickflow-pro-shared-rate-limit.md) |
 | 策略与研究 | [策略开发](./strategy.md)、[策略迭代](./strategy-iteration.md)、[策略质量研究](../reports/strategy-optimization-20261019/analysis.md)、[五策略共享运行](../reports/five-strategy-parallel-20261019/implementation.md)、[固定输入与研究记录](./research-configuration.md)、[因子平台方案](./factor-platform-plan.md)、[因子系统设计](./factor-system-design.md)、[因子挖掘](./mining.md) |

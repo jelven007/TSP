@@ -19,6 +19,7 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/lib/accountSession', () => ({
   clearAccountCache: vi.fn(),
   hasPermission: vi.fn(() => true),
+  localAdminMode: vi.fn(() => false),
   multitenancyEnabled: vi.fn(() => true),
 }))
 

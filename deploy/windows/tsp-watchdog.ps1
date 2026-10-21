@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Keep the TSP multitenant workers alive on Windows 10.
+    Legacy multitenant watchdog (paused for the Windows single-admin runtime).
 
 .DESCRIPTION
     Polls every <IntervalSeconds> and restarts a worker through
@@ -36,11 +36,20 @@ param(
     [string]$LogDir = 'E:\pg-tsp\logs',
     [string]$FullScript = '',
     [string]$RepoRoot = 'E:\Projects\TSP',
+    [string]$SecretsFile = 'E:\pg-tsp\secrets.env',
+    [string]$PublicMarket = 'E:\pg-tsp\public_market',
+
+    [ValidateSet('native16gb', 'existing')]
+    [string]$ResourceProfile = 'native16gb',
 
     [switch]$Once
 )
 
 $ErrorActionPreference = 'Stop'
+Write-Warning 'Windows multitenancy is paused. Disable this watchdog task; supervise the standalone service with NSSM.'
+return
+
+. (Join-Path $PSScriptRoot 'tsp-resources.ps1')
 
 if ([string]::IsNullOrEmpty($FullScript)) {
     $FullScript = Join-Path $PSScriptRoot 'tsp-full.ps1'
@@ -105,10 +114,16 @@ function Invoke-Restart {
     $outLog = Join-Path $LogDir ("watchdog-restart-{0}.out.log" -f $Kind)
     $errLog = Join-Path $LogDir ("watchdog-restart-{0}.err.log" -f $Kind)
     try {
+        $arguments = @(
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $FullScript,
+            'restart', '-Components', $Kind, '-RunDir', $RunDir, '-LogDir', $LogDir,
+            '-RepoRoot', $RepoRoot, '-SecretsFile', $SecretsFile,
+            '-PublicMarket', $PublicMarket, '-ResourceProfile', $ResourceProfile
+        )
+        $quoted = @($arguments | ForEach-Object { ConvertTo-TspProcessArgument $_ })
         $helper = Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru `
             -RedirectStandardOutput $outLog -RedirectStandardError $errLog `
-            -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $FullScript,
-                          'restart', '-Components', $Kind, '-RunDir', $RunDir, '-LogDir', $LogDir
+            -ArgumentList $quoted
         # WaitForExit(int) waits for the process handle only. The parameterless
         # WaitForExit() would also wait for stream EOF, which never arrives
         # because the python supervisors inherit the redirected handle.

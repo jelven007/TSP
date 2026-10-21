@@ -11,6 +11,8 @@
 
 ## 1. 运行边界
 
+- 原生 Windows 已暂停多租户，使用单进程管理员个人空间；旧平台、worker、
+  watchdog 的停用和备份切换步骤见[Windows 单机说明](./windows10-native-16gb.md)。
 - 当前完整单机多租户按角色运行平台、API 和四类 Worker，API 默认四进程；
   PostgreSQL、公共版本、Broker、备份和恢复见[完整部署](../deploy/full/README.md)。
 - 火山引擎生产当前为 v0.4.11、`092bd79c`、schema v6；在原 `6d16751c`

@@ -33,6 +33,10 @@ export function multitenancyEnabled(): boolean {
   return status?.multitenancy_enabled === true
 }
 
+export function localAdminMode(): boolean {
+  return status?.local_admin_mode === true
+}
+
 export function hasPermission(permission: string): boolean {
   if (!confirmed) return false
   if (!multitenancyEnabled()) return !status?.auth_required || !!status.authenticated

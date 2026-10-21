@@ -4,7 +4,8 @@ Accounts only control access to the shared application data. This first phase
 does not introduce tenants or roles. Public registration and password recovery
 require short-lived, purpose-bound email verification codes.
 Legacy password-only installations remain readable until the owner binds an
-email address with the existing password.
+email address with the existing password. Windows uses a separate single-admin
+identity file and the same session/password machinery for its personal space.
 """
 from __future__ import annotations
 
@@ -61,18 +62,35 @@ def _path() -> Path:
 
     if not _legacy_store_available():
         raise RuntimeError("legacy identity files are unavailable in the full multitenant runtime")
-    path = settings.data_dir / "user_data" / "auth.json"
+    filename = "local_admin.json" if settings.local_admin_mode else "auth.json"
+    path = settings.data_dir / "user_data" / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _load() -> dict:
+    from app.config import settings
+
     path = _path()
     if path.exists():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
+            if settings.local_admin_mode:
+                users = data["users"]
+                user, = users.values()
+                if (
+                    user["username"] != "admin" or user["role"] != "admin"
+                    or users.get(user["id"]) != user
+                    or len(bytes.fromhex(user["password_salt"])) != _SALT_LEN
+                    or len(bytes.fromhex(user["password_hash"])) != 32
+                    or not isinstance(user["created_at"], int)
+                    or not isinstance(data["sessions"], dict)
+                ):
+                    raise ValueError("invalid local administrator")
             return data if isinstance(data, dict) else {}
         except Exception as exc:
+            if settings.local_admin_mode:
+                raise RuntimeError("local_admin.json is invalid; restore it from backup") from exc
             logger.warning("auth.json malformed: %s", exc)
     return {}
 
@@ -83,6 +101,39 @@ def _save(data: dict) -> None:
         json.dumps(data, indent=2, ensure_ascii=False),
         mode=0o600,
     )
+
+
+def _require_email_mode() -> None:
+    from app.config import settings
+
+    if settings.local_admin_mode:
+        raise ValueError("单机管理员模式不支持注册或邮箱账户变更")
+
+
+def bootstrap_local_admin() -> bool:
+    """Create the local administrator once; never replace an existing password."""
+    from app.config import settings
+
+    global _configured_cache
+    if not settings.local_admin_mode:
+        return False
+    with _lock:
+        if _path().exists():
+            _load()  # Corrupt identity files must stop startup, never reset.
+            _configured_cache = True
+            return False
+        user = _new_user("", "Admin123")
+        user.update(username="admin", role="admin")
+        _save({
+            "schema_version": _SCHEMA_VERSION,
+            "users": {user["id"]: user},
+            "sessions": {},
+            "updated_at": int(time.time()),
+        })
+        _sessions.clear()
+        _configured_cache = True
+    logger.info("local administrator and personal workspace initialized")
+    return True
 
 
 def normalize_email(email: str) -> str:
@@ -143,6 +194,7 @@ def has_registration_secret() -> bool:
 
 def set_registration_secret(secret: str) -> None:
     """Hash and persist the shared registration secret."""
+    _require_email_mode()
     value = str(secret or "").strip()
     if not 1 <= len(value) <= 128:
         raise ValueError("注册口令长度必须在 1 到 128 位之间")
@@ -180,11 +232,18 @@ def _find_user_by_email(data: dict, email: str) -> dict | None:
 
 
 def _public_user(user: dict) -> dict:
-    return {
+    result = {
         "id": str(user["id"]),
         "email": str(user["email"]),
         "created_at": int(user["created_at"]),
     }
+    if user.get("username") == "admin" and user.get("role") == "admin":
+        result.update(
+            email=None,
+            username="admin", role="admin", default_tenant_id="personal",
+            workspace={"id": "personal", "name": "个人空间"},
+        )
+    return result
 
 
 def _new_user(email: str, password: str) -> dict:
@@ -236,6 +295,7 @@ def is_configured() -> bool:
 def register_user(email: str, password: str) -> tuple[str, dict]:
     """Create an email account and an authenticated session."""
     global _configured_cache
+    _require_email_mode()
     normalized = normalize_email(email)
     _validate_password(password)
     with _lock:
@@ -264,6 +324,7 @@ def register_user(email: str, password: str) -> tuple[str, dict]:
 def migrate_legacy_user(email: str, password: str) -> tuple[str, dict] | None:
     """Bind an email to the previous password-only account."""
     global _configured_cache
+    _require_email_mode()
     normalized = normalize_email(email)
     _validate_password(password, minimum=6)
     with _lock:
@@ -304,13 +365,18 @@ def migrate_legacy_user(email: str, password: str) -> tuple[str, dict] | None:
 
 
 def authenticate_user(email: str, password: str) -> tuple[str, dict] | None:
+    from app.config import settings
+
     try:
         normalized = normalize_email(email)
     except ValueError:
         normalized = ""
     with _lock:
         data = _load()
-        user = _find_user_by_email(data, normalized) if normalized else None
+        if settings.local_admin_mode:
+            user = next(iter(_users(data).values()), None) if email.strip() == "admin" else None
+        else:
+            user = _find_user_by_email(data, normalized) if normalized else None
         if user is None:
             _verify_password(password, _DUMMY_SALT.hex(), _DUMMY_HASH)
             return None
@@ -393,6 +459,7 @@ def change_password(token: str, old_password: str, new_password: str) -> bool:
 
 def reset_password(email: str, new_password: str) -> bool:
     """Reset an email account password and revoke all of its sessions."""
+    _require_email_mode()
     normalized = normalize_email(email)
     _validate_password(new_password)
     salt_hex, hash_hex = _hash_password(new_password)
@@ -420,6 +487,7 @@ def reset_password(email: str, new_password: str) -> bool:
 def set_password(password: str) -> None:
     """Compatibility initializer for historical password-only deployments."""
     global _configured_cache
+    _require_email_mode()
     _validate_password(password, minimum=6)
     salt_hex, hash_hex = _hash_password(password)
     with _lock:
@@ -441,6 +509,8 @@ def bootstrap_registration_secret_from_env() -> bool:
     """Persist a one-way hash from AUTH_REGISTRATION_SECRET once."""
     from app.config import _ENV_FILE, settings
 
+    if settings.local_admin_mode:
+        return False
     secret = (settings.auth_registration_secret or "").strip()
     if _ENV_FILE.is_file():
         from dotenv import dotenv_values
@@ -463,6 +533,8 @@ def bootstrap_from_env() -> bool:
     """Initialize auth once from AUTH_EMAIL/AUTH_PASSWORD when provided."""
     from app.config import _ENV_FILE, settings
 
+    if settings.local_admin_mode:
+        return False
     password = (settings.auth_password or "").strip()
     email = (settings.auth_email or "").strip()
     if _ENV_FILE.is_file():

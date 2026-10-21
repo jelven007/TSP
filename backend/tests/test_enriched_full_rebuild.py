@@ -159,7 +159,7 @@ def test_adaptive_sym_batch_shrinks_only_on_small_ram(monkeypatch):
     """小内存: 按目标行数收缩; 大内存: 保持用户设置 (#208)。"""
     monkeypatch.setattr(pipeline, "_total_ram_bytes", lambda: 2 * 1024 ** 3)
     got = pipeline._adaptive_sym_batch(1000, 1500)
-    assert got == max(pipeline._BATCH_MIN_SYMBOLS, min(1000, 150_000 // 1500))
+    assert got == 100
     # 行数极少时不低于下限
     assert pipeline._adaptive_sym_batch(1000, 1) == 1000
 

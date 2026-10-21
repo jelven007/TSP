@@ -90,11 +90,22 @@ export function SettingsAccountPanel() {
               <dd className="text-xs text-secondary">{user.role === 'admin' ? '管理员' : '租户'}</dd>
             </div>
           )}
+          {user?.workspace && (
+            <div className="flex items-center justify-between gap-4 py-3">
+              <dt className="text-xs text-muted">当前空间</dt>
+              <dd className="text-xs text-secondary">{user.workspace.name}</dd>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-4 py-3">
             <dt className="text-xs text-muted">创建时间</dt>
             <dd className="text-xs text-secondary">{createdAt}</dd>
           </div>
         </dl>
+        {statusQuery.data?.local_admin_mode && (
+          <p className="mt-3 text-xs leading-5 text-muted">
+            自选、策略、回测和监控数据保存在本机个人空间。
+          </p>
+        )}
       </section>
 
       <section className="rounded-card border border-border bg-surface p-5">

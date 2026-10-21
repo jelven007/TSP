@@ -6,15 +6,24 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from app.config import authentication_required
+from app.config import authentication_required, settings
 from app.services import auth, auth_verification
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+def _check_local_admin_route(request: Request) -> None:
+    if settings.local_admin_mode and request.url.path.rstrip("/") not in {
+        "/api/auth/status", "/api/auth/login", "/api/auth/logout", "/api/auth/change-password",
+    }:
+        raise HTTPException(status_code=403, detail="单机管理员模式不开放注册、找回或迁移账户")
+
+
+router = APIRouter(
+    prefix="/api/auth", tags=["auth"], dependencies=[Depends(_check_local_admin_route)],
+)
 
 COOKIE_NAME = "tf_session"
 _COOKIE_MAX_AGE = 30 * 24 * 3600  # 与 SESSION_TTL 一致
@@ -230,14 +239,16 @@ def auth_status(request: Request) -> dict:
         "configured": auth.is_configured(),
         "has_users": auth.has_users(),
         "legacy_migration_required": auth.requires_legacy_migration(),
-        "registration_enabled": auth.has_registration_secret(),
-        "email_verification_required": True,
+        "registration_enabled": not settings.local_admin_mode and auth.has_registration_secret(),
+        "email_verification_required": not settings.local_admin_mode,
+        "local_admin_mode": settings.local_admin_mode,
+        "multitenancy_enabled": False,
         "authenticated": authenticated,
         "user": auth.current_user(token) if authenticated and token else None,
     }
 
 
-@router.post("/register/code", include_in_schema=authentication_required())
+@router.post("/register/code", include_in_schema=authentication_required() and not settings.local_admin_mode)
 def send_registration_code(req: RegistrationCodeIn, request: Request) -> dict:
     """Verify the registration secret, then email a short-lived code."""
     try:
@@ -274,7 +285,7 @@ def send_registration_code(req: RegistrationCodeIn, request: Request) -> dict:
 @router.post(
     "/register",
     status_code=201,
-    include_in_schema=authentication_required(),
+    include_in_schema=authentication_required() and not settings.local_admin_mode,
 )
 def register(req: AccountIn, request: Request, response: Response) -> dict:
     """Create an email account and sign the browser in."""
@@ -304,7 +315,7 @@ def register(req: AccountIn, request: Request, response: Response) -> dict:
     return {"ok": True, "authenticated": True, "user": user}
 
 
-@router.post("/recovery/code", include_in_schema=authentication_required())
+@router.post("/recovery/code", include_in_schema=authentication_required() and not settings.local_admin_mode)
 def send_recovery_code(req: RegistrationCodeIn, request: Request) -> dict:
     """Verify the registration secret and issue a password recovery code."""
     try:
@@ -336,7 +347,7 @@ def send_recovery_code(req: RegistrationCodeIn, request: Request) -> dict:
     }
 
 
-@router.post("/recovery/reset", include_in_schema=authentication_required())
+@router.post("/recovery/reset", include_in_schema=authentication_required() and not settings.local_admin_mode)
 def reset_password(req: RecoveryResetIn, request: Request) -> dict:
     """Reset an email account after validating both shared secret and email code."""
     _record_recovery_attempt(_client_ip(request))
@@ -357,7 +368,7 @@ def reset_password(req: RecoveryResetIn, request: Request) -> dict:
     return {"ok": True, "message": "密码已重置, 请使用新密码登录"}
 
 
-@router.post("/migrate", include_in_schema=authentication_required())
+@router.post("/migrate", include_in_schema=authentication_required() and not settings.local_admin_mode)
 def migrate_legacy_account(
     req: LegacyMigrationIn,
     request: Request,
@@ -381,7 +392,7 @@ def migrate_legacy_account(
     return {"ok": True, "authenticated": True, "user": user}
 
 
-@router.post("/setup", include_in_schema=authentication_required())
+@router.post("/setup", include_in_schema=authentication_required() and not settings.local_admin_mode)
 def setup_password(req: PasswordIn, request: Request) -> dict:
     """Compatibility endpoint for creating a legacy access password."""
     client_ip = _client_ip(request)
@@ -412,7 +423,9 @@ def login(req: LoginIn, request: Request, response: Response) -> dict:
     user = None
     if auth.has_users():
         if not req.email:
-            raise HTTPException(status_code=400, detail="请输入邮箱地址")
+            raise HTTPException(
+                status_code=400, detail="请输入用户名" if settings.local_admin_mode else "请输入邮箱地址",
+            )
         result = auth.authenticate_user(req.email, req.password)
         if result:
             token, user = result
@@ -422,7 +435,9 @@ def login(req: LoginIn, request: Request, response: Response) -> dict:
         token = auth.verify_and_create_session(req.password)
     if token is None:
         _record_login_fail(ip)
-        raise HTTPException(status_code=401, detail="邮箱或密码错误")
+        raise HTTPException(
+            status_code=401, detail="用户名或密码错误" if settings.local_admin_mode else "邮箱或密码错误",
+        )
 
     _clear_login_fails(ip)
     _set_session_cookie(response, request, token)

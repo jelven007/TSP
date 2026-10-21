@@ -4,6 +4,12 @@
 [需求基线](./requirements.md)，工程细则依据[贡献与复审指南](../CONTRIBUTING.md)，
 被测源码、生产和标签状态依据[版本基线](./version-baseline.md)。
 
+原生 Windows 10 22H2 x64 / 16 GB 的资源检查、同规模缓存基准和全功能阻断项见
+[原生资源优化验收](./windows10-native-16gb.md)。
+`windows-native.yml` 在 Windows Server 2022 执行 PowerShell 5.1、资源预算和
+worker 回归，不能替代 Win10 真机与隔离 Compute 验收；缺少目标环境的测试须标记
+“未执行”，不能把跳过或 Compute readiness 错误视为通过。
+
 ## 1. 测试目标
 
 测试不仅验证接口能返回，还要证明：

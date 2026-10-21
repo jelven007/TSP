@@ -4,6 +4,16 @@
 
 部署相关配置(端口/密码/老 CPU 兼容)的实操见 [deployment.md](./deployment.md)。
 
+原生 Windows 10 / 16 GB 使用[单机管理员配置](./windows10-native-16gb.md)：
+默认 `LOCAL_ADMIN_MODE=true`，强制关闭多租户，要求 `SERVICE_ROLE=standalone`。
+默认账号 `admin/Admin123`，已有密码不会重置，个人空间沿用本地数据目录。
+`tsp-service.ps1` 默认 `-ResourceProfile native16gb`、4096 MiB 预算，
+`existing` 保留原资源环境；旧 worker/watchdog 启动已暂停。
+`TSP_MEMORY_BUDGET_MB` 为正整数 MiB，仅引导指标分批、DuckDB 缓冲及回测面板缓存，
+不提供操作系统硬限制。配置取物理内存、cgroup 与显式预算的最小值；
+线程设置需重启进程。Windows 单机研究任务使用已有本地引擎，不依赖多租户
+Compute；目标机器的内存与功能仍需实测。
+
 完整单机多租户通过 `MULTITENANCY_ENABLED`、`SERVICE_ROLE` 和
 `TSP_CELL_SCHEMA_VERSION=6` 接线，使用独立控制库/业务库 runtime DSN。
 `TSP_CELL_*` 名称为当前共享基础的兼容配置，仍在使用。
