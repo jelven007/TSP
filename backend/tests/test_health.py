@@ -20,6 +20,22 @@ class _Scheduler:
         return [object(), object()]
 
 
+@pytest.mark.parametrize(("free_inodes", "status"), [
+    (500_000, "ok"), (90_000, "warning"), (5_000, "error"),
+])
+def test_disk_health_detects_inode_pressure_with_free_bytes(
+    tmp_path, monkeypatch, free_inodes, status,
+):
+    monkeypatch.setattr(health.os, "statvfs", lambda _: SimpleNamespace(
+        f_files=1_000_000, f_ffree=free_inodes,
+        f_bavail=10_000_000, f_frsize=4096, f_blocks=20_000_000, f_bfree=10_000_000,
+    ))
+    result = health._check_disk(tmp_path)
+    assert result["free_bytes"] > health._DISK_WARNING_BYTES
+    assert result["free_inodes"] == free_inodes
+    assert result["status"] == status
+
+
 def test_readiness_reports_local_dependency_status(
     tmp_path,
     monkeypatch,

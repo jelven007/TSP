@@ -357,6 +357,13 @@ TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.maintain_full_host \
 `current`、最近版本和仍被研究任务引用的版本必须保留。Docker 只清理到期 BuildKit
 缓存和悬空镜像，不使用 `image prune -a`，带 tag 的回滚镜像不删除。
 
+持续发布的多租户主机还应启用
+[`tsp-public-release-maintenance.timer`](../deploy/full/systemd/tsp-public-release-maintenance.timer)，
+每五分钟回收超过六小时、且不在当前/最近 30 份/研究引用保护集合中的不可变版本。
+安装、数据库 owner 查询方式和配置见[完整部署指南](../deploy/full/README.md)。
+同时观察 `df -i`；硬链接复用文件仍会为每个发布版本新建目录，磁盘字节空闲不代表
+inode 空闲。数据库引用查询失败时停止回收，不使用 runtime 角色绕过完整引用检查。
+
 ### 8.3 独立模式 Docker Compose 停机备份
 
 以下示例在仓库根目录执行：
