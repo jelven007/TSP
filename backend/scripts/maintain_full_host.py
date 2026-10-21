@@ -12,9 +12,11 @@ from pathlib import Path
 
 RELEASE_ID = re.compile(r"^[0-9a-f]{32}$")
 REFERENCE_QUERY = (
-    "SELECT coalesce(json_agg(DISTINCT metadata#>>'{research,public_release_id}'), '[]') "
+    "SELECT coalesce(json_agg(DISTINCT release_id), '[]') FROM ("
+    "SELECT metadata#>>'{research,public_release_id}' AS release_id "
     "FROM business.research_jobs "
-    "WHERE metadata#>>'{research,public_release_id}' IS NOT NULL;"
+    "UNION SELECT input->>'public_release_id' FROM business.research_jobs"
+    ") references_all WHERE release_id IS NOT NULL;"
 )
 
 
@@ -53,9 +55,9 @@ def referenced_releases(dsn: str) -> set[str]:
 
     with psycopg.connect(dsn) as conn:
         rows = conn.execute(
-            """SELECT DISTINCT metadata#>>'{research,public_release_id}' AS release_id
+            """SELECT metadata#>>'{research,public_release_id}' AS release_id
                FROM business.research_jobs
-               WHERE metadata#>>'{research,public_release_id}' IS NOT NULL""",
+               UNION SELECT input->>'public_release_id' FROM business.research_jobs""",
         ).fetchall()
     return {
         row[0] for row in rows

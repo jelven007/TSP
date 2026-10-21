@@ -112,6 +112,7 @@ def test_postgres_retention_reads_all_references_without_application_rls(monkeyp
         assert command[:5] == ["docker", "exec", "-i", "postgres", "sh"]
         assert command[-1] == "business_prod"
         assert "business.research_jobs" in kwargs["input"]
+        assert "input->>'public_release_id'" in kwargs["input"]
         assert kwargs["check"] and kwargs["timeout"] <= 30
         return subprocess.CompletedProcess(command, 0, stdout=json.dumps(["a" * 32, None]))
 
