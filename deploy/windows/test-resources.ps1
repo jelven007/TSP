@@ -41,6 +41,8 @@ with tempfile.TemporaryDirectory() as directory:
         assert store.db.execute("select sum(i) from range(1000) t(i)").fetchone()[0] == 499500
     finally:
         store.db.close()
+expected = ["C:\\path with spaces\\", 'a"b', "", "C:\\\u6d4b\u8bd5\\"]
+assert sys.argv[2:] == expected, f"process arguments changed: {sys.argv[2:]!r}"
 Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding="utf-8")
 '@
     $probe = Join-Path $testDir 'check resources.py'
@@ -60,7 +62,8 @@ Path(sys.argv[1]).write_text(json.dumps(sys.argv[2:]), encoding="utf-8")
         $quoted = @($arguments | ForEach-Object { ConvertTo-TspProcessArgument $_ })
         $child = Start-Process -FilePath $Python -ArgumentList $quoted -Wait -PassThru -NoNewWindow
         if ($child.ExitCode -ne 0) { throw "resource check failed: $role" }
-        $actual = @(Get-Content -LiteralPath $output -Raw | ConvertFrom-Json)
+        # Windows PowerShell 5.1 emits the JSON array as one pipeline object.
+        $actual = Get-Content -LiteralPath $output -Raw | ConvertFrom-Json
         if ($actual.Count -ne $samples.Count) { throw 'argument count mismatch' }
         for ($i = 0; $i -lt $samples.Count; $i++) {
             if ($actual[$i] -cne $samples[$i]) { throw "argument mismatch: $i" }
