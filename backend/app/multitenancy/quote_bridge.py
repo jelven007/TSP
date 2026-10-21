@@ -60,7 +60,12 @@ class PublicQuoteBridge(QuoteService):
         with self.refresh_lock:
             marker_connected = bool(self.markers and self.markers.status()["connected"])
             stale = not self.snapshot or self.loaded_generation < self.update_generation
-            fallback_stale = not marker_connected and time.monotonic() - self.received_at >= max_age
+            fallback_stale = (
+                time.monotonic() - self.received_at >= max_age and (
+                    not marker_connected
+                    or Path(settings.data_dir).resolve() != self._repo.store.data_dir.resolve()
+                )
+            )
             if not force and not stale and not fallback_stale:
                 return self.status()
             generation = self.update_generation
@@ -74,7 +79,12 @@ class PublicQuoteBridge(QuoteService):
     def ensure_fresh(self, max_age=5):
         marker_connected = bool(self.markers and self.markers.status()["connected"])
         stale = not self.snapshot or self.loaded_generation < self.update_generation
-        fallback_stale = not marker_connected and time.monotonic() - self.received_at >= max_age
+        fallback_stale = (
+            time.monotonic() - self.received_at >= max_age and (
+                not marker_connected
+                or Path(settings.data_dir).resolve() != self._repo.store.data_dir.resolve()
+            )
+        )
         if stale or fallback_stale:
             return self.refresh(force=False, max_age=max_age)
         return self.status()
