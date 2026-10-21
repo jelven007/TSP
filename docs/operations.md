@@ -13,9 +13,9 @@
 
 - 当前完整单机多租户按角色运行平台、API 和四类 Worker，API 默认四进程；
   PostgreSQL、公共版本、Broker、备份和恢复见[完整部署](../deploy/full/README.md)。
-- 火山引擎生产当前为 v0.4.11、`6d16751c`、schema v6，独立 Gateway、Platform、
-  四类 Worker 和 Compute Broker 已切流，详见
-  [线上升级结果](../reports/online-upgrade-20261020/deployment-result.md)。
+- 火山引擎生产当前为 v0.4.11、`092bd79c`、schema v6；在原 `6d16751c`
+  上部署公共版本容量、回收和盘后仓库刷新修复，详见
+  [超时修复结果](../reports/online-timeout-20261021/result.md)。
 - 同日已完成 2016-01-01 起日线回填，实际覆盖和财务/分钟边界见
   [回填结果](../reports/history-backfill-20261020/result.md)。后续页面局部刷新、分钟
   空值和实时写盘门闸修复尚未替换生产固定镜像。
