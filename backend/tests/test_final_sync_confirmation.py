@@ -4,8 +4,8 @@
 实时源当时仍返回 14:59:5x 的竞价前快照 (海鸥住工 7.07 而非官方收盘 7.10),
 旧价被永久固化到当日分区; 且重启后的盘后手动刷新会再次写回旧价。修复后:
 
-- _process_full_market_records 收到 final_boundary_ms 时, 快照最大时间戳
-  达到边界 (含容差) 才落盘/评估监控, 否则只更新展示缓存;
+- _process_full_market_records 收到 final_boundary_ms 时, 每条源端快照时间戳
+  达到同交易日边界才落盘/评估监控, 否则只更新展示缓存;
 - _final_boundary_ms/_past_final_deadline 提供边界与重试窗口 (收盘 15:00/15:15)。
 """
 from __future__ import annotations
@@ -58,12 +58,16 @@ def service(monkeypatch) -> tuple[QuoteService, _StubRepo, dict]:
     qs = QuoteService()
     repo = _StubRepo()
     qs._repo = repo
-    events: dict[str, int] = {"broadcast": 0, "enriched": 0}
+    events: dict[str, int] = {"broadcast": 0, "enriched": 0, "provisional": 0}
     monkeypatch.setattr(qs_module, "_persist_last_fetch", lambda ms: None)
     monkeypatch.setattr(qs, "_update_volume_delta", lambda *a, **k: None)
     monkeypatch.setattr(qs, "_evaluate_monitors", lambda *a, **k: None)
     monkeypatch.setattr(qs, "_broadcast_quote_updated", lambda: events.__setitem__("broadcast", events["broadcast"] + 1))
-    monkeypatch.setattr(qs, "_flush_live_enriched", lambda *a, **k: events.__setitem__("enriched", events["enriched"] + 1))
+    def flush_enriched(*args, persist=True, **kwargs):
+        key = "enriched" if persist else "provisional"
+        events[key] += 1
+
+    monkeypatch.setattr(qs, "_flush_live_enriched", flush_enriched)
     return qs, repo, events
 
 
@@ -80,6 +84,7 @@ def test_final_snapshot_before_boundary_skips_disk(service) -> None:
     assert qs._last_final_confirmed is False
     assert repo.calls == []          # 未写 kline_daily
     assert events["enriched"] == 0   # 未写 enriched
+    assert events["provisional"] == 1
     assert events["broadcast"] == 1  # 展示缓存路径仍走通
 
 
@@ -97,6 +102,19 @@ def test_final_snapshot_after_boundary_writes(service) -> None:
     assert repo.calls == ["daily"]
     assert events["enriched"] == 1
     assert events["broadcast"] == 1
+
+
+@pytest.mark.parametrize("offset", [-5_000, -1])
+def test_preclose_timestamp_is_not_final_even_within_old_tolerance(service, offset):
+    qs, repo, events = service
+    boundary = _beijing_ms(15, 0)
+    qs._process_full_market_records(
+        [_record(boundary + offset)], t0=0.0, now_ts=0.0, final_boundary_ms=boundary,
+    )
+    assert qs._last_final_confirmed is False
+    assert repo.calls == []
+    assert events["enriched"] == 0
+    assert events["provisional"] == 1
 
 
 def test_snapshot_without_timestamp_never_confirmed(service) -> None:
