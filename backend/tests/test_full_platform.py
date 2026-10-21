@@ -141,6 +141,63 @@ def test_publication_rejects_a_changed_generation_and_keeps_previous(tmp_path, m
     assert len(list((target / "releases").iterdir())) == 1
 
 
+def test_publication_loop_limits_file_versions_but_retries_failed_copy(tmp_path, monkeypatch):
+    publisher = PublicPublisher(tmp_path / "source", tmp_path / "public")
+    waits, attempts = [], []
+
+    class StopAfterThree:
+        def wait(self, seconds):
+            waits.append(seconds)
+            return len(waits) > 3
+
+    def publish():
+        attempts.append(True)
+        if len(attempts) == 1:
+            raise OSError("temporary copy failure")
+
+    publisher.stopped = StopAfterThree()
+    monkeypatch.setattr(publisher, "publish", publish)
+    publisher._loop()
+    assert waits == [300, 30, 300, 300]
+    assert len(attempts) == 3
+
+
+def test_publication_preserves_current_before_inode_reserve_is_exhausted(tmp_path, monkeypatch):
+    import os
+
+    source, target = tmp_path / "source", tmp_path / "public"
+    path = market_files(source)
+    publisher = PublicPublisher(source, target)
+    first = publisher.publish()
+    path.touch()
+    monkeypatch.setattr(os, "statvfs", lambda _: SimpleNamespace(
+        f_files=1_000_000, f_ffree=100_005, f_bavail=10**9, f_frsize=4096,
+    ))
+    with pytest.raises(OSError, match="public release capacity reserve"):
+        publisher.publish()
+    assert release_path(target).name == first["id"]
+    assert len(list((target / "releases").iterdir())) == 1
+
+
+def test_publication_start_uses_previous_release_when_capacity_is_low(tmp_path, monkeypatch):
+    import errno
+
+    source, target = tmp_path / "source", tmp_path / "public"
+    market_files(source)
+    publisher = PublicPublisher(source, target)
+    first = publisher.publish()
+    monkeypatch.setattr(
+        publisher, "publish",
+        lambda: (_ for _ in ()).throw(OSError(errno.ENOSPC, "capacity reserve")),
+    )
+    started = []
+    monkeypatch.setattr(publisher.thread, "start", lambda: started.append(True))
+    publisher.start()
+    assert started == [True]
+    assert publisher.error == "OSError"
+    assert release_path(target).name == first["id"]
+
+
 @pytest.mark.parametrize(("raw_dir", "enriched_dir"), [
     ("kline_daily", "kline_daily_enriched"),
     ("kline_etf_daily", "kline_etf_enriched"),
@@ -307,6 +364,48 @@ def test_api_quote_bridge_uses_markers_and_refreshes_frames_only_on_demand(tmp_p
         assert market.calls == 1 and bridge.frame_decodes == 8
         bridge.ensure_fresh()
         assert market.calls == 1 and bridge.frame_decodes == 8
+    finally:
+        bridge.close()
+        store.db.close()
+
+
+def test_idle_bridge_refreshes_when_public_current_changes(tmp_path, monkeypatch):
+    from app.config import settings
+    from app.tickflow.repository import DataStore, KlineRepository
+
+    source, public = tmp_path / "source", tmp_path / "public"
+    path = market_files(source)
+    publisher = PublicPublisher(source, public)
+    first = publisher.publish()
+    monkeypatch.setattr(settings, "data_dir", public / "current")
+    store = DataStore(release_path(public), read_only=True)
+    frame = encode_frame(pl.DataFrame({
+        "symbol": ["600000.SH"], "date": [date(2026, 10, 21)], "close": [10.0],
+    }))
+    snapshot = {
+        "sequence": 1, "status": {"symbol_count": 1},
+        "frames": {"stock": frame, "etf": frame, "index": frame},
+        "indices": encode_frame(pl.DataFrame()), "public_release": {"id": first["id"]},
+    }
+    calls = []
+    market = SimpleNamespace(
+        snapshot=lambda: calls.append(True) or snapshot,
+        close=lambda: None,
+    )
+    bridge = PublicQuoteBridge(KlineRepository(store), market)
+    bridge.update(snapshot)
+    bridge.received_at = time.monotonic() - 10
+    bridge.markers = SimpleNamespace(status=lambda: {"connected": True}, close=lambda: None)
+    path.touch()
+    second = publisher.publish()
+    snapshot = {**snapshot, "public_release": {"id": second["id"]}}
+    try:
+        bridge.ensure_fresh()
+        assert calls == [True]
+        assert bridge._repo.store.data_dir == release_path(public)
+        assert bridge.snapshot["public_release"]["id"] == second["id"]
+        bridge.ensure_fresh()
+        assert calls == [True]
     finally:
         bridge.close()
         store.db.close()

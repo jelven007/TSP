@@ -81,7 +81,7 @@ export function GenerateFactorStrategyDialog({
     },
     onSuccess: result => {
       toast(`已生成策略 ${result.strategy_id}，可到回测页运行`, 'success')
-      void queryClient.invalidateQueries({ queryKey: ['screener-strategies'] })
+      void queryClient.invalidateQueries({ queryKey: QK.screenerStrategies('stock') })
       void queryClient.invalidateQueries({ queryKey: QK.strategyLinkOptions() })
       onClose()
     },

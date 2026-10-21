@@ -303,8 +303,8 @@ jobs:
             if (-not (Test-Path $log) -or -not (Select-String -Path $log -Pattern 'DESKTOP_SMOKE_TEST_OK' -Quiet)) {
               throw 'Portable smoke success marker is missing from desktop.log'
             }
-            if (-not (Select-String -Path $log -Pattern 'DESKTOP_AUTH_BYPASS_SMOKE_TEST_OK' -Quiet)) {
-              throw 'Portable authentication-bypass marker is missing from desktop.log'
+            if (-not (Select-String -Path $log -Pattern 'DESKTOP_LOCAL_ADMIN_SMOKE_TEST_OK' -Quiet)) {
+              throw 'Portable local-admin marker is missing from desktop.log'
             }
           }
           finally {
@@ -382,8 +382,8 @@ jobs:
             if (-not (Select-String -Path $desktopLog -Pattern 'DESKTOP_GUI_SMOKE_TEST_OK renderer=edgechromium' -Quiet)) {
               throw 'Installed GUI smoke success marker is missing from desktop.log'
             }
-            if (-not (Select-String -Path $desktopLog -Pattern 'DESKTOP_AUTH_BYPASS_SMOKE_TEST_OK' -Quiet)) {
-              throw 'Installed authentication-bypass marker is missing from desktop.log'
+            if (-not (Select-String -Path $desktopLog -Pattern 'DESKTOP_LOCAL_ADMIN_SMOKE_TEST_OK' -Quiet)) {
+              throw 'Installed local-admin marker is missing from desktop.log'
             }
             Copy-Item $desktopLog (Join-Path $artifactDir 'installed-desktop.log') -Force
             $marker = Join-Path $dataDir 'ci-uninstall-preserve.txt'

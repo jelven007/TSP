@@ -1,0 +1,304 @@
+{
+  "status": "passed",
+  "scope": "isolated_joint_recovery_rehearsal",
+  "limits": [
+    "disposable local PostgreSQL container; not production data or a production host",
+    "both restored databases share one PostgreSQL failure domain",
+    "filesystem copies and a route pointer model quiesce/cutover; no real Nginx reload",
+    "observed RPO/RTO are fixture evidence, not a production SLA"
+  ],
+  "postgres": {
+    "reference": "postgres:16",
+    "id": "sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d",
+    "architecture": "arm64",
+    "os": "linux",
+    "repo_digests": [
+      "postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"
+    ]
+  },
+  "targets": {
+    "recommended_rpo_seconds": 86400,
+    "recommended_rto_seconds": 7200
+  },
+  "backup": {
+    "initial": {
+      "elapsed_seconds": 0.25,
+      "control_dump": {
+        "bytes": 34981,
+        "sha256": "2c98831d2134d1a34b8a5478e5f935ba8c7512416ee155c68220d8c26723e144"
+      },
+      "data_dump": {
+        "bytes": 106934,
+        "sha256": "76bb0d45e1e2b90e0da3852110061831cb27621906185544373df3bc47c6a0ab"
+      },
+      "directories": {
+        "platform": {
+          "entries": 4,
+          "files": 3,
+          "bytes": 131,
+          "sha256": "a268aeb5cab7c9c8813209418d902520186b0533a06f17e104bb8a99406cec07"
+        },
+        "public": {
+          "entries": 7,
+          "files": 2,
+          "bytes": 2743,
+          "sha256": "b8837cea96601b17c349728e9e2401d2bdfcdb9b177deecff3748c82484187c5"
+        },
+        "private": {
+          "entries": 2,
+          "files": 1,
+          "bytes": 36,
+          "sha256": "f0c2ea3d8f6766bb7b7dc72192ea49f3aee4e3b87e782dce54b813c1f586f41c"
+        },
+        "edge": {
+          "entries": 1,
+          "files": 1,
+          "bytes": 44,
+          "sha256": "f97e13ccd2bd38f8437eb655b2ebe0cab40c18e6bfd98fd4b12c98acaa80ed4d"
+        }
+      }
+    },
+    "final": {
+      "elapsed_seconds": 0.227,
+      "control_dump": {
+        "bytes": 35170,
+        "sha256": "43d8e4c3b18d3e9c009fe6291aadcb588f22c7e058c2c30decbaa1ce2a0f2c45"
+      },
+      "data_dump": {
+        "bytes": 106997,
+        "sha256": "65721804c01185137591e65081f39c3fa4295696c89f7e4aac74ee6e9afb62ff"
+      },
+      "directories": {
+        "platform": {
+          "entries": 4,
+          "files": 3,
+          "bytes": 165,
+          "sha256": "b512c6da5c68729f772054f57ad3e41ffc810847081f4641b40cca9becda224d"
+        },
+        "public": {
+          "entries": 13,
+          "files": 5,
+          "bytes": 5511,
+          "sha256": "051f4cfa82ff92e3b0aeca758e4804d582618f52b91a392bf47b2f69d7fb741f"
+        },
+        "private": {
+          "entries": 3,
+          "files": 2,
+          "bytes": 68,
+          "sha256": "8f2f57e0b9fd2e71a2712aefe1a80bc760f1a3a501f751236bf6d233c6f08a4b"
+        },
+        "edge": {
+          "entries": 1,
+          "files": 1,
+          "bytes": 44,
+          "sha256": "f97e13ccd2bd38f8437eb655b2ebe0cab40c18e6bfd98fd4b12c98acaa80ed4d"
+        }
+      }
+    },
+    "initial_database_sha256": "1acfcfa815a140ab2e06e9866522682b9b48b42d41caf25b3fc3b232a2bc937d",
+    "final_database_sha256": "fce9586468edcfaca3667830557015d8e7945af26b368c6014bef974beac488e",
+    "integrity": {
+      "verified": true,
+      "dumps": {
+        "control": {
+          "bytes": 35170,
+          "sha256": "43d8e4c3b18d3e9c009fe6291aadcb588f22c7e058c2c30decbaa1ce2a0f2c45"
+        },
+        "data": {
+          "bytes": 106997,
+          "sha256": "65721804c01185137591e65081f39c3fa4295696c89f7e4aac74ee6e9afb62ff"
+        }
+      },
+      "directories": {
+        "platform": {
+          "entries": 4,
+          "files": 3,
+          "bytes": 165,
+          "sha256": "b512c6da5c68729f772054f57ad3e41ffc810847081f4641b40cca9becda224d"
+        },
+        "public": {
+          "entries": 13,
+          "files": 5,
+          "bytes": 5511,
+          "sha256": "051f4cfa82ff92e3b0aeca758e4804d582618f52b91a392bf47b2f69d7fb741f"
+        },
+        "private": {
+          "entries": 3,
+          "files": 2,
+          "bytes": 68,
+          "sha256": "8f2f57e0b9fd2e71a2712aefe1a80bc760f1a3a501f751236bf6d233c6f08a4b"
+        },
+        "edge": {
+          "entries": 1,
+          "files": 1,
+          "bytes": 44,
+          "sha256": "f97e13ccd2bd38f8437eb655b2ebe0cab40c18e6bfd98fd4b12c98acaa80ed4d"
+        }
+      }
+    },
+    "quiesced_final_capture_lag_seconds": 0.231
+  },
+  "restore": {
+    "database": {
+      "tables": {
+        "control.schema_version": {
+          "rows": 6,
+          "sha256": "42a4b50cddbcdd0c3083a0d50baad595f27bab31cbacea86b32a6e06ed3fe203"
+        },
+        "control.users": {
+          "rows": 4,
+          "sha256": "ef8ba4b6d66cb5e45f50ba1e3ee13a984048f9a0993c3f6885d8a7590105dc65"
+        },
+        "control.cells": {
+          "rows": 1,
+          "sha256": "c2c10d4cf716c446f443b5df3bd31ab4180f927b5d23f8e21e24bb4d7a4b07f7"
+        },
+        "control.tenants": {
+          "rows": 3,
+          "sha256": "703ddadfa7ec14c2123d9a1b89cdb24b8d618ccdab2c5fa8798823122afdb599"
+        },
+        "control.memberships": {
+          "rows": 3,
+          "sha256": "38191059347f5dd9dc73beed4a3672b7e995061e027023d3f10aa6ce1e9a49f7"
+        },
+        "control.sessions": {
+          "rows": 2,
+          "sha256": "0905bd49540aa2e949a1a747c31c8fe9f4f5faf9a8f065cc808891d882d2dc08"
+        },
+        "control.user_roles": {
+          "rows": 4,
+          "sha256": "f484ae32a5c4bdff2597e35e8aa53c7594a5c2925ad6ecd784b86550cc3981b8"
+        },
+        "control.user_preferences": {
+          "rows": 1,
+          "sha256": "35044cfe13c4086bb5d2a51d07d9c13b0203f9ae48130e6dcab4122a7a9f06af"
+        },
+        "control.full_worker_health": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "business.schema_version": {
+          "rows": 6,
+          "sha256": "67a4f3d7efdfeeb3cebd9796100e629df9e77568d5749e78748edc7d76c55ad2"
+        },
+        "business.tenant_bindings": {
+          "rows": 3,
+          "sha256": "3a6b155280d19ea5b2dab502fca488387279fb6bf65ddba4fedef74e76f766c2"
+        },
+        "business.documents": {
+          "rows": 2,
+          "sha256": "7dd7628c7302c53af040152746af138386aa0d2716a3c22113966231b6be83dc"
+        },
+        "business.full_paper_accounts": {
+          "rows": 1,
+          "sha256": "a32f39f9289c6984f577b288fd8050338a040bd48eec6981944496ba7d727f1a"
+        },
+        "business.full_paper_orders": {
+          "rows": 1,
+          "sha256": "16bbb31317f72f95beb93969c02ea1b629b32c1c59a9b14c5abbdbd2042797f7"
+        },
+        "business.full_paper_fills": {
+          "rows": 1,
+          "sha256": "48dbd977f319f794cfccc0d9af89fa936c46b310639a63ba55a35eecb99d68fa"
+        },
+        "business.full_paper_nav": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "business.research_jobs": {
+          "rows": 1,
+          "sha256": "211a908e2238b73ccef152a7244790e5e9f073450d281f6e87c8b5461556f66a"
+        },
+        "business.research_artifacts": {
+          "rows": 1,
+          "sha256": "97ae72ae1d1bb4dec3f553abb5ce787b2ecc556a77f856df82185f78ac3232e5"
+        },
+        "business.full_events": {
+          "rows": 3,
+          "sha256": "3a6d3820a5afaefa17c8141c7b737a4d8ec9d130043dc6561c7ecf02b5e990f5"
+        },
+        "scheduler.work": {
+          "rows": 2,
+          "sha256": "ef94fb08d2e174c81fc37dc947f99dcf90027f4d12e2c36d502daf1c1d21f3ff"
+        },
+        "business.full_events_sequence_seq": {
+          "rows": 1,
+          "sha256": "452a58b65e3ef63e4d89ef4b1572baa45bf9f324f5030a6fc112a6faea8023ff"
+        }
+      },
+      "rows": 46,
+      "sha256": "fce9586468edcfaca3667830557015d8e7945af26b368c6014bef974beac488e"
+    },
+    "directories": {
+      "platform": {
+        "entries": 4,
+        "files": 3,
+        "bytes": 165,
+        "sha256": "b512c6da5c68729f772054f57ad3e41ffc810847081f4641b40cca9becda224d"
+      },
+      "public": {
+        "entries": 13,
+        "files": 5,
+        "bytes": 5511,
+        "sha256": "051f4cfa82ff92e3b0aeca758e4804d582618f52b91a392bf47b2f69d7fb741f"
+      },
+      "private": {
+        "entries": 3,
+        "files": 2,
+        "bytes": 68,
+        "sha256": "8f2f57e0b9fd2e71a2712aefe1a80bc760f1a3a501f751236bf6d233c6f08a4b"
+      },
+      "edge": {
+        "entries": 1,
+        "files": 1,
+        "bytes": 44,
+        "sha256": "f97e13ccd2bd38f8437eb655b2ebe0cab40c18e6bfd98fd4b12c98acaa80ed4d"
+      }
+    },
+    "verification": {
+      "identity_sessions": 2,
+      "rls_isolation": true,
+      "events": 3,
+      "paper_orders": 1,
+      "paper_fills": 1,
+      "research_state": "succeeded",
+      "research_artifact_sha256": "287c819cb7df74ab2e272f40078f09585897c5486e99929607e511585b49b874",
+      "public_release_id": "release-002",
+      "platform_generation": 2
+    },
+    "observed_rto_seconds": 0.672,
+    "observed_quiesced_rpo_missing_rows": 0,
+    "recommended_targets_met_in_fixture": true
+  },
+  "cutover_and_rollback": {
+    "transitions": [
+      {
+        "active": "restored",
+        "at": 1792228169.6279418,
+        "database_sha256": "fce9586468edcfaca3667830557015d8e7945af26b368c6014bef974beac488e"
+      },
+      {
+        "active": "source",
+        "at": 1792228169.685675,
+        "database_sha256": "ed32f52b074208c95c8dedb6f8e7849dadb2c2454dff7c2ca52b4b4bd36e56f3"
+      }
+    ],
+    "blind_rollback_blocked": true,
+    "marker_id": "post-cutover-e70f820b30684aaaaca02b0625d3e9ce",
+    "database_reconciled": true,
+    "private_artifact_reconciled": true,
+    "post_cutover_database_sha256": "ed32f52b074208c95c8dedb6f8e7849dadb2c2454dff7c2ca52b4b4bd36e56f3",
+    "active_after_rehearsal": "source"
+  },
+  "failure_injection": {
+    "truncated_dump_preflight_blocked": true,
+    "truncated_dump_preflight_error": "control database dump integrity mismatch",
+    "tampered_directory_preflight_blocked": true,
+    "tampered_directory_preflight_error": "public backup directory integrity mismatch",
+    "pg_restore_truncated_dump_blocked": true,
+    "pg_restore_error": "pg_restore failed for tsp_restore_e564c44a13_data: pg_restore: error: could not read from input file: end of file",
+    "active_after_failures": "source"
+  },
+  "elapsed_seconds": 5.71,
+  "report_sha256": "bc6676873ce883f5ad7330ba985ba71dbf9a8ce36bff182fb631eb20c03af813"
+}

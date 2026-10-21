@@ -22,12 +22,12 @@ _AS_OF = date(2026, 10, 20)
 class _Depth:
     """涨停名单内 1 真封 + 1 假封; 另有 2 只已炸板(不在名单)残留 sealed=False。"""
 
-    def __init__(self) -> None:
+    def __init__(self, ready: bool = True) -> None:
         self._up = {
-            "600000.SH": {"sealed": True},
-            "600001.SH": {"sealed": False},
-            "600900.SH": {"sealed": False},
-            "600901.SH": {"sealed": False},
+            "600000.SH": {"sealed": True, "ready": ready},
+            "600001.SH": {"sealed": False, "ready": ready},
+            "600900.SH": {"sealed": False, "ready": True},
+            "600901.SH": {"sealed": False, "ready": True},
         }
 
     def get_sealed_map(self, _as_of, is_down: bool = False) -> dict:
@@ -63,31 +63,36 @@ def _stub_enriched(monkeypatch):
     return _snapshot()
 
 
-def _ladder_request(tmp_path):
+def _ladder_request(tmp_path, ready):
     repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
     return SimpleNamespace(
-        app=SimpleNamespace(state=SimpleNamespace(repo=repo, depth_service=_Depth()))
+        app=SimpleNamespace(state=SimpleNamespace(repo=repo, depth_service=_Depth(ready)))
     )
 
 
-def test_ladder_count_only_deducts_fake_limits_in_current_list(tmp_path, _stub_enriched):
+@pytest.mark.parametrize("ready", [True, False])
+def test_ladder_count_only_deducts_fake_limits_in_current_list(tmp_path, _stub_enriched, ready):
     payload = screener_api.limit_ladder(
-        _ladder_request(tmp_path), as_of=_AS_OF, direction="up", ext_columns=None
+        _ladder_request(tmp_path, ready), as_of=_AS_OF, direction="up", ext_columns=None
     )
 
     assert payload["counts_raw"]["up"] == 3
     # 只扣名单内那只假封; 两只已炸板残留记录不能再扣一次
-    assert payload["counts"]["up"] == 2
-    assert payload["sealed_counts_up"] == {"real": 1, "fake": 1, "pending": 0}
+    assert payload["counts"]["up"] == (2 if ready else 3)
+    assert payload["sealed_counts_up"] == (
+        {"real": 1, "fake": 1, "pending": 1}
+        if ready else {"real": 0, "fake": 0, "pending": 3}
+    )
 
 
-def test_overview_count_only_deducts_fake_limits_in_current_list(tmp_path, _stub_enriched):
+@pytest.mark.parametrize("ready", [True, False])
+def test_overview_count_only_deducts_fake_limits_in_current_list(tmp_path, _stub_enriched, ready):
     repo = SimpleNamespace(
         store=SimpleNamespace(data_dir=tmp_path),
         execute_all=lambda *a, **k: [],
     )
 
-    payload = build_market_overview(repo, depth_service=_Depth(), as_of=_AS_OF)
+    payload = build_market_overview(repo, depth_service=_Depth(ready), as_of=_AS_OF)
 
-    assert payload["limit"]["limit_up"] == 2
-    assert payload["limit"]["fake_up"] == 1
+    assert payload["limit"]["limit_up"] == (2 if ready else 3)
+    assert payload["limit"]["fake_up"] == (1 if ready else 0)

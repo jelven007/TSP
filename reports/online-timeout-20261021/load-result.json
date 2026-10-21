@@ -1,0 +1,101 @@
+{
+  "status": "succeeded",
+  "scope": "one_account_read_only_http_and_concurrent_sse_connections",
+  "independent_tenant_capacity_certified": false,
+  "complete_trading_day_certified": false,
+  "total_successful_http_requests": 93360,
+  "stages": [
+    {
+      "connections": 100,
+      "target_rps": 40,
+      "elapsed_seconds": 181.121,
+      "http_requests": 7200,
+      "http_errors": 0,
+      "p50_ms": 3.513,
+      "p95_ms": 22.167,
+      "p99_ms": 162.553,
+      "max_ms": 1991.781,
+      "sse_errors": 0,
+      "max_active_sse": 100,
+      "sse_connection_seconds": 17750.78,
+      "passed": true
+    },
+    {
+      "connections": 250,
+      "target_rps": 80,
+      "elapsed_seconds": 181.3,
+      "http_requests": 14400,
+      "http_errors": 0,
+      "p50_ms": 4.283,
+      "p95_ms": 24.208,
+      "p99_ms": 130.167,
+      "max_ms": 447.042,
+      "sse_errors": 0,
+      "max_active_sse": 250,
+      "sse_connection_seconds": 44377.31,
+      "passed": true
+    },
+    {
+      "connections": 500,
+      "target_rps": 120,
+      "elapsed_seconds": 604.783,
+      "achieved_rps_including_teardown": 118.65,
+      "http_requests": 71760,
+      "http_errors": 0,
+      "http_status_counts": {"200": 71760},
+      "p50_ms": 3.469,
+      "p95_ms": 25.942,
+      "p99_ms": 152.619,
+      "max_ms": 3033.858,
+      "sse_errors": 0,
+      "max_active_sse": 500,
+      "sse_connection_seconds": 298699.48,
+      "heartbeat_frames": 17989,
+      "event_frames": 2000,
+      "opened_sse": 6000,
+      "guard_failures": 0,
+      "max_loop_lag_ms": 48.676,
+      "skipped_request_slots": 240,
+      "passed": true
+    }
+  ],
+  "final_500_resources": {
+    "started_at": "2026-10-21T14:38:30.974269+00:00",
+    "finished_at": "2026-10-21T14:48:36.235639+00:00",
+    "resource_samples": 20,
+    "distinct_publications": 3,
+    "minimum_free_inodes": 10977870,
+    "sample_failures": [],
+    "oom_or_restart": false,
+    "api_peak_memory_bytes": 8097525760,
+    "platform_peak_memory_bytes": 4478038016,
+    "gateway_peak_memory_bytes": 279924736,
+    "api_peak_cpu_percent_30s": 115.41
+  },
+  "external_smoke": [
+    {"requests": 24, "all_200": true, "max_elapsed_seconds": 0.152},
+    {"requests": 24, "all_200": true, "max_elapsed_seconds": 0.532}
+  ],
+  "observation_as_of": {
+    "first": "2026-10-21T17:42:08.769793+08:00",
+    "last": "2026-10-21T22:48:47.134656+08:00",
+    "samples": 614,
+    "first_release_count": 340,
+    "last_release_count": 72,
+    "first_free_inodes": 6710092,
+    "last_free_inodes": 10993840,
+    "last_free_bytes": 128735961088,
+    "unresolved_business_probe_timeouts": [
+      "2026-10-21T18:13:08.774809+08:00",
+      "2026-10-21T20:29:19.989087+08:00"
+    ]
+  },
+  "trading_day": {
+    "status": "pending",
+    "window_start": "2026-10-22T09:15:00+08:00",
+    "window_end": "2026-10-22T16:30:00+08:00",
+    "morning_load_start": "2026-10-22T09:35:00+08:00",
+    "afternoon_load_start": "2026-10-22T13:35:00+08:00"
+  },
+  "raw_evidence_root": "/opt/tsp-full/operations/online-timeout-20261021/extended-validation"
+}

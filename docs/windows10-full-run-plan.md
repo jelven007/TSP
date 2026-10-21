@@ -3,14 +3,19 @@
 > 适用版本：v0.4.9（本机部署形态：多租户 full-product，`MULTITENANCY_ENABLED=true`、`SERVICE_ROLE=api`）
 > 本方案只描述「怎么让它在 Windows 10 上稳定跑起来」，不改变任何既有产品契约。
 > 每条结论都对应一个可复现的证据（文件行号或实测输出），不含推测性描述。
+> **当前要求更新**：Windows 暂停多租户，使用 `admin/Admin123` 单机管理员，
+> 管理员拥有个人空间。当前启动方式、资源预算和待验收项以
+> [单机管理员说明](./windows10-native-16gb.md)为准。
+> 本文以下仅保留 v0.4.9 多租户调查记录，旧启动顺序不再适用。
+> 每条结论都对应一个可复现的证据（文件行号或实测输出），不含推测性描述。
 
 ---
 
 ## 0. 结论（先看这里）
 
 1. **产品主体在原生 Windows 10 上是可以完整运行的**：3018 平台 + 3030 API + 3012 前端 + 4 类常驻 worker + PostgreSQL 双库 + 公共版本发布，全部可用。当前失败的原因集中在 **4 个可精确定位的工程细节**，不涉及架构缺陷。
-2. **`compute_broker` 及全部重型计算在原生 Windows 10 上不可用，且不可能可用**：本机 Python 无 `socket.AF_UNIX`，且未安装 Docker / Podman / WSL；`compute_broker` 模块在 Windows 上连 `import` 都会失败。仓库自身已就此书面声明（见 `backend/tests/test_full_compute.py`）。**按既定决策：不改代码，保持 `error`。**
-3. 因此 `/health/ready` 在原生 Windows 上**不可能全绿**（只要 `compute_broker` 恒为 `error`，`ready` 就恒为 `false`）。要让 readiness 全绿，唯一「零代码侵入」的路径是 **WSL2 + Docker**（与 Linux 生产同构）。
+2. **该次部署的 `compute_broker` 在原生 Windows 10 上不可用**：当时的 Python 无 `socket.AF_UNIX`，且未安装容器运行时；现有 Broker 无法运行。这是实现缺口，不能推论 Windows 10 无法实现隔离计算。
+3. 缺少 Compute 时 `/health/ready` 返回 `ready=false`。当前原生全功能目标要求补齐隔离后端并通过真机验收；WSL2 + Docker 不属于该目标。
 
 **两条交付轨道：**
 
@@ -180,9 +185,9 @@ python -m app.multitenancy.scheduled_worker      # 需 P0-2 的 A 或 B
 
 ---
 
-## 6. compute 子系统：Windows 原生不支持（按既定决策，不改代码）
+## 6. compute 子系统：原实现的 Windows 缺口（历史调查）
 
-**为什么不可能在原生 Windows 上打通（不是配置问题）**
+**为什么原实现不能仅通过修改配置在 Windows 运行**
 
 1. `ComputeExecutor` 硬编码 `socket.AF_UNIX`（`executor.py`），而 Windows CPython 无此常量 → 客户端层无法改造，除非换传输层（TCP/named pipe）；
 2. `ComputeBroker` 继承 `socketserver.ThreadingUnixStreamServer`，该类在无 `AF_UNIX` 的平台**根本不存在** → `compute_broker` 模块 import 即 `AttributeError`；
@@ -314,7 +319,7 @@ curl.exe -s http://127.0.0.1:3030/health/ready | Select-String '"ready": true'
 - **风险 R2**：`progress.json` 的 `at` 是 `time.monotonic()`，**跨进程不可比较**；运维脚本只能依据文件时间戳与 `healthy` 字段，不要试图换算。
 - **风险 R3**：多 worker 实例会各自写 `control.full_worker_health`（按 `(cell_id, kind)` upsert）。同一 kind 只允许一个实例，托管脚本需做单实例保护。
 - **回滚**：托管脚本停止 → 恢复为交互式前台启动即可；代码补丁均为平台分支，单独 revert 不影响 Linux。
-- **明确不做**：不为 Windows 实现 compute 的替代传输层或本地无沙箱计算通道（会移除租户隔离，且与既定决策相悖）。
+- **隔离约束**：不能用无沙箱本地计算通道移除租户隔离；新增原生传输与沙箱的要求见[当前验收边界](./windows10-native-16gb.md)。
 
 ---
 

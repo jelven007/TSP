@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import threading
 import time
 import uuid
 from collections.abc import Callable
-from datetime import date
+from datetime import date, datetime
+from datetime import time as clock_time
 from pathlib import Path
 from typing import Literal
 
@@ -34,11 +36,11 @@ from app.enriched_generation import (
     enriched_publication_incomplete,
     get_enriched_generation,
 )
-from app.market_time import cn_today
+from app.market_time import CN_TZ, cn_today
 from app.parquet import scan_enriched_parquet
 from app.polars_guard import guarded_collect
+from app.resource_budget import cache_budget_bytes, effective_memory_bytes
 from app.services.minute_adjust import apply_minute_adjustment, minute_basis_is_raw
-from app.services.realtime_guard import pause_quotes_for_write
 
 logger = logging.getLogger(__name__)
 
@@ -112,10 +114,17 @@ class DataStore:
     def __init__(self, data_dir: Path | None = None, *, read_only: bool = False) -> None:
         self.data_dir = Path(data_dir or settings.data_dir)
         self.read_only = read_only
+        memory = effective_memory_bytes()
+        # DuckDB's default allowance is based on the whole host. Small native
+        # services must leave room for Polars panels and other service roles.
+        db_config = (
+            {"memory_limit": f"{cache_budget_bytes(512)}B", "threads": min(2, os.cpu_count() or 1)}
+            if memory is not None and memory < 8 * 1024**3 else {}
+        )
         if read_only:
             if not self.data_dir.is_dir():
                 raise ValueError("public market directory is unavailable")
-            self.db = duckdb.connect(database=":memory:")
+            self.db = duckdb.connect(database=":memory:", config=db_config)
             self._register_views()
             return
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -159,7 +168,7 @@ class DataStore:
             (self.data_dir / "financials" / sub).mkdir(parents=True, exist_ok=True)
 
         # DuckDB 内存模式 — 不建 .db 文件(§7.1)
-        self.db = duckdb.connect(database=":memory:")
+        self.db = duckdb.connect(database=":memory:", config=db_config)
         self._register_views()
 
     def _migrate_legacy_data_dir(self) -> None:
@@ -706,7 +715,8 @@ class KlineRepository:
                 from app.indicators.pipeline import compute_enriched_history_window
                 start_full = latest - timedelta(days=300)
                 read_cols = [c for c in ["symbol", "date", "open", "high", "low", "close",
-                                         "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low"]
+                                         "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low",
+                                         "quote_ts", "quote_time_basis"]
                              if c in df_latest.columns]
                 lf = (
                     scan_enriched_parquet(self._enriched_glob)
@@ -754,8 +764,9 @@ class KlineRepository:
                     # 只取最新一天作为 enriched_cache
                     df_today = df_full.filter(pl.col("date") == latest)
                     if not df_today.is_empty():
-                        self._enriched_cache = df_today
-                        self._enriched_cache_date = latest
+                        with self._write_lock:
+                            self._enriched_cache = df_today
+                            self._enriched_cache_date = latest
                         # 构建盘中递推基准: 若最新分区是今天的实时盘中数据,
                         # 递推状态必须停在上一交易日, 不能把今天作为“昨日”。
                         step = time.perf_counter()
@@ -771,7 +782,8 @@ class KlineRepository:
                                 how="diagonal_relaxed",
                             ).sort(["symbol", "date"])
                             self._enriched_history_cache = df_full
-                            self._enriched_cache = repaired_today
+                            with self._write_lock:
+                                self._enriched_cache = repaired_today
                             df_today = repaired_today
                         logger.info("enriched 缓存已计算: %d 只, 日期 %s (即时计算)", len(df_today), latest)
                         logger.info("enriched refresh done (%.2fs)", time.perf_counter() - started)
@@ -782,8 +794,9 @@ class KlineRepository:
                 logger.warning("enriched 即时计算失败, 使用原始存储列缓存: %s", e)
 
             # 降级: 直接使用存储列数据 + 构建 live_agg
-            self._enriched_cache = df_latest
-            self._enriched_cache_date = latest
+            with self._write_lock:
+                self._enriched_cache = df_latest
+                self._enriched_cache_date = latest
             step = time.perf_counter()
             logger.info("enriched refresh fallback step start: build live agg")
             self._build_live_agg(self._live_agg_baseline_date(latest))
@@ -1157,7 +1170,8 @@ class KlineRepository:
             from app.indicators.pipeline import compute_indicators, compute_signals
             start_full = latest - timedelta(days=300)
             read_cols = [c for c in ["symbol", "date", "open", "high", "low", "close",
-                                     "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low"]
+                                     "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low",
+                                     "quote_ts", "quote_time_basis"]
                          if c in df_latest.columns]
             df_hist = guarded_collect(
                 scan_enriched_parquet(self._etf_enriched_glob,
@@ -1168,11 +1182,13 @@ class KlineRepository:
                 priority="background",
             )
             if df_hist.is_empty():
-                self._etf_enriched_cache = df_latest.sort(["symbol"])
+                cache_df = df_latest.sort(["symbol"])
             else:
                 df_full = compute_signals(compute_indicators(df_hist))
-                self._etf_enriched_cache = df_full.filter(pl.col("date") == latest).sort(["symbol"])
-            self._etf_enriched_cache_date = latest
+                cache_df = df_full.filter(pl.col("date") == latest).sort(["symbol"])
+            with self._write_lock:
+                self._etf_enriched_cache = cache_df
+                self._etf_enriched_cache_date = latest
         except Exception as e:  # noqa: BLE001
             logger.debug("ETF enriched 缓存刷新跳过: %s", e)
 
@@ -1201,7 +1217,7 @@ class KlineRepository:
             from datetime import timedelta
             start_full = latest - timedelta(days=300)
             read_cols = [c for c in ["symbol", "date", "open", "high", "low", "close",
-                                     "volume", "amount"]
+                                     "volume", "amount", "quote_ts", "quote_time_basis"]
                          if c in df_latest.columns]
             df_hist = guarded_collect(
                 scan_enriched_parquet(self._index_enriched_glob,
@@ -1212,11 +1228,13 @@ class KlineRepository:
                 priority="background",
             )
             if df_hist.is_empty():
-                self._index_enriched_cache = df_latest.sort(["symbol"])
+                cache_df = df_latest.sort(["symbol"])
             else:
                 df_full = self._compute_index_enriched_range(df_hist)
-                self._index_enriched_cache = df_full.filter(pl.col("date") == latest).sort(["symbol"])
-            self._index_enriched_cache_date = latest
+                cache_df = df_full.filter(pl.col("date") == latest).sort(["symbol"])
+            with self._write_lock:
+                self._index_enriched_cache = cache_df
+                self._index_enriched_cache_date = latest
         except Exception as e:  # noqa: BLE001
             logger.debug("指数 enriched 缓存刷新跳过: %s", e)
 
@@ -2469,16 +2487,15 @@ class KlineRepository:
         publication: EnrichedPublication | None,
     ) -> None:
         """锁内的纯文件阶段: 无变化跳过; 否则原子替换 + 提交 generation。"""
-        with pause_quotes_for_write():
-            if not existing.is_empty() and existing.equals(merged):
-                if publication is not None:
-                    publication.commit()  # 未写入时为无害空提交
-                return
-            if publication is None:
-                self._atomic_write_parquet(merged, out)
-            else:
-                publication.write_parquet(merged, out)
-                publication.commit()
+        if not existing.is_empty() and existing.equals(merged):
+            if publication is not None:
+                publication.commit()  # 未写入时为无害空提交
+            return
+        if publication is None:
+            self._atomic_write_parquet(merged, out)
+        else:
+            publication.write_parquet(merged, out)
+            publication.commit()
 
     def merge_live_daily_asset(self, asset_type: str, df: pl.DataFrame) -> None:
         """按 symbol 合并当天指定资产日K分区。用于少量自选实时，不覆盖全市场。"""
@@ -2558,15 +2575,16 @@ class KlineRepository:
         )
         self._optimistic_upsert_partition(out, df_storage, publication)
 
-        if asset_type == "stock":
-            self._enriched_cache = merged_cache
-            self._enriched_cache_date = dt
-        elif asset_type == "etf":
-            self._etf_enriched_cache = merged_cache
-            self._etf_enriched_cache_date = dt
-        elif asset_type == "index":
-            self._index_enriched_cache = merged_cache
-            self._index_enriched_cache_date = dt
+        with self._write_lock:
+            if asset_type == "stock":
+                self._enriched_cache = merged_cache
+                self._enriched_cache_date = dt
+            elif asset_type == "etf":
+                self._etf_enriched_cache = merged_cache
+                self._etf_enriched_cache_date = dt
+            elif asset_type == "index":
+                self._index_enriched_cache = merged_cache
+                self._index_enriched_cache_date = dt
 
     def flush_live_daily(self, df: pl.DataFrame) -> None:
         """覆写当天 kline_daily 分区 (实时行情落盘, 非merge)。"""
@@ -2615,6 +2633,74 @@ class KlineRepository:
             setattr(self, cache_name, df)
             setattr(self, day_name, df["date"][0])
 
+    def update_provisional_enriched_asset(self, asset_type: str, df: pl.DataFrame) -> None:
+        """只合并最新展示缓存; 不写分区、不换代历史, 不允许回退权威收盘。
+
+        沿用完整性契约: 无快照时钟的 batch 行是权威日线; 明确 source_snapshot
+        且达到同日收盘边界的行已定版。received/source_event/unknown 不能定版。
+        """
+        from app.market_scope import filter_market_frame
+
+        fields = {
+            "stock": ("_enriched_cache", "_enriched_cache_date"),
+            "etf": ("_etf_enriched_cache", "_etf_enriched_cache_date"),
+            "index": ("_index_enriched_cache", "_index_enriched_cache_date"),
+        }
+        if asset_type not in fields:
+            raise ValueError("unknown snapshot asset type")
+        df = filter_market_frame(df)
+        if df.is_empty() or "date" not in df.columns:
+            return
+        day = cn_today()
+        df = df.filter(pl.col("date") == day).unique(subset=["symbol", "date"], keep="last")
+        if df.is_empty():
+            return
+        incoming = self._with_instrument_metadata(asset_type, df)
+        close_ms = int(datetime.combine(day, clock_time(15, 0), CN_TZ).timestamp() * 1000)
+        next_day_ms = int(datetime.combine(day, clock_time(), CN_TZ).timestamp() * 1000) + 86_400_000
+        cache_name, day_name = fields[asset_type]
+
+        # 计算在锁外; 提交时重新检查当前缓存, 盘后刷新若已切换到权威数据,
+        # 必须按新基底重新合并, 不能把计算开始前的旧对象直接写回。
+        for _ in range(3):
+            with self._write_lock:
+                current = getattr(self, cache_name)
+                existing_day = getattr(self, day_name)
+            existing = current if current is not None else pl.DataFrame()
+            merged = incoming
+            if existing_day == day and not existing.is_empty():
+                stamp = pl.col("quote_ts") if "quote_ts" in existing.columns else pl.lit(None, dtype=pl.Int64)
+                basis = pl.col("quote_time_basis") if "quote_time_basis" in existing.columns else pl.lit(None, dtype=pl.String)
+                batch = stamp.is_null() & basis.is_null()
+                source_final = (
+                    (basis.is_null() | (basis == "source_snapshot"))
+                    & stamp.is_between(close_ms, next_day_ms, closed="left")
+                ).fill_null(False)
+                protected = existing.select(
+                    "symbol", (batch | source_final).alias("_authoritative"),
+                    stamp.alias("_previous_quote_ts"),
+                )
+                candidate = incoming.join(protected, on="symbol", how="left")
+                new_stamp = pl.col("quote_ts") if "quote_ts" in incoming.columns else pl.lit(None, dtype=pl.Int64)
+                candidate = candidate.filter(
+                    ~pl.col("_authoritative").fill_null(False)
+                    & (
+                        pl.col("_previous_quote_ts").is_null()
+                        | (new_stamp >= pl.col("_previous_quote_ts")).fill_null(False)
+                    )
+                ).drop("_authoritative", "_previous_quote_ts")
+                merged = pl.concat([existing, candidate], how="diagonal_relaxed").unique(
+                    subset=["symbol", "date"], keep="last",
+                )
+            merged = merged.sort("symbol")
+            with self._write_lock:
+                if getattr(self, cache_name) is not current or getattr(self, day_name) != existing_day:
+                    continue
+                setattr(self, cache_name, merged)
+                setattr(self, day_name, day)
+                return
+        logger.info("%s 展示缓存正切换, 本轮临时合并跳过", asset_type)
+
     def flush_live_enriched(self, df: pl.DataFrame) -> None:
         """覆写当天 kline_daily_enriched 分区 (实时 enriched 落盘, 非merge)。
 
@@ -2657,12 +2743,12 @@ class KlineRepository:
         with self._write_lock:
             self._write_partition_locked(out, df_storage, existing, publication)
 
-        if asset_type == "stock":
-            self._enriched_cache = cache_df
-            self._enriched_cache_date = dt
-        elif asset_type == "etf":
-            self._etf_enriched_cache = cache_df
-            self._etf_enriched_cache_date = dt
-        elif asset_type == "index":
-            self._index_enriched_cache = cache_df
-            self._index_enriched_cache_date = dt
+            if asset_type == "stock":
+                self._enriched_cache = cache_df
+                self._enriched_cache_date = dt
+            elif asset_type == "etf":
+                self._etf_enriched_cache = cache_df
+                self._etf_enriched_cache_date = dt
+            elif asset_type == "index":
+                self._index_enriched_cache = cache_df
+                self._index_enriched_cache_date = dt

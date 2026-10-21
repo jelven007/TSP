@@ -52,6 +52,26 @@ _RUSTDX_DATASETS = {
     "financial",
     "full_minute",
 }
+_WINDOWS_RESOURCE_DEFAULTS = {
+    "TSP_MEMORY_BUDGET_MB": "4096",
+    "POLARS_MAX_THREADS": "2",
+    "NUMBA_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "POLARS_COLLECT_PERMITS": "2",
+    "POLARS_COLLECT_BACKGROUND_PERMITS": "1",
+    "STRATEGY_RUN_ALL_WORKERS": "1",
+}
+
+
+def _apply_windows_resource_defaults() -> None:
+    """Set conservative defaults before importing numerical or app modules."""
+    if sys.platform != "win32":
+        return
+    for key, value in _WINDOWS_RESOURCE_DEFAULTS.items():
+        os.environ.setdefault(key, value)
 
 
 # #region debug-point A-E:reporter
@@ -379,8 +399,9 @@ def _validate_smoke_plugins(plugins: list[dict]) -> None:
 
 def _run_smoke_checks(port: int) -> None:
     """在不打开 GUI 的情况下验证冻结产物的关键运行时链路。"""
-    import urllib.error
     import urllib.request
+
+    from app.config import settings
 
     base_url = f"http://127.0.0.1:{port}"
 
@@ -407,10 +428,18 @@ def _run_smoke_checks(port: int) -> None:
             "/api/auth/register/code",
             "/api/auth/recovery/code",
             "/api/auth/recovery/reset",
+            "/api/auth/setup",
+            "/api/auth/migrate",
+        }
+        session_paths = {
             "/api/auth/login",
             "/api/auth/logout",
             "/api/auth/change-password",
         }
+        if settings.local_admin_mode:
+            required_paths.update(session_paths)
+        else:
+            disabled_auth_paths.update(session_paths)
         missing = sorted(required_paths - set(paths))
         unexpected = sorted(disabled_auth_paths & set(paths))
         if response.status != 200 or missing or unexpected:
@@ -418,6 +447,73 @@ def _run_smoke_checks(port: int) -> None:
                 "OpenAPI check failed: "
                 f"status={response.status}, missing={missing}, unexpected={unexpected}"
             )
+
+    if settings.local_admin_mode:
+        _run_local_admin_smoke(base_url)
+    else:
+        _run_auth_bypass_smoke(base_url)
+
+    from app.data_providers import custom as custom_sources
+
+    _validate_smoke_plugins(custom_sources.list_plugins())
+    logger.info("DESKTOP_SMOKE_TEST_OK")
+
+
+def _run_local_admin_smoke(base_url: str) -> None:
+    import http.cookiejar
+    import urllib.error
+    import urllib.request
+
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()),
+    )
+
+    def request(path: str, payload: dict | None = None) -> dict:
+        req = urllib.request.Request(
+            base_url + path,
+            data=json.dumps(payload).encode() if payload is not None else None,
+            headers={"Content-Type": "application/json"},
+        )
+        with opener.open(req, timeout=10) as response:
+            return json.loads(response.read())
+
+    def check_anonymous_denied() -> None:
+        try:
+            request("/api/capabilities")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 401:
+                return
+            raise RuntimeError(f"local admin auth returned {exc.code}") from exc
+        raise RuntimeError("local admin business API accepted anonymous access")
+
+    status = request("/api/auth/status")
+    if (
+        status.get("auth_required") is not True
+        or status.get("local_admin_mode") is not True
+        or status.get("registration_enabled") is not False
+        or status.get("multitenancy_enabled") is not False
+    ):
+        raise RuntimeError("local admin authentication status mismatch")
+    check_anonymous_denied()
+    request("/api/auth/login", {"email": "admin", "password": "Admin123"})
+    status = request("/api/auth/status")
+    user = status.get("user") or {}
+    if (
+        not status.get("authenticated") or user.get("username") != "admin"
+        or user.get("role") != "admin"
+        or user.get("default_tenant_id") != "personal"
+        or (user.get("workspace") or {}).get("id") != "personal"
+    ):
+        raise RuntimeError("local administrator personal workspace is unavailable")
+    request("/api/capabilities")
+    request("/api/auth/logout", {})
+    check_anonymous_denied()
+    logger.info("DESKTOP_LOCAL_ADMIN_SMOKE_TEST_OK")
+
+
+def _run_auth_bypass_smoke(base_url: str) -> None:
+    import urllib.error
+    import urllib.request
 
     with urllib.request.urlopen(f"{base_url}/api/auth/status", timeout=10) as response:
         auth_status = json.loads(response.read())
@@ -452,11 +548,7 @@ def _run_smoke_checks(port: int) -> None:
     else:
         raise RuntimeError("desktop authentication API unexpectedly accepted a request")
 
-    from app.data_providers import custom as custom_sources
-
-    _validate_smoke_plugins(custom_sources.list_plugins())
     logger.info("DESKTOP_AUTH_BYPASS_SMOKE_TEST_OK")
-    logger.info("DESKTOP_SMOKE_TEST_OK")
 
 
 def _stop_server(server_ref: dict[str, Any], server_thread: threading.Thread) -> None:
@@ -697,6 +789,7 @@ def _open_window(url: str) -> None:
 
 def main() -> int:
     """桌面客户端主入口。返回进程退出码。"""
+    _apply_windows_resource_defaults()
     # 必须最先执行: console=False 下 stdout/stderr 可能无效, 不守护会导致
     # 后续 logging.basicConfig 创建的 StreamHandler 写日志时进程崩溃。
     _guard_streams()

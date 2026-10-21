@@ -20,6 +20,7 @@ def isolated_auth_store(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> Iterator[ModuleType]:
+    monkeypatch.setattr(app_config.settings, "local_admin_mode", False)
     monkeypatch.setattr(app_config.settings, "data_dir", tmp_path)
     monkeypatch.setattr(app_config.settings, "auth_email", "")
     monkeypatch.setattr(app_config.settings, "auth_password", "")

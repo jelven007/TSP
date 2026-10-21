@@ -4,6 +4,11 @@
 > 文档类型：Runbook / 方案（**尚未执行**，命令与配置需按实际域名、路径替换后落地）
 > 关联文档：[Windows 10 完整运行方案](./windows10-full-run-plan.md)、[部署指南](./deployment.md)、[运维手册](./operations.md)、[配置说明](./configuration.md)、[完整单机多租户部署](../deploy/full/README.md)
 
+> **当前要求更新**：Windows 已暂停多租户，采用 `admin/Admin123` 单机管理员及
+> 个人空间。当前启动、资源配置和旧服务停用步骤见[单机管理员说明](./windows10-native-16gb.md)。
+> 本页以下内容仅保留为 v0.4.9 多租户历史方案，不适用于当前 Windows 版本；
+> 不要按旧命令启动 platform、worker 或 watchdog。
+
 ---
 
 ## 0. 结论与适用范围
@@ -14,7 +19,9 @@
 2. `TSPPlatform`（3018）与 `TSPApi`（3030）**只监听 `127.0.0.1`**，对外只暴露新增的 `TSPEdge`（Caddy，80/443）。
 3. 保留 `TSPPostgres`、`TSPWorkerWatchdog` 与四类 worker 的现有托管方式，不改变 worker 契约。
 
-**明确边界**：原生 Windows 上 `compute_broker` 恒为 `error`（无 `AF_UNIX`、无容器运行时），因此 `/health/ready` 不会全绿，`ready` 恒为 `false`。这是既定决策，本方案不改代码、不实现替代传输层。需要 readiness 全绿时走 **Linux / WSL2 + Docker**（见 [deploy/full/compose.yml](../deploy/full/compose.yml) 与 [完整单机多租户部署](../deploy/full/README.md)）。
+**明确边界**：现有原生部署缺少 Compute 传输与隔离后端，因此 `/health/ready`
+返回 `ready=false`。本页部署命令不能补齐此能力，不能作为全功能验收结果。
+当前原生目标需实现 Windows 隔离计算，不能用 Linux / WSL2 的验证替代。
 
 ---
 
@@ -193,7 +200,9 @@ git diff --check
 
 ### 3.1 `deploy/windows/tsp-service.ps1`
 
-当前脚本硬编码 `--host 0.0.0.0`，且未显式设置 `STATIC_DIR`（[tsp-service.ps1](../deploy/windows/tsp-service.ps1#L86-L108)）。生产改造：
+当前脚本已默认监听 `127.0.0.1`、显式设置 `STATIC_DIR`、固定单 Uvicorn worker，
+并加载 `native16gb` 资源配置（[tsp-service.ps1](../deploy/windows/tsp-service.ps1)）。
+下列片段保留原生产接线说明，完整参数以脚本为准：
 
 ```powershell
 param(
@@ -550,7 +559,7 @@ curl.exe -sk -o NUL -w "%{http_code}`n" https://tsp.example.com/health/ready # 4
 curl.exe -s -o NUL -w "%{http_code}`n" http://127.0.0.1:3030/health/live   # 200
 curl.exe -s http://127.0.0.1:3030/health/ready
 # 期望：workers / databases / public_files / platform / indicator_cache = ok
-#       compute_broker = error（既定），ready = false
+#       Compute 未实现时为 error、ready=false；这代表全功能验收失败
 
 # 前端静态资源
 curl.exe -skI https://tsp.example.com/assets/<实际文件名>.js | Select-String 'cache-control'
@@ -700,21 +709,23 @@ Copy-Item "$backup\secrets.env" E:\pg-tsp\secrets.env -Force
 | 11 | 重启 | 整机重启后无需登录，服务按依赖顺序自动拉起 |
 | 12 | 备份 | 双库 dump 可 `pg_restore --list`；目录归档可解压 |
 | 13 | 回滚 | `dist.prev` 与上一 commit 可恢复；`TSPFrontend` 可临时启用 |
-| 14 | 边界 | `/health/ready` 中仅 `compute_broker=error`，其余 `ok`，且已向使用方说明 |
+| 14 | 完整就绪 | 原生隔离 Compute 实现后，`/health/ready` 所有检查均 `ok`；当前仍被 Compute 缺失阻断 |
 
 ---
 
 ## 10. 风险与明确边界
 
-### 10.1 `compute_broker` 在 Windows 恒不可用
+### 10.1 现有 `compute_broker` 的 Windows 实现缺口
 
 - `ComputeExecutor` 硬编码 `socket.AF_UNIX`（`multitenancy/executor.py`），Windows CPython 无此常量。
 - `ComputeBroker` 继承 `socketserver.ThreadingUnixStreamServer`，该类型在无 `AF_UNIX` 的平台不存在。
 - 计算沙箱依赖 `docker run --network none --read-only ...`，本机无容器运行时。
 
-结果：`/health/ready` 恒为 503、`ready=false`；经计算通道的能力（回测、优化、挖掘、监控计算等）返回 503「计算服务暂不可用」。其余功能不受影响。**本方案不实现替代传输层或本地无沙箱计算**，与既定决策一致。
+结果：该部署 `/health/ready` 为 503、`ready=false`，经计算通道的能力
+（回测、优化、挖掘、监控计算等）不可用。缺少 `AF_UNIX` 时客户端现在明确返回
+503；原生全功能要求另行补齐受控 IPC、沙箱和资源回收，不能使用无沙箱计算替代。
 
-### 10.2 需要 readiness 全绿时
+### 10.2 其他平台拓扑参考（不属于本轮原生验收）
 
 走 Linux / WSL2 + Docker 正式生产拓扑：
 
@@ -744,7 +755,7 @@ Copy-Item "$backup\secrets.env" E:\pg-tsp\secrets.env -Force
 
 | 文件 | 变更 | 状态 |
 | --- | --- | --- |
-| `deploy/windows/tsp-service.ps1` | 新增 `BindHost` 参数（默认 `127.0.0.1`）；api 角色显式 `STATIC_DIR`；uvicorn 增加 `--proxy-headers --forwarded-allow-ips 127.0.0.1 --no-access-log` | 待实施 |
+| `deploy/windows/tsp-service.ps1` | `BindHost` 默认 `127.0.0.1`；api 显式 `STATIC_DIR`；单 worker、受控 proxy headers 与原生资源配置 | 代码已实现；Windows 真机待验证 |
 | `docs/windows10-production-deployment.md`（本文件） | 新增生产构建与部署方案 | 已生成 |
 | `docs/README.md` | 「部署与配置」索引增加本方案 | 已更新 |
 | `docs/windows10-full-run-plan.md` | 第 8 节末尾指向本方案 | 已更新 |

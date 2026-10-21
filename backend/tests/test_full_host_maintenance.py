@@ -9,7 +9,11 @@ import time
 import pytest
 
 from scripts.backup_full_host import create_backup, parse_include, sha256_file
-from scripts.maintain_full_host import docker_prune_commands, release_candidates
+from scripts.maintain_full_host import (
+    docker_prune_commands,
+    referenced_releases_from_postgres,
+    release_candidates,
+)
 
 
 def test_quiesced_backup_restores_both_databases_before_atomic_publish(tmp_path):
@@ -101,3 +105,53 @@ def test_docker_prune_never_removes_tagged_rollback_images():
     assert commands[0][:3] == ["docker", "builder", "prune"]
     assert commands[1][:3] == ["docker", "image", "prune"]
     assert all("-a" not in command and "--all" not in command for command in commands)
+
+
+def test_postgres_retention_reads_all_references_without_application_rls(monkeypatch):
+    def runner(command, **kwargs):
+        assert command[:5] == ["docker", "exec", "-i", "postgres", "sh"]
+        assert command[-1] == "business_prod"
+        assert "business.research_jobs" in kwargs["input"]
+        assert "input->>'public_release_id'" in kwargs["input"]
+        assert kwargs["check"] and kwargs["timeout"] <= 30
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(["a" * 32, None]))
+
+    monkeypatch.setattr(subprocess, "run", runner)
+    assert referenced_releases_from_postgres("postgres", "business_prod") == {"a" * 32}
+
+
+@pytest.mark.parametrize("payload", ["{}", "null", '["invalid"]', "not-json"])
+def test_postgres_retention_refuses_invalid_reference_results(monkeypatch, payload):
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, stdout=payload),
+    )
+    with pytest.raises(ValueError):
+        referenced_releases_from_postgres("postgres", "business_prod")
+
+
+def test_postgres_retention_stops_when_database_is_unavailable(monkeypatch):
+    def broken(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, args[0])
+
+    monkeypatch.setattr(subprocess, "run", broken)
+    with pytest.raises(RuntimeError, match="research release query failed"):
+        referenced_releases_from_postgres("postgres", "business_prod")
+
+
+def test_hour_retention_preserves_recent_current_and_research(tmp_path):
+    root = tmp_path / "public"
+    releases = root / "releases"
+    releases.mkdir(parents=True)
+    now = time.time()
+    for index, age in enumerate((1, 2, 5, 7, 8, 9)):
+        path = releases / f"{index:032x}"
+        path.mkdir()
+        os.utime(path, (now - age * 3600, now - age * 3600))
+    (root / "current").symlink_to("releases/" + f"{5:032x}")
+    candidates = release_candidates(
+        root, protected={f"{4:032x}"}, keep=2, min_age_hours=6, now=now,
+    )
+    assert [path.name for path in candidates] == [f"{3:032x}"]
+    with pytest.raises(ValueError, match="at least one hour"):
+        release_candidates(root, protected=set(), keep=2, min_age_hours=0)

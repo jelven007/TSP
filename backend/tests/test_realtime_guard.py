@@ -3,8 +3,12 @@ from __future__ import annotations
 
 import threading
 
+import polars as pl
+import pytest
+
 from app.services import realtime_guard
 from app.services.quote_service import QuoteService
+from app.tickflow.repository import KlineRepository
 
 
 def test_paused_quotes_is_noop_without_service():
@@ -59,3 +63,32 @@ def test_pause_depth_counts_nested_scopes():
     assert qs.is_paused()
     qs.resume()
     assert not qs.is_paused()
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_repository_write_uses_write_lock_without_pausing_quotes(tmp_path, failure):
+    qs = QuoteService()
+    repo = KlineRepository.__new__(KlineRepository)
+    repo._write_lock = threading.Lock()
+    out = tmp_path / "part.parquet"
+    previous = pl.DataFrame({"symbol": ["600000.SH"], "date": ["2026-10-21"], "close": [10.0]})
+    incoming = previous.with_columns(pl.lit(11.0).alias("close"))
+    previous.write_parquet(out)
+
+    def write(frame, path):
+        assert repo._write_lock.locked()
+        assert not qs.is_paused()
+        if failure:
+            raise OSError("simulated write failure")
+        KlineRepository._atomic_write_parquet(frame, path)
+
+    repo._atomic_write_parquet = write
+    with realtime_guard.paused_quotes(qs):
+        if failure:
+            with pytest.raises(OSError, match="simulated write failure"):
+                repo._optimistic_upsert_partition(out, incoming, None)
+        else:
+            repo._optimistic_upsert_partition(out, incoming, None)
+    assert not qs.is_paused()
+    assert not repo._write_lock.locked()
+    assert pl.read_parquet(out).equals(previous if failure else incoming)
