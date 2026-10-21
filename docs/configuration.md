@@ -4,6 +4,14 @@
 
 部署相关配置(端口/密码/老 CPU 兼容)的实操见 [deployment.md](./deployment.md)。
 
+原生 Windows 10 / 16 GB 使用[分角色资源配置](./windows10-native-16gb.md)：
+`tsp-service.ps1`、`tsp-full.ps1`、`tsp-watchdog.ps1` 默认
+`-ResourceProfile native16gb`，`existing` 保留原资源环境。
+`TSP_MEMORY_BUDGET_MB` 为正整数 MiB，仅引导指标分批、DuckDB 缓冲及回测面板缓存，
+不提供操作系统硬限制。配置取物理内存、cgroup 与显式预算的最小值；
+服务配置在 secrets 导入后生效，线程和连接池设置需重启进程。
+原生隔离 Compute 尚未实现，资源配置不能作为全功能可用证明。
+
 完整单机多租户通过 `MULTITENANCY_ENABLED`、`SERVICE_ROLE` 和
 `TSP_CELL_SCHEMA_VERSION=6` 接线，使用独立控制库/业务库 runtime DSN。
 `TSP_CELL_*` 名称为当前共享基础的兼容配置，仍在使用。

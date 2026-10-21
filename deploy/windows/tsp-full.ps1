@@ -12,10 +12,9 @@
     reusing or closing the launching terminal no longer kills the workers
     (see docs/windows10-full-run-plan.md, P0-4).
 
-    The platform (3018), API (3030) and frontend (3012) processes are only
-    probed for liveness. They keep starting through their existing commands
-    (`uvicorn app.main:app --env-file ..\.env`, `pnpm dev`), so this script
-    does not restart them or guess their environment.
+    The platform (3018) and API with static frontend (3030) are only probed
+    for liveness. They start through tsp-service.ps1; this script does not
+    restart them.
 
 .PARAMETER Action
     start | stop | status | restart.
@@ -49,10 +48,14 @@ param(
     [string]$LogDir = 'E:\pg-tsp\logs',
     [string]$PublicMarket = 'E:\pg-tsp\public_market',
     [string]$RepoRoot = 'E:\Projects\TSP',
-    [string]$Python = ''
+    [string]$Python = '',
+
+    [ValidateSet('native16gb', 'existing')]
+    [string]$ResourceProfile = 'native16gb'
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'tsp-resources.ps1')
 
 $BackendDir = Join-Path $RepoRoot 'backend'
 if ([string]::IsNullOrEmpty($Python)) {
@@ -65,7 +68,6 @@ $MaxAge = @{ research = 120; realtime = 420; notifications = 120; scheduled = 66
 $ObservedServices = @(
     [pscustomobject]@{ Name = 'platform'; Port = 3018 }
     [pscustomobject]@{ Name = 'api';      Port = 3030 }
-    [pscustomobject]@{ Name = 'frontend'; Port = 3012 }
 )
 
 function Read-SecretsFile {
@@ -94,12 +96,18 @@ function Read-SecretsFile {
 }
 
 function Get-WorkerEnvironment {
-    param([hashtable]$Secrets)
+    param([hashtable]$Secrets, [string]$Kind)
     $environment = @{}
     foreach ($key in $Secrets.Keys) { $environment[$key] = $Secrets[$key] }
+    $resources = Get-TspResourceEnvironment -Role $Kind -ResourceProfile $ResourceProfile
+    foreach ($key in $resources.Keys) { $environment[$key] = $resources[$key] }
+    $environment['SERVICE_ROLE'] = 'api'
+    $environment['MULTITENANCY_ENABLED'] = 'true'
     $environment['DATA_DIR'] = Join-Path $PublicMarket 'current'
+    $environment['PLATFORM_CONFIG_DIR'] = Join-Path $RepoRoot 'data\user_data'
     $environment['PYTHONUNBUFFERED'] = '1'
     $environment['PYTHONIOENCODING'] = 'utf-8'
+    $environment['PYTHONUTF8'] = '1'
     return $environment
 }
 
@@ -175,8 +183,9 @@ function Start-TspWorker {
     New-Item -ItemType Directory -Force -Path $paths.Heartbeat | Out-Null
     New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
     $arguments = @('-m', 'app.multitenancy.worker_process', $Kind, '--directory', $paths.Heartbeat)
+    $quoted = @($arguments | ForEach-Object { ConvertTo-TspProcessArgument $_ })
     Invoke-WithEnvironment -Environment $Environment -Script {
-        $process = Start-Process -FilePath $Python -ArgumentList $arguments -WorkingDirectory $BackendDir `
+        $process = Start-Process -FilePath $Python -ArgumentList $quoted -WorkingDirectory $BackendDir `
             -WindowStyle Hidden -RedirectStandardOutput $paths.OutLog -RedirectStandardError $paths.ErrLog -PassThru
         Set-Content -LiteralPath $paths.PidFile -Value $process.Id -Encoding ascii
         Write-Host ("[start] {0} supervisor pid {1}" -f $Kind, $process.Id)
@@ -235,7 +244,10 @@ function Show-WorkerStatus {
     $rows = @()
     foreach ($kind in $Components) { $rows += Get-WorkerStatusRow -Kind $kind }
     $rows | Format-Table -AutoSize
-    $bad = @($rows | Where-Object { -not $_.Running -or $_.Healthy -ne $true })
+    $bad = @($rows | Where-Object {
+        -not $_.Running -or $_.Healthy -ne $true -or $null -eq $_.AgeSec -or
+        $_.AgeSec -lt 0 -or $_.AgeSec -gt $_.MaxAge
+    })
     if ($bad.Count -gt 0) {
         Write-Host ("{0} of {1} workers are not running with a fresh heartbeat" -f $bad.Count, $rows.Count)
     } else {
@@ -254,8 +266,9 @@ function Show-ObservedServices {
 }
 
 function Start-SelectedWorkers {
-    $environment = Get-WorkerEnvironment -Secrets (Read-SecretsFile -Path $SecretsFile)
+    $secrets = Read-SecretsFile -Path $SecretsFile
     foreach ($kind in $Components) {
+        $environment = Get-WorkerEnvironment -Secrets $secrets -Kind $kind
         Start-TspWorker -Kind $kind -Environment $environment
     }
 }

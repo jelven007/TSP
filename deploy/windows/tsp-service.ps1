@@ -36,10 +36,14 @@ param(
     [string]$SecretsFile = 'E:\pg-tsp\secrets.env',
     [string]$RepoRoot = 'E:\Projects\TSP',
     [string]$PublicMarket = 'E:\pg-tsp\public_market',
-    [string]$BindHost = '127.0.0.1'
+    [string]$BindHost = '127.0.0.1',
+
+    [ValidateSet('native16gb', 'existing')]
+    [string]$ResourceProfile = 'native16gb'
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'tsp-resources.ps1')
 
 $BackendDir = Join-Path $RepoRoot 'backend'
 $Python = Join-Path $BackendDir '.venv\Scripts\python.exe'
@@ -84,9 +88,14 @@ try {
     foreach ($key in $secrets.Keys) {
         [Environment]::SetEnvironmentVariable($key, $secrets[$key], 'Process')
     }
+    $resources = Get-TspResourceEnvironment -Role $Role -ResourceProfile $ResourceProfile
+    foreach ($key in $resources.Keys) {
+        [Environment]::SetEnvironmentVariable($key, $resources[$key], 'Process')
+    }
 
     $env:PYTHONUNBUFFERED = '1'
     $env:PYTHONIOENCODING = 'utf-8'
+    $env:PYTHONUTF8 = '1'
 
     if ($Role -eq 'platform') {
         # The platform writes the public market snapshot and must never run
@@ -97,10 +106,14 @@ try {
     }
     else {
         $env:SERVICE_ROLE = 'api'
+        $env:MULTITENANCY_ENABLED = 'true'
         $env:DATA_DIR = Join-Path $PublicMarket 'current'
         $env:PLATFORM_CONFIG_DIR = Join-Path $RepoRoot 'data\user_data'
         # Production builds are served by app.main from frontend/dist.
         $env:STATIC_DIR = Join-Path $RepoRoot 'frontend\dist'
+        if (-not (Test-Path -LiteralPath (Join-Path $env:STATIC_DIR 'index.html'))) {
+            throw 'frontend/dist/index.html is missing; run pnpm build first'
+        }
         $port = 3030
     }
 
@@ -113,7 +126,7 @@ try {
     [Console]::Out.WriteLine(('{0:yyyy-MM-dd HH:mm:ss} tsp-service[{1}] starting uvicorn on {2}:{3}' -f (Get-Date), $Role, $BindHost, $port))
 
     & $Python -m uvicorn app.main:app --env-file $EnvFile `
-        --host $BindHost --port $port `
+        --host $BindHost --port $port --workers 1 `
         --proxy-headers --forwarded-allow-ips 127.0.0.1 `
         --no-access-log
     $code = $LASTEXITCODE
