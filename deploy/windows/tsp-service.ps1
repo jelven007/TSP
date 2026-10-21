@@ -44,10 +44,6 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'tsp-resources.ps1')
 
-$BackendDir = Join-Path $RepoRoot 'backend'
-$Python = Join-Path $BackendDir '.venv\Scripts\python.exe'
-$EnvFile = Join-Path $RepoRoot '.env'
-
 function Write-Fatal {
     param([string]$Message)
     [Console]::Error.WriteLine(('{0:yyyy-MM-dd HH:mm:ss} tsp-service[{1}] FATAL {2}' -f (Get-Date), $Role, $Message))
@@ -57,6 +53,9 @@ try {
     if ($Role -eq 'platform') {
         throw 'Windows multitenancy is paused. Stop the old platform/workers/watchdog; run one standalone service.'
     }
+    $BackendDir = Join-Path $RepoRoot 'backend'
+    $Python = Join-Path $BackendDir '.venv\Scripts\python.exe'
+    $EnvFile = Join-Path $RepoRoot '.env'
     if (-not (Test-Path -LiteralPath $Python)) {
         throw "python interpreter not found: $Python"
     }

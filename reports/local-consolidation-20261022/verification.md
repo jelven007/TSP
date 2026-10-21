@@ -72,6 +72,10 @@ PR 首轮前端质量门通过；Windows Server 2022 原生资源子进程成功
 （[运行记录](https://github.com/jelven007/TSP/actions/runs/39685611901)）。
 直接接收数组，并增加 Python 子进程参数断言；本地内嵌 Python 编译与 diff 检查
 通过，Windows 与 PR 全量重跑终态仍为合并前质量门。
+第二轮 Windows 已通过全部七种角色的资源与参数回归，
+但旧平台模式在拒绝前解析默认 E 盘，安装盘符不存在时提前报路径错误
+（[运行记录](https://github.com/jelven007/TSP/actions/runs/39686071175)）。
+路径初始化移到模式检查之后；原生回归使用随机不存在的 drive 明确复现此边界。
 
 ## 自审与交付边界
 
