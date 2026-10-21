@@ -41,7 +41,6 @@ from app.parquet import scan_enriched_parquet
 from app.polars_guard import guarded_collect
 from app.resource_budget import cache_budget_bytes, effective_memory_bytes
 from app.services.minute_adjust import apply_minute_adjustment, minute_basis_is_raw
-from app.services.realtime_guard import pause_quotes_for_write
 
 logger = logging.getLogger(__name__)
 
@@ -2488,16 +2487,15 @@ class KlineRepository:
         publication: EnrichedPublication | None,
     ) -> None:
         """锁内的纯文件阶段: 无变化跳过; 否则原子替换 + 提交 generation。"""
-        with pause_quotes_for_write():
-            if not existing.is_empty() and existing.equals(merged):
-                if publication is not None:
-                    publication.commit()  # 未写入时为无害空提交
-                return
-            if publication is None:
-                self._atomic_write_parquet(merged, out)
-            else:
-                publication.write_parquet(merged, out)
-                publication.commit()
+        if not existing.is_empty() and existing.equals(merged):
+            if publication is not None:
+                publication.commit()  # 未写入时为无害空提交
+            return
+        if publication is None:
+            self._atomic_write_parquet(merged, out)
+        else:
+            publication.write_parquet(merged, out)
+            publication.commit()
 
     def merge_live_daily_asset(self, asset_type: str, df: pl.DataFrame) -> None:
         """按 symbol 合并当天指定资产日K分区。用于少量自选实时，不覆盖全市场。"""

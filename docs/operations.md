@@ -17,7 +17,13 @@
   PostgreSQL、公共版本、Broker、备份和恢复见[完整部署](../deploy/full/README.md)。
 - 火山引擎生产当前为 v0.4.11、`092bd79c`、schema v6；在原 `6d16751c`
   上部署公共版本容量、回收和盘后仓库刷新修复，详见
-  [超时修复结果](../reports/online-timeout-20261021/result.md)。
+  [inode 耗尽修复结果](../reports/online-timeout-20261021/result.md)。
+- 自选业务连接池五秒获取超时仍在调查，不调大池或延长截止时间代替根因修复。
+  保留 PG 等待状态、主机 I/O/内核栈、请求耗时的联合时间线及已有失败记录；
+  原诊断与完整交易日观察继续运行，见[调查](../reports/online-timeout-20261021/watchlist-pool-investigation.md)。
+- 新源码的五档/收盘价与 Windows 单机预算尚须独立发布验收；
+  原生 Windows 升级备份管理员身份与完整数据目录，旧多租户服务必须先停写，
+  见[本次整合](./local-consolidation-20261022.md)。
 - 同日已完成 2016-01-01 起日线回填，实际覆盖和财务/分钟边界见
   [回填结果](../reports/history-backfill-20261020/result.md)。后续页面局部刷新、分钟
   空值和实时写盘门闸修复尚未替换生产固定镜像。

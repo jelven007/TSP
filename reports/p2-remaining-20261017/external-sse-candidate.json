@@ -1,0 +1,102 @@
+{
+  "status": "passed",
+  "scope": "local_isolated_candidate_image_through_external_nginx_boundary",
+  "limits": [
+    "HTTP loopback boundary only; no public DNS, WAN, certificate, or TLS termination",
+    "disposable PostgreSQL and deterministic platform marker fixture",
+    "not a production deployment or capacity test"
+  ],
+  "artifact": {
+    "reference": "tsp-p2-api:sse-candidate",
+    "id": "sha256:e6150885794c432c29fef32ffccd1320d342d99bf81c4a8d97552fc7f3f3af4b",
+    "architecture": "arm64",
+    "os": "linux",
+    "repo_digests": [
+      "tsp-p2-api@sha256:e6150885794c432c29fef32ffccd1320d342d99bf81c4a8d97552fc7f3f3af4b"
+    ]
+  },
+  "git": {
+    "head": "a95cc9dc2997fcf3099040a9ab3e193f37a22bd4",
+    "dirty": true
+  },
+  "resources": {
+    "network": "tsp-sse-ddb8a9d0d6",
+    "containers": [
+      "tsp-sse-postgres-ddb8a9d0d6",
+      "tsp-sse-market-ddb8a9d0d6",
+      "tsp-sse-gateway-ddb8a9d0d6",
+      "tsp-sse-nginx-ddb8a9d0d6"
+    ]
+  },
+  "boundary": {
+    "url": "http://127.0.0.1:32774",
+    "nginx_image": "public.ecr.aws/docker/library/nginx:alpine",
+    "proxy_buffering": false
+  },
+  "readiness": {
+    "status_code": 200,
+    "body": {
+      "status": "ok",
+      "ready": true,
+      "checks": {
+        "databases": {
+          "status": "ok"
+        },
+        "private_events": {
+          "status": "ok",
+          "listener_connected": true,
+          "subscriptions": 0,
+          "poll_runs": 0,
+          "tenant_reads": 0,
+          "notifications": 0,
+          "full_sweeps": 0,
+          "last_event_at": null
+        },
+        "revocations": {
+          "status": "ok",
+          "connected": true,
+          "last_notification_at": null
+        },
+        "public_market_events": {
+          "status": "ok",
+          "connected": true,
+          "last_marker_at": 1792218289.2600727,
+          "reconnects": 0
+        }
+      },
+      "version": "0.4.2",
+      "mode": "none"
+    }
+  },
+  "manifest": {
+    "verified": true,
+    "sha256": "6dad04527713522cee7cc09e0f29fcc4276df517881185e9bd9ac520e2dbcbd3",
+    "version": "0.4.2",
+    "commit": "a95cc9dc2997fcf3099040a9ab3e193f37a22bd4",
+    "files": 605
+  },
+  "sse": {
+    "ticket_single_use": true,
+    "public_marker": {
+      "received": true,
+      "latency_ms": 1007.95,
+      "x_accel_buffering": null
+    },
+    "private_event": {
+      "baseline_sequence": 1,
+      "live_sequence": 2,
+      "received": true
+    },
+    "reconnect": {
+      "last_event_id": 2,
+      "replayed_sequence": 3,
+      "received": true
+    },
+    "captured_event_kinds": [
+      "quotes_updated",
+      "strategy_results_updated"
+    ]
+  },
+  "elapsed_seconds": 14.116,
+  "report_sha256": "e3f38d35872be108478ef1d9ab507a05109b82b48171d64667b042532ad984a3"
+}

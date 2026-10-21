@@ -15,12 +15,15 @@
 单机百账号/百人活跃、DFX 与万人并发；第二步本地证据见
 [实施记录](../reports/phase2-step2-20261016/implementation.md)，各步仍需完成对应候选与持续运行验收。
 
-火山引擎生产已于 2026-10-20 升级到 v0.4.11、`6d16751c`、schema v6，运行独立
+火山引擎生产在 2026-10-20 的 v0.4.11 基线上部署了 `092bd79c` 公共目录容量与
+回收补丁，schema v6，运行独立
 Gateway、Platform、四类 Worker 和 Compute Broker；详见
 [线上升级结果](../reports/online-upgrade-20261020/deployment-result.md)。同日完成
 2016-01-01 起的日线回填与 raw/enriched 对账，边界见
 [历史回填结果](../reports/history-backfill-20261020/result.md)。后续主线修复和自动
-标签不自动替换生产固定镜像。
+标签不自动替换生产固定镜像。2026-10-22 全工作区源码整合、生命周期映射与
+未完成验收项见[本地变更整合](./local-consolidation-20261022.md)。
+inode 耗尽已修复；自选连接池超时根因仍在[调查](../reports/online-timeout-20261021/watchlist-pool-investigation.md)。
 
 ## 生命周期覆盖
 
@@ -51,6 +54,7 @@ Gateway、Platform、四类 Worker 和 Compute Broker；详见
 | 市场与交易 | [市场阶段](./market-phase.md)、[模拟盘](./paper-trading-plan.md) |
 | 开放能力 | [开放平台](./open-platform-plan.md)、[MCP 服务器](../mcp-server/README.md)、[Open API 示例](../examples/open-api/README.md) |
 | 验证记录 | [技术验证记录](./technical-validation.md) |
+| 本次整合 | [全生命周期变更](./local-consolidation-20261022.md)、[五档封板证据](./depth-snapshot-validation.md)、[收盘价保护](./closing-price-integrity.md) |
 | 生产记录 | [v0.4.11 升级结果](../reports/online-upgrade-20261020/deployment-result.md)、[2016 起历史回填](../reports/history-backfill-20261020/result.md) |
 | 当前项目分析 | [2026-10-10 架构、rustdx 与生产状态分析](./project-analysis-20261010.md) |
 | 二次开发 | [二次开发指南](./secondary-development.md)、[构建与升级备份](./build-upgrade-evidence.md)、[自定义数据源示例](./examples/custom-data-source/README.md) |
