@@ -104,6 +104,63 @@ def test_publication_rejects_a_changed_generation_and_keeps_previous(tmp_path, m
     assert len(list((target / "releases").iterdir())) == 1
 
 
+def test_publication_loop_limits_file_versions_but_retries_failed_copy(tmp_path, monkeypatch):
+    publisher = PublicPublisher(tmp_path / "source", tmp_path / "public")
+    waits, attempts = [], []
+
+    class StopAfterThree:
+        def wait(self, seconds):
+            waits.append(seconds)
+            return len(waits) > 3
+
+    def publish():
+        attempts.append(True)
+        if len(attempts) == 1:
+            raise OSError("temporary copy failure")
+
+    publisher.stopped = StopAfterThree()
+    monkeypatch.setattr(publisher, "publish", publish)
+    publisher._loop()
+    assert waits == [300, 30, 300, 300]
+    assert len(attempts) == 3
+
+
+def test_publication_preserves_current_before_inode_reserve_is_exhausted(tmp_path, monkeypatch):
+    import os
+
+    source, target = tmp_path / "source", tmp_path / "public"
+    path = market_files(source)
+    publisher = PublicPublisher(source, target)
+    first = publisher.publish()
+    path.touch()
+    monkeypatch.setattr(os, "statvfs", lambda _: SimpleNamespace(
+        f_files=1_000_000, f_ffree=100_005, f_bavail=10**9, f_frsize=4096,
+    ))
+    with pytest.raises(OSError, match="public release capacity reserve"):
+        publisher.publish()
+    assert release_path(target).name == first["id"]
+    assert len(list((target / "releases").iterdir())) == 1
+
+
+def test_publication_start_uses_previous_release_when_capacity_is_low(tmp_path, monkeypatch):
+    import errno
+
+    source, target = tmp_path / "source", tmp_path / "public"
+    market_files(source)
+    publisher = PublicPublisher(source, target)
+    first = publisher.publish()
+    monkeypatch.setattr(
+        publisher, "publish",
+        lambda: (_ for _ in ()).throw(OSError(errno.ENOSPC, "capacity reserve")),
+    )
+    started = []
+    monkeypatch.setattr(publisher.thread, "start", lambda: started.append(True))
+    publisher.start()
+    assert started == [True]
+    assert publisher.error == "OSError"
+    assert release_path(target).name == first["id"]
+
+
 @pytest.mark.parametrize(("raw_dir", "enriched_dir"), [
     ("kline_daily", "kline_daily_enriched"),
     ("kline_etf_daily", "kline_etf_enriched"),
