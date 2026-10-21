@@ -332,6 +332,48 @@ def test_api_quote_bridge_uses_markers_and_refreshes_frames_only_on_demand(tmp_p
         store.db.close()
 
 
+def test_idle_bridge_refreshes_when_public_current_changes(tmp_path, monkeypatch):
+    from app.config import settings
+    from app.tickflow.repository import DataStore, KlineRepository
+
+    source, public = tmp_path / "source", tmp_path / "public"
+    path = market_files(source)
+    publisher = PublicPublisher(source, public)
+    first = publisher.publish()
+    monkeypatch.setattr(settings, "data_dir", public / "current")
+    store = DataStore(release_path(public), read_only=True)
+    frame = encode_frame(pl.DataFrame({
+        "symbol": ["600000.SH"], "date": [date(2026, 10, 21)], "close": [10.0],
+    }))
+    snapshot = {
+        "sequence": 1, "status": {"symbol_count": 1},
+        "frames": {"stock": frame, "etf": frame, "index": frame},
+        "indices": encode_frame(pl.DataFrame()), "public_release": {"id": first["id"]},
+    }
+    calls = []
+    market = SimpleNamespace(
+        snapshot=lambda: calls.append(True) or snapshot,
+        close=lambda: None,
+    )
+    bridge = PublicQuoteBridge(KlineRepository(store), market)
+    bridge.update(snapshot)
+    bridge.received_at = time.monotonic() - 10
+    bridge.markers = SimpleNamespace(status=lambda: {"connected": True}, close=lambda: None)
+    path.touch()
+    second = publisher.publish()
+    snapshot = {**snapshot, "public_release": {"id": second["id"]}}
+    try:
+        bridge.ensure_fresh()
+        assert calls == [True]
+        assert bridge._repo.store.data_dir == release_path(public)
+        assert bridge.snapshot["public_release"]["id"] == second["id"]
+        bridge.ensure_fresh()
+        assert calls == [True]
+    finally:
+        bridge.close()
+        store.db.close()
+
+
 def test_platform_quote_evaluation_never_reads_old_private_signals(monkeypatch):
     from app.config import settings
     from app.indicators.pipeline import _get_custom_signal_exprs, _get_custom_signal_exprs_today
