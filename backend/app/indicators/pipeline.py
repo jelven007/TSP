@@ -1524,21 +1524,13 @@ _STAGING_ROOT = Path(".staging") / "enriched_rebuild"
 _STALE_STAGING_MAX_AGE_S = 24 * 3600
 _RAM_LARGE_BYTES = 8 * 1024 ** 3      # ≥8GB 视为内存充裕, 批次保持用户设置
 _BATCH_TARGET_ROWS = 150_000          # 小内存单批目标行数 (宽表 ~60-80MB)
-_BATCH_MIN_SYMBOLS = 50
 _MERGE_DATE_CHUNKS = 15               # 最终合并按日期切 15 块流式执行
-
-_ram_bytes_cache: int | None | bool = False  # False = 未探测
 
 
 def _total_ram_bytes() -> int | None:
-    global _ram_bytes_cache
-    if _ram_bytes_cache is False:
-        try:
-            import psutil
-            _ram_bytes_cache = psutil.virtual_memory().total
-        except Exception:
-            _ram_bytes_cache = None
-    return _ram_bytes_cache  # type: ignore[return-value]
+    from app.resource_budget import effective_memory_bytes
+
+    return effective_memory_bytes()
 
 
 def _adaptive_sym_batch(default_batch: int, rows_per_symbol: int) -> int:
@@ -1546,7 +1538,7 @@ def _adaptive_sym_batch(default_batch: int, rows_per_symbol: int) -> int:
     if (_total_ram_bytes() or 0) >= _RAM_LARGE_BYTES:
         return default_batch
     return max(
-        _BATCH_MIN_SYMBOLS,
+        1,
         min(default_batch, _BATCH_TARGET_ROWS // max(rows_per_symbol, 1)),
     )
 

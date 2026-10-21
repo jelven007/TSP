@@ -25,13 +25,12 @@ import math
 import os
 import threading
 import time
-from datetime import date, time as dt_time
-
-from app.market_time import cn_now
-from pathlib import Path
+from datetime import date, datetime
+from datetime import time as dt_time
 
 import polars as pl
 
+from app.market_time import CN_TZ, cn_now
 from app.tickflow.capabilities import Cap
 from app.tickflow.rate_limits import (
     apply_safety_rpm,
@@ -50,6 +49,62 @@ TIER_INTERVAL_RANGE: dict[str, tuple[float, float]] = {
 }
 # 兜底: 其他有 DEPTH5_BATCH 的套餐按 pro 范围
 DEFAULT_RANGE = (10.0, 120.0)
+
+SNAPSHOT_VALIDATION_VERSION = 1
+
+
+def _depth_number(value) -> float | None:
+    try:
+        number = float(value) if not isinstance(value, bool) else math.nan
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
+
+
+def _validated_sealed(entry: dict, day: date, is_down: bool) -> bool | None:
+    """Only a consistent book can contradict the price-limit candidate."""
+    reference = _depth_number(entry.get("reference_price"))
+    ask = _depth_number(entry.get("ask1_price"))
+    bid = _depth_number(entry.get("bid1_price"))
+    ask_vol = _depth_number(entry.get("ask1_vol"))
+    bid_vol = _depth_number(entry.get("bid1_vol"))
+    fetched = _depth_number(entry.get("fetched_ts"))
+    if None in (reference, ask, bid, ask_vol, bid_vol, fetched) or not reference or not fetched:
+        return None
+    try:
+        observed = datetime.fromtimestamp(fetched, CN_TZ)
+    except (ValueError, OverflowError, OSError):
+        return None
+    if observed.date() != day:
+        return None
+    clock = observed.time()
+    continuous = dt_time(9, 30) <= clock <= dt_time(11, 30) or dt_time(13) <= clock < dt_time(14, 57)
+    # Closing-auction/after-close two-sided books do not prove an open board.
+    if not continuous and clock < dt_time(15):
+        return None
+    order_price, order_vol = (ask, ask_vol) if is_down else (bid, bid_vol)
+    opposite_vol = bid_vol if is_down else ask_vol
+    if opposite_vol == 0 and order_vol > 0 and abs(order_price - reference) < 0.005:
+        return True
+    if not continuous or ask_vol <= 0 or bid_vol <= 0 or bid <= 0 or ask <= bid:
+        return None
+    if (is_down and bid > reference + 0.005) or (not is_down and ask < reference - 0.005):
+        return False
+    return None
+
+
+def _stored_sealed(entry: dict, day: date, is_down: bool) -> bool | None:
+    if entry.get("validation_version") == SNAPSHOT_VALIDATION_VERSION:
+        sealed = _validated_sealed(entry, day, is_down)
+        now = cn_now()
+        # An intraday open board cannot contradict the final closing price.
+        if sealed is False and (now.date() != day or now.time() >= dt_time(14, 57)):
+            return None
+        return sealed
+    # Legacy snapshots have no prices: their false verdict is unverified.
+    value = entry.get("sealed_down" if is_down else "sealed_up")
+    return True if value is True else None
+
 
 # 限速余量: 只用 rpm 的 80%, 给系统其他 depth 调用留空间
 # 间隔硬下限/上限(任何套餐)
@@ -137,6 +192,10 @@ class DepthService:
                     "bid1_vol": row.get("bid1_vol"),
                     "status": row.get("status"),
                     "fetched_ts": row.get("fetched_at"),
+                    "ask1_price": row.get("ask1_price"),
+                    "bid1_price": row.get("bid1_price"),
+                    "reference_price": row.get("reference_price"),
+                    "validation_version": row.get("validation_version"),
                 }
             with self._lock:
                 self._sealed_cache = cache
@@ -223,12 +282,12 @@ class DepthService:
         prepared = self._fetch_depth_snapshot()
         if prepared is None:
             return
-        depth_data, syms_up, syms_down, enriched_date = prepared
+        depth_data, syms_up, syms_down, enriched_date, reference_prices = prepared
         if enriched_date != cn_now().date():
             logger.warning("depth sealed: 指标日期 %s 与采集日不一致, 跳过", enriched_date)
             return
         with self._fetch_lock:
-            self._seal_locked(depth_data, syms_up, syms_down, enriched_date, persist)
+            self._seal_locked(depth_data, syms_up, syms_down, enriched_date, persist, reference_prices)
 
     def _fetch_depth_snapshot(self):
         """锁外阶段: 读 enriched 涨跌停名单 + 批量拉取 depth (网络调用不进锁)。"""
@@ -265,9 +324,12 @@ class DepthService:
         if not depth_data:
             logger.warning("depth sealed: depth.batch 返回空")
             return None
-        return depth_data, syms_up, syms_down, enriched_date
+        # Depth uses unadjusted exchange prices; never compare it with adjusted close.
+        price_column = "raw_close" if "raw_close" in enriched.columns else None
+        reference_prices = dict(enriched.select("symbol", price_column).iter_rows()) if price_column else {}
+        return depth_data, syms_up, syms_down, enriched_date, reference_prices
 
-    def _seal_locked(self, depth_data, syms_up, syms_down, enriched_date, persist) -> None:
+    def _seal_locked(self, depth_data, syms_up, syms_down, enriched_date, persist, reference_prices=None) -> None:
         """_fetch_and_seal 的计算/缓存/落盘阶段, 须在持有 _fetch_lock 时调用。"""
         up_set = set(syms_up)
         down_set = set(syms_down)
@@ -275,24 +337,29 @@ class DepthService:
         now_wall = time.time()
 
         new_cache: dict[str, dict] = {}
-        for sym, d in depth_data.items():
+        for sym in dict.fromkeys(syms_up + syms_down):
+            d = depth_data.get(sym) or {}
             ask_vols = d.get("ask_volumes") or []
             bid_vols = d.get("bid_volumes") or []
-            ask1 = ask_vols[0] if ask_vols else None
-            bid1 = bid_vols[0] if bid_vols else None
+            ask1 = _depth_number(ask_vols[0]) if ask_vols else None
+            bid1 = _depth_number(bid_vols[0]) if bid_vols else None
+            ask_prices = d.get("ask_prices") or []
+            bid_prices = d.get("bid_prices") or []
             # fetched_ts 是采集时间, 不能用单票最后成交时间计算采集年龄。
             depth_ts = d.get("received_at", d.get("timestamp"))
-            fetched = (depth_ts / 1000.0) if isinstance(depth_ts, (int, float)) and depth_ts else now_wall
+            fetched = (depth_ts / 1000.0) if isinstance(depth_ts, (int, float)) and depth_ts else None
             entry = {
-                # 涨停真封: 涨停价上卖一(主动卖压)为 0
-                "sealed_up": (ask1 == 0) if sym in up_set and ask1 is not None else None,
-                # 跌停真封: 跌停价上买一为 0
-                "sealed_down": (bid1 == 0) if sym in down_set and bid1 is not None else None,
-                "ask1_vol": ask1,
-                "bid1_vol": bid1,
+                "ask1_vol": int(ask1) if ask1 is not None and ask1.is_integer() else None,
+                "bid1_vol": int(bid1) if bid1 is not None and bid1.is_integer() else None,
+                "ask1_price": _depth_number(ask_prices[0]) if ask_prices else None,
+                "bid1_price": _depth_number(bid_prices[0]) if bid_prices else None,
+                "reference_price": _depth_number((reference_prices or {}).get(sym)),
+                "validation_version": SNAPSHOT_VALIDATION_VERSION,
                 "status": "limit_down" if sym in down_set and sym not in up_set else "limit_up",
                 "fetched_ts": fetched,
             }
+            entry["sealed_up"] = _validated_sealed(entry, enriched_date, False) if sym in up_set else None
+            entry["sealed_down"] = _validated_sealed(entry, enriched_date, True) if sym in down_set else None
             new_cache[sym] = entry
 
         with self._lock:
@@ -402,6 +469,10 @@ class DepthService:
                 "bid1_vol": e.get("bid1_vol"),
                 "status": e.get("status"),
                 "fetched_at": e.get("fetched_ts"),
+                "ask1_price": e.get("ask1_price"),
+                "bid1_price": e.get("bid1_price"),
+                "reference_price": e.get("reference_price"),
+                "validation_version": e.get("validation_version"),
             })
         # 显式 schema: sealed_up/sealed_down 是 bool 与 None 混合, 不指定 schema
         # polars 会按首行推断类型, 后续遇到不一致 (bool vs null) 报
@@ -414,6 +485,10 @@ class DepthService:
             "bid1_vol": pl.Int64,
             "status": pl.Utf8,
             "fetched_at": pl.Float64,
+            "ask1_price": pl.Float64,
+            "bid1_price": pl.Float64,
+            "reference_price": pl.Float64,
+            "validation_version": pl.Int32,
         })
         ds = today.isoformat()
         out = self._repo.store.data_dir / "depth5" / f"date={ds}" / "part.parquet"
@@ -454,7 +529,6 @@ class DepthService:
         return self._read_from_parquet(target_date, is_down)
 
     def _read_from_memory(self, is_down: bool) -> dict:
-        sealed_key = "sealed_down" if is_down else "sealed_up"
         # 封单量: 涨停=买一量(涨停价买单堆积), 跌停=卖一量(跌停价卖单堆积)
         vol_key = "ask1_vol" if is_down else "bid1_vol"
         now = time.perf_counter()
@@ -464,10 +538,16 @@ class DepthService:
         age = (now - fetched_ts) if fetched_ts else 0.0
         result = {}
         for sym, e in cache.items():
+            status = e.get("status")
+            if status is not None and status != ("limit_down" if is_down else "limit_up"):
+                continue
+            if status is None and e.get("sealed_down" if is_down else "sealed_up") is None:
+                continue
+            sealed = _stored_sealed(e, self._sealed_date, is_down)
             result[sym] = {
-                "sealed": e.get(sealed_key),
+                "sealed": sealed,
                 "vol": e.get(vol_key),
-                "ready": True,
+                "ready": sealed is not None,
                 "age": age,
             }
         return result
@@ -483,7 +563,6 @@ class DepthService:
         except Exception as e:  # noqa: BLE001
             logger.warning("depth5 parquet 读取失败: %s", e)
             return {}
-        sealed_key = "sealed_down" if is_down else "sealed_up"
         # 封单量: 涨停=买一量, 跌停=卖一量
         vol_key = "ask1_vol" if is_down else "bid1_vol"
         result = {}
@@ -491,10 +570,14 @@ class DepthService:
             sym = row.get("symbol")
             if not sym:
                 continue
+            if row.get("status") != ("limit_down" if is_down else "limit_up"):
+                continue
+            row["fetched_ts"] = row.get("fetched_at")
+            sealed = _stored_sealed(row, target_date, is_down)
             result[sym] = {
-                "sealed": row.get(sealed_key),
+                "sealed": sealed,
                 "vol": row.get(vol_key),
-                "ready": True,
+                "ready": sealed is not None,
                 "age": None,  # 盘后定版, 无 age
             }
         return result

@@ -18,8 +18,8 @@ _IS_FROZEN = getattr(sys, "frozen", False)
 
 
 def authentication_required() -> bool:
-    """Only server deployments use account authentication."""
-    return not _IS_FROZEN
+    """Windows local administrators also sign in to frozen desktop builds."""
+    return settings.local_admin_mode or not _IS_FROZEN
 
 
 def _user_data_root() -> Path:
@@ -167,6 +167,7 @@ class Settings(BaseSettings):
 
     # Full application multi-tenancy is opt-in while the candidate is verified.
     # Credentials come from TSP_CELL_* and are never read from legacy auth.json.
+    local_admin_mode: bool = Field(default_factory=lambda: sys.platform == "win32")
     multitenancy_enabled: bool = False
     service_role: str = Field(default="standalone", pattern=r"^(standalone|api|gateway|platform)$")
     platform_config_dir: Path | None = None
@@ -184,9 +185,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _resolve_paths(self) -> Settings:
-        """确保 data_dir 是绝对路径（环境变量传入的相对路径基于项目根目录解析）。"""
+        """确保 data_dir 是绝对路径(环境变量传入的相对路径基于项目根目录解析)。"""
+        if sys.platform == "win32":
+            self.local_admin_mode = True
+        if self.local_admin_mode:
+            # An old platform/gateway process must not become a second writer
+            # to the single-user data directory after an upgrade.
+            if self.service_role != "standalone":
+                raise ValueError("local admin mode requires SERVICE_ROLE=standalone")
+            self.multitenancy_enabled = False
         if not self.data_dir.is_absolute():
-            # 相对路径基于项目根目录解析，而非 CWD
+            # 相对路径基于项目根目录解析, 而非 CWD
             self.data_dir = (_PROJECT_ROOT / self.data_dir).resolve()
         if self.backtest_matrix_cache_max_mb <= 0:
             raise ValueError("backtest_matrix_cache_max_mb must be positive")
