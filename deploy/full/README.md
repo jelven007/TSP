@@ -3,8 +3,9 @@
 本目录是完整产品单机多租户部署入口，沿用原 `app.main`、完整前端和原业务引擎。
 一期于 2026-10-14 完成生产切流与 100 用户验收，见
 [一期实施记录](../../docs/phase1-implementation.md)。火山引擎生产已于
-2026-10-20 升级到 v0.4.11、`6d16751c`、schema v6，升级前双库已实际恢复验证；
-详见[升级结果](../../reports/online-upgrade-20261020/deployment-result.md)。
+2026-10-21 在 v0.4.11、`6d16751c`、schema v6 上部署补丁 `092bd79c`，
+修复公共版本 inode 耗尽及盘后读取旧目录；双库已实际恢复验证，
+详见[修复结果](../../reports/online-timeout-20261021/result.md)。
 候选升级继续按下述流程执行，不能与旧实例同时
 写一个行情目录；候选数据、数据库及监听端口必须与生产分离。
 
@@ -100,9 +101,50 @@ Edge 只将精确路径 `/api/events` 和 `/api/events/ticket` 路由至 Gateway
 
 同一计算任务固定挂载一个发布版本，后续数据发布不能改变其历史输入。
 `scripts.maintain_full_host` 从业务库研究任务提取受保护 release ID，同时保留
-`current`、最近版本和最小存龄；缺少 `TSP_DATA_ADMIN_DSN` 时拒绝清理 release。
+`current`、最近版本和最小存龄；缺少 DSN 或 PostgreSQL 容器/库名时拒绝清理 release。
 Docker 维护只清理到期 BuildKit 缓存和悬空镜像，不使用 `image prune -a`，不会
 删除带 tag 的回滚镜像。命令默认 dry-run，复核 JSON 清单后才传 `--apply`。
+
+公共版本每次创建目录会消耗 inode，即使文件使用硬链接也会增长。持续运行的
+单机须安装 `systemd/tsp-public-release-maintenance.{service,timer}`，每五分钟
+保留 `current`、最近 30 份、至少六小时及全部研究引用。安装前先用相同参数 dry-run；
+查询失败会终止清理。该任务不清理 Docker 镜像和原行情。
+
+文件版本发布间隔为五分钟；实时行情和盘口继续通过独立行情桥接刷新。每次创建
+版本前按完整文件/目录清单估算空间，保留至少 10% 或 100,000 个 inode，以及
+1 GiB 字节空间。容量不足时保留上一份不可变版本，不创建半成品；健康检查报告
+inode 余量。无有效历史版本的首次启动仍须成功完成发布。
+API 在快照至少五秒未更新且 `current` 变化时按需切换仓库，即使盘后行情
+marker 流仍连接，也不会长期读取已到期目录。
+
+将 `backend/scripts/maintain_full_host.py` 安装到
+`/opt/tsp-full/maintenance/maintain_full_host.py`，在
+`/etc/tsp-full/public-release-maintenance.env` 填入实际目录、PostgreSQL 容器和业务库：
+
+```dotenv
+TSP_PUBLIC_MARKET_DIR=/opt/tsp-full/public
+TSP_POSTGRES_CONTAINER=tsp-pg
+TSP_BUSINESS_DATABASE=BUSINESS_DB
+```
+
+无需复制数据库密码；脚本在现有 PostgreSQL 容器中用 owner 查询，避免 runtime
+角色的 RLS 隐藏其他租户引用。容器/库名缺失或查询结果非法时拒绝删除。
+
+```bash
+python3 /opt/tsp-full/maintenance/maintain_full_host.py \
+  --release-root /opt/tsp-full/public --postgres-container tsp-pg \
+  --business-database BUSINESS_DB --keep-releases 30 --min-release-age-hours 6
+install -m 644 deploy/full/systemd/tsp-public-release-maintenance.{service,timer} /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now tsp-public-release-maintenance.timer
+systemctl start tsp-public-release-maintenance.service
+systemctl status tsp-public-release-maintenance.service --no-pager
+df -i /opt/tsp-full/public
+```
+
+维护路径与 Compose 实际挂载保持一致。五分钟发布和六小时存龄约保留 72 份普通
+版本；近期 30 份和研究引用另行保护。研究引用持续累积时需扩容或通过产品删除
+不再需要的研究任务，不能绕过引用强删。CLI 原按天保留模式仍兼容。
 
 停写后的双库备份使用 `scripts.backup_full_host`。它先生成两个 custom-format dump，
 再分别恢复到临时数据库并读取 schema 版本，全部成功后才原子发布备份目录：
