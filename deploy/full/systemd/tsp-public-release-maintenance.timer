@@ -1,0 +1,10 @@
+[Unit]
+Description=Check public release retention every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+Unit=tsp-public-release-maintenance.service
+
+[Install]
+WantedBy=timers.target

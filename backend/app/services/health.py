@@ -104,12 +104,21 @@ def _check_disk(data_dir: Path) -> dict[str, Any]:
         status = "warning"
     else:
         status = "ok"
-    return {
+    result = {
         "status": status,
         "total_bytes": usage.total,
         "used_bytes": usage.used,
         "free_bytes": usage.free,
     }
+    if hasattr(os, "statvfs"):
+        capacity = os.statvfs(data_dir)
+        result.update(total_inodes=capacity.f_files, free_inodes=capacity.f_ffree)
+        if capacity.f_files:
+            if capacity.f_ffree < max(10_000, capacity.f_files // 100):
+                result["status"] = "error"
+            elif capacity.f_ffree < max(100_000, capacity.f_files // 10) and status == "ok":
+                result["status"] = "warning"
+    return result
 
 
 def _check_scheduler(app_state: object) -> dict[str, Any]:
