@@ -56,9 +56,6 @@ SOURCE_LABELS = {
     "paper": "模拟盘",
 }
 
-# final 定版确认容差: 快照时间戳允许早于边界 5s 内 (供应商时间戳精度不一)
-_FINAL_CONFIRM_SLACK_MS = 5_000
-
 # final 定版边界与重试窗口终点 (北京时间)。自动轮询仅使用 close_final:
 # 收盘后继续轮询至 15:15, 随后停止; morning_final 保留给兼容调用。
 # 未确认的收盘定版由 15:35 盘后管道按官方日线值级校正。
@@ -514,6 +511,8 @@ class QuoteService:
         from app.api.overview import invalidate_overview_cache
 
         invalidate_overview_cache()
+        if self._app_state is not None:
+            self._app_state.full_public_snapshot = None
         for sub in self._snapshot_subscribers():
             sub.notify_quote()
 
@@ -979,7 +978,7 @@ class QuoteService:
         confirmed_final: bool | None = None
         if final_boundary_ms is not None:
             confirmed_final = all(
-                confirms_boundary(r, final_boundary_ms, slack_ms=_FINAL_CONFIRM_SLACK_MS)
+                confirms_boundary(r, final_boundary_ms)
                 for r in records
             )
             self._last_final_confirmed = confirmed_final
@@ -1032,18 +1031,14 @@ class QuoteService:
                 # 研究归档是旁路线; 失败必须可观测, 但不能中断实时展示和日K落盘。
                 logger.warning("秒级行情归档入队失败: %s", e)
 
-        if confirmed_final is False:
-            # 边界前的陈旧快照: 展示缓存已更新, 落盘与监控评估留待边界后快照。
-            # 轮询线程会在定版窗口内持续重试, 窗口结束由 _poll_loop 放弃并告警。
-            logger.info(
-                "final 快照缺少同交易日的源端收盘证据 (边界=%s), 本轮跳过落盘",
-                final_boundary_ms,
-            )
-            self._broadcast_quote_updated()
-            return
-
         # A partial universe must not truncate an authoritative day partition.
         # Keep the previous persisted snapshot until a complete capture arrives.
+        incomplete = any(
+            len(rows) != len({r.get("symbol") for r in rows})
+            for rows in (stock_records, etf_records)
+        )
+        if etf_records and all_etf_symbols - {r.get("symbol") for r in etf_records}:
+            incomplete = True
         if self._repo and callable(getattr(self._repo, "get_instruments", None)):
             instruments = self._repo.get_instruments()
             if not instruments.is_empty() and "symbol" in instruments.columns:
@@ -1053,8 +1048,19 @@ class QuoteService:
                 if stock_records and (missing or len(returned) != len(set(returned))):
                     self._last_final_confirmed = False if final_boundary_ms is not None else None
                     logger.warning("股票快照不完整, 跳过整分区覆写: 返回 %d, 缺少 %d", len(returned), len(missing))
-                    self._broadcast_quote_updated()
-                    return
+                    incomplete = True
+
+        if confirmed_final is False or incomplete:
+            if final_boundary_ms is not None:
+                self._last_final_confirmed = False
+            # 未确认收盘仍是有效的最新观测。先计算并合并展示缓存, 再广播;
+            # 缺失/冲突标的沿用缓存, 不把临时观测写入历史或用于监控评估。
+            self._refresh_provisional_records({
+                "stock": stock_records, "etf": etf_records, "index": index_records,
+            })
+            logger.info("final/不完整快照仅更新展示缓存 (边界=%s), 本轮跳过落盘", final_boundary_ms)
+            self._broadcast_quote_updated()
+            return
 
         # 轮询放量状态更新 (volume_delta 规则的差值来源)
         self._update_volume_delta(stock_records, fetched_at)
@@ -1103,6 +1109,24 @@ class QuoteService:
         # 由调用方 (_fetch_quotes) 持 _evaluate_lock 在取数锁外执行;
         # 返回本轮快照 (daily_df, quote_extra) 作为评估输入
         return daily_df, quote_extra
+
+    def _refresh_provisional_records(self, assets: dict[str, list[dict]]) -> None:
+        from collections import Counter
+
+        if self._repo is None:
+            return
+        for asset_type, records in assets.items():
+            counts = Counter(r.get("symbol") for r in records)
+            # 冲突重复没有可信的胜出依据, 保留该标的上一份有效状态。
+            records = [r for r in records if counts[r.get("symbol")] == 1]
+            daily = self._build_daily(records)
+            if daily.is_empty():
+                continue
+            daily = daily.filter(pl.col("close").is_finite() & (pl.col("close") > 0))
+            if not daily.is_empty():
+                self._flush_live_enriched(
+                    daily, self._build_quote_extra(records), asset_type=asset_type, persist=False,
+                )
 
     # ================================================================
     # 工具
@@ -2242,7 +2266,7 @@ class QuoteService:
         self._enriched_hist_cache[asset_type] = (today, dir_mtime_ns, hist_df)
         return hist_df
 
-    def _flush_live_enriched(self, daily_df: pl.DataFrame, quote_extra: pl.DataFrame = None, asset_type: str = "stock", merge: bool = False) -> None:
+    def _flush_live_enriched(self, daily_df: pl.DataFrame, quote_extra: pl.DataFrame = None, asset_type: str = "stock", merge: bool = False, *, persist: bool = True) -> None:
         """增量计算今天的 enriched: 用昨天的递推状态 + 今天 OHLCV → 只算今天 5500 行。
 
         quote_extra: API 直接提供的补充字段 (prev_close, change_pct 等),
@@ -2304,7 +2328,7 @@ class QuoteService:
 
                 cutoff = today - timedelta(days=90)
                 table = {"etf": "kline_etf_daily", "index": "kline_index_daily"}.get(asset_type, "kline_daily")
-                ohlcv_cols = ["symbol", "date", "open", "high", "low", "close", "volume", "amount", "quote_ts"]
+                ohlcv_cols = ["symbol", "date", "open", "high", "low", "close", "volume", "amount", "quote_ts", "quote_time_basis"]
                 hist_df = self._load_enriched_history_window(
                     asset_type, table, ohlcv_cols, today, cutoff
                 )
@@ -2357,7 +2381,9 @@ class QuoteService:
                 )
 
             # ---- 写盘 + 更新缓存 ----
-            if merge:
+            if not persist:
+                self._repo.update_provisional_enriched_asset(asset_type, enriched_today)
+            elif merge:
                 self._repo.merge_live_enriched_asset(asset_type, enriched_today)
             else:
                 self._repo.flush_live_enriched_asset(asset_type, enriched_today)

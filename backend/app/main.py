@@ -345,7 +345,11 @@ async def _application_lifespan(app: FastAPI):
         if not matrix_prewarm_owner.schedule(_prewarm):
             logger.info("matrix cache prewarm already running or shutting down, skip")
 
-    repo._on_refresh_done = _schedule_matrix_cache_prewarm  # noqa: SLF001
+    def _repository_refreshed() -> None:
+        qs._broadcast_quote_updated()
+        _schedule_matrix_cache_prewarm()
+
+    repo._on_refresh_done = _repository_refreshed  # noqa: SLF001
     if repo.enriched_ready:
         _schedule_matrix_cache_prewarm()
 
