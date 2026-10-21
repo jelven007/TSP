@@ -3,8 +3,9 @@
 本目录是完整产品单机多租户部署入口，沿用原 `app.main`、完整前端和原业务引擎。
 一期于 2026-10-14 完成生产切流与 100 用户验收，见
 [一期实施记录](../../docs/phase1-implementation.md)。火山引擎生产已于
-2026-10-20 升级到 v0.4.11、`6d16751c`、schema v6，升级前双库已实际恢复验证；
-详见[升级结果](../../reports/online-upgrade-20261020/deployment-result.md)。
+2026-10-21 在 v0.4.11、`6d16751c`、schema v6 上部署补丁 `092bd79c`，
+修复公共版本 inode 耗尽及盘后读取旧目录；双库已实际恢复验证，
+详见[修复结果](../../reports/online-timeout-20261021/result.md)。
 候选升级继续按下述流程执行，不能与旧实例同时
 写一个行情目录；候选数据、数据库及监听端口必须与生产分离。
 
@@ -100,7 +101,7 @@ Edge 只将精确路径 `/api/events` 和 `/api/events/ticket` 路由至 Gateway
 
 同一计算任务固定挂载一个发布版本，后续数据发布不能改变其历史输入。
 `scripts.maintain_full_host` 从业务库研究任务提取受保护 release ID，同时保留
-`current`、最近版本和最小存龄；缺少 `TSP_DATA_ADMIN_DSN` 时拒绝清理 release。
+`current`、最近版本和最小存龄；缺少 DSN 或 PostgreSQL 容器/库名时拒绝清理 release。
 Docker 维护只清理到期 BuildKit 缓存和悬空镜像，不使用 `image prune -a`，不会
 删除带 tag 的回滚镜像。命令默认 dry-run，复核 JSON 清单后才传 `--apply`。
 
@@ -113,6 +114,8 @@ Docker 维护只清理到期 BuildKit 缓存和悬空镜像，不使用 `image p
 版本前按完整文件/目录清单估算空间，保留至少 10% 或 100,000 个 inode，以及
 1 GiB 字节空间。容量不足时保留上一份不可变版本，不创建半成品；健康检查报告
 inode 余量。无有效历史版本的首次启动仍须成功完成发布。
+API 在快照至少五秒未更新且 `current` 变化时按需切换仓库，即使盘后行情
+marker 流仍连接，也不会长期读取已到期目录。
 
 将 `backend/scripts/maintain_full_host.py` 安装到
 `/opt/tsp-full/maintenance/maintain_full_host.py`，在
