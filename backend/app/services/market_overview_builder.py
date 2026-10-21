@@ -505,12 +505,6 @@ def build_market_overview(
         limit_up = max(0, limit_up - fake_up)
         limit_down = max(0, limit_down - fake_down)
 
-    # #region debug-point H1:overview-count
-    if os.environ.get("TSP_LIMIT_DEBUG_URL"):
-        import urllib.request
-        urllib.request.urlopen(urllib.request.Request(os.environ["TSP_LIMIT_DEBUG_URL"], data=json.dumps({"sessionId": "limit-count-drift", "runId": os.environ.get("TSP_LIMIT_DEBUG_RUN", "pre-fix"), "hypothesisId": "H1", "location": "market_overview_builder:limit", "msg": "[DEBUG] overview limit count", "data": {"date": str(as_of), "raw_up": sum(1 for r in rows if bool(r.get("signal_limit_up")) or (_finite(r.get("consecutive_limit_ups")) or 0) > 0), "limit_up": limit_up, "fake_up": fake_up, "ready": sealed_ready, "entry": up_map.get("301030.SZ") if depth_service else None}}).encode(), headers={"Content-Type": "application/json"}), timeout=2).close()
-    # #endregion
-
     seal_rate = limit_up / (limit_up + broken) * 100 if (limit_up + broken) > 0 else 0
 
     def above_ma_count(ma_key: str) -> int:

@@ -4,6 +4,26 @@
 [需求基线](./requirements.md)，工程细则依据[贡献与复审指南](../CONTRIBUTING.md)，
 被测源码、生产和标签状态依据[版本基线](./version-baseline.md)。
 
+2026-10-22 整合测试覆盖五档证据与候选统计、收盘临时价/权威缓存/重启、
+公共发布/回收/空闲读者、Windows 管理员与资源预算、仓库写入锁和前端账户切换。
+整合态执行结果见本次交付报告，历史报告中的失败和跳过不追溯改成通过。
+
+```bash
+cd backend
+uv run --no-sync pytest tests/test_depth_snapshot_validation.py tests/test_closing_price_cache.py tests/test_final_sync_confirmation.py tests/test_realtime_guard.py tests/test_full_platform.py tests/test_full_host_maintenance.py tests/test_health.py tests/test_online_timeout_validation.py tests/test_local_admin.py tests/test_resource_budget.py tests/test_datastore_memory_budget.py tests/backtest/test_panel_cache_budget.py -q
+cd ../frontend
+pnpm test
+pnpm lint
+pnpm build
+```
+
+生产旧补丁镜像的 100/250/500 SSE 压测共 93,360 次请求零错误，
+500 档 P99 152.6 ms，详见[延长验证](../reports/online-timeout-20261021/extended-validation.md)。
+该结果不证明整合源码已上线、业务连接池超时已修复或完整交易日已通过。
+Windows CI、Win10 22H2 真机与安装包验收分别记录；
+真实数据同步、全部研究任务、取消/重启和进程树内存仍须真机覆盖。
+阶段与验收门槛见[本次整合](./local-consolidation-20261022.md)。
+
 原生 Windows 10 22H2 x64 / 16 GB 的资源检查、同规模缓存基准和全功能阻断项见
 [原生资源优化验收](./windows10-native-16gb.md)。
 `windows-native.yml` 在 Windows Server 2022 执行 PowerShell 5.1、资源预算和
