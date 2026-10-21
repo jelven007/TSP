@@ -15,12 +15,15 @@
 单机百账号/百人活跃、DFX 与万人并发；第二步本地证据见
 [实施记录](../reports/phase2-step2-20261016/implementation.md)，各步仍需完成对应候选与持续运行验收。
 
-火山引擎生产已于 2026-10-20 升级到 v0.4.11、`6d16751c`、schema v6，运行独立
+火山引擎生产在 2026-10-20 的 v0.4.11 基线上部署了 `092bd79c` 公共目录容量与
+回收补丁，schema v6，运行独立
 Gateway、Platform、四类 Worker 和 Compute Broker；详见
 [线上升级结果](../reports/online-upgrade-20261020/deployment-result.md)。同日完成
 2016-01-01 起的日线回填与 raw/enriched 对账，边界见
 [历史回填结果](../reports/history-backfill-20261020/result.md)。后续主线修复和自动
-标签不自动替换生产固定镜像。
+标签不自动替换生产固定镜像。2026-10-22 全工作区源码整合、生命周期映射与
+未完成验收项见[本地变更整合](./local-consolidation-20261022.md)。
+inode 耗尽已修复；自选连接池超时根因仍在[调查](../reports/online-timeout-20261021/watchlist-pool-investigation.md)。
 
 ## 生命周期覆盖
 
@@ -43,7 +46,7 @@ Gateway、Platform、四类 Worker 和 Compute Broker；详见
 | 版本与状态 | [版本基线](./version-baseline.md)、[多人协作与版本管理](./collaborative-versioning.md)、[发布与上线运营](./release-operations.md) |
 | 产品与使用 | [功能手册](./features.md)、[操作说明书](../操作说明书.md) |
 | 单机多租户 | [完整部署](../deploy/full/README.md)、[单机实施](../reports/single-host/implementation.md)、[持续验收](../reports/single-host/continuous-acceptance.md)、[两期技术方案](./multitenant-roadmap.md)、[一期实施与验收](./phase1-implementation.md)、[二期三步实施](./phase2-implementation-plan.md) |
-| 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md)、[Windows 10 生产构建与部署](./windows10-production-deployment.md) |
+| 部署与配置 | [部署指南](./deployment.md)、[配置说明](./configuration.md)、[公网邮箱账户](./deploy-password.md)、[Windows 10 历史多租户部署](./windows10-production-deployment.md)、[Windows 10 单机管理员、个人空间与 16 GB 资源配置](./windows10-native-16gb.md) |
 | 数据源 | [自定义数据源](./custom-data-source.md)、[rustdx 数据源](./rustdx-data-source.md)、[插件开发](./plugin-development.md) |
 | TickFlow 专项 | [Pro 一阶段探测](./tickflow-pro-phase1-probe.md)、[共享限流](./tickflow-pro-shared-rate-limit.md) |
 | 策略与研究 | [策略开发](./strategy.md)、[策略迭代](./strategy-iteration.md)、[策略质量研究](../reports/strategy-optimization-20261019/analysis.md)、[五策略共享运行](../reports/five-strategy-parallel-20261019/implementation.md)、[固定输入与研究记录](./research-configuration.md)、[因子平台方案](./factor-platform-plan.md)、[因子系统设计](./factor-system-design.md)、[因子挖掘](./mining.md) |
@@ -51,6 +54,7 @@ Gateway、Platform、四类 Worker 和 Compute Broker；详见
 | 市场与交易 | [市场阶段](./market-phase.md)、[模拟盘](./paper-trading-plan.md) |
 | 开放能力 | [开放平台](./open-platform-plan.md)、[MCP 服务器](../mcp-server/README.md)、[Open API 示例](../examples/open-api/README.md) |
 | 验证记录 | [技术验证记录](./technical-validation.md) |
+| 本次整合 | [全生命周期变更](./local-consolidation-20261022.md)、[五档封板证据](./depth-snapshot-validation.md)、[收盘价保护](./closing-price-integrity.md) |
 | 生产记录 | [v0.4.11 升级结果](../reports/online-upgrade-20261020/deployment-result.md)、[2016 起历史回填](../reports/history-backfill-20261020/result.md) |
 | 当前项目分析 | [2026-10-10 架构、rustdx 与生产状态分析](./project-analysis-20261010.md) |
 | 二次开发 | [二次开发指南](./secondary-development.md)、[构建与升级备份](./build-upgrade-evidence.md)、[自定义数据源示例](./examples/custom-data-source/README.md) |

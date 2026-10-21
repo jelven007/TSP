@@ -30,6 +30,7 @@ from app.backtest.matrix import (
 from app.config import settings
 from app.enriched_generation import EnrichedGenerationUnavailableError
 from app.parquet import scan_enriched_parquet
+from app.resource_budget import cache_budget_bytes
 from app.strategy.entry_risk import EntryRiskPolicy
 from app.strategy.risk_policy import price_exit
 from app.tickflow.repository import KlineRepository
@@ -275,11 +276,12 @@ def _resolve_signal_id(panel: pl.DataFrame, idx: int, signal_ids: list[str] | No
 # ================================================================
 
 class _CacheEntry:
-    __slots__ = ("df", "ts")
+    __slots__ = ("df", "size", "ts")
 
     def __init__(self, df: pl.DataFrame, ts: float):
         self.df = df
         self.ts = ts
+        self.size = df.estimated_size()
 
 
 class _InFlight:
@@ -294,12 +296,16 @@ class _InFlight:
 
 
 class PanelCache:
-    """LRU + TTL 数据面板缓存。"""
+    """LRU + TTL 数据面板缓存, 同时限制条目数和驻留字节数。"""
 
-    def __init__(self, max_size: int = 2, ttl_seconds: int = 180):
+    def __init__(self, max_size: int = 2, ttl_seconds: int = 180, *, max_bytes: int | None = None):
         self._cache: OrderedDict[str, _CacheEntry] = OrderedDict()
         self._max_size = max_size
         self._ttl = ttl_seconds
+        self._max_bytes = cache_budget_bytes(256) if max_bytes is None else max_bytes
+        if max_size < 0 or self._max_bytes < 0:
+            raise ValueError("cache limits must be non-negative")
+        self._retained_bytes = 0
         # 跨请求单例, SSE 回测在各自 daemon 线程并发访问 OrderedDict。
         # 无锁的 move_to_end/del/popitem check-then-act 会抛 "OrderedDict mutated"。
         # 用实例锁守护所有 OrderedDict 变更; compute_fn (重扫盘) 放锁外避免串行化。
@@ -330,13 +336,15 @@ class PanelCache:
         now = time.monotonic()
 
         with self._lock:
+            # Expired keys may never be requested again; release them before
+            # loading another panel instead of retaining them until LRU pressure.
+            for expired in [k for k, value in self._cache.items() if now - value.ts >= self._ttl]:
+                self._retained_bytes -= self._cache.pop(expired).size
             entry = self._cache.get(key)
             if entry is not None:
-                if now - entry.ts < self._ttl:
-                    self._cache.move_to_end(key)
-                    self._hit_count += 1
-                    return entry.df
-                del self._cache[key]  # 过期, 丢弃后重算
+                self._cache.move_to_end(key)
+                self._hit_count += 1
+                return entry.df
             # single-flight: 同 key 若已有线程在算, 登记为跟随者; 否则本线程当 leader。
             flight = self._inflight.get(key)
             leader = flight is None
@@ -369,9 +377,17 @@ class PanelCache:
         with self._lock:
             self._compute_seconds += time.perf_counter() - t_compute
             self._compute_count += 1
-            self._cache[key] = _CacheEntry(df=df, ts=now)
-            if len(self._cache) > self._max_size:
-                self._cache.popitem(last=False)
+            entry = _CacheEntry(df=df, ts=time.monotonic())
+            # Oversized results remain valid for this request and its followers.
+            # Skipping retention never truncates data or changes financial values.
+            if self._max_size and entry.size <= self._max_bytes:
+                while self._cache and (
+                    len(self._cache) >= self._max_size
+                    or self._retained_bytes + entry.size > self._max_bytes
+                ):
+                    self._retained_bytes -= self._cache.popitem(last=False)[1].size
+                self._cache[key] = entry
+                self._retained_bytes += entry.size
             self._inflight.pop(key, None)
         flight.df = df
         flight.done.set()
@@ -385,11 +401,14 @@ class PanelCache:
                 "compute_count": self._compute_count,
                 "hit_count": self._hit_count,
                 "reuse_count": self._reuse_count,
+                "retained_bytes": self._retained_bytes,
+                "max_bytes": self._max_bytes,
             }
 
     def invalidate(self) -> None:
         with self._lock:
             self._cache.clear()
+            self._retained_bytes = 0
 
     @staticmethod
     def _make_key(

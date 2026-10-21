@@ -106,9 +106,11 @@ async def _application_lifespan(app: FastAPI):
         __version__, tf_client.current_mode(),
     )
 
-    # 账户认证只属于服务端部署。Windows/macOS/Linux 冻结桌面版不创建
-    # 账户、注册口令或会话, 安装后直接进入业务页面。
-    if authentication_required():
+    # Windows 单机管理员必须成功初始化才能启动; 损坏时不回退免登录。
+    if settings.local_admin_mode:
+        from app.services import auth as auth_service
+        auth_service.bootstrap_local_admin()
+    elif authentication_required():
         try:
             from app.services import auth as auth_service
             auth_service.bootstrap_registration_secret_from_env()
@@ -345,7 +347,11 @@ async def _application_lifespan(app: FastAPI):
         if not matrix_prewarm_owner.schedule(_prewarm):
             logger.info("matrix cache prewarm already running or shutting down, skip")
 
-    repo._on_refresh_done = _schedule_matrix_cache_prewarm  # noqa: SLF001
+    def _repository_refreshed() -> None:
+        qs._broadcast_quote_updated()
+        _schedule_matrix_cache_prewarm()
+
+    repo._on_refresh_done = _repository_refreshed  # noqa: SLF001
     if repo.enriched_ready:
         _schedule_matrix_cache_prewarm()
 
@@ -536,8 +542,12 @@ async def auth_middleware(request: Request, call_next):
     # CORS 预检不带凭据, 直接放行 (CORSMiddleware 在外层应答)
     if request.method == "OPTIONS":
         return await call_next(request)
-    # 冻结桌面版只监听 127.0.0.1, 不启用账户体系。状态端点供前端识别
-    # 本地模式; 其余认证写接口关闭, 业务 API 则直接放行。
+    if settings.local_admin_mode and path.startswith(("/api/account/", "/api/admin/")):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Windows 单机模式已暂停多租户", "code": "MULTITENANCY_DISABLED"},
+        )
+    # 非 Windows 冻结桌面版保留免登录行为。
     if not authentication_required():
         if path.startswith(_AUTH_WHITELIST_PREFIX) and path != "/api/auth/status":
             return JSONResponse(

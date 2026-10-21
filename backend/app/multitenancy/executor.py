@@ -34,6 +34,8 @@ class ComputeExecutor:
         encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False, default=str).encode() + b"\n"
         if len(encoded) > MAX_MESSAGE_BYTES:
             raise AccessError(413, "计算任务输入过大")
+        if not hasattr(socket, "AF_UNIX"):
+            raise AccessError(503, "当前系统缺少隔离计算服务所需的本地通信支持")
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
                 client.settimeout(5)

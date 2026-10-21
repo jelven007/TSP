@@ -1,0 +1,256 @@
+{
+  "status": "passed",
+  "scope": "isolated_joint_recovery_rehearsal",
+  "limits": [
+    "disposable local PostgreSQL container; not production data or a production host",
+    "both restored databases share one PostgreSQL failure domain",
+    "filesystem copies and a route pointer model quiesce/cutover; no real Nginx reload",
+    "observed RPO/RTO are fixture evidence, not a production SLA"
+  ],
+  "postgres": {
+    "reference": "postgres:16",
+    "id": "sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d",
+    "architecture": "arm64",
+    "os": "linux",
+    "repo_digests": [
+      "postgres@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"
+    ]
+  },
+  "targets": {
+    "recommended_rpo_seconds": 86400,
+    "recommended_rto_seconds": 7200
+  },
+  "backup": {
+    "initial": {
+      "elapsed_seconds": 0.342,
+      "control_dump": {
+        "bytes": 34984,
+        "sha256": "0eed1fcbb0075d53635ac191633f6cdf55459b2a4ba00038579730e974aafe5e"
+      },
+      "data_dump": {
+        "bytes": 106950,
+        "sha256": "232970580c0860882e72ea51f6179e09c5275a39bfb2a55656c67e21bdfe1a2a"
+      },
+      "directories": {
+        "platform": {
+          "entries": 4,
+          "files": 3,
+          "bytes": 131,
+          "sha256": "a268aeb5cab7c9c8813209418d902520186b0533a06f17e104bb8a99406cec07"
+        },
+        "public": {
+          "entries": 7,
+          "files": 2,
+          "bytes": 2743,
+          "sha256": "b8837cea96601b17c349728e9e2401d2bdfcdb9b177deecff3748c82484187c5"
+        },
+        "private": {
+          "entries": 2,
+          "files": 1,
+          "bytes": 36,
+          "sha256": "f0c2ea3d8f6766bb7b7dc72192ea49f3aee4e3b87e782dce54b813c1f586f41c"
+        },
+        "edge": {
+          "entries": 1,
+          "files": 1,
+          "bytes": 44,
+          "sha256": "f97e13ccd2bd38f8437eb655b2ebe0cab40c18e6bfd98fd4b12c98acaa80ed4d"
+        }
+      }
+    },
+    "final": {
+      "elapsed_seconds": 0.227,
+      "control_dump": {
+        "bytes": 35176,
+        "sha256": "87783ee3df7e1d0819940a23a904df4be438f3c23c9d138d2dd38b3c143c577f"
+      },
+      "data_dump": {
+        "bytes": 107014,
+        "sha256": "6ae7193e25979f00294dcb8bdf7ac266f3e60c6997086b93ea924c22b437cb57"
+      },
+      "directories": {
+        "platform": {
+          "entries": 4,
+          "files": 3,
+          "bytes": 165,
+          "sha256": "b512c6da5c68729f772054f57ad3e41ffc810847081f4641b40cca9becda224d"
+        },
+        "public": {
+          "entries": 13,
+          "files": 5,
+          "bytes": 5511,
+          "sha256": "051f4cfa82ff92e3b0aeca758e4804d582618f52b91a392bf47b2f69d7fb741f"
+        },
+        "private": {
+          "entries": 3,
+          "files": 2,
+          "bytes": 68,
+          "sha256": "8f2f57e0b9fd2e71a2712aefe1a80bc760f1a3a501f751236bf6d233c6f08a4b"
+        },
+        "edge": {
+          "entries": 1,
+          "files": 1,
+          "bytes": 44,
+          "sha256": "f97e13ccd2bd38f8437eb655b2ebe0cab40c18e6bfd98fd4b12c98acaa80ed4d"
+        }
+      }
+    },
+    "initial_database_sha256": "d99b0f5deb3db913ff292a85c3a1e8601fbaaa045765caa3187c84b7d9f1b3ac",
+    "final_database_sha256": "5765dc9a9d626ab1fef8240889d824100e73dfab3d8f32ec625ddd3a22ba0e73",
+    "quiesced_final_capture_lag_seconds": 0.232
+  },
+  "restore": {
+    "database": {
+      "tables": {
+        "control.schema_version": {
+          "rows": 6,
+          "sha256": "42a4b50cddbcdd0c3083a0d50baad595f27bab31cbacea86b32a6e06ed3fe203"
+        },
+        "control.users": {
+          "rows": 4,
+          "sha256": "692fa3683e715c9bc4c2ea2696e9b0c3466a10356b73327cdfd83a1655a0a051"
+        },
+        "control.cells": {
+          "rows": 1,
+          "sha256": "c2c10d4cf716c446f443b5df3bd31ab4180f927b5d23f8e21e24bb4d7a4b07f7"
+        },
+        "control.tenants": {
+          "rows": 3,
+          "sha256": "e67a47818269fc9d0247f85d046cf25384491fd31e5c31eeae6ad184c9719bf6"
+        },
+        "control.memberships": {
+          "rows": 3,
+          "sha256": "f81cbcdb091139ab89f52fee23acc6e4246ba106394a54f2f7c013d6e4882774"
+        },
+        "control.sessions": {
+          "rows": 2,
+          "sha256": "6e10a9aaa1ef486892b8ec7175f1032f3ce73842dd8d6567a7cfbe10ec101585"
+        },
+        "control.user_roles": {
+          "rows": 4,
+          "sha256": "43946572c72f630a57cc6c2c2760ae74d0b0ef82d0b37d51aac6f5a5ca526ba3"
+        },
+        "control.user_preferences": {
+          "rows": 1,
+          "sha256": "18786bdfb6ca27f3165d78c6a878db12f6d80dd34c288a726184297bd44b90ca"
+        },
+        "control.full_worker_health": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "business.schema_version": {
+          "rows": 6,
+          "sha256": "67a4f3d7efdfeeb3cebd9796100e629df9e77568d5749e78748edc7d76c55ad2"
+        },
+        "business.tenant_bindings": {
+          "rows": 3,
+          "sha256": "133fb738e39340963105306d9044a11f4e34cc0604eb051f566fd01e0ee68b0b"
+        },
+        "business.documents": {
+          "rows": 2,
+          "sha256": "d8a61b19706cc17646001e0e4a9cf58340fe7785d16625d610042e08856ba631"
+        },
+        "business.full_paper_accounts": {
+          "rows": 1,
+          "sha256": "fa894e0d7d980baf52bcb79945f7e255ea32f2bc89348abdf2e0a3230ceb1789"
+        },
+        "business.full_paper_orders": {
+          "rows": 1,
+          "sha256": "f08bcc3bf83c2b831b9163522f092a13e675997a3840391bf50c433032d38719"
+        },
+        "business.full_paper_fills": {
+          "rows": 1,
+          "sha256": "d22c945f491c77e82be1bc15d47f814595b4e20cef94f2b21701c424340e51b3"
+        },
+        "business.full_paper_nav": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "business.research_jobs": {
+          "rows": 1,
+          "sha256": "849e7f99be176d2f56daaa839f8bf3b47669f7f61e35f08f39865c0f4acf3758"
+        },
+        "business.research_artifacts": {
+          "rows": 1,
+          "sha256": "93f67d3b883b81a97a1aa9b658d7f62c0eb5e534c4881dc10348020fe6f61ecc"
+        },
+        "business.full_events": {
+          "rows": 3,
+          "sha256": "5322d2764ab6db71b36aff035775d0ec95b10a35cc13f70c3fa947f01258568f"
+        },
+        "scheduler.work": {
+          "rows": 2,
+          "sha256": "4e676e64db3add1e403afb95a421131c14f4023826b703fd210a769206db6ea9"
+        },
+        "business.full_events_sequence_seq": {
+          "rows": 1,
+          "sha256": "452a58b65e3ef63e4d89ef4b1572baa45bf9f324f5030a6fc112a6faea8023ff"
+        }
+      },
+      "rows": 46,
+      "sha256": "5765dc9a9d626ab1fef8240889d824100e73dfab3d8f32ec625ddd3a22ba0e73"
+    },
+    "directories": {
+      "platform": {
+        "entries": 4,
+        "files": 3,
+        "bytes": 165,
+        "sha256": "b512c6da5c68729f772054f57ad3e41ffc810847081f4641b40cca9becda224d"
+      },
+      "public": {
+        "entries": 13,
+        "files": 5,
+        "bytes": 5511,
+        "sha256": "051f4cfa82ff92e3b0aeca758e4804d582618f52b91a392bf47b2f69d7fb741f"
+      },
+      "private": {
+        "entries": 3,
+        "files": 2,
+        "bytes": 68,
+        "sha256": "8f2f57e0b9fd2e71a2712aefe1a80bc760f1a3a501f751236bf6d233c6f08a4b"
+      },
+      "edge": {
+        "entries": 1,
+        "files": 1,
+        "bytes": 44,
+        "sha256": "f97e13ccd2bd38f8437eb655b2ebe0cab40c18e6bfd98fd4b12c98acaa80ed4d"
+      }
+    },
+    "verification": {
+      "identity_sessions": 2,
+      "rls_isolation": true,
+      "events": 3,
+      "paper_orders": 1,
+      "paper_fills": 1,
+      "research_state": "succeeded",
+      "research_artifact_sha256": "287c819cb7df74ab2e272f40078f09585897c5486e99929607e511585b49b874",
+      "public_release_id": "release-002",
+      "platform_generation": 2
+    },
+    "observed_rto_seconds": 0.846,
+    "observed_quiesced_rpo_missing_rows": 0,
+    "recommended_targets_met_in_fixture": true
+  },
+  "cutover_and_rollback": {
+    "transitions": [
+      {
+        "active": "restored",
+        "at": 1792220925.0053692,
+        "database_sha256": "5765dc9a9d626ab1fef8240889d824100e73dfab3d8f32ec625ddd3a22ba0e73"
+      },
+      {
+        "active": "source",
+        "at": 1792220925.067519,
+        "database_sha256": "53cd62a569a4b30c9e23de47f65dea40def010ca4c74a80c616290247a51c5b7"
+      }
+    ],
+    "blind_rollback_blocked": true,
+    "marker_id": "post-cutover-2af212a39158400b87d7925f608d473c",
+    "database_reconciled": true,
+    "private_artifact_reconciled": true,
+    "post_cutover_database_sha256": "53cd62a569a4b30c9e23de47f65dea40def010ca4c74a80c616290247a51c5b7",
+    "active_after_rehearsal": "source"
+  },
+  "elapsed_seconds": 5.434,
+  "report_sha256": "b9b07fc9b982fdf70319fa75db0685a3d9ac73591115d6f0899dbc690c4c5871"
+}

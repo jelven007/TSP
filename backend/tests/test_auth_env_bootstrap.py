@@ -15,6 +15,8 @@ def isolated_auth_store(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> Iterator[tuple[ModuleType, Path, Path]]:
+    monkeypatch.setattr(app_config.sys, "platform", "linux")
+    monkeypatch.setattr(app_config.settings, "local_admin_mode", False)
     monkeypatch.setattr(app_config.settings, "data_dir", tmp_path)
     from app.services import auth
 
@@ -41,7 +43,7 @@ def test_bootstrap_recovers_compose_interpolated_password_from_raw_env(
         f"AUTH_PASSWORD={password}\nDATA_DIR={tmp_path}\n",
         encoding="utf-8",
     )
-    configured = Settings(_env_file=env_path)
+    configured = Settings(_env_file=env_path, local_admin_mode=False)
     configured.auth_password = "pw-secret"  # 模拟 Compose 将未定义的 ${special} 插值为空串
     monkeypatch.setattr(app_config, "settings", configured)
 

@@ -6,6 +6,15 @@
 金融数据口径、缓存、并发、数据源和测试要求以该文档为准；开始分支、上游基线、
 当前 `main` 和生产版本的归类以[版本基线](./version-baseline.md)为准。
 
+2026-10-22 整合沿用现有扩展边界：Windows 启动预算属于 L1 配置，核心身份、
+字节缓存、公共发布/回收、五档判定和收盘临时缓存属于 L3 聚焦修改。
+复用 `PublicPublisher`、`PublicQuoteBridge`、`DepthService`、
+`KlineRepository.update_provisional_enriched_asset` 和现有账户/查询接口；
+不假设存在通用封板策略插槽、沙箱资源硬限制或新的租户迁移 API。
+调用链、兼容与验证映射见[本次整合](./local-consolidation-20261022.md)。
+原生 Windows 修改采用完整应用单机管理员空间，二开升级应备份本地身份文件
+及整个业务目录；公共回收必须保留研究 input 与 metadata 中的版本引用。
+
 ## 1. 文档状态
 
 本文同时描述现有能力和后续按需建设的代码扩展契约。两者不能混用：

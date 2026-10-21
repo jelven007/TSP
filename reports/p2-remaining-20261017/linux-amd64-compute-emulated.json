@@ -1,0 +1,37 @@
+{
+  "status": "passed",
+  "scope": "local_emulated_full_compute_image_acceptance",
+  "limits": [
+    "Apple ARM host using Linux AMD64 emulation; not native performance evidence",
+    "disposable deterministic market fixture; not production data"
+  ],
+  "artifact": {
+    "reference": "tsp-p2-compute:amd64-backtest",
+    "id": "sha256:d89015b8c1d06896e96a65a709ec0d38b9a6e6028e251bbaeb1f8dc8223a0f2b",
+    "architecture": "amd64",
+    "os": "linux",
+    "repo_digests": [
+      "tsp-p2-compute@sha256:d89015b8c1d06896e96a65a709ec0d38b9a6e6028e251bbaeb1f8dc8223a0f2b"
+    ]
+  },
+  "results": {
+    "uid": 10001,
+    "public_readonly": true,
+    "credentials_absent": true,
+    "metadata": "passed",
+    "strategy": "passed",
+    "selected": [
+      "600000.SH"
+    ],
+    "unsafe_import": "rejected",
+    "independent_recovery": "passed",
+    "backtest": "passed",
+    "signal_backtest": "passed",
+    "factor_batch": "passed",
+    "optimize": "passed",
+    "walkforward": "passed",
+    "mining_artifacts": "passed"
+  },
+  "elapsed_seconds": 66.133,
+  "report_sha256": "93411f430f21f57f89723858bddb9b46ae26f7e08ed125f43cd7a8efb93c0711"
+}

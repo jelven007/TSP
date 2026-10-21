@@ -11,11 +11,19 @@
 
 ## 1. 运行边界
 
+- 原生 Windows 已暂停多租户，使用单进程管理员个人空间；旧平台、worker、
+  watchdog 的停用和备份切换步骤见[Windows 单机说明](./windows10-native-16gb.md)。
 - 当前完整单机多租户按角色运行平台、API 和四类 Worker，API 默认四进程；
   PostgreSQL、公共版本、Broker、备份和恢复见[完整部署](../deploy/full/README.md)。
-- 火山引擎生产当前为 v0.4.11、`6d16751c`、schema v6，独立 Gateway、Platform、
-  四类 Worker 和 Compute Broker 已切流，详见
-  [线上升级结果](../reports/online-upgrade-20261020/deployment-result.md)。
+- 火山引擎生产当前为 v0.4.11、`092bd79c`、schema v6；在原 `6d16751c`
+  上部署公共版本容量、回收和盘后仓库刷新修复，详见
+  [inode 耗尽修复结果](../reports/online-timeout-20261021/result.md)。
+- 自选业务连接池五秒获取超时仍在调查，不调大池或延长截止时间代替根因修复。
+  保留 PG 等待状态、主机 I/O/内核栈、请求耗时的联合时间线及已有失败记录；
+  原诊断与完整交易日观察继续运行，见[调查](../reports/online-timeout-20261021/watchlist-pool-investigation.md)。
+- 新源码的五档/收盘价与 Windows 单机预算尚须独立发布验收；
+  原生 Windows 升级备份管理员身份与完整数据目录，旧多租户服务必须先停写，
+  见[本次整合](./local-consolidation-20261022.md)。
 - 同日已完成 2016-01-01 起日线回填，实际覆盖和财务/分钟边界见
   [回填结果](../reports/history-backfill-20261020/result.md)。后续页面局部刷新、分钟
   空值和实时写盘门闸修复尚未替换生产固定镜像。
@@ -356,6 +364,13 @@ TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.maintain_full_host \
 确认 JSON 清单后才添加 `--apply`。缺少业务库 DSN 时脚本拒绝清理 release；
 `current`、最近版本和仍被研究任务引用的版本必须保留。Docker 只清理到期 BuildKit
 缓存和悬空镜像，不使用 `image prune -a`，带 tag 的回滚镜像不删除。
+
+持续发布的多租户主机还应启用
+[`tsp-public-release-maintenance.timer`](../deploy/full/systemd/tsp-public-release-maintenance.timer)，
+每五分钟回收超过六小时、且不在当前/最近 30 份/研究引用保护集合中的不可变版本。
+安装、数据库 owner 查询方式和配置见[完整部署指南](../deploy/full/README.md)。
+同时观察 `df -i`；硬链接复用文件仍会为每个发布版本新建目录，磁盘字节空闲不代表
+inode 空闲。数据库引用查询失败时停止回收，不使用 runtime 角色绕过完整引用检查。
 
 ### 8.3 独立模式 Docker Compose 停机备份
 

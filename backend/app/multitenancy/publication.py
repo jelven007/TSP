@@ -1,6 +1,7 @@
 """Immutable, credential-free public files for APIs and compute containers."""
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import logging
@@ -160,6 +161,28 @@ class PublicPublisher:
             previous_manifest = {}
         if previous_manifest.get("digest") == digest and "checksums" in previous_manifest:
             return previous_manifest
+        if hasattr(os, "statvfs"):
+            capacity = os.statvfs(self.root)
+            # A release needs fresh directory inodes even for hard-linked files.
+            # Budget every file as a copy, retaining 10%/100k inodes and 1 GiB
+            # for the source writer and the rest of the host.
+            directories = {
+                parent.as_posix()
+                for name in files
+                for parent in Path(name).parents
+                if parent != Path(".")
+            }
+            needed = len(files) + len(directories) + 3
+            reserve = max(100_000, capacity.f_files // 10)
+            bytes_needed = sum(
+                signature[0] for name, signature in files.items()
+                if previous_manifest.get("files", {}).get(name) != signature
+            )
+            if (
+                (capacity.f_files and capacity.f_ffree - needed < reserve)
+                or capacity.f_bavail * capacity.f_frsize - bytes_needed < 1024**3
+            ):
+                raise OSError(errno.ENOSPC, "public release capacity reserve")
         release_id = uuid.uuid4().hex
         releases = self.root / "releases"
         releases.mkdir(exist_ok=True)
@@ -217,7 +240,17 @@ class PublicPublisher:
 
     def start(self):
         # The first complete public release is a deployment readiness gate.
-        self.publish()
+        try:
+            self.publish()
+        except OSError as exc:
+            if exc.errno != errno.ENOSPC:
+                raise
+            previous = release_path(self.root)
+            manifest = json.loads((previous / ".public_release.json").read_text())
+            if manifest.get("id") != previous.name or not manifest.get("checksums"):
+                raise
+            self.error = type(exc).__name__
+            logger.warning("public file publication deferred: %s", self.error)
         self.thread.start()
 
     def close(self):
@@ -225,9 +258,15 @@ class PublicPublisher:
         self.thread.join(timeout=20)
 
     def _loop(self):
-        while not self.stopped.wait(30):
+        # File releases feed immutable research inputs; live quotes/depth use the
+        # independent market bridge. Frequent copies duplicate every directory
+        # inode even when unchanged files are hard-linked to the prior release.
+        delay = 300
+        while not self.stopped.wait(delay):
             try:
                 self.publish()
+                delay = 300
             except Exception as exc:
                 self.error = type(exc).__name__
                 logger.warning("public file publication deferred: %s", self.error)
+                delay = 300 if isinstance(exc, OSError) and exc.errno == errno.ENOSPC else 30
