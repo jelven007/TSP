@@ -13,6 +13,10 @@ CI、Docker手动质量门及桌面质量门提供独立 PostgreSQL 16 服务，
 `TSP_TEST_POSTGRES_DSN` 仅指向一次性测试库；默认配置测试自行清理环境变量，
 旧独立业务测试以显式 standalone/空dotenv/隔离DATA_DIR执行。
 Cargo 使用项目 `.venv/bin/python`，避免链接失效的系统 Python。
+测试数据目录由步骤读取 `$RUNNER_TEMP` 后写入 `$GITHUB_ENV`；
+Job 级 `env` 不允许引用 `runner` 上下文。工作流修改应另外运行
+`actionlint -shellcheck= -pyflakes=` 检查 Actions 表达式，YAML 解析不能替代该检查；
+该命令不执行内嵌 Shell/Python 的静态分析，实际运行结果仍由远程质量门确认。
 
 本文档定义 TSP 的测试层次、最低门禁和版本验收流程。功能验收依据
 [需求基线](requirements.md)，工程细则依据[贡献与复审指南](../CONTRIBUTING.md)，
