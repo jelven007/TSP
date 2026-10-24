@@ -3,12 +3,17 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import re
 import subprocess
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+versioning = importlib.import_module("versioning")
 
 VERSION = r"[0-9]\.[0-9]\.(?:0|[1-9][0-9]?)"
 COUNT = 6
@@ -18,11 +23,13 @@ def git(root: Path, *args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
 
 
+def file_version(value: str) -> str:
+    return versioning.format_version(versioning.parse_version(value))
+
+
 def select_versions(root: Path, revision: str) -> list[dict]:
     head = git(root, "rev-parse", "--verify", f"{revision}^{{commit}}")
-    current = git(root, "show", f"{head}:VERSION")
-    if not re.fullmatch(VERSION, current):
-        raise ValueError("invalid current VERSION")
+    current = file_version(git(root, "show", f"{head}:VERSION"))
     if git(root, "rev-parse", "--verify", f"refs/tags/v{current}^{{commit}}") != head:
         raise ValueError("revision must match its immutable vVERSION tag")
     candidates = {}
@@ -40,7 +47,7 @@ def select_versions(root: Path, revision: str) -> list[dict]:
             continue
         if ancestor.returncode:
             raise ValueError("cannot verify version ancestry")
-        if git(root, "show", f"{commit}:VERSION") != version:
+        if file_version(git(root, "show", f"{commit}:VERSION")) != version:
             raise ValueError(f"{ref} disagrees with its VERSION")
         if version not in candidates or not ref.startswith("recovery/"):
             candidates[version] = {"version": version, "ref": ref, "commit": commit}
@@ -76,7 +83,7 @@ def verify(output: Path) -> dict:
             if not member.isfile():
                 raise ValueError("archive VERSION must be a regular file")
             version_file = source.extractfile(member)
-            if version_file is None or version_file.read().decode().strip() != version:
+            if version_file is None or file_version(version_file.read().decode()) != version:
                 raise ValueError(f"archive VERSION mismatch: {expected}")
     ordered = sorted(seen, key=lambda value: tuple(map(int, value.split("."))), reverse=True)
     if [r["version"] for r in records] != ordered or manifest["latest"] != ordered[0]:

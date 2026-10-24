@@ -20,13 +20,13 @@ def git(root, *args):
     ).strip()
 
 
-@pytest.fixture
-def repo(tmp_path):
+@pytest.fixture(params=["v", ""])
+def repo(tmp_path, request):
     root = tmp_path.resolve() / "repo"
     root.mkdir()
     git(root, "init", "-b", "main")
     for index in range(1, 8):
-        (root / "VERSION").write_text(f"0.4.{index}\n")
+        (root / "VERSION").write_text(f"{request.param}0.4.{index}\n")
         git(root, "add", "VERSION")
         git(root, "commit", "-m", f"version {index}")
         git(root, "tag", f"v0.4.{index}")
