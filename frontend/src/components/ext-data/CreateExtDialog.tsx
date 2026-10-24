@@ -33,7 +33,7 @@ export function CreateExtDialog({ onClose }: { onClose: () => void }) {
   const [label, setLabel] = useState('')
   const [description, setDescription] = useState('')
   const [mode, setMode] = useState<'snapshot' | 'timeseries'>('snapshot')
-  // 市场级表: 行 = 全市场每日一条, 无标的列 (市场环境/情绪指数类), 跳过标的关联
+  // 市场级表: 行 = 全市场每日一条, 无标的列 (环境/情绪指数类), 跳过标的关联
   const [marketLevel, setMarketLevel] = useState(false)
   const [fields, setFields] = useState<ExtDataField[]>([])
   const [detectedSourceNames, setDetectedSourceNames] = useState<string[]>([])
@@ -429,7 +429,7 @@ export function CreateExtDialog({ onClose }: { onClose: () => void }) {
               />
               <span className="text-[10px] text-secondary">
                 市场级数据
-                <span className="ml-1 text-muted" title="行 = 全市场每日一条, 无标的代码列。适用于市场环境/情绪指数/择时状态等序列, 跳过标的关联; 通过 /rows 与 /values 接口消费">
+                <span className="ml-1 text-muted" title="行 = 全市场每日一条, 无标的代码列。适用于环境/情绪指数/择时状态等序列, 跳过标的关联; 通过 /rows 与 /values 接口消费">
                   每行是全市场一条 (无标的列), 跳过标的关联
                 </span>
               </span>

@@ -55,7 +55,6 @@ import {
   IconPaper,
   IconSignals,
   IconReview,
-  IconIndices,
   IconData,
   type BrandIconProps,
 } from './BrandIcons'
@@ -84,25 +83,24 @@ export const CORE_INDEXES = [
 ] as const
 
 const nav = [
-  { to: '/',                 label: '看板',     icon: IconDashboard },
+  { to: '/',                 label: '行情',     icon: IconDashboard },
+  { to: '/regime',           label: '环境', icon: IconRegime },
   { to: '/watchlist',        label: '自选',     icon: IconWatchlist },
   { to: '/screener',         label: '策略',     icon: IconStrategy },
   { to: '/factors',          label: '因子',     icon: IconFactors },
-  { to: '/review',           label: '复盘',     icon: IconReview },
   { to: '/backtest',         label: '回测',     icon: IconBacktest },
-  { to: '/signals',          label: '信号库',   icon: IconSignals },
+  { to: '/review',           label: '复盘',     icon: IconReview },
+  { to: '/abnormal',         label: '异动', icon: IconAlert },
   { to: '/lots',             label: '持仓提醒', icon: IconLots },
-  { to: '/abnormal',         label: '异动监控', icon: IconAlert },
+  { to: '/monitor',          label: '监控中心', icon: IconMonitor },
   { to: '/limit-ladder',     label: '连板梯队', icon: IconLadder },
   { to: '/stock-analysis',   label: '个股分析', icon: IconStockFocus },
   { to: '/concept-analysis', label: '概念分析', icon: IconConcept },
   { to: '/industry-analysis', label: '行业分析', icon: IconIndustry },
   { to: '/financials',       label: '财务分析', icon: IconFinancials },
-  { to: '/monitor',          label: '监控中心', icon: IconMonitor },
-  { to: '/regime',           label: '市场环境', icon: IconRegime },
-  { to: '/paper',            label: '模拟盘',   icon: IconPaper },
-  { to: '/indices',          label: '指数',     icon: IconIndices },
-  { to: '/data',             label: '数据',     icon: IconData },
+  { to: '/signals',          label: '信号指标',   icon: IconSignals },
+  { to: '/paper',            label: '模拟交易',   icon: IconPaper },
+  { to: '/data',             label: '数据总览',     icon: IconData },
 ] as const
 
 /** 亮/暗主题切换 — 状态存 localStorage, 生效见 lib/theme.ts */
@@ -251,7 +249,7 @@ export function Layout() {
 
   const navigate = useNavigate()
   const version = versionData?.version
-  const realtimeEnabled = prefs?.realtime_quotes_enabled ?? true
+  const realtimeEnabled = prefs?.realtime_quotes_enabled ?? false
   // 三态循环切换 (仅桌面): 展开 → 图标条 → 隐藏 → 展开
   const toggleNavCollapsed = () => {
     setNavStatePersist(navState === 'expanded' ? 'rail' : navState === 'rail' ? 'hidden' : 'expanded')

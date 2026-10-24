@@ -35,15 +35,14 @@ def _by_id(matrix: dict) -> dict[str, dict]:
 
 
 def test_registry_covers_all_routing_fields():
-    """注册表是能力的单一权威: 可路由能力与偏好键一一对应、无重复;
-    full_minute 为不可路由能力 (field=None, 仅 TickFlow Expert 提供)。"""
+    """注册表统一设置页展示顺序, 八项能力与路由偏好键一一对应。"""
     routable = [c["field"] for c in CAPABILITY_REGISTRY if c["field"] is not None]
     assert sorted(routable) == sorted(DEFAULT_CURRENT)
     assert len(set(routable)) == len(routable)
-    assert {c["id"] for c in CAPABILITY_REGISTRY} == {
-        "realtime", "daily", "minute", "full_minute", "depth5", "adj_factor", "financial",
-        "corporate_actions",
-    }
+    assert [c["id"] for c in CAPABILITY_REGISTRY] == [
+        "realtime", "depth5", "minute", "daily", "adj_factor",
+        "corporate_actions", "financial", "full_minute",
+    ]
     full_minute = next(c for c in CAPABILITY_REGISTRY if c["id"] == "full_minute")
     assert full_minute["field"] == "full_minute_data_provider"
     assert full_minute["tf_tier"] == "expert"
@@ -70,6 +69,9 @@ def test_matrix_defaults_all_capabilities_to_rustdx(monkeypatch):
     matrix = build_capability_matrix({}, tickflow_tier="none")
 
     assert len(matrix["capabilities"]) == 8
+    assert [cap["label"] for cap in matrix["capabilities"]] == [
+        "实时行情", "五档盘口", "分钟K", "日K", "除权因子", "公司行为", "财务数据", "全量分钟",
+    ]
     for cap in matrix["capabilities"]:
         assert cap["current"] == cap["effective"] == "rustdx"
         assert cap["usable"] is True

@@ -6,7 +6,7 @@ on:
     paths:
       - 'backend/**'
       - 'deploy/windows/**'
-      - 'scripts/benchmark_memory_budget.py'
+      - 'scripts/performance/benchmark_memory_budget.py'
       - '.github/workflows/windows-native.yml'
 
 permissions:

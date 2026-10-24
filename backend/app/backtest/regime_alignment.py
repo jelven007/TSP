@@ -32,7 +32,7 @@ def _normalize_regime_point(value: Any) -> RegimePoint:
         return state, score
     if isinstance(value, (tuple, list)) and len(value) >= 2:
         return str(value[0]), float(value[1] or 0)
-    raise ValueError("市场环境数据格式无效")
+    raise ValueError("环境数据格式无效")
 
 
 def clamp_formal_start_for_regime(
@@ -84,7 +84,7 @@ def align_regime_t_minus_one(
         for key, value in regime_by_date.items()
     }
     if not regime_map:
-        raise ValueError("市场环境数据为空, 请先在数据页完成市场环境计算后再回测")
+        raise ValueError("环境数据为空, 请先在数据页完成环境计算后再回测")
 
     aligned: list[RegimePoint | None] = [None] * len(labels)
     required_start_text = str(required_start) if required_start is not None else None
@@ -96,7 +96,7 @@ def align_regime_t_minus_one(
             required_end_text is None or first_label <= required_end_text
         ):
             raise ValueError(
-                f"市场环境数据覆盖不完整: 正式首日 {first_label} 缺少前一交易日环境, "
+                f"环境数据覆盖不完整: 正式首日 {first_label} 缺少前一交易日环境, "
                 "请把前一交易日行情包含在预热区间"
             )
     for index in range(1, len(labels)):
@@ -117,7 +117,7 @@ def align_regime_t_minus_one(
         first_missing = missing_dates[0]
         suffix = f" 等 {len(missing_dates)} 天" if len(missing_dates) > 1 else ""
         raise ValueError(
-            f"市场环境数据覆盖不完整: 缺少前一交易日环境 {first_missing}{suffix}, "
+            f"环境数据覆盖不完整: 缺少前一交易日环境 {first_missing}{suffix}, "
             "请先补算对应区间"
         )
     return aligned

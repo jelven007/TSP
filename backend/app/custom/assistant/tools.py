@@ -1,8 +1,8 @@
 """AI 助手工具层 — 核心工具目录透传 + 面向各页面能力的本地查询/动作工具。
 
 设计原则(为项目服务、有界):
-- 查询工具对应页面核心查询能力(行情/自选/看板/指数/板块轮动/市场
-  环境/异动/持仓提醒/信号库/财务/个股分析/因子值/跑策略), 全部只读。
+- 查询工具对应页面核心查询能力(行情/自选/指数/板块轮动/市场
+  环境/异动/持仓提醒/信号指标/财务/个股分析/因子值/跑策略), 全部只读。
 - 动作工具(create_signal_strategy/add_to_watchlist, 及核心目录的
   run_backtest)有写副作用或重计算, 由 chat_service 的确认闸门把守
   (actions.py), 未经用户确认不会执行。
@@ -58,8 +58,8 @@ QUICK_SUGGESTS: list[dict[str, str]] = [
     {
         "id": "regime-check",
         "group": "行情与大盘",
-        "label": "当前市场环境",
-        "prompt": "最近一个月市场环境(regime)状态如何演变？今天是强势还是弱势, 情绪周期处于什么阶段？",  # noqa: RUF001
+        "label": "当前环境",
+        "prompt": "最近一个月环境(regime)状态如何演变？今天是强势还是弱势, 情绪周期处于什么阶段？",  # noqa: RUF001
     },
     {
         "id": "indices-check",
@@ -127,7 +127,7 @@ QUICK_SUGGESTS: list[dict[str, str]] = [
         "id": "create-signal",
         "group": "策略与信号",
         "label": "帮我生成一个信号",
-        "prompt": "帮我在信号库里创建一个「放量站上20日线」的信号: 收盘价高于 ma20、1 日前收盘价不高于 1 日前的 ma20, 且成交量高于 5 日均量的 1.5 倍。先说明条件设计, 我确认后再执行。",
+        "prompt": "帮我在信号指标里创建一个「放量站上20日线」的信号: 收盘价高于 ma20、1 日前收盘价不高于 1 日前的 ma20, 且成交量高于 5 日均量的 1.5 倍。先说明条件设计, 我确认后再执行。",
     },
     # — 数据与扩展 —
     {
@@ -589,7 +589,7 @@ def _get_regime(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
     days = _clamp(args.get("days"), 1, 120, 30)
     df = load_regime_history(ctx.data_dir)
     if df is None or df.is_empty():
-        return {"count": 0, "rows": [], "note": "本地暂无市场环境(regime)数据。"}
+        return {"count": 0, "rows": [], "note": "本地暂无环境(regime)数据。"}
     keep = [
         c for c in (
             "date", "state", "score", "phase", "max_consecutive",
@@ -805,7 +805,7 @@ def _create_signal_strategy(args: dict[str, Any], ctx: ToolContext) -> dict[str,
     return {
         "created": True,
         "signal": {"id": sig["id"], "name": name, "kind": kind, "conditions": conditions},
-        "note": "已写入信号库并默认启用, 可在「信号库」页面查看/编辑/删除; 创建成功后可让用户在策略里引用。",
+        "note": "已写入信号指标并默认启用, 可在「信号指标」页面查看/编辑/删除; 创建成功后可让用户在策略里引用。",
     }
 
 
@@ -1289,7 +1289,7 @@ def _local_tool_schemas() -> list[dict[str, Any]]:
         ),
         _schema(
             "get_market_overview",
-            "市场总览(看板首页口径): 指数、涨跌家数、成交额、涨停/连板梯队、涨跌幅分布、均线趋势占比、情绪雷达与领涨领跌/活跃榜。无参数。",
+            "市场总览(行情首页口径): 指数、涨跌家数、成交额、涨停/连板梯队、涨跌幅分布、均线趋势占比、情绪雷达与领涨领跌/活跃榜。无参数。",
             {},
             [],
         ),
@@ -1310,13 +1310,13 @@ def _local_tool_schemas() -> list[dict[str, Any]]:
         ),
         _schema(
             "get_regime",
-            "市场环境(regime)时序: 最近 N 日的强弱状态、情绪分、连板高度、晋级率/封板率与情绪周期阶段。",
+            "环境(regime)时序: 最近 N 日的强弱状态、情绪分、连板高度、晋级率/封板率与情绪周期阶段。",
             {"days": {"type": "integer", "description": "最近 N 个交易日 (1-120, 默认 30)"}},
             [],
         ),
         _schema(
             "get_abnormal",
-            "异动监控: intraday=盘中异动(涨停/炸板/跌停/新高新低/放量), overview=交易所异动规则偏离总览。",
+            "异动数据: intraday=盘中异动(涨停/炸板/跌停/新高新低/放量), overview=交易所异动规则偏离总览。",
             {
                 "kind": {"type": "string", "enum": ["intraday", "overview"], "description": "默认 intraday"},
                 "limit": {"type": "integer", "description": "返回行数上限 (10-200, 默认 50)"},
@@ -1331,7 +1331,7 @@ def _local_tool_schemas() -> list[dict[str, Any]]:
         ),
         _schema(
             "list_signals",
-            "检索用户自定义信号的目录(信号库页): 名称、表达式、分组与启用状态。",
+            "检索用户自定义信号的目录(信号指标页): 名称、表达式、分组与启用状态。",
             {},
             [],
         ),
@@ -1353,7 +1353,7 @@ def _local_tool_schemas() -> list[dict[str, Any]]:
         ),
         _schema(
             "create_signal_strategy",
-            "在信号库创建一个自定义信号(动作工具, 须用户在确认卡上确认后才执行)。"
+            "在信号指标创建一个自定义信号(动作工具, 须用户在确认卡上确认后才执行)。"
             "把交易思路翻译成声明式条件: 白名单字段 + 比较运算符, 多条件之间为 AND。"
             "字段如 close/open/high/low/volume/change_pct/turnover_rate/ma5/ma10/ma20/ma60/"
             "macd_dif/macd_dea/macd_hist/boll_upper/boll_lower/kdj_k/kdj_d/kdj_j/rsi_6/rsi_14/"

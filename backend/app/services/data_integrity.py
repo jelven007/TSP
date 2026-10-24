@@ -586,6 +586,9 @@ def boot_integrity_check(app_state) -> None:
     分钟K缺口无需单独处理 — 修复管道 Step 2.5 在 minute_sync_enabled 时
     以 start=max(datetime) 增量补洞, 天然覆盖停机缺口。
     """
+    from app.services import preferences
+    if not preferences.get_data_sync_auto_enabled():
+        return
     repo = getattr(app_state, "repo", None)
     if repo is None:
         return

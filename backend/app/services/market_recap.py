@@ -4,7 +4,7 @@
 将「市场总览」聚合数据交给 LLM 生成结构化复盘报告。
 
 数据来源:services.market_overview_builder.build_market_overview
-(与 GET /api/overview/market 同源,保证复盘与看板数据口径一致)。
+(与 GET /api/overview/market 同源,保证复盘与行情数据口径一致)。
 
 流式协议(与 stock_analyzer / financial_analyzer 一致,前端解析无差异):
     {"type":"meta", "as_of", "emotion_score", "emotion_label", "summary"}
@@ -304,7 +304,7 @@ async def recap_market_stream(
 
     emo = overview.get("emotion") or {}
 
-    # 2. meta 事件(前端据此先渲染信号灯/看板)
+    # 2. meta 事件(前端据此先渲染信号灯/行情)
     yield json.dumps({
         "type": "meta",
         "as_of": as_of_str,

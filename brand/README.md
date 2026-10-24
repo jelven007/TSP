@@ -1,7 +1,7 @@
 # TSP 品牌资产 · 唯一来源
 
 图形：**方括号 `[ ]` + 中央 bullish K 线**，品牌紫渐变，全直角（无圆角/圆笔帽）。
-设计提案与评审记录见 [`logo-proposals.html`](./logo-proposals.html)。
+设计提案与评审记录见 [`logo-proposals.html`](logo-proposals.html)。
 
 ## SVG 源文件（矢量，优先使用）
 

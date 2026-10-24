@@ -88,7 +88,7 @@ export function AddFactorSignalDialog({
     }),
     onSuccess: () => {
       onCreated?.({ id: signalId, kind, name: name.trim() || selected!.label })
-      toast('已保存为自定义信号（信号库可查看编辑）', 'success')
+      toast('已保存为自定义信号（信号指标可查看编辑）', 'success')
       void queryClient.invalidateQueries({ queryKey: QK.customSignals })
       onClose()
     },

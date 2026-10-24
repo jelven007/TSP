@@ -221,13 +221,11 @@ def test_legacy_channel_opt_out_overrides_new_email_default():
     assert preferences.get_webhook_default_channels() == []
 
 
-@pytest.mark.parametrize("mode", ["no_users", "no_transport", "no_password", "desktop"])
+@pytest.mark.parametrize("mode", ["no_users", "no_password", "desktop"])
 def test_email_default_requires_a_usable_transport_and_registered_recipient(mode, monkeypatch):
     if mode != "no_users":
         auth.register_user("user@example.com", "password-123")
-    if mode == "no_transport":
-        monkeypatch.setattr(config.settings, "auth_smtp_host", "")
-    elif mode == "no_password":
+    if mode == "no_password":
         monkeypatch.setattr(config.settings, "auth_smtp_password", "")
     elif mode == "desktop":
         monkeypatch.setattr(config, "_IS_FROZEN", True)
@@ -305,3 +303,89 @@ def test_review_dispatch_uses_same_registration_defaults(monkeypatch):
     assert calls[0][0]["to_addresses"] == ["user@example.com"]
     assert calls[0][1] == "registration-secret"
     assert calls[0][2] == "每日复盘"
+
+
+@pytest.mark.parametrize("platform", ["darwin", "linux", "win32"])
+@pytest.mark.parametrize("frozen", [False, True])
+def test_fresh_install_has_no_delivery_credentials_without_runtime_configuration(
+    isolated_email_settings, monkeypatch, platform, frozen,
+):
+    from app.config import Settings
+
+    monkeypatch.setattr(config.sys, "platform", platform)
+    monkeypatch.setattr(config, "_IS_FROZEN", frozen)
+    configured = Settings(
+        _env_file=None, data_dir=isolated_email_settings, multitenancy_enabled=False,
+    )
+    monkeypatch.setattr(config, "settings", configured)
+
+    smtp, password = auth_verification._registration_smtp("new@example.com")
+    assert smtp == {
+        "host": "", "port": 465, "security": "ssl",
+        "username": "", "from_address": "",
+        "to_addresses": ["new@example.com"],
+    }
+    assert password == ""
+    assert not email_adapter.is_configured(smtp)
+    notification, notification_password = email_adapter.get_notification_smtp("new@example.com")
+    assert notification == {**smtp, "to_addresses": []}
+    assert notification_password == password
+    assert preferences.load() == {}
+    assert secrets_store.load() == {}
+
+
+def test_blank_template_smtp_fields_leave_delivery_unconfigured(monkeypatch):
+    for field in ("auth_smtp_host", "auth_smtp_username", "auth_smtp_password",
+                  "auth_smtp_from_address"):
+        monkeypatch.setattr(config.settings, field, "")
+    smtp, password = email_adapter.get_registration_smtp("new@example.com")
+    assert smtp["host"] == ""
+    assert smtp["username"] == smtp["from_address"] == ""
+    assert password == ""
+
+
+def test_explicit_transport_never_inherits_an_embedded_authorization_code(monkeypatch):
+    for field, value in {
+        "auth_smtp_host": "smtp.example.com", "auth_smtp_port": 465,
+        "auth_smtp_security": "ssl",
+        "auth_smtp_username": "sender@example.com",
+        "auth_smtp_from_address": "sender@example.com", "auth_smtp_password": "",
+    }.items():
+        monkeypatch.setattr(config.settings, field, value)
+    smtp, password = email_adapter.get_registration_smtp("user@example.com")
+    assert password == ""
+    assert smtp["host"] == "smtp.example.com"
+
+
+def test_unconfigured_smtp_does_not_claim_delivery_is_available(monkeypatch):
+    monkeypatch.setattr(config.settings, "auth_smtp_host", "")
+    monkeypatch.setattr(config.settings, "multitenancy_enabled", False)
+    monkeypatch.setattr(settings_api, "_realtime_allowed", lambda: False)
+    monkeypatch.setattr(settings_api, "_minute_history_days", lambda: None)
+    client = client_for("user@example.com")
+    smtp, password = email_adapter.get_registration_smtp("user@example.com")
+
+    response = client.get("/api/settings/preferences")
+    assert response.status_code == 200
+    assert response.json()["email_smtp_config"] == {**smtp, "to_addresses": []}
+    assert response.json()["email_smtp_password_set"] is False
+    assert password == ""
+    assert response.json()["webhook_default_channels"] == []
+
+
+def test_full_runtime_uses_explicit_cell_smtp_before_preset(monkeypatch):
+    monkeypatch.setattr(config.settings, "auth_smtp_host", "")
+    monkeypatch.setattr(config.settings, "service_role", "api")
+    monkeypatch.setattr(config.settings, "multitenancy_enabled", True)
+    for name, value in {
+        "TSP_CELL_SMTP_HOST": "cell.example.com", "TSP_CELL_SMTP_PORT": "587",
+        "TSP_CELL_SMTP_SECURITY": "starttls", "TSP_CELL_SMTP_USER": "cell@example.com",
+        "TSP_CELL_SMTP_FROM": "cell@example.com", "TSP_CELL_SMTP_PASSWORD": "cell-secret",
+    }.items():
+        monkeypatch.setenv(name, value)
+    smtp, password = email_adapter.get_registration_smtp("user@example.com")
+    assert smtp["host"] == "cell.example.com"
+    assert smtp["port"] == 587
+    assert smtp["security"] == "starttls"
+    assert smtp["username"] == smtp["from_address"] == "cell@example.com"
+    assert password == "cell-secret"

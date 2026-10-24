@@ -1,11 +1,11 @@
 """能力注册表与能力路由矩阵 — 数据集维度的单一权威定义。
 
 能力 (capability) = 一个标准化数据集 (CONTRIBUTING「数据源插件化要求」):
-daily / adj_factor / realtime / minute / depth5 / financial / full_minute
+realtime / depth5 / minute / daily / adj_factor / corporate_actions / financial / full_minute
 (注册表顺序即设置页卡片顺序)。注册表集中声明每个能力的展示元数据、路由
 偏好字段与 TickFlow 档位要求, 前端设置页不再各自硬编码。
 depth5 与其他数据集一样可由插件声明并独立路由; 五档不可用时连板梯队封单/
-看板封单通过 usable 给出缺数据提示。
+行情封单通过 usable 给出缺数据提示。
 
 build_capability_matrix 把注册表、插件/自定义源的能力声明 (datasets) 和当前
 路由偏好合并为一个矩阵, 供设置页一次拉全。当前偏好由 API 层注入
@@ -27,6 +27,30 @@ from __future__ import annotations
 from app.data_providers import custom as custom_sources
 
 CAPABILITY_REGISTRY: list[dict] = [
+    {
+        "id": "realtime",
+        "label": "实时行情",
+        "desc": "全市场实时快照",
+        "field": "realtime_data_provider",
+        "default": "rustdx",
+        "tf_tier": "starter",
+    },
+    {
+        "id": "depth5",
+        "label": "五档盘口",
+        "desc": "连板梯队封单与盘口深度",
+        "field": "depth5_data_provider",
+        "default": "rustdx",
+        "tf_tier": "pro",
+    },
+    {
+        "id": "minute",
+        "label": "分钟K",
+        "desc": "分时图与分钟回测",
+        "field": "minute_data_provider",
+        "default": "rustdx",
+        "tf_tier": "pro",
+    },
     {
         "id": "daily",
         "label": "日K",
@@ -52,30 +76,6 @@ CAPABILITY_REGISTRY: list[dict] = [
         "field": "corporate_actions_provider",
         "default": "rustdx",
         "tf_tier": None,
-    },
-    {
-        "id": "realtime",
-        "label": "实时行情",
-        "desc": "全市场实时快照",
-        "field": "realtime_data_provider",
-        "default": "rustdx",
-        "tf_tier": "starter",
-    },
-    {
-        "id": "minute",
-        "label": "分钟K",
-        "desc": "分时图与分钟回测",
-        "field": "minute_data_provider",
-        "default": "rustdx",
-        "tf_tier": "pro",
-    },
-    {
-        "id": "depth5",
-        "label": "五档盘口",
-        "desc": "连板梯队封单与盘口深度",
-        "field": "depth5_data_provider",
-        "default": "rustdx",
-        "tf_tier": "pro",
     },
     {
         "id": "financial",

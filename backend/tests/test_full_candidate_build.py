@@ -8,7 +8,7 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-SPEC = importlib.util.spec_from_file_location("build_full_candidate", SCRIPTS / "build_full_candidate.py")
+SPEC = importlib.util.spec_from_file_location("build_full_candidate", SCRIPTS / "acceptance/build_full_candidate.py")
 builder = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(builder)
 

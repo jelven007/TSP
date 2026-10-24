@@ -1,0 +1,16 @@
+[
+  {
+    "name": "tsp-fused-architecture-20261023",
+    "archive_sha256": "b2c0b1c8b453026857230378e0306a94dce643097863e20e2d7e67f5b39d1d12",
+    "archive_members": 23,
+    "working_directory_files_equal": true,
+    "issues": []
+  },
+  {
+    "name": "tsp-system-target-20261023",
+    "archive_sha256": "995bab66bf1ea3e569ed1f6c4c20cc32d2da3b0507eac4b6f5d0ef0fab6fa179",
+    "archive_members": 30,
+    "working_directory_files_equal": true,
+    "issues": []
+  }
+]

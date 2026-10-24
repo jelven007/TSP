@@ -9,8 +9,8 @@
 新低反转原版是本轮唯一同时在5bp和20bp下取得正账户收益、正净期望和PF>1的
 原版策略，但收益集中、历史输入不完整，仍只能作为冻结后观察的优先对象。
 
-原方案见[plan.md](./plan.md)，实际实现与回归见[implementation.md](./implementation.md)。
-观察规程见[prospective-observation.md](./prospective-observation.md)；
+原方案见[plan.md](plan.md)，实际实现与回归见[implementation.md](implementation.md)。
+观察规程见[prospective-observation.md](prospective-observation.md)；
 规程已经准备，观察尚未启动。研究不能保证未来胜率。
 
 ## 1. 本轮比较的身份与边界
@@ -251,15 +251,15 @@ MACD零下回升0.5%预算。三者20bp账户收益分别−83.68%、−86.35%�
 
 ## 8. 聚合证据与复现
 
-- [最终核验摘要](./verification.json)：逐批身份、现金/账户核验、申报单位、
+- [最终核验摘要](verification.json)：逐批身份、现金/账户核验、申报单位、
   信号/买卖时序及13个异常事件的全部主题敏感性；数量和时间契约错误均为0。
-- 5bp：[全部指标](./fair/fair-metrics.csv)、[22张证据卡](./fair/decision-cards.json)、
-  [试验台账](./fair/trial-ledger.json)、[独立诊断](./fair/additional-diagnostics.json)、
-  [231对重合](./fair/baseline-overlap.json)。
-- 20bp：[全部指标](./stress20/fair-metrics.csv)、[22张证据卡](./stress20/decision-cards.json)、
-  [试验台账](./stress20/trial-ledger.json)、[独立诊断](./stress20/additional-diagnostics.json)、
-  [231对重合](./stress20/baseline-overlap.json)。
-- 页面：[深色入场风控](./ui-backtest-risk-dark.jpg)、[浅色交易日窗口](./ui-walkforward-light.jpg)。
+- 5bp：[全部指标](fair/fair-metrics.csv)、[22张证据卡](fair/decision-cards.json)、
+  [试验台账](fair/trial-ledger.json)、[独立诊断](fair/additional-diagnostics.json)、
+  [231对重合](fair/baseline-overlap.json)。
+- 20bp：[全部指标](stress20/fair-metrics.csv)、[22张证据卡](stress20/decision-cards.json)、
+  [试验台账](stress20/trial-ledger.json)、[独立诊断](stress20/additional-diagnostics.json)、
+  [231对重合](stress20/baseline-overlap.json)。
+- 页面：[深色入场风控](ui-backtest-risk-dark.jpg)、[浅色交易日窗口](ui-walkforward-light.jpg)。
 
 研究命令为`PYTHONPATH=backend POLARS_MAX_THREADS=2 NUMBA_NUM_THREADS=2 python
 scripts/research_quality_strategies.py run --data <冻结输入> --output <独立结果>

@@ -161,7 +161,7 @@ def filter_history(df: pl.DataFrame, params: dict) -> pl.DataFrame:
 
 ## 可用指标列（参考）
 
-见 [strategy-guide.md](./strategy-guide.md) 第 3 节。
+见 [strategy-guide.md](strategy-guide.md) 第 3 节。
 
 ## 可用信号列（参考）
 

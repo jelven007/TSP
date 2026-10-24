@@ -1,4 +1,4 @@
-"""模拟盘读日线须容忍分区间列差异。"""
+"""模拟交易读日线须容忍分区间列差异。"""
 from __future__ import annotations
 
 from datetime import date

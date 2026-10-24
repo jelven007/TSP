@@ -96,7 +96,7 @@ export const storage = {
   /** 偏移异动: 主开关 (默认开, 手动关闭后停止计算; 告警走监控中心规则) */
   abnormalEnabled:      kv<boolean>('abnormal_enabled'),
 
-  /** 异动监控: 上次计算结果 (关闭开关后仍展示, 含 asof 计算时间戳) */
+  /** 异动数据: 上次计算结果 (关闭开关后仍展示, 含 asof 计算时间戳) */
   abnormalLastResult:   kv<unknown>('abnormal_last_result'),
 
   /** Screener 卡片尺寸 */

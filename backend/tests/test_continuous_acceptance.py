@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import pytest
 
-from scripts.run_active_acceptance import classify_watchlist_mismatch, evaluate
+from scripts.acceptance.run_active_acceptance import classify_watchlist_mismatch, evaluate
 
 
 @pytest.fixture

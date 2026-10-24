@@ -1,5 +1,5 @@
 /**
- * 市场环境(Regime)页 — 每日环境状态时序趋势 + 状态分布。
+ * 环境(Regime)页 — 每日环境状态时序趋势 + 状态分布。
  *
  * 数据来源: 后端 regime_builder 批算的时序表(每日离散状态 + 多维指标)。
  * 不复刻 Dashboard 的当日总览(那是单日快照), 聚焦历史趋势与状态分布。
@@ -141,7 +141,7 @@ const cardCls = 'rounded-card border border-border bg-surface/80 shadow-[0_1px_2
 export function Regime() {
   const qc = useQueryClient()
   const [range, setRange] = useState<RangePreset>('1y')
-  // 视图 tab: 市场环境(状态/趋势/日历) 与 情绪周期(阶段/主线) 两组内容同页切换,
+  // 视图 tab: 环境(状态/趋势/日历) 与 情绪周期(阶段/主线) 两组内容同页切换,
   // 避免单页过长需要大幅滚动。两组共用时间范围与重算入口。
   const [view, setView] = useState<'regime' | 'phase'>('regime')
   const [customOpen, setCustomOpen] = useState(false)
@@ -662,7 +662,7 @@ export function Regime() {
         <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-accent to-accent/20" />
         <div className="flex items-center gap-3">
           <Activity className="h-5 w-5 text-accent" />
-          <h1 className="text-[16px] leading-6 font-semibold text-foreground">市场环境</h1>
+          <h1 className="text-[16px] leading-6 font-semibold text-foreground">环境</h1>
           <span className="text-xs text-muted">
             {view === 'phase' ? '涨停情绪 · 市场阶段 · 主线脉络' : '每日环境状态 · 赚钱效应 · 趋势分析'}
           </span>
@@ -706,10 +706,10 @@ export function Regime() {
         </div>
       </div>
 
-      {/* ── 视图切换: 市场环境 / 情绪周期 (两组内容 tab 隔离, 减少单页高度) ── */}
+      {/* ── 视图切换: 环境 / 情绪周期 (两组内容 tab 隔离, 减少单页高度) ── */}
       <div className="flex items-center gap-2">
         <div className="flex items-center rounded-btn border border-border bg-base/60 p-0.5">
-          {([['regime', '市场环境', Activity], ['phase', '情绪周期', Flame]] as const).map(([k, label, Icon]) => (
+          {([['regime', '环境', Activity], ['phase', '情绪周期', Flame]] as const).map(([k, label, Icon]) => (
             <button key={k} onClick={() => setView(k)}
               className={cn('inline-flex items-center gap-1.5 h-7 rounded-[5px] px-3 text-xs font-medium transition-colors',
                 view === k ? 'bg-accent text-white shadow-sm' : 'text-secondary hover:text-foreground')}>
@@ -1027,10 +1027,10 @@ export function Regime() {
 
       </div>{/* /情绪周期 tab */}
 
-      {/* ══ 市场环境 tab: 最新日概览 + 状态时间轴 + 趋势/分布 + 日历热力图 ══ */}
+      {/* ══ 环境 tab: 最新日概览 + 状态时间轴 + 趋势/分布 + 日历热力图 ══ */}
       <div className={cn('space-y-4', view !== 'regime' && 'hidden')}>
 
-      {/* ── 最新日概览 (4 个指标卡, 去掉与看板重复的涨停/涨跌/成交额) ── */}
+      {/* ── 最新日概览 (4 个指标卡, 去掉与行情重复的涨停/涨跌/成交额) ── */}
       {latest ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {/* 状态卡(保留) */}
@@ -1258,7 +1258,7 @@ export function Regime() {
         </div>
       )}
 
-      </div>{/* /市场环境 tab */}
+      </div>{/* /环境 tab */}
 
       {/* ── 自定义天数弹窗 ── */}
       {customOpen && (

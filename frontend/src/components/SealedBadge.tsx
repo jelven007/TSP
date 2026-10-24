@@ -41,7 +41,7 @@ function SealedDirBlock({ title, color, counts, rawTotal }: {
   )
 }
 
-/** 修正/降级 标识 + 问号弹窗(连板梯队/看板共用) */
+/** 修正/降级 标识 + 问号弹窗(连板梯队/行情共用) */
 export function SealedBadge({ degraded, hasDepth, isHistorical, sealedReady, sealedCountsUp, sealedCountsDown, rawUp, rawDown, invalidateKeys = ['limit-ladder'] }: {
   degraded: boolean
   hasDepth: boolean

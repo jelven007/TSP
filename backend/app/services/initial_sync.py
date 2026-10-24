@@ -36,6 +36,8 @@ def prepare_initial_sync(data_dir: Path) -> None:
 
 async def start_initial_sync(state) -> str | None:
     """Enqueue once per process; failures remain retryable through /pipeline/run."""
+    if not preferences.get_data_sync_auto_enabled():
+        return None
     if getattr(state, "initial_sync_job_id", None):
         return None
     if not needs_initial_sync(state.repo.store.data_dir):

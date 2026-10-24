@@ -616,6 +616,7 @@ def test_boot_check_launches_repair_within_window(tmp_path, monkeypatch):
 
     from app.services import data_integrity
 
+    monkeypatch.setattr("app.services.preferences.get_data_sync_auto_enabled", lambda: True)
     # boot_integrity_check 用真实"今天" — 往回找最近工作日造盘中快照分区
     launched = []
     monkeypatch.setattr(

@@ -1,0 +1,33 @@
+{
+  "source_HEAD": "cc837b95f471e5b299bf5e8618332d500bff7e3a",
+  "application_version": "0.4.17",
+  "total_paths": 339,
+  "operation_counts": {
+    "modified": 67,
+    "untracked": 72,
+    "migration-source": 100,
+    "migration-target": 100
+  },
+  "group_counts": {
+    "archive": 60,
+    "configuration": 8,
+    "tooling": 19,
+    "lifecycle": 45,
+    "domain": 72,
+    "acceptance_scripts": 64,
+    "operations_scripts": 9,
+    "target": 8,
+    "requirements": 10,
+    "evidence": 31,
+    "design_inputs": 13
+  },
+  "migration_files": 100,
+  "previous_migrations": 66,
+  "document_migrations": 34,
+  "screenshots_preserved": 24,
+  "all_local_engineering_paths_covered": true,
+  "excluded": [
+    "ignored runtime data, credentials, dependencies, caches and delivery output",
+    "inventory self hashes are covered by the external delivery manifest"
+  ]
+}

@@ -9,7 +9,7 @@ multi-tenant API through its private Docker network.
 [`deploy/full/compose.yml`](../full/compose.yml). The complete single-host
 multi-tenant product went live on 2026-10-14; its recorded acceptance and
 release evidence is in
-[`docs/phase1-implementation.md`](../../docs/phase1-implementation.md).
+[`docs/planning/phase1-implementation.md`](../../reports/document-consolidation-20261024/historical-evidence.md#phase1).
 
 The edge and API must share a Docker network. Set
 `TSP_EDGE_PLATFORM_NETWORK` and `TSP_FULL_EDGE_NETWORK` to the same existing

@@ -1,5 +1,5 @@
 /**
- * 看板自定义布局 — 布局数据模型与规范化。
+ * 行情自定义布局 — 布局数据模型与规范化。
  *
  * 布局以 12 列网格存储(x/y/w/h 均为网格单元), 由 react-grid-layout 渲染;
  * 持久化 blob 存 preferences.dashboard_layout, 未自定义时使用内置默认布局。
@@ -59,7 +59,7 @@ function num(v: unknown, fallback: number): number {
 
 /**
  * 规范化布局 blob → 可渲染 items。
- * 无效输入(空/损坏/全被剔除)回退默认布局, 保证看板永远可用。
+ * 无效输入(空/损坏/全被剔除)回退默认布局, 保证行情永远可用。
  */
 export function normalizeLayout(
   blob: unknown,

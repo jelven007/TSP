@@ -7,7 +7,7 @@
 本轮修正四条撮合与共享矩阵的时间/原始价格/费用/数量边界，明确净统计，
 并把31个形态、20个风险/执行候选接入现有策略设置、回测、监控和模拟盘契约。
 公开目录仍为22项，`entry_variant=original`及缺省关闭的入场风险保留默认行为。
-146次公平/成本压力运行没有得到默认策略晋级证据；最终研究见[analysis.md](./analysis.md)。
+146次公平/成本压力运行没有得到默认策略晋级证据；最终研究见[analysis.md](analysis.md)。
 
 ## 解决方案与兼容
 
@@ -36,17 +36,17 @@
 使用冻结虚拟环境、`POLARS_MAX_THREADS=2 NUMBA_NUM_THREADS=2 PYTHONPATH=backend
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -p pytest_asyncio.plugin -vv --tb=short`
 执行最终回测与集成两批；逐nodeid取最终状态704通过、6项原规则跳过，无未解决失败。
-失败复现和后续修复过程完整保留在[implementation.md](./implementation.md)。
+失败复现和后续修复过程完整保留在[implementation.md](implementation.md)。
 
 前端`corepack pnpm@9.10.0 build`通过TypeScript与Vite（2,873模块），原有大chunk提示。
 Ruff与基线比较新增告警0，`git diff --check`及`python scripts/check_version.py`通过，
 版本0.4.9。146份结果、146份信号文件、44张完整卡及每批231对重合完整；
-232,192笔现金/数量/时序和146账户勾稽通过，见[verification.json](./verification.json)。
+232,192笔现金/数量/时序和146账户勾稽通过，见[verification.json](verification.json)。
 
 隔离真实API页面完成22项目录、候选保存回显、中文错误保留表单、风控编辑、
 切换策略、无数据/分钟禁用、交易日单位和浅色/深色窄屏检查。
 常用桌面尺寸未完成（应用级操作审批超时），没有虚构通过。
-截图及测试环境边界见[研究结论](./analysis.md#7-实际核验交付与剩余事项)。
+截图及测试环境边界见[研究结论](analysis.md#7-实际核验交付与剩余事项)。
 
 ## 风险、回退与文档
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.accept_production_recovery import (
+from scripts.acceptance.accept_production_recovery import (
     _sha256,
     _tree_inventory,
     _verify_backup_integrity,

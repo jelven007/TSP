@@ -162,6 +162,61 @@ def test_email_adapter_prefers_auth_login_for_netease_mailboxes(monkeypatch):
     assert smtp.calls[-1] == ("quit",)
 
 
+def test_full_notification_transport_uses_auth_login_for_configured_mailbox(monkeypatch):
+    from app import config
+    from app.cell.config import CellSettings
+    from app.cell.notifications import NotificationTransport
+    from app.multitenancy.notifications import FullNotificationTransport
+
+    calls = []
+
+    class FakeSmtp:
+        esmtp_features: ClassVar[dict[str, str]] = {"auth": "PLAIN LOGIN"}
+
+        def __init__(self, host, port, **kwargs):
+            calls.append((host, port))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def ehlo_or_helo_if_needed(self):
+            pass
+
+        def auth_login(self, _challenge):
+            return self.user
+
+        def auth(self, mechanism, _callback, *, initial_response_ok=True):
+            calls.append((mechanism, initial_response_ok, self.user, bool(self.password)))
+            return 235, b"accepted"
+
+        def login(self, *_):
+            raise AssertionError("126 client authorization must prefer AUTH LOGIN")
+
+        def send_message(self, message):
+            calls.append(message["To"])
+
+    for field, value in {
+        "auth_smtp_host": "smtp.example.com", "auth_smtp_port": 465,
+        "auth_smtp_security": "ssl", "auth_smtp_username": "sender@example.com",
+        "auth_smtp_from_address": "sender@example.com",
+        "auth_smtp_password": "test-authorization-code",
+    }.items():
+        monkeypatch.setattr(config.settings, field, value)
+    monkeypatch.setattr(email_adapter.smtplib, "SMTP_SSL", FakeSmtp)
+    monkeypatch.setattr("app.services.preferences.get_email_smtp_config", lambda: {"host": ""})
+    transport = FullNotificationTransport(CellSettings(id="test", control_dsn="", data_dsn=""))
+    effective = transport.configuration()
+    NotificationTransport(effective).send_direct(
+        {"kind": "email", "destination": "user@example.com"}, {"message": "test"}, "test-id",
+    )
+    assert calls == [
+        ("smtp.example.com", 465), ("LOGIN", False, "sender@example.com", True), "user@example.com",
+    ]
+
+
 def _unreachable(*_args, **_kwargs):
     raise ConnectionError("unreachable")
 

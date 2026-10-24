@@ -752,10 +752,10 @@ def run_now(
         else:
             logger.info("sync_minute skipped: user disabled")
 
-    # Step 2.6: 市场环境(regime) 增量计算 — enriched 已就绪后聚合环境指标。
+    # Step 2.6: 环境(regime) 增量计算 — enriched 已就绪后聚合环境指标。
     # 双检测(缺口+stale), 自动补算遗漏/被覆写的日。软失败: 不阻断主管道。
     # 默认开启: regime 是本地聚合计算(非拉取), 首次/regime 表为空时分批全量回填。
-    # 用户可在数据页「市场环境」卡片设置里关闭自动计算,
+    # 用户可在数据页「环境」卡片设置里关闭自动计算,
     # 或直接在该页面点「重算」手动触发(不受此开关影响)。
     regime_days = 0
     from app.services import preferences as _prefs_regime
@@ -764,7 +764,7 @@ def run_now(
         logger.info("compute_regime skipped: user disabled (pipeline_regime_enabled=False)")
     else:
         try:
-            emit("compute_regime", 90, "计算市场环境…")
+            emit("compute_regime", 90, "计算环境…")
             from app.api.regime import invalidate_regime_cache
             from app.services import regime_builder
             new_regime = regime_builder.compute_regime_incremental(repo, repo.store.data_dir)
@@ -772,7 +772,7 @@ def run_now(
             if regime_days:
                 invalidate_regime_cache()
                 logger.info("compute_regime: %d days", regime_days)
-            emit("compute_regime", 92, f"市场环境 {regime_days} 天")
+            emit("compute_regime", 92, f"环境 {regime_days} 天")
             # 阶段切换推送监控通知 (软失败, 不影响管道): 末两日阶段不同 = 今日发生切换。
             # 切入退潮/冰点为风险信号, 用 warn 级别; 其余 info。
             if regime_days:
@@ -818,13 +818,13 @@ def run_now(
         logger.warning("corporate_actions failed: %s", exc)
         stage_errors.append(f"corporate_actions: {exc}")
 
-    # Step 2.8: 模拟盘结算: 顺延单按当日开盘/收盘撮合 → 除权调整 → 定版净值。
+    # Step 2.8: 模拟交易结算: 顺延单按当日开盘/收盘撮合 → 除权调整 → 定版净值。
     # 幂等: 重跑同日不会重复成交/二次除权 (订单状态与 corp_action 台账守卫)。
     # 必须在日K/除权同步之后, 才能读到当日 raw OHLC 与因子。核心账务不受
-    # 「市场环境」等可选开关控制, 恒运行 (开销可忽略); 软失败不阻断主管道。
+    # 「环境」等可选开关控制, 恒运行 (开销可忽略); 软失败不阻断主管道。
     paper_summary: dict = {}
     try:
-        emit("paper_settle", 94, "模拟盘结算…")
+        emit("paper_settle", 94, "模拟交易结算…")
         from app.strategy import paper as paper_trading
         from app.strategy import paper_auto
         # 逐账户结算 (账户间订单/台账隔离), 汇总合并供日志与结果展示
@@ -857,8 +857,8 @@ def run_now(
                 if settle_events:
                     alert_store.append_many(repo.store.data_dir, settle_events)
             except Exception as e:
-                logger.warning("模拟盘结算成交留痕失败: %s", e)
-        emit("paper_settle", 94, "模拟盘结算完成")
+                logger.warning("模拟交易结算成交留痕失败: %s", e)
+        emit("paper_settle", 94, "模拟交易结算完成")
     except Exception as e:
         logger.warning("paper_settle failed (soft): %s", e)
         stage_errors.append(f"paper_settle: {e}")
@@ -1011,7 +1011,7 @@ def _refresh_instruments_view(repo: KlineRepository) -> None:
 def _push_phase_change_alert(data_dir) -> None:
     """情绪周期阶段切换 → 推送监控通知(SSE toast + 监控中心)。
 
-    阶段切换(如 退潮→冰点)是重要的市场信号, 原先只有打开市场环境页才能看到。
+    阶段切换(如 退潮→冰点)是重要的市场信号, 原先只有打开环境页才能看到。
     复用 quote_service.push_alerts 广播通道; 未发生切换静默返回。
     """
     from app.services.market_phase import PHASE_LABELS
@@ -1452,11 +1452,32 @@ def _register_auction_jobs(scheduler, repo: KlineRepository) -> None:
     )
 
 
+def apply_data_sync_mode(scheduler) -> None:
+    """暂停/恢复数据任务, 不影响能力检测及用户开启的复盘任务。"""
+    enabled = _prefs.get_data_sync_auto_enabled()
+    for job in scheduler.get_jobs():
+        if job.id in {"pre_market_instruments", "daily_pipeline", "depth_finalize"} or (
+            job.id.startswith("auction_snapshot_") or job.id == "auction_publication_retry"
+        ):
+            if enabled:
+                scheduler.resume_job(job.id)
+            else:
+                scheduler.pause_job(job.id)
+
+
+def reschedule_data_job(scheduler, job_id: str, trigger: CronTrigger) -> None:
+    """修改时间不能把手动模式下已暂停的任务重新激活。"""
+    if _prefs.get_data_sync_auto_enabled():
+        scheduler.reschedule_job(job_id, trigger=trigger)
+    else:
+        scheduler.modify_job(job_id, trigger=trigger, next_run_time=None)
+
+
 def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOScheduler:
     """启动调度器。
 
-    工作日 09:10 — 同步个股维表
-    工作日 HH:MM — 盘后管道（时间由用户偏好决定，默认 15:35）
+    默认手动模式, 数据任务无下一次运行时间。显式开启自动同步后:
+    工作日 09:10 同步个股维表, HH:MM 盘后管道（默认 15:35）。
     """
     from app.services import preferences
     sched = preferences.get_pipeline_schedule()
@@ -1577,8 +1598,12 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
         logger.info("scheduled_review enabled @%02d:%02d mon-fri",
                     review_sched["hour"], review_sched["minute"])
 
+    # 必须在 start 前暂停, 避免竞价启动补跑/发布重试立即开始执行。
+    if not preferences.get_data_sync_auto_enabled():
+        apply_data_sync_mode(scheduler)
     scheduler.start()
-    logger.info("scheduler started; instruments@%02d:%02d, auction@09:25, pipeline@%02d:%02d, depth@%02d:%02d mon-fri",
+    logger.info("scheduler started (auto_sync=%s); instruments@%02d:%02d, auction@09:25, pipeline@%02d:%02d, depth@%02d:%02d mon-fri",
+                preferences.get_data_sync_auto_enabled(),
                 inst_sched["hour"], inst_sched["minute"], sched["hour"], sched["minute"],
                 depth_sched["hour"], depth_sched["minute"])
     return scheduler

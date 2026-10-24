@@ -30,7 +30,7 @@ export const QK = {
   watchlistEnriched:    (ext?: string) => ['watchlist-enriched', ext] as const,
   // 异动边缘总览 (开启监控时才查询, 参数为 min_closeness/limit)
   abnormalOverview:     (minCloseness: number, limit: number) => ['abnormal-overview', minCloseness, limit] as const,
-  // 盘中异动信号聚合 (异动监控「盘中」tab)
+  // 盘中异动信号聚合 (异动数据「盘中」tab)
   abnormalIntraday:     (limit: number) => ['abnormal-intraday', limit] as const,
   auctionSnapshot:      (date?: string) => ['auction-snapshot', date ?? 'latest'] as const,
   // 不用 watchlist- 前缀: 日K历史盘中几乎不变, 若被 SSE quotes_updated 高频失效
@@ -109,7 +109,7 @@ export const QK = {
   lots:                 ['lots'] as const,
   lotsKline:            (symbols: string) => ['lots-kline', symbols] as const,
 
-  // 模拟盘 (多账户: 键按账户隔离; paperAll 作账户无关失效前缀)
+  // 模拟交易 (多账户: 键按账户隔离; paperAll 作账户无关失效前缀)
   paperAll:             ['paper'] as const,
   apiTokens:            ['settings', 'api-tokens'] as const,
   paperAccounts:        ['paper', 'accounts'] as const,
@@ -131,7 +131,7 @@ export const QK = {
   // 概念涨幅轮动矩阵
   rpsRotation:          (days: number) => ['rps-rotation', days] as const,
 
-  // 市场环境(Regime) — 日级离线计算, 不进 SSE 刷新
+  // 环境(Regime) — 日级离线计算, 不进 SSE 刷新
   regimeHistory:        (limit?: number) => ['regime-history', limit ?? 0] as const,
   regimeLatest:         ['regime-latest'] as const,
   regimeStates:         (days: number) => ['regime-states', days] as const,

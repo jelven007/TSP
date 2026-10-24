@@ -11,7 +11,7 @@ from app.services.st_history_backfill import (
     events_frame,
     parse_special_treatment_events,
 )
-from scripts.analyze_market_waves import confirmed_zigzag_pivots
+from scripts.research.analyze_market_waves import confirmed_zigzag_pivots
 
 
 def test_parse_special_treatment_events_and_removal_semantics() -> None:

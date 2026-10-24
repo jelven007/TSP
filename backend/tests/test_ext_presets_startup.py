@@ -1,4 +1,4 @@
-"""内置概念/行业默认可拉取, 兼容修复空预设并保留用户配置。
+"""内置概念/行业默认手动拉取, 兼容修复空预设并保留用户配置。
 
 ensure_builtin_presets 只负责创建配置, 不直接等待网络请求; 随后
 PullScheduler.refresh 为 enabled 配置创建后台任务。旧版自动生成的空配置
@@ -24,23 +24,21 @@ from app.services.ext_presets import (
 _PRESET_IDS = ("ext_gn_ths", "ext_hy_ths")
 
 
-def test_feature_manual_matches_fresh_install_defaults(monkeypatch):
+def test_user_manual_matches_fresh_install_defaults(monkeypatch):
     monkeypatch.setattr(settings, "ext_concept_data_url", "")
     monkeypatch.setattr(settings, "ext_industry_data_url", "")
-    manual = (Path(__file__).resolve().parents[2] / "docs/features.md").read_text()
+    manual = (Path(__file__).resolve().parents[2] / "操作说明书.md").read_text()
     for preset in (_concept_preset(), _industry_preset()):
-        assert preset.pull.url and preset.pull.enabled
-    assert "新安装默认启用定时拉取" in manual
-    assert "环境变量未配置或为空时使用默认 URL" in manual
+        assert preset.pull.url and not preset.pull.enabled
+    assert "默认手动同步" in manual and "自动拉取" in manual
+    assert "空环境变量" in manual and "沿用默认" in manual
     assert "未配置 URL 时默认关闭" not in manual
-    assert "首次自动同步" in manual and "确认默认 rustdx" in manual
-    guide = (Path(__file__).resolve().parents[2] / "操作说明书.md").read_text()
-    assert "未配置 URL 时默认关闭" not in guide
-    assert "新安装需要在 `.env` 设置" not in guide
-    assert "自带默认拉取地址" in guide
+    assert "首次启动会" in manual and "默认 rustdx" in manual
+    assert "新安装需要在 `.env` 设置" not in manual
+    assert "自带默认拉取地址" in manual
 
 
-def test_builtin_presets_have_enabled_defaults_with_empty_environment(
+def test_builtin_presets_have_manual_defaults_with_empty_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """复制旧 .env 示例的空 URL 也应使用可拉取的默认值。"""
@@ -53,17 +51,17 @@ def test_builtin_presets_have_enabled_defaults_with_empty_environment(
     ):
         assert preset.pull is not None
         assert preset.pull.url == f"https://shy313.com/api/plugins/market_flow/exports/{endpoint}"
-        assert preset.pull.enabled is True
+        assert preset.pull.enabled is False
         assert preset.pull.schedule_minutes == 1
         assert preset.pull.time_window_start == "09:15"
         assert preset.pull.time_window_end == "15:15"
 
 
-def test_ensure_builtin_presets_writes_enabled_configs(
+def test_ensure_builtin_presets_writes_manual_configs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """显式配置上游后写入启用配置, 供调度器创建盘中定时任务。"""
+    """配置上游地址仍不启用自动任务。"""
     monkeypatch.setattr(settings, "ext_concept_data_url", "https://data.example/concepts")
     monkeypatch.setattr(settings, "ext_industry_data_url", "https://data.example/industries")
 
@@ -75,15 +73,39 @@ def test_ensure_builtin_presets_writes_enabled_configs(
         assert config is not None, f"{cid} 配置未创建"
         assert config.pull is not None
         assert config.pull.url.startswith("https://data.example/")
-        assert config.pull.enabled is True
+        assert config.pull.enabled is False
         assert config.pull.schedule_minutes == 1
         assert config.pull.time_window_start == "09:15"
         assert config.pull.time_window_end == "15:15"
 
 
+def test_fresh_builtin_presets_do_not_create_scheduled_pull_tasks(tmp_path, monkeypatch):
+    from app.services.ext_pull import PullScheduler
+
+    async def unexpected(*args, **kwargs):
+        pytest.fail("fresh initialization must not fetch extended data")
+
+    monkeypatch.setattr(PullScheduler, "_run_loop", unexpected)
+
+    async def exercise():
+        await ensure_builtin_presets(tmp_path)
+        scheduler = PullScheduler()
+        scheduler.start(tmp_path)
+        try:
+            scheduler.refresh(tmp_path)
+            await asyncio.sleep(0)
+            assert scheduler._tasks == {}
+        finally:
+            scheduler.stop()
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("enabled", [False, True])
 def test_ensure_builtin_presets_keeps_existing_user_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    enabled: bool,
 ) -> None:
     """老用户/已存在的配置一律不动, 包括用户主动关闭自动拉取。"""
     monkeypatch.setattr(settings, "ext_concept_data_url", "https://data.example/concepts")
@@ -93,18 +115,18 @@ def test_ensure_builtin_presets_keeps_existing_user_config(
     store = ExtConfigStore(tmp_path)
     config = store.get("ext_gn_ths")
     assert config is not None and config.pull is not None
-    config.pull.enabled = False
+    config.pull.enabled = enabled
     store.upsert(config)
 
     asyncio.run(ensure_builtin_presets(tmp_path))
 
     refreshed = ExtConfigStore(tmp_path).get("ext_gn_ths")
     assert refreshed is not None and refreshed.pull is not None
-    assert refreshed.pull.enabled is False, "已存在配置被静默改写, 违反「绝不覆盖」原则"
+    assert refreshed.pull.enabled is enabled, "已存在配置被静默改写, 违反「绝不覆盖」原则"
 
 
 def test_legacy_manual_preset_with_existing_snapshot_is_migrated(tmp_path):
-    """旧版原生预设已有快照时，也要恢复默认自动拉取。"""
+    """旧版预设已有快照时补全地址, 保留手动模式及快照。"""
     legacy = _concept_preset()
     legacy.description = "同花顺概念分类 (启动仅创建配置, 在概念/行业页手动获取)"
     legacy.pull = PullConfig(
@@ -125,7 +147,7 @@ def test_legacy_manual_preset_with_existing_snapshot_is_migrated(tmp_path):
     migrated = store.get(legacy.id)
     assert migrated is not None and migrated.pull is not None
     assert migrated.pull.url == _concept_preset().pull.url
-    assert migrated.pull.enabled is True
+    assert migrated.pull.enabled is False
     assert migrated.description == _concept_preset().description
     assert pl.read_parquet(snapshot)["所属概念"].to_list() == ["旧概念"]
 
@@ -162,9 +184,10 @@ def test_empty_generated_preset_is_repaired_once(tmp_path, monkeypatch, cid, leg
     preset.pull.url = ""
     preset.pull.enabled = False
     if legacy_description:
-        preset.description = preset.description.replace(
-            "(交易日", "(配置上游后, 交易日"
-        ).replace(", 启动时立即刷新", "")
+        preset.description = (
+            f"{preset.label.replace('扩展', '同花顺')}分类 "
+            "(配置上游后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)"
+        )
     store = ExtConfigStore(tmp_path)
     store.upsert(preset)
     created_at = preset.created_at
@@ -173,7 +196,7 @@ def test_empty_generated_preset_is_repaired_once(tmp_path, monkeypatch, cid, leg
 
     repaired = store.get(cid)
     assert repaired.pull.url
-    assert repaired.pull.enabled is True
+    assert repaired.pull.enabled is False
     assert repaired.created_at == created_at
     first = repaired.to_dict()
     asyncio.run(ensure_builtin_presets(tmp_path))
@@ -261,6 +284,6 @@ def test_manual_preset_fetch_repairs_empty_config_through_api(tmp_path, monkeypa
 
     assert result == {"status": "ok", "rows": 1}
     assert calls == [_industry_preset().pull.url]
-    assert store.get(preset.id).pull.enabled is True
+    assert store.get(preset.id).pull.enabled is False
     files = list((tmp_path / "ext_data" / preset.id).rglob("*.parquet"))
     assert pl.read_parquet(files[0])["所属同花顺行业"].to_list() == ["金融-银行"]

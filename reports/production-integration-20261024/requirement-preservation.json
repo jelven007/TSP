@@ -1,0 +1,7 @@
+{
+  "unique_ids": 203,
+  "fr": 161,
+  "nfr": 42,
+  "same_id_set_as_preserved_baseline": true,
+  "contract_behavior": "current local changes described in requirements; historical reports retain original rows"
+}

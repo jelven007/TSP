@@ -187,7 +187,7 @@ def get_options(request: Request):
             {"key": "price", "label": "价格/涨跌"},
             {"key": "market", "label": "市场异动"},
             {"key": "strategy", "label": "策略监控"},
-            {"key": "abnormal", "label": "异动监控"},
+            {"key": "abnormal", "label": "异动"},
             {"key": "sector", "label": "板块监控"},
             {"key": "volume_delta", "label": "轮询放量"},
             {"key": "date", "label": "日期提醒"},

@@ -1,7 +1,7 @@
 # 构建 Docker 镜像时排除的文件 / 目录。
 # 与 .gitignore 思路一致: 只把 Dockerfile 真正需要的送进构建上下文,
 # 减小上下文体积、加速上传、避免缓存误伤。
-# 注意: .dockerignore 不识别 .gitignore 的取反(!)语法, 这里按白名单思路直接列举排除项。
+# 按职责排除无关目录；末尾的 ! 规则可恢复构建必需的具体文件。
 
 # ===== 版本控制 / CI =====
 .git
@@ -37,6 +37,13 @@ backend/app/static
 # ===== 文档 / 截图(镜像不需要; README.md 除外, Dockerfile 显式 COPY 了它) =====
 docs
 screenshots
+brand
+examples
+mcp-server
+deliverables
+tests
+backend/tests
+backend/scripts
 
 # ===== 桌面客户端打包(PyInstaller 专用, 与 Docker 部署无关) =====
 packaging
@@ -59,4 +66,6 @@ backend/.env
 *.log
 .dbg
 .tools
+.screenshots
+.trae-html-share-packages
 reports

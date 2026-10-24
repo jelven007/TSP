@@ -1,0 +1,98 @@
+{
+  "date": "2026-10-24",
+  "status": "passed",
+  "main_revision": "cc837b95f471e5b299bf5e8618332d500bff7e3a",
+  "application_version": "0.4.17",
+  "checks": [
+    {
+      "command": "git ls-remote origin refs/heads/main",
+      "exit_code": 0,
+      "result": "Matches local main and HEAD at cc837b95f471e5b299bf5e8618332d500bff7e3a"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 make check",
+      "exit_code": 0,
+      "required_paths": 81,
+      "maintained_markdown": 78,
+      "requirements": 203,
+      "modules": 8
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/check_docs.py --include-reports",
+      "exit_code": 0,
+      "markdown_files": 126,
+      "errors": 0
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 DATA_DIR=<isolated> DOTENV_PATH=/dev/null POLARS_MAX_THREADS=4 python -m pytest tests/tooling -q -o cache_dir=<external>",
+      "environment": "CPython 3.12.15/macOS arm64, existing isolated regression environment",
+      "exit_code": 0,
+      "passed": 111,
+      "seconds": 44.37
+    },
+    {
+      "command": "ruff check --no-cache --config backend/pyproject.toml scripts/check_repository.py",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --cached --exit-code",
+      "exit_code": 0,
+      "result": "No staged changes"
+    },
+    {
+      "command": "All retained report groups indexed, frozen delivery and target design inputs compared with pre-cleanup SHA-256",
+      "exit_code": 0,
+      "frozen_delivery_files": 32,
+      "design_input_files": 13
+    },
+    {
+      "command": "Check remaining workspace for generated cache directories",
+      "exit_code": 0,
+      "remaining_cache_directories": 0
+    }
+  ],
+  "protection": {
+    "starting_files": 3777,
+    "moved_files": 2263,
+    "untouched_files": 1502,
+    "authorized_edited_files": [
+      ".dockerignore",
+      ".gitignore",
+      "tests/README.md",
+      "docs/testing.md",
+      "docs/README.md",
+      "docs/version-baseline.md",
+      "docs/archive/README.md",
+      "docs/development/local-change-map.md",
+      "docs/development/project-layout.md",
+      "docs/operations/windows10-native-16gb.md",
+      "scripts/check_repository.py",
+      "reports/single-host/verification.md"
+    ],
+    "issues": [],
+    "requirements_target_and_plans_unchanged": [
+      "docs/requirements.md",
+      "docs/requirements/03-market-workspace.md",
+      "docs/requirements/01-access-administration.md",
+      "docs/requirements/04-strategy-signals.md",
+      "docs/requirements/06-history-backtesting.md",
+      "docs/requirements/05-factors-mining.md",
+      "docs/requirements/02-data-management.md",
+      "docs/requirements/07-monitoring-paper.md",
+      "docs/requirements/08-ai-review.md",
+      "docs/system-target-architecture.md",
+      "docs/planning/multitenant-roadmap.md",
+      "docs/planning/phase2-implementation-plan.md",
+      "docs/planning/phase1-implementation.md"
+    ],
+    "runtime_data_files_unchanged": 1,
+    "protected_business_files_unchanged": 1101
+  },
+  "not_executed": [
+    "Full backend or frontend business regression (business files unchanged by cleanup)",
+    "Frontend build (frontend input hashes unchanged)",
+    "Docker/Windows real-machine/installers",
+    "Production probes, deployment, data migration or new target acceptance"
+  ],
+  "historical_artifacts": "Two missing historical .tools links are now plain original paths with an explicit unavailable note; the original evidence was not recreated."
+}

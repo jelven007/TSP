@@ -233,7 +233,7 @@ function RegimeRecomputeButton({ from, to, pending, onClick }: {
         {pending ? '补算环境数据中…' : '补算环境数据并重跑'}
       </button>
       <span className="text-[10px] text-secondary">
-        将补算 {from} ~ {to || '今天'} 的市场环境数据，完成后自动重跑本次回测
+        将补算 {from} ~ {to || '今天'} 的环境数据，完成后自动重跑本次回测
       </span>
     </div>
   )
@@ -994,7 +994,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const [simMode, setSimMode] = useState<'position' | 'full'>(saved?.mode ?? 'position')
   const [holdingDays, setHoldingDays] = useState(saved?.holdingDays ?? '5')
   const [highGranularity, setHighGranularity] = useState(saved?.minuteFill ?? false)
-  // 市场环境过滤(空=不过滤)
+  // 环境过滤(空=不过滤)
   const [regimeStates, setRegimeStates] = useState<string[]>(saved?.regimeStates ?? [])
   const [regimeMinScore, setRegimeMinScore] = useState<number | ''>(saved?.regimeMinScore ?? '')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -1270,11 +1270,11 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   // 「数据为空」变体无日期, 用回测起点兜底; 预热区间不足的变体不在此处理(文案已自说明)。
   const regimeGapStart = useMemo(() => {
     const msg = backtestTask?.error ?? result?.error ?? ''
-    if (msg.includes('市场环境数据覆盖不完整') && msg.includes('请先补算')) {
+    if (msg.includes('环境数据覆盖不完整') && msg.includes('请先补算')) {
       const m = msg.match(/缺少前一交易日环境[：:\s]*(\d{4}-\d{2}-\d{2})/)
       return m?.[1] ?? start
     }
-    if (msg.includes('市场环境数据为空')) return start
+    if (msg.includes('环境数据为空')) return start
     return null
   }, [backtestTask?.error, result?.error, start])
 
@@ -2126,7 +2126,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
         </div>
 
-        {/* 市场环境过滤: 只在指定环境的交易日入场(强制 T-1, 用前一日环境判定) */}
+        {/* 环境过滤: 只在指定环境的交易日入场(强制 T-1, 用前一日环境判定) */}
         <div className="rounded-btn border border-border bg-surface/50 px-3 py-2 space-y-1.5">
           <div className="flex items-center gap-2">
             <Gauge className="h-3.5 w-3.5 text-accent" />

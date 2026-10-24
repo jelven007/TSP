@@ -1,6 +1,6 @@
 """自定义分钟数据源路由回归测试。
 
-对应设计文档 §4 测试矩阵 (docs/superpowers/specs/2026-07-18-minute-provider-unification-design.md)。
+对应当前 Provider 接口与测试契约 (docs/reference/integrations.md#plugin)。
 
 覆盖自定义源异常处理、插件化路由和 asset_type 透传。
 """
