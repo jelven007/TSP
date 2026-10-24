@@ -62,27 +62,34 @@ def test_interval_setter_invalidates_cache(_isolated):
     assert preferences.load()["realtime_quote_interval"] == 2.0
 
 
-def test_realtime_quotes_default_to_manual(_isolated):
-    assert preferences.get_realtime_quotes_enabled() is False
+_SYNC_GETTERS = {
+    "data_sync_auto_enabled": preferences.get_data_sync_auto_enabled,
+    "realtime_quotes_enabled": preferences.get_realtime_quotes_enabled,
+    "second_quote_archive_enabled": preferences.get_second_quote_archive_enabled,
+    "minute_sync_enabled": preferences.get_minute_sync_enabled,
+    "minute_refresh_enabled": preferences.get_minute_refresh_enabled,
+    "minute_intraday_refresh": preferences.get_minute_intraday_refresh,
+    "pipeline_pull_a_share": preferences.get_pipeline_pull_a_share,
+    "pipeline_pull_index": preferences.get_pipeline_pull_index,
+    "pipeline_pull_etf": preferences.get_pipeline_pull_etf,
+    "realtime_pull_stock": preferences.get_realtime_pull_stock,
+    "realtime_pull_etf": preferences.get_realtime_pull_etf,
+}
 
 
-def test_fresh_install_does_not_enable_background_sync(_isolated):
-    assert preferences.get_data_sync_auto_enabled() is False
-    assert preferences.get_minute_refresh_enabled() is False
-    assert preferences.get_minute_intraday_refresh() is False
+@pytest.mark.parametrize("existing", [False, True])
+def test_initialization_enables_all_data_sync_defaults(_isolated, existing):
+    if existing:
+        preferences.save({"theme": "dark"})
+    assert all(getter() is True for getter in _SYNC_GETTERS.values())
+    assert preferences.load() == ({"theme": "dark"} if existing else {})
 
 
-def test_saved_background_sync_choices_are_preserved(_isolated):
-    preferences.save({
-        "data_sync_auto_enabled": True,
-        "realtime_quotes_enabled": True,
-        "minute_refresh_enabled": True,
-        "minute_intraday_refresh": True,
-    })
-    assert preferences.get_data_sync_auto_enabled() is True
-    assert preferences.get_realtime_quotes_enabled() is True
-    assert preferences.get_minute_refresh_enabled() is True
-    assert preferences.get_minute_intraday_refresh() is True
+@pytest.mark.parametrize("enabled", [False, True])
+def test_saved_background_sync_choices_are_preserved_after_reload(_isolated, enabled):
+    preferences.save(dict.fromkeys(_SYNC_GETTERS, enabled))
+    preferences._invalidate_cache()
+    assert all(getter() is enabled for getter in _SYNC_GETTERS.values())
 
 
 def test_nav_initial_defaults_and_saved_overrides(_isolated):
@@ -115,11 +122,11 @@ def test_data_initial_defaults_match_configured_baseline(_isolated, existing):
     assert preferences.get_minute_sync_enabled() is True
     assert preferences.get_minute_sync_days() == 5
     assert preferences.get_minute_sync_segment_days() == 20
-    assert preferences.get_minute_refresh_enabled() is False
+    assert preferences.get_minute_refresh_enabled() is True
     assert preferences.get_minute_refresh_interval() == 1
     assert preferences.get_pipeline_pull_a_share() is True
     assert preferences.get_pipeline_pull_index() is True
-    assert preferences.get_pipeline_pull_etf() is False
+    assert preferences.get_pipeline_pull_etf() is True
     assert preferences.get_instruments_schedule() == {"hour": 9, "minute": 10}
     assert preferences.get_pipeline_schedule() == {"hour": 15, "minute": 35}
     assert preferences.get_pipeline_regime_enabled() is True

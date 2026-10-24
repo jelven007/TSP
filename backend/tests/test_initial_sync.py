@@ -41,6 +41,7 @@ def test_manual_startup_does_not_enqueue_sync(tmp_path, monkeypatch, partial):
 
     monkeypatch.setattr(preferences, "_path", lambda: tmp_path / "preferences.json")
     preferences._invalidate_cache()
+    preferences.save({"data_sync_auto_enabled": False})
     initial_sync.prepare_initial_sync(tmp_path)
     if partial:
         part = tmp_path / "kline_daily"
@@ -58,8 +59,15 @@ def test_manual_startup_does_not_enqueue_sync(tmp_path, monkeypatch, partial):
     assert json.loads((tmp_path / "initial_sync.json").read_text())["status"] == "pending"
 
 
-def test_startup_schedules_once_without_blocking_requests(tmp_path, monkeypatch):
-    monkeypatch.setattr(initial_sync.preferences, "get_data_sync_auto_enabled", lambda: True)
+@pytest.mark.parametrize("partial", [False, True])
+def test_startup_defaults_to_scheduling_once_without_blocking_requests(tmp_path, monkeypatch, partial):
+    monkeypatch.setattr(initial_sync.preferences, "_path", lambda: tmp_path / "preferences.json")
+    initial_sync.preferences._invalidate_cache()
+    initial_sync.prepare_initial_sync(tmp_path)
+    if partial:
+        part = tmp_path / "kline_daily"
+        part.mkdir()
+        pl.DataFrame({"symbol": ["600001.SH"]}).write_parquet(part / "part.parquet")
     calls = []
 
     async def trigger(*args, **kwargs):

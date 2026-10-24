@@ -436,6 +436,7 @@ flowchart LR
 当前面板会话；这些设置/秒级研究端点不在 Tier A Token 规则中。
 完整多租户还需对应权限与平台可用性。开启归档前，实时行情应已开启并选择 rustdx；归档开关只控制
 保存现有轮询结果，不会主动开启行情或在休市期间抓取历史秒级数据。
+初始化时实时行情和秒级归档均默认开启，已保存的关闭设置优先；保留期默认 0。
 
 ```bash
 curl -X PUT http://127.0.0.1:3018/api/settings/preferences/second-quote-archive \

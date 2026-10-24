@@ -1476,7 +1476,7 @@ def reschedule_data_job(scheduler, job_id: str, trigger: CronTrigger) -> None:
 def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOScheduler:
     """启动调度器。
 
-    默认手动模式, 数据任务无下一次运行时间。显式开启自动同步后:
+    默认启动数据任务; 已保存的手动模式继续暂停。自动同步时:
     工作日 09:10 同步个股维表, HH:MM 盘后管道（默认 15:35）。
     """
     from app.services import preferences

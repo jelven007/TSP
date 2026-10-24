@@ -97,12 +97,12 @@ def save(updates: dict, data_dir=None) -> dict:
 
 
 def get_data_sync_auto_enabled() -> bool:
-    """初始化仅手动同步; 显式开启后才运行定时同步和启动补跑。"""
-    return load().get("data_sync_auto_enabled") is True
+    """初始化默认自动同步; 保留用户已保存的关闭设置。"""
+    return load().get("data_sync_auto_enabled", True) is True
 
 
 def get_realtime_quotes_enabled() -> bool:
-    return bool(load().get("realtime_quotes_enabled", False))
+    return bool(load().get("realtime_quotes_enabled", True))
 
 
 def get_watchlist_groups_in_nav() -> bool:
@@ -130,8 +130,8 @@ _SECOND_QUOTE_RETENTION_DEFAULT_DAYS = 0
 
 
 def get_second_quote_archive_enabled() -> bool:
-    """秒级全市场快照归档默认关闭, 避免无意产生大体量数据。"""
-    return bool(load().get("second_quote_archive_enabled", False))
+    """秒级快照归档默认开启, 跟随实时行情且保留用户关闭设置。"""
+    return bool(load().get("second_quote_archive_enabled", True))
 
 
 def get_second_quote_archive_retention_days() -> int:
@@ -166,8 +166,8 @@ def get_minute_sync_enabled() -> bool:
 
 
 def get_minute_intraday_refresh() -> bool:
-    """自选分时图实时刷新默认关闭, 保留用户显式选择。"""
-    return bool(load().get("minute_intraday_refresh", False))
+    """自选分时图实时刷新默认开启, 保留用户显式选择。"""
+    return bool(load().get("minute_intraday_refresh", True))
 
 
 # 分时图实时刷新间隔允许范围 (秒)。下限 3s, 上限 60s。
@@ -255,8 +255,8 @@ _MINUTE_REFRESH_INTERVAL_MAX = 120
 
 
 def get_minute_refresh_enabled() -> bool:
-    """盘中分钟K增量落盘默认关闭; 能力门控在服务层判断。"""
-    return bool(load().get("minute_refresh_enabled", False))
+    """盘中分钟K增量落盘默认开启; 能力门控在服务层判断。"""
+    return bool(load().get("minute_refresh_enabled", True))
 
 
 def get_minute_refresh_interval() -> int:
@@ -399,8 +399,8 @@ def get_pipeline_pull_a_share() -> bool:
 
 
 def get_pipeline_pull_etf() -> bool:
-    """是否拉取 ETF 日K。默认 False(标的多,首次较慢)。"""
-    return load().get("pipeline_pull_etf", False)
+    """是否拉取 ETF 日K。默认 True。"""
+    return load().get("pipeline_pull_etf", True)
 
 
 def get_pipeline_pull_index() -> bool:
@@ -818,8 +818,8 @@ def get_realtime_pull_stock() -> bool:
 
 
 def get_realtime_pull_etf() -> bool:
-    # 老用户兼容: ETF 实时默认关闭，避免升级后请求量/写盘量突然增加。
-    return load().get("realtime_pull_etf", False)
+    """ETF 实时拉取默认开启, 已保存的关闭值优先。"""
+    return load().get("realtime_pull_etf", True)
 
 
 def set_realtime_quote_scope(cfg: dict) -> dict:
