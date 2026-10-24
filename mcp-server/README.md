@@ -1,12 +1,18 @@
 # TSP MCP 服务器
 
-把面板的开放接口包装成 **MCP (Model Context Protocol)** 工具, 让 Claude / ZCode / Cursor 等 AI 客户端直接查询行情、市场环境、策略与告警, 触发回测。
+把面板的开放接口包装成 **MCP (Model Context Protocol)** 工具, 让 Claude / ZCode / Cursor 等 AI 客户端直接查询行情、环境、策略与告警, 触发回测。
 
 ```
 AI 客户端 ⇄ MCP stdio (本服务器) ⇄ HTTP + Bearer Token ⇄ 面板开放网关
 ```
 
 权限、限流、契约全部复用面板的开放接口层 — 本服务器只是一层薄桥, 面板侧的 Token scope 是最终权威。
+
+本包独立版本为 `0.3.2`，不随主应用本地文档更新改号。
+当前主应用开放面为六个 scope、69 个方法/路径；本包提供下列 12 个工具。
+完整多租户由管理员签发绑定目标租户的 Token，`TSP_BASE` 指向实际 API/HTTPS Edge；
+独立 Gateway 仅处理事件，不能作为 MCP 的全部 API 地址。
+当前能力与部署边界见[实现索引](../docs/architecture.md#capabilities)。
 
 ## 准备
 
@@ -52,17 +58,17 @@ TSP_TOKEN=tsp_xxx uv run tsp-mcp-server   # stdio JSON-RPC, 供客户端拉起
 | | `get_kline` | 标的日K (前复权) |
 | | `get_index_kline` | 指数日K |
 | | `get_market_overview` | 涨跌家数/成交额/涨停连板/情绪 |
-| `read:analysis` | `get_regime_state` | 最新市场环境阶段 |
+| `read:analysis` | `get_regime_state` | 最新环境阶段 |
 | | `list_strategies` / `get_strategy_detail` | 策略清单与定义 |
 | | `get_recent_alerts` | 最近告警 |
 | `read:ext` | `list_ext_tables` / `query_ext_table` | 自有数据表查询 |
 | `write:ext` | `write_ext_rows` | 写入扩展表 (进入策略数据面, 慎授) |
 | `run:backtest` | `run_backtest` | 策略回测 (纯 Polars 引擎) |
 
-未包含: 模拟盘交易类端点 — 不建议把下单能力交给 AI, 需要时可自行在 `server.py` 里按同样模式补。
+未包含: 模拟交易类端点 — 不建议把下单能力交给 AI, 需要时可自行在 `server.py` 里按同样模式补。
 
 ## 设计说明
 
 - **薄桥原则**: 所有权限/限流/契约由面板网关裁决, 本服务器不持有任何业务逻辑, 面板升级自动受益
 - 工具返回原文 JSON, 错误以可读文本返回 — LLM 可据此自行纠正参数
-- 更底层的 REST 契约与示例见 [examples/open-api](../examples/open-api/README.md) 与 [docs/features.md → 开放接口](../docs/features.md)
+- 更底层的 REST 契约与示例见 [examples/open-api](../examples/open-api/README.md) 与 [docs/features.md → 开放接口](../操作说明书.md#1-项目概览)

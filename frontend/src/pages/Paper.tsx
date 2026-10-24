@@ -1,12 +1,12 @@
 /**
- * 模拟盘 (虚拟账户) — 多账户对比主视图 + 行展开账户操作。
+ * 模拟交易 (虚拟账户) — 多账户对比主视图 + 行展开账户操作。
  *
  * 对比 (默认): 全账户收益降序榜单 (同本金同费率口径), 归一化净值叠加,
  * 点行展开即完整账户操作 (下单/跟单规则/费用/导出), 无需跳转页面;
  * 批量创建一次构造一批同规格账户各绑一条跟单规则。
  *
  * 口径提示: 持仓现价用最近日线收盘价 (收盘定版一致, 盘中估算见设计方案
- * docs/paper-trading-plan.md)。费用/滑点参数与回测引擎同名同默认值。
+ * docs/reference/trading-ai.md#paper)。费用/滑点参数与回测引擎同名同默认值。
  * 多账户: 所有查询按账户隔离 (queryKey 前缀 'paper'), 切换即换一套数据。
  */
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -68,7 +68,7 @@ function downloadTradesCsv(account: string, fills: PaperFill[]) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = `模拟盘成交台账_${account}_${new Date().toISOString().slice(0, 10)}.csv`
+  anchor.download = `模拟交易成交台账_${account}_${new Date().toISOString().slice(0, 10)}.csv`
   anchor.click()
   URL.revokeObjectURL(url)
 }
@@ -586,8 +586,8 @@ function OrderForm({ acc, onDone }: { acc: string; onDone: () => void }) {
   )
 }
 
-/** 策略候选对比 (V3): 模拟盘统计 vs 回测候选 (回测报告的持久化标量摘要, 口径与回测对齐)。
- * 单位口径: 候选 metrics 为小数 (fmtPct 渲染), 模拟盘统计为百分数原值 — 各自按己方单位渲染, 不做数值换算。 */
+/** 策略候选对比 (V3): 模拟交易统计 vs 回测候选 (回测报告的持久化标量摘要, 口径与回测对齐)。
+ * 单位口径: 候选 metrics 为小数 (fmtPct 渲染), 模拟交易统计为百分数原值 — 各自按己方单位渲染, 不做数值换算。 */
 interface PaperCompareStats {
   total_return_pct: number | null
   annual_pct: number | null
@@ -639,7 +639,7 @@ function CandidateCompareCard({ paper }: { paper: PaperCompareStats }) {
           <thead>
             <tr className="text-muted">
               <th className="py-0.5 text-left font-normal">指标</th>
-              <th className="py-0.5 text-right font-normal">模拟盘</th>
+              <th className="py-0.5 text-right font-normal">模拟交易</th>
               <th className="max-w-0 truncate py-0.5 text-right font-normal" title={sel.name}>{sel.name} (回测)</th>
             </tr>
           </thead>
@@ -655,7 +655,7 @@ function CandidateCompareCard({ paper }: { paper: PaperCompareStats }) {
         </table>
       ) : (
         <div className="mt-2 text-[11px] leading-relaxed text-muted">
-          在策略页保存回测候选后, 可与模拟盘同口径对比 (累计/年化/回撤/胜率等)。
+          在策略页保存回测候选后, 可与模拟交易同口径对比 (累计/年化/回撤/胜率等)。
         </div>
       )}
     </div>
@@ -879,7 +879,7 @@ function AutoRulesPanel({ acc }: { acc: string }) {
         策略可自动跟随买卖信号，退出时全平；自动退出不受冷却限制，仍遵守 T+1 和待成交卖单校验。
       </div>
       {rules.length === 0 ? (
-        <div className="py-8 text-center text-xs text-muted">暂无规则 — 新建一条, 让策略信号自动进入模拟盘</div>
+        <div className="py-8 text-center text-xs text-muted">暂无规则 — 新建一条, 让策略信号自动进入模拟交易</div>
       ) : (
         <div className="mt-2 space-y-1">
           {rules.map(r => (
@@ -1126,7 +1126,7 @@ function AutoRuleForm({ acc, onDone, onCancel }: { acc: string; onDone: () => vo
 }
 
 // ================================================================
-// 多账户对比 (V3): 模拟盘默认主视图 — 对比优先, 收益降序。
+// 多账户对比 (V3): 模拟交易默认主视图 — 对比优先, 收益降序。
 // ================================================================
 
 /** 净值迷你走势 (纯 SVG polyline, 最近 ~30 个定版点; 红涨绿跌与全局口径一致) */
@@ -1261,7 +1261,7 @@ function CompareView({ onCreateSingle }: { onCreateSingle: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
-        title="模拟盘"
+        title="模拟交易"
         subtitle="多账户并行对比 — 同本金 · 同费率 · 点表头排序, 点行展开完整账户操作"
         right={
           <div className="flex items-center gap-2">

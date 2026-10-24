@@ -1,0 +1,77 @@
+
+> tsp-frontend@0.4.17 test frontend
+> vitest run
+
+
+ RUN  v3.2.7 frontend
+
+ ✓ src/custom/assistant/store.test.ts (5 tests) 586ms
+ ✓ src/components/PaperCorporateActions.test.tsx (4 tests) 221ms
+stderr | src/pages/Indices.test.tsx > keeps selected dates isolated across delayed, out-of-order and cached responses
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/pages/Indices.test.tsx (1 test) 191ms
+ ✓ src/components/ext-data/ExtDataPullPanel.test.tsx (4 tests) 377ms
+ ✓ src/pages/settings/AI.test.tsx (4 tests) 424ms
+ ✓ src/lib/useListNav.test.tsx (7 tests) 155ms
+ ✓ src/components/screener/StrategyPoolDialog.test.tsx (5 tests) 282ms
+ ✓ src/lib/openSourceMonitor.test.tsx (10 tests) 424ms
+ ✓ src/pages/AbnormalMoves.test.tsx (3 tests) 369ms
+ ✓ src/pages/settings/DataSources.test.tsx (6 tests) 522ms
+ ✓ src/pages/backtest/components/paramSweep.test.tsx (2 tests) 95ms
+ ✓ src/components/EChartsIntraday.test.tsx (7 tests) 187ms
+ ✓ src/pages/Paper.test.tsx (3 tests) 639ms
+stderr | src/pages/Auth.test.tsx > desktop authentication bypass > redirects the login route directly to the application
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/router.test.tsx (12 tests) 493ms
+stderr | src/pages/LocalAdmin.test.tsx > signs in as admin and exposes personal space and settings without tenant requests
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/pages/Auth.test.tsx (2 tests) 226ms
+ ✓ src/pages/LocalAdmin.test.tsx (1 test) 306ms
+   ✓ signs in as admin and exposes personal space and settings without tenant requests  305ms
+stderr | src/components/TenantSelector.test.tsx > administrator tenant labels > displays owner owner@example.test while preserving the tenant ID
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/EChartsCandlestick.test.tsx (2 tests) 201ms
+ ✓ src/components/TenantSelector.test.tsx (6 tests) 95ms
+ ✓ src/components/financials/MarkdownRenderer.test.tsx (6 tests) 196ms
+ ✓ src/pages/settings/Monitoring.test.tsx (3 tests) 471ms
+   ✓ hydrates registration mail defaults after preferences load without a plaintext password  359ms
+ ✓ src/components/screener/DefaultStrategyParamsDialog.test.tsx (8 tests) 181ms
+ ✓ src/lib/accountSession.test.ts (5 tests) 49ms
+ ✓ src/components/stock-table/MiniIntraday.test.tsx (1 test) 33ms
+ ✓ src/components/AccountScopeBoundary.test.tsx (1 test) 50ms
+ ✓ src/lib/useQuoteStream.test.tsx (2 tests) 51ms
+ ✓ src/lib/updateCheck.test.ts (10 tests) 8ms
+ ✓ src/lib/api/openSourceRelease.test.ts (12 tests) 17ms
+ ✓ src/components/screener/StrategyCard.test.tsx (6 tests) 135ms
+ ✓ src/lib/neighborPrefetch.test.ts (4 tests) 192ms
+ ✓ src/lib/stock-table.test.ts (3 tests) 11ms
+ ✓ src/lib/watchlist-columns.test.ts (5 tests) 7ms
+ ✓ src/lib/theme.test.ts (6 tests) 9ms
+ ✓ src/lib/api/client.test.ts (5 tests) 16ms
+ ✓ src/lib/strategyParams.test.ts (5 tests) 6ms
+ ✓ src/lib/listNav.test.ts (6 tests) 3ms
+ ✓ src/pages/backtest/components/ResearchInputSummary.test.tsx (2 tests) 4ms
+ ✓ src/components/DimensionMembersDialog.test.ts (1 test) 2ms
+ ✓ src/components/data/QuoteConfigCard.test.tsx (1 test) 31ms
+ ✓ src/lib/format.test.ts (5 tests) 2ms
+ ✓ src/lib/strategyOverrides.test.ts (2 tests) 2ms
+ ✓ src/lib/analysis-adapter.test.ts (2 tests) 2ms
+ ✓ src/lib/auth-api.test.ts (3 tests) 8ms
+ ✓ src/components/dashboard/useDashboardLayout.test.tsx (7 tests) 30ms
+ ✓ src/pages/backtest/tradeNav.test.ts (6 tests) 9ms
+ ✓ src/lib/intraday-chart.test.ts (2 tests) 4ms
+ ✓ src/components/dashboard/layout.test.ts (20 tests) 7ms
+ ✓ src/pages/Dashboard.test.ts (5 tests) 2ms
+
+ Test Files  47 passed (47)
+      Tests  228 passed (228)
+   Start at  22:34:06
+   Duration  12.88s (transform 5.80s, setup 0ms, collect 28.63s, tests 7.33s, environment 53.90s, prepare 12.18s)

@@ -33,40 +33,38 @@ interface NavEntry {
 
 // 与 Layout 侧边栏默认顺序保持一致 (nav_order 未保存时的默认展示顺序)
 const BUILTIN_PAGES: NavEntry[] = [
-  { id: '/', label: '看板', type: 'builtin', visible: true },
+  { id: '/', label: '行情', type: 'builtin', visible: true },
+  { id: '/regime', label: '环境', type: 'builtin', visible: true },
   { id: '/watchlist', label: '自选', type: 'builtin', visible: true },
   { id: '/screener', label: '策略', type: 'builtin', visible: true },
   { id: '/factors', label: '因子', type: 'builtin', visible: true },
-  { id: '/review', label: '复盘', type: 'builtin', visible: true },
   { id: '/backtest', label: '回测', type: 'builtin', visible: true },
-  { id: '/signals', label: '信号库', type: 'builtin', visible: true },
+  { id: '/review', label: '复盘', type: 'builtin', visible: true },
+  { id: '/abnormal', label: '异动', type: 'builtin', visible: true },
   { id: '/lots', label: '持仓提醒', type: 'builtin', visible: true },
-  { id: '/abnormal', label: '异动监控', type: 'builtin', visible: true },
+  { id: '/monitor', label: '监控中心', type: 'builtin', visible: true },
   { id: '/limit-ladder', label: '连板梯队', type: 'builtin', visible: true },
   { id: '/stock-analysis', label: '个股分析', type: 'builtin', visible: true },
   { id: '/concept-analysis', label: '概念分析', type: 'builtin', visible: true },
   { id: '/industry-analysis', label: '行业分析', type: 'builtin', visible: true },
   { id: '/financials', label: '财务分析', type: 'builtin', visible: true },
-  { id: '/monitor', label: '监控中心', type: 'builtin', visible: true },
-  { id: '/regime', label: '市场环境', type: 'builtin', visible: true },
-  { id: '/paper', label: '模拟盘', type: 'builtin', visible: true },
-  { id: '/indices', label: '指数', type: 'builtin', visible: true },
-  { id: '/data', label: '数据', type: 'builtin', visible: true },
+  { id: '/signals', label: '信号指标', type: 'builtin', visible: true },
+  { id: '/paper', label: '模拟交易', type: 'builtin', visible: true },
+  { id: '/data', label: '数据总览', type: 'builtin', visible: true },
 ]
 
-// ── 架构归属标注 (docs/open-platform-plan.md §2 核心域/扩展域边界) ──
+// ── 架构归属标注 (docs/reference/integrations.md#open-2-核心域--扩展域边界) ──
 // 核心 = 页面承载核心域能力 (数据底座/订阅锚点/策略回测/环境生产);
 // 扩展 = 核心数据的消费页, 二开可用「扩展页面」平行实现替换 UI 而不伤核心。
 // 与「类型」列的区别: 类型标注页面来源 (内置/自定义), 归属标注架构分层。
 type ArchKind = 'core' | 'ext'
 const ARCH_CLASS: Record<string, { kind: ArchKind; reason: string }> = {
   '/':               { kind: 'core', reason: '总览页 — 聚合核心数据的多维视图' },
-  '/watchlist':      { kind: 'core', reason: '订阅锚点 — 监控/提醒/看板的数据范围基准' },
+  '/watchlist':      { kind: 'core', reason: '订阅锚点 — 监控/提醒/行情的数据范围基准' },
   '/screener':       { kind: 'core', reason: '策略引擎 — 选股/评分/信号定义' },
   '/factors':        { kind: 'core', reason: '因子平台 — 因子检验与回测联动' },
   '/backtest':       { kind: 'core', reason: '回测引擎 — 矩阵回测与优化' },
   '/regime':         { kind: 'core', reason: '环境数据生产 — 回测/挖掘/归因共用的市场状态口径' },
-  '/indices':        { kind: 'core', reason: '行情数据底座 — 指数日K/分时出口' },
   '/data':           { kind: 'core', reason: '数据底座 — 同步管道与数据源路由' },
   '/stock-analysis': { kind: 'ext', reason: '个股分析视图 — 消费核心数据, 可由扩展页面替换' },
   '/limit-ladder':   { kind: 'ext', reason: '连板梯队视图 — 消费核心数据, 可由扩展页面替换' },
@@ -74,10 +72,10 @@ const ARCH_CLASS: Record<string, { kind: ArchKind; reason: string }> = {
   '/industry-analysis': { kind: 'ext', reason: '行业分析视图 — 消费核心数据, 可由扩展页面替换' },
   '/financials':     { kind: 'ext', reason: '财务分析视图 — 消费核心数据, 可由扩展页面替换' },
   '/monitor':        { kind: 'ext', reason: '监控消费页 (规则引擎与推送管道属核心), 页面可替换' },
-  '/abnormal':       { kind: 'ext', reason: '异动监控视图 — 消费核心数据, 可由扩展页面替换' },
+  '/abnormal':       { kind: 'ext', reason: '异动视图 — 消费核心数据, 可由扩展页面替换' },
   '/lots':           { kind: 'ext', reason: '持仓提醒视图 — 消费核心数据, 可由扩展页面替换' },
-  '/paper':          { kind: 'ext', reason: '模拟盘 — 官方插件化拆分候选 (V3)' },
-  '/signals':        { kind: 'ext', reason: '信号库视图 — 消费核心数据, 可由扩展页面替换' },
+  '/paper':          { kind: 'ext', reason: '模拟交易 — 官方插件化拆分候选 (V3)' },
+  '/signals':        { kind: 'ext', reason: '信号指标视图 — 消费核心数据, 可由扩展页面替换' },
   '/review':         { kind: 'ext', reason: '大盘复盘视图 — 消费核心数据, 可由扩展页面替换' },
 }
 /** 自定义分析页天然属于扩展域 */

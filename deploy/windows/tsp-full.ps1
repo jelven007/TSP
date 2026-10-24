@@ -10,7 +10,7 @@
 
     Every supervisor is spawned with Start-Process so it owns its own console:
     reusing or closing the launching terminal no longer kills the workers
-    (see docs/windows10-full-run-plan.md, P0-4).
+    (see docs/operations.md#windows-legacy).
 
     The platform (3018) and API with static frontend (3030) are only probed
     for liveness. They start through tsp-service.ps1; this script does not

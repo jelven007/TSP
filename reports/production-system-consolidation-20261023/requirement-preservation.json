@@ -1,0 +1,9 @@
+{
+  "baseline_count": 203,
+  "current_count": 203,
+  "exact_id_set_preserved": true,
+  "behavior_state_priority_exception_cells_preserved": true,
+  "changed_contract_ids": [],
+  "functional_count": 161,
+  "nonfunctional_count": 42
+}

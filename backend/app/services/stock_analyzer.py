@@ -196,7 +196,7 @@ _SYSTEM_PROMPT = """你是一位拥有 15 年 A 股一线研究经验的技术�
 # ================================================================
 
 def _paper_position_part(positions: list[dict], close: float | None, raw_close: float | None) -> str:
-    """虚拟持仓上下文 (V3): 模拟盘持有该标的时注入提示词, 让 AI 结合仓位给建议。
+    """虚拟持仓上下文 (V3): 模拟交易持有该标的时注入提示词, 让 AI 结合仓位给建议。
 
     positions 为多账户列表 [{account_id, qty, avg_cost}, ...] (V2 账户隔离),
     只收 qty>0 的账户, 逐账户一行; 全空则返回空串 (不注入"空仓"之类误导性表述)。
@@ -217,10 +217,10 @@ def _paper_position_part(positions: list[dict], close: float | None, raw_close: 
     if not lines:
         return ""
     return (
-        "\n以下是该标的在模拟盘 (虚拟账户) 的当前持仓:\n"
+        "\n以下是该标的在模拟交易 (虚拟账户) 的当前持仓:\n"
         + "\n".join(lines)
         + "\n请在结论中结合该虚拟持仓状态给出持有/减仓/加仓的可执行参考,"
-        "并明确这是基于模拟盘虚拟持仓的建议。\n"
+        "并明确这是基于模拟交易虚拟持仓的建议。\n"
     )
 
 
@@ -372,7 +372,7 @@ async def analyze_stock_stream(
                 if pos and (pos.get("qty") or 0) > 0:
                     paper_positions.append({"account_id": acc_id, **pos})
         except Exception as e:  # noqa: BLE001
-            logger.warning("读取模拟盘持仓失败 (跳过注入): %s", e)
+            logger.warning("读取模拟交易持仓失败 (跳过注入): %s", e)
         # 浮盈口径用 raw: 持仓成本不复权, 与前复权 close 混算会在除权后失真
         raw_close = float(df.tail(1)["raw_close"][0]) if "raw_close" in df.columns else None
 

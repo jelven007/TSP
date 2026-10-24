@@ -20,6 +20,7 @@ import time
 import uuid
 from pathlib import Path
 
+from app.bootstrap_defaults import ADMIN_PASSWORD, ADMIN_USERNAME, REGISTRATION_SECRET
 from app.services.fs_utils import atomic_write_text
 
 logger = logging.getLogger(__name__)
@@ -122,8 +123,8 @@ def bootstrap_local_admin() -> bool:
             _load()  # Corrupt identity files must stop startup, never reset.
             _configured_cache = True
             return False
-        user = _new_user("", "Admin123")
-        user.update(username="admin", role="admin")
+        user = _new_user("", ADMIN_PASSWORD)
+        user.update(username=ADMIN_USERNAME, role="admin")
         _save({
             "schema_version": _SCHEMA_VERSION,
             "users": {user["id"]: user},
@@ -231,13 +232,24 @@ def _find_user_by_email(data: dict, email: str) -> dict | None:
     return None
 
 
+def _find_user_by_username(data: dict, username: str) -> dict | None:
+    for user in _users(data).values():
+        if isinstance(user, dict) and user.get("username") == username:
+            return user
+    return None
+
+
 def _public_user(user: dict) -> dict:
+    from app.config import settings
+
     result = {
         "id": str(user["id"]),
-        "email": str(user["email"]),
+        "email": str(user["email"]) if user.get("email") else None,
         "created_at": int(user["created_at"]),
     }
-    if user.get("username") == "admin" and user.get("role") == "admin":
+    if user.get("username"):
+        result.update(username=user["username"], role=user.get("role"))
+    if settings.local_admin_mode and user.get("username") == "admin" and user.get("role") == "admin":
         result.update(
             email=None,
             username="admin", role="admin", default_tenant_id="personal",
@@ -376,7 +388,10 @@ def authenticate_user(email: str, password: str) -> tuple[str, dict] | None:
         if settings.local_admin_mode:
             user = next(iter(_users(data).values()), None) if email.strip() == "admin" else None
         else:
-            user = _find_user_by_email(data, normalized) if normalized else None
+            user = (
+                _find_user_by_email(data, normalized) if normalized
+                else _find_user_by_username(data, email.strip())
+            )
         if user is None:
             _verify_password(password, _DUMMY_SALT.hex(), _DUMMY_HASH)
             return None
@@ -519,7 +534,8 @@ def bootstrap_registration_secret_from_env() -> bool:
         raw_secret = raw.get("AUTH_REGISTRATION_SECRET")
         if isinstance(raw_secret, str) and raw_secret.strip():
             secret = raw_secret.strip()
-    if not secret or has_registration_secret():
+    secret = secret or REGISTRATION_SECRET
+    if has_registration_secret():
         return False
     try:
         set_registration_secret(secret)
@@ -529,27 +545,64 @@ def bootstrap_registration_secret_from_env() -> bool:
         return False
 
 
+def _bootstrap_admin_account(username: str, password: str) -> bool:
+    """Add a named administrator without changing modes or existing identities."""
+    global _configured_cache
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", username):
+        raise ValueError("管理员用户名须为 1 到 64 位字母、数字、下划线、点或短横线")
+    with _lock:
+        data = _load()
+        if _find_user_by_username(data, username):
+            return False
+        if data.get("password_hash") and not _users(data):
+            raise LegacyMigrationRequiredError("请先升级现有访问密码账户")
+        user = _new_user("", password)
+        user.update(username=username, role="admin")
+        data.update(
+            schema_version=_SCHEMA_VERSION,
+            users={**_users(data), user["id"]: user},
+            updated_at=int(time.time()),
+        )
+        data.setdefault("sessions", {})
+        _save(data)
+        _configured_cache = True
+    logger.info("administrator account initialized")
+    return True
+
+
 def bootstrap_from_env() -> bool:
-    """Initialize auth once from AUTH_EMAIL/AUTH_PASSWORD when provided."""
+    """Preseed fresh installs, preserving explicit and existing account settings."""
     from app.config import _ENV_FILE, settings
 
     if settings.local_admin_mode:
         return False
     password = (settings.auth_password or "").strip()
     email = (settings.auth_email or "").strip()
+    username = (settings.auth_username or "").strip()
     if _ENV_FILE.is_file():
         from dotenv import dotenv_values
 
         raw = dotenv_values(_ENV_FILE, encoding="utf-8", interpolate=False)
         raw_password = raw.get("AUTH_PASSWORD")
         raw_email = raw.get("AUTH_EMAIL")
+        raw_username = raw.get("AUTH_USERNAME")
         if isinstance(raw_password, str) and raw_password.strip():
             password = raw_password.strip()
         if isinstance(raw_email, str) and raw_email.strip():
             email = raw_email.strip()
-    if not password or is_configured():
+        if isinstance(raw_username, str) and raw_username.strip():
+            username = raw_username.strip()
+    if not (username or email or password):
+        if is_configured():
+            return False
+        username, password = ADMIN_USERNAME, ADMIN_PASSWORD
+    if not password:
         return False
     try:
+        if username:
+            return _bootstrap_admin_account(username, password)
+        if is_configured():
+            return False
         if email:
             token, _ = register_user(email, password)
             revoke_session(token)

@@ -52,7 +52,7 @@ export function SignalTriggerActions({ kind, signals, onChange, buttonClassName,
       <button
         type="button"
         onClick={() => navigate('/signals?highlight=signals')}
-        title="去信号库"
+        title="去信号指标"
         className={`${btnCls} hover:border-amber-400/40 hover:text-amber-400`}
       >
         <Settings2 className={iconCls} />

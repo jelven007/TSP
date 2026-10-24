@@ -101,7 +101,7 @@ FastAPI 保存/读取隐藏值及元数据序列化；前端 **167 passed**（34
 
 L3：复用 `ext_pull` 请求、鉴权、日期与映射链路，在独立 `ext_fanout`
 实现有界配方；配置模型 / API / 现有拉取面板接线。详见
-[配方与恢复文档](../../docs/ext-pull-recipes.md)。
+[配方与恢复文档](../../docs/reference/market-data.md#pull)。
 
 - 修复已存在分页字段没有经过 API 保存的问题；旧客户端省略新增字段时保留现值。
   空页/短页才作为结束证据，达到页数上限不再静默接受部分结果。
@@ -159,7 +159,7 @@ pnpm exec eslint src/components/ext-data/ExtDataPullPanel.tsx \
 
 复用助手 L2 后端路由及 `TenantDocuments`；L3 修改助手自身前端 store，
 没有修改核心路由注册和行情/策略/研究缓存。见
-[协议、容量与回滚](../../docs/assistant-sessions.md)。
+[协议、容量与回滚](../../docs/reference/trading-ai.md#sessions)。
 
 - 多租户使用当前上下文 user_id + RLS tenant_id，整组历史保存在一个文档，
   在既有业务事务内比较 revision。空列表删除仍保留 revision，旧设备无法自动复活
@@ -214,7 +214,7 @@ pnpm build
 
 L3：原有 Provider 的文本/工具入口分流到 `services/ai_responses.py`；
 助手 Responses 流式路径共用该适配器，保留既有 Chat/Gemini 分片与签名适配。
-不增加供应商预设或推广服务，配置与行为见 [AI 协议](../../docs/ai-protocols.md)。
+不增加供应商预设或推广服务，配置与行为见 [AI 协议](../../docs/reference/trading-ai.md#ai)。
 
 - 新增 `AI_PROTOCOL` / 设置页接口协议，默认 Chat Completions；旧客户端省略字段
   保留现值，非法枚举 422，清空回默认。Codex CLI 不使用协议字段。
@@ -327,7 +327,7 @@ C4 补充：文档联动发现操作说明书 22.8/24.4 仍有“未配置 URL �
 
 L3 构建入口接线，复用现有 `upgrade_check.py` 和桌面安装包 SHA-256 发布链路。
 新增标准库离线脚本 `build_manifest.py`，不增加运行时 API、启动扫描或缓存。
-契约与恢复方式见[构建及升级备份](../../docs/build-upgrade-evidence.md)。
+契约与恢复方式见[构建及升级备份](../../docs/reference/engineering.md#build)。
 
 - Docker 保存 app/static、版本、依赖锁、原生 wheel 和核验脚本的文件索引；
   CI 传入实际测试 SHA。未传入源码 SHA 明确 unknown，不冒充干净 Git 检出。
@@ -378,7 +378,7 @@ Linux ARM64 实际运行目录 **587 文件**扫描与再次核验一致，空�
 
 L3：在既有单机研究 worker 创建仓库前固定输入，复用公共发布白名单与原回测、
 优化/步进优化服务；多租户沿用原 release + SQL 私有输入，不另建任务存储。
-契约、限制及离线保留方式见[研究配置](../../docs/research-configuration.md)。
+契约、限制及离线保留方式见[研究配置](../../docs/reference/research.md#research)。
 
 - 单机每个完整任务共用保留目录，包含全部历史分区、暖机/退出/全部 fold 所需数据、
   财务观察版本、状态、扩展数据和私有策略/因子/信号/覆盖配置。
@@ -446,7 +446,7 @@ pnpm build
 
 L3：新增标准 `CorporateAction` 与独立 Provider 能力/路由，账务放在
 `strategy/paper_actions.py`，复用原模拟盘事务、锁及账本重放。
-详细数据契约、适用范围与回滚见[公司行为](../../docs/corporate-actions.md)。
+详细数据契约、适用范围与回滚见[公司行为](../../docs/reference/trading-ai.md#corporate)。
 
 - rustdx 保留 TDX category=1 的分红、送转及配股，显式从每十股转换成每股。
   登记、到账、上市日不猜测；HTTP 自定义源也可映射完整标准字段。

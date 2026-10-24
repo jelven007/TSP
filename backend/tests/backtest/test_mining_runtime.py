@@ -354,7 +354,7 @@ def test_validate_regime_availability_fails_fast_when_regime_data_missing(
         mining_request=SimpleNamespace(validation=_small_validation()),
     )
 
-    with pytest.raises(ValueError, match="市场环境数据为空"):
+    with pytest.raises(ValueError, match="环境数据为空"):
         _validate_regime_availability(panel, request, tmp_path)
 
 
@@ -388,5 +388,5 @@ def test_validate_regime_availability_reports_coverage_gaps_in_fold_windows(
         mining_request=SimpleNamespace(validation=_small_validation()),
     )
 
-    with pytest.raises(ValueError, match="市场环境数据覆盖不完整"):
+    with pytest.raises(ValueError, match="环境数据覆盖不完整"):
         _validate_regime_availability(panel, request, tmp_path)

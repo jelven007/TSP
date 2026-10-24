@@ -1,0 +1,37 @@
+[
+  {
+    "source": "数据源分类与需求清单-20261024.md",
+    "target": "reports/page-data-analysis-20261024/数据源分类与需求清单.md",
+    "source_sha256": "fc5e7478c3bcb4f3b2f946f1008bf0f1832c7890d23d4e4d76e0ebc92227c6b5",
+    "target_sha256": "34ebe6814110adb7bbd2eda2f6289ddcdafcb3c8ad634821bc4b7e3d37425498",
+    "change": "directory move, provenance header and repository-relative links"
+  },
+  {
+    "source": "各菜单页面数量统计-20261024.md",
+    "target": "reports/page-data-analysis-20261024/各菜单页面数量统计.md",
+    "source_sha256": "86c7465b28dc035d1a8a0db5983ee0c44a5cff3eaf23e93383d3f059b0842548",
+    "target_sha256": "6de3e52f70aec0574befab53591dd079d356f2a62eb4562107b1c89ce176ef2f",
+    "change": "directory move, provenance header and repository-relative links"
+  },
+  {
+    "source": "全页面分析与入口清单-20261024.md",
+    "target": "reports/page-data-analysis-20261024/全页面分析与入口清单.md",
+    "source_sha256": "4904918093e34df7e549a7448ed73ad9d4782474a7aab6021277e2a29528fbe5",
+    "target_sha256": "09377a0f5db899dcde626fb204e5cc6616045483f59f758f21054beb3b333a0a",
+    "change": "directory move, provenance header and repository-relative links"
+  },
+  {
+    "source": "页面数据血缘与上游接口清单-20261024.md",
+    "target": "reports/page-data-analysis-20261024/页面数据血缘与上游接口清单.md",
+    "source_sha256": "7f7ea4b4ca2e13dbb580f548b75829f4d21c685286507b11bbc12679bf18280f",
+    "target_sha256": "57729a3cc631756030195735e425ae5426ab63c862686c6cb5a4930e00acde53",
+    "change": "directory move, provenance header and repository-relative links"
+  },
+  {
+    "source": "菜单层级与弹出页面清单-20261024.md",
+    "target": "reports/page-data-analysis-20261024/菜单层级与弹出页面清单.md",
+    "source_sha256": "126b578a1b995b867dad9c882bb01d936446b6df196284bb8f222466cf8ca26c",
+    "target_sha256": "6e3677546c8925733fdd4bd235628b9f1afe04c2e347c53358f0f931f2609541",
+    "change": "directory move, provenance header and repository-relative links"
+  }
+]

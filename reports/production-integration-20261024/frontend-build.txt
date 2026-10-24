@@ -1,0 +1,279 @@
+
+> tsp-frontend@0.4.17 build frontend
+> tsc -b && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 2873 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                     1.30 kB │ gzip:   0.93 kB
+dist/assets/jetbrains-mono-greek-400-normal-C190GLew.woff2          4.23 kB
+dist/assets/jetbrains-mono-greek-500-normal-JpySY46c.woff2          4.28 kB
+dist/assets/jetbrains-mono-greek-700-normal-C6CZE3T8.woff2          4.30 kB
+dist/assets/jetbrains-mono-greek-600-normal-H7WoG9Et.woff2          4.31 kB
+dist/assets/inter-vietnamese-400-normal-DMkecbls.woff2              4.97 kB
+dist/assets/inter-vietnamese-900-normal-C4P836tE.woff2              5.03 kB
+dist/assets/inter-vietnamese-300-normal-Bdr24Bqb.woff2              5.06 kB
+dist/assets/inter-vietnamese-600-normal-Cc8MFFhd.woff2              5.10 kB
+dist/assets/inter-vietnamese-700-normal-DlLaEgI2.woff2              5.10 kB
+dist/assets/inter-vietnamese-500-normal-DOriooB6.woff2              5.11 kB
+dist/assets/inter-greek-ext-400-normal-DGGRlc-M.woff2               5.26 kB
+dist/assets/jetbrains-mono-cyrillic-400-normal-BEIGL1Tu.woff2       5.33 kB
+dist/assets/jetbrains-mono-cyrillic-700-normal-BWTpRfYl.woff2       5.34 kB
+dist/assets/inter-greek-ext-300-normal-l2DDyC6M.woff2               5.35 kB
+dist/assets/inter-greek-ext-900-normal-voj7phVX.woff2               5.35 kB
+dist/assets/jetbrains-mono-cyrillic-500-normal-DmUKJPL_.woff2       5.36 kB
+dist/assets/jetbrains-mono-vietnamese-400-normal-CqNFfHCs.woff      5.37 kB
+dist/assets/jetbrains-mono-cyrillic-600-normal-EVf6-Yzo.woff2       5.38 kB
+dist/assets/inter-greek-ext-500-normal-C4iEst2y.woff2               5.43 kB
+dist/assets/inter-greek-ext-600-normal-DRtmH8MT.woff2               5.43 kB
+dist/assets/inter-greek-ext-700-normal-qfdV9bQt.woff2               5.44 kB
+dist/assets/jetbrains-mono-vietnamese-700-normal-BDLVIk2r.woff      5.45 kB
+dist/assets/jetbrains-mono-vietnamese-500-normal-DNRqzVM1.woff      5.48 kB
+dist/assets/jetbrains-mono-vietnamese-600-normal-OWROknRo.woff      5.48 kB
+dist/assets/jetbrains-mono-greek-400-normal-B9oWc5Lo.woff           5.66 kB
+dist/assets/jetbrains-mono-greek-700-normal-DEigVDxa.woff           5.70 kB
+dist/assets/jetbrains-mono-greek-600-normal-mc2nkWzM.woff           5.70 kB
+dist/assets/jetbrains-mono-greek-500-normal-D7SFKleX.woff           5.72 kB
+dist/assets/inter-vietnamese-900-normal-DBSPUrC7.woff               6.46 kB
+dist/assets/inter-vietnamese-400-normal-Bbgyi5SW.woff               6.50 kB
+dist/assets/inter-vietnamese-300-normal-DDGmYYdT.woff               6.59 kB
+dist/assets/inter-vietnamese-500-normal-mJboJaSs.woff               6.60 kB
+dist/assets/inter-vietnamese-700-normal-BZaoP0fm.woff               6.63 kB
+dist/assets/inter-vietnamese-600-normal-BuLX-rYi.woff               6.64 kB
+dist/assets/jetbrains-mono-cyrillic-400-normal-ugxPyKxw.woff        6.98 kB
+dist/assets/jetbrains-mono-cyrillic-700-normal-CEoEElIJ.woff        7.02 kB
+dist/assets/jetbrains-mono-cyrillic-600-normal-8K4wrrwR.woff        7.02 kB
+dist/assets/jetbrains-mono-cyrillic-500-normal-DJqRU3vO.woff        7.02 kB
+dist/assets/inter-greek-ext-400-normal-KugGGMne.woff                7.06 kB
+dist/assets/inter-greek-ext-900-normal-LVqH4fM3.woff                7.10 kB
+dist/assets/inter-greek-ext-300-normal-DLbbeei1.woff                7.13 kB
+dist/assets/inter-greek-ext-500-normal-2j5mBUwD.woff                7.19 kB
+dist/assets/inter-greek-ext-600-normal-B8X0CLgF.woff                7.21 kB
+dist/assets/inter-greek-ext-700-normal-BoQ6DsYi.woff                7.22 kB
+dist/assets/jetbrains-mono-latin-ext-400-normal-Bc8Ftmh3.woff2      7.34 kB
+dist/assets/jetbrains-mono-latin-ext-700-normal-CZipNAKV.woff2      7.47 kB
+dist/assets/jetbrains-mono-latin-ext-600-normal-BfB_LPfz.woff2      7.51 kB
+dist/assets/jetbrains-mono-latin-ext-500-normal-Cut-4mMH.woff2      7.53 kB
+dist/assets/inter-cyrillic-400-normal-obahsSVq.woff2                7.71 kB
+dist/assets/inter-greek-400-normal-B4URO6DV.woff2                   7.78 kB
+dist/assets/inter-cyrillic-900-normal-CjyCg421.woff2                7.81 kB
+dist/assets/inter-cyrillic-300-normal-BnqRxXuy.woff2                7.81 kB
+dist/assets/inter-greek-900-normal-Clii5heL.woff2                   7.84 kB
+dist/assets/inter-cyrillic-500-normal-BasfLYem.woff2                7.90 kB
+dist/assets/inter-cyrillic-700-normal-CjBOestx.woff2                7.90 kB
+dist/assets/inter-greek-700-normal-C3JjAnD8.woff2                   7.92 kB
+dist/assets/inter-greek-500-normal-BIZE56-Y.woff2                   7.92 kB
+dist/assets/inter-greek-600-normal-plRanbMR.woff2                   7.94 kB
+dist/assets/inter-cyrillic-600-normal-CWCymEST.woff2                7.97 kB
+dist/assets/inter-greek-300-normal-DmGD3g_f.woff2                   8.00 kB
+dist/assets/inter-cyrillic-400-normal-HOLc17fK.woff                 9.78 kB
+dist/assets/inter-cyrillic-300-normal-LR1W_oT8.woff                 9.82 kB
+dist/assets/inter-cyrillic-900-normal-BAVML7y5.woff                 9.83 kB
+dist/assets/inter-greek-900-normal-7n5hB3DA.woff                    9.90 kB
+dist/assets/inter-cyrillic-700-normal-DrXBdSj3.woff                 9.91 kB
+dist/assets/inter-greek-400-normal-q2sYcFCs.woff                    9.92 kB
+dist/assets/inter-cyrillic-600-normal-4D_pXhcN.woff                 9.94 kB
+dist/assets/inter-cyrillic-500-normal-CxZf_p3X.woff                 9.94 kB
+dist/assets/inter-greek-700-normal-BUv2fZ6O.woff                    9.98 kB
+dist/assets/inter-greek-500-normal-Xzm54t5V.woff                    9.98 kB
+dist/assets/inter-greek-300-normal-BrhSP0vQ.woff                   10.00 kB
+dist/assets/inter-greek-600-normal-BZpKdvQh.woff                   10.03 kB
+dist/assets/jetbrains-mono-latin-ext-400-normal-fXTG6kC5.woff      10.13 kB
+dist/assets/inter-cyrillic-ext-900-normal-buRuWz4h.woff2           10.16 kB
+dist/assets/inter-cyrillic-ext-400-normal-BQZuk6qB.woff2           10.23 kB
+dist/assets/jetbrains-mono-latin-ext-700-normal-CxPITLHs.woff      10.30 kB
+dist/assets/jetbrains-mono-latin-ext-600-normal-DObL3zCW.woff      10.32 kB
+dist/assets/jetbrains-mono-latin-ext-500-normal-ckzbgY84.woff      10.34 kB
+dist/assets/inter-cyrillic-ext-300-normal-CgCALhwJ.woff2           10.36 kB
+dist/assets/inter-cyrillic-ext-500-normal-B0yAr1jD.woff2           10.43 kB
+dist/assets/inter-cyrillic-ext-600-normal-Dfes3d0z.woff2           10.48 kB
+dist/assets/inter-cyrillic-ext-700-normal-BjwYoWNd.woff2           10.50 kB
+dist/assets/inter-cyrillic-ext-900-normal-BUlv-ou0.woff            13.22 kB
+dist/assets/inter-cyrillic-ext-400-normal-DQukG94-.woff            13.34 kB
+dist/assets/inter-cyrillic-ext-300-normal-RId2JxDB.woff            13.40 kB
+dist/assets/inter-cyrillic-ext-700-normal-LO58E6JB.woff            13.41 kB
+dist/assets/inter-cyrillic-ext-500-normal-BmqWE9Dz.woff            13.45 kB
+dist/assets/inter-cyrillic-ext-600-normal-Bcila6Z-.woff            13.46 kB
+dist/assets/jetbrains-mono-latin-400-normal-V6pRDFza.woff2         21.17 kB
+dist/assets/jetbrains-mono-latin-500-normal-BWZEU5yA.woff2         21.83 kB
+dist/assets/jetbrains-mono-latin-600-normal-C8RAYTDA.woff2         21.86 kB
+dist/assets/jetbrains-mono-latin-700-normal-BYuf6tUa.woff2         21.91 kB
+dist/assets/inter-latin-400-normal-C38fXH4l.woff2                  23.66 kB
+dist/assets/inter-latin-900-normal-D4nM5aha.woff2                  23.90 kB
+dist/assets/inter-latin-300-normal-BVlfKGgI.woff2                  23.92 kB
+dist/assets/inter-latin-500-normal-Cerq10X2.woff2                  24.27 kB
+dist/assets/inter-latin-700-normal-Yt3aPRUw.woff2                  24.36 kB
+dist/assets/inter-latin-600-normal-LgqL8muc.woff2                  24.45 kB
+dist/assets/jetbrains-mono-latin-400-normal-6-qcROiO.woff          27.50 kB
+dist/assets/jetbrains-mono-latin-600-normal-BfsvjouI.woff          28.18 kB
+dist/assets/jetbrains-mono-latin-500-normal-CJOVTJB7.woff          28.21 kB
+dist/assets/jetbrains-mono-latin-700-normal-D3wTyLJW.woff          28.21 kB
+dist/assets/inter-latin-900-normal-EUCDUbiG.woff                   30.68 kB
+dist/assets/inter-latin-400-normal-CyCys3Eg.woff                   30.70 kB
+dist/assets/inter-latin-300-normal-i8F0SvXL.woff                   31.01 kB
+dist/assets/inter-latin-600-normal-CiBQ2DWP.woff                   31.26 kB
+dist/assets/inter-latin-500-normal-BL9OpVg8.woff                   31.28 kB
+dist/assets/inter-latin-700-normal-BLAVimhd.woff                   31.32 kB
+dist/assets/inter-latin-ext-400-normal-C1nco2VV.woff2              35.00 kB
+dist/assets/inter-latin-ext-900-normal-ty8Tfvw5.woff2              35.33 kB
+dist/assets/inter-latin-ext-300-normal-CPgO9Ksf.woff2              35.88 kB
+dist/assets/inter-latin-ext-500-normal-CV4jyFjo.woff2              36.02 kB
+dist/assets/inter-latin-ext-700-normal-Ca8adRJv.woff2              36.24 kB
+dist/assets/inter-latin-ext-600-normal-D2bJ5OIk.woff2              36.26 kB
+dist/assets/inter-latin-ext-400-normal-77YHD8bZ.woff               47.56 kB
+dist/assets/inter-latin-ext-900-normal-DG9wZIMw.woff               47.66 kB
+dist/assets/inter-latin-ext-500-normal-BxGbmqWO.woff               48.49 kB
+dist/assets/inter-latin-ext-300-normal-Dp1L8vcn.woff               48.61 kB
+dist/assets/inter-latin-ext-700-normal-TidjK2hL.woff               48.63 kB
+dist/assets/inter-latin-ext-600-normal-CIVaiw4L.woff               48.67 kB
+dist/assets/Dashboard-BKkt1yXo.css                                  5.51 kB │ gzip:   0.98 kB
+dist/assets/index-o5xzHEdY.css                                    184.36 kB │ gzip:  47.94 kB
+dist/assets/Skeleton-DiOKa_wG.js                                    0.22 kB │ gzip:   0.20 kB
+dist/assets/listNav-CzgA8pdw.js                                     0.27 kB │ gzip:   0.20 kB
+dist/assets/minus-Bqh89X_F.js                                       0.30 kB │ gzip:   0.25 kB
+dist/assets/chevron-up-pBHpnPTw.js                                  0.31 kB │ gzip:   0.25 kB
+dist/assets/play-Ccz45hI9.js                                        0.31 kB │ gzip:   0.26 kB
+dist/assets/square-BP9TE_aB.js                                      0.33 kB │ gzip:   0.26 kB
+dist/assets/plus-ewROjhoG.js                                        0.33 kB │ gzip:   0.26 kB
+dist/assets/filter-BF8BpP5S.js                                      0.34 kB │ gzip:   0.27 kB
+dist/assets/arrow-up-DaAvQ-M3.js                                    0.34 kB │ gzip:   0.27 kB
+dist/assets/arrow-right-DGnUIbUC.js                                 0.34 kB │ gzip:   0.27 kB
+dist/assets/arrow-down-CNHfjAtp.js                                  0.34 kB │ gzip:   0.27 kB
+dist/assets/arrow-up-right-BTAe5Bie.js                              0.35 kB │ gzip:   0.27 kB
+dist/assets/search-BAL2xu3q.js                                      0.35 kB │ gzip:   0.28 kB
+dist/assets/gauge-D8J5gx6s.js                                       0.36 kB │ gzip:   0.28 kB
+dist/assets/user-round-DdVbLbwF.js                                  0.36 kB │ gzip:   0.29 kB
+dist/assets/clock-G-IDdUnF.js                                       0.36 kB │ gzip:   0.28 kB
+dist/assets/clock-3-BLhEdL-J.js                                     0.37 kB │ gzip:   0.28 kB
+dist/assets/terminal-C70wECMQ.js                                    0.37 kB │ gzip:   0.29 kB
+dist/assets/MinuteQualityNote-CqVvoF-I.js                           0.37 kB │ gzip:   0.44 kB
+dist/assets/rotate-ccw-CXuCkzoJ.js                                  0.38 kB │ gzip:   0.29 kB
+dist/assets/info-Bfcjw00j.js                                        0.38 kB │ gzip:   0.29 kB
+dist/assets/lock-DjLAJeWk.js                                        0.39 kB │ gzip:   0.30 kB
+dist/assets/circle-x-B0V7q5DL.js                                    0.39 kB │ gzip:   0.29 kB
+dist/assets/star-Ch2m0yi4.js                                        0.39 kB │ gzip:   0.30 kB
+dist/assets/mail--mjGVKfG.js                                        0.40 kB │ gzip:   0.31 kB
+dist/assets/activity-CeckZw7J.js                                    0.41 kB │ gzip:   0.31 kB
+dist/assets/circle-help-D5LfMoT8.js                                 0.42 kB │ gzip:   0.31 kB
+dist/assets/timer-B01kgxXx.js                                       0.42 kB │ gzip:   0.30 kB
+dist/assets/link-2-CuV93Mwj.js                                      0.42 kB │ gzip:   0.32 kB
+dist/assets/stock-external-link-DxRbu0jk.js                         0.43 kB │ gzip:   0.29 kB
+dist/assets/eye-BbRMaO_P.js                                         0.44 kB │ gzip:   0.31 kB
+dist/assets/upload-tZpJVh22.js                                      0.44 kB │ gzip:   0.33 kB
+dist/assets/zap-Do1v8SNT.js                                         0.44 kB │ gzip:   0.32 kB
+dist/assets/eraser-BB8QlrUi.js                                      0.45 kB │ gzip:   0.32 kB
+dist/assets/repeat-Q1sT0LhZ.js                                      0.45 kB │ gzip:   0.31 kB
+dist/assets/pencil-DCI1mAWK.js                                      0.46 kB │ gzip:   0.33 kB
+dist/assets/flame-CbNopX3_.js                                       0.46 kB │ gzip:   0.34 kB
+dist/assets/wifi-D99pP6Kv.js                                        0.46 kB │ gzip:   0.32 kB
+dist/assets/users-BFuzCuCz.js                                       0.48 kB │ gzip:   0.33 kB
+dist/assets/flask-conical-Ce3JLmbr.js                               0.49 kB │ gzip:   0.35 kB
+dist/assets/bell-ring-BWwnV7_h.js                                   0.49 kB │ gzip:   0.35 kB
+dist/assets/shield-check-CJ2UpIc8.js                                0.50 kB │ gzip:   0.36 kB
+dist/assets/save-D1Uyz01f.js                                        0.51 kB │ gzip:   0.34 kB
+dist/assets/file-text-Cn3AzzCO.js                                   0.51 kB │ gzip:   0.33 kB
+dist/assets/shield-alert-SBJabC6A.js                                0.53 kB │ gzip:   0.37 kB
+dist/assets/key-round-DbzSwD-t.js                                   0.53 kB │ gzip:   0.37 kB
+dist/assets/trash-2-Dm3EPFJc.js                                     0.54 kB │ gzip:   0.36 kB
+dist/assets/crown-BdE2csnQ.js                                       0.54 kB │ gzip:   0.37 kB
+dist/assets/layers-DWFfYqFB.js                                      0.54 kB │ gzip:   0.35 kB
+dist/assets/grip-vertical-56dOQkne.js                               0.55 kB │ gzip:   0.31 kB
+dist/assets/scan-search-DmJWPDxh.js                                 0.57 kB │ gzip:   0.37 kB
+dist/assets/waypoints-JmyrAPEJ.js                                   0.60 kB │ gzip:   0.37 kB
+dist/assets/eye-off-Bo--dY7l.js                                     0.61 kB │ gzip:   0.38 kB
+dist/assets/building-2-D4PdYZVM.js                                  0.62 kB │ gzip:   0.36 kB
+dist/assets/keyboard-7IugVdEQ.js                                    0.63 kB │ gzip:   0.37 kB
+dist/assets/radio-tower-BRiEvW6H.js                                 0.63 kB │ gzip:   0.41 kB
+dist/assets/trophy-BQ-3jXVq.js                                      0.65 kB │ gzip:   0.40 kB
+dist/assets/layers-3-DoRpR9ON.js                                    0.65 kB │ gzip:   0.35 kB
+dist/assets/useCardFlash-DOQ25urV.js                                0.67 kB │ gzip:   0.44 kB
+dist/assets/calendar-days-QorA6AqM.js                               0.67 kB │ gzip:   0.37 kB
+dist/assets/radar-Cg1dTWcB.js                                       0.68 kB │ gzip:   0.42 kB
+dist/assets/useSharedMutations-CFss_wqq.js                          0.71 kB │ gzip:   0.34 kB
+dist/assets/PageHeader-Bjs6g3R1.js                                  0.76 kB │ gzip:   0.44 kB
+dist/assets/sliders-horizontal-DxWg9qmJ.js                          0.76 kB │ gzip:   0.38 kB
+dist/assets/pen-line-Dk2Fu1-W.js                                    0.84 kB │ gzip:   0.41 kB
+dist/assets/wallet-C3BfNnbX.js                                      0.86 kB │ gzip:   0.43 kB
+dist/assets/rows-3-ORa14_wt.js                                      0.86 kB │ gzip:   0.37 kB
+dist/assets/route-ClTt8XAL.js                                       0.96 kB │ gzip:   0.45 kB
+dist/assets/EmptyState-Dc8Pxqma.js                                  1.06 kB │ gzip:   0.61 kB
+dist/assets/puzzle-DRA3CS5L.js                                      1.15 kB │ gzip:   0.64 kB
+dist/assets/DimensionMembersDialog-E3PgA2ia.js                      1.25 kB │ gzip:   0.77 kB
+dist/assets/ErrorState-Bt3fp89w.js                                  1.33 kB │ gzip:   0.82 kB
+dist/assets/useFinancials-CudV1PR4.js                               1.38 kB │ gzip:   0.53 kB
+dist/assets/SignalPicker-DiNWC9_t.js                                1.74 kB │ gzip:   0.96 kB
+dist/assets/StockPreviewDialog-Bxd1-Vhu.js                          1.75 kB │ gzip:   0.96 kB
+dist/assets/Modal-BOzMzrOn.js                                       1.76 kB │ gzip:   0.92 kB
+dist/assets/capability-labels-CsywF9tu.js                           1.88 kB │ gzip:   1.35 kB
+dist/assets/list-columns-fRGEMsno.js                                2.86 kB │ gzip:   1.37 kB
+dist/assets/useLastStock-CLG2df7j.js                                4.41 kB │ gzip:   2.07 kB
+dist/assets/SealedBadge-DcNQFMUZ.js                                 4.63 kB │ gzip:   2.23 kB
+dist/assets/Branding-C4kxmc_5.js                                    5.29 kB │ gzip:   2.48 kB
+dist/assets/AddFactorSignalDialog-Cce58Bkp.js                       5.71 kB │ gzip:   2.78 kB
+dist/assets/DatePicker-ChHuReeP.js                                  5.83 kB │ gzip:   2.41 kB
+dist/assets/NotificationsPanel-Bas_LnZ9.js                          6.14 kB │ gzip:   2.49 kB
+dist/assets/WatchlistAddMenu-C1SNDDA0.js                            6.67 kB │ gzip:   2.70 kB
+dist/assets/Settings-CJKRE0dc.js                                    6.68 kB │ gzip:   3.07 kB
+dist/assets/ApiTokens-BiEkHW_T.js                                   6.96 kB │ gzip:   3.05 kB
+dist/assets/Timeout-D_2sMYuH.js                                     7.13 kB │ gzip:   2.79 kB
+dist/assets/MiniIntraday-DtZBJgsm.js                                7.18 kB │ gzip:   3.39 kB
+dist/assets/Signals-D0BpuXot.js                                     7.75 kB │ gzip:   2.97 kB
+dist/assets/watchlist-columns-BAfi8epV.js                           8.06 kB │ gzip:   1.92 kB
+dist/assets/Indices-BK8TdqKT.js                                     8.36 kB │ gzip:   3.18 kB
+dist/assets/MenuSettings-BYVORFZf.js                                8.97 kB │ gzip:   3.69 kB
+dist/assets/StockAnalysis-CnhvvM1m.js                               9.07 kB │ gzip:   3.54 kB
+dist/assets/StrategyParamGroups-CmZmJkYD.js                         9.58 kB │ gzip:   3.88 kB
+dist/assets/Account-B-tk9mWR.js                                     9.69 kB │ gzip:   3.37 kB
+dist/assets/ExtPages-DPHA3Wn2.js                                   10.65 kB │ gzip:   3.45 kB
+dist/assets/primitives-PwfhDZ7N.js                                 11.01 kB │ gzip:   2.97 kB
+dist/assets/Auth-BXciH1z-.js                                       11.04 kB │ gzip:   3.94 kB
+dist/assets/AnalysisDetail-BetDb2_y.js                             13.71 kB │ gzip:   5.12 kB
+dist/assets/researchCandidates-C5MED5Mn.js                         14.08 kB │ gzip:   5.29 kB
+dist/assets/CustomSignalDialog-BUTomK0f.js                         14.53 kB │ gzip:   4.95 kB
+dist/assets/Dev-CzrDgu_d.js                                        14.81 kB │ gzip:   4.41 kB
+dist/assets/DimensionMembersDialogContent-ClRB7DPW.js              14.99 kB │ gzip:   5.65 kB
+dist/assets/SettingsModal-B9um_spX.js                              15.53 kB │ gzip:   5.65 kB
+dist/assets/System-BxppsIIp.js                                     15.67 kB │ gzip:   4.57 kB
+dist/assets/Lots-laivUqzN.js                                       15.69 kB │ gzip:   5.12 kB
+dist/assets/AI-CgeOJvHd.js                                         19.71 kB │ gzip:   7.56 kB
+dist/assets/Financials-Ch-ExCVf.js                                 20.94 kB │ gzip:   7.31 kB
+dist/assets/index-CpIqX1ek.js                                      23.78 kB │ gzip:   7.30 kB
+dist/assets/Onboarding-BSk5j24i.js                                 23.84 kB │ gzip:   8.42 kB
+dist/assets/ConceptAnalysis-DVcniK9R.js                            23.95 kB │ gzip:   7.59 kB
+dist/assets/ListColumnCustomizerInner-ssVcawFu.js                  24.01 kB │ gzip:   6.11 kB
+dist/assets/useListNav-DEJcKKzE.js                                 24.56 kB │ gzip:   8.47 kB
+dist/assets/IndustryAnalysis-BmUDytLT.js                           24.74 kB │ gzip:   7.92 kB
+dist/assets/StockPreviewDialogContent-DGf5icpo.js                  26.40 kB │ gzip:   9.49 kB
+dist/assets/PriceAlertDialog-DjtAD5yA.js                           26.75 kB │ gzip:   9.16 kB
+dist/assets/EChartsIntraday-9uaABDJj.js                            33.50 kB │ gzip:  10.33 kB
+dist/assets/AbnormalMoves-BiN-bLHU.js                              34.80 kB │ gzip:  10.53 kB
+dist/assets/Monitoring-V43ZB0VZ.js                                 34.81 kB │ gzip:   9.97 kB
+dist/assets/Monitor-YnNJMgVq.js                                    35.88 kB │ gzip:  10.87 kB
+dist/assets/extension-cMtuJWZt.js                                  36.68 kB │ gzip:  13.28 kB
+dist/assets/Review-CrTMvliZ.js                                     41.67 kB │ gzip:  11.74 kB
+dist/assets/Regime-DsfyUjMF.js                                     42.06 kB │ gzip:  12.62 kB
+dist/assets/DataSources-CinvdWvD.js                                43.05 kB │ gzip:  13.00 kB
+dist/assets/LimitUpLadder-CWSg8ZG_.js                              43.43 kB │ gzip:  13.03 kB
+dist/assets/sortable.esm-DfzjUbBW.js                               45.87 kB │ gzip:  15.27 kB
+dist/assets/SectorRotationCard-D7GHnfJZ.js                         48.52 kB │ gzip:  16.84 kB
+dist/assets/RuleEditor-BVQjcCYQ.js                                 56.03 kB │ gzip:  13.83 kB
+dist/assets/Paper-swcAyXb9.js                                      70.46 kB │ gzip:  20.33 kB
+dist/assets/Watchlist-JyXAUZBg.js                                  86.74 kB │ gzip:  25.59 kB
+dist/assets/Dashboard-BIbB0b2F.js                                 117.82 kB │ gzip:  34.44 kB
+dist/assets/router-B4qF_cRs.js                                    129.51 kB │ gzip:  40.13 kB
+dist/assets/Data-rXyllg2i.js                                      143.43 kB │ gzip:  37.70 kB
+dist/assets/MarkdownRenderer-C2Pbnuuk.js                          144.88 kB │ gzip:  47.72 kB
+dist/assets/Factors-o2j1SrCH.js                                   148.02 kB │ gzip:  43.26 kB
+dist/assets/Screener-CJhM65Kt.js                                  151.73 kB │ gzip:  42.45 kB
+dist/assets/Backtest-CDOiQDgu.js                                  160.85 kB │ gzip:  48.73 kB
+dist/assets/lightweight-charts-Dv-acG2D.js                        162.40 kB │ gzip:  51.79 kB
+dist/assets/index-B9L3JPUO.js                                     300.11 kB │ gzip:  93.87 kB
+dist/assets/echarts-DgaZiuz0.js                                 1,035.11 kB │ gzip: 343.48 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 8.35s

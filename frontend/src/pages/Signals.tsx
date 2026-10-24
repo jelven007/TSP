@@ -19,14 +19,14 @@ const KIND_CLASS: Record<SignalKind, string> = {
   both: 'bg-muted/10 text-muted',
 }
 
-/** 信号库独立页: 内置只读信号 + 自定义条件信号 (csg_*), 策略/回测/监控统一取用。 */
+/** 信号指标独立页: 内置只读信号 + 自定义条件信号 (csg_*), 策略/回测/监控统一取用。 */
 export function Signals() {
   const [searchParams] = useSearchParams()
   const highlight = searchParams.get('highlight') ?? ''
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="信号库" subtitle="内置预计算信号与自定义条件信号, 供策略 / 回测 / 监控统一使用" />
+      <PageHeader title="信号指标" subtitle="内置预计算信号与自定义条件信号, 供策略 / 回测 / 监控统一使用" />
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <div className="mx-auto max-w-6xl">
           <SignalsBody highlight={highlight} />

@@ -76,7 +76,7 @@ export function MinuteSyncConfig({ hasCap, onJobStart }: { hasCap: boolean; onJo
 
   return (
     <div className="px-4 pb-4 pt-3 border-t border-accent/20 space-y-3">
-      {/* 区块 A: 自动同步 (盘后定时拉取的偏好设置) */}
+      {/* 区块 A: 同步管道包含分钟K, 执行方式由同步调度控制 */}
       <div className="space-y-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -94,7 +94,7 @@ export function MinuteSyncConfig({ hasCap, onJobStart }: { hasCap: boolean; onJo
             />
           </button>
           <span className="text-xs text-foreground font-medium">
-            自动同步{enabled ? '已开启' : '已关闭'}
+            同步包含分钟K{enabled ? '已开启' : '已关闭'}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -147,7 +147,7 @@ export function MinuteSyncConfig({ hasCap, onJobStart }: { hasCap: boolean; onJo
         </div>
       </div>
       <div className="text-[10px] text-muted leading-relaxed -mt-1">
-        每段拉完即写盘,避免内存堆积。越小越省内存但越慢,默认 20 平衡。
+        手动或定时管道均按此设置同步分钟K。每段拉完即写盘,默认每段 20 个交易日。
       </div>
       </div>
 
@@ -156,7 +156,7 @@ export function MinuteSyncConfig({ hasCap, onJobStart }: { hasCap: boolean; onJo
         <div className="flex items-center gap-1.5">
           <Download className="h-3 w-3 text-secondary" />
           <span className="text-[11px] text-secondary font-medium">手动获取</span>
-          <span className="text-[10px] text-muted">不受自动同步开关影响</span>
+          <span className="text-[10px] text-muted">独立执行一次同步</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
         <button

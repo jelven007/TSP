@@ -62,8 +62,45 @@ def test_interval_setter_invalidates_cache(_isolated):
     assert preferences.load()["realtime_quote_interval"] == 2.0
 
 
-def test_realtime_quotes_default_to_enabled(_isolated):
+def test_realtime_quotes_default_to_manual(_isolated):
+    assert preferences.get_realtime_quotes_enabled() is False
+
+
+def test_fresh_install_does_not_enable_background_sync(_isolated):
+    assert preferences.get_data_sync_auto_enabled() is False
+    assert preferences.get_minute_refresh_enabled() is False
+    assert preferences.get_minute_intraday_refresh() is False
+
+
+def test_saved_background_sync_choices_are_preserved(_isolated):
+    preferences.save({
+        "data_sync_auto_enabled": True,
+        "realtime_quotes_enabled": True,
+        "minute_refresh_enabled": True,
+        "minute_intraday_refresh": True,
+    })
+    assert preferences.get_data_sync_auto_enabled() is True
     assert preferences.get_realtime_quotes_enabled() is True
+    assert preferences.get_minute_refresh_enabled() is True
+    assert preferences.get_minute_intraday_refresh() is True
+
+
+def test_nav_initial_defaults_and_saved_overrides(_isolated):
+    expected = [
+        "/", "/regime", "/watchlist", "/screener", "/factors", "/backtest",
+        "/review", "/abnormal", "/lots", "/monitor", "/limit-ladder",
+        "/stock-analysis", "/concept-analysis", "/industry-analysis",
+        "/financials", "/signals", "/paper", "/data",
+    ]
+    assert preferences.get_nav_order() == expected
+    assert preferences.get_nav_hidden() == []
+    assert preferences.get_watchlist_groups_in_nav() is False
+    preferences.get_nav_order().clear()
+    assert preferences.get_nav_order() == expected
+    assert preferences.load() == {}
+    preferences.save({"nav_order": ["/data", "/"], "nav_hidden": ["/paper"]})
+    assert preferences.get_nav_order() == ["/data", "/"]
+    assert preferences.get_nav_hidden() == ["/paper"]
 
 
 def test_realtime_quote_interval_defaults_to_one_second(_isolated):
@@ -78,7 +115,7 @@ def test_data_initial_defaults_match_configured_baseline(_isolated, existing):
     assert preferences.get_minute_sync_enabled() is True
     assert preferences.get_minute_sync_days() == 5
     assert preferences.get_minute_sync_segment_days() == 20
-    assert preferences.get_minute_refresh_enabled() is True
+    assert preferences.get_minute_refresh_enabled() is False
     assert preferences.get_minute_refresh_interval() == 1
     assert preferences.get_pipeline_pull_a_share() is True
     assert preferences.get_pipeline_pull_index() is True

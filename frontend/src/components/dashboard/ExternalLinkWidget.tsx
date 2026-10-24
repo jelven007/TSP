@@ -1,5 +1,5 @@
 /**
- * 看板外部链接组件 — 在网格内嵌入任意 http(s) 页面。
+ * 行情外部链接组件 — 在网格内嵌入任意 http(s) 页面。
  *
  * 安全约定(与 layout.sanitizeExtUrl 配合):
  * - URL 仅 http(s) 且拒绝与本站同源 — 同源内容配 allow-scripts+allow-same-origin

@@ -1,8 +1,13 @@
 # 完整产品单机多租户部署
 
+生产开发与六类文档追踪见[工程规范](../../docs/reference/engineering.md#engineering)、
+[本地变更映射](../../docs/reference/engineering.md#trace)。
+当前单机多角色与目标多节点分别验收，回退保护切流后增量，完整目标见
+[生产验收](../../docs/testing.md#acceptance)。
+
 本目录是完整产品单机多租户部署入口，沿用原 `app.main`、完整前端和原业务引擎。
 一期于 2026-10-14 完成生产切流与 100 用户验收，见
-[一期实施记录](../../docs/phase1-implementation.md)。火山引擎生产已于
+[一期实施记录](../../reports/document-consolidation-20261024/historical-evidence.md#phase1)。火山引擎生产已于
 2026-10-21 在 v0.4.11、`6d16751c`、schema v6 上部署补丁 `092bd79c`，
 修复公共版本 inode 耗尽及盘后读取旧目录；双库已实际恢复验证，
 详见[修复结果](../../reports/online-timeout-20261021/result.md)。
@@ -11,16 +16,16 @@
 
 ## 运行组成
 
-- `platform`：唯一行情写入者、盘前/盘后与分钟任务、盘口和扩展/财务同步。禁止加载旧账户、私有因子/策略、全局监控、模拟盘、挖掘及复盘任务。
+- `platform`：唯一行情写入者、盘前/盘后与分钟任务、盘口和扩展/财务同步。禁止加载旧账户、私有因子/策略、全局监控、模拟交易、挖掘及复盘任务。
 - `api`：默认四个 HTTP 进程，完整前端、持久身份和租户业务；公共行情与平台配置只读。管理员数据/设置操作经过服务端权限验证后转发至平台。
 - `gateway`：单进程实时入口，仅开放 `/api/events`、`/api/events/ticket` 和健康端点；本地验签一次性租户票据，监听撤权和私有事件通知，并转发平台行情 marker，不挂载公共行情、平台配置或计算 socket。
-- `research`、`realtime`、`notifications`、`scheduled`：独立任务进程，分别处理受限研究、监控与模拟盘、通知 outbox、租户周度挖掘和每日复盘。
+- `research`、`realtime`、`notifications`、`scheduled`：独立任务进程，分别处理受限研究、监控与模拟交易、通知 outbox、租户周度挖掘和每日复盘。
 - 主机计算 Broker：固定计算镜像、每租户一个/全机四个容器；仅 Broker 有 Docker 权限。API/Worker 只挂载 Unix socket。计算容器无网络、无凭据、UID 10001、只读公共文件。
 - PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，均迁移到 schema v6。
 
 ## 小规格单机候选
 
-从最新主线开始的统一容器候选使用[单机验收流程](./single-host.md)。
+从最新主线开始的统一容器候选使用[单机验收流程](single-host.md)。
 `small-host.env` 是约 8 GiB Docker 主机上的小夹具功能验收预算，不能据此声称
 可承载全市场多年行情或 100 个持续活跃用户。默认生产配置的既有资源上限保留；
 可通过各角色 `TSP_*_MEMORY`、`TSP_*_CPUS`、连接池和并发参数独立调整。
@@ -67,7 +72,9 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 
 `TSP_CELL_STREAM_TICKET_SECRET` 是 API 与 Gateway 共享的 HMAC 密钥，至少 32 字节，必须由密码学安全随机源独立生成，不能复用数据库密码、平台 Token 或注册口令。所有 API/Gateway 实例必须使用同一个值；轮换时先停止 Edge 新连接，同时更新并重启 API 与 Gateway，避免新票据在旧网关验签失败。密钥为空或过短时服务启动失败。
 
-注册邮件使用原 `AUTH_SMTP_*` 配置，未设置时读取平台 SMTP 设置。通知复用该传输配置，目的地使用本租户渠道。原 `TSP_CELL_SMTP_*` 仅为未配置原邮件服务时的通知后备。Webhook 的允许 origin 使用 `TSP_CELL_WEBHOOK_ORIGINS`。
+注册与通知共用传输：显式 `AUTH_SMTP_*` → 已保存的平台 SMTP → `TSP_CELL_SMTP_*`
+→ 未配置。必须通过受控配置提供邮箱传输及授权码，源码不包含实际凭据。
+目的地使用本租户渠道，授权码不下发到页面。Webhook 的允许 origin 使用 `TSP_CELL_WEBHOOK_ORIGINS`。
 
 平台配置与数据目录必须可由 UID 10001 读写；API 挂载同一配置目录只读。迁移目录前保存原所有权和文件权限；候选目录调整权限不得触碰原生产目录。公共版本文件中不会发布 `user_data`、环境文件或数据源凭据，扩展数据配置的 `pull` 信息也不进入公共版本。
 
@@ -77,8 +84,13 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 
 ## 初始化与启动
 
-1. 备份两个 PostgreSQL 库、原 `data/user_data`、策略/研究/模拟盘目录、平台配置、镜像及 Nginx 配置，记录可恢复路径。
-2. 对独立候选库执行原 `app.cell.admin migrate --target-version 6`，分别指定 control/business runtime 角色；登记 Cell 后运行 `bootstrap-full-identity`。初始化只创建缺失的 `admin/Admin123`，不会重置已改密码。
+非 Windows 默认开启完整多租户，未指定服务角色时使用 `api`；Windows 默认单机管理员。
+初始化自动预置 `admin/Admin123` 和注册口令 `天王盖地虎`，注册与密码找回共用该口令。
+`AUTH_REGISTRATION_SECRET` 可在首次自定义，已有 SQL 口令不会被重置。
+多租户初始化依赖下面的双库、schema 与内部服务准备，默认开关不替代这些资源。
+
+1. 备份两个 PostgreSQL 库、原 `data/user_data`、策略/研究/模拟交易目录、平台配置、镜像及 Nginx 配置，记录可恢复路径。
+2. 对独立候选库执行原 `app.cell.admin migrate --target-version 6`，分别指定 control/business runtime 角色并登记 Cell。API 首次启动使用已有运行权限自动创建缺失的 `admin/Admin123` 和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
 3. 对明确暂停的 legacy 租户执行 `import-full-product --directory <原data的一致备份> --tenant-id <id> --owner-id <原owner> --report <摘要路径>`，随后执行 `verify-full-import --directory <同一备份> --tenant-id <id> --report <对账路径>`。该命令覆盖账号与完整业务；仅 `import-full-accounts` 或旧 v4 导入不够。旧通知名称须通过 `--channel-map '{"email":"legacy-email"}'` 明确绑定至该租户的已有渠道，实际值以对账结果为准。
 4. 将平台偏好、密钥和 `data_sources/` 从旧目录复制到独立平台配置目录，完成数量/内容对账。保留管理员维护的全局菜单配置；个人布局/列配置和租户定时/通知配置分别导入其 SQL 归属。保留旧文件用于恢复。
 5. 启动独立 `platform` 并等待首个完整公共版本。版本发布逐项复制新文件、复用上一不可变版本的相同文件，并在数据世代或文件清单变化时放弃本次发布。
@@ -100,7 +112,7 @@ docker compose -p tsp-full-candidate -f deploy/full/compose.yml up -d research r
 Edge 只将精确路径 `/api/events` 和 `/api/events/ticket` 路由至 Gateway，其余请求继续进入 API。`/api/events/ticket` 先由权威 Cookie/API Token 身份核验签发 60 秒一次性票据；Gateway 消费后本地校验，并通过 PostgreSQL 专用 direct/session `LISTEN` 连接接收撤权和私有事件唤醒。该连接不能经过 PgBouncer 事务池。通知丢失时私有事件最多 30 秒全扫追赶；撤权广播失效时已有流由 60 秒硬 TTL 收敛。
 
 同一计算任务固定挂载一个发布版本，后续数据发布不能改变其历史输入。
-`scripts.maintain_full_host` 从业务库研究任务提取受保护 release ID，同时保留
+`scripts.operations.maintain_full_host` 从业务库研究任务提取受保护 release ID，同时保留
 `current`、最近版本和最小存龄；缺少 DSN 或 PostgreSQL 容器/库名时拒绝清理 release。
 Docker 维护只清理到期 BuildKit 缓存和悬空镜像，不使用 `image prune -a`，不会
 删除带 tag 的回滚镜像。命令默认 dry-run，复核 JSON 清单后才传 `--apply`。
@@ -117,7 +129,7 @@ inode 余量。无有效历史版本的首次启动仍须成功完成发布。
 API 在快照至少五秒未更新且 `current` 变化时按需切换仓库，即使盘后行情
 marker 流仍连接，也不会长期读取已到期目录。
 
-将 `backend/scripts/maintain_full_host.py` 安装到
+将 `backend/scripts/operations/maintain_full_host.py` 安装到
 `/opt/tsp-full/maintenance/maintain_full_host.py`，在
 `/etc/tsp-full/public-release-maintenance.env` 填入实际目录、PostgreSQL 容器和业务库：
 
@@ -146,18 +158,18 @@ df -i /opt/tsp-full/public
 版本；近期 30 份和研究引用另行保护。研究引用持续累积时需扩容或通过产品删除
 不再需要的研究任务，不能绕过引用强删。CLI 原按天保留模式仍兼容。
 
-停写后的双库备份使用 `scripts.backup_full_host`。它先生成两个 custom-format dump，
+停写后的双库备份使用 `scripts.operations.backup_full_host`。它先生成两个 custom-format dump，
 再分别恢复到临时数据库并读取 schema 版本，全部成功后才原子发布备份目录：
 
 ```bash
 cd backend
-python -m scripts.backup_full_host \
+python -m scripts.operations.backup_full_host \
   --postgres-container tsp-pg --control-database CONTROL_DB --data-database DATA_DB \
   --output /opt/tsp-full/backups/final-YYYYMMDD-HHMMSS \
   --include platform-config=/opt/tsp-full/platform-config \
   --include edge=/opt/tsp-full/edge --confirm-quiesced
 
-TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.maintain_full_host \
+TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.operations.maintain_full_host \
   --release-root /opt/tsp-full/public --prune-docker-cache
 # 复核输出后追加 --apply。
 ```
@@ -165,7 +177,7 @@ TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.maintain_full_host \
 持续观察器在 `alerts.jsonl` 写入去重的 `firing`/`resolved` 事件，覆盖深度健康、
 容器退出/重启及磁盘低于 1 GiB；该文件应由主机告警采集器转发。
 
-完整导入保存逐条目标内容散列和源文件清单。最终增量仍要求租户暂停，且先核对候选中的上次导入记录；候选业务编辑、源快照变化、缺失文件或模拟盘台账改写都会阻止覆盖。模拟盘按原成交台账核对现金与持仓；原始业务文件可在研究任务历史中导出。旧会话、验证码、全局 Token 和平台凭据不进入租户归档。导入账本仅离线管理员可用。
+完整导入保存逐条目标内容散列和源文件清单。最终增量仍要求租户暂停，且先核对候选中的上次导入记录；候选业务编辑、源快照变化、缺失文件或模拟交易台账改写都会阻止覆盖。模拟交易按原成交台账核对现金与持仓；原始业务文件可在研究任务历史中导出。旧会话、验证码、全局 Token 和平台凭据不进入租户归档。导入账本仅离线管理员可用。
 
 若旧 Cell 数据含不同模型的策略/交易活动，导入会拒绝继续，需先进行明确的域转换；不能将其标记为已迁移或用完整产品默认值替代。候选与正式库均应保留导入摘要、源快照与内容对账报告。
 

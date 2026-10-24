@@ -10,7 +10,7 @@
 从独立工作目录执行：
 
 ```bash
-python3 scripts/build_full_candidate.py --output .tools/builds/candidate
+python3 scripts/acceptance/build_full_candidate.py --output .tools/builds/candidate
 ```
 
 可用 `--registry public.ecr.aws/docker` 选择基础镜像仓库。
@@ -56,7 +56,7 @@ Gateway LISTEN 等专用连接及验收管理连接另计。80 是 PostgreSQL �
 准备本地 PostgreSQL 16 和 Nginx 镜像，然后从 `backend` 执行：
 
 ```bash
-uv run --frozen python -m scripts.accept_full_compose \
+uv run --frozen python -m scripts.acceptance.accept_full_compose \
   --build-dir ../.tools/builds/candidate \
   --work-dir ../.tools \
   --output ../reports/single-host/compose.json
@@ -88,7 +88,7 @@ Broker 独占 Docker socket，Compute 仍无网络、无凭据且只读挂载固
 若需要检查 1 GiB 预算内完整计算能力，再执行：
 
 ```bash
-python3 scripts/verify_full_compute.py --image <本次Compute镜像ID> \
+python3 scripts/acceptance/verify_full_compute.py --image <本次Compute镜像ID> \
   --memory-mb 1024 --cpus 1 --work-dir .tools \
   --output reports/single-host/compute.json
 ```

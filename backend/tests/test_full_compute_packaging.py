@@ -21,7 +21,7 @@ def test_compute_image_installs_frozen_signal_backtest_runtime() -> None:
 
 def test_compute_acceptance_executes_signal_backtest() -> None:
     acceptance = (
-        ROOT / "scripts" / "verify_full_compute.py"
+        ROOT / "scripts" / "acceptance/verify_full_compute.py"
     ).read_text(encoding="utf-8")
     worker = (
         ROOT / "backend" / "app" / "multitenancy" / "compute_worker.py"

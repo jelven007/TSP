@@ -34,6 +34,7 @@ import { useToggleRealtimeQuotes, useUpdateQuoteInterval } from '@/lib/useShared
 import { MissingCapChip, routeCapUsable, routeProviderDisplay, type RouteCapId } from '@/lib/capability-labels'
 import { QK } from '@/lib/queryKeys'
 import { PageHeader } from '@/components/PageHeader'
+import { toast } from '@/components/Toast'
 import { useAdjFactorSyncGate } from '@/components/AdjFactorSyncGate'
 import { formatScheduleDatePart, formatScheduleTimePart, isToday } from '@/lib/format'
 import { findDataSource } from '@/lib/dataSources'
@@ -78,7 +79,7 @@ export function Data() {
     },
   })
 
-  // 市场环境(regime) 覆盖画像 —— 走独立接口(/api/regime/coverage), 不在 data/status 内。
+  // 环境(regime) 覆盖画像 —— 走独立接口(/api/regime/coverage), 不在 data/status 内。
   // 同步任务完成后刷新一次; 平时 30s 轮询与 status 对齐。
   const regimeCoverage = useQuery({
     queryKey: QK.regimeCoverage,
@@ -127,7 +128,7 @@ export function Data() {
   const clearData = useMutation({
     mutationFn: api.dataClear,
     onSuccess: () => {
-      // 清库删除全部 parquet + alerts, 各页 (看板/自选/选股/指数/财务/个股/连板/监控) 缓存
+      // 清库删除全部 parquet + alerts, 各页 (行情/自选/选股/指数/财务/个股/连板/监控) 缓存
       // 数据均已失效, 故广域失效所有 query 令其重取 —— 数据已清空, 全量刷新是正确行为而非误伤。
       qc.invalidateQueries()
       setShowClearConfirm(false)
@@ -220,6 +221,15 @@ export function Data() {
   const pipelineSched = prefs.data?.pipeline_schedule ?? { hour: 15, minute: 35 }
   const instrumentsSched = prefs.data?.instruments_schedule ?? { hour: 9, minute: 10 }
   const indexDailyBatchSize = prefs.data?.index_daily_batch_size ?? 100
+  const autoSyncEnabled = prefs.data?.data_sync_auto_enabled ?? false
+  const updateAutoSync = useMutation({
+    mutationFn: (enabled: boolean) => api.updateDataSyncAuto(enabled),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK.preferences })
+      qc.invalidateQueries({ queryKey: QK.dataStatus })
+    },
+    onError: (error: Error) => toast(error.message),
+  })
 
   useEffect(() => {
     setIndexBatchInput(String(indexDailyBatchSize))
@@ -253,7 +263,7 @@ export function Data() {
   const quoteInterval = useQuoteInterval()
   const updateInterval = useUpdateQuoteInterval()
 
-  const realtimeEnabled = prefs.data?.realtime_quotes_enabled ?? true
+  const realtimeEnabled = prefs.data?.realtime_quotes_enabled ?? false
   const quoteStatus = useQuoteStatus()
   const toggleQuote = useToggleRealtimeQuotes()
 
@@ -422,6 +432,7 @@ export function Data() {
             tierKey="instruments"
             capLimits={mergedCaps}
             auto
+            manual={!autoSyncEnabled}
             onShowFields={() => setSchemaTable('instruments')}
           />
         )
@@ -440,6 +451,7 @@ export function Data() {
             capLimits={mergedCaps}
             customProvider={routeProviderDisplay(matrix.data, 'daily')}
             auto
+            manual={!autoSyncEnabled}
             onShowFields={() => setSchemaTable('daily')}
             onSettings={hasData ? () => setOpenSettings(v => v === 'daily' ? null : 'daily') : undefined}
             settingsOpen={openSettings === 'daily'}
@@ -460,6 +472,7 @@ export function Data() {
             capLimits={mergedCaps}
             customProvider={routeProviderDisplay(matrix.data, 'adj_factor')}
             auto
+            manual={!autoSyncEnabled}
             onShowFields={() => setSchemaTable('adj_factor')}
           />
         )
@@ -477,6 +490,7 @@ export function Data() {
             tierKey="enriched"
             capLimits={mergedCaps}
             auto
+            manual={!autoSyncEnabled}
             subLabel={status.data?.indicators_ready === false ? '字段 · 指标计算中…' : '字段 · 指标 · 信号'}
             localBadgeSuffix={`${prefs.data?.enriched_batch_size ?? 1000}只/批`}
             onShowFields={() => setSchemaTable('enriched')}
@@ -498,6 +512,7 @@ export function Data() {
             tierKey="daily"
             capLimits={mergedCaps}
             auto={indexAuto}
+            manual={!autoSyncEnabled}
             subLabel={indexOverviewLabel}
             fieldTabs={[
               { label: '维表', table: 'index_instruments' },
@@ -520,6 +535,7 @@ export function Data() {
             capLimits={mergedCaps}
             customProvider={routeProviderDisplay(matrix.data, 'daily')}
             auto={etfAuto}
+            manual={!autoSyncEnabled}
             subLabel="维表 · 日K · 指标"
             fieldTabs={[
               { label: '维表', table: 'etf_instruments' },
@@ -544,6 +560,7 @@ export function Data() {
             capLimits={mergedCaps}
             customProvider={routeProviderDisplay(matrix.data, 'minute')}
             auto={minuteAuto}
+            manual={!autoSyncEnabled}
             onShowFields={() => setSchemaTable('minute')}
             onSettings={hasData ? () => setOpenSettings(v => v === 'minute' ? null : 'minute') : undefined}
             settingsOpen={openSettings === 'minute'}
@@ -569,7 +586,7 @@ export function Data() {
       case 'regime':
         return (
           <StatCard
-            title="市场环境"
+            title="环境"
             hint="每日环境状态 · 本地计算"
             stats={regimeCoverage.data ?? null}
             loading={regimeCoverage.isLoading}
@@ -580,6 +597,7 @@ export function Data() {
             tierKey="regime"
             capLimits={mergedCaps}
             auto={prefs.data?.pipeline_regime_enabled ?? true}
+            manual={!autoSyncEnabled}
             subLabel="状态 · 综合分 · 指标"
             onSettings={hasData ? () => setOpenSettings(v => v === 'regime' ? null : 'regime') : undefined}
             settingsOpen={openSettings === 'regime'}
@@ -594,15 +612,13 @@ export function Data() {
     <>
       <div ref={topRef} />
       <PageHeader
-        title="数据"
-        subtitle="本地数据画像 · 同步状态 · 历史记录"
+        title="数据总览"
+        className="flex-wrap max-lg:pl-16"
+        subtitle={!hasData && !isLoading
+          ? (isRunning ? '首次全量同步正在进行' : '初始化后默认手动同步，请点击立即同步获取数据')
+          : '本地数据画像 · 同步状态 · 历史记录'}
         right={
-          <div className="flex items-center gap-3">
-            {!hasData && !isLoading && (
-              <span className="text-xs text-accent animate-pulse">
-                {isRunning ? '首次全量同步正在进行' : '首次启动自动同步；失败后可点击立即同步重试'}
-              </span>
-            )}
+          <div className="flex flex-wrap items-center gap-3 [&_button]:whitespace-nowrap">
             <button
               onClick={() => adjGate.guard(() => startSync.mutate())}
               disabled={isStarting}
@@ -641,7 +657,7 @@ export function Data() {
               修正数据
             </button>
             <div className="w-px h-4 bg-border" />
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 onClick={() => setShowCreateExt(true)}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-btn text-secondary hover:text-accent hover:bg-accent/8 text-xs transition-colors duration-150"
@@ -738,7 +754,7 @@ export function Data() {
           <div className="rounded-card border border-border bg-surface p-4">
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="h-4 w-4 text-secondary" />
-              <h3 className="text-sm font-medium text-foreground">自动调度</h3>
+              <h3 className="text-sm font-medium text-foreground">同步调度</h3>
             </div>
             {isLoading ? (
               <div className="space-y-2">
@@ -748,6 +764,23 @@ export function Data() {
               </div>
             ) : (
               <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-secondary">自动同步</span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    aria-label="自动同步"
+                    className="h-4 w-4 accent-accent cursor-pointer disabled:cursor-not-allowed"
+                    checked={autoSyncEnabled}
+                    onChange={event => updateAutoSync.mutate(event.target.checked)}
+                    disabled={prefs.isLoading || prefs.isError || updateAutoSync.isPending}
+                  />
+                </div>
+                <p className="text-[11px] text-muted leading-relaxed">
+                  {autoSyncEnabled
+                    ? '已开启盘前、盘后、竞价快照和五档定版任务。'
+                    : '手动模式：定时同步和启动补跑均已暂停，点击立即同步获取数据。'}
+                </p>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted pb-2 border-b border-border/50">
                   <span className="text-accent/60 font-medium">盘前</span>
                   <span>个股维表</span>
@@ -1053,7 +1086,7 @@ export function Data() {
 
       <AnimatePresence>
         {openSettings === 'regime' && (
-          <SettingsModal title="市场环境 · 计算设置" onClose={() => setOpenSettings(null)}>
+          <SettingsModal title="环境 · 计算设置" onClose={() => setOpenSettings(null)}>
             <RegimeConfigCard />
           </SettingsModal>
         )}

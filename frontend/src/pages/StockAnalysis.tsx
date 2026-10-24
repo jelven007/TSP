@@ -126,7 +126,7 @@ export function StockAnalysis() {
           )}
         </div>
 
-        {/* 主体:左侧当前个股看板 + 右侧常驻历史报告 */}
+        {/* 主体:左侧当前个股行情 + 右侧常驻历史报告 */}
         <div className="grid grid-cols-[1fr_288px] gap-6 items-start">
           <div className="min-w-0">
             {!symbol ? (
@@ -173,7 +173,7 @@ export function StockAnalysis() {
   )
 }
 
-// ===== 分析看板:日 K + 关键价位 =====
+// ===== 行情分析:日 K + 关键价位 =====
 function StockAnalysisBoard({ symbol }: { symbol: string }) {
   const kline = useQuery({
     queryKey: ['kline', symbol, ''],

@@ -1,4 +1,4 @@
-"""市场环境(regime) 计算与持久化测试。
+"""环境(regime) 计算与持久化测试。
 
 覆盖:
 - classify_state: 五种状态边界值(强势/偏强/震荡/偏弱/弱势)
@@ -19,7 +19,7 @@ from polars.testing import assert_frame_equal
 from app.services import regime_builder
 
 # ───────────────────────── 状态分类 ─────────────────────────
-# 新评分模型(对齐看板情绪分): 4 维 profit/speculation/resilience/trend,
+# 新评分模型(对齐行情情绪分): 4 维 profit/speculation/resilience/trend,
 # metrics 字段为 up_pct/down_pct/avg_pct/median_pct/strong_up_pct/strong_down_pct/
 # strong_diff_pct/limit_up/seal_rate/max_consecutive/index_pct/above_ma20_pct。
 
@@ -436,7 +436,7 @@ def test_build_regime_mask_fails_when_no_data(tmp_path):
     """启用过滤但无 regime 历史数据时必须阻止回测。"""
     from app.backtest.strategy import StrategyBacktestService
 
-    with pytest.raises(ValueError, match="市场环境数据为空"):
+    with pytest.raises(ValueError, match="环境数据为空"):
         StrategyBacktestService._build_regime_mask(
             ("2026-01-01", "2026-01-02"), {"states": ["strong"]}, tmp_path,
         )

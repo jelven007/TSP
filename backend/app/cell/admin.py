@@ -13,6 +13,7 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from app.bootstrap_defaults import ADMIN_PASSWORD, ADMIN_USERNAME
 from app.cell.passwords import hash_password, normalize_email, valid_record
 
 SQL_ROOT = Path(__file__).with_name("sql")
@@ -113,12 +114,11 @@ def grant_full_runtime(conn, kind: str, role: str) -> None:
 
 
 def bootstrap_full_identity(control) -> bool:
-    """Offline, idempotent administrator initialization. Never reset a password."""
-    salt, digest = hash_password("Admin123")
+    """Idempotent administrator DML initialization. Never reset a password."""
     with control.transaction():
         control.execute("SELECT pg_advisory_xact_lock(hashtext('tsp-system-admin-bootstrap'))")
         existing = control.execute(
-            "SELECT id FROM control.users WHERE username='admin' FOR UPDATE"
+            "SELECT id FROM control.users WHERE username=%s FOR UPDATE", (ADMIN_USERNAME,),
         ).fetchone()
         if existing:
             role = control.execute(
@@ -128,10 +128,11 @@ def bootstrap_full_identity(control) -> bool:
             if not role:
                 raise ValueError("admin identifier collision; explicit remediation required")
             return False
+        salt, digest = hash_password(ADMIN_PASSWORD)
         user_id = uuid.uuid4().hex
         control.execute(
             """INSERT INTO control.users(id,username,password_salt,password_hash)
-               VALUES(%s,'admin',%s,%s)""", (user_id, salt, digest),
+               VALUES(%s,%s,%s,%s)""", (user_id, ADMIN_USERNAME, salt, digest),
         )
         control.execute(
             "INSERT INTO control.user_roles(user_id,role_id) VALUES(%s,'admin')", (user_id,),

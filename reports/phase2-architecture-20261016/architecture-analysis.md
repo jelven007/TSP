@@ -2,7 +2,7 @@
 
 日期：2026-10-16。性质：技术分析与建议方案，待实施、待容量验证。
 
-本文补充 [多租户两期方案](../../docs/multitenant-roadmap.md)，沿用其产品、角色权限和租户隔离基线。按用户最新安排，执行顺序为单机关键迭代 → 单机支持 100 个独立账号全部同时活跃 → DFX 与万人并发，详见 [三步实施计划](../../docs/phase2-implementation-plan.md)。十万活跃用户为远期扩展目标；下文相应容量预算不作为第二步门槛。
+本文补充 [多租户两期方案](../../docs/architecture.md#target)，沿用其产品、角色权限和租户隔离基线。按用户最新安排，执行顺序为单机关键迭代 → 单机支持 100 个独立账号全部同时活跃 → DFX 与万人并发，详见 [三步实施计划](../../docs/planning/phase2-implementation-plan.md)。十万活跃用户为远期扩展目标；下文相应容量预算不作为第二步门槛。
 
 生产状态依据现有 [414cc483 发布记录](../deployment-20261015-414cc483/release.md)，源码依据本次本地阅读；没有执行新的生产探测或二期压测。
 
@@ -256,7 +256,7 @@ API、网关、身份和 Worker 跨节点；数据库通过受控选主和旧主
 | 延迟与错误 | 稳态轻 API P95 ≤300ms、P99 ≤1s；有效请求 5xx/超时 <0.1% | 单独列出拒绝、降级与后台队列，不隐藏容量拒绝 |
 | 持续运行 | 当前为完整交易日与 24 小时连续负载；72 小时单独认证 | 开盘/收盘/竞价、后台任务、备份和故障同时覆盖 |
 
-这些来自既有二期的十万用户设计基线，不是本次新测成绩。当前第二步百账号/百人活跃与第三步万人并发的门槛见 [三步实施计划](../../docs/phase2-implementation-plan.md)。[S1](#s1)
+这些来自既有二期的十万用户设计基线，不是本次新测成绩。当前第二步百账号/百人活跃与第三步万人并发的门槛见 [三步实施计划](../../docs/planning/phase2-implementation-plan.md)。[S1](#s1)
 
 ### 10.2 公式、推导与限制
 
@@ -310,7 +310,7 @@ API、网关、身份和 Worker 跨节点；数据库通过受控选主和旧主
 
 源码链接基于本次阅读的工作区，行号可能随后续修改变化；正式实施需固定 commit。官方来源用于核实组件机制，各自为原始单源说明，不构成 TSP 的性能验证或独立多源交叉证明。
 
-- <a id="s1"></a>**S1 · 项目基线与验收目标。** [多租户方案](../../docs/multitenant-roadmap.md)、[二期三步实施计划](../../docs/phase2-implementation-plan.md)、[一期实施记录](../../docs/phase1-implementation.md)、[414cc483 生产发布记录](../deployment-20261015-414cc483/release.md)。
+- <a id="s1"></a>**S1 · 项目基线与验收目标。** [多租户方案](../../docs/architecture.md#target)、[二期三步实施计划](../../docs/planning/phase2-implementation-plan.md)、[一期实施记录](../document-consolidation-20261024/historical-evidence.md#phase1)、[414cc483 生产发布记录](../deployment-20261015-414cc483/release.md)。
 - <a id="s2"></a>**S2 · 事件热路径与保留/恢复。** [events.py L19–27：追加与保留](../../backend/app/multitenancy/events.py#L19-L27)、[L51–65：有界队列 reset](../../backend/app/multitenancy/events.py#L51-L65)、[L112–171：按租户轮询与流循环](../../backend/app/multitenancy/events.py#L112-L171)。
 - <a id="s3"></a>**S3 · 请求鉴权与因子加载。** [access.py L75–135：会话/上下文/因子](../../backend/app/multitenancy/access.py#L75-L135)、[L159–182：长连接权限复核](../../backend/app/multitenancy/access.py#L159-L182)。
 - <a id="s4"></a>**S4 · 控制面查询、登录限流与路由现状。** [identity.py L87–143](../../backend/app/multitenancy/identity.py#L87-L143)、[L416–439](../../backend/app/multitenancy/identity.py#L416-L439)。

@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-23",
+  "source_HEAD": "cc837b95f471e5b299bf5e8618332d500bff7e3a",
+  "application_version": "0.4.17",
+  "workspace_state": "uncommitted",
+  "environment": {
+    "backend": "External isolated CPython 3.12.15, macOS arm64; regression dependencies installed separately, not certified against the complete frozen project environment.",
+    "backend_data": "Isolated temporary DATA_DIR; empty dotenv; POLARS_MAX_THREADS=4.",
+    "frontend": "Isolated exact copy of 322 frontend input files, Node 24.22.1, pnpm 9.10.0; frozen lockfile installation."
+  },
+  "checks": [
+    {
+      "command": "make check",
+      "exit_code": 0,
+      "result": "81 required paths, 81 maintained Markdown files, eight indexed requirement modules, preserved requirement baseline, version consistency and git diff --check."
+    },
+    {
+      "command": "python -m pytest tests/tooling -q",
+      "exit_code": 0,
+      "passed": 111,
+      "seconds": 47.04
+    },
+    {
+      "command": "cd backend && python -m pytest -q -ra <17 changed tests plus five packaging/version tests>",
+      "test_files": [
+        "tests/backtest/test_quality_research_decisions.py",
+        "tests/test_builtin_catalog.py",
+        "tests/test_candidate_soak_observer.py",
+        "tests/test_continuous_acceptance.py",
+        "tests/test_external_sse_acceptance.py",
+        "tests/test_full_candidate_build.py",
+        "tests/test_full_compute_packaging.py",
+        "tests/test_full_host_maintenance.py",
+        "tests/test_online_timeout_validation.py",
+        "tests/test_paper_settle_price_time.py",
+        "tests/test_paper_trading.py",
+        "tests/test_probe_tickflow_pro_gate.py",
+        "tests/test_probe_tickflow_pro_live.py",
+        "tests/test_production_recovery_acceptance.py",
+        "tests/test_rustdx_quote_benchmark.py",
+        "tests/test_second_acceptance_observer.py",
+        "tests/test_st_history_backfill.py",
+        "tests/test_build_manifest.py",
+        "tests/test_upgrade_check.py",
+        "tests/test_desktop_packaging.py",
+        "tests/test_full_compose_config.py",
+        "tests/test_version_source.py"
+      ],
+      "exit_code": 0,
+      "passed": 234,
+      "skipped": 3,
+      "skip_reason": "Docker Compose CLI unavailable.",
+      "seconds": 21.83
+    },
+    {
+      "command": "python -m pytest tests/tooling/test_documentation_contract.py -q",
+      "reason": "Recheck after adding explicit notes for intentional Chinese punctuation in the checker and fixtures.",
+      "exit_code": 0,
+      "passed": 11,
+      "seconds": 0.25,
+      "overlaps_tooling_run": true
+    },
+    {
+      "command": "pnpm install --frozen-lockfile && pnpm build",
+      "exit_code": 0,
+      "result": "TypeScript and Vite build passed; isolated source and original lockfile hashes match.",
+      "warning": "Existing ECharts bundle exceeds 500 kB."
+    },
+    {
+      "command": "Ruff using backend/pyproject.toml, comparing each of 76 changed/new Python files to HEAD or its pre-migration source",
+      "exit_code": 0,
+      "new_findings": 0,
+      "result": "Intentional Chinese document punctuation annotated locally; unrelated historical findings retained."
+    },
+    {
+      "command": "Python AST parse and comparison of executable backend AST after stripping docstrings",
+      "exit_code": 0,
+      "parsed_files": 76,
+      "backend_files_with_unchanged_executable_AST": 9
+    },
+    {
+      "command": "Thirty migrated CLI entry points with --help",
+      "exit_code": 0,
+      "passed": 30,
+      "executed_business_actions": false
+    },
+    {
+      "command": "YAML/JSON/TOML parsing with supported Compose !reset/!override tags",
+      "exit_code": 0,
+      "parsed_configs": 12,
+      "docker_execution": false
+    },
+    {
+      "command": "Compare all requirement contract cells with the pre-consolidation baseline",
+      "exit_code": 0,
+      "functional": 161,
+      "nonfunctional": 42,
+      "exact_ID_set_preserved": true,
+      "behavior_priority_state_exception_cells_preserved": true
+    },
+    {
+      "command": "python scripts/check_docs.py --include-reports",
+      "exit_code": 1,
+      "status": "Historical artifact limitation retained",
+      "missing_links": [
+        "reports/single-host/verification.md -> ../../.tools/builds/single-host-06/build.json",
+        "reports/single-host/verification.md -> ../../.tools/regression-final.log"
+      ],
+      "result": "Only two absent historical temporary artifacts; no replacement historical evidence fabricated."
+    }
+  ],
+  "not_executed": [
+    "Full backend suite and complete frozen Python/Rust dependency installation.",
+    "Frontend browser and end-to-end product acceptance; no interaction logic changed.",
+    "Docker image build and live Compose execution.",
+    "Windows 10 real-machine and installer validation.",
+    "Real data-provider coverage, license, source-clock and complete trading-day acceptance.",
+    "ClickHouse integration, Kafka/Flink/Redis/TOS, multi-node HA, strong Compute and Cell implementation.",
+    "Ten-thousand-user load, node/AZ/regional fault and recovery certification.",
+    "Production probing, submission, pushing or deployment."
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-24",
+  "policy": "latest_integrated_source_plus_five_prior_versions",
+  "historical_versions_after_this_integration": [
+    {
+      "version": "0.4.17",
+      "commit": "cc837b95f471e5b299bf5e8618332d500bff7e3a",
+      "ref": "v0.4.17",
+      "kind": "existing_ci_source_tag",
+      "archive": "deliverables/version-recovery/TSP-v0.4.17.tar.gz",
+      "sha256": "6ad81b4efdae4dfc8458571e69349d17110964035d430b4bfffcc2cf5c31fff1",
+      "version_metadata_verified": true
+    },
+    {
+      "version": "0.4.16",
+      "commit": "783fe5bdc524771c387ac1e34c4f49dac6c88395",
+      "ref": "v0.4.16",
+      "kind": "existing_ci_source_tag",
+      "archive": "deliverables/version-recovery/TSP-v0.4.16.tar.gz",
+      "sha256": "f871091f246cc713c066151f48fc9f266e2316c7fab160c49c81758f4f363c92",
+      "version_metadata_verified": true
+    },
+    {
+      "version": "0.4.15",
+      "commit": "9a8df111bd1f5fbc4b0f5fe89f1c5852523e738c",
+      "ref": "v0.4.15",
+      "kind": "existing_ci_source_tag",
+      "archive": "deliverables/version-recovery/TSP-v0.4.15.tar.gz",
+      "sha256": "e578c8fc6ec0c1f1b993d9240a83a53392e971225812c2299ff9823661b065dd",
+      "version_metadata_verified": true
+    },
+    {
+      "version": "0.4.14",
+      "commit": "18a77d3ebd0291c38bf710cac6b41a5649303a07",
+      "ref": "recovery/v0.4.14",
+      "kind": "recovered_source_snapshot",
+      "archive": "deliverables/version-recovery/TSP-v0.4.14.tar.gz",
+      "sha256": "821a96dd37f9103d8c1cb19bb64b68d5d5797ef7cbd8205d3a17353ab368eb09",
+      "version_metadata_verified": true
+    },
+    {
+      "version": "0.4.13",
+      "commit": "0b50a879ff2ea9d403255f87a2ca500f02f3323d",
+      "ref": "recovery/v0.4.13",
+      "kind": "recovered_source_snapshot",
+      "archive": "deliverables/version-recovery/TSP-v0.4.13.tar.gz",
+      "sha256": "c25e856449199f033774a7b7f2957b8a755a8c28006c98f26509afb2d978a377",
+      "version_metadata_verified": true
+    }
+  ],
+  "latest_version": "allocated_and_tagged_by_main_CI_after_merge",
+  "preserve_git_history": true,
+  "preserve_immutable_tags": true,
+  "production_backups_unchanged": true
+}

@@ -1,4 +1,4 @@
-# TSP 贡献、AI 开发与复审指南
+# TSP 开发、贡献与复审指南
 
 本文档适用于整个仓库，供贡献者、AI 编码代理和 PR 审查者共同使用。目标是让改动落在正确的模块，保持数据口径、插件化和兼容性一致，并通过可复现的验证减少返工。
 
@@ -37,6 +37,18 @@
 - 无法执行必要验证时，必须在 PR 中说明原因和剩余风险。
 
 ## 2. 项目架构
+
+完整目录、维护角色、脚本分类与迁移规则见
+[`docs/reference/engineering.md#layout`](docs/reference/engineering.md#layout)。
+仓库工具测试集中在 `tests/tooling/`，后端操作模块在 `backend/scripts/<分类>/`；
+新文件按实际职责归属，目录变更须同步调用路径、CI与当前操作文档。
+生产开发闭环见[生产工程](docs/reference/engineering.md#engineering)，
+需求ID到六类生命周期文档及逐文件清单见[变更追踪](docs/reference/engineering.md#trace)。
+需求总纲与八业务章节在同一手册中定义；目录/文档检查使用根`make check`，工具测试在`tests/tooling/`。
+完整本地变更、逐文件归属、初始化/认证/SMTP兼容和实际验证见
+[2026-10-24整合记录](reports/production-integration-20261024/verification.md)。
+新部署的默认多租户与手动同步按[配置手册](docs/operations.md#configuration)；
+真实凭据仅在受控配置中保存，源码恢复集合保留最新及五个历史版本。
 
 ### 2.1 技术栈
 
@@ -134,18 +146,29 @@
 - 同日重跑应替换当日观测，不得生成重复版本；目录缺失产生的退市 tombstone 必须
   保留最后已知名称。
 
+### 3.6 公司行为与模拟交易权益
+
+- `adj_factor` 处理价格复权；`corporate_actions` 独立描述现金分红、送转和配股，
+  不得从价格因子反推真实现金或股份。
+- 数量采用每股口径、现金/配股价采用元；登记、除权、到账、缴款和上市日分别校验。
+  `usable` 不认证日期，缺证据或源事件修订冲突须暂停相关账务/撮合，不生成定版净值。
+- 新账户使用事件台账，存量 `legacy_factor` 不自动迁移；已入账权益不得通过覆盖源文件改写。
+- 应收资产、可用现金、未上市股份与 T+1 可卖量分开核算，重试按账户和事件阶段幂等。
+  回退含新账本的账户须恢复匹配代码与数据。契约见[公司行为](docs/reference/trading-ai.md#corporate)。
+
 ## 4. 数据源插件化要求
 
 数据源已经插件化。任何通用功能都必须通过 provider 能力和标准化数据集访问数据，不能把 TickFlow SDK 调用硬编码到策略、监控、回测、API 或前端流程中。
 
 - 使用现有的 `get_provider()`、`provider_has_dataset()` 和 preferences 路由能力。
-- 支持的数据集包括但不限于 `daily`、`adj_factor`、`minute`、`full_minute`（盘中全市场分钟落盘）、`realtime`、`depth5`、`financial`；新增数据集应先定义清晰的输入输出契约。
+- 当前八项数据集为 `daily`、`adj_factor`、`corporate_actions`、`minute`、`full_minute`
+  （盘中全市场分钟落盘）、`realtime`、`depth5`、`financial`；新增数据集先定义输入输出契约。
 - provider 负责把供应商字段、单位、日期和代码格式转换为内部标准格式。
 - 上层服务依赖标准字段和能力声明，不依赖供应商响应结构。
 - 只有明确标注为 TickFlow 专属的功能才可以直接依赖 TickFlow，并且不得影响其他 provider。
 - provider 缺少某项能力时，应明确提示、跳过该功能或 fail-closed；禁止静默换用错误数据或错误口径。
 - 插件加载失败、字段缺失和空数据必须有隔离测试，不能导致应用启动失败或其他数据源不可用。
-- 新增数据源适配应同步更新 `docs/custom-data-source.md` 或 `docs/plugin-development.md` 中对应契约。
+- 新增数据源适配应同步更新 `docs/reference/integrations.md#http` 或 `docs/reference/integrations.md#plugin` 中对应契约。
 
 ### 能力路由矩阵契约
 
@@ -153,7 +176,7 @@
 
 - 注册表集中声明每个能力的展示元数据、路由偏好字段与 TickFlow 档位要求；前端不硬编码能力清单。新增能力按既有模式扩展：注册表 + preferences getter + capability-matrix 注入 + 矩阵测试。
 - 各页面能力门控统一以矩阵的 `usable` 为准（生效源当前能否真正提供该能力），不是 TickFlow 套餐视角；缺能力提示统一引导到数据源配置。
-- 能力层中立：通用界面（侧栏徽章、能力路由卡、各页门控提示）不得出现 TickFlow 档位/订阅词汇；档位信息只在 TickFlow 专属详情卡展示。provider 名称作为路由事实可以出现。
+- 能力层中立：通用界面（侧栏徽章、能力路由卡、各页门控提示）不得出现 TickFlow 档位/订阅词汇；设置页已移除其可选入口，旧部署档位契约仍在接入文档维护。provider 名称作为路由事实可以出现。
 - 每个能力独立路由，禁止跟随/派生特殊值（`same_as_daily` 已下线）；存量非法偏好值由 preferences getter 回退默认自愈，不做迁移。
 - 边界注记：分时监控由分钟能力兜底（`intraday_monitor_support`），不单设分时能力；`full_minute`（全量分钟）和 `depth5` 数据集均已开放插件声明。`depth5` 独立路由且失败时不跨源回退。
 - 实时指数为产品级固定契约，不走路由矩阵：展示层（侧栏指数条、市场总览）固定核心四只（`backend/app/services/index_const.py` 单一权威：上证/深成/创业板/科创综指），后端各消费方与前端 Layout 引用同一份定义不建副本；指数页保留但标的固定为核心四只（无全指数搜索/浏览，`/api/index/list`、`/api/index/search` 已下线）；侧栏指数多选配置已下线，相关偏好（`realtime_index_symbols`/`sidebar_index_symbols`/`indices_nav_pinned`/`realtime_pull_index`/`realtime_index_mode`）已删除。监控规则的指数标的不受限——quote_service 把核心四只 + 启用规则的指数并入显式拉取。
@@ -267,6 +290,7 @@
 | 历史证券状态 | SCD2 区间、同日重跑、名称/ST 变更、退市 tombstone 和首次采集前未知状态 |
 | 前端组件或页面 | `pnpm build`，并手工检查加载、空、错、切换和实时刷新状态 |
 | 前后端契约同时变化 | 后端定向测试 + 前端构建 + 对应页面联调 |
+| 文档/目录/工具 | 本地链接/锚点/围栏、需求编号/模块/状态、路径/CLI/工作流、冻结版本和迁移清单 |
 | 文件、Docker 或跨平台逻辑 | 正常路径、权限/能力缺失和目标不可用的失败路径 |
 
 常用命令：
@@ -320,7 +344,7 @@ PR 描述必须包含：
 ### 10.1 主线版本规则
 
 多人协作、分支更新、发布固定提交及远程规则见
-[`docs/collaborative-versioning.md`](docs/collaborative-versioning.md)。
+[`docs/reference/engineering.md#collaboration`](docs/reference/engineering.md#collaboration)。
 每项任务使用独立分支和工作目录，通过 PR 归并；共享分支不强推。
 
 主应用版本统一使用 `a.b.cd`：

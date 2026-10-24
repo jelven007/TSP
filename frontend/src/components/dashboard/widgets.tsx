@@ -1,5 +1,5 @@
 /**
- * 看板展示组件 — 从 pages/Dashboard.tsx 原样搬移, 行为与视觉不变。
+ * 行情展示组件 — 从 pages/Dashboard.tsx 原样搬移, 行为与视觉不变。
  *
  * 组件均为"props 进, 展示出"的纯展示件; 数据切片与交互回调由 Dashboard 页
  * 提供(overview 主查询仍集中在页面层, 避免 widget 各自重复请求)。

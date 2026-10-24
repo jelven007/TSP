@@ -287,7 +287,7 @@ def _dimension_rank(rows: list[dict], repo, kind: str, limit: int = 5, level: in
 
     store = ExtConfigStore(repo.store.data_dir)
     groups: dict[str, dict[str, dict]] = {}
-    group_source: dict[str, str] = {}  # 组名 → 首个命中的扩展字段 "configId.field" (看板成分股弹窗用)
+    group_source: dict[str, str] = {}  # 组名 → 首个命中的扩展字段 "configId.field" (行情成分股弹窗用)
     for config in store.load_all():
         field = _dimension_field(config, kind)
         if not field:

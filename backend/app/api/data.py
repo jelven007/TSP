@@ -730,7 +730,7 @@ def clear_data(request: Request):
 
     # 清除 Polars 缓存
     # 先 clear_cache 无条件清空内存 (refresh_cache 在磁盘无数据时会提前 return,
-    # 导致 _enriched_cache 等旧数据残留 —— 清数据后看板仍显示旧数据的根因),
+    # 导致 _enriched_cache 等旧数据残留 —— 清数据后行情仍显示旧数据的根因),
     # 再 refresh_cache 尝试重载 (磁盘有数据则重建缓存)。
     repo.clear_cache()
     repo.refresh_cache()

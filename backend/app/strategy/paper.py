@@ -1,6 +1,6 @@
-"""虚拟账户(模拟盘)域模块 — 虚拟资金 + 真实行情价格的模拟撮合, 不接券商不做实盘。
+"""虚拟账户(模拟交易)域模块 — 虚拟资金 + 真实行情价格的模拟撮合, 不接券商不做实盘。
 
-设计文档: docs/paper-trading-plan.md。与回测互补: 回测重放历史, 模拟盘实时向前。
+设计文档: docs/reference/trading-ai.md#paper。与回测互补: 回测重放历史, 模拟交易实时向前。
 
 账务正确性原则: fills.jsonl 成交台账是唯一事实源 (append-only), 持仓/现金/净值
 全部可由台账重放推导; 修复一律以追加记录表达 (除权 corp_action / 冲正), 不改历史行。
@@ -94,7 +94,7 @@ def _migrate_legacy(data_dir: Path) -> None:
     """旧单账户布局 data/paper/* → data/paper/accounts/default/* (一次性, 幂等)。
 
     仅当旧 account.json 存在且 accounts/ 尚不存在时迁移; 移动失败只留痕不阻断
-    (下次访问重试), 避免迁移异常导致模拟盘整体不可用。
+    (下次访问重试), 避免迁移异常导致模拟交易整体不可用。
     """
     legacy = Path(data_dir) / "paper"
     base = accounts_base(data_dir)
@@ -1062,7 +1062,7 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
 
     # 成交落告警记录 (监控中心触发历史可见; source=paper 走前端通用渲染)
     try:
-        label = "模拟盘" if account_id == DEFAULT_ACCOUNT_ID else f"模拟盘[{acc.get('name') or account_id}]"
+        label = "模拟交易" if account_id == DEFAULT_ACCOUNT_ID else f"模拟交易[{acc.get('name') or account_id}]"
         from app.services import alert_store
         alert_store.append_many(data_dir, [{
             "ts": int(datetime.now().timestamp() * 1000),
@@ -1167,7 +1167,7 @@ def _fill_event(fill: dict, account_id: str) -> dict:
         "qty": fill["qty"],
         "price": fill["price"],
         "account_id": account_id,
-        "message": f"模拟盘{side_label}成交 {fill['qty']}股 @ {fill['price']:.2f}",
+        "message": f"模拟交易{side_label}成交 {fill['qty']}股 @ {fill['price']:.2f}",
     }
 
 

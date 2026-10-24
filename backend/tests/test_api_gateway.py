@@ -156,7 +156,7 @@ def test_gateway_401_403_200_matrix(client: TestClient, tmp_path: Path):
 
 
 def test_gateway_scope_grants_endpoint(client: TestClient, tmp_path: Path):
-    _, paper_token = api_tokens.create_token(tmp_path, "模拟盘", ["paper:trade"])
+    _, paper_token = api_tokens.create_token(tmp_path, "模拟交易", ["paper:trade"])
     r = client.post("/api/paper/orders", headers={"Authorization": f"Bearer {paper_token}"})
     assert r.status_code == 200
 

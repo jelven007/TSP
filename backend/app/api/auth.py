@@ -424,7 +424,7 @@ def login(req: LoginIn, request: Request, response: Response) -> dict:
     if auth.has_users():
         if not req.email:
             raise HTTPException(
-                status_code=400, detail="请输入用户名" if settings.local_admin_mode else "请输入邮箱地址",
+                status_code=400, detail="请输入用户名或邮箱地址",
             )
         result = auth.authenticate_user(req.email, req.password)
         if result:
@@ -436,7 +436,7 @@ def login(req: LoginIn, request: Request, response: Response) -> dict:
     if token is None:
         _record_login_fail(ip)
         raise HTTPException(
-            status_code=401, detail="用户名或密码错误" if settings.local_admin_mode else "邮箱或密码错误",
+            status_code=401, detail="用户名、邮箱或密码错误",
         )
 
     _clear_login_fails(ip)

@@ -1,7 +1,7 @@
-// 主题管理 — 暗色(默认) / 亮色切换
+// 主题管理 — 亮色(默认) / 暗色切换
 //
 // 机制:
-//   - 状态存 localStorage('tf-theme'), 默认 dark (保持老用户体验不变)
+//   - 状态存 localStorage('tf-theme'), 默认 light, 保留已有主题选择
 //   - 生效方式: html.dark class (index.css 的 CSS variables + Tailwind darkMode:class)
 //   - index.html 里有预渲染内联脚本, 首屏前就设好 class, 避免闪烁 (FOUC)
 //   - UI token (bg-surface/text-foreground 等) 自动跟随;
@@ -15,9 +15,9 @@ export type Theme = 'dark' | 'light'
 
 export function getTheme(): Theme {
   try {
-    return localStorage.getItem(KEY) === 'light' ? 'light' : 'dark'
+    return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light'
   } catch {
-    return 'dark'
+    return 'light'
   }
 }
 

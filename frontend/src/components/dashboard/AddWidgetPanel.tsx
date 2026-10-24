@@ -1,5 +1,5 @@
 /**
- * 看板「添加组件」面板 — 内置组件列表 + 外部链接表单。
+ * 行情「添加组件」面板 — 内置组件列表 + 外部链接表单。
  *
  * 内置组件单实例: 已在布局中的禁用; 外部链接可加多个实例(URL 经消毒)。
  * 弹层 portal 到 body + fixed 定位锚定按钮下方 — 按钮位于页面头部时,
@@ -152,7 +152,7 @@ export function AddWidgetPanel({
                 onClick={addExtLink}
                 className="w-full rounded-btn bg-accent/15 px-2 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/25"
               >
-                添加到看板
+                添加到行情
               </button>
             </div>
           </div>

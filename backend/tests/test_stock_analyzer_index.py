@@ -34,7 +34,7 @@ def test_user_prompt_etf_no_financials():
 # ===== V3: 虚拟持仓注入 =====
 
 def test_user_prompt_injects_paper_position():
-    """模拟盘持有该标的: 注入持仓数量/成本/浮盈, 并要求 AI 给持仓建议。"""
+    """模拟交易持有该标的: 注入持仓数量/成本/浮盈, 并要求 AI 给持仓建议。"""
     from app.services.stock_analyzer import _paper_position_part, _build_user_prompt
 
     part = _paper_position_part([{"account_id": "default", "qty": 1000, "avg_cost": 10.0}],
@@ -51,7 +51,7 @@ def test_user_prompt_injects_paper_position():
         paper_positions=[{"account_id": "default", "qty": 1000, "avg_cost": 10.0}],
         raw_close=11.0,
     )
-    assert "模拟盘" in prompt and "持仓 1000 股" in prompt
+    assert "模拟交易" in prompt and "持仓 1000 股" in prompt
 
 
 def test_paper_position_part_multi_account():

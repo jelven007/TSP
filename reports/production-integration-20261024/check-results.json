@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-24",
+  "checks": [
+    {
+      "check": "backend-tests",
+      "command": "uv run --frozen --no-sync pytest tests -q (PostgreSQL16 DSN, empty dotenv, isolated DATA_DIR)",
+      "exit_code": 0,
+      "duration_seconds": 443.975,
+      "log": "backend-tests.txt"
+    },
+    {
+      "check": "tooling-tests",
+      "command": "uv run --project backend --frozen --no-sync pytest tests/tooling -q",
+      "exit_code": 0,
+      "duration_seconds": 62.712,
+      "log": "tooling-tests.txt"
+    },
+    {
+      "check": "frontend-tests",
+      "command": "pnpm test",
+      "exit_code": 0,
+      "duration_seconds": 13.849,
+      "log": "frontend-tests.txt"
+    },
+    {
+      "check": "frontend-lint",
+      "command": "pnpm lint",
+      "exit_code": 0,
+      "duration_seconds": 8.511,
+      "log": "frontend-lint.txt"
+    },
+    {
+      "check": "frontend-build",
+      "command": "pnpm build",
+      "exit_code": 0,
+      "duration_seconds": 31.769,
+      "log": "frontend-build.txt"
+    },
+    {
+      "check": "cargo-tests",
+      "command": "PYO3_PYTHON=<project Python3.12> cargo test --locked --manifest-path backend/native/rustdx_native/Cargo.toml",
+      "exit_code": 0,
+      "duration_seconds": 12.944,
+      "log": "cargo-tests.txt"
+    }
+  ],
+  "backend_suite": {
+    "tests": "4170",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "10",
+    "time": "440.508"
+  },
+  "skips": [
+    {
+      "test": "tests.test_atomic_write_retry::test_minute_date_queries_do_not_pin_partition_handles",
+      "reason": "Windows 句柄语义 + psutil"
+    },
+    {
+      "test": "tests.test_backtest_stream_date_guard::test_malformed_end_returns_400[-strategy]",
+      "reason": "空串走默认值分支, 不属于非法日期"
+    },
+    {
+      "test": "tests.test_backtest_stream_date_guard::test_malformed_end_returns_400[-optimize]",
+      "reason": "空串走默认值分支, 不属于非法日期"
+    },
+    {
+      "test": "tests.test_backtest_stream_date_guard::test_malformed_end_returns_400[-walkforward]",
+      "reason": "空串走默认值分支, 不属于非法日期"
+    },
+    {
+      "test": "tests.test_backtest_stream_date_guard::test_malformed_start_returns_400[-strategy]",
+      "reason": "空串走默认值分支, 不属于非法日期"
+    },
+    {
+      "test": "tests.test_backtest_stream_date_guard::test_malformed_start_returns_400[-optimize]",
+      "reason": "空串走默认值分支, 不属于非法日期"
+    },
+    {
+      "test": "tests.test_backtest_stream_date_guard::test_malformed_start_returns_400[-walkforward]",
+      "reason": "空串走默认值分支, 不属于非法日期"
+    },
+    {
+      "test": "tests.test_full_compose_config::test_small_host_composes_all_roles_with_isolated_bounded_dependencies[False]",
+      "reason": "Docker Compose CLI unavailable"
+    },
+    {
+      "test": "tests.test_full_compose_config::test_small_host_composes_all_roles_with_isolated_bounded_dependencies[True]",
+      "reason": "Docker Compose CLI unavailable"
+    },
+    {
+      "test": "tests.test_full_compose_config::test_production_16g_budget_caps_memory_and_database_connections",
+      "reason": "Docker Compose CLI unavailable"
+    }
+  ],
+  "log_normalization": "ANSI removed; machine paths replaced; test outcomes unchanged",
+  "first_backend_run": {
+    "passed": 4038,
+    "failed": 9,
+    "skipped": 123,
+    "fixes": "explicit temporary data_dir and tests using configured SMTP rather than embedded credentials"
+  },
+  "first_cargo_run": "failed linking stale system Python3.9; rerun with project Python3.12 passed",
+  "workflow_semantic_validation": {
+    "tool": "actionlint 1.7.12",
+    "command": "actionlint -shellcheck= -pyflakes=",
+    "result": "all workflows passed after fix",
+    "shell_python_static_analysis": "not run by this command",
+    "targeted_regression": "tests/tooling/test_version_workflows.py: 15 passed",
+    "initial_invalid_workflow_runs": [40105280525, 40105281238, 40105281783],
+    "cause": "runner context is not allowed in job-level env",
+    "fix": "step writes DATA_DIR from RUNNER_TEMP to GITHUB_ENV",
+    "remote_quality_gates": "must pass again on the final candidate"
+  },
+  "final_engineering_checks": {
+    "make_check": "passed: 82 required paths, 30 maintained documents, version0.4.17, diff whitespace",
+    "include_reports": "passed: 88 Markdown files",
+    "configuration_syntax": "four changed workflows and two package TOML files parsed",
+    "requirement_ids": "203/203 preserved, unique; 161FR/42NFR",
+    "post_import_sort_tests": "28 passed; overlaps full suite"
+  }
+}

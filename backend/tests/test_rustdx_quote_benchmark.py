@@ -11,7 +11,7 @@ import threading
 import polars as pl
 import pytest
 
-from scripts import benchmark_rustdx_quotes as bench
+from scripts.performance import benchmark_rustdx_quotes as bench
 
 
 def test_connection_range_and_invalid_inputs():

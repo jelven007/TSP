@@ -16,8 +16,9 @@
   启动使用固定本地镜像 ID；没有发布 Registry 产物或签名。
 - 对当前受控源码与快照再次执行校验：`changed=[] / missing=[] / added=[]`。
 
-完整镜像 ID、架构、文件清单见
-[构建记录](../../.tools/builds/single-host-06/build.json)。
+完整镜像 ID、架构、文件清单当时记录于
+`.tools/builds/single-host-06/build.json`（2026-10-24核对：原临时产物已缺失，
+撤去失效链接；本轮没有重建该历史证据）。
 部署说明见[单机验收流程](../../deploy/full/single-host.md)。
 
 ## 实施范围
@@ -41,7 +42,7 @@ PostgreSQL 与 Nginx 通过独立验收桥接网络提供主机回环入口。
 
 | 检查 | 结果与证据 |
 | --- | --- |
-| 最终定向回归 | **96 passed，0 skipped**；含真实一次性 PostgreSQL 的研究、实时、定时任务测试，[日志](../../.tools/regression-final.log) |
+| 最终定向回归 | **96 passed，0 skipped**；含真实一次性 PostgreSQL 的研究、实时、定时任务测试；原日志`.tools/regression-final.log`已缺失，保留当时结论但无法从该临时文件复核 |
 | 完整前端 | Docker 中 `tsc -b && vite build` 成功；真实 API 返回完整静态入口 |
 | 同源镜像 | Runtime、Compute、Broker 构建与运行文件校验全部通过 |
 | 十服务 Compose | 七应用角色、PostgreSQL、Broker、Nginx 启动；深度就绪、只读根目录及资源限额检查通过 |
@@ -55,8 +56,8 @@ PostgreSQL 与 Nginx 通过独立验收桥接网络提供主机回环入口。
 | 静态检查 | 本次 Python 文件按各目录适用配置执行 Ruff 通过；`git diff --check` 通过；版本校验为 `0.4.8` |
 | 清理 | 所有本轮一次性 Compose、测试数据库和 Compute 容器已清理；未遗留 `tsp-candidate-*` 容器 |
 
-[最终 Compose 报告](./compose-06b.json)，耗时 **159.756 秒**。
-[完整 Compute 报告](./compute-06.json)。
+[最终 Compose 报告](compose-06b.json)，耗时 **159.756 秒**。
+[完整 Compute 报告](compute-06.json)。
 
 实际执行的主验收命令：
 
@@ -106,7 +107,7 @@ python scripts/verify_full_compute.py \
 ## 2026-10-18 后续加固与状态
 
 上述结论是 `9b4bc2c5` 前序候选的历史记录。后续状态以
-[开发记录](./implementation.md)和[持续验收](./continuous-acceptance.md)为准：
+[开发记录](implementation.md)和[持续验收](continuous-acceptance.md)为准：
 
 - 火山引擎生产已完成 v0.4.8、schema v6 和七角色切流，固定提交为 `9b4bc2c5`。
 - `47b1738d` 增加行情 fail-fast、公共发布完整性、验收分类、Worker/Broker、

@@ -234,11 +234,11 @@ def validate(rule: dict) -> None:
     elif rule.get("type") == "abnormal":
         # 异动边缘监控: threshold_pct = 接近度阈值% (|偏离值|/规则阈值), 不用 conditions
         if rule.get("asset_type", "stock") != "stock":
-            raise ValueError("异动监控仅支持个股 (偏离值仅对个股计算)")
+            raise ValueError("异动数据仅支持个股 (偏离值仅对个股计算)")
         if rule.get("direction", "both") not in ABNORMAL_DIRECTIONS:
-            raise ValueError(f"异动监控 direction 必须是 {ABNORMAL_DIRECTIONS} 之一")
+            raise ValueError(f"异动数据 direction 必须是 {ABNORMAL_DIRECTIONS} 之一")
         if rule.get("abnormal_window", "any") not in ABNORMAL_WINDOWS:
-            raise ValueError(f"异动监控窗口必须是 {sorted(ABNORMAL_WINDOWS)} 之一")
+            raise ValueError(f"异动数据窗口必须是 {sorted(ABNORMAL_WINDOWS)} 之一")
         threshold_pct = rule.get("threshold_pct")
         if not isinstance(threshold_pct, (int, float)) or not 1 <= threshold_pct <= 150:
             raise ValueError("异动接近度阈值必须是 1 到 150 之间的百分比数字")

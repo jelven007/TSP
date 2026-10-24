@@ -344,7 +344,7 @@ class ExtConfig:
         # 映射关系: {"type": "mapped", "col": "原始列名"} 或 {"type": "computed", "from": "symbol|code", "method": "strip_exchange|append_exchange"}
         self.symbol_map = symbol_map or {}
         self.code_map = code_map or {}
-        # 市场级表: 行 = 全市场每日一条 (无 symbol 列), 如市场环境/情绪指数/择时
+        # 市场级表: 行 = 全市场每日一条 (无 symbol 列), 如环境/情绪指数/择时
         # 状态序列。上传/写入/拉取跳过标的关联强制; 供 /rows API 与未来的
         # "市场级过滤数据集" 契约消费 (策略 JOIN 面向 symbol, 不适用此类表)。
         self.market_level = bool(market_level)
