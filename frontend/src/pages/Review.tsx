@@ -250,7 +250,7 @@ export function Review() {
   return (
     <>
       <PageHeader
-        title="AI 复盘"
+        title="复盘"
         titleExtra={<Sparkles className="h-4 w-4 text-accent" />}
         subtitle={`${displayDate}${data?.emotion ? ` · 情绪 ${data.emotion.label}` : ''}`}
         right={

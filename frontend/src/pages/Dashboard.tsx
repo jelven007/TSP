@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowUpRight, Check, Database, Gauge, GripVertical, Info, Loader2, Play, RefreshCw, RotateCcw, Sparkles, Timer } from 'lucide-react'
+import { ArrowUpRight, Check, Database, GripVertical, Info, Loader2, Play, RefreshCw, RotateCcw, Sparkles, Timer } from 'lucide-react'
 import { DatePicker } from '@/components/DatePicker'
+import { PageHeader } from '@/components/PageHeader'
 import { api, type AlertEvent } from '@/lib/api'
 import { hasPermission, scopedStorageKey } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
@@ -193,9 +194,10 @@ export function Dashboard() {
 
   if (overview.isLoading && !data) {
     return (
-      <div className="flex h-full items-center justify-center bg-base">
-        <div className="flex items-center gap-2 text-sm text-muted">
-          <Loader2 className="h-4 w-4 animate-spin" /> 加载市场行情…
+      <div className="flex h-full flex-col bg-base">
+        <PageHeader title="行情" subtitle="指数行情 · 市场情绪 · 板块表现" />
+        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />加载行情…
         </div>
       </div>
     )
@@ -203,8 +205,9 @@ export function Dashboard() {
 
   if (!data) {
     return (
-      <div className="flex h-full items-center justify-center bg-base p-6">
-        <div className="rounded-card border border-border bg-surface p-6 text-center">
+      <div className="flex h-full flex-col bg-base">
+        <PageHeader title="行情" subtitle="指数行情 · 市场情绪 · 板块表现" />
+        <div className="m-auto rounded-card border border-border bg-surface p-6 text-center">
           <div className="text-sm text-danger">行情加载失败</div>
           <button onClick={() => overview.refetch()} className="mt-3 rounded-btn bg-accent px-3 py-1.5 text-xs font-medium text-white">重试</button>
         </div>
@@ -237,7 +240,73 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-full bg-base p-1.5">
+    <div className="min-h-full bg-base">
+      <PageHeader
+        title="行情"
+        subtitle="指数行情 · 市场情绪 · 板块表现"
+        titleExtra={
+          <span
+            className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+            style={{
+              color: scoreColor(score),
+              borderColor: `${scoreColor(score)}40`,
+              background: `${scoreColor(score)}14`,
+            }}
+          >
+            {data.emotion.label} · {score}
+          </span>
+        }
+        right={
+          <div className="flex items-center gap-2 text-[11px] text-muted">
+            {currentDate ? (
+              <DatePicker
+                value={currentDate}
+                onChange={setSelectedDate}
+                min={dataStatus.data?.enriched?.earliest_date ?? undefined}
+                max={latestDate ?? undefined}
+                className="w-32"
+              />
+            ) : (
+              <span className="font-mono text-secondary">—</span>
+            )}
+            <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{quoteAge(data.quote_status?.quote_age_ms)}</span>
+            <span className={quoteRunning ? 'text-accent' : 'text-warning'}>{quoteRunning ? '实时' : '非实时'}</span>
+            <button
+              onClick={handleRefresh}
+              disabled={manualFetching}
+              className="inline-flex items-center gap-1 rounded-btn border border-border bg-elevated px-2 py-1 text-[11px] text-secondary transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3 w-3 ${manualFetching ? 'animate-spin' : ''}`} />重载
+            </button>
+            {!dashEditing ? (
+              <button
+                onClick={() => setDashEditing(true)}
+                title="拖拽调整组件位置与宽高"
+                className="inline-flex items-center gap-1 rounded-btn border border-border bg-elevated px-2 py-1 text-[11px] text-secondary transition-colors hover:text-foreground hover:border-accent/40"
+              >
+                <GripVertical className="h-3 w-3" />自定义布局
+              </button>
+            ) : (
+              <>
+                <AddWidgetPanel placedTypes={placedTypes} onAdd={addDashWidget} />
+                <button
+                  onClick={resetDashLayout}
+                  className="inline-flex items-center gap-1 rounded-btn border border-border bg-elevated px-2 py-1 text-[11px] text-secondary transition-colors hover:text-foreground"
+                >
+                  <RotateCcw className="h-3 w-3" />恢复默认
+                </button>
+                <button
+                  onClick={() => setDashEditing(false)}
+                  className="inline-flex items-center gap-1 rounded-btn bg-accent px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-accent/90"
+                >
+                  <Check className="h-3 w-3" />完成
+                </button>
+              </>
+            )}
+          </div>
+        }
+      />
+      <div className="p-1.5">
       {/* 无本地数据常驻引导卡片 —— 一键触发盘后管道获取数据(无 Key 也可) */}
       {hasNoData && !canManageData && (
         <p role="status" className="mb-3 rounded-card border border-border bg-surface p-4 text-sm text-muted">
@@ -274,70 +343,6 @@ export function Dashboard() {
       </AnimatePresence>
       {/* 无除权因子能力时的同步前置确认 */}
       {adjGate.dialog}
-      <div className="relative mb-1.5 flex flex-wrap items-center justify-between gap-2 overflow-hidden rounded-card border border-border bg-gradient-to-r from-surface/90 to-surface/70 px-3 py-1.5 shadow-[0_1px_3px_hsl(var(--border)/0.4)] backdrop-blur-sm">
-        <div className="pointer-events-none absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-accent to-accent/20" aria-hidden />
-        <div className="flex items-center gap-2">
-          <Gauge className="h-4 w-4 text-accent" />
-          <h1 className="text-[16px] leading-6 font-semibold text-foreground">市场行情</h1>
-          <span
-            className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
-            style={{
-              color: scoreColor(score),
-              borderColor: `${scoreColor(score)}40`,
-              background: `${scoreColor(score)}14`,
-            }}
-          >
-            {data.emotion.label} · {score}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 text-[11px] text-muted">
-          {currentDate ? (
-            <DatePicker
-              value={currentDate}
-              onChange={setSelectedDate}
-              min={dataStatus.data?.enriched?.earliest_date ?? undefined}
-              max={latestDate ?? undefined}
-              className="w-32"
-            />
-          ) : (
-            <span className="font-mono text-secondary">—</span>
-          )}
-          <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{quoteAge(data.quote_status?.quote_age_ms)}</span>
-          <span className={quoteRunning ? 'text-accent' : 'text-warning'}>{quoteRunning ? '实时' : '非实时'}</span>
-          <button
-            onClick={handleRefresh}
-            disabled={manualFetching}
-            className="inline-flex items-center gap-1 rounded-btn border border-border bg-elevated px-2 py-1 text-[11px] text-secondary transition-colors hover:text-foreground disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3 w-3 ${manualFetching ? 'animate-spin' : ''}`} />重载
-          </button>
-          {!dashEditing ? (
-            <button
-              onClick={() => setDashEditing(true)}
-              title="拖拽调整组件位置与宽高"
-              className="inline-flex items-center gap-1 rounded-btn border border-border bg-elevated px-2 py-1 text-[11px] text-secondary transition-colors hover:text-foreground hover:border-accent/40"
-            >
-              <GripVertical className="h-3 w-3" />自定义布局
-            </button>
-          ) : (
-            <>
-              <AddWidgetPanel placedTypes={placedTypes} onAdd={addDashWidget} />
-              <button
-                onClick={resetDashLayout}
-                className="inline-flex items-center gap-1 rounded-btn border border-border bg-elevated px-2 py-1 text-[11px] text-secondary transition-colors hover:text-foreground"
-              >
-                <RotateCcw className="h-3 w-3" />恢复默认
-              </button>
-              <button
-                onClick={() => setDashEditing(false)}
-                className="inline-flex items-center gap-1 rounded-btn bg-accent px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-accent/90"
-              >
-                <Check className="h-3 w-3" />完成
-              </button>
-            </>
-          )}
-        </div>
-      </div>
 
       {/* 自选实时模式提示: 大盘行情为盘后数据, 仅自选股实时。避免用户误读为全市场实时。 */}
       {quoteMode === 'watchlist' && (
@@ -375,6 +380,7 @@ export function Dashboard() {
           setPreviewStock({ symbol, name })
         }}
       />
+      </div>
     </div>
   )
 }

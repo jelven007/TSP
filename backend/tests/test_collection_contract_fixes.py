@@ -216,14 +216,16 @@ def test_depth_does_not_fetch_today_to_fill_yesterdays_partition(monkeypatch):
 
 
 @pytest.mark.parametrize("verdict", [False, None])
-def test_scheduled_instruments_does_not_run_on_unconfirmed_day(monkeypatch, verdict):
+async def test_scheduled_instruments_runs_on_non_trading_day(monkeypatch, verdict):
     from app.jobs import daily_pipeline
 
     monkeypatch.setattr(trading_day, "is_trading_day", lambda now=None: verdict)
-    run = Mock()
-    monkeypatch.setattr(daily_pipeline, "_run_tracked", run)
-    daily_pipeline._scheduled_instruments_task(lambda: None)
-    run.assert_not_called()
+    calls = []
+    async def run(repo, *, source):
+        calls.append(source)
+    monkeypatch.setattr(daily_pipeline, "run_catalog_job", run)
+    await daily_pipeline._scheduled_instruments_task(object())
+    assert calls == ["scheduled"]
 
 
 def test_depth_poll_skips_confirmed_holiday(monkeypatch):

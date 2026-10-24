@@ -127,7 +127,7 @@ def test_data_initial_defaults_match_configured_baseline(_isolated, existing):
     assert preferences.get_pipeline_pull_a_share() is True
     assert preferences.get_pipeline_pull_index() is True
     assert preferences.get_pipeline_pull_etf() is True
-    assert preferences.get_instruments_schedule() == {"hour": 9, "minute": 10}
+    assert preferences.get_instruments_schedule() == {"hour": 9, "minute": 0}
     assert preferences.get_pipeline_schedule() == {"hour": 15, "minute": 35}
     assert preferences.get_pipeline_regime_enabled() is True
     assert preferences.get_regime_batch_days() == 120

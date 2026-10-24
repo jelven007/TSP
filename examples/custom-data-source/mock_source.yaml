@@ -1,3 +1,4 @@
+# Local integration fixture; see the adjacent README before use.
 name: mock_source
 display_name: "Mock 自定义数据源"
 auth:

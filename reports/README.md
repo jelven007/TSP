@@ -1,8 +1,8 @@
 # 当前主线与目标规划的证据索引
 
-核对日期：2026-10-24。本轮集成前远程main、本地main与HEAD为
-`cc837b95f471e5b299bf5e8618332d500bff7e3a`，应用版本0.4.17。
-完整变更与实际检查见[最新整合](production-integration-20261024/verification.md)；
+核对日期：2026-10-25。本轮集成前冻结基线为
+`31cf1a553dbc806aac6e6f93f30f4f41b646aa3e`，应用版本0.4.19。
+完整变更与实际检查见[最新整合](production-baseline-20261025/verification.md)；
 最终主线版本由CI分配，生产状态另见[版本基线](../docs/version-baseline.md)。
 
 本目录保留当前契约、目标决策、生产兼容或未完成签收仍需要的证据。
@@ -11,6 +11,7 @@
 
 | 保留材料 | 与当前主线或规划的关系 |
 | --- | --- |
+| [生产基线整合](production-baseline-20261025/verification.md) | 官方目录、管理员空间、顶栏/数据总览、示例目录、六类文档和源码恢复工具的本次验证 |
 | [完整本地整合](production-integration-20261024/verification.md)、[五个历史恢复点](production-integration-20261024/version-retention.json) | 本轮全部变更、目录、生命周期映射、全量验证、自审与恢复口径 |
 | [页面与数据分析](page-data-analysis-20261024/README.md) | 页面/菜单数量、数据血缘与上游分类；原根目录五份分析的可移植归档 |
 | [目标设计输入](design-inputs-20261023/README.md) | 融合方案、ClickHouse八表/SQL和用户原图是统一目标的依据 |

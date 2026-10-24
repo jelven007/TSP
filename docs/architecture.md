@@ -1,5 +1,9 @@
 # TSP 系统技术方案
 
+2026-10-25基线补入官方个股目录、管理员默认个人空间、统一顶栏和数据总览；
+工程目录及六类文档的对应关系见[生命周期追踪](reference/engineering.md#trace)，
+本次实际验证见[整合记录](../reports/production-baseline-20261025/verification.md)。
+
 核对日期：2026-10-24。本手册集中记录当前实现与系统目标；本地完整变更及验证见[最新整合记录](../reports/production-integration-20261024/verification.md)。当前实现以源码和相邻测试为准，目标方案不代表已接入、验收或部署；生产状态只在[版本基线](version-baseline.md)维护。
 
 产品范围见[需求基线](requirements.md)，工程约束见[开发指南](../CONTRIBUTING.md)，部署恢复见[运维手册](operations.md)。
@@ -35,8 +39,11 @@ TSP 保留模块化单体的完整业务引擎，提供完整单机多租户与�
 
 初始化默认自动同步：`preferences.get_data_sync_auto_enabled()` 缺省为开启。
 Standalone 与 Platform 记录待同步状态并通过 `start_initial_sync` 创建后台首次任务；
-启动完整性修复、五档补跑、证券目录、盘后管道及竞价采集/补发布默认允许执行。
-已有总开关关闭时，调度器启动前暂停数据任务，修改调度时间保留暂停状态。
+启动完整性修复、五档补跑、盘后管道及竞价采集/补发布默认允许执行。
+已有总开关关闭时暂停这些行情数据任务，修改调度时间保留暂停状态。
+个股维表独立于总开关：`start_scheduler` 启动后台官方目录任务，并在每天北京时间
+09:00 执行，包含周末与节假日；复用持久化 JobStore 的 `instruments_sync` 任务类型，
+同类单飞，不占行情重任务槽，下载失败不阻塞启动。
 实时行情（含 ETF）、盘中分钟和分时图刷新、秒级归档、内置概念/行业自动拉取默认开启。
 财务调度在能力可用时默认启动，执行时检查总开关，通过
 `asyncio.to_thread(run_now, "metrics")` 复用互斥、时间持久化和带仓库写锁的数据发布路径。
@@ -157,6 +164,12 @@ Vite :3011  --代理/API-->  FastAPI :3018  -->  ./data
 默认值。普通运行在无身份时创建哈希账号；完整多租户 API 使用已有 SQL 运行权限
 幂等创建缺失管理员和默认注册口令 `天王盖地虎`，开放注册及找回密码，不执行 schema 迁移。
 已有口令保持不变；口令初始化失败阻止 API 宣称初始化完成。
+有效管理员默认继承全部租户业务权限；`AccountIdentity.bootstrap_admin_tenants`
+为没有默认租户的管理员创建个人空间。复用注册的容量锁、owner 成员关系、
+持久化 provisioning job 和 `business.initialize_tenant`，独立提交后激活默认空间。
+已有默认租户、密码、系统角色和业务数据保留；并发启动只预留一个空间，中断可在
+启动恢复或登录时重试。容量或初始化失败保留系统管理登录，私有业务仍校验租户就绪；
+初始化完成不会恢复已停用账户，默认空间变更通知现有事件授权与账户范围检查。
 SMTP 依次使用显式环境、已存平台配置、
 完整多租户 Cell 配置；均未配置时邮件不可用，不随源码内置实际邮箱授权码。
 通知与注册共用传输、收件人独立；不会因默认值替换已有配置。
@@ -281,6 +294,16 @@ API 层不应直接实现供应商协议或全量数据计算。前端不应复�
 同时把名称、ST/风险警示、上市状态和上市日期的变化写入
 `instrument_status/history.parquet`。历史表采用 SCD2，`valid_to` 为开区间终点，
 同日重跑覆盖当日观测，目录中消失的证券写入退市 tombstone。
+
+个股目录由 `data_providers/official_stock_catalog.py` 访问上交所公开 JSON 查询及深交所
+XLSX 下载，并核对各源总数、重复代码和四板覆盖；`services/instrument_sync.py` 标准化、
+保留缺失元数据的来源与日期后写入快照。网络下载在目录锁和仓库写锁之外完成，官方提交
+与管理员 CRUD 共用锁；当前快照写入失败恢复历史，避免虚假退市观测。
+`api/instruments.py` 的 `/api/data/instruments` GET/POST/PUT/DELETE 复用现有公共数据
+管理转发，后端逐次检查管理员身份；前端复用 StatCard 管理入口、StockCatalogDialog、
+API 类型和集中查询键。变更后刷新当前维表视图、名称与股票缓存、数据/总览/筛选缓存，
+发布 data release 并失效前端相关查询；不清空 ETF/指数历史缓存。官方缺股本时保留旧值，
+不从报价或首根行情日期推断上市日。
 
 enriched 分区持久化 `is_risk_warning`、`is_listed` 和
 `instrument_status_known`。回测和矩阵过滤优先使用交易日对应状态；首次启用历史

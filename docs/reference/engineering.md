@@ -2,6 +2,12 @@
 
 本附录按领域维护实现方法、数据契约和可执行示例。通用开发要求只在[CONTRIBUTING](../../CONTRIBUTING.md)定义；需求与当前/目标边界见[需求](../requirements.md)和[系统方案](../architecture.md#current)。带日期的结果仅证明原版本、环境和窗口，不是本次重新执行的验证。
 
+一级页面顶栏统一复用 `frontend/src/components/PageHeader.tsx`，以策略页为样式基准：
+桌面20px标题、10px说明、最小64px高度和全宽底部分隔线；标题侧可加状态，操作区保持紧凑，
+窄屏单独一行横向滚动并避开菜单按钮。共享规则在 `index.css` 的 `.page-header-actions`，
+页面不再覆盖顶栏间距或重复实现卡片式标题。正文图表和领域操作保留各自结构；
+行情的加载/失败状态也使用同一标题组件。对应需求 `FR-UI-05`。
+
 - [1. 仓库布局与文件归属](#layout)
 - [2. 从需求到生产的工程闭环](#engineering)
 - [3. 构建身份与离线升级材料](#build)
@@ -15,7 +21,7 @@
 
 生产开发闭环见[生产工程](#engineering)，全部本地变更见[生命周期追踪](#trace)。
 
-更新日期：2026-10-24。本文定义中型生产系统的实际仓库布局、文件归属和目录迁移规则。
+更新日期：2026-10-25。本文定义中型生产系统的实际仓库布局、文件归属和目录迁移规则。
 当前系统采用模块化单体与独立运行角色，源码目录不等同部署进程。
 实现架构见[当前架构](../architecture.md#current)，开发规则见[贡献指南](../../CONTRIBUTING.md)。
 
@@ -99,12 +105,13 @@ TSP/
 │   ├── build_manifest.py            # 构建清单与离线核验
 │   ├── upgrade_check.py             # 上游升级只读预检
 │   ├── acceptance/                 # 候选镜像构建与验收启动
+│   ├── release/source_recovery.py  # 最新及五个历史源码归档与离线核验
 │   ├── performance/                # 跨工作区性能对比
 │   └── research/                   # 策略试验与结果汇总
 ├── tests/tooling/                   # 仓库工具、版本与工作流测试
 ├── docs/
 │   ├── README.md                   # 六类主手册与专题导航
-│   ├── requirements.md             # 161条FR（八业务章节）与42条NFR
+│   ├── requirements.md             # 162条FR（八业务章节）与42条NFR
 │   ├── architecture.md             # 当前实现、代码事实源与统一系统目标
 │   ├── testing.md                  # 测试命令、联合验收与基准方法
 │   ├── operations.md               # 部署、配置、账户、巡检与恢复
@@ -113,9 +120,11 @@ TSP/
 │   ├── version-baseline.md         # 源码、标签、产物与生产状态
 │   ├── reference/                  # engineering/market-data/research/
 │   │                              # factor-system/trading-ai/integrations
-│   ├── planning/phase2-implementation-plan.md # 当前执行工作包
-│   └── examples/                   # 文档配套可运行示例
-├── examples/open-api/              # 外部调用示例
+│   └── planning/phase2-implementation-plan.md # 当前执行工作包
+├── examples/
+│   ├── README.md                   # 可运行示例与前置条件
+│   ├── custom-data-source/         # 合成行情 HTTP 联调服务和 YAML
+│   └── open-api/                   # 外部调用示例
 ├── brand/                          # 品牌 SVG、PNG 与图标
 ├── screenshots/                    # 面向用户的功能截图
 ├── reports/
@@ -134,7 +143,7 @@ TSP/
 
 | 分类 | 维护角色 | 唯一归属与放置原则 |
 | --- | --- | --- |
-| 产品与需求 | 产品负责人 | 203条需求在 `docs/requirements.md`；FR按八章组织，历史依据在 `reports/` |
+| 产品与需求 | 产品负责人 | 204条需求在 `docs/requirements.md`；FR按八章组织，历史依据在 `reports/` |
 | 业务源码 | 后端／前端负责人 | 就近维护领域模块；API 和页面不承担仓库、Provider 的职责 |
 | 原生依赖 | 数据接入负责人 | `backend/native/`；保持 Python 接入与锁定 revision 一致 |
 | 数据库迁移 | 后端／数据负责人 | `backend/app/cell/sql/` 随应用打包；不复制到另一个顶层 SQL 目录 |
@@ -151,6 +160,13 @@ TSP/
 
 后端现有平铺测试与前端就近测试保持可发现。新增后端专题测试可以按现有
 `backtest/` 模式建领域子目录，但不能按文件名猜测后批量移动已有测试。
+
+2026-10-25 将 `docs/examples/custom-data-source/` 的三个文件迁至
+`examples/custom-data-source/`，规范与可运行示例各归其位。新增恢复工具归
+`scripts/release/`，测试归 `tests/tooling/`；既有 CI 版本工具保留稳定路径。
+新股票目录沿 `data_providers/official_stock_catalog.py` →
+`services/instrument_sync.py` / `instrument_catalog.py` → `api/instruments.py` 分层，
+前端领域弹窗归 `components/data/`，统一顶栏归共享组件。
 
 <a id="layout-4-开发与检查入口"></a>
 ### 4. 开发与检查入口
@@ -502,8 +518,10 @@ git ls-remote --tags origin 'refs/tags/v*'
 <a id="trace-本地变更与全生命周期追踪"></a>
 ## 5. 需求与生命周期追踪
 
-更新日期：2026-10-24。本表覆盖当前工作区全部相对HEAD的工程变更，以及已有本地
-PRD/方案/目录整理；逐文件新增、修改、删除、迁移和SHA-256清单见
+更新日期：2026-10-25。本次基线为 `31cf1a553dbc806aac6e6f93f30f4f41b646aa3e` / 0.4.19，
+全部有效本地修改的范围和验证见[本轮记录](../../reports/production-baseline-20261025/verification.md)。
+下列2026-10-23/24记录保留当时的范围和结果：
+逐文件新增、修改、删除、迁移和SHA-256清单见
 [整合证据](../../reports/production-system-consolidation-20261023/verification.md)。
 现状核对基线为`cc837b95f471e5b299bf5e8618332d500bff7e3a`，应用版本保持0.4.17。
 
@@ -525,7 +543,7 @@ PRD/方案/目录整理；逐文件新增、修改、删除、迁移和SHA-256�
 | 变更组 / 责任 | 需求 | 方案 / 开发 | 测试 | 运营 / 运维影响 |
 | --- | --- | --- | --- | --- |
 | 工程目录 / 开发负责人 | NFR-01/04/06/10 | [布局](#layout)、[生产工程](#engineering)、ADR0001/0002 | tooling、脚本import/CLI、CI、文档门禁 | 外部作业同步新路径，模式/端口/数据目录不随源码迁移 |
-| 需求基线与八模块 / 产品负责人 | 全161FR、42NFR | [需求总纲](../requirements.md)、[当前索引](../architecture.md#capabilities) | 编号集合保持、唯一性、状态与链接；原领域测试 | 用户说明只写当前能力，阶段/生产/目标独立 |
+| 需求基线与八模块 / 产品负责人 | 全162FR、42NFR | [需求总纲](../requirements.md)、[当前索引](../architecture.md#capabilities) | 保留203个原编号、新增FR-UI-05；唯一性、状态与链接 | 用户说明只写当前能力，阶段/生产/目标独立 |
 | 融合系统目标 / 架构负责人 | FR-REALTIME/STATS/HISTORY/SCREEN/BACKTEST、NFR-23–42 | [系统目标](../architecture.md#target)、[二期计划](../planning/phase2-implementation-plan.md) | A–I、3.1–3.6联合矩阵，未实现项未执行 | 容量/成本/可靠性目标未签收，轻量不强装新组件 |
 | 数据能力与配置说明 / 数据负责人 | FR-DATA/EXT/ADMIN、FR-CORP | [Provider](integrations.md#plugin)、[公司行为](trading-ai.md#corporate)、[配置](../operations.md#configuration) | 能力/日期/账务/旧模式/配置测试 | usable不认证日期；失败保护旧结果，变更源配置拒绝旧请求 |
 | 策略、因子与研究行为补齐 / 研究负责人 | FR-STRATEGY/SIGNAL/FACTOR/MINING/BACKTEST | [策略](research.md#strategy)、[因子](factor-system.md#factor-current)、[研究](research.md#research) | 原价/费用/T+1/固定输入/样本外/候选门槛/缓存 | 研究产物不等于收益承诺；缺历史/时点证据显式受限 |
@@ -540,6 +558,10 @@ PRD/方案/目录整理；逐文件新增、修改、删除、迁移和SHA-256�
 | 邮件配置与认证 / 应用和运维 | FR-ADMIN/MONITOR/REVIEW、NFR-09 | 环境 → 旧系统配置 → Cell；共享SMTP AUTH LOGIN | 未配置/缺密码、优先级、无秘密响应、LOGIN及通知/注册收件人 | 实际授权码仅受控配置；本地旧值已保留，不携带进Git/镜像，新部署必须配置 |
 | 菜单/亮色/数据源设置 / 前端负责人 | FR-UI/DASHBOARD/DATA/ADMIN、NFR-02 | theme首屏、Layout/MenuSettings、capabilities权威顺序、DataSources派生列表 | 前端全量/lint/build、路由冲突、既有偏好和页面状态 | 行情/环境/信号指标/模拟交易/数据总览等名称更新；设置源rustdx→fuyao→自定义，保留旧TickFlow生效路由 |
 | 分析材料/版本保留 / 发布负责人 | 全FR、NFR-01/04/06/08/10 | 页面血缘分析归reports，Excel归deliverables；最新+5恢复点 | 相对链接、203编号、文件清单/哈希、恢复归档 | 文档快照与当前行为分别维护；不删除Git历史、冻结标签或生产备份 |
+| 官方个股目录 / 数据负责人 | FR-DATA-04/05/08、FR-ADMIN | [当前架构](../architecture.md#current)、[目录契约](market-data.md)、instrument_sync/catalog及管理API | 官方响应完整性、CRUD/权限、SCD2、原子写失败、缓存发布、启动及09:00调度 | 固定官方源，不受行情总开关控制；旧时间偏好失效；手工修订可能被后续官方名单覆盖 |
+| 管理员个人空间 / 应用负责人 | FR-ENTRY、FR-ADMIN、NFR-09/20 | identity预留→持久任务→业务初始化→默认空间激活 | 真实PG并发/容量/双库重试、停用保护、租户隔离、启动接线 | 已有租户与密码保留；失败时管理登录仍可用，业务待空间就绪 |
+| 顶栏与数据总览 / 前端负责人 | FR-UI-05、FR-DATA-07 | PageHeader、Data、Watchlist弹层及共享状态查询 | Vitest/build/lint、桌面与窄屏、浅深色、搜索弹层和目录管理 | 顶栏统一；数据页分盘前/中/后，旧按钮与筛选保持可用 |
+| 示例与源码恢复 / 工程负责人 | NFR-01/04/06/08/10 | examples统一、scripts/release/source_recovery.py | 目录/链接、样例接口、真实Git祖先/标签、损坏/越界/覆盖拒绝 | 只归档固定源码，保留最新+5；生产数据与依赖另行备份 |
 
 <a id="trace-2-全部文件的追踪方式"></a>
 ### 2. 全部文件的追踪方式
@@ -556,14 +578,14 @@ PRD/方案/目录整理；逐文件新增、修改、删除、迁移和SHA-256�
 <a id="trace-3-本次完成与未完成"></a>
 ### 3. 本次完成与未完成
 
-本次交付范围：工程/专项目录整理、203条需求结构化、全生命周期文档同步、
+本次交付范围：工程/示例目录整理、204条需求结构化、全生命周期文档同步、
 目录/文档自动门禁与适用回归、逐文件证据和规范包。
 本轮包括上述初始化、认证、展示与调度业务变更；没有执行数据库迁移或生产切流。
 
 二期第二步持续/完整交易日终态仍待，第三步未开始。
 CH应用接入、Kafka/Flink/Redis/TOS、多节点HA/强Compute、Cell及万人能力仍为目标。
 Win10真机、安装包、真实数据覆盖/许可/时钟和区域恢复另行签收。
-实际已执行检查与未执行范围仅以本次[验证报告](../../reports/production-integration-20261024/verification.md)为准。
+实际已执行检查与未执行范围仅以本次[验证报告](../../reports/production-baseline-20261025/verification.md)为准。
 
 <a id="trace-4-后续维护规则"></a>
 ### 4. 后续维护规则
@@ -584,6 +606,7 @@ Win10真机、安装包、真实数据覆盖/许可/时钟和区域恢复另行�
 | --- | --- | --- |
 | ADR0001：按发布单元与职责组织仓库 | 已接受，2026-10-23 | 保留backend/frontend/MCP，脚本分类、tooling集中、SQL随包；部署角色不拆重复源码；文档/证据目录细化由下一项承接 |
 | ADR0002：文档分层与需求追踪 | 2026-10-23接受，2026-10-24更新正文组织 | 保留203编号及六类生命周期追踪；八需求模块改为单手册内章节，专题文件合并为六份附录，历史证据统一归reports |
+| ADR0003：示例和恢复材料分离 | 已接受，2026-10-25 | 可执行示例统一到examples，源码恢复工具归scripts/release；六份归档只由不可变主线版本生成，不修改Git历史或混入运行数据 |
 
 本轮更新的理由是分目录仍留下重复正文和多套维护入口。需求、方案、开发、测试、
 发布运营和运维各有一个主入口；操作说明书只描述当前用户行为。

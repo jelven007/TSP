@@ -19,7 +19,7 @@ def test_catalog_refresh_preserves_valid_metadata_without_refreshing_its_age(
             "float_shares": 800.0, "tick_size": 0.01, "limit_up": 11.0,
         }, {"symbol": "600002.SH", "name": "旧标的", "total_shares": 900.0}],
     }
-    monkeypatch.setattr(instrument_sync, "_fetch_instruments_via_provider", lambda: state["rows"])
+    monkeypatch.setattr("app.data_providers.official_stock_catalog.fetch_official_stock_catalog", lambda: state["rows"])
     monkeypatch.setattr(instrument_sync, "cn_today", lambda: state["day"])
     monkeypatch.setattr("app.services.preferences.get_daily_data_provider", lambda: "rustdx")
     instrument_sync.sync_instruments(tmp_path)
@@ -40,7 +40,7 @@ def test_catalog_refresh_preserves_valid_metadata_without_refreshing_its_age(
     assert row["float_shares"] == 850.0
     assert row["limit_up"] is None
     assert row["total_shares_as_of"] == date(2026, 7, 1)
-    assert row["total_shares_source"] == "rustdx"
+    assert row["total_shares_source"] == "official_exchanges"
     assert row["float_shares_as_of"] == date(2026, 7, 2)
     assert current["symbol"].to_list() == ["600001.SH", "600003.SH"]
     assert current.filter(pl.col("symbol") == "600003.SH")["total_shares"][0] is None
@@ -57,7 +57,7 @@ def test_invalid_provider_share_value_cannot_erase_valid_legacy_metadata(
         "listing_date": [date(2020, 1, 1)],
         "total_shares": [1000.0], "as_of": [date(2026, 7, 1)],
     }).write_parquet(target)
-    monkeypatch.setattr(instrument_sync, "_fetch_instruments_via_provider", lambda: [{
+    monkeypatch.setattr("app.data_providers.official_stock_catalog.fetch_official_stock_catalog", lambda: [{
         "symbol": "600001.SH", "name": "示例", "total_shares": invalid,
     }])
     monkeypatch.setattr(instrument_sync, "cn_today", lambda: date(2026, 7, 2))
@@ -70,7 +70,7 @@ def test_invalid_provider_share_value_cannot_erase_valid_legacy_metadata(
     assert row["total_shares_as_of"] == date(2026, 7, 1)
 
 
-def test_sync_enriches_fresh_catalog_through_optional_provider_metadata(tmp_path, monkeypatch):
+def test_legacy_provider_helper_enriches_fresh_catalog_through_optional_metadata(monkeypatch):
     calls = []
 
     def metadata(symbols):
@@ -88,13 +88,13 @@ def test_sync_enriches_fresh_catalog_through_optional_provider_metadata(tmp_path
     monkeypatch.setattr(custom_sources, "is_custom_provider", lambda name: True)
     monkeypatch.setattr(custom_sources, "get_provider", lambda name: provider)
 
-    assert instrument_sync.sync_instruments(tmp_path) == 1
-    row = pl.read_parquet(tmp_path / "instruments/instruments.parquet").row(0, named=True)
+    rows = instrument_sync._fetch_instruments_via_provider()
+    assert len(rows) == 1
+    row = rows[0]
     assert calls == [["600001.SH"]]
     assert row["listing_date"] == "2000-01-01"
     assert row["total_shares"] == 1e9
     assert row["float_shares"] == 8e8
-    assert row["total_shares_source"] == "rustdx"
 
 
 def test_optional_metadata_failure_keeps_valid_catalog_fields(monkeypatch):

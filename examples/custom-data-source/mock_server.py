@@ -1,6 +1,6 @@
 """Mock custom market data source for local integration tests.
 
-Run:
+Run from this example directory:
     python mock_server.py
 
 Then copy mock_source.yaml to data/data_sources/mock_source.yaml and reload data

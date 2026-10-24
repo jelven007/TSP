@@ -71,8 +71,7 @@ export function Backtest() {
     <div className="flex min-h-full flex-col bg-base">
       <PageHeader
         title="回测"
-        subtitle={<span className="hidden md:inline">{MODES[activeTab].subtitle}</span>}
-        className="shrink-0 flex-wrap gap-x-4 gap-y-2 bg-base/95 px-3 lg:flex-nowrap lg:px-5"
+        subtitle={MODES[activeTab].subtitle}
         right={(
           <div className="flex w-full min-w-0 items-center gap-1.5 sm:gap-2 lg:w-auto">
             {multitenancyEnabled() && <button type="button" onClick={() => setHistoryOpen(true)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-btn border border-border bg-surface px-2 text-[11px] text-secondary hover:text-accent"><History className="h-3.5 w-3.5" /><span>任务历史</span></button>}

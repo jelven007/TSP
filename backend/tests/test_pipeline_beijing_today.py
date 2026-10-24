@@ -35,7 +35,7 @@ def test_pipeline_daily_window_ends_on_beijing_today(monkeypatch, tmp_path) -> N
         raise _StopError()
 
     monkeypatch.setattr(daily_pipeline, "cn_today", lambda: BJ, raising=False)
-    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir: 0)
+    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir, **kwargs: 0)
     monkeypatch.setattr(
         instrument_sync,
         "load_current_stock_pool",

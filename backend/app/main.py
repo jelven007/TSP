@@ -23,6 +23,7 @@ from app.api import (
     factors,
     financials,
     indices,
+    instruments,
     intraday,
     kline,
     lots,
@@ -408,7 +409,10 @@ async def _application_lifespan(app: FastAPI):
     finally:
         from app.api.pipeline import stop_initial_sync_job
 
+        if app.state.scheduler:
+            app.state.scheduler.pause()
         await stop_initial_sync_job(getattr(app.state, "initial_sync_job_id", None))
+        await daily_pipeline.stop_catalog_jobs()
         repo._on_refresh_done = None  # noqa: SLF001
         wd = getattr(app.state, "watchdog", None)
         if wd:
@@ -637,6 +641,7 @@ app.include_router(regime.router)
 app.include_router(analysis.router)
 app.include_router(pipeline.router)
 app.include_router(data.router)
+app.include_router(instruments.router)
 app.include_router(ext_data.router)
 app.include_router(financials.router)
 app.include_router(stock_analysis.router)

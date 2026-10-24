@@ -8,6 +8,7 @@ import { useCapabilities } from '@/lib/useSharedQueries'
 import { hasPermission } from '@/lib/accountSession'
 import { EChartsCandlestick, type OHLC } from '@/components/EChartsCandlestick'
 import { EChartsIntraday } from '@/components/EChartsIntraday'
+import { PageHeader } from '@/components/PageHeader'
 
 function defaultRange() {
   const now = new Date()
@@ -173,15 +174,12 @@ export function Indices() {
   }
 
   return (
-    <div className="h-full overflow-auto bg-base p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">指数</h1>
-          <p className="mt-1 text-xs text-muted">
-            指数使用独立 kline_index_* parquet，不进入股票选股和策略链路。
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="h-full overflow-auto bg-base">
+      <PageHeader
+        title="指数"
+        subtitle="核心指数 · 日K与分时"
+        right={
+          <div className="flex items-center gap-2">
           {hasPermission('data:manage') && <button
             onClick={() => syncDaily.mutate()}
             disabled={syncDaily.isPending}
@@ -190,10 +188,11 @@ export function Indices() {
             {syncDaily.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             同步指数日K
           </button>}
-        </div>
-      </div>
+          </div>
+        }
+      />
 
-      <div className="grid grid-cols-[15rem_1fr] gap-4">
+      <div className="grid grid-cols-[15rem_1fr] gap-4 p-4">
         <aside className="rounded-card border border-border bg-surface p-3">
           <div className="mb-2 px-1 text-[11px] uppercase tracking-wider text-muted">核心指数</div>
           <div className="space-y-1">

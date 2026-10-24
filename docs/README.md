@@ -1,17 +1,17 @@
 # TSP 文档中心
 
-应用语义版本为 `0.4.19`。内容核对日期：2026-10-24。
+应用语义版本为 `0.4.19`。内容核对日期：2026-10-25。
 源码、标签、安装包和最后已知生产状态统一见[版本基线](version-baseline.md)。
 文档覆盖、代码实现、测试通过、产物发布和生产切流分别判定。
 
-全部本地修改、目录迁移、验证与版本恢复点见[最新整合记录](../reports/production-integration-20261024/verification.md)；
+全部本地修改、目录迁移、验证与版本恢复工具见[最新整合记录](../reports/production-baseline-20261025/verification.md)；
 页面/菜单/上游分析统一归[分析索引](../reports/page-data-analysis-20261024/README.md)。
 
 ## 六类主手册
 
 | 工作 | 唯一主入口 | 内容与完成依据 |
 | --- | --- | --- |
-| 需求 | [需求基线](requirements.md) | 用户、角色、对象、八业务章节、161条FR与42条NFR、阶段和验收条件 |
+| 需求 | [需求基线](requirements.md) | 用户、角色、对象、八业务章节、162条FR与42条NFR、阶段和验收条件 |
 | 方案 | [系统技术方案](architecture.md) | 当前运行架构、页面/能力/源码事实源、统一系统目标、DFX与容量设计 |
 | 开发 | [CONTRIBUTING](../CONTRIBUTING.md) | 调用链、数据口径、缓存、插件、质量门、版本、PR与复审 |
 | 测试 | [测试与联合签收](testing.md) | 环境/命令、领域回归、产物平台、A–I、3.1–3.6、负载/恢复、统一证据模板 |
@@ -36,7 +36,7 @@
 
 实际部署文件和模式步骤见[deploy入口](../deploy/README.md)；
 脚本命令见[仓库脚本](../scripts/README.md)与[后端脚本](../backend/scripts/README.md)。
-可运行样例见[HTTP数据源](examples/custom-data-source/README.md)、
+可运行样例见[HTTP数据源](../examples/custom-data-source/README.md)、
 [Open API](../examples/open-api/README.md)与[MCP](../mcp-server/README.md)。
 
 <a id="maintenance"></a>
