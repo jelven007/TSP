@@ -535,7 +535,7 @@ PRD/方案/目录整理；逐文件新增、修改、删除、迁移和SHA-256�
 | 运行配置模板 / 应用与运维 | FR-ADMIN-04–06、NFR-03/15/20/21 | .env.example、配置/部署/Windows规范 | 字段读入口、角色/预算及默认兼容 | 仅模板/说明变更，不覆盖已存值、不修改真实配置 |
 | 归档/构建范围 / 发布负责人 | NFR-01/04/06/10 | .gitignore/.dockerignore、历史报告与截图归reports | 生成物排除、引用/素材路径、目录门禁 | data/备份/deliverables/缓存不进入Git或镜像 |
 | 恢复与服务运营 / 运维和运营负责人 | NFR-08/16/28/31–42 | 运维/发布、[服务运营](../release-operations.md#service-2-开通与用户生命周期) | 现有恢复脚本回归；新HA/灾备是目标 | 保护新写，SLO/RTO/RPO分档，不把观察已启动写成终态通过 |
-| 首次同步与调度 / 数据负责人 | FR-ENTRY/ADMIN/DATA、NFR-03/15 | preferences → initial_sync/integrity/depth → scheduler；settings API/数据总览 | 手动与自动、改调度时间保持暂停、旧显式值、完整/独立模式 | 新安装无自动补采；实时/分钟/扩展自动拉取分别控制，启用自动不等于立即全量同步 |
+| 首次同步与调度 / 数据负责人 | FR-ENTRY/ADMIN/DATA、NFR-03/15 | preferences → initial_sync/integrity/depth → scheduler；financial run_now/发布；settings API/数据总览 | 缺省开启、已保存关闭、改时间保持暂停、初始化重试/单飞、财务线程/互斥/写锁发布、完整/独立模式 | 新安装自动创建首次同步；实时/分钟/扩展/秒级分别控制，遵守能力与执行窗口；财务周期检查总开关，默认启用不承诺立即有完整数据 |
 | 管理员/认证启动 / 应用负责人 | FR-ENTRY/AUTH-LOCAL/ADMIN、NFR-09/20 | bootstrap_defaults、auth、Cell admin、full lifespan、loopback cookie | 哈希/幂等、旧账户/改密保留、失败关闭、跨平台默认、真实SQL权限 | 非Windows默认api/full需双库/平台/Worker；远程HTTPS与本地HTTP会话分别处理 |
 | 邮件配置与认证 / 应用和运维 | FR-ADMIN/MONITOR/REVIEW、NFR-09 | 环境 → 旧系统配置 → Cell；共享SMTP AUTH LOGIN | 未配置/缺密码、优先级、无秘密响应、LOGIN及通知/注册收件人 | 实际授权码仅受控配置；本地旧值已保留，不携带进Git/镜像，新部署必须配置 |
 | 菜单/亮色/数据源设置 / 前端负责人 | FR-UI/DASHBOARD/DATA/ADMIN、NFR-02 | theme首屏、Layout/MenuSettings、capabilities权威顺序、DataSources派生列表 | 前端全量/lint/build、路由冲突、既有偏好和页面状态 | 行情/环境/信号指标/模拟交易/数据总览等名称更新；设置源rustdx→fuyao→自定义，保留旧TickFlow生效路由 |

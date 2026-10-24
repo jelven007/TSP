@@ -22,10 +22,10 @@ def _isolated(tmp_path, monkeypatch):
 
 
 def test_a_share_defaults_to_true_when_unset():
-    """未设置时三个开关的默认值: A股/指数 默认开, ETF 默认关。"""
+    """未设置时 A 股、指数和 ETF 均默认开启。"""
     assert preferences.get_pipeline_pull_a_share() is True
     assert preferences.get_pipeline_pull_index() is True
-    assert preferences.get_pipeline_pull_etf() is False
+    assert preferences.get_pipeline_pull_etf() is True
 
 
 def test_a_share_toggle_off_is_honored():
