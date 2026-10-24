@@ -1,0 +1,137 @@
+
+> tsp-frontend@0.4.17 lint frontend
+> eslint .
+
+
+frontend/src/components/ExtDimensionAnalysis.tsx
+  194:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 215) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  194:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 250) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/components/RpsRotationDialog.tsx
+  94:9  warning  The 'dates' logical expression could make the dependencies of useMemo Hook (at line 101) change on every render. To fix this, wrap the initialization of 'dates' in its own useMemo() Hook      react-hooks/exhaustive-deps
+  94:9  warning  The 'dates' logical expression could make the dependencies of useMemo Hook (at line 153) change on every render. To fix this, wrap the initialization of 'dates' in its own useMemo() Hook      react-hooks/exhaustive-deps
+  94:9  warning  The 'dates' logical expression could make the dependencies of useMemo Hook (at line 207) change on every render. To fix this, wrap the initialization of 'dates' in its own useMemo() Hook      react-hooks/exhaustive-deps
+  95:9  warning  The 'columns' logical expression could make the dependencies of useMemo Hook (at line 101) change on every render. To fix this, wrap the initialization of 'columns' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  95:9  warning  The 'columns' logical expression could make the dependencies of useMemo Hook (at line 153) change on every render. To fix this, wrap the initialization of 'columns' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  95:9  warning  The 'columns' logical expression could make the dependencies of useMemo Hook (at line 207) change on every render. To fix this, wrap the initialization of 'columns' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/components/SectorRotationCard.tsx
+  263:9  warning  The 'displayNames' logical expression could make the dependencies of useEffect Hook (at line 552) change on every render. To fix this, wrap the initialization of 'displayNames' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  422:6  warning  React Hook useMemo has an unnecessary dependency: 'bucket'. Either exclude it or remove the dependency array                                                                                                react-hooks/exhaustive-deps
+  511:6  warning  React Hook useMemo has an unnecessary dependency: 'bucket'. Either exclude it or remove the dependency array                                                                                                react-hooks/exhaustive-deps
+  632:6  warning  React Hook useMemo has an unnecessary dependency: 'data'. Either exclude it or remove the dependency array                                                                                                  react-hooks/exhaustive-deps
+
+frontend/src/components/StockMultiDayIntradayChart.tsx
+  107:6  warning  React Hook useEffect has a missing dependency: 'syncMinute'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+frontend/src/components/StockPanel.tsx
+  118:9  warning  The 'rawRows' logical expression could make the dependencies of useMemo Hook (at line 120) change on every render. To fix this, wrap the initialization of 'rawRows' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/components/WatchlistAddMenu.tsx
+  97:6  warning  React Hook useLayoutEffect has a missing dependency: 'placeMenu'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+frontend/src/components/monitor/RuleEditor.tsx
+  324:5  warning  React Hook useMemo has an unnecessary dependency: 'symbolsKey'. Either exclude it or remove the dependency array                                                                                          react-hooks/exhaustive-deps
+  350:9  warning  The 'watchEntries' logical expression could make the dependencies of useMemo Hook (at line 357) change on every render. To fix this, wrap the initialization of 'watchEntries' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  350:9  warning  The 'watchEntries' logical expression could make the dependencies of useMemo Hook (at line 363) change on every render. To fix this, wrap the initialization of 'watchEntries' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/Analysis.tsx
+  53:9  warning  The 'fields' logical expression could make the dependencies of useMemo Hook (at line 128) change on every render. To fix this, wrap the initialization of 'fields' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/Data.tsx
+  314:6  warning  React Hook useEffect has missing dependencies: 'job.data' and 'qc'. Either include them or remove the dependency array    react-hooks/exhaustive-deps
+  326:6  warning  React Hook useEffect has a missing dependency: 'activeJobId'. Either include it or remove the dependency array            react-hooks/exhaustive-deps
+  401:6  warning  React Hook useEffect has missing dependencies: 'STAGE_CARD' and 'qc'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+frontend/src/pages/LimitUpLadder.tsx
+  1556:9  warning  The 'rawTiers' logical expression could make the dependencies of useMemo Hook (at line 1558) change on every render. To fix this, wrap the initialization of 'rawTiers' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/Lots.tsx
+  56:9  warning  The 'lots' logical expression could make the dependencies of useMemo Hook (at line 58) change on every render. To fix this, wrap the initialization of 'lots' in its own useMemo() Hook                react-hooks/exhaustive-deps
+  56:9  warning  The 'lots' logical expression could make the dependencies of useMemo Hook (at line 70) change on every render. To fix this, wrap the initialization of 'lots' in its own useMemo() Hook                react-hooks/exhaustive-deps
+  65:9  warning  The 'symbolNames' logical expression could make the dependencies of useMemo Hook (at line 73) change on every render. To fix this, wrap the initialization of 'symbolNames' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/Monitor.tsx
+  153:9  warning  The 'monitorExtFields' logical expression could make the dependencies of useMemo Hook (at line 161) change on every render. To fix this, wrap the initialization of 'monitorExtFields' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  200:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+  391:9  warning  The 'events' logical expression could make the dependencies of useMemo Hook (at line 396) change on every render. To fix this, wrap the initialization of 'events' in its own useMemo() Hook                      react-hooks/exhaustive-deps
+  391:9  warning  The 'events' logical expression could make the dependencies of useCallback Hook (at line 407) change on every render. To fix this, wrap the initialization of 'events' in its own useMemo() Hook                  react-hooks/exhaustive-deps
+  726:9  warning  The 'rules' logical expression could make the dependencies of useMemo Hook (at line 760) change on every render. To fix this, wrap the initialization of 'rules' in its own useMemo() Hook                        react-hooks/exhaustive-deps
+  726:9  warning  The 'rules' logical expression could make the dependencies of useMemo Hook (at line 774) change on every render. To fix this, wrap the initialization of 'rules' in its own useMemo() Hook                        react-hooks/exhaustive-deps
+  767:9  warning  The 'symbolNames' logical expression could make the dependencies of useMemo Hook (at line 774) change on every render. To fix this, wrap the initialization of 'symbolNames' in its own useMemo() Hook            react-hooks/exhaustive-deps
+
+frontend/src/pages/Paper.tsx
+  1236:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 1238) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  1236:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 1254) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/Regime.tsx
+  191:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 206) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook          react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 217) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook          react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 232) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook          react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useCallback Hook (at line 243) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook      react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 292) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook          react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 305) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook          react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 443) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook          react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useEffect Hook (at line 459) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook        react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 550) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook          react-hooks/exhaustive-deps
+  191:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 623) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook          react-hooks/exhaustive-deps
+  194:9  warning  The 'segments' logical expression could make the dependencies of useMemo Hook (at line 266) change on every render. To fix this, wrap the initialization of 'segments' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/Review.tsx
+  108:9  warning  The 'reviewSched' logical expression could make the dependencies of useCallback Hook (at line 128) change on every render. To fix this, wrap the initialization of 'reviewSched' in its own useMemo() Hook                react-hooks/exhaustive-deps
+  120:9  warning  The 'reviewPushChannels' logical expression could make the dependencies of useCallback Hook (at line 154) change on every render. To fix this, wrap the initialization of 'reviewPushChannels' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/Screener.tsx
+  269:9  warning  The 'loadErrors' logical expression could make the dependencies of useEffect Hook (at line 274) change on every render. Move it inside the useEffect callback. Alternatively, wrap the initialization of 'loadErrors' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  546:5  warning  React Hook useMemo has an unnecessary dependency: 'fullMinuteHealthy'. Either exclude it or remove the dependency array                                                                                                                          react-hooks/exhaustive-deps
+
+frontend/src/pages/Watchlist.tsx
+   794:9  warning  The 'groups' logical expression could make the dependencies of useEffect Hook (at line 808) change on every render. To fix this, wrap the initialization of 'groups' in its own useMemo() Hook           react-hooks/exhaustive-deps
+  1076:9  warning  The 'listEntries' logical expression could make the dependencies of useMemo Hook (at line 1081) change on every render. To fix this, wrap the initialization of 'listEntries' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  1076:9  warning  The 'listEntries' logical expression could make the dependencies of useMemo Hook (at line 1089) change on every render. To fix this, wrap the initialization of 'listEntries' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  1076:9  warning  The 'listEntries' logical expression could make the dependencies of useMemo Hook (at line 1109) change on every render. To fix this, wrap the initialization of 'listEntries' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  1078:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 1089) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook                react-hooks/exhaustive-deps
+  1078:9  warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 1115) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook                react-hooks/exhaustive-deps
+
+frontend/src/pages/backtest/AutoMiningDialog.tsx
+  86:6  warning  React Hook useEffect has a missing dependency: 'availability'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+frontend/src/pages/backtest/FactorDiscovery.tsx
+  139:9  warning  The 'watchlistEntries' logical expression could make the dependencies of useMemo Hook (at line 149) change on every render. To fix this, wrap the initialization of 'watchlistEntries' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/backtest/MiningWorkbench.tsx
+  433:6  warning  React Hook useEffect has a missing dependency: 'task.isPending'. Either include it or remove the dependency array        react-hooks/exhaustive-deps
+  484:6  warning  React Hook useEffect has a missing dependency: 'setSelectedCandidate'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  500:6  warning  React Hook useEffect has a missing dependency: 'strategies'. Either include it or remove the dependency array            react-hooks/exhaustive-deps
+
+frontend/src/pages/backtest/StrategyBacktest.tsx
+   807:9  warning  The 'results' logical expression could make the dependencies of useEffect Hook (at line 835) change on every render. To fix this, wrap the initialization of 'results' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                        react-hooks/exhaustive-deps
+   814:9  warning  The 'watchlistEntries' logical expression could make the dependencies of useMemo Hook (at line 824) change on every render. To fix this, wrap the initialization of 'watchlistEntries' in its own useMemo() Hook                                                                                                                                                                                                                                                                                        react-hooks/exhaustive-deps
+  1167:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+  1229:6  warning  React Hook useEffect has missing dependencies: 'assetType', 'end', 'entryFill', 'exitFill', 'fees', 'highGranularity', 'holdingDays', 'initialCapital', 'isMinuteStrategy', 'matching', 'maxExposure', 'maxPositions', 'minimumCommission', 'overrides', 'positionSizing', 'regimeMinScore', 'regimeStates', 'selectedStrategy', 'simMode', 'slippage', 'stampTax', 'start', 'strategyDetail.data', 'strategyParams', 'symbols', and 'transferFee'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+frontend/src/pages/backtest/StrategyOptimizer.tsx
+  48:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+frontend/src/pages/backtest/StrategyWalkForward.tsx
+  93:5  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+frontend/src/pages/backtest/charts/FactorGroupNavChart.tsx
+  106:6  warning  React Hook useMemo has an unnecessary dependency: 'result.run_id'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+frontend/src/pages/backtest/charts/StrategyNavChart.tsx
+  245:6  warning  React Hook useMemo has an unnecessary dependency: 'result.run_id'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+frontend/src/pages/backtest/charts/useECharts.ts
+  34:6   warning  React Hook useEffect has a missing dependency: 'chartRef'. Either include it or remove the dependency array                                              react-hooks/exhaustive-deps
+  40:15  warning  React Hook useEffect has a spread element in its dependency array. This means we can't statically verify whether you've passed the correct dependencies  react-hooks/exhaustive-deps
+
+frontend/src/pages/factors/FactorLibrary.tsx
+  29:9  warning  The 'factors' logical expression could make the dependencies of useMemo Hook (at line 33) change on every render. To fix this, wrap the initialization of 'factors' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  29:9  warning  The 'factors' logical expression could make the dependencies of useMemo Hook (at line 44) change on every render. To fix this, wrap the initialization of 'factors' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+frontend/src/pages/settings/ExtPages.tsx
+  53:9  warning  The 'fields' logical expression could make the dependencies of useMemo Hook (at line 54) change on every render. To fix this, wrap the initialization of 'fields' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+✖ 74 problems (0 errors, 74 warnings)
+  0 errors and 4 warnings potentially fixable with the `--fix` option.

@@ -423,7 +423,7 @@ flowchart LR
 
 ## 11. 引用与本次核验范围
 
-仓库事实以源码为准，项目规则参见[CONTRIBUTING.md](../../CONTRIBUTING.md)、[二次开发指南](../../docs/secondary-development.md)、[策略指南](../../docs/strategy.md)。旧研究结论来自第2节链接，不从摘要记忆推断具体收益。
+仓库事实以源码为准，项目规则参见[CONTRIBUTING.md](../../CONTRIBUTING.md)、[二次开发指南](../../docs/secondary-development.md)、[策略指南](../../docs/reference/research.md#strategy)。旧研究结论来自第2节链接，不从摘要记忆推断具体收益。
 
 交易规则参考（2026-10-19检索）：
 

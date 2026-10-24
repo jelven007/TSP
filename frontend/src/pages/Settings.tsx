@@ -37,11 +37,11 @@ type TabDef = {
 const TABS: readonly TabDef[] = [
   { key: 'account',      label: '账户',       icon: UserRound, panel: SettingsAccountPanel },
   { key: 'data-sources', label: '数据源',     icon: Database,  panel: SettingsDataSourcesPanel },
-  { key: 'ai',         label: 'AI 设置',    icon: Sparkles,  panel: SettingsAIPanel },
+  { key: 'ai',         label: '模型设置',   icon: Sparkles,  panel: SettingsAIPanel },
   { key: 'monitoring', label: '实时监控',   icon: Radio,     panel: SettingsMonitoringPanel },
-  { key: 'ext-pages',  label: '扩展页面',   icon: BarChart3, panel: SettingsExtPagesPanel },
-  { key: 'timeout',    label: '网络设置',   icon: Clock3,    panel: SettingsTimeoutPanel },
+  { key: 'timeout',    label: '超时设置',   icon: Clock3,    panel: SettingsTimeoutPanel },
   { key: 'menus',      label: '菜单设置',   icon: SlidersHorizontal, panel: SettingsMenuSettingsPanel },
+  { key: 'ext-pages',  label: '扩展页面',   icon: BarChart3, panel: SettingsExtPagesPanel },
   { key: 'api-tokens', label: '开放接口',   icon: KeyRound, panel: SettingsApiTokensPanel },
   { key: 'system',     label: '系统设置',   icon: Settings2, panel: SettingsSystemPanel },
 ]

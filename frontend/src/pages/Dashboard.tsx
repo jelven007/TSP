@@ -122,7 +122,7 @@ export function Dashboard() {
     && (ds.enriched?.trading_days ?? 0) === 0
     && (ds.daily?.trading_days ?? 0) === 0
 
-  // ===== 盘后管道触发(看板内一键获取数据) =====
+  // ===== 盘后管道触发(行情内一键获取数据) =====
   const [fetchJobId, setFetchJobId] = useState<string | null>(null)
   const fetchStatus = useQuery({
     queryKey: QK.pipelineJob(fetchJobId ?? ''),
@@ -154,7 +154,7 @@ export function Dashboard() {
     setShowWelcomeModal(true)
   }, [canManageData, hasNoData, settings.data?.onboarding_completed])
 
-  // 同步完成后刷新看板数据
+  // 同步完成后刷新行情数据
   useEffect(() => {
     if (fetchSucceeded) {
       qc.invalidateQueries({ queryKey: QK.dataStatus })
@@ -177,7 +177,7 @@ export function Dashboard() {
     }).catch(() => { /* 查询失败不阻塞, 用户仍可手动点击获取 */ })
   }, [canManageData, hasNoData, fetchJobId])
 
-  // 手动刷新: 先重建后端 Polars 缓存(解决跨天残留), 再重新拉看板数据
+  // 手动刷新: 先重建后端 Polars 缓存(解决跨天残留), 再重新拉行情数据
   const handleRefresh = () => {
     setManualFetching(true)
     if (!canManageData) {
@@ -195,7 +195,7 @@ export function Dashboard() {
     return (
       <div className="flex h-full items-center justify-center bg-base">
         <div className="flex items-center gap-2 text-sm text-muted">
-          <Loader2 className="h-4 w-4 animate-spin" /> 加载市场看板…
+          <Loader2 className="h-4 w-4 animate-spin" /> 加载市场行情…
         </div>
       </div>
     )
@@ -205,7 +205,7 @@ export function Dashboard() {
     return (
       <div className="flex h-full items-center justify-center bg-base p-6">
         <div className="rounded-card border border-border bg-surface p-6 text-center">
-          <div className="text-sm text-danger">看板加载失败</div>
+          <div className="text-sm text-danger">行情加载失败</div>
           <button onClick={() => overview.refetch()} className="mt-3 rounded-btn bg-accent px-3 py-1.5 text-xs font-medium text-white">重试</button>
         </div>
       </div>
@@ -217,7 +217,7 @@ export function Dashboard() {
   const currentDate = selectedDate ?? data.as_of ?? ''
   const quoteRunning = dashboardQuoteIsRealtime(selectedDate, latestDate, data.quote_status)
   // 实时模式: none / watchlist / full_market。
-  // watchlist 模式仅自选 ≤5 只实时, 看板呈现的大盘数据实为盘后快照, 需提示避免误读。
+  // watchlist 模式仅自选 ≤5 只实时, 行情呈现的大盘数据实为盘后快照, 需提示避免误读。
   const quoteMode = data.quote_status?.mode as ('none' | 'watchlist' | 'full_market') | undefined
 
   // 网格组件渲染上下文: 数据切片 + 交互回调统一由页面层供给
@@ -278,7 +278,7 @@ export function Dashboard() {
         <div className="pointer-events-none absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-accent to-accent/20" aria-hidden />
         <div className="flex items-center gap-2">
           <Gauge className="h-4 w-4 text-accent" />
-          <h1 className="text-[16px] leading-6 font-semibold text-foreground">市场看板</h1>
+          <h1 className="text-[16px] leading-6 font-semibold text-foreground">市场行情</h1>
           <span
             className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
             style={{
@@ -339,12 +339,12 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* 自选实时模式提示: 大盘看板为盘后数据, 仅自选股实时。避免用户误读为全市场实时。 */}
+      {/* 自选实时模式提示: 大盘行情为盘后数据, 仅自选股实时。避免用户误读为全市场实时。 */}
       {quoteMode === 'watchlist' && (
         <div className="mb-1.5 flex items-start gap-2 rounded-card border border-amber-500/30 bg-amber-500/8 px-3 py-1.5 text-[11px] leading-relaxed">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
           <div className="min-w-0 flex-1 text-secondary">
-            当前为「自选实时」模式,看板展示的大盘数据为<strong className="text-foreground">盘后快照</strong>(最新有数据日),并非盘中实时;
+            当前为「自选实时」模式,行情展示的大盘数据为<strong className="text-foreground">盘后快照</strong>(最新有数据日),并非盘中实时;
             仅自选股({data.quote_status?.watchlist_symbol_count ?? 0} 只)支持实时监控。
             <span className="ml-1 text-accent">全市场实时依赖数据源支持</span>
           </div>
@@ -403,7 +403,7 @@ function FetchDataCard({
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-foreground">当前暂无数据</div>
           <p className="mt-1 text-xs text-secondary leading-relaxed">
-            首次使用需获取行情数据后才能查看看板。{isTickflowProvider
+            首次使用需获取行情数据后才能查看行情。{isTickflowProvider
               ? '可通过 TickFlow 免费服务器拉取近 1 年全 A 股日K'
               : `将从当前数据源「${providerLabel}」拉取近 1 年全 A 股日K`}(约 5500 只),预计 1-3 分钟,期间可继续浏览其他页面。
           </p>
@@ -493,7 +493,7 @@ function WelcomeFetchModal({
           {isTickflowProvider
             ? '可通过 TickFlow 免费服务器拉取近 1 年全 A 股日K'
             : `将从当前数据源「${providerLabel}」拉取近 1 年全 A 股日K`}(约 5500 只),预计 1-3 分钟。
-          同步期间可继续浏览其他页面,完成后看板自动刷新。
+          同步期间可继续浏览其他页面,完成后行情自动刷新。
         </p>
         <div className="mx-auto mt-4 max-w-md rounded-btn bg-elevated/60 px-4 py-3 text-left">
           <div className="text-[11px] font-medium text-secondary">获取完成后的推荐步骤</div>

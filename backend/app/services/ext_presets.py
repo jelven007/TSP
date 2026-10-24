@@ -1,4 +1,4 @@
-"""内置扩展数据预设 — 概念/行业可在交易日双时段内每分钟自动更新。
+"""内置扩展数据预设 — 概念/行业初始化后默认手动获取。
 
 设计原则:
   - 复用扩展数据配置与通用拉取链路
@@ -6,7 +6,7 @@
   - 仅修复未使用的空默认配置, 保留用户已有数据及自定义设置
   - 定时拉取由 PullScheduler 异步执行, 拉取失败不阻断启动
 
-内置概念与行业默认可拉取, 环境变量可独立覆盖上游:
+内置概念与行业保留默认拉取地址, 环境变量可独立覆盖上游:
   - EXT_CONCEPT_DATA_URL
   - EXT_INDUSTRY_DATA_URL
 未配置或 URL 为空时沿用默认接口。
@@ -55,14 +55,14 @@ def _concept_preset() -> ExtConfig:
             ExtField("股票简称", "string", "股票简称"),
             ExtField("所属概念", "string", "所属概念"),
         ],
-        description="同花顺概念分类 (交易日 09:15-11:30 / 13:00-15:15 每分钟更新, 启动时立即刷新)",
+        description="同花顺概念分类 (默认手动获取; 开启自动拉取后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)",
         symbol_map={"type": "mapped", "col": "股票代码"},
         code_map={"type": "computed", "from": "symbol", "method": "strip_exchange"},
         pull=PullConfig(
             url=data_url,
             method="GET",
             schedule_minutes=1,
-            enabled=bool(data_url),
+            enabled=False,
             time_window_start="09:15",
             time_window_end="15:15",
         ),
@@ -87,14 +87,14 @@ def _industry_preset() -> ExtConfig:
             ExtField("股票简称", "string", "股票简称"),
             ExtField("所属同花顺行业", "string", "所属同花顺行业"),
         ],
-        description="同花顺行业分类 (交易日 09:15-11:30 / 13:00-15:15 每分钟更新, 启动时立即刷新)",
+        description="同花顺行业分类 (默认手动获取; 开启自动拉取后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)",
         symbol_map={"type": "mapped", "col": "股票代码"},
         code_map={"type": "computed", "from": "symbol", "method": "strip_exchange"},
         pull=PullConfig(
             url=data_url,
             method="GET",
             schedule_minutes=1,
-            enabled=bool(data_url),
+            enabled=False,
             time_window_start="09:15",
             time_window_end="15:15",
         ),
@@ -178,10 +178,14 @@ def _is_unused_empty_preset(existing: ExtConfig, preset: ExtConfig, data_dir: Pa
         return False
     original = existing.to_dict()
     expected = preset.to_dict()
-    legacy_description = preset.description.replace(
+    auto_description = (
+        f"{preset.label.replace('扩展', '同花顺')}分类 "
+        "(交易日 09:15-11:30 / 13:00-15:15 每分钟更新, 启动时立即刷新)"
+    )
+    legacy_description = auto_description.replace(
         "(交易日", "(配置上游后, 交易日"
     ).replace(", 启动时立即刷新", "")
-    if existing.description not in {preset.description, legacy_description}:
+    if existing.description not in {preset.description, auto_description, legacy_description}:
         return False
     for value in (original, expected):
         for key in ("created_at", "updated_at", "description"):
@@ -194,8 +198,7 @@ def _is_unused_empty_preset(existing: ExtConfig, preset: ExtConfig, data_dir: Pa
 def _is_legacy_manual_preset(existing: ExtConfig, preset: ExtConfig) -> bool:
     """识别未定制的历史「仅手动获取」内置预设。
 
-    这类配置早于默认自动拉取策略，并且可能已经有一份静态快照。不能把
-    「已有 parquet」当成用户定制证据，否则旧快照会永久停在发布时刻。
+    补全默认地址以便手动更新; 即使有静态快照, 仍保持自动拉取关闭。
     """
     legacy_description = (
         f"{preset.label.replace('扩展', '同花顺')}分类 "
@@ -261,11 +264,10 @@ def get_preset(config_id: str) -> ExtConfig | None:
 
 
 async def ensure_builtin_presets(data_dir: Path) -> None:
-    """启动时为缺失的预设创建 config.json, 由调度器异步拉取。
+    """启动时为缺失的预设创建 config.json, 默认仅手动拉取。
 
-    新建预设默认启用交易日
-    09:15-11:30 / 13:00-15:15 每分钟拉取; PullScheduler 在启动后
-    无视时段立即执行首轮。环境变量可覆盖默认地址。
+    环境变量可覆盖默认地址, 配置地址不会启用自动拉取。
+    用户显式开启后, PullScheduler 按保存的时段执行。
 
     安全保证:
       - 仅修复没有数据且未经定制的旧空预设, 其余配置完全保留

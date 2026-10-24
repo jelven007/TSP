@@ -31,7 +31,7 @@ ACTION_TOOLS: frozenset[str] = frozenset({
 ACTION_META: dict[str, dict[str, str]] = {
     "create_signal_strategy": {
         "label": "创建自定义信号",
-        "risk": "将在信号库写入一个新的信号定义并清空策略/指标缓存",
+        "risk": "将在信号指标写入一个新的信号定义并清空策略/指标缓存",
     },
     "run_backtest": {
         "label": "运行策略回测",

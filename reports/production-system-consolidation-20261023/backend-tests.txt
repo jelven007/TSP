@@ -1,0 +1,8 @@
+........................................................................ [ 30%]
+........................................................................ [ 60%]
+........................................................................ [ 91%]
+...............sss...                                                    [100%]
+=========================== short test summary info ============================
+SKIPPED [2] tests/test_full_compose_config.py:30: Docker Compose CLI unavailable
+SKIPPED [1] tests/test_full_compose_config.py:82: Docker Compose CLI unavailable
+234 passed, 3 skipped in 21.83s

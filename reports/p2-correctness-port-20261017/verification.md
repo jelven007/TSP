@@ -138,9 +138,9 @@ A6 增加证券历史、复权参考和规则校验，读取耗时有所增加�
 已检查部分异常、全部异常、规则未知、读取失败和末桶空值；浅/深色及
 390 px 容器完成检查。截图是组件隔离验收，不代表线上完整页面验收。
 
-- [成分覆盖率与剔除提示（浅色）](./dimension-quality-light.png)
-- [全部异常（深色，390 px 容器）](./empty-dark-narrow.png)
-- [末桶空值（深色）](./last-bucket-dark.png)
+- [成分覆盖率与剔除提示（浅色）](dimension-quality-light.png)
+- [全部异常（深色，390 px 容器）](empty-dark-narrow.png)
+- [末桶空值（深色）](last-bucket-dark.png)
 
 同步文档：`docs/features.md`、`docs/paper-trading-plan.md`、
 `docs/architecture.md`、`docs/testing.md`。

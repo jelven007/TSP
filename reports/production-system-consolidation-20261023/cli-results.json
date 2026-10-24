@@ -1,0 +1,325 @@
+[
+  {
+    "path": "backend/scripts/acceptance/accept_external_sse.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.accept_external_sse",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": " ports are never reused. Run from backend:\nuv run --frozen --no-sync python -m scripts.acceptance.accept_external_sse\n\noptions:\n  -h, --help            show this help message and exit\n  --image IMAGE\n  --nginx-image NGINX_IMAGE\n  --postgres-image POSTGRES_IMAGE\n  --clients CLIENTS\n  --output OUTPUT\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/accept_full_compose.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.accept_full_compose",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": " fixture, two private tenants, isolated PostgreSQL, a real\nDocker broker and Nginx. Does not certify production load, market freshness,\npublic TLS or a full trading day.\n\noptions:\n  -h, --help            show this help message and exit\n  --build-dir BUILD_DIR\n  --output OUTPUT\n  --work-dir WORK_DIR\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/accept_market_pipeline.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.accept_market_pipeline",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "ify either.\n\noptions:\n  -h, --help            show this help message and exit\n  --data-dir DATA_DIR\n  --run-dir RUN_DIR\n  --provider PROVIDER\n  --symbols SYMBOLS\n  --end END\n  --rounds ROUNDS\n  --interval INTERVAL\n  --platform-port PLATFORM_PORT\n  --api-port API_PORT\n  --serve-seconds SERVE_SECONDS\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/accept_phase2_step1.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.accept_phase2_step1",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "er may create and drop databases and roles.\n\noptions:\n  -h, --help            show this help message and exit\n  --dsn DSN             Disposable PostgreSQL root DSN; defaults to\n                        TSP_TEST_POSTGRES_DSN\n  --users USERS\n  --rounds ROUNDS\n  --pool-size POOL_SIZE\n  --output OUTPUT\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/accept_phase2_step2.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.accept_phase2_step2",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "                    TSP_TEST_POSTGRES_DSN\n  --users USERS\n  --rounds ROUNDS\n  --pool-size POOL_SIZE\n  --ledger-rows LEDGER_ROWS\n  --nav-rows NAV_ROWS\n  --research-concurrency RESEARCH_CONCURRENCY\n  --research-delay RESEARCH_DELAY\n  --steady-request-interval STEADY_REQUEST_INTERVAL\n  --output OUTPUT\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/accept_production_recovery.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.accept_production_recovery",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "ifacts, cutover, and a\nrollback that preserves a post-cutover business increment. Run from backend:\nuv run --frozen --no-sync python -m\nscripts.acceptance.accept_production_recovery\n\noptions:\n  -h, --help            show this help message and exit\n  --postgres-image POSTGRES_IMAGE\n  --output OUTPUT\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/observe_candidate_soak.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.observe_candidate_soak",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "eptance.observe_candidate_soak --help``.\n\noptions:\n  -h, --help            show this help message and exit\n  --run-dir RUN_DIR\n  --duration-hours DURATION_HOURS\n  --interval-seconds INTERVAL_SECONDS\n  --endpoint ENDPOINT\n  --container CONTAINER\n  --disk-path DISK_PATH\n  --arm\n  --daemonize\n  --once\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/observe_second_acceptance.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.observe_second_acceptance",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "H\n  --date DATE\n  --minutes MINUTES\n  --profile {open-window,full-trading-day}\n  --health-url HEALTH_URL\n  --arm                 create durable queued task and exit\n  --daemonize           launch an already armed task in a detached session\n  --once                one observer step; no blocking wait\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/prepare_continuous_acceptance.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.prepare_continuous_acceptance",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "                                        RUN_DIR --market-source MARKET_SOURCE\n\nProvision a persistent, isolated real-market candidate; never drop it on exit.\n\noptions:\n  -h, --help            show this help message and exit\n  --build-dir BUILD_DIR\n  --run-dir RUN_DIR\n  --market-source MARKET_SOURCE\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/run_active_acceptance.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.run_active_acceptance",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "oot ROOT] --run-dir RUN_DIR\n                                [--base BASE] [--hours HOURS]\n\nReal HTTP/SSE traffic from 100 isolated accounts, with durable strict\nevaluation.\n\noptions:\n  -h, --help         show this help message and exit\n  --root ROOT\n  --run-dir RUN_DIR\n  --base BASE\n  --hours HOURS\n"
+  },
+  {
+    "path": "backend/scripts/acceptance/validate_online_timeout.py",
+    "command": [
+      "-m",
+      "scripts.acceptance.validate_online_timeout",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "ure trading day remains pending until its\nactual window ends.\n\noptions:\n  -h, --help            show this help message and exit\n  --run-dir RUN_DIR\n  --arm\n  --trading-day TRADING_DAY\n  --endpoint ENDPOINT\n  --container CONTAINER\n  --platform-container PLATFORM_CONTAINER\n  --public-root PUBLIC_ROOT\n"
+  },
+  {
+    "path": "backend/scripts/diagnostics/probe_tickflow_pro.py",
+    "command": [
+      "-m",
+      "scripts.diagnostics.probe_tickflow_pro",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "rts under reports/tickflow_pro_probe/.\n\noptions:\n  -h, --help  show this help message and exit\n  --live      Call TickFlow APIs (needs key)\n  --force     Allow live probe before 16:00 Asia/Shanghai\n  --out OUT   Output directory (default:\n              <repo>/reports/tickflow_pro_probe/<timestamp>)\n"
+  },
+  {
+    "path": "backend/scripts/operations/backfill_rustdx_st_history.py",
+    "command": [
+      "-m",
+      "scripts.operations.backfill_rustdx_st_history",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "  [--retries RETRIES]\n                                     [--checkpoint-every CHECKPOINT_EVERY]\n\n回填 TDX F10 历史 ST/*ST 时点区间\n\noptions:\n  -h, --help            show this help message and exit\n  --end END             治理行情截止日\n  --workers WORKERS\n  --retries RETRIES\n  --checkpoint-every CHECKPOINT_EVERY\n"
+  },
+  {
+    "path": "backend/scripts/operations/backup_full_host.py",
+    "command": [
+      "-m",
+      "scripts.operations.backup_full_host",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "a quiesced two-database backup and prove both dumps restore.\n\noptions:\n  -h, --help            show this help message and exit\n  --postgres-container POSTGRES_CONTAINER\n  --control-database CONTROL_DATABASE\n  --data-database DATA_DATABASE\n  --output OUTPUT\n  --include NAME=PATH\n  --confirm-quiesced\n"
+  },
+  {
+    "path": "backend/scripts/operations/cleanup_halt_days.py",
+    "command": [
+      "-m",
+      "scripts.operations.cleanup_halt_days",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "usage: cleanup_halt_days.py [-h] [--dry-run]\n\n清理已入库的停牌脏数据\n\noptions:\n  -h, --help  show this help message and exit\n  --dry-run   仅扫描不写盘\n"
+  },
+  {
+    "path": "backend/scripts/operations/maintain_full_host.py",
+    "command": [
+      "-m",
+      "scripts.operations.maintain_full_host",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "ge-hours MIN_RELEASE_AGE_HOURS\n  --data-admin-dsn-env DATA_ADMIN_DSN_ENV\n  --postgres-container POSTGRES_CONTAINER\n  --business-database BUSINESS_DATABASE\n  --protect-release PROTECT_RELEASE\n  --prune-docker-cache\n  --docker-until DOCKER_UNTIL\n  --builder-keep-storage BUILDER_KEEP_STORAGE\n  --apply\n"
+  },
+  {
+    "path": "backend/scripts/performance/benchmark_full_quote_bridge.py",
+    "command": [
+      "-m",
+      "scripts.performance.benchmark_full_quote_bridge",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "e snapshot work with synthetic frames.\nRun from backend: uv run --no-sync python -m\nscripts.performance.benchmark_full_quote_bridge\n\noptions:\n  -h, --help            show this help message and exit\n  --workers WORKERS\n  --markers MARKERS\n  --requests-per-marker REQUESTS_PER_MARKER\n  --output OUTPUT\n"
+  },
+  {
+    "path": "backend/scripts/performance/benchmark_rustdx_quotes.py",
+    "command": [
+      "-m",
+      "scripts.performance.benchmark_rustdx_quotes",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "                      整轮超时秒, 超时终止该档\n  --server SERVER       固定通达信 IP:端口; 所有档位使用同一服务器\n  --data-dir DATA_DIR   本地股票池所在数据目录\n  --output OUTPUT       新的结果目录, 默认 data/research/rustdx-quotes-*\n  --max-p95-ms MAX_P95_MS\n                        可选验收上限; 失败或样本不足返回 1\n  --dry-run             仅检查股票池和参数, 不连接行情服务器\n"
+  },
+  {
+    "path": "backend/scripts/performance/benchmark_second_archive.py",
+    "command": [
+      "-m",
+      "scripts.performance.benchmark_second_archive",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "ever connects to a market data source.\nRun from backend: .venv/bin/python -m\nscripts.performance.benchmark_second_archive All shards live in a temporary\ndirectory and are removed when the run exits.\n\noptions:\n  -h, --help         show this help message and exit\n  --symbols SYMBOLS\n  --rounds ROUNDS\n"
+  },
+  {
+    "path": "backend/scripts/performance/stress_online_timeout.py",
+    "command": [
+      "-m",
+      "scripts.performance.stress_online_timeout",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "nter reports. Each virtual\nclient is a concurrent connection using one account, not an independent\ntenant.\n\noptions:\n  -h, --help            show this help message and exit\n  --origin ORIGIN\n  --run-dir RUN_DIR\n  --monitor-dir MONITOR_DIR\n  --insecure\n  --stage STAGE         connections:seconds:rps\n"
+  },
+  {
+    "path": "backend/scripts/performance/stress_polars_concurrency.py",
+    "command": [
+      "-m",
+      "scripts.performance.stress_polars_concurrency",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "usage: stress_polars_concurrency.py [-h] [--duration DURATION]\n                                    [--threads THREADS] [--grace GRACE]\n\noptions:\n  -h, --help           show this help message and exit\n  --duration DURATION\n  --threads THREADS\n  --grace GRACE\n"
+  },
+  {
+    "path": "backend/scripts/research/analyze_market_waves.py",
+    "command": [
+      "-m",
+      "scripts.research.analyze_market_waves",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "usage: analyze_market_waves.py [-h] --end END [--threshold THRESHOLD]\n\n统计严格排除 ST 后的大级别行情波段\n\noptions:\n  -h, --help            show this help message and exit\n  --end END\n  --threshold THRESHOLD\n"
+  },
+  {
+    "path": "backend/scripts/research/run_governed_builtin_backtest.py",
+    "command": [
+      "-m",
+      "scripts.research.run_governed_builtin_backtest",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "      [--report-only]\n\noptions:\n  -h, --help            show this help message and exit\n  --data-dir DATA_DIR\n  --output-dir OUTPUT_DIR\n  --previous-results PREVIOUS_RESULTS\n  --report-only         reuse a completed results.json checkpoint and only\n                        rebuild audit/report files\n"
+  },
+  {
+    "path": "scripts/acceptance/build_full_candidate.py",
+    "command": [
+      "scripts/acceptance/build_full_candidate.py",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "usage: build_full_candidate.py [-h] --output OUTPUT [--registry REGISTRY]\n\nBuild runtime and compute from one verified, private source snapshot.\n\noptions:\n  -h, --help           show this help message and exit\n  --output OUTPUT\n  --registry REGISTRY\n"
+  },
+  {
+    "path": "scripts/acceptance/launch_continuous_acceptance.py",
+    "command": [
+      "scripts/acceptance/launch_continuous_acceptance.py",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "--smoke]\n                                       [--formal] [--smoke-name SMOKE_NAME]\n\nLaunch source-pinned durable acceptance containers after candidate\nprovisioning.\n\noptions:\n  -h, --help            show this help message and exit\n  --run-dir RUN_DIR\n  --smoke\n  --formal\n  --smoke-name SMOKE_NAME\n"
+  },
+  {
+    "path": "scripts/acceptance/verify_full_compute.py",
+    "command": [
+      "scripts/acceptance/verify_full_compute.py",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "                    [--monitor-only] [--output OUTPUT]\n                              [--memory-mb MEMORY_MB] [--cpus CPUS]\n\noptions:\n  -h, --help            show this help message and exit\n  --image IMAGE\n  --work-dir WORK_DIR\n  --monitor-only\n  --output OUTPUT\n  --memory-mb MEMORY_MB\n  --cpus CPUS\n"
+  },
+  {
+    "path": "scripts/performance/benchmark_memory_budget.py",
+    "command": [
+      "scripts/performance/benchmark_memory_budget.py",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "mples SAMPLES] [--rows ROWS]\n\nCompare panel retention on two checkouts with one interpreter and workload.\n\noptions:\n  -h, --help         show this help message and exit\n  --before BEFORE    baseline backend directory\n  --after AFTER      candidate backend directory\n  --samples SAMPLES\n  --rows ROWS\n"
+  },
+  {
+    "path": "scripts/research/research_default_strategies.py",
+    "command": [
+      "scripts/research/research_default_strategies.py",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "outside Git. The snapshot is deliberately exploratory: current constituents\nare not a PIT universe.\n\npositional arguments:\n  {prepare,enrich-metadata,run,candidates,summarize,audit,select,stability,audit-trades,verify-implementation}\n\noptions:\n  -h, --help            show this help message and exit\n"
+  },
+  {
+    "path": "scripts/research/research_quality_strategies.py",
+    "command": [
+      "scripts/research/research_quality_strategies.py",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "y hypotheses.\nPYTHONPATH=backend python scripts/research/research_quality_strategies.py run\n--data ... --output ... Never writes the input snapshot. Old studies remain\nuntouched. Results are exploratory.\n\npositional arguments:\n  {run,report}\n\noptions:\n  -h, --help    show this help message and exit\n"
+  },
+  {
+    "path": "scripts/research/summarize_quality_research.py",
+    "command": [
+      "scripts/research/summarize_quality_research.py",
+      "--help"
+    ],
+    "returncode": 0,
+    "passed": true,
+    "output_tail": "usage: summarize_quality_research.py [-h] --output OUTPUT --report REPORT\n\nRead-only post-study diagnostics; never selects or rewrites production\nsettings.\n\noptions:\n  -h, --help       show this help message and exit\n  --output OUTPUT\n  --report REPORT\n"
+  }
+]

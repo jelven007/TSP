@@ -76,6 +76,27 @@ jobs:
   quality:
     needs: prepare
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TICKFLOW_ENV_FILE: /dev/null
+      DATA_DIR: ${{ runner.temp }}/tsp-tests
+      MULTITENANCY_ENABLED: "false"
+      SERVICE_ROLE: standalone
+      POLARS_MAX_THREADS: "4"
+      TSP_TEST_POSTGRES_DSN: postgresql://postgres:test-only-password@127.0.0.1:5432/postgres
     steps:
       - name: 检出代码
         uses: actions/checkout@v4

@@ -59,8 +59,8 @@ const PROFILE_LABELS: Record<MiningBudgetProfile, string> = {
   balanced: '均衡档',
   strict: '严格档',
 }
-// 市场环境覆盖不足的失败文案 (regime_alignment 校验抛出), 命中时弹「补算并重跑」确认。
-const REGIME_COVERAGE_ERROR_RE = /市场环境数据覆盖不完整|市场环境数据为空/
+// 环境覆盖不足的失败文案 (regime_alignment 校验抛出), 命中时弹「补算并重跑」确认。
+const REGIME_COVERAGE_ERROR_RE = /环境数据覆盖不完整|环境数据为空/
 const REGIME_FIRST_MISSING_RE = /缺少前一交易日环境\s*(\d{4}-\d{2}-\d{2})/
 
 /** run.request 带 auto/auto_screening 附加字段, 而 start 接口 extra="forbid", 重跑前剥回纯 MiningRequestV1。 */
@@ -551,15 +551,15 @@ export function MiningWorkbench() {
       return
     }
     if (regimeLatestQuery.isPending || regimeLatestQuery.isFetching) {
-      toast('正在核验市场环境数据，请稍候', 'error')
+      toast('正在核验环境数据，请稍候', 'error')
       return
     }
     if (regimeLatestQuery.isError || !regimeLatestQuery.data) {
-      toast('无法核验市场环境数据，请检查数据状态后重试', 'error')
+      toast('无法核验环境数据，请检查数据状态后重试', 'error')
       return
     }
     if (!regimeLatestQuery.data.row) {
-      toast(canManageData ? '尚未计算市场环境数据，请先在数据页完成计算' : '尚未计算市场环境数据，请联系管理员补齐后再挖掘', 'error')
+      toast(canManageData ? '尚未计算环境数据，请先在数据页完成计算' : '尚未计算环境数据，请联系管理员补齐后再挖掘', 'error')
       return
     }
     const commissionBps = parseBoundedNumber(draft.commissionBps, '佣金', 0, 500)
@@ -625,7 +625,7 @@ export function MiningWorkbench() {
     onError: error => toast(`保存失败 · ${String((error as Error).message || error)}`, 'error'),
   })
 
-  // 市场环境覆盖不足: 挖矿内部 T-1 环境校验 (fail-closed) 失败时弹「补算并重跑」确认。
+  // 环境覆盖不足: 挖矿内部 T-1 环境校验 (fail-closed) 失败时弹「补算并重跑」确认。
   // 确定 → 调 regime/recompute 补算缺失区间后自动重跑同一 payload; 取消 → 仅关闭不动作。
   const [regimeBackfill, setRegimeBackfill] = useState<{ payload: MiningRequestV1; start?: string } | null>(null)
   const regimeErrorHandled = useRef('')
@@ -638,7 +638,7 @@ export function MiningWorkbench() {
     if (regimeErrorHandled.current === task.error) return
     if (!canManageData) {
       regimeErrorHandled.current = task.error
-      toast('市场环境数据不完整，请联系管理员补齐后重试', 'error')
+      toast('环境数据不完整，请联系管理员补齐后重试', 'error')
       return
     }
     const request = task.run?.request
@@ -719,7 +719,7 @@ export function MiningWorkbench() {
 
           {regimeLatestQuery.data && !regimeLatestQuery.data.row && (
             <Link to="/data" className="block rounded-btn border border-warning/40 bg-warning/5 px-2 py-1.5 text-[9px] leading-4 text-warning transition-colors hover:border-warning/70">
-              尚未计算市场环境数据 — 挖掘含市场环境分组评估，缺少时启动即校验失败。<span className="underline underline-offset-2">前往数据页完成市场环境计算 →</span>
+              尚未计算环境数据 — 挖掘含环境分组评估，缺少时启动即校验失败。<span className="underline underline-offset-2">前往数据页完成环境计算 →</span>
             </Link>
           )}
 
@@ -803,7 +803,7 @@ export function MiningWorkbench() {
             <div className="grid grid-cols-1 border-b border-border 2xl:grid-cols-2">
               <section className="min-w-0 border-b border-border 2xl:border-b-0 2xl:border-r">
                 <div className="flex min-w-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
-                  <h2 className="shrink-0 text-xs font-semibold text-foreground">市场环境对比</h2>
+                  <h2 className="shrink-0 text-xs font-semibold text-foreground">环境对比</h2>
                   {activeCandidate && candidates[0] && activeCandidate.signature !== candidates[0].signature && <span className="truncate text-[9px] text-warning">环境数据属于排名首位候选（{candidates[0].name}）</span>}
                 </div>
                 <RegimeComparisonChart rows={result.regimes.map(row => ({ state: row.state, label: row.label, nDates: row.n_dates, sharpe: row.sharpe, return: row.total_return, maxDrawdown: row.max_drawdown }))} />
@@ -876,18 +876,18 @@ export function MiningWorkbench() {
         </div>
       )}
 
-      {/* 市场环境覆盖不足的补救确认: 补算缺失区间后自动重跑, 取消则不做任何操作。 */}
+      {/* 环境覆盖不足的补救确认: 补算缺失区间后自动重跑, 取消则不做任何操作。 */}
       {regimeBackfill && (
         <div {...regimeBackdrop} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-2xl">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Database className="h-4 w-4 shrink-0 text-warning" />
-              市场环境数据不完整
+              环境数据不完整
             </div>
             <p className="mt-2 text-xs leading-5 text-secondary">
               {regimeBackfill.start
                 ? <>环境数据缺少 <span className="font-mono text-foreground">{regimeBackfill.start}</span> 起的部分交易日，挖掘的 T-1 环境校验未通过。点击确定将自动补算该区间（结束至今日），完成后重新开始挖掘。</>
-                : '尚未计算市场环境数据。点击确定将执行全量计算（历史较长时耗时较久），完成后重新开始挖掘。'}
+                : '尚未计算环境数据。点击确定将执行全量计算（历史较长时耗时较久），完成后重新开始挖掘。'}
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" disabled={regimeRecomputeAndRun.isPending} onClick={() => setRegimeBackfill(null)} className="h-8 rounded-btn border border-border px-3 text-xs text-secondary hover:bg-elevated disabled:opacity-50">取消</button>

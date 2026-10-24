@@ -545,7 +545,7 @@ def run_mining_runtime(
             })
 
             if request.require_regime:
-                emit({"phase": "panel", "label": "校验市场环境数据", "done": 0, "total": 1})
+                emit({"phase": "panel", "label": "校验环境数据", "done": 0, "total": 1})
                 _validate_regime_availability(panel, request, data_dir)
 
             _raise_if_cancelled(cancel_check)
@@ -1353,9 +1353,9 @@ def _validate_regime_availability(
     request: RuntimeRequest,
     data_dir: Path,
 ) -> None:
-    """搜索开始前 fail-fast 校验市场环境数据。
+    """搜索开始前 fail-fast 校验环境数据。
 
-    环境分组评估 (strong/range/weak) 依赖 T-1 市场环境序列; 数据为空或覆盖不足时,
+    环境分组评估 (strong/range/weak) 依赖 T-1 环境序列; 数据为空或覆盖不足时,
     若拖到 artifacts 阶段才在 _regime_date_count 中抛错, 整轮嵌套搜索的计算全部浪费。
     这里用与 artifacts 相同的 fold 口径 (panel 标签) 预先构建一次 mask:
     required 区间取所有外层 fold 测试窗的并集, 覆盖后续每个 fold 单独调用的要求,

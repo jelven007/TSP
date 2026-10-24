@@ -43,7 +43,7 @@ export const DATA_CARD_DEFS: CardDef[] = [
   { key: 'etf',         label: 'ETF',      desc: '场内交易基金日K',         defaultHiddenIfNoCap: false, defaultHidden: true },
   { key: 'minute',      label: '分钟 K',   desc: '分钟级K线(依赖分钟K批量数据)',  defaultHiddenIfNoCap: true },
   { key: 'financials',  label: '财务数据', desc: '财报数据(依赖财务数据)',    defaultHiddenIfNoCap: true },
-  { key: 'regime',      label: '市场环境', desc: '每日环境状态(本地计算)', defaultHiddenIfNoCap: false },
+  { key: 'regime',      label: '环境', desc: '每日环境状态(本地计算)', defaultHiddenIfNoCap: false },
 ]
 
 const DEFAULT_ORDER = DATA_CARD_DEFS.map(d => d.key)

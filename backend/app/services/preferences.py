@@ -96,8 +96,13 @@ def save(updates: dict, data_dir=None) -> dict:
     return current
 
 
+def get_data_sync_auto_enabled() -> bool:
+    """初始化仅手动同步; 显式开启后才运行定时同步和启动补跑。"""
+    return load().get("data_sync_auto_enabled") is True
+
+
 def get_realtime_quotes_enabled() -> bool:
-    return bool(load().get("realtime_quotes_enabled", True))
+    return bool(load().get("realtime_quotes_enabled", False))
 
 
 def get_watchlist_groups_in_nav() -> bool:
@@ -161,20 +166,8 @@ def get_minute_sync_enabled() -> bool:
 
 
 def get_minute_intraday_refresh() -> bool:
-    """自选列表分时图是否跟随实时行情刷新。
-
-    默认值随权限: 有实时行情权限 (Pro+) 的用户默认开启, 否则关闭。
-    用户主动设置过的 (key 存在) 以用户选择为准, 即使是 False 也尊重。
-    """
-    data = load()
-    if "minute_intraday_refresh" in data:
-        return bool(data["minute_intraday_refresh"])
-    # 未设置过: 有权限默认开, 无权限默认关。
-    try:
-        from app.services.quote_service import QuoteService
-        return QuoteService.is_realtime_allowed()
-    except Exception:
-        return False
+    """自选分时图实时刷新默认关闭, 保留用户显式选择。"""
+    return bool(load().get("minute_intraday_refresh", False))
 
 
 # 分时图实时刷新间隔允许范围 (秒)。下限 3s, 上限 60s。
@@ -262,8 +255,8 @@ _MINUTE_REFRESH_INTERVAL_MAX = 120
 
 
 def get_minute_refresh_enabled() -> bool:
-    """盘中分钟K增量落盘开关。默认开启; 能力门控在服务层判断。"""
-    return bool(load().get("minute_refresh_enabled", True))
+    """盘中分钟K增量落盘默认关闭; 能力门控在服务层判断。"""
+    return bool(load().get("minute_refresh_enabled", False))
 
 
 def get_minute_refresh_interval() -> int:
@@ -416,10 +409,10 @@ def get_pipeline_pull_index() -> bool:
 
 
 def get_pipeline_regime_enabled() -> bool:
-    """盘后管道是否自动计算市场环境(regime)。默认 True。
+    """盘后管道是否自动计算环境(regime)。默认 True。
 
     regime 是本地聚合计算(非拉取), 首次/regime 表为空时需全量回填多日,
-    按配置分批控制内存; 用户可在数据页「市场环境」卡片设置里关闭自动计算,
+    按配置分批控制内存; 用户可在数据页「环境」卡片设置里关闭自动计算,
     或直接在该页面点「重算」手动触发(不受此开关影响)。
     """
     return load().get("pipeline_regime_enabled", True)
@@ -503,7 +496,7 @@ def get_mainline_blacklist() -> list[str]:
 
 
 def get_sentiment_exclude_st() -> bool:
-    """市场环境/主线统计是否剔除风险警示(ST)股。默认 True。
+    """环境/主线统计是否剔除风险警示(ST)股。默认 True。
 
     口径: 主板 ST 在 2026-07 前享 5% 涨跌幅(封板成本减半), 且 ST 是跨行业的
     状态桶而非投资题材, 混入会系统性抬高涨停宽度/高度(弱市尤甚)。剔除后
@@ -1147,9 +1140,17 @@ def get_realtime_monitor_config() -> dict:
     }
 
 
+DEFAULT_NAV_ORDER = (
+    "/", "/regime", "/watchlist", "/screener", "/factors", "/backtest",
+    "/review", "/abnormal", "/lots", "/monitor", "/limit-ladder",
+    "/stock-analysis", "/concept-analysis", "/industry-analysis",
+    "/financials", "/signals", "/paper", "/data",
+)
+
+
 def get_nav_order() -> list[str]:
-    """返回左侧菜单的自定义排序（内置页面 path + 扩展分析菜单 id）。"""
-    return load().get("nav_order", [])
+    """返回菜单排序; 未配置时采用系统初始化菜单顺序。"""
+    return load().get("nav_order", list(DEFAULT_NAV_ORDER))
 
 
 def set_nav_order(order: list[str]) -> list[str]:
@@ -1219,14 +1220,14 @@ def set_financial_sync_time(table: str, iso_ts: str) -> None:
     save({"financial_sync_times": times})
 
 
-# ---------------------------------------------------------------- 看板自定义布局
+# ---------------------------------------------------------------- 行情自定义布局
 # blob 形如 {"v": 1, "items": [{"i","t","x","y","w","h","p?"}, ...]}; None = 未自定义(前端用内置默认布局)。
 _DASHBOARD_LAYOUT_MAX_ITEMS = 40
 _DASHBOARD_LAYOUT_MAX_JSON = 64 * 1024
 
 
 def get_dashboard_layout() -> dict | None:
-    """看板自定义布局 blob; None = 未自定义。"""
+    """行情自定义布局 blob; None = 未自定义。"""
     raw = load().get("dashboard_layout")
     return raw if isinstance(raw, dict) else None
 
@@ -1240,7 +1241,7 @@ def _clamp_int(v: object, lo: int, hi: int, fallback: int) -> int:
 
 
 def set_dashboard_layout(value: dict | None) -> dict | None:
-    """保存看板布局; None = 清除(回默认布局)。
+    """保存行情布局; None = 清除(回默认布局)。
 
     护栏: items 数量、字段类型/取值范围、整体 JSON 体积;
     前端渲染前还会再做一轮规范化(未知组件剔除等), 此处只防脏数据写盘。

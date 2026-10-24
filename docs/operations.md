@@ -1,44 +1,51 @@
-# TSP 运维手册
+# TSP 部署与运维手册
 
-本文档面向自托管部署的维护人员，提供启动、巡检、备份、恢复、升级和故障处理
-步骤。安装方式见[部署指南](./deployment.md)，配置项见
-[配置说明](./configuration.md)，正式发版流程见
-[发布与上线运营](./release-operations.md)。
+2026-10-24 本地完整整合与验证见[最新记录](../reports/production-integration-20261024/verification.md)。
+新部署重点确认手动同步默认值、非 Windows 多租户基础服务、SMTP受控配置、
+已有偏好与身份保留，以及[最新加五个历史版本](release-operations.md#31-版本保留)的恢复集合。
+源码归并不自动升级生产；生产固定版本继续见[版本基线](version-baseline.md)。
 
-当前生产提交、源码候选、稳定标签和 schema 边界统一见
-[版本基线](./version-baseline.md)。巡检和故障记录必须写完整提交 SHA，不能只写
-`0.4.1`。
+本手册统一部署、配置、账户初始化、Windows运行、巡检、备份、恢复和交接。先核对[版本基线](version-baseline.md)，再按部署模式执行；正式放行见[发布与服务运营](release-operations.md)。目标组件尚未接入，不由文档生成可用配置或已签收SLA。
 
+- [运行边界](#1-运行边界)
+- [安装与配置](#2-上线前准备)
+- [启停和健康](#3-启动停止与状态)
+- [备份与恢复](#8-备份)
+- [升级与故障](#10-升级与回滚)
+
+<a id="1-运行边界"></a>
 ## 1. 运行边界
 
 - 原生 Windows 已暂停多租户，使用单进程管理员个人空间；旧平台、worker、
-  watchdog 的停用和备份切换步骤见[Windows 单机说明](./windows10-native-16gb.md)。
-- 当前完整单机多租户按角色运行平台、API 和四类 Worker，API 默认四进程；
+  watchdog 的停用和备份切换步骤见[Windows 单机说明](#windows)。
+- 当前完整单机多租户运行 Platform、API、独立 Gateway 和四类 Worker，API 默认四进程；
   PostgreSQL、公共版本、Broker、备份和恢复见[完整部署](../deploy/full/README.md)。
-- 火山引擎生产当前为 v0.4.11、`092bd79c`、schema v6；在原 `6d16751c`
+- 火山引擎生产最后已知为 v0.4.11、`092bd79c`、schema v6；在原 `6d16751c`
   上部署公共版本容量、回收和盘后仓库刷新修复，详见
   [inode 耗尽修复结果](../reports/online-timeout-20261021/result.md)。
 - 自选业务连接池五秒获取超时仍在调查，不调大池或延长截止时间代替根因修复。
   保留 PG 等待状态、主机 I/O/内核栈、请求耗时的联合时间线及已有失败记录；
-  原诊断与完整交易日观察继续运行，见[调查](../reports/online-timeout-20261021/watchlist-pool-investigation.md)。
+  原诊断与完整交易日观察的最后记录仍待终态；本轮未探测进程，见[调查](../reports/online-timeout-20261021/watchlist-pool-investigation.md)。
 - 新源码的五档/收盘价与 Windows 单机预算尚须独立发布验收；
   原生 Windows 升级备份管理员身份与完整数据目录，旧多租户服务必须先停写，
-  见[本次整合](./local-consolidation-20261022.md)。
+  见[本次整合](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 - 同日已完成 2016-01-01 起日线回填，实际覆盖和财务/分钟边界见
   [回填结果](../reports/history-backfill-20261020/result.md)。后续页面局部刷新、分钟
   空值和实时写盘门闸修复尚未替换生产固定镜像。
 - 下方根目录 Compose 操作适用于独立运行模式，其生产形态是单容器、单 Uvicorn worker。
-- 同一 `DATA_DIR` 只能由一个 TSP 主实例写入。
+- 独立模式同一`DATA_DIR`只允许一个主实例写入；完整多租户由Platform单写公共行情，API/Gateway/Worker按既有角色及SQL事务运行。
 - 默认服务端口为 `3018`。
 - Docker Compose 将主机 `./data` 挂载到容器 `/app/data`。
 - Compose 使用 `restart: unless-stopped`；镜像内置容器 `HEALTHCHECK`，调用
   `GET /health/ready`。外部告警系统仍由部署环境提供。
 - `GET /health` 和 `GET /health/live` 是进程级浅探活；
   `GET /health/ready` 是本地依赖深度检查。
-- 本项目没有声明固定 SLA、RTO 或 RPO；部署者应通过实际恢复演练确定指标。
+- 当前没有已签收的固定SLA保证；各阶段的可用性、RPO/RTO、持续窗口与恢复证据统一见[联合验收目标](testing.md#acceptance-4-负载持续窗口与恢复目标)。巡检与恢复记录须注明实际达到的水位及耗时。
 
+<a id="2-上线前准备"></a>
 ## 2. 上线前准备
 
+<a id="21-主机"></a>
 ### 2.1 主机
 
 - 校验 CPU 架构与镜像或桌面产物匹配。
@@ -47,6 +54,7 @@
 - 公网只开放必要端口，优先通过 HTTPS 反向代理访问。
 - 不在主机命令历史、Git 或工单中记录密钥和明文密码。
 
+<a id="22-配置和持久化"></a>
 ### 2.2 配置和持久化
 
 ```bash
@@ -64,8 +72,751 @@ mkdir -p data backups
 - Docker 的 `data` 挂载、`.env` 和 `tiers.yaml` 路径正确。
 - 不会有第二个容器或进程写同一个数据目录。
 
+<a id="installation"></a>
+### 2.3 按模式安装
+
+完整多租户使用[deploy/full](../deploy/full/README.md)的角色部署；以下根Compose与Dev命令用于独立模式。固定验收提交或标签，生产前端构建为静态资产并由应用托管。
+
+<a id="install-docker-compose"></a>
+#### Docker Compose
+
+<a id="install-前置要求"></a>
+##### 前置要求
+
+- Git
+- Docker Engine
+- Docker Compose v2
+- 建议至少 4 GB 可用内存和足够的数据盘空间
+
+<a id="install-首次部署"></a>
+##### 首次部署
+
+```bash
+git clone https://github.com/jelven007/TSP.git
+cd TSP
+cp .env.example .env
+docker compose up --build -d
+```
+
+访问 <http://localhost:3018>。
+
+基础镜像默认从 Docker Hub 拉取。若 `registry-1.docker.io` 超时或返回
+`Bad Gateway`，可通过构建参数切换拉取仓库：
+
+```bash
+BASE_IMAGE_REGISTRY=public.ecr.aws/docker docker compose build app
+```
+
+也可在 `.env` 中保存 `BASE_IMAGE_REGISTRY=public.ecr.aws/docker`。
+直接构建使用 `docker build --build-arg BASE_IMAGE_REGISTRY=public.ecr.aws/docker -t tsp:local .`。
+该参数只替换 Node、Python、Rust 基础镜像的仓库前缀，版本和依赖锁不变；
+使用备选仓库时应核对镜像摘要。`USE_CN_MIRROR` 仅控制构建中的 npm、PyPI、
+APT 和 Cargo 源，不控制 Docker Hub 拉取。
+
+查看状态和日志：
+
+```bash
+docker compose ps
+docker compose logs -f app
+curl -fsS http://localhost:3018/health/live
+curl -fsS http://localhost:3018/health/ready
+```
+
+Compose 会把以下内容挂载到容器：
+
+- `./data` → `/app/data`
+- `./tiers.yaml` → `/app/tiers.yaml`
+- `./.env` → `/app/.env`
+- 主机 Codex 配置目录 → `/root/.codex`，只读
+
+生产环境应限制 `.env` 和 `data/` 的文件权限，并把数据目录放在有备份和容量监控
+的磁盘上。
+
+<a id="install-dev-模式"></a>
+#### Dev 模式
+
+<a id="install-前置要求-1"></a>
+##### 前置要求
+
+- Python 3.11+
+- Node.js 20+
+- [`uv`](https://docs.astral.sh/uv/)
+- pnpm 9
+- [Rust 编译工具链](https://www.rust-lang.org/tools/install)（源码安装默认原生桥接）
+
+macOS / Linux：
+
+```bash
+cp .env.example .env
+./dev.sh
+```
+
+Windows PowerShell：
+
+```powershell
+Copy-Item .env.example .env
+.\dev.ps1
+```
+
+默认地址：
+
+- 前端：<http://localhost:3011>
+- 后端：<http://localhost:3018>
+
+自定义端口：
+
+```bash
+BACKEND_PORT=8000 FRONTEND_PORT=5173 ./dev.sh
+```
+
+手动分别启动：
+
+```bash
+cd backend
+uv sync --frozen
+uv run --frozen --no-sync python -m app.plugins.rustdx.client
+uv run --no-sync uvicorn app.main:app --reload --port 3018
+```
+
+```bash
+cd frontend
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+rustdx 原生桥接是后端默认依赖，不需要额外指定 `--extra rustdx`。开发脚本在
+已有 `.venv` 时也同步依赖，并在启动前校验桥接。Docker 镜像和桌面包在构建时
+内置扩展并校验，目标机器不需要 Rust。旧源码环境的桥接不匹配时执行
+`uv sync --frozen --reinstall-package tsp-rustdx-native` 重建。
+
+<a id="install-桌面安装包"></a>
+#### 桌面安装包
+
+桌面安装包从当前仓库的
+[GitHub Releases](https://github.com/jelven007/TSP/releases) 获取。
+仅使用实际存在且校验通过的平台资产。
+
+桌面版与服务端版的明确差异：
+
+- Windows 桌面版与原生源码版暂停多租户，使用默认账号 `admin/Admin123` 登录，
+  提供管理员个人空间、改密与退出；不提供注册和邮箱找回。
+- macOS、Linux 默认使用多租户账户登录，开放注册、密码找回、账户管理和退出；
+  部署须准备 PostgreSQL 与内部平台服务。显式关闭多租户的旧冻结桌面模式仍可免登录。
+- 非 Windows 服务端和 Dev 模式继续保留原认证。
+
+Windows 原生服务只运行一个 standalone 进程。资源配置、旧多租户服务停用和
+目录切换见[Windows 单机管理员说明](#windows)。
+
+覆盖安装前仍应备份安装目录下的 `data/`。安装包不会主动删除运行时数据，但备份是
+升级和回滚的前置条件。
+
+<a id="install-老-cpu-兼容"></a>
+#### 老 CPU 兼容
+
+CPU 不支持 AVX2/FMA、进程出现 `exit 132` 时，在 `.env` 设置：
+
+```ini
+BACKEND_EXTRAS=legacy-cpu
+```
+
+同时需要回测依赖：
+
+```ini
+BACKEND_EXTRAS=legacy-cpu backtest
+```
+
+然后重新执行 `docker compose up --build -d` 或启动脚本。不要用
+`POLARS_SKIP_CPU_CHECK` 隐藏硬件不兼容。
+
+<a id="install-codex-cli"></a>
+#### Codex CLI
+
+Compose 默认只读挂载 `${HOME}/.codex`。Windows 的 `HOME` 可能未设置，可在
+`.env` 指定：
+
+```ini
+CODEX_HOME_HOST=C:\Users\your-name\.codex
+```
+
+覆盖容器内 Codex CLI 版本：
+
+```bash
+CODEX_CLI_VERSION=0.144.3 docker compose up --build -d
+```
+
+只在可信主机启用 Codex 登录态挂载。
+
+<a id="install-反向代理"></a>
+#### 反向代理
+
+公网部署至少需要：
+
+- HTTPS 终止。
+- 正确转发 `X-Forwarded-Proto`。
+- 支持 SSE 长连接并关闭代理缓冲。
+- 为回测和同步接口设置合理超时。
+- 不直接暴露数据目录和配置文件。
+
+反向代理上线后重新验证登录、SSE、回测进度、文件下载和更新检查。
+
+<a id="configuration"></a>
+### 2.4 配置、默认值与生效方式
+
+配置分启动环境、持久偏好和密钥；页面仅修改已开放字段。进程角色、线程、连接池和资源上限须由部署者调整环境并重启。完整多租户的参数与密钥文件以[完整部署配置](../deploy/full/README.md)为准。
+
+完整单机资源配置补充：
+
+| 配置 | 作用 |
+| --- | --- |
+| `TSP_*_MEMORY` / `TSP_*_CPUS` | 各 Compose 角色的内存和 CPU 上限 |
+| `TSP_*_POOL_SIZE` | API、Gateway 及四类 Worker 的每库连接池上限 |
+| `TSP_*_CONCURRENCY` | 四类 Worker 的并行执行上限 |
+| `TSP_COMPUTE_CAPACITY` | 同时运行的 Compute 容器数 |
+| `TSP_COMPUTE_MEMORY_MB` / `TSP_COMPUTE_CPUS` | 每个 Compute 容器的资源上限 |
+| `TSP_COMPUTE_QUEUE_SECONDS` | 执行槽满时的最大短等待时间，范围 0–30 秒 |
+
+`deploy/full/production-16g.env` 是单 Compute 的 16 GiB 预算，应用角色 8,704 MiB、
+双库连接上界 36。该文件不含密钥；DSN、内部 Token 和外发凭据仍放在权限 0600 的
+私密环境文件中。
+
+
+<a id="config-数据源"></a>
+#### 数据源
+
+```ini
+TICKFLOW_API_KEY=              # 留空 = None 模式(历史日K免费);填 Key = 按订阅档位解锁
+```
+
+项目首次启动时八项数据能力默认路由到 `rustdx`；仅已删除或非法的源值回退默认，
+已保存的合法路由保持不变。设置页的数据源卡片及可选路由标签按 rustdx、fuyao、
+其他插件/自定义源排序，TickFlow 卡片、Key 配置入口和可选标签已移除；
+已有 TickFlow 路由继续显示实际来源，不自动迁移。YAML 声明自有接口见
+[custom-data-source.md](reference/integrations.md#http),插件开发见
+[plugin-development.md](reference/integrations.md#plugin)。
+
+仓库内置的 `rustdx` 插件无需 API Key，可提供实时行情、五档盘口、分钟K、日K、
+除权因子、公司行为、财务数据、全量分钟八项能力。设置页能力路由、数据源能力标签及
+详情表均按此顺序展示；标签仅显示该源声明的能力。Docker 镜像和桌面包已包含原生扩展；
+源码环境具备 Rust 编译工具后，执行 `uv sync --frozen` 即默认安装；
+启动和构建时校验桥接版本与接口。公开通达信服务器可能限流或不可达，安装、
+环境变量、单位校准、竞价采集及覆盖边界见
+[rustdx 数据源](reference/integrations.md#rustdx)。
+rustdx 请求共用最多 35 条持久连接，历史财务也通过 rustdx 下载并独立解析。
+选择任一非 TickFlow 源后，请求失败不会静默切回 TickFlow。
+
+- **留空(None 模式)**:通过 free-api 使用历史日 K(当日数据盘后 1-2 小时可用),**无需付费**即可体验核心选股/回测功能
+- **填入 API Key**:按你的订阅档位解锁更多能力
+
+<a id="config-tickflow-备选源按档位提供的实时能力"></a>
+##### TickFlow 备选源按档位提供的实时能力
+
+| 档位     | 实时能力                                 |
+| :------- | :--------------------------------------- |
+| Free     | 自选页前 5 个标的实时监控(最低 6 秒刷新) |
+| Starter+ | 全市场实时行情                           |
+| Pro      | 分钟 K + 盘口                            |
+| Expert   | WebSocket + 财务数据 + 全量分钟          |
+
+> 完整能力矩阵见 [tickflow.org/pricing](https://tickflow.org/pricing/),高等档位含较低档全部权益。
+> TickFlow 保留后端兼容支持；设置页已移除其配置卡片，已有部署可通过 `TICKFLOW_API_KEY` 维护。
+>
+> **档位仅适用于 TickFlow 数据源**。功能门槛的统一标准是"能力"(`kline.minute.batch`、`depth5.batch`、`financial` 等能力键):其他第三方/自定义数据源以声明的数据集能力为准,系统会按当前数据源配置自动合并判定,UI 提示一律以能力名表达,不再依赖 TickFlow 档位名。
+
+<a id="config-全量分钟-full_minute"></a>
+##### 全量分钟 (full_minute)
+
+「全量分钟」是一项**独立能力**(能力键 `full_minute`,探测名 `intraday.universe`),与其他能力同样**可路由**:盘中把全市场当日 1 分钟 K 持续增量落盘到本地 `data/kline_minute/` 当日分区,分钟策略(`minute_filter`)与分时视图即可读到新鲜数据。接入方式二选一:
+
+- **TickFlow Expert**:配置 Expert 档 Key,零配置即用(修复轮 `intraday.batch` + 稳态 `intraday.universe` 单请求增量)
+- **插件/自定义源**:声明 `full_minute` 数据集并在 **设置 → 数据源 → 全量分钟** 路由到该源 — Python 插件实现 `get_intraday_batch`(必需)/`get_intraday_latest`(可选,未实现自动降级仅修复轮、节奏下限 60s);YAML 声明式源数据集配置与 `minute` 同形(仅修复轮语义)。契约细节见 [plugin-development.md](reference/integrations.md#plugin) 与 [custom-data-source.md](reference/integrations.md#http)
+
+接入步骤:
+
+1. 在 **设置 → 数据源** 选择 rustdx 或声明/安装提供 `full_minute` 的源并路由，确认「全量分钟」可用；已有 TickFlow 部署的 Key 通过环境变量维护
+2. 落盘服务默认关闭；在「设置 → 监控」显式开启后，仅在交易日 09:15–11:30 / 13:00–15:15 运行，午休和 15:15 后自动暂停
+3. 冷启动(如 10 点才开服务)自动触发**全天修复轮**,一次批量补齐当日缺口;稳态走**增量轮**(偏好可配 1–120 秒)。rustdx 逐证券取 bars，有效周期至少 60 秒；设置页显示生效周期，原偏好保留
+4. 与盘后分钟同步写同一分区，完整读/合并/替换加锁，`unique(symbol, datetime)` 幂等合并
+
+说明:标的池为 A 股股票(CN_Equity_A),ETF 不在内(分时走批量补拉路径);覆盖滞后超阈值或连续空轮会自动再跑修复轮自愈。
+
+<a id="config-公司行为与秒级归档"></a>
+##### 公司行为与秒级归档
+
+`corporate_actions_provider` 独立选源，默认 rustdx；TickFlow 当前没有该适配。
+它提供分红/送转/配股事件，不替代 `adj_factor`。日期证据不足时新事件账户会暂停
+相关撮合与净值定版，不能仅凭矩阵 `usable` 放行；见[公司行为](reference/trading-ai.md#corporate)。
+
+秒级归档是业务偏好，默认关闭，保存现有 rustdx 实时采集结果：
+`second_quote_archive_enabled`、`second_quote_archive_retention_days`（默认 0，
+不自动删除）。通过受认证设置 API 修改；目前没有独立配置页面，
+示例和资源/质量边界见[秒级研究](reference/market-data.md#second-7-操作入口)。
+
+---
+
+<a id="config-ai可选"></a>
+#### AI(可选)
+
+用于自然语言生成策略。**所有配置留空即跳过**,不影响核心功能。支持任意 OpenAI 兼容接口。
+
+```ini
+AI_PROVIDER=openai_compat              # openai_compat | openai | codex_cli
+AI_PROTOCOL=chat_completions           # chat_completions | responses
+AI_BASE_URL=https://api.deepseek.com/v1
+AI_API_KEY=                            # 留空 = 关闭 AI
+AI_MODEL=deepseek-chat
+AI_MAX_OUTPUT_TOKENS=16384            # 请求输出封顶
+AI_CONTEXT_WINDOW=128000             # 输入上下文估算上限
+AI_ROUND_CHECKPOINT=100               # 助手连续工具轮次检查点；0 不检查
+```
+
+| 配置项 | 说明 |
+| :--- | :--- |
+| `AI_PROVIDER` | `openai_compat`（兼容服务）、`openai`（支持推理强度配置）、`codex_cli`（本机 CLI） |
+| `AI_PROTOCOL` | 默认 `chat_completions`；服务商支持时显式选择 `responses`。Codex CLI 不使用此项 |
+| `AI_BASE_URL` | 接口地址,如 DeepSeek `https://api.deepseek.com/v1` |
+| `AI_API_KEY` | 留空则关闭 AI 功能 |
+| `AI_MODEL` | 模型名,如 `deepseek-chat` |
+| `AI_MAX_OUTPUT_TOKENS` | 输出 token 上限，16384；具体任务请求值仍可能更小 |
+| `AI_CONTEXT_WINDOW` | 输入上下文估算上限，128000；超限返回明确错误 |
+| `AI_ROUND_CHECKPOINT` | 助手持续工具调用的继续/停止检查点，100；不是每日费用限额 |
+
+旧 `.env` 中的 `AI_DAILY_TOKEN_BUDGET` 没有当前读取或每日累计限额实现，不能当作
+费用控制。费用/余额限额须在所用模型服务配置；上面的单次预算按
+`backend/app/config.py` 与 AI 适配器生效。
+
+页面预设包括自定义、OpenAI、DeepSeek、GLM 和 Codex CLI。
+通义千问与 Kimi 不再单列预设；已有其他 OpenAI 兼容配置会显示为“自定义”，
+其地址、模型和密钥仍按原配置使用。
+
+「接口协议」用于报告、策略生成及助手。页面保存的协议优先于环境变量；
+旧客户端省略协议字段时保留已保存值，清空 AI 配置后恢复 Chat Completions。
+现有「测试」按钮先保存表单再测试，选择协议本身不触发请求。
+Responses 的工具、完整性及取消约定见 [AI 协议](reference/trading-ai.md#ai)。
+
+接入示例见 [strategy.md](reference/research.md#strategy) 的「AI 生成策略」章节。
+
+---
+
+<a id="config-内置扩展概念与行业"></a>
+#### 内置扩展概念与行业
+
+```ini
+EXT_CONCEPT_DATA_URL=
+EXT_INDUSTRY_DATA_URL=
+```
+
+扩展概念和扩展行业默认可直接拉取同花顺分类数据，默认接口分别为：
+
+- `https://shy313.com/api/plugins/market_flow/exports/ths-concepts`
+- `https://shy313.com/api/plugins/market_flow/exports/ths-industries`
+
+环境变量未设置或为空时使用上述默认值，非空 URL 可独立覆盖对应上游。
+
+- 新安装默认手动同步，启动时不拉取数据；在概念/行业页点击获取执行一次同步。
+- 自动拉取可在「数据 → 扩展概念/行业 → 拉取设置」显式开启；
+  开启后启动首轮，后续在交易日 `09:15-11:30`、`13:00-15:15` 每分钟拉取一次。
+- 旧版原样生成、没有数据的空预设会补全默认地址并保持手动模式；已保存的自定义地址、
+  主动关闭状态、定制配方及已有数据保持不变。
+- 手动拉取使用表内保存的 URL、请求头、鉴权和字段映射，与定时拉取一致。
+
+完整多租户模式下，管理员的配置列表从平台服务读取，显示保存的拉取地址和调度；
+普通账户仍读取公共数据副本，不返回拉取配方或上游请求头。
+
+预期概念响应行为 `{symbol, name, concepts: [...]}`，行业响应行为
+`{symbol, name, industries: [...]}`；接口可直接返回数组，也可使用常见
+`data`、`list`、`rows` 等信封字段。
+
+---
+
+<a id="config-服务"></a>
+#### 服务
+
+```ini
+HOST=0.0.0.0          # 开发服务监听地址 / Docker 主机绑定地址
+PORT=3018             # 开发后端端口 / Docker 主机映射端口
+LOG_LEVEL=INFO        # DEBUG | INFO | WARNING | ERROR
+```
+
+- `HOST`:`0.0.0.0` 监听所有网卡(容器/公网部署需要);仅本机用可设 `127.0.0.1`
+- `PORT`:默认 `3018`;开发模式兼容显式的 `BACKEND_PORT` 覆盖,改端口后 SSH 转发命令也要同步改
+- `LOG_LEVEL`:排查问题时改 `DEBUG`
+
+---
+
+<a id="config-数据"></a>
+#### 数据
+
+```ini
+DATA_DIR=./data       # Parquet / DuckDB 数据存储目录
+```
+
+整个 `data/` 目录都不纳入 git —— 行情 K线、财务、自选、回测、监控记录,乃至概念/行业扩展数据,全部是程序运行时生成/拉取的用户数据。
+
+独立模式迁移前先停写，再复制整个数据目录、`.env` 与自定义插件；完整多租户须
+同时备份/恢复双库、平台配置、公共版本及私有产物，不能只复制 API 的 `DATA_DIR`。
+见[部署更新](#10-升级与回滚)与[备份恢复](#8-备份)。
+
+<a id="config-数据页初始化默认值"></a>
+##### 数据页初始化默认值
+
+新项目按以下参数初始化「数据」菜单；后端偏好读取、页面初始显示及设置中的
+“默认”预设保持一致。已保存的值优先，包括主动关闭状态；缺失字段才使用默认值。
+完整多租户模式下，数据页参数由平台服务统一维护。
+
+| 配置 | 初始化默认值 |
+| --- | --- |
+| 界面主题 | 白天模式（亮色）；已有浏览器保存的主题选择优先 |
+| 日K、复权、分钟、全量分钟、五档、实时、财务数据源 | 全部 `rustdx` |
+| 公司行为数据源 | `rustdx`，独立于复权；日期缺证据时暂停相关账务 |
+| 自动数据同步 | 关闭；首次启动、证券目录、盘后管道、竞价和五档定版均不自动执行 |
+| 实时行情 / 分时图实时刷新 | 关闭，行情轮询偏好 1 秒 |
+| 证券目录同步 | 手动；保留交易日 09:10 的自动调度时间 |
+| 盘后管道 | 手动；保留交易日 15:35 的自动调度时间；同步包含 A 股、指数，ETF 关闭 |
+| 指标计算 / 指数日K批量大小 | 1000 / 100 |
+| 管道包含分钟K | 开启，最近 5 天，分段大小 20 个交易日；跟随手动/定时管道执行 |
+| 盘中全量分钟刷新 | 关闭，间隔偏好 1 秒；开启后 rustdx 生效周期至少 60 秒 |
+| 管道包含环境计算 | 开启；跟随手动/定时管道执行 |
+| 环境全量回填 | 每批 120 个交易日，预热 40 个日历日 |
+| 扩展概念、扩展行业 | 快照模式，内置默认 URL，GET，无需鉴权；自动拉取关闭，保留 1 分钟间隔、30 秒超时 |
+| 数据画像卡片 | 默认顺序为证券目录、日K、复权、指标、指数、ETF、分钟K、财务、环境；ETF 隐藏，其余按数据能力显示 |
+
+管理员点击「立即同步」执行首次全量管道，失败保持待同步状态，可修复来源后重试。
+「同步调度 → 自动同步」显式开启后才恢复定时数据任务；修改时间不会自动开启。
+实时行情、盘中分钟刷新及扩展数据自动拉取分别由各自开关控制，已有显式选择保留。
+默认菜单顺序为：行情、环境、自选、策略、因子、回测、复盘、异动、持仓提醒、
+监控中心、连板梯队、个股分析、概念分析、行业分析、财务分析、信号指标、
+模拟交易、数据总览；内置菜单全部显示，自选分组不展开到侧栏。
+
+扩展数据的交易时段、自动拉取及自定义 URL 规则见上文
+[内置扩展概念与行业](#config-内置扩展概念与行业)。
+
+<a id="config-异动监控初始化默认值"></a>
+<a id="config-异动数据初始化默认值"></a>
+##### 异动数据初始化默认值
+
+竞价异动、盘中异动、偏移异动默认均启用，进入对应页面后自动加载。
+竞价历史从首次成功采集起积累；尚无交易日快照时显示空状态。
+偏移异动在交易时段每 60 秒计算一次，非交易时段每 5 分钟刷新。
+偏移开关按当前账户保存在浏览器中，个股详情使用同一开关；主动关闭后停止计算，
+仍可查看上次结果，重新打开页面也保留关闭状态。
+后台告警由「监控中心」的规则独立控制。
+
+---
+
+<a id="config-后端依赖-extras可选"></a>
+#### 后端依赖 Extras(可选)
+
+```ini
+BACKEND_EXTRAS=             # 留空默认;legacy-cpu 兼容老 CPU
+```
+
+老 CPU 无 AVX2/FMA 支持时设为 `legacy-cpu`,会给 Polars 切到 `rtcompat` 运行时;
+需要可选 vectorbt 信号回测栈时设为 `legacy-cpu backtest`；矩阵回测不以 vectorbt 为前置。
+Docker 构建和开发脚本都会读取此值并同步依赖。见[老 CPU 兼容](#install-老-cpu-兼容)。
+PostgreSQL 客户端由单机和 full-product 共用的模拟交易/告警模块直接引用，已属于默认
+运行依赖；旧 `--extra cell` 命令仍兼容，但不再决定主应用能否导入。
+
+---
+
+<a id="config-配置优先级"></a>
+#### 配置优先级
+
+| 类型 | 实际优先级与生效方式 |
+| --- | --- |
+| 启动 `Settings` | 进程环境变量 → 所选 dotenv 文件 → 代码默认；`TICKFLOW_ENV_FILE` 可改变文件路径 |
+| 数据源 Key / AI 配置 | 通过 `secrets_store` 读取的有效页面保存值 → `Settings` 后备值；不能用环境覆盖已经保存的有效值 |
+| 业务偏好 | `preferences.json` 已保存值 → getter 默认值；完整多租户的平台/租户归属由服务端接口决定 |
+| 插件 Key | `secrets.json` 中该插件有效值 → `api_key_env` 指定的环境变量 |
+| 注册/通知 SMTP | 显式 `AUTH_SMTP_HOST` → 已保存的系统 SMTP → 完整多租户 `TSP_CELL_SMTP_*`；均未配置时不可发送，不提供内置授权码 |
+
+配置文件含密钥，不能进入 Git。完整多租户通过 `PLATFORM_CONFIG_DIR` 读取公共系统
+配置，Compose 指定 `TICKFLOW_ENV_FILE=/dev/null`，依赖显式私密环境文件注入。
+页面保存不会改变 Compose 内存上限、Worker 数或已经初始化的线程池。
+实际入口见[配置类](../backend/app/config.py)、[密钥读取](../backend/app/secrets_store.py)、
+[偏好 getter](../backend/app/services/preferences.py)。
+
+<a id="email-accounts"></a>
+### 2.5 邮箱账户与通知SMTP
+
+所有环境的全新初始化默认预置管理员 `admin/Admin123`。
+非秘密初始化值在[初始化默认配置](../backend/app/bootstrap_defaults.py)集中定义。
+SMTP 服务器、发件地址和授权码由受控 `.env`、系统配置或 Cell 环境提供；
+源码与镜像不携带实际邮箱凭据。未配置可用传输时，注册/找回无法完成邮件验证，
+通知默认邮件渠道不启用。重启不会重置已修改密码或替换已有 SMTP。
+普通模式已有账户或旧版访问密码时保留原身份，显式邮箱/密码预置仍按下方兼容规则处理。
+
+macOS/Linux 默认启用多租户（`MULTITENANCY_ENABLED=true`、`SERVICE_ROLE=api`），
+冻结桌面同样使用账户认证；Windows 启用单机管理员模式。
+注册和密码找回在首次启动自动启用，默认注册口令 `天王盖地虎`；首次环境变量可
+自定义口令，已保存的口令不会被重置。完整多租户 API 在已有 SQL schema 上使用
+运行角色幂等创建缺失管理员和口令；建库迁移及内部服务配置仍按[完整部署](../deploy/full/README.md)执行。
+显式 `MULTITENANCY_ENABLED=false` 或 `SERVICE_ROLE=standalone` 保留旧独立模式，
+不会把多邮箱共享空间宣称为具备租户隔离。仅复制邮箱模板不能代替多租户基础服务。
+Windows 原生见下一节，不能用邮箱环境变量覆盖本地管理员。
+
+<a id="email-方式一-浏览器注册"></a>
+#### 方式一: 浏览器注册
+
+普通 Web 模式首次打开可用预置管理员登录，也可进入注册页:
+
+1. 输入邮箱和注册口令, 点击“发送验证码”。
+2. 输入邮件中的 6 位验证码和至少 8 位的密码。
+3. 验证码校验成功后创建账户并自动登录。
+
+后端只有在注册口令正确时才会发送邮件。验证码 10 分钟有效, 60 秒内不能重复发送, 连续输错 5 次后失效, 且成功注册后不能再次使用。口令校验和发送请求合计按来源 IP 限制为每小时 10 次。
+
+注册口令有首次初始化默认值；邮件传输必须配置。以下参数用于自定义口令并配置邮箱：
+
+```bash
+AUTH_REGISTRATION_SECRET='请设置注册口令'
+AUTH_SMTP_HOST='smtp.example.com'
+AUTH_SMTP_PORT=465
+AUTH_SMTP_SECURITY='ssl'       # ssl | starttls | none
+AUTH_SMTP_USERNAME='no-reply@example.com'
+AUTH_SMTP_PASSWORD='SMTP 密码或授权码'
+AUTH_SMTP_FROM_ADDRESS='no-reply@example.com'
+```
+
+服务将注册口令转换为带随机盐的 PBKDF2 哈希，多租户写入 SQL
+`control.registration_config`，旧独立模式写入 `data/user_data/auth.json`，不保存明文。
+初始化成功后可删除 `AUTH_REGISTRATION_SECRET` 并重启，原口令保留。
+
+`AUTH_SMTP_HOST` 非空时整组环境变量优先。留空时先复用已保存的系统 SMTP，
+完整多租户再读取 `TSP_CELL_SMTP_*`，均未配置时返回未配置状态。
+显式配置服务器却未提供授权码时不继承其他来源的密码。
+通知与注册复用同一传输配置，通知收件人仍独立设置。
+
+<a id="email-方式二-环境变量预置"></a>
+#### 方式二: 环境变量预置
+
+自动化部署可在 `.env` 或运行环境中同时设置:
+
+```bash
+AUTH_EMAIL='admin@example.com'
+AUTH_PASSWORD='至少八位的密码'
+```
+
+服务首次启动时会:
+
+1. 规范化邮箱并校验密码长度。
+2. 使用 PBKDF2 哈希密码后写入 `data/user_data/auth.json`。
+3. 将账户文件权限设为 `600`。
+4. 已有账户时跳过初始化, 不覆盖页面中修改过的密码。
+
+预置账户属于部署初始化, 不经过公开注册接口, 因此不要求注册口令、邮箱验证码或 SMTP。后续用户从浏览器注册时仍必须完成两项校验。
+
+需要以用户名登录的管理员时，使用 `AUTH_USERNAME` 替代邮箱预置：
+
+```ini
+AUTH_USERNAME=admin
+AUTH_PASSWORD='Admin123'
+```
+
+此配置只向现有 `auth.json` 添加管理员账户，不切换运行模式或暂停注册。
+已有邮箱账户、会话和注册口令保留；已有同名账户不会重置密码。
+`AUTH_USERNAME` 非空时优先使用用户名预置，Windows 单机模式仍按原有规则初始化。
+旧密码账户尚未绑定邮箱时，须先完成原账户迁移，不能通过管理员预置绕过。
+
+`.env` 应保持 `600` 权限且不得提交到 Git。密码含 `$` 等字符时建议使用单引号。
+
+<a id="email-旧版访问密码迁移"></a>
+#### 旧版访问密码迁移
+
+升级前已设置访问密码的部署无需重置。新登录页会显示“升级现有账户”:
+
+1. 输入要绑定的邮箱。
+2. 输入原访问密码。
+3. 绑定完成后使用邮箱和原密码登录。
+
+迁移只改变认证文件结构, 不修改行情、策略、自选或系统设置。
+
+只设置 `AUTH_PASSWORD` 而未设置 `AUTH_EMAIL` 时, 系统也会进入这一兼容模式。
+
+<a id="email-修改和重置"></a>
+#### 修改和重置
+
+- 修改密码: `设置 → 账户 → 修改密码`。成功后该账户的全部会话会退出。
+- 退出登录: 使用侧栏底部的退出按钮或账户设置页。
+- 忘记密码: 在登录页点击“忘记密码”，输入邮箱、注册口令、专用邮箱验证码和新
+  密码。找回验证码 10 分钟有效、最多尝试 5 次，与注册验证码相互隔离。
+- 重置成功后，该账户的全部会话和 API Token 都会撤销，需要重新登录并重建外部
+  调用凭据。
+- 未注册邮箱与已注册邮箱使用统一发送响应，运维日志和页面不得暴露账户是否存在。
+
+不得通过删除 `auth.json` 代替正常找回；该操作会影响全部独立模式账户。只有认证
+存储损坏且正常找回不可用时，才可在停服、完整备份和明确影响范围后执行离线恢复。
+
+<a id="email-安全建议"></a>
+#### 安全建议
+
+- 公网部署必须使用 HTTPS。
+- 密码建议使用 12 位以上随机字符串。
+- `auth.json`、`auth_verifications.json` 和 `.env` 不应进入 Git 或公开备份。
+- 注册口令按密码管理; 初始化完成后从 `.env` 删除明文。
+- SMTP 密码优先使用邮件服务商提供的独立授权码, 不要使用邮箱主密码。
+- API Token 是外部程序调用通道, 与浏览器邮箱账户相互独立。
+
+“设置 → 实时监控 → 邮件”始终复用上述注册 SMTP，仅允许修改收件人。主机、端口、加密方式、登录用户名、发件人和密码/授权码均由系统维护，页面与保存接口不允许修改；授权码仅在后端使用，保存收件人不会复制或改写凭据。收件人默认显示当前账户的注册邮箱，测试邮件使用该默认值；共享后台通知默认发给已注册账户，保存自定义收件人后以保存值为准。发信服务和注册账户均可用时，新建监控规则默认选择邮件；已保存的默认渠道（包括关闭）保持不变。未配置 `AUTH_SMTP_HOST` 时保留历史系统 SMTP 作为兜底，桌面版需由系统配置发信服务并填写收件人。
+
+<a id="windows"></a>
+### 2.6 Windows单机管理员与16GB预算
+
+<a id="windows-账户与个人空间"></a>
+#### 账户与个人空间
+
+- 首次启动创建 `DATA_DIR/user_data/local_admin.json`，只存储加盐密码哈希。
+  该文件已存在时不会覆盖账号、重置密码或重新生成个人空间身份。
+- 登录后可在「设置 → 账户」查看管理员角色、个人空间，修改密码或退出登录。
+  改密会撤销该账号全部会话；重启后仍使用新密码。
+- 关闭注册、邮箱找回、旧账户迁移与租户切换；后端同样拒绝相关写接口。
+  `AUTH_EMAIL`、`AUTH_PASSWORD`、`AUTH_REGISTRATION_SECRET` 不覆盖本地管理员。
+- 单机已有自选、策略、回测、监控和设置继续使用原 `DATA_DIR` 下的本地存储。
+  个人空间是管理员使用完整业务功能的本地空间，不创建 PostgreSQL 租户。
+- 旧 `user_data/auth.json` 保留不动。账号文件损坏时启动失败，须恢复备份，
+  不会自动回退初始密码。备份及回滚应包含整个 `data/`。
+
+默认密码用于首次进入；开始保存个人数据前，在账户页面修改密码。
+源码服务脚本和桌面版均默认只监听本机。
+
+<a id="windows-启动与升级"></a>
+#### 启动与升级
+
+使用原生 Python 3.11+、Node/pnpm 和 rustdx 构建所需 Rust 工具。
+按仓库安装流程完成 `uv sync --extra dev --extra backtest --frozen` 与
+`pnpm install --frozen-lockfile`、`pnpm build`。
+
+源码服务示例（在仓库根目录运行，路径按实际安装调整）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\tsp-service.ps1 `
+  -RepoRoot E:\Projects\TSP -DataDir E:\TSPData -ResourceProfile native16gb
+```
+
+打开 `http://127.0.0.1:3030`。省略 `DataDir` 时使用 `<RepoRoot>/data`。
+脚本从仓库 `.env` 读取业务配置，强制 `SERVICE_ROLE=standalone`、
+`LOCAL_ADMIN_MODE=true`、`MULTITENANCY_ENABLED=false`，运行一个 uvicorn worker
+并托管完整 `frontend/dist`。不需要 PostgreSQL、多租户 Broker 或四类常驻 worker。
+独立启动 API、行情同步、监控、通知和定时任务使用既有单机调用链；
+研究任务沿用单机回测、优化、walk-forward、挖掘进程。
+
+Windows 桌面安装包双击启动，使用安装目录旁的 `data/`，窗口打开后先登录。
+桌面入口会在加载数值库前应用同一组 4096 MiB、线程和任务并发默认值；
+启动环境中显式设置的同名变量优先，不会被覆盖。
+
+桌面窗口依赖Microsoft Edge WebView2 Runtime。当前安装器会先检查并安装该运行时，
+避免退回不支持React/Vite的MSHTML而白屏；实现见[安装器](../packaging/tsp.iss)，
+回归入口见[桌面打包测试](../backend/tests/test_desktop_packaging.py)。
+旧0.3.x邮箱注册/SMTP首次初始化流程不适用于当前Windows管理员模式，
+旧安装包记录也不构成0.4.17真机验收。
+
+从旧 Windows 多租户部署切换时：
+
+1. 备份数据库、公共行情、单机数据目录、服务参数及 edge 配置。
+2. 先执行旧 worker 的 `tsp-full.ps1 stop`，再停止并禁用旧
+   `TSPWorkerWatchdog`（含计划任务）；停止 `TSPApi`、`TSPPlatform` 和旧 Vite 服务。
+3. 解除新单机服务对平台、PostgreSQL 的 `DependOnService` 依赖，只托管一个
+   `tsp-service.ps1 -Role standalone` 进程。`-Role api` 是兼容别名；
+   `-Role platform`、`tsp-full.ps1 start/restart` 均拒绝运行。
+   模式检查先于安装路径解析，即使旧安装盘符不存在也会明确拒绝旧平台模式。
+   旧 watchdog 入口只提示停用后退出，`tsp-full.ps1 stop/status` 仍可清理旧进程。
+4. 为单机选择可写数据目录。禁止将 `public_market/current` 或 release 目录直接
+   作为写目录；脚本拒绝 `PublicMarket` 下的路径。保留旧数据库和公共快照，
+   不自动导入、合并或删除租户私有数据。需要的旧租户资产须单独导出后导入。
+5. 启动新服务，检查登录、个人空间、数据源能力与 `/health/ready`，
+   再验证真实业务任务。使用 edge 时确认其 upstream 指向新单机服务。
+
+配置层的 `LOCAL_ADMIN_MODE` 在原生 Windows 强制开启。若旧 `.env` 保留
+`SERVICE_ROLE=platform/api/gateway`，直接运行 Python 会明确报错；先完成停写切换，
+再改成 `standalone`。仅有旧 `MULTITENANCY_ENABLED=true` 时会被单机模式强制关闭。
+WSL2 / Docker 内的 Linux 不受 Windows 平台默认值影响。
+
+回滚时先停止单机进程，再恢复旧服务配置、对应数据库、目录与路由。不得让两个
+运行模式同时写同一数据目录。新管理员身份文件可随备份保留，旧版本不会读取它。
+
+<a id="windows-16-gb-资源控制"></a>
+#### 16 GB 资源控制
+
+原生服务默认 `native16gb`，单进程预算提示为 **4096 MiB**：
+
+| 项目 | 设置 |
+| --- | --- |
+| Polars / Numba | 最多 2 线程 |
+| BLAS / OpenMP / MKL / NumExpr | 1 线程 |
+| 策略批量执行 | 1 worker |
+| Polars collect | 前台总计 2，后台最多 1 |
+| 小内存 DuckDB | 最多 2 线程，单连接缓冲上限为有效预算的 1/8，最多 512 MiB |
+| 回测面板缓存 | 字节 LRU / TTL，单缓存最多 256 MiB，超大面板不驻留 |
+| 历史指标 | 按有效预算分批，不截断日期、标的或字段 |
+
+有效预算取显式值、物理内存与适用 cgroup 限制的最小值。预算不等于 Windows
+Job Object 硬限制，也不是整棵进程树 RSS 保证；多个连接、任务进程和临时矩阵仍可
+增加内存。16 GB 机器应避免同时提交多个重计算任务，并保留系统分页文件和 SSD 空间。
+`-ResourceProfile existing` 保留已有资源环境配置。
+
+既有 Provider、金融口径、Parquet 契约、磁盘矩阵缓存、generation 和 SSE 流程不变。
+此次为 L1 启动配置及 L3 核心账号/缓存调整，未新增平行业务引擎。
+单机模式不使用多租户 Compute，原生租户沙箱的实现缺口留待恢复多租户时处理。
+
+此前合成缓存基准（macOS arm64，Python 3.11.17，Polars 1.44.1）：
+固定 1536 MiB 预算、2 线程、三个 `1,000,000 × 16` 面板，各运行三次。
+缓存持有数据中位数从 256,000,000 降至 128,000,000 字节；
+峰值 RSS 从 633,815,040 降至 615,497,728 字节；
+耗时从 0.2353 增至 0.2508 秒，六次校验和一致。
+这只反映该缓存场景，不代表 Windows 整机内存下降 50% 或吞吐提升。
+
+<a id="windows-验证与边界"></a>
+#### 验证与边界
+
+后端定向入口：
+
+```powershell
+cd backend
+uv run --frozen --no-sync pytest tests/test_local_admin.py tests/test_auth_accounts.py tests/test_auth_env_bootstrap.py tests/test_auth_runtime_mode.py tests/test_desktop_packaging.py -q
+$env:PYTHONPATH = (Get-Location).Path
+& ..\deploy\windows\test-resources.ps1 -Python (Resolve-Path .venv\Scripts\python.exe).Path
+```
+
+前端运行 `pnpm test src/pages/LocalAdmin.test.tsx src/pages/Auth.test.tsx
+src/components/TenantSelector.test.tsx src/components/AccountScopeBoundary.test.tsx
+src/lib/accountSession.test.ts src/lib/auth-api.test.ts` 和 `pnpm build`。
+Windows Server 2022 CI 覆盖原生资源、脚本及账号回归；桌面 release smoke 检查
+默认登录、匿名访问拒绝、个人空间、退出后会话失效和完整 API 路由。
+macOS / Linux 打包 smoke 继续验证免登录。
+
+2026-10-22 整合 PR 首轮 Windows Server 2022 / PowerShell 5.1 CI 已执行，
+资源子进程成功，但测试脚本将 `ConvertFrom-Json` 的数组输出再次包入 `@(...)`，
+导致参数数量断言失败。调整为直接接收 JSON 数组，并在 Python 子进程内增加逐项
+参数断言，覆盖空字符串、引号、中文及末尾反斜杠；以重跑终态验证修正。
+第二轮已通过全部七种角色资源与参数检查；随后暴露旧 `platform` 拒绝路径在
+模式检查之前解析 E 盘的问题。将路径初始化放在模式检查之后，并使用随机不存在
+的 PowerShell drive 增强原生拒绝回归；完整 Windows 质量门仍待重跑终态。
+
+本轮没有接入 Win10 22H2 真机，未执行安装包构建。
+不能据本地跨平台测试或 Server 2022 CI 宣称 Windows 全功能实机验收完成。真机还需覆盖真实数据
+同步、选股、回测、优化、walk-forward、挖掘、监控、通知、调度、取消和重启恢复，
+并记录系统提交量、进程树峰值内存、换页及耗时。
+
+<a id="windows-legacy"></a>
+#### 旧Windows多租户部署的退出边界
+
+原v0.4.9平台/API/四worker/NSSM方案已停止作为当前安装路径。
+先用旧 `tsp-full.ps1 stop` 清理worker，再停止并禁用watchdog、API、平台及旧Vite服务；
+旧看门狗的子进程可能使直接停服务卡在 `STOP_PENDING`。保留双库、公共版本、
+私有产物、服务参数与Edge配置的匹配备份，不能直接把只读 `current` 当作单机写目录。
+
+当前原生模式只托管standalone与静态前端。若继续使用HTTPS代理，upstream指向新单机端口，
+SSE关闭缓冲；hash资产可长期缓存，index保留 `no-store`；证书数据与私钥受控备份。
+仅信任受控代理转发头，不把配置文件暴露在静态目录。
+
+Windows文件替换、信号处理、venv启动器PID、进程树回收和目录权限仍须做平台验证。
+原多租户Compute依赖Unix socket及容器沙箱的缺口不能靠改配置消除；
+恢复多租户必须补齐受控IPC、隔离与资源回收后另行验收，不用无沙箱通道替代。
+Win10真机与安装包未在本次文档合并中验证。
+
+<a id="3-启动停止与状态"></a>
 ## 3. 启动、停止与状态
 
+<a id="31-docker-compose"></a>
 ### 3.1 Docker Compose
 
 启动或重建：
@@ -97,18 +848,20 @@ docker compose down
 
 不要在未确认备份时添加删除卷参数，也不要删除宿主机 `data/`。
 
+<a id="32-单个-docker-容器"></a>
 ### 3.2 单个 Docker 容器
 
 ```bash
-docker ps --filter name=tsp
-docker logs --tail=200 tsp
-docker restart tsp
+docker ps --filter name=TSP
+docker logs --tail=200 TSP
+docker restart TSP
 curl -fsS http://127.0.0.1:3018/health
 ```
 
 实际容器名应以部署命令为准。使用固定版本或提交 SHA 镜像，不要把 `latest` 当作
 可复现生产版本。
 
+<a id="33-dev-模式"></a>
 ### 3.3 Dev 模式
 
 ```bash
@@ -118,6 +871,7 @@ curl -fsS http://127.0.0.1:3018/health
 前端默认在 `3011`，后端默认在 `3018`。Dev 模式会启用开发工具和热更新，只用于
 开发与联调。
 
+<a id="4-健康检查"></a>
 ## 4. 健康检查
 
 基础探活：
@@ -132,7 +886,7 @@ curl -fsS http://127.0.0.1:3018/health/live
 ```json
 {
   "status": "ok",
-  "version": "0.4.1",
+  "version": "<实际部署应用版本>",
   "mode": "none"
 }
 ```
@@ -181,7 +935,7 @@ Broker 检查实际运行无网络沙箱，不只检查镜像是否存在。持�
 一致性校验仍保留，未完成的 enriched 重建不能发布。
 
 竞价快照落盘后若发布失败，采集任务返回 `publication_pending`，已有 Parquet
-仍保留。调度器每分钟及启动时补发布当天已验证且缺少 `data_release_id` 的快照，
+仍保留。显式开启自动同步后，调度器每分钟及启动时补发布当天已验证且缺少 `data_release_id` 的快照，
 成功后将版本 ID 原子写回 `metadata.json`。补发布不请求行情，不受竞价采集窗口
 限制；不会补造缺失日期或重新采集已落盘的竞价。旧版当天元数据缺少版本 ID 时
 也通过此路径恢复，历史日期保持原样。
@@ -200,11 +954,13 @@ Broker 检查实际运行无网络沙箱，不只检查镜像是否存在。持�
 
 当前策略组协调器没有独立健康或状态 API。运行期只能结合策略结果更新时间、
 `strategy group cycle failed`、`策略组周期消费时已过期`、`策略组周期部分失败`
-日志及模拟盘未执行原因判断。缺少状态页面不能用“没有告警”替代成功证据；
+日志及模拟交易未执行原因判断。缺少状态页面不能用“没有告警”替代成功证据；
 完整状态 API 和多租户接线属于后续阶段。
 
+<a id="5-日志与诊断证据"></a>
 ## 5. 日志与诊断证据
 
+<a id="51-日志位置"></a>
 ### 5.1 日志位置
 
 - Docker：`docker compose logs` 或 `docker logs`。
@@ -218,6 +974,7 @@ Broker 检查实际运行无网络沙箱，不只检查镜像是否存在。持�
 会由服务端生成；同一请求内的应用日志包含 `request_id=<值>`。排障时优先记录该
 值，不要用完整 URL、查询参数、请求体或 Token 代替关联 ID。
 
+<a id="52-进程内-http-指标"></a>
 ### 5.2 进程内 HTTP 指标
 
 登录面板会话后可读取：
@@ -234,6 +991,7 @@ GET /api/observability
 内存中，进程重启后清零；它用于单实例即时诊断，不承担长期留存、跨实例聚合或
 告警。使用命令行读取时应使用权限受控的 cookie jar，不要把会话值写入命令历史。
 
+<a id="53-最小故障记录"></a>
 ### 5.3 最小故障记录
 
 每次故障至少记录：
@@ -247,19 +1005,24 @@ GET /api/observability
 - 数据最新交易日、受影响能力和用户范围。
 - 已执行的临时处置。
 
+<a id="6-例行巡检"></a>
 ## 6. 例行巡检
 
+<a id="61-每个交易日"></a>
 ### 6.1 每个交易日
 
 - 开盘前确认服务、登录和数据源能力可用。
 - 09:25 后检查竞价快照是否成功发布；未配置相应能力时记录为不适用。
 - 收盘后检查盘后管道任务终态和数据最新交易日。
 - 检查失败或长时间运行的同步、回测、挖掘和复盘任务。
-- 抽查监控触发和模拟盘结算；没有触发不等于故障。
-- 启用多个策略监控时，抽查结果更新时间和策略组过期/部分失败日志；模拟盘出现
+- 抽查监控触发和模拟交易结算；没有触发不等于故障。
+- 新事件账户检查公司行为的登记/到账/上市日期、证据和应收；
+  待核对或修订冲突时相关撮合/净值暂停属于保护行为，不应改日期强行放行。
+- 启用多个策略监控时，抽查结果更新时间和策略组过期/部分失败日志；模拟交易出现
   `portfolio_duplicate`、`portfolio_conflict_exit`或`portfolio_existing_symbol`
   表示组合裁决生效，不应通过重放同一事件强制下单。
 
+<a id="62-每周"></a>
 ### 6.2 每周
 
 - 查看磁盘用量、日志增长和备份结果。
@@ -268,6 +1031,7 @@ GET /api/observability
 - 检查镜像或依赖更新公告，但不直接在生产使用未验收的 `latest`。
 - 核对关键 Token 和管理员访问是否仍符合最小权限。
 
+<a id="63-每次升级前后"></a>
 ### 6.3 每次升级前后
 
 - 升级前执行停机备份并记录当前版本。
@@ -278,6 +1042,7 @@ GET /api/observability
 项目只提供受认证的进程内 HTTP 快照，不内置集中巡检平台。需要持续告警时，应由
 部署环境监控 HTTP、进程、容器、磁盘、备份结果和关键任务状态。
 
+<a id="7-调度任务"></a>
 ## 7. 调度任务
 
 当前主要默认时点均按北京时间：
@@ -286,12 +1051,13 @@ GET /api/observability
 | --- | --- | --- |
 | 个股维表同步 | 09:10，且不晚于 09:15 | 当日标的目录和名称是否更新 |
 | 竞价终态快照 | 09:25 后的有效采集窗口；当前要求实时源为 rustdx | 覆盖率、源时间和发布状态 |
-| 实时行情 | 默认开启；交易日 09:15-11:30、13:00-15:15，默认每秒一次 | 当前数据源下限、最后获取时间和快照覆盖率 |
-| 盘中分钟增量 | 默认开启；交易日 09:15-11:30、13:00-15:15，默认每秒一次 | 全量分钟能力、落盘覆盖和最近轮次错误 |
-| 盘后管道 | 15:35 | 日 K、除权、enriched 和视图刷新 |
-| 数据修正/完整性自愈 | 手动或健康检查触发 | 取数和计算期间实时行情应继续更新；只在写盘或删分区的短临界区出现暂停/恢复日志 |
+| 实时行情 | 默认关闭；开启后交易日 09:15-11:30、13:00-15:15，默认每秒一次 | 当前数据源下限、最后获取时间和快照覆盖率 |
+| 盘中分钟增量 | 默认关闭，开启后交易日双时段；偏好 1 秒，rustdx 下限 60 秒 | 生效周期、全量分钟能力、覆盖和最近轮次错误 |
+| 盘后管道 | 默认手动；开启自动同步后 15:35 | 日 K、除权、公司行为、enriched、模拟账务及视图刷新 |
+| 数据修正/完整性自愈 | 默认手动；启动修复仅在自动同步开启时触发 | 取数和计算期间实时行情应继续更新；只在写盘或删分区的短临界区出现暂停/恢复日志 |
 | 盘后复盘 | 默认 15:40，默认关闭 | 是否启用、依赖数据是否已完成 |
-| 扩展数据 | 配置概念/行业上游后默认开启；重启时立即拉取，交易日 09:15-11:30、13:00-15:15 每分钟；未配置时关闭 | 上游授权、上次成功时间、下次运行时间和分页完整性 |
+| 扩展数据 | 内置概念/行业默认 URL、默认手动；显式开启后启动首轮及交易日双时段每分钟；已保存启停值优先 | 实际源、源端日期、分页/目录完成度、完整快照哈希和备份 |
+| 秒级归档 | 默认关闭，跟随已启用行情；保留期 0 不自动删除 | 队列/丢轮、写入耗时、磁盘增量与 session 记录 |
 | 因子挖掘 | 可配置工作日，默认关闭 | 前置数据、运行 claim 和结果状态 |
 
 应用停机、休市、数据源故障或任务冲突都可能导致任务未执行。恢复服务后：
@@ -317,8 +1083,10 @@ GET /api/observability
 看到 `cancelling` 时不要立即启动另一个写任务；等待其进入终态，或在执行体无法退出
 时重启单个应用进程。旧记录的 `pending` 会在读取时兼容为 `queued`。
 
+<a id="8-备份"></a>
 ## 8. 备份
 
+<a id="81-备份范围"></a>
 ### 8.1 备份范围
 
 至少备份：
@@ -326,6 +1094,8 @@ GET /api/observability
 - 整个 `DATA_DIR`。
 - `data_releases/` 全局发布历史；回测结果中的 release ID 依赖该历史做追溯。
 - `instrument_status/history.parquet`；它包含从首次启用起积累的历史名称/ST/上市状态。
+- `corporate_actions/all.parquet` 与模拟账户事实台账/应收；新事件账本需要匹配代码恢复。
+- `research_inputs/` 固定输入、矩阵缓存实际占用和助手 SQLite 历史；输入含私有策略，不进入公共发布。
 - `.env` 和部署编排文件。
 - `tiers.yaml`（如有定制）。
 - 外置 Provider、插件和自定义代码。
@@ -334,13 +1104,14 @@ GET /api/observability
 `.env` 和认证数据包含敏感信息，备份应加密或放入访问受控的位置。不要将备份提交
 到 Git。
 
+<a id="82-完整多租户双库备份"></a>
 ### 8.2 完整多租户双库备份
 
 完整多租户必须先停止 API、Gateway、四类 Worker 和 Platform 写入，再执行：
 
 ```bash
 cd backend
-python -m scripts.backup_full_host \
+python -m scripts.operations.backup_full_host \
   --postgres-container tsp-pg \
   --control-database CONTROL_DB \
   --data-database DATA_DB \
@@ -357,7 +1128,7 @@ dump、恢复或附加目录复制校验失败都不会发布最终备份目录�
 公共 release 与 Docker 缓存维护先执行 dry-run：
 
 ```bash
-TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.maintain_full_host \
+TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.operations.maintain_full_host \
   --release-root /opt/tsp-full/public --prune-docker-cache
 ```
 
@@ -372,6 +1143,7 @@ TSP_DATA_ADMIN_DSN='postgresql://...' python -m scripts.maintain_full_host \
 同时观察 `df -i`；硬链接复用文件仍会为每个发布版本新建目录，磁盘字节空闲不代表
 inode 空闲。数据库引用查询失败时停止回收，不使用 runtime 角色绕过完整引用检查。
 
+<a id="83-独立模式-docker-compose-停机备份"></a>
 ### 8.3 独立模式 Docker Compose 停机备份
 
 以下示例在仓库根目录执行：
@@ -393,21 +1165,23 @@ shasum -a 256 "backups/tsp-data-${stamp}.tar.gz"
 
 备份清单可读和哈希可计算只证明归档可访问，不等于业务恢复成功。
 
+<a id="84-备份频率"></a>
 ### 8.4 备份频率
 
 频率取决于可接受的数据损失：
 
-- 活跃交易日建议在盘后任务和模拟盘结算完成后备份。
+- 活跃交易日建议在盘后任务和模拟交易结算完成后备份。
 - 升级、迁移、清理、全量重建和高风险配置变更前必须备份。
 - 保留周期和异地副本由部署者按容量、敏感级别和恢复目标决定。
 
+<a id="9-恢复演练"></a>
 ## 9. 恢复演练
 
 恢复必须在停止所有写入者后进行。建议先在隔离目录或测试主机演练：
 
 1. 记录当前版本和故障现象。
 2. 停止 TSP，确认没有残留进程写数据目录。
-3. 将当前损坏或待替换目录改名保留，不直接覆盖。
+3. 保存当前损坏/待替换目录及新增数据水位；核对备份之后的有效写入并制定增量恢复/补录对账方案，不直接覆盖。
 4. 解压已验证哈希的备份。
 5. 使用与备份兼容的代码或镜像启动。
 6. 检查文件权限和挂载路径。
@@ -415,7 +1189,7 @@ shasum -a 256 "backups/tsp-data-${stamp}.tar.gz"
 8. 重新检测 Provider、AI 和通知连接。
 9. 记录实际恢复时间和丢失的数据窗口。
 
-示例：
+下例仅用于独立模式、已核验增量保留方案的恢复；完整多租户按双库/公共/私有/密钥联合恢复规范执行。
 
 ```bash
 docker compose stop
@@ -429,36 +1203,41 @@ curl -fsS http://127.0.0.1:3018/health
 确认恢复成功前，不删除 `data.before-restore-*`。如果备份来自不同版本，先阅读版本
 兼容说明，不对原件直接执行迁移。
 
+<a id="10-升级与回滚"></a>
 ## 10. 升级与回滚
 
+<a id="101-升级"></a>
 ### 10.1 升级
 
 1. 确认目标版本已通过发布验收。
 2. 记录当前镜像 digest、Git 提交和应用版本。
 3. 停止服务并完成可恢复备份。
 4. 拉取固定版本镜像或检出固定 tag/提交。
-5. 启动单个实例，观察启动和迁移日志。
-6. 执行[测试与验收](./testing.md)中的发布烟测。
+5. 按部署模式启动：独立单主写或完整多角色；核对唯一公共写者、SQL角色、启动与迁移日志。
+6. 执行[测试与验收](testing.md)中的发布烟测。
 7. 观察一个与变更风险匹配的周期后再清理旧镜像和临时备份。
 
 `main` 每次推送都会刷新 GHCR `latest`，因此生产应固定版本 tag 或 SHA 标签。
 包含策略组或自动跟单变更的版本先以观察模式或单模拟账户灰度，至少覆盖一个完整
 交易日；未完成同一快照新旧结果对照、P95/RSS/Swap 和退出重试观察前，不扩大启用。
 
+<a id="102-回滚"></a>
 ### 10.2 回滚
 
 代码回滚和数据回滚必须分别判断：
 
 - 仅代码不兼容且未写新格式：切回上一固定镜像并重启。
-- 新版本已写入不兼容数据：停止服务，恢复升级前备份，再启动上一版本。
+- 新版本已写入不兼容数据：先排空/停写，保存当前完整现场、增量和水位，在隔离环境验证前向修复或携带增量恢复，选择匹配代码后对账；不能默认恢复升级前快照丢弃新写。
 - 不能确认数据兼容性：保留现场副本，在隔离环境验证后再操作生产目录。
 - 回滚策略组运行时先停止接受新周期和新买单，保留成交台账、持仓政策和退出意图；
   不删除待卖或通过旧事件补单。切回旧构建后继续按原规则推进存量退出。
 
 回滚后检查版本、能力矩阵、数据最新日期、策略、监控、模拟账户和开放接口。
 
+<a id="11-故障处理"></a>
 ## 11. 故障处理
 
+<a id="111-服务无法启动"></a>
 ### 11.1 服务无法启动
 
 ```bash
@@ -470,6 +1249,7 @@ df -h
 依次检查端口冲突、`.env`、挂载路径、权限、磁盘、CPU 兼容和依赖安装。不要通过
 删除 `data/` 验证是否能启动；使用空的临时数据目录做隔离诊断。
 
+<a id="112-健康正常但页面无数据"></a>
 ### 11.2 健康正常但页面无数据
 
 1. 确认前端静态资源和浏览器请求没有 4xx/5xx。
@@ -478,6 +1258,7 @@ df -h
 4. 查看 Provider 错误、限流、网络和字段完整性日志。
 5. 只对确认缺失的数据执行补数或重算。
 
+<a id="113-盘后任务失败"></a>
 ### 11.3 盘后任务失败
 
 1. 记录任务 ID 和失败阶段。
@@ -486,7 +1267,11 @@ df -h
 4. 修复原因后从 UI 重跑，不手工拼接 Parquet。
 5. 检查新 generation 已发布，页面读到的不是旧缓存。
 
-### 11.4 实时、监控或模拟盘异常
+<a id="114-实时监控或模拟盘异常"></a>
+<a id="114-实时监控或模拟测试异常"></a>
+<a id="114-实时监控或模拟验证异常"></a>
+<a id="114-实时监控或模拟交易异常"></a>
+### 11.4 实时、监控或模拟交易异常
 
 - 检查是否在交易时段、目标资产是否进入订阅池。
 - 检查 `realtime`、`minute` 或 `depth5` 能力是否可用。
@@ -504,6 +1289,7 @@ df -h
   新信号缺席时继续重试。意图丢失或同周期重复订单属于故障，立即停止新增仓位。
 - 网络通知失败时先验证内部触发记录，不把通知通道故障误判为规则未触发。
 
+<a id="115-页面周期性整页刷新"></a>
 ### 11.5 页面周期性整页刷新
 
 1. 打开浏览器网络面板，确认 `/api/events/ticket` 与 `/api/events` 约 60 秒轮换。
@@ -512,9 +1298,10 @@ df -h
    不应出现旧账户数据。
 4. `events_reset` 只应重拉告警、策略缓存结果和复盘报告等权威查询；若所有接口同时
    重拉，记录事件类型、查询键和前端提交后回滚对应版本。
-5. 看板仅在未显式选择日期、交易时段且实时服务运行时每 5 秒补拉市场总览；显式
+5. 行情仅在未显式选择日期、交易时段且实时服务运行时每 5 秒补拉市场总览；显式
    日期、休市和其他页面不应因此轮询。
 
+<a id="116-磁盘不足或数据损坏"></a>
 ### 11.6 磁盘不足或数据损坏
 
 - 立即停止写任务和服务，保留日志与现场副本。
@@ -522,6 +1309,7 @@ df -h
 - 释放与 TSP 数据无关且确认可删的空间。
 - 从已验证备份恢复；无法确认的金融数据重新从指定 Provider 构建并审计。
 
+<a id="12-安全操作"></a>
 ## 12. 安全操作
 
 - 公网部署必须启用邮箱账户认证并使用 HTTPS。
@@ -532,8 +1320,9 @@ df -h
 - 第三方 Provider、策略和插件按可执行代码审查。
 - 忘记密码优先使用登录页找回流程，校验注册口令和专用邮箱验证码；成功后确认该
   账户全部会话和 API Token 已撤销。只有认证存储损坏时才按
-  [邮箱账户初始化](./deploy-password.md)执行离线恢复。
+  [邮箱账户初始化](#email-accounts)执行离线恢复。
 
+<a id="13-变更与值班交接"></a>
 ## 13. 变更与值班交接
 
 每次生产变更至少记录：

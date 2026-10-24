@@ -1,4 +1,4 @@
-"""市场环境(regime)计算 — 纯函数模块。
+"""环境(regime)计算 — 纯函数模块。
 
 职责: 从已算好的 enriched 数据(含信号列)按日聚合环境指标, 用规则引擎分类离散状态,
 持久化为时序表。不重算指标(不走 compute_indicators), 不依赖 quote/depth service。
@@ -25,10 +25,10 @@ from app.services.fs_utils import atomic_write_parquet
 logger = logging.getLogger(__name__)
 
 # ───────────────────────── 状态分类阈值(可调) ─────────────────────────
-# 评分模型对齐看板情绪分(market_overview_builder): 采用 _score(low,high) 归一化
-# (比多点插值简洁、不易设错), 4 个轻量维度(赚钱/投机/抗跌/趋势), 阈值与看板统一。
-# 设计取舍: 不复制看板的"量能/主线"维度 — 它们依赖 vol_ratio_5d/概念主线等重列,
-# 全量回填补算会爆内存; 这两维对历史择时影响小, 且用户可在看板单独查看。
+# 评分模型对齐行情情绪分(market_overview_builder): 采用 _score(low,high) 归一化
+# (比多点插值简洁、不易设错), 4 个轻量维度(赚钱/投机/抗跌/趋势), 阈值与行情统一。
+# 设计取舍: 不复制行情的"量能/主线"维度 — 它们依赖 vol_ratio_5d/概念主线等重列,
+# 全量回填补算会爆内存; 这两维对历史择时影响小, 且用户可在行情单独查看。
 
 WEIGHTS = {
     "profit": 0.35,        # 赚钱(涨家数/均涨幅/中位涨幅/强弱差) — 最反映赚钱难度
@@ -37,7 +37,7 @@ WEIGHTS = {
     "trend": 0.20,         # 趋势(指数涨幅/MA20上方占比)
 }
 
-# 离散状态阈值(与看板情绪分统一)
+# 离散状态阈值(与行情情绪分统一)
 STATE_STRONG = 70       # >= 强势
 STATE_LEAN_STRONG = 55  # 55-70 偏强
 STATE_RANGE = 45        # 45-55 震荡
@@ -56,7 +56,7 @@ STATE_LABELS = {
 def _score(value: float, low: float, high: float) -> float:
     """归一化: 把 value 在 [low, high] 区间线性映射到 [0, 100], 钳制边界。
 
-    与看板 market_overview_builder._score 同款。low/high 用 A 股真实分位数校准。
+    与行情 market_overview_builder._score 同款。low/high 用 A 股真实分位数校准。
     """
     if high <= low:
         return 50.0
@@ -119,7 +119,7 @@ def _compute_subscores(metrics: dict) -> dict:
 def classify_state(metrics: dict) -> tuple[str, int]:
     """规则引擎: 4 维指标 → 离散状态 + 综合分(0-100)。
 
-    对齐看板情绪分的轻量维度(去掉量能/主线以控制内存):
+    对齐行情情绪分的轻量维度(去掉量能/主线以控制内存):
     - 赚钱 profit: 涨家数占比 + 均涨幅 + 中位涨幅 + 强弱差
     - 投机 speculation: 涨停数 + 封板率 + 连板高度
     - 抗跌 resilience: 跌家数占比 + 大跌股占比(大跌日此项暴跌 → 总分进 weak)
@@ -275,7 +275,7 @@ def _aggregate_daily(df: pl.DataFrame, index_pct_map: dict | None = None) -> pl.
             "above_ma20_pct": ma20_above,
             "total_amount": r.get("total_amount", 0) or 0,
             "avg_turnover": r.get("avg_amount", 0) or 0,
-            # 新模型所需(对齐看板)
+            # 新模型所需(对齐行情)
             "up_pct": up_pct,
             "down_pct": down_pct,
             "avg_pct": avg_pct,
@@ -381,7 +381,7 @@ def _scan_enriched_fallback(
     1. needed 白名单: regime 只需 change_pct/ma20/涨跌停信号等少数列, 不用 compute_all
        算 72 列全套指标(那会让全量峰值达 6.8GB)。
     2. 分批: 每批带 warmup 前缀算完后立即聚合为日级行, 不保留跨批个股明细。
-       batch_days / warmup_days 由用户偏好控制(数据页「市场环境」卡片设置),
+       batch_days / warmup_days 由用户偏好控制(数据页「环境」卡片设置),
        峰值随单批大小受控, 不再随完整历史长度线性增长。
     必须传入 instruments(涨跌停价表), 否则 compute_limit_signals 会跳过涨跌停信号。
     """

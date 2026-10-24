@@ -1,0 +1,23 @@
+{
+  "parsed_configs": 12,
+  "paths": [
+    ".github/workflows/release.yml",
+    ".github/workflows/windows-native.yml",
+    ".github/workflows/docker.yml",
+    ".github/workflows/ci.yml",
+    "deploy/full/compose.isolated.yml",
+    "deploy/full/compose.acceptance.yml",
+    "deploy/full/compose.yml",
+    "deploy/edge/compose.yml",
+    "deploy/cell/pg/compose.yml",
+    "backend/pyproject.toml",
+    "frontend/package.json",
+    "mcp-server/pyproject.toml"
+  ],
+  "errors": [],
+  "compose_custom_tags": [
+    "!reset",
+    "!override"
+  ],
+  "scope": "Syntax and local metadata only; not Docker Compose execution"
+}

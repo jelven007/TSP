@@ -474,7 +474,7 @@ export interface RpsRotationData {
   concept_count: number
 }
 
-// ===== 市场环境(Regime) =====
+// ===== 环境(Regime) =====
 export type RegimeState = 'strong' | 'lean_strong' | 'range' | 'lean_weak' | 'weak'
 
 export const REGIME_STATE_LABELS: Record<RegimeState, string> = {
@@ -957,7 +957,7 @@ export interface AbnormalOverview {
   rows: AbnormalRow[]
 }
 
-// ===== 盘中异动 (enriched 当日信号聚合, 异动监控「盘中」tab) =====
+// ===== 盘中异动 (enriched 当日信号聚合, 异动数据「盘中」tab) =====
 export type IntradaySignalKey = 'limit_up' | 'broken' | 'recovery' | 'limit_down'
   | 'new_high' | 'new_low' | 'volume_surge'
 
@@ -1039,7 +1039,7 @@ export interface Lot {
   created_at?: string
 }
 
-// ===== Paper (虚拟账户/模拟盘) =====
+// ===== Paper (虚拟账户/模拟交易) =====
 /** 多账户: 追加 ?account= 查询参数 (缺省账户由后端 default 兜底)。 */
 function accUrl(base: string, account?: string): string {
   if (!account) return base
@@ -2217,6 +2217,7 @@ export interface NotificationDelivery {
 }
 
 export interface Preferences {
+  data_sync_auto_enabled?: boolean
   realtime_quotes_enabled: boolean
   second_quote_archive_enabled?: boolean
   /** 0 = 不自动删除；1–365 = 保留自然日数。 */
@@ -2281,7 +2282,7 @@ export interface Preferences {
   webhook_default_channels?: string[]
   nav_order: string[]
   nav_hidden: string[]
-  /** 看板自定义布局; null/缺省 = 未自定义(前端内置默认布局) */
+  /** 行情自定义布局; null/缺省 = 未自定义(前端内置默认布局) */
   dashboard_layout: { v: number; items: Array<{ i: string; t: string; x: number; y: number; w: number; h: number; p?: Record<string, string> }> } | null
   screener_auto_run: boolean
   minute_intraday_refresh: boolean
@@ -2649,7 +2650,7 @@ export const api = {
       },
     ),
 
-  /** 分时批量响应 gzip 压缩开关 (网络设置) — 逐请求即时生效 */
+  /** 分时批量响应 gzip 压缩开关 (超时设置) — 逐请求即时生效 */
   updateMinuteBatchCompress: (enabled: boolean) =>
     request<Pick<Preferences, 'minute_batch_compress'>>('/api/settings/preferences/minute-batch-compress', {
       method: 'PUT',
@@ -2861,6 +2862,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ channels }),
     }),
+  updateDataSyncAuto: (enabled: boolean) =>
+    request<{ data_sync_auto_enabled: boolean }>('/api/settings/preferences/data-sync-auto', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    }),
   updatePipelineSchedule: (hour: number, minute: number) =>
     request<{ hour: number; minute: number }>('/api/settings/preferences/pipeline-schedule', {
       method: 'PUT',
@@ -2913,7 +2919,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ nav_hidden }),
     }),
-  /** 保存看板自定义布局; layout=null 恢复默认布局 */
+  /** 保存行情自定义布局; layout=null 恢复默认布局 */
   saveDashboardLayout: (layout: Preferences['dashboard_layout']) =>
     request<{ dashboard_layout: Preferences['dashboard_layout'] }>(`${multitenancyEnabled() ? '/api/business' : '/api/settings'}/preferences/dashboard-layout`, {
       method: 'PUT',
@@ -3230,7 +3236,7 @@ export const api = {
   rpsRotation: (days: number, kind?: 'concept' | 'industry', level?: number) =>
     request<RpsRotationData>(`/api/rps/rotation?days=${days}${kind ? `&kind=${kind}` : ''}${level ? `&level=${level}` : ''}`),
 
-  // 市场环境(Regime)
+  // 环境(Regime)
   regimeHistory: (start?: string, end?: string, limit?: number) => {
     const params = new URLSearchParams()
     if (start) params.set('start', start)
@@ -3284,7 +3290,7 @@ export const api = {
 
   backtestStatus: () => request<{ available: boolean }>('/api/backtest/status'),
 
-  /** 策略/因子候选 (回测报告的持久化摘要, 模拟盘对比用) */
+  /** 策略/因子候选 (回测报告的持久化摘要, 模拟交易对比用) */
   backtestCandidates: () =>
     request<{ items: BacktestCandidate[] }>('/api/backtest/candidates'),
 
@@ -4151,7 +4157,7 @@ export const api = {
       body: JSON.stringify({ description }),
     }),
 
-  // ===== Abnormal Moves (异动监控: 竞价/盘中/偏移) =====
+  // ===== Abnormal Moves (异动数据: 竞价/盘中/偏移) =====
   abnormalOverview: (minCloseness = 0.5, limit = 200) =>
     request<AbnormalOverview>(
       `/api/abnormal/overview?min_closeness=${minCloseness}&limit=${limit}`,
@@ -4200,7 +4206,7 @@ export const api = {
   lotDelete: (id: string) =>
     request<{ ok: boolean }>(`/api/lots/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-  // ===== Paper (虚拟账户/模拟盘: 虚拟资金 + 真实行情价格模拟撮合, 多账户) =====
+  // ===== Paper (虚拟账户/模拟交易: 虚拟资金 + 真实行情价格模拟撮合, 多账户) =====
   paperAccounts: () =>
     request<{ accounts: PaperAccountSummary[] }>('/api/paper/accounts'),
 

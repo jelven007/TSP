@@ -7,14 +7,14 @@ from datetime import date, datetime, timedelta
 import httpx
 import pytest
 
-from scripts.stress_online_timeout import (
+from scripts.performance.stress_online_timeout import (
     latency_summary,
     next_slot,
     run_stage,
     stage_passed,
     valid_payload,
 )
-from scripts.validate_online_timeout import day_window, evaluate_day, sample_failures
+from scripts.acceptance.validate_online_timeout import day_window, evaluate_day, sample_failures
 
 
 def good_container():
@@ -189,7 +189,7 @@ async def test_load_stops_and_closes_streams_on_business_failure(tmp_path, monke
         return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=LiveStream())
 
     monkeypatch.setattr(
-        "scripts.stress_online_timeout.ROUTES", ("/api/intraday/status",),
+        "scripts.performance.stress_online_timeout.ROUTES", ("/api/intraday/status",),
     )
     run_dir = tmp_path / "load"
     run_dir.mkdir()

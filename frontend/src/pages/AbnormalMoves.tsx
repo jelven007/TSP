@@ -21,7 +21,7 @@ import { useQuoteStatus } from '@/lib/useSharedQueries'
 import { getBoardType } from '@/lib/board'
 
 /**
- * 异动监控 — 全时段异动中心, 按交易时间线分三个 tab:
+ * 异动数据 — 全时段异动中心, 按交易时间线分三个 tab:
  *
  * - 竞价异动 (盘前 9:15-9:25): 当前实时源全市场终态快照 + 可选同花顺风向标
  * - 盘中异动 (盘中实时): enriched 当日信号聚合 — 涨停/炸板/翘板/跌停/新高/新低/放量
@@ -30,7 +30,7 @@ import { getBoardType } from '@/lib/board'
  *
  * 偏移异动主开关默认开启, 按交易时段轮询 (盘中每 60s 一次); 关闭后
  * 保留展示上次计算结果 (含计算时间, 取自 localStorage)。规则口径通过工具栏「?」
- * 展开查看。告警走系统监控体系: 在「监控中心」创建异动监控规则后由后端持续评估,
+ * 展开查看。告警走系统监控体系: 在「监控中心」创建异动数据规则后由后端持续评估,
  * 统一触发记录/站内通知/外部渠道推送。
  */
 
@@ -93,13 +93,13 @@ export function AbnormalMoves() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0">
         <PageHeader
-          title="异动监控"
+          title="异动"
           subtitle="竞价 · 盘中 · 偏移 · 全时段异动中心"
           right={
             <Link
               to="/monitor"
               className="inline-flex h-7 items-center gap-1 rounded border border-border bg-base px-2 text-[11px] text-secondary transition-colors hover:text-foreground"
-              title="在监控中心创建「异动监控」规则: 后台持续评估, 触发时统一走触发记录/站内通知/外部渠道推送, 无需保持本页打开"
+              title="在监控中心创建「异动」规则: 后台持续评估, 触发时统一走触发记录/站内通知/外部渠道推送, 无需保持本页打开"
             >
               <Settings2 className="h-3 w-3" />
               告警规则
@@ -820,7 +820,7 @@ function DeviationView({ onPreview }: {
             </p>
             <p className="mx-auto mt-2 max-w-lg text-[11px] leading-relaxed text-muted/80">
               需要告警推送时, 在<Link to="/monitor?new=abnormal" className="text-accent hover:underline">监控中心</Link>
-              新建「异动监控」规则 —— 后台持续评估, 触发时统一走触发记录 / 站内通知 / 外部渠道推送,
+              新建「异动」规则 —— 后台持续评估, 触发时统一走触发记录 / 站内通知 / 外部渠道推送,
               与本页开关互不影响。
             </p>
             <button
@@ -898,7 +898,7 @@ function DeviationView({ onPreview }: {
                 type="button"
                 role="switch"
                 aria-checked={enabled}
-                aria-label="启用异动监控计算"
+                aria-label="启用异动数据计算"
                 onClick={() => toggleEnabled(!enabled)}
                 className={`inline-flex h-7 items-center gap-2 rounded border px-2.5 text-[11px] font-medium transition-colors ${
                   enabled

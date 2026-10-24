@@ -93,7 +93,7 @@ export function StatCard({
   title, hint, stats, isInstrument = false, loading = false,
   active = false, done = false, skipped = false, stagePct = 0,
   tierKey, capLimits, customProvider,
-  auto, onSettings, onShowFields, settingsOpen, subLabel, localBadgeSuffix, fieldTabs,
+  auto, manual = false, onSettings, onShowFields, settingsOpen, subLabel, localBadgeSuffix, fieldTabs,
 }: {
   title: string
   hint: string
@@ -103,6 +103,7 @@ export function StatCard({
   active?: boolean
   done?: boolean
   skipped?: boolean
+  manual?: boolean
   stagePct?: number
   tierKey?: string
   capLimits?: Record<string, CapLimitValue>
@@ -215,7 +216,7 @@ export function StatCard({
           {auto !== undefined && !loading && (
             <span className="inline-flex items-center gap-1 text-[10px] font-medium">
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${auto ? 'bg-accent shadow-[0_0_4px_rgba(61,214,140,0.5)]' : 'bg-muted'}`} />
-              <span className={auto ? 'text-accent/70' : 'text-muted'}>{auto ? '自动' : '关闭'}</span>
+              <span className={auto ? 'text-accent/70' : 'text-muted'}>{auto ? (manual ? '手动' : '自动') : '关闭'}</span>
             </span>
           )}
           {active && <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />}

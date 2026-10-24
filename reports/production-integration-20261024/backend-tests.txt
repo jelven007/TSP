@@ -1,0 +1,135 @@
+........................................................................ [  1%]
+........................................................................ [  3%]
+........................................................................ [  5%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 13%]
+........................................................................ [ 15%]
+........................................................................ [ 17%]
+........................................................................ [ 18%]
+........................................................................ [ 20%]
+..................................................s..................... [ 22%]
+........................................................................ [ 24%]
+...................sss.........sss...................................... [ 25%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 31%]
+........................................................................ [ 32%]
+........................................................................ [ 34%]
+........................................................................ [ 36%]
+........................................................................ [ 37%]
+........................................................................ [ 39%]
+........................................................................ [ 41%]
+........................................................................ [ 43%]
+........................................................................ [ 44%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........................................................................ [ 50%]
+.................sss.................................................... [ 51%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+........................................................................ [ 63%]
+........................................................................ [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 69%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 74%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 79%]
+........................................................................ [ 81%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 89%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 94%]
+........................................................................ [ 96%]
+........................................................................ [ 98%]
+..................................................................       [100%]
+=============================== warnings summary ===============================
+tests/backtest/test_dependencies.py::test_load_panel_for_backtest_supplies_raw_low_for_recovery
+tests/backtest/test_worker_process.py::test_mining_rereads_snapshot_when_generation_commits_mid_read
+tests/backtest/test_worker_process.py::test_mining_rereads_snapshot_when_generation_commits_mid_read
+tests/backtest/test_worker_process.py::test_mining_fails_with_guidance_when_generation_keeps_drifting
+tests/backtest/test_worker_process.py::test_mining_fails_with_guidance_when_generation_keeps_drifting
+tests/backtest/test_worker_process.py::test_mining_fails_with_guidance_when_generation_keeps_drifting
+tests/test_backtest_etf.py::test_engine_loads_from_etf_dir
+tests/test_backtest_etf.py::test_engine_stock_uses_daily_enriched_dir
+  backend/app/backtest/engine.py:779: DeprecationWarning: the `streaming` parameter was deprecated in 1.25.0; use `engine` instead.
+    .collect(streaming=True)
+
+tests/test_data_integrity.py: 2 warnings
+tests/test_enriched_full_rebuild.py: 5 warnings
+tests/test_enriched_recovery.py: 3 warnings
+tests/test_initial_sync.py: 5 warnings
+  backend/app/indicators/pipeline.py:1878: DeprecationWarning: the `streaming` parameter was deprecated in 1.25.0; use `engine` instead.
+    .collect(streaming=True)["symbol"].to_list()
+
+tests/test_data_integrity.py: 2 warnings
+tests/test_enriched_full_rebuild.py: 5 warnings
+tests/test_enriched_recovery.py: 3 warnings
+tests/test_initial_sync.py: 5 warnings
+  backend/app/indicators/pipeline.py:1896: DeprecationWarning: the `streaming` parameter was deprecated in 1.25.0; use `engine` instead.
+    total_rows = lf_all.select(pl.len()).collect(streaming=True).item()
+
+tests/test_data_integrity.py: 2 warnings
+tests/test_enriched_full_rebuild.py: 6 warnings
+tests/test_enriched_recovery.py: 3 warnings
+tests/test_initial_sync.py: 5 warnings
+  backend/app/indicators/pipeline.py:1920: DeprecationWarning: the `streaming` parameter was deprecated in 1.25.0; use `engine` instead.
+    raw = lf_batch.sort(["symbol", "date"]).collect(streaming=True)
+
+tests/test_data_integrity.py: 3 warnings
+tests/test_enriched_full_rebuild.py: 10 warnings
+tests/test_enriched_recovery.py: 6 warnings
+tests/test_initial_sync.py: 5 warnings
+  backend/app/indicators/pipeline.py:2018: DeprecationWarning: the `streaming` parameter was deprecated in 1.25.0; use `engine` instead.
+    .collect(streaming=True)
+
+tests/test_enriched_incremental_memory.py::test_incremental_batches_preserve_values_and_generation[False]
+tests/test_enriched_incremental_memory.py::test_incremental_batches_preserve_values_and_generation[True]
+tests/test_enriched_incremental_memory.py::test_failed_compute_batch_publishes_no_partial_new_dates
+tests/test_etf_adj_factor.py::test_etf_incremental_daily_reapplies_adj_to_history
+tests/test_paper_risk_policy.py::test_raw_open_is_preserved_before_full_and_realtime_adjustment
+tests/test_price_limits.py::test_limit_down_recovery_uses_raw_low_under_later_ex_div
+  backend/app/indicators/pipeline.py:319: UserWarning: Sortedness of columns cannot be checked when 'by' groups provided
+    df = raw_sorted.join_asof(
+
+tests/test_enriched_incremental_memory.py::test_incremental_batches_preserve_values_and_generation[False]
+tests/test_enriched_incremental_memory.py::test_failed_compute_batch_publishes_no_partial_new_dates
+  backend/app/indicators/pipeline.py:1759: DeprecationWarning: the `streaming` parameter was deprecated in 1.25.0; use `engine` instead.
+    raw_new = raw_new.sort(["symbol", "date"]).collect(streaming=True)
+
+tests/test_enriched_incremental_memory.py::test_incremental_batches_preserve_values_and_generation[True]
+  backend/app/indicators/pipeline.py:1820: DeprecationWarning: the `streaming` parameter was deprecated in 1.25.0; use `engine` instead.
+    raw_sym = raw_sym.collect(streaming=True)
+
+tests/test_enriched_incremental_memory.py::test_history_prefix_stops_before_backfill_start
+  backend/app/indicators/pipeline.py:2089: PerformanceWarning: Resolving the schema of a LazyFrame is a potentially expensive operation. Use `LazyFrame.collect_schema()` to get the schema without this warning.
+    if c in lf.schema]
+
+tests/test_local_admin.py: 1 warning
+tests/test_monitor_group_scope.py: 4 warnings
+tests/test_watchlist_csv.py: 6 warnings
+tests/test_watchlist_groups.py: 14 warnings
+tests/test_watchlist_ocr.py: 4 warnings
+  backend/app/services/watchlist.py:219: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "added_at": datetime.utcnow().isoformat(timespec="seconds"),
+
+tests/test_screener_jit_turnover.py::test_historical_jit_frame_keeps_turnover_rate
+tests/test_screener_jit_turnover.py::test_custom_sql_can_filter_on_turnover_rate
+  backend/app/services/screener.py:224: PerformanceWarning: Resolving the schema of a LazyFrame is a potentially expensive operation. Use `LazyFrame.collect_schema()` to get the schema without this warning.
+    available = [c for c in read_cols if c in lf.schema]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+4160 passed, 10 skipped, 119 warnings in 440.66s (0:07:20)

@@ -8,7 +8,7 @@ import pytest
 
 @pytest.fixture
 def research(monkeypatch):
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[3] / "scripts"))
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[3] / "scripts/research"))
     import research_quality_strategies
 
     return research_quality_strategies

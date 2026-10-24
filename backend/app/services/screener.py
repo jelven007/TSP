@@ -72,7 +72,7 @@ class ScreenerService:
     def clear_history_cache() -> None:
         """清空进程级 _history_cache (TTL 缓存)。
 
-        清除数据后调用, 避免内存里的旧历史窗口残留导致策略/看板仍命中旧数据。
+        清除数据后调用, 避免内存里的旧历史窗口残留导致策略/行情仍命中旧数据。
         """
         _history_cache.clear()
 

@@ -669,7 +669,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                             </label>
                             <p className="text-[10px] leading-4 text-muted">
                               溢价相对信号价；止损取更严格的保护位。风险配仓只缩减仓位，缺参考数据拒绝入场。
-                              跳空、T+1及费用可能使实际损失超出计划风险。模拟盘需开启跟随策略风控。
+                              跳空、T+1及费用可能使实际损失超出计划风险。模拟交易需开启跟随策略风控。
                             </p>
                           </div>
                         )}

@@ -1,17 +1,22 @@
 # 代码二次开发与 AI 扩展指南
 
+专项目录/脚本路径采用[工程布局](reference/engineering.md#layout)；
+按[生产工程](reference/engineering.md#engineering)形成开发闭环，并在
+[变更映射](reference/engineering.md#trace)关联需求/方案/开发/测试/运营/运维。
+现有插槽/注册器保持原契约，目标数据适配不能据文档示例虚构API。
+
 本文面向需要在当前仓库中二次开发的维护者、团队和 AI 编码代理。目标不是禁止修改源码，而是让新增页面、业务规则和定制逻辑尽量通过稳定边界接入，使后续合并上游版本时冲突更少、风险可验证。
 
 修改任何代码前，仍须先完整阅读根目录的 [`CONTRIBUTING.md`](../CONTRIBUTING.md)。
 金融数据口径、缓存、并发、数据源和测试要求以该文档为准；开始分支、上游基线、
-当前 `main` 和生产版本的归类以[版本基线](./version-baseline.md)为准。
+当前 `main` 和生产版本的归类以[版本基线](version-baseline.md)为准。
 
 2026-10-22 整合沿用现有扩展边界：Windows 启动预算属于 L1 配置，核心身份、
 字节缓存、公共发布/回收、五档判定和收盘临时缓存属于 L3 聚焦修改。
 复用 `PublicPublisher`、`PublicQuoteBridge`、`DepthService`、
 `KlineRepository.update_provisional_enriched_asset` 和现有账户/查询接口；
 不假设存在通用封板策略插槽、沙箱资源硬限制或新的租户迁移 API。
-调用链、兼容与验证映射见[本次整合](./local-consolidation-20261022.md)。
+调用链、兼容与验证映射见[本次整合](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 原生 Windows 修改采用完整应用单机管理员空间，二开升级应备份本地身份文件
 及整个业务目录；公共回收必须保留研究 input 与 metadata 中的版本引用。
 
@@ -27,7 +32,7 @@
 当前已可用的主要扩展能力：
 
 - 自定义、AI 和叠加策略目录：`data/strategies/`。
-- 数据源 Provider 与 `plugin.yaml` 机制：详见 [`plugin-development.md`](plugin-development.md)。
+- 数据源 Provider 与 `plugin.yaml` 机制：详见 [`plugin-development.md`](reference/integrations.md#plugin)。
 - 扩展数据与声明式分析页面：适合不需要自定义 React 交互的页面。
 - 前端源码扩展注册：`frontend/src/custom/<namespace>/extension.tsx`，支持静态页面、导航和已开放插槽。
 - 后端源码扩展注册：`backend/app/custom/<module>.py`，支持 FastAPI 路由、启动钩子和通知格式化器。
@@ -80,12 +85,12 @@ AI 在开始任务前必须通过代码搜索确认能力是否已经实现。�
 
 ```tsx
 <ExtensionSlot
-  name="strategy.monitor.filters"
+  name="stock-preview.footer"
   context={{
     apiVersion: 1,
-    rule: draft,
-    updateRule,
-    readOnly,
+    symbol,
+    name,
+    view,
   }}
 />
 ```
@@ -164,6 +169,10 @@ const extension: FrontendExtension = {
 
 路由注册与菜单注册已经解耦：页面可以存在但不显示在菜单中；菜单只能引用同一扩展内的已注册路由。首版只支持静态绝对路径。扩展路由不得覆盖核心或其他扩展路径，冲突时只禁用该扩展并输出明确错误。
 
+新增核心页面时，须同时更新 `frontend/src/router.tsx` 的 `CORE_ROUTE_PATHS`，
+包括隐藏页、兼容跳转及动态路由。`frontend/src/router.test.tsx` 从实际路由配置
+核对保护范围，并验证冲突扩展的路由、导航和插槽全部移除，正常扩展继续可用。
+
 完整前端模板位于 [`frontend/src/custom/_template/extension.tsx.example`](../frontend/src/custom/_template/extension.tsx.example)。
 
 ### 3.4 前端禁止事项
@@ -190,7 +199,6 @@ const extension: FrontendExtension = {
 - `ScoringPolicy`：评分计算。
 - `PositionSizingPolicy`：仓位计算。
 - `RiskPolicy`：风险约束。
-- `NotificationFormatter`：通知文案。
 - `StrategyProvider`：策略发现。
 - `MonitorConditionEvaluator`：自定义监控条件。
 - `BacktestCostModel`：手续费和滑点模型。
@@ -396,11 +404,10 @@ Git 三方预演可识别的文本冲突。可附加 `--bundle .dbg/upgrade-revi
 正式评估前应先提交到临时二开分支。
 
 Docker、Compute、桌面产物的提交/文件清单及已安装产物差异备份，见
-[构建清单与离线升级备份](./build-upgrade-evidence.md)。生产代码通过重新构建发布
+[构建清单与离线升级备份](reference/engineering.md#build)。生产代码通过重新构建发布
 恢复；没有在线覆盖运行代码或自动重启入口。
 
-可附加 `--bundle .dbg/upgrade-review` 保存三方源码、暂存及工作区差异；
-产物清单和离线差异备份见[构建升级证据](./build-upgrade-evidence.md)。
+
 
 ## 9. 完成检查表
 
@@ -423,5 +430,11 @@ Docker、Compute、桌面产物的提交/文件清单及已安装产物差异备
 3. 不继承大型编排服务，不暴露整个 `app.state`，不复制核心流程。
 4. 只有出现需要持久化的二开配置后，再增加 schema 迁移注册表。
 5. 需要升级直接修改源码的分支时，使用 `scripts/upgrade_check.py` 预检，再执行真实合并和回归。
+
+当前数据源扩展有八项独立路由；公司行为必须复用
+`data_providers/corporate_actions.py` 的事件校验与原台账，不能用复权系数代替现金账务。
+扩展拉取复用[有界分页与两级配方](reference/market-data.md#pull)，源配置变化时拒绝旧结果。
+AI 策略迭代、助手会话和秒级研究均已有专用接口，但不因此对 API Token 开放。
+全部页面、能力和实际源码入口见[当前实现索引](architecture.md#capabilities)。
 
 这种顺序遵循 KISS 和 YAGNI：先解决已经存在的升级冲突，不提前建设完整插件平台，也不阻止开发者在必要时直接修改源码。

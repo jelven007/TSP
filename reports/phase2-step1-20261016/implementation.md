@@ -12,7 +12,7 @@
 
 **本地实现与一次性 PostgreSQL 百人功能验收完成；候选主机网络容量、真实交易时段观测和发布/回退演练待执行。**
 
-本阶段没有改变产品角色、RLS 隔离、业务权限、金融数据口径和原开放 API Token 的 HTTP scope。完整协议见 [单机实时网关契约](../../docs/realtime-gateway-contract.md)。
+本阶段没有改变产品角色、RLS 隔离、业务权限、金融数据口径和原开放 API Token 的 HTTP scope。完整协议见 [单机实时网关契约](../../docs/reference/integrations.md#gateway)。
 
 ## 2. 已实现内容
 

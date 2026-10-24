@@ -1,0 +1,62 @@
+[
+  {
+    "source": "deliverables/tsp-fused-architecture-20261023/融合技术方案.md",
+    "target": "reports/design-inputs-20261023/fused/融合技术方案.md",
+    "sha256": "f5e73d779482341c24803d31a3dcf7f69644c29936a9e2f1894fe3f83b13969f"
+  },
+  {
+    "source": "deliverables/tsp-fused-architecture-20261023/交付验证.md",
+    "target": "reports/design-inputs-20261023/fused/交付验证.md",
+    "sha256": "8a418b357cd663a47c54336dbc1afc68e02b0d2423ae30b257d129c788105024"
+  },
+  {
+    "source": "deliverables/tsp-fused-architecture-20261023/evidence/baseline.md",
+    "target": "reports/design-inputs-20261023/fused/evidence/baseline.md",
+    "sha256": "5fc9f7a4bbd19b5f9e30f08fdb826933a97102598a7e7f865175e4675d9afd0e"
+  },
+  {
+    "source": "deliverables/tsp-fused-architecture-20261023/evidence/static-validation.json",
+    "target": "reports/design-inputs-20261023/fused/evidence/static-validation.json",
+    "sha256": "31fc6ef377f2a5189ca1c2be496b3368c4318652ca9c59521bbb5367514c4b79"
+  },
+  {
+    "source": "deliverables/tsp-fused-architecture-20261023/evidence/browser-validation.json",
+    "target": "reports/design-inputs-20261023/fused/evidence/browser-validation.json",
+    "sha256": "be4339acba82314a2e4e9bcc831c9aededb0442b05b2f6ad8f9d260f96cc06af"
+  },
+  {
+    "source": "deliverables/tsp-fused-architecture-20261023/assets/reference-TSP.png",
+    "target": "reports/design-inputs-20261023/fused/assets/reference-TSP.png",
+    "sha256": "085351c4a447c674ef77cda3b903bd33a441b2f3bb22c720ea0d40b4475fe64e"
+  },
+  {
+    "source": "deliverables/ClickHouse十年历史表设计/05_quality_checks.sql",
+    "target": "reports/design-inputs-20261023/clickhouse/05_quality_checks.sql",
+    "sha256": "6314c98a19aa5efd6e2b8980b430bb47a006de3cde7253c7fe90392e65f203e7"
+  },
+  {
+    "source": "deliverables/ClickHouse十年历史表设计/03_queries.sql",
+    "target": "reports/design-inputs-20261023/clickhouse/03_queries.sql",
+    "sha256": "89894d7274a8ff2f8e2ec1a803788627f6dd3b6b6f30e585b7c425ae6c01d0ed"
+  },
+  {
+    "source": "deliverables/ClickHouse十年历史表设计/04_optional_projection.sql",
+    "target": "reports/design-inputs-20261023/clickhouse/04_optional_projection.sql",
+    "sha256": "f9a2ef37b5b99e4f676f7c3a35536a4844d1cadf9ed2b05e21c405adbb6d88c8"
+  },
+  {
+    "source": "deliverables/ClickHouse十年历史表设计/设计说明.md",
+    "target": "reports/design-inputs-20261023/clickhouse/设计说明.md",
+    "sha256": "468d55cb6ac686d71a1ee742dee68cf90beabd7e8f09daa5851e92739bf68097"
+  },
+  {
+    "source": "deliverables/ClickHouse十年历史表设计/01_schema.sql",
+    "target": "reports/design-inputs-20261023/clickhouse/01_schema.sql",
+    "sha256": "673f075029d37c3b2fa8996436ea5786358477cbceb053db3985bf6f33ef6921"
+  },
+  {
+    "source": "deliverables/ClickHouse十年历史表设计/02_cluster.sql",
+    "target": "reports/design-inputs-20261023/clickhouse/02_cluster.sql",
+    "sha256": "a78755f5ee1f1f1fffef821e8ad61a9e787c23e76f284b9fe74419b7e8a0784e"
+  }
+]

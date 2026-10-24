@@ -5,8 +5,8 @@
 源码核对基线：`c5583f4b93e15a286583e406fbd32ab521792cb1`（应用 v0.4.9）
 
 性质：原始研究与开发方案，保留实施前假设。后续已经完成代码、146次全市场历史
-研究和独立核验；实际结果与未实现边界以[研究结论](./analysis.md)和
-[实施记录](./implementation.md)为准。本文中的“当前代码”均指上述设计基线，
+研究和独立核验；实际结果与未实现边界以[研究结论](analysis.md)和
+[实施记录](implementation.md)为准。本文中的“当前代码”均指上述设计基线，
 不能覆盖后续实现事实。
 
 ## 1. 核心判断
@@ -426,7 +426,7 @@ flowchart LR
 
 ## 11. 引用与本次核验范围
 
-仓库事实以源码为准，项目规则参见[CONTRIBUTING.md](../../CONTRIBUTING.md)、[二次开发指南](../../docs/secondary-development.md)、[策略指南](../../docs/strategy.md)。旧研究结论来自第2节链接，不从摘要记忆推断具体收益。
+仓库事实以源码为准，项目规则参见[CONTRIBUTING.md](../../CONTRIBUTING.md)、[二次开发指南](../../docs/secondary-development.md)、[策略指南](../../docs/reference/research.md#strategy)。旧研究结论来自第2节链接，不从摘要记忆推断具体收益。
 
 交易规则参考（2026-10-19检索）：
 

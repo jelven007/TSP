@@ -18,8 +18,8 @@ _IS_FROZEN = getattr(sys, "frozen", False)
 
 
 def authentication_required() -> bool:
-    """Windows local administrators also sign in to frozen desktop builds."""
-    return settings.local_admin_mode or not _IS_FROZEN
+    """Account runtimes require login, including multitenant desktop builds."""
+    return settings.local_admin_mode or settings.multitenancy_enabled or not _IS_FROZEN
 
 
 def _user_data_root() -> Path:
@@ -149,26 +149,29 @@ class Settings(BaseSettings):
     # 前端轮询 cached-summary 点亮卡片。0 = 关闭 (整段阻塞, 旧行为)。
     strategy_run_all_first_return_s: float = 15.0
 
-    # Auth — 首次启动时可预置邮箱账户。AUTH_EMAIL 与 AUTH_PASSWORD 同时配置时
+    # Auth — 全新安装未配置身份时预置 admin/Admin123, 与运行模式无关。
+    # 首次启动时可预置邮箱账户。AUTH_EMAIL 与 AUTH_PASSWORD 同时配置时
     # 创建邮箱账户; 只配置 AUTH_PASSWORD 时保留旧版密码模式, 登录后可绑定邮箱。
+    # AUTH_USERNAME 只预置管理员账户, 不启用 Windows 单机模式。
+    auth_username: str = ""
     auth_email: str = ""
-    auth_password: str = ""
+    auth_password: str = Field(default="", repr=False)
     # One-time bootstrap value. It is hashed into auth.json and may then be
     # removed from the environment.
     auth_registration_secret: str = ""
     # Public registration must be able to send before any user is signed in.
-    # If AUTH_SMTP_HOST is empty, registration falls back to SMTP saved in settings.
+    # Empty AUTH_SMTP_HOST retains saved SMTP, then full-runtime Cell transport.
     auth_smtp_host: str = ""
     auth_smtp_port: int = 465
     auth_smtp_security: str = "ssl"
     auth_smtp_username: str = ""
-    auth_smtp_password: str = ""
+    auth_smtp_password: str = Field(default="", repr=False)
     auth_smtp_from_address: str = ""
 
-    # Full application multi-tenancy is opt-in while the candidate is verified.
+    # Non-Windows defaults to full tenancy; Windows retains its single admin.
     # Credentials come from TSP_CELL_* and are never read from legacy auth.json.
     local_admin_mode: bool = Field(default_factory=lambda: sys.platform == "win32")
-    multitenancy_enabled: bool = False
+    multitenancy_enabled: bool = Field(default_factory=lambda: sys.platform != "win32")
     service_role: str = Field(default="standalone", pattern=r"^(standalone|api|gateway|platform)$")
     platform_config_dir: Path | None = None
     tenant_artifacts_dir: Path | None = None
@@ -193,6 +196,14 @@ class Settings(BaseSettings):
             # to the single-user data directory after an upgrade.
             if self.service_role != "standalone":
                 raise ValueError("local admin mode requires SERVICE_ROLE=standalone")
+            self.multitenancy_enabled = False
+        elif self.service_role == "platform":
+            self.multitenancy_enabled = False
+        elif "service_role" not in self.model_fields_set:
+            self.service_role = "api" if self.multitenancy_enabled else "standalone"
+        elif self.service_role == "standalone":
+            if "multitenancy_enabled" in self.model_fields_set and self.multitenancy_enabled:
+                raise ValueError("multitenancy requires SERVICE_ROLE=api; standalone is a legacy override")
             self.multitenancy_enabled = False
         if not self.data_dir.is_absolute():
             # 相对路径基于项目根目录解析, 而非 CWD

@@ -199,7 +199,7 @@ def test_create_signal_strategy_roundtrip(tmp_path: Path) -> None:
     saved = json.loads(files[0].read_text(encoding="utf-8"))
     assert saved["id"] == sig["id"]
     assert saved["timeframe"] == "daily" and saved["enabled"] is True
-    # 数字右值归一化为字符串, 与信号库页面保存的格式一致
+    # 数字右值归一化为字符串, 与信号指标页面保存的格式一致
     assert saved["conditions"][2]["right"] == "1.5"
     assert saved["conditions"][1]["leftDays"] == 1
 

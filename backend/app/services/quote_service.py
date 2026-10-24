@@ -53,7 +53,7 @@ SOURCE_LABELS = {
     "strategy": "策略", "signal": "信号", "price": "价格",
     "market": "异动", "ladder": "连板梯队", "sector": "板块",
     "volume_delta": "放量", "abnormal": "异动", "date": "日期提醒",
-    "paper": "模拟盘",
+    "paper": "模拟交易",
 }
 
 # final 定版边界与重试窗口终点 (北京时间)。自动轮询仅使用 close_final:
@@ -247,7 +247,7 @@ class QuoteService:
         # 串行化行情拉取: 手动 POST /refresh 与后台轮询线程可能并发调用
         # _fetch_quotes, 两者同时写同一批 parquet/缓存会互相覆盖
         self._fetch_lock = threading.Lock()
-        # 监控评估专用锁: 评估已移出 _fetch_lock (评估链含告警落盘/模拟盘逐账户
+        # 监控评估专用锁: 评估已移出 _fetch_lock (评估链含告警落盘/模拟交易逐账户
         # IO/webhook 判定, 留在取数锁内会阻塞下一轮拉取与手动刷新), 此锁保证
         # 两轮评估不并发 (原先由取数锁隐式串行)。
         self._evaluate_lock = threading.Lock()
@@ -504,9 +504,9 @@ class QuoteService:
             return list(self._subscribers)
 
     def _broadcast_quote_updated(self) -> None:
-        # 实时行情刷新后清空总览聚合缓存, 使看板 (overview-market) 在 SSE 触发的
+        # 实时行情刷新后清空总览聚合缓存, 使行情 (overview-market) 在 SSE 触发的
         # 重取中拿到最新指数/聚合值。与 _broadcast 同时进行, 与侧栏 /intraday/indices
-        # (无缓存, 直读实时缓存) 行为对齐, 避免看板落后于侧栏。
+        # (无缓存, 直读实时缓存) 行为对齐, 避免行情落后于侧栏。
         # 延迟导入规避 services <-> api 层循环依赖。
         from app.api.overview import invalidate_overview_cache
 
@@ -1616,7 +1616,7 @@ class QuoteService:
                                 )
                                 rule_events += engine.evaluate_abnormal(_overview.get("rows") or [])
                             except Exception as e:  # noqa: BLE001
-                                logger.warning("异动监控规则评估失败 (不影响其他告警): %s", e)
+                                logger.warning("异动数据规则评估失败 (不影响其他告警): %s", e)
                     # 日期提醒轮: 纯日历、无行情, 已在盘中; 引擎内按天 cooldown 保证每天一次
                     if engine.has_rule_type("date"):
                         try:
@@ -1730,10 +1730,10 @@ class QuoteService:
             if rule_events:
                 self._maybe_send_webhook(rule_events, engine)
 
-            # 模拟盘钩子: 与监控评估同频 —— ① 用同一份实时快照撮合 pending 即时单;
+            # 模拟交易钩子: 与监控评估同频 —— ① 用同一份实时快照撮合 pending 即时单;
             # ② 逐证券策略事件和通用规则通知喂给自动跟单, 空事件也重试持久退出。
             # 即时撮合仅股票 (ETF 即时单在下单时已转次日开盘); 独立 try ——
-            # 模拟盘任何异常只留痕, 不得影响监控告警链路。
+            # 模拟交易任何异常只留痕, 不得影响监控告警链路。
             if stock_ready and self._app_state is not None:
                 try:
                     from app.strategy import paper as paper_trading
@@ -1746,7 +1746,7 @@ class QuoteService:
                             if etf_day == cn_today():
                                 quote_rows.update({row["symbol"]: row for row in etf_frame.iter_rows(named=True)})
                         except Exception as exc:
-                            logger.warning("模拟盘 ETF 快照读取失败: %s", exc)
+                            logger.warning("模拟交易 ETF 快照读取失败: %s", exc)
                     snapshot, quote_times = {}, {}
                     observed_now = cn_now().timestamp()
                     for symbol, row in quote_rows.items():
@@ -1782,11 +1782,11 @@ class QuoteService:
                             from app.services import alert_store
                             alert_store.append_many(data_dir, paper_events)
                         except Exception as e:  # noqa: BLE001
-                            logger.warning("模拟盘成交留痕失败: %s", e)
+                            logger.warning("模拟交易成交留痕失败: %s", e)
                         self._maybe_send_system_notifications(paper_events)
                         self._maybe_send_paper_webhook(paper_events)
                 except Exception as e:
-                    logger.warning("模拟盘钩子失败 (不影响监控): %s", e)
+                    logger.warning("模拟交易钩子失败 (不影响监控): %s", e)
 
         except Exception as e:  # noqa: BLE001
             logger.warning("监控评估失败: %s", e)
@@ -2135,10 +2135,10 @@ class QuoteService:
             logger.warning("Webhook 提交异常 (不影响告警主流程): %s", e)
 
     def _maybe_send_paper_webhook(self, events: list[dict]) -> None:
-        """模拟盘成交 → 已配置的飞书/企业微信/自定义 Webhook (异步投递, 失败静默)。
+        """模拟交易成交 → 已配置的飞书/企业微信/自定义 Webhook (异步投递, 失败静默)。
 
         与监控规则的按规则勾选不同: 成交事件无规则载体, 渠道地址已配置即投递。
-        模拟盘成交低频 (手动 + cooldown 规则), 刷屏风险低。
+        模拟交易成交低频 (手动 + cooldown 规则), 刷屏风险低。
         """
         try:
             from app import secrets_store
@@ -2157,19 +2157,19 @@ class QuoteService:
                 body = f"{ev.get('symbol', '')} {ev.get('message', '')}".strip()
                 if feishu_url:
                     _WEBHOOK_EXECUTOR.submit(
-                        webhook_adapter.send_feishu, feishu_url, "模拟盘成交", body, feishu_secret)
+                        webhook_adapter.send_feishu, feishu_url, "模拟交易成交", body, feishu_secret)
                     enqueued += 1
                 if wecom_url:
-                    _WEBHOOK_EXECUTOR.submit(webhook_adapter.send_wecom, wecom_url, "模拟盘成交", body)
+                    _WEBHOOK_EXECUTOR.submit(webhook_adapter.send_wecom, wecom_url, "模拟交易成交", body)
                     enqueued += 1
                 if custom_url:
                     _WEBHOOK_EXECUTOR.submit(
-                        webhook_adapter.send_custom, custom_url, "模拟盘成交", body, "paper_fill", ev, custom_secret)
+                        webhook_adapter.send_custom, custom_url, "模拟交易成交", body, "paper_fill", ev, custom_secret)
                     enqueued += 1
             if enqueued:
-                logger.info("模拟盘 Webhook 已提交 %d 条 (异步投递, 失败记 WARNING)", enqueued)
+                logger.info("模拟交易 Webhook 已提交 %d 条 (异步投递, 失败记 WARNING)", enqueued)
         except Exception as e:  # noqa: BLE001
-            logger.warning("模拟盘 Webhook 提交异常 (不影响主流程): %s", e)
+            logger.warning("模拟交易 Webhook 提交异常 (不影响主流程): %s", e)
 
     def _maybe_send_system_notifications(self, all_alerts: list[dict]) -> None:
         """把告警转发到操作系统通知中心 (由 preferences 开关控制)。

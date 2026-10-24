@@ -6,11 +6,14 @@ are supplied by the caller from ``secrets_store`` and never logged here.
 from __future__ import annotations
 
 import logging
+import os
 import smtplib
 import time
 from contextlib import suppress
 from email.message import EmailMessage
 from email.utils import parseaddr
+
+from app.bootstrap_defaults import SMTP_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +44,7 @@ def get_registration_smtp(recipient: str) -> tuple[dict, str]:
     from app.services import preferences
 
     if settings.auth_smtp_host.strip():
-        return {
+        config = {
             "host": settings.auth_smtp_host.strip(),
             "port": settings.auth_smtp_port,
             "security": settings.auth_smtp_security.strip().lower(),
@@ -51,9 +54,26 @@ def get_registration_smtp(recipient: str) -> tuple[dict, str]:
                 or settings.auth_smtp_username.strip()
             ),
             "to_addresses": [recipient] if recipient else [],
-        }, settings.auth_smtp_password
-    config = {**preferences.get_email_smtp_config(), "to_addresses": [recipient] if recipient else []}
-    return config, secrets_store.get_email_smtp_password()
+        }
+        return config, settings.auth_smtp_password
+    recipients = [recipient] if recipient else []
+    config = preferences.get_email_smtp_config()
+    if config["host"]:
+        return {**config, "to_addresses": recipients}, secrets_store.get_email_smtp_password()
+    # Full deployments may already configure their transport through TSP_CELL_*.
+    cell_host = os.environ.get("TSP_CELL_SMTP_HOST", "").strip()
+    if settings.multitenancy_enabled and cell_host:
+        username = os.environ.get("TSP_CELL_SMTP_USER", "").strip()
+        security = os.environ.get("TSP_CELL_SMTP_SECURITY", "tls").strip()
+        return {
+            "host": cell_host,
+            "port": int(os.environ.get("TSP_CELL_SMTP_PORT", "465")),
+            "security": "ssl" if security == "tls" else security,
+            "username": username,
+            "from_address": os.environ.get("TSP_CELL_SMTP_FROM", "").strip() or username,
+            "to_addresses": recipients,
+        }, os.environ.get("TSP_CELL_SMTP_PASSWORD", "")
+    return {**SMTP_CONFIG, "to_addresses": recipients}, ""
 
 
 def get_notification_smtp(recipient: str | None = None) -> tuple[dict, str]:

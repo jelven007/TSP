@@ -1,4 +1,4 @@
-"""API 开放网关 — Token 请求的 scope 校验与限流 (docs/open-platform-plan.md §4-5)。
+"""API 开放网关 — Token 请求的 scope 校验与限流 (docs/reference/integrations.md#open-4-认证授权与护栏)。
 
 evaluate() 是唯一入口: 认证中间件把 Bearer 明文交给它, 得到
 放行 / 401 / 403 / 429 的裁决与响应头。UI 会话完全不经过本模块。
@@ -53,7 +53,7 @@ _RULES: list[tuple[str, str, str]] = [
     ("POST", "/api/backtest/factor/run", "run:backtest"),
     ("POST", "/api/backtest/factor/batch", "run:backtest"),
     ("POST", "/api/backtest/strategy/run", "run:backtest"),
-    # paper:trade — 模拟盘全部 (读+写一体, 单一 scope 简化心智)
+    # paper:trade — 模拟交易全部 (读+写一体, 单一 scope 简化心智)
     ("*", "/api/paper", "paper:trade"),
     # events — 换取 SSE 短期票据: 任意有效 Token 即可 (票据只继承已有 scope,
     # 不放大权限, 故此处用 "*" 表示"仅需认证", 不做 scope 校验)

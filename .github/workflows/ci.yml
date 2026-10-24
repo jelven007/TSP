@@ -69,6 +69,27 @@ jobs:
   backend:
     needs: version
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TICKFLOW_ENV_FILE: /dev/null
+      DATA_DIR: ${{ runner.temp }}/tsp-tests
+      MULTITENANCY_ENABLED: "false"
+      SERVICE_ROLE: standalone
+      POLARS_MAX_THREADS: "4"
+      TSP_TEST_POSTGRES_DSN: postgresql://postgres:test-only-password@127.0.0.1:5432/postgres
     defaults:
       run:
         working-directory: backend
@@ -77,6 +98,14 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.revision }}
           persist-credentials: false
+
+      - name: 检查工程目录与关键入口
+        working-directory: .
+        run: python3 scripts/check_repository.py
+
+      - name: 检查文档链接与需求契约
+        working-directory: .
+        run: python3 scripts/check_docs.py
 
       - name: 安装 uv
         uses: astral-sh/setup-uv@v3
@@ -98,10 +127,10 @@ jobs:
         run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
       - name: 版本规则测试
-        run: uv run --frozen --no-sync pytest ../scripts/test_versioning.py ../scripts/test_advance_version.py ../scripts/test_tag_version.py ../scripts/test_collaborative_versioning.py ../scripts/test_version_workflows.py tests/test_version_source.py -q
+        run: uv run --frozen --no-sync pytest ../tests/tooling -q
 
       - name: 检查 rustdx 原生桥接
-        run: cargo test --locked --manifest-path native/rustdx_native/Cargo.toml
+        run: PYO3_PYTHON="$PWD/.venv/bin/python" cargo test --locked --manifest-path native/rustdx_native/Cargo.toml
 
       - name: 后端全量测试
         run: uv run --frozen --no-sync pytest tests -q

@@ -60,7 +60,6 @@ def full_cluster():
                 for kind, conn, role in zip(("control", "data"), admins, role_names, strict=True):
                     migrate(conn, kind, role, "full", target_version=6)
                 register_cell(admins[0], "full", "https://full.example.test")
-                bootstrap_full_identity(admins[0])
                 settings = CellSettings(
                     id="full", schema_version=6, pool_size=8,
                     control_dsn=make_conninfo(dsn, dbname=dbnames[0], user=role_names[0], password=PASSWORD),
@@ -69,7 +68,20 @@ def full_cluster():
                 db = Databases(settings)
                 db.open()
                 stack.callback(db.close)
+                with db.control.connection() as runtime:
+                    assert bootstrap_full_identity(runtime) is True
                 identity = AccountIdentity(db)
+                from app.multitenancy.lifespan import _bootstrap_registration_secret
+
+                _bootstrap_registration_secret(identity)
+                assert identity.registration_enabled()
+                from app.bootstrap_defaults import REGISTRATION_SECRET
+                from app.cell.passwords import verify_password
+
+                record = admins[0].execute("SELECT * FROM control.registration_config").fetchone()
+                assert verify_password(REGISTRATION_SECRET, record["secret_salt"], record["secret_hash"])
+                _bootstrap_registration_secret(identity)
+                assert admins[0].execute("SELECT * FROM control.registration_config").fetchone() == record
                 identity.set_registration_secret(SECRET)
                 yield {"control": admins[0], "data": admins[1], "db": db, "identity": identity,
                        "roles": role_names}
@@ -139,7 +151,10 @@ def test_admin_username_no_fake_email_and_password_never_reset(env):
     identity.change_password(token, "Admin123", "UpdatedAdmin123")
     with pytest.raises(AccessError, match="会话已过期"):
         identity.current_user(token)
-    assert bootstrap_full_identity(env["control"]) is False
+    with env["db"].control.connection() as runtime:
+        before = runtime.execute("SELECT * FROM control.users WHERE username='admin'").fetchone()
+        assert bootstrap_full_identity(runtime) is False
+        assert runtime.execute("SELECT * FROM control.users WHERE username='admin'").fetchone() == before
     token, changed = AccountIdentity(env["db"]).login("admin", "UpdatedAdmin123", uuid.uuid4().hex)
     assert changed["id"] == admin["id"]
     identity.change_password(token, "UpdatedAdmin123", "Admin123")
@@ -160,7 +175,7 @@ def test_registration_secret_bootstraps_once_from_environment(monkeypatch) -> No
     monkeypatch.setattr(lifespan_module.settings, "auth_registration_secret", "")
     lifespan_module._bootstrap_registration_secret(Recorder())
 
-    assert calls == [("注册口令", True)]
+    assert calls == [("注册口令", True), ("天王盖地虎", True)]
 
 
 def test_chinese_secret_is_required_before_any_email(env):
@@ -504,7 +519,9 @@ def test_administrator_menu_changes_are_shared_without_overriding_personal_colum
     result = env["client"].get("/api/business/preferences").json()
     assert result["nav_order"] == ["indices", "watchlist", "dashboard"]
     assert result["watchlist_columns"] is None
-    assert UserPreferences(env["db"]).load(other["id"])["nav_order"] == []
+    from app.multitenancy.preferences import DEFAULTS
+
+    assert UserPreferences(env["db"]).load(other["id"])["nav_order"] == DEFAULTS["nav_order"]
 
 
 def test_legacy_account_import_retains_chinese_secret_role_and_explicit_ownership(env, tmp_path):

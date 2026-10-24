@@ -45,7 +45,7 @@
 | CI | 后端与 Rust、前端 test/lint/build、版本规则 | 后端全量测试、前端构建 | 当前门禁更广；不能只比较测试数量 |
 
 当前保留 22 个公开内置策略，上游种子为 25 个。三个数量差异在
-[策略文档](../../docs/strategy.md#内置策略)中已有精简依据：
+[策略文档](../../docs/reference/research.md#strategy-内置策略)中已有精简依据：
 `trend_breakout`、`limit_up_momentum` 是重复变体，
 `broken_board_recovery` 原实现没有真正实现断板反包结构。
 不建议为对齐数量恢复这些策略。
@@ -227,7 +227,7 @@
 二期 Step 1/2 已有本地百人证据，真实 Nginx/容器 SSE、完整交易日、72 小时、
 进程重启和联合恢复仍待签收。新原生产物已有 Linux arm64 本地证据，
 Linux amd64 与 Windows 新桥接产物还需对应平台验证。
-见[二期状态](../../docs/phase2-implementation-plan.md#L3-L11)
+见[二期状态](../../docs/planning/phase2-implementation-plan.md#L3-L11)
 和[测试缺口](../../docs/testing.md#L233-L241)。
 
 先完成这批，再以真实瓶颈决定多节点/万人扩展；上游单容器部署形态不能替代当前

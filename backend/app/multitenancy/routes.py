@@ -29,9 +29,13 @@ def require(request: Request, permission: str) -> dict:
     return account
 
 
+def _secure_cookie(request: Request) -> bool:
+    return request.url.scheme == "https" or request.url.hostname not in {"localhost", "127.0.0.1", "::1"}
+
+
 def _cookie(response: Response, request: Request, token: str) -> None:
     response.set_cookie(
-        COOKIE_NAME, token, httponly=True, secure=True, samesite="lax", path="/",
+        COOKIE_NAME, token, httponly=True, secure=_secure_cookie(request), samesite="lax", path="/",
         max_age=identity(request).db.settings.session_ttl_seconds,
     )
 
@@ -147,7 +151,7 @@ def reset_password(body: RecoveryResetIn, request: Request) -> dict:
 @router.post("/api/auth/logout")
 def logout(request: Request, response: Response) -> dict:
     identity(request).logout(request.cookies.get(COOKIE_NAME, ""))
-    response.delete_cookie(COOKIE_NAME, path="/", secure=True, httponly=True, samesite="lax")
+    response.delete_cookie(COOKIE_NAME, path="/", secure=_secure_cookie(request), httponly=True, samesite="lax")
     return {"ok": True}
 
 
@@ -157,7 +161,7 @@ def change_password(body: PasswordIn, request: Request, response: Response) -> d
     identity(request).change_password(
         request.cookies.get(COOKIE_NAME, ""), body.old_password, body.new_password,
     )
-    response.delete_cookie(COOKIE_NAME, path="/", secure=True, httponly=True, samesite="lax")
+    response.delete_cookie(COOKIE_NAME, path="/", secure=_secure_cookie(request), httponly=True, samesite="lax")
     return {"ok": True, "message": "密码已修改，请重新登录"}
 
 

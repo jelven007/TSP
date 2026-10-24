@@ -1,0 +1,539 @@
+{
+  "files": 76,
+  "ruff_version": "ruff 0.17.2",
+  "new_findings": [],
+  "records": [
+    {
+      "path": "backend/app/backtest/mining.py",
+      "baseline": "backend/app/backtest/mining.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/app/custom/assistant/__init__.py",
+      "baseline": "backend/app/custom/assistant/__init__.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/app/services/api_gateway.py",
+      "baseline": "backend/app/services/api_gateway.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/app/services/api_tokens.py",
+      "baseline": "backend/app/services/api_tokens.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/app/services/event_tickets.py",
+      "baseline": "backend/app/services/event_tickets.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/app/services/kline_sync.py",
+      "baseline": "backend/app/services/kline_sync.py",
+      "findings": 37,
+      "baseline_findings": 37,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/app/services/minute_refresh.py",
+      "baseline": "backend/app/services/minute_refresh.py",
+      "findings": 2,
+      "baseline_findings": 2,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/app/strategy/ai_iterator.py",
+      "baseline": "backend/app/strategy/ai_iterator.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/app/strategy/paper.py",
+      "baseline": "backend/app/strategy/paper.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/__init__.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/accept_external_sse.py",
+      "baseline": "backend/scripts/accept_external_sse.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/accept_full_compose.py",
+      "baseline": "backend/scripts/accept_full_compose.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/accept_market_pipeline.py",
+      "baseline": "backend/scripts/accept_market_pipeline.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/accept_phase2_step1.py",
+      "baseline": "backend/scripts/accept_phase2_step1.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/accept_phase2_step2.py",
+      "baseline": "backend/scripts/accept_phase2_step2.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/accept_production_recovery.py",
+      "baseline": "backend/scripts/accept_production_recovery.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/observe_candidate_soak.py",
+      "baseline": "backend/scripts/observe_candidate_soak.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/observe_second_acceptance.py",
+      "baseline": "backend/scripts/observe_second_acceptance.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/prepare_continuous_acceptance.py",
+      "baseline": "backend/scripts/prepare_continuous_acceptance.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/run_active_acceptance.py",
+      "baseline": "backend/scripts/run_active_acceptance.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/acceptance/validate_online_timeout.py",
+      "baseline": "backend/scripts/validate_online_timeout.py",
+      "findings": 0,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/demos/__init__.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/demos/demo_ai_strategy_gate.py",
+      "baseline": "backend/scripts/demo_ai_strategy_gate.py",
+      "findings": 2,
+      "baseline_findings": 2,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/demos/demo_recap_push_mode.py",
+      "baseline": "backend/scripts/demo_recap_push_mode.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/diagnostics/__init__.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/diagnostics/probe_tickflow_pro.py",
+      "baseline": "backend/scripts/probe_tickflow_pro.py",
+      "findings": 3,
+      "baseline_findings": 3,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/operations/__init__.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/operations/backfill_rustdx_st_history.py",
+      "baseline": "backend/scripts/backfill_rustdx_st_history.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/operations/backup_full_host.py",
+      "baseline": "backend/scripts/backup_full_host.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/operations/cleanup_halt_days.py",
+      "baseline": "backend/scripts/cleanup_halt_days.py",
+      "findings": 15,
+      "baseline_findings": 15,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/operations/maintain_full_host.py",
+      "baseline": "backend/scripts/maintain_full_host.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/performance/__init__.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/performance/benchmark_full_quote_bridge.py",
+      "baseline": "backend/scripts/benchmark_full_quote_bridge.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/performance/benchmark_rustdx_quotes.py",
+      "baseline": "backend/scripts/benchmark_rustdx_quotes.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/performance/benchmark_second_archive.py",
+      "baseline": "backend/scripts/benchmark_second_archive.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/performance/stress_online_timeout.py",
+      "baseline": "backend/scripts/stress_online_timeout.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/performance/stress_polars_concurrency.py",
+      "baseline": "backend/scripts/stress_polars_concurrency.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/research/__init__.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/research/analyze_market_waves.py",
+      "baseline": "backend/scripts/analyze_market_waves.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/research/render_market_waves_svg.py",
+      "baseline": "backend/scripts/render_market_waves_svg.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/scripts/research/run_governed_builtin_backtest.py",
+      "baseline": "backend/scripts/run_governed_builtin_backtest.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/backtest/test_quality_research_decisions.py",
+      "baseline": "backend/tests/backtest/test_quality_research_decisions.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_builtin_catalog.py",
+      "baseline": "backend/tests/test_builtin_catalog.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_candidate_soak_observer.py",
+      "baseline": "backend/tests/test_candidate_soak_observer.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_continuous_acceptance.py",
+      "baseline": "backend/tests/test_continuous_acceptance.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_external_sse_acceptance.py",
+      "baseline": "backend/tests/test_external_sse_acceptance.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_full_candidate_build.py",
+      "baseline": "backend/tests/test_full_candidate_build.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_full_compute_packaging.py",
+      "baseline": "backend/tests/test_full_compute_packaging.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_full_host_maintenance.py",
+      "baseline": "backend/tests/test_full_host_maintenance.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_online_timeout_validation.py",
+      "baseline": "backend/tests/test_online_timeout_validation.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_paper_settle_price_time.py",
+      "baseline": "backend/tests/test_paper_settle_price_time.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_paper_trading.py",
+      "baseline": "backend/tests/test_paper_trading.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_probe_tickflow_pro_gate.py",
+      "baseline": "backend/tests/test_probe_tickflow_pro_gate.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_probe_tickflow_pro_live.py",
+      "baseline": "backend/tests/test_probe_tickflow_pro_live.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_production_recovery_acceptance.py",
+      "baseline": "backend/tests/test_production_recovery_acceptance.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_rustdx_quote_benchmark.py",
+      "baseline": "backend/tests/test_rustdx_quote_benchmark.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_second_acceptance_observer.py",
+      "baseline": "backend/tests/test_second_acceptance_observer.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "backend/tests/test_st_history_backfill.py",
+      "baseline": "backend/tests/test_st_history_backfill.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/acceptance/build_full_candidate.py",
+      "baseline": "scripts/build_full_candidate.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/acceptance/launch_continuous_acceptance.py",
+      "baseline": "scripts/launch_continuous_acceptance.py",
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/acceptance/verify_full_compute.py",
+      "baseline": "scripts/verify_full_compute.py",
+      "findings": 3,
+      "baseline_findings": 3,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/check_docs.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/check_repository.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/performance/benchmark_memory_budget.py",
+      "baseline": "scripts/benchmark_memory_budget.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/research/research_default_strategies.py",
+      "baseline": "scripts/research_default_strategies.py",
+      "findings": 14,
+      "baseline_findings": 14,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/research/research_quality_strategies.py",
+      "baseline": "scripts/research_quality_strategies.py",
+      "findings": 19,
+      "baseline_findings": 19,
+      "new_findings": 0
+    },
+    {
+      "path": "scripts/research/summarize_quality_research.py",
+      "baseline": "scripts/summarize_quality_research.py",
+      "findings": 12,
+      "baseline_findings": 12,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/conftest.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/test_acceptance_launcher.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/test_advance_version.py",
+      "baseline": "scripts/test_advance_version.py",
+      "findings": 3,
+      "baseline_findings": 3,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/test_collaborative_versioning.py",
+      "baseline": "scripts/test_collaborative_versioning.py",
+      "findings": 3,
+      "baseline_findings": 3,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/test_documentation_contract.py",
+      "baseline": null,
+      "findings": 0,
+      "baseline_findings": 0,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/test_research_default_strategies.py",
+      "baseline": "scripts/test_research_default_strategies.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/test_tag_version.py",
+      "baseline": "scripts/test_tag_version.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/test_version_workflows.py",
+      "baseline": "scripts/test_version_workflows.py",
+      "findings": 1,
+      "baseline_findings": 1,
+      "new_findings": 0
+    },
+    {
+      "path": "tests/tooling/test_versioning.py",
+      "baseline": "scripts/test_versioning.py",
+      "findings": 2,
+      "baseline_findings": 2,
+      "new_findings": 0
+    }
+  ]
+}

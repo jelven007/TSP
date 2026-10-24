@@ -111,7 +111,7 @@ Ruff对全部变更Python文件逐一执行，并使用`git show a95cc9d:<path>`
 
 ## 3. 研究复现
 
-脚本为[scripts/research_default_strategies.py](../../scripts/research_default_strategies.py)。
+脚本为[scripts/research_default_strategies.py](../../scripts/research/research_default_strategies.py)。
 需要可用的rustdx原生桥接和项目Python依赖。一次只运行一个全市场研究进程，
 避免矩阵与指标计算争抢内存。以下相对路径均从仓库根目录执行。
 

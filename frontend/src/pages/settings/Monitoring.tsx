@@ -27,7 +27,7 @@ const HighlightContext = createContext('')
 
 // 页面 → 显示名
 const PAGE_LABELS: Record<string, string> = {
-  'overview-market': '看板',
+  'overview-market': '行情',
   watchlist: '自选页',
   'limit-ladder': '连板梯队',
   'market-snapshot': '概念/行业分析',
@@ -53,7 +53,7 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
   const updateInterval = useUpdateQuoteInterval()
   const toggleQuote = useToggleRealtimeQuotes()
   // 实时模式以 quote_status 为准 (数据源无关): full_market=全市场 / none=不可用
-  const realtimeEnabled = prefs?.realtime_quotes_enabled ?? true
+  const realtimeEnabled = prefs?.realtime_quotes_enabled ?? false
   // 分时图实时刷新间隔 (秒), 与后端 [3,60] clamp 对齐; 默认 6
   const intradayInterval = prefs?.minute_intraday_refresh_interval ?? 6
   // 滑块本地草稿: 拖动时即时反馈, 停顿 2s 后落库 (与行情轮询滑块一致)
@@ -465,7 +465,7 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
               : rs?.running ? (rs?.in_trading_hours ? '服务运行中' : '运行中 · 非拉取时段暂停')
               : '已关闭'
             }
-            checked={prefs?.minute_refresh_enabled ?? true}
+            checked={prefs?.minute_refresh_enabled ?? false}
             onChange={(v) => save({ minute_refresh_enabled: v })}
             disabled={!hasFullMinuteCap}
           />
