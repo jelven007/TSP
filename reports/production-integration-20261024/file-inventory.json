@@ -2,6 +2,7 @@
   "baseline": "cc837b95f471e5b299bf5e8618332d500bff7e3a",
   "scope": "all non-ignored local Git-visible changes",
   "generated_on": "2026-10-24",
+  "hash_scope": "final PR candidate before automatic main CI version updates; report self-hashes are omitted",
   "total_paths": 484,
   "counts": {
     "modified": 197,
@@ -78,7 +79,7 @@
         "NFR-10"
       ],
       "current_destination": null,
-      "sha256": "c629f08c431a45f3c57c14459df03a1c48c35b1cb012d7ffb08923f505a9f67f",
+      "sha256": "9e02d62714c82c8a896175d509fa1b0a62f5d52a8e776bff83c460e8f0cfd931",
       "lifecycle": {
         "需求": "docs/requirements.md",
         "方案": "docs/architecture.md",
@@ -100,7 +101,7 @@
         "NFR-10"
       ],
       "current_destination": null,
-      "sha256": "4538dece2378dbcea211413dc621a931c23cd242d9fc0952e805bde70c08eb60",
+      "sha256": "5c2965c0cce3bc095dd315030269754a73ea50425da5fce6aecf15697351f433",
       "lifecycle": {
         "需求": "docs/requirements.md",
         "方案": "docs/architecture.md",
@@ -122,7 +123,7 @@
         "NFR-10"
       ],
       "current_destination": null,
-      "sha256": "fc5c5650a3ac3c7a1ce292414c2585a60f35623f9008031e600316a17025903e",
+      "sha256": "79c5b4f3083bdf81e77ca36c64fcfc1c7d800b14cd9dc577576513a4b0f68df8",
       "lifecycle": {
         "需求": "docs/requirements.md",
         "方案": "docs/architecture.md",
@@ -4611,7 +4612,7 @@
         "NFR-01–42"
       ],
       "current_destination": null,
-      "sha256": "6ad247c9258da83236ec364cfcaddbfe0ab4bb6917114f5f777f6d23038fb487",
+      "sha256": "b67534c84e842b9a85c102d93047cb8a763263cc732d654126d6d9eb49fecd63",
       "lifecycle": {
         "需求": "docs/requirements.md",
         "方案": "docs/architecture.md",
@@ -4915,7 +4916,7 @@
         "NFR-01–42"
       ],
       "current_destination": null,
-      "sha256": "b663490a69efbd4872d8e7d91152ace089e7a76113ac4f95eeb48425fdcaa892",
+      "sha256": "c9757594c6132f3a4df5157b1d9716cc3b097a8c6a97c0e0fd7586cc56735f93",
       "lifecycle": {
         "需求": "docs/requirements.md",
         "方案": "docs/architecture.md",
