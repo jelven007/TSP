@@ -527,7 +527,7 @@ def test_status_reports_gate_reason_when_stopped(tmp_path, monkeypatch):
 
 def test_refresh_preferences_defaults_and_clamp(tmp_path, monkeypatch):
     _isolated_prefs(tmp_path, monkeypatch)
-    assert preferences.get_minute_refresh_enabled() is False
+    assert preferences.get_minute_refresh_enabled() is True
     assert preferences.get_minute_refresh_interval() == 1
     preferences.save({"minute_refresh_interval": 0})
     assert preferences.get_minute_refresh_interval() == 1  # 下限

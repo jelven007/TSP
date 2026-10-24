@@ -1,4 +1,4 @@
-"""内置扩展数据预设 — 概念/行业初始化后默认手动获取。
+"""内置扩展数据预设 — 概念/行业初始化后默认自动拉取。
 
 设计原则:
   - 复用扩展数据配置与通用拉取链路
@@ -55,14 +55,14 @@ def _concept_preset() -> ExtConfig:
             ExtField("股票简称", "string", "股票简称"),
             ExtField("所属概念", "string", "所属概念"),
         ],
-        description="同花顺概念分类 (默认手动获取; 开启自动拉取后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)",
+        description="同花顺概念分类 (默认自动拉取; 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)",
         symbol_map={"type": "mapped", "col": "股票代码"},
         code_map={"type": "computed", "from": "symbol", "method": "strip_exchange"},
         pull=PullConfig(
             url=data_url,
             method="GET",
             schedule_minutes=1,
-            enabled=False,
+            enabled=True,
             time_window_start="09:15",
             time_window_end="15:15",
         ),
@@ -87,14 +87,14 @@ def _industry_preset() -> ExtConfig:
             ExtField("股票简称", "string", "股票简称"),
             ExtField("所属同花顺行业", "string", "所属同花顺行业"),
         ],
-        description="同花顺行业分类 (默认手动获取; 开启自动拉取后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)",
+        description="同花顺行业分类 (默认自动拉取; 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)",
         symbol_map={"type": "mapped", "col": "股票代码"},
         code_map={"type": "computed", "from": "symbol", "method": "strip_exchange"},
         pull=PullConfig(
             url=data_url,
             method="GET",
             schedule_minutes=1,
-            enabled=False,
+            enabled=True,
             time_window_start="09:15",
             time_window_end="15:15",
         ),
@@ -185,7 +185,13 @@ def _is_unused_empty_preset(existing: ExtConfig, preset: ExtConfig, data_dir: Pa
     legacy_description = auto_description.replace(
         "(交易日", "(配置上游后, 交易日"
     ).replace(", 启动时立即刷新", "")
-    if existing.description not in {preset.description, auto_description, legacy_description}:
+    manual_description = (
+        f"{preset.label.replace('扩展', '同花顺')}分类 "
+        "(默认手动获取; 开启自动拉取后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)"
+    )
+    if existing.description not in {
+        preset.description, auto_description, legacy_description, manual_description,
+    }:
         return False
     for value in (original, expected):
         for key in ("created_at", "updated_at", "description"):
@@ -264,10 +270,10 @@ def get_preset(config_id: str) -> ExtConfig | None:
 
 
 async def ensure_builtin_presets(data_dir: Path) -> None:
-    """启动时为缺失的预设创建 config.json, 默认仅手动拉取。
+    """启动时为缺失的预设创建 config.json, 默认启用自动拉取。
 
-    环境变量可覆盖默认地址, 配置地址不会启用自动拉取。
-    用户显式开启后, PullScheduler 按保存的时段执行。
+    环境变量可覆盖默认地址; PullScheduler 按保存的时段执行。
+    修复历史默认配置时保留已保存的启停值。
 
     安全保证:
       - 仅修复没有数据且未经定制的旧空预设, 其余配置完全保留
@@ -286,6 +292,7 @@ async def ensure_builtin_presets(data_dir: Path) -> None:
                 # #endregion
                 if not (empty_repair or legacy_migration):
                     continue
+                config.pull.enabled = existing.pull.enabled
                 existing.pull = config.pull
                 existing.description = config.description
                 config = existing

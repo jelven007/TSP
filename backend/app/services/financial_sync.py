@@ -461,13 +461,14 @@ class FinancialScheduler:
 
     def start(
         self, data_dir: Path, capset: CapabilitySet, *,
-        auto_schedule: bool = False, write_lock=None,
+        auto_schedule: bool = True, write_lock=None,
     ) -> None:
-        """初始化调度器，并按需启动周期同步后台任务。
+        """初始化调度器, 并按需启动周期同步后台任务。
 
-        auto_schedule=False (默认): 仅初始化 (设置数据目录/能力 + 恢复 last_sync),
+        auto_schedule=False: 仅初始化 (设置数据目录/能力 + 恢复 last_sync),
             供 /api/financials/sync/* 手动同步使用, 不启动自动调度。
-        auto_schedule=True: 额外启动每周一次的 metrics 自动同步 (启动后 60s 首跑)。
+        auto_schedule=True (默认): 启动每周一次的 metrics 自动同步
+            (启动后 60s 首跑), 执行前检查自动同步总开关。
         """
         # 先记录 data_dir/capset, 即使当前无 FINANCIAL 也保留引用:
         # 用户稍后在「设置」页升级到 Expert Key 时, update_capabilities() 会把新 capset
@@ -556,11 +557,12 @@ class FinancialScheduler:
                 if not self._running:
                     break
 
-                # 每周: 只同步 metrics
+                # 复用手动同步的互斥、同步时间及数据发布路径, 不阻塞事件循环。
                 try:
-                    rows = sync_metrics(self._data_dir, self._capset)
-                    self._record_sync("metrics")
-                    logger.info("FinancialScheduler: metrics synced, %d rows", rows)
+                    from app.services import preferences
+                    if preferences.get_data_sync_auto_enabled():
+                        result = await asyncio.to_thread(self.run_now, "metrics")
+                        logger.info("FinancialScheduler: metrics sync result: %s", result)
                 except Exception as e:
                     logger.warning("FinancialScheduler: metrics sync failed: %s", e)
 
