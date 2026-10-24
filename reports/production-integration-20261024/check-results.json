@@ -101,6 +101,17 @@
     "fixes": "explicit temporary data_dir and tests using configured SMTP rather than embedded credentials"
   },
   "first_cargo_run": "failed linking stale system Python3.9; rerun with project Python3.12 passed",
+  "workflow_semantic_validation": {
+    "tool": "actionlint 1.7.12",
+    "command": "actionlint -shellcheck= -pyflakes=",
+    "result": "all workflows passed after fix",
+    "shell_python_static_analysis": "not run by this command",
+    "targeted_regression": "tests/tooling/test_version_workflows.py: 15 passed",
+    "initial_invalid_workflow_runs": [40105280525, 40105281238, 40105281783],
+    "cause": "runner context is not allowed in job-level env",
+    "fix": "step writes DATA_DIR from RUNNER_TEMP to GITHUB_ENV",
+    "remote_quality_gates": "must pass again on the final candidate"
+  },
   "final_engineering_checks": {
     "make_check": "passed: 82 required paths, 30 maintained documents, version0.4.17, diff whitespace",
     "include_reports": "passed: 88 Markdown files",

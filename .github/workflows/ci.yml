@@ -85,7 +85,6 @@ jobs:
           --health-retries 10
     env:
       TICKFLOW_ENV_FILE: /dev/null
-      DATA_DIR: ${{ runner.temp }}/tsp-tests
       MULTITENANCY_ENABLED: "false"
       SERVICE_ROLE: standalone
       POLARS_MAX_THREADS: "4"
@@ -98,6 +97,9 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.revision }}
           persist-credentials: false
+
+      - name: 设置隔离测试数据目录
+        run: echo "DATA_DIR=$RUNNER_TEMP/tsp-tests" >> "$GITHUB_ENV"
 
       - name: 检查工程目录与关键入口
         working-directory: .
