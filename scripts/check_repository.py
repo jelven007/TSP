@@ -22,8 +22,11 @@ REQUIRED_PATHS = (
     "frontend/package.json", "frontend/pnpm-lock.yaml", "mcp-server/src/tsp_mcp_server",
     "deploy/full", "deploy/edge", "deploy/cell/pg", "deploy/windows", "packaging",
     "scripts/acceptance", "scripts/performance", "scripts/research",
+    "scripts/release/source_recovery.py", "tests/tooling/test_source_recovery.py",
     "scripts/check_version.py", "scripts/build_manifest.py", "scripts/upgrade_check.py",
     "tests/tooling/conftest.py", "docs/README.md", "docs/requirements.md", "examples/open-api",
+    "examples/README.md", "examples/custom-data-source/mock_server.py",
+    "examples/custom-data-source/mock_source.yaml",
     "brand", "screenshots", "reports/README.md",
     "scripts/check_docs.py", "tests/tooling/test_documentation_contract.py",
     "docs/architecture.md", "docs/testing.md", "docs/operations.md", "docs/release-operations.md",
@@ -38,6 +41,8 @@ REQUIRED_PATHS = (
 
 def check(root: Path) -> list[str]:
     errors = [f"missing required path: {name}" for name in REQUIRED_PATHS if not (root / name).exists()]
+    if (root / "docs/examples").exists():
+        errors.append("examples belong in examples/, not docs/examples/")
     for pattern in ("scripts/test_*.py", "backend/scripts/*.py"):
         for path in sorted(root.glob(pattern)):
             if path.name != "__init__.py":

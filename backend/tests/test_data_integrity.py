@@ -670,7 +670,7 @@ def test_pipeline_self_heals_snapshot_day(tmp_path, monkeypatch):
     _write_full_partition(tmp_path, "kline_daily_enriched", today, _ts_ms(today, time(10, 0)))
 
     # 网络函数离线化: 维表同步 + 日K batch 拉取(记录参数)
-    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir: 0)
+    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir, **kwargs: 0)
     monkeypatch.setattr(
         instrument_sync,
         "load_current_stock_pool",
@@ -728,7 +728,7 @@ def test_pipeline_override_repairs_etf_from_requested_start(tmp_path, monkeypatc
     )
     _write_full_partition(tmp_path, "kline_etf_enriched", today, None)
 
-    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir: 0)
+    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir, **kwargs: 0)
     monkeypatch.setattr(
         instrument_sync,
         "load_current_stock_pool",

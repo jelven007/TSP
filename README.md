@@ -4,6 +4,9 @@
 [工程目录](docs/reference/engineering.md#layout)、[生产开发](docs/reference/engineering.md#engineering)、
 [联合验收](docs/testing.md#acceptance)、[服务运营](docs/release-operations.md#service-2-开通与用户生命周期)。
 全部本地变更与证据见[生命周期追踪](docs/reference/engineering.md#trace)。
+2026-10-25整合官方股票目录、管理员个人空间、统一顶栏与数据总览，完成
+[示例目录](examples/README.md)及[源码恢复](docs/release-operations.md#31-版本保留)入口整理；
+具体范围和本次验证见[整合记录](reports/production-baseline-20261025/verification.md)。
 
 面向沪深市场研究、数据治理、策略筛选和回测验证的一体化量化工作台。项目运行时
 沿用 `TSP` 作为应用标识和 API Token 前缀。

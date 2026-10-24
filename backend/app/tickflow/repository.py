@@ -1249,6 +1249,26 @@ class KlineRepository:
         except Exception as e:  # noqa: BLE001
             logger.warning("instruments 缓存刷新失败: %s", e)
 
+    def refresh_current_instruments(self) -> None:
+        """维表发布只失效股票派生缓存, ETF/指数及磁盘历史保持原状。"""
+        path = self.store.data_dir / "instruments" / "instruments.parquet"
+        frame = pl.read_parquet(path)
+        self.rebuild_views()
+        self._instruments_cache = frame
+        self._name_map_cache = None
+        self._instrument_history_cache = None
+        self._instrument_history_mtime_ns = None
+        self._enriched_cache = None
+        self._enriched_cache_date = None
+        self._enriched_history_cache = None
+        self._enriched_history_start = None
+        self._enriched_history_generation = None
+        self._live_agg_cache = None
+        self._live_agg_cache_date = None
+        self._live_agg_check_date = None
+        if self._on_refresh_done is not None:
+            self._on_refresh_done()
+
     def _refresh_index_instruments(self) -> None:
         """加载指数 instruments 到内存。"""
         try:

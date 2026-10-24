@@ -468,6 +468,42 @@ def test_platform_public_reads_coalesce_concurrent_gets_and_preserve_post_bodies
     asyncio.run(check())
 
 
+@pytest.mark.parametrize("warm_cache", [False, True])
+def test_platform_snapshot_never_rebuilds_enriched_for_sector_views(tmp_path, monkeypatch, warm_cache):
+    from app.cell.platform_market import full_snapshot
+    from app.multitenancy.market import decode_frame
+    from app.tickflow.repository import DataStore, KlineRepository
+
+    repo = KlineRepository(DataStore(tmp_path))
+    stock = pl.DataFrame({"symbol": ["600000.SH"], "close": [10.0]}) if warm_cache else pl.DataFrame()
+    repo._enriched_cache = stock if warm_cache else None
+    repo._enriched_cache_date = date(2026, 10, 23) if warm_cache else None
+    monkeypatch.setattr(repo, "_refresh_enriched", lambda: pytest.fail(
+        "snapshot must not wait for heavy-job capacity to rebuild cold enriched",
+    ))
+    monkeypatch.setattr(repo, "get_name_map", lambda: {})
+    monkeypatch.setenv("TSP_PLATFORM_MARKET_TOKEN", "test-market-token")
+    sectors = []
+    service = SimpleNamespace(
+        status=lambda: {"is_trading_hours": False},
+        get_index_quotes=pl.DataFrame,
+        _inject_volume_delta=lambda frame: frame,
+        _inject_sealed_vol=lambda frame, day: frame,
+    )
+    sector_service = SimpleNamespace(
+        list_targets=lambda: {"index": [{"key": "index:000001.SH"}]},
+        build_snapshots=lambda frame, *args, **kwargs: sectors.append(frame) or {},
+    )
+    state = SimpleNamespace(repo=repo, quote_service=service, sector_monitor_service=sector_service)
+    try:
+        value = full_snapshot(SimpleNamespace(app=SimpleNamespace(state=state)), "Bearer test-market-token")
+        assert decode_frame(value["frames"]["stock"]).equals(stock)
+        assert len(sectors) == 1 and sectors[0].equals(stock)
+        assert value["days"]["stock"] == ("2026-10-23" if warm_cache else None)
+    finally:
+        repo.db.close()
+
+
 def test_platform_full_snapshot_serializes_cache_fill():
     from concurrent.futures import ThreadPoolExecutor
 

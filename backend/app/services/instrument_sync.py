@@ -1,14 +1,14 @@
 """标的维表同步服务。
 
-盘前 9:10 获取沪深主板、科创板、创业板的全量有效股票元数据，
-flatten ext 字段后原子替换 instruments.parquet。
-
-Starter+ 盘后可用 quotes.get(universes) 顺便补充 name。
+启动及每天北京时间 09:00 获取沪深交易所官方在册 A 股目录,
+标准化后原子替换 instruments.parquet, 并维护历史状态。
 """
 from __future__ import annotations
 
 import logging
 import math
+import threading
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -25,12 +25,11 @@ from app.data_providers.instrument_status import (
 from app.instrument_history import update_instrument_history
 from app.market_time import cn_today
 from app.services.fs_utils import atomic_write_parquet
-from app.tickflow.client import get_client
 
 logger = logging.getLogger(__name__)
 
-_EXCHANGES = ["SH", "SZ"]
 _PERSISTENT_METADATA = ("listing_date", "total_shares", "float_shares", "tick_size")
+catalog_lock = threading.RLock()
 
 
 class InstrumentSnapshotUnavailableError(RuntimeError):
@@ -93,9 +92,10 @@ def load_current_stock_pool(
             except ValueError:
                 as_of = None
     source = "legacy"
-    if "snapshot_source" in frame.columns:
+    source_column = "catalog_source" if "catalog_source" in frame.columns else "snapshot_source"
+    if source_column in frame.columns:
         sources = {
-            str(value) for value in frame["snapshot_source"].drop_nulls().to_list()
+            str(value) for value in frame[source_column].drop_nulls().to_list()
             if str(value)
         }
         if len(sources) == 1:
@@ -143,7 +143,7 @@ def _preserve_metadata(
             fresh = _metadata_value(field, row.get(field))
             retained = _metadata_value(field, old.get(field))
             row[field] = fresh if fresh is not None else retained
-            row[f"{field}_source"] = source if fresh is not None else (
+            row[f"{field}_source"] = (row.get("snapshot_source") or source) if fresh is not None else (
                 old.get(f"{field}_source") if retained is not None else None
             )
             row[f"{field}_as_of"] = as_of if fresh is not None else (
@@ -174,6 +174,8 @@ def _flatten_instruments(items: list[dict]) -> list[dict]:
             "board": current_a_share_board(code=code, exchange=exchange),
             "region": item.get("region") or "CN",
             "type": "stock",
+            "industry": item.get("industry"),
+            "snapshot_source": item.get("snapshot_source"),
         }
         ext = item.get("ext") or {}
         for field in ("listing_date", "total_shares", "float_shares", "tick_size",
@@ -241,7 +243,7 @@ def _fetch_instruments_via_provider(asset_type: str = "stock") -> list[dict] | N
     return rows
 
 
-def sync_instruments(data_dir: Path) -> int:
+def sync_instruments(data_dir: Path, *, write_lock=None) -> int:
     """全量同步标的维表 → data/instruments/instruments.parquet。
 
     同时维护 ``instrument_status/history.parquet`` 的 SCD2 历史。历史从首次
@@ -249,27 +251,22 @@ def sync_instruments(data_dir: Path) -> int:
 
     返回写入的行数。
     """
-    from app.services import preferences
+    from app.data_providers.official_stock_catalog import (
+        SOURCE,
+        OfficialCatalogError,
+        fetch_official_stock_catalog,
+    )
+    try:
+        all_rows = fetch_official_stock_catalog()
+    except OfficialCatalogError as exc:
+        logger.warning("%s; 保留上一份个股维表", exc)
+        return 0
+    # 网络取数完成后才进入读改写临界区, 和管理员修改互斥。
+    with catalog_lock, write_lock if write_lock is not None else nullcontext():
+        return _save_official_rows(data_dir, all_rows, source=SOURCE)
 
-    source = preferences.get_daily_data_provider()
-    all_rows = _fetch_instruments_via_provider()
-    if all_rows is None:
-        # 未命中非 tickflow provider → 走 tickflow 直连
-        source = "tickflow"
-        tf = get_client()
-        all_rows = []
-        for ex in _EXCHANGES:
-            try:
-                items = tf.exchanges.get_instruments(ex, instrument_type="stock")
-                if not items and ex in {"SH", "SZ"}:
-                    logger.warning("empty %s catalog; keeping previous instruments", ex)
-                    return 0
-                if items:
-                    all_rows.extend(_flatten_instruments(items))
-                    logger.info("instruments %s: %d stocks", ex, len(items))
-            except Exception as e:
-                logger.warning("get_instruments(%s) failed: %s", ex, e)
-                return 0
+
+def _save_official_rows(data_dir: Path, all_rows: list[dict], *, source: str) -> int:
 
     if not all_rows:
         return 0
@@ -311,15 +308,32 @@ def sync_instruments(data_dir: Path) -> int:
         **{f"{field}_as_of": pl.Date for field in _PERSISTENT_METADATA},
     }).with_columns(
         pl.lit(as_of).alias("as_of"),
-        pl.lit(source).alias("snapshot_source"),
+        pl.lit(source).alias("catalog_source"),
     )
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    update_instrument_history(data_dir, df, as_of=as_of, source=source)
-    atomic_write_parquet(df, out)
+    save_snapshot(data_dir, df, as_of=as_of, source=source)
 
     logger.info("instruments synced: %d rows → %s", df.height, out)
     return df.height
+
+
+def save_snapshot(data_dir: Path, frame: pl.DataFrame, *, as_of: date, source: str) -> None:
+    """调用方持有目录写锁; 当前快照写入失败时恢复历史, 避免虚假退市观测。"""
+    from app.instrument_history import history_path
+    history = history_path(data_dir)
+    previous_history = pl.read_parquet(history) if history.exists() else None
+    update_instrument_history(data_dir, frame, as_of=as_of, source=source, allow_empty=True)
+    out = data_dir / "instruments" / "instruments.parquet"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        atomic_write_parquet(frame, out)
+    except BaseException:
+        if previous_history is None:
+            history.unlink(missing_ok=True)
+        else:
+            atomic_write_parquet(previous_history, history)
+        raise
 
 
 def enrich_names_from_quotes(

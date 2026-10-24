@@ -171,36 +171,23 @@ def _resolve_universe(capset: CapabilitySet, repo=None) -> list[str]:
 
 
 def run_instruments_sync(repo: KlineRepository) -> dict:
-    """盘前同步个股维表。
-
-    维表含当日涨跌停价 (limit_up/down), 同步完成后刷新 enriched 内存缓存,
-    确保跨天后连板梯队/选股等读到的是基于最新维表的数据 (而非前一交易日残留)。
-    """
-    rows = instrument_sync.sync_instruments(repo.store.data_dir)
+    """同步官方个股目录, 发布当前快照并失效股票派生缓存。"""
+    rows = instrument_sync.sync_instruments(repo.store.data_dir, write_lock=getattr(repo, "_write_lock", None))
     snapshot = instrument_sync.load_current_stock_pool(
         repo.store.data_dir,
         require_complete=True,
     )
-    _refresh_instruments_view(repo)
-    _invalidate("instruments")
-    # 维表更新后重建 enriched 缓存 (clear + refresh, 与设置页「清理并刷新」同等效果)
+    release_id = None
     if rows > 0:
-        repo.clear_cache()
-        repo.refresh_cache()
-    from app.services.data_release import publish_data_release
-
-    release = publish_data_release(
-        repo.store.data_dir,
-        reason="instruments_sync",
-        write_lock=getattr(repo, "_write_lock", None),
-    )
+        from app.services.instrument_catalog import publish_catalog_change
+        release_id = publish_catalog_change(repo, reason="instruments_sync")
     return {
         "instruments_rows": len(snapshot.symbols),
         "instruments_refreshed": rows > 0,
         "instruments_as_of": snapshot.as_of.isoformat() if snapshot.as_of else None,
         "instruments_source": snapshot.source,
         "instruments_boards": list(snapshot.boards),
-        "data_release_id": release["release_id"],
+        "data_release_id": release_id,
     }
 
 
@@ -230,9 +217,10 @@ def run_now(
 
     # Step 0: 先同步个股维表, 再解析标的池 — 确保标的池基于最新 instruments
     emit("sync_instruments", 2, "同步个股维表…")
-    inst_rows = instrument_sync.sync_instruments(repo.store.data_dir)
+    inst_rows = instrument_sync.sync_instruments(repo.store.data_dir, write_lock=getattr(repo, "_write_lock", None))
     if inst_rows > 0:
-        _refresh_instruments_view(repo)
+        from app.services.instrument_catalog import publish_catalog_change
+        publish_catalog_change(repo, reason="instruments_sync")
     snapshot = instrument_sync.load_current_stock_pool(
         repo.store.data_dir,
         require_complete=True,
@@ -1091,9 +1079,53 @@ def _scheduled_day_allowed(label: str) -> bool:
     return True
 
 
-def _scheduled_instruments_task(instruments_fn) -> None:
-    if _scheduled_day_allowed("instruments_sync"):
-        _run_tracked(instruments_fn, "instruments_sync")
+_catalog_jobs: set = set()
+
+
+async def run_catalog_job(repo, *, source: str) -> None:
+    """独立目录任务不等待行情重任务槽, 关闭时等待有界下载和写入退出。"""
+    import asyncio
+
+    from app.services.pipeline_jobs import JobCancelledError, job_store
+
+    def run():
+        job_id, is_new = job_store.create(kind="instruments_sync", source=source)
+        if not is_new:
+            return
+        try:
+            job_store.start(job_id)
+            job_store.progress(job_id, "sync_instruments", 0, "下载沪深交易所官方股票名单…")
+            result = run_instruments_sync(repo)
+            if not result["instruments_refreshed"]:
+                job_store.fail(job_id, "官方目录下载失败, 已保留最近有效快照")
+            else:
+                job_store.succeed(job_id, result)
+        except JobCancelledError:
+            job_store.cancelled(job_id)
+        except Exception:
+            logger.exception("official instruments sync failed")
+            job_store.fail(job_id, "沪深官方目录同步未完成, 请检查日志与当前快照")
+        finally:
+            from app.api.data import invalidate_data_cache
+            invalidate_data_cache("instruments")
+
+    worker = asyncio.create_task(asyncio.to_thread(run))
+    _catalog_jobs.add(worker)
+    worker.add_done_callback(_catalog_jobs.discard)
+    await asyncio.shield(worker)
+
+
+async def stop_catalog_jobs() -> None:
+    import asyncio
+    await asyncio.sleep(0)  # 已提交的调度协程先登记 worker, 调用方已暂停调度器。
+    while _catalog_jobs:
+        pending = tuple(_catalog_jobs)
+        await asyncio.gather(*pending, return_exceptions=True)
+        _catalog_jobs.difference_update(pending)
+
+
+async def _scheduled_instruments_task(repo) -> None:
+    await run_catalog_job(repo, source="scheduled")
 
 
 def _scheduled_pipeline_task(pipeline_fn) -> None:
@@ -1456,7 +1488,7 @@ def apply_data_sync_mode(scheduler) -> None:
     """暂停/恢复数据任务, 不影响能力检测及用户开启的复盘任务。"""
     enabled = _prefs.get_data_sync_auto_enabled()
     for job in scheduler.get_jobs():
-        if job.id in {"pre_market_instruments", "daily_pipeline", "depth_finalize"} or (
+        if job.id in {"daily_pipeline", "depth_finalize"} or (
             job.id.startswith("auction_snapshot_") or job.id == "auction_publication_retry"
         ):
             if enabled:
@@ -1477,31 +1509,24 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     """启动调度器。
 
     默认启动数据任务; 已保存的手动模式继续暂停。自动同步时:
-    工作日 09:10 同步个股维表, HH:MM 盘后管道（默认 15:35）。
+    个股维表始终在启动及每天 09:00 同步; 行情管道受自动模式控制。
     """
     from app.services import preferences
     sched = preferences.get_pipeline_schedule()
-    inst_sched = preferences.get_instruments_schedule()
 
     scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 
-    # 盘前: 同步 instruments（时间由偏好决定）
-    def _instruments_task(on_progress=None):
-        emit = on_progress or _noop
-        emit("sync_instruments", 0, "同步个股维表…")
-        result = run_instruments_sync(repo)
-        emit("done", 100, f"个股维表同步完成,{result.get('instruments_rows', 0)} 只标的")
-        return result
-
     scheduler.add_job(
-        lambda: _scheduled_instruments_task(_instruments_task),
-        trigger=CronTrigger(day_of_week="mon-fri",
-                            hour=inst_sched["hour"], minute=inst_sched["minute"],
-                            timezone="Asia/Shanghai"),
+        _scheduled_instruments_task, args=[repo],
+        trigger=CronTrigger(hour=9, minute=0, timezone="Asia/Shanghai"),
         id="pre_market_instruments",
         misfire_grace_time=1800,
         replace_existing=True,
     )
+    import asyncio
+    startup = asyncio.create_task(run_catalog_job(repo, source="startup"))
+    _catalog_jobs.add(startup)
+    startup.add_done_callback(_catalog_jobs.discard)
 
     # 首个成功发布后, 后续重试只读 ready marker 并立即返回。
     _register_auction_jobs(scheduler, repo)
@@ -1602,9 +1627,9 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     if not preferences.get_data_sync_auto_enabled():
         apply_data_sync_mode(scheduler)
     scheduler.start()
-    logger.info("scheduler started (auto_sync=%s); instruments@%02d:%02d, auction@09:25, pipeline@%02d:%02d, depth@%02d:%02d mon-fri",
+    logger.info("scheduler started (auto_sync=%s); instruments@%02d:%02d daily, auction@09:25 mon-fri, pipeline@%02d:%02d mon-fri, depth@%02d:%02d mon-fri",
                 preferences.get_data_sync_auto_enabled(),
-                inst_sched["hour"], inst_sched["minute"], sched["hour"], sched["minute"],
+                9, 0, sched["hour"], sched["minute"],
                 depth_sched["hour"], depth_sched["minute"])
     return scheduler
 

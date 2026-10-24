@@ -6,6 +6,7 @@ import polars as pl
 import pytest
 
 from app.data_providers import custom as custom_sources
+from app.data_providers import official_stock_catalog
 from app.plugins.rustdx.provider import RustdxProvider
 from app.services import index_sync, instrument_sync, kline_sync, preferences
 from app.tickflow.capabilities import Cap, CapabilityLimits, CapabilitySet
@@ -20,11 +21,15 @@ def selected(monkeypatch):
     monkeypatch.setattr(custom_sources, "is_custom_provider", lambda name: name == "rustdx")
     monkeypatch.setattr(custom_sources, "get_provider", lambda name: provider)
     monkeypatch.setattr(custom_sources, "provider_has_dataset", lambda name, ds: name == "rustdx")
-    for module in (index_sync, instrument_sync, kline_sync):
+    for module in (index_sync, kline_sync):
         monkeypatch.setattr(
             module, "get_client",
             lambda: pytest.fail("An explicitly selected rustdx operation must not call TickFlow"),
         )
+    monkeypatch.setattr(
+        "app.tickflow.client.get_client",
+        lambda: pytest.fail("Official stock catalogs must not fall back to TickFlow"),
+    )
     return provider
 
 
@@ -38,10 +43,11 @@ def test_instrument_failure_does_not_fall_back_or_overwrite(tmp_path, selected, 
     }).write_parquet(target)
     before = target.read_bytes()
 
-    def fail(_asset_type):
-        raise RuntimeError("offline")
+    def fail():
+        raise official_stock_catalog.OfficialCatalogError("offline")
 
-    monkeypatch.setattr(selected, "get_instruments", fail)
+    monkeypatch.setattr(official_stock_catalog, "fetch_official_stock_catalog", fail)
+    monkeypatch.setattr(selected, "get_instruments", lambda *args: pytest.fail("must use official directory"))
     assert instrument_sync.sync_instruments(tmp_path) == 0
     assert target.read_bytes() == before
     snapshot = instrument_sync.load_current_stock_pool(tmp_path)
@@ -119,6 +125,10 @@ def test_empty_etf_adjustments_do_not_change_source(tmp_path, selected, monkeypa
 def test_unavailable_catalog_keeps_existing_data(tmp_path, selected, monkeypatch, asset_type):
     monkeypatch.setattr(custom_sources, "is_custom_provider", lambda name: False)
     if asset_type == "stock":
+        def unavailable():
+            raise official_stock_catalog.OfficialCatalogError("official directory unavailable")
+
+        monkeypatch.setattr(official_stock_catalog, "fetch_official_stock_catalog", unavailable)
         assert instrument_sync.sync_instruments(tmp_path) == 0
     else:
         assert index_sync._fetch_instruments_by_type(asset_type, asset_type).is_empty()
@@ -170,20 +180,15 @@ def test_minute_failure_never_uses_tickflow(tmp_path, selected, monkeypatch, fai
         assert kline_sync.intraday_monitor_support(caps)["available"] is False
 
 
-def test_tickflow_partial_catalog_does_not_overwrite(tmp_path, monkeypatch):
-    from types import SimpleNamespace
-
+def test_official_partial_catalog_does_not_overwrite(tmp_path, monkeypatch):
     monkeypatch.setattr(preferences, "get_daily_data_provider", lambda: "tickflow")
 
-    def fetch(exchange, **kwargs):
-        if exchange == "SZ":
-            raise RuntimeError("offline")
-        return [{"symbol": "600519.SH", "name": "贵州茅台"}]
+    def partial_fetch(client, stock_type):
+        if stock_type == "8":
+            raise official_stock_catalog.OfficialCatalogError("remaining catalog unavailable")
+        return [{"symbol": "600519.SH", "name": "贵州茅台", "snapshot_source": "sse"}]
 
-    monkeypatch.setattr(
-        instrument_sync, "get_client",
-        lambda: SimpleNamespace(exchanges=SimpleNamespace(get_instruments=fetch)),
-    )
+    monkeypatch.setattr(official_stock_catalog, "_fetch_sse", partial_fetch)
     target = tmp_path / "instruments" / "instruments.parquet"
     target.parent.mkdir()
     pl.DataFrame({"symbol": ["000001.SZ"], "name": ["平安银行"]}).write_parquet(target)

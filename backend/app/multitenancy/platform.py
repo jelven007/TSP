@@ -199,4 +199,6 @@ async def lifespan(app):
         finally:
             from app.api.pipeline import stop_initial_sync_job
 
+            app.state.scheduler.pause()
             await stop_initial_sync_job(getattr(app.state, "initial_sync_job_id", None))
+            await daily_pipeline.stop_catalog_jobs()

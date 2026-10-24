@@ -146,8 +146,7 @@ def test_out_of_order_snapshot_is_rejected(tmp_path) -> None:
 
 def test_instrument_sync_persists_current_and_history(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        instrument_sync,
-        "_fetch_instruments_via_provider",
+        "app.data_providers.official_stock_catalog.fetch_official_stock_catalog",
         lambda: [{"symbol": "600001.SH", "name": "*ST示例", "listing_date": "2020-01-01"}],
     )
     monkeypatch.setattr(instrument_sync, "cn_today", lambda: date(2026, 7, 2))
@@ -163,7 +162,7 @@ def test_instrument_sync_persists_current_and_history(tmp_path, monkeypatch) -> 
     assert current["as_of"][0] == date(2026, 7, 2)
     assert history.select(
         "symbol", "valid_from", "is_risk_warning", "is_listed", "source"
-    ).row(0) == ("600001.SH", date(2026, 7, 2), True, True, "rustdx")
+    ).row(0) == ("600001.SH", date(2026, 7, 2), True, True, "official_exchanges")
 
 
 def test_daily_stock_pool_replaces_current_rows_and_tombstones_removed_symbols(
@@ -181,8 +180,7 @@ def test_daily_stock_pool_replaces_current_rows_and_tombstones_removed_symbols(
         ],
     }
     monkeypatch.setattr(
-        instrument_sync,
-        "_fetch_instruments_via_provider",
+        "app.data_providers.official_stock_catalog.fetch_official_stock_catalog",
         lambda: state["rows"],
     )
     monkeypatch.setattr(instrument_sync, "cn_today", lambda: state["day"])

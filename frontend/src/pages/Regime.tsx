@@ -5,7 +5,7 @@
  * 不复刻 Dashboard 的当日总览(那是单日快照), 聚焦历史趋势与状态分布。
  *
  * 时间范围: 1年(250交易日) / 2年(500) / 自定义(1~1000天) / 全部(走日期范围)。
- * 美化对齐 Dashboard 设计语言: 半透明 surface 卡片 + 渐变竖条标题 + 语义色。
+ * 顶栏复用 PageHeader, 内容沿用环境分析卡片与语义色。
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -22,6 +22,7 @@ import {
 import { QK } from '@/lib/queryKeys'
 import { useChartTheme } from '@/lib/theme'
 import { toast } from '@/components/Toast'
+import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/Modal'
 import { cn } from '@/lib/cn'
 import { hasPermission } from '@/lib/accountSession'
@@ -656,17 +657,12 @@ export function Regime() {
     : '自定义'
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 py-5 space-y-4">
-      {/* ── 头部 (Dashboard 渐变条卡片) ── */}
-      <div className={cn(cardCls, 'relative overflow-hidden rounded-card bg-gradient-to-r from-surface/90 to-surface/70 px-4 py-3')}>
-        <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-accent to-accent/20" />
-        <div className="flex items-center gap-3">
-          <Activity className="h-5 w-5 text-accent" />
-          <h1 className="text-[16px] leading-6 font-semibold text-foreground">环境</h1>
-          <span className="text-xs text-muted">
-            {view === 'phase' ? '涨停情绪 · 市场阶段 · 主线脉络' : '每日环境状态 · 赚钱效应 · 趋势分析'}
-          </span>
-          <div className="ml-auto flex items-center gap-2">
+    <>
+      <PageHeader
+        title="环境"
+        subtitle={view === 'phase' ? '涨停情绪 · 市场阶段 · 主线脉络' : '每日环境状态 · 赚钱效应 · 趋势分析'}
+        right={
+          <div className="flex items-center gap-2">
             {/* 时间范围按钮组 */}
             <div className="flex items-center rounded-btn border border-border bg-base/60 p-0.5">
               {(['1y', '2y', 'all'] as const).map(k => (
@@ -703,8 +699,9 @@ export function Regime() {
               {recomputing ? '重算中…' : '重算'}
             </button>}
           </div>
-        </div>
-      </div>
+        }
+      />
+      <div className="mx-auto max-w-[1440px] space-y-4 px-4 py-5">
 
       {/* ── 视图切换: 环境 / 情绪周期 (两组内容 tab 隔离, 减少单页高度) ── */}
       <div className="flex items-center gap-2">
@@ -1268,7 +1265,8 @@ export function Regime() {
           onApply={(d) => { setRange({ custom: d }); setCustomOpen(false) }}
         />
       )}
-    </div>
+      </div>
+    </>
   )
 }
 

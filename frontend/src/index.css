@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 一级页面复用策略页的紧凑顶栏。长工具栏只在操作区横向滚动。 */
+.page-header-actions > :where(div) {
+  display: flex;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  gap: 0.5rem;
+  min-width: max-content;
+  max-width: none;
+}
+
+.page-header-actions :where(button, a, select, input[type="date"]) {
+  flex-shrink: 0;
+  height: 1.75rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 1023px) {
+  .page-header-actions :where(button, a, select, input[type="date"]) {
+    min-height: 2rem;
+  }
+}
+
 /* === §6.0 设计语言 CSS variables ===
  * 暗色为默认(html.dark) / 亮色用 :root 反转
  * HSL 形式以兼容 Tailwind alpha-value 语法

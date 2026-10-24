@@ -71,6 +71,7 @@ def full_cluster():
                 with db.control.connection() as runtime:
                     assert bootstrap_full_identity(runtime) is True
                 identity = AccountIdentity(db)
+                assert identity.bootstrap_admin_tenants() == 1
                 from app.multitenancy.lifespan import _bootstrap_registration_secret
 
                 _bootstrap_registration_secret(identity)
@@ -142,11 +143,27 @@ def register(env, email=None):
     return token, user
 
 
+@pytest.fixture
+def unprovisioned_admin(env):
+    user_id = uuid.uuid4().hex
+    username = "admin_" + user_id
+    salt, digest = hash_password(PASSWORD)
+    env["control"].execute(
+        """INSERT INTO control.users(id,username,password_salt,password_hash)
+           VALUES(%s,%s,%s,%s)""", (user_id, username, salt, digest),
+    )
+    env["control"].execute("INSERT INTO control.user_roles VALUES(%s,'admin')", (user_id,))
+    yield {"id": user_id, "username": username}
+    env["control"].execute(
+        "UPDATE control.users SET active=false,account_state='suspended' WHERE id=%s", (user_id,),
+    )
+
+
 def test_admin_username_no_fake_email_and_password_never_reset(env):
     identity = env["identity"]
     token, admin = identity.login("admin", "Admin123", uuid.uuid4().hex)
     assert admin["username"] == "admin" and admin["email"] is None
-    assert admin["role"] == "admin" and admin["default_tenant_id"] is None
+    assert admin["role"] == "admin" and admin["default_tenant_id"]
     assert "settings:manage" in admin["permissions"]
     identity.change_password(token, "Admin123", "UpdatedAdmin123")
     with pytest.raises(AccessError, match="会话已过期"):
@@ -158,6 +175,157 @@ def test_admin_username_no_fake_email_and_password_never_reset(env):
     token, changed = AccountIdentity(env["db"]).login("admin", "UpdatedAdmin123", uuid.uuid4().hex)
     assert changed["id"] == admin["id"]
     identity.change_password(token, "UpdatedAdmin123", "Admin123")
+
+
+def test_admin_default_tenant_supports_private_business_and_isolation(env, monkeypatch):
+    from app.multitenancy.watchlist import Watchlist
+
+    monkeypatch.setattr("app.api.settings.get_preferences", lambda request: {})
+    identity = env["identity"]
+    token, admin = identity.login("admin", "Admin123", uuid.uuid4().hex)
+    assert {"business:read", "business:write", "account:manage"} <= set(admin["permissions"])
+    env["client"].cookies.set("tf_session", token)
+    response = env["client"].get("/api/watchlist")
+    assert response.status_code == 200, response.text
+    assert response.json()["tenant_id"] == admin["default_tenant_id"]
+    bootstrap_response = env["client"].get("/api/business/bootstrap")
+    assert bootstrap_response.status_code == 200, bootstrap_response.text
+    assert bootstrap_response.json()["user"]["default_tenant_id"] == admin["default_tenant_id"]
+    own = Watchlist(env["db"], identity.context(admin, None, "admin-business"))
+    _, tenant = register(env)
+    other = Watchlist(env["db"], identity.context(tenant, None, "tenant-business"))
+    own.add("000001.SZ")
+    assert own.list_symbols()[0]["symbol"] == "000001.SZ"
+    assert other.list_symbols() == []
+    with pytest.raises(AccessError, match="无权访问"):
+        identity.context(tenant, admin["default_tenant_id"], "forged-admin-tenant")
+    own.clear()
+
+
+def test_admin_tenant_concurrent_creation_and_restart_preserve_data_and_choice(env, unprovisioned_admin):
+    from app.multitenancy.documents import TenantDocuments
+
+    identity = env["identity"]
+    user_id = unprovisioned_admin["id"]
+    before = env["control"].execute("SELECT * FROM control.users WHERE id=%s", (user_id,)).fetchone()
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        list(pool.map(lambda _: AccountIdentity(env["db"]).ensure_admin_tenant(user_id), range(6)))
+    token, admin = identity.login(unprovisioned_admin["username"], PASSWORD, uuid.uuid4().hex)
+    tenant_id = admin["default_tenant_id"]
+    assert tenant_id and admin["role"] == "admin"
+    jobs = env["control"].execute(
+        "SELECT * FROM control.provisioning_jobs WHERE user_id=%s", (user_id,),
+    ).fetchall()
+    assert len(jobs) == 1 and jobs[0]["state"] == "ready" and jobs[0]["tenant_id"] == tenant_id
+    assert env["control"].execute(
+        "SELECT role FROM control.memberships WHERE user_id=%s AND tenant_id=%s", (user_id, tenant_id),
+    ).fetchone()["role"] == "owner"
+    assert env["control"].execute(
+        "SELECT role_id FROM control.user_roles WHERE user_id=%s", (user_id,),
+    ).fetchall() == [{"role_id": "admin"}]
+    own = TenantDocuments(env["db"], identity.context(admin, None, "admin-persist"))
+    own.put("preferences", "default", {"saved": True})
+    for _ in range(2):
+        assert AccountIdentity(env["db"]).bootstrap_admin_tenants() == 0
+        identity.ensure_admin_tenant(user_id)
+    assert own.get("preferences", "default") == {"saved": True}
+    after = env["control"].execute("SELECT * FROM control.users WHERE id=%s", (user_id,)).fetchone()
+    assert after == {**before, "default_tenant_id": tenant_id}
+    _, other = register(env)
+    identity.choose_tenant(admin, other["default_tenant_id"], "existing-choice")
+    identity.ensure_admin_tenant(user_id)
+    assert AccountIdentity(env["db"]).bootstrap_admin_tenants() == 0
+    assert identity.current_user(token)["default_tenant_id"] == other["default_tenant_id"]
+    assert own.get("preferences", "default") == {"saved": True}
+    # A cleared selection reuses the ready personal tenant, never creates another.
+    env["control"].execute("UPDATE control.users SET default_tenant_id=NULL WHERE id=%s", (user_id,))
+    identity.ensure_admin_tenant(user_id)
+    assert identity.current_user(token)["default_tenant_id"] == tenant_id
+
+
+def test_admin_tenant_control_activation_failure_retries_same_job_on_login(env, unprovisioned_admin, monkeypatch):
+    identity = env["identity"]
+    user_id = unprovisioned_admin["id"]
+    before = env["control"].execute("SELECT * FROM control.users WHERE id=%s", (user_id,)).fetchone()
+    role = sql.Identifier(env["roles"][0])
+    provision = identity.provision
+
+    def fail_activation(target):
+        # Reserve successfully, then fail the real control activation after data commit.
+        env["control"].execute(sql.SQL("REVOKE UPDATE ON control.users FROM {}").format(role))
+        try:
+            provision(target)
+        finally:
+            env["control"].execute(sql.SQL("GRANT UPDATE ON control.users TO {}").format(role))
+
+    monkeypatch.setattr(identity, "provision", fail_activation)
+    assert identity.bootstrap_admin_tenants() == 0
+    # Private initialization failure must not lock out system administration.
+    token, admin = identity.login(unprovisioned_admin["username"], PASSWORD, uuid.uuid4().hex)
+    assert admin["role"] == "admin" and admin["default_tenant_id"] is None
+    assert identity.current_user(token)["id"] == user_id
+    assert env["control"].execute(
+        "SELECT * FROM control.users WHERE id=%s", (user_id,),
+    ).fetchone() == before
+    job = env["control"].execute(
+        "SELECT * FROM control.provisioning_jobs WHERE user_id=%s", (user_id,),
+    ).fetchone()
+    assert job["state"] == "pending" and job["last_error"] == "InsufficientPrivilege"
+    assert env["data"].execute(
+        "SELECT 1 FROM business.tenant_bindings WHERE tenant_id=%s", (job["tenant_id"],),
+    ).fetchone()
+    monkeypatch.setattr(identity, "provision", provision)
+    _, recovered = identity.login(unprovisioned_admin["username"], PASSWORD, uuid.uuid4().hex)
+    assert recovered["id"] == user_id and recovered["default_tenant_id"] == job["tenant_id"]
+    assert identity.recover_pending() == 0
+
+
+def test_admin_tenant_capacity_and_suspended_account_are_preserved(env, unprovisioned_admin):
+    identity = env["identity"]
+    user_id = unprovisioned_admin["id"]
+    cell = env["control"].execute("SELECT * FROM control.cells WHERE id='full'").fetchone()
+    env["control"].execute("UPDATE control.cells SET tenant_limit=1 WHERE id='full'")
+    try:
+        assert identity.bootstrap_admin_tenants() == 0
+        assert not env["control"].execute(
+            "SELECT 1 FROM control.provisioning_jobs WHERE user_id=%s", (user_id,),
+        ).fetchone()
+    finally:
+        env["control"].execute(
+            "UPDATE control.cells SET tenant_limit=%s WHERE id='full'", (cell["tenant_limit"],),
+        )
+    env["control"].execute(
+        "UPDATE control.users SET active=false,account_state='suspended' WHERE id=%s", (user_id,),
+    )
+    identity.ensure_admin_tenant(user_id)
+    assert identity.bootstrap_admin_tenants() == 0
+    assert not env["control"].execute(
+        "SELECT 1 FROM control.memberships WHERE user_id=%s", (user_id,),
+    ).fetchone()
+    env["control"].execute(
+        "UPDATE control.users SET active=true,account_state='active' WHERE id=%s", (user_id,),
+    )
+    assert identity.bootstrap_admin_tenants() == 1
+
+
+def test_admin_provision_completion_does_not_reverse_suspension(env, unprovisioned_admin, monkeypatch):
+    identity = env["identity"]
+    user_id = unprovisioned_admin["id"]
+    provision = identity.provision
+
+    def suspend_then_provision(target):
+        env["control"].execute(
+            "UPDATE control.users SET active=false,account_state='suspended' WHERE id=%s", (target,),
+        )
+        provision(target)
+
+    monkeypatch.setattr(identity, "provision", suspend_then_provision)
+    identity.ensure_admin_tenant(user_id)
+    saved = env["control"].execute("SELECT * FROM control.users WHERE id=%s", (user_id,)).fetchone()
+    assert saved["account_state"] == "suspended" and not saved["active"]
+    assert saved["default_tenant_id"] is None
+    with pytest.raises(AccessError, match="用户名/邮箱或密码错误"):
+        identity.login(unprovisioned_admin["username"], PASSWORD, uuid.uuid4().hex)
 
 
 def test_registration_secret_bootstraps_once_from_environment(monkeypatch) -> None:
