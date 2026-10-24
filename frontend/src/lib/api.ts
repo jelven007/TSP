@@ -2722,6 +2722,19 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ symbols }),
     }),
+
+  stockCatalog: (q = '', exchange = '', page = 1, pageSize = 50) =>
+    request<{ items: StockCatalogRow[]; total: number; page: number; page_size: number }>(
+      `/api/data/instruments?q=${encodeURIComponent(q)}&exchange=${exchange}&page=${page}&page_size=${pageSize}`,
+    ),
+  createStockCatalogRow: (body: StockCatalogFields & { symbol: string }) =>
+    request<StockCatalogRow>('/api/data/instruments', { method: 'POST', body: JSON.stringify(body) }),
+  updateStockCatalogRow: (symbol: string, body: StockCatalogFields) =>
+    request<StockCatalogRow>(`/api/data/instruments/${encodeURIComponent(symbol)}`, {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+  deleteStockCatalogRow: (symbol: string) =>
+    request<{ deleted: string }>(`/api/data/instruments/${encodeURIComponent(symbol)}`, { method: 'DELETE' }),
   updateRealtimeQuotes: (enabled: boolean) =>
     request<{ realtime_quotes_enabled: boolean; realtime_allowed?: boolean; mode?: string; error?: string }>('/api/settings/preferences/realtime-quotes', {
       method: 'PUT',
@@ -4566,6 +4579,25 @@ interface InstrumentsStats {
   symbols_covered: number
   latest_as_of: string | null
   named: number
+}
+
+export interface StockCatalogFields {
+  name: string
+  listing_date: string | null
+  region: string
+  industry: string | null
+  total_shares: number | null
+  float_shares: number | null
+  tick_size: number | null
+}
+
+export interface StockCatalogRow extends StockCatalogFields {
+  symbol: string
+  code: string
+  exchange: string
+  board: string
+  as_of: string | null
+  snapshot_source: string | null
 }
 
 export interface DataStatus {

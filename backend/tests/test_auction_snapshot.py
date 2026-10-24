@@ -64,6 +64,8 @@ def test_instrument_normalization_drops_delisted_labels():
         "board": "深主板",
         "region": "CN",
         "type": "stock",
+        "industry": None,
+        "snapshot_source": None,
         "listing_date": None,
         "total_shares": None,
         "float_shares": None,

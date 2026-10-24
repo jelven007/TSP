@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI):
 
         app.state.stream_tickets = StreamTicketCodec(db.settings.stream_ticket_secret)
         account_identity.recover_pending()
+        account_identity.bootstrap_admin_tenants()
 
         from app.data_providers import custom as custom_sources
         from app.multitenancy.events import EventHub

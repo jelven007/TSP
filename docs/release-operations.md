@@ -70,11 +70,27 @@ Git 历史；生产仍以固定镜像 digest 和备份为准。
 
 历史版本缺少现存 `v*` 标签时，以 Git 中的版本提交核对 `VERSION` 和包元数据，
 建立 `recovery/v<版本>` 恢复标签；它不代表重新通过 CI 或已发布安装包。
-本轮清单及 SHA 见[历史版本恢复点](../reports/production-integration-20261024/version-retention.json)。
+2026-10-24清单仅为当时快照，见[历史版本恢复点](../reports/production-integration-20261024/version-retention.json)。
+每次合并后获取新标签，再用[源码恢复工具](../scripts/release/source_recovery.py)生成新的六版本集合：
 
-2026-10-24 候选同步手动初始化、默认亮色与菜单名称/顺序、数据源设置和认证启动行为。
-新部署应说明非 Windows 默认完整多租户及基础服务要求；注册/找回和通知需要配置 SMTP。
-逐组文档与实际验证见[最新整合记录](../reports/production-integration-20261024/verification.md)。
+```bash
+git fetch origin main --tags
+python3 scripts/release/source_recovery.py create --revision origin/main \
+  --output deliverables/version-recovery-new
+python3 scripts/release/source_recovery.py verify --output deliverables/version-recovery-new
+```
+
+输出目录必须尚不存在。工具核对主线提交和同版本标签，按版本选择五个已合入的历史版本，
+生成六份源码归档、提交/SHA-256清单，并在完整校验后发布目录；不会覆盖旧集合或改动任何标签。
+确认新集合后，将其作为活跃恢复集合，按清单退役旧本地重复归档。
+源码包不包含运行数据、秘密配置、已安装依赖和生产镜像，恢复生产仍须使用匹配备份与产物。
+清单和哈希用于完整性复核，不是数字签名或新的生产放行证据。
+
+2026-10-25候选继承初始化后默认自动同步，纳入官方目录、管理员默认个人空间、统一顶栏
+与数据总览。对用户说明：目录每天09:00及启动时更新，旧自定义时间不再生效，
+行情自动同步关闭不暂停官方目录；管理员手工目录修改可能被后续官方同步重新核对。
+新部署仍须具备非Windows完整多租户基础服务；注册/找回和邮件通知需要配置SMTP。
+逐组文档与实际验证见[最新整合记录](../reports/production-baseline-20261025/verification.md)。
 
 <a id="4-角色与职责"></a>
 ## 4. 角色与职责
@@ -112,7 +128,7 @@ Git 历史；生产仍以固定镜像 digest 和备份为准。
 
 - [ ] 目标提交已复审，没有未解决的 `P0`、`P1`、`P2`。
 - [ ] 版本号位置一致。
-- [ ] `README.md`、`docs/features.md` 和`操作说明书.md`与界面一致。
+- [ ] `README.md`、需求中的当前功能及`操作说明书.md`与界面一致。
 - [ ] 需求、架构、测试、运维和专项方案已同步受影响内容。
 - [ ] 配置示例不含真实密钥，新增配置有默认值和升级说明。
 - [ ] OpenAPI、Provider、Parquet 或 JSON 契约变化有兼容结论。
@@ -389,7 +405,7 @@ Silicon。workflow 会：
 
 | 模式 / 任务 | 当前操作与完成检查 |
 | --- | --- |
-| 完整多租户开通 | 管理员按部署规范初始化；用户经口令/邮箱验证注册，个人空间就绪后进入行情；失败重试不重复建空间 |
+| 完整多租户开通 | 管理员按部署规范初始化，默认获得个人租户空间与业务能力；已有租户选择保留。用户经口令/邮箱验证注册，个人空间就绪后进入行情；失败重试不重复建空间 |
 | 角色/状态管理 | 当前管理员/租户两角色；最后有效管理员不可停用/降级，变更撤销受影响授权，直接API仍校验 |
 | 独立服务 | 邮箱认证但业务空间共享，告知数据可见边界 |
 | Windows个人空间 | 本地管理员首次进入后改密；暂停注册/找回/租户切换，损坏身份从匹配备份恢复 |

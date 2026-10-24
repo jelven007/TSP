@@ -5,7 +5,8 @@
 
 用户要求将当前融合技术方案与二期第三阶段合并，作为系统目标方案。
 规范入口为[系统目标技术方案](../../docs/architecture.md#target)，
-交付为[可浏览报告](../../deliverables/tsp-system-target-20261023/tsp-system-target-20261023.html)。
+当时的可浏览交付位于本地 `deliverables/tsp-system-target-20261023/tsp-system-target-20261023.html`，
+不随Git检出；当前可移植正文以上述规范入口为准。
 
 本次新增目标正文，同步文档中心、当前架构的目标链接、需求基线、二期实施计划与
 两期路线。融合原方案的数据/研究契约与二期第三步3.1–3.6，保留此前已实现能力、
@@ -31,8 +32,8 @@
 | 静态与正文 | HTML15章/18条来源/94个唯一ID/16表；120个包内链接/资源有效；规范与交付Markdown正文一致，Markdown/HTML正文一致 |
 | ZIP完整性 | 30个文件，5,890,749字节；逐文件CRC和SHA-256与工作区一致 |
 
-详细交付证据见[交付验证](../../deliverables/tsp-system-target-20261023/交付验证.md)。
-完整包见[系统目标ZIP](../../deliverables/tsp-system-target-20261023.zip)，摘要见
-[SHA-256](../../deliverables/tsp-system-target-20261023.zip.sha256)。
+当时详细证据位于本地 `deliverables/tsp-system-target-20261023/交付验证.md`，
+完整包及摘要为 `deliverables/tsp-system-target-20261023.zip` 和同名 `.sha256` 文件。
+这些离线材料不进入Git，不能假定干净检出中存在；上表仍保留原时点验证结果。
 测试脚本和缓存留在临时目录，报告、图源、资源和最终证据在工作区。
 原融合交付与历史记录保留；万人、HA、强沙箱和灾备仍需后续实际建设与验收。

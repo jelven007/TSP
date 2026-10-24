@@ -1827,20 +1827,19 @@ def update_pipeline_schedule(req: PipelineScheduleIn, request: Request) -> dict:
 
 @router.put("/preferences/instruments-schedule")
 def update_instruments_schedule(req: PipelineScheduleIn, request: Request) -> dict:
-    """保存盘前标的维表调度时间并立即 reschedule。"""
+    """兼容旧客户端入口; 官方目录时间固定为每天北京时间 09:00。"""
     from app.services import preferences
+    if (req.hour, req.minute) != (9, 0):
+        raise HTTPException(status_code=422, detail="个股维表固定每天北京时间 09:00 同步")
     sched = preferences.set_instruments_schedule(req.hour, req.minute)
 
     from apscheduler.triggers.cron import CronTrigger
 
-    from app.jobs.daily_pipeline import reschedule_data_job
     scheduler = getattr(request.app.state, "scheduler", None)
     if scheduler:
-        reschedule_data_job(
-            scheduler,
+        scheduler.reschedule_job(
             "pre_market_instruments",
             trigger=CronTrigger(
-                day_of_week="mon-fri",
                 hour=sched["hour"],
                 minute=sched["minute"],
                 timezone="Asia/Shanghai",

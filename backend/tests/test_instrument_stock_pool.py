@@ -18,6 +18,7 @@ from app.services import instrument_sync
         ("003999.SZ", "深主板"),
         ("300001.SZ", "创业板"),
         ("301999.SZ", "创业板"),
+        ("302132.SZ", "创业板"),
         ("688001.SH", "科创板"),
         ("689009.SH", "科创板"),
     ],
@@ -100,7 +101,7 @@ def test_instrument_job_retains_last_valid_snapshot(tmp_path, monkeypatch):
             "snapshot_source": ["rustdx"] * 4,
         }
     ).write_parquet(target)
-    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir: 0)
+    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir, **kwargs: 0)
     monkeypatch.setattr(daily_pipeline, "_refresh_instruments_view", lambda repo: None)
     monkeypatch.setattr(daily_pipeline, "_invalidate", lambda table=None: None)
     monkeypatch.setattr(
@@ -118,7 +119,7 @@ def test_instrument_job_retains_last_valid_snapshot(tmp_path, monkeypatch):
 
 
 def test_instrument_job_fails_on_fresh_install_without_snapshot(tmp_path, monkeypatch):
-    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir: 0)
+    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir, **kwargs: 0)
     repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
 
     with pytest.raises(
@@ -139,8 +140,7 @@ def test_partial_catalog_does_not_replace_complete_snapshot(tmp_path, monkeypatc
     ).write_parquet(target)
     before = target.read_bytes()
     monkeypatch.setattr(
-        instrument_sync,
-        "_fetch_instruments_via_provider",
+        "app.data_providers.official_stock_catalog.fetch_official_stock_catalog",
         lambda: [{"symbol": "600002.SH", "name": "仅沪市"}],
     )
     monkeypatch.setattr(

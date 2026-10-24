@@ -193,7 +193,7 @@ def test_pruned_interior_date_is_rebuilt_without_new_daily_or_factors(tmp_path, 
         "pipeline_pull_a_share": False, "pipeline_regime_enabled": False,
         "minute_sync_enabled": False, "adj_factor_provider": "tickflow",
     })
-    monkeypatch.setattr(daily_pipeline.instrument_sync, "sync_instruments", lambda *_: 0)
+    monkeypatch.setattr(daily_pipeline.instrument_sync, "sync_instruments", lambda *_, **kwargs: 0)
     monkeypatch.setattr(
         daily_pipeline.instrument_sync,
         "load_current_stock_pool",

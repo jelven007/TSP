@@ -75,6 +75,7 @@ def update_instrument_history(
     as_of: date,
     source: str,
     available_at: datetime | str | None = None,
+    allow_empty: bool = False,
 ) -> int:
     """Merge one observed current snapshot into the SCD2 history.
 
@@ -83,11 +84,12 @@ def update_instrument_history(
     active row from leaking into later dates.
     """
     current = _normalize_current(instruments)
-    if current.is_empty():
+    if current.is_empty() and not allow_empty:
         return 0
 
     observed_at = _available_at_text(available_at)
     existing = load_instrument_history(data_dir)
+    same_day_removed = {}
     latest: date | None = None
     if not existing.is_empty():
         latest = existing["valid_from"].max()
@@ -96,6 +98,15 @@ def update_instrument_history(
                 f"instrument status snapshot {as_of} predates existing history {latest}"
             )
         if latest == as_of:
+            # 同日首次观察后删除, 仍需留下最后已知名称的 tombstone。
+            observed_symbols = set(current["symbol"].to_list())
+            same_day_removed = {
+                row["symbol"]: row for row in existing.filter(
+                    pl.col("valid_to").is_null() & (pl.col("valid_from") == as_of)
+                    & pl.col("is_listed")
+                ).iter_rows(named=True)
+                if row["symbol"] not in observed_symbols
+            }
             existing = _rollback_same_day(existing, as_of)
 
     open_rows = (
@@ -107,6 +118,7 @@ def update_instrument_history(
         str(row["symbol"]): row
         for row in open_rows.iter_rows(named=True)
     }
+    previous.update({symbol: row for symbol, row in same_day_removed.items() if symbol not in previous})
     observed = {
         str(row["symbol"]): row
         for row in current.iter_rows(named=True)

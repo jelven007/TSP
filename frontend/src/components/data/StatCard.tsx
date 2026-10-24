@@ -93,7 +93,7 @@ export function StatCard({
   title, hint, stats, isInstrument = false, loading = false,
   active = false, done = false, skipped = false, stagePct = 0,
   tierKey, capLimits, customProvider,
-  auto, manual = false, onSettings, onShowFields, settingsOpen, subLabel, localBadgeSuffix, fieldTabs,
+  auto, manual = false, onSettings, onManage, onShowFields, settingsOpen, subLabel, localBadgeSuffix, fieldTabs,
 }: {
   title: string
   hint: string
@@ -109,6 +109,7 @@ export function StatCard({
   capLimits?: Record<string, CapLimitValue>
   customProvider?: string | null
   onSettings?: () => void
+  onManage?: () => void
   onShowFields?: (table?: string) => void
   settingsOpen?: boolean
   auto?: boolean
@@ -213,6 +214,7 @@ export function StatCard({
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <h3 className="text-sm font-medium text-foreground">{title}</h3>
         <div className="flex items-center gap-1.5">
+          {onManage && <button onClick={onManage} className="text-[11px] text-accent hover:underline" aria-label="管理个股维表">管理</button>}
           {auto !== undefined && !loading && (
             <span className="inline-flex items-center gap-1 text-[10px] font-medium">
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${auto ? 'bg-accent shadow-[0_0_4px_rgba(61,214,140,0.5)]' : 'bg-muted'}`} />

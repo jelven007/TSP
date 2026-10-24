@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -251,6 +252,8 @@ function StockSearchBox({
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null)
   const [activeIdx, setActiveIdx] = useState(-1)
 
   const search = useQuery({
@@ -265,13 +268,37 @@ function StockSearchBox({
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (e.target instanceof Element && e.target.closest('[data-watchlist-group-menu]')) return
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)
+        && !popupRef.current?.contains(e.target as Node)) {
         setOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  useLayoutEffect(() => {
+    if (!open || !inputRef.current) return
+    const rect = inputRef.current.getBoundingClientRect()
+    setPopupPosition({
+      top: rect.bottom + 4,
+      left: Math.max(8, Math.min(rect.right - 288, window.innerWidth - 296)),
+    })
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const close = (event: Event) => {
+      if (popupRef.current && event.target instanceof Node && popupRef.current.contains(event.target)) return
+      setOpen(false)
+    }
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') { setOpen(false); return }
@@ -312,14 +339,18 @@ function StockSearchBox({
         />
       </div>
 
-      <AnimatePresence>
-        {open && results.length > 0 && (
+      {/* 弹层脱离顶栏滚动容器, 保留搜索结果及分组按钮的可点击区域。 */}
+      {createPortal(<AnimatePresence>
+        {open && popupPosition && results.length > 0 && (
           <motion.div
+            ref={popupRef}
+            data-watchlist-search-results
+            style={{ position: 'fixed', top: popupPosition.top, left: popupPosition.left }}
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-full mt-1 z-50 w-72 max-h-[320px] overflow-y-auto rounded-card border border-border bg-base shadow-xl"
+            className="z-[9999] w-72 max-w-[calc(100vw-16px)] max-h-[320px] overflow-y-auto rounded-card border border-border bg-base shadow-xl"
           >
             {results.map((r, i) => {
               const entryGids = existingBySymbol.get(r.symbol)
@@ -407,7 +438,7 @@ function StockSearchBox({
             })}
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </div>
   )
 }

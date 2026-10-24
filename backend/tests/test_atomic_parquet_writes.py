@@ -146,7 +146,7 @@ def test_sync_instruments_interrupted_keeps_existing_table(tmp_path: Path, crash
     old = _instruments(["浦发银行", "平安银行"])
     _seed(old, target)
     monkeypatch.setattr(
-        instrument_sync, "_fetch_instruments_via_provider",
+        "app.data_providers.official_stock_catalog.fetch_official_stock_catalog",
         lambda: [{"symbol": "600036.SH", "name": "招商银行"}],
     )
 
