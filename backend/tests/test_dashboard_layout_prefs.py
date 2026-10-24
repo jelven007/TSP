@@ -1,4 +1,4 @@
-"""看板自定义布局偏好 — 保存往返、护栏与清除回默认。"""
+"""行情自定义布局偏好 — 保存往返、护栏与清除回默认。"""
 from __future__ import annotations
 
 import pytest

@@ -1,7 +1,7 @@
 """AI 对话助手扩展 — 完全解耦的 L2 二开模块。
 
 通过 AI 对话调用面板已有能力(因子目录 / 策略目录 / 数据能力 / 策略回测)。
-删除本目录即可整体卸载, 不影响核心功能; 会话存储见 docs/assistant-sessions.md,
+删除本目录即可整体卸载, 不影响核心功能; 会话存储见 docs/reference/trading-ai.md#sessions,
 docs/secondary-development.md 的扩展契约。
 
 事件流协议(NDJSON, 每行一个 JSON):

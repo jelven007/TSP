@@ -1,0 +1,14 @@
+{
+  "frontend_input_files": 322,
+  "isolated_source_equal": true,
+  "frozen_lockfile_equal": true,
+  "node": "24.22.1",
+  "pnpm": "9.10.0",
+  "build_command": "pnpm build (tsc -b && vite build)",
+  "exit_code": 0,
+  "build_result_observed": "built in 5.06s",
+  "remaining_warnings": [
+    "existing ECharts chunk exceeds 500 kB"
+  ],
+  "mismatches": []
+}

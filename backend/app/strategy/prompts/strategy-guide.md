@@ -364,4 +364,4 @@ def filter_history(df: pl.DataFrame, params: dict) -> pl.DataFrame:
 
 ## 8. 完整示例
 
-见 [strategy-example.md](./strategy-example.md) — 从零创建强势反包策略的三步完整演示。
+见 [strategy-example.md](strategy-example.md) — 从零创建强势反包策略的三步完整演示。

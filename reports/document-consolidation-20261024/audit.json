@@ -1,0 +1,47 @@
+{
+  "source_head": "cc837b95f471e5b299bf5e8618332d500bff7e3a",
+  "application_version": "0.4.17",
+  "docs_markdown_before": 64,
+  "docs_markdown_after": 16,
+  "merged_source_files": 54,
+  "migration_entries_checked": 1072,
+  "current_markdown_checked": 31,
+  "markdown_including_reports_checked": 81,
+  "requirements": {
+    "total": 203,
+    "functional": 161,
+    "nonfunctional": 42,
+    "contract_rows_unchanged": true,
+    "canonical_rows_sha256": "4533e27b96a2a838efee1c2a0e419dbc45e3ce580cb3fbc9a4957882a7ce58be"
+  },
+  "code_document_references_checked": 53,
+  "python_behavior_ast_unchanged": [
+    "backend/app/backtest/mining.py",
+    "backend/app/custom/assistant/__init__.py",
+    "backend/app/services/api_gateway.py",
+    "backend/app/services/api_tokens.py",
+    "backend/app/services/event_tickets.py",
+    "backend/app/services/kline_sync.py",
+    "backend/app/services/minute_refresh.py",
+    "backend/app/strategy/ai_iterator.py",
+    "backend/app/strategy/paper.py",
+    "backend/tests/test_minute_routing.py",
+    "backend/tests/test_paper_settle_price_time.py",
+    "backend/tests/test_paper_trading.py",
+    "mcp-server/src/tsp_mcp_server/server.py"
+  ],
+  "unexpected_changes_to_session_baseline": [],
+  "ruff_comparison": {
+    "baseline_diagnostics": 60,
+    "current_diagnostics": 60,
+    "new_diagnostics": 0
+  },
+  "verified_checks": {
+    "make_check": "passed; layout 82 paths, docs, version 0.4.17, git diff whitespace",
+    "tooling_pytest": "116 passed in 36.74s",
+    "ext_presets_pytest": "22 passed in 6.05s",
+    "frontend_build": "tsc -b and vite build passed; Vite 4.97s; source hashes synchronized",
+    "new_checker_ruff": "all checks passed",
+    "changed_python_ruff": "60 baseline diagnostics, 60 current, no new diagnostics"
+  }
+}

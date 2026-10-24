@@ -28,7 +28,7 @@ import { NotificationsPanel } from '@/components/monitor/NotificationsPanel'
 
 const TYPE_LABEL: Record<string, string> = {
   signal: '信号', price: '价格/涨跌', market: '市场异动', strategy: '策略监控', sector: '板块监控',
-  abnormal: '异动监控', volume_delta: '轮询放量', date: '日期提醒',
+  abnormal: '异动', volume_delta: '轮询放量', date: '日期提醒',
 }
 
 /** 严重级别 → 左侧色条 + 图标 */
@@ -126,7 +126,7 @@ export function Monitor() {
   const [editingRule, setEditingRule] = useState<MonitorRule | null>(null)
   const [editorPreset, setEditorPreset] = useState<Partial<MonitorRule> | null>(null)
 
-  // 深链: /monitor?new=abnormal (异动监控页「告警规则」入口) → 直接弹出预置类型的编辑器
+  // 深链: /monitor?new=abnormal (异动数据页「告警规则」入口) → 直接弹出预置类型的编辑器
   const [searchParams, setSearchParams] = useSearchParams()
   const notificationsOpen = multitenancyEnabled() && searchParams.get('notifications') === '1'
   useEffect(() => {

@@ -1,0 +1,18 @@
+   Compiling pyo3-build-config v0.25.1
+   Compiling pyo3-ffi v0.25.1
+   Compiling pyo3-macros-backend v0.25.1
+   Compiling pyo3 v0.25.1
+   Compiling pyo3-macros v0.25.1
+   Compiling tsp-rustdx-native v0.1.1 (backend/native/rustdx_native)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.66s
+     Running unittests src/lib.rs (backend/native/rustdx_native/target/debug/deps/tsp_rustdx_native-57ebfe4afd4d992b)
+
+running 6 tests
+test report::tests::packet_matches_report_protocol ... ok
+test pool::tests::busy_preferred_slot_does_not_block_an_idle_slot ... ok
+test report::tests::rejects_paths_and_invalid_chunks ... ok
+test pool::tests::background_floor_holds_while_foreground_still_reaches_a_slot ... ok
+test pool::tests::background_above_floor_yields_until_a_lease_frees ... ok
+test pool::tests::closing_wakes_blocked_requests ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

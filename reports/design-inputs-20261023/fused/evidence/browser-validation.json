@@ -1,0 +1,75 @@
+{
+  "title": "TSP 融合技术方案 · 2026-10-23",
+  "loaded_figures": [
+    {
+      "src": "assets/reference-TSP.png",
+      "ok": true,
+      "width": 6331,
+      "height": 5070
+    },
+    {
+      "src": "assets/融合总体架构.svg",
+      "ok": true,
+      "width": 1575,
+      "height": 1222
+    },
+    {
+      "src": "assets/规则与告警时序.svg",
+      "ok": true,
+      "width": 1493,
+      "height": 893
+    },
+    {
+      "src": "assets/分层历史研究.svg",
+      "ok": true,
+      "width": 1029,
+      "height": 539
+    }
+  ],
+  "calculator": {
+    "default": "规划秒级行数：97,200,000 行／日；243,000,000,000 行／所选期间。 未填写实测字节／行，暂不估算磁盘。",
+    "50bytes": "规划秒级行数：97,200,000 行／日；243,000,000,000 行／所选期间。 秒级主体容量：12.15 TB（十进制，含所填数据副本）。 另计索引、派生、修订、合并、原始文件、备份及暂存。",
+    "2replicas": "规划秒级行数：97,200,000 行／日；243,000,000,000 行／所选期间。 秒级主体容量：24.3 TB（十进制，含所填数据副本）。 另计索引、派生、修订、合并、原始文件、备份及暂存。",
+    "240minutes": "规划秒级行数：86,400,000 行／日；216,000,000,000 行／所选期间。 秒级主体容量：21.6 TB（十进制，含所填数据副本）。 另计索引、派生、修订、合并、原始文件、备份及暂存。",
+    "reset": "规划秒级行数：97,200,000 行／日；243,000,000,000 行／所选期间。 未填写实测字节／行，暂不估算磁盘。"
+  },
+  "diagram_dialog_keyboard": "passed",
+  "desktop_toc": "passed",
+  "mobile_390": {
+    "overflow": {
+      "body": 390,
+      "viewport": 390
+    },
+    "table": {
+      "scroll": 680,
+      "client": 356,
+      "overflow": "auto"
+    },
+    "toc": "passed"
+  },
+  "mobile_360": {
+    "overflow": {
+      "body": 360,
+      "viewport": 360
+    },
+    "table": {
+      "scroll": 680,
+      "client": 326,
+      "overflow": "auto"
+    },
+    "toc": "passed"
+  },
+  "print": {
+    "toc": "none",
+    "calculator": "none",
+    "tableMax": "none",
+    "diagramMin": "0px"
+  },
+  "offline_file": {
+    "ready": true,
+    "remote_requests": 0
+  },
+  "browser_version": "152.0.7977.83",
+  "errors": [],
+  "request_failures": []
+}

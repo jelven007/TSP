@@ -1,0 +1,222 @@
+[
+  {
+    "path": "backend/app/api/abnormal.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/api/auth.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/api/data.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/api/intraday.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/api/monitor_rules.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/api/overview.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/api/paper.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/api/regime.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/api/settings.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/backtest/mining.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/backtest/mining_runtime.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/backtest/regime_alignment.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/backtest/strategy.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/cell/admin.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/cell/notifications.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/config.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/custom/assistant/__init__.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/custom/assistant/actions.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/custom/assistant/prompt.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/custom/assistant/tools.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/data_providers/capabilities.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/jobs/daily_pipeline.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/main.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/multitenancy/lifespan.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/multitenancy/preferences.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/multitenancy/routes.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/services/abnormal_moves.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/api_gateway.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/api_tokens.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/auth.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/services/data_integrity.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/services/depth_service.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/services/email_adapter.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/services/event_tickets.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/ext_data.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/ext_presets.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/services/initial_sync.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/services/kline_sync.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/market_mainline.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/market_overview_builder.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/market_phase.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/market_recap.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/minute_refresh.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/preferences.py",
+    "classification": "behavior"
+  },
+  {
+    "path": "backend/app/services/quote_service.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/services/regime_builder.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/repair_daily.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/rps_rotation.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/screener.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/services/stock_analyzer.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/strategy/ai_iterator.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/strategy/monitor_rules.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/strategy/paper.py",
+    "classification": "string_literals"
+  },
+  {
+    "path": "backend/app/strategy/paper_auto.py",
+    "classification": "comments_or_docstrings"
+  },
+  {
+    "path": "backend/app/tickflow/repository.py",
+    "classification": "comments_or_docstrings"
+  }
+]

@@ -7,6 +7,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from app.bootstrap_defaults import REGISTRATION_SECRET
+from app.cell.admin import bootstrap_full_identity
 from app.cell.config import CellSettings
 from app.cell.database import Databases
 from app.config import settings
@@ -16,19 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 def _bootstrap_registration_secret(identity: AccountIdentity) -> None:
-    """Seed the registration secret once from the deployment environment.
-
-    Without this the full-product service silently ignores
-    ``AUTH_REGISTRATION_SECRET``, which turns registration and password
-    recovery off whenever ``control.registration_config`` is empty.
-    """
-    secret = settings.auth_registration_secret.strip()
-    if not secret:
-        return
-    try:
-        identity.set_registration_secret(secret, only_if_missing=True)
-    except Exception as exc:
-        logger.warning("registration secret bootstrap failed: %s", exc)
+    """Initialize registration/recovery once, preserving an existing secret."""
+    secret = settings.auth_registration_secret.strip() or REGISTRATION_SECRET
+    identity.set_registration_secret(secret, only_if_missing=True)
 
 
 @asynccontextmanager
@@ -39,9 +31,11 @@ async def lifespan(app: FastAPI):
     db.open()
     with ExitStack() as resources:
         resources.callback(db.close)
+        # This idempotent DML bootstrap uses existing runtime grants. Schema
+        # migrations and legacy import remain explicit offline operations.
+        with db.control.connection() as control:
+            bootstrap_full_identity(control)
         account_identity = AccountIdentity(db)
-        # Admin initialization and legacy import are offline operations. API
-        # startup must never reset a password or grant itself DDL credentials.
         app.state.account_identity = account_identity
         _bootstrap_registration_secret(account_identity)
         from app.multitenancy.stream_auth import StreamTicketCodec

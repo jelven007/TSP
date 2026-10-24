@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta
 
 from app.market_time import CN_TZ
-from scripts.observe_candidate_soak import (
+from scripts.acceptance.observe_candidate_soak import (
     Observer,
     arm,
     parse_endpoints,
@@ -40,7 +40,7 @@ def test_passive_soak_observer_keeps_load_and_duration_certification_separate(
         }
     }
     monkeypatch.setattr(
-        "scripts.observe_candidate_soak.probe",
+        "scripts.acceptance.observe_candidate_soak.probe",
         lambda _url: {
             "ok": True,
             "status": "ok",
@@ -52,11 +52,11 @@ def test_passive_soak_observer_keeps_load_and_duration_certification_separate(
         },
     )
     monkeypatch.setattr(
-        "scripts.observe_candidate_soak.container_snapshot",
+        "scripts.acceptance.observe_candidate_soak.container_snapshot",
         lambda _names: container,
     )
     monkeypatch.setattr(
-        "scripts.observe_candidate_soak.disk_snapshot",
+        "scripts.acceptance.observe_candidate_soak.disk_snapshot",
         lambda _paths: {
             str(tmp_path): {
                 "ok": True,

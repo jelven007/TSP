@@ -63,14 +63,14 @@ def run_repair_daily(
         try:
             return run_now(repo, capset, on_progress=on_progress, override_start_date=start_date)
         finally:
-            # 修正会重写今日 enriched 分区。不重建内存缓存的话, 看板/选股器会继续
+            # 修正会重写今日 enriched 分区。不重建内存缓存的话, 行情/选股器会继续
             # 返回修复前的盘中旧快照 (与盘后管道 _pipeline_then_refresh 对齐:
             # 即使阶段软失败, 已落盘的数据也要刷进内存)。
             try:
                 repo.refresh_cache()
             except Exception:  # noqa: BLE001
                 logger.warning("repair_daily: refresh cache failed", exc_info=True)
-            # 行情已重写但非交易时段没有 quotes_updated, 前端不会失效看板查询。
+            # 行情已重写但非交易时段没有 quotes_updated, 前端不会失效行情查询。
             # 主动广播一次走既有 SSE 链路 (平台 marker → 网关 → 前端 invalidation),
             # 避免用户必须手动刷新才能看到修正后的数据。
             if quote_service is not None:

@@ -536,6 +536,7 @@ def get_preferences(request: Request = None) -> dict:
 
     email_config, email_password = email_adapter.get_notification_smtp(_current_email(request))
     return {
+        "data_sync_auto_enabled": preferences.get_data_sync_auto_enabled(),
         "realtime_quotes_enabled": preferences.get_realtime_quotes_enabled(),
         "realtime_allowed": _realtime_allowed(),
         "second_quote_archive_enabled": preferences.get_second_quote_archive_enabled(),
@@ -917,13 +918,13 @@ def update_nav_hidden(req: NavHiddenIn) -> dict:
 
 
 class DashboardLayoutIn(BaseModel):
-    """看板自定义布局; layout=null 恢复默认。"""
+    """行情自定义布局; layout=null 恢复默认。"""
     layout: dict | None = None
 
 
 @router.put("/preferences/dashboard-layout")
 def update_dashboard_layout(req: DashboardLayoutIn) -> dict:
-    """保存看板自定义布局(网格 blob); null = 清除回默认布局。"""
+    """保存行情自定义布局(网格 blob); null = 清除回默认布局。"""
     from app.services import preferences
     try:
         saved = preferences.set_dashboard_layout(req.layout)
@@ -1064,7 +1065,7 @@ def update_realtime_quotes(req: RealtimeQuotesPrefs, request: Request) -> dict:
         _sync_depth_polling(False)
         return {"realtime_quotes_enabled": False, "realtime_allowed": False}
     if req.realtime_quotes_enabled:
-        # 首用门禁: 本地完全无数据 (日K/enriched 均空, 与看板首用弹窗同口径) 时
+        # 首用门禁: 本地完全无数据 (日K/enriched 均空, 与行情首用弹窗同口径) 时
         # 禁止开启 — 实时行情的展示 (enriched 底座 + 快照覆盖)、监控、连板梯队
         # 全部依赖本地数据, 空数据下轮询只是空转耗配额, 且无 instruments 维表。
         repo = getattr(request.app.state, "repo", None)
@@ -1195,7 +1196,7 @@ def update_pipeline_pull_types(req: PipelinePullTypesIn) -> dict:
 
 
 class PipelineRegimeEnabledIn(BaseModel):
-    """盘后管道是否自动计算市场环境(regime)。"""
+    """盘后管道是否自动计算环境(regime)。"""
     pipeline_regime_enabled: bool
 
 
@@ -1248,7 +1249,7 @@ class MainlineFilterIn(BaseModel):
 def update_mainline_filter(req: MainlineFilterIn) -> dict:
     """更新市场主线过滤配置。部分更新; 修改后需重算主线(POST /api/regime/mainline/recompute)生效。
 
-    exclude_st 同步控制市场环境(regime)统计口径 — 切换后需全量重算 regime。
+    exclude_st 同步控制环境(regime)统计口径 — 切换后需全量重算 regime。
     """
     from app.services import preferences
 
@@ -1775,6 +1776,23 @@ async def test_endpoint(req: TestEndpointIn) -> dict:
     }
 
 
+class DataSyncAutoIn(BaseModel):
+    enabled: bool
+
+
+@router.put("/preferences/data-sync-auto")
+def update_data_sync_auto(req: DataSyncAutoIn, request: Request) -> dict:
+    """显式启停定时数据同步; 初始化默认仅手动同步。"""
+    from app.jobs.daily_pipeline import apply_data_sync_mode
+    from app.services import preferences
+
+    preferences.save({"data_sync_auto_enabled": req.enabled})
+    scheduler = getattr(request.app.state, "scheduler", None)
+    if scheduler is not None:
+        apply_data_sync_mode(scheduler)
+    return {"data_sync_auto_enabled": preferences.get_data_sync_auto_enabled()}
+
+
 class PipelineScheduleIn(BaseModel):
     hour: int
     minute: int
@@ -1788,9 +1806,12 @@ def update_pipeline_schedule(req: PipelineScheduleIn, request: Request) -> dict:
 
     # 动态 reschedule
     from apscheduler.triggers.cron import CronTrigger
+
+    from app.jobs.daily_pipeline import reschedule_data_job
     scheduler = getattr(request.app.state, "scheduler", None)
     if scheduler:
-        scheduler.reschedule_job(
+        reschedule_data_job(
+            scheduler,
             "daily_pipeline",
             trigger=CronTrigger(
                 day_of_week="mon-fri",
@@ -1811,9 +1832,12 @@ def update_instruments_schedule(req: PipelineScheduleIn, request: Request) -> di
     sched = preferences.set_instruments_schedule(req.hour, req.minute)
 
     from apscheduler.triggers.cron import CronTrigger
+
+    from app.jobs.daily_pipeline import reschedule_data_job
     scheduler = getattr(request.app.state, "scheduler", None)
     if scheduler:
-        scheduler.reschedule_job(
+        reschedule_data_job(
+            scheduler,
             "pre_market_instruments",
             trigger=CronTrigger(
                 day_of_week="mon-fri",
@@ -1822,7 +1846,7 @@ def update_instruments_schedule(req: PipelineScheduleIn, request: Request) -> di
                 timezone="Asia/Shanghai",
             ),
         )
-        return sched
+    return sched
 
 
 class EnrichedBatchSizeIn(BaseModel):
@@ -1880,7 +1904,7 @@ def run_limit_ladder_fix(request: Request) -> dict:
     if not depth_svc:
         raise HTTPException(status_code=503, detail="depth 服务未初始化")
     result = depth_svc.run_once()
-    # sealed 数据变了, 清看板总览缓存, 否则看板在 TTL 窗口内仍返回旧的 limit_up/fake 等
+    # sealed 数据变了, 清行情总览缓存, 否则行情在 TTL 窗口内仍返回旧的 limit_up/fake 等
     if result.get("ok"):
         from app.api.overview import invalidate_overview_cache
         invalidate_overview_cache()
@@ -1917,9 +1941,12 @@ def update_depth_finalize_time(req: DepthFinalizeTimeIn, request: Request) -> di
     sched = preferences.set_depth_finalize_time(req.hour, req.minute)
 
     from apscheduler.triggers.cron import CronTrigger
+
+    from app.jobs.daily_pipeline import reschedule_data_job
     scheduler = getattr(request.app.state, "scheduler", None)
     if scheduler:
-        scheduler.reschedule_job(
+        reschedule_data_job(
+            scheduler,
             "depth_finalize",
             trigger=CronTrigger(
                 day_of_week="mon-fri",

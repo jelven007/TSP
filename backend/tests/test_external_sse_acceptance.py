@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.accept_external_sse import (
+from scripts.acceptance.accept_external_sse import (
     MAX_CONCURRENT_CLIENTS,
     _capacity_summary,
     _concurrent_fanout_acceptance,

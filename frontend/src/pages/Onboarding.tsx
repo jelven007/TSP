@@ -36,7 +36,7 @@ const STEPS = ['声明', '欢迎', '数据源', '能力路由', '完成'] as con
 const BRAND = '#8B5CF6'
 
 const HIGHLIGHTS = [
-  { icon: LineChart,   title: '看板与自选', desc: '市场全景看板、涨跌分布、情绪雷达,自定义自选列表', tint: 'text-accent' },
+  { icon: LineChart,   title: '行情与自选', desc: '市场全景行情、涨跌分布、情绪雷达,自定义自选列表', tint: 'text-accent' },
   { icon: ScanSearch,  title: '策略选股',   desc: '内置多套选股策略,一键扫描全市场命中标的', tint: 'text-bull' },
   { icon: TrendingUp,  title: '个股分析',   desc: 'AI 四维分析个股,关键价位、技术形态一目了然', tint: 'text-warning' },
   { icon: Flame,       title: '连板梯队',   desc: '涨停梯队、封板强度、炸板监控,情绪温度计', tint: 'text-warning' },
@@ -519,9 +519,9 @@ function DataSourceStep({ onNext, onBack }: { onNext: () => void; onBack: () => 
           ,接入自有行情或切换数据源请前往
           <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">设置 → 数据源</span>
           ,方法详见
-          <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">docs/custom-data-source.md</span>
+          <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">docs/reference/integrations.md#http</span>
           与
-          <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">docs/plugin-development.md</span>
+          <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">docs/reference/integrations.md#plugin</span>
           。
         </div>
       </div>
@@ -799,7 +799,7 @@ function FinishStep({ onNext, onBack, pending }: { onNext: () => void; onBack: (
         <div className="min-w-0">
           <div className="text-sm font-medium text-foreground">下一步:获取行情数据</div>
           <p className="mt-1 text-xs text-secondary leading-relaxed">
-            进入面板后,看板会自动引导你拉取近 1 年全 A 股日K(约 5500 只,预计 1-3 分钟)。同步期间可浏览其他页面。
+            初始化后默认手动同步。进入数据总览页点击「立即同步」,获取近 1 年全 A 股行情及历史财务数据。同步期间可浏览其他页面。
           </p>
         </div>
       </motion.div>

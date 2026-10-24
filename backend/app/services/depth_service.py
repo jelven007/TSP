@@ -163,6 +163,9 @@ class DepthService:
             # parquet 已存在: 恢复内存缓存(避免重启后每次查询都读 parquet)
             self._restore_from_parquet(today)
             return
+        from app.services import preferences
+        if not preferences.get_data_sync_auto_enabled():
+            return
         if not self._can_finalize():
             return
         logger.info("depth sealed: 启动补跑今天定版")

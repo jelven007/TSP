@@ -29,7 +29,7 @@ function make(children: ReactNode) {
   }
 }
 
-/** 看板 — 2×2 工作台面板, 前板内置 mini K 线 */
+/** 行情 — 2×2 工作台面板, 前板内置 mini K 线 */
 export const IconDashboard = make(
   <>
     <rect x="3" y="3" width="7.5" height="7.5" />
@@ -132,7 +132,7 @@ export const IconMonitor = make(
   </>,
 )
 
-/** 市场环境 — 角度量规 (弧线以直线段逼近, 保持直角语言) */
+/** 环境 — 角度量规 (弧线以直线段逼近, 保持直角语言) */
 export const IconRegime = make(
   <>
     <path d="M3.5 16.5L6.8 10L12 7.2L17.2 10L20.5 16.5" />
@@ -141,7 +141,7 @@ export const IconRegime = make(
   </>,
 )
 
-/** 异动监控 — 取景角 + 感叹号 [!] */
+/** 异动数据 — 取景角 + 感叹号 [!] */
 export const IconAlert = make(
   <>
     <path d="M4 9V4H9" />
@@ -163,7 +163,7 @@ export const IconLots = make(
   </>,
 )
 
-/** 模拟盘 — 钱包 */
+/** 模拟交易 — 钱包 */
 export const IconPaper = make(
   <>
     <rect x="3.5" y="6.5" width="17" height="13" />
@@ -172,7 +172,7 @@ export const IconPaper = make(
   </>,
 )
 
-/** 信号库 — 信号脉冲线 */
+/** 信号指标 — 信号脉冲线 */
 export const IconSignals = make(
   <path d="M3 14.5H8L10.8 9L14 18L16.8 12.2H21" />,
 )
@@ -195,7 +195,7 @@ export const IconIndices = make(
   </>,
 )
 
-/** 数据 — 三层数据存储 */
+/** 数据总览 — 三层数据存储 */
 export const IconData = make(
   <>
     <rect x="4.5" y="3.5" width="15" height="5" />

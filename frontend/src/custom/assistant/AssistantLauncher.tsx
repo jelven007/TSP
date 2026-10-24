@@ -17,7 +17,7 @@ type AnySlotContext = FrontendSlotContextMap[keyof FrontendSlotContextMap]
 
 // 与核心侧栏导航文案保持一致的轻量映射(仅用于上下文提示, 展示不走这里)。
 const PAGE_LABELS: Record<string, string> = {
-  '/': '看板',
+  '/': '行情',
   '/watchlist': '自选',
   '/screener': '策略',
   '/factors': '因子',
@@ -28,13 +28,13 @@ const PAGE_LABELS: Record<string, string> = {
   '/industry-analysis': '行业分析',
   '/financials': '财务分析',
   '/monitor': '监控中心',
-  '/regime': '市场环境',
-  '/abnormal': '异动监控',
+  '/regime': '环境',
+  '/abnormal': '异动',
   '/lots': '持仓提醒',
-  '/signals': '信号库',
+  '/signals': '信号指标',
   '/review': '复盘',
   '/indices': '指数',
-  '/data': '数据',
+  '/data': '数据总览',
   '/settings': '设置',
 }
 

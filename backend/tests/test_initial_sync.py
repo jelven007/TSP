@@ -35,7 +35,31 @@ def test_live_daily_write_cannot_hide_first_install(tmp_path):
     assert initial_sync.needs_initial_sync(tmp_path)
 
 
+@pytest.mark.parametrize("partial", [False, True])
+def test_manual_startup_does_not_enqueue_sync(tmp_path, monkeypatch, partial):
+    from app.services import preferences
+
+    monkeypatch.setattr(preferences, "_path", lambda: tmp_path / "preferences.json")
+    preferences._invalidate_cache()
+    initial_sync.prepare_initial_sync(tmp_path)
+    if partial:
+        part = tmp_path / "kline_daily"
+        part.mkdir()
+        pl.DataFrame({"symbol": ["600001.SH"]}).write_parquet(part / "part.parquet")
+
+    async def unexpected(*args, **kwargs):
+        pytest.fail("manual initialization must not enqueue a startup pipeline")
+
+    monkeypatch.setattr("app.api.pipeline.trigger_pipeline_job", unexpected)
+    state = SimpleNamespace(repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)))
+    import asyncio
+    assert asyncio.run(initial_sync.start_initial_sync(state)) is None
+    assert initial_sync.needs_initial_sync(tmp_path)
+    assert json.loads((tmp_path / "initial_sync.json").read_text())["status"] == "pending"
+
+
 def test_startup_schedules_once_without_blocking_requests(tmp_path, monkeypatch):
+    monkeypatch.setattr(initial_sync.preferences, "get_data_sync_auto_enabled", lambda: True)
     calls = []
 
     async def trigger(*args, **kwargs):

@@ -30,7 +30,7 @@ _cache_lock = threading.Lock()
 def invalidate_overview_cache() -> None:
     """清空总览聚合结果缓存。
 
-    清除数据后调用, 避免看板在 TTL 窗口内继续返回旧的聚合结果。
+    清除数据后调用, 避免行情在 TTL 窗口内继续返回旧的聚合结果。
     """
     global _cache, _cache_key, _cache_ts
     with _cache_lock:

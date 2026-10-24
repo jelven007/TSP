@@ -16,6 +16,7 @@ import httpx
 from app.cell.context import AccessError, Role
 from app.cell.identity import Identity
 from app.cell.watchlist import Watchlist
+from app.services.email_adapter import _authenticate
 
 
 class DeliveryError(Exception):
@@ -97,7 +98,7 @@ class NotificationTransport:
                 if self.settings.smtp_security == "starttls":
                     client.starttls(context=ssl.create_default_context())
                 if self.settings.smtp_user:
-                    client.login(self.settings.smtp_user, self.settings.smtp_password.get_secret_value())
+                    _authenticate(client, self.settings.smtp_user, self.settings.smtp_password.get_secret_value())
                 client.send_message(message)
         except smtplib.SMTPResponseException as exc:
             raise DeliveryError("notification_smtp_failed", exc.smtp_code < 500) from exc

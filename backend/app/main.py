@@ -110,7 +110,7 @@ async def _application_lifespan(app: FastAPI):
     if settings.local_admin_mode:
         from app.services import auth as auth_service
         auth_service.bootstrap_local_admin()
-    elif authentication_required():
+    else:
         try:
             from app.services import auth as auth_service
             auth_service.bootstrap_registration_secret_from_env()
@@ -239,10 +239,12 @@ async def _application_lifespan(app: FastAPI):
         import threading
 
         from app.services.data_integrity import boot_integrity_check
+        from app.services.preferences import get_data_sync_auto_enabled
 
-        timer = threading.Timer(30.0, boot_integrity_check, args=(app.state,))
-        timer.daemon = True  # 不阻塞进程退出
-        timer.start()
+        if get_data_sync_auto_enabled():
+            timer = threading.Timer(30.0, boot_integrity_check, args=(app.state,))
+            timer.daemon = True  # 不阻塞进程退出
+            timer.start()
     except Exception as e:  # noqa: BLE001
         logger.warning("integrity boot check scheduling failed: %s", e)
 

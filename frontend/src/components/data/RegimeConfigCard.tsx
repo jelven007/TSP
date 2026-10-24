@@ -6,7 +6,7 @@ import { QK } from '@/lib/queryKeys'
 import { toast } from '@/components/Toast'
 
 /**
- * 市场环境(regime) 计算设置 —— 控制盘后管道是否自动计算 + 全量回填分批参数。
+ * 环境(regime) 计算设置 —— 控制盘后管道是否自动计算 + 全量回填分批参数。
  *
  * regime 是本地聚合计算(非外部拉取): 首次/regime 表为空时需全量回填多日,
  * 内存与耗时较高。分批参数控制全量回填的内存峰值: 范围超过「每批天数」时

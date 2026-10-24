@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from scripts.probe_tickflow_pro import run_dry_run, run_live
+from scripts.diagnostics.probe_tickflow_pro import run_dry_run, run_live
 
 
 class _FakeKlines:

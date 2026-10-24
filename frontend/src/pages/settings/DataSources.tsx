@@ -14,9 +14,7 @@ import {
   FileWarning,
   KeyRound,
   Landmark,
-  ListChecks,
   Loader2,
-  Lock,
   Plus,
   Puzzle,
   Radio,
@@ -38,12 +36,10 @@ import {
   type ProviderField,
 } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { useCapabilities, usePreferences } from '@/lib/useSharedQueries'
+import { usePreferences } from '@/lib/useSharedQueries'
 import { AnchorWrap } from '@/lib/useCardFlash'
-import { CAP_LABELS, TIER_RANK, tierRank, tierStyle, TierTag } from '@/lib/capability-labels'
 import { toast } from '@/components/Toast'
 import { DataSourceEditor } from './DataSourceEditor'
-import { TickFlowKeySection, TierHelpPopover, useInvalidateTierRelated } from './Keys'
 
 const DATASET_LABEL: Record<string, string> = {
   realtime: '实时',
@@ -66,44 +62,11 @@ const CAP_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   financial: Landmark,
 }
 
-/** TickFlow 档位要求文本: none → 全档位, 其余 → starter+ 形式 */
-function tierReqText(tier: string): string {
-  return tier === 'none' ? '全档位' : `${tier}+`
-}
-
-/** TickFlow 档位要求徽标: 按所需档位配色, 当前档位不足时琥珀描边提示。
- *  仅用于 TickFlow 详情的档位介绍表 (能力卡上不展示档位信息)。 */
-function TierReqChip({ tier, currentLabel }: { tier: string; currentLabel?: string }) {
-  const text = tierReqText(tier)
-  const req = TIER_RANK[tier] ?? -1
-  const unmet = currentLabel != null && tierRank(currentLabel) < req
-  const t = tierStyle(tier)
-  return (
-    <span
-      title={unmet
-        ? `TickFlow 该能力需 ${text} — 当前档位 ${currentLabel}`
-        : `TickFlow 该能力需 ${text}`}
-      className={`inline-flex h-[15px] shrink-0 items-center gap-1 rounded px-1.5 text-[9px] font-bold font-mono leading-none ${unmet ? 'ring-1 ring-warning/60' : ''}`}
-      style={t.tagBg}
-    >
-      <span className="h-1 w-1 rounded-full shrink-0" style={t.dotStyle} />
-      <span className="capitalize" style={t.labelTextStyle}>{text}</span>
-    </span>
-  )
-}
-
-/** TickFlow「已适配全档位」标识: Expert 三色渐变(全档位体系里最醒目的身份色) */
-function AllTiersBadge({ size = 'text-[10px]' }: { size?: string }) {
-  const t = tierStyle('expert')
-  return (
-    <span
-      className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 font-medium leading-none"
-      style={t.tagBg}
-      title="无 Key 到 Expert 各订阅档位均有可用能力 — 日K全档位可用, 除权/分钟/财务等高级能力按订阅档位解锁"
-    >
-      <span className={size} style={t.labelTextStyle}>✦ 已适配全档位</span>
-    </span>
-  )
+/** 设置页可选源顺序; 只派生展示列表, 保留缓存和已有生效路由。 */
+function orderedSettingsSources<T extends { name: string }>(sources: readonly T[]): T[] {
+  const priority = (name: string) => name === 'rustdx' ? 0 : name === 'fuyao' ? 1 : 2
+  return sources.filter(source => source.name !== 'tickflow')
+    .sort((left, right) => priority(left.name) - priority(right.name))
 }
 
 /** 提供方标签样式: 当前项高亮(accent), 其余弱化可点; 未就绪源禁用置灰 */
@@ -158,16 +121,6 @@ const DEFAULT_ROUTING: Record<ProviderField, string> = {
   financial_data_provider: 'rustdx',
 }
 
-const TICKFLOW_ROUTING: Partial<Record<ProviderField, string>> = {
-  daily_data_provider: 'tickflow',
-  adj_factor_provider: 'tickflow',
-  minute_data_provider: 'tickflow',
-  full_minute_data_provider: 'tickflow',
-  depth5_data_provider: 'tickflow',
-  realtime_data_provider: 'tickflow',
-  financial_data_provider: 'tickflow',
-}
-
 /** 单个能力卡: 当前生效提供方 + 候选切换标签。
  *  candidates 只含当前可提供该能力的源; 未就绪源 (pending) 可保存路由并提示;
  *  生效源无法提供该能力 (usable=False, 无论档位不足还是源未就绪) 时显示琥珀警示。 */
@@ -180,7 +133,8 @@ function CapabilityCard({ cap, pendingKey, onSelect }: {
   const busy = (provider: string) => pendingKey === `${cap.field}:${provider}`
   // 能力中立判定: usable=False 即当前路由的源供不了 (TickFlow 档位不足或插件未就绪同待遇)
   const unmet = !cap.usable
-  const chipsEmpty = cap.candidates.length === 0 && cap.pending.length === 0
+  const choices = orderedSettingsSources([...cap.candidates, ...cap.pending])
+  const pendingNames = new Set(cap.pending.map(source => source.name))
   return (
     <div className="rounded-lg border border-border/50 bg-elevated/20 px-3 py-2.5 flex flex-col transition-colors hover:border-border">
       <div className="flex items-center gap-1.5">
@@ -212,10 +166,9 @@ function CapabilityCard({ cap, pendingKey, onSelect }: {
 
       {/* 候选标签: 点谁该能力就由谁提供 */}
       <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border/50 min-h-[26px] items-center">
-        {cap.candidates.map(c => {
+        {choices.map(c => {
           const active = cap.current === c.name
-          // field=null → 不可路由能力 (仅 TickFlow 提供): 渲染为非交互标签,
-          // 保持激活高亮但不可点击 (用 button+disabled 会被 opacity-50 冲淡成灰色)
+          const pending = pendingNames.has(c.name)
           const routable = cap.field != null
           if (!routable) {
             return (
@@ -234,29 +187,16 @@ function CapabilityCard({ cap, pendingKey, onSelect }: {
               type="button"
               disabled={pendingKey != null}
               onClick={() => cap.field != null && onSelect(cap.field, c.name)}
-              title={`「${cap.label}」由 ${c.display} 提供`}
+              title={pending ? (c.note || c.status || '该源当前不可用') : `「${cap.label}」由 ${c.display} 提供`}
               className={tagCls(active)}
             >
+              {pending && <AlertCircle className="h-2.5 w-2.5" />}
               {busy(c.name) && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
-              {c.display}
+              {c.display}{pending ? ' · 未就绪' : ''}
             </button>
           )
         })}
-        {/* 未就绪源可先保存路由，实际可用性仍由后端检测决定 */}
-        {cap.pending.map(c => (
-          <button
-            key={c.name}
-            type="button"
-            disabled={cap.field == null || pendingKey != null}
-            onClick={() => cap.field != null && onSelect(cap.field, c.name)}
-            title={c.note || c.status || '该源当前不可用'}
-            className={tagCls(cap.current === c.name, false)}
-          >
-            <AlertCircle className="h-2.5 w-2.5" />
-            {c.display} · 未就绪
-          </button>
-        ))}
-        {chipsEmpty && (
+        {choices.length === 0 && (
           <span className="text-[10px] text-muted/50">
             暂无可用提供方
           </span>
@@ -528,37 +468,29 @@ function PluginKeyConfig({ plugin }: { plugin: PluginDataSourceItem }) {
   )
 }
 
-/** 能力芯片: 三态 — 服务中(高亮+勾) / 已适配(灰) / 档位锁定(锁, 仅 TickFlow) */
-function CapabilityChips({ caps, servingSet, isTickFlow }: {
+/** 能力芯片: 服务中(高亮+勾) / 已适配(灰)。 */
+function CapabilityChips({ caps, servingSet }: {
   caps: CapabilityRoute[]
   servingSet: Set<string>
-  isTickFlow: boolean
 }) {
   if (caps.length === 0) return <span className="text-[10px] text-muted/40">未声明能力</span>
   return (
     <div className="flex flex-wrap gap-1">
       {caps.map(cap => {
         const servingNow = servingSet.has(cap.id)
-        const locked = isTickFlow && !cap.tf_available
         const cls = servingNow
           ? 'bg-accent/15 text-accent'
-          : locked
-            ? 'bg-warning/8 text-warning/70'
-            : 'bg-elevated/60 text-muted/70'
+          : 'bg-elevated/60 text-muted/70'
         const title = servingNow
           ? `正在提供「${cap.label}」`
-          : locked
-            ? (cap.tf_tier ? `TickFlow 需 ${tierReqText(cap.tf_tier)} · 当前档位未解锁` : 'TickFlow 未提供此能力')
-            : `已适配「${cap.label}」`
+          : `已适配「${cap.label}」`
         return (
           <span
             key={cap.id}
             title={title}
             className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] leading-none ${cls}`}
           >
-            {servingNow
-              ? <Check className="h-2.5 w-2.5" />
-              : locked ? <Lock className="h-2.5 w-2.5" /> : null}
+            {servingNow && <Check className="h-2.5 w-2.5" />}
             {DATASET_LABEL[cap.id] || cap.id}
           </span>
         )
@@ -584,11 +516,11 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
   const pluginItems: DataSourceItem[] = pluginList.map(p => ({
     name: p.name, display_name: p.display_name, datasets: p.datasets,
   }))
-  const allItems = [
+  const allItems = orderedSettingsSources([
     ...builtin,
     ...pluginItems,
     ...customList,
-  ]
+  ])
   const customNames = new Set(customList.map(c => c.name))
 
   const selectedCustom = customList.find(s => s.name === selected)
@@ -643,9 +575,6 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
   const switchProvider = useMutation({
     mutationFn: async (name: string) => {
       // 一键套用: 该源适配了哪些数据集就接管哪些, 其余回默认
-      if (name === 'tickflow') {
-        return api.updateDataProviders(TICKFLOW_ROUTING)
-      }
       const supported = new Set(
         allItems.find(s => s.name === name)?.datasets ?? []
       )
@@ -739,9 +668,9 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
           <div className="text-[11px] leading-relaxed text-muted">
             <span className="text-secondary">数据源已插件化</span>
             ,接入自有行情?把文档发给 AI 即可自动接入:
-            <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">docs/custom-data-source.md</span>
+            <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">docs/reference/integrations.md#http</span>
             (自有 HTTP 接口) ·
-            <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">docs/plugin-development.md</span>
+            <span className="mx-0.5 rounded bg-elevated/70 px-1 py-px font-mono text-[10px] text-secondary">docs/reference/integrations.md#plugin</span>
             (插件开发)
           </div>
         </div>
@@ -750,13 +679,6 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {allItems.map(item => {
             const servingSet = servingSetOf(item.name)
-            const isTf = item.name === 'tickflow'
-            if (isTf) {
-              // 名义路由到 tickflow 但当前档位提供不了的能力 → 按锁定态展示, 不算服务中
-              for (const c of matrixCaps) {
-                if (!c.tf_available) servingSet.delete(c.id)
-              }
-            }
             const isSelected = selected === item.name
             const plugin = pluginMap.get(item.name)
             const pluginUnavailable = plugin && !plugin.available
@@ -765,16 +687,13 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
             const installing = installMut.isPending && installMut.variables === item.name
             const uninstalling = uninstallMut.isPending && uninstallMut.variables === item.name
             const declared = new Set(item.datasets)
-            // TickFlow 展示注册表全量能力 (含档位锁定态); 其余源按声明过滤
-            const chipCaps = isTf
-              ? matrixCaps
-              : matrixCaps.filter(c => declared.has(c.id))
+            const chipCaps = matrixCaps.filter(c => declared.has(c.id))
             return (
               <div
                 key={item.name}
                 onClick={() => {
                   setSelected(item.name)
-                  // 只有用户自定义源 (YAML) 才进编辑器; tickflow 和插件不可编辑
+                  // 只有用户自定义源 (YAML) 才进编辑器。
                   if (customNames.has(item.name)) {
                     editExisting.mutate(item.name)
                   }
@@ -785,7 +704,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
                       : 'border-border/60 bg-elevated/20 hover:bg-elevated/40 cursor-pointer'
                 }`}
               >
-                {/* 名称行: 服务点 + 名称 + 档位/第三方标识 */}
+                {/* 名称行: 服务点 + 名称 + 默认/第三方标识 */}
                 <div className="flex items-center gap-2">
                   <span
                     className={`h-1.5 w-1.5 rounded-full shrink-0 ${
@@ -795,9 +714,6 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
                   <span className={`text-sm truncate flex-1 ${servingCount > 0 ? 'font-medium text-foreground' : 'text-secondary'}`}>
                     {item.display_name}
                   </span>
-                  {isTf && matrix.data?.tickflow_tier && (
-                    <TierTag label={matrix.data.tickflow_tier} />
-                  )}
                   {item.name === 'rustdx' ? (
                     <span className="shrink-0 rounded bg-accent/10 px-1 py-0.5 text-[9px] font-medium leading-none text-accent">默认</span>
                   ) : !customNames.has(item.name) && (
@@ -805,9 +721,9 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
                   )}
                 </div>
 
-                {/* 能力芯片: 服务中 / 已适配 / 档位锁定 */}
+                {/* 能力芯片: 服务中 / 已适配 */}
                 <div className="mt-2">
-                  <CapabilityChips caps={chipCaps} servingSet={servingSet} isTickFlow={isTf} />
+                  <CapabilityChips caps={chipCaps} servingSet={servingSet} />
                 </div>
 
                 {/* 底部: 状态提示 + 操作 */}
@@ -905,7 +821,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
         )}
 
         <div className="mt-3 flex items-center gap-3 text-[10px] text-muted/50 flex-wrap">
-          <span>说明: 高亮=服务中 · 灰=已适配 · <Lock className="inline h-2.5 w-2.5" />=需更高档位</span>
+          <span>说明: 高亮=服务中 · 灰=已适配 · 未就绪=需要安装依赖或配置 Key</span>
           <span className="text-muted/30">·</span>
           <span>单击卡片查看介绍与配置, 点「套用」让该源接管其适配的全部能力</span>
         </div>
@@ -921,9 +837,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
         >
-          {selected === 'tickflow' ? (
-            <TickFlowDetail active={servingDatasets('tickflow').length > 0} matrix={matrix.data} />
-          ) : selected === '__new__' || customNames.has(selected) ? (
+          {selected === '__new__' || customNames.has(selected) ? (
             selected === '__new__' ? (
               <DataSourceEditor
                 key={selected}
@@ -1029,7 +943,6 @@ function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
             <CapabilityChips
               caps={matrixCaps.filter(c => declared.has(c.id))}
               servingSet={servingSet}
-              isTickFlow={false}
             />
           </div>
         </div>
@@ -1085,135 +998,6 @@ function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
               )
             })}
           </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/** TickFlow 详情: 介绍 + 能力档位表 + Key/可用功能左右两栏。
- *  检测档位集群 (档位徽章 + ? 说明 + 重新检测 + 可用功能悬停) 挂在 API Key 标题行右侧。 */
-function TickFlowDetail({ active, matrix }: { active: boolean; matrix?: CapabilityMatrix }) {
-  const caps = matrix?.capabilities ?? []
-  const tier = matrix?.tickflow_tier
-  const { data: tfCaps } = useCapabilities()
-  const capEntries = tfCaps ? Object.entries(tfCaps.capabilities) : []
-  const invalidate = useInvalidateTierRelated()
-  const redetect = useMutation({
-    mutationFn: () => api.redetectCapabilities(),
-    onSuccess: () => invalidate(),
-  })
-  // 检测档位集群: API Key 标题行右侧 (检测档位徽章 + 档位说明 + 重检测 + 可用功能悬停)
-  const tierCluster = tier ? (
-    <div className="flex items-center gap-1.5 shrink-0">
-      <span className="text-[10px] text-muted/80">检测档位</span>
-      <TierTag label={tier} />
-      <TierHelpPopover currentLabel={tfCaps?.label ?? tier} />
-      <button
-        type="button"
-        onClick={() => redetect.mutate()}
-        disabled={redetect.isPending}
-        title="根据 API Key 重新检测订阅档位"
-        className="inline-flex h-5 w-5 items-center justify-center rounded text-muted/60 hover:text-foreground hover:bg-elevated/70 transition-colors duration-150"
-      >
-        <RefreshCw className={`h-3 w-3 ${redetect.isPending ? 'animate-spin' : ''}`} />
-      </button>
-      {/* 可用功能: 收进悬停浮层, 不占版面 (能力清单 + 限频)。图标在标题行右侧, 浮层向左展开。
-          外层 top-full + pt-1.5: 间隙用内边距做, hover 区与图标无缝衔接 (mt 间隙会断 hover 链);
-          不设 pointer-events-none, 否则鼠标移不进浮层、列表无法滚动。 */}
-      <div className="relative group/caps shrink-0" aria-label="可用功能">
-        <span className="flex h-5 w-5 items-center justify-center rounded text-muted/60 transition-colors group-hover/caps:text-foreground">
-          <ListChecks className="h-3 w-3" />
-        </span>
-        <div className="invisible absolute right-0 top-full z-20 pt-1.5 opacity-0 transition-all duration-150 group-hover/caps:visible group-hover/caps:opacity-100">
-          <div className="w-64 rounded-md border border-border bg-surface py-2 pl-3 pr-3.5 shadow-2xl shadow-black/40">
-            <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-xs font-medium text-foreground">可用功能</span>
-              <span className="text-[10px] font-mono text-muted">{capEntries.length} 项</span>
-            </div>
-            {capEntries.length > 0 ? (
-              <div className="max-h-56 space-y-1 overflow-y-auto border-t border-border/60 pt-1.5">
-                {capEntries.map(([cap, lim]) => (
-                  <div key={cap} className="flex min-w-0 items-baseline gap-2">
-                    <span className="min-w-0 flex-1 truncate text-[11px] text-secondary">
-                      {CAP_LABELS[cap]?.name ?? cap}
-                    </span>
-                    <span className="shrink-0 font-mono text-[10px] text-muted">
-                      {lim.rpm ? `${lim.rpm}/min` : lim.subscribe ? `${lim.subscribe} 订阅` : '—'}
-                      {lim.batch ? ` · ${lim.batch}/次` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="border-t border-border/60 pt-1.5 text-[11px] text-muted">
-                暂无 — 配置 API Key 后自动检测
-              </div>
-            )}
-            <div className="mt-1.5 border-t border-border/60 pt-1.5 text-[10px] text-muted/70">
-              根据 API Key 自动检测
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  ) : null
-  return (
-    <section className="rounded-card border border-border bg-surface p-6">
-      {/* 介绍 */}
-      <div className="flex items-start gap-4">
-        <div className="h-11 w-11 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-          <Database className="h-5 w-5 text-accent" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-[16px] leading-6 font-semibold text-foreground">TickFlow</h2>
-            <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">第三方</span>
-            <AllTiersBadge />
-            {active && (
-              <span className="inline-flex items-center gap-1 text-[10px] text-accent bg-accent/10 px-2 py-1 rounded">
-                <Check className="h-2.5 w-2.5" /> 服务中
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-secondary mt-1.5 leading-relaxed">
-            可选数据源,每个能力所需订阅档位见下表 — 当前档位未解锁的能力不会出现在上方「能力路由」的选项里。
-            未单独设置的能力默认由 rustdx 提供;也可在数据源区切换为 TickFlow 或其他插件。
-          </p>
-        </div>
-      </div>
-
-      {/* 主体: API Key 配置 (左) | 能力档位表 (右) */}
-      <div className="mt-5 pt-5 border-t border-border grid grid-cols-1 lg:grid-cols-[1fr_1.15fr] gap-6 items-start">
-        <div className="min-w-0">
-          <TickFlowKeySection right={tierCluster} />
-        </div>
-        <div className="min-w-0">
-          {/* 能力档位表: 各能力所需档位 + 当前档位可用性 */}
-          {caps.length > 0 && (
-            <div className="rounded-lg border border-border/60 bg-elevated/20 divide-y divide-border/50">
-              {caps.map(cap => {
-                const Icon = CAP_ICON[cap.id] ?? Database
-                return (
-                  <div key={cap.id} className="flex items-center gap-2.5 px-3 py-1.5">
-                    <Icon className="h-3.5 w-3.5 text-secondary shrink-0" />
-                    <div className="flex-1 min-w-0 truncate">
-                      <span className="text-xs text-foreground">{cap.label}</span>
-                      <span className="ml-1.5 text-[10px] text-muted/60">{cap.desc}</span>
-                    </div>
-                    {cap.tf_tier && <TierReqChip tier={cap.tf_tier} currentLabel={tier} />}
-                    {cap.tf_available ? (
-                      <span className="w-[52px] text-right text-[10px] text-bear inline-flex items-center justify-end gap-0.5 shrink-0">
-                        <Check className="h-2.5 w-2.5" />可用
-                      </span>
-                    ) : (
-                      <span className="w-[52px] text-right text-[10px] text-warning/80 shrink-0">{cap.tf_tier ? '未解锁' : '未提供'}</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
         </div>
       </div>
     </section>

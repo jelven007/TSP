@@ -1,5 +1,5 @@
 /**
- * 看板 widgets 公共层 — 数值格式化与轻量展示件。
+ * 行情 widgets 公共层 — 数值格式化与轻量展示件。
  *
  * 从 pages/Dashboard.tsx 原样搬移(供 widgets.tsx 与 Dashboard 页共用),
  * 行为不变; A 股语义色约定: 红涨(text-bull)绿跌(text-bear)。

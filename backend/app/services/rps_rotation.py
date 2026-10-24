@@ -7,7 +7,7 @@
   - 个股历史涨跌幅: repo.get_enriched_range(..., columns=["symbol","date","change_pct"])
     命中启动时构建的 _enriched_history_cache (0ms, 含 change_pct 小数列)
   - 概念成分股映射: 复用 market_overview_builder 的 _dimension_field / _read_ext_rows /
-    _symbol_keys / _dimension_values, 与看板/复盘的概念聚合口径完全一致
+    _symbol_keys / _dimension_values, 与行情/复盘的概念聚合口径完全一致
 
 性能: 387 概念 × 30 天的 group_by + sort 是 polars 内存操作, 实测 <50ms;
 另加进程级结果缓存 (_CACHE_TTL=120s), 重复请求 <1ms。
@@ -31,7 +31,7 @@ from app.services.ext_data import ExtConfigStore
 logger = logging.getLogger(__name__)
 
 # 进程级结果缓存 (照搬 overview.py:18 的模式, TTL 拉长到 120s —— 轮动矩阵
-# 不像看板那样需要近实时, 盘后数据稳定, 缓存久一点无妨)
+# 不像行情那样需要近实时, 盘后数据稳定, 缓存久一点无妨)
 _CACHE_TTL = 120.0
 _cache: dict[str, dict] = {}
 _cache_ts: dict[str, float] = {}

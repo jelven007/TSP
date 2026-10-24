@@ -1,6 +1,6 @@
 """TSP MCP 服务器 — 开放接口的 AI 工具桥。
 
-架构 (docs/features.md → 开放接口):
+架构 (docs/reference/integrations.md#open → 开放接口):
   AI 客户端 (Claude/ZCode/Cursor…) ↔ MCP stdio (JSON-RPC) ↔ 本服务器
   ↔ HTTP + Bearer Token ↔ 面板开放网关 (scope 校验 + 限流)
 
@@ -89,7 +89,7 @@ if _has("read:analysis"):
 
     @mcp.tool()
     def get_regime_state() -> str:
-        """最新市场环境 (情绪周期阶段/环境分), 大盘择时判断的一手口径。"""
+        """最新环境 (情绪周期阶段/环境分), 大盘择时判断的一手口径。"""
         return _call("GET", "/api/regime/latest")
 
     @mcp.tool()

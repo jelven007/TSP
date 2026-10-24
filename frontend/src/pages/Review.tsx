@@ -1,7 +1,7 @@
 /**
  * AI 大盘复盘页 —— 以流式 LLM 复盘报告为主体的盘后复盘工作台。
  *
- * 设计定位:极简专注型。不复刻 Dashboard 的看板(KPI/雷达/板块排名),
+ * 设计定位:极简专注型。不复刻 Dashboard 的行情(KPI/雷达/板块排名),
  * 仅保留一行「市场摘要条」作为报告上下文参照;AI 报告 + 历史归档是页面主体。
  *  - 摘要数据:GET /api/overview/market
  *  - 报告流式:POST /api/market-recap/analyze
@@ -77,7 +77,7 @@ export function Review() {
   const [viewing, setViewing] = useState<AiReviewReport | null>(null)  // 查看历史报告
   const reportEndRef = useRef<HTMLDivElement>(null)
 
-  // 看板数据(与总览页同源)
+  // 行情数据(与总览页同源)
   const marketQuery = useQuery<OverviewMarket>({
     queryKey: QK.overviewMarket(asOf),
     queryFn: () => api.overviewMarket(asOf),
@@ -325,7 +325,7 @@ export function Review() {
             </div>
           ) : (
             <>
-              {/* ===== 市场摘要条(轻量上下文,非重复看板)===== */}
+              {/* ===== 市场摘要条(轻量上下文,非重复行情)===== */}
               <MarketSummaryBar data={data} />
 
 
@@ -633,7 +633,7 @@ export function Review() {
 }
 
 // ================================================================
-// 市场摘要条 —— 复盘页的轻量上下文(非重复看板)
+// 市场摘要条 —— 复盘页的轻量上下文(非重复行情)
 // 仅一行:三大指数涨跌 · 情绪分 · 涨停结构 · 成交额
 // 详细数据请去 Dashboard 看,这里只给 AI 报告提供背景参照
 // ================================================================

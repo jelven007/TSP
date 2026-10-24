@@ -1,4 +1,4 @@
-"""模拟盘 T+1 可卖数量在下单时按当前交易日现算, 不读物化持仓里过期的 available_qty。
+"""模拟交易 T+1 可卖数量在下单时按当前交易日现算, 不读物化持仓里过期的 available_qty。
 
 复现: 当日买入成交后 positions.json 里的 available_qty 是成交当日的 T+1 口径 (0);
 跨日后没有任何路径重建它 (只有再次成交 / 除权 / 手动 rebuild 才会), create_order

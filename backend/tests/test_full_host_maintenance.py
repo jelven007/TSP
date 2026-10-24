@@ -8,8 +8,8 @@ import time
 
 import pytest
 
-from scripts.backup_full_host import create_backup, parse_include, sha256_file
-from scripts.maintain_full_host import (
+from scripts.operations.backup_full_host import create_backup, parse_include, sha256_file
+from scripts.operations.maintain_full_host import (
     docker_prune_commands,
     referenced_releases_from_postgres,
     release_candidates,

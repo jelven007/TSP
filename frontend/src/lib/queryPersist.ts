@@ -27,7 +27,7 @@ const PERSISTABLE_KEY_ROOTS = new Set([
   'regime-coverage',
   'regime-phases',
   'regime-mainline',
-  'custom-signals',           // 自定义信号库
+  'custom-signals',           // 自定义信号指标
   'custom-signals-options',
 ])
 

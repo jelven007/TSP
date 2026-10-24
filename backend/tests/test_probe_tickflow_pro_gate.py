@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from scripts.probe_tickflow_pro import evaluate_gate
+from scripts.diagnostics.probe_tickflow_pro import evaluate_gate
 
 SH = ZoneInfo("Asia/Shanghai")
 

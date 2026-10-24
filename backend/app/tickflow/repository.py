@@ -605,7 +605,7 @@ class KlineRepository:
         """清空所有 Polars 内存缓存。
 
         与 refresh_cache 的区别: refresh_cache 在磁盘无数据时会提前 return,
-        导致内存里的旧缓存残留 (clear 数据后看板仍显示旧数据的根因)。
+        导致内存里的旧缓存残留 (clear 数据后行情仍显示旧数据的根因)。
         本方法无条件清空, 供清除数据/重置场景调用。
         """
         self.invalidate_computed_caches()
@@ -673,7 +673,7 @@ class KlineRepository:
             started = time.perf_counter()
             # _refresh_enriched 也可由缓存冷启动的首个请求直接触发, 不能假设
             # refresh_cache 已先加载维表。缺少 instruments 会让涨跌停/连板列
-            # 静默缺失, 并把半成品缓存发布给看板和选股器。
+            # 静默缺失, 并把半成品缓存发布给行情和选股器。
             if self._instruments_cache is None:
                 logger.info("enriched refresh dependency cold: loading instruments")
                 self._refresh_instruments()
@@ -686,7 +686,7 @@ class KlineRepository:
             logger.info("enriched refresh step done: latest date=%s (%.2fs)", latest, time.perf_counter() - step)
             if not latest:
                 # 磁盘已无数据: 必须清空内存缓存, 否则旧数据会残留
-                # (清数据后看板仍显示旧数据的根因)
+                # (清数据后行情仍显示旧数据的根因)
                 self.clear_cache()
                 logger.info("enriched refresh skipped: no latest date (%.2fs)", time.perf_counter() - started)
                 return "empty"

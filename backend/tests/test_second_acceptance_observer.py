@@ -8,7 +8,7 @@ import pytest
 
 from app.market_time import CN_TZ
 from app.services.second_quote_archive import build_snapshot_frame
-from scripts.observe_second_acceptance import (
+from scripts.acceptance.observe_second_acceptance import (
     Observer,
     arm,
     minute_coverage,
@@ -39,7 +39,7 @@ def observer(tmp_path, monkeypatch):
     )
     run_dir = tmp_path / "run"
     arm(run_dir, data_dir, START.date(), 1, START - timedelta(days=1))
-    monkeypatch.setattr("scripts.observe_second_acceptance.health", lambda _: {"ok": True})
+    monkeypatch.setattr("scripts.acceptance.observe_second_acceptance.health", lambda _: {"ok": True})
     return Observer(run_dir, "http://unused.test")
 
 

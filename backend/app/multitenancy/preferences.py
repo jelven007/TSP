@@ -8,11 +8,12 @@ from psycopg.types.json import Jsonb
 
 from app.cell.context import AccessError
 from app.cell.database import Databases
-from app.services.preferences import normalize_dashboard_layout
+from app.services.preferences import DEFAULT_NAV_ORDER, normalize_dashboard_layout
 
 DEFAULTS = {
     "dashboard_layout": None, "watchlist_columns": None, "screener_result_columns": None,
-    "watchlist_groups_in_nav": False, "sse_refresh_pages": {}, "nav_order": [], "nav_hidden": [],
+    "watchlist_groups_in_nav": False, "sse_refresh_pages": {},
+    "nav_order": list(DEFAULT_NAV_ORDER), "nav_hidden": [],
     "screener_auto_run": False,
 }
 EDITABLE = frozenset({"dashboard_layout", "watchlist_columns", "screener_result_columns"})

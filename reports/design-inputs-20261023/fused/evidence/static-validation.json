@@ -1,0 +1,23 @@
+{
+  "structure": {
+    "chapters": 14,
+    "sources": 18,
+    "unique_ids": 96,
+    "tables": 17
+  },
+  "local_links_and_assets": {
+    "checked": 120,
+    "broken": 0,
+    "remote_runtime_assets": 0
+  },
+  "content_consistency": {
+    "matched": true,
+    "non_whitespace_characters": 18571
+  },
+  "figures": {
+    "svg": 3,
+    "mermaid_sources": 3,
+    "reference_sha256": "085351c4a447c674ef77cda3b903bd33a441b2f3bb22c720ea0d40b4475fe64e"
+  },
+  "browser_evidence": "passed"
+}

@@ -5,7 +5,7 @@ import pytest
 
 from app.api.monitor_rules import _DEMO_STRATEGY_RULES
 from app.strategy.engine import StrategyEngine
-from scripts.run_governed_builtin_backtest import _validate_report_checkpoint
+from scripts.research.run_governed_builtin_backtest import _validate_report_checkpoint
 
 BUILTIN_DIR = Path(__file__).resolve().parents[1] / "app" / "strategy" / "builtin"
 RETIRED = {"trend_breakout", "limit_up_momentum", "broken_board_recovery"}

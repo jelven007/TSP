@@ -1,4 +1,4 @@
-"""市场环境(regime) API — 时序查询 + 手动重算。
+"""环境(regime) API — 时序查询 + 手动重算。
 
 装配逻辑在 app.services.regime_builder(纯函数), API 层薄壳 + TTL 缓存。
 """
