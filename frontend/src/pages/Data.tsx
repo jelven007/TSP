@@ -221,7 +221,7 @@ export function Data() {
   const pipelineSched = prefs.data?.pipeline_schedule ?? { hour: 15, minute: 35 }
   const instrumentsSched = prefs.data?.instruments_schedule ?? { hour: 9, minute: 10 }
   const indexDailyBatchSize = prefs.data?.index_daily_batch_size ?? 100
-  const autoSyncEnabled = prefs.data?.data_sync_auto_enabled ?? false
+  const autoSyncEnabled = prefs.data?.data_sync_auto_enabled ?? true
   const updateAutoSync = useMutation({
     mutationFn: (enabled: boolean) => api.updateDataSyncAuto(enabled),
     onSuccess: () => {
@@ -263,7 +263,7 @@ export function Data() {
   const quoteInterval = useQuoteInterval()
   const updateInterval = useUpdateQuoteInterval()
 
-  const realtimeEnabled = prefs.data?.realtime_quotes_enabled ?? false
+  const realtimeEnabled = prefs.data?.realtime_quotes_enabled ?? true
   const quoteStatus = useQuoteStatus()
   const toggleQuote = useToggleRealtimeQuotes()
 
@@ -272,7 +272,7 @@ export function Data() {
   const hasDailyBatchCap = usableOr('daily', !!tfCaps?.['kline.daily.batch'])
   const hasMinuteCap = usableOr('minute', !!tfCaps?.['kline.minute.batch'])
   const indexAuto = prefs.data?.pipeline_pull_index ?? true
-  const etfAuto = prefs.data?.pipeline_pull_etf ?? false
+  const etfAuto = prefs.data?.pipeline_pull_etf ?? true
   const pipelineSteps = [
     '日K',
     ...(hasAdjCap ? ['复权'] : []),
@@ -615,7 +615,9 @@ export function Data() {
         title="数据总览"
         className="flex-wrap max-lg:pl-16"
         subtitle={!hasData && !isLoading
-          ? (isRunning ? '首次全量同步正在进行' : '初始化后默认手动同步，请点击立即同步获取数据')
+          ? (isRunning ? '首次全量同步正在进行' : (autoSyncEnabled
+            ? '初始化后自动同步已开启，可查看同步进度或点击立即同步重试'
+            : '自动同步已关闭，请点击立即同步获取数据'))
           : '本地数据画像 · 同步状态 · 历史记录'}
         right={
           <div className="flex flex-wrap items-center gap-3 [&_button]:whitespace-nowrap">

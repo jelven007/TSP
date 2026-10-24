@@ -47,7 +47,7 @@
 需求总纲与八业务章节在同一手册中定义；目录/文档检查使用根`make check`，工具测试在`tests/tooling/`。
 完整本地变更、逐文件归属、初始化/认证/SMTP兼容和实际验证见
 [2026-10-24整合记录](reports/production-integration-20261024/verification.md)。
-新部署的默认多租户与手动同步按[配置手册](docs/operations.md#configuration)；
+新部署的默认多租户与自动同步按[配置手册](docs/operations.md#configuration)；
 真实凭据仅在受控配置中保存，源码恢复集合保留最新及五个历史版本。
 
 ### 2.1 技术栈

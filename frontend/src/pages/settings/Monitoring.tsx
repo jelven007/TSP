@@ -53,7 +53,7 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
   const updateInterval = useUpdateQuoteInterval()
   const toggleQuote = useToggleRealtimeQuotes()
   // 实时模式以 quote_status 为准 (数据源无关): full_market=全市场 / none=不可用
-  const realtimeEnabled = prefs?.realtime_quotes_enabled ?? false
+  const realtimeEnabled = prefs?.realtime_quotes_enabled ?? true
   // 分时图实时刷新间隔 (秒), 与后端 [3,60] clamp 对齐; 默认 6
   const intradayInterval = prefs?.minute_intraday_refresh_interval ?? 6
   // 滑块本地草稿: 拖动时即时反馈, 停顿 2s 后落库 (与行情轮询滑块一致)
@@ -414,12 +414,12 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
           </div>
         </Card>
 
-        {/* 自选列表分时图实时刷新 (默认关闭, 开启后盘中按设定间隔轮询刷新分时数据) */}
+        {/* 自选列表分时图实时刷新 (默认开启, 盘中按设定间隔轮询刷新分时数据) */}
         <Card icon={Activity} title="分时图刷新" anchor="intraday-refresh">
           <ToggleRow
             label="自选/策略分时图实时刷新"
             desc={`开启后自选与策略列表的分时图盘中每 ${intradayInterval} 秒自动刷新（依赖分钟K批量数据 + 实时行情运行）。关闭时仅打开页面时拉取一次, 可点表头刷新按钮手动更新。`}
-            checked={prefs?.minute_intraday_refresh ?? false}
+            checked={prefs?.minute_intraday_refresh ?? true}
             onChange={(v) => save({ minute_intraday_refresh: v })}
           />
           <div className="mt-3 pt-3 border-t border-border">
@@ -465,7 +465,7 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
               : rs?.running ? (rs?.in_trading_hours ? '服务运行中' : '运行中 · 非拉取时段暂停')
               : '已关闭'
             }
-            checked={prefs?.minute_refresh_enabled ?? false}
+            checked={prefs?.minute_refresh_enabled ?? true}
             onChange={(v) => save({ minute_refresh_enabled: v })}
             disabled={!hasFullMinuteCap}
           />

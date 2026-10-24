@@ -799,7 +799,7 @@ function FinishStep({ onNext, onBack, pending }: { onNext: () => void; onBack: (
         <div className="min-w-0">
           <div className="text-sm font-medium text-foreground">下一步:获取行情数据</div>
           <p className="mt-1 text-xs text-secondary leading-relaxed">
-            初始化后默认手动同步。进入数据总览页点击「立即同步」,获取近 1 年全 A 股行情及历史财务数据。同步期间可浏览其他页面。
+            初始化后默认自动同步,获取近 1 年全 A 股行情及历史财务数据。进入数据总览页查看进度,失败时可点击「立即同步」重试。同步期间可浏览其他页面。
           </p>
         </div>
       </motion.div>

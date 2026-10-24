@@ -1,4 +1,4 @@
-"""内置概念/行业默认手动拉取, 兼容修复空预设并保留用户配置。
+"""内置概念/行业默认自动拉取, 兼容修复空预设并保留用户配置。
 
 ensure_builtin_presets 只负责创建配置, 不直接等待网络请求; 随后
 PullScheduler.refresh 为 enabled 配置创建后台任务。旧版自动生成的空配置
@@ -29,8 +29,8 @@ def test_user_manual_matches_fresh_install_defaults(monkeypatch):
     monkeypatch.setattr(settings, "ext_industry_data_url", "")
     manual = (Path(__file__).resolve().parents[2] / "操作说明书.md").read_text()
     for preset in (_concept_preset(), _industry_preset()):
-        assert preset.pull.url and not preset.pull.enabled
-    assert "默认手动同步" in manual and "自动拉取" in manual
+        assert preset.pull.url and preset.pull.enabled
+    assert "默认自动同步" in manual and "自动拉取" in manual
     assert "空环境变量" in manual and "沿用默认" in manual
     assert "未配置 URL 时默认关闭" not in manual
     assert "首次启动会" in manual and "默认 rustdx" in manual
@@ -38,7 +38,7 @@ def test_user_manual_matches_fresh_install_defaults(monkeypatch):
     assert "自带默认拉取地址" in manual
 
 
-def test_builtin_presets_have_manual_defaults_with_empty_environment(
+def test_builtin_presets_have_auto_defaults_with_empty_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """复制旧 .env 示例的空 URL 也应使用可拉取的默认值。"""
@@ -51,17 +51,17 @@ def test_builtin_presets_have_manual_defaults_with_empty_environment(
     ):
         assert preset.pull is not None
         assert preset.pull.url == f"https://shy313.com/api/plugins/market_flow/exports/{endpoint}"
-        assert preset.pull.enabled is False
+        assert preset.pull.enabled is True
         assert preset.pull.schedule_minutes == 1
         assert preset.pull.time_window_start == "09:15"
         assert preset.pull.time_window_end == "15:15"
 
 
-def test_ensure_builtin_presets_writes_manual_configs(
+def test_ensure_builtin_presets_writes_auto_configs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """配置上游地址仍不启用自动任务。"""
+    """新配置使用覆盖地址并默认启用自动任务。"""
     monkeypatch.setattr(settings, "ext_concept_data_url", "https://data.example/concepts")
     monkeypatch.setattr(settings, "ext_industry_data_url", "https://data.example/industries")
 
@@ -73,19 +73,21 @@ def test_ensure_builtin_presets_writes_manual_configs(
         assert config is not None, f"{cid} 配置未创建"
         assert config.pull is not None
         assert config.pull.url.startswith("https://data.example/")
-        assert config.pull.enabled is False
+        assert config.pull.enabled is True
         assert config.pull.schedule_minutes == 1
         assert config.pull.time_window_start == "09:15"
         assert config.pull.time_window_end == "15:15"
 
 
-def test_fresh_builtin_presets_do_not_create_scheduled_pull_tasks(tmp_path, monkeypatch):
+def test_fresh_builtin_presets_create_both_scheduled_pull_tasks(tmp_path, monkeypatch):
     from app.services.ext_pull import PullScheduler
 
-    async def unexpected(*args, **kwargs):
-        pytest.fail("fresh initialization must not fetch extended data")
+    scheduled = []
 
-    monkeypatch.setattr(PullScheduler, "_run_loop", unexpected)
+    async def record_loop(self, config):
+        scheduled.append(config.id)
+
+    monkeypatch.setattr(PullScheduler, "_run_loop", record_loop)
 
     async def exercise():
         await ensure_builtin_presets(tmp_path)
@@ -94,7 +96,9 @@ def test_fresh_builtin_presets_do_not_create_scheduled_pull_tasks(tmp_path, monk
         try:
             scheduler.refresh(tmp_path)
             await asyncio.sleep(0)
-            assert scheduler._tasks == {}
+            await asyncio.sleep(0)
+            assert set(scheduler._tasks) == set(_PRESET_IDS)
+            assert set(scheduled) == set(_PRESET_IDS)
         finally:
             scheduler.stop()
 
@@ -176,17 +180,22 @@ def test_legacy_manual_preset_with_custom_pull_is_preserved(tmp_path):
 
 
 @pytest.mark.parametrize("cid", _PRESET_IDS)
-@pytest.mark.parametrize("legacy_description", [False, True])
+@pytest.mark.parametrize("legacy_description", ["current", "configured", "manual"])
 def test_empty_generated_preset_is_repaired_once(tmp_path, monkeypatch, cid, legacy_description):
     monkeypatch.setattr(settings, "ext_concept_data_url", "")
     monkeypatch.setattr(settings, "ext_industry_data_url", "")
     preset = _concept_preset() if cid == "ext_gn_ths" else _industry_preset()
     preset.pull.url = ""
     preset.pull.enabled = False
-    if legacy_description:
+    if legacy_description == "configured":
         preset.description = (
             f"{preset.label.replace('扩展', '同花顺')}分类 "
             "(配置上游后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)"
+        )
+    elif legacy_description == "manual":
+        preset.description = (
+            f"{preset.label.replace('扩展', '同花顺')}分类 "
+            "(默认手动获取; 开启自动拉取后, 交易日 09:15-11:30 / 13:00-15:15 每分钟更新)"
         )
     store = ExtConfigStore(tmp_path)
     store.upsert(preset)

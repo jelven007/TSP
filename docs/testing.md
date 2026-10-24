@@ -7,7 +7,7 @@
 
 2026-10-24 完整本地变更验证见[最新整合记录](../reports/production-integration-20261024/verification.md)：
 后端全量、仓库工具、前端 test/lint/build、原生 Cargo 和页面检查分别留证。
-首次手动同步与调度暂停、管理员幂等/旧身份、跨平台认证默认、
+历史批次覆盖首次手动同步与调度暂停、管理员幂等/旧身份、跨平台认证默认、
 SMTP未配置/优先级/LOGIN、路由保护和亮色恢复均纳入定向边界。
 CI、Docker手动质量门及桌面质量门提供独立 PostgreSQL 16 服务，
 `TSP_TEST_POSTGRES_DSN` 仅指向一次性测试库；默认配置测试自行清理环境变量，
@@ -17,6 +17,12 @@ Cargo 使用项目 `.venv/bin/python`，避免链接失效的系统 Python。
 Job 级 `env` 不允许引用 `runner` 上下文。工作流修改应另外运行
 `actionlint -shellcheck= -pyflakes=` 检查 Actions 表达式，YAML 解析不能替代该检查；
 该命令不执行内嵌 Shell/Python 的静态分析，实际运行结果仍由远程质量门确认。
+
+初始化自动同步回归覆盖缺省字段全部开启、已保存关闭值不被覆盖、首次任务单飞与
+部分落盘重试、修改时间保留暂停、完整性/五档启动门控、概念/行业后台任务与旧配置修复。
+财务回归断言周期同步在工作线程执行、互斥状态、同步时间和仓库写锁发布，并覆盖总开关关闭与
+能力缺失；见 `backend/tests/test_financial_auto_sync.py`。默认值统一见
+[运维配置](operations.md#config-数据页初始化默认值)，不把历史手动默认测试结论当作当前行为。
 
 本文档定义 TSP 的测试层次、最低门禁和版本验收流程。功能验收依据
 [需求基线](requirements.md)，工程细则依据[贡献与复审指南](../CONTRIBUTING.md)，
