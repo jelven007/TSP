@@ -257,7 +257,7 @@ Token 可以放在系统环境变量或项目 `.env` 中。
 1. 启动 mock 数据源:
 
 ```bash
-cd docs/examples/custom-data-source
+cd examples/custom-data-source
 python mock_server.py
 ```
 
@@ -265,7 +265,7 @@ python mock_server.py
 
 ```bash
 mkdir -p data/data_sources
-cp docs/examples/custom-data-source/mock_source.yaml data/data_sources/mock_source.yaml
+cp examples/custom-data-source/mock_source.yaml data/data_sources/mock_source.yaml
 ```
 
 3. 在「设置 -> 数据源」点击「重新加载」。
@@ -443,7 +443,18 @@ homepage: "https://example.com"          # (可选)官网/申请地址, 显示�
 
 只声明真实提供的数据集;未声明的数据集 `provider_has_dataset` 返回 False。
 能力矩阵以 `usable` 表示当前是否可用。不要声明做不了的数据集。
-股票、指数和 ETF 标的维表跟随日K源; 缺少标的接口时保留本地维表。
+股票当前维表固定使用沪深交易所官方目录，独立于八项行情能力路由；
+指数和 ETF 标的维表继续跟随日K源，缺少标的接口时保留本地维表。
+Provider 的 `get_instruments("stock")` 与元数据扩展方法保留兼容，但不再决定当前股票池。
+
+<a id="official-stock-catalog"></a>
+官方目录接入使用 `https://query.sse.com.cn/sseQuery/commonQuery.do`，
+`sqlId=COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L`，沪主板与科创板分别使用 `STOCK_TYPE=1/8`，
+核对 `pageHelp.total` 与结果数；深交所使用
+`https://www.szse.cn/api/report/ShowReport` 的 `CATALOGID=1110`、`TABKEY=tab1`、`SHOWTYPE=xlsx`，
+并用 `/api/report/ShowReport/data` 的 JSON 元数据核对原始下载行数。请求带官网 Referer，
+超时为 30 秒，全部板块成功且无重复代码才提交。深交所股本原值单位为股，不乘万。
+该公开接口可能调整字段或限流；失败保留旧快照，不跨源拼接或发布部分目录。
 
 <a id="plugin-api_key_env界面配置-api-key"></a>
 ##### api_key_env(界面配置 API Key)
@@ -595,13 +606,14 @@ class MyProvider:
         """财务数据(声明 financial 数据集时实现, table 见 financial_sync 调用)。"""
 
     def get_instruments(self, asset_type="stock") -> list[dict]:
-        """(可选)标的维表: 返回 tickflow Instrument 形状的行, 供 instrument_sync 复用 flatten"""
+        """(可选)标的维表: 返回 tickflow Instrument 形状的行。
+        ETF/指数同步沿用本接口；股票当前目录固定官方源。"""
 
     def get_instrument_metadata(self, symbols: list[str]) -> list[dict]:
-        """(可选)显式股票维表同步时补充元数据，不在实时名称查询中调用。
+        """(可选, 保留兼容)股票元数据，不在实时名称查询中调用。
         行含 symbol、listing_date(真实上市日ISO日期)、total_shares/float_shares(股)，
         可选 tick_size。可只返回可用字段；不得用首根K线日期冒充上市日。
-        服务只合并当前目录内的标的；失败/无效值保留旧值及其采集日期。
+        当前官方股票目录同步不调用本方法。
         provider 应限制并发并缓存，不能将网络取数放入实时行情热路径。"""
 
     def test_dataset(self, dataset: str, symbols=None) -> dict:

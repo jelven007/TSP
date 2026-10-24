@@ -595,19 +595,14 @@ def set_pipeline_schedule(hour: int, minute: int) -> dict:
 
 
 def get_instruments_schedule() -> dict:
-    """返回盘前标的维表调度时间 {"hour": 9, "minute": 10}。"""
-    d = load().get("instruments_schedule", {"hour": 9, "minute": 10})
-    return {"hour": d.get("hour", 9), "minute": d.get("minute", 10)}
+    """官方目录固定每天北京时间 09:00, 旧时间偏好不再改变该契约。"""
+    return {"hour": 9, "minute": 0}
 
 
 def set_instruments_schedule(hour: int, minute: int) -> dict:
-    h = max(0, min(23, hour))
-    m = max(0, min(59, minute))
-    # 盘前不晚于 09:15
-    if h * 60 + m > 9 * 60 + 15:
-        h, m = 9, 15
-    save({"instruments_schedule": {"hour": h, "minute": m}})
-    return {"hour": h, "minute": m}
+    if (hour, minute) != (9, 0):
+        raise ValueError("个股维表固定每天北京时间 09:00 同步")
+    return get_instruments_schedule()
 
 
 def get_enriched_batch_size() -> int:

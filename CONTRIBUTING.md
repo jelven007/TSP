@@ -47,6 +47,9 @@
 需求总纲与八业务章节在同一手册中定义；目录/文档检查使用根`make check`，工具测试在`tests/tooling/`。
 完整本地变更、逐文件归属、初始化/认证/SMTP兼容和实际验证见
 [2026-10-24整合记录](reports/production-integration-20261024/verification.md)。
+2026-10-25官方目录、管理员个人空间、共享顶栏及工程整理以
+[本次整合记录](reports/production-baseline-20261025/verification.md)为准。
+可运行样例统一归 `examples/`，源码恢复工具归 `scripts/release/`，继续遵守既有发布单元边界。
 新部署的默认多租户与自动同步按[配置手册](docs/operations.md#configuration)；
 真实凭据仅在受控配置中保存，源码恢复集合保留最新及五个历史版本。
 

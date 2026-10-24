@@ -1,9 +1,21 @@
 # 测试与验收指南
 
+2026-10-25本次结果统一见[生产基线验证](../reports/production-baseline-20261025/verification.md)。
+命令和矩阵定义“如何验证”；带日期的旧计数只证明当时版本。
+示例迁移验证从 `examples/custom-data-source/` 加载真实服务与YAML，
+检查日K、复权、实时响应。源码恢复工具的测试在
+`tests/tooling/test_source_recovery.py`，使用一次性Git仓库覆盖六版本选择、
+非主线标签排除、未打标签拒绝、归档损坏、路径越界、重复版本和旧目录保护。
+
 统一功能A–I、二期第三步3.1–3.6、负载/持续窗口、恢复目标和签收模板见
 [生产验收](#acceptance)。本地文件清单及实际检查见
 [生产体系验证](../reports/production-system-consolidation-20261023/verification.md)；
 历史通过数保持日期，不能计入本次。
+
+一级页面顶栏按 `FR-UI-05` 验证：PageHeader 保留富文本说明、状态和按钮回调，
+标题独立态不生成空工具栏；浏览器在1440px与390px下检查各菜单标题/间距/操作区边界，
+长工具栏可滚动、菜单按钮无遮挡，页签和弹窗保持原交互。浅/深色、加载/空/失败态
+沿用同一外观，不把页面暂无行情解释为顶栏渲染失败。
 
 2026-10-24 完整本地变更验证见[最新整合记录](../reports/production-integration-20261024/verification.md)：
 后端全量、仓库工具、前端 test/lint/build、原生 Cargo 和页面检查分别留证。
@@ -23,6 +35,16 @@ Job 级 `env` 不允许引用 `runner` 上下文。工作流修改应另外运�
 财务回归断言周期同步在工作线程执行、互斥状态、同步时间和仓库写锁发布，并覆盖总开关关闭与
 能力缺失；见 `backend/tests/test_financial_auto_sync.py`。默认值统一见
 [运维配置](operations.md#config-数据页初始化默认值)，不把历史手动默认测试结论当作当前行为。
+
+官方个股目录回归见 `test_official_stock_catalog.py`、`test_instrument_catalog_admin.py`：
+覆盖两市四板、总数与字段校验、股本单位、重复/空/不完整目录拒绝、下载失败保留快照、
+管理员 CRUD、成员 403、代码/股本验证、同日删除 tombstone、写入失败恢复历史、
+元数据来源保留及与行情任务独立单飞。`test_manual_sync_defaults.py` 断言启动同步、
+周末与节假日的北京时间 09:00 cron、总开关关闭仍执行目录任务；关闭路径断言外层
+协程取消后仍等待下载线程结束，下载前取消进入终态。历史状态、缓存与发布同时复核。
+前端 `StockCatalogDialog.test.tsx` 覆盖新增/编辑表单重置、CRUD、删除确认及拒绝写入时保留草稿。
+页面联调使用真实组件、API、仓库和隔离临时数据，检查桌面暗色及 390px 亮色下的
+表单滚动、增改、删除确认/取消、错误重试及成员拒绝；完整应用认证部署另沿用平台门禁。
 
 本文档定义 TSP 的测试层次、最低门禁和版本验收流程。功能验收依据
 [需求基线](requirements.md)，工程细则依据[贡献与复审指南](../CONTRIBUTING.md)，
@@ -130,7 +152,10 @@ uv run --frozen --no-sync pytest tests/test_config_env.py tests/test_auth_env_bo
 
 `test_full_identity.py` 的数据库验收需要隔离 PostgreSQL 和
 `TSP_TEST_POSTGRES_DSN`；运行角色创建管理员和无 DDL 权限必须通过真实数据库验证，
-启动顺序 mock 不能替代此项。本轮SMTP自动化使用模拟传输，未执行真实邮箱认证或投递。
+启动顺序 mock 不能替代此项。管理员默认空间验收包括私有业务读写与跨租户拒绝、
+并发初始化、重启后数据/密码/角色/租户选择保留、已就绪空间复用、双库激活失败后
+登录重试、容量不足和停用账户不被重新启用；`test_default_identity_startup.py` 另核对启动接线。
+本轮SMTP自动化使用模拟传输，未执行真实邮箱认证或投递。
 原生桥接安装检查不连接外部节点；缺失、依赖版本、来源提交、接口或连接上限不匹配
 均以非零状态退出。默认依赖回归见 `tests/test_rustdx_installation.py`，本地协议
 连接池回归见 `tests/test_rustdx_native_pool.py`。

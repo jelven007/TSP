@@ -72,6 +72,8 @@ def invalidate_data_cache(table: str | None = None) -> None:
         elif table in _table_cache:
             _table_cache[table] = None
             _table_cache_ts[table] = 0.0
+            if table == "instruments":
+                _last_finished_cache = None
 
 
 def invalidate_storage_cache() -> None:

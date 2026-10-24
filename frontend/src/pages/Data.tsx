@@ -44,6 +44,7 @@ import { StatCard, type FieldTab, type CapLimitValue } from '@/components/data/S
 import { ActiveJobCard } from '@/components/data/ActiveJobCard'
 import { SectionTitle, HistoryRow } from '@/components/data/SectionTitle'
 import { SettingsModal } from '@/components/data/SettingsModal'
+import { StockCatalogDialog } from '@/components/data/StockCatalogDialog'
 import { ScheduleEditor } from '@/components/data/ScheduleEditor'
 import { ExtendHistoryPanel } from '@/components/data/ExtendHistoryPanel'
 import { RepairDailyPanel } from '@/components/data/RepairDailyPanel'
@@ -145,19 +146,9 @@ export function Data() {
     },
   })
 
-  const updateInstSchedule = useMutation({
-    mutationFn: ({ hour, minute }: { hour: number; minute: number }) =>
-      api.updateInstrumentsSchedule(hour, minute),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QK.preferences })
-      qc.invalidateQueries({ queryKey: QK.dataStatus })
-      setShowInstScheduleEdit(false)
-    },
-  })
-
   const [openSettings, setOpenSettings] = useState<string | null>(null)
   const [showScheduleEdit, setShowScheduleEdit] = useState(false)
-  const [showInstScheduleEdit, setShowInstScheduleEdit] = useState(false)
+  const [showStockCatalog, setShowStockCatalog] = useState(false)
   const [indexExtendValue, setIndexExtendValue] = useState(6)
   const [indexExtendUnit, setIndexExtendUnit] = useState<'month' | 'year'>('month')
   const [schemaTable, setSchemaTable] = useState<string | null>(null)
@@ -219,7 +210,6 @@ export function Data() {
 
   const minuteAuto = prefs.data?.minute_sync_enabled ?? true
   const pipelineSched = prefs.data?.pipeline_schedule ?? { hour: 15, minute: 35 }
-  const instrumentsSched = prefs.data?.instruments_schedule ?? { hour: 9, minute: 10 }
   const indexDailyBatchSize = prefs.data?.index_daily_batch_size ?? 100
   const autoSyncEnabled = prefs.data?.data_sync_auto_enabled ?? true
   const updateAutoSync = useMutation({
@@ -266,6 +256,14 @@ export function Data() {
   const realtimeEnabled = prefs.data?.realtime_quotes_enabled ?? true
   const quoteStatus = useQuoteStatus()
   const toggleQuote = useToggleRealtimeQuotes()
+  const realtimeIntervalS = quoteInterval.data?.interval ?? quoteStatus.data?.interval_s ?? 1
+  const intradayStatus = !realtimeEnabled ? '已关闭'
+    : quoteStatus.isLoading ? '加载中…'
+    : quoteStatus.isError ? '状态获取失败'
+    : quoteStatus.data?.paused ? '同步期间暂停'
+    : quoteStatus.data?.running
+      ? (quoteStatus.data.is_trading_hours ? '行情运行中' : '非交易时段暂停')
+      : '已停止'
 
   // 路由感知能力门控: 矩阵判定生效源可用性, 未加载回退套餐视角
   const hasAdjCap = usableOr('adj_factor', !!tfCaps?.['adj_factor'])
@@ -421,7 +419,7 @@ export function Data() {
         return (
           <StatCard
             title="个股维表"
-            hint="盘前同步 · 元数据快照"
+            hint="沪深官方名单 · 每天 09:00"
             stats={s?.instruments}
             isInstrument
             loading={isLoading}
@@ -431,8 +429,9 @@ export function Data() {
             stagePct={activeCard === 'instruments' ? (job.data?.stage_pct ?? 0) : 0}
             tierKey="instruments"
             capLimits={mergedCaps}
+            customProvider="沪深交易所"
             auto
-            manual={!autoSyncEnabled}
+            onManage={() => setShowStockCatalog(true)}
             onShowFields={() => setSchemaTable('instruments')}
           />
         )
@@ -610,10 +609,10 @@ export function Data() {
 
   return (
     <>
+      {showStockCatalog && <StockCatalogDialog onClose={() => setShowStockCatalog(false)} />}
       <div ref={topRef} />
       <PageHeader
         title="数据总览"
-        className="flex-wrap max-lg:pl-16"
         subtitle={!hasData && !isLoading
           ? (isRunning ? '首次全量同步正在进行' : (autoSyncEnabled
             ? '初始化后自动同步已开启，可查看同步进度或点击立即同步重试'
@@ -734,26 +733,28 @@ export function Data() {
           )}
         </AnimatePresence>
 
-        {/* 实时行情 + 存储 + 调度 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <QuoteConfigCard
-            enabled={realtimeEnabled}
-            running={quoteStatus.data?.running ?? false}
-            isTrading={quoteStatus.data?.is_trading_hours ?? false}
-            lastFetchMs={quoteStatus.data?.last_fetch_ms ?? null}
-            intervalS={quoteInterval.data?.interval ?? quoteStatus.data?.interval_s ?? 1}
-            intervalMin={quoteInterval.data?.min_interval ?? 1}
-            intervalMax={quoteInterval.data?.max_interval ?? 60}
-            loading={quoteStatus.isLoading}
-            onToggle={(v) => toggleQuote.mutate(v)}
-            toggling={toggleQuote.isPending}
-            showIntervalEdit={showIntervalEdit}
-            onShowIntervalEdit={handleToggleIntervalEdit}
-            onIntervalChange={(v) => updateInterval.mutate(v)}
-          />
+        {/* 实时行情 / 同步调度 / 存储：桌面 1:2:1，窄屏纵向排列 */}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+          <div className="min-w-0 [&>div]:h-full">
+            <QuoteConfigCard
+              enabled={realtimeEnabled}
+              running={quoteStatus.data?.running ?? false}
+              isTrading={quoteStatus.data?.is_trading_hours ?? false}
+              lastFetchMs={quoteStatus.data?.last_fetch_ms ?? null}
+              intervalS={realtimeIntervalS}
+              intervalMin={quoteInterval.data?.min_interval ?? 1}
+              intervalMax={quoteInterval.data?.max_interval ?? 60}
+              loading={quoteStatus.isLoading}
+              onToggle={(v) => toggleQuote.mutate(v)}
+              toggling={toggleQuote.isPending}
+              showIntervalEdit={showIntervalEdit}
+              onShowIntervalEdit={handleToggleIntervalEdit}
+              onIntervalChange={(v) => updateInterval.mutate(v)}
+            />
+          </div>
 
           {/* 自动调度 */}
-          <div className="rounded-card border border-border bg-surface p-4">
+          <div className="min-w-0 xl:col-span-2 rounded-card border border-border bg-surface p-4">
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="h-4 w-4 text-secondary" />
               <h3 className="text-sm font-medium text-foreground">同步调度</h3>
@@ -780,18 +781,25 @@ export function Data() {
                 </div>
                 <p className="text-[11px] text-muted leading-relaxed">
                   {autoSyncEnabled
-                    ? '已开启盘前、盘后、竞价快照和五档定版任务。'
-                    : '手动模式：定时同步和启动补跑均已暂停，点击立即同步获取数据。'}
+                    ? '已开启盘后行情、竞价快照和五档定版任务。个股维表始终自动同步。'
+                    : '手动模式：行情定时任务和启动补跑已暂停。个股维表仍在启动时及每天 09:00 自动同步。'}
                 </p>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted pb-2 border-b border-border/50">
-                  <span className="text-accent/60 font-medium">盘前</span>
-                  <span>个股维表</span>
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted pb-2 border-b border-border/50">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="text-accent/60 font-medium">盘前</span>
+                    <span>个股维表</span>
+                  </span>
+                  <span className="text-border">→</span>
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="text-accent/60 font-medium">盘中</span>
+                    <span>实时行情</span>
+                  </span>
                   <span className="text-border">→</span>
                   <span className="text-accent/60 font-medium">盘后</span>
                   {pipelineSteps.map((step, i) => (
                     <span key={step} className="contents">
                       {i > 0 && <span className="text-border">→</span>}
-                      <span>{step}</span>
+                      <span className="whitespace-nowrap">{step}</span>
                     </span>
                   ))}
                 </div>
@@ -804,14 +812,8 @@ export function Data() {
                     <span className="text-muted">盘前 · 个股维表</span>
                     <span className="text-muted/50">·</span>
                     <span className="font-mono text-secondary">
-                      {`${String(instrumentsSched.hour).padStart(2, '0')}:${String(instrumentsSched.minute).padStart(2, '0')}`}
+                      09:00
                     </span>
-                    <button
-                      onClick={() => setShowInstScheduleEdit(v => !v)}
-                      className={`p-0.5 rounded hover:bg-elevated transition-colors ${showInstScheduleEdit ? 'text-accent' : 'text-secondary'}`}
-                    >
-                      <Clock className="h-3 w-3" />
-                    </button>
                   </div>
                   <div className="flex items-center gap-2 font-mono text-secondary">
                     {s?.last_instruments_run && (
@@ -828,24 +830,14 @@ export function Data() {
                     )}
                   </div>
                 </div>
-                <AnimatePresence>
-                  {showInstScheduleEdit && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                      className="overflow-hidden"
-                    >
-                      <ScheduleEditor
-                        value={instrumentsSched}
-                        onSave={(h, m) => updateInstSchedule.mutate({ hour: h, minute: m })}
-                        loading={updateInstSchedule.isPending}
-                        hint="不晚于 09:15"
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px]">
+                  <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+                    <span className="text-muted">盘中 · 实时行情</span>
+                    <span className="text-muted/50">·</span>
+                    <span className="font-mono text-secondary">09:15–11:30 / 13:00–15:15</span>
+                  </div>
+                  <span className="text-secondary">{intradayStatus} · {realtimeIntervalS}s</span>
+                </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <div className="flex items-center gap-1">
                     <span className="text-muted">盘后 · 全量管道</span>
@@ -898,7 +890,7 @@ export function Data() {
           </div>
 
           {/* 存储 */}
-          <div className="rounded-card border border-border bg-surface p-4">
+          <div className="min-w-0 rounded-card border border-border bg-surface p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <HardDrive className="h-4 w-4 text-secondary" />
@@ -912,7 +904,7 @@ export function Data() {
             </div>
             <div className="space-y-2">
               {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
+                Array.from({ length: 7 }).map((_, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <Skeleton w="w-10" />
                     <div className="flex items-center gap-3">
@@ -923,13 +915,14 @@ export function Data() {
                 ))
               ) : [
                 { label: '个股维表', files: s?.storage.instruments_files, size: s?.storage.instruments_size_mb },
-                { label: '日 K',     files: s?.storage.daily_files,       size: s?.storage.daily_size_mb },
+                { label: '分钟K',   files: s?.storage.minute_files,      size: s?.storage.minute_size_mb },
+                { label: '日K',     files: s?.storage.daily_files,       size: s?.storage.daily_size_mb },
                 { label: '除权因子', files: s?.storage.adj_factor_files,  size: s?.storage.adj_factor_size_mb },
                 { label: 'Enriched', files: s?.storage.enriched_files,    size: s?.storage.enriched_size_mb },
-                { label: '分钟 K',   files: s?.storage.minute_files,      size: s?.storage.minute_size_mb },
                 { label: '财务数据', files: s?.storage.financials_files,   size: s?.storage.financials_size_mb },
+                { label: '扩展数据', files: s?.storage.ext_data_files,    size: s?.storage.ext_data_size_mb },
               ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between text-[11px]">
+                <div key={item.label} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px]">
                   <span className="text-muted">{item.label}</span>
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-secondary">{item.files ?? 0} 文件</span>
@@ -937,18 +930,6 @@ export function Data() {
                   </div>
                 </div>
               ))}
-              {/* 扩展数据 */}
-              {(extConfigs.data && (extConfigs.data.items?.length ?? 0) > 0) && (
-                <div className="flex items-center justify-between text-[11px] border-t border-border/50 pt-2 mt-1">
-                  <span className="text-muted">扩展数据</span>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-secondary">{s?.storage.ext_data_files ?? extConfigs.data.items.length} 文件</span>
-                    <span className="font-mono text-muted w-16 text-right">
-                      {s?.storage.ext_data_size_mb != null ? `${s.storage.ext_data_size_mb.toFixed(1)} MB` : '—'}
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

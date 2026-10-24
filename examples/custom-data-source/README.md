@@ -5,7 +5,7 @@
 ## 运行 mock 服务
 
 ```bash
-cd docs/examples/custom-data-source
+cd examples/custom-data-source
 python mock_server.py
 ```
 
@@ -29,7 +29,7 @@ http://127.0.0.1:3021
 
 ```bash
 mkdir -p data/data_sources
-cp docs/examples/custom-data-source/mock_source.yaml data/data_sources/mock_source.yaml
+cp examples/custom-data-source/mock_source.yaml data/data_sources/mock_source.yaml
 ```
 
 然后在项目里打开:
@@ -40,4 +40,4 @@ cp docs/examples/custom-data-source/mock_source.yaml data/data_sources/mock_sour
 
 选择 `mock_source` 后,可用「试拉测试」验证 `daily`、`adj_factor` 和 `realtime`。
 
-完整说明见 [../../custom-data-source.md](../../reference/integrations.md#http)。
+完整说明见[自定义 HTTP 数据源](../../docs/reference/integrations.md#http)。

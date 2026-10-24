@@ -275,7 +275,12 @@ class JobStore:
                 timeout_s = preferences.get_data_source_job_timeout_s()
 
         with self._lock:
-            if self._active_id:
+            # 目录同步只写小型维表, 不占行情重任务单飞槽; 同类目录任务仍去重。
+            if kind == "instruments_sync":
+                for active in self._active_jobs.values():
+                    if active.get("kind") == kind and active.get("status") in ACTIVE_TASK_STATUSES:
+                        return active["id"], False
+            elif self._active_id:
                 active = self._active_jobs.get(self._active_id)
                 if active and active.get("status") in ACTIVE_TASK_STATUSES:
                     return self._active_id, False
@@ -308,7 +313,8 @@ class JobStore:
                 "timeout_s": timeout_s,
             }
             self._active_jobs[job_id] = job
-            self._active_id = job_id
+            if kind != "instruments_sync":
+                self._active_id = job_id
             # queued 即落盘: 进程在 start() 前死亡时记录也不丢
             self._delete_oldest()
             self._write_file(job)

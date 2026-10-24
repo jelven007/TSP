@@ -176,7 +176,7 @@ def full_snapshot(request: Request, authorization: Annotated[str | None, Header(
     if sector_service:
         targets = [target for values in sector_service.list_targets().values() for target in values]
         sectors = sector_service.build_snapshots(
-            repo.get_enriched_latest()[0], service.get_index_quotes(), targets, set(range(1, 31)), now=time.time(),
+            repo.get_enriched_latest(refresh=False)[0], service.get_index_quotes(), targets, set(range(1, 31)), now=time.time(),
         )
     abnormal = []
     if status.get("is_trading_hours"):

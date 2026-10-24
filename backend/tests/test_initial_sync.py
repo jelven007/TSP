@@ -146,6 +146,10 @@ def four_board_pipeline(tmp_path, monkeypatch):
         get_depth_batch=lambda selected: {s: {"bid_prices": [9.0]} for s in selected},
     )
     monkeypatch.setattr(custom, "get_provider", lambda name: provider)
+    monkeypatch.setattr(
+        "app.data_providers.official_stock_catalog.fetch_official_stock_catalog",
+        lambda: [{"symbol": s, "name": s} for s in symbols],
+    )
     monkeypatch.setattr(custom, "is_custom_provider", lambda name: True)
     monkeypatch.setattr(custom, "provider_has_dataset", lambda name, dataset: True)
     monkeypatch.setattr(initial_sync, "get_provider", lambda name: provider)

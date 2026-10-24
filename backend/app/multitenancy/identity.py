@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import threading
 import uuid
@@ -14,6 +15,7 @@ from app.cell.database import Databases
 from app.cell.passwords import DUMMY_HASH, DUMMY_SALT, hash_password, token_hash, verify_password
 from app.services import email_adapter
 
+logger = logging.getLogger(__name__)
 _PASSWORD_BUDGET = threading.BoundedSemaphore(4)
 CODE_TTL = 600
 RESEND_SECONDS = 60
@@ -144,6 +146,12 @@ class AccountIdentity:
             self.provision(user["id"])
         elif not user["active"]:
             raise AccessError(401, "用户名/邮箱或密码错误")
+        elif not user["default_tenant_id"]:
+            # Retry interrupted administrator setup without blocking management.
+            try:
+                self.ensure_admin_tenant(user["id"])
+            except AccessError as exc:
+                logger.warning("administrator tenant initialization deferred (%s)", exc.status)
         return self._session(user["id"], user["auth_version"])
 
     def logout(self, token: str) -> None:
@@ -515,6 +523,72 @@ class AccountIdentity:
         self.provision(user_id)
         return self._session(user_id)
 
+    def ensure_admin_tenant(self, user_id: str) -> bool:
+        """Give active administrators a recoverable personal scope if missing."""
+        with self.db.control.connection() as conn, conn.transaction():
+            user = conn.execute(
+                "SELECT * FROM control.users WHERE id=%s FOR UPDATE", (user_id,),
+            ).fetchone()
+            if (not user or not user["active"] or user["account_state"] != "active"
+                    or user["default_tenant_id"] or not conn.execute(
+                        "SELECT 1 FROM control.user_roles WHERE user_id=%s AND role_id='admin'",
+                        (user_id,),
+                    ).fetchone()):
+                return False
+            job = conn.execute(
+                """SELECT j.*,t.cell_id,t.status FROM control.provisioning_jobs j
+                   JOIN control.tenants t ON t.id=j.tenant_id WHERE j.user_id=%s""", (user_id,),
+            ).fetchone()
+            if job and job["state"] == "ready":
+                if job["cell_id"] != self.db.settings.id or job["status"] != "active":
+                    raise AccessError(409, "租户初始化记录不可用")
+                conn.execute(
+                    "UPDATE control.users SET default_tenant_id=%s WHERE id=%s", (job["tenant_id"], user_id),
+                )
+                from app.multitenancy.stream_auth import notify_access_change
+
+                notify_access_change(conn, user_id=user_id)
+                return True
+            if not job:
+                # Share the registration capacity lock; reserve before data DML.
+                cell = conn.execute(
+                    "SELECT * FROM control.cells WHERE id=%s AND status='active' FOR UPDATE",
+                    (self.db.settings.id,),
+                ).fetchone()
+                count = conn.execute(
+                    "SELECT count(*) AS n FROM control.tenants WHERE cell_id=%s", (self.db.settings.id,),
+                ).fetchone()["n"]
+                if not cell or count >= cell["tenant_limit"]:
+                    raise AccessError(503, "租户容量暂时不足，请稍后重试")
+                tenant_id = uuid.uuid4().hex
+                name = user["username"] or user["email"].split("@")[0]
+                conn.execute(
+                    """INSERT INTO control.tenants(id,name,cell_id,status)
+                       VALUES(%s,%s,%s,'moving')""", (tenant_id, name + "的工作空间", self.db.settings.id),
+                )
+                conn.execute("INSERT INTO control.memberships VALUES(%s,%s,'owner')", (tenant_id, user_id))
+                conn.execute(
+                    "INSERT INTO control.provisioning_jobs(id,user_id,tenant_id) VALUES(%s,%s,%s)",
+                    (uuid.uuid4().hex, user_id, tenant_id),
+                )
+        self.provision(user_id)
+        return True
+
+    def bootstrap_admin_tenants(self) -> int:
+        with self.db.control.connection() as conn:
+            users = conn.execute(
+                """SELECT u.id FROM control.users u JOIN control.user_roles r ON r.user_id=u.id
+                   WHERE r.role_id='admin' AND u.active AND u.account_state='active'
+                     AND u.default_tenant_id IS NULL ORDER BY u.created_at,u.id"""
+            ).fetchall()
+        initialized = 0
+        for user in users:
+            try:
+                initialized += int(self.ensure_admin_tenant(user["id"]))
+            except AccessError as exc:
+                logger.warning("administrator tenant initialization deferred (%s)", exc.status)
+        return initialized
+
     def provision(self, user_id: str) -> None:
         """Independent commits; any failure leaves the same durable job to retry."""
         with self.db.control.connection() as conn:
@@ -550,6 +624,16 @@ class AccountIdentity:
                     """UPDATE control.users SET active=true,account_state='active',default_tenant_id=%s
                        WHERE id=%s AND account_state='pending'""", (job["tenant_id"], user_id),
                 )
+                assigned = conn.execute(
+                    """UPDATE control.users SET default_tenant_id=%s
+                       WHERE id=%s AND active AND account_state='active' AND default_tenant_id IS NULL
+                         AND EXISTS(SELECT 1 FROM control.user_roles WHERE user_id=%s AND role_id='admin')""",
+                    (job["tenant_id"], user_id, user_id),
+                ).rowcount
+                if assigned:
+                    from app.multitenancy.stream_auth import notify_access_change
+
+                    notify_access_change(conn, user_id=user_id)
                 conn.execute(
                     """UPDATE control.provisioning_jobs SET state='ready',attempts=attempts+1,
                        last_error=NULL,updated_at=now() WHERE id=%s""", (job["id"],),

@@ -22,6 +22,10 @@ def isolated_preferences(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("stored_off", [False, True])
 def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
+    catalog_calls = []
+    async def catalog(*args, **kwargs):
+        catalog_calls.append(kwargs["source"])
+    monkeypatch.setattr(daily_pipeline, "run_catalog_job", catalog)
     if stored_off:
         preferences.save({"data_sync_auto_enabled": False})
     monkeypatch.setattr(
@@ -35,8 +39,14 @@ def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
             jobs = {job.id: job for job in scheduler.get_jobs()}
             assert "auction_snapshot_catchup" in jobs
             assert jobs["reprobe_capabilities"].next_run_time is not None
-            data_ids = set(jobs) - {"reprobe_capabilities"}
-            assert {"pre_market_instruments", "daily_pipeline", "depth_finalize"} <= data_ids
+            data_ids = set(jobs) - {"reprobe_capabilities", "pre_market_instruments"}
+            assert {"daily_pipeline", "depth_finalize"} <= data_ids
+            assert jobs["pre_market_instruments"].next_run_time is not None
+            trigger = jobs["pre_market_instruments"].trigger
+            for day in (datetime(2026, 10, 24, 8), datetime(2026, 10, 1, 8)):
+                next_run = trigger.get_next_fire_time(None, day.replace(tzinfo=ZoneInfo("Asia/Shanghai")))
+                assert next_run.date() == day.date()
+                assert (next_run.hour, next_run.minute) == (9, 0)
             assert all(
                 (jobs[job_id].next_run_time is None) is stored_off for job_id in data_ids
             )
@@ -52,7 +62,7 @@ def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
                 settings_api.PipelineScheduleIn(hour=16, minute=10), request,
             )
             settings_api.update_instruments_schedule(
-                settings_api.PipelineScheduleIn(hour=9, minute=5), request,
+                settings_api.PipelineScheduleIn(hour=9, minute=0), request,
             )
             settings_api.update_depth_finalize_time(
                 settings_api.DepthFinalizeTimeIn(hour=16, minute=5), request,
@@ -70,8 +80,11 @@ def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
             settings_api.update_data_sync_auto(settings_api.DataSyncAutoIn(enabled=False), request)
             assert all(scheduler.get_job(job_id).next_run_time is None for job_id in data_ids)
             assert scheduler.get_job("reprobe_capabilities").next_run_time is not None
+            assert scheduler.get_job("pre_market_instruments").next_run_time is not None
         finally:
             scheduler.shutdown(wait=False)
+            await daily_pipeline.stop_catalog_jobs()
+            assert catalog_calls == ["startup"]
         await asyncio.sleep(0)
 
     asyncio.run(exercise())

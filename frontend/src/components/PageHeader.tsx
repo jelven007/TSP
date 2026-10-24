@@ -13,22 +13,27 @@ export function PageHeader({ title, subtitle, titleExtra, right, className }: Pr
   return (
     <header
       className={cn(
-        'px-5 pt-3 pb-2 border-b border-border flex items-center justify-between gap-4',
+        'page-header min-h-16 shrink-0 border-b border-border bg-base px-5 pb-2 pt-3 max-lg:pl-16',
+        'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 lg:flex-nowrap',
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col justify-center gap-0.5">
-        <div className="flex items-center gap-2">
-          <h1 className="shrink-0 whitespace-nowrap bg-gradient-to-b from-foreground via-foreground to-accent/80 bg-clip-text text-xl font-semibold tracking-normal text-transparent">
+      <div className="flex min-h-[42px] min-w-0 flex-col justify-start gap-0.5 lg:max-w-sm lg:shrink-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h1 className="self-start shrink-0 whitespace-nowrap bg-gradient-to-b from-foreground via-foreground to-accent/80 bg-clip-text text-xl font-semibold tracking-normal text-transparent">
             {title}
           </h1>
           {titleExtra}
         </div>
         {subtitle && (
-          <span className="truncate whitespace-nowrap text-[10px] leading-tight text-muted">{subtitle}</span>
+          <div className="truncate text-[10px] leading-tight text-muted">{subtitle}</div>
         )}
       </div>
-      {right}
+      {right && (
+        <div className="page-header-actions flex min-w-0 w-full items-center gap-2 overflow-x-auto lg:w-auto">
+          {right}
+        </div>
+      )}
     </header>
   )
 }
