@@ -98,3 +98,13 @@ def test_save_config_rejects_invalid_scoring_direction(tmp_path):
             strategy_id="saved_params",
             overrides={"scoring_directions": {"rsi_14": "sideways"}},
         ), request)
+
+
+def test_strategy_detail_exposes_group_configuration_without_expanded_member_snapshot():
+    engine, _ = _make_engine()
+    detail = strategy_api._strategy_detail(engine.get("saved_params"), {
+        "basic_filter": {"target_mode": "selected", "boards": [], "include_custom": True,
+                         "watchlist_group_ids": ["core"], "target_symbols": ["600000.SH"]},
+    }, engine)
+    assert detail["basic_filter"]["watchlist_group_ids"] == ["core"]
+    assert "target_symbols" not in detail["basic_filter"]

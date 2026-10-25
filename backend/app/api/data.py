@@ -32,7 +32,7 @@ _TABLE_TTL_LARGE = 120.0  # 大表(分钟K等)单独 TTL，避免多分区聚合
 _STORAGE_TTL = 60.0  # storage 文件扫描独立 TTL,stage 写完不触发重算
 
 # 聚合慢的大表（分区数多、行数多），使用更长的 TTL
-_LARGE_TABLES = {"minute"}
+_LARGE_TABLES = {"minute", "5m", "10m", "15m", "weekly"}
 
 def _get_table_stats(name: str, fetch: Callable[[], dict | None], *, data_dir: Path) -> dict | None:
     """走 TTL+事件 双重缓存。fetch 在锁外执行避免阻塞别的请求。"""
@@ -349,13 +349,13 @@ def _safe_aggregate_adj_factor(repo) -> dict | None:
         return None
 
 
-def _safe_aggregate_minute(repo) -> dict | None:
+def _safe_aggregate_minute(repo, table: str = "kline_minute") -> dict | None:
     """kline_minute 统计。
 
     分钟 K 按 date=YYYY-MM-DD 分区存储；日期直接取目录名，行数由 Parquet
     元数据统计，标的数只扫描 symbol 列。结果使用大表 TTL 缓存。
     """
-    minute_dir = repo.store.data_dir / "kline_minute"
+    minute_dir = repo.store.data_dir / table
     if not minute_dir.exists():
         return None
 
@@ -470,6 +470,10 @@ def _compute_storage(data_dir: Path) -> dict:
         "etf_instruments": data_dir / "instruments_etf",
         "etf_adj_factor": data_dir / "adj_factor_etf",
         "minute": data_dir / "kline_minute",
+        "5m": data_dir / "kline_5minute",
+        "10m": data_dir / "kline_10minute",
+        "15m": data_dir / "kline_15minute",
+        "weekly": data_dir / "kline_weekly",
         "adj_factor": data_dir / "adj_factor",
         "instruments": data_dir / "instruments",
         "ext_data": data_dir / "ext_data",
@@ -578,6 +582,10 @@ def status(request: Request) -> dict:
         "etf_enriched": table_stats("etf_enriched", lambda: _safe_aggregate_etf_enriched(repo)),
         "etf_instruments": table_stats("etf_instruments", lambda: _safe_aggregate_etf_instruments(repo)),
         "minute": table_stats("minute", lambda: _safe_aggregate_minute(repo)),
+        "5m": table_stats("5m", lambda: _safe_aggregate_minute(repo, "kline_5minute")),
+        "10m": table_stats("10m", lambda: _safe_aggregate_minute(repo, "kline_10minute")),
+        "15m": table_stats("15m", lambda: _safe_aggregate_minute(repo, "kline_15minute")),
+        "weekly": table_stats("weekly", lambda: _safe_aggregate_minute(repo, "kline_weekly")),
         "adj_factor": table_stats("adj_factor", lambda: _safe_aggregate_adj_factor(repo)),
         "instruments": table_stats("instruments", lambda: _safe_aggregate_instruments(repo)),
         "financials": table_stats("financials", lambda: _safe_aggregate_financials(repo)),
@@ -628,6 +636,7 @@ def clear_data(request: Request):
     for sub in (
         "kline_daily", "kline_daily_enriched", "kline_index_daily", "kline_index_enriched",
         "kline_etf_daily", "kline_etf_enriched", "kline_etf_minute", "kline_minute",
+        "kline_5minute", "kline_10minute", "kline_15minute", "kline_weekly",
         "adj_factor", "adj_factor_etf", "instruments", "instrument_status",
         "instruments_index", "instruments_etf", "pools", "financials",
         "backtest_results", "screener_results", "ai_cache",
@@ -788,6 +797,10 @@ _TABLE_FIELD_DESC: dict[str, dict[str, str]] = {
 }
 
 # view 名 → DuckDB 视图名
+for _period_table in ("kline_5minute", "kline_10minute", "kline_15minute"):
+    _TABLE_FIELD_DESC[_period_table] = _TABLE_FIELD_DESC["kline_minute"]
+_TABLE_FIELD_DESC["kline_weekly"] = _TABLE_FIELD_DESC["kline_daily"]
+
 _SCHEMA_VIEWS: dict[str, str] = {
     "daily": "kline_daily",
     "enriched": "kline_enriched",
@@ -798,6 +811,10 @@ _SCHEMA_VIEWS: dict[str, str] = {
     "etf_enriched": "kline_etf_enriched",
     "etf_instruments": "instruments_etf",
     "minute": "kline_minute",
+    "5m": "kline_5minute",
+    "10m": "kline_10minute",
+    "15m": "kline_15minute",
+    "weekly": "kline_weekly",
     "adj_factor": "adj_factor",
     "instruments": "instruments",
 }

@@ -44,7 +44,6 @@ _DATASETS = (
     "minute",
     "depth5",
     "financial",
-    "full_minute",
 )
 _DAILY_FREQUENCY = 9
 _MINUTE_FREQUENCIES = {"1m": 8, "5m": 0, "15m": 1, "30m": 2, "60m": 3, "1h": 3}
@@ -540,6 +539,25 @@ class RustdxProvider:
             raise RustdxError(f"日K取数不完整, 拒绝提交: {failed_symbols[:5]}")
         if frames:
             yield pl.concat(frames, how="diagonal_relaxed")
+
+    def get_klines(
+        self, symbols: list[str], start_time: datetime | None,
+        end_time: datetime | None, asset_type: str = "stock", freq: str = "1d",
+    ) -> pl.DataFrame:
+        if freq == "1d":
+            return self.get_daily(symbols, start_time, end_time, asset_type)
+        if freq in ("1m", "5m", "15m"):
+            return self.get_minute(symbols, start_time, end_time, asset_type, freq)
+        if freq != "1w":
+            raise ValueError(f"不支持的K线周期: {freq}")
+        frames = []
+        with self._client_factory() as client:
+            for symbol in symbols:
+                raw = self._bar_records(client, symbol, 5, start_time, end_time)
+                frame = self._daily_frame(raw, symbol, start_time, end_time)
+                if not frame.is_empty():
+                    frames.append(frame)
+        return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
 
     def get_daily(
         self,

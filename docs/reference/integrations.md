@@ -1,5 +1,15 @@
 # 数据源与开放接口接入
 
+六周期画像使用可选统一方法
+`get_klines(symbols, start_time, end_time, asset_type="stock", freq="1d")`，
+接受 `1m/5m/15m/1d/1w`，10分钟只由本地1分钟聚合，不发送给供应商。
+分钟返回北京时间naive `datetime`、日/周返回`date`及原始OHLCV，volume沿用手、amount为元。
+TickFlow共用`klines.batch(period=...)`；rustdx共用bars频率8/0/1/9/5。
+自定义HTTP源使用minute/daily既有配置，`freq_param`同时写入请求参数/请求体；
+未配置周期参数的旧源只允许原1m/1d，其他周期明确拒绝。
+旧插件未实现统一方法时保持1m/1d兼容，不据方法签名猜测其他周期支持。
+日K批量streaming与分钟增量优化仍保留，上游历史保留期限按真实返回覆盖报告。
+
 本附录按领域维护实现方法、数据契约和可执行示例。通用开发要求只在[CONTRIBUTING](../../CONTRIBUTING.md)定义；需求与当前/目标边界见[需求](../requirements.md)和[系统方案](../architecture.md#current)。带日期的结果仅证明原版本、环境和窗口，不是本次重新执行的验证。
 
 - [1. 声明式 HTTP 数据源](#http)
@@ -20,7 +30,7 @@
 <a id="http-支持范围"></a>
 ### 支持范围
 
-当前 YAML 声明式自定义源支持能力矩阵八类数据中的七类:
+当前 YAML 声明式自定义源支持能力矩阵七类数据中的六类:
 
 | 数据集 | 配置名 | 说明 |
 | --- | --- | --- |
@@ -28,14 +38,13 @@
 | 除权因子 | `adj_factor` | 批量返回一组股票的复权因子 |
 | 公司行为 | `corporate_actions` | 分红、送转、配股事件；日期证据不足时不放行相关模拟账务 |
 | 实时行情 | `realtime` | 返回全市场快照,用于盘中 enriched 增量计算 |
-| 分钟K | `minute` | 返回 1m 分钟K(需映射出 symbol / datetime / OHLC / 量额) |
-| 全量分钟 | `full_minute` | 与 `minute` 同形;声明后可被路由为「全量分钟」生效源,内置服务盘中按当日窗口全市场批量落盘(仅修复轮语义,节奏下限 60s) |
+| 分钟K | `minute` | 返回 1m 分钟K(需映射出 symbol / datetime / OHLC / 量额)，历史查询与盘中当日窗口落盘共用配置 |
 | 财务数据 | `financial` | 一个配置覆盖全部财务表,请求时把表名作为参数传给上游;字段由数据源决定,仅需映射出 symbol |
 
 YAML 声明式源暂不支持深度盘口 `depth5`；该能力可由 TickFlow、rustdx 或实现
 `get_depth_batch` 的 Python/Node Provider 插件提供。
 
-`full_minute` 声明式源只提供修复轮(当日窗口批量);廉价增量端点
+YAML `minute` 在盘中只提供修复轮(当日窗口批量，间隔至少60秒);廉价增量端点
 (`get_intraday_latest`)是 Python 插件契约,见
 [plugin-development.md](#plugin)。
 
@@ -62,6 +71,16 @@ curl -b cookies.txt -X POST http://127.0.0.1:3018/api/settings/data-sources/relo
 
 <a id="http-最小-yaml"></a>
 ### 最小 YAML
+
+新增/编辑数据源的数据集列表按实时、K线、除权、公司、财务排列。
+K线分组内分别配置日K与分钟K接口和映射，分组开关一起启停；旧单一配置保留，
+不会在打开时补建另一项。保存仍使用 `daily`、`minute` 等现有数据集键，
+不写入 `kline`。公司对应 `corporate_actions`，不改变事件日期校验。
+财务对应 `financial`，预填报告期、公告日、核心指标、利润、资产负债、现金流和股本
+映射行；未填写外部字段名的草稿行不提交。一个接口按 `table` 区分
+`metrics/income/balance_sheet/cash_flow/shares`，测试默认请求 `metrics`。
+金额用元、每股值用元/股、股本用股；财务比例为百分数值（12.3 表示12.3%），
+缺失指标保持未知，不从复权因子生成财务指标。
 
 ```yaml
 name: mock_source
@@ -347,7 +366,7 @@ cp examples/custom-data-source/mock_source.yaml data/data_sources/mock_source.ya
   # 上游若返回百分数值 (3.66 表示 3.66%), 在 realtime 数据集声明 pct_unit: percent,
   # 不要依赖数值自动识别; 逐列转换也可用 transforms: turnover_rate: "value / 100"
 
-分钟K (minute) 与 全量分钟 (full_minute, 字段同 minute):
+分钟K (minute，历史与盘中落盘共用):
   symbol = 股票代码
   # datetime 必须是北京时间墙钟 (如 2026-08-28 09:35:00), 不要返回 UTC;
   # 入口守卫会自动纠偏 UTC 特征帧, 但契约仍要求源头写对
@@ -433,7 +452,7 @@ display_name: "我的数据源"                 # 设置页显示名
 runtime: none                            # 运行时类型: node | python | none
 entry: app.plugins.my_source.provider:MyProvider   # provider 类的导入路径
 check: app.plugins.my_source.bridge:availability   # 可用性检测函数(可选)
-datasets: [realtime]                     # 可声明八项，含 corporate_actions；仅列真实实现的数据集
+datasets: [realtime]                     # 可声明七项，含 corporate_actions；仅列真实实现的数据集
 api_key_env: MY_SOURCE_API_KEY           # (可选)声明后设置页提供 Key 输入框
 hidden: false                            # (可选)true = 已加载但对设置页隐藏,不注册不展示
 description: "数据源描述"
@@ -443,7 +462,7 @@ homepage: "https://example.com"          # (可选)官网/申请地址, 显示�
 
 只声明真实提供的数据集;未声明的数据集 `provider_has_dataset` 返回 False。
 能力矩阵以 `usable` 表示当前是否可用。不要声明做不了的数据集。
-股票当前维表固定使用沪深交易所官方目录，独立于八项行情能力路由；
+股票当前维表固定使用沪深交易所官方目录，独立于七项行情能力路由；
 指数和 ETF 标的维表继续跟随日K源，缺少标的接口时保留本地维表。
 Provider 的 `get_instruments("stock")` 与元数据扩展方法保留兼容，但不再决定当前股票池。
 
@@ -580,11 +599,11 @@ class MyProvider:
         """分钟K: [symbol, datetime(北京墙钟), open, high, low, close, volume, amount(元, 可空)]"""
 
     def get_intraday_batch(self, symbols, count=300, asset_type="stock") -> pl.DataFrame:
-        """(声明 full_minute 数据集时实现) 全量分钟修复轮: 给定标的当日 1 分钟K,
+        """(minute 的可选优化) 盘中修复轮: 给定标的当日 1 分钟K,
         canonical 8 列同 get_minute; 内部自行分块/限速。"""
 
     def get_intraday_latest(self, symbols=None, count=3) -> pl.DataFrame:
-        """(可选, full_minute 稳态增量轮) 尽量单请求返回全市场每只最新 count 根;
+        """(可选, minute 盘中稳态增量轮) 尽量单请求返回全市场每只最新 count 根;
         服务显式传入当日股票池 symbols; 空股票池不发请求。
         兼容旧的 count-only 方法, 返回结果仍限制在服务股票池内。
         symbols=None 仅供 provider 独立调用时使用其默认目录。
@@ -657,13 +676,12 @@ provider 不应自行切换或回退到其他数据源。
 深历史（TickFlow 基准）。浅源声明后，个股分时档位自动收窄为可行选项并默认
 5 日，深源默认 20 日。
 
-> **全量分钟 (full_minute) 数据集契约**:声明 `full_minute` 数据集并把
-> `full_minute_data_provider` 路由到你的源,即接入「全量分钟」能力(盘中全市场
-> 当日分钟K增量落盘,由内置服务 `minute_refresh` 调度,与 TickFlow Expert 同一
-> 能力键 `intraday.universe`)。需实现:
+> **分钟K盘中落盘契约**：声明 `minute` 并设置 `minute_data_provider`，
+> 历史分钟与内置 `minute_refresh` 全市场当日落盘共用同一源。
+> TickFlow 的 `intraday.universe` 是供应商端点权限，不为插件补授。可选优化方法：
 >
 > - `get_intraday_batch(symbols, count=300, asset_type="stock") -> pl.DataFrame`
->   — **必须**(或已有 `get_minute` 自动回退,但强烈建议实现批量端点)。
+>   — 可选，未实现时复用 `get_minute` 当日窗口。
 >   返回给定标的当日 1 分钟K,canonical 8 列
 >   `[symbol, datetime(北京墙钟 naive), open, high, low, close, volume, amount]`,
 >   内部自行分块/限速。服务在冷启动、覆盖断档、连续空轮时调用(修复轮)。
@@ -681,9 +699,10 @@ provider 不应自行切换或回退到其他数据源。
 >
 > 两个方法的返回帧都过 `_enforce_minute_beijing_wallclock` 时区守卫(与
 > `get_minute` 同纪律);失败抛异常或返回空 df 均按空轮处理,连续空轮触发
-> 修复轮自愈。声明方式:插件在 `plugin.yaml` 的 `datasets:` 列表加入
-> `full_minute`。YAML 声明式源同样支持(数据集配置与 `minute` 同形,仅提供
-> 修复轮语义,见 [custom-data-source.md](#http))。
+> 修复轮自愈。插件在 `plugin.yaml` 的 `datasets:` 声明 `minute`；
+> YAML 复用 `minute` 配置且仅提供修复轮，见[HTTP源](#http)。
+> 旧 `full_minute` YAML 配置与试拉仍可读取，不进入独立路由或能力增广；
+> 仅声明旧数据集的源不自动变成历史分钟源，应配置真实 `minute` 接口。
 
 <a id="plugin-异常语义"></a>
 #### 异常语义
@@ -816,7 +835,9 @@ uv run --extra dev python -m ruff check app/plugins/<your_plugin>/ tests/test_<y
 <a id="rustdx-rustdx-数据源"></a>
 ## 3. rustdx 运行时与来源边界
 
-rustdx 是内置默认数据源，当前八类能力的初始值和界面缺省值统一为 rustdx。
+rustdx 是内置默认数据源，七项内部数据集的初始值统一为 rustdx；
+设置页按实时、K线、除权、财务四类展示，K线包含日K与分钟K，四类均已适配。
+类别定义来自矩阵 `settings_groups`，不改变插件 `datasets` 声明或数据字段契约。
 TickFlow 和 fuyao 是两种备选数据源，各能力仍可独立选择。已移除的旧源路由在读取
 时自动恢复为 rustdx，下次普通保存时持久化；其他有效用户选择保持原值。
 
@@ -860,12 +881,11 @@ rustdx 全市场分钟逐股取数，有效轮次间隔至少 60 秒，保留原
 - 除权因子
 - 公司行为：分红、送转、配股数值；登记/到账/上市等日期尚无认证证据
 - 实时行情
-- 分钟 K
+- 分钟 K（历史与盘中全市场落盘）
 - 五档盘口
 - 历史财务指标、三大报表和历史股本
-- 全量分钟
 
-行业、概念、龙虎榜和启用前的竞价历史不在这八类能力内，rustdx 当前不提供这些
+行业、概念、龙虎榜和启用前的竞价历史不在这七类能力内，rustdx 当前不提供这些
 数据。扩展分类使用内置默认 URL，可由 `EXT_*_DATA_URL` 或页面覆盖。历史 ST 治理与回测印花税
 约束保持有效，当前证券目录不能代替历史状态。
 
@@ -916,7 +936,7 @@ Standalone 和多租户 Platform 在数据目录没有股票日线时记录待�
 多租户 API、Gateway 和 Worker 不触发公共数据初始化。
 已有日线和已保存的合法配置保留。
 
-实时行情及 ETF 范围、分时图/全量分钟刷新、盘后 ETF、秒级归档和内置概念/行业
+实时行情及 ETF 范围、分时图/盘中分钟刷新、盘后 ETF、秒级归档和内置概念/行业
 自动拉取缺省开启；各服务仍检查能力和执行窗口。财务能力可用时默认启动周期任务，
 启动后 60 秒首轮、随后约每周同步 metrics，执行时检查总开关并复用后台线程、
 互斥与公共发布路径；首次任务仍拉取全部五张历史财务表。

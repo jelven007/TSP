@@ -49,11 +49,14 @@ class TenantStrategyEngine(StrategyEngine):
     # avoiding private signal/factor columns in shared repository caches.
     remote_context = True
 
-    def __init__(self, documents: TenantDocuments, builtins: StrategyEngine, executor: ComputeExecutor):
+    def __init__(self, documents: TenantDocuments, builtins: StrategyEngine, executor: ComputeExecutor,
+                 *, administrator: bool = False):
         self.documents = documents
         self.builtins = builtins
         self.executor = executor
-        super().__init__([], override_loader=lambda sid: documents.get("strategy_overrides", sid, {}))
+        self.administrator = administrator
+        from app.strategy.config import load_override
+        super().__init__([], override_loader=lambda sid: load_override(documents, sid))
         self.reload()
 
     def reload(self) -> None:
@@ -73,15 +76,25 @@ class TenantStrategyEngine(StrategyEngine):
     def task(self, kind: str, **values) -> dict:
         if getattr(self, "_task_snapshot", None) is not None:
             return {**copy.deepcopy(self._task_snapshot), "kind": kind, **values}
-        return {
-            "kind": kind, "tenant_id": self.documents.context.tenant_id,
-            "sources": self.documents.values("strategy_sources"),
-            "overrides": {row["id"]: row["value"] for row in self.documents.records("strategy_overrides")},
-            "factors": self.documents.values("custom_factors"),
-            "signals": self.documents.values("custom_signals"),
-            **({"public_release_id": self.public_release_id} if getattr(self, "public_release_id", None) else {}),
-            **values,
-        }
+        from app.multitenancy.watchlist import Watchlist
+        from app.strategy.config import list_overrides
+        from app.strategy.targets import resolve
+
+        with self.documents.transaction(write=False) as session:
+            if kind in {"backtest", "optimize", "walkforward"} and isinstance(values.get("config"), dict):
+                values = copy.deepcopy(values)
+                values["config"]["overrides"] = resolve(session, values["config"].get("overrides") or {})
+            return {
+                "kind": kind, "tenant_id": self.documents.context.tenant_id,
+                "administrator": self.administrator,
+                "sources": session.values("strategy_sources"),
+                "overrides": list_overrides(session),
+                "watchlist": Watchlist._rows(session.connection),
+                "factors": session.values("custom_factors"),
+                "signals": session.values("custom_signals"),
+                **({"public_release_id": self.public_release_id} if getattr(self, "public_release_id", None) else {}),
+                **values,
+            }
 
     def save_source(
         self, sid: str, code: str, source: str, *, mode: str = "create", cancel=None, verify_access=None,

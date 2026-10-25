@@ -23,7 +23,6 @@ import {
   Route,
   Save,
   Scale,
-  Timer,
   Trash2,
   Zap,
 } from 'lucide-react'
@@ -42,25 +41,48 @@ import { AnchorWrap } from '@/lib/useCardFlash'
 import { toast } from '@/components/Toast'
 import { DataSourceEditor } from './DataSourceEditor'
 
-const DATASET_LABEL: Record<string, string> = {
-  realtime: '实时',
-  daily: '日K',
-  minute: '分钟',
-  adj_factor: '除权',
-  corporate_actions: '公司行为',
-  depth5: '五档',
-  financial: '财务',
-  full_minute: '全量分钟',
-}
-
 /** 能力图标 (纯展示; 能力清单本身由后端注册表驱动) */
 const CAP_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   realtime: Radio,
-  daily: CandlestickIcon,
-  minute: Timer,
-  full_minute: Zap,
+  kline: CandlestickIcon,
   adj_factor: Scale,
   financial: Landmark,
+}
+
+interface SettingsCapability extends CapabilityRoute {
+  fields: ProviderField[]
+  datasets: string[]
+}
+
+/** 合并展示不改写保存值；组合能力只允许同时声明全部数据集的源。 */
+function settingsCapabilities(matrix: CapabilityMatrix | undefined): SettingsCapability[] {
+  return (matrix?.settings_groups ?? []).flatMap(group => {
+    const members = group.datasets.map(id => matrix?.capabilities.find(cap => cap.id === id))
+    if (members.some(cap => !cap)) return []
+    const routes = members as CapabilityRoute[]
+    const first = routes[0]
+    const choices = [...first.candidates, ...first.pending].filter(candidate =>
+      routes.every(cap => [...cap.candidates, ...cap.pending].some(item => item.name === candidate.name)),
+    )
+    const ready = (name: string) => routes.every(cap => cap.candidates.some(item => item.name === name))
+    const same = routes.every(cap => cap.current === first.current)
+    return [{
+      ...first,
+      id: group.id, label: group.label, desc: group.desc,
+      datasets: group.datasets,
+      fields: routes.flatMap(cap => cap.field ? [cap.field] : []),
+      current: same ? first.current : '',
+      effective: same ? first.effective : '',
+      effective_display: same ? first.effective_display
+        : routes.map(cap => `${cap.label}：${cap.effective_display}`).join(' · '),
+      usable: routes.every(cap => cap.usable),
+      candidates: choices.filter(candidate => ready(candidate.name)),
+      pending: choices.filter(candidate => !ready(candidate.name)).map(candidate => ({
+        ...candidate, available: false,
+        note: routes.flatMap(cap => cap.pending).find(item => item.name === candidate.name)?.note,
+      })),
+    }]
+  })
 }
 
 /** 设置页可选源顺序; 只派生展示列表, 保留缓存和已有生效路由。 */
@@ -111,24 +133,13 @@ function patchMatrix(
   return { ...matrix, capabilities: caps }
 }
 
-const DEFAULT_ROUTING: Record<ProviderField, string> = {
-  daily_data_provider: 'rustdx',
-  adj_factor_provider: 'rustdx',
-  corporate_actions_provider: 'rustdx',
-  minute_data_provider: 'rustdx',
-  full_minute_data_provider: 'rustdx',
-  depth5_data_provider: 'rustdx',
-  realtime_data_provider: 'rustdx',
-  financial_data_provider: 'rustdx',
-}
-
 /** 单个能力卡: 当前生效提供方 + 候选切换标签。
  *  candidates 只含当前可提供该能力的源; 未就绪源 (pending) 可保存路由并提示;
  *  生效源无法提供该能力 (usable=False, 无论档位不足还是源未就绪) 时显示琥珀警示。 */
 function CapabilityCard({ cap, pendingKey, onSelect }: {
-  cap: CapabilityRoute
+  cap: SettingsCapability
   pendingKey: string | null
-  onSelect: (field: ProviderField, provider: string) => void
+  onSelect: (cap: SettingsCapability, provider: string) => void
 }) {
   const Icon = CAP_ICON[cap.id] ?? Database
   const busy = (provider: string) => pendingKey === `${cap.field}:${provider}`
@@ -187,7 +198,7 @@ function CapabilityCard({ cap, pendingKey, onSelect }: {
               key={c.name}
               type="button"
               disabled={pendingKey != null}
-              onClick={() => cap.field != null && onSelect(cap.field, c.name)}
+              onClick={() => onSelect(cap, c.name)}
               title={pending ? (c.note || c.status || '该源当前不可用') : `「${cap.label}」由 ${c.display} 提供`}
               className={tagCls(active)}
             >
@@ -207,7 +218,7 @@ function CapabilityCard({ cap, pendingKey, onSelect }: {
   )
 }
 
-/** 能力路由区 (页面主视图): 每个能力一张卡, 点候选标签即刻切换 (乐观更新) */
+/** 能力路由区：类别来自后端，组合字段在一次请求中保存。 */
 function CapabilityRoutingSection() {
   const qc = useQueryClient()
   const matrix = useQuery({ queryKey: QK.capabilityMatrix, queryFn: api.capabilityMatrix })
@@ -218,6 +229,7 @@ function CapabilityRoutingSection() {
     qc.invalidateQueries({ queryKey: QK.preferences })
     qc.invalidateQueries({ queryKey: QK.capabilities })
     qc.invalidateQueries({ queryKey: QK.quoteStatus })
+    qc.invalidateQueries({ queryKey: QK.minuteRefreshStatus })
   }
 
   /** 切换前先把变更写进矩阵/偏好缓存, 界面零延迟响应; 失败回滚 */
@@ -235,18 +247,16 @@ function CapabilityRoutingSection() {
   }
 
   const routeMut = useMutation({
-    mutationFn: ({ field, provider }: { field: ProviderField; provider: string }) =>
-      // 动态键经运行时字段名收敛为合法偏好键 (字段名来自后端注册表)
-      api.updateDataProviders({ [field]: provider } as Partial<Pick<Preferences, ProviderField>>),
+    mutationFn: ({ cap, provider }: { cap: SettingsCapability; provider: string }) =>
+      api.updateDataProviders(Object.fromEntries(cap.fields.map(field => [field, provider]))),
     onMutate: async (v) => {
-      setPendingKey(`${v.field}:${v.provider}`)
+      setPendingKey(`${v.cap.field}:${v.provider}`)
       await qc.cancelQueries({ queryKey: QK.capabilityMatrix })
       await qc.cancelQueries({ queryKey: QK.preferences })
-      return applyOptimistic({ [v.field]: v.provider })
+      return applyOptimistic(Object.fromEntries(v.cap.fields.map(field => [field, v.provider])))
     },
     onSuccess: (_d, v) => {
-      const cap = matrix.data?.capabilities.find(c => c.field === v.field)
-      toast(`「${cap?.label || v.field}」已切换为 ${displayOfName(matrix.data, v.provider)}`, 'success')
+      toast(`「${v.cap.label}」已切换为 ${displayOfName(matrix.data, v.provider)}`, 'success')
     },
     onError: (e: Error, _v, ctx) => {
       rollback(ctx)
@@ -258,7 +268,7 @@ function CapabilityRoutingSection() {
     },
   })
 
-  const list = matrix.data?.capabilities ?? []
+  const list = settingsCapabilities(matrix.data)
 
   return (
     <section className="rounded-card border border-border bg-surface p-5">
@@ -270,7 +280,7 @@ function CapabilityRoutingSection() {
         </div>
       </div>
       <p className="text-[11px] text-muted mb-4">
-        每个能力独立选择提供方。未就绪的源也可保存为目标源, 完成依赖安装或 Key 配置后才能取数。
+        每类能力独立选择提供方，K线同时设置日K与分钟K。未就绪的源可保存为目标源，完成依赖安装或 Key 配置后才能取数。
       </p>
 
       {matrix.isError ? (
@@ -286,20 +296,25 @@ function CapabilityRoutingSection() {
             重试
           </button>
         </div>
-      ) : matrix.isLoading || list.length === 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {Array.from({ length: 5 }).map((_, i) => (
+      ) : matrix.isLoading ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-[120px] rounded-lg border border-border/50 bg-elevated/20 animate-pulse" />
           ))}
         </div>
+      ) : list.length === 0 ? (
+        <div className="flex items-center justify-between gap-3 text-xs text-muted">
+          <span>暂无能力分类，请重新加载数据源。</span>
+          <button onClick={() => matrix.refetch()}>重试</button>
+        </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
           {list.map(cap => (
             <CapabilityCard
               key={cap.id}
               cap={cap}
               pendingKey={pendingKey}
-              onSelect={(field, provider) => routeMut.mutate({ field, provider })}
+              onSelect={(cap, provider) => routeMut.mutate({ cap, provider })}
             />
           ))}
         </div>
@@ -471,7 +486,7 @@ function PluginKeyConfig({ plugin }: { plugin: PluginDataSourceItem }) {
 
 /** 能力芯片: 服务中(高亮+勾) / 已适配(灰)。 */
 function CapabilityChips({ caps, servingSet }: {
-  caps: CapabilityRoute[]
+  caps: SettingsCapability[]
   servingSet: Set<string>
 }) {
   if (caps.length === 0) return <span className="text-[10px] text-muted/40">未声明能力</span>
@@ -492,7 +507,7 @@ function CapabilityChips({ caps, servingSet }: {
             className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] leading-none ${cls}`}
           >
             {servingNow && <Check className="h-2.5 w-2.5" />}
-            {DATASET_LABEL[cap.id] || cap.id}
+            {cap.label}
           </span>
         )
       })}
@@ -526,25 +541,10 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
 
   const selectedCustom = customList.find(s => s.name === selected)
 
-  // ===== 各能力当前的有效提供方 (除权 same_as_daily = 跟随日K) =====
-  // 用于能力芯片"服务中"态与详情卡标识: 路由切换在上方能力路由区, 这里只读展示
-  const dailyPref = prefs.data?.daily_data_provider || 'rustdx'
-  const adjPref = prefs.data?.adj_factor_provider || 'rustdx'
-  const effProvider: Record<string, string> = {
-    daily: dailyPref,
-    adj_factor: adjPref === 'same_as_daily' ? dailyPref : adjPref,
-    minute: prefs.data?.minute_data_provider || 'rustdx',
-    full_minute: prefs.data?.full_minute_data_provider || 'rustdx',
-    realtime: prefs.data?.realtime_data_provider || 'rustdx',
-    depth5: prefs.data?.depth5_data_provider || 'rustdx',
-    financial: prefs.data?.financial_data_provider || 'rustdx',
-    corporate_actions: prefs.data?.corporate_actions_provider || 'rustdx',
-  }
+  const matrixCaps = settingsCapabilities(matrix.data)
   const servingDatasets = (name: string) =>
-    Object.entries(effProvider).filter(([, v]) => v === name).map(([k]) => k)
+    matrixCaps.filter(cap => cap.effective === name && cap.usable).map(cap => cap.id)
   const servingSetOf = (name: string) => new Set(servingDatasets(name))
-
-  const matrixCaps = matrix.data?.capabilities ?? []
 
   // 数据源集合/插件可用性/档位变化都会改变能力候选集 → 统一连带失效
   const invalidateSources = () => {
@@ -553,6 +553,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
     qc.invalidateQueries({ queryKey: QK.preferences })
     qc.invalidateQueries({ queryKey: QK.capabilities })
     qc.invalidateQueries({ queryKey: QK.quoteStatus })
+    qc.invalidateQueries({ queryKey: QK.minuteRefreshStatus })
   }
 
   const reload = useMutation({
@@ -575,20 +576,18 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
 
   const switchProvider = useMutation({
     mutationFn: async (name: string) => {
-      // 一键套用: 该源适配了哪些数据集就接管哪些, 其余回默认
+      // 只套用页面四类能力；K线要求日K与分钟K均已适配。
       const supported = new Set(
         allItems.find(s => s.name === name)?.datasets ?? []
       )
       const pick = (dataset: string) =>
-        supported.has(dataset) ? name : DEFAULT_ROUTING[`${dataset}_data_provider` as ProviderField] ?? 'rustdx'
+        supported.has(dataset) ? name : 'rustdx'
+      const klineProvider = supported.has('daily') && supported.has('minute') ? name : 'rustdx'
       return api.updateDataProviders({
-        daily_data_provider: pick('daily'),
+        daily_data_provider: klineProvider,
         adj_factor_provider: pick('adj_factor'),
-        corporate_actions_provider: pick('corporate_actions'),
         realtime_data_provider: pick('realtime'),
-        minute_data_provider: pick('minute'),
-        full_minute_data_provider: pick('full_minute'),
-        depth5_data_provider: pick('depth5'),
+        minute_data_provider: klineProvider,
         financial_data_provider: pick('financial'),
       })
     },
@@ -688,7 +687,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
             const installing = installMut.isPending && installMut.variables === item.name
             const uninstalling = uninstallMut.isPending && uninstallMut.variables === item.name
             const declared = new Set(item.datasets)
-            const chipCaps = matrixCaps.filter(c => declared.has(c.id))
+            const chipCaps = matrixCaps.filter(c => c.datasets.every(id => declared.has(id)))
             return (
               <div
                 key={item.name}
@@ -911,7 +910,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
 function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
   plugin: PluginDataSourceItem
   isActive: boolean
-  matrixCaps: CapabilityRoute[]
+  matrixCaps: SettingsCapability[]
   servingSet: Set<string>
 }) {
   const declared = new Set(plugin.datasets)
@@ -926,7 +925,9 @@ function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <h3 className="text-[16px] leading-6 font-semibold text-foreground">{plugin.display_name}</h3>
             <span className="text-[10px] text-muted/50 uppercase tracking-wider">插件 · {plugin.runtime}</span>
-            <span className="rounded bg-warning/15 px-1 py-0.5 text-[9px] font-medium leading-none text-warning">第三方</span>
+            <span className={`rounded px-1 py-0.5 text-[9px] font-medium leading-none ${plugin.name === 'rustdx' ? 'bg-accent/10 text-accent' : 'bg-warning/15 text-warning'}`}>
+              {plugin.name === 'rustdx' ? '默认' : '第三方'}
+            </span>
             {isActive && (
               <span className="inline-flex items-center gap-1 text-[10px] text-accent bg-accent/10 px-2 py-1 rounded">
                 <Check className="h-2.5 w-2.5" /> 服务中
@@ -936,7 +937,7 @@ function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
           {plugin.description && <p className="text-xs text-secondary leading-relaxed">{plugin.description}</p>}
           <div className="mt-2">
             <CapabilityChips
-              caps={matrixCaps.filter(c => declared.has(c.id))}
+              caps={matrixCaps.filter(c => c.datasets.every(id => declared.has(id)))}
               servingSet={servingSet}
             />
           </div>
@@ -946,6 +947,9 @@ function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
       {/* 主体: 操作 + Key 配置 (左) | 能力适配表 (右), 布局对齐 TickFlow 详情 */}
       <div className="mt-5 pt-5 border-t border-border grid grid-cols-1 lg:grid-cols-[1fr_1.15fr] gap-6 items-start">
         <div className="min-w-0">
+          {plugin.name === 'rustdx' && plugin.available && (
+            <p className="text-xs text-secondary">无需 API Key，原生桥接已就绪。</p>
+          )}
           {/* 独立状态行仅用于无 Key 配置区的插件; 有 Key 区时「状态」行已展示, 避免重复 */}
           {!plugin.available && !plugin.api_key_env && (
             <div className="space-y-2">
@@ -970,7 +974,8 @@ function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
             {matrixCaps.map(cap => {
               const Icon = CAP_ICON[cap.id] ?? Database
               const serving = servingSet.has(cap.id)
-              const declaredCap = declared.has(cap.id)
+              const declaredCap = cap.datasets.every(id => declared.has(id))
+              const partial = cap.datasets.some(id => declared.has(id))
               return (
                 <div key={cap.id} className="flex items-center gap-2.5 px-3 py-1.5">
                   <Icon className="h-3.5 w-3.5 text-secondary shrink-0" />
@@ -987,7 +992,9 @@ function PluginDetail({ plugin, isActive, matrixCaps, servingSet }: {
                       {plugin.available ? '已适配' : '未就绪'}
                     </span>
                   ) : (
-                    <span className="w-[56px] text-right text-[10px] text-muted/30 shrink-0">—</span>
+                    <span className="w-[56px] text-right text-[10px] text-muted/30 shrink-0">
+                      {partial ? '部分适配' : '—'}
+                    </span>
                   )}
                 </div>
               )

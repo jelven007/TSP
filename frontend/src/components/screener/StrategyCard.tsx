@@ -4,11 +4,11 @@ import { storage } from '@/lib/storage'
 
 // ===== 卡片尺寸 =====
 
-export type CardSize = 'mini' | 'normal' | 'large' | 'hidden'
+export type CardSize = 'normal' | 'large'
 
 export function loadCardSize(): CardSize {
   const v = storage.screenerCardSize.get('normal')
-  if (v === 'mini' || v === 'normal' || v === 'large' || v === 'hidden') return v
+  if (v === 'normal' || v === 'large') return v
   return 'normal'
 }
 
@@ -20,14 +20,6 @@ const CARD_STYLES: Record<CardSize, {
   desc: string
   icon: string
 }> = {
-  mini: {
-    wrap: 'gap-1',
-    card: 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full',
-    name: 'text-[10px]',
-    count: 'text-[11px]',
-    desc: '',
-    icon: 'h-3 w-3',
-  },
   normal: {
     wrap: 'gap-2',
     card: 'relative inline-flex items-center gap-2 pl-3 pr-12 py-1.5 rounded-lg',
@@ -43,14 +35,6 @@ const CARD_STYLES: Record<CardSize, {
     count: 'text-lg font-mono font-bold tabular-nums',
     desc: 'text-[10px] text-muted leading-tight mt-0.5 line-clamp-2 max-w-[140px]',
     icon: 'h-3.5 w-3.5',
-  },
-  hidden: {
-    wrap: '',
-    card: '',
-    name: '',
-    count: '',
-    desc: '',
-    icon: '',
   },
 }
 
@@ -112,7 +96,7 @@ export function StrategyCard({
   const countCls = count === 0
     ? 'text-muted'
     : 'bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent'
-  const srcLabel = cardSize === 'mini' ? (SRC_MAP[source ?? ''] ?? '内') : (SRC_MAP[source ?? ''] ?? '内置')
+  const srcLabel = SRC_MAP[source ?? ''] ?? '内置'
   const badgeCls = BADGE_CLS_MAP[source ?? 'builtin'] ?? BADGE_CLS_MAP.builtin
 
   // 失效数 > 0 时显示
@@ -173,7 +157,7 @@ export function StrategyCard({
             </button>
           )}
         </>
-      ) : cardSize === 'normal' ? (
+      ) : (
         <>
           <button onClick={onRun} disabled={disabled}
             className="flex flex-col items-start cursor-pointer disabled:opacity-50 disabled:cursor-wait min-w-0">
@@ -214,39 +198,6 @@ export function StrategyCard({
               {monitored && <span className="absolute inset-0 rounded animate-ping bg-accent/20" />}
             </button>
           )}
-        </>
-      ) : (
-        /* mini */
-        <>
-          <button onClick={onRun} disabled={disabled}
-            className="flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-wait">
-            <span className="text-[8px] px-0.5 rounded bg-secondary/10 text-muted border border-border font-medium leading-tight">{srcLabel}</span>
-            <span className="text-[10px] font-medium whitespace-nowrap text-foreground">{name}</span>
-            {count != null && !loading && (
-              <span className={`text-xs font-mono font-bold tabular-nums ${countCls}`}>{count}</span>
-            )}
-            {count == null && !loading && computing && (
-              <span className="text-xs font-mono font-bold text-muted/50 animate-pulse">···</span>
-            )}
-            {count == null && !loading && !computing && awaitRun && (
-              <span className="text-[9px] text-muted/60 transition-colors group-hover:text-accent/80 shrink-0" title="自动计算未开启或失败 — 点击卡片实时计算">待算</span>
-            )}
-            {hasExpired && (
-              <span className="text-[9px] font-mono text-red-400/70">{'-' + expiredCount}</span>
-            )}
-            {loading && <span className="w-4 h-2.5 rounded bg-elevated animate-pulse" />}
-          </button>
-          {onToggleMonitor && (
-            <button onClick={(e) => { e.stopPropagation(); onToggleMonitor() }}
-              className="relative p-0.5 rounded hover:bg-elevated transition-colors cursor-pointer" title={monitored ? '取消策略监控' : '开启策略监控'}>
-              <RadioTower className={`h-3 w-3 transition-colors ${monitored ? 'text-accent' : 'text-muted hover:text-accent'}`} />
-              {monitored && <span className="absolute inset-0 rounded animate-ping bg-accent/20" />}
-            </button>
-          )}
-          <button onClick={(e) => { e.stopPropagation(); onSettings() }}
-            className="p-0.5 rounded hover:bg-elevated transition-colors cursor-pointer" title="策略设置">
-            <Settings2 className="h-3 w-3 text-muted hover:text-accent transition-colors" />
-          </button>
         </>
       )}
     </motion.div>

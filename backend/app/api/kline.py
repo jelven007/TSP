@@ -24,6 +24,7 @@ from app.services import minute_adjust
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/kline", tags=["kline"])
+_period_tasks: set = set()
 
 
 def _json_safe(obj):
@@ -1208,6 +1209,69 @@ def refresh_views(request: Request):
     return {"status": "ok"}
 
 
+@router.post("/sync_period")
+async def sync_period_job(request: Request, body: dict):
+    """统一手动离线补齐入口, 后台任务沿用进度、取消及容量管理。"""
+    import asyncio
+    from datetime import datetime, time
+
+    from app.services import kline_periods
+    from app.services.pipeline_jobs import (
+        JobCancelledError,
+        job_store,
+        release_run_slot,
+        run_with_capacity,
+        try_acquire_run_slot,
+    )
+    period = body.get("period", "")
+    if period not in kline_periods.TABLES:
+        raise HTTPException(status_code=422, detail="不支持的K线周期")
+    if period == "1d":
+        # 保留原离线日K的复权、指标流水线。
+        return await extend_history(request)
+    repo = request.app.state.repo
+    earliest, _ = kline_periods.period_bounds(repo, period)
+    from app.market_time import cn_today
+    anchor = earliest or cn_today()
+    try:
+        start_day = kline_periods.history_start(anchor, body.get("value", 6), body.get("unit", "month"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    end_day = anchor if earliest else cn_today()
+    job_id, is_new = job_store.create(long_running=True, kind=f"kline_{period}", request=body)
+    if not is_new:
+        return {"status": "reused", "job_id": job_id}
+
+    async def task():
+        if not try_acquire_run_slot(job_id):
+            job_store.fail(job_id, "已有数据任务在运行, 请稍后重试")
+            return
+        def progress(stage, pct, msg):
+            job_store.progress(job_id, stage, pct, msg)
+        try:
+            progress(f"sync_{period}", 1, "准备离线补齐…")
+            result = await asyncio.get_running_loop().run_in_executor(
+                _long_task_executor, run_with_capacity, job_id,
+                lambda: kline_periods.sync_period(
+                    repo, period, datetime.combine(start_day, time.min),
+                    datetime.combine(end_day, time.max), on_progress=progress,
+                ),
+            )
+            progress("done", 100, f"已写入 {result['rows']} 行")
+            job_store.succeed(job_id, result)
+        except JobCancelledError:
+            job_store.cancelled(job_id)
+        except Exception as exc:
+            job_store.fail(job_id, str(exc))
+        finally:
+            kline_periods.refresh_period(repo, period)
+            release_run_slot(job_id)
+    running_task = asyncio.create_task(task())
+    _period_tasks.add(running_task)
+    running_task.add_done_callback(_period_tasks.discard)
+    return {"status": "started", "job_id": job_id}
+
+
 @router.post("/sync_minute")
 async def sync_minute(request: Request):
     """手动触发分钟 K 同步(全市场)。返回 pipeline job_id 可轮询进度。
@@ -1233,8 +1297,8 @@ async def trigger_minute_sync(repo, capset, *, override_days=None, extend_flag=N
     """触发分钟K同步/向前扩展后台任务(HTTP 端点与 AI 助手共用同一条触发路径)。"""
     import asyncio
 
-    from app.services.pipeline_jobs import JobCancelledError, job_store, release_run_slot, run_with_capacity, try_acquire_run_slot
     from app.api.data import invalidate_storage_cache
+    from app.services.pipeline_jobs import JobCancelledError, job_store, release_run_slot, run_with_capacity, try_acquire_run_slot
     from app.services.preferences import get_minute_sync_days
     from app.tickflow.capabilities import Cap
     from app.tickflow.pools import get_pool

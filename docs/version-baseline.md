@@ -50,7 +50,7 @@
 [本地变更整合](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 自选接口业务连接池五秒获取超时仍在调查，根因和永久修复尚未完成，
 详见[调查记录](../reports/online-timeout-20261021/watchlist-pool-investigation.md)。
-当前源码的页面、八项能力、公司行为、因子与 AI/开放边界见
+当前源码的页面、七项能力、公司行为、因子与 AI/开放边界见
 [当前功能索引](architecture.md#capabilities)；本轮验证见
 [文档同步记录](../reports/documentation-sync-20261023/verification.md)。
 

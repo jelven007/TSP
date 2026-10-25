@@ -169,9 +169,14 @@ it('does not report a saved configuration as applied when the broker has not rea
   expect(host.textContent).not.toContain('新任务按当前配置执行')
 })
 
-it('does not query global configuration without system management permission', async () => {
+it('shows a fixed tenant limit without exposing administrator configuration', async () => {
   permitted.mockReturnValue(false)
+  read.mockResolvedValue({ available: true, editable: false, strategy_concurrency: 1,
+    effective_concurrency: 1, recommended_concurrency: 1 })
   await render()
   expect(select()).toBeNull()
-  expect(read).not.toHaveBeenCalled()
+  expect(read).toHaveBeenCalled()
+  expect(host.textContent).toContain('租户并发策略数：1')
+  expect(host.textContent).not.toContain('整机')
+  expect(save).not.toHaveBeenCalled()
 })

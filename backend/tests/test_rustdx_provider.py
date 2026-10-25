@@ -408,6 +408,17 @@ def test_rustdx_daily_rows_follow_shared_unit_contract():
 
     assert frame["volume"].to_list() == [123.0]
 
+@pytest.mark.parametrize(("period", "category", "volume"), [("1m", 8, 1.23), ("5m", 0, 1.23), ("15m", 1, 1.23), ("1d", 9, 123.), ("1w", 5, 123.)])
+def test_unified_period_uses_same_bars_interface_and_correct_units(native, period, category, volume):
+    provider = RustdxProvider()
+    frame = provider.get_klines(
+        ["600000.SH"], datetime(2026, 10, 9), datetime(2026, 10, 9, 16),
+        asset_type="stock", freq=period,
+    )
+    assert native.bar_calls[0][2] == category
+    assert frame["volume"].to_list() == [volume]
+    assert frame["close"].to_list() == [10.5]
+
 
 def test_incremental_minutes_request_only_latest_real_bars(native, monkeypatch):
     from app.plugins.rustdx import provider as provider_module
@@ -566,7 +577,6 @@ def test_plugin_covers_all_core_datasets_and_is_default_provider():
         "minute",
         "depth5",
         "financial",
-        "full_minute",
     }
     assert preferences._DEFAULT_DATA_PROVIDER == "rustdx"
 

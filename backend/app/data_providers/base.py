@@ -32,6 +32,12 @@ class MarketDataProvider(Protocol):
     name: str
     capabilities: ProviderCapabilities
 
+    def get_klines(
+        self, symbols: list[str], start_time: datetime | None,
+        end_time: datetime | None, asset_type: AssetType = "stock", freq: str = "1d",
+    ) -> pl.DataFrame:
+        """Optional unified 1m/5m/15m/1d/1w entry; 10m is locally derived."""
+
     def get_instruments(self, asset_type: AssetType) -> pl.DataFrame:
         """Return normalized instruments: symbol/name/code/exchange/asset_type/source."""
 

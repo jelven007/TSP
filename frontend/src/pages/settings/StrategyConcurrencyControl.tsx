@@ -17,7 +17,6 @@ export function StrategyConcurrencyControl() {
   const query = useQuery({
     queryKey: QK.strategyConcurrency,
     queryFn: api.strategyConcurrency,
-    enabled: allowed,
     staleTime: 10_000,
     refetchInterval: 10_000,
   })
@@ -25,7 +24,6 @@ export function StrategyConcurrencyControl() {
     mutationFn: (value: number | null) => api.updateStrategyConcurrency(value),
     onSuccess: (value) => qc.setQueryData(QK.strategyConcurrency, value),
   })
-  if (!allowed) return null
   const data = query.data
   const error = save.error ?? query.error
   const message = error instanceof Error ? error.message : '无法读取或保存策略并发配置'
@@ -45,6 +43,9 @@ export function StrategyConcurrencyControl() {
       </div>
     )
   }
+  if (!allowed || data.editable === false) {
+    return <p className="mt-3 border-t border-border pt-4 text-sm text-foreground">租户并发策略数：1</p>
+  }
   const disabled = save.isPending || !data.config_enabled || data.max_concurrency === 0
   const limited = data.strategy_concurrency !== null && data.strategy_concurrency > data.max_concurrency
   return (
@@ -53,7 +54,7 @@ export function StrategyConcurrencyControl() {
         <div className="min-w-0 flex-1">
           <label htmlFor="strategy-concurrency" className="text-sm text-foreground">并发策略数</label>
           <p className="mt-1 text-[11px] leading-relaxed text-muted">
-            管理员与所有租户共用的全局上限；自动模式使用推荐值，繁忙时等待或提示稍后重试。
+            管理员默认使用系统推荐值，可手动修改；租户并发策略数默认为 1。所有租户共用下方资源预算。
           </p>
         </div>
         <select id="strategy-concurrency" aria-label="并发策略数"
