@@ -87,6 +87,11 @@ class PlatformAdmin:
             return JSONResponse({"detail": "该操作不属于平台管理"}, status_code=403)
         # Never forward the browser cookie, tenant ID or an external API token.
         headers = {key: request.headers[key] for key in ("content-type", "accept") if key in request.headers}
+        from app.services.observability import current_request_id, safe_request_id
+
+        headers["x-request-id"] = safe_request_id(
+            getattr(request.state, "request_id", None) or current_request_id(),
+        )
         if self.allowed is management_path:
             headers["x-tsp-admin-email"] = request.state.account.get("email") or ""
         try:
@@ -197,7 +202,7 @@ async def lifespan(app):
         try:
             yield
         finally:
-            from app.api.pipeline import stop_initial_sync_job
+            from app.services.pipeline_runner import stop_initial_sync_job
 
             app.state.scheduler.pause()
             await stop_initial_sync_job(getattr(app.state, "initial_sync_job_id", None))

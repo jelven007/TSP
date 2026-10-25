@@ -189,7 +189,16 @@ def execute(payload: dict, private_root: Path) -> dict:
 def execute_request(payload: dict, private_root: Path) -> dict:
     if payload.get("kind") == "health":
         return {"ready": True}
-    return execute(payload, private_root)
+    if payload.get("kind") not in {"backtest", "optimize", "walkforward"}:
+        return execute(payload, private_root)
+    from app.services.research_snapshot import _runtime_identity
+
+    runtime = _runtime_identity()
+    if payload.get("expected_runtime") is not None and payload["expected_runtime"] != runtime:
+        raise ValueError("原输入复测的运行构建已改变，请使用原构建或建立新试验")
+    result = execute(payload, private_root)
+    result["research"] = {**result.get("research", {}), "runtime": runtime}
+    return result
 
 
 def main():

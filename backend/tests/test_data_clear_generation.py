@@ -59,6 +59,7 @@ def test_clear_data_bumps_enriched_generations_and_invalidates_panel_cache(
 ) -> None:
     _stub_clear_side_effects(monkeypatch)
     repo = _RepoStub(tmp_path)
+    (tmp_path / "initial_sync.json").write_text('{"status":"completed"}')
     stock_file = tmp_path / "kline_daily_enriched" / "date=2026-08-14" / "part.parquet"
     etf_file = tmp_path / "kline_etf_enriched" / "date=2026-08-14" / "part.parquet"
     _write_parquet_placeholder(stock_file)
@@ -88,6 +89,9 @@ def test_clear_data_bumps_enriched_generations_and_invalidates_panel_cache(
     assert cached_after["value"].item() == 2
     assert cache.stats()["compute_count"] == 2
     assert repo.calls == ["clear_cache", "refresh_cache", "rebuild_views"]
+    from app.services.initial_sync import needs_initial_sync
+
+    assert needs_initial_sync(tmp_path)
 
 
 def test_clear_data_restores_ready_generation_when_first_delete_fails(

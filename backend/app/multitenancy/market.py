@@ -11,6 +11,7 @@ import polars as pl
 import pyarrow.ipc as ipc
 
 from app.cell.context import AccessError
+from app.services.observability import current_request_id, safe_request_id
 
 MAX_FRAME_BYTES = 64 * 1024 * 1024
 
@@ -72,7 +73,10 @@ class PublicMarket:
 
     def snapshot(self):
         try:
-            response = self.client.get("/internal/cell-market/snapshot")
+            response = self.client.get(
+                "/internal/cell-market/snapshot",
+                headers={"X-Request-ID": safe_request_id(current_request_id())},
+            )
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:

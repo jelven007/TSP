@@ -20,6 +20,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from app import secrets_store
 from app.config import settings
+from app.services.ai_usage import close_ai_resource, metered_codex, metered_create, output_cap
 
 OPENAI_COMPAT_PROVIDER = "openai_compat"
 OPENAI_PROVIDER = "openai"
@@ -180,6 +181,7 @@ def _resolve_max_tokens(max_tokens: int | None) -> int | None:
     None = 不传该参数(推理型模型的思考 token 计入 max_tokens 预算,
     显式限制会挤占正文, 语义见 generate_ai_text), 不能映射成配置上限。
     """
+    max_tokens = output_cap(max_tokens)
     if max_tokens is None:
         return None
     cap = current_ai_max_output_tokens()
@@ -272,6 +274,22 @@ def normalize_openai_base_url(url: str) -> str:
     不存在的 /api/paas/v4/v1/chat/completions 导致 404。仅在无版本段时才补 /v1。
     """
     base = (url or "").strip().rstrip("/")
+    if re.search(r"https?://", base.partition("://")[2], re.IGNORECASE):
+        raise ValueError("API 地址包含重复的 URL, 请只填写一个完整接口地址")
+    try:
+        parsed = urlsplit(base)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("API 地址无效, 请检查主机和端口") from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or port == 0
+        or re.search(r"\s", base)
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("API 地址须为完整的 HTTP(S) 地址, 不含空格、查询参数或片段")
     if base.endswith("/chat/completions"):
         base = base[: -len("/chat/completions")].rstrip("/")
     elif base.endswith("/responses"):
@@ -327,7 +345,9 @@ async def generate_ai_text(
     max_tokens = _resolve_max_tokens(max_tokens)
     _check_input_budget(messages, max_tokens=max_tokens)
     if is_codex_cli_provider():
-        return await _run_codex_cli(messages, max_tokens=max_tokens, timeout=max(timeout, 600.0))
+        return await metered_codex(
+            lambda: _run_codex_cli(messages, max_tokens=max_tokens, timeout=max(timeout, 600.0)),
+        )
     return await _run_openai_once(
         messages,
         temperature=temperature,
@@ -455,7 +475,9 @@ async def stream_ai_text(
     max_tokens = _resolve_max_tokens(max_tokens)
     _check_input_budget(messages, max_tokens=max_tokens)
     if is_codex_cli_provider():
-        yield await _run_codex_cli(messages, max_tokens=max_tokens, timeout=max(timeout, 600.0))
+        yield await metered_codex(
+            lambda: _run_codex_cli(messages, max_tokens=max_tokens, timeout=max(timeout, 600.0)),
+        )
         return
 
     async with aclosing(_stream_openai(
@@ -517,7 +539,8 @@ async def _run_openai_message_once(
     kwargs = _openai_kwargs(temperature=temperature, max_tokens=max_tokens, tools=tools)
     while True:
         try:
-            resp = await client.chat.completions.create(
+            resp = await metered_create(
+                client.chat.completions.create, protocol="chat_completions",
                 model=model,
                 messages=req_messages,
                 **kwargs,
@@ -528,9 +551,11 @@ async def _run_openai_message_once(
             if retry_kwargs is not None:
                 kwargs = retry_kwargs
                 continue
+            await close_ai_resource(client)
             if _is_openai_transport_error(exc):
                 raise RuntimeError(_format_openai_error(exc)) from exc
             raise
+    await close_ai_resource(client)
     if not resp.choices:
         return None
     return resp.choices[0].message
@@ -569,9 +594,11 @@ async def _stream_openai(
         base_url=base_url,
         prefer_final_answer=prefer_final_answer,
     )
+    kwargs["stream_options"] = {"include_usage": True}
     while True:
         try:
-            stream = await client.chat.completions.create(
+            stream = await metered_create(
+                client.chat.completions.create, protocol="chat_completions",
                 model=model,
                 messages=req_messages,
                 **kwargs,
@@ -584,6 +611,7 @@ async def _stream_openai(
             if retry_kwargs is not None:
                 kwargs = retry_kwargs
                 continue
+            await close_ai_resource(client)
             if _is_openai_transport_error(exc):
                 raise RuntimeError(_format_openai_error(exc)) from exc
             raise
@@ -595,6 +623,9 @@ async def _stream_openai(
         if _is_openai_transport_error(exc):
             raise RuntimeError(_format_openai_error(exc)) from exc
         raise
+    finally:
+        await stream.close()
+        await close_ai_resource(client)
 
 
 _LENGTH_FINISH_REASONS = {"length", "max_tokens", "max_output_tokens"}
@@ -652,10 +683,11 @@ def _openai_client(api_key: str, timeout: float):
         api_key=api_key,
         base_url=normalize_openai_base_url(secrets_store.get_ai_config("ai_base_url", settings.ai_base_url)),
         timeout=timeout,
-        # SDK 层重试仅覆盖首包前的连接错误/超时/429/5xx, 此时尚未产出任何内容,
-        # 重试安全; 首 chunk 之后的断流不在此列, 由上层协议报错处理。
-        # 根因: DeepSeek 等上游高峰过载时首包失败率高, max_retries=0 导致一次抖动即终止。
-        max_retries=2,
+        # Financial admission reserves one upstream attempt. A timeout can
+        # already have been billed, so hidden SDK retries cannot share it.
+        max_retries=0 if (
+            settings.ai_daily_token_limit or settings.ai_daily_cost_limit_micros
+        ) else 2,
         default_headers={"User-Agent": user_agent},
     )
 
@@ -710,6 +742,11 @@ def _openai_error_param(exc: Exception) -> str:
 def _openai_retry_kwargs(exc: Exception, kwargs: dict) -> dict | None:
     """Remove one explicitly rejected optional argument for a bounded retry."""
     retry_kwargs = dict(kwargs)
+    if ("stream_options" in retry_kwargs and getattr(exc, "status_code", None) == 400
+            and (_openai_error_param(exc) == "stream_options"
+                 or "stream_options" in _openai_error_detail(exc).lower())):
+        retry_kwargs.pop("stream_options")
+        return retry_kwargs
     if "temperature" in retry_kwargs and _is_temperature_rejected(exc):
         retry_kwargs.pop("temperature")
         return retry_kwargs

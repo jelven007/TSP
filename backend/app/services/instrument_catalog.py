@@ -105,9 +105,8 @@ def mutate_instrument(repo, symbol: str, fields: InstrumentFields | None, *, cre
 
 
 def publish_catalog_change(repo, *, reason: str) -> str | None:
-    from app.api.data import invalidate_data_cache
-    from app.api.overview import invalidate_overview_cache
     from app.services.data_release import DataReleaseError, publish_data_release
+    from app.services.public_query_cache import invalidate_data_cache, invalidate_overview_cache
     from app.services.screener import ScreenerService
 
     repo.refresh_current_instruments()

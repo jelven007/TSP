@@ -49,13 +49,6 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
     },
     onError: (err: Error) => setError(err.message),
   })
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !change.isPending) onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, change.isPending])
   function openEditor(row?: StockCatalogRow) {
     setEditing(row?.symbol ?? null)
     setDeleting(null); setError('')
@@ -79,8 +72,8 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
     })
   }
   return (
-    <SettingsModal title="个股维表管理" width="max-w-5xl" onClose={() => { if (!change.isPending) onClose() }}>
-      <div role="dialog" aria-label="个股维表管理" className="space-y-4">
+    <SettingsModal title="个股维表管理" width="max-w-5xl" onClose={onClose} closeDisabled={change.isPending}>
+      <div className="space-y-4">
         <p className="text-xs leading-relaxed text-secondary">
           来源为沪深交易所官方名单，系统启动时及每天北京时间 09:00 自动更新。管理员修改即时生效；
           下一次官方同步会重新核对股票名单、名称和上市日期，缺失的股本信息沿用已有值。

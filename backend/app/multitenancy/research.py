@@ -222,6 +222,29 @@ class ResearchJobs:
             ).fetchone()
         return self.cancel(row["id"]) if row else False
 
+    def replay(self, job_id: str, *, new_inputs=False, engine=None) -> dict:
+        """Reauthorize a new experiment; original inputs are never reconstructed."""
+        row = self.get(job_id)
+        if not row or row["kind"] not in {"backtest", "optimize", "walkforward"}:
+            raise AccessError(404, "可复测的研究任务不存在")
+        if row["state"] in ACTIVE_TASK_STATUSES:
+            raise AccessError(409, "研究任务尚未结束")
+        if new_inputs:
+            if engine is None:
+                raise ValueError("new-input replay requires the current strategy engine")
+            config = {key: value for key, value in row["input"]["config"].items() if key != "run_id"}
+            payload = engine.task(row["kind"], config=config)
+        else:
+            if not row["input"].get("public_release_id"):
+                raise AccessError(409, "原任务未记录固定公共版本，无法保证原输入复测")
+            runtime = ((row["result"] or {}).get("research") or {}).get("runtime")
+            if not runtime:
+                raise AccessError(409, "原任务未记录运行构建，请使用新数据建立试验")
+            payload = dict(row["input"])
+            payload["expected_runtime"] = runtime
+        payload["replay_of"] = job_id
+        return self.submit(payload, force=True, source="new_inputs" if new_inputs else "replay")
+
     def delete(self, job_id: str):
         with self.db.business_transaction(self.context, write=True) as conn:
             row = conn.execute("SELECT state FROM business.research_jobs WHERE id=%s", (job_id,)).fetchone()
@@ -229,6 +252,12 @@ class ResearchJobs:
                 raise AccessError(404, "研究任务不存在")
             if row["state"] in ACTIVE_TASK_STATUSES:
                 raise AccessError(409, "请先取消正在执行的任务")
+            candidates = conn.execute(
+                "SELECT value FROM business.documents WHERE namespace='research_candidates' AND id='default'",
+            ).fetchone()
+            if any((item.get("config") or {}).get("research_job_id") == job_id
+                   for item in (candidates["value"] if candidates else [])):
+                raise AccessError(409, "研究任务仍被候选方案引用，请先删除相关候选")
             conn.execute("DELETE FROM business.research_jobs WHERE id=%s", (job_id,))
 
     def artifact(self, job_id: str, name: str) -> bytes:

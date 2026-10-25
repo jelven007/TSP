@@ -134,6 +134,13 @@ def build_router() -> APIRouter:
             "supports_tools": configured and not is_codex_cli_provider(),
         }
 
+    @router.get("/usage")
+    def usage(request: Request) -> dict:
+        from app.services.ai_usage import ai_usage_scope, usage_summary
+
+        with ai_usage_scope(private_storage(request)):
+            return usage_summary()
+
     @router.get("/suggests")
     def suggests(request: Request) -> dict:
         items = assistant_tools.QUICK_SUGGESTS

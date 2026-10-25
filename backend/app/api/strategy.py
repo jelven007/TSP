@@ -952,7 +952,9 @@ async def ai_test(request: Request):
         text = await generate_ai_text(
             [{"role": "user", "content": "Reply exactly: OK"}],
             temperature=0,
-            max_tokens=8,
+            # 推理 token 也占输出预算; 8 token 会在生成 OK 前耗尽。
+            # 仍由 generate_ai_text 钳制到用户配置的输出上限。
+            max_tokens=512,
             timeout=15,
         )
         return {"ok": True, "model": current_ai_model() or current_ai_provider(), "response": text[:80]}

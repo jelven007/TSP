@@ -23,4 +23,17 @@ describe('research input evidence', () => {
   it('accepts older reports without new evidence fields', () => {
     expect(renderToStaticMarkup(<ResearchInputSummary provenance={undefined} />)).toBe('')
   })
+
+  it('shows distinct replay choices and keeps them disabled while running', () => {
+    const provenance = {
+      input_snapshot: { id: 'frozen', file_count: 2, runtime: { app_sources_sha256: 'original-build' } },
+      config_hash: 'parameters', strategy_hash: 'strategy',
+    } as BacktestProvenance
+    const html = renderToStaticMarkup(<ResearchInputSummary provenance={provenance}
+      onReplay={() => {}} onNewInputs={() => {}} disabled />)
+    expect(html).toContain('原输入复测')
+    expect(html).toContain('用新数据建立试验')
+    expect(html).toContain('original-build')
+    expect(html.match(/disabled=""/g)).toHaveLength(2)
+  })
 })

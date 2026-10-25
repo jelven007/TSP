@@ -138,7 +138,7 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
         <BookmarkCheck className="h-4 w-4 text-accent" />
         <div className="min-w-0">
           <h2 id="research-candidates-title" className="text-sm font-semibold text-foreground">候选方案</h2>
-          <div className="mt-0.5 text-[11px] text-muted">仅保存研究定义、配置与指标摘要</div>
+          <div className="mt-0.5 text-[11px] text-muted">保存研究配置、指标摘要与输入引用；载入配置后使用当前数据</div>
         </div>
         <button
           type="button"
@@ -206,6 +206,9 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
                   <span>{metricSummary(item)}</span>
                   {item.data_as_of && <span>数据截至 {item.data_as_of}</span>}
+                  {!!(item.config.input_snapshot_id || item.config.research_job_id) && (
+                    <span className="break-all">输入引用：{String(item.config.input_snapshot_id ?? item.config.research_job_id)}</span>
+                  )}
                   {item.kind === 'factor' && !factorSupported && !factorColumns.isLoading && (
                     <span className="text-danger">当前因子目录不支持</span>
                   )}
@@ -228,10 +231,10 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
                     type="button"
                     onClick={() => onLoadStrategy(item)}
                     className="inline-flex h-8 items-center gap-1.5 rounded-btn px-2 text-[11px] text-accent transition-colors hover:bg-accent/10"
-                    title="把此候选保存的回测配置 (策略/区间/参数/费率/仓位/环境过滤) 回填到回测表单, 可直接复测"
+                    title="把保存的回测配置回填到表单，运行时使用当前数据与策略；原输入复测请打开原结果"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
-                    载入复测
+                    载入配置
                   </button>
                 )}
                 {item.kind === 'factor' && (

@@ -12,7 +12,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import * as echarts from 'echarts'
+import * as echarts from '@/lib/echarts'
 import { Banknote, ChevronDown, ChevronUp, CircleDollarSign, Clock, Download, GitCompare, Info, PieChart, Plus, RefreshCw, Settings, TrendingUp, Wallet, X } from 'lucide-react'
 import { api, type PaperAutoSkip, type PaperCompareRow, type PaperFill, type PaperOrder, type PaperValuation } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'

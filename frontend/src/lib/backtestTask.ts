@@ -205,6 +205,8 @@ export function startBacktest(params: {
   holding_days?: number
   asset_type?: 'stock' | 'etf'
   minute_fill?: boolean
+  input_snapshot_id?: string
+  experiment_id?: string
   regime_filter?: { states?: string[]; min_score?: number } | null
 }): void {
   // 取消之前的任务状态
@@ -242,6 +244,8 @@ export function startBacktest(params: {
     holding_days: params.holding_days,
     asset_type: params.asset_type,
     minute_fill: params.minute_fill,
+    input_snapshot_id: params.input_snapshot_id,
+    experiment_id: params.experiment_id,
     regime_filter: params.regime_filter ? JSON.stringify(params.regime_filter) : undefined,
   })
 

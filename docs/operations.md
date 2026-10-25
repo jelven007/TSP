@@ -380,9 +380,8 @@ AI_ROUND_CHECKPOINT=100               # 助手连续工具轮次检查点；0 �
 | `AI_CONTEXT_WINDOW` | 输入上下文估算上限，128000；超限返回明确错误 |
 | `AI_ROUND_CHECKPOINT` | 助手持续工具调用的继续/停止检查点，100；不是每日费用限额 |
 
-旧 `.env` 中的 `AI_DAILY_TOKEN_BUDGET` 没有当前读取或每日累计限额实现，不能当作
-费用控制。费用/余额限额须在所用模型服务配置；上面的单次预算按
-`backend/app/config.py` 与 AI 适配器生效。
+旧 `.env` 中的 `AI_DAILY_TOKEN_BUDGET` 不被读取；当前累计准入参数及未知用量处理见
+[AI用量预算](#ai-usage-budget)。供应商费用/余额限制仍须在所用模型服务配置。
 
 页面预设包括自定义、OpenAI、DeepSeek、GLM 和 Codex CLI。
 通义千问与 Kimi 不再单列预设；已有其他 OpenAI 兼容配置会显示为“自定义”，
@@ -390,7 +389,13 @@ AI_ROUND_CHECKPOINT=100               # 助手连续工具轮次检查点；0 �
 
 「接口协议」用于报告、策略生成及助手。页面保存的协议优先于环境变量；
 旧客户端省略协议字段时保留已保存值，清空 AI 配置后恢复 Chat Completions。
-现有「测试」按钮先保存表单再测试，选择协议本身不触发请求。
+「测试」按钮先保存表单并更新共享设置缓存，再测试连接；保存、测试和清空期间
+禁用重复操作。保存失败会显示具体原因，当前有效配置保持原值。
+API 地址必须是完整的 HTTP(S) 地址，不能重复拼接 URL 或包含查询参数、片段；
+完整 `/chat/completions`、`/responses` 地址会去掉末尾接口段，已有 `/v3`、`/v4`
+等版本段保持不变，无版本段时补 `/v1`。选择协议本身不触发请求。
+连接测试为推理模型预留最多 512 个输出 token，仍受当前输出上限约束；
+响应因长度截断时会明确提示提高输出上限，不将截断响应视为连接成功。
 Responses 的工具、完整性及取消约定见 [AI 协议](reference/trading-ai.md#ai)。
 
 接入示例见 [strategy.md](reference/research.md#strategy) 的「AI 生成策略」章节。
@@ -491,7 +496,7 @@ Enriched、财务数据和扩展数据，空数据项保留，数量和体积读
 | 扩展概念、扩展行业 | 快照模式，内置默认 URL，GET，无需鉴权；自动拉取开启，1 分钟间隔、30 秒超时 |
 | 财务周期同步 | 默认开启；有财务能力时启动后 60 秒首轮，随后约每周同步 metrics；首次初始化另同步全部五张历史表 |
 | 秒级快照归档 | 开启，跟随 rustdx 实时行情；保留期 0 表示不自动删除 |
-| 数据画像卡片 | 默认顺序为证券目录、日K、复权、指标、指数、ETF、分钟K、财务、环境；ETF 隐藏，其余按数据能力显示 |
+| 数据画像卡片 | 默认顺序为个股维表、分钟K、日K、除权因子、Enriched、环境、指数、财务数据、ETF；ETF 隐藏，其余按数据能力显示；已有用户排序优先，“恢复默认”采用此顺序并显示前五张 |
 
 首次初始化自动创建后台全量管道，失败保持待同步状态，可修复来源后点击「立即同步」重试。
 「同步调度 → 自动同步」可暂停或恢复定时数据任务与启动补跑；财务周期执行也检查该总开关。
@@ -939,7 +944,15 @@ Compute Broker 和四类 Worker。Worker freshness 与 Supervisor 共享按类�
 Broker 检查实际运行无网络沙箱，不只检查镜像是否存在。持续观察器在运行目录
 `alerts.jsonl` 写入去重的 `firing`/`resolved` 事件；部署环境应采集该文件并转发。
 
-每个检查独立捕获异常: 单项读取失败仍返回完整 `checks` 和 HTTP 503。
+完整多租户的基础就绪取决于数据库、公共文件和Platform。后台研究、指标预热、
+通知或调度异常保留在`checks`，基础行情依赖正常时返回HTTP 200与`status=degraded`。
+`functions`分别报告`market`、`research`、`monitoring`、`paper_trading`、
+`notifications`、`scheduled`的`ready`和`unavailable_dependencies`。
+全功能发布验收仍须逐项核对所需功能，不能把基础就绪当成研究、通知或账务全部可用。
+核心依赖错误继续返回503；不会放宽行情新鲜度、授权或账务执行检查。
+
+各检查保留诊断信息；关键读取失败返回完整`checks`及HTTP 503，
+独立后台功能异常按上述依赖范围降级。
 数据新鲜度按北京时间判断, 18:00 前保留盘后处理宽限, 不要求当天完整分区。
 `reference_trading_date` 来自已缓存交易日历及本地指数日期证据，
 `observed_trading_lag` 是已确认落后的交易日数; `calendar_lag_days` 仅作展示。
@@ -1013,10 +1026,20 @@ GET /api/observability
 该接口返回进程启动时间、运行时长、在途请求、总请求数、5xx 数量、状态码类别、
 耗时和按“方法 + 路由模板”聚合的明细。指标不包含原始 URL、查询参数、请求体和
 认证头。`errors` 只统计 5xx；401、403 等拒绝可在 `status_classes.4xx` 中查看。
+总计及逐路由的`duration_ms`包含`sum/max/average/p50/p95/p99`；
+分位数由有界直方图估算，无样本时为`null`，不作为压测原始样本的替代。
 
 该端点只接受面板会话，不加入公开探活白名单，也不对 API Token 开放。指标保存在
 内存中，进程重启后清零；它用于单实例即时诊断，不承担长期留存、跨实例聚合或
 告警。使用命令行读取时应使用权限受控的 cookie jar，不要把会话值写入命令历史。
+
+文件型同步任务先持久化`queued`再确认接受；写入失败返回
+`503 job_state_persistence_unavailable`，不得据此认为任务已启动。
+终态提交失败时保留真实结果及`persistence_pending`，查询或下一次创建会重试提交，
+完成提交前不接受新任务。健康详情`checks.tasks.persistence`报告待提交数量和错误类型。
+已同步到磁盘的`*.json.*.pending`可在重启后恢复，未完成的`*.json.tmp`不会作为
+终态采用；恢复后仍活跃的记录标为`interrupted`。排障时保留这些文件，不手工删除
+记录来绕过写入失败。
 
 <a id="53-最小故障记录"></a>
 ### 5.3 最小故障记录
@@ -1373,3 +1396,115 @@ df -h
 
 交接时明确尚未完成的任务、当前失败能力、临时配置、未恢复告警和下一次必须检查的
 交易时点。不要只交接“服务已启动”。
+
+<a id="optimization-guards"></a>
+## 14. 公网启动、运行观测与计划备份
+
+完整多租户 Compose 默认 `TSP_CELL_DEPLOYMENT_EXPOSURE=public`。首次公网初始化须在
+私有运行环境设置 `TSP_CELL_BOOTSTRAP_ADMIN_PASSWORD`，长度12–128且不等于本地默认密码；
+注册/找回口令使用非默认 `AUTH_REGISTRATION_SECRET`。已有管理员和注册口令只读取检查，
+不因环境配置变化重置；仍使用默认凭据时，先在受控本地入口完成改密及口令轮换，
+再启动公网角色。本地/桌面保留原默认行为；仅明确的隔离开发环境使用
+`TSP_DEPLOYMENT_EXPOSURE=local`。这不是MFA或首次改密状态实现。
+
+每次数据库启动检查全部已执行迁移的连续版本和SQL字节校验和；不匹配须停止升级并
+核对代码/数据库来源，不能改写校验和绕过。运行角色、Cell归属和强制RLS仍独立检查。
+
+管理员 `/api/observability` 增加 `pools` 和 `stages`。池指标由 psycopg_pool 的累计计数/
+当前水位提供，`requests_wait_ms` 为累计等待，不能当作单次请求耗时；`usage_ms` 为累计
+借用时长。阶段指标包含调用/失败次数及有界直方图分位数，区分公共刷新/发布的锁等待
+和持锁执行。各API进程分别采集，须用同一时段增量与SQL锁等待、I/O PSI、请求尾延迟
+对照。API管理/行情转发和内部行情快照传播经校验的 `X-Request-ID`，不传播浏览器凭据
+或租户标识。尚未据此认定历史池超时根因，也未调整池大小、超时、因子加载或发布锁。
+
+计划备份复用
+[`scheduled_full_backup.py`](../backend/scripts/operations/scheduled_full_backup.py) 与
+[`backup_full_host.py`](../backend/scripts/operations/backup_full_host.py)。
+控制配置示例（文件权限0600，路径按部署填写）：
+
+```json
+{
+  "compose_files": ["/opt/tsp-full/compose.yml", "/opt/tsp-full/compose.isolated.yml"],
+  "env_file": "/etc/tsp-full/deploy.env",
+  "postgres_container": "tsp-postgres",
+  "control_database": "tsp_control",
+  "data_database": "tsp_business",
+  "output_root": "/var/backups/tsp-full",
+  "includes": {
+    "platform_data": "/var/lib/tsp-full/platform",
+    "public_market": "/var/lib/tsp-full/public",
+    "platform_config": "/var/lib/tsp-full/config",
+    "runtime_env": "/etc/tsp-full/runtime.env",
+    "platform_env": "/etc/tsp-full/platform.env"
+  }
+}
+```
+
+无 `--stop-writers` 时，只接受已停写的专用七角色项目；未知Compose状态拒绝备份。
+传入该参数会记录运行角色、停止并复核它们、执行双库及文件备份，并在成功或失败后
+尝试恢复原运行角色。输出目录须位于所有包含目录之外；文件锁禁止同一备份根并发。
+宿主另有写库/写文件的维护程序时也须停写，本工具不能证明项目外程序已经停写。
+恢复到随机临时库后核对身份/租户计数、研究任务/产物字节及模拟账户/订单/成交/净值
+数量和现金总额，源数据不符不发布完整备份。此核对不替代业务逐账户恢复签收。
+
+`deploy/full/systemd/tsp-full-backup*` 为安装模板，未自动安装。把两个Python脚本放到
+`/opt/tsp-full/maintenance/`，配置放到 `/etc/tsp-full/backup.json`；启用盘后16:30
+北京时间Timer即授权每日短时停服维护。`Persistent=true` 会补执行错过的备份，
+安排维护窗口时须考虑重启补跑。先在备用环境运行并核对重启及恢复，再启用生产。
+升级前可在相同维护窗口运行一次。年龄服务每小时检查，`backup-age.env` 设置
+`TSP_BACKUP_ROOT`，超过30小时、dump缺失/截断或业务恢复未经验证返回非零。
+需将systemd失败接入现有值班告警；30小时是告警阈值，不是已达到24小时RPO的证明。
+异地加密副本、真实RPO/RTO、联合恢复及数据库HA仍需环境验收。
+
+数据页面“就绪与质量”区分首次完成与最近成功同步，失败/取消后未完成初始化保持可
+重试。覆盖率只针对最新日K分区和当前目录；无分母、超限、损坏或无字段保持未知。
+不要据此声明所有历史数据完整、源时钟可信或PIT已认证。
+
+策略结果中的原输入复测要求保留原`research_inputs`/公共release、原私有定义及
+匹配的源码/依赖构建；多租户缺少运行指纹的旧任务只能建立新输入试验。
+删除研究任务时先解除候选引用；公共版本仍沿用现有引用保留工具。
+本地输入副本无自动删除入口，达到20版/100GiB现有预算后按引用审查归档，
+不能为腾空间直接删除活动研究/候选所需版本。
+
+<a id="ai-usage-budget"></a>
+### AI用量与准入预算
+
+`services/ai_usage.py` 接入Chat、Responses、流式助手和Codex CLI。模型调用前先持久化
+预留，记录模型/协议、内部请求ID、上游ID、usage、终态和失败类型，不保存提示词、
+输出正文、凭据或原始错误。完整多租户复用RLS内 `ai_usage/ledger` 文档及租户绑定
+写事务；无上下文的私有角色拒绝本地回退。独立/Platform单写角色用0600文件。
+计数按UTC日保留7天，最近100条已结束证据保留；在途上限128、单日任务2000、用户1000。
+这是有界运营摘要，不能代替长期账单或完整审计归档。
+
+环境配置默认0（不限制）：`AI_DAILY_REQUEST_LIMIT`、`AI_USER_DAILY_REQUEST_LIMIT`、
+`AI_TASK_REQUEST_LIMIT`、`AI_DAILY_TOKEN_LIMIT`、`AI_DAILY_COST_LIMIT_MICROS`。
+一次调用指SDK `create` 或CLI调用；兼容参数重试分别计数。只启用次数预算时，SDK内部
+网络重试不可逐次识别；启用Token或费用预算后禁用SDK隐式重试。
+任务指同一 `X-Request-ID` 请求内的多轮调用；后台无请求ID时每次生成独立ID。
+公网边缘应自行生成请求ID，不能把可伪造的客户端ID当作长期业务任务身份。
+
+Token/费用预算启用时，预留实际生效的上下文窗口加显式输出上限，所有调用向上游传输出
+上限；CLI无可核验Token限制，拒绝这种预算。模型或网关仍可能采用不同计费规则，
+预留不是供应商账单保证。实际usage缺失保持null，未知调用阻止同日相应预算继续消费；
+进程崩溃的在途预留保留，不因重启清零。未启用预算时继续记录已知部分和未知次数。
+
+费用用币种最小百万分单位的整数表示。`AI_BUDGET_CURRENCY` 默认USD；
+`AI_PRICING_JSON` 为模型名到价格配置的JSON，例如：
+
+```json
+{
+  "your-model": {
+    "provider": "openai_compat",
+    "base_url": "https://your-model-endpoint.example/v1",
+    "currency": "USD",
+    "source": "部署者核对的价目表及生效日期",
+    "input_per_million": "1.50",
+    "output_per_million": "2.00"
+  }
+}
+```
+
+上例仅说明格式，不是推荐价格。必须匹配当前provider、规范化Base URL、模型和币种，
+否则金额未知，费用预算拒绝调用。缓存/批量/阶梯价等复杂价目暂未建模，不能填成精确
+实际账单。已有当日调用后切换币种会拒绝新调用，须次日或经人工对账处理。
+`GET /api/custom/assistant/usage` 返回当前租户累计与本人最近证据；API授权照常执行。

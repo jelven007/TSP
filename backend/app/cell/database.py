@@ -6,6 +6,7 @@ from psycopg_pool import ConnectionPool
 
 from app.cell.config import CellSettings
 from app.cell.context import AccessError, TenantContext
+from app.cell.deployment import check_schema_history
 
 
 class Databases:
@@ -40,6 +41,18 @@ class Databases:
         self.data.close()
         self.control.close()
 
+    def pool_stats(self) -> dict[str, dict[str, int]]:
+        fields = {
+            "connections_num", "connections_ms", "connections_errors", "connections_lost",
+            "requests_num", "requests_queued", "requests_wait_ms", "requests_errors",
+            "usage_ms", "pool_min", "pool_max", "pool_size", "pool_available", "requests_waiting",
+        }
+        return {
+            name: {key: value for key, value in pool.get_stats().items()
+                   if key in fields and isinstance(value, int)}
+            for name, pool in (("control", self.control), ("business", self.data))
+        }
+
     def check(self) -> None:
         runtime_roles = []
         for pool, schema in ((self.control, "control"), (self.data, "business")):
@@ -56,11 +69,7 @@ class Databases:
                 ).fetchone()
                 if role["rolsuper"] or role["rolbypassrls"] or owners:
                     raise RuntimeError("Cell runtime must use a non-owner, non-BYPASSRLS role")
-                version = conn.execute(
-                    f"SELECT version FROM {schema}.schema_version ORDER BY version DESC LIMIT 1"
-                ).fetchone()
-                if not version or version["version"] != self.settings.schema_version:
-                    raise RuntimeError("unsupported Cell database schema")
+                check_schema_history(conn, schema, self.settings.schema_version)
         if self.settings.schema_version >= 5:
             if runtime_roles[0] == runtime_roles[1]:
                 raise RuntimeError("full-product identity and business runtime roles must be separate")

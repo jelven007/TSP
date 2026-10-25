@@ -7,6 +7,7 @@ import polars as pl
 
 from app.backtest.candidates import CandidateStore
 from app.backtest.mining import evaluate_candidate_gate
+from app.cell.context import AccessError
 from app.multitenancy.documents import TenantDocuments
 from app.multitenancy.research import read_frame
 from app.services.mining_candidates import (
@@ -39,6 +40,8 @@ class SQLCandidateStore:
 
     def _mutate(self, method, *args, **kwargs):
         result = None
+        if "config" in kwargs:
+            CandidateStore._validate_config(kwargs["kind"], kwargs["config"])
 
         def change(values):
             nonlocal result
@@ -46,7 +49,13 @@ class SQLCandidateStore:
             result = getattr(memory, method)(*args, **kwargs)
             return memory.items
 
-        self.documents.mutate("research_candidates", "default", change)
+        with self.documents.transaction() as session:
+            job_id = (kwargs.get("config") or {}).get("research_job_id")
+            if job_id and not session.connection.execute(
+                "SELECT id FROM business.research_jobs WHERE id=%s", (job_id,),
+            ).fetchone():
+                raise AccessError(409, "候选引用的研究任务不存在")
+            session.mutate("research_candidates", "default", change)
         return copy.deepcopy(result)
 
     def create(self, **values):

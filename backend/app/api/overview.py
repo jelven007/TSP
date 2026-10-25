@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import math
 import re
-import threading
-import time
 from datetime import date
 from typing import Any
 
@@ -14,29 +12,15 @@ from fastapi import APIRouter, Request
 from app.api import contracts
 from app.services.ext_data import ExtConfig, ExtConfigStore
 from app.services.index_const import CORE_INDEX_NAMES, CORE_INDEX_SYMBOLS
+from app.services.public_query_cache import (
+    invalidate_overview_cache as invalidate_overview_cache,
+)
+from app.services.public_query_cache import public_query_cache
 from app.services.screener import ScreenerService
 
 router = APIRouter(prefix="/api/overview", tags=["overview"])
 
 _CACHE_TTL = 5.0
-_cache: dict[str, Any] | None = None
-_cache_key: str | None = None
-_cache_ts: float = 0.0
-# 缓存跨线程读写锁: market_overview 在 FastAPI 线程池读, invalidate 在数据刷新线程清,
-# 无锁会读到撕裂/过期状态。用模块级 Lock 守护 check-then-set 与 clear。
-_cache_lock = threading.Lock()
-
-
-def invalidate_overview_cache() -> None:
-    """清空总览聚合结果缓存。
-
-    清除数据后调用, 避免行情在 TTL 窗口内继续返回旧的聚合结果。
-    """
-    global _cache, _cache_key, _cache_ts
-    with _cache_lock:
-        _cache = None
-        _cache_key = None
-        _cache_ts = 0.0
 
 
 _DIMENSION_SEP = re.compile(r"[、,，;；|/\s]+")
@@ -357,17 +341,10 @@ def _build_overview(request: Request, as_of: date | None = None) -> dict:
 @router.get("/market", response_model=contracts.MarketOverviewResponse)
 def market_overview(request: Request, as_of: date | None = None):
     """总览页单次请求聚合数据，避免前端拉全市场明细后再计算。"""
-    global _cache, _cache_key, _cache_ts
-    now = time.time()
-    cache_key = as_of.isoformat() if as_of else "latest"
-    # 读缓存持锁, 避免与 invalidate 的 clear 竞态读到撕裂状态
-    with _cache_lock:
-        if _cache is not None and _cache_key == cache_key and (now - _cache_ts) < _CACHE_TTL:
-            return _cache
-    # 装配在锁外进行 (耗时), 允许并发未命中时各自构建, 不长时间持锁串行化请求
-    data = _build_overview(request, as_of)
-    with _cache_lock:
-        _cache = data
-        _cache_key = cache_key
-        _cache_ts = now
-    return data
+    cache_key = (
+        str(request.app.state.repo.store.data_dir.resolve()),
+        as_of.isoformat() if as_of else "latest",
+    )
+    return public_query_cache.get(
+        "overview", cache_key, _CACHE_TTL, lambda: _build_overview(request, as_of),
+    )

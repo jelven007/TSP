@@ -51,7 +51,7 @@ def test_manual_startup_does_not_enqueue_sync(tmp_path, monkeypatch, partial):
     async def unexpected(*args, **kwargs):
         pytest.fail("manual initialization must not enqueue a startup pipeline")
 
-    monkeypatch.setattr("app.api.pipeline.trigger_pipeline_job", unexpected)
+    monkeypatch.setattr("app.services.pipeline_runner.trigger_pipeline_job", unexpected)
     state = SimpleNamespace(repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)))
     import asyncio
     assert asyncio.run(initial_sync.start_initial_sync(state)) is None
@@ -74,7 +74,7 @@ def test_startup_defaults_to_scheduling_once_without_blocking_requests(tmp_path,
         calls.append(kwargs)
         return {"job_id": "initial-job", "reused": False}
 
-    monkeypatch.setattr("app.api.pipeline.trigger_pipeline_job", trigger)
+    monkeypatch.setattr("app.services.pipeline_runner.trigger_pipeline_job", trigger)
     state = SimpleNamespace(
         repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)),
         capabilities=object(), quote_service=None,
@@ -263,7 +263,7 @@ def test_unavailable_routes_fail_before_fetch(monkeypatch):
 def test_marker_write_error_does_not_leave_queued_job(tmp_path, monkeypatch):
     import asyncio
 
-    from app.api import pipeline
+    from app.services import pipeline_runner as pipeline
     from app.services.pipeline_jobs import JobStore
 
     store = JobStore(store_dir=tmp_path / "jobs")
@@ -284,8 +284,8 @@ def test_shutdown_waits_for_startup_worker_to_release_resources(tmp_path, monkey
     import asyncio
     import threading
 
-    from app.api import pipeline
     from app.services import heavy_job_limiter, pipeline_jobs
+    from app.services import pipeline_runner as pipeline
     from app.services.heavy_job_limiter import HeavyJobLimiter
     from app.services.pipeline_jobs import JobStore
 

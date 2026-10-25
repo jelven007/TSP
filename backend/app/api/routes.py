@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from app import __version__
@@ -18,6 +18,9 @@ class DurationMetrics(BaseModel):
     sum: float
     max: float
     average: float
+    p50: float | None = None
+    p95: float | None = None
+    p99: float | None = None
 
 
 class HttpMetricAggregate(BaseModel):
@@ -37,11 +40,19 @@ class ProcessMetrics(BaseModel):
     uptime_seconds: float
 
 
+class RuntimeStageMetrics(BaseModel):
+    calls: int
+    failures: int
+    duration_ms: DurationMetrics
+
+
 class ObservabilitySnapshot(BaseModel):
     process: ProcessMetrics
     in_flight: int
     totals: HttpMetricAggregate
     routes: list[HttpRouteMetric]
+    stages: dict[str, RuntimeStageMetrics] = Field(default_factory=dict)
+    pools: dict[str, dict[str, int]] = Field(default_factory=dict)
 
 
 @router.get("/health")
@@ -101,11 +112,15 @@ async def api_health(request: Request) -> JSONResponse:
 
 
 @router.get("/api/observability", response_model=ObservabilitySnapshot)
-def observability() -> dict:
+def observability(request: Request) -> dict:
     """Session-authenticated process metrics for local operators."""
-    from app.services.observability import http_metrics_snapshot
+    from app.services.observability import http_metrics_snapshot, runtime_metrics_snapshot
 
-    return http_metrics_snapshot()
+    payload = http_metrics_snapshot()
+    payload["stages"] = runtime_metrics_snapshot()
+    db = getattr(getattr(request.app.state, "account_identity", None), "db", None)
+    payload["pools"] = db.pool_stats() if db is not None else {}
+    return payload
 
 
 @router.get("/api/capabilities")

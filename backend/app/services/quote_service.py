@@ -508,7 +508,7 @@ class QuoteService:
         # 重取中拿到最新指数/聚合值。与 _broadcast 同时进行, 与侧栏 /intraday/indices
         # (无缓存, 直读实时缓存) 行为对齐, 避免行情落后于侧栏。
         # 延迟导入规避 services <-> api 层循环依赖。
-        from app.api.overview import invalidate_overview_cache
+        from app.services.public_query_cache import invalidate_overview_cache
 
         invalidate_overview_cache()
         if self._app_state is not None:

@@ -6,6 +6,31 @@ import time
 import uuid
 from datetime import UTC, datetime
 
+MARKET_DEPENDENCIES = ("databases", "public_files", "platform")
+FUNCTION_DEPENDENCIES = {
+    "market": MARKET_DEPENDENCIES,
+    "research": (*MARKET_DEPENDENCIES, "indicator_cache", "research_worker", "compute_broker"),
+    "monitoring": (*MARKET_DEPENDENCIES, "indicator_cache", "realtime_worker"),
+    "paper_trading": (*MARKET_DEPENDENCIES, "indicator_cache", "realtime_worker", "scheduled_worker"),
+    "notifications": ("databases", "notifications_worker"),
+    "scheduled": (*MARKET_DEPENDENCIES, "scheduled_worker"),
+}
+
+
+def function_health(checks: dict) -> dict:
+    functions = {}
+    for name, dependencies in FUNCTION_DEPENDENCIES.items():
+        unavailable = [
+            dependency for dependency in dependencies
+            if checks.get(dependency, {}).get("status") != "ok"
+        ]
+        functions[name] = {
+            "ready": not unavailable,
+            "status": "unavailable" if unavailable else "ok",
+            "unavailable_dependencies": unavailable,
+        }
+    return functions
+
 
 def worker_fresh(kind: str, healthy: bool, age_seconds: float) -> bool:
     from app.multitenancy.worker_process import MAX_AGE
@@ -94,6 +119,11 @@ def readiness(state, data_dir):
         checks["compute_broker"] = {"status": "ok" if healthy else "error"}
     except Exception:
         checks["compute_broker"] = {"status": "error"}
-    ready = all(check["status"] == "ok" for check in checks.values())
-    return {"status": "ok" if ready else "error", "ready": ready,
-            "checked_at": datetime.now(UTC).isoformat(), "checks": checks}
+    functions = function_health(checks)
+    ready = functions["market"]["ready"]
+    degraded = any(check["status"] != "ok" for check in checks.values())
+    return {
+        "status": "error" if not ready else "degraded" if degraded else "ok",
+        "ready": ready, "checked_at": datetime.now(UTC).isoformat(),
+        "checks": checks, "functions": functions,
+    }

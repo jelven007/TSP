@@ -407,7 +407,7 @@ def test_check_data_coverage_symbol_lagging(tmp_path: Path) -> None:
 async def test_sync_data_pipeline_reuses_shared_trigger(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """sync_data 必须走数据页同一条触发路径(单飞语义由该路径保证)。"""
     from app.api import kline as kline_module
-    from app.api import pipeline as pipeline_module
+    from app.services import pipeline_runner as pipeline_module
 
     triggered: list[dict] = []
 
@@ -465,7 +465,7 @@ async def test_sync_data_financials_and_validation(tmp_path: Path) -> None:
 
 async def test_sync_data_gated_as_action(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """sync_data 属于动作工具: 拒绝后不得触发任何同步。"""
-    from app.api import pipeline as pipeline_module
+    from app.services import pipeline_runner as pipeline_module
 
     async def fail_trigger(*args, **kwargs):
         raise AssertionError("sync_data must not execute when denied")

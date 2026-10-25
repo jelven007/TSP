@@ -49,3 +49,41 @@ def test_percentiles_are_per_route() -> None:
 
     routes = {item["route"]: item for item in http_metrics_snapshot()["routes"]}
     assert routes["/fast"]["duration_ms"]["p95"] < routes["/slow"]["duration_ms"]["p95"]
+
+
+def test_http_metrics_preserve_total_and_route_percentiles() -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.routes import router
+
+    for ms in range(1, 101):
+        observe_http_duration(method="GET", route="/sample", status_code=200, duration_ms=float(ms))
+    expected = http_metrics_snapshot()
+    app = FastAPI()
+    app.include_router(router)
+
+    response = TestClient(app).get("/api/observability")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["totals"]["duration_ms"] == expected["totals"]["duration_ms"]
+    assert payload["routes"][0]["duration_ms"] == expected["routes"][0]["duration_ms"]
+
+
+def test_http_metrics_return_null_percentiles_without_samples() -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.routes import router
+
+    app = FastAPI()
+    app.include_router(router)
+    response = TestClient(app).get("/api/observability")
+
+    assert response.status_code == 200
+    duration = response.json()["totals"]["duration_ms"]
+    assert duration["sum"] == duration["max"] == duration["average"] == 0
+    assert {name: duration[name] for name in ("p50", "p95", "p99")} == {
+        "p50": None, "p95": None, "p99": None,
+    }
