@@ -42,7 +42,7 @@ async def start_initial_sync(state) -> str | None:
         return None
     if not needs_initial_sync(state.repo.store.data_dir):
         return None
-    from app.api.pipeline import trigger_pipeline_job
+    from app.services.pipeline_runner import trigger_pipeline_job
 
     response = await trigger_pipeline_job(
         state.repo,

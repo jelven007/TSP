@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useQuery } from '@tanstack/react-query'
-import * as echarts from 'echarts'
+import * as echarts from '@/lib/echarts'
 import { Activity, Database, RefreshCw } from 'lucide-react'
 import { api, type SectorRotationSector } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'

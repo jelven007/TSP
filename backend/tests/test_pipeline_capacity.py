@@ -10,7 +10,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.services import heavy_job_limiter, pipeline_jobs, preferences
+from app.services import heavy_job_limiter, pipeline_jobs, pipeline_runner, preferences
 from app.services.heavy_job_limiter import HeavyJobLimiter
 from app.services.pipeline_jobs import JobCancelledError, JobStore, run_with_capacity
 from app.tickflow.repository import KlineRepository
@@ -38,6 +38,7 @@ def capacity(monkeypatch, tmp_path):
     store = JobStore(store_dir=tmp_path / "jobs")
     limiter = HeavyJobLimiter(capacity=2, cancel_poll_interval=0.005)
     monkeypatch.setattr(pipeline_jobs, "job_store", store)
+    monkeypatch.setattr(pipeline_runner, "job_store", store)
     monkeypatch.setattr(heavy_job_limiter, "shared_heavy_job_limiter", limiter)
     return store, limiter
 
@@ -257,7 +258,7 @@ def test_manual_pipeline_holds_capacity_through_refresh_off_event_loop(capacity,
         assert finish.wait(3)
 
     monkeypatch.setattr(pipeline, "job_store", store)
-    monkeypatch.setattr(pipeline.daily_pipeline, "run_now", compute)
+    monkeypatch.setattr(pipeline_runner.daily_pipeline, "run_now", compute)
     app = FastAPI()
     app.include_router(pipeline.router)
     app.state.repo = SimpleNamespace(refresh_cache=refresh, store=SimpleNamespace(data_dir=tmp_path))

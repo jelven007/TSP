@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
+from pydantic import SecretStr
 
 from app.multitenancy import lifespan as full
 
@@ -26,10 +27,14 @@ async def test_full_api_initializes_admin_with_runtime_connection(monkeypatch, b
         open=lambda: calls.append("open"),
         close=lambda: calls.append("close"),
         control=SimpleNamespace(connection=control_connection),
+        settings=SimpleNamespace(
+            bootstrap_admin_password=SecretStr(""), deployment_exposure="local",
+        ),
     )
 
-    def bootstrap(control):
+    def bootstrap(control, *, password, public):
         assert control is connection
+        assert password == "Admin123" and public is False
         calls.append("bootstrap")
         if bootstrap_fails:
             raise StopStartupError
@@ -90,12 +95,15 @@ async def test_full_api_initializes_admin_tenants_before_public_services(monkeyp
     db = SimpleNamespace(
         open=lambda: None, close=lambda: calls.append("close"),
         control=SimpleNamespace(connection=connection),
-        settings=SimpleNamespace(stream_ticket_secret="test-stream-secret-" * 2),
+        settings=SimpleNamespace(
+            stream_ticket_secret="test-stream-secret-" * 2,
+            bootstrap_admin_password=SecretStr(""), deployment_exposure="local",
+        ),
     )
     monkeypatch.setattr(full.settings, "service_role", "api")
     monkeypatch.setattr(full, "CellSettings", lambda: object())
     monkeypatch.setattr(full, "Databases", lambda _: db)
-    monkeypatch.setattr(full, "bootstrap_full_identity", lambda _: calls.append("admin"))
+    monkeypatch.setattr(full, "bootstrap_full_identity", lambda _, **kwargs: calls.append("admin"))
     monkeypatch.setattr(full, "AccountIdentity", lambda _: Identity())
     with pytest.raises(StopStartupError):
         async with full.lifespan(FastAPI()):

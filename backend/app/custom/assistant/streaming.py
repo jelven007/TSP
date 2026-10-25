@@ -17,7 +17,6 @@ Responses 路径复用 services.ai_responses 的完整响应、工具与资源�
 """
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncIterator, Sequence
 from contextlib import aclosing
 from typing import Any
@@ -35,6 +34,7 @@ from app.services.ai_provider import (
     current_openai_reasoning_effort,
     normalize_openai_base_url,
 )
+from app.services.ai_usage import close_ai_resource, metered_create, output_cap
 
 # 部分推理型模型把整段预算花在 reasoning_content 上, 以 200 + length 结束。
 _LENGTH_FINISH_REASONS = {"length", "max_tokens", "max_output_tokens"}
@@ -59,6 +59,9 @@ def _retry_kwargs(exc: Exception, kwargs: dict[str, Any]) -> dict[str, Any] | No
         return None
     text = f"{getattr(exc, 'body', '')} {exc}".lower()
     retry = dict(kwargs)
+    if "stream_options" in retry and "stream_options" in text:
+        retry.pop("stream_options")
+        return retry
     if "temperature" in retry and "temperature" in text:
         retry.pop("temperature")
         return retry
@@ -104,13 +107,27 @@ async def stream_openai_round(
     if any("_responses_output" in message for message in messages):
         raise RuntimeError("AI 协议在工具轮次间发生变更, 请重新发起对话")
     client = _client(timeout)
+    try:
+        async with aclosing(_stream_chat_round(client, messages, tools, temperature)) as stream:
+            async for event in stream:
+                yield event
+    finally:
+        await close_ai_resource(client)
+
+
+async def _stream_chat_round(client, messages, tools, temperature):
     model = current_ai_model()
     kwargs = _build_kwargs(temperature)
     kwargs["tools"] = list(tools)
+    kwargs["stream_options"] = {"include_usage": True}
+    cap = output_cap(None)
+    if cap is not None:
+        kwargs["max_tokens"] = cap
 
     while True:
         try:
-            stream = await client.chat.completions.create(
+            stream = await metered_create(
+                client.chat.completions.create, protocol="chat_completions",
                 model=model,
                 messages=[dict(m) for m in messages],
                 stream=True,
@@ -124,6 +141,15 @@ async def stream_openai_round(
                 continue
             raise
 
+    try:
+        async with aclosing(_chat_events(stream)) as events:
+            async for event in events:
+                yield event
+    finally:
+        await stream.close()
+
+
+async def _chat_events(stream):
     content_seen = False
     reasoning_seen = False
     finish_reason = ""
@@ -173,11 +199,6 @@ async def stream_openai_round(
                     entry["name"] += str(fn.name)
                 if getattr(fn, "arguments", None):
                     entry["arguments"] += str(fn.arguments)
-
-    # 让 SDK 流对象尽快释放(部分兼容网关要求显式 close)。
-    close = getattr(stream, "close", None)
-    if close is not None:
-        await asyncio.to_thread(close)
 
     if calls:
         yield {

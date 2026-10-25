@@ -13,6 +13,9 @@ secrets_store、auth、preferences、ExtConfigStore、策略 override、自定�
 from __future__ import annotations
 
 import json
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,6 +27,7 @@ from app.data_providers.custom import loader as custom_loader
 from app.factors import store as factor_store
 from app.services import preferences
 from app.services.ext_data import ExtConfig, ExtConfigStore, ExtField
+from app.services.fs_utils import atomic_write_text
 from app.strategy import config as strat_config
 from app.strategy import custom_signals
 
@@ -33,6 +37,10 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     from app.config import settings
 
     monkeypatch.setattr(settings, "data_dir", tmp_path, raising=False)
+    monkeypatch.setattr(settings, "platform_config_dir", None)
+    monkeypatch.setattr(settings, "service_role", "standalone")
+    monkeypatch.setattr(secrets_store, "_cache", None)
+    monkeypatch.setattr(secrets_store, "_cache_sig", None)
     preferences._invalidate_cache()
     yield tmp_path
     preferences._invalidate_cache()
@@ -204,3 +212,103 @@ def test_no_tmp_file_is_left_behind(data_dir: Path) -> None:
 
     leftovers = sorted(p.name for p in data_dir.rglob("*.tmp"))
     assert leftovers == []
+
+
+def test_concurrent_atomic_writes_do_not_share_temporary_files(tmp_path, monkeypatch):
+    path = tmp_path / "secrets.json"
+    barrier = threading.Barrier(2)
+    real_replace = os.replace
+
+    def replace(source, target):
+        barrier.wait(timeout=5)
+        return real_replace(source, target)
+
+    monkeypatch.setattr(os, "replace", replace)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(atomic_write_text, path, json.dumps({"value": value}), mode=0o600)
+            for value in ("first", "second")
+        ]
+        for future in futures:
+            future.result(timeout=5)
+    assert json.loads(path.read_text()) in ({"value": "first"}, {"value": "second"})
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+@pytest.mark.parametrize("operation", ["save", "clear"])
+def test_concurrent_secrets_changes_preserve_both_updates(data_dir, monkeypatch, operation):
+    secrets_store.save({"ai_model": "old-model", "ai_api_key": "test-key"})
+    entered, release, second_started, second_done = (threading.Event() for _ in range(4))
+    real_write = secrets_store.atomic_write_text
+
+    def write(path, text, **kwargs):
+        if json.loads(text).get("ai_model") == "new-model" and not entered.is_set():
+            entered.set()
+            assert release.wait(timeout=5)
+        return real_write(path, text, **kwargs)
+
+    def second_change():
+        second_started.set()
+        try:
+            if operation == "save":
+                secrets_store.save({"tickflow_api_key": "other-test-key"})
+            else:
+                secrets_store.clear("ai_api_key")
+        finally:
+            second_done.set()
+
+    monkeypatch.setattr(secrets_store, "atomic_write_text", write)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(secrets_store.save, {"ai_model": "new-model"})
+        assert entered.wait(timeout=5)
+        second = pool.submit(second_change)
+        assert second_started.wait(timeout=5)
+        # The second operation can finish only if it is allowed to race the first.
+        second_done.wait(timeout=0.5)
+        release.set()
+        first.result(timeout=5)
+        second.result(timeout=5)
+    expected = {"ai_model": "new-model"}
+    if operation == "save":
+        expected.update(ai_api_key="test-key", tickflow_api_key="other-test-key")
+    assert secrets_store.load() == expected
+
+
+def test_secret_write_is_private_before_content_is_written(tmp_path, monkeypatch):
+    path = tmp_path / "secrets.json"
+    real_write = Path.write_text
+
+    def write(temp_path, text, *args, **kwargs):
+        if os.name != "nt":
+            assert temp_path.stat().st_mode & 0o777 == 0o600
+        return real_write(temp_path, text, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", write)
+    atomic_write_text(path, '{"key": "test-key"}', mode=0o600)
+    assert json.loads(path.read_text()) == {"key": "test-key"}
+
+
+def test_failed_atomic_write_cleans_temporary_file(tmp_path, torn_write):
+    path = tmp_path / "secrets.json"
+    path.write_text('{"key": "test-key"}')
+    torn_write()
+    with pytest.raises(OSError):
+        atomic_write_text(path, '{"key": "replacement"}', mode=0o600)
+    assert json.loads(path.read_text()) == {"key": "test-key"}
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_secrets_cache_is_invalidated_even_when_file_signature_is_unchanged(data_dir, monkeypatch):
+    secrets_store.save({"value": "a"})
+    assert secrets_store.load() == {"value": "a"}
+    path = secrets_store._path()
+    old = path.stat()
+    real_write = secrets_store.atomic_write_text
+
+    def write(*args, **kwargs):
+        real_write(*args, **kwargs)
+        os.utime(path, ns=(old.st_atime_ns, old.st_mtime_ns))
+
+    monkeypatch.setattr(secrets_store, "atomic_write_text", write)
+    secrets_store.save({"value": "b"})
+    assert secrets_store.load() == {"value": "b"}

@@ -286,12 +286,12 @@ def save_ai_settings(req: AiSettingsIn) -> dict:
         normalize_codex_command,
         normalize_codex_model,
         normalize_codex_reasoning_effort,
+        normalize_openai_base_url,
     )
 
     updates: dict = {}
     if req.provider:
         updates["ai_provider"] = req.provider
-        settings.ai_provider = req.provider
     if req.provider == "codex_cli":
         updates["ai_codex_model"] = normalize_codex_model(req.model)
         try:
@@ -301,51 +301,44 @@ def save_ai_settings(req: AiSettingsIn) -> dict:
         codex_reasoning_effort = normalize_codex_reasoning_effort(req.codex_reasoning_effort)
         updates["ai_codex_command"] = codex_command
         updates["ai_codex_reasoning_effort"] = codex_reasoning_effort
-        settings.ai_codex_command = codex_command
-        settings.ai_codex_reasoning_effort = codex_reasoning_effort
     else:
         if req.protocol is not None:
             updates["ai_protocol"] = req.protocol
-            settings.ai_protocol = req.protocol
         if req.base_url:
-            updates["ai_base_url"] = req.base_url
-            settings.ai_base_url = req.base_url
+            try:
+                updates["ai_base_url"] = normalize_openai_base_url(req.base_url)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
         if req.api_key is not None:
-            if req.api_key:
-                updates["ai_api_key"] = req.api_key
-                settings.ai_api_key = req.api_key
-            else:
-                secrets_store.clear("ai_api_key")
-                settings.ai_api_key = ""
+            updates["ai_api_key"] = req.api_key
         if req.model:
             updates["ai_model"] = req.model
-            settings.ai_model = req.model
         if req.provider == OPENAI_PROVIDER:
             updates["ai_reasoning_effort"] = req.reasoning_effort.strip()
     # user_agent 允许清空(回到默认浏览器 UA),故无条件持久化
     updates["ai_user_agent"] = req.user_agent
-    settings.ai_user_agent = req.user_agent
 
     # 输出上限 / 输入上下文窗口 (数值配置, 缺省保持原值)
     if req.max_output_tokens is not None:
         if req.max_output_tokens <= 0:
             raise HTTPException(status_code=400, detail="输出上限必须为正整数")
         updates["ai_max_output_tokens"] = req.max_output_tokens
-        settings.ai_max_output_tokens = req.max_output_tokens
     if req.context_window is not None:
         if req.context_window <= 0:
             raise HTTPException(status_code=400, detail="上下文窗口必须为正整数")
         updates["ai_context_window"] = req.context_window
-        settings.ai_context_window = req.context_window
     if req.round_checkpoint is not None:
         # 0=关闭检查点(不询问), 正值须 ≥5 防误填 1/2 造成每轮都弹卡
         if req.round_checkpoint != 0 and req.round_checkpoint < 5:
             raise HTTPException(status_code=400, detail="轮次检查点须为 0(不检查)或不小于 5 的整数")
         updates["ai_round_checkpoint"] = req.round_checkpoint
-        settings.ai_round_checkpoint = req.round_checkpoint
 
     if updates:
+        # 校验和持久化均成功后才发布运行时值; 保存失败不改变当前有效配置。
         secrets_store.save(updates)
+        for name, value in updates.items():
+            if name in type(settings).model_fields:
+                setattr(settings, name, value)
 
     provider = current_ai_provider()
     return {
@@ -383,8 +376,9 @@ def clear_ai_settings() -> dict:
         "ai_codex_model",
         "ai_codex_command",
         "ai_codex_reasoning_effort",
+        "ai_max_output_tokens",
+        "ai_context_window",
     )
-    secrets_store.clear("ai_provider", "ai_base_url", "ai_api_key", "ai_model", "ai_codex_command", "ai_codex_reasoning_effort", "ai_max_output_tokens", "ai_context_window")
     # 同步重置运行时内存(provider 回默认值,其余置空)
     settings.ai_provider = "openai_compat"
     settings.ai_protocol = "chat_completions"

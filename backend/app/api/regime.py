@@ -4,8 +4,6 @@
 """
 from __future__ import annotations
 
-import threading
-import time
 from datetime import date
 from typing import Annotated, Any
 
@@ -15,21 +13,14 @@ from fastapi import APIRouter, Query, Request
 from app.api import contracts
 from app.market_time import cn_today
 from app.services import regime_builder
+from app.services.public_query_cache import (
+    invalidate_regime_cache as invalidate_regime_cache,
+)
+from app.services.public_query_cache import public_query_cache
 
 router = APIRouter(prefix="/api/regime", tags=["regime"])
 
 _CACHE_TTL = 5.0
-_cache: dict[str, Any] | None = None
-_cache_ts: float = 0.0
-_cache_lock = threading.Lock()
-
-
-def invalidate_regime_cache() -> None:
-    """清空 regime 查询缓存。批算/重算后调用。"""
-    global _cache, _cache_ts
-    with _cache_lock:
-        _cache = None
-        _cache_ts = 0.0
 
 
 def _data_dir(request: Request) -> Any:
@@ -56,17 +47,16 @@ def regime_history(
     limit: int = Query(120, ge=1, le=1000),
 ):
     """历史环境时序(含状态/指标)。默认最近 N 天。"""
-    global _cache, _cache_ts
-    cache_key = f"hist|{start}|{end}|{limit}"
-    with _cache_lock:
-        if (
-            _cache is not None
-            and _cache.get("key") == cache_key
-            and (time.time() - _cache_ts) < _CACHE_TTL
-        ):
-            return _cache["data"]
+    data_dir = _data_dir(request)
+    cache_key = (str(data_dir.resolve()), start, end, limit)
+    return public_query_cache.get(
+        "regime", cache_key, _CACHE_TTL,
+        lambda: _regime_history(data_dir, start, end, limit),
+    )
 
-    df = regime_builder.load_regime_history(_data_dir(request))
+
+def _regime_history(data_dir, start, end, limit):
+    df = regime_builder.load_regime_history(data_dir)
     if df.is_empty():
         result: dict = {"rows": [], "total": 0}
     else:
@@ -82,9 +72,6 @@ def regime_history(
         rows = _df_to_records(df)
         result = {"rows": rows, "total": len(rows)}
 
-    with _cache_lock:
-        _cache = {"key": cache_key, "data": result}
-        _cache_ts = time.time()
     return result
 
 

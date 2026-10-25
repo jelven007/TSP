@@ -177,6 +177,28 @@ def test_admin_username_no_fake_email_and_password_never_reset(env):
     identity.change_password(token, "UpdatedAdmin123", "Admin123")
 
 
+def test_public_credential_preflight_uses_existing_hashes_without_reset(env):
+    from app.cell.deployment import check_public_credentials, check_schema_history
+
+    conn = env["control"]
+    with conn.transaction(force_rollback=True):
+        with pytest.raises(RuntimeError, match="administrator"):
+            check_public_credentials(conn)
+        salt, digest = hash_password("deployment-private-admin-password")
+        conn.execute(
+            "UPDATE control.users SET password_salt=%s,password_hash=%s WHERE username='admin'",
+            (salt, digest),
+        )
+        before = conn.execute("SELECT * FROM control.users WHERE username='admin'").fetchone()
+        check_public_credentials(conn)
+        assert bootstrap_full_identity(conn, public=True, password="do-not-replace-this-password") is False
+        assert conn.execute("SELECT * FROM control.users WHERE username='admin'").fetchone() == before
+        conn.execute("UPDATE control.schema_version SET checksum='invalid' WHERE version=1")
+        with pytest.raises(RuntimeError, match="checksum"):
+            check_schema_history(conn, "control", 6)
+    env["db"].check()
+
+
 def test_admin_default_tenant_supports_private_business_and_isolation(env, monkeypatch):
     from app.multitenancy.watchlist import Watchlist
 

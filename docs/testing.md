@@ -252,6 +252,22 @@ uv run ruff check app/path.py tests/path.py
 
 高风险共享模块改动应先跑定向用例定位问题，再跑后端全量测试。
 
+指标HTTP契约、同步任务持久化失败及功能健康回归：
+
+```bash
+uv run pytest tests/test_observability.py tests/test_observability_percentiles.py \
+  tests/test_job_persistence_failures.py tests/test_job_record_persistence.py \
+  tests/test_job_stall_and_cancel.py tests/test_function_health.py \
+  tests/test_multitenancy_worker_process.py tests/test_health.py -q
+```
+
+HTTP响应须保留总计及逐路由分位数，无样本为null；磁盘故障不得确认未持久化任务，
+终态提交失败不能改写已完成结果。覆盖fsync/替换失败、pending终态恢复、普通tmp
+拒绝采用、老活跃候选与新终态并存，以及恢复后重新接受任务。
+分别中断后台Worker、Broker、指标缓存和核心数据库/公共文件/Platform，
+断言基础就绪、功能不可用范围和HTTP状态；模拟账务保护及Worker新鲜度契约保持。
+这些隔离回归不替代真实交易日、宿主故障或生产恢复签收。
+
 策略校验与加载的安全回归：
 
 ```bash
@@ -1027,3 +1043,81 @@ uv run --no-sync ruff check scripts/performance/benchmark_rustdx_quotes.py tests
 8 连接三轮耗时为 925.8 / 1126.0 / 935.3ms，30 连接为 411.9 / 599.9 / 445.7ms。
 这是脚本连通性及报告输出验证，样本量不足以得出正式 P95 结论；尚未执行全部档位
 各 100 轮的正式压测。
+
+<a id="optimization-regression"></a>
+## 可靠性优化的新增验证
+
+`test_deployment_guards.py` 验证公网默认凭据拒绝、显式初始化、已有密码不重置和全部
+迁移校验和/版本连续性；`test_full_identity.py` 用临时真实PostgreSQL复核凭据查询和
+旧迁移篡改拒绝。`test_runtime_observability.py` 验证阶段失败、锁释放、HTTP输出契约、
+池统计脱敏和API到Platform的关联传播；既有身份、管理和公共发布测试继续执行。
+
+`test_scheduled_full_backup.py` 与 `test_full_host_maintenance.py` 覆盖未授权停写拒绝、
+备份失败后恢复角色、临时库业务摘要不匹配拒绝发布、过期及截断dump。命令Runner
+使用隔离替身，不表示本机已运行Docker备份、systemd计划或生产恢复。上线前另在备用
+环境执行实际双库恢复，并按[操作门槛](operations.md#optimization-guards)核对完整业务。
+
+`test_data_quality.py` 检查部分覆盖、异常OHLC/成交量、损坏/超限保持未知、成功时间
+与失败时间分离，以及真实HTTP输出；原初始化、画像和release回归继续覆盖完整同步。
+`test_research_replay.py` 使用随机临时PostgreSQL验证原私有输入/参数复用、新版本
+试验、跨租户拒绝、当前撤权、候选引用保护和构建改变拒绝。Compute替身仅证明SQL
+生命周期，不证明Docker计算；原本地snapshot测试另验证修订后仍可复用旧内容。
+前端质量/输入摘要用例检查未知值、历史限制、运行指纹和运行时按钮禁用。
+浏览器关键交互与完整后端回归另在本轮最终记录列实际结果。
+
+`test_public_query_cache.py` 验证不同公共release目录隔离、容量有界、表级失效及慢
+请求不能重新安装已失效数据；管道首次同步、排空、持久化故障与助手触发继续回归。
+数据质量HTTP回归另经过真实缓存验证普通租户数据可用性入口；同一应用切换公共
+release后表统计和质量覆盖必须隔离，不以缓存替身掩盖调用参数遗漏。
+`scripts/check_ruff_delta.py --base <完整SHA>` 对变更Python文件和新增文件比较历史
+Ruff发现，按文件/规则/消息/源行及重复次数计算新增；显式固定app/scripts为第一方，
+避免临时基线目录改变isort判断。CI开启相同门禁及公共缓存模块mypy，不全仓格式化。
+
+`test_ai_usage.py` 验证调用前持久化、并发配额、崩溃预留、未知Token阻断、价格证据、
+末尾usage流、取消和敏感正文不入记录；`test_full_ai_usage.py` 用真实临时SQL验证
+租户事务竞争、流式中间件上下文、HTTP本人记录及跨租户拒绝。供应商调用用隔离替身，
+不宣称已核对外部账单或CLI实际Token。
+SettingsModal键盘用例覆盖Tab/Shift+Tab、输入时不抢焦点、提交期间关闭和焦点归还；
+浏览器仍须复核窄屏滚动及图表缩放、标记、联动，组件替身不替代图表渲染验收。
+
+<a id="local-web-acceptance"></a>
+## 隔离Web关键流程与验证记录
+
+```bash
+cd backend
+TICKFLOW_ENV_FILE=/dev/null MULTITENANCY_ENABLED=false SERVICE_ROLE=standalone \
+  uv run --frozen --no-sync python -m scripts.acceptance.accept_local_web \
+  --output ../deliverables/local-web.json
+```
+
+该入口使用临时目录、实际主应用生命周期/认证/仓库/API、真实隔离研究Worker和文件任务
+存储；后台采集/调度停用，同步和按需行情访问使用固定Provider样本。验证登录退出、自选、
+同步终态、质量摘要、研究成交、原输入复测、新试验、订单取消及现金重建；复测比较业务
+统计和成交，排除PID/内存/耗时观测字段。CI运行HTTP流程并保留JSON；这不是浏览器UI
+门禁，也不是生产签收。加 `--serve --port 39019` 可供Browser技能进行真实界面检查，
+需先构建前端。该进程退出后临时数据删除，不指向用户数据目录。
+
+租户切换、跨租户拒绝、SSE游标恢复/撤权、研究取消和实际模拟成交由既有真实临时
+PostgreSQL测试补充：`test_full_identity.py`、`test_full_research.py`、
+`test_research_replay.py`、`test_full_runtime.py`、`test_full_paper.py`。
+七角色Docker/Nginx/受限Compute验收继续使用 `accept_full_compose.py`；不以HTTP小样本
+替代部署、升级恢复、百用户24小时或完整交易日。
+
+受控真实Provider烟测在隔离目录内最多执行一个股票、7自然日的日K读取，进程时限
+默认45秒，异常/空数据/字段不符/重复/日期越界均失败，源时间及历史PIT仍为未认证：
+
+```bash
+uv run --frozen --no-sync python -m scripts.acceptance.smoke_provider \
+  --provider rustdx --output ../deliverables/provider-smoke.json
+cd ..
+python3 scripts/release/write_validation_record.py \
+  --output deliverables/validation-record.json \
+  --evidence web=deliverables/local-web.json \
+  --evidence provider=deliverables/provider-smoke.json \
+  --artifact frontend=frontend/dist
+```
+
+记录汇总源码/产物字节摘要与实际验证证据，保留部署及生产验收pending。产物摘要不认证
+供应链，真实部署另填受验证的镜像digest、schema、环境和恢复记录；不得手动把本地结果
+改写成生产通过。AI补充用例还验证实际保存的上下文预留、财务预算禁用SDK隐式重试、
+中途关闭流保持cancelled/未知用量；Modal增加不经keydown的焦点逃逸保护回归。

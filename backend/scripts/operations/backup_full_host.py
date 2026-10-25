@@ -14,6 +14,42 @@ from pathlib import Path
 
 NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
+BUSINESS_CHECKS = {
+    "control": {
+        "users": "SELECT count(*) FROM control.users",
+        "tenants": "SELECT count(*) FROM control.tenants",
+        "memberships": "SELECT count(*) FROM control.memberships",
+        "admin_roles": "SELECT count(*) FROM control.user_roles WHERE role_id='admin'",
+        "registration": "SELECT count(*) FROM control.registration_config",
+    },
+    "business": {
+        "bindings": "SELECT count(*) FROM business.tenant_bindings",
+        "documents": "SELECT count(*) FROM business.documents",
+        "research_jobs": "SELECT count(*) FROM business.research_jobs",
+        "artifact_bytes": "SELECT coalesce(sum(octet_length(content)),0) FROM business.research_artifacts",
+        "paper_accounts": "SELECT count(*) FROM business.full_paper_accounts",
+        "paper_orders": "SELECT count(*) FROM business.full_paper_orders",
+        "paper_fills": "SELECT count(*) FROM business.full_paper_fills",
+        "paper_nav": "SELECT count(*) FROM business.full_paper_nav",
+        "cash": "SELECT coalesce(sum((value->>'cash')::numeric),0)::text FROM business.full_paper_accounts",
+    },
+}
+
+
+def business_evidence(container: str, database: str, schema: str, *, runner) -> dict:
+    checks = BUSINESS_CHECKS[schema]
+    fields = ",".join(f"'{name}',({query})" for name, query in checks.items())
+    query = f"SET statement_timeout='60s'; SELECT json_build_object({fields});"
+    result = run_checked([
+        "docker", "exec", container, "psql", "-X", "--set", "ON_ERROR_STOP=1",
+        "--username", "postgres", "--dbname", database,
+        "--tuples-only", "--no-align", "--command", query,
+    ], runner=runner, capture_output=True, text=True)
+    value = json.loads(result.stdout.strip().splitlines()[-1])
+    if not isinstance(value, dict) or set(value) != set(checks):
+        raise RuntimeError("invalid backup business evidence")
+    return value
+
 
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
@@ -74,7 +110,7 @@ def dump_database(container: str, database: str, target: Path, *, runner) -> dic
 
 
 def verify_restore(
-    container: str, database: str, dump: Path, schema: str, *, runner,
+    container: str, database: str, dump: Path, schema: str, *, runner, expected: dict | None = None,
 ) -> dict:
     scratch = "tsp_verify_" + uuid.uuid4().hex[:16]
     run_checked([
@@ -96,11 +132,16 @@ def verify_restore(
             "--dbname", scratch, "--tuples-only", "--no-align", "--command", query,
         ], runner=runner, capture_output=True, text=True)
         version, tables = result.stdout.strip().split("|", 1)
+        observed = business_evidence(container, scratch, schema, runner=runner)
+        if expected is not None and observed != expected:
+            raise RuntimeError("restored business evidence differs from the quiesced source")
         return {
             "restored": True,
             "schema": schema,
             "schema_version": int(version),
             "table_count": int(tables),
+            "business_evidence": observed,
+            "source_matched": expected is not None,
         }
     finally:
         run_checked([
@@ -125,12 +166,18 @@ def create_backup(
     includes: dict[str, Path],
     runner=subprocess.run,
 ) -> dict:
+    if any(not NAME.fullmatch(name) for name in includes):
+        raise ValueError("invalid backup include name")
     if target.exists():
         raise FileExistsError(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     stage = target.with_name("." + target.name + "." + uuid.uuid4().hex)
     stage.mkdir(mode=0o700)
     try:
+        expected = {
+            schema: business_evidence(container, database, schema, runner=runner)
+            for schema, database in (("control", control_database), ("business", data_database))
+        }
         dumps = {
             "control": dump_database(
                 container, control_database, stage / "control.dump", runner=runner,
@@ -161,9 +208,11 @@ def create_backup(
         restore = {
             "control": verify_restore(
                 container, control_database, stage / "control.dump", "control", runner=runner,
+                expected=expected["control"],
             ),
             "data": verify_restore(
                 container, data_database, stage / "data.dump", "business", runner=runner,
+                expected=expected["business"],
             ),
         }
         manifest = {

@@ -62,6 +62,7 @@ from app.services.observability import (
     install_log_record_factory,
     request_id_server_error,
 )
+from app.services.pipeline_jobs import JobPersistenceError
 from app.services.quote_service import QuoteService
 from app.tickflow import client as tf_client
 from app.tickflow.policy import detect_capabilities
@@ -407,7 +408,7 @@ async def _application_lifespan(app: FastAPI):
     try:
         yield
     finally:
-        from app.api.pipeline import stop_initial_sync_job
+        from app.services.pipeline_runner import stop_initial_sync_job
 
         if app.state.scheduler:
             app.state.scheduler.pause()
@@ -701,6 +702,16 @@ async def capability_denied_handler(request: Request, exc: CapabilityDenied) -> 
     return JSONResponse(
         status_code=403,
         content={"detail": str(exc), "suggestion": exc.suggestion},
+    )
+
+
+@app.exception_handler(JobPersistenceError)
+async def job_persistence_error_handler(
+    _request: Request, exc: JobPersistenceError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={"detail": str(exc), "code": "job_state_persistence_unavailable"},
     )
 
 # 生产期静态文件(前端 dist)

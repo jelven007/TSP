@@ -1,0 +1,10 @@
+[Unit]
+Description=Check full-product backup health hourly
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=1h
+Unit=tsp-full-backup-age.service
+
+[Install]
+WantedBy=timers.target

@@ -113,7 +113,7 @@ def grant_full_runtime(conn, kind: str, role: str) -> None:
         )
 
 
-def bootstrap_full_identity(control) -> bool:
+def bootstrap_full_identity(control, *, password: str = ADMIN_PASSWORD, public: bool = False) -> bool:
     """Idempotent administrator DML initialization. Never reset a password."""
     with control.transaction():
         control.execute("SELECT pg_advisory_xact_lock(hashtext('tsp-system-admin-bootstrap'))")
@@ -128,7 +128,9 @@ def bootstrap_full_identity(control) -> bool:
             if not role:
                 raise ValueError("admin identifier collision; explicit remediation required")
             return False
-        salt, digest = hash_password(ADMIN_PASSWORD)
+        if public and (password == ADMIN_PASSWORD or not 12 <= len(password) <= 128):
+            raise ValueError("public deployment requires an explicit administrator password of 12-128 characters")
+        salt, digest = hash_password(password)
         user_id = uuid.uuid4().hex
         control.execute(
             """INSERT INTO control.users(id,username,password_salt,password_hash)

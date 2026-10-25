@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { QK } from '@/lib/queryKeys'
 import { SettingsAIPanel } from './AI'
 
 const mocks = vi.hoisted(() => ({
@@ -36,6 +37,7 @@ beforeEach(async () => {
   document.body.append(node)
   root = createRoot(node)
   queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+  queryClient.setQueryData(QK.settings, { ...mocks.settings.data })
   await render()
 })
 afterEach(() => {
@@ -98,4 +100,43 @@ it('clears the selected protocol with the rest of AI configuration', async () =>
   await click('确认')
   expect(mocks.clear).toHaveBeenCalledOnce()
   expect(node.querySelector<HTMLSelectElement>('[aria-label="接口协议"]')?.value).toBe('chat_completions')
+})
+
+it('updates shared settings when testing and prevents another save or clear until testing completes', async () => {
+  let finish!: (result: { ok: boolean; model: string }) => void
+  mocks.test.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  await choose('responses')
+  await click('测试')
+  expect(queryClient.getQueryData(QK.settings)).toMatchObject({ ai_protocol: 'responses' })
+  const saveButton = [...node.querySelectorAll('button')].find(item =>
+    ['保存配置', '已保存'].includes(item.textContent?.trim() ?? ''),
+  )!
+  const clearButton = [...node.querySelectorAll('button')].find(item => item.textContent?.trim() === '清空')!
+  expect(saveButton.disabled).toBe(true)
+  expect(clearButton.disabled).toBe(true)
+  await act(async () => { saveButton.click(); clearButton.click() })
+  expect(mocks.save).toHaveBeenCalledOnce()
+  await act(async () => { finish({ ok: true, model: 'test-model' }) })
+  expect(node.textContent).toContain('连通成功')
+})
+
+it('shows actionable save failures and prevents testing while a save is pending', async () => {
+  let fail!: (error: Error) => void
+  mocks.save.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
+  await click('保存配置')
+  const tests = [...node.querySelectorAll('button')].filter(item => item.textContent?.trim() === '测试')
+  expect(tests.every(item => item.disabled)).toBe(true)
+  await act(async () => {
+    fail(new Error('API 地址包含重复的 URL，请检查后重试'))
+    await new Promise(resolve => setTimeout(resolve, 10))
+  })
+  expect(node.querySelector('[role="alert"]')?.textContent).toContain('API 地址包含重复的 URL')
+  expect(mocks.test).not.toHaveBeenCalled()
+})
+
+it('does not call the model when saving the test configuration fails', async () => {
+  mocks.save.mockRejectedValueOnce(new Error('配置保存失败'))
+  await click('测试')
+  expect(mocks.test).not.toHaveBeenCalled()
+  expect(node.textContent).toContain('配置保存失败')
 })

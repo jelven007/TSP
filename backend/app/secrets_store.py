@@ -11,6 +11,7 @@ import copy
 import json
 import logging
 import os
+import threading
 from pathlib import Path
 
 from app.services.fs_utils import atomic_write_text
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 # 实时行情每轮的 webhook/邮件判定会多次读 secrets, 避免每次全文件读+JSON 解析。
 _cache: dict | None = None
 _cache_sig: tuple[int, int] | None = None
+_STORE_LOCK = threading.RLock()
 
 
 def _path() -> Path:
@@ -32,53 +34,68 @@ def _path() -> Path:
     return p
 
 
+def _invalidate_cache() -> None:
+    global _cache, _cache_sig
+    _cache = None
+    _cache_sig = None
+
+
 def load() -> dict:
     """读取 secrets.json (带 mtime 签名缓存)。返回深拷贝, 调用方可自由修改。"""
     global _cache, _cache_sig
-    p = _path()
-    try:
-        sig = (p.stat().st_mtime_ns, p.stat().st_size)
-    except OSError:
-        return {}
-    if _cache is not None and sig == _cache_sig:
+    with _STORE_LOCK:
+        p = _path()
+        try:
+            stat = p.stat()
+            sig = (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            _invalidate_cache()
+            return {}
+        if _cache is not None and sig == _cache_sig:
+            return copy.deepcopy(_cache)
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("secrets.json malformed: %s", e)
+            return {}
+        _cache = data
+        _cache_sig = sig
         return copy.deepcopy(_cache)
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {}
-    except Exception as e:  # noqa: BLE001
-        logger.warning("secrets.json malformed: %s", e)
-        return {}
-    _cache = data
-    _cache_sig = sig
-    return copy.deepcopy(_cache)
 
 
 def save(updates: dict) -> dict:
     """合并写入(不会清掉未提及的字段)。返回新内容。"""
-    current = load()
-    current.update({k: v for k, v in updates.items() if v is not None})
-    p = _path()
-    atomic_write_text(
-        p, json.dumps(current, indent=2, ensure_ascii=False), mode=0o600,
-    )
+    # 同步 API 在线程池运行; 合并、落盘和缓存失效须处于同一临界区。
+    with _STORE_LOCK:
+        current = load()
+        current.update({k: v for k, v in updates.items() if v is not None})
+        atomic_write_text(
+            _path(), json.dumps(current, indent=2, ensure_ascii=False), mode=0o600,
+        )
+        _invalidate_cache()
     return current
 
 
 def clear(*keys: str) -> dict:
     """清掉指定字段(留空清全部)。"""
-    p = _path()
-    if not p.exists():
-        return {}
-    if not keys:
-        p.unlink()
-        return {}
-    current = load()
-    for k in keys:
-        current.pop(k, None)
-    atomic_write_text(
-        p, json.dumps(current, indent=2, ensure_ascii=False), mode=0o600,
-    )
+    with _STORE_LOCK:
+        p = _path()
+        if not p.exists():
+            _invalidate_cache()
+            return {}
+        if not keys:
+            p.unlink()
+            _invalidate_cache()
+            return {}
+        current = load()
+        for k in keys:
+            current.pop(k, None)
+        atomic_write_text(
+            p, json.dumps(current, indent=2, ensure_ascii=False), mode=0o600,
+        )
+        _invalidate_cache()
     return current
 
 

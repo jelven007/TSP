@@ -15,6 +15,7 @@ x-common: &common
     SERVICE_ROLE: api
     MULTITENANCY_ENABLED: "true"
     TSP_CELL_SCHEMA_VERSION: "6"
+    TSP_CELL_DEPLOYMENT_EXPOSURE: "${TSP_DEPLOYMENT_EXPOSURE:-public}"
     DATA_DIR: /public/current
     PLATFORM_CONFIG_DIR: /platform-config
     TICKFLOW_ENV_FILE: /dev/null

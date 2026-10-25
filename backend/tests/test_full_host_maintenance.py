@@ -8,7 +8,12 @@ import time
 
 import pytest
 
-from scripts.operations.backup_full_host import create_backup, parse_include, sha256_file
+from scripts.operations.backup_full_host import (
+    BUSINESS_CHECKS,
+    create_backup,
+    parse_include,
+    sha256_file,
+)
 from scripts.operations.maintain_full_host import (
     docker_prune_commands,
     referenced_releases_from_postgres,
@@ -27,6 +32,11 @@ def test_quiesced_backup_restores_both_databases_before_atomic_publish(tmp_path)
         if "pg_restore" in command:
             assert kwargs["stdin"].read(5) == b"PGDMP"
         if "psql" in command:
+            if "json_build_object" in command[-1]:
+                schema = "control" if "control.users" in command[-1] else "business"
+                return subprocess.CompletedProcess(
+                    command, 0, stdout=json.dumps(dict.fromkeys(BUSINESS_CHECKS[schema], 0)), stderr="",
+                )
             return subprocess.CompletedProcess(command, 0, stdout="6|12\n", stderr="")
         return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
 
@@ -45,6 +55,7 @@ def test_quiesced_backup_restores_both_databases_before_atomic_publish(tmp_path)
     assert manifest["complete"] and manifest["quiesced"]
     assert manifest["restore_verification"]["control"]["schema_version"] == 6
     assert manifest["restore_verification"]["data"]["schema_version"] == 6
+    assert manifest["restore_verification"]["data"]["source_matched"] is True
     assert (target / "files/edge").read_text() == "upstream fixed;\n"
     stored = json.loads((target / "manifest.json").read_text())
     assert stored == manifest
