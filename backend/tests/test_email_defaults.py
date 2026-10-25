@@ -88,6 +88,18 @@ def test_each_account_sees_its_own_default_recipient(monkeypatch):
         assert result["email_smtp_config"]["port"] == 587
         assert result["email_smtp_password_set"] is True
         assert result["webhook_default_channels"] == ["email"]
+        assert result["realtime_quotes_enabled"] is True
+        assert result["minute_intraday_refresh"] is True
+        assert result["minute_intraday_refresh_interval"] == 5
+        assert result["minute_refresh_enabled"] is True
+        assert result["minute_refresh_interval"] == 60
+        assert result["sse_refresh_pages"] == {
+            "overview-market": True, "watchlist": True,
+            "limit-ladder": True, "market-snapshot": True,
+        }
+        interval = client.get("/api/settings/preferences/quote-interval")
+        assert interval.status_code == 200
+        assert interval.json()["interval"] == 3.0
         assert "registration-secret" not in response.text
     assert preferences.load() == {}
     smtp, _ = email_adapter.get_notification_smtp()

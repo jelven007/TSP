@@ -52,6 +52,7 @@ services:
       DATA_DIR: /app/data
       PLATFORM_CONFIG_DIR: /platform-config
       TSP_PUBLIC_MARKET_DIR: /public
+      TSP_COMPUTE_SOCKET: /run/tsp/compute.sock
       TICKFLOW_ENV_FILE: /dev/null
       POLARS_MAX_THREADS: "${TSP_PLATFORM_THREADS:-8}"
       OPENBLAS_NUM_THREADS: "1"
@@ -61,6 +62,7 @@ services:
       - ${TSP_PLATFORM_DATA_DIR:?Writable platform market directory required}:/app/data
       - ${TSP_PUBLIC_MARKET_DIR:?Public release directory required}:/public
       - ${TSP_PLATFORM_CONFIG_DIR:?Platform configuration directory required}:/platform-config
+      - ${TSP_COMPUTE_SOCKET_DIR:?Broker socket directory required}:/run/tsp:ro
     networks: [default]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

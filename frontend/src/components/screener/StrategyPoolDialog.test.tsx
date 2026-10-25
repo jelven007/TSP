@@ -15,14 +15,15 @@ const strategies = [
 ]
 let root: Root
 let container: HTMLDivElement
+let mount: HTMLDivElement
 const confirm = vi.fn()
 const close = vi.fn()
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-  container = document.createElement('div')
-  document.body.appendChild(container)
-  root = createRoot(container)
+  mount = document.createElement('div')
+  document.body.appendChild(mount)
+  root = createRoot(mount)
   confirm.mockClear()
   close.mockClear()
   list.mockReset().mockResolvedValue({ strategies })
@@ -30,13 +31,15 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount())
-  container.remove()
+  mount.remove()
 })
 
 async function render(pool: string[] = []) {
   await act(async () => {
     root.render(<StrategyPoolDialog pool={pool} onConfirm={confirm} onClose={close} />)
   })
+  container = document.querySelector<HTMLDivElement>('[role="dialog"][aria-label="策略股票池"]')!
+  expect(container).not.toBeNull()
 }
 
 function button(text: string) {

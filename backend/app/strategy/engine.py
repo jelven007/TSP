@@ -211,6 +211,7 @@ class StrategyDef:
     # 仅 minute_filter: META["daily_history_bars"] 声明需要的日线历史窗口 (0=不需要;
     # >0 时 filter_minute_history 必须接受 daily 关键字, 引擎注入 context.daily_history)
     minute_daily_bars: int = 0
+    logic_version: str = ""
 
 
 @dataclass
@@ -392,6 +393,10 @@ class StrategyEngine:
             )
         try:
             code = path.read_text(encoding="utf-8")
+            dependency_sources = {
+                dependency.name: dependency.read_text(encoding="utf-8")
+                for dependency in dependency_paths
+            }
             from app.strategy.ai_generator import AIStrategyGenerator
             AIStrategyGenerator._validate_safety(
                 code,
@@ -399,7 +404,7 @@ class StrategyEngine:
             )
             for dependency_path in dependency_paths:
                 AIStrategyGenerator._validate_safety(
-                    dependency_path.read_text(encoding="utf-8"),
+                    dependency_sources[dependency_path.name],
                     extra_allowed_import_modules=frozenset({
                         "collections.abc",
                         "types",
@@ -424,7 +429,7 @@ class StrategyEngine:
             try:
                 for dependency_name in dependency_names:
                     sys.modules.pop(dependency_name, None)
-                spec.loader.exec_module(mod)
+                exec(compile(code, str(path), "exec"), mod.__dict__)
             except Exception:
                 if previous_module is None:
                     sys.modules.pop(spec.name, None)
@@ -577,6 +582,8 @@ class StrategyEngine:
         elif filter_history_fn is None or filter_fn is not None:
             raise ValueError("python_history_legacy strategy must declare only filter_history")
 
+        from app.strategy.version import logic_version
+
         return StrategyDef(
             meta=meta,
             basic_filter=bf,
@@ -599,6 +606,7 @@ class StrategyEngine:
             composite=composite_spec,
             filter_minute_history_fn=filter_minute_history_fn,
             minute_daily_bars=minute_daily_bars,
+            logic_version=logic_version(code, dependency_sources),
         )
 
     def reload(self) -> None:

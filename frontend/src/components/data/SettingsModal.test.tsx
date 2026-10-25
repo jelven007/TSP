@@ -34,7 +34,7 @@ it('traps focus, preserves editing focus during rerender and restores the trigge
     ))
   }
   await render(false)
-  const dialog = host.querySelector<HTMLElement>('[role="dialog"]')!
+  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
   expect(dialog.getAttribute('aria-modal')).toBe('true')
   expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)?.textContent).toBe('设置')
   const buttons = dialog.querySelectorAll('button')

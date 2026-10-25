@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, BookmarkCheck, CheckCircle2, Clock3, Link2, Loader2, RotateCcw, Trash2, X, XCircle } from 'lucide-react'
 import { Modal } from '@/components/Modal'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toast } from '@/components/Toast'
 import { api, type ResearchCandidate, type ResearchCandidateStatus, type ScoringDirection } from '@/lib/api'
 import { fmtPct } from '@/lib/format'
@@ -49,6 +50,7 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
   const queryClient = useQueryClient()
   const [kind, setKind] = useState<'all' | 'factor' | 'strategy'>('all')
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null)
+  const [deleteCandidate, setDeleteCandidate] = useState<ResearchCandidate | null>(null)
   const candidates = useQuery({ queryKey: QK.researchCandidates, queryFn: api.researchCandidates })
   const strategies = useQuery({ queryKey: QK.strategyLinkOptions(), queryFn: () => api.strategyList() })
   const factorColumns = useQuery({ queryKey: QK.factorColumns, queryFn: api.factorColumns })
@@ -70,6 +72,7 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
   const remove = useMutation({
     mutationFn: api.researchCandidateDelete,
     onSuccess: () => {
+      setDeleteCandidate(null)
       queryClient.invalidateQueries({ queryKey: QK.researchCandidates })
       toast('候选方案已删除', 'success')
     },
@@ -132,9 +135,9 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
     <Modal
       onClose={onClose}
       labelledBy="research-candidates-title"
-      panelClassName="flex max-h-[82vh] w-[94vw] max-w-4xl flex-col overflow-hidden rounded-card border border-border bg-base shadow-2xl"
+      size="lg"
     >
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+      <header className="modal-header flex shrink-0 items-center gap-3">
         <BookmarkCheck className="h-4 w-4 text-accent" />
         <div className="min-w-0">
           <h2 id="research-candidates-title" className="text-sm font-semibold text-foreground">候选方案</h2>
@@ -143,7 +146,7 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
         <button
           type="button"
           onClick={onClose}
-          className="ml-auto flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          className="modal-close ml-auto"
           title="关闭"
           aria-label="关闭候选方案"
         >
@@ -251,9 +254,7 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
                 )}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm(`确认删除候选方案“${item.name}”？`)) remove.mutate(item.id)
-                  }}
+                  onClick={() => setDeleteCandidate(item)}
                   disabled={remove.isPending}
                   className="flex h-8 w-8 items-center justify-center rounded-btn text-muted transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
                   title="删除候选"
@@ -347,6 +348,12 @@ export function ResearchCandidatesDialog({ onClose, onLoadStrategy }: {
           )
         })}
       </div>
+      {deleteCandidate && (
+        <ConfirmDialog title="删除候选方案" onClose={() => setDeleteCandidate(null)}
+          onConfirm={() => remove.mutate(deleteCandidate.id)} confirmText="确认删除" danger pending={remove.isPending}>
+          确认删除候选方案“{deleteCandidate.name}”？
+        </ConfirmDialog>
+      )}
     </Modal>
   )
 }

@@ -1,10 +1,13 @@
 # TSP 系统技术方案
 
-2026-10-25基线补入官方个股目录、管理员默认个人空间、统一顶栏和数据总览；
+2026-10-25本批补入策略结果归档/全局资源准入、统一弹窗、两步向导、
+目录与行情同步分离、盘后16:00默认及研究界面刷新；
 工程目录及六类文档的对应关系见[生命周期追踪](reference/engineering.md#trace)，
-本次实际验证见[整合记录](../reports/production-baseline-20261025/verification.md)。
+本次实际验证与发布状态见[整合记录](../reports/current-state-release-20261025/verification.md)。
 
-核对日期：2026-10-24。本手册集中记录当前实现与系统目标；本地完整变更及验证见[最新整合记录](../reports/production-integration-20261024/verification.md)。当前实现以源码和相邻测试为准，目标方案不代表已接入、验收或部署；生产状态只在[版本基线](version-baseline.md)维护。
+核对日期：2026-10-25。本手册集中记录当前实现与系统目标；
+当前实现以源码和相邻测试为准，目标方案不代表已接入、验收或部署；
+生产状态只在[版本基线](version-baseline.md)维护。
 
 产品范围见[需求基线](requirements.md)，工程约束见[开发指南](../CONTRIBUTING.md)，部署恢复见[运维手册](operations.md)。
 
@@ -14,6 +17,31 @@
 
 <a id="current"></a>
 ## 一、当前架构与运行契约
+
+<a id="strategy-result-history"></a>
+### 策略结果归档
+
+结果以租户/数据目录、稳定策略ID、当时名称、逻辑版本、有效参数及覆盖配置、
+标的池、资产、周期和实际日期隔离。加载时捕获代码/辅助模块版本，执行快照保留
+运行中定义；注释和名称编辑不改变逻辑版本，名称本身仍是归档维度。
+自定义因子/信号内容与入场政策纳入结果版本，计算时的行情generation和公共发布ID
+作为来源信息保存。同一维度更新最近成功及曾命中并集，启动时间较早的任务不能倒写。
+
+`services/strategy_results.py` 是权威仓库：完整多租户通过现有
+`business.documents` 事务、租户绑定锁和RLS写入专用namespace；
+不套用配置列表2000条上限，不新增生产schema。独立模式使用
+`user_data/strategy_results.sqlite3`，WAL、FULL同步和事务保证并发写入。
+记录JSON最多16MiB；历史按索引键分页，摘要查询不加载股票行。
+内存仅缓存序列化明细，32MiB字节上限，读取前验证记录revision；
+未提交事务不进入热缓存。清理旧`strategy_cache`不会删除归档。
+
+单跑、阻塞批跑、渐进批跑及旧`/api/strategies`执行入口先保存成功结果。
+`/api/screener/cached*`传`as_of/asset_type/timeframe`时查询当前定义的对应记录；
+不带日期保持旧快照兼容。`result-history/{strategy_id}`分页列出旧快照，
+按record ID读取明细，租户来自可信请求上下文。前端查询键含同样维度，
+迟到执行响应不能切回旧日期；今日实时结果必须匹配加载版本与配置。
+分钟缺指定日分区明确失败，不回退最新分区。操作和恢复见
+[策略操作](../操作说明书.md#82-策略卡片)、[备份](operations.md#strategy-history-backup)。
 
 <a id="current-1-架构摘要"></a>
 ### 1. 架构摘要
@@ -45,6 +73,9 @@ Standalone 与 Platform 记录待同步状态并通过 `start_initial_sync` 创�
 09:00 执行，包含周末与节假日；复用持久化 JobStore 的 `instruments_sync` 任务类型，
 同类单飞，不占行情重任务槽，下载失败不阻塞启动。
 实时行情（含 ETF）、盘中分钟和分时图刷新、秒级归档、内置概念/行业自动拉取默认开启。
+实时监控间隔由现有 preferences getter 提供行情 3 秒、分时图 5 秒、全量分钟 60 秒
+缺省值，四页 SSE 刷新默认开启；已保存值优先，读取不改写文件。前端初始回退与 API
+无行情服务时的返回值采用同一口径，实际轮询仍由数据源能力及成本限制。
 财务调度在能力可用时默认启动，执行时检查总开关，通过
 `asyncio.to_thread(run_now, "metrics")` 复用互斥、时间持久化和带仓库写锁的数据发布路径。
 能力、权限、交易日/时段和任务单飞继续控制真正取数；首次全量初始化不要求当前在交易时段。
@@ -115,10 +146,23 @@ API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期
   返回 `503 market_history_unavailable`；独立模式保留原请求内补数能力。
 - API 到 Platform 的行情读代理使用 12 秒读超时和 5 秒连接超时；管理面仍保留
   300 秒长任务超时。Platform 内已有相同请求合并和 2 秒短缓存。
+- 策略页的租户分钟数据健康检查读取 `/api/intraday/minute-refresh/status`，
+  经行情读代理只返回 `available` 和 `healthy`。管理员继续使用
+  `/api/settings/minute-refresh/status` 查看完整服务状态；该管理接口仍要求
+  `settings:manage`，租户页面不轮询管理员配置。
 - Research、Realtime、Notifications、Scheduled 的 Supervisor 与 API readiness
   共享按类型区分的 freshness 上限（120/420/120/660 秒）。
 - Broker 健康检查实际启动一个同约束沙箱并缓存成功结果；执行槽和等待者均有界，
   并发满最多短时等待，失败诊断最多保留 8 KiB stderr 尾部。
+- “系统设置 → 策略页 → 并发策略数”通过管理员管理面读写
+  `/api/settings/strategy-concurrency`；复用原子全局偏好保存，Broker 只读同一
+  配置文件，`resources` IPC 仅查询，不接受远程资源覆盖。
+  `services/strategy_resources.py` 按执行主机内存/CPU 各 25% 计算推荐数与任务
+  额度；共享准入同时核对任务数及已占用内存/CPU。Docker 按准入时额度施加硬限，
+  配置降低时保留旧任务及其额度，单进程模式仅提供准入估算。自动为缺省，
+  手工 1–16 受部署上限限制，估算结果不代表实测容量。
+  API/Platform/Worker 共用一个主机 Broker；批量内部串行、原租户互斥保持，
+  不扩展到跨节点调度。接线与生效排障见[运维配置](operations.md#strategy-concurrency)。
 - `production-16g.env` 将 API 覆盖为两进程，七类应用角色限制为 8,704 MiB，
   单 Compute 为 2,048 MiB，
   六类数据库客户端的双库连接上界为 36；其余内存留给 PostgreSQL、Edge/Broker、
@@ -128,7 +172,8 @@ API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期
 六小时且不属于 current、最近 30 份或研究 input/metadata 引用的版本；
 缺少业务库拒绝清理。空闲公共读者按标记及有界时间重新加载。
 
-现有生产记录最后确认 v0.4.11、`092bd79c`、schema v6，已部署 inode 容量与回收补丁。
+2026-10-25实测新ECS已运行v0.4.21/7823b84b/schema v6，七应用角色健康，
+现有公共容量保护与周期回收保留。旧v0.4.11/092bd79c属于历史实例。
 自选业务连接池获取超时的底层原因仍未确认；源码整合不替代生产验收，
 见[本次生命周期基线](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 
@@ -299,11 +344,15 @@ API 层不应直接实现供应商协议或全量数据计算。前端不应复�
 XLSX 下载，并核对各源总数、重复代码和四板覆盖；`services/instrument_sync.py` 标准化、
 保留缺失元数据的来源与日期后写入快照。网络下载在目录锁和仓库写锁之外完成，官方提交
 与管理员 CRUD 共用锁；当前快照写入失败恢复历史，避免虚假退市观测。
+盘后管道、首次行情初始化和日K修正/补全只读取已有的完整维表快照，不下载或改写目录。
+首次后台行情任务等待已经启动的独立目录任务完成；没有有效快照时明确失败，不隐式补同步。
 `api/instruments.py` 的 `/api/data/instruments` GET/POST/PUT/DELETE 复用现有公共数据
 管理转发，后端逐次检查管理员身份；前端复用 StatCard 管理入口、StockCatalogDialog、
 API 类型和集中查询键。变更后刷新当前维表视图、名称与股票缓存、数据/总览/筛选缓存，
 发布 data release 并失效前端相关查询；不清空 ETF/指数历史缓存。官方缺股本时保留旧值，
 不从报价或首根行情日期推断上市日。
+管理查询支持搜索、交易所与四板筛选组合，筛选先于分页并进入集中查询键；
+管理页支持输入有效页码跳转，筛选变化回到第一页。
 
 enriched 分区持久化 `is_risk_warning`、`is_listed` 和
 `instrument_status_known`。回测和矩阵过滤优先使用交易日对应状态；首次启用历史
@@ -495,7 +544,8 @@ TanStack Query。写操作必须同时考虑：
 Platform 执行，租户研究/监控/通知/定时工作由对应 Worker 执行。当前主要任务包括：
 
 - 交易日 09:25 后的竞价终态快照采集和窗口内重试。
-- 默认 15:35（北京时间）的盘后数据流水线。
+- 默认交易日 16:00（北京时间）的盘后数据流水线；自定义时间精确保存并更新运行中的
+  调度器，重启后保留。继续保持 15:35 下限和交易日证据门控，非法时间不覆盖原配置。
 - 可选的 15:40 盘后复盘。
 - 可配置的扩展数据拉取。
 - 可选的每周因子挖掘。
@@ -747,7 +797,9 @@ S0–S3 是数据、研究等产品能力的建设维度；二期第一至第三
 
 当前完整单机模式为 API、Gateway、Platform 和四类 Worker，API 默认四进程；16 GiB 配置为两进程。当前 Gateway 单副本、Platform 单写，独立模式仍是单 API 主进程。不能直接增加共享 `DATA_DIR` 的写副本来获得多节点能力。[4](#cite-4)
 
-当前目录事实包括18个业务菜单加设置、22个公开策略、77项内置因子、25个DSL算子、69个开放方法/路径契约和12个MCP工具；普通租户不显示“数据总览”菜单。最后已知生产为0.4.11 / `092bd79c` / schema v6，本次未重新探测生产。[4](#cite-4)
+当前目录事实包括18个业务菜单加设置、22个公开策略、77项内置因子、25个DSL算子、69个开放方法/路径契约和12个MCP工具；普通租户不显示“数据总览”菜单。
+本批升级前实测新ECS为0.4.21/7823b84b/schema v6，后续部署的完整SHA与产物
+以[版本基线](version-baseline.md)和[本次记录](../reports/current-state-release-20261025/verification.md)为准。[4](#cite-4)
 
 <a id="target-2-系统范围与设计原则"></a>
 ### 2. 系统范围与设计原则
@@ -1380,7 +1432,13 @@ A–I、3.1–3.6和恢复目标见[联合验收](testing.md#acceptance)。
 不用于私有定义或租户业务；原表级TTL/失效、长分钟表与独立storage TTL保持。
 尚未迁移的历史扩展投影等API辅助依赖仍须逐边界处理，不宣称全层零反向导入。
 
-设置类弹窗复用 `Modal` 的语义、ESC及焦点陷阱/归还，并支持提交期间关闭保护。
+全部模态弹窗复用 `Modal`，通过 portal 挂到 `document.body`，避免页面工具栏、
+变换和滚动容器裁剪。`index.css` 的 `modal-*` 契约统一主题表面、12px圆角、
+标题/内容/页脚与关闭按钮；`size` 为480/720/960/1200px四档，默认横向居中、
+顶部80px，窄屏顶部16px并自动收缩。高度沿百分比链路兼容系统CSS缩放，
+长内容内部滚动；`fillHeight` 用于表格工作区，`maximized` 仅由用户主动操作。
+组件统一维护弹窗层级、背景滚动锁、焦点陷阱/归还与ESC，仅最上层响应关闭，
+并支持提交期间关闭保护。对应需求为 `FR-UI-06`。
 图表运行导入集中于 `frontend/src/lib/echarts.ts`，仅注册现用series/components及Canvas；
 新增图表须显式补注册。按需导入只证明产物缩小，首屏和交互收益须另测。
 

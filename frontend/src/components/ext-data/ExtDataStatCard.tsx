@@ -1,6 +1,7 @@
+import { Modal } from '@/components/Modal'
 import { useRef, useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { Settings, Tag, Upload, Code, RefreshCw, CheckCircle2, Loader2, Pencil, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { api, type ExtDataConfig } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
@@ -144,7 +145,7 @@ export function ExtDataStatCard({ config, onDelete, deleting, onEdit }: {
 
       <AnimatePresence>
         {settingsOpen && (
-          <SettingsModal title={`${config.label} · 设置`} onClose={() => setSettingsOpen(false)} width="max-w-2xl">
+          <SettingsModal title={`${config.label} · 设置`} onClose={() => setSettingsOpen(false)} size="md">
             <div className="space-y-3">
               {onEdit && (
                 <button
@@ -260,22 +261,7 @@ export function ExtDataStatCard({ config, onDelete, deleting, onEdit }: {
       {/* 删除二次确认弹窗 */}
       <AnimatePresence>
         {showDelete && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => !deleting && setShowDelete(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-[90vw] max-w-[380px] rounded-card border border-border bg-base shadow-2xl p-6"
-            >
+          <Modal onClose={() => setShowDelete(false)} ariaLabel="删除扩展数据" size="sm" closeDisabled={deleting} panelClassName="p-5">
               <div className="flex items-start gap-3">
                 <div className="shrink-0 h-10 w-10 rounded-full bg-danger/12 flex items-center justify-center">
                   <AlertTriangle className="h-5 w-5 text-danger" />
@@ -306,8 +292,7 @@ export function ExtDataStatCard({ config, onDelete, deleting, onEdit }: {
                   {deleting ? '删除中…' : '确认删除'}
                 </button>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
     </div>

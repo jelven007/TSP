@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
@@ -822,7 +823,7 @@ export function Watchlist() {
     queryKey: QK.watchlistGroups,
     queryFn: api.watchlistGroups,
   })
-  const groups = groupList.data?.groups ?? []
+  const groups = useMemo(() => groupList.data?.groups ?? [], [groupList.data?.groups])
   const activeGroupId = selectedGroup === 'all' || selectedGroup === 'ungrouped'
     ? null
     : selectedGroup
@@ -910,7 +911,7 @@ export function Watchlist() {
   // 按用户设定的间隔轮询 (不接 SSE 高频, 避免每秒拉 TickFlow 触限流); 与 Screener / 设置卡片描述一致。
   const { data: prefsData } = usePreferences()
   const intradayRefreshEnabled = prefsData?.minute_intraday_refresh ?? false
-  const intradayRefreshInterval = prefsData?.minute_intraday_refresh_interval ?? 6
+  const intradayRefreshInterval = prefsData?.minute_intraday_refresh_interval ?? 5
   // 视口感知: 虚拟器渲染中的 symbol 集合 (可见 + overscan 缓冲), 由下方虚拟器
   // 区域的 effect 写入; null = 未就绪/非虚拟化视图, 沿用全列表。首轮全量播种
   // 缓存 (queryFn 在挂载时先于 ref 填充执行), 之后各轮只拉视口集合。
@@ -1104,9 +1105,9 @@ export function Watchlist() {
     setGroupCardsOpen(false)
   }, [])
 
-  const listEntries = list.data?.symbols ?? []
+  const listEntries = useMemo(() => list.data?.symbols ?? [], [list.data?.symbols])
   const allSymbols = listEntries.map(s => s.symbol)
-  const rows = enriched.data?.rows ?? []
+  const rows = useMemo(() => enriched.data?.rows ?? [], [enriched.data?.rows])
   const groupBySymbol = useMemo(
     () => new Map(listEntries.map(entry => [entry.symbol, entry.group_ids ?? []])),
     [listEntries],
@@ -1976,22 +1977,7 @@ export function Watchlist() {
       {/* 清空确认弹窗 */}
       <AnimatePresence>
         {confirmClear && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setConfirmClear(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-[90vw] max-w-[380px] rounded-card border border-border bg-base shadow-2xl p-6"
-            >
+          <Modal onClose={() => setConfirmClear(false)} ariaLabel="清空自选" size="sm" panelClassName="p-5">
               <h3 className="text-sm font-medium text-foreground mb-2">确认清空自选</h3>
               <p className="text-xs text-secondary mb-5">
                 将移除全部 {allSymbols.length} 只自选股，此操作不可恢复。
@@ -2011,8 +1997,7 @@ export function Watchlist() {
                   {clearAll.isPending ? '清除中...' : '确认清空'}
                 </button>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 

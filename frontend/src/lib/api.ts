@@ -359,6 +359,32 @@ export interface ScreenerResult {
   rows: any[]
   total: number
   elapsed_ms: number
+  computed_at?: number
+  record_id?: string
+  source?: 'saved' | 'realtime'
+}
+
+export interface StrategyResultHistorySummary {
+  record_id: string
+  strategy_id: string
+  strategy_name: string
+  strategy_version: string
+  params: Record<string, unknown>
+  overrides: Record<string, unknown>
+  pool: string[] | null
+  asset_type: 'stock' | 'etf'
+  timeframe: '1d' | '1m'
+  as_of: string
+  total: number
+  ever_count: number
+  computed_at: number
+}
+
+export interface StrategyResultHistoryDetail {
+  record_id: string
+  summary: StrategyResultHistorySummary
+  result: ScreenerResult
+  ever_rows: Record<string, any>
 }
 
 export interface ScreenerResultSummary {
@@ -385,6 +411,7 @@ export interface ScreenerRunAllSummary {
   complete?: boolean
   /** 后台执行出错时的错误信息 (部分结果仍会返回) */
   error?: string | null
+  errors?: Record<string, string>
   /** 本次执行起点 (Unix ms, 后端时钟), 用于判断缓存结果是否属于本轮 */
   started_at?: number | null
 }
@@ -2222,6 +2249,30 @@ export interface NotificationDelivery {
   sent_at: string | null
 }
 
+export type StrategyConcurrencySettings = {
+  available: false
+  strategy_concurrency: number | null
+  error: string
+} | {
+  available: true
+  strategy_concurrency: number | null
+  host_memory_mb: number
+  host_cpus: number
+  budget_ratio: number
+  memory_budget_mb: number
+  cpu_budget: number
+  recommended_concurrency: number
+  max_concurrency: number
+  effective_concurrency: number
+  task_memory_mb: number
+  task_cpus: number
+  active: number
+  config_enabled: boolean
+  pending: boolean
+  execution_mode: 'sandbox' | 'in_process'
+  recommendation_basis: 'task_limits'
+}
+
 export interface Preferences {
   data_sync_auto_enabled?: boolean
   realtime_quotes_enabled: boolean
@@ -2589,6 +2640,13 @@ export const api = {
   preferences: () => request<Preferences>(
     multitenancyEnabled() ? '/api/business/preferences' : '/api/settings/preferences',
   ),
+  strategyConcurrency: () =>
+    request<StrategyConcurrencySettings>('/api/settings/strategy-concurrency'),
+  updateStrategyConcurrency: (strategy_concurrency: number | null) =>
+    request<StrategyConcurrencySettings>('/api/settings/strategy-concurrency', {
+      method: 'POST',
+      body: JSON.stringify({ strategy_concurrency }),
+    }),
   dataSources: () => request<DataSourcesResponse>('/api/settings/data-sources'),
   capabilityMatrix: () => request<CapabilityMatrix>(
     multitenancyEnabled() && !hasPermission('settings:manage') ? '/api/business/capabilities' : '/api/settings/capability-matrix',
@@ -2703,7 +2761,11 @@ export const api = {
       last_requests?: number
       next_round_at?: number | null
       last_error?: string | null
-    }>('/api/settings/minute-refresh/status'),
+    }>(
+      multitenancyEnabled() && !hasPermission('settings:manage')
+        ? '/api/intraday/minute-refresh/status'
+        : '/api/settings/minute-refresh/status',
+    ),
   updatePipelinePullTypes: (cfg: Partial<Pick<Preferences, 'pipeline_pull_a_share' | 'pipeline_pull_etf' | 'pipeline_pull_index'>>) =>
     request<{
       pipeline_pull_a_share: boolean
@@ -2729,9 +2791,9 @@ export const api = {
       body: JSON.stringify({ symbols }),
     }),
 
-  stockCatalog: (q = '', exchange = '', page = 1, pageSize = 50) =>
+  stockCatalog: (q = '', exchange = '', page = 1, pageSize = 50, board = '') =>
     request<{ items: StockCatalogRow[]; total: number; page: number; page_size: number }>(
-      `/api/data/instruments?q=${encodeURIComponent(q)}&exchange=${exchange}&page=${page}&page_size=${pageSize}`,
+      `/api/data/instruments?q=${encodeURIComponent(q)}&exchange=${exchange}&board=${encodeURIComponent(board)}&page=${page}&page_size=${pageSize}`,
     ),
   createStockCatalogRow: (body: StockCatalogFields & { symbol: string }) =>
     request<StockCatalogRow>('/api/data/instruments', { method: 'POST', body: JSON.stringify(body) }),
@@ -3233,19 +3295,33 @@ export const api = {
     request<ScreenerRunAllSummary>(
       '/api/screener/run_all', { method: 'POST', timeoutMs: COMPUTE_REQUEST_TIMEOUT_MS, body: JSON.stringify({ as_of: asOf ?? null, strategy_ids: strategyIds ?? null, asset_type: assetType, timeframe, summary_only: true }) },
     ),
-  screenerCachedSummary: () =>
-    request<ScreenerCachedSummary>('/api/screener/cached-summary'),
-  screenerCachedResult: (strategyId: string, extColumns?: string) =>
+  screenerCachedSummary: (asOf?: string, assetType = 'stock', timeframe = '1d') =>
+    request<ScreenerCachedSummary>(`/api/screener/cached-summary?${new URLSearchParams({
+      ...(asOf ? { as_of: asOf } : {}), asset_type: assetType, timeframe,
+    })}`),
+  screenerCachedResult: (strategyId: string, extColumns?: string, asOf?: string, assetType = 'stock', timeframe = '1d') =>
     request<ScreenerCachedResult>(
-      extColumns
-        ? `/api/screener/cached-result/${encodeURIComponent(strategyId)}?ext_columns=${encodeURIComponent(extColumns)}`
-        : `/api/screener/cached-result/${encodeURIComponent(strategyId)}`,
+      `/api/screener/cached-result/${encodeURIComponent(strategyId)}?${new URLSearchParams({
+        ...(asOf ? { as_of: asOf } : {}), ...(extColumns ? { ext_columns: extColumns } : {}),
+        asset_type: assetType, timeframe,
+      })}`,
     ),
-  screenerCached: (extColumns?: string) =>
+  screenerCached: (extColumns?: string, asOf?: string, assetType = 'stock', timeframe = '1d') =>
     request<{ as_of: string | null; results: Record<string, { total: number; as_of: string; rows: any[] }>; today_ever_matched: Record<string, string[]> | null; today_ever_rows: Record<string, Record<string, any>> | null; updated_at: number | null }>(
-      extColumns
-        ? `/api/screener/cached?ext_columns=${encodeURIComponent(extColumns)}`
-        : '/api/screener/cached',
+      `/api/screener/cached?${new URLSearchParams({
+        ...(asOf ? { as_of: asOf } : {}), ...(extColumns ? { ext_columns: extColumns } : {}),
+        asset_type: assetType, timeframe,
+      })}`,
+    ),
+  screenerResultHistory: (strategyId: string, cursor?: string) =>
+    request<{ records: StrategyResultHistorySummary[]; next_cursor: string | null }>(
+      `/api/screener/result-history/${encodeURIComponent(strategyId)}?${new URLSearchParams({
+        limit: '30', ...(cursor ? { cursor } : {}),
+      })}`,
+    ),
+  screenerResultHistoryDetail: (strategyId: string, recordId: string) =>
+    request<StrategyResultHistoryDetail>(
+      `/api/screener/result-history/${encodeURIComponent(strategyId)}/${encodeURIComponent(recordId)}`,
     ),
   marketSnapshot: () =>
     request<{ as_of: string | null; rows: MarketSnapshotRow[] }>('/api/screener/market-snapshot'),

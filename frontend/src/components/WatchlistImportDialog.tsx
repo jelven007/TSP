@@ -506,9 +506,9 @@ export function WatchlistImportDialog({
     <Modal
       onClose={onClose}
       labelledBy="watchlist-import-title"
-      panelClassName="w-[92vw] max-w-lg max-h-[85vh] flex flex-col bg-surface border border-border rounded-card shadow-xl"
+      size="md"
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      <div className="modal-header flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <div>
           <h2 id="watchlist-import-title" className="text-sm font-semibold text-foreground">
             批量导入自选
@@ -520,14 +520,14 @@ export function WatchlistImportDialog({
         <button
           type="button"
           onClick={onClose}
-          className="h-8 w-8 inline-flex items-center justify-center rounded-btn text-secondary hover:bg-elevated"
+          className="modal-close"
           aria-label="关闭"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="px-4 py-3 overflow-y-auto flex-1 space-y-3">
+      <div className="modal-body px-4 py-3 overflow-y-auto flex-1 space-y-3">
         {busy && progressLabel && (
           <p className="text-[11px] text-muted">{progressLabel}</p>
         )}
@@ -639,7 +639,7 @@ export function WatchlistImportDialog({
         )}
       </div>
 
-      <div className="px-4 py-3 border-t border-border shrink-0 space-y-2.5">
+      <div className="modal-footer px-4 py-3 border-t border-border shrink-0 space-y-2.5">
         <div className="space-y-1.5">
           <div className="flex items-start gap-2">
             <span className="text-[11px] text-secondary pt-1.5 shrink-0">导入到分组</span>

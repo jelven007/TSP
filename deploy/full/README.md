@@ -7,10 +7,11 @@
 
 本目录是完整产品单机多租户部署入口，沿用原 `app.main`、完整前端和原业务引擎。
 一期于 2026-10-14 完成生产切流与 100 用户验收，见
-[一期实施记录](../../reports/document-consolidation-20261024/historical-evidence.md#phase1)。火山引擎生产已于
-2026-10-21 在 v0.4.11、`6d16751c`、schema v6 上部署补丁 `092bd79c`，
-修复公共版本 inode 耗尽及盘后读取旧目录；双库已实际恢复验证，
-详见[修复结果](../../reports/online-timeout-20261021/result.md)。
+[一期实施记录](../../reports/document-consolidation-20261024/historical-evidence.md#phase1)。
+2026-10-25本批升级前实测新ECS `118.196.108.188`/`https://shanao.asia`
+已运行0.4.21/7823b84b/schema v6，七角色及PostgreSQL健康；最新发布状态见
+[本批记录](../../reports/current-state-release-20261025/verification.md)。
+旧实例inode修复和双库恢复见[历史结果](../../reports/online-timeout-20261021/result.md)。
 候选升级继续按下述流程执行，不能与旧实例同时
 写一个行情目录；候选数据、数据库及监听端口必须与生产分离。
 
@@ -20,7 +21,7 @@
 - `api`：默认四个 HTTP 进程，完整前端、持久身份和租户业务；公共行情与平台配置只读。管理员数据/设置操作经过服务端权限验证后转发至平台。
 - `gateway`：单进程实时入口，仅开放 `/api/events`、`/api/events/ticket` 和健康端点；本地验签一次性租户票据，监听撤权和私有事件通知，并转发平台行情 marker，不挂载公共行情、平台配置或计算 socket。
 - `research`、`realtime`、`notifications`、`scheduled`：独立任务进程，分别处理受限研究、监控与模拟交易、通知 outbox、租户周度挖掘和每日复盘。
-- 主机计算 Broker：固定计算镜像、每租户一个/全机四个容器；仅 Broker 有 Docker 权限。API/Worker 只挂载 Unix socket。计算容器无网络、无凭据、UID 10001、只读公共文件。
+- 主机计算 Broker：固定计算镜像、每租户一个，全机并发按策略预算及配置限制；仅 Broker 有 Docker 权限。API/Platform/Worker 只挂载 Unix socket。计算容器无网络、无凭据、UID 10001、只读公共文件。
 - PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，均迁移到 schema v6。
 
 ## 小规格单机候选
@@ -45,10 +46,27 @@ API 深度就绪使用同一组按类型区分的 freshness，不会在监督器
 
 `tsp-compute-broker.service` 支持在私密 `broker.env` 配置
 `TSP_COMPUTE_CAPACITY`、`TSP_COMPUTE_MEMORY_MB`、`TSP_COMPUTE_CPUS` 和
-`TSP_COMPUTE_QUEUE_SECONDS`；默认仍为 4、4096、2、2。并发满时最多等待该
-短窗口，等待者数量与执行容量相同。健康检查实际启动无网络沙箱并缓存 60 秒，
-而非只检查镜像存在；失败日志保留最多 8 KiB stderr 尾部。计算请求不能覆盖这些宿主配置。资源预算须包含
-“最大并发 × 每个计算容器内存”，不能只计算常驻服务。
+`TSP_COMPUTE_QUEUE_SECONDS`；模板默认为 16、4096、2、2。其中 16 是部署并发
+上限，实际默认“自动”按主机内存/CPU各25%的策略预算估算推荐值。
+管理员在“设置 → 系统设置 → 策略页”保存并发数，所有租户共用；
+单任务额度按原限额与总预算均分值中的较小值施加 Docker 限制。
+并发满最多等待该短窗口，等待者最多16个。健康检查实际启动无网络沙箱并缓存60秒；
+失败日志保留最多8 KiB stderr尾部，计算请求不能覆盖宿主配置。
+旧的小主机预算文件继续作为部署上限，不能从新模板自动推定容量。
+
+`TSP_COMPUTE_CONFIG_FILE` 默认 `/opt/tsp-full/platform-config/preferences.json`，
+须对应 `TSP_PLATFORM_CONFIG_DIR` 中 Platform 实际写入的文件。目录自定义时在
+`broker.env` 同步路径；Broker只读配置，Platform通过只读socket查询执行主机
+资源。隔离Compose将候选配置目录只读挂给Broker；不要单独bind偏好文件，
+否则原子替换后可能仍读到旧inode。保存后新任务生效，旧任务继续收尾并占用旧额度；
+详细计算、失败提示与单进程边界见[运维配置](../../docs/operations.md#strategy-concurrency)。
+
+该ECS实际由`tsp-full.service`和`operations/start_full.py`管理启动顺序，
+Platform目录同步完成、刷新快照且业务功能完整后才创建消费者；
+不要只用Compose单独重启平台绕过现有顺序保护。Broker升级须同步确切Compute镜像、
+源码与平台偏好路径，保留已有容量上限。无schema变化时不重跑迁移或初始化。
+管理员/注册/SMTP受控配置保留用户指定及随后主动修改的值；现有部署开关适配
+已核验的预置要求，差异在发布记录注明，不将真实授权码写入Git。
 
 ## 配置与目录
 

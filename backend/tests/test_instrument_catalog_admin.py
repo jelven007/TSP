@@ -105,6 +105,42 @@ def test_snapshot_write_failure_restores_status_history(client, monkeypatch):
     assert pl.read_parquet(directory / "instruments/instruments.parquet")["name"][0] == "测试"
 
 
+@pytest.mark.parametrize(
+    ("board", "symbol"),
+    [("沪主板", "600000.SH"), ("深主板", "000001.SZ"),
+     ("创业板", "300001.SZ"), ("科创板", "688001.SH")],
+)
+def test_board_filter_composes_with_exchange_search_and_pagination(client, board, symbol):
+    api, _, _ = client
+    for code in ["600000.SH", "000001.SZ", "300001.SZ", "688001.SH"]:
+        assert api.post("/api/data/instruments", json={"symbol": code, "name": f"测试{code}"}).status_code == 201
+    response = api.get("/api/data/instruments", params={"board": board, "page_size": 1})
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert [item["symbol"] for item in response.json()["items"]] == [symbol]
+    exchange = symbol.rsplit(".", 1)[1]
+    params = {"board": board, "exchange": exchange, "q": symbol[:6], "page": 1}
+    assert api.get("/api/data/instruments", params=params).json()["total"] == 1
+    assert api.get("/api/data/instruments", params={**params, "exchange": "SZ" if exchange == "SH" else "SH"}).json()["total"] == 0
+    assert api.get("/api/data/instruments", params={**params, "q": "不存在"}).json()["total"] == 0
+    assert api.get("/api/data/instruments", params={"board": board, "page": 2, "page_size": 1}).json()["items"] == []
+
+
+def test_board_filter_rejects_unknown_values_and_supports_legacy_catalog(client):
+    api, repo, directory = client
+    for symbol in ["600000.SH", "000001.SZ", "300001.SZ", "688001.SH"]:
+        api.post("/api/data/instruments", json={"symbol": symbol, "name": "测试"})
+    target = directory / "instruments/instruments.parquet"
+    pl.read_parquet(target).drop("board").write_parquet(target)
+    repo.refresh_current_instruments()
+    response = api.get("/api/data/instruments", params={"board": "科创板"})
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["symbol"] == "688001.SH"
+    assert api.get("/api/data/instruments", params={"board": "未知板块"}).status_code == 422
+    assert api.get("/api/data/instruments").json()["total"] == 4
+
+
 def test_catalog_job_is_independent_of_an_active_price_job(tmp_path):
     from app.services.pipeline_jobs import JobStore
     store = JobStore(store_dir=tmp_path)

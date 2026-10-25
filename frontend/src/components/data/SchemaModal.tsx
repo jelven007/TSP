@@ -1,8 +1,8 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { Modal } from '@/components/Modal'
+import { AnimatePresence } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { api, type EnrichedField } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 const TABLE_TITLES: Record<string, string> = {
   instruments: '个股维表',
@@ -36,7 +36,6 @@ function categorize(name: string): string {
 
 export function EnrichedSchemaModal({ table, onClose }: { table: string | null; onClose: () => void }) {
   const open = !!table
-  const backdrop = useDialogBackdrop(onClose)
   const schema = useQuery({
     queryKey: QK.tableSchema(table!),
     queryFn: () => api.enrichedSchema(table!),
@@ -58,26 +57,12 @@ export function EnrichedSchemaModal({ table, onClose }: { table: string | null; 
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          <div className="absolute inset-0 bg-black/40" {...backdrop} />
-          <motion.div
-            className="relative w-full max-w-xl max-h-[70vh] rounded-card border border-border bg-surface shadow-xl overflow-hidden mx-4"
-            initial={{ opacity: 0, scale: 0.95, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 8 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+        <Modal onClose={onClose} ariaLabel="字段说明" size="md">
+            <div className="modal-header flex items-center justify-between">
               <h3 className="text-sm font-medium text-foreground">{title} 字段说明</h3>
               <span className="text-[10px] text-muted font-mono">{fields.length} 个字段</span>
             </div>
-            <div className="px-5 py-3 overflow-y-auto max-h-[calc(70vh-48px)]">
+      <div className="modal-body">
               {schema.isLoading ? (
                 <div className="text-xs text-muted animate-pulse py-4 text-center">加载中…</div>
               ) : (
@@ -99,8 +84,7 @@ export function EnrichedSchemaModal({ table, onClose }: { table: string | null; 
                 </div>
               )}
             </div>
-          </motion.div>
-        </motion.div>
+        </Modal>
       )}
     </AnimatePresence>
   )

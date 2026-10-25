@@ -1290,13 +1290,20 @@ Golden symbols: `000403.SZ`, `600489.SH`, `300059.SZ`.
 |---|---|
 | `GET /api/strategies` / `GET /api/strategies/{id}` | 策略清单与详情（参数定义、数据依赖） |
 | `POST /api/screener/run` `/run_preset` `/run_all` | 运行策略选股 |
-| `GET /api/screener/cached...` | 读取缓存结果与摘要 |
+| `GET /api/screener/cached` | 可选as_of/asset_type/timeframe读取当前定义的指定日持久结果；省略日期保持旧当前快照语义 |
 | `POST /api/backtest/run` | 单标的回测 |
 | `POST /api/backtest/strategy/run` | 提交策略组合回测，进度经 SSE 流返回 |
 | `POST /api/backtest/factor/run` `/factor/batch` | 因子检验与批量检验 |
 | `GET /api/backtest/status` | 回测任务状态 |
 | `GET /api/backtest/candidates` | 持久化回测候选摘要 |
 | `GET /api/regime/history` `/latest` `/states` `/coverage` `/phases` `/mainline` | 环境与主线读取 |
+
+2026-10-25开放契约仅为`cached`追加上述可选查询字段，资产缺省stock、周期缺省1d，
+返回包络及69个Tier A端点集合不变。旧调用方无需修改；传日期时缺记录返回空结果，
+不自动重算。历史归档的分页/record明细及cached-summary/cached-result属于登录态
+页面接口，不因此新增API Token权限。指纹与兼容验证在
+`test_openapi_contract.py`和`test_screener_history_api.py`，本次证据见
+[最新整合](../../reports/current-state-release-20261025/verification.md)。
 
 <a id="open-54-监控与事件readanalysis"></a>
 #### 5.4 监控与事件（read:analysis）

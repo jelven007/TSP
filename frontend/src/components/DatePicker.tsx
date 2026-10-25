@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useModalPortalContainer } from './Modal'
 
 /** 弹层固定宽度(px) — 与下方 w-[260px] 保持一致,用于水平边界裁剪计算 */
 const POPUP_WIDTH = 260
@@ -49,6 +50,7 @@ export function DatePicker({
   buttonClassName = '',
   align = 'right',
 }: DatePickerProps) {
+  const portalContainer = useModalPortalContainer()
   const [open, setOpen] = useState(false)
   const [showYearPicker, setShowYearPicker] = useState(false)
   // 触发按钮 ref (外部点击检测 + 计算弹层坐标)
@@ -170,7 +172,7 @@ export function DatePicker({
         <span className={value ? undefined : 'text-muted'}>{displayLabel}</span>
       </button>
 
-      {/* 弹出日历 — Portal 到 body, 逃逸祖先 overflow 裁剪与 framer-motion transform 包含块 */}
+      {/* 弹出日历 — 页面挂到 body，弹窗内挂到面板以保留键盘操作。 */}
       {createPortal(
         <AnimatePresence>
           {open && pos && (
@@ -281,7 +283,7 @@ export function DatePicker({
           </motion.div>
         )}
       </AnimatePresence>
-      , document.body)}
+      , portalContainer)}
     </div>
   )
 }

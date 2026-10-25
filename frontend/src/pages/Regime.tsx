@@ -189,10 +189,10 @@ export function Regime() {
   })
   const [recomputing, setRecomputing] = useState(false)
 
-  const rows: RegimeRow[] = history.data?.rows ?? []
+  const rows = useMemo<RegimeRow[]>(() => history.data?.rows ?? [], [history.data?.rows])
   const latest = rows.length > 0 ? rows[rows.length - 1] : null
   const hasPhaseData = rows.length > 0 && rows.some(r => r.phase != null)
-  const segments = phases.data?.segments ?? []
+  const segments = useMemo(() => phases.data?.segments ?? [], [phases.data?.segments])
 
   // 当前阶段持续天数(末尾连续同阶段) + 当前主线(最新交易日 top3)
   const phaseStreak = useMemo(() => {
@@ -1420,7 +1420,7 @@ function CustomDaysModal({ current, onClose, onApply }: {
 
   return (
     <Modal onClose={onClose} ariaLabel="自定义天数" initialFocusRef={inputRef}
-      panelClassName="w-[88vw] max-w-xs bg-surface border border-border rounded-card shadow-xl p-4">
+      size="sm" panelClassName="p-5">
       <div className="space-y-3">
         <div>
           <div className="text-xs font-medium text-foreground">自定义天数</div>

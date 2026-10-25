@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,7 +14,6 @@ import {
 } from '@/lib/price-alerts'
 import { QK } from '@/lib/queryKeys'
 import { usePreferences } from '@/lib/useSharedQueries'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 interface Props {
   symbol: string
@@ -42,7 +42,6 @@ export function PriceAlertDialog({
   initialCurrentPrice,
 }: Props) {
   const qc = useQueryClient()
-  const backdrop = useDialogBackdrop(onClose)
   const { data: prefs } = usePreferences()
   const levelsQuery = useQuery({
     queryKey: QK.stockLevels(symbol),
@@ -110,14 +109,6 @@ export function PriceAlertDialog({
     if (prefs.email_smtp_config?.host && prefs.email_smtp_config.from_address && prefs.email_smtp_config.to_addresses.length && (!prefs.email_smtp_config.username || prefs.email_smtp_password_set)) configured.add('email')
     setChannels((prefs.webhook_default_channels ?? []).filter(channel => configured.has(channel)))
   }, [prefs])
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
 
   const pointRules = useMemo(
     () => (rulesQuery.data?.rules ?? []).filter(rule => parsePointPriceAlert(rule, symbol)),
@@ -212,9 +203,8 @@ export function PriceAlertDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm sm:p-4" {...backdrop}>
-      <div role="dialog" aria-modal="true" aria-labelledby="price-alert-title" className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-2xl" onClick={event => event.stopPropagation()}>
-        <header className="flex items-center gap-3 border-b border-border/60 px-5 py-3.5">
+    <Modal onClose={onClose} labelledBy="price-alert-title" size="md">
+        <header className="modal-header flex items-center gap-3">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-sky-400/25 bg-sky-400/10 text-sky-400">
             <Bell className="h-4 w-4" />
           </span>
@@ -228,7 +218,7 @@ export function PriceAlertDialog({
               当前价 <span className="font-mono text-foreground">{currentPrice?.toFixed(2) ?? '—'}</span>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-muted transition-colors hover:bg-elevated hover:text-foreground" title="关闭">
+          <button onClick={onClose} className="modal-close" title="关闭" aria-label="关闭弹窗">
             <X className="h-4 w-4" />
           </button>
         </header>
@@ -392,7 +382,7 @@ export function PriceAlertDialog({
           </div>
         )}
 
-        <footer className="flex min-h-14 items-center justify-between gap-3 border-t border-border/60 bg-base/30 px-5 py-2.5">
+        <footer className="modal-footer flex min-h-14 items-center justify-between gap-3">
           <Link to="/monitor" onClick={onClose} className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-sky-400">
             监控中心<ExternalLink className="h-3 w-3" />
           </Link>
@@ -406,7 +396,6 @@ export function PriceAlertDialog({
             )}
           </div>
         </footer>
-      </div>
-    </div>
+    </Modal>
   )
 }

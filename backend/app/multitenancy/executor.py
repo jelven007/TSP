@@ -26,10 +26,13 @@ class ComputeExecutor:
     def health(self):
         return self.execute({"kind": "health"})
 
+    def resources(self):
+        return self.execute({"kind": "resources"})
+
     def execute(
         self, payload: dict, progress: Callable[[dict], None] | None = None, cancel=None,
     ) -> dict:
-        if payload.get("kind") not in KINDS and payload.get("kind") != "health":
+        if payload.get("kind") not in KINDS and payload.get("kind") not in {"health", "resources"}:
             raise ValueError("unsupported compute operation")
         encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False, default=str).encode() + b"\n"
         if len(encoded) > MAX_MESSAGE_BYTES:
@@ -44,7 +47,9 @@ class ComputeExecutor:
                 client.sendall(encoded)
                 client.settimeout(1)
                 pending = bytearray()
-                deadline = time.monotonic() + (25 if payload["kind"] == "health" else 7500)
+                deadline = time.monotonic() + (
+                    25 if payload["kind"] == "health" else 10 if payload["kind"] == "resources" else 7500
+                )
                 while True:
                     if time.monotonic() > deadline:
                         raise AccessError(503, "计算服务响应超时")

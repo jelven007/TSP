@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Sparkles, X } from 'lucide-react'
@@ -64,11 +64,11 @@ export function AutoMiningDialog({
     queryFn: () => api.miningAvailability({ ...availabilityArgs, budgetProfile: 'strict' }),
     staleTime: 30_000,
   })
-  const availability: Partial<Record<MiningBudgetProfile, MiningAvailability>> = {
+  const availability = useMemo<Partial<Record<MiningBudgetProfile, MiningAvailability>>>(() => ({
     exploratory: exploratoryQuery.data,
     balanced: balancedQuery.data,
     strict: strictQuery.data,
-  }
+  }), [exploratoryQuery.data, balancedQuery.data, strictQuery.data])
   const bars = exploratoryQuery.data?.trading_bars ?? balancedQuery.data?.trading_bars ?? strictQuery.data?.trading_bars ?? null
   const currentAvailable = availability[profile]?.eligible ?? null
 
@@ -83,7 +83,7 @@ export function AutoMiningDialog({
         toast(`当前数据 ${availability.balanced.trading_bars} 个交易日不够「均衡」档 (需 ${availability.balanced.required_bars})，已自动切到「${PROFILE_LABELS[fallback]}」档`)
       }
     }
-  }, [availability.exploratory, availability.balanced, availability.strict, profile, profileTouched])
+  }, [availability, profile, profileTouched])
 
   const submitAutoMining = () => {
     // L1 全量筛选在后端要跑几分钟: 模块级任务提交后本弹窗立刻关闭,
@@ -103,9 +103,9 @@ export function AutoMiningDialog({
     <Modal
       onClose={onClose}
       labelledBy="auto-mining-title"
-      panelClassName="flex max-h-[86vh] w-[92vw] max-w-md flex-col overflow-hidden border border-border bg-surface shadow-xl rounded-card"
+      size="sm"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="modal-header flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 shrink-0 text-accent" />
@@ -115,12 +115,12 @@ export function AutoMiningDialog({
             不用挑因子：先全量统计筛选（|t|≥2、q≤0.1、IC/IR 达标），再用达标池做相关性去重 → 组合搜索 → 嵌套样本外验证。结果里能看到哪些因子/组合达标、不达标的差在哪。
           </p>
         </div>
-        <button type="button" onClick={onClose} aria-label="关闭" className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted transition-colors hover:text-foreground">
+        <button type="button" onClick={onClose} aria-label="关闭" className="modal-close">
           <X className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div className="modal-body min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <div className="space-y-3">
           <div>
             <div className="mb-1 text-[10px] text-muted">资产</div>
@@ -179,7 +179,7 @@ export function AutoMiningDialog({
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+      <div className="modal-footer flex items-center justify-end gap-2">
         <button
           type="button"
           onClick={submitAutoMining}

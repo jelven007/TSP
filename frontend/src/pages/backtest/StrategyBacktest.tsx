@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { useState, useMemo, useEffect, useRef, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -804,14 +805,14 @@ function StockPoolPicker({ value, onChange, assetType = 'stock' }: { value: stri
     enabled: query.trim().length > 0,
     staleTime: 30_000,
   })
-  const results = search.data?.results ?? []
+  const results = useMemo(() => search.data?.results ?? [], [search.data?.results])
   // 自选列表 — 供「从自选导入」一键填入回测范围
   const watchlist = useQuery({
     queryKey: QK.watchlist,
     queryFn: () => api.watchlistList(),
     staleTime: 30_000,
   })
-  const watchlistEntries = watchlist.data?.symbols ?? []
+  const watchlistEntries = useMemo(() => watchlist.data?.symbols ?? [], [watchlist.data?.symbols])
   const watchlistCounts = useMemo(() => {
     // 多组并存: 一股计入每个所属分组
     const counts: Record<string, number> = { ungrouped: 0 }
@@ -1113,6 +1114,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     queryFn: () => api.strategyGet(selectedStrategy!),
     enabled: !!selectedStrategy,
   })
+  // 分钟策略: 入场在盘中触发分钟成交, 日线专属的成交口径选项不适用
+  const isMinuteStrategy = strategyDetail.data?.execution_backend === 'minute_filter'
 
   const backtestTask = useBacktestTask()
   const isPending = backtestTask?.isPending ?? false
@@ -1186,7 +1189,6 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   // 刷新页面后: 从 localStorage 恢复未完成的回测任务
   useEffect(() => {
     tryReconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -1211,8 +1213,11 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   }, [assetType, strategyDetail.data])
 
   // 当全局回测任务完成时, 把结果写入组件 (切页回来也能恢复)
+  const appliedTaskRef = useRef<typeof backtestTask>(null)
   useEffect(() => {
-    if (backtestTask && !backtestTask.isPending && backtestTask.result) {
+    if (backtestTask && !backtestTask.isPending && backtestTask.result && appliedTaskRef.current !== backtestTask) {
+      // 配置变化不能再次应用旧结果，避免切回「每日」并重置当前分页。
+      appliedTaskRef.current = backtestTask
       setResult(backtestTask.result)
       setResultTab('daily')
       setDailyPage(0)
@@ -1248,7 +1253,12 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
         result: backtestTask.result,
       })
     }
-  }, [backtestTask])
+  }, [
+    backtestTask, selectedStrategy, symbols, assetType, start, end, matching, entryFill, exitFill,
+    fees, stampTax, minimumCommission, transferFee, slippage, maxPositions, maxExposure,
+    initialCapital, positionSizing, simMode, holdingDays, isMinuteStrategy, highGranularity,
+    regimeStates, regimeMinScore, strategyParams, overrides, strategyDetail.data,
+  ])
 
   const handleRun = () => {
     if (!selectedStrategy || backtestDataUnavailable) return
@@ -1561,8 +1571,6 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const minuteTriggerSignals = detail?.minute_exit_trigger_supported_signals ?? []
   const unsupportedMinuteExitSignals = effectiveExitSignals.filter(signal => !minuteTriggerSignals.includes(signal))
   const minuteExitTriggerSupported = effectiveExitSignals.length > 0 && unsupportedMinuteExitSignals.length === 0
-  // 分钟策略: 入场在盘中触发分钟成交, 日线专属的成交口径选项不适用
-  const isMinuteStrategy = detail?.execution_backend === 'minute_filter'
   const { data: minuteDataStatus } = useQuery({
     queryKey: QK.dataStatus,
     queryFn: api.dataStatus,
@@ -2865,22 +2873,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
       </section>
 
       {settingsOpen && detail && (
-        <>
-          <motion.button
-            type="button"
-            aria-label="关闭高级策略设置"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            onClick={() => setSettingsOpen(false)}
-            className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[1px]"
-          />
-          <motion.aside
-            initial={{ x: 32, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-3xl flex-col border-l border-border bg-base shadow-2xl"
-          >
-            <div className="border-b border-border px-4 py-3">
+        <Modal onClose={() => setSettingsOpen(false)} ariaLabel="高级策略设置" size="md" fillHeight>
+            <div className="modal-header">
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -2895,7 +2889,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(false)}
-                  className="rounded-btn border border-border bg-surface p-1.5 text-muted transition-colors hover:border-accent/40 hover:text-foreground"
+                  className="modal-close"
+                  aria-label="关闭高级策略设置"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -2917,7 +2912,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div className="modal-body min-h-0 flex-1 overflow-y-auto px-4 py-4">
               <div className="mb-4 rounded-btn border border-accent/25 bg-accent/5 px-3 py-2.5 text-[11px] leading-5 text-secondary">
                 <div className="font-medium text-foreground">触发 / 成交 / 仓位关系</div>
                 <div className="mt-1">触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。</div>
@@ -3226,7 +3221,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+            <div className="modal-footer flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => resetConfigFromDetail(detail)}
@@ -3253,8 +3248,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                 完成
               </button>
             </div>
-          </motion.aside>
-        </>
+        </Modal>
       )}
 
       <TradeKlineModal

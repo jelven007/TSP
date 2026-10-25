@@ -106,9 +106,9 @@ export function AddFactorSignalDialog({
     <Modal
       onClose={onClose}
       labelledBy="add-factor-signal-title"
-      panelClassName="flex max-h-[86vh] w-[92vw] max-w-md flex-col overflow-hidden border border-border bg-surface shadow-xl rounded-card"
+      size="sm"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="modal-header flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 shrink-0 text-amber-400" />
@@ -119,7 +119,7 @@ export function AddFactorSignalDialog({
         {selected && <span className="shrink-0 rounded-btn bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">{selected.label}</span>}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+      <div className="modal-body min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
         {!item && (
           <label className="block">
             <span className="mb-1 block text-[10px] text-muted">选择因子（内置 / 自定义 / 复合）</span>
@@ -179,7 +179,7 @@ export function AddFactorSignalDialog({
         </p>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+      <div className="modal-footer flex items-center justify-end gap-2">
         <button type="button" onClick={onClose} className="rounded-btn bg-elevated px-3 py-1.5 text-xs text-secondary transition-colors hover:text-foreground">取消</button>
         <button
           type="button"

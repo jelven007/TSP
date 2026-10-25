@@ -16,6 +16,7 @@ export const QK = {
   version:        ['version'] as const,
   openSourceRelease: (scope: string) => ['open-source-release', scope] as const,
   preferences:    ['preferences'] as const,
+  strategyConcurrency: ['strategy-concurrency'] as const,
   dataSources:    ['data-sources'] as const,
   capabilityMatrix: ['capability-matrix'] as const,
   quoteStatus:    ['quote-status'] as const,
@@ -46,9 +47,11 @@ export const QK = {
   // Screener
   screener:             ['screener'] as const,
   screenerStrategies:   (assetType: string = 'stock', timeframe: '1d' | '1m' | 'all' = '1d') => ['screener-strategies', assetType, timeframe] as const,
-  screenerCachedSummary: ['screener-cached', 'summary'] as const,
-  screenerCachedResult: (strategyId: string, asOf?: string, ext?: string) => ['screener-cached', 'strategy', strategyId, asOf ?? '', ext ?? ''] as const,
-  screenerCached:       (asOf?: string, ext?: string) => ['screener-cached', 'all', asOf ?? '', ext ?? ''] as const,
+  screenerCachedSummary: (asOf?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'summary', asOf ?? '', asset, timeframe] as const,
+  screenerCachedResult: (strategyId: string, asOf?: string, ext?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'strategy', strategyId, asOf ?? '', ext ?? '', asset, timeframe] as const,
+  screenerCached:       (asOf?: string, ext?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'all', asOf ?? '', ext ?? '', asset, timeframe] as const,
+  screenerHistory:      (strategyId: string, cursor?: string) => ['screener-history', strategyId, cursor ?? ''] as const,
+  screenerHistoryDetail: (strategyId: string, recordId: string) => ['screener-history-detail', strategyId, recordId] as const,
   screenerKlineBatch:   (symbols: string) => ['screener-kline-batch', symbols] as const,
   marketSnapshot:       ['market-snapshot'] as const,
   limitLadder:          (asOf?: string) => ['limit-ladder', asOf] as const,
@@ -72,7 +75,7 @@ export const QK = {
 
   // Data / Pipeline
   dataStatus:           ['data-status'] as const,
-  stockCatalog:         (q: string, exchange: string, page: number) => ['stock-catalog', q, exchange, page] as const,
+  stockCatalog:         (q: string, exchange: string, page: number, board = '') => ['stock-catalog', q, exchange, page, board] as const,
   pipelineJobs:         ['pipeline-jobs'] as const,
   pipelineJob:          (id: string) => ['pipeline-job', id] as const,
   extData:              ['ext-data'] as const,

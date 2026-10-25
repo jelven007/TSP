@@ -4,14 +4,15 @@
 源码、标签、安装包和最后已知生产状态统一见[版本基线](version-baseline.md)。
 文档覆盖、代码实现、测试通过、产物发布和生产切流分别判定。
 
-全部本地修改、目录迁移、验证与版本恢复工具见[最新整合记录](../reports/production-baseline-20261025/verification.md)；
+本批最新本地改动、文档责任、验证与发布状态见
+[最新整合记录](../reports/current-state-release-20261025/verification.md)；
 页面/菜单/上游分析统一归[分析索引](../reports/page-data-analysis-20261024/README.md)。
 
 ## 六类主手册
 
 | 工作 | 唯一主入口 | 内容与完成依据 |
 | --- | --- | --- |
-| 需求 | [需求基线](requirements.md) | 用户、角色、对象、八业务章节、162条FR与42条NFR、阶段和验收条件 |
+| 需求 | [需求基线](requirements.md) | 用户、角色、对象、八业务章节、163条FR与42条NFR、阶段和验收条件 |
 | 方案 | [系统技术方案](architecture.md) | 当前运行架构、页面/能力/源码事实源、统一系统目标、DFX与容量设计 |
 | 开发 | [CONTRIBUTING](../CONTRIBUTING.md) | 调用链、数据口径、缓存、插件、质量门、版本、PR与复审 |
 | 测试 | [测试与联合签收](testing.md) | 环境/命令、领域回归、产物平台、A–I、3.1–3.6、负载/恢复、统一证据模板 |
@@ -55,3 +56,8 @@
 `python scripts/check_docs.py --include-reports`。检查不联网，也不替代业务或生产验收。
 源码与运行数据、凭据、构建输出、冻结交付分开维护，历史证据见[报告索引](../reports/README.md)。
 本轮合并范围、迁移映射与实际验证见[合并记录](../reports/document-consolidation-20261024/verification.md)。
+
+文档由表中领域负责人和变更作者共同维护，每次行为、接口、拓扑、配置或部署变更
+立即核对，至少每月复核一次。超过周期或出现源码/运行状态漂移时标记待复核，
+完成验证后再用于发布。历史材料保留原日期与结果，不将旧部署作为当前状态。
+本次具体责任、事实源和失效信号见[文档清单](../reports/current-state-release-20261025/verification.md#文档事实源与更新责任)。

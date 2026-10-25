@@ -519,7 +519,7 @@ def test_status_reports_gate_reason_when_stopped(tmp_path, monkeypatch):
     assert st["enabled"] is False
     assert st["running"] is False
     assert st["gate_reason"] == "disabled"
-    assert st["interval_seconds"] == 1
+    assert st["interval_seconds"] == 60
 
 
 # ── 偏好 ────────────────────────────────────────────────────────────
@@ -528,7 +528,7 @@ def test_status_reports_gate_reason_when_stopped(tmp_path, monkeypatch):
 def test_refresh_preferences_defaults_and_clamp(tmp_path, monkeypatch):
     _isolated_prefs(tmp_path, monkeypatch)
     assert preferences.get_minute_refresh_enabled() is True
-    assert preferences.get_minute_refresh_interval() == 1
+    assert preferences.get_minute_refresh_interval() == 60
     preferences.save({"minute_refresh_interval": 0})
     assert preferences.get_minute_refresh_interval() == 1  # 下限
     preferences.save({"minute_refresh_interval": 999})

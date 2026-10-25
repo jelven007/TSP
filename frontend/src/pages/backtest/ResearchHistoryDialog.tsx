@@ -61,11 +61,11 @@ export function ResearchHistoryDialog({ onClose }: { onClose: () => void }) {
   const visible = (jobs.data?.items ?? []).filter(job => filter === 'all' || (filter === 'active' ? ACTIVE.has(job.status) : !ACTIVE.has(job.status)))
   const error = jobs.error || originals.error || cancel.error || remove.error || download.error || downloadOriginal.error
   return (
-    <Modal onClose={onClose} labelledBy="research-history-title" panelClassName="flex max-h-[85vh] w-[94vw] max-w-5xl flex-col rounded-card border border-border bg-surface shadow-xl">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+    <Modal onClose={onClose} labelledBy="research-history-title" size="xl">
+      <div className="modal-header flex items-center gap-2">
         <History className="h-4 w-4 text-accent" /><h2 id="research-history-title" className="flex-1 text-sm font-medium">研究任务历史</h2>
         <select aria-label="筛选任务状态" value={filter} onChange={event => setFilter(event.target.value)} className="rounded-btn border border-border bg-base px-2 py-1 text-xs"><option value="all">全部</option><option value="active">执行中</option><option value="finished">已结束</option></select>
-        <button type="button" aria-label="关闭任务历史" onClick={onClose} className="p-1 text-muted"><X className="h-4 w-4" /></button>
+        <button type="button" aria-label="关闭任务历史" onClick={onClose} className="modal-close"><X className="h-4 w-4" /></button>
       </div>
       <p className="px-4 pt-3 text-xs text-muted">查看当前租户的任务进度与结果。页面关闭后任务继续执行，可随时回来查看。</p>
       {error && <p role="alert" className="px-4 pt-3 text-xs text-danger">{error.message}</p>}

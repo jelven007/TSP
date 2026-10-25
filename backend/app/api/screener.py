@@ -19,8 +19,9 @@ from app.api import contracts
 from app.config import settings
 from app.db_safe import is_valid_ext_ident, quote_ident
 from app.multitenancy.documents import TenantDocuments
-from app.services import strategy_cache, strategy_run_queue
+from app.services import strategy_cache, strategy_results, strategy_run_queue
 from app.services.screener import ScreenerService
+from app.services.strategy_resources import limit_local_strategy, local_slot
 from app.strategy import config as strategy_config
 
 logger = logging.getLogger(__name__)
@@ -324,7 +325,9 @@ def run_custom(req: CustomRequest, request: Request):
 
 
 @router.post("/run_preset", response_model=contracts.ScreenerResultResponse)
+@limit_local_strategy
 def run_preset(req: PresetRequest, request: Request):
+    started_at = time.time_ns()
     repo = request.app.state.repo
     svc = ScreenerService(repo, asset_type=req.asset_type)
     as_of = req.as_of or svc.latest_date()
@@ -338,6 +341,7 @@ def run_preset(req: PresetRequest, request: Request):
     engine = _strategy_engine(request)
     if not engine:
         raise HTTPException(status_code=404, detail=f"策略引擎未初始化或策略 {req.strategy_id} 不存在")
+    engine = strategy_results.execution_snapshot(engine)
 
     try:
         if not engine.has(req.strategy_id):
@@ -345,6 +349,7 @@ def run_preset(req: PresetRequest, request: Request):
         if engine.get(req.strategy_id).meta.get("research_only"):
             raise ValueError(f"unknown strategy: {req.strategy_id}")
         params = dict(overrides.get("params") or {})
+        generation = strategy_results.input_generation(repo, engine, req.asset_type)
         context = svc.build_strategy_context(
             engine,
             as_of,
@@ -352,6 +357,10 @@ def run_preset(req: PresetRequest, request: Request):
             timeframe=req.timeframe,
             params_map={req.strategy_id: params},
             overrides_map={req.strategy_id: overrides or {}},
+        )
+        identity = strategy_results.capture_identity(
+            engine, data_dir, req.strategy_id, params=params, overrides=overrides,
+            pool=req.pool, asset_type=req.asset_type, timeframe=req.timeframe,
         )
         result = engine.run(
             req.strategy_id,
@@ -378,9 +387,114 @@ def run_preset(req: PresetRequest, request: Request):
             warnings.append(entry_error + "; 本轮入场已关闭, 退出信号仍有效")
         if warnings:
             safe_data["warnings"] = warnings
+    saved = strategy_results.persist_result(
+        data_dir, identity, safe_data, started_at=started_at, input_generation=generation,
+    )
+    safe_data["computed_at"] = saved["summary"]["computed_at"]
+    safe_data["record_id"] = saved["record_id"]
+    if req.timeframe == "1d":
         _update_cache_strategy(data_dir, str(as_of), req.strategy_id, safe_data)
-
     return _result_with_ext(safe_data, ext_values)
+
+
+def _history_identities(request, *, asset_type, timeframe, strategy_id=None):
+    engine = _strategy_engine(request)
+    if engine is None:
+        raise HTTPException(status_code=503, detail="策略引擎未初始化")
+    storage = _private_data_dir(request)
+    overrides = strategy_config.list_overrides(storage)
+    metas = engine.list_strategies()
+    ids = [
+        meta["id"] for meta in metas
+        if not meta.get("research_only")
+        and asset_type in meta.get("asset_types", ["stock"])
+        and (timeframe == "all" or timeframe in meta.get("timeframes", ["1d"]))
+        and (strategy_id is None or strategy_id == meta["id"])
+    ]
+    identities = list(strategy_results.capture_identities(
+        engine, storage, ids, overrides_map=overrides, asset_type=asset_type, timeframe=timeframe,
+    ).values())
+    return strategy_results.StrategyResults(storage), identities
+
+
+def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None, summary=False):
+    store, identities = _history_identities(
+        request, asset_type=asset_type, timeframe=timeframe, strategy_id=strategy_id,
+    )
+    day = str(as_of)
+    summaries = store.summaries(identities, day)
+    from app.market_time import cn_today
+    realtime = {}
+    if day == str(cn_today()):
+        if store.tenant:
+            from app.multitenancy.runtime import fingerprint
+            with store.storage.transaction(write=False) as unit:
+                live = unit.get("monitor_results", "default")
+                if (live and 0 <= time.time() * 1000 - live["sequence"] <= 30000
+                        and live["fingerprint"] == fingerprint(unit.connection, include_state=False)):
+                    realtime = live["results"]
+        else:
+            monitor = getattr(request.app.state, "monitor_engine", None)
+            if monitor is not None:
+                realtime = monitor.latest_strategy_results()
+        realtime = {
+            identity.strategy_id: value
+            for identity in identities
+            if isinstance(value := realtime.get(identity.strategy_id), dict)
+            and value.get("as_of") == day
+            and value.get("asset_type") == identity.asset_type
+            and value.get("timeframe") == identity.timeframe
+            and value.get("runtime_identity") == identity.runtime_identity
+        }
+    results, ever = {}, {}
+    if summary:
+        results = {
+            sid: {key: value for key, value in item.items() if key != "runtime_identity"}
+            for sid, item in summaries.items()
+        }
+    else:
+        for identity in identities:
+            if identity.strategy_id not in summaries:
+                continue
+            saved = store.read(identity, day)
+            if saved:
+                results[identity.strategy_id] = {
+                    **saved["result"], "record_id": saved["record_id"],
+                    "source": "saved", "strategy_version": identity.strategy_version,
+                }
+                ever[identity.strategy_id] = saved["ever_rows"]
+    for sid, live in realtime.items():
+        symbols = {str(row["symbol"]) for row in live.get("rows", []) if row.get("symbol")}
+        if summary:
+            results[sid] = {**results.get(sid, {}), "total": live.get("total", 0),
+                            "as_of": day, "computed_at": live.get("computed_at"), "source": "realtime"}
+        else:
+            results[sid] = {**live, "source": "realtime"}
+        if sid not in summaries:
+            summaries[sid] = {"ever_count": len(symbols), "computed_at": live.get("computed_at")}
+    return {
+        "as_of": day, "results": results, "today_ever_rows": ever,
+        "today_ever_counts": {sid: r["ever_count"] for sid, r in summaries.items()},
+        "updated_at": max((r["computed_at"] for r in summaries.values() if r["computed_at"] is not None), default=None),
+    }
+
+
+@router.get("/result-history/{strategy_id}")
+def get_result_history(strategy_id: str, request: Request, limit: int = 30, cursor: str | None = None):
+    try:
+        return strategy_results.StrategyResults(_private_data_dir(request)).list_history(
+            strategy_id, limit=limit, cursor=cursor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/result-history/{strategy_id}/{record_id}")
+def get_result_history_detail(strategy_id: str, record_id: str, request: Request):
+    saved = strategy_results.StrategyResults(_private_data_dir(request)).detail(strategy_id, record_id)
+    if saved is None:
+        raise HTTPException(status_code=404, detail="历史结果不存在")
+    return saved
 
 
 def _cached_with_realtime(request: Request) -> dict:
@@ -425,6 +539,9 @@ def _cached_with_realtime(request: Request) -> dict:
 def get_cached(
     request: Request,
     ext_columns: Optional[str] = Query(None, description="逗号分隔: config_id.field_name"),
+    as_of: date | None = None,
+    asset_type: str = "stock",
+    timeframe: str = "1d",
 ):
     """读取策略结果缓存, 并叠加监控引擎本轮实时算出的结果。
 
@@ -433,7 +550,8 @@ def get_cached(
       不落盘 (避免与 read_cache 的 mtime 校验冲突), 在此直接叠加覆盖盘后结果。
       被监控的策略拿到新鲜数据, 非监控策略仍用盘后缓存。
     """
-    cached = _cached_with_realtime(request)
+    cached = (_history_payload(request, as_of, asset_type, timeframe) if as_of is not None
+              else _cached_with_realtime(request))
 
     # 无任何数据 (盘后缓存空 + 无实时结果) → 返回空标记, 前端据此提示
     if not cached.get("results") and cached.get("as_of") is None:
@@ -444,8 +562,11 @@ def get_cached(
 
 
 @router.get("/cached-summary")
-def get_cached_summary(request: Request):
+def get_cached_summary(request: Request, as_of: date | None = None,
+                       asset_type: str = "stock", timeframe: str = "1d"):
     """返回策略卡片所需的轻量摘要，不序列化股票明细。"""
+    if as_of is not None:
+        return _history_payload(request, as_of, asset_type, timeframe, summary=True)
     cached = _cached_with_realtime(request)
     results = cached.get("results") or {}
     summary = {
@@ -485,9 +606,13 @@ def get_cached_result(
     strategy_id: str,
     request: Request,
     ext_columns: Optional[str] = Query(None, description="逗号分隔: config_id.field_name"),
+    as_of: date | None = None,
+    asset_type: str = "stock",
+    timeframe: str = "1d",
 ):
     """按需返回单个策略的完整明细及其今日失效行。"""
-    cached = _cached_with_realtime(request)
+    cached = (_history_payload(request, as_of, asset_type, timeframe, strategy_id=strategy_id)
+              if as_of is not None else _cached_with_realtime(request))
     raw_result = (cached.get("results") or {}).get(strategy_id)
     if not isinstance(raw_result, dict):
         return {
@@ -504,6 +629,9 @@ def get_cached_result(
         "rows": _rows_with_ext(raw_result.get("rows") or [], ext_values),
         "total": int(raw_result.get("total") or 0),
         "elapsed_ms": 0.0,
+        "computed_at": raw_result.get("computed_at"),
+        "record_id": raw_result.get("record_id"),
+        "source": raw_result.get("source"),
     }
 
     ever_rows = None
@@ -529,6 +657,13 @@ def get_cached_result(
             symbol = str(row.get("symbol")) if isinstance(row, dict) and row.get("symbol") else None
             if symbol in strategy_ids_by_symbol:
                 strategy_ids_by_symbol[symbol].append(sid)
+    if as_of is not None:
+        store, identities = _history_identities(request, asset_type=asset_type, timeframe=timeframe)
+        archived = store.memberships(identities, str(as_of), selected_symbols)
+        strategy_ids_by_symbol = {
+            symbol: sorted(set(archived.get(symbol, [])) | set(strategy_ids_by_symbol[symbol]))
+            for symbol in selected_symbols
+        }
 
     return {
         "result": result,
@@ -593,11 +728,19 @@ def _run_all_progressive(
     搭车现有执行, 不同请求排队; HTTP 侧只轮询状态快照到首返时限。
     """
     data_dir = repo.store.data_dir
-    key = (asset_type, timeframe, str(as_of), tuple(sorted(all_ids)))
+    identities = strategy_results.capture_identities(
+        engine, data_dir, all_ids, params_map=params_map, overrides_map=overrides_map,
+        asset_type=asset_type, timeframe=timeframe,
+    )
+    started_at = time.time_ns()
+    generation = strategy_results.input_generation(repo, engine, asset_type)
+    key = (str(data_dir.resolve()), asset_type, timeframe, str(as_of),
+           tuple(sorted((sid, identity.fingerprint) for sid, identity in identities.items())))
     ordered_ids = strategy_run_queue.order_strategy_ids(
         all_ids, strategy_run_queue.load_run_timings(data_dir)
     )
 
+    @limit_local_strategy
     def job(handle: strategy_run_queue.StrategyRunHandle) -> None:
         context = svc.build_strategy_context(
             engine,
@@ -642,7 +785,7 @@ def _run_all_progressive(
                 continue
             payload = {
                 "total": result.total,
-                "as_of": str(as_of),
+                "as_of": str(result.as_of),
                 "rows": _safe(asdict(result)).get("rows", []),
                 "computed_at": int(time.time() * 1000),
             }
@@ -655,6 +798,14 @@ def _run_all_progressive(
                     w.append(entry_error + "; 本轮入场已关闭, 退出信号仍有效")
                 if w:
                     payload["warnings"] = w
+            try:
+                strategy_results.persist_result(
+                    data_dir, identities[sid], payload, started_at=started_at,
+                    input_generation=generation,
+                )
+            except HTTPException as exc:
+                handle.fail_one(sid, exc.detail)
+                continue
             all_results[sid] = payload
             elapsed_map[sid] = (time.perf_counter() - t0) * 1000
             # 逐策略增量落盘 (write_cache 同日按 sid 合并), 前端轮询即可逐个看到
@@ -711,6 +862,7 @@ def run_all(request: Request, body: Optional[dict] = None):
     engine = _strategy_engine(request)
     if engine is None:
         raise HTTPException(status_code=503, detail="策略引擎未初始化")
+    engine = strategy_results.execution_snapshot(engine)
 
     # 解析日期
     raw_date = body.get("as_of")
@@ -784,21 +936,29 @@ def run_all(request: Request, body: Optional[dict] = None):
             t_total=t_total,
         )
 
+    started_at = time.time_ns()
+    generation = strategy_results.input_generation(repo, engine, asset_type)
+    identities = strategy_results.capture_identities(
+        engine, data_dir, all_ids, params_map=params_map, overrides_map=overrides_map,
+        asset_type=asset_type, timeframe=timeframe,
+    )
     try:
-        context = svc.build_strategy_context(
-            engine,
-            as_of,
-            all_ids,
-            timeframe=timeframe,
-            params_map=params_map,
-            overrides_map=overrides_map,
-        )
-        engine_results = engine.run_all(
-            context,
-            params_map=params_map,
-            overrides_map=overrides_map,
-            strategy_ids=all_ids,
-        )
+        with local_slot():
+            context = svc.build_strategy_context(
+                engine,
+                as_of,
+                all_ids,
+                timeframe=timeframe,
+                params_map=params_map,
+                overrides_map=overrides_map,
+            )
+            engine_results = engine.run_all(
+                context,
+                params_map=params_map,
+                overrides_map=overrides_map,
+                strategy_ids=all_ids,
+                parallel=False,
+            )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -807,7 +967,7 @@ def run_all(request: Request, body: Optional[dict] = None):
         safe_rows = _safe(asdict(result)).get("rows", [])
         results[sid] = {
             "total": result.total,
-            "as_of": str(as_of),
+            "as_of": str(result.as_of),
             "rows": safe_rows,
         }
         if timeframe == "1d":
@@ -819,6 +979,11 @@ def run_all(request: Request, body: Optional[dict] = None):
                 w.append(entry_error + "; 本轮入场已关闭, 退出信号仍有效")
             if w:
                 results[sid]["warnings"] = w
+        saved = strategy_results.persist_result(
+            data_dir, identities[sid], results[sid], started_at=started_at,
+            input_generation=generation,
+        )
+        results[sid]["computed_at"] = saved["summary"]["computed_at"]
 
     elapsed = (time.perf_counter() - t_total) * 1000
     logger.info("run_all: total took %.1fms (%d strategies)", elapsed, len(all_ids))

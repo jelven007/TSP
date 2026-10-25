@@ -53,7 +53,7 @@ export function Lots() {
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const lotsQuery = useQuery({ queryKey: QK.lots, queryFn: api.lotsList })
-  const lots = lotsQuery.data?.lots ?? []
+  const lots = useMemo(() => lotsQuery.data?.lots ?? [], [lotsQuery.data?.lots])
 
   const allSymbols = useMemo(() => Array.from(new Set(lots.map(l => l.symbol))), [lots])
   const namesQuery = useQuery({
@@ -62,7 +62,7 @@ export function Lots() {
     enabled: allSymbols.length > 0,
     staleTime: 300000,
   })
-  const symbolNames = namesQuery.data?.names ?? {}
+  const symbolNames = useMemo(() => namesQuery.data?.names ?? {}, [namesQuery.data?.names])
 
   // 9999 哨兵: 未记买入日期的排最后
   const sortedLots = useMemo(() => {
@@ -313,8 +313,8 @@ function LotDialog({ lot, onClose }: { lot: Lot; onClose: () => void }) {
   }
 
   return (
-    <Modal onClose={onClose} ariaLabel={lot.id ? '编辑批次' : '新增批次'} panelClassName="w-[92vw] max-w-md bg-surface border border-border rounded-card shadow-xl">
-      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+    <Modal onClose={onClose} ariaLabel={lot.id ? '编辑批次' : '新增批次'} size="sm">
+      <div className="modal-header flex items-center justify-between">
         <span className="text-sm font-medium text-foreground">{lot.id ? '编辑批次' : '新增批次'}</span>
         <span className="text-[10px] text-muted">保存后自动同步监控规则</span>
       </div>
@@ -400,7 +400,7 @@ function LotDialog({ lot, onClose }: { lot: Lot; onClose: () => void }) {
 
         {error && <div className="rounded border border-danger/30 bg-danger/10 px-3 py-2 text-[11px] text-danger">{error}</div>}
       </div>
-      <div className="flex items-center justify-end gap-2 border-t border-border/60 px-4 py-3">
+      <div className="modal-footer flex items-center justify-end gap-2">
         <button onClick={onClose} className="h-9 rounded-btn border border-border px-3 text-xs text-secondary hover:bg-elevated cursor-pointer">取消</button>
         <button
           onClick={submit}
