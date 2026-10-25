@@ -150,7 +150,7 @@ def _noop(stage: str, pct: int, msg: str, **kwargs) -> None:  # noqa: ARG001
 
 def _invalidate(table: str | None = None) -> None:
     """stage 写完调用,让 /api/data/status 只重算被影响的那张表。"""
-    from app.api.data import invalidate_data_cache
+    from app.services.public_query_cache import invalidate_data_cache
     invalidate_data_cache(table)
 
 
@@ -753,8 +753,8 @@ def run_now(
     else:
         try:
             emit("compute_regime", 90, "计算环境…")
-            from app.api.regime import invalidate_regime_cache
             from app.services import regime_builder
+            from app.services.public_query_cache import invalidate_regime_cache
             new_regime = regime_builder.compute_regime_incremental(repo, repo.store.data_dir)
             regime_days = new_regime.height if not new_regime.is_empty() else 0
             if regime_days:

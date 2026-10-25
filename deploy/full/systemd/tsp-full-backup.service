@@ -1,0 +1,13 @@
+[Unit]
+Description=Quiesce full-product services and verify the joint backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/tsp-full/maintenance/scheduled_full_backup.py --config /etc/tsp-full/backup.json --stop-writers
+Nice=15
+IOSchedulingClass=idle
+TimeoutStartSec=2h
+StandardOutput=journal
+StandardError=journal

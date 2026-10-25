@@ -1150,7 +1150,7 @@ async def _sync_data(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
     if kind == "pipeline":
         if ctx.repo is None or ctx.capabilities is None:
             raise ValueError("数据仓库或数据源能力未就绪, 无法启动同步。")
-        from app.api.pipeline import trigger_pipeline_job
+        from app.services.pipeline_runner import trigger_pipeline_job
 
         trigger = await trigger_pipeline_job(ctx.repo, ctx.capabilities, ctx.quote_service)
         return {

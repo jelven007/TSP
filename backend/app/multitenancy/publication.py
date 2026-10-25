@@ -12,6 +12,8 @@ import time
 import uuid
 from pathlib import Path
 
+from app.services.observability import measure_runtime_lock
+
 logger = logging.getLogger(__name__)
 PUBLIC_DIRS = frozenset({
     "kline_daily", "kline_daily_enriched", "kline_index_daily", "kline_index_enriched",
@@ -105,7 +107,7 @@ class PublicPublisher:
     def publish(self):
         # Serialize the short copy boundary with the platform repository's
         # writers. Otherwise a one-second quote cycle could starve publication.
-        with self.write_lock:
+        with measure_runtime_lock(self.write_lock, "public.publish"):
             return self._publish()
 
     def validate_daily_coverage(self):

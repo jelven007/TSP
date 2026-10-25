@@ -115,6 +115,14 @@ class Settings(BaseSettings):
     ai_context_window: int = 128000
     # AI 助手工具轮次检查点: 连续 N 轮工具调用未完成时弹「继续/停止」卡; 0=不检查。
     ai_round_checkpoint: int = 100
+    # 0 disables the corresponding admission limit. Usage remains recorded.
+    ai_daily_request_limit: int = Field(default=0, ge=0)
+    ai_user_daily_request_limit: int = Field(default=0, ge=0)
+    ai_task_request_limit: int = Field(default=0, ge=0)
+    ai_daily_token_limit: int = Field(default=0, ge=0)
+    ai_daily_cost_limit_micros: int = Field(default=0, ge=0)
+    ai_budget_currency: str = "USD"
+    ai_pricing_json: str = "{}"
 
     # Server
     host: str = "0.0.0.0"

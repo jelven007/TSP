@@ -14,7 +14,7 @@ const FACTOR_CONFIG_FIELDS = [
 const STRATEGY_CONFIG_FIELDS = [
   'strategy_id', 'symbols', 'start', 'end', 'params', 'overrides', 'matching',
   'entry_fill', 'exit_fill', 'fees_pct', 'commission_pct', 'stamp_tax_pct',
-  'minimum_commission', 'transfer_fee_pct',
+  'minimum_commission', 'transfer_fee_pct', 'strict_research',
   'slippage_bps', 'max_positions', 'max_exposure_pct', 'initial_capital',
   'position_sizing', 'mode', 'holding_days', 'asset_type', 'minute_fill',
   'regime_filter',
@@ -89,7 +89,13 @@ export function strategyResultCandidate(result: StrategyBacktestResult): Researc
     kind: 'strategy',
     name: `${result.strategy_info?.name || sourceId}候选`,
     source_id: sourceId,
-    config: pickConfig({ ...result.config, strategy_id: sourceId }, STRATEGY_CONFIG_FIELDS),
+    config: {
+      ...pickConfig({ ...result.config, strategy_id: sourceId }, STRATEGY_CONFIG_FIELDS),
+      ...(result.provenance?.input_snapshot?.mode === 'local_snapshot'
+        ? { input_snapshot_id: result.provenance.input_snapshot.id } : {}),
+      ...(result.research?.provenance?.job_id
+        ? { research_job_id: result.research.provenance.job_id } : {}),
+    },
     metrics: {
       total_return: stats.total_return ?? null,
       annual_return: stats.annual_return ?? null,

@@ -33,7 +33,7 @@ def _noop(stage: str, pct: int, msg: str, **kwargs) -> None:  # noqa: ARG001
 
 
 def _invalidate(table: str | None = None) -> None:
-    from app.api.data import invalidate_data_cache
+    from app.services.public_query_cache import invalidate_data_cache
     invalidate_data_cache(table)
 
 

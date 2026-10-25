@@ -350,6 +350,24 @@ def research_job_delete(job_id: str, request: Request):
     jobs.delete(job_id)
     return {"ok": True}
 
+
+class ResearchReplayRequest(BaseModel):
+    new_inputs: bool = False
+
+
+@router.post("/jobs/{job_id}/replay")
+def research_job_replay(job_id: str, body: ResearchReplayRequest, request: Request):
+    from app.api.strategy import _get_engine
+    from app.multitenancy.research import jobs_for
+
+    jobs = jobs_for(request)
+    if not jobs:
+        raise HTTPException(404, detail="研究任务不存在")
+    row = jobs.replay(job_id, new_inputs=body.new_inputs,
+                      engine=_get_engine(request) if body.new_inputs else None)
+    return {"id": row["id"], "kind": row["kind"], "status": row["state"]}
+
+
 class CandidateCreateRequest(BaseModel):
     kind: Literal["factor", "strategy"]
     kind: Literal["factor", "strategy"]
@@ -617,6 +635,12 @@ def _make_job_key(
     return hashlib.md5(raw.encode()).hexdigest()[:12]
 
 
+def _experiment_job_key(key: str, snapshot_id: str | None, experiment_id: str | None) -> str:
+    if not snapshot_id and not experiment_id:
+        return key
+    return hashlib.sha256(f"{key}|{snapshot_id}|{experiment_id}".encode()).hexdigest()[:24]
+
+
 @router.get("/strategy/stream")
 async def strategy_stream(
     request: Request,
@@ -645,6 +669,8 @@ async def strategy_stream(
     strict_research: bool = False,
     minimum_commission: float = 0.0,
     transfer_fee_pct: float = 0.0,
+    input_snapshot_id: str | None = None,
+    experiment_id: str | None = None,
 ):
     """SSE 流式策略回测: 实时推送进度, 完成后推送结果, 支持重连 (刷新/切页后恢复)。
 
@@ -660,6 +686,13 @@ async def strategy_stream(
     from app.backtest.strategy import StrategyBacktestConfig
     from app.backtest.worker import make_worker_task, run_worker_task
 
+    for name, value, length in (
+        ("input_snapshot_id", input_snapshot_id, 64), ("experiment_id", experiment_id, 32),
+    ):
+        if value is not None and (
+            len(value) != length or any(char not in "0123456789abcdef" for char in value)
+        ):
+            raise HTTPException(400, detail=f"{name} 格式无效")
     try:
         end_date = date.fromisoformat(end) if end else cn_today()
         start_date = date.fromisoformat(start) if start else None
@@ -692,11 +725,14 @@ async def strategy_stream(
         minimum_commission=minimum_commission,
         transfer_fee_pct=transfer_fee_pct,
     )
+    job_key = _experiment_job_key(job_key, input_snapshot_id, experiment_id)
 
     from app.multitenancy.research import jobs_for, stream
 
     scoped_jobs = jobs_for(request)
     if scoped_jobs:
+        if input_snapshot_id:
+            raise HTTPException(400, detail="多租户原输入复测请使用已保存的研究任务")
         _guard_server_backtest_range(start_date, end_date)
         from app.api.strategy import _get_engine as strategy_engine
 
@@ -805,6 +841,8 @@ async def strategy_stream(
                         cancel_event=job.cancel_event,
                     ):
                         task = make_worker_task("backtest", settings.data_dir, cfg)
+                        if input_snapshot_id:
+                            task["input_snapshot_id"] = input_snapshot_id
                         result = run_worker_task(
                             task,
                             lambda d: job.progress.append(d),
@@ -901,6 +939,9 @@ async def strategy_cancel(request: Request):
         strict_research=_get("strict_research", "false").lower() == "true",
         minimum_commission=float(_get("minimum_commission", "0")),
         transfer_fee_pct=float(_get("transfer_fee_pct", "0")),
+    )
+    job_key = _experiment_job_key(
+        job_key, _get("input_snapshot_id") or None, _get("experiment_id") or None,
     )
     from app.multitenancy.research import jobs_for
 

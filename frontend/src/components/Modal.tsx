@@ -26,6 +26,8 @@ export interface ModalProps {
   initialFocusRef?: React.RefObject<HTMLElement>
   /** 点击遮罩是否关闭 (默认 true) */
   closeOnBackdrop?: boolean
+  /** 提交期间同时禁止 ESC 和遮罩关闭 */
+  closeDisabled?: boolean
 }
 
 const FOCUSABLE = [
@@ -46,6 +48,7 @@ export function Modal({
   overlayClassName = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm',
   initialFocusRef,
   closeOnBackdrop = true,
+  closeDisabled = false,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   // 记录鼠标按下时是否落在遮罩(而非面板)上。
@@ -57,6 +60,8 @@ export function Modal({
   // 面板首个元素, 导致对话框内文本框无法输入。
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const closeDisabledRef = useRef(closeDisabled)
+  closeDisabledRef.current = closeDisabled
 
   useEffect(() => {
     // 记住打开前的焦点, 关闭时还原
@@ -76,10 +81,24 @@ export function Modal({
     // 等一帧确保内容已挂载
     const raf = requestAnimationFrame(focusFirst)
 
+    // Native focus traversal and external controls can move focus without our
+    // Tab handler. Keep the topmost modal contained on those paths as well.
+    const onFocusIn = (e: FocusEvent) => {
+      const panel = panelRef.current
+      if (!panel || panel.contains(e.target as Node)) return
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]')
+      if (dialogs[dialogs.length - 1] !== panel) return
+      const nodes = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
+        .filter(el => el.offsetParent !== null)
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      ;(e.relatedTarget === first ? last : first ?? panel)?.focus()
+    }
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onCloseRef.current()
+        if (!closeDisabledRef.current) onCloseRef.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -109,9 +128,11 @@ export function Modal({
     }
 
     document.addEventListener('keydown', onKeyDown, true)
+    document.addEventListener('focusin', onFocusIn, true)
     return () => {
       cancelAnimationFrame(raf)
       document.removeEventListener('keydown', onKeyDown, true)
+      document.removeEventListener('focusin', onFocusIn, true)
       // 还原焦点
       prevActive?.focus?.()
     }
@@ -128,7 +149,7 @@ export function Modal({
       }}
       onClick={closeOnBackdrop ? (e) => {
         // 只有按下和松开都在遮罩上才关闭, 避免拖选文本误关。
-        if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose()
+        if (!closeDisabled && mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose()
       } : undefined}
     >
       <div

@@ -89,6 +89,7 @@ jobs:
       SERVICE_ROLE: standalone
       POLARS_MAX_THREADS: "4"
       TSP_TEST_POSTGRES_DSN: postgresql://postgres:test-only-password@127.0.0.1:5432/postgres
+      STATIC_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
     defaults:
       run:
         working-directory: backend
@@ -97,6 +98,7 @@ jobs:
         with:
           ref: ${{ needs.version.outputs.revision }}
           persist-credentials: false
+          fetch-depth: 0
 
       - name: 设置隔离测试数据目录
         run: echo "DATA_DIR=$RUNNER_TEMP/tsp-tests" >> "$GITHUB_ENV"
@@ -125,6 +127,11 @@ jobs:
       - name: 安装依赖 (含 dev、cell 测试链与 rustdx)
         run: uv sync --extra dev --extra cell --frozen
 
+      - name: 增量 Ruff 门禁与公共缓存类型检查
+        run: |
+          uv run --frozen --no-sync python ../scripts/check_ruff_delta.py --base "$STATIC_BASE" --ruff "$PWD/.venv/bin/ruff"
+          uv run --frozen --no-sync mypy app/services/public_query_cache.py --follow-imports=skip
+
       - name: 校验默认安装的 rustdx 原生桥接
         run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
 
@@ -136,6 +143,20 @@ jobs:
 
       - name: 后端全量测试
         run: uv run --frozen --no-sync pytest tests -q
+
+      - name: 隔离 Web HTTP 关键流程验收
+        run: |
+          uv run --frozen --no-sync python -m scripts.acceptance.accept_local_web --output "$RUNNER_TEMP/local-web-acceptance.json"
+          python ../scripts/release/write_validation_record.py --output "$RUNNER_TEMP/validation-record.json" --evidence "local-web=$RUNNER_TEMP/local-web-acceptance.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-web-acceptance
+          path: |
+            ${{ runner.temp }}/local-web-acceptance.json
+            ${{ runner.temp }}/validation-record.json
+          if-no-files-found: warn
 
   frontend:
     needs: version

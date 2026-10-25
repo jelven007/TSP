@@ -20,6 +20,7 @@ import os
 import threading
 import uuid
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar
@@ -54,6 +55,10 @@ LONG_JOB_TIMEOUT_S = 1800
 HARD_JOB_TIMEOUT_S = 12 * 3600
 # 向后兼容: 旧调用方引用 STALE_JOB_TIMEOUT_S
 STALE_JOB_TIMEOUT_S = DEFAULT_JOB_TIMEOUT_S
+
+
+class JobPersistenceError(RuntimeError):
+    """Task state could not be committed; callers must not acknowledge it."""
 
 
 class JobCancelledError(BaseException):
@@ -125,7 +130,9 @@ class JobStore:
         self._active_jobs: dict[str, dict[str, Any]] = {}   # queued/running/cancelling
         self._active_id: str | None = None
         self._lock = threading.Lock()
+        self._persistence_error: str | None = None
         self._store_dir.mkdir(parents=True, exist_ok=True)
+        self._recover_pending_files()
         self._reap_orphans()
 
     # ===== persistence =====
@@ -139,18 +146,131 @@ class JobStore:
         """
         path = self._store_dir / f"{job['id']}.json"
         tmp = self._store_dir / f"{job['id']}.json.tmp"
+        pending = self._store_dir / f"{job['id']}.json.{uuid.uuid4().hex}.pending"
         try:
-            tmp.write_text(
-                json.dumps(job, ensure_ascii=False, indent=None),
-                encoding="utf-8",
-            )
-            os.replace(tmp, path)
-        except Exception:
-            logger.warning("failed to write job file %s", path)
+            payload = {
+                key: value for key, value in job.items()
+                if key not in {"persistence_pending", "persistence_error"}
+            }
+            with tmp.open("w", encoding="utf-8") as stream:
+                json.dump(payload, stream, ensure_ascii=False, allow_nan=False)
+                stream.flush()
+                os.fsync(stream.fileno())
+            # Only a closed, fsynced candidate gets a recoverable journal name.
+            # A process killed while writing *.tmp cannot publish partial work.
+            os.rename(tmp, pending)
+            self._sync_directory()
+            os.replace(pending, path)
+            self._sync_directory()
+            self._remove_pending_files(job["id"])
+            self._persistence_error = None
+        except (OSError, TypeError, ValueError) as exc:
+            self._persistence_error = type(exc).__name__
+            logger.warning("task state persistence failed (%s)", self._persistence_error)
+            with suppress(OSError):
+                tmp.unlink(missing_ok=True)
+            raise JobPersistenceError("任务状态无法持久化, 请检查磁盘空间和目录权限") from exc
+
+    def _sync_directory(self) -> None:
+        if os.name == "nt":
+            return
+        descriptor = os.open(self._store_dir, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    def _pending_files(self, job_id: str) -> list[Path]:
+        files = []
+        for path in self._store_dir.glob(f"{job_id}.json.*.pending"):
             try:
-                tmp.unlink()
+                files.append((path.stat().st_mtime_ns, path))
             except OSError:
-                pass
+                continue
+        return [path for _, path in sorted(files, reverse=True)]
+
+    def _remove_pending_files(self, job_id: str) -> None:
+        for path in self._pending_files(job_id):
+            with suppress(OSError):
+                path.unlink()
+
+    def _recover_pending_files(self) -> None:
+        candidates: dict[str, list[tuple[dict[str, Any], Path]]] = {}
+        for tmp in self._store_dir.glob("*.json.*.pending"):
+            try:
+                job = _normalize_job(json.loads(tmp.read_text(encoding="utf-8")))
+                if not tmp.name.startswith(f"{job['id']}.json."):
+                    raise ValueError("pending task identity mismatch")
+            except (OSError, TypeError, ValueError):
+                logger.warning("invalid pending task record retained: %s", tmp.name)
+                continue
+            candidates.setdefault(job["id"], []).append((job, tmp))
+        for job_id, files in candidates.items():
+            committed = self._read_file(job_id)
+            if committed and committed["status"] in TERMINAL_TASK_STATUSES:
+                self._remove_pending_files(job_id)
+                continue
+            # A failed start/cancellation write can precede a completed failure
+            # record. Prefer the real terminal over any older active journal.
+            _, pending = max(
+                files,
+                key=lambda pair: (
+                    pair[0]["status"] in TERMINAL_TASK_STATUSES,
+                    pair[1].stat().st_mtime_ns,
+                ),
+            )
+            try:
+                os.replace(pending, self._store_dir / f"{job_id}.json")
+                self._sync_directory()
+                self._remove_pending_files(job_id)
+            except OSError as exc:
+                raise JobPersistenceError("待恢复的任务状态无法持久化, 请检查目录权限") from exc
+
+    def _release_terminal(self, job_id: str) -> None:
+        self._active_jobs.pop(job_id, None)
+        if self._active_id == job_id:
+            self._active_id = None
+        self._delete_oldest()
+
+    def _commit_terminal(self, job: dict[str, Any]) -> None:
+        try:
+            pending = next((
+                path for path in self._pending_files(job["id"])
+                if self._pending_status(path) == job["status"]
+            ), None)
+            if job.get("persistence_pending") and pending is not None:
+                # Retry the already-fsynced record without truncating the only
+                # surviving terminal state if the process exits during recovery.
+                os.replace(pending, self._store_dir / f"{job['id']}.json")
+                self._sync_directory()
+                self._remove_pending_files(job["id"])
+                self._persistence_error = None
+            else:
+                self._write_file(job)
+        except (JobPersistenceError, OSError) as exc:
+            if isinstance(exc, OSError):
+                self._persistence_error = type(exc).__name__
+            job["persistence_pending"] = True
+            job["persistence_error"] = self._persistence_error
+            raise JobPersistenceError("任务终态尚未持久化, 请检查磁盘空间和目录权限") from exc
+        self._release_terminal(job["id"])
+
+    @staticmethod
+    def _pending_status(path: Path) -> str | None:
+        try:
+            return json.loads(path.read_text(encoding="utf-8")).get("status")
+        except (OSError, ValueError, AttributeError):
+            return None
+
+    def _flush_pending(self, *, strict: bool = False) -> None:
+        for job in tuple(self._active_jobs.values()):
+            if not job.get("persistence_pending"):
+                continue
+            try:
+                self._commit_terminal(job)
+            except JobPersistenceError:
+                if strict:
+                    raise
 
     def _read_file(self, job_id: str) -> dict[str, Any] | None:
         """从磁盘读取单个 job 文件。"""
@@ -167,15 +287,19 @@ class JobStore:
             return None
 
     def _delete_oldest(self) -> None:
-        """删除最老的 job 文件,保持文件数量 < max_jobs。"""
+        """Prune committed history without deleting active or pending records."""
         try:
             files = sorted(self._store_dir.glob("*.json"), key=lambda f: f.stat().st_mtime)
         except Exception:
             return
-        while len(files) >= self._max_jobs:
+        count = len(files)
+        while count > self._max_jobs and files:
             oldest = files.pop(0)
+            if oldest.stem in self._active_jobs:
+                continue
             try:
                 oldest.unlink()
+                count -= 1
             except Exception:
                 logger.warning("failed to delete old job file %s", oldest)
 
@@ -275,6 +399,7 @@ class JobStore:
                 timeout_s = preferences.get_data_source_job_timeout_s()
 
         with self._lock:
+            self._flush_pending(strict=True)
             # 目录同步只写小型维表, 不占行情重任务单飞槽; 同类目录任务仍去重。
             if kind == "instruments_sync":
                 for active in self._active_jobs.values():
@@ -312,12 +437,18 @@ class JobStore:
                 "error": None,
                 "timeout_s": timeout_s,
             }
+            # queued 即落盘: 进程在 start() 前死亡时记录也不丢
+            try:
+                self._write_file(job)
+            except JobPersistenceError:
+                with suppress(OSError):
+                    (self._store_dir / f"{job_id}.json.tmp").unlink(missing_ok=True)
+                self._remove_pending_files(job_id)
+                raise
             self._active_jobs[job_id] = job
             if kind != "instruments_sync":
                 self._active_id = job_id
-            # queued 即落盘: 进程在 start() 前死亡时记录也不丢
             self._delete_oldest()
-            self._write_file(job)
         _register_cancel_flag(job_id)
         return job_id, True
 
@@ -327,19 +458,25 @@ class JobStore:
             if not j:
                 return
             updated = transition_task_record(j, "running")
-            j.clear()
-            j.update(updated)
             # 心跳基准初始化为启动时刻: start() 到首次 progress() 之间的
             # 初始化阶段(解析标的池等)同样计入停滞计时。
-            j["last_progress_at"] = j["started_at"]
+            updated["last_progress_at"] = updated["started_at"]
             # running 快照落盘: 进程死亡后由下次启动的 _reap_orphans 补录
-            self._write_file(j)
+            self._write_file(updated)
+            j.clear()
+            j.update(updated)
 
     def succeed(self, job_id: str, result: Any) -> None:
         with self._lock:
             j = self._active_jobs.get(job_id)
             if not j:
                 return
+            if j["status"] in TERMINAL_TASK_STATUSES:
+                self._flush_pending(strict=True)
+                return
+            # Reject invalid output before changing an active state, allowing
+            # the caller to persist a genuine output-validation failure.
+            result = json.loads(json.dumps(result, ensure_ascii=False, allow_nan=False))
             target: TaskStatus = (
                 "cancelled" if j["status"] == "cancelling" else "succeeded"
             )
@@ -350,11 +487,7 @@ class JobStore:
             if target == "succeeded":
                 j["result"] = result
             j["duration_s"] = _duration_s(j)
-            self._active_jobs.pop(job_id, None)
-            if self._active_id == job_id:
-                self._active_id = None
-            self._delete_oldest()
-            self._write_file(j)
+            self._commit_terminal(j)
 
     def fail(self, job_id: str, error: str) -> None:
         with self._lock:
@@ -373,11 +506,7 @@ class JobStore:
             j.clear()
             j.update(updated)
             j["duration_s"] = _duration_s(j)
-            self._active_jobs.pop(job_id, None)
-            if self._active_id == job_id:
-                self._active_id = None
-            self._delete_oldest()
-            self._write_file(j)
+            self._commit_terminal(j)
 
     def cancelled(self, job_id: str) -> None:
         """Publish cancellation only after the worker has actually stopped."""
@@ -395,11 +524,7 @@ class JobStore:
             j.clear()
             j.update(updated)
             j["duration_s"] = _duration_s(j)
-            self._active_jobs.pop(job_id, None)
-            if self._active_id == job_id:
-                self._active_id = None
-            self._delete_oldest()
-            self._write_file(j)
+            self._commit_terminal(j)
 
     # ===== progress =====
 
@@ -449,16 +574,19 @@ class JobStore:
         # 取锁与 succeed()/fail() 的「pop 出内存 → 终态落盘」串行,
         # 避免轮询方恰好落在两者之间, 瞬时看到任务凭空消失。
         with self._lock:
+            self._flush_pending()
             # 内存中的活跃 job 优先
             j = self._active_jobs.get(job_id)
             if j:
-                return j
+                return {**j, "log": list(j["log"])}
             # 否则从磁盘读
             return self._read_file(job_id)
 
     def list_recent(self, limit: int = 20) -> list[dict[str, Any]]:
         # 合并: 内存中的活跃 job + 磁盘文件
-        all_jobs: list[dict[str, Any]] = list(self._active_jobs.values())
+        with self._lock:
+            self._flush_pending()
+            all_jobs: list[dict[str, Any]] = [dict(job) for job in self._active_jobs.values()]
         all_jobs.extend(self._job_files_sorted())
         # 按 started_at 从新到旧排序,去重(理论上不会有重复)
         seen: set[str] = set()
@@ -479,6 +607,16 @@ class JobStore:
 
     def active_id(self) -> str | None:
         return self._active_id
+
+    def persistence_health(self) -> dict[str, Any]:
+        with self._lock:
+            self._flush_pending()
+            pending = sum(bool(job.get("persistence_pending")) for job in self._active_jobs.values())
+            return {
+                "status": "warning" if self._persistence_error or pending else "ok",
+                "pending_records": pending,
+                "error_type": self._persistence_error,
+            }
 
     def reap_stale(self, timeout_s: int | None = None) -> None:
         """请求取消卡死的 running job，以及排队超时的 queued job。判定:
@@ -573,11 +711,13 @@ class JobStore:
         with self._lock:
             self._active_jobs.clear()
             self._active_id = None
-            for f in self._store_dir.glob("*.json"):
-                try:
+            self._persistence_error = None
+            for f in (
+                *self._store_dir.glob("*.json"), *self._store_dir.glob("*.json.tmp"),
+                *self._store_dir.glob("*.json.*.pending"),
+            ):
+                with suppress(OSError):
                     f.unlink()
-                except Exception:
-                    pass
         with _CANCEL_FLAGS_LOCK:
             _CANCEL_FLAGS.clear()
 
@@ -620,6 +760,8 @@ def _summary(j: dict[str, Any]) -> dict[str, Any]:
         "duration_s": j["duration_s"],
         "result": j["result"],
         "error": j["error"],
+        "persistence_pending": bool(j.get("persistence_pending")),
+        "persistence_error": j.get("persistence_error"),
     }
 
 

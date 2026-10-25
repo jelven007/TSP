@@ -560,7 +560,7 @@ def launch_integrity_repair(app_state, start_date: date, reason: str) -> tuple[s
         finally:
             release_run_slot(job_id)
             with contextlib.suppress(Exception):
-                from app.api.data import invalidate_storage_cache
+                from app.services.public_query_cache import invalidate_storage_cache
 
                 invalidate_storage_cache()
 

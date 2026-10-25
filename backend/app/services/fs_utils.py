@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import os
+import tempfile
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,14 +22,20 @@ def atomic_write_text(path: Path, text: str, *, mode: int | None = None) -> None
     以默认权限存在的窗口; 先改临时文件就没有这个窗口。Windows 上 chmod 只影响
     只读位, 失败不该让写入失败, 所以吞掉 OSError, 与原调用处的处理一致。
     """
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    if mode is not None:
-        try:
-            os.chmod(tmp, mode)
-        except OSError:
-            pass
-    os.replace(tmp, path)
+    # 同目录的独立临时文件避免并发 replace 抢走另一写入者的文件。
+    # mkstemp 从创建起即为 0600, 凭据内容不会先以默认权限落盘。
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    os.close(fd)
+    tmp = Path(name)
+    try:
+        if mode is not None:
+            with suppress(OSError):
+                os.chmod(tmp, mode)
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        with suppress(OSError):
+            tmp.unlink(missing_ok=True)
 
 
 def atomic_write_parquet(df: pl.DataFrame, path: Path) -> None:

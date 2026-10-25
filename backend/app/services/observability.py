@@ -5,6 +5,7 @@ import logging
 import re
 import threading
 import time
+from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
@@ -44,7 +45,7 @@ def install_log_record_factory() -> None:
     logging.setLogRecordFactory(record_factory)
 
 
-def _safe_request_id(value: str | None) -> str:
+def safe_request_id(value: str | None) -> str:
     if value is not None and _REQUEST_ID_PATTERN.fullmatch(value):
         return value
     return uuid4().hex
@@ -246,6 +247,57 @@ class _HttpMetrics:
 
 
 _http_metrics = _HttpMetrics()
+_runtime_metrics = _HttpMetrics()
+_RUNTIME_STAGES = frozenset({
+    "identity.authenticate", "tenant.context", "tenant.factor_definitions",
+    "public.refresh_wait", "public.refresh", "public.publish_wait", "public.publish",
+})
+
+
+@contextmanager
+def measure_runtime_stage(stage: str):
+    """Bounded process counters; never label metrics with users or request IDs."""
+    if stage not in _RUNTIME_STAGES:
+        raise ValueError("unknown runtime observation stage")
+    started = time.perf_counter()
+    failed = False
+    try:
+        yield
+    except BaseException:
+        failed = True
+        raise
+    finally:
+        _runtime_metrics.observe(
+            method="STAGE", route=stage, status_code=500 if failed else 200,
+            duration_ms=(time.perf_counter() - started) * 1000,
+        )
+
+
+def runtime_metrics_snapshot() -> dict[str, Any]:
+    return {
+        item["route"]: {
+            "calls": item["requests"], "failures": item["errors"],
+            "duration_ms": item["duration_ms"],
+        }
+        for item in _runtime_metrics.snapshot()["routes"]
+    }
+
+
+def reset_runtime_metrics() -> None:
+    _runtime_metrics.reset()
+
+
+@contextmanager
+def measure_runtime_lock(lock, stage: str):
+    if stage not in {"public.refresh", "public.publish"}:
+        raise ValueError("unknown runtime lock stage")
+    with measure_runtime_stage(stage + "_wait"):
+        lock.acquire()
+    try:
+        with measure_runtime_stage(stage):
+            yield
+    finally:
+        lock.release()
 
 
 def http_metrics_snapshot() -> dict[str, Any]:
@@ -334,7 +386,7 @@ class ObservabilityMiddleware:
             await self.app(scope, receive, send)
             return
 
-        request_id = _safe_request_id(Headers(scope=scope).get(_REQUEST_ID_HEADER))
+        request_id = safe_request_id(Headers(scope=scope).get(_REQUEST_ID_HEADER))
         scope.setdefault("state", {})["request_id"] = request_id
         context_token = _request_id.set(request_id)
         started = time.perf_counter()

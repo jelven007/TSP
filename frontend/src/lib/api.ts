@@ -7,6 +7,7 @@ import { toast } from '@/components/Toast'
 import { accountFetch as fetch, confirmAccount, hasPermission, multitenancyEnabled } from './accountSession'
 import { secondQuotesApi, type SecondQuoteArchiveStatus } from '@/lib/api/secondQuotes'
 import { openSourceReleaseApi } from '@/lib/api/openSourceRelease'
+import type { DataQuality, InitializationStatus } from '@/lib/api/dataQuality'
 import {
   COMPUTE_REQUEST_TIMEOUT_MS,
   extPullTimeoutMs,
@@ -1426,6 +1427,7 @@ export interface BacktestProvenance {
     mode: 'local_snapshot' | 'public_release'
     file_count: number
     bytes?: number
+    runtime?: { app_sources_sha256: string }
   } | null
   historical_inputs?: {
     universe: { survivorship_verified: boolean; missing_delisted_ratio: number | null }
@@ -1901,6 +1903,10 @@ export interface StrategyBacktestTrade {
 
 export interface StrategyBacktestResult {
   run_id: string
+  research?: {
+    provenance?: { job_id: string; input_snapshot: string; public_release_id: string | null }
+    runtime?: { app_sources_sha256: string }
+  }
   config: Record<string, any>
   stats: Record<string, any> & {
     trade_metrics_version?: string
@@ -3302,6 +3308,10 @@ export const api = {
   },
 
   backtestStatus: () => request<{ available: boolean }>('/api/backtest/status'),
+  researchJobReplay: (id: string, newInputs = false) =>
+    request<{ id: string; kind: string; status: string }>(`/api/backtest/jobs/${encodeURIComponent(id)}/replay`, {
+      method: 'POST', body: JSON.stringify({ new_inputs: newInputs }),
+    }),
 
   /** 策略/因子候选 (回测报告的持久化摘要, 模拟交易对比用) */
   backtestCandidates: () =>
@@ -4601,6 +4611,8 @@ export interface StockCatalogRow extends StockCatalogFields {
 }
 
 export interface DataStatus {
+  quality?: DataQuality
+  initialization?: InitializationStatus
   daily: TableStats | null
   enriched: TableStats | null
   index_daily: TableStats | null

@@ -36,14 +36,14 @@ interface CardDef {
 /** 数据画像卡片定义 —— 默认顺序即此数组顺序 */
 export const DATA_CARD_DEFS: CardDef[] = [
   { key: 'instruments', label: '个股维表', desc: 'A 股股票元数据', defaultHiddenIfNoCap: false },
+  { key: 'minute',      label: '分钟 K',   desc: '分钟级K线(依赖分钟K批量数据)',  defaultHiddenIfNoCap: true },
   { key: 'daily',       label: '日 K',     desc: 'A 股日K线数据',          defaultHiddenIfNoCap: false },
   { key: 'adj_factor',  label: '除权因子', desc: '复权计算因子',           defaultHiddenIfNoCap: true },
   { key: 'enriched',    label: 'Enriched', desc: '技术指标计算结果',       defaultHiddenIfNoCap: false },
-  { key: 'index',       label: '指数',     desc: '主要市场指数日K',        defaultHiddenIfNoCap: false },
-  { key: 'etf',         label: 'ETF',      desc: '场内交易基金日K',         defaultHiddenIfNoCap: false, defaultHidden: true },
-  { key: 'minute',      label: '分钟 K',   desc: '分钟级K线(依赖分钟K批量数据)',  defaultHiddenIfNoCap: true },
-  { key: 'financials',  label: '财务数据', desc: '财报数据(依赖财务数据)',    defaultHiddenIfNoCap: true },
   { key: 'regime',      label: '环境', desc: '每日环境状态(本地计算)', defaultHiddenIfNoCap: false },
+  { key: 'index',       label: '指数',     desc: '主要市场指数日K',        defaultHiddenIfNoCap: false },
+  { key: 'financials',  label: '财务数据', desc: '财报数据(依赖财务数据)',    defaultHiddenIfNoCap: true },
+  { key: 'etf',         label: 'ETF',      desc: '场内交易基金日K',         defaultHiddenIfNoCap: false, defaultHidden: true },
 ]
 
 const DEFAULT_ORDER = DATA_CARD_DEFS.map(d => d.key)

@@ -186,6 +186,10 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
 
   const save = useMutation({
     mutationFn: () => api.saveAiSettings(payload()),
+    onMutate: () => {
+      setSaved(false)
+      setTestResult(null)
+    },
     onSuccess: (result) => {
       setSaved(true)
       setApiKey('')
@@ -256,6 +260,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
       qc.invalidateQueries({ queryKey: QK.settings })
     },
   })
+  const busy = testing || save.isPending || clear.isPending
 
   const genRandomUa = () => {
     const major = 128 + Math.floor(Math.random() * 8)
@@ -307,10 +312,11 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
   }
 
   const handleTest = async () => {
+    if (busy || !canSave) return
     setTesting(true)
     setTestResult(null)
     try {
-      if (canSave) await api.saveAiSettings(payload())
+      await save.mutateAsync()
       const r = await api.strategyAiTest()
       setTestResult({ ok: r.ok, msg: r.ok ? `连通成功 · ${r.model ?? provider}` : (r.error ?? '未知错误') })
     } catch (e: any) {
@@ -325,7 +331,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
     <div className="w-full max-w-5xl space-y-5">
       <Card icon={Plug} title="连接状态" anchor="ai-connection" right={
         configured && (
-          <button onClick={handleTest} disabled={testing}
+          <button onClick={handleTest} disabled={busy || !canSave}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-btn bg-elevated hover:bg-elevated/80 text-xs text-secondary transition-colors duration-150 ease-smooth disabled:opacity-50">
             {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
             {testing ? '测试中' : '测试'}
@@ -337,7 +343,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
             {configured ? <Wifi className="h-4.5 w-4.5" /> : <WifiOff className="h-4.5 w-4.5" />}
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-medium text-foreground">{configured ? 'AI 已连接' : 'AI 未配置'}</div>
+            <div className="text-sm font-medium text-foreground">{configured ? 'AI 已配置' : 'AI 未配置'}</div>
             <div className="text-xs text-muted mt-0.5 truncate">
               {configured
                 ? (savedCodexProvider
@@ -358,7 +364,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
       <Card icon={Zap} title="快速预设">
         <div className="flex flex-wrap items-start gap-2">
           {PRESETS.map(p => (
-            <button key={p.label} onClick={() => handlePreset(p)}
+            <button key={p.label} onClick={() => handlePreset(p)} disabled={busy}
               className={`rounded-lg border px-3 py-2 text-left transition-all ${selectedPreset?.label === p.label ? 'border-accent/40 bg-accent/10 text-accent' : 'border-border bg-base text-secondary hover:border-accent/30'}`}>
               <div className="flex items-center gap-1.5 text-xs font-medium">
                 <span>{p.label}</span>
@@ -393,7 +399,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
           </span>
         }
       >
-        <div className="space-y-4">
+        <fieldset disabled={busy} className="space-y-4 min-w-0">
           {isCodexProvider ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="CLI 命令" hint="固定使用默认 codex 命令, 由后端自动解析本机 Codex Desktop/CLI, 不支持自定义可执行路径。">
@@ -432,7 +438,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
               </Field>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="API 地址">
-                  <input type="text" value={baseUrl} onChange={e => handleBaseUrlChange(e.target.value)} placeholder="https://api.example.com/v1" className={INPUT_CLS} />
+                  <input type="url" aria-label="API 地址" value={baseUrl} onChange={e => handleBaseUrlChange(e.target.value)} placeholder="https://api.example.com/v1" className={INPUT_CLS} />
                 </Field>
                 <Field label="模型">
                   <input type="text" value={model} onChange={e => handleModelChange(e.target.value)} placeholder="model-name" className={INPUT_CLS} />
@@ -460,7 +466,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
                       {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
                   </div>
-                  <button onClick={handleTest} disabled={testing || !apiKey} className="h-9 px-3 rounded-lg border border-border/50 text-xs text-secondary hover:text-accent hover:border-accent/30 disabled:opacity-40 transition-all flex items-center gap-1.5 shrink-0">
+                  <button onClick={handleTest} disabled={busy || !canSave || !(apiKey || s?.has_ai_key)} className="h-9 px-3 rounded-lg border border-border/50 text-xs text-secondary hover:text-accent hover:border-accent/30 disabled:opacity-40 transition-all flex items-center gap-1.5 shrink-0">
                     {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
                     测试
                   </button>
@@ -500,7 +506,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
               </Field>
             </div>
           </div>
-        </div>
+        </fieldset>
       </Card>
 
       <div className="rounded-card border border-amber-400/20 bg-amber-400/[0.04] px-4 py-3 flex items-start gap-3">
@@ -512,13 +518,18 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
         </div>
       </div>
 
+      {save.error && (
+        <div role="alert" className="rounded-btn border border-danger/20 bg-danger/[0.04] px-3 py-2 text-xs text-danger">
+          保存失败：{save.error.message}
+        </div>
+      )}
       <div className="flex gap-2">
-        <button onClick={() => save.mutate()} disabled={save.isPending || !canSave} className="flex-1 h-10 rounded-xl bg-accent text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-accent/90 disabled:opacity-40 transition-all">
+        <button onClick={() => save.mutate()} disabled={busy || !canSave} className="flex-1 h-10 rounded-xl bg-accent text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-accent/90 disabled:opacity-40 transition-all">
           {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
           {save.isPending ? '保存中...' : saved ? '已保存' : '保存配置'}
         </button>
         {configured && (
-          <button onClick={() => setConfirmClear(true)} disabled={clear.isPending} className="h-10 px-4 rounded-xl bg-elevated text-secondary hover:text-danger text-sm flex items-center justify-center gap-1.5 hover:bg-elevated/80 disabled:opacity-50 transition-all shrink-0" title="Clear AI provider configuration">
+          <button onClick={() => setConfirmClear(true)} disabled={busy} className="h-10 px-4 rounded-xl bg-elevated text-secondary hover:text-danger text-sm flex items-center justify-center gap-1.5 hover:bg-elevated/80 disabled:opacity-50 transition-all shrink-0" title="Clear AI provider configuration">
             <Trash2 className="h-4 w-4" />
             清空
           </button>
@@ -537,7 +548,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
               <button onClick={() => setConfirmClear(false)} className="px-3 py-1.5 rounded-btn bg-elevated text-secondary hover:bg-elevated/80 text-sm transition-colors">
                 取消
               </button>
-              <button onClick={() => clear.mutate()} disabled={clear.isPending} className="px-3 py-1.5 rounded-btn bg-danger/15 text-danger hover:bg-danger/25 text-sm font-medium transition-colors disabled:opacity-50">
+              <button onClick={() => clear.mutate()} disabled={busy} className="px-3 py-1.5 rounded-btn bg-danger/15 text-danger hover:bg-danger/25 text-sm font-medium transition-colors disabled:opacity-50">
                 {clear.isPending ? '清空中...' : '确认'}
               </button>
             </div>

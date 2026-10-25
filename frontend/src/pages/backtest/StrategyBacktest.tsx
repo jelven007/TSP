@@ -23,7 +23,7 @@ import { toNavItems } from '@/lib/listNav'
 import { cnSignal } from '@/lib/signals'
 import { useCustomSignalNames } from '@/lib/useCustomSignalNames'
 import { SignalPicker } from '@/components/screener/SignalPicker'
-import { startBacktest, stopBacktest, tryReconnect, useBacktestTask } from '@/lib/backtestTask'
+import { attachBacktestJob, startBacktest, stopBacktest, tryReconnect, useBacktestTask } from '@/lib/backtestTask'
 import { useDataStatus, useCapabilities } from '@/lib/useSharedQueries'
 import { EmptyState } from '@/components/EmptyState'
 import { WarmupBadge } from '@/components/WarmupBadge'
@@ -1116,6 +1116,28 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
 
   const backtestTask = useBacktestTask()
   const isPending = backtestTask?.isPending ?? false
+  const replay = useMutation({
+    mutationFn: ({ id, newInputs }: { id: string; newInputs: boolean }) => api.researchJobReplay(id, newInputs),
+    onSuccess: row => attachBacktestJob(row.id),
+    onError: (error: Error) => toast(`复测失败 · ${error.message}`, 'error'),
+  })
+  const replayResult = (newInputs: boolean) => {
+    if (!result || isPending || replay.isPending) return
+    const jobId = result.research?.provenance?.job_id
+    if (jobId) {
+      replay.mutate({ id: jobId, newInputs })
+      return
+    }
+    const snapshot = result.provenance?.input_snapshot
+    if (!newInputs && snapshot?.mode !== 'local_snapshot') return
+    const config = strategyResultCandidate(result).config
+    startBacktest({
+      ...config,
+      strategy_id: String(config.strategy_id),
+      input_snapshot_id: newInputs ? undefined : snapshot?.id,
+      experiment_id: crypto.randomUUID().replaceAll('-', ''),
+    })
+  }
   const saveCandidate = useMutation({
     mutationFn: () => {
       if (!result) throw new Error('暂无策略结果')
@@ -2160,7 +2182,14 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
         </div>
 
-        <ResearchInputSummary provenance={result?.provenance} />
+        <ResearchInputSummary
+          provenance={result?.provenance}
+          runtime={result?.research?.runtime}
+          onReplay={result?.provenance?.input_snapshot?.mode === 'local_snapshot'
+            || (result?.research?.provenance?.job_id && result.research.runtime) ? () => replayResult(false) : undefined}
+          onNewInputs={result ? () => replayResult(true) : undefined}
+          disabled={isPending || replay.isPending}
+        />
         {!!result?.provenance?.research_governance?.issues.length && (
           <div className="rounded-btn border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-secondary" role="status">
             研究数据校验：{result.provenance.research_governance.issues.join('；')}。当前结果不能作为完整历史治理下的正式结论。

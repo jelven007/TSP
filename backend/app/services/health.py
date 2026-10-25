@@ -203,6 +203,7 @@ def _check_task_state() -> dict[str, Any]:
 
         jobs = job_store.list_recent(limit=20)
         active_id = job_store.active_id()
+        persistence = job_store.persistence_health()
     except Exception as exc:
         return {
             "status": "warning",
@@ -225,8 +226,9 @@ def _check_task_state() -> dict[str, Any]:
         and last_pipeline.get("status") in {"failed", "interrupted"}
     )
     return {
-        "status": "warning" if failed else "ok",
+        "status": "warning" if failed or persistence["status"] != "ok" else "ok",
         "active_id": active_id,
+        "persistence": persistence,
         "last_pipeline": (
             {
                 "id": last_pipeline.get("id") or last_pipeline.get("job_id"),
