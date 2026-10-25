@@ -106,6 +106,12 @@ async def middleware(request: Request, call_next):
                 if path == prefix or path.startswith(prefix + "/"):
                     permission = admin_permission
                     break
+            tenant_concurrency_read = (
+                request.method in {"GET", "HEAD"} and path == "/api/settings/strategy-concurrency"
+                and "settings:manage" not in account["permissions"]
+            )
+            if tenant_concurrency_read:
+                permission = "business:read"
             if path.startswith("/api/financials/sync/") or path.startswith("/api/kline/sync"):
                 permission = "data:manage"
             if request.method not in {"GET", "HEAD"}:
@@ -131,7 +137,7 @@ async def middleware(request: Request, call_next):
                 raise AccessError(403, "无权使用该功能")
             from app.multitenancy.platform import management_path, market_read_path
 
-            if management_path(request.method, path) and (
+            if not tenant_concurrency_read and management_path(request.method, path) and (
                 not ext_config_read or permission == "settings:manage"
             ):
                 response = await request.app.state.platform_admin.forward(request)

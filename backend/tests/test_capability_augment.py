@@ -1,7 +1,7 @@
 """能力标准统一: 自定义/插件数据源能力增广回归测试。
 
 对应 _augment_custom_sources 的数据集→能力映射
-(daily/adj_factor/minute/depth5/financial/full_minute):
+(daily/adj_factor/minute/depth5/financial):
 某数据集的当前 provider 非 tickflow 且声明了该数据集 → grant 对应能力;
 取数路由仍按 preferences 分流, 不会误调 TickFlow。
 """
@@ -14,8 +14,7 @@ from app.tickflow.policy import _augment_custom_sources
 
 
 def _set_providers(monkeypatch, *, daily="tickflow", adj="tickflow",
-                   minute="tickflow", depth5="tickflow", financial="tickflow",
-                   full_minute="tickflow") -> None:
+                   minute="tickflow", depth5="tickflow", financial="tickflow") -> None:
     """mock preferences 各数据集 provider getter。"""
     from app.services import preferences
     monkeypatch.setattr(preferences, "get_daily_data_provider", lambda: daily)
@@ -23,7 +22,6 @@ def _set_providers(monkeypatch, *, daily="tickflow", adj="tickflow",
     monkeypatch.setattr(preferences, "get_minute_data_provider", lambda: minute)
     monkeypatch.setattr(preferences, "get_depth5_data_provider", lambda: depth5)
     monkeypatch.setattr(preferences, "get_financial_provider", lambda: financial)
-    monkeypatch.setattr(preferences, "get_full_minute_data_provider", lambda: full_minute)
 
 
 def _set_datasets(monkeypatch, datasets: set[str]) -> None:
@@ -55,21 +53,19 @@ def test_adj_custom_source_grants_adj_factor(monkeypatch):
     assert capset.has(Cap.ADJ_FACTOR)
 
 
-def test_full_minute_custom_source_grants_intraday_universe(monkeypatch):
-    """全量分钟: 声明 full_minute 数据集且被路由 → 补授 INTRADAY_UNIVERSE,
-    minute_refresh 服务门控与 TickFlow Expert 口径统一。"""
-    _set_providers(monkeypatch, full_minute="mock_src")
+def test_legacy_only_source_does_not_grant_minute_or_vendor_universe(monkeypatch):
+    """旧全量声明不能冒充分钟历史能力或 TickFlow 原生批量端点。"""
+    _set_providers(monkeypatch, minute="mock_src")
     _set_datasets(monkeypatch, {"full_minute"})
     capset = CapabilitySet()
     _augment_custom_sources(capset)
-    assert capset.has(Cap.INTRADAY_UNIVERSE)
-    # 声明了 full_minute 不等于声明 minute → 不补逐标的分钟K能力
+    assert not capset.has(Cap.INTRADAY_UNIVERSE)
     assert not capset.has(Cap.KLINE_MINUTE_BATCH)
 
 
 def test_full_minute_dataset_without_routing_not_granted(monkeypatch):
     """源声明了 full_minute 但路由仍是 tickflow → 不增广 (TickFlow 档位自决)。"""
-    _set_providers(monkeypatch, full_minute="tickflow")
+    _set_providers(monkeypatch, minute="tickflow")
     _set_datasets(monkeypatch, {"full_minute"})
     capset = CapabilitySet()
     _augment_custom_sources(capset)
@@ -83,6 +79,7 @@ def test_minute_custom_source_grants_minute_batch(monkeypatch):
     capset = CapabilitySet()
     _augment_custom_sources(capset)
     assert capset.has(Cap.KLINE_MINUTE_BATCH)
+    assert not capset.has(Cap.INTRADAY_UNIVERSE)
 
 
 def test_depth5_custom_source_grants_depth_batch(monkeypatch):

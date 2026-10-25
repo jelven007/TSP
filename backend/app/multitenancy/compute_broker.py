@@ -64,6 +64,7 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
         self.waiters = threading.BoundedSemaphore(16)
         self.tenant_lock = threading.Lock()
         self.active_tenants: set[str] = set()
+        self._tenant_counts: dict[str, int] = {}
         self.health_lock = threading.Lock()
         self.health_cache: tuple[float, bool] | None = None
         self.stopped = threading.Event()
@@ -80,6 +81,23 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
     def resource_status(self) -> dict:
         return {**self._resource_policy(), **self.permits.usage(),
                 "config_enabled": self.config is not None, "execution_mode": "sandbox"}
+
+    def acquire_tenant(self, tenant: str, *, administrator: bool) -> bool:
+        with self.tenant_lock:
+            if tenant in self.active_tenants and not administrator:
+                return False
+            self._tenant_counts[tenant] = self._tenant_counts.get(tenant, 0) + 1
+            self.active_tenants.add(tenant)
+            return True
+
+    def release_tenant(self, tenant: str) -> None:
+        with self.tenant_lock:
+            remaining = self._tenant_counts.get(tenant, 1) - 1
+            if remaining:
+                self._tenant_counts[tenant] = remaining
+            else:
+                self._tenant_counts.pop(tenant, None)
+                self.active_tenants.discard(tenant)
 
     def command(self, name: str, market_path: Path | None = None) -> list[str]:
         allocation = self.permits.allocation()
@@ -218,12 +236,10 @@ class Handler(socketserver.StreamRequestHandler):
             if not acquired:
                 self.send({"type": "error", "status": 429, "message": "计算任务繁忙，请稍后重试"})
                 return
-            with broker.tenant_lock:
-                if tenant in broker.active_tenants:
-                    self.send({"type": "error", "status": 429, "message": "当前租户已有计算任务，请稍后重试"})
-                    tenant = None
-                    return
-                broker.active_tenants.add(tenant)
+            if not broker.acquire_tenant(tenant, administrator=payload.get("administrator") is True):
+                self.send({"type": "error", "status": 429, "message": "当前租户已有计算任务，请稍后重试"})
+                tenant = None
+                return
             with tempfile.TemporaryFile() as task, selectors.DefaultSelector() as events:
                 task.write(line)
                 task.seek(0)
@@ -289,8 +305,7 @@ class Handler(socketserver.StreamRequestHandler):
                     _stdout, remaining_stderr = process.communicate(timeout=5)
                     append_stderr_tail(stderr_tail, remaining_stderr)
             if tenant is not None and acquired:
-                with broker.tenant_lock:
-                    broker.active_tenants.discard(tenant)
+                broker.release_tenant(tenant)
             if acquired:
                 broker.permits.release()
             # The next task may start as soon as the client receives a terminal

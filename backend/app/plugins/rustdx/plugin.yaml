@@ -3,6 +3,6 @@ display_name: "rustdx"
 runtime: none
 entry: app.plugins.rustdx.provider:RustdxProvider
 check: app.plugins.rustdx.client:availability
-datasets: [realtime, daily, adj_factor, corporate_actions, minute, depth5, financial, full_minute]
-description: "默认通达信数据源，基于 jelven-rustdx-complete 原生 Rust 引擎。支持沪深标的、原始日K、除权因子、实时行情、分钟K、五档盘口、历史财务和全量分钟；所有调用共用最多 35 条持久连接，全市场行情每批最多 60 只。"
+datasets: [realtime, daily, adj_factor, corporate_actions, minute, depth5, financial]
+description: "默认通达信数据源，基于 jelven-rustdx-complete 原生 Rust 引擎，提供实时、K线、除权、财务四类能力。支持沪深实时快照、原始日K与分钟K、前复权因子、财务指标与历史报表，分钟K同时支持盘中全市场落盘；所有调用共用最多 35 条持久连接，全市场实时快照每批最多 60 只。"
 install_hint: "rustdx 原生桥接默认随依赖、正式镜像和桌面包安装；源码环境执行 uv sync --frozen（需要 Rust 编译工具），旧桥接执行 uv sync --frozen --reinstall-package tsp-rustdx-native 重建。"

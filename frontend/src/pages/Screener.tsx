@@ -509,7 +509,7 @@ export function Screener() {
   // 全量分钟服务健康 (freshness 契约): 健康时本地分区按配置间隔持续落盘,
   // 分时读本地不受批量上限约束 → 不截断 + prefer_local; 与监控设置页共享缓存
   const refreshStatus = useQuery({
-    queryKey: ['minute-refresh-status'],
+    queryKey: QK.minuteRefreshStatus,
     queryFn: api.minuteRefreshStatus,
     refetchInterval: 15000,
   })
@@ -816,7 +816,7 @@ export function Screener() {
             </button>
             {/* 卡片尺寸切换 */}
             <div className="flex items-center h-7 rounded-btn border border-border overflow-hidden">
-              {(['hidden', 'mini', 'normal', 'large'] as const).map(sz => (
+              {(['normal', 'large'] as const).map(sz => (
                 <button
                   key={sz}
                   onClick={() => { setCardSize(sz); storage.screenerCardSize.set(sz) }}
@@ -826,7 +826,7 @@ export function Screener() {
                       : 'text-muted hover:text-secondary hover:bg-elevated'
                     }`}
                 >
-                  {sz === 'hidden' ? '隐藏' : sz === 'mini' ? '紧凑' : sz === 'normal' ? '标准' : '详细'}
+                  {sz === 'normal' ? '标准' : '详细'}
                 </button>
               ))}
             </div>
@@ -898,7 +898,6 @@ export function Screener() {
 
       <div className="px-8 py-4 space-y-3">
         {/* 策略卡片 */}
-        {cardSize !== 'hidden' && (
         <section>
           {(summaryQuery.isError || singleCachedQuery.isError || fullCachedQuery.isError) && (
             <div role="alert" className="text-sm text-danger border border-danger/30 rounded-btn p-3">
@@ -960,7 +959,6 @@ export function Screener() {
             })}
           </div>
         </section>
-        )}
 
         {/* 结果 */}
         <section>

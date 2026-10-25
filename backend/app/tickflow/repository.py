@@ -146,6 +146,10 @@ class DataStore:
             "kline_etf_enriched",
             "kline_etf_minute",
             "kline_minute",
+            "kline_5minute",
+            "kline_10minute",
+            "kline_15minute",
+            "kline_weekly",
             "adj_factor",
             "adj_factor_etf",
             "financials",
@@ -278,6 +282,11 @@ class DataStore:
             f"""CREATE OR REPLACE VIEW depth5 AS
                 SELECT * FROM read_parquet('{d}/depth5/**/*.parquet', union_by_name=true)""",
         ]
+        for table in ("kline_5minute", "kline_10minute", "kline_15minute", "kline_weekly"):
+            statements.append(
+                f"CREATE OR REPLACE VIEW {table} AS SELECT * FROM "
+                f"read_parquet('{d}/{table}/**/*.parquet', union_by_name=true)"
+            )
         for sql in statements:
             try:
                 self.db.execute(sql)

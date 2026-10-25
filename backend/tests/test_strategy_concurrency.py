@@ -374,3 +374,30 @@ def test_cancelled_broker_job_cleans_process_before_releasing_budget(broker, mon
     finally:
         value.shutdown()
         thread.join(timeout=2)
+
+
+def test_tenants_have_one_slot_while_administrators_share_the_global_budget(broker):
+    value, _ = broker
+    assert value.acquire_tenant("ordinary", administrator=False)
+    assert not value.acquire_tenant("ordinary", administrator=False)
+    assert value.acquire_tenant("admin", administrator=True)
+    assert value.acquire_tenant("admin", administrator=True)
+    value.release_tenant("admin")
+    assert "admin" in value.active_tenants
+    value.release_tenant("admin")
+    value.release_tenant("ordinary")
+    assert value.active_tenants == set()
+
+
+def test_tenant_reads_a_fixed_limit_without_host_configuration(runtime):
+    request = SimpleNamespace(state=SimpleNamespace(account={"permissions": ["business:read"]}))
+    status = settings_api.get_strategy_concurrency(request)
+    assert status == {"available": True, "editable": False, "strategy_concurrency": 1,
+                      "effective_concurrency": 1, "recommended_concurrency": 1}
+
+
+def test_trusted_platform_admin_role_reads_the_host_budget(runtime):
+    request = SimpleNamespace(state=SimpleNamespace(account={"role": "admin", "email": ""}))
+    status = settings_api.get_strategy_concurrency(request)
+    assert status["recommended_concurrency"] == 4
+    assert status["host_memory_mb"] == 65536

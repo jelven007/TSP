@@ -54,7 +54,11 @@ def _get_engine(request: Request) -> StrategyEngine:
     if documents is not None:
         scoped = getattr(request.state, "strategy_engine", None)
         if scoped is None:
-            scoped = TenantStrategyEngine(documents, engine, request.app.state.compute_executor)
+            account = getattr(request.state, "account", {})
+            scoped = TenantStrategyEngine(
+                documents, engine, request.app.state.compute_executor,
+                administrator="settings:manage" in account.get("permissions", []),
+            )
             manifest = request.app.state.repo.store.data_dir / ".public_release.json"
             if manifest.exists():
                 scoped.public_release_id = json.loads(manifest.read_text())["id"]
@@ -217,6 +221,7 @@ def _strategy_detail(
         # 用户保存的参数覆盖默认值: 合并进 params_defaults, 前端据此回显
         if overrides.get("params"):
             params_defaults.update(overrides["params"])
+    bf.pop("target_symbols", None)
 
     # 名称/描述可被用户覆盖
     name = overrides.get("name", s.meta.get("name", "")) if overrides else s.meta.get("name", "")
@@ -404,7 +409,8 @@ def run_strategy(req: RunRequest, request: Request):
     data_dir = _data_dir(request)
 
     # 读取用户覆盖配置
-    overrides = strategy_config.load_override(data_dir, req.strategy_id)
+    overrides = (engine._override_loader(req.strategy_id) if getattr(engine, "remote_context", False)
+                 else strategy_config.load_override(data_dir, req.strategy_id))
     params = req.params or {}
     # 合并用户保存的策略参数
     if overrides.get("params"):
@@ -468,7 +474,8 @@ def run_all(req: RunAllRequest, request: Request):
     if not as_of:
         return {"as_of": None, "results": {}}
 
-    all_overrides = strategy_config.list_overrides(data_dir)
+    all_overrides = (engine._task_snapshot["overrides"] if getattr(engine, "remote_context", False)
+                     else strategy_config.list_overrides(data_dir))
     generation = strategy_results.input_generation(request.app.state.repo, engine, req.asset_type)
     strategy_ids = [
         meta["id"]
@@ -526,7 +533,10 @@ def save_config(req: SaveConfigRequest, request: Request):
     # 剥离与策略默认值相同的字段，只保存用户真正修改过的值
     overrides = _strip_defaults(req.strategy_id, req.overrides, engine)
 
-    strategy_config.save_override(_data_dir(request), req.strategy_id, overrides)
+    try:
+        strategy_config.save_override(_data_dir(request), req.strategy_id, overrides)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return {"ok": True}
 
 
@@ -540,11 +550,12 @@ def patch_config(req: SaveConfigRequest, request: Request):
     _validate_scoring_config(overrides)
     _validate_overlay_config(overrides, strategy)
     _validate_entry_risk(overrides, strategy)
-    strategy_config.save_override(
-        data_dir,
-        req.strategy_id,
-        _strip_defaults(req.strategy_id, overrides, engine),
-    )
+    try:
+        strategy_config.save_override(
+            data_dir, req.strategy_id, _strip_defaults(req.strategy_id, overrides, engine),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return {"ok": True}
 
 
@@ -621,7 +632,10 @@ def _strip_defaults(strategy_id: str, overrides: dict, engine) -> dict:
         for k, v in bf.items():
             default_val = default_bf.get(k)
             # 保留与默认值不同的键，以及没有默认值的键
-            if k not in default_bf or v != default_val:
+            target_key = "target_mode" in bf and k in {
+                "target_mode", "boards", "exclude_st", "include_custom", "watchlist_group_ids",
+            }
+            if target_key or k not in default_bf or v != default_val:
                 stripped_bf[k] = v
         if stripped_bf:
             result["basic_filter"] = stripped_bf

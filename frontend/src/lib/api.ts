@@ -286,6 +286,7 @@ export interface WatchlistGroup {
   id: string
   name: string
   color: WatchlistGroupColor
+  referenced_by?: string[]
 }
 
 export interface WatchlistImportCandidate {
@@ -2085,7 +2086,6 @@ export type ProviderField =
   | 'adj_factor_provider'
   | 'corporate_actions_provider'
   | 'minute_data_provider'
-  | 'full_minute_data_provider'
   | 'depth5_data_provider'
   | 'realtime_data_provider'
   | 'financial_data_provider'
@@ -2121,6 +2121,12 @@ export interface CapabilityRoute {
 export interface CapabilityMatrix {
   tickflow_tier?: string                           // TickFlow 当前档位基础名 (none/free/...)
   capabilities: CapabilityRoute[]
+  settings_groups?: {
+    id: string
+    label: string
+    desc: string
+    datasets: string[]
+  }[]
 }
 
 export interface DataSourceLoadError {
@@ -2250,11 +2256,18 @@ export interface NotificationDelivery {
 }
 
 export type StrategyConcurrencySettings = {
+  available: true
+  editable: false
+  strategy_concurrency: 1
+  effective_concurrency: 1
+  recommended_concurrency: 1
+} | {
   available: false
   strategy_concurrency: number | null
   error: string
 } | {
   available: true
+  editable?: true
   strategy_concurrency: number | null
   host_memory_mb: number
   host_cpus: number
@@ -2291,8 +2304,6 @@ export interface Preferences {
   adj_factor_provider?: string
   corporate_actions_provider?: string
   minute_data_provider?: string
-  /** 全量分钟 (盘中全市场分钟落盘) 生效源; 默认 rustdx */
-  full_minute_data_provider?: string
   /** 分钟源 1 分钟历史深度(交易日); null/缺省 = 深历史 (如 tickflow)。分时档位据此收窄 */
   minute_history_days?: number | null
   depth5_data_provider?: string
@@ -2737,7 +2748,7 @@ export const api = {
       }),
     }),
 
-  /** 全量分钟 (盘中全市场分钟落盘) 服务状态 (按能力路由: TickFlow Expert 或声明 full_minute 的插件/自定义源) */
+  /** 盘中全市场分钟落盘服务状态，使用分钟K数据源 */
   minuteRefreshStatus: () =>
     request<{
       available: boolean
@@ -2795,6 +2806,16 @@ export const api = {
     request<{ items: StockCatalogRow[]; total: number; page: number; page_size: number }>(
       `/api/data/instruments?q=${encodeURIComponent(q)}&exchange=${exchange}&board=${encodeURIComponent(board)}&page=${page}&page_size=${pageSize}`,
     ),
+  exportStockCatalog: async (q = '', exchange = '', board = '') => {
+    const response = await fetch(`/api/data/instruments/export.csv?${new URLSearchParams({ q, exchange, board })}`, { credentials: 'include' })
+    if (!response.ok) throw new Error(`导出失败（${response.status}）`)
+    return response.blob()
+  },
+  klineSyncConfigs: () => request<Record<KlinePeriod, KlineSyncConfig>>('/api/settings/kline-sync'),
+  saveKlineSyncConfig: (period: KlinePeriod, config: KlineSyncConfig) =>
+    request<KlineSyncConfig>(`/api/settings/kline-sync/${period}`, { method: 'POST', body: JSON.stringify(config) }),
+  syncKlinePeriod: (period: KlinePeriod, value: number, unit: 'month' | 'year') =>
+    request<{ job_id: string; status: string }>('/api/kline/sync_period', { method: 'POST', body: JSON.stringify({ period, value, unit }) }),
   createStockCatalogRow: (body: StockCatalogFields & { symbol: string }) =>
     request<StockCatalogRow>('/api/data/instruments', { method: 'POST', body: JSON.stringify(body) }),
   updateStockCatalogRow: (symbol: string, body: StockCatalogFields) =>
@@ -3189,6 +3210,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, color }),
     }),
+  watchlistGroupImportCsv: (name: string, color: WatchlistGroupColor, file: File) => {
+    const body = new FormData()
+    body.append('name', name)
+    body.append('color', color)
+    body.append('file', file)
+    return request<{ groups: WatchlistGroup[]; group: WatchlistGroup; imported: number; skipped: number }>(
+      '/api/watchlist/groups/import-csv', { method: 'POST', body },
+    )
+  },
   watchlistGroupRename: (groupId: string, name: string, color: WatchlistGroupColor) =>
     request<{ groups: WatchlistGroup[] }>(
       `/api/watchlist/groups/${encodeURIComponent(groupId)}`,
@@ -4686,6 +4716,14 @@ export interface StockCatalogRow extends StockCatalogFields {
   snapshot_source: string | null
 }
 
+export type KlinePeriod = '1m' | '5m' | '10m' | '15m' | '1d' | '1w'
+export interface KlineSyncConfig {
+  enabled: boolean
+  interval_seconds: number
+  windows: [string, string][]
+  time: string
+}
+
 export interface DataStatus {
   quality?: DataQuality
   initialization?: InitializationStatus
@@ -4698,10 +4736,15 @@ export interface DataStatus {
   etf_enriched: TableStats | null
   etf_instruments: InstrumentsStats | null
   minute: TableStats | null
+  '5m'?: TableStats | null
+  '10m'?: TableStats | null
+  '15m'?: TableStats | null
+  weekly?: TableStats | null
   adj_factor: TableStats | null
   instruments: InstrumentsStats | null
   financials: { rows: number; tables: Record<string, { rows: number; symbols: number }> } | null
   storage: {
+    [key: string]: number | undefined
     daily_files: number
     daily_size_mb: number
     enriched_files: number

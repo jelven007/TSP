@@ -175,8 +175,9 @@
 数据源已经插件化。任何通用功能都必须通过 provider 能力和标准化数据集访问数据，不能把 TickFlow SDK 调用硬编码到策略、监控、回测、API 或前端流程中。
 
 - 使用现有的 `get_provider()`、`provider_has_dataset()` 和 preferences 路由能力。
-- 当前八项数据集为 `daily`、`adj_factor`、`corporate_actions`、`minute`、`full_minute`
-  （盘中全市场分钟落盘）、`realtime`、`depth5`、`financial`；新增数据集先定义输入输出契约。
+- 当前七项数据集为 `daily`、`adj_factor`、`corporate_actions`、`minute`、
+  `realtime`、`depth5`、`financial`；分钟历史与盘中全市场落盘共用 `minute` 路由。
+  新增数据集先定义输入输出契约。
 - provider 负责把供应商字段、单位、日期和代码格式转换为内部标准格式。
 - 上层服务依赖标准字段和能力声明，不依赖供应商响应结构。
 - 只有明确标注为 TickFlow 专属的功能才可以直接依赖 TickFlow，并且不得影响其他 provider。
@@ -192,11 +193,21 @@
 - 各页面能力门控统一以矩阵的 `usable` 为准（生效源当前能否真正提供该能力），不是 TickFlow 套餐视角；缺能力提示统一引导到数据源配置。
 - 能力层中立：通用界面（侧栏徽章、能力路由卡、各页门控提示）不得出现 TickFlow 档位/订阅词汇；设置页已移除其可选入口，旧部署档位契约仍在接入文档维护。provider 名称作为路由事实可以出现。
 - 每个能力独立路由，禁止跟随/派生特殊值（`same_as_daily` 已下线）；存量非法偏好值由 preferences getter 回退默认自愈，不做迁移。
-- 边界注记：分时监控由分钟能力兜底（`intraday_monitor_support`），不单设分时能力；`full_minute`（全量分钟）和 `depth5` 数据集均已开放插件声明。`depth5` 独立路由且失败时不跨源回退。
+- 边界注记：分时监控由分钟能力兜底（`intraday_monitor_support`），不单设分时能力；
+  `full_minute` 已退役，旧配置仅兼容读取，不授予分钟历史能力或独立路由。
+  盘中落盘通过 `minute` provider 的可选批量方法或 `get_minute` 当日窗口实现。
+  `depth5` 独立路由且失败时不跨源回退。
 - 实时指数为产品级固定契约，不走路由矩阵：展示层（侧栏指数条、市场总览）固定核心四只（`backend/app/services/index_const.py` 单一权威：上证/深成/创业板/科创综指），后端各消费方与前端 Layout 引用同一份定义不建副本；指数页保留但标的固定为核心四只（无全指数搜索/浏览，`/api/index/list`、`/api/index/search` 已下线）；侧栏指数多选配置已下线，相关偏好（`realtime_index_symbols`/`sidebar_index_symbols`/`indices_nav_pinned`/`realtime_pull_index`/`realtime_index_mode`）已删除。监控规则的指数标的不受限——quote_service 把核心四只 + 启用规则的指数并入显式拉取。
 - 自定义源指数补充协议：A 股快照普遍不含指数（fuyao 实测无指数，指数在其独立端点）。provider 可实现可选方法 `get_realtime_indices(symbols) -> list[dict] | None`（record 结构与 realtime 一致），quote_service 在自定义源分支鸭子类型调用补拉；`None` 表示请求失败，保留上轮有效指数缓存，`[]` 表示成功但无数据；未实现的源指数缓存为空，由本地日K兜底接管。fuyao 指数快照有连坐语义——请求混入未知代码整批失败，插件侧必须限制为沪深市场。
 
 ## 5. 领域专项要求
+
+目标股票候选沿 `strategy/targets.py` 与既有基础过滤接线：范围独立数值开关，
+板块与自选分组取并集，动态成员必须进入执行/结果身份，不将内部展开代码写回配置。
+保存引用与删除分组共用租户事务/自选锁；所有删除入口拒绝被策略引用的组。
+CSV新组导入失败不留空组，保留既有备注/日期/其他成员关系；管理员任务并发身份
+由认证权限注入，普通租户固定1且无全局写权限。升级时同时验证Compute与API/Worker，
+该候选仍按本地版本规则不递增。
 
 ### 5.1 策略
 

@@ -9,16 +9,24 @@ import { toast } from '@/components/Toast'
 const INPUT_CLS =
   'w-full h-9 px-2.5 rounded-lg bg-base border-0 ring-1 ring-border/40 text-xs text-foreground placeholder:text-muted/30 focus:outline-none focus:ring-2 focus:ring-accent/40 transition-shadow'
 
-const DATASETS = ['daily', 'adj_factor', 'corporate_actions', 'realtime', 'minute', 'full_minute'] as const
+const DATASETS = ['daily', 'adj_factor', 'corporate_actions', 'realtime', 'minute', 'financial'] as const
 type DatasetKey = typeof DATASETS[number]
+const DATASET_GROUPS = [
+  { key: 'realtime', label: '实时', datasets: ['realtime'] },
+  { key: 'kline', label: 'K线', datasets: ['daily', 'minute'] },
+  { key: 'adj_factor', label: '除权', datasets: ['adj_factor'] },
+  { key: 'corporate_actions', label: '公司', datasets: ['corporate_actions'] },
+  { key: 'financial', label: '财务', datasets: ['financial'] },
+] as const
+type DatasetGroupKey = typeof DATASET_GROUPS[number]['key']
 
 const DATASET_LABEL: Record<DatasetKey, string> = {
   daily: '日K',
-  adj_factor: '除权因子',
-  corporate_actions: '公司行为',
-  realtime: '实时行情',
+  adj_factor: '除权',
+  corporate_actions: '公司',
+  realtime: '实时',
   minute: '分钟K',
-  full_minute: '全量分钟',
+  financial: '财务',
 }
 
 const TARGET_FIELDS: Record<DatasetKey, string[]> = {
@@ -29,7 +37,23 @@ const TARGET_FIELDS: Record<DatasetKey, string[]> = {
     'rights_end_date', 'rights_listing_date', 'dates_verified', 'evidence'],
   realtime: ['symbol', 'name', 'last_price', 'prev_close', 'open', 'high', 'low', 'volume', 'amount', 'change_pct', 'change_amount', 'amplitude', 'turnover_rate', 'timestamp', 'session'],
   minute: ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume', 'amount'],
-  full_minute: ['symbol', 'datetime', 'open', 'high', 'low', 'close', 'volume', 'amount'],
+  financial: [
+    'symbol', 'period_end', 'announce_date',
+    'eps_basic', 'eps_diluted', 'bps', 'ocfps', 'roe', 'roe_diluted', 'roa',
+    'gross_margin', 'net_margin', 'debt_to_asset_ratio', 'revenue_yoy', 'net_income_yoy',
+    'operating_cash_to_revenue', 'inventory_turnover',
+    'revenue', 'operating_cost', 'tax_and_surcharges', 'operating_profit', 'selling_expense',
+    'admin_expense', 'rd_expense', 'financial_expense', 'non_operating_income',
+    'non_operating_expense', 'total_profit', 'income_tax', 'net_income',
+    'net_income_attributable', 'net_income_deducted', 'basic_eps', 'diluted_eps',
+    'total_assets', 'total_current_assets', 'total_non_current_assets', 'cash_and_equivalents',
+    'accounts_receivable', 'inventory', 'fixed_assets', 'intangible_assets', 'goodwill',
+    'total_liabilities', 'total_current_liabilities', 'total_non_current_liabilities',
+    'short_term_borrowing', 'long_term_borrowing', 'accounts_payable', 'total_equity',
+    'equity_attributable', 'retained_earnings', 'minority_interest',
+    'net_operating_cash_flow', 'net_investing_cash_flow', 'net_financing_cash_flow',
+    'capex', 'net_cash_change', 'total_shares', 'float_shares',
+  ],
 }
 
 // 内部字段的中文说明 (下拉选项展示用)
@@ -54,6 +78,65 @@ const FIELD_LABELS: Record<string, string> = {
   turnover_rate: '换手率 (小数 0.05=5%)',
   timestamp: '时间戳',
   session: '交易时段',
+  period_end: '报告期 (YYYY-MM-DD)',
+  announce_date: '公告日期 (YYYY-MM-DD)',
+  eps_basic: '基本每股收益 EPS (元/股)',
+  eps_diluted: '稀释每股收益 EPS (元/股)',
+  bps: '每股净资产 (元/股)',
+  ocfps: '每股经营现金流 (元/股)',
+  roe: '净资产收益率 ROE (%数值)',
+  roe_diluted: '稀释 ROE (%数值)',
+  roa: '总资产收益率 ROA (%数值)',
+  gross_margin: '销售毛利率 (%数值)',
+  net_margin: '销售净利率 (%数值)',
+  debt_to_asset_ratio: '资产负债率 (%数值)',
+  revenue_yoy: '营业收入同比增长 (%数值)',
+  net_income_yoy: '净利润同比增长 (%数值)',
+  operating_cash_to_revenue: '经营现金/营收 (%数值)',
+  inventory_turnover: '存货周转率 (次)',
+  revenue: '营业收入 (元)',
+  operating_cost: '营业成本 (元)',
+  tax_and_surcharges: '税金及附加 (元)',
+  operating_profit: '营业利润 (元)',
+  selling_expense: '销售费用 (元)',
+  admin_expense: '管理费用 (元)',
+  rd_expense: '研发费用 (元)',
+  financial_expense: '财务费用 (元)',
+  non_operating_income: '营业外收入 (元)',
+  non_operating_expense: '营业外支出 (元)',
+  total_profit: '利润总额 (元)',
+  income_tax: '所得税 (元)',
+  net_income: '净利润 (元)',
+  net_income_attributable: '归母净利润 (元)',
+  net_income_deducted: '扣非净利润 (元)',
+  basic_eps: '基本每股收益 (元/股)',
+  diluted_eps: '稀释每股收益 (元/股)',
+  total_assets: '资产总计 (元)',
+  total_current_assets: '流动资产合计 (元)',
+  total_non_current_assets: '非流动资产合计 (元)',
+  cash_and_equivalents: '货币资金 (元)',
+  accounts_receivable: '应收账款 (元)',
+  inventory: '存货 (元)',
+  fixed_assets: '固定资产 (元)',
+  intangible_assets: '无形资产 (元)',
+  goodwill: '商誉 (元)',
+  total_liabilities: '负债合计 (元)',
+  total_current_liabilities: '流动负债合计 (元)',
+  total_non_current_liabilities: '非流动负债合计 (元)',
+  short_term_borrowing: '短期借款 (元)',
+  long_term_borrowing: '长期借款 (元)',
+  accounts_payable: '应付账款 (元)',
+  total_equity: '所有者权益合计 (元)',
+  equity_attributable: '归母所有者权益 (元)',
+  retained_earnings: '未分配利润 (元)',
+  minority_interest: '少数股东权益 (元)',
+  net_operating_cash_flow: '经营活动现金流净额 (元)',
+  net_investing_cash_flow: '投资活动现金流净额 (元)',
+  net_financing_cash_flow: '筹资活动现金流净额 (元)',
+  capex: '固定资产/无形资产投资 (元)',
+  net_cash_change: '现金及等价物净增加额 (元)',
+  total_shares: '总股本 (股)',
+  float_shares: '流通股本 (股)',
 }
 
 function normalizeConfig(config: CustomSourceConfig): CustomSourceConfig {
@@ -106,7 +189,9 @@ export function DataSourceEditor({
 }) {
   const isNew = !existingName
   const [config, setConfig] = useState<CustomSourceConfig>(() => initial ? structuredClone(initial) : emptyConfig())
-  const [activeTab, setActiveTab] = useState<DatasetKey>('daily')
+  const [activeTab, setActiveTab] = useState<DatasetGroupKey>('realtime')
+  const [klineTab, setKlineTab] = useState<'daily' | 'minute'>('daily')
+  const activeDataset: DatasetKey = activeTab === 'kline' ? klineTab : activeTab
 
   // 编辑现有源: 从后端拉完整配置 (每次挂载都重新拉, 不用缓存, 确保拿到最新保存的配置)
   const fetchCfg = useQuery({
@@ -143,7 +228,7 @@ export function DataSourceEditor({
     onSuccess: () => {
       toast(isNew ? '数据源已创建' : '数据源已更新', 'success')
       // 保存后强制重新拉取最新配置, 让数据集开关状态正确刷新
-      fetchCfg.refetch()
+      if (!isNew) fetchCfg.refetch()
       onSaved()
     },
     onError: (e: Error) => {
@@ -170,6 +255,20 @@ export function DataSourceEditor({
       ...prev,
       datasets: { ...prev.datasets, [key]: { ...prev.datasets[key], ...patch } as DatasetConfig },
     }))
+  }
+
+  const setGroupEnabled = (keys: readonly DatasetKey[], enabled: boolean) => {
+    setConfig(prev => {
+      const datasets = { ...prev.datasets }
+      for (const key of keys) {
+        if (enabled) {
+          datasets[key] ??= { url: '', method: 'POST', response_path: 'data', field_map: {} }
+        } else {
+          delete datasets[key]
+        }
+      }
+      return { ...prev, datasets }
+    })
   }
 
   const canSave = !!config.name.trim() && !save.isPending
@@ -262,27 +361,35 @@ export function DataSourceEditor({
 
             <div className="pt-2 border-t border-border/30 space-y-1.5">
               <div className="text-[10px] uppercase tracking-widest text-muted">数据集</div>
-              {DATASETS.map(key => {
-                const enabled = !!config.datasets[key]
+              {DATASET_GROUPS.map(({ key, label, datasets }) => {
+                const enabled = datasets.every(dataset => !!config.datasets[dataset])
+                const partial = !enabled && datasets.some(dataset => !!config.datasets[dataset])
                 return (
-                  <button
+                  <div
                     key={key}
-                    onClick={() => setActiveTab(key)}
+                    role="group"
+                    aria-label={`数据集 ${label}`}
                     className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-btn text-sm transition-colors ${
                       activeTab === key ? 'bg-elevated text-foreground' : 'text-secondary hover:bg-elevated/50'
                     }`}
                   >
-                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${enabled ? 'bg-accent' : 'bg-muted/30'}`} />
-                    <span className="flex-1 text-left">{DATASET_LABEL[key]}</span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab(key)}
+                      className="flex flex-1 min-w-0 items-center gap-2 text-left"
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${enabled ? 'bg-accent' : 'bg-muted/30'}`} />
+                      <span>{label}</span>
+                    </button>
                     {enabled
                       ? <span className="text-[9px] text-accent">已配置</span>
-                      : <span className="text-[9px] text-muted/50">回退 TF</span>
+                      : <span className="text-[9px] text-muted/50">{partial ? '部分配置' : '未启用'}</span>
                     }
                     <Toggle
                       checked={enabled}
-                      onChange={(e) => { e?.stopPropagation(); setDatasetEnabled(key, !enabled) }}
+                      onChange={() => setGroupEnabled(datasets, !enabled)}
                     />
-                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -290,15 +397,26 @@ export function DataSourceEditor({
 
           {/* 右: 当前数据集详情 */}
           <div className="p-5">
+            {activeTab === 'kline' && (
+              <div className="mb-4 flex items-center gap-2">
+                <span className="text-sm font-medium mr-2">K线</span>
+                {(['daily', 'minute'] as const).map(key => (
+                  <button key={key} type="button" onClick={() => setKlineTab(key)}
+                    className={`rounded-btn px-3 py-1 text-xs ${klineTab === key ? 'bg-accent/15 text-accent' : 'bg-elevated text-secondary'}`}>
+                    {DATASET_LABEL[key]}
+                  </button>
+                ))}
+              </div>
+            )}
             <DatasetDetail
-              key={activeTab}
+              key={activeDataset}
               config={config}
-              datasetKey={activeTab}
-              cfg={config.datasets[activeTab]}
+              datasetKey={activeDataset}
+              cfg={config.datasets[activeDataset]}
               providerName={config.name.toLowerCase().trim() || existingName || ''}
-              onUpdate={(patch) => updateDataset(activeTab, patch)}
-              onFieldMap={(fm) => updateDataset(activeTab, { field_map: fm })}
-              onToggle={(v) => setDatasetEnabled(activeTab, v)}
+              onUpdate={(patch) => updateDataset(activeDataset, patch)}
+              onFieldMap={(fm) => updateDataset(activeDataset, { field_map: fm })}
+              onToggle={(v) => setDatasetEnabled(activeDataset, v)}
             />
           </div>
         </div>
@@ -307,7 +425,7 @@ export function DataSourceEditor({
       {/* 底部保存栏 */}
       <div className="px-6 py-3.5 border-t border-border/60 flex items-center justify-between bg-elevated/20">
         <div className="text-[11px] text-muted">
-          {Object.keys(config.datasets).length} 个数据集已配置
+          {DATASET_GROUPS.filter(group => group.datasets.some(key => !!config.datasets[key])).length} 类数据集已配置
         </div>
         <div className="flex items-center gap-2">
           <button onClick={onCancel} className="px-3 py-1.5 rounded-btn text-sm text-secondary hover:text-foreground transition-colors">
@@ -347,7 +465,7 @@ function DatasetDetail({
   const enabled = !!cfg
   const [testSymbols, setTestSymbols] = useState('000001.SZ,600000.SH')
   const [showParams, setShowParams] = useState(false)
-  const showTimeParams = datasetKey !== 'realtime'
+  const showTimeParams = datasetKey !== 'realtime' && datasetKey !== 'financial'
   const test = useMutation({
     mutationFn: () => api.testDataSource(
       providerName,
@@ -369,6 +487,14 @@ function DatasetDetail({
         </div>
         <Toggle checked={enabled} onChange={() => onToggle(!enabled)} />
       </div>
+
+      {datasetKey === 'financial' && (
+        <p className="mb-4 text-[11px] leading-relaxed text-muted">
+          一个接口覆盖核心指标、利润表、资产负债表、现金流量表和股本表，请求自动携带 table 参数。
+          测试默认请求 metrics。响应字段按下表映射，金额为元、股本为股，比例用百分数值（12.3 表示 12.3%）；
+          未提供的指标保留为空，公告日期用于历史财务判断。
+        </p>
+      )}
 
       <AnimatePresence mode="wait">
         {enabled && cfg ? (
@@ -464,16 +590,18 @@ function DatasetDetail({
                     className="overflow-hidden"
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                      {datasetKey !== 'realtime' && (
+                        <Field label="代码参数">
+                          <input
+                            value={cfg.symbols_param ?? ''}
+                            onChange={e => onUpdate({ symbols_param: e.target.value || undefined })}
+                            placeholder="symbols"
+                            className={`${INPUT_CLS} w-full`}
+                          />
+                        </Field>
+                      )}
                       {showTimeParams && (
                         <>
-                          <Field label="代码参数">
-                            <input
-                              value={cfg.symbols_param ?? ''}
-                              onChange={e => onUpdate({ symbols_param: e.target.value || undefined })}
-                              placeholder="symbols"
-                              className={`${INPUT_CLS} w-full`}
-                            />
-                          </Field>
                           <Field label="起始时间参数">
                             <input
                               value={cfg.start_param ?? ''}
@@ -492,7 +620,7 @@ function DatasetDetail({
                           </Field>
                         </>
                       )}
-                      {(datasetKey === 'minute' || datasetKey === 'full_minute') && (
+                      {(datasetKey === 'minute' || datasetKey === 'daily') && (
                         <>
                           <Field label="资产类型参数">
                             <input
@@ -587,7 +715,7 @@ function DatasetDetail({
             className="py-12 text-center"
           >
             <div className="text-sm text-muted mb-1">{DATASET_LABEL[datasetKey]} 未启用</div>
-            <div className="text-[11px] text-muted/60">启用后此数据集将由该自定义源提供, 未启用则回退 TickFlow</div>
+            <div className="text-[11px] text-muted/60">启用并保存后可在能力路由中选择该源；未启用的数据集不由该源提供。</div>
             <button
               onClick={() => onToggle(true)}
               className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-btn bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors"

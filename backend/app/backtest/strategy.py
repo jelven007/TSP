@@ -516,7 +516,7 @@ def _filter_dependencies(strategy: StrategyDef, params: dict) -> tuple[set[str],
 
 def _basic_filter_dependencies(config: dict) -> set[str]:
     if not config or not config.get("enabled", True):
-        return set()
+        return ({"symbol", "is_risk_warning"} if config.get("exclude_st") else {"symbol"}) if config.get("target_mode") else set()
     dependencies = {"symbol", "close"}
     if any(
         config.get(f"{prefix}_{bound}") is not None
@@ -583,6 +583,8 @@ def _basic_filter_for_asset(basic_filter: dict, asset_type: str) -> dict:
     if asset_type == "stock" or not basic_filter:
         return basic_filter
     sanitized = dict(basic_filter)
+    for key in ("target_mode", "target_symbols", "include_custom", "watchlist_group_ids"):
+        sanitized.pop(key, None)
     for key in _STOCK_ONLY_FILTER_KEYS:
         sanitized[key] = None
     return sanitized
@@ -1722,7 +1724,7 @@ class StrategyBacktestService:
                 return _err("非矩阵策略不能使用共享基础矩阵")
             # basic_filter 只影响买入候选，不能删除持仓估值和卖出所需行情。
             basic_mask = pl.Series("_basic", [True] * len(panel), dtype=pl.Boolean)
-            if basic_filter and basic_filter.get("enabled", True):
+            if basic_filter:
                 expr = StrategyEngine._basic_filter_expr(panel, basic_filter)
                 if expr is not None:
                     try:
@@ -2586,6 +2588,10 @@ class StrategyBacktestService:
         override_filter = overrides.get("basic_filter")
         if isinstance(override_filter, dict):
             basic_filter.update(override_filter)
+        if basic_filter.get("include_custom") and "target_symbols" not in basic_filter:
+            from app.strategy.targets import resolve
+
+            basic_filter = resolve(settings.data_dir, {"basic_filter": basic_filter})["basic_filter"]
         return basic_filter
 
     @staticmethod

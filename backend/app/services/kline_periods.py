@@ -1,0 +1,312 @@
+"""六周期 K 线配置、取数和落盘; 10m 只消费本地 1m。"""
+from __future__ import annotations
+
+import calendar
+from datetime import date, datetime, time, timedelta
+
+import polars as pl
+
+from app.market_time import CN_TZ, cn_now
+from app.services import preferences
+
+TABLES = {
+    "1m": "kline_minute", "5m": "kline_5minute", "10m": "kline_10minute",
+    "15m": "kline_15minute", "1d": "kline_daily", "1w": "kline_weekly",
+}
+LABELS = {"1m": "1分钟K", "5m": "5分钟K", "10m": "10分钟K", "15m": "15分钟K", "1d": "日K", "1w": "周K"}
+DEFAULT_WINDOWS = [["09:15", "11:35"], ["13:00", "15:20"]]
+_VALUES = ("open", "high", "low", "close", "volume", "amount")
+
+
+def get_configs(data_dir=None) -> dict:
+    prefs = preferences.load(data_dir)
+    result = {}
+    for period in TABLES:
+        default = {
+            "enabled": True,
+            "interval_seconds": {"1m": 60, "5m": 300, "10m": 600, "15m": 900}.get(period, 60),
+            "windows": [w[:] for w in DEFAULT_WINDOWS], "time": "16:00",
+        }
+        if period == "1m":
+            default["enabled"] = prefs.get("minute_refresh_enabled", True)
+            default["interval_seconds"] = prefs.get("minute_refresh_interval", 60)
+        if period == "1d":
+            sched = prefs.get("pipeline_schedule", {"hour": 16, "minute": 0})
+            default["time"] = f'{sched.get("hour", 16):02d}:{sched.get("minute", 0):02d}'
+        saved = prefs.get(f"kline_sync_{period}", {})
+        result[period] = {**default, **(saved if isinstance(saved, dict) else {})}
+        if period == "1d":
+            result[period]["time"] = default["time"]
+    return result
+
+
+def _parse_time(value: str) -> time:
+    try:
+        parsed = datetime.strptime(value, "%H:%M").time()
+        if parsed.strftime("%H:%M") != value:
+            raise ValueError
+        return parsed
+    except (TypeError, ValueError) as exc:
+        raise ValueError("时间须为 HH:MM") from exc
+
+
+def save_config(period: str, config: dict, data_dir=None) -> dict:
+    if period not in TABLES:
+        raise ValueError("不支持的K线周期")
+    merged = {**get_configs(data_dir)[period], **config}
+    if type(merged["enabled"]) is not bool:
+        raise ValueError("同步开关须为布尔值")
+    interval = merged["interval_seconds"]
+    if type(interval) is not int or not 1 <= interval <= 86400:
+        raise ValueError("周期间隔须为1~86400秒")
+    windows = merged["windows"]
+    if not isinstance(windows, list) or len(windows) != 2:
+        raise ValueError("须设置两个同步时段")
+    previous = None
+    for window in windows:
+        if not isinstance(window, list) or len(window) != 2:
+            raise ValueError("同步时段须包括开始和结束时间")
+        start, end = map(_parse_time, window)
+        if start >= end or (previous is not None and start <= previous):
+            raise ValueError("同步时段须按时间排序且不能重叠")
+        previous = end
+    at = _parse_time(merged["time"])
+    if period in ("1d", "1w") and at < time(15, 35):
+        raise ValueError("盘后同步时间不得早于15:35")
+    updates = {f"kline_sync_{period}": merged}
+    if period == "1m":
+        updates.update(minute_refresh_enabled=merged["enabled"], minute_refresh_interval=interval)
+    if period == "1d":
+        updates["pipeline_schedule"] = {"hour": at.hour, "minute": at.minute}
+    preferences.save(updates, data_dir)
+    return merged
+
+
+def in_sync_window(config: dict, now: datetime | None = None, *, trading_day: bool | None = None) -> bool:
+    now = now or cn_now()
+    if now.tzinfo is not None:
+        now = now.astimezone(CN_TZ)
+    if trading_day is None:
+        from app.services.trading_day import is_trading_day
+        trading_day = is_trading_day(now)
+    return config["enabled"] and trading_day is True and any(
+        _parse_time(start) <= now.time().replace(tzinfo=None) <= _parse_time(end)
+        for start, end in config["windows"]
+    )
+
+
+def history_start(anchor: date, value: int, unit: str) -> date:
+    if type(value) is not int or value < 1 or unit not in ("month", "year"):
+        raise ValueError("历史范围须为正整数月或年")
+    if value > (120 if unit == "month" else 10):
+        raise ValueError("单次历史扩展最多10年")
+    months = value * (12 if unit == "year" else 1)
+    ordinal = anchor.year * 12 + anchor.month - 1 - months
+    year, month0 = divmod(ordinal, 12)
+    return date(year, month0 + 1, min(anchor.day, calendar.monthrange(year, month0 + 1)[1]))
+
+
+def aggregate_ten_minute(frame: pl.DataFrame) -> pl.DataFrame:
+    """收盘标签按 09:30/13:00 起算, 午休与跨日不混桶, 未知值保留。"""
+    from app.services.kline_sync import _normalize_minute
+    frame = _normalize_minute(frame)
+    if frame.is_empty():
+        return frame
+    for column in _VALUES:
+        if column not in frame.columns:
+            frame = frame.with_columns(pl.lit(None, dtype=pl.Float64).alias(column))
+    minute = pl.col("datetime").dt.hour().cast(pl.Int32) * 60 + pl.col("datetime").dt.minute()
+    frame = frame.filter(((minute >= 570) & (minute <= 690)) | ((minute >= 780) & (minute <= 900)))
+    if frame.is_empty():
+        return frame
+    base = pl.when(minute <= 690).then(570).otherwise(780)
+    bucket = base + (((minute - base + 9) // 10).clip(lower_bound=1) * 10)
+    frame = frame.with_columns(
+        (pl.col("datetime").dt.truncate("1d") + pl.duration(minutes=bucket)).alias("_bucket"),
+        *[pl.when(pl.col(c).is_finite()).then(pl.col(c)).otherwise(None).alias(c) for c in _VALUES],
+    ).sort("symbol", "datetime").unique(["symbol", "datetime"], keep="last", maintain_order=True)
+    def finite(c):
+        return pl.col(c).filter(pl.col(c).is_finite())
+    return (
+        frame.group_by("symbol", "_bucket", maintain_order=True).agg(
+            pl.col("open").first(), finite("high").max().alias("high"),
+            finite("low").min().alias("low"), pl.col("close").last(),
+            *[
+                pl.when(finite(c).count() > 0).then(finite(c).sum()).otherwise(None).alias(c)
+                for c in ("volume", "amount")
+            ],
+        ).rename({"_bucket": "datetime"}).sort("symbol", "datetime")
+    )
+
+
+def fetch_period(provider, period: str, symbols: list[str], start: datetime, end: datetime, *, minute_adjust: str = "none") -> pl.DataFrame:
+    """统一 provider 入口; 旧插件只允许已声明的1m/1d, 不猜测其他周期。"""
+    if period == "10m" or period not in TABLES:
+        raise ValueError("该周期不能从远程获取")
+    method = getattr(provider, "get_klines", None)
+    if callable(method):
+        kwargs = {"adjust": minute_adjust} if period == "1m" and getattr(provider, "name", "") == "tickflow" else {}
+        raw = method(symbols, start, end, asset_type="stock", freq=period, **kwargs)
+    elif period == "1d":
+        raw = provider.get_daily(symbols, start, end, asset_type="stock")
+    elif period == "1m":
+        raw = provider.get_minute(symbols, start, end, asset_type="stock", freq=period)
+    else:
+        raise ValueError("当前数据源未声明该K线周期, 请更新数据源接口")
+    from app.services.kline_sync import _normalize_daily, _normalize_minute
+    frame = (_normalize_daily if period in ("1d", "1w") else _normalize_minute)(raw)
+    if frame.is_empty():
+        return frame
+    time_column = "date" if period in ("1d", "1w") else "datetime"
+    lo, hi = (start.date(), end.date()) if time_column == "date" else (start, end)
+    return frame.filter(pl.col("symbol").is_in(symbols) & pl.col(time_column).is_between(lo, hi))
+
+
+def persist_period(repo, period: str, frame: pl.DataFrame) -> int:
+    from app.services.kline_sync import (
+        _atomic_write_parquet,
+        _minute_partition_lock,
+        _write_minute_partition,
+    )
+    if period not in TABLES:
+        raise ValueError("不支持的K线周期")
+    if frame.is_empty():
+        return 0
+    if period == "1m":
+        from app.services.minute_adjust import mark_minute_basis_raw, minute_basis_is_raw
+        if not minute_basis_is_raw(repo.store.data_dir) and not any((repo.store.data_dir / "kline_minute").rglob("*.parquet")):
+            mark_minute_basis_raw(repo.store.data_dir)
+    if period == "1w":
+        # 上游当前周标签随交易日变化, 统一周一使周内增量替换同一根周K。
+        frame = frame.with_columns(
+            (pl.col("date") - pl.duration(days=pl.col("date").dt.weekday() - 1)).cast(pl.Date).alias("date"),
+        )
+    directory = repo.store.data_dir / TABLES[period]
+    if period in ("1d", "1w"):
+        for day_frame in frame.partition_by("date"):
+            out = directory / f'date={day_frame["date"][0]}' / "part.parquet"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with _minute_partition_lock(out):
+                merged = pl.concat([pl.read_parquet(out), day_frame], how="diagonal_relaxed") if out.exists() else day_frame
+                merged = merged.unique(["symbol", "date"], keep="last").sort("symbol", "date")
+                _atomic_write_parquet(merged, out)
+    else:
+        # 旧同步可先持仓库锁; 此处只复用分区锁, 避免反序获取全局锁。
+        # 公共发布复核前后文件签名, 原子替换保证读者始终读取完整文件。
+        _write_minute_partition(frame, directory)
+    refresh_period(repo, period)
+    keys = ["symbol", "date" if period in ("1d", "1w") else "datetime"]
+    return frame.unique(keys).height
+
+
+def refresh_period(repo, period: str) -> None:
+    from app.jobs.daily_pipeline import _refresh_single_view
+    from app.services.public_query_cache import invalidate_data_cache, invalidate_storage_cache
+    _refresh_single_view(repo, TABLES[period])
+    invalidate_data_cache({"1m": "minute", "1d": "daily", "1w": "weekly"}.get(period, period))
+    invalidate_storage_cache()
+
+
+def period_bounds(repo, period: str) -> tuple[date | None, date | None]:
+    import pyarrow.parquet as pq
+    days = set()
+    for path in (repo.store.data_dir / TABLES[period]).glob("date=*/*.parquet"):
+        try:
+            if pq.ParquetFile(path).metadata.num_rows:
+                days.add(date.fromisoformat(path.parent.name.removeprefix("date=")))
+        except (OSError, ValueError):
+            continue
+    return (min(days), max(days)) if days else (None, None)
+
+
+def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: list[str] | None = None, on_progress=None) -> dict:
+    if period not in TABLES:
+        raise ValueError("不支持的K线周期")
+    if start > end:
+        raise ValueError("开始时间不得晚于结束时间")
+    from app.services.minute_adjust import minute_basis_is_raw
+    raw_minute = minute_basis_is_raw(repo.store.data_dir) or not any((repo.store.data_dir / "kline_minute").rglob("*.parquet"))
+    if symbols is None:
+        symbols = repo.get_instruments().get_column("symbol").to_list()
+    provider = None
+    source = "1m"
+    if period != "10m":
+        from app.data_providers.custom import provider_has_dataset
+        from app.data_providers.registry import get_provider
+        source = preferences.get_daily_data_provider() if period in ("1d", "1w") else preferences.get_minute_data_provider()
+        provider = get_provider(source)
+        dataset = "daily" if period in ("1d", "1w") else "minute"
+        if provider is None or not (
+            getattr(getattr(provider, "capabilities", None), dataset, False)
+            or provider_has_dataset(source, dataset)
+        ):
+            raise ValueError("当前K线数据源不可用")
+    rows = 0
+    # 有界日期段和标的块; 历史分钟数据不一次性加载全市场多年数据。
+    days_per_chunk = 5 if period.endswith("m") else 365
+    cursor = start.date()
+    segments = max(1, (end.date() - cursor).days // days_per_chunk + 1)
+    done = 0
+    while cursor <= end.date():
+        if on_progress:
+            on_progress(f"sync_{period}", int(done / segments * 95), f"{LABELS[period]}: 准备获取 {cursor}")
+        segment_end = min(end.date(), cursor + timedelta(days=days_per_chunk - 1))
+        lo = max(start, datetime.combine(cursor, time.min))
+        hi = min(end, datetime.combine(segment_end, time.max))
+        if period == "10m":
+            paths = []
+            day = cursor
+            while day <= segment_end:
+                paths.extend((repo.store.data_dir / "kline_minute" / f"date={day}").glob("*.parquet"))
+                day += timedelta(days=1)
+            if paths:
+                frame = pl.scan_parquet(paths).filter(pl.col("datetime").is_between(lo, hi))
+                if symbols:
+                    frame = frame.filter(pl.col("symbol").is_in(symbols))
+                frame = aggregate_ten_minute(frame.collect())
+                rows += persist_period(repo, period, frame)
+        else:
+            for offset in range(0, len(symbols), 100):
+                if on_progress:
+                    on_progress(f"sync_{period}", int(done / segments * 95), f"{LABELS[period]}: {cursor}, 标的 {offset}/{len(symbols)}")
+                frame = fetch_period(provider, period, symbols[offset:offset + 100], lo, hi, minute_adjust="none" if raw_minute else "forward")
+                if on_progress:
+                    on_progress(f"sync_{period}", int(done / segments * 95), f"{LABELS[period]}: 正在保存 {offset + 100}/{len(symbols)}")
+                rows += persist_period(repo, period, frame)
+        done += 1
+        if on_progress:
+            on_progress(f"sync_{period}", int(done / segments * 95), f"{LABELS[period]}: {cursor}~{segment_end}, 已写入{rows}行")
+        cursor = segment_end + timedelta(days=1)
+    return {"period": period, "rows": rows, "source": source, "start": start.isoformat(), "end": end.isoformat(),
+            "price_basis": ("raw" if raw_minute else "legacy_1m") if period in ("1m", "10m") else "raw"}
+
+
+_last_success: dict[str, datetime] = {}
+
+
+def scheduled_periods(repo) -> None:
+    """每30秒检查, 周期从完成时计算; 日K由既有盘后管道执行。"""
+    from app.jobs.daily_pipeline import _run_tracked
+    from app.services.trading_day import is_trading_day
+    if not preferences.get_data_sync_auto_enabled():
+        return
+    now = cn_now().replace(tzinfo=None)
+    verdict = is_trading_day(now)
+    if verdict is not True:
+        return
+    configs = get_configs()
+    for period in ("5m", "10m", "15m", "1w"):
+        cfg = configs[period]
+        if not cfg["enabled"]:
+            continue
+        last = _last_success.get(period)
+        if period == "1w":
+            if now.time() < _parse_time(cfg["time"]) or (last and last.date() == now.date()):
+                continue
+            start = datetime.combine(now.date() - timedelta(days=now.weekday() + 7), time.min)
+        else:
+            if not in_sync_window(cfg, now, trading_day=True) or (last and (now - last).total_seconds() < cfg["interval_seconds"]):
+                continue
+            start = datetime.combine(now.date(), time.min)
+        if _run_tracked(lambda on_progress=None, p=period, lo=start: sync_period(repo, p, lo, now, on_progress=on_progress), f"kline_{period}"):
+            _last_success[period] = cn_now().replace(tzinfo=None)

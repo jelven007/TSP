@@ -53,7 +53,7 @@ def test_delete_restores_routes_before_reload_and_refreshes_capabilities(
     settings_api.delete_data_source("example_source", request)
 
     assert reloaded[0]["minute_data_provider"] == "rustdx"
-    assert reloaded[0]["full_minute_data_provider"] == "rustdx"
+    assert "full_minute_data_provider" not in reloaded[0]
     assert reloaded[0]["depth5_data_provider"] == "rustdx"
     assert reloaded[0]["financial_data_provider"] == "fuyao"
     assert request.app.state.capabilities == "fresh"

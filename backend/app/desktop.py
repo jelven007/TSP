@@ -50,7 +50,6 @@ _RUSTDX_DATASETS = {
     "minute",
     "depth5",
     "financial",
-    "full_minute",
 }
 _WINDOWS_RESOURCE_DEFAULTS = {
     "TSP_MEMORY_BUDGET_MB": "4096",

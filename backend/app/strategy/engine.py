@@ -1064,7 +1064,7 @@ class StrategyEngine:
         bf = _basic_filter_for_asset(bf, context.asset_type)
 
         # Stage 1: 基础过滤（enabled 默认开启; 显式 enabled=false 才跳过）
-        if bf and bf.get("enabled", True):
+        if bf:
             df = self._apply_basic_filter(df, bf)
 
         # Pool 过滤
@@ -1652,10 +1652,12 @@ class StrategyEngine:
     def _basic_filter_expr(df: pl.DataFrame, bf: dict) -> pl.Expr | None:
         """构建基础过滤表达式。回测可复用为买入候选 mask，不删除行情行。"""
         from app.market_scope import clean_market_config
+        from app.strategy.targets import expression
         bf = clean_market_config(bf)
+        target_expr = expression(df, bf)
         if not bf.get("enabled", True):
-            return None
-        exprs: list[pl.Expr] = []
+            return target_expr
+        exprs: list[pl.Expr] = [target_expr] if target_expr is not None else []
         price = pl.col("raw_close" if "raw_close" in df.columns else "close")
         if any(
             bf.get(f"{prefix}_{bound}") is not None
@@ -1705,13 +1707,13 @@ class StrategyEngine:
             exprs.append(pl.col("turnover_rate") >= bf["turnover_min"])
         if bf.get("turnover_max") is not None and "turnover_rate" in df.columns:
             exprs.append(pl.col("turnover_rate") <= bf["turnover_max"])
-        if bf.get("exclude_st"):
+        if "target_mode" not in bf and bf.get("exclude_st"):
             if "is_risk_warning" in df.columns:
                 exprs.append(~pl.col("is_risk_warning").fill_null(False))
             elif "name" in df.columns:
                 exprs.append(~pl.col("name").str.contains("(?i)ST|\\*ST|退"))
         # 板块过滤
-        boards = bf.get("boards")
+        boards = bf.get("boards") if "target_mode" not in bf else None
         if bf.get("market_scope_empty"):
             exprs.append(pl.lit(False))
         if boards and isinstance(boards, list) and len(boards) > 0:

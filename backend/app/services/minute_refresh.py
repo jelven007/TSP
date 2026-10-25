@@ -1,4 +1,4 @@
-"""盘中分钟K增量落盘服务 (全量分钟能力, 按能力路由)。
+"""盘中分钟K增量落盘服务 (与历史分钟K共用选源)。
 
 两段式拉取 (见 feat/minute-strategy 方案):
 - 全天修复轮: 全市场日内分时批量并发脉冲一次拉当日全部分钟K — 冷启动
@@ -9,14 +9,13 @@
 单轮合并写入当日 kline_minute 分区, 供分钟策略 (minute_filter) 读到新鲜数据。
 
 数据源路由 (像其他能力一样可接入):
-- 生效源由偏好 full_minute_data_provider 决定 (设置 → 数据源 → 全量分钟):
-  TickFlow (Expert 档, intraday.batch + intraday.universe) 或声明 full_minute
+- 生效源由偏好 minute_data_provider 决定 (设置 → 数据源 → 分钟K):
+  TickFlow (Expert 档, intraday.batch + intraday.universe) 或声明 minute
   数据集的插件/自定义源。
 - 自定义源契约 (docs/reference/integrations.md#plugin): get_intraday_batch(symbols) 修复轮
   (未实现自动回退 get_minute 当日窗口); get_intraday_latest(symbols, count) 稳态增量
   (可选, 未实现自动降级为仅修复轮并放慢节奏至 >=60s)。
-- 能力门控 Cap.INTRADAY_UNIVERSE: TickFlow 按档位探测, 自定义源声明数据集且
-  被路由时由 policy._augment_custom_sources 补授 — 门控口径对两类源统一。
+- TickFlow 批量端点按 Cap.INTRADAY_UNIVERSE 门控; 自定义源按 minute 声明门控。
 
 设计约束:
 - 修复轮并发脉冲: TickFlow 路径全市场按 batch_size 分块 (5546/200 = 28 块)
@@ -25,9 +24,9 @@
   由 provider 自管批量与限速 (rpm 配置/内部并发), 服务不代限。
 - 稳态轮单请求: 无脉冲并发, 间隔可低至 1s; 实际节奏 = max(间隔, 单轮完成),
   服务端响应 ~5s 时自动退化为响应节奏, 不会重叠请求。
-- 固定节奏: 默认 1s 一轮 (clamp [1, 120]), 不补跑 (missed 轮次直接跳过);
+- 固定节奏: 默认 60s 一轮, 由1分钟K周期配置控制, 不补跑 (missed 轮次直接跳过);
   仅修复轮的自定义源下限抬到 60s (全天批量打不住 1s 节奏)。
-- 仅在交易日 09:15-11:30 / 13:00-15:15 运行, 午休/收盘后自动暂停与恢复;
+- 默认仅在交易日 09:15-11:35 / 13:00-15:20 运行, 午休/收盘后自动暂停与恢复;
   午休后恢复因覆盖滞后会多跑一次修复轮, 幂等无害。
 - 不与其他分钟能力冲突: 与 盘后分钟同步 (kline.minute.batch) / 分时监控路径
   分属不同限流池; 落盘走 _write_minute_partition 的 unique(symbol,datetime)
@@ -49,7 +48,7 @@ from typing import Any
 
 import polars as pl
 
-from app.market_time import cn_now, cn_today, in_intraday_polling_window
+from app.market_time import cn_now, cn_today
 from app.services import preferences
 
 logger = logging.getLogger(__name__)
@@ -71,8 +70,9 @@ _REPAIR_ONLY_MIN_INTERVAL_S = 60
 
 
 def _in_refresh_window(now=None) -> bool:
-    """盘中分钟增量窗口: 09:15-11:30 / 13:00-15:15, 仅工作日。"""
-    return in_intraday_polling_window(now)
+    """1分钟K的独立周期同步配置, 北京时间交易日窗口。"""
+    from app.services.kline_periods import get_configs, in_sync_window
+    return in_sync_window(get_configs()["1m"], now)
 
 
 @dataclass
@@ -133,13 +133,7 @@ class MinuteRefreshService:
     # ------------------------------------------------------------------
 
     def capability_ok(self) -> bool:
-        """Cap.INTRADAY_UNIVERSE (全量分钟) 存在。能力探测结果缓存在 app.state。
-
-        门控挂在稳态增量的主能力上; TickFlow 路径全天修复轮用的 intraday.batch
-        与其同属 Expert 档 (tiers.yaml), 两者必然同时持有。自定义源声明
-        full_minute 数据集且被路由时, 由 policy._augment_custom_sources 补授
-        同一能力键 — 门控口径对两类源统一。
-        """
+        """分钟源可用; TickFlow 还需其全市场批量端点权限。"""
         if self.active_provider() != "tickflow":
             provider, _ = self._resolve_custom()
             return provider is not None
@@ -154,11 +148,11 @@ class MinuteRefreshService:
             return False
 
     def active_provider(self) -> str:
-        """全量分钟生效源名 ("tickflow" 或自定义源名, 偏好 full_minute_data_provider)。"""
+        """盘中落盘与历史分钟K统一使用 minute_data_provider。"""
         try:
-            return preferences.get_full_minute_data_provider()
-        except Exception:  # noqa: BLE001 — 偏好文件异常按 TickFlow 处理
-            return "tickflow"
+            return preferences.get_minute_data_provider()
+        except Exception:  # 使用默认源并由 resolver 判断可用性
+            return "rustdx"
 
     def _resolve_custom(self) -> tuple[object | None, str]:
         """解析自定义源。返回 (provider_or_None, effective_name):
@@ -173,11 +167,11 @@ class MinuteRefreshService:
         if name == "tickflow":
             self._provider_unavailable_log_key = None
             return (None, "tickflow")
-        provider, _, err = kline_sync._resolve_full_minute_provider(name)
+        provider, _, err = kline_sync._resolve_minute_provider(name)
         if err is not None:
             log_key = (name, str(err))
             if getattr(self, "_provider_unavailable_log_key", None) != log_key:
-                logger.warning("full_minute provider %s unavailable: %s", name, err)
+                logger.warning("minute provider %s unavailable: %s", name, err)
                 self._provider_unavailable_log_key = log_key
         else:
             self._provider_unavailable_log_key = None
@@ -204,7 +198,7 @@ class MinuteRefreshService:
 
     def _gate_reason(self) -> str | None:
         """返回本轮不执行的原因 (None = 放行)。"""
-        if not preferences.get_minute_refresh_enabled():
+        if not preferences.get_data_sync_auto_enabled() or not preferences.get_minute_refresh_enabled():
             return "disabled"
         if not self.capability_ok():
             return "capability"
@@ -294,7 +288,7 @@ class MinuteRefreshService:
         t0 = time.perf_counter()
         custom, provider_name = self._resolve_custom()
         if custom is None and provider_name != "tickflow":
-            self._state.last_error = f"full_minute provider {provider_name} unavailable"
+            self._state.last_error = f"minute provider {provider_name} unavailable"
             return
         mode = self._select_mode()
         if mode == "increment" and custom is not None and not self._custom_supports_increment(custom):

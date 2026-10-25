@@ -48,9 +48,10 @@ def _path(data_dir: Path, strategy_id: str, *, ensure_dir: bool = True) -> Path:
 def load_override(data_dir: Path, strategy_id: str) -> dict:
     """读取策略的用户覆盖配置，不存在返回空 dict (带 mtime 签名缓存, 返回深拷贝)"""
     from app.multitenancy.documents import TenantDocuments
+    from app.strategy.targets import resolve
 
     if isinstance(data_dir, TenantDocuments):
-        return clean_market_config(data_dir.get("strategy_overrides", strategy_id, {}))
+        return resolve(data_dir, clean_market_config(data_dir.get("strategy_overrides", strategy_id, {})))
     p = _path(data_dir, strategy_id, ensure_dir=False)
     key = str(p)
     try:
@@ -61,7 +62,7 @@ def load_override(data_dir: Path, strategy_id: str) -> dict:
         return {}
     cached = _override_cache.get(key)
     if cached is not None and sig == _override_cache_sig.get(key):
-        return copy.deepcopy(cached)
+        return resolve(data_dir, cached)
     try:
         data = clean_market_config(json.loads(p.read_text(encoding="utf-8")))
         # 清理 basic_filter 中值为 None/空的键（避免固化无意义的空值）
@@ -74,28 +75,37 @@ def load_override(data_dir: Path, strategy_id: str) -> dict:
                 del data["basic_filter"]
         _override_cache[key] = data
         _override_cache_sig[key] = sig
-        return copy.deepcopy(data)
     except Exception as e:
         logger.warning("load override %s failed: %s", strategy_id, e)
         return {}
+    return resolve(data_dir, data)
 
 
 def save_override(data_dir: Path, strategy_id: str, overrides: dict) -> None:
     """保存策略的用户覆盖配置（全量覆盖写）"""
     from app.multitenancy.documents import TenantDocuments
     from app.strategy.overlay import effective_conditions
+    from app.strategy.targets import validate
 
     overrides = copy.deepcopy(overrides)
     if "overlay_filter" in overrides:
         overrides["overlay_filter"] = effective_conditions(overrides)
 
     if isinstance(data_dir, TenantDocuments):
-        data_dir.put("strategy_overrides", strategy_id, clean_market_config(overrides))
+        with data_dir.transaction() as session:
+            available = {row["id"] for row in session.connection.execute(
+                "SELECT id FROM business.watchlist_groups",
+            ).fetchall()}
+            session.put("strategy_overrides", strategy_id, clean_market_config(validate(overrides, available)))
         return
-    p = _path(data_dir, strategy_id)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(p, json.dumps(clean_market_config(overrides), ensure_ascii=False, indent=2))
-    _invalidate_override_cache(p)
+    from app.services.watchlist import _LOCK
+    with _LOCK:
+        groups_path = data_dir / "user_data" / "watchlist_groups.json"
+        groups = json.loads(groups_path.read_text(encoding="utf-8")) if groups_path.exists() else []
+        overrides = validate(overrides, {group["id"] for group in groups})
+        p = _path(data_dir, strategy_id)
+        atomic_write_text(p, json.dumps(clean_market_config(overrides), ensure_ascii=False, indent=2))
+        _invalidate_override_cache(p)
 
 
 def delete_override(data_dir: Path, strategy_id: str) -> None:
@@ -116,7 +126,16 @@ def list_overrides(data_dir: Path) -> dict[str, dict]:
     from app.multitenancy.documents import TenantDocuments
 
     if isinstance(data_dir, TenantDocuments):
-        return {row["id"]: clean_market_config(row["value"]) for row in data_dir.records("strategy_overrides")}
+        from app.strategy.targets import group_ids, resolve
+        with data_dir.transaction(write=False) as session:
+            records = session.records("strategy_overrides")
+            selected = {gid for row in records for gid in group_ids(row["value"])}
+            members = session.connection.execute(
+                "SELECT symbol,group_id FROM business.watchlist_group_items WHERE group_id=ANY(%s)",
+                (list(selected),),
+            ).fetchall() if selected else []
+            return {row["id"]: resolve(session, clean_market_config(row["value"]), members=members)
+                    for row in records}
     d = _overrides_dir(data_dir)
     result: dict[str, dict] = {}
     for f in d.glob("*.json"):

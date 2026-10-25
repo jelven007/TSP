@@ -1,5 +1,15 @@
 # 测试与验收指南
 
+六周期画像候选验证入口为 `backend/tests/test_kline_periods.py`、
+`test_kline_periods_api.py`、`test_rustdx_provider.py`、`test_minute_refresh.py`及
+`test_instrument_catalog_admin.py`；前端为 `KlineSyncConfig.test.tsx`、
+`PageSettingsModal.test.tsx`、`StockCatalogDialog.test.tsx`及`Monitoring.test.tsx`。
+验收包含09:15/11:35/13:00/15:20边界、非交易日及未知日历拒跑、四间隔与开关持久化、
+月末/闰年历史范围、同一Provider五周期参数与单位、10分钟午休/空值/缺日、
+周内覆盖同一周K、四表隔离/视图/schema/缓存、管理员筛选全量CSV及后台任务真实完成。
+页面联调还须检查空库入口、表单保存/失败、任务取消、窄屏弹窗及删除的监控控制。
+测试通过不证明上游拥有多年历史，实际数据覆盖按日期和标的另行验收。
+
 2026-10-25本批全量验证、本地更新、PR/CI和线上升级结果统一见
 [最新现状验证](../reports/current-state-release-20261025/verification.md)。
 命令和矩阵定义“如何验证”；带日期的旧计数只证明当时版本。
@@ -66,7 +76,7 @@ Job 级 `env` 不允许引用 `runner` 上下文。工作流修改应另外运�
 
 实时监控默认值回归见 `test_preferences_cache.py`、`test_minute_refresh.py` 和
 `test_email_defaults.py`：无文件或旧配置缺字段时采用行情 3 秒、分时图 5 秒、
-全量分钟 60 秒及四页 SSE 开启；API 无行情服务时也读取有效偏好。
+盘中分钟落盘 60 秒及四页 SSE 开启；API 无行情服务时也读取有效偏好。
 覆盖重启后保留已存间隔、关闭开关、部分页面选择、空通知渠道及 SMTP 凭据隔离。
 前端 `Monitoring.test.tsx` 验证加载期间显示相同默认值、加载后恢复保存值且不自动写回；
 通知测试继续覆盖邮件继承、未配置状态和只保存收件人。
@@ -259,16 +269,29 @@ uv run --frozen --no-sync pytest -q \
   tests/test_assistant_sessions.py tests/test_second_quotes_api.py
 ```
 
-至少核对八项独立路由、公司行为日期/权益/T+1/幂等及旧账本重放、
+至少核对七项独立路由、公司行为日期/权益/T+1/幂等及旧账本重放、
 77 项内置因子目录/DSL、69 项开放契约、迭代草稿与会话冲突。
 依赖完整项目环境运行；一次性 PostgreSQL、真实 Provider、Windows 和产物验证另列。
 涉及公司行为 UI 时补 `PaperCorporateActions.test.tsx` 与 `Paper.test.tsx`；
 涉及数据源 UI 时补 `DataSources.test.tsx`，覆盖 TickFlow 卡片/可选标签移除、
 rustdx/fuyao 顺序、未就绪源先选路由、共享缓存不被展示排序改写、旧来源显示、
 详情切换和按声明能力套用。仅文档及配置模板说明变化不要求重复未变更的前端全构建。
-能力顺序调整须核对 `test_capability_matrix.py` 的注册表与矩阵顺序，
-以及 `DataSources.test.tsx` 中路由卡、能力标签、详情表沿用矩阵顺序的断言；
-插件以不同顺序声明能力时，界面顺序仍一致。
+四类展示须核对 `test_capability_matrix.py` 的 `settings_groups` 和七项数据集兼容，
+以及 `DataSources.test.tsx` 中实时、K线、除权、财务路由卡/能力标签/详情表的一致顺序；
+插件以不同顺序声明能力时仍显示四类。覆盖K线候选交集、同时保存两字段、失败回滚、
+旧不同来源不自动改写及“套用”不触碰五档/公司行为字段。
+`DataSourceEditor.test.tsx` 覆盖五组顺序、K线两子配置及分组启停、旧单项配置保留、
+财务字段预填/切换草稿/保存去除pending行、空URL拒写和新增成功不查询空源名称。
+`test_custom_minute_config.py` 验证财务试拉注入metrics表名、因子映射和配置往返。
+分钟路由合并须运行 `test_unified_minute_source.py`、`test_minute_refresh.py`、
+`test_custom_intraday_batch_window.py`、`test_capability_augment.py` 及 rustdx 契约：
+旧选源冲突不影响分钟路由，旧 API 字段不写入，开关/间隔及配置文件读取不改写，
+仅旧 full_minute 声明不提升历史能力，源不可用不跨源，批量/增量与 get_minute
+当日窗口、北京时区、请求计数、失败不落盘与健康恢复保持。
+前端补 `DataSourceEditor.test.tsx` 与 `Monitoring.test.tsx`，
+确认独立全量入口移除、盘中控制保留并按实际服务可用性门控。
+本次命令、结果、原基线失败与未验证范围见
+[分钟选源合并验证](../reports/unified-minute-source-20261025/verification.md)。
 
 <a id="41-后端"></a>
 ### 4.1 后端
@@ -334,9 +357,35 @@ pnpm build
 重读/持久化、严格输入、HTTP权限和平台转发、IPC只读、降并发旧任务收尾、
 旧新任务共同记账、跨线程等待释放、CPU向下取整及无资源拒绝。
 页面验证控件位于“策略页”、保存失败保留生效值、部署未应用提示、资源缩小时回显
-保存值及无权限不请求配置；桌面/窄屏另检查真实渲染和交互。
+保存值及租户只读1不暴露主机配置；桌面/窄屏另检查真实渲染和交互。
 这些测试采用隔离偏好与模拟计算；不能替代真实 Docker 内存硬限制、
 全市场策略压测、跨主机容量或生产部署验收。推荐值仍是资源限额估算。
+
+本地目标范围候选追加：
+
+```bash
+cd backend
+uv run --frozen --no-sync pytest tests/test_strategy_targets.py tests/test_strategy_saved_params.py tests/test_strategy_result_history.py tests/test_strategy_concurrency.py -q
+uv run --frozen --no-sync pytest tests/test_full_strategy_targets.py tests/test_full_identity.py tests/test_full_runtime.py -q
+cd ../frontend
+pnpm test
+pnpm lint
+pnpm build
+```
+
+真实SQL命令须提供隔离 PostgreSQL 的 `TSP_TEST_POSTGRES_DSN`，不使用生产库。
+覆盖目标范围独立数值开关、板块/分组并集、空选择、ST、矩阵一致性、ETF豁免、
+成员变化与固定子策略快照、引用不存在拒写、服务/API/Cell删除保护、跨租户隔离、
+事务回滚和保存/删除竞态；CSV代码列、去重、跳过未知、不留空组、既有备注/日期保留。
+租户GET只读1、POST403，管理员自动/手工及旧任务额度继续回归；前端只标准/详细，
+旧隐藏/紧凑回标准、分组多选、CSV一次提交、点击引用组直接报错。
+已执行回测696项、策略/自选433项、SQL67项及前端285项均通过；
+最终重点回归118项、前端lint/build及目录/文档/版本检查通过。
+本地Full接口验证CSV导入2只、重复代码去重、未知代码跳过；556×817页面验证
+目标板块/分组/ST保存回显及引用分组点击删除立即报错。
+真实Compute验证仅自定义分组返回2只、空选择返回0，验收后恢复原策略和自选数据；
+共享工作区合并现有并行修改后，前端287项、后端重点109项及lint/build通过。
+计数对应本地执行范围，有重叠且不能相加为全仓覆盖；桌面尺寸和生产环境未做本批验收。
 
 模拟交易日线 schema 回归：
 

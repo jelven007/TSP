@@ -30,7 +30,7 @@ interface GroupBarProps {
   /** 分组等权平均涨跌幅 (key: 'all' | 'ungrouped' | 分组id); 缺省不显示 */
   pcts?: GroupPctMap
   onSelect: (group: WatchlistGroupFilter) => void
-  onCreate: (name: string, color: WatchlistGroupColor) => Promise<void>
+  onCreate: (name: string, color: WatchlistGroupColor, file?: File) => Promise<void>
   onRename: (groupId: string, name: string, color: WatchlistGroupColor) => Promise<void>
   onDelete: (groupId: string) => Promise<void>
   onClearGroup?: (groupId: string) => Promise<void>
@@ -276,6 +276,7 @@ function GroupManagerDialog({
   onReorder,
 }: Omit<GroupBarProps, 'selected' | 'total' | 'onSelect' | 'onClearGroup'> & { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const csvRef = useRef<HTMLInputElement>(null)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState<WatchlistGroupColor>(DEFAULT_WATCHLIST_GROUP_COLOR)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -284,6 +285,7 @@ function GroupManagerDialog({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const [csvFile, setCsvFile] = useState<File | undefined>()
 
   // 「显示在侧边栏」偏好开关
   const qc = useQueryClient()
@@ -326,8 +328,9 @@ function GroupManagerDialog({
       return
     }
     await run(async () => {
-      await onCreate(newName.trim(), newColor)
+      await onCreate(newName.trim(), newColor, csvFile)
       setNewName('')
+      setCsvFile(undefined)
       setNewColor(DEFAULT_WATCHLIST_GROUP_COLOR)
       inputRef.current?.focus()
     })
@@ -412,14 +415,29 @@ function GroupManagerDialog({
             className="inline-flex h-8 items-center gap-1.5 rounded-btn bg-accent px-3 text-xs text-white disabled:opacity-50"
           >
             <Plus className="h-3.5 w-3.5" />
-            新建
+            {csvFile ? '新建并导入' : '新建'}
           </button>
         </div>
         <div className="mt-2 flex items-start gap-2">
           <span className="mt-1 shrink-0 text-[11px] text-muted">分组颜色</span>
           <GroupColorPicker value={newColor} onChange={setNewColor} />
         </div>
-        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <input ref={csvRef} type="file" accept=".csv" aria-label="导入分组 CSV" className="hidden"
+            onChange={event => {
+              setCsvFile(event.target.files?.[0])
+              event.target.value = ''
+            }} />
+          <button type="button" disabled={pending} onClick={() => csvRef.current?.click()}
+            className="rounded-btn border border-border px-2.5 py-1.5 text-secondary hover:text-accent disabled:opacity-50">
+            导入 CSV 股票列表
+          </button>
+          {csvFile && <span className="min-w-0 break-all text-muted">{csvFile.name}
+            <button type="button" aria-label="移除 CSV 文件" onClick={() => setCsvFile(undefined)} className="ml-1 text-danger">×</button>
+          </span>}
+        </div>
+        <p className="mt-1.5 text-[11px] text-muted">CSV 只需包含股票代码；选择文件后点击「新建并导入」。</p>
+        {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
       </div>
 
       <div className="max-h-[360px] overflow-y-auto border-t border-border px-4">
@@ -513,7 +531,16 @@ function GroupManagerDialog({
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setDeletingId(group.id); setEditingId(null); setError('') }}
+                  onClick={() => {
+                    setEditingId(null)
+                    if (group.referenced_by?.length) {
+                      setDeletingId(null)
+                      setError('该自选分组被策略引用，无法删除，请先解除策略引用')
+                    } else {
+                      setDeletingId(group.id)
+                      setError('')
+                    }
+                  }}
                   className="p-1 text-muted hover:text-danger"
                   title="删除分组"
                 >

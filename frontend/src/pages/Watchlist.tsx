@@ -13,6 +13,7 @@ import { storage } from '@/lib/storage'
 import { fmtPrice, fmtPct, fmtBigNum, priceColorClass, formatExtNumber } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { computeGroupPcts, loadGroupStatsConfig, type GroupStatsConfigPatch } from '@/lib/watchlistGroupStats'
+import { toast } from '@/components/Toast'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { StockPreviewDialog } from '@/components/StockPreviewDialog'
@@ -1036,11 +1037,18 @@ export function Watchlist() {
   })
 
   const createGroup = useMutation({
-    mutationFn: ({ name, color }: { name: string; color: WatchlistGroupColor }) =>
-      api.watchlistGroupCreate(name, color),
+    mutationFn: ({ name, color, file }: { name: string; color: WatchlistGroupColor; file?: File }): Promise<{
+      groups: WatchlistGroup[]; group: WatchlistGroup; imported?: number; skipped?: number
+    }> =>
+      file ? api.watchlistGroupImportCsv(name, color, file) : api.watchlistGroupCreate(name, color),
     onSuccess: data => {
       qc.setQueryData(QK.watchlistGroups, { groups: data.groups })
+      qc.invalidateQueries({ queryKey: QK.watchlist })
+      qc.invalidateQueries({ queryKey: ['watchlist-enriched'] })
       setSelectedGroup(data.group.id)
+      if (data.imported !== undefined) {
+        toast(`已导入 ${data.imported} 只股票${data.skipped ? `，跳过 ${data.skipped} 项未匹配或非股票代码` : ''}`, 'success')
+      }
     },
   })
 
@@ -1396,7 +1404,7 @@ export function Watchlist() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="自选股"
+        title="自选"
         titleExtra={
           <span className="inline-flex items-center gap-1.5">
             {/* 计数胶囊: 显示数/总数, mono 字体突出数字 */}
@@ -1569,7 +1577,7 @@ export function Watchlist() {
         total={allSymbols.length}
         pcts={groupPcts}
         onSelect={handleGroupSelect}
-        onCreate={(name, color) => createGroup.mutateAsync({ name, color }).then(() => undefined)}
+        onCreate={(name, color, file) => createGroup.mutateAsync({ name, color, file }).then(() => undefined)}
         onRename={(groupId, name, color) => renameGroup.mutateAsync({ groupId, name, color }).then(() => undefined)}
         onDelete={groupId => deleteGroup.mutateAsync(groupId).then(() => undefined)}
         onClearGroup={groupId => clearGroup.mutateAsync(groupId).then(() => undefined)}

@@ -5,7 +5,10 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
-import { StrategyCard } from './StrategyCard'
+import { StrategyCard, loadCardSize, CARD_STYLES } from './StrategyCard'
+import { storage } from '@/lib/storage'
+
+vi.mock('@/lib/accountSession', () => ({ accountStorage: window.localStorage }))
 
 const noop = () => {}
 const base = {
@@ -57,10 +60,15 @@ it('hint yields to the real count once available', () => {
   expect(container.textContent).toContain('7')
 })
 
-it('mini size also renders the hint', () => {
-  render({ awaitRun: true, cardSize: 'mini' })
-
-  expect(container.textContent).toContain('待算')
+it('only standard and detailed sizes remain and old sizes fall back to standard', () => {
+  expect(Object.keys(CARD_STYLES).sort()).toEqual(['large', 'normal'])
+  for (const size of ['mini', 'hidden']) {
+    storage.screenerCardSize.set(size)
+    expect(loadCardSize()).toBe('normal')
+  }
+  storage.screenerCardSize.set('large')
+  expect(loadCardSize()).toBe('large')
+  storage.screenerCardSize.set('normal')
 })
 
 it('onRun fires when the card is clicked', () => {

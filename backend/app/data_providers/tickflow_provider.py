@@ -41,6 +41,51 @@ class TickFlowProvider:
                 logger.warning("TickFlow instruments %s/%s failed: %s", ex, instrument_type, e)
         return normalize_instruments(rows, asset_type=asset_type, source=self.name)
 
+    def get_klines(
+        self, symbols: list[str], start_time: datetime | None,
+        end_time: datetime | None, asset_type: AssetType = "stock", freq: str = "1d", adjust: str = "none",
+    ) -> pl.DataFrame:
+        if freq not in ("1m", "5m", "15m", "1d", "1w"):
+            raise ValueError(f"不支持的K线周期: {freq}")
+        from app.services.kline_sync import (
+            _compact_klines_to_df,
+            _datetime_to_ms,
+            _normalize_daily,
+            _normalize_minute,
+            _sdk_call_with_deadline,
+            _timestamp_to_beijing_datetime,
+        )
+        kwargs = {
+            "period": freq, "adjust": adjust, "count": 10000,
+            "as_dataframe": False, "show_progress": False,
+        }
+        if start_time:
+            kwargs["start_time"] = _datetime_to_ms(start_time)
+        if end_time:
+            kwargs["end_time"] = _datetime_to_ms(end_time)
+        from app.tickflow.capabilities import Cap
+        from app.tickflow.policy import detect_capabilities
+        from app.tickflow.rate_limits import chunked, resolve_limit, sleep_between_batches
+        cap = Cap.KLINE_DAILY_BATCH if freq in ("1d", "1w") else Cap.KLINE_MINUTE_BATCH
+        caps = detect_capabilities()
+        if not caps.has(cap):
+            raise ValueError("当前K线数据源缺少该周期批量权限")
+        limit = resolve_limit(caps, cap, default_batch=100, default_rpm=60)
+        frames = []
+        for batch in chunked(symbols, limit.batch):
+            sleep_between_batches(1, limit.rpm)
+            raw = _sdk_call_with_deadline(lambda batch=batch: get_client().klines.batch(batch, **kwargs))
+            frame = _compact_klines_to_df(raw)
+            if not frame.is_empty():
+                frames.append(frame)
+        frame = pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
+        if frame.is_empty():
+            return frame
+        if freq in ("1d", "1w"):
+            frame = frame.with_columns(_timestamp_to_beijing_datetime(pl.col("timestamp")).alias("datetime")).drop("timestamp")
+            return _normalize_daily(frame)
+        return _normalize_minute(frame)
+
     def get_daily(
         self,
         symbols: list[str],
