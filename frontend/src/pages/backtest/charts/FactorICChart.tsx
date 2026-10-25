@@ -84,7 +84,7 @@ export function FactorICChart({ result }: Props) {
     } as any
   }, [result.ic_series, ct])
 
-  const chartRef = useECharts(option, [result.run_id, ct])
+  const chartRef = useECharts(option, result.run_id)
 
   return <div ref={chartRef} className="h-[200px]" />
 }

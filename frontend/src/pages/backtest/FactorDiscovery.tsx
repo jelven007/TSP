@@ -136,7 +136,7 @@ function BatchDiscovery({ onInspect, focusFactor }: { onInspect: (factorName: st
     queryFn: api.watchlistList,
     staleTime: 30_000,
   })
-  const watchlistEntries = watchlist.data?.symbols ?? []
+  const watchlistEntries = useMemo(() => watchlist.data?.symbols ?? [], [watchlist.data?.symbols])
   const watchlistCounts = useMemo(() => {
     // 多组并存: 一股计入每个所属分组
     const counts: Record<string, number> = { ungrouped: 0 }

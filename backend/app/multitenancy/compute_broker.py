@@ -19,6 +19,12 @@ from contextlib import suppress
 from pathlib import Path
 
 from app.multitenancy.executor import KINDS, MAX_MESSAGE_BYTES
+from app.services.strategy_resources import (
+    BudgetPermits,
+    ConcurrencyConfig,
+    budget_status,
+    host_resources,
+)
 
 STDERR_TAIL_BYTES = 8 * 1024
 logger = logging.getLogger(__name__)
@@ -35,7 +41,8 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
 
     def __init__(self, socket_path: Path, image: str, market_root: Path, capacity: int,
                  *, memory_mb: int = 4096, cpus: float = 2, queue_seconds: float = 2,
-                 health_cache_seconds: float = 60):
+                 health_cache_seconds: float = 60, config_file: Path | None = None,
+                 host_memory_mb: int | None = None, host_cpus: float | None = None):
         if (not 1 <= capacity <= 16 or not 256 <= memory_mb <= 65536
                 or not math.isfinite(cpus) or not .25 <= cpus <= 16
                 or not math.isfinite(queue_seconds) or not 0 <= queue_seconds <= 30
@@ -45,10 +52,16 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
         self.market_root = market_root
         self.memory = "4g" if memory_mb == 4096 else f"{memory_mb}m"
         self.cpus = f"{cpus:g}"
+        self.task_memory_mb, self.task_cpus = memory_mb, cpus
+        detected_memory, detected_cpus = host_resources()
+        self.host_memory_mb = detected_memory if host_memory_mb is None else host_memory_mb
+        self.host_cpus = detected_cpus if host_cpus is None else host_cpus
+        self.capacity = capacity
+        self.config = ConcurrencyConfig(config_file) if config_file is not None else None
         self.queue_seconds = queue_seconds
         self.health_cache_seconds = health_cache_seconds
-        self.permits = threading.BoundedSemaphore(capacity)
-        self.waiters = threading.BoundedSemaphore(capacity)
+        self.permits = BudgetPermits(self._resource_policy)
+        self.waiters = threading.BoundedSemaphore(16)
         self.tenant_lock = threading.Lock()
         self.active_tenants: set[str] = set()
         self.health_lock = threading.Lock()
@@ -56,22 +69,44 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
         self.stopped = threading.Event()
         super().__init__(str(socket_path), Handler)
 
+    def _resource_policy(self) -> dict:
+        configured = self.config.read() if self.config is not None else self.capacity
+        return budget_status(
+            self.host_memory_mb, self.host_cpus, configured,
+            task_memory_mb=self.task_memory_mb, task_cpus=self.task_cpus,
+            ceiling=self.capacity,
+        )
+
+    def resource_status(self) -> dict:
+        return {**self._resource_policy(), **self.permits.usage(),
+                "config_enabled": self.config is not None, "execution_mode": "sandbox"}
+
     def command(self, name: str, market_path: Path | None = None) -> list[str]:
+        allocation = self.permits.allocation()
+        if allocation is None:
+            policy = self._resource_policy()
+            memory_mb, cpus = policy["task_memory_mb"], policy["task_cpus"]
+        else:
+            memory_mb, cpus = allocation
+        memory = "4g" if memory_mb == 4096 else f"{memory_mb}m"
         # No host credentials, private files, Docker socket, network, or writable
         # shared mounts enter this container. env -i also removes image defaults.
         return [
             "docker", "run", "--rm", "--name", name, "-i", "--network", "none",
             "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-            "--user", "10001:10001", "--pids-limit", "128", "--memory", self.memory,
-            "--memory-swap", self.memory, "--cpus", self.cpus, "--ulimit", "nofile=256:256",
+            "--user", "10001:10001", "--pids-limit", "128", "--memory", memory,
+            "--memory-swap", memory, "--cpus", f"{cpus:.6f}".rstrip("0").rstrip("."),
+            "--ulimit", "nofile=256:256",
             "--tmpfs", "/tmp:rw,nosuid,nodev,size=512m,uid=10001,gid=10001",
             "--mount", f"type=bind,src={market_path or self.market_root},dst=/market,readonly",
             "--entrypoint", "/usr/bin/env", self.image, "-i",
             "PATH=/app/.venv/bin:/usr/local/bin:/usr/bin:/bin", "PYTHONPATH=/app",
             "PYTHONDONTWRITEBYTECODE=1", "HOME=/tmp", "XDG_CACHE_HOME=/tmp/xdg",
             "DATA_DIR=/market", "TICKFLOW_ENV_FILE=/dev/null",
-            "TIERS_YAML=/app/tiers.yaml", "TZ=Asia/Shanghai", "POLARS_MAX_THREADS=2",
-            "NUMBA_NUM_THREADS=2", "OPENBLAS_NUM_THREADS=1", "OMP_NUM_THREADS=1",
+            "TIERS_YAML=/app/tiers.yaml", "TZ=Asia/Shanghai",
+            f"POLARS_MAX_THREADS={max(1, math.floor(cpus))}",
+            f"NUMBA_NUM_THREADS={max(1, math.floor(cpus))}",
+            "OPENBLAS_NUM_THREADS=1", "OMP_NUM_THREADS=1",
             "NUMBA_CACHE_DIR=/tmp/numba", "/app/.venv/bin/python", "-m",
             "app.multitenancy.compute_worker",
         ]
@@ -160,6 +195,9 @@ class Handler(socketserver.StreamRequestHandler):
             if len(line) > MAX_MESSAGE_BYTES or not line.endswith(b"\n"):
                 raise ValueError("计算任务输入过大或不完整")
             payload = json.loads(line)
+            if payload.get("kind") == "resources":
+                self.send({"type": "result", "payload": broker.resource_status()})
+                return
             from app.multitenancy.publication import release_path
 
             market_path = release_path(broker.market_root, payload.get("public_release_id"))
@@ -276,6 +314,11 @@ def main():
     parser.add_argument("--memory-mb", type=int, default=4096)
     parser.add_argument("--cpus", type=float, default=2)
     parser.add_argument(
+        "--config-file", type=Path,
+        default=os.environ.get("TSP_COMPUTE_CONFIG_FILE"),
+        help="Read-only host path to the platform preferences.json",
+    )
+    parser.add_argument(
         "--queue-seconds", type=float,
         default=float(os.environ.get("TSP_COMPUTE_QUEUE_SECONDS", "2")),
     )
@@ -290,7 +333,7 @@ def main():
     # active broker's socket at startup.
     with ComputeBroker(args.socket, args.image, market, args.capacity,
                        memory_mb=args.memory_mb, cpus=args.cpus,
-                       queue_seconds=args.queue_seconds) as server:
+                       queue_seconds=args.queue_seconds, config_file=args.config_file) as server:
         os.chmod(args.socket, 0o660)
         def shutdown(*_):
             server.stopped.set()

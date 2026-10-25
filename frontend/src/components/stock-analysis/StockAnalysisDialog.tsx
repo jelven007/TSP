@@ -1,6 +1,7 @@
+import { Modal } from '@/components/Modal'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import {
   X, Sparkles, Loader2, AlertTriangle, Copy, Check, RefreshCw,
   Settings2, Send, Wand2, Minimize2, History, LineChart,
@@ -13,7 +14,6 @@ import {
   type ActiveTask, type HistoryReport,
   minimizeDialog, closeDialog, startAnalysis,
 } from '@/lib/stockAnalysisStore'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 /**
  * AI 个股分析对话框 —— 蓝色主题,与财务分析对话框区分。
@@ -83,7 +83,6 @@ export function StockAnalysisDialog({ task, mode, minimized }: Props) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const backdrop = useDialogBackdrop(closeDialog, () => !isWorking)
 
   if (!open) return null
 
@@ -91,18 +90,9 @@ export function StockAnalysisDialog({ task, mode, minimized }: Props) {
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-        {...backdrop}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 12 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-          className="w-full max-w-3xl max-h-[88vh] bg-surface/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        >
+      <Modal onClose={closeDialog} ariaLabel="个股分析" size="md" closeDisabled={isWorking}>
           {/* 头部 —— 蓝色主题 */}
-          <div className="relative px-5 py-3.5 border-b border-border/50 bg-gradient-to-r from-sky-500/[0.06] via-blue-500/[0.04] to-transparent">
+          <div className="modal-header relative">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-500/15 border border-sky-400/30 shrink-0">
                 {isHistory
@@ -148,8 +138,8 @@ export function StockAnalysisDialog({ task, mode, minimized }: Props) {
                   </button>
                 )}
                 {(!isWorking || isHistory) && (
-                  <button onClick={closeDialog} title="关闭"
-                    className="p-1.5 rounded-lg hover:bg-elevated text-muted hover:text-foreground transition-colors">
+                  <button onClick={closeDialog} title="关闭" aria-label="关闭个股分析"
+                    className="modal-close">
                     <X className="h-4 w-4" />
                   </button>
                 )}
@@ -158,7 +148,7 @@ export function StockAnalysisDialog({ task, mode, minimized }: Props) {
           </div>
 
           {/* 内容区 */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 min-h-[280px]">
+          <div ref={scrollRef} className="modal-body flex-1 overflow-y-auto px-5 py-4 min-h-[280px]">
             {phase === 'loading' && !content && (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <div className="relative">
@@ -203,7 +193,7 @@ export function StockAnalysisDialog({ task, mode, minimized }: Props) {
           </div>
 
           {/* 底部:关注点输入 */}
-          <div className="border-t border-border/50 bg-surface/60 px-5 py-3">
+          <div className="modal-footer">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-[10px] text-muted shrink-0">
                 <Wand2 className="h-3 w-3" />
@@ -247,8 +237,7 @@ export function StockAnalysisDialog({ task, mode, minimized }: Props) {
                 : '报告由项目已配置的 AI 模型基于本地行情与财务数据生成;消息面维度暂依据价量异动推断。报告仅供参考,不构成投资建议。'}
             </p>
           </div>
-        </motion.div>
-      </motion.div>
+      </Modal>
     </AnimatePresence>
   )
 }

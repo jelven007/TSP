@@ -1,12 +1,12 @@
+import { Modal } from '@/components/Modal'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Loader2, Plus, Save, Search, Sparkles, X } from 'lucide-react'
 import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 interface Props {
   open: boolean
@@ -26,7 +26,6 @@ const emptySignal = (kind: CustomSignal['kind'] = 'exit'): CustomSignal => ({
 
 export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose, onSaved }: Props) {
   const qc = useQueryClient()
-  const backdrop = useDialogBackdrop(onClose)
   const options = useQuery({ queryKey: QK.customSignalsOptions, queryFn: api.customSignalsOptions, enabled: open })
 
   const [draft, setDraft] = useState<CustomSignal>(() => emptySignal(defaultKind))
@@ -125,34 +124,18 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          {...backdrop}
-        >
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="w-full max-w-3xl max-h-[88vh] bg-surface/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-border/50 px-5 py-4">
+        <Modal onClose={onClose} ariaLabel="自定义信号" size="md">
+            <div className="modal-header flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">{editing ? '编辑自定义信号' : '新建自定义信号'}</h3>
                 <p className="mt-1 text-[11px] text-muted">标识保存后不可修改，如需更换请新建。自定义信号保存为 csg_* 列。</p>
               </div>
-              <button onClick={onClose} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-elevated hover:text-foreground">
+              <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+            <div className="modal-body flex-1 overflow-y-auto px-5 py-5 space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <label className="space-y-1.5">
                   <span className="text-[11px] text-muted">信号标识</span>
@@ -273,14 +256,13 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
               {error && <div className="rounded-btn border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger">{error}</div>}
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-border/50 px-5 py-4">
+            <div className="modal-footer flex justify-end gap-2">
               <button onClick={onClose} className="px-4 py-1.5 rounded-btn bg-elevated text-secondary text-xs">取消</button>
               <button onClick={() => save.mutate()} disabled={save.isPending} className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-btn bg-amber-500/90 text-white text-xs font-medium disabled:opacity-50">
                 <Save className="h-3.5 w-3.5" />保存
               </button>
             </div>
-          </motion.div>
-        </motion.div>
+        </Modal>
       )}
     </AnimatePresence>
   )
@@ -296,7 +278,6 @@ export function FieldPicker({ value, fields, groups, onChange }: {
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const backdrop = useDialogBackdrop(() => setOpen(false))
   const selectedLabel = fields.find(f => f.key === value)?.label ?? value
 
   const filteredGroups = useMemo(() => {
@@ -325,23 +306,9 @@ export function FieldPicker({ value, fields, groups, onChange }: {
       {createPortal(
         <AnimatePresence>
           {open && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-              {...backdrop}
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full max-w-sm bg-surface border border-border/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[70vh]"
-                onClick={e => e.stopPropagation()}
-              >
+            <Modal onClose={() => setOpen(false)} ariaLabel="选择信号字段" size="sm">
                 {/* 标题 + 搜索 */}
-                <div className="p-3 border-b border-border/50 space-y-2.5">
+                <div className="modal-header space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-foreground">选择字段</span>
                     <button onClick={() => setOpen(false)} className="rounded p-1 text-muted hover:bg-elevated hover:text-foreground transition-colors">
@@ -361,7 +328,7 @@ export function FieldPicker({ value, fields, groups, onChange }: {
                   </div>
                 </div>
                 {/* 分组列表 */}
-                <div className="flex-1 overflow-y-auto p-2">
+                <div className="modal-body flex-1 overflow-y-auto p-2">
                   {filteredGroups ? (
                     filteredGroups.length > 0 ? filteredGroups.map(g => (
                       <div key={g.key} className="mb-1">
@@ -395,8 +362,7 @@ export function FieldPicker({ value, fields, groups, onChange }: {
                     ))
                   )}
                 </div>
-              </motion.div>
-            </motion.div>
+            </Modal>
           )}
         </AnimatePresence>,
         document.body,

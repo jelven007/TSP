@@ -7,7 +7,7 @@ from datetime import date
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.data_providers.instrument_status import current_a_share_identity
+from app.data_providers.instrument_status import current_a_share_board, current_a_share_identity
 from app.market_time import cn_today
 from app.services import instrument_sync
 
@@ -35,7 +35,9 @@ def _path(repo):
     return repo.store.data_dir / "instruments" / "instruments.parquet"
 
 
-def list_instruments(repo, *, query: str = "", exchange: str = "", page: int = 1, page_size: int = 50):
+def list_instruments(
+    repo, *, query: str = "", exchange: str = "", board: str = "", page: int = 1, page_size: int = 50,
+):
     frame = repo.get_instruments()
     if frame.is_empty():
         return {"items": [], "total": 0, "page": page, "page_size": page_size}
@@ -46,6 +48,12 @@ def list_instruments(repo, *, query: str = "", exchange: str = "", page: int = 1
         )
     if exchange:
         frame = frame.filter(pl.col("symbol").str.ends_with(f".{exchange}"))
+    if board:
+        if "board" not in frame.columns:
+            frame = frame.with_columns(
+                pl.col("symbol").map_elements(current_a_share_board, return_dtype=pl.String).alias("board"),
+            )
+        frame = frame.filter(pl.col("board") == board)
     total = frame.height
     items = frame.sort("symbol").slice((page - 1) * page_size, page_size).to_dicts()
     return {"items": items, "total": total, "page": page, "page_size": page_size}

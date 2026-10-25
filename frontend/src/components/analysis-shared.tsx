@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 /**
  * 概念/行业分析 — 共享 UI 组件
  *
@@ -10,7 +11,6 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import {
   AlertCircle,
   BarChart3,
@@ -30,7 +30,6 @@ import { cn } from '@/lib/cn'
 import type { DimensionGroup, QuoteMap } from '@/lib/analysis-adapter'
 import { computeQuoteMetrics } from '@/lib/analysis-adapter'
 import { fmtPct, priceColorClass } from '@/lib/format'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 // ===== 配置类型 =====
 
@@ -63,7 +62,6 @@ export function AnalysisConfigDialog({
   showHierarchyLevel?: boolean
 }) {
   const [draft, setDraft] = useState<AnalysisFieldConfig>(currentConfig)
-  const backdrop = useDialogBackdrop(onClose)
   const { data: extList } = useQuery({
     queryKey: QK.extData,
     queryFn: api.extDataList,
@@ -86,22 +84,15 @@ export function AnalysisConfigDialog({
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" {...backdrop}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-surface border border-border rounded-lg shadow-xl w-[420px]"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-4 pt-3 pb-2">
+    <Modal onClose={onClose} ariaLabel="分析设置" size="sm">
+        <div className="modal-header flex items-center justify-between">
           <span className="text-sm font-medium">配置数据源</span>
-          <button onClick={onClose} className="p-0.5 text-muted hover:text-foreground">
+          <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="px-4 pb-4 space-y-3">
+        <div className="modal-body space-y-3">
           {/* 数据源选择 */}
           <div className="space-y-1.5">
             <span className="text-xs text-secondary">扩展数据源</span>
@@ -155,7 +146,7 @@ export function AnalysisConfigDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 px-4 py-3 border-t border-border">
+        <div className="modal-footer flex justify-end gap-2">
           <button onClick={onClose} className="px-3 py-1.5 text-xs text-secondary hover:text-foreground">取消</button>
           <button
             onClick={() => { onSave(draft); onClose() }}
@@ -164,8 +155,7 @@ export function AnalysisConfigDialog({
             保存
           </button>
         </div>
-      </motion.div>
-    </div>
+    </Modal>
   )
 }
 

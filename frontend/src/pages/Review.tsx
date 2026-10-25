@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 /**
  * AI 大盘复盘页 —— 以流式 LLM 复盘报告为主体的盘后复盘工作台。
  *
@@ -6,7 +7,7 @@
  *  - 摘要数据:GET /api/overview/market
  *  - 报告流式:POST /api/market-recap/analyze
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -105,7 +106,10 @@ export function Review() {
   const prefs = usePreferences()
   const full = multitenancyEnabled()
   const channels = useQuery({ queryKey: CHANNELS_KEY, queryFn: api.notificationChannels, enabled: full })
-  const reviewSched = prefs.data?.review_schedule ?? { enabled: false, hour: 15, minute: 10 }
+  const reviewSched = useMemo(
+    () => prefs.data?.review_schedule ?? { enabled: false, hour: 15, minute: 10 },
+    [prefs.data?.review_schedule],
+  )
   const feishuConfigured = !!(prefs.data?.feishu_webhook_url)
   const wecomConfigured = !!(prefs.data?.wecom_webhook_url)
   const customConfigured = !!(prefs.data?.custom_webhook_url)
@@ -117,7 +121,7 @@ export function Review() {
   )
   // 推送渠道是独立的顶层偏好(多选), 与定时 / 实时行情无关, 常驻可单独设置
   // []=不推送; 可多选飞书、企微、第三方 Webhook 和邮件。
-  const reviewPushChannels = prefs.data?.review_push_channels ?? []
+  const reviewPushChannels = useMemo(() => prefs.data?.review_push_channels ?? [], [prefs.data?.review_push_channels])
   // 推送触发方式: auto=归档即推; manual=仅归档不自动外发。默认 manual。
   const reviewPushMode = prefs.data?.review_push_mode ?? 'manual'
   // 弹窗内的本地草稿: 开关和时间都在本地改, 点「保存」才真正提交(避免开关一拨就关弹窗)
@@ -378,20 +382,7 @@ export function Review() {
       {/* ===== 定时复盘设置弹窗 ===== */}
       <AnimatePresence>
         {showSchedule && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            onClick={() => setShowSchedule(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              className="w-full max-w-md rounded-card border border-border bg-surface p-5 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
+          <Modal onClose={() => setShowSchedule(false)} ariaLabel="定时复盘" size="sm" panelClassName="p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-accent" />
@@ -617,8 +608,7 @@ export function Review() {
                   {reviewMut.isPending ? '保存中…' : '保存'}
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+          </Modal>
         )}
       </AnimatePresence>
 

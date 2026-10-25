@@ -26,7 +26,7 @@ export function FactorLibrary({ onInspect, onEdit }: { onInspect: (factorId: str
     queryKey: QK.factorLibrary('all'),
     queryFn: () => api.factorLibrary(),
   })
-  const factors = lib.data?.factors ?? []
+  const factors = useMemo(() => lib.data?.factors ?? [], [lib.data?.factors])
 
   const groups = useMemo(
     () => Array.from(new Set(factors.map(item => item.group))),
@@ -220,9 +220,9 @@ function FactorDetailModal({
     <Modal
       onClose={onClose}
       labelledBy="factor-detail-title"
-      panelClassName="flex max-h-[86vh] w-[92vw] max-w-lg flex-col overflow-hidden border border-border bg-surface shadow-xl rounded-card"
+      size="md"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="modal-header flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <FlaskConical className="h-4 w-4 shrink-0 text-accent" />
@@ -236,13 +236,13 @@ function FactorDetailModal({
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted transition-colors hover:text-foreground"
+          className="modal-close"
           aria-label="关闭"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div className="modal-body min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <dl className="space-y-2">
           {rows.map(([key, value]) => (
             <div key={key} className="flex items-start gap-3 text-xs">
@@ -276,7 +276,7 @@ function FactorDetailModal({
           方向说明：因子方向不预填，以最近一次检验的 IC 符号为准（IC 为正 = 值大看多）。到「检验」页运行后可查看。
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
+      <div className="modal-footer flex flex-wrap items-center gap-2">
         {isDynamic && (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[10px] text-muted" title="生命周期流转">状态：</span>

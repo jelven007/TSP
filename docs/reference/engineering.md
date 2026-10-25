@@ -111,7 +111,7 @@ TSP/
 ├── tests/tooling/                   # 仓库工具、版本与工作流测试
 ├── docs/
 │   ├── README.md                   # 六类主手册与专题导航
-│   ├── requirements.md             # 162条FR（八业务章节）与42条NFR
+│   ├── requirements.md             # 163条FR（八业务章节）与42条NFR
 │   ├── architecture.md             # 当前实现、代码事实源与统一系统目标
 │   ├── testing.md                  # 测试命令、联合验收与基准方法
 │   ├── operations.md               # 部署、配置、账户、巡检与恢复
@@ -143,7 +143,7 @@ TSP/
 
 | 分类 | 维护角色 | 唯一归属与放置原则 |
 | --- | --- | --- |
-| 产品与需求 | 产品负责人 | 204条需求在 `docs/requirements.md`；FR按八章组织，历史依据在 `reports/` |
+| 产品与需求 | 产品负责人 | 205条需求在 `docs/requirements.md`；FR按八章组织，历史依据在 `reports/` |
 | 业务源码 | 后端／前端负责人 | 就近维护领域模块；API 和页面不承担仓库、Provider 的职责 |
 | 原生依赖 | 数据接入负责人 | `backend/native/`；保持 Python 接入与锁定 revision 一致 |
 | 数据库迁移 | 后端／数据负责人 | `backend/app/cell/sql/` 随应用打包；不复制到另一个顶层 SQL 目录 |
@@ -519,7 +519,15 @@ git ls-remote --tags origin 'refs/tags/v*'
 ## 5. 需求与生命周期追踪
 
 更新日期：2026-10-25。本次基线为 `31cf1a553dbc806aac6e6f93f30f4f41b646aa3e` / 0.4.19，
-全部有效本地修改的范围和验证见[本轮记录](../../reports/production-baseline-20261025/verification.md)。
+全部有效本地修改的范围和验证见[本批记录](../../reports/current-state-release-20261025/verification.md)。
+
+当前主手册163FR+42NFR=205条，保留原203编号并新增FR-UI-05/06。
+本批逐项归属包括策略结果归档、全局资源预算、目录仅读同步、两步向导、
+标准弹窗及研究界面；原始153文件冻结，独立整合分支验证后经PR归并。
+文档责任/事实源/每月复核与漂移信号见
+[文档清单](../../reports/current-state-release-20261025/verification.md#文档事实源与更新责任)。
+本地与线上均从同一通过质量门的提交更新Runtime/Compute及Broker，
+每个阶段独立核对版本、静态资源、完整功能健康、配置和业务数据保留。
 下列2026-10-23/24记录保留当时的范围和结果：
 逐文件新增、修改、删除、迁移和SHA-256清单见
 [整合证据](../../reports/production-system-consolidation-20261023/verification.md)。
@@ -543,7 +551,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 变更组 / 责任 | 需求 | 方案 / 开发 | 测试 | 运营 / 运维影响 |
 | --- | --- | --- | --- | --- |
 | 工程目录 / 开发负责人 | NFR-01/04/06/10 | [布局](#layout)、[生产工程](#engineering)、ADR0001/0002 | tooling、脚本import/CLI、CI、文档门禁 | 外部作业同步新路径，模式/端口/数据目录不随源码迁移 |
-| 需求基线与八模块 / 产品负责人 | 全162FR、42NFR | [需求总纲](../requirements.md)、[当前索引](../architecture.md#capabilities) | 保留203个原编号、新增FR-UI-05；唯一性、状态与链接 | 用户说明只写当前能力，阶段/生产/目标独立 |
+| 需求基线与八模块 / 产品负责人 | 全163FR、42NFR | [需求总纲](../requirements.md)、[当前索引](../architecture.md#capabilities) | 保留203个原编号、新增FR-UI-05/06；唯一性、状态与链接 | 用户说明只写当前能力，阶段/生产/目标独立 |
 | 融合系统目标 / 架构负责人 | FR-REALTIME/STATS/HISTORY/SCREEN/BACKTEST、NFR-23–42 | [系统目标](../architecture.md#target)、[二期计划](../planning/phase2-implementation-plan.md) | A–I、3.1–3.6联合矩阵，未实现项未执行 | 容量/成本/可靠性目标未签收，轻量不强装新组件 |
 | 数据能力与配置说明 / 数据负责人 | FR-DATA/EXT/ADMIN、FR-CORP | [Provider](integrations.md#plugin)、[公司行为](trading-ai.md#corporate)、[配置](../operations.md#configuration) | 能力/日期/账务/旧模式/配置测试 | usable不认证日期；失败保护旧结果，变更源配置拒绝旧请求 |
 | 策略、因子与研究行为补齐 / 研究负责人 | FR-STRATEGY/SIGNAL/FACTOR/MINING/BACKTEST | [策略](research.md#strategy)、[因子](factor-system.md#factor-current)、[研究](research.md#research) | 原价/费用/T+1/固定输入/样本外/候选门槛/缓存 | 研究产物不等于收益承诺；缺历史/时点证据显式受限 |

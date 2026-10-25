@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -537,9 +538,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
       </div>
 
       {confirmClear && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmClear(false)} />
-          <div className="relative w-[90vw] max-w-[380px] rounded-card border border-border bg-base shadow-2xl p-6">
+        <Modal onClose={() => setConfirmClear(false)} ariaLabel="清空AI配置" size="sm" panelClassName="p-5">
             <h3 className="text-sm font-medium text-foreground mb-2">清空 AI 配置</h3>
             <p className="text-xs text-secondary mb-5 leading-relaxed">
               这会清空已保存的 provider、API Key、API 地址、模型和 Codex CLI 命令。之后可以重新配置。
@@ -552,8 +551,7 @@ export function SettingsAIPanel({ highlight }: { highlight?: string } = {}) {
                 {clear.isPending ? '清空中...' : '确认'}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
     </HighlightContext.Provider>

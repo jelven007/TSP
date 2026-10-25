@@ -44,6 +44,8 @@ async def trigger_pipeline_job(repo, capset, quote_service=None, *, source="manu
             return
         try:
             loop = asyncio.get_running_loop()
+            if initialize:
+                await daily_pipeline.wait_for_catalog_jobs()
 
             def progress(stage, pct, msg, stage_pct=None, skip_log=False):
                 job_store.progress(

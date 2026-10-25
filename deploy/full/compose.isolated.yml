@@ -41,12 +41,14 @@ services:
       TSP_COMPUTE_MEMORY_MB: ${TSP_COMPUTE_MEMORY_MB:-1024}
       TSP_COMPUTE_CPUS: ${TSP_COMPUTE_CPUS:-1}
       TSP_COMPUTE_QUEUE_SECONDS: ${TSP_COMPUTE_QUEUE_SECONDS:-2}
+      TSP_COMPUTE_CONFIG_FILE: /platform-config/preferences.json
       PYTHONDONTWRITEBYTECODE: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - candidate-socket:/run/tsp
       # Sibling compute mounts use Docker-host paths, so keep both paths equal.
       - ${TSP_PUBLIC_MARKET_DIR}:${TSP_PUBLIC_MARKET_DIR}:ro
+      - ${TSP_PLATFORM_CONFIG_DIR}:/platform-config:ro
     network_mode: none
     read_only: true
     tmpfs: ["/tmp:rw,nosuid,nodev,size=32m"]
@@ -62,6 +64,8 @@ services:
       interval: 15s
       timeout: 25s
       retries: 3
+  platform:
+    volumes: [candidate-socket:/run/tsp:ro]
   api:
     ports: !reset []
     volumes: [candidate-socket:/run/tsp:ro]

@@ -29,8 +29,9 @@ vi.mock('@/lib/api', () => ({
 }))
 
 let root: Root | null = null
-const container = document.createElement('div')
-document.body.appendChild(container)
+let container: HTMLDivElement
+const mount = document.createElement('div')
+document.body.appendChild(mount)
 
 // 渲染前预取策略列表进缓存: query 同步命中, 避免 jsdom 下异步解析时序抖动
 async function render(props: { show: boolean; onClose?: () => void }) {
@@ -42,7 +43,7 @@ async function render(props: { show: boolean; onClose?: () => void }) {
     queryKey: [...QK.screenerStrategies('all'), 'all'],
     queryFn: () => api.screenerStrategies(undefined, 'all'),
   })
-  root = createRoot(container)
+  root = createRoot(mount)
   await act(async () => {
     root!.render(
       <QueryClientProvider client={queryClient}>
@@ -50,6 +51,7 @@ async function render(props: { show: boolean; onClose?: () => void }) {
       </QueryClientProvider>,
     )
   })
+  container = document.querySelector<HTMLDivElement>('[role="dialog"][aria-labelledby="default-strategy-params-title"]') ?? mount
 }
 
 beforeEach(() => {
@@ -62,13 +64,14 @@ beforeEach(() => {
 })
 afterEach(() => {
   if (root) { act(() => { root!.unmount() }); root = null }
-  container.innerHTML = ''
+  mount.innerHTML = ''
 })
 
 it('renders nothing when show=false', async () => {
   await render({ show: false })
 
   expect(container.textContent).toBe('')
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
 })
 
 it('shows the basic filter fields when open', async () => {

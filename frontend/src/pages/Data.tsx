@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -62,6 +63,20 @@ import { CreateExtDialog } from '@/components/ext-data/CreateExtDialog'
 import { EditExtDialog } from '@/components/ext-data/EditExtDialog'
 
 const PIPELINE_TERMINAL_STATES = new Set(['succeeded', 'failed', 'cancelled', 'interrupted'])
+const STAGE_CARD: Record<string, string> = {
+  sync_instruments: 'instruments',
+  sync_daily: 'daily',
+  extend_history: 'daily',
+  sync_adj: 'adj_factor',
+  compute_enriched: 'enriched',
+  rebuild_enriched: 'enriched',
+  sync_index: 'index_daily',
+  sync_minute: 'minute',
+  extend_minute: 'minute',
+  compute_regime: 'regime',
+  // regime 软失败时入 skipped_stages 的是 'regime'(非 stage 名), 也映射到该卡片
+  regime: 'regime',
+}
 
 export function Data() {
   const qc = useQueryClient()
@@ -140,7 +155,10 @@ export function Data() {
   const updateSchedule = useMutation({
     mutationFn: ({ hour, minute }: { hour: number; minute: number }) =>
       api.updatePipelineSchedule(hour, minute),
-    onSuccess: () => {
+    onSuccess: (schedule) => {
+      qc.setQueryData<Awaited<ReturnType<typeof api.preferences>>>(QK.preferences, current =>
+        current ? { ...current, pipeline_schedule: schedule } : current,
+      )
       qc.invalidateQueries({ queryKey: QK.preferences })
       qc.invalidateQueries({ queryKey: QK.dataStatus })
       setShowScheduleEdit(false)
@@ -210,7 +228,7 @@ export function Data() {
   }, [tfCaps, matrix.data])
 
   const minuteAuto = prefs.data?.minute_sync_enabled ?? true
-  const pipelineSched = prefs.data?.pipeline_schedule ?? { hour: 15, minute: 35 }
+  const pipelineSched = prefs.data?.pipeline_schedule ?? { hour: 16, minute: 0 }
   const indexDailyBatchSize = prefs.data?.index_daily_batch_size ?? 100
   const autoSyncEnabled = prefs.data?.data_sync_auto_enabled ?? true
   const updateAutoSync = useMutation({
@@ -257,7 +275,7 @@ export function Data() {
   const realtimeEnabled = prefs.data?.realtime_quotes_enabled ?? true
   const quoteStatus = useQuoteStatus()
   const toggleQuote = useToggleRealtimeQuotes()
-  const realtimeIntervalS = quoteInterval.data?.interval ?? quoteStatus.data?.interval_s ?? 1
+  const realtimeIntervalS = quoteInterval.data?.interval ?? quoteStatus.data?.interval_s ?? 3
   const intradayStatus = !realtimeEnabled ? '已关闭'
     : quoteStatus.isLoading ? '加载中…'
     : quoteStatus.isError ? '状态获取失败'
@@ -292,8 +310,9 @@ export function Data() {
   // 引用 cardVisibleTick 触发重渲染(避免 lint 警告)
   void cardVisibleTick
 
+  const jobStatus = job.data?.status
   useEffect(() => {
-    if (job.data && PIPELINE_TERMINAL_STATES.has(job.data.status)) {
+    if (jobStatus && PIPELINE_TERMINAL_STATES.has(jobStatus)) {
       qc.invalidateQueries({ queryKey: QK.dataStatus })
       qc.invalidateQueries({ queryKey: QK.pipelineJobs })
       // 同步任务结束后 regime 覆盖范围可能变化, 一并刷新画像
@@ -301,7 +320,7 @@ export function Data() {
       // 同步重写了指数日K/enriched/日K → 失效消费这些数据的查询。
       // 侧边栏指数查询挂在 Layout 常驻不重挂载 (refetchOnWindowFocus 已关),
       // 不失效会一直显示同步前的旧值; 自选相关查询在页面正打开时同理。
-      if (job.data.status === 'succeeded') {
+      if (jobStatus === 'succeeded') {
         qc.invalidateQueries({ queryKey: QK.indexQuotes })
         qc.invalidateQueries({ queryKey: ['index-daily'] })
         qc.invalidateQueries({ queryKey: ['watchlist-enriched'] })
@@ -310,7 +329,7 @@ export function Data() {
       const t = setTimeout(() => setActiveJobId(null), 5_000)
       return () => clearTimeout(t)
     }
-  }, [job.data?.status])
+  }, [jobStatus, qc])
 
   useEffect(() => {
     if (job.isError && /404/.test(String((job.error as any)?.message ?? ''))) {
@@ -319,8 +338,9 @@ export function Data() {
   }, [job.isError, job.error])
 
   useEffect(() => {
-    if (!activeJobId && history.data?.active_id) {
-      setActiveJobId(history.data.active_id)
+    if (history.data?.active_id) {
+      const historyJobId = history.data.active_id
+      setActiveJobId(current => current ?? historyJobId)
     }
   }, [history.data?.active_id])
 
@@ -363,20 +383,6 @@ export function Data() {
     Math.max(30, Math.ceil((Date.now() - indexTargetDate.getTime()) / 86_400_000) + 1),
   )
 
-  const STAGE_CARD: Record<string, string> = {
-    sync_instruments: 'instruments',
-    sync_daily: 'daily',
-    extend_history: 'daily',
-    sync_adj: 'adj_factor',
-    compute_enriched: 'enriched',
-    rebuild_enriched: 'enriched',
-    sync_index: 'index_daily',
-    sync_minute: 'minute',
-    extend_minute: 'minute',
-    compute_regime: 'regime',
-    // regime 软失败时入 skipped_stages 的是 'regime'(非 stage 名), 也映射到该卡片
-    regime: 'regime',
-  }
   const activeCard = isRunning && job.data ? STAGE_CARD[job.data.stage] ?? null : null
 
   const skippedCards = new Set(
@@ -387,9 +393,10 @@ export function Data() {
 
   const prevStageRef = useRef<string | null>(null)
   const [doneStages, setDoneStages] = useState<Set<string>>(new Set())
+  const jobStage = job.data?.stage
   useEffect(() => {
-    if (!job.data?.stage) return
-    const stage = job.data.stage
+    if (!jobStage) return
+    const stage = jobStage
     if (stage === prevStageRef.current) return
     const prev = prevStageRef.current
     if (prev && STAGE_CARD[prev]) {
@@ -397,7 +404,7 @@ export function Data() {
     }
     prevStageRef.current = stage
     qc.invalidateQueries({ queryKey: QK.dataStatus })
-  }, [job.data?.stage])
+  }, [jobStage, qc])
 
   useEffect(() => {
     if (!activeJobId) {
@@ -849,6 +856,7 @@ export function Data() {
                     </span>
                     <button
                       onClick={() => setShowScheduleEdit(v => !v)}
+                      aria-label="修改全量管道同步时间"
                       className={`p-0.5 rounded hover:bg-elevated transition-colors ${showScheduleEdit ? 'text-accent' : 'text-secondary'}`}
                     >
                       <Clock className="h-3 w-3" />
@@ -882,7 +890,7 @@ export function Data() {
                         value={pipelineSched}
                         onSave={(h, m) => updateSchedule.mutate({ hour: h, minute: m })}
                         loading={updateSchedule.isPending}
-                        hint="不早于 15:00"
+                        hint="不早于 15:35"
                       />
                     </motion.div>
                   )}
@@ -1205,22 +1213,7 @@ export function Data() {
       {/* 停止同步二次确认弹窗 */}
       <AnimatePresence>
         {showStopConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => !stopSync.isPending && setShowStopConfirm(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-[90vw] max-w-[420px] rounded-card border border-border bg-base shadow-2xl p-6"
-            >
+          <Modal onClose={() => setShowStopConfirm(false)} ariaLabel="停止数据同步" size="sm" closeDisabled={stopSync.isPending} panelClassName="p-5">
               <div className="flex items-start gap-3">
                 <div className="shrink-0 h-10 w-10 rounded-full bg-danger/12 flex items-center justify-center">
                   <AlertTriangle className="h-5 w-5 text-danger" />
@@ -1255,8 +1248,7 @@ export function Data() {
                   {stopSync.isPending ? '停止中…' : '确认停止'}
                 </button>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 
@@ -1264,22 +1256,7 @@ export function Data() {
       <AnimatePresence>
         {adjGate.dialog}
         {showClearConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => !clearData.isPending && setShowClearConfirm(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-[90vw] max-w-[420px] rounded-card border border-border bg-base shadow-2xl p-6"
-            >
+          <Modal onClose={() => setShowClearConfirm(false)} ariaLabel="清除本地数据" size="sm" closeDisabled={clearData.isPending} panelClassName="p-5">
               <div className="flex items-start gap-3">
                 <div className="shrink-0 h-10 w-10 rounded-full bg-danger/12 flex items-center justify-center">
                   <AlertTriangle className="h-5 w-5 text-danger" />
@@ -1319,8 +1296,7 @@ export function Data() {
                   {clearData.isPending ? '清除中…' : '清除数据'}
                 </button>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
     </>

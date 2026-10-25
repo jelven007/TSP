@@ -159,7 +159,7 @@ export function RegimeComparisonChart({ rows }: RegimeComparisonChartProps) {
     }
   }, [preparedRows, hasMetrics, ct])
 
-  const chartRef = useECharts(option, [preparedRows, ct])
+  const chartRef = useECharts(option)
   const emptyMessage = rows.length === 0
     ? '暂无市场状态数据'
     : '样本不足，暂无可比较指标'

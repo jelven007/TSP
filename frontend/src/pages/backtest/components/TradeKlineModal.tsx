@@ -1,5 +1,6 @@
+import { Modal } from '@/components/Modal'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { Clock, X } from 'lucide-react'
 import { StockPanel } from '@/components/StockPanel'
 import { NavPager, NavWrapToast } from '@/components/NavPager'
@@ -8,7 +9,6 @@ import type { StrategyBacktestTrade } from '@/lib/api'
 import { useListNav } from '@/lib/useListNav'
 import { tradeNavKey, type TradeNavItem } from '../tradeNav'
 import { fmtPct, fmtPrice, priceColorClass } from '@/lib/format'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 /** 单笔回放来自哪个入口: 决定切交易时同步翻哪张表的页 */
 export type TradeNavSource = 'daily' | 'trades'
@@ -47,11 +47,6 @@ function fmtSignedMoney(v: number | null | undefined): string {
 
 export function TradeKlineModal({ trade, navItems, currentKey, onNavigate, onClose }: Props) {
   const [showIntraday, setShowIntraday] = useState(false)
-  const backdrop = useDialogBackdrop(onClose)
-
-  // onClose 只有 ESC 用; onNavigate 由 useListNav 内部承接 (支持内联 lambda)
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
 
   const nav = useListNav<TradeNavItem>({
     items: navItems ?? [],
@@ -61,16 +56,6 @@ export function TradeKlineModal({ trade, navItems, currentKey, onNavigate, onClo
     // 「笔」而非「只」: 链的粒度是交易, 同一标的可以出现多笔
     wrapHints: { head: '已到首笔', tail: '已到末笔' },
   })
-
-  // ESC 关闭 (左右键切交易由 useListNav 接管)
-  useEffect(() => {
-    if (!trade) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [trade])
 
   // 弹窗内切交易时保留当前视图 (分时下切交易不应跳回日K); 仅首次打开时重置为日K。
   const prevTradeRef = useRef<StrategyBacktestTrade | null>(null)
@@ -122,23 +107,8 @@ export function TradeKlineModal({ trade, navItems, currentKey, onNavigate, onClo
   return (
     <AnimatePresence>
       {trade && dateRange && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            {...backdrop}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 8 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative flex max-h-[94vh] w-[92vw] max-w-[1120px] flex-col overflow-hidden rounded-card border border-border bg-base shadow-2xl"
-          >
-            <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-3">
+        <Modal onClose={onClose} ariaLabel="交易K线" size="xl">
+            <div className="modal-header flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm font-semibold text-foreground">{trade.symbol}</span>
@@ -176,7 +146,8 @@ export function TradeKlineModal({ trade, navItems, currentKey, onNavigate, onClo
                 </button>
                 <button
                   onClick={onClose}
-                  className="rounded-btn p-1 text-secondary transition-colors hover:bg-elevated hover:text-foreground"
+                  className="modal-close"
+                  aria-label="关闭弹窗"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -199,8 +170,7 @@ export function TradeKlineModal({ trade, navItems, currentKey, onNavigate, onClo
 
             {/* 首↔尾循环弱提示 */}
             <NavWrapToast message={nav.wrapMsg} />
-          </motion.div>
-        </div>
+        </Modal>
       )}
     </AnimatePresence>
   )

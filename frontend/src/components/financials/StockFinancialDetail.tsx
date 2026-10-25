@@ -1,5 +1,6 @@
+import { Modal } from '@/components/Modal'
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { CalendarDays, TrendingUp, FileText, Wallet, Activity, Sparkles, AlertTriangle, Loader2, ChartPie } from 'lucide-react'
 import {
   useFinancialMetrics,
@@ -278,20 +279,7 @@ export function StockFinancialDetail({ symbol, name }: Props) {
       {/* AI 分析二次确认:已有该标的历史报告 */}
       <AnimatePresence>
         {confirmReport && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={() => setConfirmReport(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-[90vw] max-w-[400px] rounded-card border border-border bg-base shadow-2xl p-6"
-            >
+          <Modal onClose={() => setConfirmReport(null)} ariaLabel="分析报告确认" size="sm" panelClassName="p-5">
               <div className="flex items-start gap-3">
                 <div className="shrink-0 h-10 w-10 rounded-full bg-purple-400/12 flex items-center justify-center">
                   <AlertTriangle className="h-5 w-5 text-purple-300" />
@@ -330,8 +318,7 @@ export function StockFinancialDetail({ symbol, name }: Props) {
                   重新分析
                 </button>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
     </div>
