@@ -92,9 +92,9 @@ export function GenerateFactorStrategyDialog({
     <Modal
       onClose={onClose}
       labelledBy="generate-factor-strategy-title"
-      panelClassName="flex max-h-[86vh] w-[92vw] max-w-md flex-col overflow-hidden border border-border bg-surface shadow-xl rounded-card"
+      size="sm"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="modal-header flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 shrink-0 text-accent" />
@@ -105,7 +105,7 @@ export function GenerateFactorStrategyDialog({
         <span className="shrink-0 rounded-btn bg-elevated px-1.5 py-0.5 text-[10px] text-secondary">{item.label}</span>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+      <div className="modal-body min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
         <div className="rounded-btn border border-border bg-base/40 px-3 py-2 text-[11px] leading-relaxed text-secondary">
           生成一个单因子排名策略：按因子值全市场排名打分，评分高于「入选评分下限」入场、跌破「离场评分上限」出场。
           入场/离场评分、每日入选上限都是策略参数，回测时可直接调。
@@ -137,7 +137,7 @@ export function GenerateFactorStrategyDialog({
         </p>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+      <div className="modal-footer flex items-center justify-end gap-2">
         <button type="button" onClick={onClose} className="rounded-btn bg-elevated px-3 py-1.5 text-xs text-secondary transition-colors hover:text-foreground">取消</button>
         <button
           type="button"

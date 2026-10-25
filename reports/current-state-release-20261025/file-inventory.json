@@ -1,0 +1,979 @@
+{
+  "base_revision": "7823b84bd0d7d793b33f2b2c26b2afce522ecf36",
+  "initial_frozen_files": 153,
+  "scope": "final production/test/document changes; mutable current-state review records excluded",
+  "files": [
+    {
+      "path": ".claude/artifacts/designs/strategy-result-history.md",
+      "category": "documentation",
+      "sha256": "b7e5165b0a7a310562756e01614ec080675119e2a8e16ecd31cfb010feadd84d",
+      "bytes": 6258
+    },
+    {
+      "path": "AGENTS.md",
+      "category": "documentation",
+      "sha256": "54c325e74ce48679995f26d22e50eea84b53553b053f948f3a4cf0999f6bd4f5",
+      "bytes": 1926
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "category": "documentation",
+      "sha256": "df61e3ffaf7e7cdfacfdb35419598d0db18219b6125993f60610d9ac53c28f31",
+      "bytes": 36730
+    },
+    {
+      "path": "README.md",
+      "category": "documentation",
+      "sha256": "471f5b5f50aace0d73ad6c8c5d4bf4b24788823d426d0c2667dcbf877e3556f1",
+      "bytes": 14376
+    },
+    {
+      "path": "backend/app/api/instruments.py",
+      "category": "backend",
+      "sha256": "caa679afd6d148cbe998cf766fdd0054fe1a77fddc50123a428e2cfad51b1f41",
+      "bytes": 2475
+    },
+    {
+      "path": "backend/app/api/intraday.py",
+      "category": "backend",
+      "sha256": "59767de7fc5c5967adadb22c44a919a92a55d24bd9f6f6cbb9442fbe70fad8c2",
+      "bytes": 8560
+    },
+    {
+      "path": "backend/app/api/screener.py",
+      "category": "backend",
+      "sha256": "7d5467398250718d607850260f17da529c99d920cb0f4e1aaa0c4c3a404f66b0",
+      "bytes": 56280
+    },
+    {
+      "path": "backend/app/api/settings.py",
+      "category": "backend",
+      "sha256": "7c44d044f534876ce96622482358cf9dbc54438dbfffa01f3e455b0244366061",
+      "bytes": 83555
+    },
+    {
+      "path": "backend/app/api/strategy.py",
+      "category": "backend",
+      "sha256": "a5614ddee1e8d872421073248aeb96189f4499c80fe56ecd0dbe51a7e6e04a18",
+      "bytes": 56065
+    },
+    {
+      "path": "backend/app/jobs/daily_pipeline.py",
+      "category": "backend",
+      "sha256": "a3eaaefe5a751d2ec02d9626c5e03eef1f049e7c99e8eeb4ecc2f2350f874c27",
+      "bytes": 78002
+    },
+    {
+      "path": "backend/app/multitenancy/compute_broker.py",
+      "category": "backend",
+      "sha256": "de5e1877d234f7550e13fdce7a666a4c67cf542d0bae6bfd593c264cd081c9c8",
+      "bytes": 16811
+    },
+    {
+      "path": "backend/app/multitenancy/executor.py",
+      "category": "backend",
+      "sha256": "3dbfb52852afbba486744536df068181a65acf02c5fbad6094ca6303b97fe199",
+      "bytes": 3913
+    },
+    {
+      "path": "backend/app/multitenancy/platform.py",
+      "category": "backend",
+      "sha256": "363f47d0d79437493a4707db16b3241d5382e8678861c14d0d88faf178da24cb",
+      "bytes": 9554
+    },
+    {
+      "path": "backend/app/multitenancy/strategies.py",
+      "category": "backend",
+      "sha256": "2a27352af88fb62bfeed0cb033dffd77c5528959789e74fd29616a84747f4051",
+      "bytes": 9400
+    },
+    {
+      "path": "backend/app/services/instrument_catalog.py",
+      "category": "backend",
+      "sha256": "f3a2414685dbbb14483919b17d0cb316fce7676de2dd658f069d60c25f7ba281",
+      "bytes": 6041
+    },
+    {
+      "path": "backend/app/services/pipeline_runner.py",
+      "category": "backend",
+      "sha256": "ad55900a080829ac517811d86d67fc5710788ff090702c87298fdb8120325a7e",
+      "bytes": 3506
+    },
+    {
+      "path": "backend/app/services/preferences.py",
+      "category": "backend",
+      "sha256": "2de00b25914f1e03895776da51f160bb3a4c8a897ad3d01965f633c38a0ad651",
+      "bytes": 46696
+    },
+    {
+      "path": "backend/app/services/quote_service.py",
+      "category": "backend",
+      "sha256": "e1a385f62f1c285388a85477a03ac6a22f191edbf4f0d7c22da8e9ff3c238b83",
+      "bytes": 119010
+    },
+    {
+      "path": "backend/app/services/repair_daily.py",
+      "category": "backend",
+      "sha256": "ff66170e4dcaf05e6443adcf46d90db393123d413044eb9d1786012853c0c709",
+      "bytes": 3722
+    },
+    {
+      "path": "backend/app/services/screener.py",
+      "category": "backend",
+      "sha256": "26df7b069710429c90b249f68ac9d744c832da1d64432e8ad58671329142380c",
+      "bytes": 25238
+    },
+    {
+      "path": "backend/app/services/strategy_resources.py",
+      "category": "backend",
+      "sha256": "5db1649c46ad24f4ccd03941b214f92320b9ee1864cef6d966d91f8e5e9a861c",
+      "bytes": 8488
+    },
+    {
+      "path": "backend/app/services/strategy_results.py",
+      "category": "backend",
+      "sha256": "28b4bfb4ab9465025c70f3a4b1974d82799ada98aa39095e580607bb89ca1371",
+      "bytes": 18917
+    },
+    {
+      "path": "backend/app/strategy/engine.py",
+      "category": "backend",
+      "sha256": "5cd9d2bb3f8792fc4875a71bdebb6315f2b68ec146e7f0e26ac9bc2ae37e7dd0",
+      "bytes": 81723
+    },
+    {
+      "path": "backend/app/strategy/monitor.py",
+      "category": "backend",
+      "sha256": "001186bb910af64b8ed7421d641f2dc2b5f92be9445d3c24d427098286c445ec",
+      "bytes": 112572
+    },
+    {
+      "path": "backend/app/strategy/version.py",
+      "category": "backend",
+      "sha256": "e2c1742926fe6ff0e34f9c27f849c82f375f4331dbdb7dba70b4c693baed5ddb",
+      "bytes": 2403
+    },
+    {
+      "path": "backend/tests/test_email_defaults.py",
+      "category": "backend-test",
+      "sha256": "b1b40447a7d6304ca653ccbcd9ed9d392b6bc31dda96a852dd95ee0ae4e1d3a9",
+      "bytes": 16862
+    },
+    {
+      "path": "backend/tests/test_full_compute.py",
+      "category": "backend-test",
+      "sha256": "087e10e8304ab7e2ba610b4175b2d69da269a6442dc502048b9ae06539a3140e",
+      "bytes": 8585
+    },
+    {
+      "path": "backend/tests/test_full_strategy_history.py",
+      "category": "backend-test",
+      "sha256": "7c3c5d981a2917f8a76aa967de5835e9fe9a7ec4356089dc4b324fd7c1a1a6a0",
+      "bytes": 2836
+    },
+    {
+      "path": "backend/tests/test_initial_sync.py",
+      "category": "backend-test",
+      "sha256": "6bbf0d9c3c2aafc76a4a2102f03bc1a67646c589b2203195bad22cd3513ecd60",
+      "bytes": 14540
+    },
+    {
+      "path": "backend/tests/test_instrument_catalog_admin.py",
+      "category": "backend-test",
+      "sha256": "d1623234da3debcef527a9ec220b7e02420141decd69715d88da5d3fb025f46d",
+      "bytes": 11708
+    },
+    {
+      "path": "backend/tests/test_minute_refresh.py",
+      "category": "backend-test",
+      "sha256": "2729ab1de96331a21d89ee97c60bacb5d77acf6a595b7ae392c849d9f63d5ce6",
+      "bytes": 22165
+    },
+    {
+      "path": "backend/tests/test_minute_strategy.py",
+      "category": "backend-test",
+      "sha256": "10200beeaa85e98080abc6c9ab089e0d7dad1e5d7cca0bef853ad929312d7cb2",
+      "bytes": 22385
+    },
+    {
+      "path": "backend/tests/test_openapi_contract.py",
+      "category": "backend-test",
+      "sha256": "bd6df6928089a22b2785d49680bbec3498accc99ff402eded56b900492709013",
+      "bytes": 8048
+    },
+    {
+      "path": "backend/tests/test_pipeline_beijing_today.py",
+      "category": "backend-test",
+      "sha256": "f3d4bfa78c6a02b17590d6a82e4073dd62f49f0b8ed1c4d6da3541f21ac191a6",
+      "bytes": 2475
+    },
+    {
+      "path": "backend/tests/test_pipeline_catalog_readonly.py",
+      "category": "backend-test",
+      "sha256": "bc3a72e95372bc56e900a28f22913f2a07f23baed30736c3f9216fe3e36159aa",
+      "bytes": 5482
+    },
+    {
+      "path": "backend/tests/test_pipeline_schedule.py",
+      "category": "backend-test",
+      "sha256": "45fecf1a80c6f762efd3fb64a5a8de51310506258aa81d51aa4f97be7296620e",
+      "bytes": 4498
+    },
+    {
+      "path": "backend/tests/test_preferences_cache.py",
+      "category": "backend-test",
+      "sha256": "325abfae629eee46cc944107f7318e7b38c51e9bec379aeb9cdddcd1828caa1e",
+      "bytes": 15192
+    },
+    {
+      "path": "backend/tests/test_quote_interval_min.py",
+      "category": "backend-test",
+      "sha256": "6930075f15b5a70bae4f2b0fa276ff6bfa8f59bc60a4944b4fd31db8b9e7cda2",
+      "bytes": 2541
+    },
+    {
+      "path": "backend/tests/test_quote_interval_settings.py",
+      "category": "backend-test",
+      "sha256": "9ebf4f6231cb7f5396f5dab2c72ea7942cdae4e0796030f02e3a1436e15d7701",
+      "bytes": 1356
+    },
+    {
+      "path": "backend/tests/test_screener_history_api.py",
+      "category": "backend-test",
+      "sha256": "e42fec3e2c93e61a1905102e136815c7464cbcb245a6dc4e345b3a895c805fd1",
+      "bytes": 7298
+    },
+    {
+      "path": "backend/tests/test_strategy_concurrency.py",
+      "category": "backend-test",
+      "sha256": "916df14a58d1f61e85ff4ec6a0c4bf1691f4cdcb796ae347f0c9772d99c50c36",
+      "bytes": 15398
+    },
+    {
+      "path": "backend/tests/test_strategy_realtime_refresh.py",
+      "category": "backend-test",
+      "sha256": "e3f898eecf7e032b602e93ab04c972f69f57a4dad0b01a100f9800461227086f",
+      "bytes": 7553
+    },
+    {
+      "path": "backend/tests/test_strategy_result_history.py",
+      "category": "backend-test",
+      "sha256": "fc03332b5a505c566064b17b06c6abde013ed25e2e6b924cca411b65d8c5d943",
+      "bytes": 8144
+    },
+    {
+      "path": "backend/tests/test_tenant_minute_status.py",
+      "category": "backend-test",
+      "sha256": "53d26c4c1495a8afd8239d931f887deb9f032c8c9974226a6e5e7c43a4b4cc15",
+      "bytes": 3818
+    },
+    {
+      "path": "deploy/full/README.md",
+      "category": "documentation",
+      "sha256": "57306be2664e6a1bbcf6321697b42104b83fc656a23811bf562263075c1d493e",
+      "bytes": 18710
+    },
+    {
+      "path": "deploy/full/compose.isolated.yml",
+      "category": "deployment",
+      "sha256": "dd817b06e7323053abb1866cb4f8ff9eabd5e6b98281fa35e3d07aef5598d5ee",
+      "bytes": 3903
+    },
+    {
+      "path": "deploy/full/compose.yml",
+      "category": "deployment",
+      "sha256": "c2de11073a2d3bf6e29e3bcae3cd7757a229ac625b4e4da65e057433730592ec",
+      "bytes": 7547
+    },
+    {
+      "path": "deploy/full/tsp-compute-broker.service",
+      "category": "deployment",
+      "sha256": "ed158cc0131f971c58f9fa5141d48d65d9496e16274e4f30d8642f7f35d7627d",
+      "bytes": 1160
+    },
+    {
+      "path": "docs/README.md",
+      "category": "documentation",
+      "sha256": "5bdc3da2b6e5f1189c0e5addef557dba1563b9f9b10e3c40aeb91b737ef04d66",
+      "bytes": 4921
+    },
+    {
+      "path": "docs/architecture.md",
+      "category": "documentation",
+      "sha256": "469250dc606dfad2b3ae1cb7920cee9e8e7f2035e8ce2e1f4113ff766a85884c",
+      "bytes": 106377
+    },
+    {
+      "path": "docs/operations.md",
+      "category": "documentation",
+      "sha256": "2f4367ff0f0964b616d608d145a49b610af63e111596c5e877f6268fbd451cf9",
+      "bytes": 87730
+    },
+    {
+      "path": "docs/reference/engineering.md",
+      "category": "documentation",
+      "sha256": "3247b3f3cf4896a0293b20065a6c5bf2e94088436281e524bcf52329f99ee4a4",
+      "bytes": 45849
+    },
+    {
+      "path": "docs/reference/integrations.md",
+      "category": "documentation",
+      "sha256": "8d4e6087396e8b04bec211273ba66f0ce21b026c5f8c0a9f7ecc4a519185f674",
+      "bytes": 80799
+    },
+    {
+      "path": "docs/release-operations.md",
+      "category": "documentation",
+      "sha256": "5c3ef4c2f7fb97efd571891e32b25ccf11331e85a329847eebe9ed15ffc0a448",
+      "bytes": 25231
+    },
+    {
+      "path": "docs/requirements.md",
+      "category": "documentation",
+      "sha256": "39069a646cf068898db9164f64345ddc40d445e56ededf63b0f58f3491f59fd3",
+      "bytes": 116924
+    },
+    {
+      "path": "docs/secondary-development.md",
+      "category": "documentation",
+      "sha256": "b8f15688aa52e78a2f014cd8d41f073c59ce89522dd7bb79013a22522ff6997a",
+      "bytes": 23024
+    },
+    {
+      "path": "docs/testing.md",
+      "category": "documentation",
+      "sha256": "389efda842dd4b755d7d825671befa27d6e536a5209153a49dc5a65ff2c1e245",
+      "bytes": 73874
+    },
+    {
+      "path": "docs/version-baseline.md",
+      "category": "documentation",
+      "sha256": "9ccd7fa857cd0453902a8a59f563261a633da26030c5a29012785c55a4bd4781",
+      "bytes": 9582
+    },
+    {
+      "path": "frontend/src/components/AdjFactorSyncGate.tsx",
+      "category": "frontend",
+      "sha256": "c3f715fa19913f924be7315a643de5be4006a2c7fc12686367ae7b302d8c77d3",
+      "bytes": 4067
+    },
+    {
+      "path": "frontend/src/components/ConfirmDialog.tsx",
+      "category": "frontend",
+      "sha256": "17364673fa41518f8d5c12b76aa6c1445b9ea1d4e3f6d14fff1d6fb65f3fc54d",
+      "bytes": 1437
+    },
+    {
+      "path": "frontend/src/components/DatePicker.tsx",
+      "category": "frontend",
+      "sha256": "585b07dbeb53380174f151f8bbe6830472435c5edde9147e023871efbe414492",
+      "bytes": 11321
+    },
+    {
+      "path": "frontend/src/components/DimensionMembersDialogContent.tsx",
+      "category": "frontend",
+      "sha256": "dc84fe5b55e85e6b09a811d483beadcfef678b856334b954ee6a595634b414b3",
+      "bytes": 22901
+    },
+    {
+      "path": "frontend/src/components/EndpointTestDialog.tsx",
+      "category": "frontend",
+      "sha256": "e46c250da67456960c370f5c4dece23d84ced35bfd65cb2ae8db0d40f5a6a338",
+      "bytes": 11015
+    },
+    {
+      "path": "frontend/src/components/ExtDimensionAnalysis.tsx",
+      "category": "frontend",
+      "sha256": "466d7080ee570ef6f7c3688f91657be860a858bd9583491379822ea27acc6114",
+      "bytes": 21445
+    },
+    {
+      "path": "frontend/src/components/ListColumnCustomizerInner.tsx",
+      "category": "frontend",
+      "sha256": "b1fb0f7ffb9bd82ec7eada9d89c9cc1f9db5ad934f334b2b87cc0c4000b4ea5a",
+      "bytes": 41084
+    },
+    {
+      "path": "frontend/src/components/Modal.test.tsx",
+      "category": "frontend-test",
+      "sha256": "f4fb29d1a6e0cba19fd576ddb6a8f3ce0ee6c8f57976536c299c3a6d016636a2",
+      "bytes": 5196
+    },
+    {
+      "path": "frontend/src/components/Modal.tsx",
+      "category": "frontend",
+      "sha256": "a2601d80c15f925e0cb13a9df1392b267a7f34c96e9d09a7af768849051fd309",
+      "bytes": 7703
+    },
+    {
+      "path": "frontend/src/components/RpsRotationDialog.tsx",
+      "category": "frontend",
+      "sha256": "450ea3b40549cd338730e60e0f57ade499f4cc1affa40f7fcc81392d46ac59e2",
+      "bytes": 20554
+    },
+    {
+      "path": "frontend/src/components/SectorRotationCard.tsx",
+      "category": "frontend",
+      "sha256": "3d0b8d4e39399b038b3457441e952fbdc920eefcc0e063c3a799cb61c533af4c",
+      "bytes": 55495
+    },
+    {
+      "path": "frontend/src/components/StockMultiDayIntradayChart.tsx",
+      "category": "frontend",
+      "sha256": "7d45967179612816344b70edfb24bfb69e90e1e6bbd4f4d3a1124bf2980ceccf",
+      "bytes": 8419
+    },
+    {
+      "path": "frontend/src/components/StockPanel.tsx",
+      "category": "frontend",
+      "sha256": "8332cc48da9740b70e82dbc3d8c59aa5a085f37f232fb7c53fd7de9f7d2199fb",
+      "bytes": 11245
+    },
+    {
+      "path": "frontend/src/components/StockPreviewDialogContent.tsx",
+      "category": "frontend",
+      "sha256": "480e572f74dc1c72022987d92a5ad03fb92f4d1a53a6671f85ed531d54ff1d03",
+      "bytes": 26779
+    },
+    {
+      "path": "frontend/src/components/WatchlistAddMenu.tsx",
+      "category": "frontend",
+      "sha256": "5ae3590694bcabc74267074a408c834ee6d5d788052690d34438526d6bcb2e81",
+      "bytes": 10572
+    },
+    {
+      "path": "frontend/src/components/WatchlistGroups.tsx",
+      "category": "frontend",
+      "sha256": "591b46ba1b4a1d3439f7469c3d14f6f24dd06bab7b7329adb5d801a39ed2a65b",
+      "bytes": 27887
+    },
+    {
+      "path": "frontend/src/components/WatchlistImportDialog.tsx",
+      "category": "frontend",
+      "sha256": "327cd0f50f82eafd03afb9fac049e97f6badf6b2fda6ab6fa5f244dd02e0fdeb",
+      "bytes": 28321
+    },
+    {
+      "path": "frontend/src/components/analysis-shared.tsx",
+      "category": "frontend",
+      "sha256": "b5efd4135fc95c181c39d9efebc0f452f13842fc7bb693d7a71663bea1d71179",
+      "bytes": 17726
+    },
+    {
+      "path": "frontend/src/components/data/DataReadiness.tsx",
+      "category": "frontend",
+      "sha256": "aeb50984fd4374d3bc9b1598d629f47749656ab0a76885d4f11da3b0f18cd344",
+      "bytes": 3701
+    },
+    {
+      "path": "frontend/src/components/data/MinuteSyncConfig.tsx",
+      "category": "frontend",
+      "sha256": "864d4252b0e566e219c43b085a81ec8cbb95b79aea85319b3e917ff264b7893c",
+      "bytes": 11576
+    },
+    {
+      "path": "frontend/src/components/data/ScheduleEditor.test.tsx",
+      "category": "frontend-test",
+      "sha256": "8a25ff57a04987fa8343af1586f2d14205f3bb5b7cad9b4da0043ed79ffd7fe9",
+      "bytes": 2371
+    },
+    {
+      "path": "frontend/src/components/data/ScheduleEditor.tsx",
+      "category": "frontend",
+      "sha256": "bb2ccf00a7eb26d1a0e9fe5a401ea8dd572599a3b0383090a128bb209bbd1a48",
+      "bytes": 1981
+    },
+    {
+      "path": "frontend/src/components/data/SchemaModal.tsx",
+      "category": "frontend",
+      "sha256": "6537b20937058de7107b48a4a5b9c6610628a56a33109bc1806f719a53c1cc70",
+      "bytes": 3757
+    },
+    {
+      "path": "frontend/src/components/data/SettingsModal.test.tsx",
+      "category": "frontend-test",
+      "sha256": "d567c9c8232da115dc5457ca3a4e88261222f96366b520ecab61da85e088cb48",
+      "bytes": 2998
+    },
+    {
+      "path": "frontend/src/components/data/SettingsModal.tsx",
+      "category": "frontend",
+      "sha256": "f6a749289bc727d9e91fc9b5704d81361c20c0499a892d963e844743a9ba122e",
+      "bytes": 920
+    },
+    {
+      "path": "frontend/src/components/data/StockCatalogDialog.test.tsx",
+      "category": "frontend-test",
+      "sha256": "08ee326670c2a1ea58ff6f1bea7f6d68aad849ad3e46328cb680661123fdb59b",
+      "bytes": 10976
+    },
+    {
+      "path": "frontend/src/components/data/StockCatalogDialog.tsx",
+      "category": "frontend",
+      "sha256": "040caca3f9ac67e8b7e73f8044e7aad2b0326fb60b69f2d549cf35d81bbbbe16",
+      "bytes": 13329
+    },
+    {
+      "path": "frontend/src/components/ext-data/CreateExtDialog.tsx",
+      "category": "frontend",
+      "sha256": "463058ae7e1c3faea4f63df0c9ad2d30d04c9135d3010f483915d02d399bb813",
+      "bytes": 37423
+    },
+    {
+      "path": "frontend/src/components/ext-data/EditExtDialog.tsx",
+      "category": "frontend",
+      "sha256": "1975b10ea3874c765d87c1c579bb8568a49177178019fda81a2d7dd56605a12a",
+      "bytes": 10824
+    },
+    {
+      "path": "frontend/src/components/ext-data/ExtDataStatCard.tsx",
+      "category": "frontend",
+      "sha256": "eeee8f4472403e8ebafc06aaf07abc778dd06b36eaf6fa60fced3f7e57e44835",
+      "bytes": 13635
+    },
+    {
+      "path": "frontend/src/components/financials/AiAnalysisDialog.tsx",
+      "category": "frontend",
+      "sha256": "1bacadfd4191b77bbb0ecf6487059bf1eb0a2d8da9508873c71fc01b09d4ef40",
+      "bytes": 12904
+    },
+    {
+      "path": "frontend/src/components/financials/StockFinancialDetail.tsx",
+      "category": "frontend",
+      "sha256": "7fe61ab45cd3157a4aaef6b41438663adcf4ed0f74fdd63812de9d54de8da827",
+      "bytes": 16022
+    },
+    {
+      "path": "frontend/src/components/monitor/RuleEditor.tsx",
+      "category": "frontend",
+      "sha256": "6e73cf933d38e5dbd7ba30fc6fd057f56b30786e09fc505bfac4489b99a46eea",
+      "bytes": 89430
+    },
+    {
+      "path": "frontend/src/components/screener/CompositeStrategyDialog.tsx",
+      "category": "frontend",
+      "sha256": "e1b10c07efb3fec292847474fbebd10a2947c35924ef29b02c5c49bc867311df",
+      "bytes": 17063
+    },
+    {
+      "path": "frontend/src/components/screener/DefaultStrategyParamsDialog.test.tsx",
+      "category": "frontend-test",
+      "sha256": "7291de5a8ffa0795b8059bb9cb45d8ce4f64a797f49b903abce1a085533e8d26",
+      "bytes": 7500
+    },
+    {
+      "path": "frontend/src/components/screener/DefaultStrategyParamsDialog.tsx",
+      "category": "frontend",
+      "sha256": "032bb5e8fe63f13414baba7eb99acc7286a78c4e549c60869b28757ed4173284",
+      "bytes": 11408
+    },
+    {
+      "path": "frontend/src/components/screener/StrategyBuilderDialog.tsx",
+      "category": "frontend",
+      "sha256": "7574c6a5b535272a22a3e6bafabc615ad695b5cd2520d5ba01b7568bb64ad99d",
+      "bytes": 46200
+    },
+    {
+      "path": "frontend/src/components/screener/StrategyPoolDialog.test.tsx",
+      "category": "frontend-test",
+      "sha256": "2191e103dc4a9fd5cf8d1541f5198861369e75696f03763d73818846efce2f8b",
+      "bytes": 4677
+    },
+    {
+      "path": "frontend/src/components/screener/StrategyPoolDialog.tsx",
+      "category": "frontend",
+      "sha256": "68df85d673c87db62c0b7d4e43801f18fbec2266b76af490998872485cdc4826",
+      "bytes": 22145
+    },
+    {
+      "path": "frontend/src/components/screener/StrategyResultHistoryDialog.test.tsx",
+      "category": "frontend-test",
+      "sha256": "2981cd93ae75e1b2bffe6c058f113ae38db8cd23d62b126d012ab02c1e743727",
+      "bytes": 2684
+    },
+    {
+      "path": "frontend/src/components/screener/StrategyResultHistoryDialog.tsx",
+      "category": "frontend",
+      "sha256": "a33d27e32f2d0796eee28d1cfeaeb1c2c30c023bf93392eb9b12418134fb0ef0",
+      "bytes": 4963
+    },
+    {
+      "path": "frontend/src/components/screener/StrategySettingsDialog.tsx",
+      "category": "frontend",
+      "sha256": "a57022737523fc4305aaf80641f5e31dcafeed61b24d982325cb3144365d2b74",
+      "bytes": 43781
+    },
+    {
+      "path": "frontend/src/components/screener/StrategyStoreDialog.tsx",
+      "category": "frontend",
+      "sha256": "ffc156ce6dd23d1f8eb00d647a00f830cfb533799a1ca01d183464f8df02d9fc",
+      "bytes": 2905
+    },
+    {
+      "path": "frontend/src/components/signals/CustomSignalDialog.tsx",
+      "category": "frontend",
+      "sha256": "4a146fac93f270ed0e48aac6edbc0201359082a0c8dbb70d14f98115801dca18",
+      "bytes": 22616
+    },
+    {
+      "path": "frontend/src/components/stock-analysis/PriceAlertDialog.tsx",
+      "category": "frontend",
+      "sha256": "e8a18f18367ff75f32e247c32e99d25f9bed40eacb1e54a217a70404f248228f",
+      "bytes": 21417
+    },
+    {
+      "path": "frontend/src/components/stock-analysis/StockAnalysisDialog.tsx",
+      "category": "frontend",
+      "sha256": "7d174d66e8dd031b8fafc9b61007cb8eb25d87cade64c97bedbdcc9cdc253a31",
+      "bytes": 12308
+    },
+    {
+      "path": "frontend/src/index.css",
+      "category": "frontend",
+      "sha256": "72f642dbd2c31657460e214743c58cb414e8f6b79457b5272d4d6ec6190f30a3",
+      "bytes": 6202
+    },
+    {
+      "path": "frontend/src/lib/api.ts",
+      "category": "frontend",
+      "sha256": "7036040a3dea5e176c3bb03421f932210be16487b658539a52cd998807cd43b8",
+      "bytes": 169276
+    },
+    {
+      "path": "frontend/src/lib/api/marketStatus.test.ts",
+      "category": "frontend-test",
+      "sha256": "b93ae34c40ef7e91be34c2994488644a044046957efdd2b4db7131b72fa420f1",
+      "bytes": 3383
+    },
+    {
+      "path": "frontend/src/lib/api/screenerHistory.test.ts",
+      "category": "frontend-test",
+      "sha256": "460fdc6dd33814c6e5ef2b8725f84110bc28e8e09e715e9d1951cde5dc86ce89",
+      "bytes": 1710
+    },
+    {
+      "path": "frontend/src/lib/api/stockCatalog.test.ts",
+      "category": "frontend-test",
+      "sha256": "2e6d5a0aea941dc019efc51d51a98a61da758e1c232de1408b567c50b36f7a4c",
+      "bytes": 1305
+    },
+    {
+      "path": "frontend/src/lib/queryKeys.ts",
+      "category": "frontend",
+      "sha256": "5f5eb5b1531d506d9d5031ad0f5ca12fb55f37ba8bb67852de354189bbc14528",
+      "bytes": 11495
+    },
+    {
+      "path": "frontend/src/pages/Analysis.tsx",
+      "category": "frontend",
+      "sha256": "c9678b58595b6d03c70964276dbb5a0c8c907538aca9b68dfd7dec2ceb71222d",
+      "bytes": 15363
+    },
+    {
+      "path": "frontend/src/pages/Data.tsx",
+      "category": "frontend",
+      "sha256": "da7a9adfd8a86dcf7d1c89e8af693776110d8aac6351b319be85e7e95f686549",
+      "bytes": 60725
+    },
+    {
+      "path": "frontend/src/pages/Dev.tsx",
+      "category": "frontend",
+      "sha256": "356452cd6b85d0f366e41a772628ca49bac6b680bb53805578613967207ab2d6",
+      "bytes": 21486
+    },
+    {
+      "path": "frontend/src/pages/LimitUpLadder.tsx",
+      "category": "frontend",
+      "sha256": "4e80d2cc8137cedfdd78e74f943f9eca6479375a01e6429703638aea9015ca47",
+      "bytes": 80116
+    },
+    {
+      "path": "frontend/src/pages/Lots.tsx",
+      "category": "frontend",
+      "sha256": "a08d1b4071a7e8c338a6728fc99679cbf2564c148c3fbbefcfbc2e679a59e3d8",
+      "bytes": 21735
+    },
+    {
+      "path": "frontend/src/pages/Monitor.tsx",
+      "category": "frontend",
+      "sha256": "4c5db5ddb1cae5bef11cfc5ef7ae3df26b357f74b49291603091bba5fd5e008e",
+      "bytes": 63044
+    },
+    {
+      "path": "frontend/src/pages/Onboarding.test.tsx",
+      "category": "frontend-test",
+      "sha256": "3c06077ac6369d4fd76256e99dc9d1bd92f1ee48eb09ad2abdb941d13af673dc",
+      "bytes": 5556
+    },
+    {
+      "path": "frontend/src/pages/Onboarding.tsx",
+      "category": "frontend",
+      "sha256": "4eac428d861bbe0d9093eac9470a7a4004e7a0956ff74918251ecdced089108d",
+      "bytes": 10980
+    },
+    {
+      "path": "frontend/src/pages/Paper.tsx",
+      "category": "frontend",
+      "sha256": "8aeac0db15dc7e2d044c9b91c65afd676847086d9b593051a82a6156284d6b19",
+      "bytes": 108652
+    },
+    {
+      "path": "frontend/src/pages/Regime.tsx",
+      "category": "frontend",
+      "sha256": "4a681027516fe3fa74593740858f2b02f6d3fdba56de73b066e4dbd162685cdd",
+      "bytes": 76097
+    },
+    {
+      "path": "frontend/src/pages/Review.tsx",
+      "category": "frontend",
+      "sha256": "0dbb947cfb93ff7b10cd3cc51d28cbe1bdac161432342e01514bbc3119cbd93a",
+      "bytes": 69498
+    },
+    {
+      "path": "frontend/src/pages/Screener.test.tsx",
+      "category": "frontend-test",
+      "sha256": "60dfbbff7e909a43b73ac0452474884f3a7c7ae598fda22245bf01514a064bd4",
+      "bytes": 5489
+    },
+    {
+      "path": "frontend/src/pages/Screener.tsx",
+      "category": "frontend",
+      "sha256": "46fbfd10b450160054195028eb677c4bce125b6259fd6406fde0ba8d55dfcde1",
+      "bytes": 61789
+    },
+    {
+      "path": "frontend/src/pages/StockAnalysis.tsx",
+      "category": "frontend",
+      "sha256": "be30aa9b3fc2aa2adc4b75ae23212604fb4421f5c4328200d82767775ed5b7cd",
+      "bytes": 14938
+    },
+    {
+      "path": "frontend/src/pages/Watchlist.tsx",
+      "category": "frontend",
+      "sha256": "1d359554483d2c48db733cc109b433f4c36d043a9cdd0a8b403a700b4d8e8bab",
+      "bytes": 93327
+    },
+    {
+      "path": "frontend/src/pages/backtest/AddFactorSignalDialog.tsx",
+      "category": "frontend",
+      "sha256": "4d2f44b463ab0367e727cc2a22deec5a74a63179cdd616e88ea2938d0a6cd45f",
+      "bytes": 9161
+    },
+    {
+      "path": "frontend/src/pages/backtest/AutoMiningDialog.tsx",
+      "category": "frontend",
+      "sha256": "90b9b26a9616cbb59710a04f118c72b11b1cb257fab0e06ac8a0d36904029fde",
+      "bytes": 9255
+    },
+    {
+      "path": "frontend/src/pages/backtest/FactorDiscovery.tsx",
+      "category": "frontend",
+      "sha256": "a8c20dcb98d64a73af4e6f0460e25d6411f46477c1c77d4844073948acf07cf1",
+      "bytes": 37161
+    },
+    {
+      "path": "frontend/src/pages/backtest/MiningWorkbench.tsx",
+      "category": "frontend",
+      "sha256": "5d624559d425f79e558a325d4c5329ff5a1ab187484c7da725e7e4a181dcb87e",
+      "bytes": 59196
+    },
+    {
+      "path": "frontend/src/pages/backtest/ResearchCandidatesDialog.test.tsx",
+      "category": "frontend-test",
+      "sha256": "be6f3b3005479fe3751dc5815e6c12737e504314c4dd39f41aee3b5ffad3acd9",
+      "bytes": 3733
+    },
+    {
+      "path": "frontend/src/pages/backtest/ResearchCandidatesDialog.tsx",
+      "category": "frontend",
+      "sha256": "beef2aa0dc72bad679b049e2b54d7f4d62777108b42c528adb390a1fd5aed696",
+      "bytes": 18125
+    },
+    {
+      "path": "frontend/src/pages/backtest/ResearchHistoryDialog.tsx",
+      "category": "frontend",
+      "sha256": "e09f9fd7716d2eb66360a90985188fcd7d95ec7ce6a590e116f45a5effbea1a8",
+      "bytes": 7951
+    },
+    {
+      "path": "frontend/src/pages/backtest/StrategyBacktest.test.tsx",
+      "category": "frontend-test",
+      "sha256": "e90802e838ad2e8854e0c6534cedf64e27858e8f3521388d174a7fe202099c55",
+      "bytes": 6663
+    },
+    {
+      "path": "frontend/src/pages/backtest/StrategyBacktest.tsx",
+      "category": "frontend",
+      "sha256": "86027bd2b86db89f4515f0bd792332718bbe78ba7d11f801df33911403521634",
+      "bytes": 171485
+    },
+    {
+      "path": "frontend/src/pages/backtest/StrategyOptimizer.tsx",
+      "category": "frontend",
+      "sha256": "5dd9ce505e318dd641ff612f543e6a4f09b35d0de56093577f2a3f3113173800",
+      "bytes": 10010
+    },
+    {
+      "path": "frontend/src/pages/backtest/StrategyWalkForward.tsx",
+      "category": "frontend",
+      "sha256": "ff191db3dc756044a6ac24ecbe2d749ac082bcb8643635879f7d21ff1e398e79",
+      "bytes": 16385
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/FactorCorrelationHeatmap.tsx",
+      "category": "frontend",
+      "sha256": "cbd4b4981ba44e3dc3b0de30f0aec4c68110c5f746875279a60b154865dee91f",
+      "bytes": 5822
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/FactorGroupNavChart.tsx",
+      "category": "frontend",
+      "sha256": "79824a55bc8b7ce7e31327a52ea33b95607cdb7cf0d2b588227b758bced21f2c",
+      "bytes": 4286
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/FactorICChart.tsx",
+      "category": "frontend",
+      "sha256": "ef5633e8aaa50be29a119b78391b12ba147c0af9e3b1815158c35d45f4ba7249",
+      "bytes": 2842
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/MiningOosChart.tsx",
+      "category": "frontend",
+      "sha256": "c2eec6ba7e7a014262286eb11785f292b46e093ad4fa428dfd9a8ce9a61a3546",
+      "bytes": 6837
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/RegimeComparisonChart.tsx",
+      "category": "frontend",
+      "sha256": "05863319b0ae47cf214e18f66c5d91458a48440702773a014071d43a366be38f",
+      "bytes": 6434
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/ReturnDistributionChart.tsx",
+      "category": "frontend",
+      "sha256": "04159765ed21619ea9778ce21bcbdebb44ff3811f00bc35221ea43742e9ea754",
+      "bytes": 2087
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/StrategyNavChart.tsx",
+      "category": "frontend",
+      "sha256": "0063420f3f9f02732ab8a376818e335902b7bcf3a5631410440ce85db0af7f76",
+      "bytes": 11187
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/useECharts.test.tsx",
+      "category": "frontend-test",
+      "sha256": "fbbbe5f4e6a0dcbf3994f7a144e72e98d0e62b56ca0eaeca9dd8f859e3418af3",
+      "bytes": 3055
+    },
+    {
+      "path": "frontend/src/pages/backtest/charts/useECharts.ts",
+      "category": "frontend",
+      "sha256": "fbae794999a925d49629f148991f9eef5d27a04f114af3385d60490b72621d7b",
+      "bytes": 1514
+    },
+    {
+      "path": "frontend/src/pages/backtest/components/PicksSymbolKlineModal.tsx",
+      "category": "frontend",
+      "sha256": "252ea0a1d777628b142e2a3f1a688b3920b92bbf118d9b10602f5a4dc554618c",
+      "bytes": 7060
+    },
+    {
+      "path": "frontend/src/pages/backtest/components/TradeKlineModal.tsx",
+      "category": "frontend",
+      "sha256": "86ead6dc7f8d925261bb07e7392f360ad61b76a93af22427f9bfa6067134db12",
+      "bytes": 6971
+    },
+    {
+      "path": "frontend/src/pages/factors/FactorEditor.tsx",
+      "category": "frontend",
+      "sha256": "80252ab37f77ed3e9959e4fc83c1e780e4718bf8fab556da71fafa91781ecad6",
+      "bytes": 31940
+    },
+    {
+      "path": "frontend/src/pages/factors/FactorLibrary.tsx",
+      "category": "frontend",
+      "sha256": "e11de85f8259542157fec8da17f56d146f7b5f1866c968b2f0498fd3d9e5a616",
+      "bytes": 18495
+    },
+    {
+      "path": "frontend/src/pages/factors/GenerateFactorStrategyDialog.tsx",
+      "category": "frontend",
+      "sha256": "a5a1a3ba969b5bb8324d2133763bc5485da6e97401318156ae08933c3ceb61e6",
+      "bytes": 7310
+    },
+    {
+      "path": "frontend/src/pages/settings/AI.test.tsx",
+      "category": "frontend-test",
+      "sha256": "b2ac7500cb4223ebbc858b02d41475c8ad15e6adeda113d7d72392801d3164bf",
+      "bytes": 6129
+    },
+    {
+      "path": "frontend/src/pages/settings/AI.tsx",
+      "category": "frontend",
+      "sha256": "9a0ee5d986a03db44c4905d6a2c21830272d2afd86fcdb82100ff434bcf512b4",
+      "bytes": 32076
+    },
+    {
+      "path": "frontend/src/pages/settings/DataSources.tsx",
+      "category": "frontend",
+      "sha256": "377ba17984fff561d06c17f9f723c5beac94d7d431fd4ed15159db61a3a4a379",
+      "bytes": 43104
+    },
+    {
+      "path": "frontend/src/pages/settings/ExtPages.tsx",
+      "category": "frontend",
+      "sha256": "29e65539d3cd85cb526e6701a16492f8ce78577d5c00685b80e76d4f44d84624",
+      "bytes": 15364
+    },
+    {
+      "path": "frontend/src/pages/settings/Keys.tsx",
+      "category": "frontend",
+      "sha256": "e665fb58f324596cf8b38643cc47712df07efd639ec0f53ae6a5c6589d278acb",
+      "bytes": 13276
+    },
+    {
+      "path": "frontend/src/pages/settings/Monitoring.test.tsx",
+      "category": "frontend-test",
+      "sha256": "d2e989e74eed9b7ddea630d07a8c52ac25234a9953e1d287ac6d772fed6cbb2a",
+      "bytes": 6740
+    },
+    {
+      "path": "frontend/src/pages/settings/Monitoring.tsx",
+      "category": "frontend",
+      "sha256": "6ee7d662da89a5fef0cab50393a9a0c8f57c36d99144ed05996f185c8cd39384",
+      "bytes": 54717
+    },
+    {
+      "path": "frontend/src/pages/settings/StrategyConcurrencyControl.tsx",
+      "category": "frontend",
+      "sha256": "96eda51bfeef0c7c82dd0a2cc865f006da08606e76d268e1cf98f667fc4354c8",
+      "bytes": 5250
+    },
+    {
+      "path": "frontend/src/pages/settings/System.test.tsx",
+      "category": "frontend-test",
+      "sha256": "cabd7d9f301d558d286226a3ddd2603e24a66ee229ffe6401607f9de150c07f4",
+      "bytes": 6550
+    },
+    {
+      "path": "frontend/src/pages/settings/System.tsx",
+      "category": "frontend",
+      "sha256": "931ef55097e61fd015f3ac3d8263d0181f62ea09647ce5d38ceec9aca8fb47c7",
+      "bytes": 23164
+    },
+    {
+      "path": "reports/README.md",
+      "category": "documentation",
+      "sha256": "200bff301f4b78f779c2ad0f11be190523810e5af2ab80b7f0b2dd41151f7250",
+      "bytes": 5247
+    },
+    {
+      "path": "操作说明书.md",
+      "category": "documentation",
+      "sha256": "f8ac852a29345a3578d1092a561fa298b43cf9c070d5c3b74f6f9e798da9ba3e",
+      "bytes": 90972
+    }
+  ]
+}

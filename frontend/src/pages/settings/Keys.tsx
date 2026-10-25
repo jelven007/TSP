@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -224,12 +225,7 @@ export function TickFlowKeySection({ right }: { right?: React.ReactNode }) {
 
       {/* 确认清除 Key 弹窗 */}
       {confirmClear && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setConfirmClear(false)}
-          />
-          <div className="relative w-[90vw] max-w-[380px] rounded-card border border-border bg-base shadow-2xl p-6">
+        <Modal onClose={() => setConfirmClear(false)} ariaLabel="清除API Key" size="sm" panelClassName="p-5">
             <h3 className="text-sm font-medium text-foreground mb-2">清除 API Key</h3>
             <p className="text-xs text-secondary mb-5">
               清除后将退回 None 档(仅历史日K),需要重新输入 Key 才能恢复。
@@ -249,8 +245,7 @@ export function TickFlowKeySection({ right }: { right?: React.ReactNode }) {
                 {clear.isPending ? '清除中...' : '确认清除'}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

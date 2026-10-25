@@ -699,15 +699,16 @@ function FeeSettingsModal({ accId, fees, queue, onSaved, onClose }: {
     && Number(slippageBps) >= 0 && Number(slippageBps) <= 200
   const inputCls = 'mt-1 w-full rounded-btn border border-border bg-base px-2 py-1.5 font-mono text-sm outline-none focus:border-accent/50'
   return (
-    <Modal onClose={onClose} labelledBy="fee-settings-title">
-      <div className="p-5">
-        <div className="flex items-center gap-2">
+    <Modal onClose={onClose} labelledBy="fee-settings-title" size="sm">
+        <div className="modal-header flex items-center gap-2">
           <Settings className="h-4 w-4 text-accent" />
-          <h3 id="fee-settings-title" className="text-sm font-semibold text-foreground">
+          <h3 id="fee-settings-title" className="min-w-0 flex-1 text-sm font-semibold text-foreground">
             费用与撮合设置
             <span className="ml-1.5 font-mono text-[10px] text-muted">{accId}</span>
           </h3>
+          <button onClick={onClose} aria-label="关闭费用设置" className="modal-close"><X className="h-4 w-4" /></button>
         </div>
+      <div className="modal-body">
         <p className="mt-2 text-[11px] leading-relaxed text-muted">
           仅影响之后的新成交, 已有台账与统计不重算。口径与回测费用模型一致。
         </p>
@@ -732,7 +733,9 @@ function FeeSettingsModal({ accId, fees, queue, onSaved, onClose }: {
           </span>
           <input type="checkbox" checked={queueOn} onChange={e => setQueueOn(e.target.checked)} className="h-4 w-4 shrink-0" />
         </label>
-        <div className="mt-4 flex gap-2">
+        {err && <div className="mt-2 rounded-btn bg-danger/10 px-2 py-1.5 text-[11px] text-danger">{err}</div>}
+      </div>
+        <div className="modal-footer flex gap-2">
           <button
             onClick={() => m.mutate()}
             disabled={!valid || m.isPending}
@@ -744,8 +747,6 @@ function FeeSettingsModal({ accId, fees, queue, onSaved, onClose }: {
             取消
           </button>
         </div>
-        {err && <div className="mt-2 rounded-btn bg-danger/10 px-2 py-1.5 text-[11px] text-danger">{err}</div>}
-      </div>
     </Modal>
   )
 }
@@ -1233,7 +1234,7 @@ function CompareView({ onCreateSingle }: { onCreateSingle: () => void }) {
     placeholderData: (prev: any) => prev,
   })
 
-  const rows = cmpQ.data?.accounts ?? []
+  const rows = useMemo(() => cmpQ.data?.accounts ?? [], [cmpQ.data?.accounts])
   // 收益口径固定排序: 统计卡「收益最高」与净值叠加「收益前 8 名」不受表头排序影响
   const byPnl = useMemo(() => [...rows].sort((a, b) => (b.pnl_pct ?? -1e9) - (a.pnl_pct ?? -1e9)), [rows])
   const sorted = useMemo(() => {
@@ -1546,13 +1547,14 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const labelCls = 'block text-[11px] text-muted'
 
   return (
-    <Modal onClose={onClose} labelledBy="arena-create-title" panelClassName="w-[94vw] max-w-3xl bg-surface border border-border rounded-card shadow-xl">
-      <div className="max-h-[86vh] overflow-y-auto p-5">
-        <div className="flex items-center gap-2">
+    <Modal onClose={onClose} labelledBy="arena-create-title" size="md">
+        <div className="modal-header flex items-center gap-2">
           <GitCompare className="h-4 w-4 text-accent" />
           <h3 id="arena-create-title" className="text-sm font-semibold text-foreground">批量创建对比账户</h3>
-          <span className="text-[10px] text-muted">同本金 · 同费率 · 同跟单参数 — 口径一致由构造保证</span>
+          <span className="min-w-0 flex-1 text-[10px] text-muted">同本金 · 同费率 · 同跟单参数 — 口径一致由构造保证</span>
+          <button onClick={onClose} aria-label="关闭创建账户" className="modal-close"><X className="h-4 w-4" /></button>
         </div>
+      <div className="modal-body">
 
         {/* 对比来源 */}
         <div className="mt-4 rounded-card border border-border bg-base/40 p-3">
@@ -1699,7 +1701,12 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2">
+        {m.isError && <div className="mt-2 rounded-btn bg-danger/10 px-2 py-1.5 text-[11px] text-danger">{String((m.error as Error).message)}</div>}
+        <div className="mt-2 text-[10px] leading-relaxed text-muted">
+          创建后各账户立即参与盘中自动跟单 (规则触发 → 下单 → T+1 约束), 每交易日盘后管道统一结算定版净值, 对比榜单自动更新。
+        </div>
+      </div>
+        <div className="modal-footer flex items-center gap-2">
           <button
             onClick={() => valid && m.mutate()}
             disabled={!valid || m.isPending}
@@ -1709,11 +1716,6 @@ function BatchCreateModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </button>
           <button onClick={onClose} className="rounded-btn border border-border px-4 py-2 text-sm text-secondary transition-colors hover:bg-elevated hover:text-foreground">取消</button>
         </div>
-        {m.isError && <div className="mt-2 rounded-btn bg-danger/10 px-2 py-1.5 text-[11px] text-danger">{String((m.error as Error).message)}</div>}
-        <div className="mt-2 text-[10px] leading-relaxed text-muted">
-          创建后各账户立即参与盘中自动跟单 (规则触发 → 下单 → T+1 约束), 每交易日盘后管道统一结算定版净值, 对比榜单自动更新。
-        </div>
-      </div>
     </Modal>
   )
 }

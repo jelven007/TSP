@@ -178,7 +178,7 @@ export function MiningOosChart({ folds }: MiningOosChartProps) {
     }
   }, [preparedFolds, hasDisplayData, ct])
 
-  const chartRef = useECharts(option, [preparedFolds, ct])
+  const chartRef = useECharts(option)
   const emptyMessage = folds.length === 0
     ? '暂无样本外验证数据'
     : '暂无可展示的样本外指标'

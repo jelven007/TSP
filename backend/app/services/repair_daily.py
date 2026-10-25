@@ -4,7 +4,7 @@
 
 设计原则: 不重复盘后管道的任何逻辑。直接调用 daily_pipeline.run_now(),
 通过 override_start_date 参数把"自动算日期"换成"用户指定起点",
-其余 (维表 / A股日K / 除权因子 / enriched / 指数 / ETF / 错误兜底) 全部原样复用。
+读取已有维表股票池, 其余 (A股日K / 除权因子 / enriched / 指数 / ETF / 错误兜底) 全部原样复用。
 这样修正功能与盘后管道永远保持一致,不会出现遗漏。
 
 落盘是 merge-upsert (按 symbol+date 去重 keep="last"), 新数据天然覆盖旧值,

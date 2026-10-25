@@ -191,7 +191,7 @@ export function ExtDimensionAnalysis({
     enabled: !!activeConfigId,
   })
 
-  const rows = rowsQuery.data?.rows ?? []
+  const rows = useMemo(() => rowsQuery.data?.rows ?? [], [rowsQuery.data?.rows])
   const baseFields = activeConfig?.fields ?? rowsQuery.data?.fields ?? []
   const fields = rows.some(r => r.name != null) && !baseFields.some(f => f.name === 'name')
     ? [...baseFields, { name: 'name', dtype: 'string', label: '名称' }]

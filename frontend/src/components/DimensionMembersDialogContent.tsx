@@ -166,9 +166,10 @@ export function DimensionMembersDialogContent({ target, onClose, onStockClick }:
     <Modal
       onClose={onClose}
       labelledBy={titleId}
-      panelClassName="flex h-[86vh] max-h-[760px] w-[94vw] max-w-4xl flex-col overflow-hidden rounded-card border border-border bg-base shadow-2xl"
+      size="lg"
+      fillHeight
     >
-      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+      <div className="modal-header flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-elevated ${accent.iconCls}`}>
           <AccentIcon className="h-4 w-4" />
         </div>
@@ -187,7 +188,7 @@ export function DimensionMembersDialogContent({ target, onClose, onStockClick }:
             <Users className="h-3.5 w-3.5 text-muted" />
             {membersQuery.isLoading ? '—' : total}
           </span>
-          <button onClick={onClose} className="inline-flex h-7 w-7 items-center justify-center rounded text-muted hover:bg-elevated hover:text-foreground" title="关闭">
+          <button onClick={onClose} className="modal-close" title="关闭" aria-label="关闭弹窗">
             <X className="h-4 w-4" />
           </button>
         </div>

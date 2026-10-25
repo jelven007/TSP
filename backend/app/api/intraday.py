@@ -96,6 +96,15 @@ def status(request: Request):
             "quote_age_ms": None, "is_trading_hours": False, "last_fetch_ms": None}
 
 
+@router.get("/minute-refresh/status")
+def minute_refresh_status(request: Request) -> dict:
+    """Expose collector freshness to market readers without management details."""
+    service = getattr(request.app.state, "minute_refresh", None)
+    if service is None:
+        return {"available": False, "healthy": False}
+    return {"available": True, "healthy": bool(service.status().get("healthy", False))}
+
+
 @router.get("/indices", response_model=contracts.IndexQuotesResponse)
 def index_quotes(
     request: Request,

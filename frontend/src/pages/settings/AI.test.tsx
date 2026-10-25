@@ -61,7 +61,8 @@ async function choose(protocol: string) {
 }
 
 async function click(text: string) {
-  const button = [...node.querySelectorAll('button')].find(item => item.textContent?.trim() === text)!
+  const scope = document.querySelector('[role="dialog"]') ?? node
+  const button = [...scope.querySelectorAll('button')].find(item => item.textContent?.trim() === text)!
   await act(async () => {
     button.click()
     await new Promise(resolve => setTimeout(resolve, 10))

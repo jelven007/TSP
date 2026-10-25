@@ -111,7 +111,7 @@ def get_watchlist_groups_in_nav() -> bool:
 
 
 def get_realtime_quote_interval() -> float:
-    return load().get("realtime_quote_interval", 1.0)
+    return load().get("realtime_quote_interval", 3.0)
 
 
 def set_realtime_quote_interval(interval: float) -> float:
@@ -176,10 +176,10 @@ _INTRADAY_REFRESH_INTERVAL_MAX = 60
 
 
 def get_minute_intraday_refresh_interval() -> int:
-    """分时图实时刷新轮询间隔 (秒)。默认 6s, 范围 [3, 60]。"""
+    """分时图实时刷新轮询间隔 (秒)。默认 5s, 范围 [3, 60]。"""
     return max(_INTRADAY_REFRESH_INTERVAL_MIN,
                min(_INTRADAY_REFRESH_INTERVAL_MAX,
-                   int(load().get("minute_intraday_refresh_interval", 6))))
+                   int(load().get("minute_intraday_refresh_interval", 5))))
 
 
 # 监控中心个股通知 ext 字段默认配置 (与 ext_presets 内置预设对齐)
@@ -260,10 +260,10 @@ def get_minute_refresh_enabled() -> bool:
 
 
 def get_minute_refresh_interval() -> int:
-    """盘中分钟增量刷新间隔(秒)。默认 1,范围 [1, 120]。"""
+    """盘中分钟增量刷新间隔(秒)。默认 60,范围 [1, 120]。"""
     return max(
         _MINUTE_REFRESH_INTERVAL_MIN,
-        min(_MINUTE_REFRESH_INTERVAL_MAX, int(load().get("minute_refresh_interval", 1))),
+        min(_MINUTE_REFRESH_INTERVAL_MAX, int(load().get("minute_refresh_interval", 60))),
     )
 
 
@@ -573,25 +573,20 @@ def set_pipeline_index_symbols(symbols: str) -> str:
 
 
 def get_pipeline_schedule() -> dict:
-    """返回盘后管道调度时间 {"hour": 15, "minute": 35}。
-
-    默认 15:35 而非 15:30 整: 盘后固定价交易 15:30 才彻底结束, 且供应商
-    聚合含盘后量的官方日K需要时间 —— 整点即拉可能写入不含盘后成交的
-    日线, 也与 quote 定版重试窗口终点 (15:30) 精确重合。留 5 分钟缓冲。
-    """
-    d = load().get("pipeline_schedule", {"hour": 15, "minute": 35})
-    return {"hour": d.get("hour", 15), "minute": d.get("minute", 35)}
+    """默认交易日北京时间 16:00; 已保存的自定义时间优先。"""
+    d = load().get("pipeline_schedule", {"hour": 16, "minute": 0})
+    return {"hour": d.get("hour", 16), "minute": d.get("minute", 0)}
 
 
 def set_pipeline_schedule(hour: int, minute: int) -> dict:
-    h = max(0, min(23, hour))
-    m = max(0, min(59, minute))
-    # 盘后管道不早于 15:35: 15:30 盘后固定价才终止 (量/额此前仍会变),
-    # 且供应商官方日线定稿需要缓冲 —— 更早启动可能固化不含盘后量的当日分区
-    if h * 60 + m < 15 * 60 + 35:
-        h, m = 15, 35
-    save({"pipeline_schedule": {"hour": h, "minute": m}})
-    return {"hour": h, "minute": m}
+    if type(hour) is not int or type(minute) is not int or not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError("调度时间必须为有效的小时和分钟")
+    # Keep the existing post-close buffer, but never silently replace the input.
+    if hour * 60 + minute < 15 * 60 + 35:
+        raise ValueError("盘后管道时间不能早于 15:35")
+    schedule = {"hour": hour, "minute": minute}
+    save({"pipeline_schedule": schedule})
+    return schedule
 
 
 def get_instruments_schedule() -> dict:
@@ -799,8 +794,10 @@ def set_review_push_mode(mode: str) -> str:
 # 页面 SSE 刷新配置: { "watchlist": true, "monitor": true, ... }
 # 可刷新的页面列表及其默认值
 SSE_REFRESH_PAGES_DEFAULT = {
+    "overview-market": True,
     "watchlist": True,
-    "limit-ladder": False,
+    "limit-ladder": True,
+    "market-snapshot": True,
 }
 
 

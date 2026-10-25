@@ -1,11 +1,11 @@
+import { Modal } from '@/components/Modal'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { Wifi, Play, Loader2, X, Check, Crown } from 'lucide-react'
 import { api, type EndpointItem } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { EXPERT_RANK, tierRank } from '@/lib/capability-labels'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 interface EpResult {
   ok: boolean
@@ -19,7 +19,6 @@ interface EpResult {
 
 export function EndpointTestDialog({ hasKey, tierLabel, currentEndpoint, onClose }: { hasKey: boolean; tierLabel: string; currentEndpoint: string; onClose: () => void }) {
   const qc = useQueryClient()
-  const backdrop = useDialogBackdrop(onClose)
   const [results, setResults] = useState<Record<string, EpResult | null>>({})
   const [testing, setTesting] = useState<Record<string, boolean>>({})
   const [switching, setSwitching] = useState<string | null>(null)
@@ -74,23 +73,9 @@ export function EndpointTestDialog({ hasKey, tierLabel, currentEndpoint, onClose
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          {...backdrop}
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.97, y: 8 }}
-          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="relative w-[480px] max-h-[90vh] flex flex-col rounded-card border border-border bg-base shadow-2xl overflow-hidden"
-        >
+      <Modal onClose={onClose} ariaLabel="端点测速" size="sm">
           {/* 顶栏 */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+          <div className="modal-header flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
             <div className="flex items-center gap-2">
               <Wifi className="h-4 w-4 text-accent" />
               <span className="text-sm font-medium text-foreground">端点测速</span>
@@ -108,7 +93,7 @@ export function EndpointTestDialog({ hasKey, tierLabel, currentEndpoint, onClose
                 {anyTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                 全部测速
               </button>
-              <button onClick={onClose} className="p-1 rounded text-secondary hover:text-foreground transition-colors">
+              <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -150,8 +135,7 @@ export function EndpointTestDialog({ hasKey, tierLabel, currentEndpoint, onClose
           {isFallback ? (
             <span className="text-[10px] text-warning/70">远程获取失败，显示内置列表</span>
           ) : null}
-        </motion.div>
-      </div>
+      </Modal>
     </AnimatePresence>
   )
 }

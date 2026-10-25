@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Modal } from '@/components/Modal'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { accountStorage as localStorage, hasPermission } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -43,7 +45,6 @@ import {
 import { QK } from '@/lib/queryKeys'
 import { usePreferences } from '@/lib/useSharedQueries'
 import { useToggleRealtimeQuotes } from '@/lib/useSharedMutations'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 import { FactorCorrelationHeatmap } from './charts/FactorCorrelationHeatmap'
 import { MiningOosChart } from './charts/MiningOosChart'
 import { RegimeComparisonChart } from './charts/RegimeComparisonChart'
@@ -351,6 +352,7 @@ export function MiningWorkbench() {
   const [draft, setDraft] = useState<MiningDraft>(loadDraft)
   const [scheduleDraft, setScheduleDraft] = useState<MiningScheduleConfig | null>(null)
   const [correlationScope, setCorrelationScope] = useState<'all' | 'selected'>('selected')
+  const [candidateToPublish, setCandidateToPublish] = useState<MiningCandidateRow | null>(null)
   const task = useMiningTask()
   // 实时行情开启时盘中 enriched 持续落盘, 排队中的挖掘任务开跑会因数据世代
   // 校验失败 (ValueError: mining data generation changed)。开始挖掘前弹窗
@@ -360,7 +362,6 @@ export function MiningWorkbench() {
   const realtimeOn = !!prefs?.realtime_quotes_enabled
   const canManageData = hasPermission('data:manage')
   const [pendingMining, setPendingMining] = useState<MiningRequestV1 | null>(null)
-  const confirmBackdrop = useDialogBackdrop(() => setPendingMining(null), () => !realtimeToggle.isPending)
   const submitMining = (payload: MiningRequestV1) => {
     const params = new URLSearchParams(searchParams)
     params.delete('run')
@@ -430,7 +431,7 @@ export function MiningWorkbench() {
       return
     }
     tryReconnectMining()
-  }, [runFromUrl, searchParams, setSearchParams, task.runId])
+  }, [runFromUrl, searchParams, setSearchParams, task.runId, task.isPending])
 
   const currentResult = task.runId
     && (!runFromUrl || runFromUrl === task.runId)
@@ -451,7 +452,7 @@ export function MiningWorkbench() {
     )
   )
   const result = currentResult ?? (showingPrevious ? task.previousResult : null)
-  const candidates = result?.candidates ?? []
+  const candidates = useMemo(() => result?.candidates ?? [], [result?.candidates])
   const activeCandidate = candidates.find(item => item.signature === selectedCandidate) ?? candidates[0] ?? null
   const candidateFolds = activeCandidate?.folds?.length ? activeCandidate.folds : result?.folds ?? []
   const correlation = useMemo(() => {
@@ -469,26 +470,29 @@ export function MiningWorkbench() {
     }
   }, [result, correlationScope])
 
-  const setSelectedCandidate = (signature: string) => {
+  const setSelectedCandidate = useCallback((signature: string) => {
     const params = new URLSearchParams(searchParams)
     if (signature) params.set('candidate', signature)
     else params.delete('candidate')
     setSearchParams(params, { replace: true })
-  }
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     if (!selectedCandidate && candidates[0]) setSelectedCandidate(candidates[0].signature)
     if (selectedCandidate && candidates.length && !candidates.some(item => item.signature === selectedCandidate)) {
       setSelectedCandidate(candidates[0]?.signature || '')
     }
-  }, [candidates, selectedCandidate])
+  }, [candidates, selectedCandidate, setSelectedCandidate])
 
   const factorGroups = useMemo(() => {
     const groups: Record<string, FactorColumn[]> = {}
     for (const item of factorQuery.data?.columns ?? []) (groups[item.group] ??= []).push(item)
     return groups
   }, [factorQuery.data])
-  const strategies = strategyQuery.data?.strategies.filter(item => item.execution_backend === 'matrix_native') ?? []
+  const strategies = useMemo(
+    () => strategyQuery.data?.strategies.filter(item => item.execution_backend === 'matrix_native') ?? [],
+    [strategyQuery.data?.strategies],
+  )
 
   useEffect(() => {
     if (!strategyQuery.data) return
@@ -497,7 +501,7 @@ export function MiningWorkbench() {
       const strategyIds = current.strategyIds.filter(id => compatibleIds.has(id))
       return strategyIds.length === current.strategyIds.length ? current : { ...current, strategyIds }
     })
-  }, [strategyQuery.data])
+  }, [strategyQuery.data, strategies])
 
   const updateDraft = <K extends keyof MiningDraft>(key: K, value: MiningDraft[K]) => {
     setDraft(current => ({ ...current, [key]: value }))
@@ -610,6 +614,7 @@ export function MiningWorkbench() {
       return api.miningPublish(currentResult.run_id, candidate.signature)
     },
     onSuccess: value => {
+      setCandidateToPublish(null)
       queryClient.invalidateQueries({ queryKey: QK.screenerStrategies(draft.assetType) })
       toast(`策略已发布 · ${value.strategy_id}`, 'success')
     },
@@ -665,7 +670,6 @@ export function MiningWorkbench() {
     },
     onError: error => toast(`环境补算失败 · ${String((error as Error).message || error)}`, 'error'),
   })
-  const regimeBackdrop = useDialogBackdrop(() => setRegimeBackfill(null), () => !regimeRecomputeAndRun.isPending)
 
   const attachRun = (run: MiningRun) => {
     const params = new URLSearchParams(searchParams)
@@ -842,7 +846,7 @@ export function MiningWorkbench() {
               </div>
             </section>
 
-            <section className="border-b border-border"><div className="flex items-center justify-between gap-2 px-3 py-2"><h2 className="shrink-0 text-xs font-semibold text-foreground">策略候选</h2><span className="truncate text-[9px] text-muted">对照策略在全部 outer 折独立评估 · 发布始终需要人工确认</span></div><div className="grid min-h-72 grid-cols-1 border-t border-border lg:grid-cols-[18rem_minmax(0,1fr)]"><div className="border-b border-border lg:border-b-0 lg:border-r">{candidates.map(candidate => <button key={candidate.signature} type="button" onClick={() => setSelectedCandidate(candidate.signature)} className={`block w-full border-b border-border/60 px-3 py-2 text-left hover:bg-elevated ${activeCandidate?.signature === candidate.signature ? 'bg-accent/10' : ''}`}><div className="flex items-center justify-between gap-2"><span className="truncate text-[10px] font-medium text-foreground">{candidate.name}</span><span className="font-mono text-[9px] text-muted">{formatNumber(candidate.score, 2)}</span></div><div className="mt-1 flex items-center gap-1.5"><span className="min-w-0 truncate text-[9px] text-muted" title={definitionLabel(candidate)}>{definitionLabel(candidate)}</span>{candidate.gate && <span className={`shrink-0 rounded-full px-1.5 py-px text-[8px] font-medium ${candidate.gate.qualified ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`} title={gateTitle(candidate.gate)}>{candidate.gate.qualified ? '达标' : '未达标'}</span>}</div></button>)}{!candidates.length && <div className="p-4 text-[10px] text-muted">暂无晋级候选</div>}</div>{activeCandidate ? <div className="min-w-0 p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><span className="truncate text-xs font-semibold text-foreground">{activeCandidate.name}</span>{activeCandidate.gate && <span className={`shrink-0 rounded-full px-1.5 py-px text-[9px] font-medium ${activeCandidate.gate.qualified ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`} title={gateTitle(activeCandidate.gate)}>{activeCandidate.gate.qualified ? '达标' : '未达标'}</span>}</div><div className="mt-1 break-words font-mono text-[9px] text-muted">{definitionLabel(activeCandidate)}</div></div><div className="flex gap-2"><button type="button" disabled={!currentResult || promote.isPending} onClick={() => promote.mutate(activeCandidate)} className="inline-flex h-7 items-center gap-1 rounded-btn border border-border px-2 text-[10px] text-secondary hover:border-accent/40 hover:text-accent disabled:opacity-50"><Save className="h-3 w-3" />保存候选</button><button type="button" disabled={!currentResult || publish.isPending || activeCandidate.gate?.qualified === false} title={gateTitle(activeCandidate.gate)} onClick={() => { if (window.confirm(`确认发布“${activeCandidate.name}”？\n\n发布会创建独立策略，但不会自动用于实盘或监控。`)) publish.mutate(activeCandidate) }} className="inline-flex h-7 items-center gap-1 rounded-btn bg-accent px-2 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"><Rocket className="h-3 w-3" />显式发布</button></div></div>{activeCandidate.gate && !activeCandidate.gate.qualified && <div className="mt-2 rounded-btn border border-warning/30 bg-warning/5 px-2 py-1.5 text-[9px] leading-4 text-warning">未达晋级门槛，仅可保存为待定候选：{activeCandidate.gate.reasons.join('；')}</div>}<div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-6">{[['平均每折收益', formatPct(activeCandidate.oos_return)], ['Sharpe', formatNumber(activeCandidate.oos_sharpe)], ['最大回撤', formatPct(activeCandidate.oos_max_drawdown)], ['正收益折', formatPct(activeCandidate.oos_positive_fold_ratio)], ['有效折', activeCandidate.valid_folds == null ? '—' : String(activeCandidate.valid_folds)], ['交易数', activeCandidate.oos_n_trades == null ? '—' : String(activeCandidate.oos_n_trades)]].map(([label, value]) => <div key={label} className="bg-surface px-2 py-2"><div className="text-[9px] text-muted">{label}</div><div className="mt-1 font-mono text-[11px] font-semibold text-foreground">{value}</div></div>)}</div><div className="mt-3 overflow-x-auto"><div className="min-w-[650px]">{candidateFolds.map(fold => <div key={`${fold.fold}-${fold.evaluation_kind || 'selected'}-${fold.test_start}`} className="grid grid-cols-[60px_1fr_1fr_repeat(4,80px)] border-b border-border/60 py-1.5 text-[9px] text-secondary"><span className="flex items-center gap-1"><span>Fold {fold.fold}</span>{foldKindLabel(fold.evaluation_kind) && <span className="rounded-full bg-elevated px-1 py-px text-[8px] text-muted">{foldKindLabel(fold.evaluation_kind)}</span>}</span><span>{fold.train_start || '—'} → {fold.train_end || '—'}</span><span>{fold.test_start || '—'} → {fold.test_end || '—'}</span><span className="font-mono">{formatPct(fold.total_return)}</span><span className="font-mono">{formatNumber(fold.sharpe)}</span><span className="font-mono">{formatPct(fold.max_drawdown)}</span><span className={fold.skipped ? 'text-warning' : 'text-success'}>{fold.skipped ? fold.reason || '跳过' : `${fold.n_trades ?? '—'} 笔`}</span></div>)}</div></div></div> : <div className="grid place-items-center p-8 text-xs text-muted">选择候选查看定义与逐折结果</div>}</div></section>
+            <section className="border-b border-border"><div className="flex items-center justify-between gap-2 px-3 py-2"><h2 className="shrink-0 text-xs font-semibold text-foreground">策略候选</h2><span className="truncate text-[9px] text-muted">对照策略在全部 outer 折独立评估 · 发布始终需要人工确认</span></div><div className="grid min-h-72 grid-cols-1 border-t border-border lg:grid-cols-[18rem_minmax(0,1fr)]"><div className="border-b border-border lg:border-b-0 lg:border-r">{candidates.map(candidate => <button key={candidate.signature} type="button" onClick={() => setSelectedCandidate(candidate.signature)} className={`block w-full border-b border-border/60 px-3 py-2 text-left hover:bg-elevated ${activeCandidate?.signature === candidate.signature ? 'bg-accent/10' : ''}`}><div className="flex items-center justify-between gap-2"><span className="truncate text-[10px] font-medium text-foreground">{candidate.name}</span><span className="font-mono text-[9px] text-muted">{formatNumber(candidate.score, 2)}</span></div><div className="mt-1 flex items-center gap-1.5"><span className="min-w-0 truncate text-[9px] text-muted" title={definitionLabel(candidate)}>{definitionLabel(candidate)}</span>{candidate.gate && <span className={`shrink-0 rounded-full px-1.5 py-px text-[8px] font-medium ${candidate.gate.qualified ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`} title={gateTitle(candidate.gate)}>{candidate.gate.qualified ? '达标' : '未达标'}</span>}</div></button>)}{!candidates.length && <div className="p-4 text-[10px] text-muted">暂无晋级候选</div>}</div>{activeCandidate ? <div className="min-w-0 p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><span className="truncate text-xs font-semibold text-foreground">{activeCandidate.name}</span>{activeCandidate.gate && <span className={`shrink-0 rounded-full px-1.5 py-px text-[9px] font-medium ${activeCandidate.gate.qualified ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`} title={gateTitle(activeCandidate.gate)}>{activeCandidate.gate.qualified ? '达标' : '未达标'}</span>}</div><div className="mt-1 break-words font-mono text-[9px] text-muted">{definitionLabel(activeCandidate)}</div></div><div className="flex gap-2"><button type="button" disabled={!currentResult || promote.isPending} onClick={() => promote.mutate(activeCandidate)} className="inline-flex h-7 items-center gap-1 rounded-btn border border-border px-2 text-[10px] text-secondary hover:border-accent/40 hover:text-accent disabled:opacity-50"><Save className="h-3 w-3" />保存候选</button><button type="button" disabled={!currentResult || publish.isPending || activeCandidate.gate?.qualified === false} title={gateTitle(activeCandidate.gate)} onClick={() => setCandidateToPublish(activeCandidate)} className="inline-flex h-7 items-center gap-1 rounded-btn bg-accent px-2 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"><Rocket className="h-3 w-3" />显式发布</button></div></div>{activeCandidate.gate && !activeCandidate.gate.qualified && <div className="mt-2 rounded-btn border border-warning/30 bg-warning/5 px-2 py-1.5 text-[9px] leading-4 text-warning">未达晋级门槛，仅可保存为待定候选：{activeCandidate.gate.reasons.join('；')}</div>}<div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-6">{[['平均每折收益', formatPct(activeCandidate.oos_return)], ['Sharpe', formatNumber(activeCandidate.oos_sharpe)], ['最大回撤', formatPct(activeCandidate.oos_max_drawdown)], ['正收益折', formatPct(activeCandidate.oos_positive_fold_ratio)], ['有效折', activeCandidate.valid_folds == null ? '—' : String(activeCandidate.valid_folds)], ['交易数', activeCandidate.oos_n_trades == null ? '—' : String(activeCandidate.oos_n_trades)]].map(([label, value]) => <div key={label} className="bg-surface px-2 py-2"><div className="text-[9px] text-muted">{label}</div><div className="mt-1 font-mono text-[11px] font-semibold text-foreground">{value}</div></div>)}</div><div className="mt-3 overflow-x-auto"><div className="min-w-[650px]">{candidateFolds.map(fold => <div key={`${fold.fold}-${fold.evaluation_kind || 'selected'}-${fold.test_start}`} className="grid grid-cols-[60px_1fr_1fr_repeat(4,80px)] border-b border-border/60 py-1.5 text-[9px] text-secondary"><span className="flex items-center gap-1"><span>Fold {fold.fold}</span>{foldKindLabel(fold.evaluation_kind) && <span className="rounded-full bg-elevated px-1 py-px text-[8px] text-muted">{foldKindLabel(fold.evaluation_kind)}</span>}</span><span>{fold.train_start || '—'} → {fold.train_end || '—'}</span><span>{fold.test_start || '—'} → {fold.test_end || '—'}</span><span className="font-mono">{formatPct(fold.total_return)}</span><span className="font-mono">{formatNumber(fold.sharpe)}</span><span className="font-mono">{formatPct(fold.max_drawdown)}</span><span className={fold.skipped ? 'text-warning' : 'text-success'}>{fold.skipped ? fold.reason || '跳过' : `${fold.n_trades ?? '—'} 笔`}</span></div>)}</div></div></div> : <div className="grid place-items-center p-8 text-xs text-muted">选择候选查看定义与逐折结果</div>}</div></section>
 
             <section><div className="flex items-center gap-1.5 border-b border-border px-3 py-2"><Gauge className="h-3.5 w-3.5 text-muted" /><h2 className="text-xs font-semibold text-foreground">性能与复用</h2></div><div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4 lg:grid-cols-7">{[['总耗时', result.telemetry.elapsed_ms == null ? '—' : `${(result.telemetry.elapsed_ms / 1000).toFixed(1)}s`], ['峰值 RSS', formatBytes(result.telemetry.peak_rss_bytes)], ['面板扫描', result.telemetry.panel_scans ?? '—'], ['矩阵字节', formatBytes(result.telemetry.matrix_bytes)], ['缓存命中', result.telemetry.cache_hits ?? '—'], ['Fold 复用', result.telemetry.fold_reuses ?? '—'], ['IPC 结果', formatBytes(result.telemetry.serialized_result_bytes)]].map(([label, value]) => <div key={label} className="bg-surface px-3 py-2"><div className="text-[9px] text-muted">{label}</div><div className="mt-1 font-mono text-[11px] font-semibold text-foreground">{String(value)}</div></div>)}</div>{result.telemetry.phase_ms && <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-3 py-2">{Object.entries(result.telemetry.phase_ms).map(([phase, ms]) => <span key={phase} className="text-[9px] text-muted"><span>{phase}</span> <span className="font-mono text-secondary">{ms.toFixed(1)}ms</span></span>)}</div>}</section>
           </div>
@@ -853,9 +857,15 @@ export function MiningWorkbench() {
 
       {/* 实时行情开启时的挖掘确认: 盘中 enriched 持续落盘会让排队任务开跑即
           失败 (data generation changed), 建议先关实时再开始。 */}
+      {candidateToPublish && (
+        <ConfirmDialog title="发布策略" onClose={() => setCandidateToPublish(null)}
+          onConfirm={() => publish.mutate(candidateToPublish)} pending={publish.isPending} confirmText="确认发布">
+          <p>确认发布“{candidateToPublish.name}”？</p>
+          <p className="mt-2">发布会创建独立策略，但不会自动用于实盘或监控。</p>
+        </ConfirmDialog>
+      )}
       {pendingMining && (
-        <div {...confirmBackdrop} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+        <Modal onClose={() => setPendingMining(null)} ariaLabel="挖掘操作确认" size="sm" closeDisabled={realtimeToggle.isPending} panelClassName="p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
               实时行情已开启
@@ -872,14 +882,12 @@ export function MiningWorkbench() {
                 关闭实时并开始
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* 环境覆盖不足的补救确认: 补算缺失区间后自动重跑, 取消则不做任何操作。 */}
       {regimeBackfill && (
-        <div {...regimeBackdrop} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div onClick={e => e.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-2xl">
+        <Modal onClose={() => setRegimeBackfill(null)} ariaLabel="环境补算确认" size="sm" closeDisabled={regimeRecomputeAndRun.isPending} panelClassName="p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Database className="h-4 w-4 shrink-0 text-warning" />
               环境数据不完整
@@ -896,8 +904,7 @@ export function MiningWorkbench() {
                 补算并重新挖掘
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

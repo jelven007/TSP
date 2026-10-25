@@ -8,10 +8,11 @@ import type { ECharts, EChartsOption } from '@/lib/echarts'
  *
  * 可传入一个外部 ref (containerRef) 让调用方共享同一 DOM 节点,
  * 用于在 setOption 前读取图表状态 (例如保留 dataZoom 缩放窗口)。
+ * option 包含数据与主题依赖；updateKey 仅用于新任务复用相同数据时强制更新。
  */
 export function useECharts(
   option: EChartsOption | null,
-  deps: any[] = [],
+  updateKey?: string | number,
   containerRef?: React.RefObject<HTMLDivElement>,
 ) {
   const ownRef = useRef<HTMLDivElement>(null)
@@ -31,13 +32,13 @@ export function useECharts(
       instanceRef.current?.dispose()
       instanceRef.current = null
     }
-  }, [])
+  }, [chartRef])
 
   // 更新 option
   useEffect(() => {
     if (!instanceRef.current || !option) return
     instanceRef.current.setOption(option, { notMerge: true })
-  }, [option, ...deps])
+  }, [chartRef, option, updateKey])
 
   return chartRef
 }

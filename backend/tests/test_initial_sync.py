@@ -165,6 +165,11 @@ def four_board_pipeline(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "service_role", "platform")
     monkeypatch.setattr("app.jobs.daily_pipeline.cn_today", lambda: day)
     repo = KlineRepository(DataStore(tmp_path))
+    from app.services import instrument_sync
+
+    # 独立启动目录任务先准备股票池, 行情初始化只消费该快照。
+    instrument_sync.sync_instruments(tmp_path)
+    repo.refresh_current_instruments()
     caps = CapabilitySet({Cap.KLINE_MINUTE_BATCH: CapabilityLimits(batch=100, rpm=None)})
     yield repo, caps, provider, symbols, calls
     repo.db.close()
@@ -177,6 +182,7 @@ def test_first_install_persists_all_four_boards_and_completes_only_after_release
     repo, caps, _provider, symbols, calls = four_board_pipeline
     result = initial_sync.run_initial_sync(repo, caps)
     assert result["initial_sync"] is True
+    assert result["universe_refreshed"] is False
     assert set(result["universe_boards"]) == {"沪主板", "深主板", "创业板", "科创板"}
     assert result["daily_rows"] == result["minute_rows"] == 4
     assert all(rows == 4 for rows in result["financial_rows"].values())

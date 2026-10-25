@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Trash2, Download, Calendar } from 'lucide-react'
@@ -201,9 +202,7 @@ export function MinuteSyncConfig({ hasCap, onJobStart }: { hasCap: boolean; onJo
 
       {/* 清空确认弹窗 */}
       {confirmClear && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !clearMutation.isPending && setConfirmClear(false)} />
-          <div className="relative rounded-card border border-border bg-surface shadow-2xl mx-4 px-6 py-5 max-w-sm w-full space-y-4">
+        <Modal onClose={() => setConfirmClear(false)} ariaLabel="清空分钟数据" size="sm" closeDisabled={clearMutation.isPending} panelClassName="p-5 space-y-4">
             <div className="text-sm text-foreground text-center font-medium">确认清空分钟K数据？</div>
             <div className="text-[11px] text-muted text-center leading-relaxed">
               此操作仅删除分钟K (kline_minute) 数据, <span className="text-foreground/80">不影响</span>日K、复权因子、指标等其他数据。清空后可重新获取。
@@ -216,8 +215,7 @@ export function MinuteSyncConfig({ hasCap, onJobStart }: { hasCap: boolean; onJo
                 {clearMutation.isPending ? <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" />清空中…</span> : '确认清空'}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

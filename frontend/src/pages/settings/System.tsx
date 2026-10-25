@@ -20,6 +20,7 @@ import { loadStockExternalTemplate, saveStockExternalTemplate } from '@/lib/stoc
 import { useUpdateCheck } from '@/lib/updateCheck'
 import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, getPageZoom, setPageZoom } from '@/lib/pageZoom'
 import { OpenSourceReleaseMonitor } from '@/components/OpenSourceReleaseMonitor'
+import { StrategyConcurrencyControl } from './StrategyConcurrencyControl'
 
 export function SettingsSystemPanel() {
   const qc = useQueryClient()
@@ -143,6 +144,7 @@ export function SettingsSystemPanel() {
           disabled={saving}
           onChange={(v) => save({ screener_auto_run: v })}
         />
+        <StrategyConcurrencyControl />
       </section>
 
       <section className="rounded-card border border-border bg-surface p-5">

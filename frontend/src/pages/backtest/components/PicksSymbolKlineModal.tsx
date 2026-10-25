@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { Modal } from '@/components/Modal'
+import { useMemo } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { StockPanel } from '@/components/StockPanel'
 import { NavPager, NavWrapToast } from '@/components/NavPager'
@@ -9,7 +10,6 @@ import { navItemKey, type NavItem } from '@/lib/listNav'
 import { useListNav } from '@/lib/useListNav'
 import { fmtPct, fmtPrice, priceColorClass } from '@/lib/format'
 import { boardTag } from '@/lib/board'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 interface Props {
   /** 选中的标的 (null = 关闭) */
@@ -28,11 +28,6 @@ interface Props {
 
 /** 「选股分析」行的标的级K线弹窗 (单笔回放见 TradeKlineModal) */
 export function PicksSymbolKlineModal({ symbol, result, periodStart, periodEnd, navList, onNavigate, onClose }: Props) {
-  const backdrop = useDialogBackdrop(onClose)
-
-  // onClose 只有 ESC 用; onNavigate 由 useListNav 内部承接 (支持内联 lambda)
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
 
   const nav = useListNav<NavItem>({
     items: navList ?? [],
@@ -41,15 +36,6 @@ export function PicksSymbolKlineModal({ symbol, result, periodStart, periodEnd, 
     onNavigate: n => onNavigate?.(n.symbol, n.name),
     wrapHints: { head: '已到榜首', tail: '已到末尾' },
   })
-
-  useEffect(() => {
-    if (!symbol) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [symbol])
 
   const view = useMemo(() => {
     if (!symbol || !result) return { trades: [] as StrategyBacktestTrade[], stat: null, name: '' }
@@ -100,23 +86,8 @@ export function PicksSymbolKlineModal({ symbol, result, periodStart, periodEnd, 
   return (
     <AnimatePresence>
       {symbol && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            {...backdrop}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 8 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative flex max-h-[94vh] w-[92vw] max-w-[1120px] flex-col overflow-hidden rounded-card border border-border bg-base shadow-2xl"
-          >
-            <div className="border-b border-border px-5 py-3">
+        <Modal onClose={onClose} ariaLabel="选股K线" size="xl">
+            <div className="modal-header">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -163,7 +134,7 @@ export function PicksSymbolKlineModal({ symbol, result, periodStart, periodEnd, 
                   )}
                   <button
                     onClick={onClose}
-                    className="rounded-btn p-1 text-secondary transition-colors hover:bg-elevated hover:text-foreground"
+                    className="modal-close"
                     aria-label="关闭标的回放"
                   >
                     <X className="h-4 w-4" />
@@ -187,8 +158,7 @@ export function PicksSymbolKlineModal({ symbol, result, periodStart, periodEnd, 
 
             {/* 首↔尾循环弱提示 */}
             <NavWrapToast message={nav.wrapMsg} />
-          </motion.div>
-        </div>
+        </Modal>
       )}
     </AnimatePresence>
   )

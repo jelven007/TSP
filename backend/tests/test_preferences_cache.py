@@ -110,8 +110,79 @@ def test_nav_initial_defaults_and_saved_overrides(_isolated):
     assert preferences.get_nav_hidden() == ["/paper"]
 
 
-def test_realtime_quote_interval_defaults_to_one_second(_isolated):
+def test_realtime_quote_interval_defaults_to_three_seconds(_isolated):
+    assert preferences.get_realtime_quote_interval() == 3.0
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_monitoring_initial_defaults_match_saved_page_parameters(_isolated, existing):
+    if existing:
+        preferences.save({"theme": "dark"})
+
+    assert preferences.get_realtime_quotes_enabled() is True
+    assert preferences.get_realtime_quote_interval() == 3.0
+    assert preferences.get_minute_intraday_refresh() is True
+    assert preferences.get_minute_intraday_refresh_interval() == 5
+    assert preferences.get_minute_refresh_enabled() is True
+    assert preferences.get_minute_refresh_interval() == 60
+    assert preferences.get_sse_refresh_pages() == {
+        "overview-market": True, "watchlist": True,
+        "limit-ladder": True, "market-snapshot": True,
+    }
+    assert preferences.get_limit_ladder_monitor_enabled() is False
+    assert preferences.get_depth_polling_interval() == 10.0
+    assert preferences.get_depth_finalize_time() == {"hour": 15, "minute": 2}
+    assert preferences.get_wecom_bot_enabled() is False
+    assert preferences.load() == ({"theme": "dark"} if existing else {})
+    if not existing:
+        assert not _isolated.exists()
+
+
+def test_monitoring_saved_choices_survive_reload(_isolated):
+    saved = {
+        "realtime_quotes_enabled": False, "realtime_quote_interval": 1.0,
+        "minute_intraday_refresh": False, "minute_intraday_refresh_interval": 30,
+        "minute_refresh_enabled": False, "minute_refresh_interval": 1,
+        "sse_refresh_pages": {"watchlist": False, "limit-ladder": False},
+        "limit_ladder_monitor_enabled": True, "depth_polling_interval": 20,
+        "depth_finalize_time": {"hour": 15, "minute": 5},
+        "webhook_default_channels": [],
+    }
+    preferences.save(saved)
+    original = _isolated.read_bytes()
+    preferences._invalidate_cache()
+
+    assert preferences.get_realtime_quotes_enabled() is False
     assert preferences.get_realtime_quote_interval() == 1.0
+    assert preferences.get_minute_intraday_refresh() is False
+    assert preferences.get_minute_intraday_refresh_interval() == 30
+    assert preferences.get_minute_refresh_enabled() is False
+    assert preferences.get_minute_refresh_interval() == 1
+    assert preferences.get_sse_refresh_pages() == {
+        "overview-market": True, "watchlist": False,
+        "limit-ladder": False, "market-snapshot": True,
+    }
+    assert preferences.get_limit_ladder_monitor_enabled() is True
+    assert preferences.get_depth_polling_interval() == 20
+    assert preferences.get_depth_finalize_time() == {"hour": 15, "minute": 5}
+    assert preferences.get_webhook_default_channels() == []
+    assert preferences.load() == saved
+    assert _isolated.read_bytes() == original
+
+
+@pytest.mark.parametrize("saved_interval", [None, 1.0])
+def test_quote_interval_api_without_service_uses_effective_preference(_isolated, saved_interval):
+    from types import SimpleNamespace
+
+    from app.api.settings import get_quote_interval
+
+    if saved_interval is not None:
+        preferences.set_realtime_quote_interval(saved_interval)
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace()))
+    assert get_quote_interval(request) == {
+        "interval": saved_interval if saved_interval is not None else 3.0,
+        "min_interval": 1.0, "max_interval": 60.0,
+    }
 
 
 @pytest.mark.parametrize("existing", [False, True])
@@ -123,12 +194,12 @@ def test_data_initial_defaults_match_configured_baseline(_isolated, existing):
     assert preferences.get_minute_sync_days() == 5
     assert preferences.get_minute_sync_segment_days() == 20
     assert preferences.get_minute_refresh_enabled() is True
-    assert preferences.get_minute_refresh_interval() == 1
+    assert preferences.get_minute_refresh_interval() == 60
     assert preferences.get_pipeline_pull_a_share() is True
     assert preferences.get_pipeline_pull_index() is True
     assert preferences.get_pipeline_pull_etf() is True
     assert preferences.get_instruments_schedule() == {"hour": 9, "minute": 0}
-    assert preferences.get_pipeline_schedule() == {"hour": 15, "minute": 35}
+    assert preferences.get_pipeline_schedule() == {"hour": 16, "minute": 0}
     assert preferences.get_pipeline_regime_enabled() is True
     assert preferences.get_regime_batch_days() == 120
     assert preferences.get_regime_warmup_days() == 40

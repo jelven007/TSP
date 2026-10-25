@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 /**
  * 通用列表列自定义组件。
  *
@@ -23,7 +24,6 @@ import { useQuery } from '@tanstack/react-query'
 import { QK } from '@/lib/queryKeys'
 import type { ColumnConfig, ColumnGroup, ExtColumnDisplayConfig, CandleColumnConfig, IntradayColumnConfig } from '@/lib/list-columns'
 import { resolveCandleConfig, resolveIntradayConfig } from '@/lib/list-columns'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 export interface ListColumnCustomizerProps {
   columns: ColumnConfig[]
@@ -159,7 +159,6 @@ export function ListColumnCustomizerInner({
   extFieldFilter,
   showExtColumns = true,
   showStandaloneToggle = false,
-  disableBackdropBlur = false,
 }: ListColumnCustomizerProps) {
   const extSchema = useQuery({
     queryKey: QK.extDataSchemaAll,
@@ -167,7 +166,6 @@ export function ListColumnCustomizerInner({
     enabled: open && showExtColumns,
     staleTime: 60_000,
   })
-  const backdrop = useDialogBackdrop(onClose)
 
   // columns/onChange 用 ref 镜像，让下方多数 useCallback 空依赖（addExtColumn 例外，
   // 依赖 props.extColumnAlign）。callback 引用稳定后，columns 变更不再导致
@@ -748,21 +746,10 @@ export function ListColumnCustomizerInner({
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className={`absolute inset-0 bg-black/50 ${disableBackdropBlur ? '' : 'backdrop-blur-sm'}`}
-            {...backdrop}
-          />
-          <motion.div
-            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-[360px] max-w-[90vw] h-full bg-base border-l border-border shadow-2xl flex flex-col"
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <Modal onClose={onClose} ariaLabel="列表列设置" size="sm" fillHeight>
+            <div className="modal-header flex items-center justify-between px-4 py-3 border-b border-border">
               <h3 className="text-sm font-medium text-foreground">{title}</h3>
-              <button onClick={onClose} className="p-1 rounded hover:bg-elevated text-muted hover:text-foreground transition-colors">
+              <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -780,7 +767,7 @@ export function ListColumnCustomizerInner({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+            <div className="modal-body flex-1 overflow-y-auto px-3 py-2 space-y-1">
               {activeCols.length > 0 && (
                 <div>
                   <div className="flex items-center gap-1.5 px-1 py-1.5">
@@ -914,8 +901,7 @@ export function ListColumnCustomizerInner({
                 </div>
               )}
             </div>
-          </motion.div>
-        </div>
+        </Modal>
       )}
     </AnimatePresence>
   )

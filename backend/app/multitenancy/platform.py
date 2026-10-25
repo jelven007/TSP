@@ -17,6 +17,7 @@ PUBLIC_MARKET_GETS = frozenset({
     "/api/kline/instruments/search", "/api/kline/daily", "/api/kline/daily/latest",
     "/api/kline/minute", "/api/kline/minute-range", "/api/index/daily", "/api/index/minute",
     "/api/intraday/status", "/api/intraday/indices", "/api/overview/market",
+    "/api/intraday/minute-refresh/status",
     "/api/abnormal/auction", "/api/abnormal/intraday", "/api/abnormal/overview",
     "/api/screener/market-snapshot", "/api/screener/limit-ladder",
     "/api/regime/history", "/api/regime/latest", "/api/regime/states", "/api/regime/coverage",

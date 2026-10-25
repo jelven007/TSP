@@ -1,10 +1,11 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Check, Folder, Inbox, List, LoaderCircle, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { resolveWatchlistGroupColor } from '@/lib/watchlist-group-colors'
+import { useModalPortalContainer } from './Modal'
 
 const MENU_WIDTH = 224
 const MENU_MAX_HEIGHT = 320
@@ -46,6 +47,7 @@ export function WatchlistGroupMenu({
   title = '加入自选',
   ariaLabel = title,
 }: WatchlistGroupMenuProps) {
+  const portalContainer = useModalPortalContainer()
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -61,7 +63,7 @@ export function WatchlistGroupMenu({
   const groups = groupsQuery.data?.groups ?? []
   const showPreferred = preferredGroupId !== undefined
 
-  const placeMenu = () => {
+  const placeMenu = useCallback(() => {
     const trigger = triggerRef.current
     if (!trigger) return
 
@@ -79,7 +81,7 @@ export function WatchlistGroupMenu({
       Math.min(rawLeft, window.innerWidth - MENU_WIDTH - VIEWPORT_GAP),
     )
     setPosition({ top, left })
-  }
+  }, [align])
 
   const toggleMenu = () => {
     if (disabled) return
@@ -94,7 +96,7 @@ export function WatchlistGroupMenu({
   useLayoutEffect(() => {
     if (!open) return
     placeMenu()
-  }, [open, groups.length, groupsQuery.isPending])
+  }, [open, groups.length, groupsQuery.isPending, placeMenu])
 
   useEffect(() => {
     if (!open) return
@@ -255,7 +257,7 @@ export function WatchlistGroupMenu({
             </div>
           )}
         </div>,
-        document.body,
+        portalContainer,
       )}
     </>
   )
