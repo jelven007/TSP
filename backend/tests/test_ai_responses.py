@@ -121,6 +121,7 @@ async def test_tools_replay_reasoning_and_call_ids_without_server_history(wire):
 
 @pytest.mark.parametrize("payload,match", [
     (response([CALL], status="incomplete", reason="max_output_tokens"), "长度上限"),
+    (response([REASONING], status="incomplete", reason="length"), "长度上限"),
     (response([CALL], status="incomplete", reason="content_filter"), "不完整"),
     (response([CALL], status="failed"), "失败"),
     (response([CALL], status="in_progress"), "终态"),

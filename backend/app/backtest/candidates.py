@@ -73,6 +73,8 @@ _CONFIG_FIELDS: dict[str, frozenset[str]] = {
             "factor_names",
             "directions",
             "weights",
+            "input_snapshot_id",
+            "research_job_id",
         }
     )
     | _MINING_SOURCE_CONFIG_FIELDS,
@@ -359,6 +361,13 @@ class CandidateStore:
                 f"候选配置包含不允许的字段: {', '.join(sorted(unknown))}"
             )
         CandidateStore._check_json_size(config)
+        for field, length in (("input_snapshot_id", 64), ("research_job_id", 32)):
+            value = config.get(field)
+            if value is not None and (
+                not isinstance(value, str) or len(value) != length
+                or any(char not in "0123456789abcdef" for char in value)
+            ):
+                raise CandidateValidationError(f"候选 {field} 格式无效")
         return config
 
     @staticmethod

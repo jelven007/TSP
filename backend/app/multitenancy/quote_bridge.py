@@ -10,6 +10,7 @@ from pathlib import Path
 from app.config import settings
 from app.multitenancy.market import decode_frame
 from app.services.depth_service import DepthService
+from app.services.observability import measure_runtime_lock
 from app.services.quote_service import QuoteService
 
 
@@ -57,7 +58,7 @@ class PublicQuoteBridge(QuoteService):
         return value
 
     def refresh(self, *, force=True, max_age=5):
-        with self.refresh_lock:
+        with measure_runtime_lock(self.refresh_lock, "public.refresh"):
             marker_connected = bool(self.markers and self.markers.status()["connected"])
             stale = not self.snapshot or self.loaded_generation < self.update_generation
             fallback_stale = (

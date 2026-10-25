@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from app.services import ai_provider
+from app.services.ai_usage import metered_create, output_cap
 
 OUTPUT_KEY = "_responses_output"
 
@@ -45,6 +46,7 @@ def _payload(messages, tools, temperature, max_tokens) -> dict:
         "model": ai_provider.current_ai_model(), "input": chat_input(messages),
         "store": False, "include": ["reasoning.encrypted_content"],
     }
+    max_tokens = output_cap(max_tokens)
     if max_tokens is not None:
         payload["max_output_tokens"] = max_tokens
     if temperature is not None:
@@ -83,7 +85,9 @@ def _retry_kwargs(exc, payload) -> dict | None:
 async def _create(client, payload, *, stream):
     while True:
         try:
-            return await client.responses.create(**payload, stream=stream)
+            return await metered_create(
+                client.responses.create, protocol="responses", **payload, stream=stream,
+            )
         except Exception as exc:
             retry = _retry_kwargs(exc, payload)
             if retry is not None:
@@ -105,7 +109,7 @@ def _result(response, tools):
     status = getattr(response, "status", None)
     if status == "incomplete":
         reason = getattr(getattr(response, "incomplete_details", None), "reason", "")
-        if reason == "max_output_tokens":
+        if reason in {"max_output_tokens", "length"}:
             raise RuntimeError("AI 输出达到长度上限, 内容不完整; 请提高输出 Token 上限后重试")
         raise RuntimeError("AI 响应不完整, 本轮工具未执行")
     if status == "failed":

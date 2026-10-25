@@ -47,6 +47,9 @@ def test_snapshot_retains_all_dates_and_private_definitions_without_credentials(
     assert next_manifest["id"] != manifest["id"]
     assert next_root != root
     assert (root / original.relative_to(tmp_path)).read_bytes() == b"old-day"
+    replay_root, replay = capture_research_snapshot(tmp_path, snapshot_id=manifest["id"])
+    assert replay_root == root and replay["id"] == manifest["id"]
+    assert (replay_root / original.relative_to(tmp_path)).read_bytes() == b"old-day"
 
 
 def test_corrupted_snapshot_cannot_be_reused(tmp_path):

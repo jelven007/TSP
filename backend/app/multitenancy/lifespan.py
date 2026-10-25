@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from app.bootstrap_defaults import REGISTRATION_SECRET
+from app.bootstrap_defaults import ADMIN_PASSWORD, REGISTRATION_SECRET
 from app.cell.admin import bootstrap_full_identity
 from app.cell.config import CellSettings
 from app.cell.database import Databases
@@ -34,10 +34,19 @@ async def lifespan(app: FastAPI):
         # This idempotent DML bootstrap uses existing runtime grants. Schema
         # migrations and legacy import remain explicit offline operations.
         with db.control.connection() as control:
-            bootstrap_full_identity(control)
+            bootstrap_full_identity(
+                control,
+                password=db.settings.bootstrap_admin_password.get_secret_value() or ADMIN_PASSWORD,
+                public=db.settings.deployment_exposure == "public",
+            )
         account_identity = AccountIdentity(db)
         app.state.account_identity = account_identity
         _bootstrap_registration_secret(account_identity)
+        if db.settings.deployment_exposure == "public":
+            from app.cell.deployment import check_public_credentials
+
+            with db.control.connection() as control:
+                check_public_credentials(control)
         from app.multitenancy.stream_auth import StreamTicketCodec
 
         app.state.stream_tickets = StreamTicketCodec(db.settings.stream_ticket_secret)
@@ -100,7 +109,7 @@ async def lifespan(app: FastAPI):
         app.state.platform_admin = admin
         app.state.platform_reads = reads
         app.state.service_role = "api"
-        logger.info("full-product API ready; identity and business schema v5")
+        logger.info("full-product API ready; identity and business schema v%s", db.settings.schema_version)
         try:
             yield
         finally:

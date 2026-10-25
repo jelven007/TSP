@@ -56,6 +56,7 @@ import { PageSettingsModal, getCardVisibility, getCardOrder, type CardKey } from
 import { QuoteConfigCard } from '@/components/data/QuoteConfigCard'
 import { EnrichedSchemaModal } from '@/components/data/SchemaModal'
 import { Skeleton } from '@/components/data/Skeleton'
+import { DataReadiness } from '@/components/data/DataReadiness'
 import { ExtDataStatCard } from '@/components/ext-data/ExtDataStatCard'
 import { CreateExtDialog } from '@/components/ext-data/CreateExtDialog'
 import { EditExtDialog } from '@/components/ext-data/EditExtDialog'
@@ -703,6 +704,7 @@ export function Data() {
       />
 
       <div className="mx-auto px-8 py-6 space-y-6 max-w-6xl">
+        <DataReadiness quality={s?.quality} initialization={s?.initialization} />
         {/* 无 Key 提示 —— 非阻断: 历史日K走免费通道, 实时等能力取决于所选数据源 */}
         {isNoKey && (
           <div className="flex items-center gap-2 rounded-card border border-border bg-elevated/40 px-3 py-2 text-xs">

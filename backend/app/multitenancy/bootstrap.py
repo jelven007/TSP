@@ -114,11 +114,29 @@ def data_availability(request: Request) -> dict:
     from app.api import data
 
     repo = request.app.state.repo
-    return {
-        "enriched": data._get_table_stats("enriched", lambda: data._safe_aggregate_enriched(repo)),
-        "etf_enriched": data._get_table_stats("etf_enriched", lambda: data._safe_aggregate_etf_enriched(repo)),
+    def table_stats(name, fetch):
+        return data._get_table_stats(name, fetch, data_dir=repo.store.data_dir)
+
+    response = {
+        "enriched": table_stats("enriched", lambda: data._safe_aggregate_enriched(repo)),
+        "etf_enriched": table_stats("etf_enriched", lambda: data._safe_aggregate_etf_enriched(repo)),
         "indicators_ready": getattr(request.app.state, "indicators_ready", False),
     }
+    from app.services.data_quality import quality_summary
+
+    response["quality"] = table_stats("quality", lambda: quality_summary(
+        repo.store.data_dir, {
+            **response,
+            "daily": table_stats("daily", lambda: data._safe_aggregate_daily(repo)),
+            "instruments": table_stats(
+                "instruments", lambda: data._safe_aggregate_instruments(repo),
+            ),
+            "financials": table_stats(
+                "financials", lambda: data._safe_aggregate_financials(repo),
+            ),
+        },
+    ))
+    return response
 
 
 class LayoutIn(BaseModel):

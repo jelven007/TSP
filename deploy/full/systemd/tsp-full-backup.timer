@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up the full-product host after market close
+
+[Timer]
+OnCalendar=*-*-* 16:30:00 Asia/Shanghai
+Persistent=true
+Unit=tsp-full-backup.service
+
+[Install]
+WantedBy=timers.target

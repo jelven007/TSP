@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import * as echarts from 'echarts'
-import type { ECharts, EChartsOption } from 'echarts'
+import * as echarts from '@/lib/echarts'
+import type { ECharts, EChartsOption } from '@/lib/echarts'
 
 /**
  * ECharts 实例管理 Hook — 自动初始化/resize/销毁。

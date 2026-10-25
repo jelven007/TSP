@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse
 
 from app.api.auth import COOKIE_NAME
 from app.cell.context import AccessError
+from app.services.observability import measure_runtime_stage
 
 PUBLIC_ENDPOINTS = frozenset({
     "/api/auth/status", "/api/auth/login", "/api/auth/register/code", "/api/auth/register",
@@ -79,16 +80,18 @@ async def middleware(request: Request, call_next):
                 scheme, _, value = credential.partition(" ")
                 if scheme.lower() != "bearer":
                     raise AccessError(401, "请使用租户绑定的有效凭据")
-                account, token_context = await run_in_threadpool(
-                    Tokens(service).authenticate, value, request.headers.get("x-tenant-id"),
-                    request.state.request_id, request.method, path,
-                )
+                with measure_runtime_stage("identity.authenticate"):
+                    account, token_context = await run_in_threadpool(
+                        Tokens(service).authenticate, value, request.headers.get("x-tenant-id"),
+                        request.state.request_id, request.method, path,
+                    )
                 request.state.tenant_context = token_context
                 request.state.api_credential = value
             else:
-                account = await run_in_threadpool(
-                    service.current_user, request.cookies.get(COOKIE_NAME, ""),
-                )
+                with measure_runtime_stage("identity.authenticate"):
+                    account = await run_in_threadpool(
+                        service.current_user, request.cookies.get(COOKIE_NAME, ""),
+                    )
             expected_scope = request.headers.get("x-tsp-account-scope") or request.query_params.get("account_scope")
             current_scope = f"tsp-v1:{account['id']}:{account['default_tenant_id'] or 'market'}:{account['auth_version']}"
             if expected_scope and expected_scope != current_scope:
@@ -138,9 +141,10 @@ async def middleware(request: Request, call_next):
             private = any(path == prefix or path.startswith(prefix + "/") for prefix in PRIVATE_PREFIXES)
             system_only = permission in {"settings:manage", "data:manage", "users:manage"}
             if not credential and (private or (selected and not account_only and not system_only)):
-                request.state.tenant_context = await run_in_threadpool(
-                    service.context, account, selected, request.state.request_id,
-                )
+                with measure_runtime_stage("tenant.context"):
+                    request.state.tenant_context = await run_in_threadpool(
+                        service.context, account, selected, request.state.request_id,
+                    )
             if market_read_path(request.method, path):
                 response = await request.app.state.platform_reads.forward(request)
                 response.headers["Cache-Control"] = "no-store"
@@ -164,14 +168,17 @@ async def middleware(request: Request, call_next):
                 await run_in_threadpool(ensure_fresh)
         from app.factors.registry import private_factor_registry
         from app.multitenancy.documents import TenantDocuments
+        from app.services.ai_usage import ai_usage_scope
 
         context = getattr(request.state, "tenant_context", None)
         definitions = []
+        documents = None
         if context:
             documents = TenantDocuments(service.db, context)
             request.state.private_documents = documents
-            definitions = await run_in_threadpool(documents.values, "custom_factors")
-        with private_factor_registry(definitions):
+            with measure_runtime_stage("tenant.factor_definitions"):
+                definitions = await run_in_threadpool(documents.values, "custom_factors")
+        with private_factor_registry(definitions), ai_usage_scope(documents):
             response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
         account = getattr(request.state, "account", None)

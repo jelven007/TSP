@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import * as echarts from 'echarts'
-import type { ECharts, EChartsOption } from 'echarts'
+import * as echarts from '@/lib/echarts'
+import type { ECharts, EChartsOption } from '@/lib/echarts'
 import type { NullableMinuteKlineRow, PriceLimitInfo } from '@/lib/api'
 import { computeIntradayAverage, formatMinuteTime, FULL_DAY_TIMES, summarizeMinutes, type DailySummary } from '@/lib/intraday-chart'
 import { useChartTheme, type ChartTheme } from '@/lib/theme'

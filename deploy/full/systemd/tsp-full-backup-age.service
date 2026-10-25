@@ -1,0 +1,9 @@
+[Unit]
+Description=Check verified full-product backup age
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/tsp-full/backup-age.env
+ExecStart=/usr/bin/python3 /opt/tsp-full/maintenance/scheduled_full_backup.py --check-age ${TSP_BACKUP_ROOT} --max-hours 30
+StandardOutput=journal
+StandardError=journal
