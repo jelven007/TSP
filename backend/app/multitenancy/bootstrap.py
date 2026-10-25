@@ -70,7 +70,7 @@ def bootstrap(request: Request) -> dict:
         "menus": [*BUSINESS_MENUS, *(["/data"] if "data:manage" in account["permissions"] else [])],
         "settings_tabs": (
             ["account", "data-sources", "ai", "monitoring", "ext-pages", "timeout", "menus", "api-tokens", "system"]
-            if "settings:manage" in account["permissions"] else ["account"]
+            if "settings:manage" in account["permissions"] else ["account", "system"]
         ),
         "preferences": _preferences(request, account),
         "business": _settings(account),

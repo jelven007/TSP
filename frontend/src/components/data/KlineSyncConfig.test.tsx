@@ -1,0 +1,71 @@
+// @vitest-environment jsdom
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, expect, it, vi } from 'vitest'
+import { KlineSyncConfig } from './KlineSyncConfig'
+
+const mocks = vi.hoisted(() => ({
+  save: vi.fn(async (_period: string, config: unknown) => config),
+  sync: vi.fn(async () => ({ job_id: 'offline-1', status: 'started' })),
+}))
+vi.mock('@/lib/api', () => ({
+  api: {
+    klineSyncConfigs: async () => Object.fromEntries(
+      ['1m', '5m', '10m', '15m', '1d', '1w'].map(period => [period, {
+        enabled: true, interval_seconds: ({ '1m': 60, '5m': 300, '10m': 600, '15m': 900 } as Record<string, number>)[period] ?? 60,
+        windows: [['09:15', '11:35'], ['13:00', '15:20']], time: '16:00',
+      }]),
+    ),
+    saveKlineSyncConfig: mocks.save, syncKlinePeriod: mocks.sync,
+  },
+}))
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+let root: Root | undefined
+let host: HTMLDivElement
+let client: QueryClient
+afterEach(async () => {
+  await act(async () => root?.unmount())
+  host?.remove()
+  client?.clear()
+  vi.clearAllMocks()
+})
+
+async function render(period: '5m' | '10m' | '1w', onStart = vi.fn()) {
+  host = document.createElement('div')
+  document.body.appendChild(host)
+  root = createRoot(host)
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  await act(async () => {
+    root!.render(<QueryClientProvider client={client}><KlineSyncConfig period={period} hasCap isRunning={false} earliestDate={null} onJobStart={onStart} /></QueryClientProvider>)
+  })
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
+  return onStart
+}
+
+it('loads the five minute defaults without saving and submits explicit sync settings', async () => {
+  await render('5m')
+  const times = [...host.querySelectorAll<HTMLInputElement>('input[type="time"]')]
+  expect(times.map(input => input.value)).toEqual(['09:15', '11:35', '13:00', '15:20'])
+  expect(host.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe('300')
+  expect(mocks.save).not.toHaveBeenCalled()
+  const button = [...host.querySelectorAll('button')].find(node => node.textContent === '保存周期设置')!
+  await act(async () => button.click())
+  expect(mocks.save.mock.calls[0][0]).toBe('5m')
+})
+
+it('allows manual history from an empty table and explains the local minute dependency', async () => {
+  const onStart = await render('10m')
+  expect(host.textContent).toContain('由本地1分钟K计算')
+  const button = [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!
+  expect(button.disabled).toBe(false)
+  await act(async () => button.click())
+  expect(mocks.sync).toHaveBeenCalledWith('10m', 6, 'month')
+  expect(onStart).toHaveBeenCalledWith('offline-1')
+})
+
+it('uses a daily completion time for weekly synchronization', async () => {
+  await render('1w')
+  expect(host.querySelector<HTMLInputElement>('input[type="time"]')?.value).toBe('16:00')
+  expect(host.textContent).not.toContain('周期间隔（秒）')
+})

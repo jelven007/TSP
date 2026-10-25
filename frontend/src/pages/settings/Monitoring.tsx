@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, createContext, useContext } from 'react'
-import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   Activity,
   Wifi,
@@ -10,11 +10,8 @@ import {
 } from 'lucide-react'
 import {
   usePreferences,
-  useQuoteStatus,
-  useQuoteInterval,
   useCapabilities,
 } from '@/lib/useSharedQueries'
-import { useUpdateQuoteInterval, useToggleRealtimeQuotes } from '@/lib/useSharedMutations'
 import { api, type EmailSmtpConfig } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { useCardFlash, cardFlashCls } from '@/lib/useCardFlash'
@@ -48,42 +45,15 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
   const qc = useQueryClient()
   const { data: prefs } = usePreferences()
   const { data: caps } = useCapabilities()
-  const { data: quoteStatus } = useQuoteStatus()
-  const { data: intervalData } = useQuoteInterval()
-  const updateInterval = useUpdateQuoteInterval()
-  const toggleQuote = useToggleRealtimeQuotes()
-  // 实时模式以 quote_status 为准 (数据源无关): full_market=全市场 / none=不可用
-  const realtimeEnabled = prefs?.realtime_quotes_enabled ?? true
   // 分时图实时刷新间隔 (秒), 与后端 [3,60] clamp 对齐; 默认 5
   const intradayInterval = prefs?.minute_intraday_refresh_interval ?? 5
   // 滑块本地草稿: 拖动时即时反馈, 停顿 2s 后落库 (与行情轮询滑块一致)
   const [intradayIntervalDraft, setIntradayIntervalDraft] = useState(intradayInterval)
-  // 盘中分钟增量: 间隔 (秒), 与后端 [1,120] clamp 对齐; 默认 60
-  const minuteRefreshInterval = prefs?.minute_refresh_interval ?? 60
-  const [minuteRefreshIntervalDraft, setMinuteRefreshIntervalDraft] = useState(minuteRefreshInterval)
-  // 盘中增量服务状态 (15s 轮询; 无服务时 available=false)
-  const refreshStatus = useQuery({
-    queryKey: ['minute-refresh-status'],
-    queryFn: api.minuteRefreshStatus,
-    refetchInterval: 15000,
-  })
   const refreshPages = prefs?.sse_refresh_pages ?? {}
   const limitLadderMonitor = prefs?.limit_ladder_monitor_enabled ?? false
   const hasDepth = !!caps?.capabilities?.['depth5.batch']
-  // 全量分钟 = intraday.universe 能力: TickFlow Expert 或声明该能力的自定义源。
-  // 修复轮的 intraday.batch 与其共用门控, 见后端 minute_refresh 服务。
-  const hasFullMinuteCap = !!caps?.capabilities?.['intraday.universe']
-  const rs = refreshStatus.data
   // 新建监控规则时默认勾选的推送渠道 (全局默认值数组, 单条规则可独立修改)
   const webhookDefaultChannels = prefs?.webhook_default_channels ?? []
-  const isRunning = quoteStatus?.running ?? false
-  const isTrading = quoteStatus?.is_trading_hours ?? false
-  // 管道/数据修正运行期间实时行情被临时暂停 — 此时禁止开启
-  const isPaused = quoteStatus?.paused ?? false
-  const interval = intervalData?.interval ?? 3
-  const minInterval = intervalData?.min_interval ?? 1
-  const maxInterval = intervalData?.max_interval ?? 60
-  const [intervalDraft, setIntervalDraft] = useState(interval)
   const feishuWebhookUrl = prefs?.feishu_webhook_url ?? ''
   const feishuWebhookSecret = prefs?.feishu_webhook_secret ?? ''
   const [feishuDraft, setFeishuDraft] = useState(feishuWebhookUrl)
@@ -150,16 +120,11 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
     try {
       await api.updateRealtimeMonitorConfig(cfg)
       qc.invalidateQueries({ queryKey: QK.preferences })
+      qc.invalidateQueries({ queryKey: QK.minuteRefreshStatus })
     } catch (e) {
       // 忽略 — Toast 已在 request 层处理
     }
   }, [qc])
-
-  const handleToggleQuote = useCallback(async (enabled: boolean) => {
-    await toggleQuote.mutateAsync(enabled)
-    qc.invalidateQueries({ queryKey: QK.preferences })
-    qc.invalidateQueries({ queryKey: QK.quoteStatus })
-  }, [toggleQuote, qc])
 
   const toggleLimitLadderMonitor = useCallback(async (enabled: boolean) => {
     await api.updateLimitLadderMonitor(enabled)
@@ -306,18 +271,6 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
     onError: () => toast('修正请求失败', 'error'),
   })
 
-  useEffect(() => {
-    setIntervalDraft(interval)
-  }, [interval])
-
-  useEffect(() => {
-    if (intervalDraft === interval) return
-    const t = window.setTimeout(() => {
-      updateInterval.mutate(intervalDraft)
-    }, 2000)
-    return () => window.clearTimeout(t)
-  }, [intervalDraft, interval, updateInterval])
-
   // 分时刷新间隔: 服务端值变化时同步本地草稿
   useEffect(() => {
     setIntradayIntervalDraft(intradayInterval)
@@ -332,70 +285,11 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
     return () => window.clearTimeout(t)
   }, [intradayIntervalDraft, intradayInterval, save])
 
-  // 盘中增量间隔: 服务端值变化时同步本地草稿
-  useEffect(() => {
-    setMinuteRefreshIntervalDraft(minuteRefreshInterval)
-  }, [minuteRefreshInterval])
-
-  // 盘中增量间隔: 草稿与已保存值不同时, 2s 防抖落库
-  useEffect(() => {
-    if (minuteRefreshIntervalDraft === minuteRefreshInterval) return
-    const t = window.setTimeout(() => {
-      save({ minute_refresh_interval: minuteRefreshIntervalDraft })
-    }, 2000)
-    return () => window.clearTimeout(t)
-  }, [minuteRefreshIntervalDraft, minuteRefreshInterval, save])
-
   return (
     <HighlightContext.Provider value={highlight ?? ''}>
     <div className="grid w-full max-w-5xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       {/* ========== 左列 ========== */}
       <div className="space-y-5">
-        {/* 行情状态 — 开关 + 间隔 */}
-        <Card icon={Activity} title="行情轮询" anchor="quotes">
-          <ToggleRow
-            label="实时行情"
-            desc={
-              isPaused ? '数据同步运行中，已临时暂停'
-              : isRunning && isTrading ? '运行中'
-              : realtimeEnabled && !isTrading ? '已开启，等待下一交易日'
-              : isRunning ? '正在连接'
-              : '已关闭'
-            }
-            checked={realtimeEnabled}
-            onChange={handleToggleQuote}
-            disabled={isPaused}
-          />
-
-          <div className="mt-3 pt-3 border-t border-border">
-            <div className="flex items-center justify-between gap-4 py-1">
-              <div className="min-w-0">
-                <div className="text-sm text-foreground">轮询间隔</div>
-                <div className="text-[11px] text-muted">
-                  每轮拉取全市场行情的时间间隔
-                </div>
-              </div>
-              <span className="text-[11px] font-mono text-foreground shrink-0 tabular-nums">
-                {intervalDraft < 1 ? intervalDraft.toFixed(1) : intervalDraft.toFixed(0)}s
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mt-2">
-              <input
-                type="range"
-                min={minInterval}
-                max={maxInterval}
-                step={minInterval < 1 ? 0.1 : minInterval < 3 ? 0.5 : 1}
-                value={intervalDraft}
-                onChange={(e) => setIntervalDraft(parseFloat(e.target.value))}
-                className="flex-1 h-1 accent-accent cursor-pointer"
-              />
-              <span className="text-[10px] text-muted shrink-0">
-                {intervalDraft !== interval ? '2秒后保存' : `${minInterval}s — ${maxInterval}s`}
-              </span>
-            </div>
-          </div>
-        </Card>
-
         <Card icon={Wifi} title="页面实时刷新">
           <p className="text-xs text-secondary mb-4">
             选择哪些页面跟随 SSE 实时刷新数据。关闭的页面不会被推送，
@@ -455,65 +349,6 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
 
       {/* ========== 右列 ========== */}
       <div className="space-y-5">
-        {/* 全量分钟: 盘中全市场分钟落盘, 按能力路由 (TickFlow Expert 或声明 full_minute 的插件/自定义源) */}
-        <Card icon={Zap} title="全量分钟" anchor="minute-refresh">
-          <ToggleRow
-            label="全量分钟落盘"
-            desc={
-              !hasFullMinuteCap ? '需要全量分钟能力 (TickFlow Expert 或声明该能力的自定义源)'
-              : rs?.repair_only ? `服务运行中 · ${rs?.provider ?? '自定义源'} 无廉价增量端点, 按 ≥60s 全天批量节奏`
-              : rs?.running ? (rs?.in_trading_hours ? '服务运行中' : '运行中 · 非拉取时段暂停')
-              : '已关闭'
-            }
-            checked={prefs?.minute_refresh_enabled ?? true}
-            onChange={(v) => save({ minute_refresh_enabled: v })}
-            disabled={!hasFullMinuteCap}
-          />
-          <div className="mt-3 pt-3 border-t border-border">
-            <div className="flex items-center justify-between gap-4 py-1">
-              <div className="min-w-0">
-                <div className="text-sm text-foreground">刷新间隔</div>
-                <div className="text-[11px] text-muted">
-                  交易时段内全市场分钟K增量落盘的目标间隔，实际周期取决于数据源请求成本；冷启动和断档自动回补
-                </div>
-              </div>
-              <span className="text-[11px] font-mono text-foreground shrink-0 tabular-nums">
-                {minuteRefreshIntervalDraft >= 60 && minuteRefreshIntervalDraft % 60 === 0 ? `${minuteRefreshIntervalDraft / 60}m` : `${minuteRefreshIntervalDraft}s`}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 mt-2">
-              <input
-                type="range"
-                min={1}
-                max={120}
-                step={1}
-                value={minuteRefreshIntervalDraft}
-                disabled={!hasFullMinuteCap}
-                onChange={(e) => setMinuteRefreshIntervalDraft(parseInt(e.target.value, 10))}
-                className="flex-1 h-1 accent-accent cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              />
-              <span className="text-[10px] text-muted shrink-0">
-                {minuteRefreshIntervalDraft !== minuteRefreshInterval ? '2秒后保存' : '1s — 120s'}
-              </span>
-            </div>
-            {rs?.effective_interval_seconds != null && (
-              <div className="mt-2 text-[11px] text-muted">
-                当前生效周期 {rs.effective_interval_seconds}s
-                {rs.effective_interval_seconds > (rs.interval_seconds ?? minuteRefreshInterval)
-                  ? ' · 数据源按请求成本限制刷新频率，已保存的间隔设置保留'
-                  : ''}
-              </div>
-            )}
-            {rs?.available && rs.rounds != null && rs.rounds > 0 && (
-              <div className="mt-2 text-[10px] text-muted">
-                已 {rs.rounds} 轮 · 最近 {rs.last_symbols} 标的 / {rs.last_rows} 行 / {rs.last_requests} 请求
-                {rs.last_round_ms != null ? ` · ${(rs.last_round_ms / 1000).toFixed(1)}s` : ''}
-                {rs.last_error ? ` · ${rs.last_error}` : ''}
-              </div>
-            )}
-          </div>
-        </Card>
-
         {/* 连板梯队降级修正 */}
         <Card
           icon={Flame}

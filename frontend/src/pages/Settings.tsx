@@ -58,7 +58,7 @@ export function Settings() {
   const tabParam = searchParams.get('tab') as TabKey | null
   const tenant = multitenancyEnabled() && !hasPermission('settings:manage')
   const availableTabs = tenant
-    ? TABS.filter(tab => tab.key === 'account')
+    ? TABS.filter(tab => tab.key === 'account' || tab.key === 'system')
     : authStatus?.auth_required ? TABS : TABS.filter(tab => tab.key !== 'account')
   const activeTab = availableTabs.find((t) => t.key === tabParam) ?? availableTabs[0]
   const highlight = tenant ? '' : searchParams.get('highlight') ?? ''
@@ -83,7 +83,7 @@ export function Settings() {
       />
 
       <div className="px-8 py-6">
-        {tenant && ((tabParam && tabParam !== 'account') || searchParams.has('highlight')) && (
+        {tenant && ((tabParam && !['account', 'system'].includes(tabParam)) || searchParams.has('highlight')) && (
           <p role="status" className="mb-4 text-sm text-muted">当前账户无权访问该设置。</p>
         )}
         <div className="flex gap-6 items-stretch">

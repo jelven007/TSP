@@ -10,7 +10,7 @@ export function ExtendHistoryPanel({ hasCap, isRunning, earliestDate, onStart }:
   hasCap: boolean
   isRunning: boolean
   earliestDate: string | null
-  onStart: () => void
+  onStart: (jobId: string) => void
 }) {
   const qc = useQueryClient()
   const [value, setValue] = useState(6)
@@ -18,9 +18,9 @@ export function ExtendHistoryPanel({ hasCap, isRunning, earliestDate, onStart }:
   const hasBatchCap = hasCap
 
   const extend = useMutation({
-    mutationFn: () => api.extendHistory(value, unit),
-    onSuccess: () => {
-      onStart()
+    mutationFn: () => api.syncKlinePeriod('1d', value, unit),
+    onSuccess: ({ job_id }) => {
+      onStart(job_id)
       qc.invalidateQueries({ queryKey: QK.pipelineJobs })
     },
   })

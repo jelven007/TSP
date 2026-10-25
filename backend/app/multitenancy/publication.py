@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 PUBLIC_DIRS = frozenset({
     "kline_daily", "kline_daily_enriched", "kline_index_daily", "kline_index_enriched",
     "kline_etf_daily", "kline_etf_enriched", "kline_minute", "kline_etf_minute",
+    "kline_5minute", "kline_10minute", "kline_15minute", "kline_weekly",
     "adj_factor", "adj_factor_etf", "financials", "instruments", "instruments_index",
     "instruments_etf", "instruments_ext", "kline_ext", "depth5", "auction_snapshot",
     "quote_second", "regime_history", "mainline_history", "ext_data", "analysis_menus",

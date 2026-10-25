@@ -657,7 +657,7 @@ def test_business_bootstrap_keeps_full_navigation_and_private_display_preference
     assert response.status_code == 200, response.text
     payload = response.json()
     assert len(payload["menus"]) == 18 and "/" in payload["menus"] and "/data" not in payload["menus"]
-    assert payload["settings_tabs"] == ["account"] and payload["business"]["onboarding_completed"]
+    assert payload["settings_tabs"] == ["account", "system"] and payload["business"]["onboarding_completed"]
     assert "smtp" not in response.text and "api_key" not in response.text and "base_url" not in response.text
     layout = {"v": 1, "items": [{"i": "mine", "t": "indices", "x": 0, "y": 0, "w": 4, "h": 8}]}
     assert client.put("/api/business/preferences/dashboard-layout", json={"layout": layout}).status_code == 200

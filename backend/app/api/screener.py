@@ -342,6 +342,8 @@ def run_preset(req: PresetRequest, request: Request):
     if not engine:
         raise HTTPException(status_code=404, detail=f"策略引擎未初始化或策略 {req.strategy_id} 不存在")
     engine = strategy_results.execution_snapshot(engine)
+    if getattr(engine, "remote_context", False):
+        overrides = engine._override_loader(req.strategy_id)
 
     try:
         if not engine.has(req.strategy_id):
@@ -907,7 +909,8 @@ def run_all(request: Request, body: Optional[dict] = None):
 
     # 批量预加载所有 override 配置
     t0 = time.perf_counter()
-    all_overrides = strategy_config.list_overrides(data_dir)
+    all_overrides = (engine._task_snapshot["overrides"] if getattr(engine, "remote_context", False)
+                     else strategy_config.list_overrides(data_dir))
     logger.info("run_all: list_overrides took %.1fms (%d overrides)", (time.perf_counter() - t0) * 1000, len(all_overrides))
 
     params_map = {

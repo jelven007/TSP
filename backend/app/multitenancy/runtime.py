@@ -103,11 +103,16 @@ class FullWorker:
             groups = {row["id"]: [] for row in conn.execute("SELECT id FROM business.watchlist_groups").fetchall()}
             for row in conn.execute("SELECT group_id,symbol FROM business.watchlist_group_items").fetchall():
                 groups[row["group_id"]].append(row["symbol"])
+            from app.multitenancy.watchlist import Watchlist
+            from app.strategy.config import list_overrides
+
             payload = {
                 "kind": "monitor", "tenant_id": tenant_id, "snapshot": snapshot, "rules": rules, "groups": groups,
+                "administrator": "settings:manage" in account["permissions"],
+                "watchlist": Watchlist._rows(conn),
                 "state": unit.get("monitor_runtime", "default", {}),
                 "sources": unit.values("strategy_sources"),
-                "overrides": {row["id"]: row["value"] for row in unit.records("strategy_overrides")},
+                "overrides": list_overrides(unit),
                 "signals": unit.values("custom_signals"), "factors": unit.values("custom_factors"),
                 **({"public_release_id": snapshot["public_release"]["id"]} if snapshot.get("public_release") else {}),
             }

@@ -4,12 +4,13 @@ from __future__ import annotations
 import logging
 import math
 import time
+from collections.abc import Callable
 from datetime import UTC, date, datetime
-from typing import Callable
+from typing import Annotated
 
 import anyio
 import polars as pl
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 
 from app.db_safe import is_valid_ext_ident, quote_ident
@@ -161,40 +162,70 @@ def list_groups(request: Request = None):
 @router.post("/groups")
 def create_group(req: GroupNameRequest, request: Request = None):
     try:
-        groups, group = _service(request).create_group(req.name, req.color)
+        _, group = _service(request).create_group(req.name, req.color)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    return {"groups": groups, "group": group}
+    return {"groups": _service(request).list_groups(), "group": group}
+
+
+@router.post("/groups/import-csv")
+async def create_group_from_csv(
+    request: Request, name: Annotated[str, Form()], file: Annotated[UploadFile, File()],
+    color: Annotated[str, Form()] = "sky",
+):
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(400, "仅支持 CSV 文件")
+    data = await _read_upload_capped(file, _MAX_IMPORT_CSV_BYTES, "文件过大(上限 5MB)")
+    if not data:
+        raise HTTPException(400, "空文件")
+
+    def apply():
+        result = _run_candidate_import(
+            lambda: import_watchlist_csv(data, request.app.state.repo.store.data_dir),
+            "文件中没有可导入的股票代码",
+        )
+        from app.market_scope import supported_symbol
+        symbols = [row["symbol"] for row in result["candidates"] if supported_symbol(row["symbol"], "stock")]
+        try:
+            _, group = _service(request).create_group(name, color, symbols=symbols)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        skipped = len(result["candidates"]) - len(symbols)
+        return {"groups": _service(request).list_groups(), "group": group, "imported": len(set(symbols)),
+                "skipped": skipped}
+    return await anyio.to_thread.run_sync(apply)
 
 
 @router.put("/groups/reorder")
 def reorder_groups(req: GroupReorderRequest, request: Request = None):
     """重排分组前后顺序 (json 数组顺序即定义顺序, 侧边栏/标签栏/分组视图共用)。"""
     try:
-        groups = _service(request).reorder_groups(req.ordered_ids)
+        _service(request).reorder_groups(req.ordered_ids)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    return {"groups": groups}
+    return {"groups": _service(request).list_groups()}
 
 
 @router.put("/groups/{group_id}")
 def rename_group(group_id: str, req: GroupNameRequest, request: Request = None):
     try:
-        groups = _service(request).rename_group(group_id, req.name, req.color)
+        _service(request).rename_group(group_id, req.name, req.color)
     except KeyError as e:
         raise HTTPException(404, "自选分组不存在") from e
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
-    return {"groups": groups}
+    return {"groups": _service(request).list_groups()}
 
 
 @router.delete("/groups/{group_id}")
 def delete_group(group_id: str, request: Request):
     try:
-        groups, rows = _service(request).delete_group(group_id)
+        _, rows = _service(request).delete_group(group_id)
     except KeyError as e:
         raise HTTPException(404, "自选分组不存在") from e
-    return {"groups": groups, "symbols": _with_names(rows, request)}
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
+    return {"groups": _service(request).list_groups(), "symbols": _with_names(rows, request)}
 
 
 @router.post("/groups/{group_id}/clear")

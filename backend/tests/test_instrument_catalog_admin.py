@@ -58,6 +58,21 @@ def test_admin_crud_search_validation_and_same_day_deletion(client):
     assert api.delete("/api/data/instruments/600000.SH").status_code == 404
 
 
+def test_export_csv_full_filtered_catalog_with_bom_and_permissions(client):
+    import csv
+    import io
+    api, _, _ = client
+    for symbol in ["600000.SH", "000001.SZ"]:
+        api.post("/api/data/instruments", json={"symbol": symbol, "name": "中文名称"})
+    response = api.get("/api/data/instruments/export.csv?exchange=SZ")
+    assert response.status_code == 200
+    assert response.content.startswith(b"\xef\xbb\xbf")
+    rows = list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"))))
+    assert [r["symbol"] for r in rows] == ["000001.SZ"]
+    assert rows[0]["name"] == "中文名称"
+    assert api.get("/api/data/instruments/export.csv", headers={"x-test-role": "member"}).status_code == 403
+
+
 @pytest.mark.parametrize("method", ["get", "post", "put", "delete"])
 def test_non_admin_cannot_access_any_catalog_operation(client, method):
     api, _, _ = client

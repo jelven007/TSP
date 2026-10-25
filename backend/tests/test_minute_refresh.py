@@ -3,7 +3,7 @@
 覆盖:
 - 盘中双时段判定 (含边界)
 - 门控链: 开关关闭 / 能力缺失 / 时段外 / 放行 (自定义源与 TickFlow 统一口径)
-- 数据源路由: full_minute 偏好 → 自定义源 (get_intraday_batch / get_intraday_latest /
+- 数据源路由: minute 偏好 → 自定义源 (get_intraday_batch / get_intraday_latest /
   get_minute 回退) 或降级 TickFlow; 仅修复轮源 60s 节奏下限
 - 单轮: mock 边界层脉冲 + 落盘, 校验状态字段与 universe 来源
 - 偏好读写: 默认开启、间隔 clamp [1, 120]
@@ -65,17 +65,19 @@ def test_refresh_window_boundaries():
     assert _in_refresh_window(wk)
     assert not _in_refresh_window(datetime(2026, 8, 25, 9, 14))
     assert _in_refresh_window(datetime(2026, 8, 25, 9, 15))
-    assert not _in_refresh_window(datetime(2026, 8, 25, 11, 30))       # 午休
+    assert _in_refresh_window(datetime(2026, 8, 25, 11, 35))
+    assert not _in_refresh_window(datetime(2026, 8, 25, 11, 36))
     assert not _in_refresh_window(datetime(2026, 8, 25, 12, 59))
     assert _in_refresh_window(datetime(2026, 8, 25, 13, 0))            # 午后恢复
     assert _in_refresh_window(datetime(2026, 8, 25, 15, 14))
-    assert not _in_refresh_window(datetime(2026, 8, 25, 15, 15))
+    assert _in_refresh_window(datetime(2026, 8, 25, 15, 20))
+    assert not _in_refresh_window(datetime(2026, 8, 25, 15, 21))
     assert not _in_refresh_window(datetime(2026, 8, 22, 10, 0))        # 周六
 
 
 def test_rustdx_effective_cadence_keeps_preference_and_accounts_for_cost(tmp_path, monkeypatch):
     svc = _svc(
-        tmp_path, monkeypatch, full_minute_provider="rustdx",
+        tmp_path, monkeypatch, minute_provider="rustdx",
         custom=type("Provider", (), {
             "intraday_min_interval_seconds": 60,
             "get_intraday_latest": lambda self, **kwargs: pl.DataFrame(),
@@ -91,17 +93,17 @@ def test_rustdx_effective_cadence_keeps_preference_and_accounts_for_cost(tmp_pat
 
 
 def _svc(tmp_path, monkeypatch, *, enabled=True, capability=True, in_hours=True,
-         full_minute_provider="tickflow", custom=None):
-    """custom 非 None 时模拟「full_minute 路由到声明该数据集的自定义源」:
+         minute_provider="tickflow", custom=None):
+    """custom 非 None 时模拟「minute 路由到声明该数据集的自定义源」:
     resolver 直接返回 fake provider (注册表在测试环境未加载)。"""
     _isolated_prefs(tmp_path, monkeypatch)
     preferences.save({"minute_refresh_enabled": enabled})
     monkeypatch.setattr(
-        preferences, "get_full_minute_data_provider", lambda: full_minute_provider,
+        preferences, "get_minute_data_provider", lambda: minute_provider,
     )
     if custom is not None:
         monkeypatch.setattr(
-            "app.services.kline_sync._resolve_full_minute_provider",
+            "app.services.kline_sync._resolve_minute_provider",
             lambda name: (custom, False, None),
         )
     svc = MinuteRefreshService(_FakeRepo(["600000.SH"]))
@@ -118,12 +120,12 @@ def test_gate_disabled(tmp_path, monkeypatch):
     assert _svc(tmp_path, monkeypatch, enabled=False)._gate_reason() == "disabled"
 
 
-def test_gate_full_minute_custom_provider_runs(tmp_path, monkeypatch):
+def test_gate_minute_custom_provider_runs(tmp_path, monkeypatch):
     """全量分钟路由到自定义源: 不再让位 — 能力口径统一 (capset 增广后放行)。"""
     class _P:  # noqa: D401 — fake provider
         def get_intraday_batch(self, symbols, count=300, asset_type="stock"):
             return pl.DataFrame()
-    svc = _svc(tmp_path, monkeypatch, full_minute_provider="myfm", custom=_P())
+    svc = _svc(tmp_path, monkeypatch, minute_provider="myfm", custom=_P())
     assert svc._gate_reason() is None
     assert svc.active_provider() == "myfm"
     assert svc.status()["provider"] == "myfm"
@@ -287,7 +289,7 @@ def test_consecutive_empty_rounds_escalate_to_full(tmp_path, monkeypatch):
     assert svc.status()["last_mode"] == "full"
 
 
-# ── 自定义源 (full_minute 路由) 轮次 ────────────────────────────────
+# ── 自定义源 (minute 路由) 轮次 ────────────────────────────────
 
 
 class _FakeCustomProvider:
@@ -335,7 +337,7 @@ def _patch_write(monkeypatch) -> dict:
 def test_custom_provider_full_round_via_intraday_batch(tmp_path, monkeypatch):
     """修复轮走 provider.get_intraday_batch (真实边界包装含时区守卫)。"""
     provider = _FakeCustomProvider(batch=True)
-    svc = _svc(tmp_path, monkeypatch, full_minute_provider="myfm", custom=provider)
+    svc = _svc(tmp_path, monkeypatch, minute_provider="myfm", custom=provider)
     monkeypatch.setattr(
         minute_refresh.MinuteRefreshService, "_today_coverage_lag_minutes",
         lambda self: None,  # 冷启动 → 全天修复
@@ -353,7 +355,7 @@ def test_custom_provider_full_round_via_intraday_batch(tmp_path, monkeypatch):
 def test_custom_provider_increment_round_via_latest(tmp_path, monkeypatch):
     """实现 get_intraday_latest 的源: 覆盖新鲜时走稳态增量, 不打全天批量。"""
     provider = _FakeCustomProvider(batch=True, latest=True)
-    svc = _svc(tmp_path, monkeypatch, full_minute_provider="myfm", custom=provider)
+    svc = _svc(tmp_path, monkeypatch, minute_provider="myfm", custom=provider)
     monkeypatch.setattr(
         minute_refresh.MinuteRefreshService, "_today_coverage_lag_minutes",
         lambda self: 0.2,
@@ -392,7 +394,7 @@ def test_rustdx_protocol_failure_preserves_last_success_and_recovers(tmp_path, m
     monkeypatch.setattr(rustdx_client, "_native_client", lambda: Native())
     monkeypatch.setattr(provider_module, "cn_now", lambda: datetime(2026, 10, 9, 15, 1))
     svc = _svc(
-        tmp_path, monkeypatch, full_minute_provider="rustdx",
+        tmp_path, monkeypatch, minute_provider="rustdx",
         custom=provider_module.RustdxProvider(),
     )
     svc._repo = _FakeRepo(["600519.SH", "000001.SZ"])
@@ -453,7 +455,7 @@ def test_counted_minute_failures_escalate_without_success_or_writes(tmp_path, mo
             modes.append("full")
             raise MinuteFetchError("protocol failure", requests=3)
 
-    svc = _svc(tmp_path, monkeypatch, full_minute_provider="counted", custom=Provider())
+    svc = _svc(tmp_path, monkeypatch, minute_provider="counted", custom=Provider())
     monkeypatch.setattr(svc, "_today_coverage_lag_minutes", lambda: 0.2)
     write_calls = _patch_write(monkeypatch)
     for _ in range(3):
@@ -472,7 +474,7 @@ def test_custom_provider_latest_missing_forces_full_with_minute_fallback(tmp_pat
     """无 get_intraday_latest: 增量轮退化为修复轮, 批量未实现时回退 get_minute
     (当日窗口), 节奏下限抬到 60s。"""
     provider = _FakeCustomProvider(minute=True)
-    svc = _svc(tmp_path, monkeypatch, full_minute_provider="myfm", custom=provider)
+    svc = _svc(tmp_path, monkeypatch, minute_provider="myfm", custom=provider)
     monkeypatch.setattr(
         minute_refresh.MinuteRefreshService, "_today_coverage_lag_minutes",
         lambda self: 0.2,  # 覆盖新鲜 → 本应增量
@@ -490,7 +492,7 @@ def test_custom_provider_latest_missing_forces_full_with_minute_fallback(tmp_pat
 
 def test_custom_provider_unresolved_keeps_source_and_stops_round(tmp_path, monkeypatch):
     """An unavailable selection never falls through to TickFlow."""
-    svc = _svc(tmp_path, monkeypatch, full_minute_provider="not-registered")
+    svc = _svc(tmp_path, monkeypatch, minute_provider="not-registered")
     monkeypatch.setattr(
         minute_refresh.MinuteRefreshService, "_today_coverage_lag_minutes",
         lambda self: 0.2,

@@ -33,7 +33,7 @@ _REQUIRED = {
     "corporate_actions": {"id", "symbol", "ex_date"},
     "realtime": {"symbol", "last_price", "prev_close", "open", "high", "low", "volume"},
     "minute": {"symbol", "datetime", "open", "high", "low", "close", "volume", "amount"},
-    # full_minute (全量分钟) 与 minute 同形: 当日窗口批量拉取, 字段映射一致
+    # 旧 YAML 的读取/试拉兼容; 实际盘中落盘复用 minute。
     "full_minute": {"symbol", "datetime", "open", "high", "low", "close", "volume", "amount"},
     # financial 字段由数据源决定, 只要求能映射出 symbol
     "financial": {"symbol"},
@@ -151,6 +151,40 @@ class GenericHTTPProvider:
                     time.sleep(1.0 * (attempt + 1))
         assert last is not None
         raise last
+
+    def get_klines(
+        self, symbols: list[str], start_time: datetime | None,
+        end_time: datetime | None, asset_type: str = "stock", freq: str = "1d",
+    ) -> pl.DataFrame:
+        if freq not in ("1m", "5m", "15m", "1d", "1w"):
+            raise ValueError(f"不支持的K线周期: {freq}")
+        dataset = "daily" if freq in ("1d", "1w") else "minute"
+        cfg = self._dataset(dataset)
+        if not cfg.freq_param:
+            if freq == "1d":
+                return self.get_daily(symbols, start_time, end_time, asset_type)
+            if freq == "1m":
+                return self.get_minute(symbols, start_time, end_time, asset_type, freq)
+            raise ValueError("当前数据源未配置周期参数 freq_param")
+        override = {cfg.freq_param: freq}
+        if cfg.asset_type_param:
+            override[cfg.asset_type_param] = asset_type
+        frames = []
+        for i, chunk in enumerate(chunked(symbols, cfg.batch)):
+            sleep_between_batches(i, cfg.rpm)
+            rows = self._request_rows(
+                cfg, symbols=chunk, start_time=start_time, end_time=end_time,
+                override_params=override, override_body=override,
+            )
+            frame = self._mapped_frame(cfg, rows)
+            if not frame.is_empty():
+                if dataset == "daily":
+                    from app.data_providers.normalizer import normalize_daily
+                    frame = normalize_daily(frame, source=self.name)
+                else:
+                    frame = self._normalize_minute(frame)
+                frames.append(frame)
+        return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
 
     def get_daily(
         self,
@@ -293,10 +327,9 @@ class GenericHTTPProvider:
         count: int = 300,  # noqa: ARG002 — 与插件契约对齐, YAML 源按时间窗口取全天
         asset_type: AssetType = "stock",
     ) -> pl.DataFrame:
-        """全量分钟修复轮: 按当日窗口批量拉取 full_minute 数据集 (chunked + rpm 限速)。
+        """盘中分钟修复轮: 复用 minute 数据集拉取当日窗口 (chunked + rpm 限速)。
 
-        与 get_minute 同形 (字段映射/归一一致), 区别仅在数据集名与窗口由调用方
-        传当日值。稳态增量 (get_intraday_latest) YAML 声明式源不提供 — 服务自动
+        稳态增量 (get_intraday_latest) YAML 声明式源不提供 — 服务自动
         降级为仅修复轮模式并放慢节奏。
         """
         # 当日窗口按北京时间墙钟 (naive, 与分钟K契约及 kline_sync.fetch_intraday_custom_batch
@@ -304,7 +337,7 @@ class GenericHTTPProvider:
         end = cn_now().replace(tzinfo=None)
         start = end.replace(hour=0, minute=0, second=0, microsecond=0)
         return self._fetch_minute_dataset(
-            "full_minute", symbols, start, end, asset_type, "1m", None,
+            "minute", symbols, start, end, asset_type, "1m", None,
         )
 
     def _fetch_minute_dataset(
@@ -415,6 +448,15 @@ class GenericHTTPProvider:
     def test_dataset(self, dataset: str, symbols: list[str] | None = None) -> dict:
         cfg = self._dataset(dataset)
         test_symbols = symbols or ["000001.SZ"]
+        if dataset == "financial":
+            df = self.get_financials("metrics", test_symbols)
+            return {
+                "provider": self.name,
+                "dataset": dataset,
+                "rows": df.height,
+                "columns": df.columns,
+                "preview": df.head(5).to_dicts(),
+            }
         end_time = datetime.now()
         start_time = end_time - timedelta(days=7)
         if dataset == "realtime":

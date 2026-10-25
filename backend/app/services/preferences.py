@@ -25,7 +25,6 @@ _DATA_PROVIDER_FIELDS = (
     "adj_factor_provider",
     "corporate_actions_provider",
     "minute_data_provider",
-    "full_minute_data_provider",
     "depth5_data_provider",
     "realtime_data_provider",
     "financial_data_provider",
@@ -256,11 +255,16 @@ _MINUTE_REFRESH_INTERVAL_MAX = 120
 
 def get_minute_refresh_enabled() -> bool:
     """盘中分钟K增量落盘默认开启; 能力门控在服务层判断。"""
-    return bool(load().get("minute_refresh_enabled", True))
+    prefs = load()
+    return bool(prefs.get("kline_sync_1m", {}).get("enabled", prefs.get("minute_refresh_enabled", True)))
 
 
 def get_minute_refresh_interval() -> int:
     """盘中分钟增量刷新间隔(秒)。默认 60,范围 [1, 120]。"""
+    prefs = load()
+    saved = prefs.get("kline_sync_1m", {}).get("interval_seconds")
+    if saved is not None:
+        return max(1, min(86400, int(saved)))
     return max(
         _MINUTE_REFRESH_INTERVAL_MIN,
         min(_MINUTE_REFRESH_INTERVAL_MAX, int(load().get("minute_refresh_interval", 60))),
@@ -364,10 +368,8 @@ def get_minute_data_provider() -> str:
 
 
 def get_full_minute_data_provider() -> str:
-    provider = str(
-        load().get("full_minute_data_provider", _DEFAULT_DATA_PROVIDER) or _DEFAULT_DATA_PROVIDER
-    ).lower()
-    return provider if provider in _allowed_data_providers() else _DEFAULT_DATA_PROVIDER
+    """旧调用方兼容别名; 盘中落盘统一使用分钟K路由, 不改写历史配置。"""
+    return get_minute_data_provider()
 
 
 def get_depth5_data_provider() -> str:

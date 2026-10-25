@@ -57,8 +57,9 @@ class Watchlist:
             return self._rows(conn)
 
     def list_groups(self) -> list[dict]:
+        from app.strategy.targets import annotate, sql_references
         with self.db.business_transaction(self.context) as conn:
-            return CellWatchlist._groups(conn)
+            return annotate(CellWatchlist._groups(conn), sql_references(conn))
 
     @staticmethod
     def _require_group(conn, group_id: str | None):
@@ -135,9 +136,11 @@ class Watchlist:
             return self._rows(conn)
         return self._mutate("watchlist.top", symbol, apply)
 
-    def create_group(self, name: str, color: str | None = None) -> tuple[list[dict], dict]:
+    def create_group(self, name: str, color: str | None = None, *, symbols: list[str] | None = None) -> tuple[list[dict], dict]:
         group = {"id": uuid.uuid4().hex, "name": _normalize_group_name(name),
                  "color": _normalize_group_color(color)}
+        if symbols is not None and (not symbols or len(symbols) > 5000):
+            raise ValueError("导入股票数量须为 1 至 5000")
 
         def apply(conn):
             conn.execute(
@@ -145,6 +148,16 @@ class Watchlist:
                    SELECT %s,%s,%s,%s,coalesce(max(position),-1)+1 FROM business.watchlist_groups""",
                 (self.context.tenant_id, group["id"], group["name"], group["color"]),
             )
+            for symbol in dict.fromkeys(symbols or []):
+                conn.execute(
+                    """INSERT INTO business.watchlist_items(tenant_id,symbol,note,position)
+                       SELECT %s,%s,'',coalesce(min(position),0)-1 FROM business.watchlist_items
+                       ON CONFLICT(tenant_id,symbol) DO NOTHING""", (self.context.tenant_id, symbol),
+                )
+                conn.execute(
+                    """INSERT INTO business.watchlist_group_items(tenant_id,group_id,symbol)
+                       VALUES(%s,%s,%s) ON CONFLICT DO NOTHING""", (self.context.tenant_id, group["id"], symbol),
+                )
             return CellWatchlist._groups(conn), group
         try:
             return self._mutate("watchlist.group.create", group["id"], apply)
@@ -180,6 +193,10 @@ class Watchlist:
 
     def delete_group(self, group_id: str) -> tuple[list[dict], list[dict]]:
         def apply(conn):
+            from app.strategy.targets import ensure_deletable, sql_references
+            if not conn.execute("SELECT 1 FROM business.watchlist_groups WHERE id=%s", (group_id,)).fetchone():
+                raise KeyError(group_id)
+            ensure_deletable(group_id, sql_references(conn))
             if not conn.execute("DELETE FROM business.watchlist_groups WHERE id=%s", (group_id,)).rowcount:
                 raise KeyError(group_id)
             return CellWatchlist._groups(conn), self._rows(conn)

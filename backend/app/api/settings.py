@@ -26,6 +26,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
+@router.get("/kline-sync")
+def get_kline_sync() -> dict:
+    from app.services.kline_periods import get_configs
+    return get_configs()
+
+
+@router.post("/kline-sync/{period}")
+def update_kline_sync(period: str, body: dict, request: Request) -> dict:
+    from app.services.kline_periods import save_config
+    try:
+        result = save_config(period, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    scheduler = getattr(request.app.state, "scheduler", None)
+    if period == "1d" and scheduler:
+        from apscheduler.triggers.cron import CronTrigger
+
+        from app.jobs.daily_pipeline import apply_data_sync_mode, reschedule_data_job
+        hour, minute = map(int, result["time"].split(":"))
+        reschedule_data_job(scheduler, "daily_pipeline", CronTrigger(
+            day_of_week="mon-fri", hour=hour, minute=minute, timezone="Asia/Shanghai",
+        ))
+        apply_data_sync_mode(scheduler)
+    return result
+
 
 class StrategyConcurrencyPrefs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -33,11 +58,16 @@ class StrategyConcurrencyPrefs(BaseModel):
 
 
 @router.get("/strategy-concurrency")
-def get_strategy_concurrency() -> dict:
+def get_strategy_concurrency(request: Request = None) -> dict:
     from app.cell.context import AccessError
     from app.config import settings
     from app.services import strategy_resources
 
+    account = getattr(getattr(request, "state", None), "account", None)
+    if (account is not None and account.get("role") != "admin"
+            and "settings:manage" not in account.get("permissions", [])):
+        return {"available": True, "editable": False, "strategy_concurrency": 1,
+                "effective_concurrency": 1, "recommended_concurrency": 1}
     configured = strategy_resources.configured_concurrency()
     if settings.service_role == "standalone":
         return {"available": True, "pending": False, **strategy_resources.local_status()}
@@ -477,7 +507,6 @@ class DataProvidersIn(BaseModel):
     adj_factor_provider: str | None = None
     corporate_actions_provider: str | None = None
     minute_data_provider: str | None = None
-    full_minute_data_provider: str | None = None
     depth5_data_provider: str | None = None
     realtime_data_provider: str | None = None
     financial_data_provider: str | None = None
@@ -597,7 +626,8 @@ def get_preferences(request: Request = None) -> dict:
         "adj_factor_provider": preferences.get_adj_factor_provider(),
         "corporate_actions_provider": preferences.get_corporate_actions_provider(),
         "minute_data_provider": preferences.get_minute_data_provider(),
-        "full_minute_data_provider": preferences.get_full_minute_data_provider(),
+        # 旧客户端只读别名, 不再独立选源。
+        "full_minute_data_provider": preferences.get_minute_data_provider(),
         "minute_history_days": _minute_history_days(),
         "depth5_data_provider": preferences.get_depth5_data_provider(),
         "realtime_data_provider": preferences.get_realtime_data_provider(),
@@ -683,7 +713,6 @@ def get_capability_matrix() -> dict:
             "realtime_data_provider": preferences.get_realtime_data_provider(),
             "daily_data_provider": preferences.get_daily_data_provider(),
             "minute_data_provider": preferences.get_minute_data_provider(),
-            "full_minute_data_provider": preferences.get_full_minute_data_provider(),
             "depth5_data_provider": preferences.get_depth5_data_provider(),
             "adj_factor_provider": preferences.get_adj_factor_provider(),
             "corporate_actions_provider": preferences.get_corporate_actions_provider(),
@@ -885,7 +914,7 @@ def update_data_providers(req: DataProvidersIn, request: Request) -> dict:
         "adj_factor_provider": preferences.get_adj_factor_provider(),
         "corporate_actions_provider": preferences.get_corporate_actions_provider(),
         "minute_data_provider": preferences.get_minute_data_provider(),
-        "full_minute_data_provider": preferences.get_full_minute_data_provider(),
+        "full_minute_data_provider": preferences.get_minute_data_provider(),
         "depth5_data_provider": preferences.get_depth5_data_provider(),
         "realtime_data_provider": preferences.get_realtime_data_provider(),
         "financial_data_provider": preferences.get_financial_provider(),

@@ -14,7 +14,6 @@ _PROVIDER_GETTERS = {
     "minute_data_provider": preferences.get_minute_data_provider,
     "depth5_data_provider": preferences.get_depth5_data_provider,
     "financial_data_provider": preferences.get_financial_provider,
-    "full_minute_data_provider": preferences.get_full_minute_data_provider,
 }
 
 

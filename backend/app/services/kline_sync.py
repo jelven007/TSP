@@ -1439,29 +1439,6 @@ def fetch_intraday_universe_increment(
     return (_normalize_minute(seg), 1)
 
 
-def _resolve_full_minute_provider(
-    provider_name: str,
-) -> tuple[object | None, bool, str | None]:
-    """解析全量分钟生效的自定义源。返回 (provider, should_use_tickflow, error_msg):
-
-    - provider_name == "tickflow" → (None, True, None)
-    - custom unavailable or resolver failure → (None, False, error)
-    - 成功 → (provider, False, None)
-
-    与 _resolve_minute_provider 同构, 仅数据集名不同。
-    """
-    if provider_name == "tickflow":
-        return (None, True, None)
-    from app.data_providers import custom as custom_sources
-    try:
-        if not custom_sources.provider_has_dataset(provider_name, "full_minute"):
-            return (None, False, "selected provider has no available full_minute dataset")
-        provider = custom_sources.get_provider(provider_name)
-        return (provider, False, None)
-    except Exception as e:  # noqa: BLE001
-        return (None, False, str(e))
-
-
 def fetch_intraday_custom_batch(
     provider: object,
     provider_name: str,

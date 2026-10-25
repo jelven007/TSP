@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { EndpointTestDialog } from '@/components/EndpointTestDialog'
-import { api, type ExtDataConfig } from '@/lib/api'
+import { api, type ExtDataConfig, type KlinePeriod } from '@/lib/api'
 import {
   useCapabilities,
   useCapabilityMatrix,
@@ -47,10 +47,9 @@ import { SectionTitle, HistoryRow } from '@/components/data/SectionTitle'
 import { SettingsModal } from '@/components/data/SettingsModal'
 import { StockCatalogDialog } from '@/components/data/StockCatalogDialog'
 import { ScheduleEditor } from '@/components/data/ScheduleEditor'
-import { ExtendHistoryPanel } from '@/components/data/ExtendHistoryPanel'
+import { KlineSyncConfig } from '@/components/data/KlineSyncConfig'
 import { RepairDailyPanel } from '@/components/data/RepairDailyPanel'
 import { EnrichedRebuildPanel } from '@/components/data/EnrichedRebuildPanel'
-import { MinuteSyncConfig } from '@/components/data/MinuteSyncConfig'
 import { RegimeConfigCard } from '@/components/data/RegimeConfigCard'
 import { PipelineScopeConfig } from '@/components/data/PipelineScopeConfig'
 import { PageSettingsModal, getCardVisibility, getCardOrder, type CardKey } from '@/components/data/PageSettingsModal'
@@ -73,6 +72,11 @@ const STAGE_CARD: Record<string, string> = {
   sync_index: 'index_daily',
   sync_minute: 'minute',
   extend_minute: 'minute',
+  sync_1m: 'minute',
+  sync_5m: '5m',
+  sync_10m: '10m',
+  sync_15m: '15m',
+  sync_1w: 'weekly',
   compute_regime: 'regime',
   // regime 软失败时入 skipped_stages 的是 'regime'(非 stage 名), 也映射到该卡片
   regime: 'regime',
@@ -197,6 +201,7 @@ export function Data() {
   })
 
   const prefs = usePreferences()
+  const klineConfigs = useQuery({ queryKey: QK.klineSyncConfigs, queryFn: api.klineSyncConfigs })
 
   // 数据源列表 + 当前数据源 (顶部"切换数据源"按钮展示)
   const dataSources = useQuery({
@@ -457,10 +462,10 @@ export function Data() {
             tierKey="daily"
             capLimits={mergedCaps}
             customProvider={routeProviderDisplay(matrix.data, 'daily')}
-            auto
+            auto={klineConfigs.data?.['1d'].enabled ?? true}
             manual={!autoSyncEnabled}
             onShowFields={() => setSchemaTable('daily')}
-            onSettings={hasData ? () => setOpenSettings(v => v === 'daily' ? null : 'daily') : undefined}
+            onSettings={() => setOpenSettings('daily')}
             settingsOpen={openSettings === 'daily'}
           />
         )
@@ -555,7 +560,7 @@ export function Data() {
       case 'minute':
         return (
           <StatCard
-            title="分钟 K"
+            title="1分钟K"
             hint="全市场同步"
             stats={s?.minute}
             loading={isLoading}
@@ -566,13 +571,30 @@ export function Data() {
             tierKey="minute"
             capLimits={mergedCaps}
             customProvider={routeProviderDisplay(matrix.data, 'minute')}
-            auto={minuteAuto}
+            auto={klineConfigs.data?.['1m'].enabled ?? true}
             manual={!autoSyncEnabled}
             onShowFields={() => setSchemaTable('minute')}
-            onSettings={hasData ? () => setOpenSettings(v => v === 'minute' ? null : 'minute') : undefined}
+            onSettings={() => setOpenSettings('minute')}
             settingsOpen={openSettings === 'minute'}
           />
         )
+      case '5m':
+      case '10m':
+      case '15m':
+      case 'weekly': {
+        const period = k === 'weekly' ? '1w' : k
+        return <StatCard
+          title={k === 'weekly' ? '周K' : `${k.slice(0, -1)}分钟K`}
+          hint={k === '10m' ? '由1分钟K实时计算' : k === 'weekly' ? '交易日16:00同步' : '交易时段周期同步'}
+          stats={s?.[k]} loading={isLoading} tierKey={k === 'weekly' ? 'daily' : 'minute'}
+          capLimits={mergedCaps} customProvider={k === '10m' ? '本地计算' : routeProviderDisplay(matrix.data, k === 'weekly' ? 'daily' : 'minute')}
+          auto={klineConfigs.data?.[period].enabled ?? true} manual={!autoSyncEnabled}
+          active={activeCard === k} done={doneStages.has(k)}
+          stagePct={activeCard === k ? job.data?.stage_pct ?? 0 : 0}
+          onShowFields={() => setSchemaTable(k)} onSettings={() => setOpenSettings(k)}
+          settingsOpen={openSettings === k}
+        />
+      }
       case 'financials': {
         const historicalShareRows = s?.financials?.tables?.shares?.rows ?? 0
         return (
@@ -925,8 +947,12 @@ export function Data() {
                 ))
               ) : [
                 { label: '个股维表', files: s?.storage.instruments_files, size: s?.storage.instruments_size_mb },
-                { label: '分钟K',   files: s?.storage.minute_files,      size: s?.storage.minute_size_mb },
+                { label: '1分钟K',   files: s?.storage.minute_files,      size: s?.storage.minute_size_mb },
+                ...(['5m', '10m', '15m'] as const).map(period => ({
+                  label: `${period.slice(0, -1)}分钟K`, files: s?.storage[`${period}_files`], size: s?.storage[`${period}_size_mb`],
+                })),
                 { label: '日K',     files: s?.storage.daily_files,       size: s?.storage.daily_size_mb },
+                { label: '周K', files: s?.storage.weekly_files, size: s?.storage.weekly_size_mb },
                 { label: '除权因子', files: s?.storage.adj_factor_files,  size: s?.storage.adj_factor_size_mb },
                 { label: 'Enriched', files: s?.storage.enriched_files,    size: s?.storage.enriched_size_mb },
                 { label: '财务数据', files: s?.storage.financials_files,   size: s?.storage.financials_size_mb },
@@ -951,7 +977,10 @@ export function Data() {
             {getCardOrder().filter(k => cardVisible[k]).map((k: CardKey) => (
               <Fragment key={k}>{renderStatCard(k)}</Fragment>
             ))}
-            {(extConfigs.data?.items ?? []).map((ext) => (
+            {[...(extConfigs.data?.items ?? [])].sort((a, b) => {
+              const rank = (name: string) => name.includes('概念') ? 0 : name.includes('行业') ? 1 : 2
+              return rank(a.label) - rank(b.label)
+            }).map((ext) => (
               <ExtDataStatCard
                 key={ext.id}
                 config={ext}
@@ -1028,13 +1057,14 @@ export function Data() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {openSettings === 'daily' && (
-          <SettingsModal title="日 K · 向前扩展历史" onClose={() => setOpenSettings(null)}>
-            <ExtendHistoryPanel
-              hasCap={hasDailyBatchCap}
+        {openSettings && ['minute', '5m', '10m', '15m', 'daily', 'weekly'].includes(openSettings) && (
+          <SettingsModal title={`${({ minute: '1分钟K', daily: '日K', weekly: '周K' } as Record<string, string>)[openSettings] ?? `${openSettings.slice(0, -1)}分钟K`} · 同步设置`} onClose={() => setOpenSettings(null)}>
+            <KlineSyncConfig
+              period={(({ minute: '1m', daily: '1d', weekly: '1w' } as Record<string, KlinePeriod>)[openSettings] ?? openSettings) as KlinePeriod}
+              hasCap={['daily', 'weekly'].includes(openSettings) ? hasDailyBatchCap : openSettings === '10m' || hasMinuteCap}
               isRunning={!!activeJobId}
-              earliestDate={s?.daily?.earliest_date ?? null}
-              onStart={() => setOpenSettings(null)}
+              earliestDate={s?.[openSettings as 'minute' | 'daily' | 'weekly' | '5m' | '10m' | '15m']?.earliest_date ?? null}
+              onJobStart={id => { setActiveJobId(id); setOpenSettings(null) }}
             />
           </SettingsModal>
         )}
@@ -1198,14 +1228,6 @@ export function Data() {
                 )}
               </div>
             </div>
-          </SettingsModal>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {openSettings === 'minute' && (
-          <SettingsModal title="分钟 K · 同步设置" onClose={() => setOpenSettings(null)}>
-            <MinuteSyncConfig hasCap={hasMinuteCap} onJobStart={(jobId) => { setActiveJobId(jobId); setOpenSettings(null) }} />
           </SettingsModal>
         )}
       </AnimatePresence>

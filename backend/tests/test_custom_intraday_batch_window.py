@@ -45,8 +45,8 @@ def _capture_window(monkeypatch: pytest.MonkeyPatch, instant: datetime, host_off
     provider = provider_module.GenericHTTPProvider(CustomSourceConfig(
         name="test_source",
         display_name="Test Source",
-        datasets={"full_minute": DatasetConfig(
-            url="https://example.test/full_minute",
+        datasets={"minute": DatasetConfig(
+            url="https://example.test/minute",
             field_map={name: name for name in _MINUTE_FIELDS},
         )},
     ))

@@ -4038,10 +4038,23 @@ def build_basic_filter_mask(market: MarketDataMatrix, config: dict) -> np.ndarra
 def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) -> np.ndarray:
     from app.market_scope import clean_market_config
     config = clean_market_config(config)
-    if not config or not config.get("enabled", True):
+    if not config:
         return np.ones(market.shape, dtype=bool)
 
     mask = np.ones(market.shape, dtype=bool)
+    if "target_mode" in config:
+        from app.strategy.targets import expression
+        panel = pl.DataFrame({"symbol": market.symbols, "name": market.names})
+        target = expression(panel, {**config, "exclude_st": False})
+        if target is not None:
+            mask &= panel.select(target).to_series().to_numpy()[None, :]
+        # 风险警示按每个历史交易日判断, 仍复用矩阵原有状态口径。
+        risk = _build_basic_filter_mask_uncached(market, {
+            "enabled": True, "exclude_st": config.get("exclude_st", False),
+        })
+        mask &= risk
+    if not config.get("enabled", True):
+        return mask
     # Absolute price/capitalization use the observed unadjusted close. Legacy
     # frames without raw prices retain their explicit close fallback.
     close = market.fields.get("raw_close", market.close)
@@ -4094,7 +4107,7 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
             )
             mask &= asset_mask[None, :]
 
-    boards = config.get("boards")
+    boards = config.get("boards") if "target_mode" not in config else None
     if config.get("market_scope_empty"):
         mask[:] = False
     if isinstance(boards, list) and boards:
@@ -4108,9 +4121,9 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
 def build_entry_eligibility_mask(market: MarketDataMatrix, config: dict) -> np.ndarray:
     """Recheck only security status/age at the fill, never future daily OHLCV."""
     mask = build_basic_filter_mask(market, {
-        "enabled": config.get("enabled", True),
+        "enabled": config.get("enabled", True) or "target_mode" in config,
         "exclude_st": config.get("exclude_st", False),
-        "exclude_new_days": config.get("exclude_new_days", 0),
+        "exclude_new_days": config.get("exclude_new_days", 0) if config.get("enabled", True) else 0,
     }).copy()
     listed = market.fields.get("is_listed")
     if listed is not None:

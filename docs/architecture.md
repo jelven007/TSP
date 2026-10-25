@@ -1,5 +1,14 @@
 # TSP 系统技术方案
 
+2026-10-26 K线画像由 `services/kline_periods.py` 集中六周期配置、取数、落盘和调度。
+新增 `kline_5minute/kline_10minute/kline_15minute/kline_weekly`，前三张沿用分钟schema，
+周K沿用日K schema并以周一日期作为周内幂等键。10分钟K仅扫描所需1分钟日期分区，
+分别按09:30和13:00起算收盘标签，未知量额保持空值。取数按日期段及100标的块有界执行；
+写盘沿既有分区锁与原子替换，刷新对应视图、画像及存储缓存，公共发布目录同步扩展。
+六周期设置经 `/api/settings/kline-sync`，手工任务经 `/api/kline/sync_period`；
+日K保留原复权/指标补齐流水线，1分钟实时保留既有增量服务，其余周期由调度检查。
+此候选沿用分钟/日K独立能力路由，不新增第八个数据集或策略周期。
+
 2026-10-25本批补入策略结果归档/全局资源准入、统一弹窗、两步向导、
 目录与行情同步分离、盘后16:00默认及研究界面刷新；
 工程目录及六类文档的对应关系见[生命周期追踪](reference/engineering.md#trace)，
@@ -73,7 +82,7 @@ Standalone 与 Platform 记录待同步状态并通过 `start_initial_sync` 创�
 09:00 执行，包含周末与节假日；复用持久化 JobStore 的 `instruments_sync` 任务类型，
 同类单飞，不占行情重任务槽，下载失败不阻塞启动。
 实时行情（含 ETF）、盘中分钟和分时图刷新、秒级归档、内置概念/行业自动拉取默认开启。
-实时监控间隔由现有 preferences getter 提供行情 3 秒、分时图 5 秒、全量分钟 60 秒
+实时监控间隔由现有 preferences getter 提供行情 3 秒、分时图 5 秒、盘中分钟落盘 60 秒
 缺省值，四页 SSE 刷新默认开启；已保存值优先，读取不改写文件。前端初始回退与 API
 无行情服务时的返回值采用同一口径，实际轮询仍由数据源能力及成本限制。
 财务调度在能力可用时默认启动，执行时检查总开关，通过
@@ -161,12 +170,27 @@ API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期
   额度；共享准入同时核对任务数及已占用内存/CPU。Docker 按准入时额度施加硬限，
   配置降低时保留旧任务及其额度，单进程模式仅提供准入估算。自动为缺省，
   手工 1–16 受部署上限限制，估算结果不代表实测容量。
-  API/Platform/Worker 共用一个主机 Broker；批量内部串行、原租户互斥保持，
+  API/Platform/Worker 共用一个主机 Broker；批量内部串行，普通租户固定一个槽；
+  管理员由认证权限注入可信任务身份，在全局预算内按推荐/手工数并发。
+  普通租户 GET 同一设置路径返回只读1，不转发平台或暴露主机预算；POST仍要求管理员。
   不扩展到跨节点调度。接线与生效排障见[运维配置](operations.md#strategy-concurrency)。
 - `production-16g.env` 将 API 覆盖为两进程，七类应用角色限制为 8,704 MiB，
   单 Compute 为 2,048 MiB，
   六类数据库客户端的双库连接上界为 36；其余内存留给 PostgreSQL、Edge/Broker、
   内核、Docker 和文件缓存。
+
+本地目标股票候选沿既有 `basic_filter` 保存 `target_mode`、`boards`、
+`include_custom`、`watchlist_group_ids` 与 `exclude_st`。`strategy/targets.py`集中
+校验、动态解析与引用检查；扩展只服务该领域，不新增通用候选插件。
+执行时展开内部 `target_symbols`，不写回配置、不从详情API下发；
+Polars与回测矩阵使用同一范围，目标关闭数值过滤仍生效，ETF资产中和股票目标。
+PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快照；成员进入归档身份，
+新成员不覆盖旧历史。文件模式以mtime/size缓存成员并返回独立快照。
+保存分组引用与删除共用租户绑定写锁；文件模式共用自选锁。分组列表携带
+`referenced_by`，界面点击即解释禁止原因，所有删除入口仍由后端保护。
+`POST /api/watchlist/groups/import-csv`复用CSV解析/主数据匹配，新建组与成员在SQL
+事务中提交；文件写入失败恢复旧文件。CSV仅含代码即可，重复去重，空匹配拒绝建组，
+已有笔记、加入日期和其他分组保留。该候选未发布到生产。
 
 公共不可变发布加入变化检测、五分钟间隔和空闲容量保护。自动回收仅删除超过
 六小时且不属于 current、最近 30 份或研究 input/metadata 引用的版本；
@@ -304,7 +328,7 @@ API 层不应直接实现供应商协议或全量数据计算。前端不应复�
 稳定写入边界还会在 `DATA_DIR/data_releases/` 发布全局 release manifest：
 
 - `current.json` 指向当前发布，`manifests/<release_id>.json` 保留不可变历史。
-- manifest 记录各核心数据集的覆盖摘要、stock/ETF enriched generation 和八类
+- manifest 记录各核心数据集的覆盖摘要、stock/ETF enriched generation 和七类
   Provider 生效路由。
 - 盘后管道只有全部阶段成功才推进 release；维表、财务、竞价归档和清库使用各自
   的明确发布原因。
@@ -441,27 +465,33 @@ enriched generation、Provider 路由、配置哈希，以及策略回测的源�
 <a id="current-7-provider-能力路由"></a>
 ### 7. Provider 能力路由
 
-能力注册表是路由元数据的权威。当前源码包含八类能力：
+能力注册表是路由元数据的权威。当前源码包含七类能力：
 
 | 能力 | 内部数据集 | 典型消费者 |
 | --- | --- | --- |
 | 实时行情 | `realtime` | 行情、自选、监控、模拟交易 |
 | 五档盘口 | `depth5` | 封板和盘口分析 |
-| 分钟K | `minute` | 分时、分钟策略和回测 |
+| 分钟K | `minute` | 历史分钟、分时、分钟策略、回测与盘中全市场落盘 |
 | 日K | `daily` | 指标、策略、回测、图表 |
 | 除权因子 | `adj_factor` | 复权和 enriched |
 | 公司行为 | `corporate_actions` | 模拟交易分红、送转、配股及日期证据门禁 |
 | 财务数据 | `financial` | 财务页面、因子和 AI 分析 |
-| 全量分钟 | `full_minute` | 全市场盘中数据落盘 |
 
-注册表按上表排序；能力路由、数据源卡片的能力标签及详情表均沿用矩阵顺序，
-不按插件自身的 `datasets` 声明顺序重新排序。
+注册表保留上述数据集契约。矩阵新增 `settings_groups` 定义设置页四类及顺序：
+实时（`realtime`）、K线（`daily` + `minute`）、除权（`adj_factor`）、财务（`financial`）。
+路由卡片、数据源能力标签与详情表共用此分组；五档和公司行为不显示为配置卡片。
+K线候选取日K与分钟K声明的交集，一次偏好请求原子保存两个字段；旧分开选源如实显示，
+打开页面不自动改写。部分适配在详情表说明，不计为完整类别服务中。
+HTTP源编辑器按实时、K线、除权、公司、财务五组编排，K线保留独立日K/分钟子配置，
+保存仍使用现有数据集键；财务预填映射沿用财务页面字段，试拉复用
+`GenericHTTPProvider.get_financials("metrics", ...)`，自动传递表名。
 
 每个能力独立路由。`usable` 表示当前生效源是否真正可用；套餐资格、已配置和可用
 不是同一状态。`depth5` 等能力失败时不跨源静默补齐。
 设置页在派生展示列表中移除 TickFlow 可选标签和配置卡片，并按 rustdx、fuyao、
 其他源排序；可用与未就绪候选统一排序。后端能力矩阵、共享查询缓存和已有偏好
-保持原契约，当前来源如实显示；“套用”继续按数据集声明选择路由。
+保持原契约，当前来源如实显示；“套用”仅更新页面四类字段，
+K线要求同时声明日K与分钟K，其他未适配类别回到默认 rustdx。
 分钟实时响应允许单行 OHLCV 尚未完整形成；API 类型保留这些空值，分时图只聚合
 有限数值并把缺失项显示为未知，不用零值或前值伪造分钟行情。
 
@@ -717,7 +747,7 @@ URL、查询参数、请求体或认证头，避免高基数和敏感信息泄�
 <a id="capabilities-3-数据能力与可信度"></a>
 ### 3. 数据能力与可信度
 
-当前能力矩阵有八项，默认均为 rustdx，已保存的合法选择继续生效。
+当前能力矩阵有七项，默认均为 rustdx，已保存的合法分钟选择同时控制历史与盘中落盘。
 单一清单见[能力注册表](../backend/app/data_providers/capabilities.py)。
 
 | 数据集 | 偏好字段 | 当前消费者与限制 |
@@ -726,12 +756,14 @@ URL、查询参数、请求体或认证头，避免高基数和敏感信息泄�
 | `adj_factor` | `adj_factor_provider` | 价格复权；不能据此还原真实现金或股份权益 |
 | `corporate_actions` | `corporate_actions_provider` | 分红/送转/配股账务；日期证据不足时暂停相关撮合 |
 | `realtime` | `realtime_data_provider` | 公共报价、页面、监控；1 秒轮询偏好不保证源端新鲜度 |
-| `minute` | `minute_data_provider` | 分时、分钟信号和回测；按本地覆盖及源历史深度判断 |
+| `minute` | `minute_data_provider` | 分时、分钟信号、回测与盘中股票全市场落盘；按本地覆盖及源历史深度判断，rustdx 落盘周期至少 60 秒 |
 | `depth5` | `depth5_data_provider` | 同日五档封板验证；失败不跨源补齐 |
 | `financial` | `financial_data_provider` | 财务/股本/因子；公告日期字段不认证原修订可得性 |
-| `full_minute` | `full_minute_data_provider` | 股票全市场分钟落盘；rustdx 有效周期至少 60 秒 |
 
-Python Provider 可声明八项；HTTP YAML 支持除 `depth5` 外七项。
+Python Provider 可声明七项；HTTP YAML 支持除 `depth5` 外六项。
+盘中刷新复用 `_resolve_minute_provider`；批量方法缺失时调用 `get_minute` 当日窗口。
+旧 `full_minute` 字段与 YAML 声明保留兼容读取，不控制选源或提升历史分钟能力。
+刷新开关、间隔、日期分区与幂等合并保持原契约；TickFlow 批量端点仍按其真实权限门控。
 `usable` 只表示当前提供方可用，不能认证历史覆盖、PIT 或公司行为日期。
 TickFlow 暂无公司行为适配。接口和单位见[插件](reference/integrations.md#plugin)、
 [HTTP 数据源](reference/integrations.md#http)及[公司行为](reference/trading-ai.md#corporate)。
@@ -789,7 +821,7 @@ S0–S3 是数据、研究等产品能力的建设维度；二期第一至第三
 
 | 状态 | 内容与边界 |
 | --- | --- |
-| 已实现基础 | React/FastAPI 工作台；八类 Provider；Polars/DuckDB/Parquet；策略、因子、回测、监控、模拟交易、AI、Open API/MCP；PostgreSQL 多租户；独立 SSE Gateway；Worker/Broker/受限 Compute |
+| 已实现基础 | React/FastAPI 工作台；七类 Provider；Polars/DuckDB/Parquet；策略、因子、回测、监控、模拟交易、AI、Open API/MCP；PostgreSQL 多租户；独立 SSE Gateway；Worker/Broker/受限 Compute |
 | 部分实现 | 秒级归档、公共快照、增量指标、固定输入、历史证券状态和短窗口秒级研究；仍需容量、可信度和恢复验证 |
 | 纳入完整目标 | Kafka、Flink、ClickHouse 应用接入、Redis、TOS、NATS JetStream、PgBouncer；多节点 HA、强隔离、目录与迁移、发布治理及万人联合验收 |
 | 条件扩展 | Ray、Iceberg、Spark、WebSocket、Kubernetes；由任务并行、湖表互操作、批处理、双向交互或编排需求触发 |
@@ -932,7 +964,7 @@ Kafka 与 JetStream 分别有自己的确认、复制和恢复范围。Redis Pub
 <a id="target-51-唯一采集与主备-fencing"></a>
 #### 5.1 唯一采集与主备 fencing
 
-八类 Provider 能力继续为 `daily`、`adj_factor`、`corporate_actions`、`minute`、`full_minute`、`realtime`、`depth5`、`financial`；固定四指数保留产品契约。Platform 主备对同一源/范围竞争持久租约，每次接管递增 `publisher_epoch`，发布端在日志入口、对象 manifest 和 current 指针提交时拒绝旧 epoch。[6](#cite-6)
+七类 Provider 能力为 `daily`、`adj_factor`、`corporate_actions`、`minute`、`realtime`、`depth5`、`financial`；分钟历史与盘中落盘共用路由，固定四指数保留产品契约。Platform 主备对同一源/范围竞争持久租约，每次接管递增 `publisher_epoch`，发布端在日志入口、对象 manifest 和 current 指针提交时拒绝旧 epoch。[6](#cite-6)
 
 仅检查租约时间不足以阻止网络分区后的旧主写入。旧主恢复不能继续发布；源切换、分区扩容和接管建立新路由代次，累计差分与连续穿越按证据重建基线。
 

@@ -8,6 +8,7 @@ import { SettingsMonitoringPanel } from './Monitoring'
 
 let prefs: Partial<Preferences> | undefined
 let quoteInterval: { interval: number } | undefined
+const minuteStatus = vi.hoisted(() => ({ available: true, capability_ok: false }))
 const { updateEmailSmtp, updateInterval, saveMonitoring } = vi.hoisted(() => ({
   updateEmailSmtp: vi.fn((toAddresses: string[]) => Promise.resolve({
     email_smtp_config: { to_addresses: toAddresses },
@@ -29,7 +30,7 @@ vi.mock('@/lib/useSharedMutations', () => ({
 vi.mock('@/components/data/DepthConfigCard', () => ({ DepthConfigContent: () => null }))
 vi.mock('@/lib/api', () => ({
   api: {
-    minuteRefreshStatus: () => Promise.resolve({ available: false }),
+    minuteRefreshStatus: () => Promise.resolve({ ...minuteStatus }),
     updateEmailSmtp,
     updateRealtimeMonitorConfig: saveMonitoring,
   },
@@ -47,6 +48,7 @@ afterEach(async () => {
   root = null
   prefs = undefined
   quoteInterval = undefined
+  minuteStatus.capability_ok = false
   vi.clearAllMocks()
 })
 
@@ -146,7 +148,7 @@ it('saves only editable recipients while system SMTP fields remain unchanged', a
 it('shows initialization intervals before preferences arrive without saving them', () => {
   render()
   const inputs = [...host!.querySelectorAll<HTMLInputElement>('input[type="range"]')]
-  expect(inputs.map(input => input.value)).toEqual(['3', '5', '60'])
+  expect(inputs.map(input => input.value)).toEqual(['5'])
   expect(updateInterval).not.toHaveBeenCalled()
   expect(saveMonitoring).not.toHaveBeenCalled()
 })
@@ -157,7 +159,19 @@ it('hydrates saved intervals without replacing them with initialization values',
   prefs = { minute_intraday_refresh_interval: 30, minute_refresh_interval: 1 }
   render()
   const inputs = [...host!.querySelectorAll<HTMLInputElement>('input[type="range"]')]
-  expect(inputs.map(input => input.value)).toEqual(['1', '30', '1'])
+  expect(inputs.map(input => input.value)).toEqual(['30'])
   expect(updateInterval).not.toHaveBeenCalled()
+  expect(saveMonitoring).not.toHaveBeenCalled()
+})
+
+it('removes quote polling and minute writer controls from monitoring settings', async () => {
+  minuteStatus.capability_ok = true
+  prefs = { minute_refresh_enabled: false, minute_refresh_interval: 60 }
+  render()
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+  expect(host!.textContent).not.toContain('盘中分钟落盘')
+  expect(host!.textContent).not.toContain('每轮拉取全市场')
+  expect(host!.textContent).not.toContain('全量分钟')
+  expect(host!.querySelectorAll<HTMLInputElement>('input[type="range"]')).toHaveLength(1)
   expect(saveMonitoring).not.toHaveBeenCalled()
 })

@@ -7,12 +7,12 @@ import { storage } from '@/lib/storage'
 import { getCardOrder, getCardVisibility, PageSettingsModal } from './PageSettingsModal'
 
 const expectedOrder = [
-  'instruments', 'minute', 'daily', 'adj_factor', 'enriched',
-  'regime', 'index', 'financials', 'etf',
+  'instruments', 'minute', '5m', '10m', '15m', 'daily', 'weekly', 'adj_factor', 'enriched',
+  'financials', 'index', 'regime', 'etf',
 ]
 const expectedLabels = [
-  '个股维表', '分钟 K', '日 K', '除权因子', 'Enriched',
-  '环境', '指数', '财务数据', 'ETF',
+  '个股维表', '1分钟K', '5分钟K', '10分钟K', '15分钟K', '日 K', '周K', '除权因子', 'Enriched',
+  '财务数据', '指数', '环境', 'ETF',
 ]
 const caps = { adj_factor: true, 'kline.minute.batch': true, financial: true }
 let host: HTMLDivElement
@@ -53,19 +53,19 @@ it('initializes the settings and portrait order without writing a user preferenc
 })
 
 it('preserves saved ordering and visibility while appending missing cards', async () => {
-  const saved = ['financials', 'index', 'removed-card', 'daily']
+  const saved = ['financials', 'index', 'removed-card', 'daily', 'weekly']
   storage.dataCardOrder.set(saved)
   storage.dataCardVisible.set({ minute: false, etf: true })
 
   expect(getCardOrder()).toEqual([
-    'financials', 'index', 'daily', 'instruments', 'minute',
+    'financials', 'index', 'daily', 'weekly', 'instruments', 'minute', '5m', '10m', '15m',
     'adj_factor', 'enriched', 'regime', 'etf',
   ])
   expect(storage.dataCardOrder.get([])).toEqual(saved)
   expect(getCardVisibility(caps)).toMatchObject({ minute: false, etf: true })
 })
 
-it('restores the system order and displays its first five cards', async () => {
+it('restores the system order and displays all requested cards', async () => {
   storage.dataCardOrder.set([...expectedOrder].reverse())
   storage.dataCardVisible.set({ etf: true, instruments: false })
   const changed = vi.fn()
@@ -79,12 +79,15 @@ it('restores the system order and displays its first five cards', async () => {
 
     expect(renderedLabels()).toEqual(expectedLabels)
     expect(storage.dataCardOrder.get([])).toEqual(expectedOrder)
-    expect(getCardOrder().filter(key => getCardVisibility(caps)[key])).toEqual([
-      'instruments', 'minute', 'daily', 'adj_factor', 'enriched',
-    ])
-    expect(host.querySelectorAll('[role="checkbox"][aria-checked="true"]')).toHaveLength(5)
+    expect(getCardOrder().filter(key => getCardVisibility(caps)[key])).toEqual(expectedOrder.slice(0, -1))
+    expect(host.querySelectorAll('[role="checkbox"][aria-checked="true"]')).toHaveLength(12)
     expect(changed).toHaveBeenCalledOnce()
   } finally {
     window.removeEventListener('data-card-visible-change', changed)
   }
+})
+
+it('places new periods into the requested order for the previous card layout', () => {
+  storage.dataCardOrder.set(['instruments', 'minute', 'daily', 'adj_factor', 'enriched', 'regime', 'index', 'financials', 'etf'])
+  expect(getCardOrder()).toEqual(expectedOrder)
 })
