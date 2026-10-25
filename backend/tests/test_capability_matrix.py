@@ -18,7 +18,6 @@ DEFAULT_CURRENT = {
     "adj_factor_provider": "tickflow",
     "corporate_actions_provider": "rustdx",
     "minute_data_provider": "tickflow",
-    "full_minute_data_provider": "tickflow",
     "depth5_data_provider": "tickflow",
     "realtime_data_provider": "tickflow",
     "financial_data_provider": "tickflow",
@@ -35,17 +34,14 @@ def _by_id(matrix: dict) -> dict[str, dict]:
 
 
 def test_registry_covers_all_routing_fields():
-    """注册表统一设置页展示顺序, 八项能力与路由偏好键一一对应。"""
+    """注册表统一设置页展示顺序, 七项能力与路由偏好键一一对应。"""
     routable = [c["field"] for c in CAPABILITY_REGISTRY if c["field"] is not None]
     assert sorted(routable) == sorted(DEFAULT_CURRENT)
     assert len(set(routable)) == len(routable)
     assert [c["id"] for c in CAPABILITY_REGISTRY] == [
         "realtime", "depth5", "minute", "daily", "adj_factor",
-        "corporate_actions", "financial", "full_minute",
+        "corporate_actions", "financial",
     ]
-    full_minute = next(c for c in CAPABILITY_REGISTRY if c["id"] == "full_minute")
-    assert full_minute["field"] == "full_minute_data_provider"
-    assert full_minute["tf_tier"] == "expert"
     for cap in CAPABILITY_REGISTRY:
         assert cap["default"] == "rustdx"
         assert cap["tf_tier"] in (None, "none", "starter", "pro", "expert")
@@ -68,13 +64,32 @@ def test_matrix_defaults_all_capabilities_to_rustdx(monkeypatch):
 
     matrix = build_capability_matrix({}, tickflow_tier="none")
 
-    assert len(matrix["capabilities"]) == 8
+    assert len(matrix["capabilities"]) == 7
     assert [cap["label"] for cap in matrix["capabilities"]] == [
-        "实时行情", "五档盘口", "分钟K", "日K", "除权因子", "公司行为", "财务数据", "全量分钟",
+        "实时行情", "五档盘口", "分钟K", "日K", "除权因子", "公司行为", "财务数据",
     ]
     for cap in matrix["capabilities"]:
         assert cap["current"] == cap["effective"] == "rustdx"
         assert cap["usable"] is True
+
+
+def test_settings_groups_expose_four_categories_without_removing_dataset_routes(monkeypatch):
+    _fake_sources(monkeypatch, [])
+    matrix = build_capability_matrix(dict(DEFAULT_CURRENT), tickflow_tier="expert")
+
+    assert matrix["settings_groups"] == [
+        {"id": "realtime", "label": "实时", "desc": "全市场实时快照",
+         "datasets": ["realtime"]},
+        {"id": "kline", "label": "K线", "desc": "日K、分钟K与盘中分钟落盘",
+         "datasets": ["daily", "minute"]},
+        {"id": "adj_factor", "label": "除权", "desc": "前复权计算基准",
+         "datasets": ["adj_factor"]},
+        {"id": "financial", "label": "财务", "desc": "财务指标与三大报表",
+         "datasets": ["financial"]},
+    ]
+    assert {cap["field"] for cap in matrix["capabilities"]} == set(DEFAULT_CURRENT)
+    assert _by_id(matrix)["depth5"]["field"] == "depth5_data_provider"
+    assert _by_id(matrix)["corporate_actions"]["field"] == "corporate_actions_provider"
 
 
 def test_matrix_without_third_party_sources(monkeypatch):
@@ -82,7 +97,7 @@ def test_matrix_without_third_party_sources(monkeypatch):
     _fake_sources(monkeypatch, [])
     matrix = build_capability_matrix(dict(DEFAULT_CURRENT), tickflow_tier="expert")
     assert matrix["tickflow_tier"] == "expert"
-    assert len(matrix["capabilities"]) == 8
+    assert len(matrix["capabilities"]) == 7
     for cap in matrix["capabilities"]:
         names = [c["name"] for c in cap["candidates"]]
         if cap["id"] == "corporate_actions":
@@ -267,34 +282,34 @@ def test_unknown_current_display_falls_back_to_name(monkeypatch):
     assert caps["realtime"]["effective_display"] == "ghost"
 
 
-def test_full_minute_routable_like_other_capabilities(monkeypatch):
-    """全量分钟行: 与其他能力同样可路由 — 声明 full_minute 数据集的源进候选,
+def test_minute_routable_like_other_capabilities(monkeypatch):
+    """分钟行: 与其他能力同样可路由 — 声明 minute 数据集的源进候选,
     路由到它则 usable=True (TickFlow 档位不足也不拦); 未路由且档位不足才不可用。"""
     _fake_sources(
         monkeypatch,
         [],
-        [{"name": "myfm", "display_name": "MyFM", "datasets": ["full_minute"]}],
+        [{"name": "myfm", "display_name": "MyFM", "datasets": ["minute"]}],
     )
     caps = _by_id(build_capability_matrix(dict(DEFAULT_CURRENT), tickflow_tier="expert"))
-    fm = caps["full_minute"]
-    assert fm["field"] == "full_minute_data_provider"
+    fm = caps["minute"]
+    assert fm["field"] == "minute_data_provider"
     assert [c["name"] for c in fm["candidates"]] == ["tickflow", "myfm"]
     assert fm["usable"] is True
     assert fm["tf_available"] is True
     assert fm["effective"] == "tickflow"
 
-    # TickFlow 档位不足 (pro) 但路由到声明该数据集的自定义源 → 同样可用
-    routed = dict(DEFAULT_CURRENT, full_minute_data_provider="myfm")
-    caps_pro = _by_id(build_capability_matrix(routed, tickflow_tier="pro"))
-    fm_pro = caps_pro["full_minute"]
+    # TickFlow 档位不足 (starter) 但路由到声明该数据集的自定义源 → 同样可用
+    routed = dict(DEFAULT_CURRENT, minute_data_provider="myfm")
+    caps_pro = _by_id(build_capability_matrix(routed, tickflow_tier="starter"))
+    fm_pro = caps_pro["minute"]
     assert [c["name"] for c in fm_pro["candidates"]] == ["myfm"]
     assert fm_pro["usable"] is True
     assert fm_pro["tf_available"] is False
     assert fm_pro["effective"] == "myfm"
 
     # 档位不足且未路由 → 不可用
-    caps_pro_default = _by_id(build_capability_matrix(dict(DEFAULT_CURRENT), tickflow_tier="pro"))
-    fm_default = caps_pro_default["full_minute"]
+    caps_pro_default = _by_id(build_capability_matrix(dict(DEFAULT_CURRENT), tickflow_tier="starter"))
+    fm_default = caps_pro_default["minute"]
     assert [c["name"] for c in fm_default["candidates"]] == ["myfm"]
     assert fm_default["usable"] is False
 
@@ -302,9 +317,7 @@ def test_full_minute_routable_like_other_capabilities(monkeypatch):
 def test_api_endpoint_injects_all_routing_preferences(monkeypatch):
     """回归 (#301): get_capability_matrix 组装 current 必须覆盖注册表全部路由字段。
 
-    full_minute_data_provider 曾漏传 → 矩阵 effective 恒回退默认 tickflow,
-    低档位用户即使已路由自定义源, 卡片仍恒显「不可用」(真实路由读 preferences
-    不受影响, 纯展示层)。此处捕获 API 层实际传给 build_capability_matrix 的
+    此处捕获 API 层实际传给 build_capability_matrix 的
     current, 断言它与注册表路由字段一一对应且取自对应 getter。
     """
     from app.api import settings as settings_api
@@ -316,7 +329,6 @@ def test_api_endpoint_injects_all_routing_preferences(monkeypatch):
         "realtime_data_provider": "rt-src",
         "daily_data_provider": "daily-src",
         "minute_data_provider": "min-src",
-        "full_minute_data_provider": "fm-src",
         "depth5_data_provider": "d5-src",
         "adj_factor_provider": "adj-src",
         "corporate_actions_provider": "action-src",
@@ -326,7 +338,6 @@ def test_api_endpoint_injects_all_routing_preferences(monkeypatch):
         "realtime_data_provider": "get_realtime_data_provider",
         "daily_data_provider": "get_daily_data_provider",
         "minute_data_provider": "get_minute_data_provider",
-        "full_minute_data_provider": "get_full_minute_data_provider",
         "depth5_data_provider": "get_depth5_data_provider",
         "adj_factor_provider": "get_adj_factor_provider",
         "corporate_actions_provider": "get_corporate_actions_provider",
@@ -351,8 +362,8 @@ def test_api_endpoint_injects_all_routing_preferences(monkeypatch):
     assert captured["current"] == getter_values
 
 
-def test_api_endpoint_full_minute_usable_follows_preference(monkeypatch):
-    """端到端回归 (#301 用户场景): 低档位 + 已路由自定义源 → 全量分钟卡片可用。
+def test_api_endpoint_minute_usable_follows_preference(monkeypatch):
+    """端到端回归: 低档位 + 已路由自定义源 → 分钟卡片可用。
 
     修复前: API 层漏传偏好, effective 恒 tickflow, 档位不足 → usable=False。
     """
@@ -363,7 +374,7 @@ def test_api_endpoint_full_minute_usable_follows_preference(monkeypatch):
     _fake_sources(
         monkeypatch,
         [],
-        [{"name": "eltdx", "display_name": "ELTDX", "datasets": ["full_minute"]}],
+        [{"name": "eltdx", "display_name": "ELTDX", "datasets": ["minute"]}],
     )
     for name in (
         "get_realtime_data_provider", "get_daily_data_provider",
@@ -371,10 +382,10 @@ def test_api_endpoint_full_minute_usable_follows_preference(monkeypatch):
         "get_adj_factor_provider", "get_financial_provider",
     ):
         monkeypatch.setattr(preferences, name, lambda: "tickflow")
-    monkeypatch.setattr(preferences, "get_full_minute_data_provider", lambda: "eltdx")
-    monkeypatch.setattr(policy, "base_tier_name", lambda: "pro")
+    monkeypatch.setattr(preferences, "get_minute_data_provider", lambda: "eltdx")
+    monkeypatch.setattr(policy, "base_tier_name", lambda: "starter")
 
-    fm = _by_id(settings_api.get_capability_matrix())["full_minute"]
+    fm = _by_id(settings_api.get_capability_matrix())["minute"]
     assert fm["effective"] == "eltdx"
     assert fm["usable"] is True
     assert fm["tf_available"] is False

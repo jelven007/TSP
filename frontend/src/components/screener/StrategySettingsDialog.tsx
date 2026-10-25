@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Settings2, RotateCcw, Save, ChevronDown, Filter, Star, TrendingUp, Sparkles, Download, Layers, Plus, Trash2 } from 'lucide-react'
 import { api, type StrategyDetail, type StrategyParamDef, type CompositeChildInfo, type ScoringDirection, type CustomSignalCondition, type EntryRiskPolicy } from '@/lib/api'
 import { toPercentages, normalizeWeights } from '@/lib/weights'
 import { BUILTIN_COLUMNS } from '@/lib/watchlist-columns'
-import { color } from '@/lib/colors'
+import { QK } from '@/lib/queryKeys'
 import { SignalPicker } from './SignalPicker'
 import { SignalTriggerActions } from '@/components/signals/SignalTriggerActions'
 import { Modal } from '@/components/Modal'
@@ -197,6 +198,7 @@ function ParamField({ def, value, onChange }: {
 }
 
 export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModify, onDeleted }: Props) {
+  const qc = useQueryClient()
   const [detail, setDetail] = useState<StrategyDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -233,6 +235,21 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const setBF = useCallback((key: string, value: any) => {
     setBasicFilter(prev => ({ ...prev, [key]: value }))
   }, [])
+  const groupsQuery = useQuery({
+    queryKey: QK.watchlistGroups, queryFn: api.watchlistGroups,
+    enabled: !!strategyId && basicFilter.target_mode === 'selected' && !!basicFilter.include_custom,
+  })
+  const initializeTargets = (bf: Record<string, any>) => {
+    if (!bf.target_mode) {
+      const legacyBoards = bf.boards as string[] | undefined
+      bf.target_mode = legacyBoards?.length && legacyBoards.length < ALL_BOARDS.length ? 'selected' : 'all'
+      bf.boards = bf.target_mode === 'selected' ? legacyBoards : []
+      bf.include_custom = false
+      bf.watchlist_group_ids = []
+      bf.exclude_st = bf.enabled !== false && !!bf.exclude_st
+    }
+    return bf
+  }
 
   // 加载策略详情
   useEffect(() => {
@@ -247,8 +264,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
         setStrategyDesc(d.description ?? '')
         // 确保 boards 有默认值
         const bf = { ...d.basic_filter }
-        if (!bf.boards) bf.boards = ALL_BOARDS
-        setBasicFilter(bf)
+        setBasicFilter(initializeTargets(bf))
         setParams(d.params_defaults)
         setScoring(d.scoring)
         setScoringDirections(d.scoring_directions ?? {})
@@ -320,6 +336,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
             })() }
           : {}),
       })
+      await qc.invalidateQueries({ queryKey: QK.watchlistGroups })
       onSaved?.(displayLimit)
       onClose()
     } catch (error) {
@@ -341,8 +358,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
       setStrategyName(d.name ?? '')
       setStrategyDesc(d.description ?? '')
       const bf = { ...d.basic_filter }
-      if (!bf.boards) bf.boards = ALL_BOARDS
-      setBasicFilter(bf)
+      setBasicFilter(initializeTargets(bf))
       setParams(d.params_defaults)
       setScoring(d.scoring)
       setScoringDirections(d.scoring_directions ?? {})
@@ -449,6 +465,63 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                     <span className="text-[10px] text-muted/50">只</span>
                   </div>
                 </div>
+
+                {detail.asset_types?.includes('stock') !== false && (
+                  <Section icon={Filter} title="目标股票" accent="text-sky-400">
+                    <div className="flex flex-wrap gap-4 text-xs text-secondary">
+                      <label className="flex items-center gap-2">
+                        <input type="radio" name={`targets-${strategyId}`} aria-label="全部股票"
+                          checked={basicFilter.target_mode === 'all'} onChange={() => setBF('target_mode', 'all')} />
+                        全部股票
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="radio" name={`targets-${strategyId}`} aria-label="选择股票范围"
+                          checked={basicFilter.target_mode === 'selected'} onChange={() => setBF('target_mode', 'selected')} />
+                        选择股票范围
+                      </label>
+                    </div>
+                    {basicFilter.target_mode === 'selected' && (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-secondary">
+                          {[...ALL_BOARDS, '自定义'].map(board => {
+                            const selected = board === '自定义' ? !!basicFilter.include_custom : (basicFilter.boards ?? []).includes(board)
+                            return <label key={board} className="flex items-center gap-2">
+                              <input type="checkbox" aria-label={board} checked={selected} onChange={event => {
+                                if (board === '自定义') setBF('include_custom', event.target.checked)
+                                else setBF('boards', event.target.checked ? [...(basicFilter.boards ?? []), board]
+                                  : (basicFilter.boards ?? []).filter((value: string) => value !== board))
+                              }} />{board}
+                            </label>
+                          })}
+                        </div>
+                        {basicFilter.include_custom && (
+                          <div className="rounded-lg border border-border/40 bg-base/40 p-3 space-y-2">
+                            <p className="text-[11px] text-muted">选择自选分组（可多选）</p>
+                            {groupsQuery.isPending ? <p role="status" className="text-xs text-muted">加载自选分组中…</p>
+                              : groupsQuery.isError ? <p role="alert" className="text-xs text-danger">自选分组加载失败 <button onClick={() => groupsQuery.refetch()} className="underline">重试</button></p>
+                              : !groupsQuery.data?.groups.length ? <p className="text-xs text-muted">暂无分组，请先在「自选」中新建。</p>
+                              : <div className="flex flex-wrap gap-x-5 gap-y-2">
+                                {groupsQuery.data.groups.map(group => <label key={group.id} className="flex items-center gap-2 text-xs text-secondary">
+                                  <input type="checkbox" aria-label={group.name}
+                                    checked={(basicFilter.watchlist_group_ids ?? []).includes(group.id)}
+                                    onChange={event => setBF('watchlist_group_ids', event.target.checked
+                                      ? [...(basicFilter.watchlist_group_ids ?? []), group.id]
+                                      : (basicFilter.watchlist_group_ids ?? []).filter((id: string) => id !== group.id))} />
+                                  {group.name}
+                                </label>)}
+                              </div>}
+                          </div>
+                        )}
+                        <p className="text-[11px] text-muted">所选板块与自选分组取并集；未选择范围或分组为空时不会匹配股票。</p>
+                      </div>
+                    )}
+                    <label className="flex items-center gap-2 pt-1 text-xs text-secondary">
+                      <input type="checkbox" aria-label="剔除 *ST 和 ST" checked={!!basicFilter.exclude_st}
+                        onChange={event => setBF('exclude_st', event.target.checked)} />
+                      剔除 *ST 和 ST
+                    </label>
+                  </Section>
+                )}
 
                 {detail.source === 'composite' && (
                   <Section icon={Filter} title="入场叠加条件" accent="text-accent">
@@ -565,26 +638,6 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                       <RangeField label="流通市值" minVal={basicFilter.float_cap_min != null ? basicFilter.float_cap_min / 1e8 : null} maxVal={basicFilter.float_cap_max != null ? basicFilter.float_cap_max / 1e8 : null} onMinChange={v => setBF('float_cap_min', v != null ? v * 1e8 : null)} onMaxChange={v => setBF('float_cap_max', v != null ? v * 1e8 : null)} unit="亿" step="5" />
                       <RangeField label="成交额" minVal={basicFilter.amount_min != null ? basicFilter.amount_min / 1e8 : null} maxVal={basicFilter.amount_max != null ? basicFilter.amount_max / 1e8 : null} onMinChange={v => setBF('amount_min', v != null ? v * 1e8 : null)} onMaxChange={v => setBF('amount_max', v != null ? v * 1e8 : null)} unit="亿" step="0.5" />
                       <RangeField label="换手率" minVal={basicFilter.turnover_min} maxVal={basicFilter.turnover_max} onMinChange={v => setBF('turnover_min', v)} onMaxChange={v => setBF('turnover_max', v)} unit="%" step="0.5" />
-                      <div className="space-y-1.5">
-                        <div className="flex items-start gap-1.5">
-                          <span className="text-[11px] text-secondary w-16 shrink-0 text-right pt-0.5">板块</span>
-                          <div className="flex flex-wrap gap-0.5">
-                            {ALL_BOARDS.map(b => {
-                              const boards: string[] = basicFilter.boards ?? ALL_BOARDS
-                              const active = boards.includes(b)
-                              return (
-                                <button key={b} onClick={() => { const cur: string[] = basicFilter.boards ?? ALL_BOARDS; const next = active ? cur.filter(x => x !== b) : [...cur, b]; setBF('boards', next.length === 0 ? ALL_BOARDS : next) }}
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors cursor-pointer ${active ? `${color.select.border} ${color.select.bgLight} ${color.select.text}` : `border-border bg-base text-muted ${color.select.borderHover}`}`}>{b}</button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] text-secondary w-16 shrink-0 text-right">ST</span>
-                          <button onClick={() => setBF('exclude_st', !basicFilter.exclude_st)}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors cursor-pointer ${basicFilter.exclude_st ? 'border-danger/40 bg-danger/10 text-danger' : 'border-border bg-base text-muted hover:border-danger/30'}`}>{basicFilter.exclude_st ? '排除' : '包含'}</button>
-                        </div>
-                      </div>
                     </div>
                   </Section>
 

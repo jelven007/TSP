@@ -1,5 +1,12 @@
 # 代码二次开发与 AI 扩展指南
 
+六周期画像扩展复用 `services/kline_periods.py` 的表映射及周期配置，
+Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/integrations.md)。
+已有1m/1d插件兼容，新5m/15m/1w必须明确适配；10m仅消费本地1m。
+新增四表在仓库视图、画像schema/缓存、数据清除、发布清单及公共目录同步接线，
+二开不能仅新增卡片或让同一数据混入原1分钟/日K分区。
+用户配置仍走preferences及共享查询键，前端不绕过Provider直接取上游。
+
 专项目录/脚本路径采用[工程布局](reference/engineering.md#layout)；
 按[生产工程](reference/engineering.md#engineering)形成开发闭环，并在
 [变更映射](reference/engineering.md#trace)关联需求/方案/开发/测试/运营/运维。
@@ -12,6 +19,15 @@
 现有SQLite/PostgreSQL归档与原策略快照并存，清缓存不清历史，分钟缺日不回退。
 二开调用共享Modal时使用size/fillHeight和portal容器，不再传旧overlayClassName。
 每次扩展点或核心契约变更更新本说明，至少每月复核其真实定义与测试。
+
+目标股票/分组CSV/角色并发候选是L3聚焦修改。`strategy/targets.py`仅提供该领域的
+校验、动态成员解析和删除引用检查，不是通用CandidateFilter插槽。
+升级复核 `config.load_override/list_overrides`、运行快照、Polars/矩阵、监控任务、
+同租户保存/删除事务及CSV新组回滚；`target_symbols`只属于执行快照，
+前端/二开不得将它作为用户可维护配置持久化。
+管理员并发身份从认证权限构造任务，不采信页面请求字段；普通租户GET设置只读1。
+前端卡片类型仅normal/large，历史mini/hidden在读取时回normal。
+当前候选未改变应用版本或生产部署，既有插槽/注册契约保持原定义。
 
 2026-10-25整合中的官方目录、管理员默认空间和全局顶栏属于L3核心修改：
 官方目录适配位于数据接入层，CRUD复用目录写锁与发布链；管理员复用注册预留/初始化
@@ -456,7 +472,19 @@ Docker、Compute、桌面产物的提交/文件清单及已安装产物差异备
 4. 只有出现需要持久化的二开配置后，再增加 schema 迁移注册表。
 5. 需要升级直接修改源码的分支时，使用 `scripts/upgrade_check.py` 预检，再执行真实合并和回归。
 
-当前数据源扩展有八项独立路由；公司行为必须复用
+当前数据源扩展有七项独立路由；历史分钟与盘中落盘统一使用 `minute`。
+设置页的四类展示由矩阵 `settings_groups` 定义：实时、K线、除权、财务。
+K线选择一次保存日K与分钟K字段，候选须同时声明两数据集；七项内部矩阵和插件声明
+继续供消费者判断能力。二开不能把界面类别 `kline` 当作新 Provider 数据集，
+或因移除五档/公司行为卡片而删除其服务契约。
+HTTP源编辑器的五组为实时/K线/除权/公司/财务，K线内保留daily/minute配置；
+映射草稿仅在前端保留，保存时去除pending键。财务试拉复用metrics业务请求，
+不引入新的财务因子计算契约。
+旧 `full_minute` 声明仍可读取，但不自动转换为历史分钟能力；
+旧 getter 为分钟路由的兼容别名，旧选源字段不再写入或参与能力增广。
+升级时复核 `MinuteRefreshService` 与 `_resolve_minute_provider`、
+可选 `get_intraday_batch` / `get_intraday_latest` 及缺能力不跨源回退。
+公司行为必须复用
 `data_providers/corporate_actions.py` 的事件校验与原台账，不能用复权系数代替现金账务。
 扩展拉取复用[有界分页与两级配方](reference/market-data.md#pull)，源配置变化时拒绝旧结果。
 AI 策略迭代、助手会话和秒级研究均已有专用接口，但不因此对 API Token 开放。

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, RefreshCw } from 'lucide-react'
+import { Download, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api, type StockCatalogFields, type StockCatalogRow } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { SettingsModal } from './SettingsModal'
@@ -41,6 +41,18 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
     queryKey: QK.stockCatalog(query, exchange, page, board),
     queryFn: () => api.stockCatalog(query, exchange, page, 50, board),
     refetchInterval: 30_000,
+  })
+  const exportCsv = useMutation({
+    mutationFn: () => api.exportStockCatalog(query, exchange, board),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'stock-catalog.csv'
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    },
+    onError: (err: Error) => setError(err.message),
   })
   const availableBoards = boardOptions.filter(option => !exchange || option.exchange === exchange)
   function selectExchange(value: string) {
@@ -120,6 +132,10 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
           </button>
           <button className={`${buttonClass} inline-flex items-center gap-1 text-accent`} disabled={change.isPending || rows.isError} onClick={() => openEditor()}>
             <Plus className="h-3.5 w-3.5" />新增股票
+          </button>
+          <button className={`${buttonClass} inline-flex items-center gap-1`} disabled={exportCsv.isPending || rows.isError}
+            onClick={() => exportCsv.mutate()} title="导出全部符合当前筛选的股票">
+            <Download className="h-3.5 w-3.5" />{exportCsv.isPending ? '导出中…' : '导出CSV'}
           </button>
         </div>
         {error && <p role="alert" className="text-xs text-bull">{error}</p>}

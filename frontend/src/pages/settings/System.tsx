@@ -4,7 +4,7 @@
  * 独立于实时监控, 放置影响整体应用行为的开关项。
  */
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { accountStorage as localStorage } from '@/lib/accountSession'
+import { accountStorage as localStorage, hasPermission, multitenancyEnabled } from '@/lib/accountSession'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Settings2, Trash2, RefreshCw, Bell, Volume2, Info, ExternalLink, CheckCircle2, Download, ZoomIn, Minus, Plus, Sparkles } from 'lucide-react'
@@ -128,6 +128,15 @@ export function SettingsSystemPanel() {
       setClearing(false)
     }
   }, [qc])
+
+  if (multitenancyEnabled() && !hasPermission('settings:manage')) {
+    return (
+      <section className="rounded-card border border-border bg-surface p-5">
+        <h3 className="text-sm font-medium text-foreground">策略页</h3>
+        <StrategyConcurrencyControl />
+      </section>
+    )
+  }
 
   return (
     <div className="w-full max-w-5xl space-y-5">

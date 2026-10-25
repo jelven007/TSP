@@ -1,5 +1,14 @@
 # 工程与交付参考
 
+2026-10-26六周期画像为L3聚焦变更。需求见[需求补充](../requirements.md)，
+方案见[当前架构](../architecture.md)，开发入口为 `services/kline_periods.py` 与
+`data_providers/*/get_klines`；前端复用 `KlineSyncConfig`、共享查询键和设置弹窗。
+测试映射见[验收指南](../testing.md)，运营入口见[发布运营](../release-operations.md)，
+备份、旧分钟基准及公共目录见[运维](../operations.md)，用户操作见
+[六周期设置](../../操作说明书.md#227-分钟-k-设置)。
+新增表仅用于数据画像和同步，不把它们自动注册为策略/回测可选周期。
+版本沿用当前主线，合并时对基线三方应用，保留其他本地修改。
+
 本附录按领域维护实现方法、数据契约和可执行示例。通用开发要求只在[CONTRIBUTING](../../CONTRIBUTING.md)定义；需求与当前/目标边界见[需求](../requirements.md)和[系统方案](../architecture.md#current)。带日期的结果仅证明原版本、环境和窗口，不是本次重新执行的验证。
 
 一级页面顶栏统一复用 `frontend/src/components/PageHeader.tsx`，以策略页为样式基准：
@@ -555,6 +564,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 融合系统目标 / 架构负责人 | FR-REALTIME/STATS/HISTORY/SCREEN/BACKTEST、NFR-23–42 | [系统目标](../architecture.md#target)、[二期计划](../planning/phase2-implementation-plan.md) | A–I、3.1–3.6联合矩阵，未实现项未执行 | 容量/成本/可靠性目标未签收，轻量不强装新组件 |
 | 数据能力与配置说明 / 数据负责人 | FR-DATA/EXT/ADMIN、FR-CORP | [Provider](integrations.md#plugin)、[公司行为](trading-ai.md#corporate)、[配置](../operations.md#configuration) | 能力/日期/账务/旧模式/配置测试 | usable不认证日期；失败保护旧结果，变更源配置拒绝旧请求 |
 | 策略、因子与研究行为补齐 / 研究负责人 | FR-STRATEGY/SIGNAL/FACTOR/MINING/BACKTEST | [策略](research.md#strategy)、[因子](factor-system.md#factor-current)、[研究](research.md#research) | 原价/费用/T+1/固定输入/样本外/候选门槛/缓存 | 研究产物不等于收益承诺；缺历史/时点证据显式受限 |
+| 目标股票与自选导入 / 应用及研究负责人 | FR-STRATEGY-06、FR-WATCHLIST-02/03、FR-ADMIN-06 | targets/config→快照→Polars/矩阵/监控；角色并发与CSV新组事务，L3 | 目标/ST/ETF、动态成员与旧历史、真实SQL隔离/回滚/竞态、API权限、前端两档/多选/CSV/删除提示 | 本地候选未发布；API/Worker/Compute须同版，回退前停用新目标策略，禁止直接删除被引用分组 |
 | 监控、模拟与AI说明 / 业务负责人 | FR-MONITOR/PAPER/CORP/AI/REVIEW | [模拟交易](trading-ai.md#paper)、[会话](trading-ai.md#sessions)、功能手册 | 周期仲裁、权益/占用/幂等、确认/取消、会话冲突 | 触发/投递/成交分开；恢复不重放写动作，SMTP配置只读 |
 | 验收/性能/维护脚本归档 / 对应开发与测试 | NFR-14–17/22/28、相关FR | backend/scripts六分类、scripts三分类及各README | 所有受影响脚本测试、沙箱/打包/拷贝路径 | 从backend用新模块名；主机已安装maintenance脚本不自动改名 |
 | 工具测试/工作流 / 发布负责人 | NFR-04/06/10 | Makefile、pyproject测试发现、CI/Windows工作流、版本工具 | tooling版本/工作流、路径/包配置回归 | 质量门SHA与产物一致；本地不加号，远程规则仍需实际核验 |

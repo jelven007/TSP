@@ -132,7 +132,7 @@ export function safeLoginRedirect(value: string | null): string {
   if (path.origin !== window.location.origin || path.pathname === '/login') return '/'
   if (multitenancyEnabled() && !hasPermission('settings:manage')) {
     if (['/data', '/dev', '/onboarding'].some(prefix => path.pathname === prefix || path.pathname.startsWith(prefix + '/'))) return '/'
-    if (path.pathname.startsWith('/settings') && (path.pathname !== '/settings' || path.searchParams.get('tab') !== 'account')) return '/'
+    if (path.pathname.startsWith('/settings') && (path.pathname !== '/settings' || !['account', 'system'].includes(path.searchParams.get('tab') ?? ''))) return '/'
   }
   return path.pathname + path.search
 }

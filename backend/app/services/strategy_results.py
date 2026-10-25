@@ -96,11 +96,13 @@ def execution_snapshot(engine):
     if hasattr(engine, "_strategies"):
         snapshot._strategies = dict(engine._strategies)
     loader = getattr(engine, "_override_loader", None)
-    if callable(loader):
-        overrides = {sid: loader(sid) for sid in snapshot._strategies}
-        snapshot._override_loader = lambda sid: copy.deepcopy(overrides.get(sid, {}))
     if getattr(engine, "remote_context", False):
         snapshot._task_snapshot = engine.task("strategy")
+        overrides = snapshot._task_snapshot["overrides"]
+        snapshot._override_loader = lambda sid: copy.deepcopy(overrides.get(sid, {}))
+    elif callable(loader):
+        overrides = {sid: loader(sid) for sid in snapshot._strategies}
+        snapshot._override_loader = lambda sid: copy.deepcopy(overrides.get(sid, {}))
     return snapshot
 
 

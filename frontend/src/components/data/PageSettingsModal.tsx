@@ -22,6 +22,7 @@ import { storage } from '@/lib/storage'
 export type CardKey =
   | 'instruments' | 'daily' | 'adj_factor' | 'enriched'
   | 'index' | 'etf' | 'minute' | 'financials' | 'regime'
+  | '5m' | '10m' | '15m' | 'weekly'
 
 interface CardDef {
   key: CardKey
@@ -36,19 +37,23 @@ interface CardDef {
 /** 数据画像卡片定义 —— 默认顺序即此数组顺序 */
 export const DATA_CARD_DEFS: CardDef[] = [
   { key: 'instruments', label: '个股维表', desc: 'A 股股票元数据', defaultHiddenIfNoCap: false },
-  { key: 'minute',      label: '分钟 K',   desc: '分钟级K线(依赖分钟K批量数据)',  defaultHiddenIfNoCap: true },
+  { key: 'minute',      label: '1分钟K',   desc: '1分钟K线', defaultHiddenIfNoCap: false },
+  { key: '5m', label: '5分钟K', desc: '5分钟K线', defaultHiddenIfNoCap: false },
+  { key: '10m', label: '10分钟K', desc: '由1分钟K实时计算', defaultHiddenIfNoCap: false },
+  { key: '15m', label: '15分钟K', desc: '15分钟K线', defaultHiddenIfNoCap: false },
   { key: 'daily',       label: '日 K',     desc: 'A 股日K线数据',          defaultHiddenIfNoCap: false },
+  { key: 'weekly', label: '周K', desc: '周K线数据', defaultHiddenIfNoCap: false },
   { key: 'adj_factor',  label: '除权因子', desc: '复权计算因子',           defaultHiddenIfNoCap: true },
   { key: 'enriched',    label: 'Enriched', desc: '技术指标计算结果',       defaultHiddenIfNoCap: false },
-  { key: 'regime',      label: '环境', desc: '每日环境状态(本地计算)', defaultHiddenIfNoCap: false },
+  { key: 'financials',  label: '财务数据', desc: '财报数据(依赖财务数据)',    defaultHiddenIfNoCap: false },
   { key: 'index',       label: '指数',     desc: '主要市场指数日K',        defaultHiddenIfNoCap: false },
-  { key: 'financials',  label: '财务数据', desc: '财报数据(依赖财务数据)',    defaultHiddenIfNoCap: true },
+  { key: 'regime',      label: '环境', desc: '每日环境状态(本地计算)', defaultHiddenIfNoCap: false },
   { key: 'etf',         label: 'ETF',      desc: '场内交易基金日K',         defaultHiddenIfNoCap: false, defaultHidden: true },
 ]
 
 const DEFAULT_ORDER = DATA_CARD_DEFS.map(d => d.key)
 /** 恢复默认时显示的卡片数量(按默认顺序取前 N 张) */
-const DEFAULT_VISIBLE_COUNT = 5
+const DEFAULT_VISIBLE_COUNT = DATA_CARD_DEFS.length - 1
 
 const CAP_KEY_MAP: Partial<Record<CardKey, string>> = {
   adj_factor: 'adj_factor',
@@ -89,6 +94,8 @@ export function getCardVisibility(
 export function getCardOrder(): CardKey[] {
   const saved = storage.dataCardOrder.get([])
   if (!saved.length) return [...DEFAULT_ORDER]
+  // 老版卡片顺序迁入六周期默认位置；新版用户拖拽继续保留。
+  if (!saved.includes('weekly')) return [...DEFAULT_ORDER]
   const known = new Set<CardKey>(DEFAULT_ORDER)
   const ordered = saved.filter(k => known.has(k as CardKey)) as CardKey[]
   // 补齐新增的 key(默认顺序里新增的卡片追加到末尾)

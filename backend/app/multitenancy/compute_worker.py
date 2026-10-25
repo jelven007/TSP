@@ -59,6 +59,13 @@ def execute(payload: dict, private_root: Path) -> dict:
         directories.append(directory)
     overrides = private_root / "user_data" / "strategy_overrides"
     overrides.mkdir(parents=True)
+    if payload.get("watchlist"):
+        import polars as pl
+
+        from app.services.watchlist import _ENTRY_SCHEMA
+        pl.DataFrame(payload["watchlist"], schema=_ENTRY_SCHEMA).write_parquet(
+            private_root / "user_data" / "watchlist.parquet",
+        )
     for sid, value in payload.get("overrides", {}).items():
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", sid):
             raise ValueError("invalid strategy override")

@@ -948,6 +948,10 @@ def _refresh_single_view(repo: KlineRepository, name: str) -> None:
         "kline_etf_enriched": f"{d}/kline_etf_enriched/**/*.parquet",
         "kline_etf_minute": f"{d}/kline_etf_minute/**/*.parquet",
         "kline_minute": f"{d}/kline_minute/**/*.parquet",
+        "kline_5minute": f"{d}/kline_5minute/**/*.parquet",
+        "kline_10minute": f"{d}/kline_10minute/**/*.parquet",
+        "kline_15minute": f"{d}/kline_15minute/**/*.parquet",
+        "kline_weekly": f"{d}/kline_weekly/**/*.parquet",
         "adj_factor": f"{d}/adj_factor/**/*.parquet",
         "adj_factor_etf": f"{d}/adj_factor_etf/**/*.parquet",
         "instruments": f"{d}/instruments/**/*.parquet",
@@ -1482,12 +1486,13 @@ def _register_auction_jobs(scheduler, repo: KlineRepository) -> None:
 
 def apply_data_sync_mode(scheduler) -> None:
     """暂停/恢复数据任务, 不影响能力检测及用户开启的复盘任务。"""
+    from app.services.kline_periods import get_configs
     enabled = _prefs.get_data_sync_auto_enabled()
     for job in scheduler.get_jobs():
-        if job.id in {"daily_pipeline", "depth_finalize"} or (
+        if job.id in {"daily_pipeline", "depth_finalize", "kline_periods"} or (
             job.id.startswith("auction_snapshot_") or job.id == "auction_publication_retry"
         ):
-            if enabled:
+            if enabled and (job.id != "daily_pipeline" or get_configs()["1d"]["enabled"]):
                 scheduler.resume_job(job.id)
             else:
                 scheduler.pause_job(job.id)
@@ -1495,7 +1500,11 @@ def apply_data_sync_mode(scheduler) -> None:
 
 def reschedule_data_job(scheduler, job_id: str, trigger: CronTrigger) -> None:
     """修改时间不能把手动模式下已暂停的任务重新激活。"""
-    if _prefs.get_data_sync_auto_enabled():
+    from app.services.kline_periods import get_configs
+    enabled = _prefs.get_data_sync_auto_enabled()
+    if job_id == "daily_pipeline":
+        enabled = enabled and get_configs()["1d"]["enabled"]
+    if enabled:
         scheduler.reschedule_job(job_id, trigger=trigger)
     else:
         scheduler.modify_job(job_id, trigger=trigger, next_run_time=None)
@@ -1619,9 +1628,13 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
         logger.info("scheduled_review enabled @%02d:%02d mon-fri",
                     review_sched["hour"], review_sched["minute"])
 
+    from app.services.kline_periods import scheduled_periods
+    scheduler.add_job(
+        scheduled_periods, args=[repo], trigger=IntervalTrigger(seconds=30),
+        id="kline_periods", max_instances=1, coalesce=True, replace_existing=True,
+    )
     # 必须在 start 前暂停, 避免竞价启动补跑/发布重试立即开始执行。
-    if not preferences.get_data_sync_auto_enabled():
-        apply_data_sync_mode(scheduler)
+    apply_data_sync_mode(scheduler)
     scheduler.start()
     logger.info("scheduler started (auto_sync=%s); instruments@%02d:%02d daily, auction@09:25 mon-fri, pipeline@%02d:%02d mon-fri, depth@%02d:%02d mon-fri",
                 preferences.get_data_sync_auto_enabled(),

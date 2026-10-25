@@ -1,8 +1,8 @@
 """能力注册表与能力路由矩阵 — 数据集维度的单一权威定义。
 
 能力 (capability) = 一个标准化数据集 (CONTRIBUTING「数据源插件化要求」):
-realtime / depth5 / minute / daily / adj_factor / corporate_actions / financial / full_minute
-(注册表顺序即设置页卡片顺序)。注册表集中声明每个能力的展示元数据、路由
+realtime / depth5 / minute / daily / adj_factor / corporate_actions / financial
+(设置页由 settings_groups 归并为四类)。注册表集中声明每个能力的展示元数据、路由
 偏好字段与 TickFlow 档位要求, 前端设置页不再各自硬编码。
 depth5 与其他数据集一样可由插件声明并独立路由; 五档不可用时连板梯队封单/
 行情封单通过 usable 给出缺数据提示。
@@ -24,7 +24,21 @@ usable 契约: 每个能力额外给出 usable = 生效源当前能否真正提�
 
 from __future__ import annotations
 
+import copy
+
 from app.data_providers import custom as custom_sources
+
+# 设置页按业务类别组织; 数据集路由仍供各业务模块独立校验能力。
+SETTINGS_CAPABILITY_GROUPS = [
+    {"id": "realtime", "label": "实时", "desc": "全市场实时快照",
+     "datasets": ["realtime"]},
+    {"id": "kline", "label": "K线", "desc": "日K、分钟K与盘中分钟落盘",
+     "datasets": ["daily", "minute"]},
+    {"id": "adj_factor", "label": "除权", "desc": "前复权计算基准",
+     "datasets": ["adj_factor"]},
+    {"id": "financial", "label": "财务", "desc": "财务指标与三大报表",
+     "datasets": ["financial"]},
+]
 
 CAPABILITY_REGISTRY: list[dict] = [
     {
@@ -46,7 +60,7 @@ CAPABILITY_REGISTRY: list[dict] = [
     {
         "id": "minute",
         "label": "分钟K",
-        "desc": "分时图与分钟回测",
+        "desc": "历史分钟K、分时图、分钟回测与盘中全市场落盘",
         "field": "minute_data_provider",
         "default": "rustdx",
         "tf_tier": "pro",
@@ -84,16 +98,6 @@ CAPABILITY_REGISTRY: list[dict] = [
         "field": "financial_data_provider",
         "default": "rustdx",
         "tf_tier": "expert",
-    },
-    {
-        "id": "full_minute",
-        "label": "全量分钟",
-        "desc": "盘中全市场当日分钟落盘 (冷启动全天 + 标的池增量)",
-        "field": "full_minute_data_provider",
-        "default": "rustdx",
-        "tf_tier": "expert",
-        # TickFlow 侧需 Expert 档; 插件/自定义源声明 full_minute 数据集即可提供
-        # (插件实现 get_intraday_batch / 可选 get_intraday_latest, YAML 仅修复轮)
     },
 ]
 
@@ -206,4 +210,8 @@ def build_capability_matrix(current: dict[str, str], tickflow_tier: str = "none"
             "candidates": candidates,
             "pending": pending,
         })
-    return {"tickflow_tier": tier_base, "capabilities": capabilities}
+    return {
+        "tickflow_tier": tier_base,
+        "capabilities": capabilities,
+        "settings_groups": copy.deepcopy(SETTINGS_CAPABILITY_GROUPS),
+    }

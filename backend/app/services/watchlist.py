@@ -255,11 +255,12 @@ def clear() -> int:
 
 
 def list_groups() -> list[dict]:
+    from app.strategy.targets import annotate, file_references
     with _LOCK:
-        return _read_groups()
+        return annotate(_read_groups(), file_references(settings.data_dir))
 
 
-def create_group(name: str, color: str | None = None) -> tuple[list[dict], dict]:
+def create_group(name: str, color: str | None = None, *, symbols: list[str] | None = None) -> tuple[list[dict], dict]:
     with _LOCK:
         normalized = _normalize_group_name(name)
         normalized_color = _normalize_group_color(color)
@@ -272,7 +273,34 @@ def create_group(name: str, color: str | None = None) -> tuple[list[dict], dict]
             "color": normalized_color,
         }
         groups.append(group)
-        _write_groups(groups)
+        if symbols is not None:
+            if not symbols or len(symbols) > 5000:
+                raise ValueError("导入股票数量须为 1 至 5000")
+            # 两文件写入失败恢复原快照, 避免留下空分组或悬空成员。
+            paths = (_groups_path(), _path())
+            originals = {path: path.read_bytes() if path.exists() else None for path in paths}
+            try:
+                _write_groups(groups)
+                rows = _read_entries().to_dicts()
+                by_symbol = {row["symbol"]: row for row in rows}
+                for symbol in dict.fromkeys(symbols):
+                    if symbol in by_symbol:
+                        by_symbol[symbol]["group_ids"].append(group["id"])
+                    else:
+                        rows.insert(0, {"symbol": symbol, "note": "", "group_ids": [group["id"]],
+                                        "added_at": datetime.utcnow().isoformat(timespec="seconds")})
+                _write_entries(pl.DataFrame(rows, schema=_ENTRY_SCHEMA))
+            except Exception:
+                for path, content in originals.items():
+                    if content is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        tmp = path.with_suffix(path.suffix + ".tmp")
+                        tmp.write_bytes(content)
+                        os.replace(tmp, path)
+                raise
+        else:
+            _write_groups(groups)
         return groups, group
 
 
@@ -309,10 +337,12 @@ def reorder_groups(ordered_ids: list[str]) -> list[dict]:
 
 def delete_group(group_id: str) -> tuple[list[dict], list[dict]]:
     """删除分组定义，原分组内的自选保留并转为未分组(仅摘掉该组标签)。"""
+    from app.strategy.targets import ensure_deletable, file_references
     with _LOCK:
         groups = _read_groups()
         if not any(group["id"] == group_id for group in groups):
             raise KeyError(group_id)
+        ensure_deletable(group_id, file_references(settings.data_dir))
         df = _strip_group(_read_entries(), group_id)
         remaining = [group for group in groups if group["id"] != group_id]
         _write_entries(df)

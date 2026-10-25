@@ -40,6 +40,33 @@ def catalog_list(
     )
 
 
+@router.get("/export.csv")
+def catalog_export(
+    request: Request, q: str = Query("", max_length=100),
+    exchange: str = Query("", pattern="^(SH|SZ)?$"),
+    board: str = Query("", pattern="^(沪主板|深主板|创业板|科创板)?$"),
+):
+    import csv
+    import io
+
+    from fastapi.responses import Response
+    # 维表规模有界, 复用同一过滤口径, 导出全部匹配项而非当前页。
+    data = list_instruments(
+        request.app.state.repo, query=q, exchange=exchange, board=board,
+        page_size=100000,
+    )["items"]
+    columns = list(data[0]) if data else ["symbol", "code", "name", "exchange", "board"]
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=columns)
+    writer.writeheader()
+    writer.writerows(data)
+    return Response(
+        content=("\ufeff" + stream.getvalue()).encode("utf-8"),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="stock-catalog.csv"'},
+    )
+
+
 def _mutate(request, symbol, fields, *, create=False):
     try:
         return mutate_instrument(request.app.state.repo, symbol, fields, create=create)

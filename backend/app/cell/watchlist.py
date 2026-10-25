@@ -113,6 +113,11 @@ class Watchlist:
         context.require("watchlist:write")
         with self.db.business_transaction(context, write=True) as conn:
             self._lock(conn)
+            from app.strategy.targets import ensure_deletable, sql_references
+            try:
+                ensure_deletable(group_id, sql_references(conn))
+            except ValueError as exc:
+                raise AccessError(409, str(exc)) from exc
             result = conn.execute("DELETE FROM business.watchlist_groups WHERE id = %s", (group_id,))
             if not result.rowcount:
                 raise AccessError(404, "group_not_found")

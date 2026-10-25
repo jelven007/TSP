@@ -201,7 +201,6 @@ def test_official_partial_catalog_does_not_overwrite(tmp_path, monkeypatch):
     ("daily_data_provider", preferences.get_daily_data_provider),
     ("adj_factor_provider", preferences.get_adj_factor_provider),
     ("minute_data_provider", preferences.get_minute_data_provider),
-    ("full_minute_data_provider", preferences.get_full_minute_data_provider),
     ("depth5_data_provider", preferences.get_depth5_data_provider),
     ("realtime_data_provider", preferences.get_realtime_data_provider),
     ("financial_data_provider", preferences.get_financial_provider),
@@ -251,12 +250,12 @@ def test_unavailable_financial_source_returns_empty(selected, monkeypatch):
     ).is_empty()
 
 
-def test_unavailable_full_minute_source_never_calls_tickflow(tmp_path, selected, monkeypatch):
+def test_unavailable_minute_refresh_source_never_calls_tickflow(tmp_path, selected, monkeypatch):
     from types import SimpleNamespace
 
     from app.services.minute_refresh import MinuteRefreshService
 
-    monkeypatch.setattr(preferences, "get_full_minute_data_provider", lambda: "rustdx")
+    monkeypatch.setattr(preferences, "get_minute_data_provider", lambda: "rustdx")
     monkeypatch.setattr(custom_sources, "provider_has_dataset", lambda *a: False)
     monkeypatch.setattr(
         kline_sync, "fetch_intraday_full_market_burst",

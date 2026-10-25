@@ -21,6 +21,7 @@ export const QK = {
   capabilityMatrix: ['capability-matrix'] as const,
   quoteStatus:    ['quote-status'] as const,
   quoteInterval:  ['quote-interval'] as const,
+  minuteRefreshStatus: ['minute-refresh-status'] as const,
   overviewMarket: (asOf?: string) => ['overview-market', asOf ?? 'latest'] as const,
   indexQuotes:    ['index-quotes'] as const,
 
@@ -75,6 +76,7 @@ export const QK = {
 
   // Data / Pipeline
   dataStatus:           ['data-status'] as const,
+  klineSyncConfigs:     ['kline-sync-configs'] as const,
   stockCatalog:         (q: string, exchange: string, page: number, board = '') => ['stock-catalog', q, exchange, page, board] as const,
   pipelineJobs:         ['pipeline-jobs'] as const,
   pipelineJob:          (id: string) => ['pipeline-job', id] as const,
