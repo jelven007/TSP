@@ -5,6 +5,14 @@
 [变更映射](reference/engineering.md#trace)关联需求/方案/开发/测试/运营/运维。
 现有插槽/注册器保持原契约，目标数据适配不能据文档示例虚构API。
 
+2026-10-25本批L3变更为策略结果生命周期、全局并发预算、共享Modal及调度分离，
+范围见[最新记录](../reports/current-state-release-20261025/verification.md)。
+升级重点复核加载定义版本、运行快照、归档查询维度/热缓存revision、
+单飞身份、Platform→Broker配置和受控弹窗接口；没有新增通用候选过滤插槽。
+现有SQLite/PostgreSQL归档与原策略快照并存，清缓存不清历史，分钟缺日不回退。
+二开调用共享Modal时使用size/fillHeight和portal容器，不再传旧overlayClassName。
+每次扩展点或核心契约变更更新本说明，至少每月复核其真实定义与测试。
+
 2026-10-25整合中的官方目录、管理员默认空间和全局顶栏属于L3核心修改：
 官方目录适配位于数据接入层，CRUD复用目录写锁与发布链；管理员复用注册预留/初始化
 流程；页面复用PageHeader，弹层需避开工具栏滚动裁剪。升级复核对应历史证券状态、
@@ -134,6 +142,16 @@ export default extension
 - 单个扩展渲染失败应由错误边界隔离，并显示可定位的扩展 ID。
 - 注册顺序确定，使用 `order` 后再按 `id` 排序，避免加载顺序导致界面漂移。
 - 插槽内容必须遵守项目现有设计系统、响应式和可访问性要求。
+
+弹窗直接复用当前 `frontend/src/components/Modal.tsx`，通过 `size` 选择
+`sm/md/lg/xl`，对应480/720/960/1200px。标题、内容、页脚和关闭按钮使用
+`modal-header/modal-body/modal-footer/modal-close`，不另写遮罩、定位或宽度。
+`SettingsModal` 同样使用 `size`；长工作区可用 `fillHeight`，`maximized` 仅用于
+用户主动最大化图表。portal、顶部距离、窄屏收缩、层级、ESC和焦点由公共组件处理，
+嵌套弹窗也须复用它。升级时复核调用方尺寸和内容滚动，验证矩阵见
+[`FR-UI-06` 弹窗验收](testing.md)。
+弹窗里的日历、分组菜单等非模态浮层通过 `useModalPortalContainer` 取得挂载容器，
+保持在当前面板的焦点范围内；页面上使用时仍挂到body。
 
 当前开放：
 

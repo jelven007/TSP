@@ -47,7 +47,10 @@ def test_broker_owns_image_entrypoint_and_only_mounts_public_market(socket_dir):
     tmp_path = socket_dir
     public = tmp_path / "public"
     public.mkdir()
-    with ComputeBroker(tmp_path / "compute.sock", "pinned-image:digest", public, 4) as broker:
+    with ComputeBroker(
+        tmp_path / "compute.sock", "pinned-image:digest", public, 4,
+        host_memory_mb=65536, host_cpus=32,
+    ) as broker:
         command = broker.command("tsp-test-job")
     assert command[command.index("--network") + 1] == "none"
     assert command[command.index("--user") + 1] == "10001:10001"

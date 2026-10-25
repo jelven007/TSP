@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronDown, ChevronUp, FolderCog, FolderInput, Pencil, Plus, Trash2, X, Eraser } from 'lucide-react'
-import { Modal } from '@/components/Modal'
+import { Modal, useModalPortalContainer } from '@/components/Modal'
 import { api } from '@/lib/api'
 import { hasPermission } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
@@ -195,12 +195,7 @@ export function WatchlistGroupBar({
 
       {/* 清空分组确认弹窗 */}
       {confirmClear && selected !== 'all' && selected !== 'ungrouped' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setConfirmClear(false)}
-          />
-          <div className="relative w-[90vw] max-w-[380px] rounded-card border border-border bg-base shadow-2xl p-6">
+        <Modal onClose={() => setConfirmClear(false)} ariaLabel="清空分组" size="sm" panelClassName="p-5">
             <h3 className="text-sm font-medium text-foreground mb-2">清空分组</h3>
             <p className="text-xs text-secondary mb-5">
               确认清空「{tabs.find(t => t.id === selected)?.name}」分组? 分组内所有股票将转为未分组(不从自选中删除)。
@@ -219,8 +214,7 @@ export function WatchlistGroupBar({
                 确认清空
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {managerOpen && (
@@ -367,14 +361,14 @@ function GroupManagerDialog({
       onClose={onClose}
       labelledBy="watchlist-groups-title"
       initialFocusRef={inputRef}
-      panelClassName="w-[92vw] max-w-md bg-surface border border-border rounded-card shadow-xl"
+      size="sm"
     >
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="modal-header flex items-center justify-between border-b border-border px-4 py-3">
         <div>
           <h2 id="watchlist-groups-title" className="text-sm font-semibold text-foreground">管理自选分组</h2>
           <p className="mt-0.5 text-[11px] text-muted">删除分组不会删除其中的股票</p>
         </div>
-        <button type="button" onClick={onClose} className="h-8 w-8 inline-flex items-center justify-center text-muted hover:text-foreground" aria-label="关闭">
+        <button type="button" onClick={onClose} className="modal-close" aria-label="关闭">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -546,6 +540,7 @@ interface GroupPickerProps {
 }
 
 export function WatchlistGroupPicker({ groups, groupIds, symbol, disabled, onToggleMember }: GroupPickerProps) {
+  const portalContainer = useModalPortalContainer()
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0, flipUp: false })
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -675,7 +670,7 @@ export function WatchlistGroupPicker({ groups, groupIds, symbol, disabled, onTog
             </div>
           )}
         </div>,
-        document.body,
+        portalContainer,
       )}
     </>
   )

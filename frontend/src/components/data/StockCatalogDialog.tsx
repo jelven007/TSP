@@ -8,6 +8,12 @@ import { SettingsModal } from './SettingsModal'
 const inputClass = 'w-full rounded-btn border border-border bg-base px-3 py-2 text-xs text-foreground focus:outline-none focus:border-accent'
 const buttonClass = 'rounded-btn border border-border px-3 py-2 text-xs hover:bg-elevated disabled:opacity-50 disabled:cursor-not-allowed'
 const sourceLabel = (source: string | null) => ({ sse: '上交所', szse: '深交所', manual: '管理员' }[source ?? ''] ?? '历史快照')
+const boardOptions = [
+  { value: '沪主板', exchange: 'SH' },
+  { value: '深主板', exchange: 'SZ' },
+  { value: '创业板', exchange: 'SZ' },
+  { value: '科创板', exchange: 'SH' },
+] as const
 
 type Draft = { symbol: string; name: string; listing_date: string; region: string; industry: string; total_shares: string; float_shares: string; tick_size: string }
 const emptyDraft = (): Draft => ({
@@ -20,20 +26,42 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [exchange, setExchange] = useState('')
+  const [board, setBoard] = useState('')
   const [page, setPage] = useState(1)
+  const [pageInput, setPageInput] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [deleting, setDeleting] = useState<StockCatalogRow | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
-    const timer = setTimeout(() => { setQuery(search.trim()); setPage(1) }, 250)
+    const timer = setTimeout(() => { setQuery(search.trim()); setPage(1); setPageInput('') }, 250)
     return () => clearTimeout(timer)
   }, [search])
   const rows = useQuery({
-    queryKey: QK.stockCatalog(query, exchange, page),
-    queryFn: () => api.stockCatalog(query, exchange, page),
+    queryKey: QK.stockCatalog(query, exchange, page, board),
+    queryFn: () => api.stockCatalog(query, exchange, page, 50, board),
     refetchInterval: 30_000,
   })
+  const availableBoards = boardOptions.filter(option => !exchange || option.exchange === exchange)
+  function selectExchange(value: string) {
+    setExchange(value)
+    if (board && value && !boardOptions.some(option => option.value === board && option.exchange === value)) {
+      setBoard('')
+    }
+    setPage(1)
+    setPageInput('')
+  }
+  const totalPages = Math.max(1, Math.ceil((rows.data?.total ?? 0) / 50))
+  const targetPage = Number(pageInput)
+  const canJump = pageInput.trim() !== '' && Number.isInteger(targetPage)
+    && targetPage >= 1 && targetPage <= totalPages
+    && !rows.isFetching && (rows.data?.total ?? 0) > 0
+  function jumpToPage() {
+    if (canJump) {
+      setPage(targetPage)
+      setPageInput('')
+    }
+  }
   const change = useMutation<unknown, Error, Action>({
     mutationFn: (action: Action) => {
       if (action.kind === 'delete') return api.deleteStockCatalogRow(action.symbol)
@@ -72,7 +100,7 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
     })
   }
   return (
-    <SettingsModal title="个股维表管理" width="max-w-5xl" onClose={onClose} closeDisabled={change.isPending}>
+    <SettingsModal title="个股维表管理" size="xl" onClose={onClose} closeDisabled={change.isPending}>
       <div className="space-y-4">
         <p className="text-xs leading-relaxed text-secondary">
           来源为沪深交易所官方名单，系统启动时及每天北京时间 09:00 自动更新。管理员修改即时生效；
@@ -80,8 +108,12 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
         </p>
         <div className="flex flex-wrap gap-2">
           <input aria-label="搜索股票代码或名称" placeholder="搜索代码或名称" value={search} onChange={e => setSearch(e.target.value)} className={`${inputClass} flex-1 min-w-40`} />
-          <select aria-label="交易所筛选" value={exchange} onChange={e => { setExchange(e.target.value); setPage(1) }} className={`${inputClass} !w-auto`}>
+          <select aria-label="交易所筛选" value={exchange} onChange={e => selectExchange(e.target.value)} className={`${inputClass} !w-auto`}>
             <option value="">全部交易所</option><option value="SH">上海</option><option value="SZ">深圳</option>
+          </select>
+          <select aria-label="板块筛选" value={board} onChange={e => { setBoard(e.target.value); setPage(1); setPageInput('') }} className={`${inputClass} !w-auto`}>
+            <option value="">全部板块</option>
+            {availableBoards.map(({ value }) => <option key={value} value={value}>{value}</option>)}
           </select>
           <button className={buttonClass} onClick={() => { void rows.refetch() }} disabled={rows.isFetching} aria-label="刷新名单">
             <RefreshCw className={`h-4 w-4 ${rows.isFetching ? 'animate-spin' : ''}`} />
@@ -153,11 +185,21 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between text-xs text-secondary gap-2">
-              <span>共 {rows.data?.total ?? 0} 只 · 第 {page} 页</span>
-              <div className="flex gap-2">
+            <div className="flex flex-wrap items-center justify-between text-xs text-secondary gap-2">
+              <span>共 {rows.data?.total ?? 0} 只 · 第 {page} / {totalPages} 页</span>
+              <div className="flex flex-wrap items-center gap-2">
                 <button className={buttonClass} disabled={page <= 1 || rows.isFetching} onClick={() => setPage(page - 1)}>上一页</button>
                 <button className={buttonClass} disabled={page * 50 >= (rows.data?.total ?? 0) || rows.isFetching} onClick={() => setPage(page + 1)}>下一页</button>
+                <label className="inline-flex items-center gap-2">
+                  到
+                  <input aria-label="跳转页码" type="number" inputMode="numeric" min={1} max={totalPages} step={1}
+                    className={`${inputClass} !w-16`} value={pageInput} placeholder={String(page)}
+                    disabled={rows.isFetching || (rows.data?.total ?? 0) === 0}
+                    onChange={e => setPageInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); jumpToPage() } }} />
+                  页
+                </label>
+                <button className={buttonClass} disabled={!canJump} onClick={jumpToPage}>跳转</button>
               </div>
             </div>
           </>

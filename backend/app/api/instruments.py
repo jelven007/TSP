@@ -32,9 +32,12 @@ router = APIRouter(
 def catalog_list(
     request: Request, q: str = Query("", max_length=100),
     exchange: str = Query("", pattern="^(SH|SZ)?$"),
+    board: str = Query("", pattern="^(沪主板|深主板|创业板|科创板)?$"),
     page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200),
 ) -> dict:
-    return list_instruments(request.app.state.repo, query=q, exchange=exchange, page=page, page_size=page_size)
+    return list_instruments(
+        request.app.state.repo, query=q, exchange=exchange, board=board, page=page, page_size=page_size,
+    )
 
 
 def _mutate(request, symbol, fields, *, create=False):

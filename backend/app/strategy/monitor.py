@@ -955,9 +955,11 @@ class MonitorRuleEngine:
                 execution_events=execution_events,
             ))
         published_results = {
-            strategy_id: self._strategy_result_payload(
-                proxy.result_for(asset_type, strategy_id, None),
-            )
+            strategy_id: {
+                **self._strategy_result_payload(proxy.result_for(asset_type, strategy_id, None)),
+                **self._live_result_identity(strategy_engine.get(strategy_id),
+                                           overrides.get((asset_type, strategy_id), {}), asset_type),
+            }
             for asset_type, strategy_id in outcomes
             if asset_type == "stock"
         }
@@ -1200,6 +1202,14 @@ class MonitorRuleEngine:
             strategy_run_count,
             failed_strategy_ids,
         )
+
+    @staticmethod
+    def _live_result_identity(strategy, overrides, asset_type):
+        from app.strategy.version import runtime_identity
+
+        return {"runtime_identity": runtime_identity(strategy, overrides),
+                "asset_type": asset_type, "timeframe": "1d",
+                "computed_at": time.time_ns() // 1_000_000, "source": "realtime"}
 
     @staticmethod
     def _strategy_result_payload(result) -> dict:
@@ -1992,6 +2002,7 @@ class MonitorRuleEngine:
         if at == "stock":
             try:
                 self._building_strategy_results[sid] = {
+                    **self._live_result_identity(s, overrides, at),
                     "total": result.total,
                     "as_of": str(cn_today()),
                     "rows": [

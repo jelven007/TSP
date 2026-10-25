@@ -59,7 +59,7 @@ export function ReturnDistributionChart({ distribution }: { distribution: DistBi
     }
   }, [distribution, ct])
 
-  const chartRef = useECharts(option, [distribution, ct])
+  const chartRef = useECharts(option)
 
   return <div ref={chartRef} className="h-48 w-full" />
 }

@@ -10,10 +10,11 @@ Group=10001
 WorkingDirectory=/opt/tsp-full
 Environment=PYTHONPATH=/opt/tsp-full/backend
 Environment=PYTHONDONTWRITEBYTECODE=1
-Environment=TSP_COMPUTE_CAPACITY=4
+Environment=TSP_COMPUTE_CAPACITY=16
 Environment=TSP_COMPUTE_MEMORY_MB=4096
 Environment=TSP_COMPUTE_CPUS=2
 Environment=TSP_COMPUTE_QUEUE_SECONDS=2
+Environment=TSP_COMPUTE_CONFIG_FILE=/opt/tsp-full/platform-config/preferences.json
 EnvironmentFile=/etc/tsp-full/broker.env
 RuntimeDirectory=tsp-full
 RuntimeDirectoryMode=0750

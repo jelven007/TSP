@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -880,12 +881,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
 
       {/* 删除确认弹窗 */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setConfirmDelete(null)}
-          />
-          <div className="relative w-[90vw] max-w-[380px] rounded-card border border-border bg-base shadow-2xl p-6">
+        <Modal onClose={() => setConfirmDelete(null)} ariaLabel="删除数据源" size="sm" panelClassName="p-5">
             <h3 className="text-sm font-medium text-foreground mb-2">删除数据源</h3>
             <p className="text-xs text-secondary mb-5">
               确认删除「{customList.find(s => s.name === confirmDelete)?.display_name || confirmDelete}」? 该数据源的配置文件将被移除,此操作不可撤销。
@@ -905,8 +901,7 @@ export function SettingsDataSourcesPanel({ highlight }: { highlight?: string } =
                 {remove.isPending ? '删除中...' : '确认删除'}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

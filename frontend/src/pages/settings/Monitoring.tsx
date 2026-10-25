@@ -54,12 +54,12 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
   const toggleQuote = useToggleRealtimeQuotes()
   // 实时模式以 quote_status 为准 (数据源无关): full_market=全市场 / none=不可用
   const realtimeEnabled = prefs?.realtime_quotes_enabled ?? true
-  // 分时图实时刷新间隔 (秒), 与后端 [3,60] clamp 对齐; 默认 6
-  const intradayInterval = prefs?.minute_intraday_refresh_interval ?? 6
+  // 分时图实时刷新间隔 (秒), 与后端 [3,60] clamp 对齐; 默认 5
+  const intradayInterval = prefs?.minute_intraday_refresh_interval ?? 5
   // 滑块本地草稿: 拖动时即时反馈, 停顿 2s 后落库 (与行情轮询滑块一致)
   const [intradayIntervalDraft, setIntradayIntervalDraft] = useState(intradayInterval)
-  // 盘中分钟增量: 间隔 (秒), 与后端 [1,120] clamp 对齐; 默认 1
-  const minuteRefreshInterval = prefs?.minute_refresh_interval ?? 1
+  // 盘中分钟增量: 间隔 (秒), 与后端 [1,120] clamp 对齐; 默认 60
+  const minuteRefreshInterval = prefs?.minute_refresh_interval ?? 60
   const [minuteRefreshIntervalDraft, setMinuteRefreshIntervalDraft] = useState(minuteRefreshInterval)
   // 盘中增量服务状态 (15s 轮询; 无服务时 available=false)
   const refreshStatus = useQuery({
@@ -80,7 +80,7 @@ export function SettingsMonitoringPanel({ highlight }: { highlight?: string } = 
   const isTrading = quoteStatus?.is_trading_hours ?? false
   // 管道/数据修正运行期间实时行情被临时暂停 — 此时禁止开启
   const isPaused = quoteStatus?.paused ?? false
-  const interval = intervalData?.interval ?? 1
+  const interval = intervalData?.interval ?? 3
   const minInterval = intervalData?.min_interval ?? 1
   const maxInterval = intervalData?.max_interval ?? 60
   const [intervalDraft, setIntervalDraft] = useState(interval)

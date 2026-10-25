@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import re
+import time
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -22,7 +23,9 @@ from app.api import contracts
 from app.backtest.minute_trigger import MINUTE_EXIT_TRIGGER_SIGNALS
 from app.cell.context import AccessError
 from app.multitenancy.ai import authorized_lines
+from app.services import strategy_results
 from app.services.ndjson_heartbeat import with_heartbeat
+from app.services.strategy_resources import limit_local_strategy
 from app.strategy import config as strategy_config
 from app.strategy.ai_generator import AIStrategyGenerator, find_meta_assignment
 from app.strategy.engine import StrategyDef, StrategyEngine
@@ -393,8 +396,10 @@ def get_strategy(strategy_id: str, request: Request):
 
 
 @router.post("/run")
+@limit_local_strategy
 def run_strategy(req: RunRequest, request: Request):
-    engine = _get_engine(request)
+    started_at = time.time_ns()
+    engine = strategy_results.execution_snapshot(_get_engine(request))
     _get_public_strategy(engine, req.strategy_id)
     data_dir = _data_dir(request)
 
@@ -416,6 +421,7 @@ def run_strategy(req: RunRequest, request: Request):
     if not as_of:
         raise HTTPException(status_code=400, detail="无可用数据日期")
 
+    generation = strategy_results.input_generation(request.app.state.repo, engine, req.asset_type)
     try:
         from app.services.screener import ScreenerService
         svc = ScreenerService(request.app.state.repo, asset_type=req.asset_type)
@@ -427,6 +433,10 @@ def run_strategy(req: RunRequest, request: Request):
             params_map={req.strategy_id: params},
             overrides_map={req.strategy_id: overrides or {}},
         )
+        identity = strategy_results.capture_identity(
+            engine, data_dir, req.strategy_id, params=params, overrides=overrides,
+            pool=req.pool, asset_type=req.asset_type, timeframe=req.timeframe,
+        )
         result = engine.run(
             req.strategy_id,
             context,
@@ -437,12 +447,17 @@ def run_strategy(req: RunRequest, request: Request):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
-    return _safe(asdict(result))
+    payload = _safe(asdict(result))
+    strategy_results.persist_result(data_dir, identity, payload, started_at=started_at,
+                                    input_generation=generation)
+    return payload
 
 
 @router.post("/run-all")
+@limit_local_strategy
 def run_all(req: RunAllRequest, request: Request):
-    engine = _get_engine(request)
+    started_at = time.time_ns()
+    engine = strategy_results.execution_snapshot(_get_engine(request))
     data_dir = _data_dir(request)
 
     as_of = req.as_of
@@ -454,6 +469,7 @@ def run_all(req: RunAllRequest, request: Request):
         return {"as_of": None, "results": {}}
 
     all_overrides = strategy_config.list_overrides(data_dir)
+    generation = strategy_results.input_generation(request.app.state.repo, engine, req.asset_type)
     strategy_ids = [
         meta["id"]
         for meta in engine.list_strategies()
@@ -475,13 +491,22 @@ def run_all(req: RunAllRequest, request: Request):
         params_map=params_map,
         overrides_map={sid: all_overrides.get(sid, {}) for sid in strategy_ids},
     )
+    identities = strategy_results.capture_identities(
+        engine, data_dir, strategy_ids, params_map=params_map, overrides_map=all_overrides,
+        asset_type=req.asset_type, timeframe=req.timeframe,
+    )
     results: dict[str, dict] = {}
     for sid, result in engine.run_all(
         context,
         params_map=params_map,
         overrides_map={sid: all_overrides.get(sid, {}) for sid in strategy_ids},
         strategy_ids=strategy_ids,
+        parallel=False,
     ).items():
+        strategy_results.persist_result(
+            data_dir, identities[sid], _safe(asdict(result)), started_at=started_at,
+            input_generation=generation,
+        )
         results[sid] = {"total": result.total, "as_of": str(as_of)}
 
     return {"as_of": str(as_of), "results": results}

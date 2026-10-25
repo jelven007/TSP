@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search, AlertTriangle, CheckCircle2, XCircle, FlaskConical, Activity, Bell } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { QK } from '@/lib/queryKeys'
@@ -321,6 +322,7 @@ function LadderTestPanel() {
   const [result, setResult] = useState<Awaited<ReturnType<typeof api.monitorRuleTestLadder>> | null>(null)
   const [error, setError] = useState('')
   const [pushMsg, setPushMsg] = useState('')
+  const [confirmTrigger, setConfirmTrigger] = useState(false)
 
   const testMut = useMutation({
     mutationFn: () => api.monitorRuleTestLadder(),
@@ -338,6 +340,7 @@ function LadderTestPanel() {
       setPushMsg(`❌ 触发失败: ${e?.message ?? String(e)}`)
       setTimeout(() => setPushMsg(''), 6000)
     },
+    onSettled: () => setConfirmTrigger(false),
   })
 
   const fmtVal = (v: number | null | undefined, metric: string) => {
@@ -365,11 +368,7 @@ function LadderTestPanel() {
           模拟触发
         </button>
         <button
-          onClick={() => {
-            if (confirm('将真实推送飞书 + 写入监控中心 + 触发 SSE 通知。确认?')) {
-              triggerMut.mutate()
-            }
-          }}
+          onClick={() => setConfirmTrigger(true)}
           disabled={triggerMut.isPending}
           className="flex items-center gap-1.5 rounded-btn border border-amber-400/40 bg-amber-400/10 px-4 py-1.5 text-sm font-medium text-amber-400 hover:bg-amber-400/20 disabled:opacity-50 cursor-pointer"
         >
@@ -439,6 +438,12 @@ function LadderTestPanel() {
         <div className="rounded-btn border border-border bg-surface/40 p-4 text-center text-sm text-muted">
           无 ladder 监控规则,请先在连板梯队页设置封单监控
         </div>
+      )}
+      {confirmTrigger && (
+        <ConfirmDialog title="真实触发预警" onClose={() => setConfirmTrigger(false)}
+          onConfirm={() => triggerMut.mutate()} pending={triggerMut.isPending} confirmText="确认触发">
+          将真实推送飞书、写入监控中心并触发 SSE 通知，确认？
+        </ConfirmDialog>
       )}
     </div>
   )

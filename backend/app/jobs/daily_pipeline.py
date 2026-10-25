@@ -215,25 +215,12 @@ def run_now(
     # 管道末尾若非空则抛 PipelineStageError, 让任务终态如实标记为 failed(而非误报成功)。
     stage_errors: list[str] = []
 
-    # Step 0: 先同步个股维表, 再解析标的池 — 确保标的池基于最新 instruments
-    emit("sync_instruments", 2, "同步个股维表…")
-    inst_rows = instrument_sync.sync_instruments(repo.store.data_dir, write_lock=getattr(repo, "_write_lock", None))
-    if inst_rows > 0:
-        from app.services.instrument_catalog import publish_catalog_change
-        publish_catalog_change(repo, reason="instruments_sync")
+    # 目录由启动/09:00独立任务维护; 行情同步与修正只读取已发布的股票池。
+    emit("resolve_universe", 2, "读取个股维表快照…")
     snapshot = instrument_sync.load_current_stock_pool(
         repo.store.data_dir,
         require_complete=True,
     )
-    snapshot_state = "已刷新" if inst_rows > 0 else "沿用最近有效快照"
-    emit(
-        "sync_instruments",
-        8,
-        f"个股维表{snapshot_state},{len(snapshot.symbols)} 只标的",
-    )
-    _invalidate("instruments")
-
-    emit("resolve_universe", 9, "解析标的池…")
     universe = list(snapshot.symbols)
     emit("resolve_universe", 10, f"标的池规模:{len(universe)} 只")
 
@@ -864,7 +851,7 @@ def run_now(
         "universe_as_of": snapshot.as_of.isoformat() if snapshot.as_of else None,
         "universe_source": snapshot.source,
         "universe_boards": list(snapshot.boards),
-        "universe_refreshed": inst_rows > 0,
+        "universe_refreshed": False,
         "daily_rows": written_daily,
         "financial_rows": financial_rows,
         "initial_sync": initial_sync,
@@ -1122,6 +1109,15 @@ async def stop_catalog_jobs() -> None:
         pending = tuple(_catalog_jobs)
         await asyncio.gather(*pending, return_exceptions=True)
         _catalog_jobs.difference_update(pending)
+
+
+async def wait_for_catalog_jobs() -> None:
+    """首次行情初始化等待独立目录任务, 不另发起目录下载。"""
+    import asyncio
+
+    pending = tuple(_catalog_jobs)
+    if pending:
+        await asyncio.gather(*(asyncio.shield(task) for task in pending), return_exceptions=True)
 
 
 async def _scheduled_instruments_task(repo) -> None:

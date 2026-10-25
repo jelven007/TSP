@@ -2,7 +2,7 @@
  * 板块切换卡片 (盘中轮动) — 概念/行业分析页共用。
  *
  * 数据: GET /api/sector-rotation (全量分钟聚合, 概念/行业二选一由页面 kind 决定),
- * 30s 前端轮询实时刷新 (分钟数据后端默认 1s 增量落盘, 30s 粒度已足够盘中观察)。
+ * 30s 前端轮询实时刷新 (分钟数据后端默认 60s 增量落盘)。
  * 展示板块来源: 自动榜 (维度可选: 活跃度=近 30 分钟成交额合计 / 综合分 / 现涨幅 /
  * 切入=1h 排名跃升 / 资金流; 行数 5/10/15/20; 自动剔除属性板块黑名单与超成员数
  * 上限的大桶, 名单可编辑, localStorage 按 kind 持久化) 或自定义监控清单
@@ -260,7 +260,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
   const data = rotationQuery.data
   // 编辑器展示名单: 未自定义时用后端内置名单预填 (响应缺省时为空)
   const effectiveExclude = excludeNames ?? (data?.default_exclude_sectors ?? [])
-  const displayNames = data?.series?.sectors ?? []
+  const displayNames = useMemo(() => data?.series?.sectors ?? [], [data?.series?.sectors])
   const maxHeatRows = rowsMode === 'custom' ? MAX_CUSTOM_SECTORS : Math.max(HEAT_ROWS, autoRows)
   const heatRows = Math.min(maxHeatRows, displayNames.length)
   const heatNames = displayNames.slice(0, heatRows)
@@ -333,7 +333,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
   }, [data, indexLabel, indexMinuteQuery.data, indexDailyQuery.data])
 
   // 两图共享同一 x 轴窗口 (1 分钟桶只看最近 60 列), 经 echarts.connect 联动指针
-  const timeline = data?.timeline ?? []
+  const timeline = useMemo(() => data?.timeline ?? [], [data?.timeline])
   const total = timeline.length
   const startCol = bucket === 1 ? Math.max(0, total - HEAT_COLS_1M) : 0
   const cols = Math.max(0, total - startCol)
@@ -419,7 +419,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
         } : {}),
       })),
     }
-  }, [data, bucket, startCol, timeline, chartTheme, phase, dimLabel, cols])
+  }, [data, startCol, timeline, chartTheme, phase, dimLabel, cols])
   const trend = useEChart(trendOption, {
     onMouseOver: (params) => {
       if (params.seriesType === 'line' && params.seriesName) setHoverName(params.seriesName)
@@ -508,7 +508,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
         emphasis: { itemStyle: { borderColor: '#fbbf24', borderWidth: 2 } },
       }],
     }
-  }, [data, bucket, chartTheme, phase, startCol, cols, displayNames, heatRows])
+  }, [data, chartTheme, phase, startCol, cols, displayNames, heatRows])
   const heat = useEChart(heatOption, {
     onMouseOver: (params) => {
       if (params.seriesType !== 'heatmap') return
@@ -629,7 +629,7 @@ export function SectorRotationCard({ kind }: { kind: 'concept' | 'industry' }) {
         }] : []),
       ],
     }
-  }, [data, dimLabel, indexLine, timeline, startCol, cols, phase, chartTheme])
+  }, [dimLabel, indexLine, timeline, startCol, cols, phase, chartTheme])
   const chart = useEChart(chartOption)
 
   // 强度图与展示图 x 轴指针跨实例联动 (两图 x 轴窗口一致才可对齐)

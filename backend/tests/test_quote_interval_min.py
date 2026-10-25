@@ -3,7 +3,7 @@
 下限语义 (中立能力原则):
 - 实时源路由到插件/自定义源时, TickFlow 档位限速保护不适用 → 通用下限 1s;
 - 实时源为 tickflow 时, 仍按当前订阅档位查表 (none/free=6s, starter=6s, pro=3s, expert=1s);
-- 默认间隔为 1s; 数据源下限更高时仍由运行时 clamp。
+- 默认间隔为 3s; 数据源下限更高时仍由运行时 clamp。
 """
 from __future__ import annotations
 
@@ -43,6 +43,22 @@ def test_tickflow_tier_floor_unchanged(monkeypatch):
         assert _bare().get_min_interval() == expect, tier
 
 
-def test_default_interval_is_one_second():
-    """未保存自定义偏好时, 实时行情默认每秒拉取一轮。"""
-    assert QuoteService.DEFAULT_INTERVAL == 1.0
+def test_default_interval_is_three_seconds():
+    """未保存自定义偏好时, 实时行情默认每三秒拉取一轮。"""
+    assert QuoteService.DEFAULT_INTERVAL == 3.0
+
+
+def test_stopped_service_keeps_saved_interval_after_initialization(monkeypatch):
+    from app.services import preferences
+
+    _route(monkeypatch, "rustdx", "none")
+    monkeypatch.setattr(preferences, "get_realtime_quote_interval", lambda: 1.0)
+    assert QuoteService()._interval == 1.0
+
+
+def test_stopped_service_uses_initialization_default(monkeypatch):
+    from app.services import preferences
+
+    _route(monkeypatch, "rustdx", "none")
+    monkeypatch.setattr(preferences, "load", lambda: {})
+    assert QuoteService()._interval == 3.0

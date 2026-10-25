@@ -1,7 +1,7 @@
+import { Modal } from '@/components/Modal'
 import { useState } from 'react'
 import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import { AlertTriangle, Info } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
@@ -39,22 +39,7 @@ export function useAdjFactorSyncGate() {
   }
 
   const dialog = pending ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={() => setPending(null)}
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 8 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-[90vw] max-w-[420px] rounded-card border border-border bg-base shadow-2xl p-6"
-      >
+    <Modal onClose={() => setPending(null)} ariaLabel="同步前置确认" size="sm" panelClassName="p-5">
         <div className="flex items-start gap-3">
           <div className="shrink-0 h-10 w-10 rounded-full bg-warning/12 flex items-center justify-center">
             <AlertTriangle className="h-5 w-5 text-warning" />
@@ -98,8 +83,7 @@ export function useAdjFactorSyncGate() {
             仍然同步
           </button>
         </div>
-      </motion.div>
-    </div>
+    </Modal>
   ) : null
 
   return { guard, dialog }

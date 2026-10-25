@@ -319,10 +319,7 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
     enabled: draft.symbols.length > 0,
     staleTime: 5 * 60_000,
   })
-  const nameBySymbol = useMemo(
-    () => ({ ...localNamesRef.current, ...(namesQ.data?.names ?? {}) }),
-    [symbolsKey, namesQ.data],
-  )
+  const nameBySymbol = { ...localNamesRef.current, ...(namesQ.data?.names ?? {}) }
   // 自选导入选项: 全部自选 + 各分组 (空分组隐藏) + 未分组
   const watchImportOptions = (() => {
     const entries = watchlistQ.data?.symbols ?? []
@@ -347,7 +344,7 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
 
   // ── 自选分组作用域 (scope=watchlist_group): 分组选择 + 只读成员预览 ──
   const groupList = watchGroupsQ.data?.groups ?? []
-  const watchEntries = watchlistQ.data?.symbols ?? []
+  const watchEntries = useMemo(() => watchlistQ.data?.symbols ?? [], [watchlistQ.data?.symbols])
   const groupCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const entry of watchEntries) {
@@ -478,14 +475,15 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
   // ── 极简模式: 只显示信号点选 + 可选描述 ──
   if (simple) {
     return (
-      <div className="rounded-card border border-border bg-surface p-5 space-y-4">
-        <div className="flex items-center justify-between gap-3">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="modal-header flex items-center justify-between gap-3">
           <h3 className="text-sm font-medium text-foreground">{editing ? '编辑监控' : '加入监控'}</h3>
-          <button onClick={onClose} className="rounded p-1 text-muted hover:bg-elevated hover:text-foreground cursor-pointer">
+          <button onClick={onClose} aria-label="关闭监控编辑" className="modal-close">
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        <div className="modal-body space-y-4">
         {draft.symbols.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {draft.symbols.map(s => (
@@ -554,8 +552,9 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
         </label>
 
         {error && <div className="rounded-btn border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger">{error}</div>}
+        </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="modal-footer flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-1.5 rounded-btn bg-elevated text-secondary text-xs cursor-pointer">取消</button>
           <button onClick={() => save.mutate()} disabled={save.isPending} className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-btn bg-accent text-white text-xs font-medium disabled:opacity-50 cursor-pointer">
             <Save className="h-3.5 w-3.5" />加入监控
@@ -567,17 +566,18 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
 
   // ── 完整模式: 监控页新建/编辑 ──
   return (
-    <div className="rounded-card border border-border bg-surface p-5 space-y-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="modal-header flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-medium text-foreground">{editing ? '编辑监控规则' : '新建监控规则'}</h3>
           <p className="mt-1 text-[11px] text-muted">规则标识自动生成,描述为可选。</p>
         </div>
-        <button onClick={onClose} className="rounded p-1 text-muted hover:bg-elevated hover:text-foreground cursor-pointer">
+        <button onClick={onClose} aria-label="关闭监控规则" className="modal-close">
           <X className="h-4 w-4" />
         </button>
       </div>
 
+      <div className="modal-body space-y-4">
       {/* 资产类型: 股票 / ETF / 指数 (个股极简模式不显示; 板块/异动仅个股) */}
       {!simple && draft.type !== 'sector' && draft.type !== 'abnormal' && (
         <div className="space-y-1.5">
@@ -1639,8 +1639,9 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
       </div>
 
       {error && <div className="rounded-btn border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger">{error}</div>}
+      </div>
 
-      <div className="flex justify-end gap-2">
+      <div className="modal-footer flex justify-end gap-2">
         <button onClick={onClose} className="px-4 py-1.5 rounded-btn bg-elevated text-secondary text-xs cursor-pointer">取消</button>
         <button onClick={() => save.mutate()} disabled={save.isPending} className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-btn bg-accent text-white text-xs font-medium disabled:opacity-50 cursor-pointer">
           <Save className="h-3.5 w-3.5" />保存

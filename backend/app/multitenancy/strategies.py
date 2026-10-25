@@ -27,6 +27,7 @@ DEFINITION_FIELDS = (
 
 def definition_payload(strategy: StrategyDef) -> dict:
     return {**{key: getattr(strategy, key) for key in DEFINITION_FIELDS},
+            "logic_version": strategy.logic_version,
             "required_features": sorted(strategy.required_features),
             "children": ([{"strategy_id": child.strategy_id, "weight": child.weight}
                           for child in strategy.composite.children] if strategy.composite else None)}
@@ -36,6 +37,7 @@ def metadata_definition(value: dict) -> StrategyDef:
     children = value.get("children")
     return StrategyDef(
         **{key: value[key] for key in DEFINITION_FIELDS},
+        logic_version=value.get("logic_version", ""),
         required_features=frozenset(value.get("required_features", [])),
         composite=CompositeSpec(tuple(CompositeChild(**child) for child in children)) if children else None,
         filter_fn=None, filter_history_fn=None,
@@ -62,9 +64,15 @@ class TenantStrategyEngine(StrategyEngine):
             value = row["value"]
             if row["id"] in self._strategies:
                 raise ValueError("private strategy cannot replace a builtin")
-            self._strategies[row["id"]] = metadata_definition(value["definition"])
+            definition = metadata_definition(value["definition"])
+            if not definition.logic_version:
+                from app.strategy.version import logic_version
+                definition = replace(definition, logic_version=logic_version(value["code"]))
+            self._strategies[row["id"]] = definition
 
     def task(self, kind: str, **values) -> dict:
+        if getattr(self, "_task_snapshot", None) is not None:
+            return {**copy.deepcopy(self._task_snapshot), "kind": kind, **values}
         return {
             "kind": kind, "tenant_id": self.documents.context.tenant_id,
             "sources": self.documents.values("strategy_sources"),

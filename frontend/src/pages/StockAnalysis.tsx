@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Sparkles, LineChart, History as HistoryIcon, Loader2, ExternalLink, Bell, AlertTriangle } from 'lucide-react'
@@ -322,11 +323,7 @@ function ConfirmModal({ report, onView, onRedo, onClose }: {
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-      <div
-        className="w-full max-w-sm bg-surface border border-border rounded-2xl p-5 shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      >
+    <Modal onClose={onClose} ariaLabel="分析确认" size="sm" panelClassName="p-5">
         <div className="flex items-center gap-2 mb-2">
           <HistoryIcon className="h-4 w-4 text-sky-400" />
           <span className="text-sm font-medium text-foreground">该个股已有分析报告</span>
@@ -346,8 +343,7 @@ function ConfirmModal({ report, onView, onRedo, onClose }: {
             重新分析
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 

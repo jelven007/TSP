@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import React, { useState, useCallback, useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -1382,7 +1383,6 @@ function ExtConfigDialog({ fields, onSave, onClose }: {
   onClose: () => void
 }) {
   const [draft, setDraft] = useState(fields)
-  const backdrop = useDialogBackdrop(onClose)
   const { data: schemaData } = useQuery({
     queryKey: QK.extDataSchemaAll,
     queryFn: api.extDataSchemaAll,
@@ -1403,22 +1403,15 @@ function ExtConfigDialog({ fields, onSave, onClose }: {
   }, [schemaData])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" {...backdrop}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-surface border border-border rounded-lg shadow-xl max-w-[95vw] overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
+    <Modal onClose={onClose} ariaLabel="涨停梯队配置" size="lg">
         {/* 头部 */}
-        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+        <div className="modal-header flex items-center justify-between">
           <span className="text-sm font-medium">配置</span>
-          <button onClick={onClose} className="p-0.5 text-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="modal-close" aria-label="关闭弹窗"><X className="h-4 w-4" /></button>
         </div>
         {/* 三列平铺 */}
-        <div className="flex gap-0 border-b border-border px-2 overflow-hidden">
-          <div className="flex-1 min-w-0 p-3 border-r border-border" style={{ minWidth: 180 }}>
+        <div className="modal-body grid grid-cols-1 gap-0 sm:grid-cols-3">
+          <div className="min-w-0 p-3 border-b border-border sm:border-b-0 sm:border-r">
             <span className="text-[10px] font-semibold text-sky-400 uppercase tracking-wider mb-2 block">概念</span>
             <ExtFieldSection item={draft.concept} onChange={v => setDraft(d => ({ ...d, concept: v }))} options={options} />
             <div className="h-px bg-border my-3" />
@@ -1426,7 +1419,7 @@ function ExtConfigDialog({ fields, onSave, onClose }: {
             <div className="h-px bg-border my-2" />
             <Toggle label="显示分组概念统计" checked={draft.showConceptGroupStats ?? false} onChange={v => setDraft(d => ({ ...d, showConceptGroupStats: v }))} />
           </div>
-          <div className="flex-1 min-w-0 p-3 border-r border-border" style={{ minWidth: 180 }}>
+          <div className="min-w-0 p-3 border-b border-border sm:border-b-0 sm:border-r">
             <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-2 block">行业</span>
             <ExtFieldSection item={draft.industry} onChange={v => setDraft(d => ({ ...d, industry: v }))} options={options} />
             <div className="h-px bg-border my-3" />
@@ -1434,21 +1427,20 @@ function ExtConfigDialog({ fields, onSave, onClose }: {
             <div className="h-px bg-border my-2" />
             <Toggle label="显示分组行业统计" checked={draft.showIndustryGroupStats ?? false} onChange={v => setDraft(d => ({ ...d, showIndustryGroupStats: v }))} />
           </div>
-          <div className="flex-1 min-w-0 p-3" style={{ minWidth: 160 }}>
+          <div className="min-w-0 p-3">
             <span className="text-[10px] font-semibold text-muted uppercase tracking-wider mb-2 block">炸板/断板</span>
             <BrokenFailedSection bf={{ ...DEFAULT_BF, ...draft.bf }} onChange={v => setDraft(d => ({ ...d, bf: v }))} />
           </div>
         </div>
         {/* 底部按钮 */}
-        <div className="flex justify-end gap-2 px-4 py-3">
+        <div className="modal-footer flex justify-end gap-2">
           <button onClick={onClose} className="px-3 py-1.5 text-xs text-secondary hover:text-foreground">取消</button>
           <button
             onClick={() => { onSave(draft); onClose() }}
             className="px-3 py-1.5 text-xs bg-accent/15 text-accent rounded hover:bg-accent/25"
           >保存</button>
         </div>
-      </motion.div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1553,7 +1545,7 @@ export function LimitUpLadder() {
     setDimensionTarget({ kind, value, sourceField, date: (data?.as_of ?? asOf) || undefined })
   }, [asOf, data?.as_of])
 
-  const rawTiers = data?.tiers ?? []
+  const rawTiers = useMemo(() => data?.tiers ?? [], [data?.tiers])
   // filterTiers 每次返回新数组, 不 memo 会破坏 React.memo(StockCard) 且全梯队二次排序
   const tiers = useMemo(() => filterTiers(rawTiers, filterKeys, extFields.bf), [rawTiers, filterKeys, extFields.bf])
   const displayDate = data?.as_of ?? asOf

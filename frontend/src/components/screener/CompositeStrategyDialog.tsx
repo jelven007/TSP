@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Modal } from '@/components/Modal'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { X, Layers, Plus, Loader2, Search, Settings2 } from 'lucide-react'
 import { api, type ScreenerStrategy } from '@/lib/api'
 import { toPercentages, normalizeWeights } from '@/lib/weights'
@@ -38,8 +39,6 @@ export function CompositeStrategyDialog({ open, onClose, onSavedId, editStrategy
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
-  // 记录鼠标按下时是否落在遮罩上, 避免拖选文本时鼠标移出面板导致误关。
-  const mouseDownOnBackdrop = useRef(false)
 
   // 拉取所有可用子策略(排除 composite 自身)
   const [available, setAvailable] = useState<ScreenerStrategy[]>([])
@@ -163,28 +162,9 @@ export function CompositeStrategyDialog({ open, onClose, onSavedId, editStrategy
     <>
       <AnimatePresence>
       {open && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onMouseDown={(e) => {
-            mouseDownOnBackdrop.current = e.target === e.currentTarget
-          }}
-          onClick={(e) => {
-            // 仅当按下和松开都在遮罩上才关闭, 避免面板内拖选文本误关。
-            if (mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose()
-          }}
-        >
-          <motion.div
-            className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-panel border border-border bg-base shadow-2xl"
-            initial={{ scale: 0.96, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.96, opacity: 0 }}
-            onClick={e => e.stopPropagation()}
-          >
+        <Modal onClose={onClose} ariaLabel="叠加策略" size="md">
             {/* 头部 */}
-            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+            <div className="modal-header flex items-center gap-2">
               <Layers className="h-4 w-4 text-teal-400" />
               <span className="text-sm font-semibold text-foreground">
                 {isEdit ? '编辑叠加策略' : '创建叠加策略'}
@@ -192,13 +172,13 @@ export function CompositeStrategyDialog({ open, onClose, onSavedId, editStrategy
               <span className="text-[10px] text-muted/60">
                 引用多个子策略, 合并选股与回测信号
               </span>
-              <button onClick={onClose} className="ml-auto text-muted hover:text-foreground">
+              <button onClick={onClose} className="modal-close ml-auto" aria-label="关闭弹窗">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {/* 主体 */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="modal-body flex-1 overflow-y-auto p-4 space-y-4">
               {/* 基本信息 */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
@@ -365,7 +345,7 @@ export function CompositeStrategyDialog({ open, onClose, onSavedId, editStrategy
             </div>
 
             {/* 底部 */}
-            <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+            <div className="modal-footer flex items-center justify-end gap-2">
               <button
                 onClick={onClose}
                 className="rounded-btn border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground"
@@ -381,8 +361,7 @@ export function CompositeStrategyDialog({ open, onClose, onSavedId, editStrategy
                 {isEdit ? '保存修改' : '创建'}
               </button>
             </div>
-          </motion.div>
-        </motion.div>
+        </Modal>
       )}
       </AnimatePresence>
 

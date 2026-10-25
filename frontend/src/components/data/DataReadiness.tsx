@@ -1,7 +1,7 @@
 import type { DataQuality, InitializationStatus } from '@/lib/api/dataQuality'
 
 const STAGE_NAMES: Record<string, string> = {
-  instruments: '股票目录', daily: '日K', minute: '分钟K', enriched: '指标',
+  instruments: '股票目录', minute: '分钟K', daily: '日K', enriched: '指标',
   financials: '财务', ai: 'AI', notifications: '通知',
 }
 const STATE_NAMES: Record<string, string> = {
@@ -31,9 +31,11 @@ export function DataReadiness({ quality, initialization }: {
             </span>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-secondary">
-            {Object.entries(initialization.stages).map(([name, state]) => (
-              <span key={name}>{STAGE_NAMES[name] ?? name}：{STATE_NAMES[state] ?? state}</span>
-            ))}
+            {Object.entries({ ...STAGE_NAMES, ...initialization.stages })
+              .filter(([name]) => name in initialization.stages)
+              .map(([name, state]) => (
+                <span key={name}>{STAGE_NAMES[name] ?? name}：{STATE_NAMES[state] ?? state}</span>
+              ))}
           </div>
           {initialization.marker_error && <p className="text-xs text-danger">初始化记录不可读，请检查存储并重试同步。</p>}
           <p className="text-xs text-muted">

@@ -1,10 +1,10 @@
+import { Modal } from '@/components/Modal'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { X, RefreshCw, Clock, LineChart, Star, RadioTower, Maximize2, Minimize2, Activity } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { cn } from '@/lib/cn'
 import { cnSignal } from '@/lib/signals'
 import { useCustomSignalNames } from '@/lib/useCustomSignalNames'
 import { fmtPct, cnDateFromUtc } from '@/lib/format'
@@ -18,7 +18,6 @@ import { PriceAlertDialog } from '@/components/stock-analysis/PriceAlertDialog'
 import { buildMonitorPriceLines } from '@/lib/price-alerts'
 import { usePreferences } from '@/lib/useSharedQueries'
 import { setFocusSymbol, clearFocusSymbol } from '@/lib/useQuoteStream'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 import { storage } from '@/lib/storage'
 import { navItemKey, type NavItem } from '@/lib/listNav'
 import { useListNav } from '@/lib/useListNav'
@@ -98,7 +97,6 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
   const [priceAlertDraft, setPriceAlertDraft] = useState<PriceAlertDraft | null>(null)
   const [maximized, setMaximized] = useState(false)
   const qc = useQueryClient()
-  const backdrop = useDialogBackdrop(onClose)
 
   const watchlist = useQuery({
     queryKey: QK.watchlist,
@@ -159,32 +157,18 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
   })
 
   // ===== 切股导航 =====
-  // onClose 只有 ESC 用; onNavigate 由 useListNav 内部承接 (支持内联 lambda)
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
-
   const nav = useListNav<NavItem>({
     items: navListSource ?? [],
     keyOf: navItemKey,
     currentKey: symbol,
     onNavigate: n => onNavigate?.(n.symbol, n.name),
-    // 点位监控弹窗/规则编辑器打开时方向键不切股 (与 ESC 的 !priceAlertDraft 守卫同层级)
+    // 点位监控弹窗/规则编辑器打开时方向键不切股。
     blocked: () => !!priceAlertDraft || showMonitorEditor,
     wrapHints: { head: '已到榜首', tail: '已到末尾' },
   })
 
   // 邻近预取目标: 当前股左右相邻两只 (首↔尾循环), 交由 StockPanel 提前拉取日K/财务/分时缓存
   const prefetchSymbols = useMemo(() => nav.neighbors.map(n => n.symbol), [nav.neighbors])
-
-  // ESC 关闭 (左右键切股由 useListNav 接管)
-  useEffect(() => {
-    if (!symbol) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !priceAlertDraft) onCloseRef.current()
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [symbol, priceAlertDraft])
 
   // 弹窗内切股时保留当前视图 (分时 tab 下切股不应跳回日K);
   // 仅当弹窗首次打开 (symbol 从 null 变非空) 时重置为日K。
@@ -205,10 +189,10 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
   }, [symbol])
 
   // 分时图实时轮询: 详情打开即独立轮询, 不再依赖自选列表的「分时刷新」开关
-  // 与实时行情运行状态 (打开详情就是要看实时分时); 间隔沿用偏好, 默认 6s。
+  // 与实时行情运行状态 (打开详情就是要看实时分时); 间隔沿用偏好, 默认 5s。
   // 最新一根K由后端 live 参数直接实时拉取, 与行情列表节奏一致。
   const { data: prefs } = usePreferences()
-  const intradayRefetchMs = (prefs?.minute_intraday_refresh_interval ?? 6) * 1000
+  const intradayRefetchMs = (prefs?.minute_intraday_refresh_interval ?? 5) * 1000
 
   // 分时档位按分钟源历史深度收窄: 浅源只显示可行档位、默认 5日;
   // 深源(tickflow/未声明)全档位、默认 20日。用户已保存的可行选择优先保留。
@@ -247,30 +231,9 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
   return (
     <AnimatePresence>
       {symbol && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* 遮罩 */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            {...backdrop}
-          />
-
-          {/* 弹窗主体 */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 8 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className={cn(
-              'relative rounded-dialog border border-border bg-surface shadow-2xl shadow-black/50 overflow-hidden flex flex-col transition-all duration-200 ease-smooth',
-              maximized ? 'w-screen h-screen max-w-none max-h-none' : 'w-[92vw] max-w-[1200px] max-h-[95vh]',
-            )}
-          >
+        <Modal onClose={onClose} ariaLabel="个股详情" size="xl" maximized={maximized}>
             {/* 顶栏: 单行 = 个股身份 + 视图/区间控件 + 操作按钮。纯样式重排, 交互逻辑不变 */}
-            <div className="shrink-0 border-b border-border/60 bg-elevated/30">
+            <div className="modal-header shrink-0">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pb-2 pt-2.5 sm:px-5">
               <div className="flex min-w-0 items-center gap-2">
                 {(() => {
@@ -435,7 +398,7 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
 
                 <button
                   onClick={onClose}
-                  className="shrink-0 rounded-btn p-1.5 text-secondary transition-colors hover:bg-danger/15 hover:text-danger"
+                  className="modal-close"
                   aria-label="关闭个股详情"
                   title="关闭"
                 >
@@ -580,14 +543,7 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
             {/* 加监控编辑器弹层 */}
             <AnimatePresence>
               {showMonitorEditor && symbol && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 z-20 flex items-start justify-center overflow-auto bg-black/40 p-4"
-                  onClick={() => setShowMonitorEditor(false)}
-                >
-                  <div className="mt-8 w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+                <Modal onClose={() => setShowMonitorEditor(false)} ariaLabel="加入监控" size="md">
                     <RuleEditor
                       rule={null}
                       simple
@@ -600,15 +556,13 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
                       onClose={() => setShowMonitorEditor(false)}
                       onSaved={() => setShowMonitorEditor(false)}
                     />
-                  </div>
-                </motion.div>
+                </Modal>
               )}
             </AnimatePresence>
 
             {/* 首↔尾循环弱提示 */}
             <NavWrapToast message={nav.wrapMsg} />
-          </motion.div>
-        </div>
+        </Modal>
       )}
       {symbol && priceAlertDraft && (
         <PriceAlertDialog

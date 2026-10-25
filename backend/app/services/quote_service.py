@@ -9,7 +9,7 @@
   - _enriched_cache 是唯一的盘中数据源 (OHLCV + 全套技术指标)
   - _live_agg_cache 是递推状态 (只加载一次, 盘中不变)
 
-数据流 (默认每秒发起一轮, 实际周期还包含本轮拉取耗时):
+数据流 (默认每三秒发起一轮, 实际周期还包含本轮拉取耗时):
   1. API 拉取 → raw_records (临时变量)
   2. raw_records → 写 kline_daily (不复权原始价格)
   3. raw_records → 更新 _enriched_cache 的 OHLCV
@@ -236,9 +236,9 @@ class QuoteService:
         "starter": 6.0,
         "free": 6.0,
     }
-    # 插件/自定义源: 不受 TickFlow 档位保护约束, 通用下限与默认间隔均为 1s
+    # 插件/自定义源: 不受 TickFlow 档位保护约束, 通用下限为 1s
     CUSTOM_PROVIDER_MIN_INTERVAL = 1.0
-    DEFAULT_INTERVAL = 1.0
+    DEFAULT_INTERVAL = 3.0
     MAX_INTERVAL = 60.0
     STRATEGY_GROUP_STALE_AFTER_S = 15.0
 
@@ -263,7 +263,9 @@ class QuoteService:
         self._paused = False
         self._pause_depth = 0
         self._pause_lock = threading.Lock()
-        self._interval = self.DEFAULT_INTERVAL
+        from app.services import preferences
+
+        self._interval = self._clamp_interval(preferences.get_realtime_quote_interval())
         self._thread: threading.Thread | None = None
         self._repo = None          # 延迟注入, 避免循环导入
         self._second_quote_archive = None  # 延迟创建; 默认关闭时不启动写线程

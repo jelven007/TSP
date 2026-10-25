@@ -64,7 +64,8 @@ def test_strategy_result_notification_fans_out_to_all_subscribers():
 class _EmptyResultStrategyEngine:
     def get(self, strategy_id: str):
         assert strategy_id == "strategy_1"
-        return SimpleNamespace(filter_history_fn=None, execution_backend="polars_expr")
+        return SimpleNamespace(meta={"id": strategy_id, "params": []},
+                               filter_history_fn=None, execution_backend="polars_expr")
 
     def run(self, strategy_id: str, context, **kwargs):
         assert strategy_id == "strategy_1"

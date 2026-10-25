@@ -1,3 +1,4 @@
+import { Modal } from '@/components/Modal'
 import { useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
@@ -16,7 +17,6 @@ import {
 } from 'lucide-react'
 import { api, type ExtDataDetectUrlResult, type ExtDataField } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 type SourceMode = 'url' | 'file' | 'manual'
 
@@ -27,7 +27,6 @@ type MappingChoice = {
 
 export function CreateExtDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
-  const backdrop = useDialogBackdrop(onClose)
   const [sourceMode, setSourceMode] = useState<SourceMode>('url')
   const [id, setId] = useState('')
   const [label, setLabel] = useState('')
@@ -326,16 +325,8 @@ export function CreateExtDialog({ onClose }: { onClose: () => void }) {
     : []
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" {...backdrop} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 8 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="relative rounded-2xl border border-border bg-surface shadow-2xl mx-4 w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
-      >
-        <div className="px-6 pt-5 pb-4">
+    <Modal onClose={onClose} ariaLabel="新增扩展数据" size="md">
+        <div className="modal-header">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-[16px] leading-6 font-semibold text-foreground">新增扩展数据</h3>
@@ -343,13 +334,13 @@ export function CreateExtDialog({ onClose }: { onClose: () => void }) {
                 接入自有数据，与标的自动关联（第三方接口或 CSV/Excel），支持概念、人气、资金流、舆情、研报评分标签等场景
               </p>
             </div>
-            <button onClick={onClose} className="p-1 rounded-lg hover:bg-elevated text-secondary transition-colors">
+            <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-5">
+        <div className="modal-body flex-1 overflow-y-auto px-6 pb-6 space-y-5">
           <div>
             <div className="text-[11px] font-medium text-secondary mb-2">接入方式</div>
             <div className="grid grid-cols-3 gap-2 rounded-xl bg-elevated/40 p-1">
@@ -812,7 +803,7 @@ export function CreateExtDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border/50 bg-elevated/20">
+        <div className="modal-footer flex items-center justify-between">
           <div className="text-[10px] text-muted/60">
             {sourceMode === 'url'
               ? '创建后可在扩展数据卡片中继续调整拉取配置'
@@ -833,7 +824,6 @@ export function CreateExtDialog({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
-      </motion.div>
-    </div>
+    </Modal>
   )
 }

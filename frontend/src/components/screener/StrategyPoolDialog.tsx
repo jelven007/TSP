@@ -1,8 +1,8 @@
+import { Modal } from '@/components/Modal'
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { motion, AnimatePresence, Reorder } from 'framer-motion'
+import { AnimatePresence, Reorder } from 'framer-motion'
 import { X, Plus, GripVertical, Upload, Loader2, Trash2, ListPlus } from 'lucide-react'
 import { api, type StrategyDetail } from '@/lib/api'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 interface Props {
   pool: string[]
@@ -48,7 +48,6 @@ function fileStem(name: string): string {
 }
 
 export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
-  const backdrop = useDialogBackdrop(onClose)
   // 草稿状态: 打开时从 pool 复制, 操作只改草稿, 点确定才提交
   const [draftPool, setDraftPool] = useState<string[]>(() => [...pool])
   const [allStrategies, setAllStrategies] = useState<StrategyDetail[]>([])
@@ -208,22 +207,9 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-        {...backdrop}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="w-[760px] max-w-[calc(100vw-24px)] max-h-[86vh] bg-surface border border-border rounded-card shadow-xl flex flex-col"
-        >
+      <Modal onClose={onClose} ariaLabel="策略股票池" size="md">
           {/* 标题 */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
+          <div className="modal-header flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">
               策略池 <span className="text-muted font-normal text-xs">{validDraft.length} / {poolStrategies.length}</span>
               {!loading && !loadError && invalidPoolCount > 0 && <span className="ml-2 text-[10px] text-danger">{invalidPoolCount} 个失效</span>}
@@ -247,7 +233,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                 {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                 导入策略
               </button>
-              <button onClick={onClose} className="p-1 rounded hover:bg-elevated transition-colors cursor-pointer">
+              <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
                 <X className="h-4 w-4 text-muted" />
               </button>
             </div>
@@ -458,7 +444,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
           )}
 
           {/* 底部 */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-border shrink-0">
+          <div className="modal-footer flex items-center justify-between">
             <span className="text-[10px] text-muted">仅策略池中的策略会在扫描时运行</span>
             <div className="flex items-center gap-2">
               <button
@@ -476,8 +462,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
               </button>
             </div>
           </div>
-        </motion.div>
-      </motion.div>
+      </Modal>
     </AnimatePresence>
   )
 }

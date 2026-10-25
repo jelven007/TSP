@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.api.settings import QuoteIntervalIn, get_quote_interval, update_quote_interval
+from app.services import preferences
 
 
 def _request_without_quote_service() -> SimpleNamespace:
@@ -29,9 +30,10 @@ def test_update_quote_interval_without_service_keeps_requested_interval():
     assert result["max_interval"] == 60.0
 
 
-def test_get_quote_interval_without_service_uses_one_second_default():
+def test_get_quote_interval_without_service_uses_three_second_default(monkeypatch):
+    monkeypatch.setattr(preferences, "load", lambda: {})
     assert get_quote_interval(_request_without_quote_service()) == {
-        "interval": 1.0,
+        "interval": 3.0,
         "min_interval": 1.0,
         "max_interval": 60.0,
     }

@@ -1,14 +1,12 @@
+import { Modal } from '@/components/Modal'
 import { useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import { X, Loader2, Upload } from 'lucide-react'
 import { api, type ExtDataConfig, type ExtDataField } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { useDialogBackdrop } from '@/lib/useDialogBackdrop'
 
 export function EditExtDialog({ config, onClose }: { config: ExtDataConfig; onClose: () => void }) {
   const qc = useQueryClient()
-  const backdrop = useDialogBackdrop(onClose)
   const [label, setLabel] = useState(config.label)
   const [description, setDescription] = useState(config.description ?? '')
   const [fields, setFields] = useState<ExtDataField[]>([...config.fields])
@@ -80,23 +78,15 @@ export function EditExtDialog({ config, onClose }: { config: ExtDataConfig; onCl
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" {...backdrop} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 8 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="relative rounded-2xl border border-border bg-surface shadow-2xl mx-4 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
-      >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+    <Modal onClose={onClose} ariaLabel="编辑扩展数据" size="md">
+        <div className="modal-header flex items-center justify-between">
           <h3 className="text-sm font-medium text-foreground">编辑扩展数据</h3>
-          <button onClick={onClose} className="p-0.5 rounded hover:bg-elevated text-secondary">
+          <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="modal-body flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div className="grid grid-cols-[1fr_1fr] gap-3">
             <div>
               <label className="text-[10px] text-muted mb-1 block">标识符</label>
@@ -236,7 +226,7 @@ export function EditExtDialog({ config, onClose }: { config: ExtDataConfig; onCl
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
+        <div className="modal-footer flex items-center justify-end gap-2">
           <button onClick={onClose} className="px-4 py-1.5 rounded-btn bg-elevated text-secondary text-xs hover:bg-elevated/80 transition-colors">
             取消
           </button>
@@ -248,7 +238,6 @@ export function EditExtDialog({ config, onClose }: { config: ExtDataConfig; onCl
             {update.isPending ? '保存中…' : '保存'}
           </button>
         </div>
-      </motion.div>
-    </div>
+    </Modal>
   )
 }

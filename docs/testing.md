@@ -1,6 +1,7 @@
 # 测试与验收指南
 
-2026-10-25本次结果统一见[生产基线验证](../reports/production-baseline-20261025/verification.md)。
+2026-10-25本批全量验证、本地更新、PR/CI和线上升级结果统一见
+[最新现状验证](../reports/current-state-release-20261025/verification.md)。
 命令和矩阵定义“如何验证”；带日期的旧计数只证明当时版本。
 示例迁移验证从 `examples/custom-data-source/` 加载真实服务与YAML，
 检查日K、复权、实时响应。源码恢复工具的测试在
@@ -12,10 +13,37 @@
 [生产体系验证](../reports/production-system-consolidation-20261023/verification.md)；
 历史通过数保持日期，不能计入本次。
 
+发布验证须明确源码SHA、应用版本、schema、Runtime/Compute身份及实际环境。
+本地全量通过后仍需主线CI、构建清单核验和生产功能检查；健康检查同时核对
+`status`与全部`functions`，不能只用HTTP200或`ready=true`。
+停写备份实际恢复至一次性双库后方可替换产物。升级后验证可信域名HTTPS、
+静态资产、原管理员登录、权限隔离、日期结果和受控配置保留。
+每次发布更新证据；至少每月复核命令，接口/配置变化而文档未更新即标记待复核。
+
+策略日期归档按`FR-STRATEGY-05`验证：
+`test_strategy_result_history.py`覆盖日期/版本/有效参数/资产/周期/标的池隔离、
+加载版本稳定、并发与旧任务倒写、曾命中并集、冷启动、超限失败和清缓存保历史；
+`test_screener_history_api.py`覆盖首次单跑落盘、切日读取、旧入口、
+异参缺失/显式历史、读历史不叠加最新监控及保存失败。
+`test_full_strategy_history.py`必须使用一次性PostgreSQL，覆盖RLS隔离、
+配置数量上限不限制历史、事务回滚与未提交热缓存污染。
+前端`Screener.test.tsx`验证A→B→A恢复及迟到响应不改当前日期，
+`screenerHistory.test.ts`校验HTTP维度与查询键，
+`StrategyResultHistoryDialog.test.tsx`校验旧版本/参数和加载失败。
+浏览器在桌面及390px下检查日期恢复、ETF隔离、历史明细和弹窗滚动；
+模拟接口联调不替代生产容量、真实行情和Windows签收。
+
 一级页面顶栏按 `FR-UI-05` 验证：PageHeader 保留富文本说明、状态和按钮回调，
 标题独立态不生成空工具栏；浏览器在1440px与390px下检查各菜单标题/间距/操作区边界，
 长工具栏可滚动、菜单按钮无遮挡，页签和弹窗保持原交互。浅/深色、加载/空/失败态
 沿用同一外观，不把页面暂无行情解释为顶栏渲染失败。
+
+弹窗按 `FR-UI-06` 验证：`Modal.test.tsx` 覆盖裁剪容器外渲染、背景滚动锁、
+隐藏上传控件的初始焦点、嵌套ESC/焦点归还、拖选遮罩、提交保护和弹窗内日历键盘操作。
+涉及portal的组件测试从实际 `role="dialog"` 查询，不能假设面板在React挂载容器内。
+浏览器检查480/720/960/1200px档位、桌面顶部80px与窄屏16px、浅/深色、
+80%/120%界面缩放及长内容滚动；设置、策略池、监控编辑、个股详情及嵌套确认
+均需覆盖，标题和操作区域不能随内容滚出可视范围。
 
 2026-10-24 完整本地变更验证见[最新整合记录](../reports/production-integration-20261024/verification.md)：
 后端全量、仓库工具、前端 test/lint/build、原生 Cargo 和页面检查分别留证。
@@ -36,6 +64,14 @@ Job 级 `env` 不允许引用 `runner` 上下文。工作流修改应另外运�
 能力缺失；见 `backend/tests/test_financial_auto_sync.py`。默认值统一见
 [运维配置](operations.md#config-数据页初始化默认值)，不把历史手动默认测试结论当作当前行为。
 
+实时监控默认值回归见 `test_preferences_cache.py`、`test_minute_refresh.py` 和
+`test_email_defaults.py`：无文件或旧配置缺字段时采用行情 3 秒、分时图 5 秒、
+全量分钟 60 秒及四页 SSE 开启；API 无行情服务时也读取有效偏好。
+覆盖重启后保留已存间隔、关闭开关、部分页面选择、空通知渠道及 SMTP 凭据隔离。
+前端 `Monitoring.test.tsx` 验证加载期间显示相同默认值、加载后恢复保存值且不自动写回；
+通知测试继续覆盖邮件继承、未配置状态和只保存收件人。
+完整参数见[实时监控初始化](operations.md#config-实时监控初始化默认值)。
+
 官方个股目录回归见 `test_official_stock_catalog.py`、`test_instrument_catalog_admin.py`：
 覆盖两市四板、总数与字段校验、股本单位、重复/空/不完整目录拒绝、下载失败保留快照、
 管理员 CRUD、成员 403、代码/股本验证、同日删除 tombstone、写入失败恢复历史、
@@ -43,6 +79,10 @@ Job 级 `env` 不允许引用 `runner` 上下文。工作流修改应另外运�
 周末与节假日的北京时间 09:00 cron、总开关关闭仍执行目录任务；关闭路径断言外层
 协程取消后仍等待下载线程结束，下载前取消进入终态。历史状态、缓存与发布同时复核。
 前端 `StockCatalogDialog.test.tsx` 覆盖新增/编辑表单重置、CRUD、删除确认及拒绝写入时保留草稿。
+目录查询回归还覆盖四板筛选与搜索/交易所组合、筛选先于分页和旧快照缺少board列；
+前端覆盖板块选项顺序、切换回到第一页、有效页码与Enter跳转、空/越界/小数输入及空名单禁用。
+`test_pipeline_catalog_readonly.py` 断言盘后、初始化与日K修正只读取既有股票池，
+不调用目录下载或改写；缺失快照明确失败，首次后台行情任务等待独立启动目录任务。
 页面联调使用真实组件、API、仓库和隔离临时数据，检查桌面暗色及 390px 亮色下的
 表单滚动、增改、删除确认/取消、错误重试及成员拒绝；完整应用认证部署另沿用平台门禁。
 
@@ -68,7 +108,7 @@ cd backend
 uv run --no-sync pytest tests/test_depth_snapshot_validation.py tests/test_closing_price_cache.py tests/test_final_sync_confirmation.py tests/test_realtime_guard.py tests/test_full_platform.py tests/test_full_host_maintenance.py tests/test_health.py tests/test_online_timeout_validation.py tests/test_local_admin.py tests/test_resource_budget.py tests/test_datastore_memory_budget.py tests/backtest/test_panel_cache_budget.py -q
 cd ../frontend
 pnpm test
-pnpm lint
+pnpm lint --max-warnings 0
 pnpm build
 ```
 
@@ -280,6 +320,24 @@ uv run pytest tests/test_strategy_safety_validation.py tests/test_strategy_code_
 拒绝更新保留旧策略，以及租户保存拒绝发生在计算服务和私有存储调用前。
 载荷仅参与 AST 解析或由模拟加载器阻止执行，测试不读取真实用户策略。
 
+系统设置“策略页”的全局并发配置对应 `FR-ADMIN-06`：
+
+```bash
+cd backend
+uv run --frozen --no-sync pytest tests/test_strategy_concurrency.py tests/test_full_compute.py tests/test_full_platform.py tests/test_screener_run_all_progressive.py tests/test_strategy_run_queue.py tests/test_openapi_contract.py -q
+cd ../frontend
+pnpm test src/pages/settings/System.test.tsx
+pnpm build
+```
+
+覆盖实际主机四分之一预算、内存/CPU限制中的较小推荐值、自动/手工切换、
+重读/持久化、严格输入、HTTP权限和平台转发、IPC只读、降并发旧任务收尾、
+旧新任务共同记账、跨线程等待释放、CPU向下取整及无资源拒绝。
+页面验证控件位于“策略页”、保存失败保留生效值、部署未应用提示、资源缩小时回显
+保存值及无权限不请求配置；桌面/窄屏另检查真实渲染和交互。
+这些测试采用隔离偏好与模拟计算；不能替代真实 Docker 内存硬限制、
+全市场策略压测、跨主机容量或生产部署验收。推荐值仍是资源限额估算。
+
 模拟交易日线 schema 回归：
 
 ```bash
@@ -477,6 +535,10 @@ pnpm build
 
 `pnpm build` 同时执行 TypeScript 项目构建和 Vite 生产构建。只通过单个组件测试不
 足以替代 lint 和 build。
+Lint 使用零警告门槛，修复依赖本身，不降低规则等级或增加禁用注释。
+`useECharts.test.tsx` 覆盖普通重渲染不重建、数据/任务切换更新及容器替换释放；
+`StrategyBacktest.test.tsx` 覆盖完成结果只应用一次，编辑下一次参数不重置结果页和分页，
+新任务完成后仍保存当前配置并更新结果。
 设置导航调整须检查“模型设置”和“超时设置”名称、扩展页面位于菜单设置后，
 以及展开/收起菜单和原 `tab=ai`、`tab=timeout` 链接仍能打开对应面板。
 
@@ -644,7 +706,9 @@ runner 会实际运行 PyInstaller 便携版，并对 Inno Setup 产物执行静
 
 - 使用北京时间，不受测试机时区影响。
 - 午休、收盘、周末、节假日和跨日重启有覆盖。
-- 09:25 竞价窗口、15:35 盘后任务使用业务日期。
+- 09:25 竞价窗口、默认 16:00 盘后任务使用业务日期。
+- 全量管道覆盖默认时间、自定义精确保存、运行时更新、重启保留和关闭自动同步；
+  15:35 前的非法输入拒绝且原配置不变，休市或交易日未知不执行。
 - 分钟数据时间戳归一为北京时间墙钟并正确归属资产类型。
 
 <a id="8-provider-真实烟测"></a>

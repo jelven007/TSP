@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 
 /**
  * 共享模态对话框原语 — 统一处理可访问性:
@@ -9,7 +10,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
  * - 关闭时把焦点还给打开前的元素
  * - 点击遮罩关闭 (可用 closeOnBackdrop 关闭)
  *
- * 视觉: 提供居中遮罩 + 面板容器, 面板样式由 panelClassName 定制。
+ * 视觉与定位由 index.css 的 modal-* 契约统一，调用方只指定内容布局及尺寸档位。
  */
 export interface ModalProps {
   onClose: () => void
@@ -18,10 +19,14 @@ export interface ModalProps {
   labelledBy?: string
   /** 无可见标题时的无障碍名称 */
   ariaLabel?: string
-  /** 面板 className (尺寸/背景/圆角等) */
+  /** 标准宽度: 480 / 720 / 960 / 1200px，窄屏自动收缩 */
+  size?: 'sm' | 'md' | 'lg' | 'xl'
+  /** 图表、表格等工作区占满可用高度 */
+  fillHeight?: boolean
+  /** 仅用于用户主动最大化的图表 */
+  maximized?: boolean
+  /** 面板内容布局，不用于覆盖尺寸、背景或定位 */
   panelClassName?: string
-  /** 遮罩 className (覆盖默认居中/背景) */
-  overlayClassName?: string
   /** 打开时聚焦的元素; 不传则聚焦面板内首个可聚焦元素 */
   initialFocusRef?: React.RefObject<HTMLElement>
   /** 点击遮罩是否关闭 (默认 true) */
@@ -39,17 +44,31 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',')
 
+let nextOrder = 0
+const openPanels = new Map<number, HTMLDivElement>()
+let previousBodyOverflow = ''
+const topPanel = () => openPanels.get(Math.max(...openPanels.keys()))
+const ModalPortalContext = createContext<RefObject<HTMLDivElement> | null>(null)
+
+/** 弹窗里的日历、菜单保持在当前面板内，便于焦点陷阱识别；页面上仍挂到 body。 */
+export function useModalPortalContainer() {
+  return useContext(ModalPortalContext)?.current ?? document.body
+}
+
 export function Modal({
   onClose,
   children,
   labelledBy,
   ariaLabel,
-  panelClassName = 'w-[92vw] max-w-lg bg-surface border border-border rounded-card shadow-xl',
-  overlayClassName = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm',
+  size = 'sm',
+  fillHeight = false,
+  maximized = false,
+  panelClassName = '',
   initialFocusRef,
   closeOnBackdrop = true,
   closeDisabled = false,
 }: ModalProps) {
+  const [order] = useState(() => ++nextOrder)
   const panelRef = useRef<HTMLDivElement>(null)
   // 记录鼠标按下时是否落在遮罩(而非面板)上。
   // 仅当 mousedown 和 mouseup 都在遮罩时才视为"点击遮罩关闭",
@@ -64,18 +83,25 @@ export function Modal({
   closeDisabledRef.current = closeDisabled
 
   useEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+    if (openPanels.size === 0) {
+      previousBodyOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+    }
+    openPanels.set(order, panel)
     // 记住打开前的焦点, 关闭时还原
     const prevActive = document.activeElement as HTMLElement | null
 
     // 初始聚焦
     const focusFirst = () => {
+      if (topPanel() !== panel) return
       if (initialFocusRef?.current) {
         initialFocusRef.current.focus()
         return
       }
-      const panel = panelRef.current
-      if (!panel) return
-      const first = panel.querySelector<HTMLElement>(FOCUSABLE)
+      const first = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
+        .find(el => el.offsetParent !== null)
       ;(first ?? panel).focus()
     }
     // 等一帧确保内容已挂载
@@ -86,8 +112,7 @@ export function Modal({
     const onFocusIn = (e: FocusEvent) => {
       const panel = panelRef.current
       if (!panel || panel.contains(e.target as Node)) return
-      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]')
-      if (dialogs[dialogs.length - 1] !== panel) return
+      if (topPanel() !== panel) return
       const nodes = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
         .filter(el => el.offsetParent !== null)
       const first = nodes[0]
@@ -96,14 +121,14 @@ export function Modal({
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (topPanel() !== panel) return
       if (e.key === 'Escape') {
-        e.stopPropagation()
+        e.preventDefault()
+        e.stopImmediatePropagation()
         if (!closeDisabledRef.current) onCloseRef.current()
         return
       }
       if (e.key !== 'Tab') return
-      const panel = panelRef.current
-      if (!panel) return
       const nodes = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
         .filter(el => el.offsetParent !== null || el === document.activeElement)
       if (nodes.length === 0) {
@@ -133,23 +158,27 @@ export function Modal({
       cancelAnimationFrame(raf)
       document.removeEventListener('keydown', onKeyDown, true)
       document.removeEventListener('focusin', onFocusIn, true)
-      // 还原焦点
-      prevActive?.focus?.()
+      openPanels.delete(order)
+      if (openPanels.size === 0) document.body.style.overflow = previousBodyOverflow
+      // 子弹窗关闭后恢复父弹窗的编辑位置；父弹窗卸载时不抢走另一弹窗的焦点。
+      if (prevActive?.isConnected && (!topPanel() || topPanel()?.contains(prevActive))) prevActive.focus()
     }
     // 只在挂载时装一次: onClose 走 ref, initialFocusRef 为稳定 ref 对象, 无需进依赖。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return (
+  return createPortal(
     <div
-      className={overlayClassName}
+      className="modal-overlay"
+      data-maximized={maximized || undefined}
+      style={{ zIndex: 1000 + order }}
       onMouseDown={(e) => {
         // 仅记录"按下时确实在遮罩上"; 在面板内按下时记 false。
         mouseDownOnBackdrop.current = e.target === e.currentTarget
       }}
       onClick={closeOnBackdrop ? (e) => {
         // 只有按下和松开都在遮罩上才关闭, 避免拖选文本误关。
-        if (!closeDisabled && mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose()
+        if (topPanel() === panelRef.current && !closeDisabled && mouseDownOnBackdrop.current && e.target === e.currentTarget) onClose()
       } : undefined}
     >
       <div
@@ -159,11 +188,15 @@ export function Modal({
         aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : ariaLabel}
         tabIndex={-1}
-        className={`outline-none ${panelClassName}`}
+        className={`modal-panel ${panelClassName}`}
+        data-size={size}
+        data-fill-height={fillHeight || undefined}
+        data-maximized={maximized || undefined}
         onClick={(e) => e.stopPropagation()}
       >
-        {children}
+        <ModalPortalContext.Provider value={panelRef}>{children}</ModalPortalContext.Provider>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

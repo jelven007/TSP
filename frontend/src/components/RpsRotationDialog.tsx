@@ -91,8 +91,8 @@ export function RpsRotationDialog({ onClose, kind = 'concept' }: Props) {
     staleTime: 5 * 60 * 1000,
   })
 
-  const dates = data?.dates ?? []
-  const columns = data?.columns ?? {}
+  const dates = useMemo(() => data?.dates ?? [], [data?.dates])
+  const columns = useMemo(() => data?.columns ?? {}, [data?.columns])
   const conceptCount = data?.concept_count ?? 0
 
   // 行数 = 最长那列的长度(理论上每天概念数应一致, 取最大兜底)
@@ -210,11 +210,11 @@ export function RpsRotationDialog({ onClose, kind = 'concept' }: Props) {
     <Modal
       onClose={onClose}
       labelledBy="rps-rotation-title"
-      overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      panelClassName="w-[92vw] max-w-[1100px] h-[88vh] bg-surface border border-border rounded-card shadow-xl flex flex-col"
+      size="xl"
+      fillHeight
     >
           {/* 标题栏 */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
+          <div className="modal-header flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
             <div className="flex items-center gap-2">
               <Repeat className="h-4 w-4 text-accent" />
               <span id="rps-rotation-title" className="text-sm font-medium text-foreground">{dimLabel}涨幅轮动</span>
@@ -239,7 +239,7 @@ export function RpsRotationDialog({ onClose, kind = 'concept' }: Props) {
                 </div>
               )}
             </div>
-            <button aria-label="关闭" onClick={onClose} className="p-1 rounded hover:bg-elevated transition-colors cursor-pointer">
+            <button aria-label="关闭" onClick={onClose} className="modal-close">
               <X className="h-4 w-4 text-muted" />
             </button>
           </div>
@@ -444,7 +444,7 @@ export function RpsRotationDialog({ onClose, kind = 'concept' }: Props) {
           </div>
 
           {/* 底部提示 */}
-          <div className="px-4 py-1.5 border-t border-border shrink-0">
+          <div className="modal-footer px-4 py-1.5 border-t border-border shrink-0">
             <span className="text-[10px] text-muted">
               每列各自按当日涨幅排序 · 点击单元格追踪概念在各日的排名变化
             </span>

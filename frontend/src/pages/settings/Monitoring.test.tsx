@@ -7,20 +7,23 @@ import type { Preferences } from '@/lib/api'
 import { SettingsMonitoringPanel } from './Monitoring'
 
 let prefs: Partial<Preferences> | undefined
-const { updateEmailSmtp } = vi.hoisted(() => ({
+let quoteInterval: { interval: number } | undefined
+const { updateEmailSmtp, updateInterval, saveMonitoring } = vi.hoisted(() => ({
   updateEmailSmtp: vi.fn((toAddresses: string[]) => Promise.resolve({
     email_smtp_config: { to_addresses: toAddresses },
     email_smtp_password_set: true,
   })),
+  updateInterval: vi.fn(),
+  saveMonitoring: vi.fn(),
 }))
 vi.mock('@/lib/useSharedQueries', () => ({
   usePreferences: () => ({ data: prefs }),
   useCapabilities: () => ({ data: undefined }),
   useQuoteStatus: () => ({ data: undefined }),
-  useQuoteInterval: () => ({ data: undefined }),
+  useQuoteInterval: () => ({ data: quoteInterval }),
 }))
 vi.mock('@/lib/useSharedMutations', () => ({
-  useUpdateQuoteInterval: () => ({ mutate: vi.fn() }),
+  useUpdateQuoteInterval: () => ({ mutate: updateInterval }),
   useToggleRealtimeQuotes: () => ({ mutateAsync: vi.fn() }),
 }))
 vi.mock('@/components/data/DepthConfigCard', () => ({ DepthConfigContent: () => null }))
@@ -28,6 +31,7 @@ vi.mock('@/lib/api', () => ({
   api: {
     minuteRefreshStatus: () => Promise.resolve({ available: false }),
     updateEmailSmtp,
+    updateRealtimeMonitorConfig: saveMonitoring,
   },
 }))
 
@@ -42,6 +46,7 @@ afterEach(async () => {
   host?.remove()
   root = null
   prefs = undefined
+  quoteInterval = undefined
   vi.clearAllMocks()
 })
 
@@ -136,4 +141,23 @@ it('saves only editable recipients while system SMTP fields remain unchanged', a
   expect(lockedInputs.map(input => input.value)).toEqual([
     'smtp.example.com', '587', 'sender@example.com', '', 'sender@example.com',
   ])
+})
+
+it('shows initialization intervals before preferences arrive without saving them', () => {
+  render()
+  const inputs = [...host!.querySelectorAll<HTMLInputElement>('input[type="range"]')]
+  expect(inputs.map(input => input.value)).toEqual(['3', '5', '60'])
+  expect(updateInterval).not.toHaveBeenCalled()
+  expect(saveMonitoring).not.toHaveBeenCalled()
+})
+
+it('hydrates saved intervals without replacing them with initialization values', () => {
+  render()
+  quoteInterval = { interval: 1 }
+  prefs = { minute_intraday_refresh_interval: 30, minute_refresh_interval: 1 }
+  render()
+  const inputs = [...host!.querySelectorAll<HTMLInputElement>('input[type="range"]')]
+  expect(inputs.map(input => input.value)).toEqual(['1', '30', '1'])
+  expect(updateInterval).not.toHaveBeenCalled()
+  expect(saveMonitoring).not.toHaveBeenCalled()
 })

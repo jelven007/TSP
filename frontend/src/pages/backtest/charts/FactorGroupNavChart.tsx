@@ -103,9 +103,9 @@ export function FactorGroupNavChart({ result }: Props) {
       },
       series,
     } as any
-  }, [result.group_nav, result.long_short_nav, result.run_id, ct])
+  }, [result.group_nav, result.long_short_nav, ct])
 
-  const chartRef = useECharts(option, [result.run_id, ct])
+  const chartRef = useECharts(option, result.run_id)
 
   // 图例
   const groupCols = result.group_nav.length > 0

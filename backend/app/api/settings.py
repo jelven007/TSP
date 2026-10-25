@@ -26,6 +26,55 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
+
+class StrategyConcurrencyPrefs(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    strategy_concurrency: int | None = Field(ge=1, le=16)
+
+
+@router.get("/strategy-concurrency")
+def get_strategy_concurrency() -> dict:
+    from app.cell.context import AccessError
+    from app.config import settings
+    from app.services import strategy_resources
+
+    configured = strategy_resources.configured_concurrency()
+    if settings.service_role == "standalone":
+        return {"available": True, "pending": False, **strategy_resources.local_status()}
+    from app.multitenancy.executor import ComputeExecutor
+
+    try:
+        status = ComputeExecutor().resources()
+    except (AccessError, ValueError):
+        return {
+            "available": False, "strategy_concurrency": configured,
+            "error": "计算服务暂不可用, 无法读取策略资源预算",
+        }
+    return {
+        "available": True, **status,
+        "strategy_concurrency": configured,
+        "pending": configured != status["strategy_concurrency"],
+    }
+
+
+@router.post("/strategy-concurrency")
+def update_strategy_concurrency(req: StrategyConcurrencyPrefs) -> dict:
+    from app.services import preferences
+
+    status = get_strategy_concurrency()
+    if not status["available"] or not status.get("config_enabled"):
+        raise HTTPException(status_code=503, detail=(
+            status.get("error") or "计算服务尚未接入全局策略配置"
+        ))
+    maximum = status["max_concurrency"]
+    if maximum == 0 or (req.strategy_concurrency is not None and req.strategy_concurrency > maximum):
+        raise HTTPException(
+            status_code=422, detail=f"当前策略资源预算最多允许 {maximum} 个并发任务",
+        )
+    preferences.save({"strategy_concurrency": req.strategy_concurrency})
+    return get_strategy_concurrency()
+
+
 # 默认端点 —— endpoints.json 列表第一项,UI"当前使用"始终对齐此项。
 # 注意:Free 模式 SDK 实际走 free-api(免费数据通道),但 UI 显示统一用默认节点。
 DEFAULT_PAID_ENDPOINT = "https://api.tickflow.org"
@@ -1564,7 +1613,12 @@ def get_quote_interval(request: Request) -> dict:
     """获取当前行情轮询间隔和档位限制。"""
     qs = getattr(request.app.state, "quote_service", None)
     if not qs:
-        return {"interval": 1.0, "min_interval": 1.0, "max_interval": 60.0}
+        from app.services import preferences
+
+        return {
+            "interval": preferences.get_realtime_quote_interval(),
+            "min_interval": 1.0, "max_interval": 60.0,
+        }
     return {
         "interval": qs._interval,
         "min_interval": qs.get_min_interval(),
@@ -1788,15 +1842,18 @@ def update_data_sync_auto(req: DataSyncAutoIn, request: Request) -> dict:
 
 
 class PipelineScheduleIn(BaseModel):
-    hour: int
-    minute: int
+    hour: int = Field(ge=0, le=23, strict=True)
+    minute: int = Field(ge=0, le=59, strict=True)
 
 
 @router.put("/preferences/pipeline-schedule")
 def update_pipeline_schedule(req: PipelineScheduleIn, request: Request) -> dict:
     """保存盘后管道调度时间并立即 reschedule。"""
     from app.services import preferences
-    sched = preferences.set_pipeline_schedule(req.hour, req.minute)
+    try:
+        sched = preferences.set_pipeline_schedule(req.hour, req.minute)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     # 动态 reschedule
     from apscheduler.triggers.cron import CronTrigger

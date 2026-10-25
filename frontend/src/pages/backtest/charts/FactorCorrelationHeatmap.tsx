@@ -170,7 +170,7 @@ export function FactorCorrelationHeatmap({
     }
   }, [prepared, ct])
 
-  const chartRef = useECharts(option, [prepared, ct])
+  const chartRef = useECharts(option)
   const isEmpty = prepared.data.length === 0
 
   return (

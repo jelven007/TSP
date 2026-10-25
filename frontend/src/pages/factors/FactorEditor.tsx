@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronRight, CircleAlert, CircleCheck, FlaskConical, PenLine, Play, Save, ShieldQuestion } from 'lucide-react'
 import { toast } from '@/components/Toast'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { api, type FactorTrialResponse, type FactorValidateResponse } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 
@@ -84,6 +85,7 @@ export function FactorEditor({ editId = '' }: { editId?: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [formula, setFormula] = useState(DEFAULT_FORMULA)
+  const [pendingTemplate, setPendingTemplate] = useState<string | null>(null)
   const [assetType, setAssetType] = useState<'stock' | 'etf'>('stock')
   const [validation, setValidation] = useState<FactorValidateResponse | null>(null)
   const [trial, setTrial] = useState<FactorTrialResponse | null>(null)
@@ -213,13 +215,16 @@ export function FactorEditor({ editId = '' }: { editId?: string }) {
   }
 
   // 模板/我的因子整体替换公式; 非初始内容时先确认, 防误触丢失半成品
-  const applyTemplate = (next: string) => {
-    const untouched = !editing && (formula === DEFAULT_FORMULA || formula.trim() === '')
-    if (!untouched && !window.confirm('当前公式将被整体替换, 继续?')) return
+  const replaceFormula = (next: string) => {
     setFormula(next)
     setValidation(null)
     setTrial(null)
     setSavedId('')
+  }
+  const applyTemplate = (next: string) => {
+    const untouched = !editing && (formula === DEFAULT_FORMULA || formula.trim() === '')
+    if (untouched) replaceFormula(next)
+    else setPendingTemplate(next)
   }
 
   return (
@@ -581,6 +586,12 @@ export function FactorEditor({ editId = '' }: { editId?: string }) {
           </div>
         )}
       </section>
+      {pendingTemplate != null && (
+        <ConfirmDialog title="替换当前公式" onClose={() => setPendingTemplate(null)} confirmText="确认替换"
+          onConfirm={() => { replaceFormula(pendingTemplate); setPendingTemplate(null) }}>
+          当前公式将被整体替换，继续？
+        </ConfirmDialog>
+      )}
     </div>
   )
 }
