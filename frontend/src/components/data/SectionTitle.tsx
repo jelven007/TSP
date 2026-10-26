@@ -1,5 +1,6 @@
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react'
 import { formatDuration } from '@/lib/format'
+import { KLINE_PERIOD_LABELS, klineJobPeriod } from '@/lib/klinePeriods'
 
 export function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (
@@ -43,6 +44,11 @@ export function HistoryRow({ job, onClick }: { job: any; onClick: () => void }) 
         {job.result && (() => {
           const r = job.result as Record<string, any>
           const parts: string[] = []
+          const period = klineJobPeriod(job)
+          if (period) {
+            parts.push(`${KLINE_PERIOD_LABELS[period]} ${r.rows ?? r.minute_rows ?? 0}行`)
+            if (r.start && r.end) parts.push(`${String(r.start).slice(0, 10)}~${String(r.end).slice(0, 10)}`)
+          }
           if (r.daily_days != null) parts.push(`日K ${r.daily_days}日`)
           if (r.enriched_days != null) parts.push(`enriched ${r.enriched_days}行`)
           if (r.minute_rows != null) parts.push(`分钟K ${r.minute_rows}行`)

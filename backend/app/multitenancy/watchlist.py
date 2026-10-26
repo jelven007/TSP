@@ -122,9 +122,11 @@ class Watchlist:
         return self._mutate("watchlist.remove", symbol, apply)
 
     def clear(self) -> int:
-        return self._mutate(
-            "watchlist.clear", "*", lambda conn: conn.execute("DELETE FROM business.watchlist_items").rowcount,
-        )
+        def apply(conn):
+            from app.strategy.targets import ensure_clearable, sql_references
+            ensure_clearable(None, sql_references(conn))
+            return conn.execute("DELETE FROM business.watchlist_items").rowcount
+        return self._mutate("watchlist.clear", "*", apply)
 
     def move_to_top(self, symbol: str) -> list[dict]:
         def apply(conn):
@@ -204,8 +206,10 @@ class Watchlist:
 
     def clear_group(self, group_id: str) -> list[dict]:
         def apply(conn):
+            from app.strategy.targets import ensure_clearable, sql_references
             if not conn.execute("SELECT 1 FROM business.watchlist_groups WHERE id=%s", (group_id,)).fetchone():
                 raise KeyError(group_id)
+            ensure_clearable(group_id, sql_references(conn))
             conn.execute("DELETE FROM business.watchlist_group_items WHERE group_id=%s", (group_id,))
             return self._rows(conn)
         return self._mutate("watchlist.group.clear", group_id, apply)

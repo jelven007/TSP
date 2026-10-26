@@ -365,6 +365,14 @@ export interface ScreenerResult {
   source?: 'saved' | 'realtime'
 }
 
+export interface StrategyResultHistoryFilters {
+  q?: string
+  start_date?: string
+  end_date?: string
+  asset_type?: 'stock' | 'etf'
+  timeframe?: '1d' | '1m'
+}
+
 export interface StrategyResultHistorySummary {
   record_id: string
   strategy_id: string
@@ -3066,12 +3074,13 @@ export const api = {
   redetectCapabilities: () =>
     request<CapabilitiesResponse>('/api/capabilities/redetect', { method: 'POST' }),
 
-  klineDaily: (symbol: string, days = 120, dateRange?: { start: string; end: string }, extColumns?: string) =>
+  klineDaily: (symbol: string, days = 120, dateRange?: { start: string; end: string }, extColumns?: string, freq: '1d' | '1w' = '1d') =>
     request<KlineDailyResponse>(
       (dateRange
         ? `/api/kline/daily?symbol=${encodeURIComponent(symbol)}&start_date=${dateRange.start}&end_date=${dateRange.end}`
         : `/api/kline/daily?symbol=${encodeURIComponent(symbol)}&days=${days}`)
-      + (extColumns ? `&ext_columns=${encodeURIComponent(extColumns)}` : ''),
+      + (extColumns ? `&ext_columns=${encodeURIComponent(extColumns)}` : '')
+      + (freq !== '1d' ? `&freq=${freq}` : ''),
     ),
   klineDailyLatest: (symbol: string) =>
     request<KlineDailyLatestResponse>(
@@ -3098,7 +3107,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(symbols),
     }),
-  klineMinute: (symbol: string, date?: string, live?: boolean) =>
+  klineMinute: (symbol: string, date?: string, live?: boolean, freq: '1m' | '5m' | '15m' = '1m') =>
     request<{
       symbol: string
       name?: string
@@ -3110,7 +3119,7 @@ export const api = {
       price_limit?: PriceLimitInfo | null
       prev_close?: number | null
     }>(
-      `/api/kline/minute?symbol=${encodeURIComponent(symbol)}${date ? `&date=${date}` : ''}${live ? '&live=1' : ''}`,
+      `/api/kline/minute?symbol=${encodeURIComponent(symbol)}${date ? `&date=${date}` : ''}${live ? '&live=1' : ''}${freq !== '1m' ? `&freq=${freq}` : ''}`,
     ),
   klineMinuteRange: (symbol: string, days = 10) =>
     request<{
@@ -3343,15 +3352,20 @@ export const api = {
         asset_type: assetType, timeframe,
       })}`,
     ),
-  screenerResultHistory: (strategyId: string, cursor?: string) =>
+  screenerResultHistory: (strategyId: string, cursor?: string, filters: StrategyResultHistoryFilters = {}) =>
     request<{ records: StrategyResultHistorySummary[]; next_cursor: string | null }>(
       `/api/screener/result-history/${encodeURIComponent(strategyId)}?${new URLSearchParams({
-        limit: '30', ...(cursor ? { cursor } : {}),
+        limit: '30', ...(cursor ? { cursor } : {}), ...filters,
       })}`,
     ),
   screenerResultHistoryDetail: (strategyId: string, recordId: string) =>
     request<StrategyResultHistoryDetail>(
       `/api/screener/result-history/${encodeURIComponent(strategyId)}/${encodeURIComponent(recordId)}`,
+    ),
+  screenerResultHistoryDelete: (strategyId: string, recordId: string) =>
+    request<{ ok: boolean }>(
+      `/api/screener/result-history/${encodeURIComponent(strategyId)}/${encodeURIComponent(recordId)}`,
+      { method: 'DELETE' },
     ),
   marketSnapshot: () =>
     request<{ as_of: string | null; rows: MarketSnapshotRow[] }>('/api/screener/market-snapshot'),
@@ -4657,6 +4671,10 @@ export interface PipelineJob {
   cancellation_reason?: string | null
   duration_s: number | null
   result: {
+    period?: KlinePeriod
+    rows?: number
+    start?: string
+    end?: string
     universe_size: number
     universe_as_of?: string | null
     universe_source?: string
@@ -4668,12 +4686,12 @@ export interface PipelineJob {
     quote_rows?: number
     depth_rows?: number
     data_release_id?: string
-    daily_days: number
-    adj_factor_symbols: number
-    enriched_days: number
+    daily_days?: number
+    adj_factor_symbols?: number
+    enriched_days?: number
     index_count?: number
     index_daily_rows?: number
-    minute_rows: number
+    minute_rows?: number
     skipped_stages?: string[]
   } | null
   error: string | null

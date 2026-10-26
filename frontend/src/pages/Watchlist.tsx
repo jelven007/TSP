@@ -825,6 +825,8 @@ export function Watchlist() {
     queryFn: api.watchlistGroups,
   })
   const groups = useMemo(() => groupList.data?.groups ?? [], [groupList.data?.groups])
+  const hasReferencedGroup = groups.some(group => !!group.referenced_by?.length)
+  const clearAllBlocked = !groupList.isSuccess || hasReferencedGroup
   const activeGroupId = selectedGroup === 'all' || selectedGroup === 'ungrouped'
     ? null
     : selectedGroup
@@ -1537,8 +1539,12 @@ export function Watchlist() {
                 <div className="w-px h-5 bg-border" />
                 <button
                   onClick={() => setConfirmClear(true)}
-                  className="inline-flex items-center justify-center h-8 w-8 rounded-btn bg-danger/10 text-danger hover:bg-danger/20 transition-colors duration-150 ease-smooth"
-                  title="清空自选"
+                  disabled={clearAllBlocked || clearAll.isPending}
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-btn bg-danger/10 text-danger hover:bg-danger/20 transition-colors duration-150 ease-smooth disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-danger/10"
+                  title={hasReferencedGroup
+                    ? '存在被策略引用的自选分组，请先解除策略引用后再清空自选'
+                    : groupList.isSuccess ? '清空自选' : '等待自选分组加载完成'}
+                  aria-label="清空自选"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -1984,7 +1990,7 @@ export function Watchlist() {
 
       {/* 清空确认弹窗 */}
       <AnimatePresence>
-        {confirmClear && (
+        {confirmClear && !clearAllBlocked && (
           <Modal onClose={() => setConfirmClear(false)} ariaLabel="清空自选" size="sm" panelClassName="p-5">
               <h3 className="text-sm font-medium text-foreground mb-2">确认清空自选</h3>
               <p className="text-xs text-secondary mb-5">

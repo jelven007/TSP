@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { act } from 'react'
+import { act, StrictMode, useEffect, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { confirmAccount } from '@/lib/accountSession'
 import { storage } from '@/lib/storage'
+import { SettingsModal } from './SettingsModal'
 import { getCardOrder, getCardVisibility, PageSettingsModal } from './PageSettingsModal'
 
 const expectedOrder = [
@@ -36,6 +37,7 @@ afterEach(async () => {
   host.remove()
   localStorage.clear()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 function renderedLabels() {
@@ -90,4 +92,63 @@ it('restores the system order and displays all requested cards', async () => {
 it('places new periods into the requested order for the previous card layout', () => {
   storage.dataCardOrder.set(['instruments', 'minute', 'daily', 'adj_factor', 'enriched', 'regime', 'index', 'financials', 'etf'])
   expect(getCardOrder()).toEqual(expectedOrder)
+})
+
+it.each([null, 'weekly', { length: 1 }, 1])('opens page settings with invalid saved order %j', async (saved) => {
+  storage.dataCardOrder.set(saved as unknown as string[])
+  await act(async () => root.render(<PageSettingsModal caps={caps} />))
+  expect(renderedLabels()).toEqual(expectedLabels)
+})
+
+it('ignores duplicate cards and invalid visibility values when opening', async () => {
+  storage.dataCardOrder.set(['weekly', 'daily', 'daily', 'unknown'])
+  storage.dataCardVisible.set(null as unknown as Record<string, boolean>)
+  await act(async () => root.render(<PageSettingsModal caps={caps} />))
+  expect(renderedLabels().filter(label => label === '日 K')).toHaveLength(1)
+  expect(getCardVisibility(caps).daily).toBe(true)
+})
+
+it('opens, toggles and reopens through the shared modal during StrictMode parent updates', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    queueMicrotask(() => callback(0)); return 1
+  })
+  vi.stubGlobal('cancelAnimationFrame', () => {})
+  const errors = vi.spyOn(console, 'error')
+  function Page() {
+    const [open, setOpen] = useState(false)
+    const [visibility, setVisibility] = useState(() => getCardVisibility(caps))
+    useEffect(() => {
+      const update = () => setVisibility(getCardVisibility(caps))
+      window.addEventListener('data-card-visible-change', update)
+      return () => window.removeEventListener('data-card-visible-change', update)
+    }, [])
+    return (
+      <>
+        <button onClick={() => setOpen(true)}>页面设置</button>
+        <output>{visibility.daily ? '显示日K' : '隐藏日K'}</output>
+        {open && (
+          <SettingsModal title="页面设置" onClose={() => setOpen(false)}>
+            <PageSettingsModal caps={{ ...caps }} />
+          </SettingsModal>
+        )}
+      </>
+    )
+  }
+  await act(async () => root.render(<StrictMode><Page /></StrictMode>))
+  await act(async () => host.querySelector('button')!.click())
+  let dialog = document.querySelector('[role="dialog"]')!
+  expect(dialog).not.toBeNull()
+  expect(host.contains(dialog)).toBe(false)
+  const toggle = dialog.querySelector<HTMLButtonElement>('[role="checkbox"][aria-label="显示日 K"]')!
+  await act(async () => toggle.click())
+  expect(host.querySelector('output')?.textContent).toBe('隐藏日K')
+  expect(toggle.getAttribute('aria-checked')).toBe('false')
+  await act(async () => dialog.querySelector<HTMLButtonElement>('[aria-label="关闭页面设置"]')!.click())
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  await act(async () => host.querySelector('button')!.click())
+  dialog = document.querySelector('[role="dialog"]')!
+  expect(dialog.querySelector('[aria-label="显示日 K"]')?.getAttribute('aria-checked')).toBe('false')
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(errors).not.toHaveBeenCalled()
 })

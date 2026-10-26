@@ -75,6 +75,32 @@ it('immediately explains why a referenced group cannot be deleted', async () => 
   expect(onDelete).not.toHaveBeenCalled()
 })
 
+it('disables clearing a referenced group and leaves an unrelated group available', async () => {
+  const onClearGroup = vi.fn().mockResolvedValue(undefined)
+  const props = {
+    groups: [
+      { id: 'core', name: '核心', color: 'sky' as const, referenced_by: ['test'] },
+      { id: 'other', name: '观察', color: 'teal' as const },
+    ],
+    counts: { core: 1, other: 1 }, total: 1, onSelect: vi.fn(),
+    onCreate: vi.fn(), onRename: vi.fn(), onDelete: vi.fn(), onClearGroup,
+  }
+  await render(<WatchlistGroupBar {...props} selected="core" />)
+  const clear = () => document.querySelector<HTMLButtonElement>('button[aria-label="清空当前分组"]')!
+  expect(clear().disabled).toBe(true)
+  expect(clear().title).toContain('被策略引用')
+  await act(async () => clear().click())
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(onClearGroup).not.toHaveBeenCalled()
+  await act(async () => root!.render(
+    <QueryClientProvider client={client}><WatchlistGroupBar {...props} selected="other" /></QueryClientProvider>,
+  ))
+  expect(clear().disabled).toBe(false)
+  await act(async () => clear().click())
+  await act(async () => button('确认清空').click())
+  expect(onClearGroup).toHaveBeenCalledWith('other')
+})
+
 it('creates a group with the selected code-only CSV in one submission', async () => {
   const onCreate = vi.fn().mockResolvedValue(undefined)
   await render(<WatchlistGroupBar groups={[]} counts={{}} selected="all" total={0}

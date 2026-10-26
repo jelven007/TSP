@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronDown, ChevronUp, FolderCog, FolderInput, Pencil, Plus, Trash2, X, Eraser } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Download, FolderCog, FolderInput, Pencil, Plus, Trash2, X, Eraser } from 'lucide-react'
 import { Modal, useModalPortalContainer } from '@/components/Modal'
 import { api } from '@/lib/api'
 import { hasPermission } from '@/lib/accountSession'
@@ -53,6 +53,8 @@ export function WatchlistGroupBar({
 }: GroupBarProps) {
   const [managerOpen, setManagerOpen] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
+  const selectedGroup = groups.find(group => group.id === selected)
+  const clearBlocked = !selectedGroup || !!selectedGroup.referenced_by?.length
   const tabs = [
     { id: 'all', name: '全部', count: total, color: null },
     { id: 'ungrouped', name: '未分组', count: counts.ungrouped ?? 0, color: null },
@@ -184,8 +186,11 @@ export function WatchlistGroupBar({
           <button
             type="button"
             onClick={() => setConfirmClear(true)}
-            className="inline-flex w-8 shrink-0 items-center justify-center text-muted hover:text-warning"
-            title="清空当前分组"
+            disabled={clearBlocked}
+            className="inline-flex w-8 shrink-0 items-center justify-center text-muted hover:text-warning disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted"
+            title={selectedGroup?.referenced_by?.length
+              ? '该自选分组被策略引用，请先解除策略引用后再清空'
+              : '清空当前分组'}
             aria-label="清空当前分组"
           >
             <Eraser className="h-4 w-4" />
@@ -194,11 +199,11 @@ export function WatchlistGroupBar({
       </div>
 
       {/* 清空分组确认弹窗 */}
-      {confirmClear && selected !== 'all' && selected !== 'ungrouped' && (
+      {confirmClear && !clearBlocked && selected !== 'all' && selected !== 'ungrouped' && (
         <Modal onClose={() => setConfirmClear(false)} ariaLabel="清空分组" size="sm" panelClassName="p-5">
             <h3 className="text-sm font-medium text-foreground mb-2">清空分组</h3>
             <p className="text-xs text-secondary mb-5">
-              确认清空「{tabs.find(t => t.id === selected)?.name}」分组? 分组内所有股票将转为未分组(不从自选中删除)。
+              确认清空「{selectedGroup?.name}」分组? 仅移出当前分组，股票仍保留在自选及其他分组中。
             </p>
             <div className="flex items-center justify-end gap-2">
               <button
@@ -221,6 +226,7 @@ export function WatchlistGroupBar({
         <GroupManagerDialog
           groups={groups}
           counts={counts}
+          selected={selected}
           onClose={() => setManagerOpen(false)}
           onCreate={onCreate}
           onRename={onRename}
@@ -269,12 +275,13 @@ function GroupColorPicker({
 function GroupManagerDialog({
   groups,
   counts,
+  selected,
   onClose,
   onCreate,
   onRename,
   onDelete,
   onReorder,
-}: Omit<GroupBarProps, 'selected' | 'total' | 'onSelect' | 'onClearGroup'> & { onClose: () => void }) {
+}: Omit<GroupBarProps, 'total' | 'onSelect' | 'onClearGroup'> & { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const csvRef = useRef<HTMLInputElement>(null)
   const [newName, setNewName] = useState('')
@@ -286,6 +293,39 @@ function GroupManagerDialog({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [csvFile, setCsvFile] = useState<File | undefined>()
+  const [exportGroupId, setExportGroupId] = useState(() => groups.some(group => group.id === selected) ? selected : '')
+  const [exporting, setExporting] = useState(false)
+  const exportGroup = groups.find(group => group.id === exportGroupId)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  const exportCsv = async () => {
+    if (!exportGroup || exporting || pending) return
+    setExporting(true)
+    setError('')
+    try {
+      // Export the complete current-account list, independent of page filters and cached quotes.
+      const { symbols } = await api.watchlistList()
+      if (!mountedRef.current) return
+      const members = symbols.filter(entry => entry.group_ids?.includes(exportGroup.id))
+      if (!members.length) throw new Error('该分组没有股票可导出')
+      const lines = ['股票代码', ...members.map(entry => entry.symbol)]
+      const blob = new Blob(['\ufeff' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${exportGroup.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')}_股票列表.csv`
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) {
+      if (mountedRef.current) setError(err instanceof Error ? err.message : '导出失败')
+    } finally {
+      if (mountedRef.current) setExporting(false)
+    }
+  }
 
   // 「显示在侧边栏」偏好开关
   const qc = useQueryClient()
@@ -440,13 +480,27 @@ function GroupManagerDialog({
         {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
       </div>
 
-      <div className="max-h-[360px] overflow-y-auto border-t border-border px-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2.5">
+        <p className="min-w-0 text-[11px] text-muted">选中一个分组，导出完整股票列表。</p>
+        <button type="button" onClick={() => void exportCsv()}
+          disabled={!exportGroup || exporting || pending}
+          className="inline-flex items-center gap-1.5 rounded-btn border border-border px-2.5 py-1.5 text-xs text-secondary hover:text-accent disabled:cursor-not-allowed disabled:opacity-50">
+          <Download className="h-3.5 w-3.5" />
+          {exporting ? '导出中…' : '导出 CSV'}
+        </button>
+      </div>
+      <div role="radiogroup" aria-label="选择导出分组" className="max-h-[360px] overflow-y-auto border-t border-border px-4">
         {groups.length === 0 ? (
           <div className="py-10 text-center text-xs text-muted">暂无自定义分组</div>
         ) : groups.map((group, index) => {
           const color = resolveWatchlistGroupColor(group.color)
           return (
           <div key={group.id} className="flex min-h-12 items-center gap-2 border-b border-border/60 last:border-0">
+            <input id={`watchlist-export-${group.id}`} type="radio" name="watchlist-export-group" value={group.id}
+              aria-label={`选择分组 ${group.name}`} checked={exportGroupId === group.id}
+              disabled={exporting || pending}
+              onChange={() => { setExportGroupId(group.id); setError('') }}
+              className="h-3.5 w-3.5 shrink-0 accent-accent" />
             <span className={`h-6 w-1 shrink-0 rounded-full ${color.dot}`} />
             {editingId === group.id ? (
               <div className="min-w-0 flex-1 py-2">
@@ -489,7 +543,9 @@ function GroupManagerDialog({
               </>
             ) : (
               <>
-                <span className={`min-w-0 flex-1 truncate text-xs ${color.text}`}>{group.name}</span>
+                <label htmlFor={`watchlist-export-${group.id}`} className={`min-w-0 flex-1 cursor-pointer truncate text-xs ${color.text}`}>
+                  {group.name}
+                </label>
                 <span className="font-mono text-[10px] text-muted tabular-nums">{counts[group.id] ?? 0} 只</span>
                 {onReorder && groups.length > 1 && (
                   <>

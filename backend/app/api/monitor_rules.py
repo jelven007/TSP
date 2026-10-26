@@ -310,6 +310,13 @@ def save_rule(req: RuleModel, request: Request):
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+        if rule.get("enabled", True):
+            from app.strategy.config import load_override
+            try:
+                # 每次启用都重新解析目标分组; 展开成员仅供执行, 不能固化到监控规则。
+                load_override(_data_dir(request), str(rule["strategy_id"]))
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail="目标股票列表加载失败。请重试") from exc
     # 编辑现有规则时, 保留原 created_at (避免按时间排序时位置跳动)
     existing = monitor_rules.load_one(_data_dir(request), rule["id"])
     # 批次派生规则由「持仓提醒」页托管, 监控中心只读 (启停/改/删均回持仓页)

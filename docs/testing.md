@@ -1,5 +1,11 @@
 # 测试与验收指南
 
+2026-10-26冻结候选的全量、行为、构建、本地及生产证据见
+[本批整合](../reports/current-state-release-20261026/verification.md)。
+本批不沿用旧计数；临时PostgreSQL与隔离市场目录不读取/修改本地业务库。
+Runtime/Compute/API/Worker须固定同一CI revision；部署后单独核对配置、schema、
+HTTPS/admin和全部functions。页面设置原故障仍未复现，24小时/交易日及历史覆盖另签收。
+
 六周期画像候选验证入口为 `backend/tests/test_kline_periods.py`、
 `test_kline_periods_api.py`、`test_rustdx_provider.py`、`test_minute_refresh.py`及
 `test_instrument_catalog_admin.py`；前端为 `KlineSyncConfig.test.tsx`、
@@ -9,6 +15,20 @@
 周内覆盖同一周K、四表隔离/视图/schema/缓存、管理员筛选全量CSV及后台任务真实完成。
 页面联调还须检查空库入口、表单保存/失败、任务取消、窄屏弹窗及删除的监控控制。
 测试通过不证明上游拥有多年历史，实际数据覆盖按日期和标的另行验收。
+
+数据总览修复用例补充：无效显隐/顺序、重复卡片及页面设置重开；
+日/周一致表单、日K空库、闰年自然月区间和复权/指标流程；
+原minute/daily入口的5m/15m/1w本地读取、空表远程取数、非法周期/源失败，
+及三个周期离线任务写盘后画像计数。回归须断言实际周期与行值，不能只检查200。
+
+历史进度回归增加`test_kline_sync_progress.py`，覆盖1/5/15分钟、日/周K的多标的批次，
+10分钟空日期段推进、日K/除权/指标子阶段重置与JobStore切换阶段清零；
+`test_kline_periods_api.py`覆盖五类周期任务总进度和阶段进度透传。
+前端`ActiveJobCard.test.tsx`覆盖阶段中文、两类进度、成功100%、实际周期行数、
+失败/取消/中断以及旧分钟任务；与数据组件和`Modal.test.tsx`一起回归并构建。
+新增页面设置用例在共享Modal、StrictMode及父页面重渲染中打开/勾选/关闭/重开；
+这些正常用例通过不证明用户报告的点击异常已修复，仍须取得实际报错再建立失败用例。
+反向验证临时移除本轮生产修复、保留回归用例，确认失败后恢复；不回滚用户工作区。
 
 2026-10-25本批全量验证、本地更新、PR/CI和线上升级结果统一见
 [最新现状验证](../reports/current-state-release-20261025/verification.md)。
@@ -37,11 +57,38 @@
 异参缺失/显式历史、读历史不叠加最新监控及保存失败。
 `test_full_strategy_history.py`必须使用一次性PostgreSQL，覆盖RLS隔离、
 配置数量上限不限制历史、事务回滚与未提交热缓存污染。
+上述三组测试还覆盖同日重复/空结果复用、单跑与批跑的空字段等价、原计算时间保留、
+任务顺序推进后拒绝旧任务、同任务重试不增revision、摘要更新的缓存一致性与事务回滚。
+股票值/排序、评分/信号/警告变化及不同日期/参数/版本须保留；重复摘要更新仍受16MiB
+文档限制，失败不改变已存结果。反向加载修复前仓库须检出重复写入，不能只断言历史行数。
 前端`Screener.test.tsx`验证A→B→A恢复及迟到响应不改当前日期，
 `screenerHistory.test.ts`校验HTTP维度与查询键，
 `StrategyResultHistoryDialog.test.tsx`校验旧版本/参数和加载失败。
 浏览器在桌面及390px下检查日期恢复、ETF隔离、历史明细和弹窗滚动；
 模拟接口联调不替代生产容量、真实行情和Windows签收。
+
+历史筛选/删除继续归`FR-STRATEGY-05`：仓库与API测试覆盖五维组合、字面关键词、
+首尾日期、筛选先分页、非法范围/枚举、跨策略/租户删除404和存储失败503。
+真实PostgreSQL覆盖只读权限403、跨源拒绝、删除事务回滚及跨进程同ID重建缓存。
+前端覆盖应用/重置回首页、确认/取消/失败重试、提交禁用关闭、删除末页、
+迟到列表/明细隔离、删除成功后刷新失败不复现旧行、对应日期“全部周期”缓存失效。
+桌面与390px浏览器以测试归档验证筛选→查看→取消/失败/重试删除→重置，
+检查嵌套确认、浅/深色、空状态与无横向溢出，不删除真实用户记录。
+
+自选分组与监控启用按`FR-WATCHLIST-02/05`、`FR-STRATEGY-06`验证：
+`test_watchlist_groups.py`覆盖重复添加到不同组及旧文件重复证券合并，首条备注/日期保留；
+`test_strategy_targets.py`、`test_full_strategy_targets.py`覆盖文件、真实PostgreSQL和HTTP
+清空409、失败不改数据/revision、其他租户与未引用分组可清空、共享证券保留其他组关系。
+`test_strategy_monitor_activation.py`覆盖首次启用、停用后成员变更再启用、重读失败保留停用
+及内部成员不写回规则；监控计算仍运行`test_strategy_group_monitor_runtime.py`和
+`test_monitor_group_scope.py`验证动态成员。前端`Watchlist.test.tsx`与`StrategyTargets.test.tsx`
+检查全部/关联组禁用、未关联组可清空及解除引用后的恢复，浏览器覆盖桌面和390px。
+分组CSV导出按`FR-WATCHLIST-06`验证：`WatchlistGroups.test.tsx`覆盖默认选中、
+跨组共享成员、完整清单而非缓存/可见行、UTF-8 BOM、前导零及交易所后缀、仅代码单列、
+空组、读取失败、加载禁用和卸载后的迟到响应。连同`Watchlist.test.tsx`、
+`StrategyTargets.test.tsx`与`Modal.test.tsx`运行，并执行前端构建。
+浏览器验证管理分组→单选→下载和窄屏布局；下载文件用现有
+`import_watchlist_csv`解析核对代码/顺序，不将重新导入视为恢复备注或组配置。
 
 一级页面顶栏按 `FR-UI-05` 验证：PageHeader 保留富文本说明、状态和按钮回调，
 标题独立态不生成空工具栏；浏览器在1440px与390px下检查各菜单标题/间距/操作区边界，

@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from app.multitenancy.documents import DocumentSession, TenantDocuments, json_value
 from app.strategy.eligibility import ENTRY_POLICY_VERSION
@@ -229,10 +230,26 @@ class StrategyResults:
         as_of = date.fromisoformat(str(result["as_of"])).isoformat()
         record_id = identity.record_id(as_of)
 
+        def comparable(value):
+            # Single and batch runners omit different empty optional fields.
+            defaults = {"strategy_id": identity.strategy_id, "total": 0, "rows": [],
+                        "scores": {}, "warnings": [], "entry_signal_hits": [],
+                        "exit_signal_hits": [], "entry_filter_error": None}
+            return {**defaults, **{key: item for key, item in value.items()
+                                   if key not in {"computed_at", "elapsed_ms"}}}
+
         def merged(old):
             if old and old["summary"]["started_at"] > started_at:
-                return old
+                return old, "unchanged"
             current = json_value(result)
+            if old and comparable(old["result"]) == comparable(current):
+                # Advance the run order even when the output is unchanged, so a
+                # late older run cannot replace the latest successful result.
+                summary = json_value({**old["summary"], "started_at": started_at,
+                                      "input_generation": input_generation})
+                if summary == old["summary"]:
+                    return old, "unchanged"
+                return json_value({**old, "summary": summary}), "summary"
             current["computed_at"] = int(time.time() * 1000)
             ever = {**(old["ever_rows"] if old else {}),
                     **{str(row["symbol"]): row for row in current.get("rows", [])
@@ -244,7 +261,8 @@ class StrategyResults:
                 "input_generation": input_generation,
             }
             return json_value({"record_id": record_id, "summary": summary,
-                               "result": current, "ever_rows": ever})
+                               "result": current, "ever_rows": ever,
+                               "_cache_token": uuid4().hex}), "result"
 
         if self.tenant:
             from psycopg.types.json import Jsonb
@@ -253,24 +271,40 @@ class StrategyResults:
                     "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
                     (NAMESPACE, record_id),
                 ).fetchone()
-                value = merged(row["value"] if row else None)
-                conn.execute(
-                    """INSERT INTO business.documents(tenant_id,namespace,id,value)
-                       VALUES(%s,%s,%s,%s) ON CONFLICT(tenant_id,namespace,id) DO UPDATE SET
-                       value=excluded.value,revision=business.documents.revision+1,updated_at=now()""",
-                    (self.storage.context.tenant_id, NAMESPACE, record_id, Jsonb(value)),
-                )
+                value, update = merged(row["value"] if row else None)
+                if update == "summary":
+                    conn.execute(
+                        """UPDATE business.documents SET value=jsonb_set(value,'{summary}',%s),
+                           revision=revision+1,updated_at=now() WHERE namespace=%s AND id=%s""",
+                        (Jsonb(value["summary"]), NAMESPACE, record_id),
+                    )
+                elif update == "result":
+                    conn.execute(
+                        """INSERT INTO business.documents(tenant_id,namespace,id,value)
+                           VALUES(%s,%s,%s,%s) ON CONFLICT(tenant_id,namespace,id) DO UPDATE SET
+                           value=excluded.value,revision=business.documents.revision+1,updated_at=now()""",
+                        (self.storage.context.tenant_id, NAMESPACE, record_id, Jsonb(value)),
+                    )
         else:
             with self._local(write=True) as conn:
                 row = conn.execute("SELECT value FROM strategy_results WHERE id=?", (record_id,)).fetchone()
-                value = merged(json.loads(row["value"]) if row else None)
-                conn.execute(
-                    """INSERT INTO strategy_results(id,summary,value) VALUES(?,?,?)
-                       ON CONFLICT(id) DO UPDATE SET summary=excluded.summary,value=excluded.value,
-                       revision=strategy_results.revision+1""",
-                    (record_id, _encode(value["summary"]), _encode(value)),
-                )
-        logger.info("strategy result saved: asset=%s timeframe=%s date=%s",
+                value, update = merged(json.loads(row["value"]) if row else None)
+                if update == "summary":
+                    summary = _encode(value["summary"])
+                    conn.execute(
+                        """UPDATE strategy_results SET summary=?,value=json_set(value,'$.summary',json(?)),
+                           revision=revision+1 WHERE id=?""",
+                        (summary, summary, record_id),
+                    )
+                elif update == "result":
+                    conn.execute(
+                        """INSERT INTO strategy_results(id,summary,value) VALUES(?,?,?)
+                           ON CONFLICT(id) DO UPDATE SET summary=excluded.summary,value=excluded.value,
+                           revision=strategy_results.revision+1""",
+                        (record_id, _encode(value["summary"]), _encode(value)),
+                    )
+        logger.info("strategy result %s: asset=%s timeframe=%s date=%s",
+                    "saved" if update == "result" else "reused",
                     identity.asset_type, identity.timeframe, as_of)
         return copy.deepcopy(value)
 
@@ -284,12 +318,14 @@ class StrategyResults:
         if self.tenant:
             with self.storage._transaction() as conn:
                 row = conn.execute(
-                    "SELECT revision FROM business.documents WHERE namespace=%s AND id=%s",
+                    """SELECT revision,value->>'_cache_token' AS cache_token
+                       FROM business.documents WHERE namespace=%s AND id=%s""",
                     (NAMESPACE, record_id),
                 ).fetchone()
                 if not row:
                     return None
-                key = (self.scope, record_id, row["revision"])
+                # A deleted ID can be inserted again with revision=1 in another process.
+                key = (self.scope, record_id, row["revision"], row["cache_token"])
                 cached = self._hot(key) if self.cacheable else None
                 if cached is not None:
                     return cached
@@ -300,15 +336,18 @@ class StrategyResults:
                 if row is None:
                     return None
                 value = row["value"]
-                key = (self.scope, record_id, row["revision"])
+                key = (self.scope, record_id, row["revision"], value.get("_cache_token"))
         else:
             with self._local() as conn:
                 if conn is None:
                     return None
-                row = conn.execute("SELECT revision FROM strategy_results WHERE id=?", (record_id,)).fetchone()
+                row = conn.execute(
+                    """SELECT revision,json_extract(value,'$._cache_token') AS cache_token
+                       FROM strategy_results WHERE id=?""", (record_id,),
+                ).fetchone()
                 if not row:
                     return None
-                key = (self.scope, record_id, row["revision"])
+                key = (self.scope, record_id, row["revision"], row["cache_token"])
                 cached = self._hot(key)
                 if cached is not None:
                     return cached
@@ -320,6 +359,34 @@ class StrategyResults:
         if self.cacheable:
             _remember(key, value)
         return copy.deepcopy(value)
+
+    def delete(self, strategy_id: str, record_id: str) -> bool:
+        prefix = digest(strategy_id)[:16] + ":"
+        if not record_id.startswith(prefix) or len(record_id) != 92:
+            return False
+        if self.tenant:
+            with self.storage._transaction(write=True) as conn:
+                deleted = conn.execute(
+                    """DELETE FROM business.documents WHERE namespace=%s AND id=%s
+                       AND value->'summary'->>'strategy_id'=%s""",
+                    (NAMESPACE, record_id, strategy_id),
+                ).rowcount > 0
+        else:
+            if not self.path.exists():
+                return False
+            with self._local(write=True) as conn:
+                deleted = conn.execute(
+                    """DELETE FROM strategy_results WHERE id=?
+                       AND json_extract(summary,'$.strategy_id')=?""",
+                    (record_id, strategy_id),
+                ).rowcount > 0
+        if deleted and self.cacheable:
+            global _memory_size
+            with _memory_lock:
+                for key in [key for key in _memory if key[:2] == (self.scope, record_id)]:
+                    _, size = _memory.pop(key)
+                    _memory_size -= size
+        return deleted
 
     @staticmethod
     def _hot(key):
@@ -351,9 +418,20 @@ class StrategyResults:
             values = [json.loads(row["summary"]) for row in rows]
         return {value["strategy_id"]: value for value in values}
 
-    def list_history(self, strategy_id: str, *, limit=30, cursor=None) -> dict:
+    def list_history(self, strategy_id: str, *, limit=30, cursor=None, q=None,
+                     start_date=None, end_date=None, asset_type=None, timeframe=None) -> dict:
         if not 1 <= limit <= 100:
             raise ValueError("历史分页数量必须在1到100之间")
+        if q and len(q) > 200:
+            raise ValueError("历史搜索关键词不能超过200个字符")
+        start_date = date.fromisoformat(str(start_date)).isoformat() if start_date else None
+        end_date = date.fromisoformat(str(end_date)).isoformat() if end_date else None
+        if start_date and end_date and start_date > end_date:
+            raise ValueError("开始日期不能晚于结束日期")
+        if asset_type not in (None, "", "stock", "etf"):
+            raise ValueError("历史资产类型无效")
+        if timeframe not in (None, "", "1d", "1m"):
+            raise ValueError("历史周期无效")
         prefix = digest(strategy_id)[:16] + ":"
         if cursor and (not cursor.startswith(prefix) or len(cursor) != 92):
             raise ValueError("历史分页游标无效")
@@ -361,12 +439,34 @@ class StrategyResults:
         # The next fixed-width hex strategy prefix bounds the same PK index range.
         number = int(prefix[:16], 16)
         upper = cursor or (f"{number + 1:016x}" if number < 2**64 - 1 else "g")
+        conditions, params = [], []
+        summary = "value->'summary'" if self.tenant else "summary"
+        placeholder = "%s" if self.tenant else "?"
+
+        def field(name):
+            return f"{summary}->>'{name}'" if self.tenant else f"json_extract(summary,'$.{name}')"
+
+        for name, value, operator in (
+            ("as_of", start_date, ">="), ("as_of", end_date, "<="),
+            ("asset_type", asset_type, "="), ("timeframe", timeframe, "="),
+        ):
+            if value:
+                conditions.append(f"{field(name)}{operator}{placeholder}")
+                params.append(value)
+        if q and q.strip():
+            function = "strpos" if self.tenant else "instr"
+            conditions.append(
+                f"({function}(lower({field('strategy_name')}),{placeholder})>0 OR "
+                f"{function}(lower({field('strategy_version')}),{placeholder})>0)",
+            )
+            params.extend([q.strip().lower()] * 2)
+        where = "".join(f" AND {condition}" for condition in conditions)
         if self.tenant:
             with self.storage._transaction() as conn:
                 rows = conn.execute(
-                    """SELECT id,value->'summary' AS summary FROM business.documents
-                       WHERE namespace=%s AND id>=%s AND id<%s ORDER BY id DESC LIMIT %s""",
-                    (NAMESPACE, prefix, upper, limit + 1),
+                    f"""SELECT id,value->'summary' AS summary FROM business.documents
+                        WHERE namespace=%s AND id>=%s AND id<%s{where} ORDER BY id DESC LIMIT %s""",
+                    (NAMESPACE, prefix, upper, *params, limit + 1),
                 ).fetchall()
             values = [row["summary"] for row in rows]
         else:
@@ -374,8 +474,9 @@ class StrategyResults:
                 if conn is None:
                     return {"records": [], "next_cursor": None}
                 rows = conn.execute(
-                    """SELECT id,summary FROM strategy_results
-                       WHERE id>=? AND id<? ORDER BY id DESC LIMIT ?""", (prefix, upper, limit + 1),
+                    f"""SELECT id,summary FROM strategy_results
+                        WHERE id>=? AND id<?{where} ORDER BY id DESC LIMIT ?""",
+                    (prefix, upper, *params, limit + 1),
                 ).fetchall()
             values = [json.loads(row["summary"]) for row in rows]
         return {"records": values[:limit],

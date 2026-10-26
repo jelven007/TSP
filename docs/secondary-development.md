@@ -1,5 +1,10 @@
 # 代码二次开发与 AI 扩展指南
 
+2026-10-26当前源树与部署核对见[本批整合](../reports/current-state-release-20261026/verification.md)。
+本批L3改动继续使用现有Provider、归档仓库、租户事务、查询键和共享Modal，
+不新增通用扩展API。合并与升级须复核API/Worker/Compute的周期和cache_token契约，
+历史配置/分区/schema保持兼容；实际版本以[版本基线](version-baseline.md)为准。
+
 六周期画像扩展复用 `services/kline_periods.py` 的表映射及周期配置，
 Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/integrations.md)。
 已有1m/1d插件兼容，新5m/15m/1w必须明确适配；10m仅消费本地1m。
@@ -20,14 +25,34 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 二开调用共享Modal时使用size/fillHeight和portal容器，不再传旧overlayClassName。
 每次扩展点或核心契约变更更新本说明，至少每月复核其真实定义与测试。
 
+历史结果筛选/删除为L3局部变更，复用`StrategyResults`、screener API、集中查询键
+和共享`ConfirmDialog`，不新增插槽。列表过滤在SQL分页前执行；
+升级保留可选筛选参数及旧无筛选调用、租户业务写事务和显式单条删除边界。
+归档新保存使用内部缓存标识配合revision，旧记录缺字段可读；
+不能只清当前进程内存而忽略同ID删除后重建。前端删除刷新须包含对应日期的
+“全部周期”查询，并取消该记录的旧明细请求。该候选不授权自动清理历史。
+
+同日重复归档为`StrategyResults.save`内的L3修改，不新增API、schema或注册接口。
+相同身份与日期下，单跑/批跑空字段等价，耗时与计算时间不参与重复判定；
+真实股票/评分/信号/警告变化仍更新结果。升级保留重复结果的摘要更新、revision失效
+及最新任务顺序检查，避免较早任务覆盖重复重跑确认的最新成功；旧归档继续兼容读取。
+
 目标股票/分组CSV/角色并发候选是L3聚焦修改。`strategy/targets.py`仅提供该领域的
 校验、动态成员解析和删除引用检查，不是通用CandidateFilter插槽。
 升级复核 `config.load_override/list_overrides`、运行快照、Polars/矩阵、监控任务、
 同租户保存/删除事务及CSV新组回滚；`target_symbols`只属于执行快照，
 前端/二开不得将它作为用户可维护配置持久化。
+自选清空复用`targets.ensure_clearable`，在文件锁或租户写事务内检查策略引用，
+包括兼容的Cell全部清空入口；前端只根据`referenced_by`提示和禁用，不能替代后端校验。
+旧文件重复证券读取时合并多组关系，“全部”维持一证券一条。监控启用入口重新加载
+目标配置，各计算轮次仍动态解析；升级须保留这两处重读，不能固化启用时的成员列表。
 管理员并发身份从认证权限构造任务，不采信页面请求字段；普通租户GET设置只读1。
 前端卡片类型仅normal/large，历史mini/hidden在读取时回normal。
 当前候选未改变应用版本或生产部署，既有插槽/注册契约保持原定义。
+管理分组CSV导出属于L3局部交互，位于`WatchlistGroups.tsx`，复用当前账户的
+`api.watchlistList()`完整清单与`group_ids`成员关系，不增加插槽或后端API。
+升级保留选中分组、默认仅代码单列、完整导出和卸载后的迟到响应保护；不能用
+`watchlist.toolbar`的已筛选`symbols`替代完整成员，也不将股票列表当作完整用户备份。
 
 2026-10-25整合中的官方目录、管理员默认空间和全局顶栏属于L3核心修改：
 官方目录适配位于数据接入层，CRUD复用目录写锁与发布链；管理员复用注册预留/初始化
