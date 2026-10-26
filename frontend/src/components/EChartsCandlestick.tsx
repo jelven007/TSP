@@ -91,8 +91,8 @@ function volMaN(data: OHLC[], n: number): (number | null)[] {
   for (let i = 0; i < data.length; i++) {
     if (i < n - 1) { result.push(null); continue }
     let sum = 0
-    for (let j = i - n + 1; j <= i; j++) sum += data[j].volume ?? 0
-    result.push(sum / n)
+    for (let j = i - n + 1; j <= i; j++) sum += data[j].volume ?? NaN
+    result.push(Number.isFinite(sum) ? sum / n : null)
   }
   return result
 }
@@ -140,7 +140,7 @@ export const SUB_CHARTS: SubChartDef[] = [
           data: data.map((d, index) => {
             const ratio = volumeRatioAt(data, index, compareDays)
             return {
-              value: d.volume ?? 0,
+              value: d.volume ?? null,
               volumeRatioLabel: ratio == null ? '' : fmtVolumeRatio(ratio, 1),
               itemStyle: {
                 color: d.close >= d.open ? 'rgba(240,68,56,0.6)' : 'rgba(18,183,106,0.6)',
@@ -336,6 +336,8 @@ interface Props {
   onPriceDoubleClick?: (price: number, currentPrice: number) => void
   /** 默认可见蜡烛根数, 默认 60; 'all' = 初始适配显示全部返回数据 */
   visibleBars?: number | 'all'
+  zoomResetKey?: number
+  onVisibleBarsChange?: (count: number) => void
   /** 已激活的子图 key 列表 (含 vol, 按点击顺序) */
   activeIndicators?: string[]
   /** 成交量柱相对前 N 个交易日均量的显示设置 */
@@ -391,8 +393,8 @@ function buildSubInfoGraphics(
       const calcVolMa = (n: number) => {
         if (infoIdx < n - 1) return null
         let sum = 0
-        for (let j = infoIdx - n + 1; j <= infoIdx; j++) sum += data[j].volume ?? 0
-        return sum / n
+        for (let j = infoIdx - n + 1; j <= infoIdx; j++) sum += data[j].volume ?? NaN
+        return Number.isFinite(sum) ? sum / n : null
       }
       const vol5 = calcVolMa(5)
       const vol10 = calcVolMa(10)
@@ -884,6 +886,8 @@ export function EChartsCandlestick({
   onDateClick,
   onPriceDoubleClick,
   visibleBars = 60,
+  zoomResetKey,
+  onVisibleBarsChange,
   activeIndicators = [],
   volumeCompare = { enabled: true, days: 1 },
   addedDate,
@@ -897,6 +901,8 @@ export function EChartsCandlestick({
   onDateClickRef.current = onDateClick
   const onPriceDoubleClickRef = useRef(onPriceDoubleClick)
   onPriceDoubleClickRef.current = onPriceDoubleClick
+  const onVisibleBarsChangeRef = useRef(onVisibleBarsChange)
+  onVisibleBarsChangeRef.current = onVisibleBarsChange
   // 主题: buildOption/信息栏内部通过 CT() 动态取调色板, 这里只负责切换时触发重建
   const theme = useTheme()
 
@@ -968,10 +974,10 @@ export function EChartsCandlestick({
 
   // dataZoom 初始范围: 'all' = 显示整段数据, 否则取末尾 visibleBars 根
   const initialZoom = useMemo(() => {
-    const start = visibleBars === 'all'
-      ? 0
-      : Math.max(0, 100 - (visibleBars / Math.max(data.length, 1)) * 100)
-    return { start, end: 100 }
+    return {
+      startValue: visibleBars === 'all' ? 0 : Math.max(0, data.length - visibleBars),
+      endValue: Math.max(0, data.length - 1),
+    }
   }, [visibleBars, data.length])
 
   // ===== 信息栏 HTML 内容 (基于 infoIdxRef.current) =====
@@ -1054,6 +1060,10 @@ export function EChartsCandlestick({
     // 新数据无悬停上下文, 隐藏「至今」; 下次鼠标移动时由 updateAxisPointer 重新置位
     hoverActiveRef.current = false
   }, [_symbol, data.length])
+
+  useEffect(() => {
+    userZoomRef.current = null
+  }, [visibleBars, zoomResetKey])
 
   // ===== 初始化 chart (只在 chartHeight 变化时重建) =====
   useEffect(() => {
@@ -1146,7 +1156,10 @@ export function EChartsCandlestick({
 
       const d = dataRef.current
       const total = d.length
-      const visibleCount = Math.round(total * (zoom.end - zoom.start) / 100)
+      const first = typeof zoom.startValue === 'number' ? zoom.startValue : Math.ceil((total - 1) * zoom.start / 100)
+      const last = typeof zoom.endValue === 'number' ? zoom.endValue : Math.floor((total - 1) * zoom.end / 100)
+      const visibleCount = Math.max(1, Math.min(total, last - first + 1))
+      onVisibleBarsChangeRef.current?.(visibleCount)
       const newCompact = visibleCount > COMPACT_THRESHOLD
       if (newCompact !== compactRef.current) {
         compactRef.current = newCompact
@@ -1264,7 +1277,8 @@ export function EChartsCandlestick({
     if (zoom) {
       chart.dispatchAction({ type: 'dataZoom', start: zoom.start, end: zoom.end })
     } else {
-      chart.dispatchAction({ type: 'dataZoom', start: initialZoom.start, end: initialZoom.end })
+      chart.dispatchAction({ type: 'dataZoom', ...initialZoom })
+      onVisibleBarsChangeRef.current?.(initialZoom.endValue - initialZoom.startValue + 1)
     }
 
     // 初始信息栏
@@ -1272,7 +1286,7 @@ export function EChartsCandlestick({
     if (infoEl) {
       infoEl.innerHTML = getInfoBarHTML()
     }
-  }, [data, markers, ranges, priceLines, linkedPrice, showMA, showMarkersProp, activeIndicators, volumeCompare, addedDate, chartHeight, dates, dateIndexMap, initialZoom, getInfoBarHTML, theme])
+  }, [data, markers, ranges, priceLines, linkedPrice, showMA, showMarkersProp, activeIndicators, volumeCompare, addedDate, chartHeight, dates, dateIndexMap, initialZoom, zoomResetKey, getInfoBarHTML, theme])
 
   // 渲染信息栏容器 (内容由 JS 直接写入)
   const initialHTML = useMemo(() => {

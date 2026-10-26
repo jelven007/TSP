@@ -13,7 +13,7 @@ TABLES = {
     "1m": "kline_minute", "5m": "kline_5minute", "10m": "kline_10minute",
     "15m": "kline_15minute", "1d": "kline_daily", "1w": "kline_weekly",
 }
-LABELS = {"1m": "1分钟K", "5m": "5分钟K", "10m": "10分钟K", "15m": "15分钟K", "1d": "日K", "1w": "周K"}
+LABELS = {"1m": "1分K", "5m": "5分K", "10m": "10分K", "15m": "15分K", "1d": "日K", "1w": "周K"}
 DEFAULT_WINDOWS = [["09:15", "11:35"], ["13:00", "15:20"]]
 _VALUES = ("open", "high", "low", "close", "volume", "amount")
 
@@ -241,10 +241,14 @@ def _period_provider(period: str):
 
 def query_period(repo, period: str, symbol: str, start: datetime, end: datetime, *, live: bool = False) -> tuple[pl.DataFrame, str]:
     """复用分钟/日K查询入口, 只读取指定周期的分区或请求有效Provider。"""
-    if period not in ("5m", "15m", "1w") or start > end:
+    if period not in ("1m", "5m", "10m", "15m", "1w") or start > end:
         raise ValueError("K线周期或日期范围无效")
     if repo.resolve_asset_type(symbol) != "stock":
         raise ValueError("该周期当前仅支持个股")
+    if period == "1m" and not live:
+        frame = repo.get_minute_range([symbol], start.date(), end.date(), asset_type="stock")
+        if not frame.is_empty():
+            return frame.filter(pl.col("datetime").is_between(start, end)).sort("datetime"), "local"
     weekly = period == "1w"
     column = "date" if weekly else "datetime"
     lo = start.date() - timedelta(days=start.weekday()) if weekly else start
@@ -254,15 +258,20 @@ def query_period(repo, period: str, symbol: str, start: datetime, end: datetime,
         day = date.fromisoformat(directory.name.removeprefix("date="))
         if (lo if weekly else lo.date()) <= day <= (hi if weekly else hi.date()):
             paths.extend(directory.glob("*.parquet"))
-    if paths and not live:
+    if paths and not live and period != "1m":
         frame = pl.scan_parquet(paths).filter(
             (pl.col("symbol") == symbol) & pl.col(column).is_between(lo, hi),
         ).sort(column).collect()
         if not frame.is_empty():
             return frame, "local"
+    if period == "10m":
+        return pl.DataFrame(), "none"
     provider, _ = _period_provider(period)
     fetch_start = datetime.combine(lo, time.min) if weekly else start
     frame = fetch_period(provider, period, [symbol], fetch_start, end)
+    if period == "1m" and not frame.is_empty():
+        from app.services.minute_adjust import apply_minute_adjustment
+        frame = apply_minute_adjustment(frame, repo.store.data_dir, "stock")
     if weekly and not frame.is_empty():
         frame = frame.with_columns(
             (pl.col("date") - pl.duration(days=pl.col("date").dt.weekday() - 1)).cast(pl.Date).alias("date"),

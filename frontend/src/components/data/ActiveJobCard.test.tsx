@@ -26,7 +26,7 @@ const job = (changes: Partial<PipelineJob> = {}): PipelineJob => ({
 
 it('shows the correct period and both total and stage progress', async () => {
   await act(async () => root.render(<ActiveJobCard job={job()} />))
-  expect(host.textContent).toContain('同步5分钟K')
+  expect(host.textContent).toContain('同步5分K')
   expect(host.textContent).not.toContain('sync_5m')
   expect(host.querySelector('[role="progressbar"][aria-label="同步总进度"]')?.getAttribute('aria-valuenow')).toBe('37')
   expect(host.querySelector('[role="progressbar"][aria-label="当前阶段进度"]')?.getAttribute('aria-valuenow')).toBe('33')
@@ -36,7 +36,7 @@ it('shows completion and actual period rows rather than unrelated daily pipeline
   const result: PipelineJob['result'] = { universe_size: 250, period: '5m', rows: 12000, start: '2026-09-23', end: '2026-10-23' }
   await act(async () => root.render(<ActiveJobCard job={job({ status: 'succeeded', progress: 100, stage: 'done', result })} />))
   expect(host.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('100')
-  expect(host.textContent).toContain('5分钟K')
+  expect(host.textContent).toContain('5分K')
   expect(host.textContent).toContain('12000')
   expect(host.textContent).not.toContain('0 天')
 })
@@ -60,6 +60,6 @@ it('renders an old successful minute job without requiring new result fields', a
     result: { minute_rows: 240, universe_size: 1 },
   })} />))
   expect(host.querySelector('[aria-label="同步总进度"]')?.getAttribute('aria-valuenow')).toBe('100')
-  expect(host.textContent).toContain('1分钟K')
+  expect(host.textContent).toContain('1分K')
   expect(host.textContent).toContain('240')
 })

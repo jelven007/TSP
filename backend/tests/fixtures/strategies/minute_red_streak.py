@@ -20,7 +20,7 @@ import polars as pl
 META = {
     "id": "minute_red_streak",
     "name": "分钟红7",
-    "description": "开盘前7根1分钟K至少5根收红, 最高的2根(按最高价)都是红K, 且近20日盘中触及过涨停",
+    "description": "开盘前7根1分K至少5根收红, 最高的2根(按最高价)都是红K, 且近20日盘中触及过涨停",
     "tags": ["分钟", "形态", "短线"],
     "asset_types": ["stock"],
     "timeframes": ["1m"],

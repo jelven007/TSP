@@ -1,0 +1,625 @@
+{
+  "checked_at": "2026-10-26T05:13:59.491897+00:00",
+  "base": "http://127.0.0.1:3021",
+  "expected_version": "0.4.29",
+  "checks": [
+    {
+      "path": "/health/ready",
+      "status": 200,
+      "seconds": 0.336
+    },
+    {
+      "path": "/api/business/version",
+      "status": 401,
+      "seconds": 0.002
+    },
+    {
+      "path": "/api/auth/login",
+      "status": 200,
+      "seconds": 0.025
+    },
+    {
+      "path": "/api/business/version",
+      "status": 200,
+      "seconds": 1.255
+    },
+    {
+      "path": "/api/business/bootstrap",
+      "status": 200,
+      "seconds": 0.289
+    },
+    {
+      "path": "/api/business/data-availability",
+      "status": 200,
+      "seconds": 1.341
+    },
+    {
+      "path": "/api/data/status",
+      "status": 200,
+      "seconds": 8.47
+    },
+    {
+      "path": "/api/settings/kline-sync",
+      "status": 200,
+      "seconds": 0.005
+    },
+    {
+      "path": "/api/overview/market",
+      "status": 200,
+      "seconds": 0.004
+    },
+    {
+      "path": "/api/settings/capability-matrix",
+      "status": 200,
+      "seconds": 0.005
+    },
+    {
+      "path": "/api/account/tenants",
+      "status": 200,
+      "seconds": 0.003
+    },
+    {
+      "path": "/api/watchlist",
+      "status": 200,
+      "seconds": 1.385
+    },
+    {
+      "path": "/api/watchlist/groups",
+      "status": 200,
+      "seconds": 1.865
+    },
+    {
+      "path": "/api/strategies",
+      "status": 200,
+      "seconds": 0.437
+    },
+    {
+      "path": "/api/factors",
+      "status": 200,
+      "seconds": 0.017
+    },
+    {
+      "path": "/api/custom-signals",
+      "status": 200,
+      "seconds": 0.005
+    },
+    {
+      "path": "/api/monitor-rules",
+      "status": 200,
+      "seconds": 0.006
+    },
+    {
+      "path": "/api/paper/accounts",
+      "status": 200,
+      "seconds": 0.017
+    },
+    {
+      "path": "/api/backtest/jobs",
+      "status": 200,
+      "seconds": 0.044
+    },
+    {
+      "path": "/api/screener/result-history/near_limit_up",
+      "status": 200,
+      "seconds": 0.009
+    },
+    {
+      "path": "/api/screener/result-history/near_limit_up",
+      "status": 200,
+      "seconds": 0.009
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "seconds": 0.003
+    },
+    {
+      "path": "/watchlist",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/screener",
+      "status": 200,
+      "seconds": 0.003
+    },
+    {
+      "path": "/factors",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/review",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/backtest",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/signals",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/lots",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/abnormal",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/limit-ladder",
+      "status": 200,
+      "seconds": 0.001
+    },
+    {
+      "path": "/stock-analysis",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/concept-analysis",
+      "status": 200,
+      "seconds": 0.003
+    },
+    {
+      "path": "/industry-analysis",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/financials",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/monitor",
+      "status": 200,
+      "seconds": 0.003
+    },
+    {
+      "path": "/regime",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/paper",
+      "status": 200,
+      "seconds": 0.001
+    },
+    {
+      "path": "/indices",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/data",
+      "status": 200,
+      "seconds": 0.002
+    },
+    {
+      "path": "/api/auth/logout",
+      "status": 200,
+      "seconds": 0.004
+    },
+    {
+      "path": "/api/watchlist",
+      "status": 401,
+      "seconds": 0.002
+    }
+  ],
+  "passed": true,
+  "health": {
+    "status": "ok",
+    "ready": true,
+    "checked_at": "2026-10-26T05:14:01.006666+00:00",
+    "checks": {
+      "databases": {
+        "status": "ok"
+      },
+      "research_worker": {
+        "status": "ok",
+        "age_seconds": 1.758877,
+        "max_age_seconds": 120
+      },
+      "realtime_worker": {
+        "status": "ok",
+        "age_seconds": 0.952982,
+        "max_age_seconds": 420
+      },
+      "notifications_worker": {
+        "status": "ok",
+        "age_seconds": 1.999929,
+        "max_age_seconds": 120
+      },
+      "scheduled_worker": {
+        "status": "ok",
+        "age_seconds": 0.113041,
+        "max_age_seconds": 660
+      },
+      "public_files": {
+        "status": "ok",
+        "release_id": "758992ff03114b1f96b3621f151186cc"
+      },
+      "platform": {
+        "status": "ok",
+        "connected": true,
+        "last_marker_at": 1792991640.430977,
+        "reconnects": 0,
+        "update_generation": 656,
+        "loaded_generation": 652,
+        "snapshot_fetches": 137,
+        "frame_decodes": 548
+      },
+      "indicator_cache": {
+        "status": "ok"
+      },
+      "compute_broker": {
+        "status": "ok"
+      }
+    },
+    "functions": {
+      "market": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "research": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "monitoring": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "paper_trading": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "notifications": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "scheduled": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      }
+    },
+    "version": "0.4.29",
+    "mode": "none"
+  },
+  "administrator_login": true,
+  "secure_session_cookie": false,
+  "data_availability": {
+    "enriched": {
+      "rows": 3684692,
+      "fields": 20,
+      "earliest_date": "2023-10-30",
+      "latest_date": "2026-10-26",
+      "symbols_covered": 5222,
+      "trading_days": 724
+    },
+    "etf_enriched": {
+      "rows": 61778,
+      "earliest_date": "2025-10-27",
+      "latest_date": "2026-10-26",
+      "symbols_covered": 261,
+      "trading_days": 242,
+      "fields": 14
+    },
+    "indicators_ready": true,
+    "quality": {
+      "checked_at": "2026-10-26T05:14:03.908753+00:00",
+      "datasets": {
+        "daily": {
+          "state": "available",
+          "rows": 3684692,
+          "earliest_date": "2023-10-30",
+          "latest_date": "2026-10-26",
+          "source": "rustdx",
+          "source_clock_verified": null
+        },
+        "minute": {
+          "state": "unknown_or_empty",
+          "rows": null,
+          "earliest_date": null,
+          "latest_date": null,
+          "source": "rustdx",
+          "source_clock_verified": null
+        },
+        "enriched": {
+          "state": "available",
+          "rows": 3684692,
+          "earliest_date": "2023-10-30",
+          "latest_date": "2026-10-26",
+          "source": null,
+          "source_clock_verified": null
+        },
+        "financials": {
+          "state": "available",
+          "rows": 186207,
+          "earliest_date": null,
+          "latest_date": null,
+          "source": "rustdx",
+          "source_clock_verified": null
+        },
+        "instruments": {
+          "state": "available",
+          "rows": 5222,
+          "earliest_date": null,
+          "latest_date": "2026-10-26",
+          "source": null,
+          "source_clock_verified": null
+        }
+      },
+      "latest_daily": {
+        "partition": "2026-10-26",
+        "rows": 5215,
+        "symbols": 5215,
+        "expected_symbols": 5222,
+        "coverage_ratio": 0.9986595174262735,
+        "invalid_price_rows": 0,
+        "invalid_volume_rows": 0,
+        "basis": "latest_partition_current_catalog",
+        "error": null
+      },
+      "historical_inputs": {
+        "universe": {
+          "survivorship_verified": false,
+          "missing_delisted_ratio": null,
+          "reason": "historical_universe_denominator_unavailable"
+        },
+        "financial_publication": {
+          "basis": "retained_input_rows",
+          "rows": 186207,
+          "unknown_rows": 186207,
+          "unknown_ratio": 1.0,
+          "tables": {
+            "metrics": {
+              "rows": 37391,
+              "unknown_publication_ratio": 1.0
+            },
+            "income": {
+              "rows": 37204,
+              "unknown_publication_ratio": 1.0
+            },
+            "balance_sheet": {
+              "rows": 37204,
+              "unknown_publication_ratio": 1.0
+            },
+            "cash_flow": {
+              "rows": 37204,
+              "unknown_publication_ratio": 1.0
+            },
+            "shares": {
+              "rows": 37204,
+              "unknown_publication_ratio": 1.0
+            }
+          },
+          "errors": [],
+          "publication_time_verified": false
+        }
+      },
+      "release": {
+        "status": "warning",
+        "release_id": "f06a7b53174347e99406d944325cd926",
+        "created_at": "2026-10-26T04:56:26Z",
+        "reason": "financial_sync:metrics",
+        "generation_mismatches": [
+          "stock_enriched",
+          "etf_enriched"
+        ],
+        "unavailable_generations": [],
+        "message": "存在尚未纳入全局 release 的 enriched 更新"
+      },
+      "historical_pit_verified": false
+    }
+  },
+  "missing_profile_keys": [],
+  "kline_profiles": {
+    "minute": {
+      "rows": 88366407,
+      "earliest_date": "2026-03-27",
+      "latest_date": "2026-10-26",
+      "symbols_covered": 5222,
+      "trading_days": 141
+    },
+    "5m": {
+      "rows": 339984,
+      "earliest_date": "2025-10-27",
+      "latest_date": "2026-10-26",
+      "symbols_covered": 5222,
+      "trading_days": 5
+    },
+    "10m": {
+      "rows": 73052,
+      "earliest_date": "2026-10-26",
+      "latest_date": "2026-10-26",
+      "symbols_covered": 5222,
+      "trading_days": 1
+    },
+    "15m": {
+      "rows": 41748,
+      "earliest_date": "2026-10-26",
+      "latest_date": "2026-10-26",
+      "symbols_covered": 5222,
+      "trading_days": 1
+    },
+    "daily": {
+      "rows": 3684692,
+      "earliest_date": "2023-10-30",
+      "latest_date": "2026-10-26",
+      "symbols_covered": 5222,
+      "trading_days": 724
+    },
+    "weekly": {
+      "rows": 789393,
+      "earliest_date": "2023-10-23",
+      "latest_date": "2026-10-19",
+      "symbols_covered": 5222,
+      "trading_days": 155
+    }
+  },
+  "initialization": {
+    "auto_enabled": true,
+    "status": "completed",
+    "marker_error": null,
+    "completed_at": "2026-10-24T17:05:56.989626+00:00",
+    "data_release_id": "5eecbb359c7c4b81826b71eab45e64a6",
+    "job_id": null,
+    "progress": null,
+    "stages": {
+      "daily": "available",
+      "minute": "available",
+      "enriched": "available",
+      "financials": "available",
+      "instruments": "available",
+      "ai": "unknown",
+      "notifications": "unknown"
+    },
+    "last_successful_pipeline_at": null
+  },
+  "kline_sync_configuration": {
+    "1m": {
+      "enabled": true,
+      "interval_seconds": 60,
+      "windows": [
+        [
+          "09:15",
+          "11:35"
+        ],
+        [
+          "13:00",
+          "15:20"
+        ]
+      ],
+      "time": "16:00"
+    },
+    "5m": {
+      "enabled": true,
+      "interval_seconds": 300,
+      "windows": [
+        [
+          "09:15",
+          "11:35"
+        ],
+        [
+          "13:00",
+          "15:20"
+        ]
+      ],
+      "time": "16:00"
+    },
+    "10m": {
+      "enabled": true,
+      "interval_seconds": 600,
+      "windows": [
+        [
+          "09:15",
+          "11:35"
+        ],
+        [
+          "13:00",
+          "15:20"
+        ]
+      ],
+      "time": "16:00"
+    },
+    "15m": {
+      "enabled": true,
+      "interval_seconds": 900,
+      "windows": [
+        [
+          "09:15",
+          "11:35"
+        ],
+        [
+          "13:00",
+          "15:20"
+        ]
+      ],
+      "time": "16:00"
+    },
+    "1d": {
+      "enabled": true,
+      "interval_seconds": 60,
+      "windows": [
+        [
+          "09:15",
+          "11:35"
+        ],
+        [
+          "13:00",
+          "15:20"
+        ]
+      ],
+      "time": "16:00"
+    },
+    "1w": {
+      "enabled": true,
+      "interval_seconds": 60,
+      "windows": [
+        [
+          "09:15",
+          "11:35"
+        ],
+        [
+          "13:00",
+          "15:20"
+        ]
+      ],
+      "time": "16:00"
+    }
+  },
+  "stock_count": 5215,
+  "capabilities": [
+    {
+      "id": "realtime",
+      "usable": true,
+      "effective": "rustdx"
+    },
+    {
+      "id": "depth5",
+      "usable": true,
+      "effective": "rustdx"
+    },
+    {
+      "id": "minute",
+      "usable": true,
+      "effective": "rustdx"
+    },
+    {
+      "id": "daily",
+      "usable": true,
+      "effective": "rustdx"
+    },
+    {
+      "id": "adj_factor",
+      "usable": true,
+      "effective": "rustdx"
+    },
+    {
+      "id": "corporate_actions",
+      "usable": true,
+      "effective": "rustdx"
+    },
+    {
+      "id": "financial",
+      "usable": true,
+      "effective": "rustdx"
+    }
+  ],
+  "history_filter_contract": true,
+  "logout_revoked": true
+}

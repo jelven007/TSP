@@ -409,8 +409,8 @@ def get_daily(
     import polars as pl
 
     repo = request.app.state.repo
-    if freq not in ("1d", "1w"):
-        raise HTTPException(status_code=422, detail="日K接口周期仅支持1d或1w")
+    if freq not in ("1m", "5m", "10m", "15m", "1d", "1w"):
+        raise HTTPException(status_code=422, detail="不支持的K线周期")
     # 未传 end_date 时用北京今天: 实时注入只在内存缓存命中时补当日 K,
     # 缓存冷时 parquet 当日行能否进结果取决于这个窗口右端。
     end = date.fromisoformat(end_date) if end_date else cn_today()
@@ -422,7 +422,7 @@ def get_daily(
     asset_type = repo.resolve_asset_type(symbol)
     stock_info = _get_stock_info(repo, symbol) if asset_type == "stock" else _get_asset_info(repo, symbol, asset_type)
     stock_name = stock_info.get("name")
-    if freq == "1w":
+    if freq != "1d":
         from datetime import datetime, time
 
         from app.services.kline_periods import query_period
@@ -431,9 +431,12 @@ def get_daily(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=502, detail="周K数据源查询失败") from exc
-        return _gzip_payload(request, {"symbol": symbol, "name": stock_name, "stock_info": stock_info,
-                                      "rows": df.to_dicts(), "source": source}, pref_key="daily_batch_compress")
+            raise HTTPException(status_code=502, detail="K线数据源查询失败") from exc
+        rows = df.to_dicts()
+        if freq.endswith("m"):
+            rows = [{**row, "date": str(row["datetime"])} for row in rows]
+        return _gzip_payload(request, {"symbol": symbol, "freq": freq, "name": stock_name, "stock_info": stock_info,
+                                      "rows": rows, "source": source}, pref_key="daily_batch_compress")
 
     # 从 enriched 表读取 (已含前复权 OHLCV + 技术指标 + 信号); ETF/指数走独立存储
     df = repo.get_daily_asset(asset_type, symbol, start, end)
@@ -1609,12 +1612,9 @@ async def extend_history(request: Request):
 
 @router.post("/repair_daily")
 async def repair_daily(request: Request):
-    """修正 / 补全日K数据 — 从指定起始日期重拉到今天。
+    """六周期K线修正 — 从指定起始日期修正到今天, 旧调用默认日K。
 
-    典型场景: 昨天没看盘 / 服务挂了,本地日K缺了若干天。
-    用户选起始日期,复用盘后管道全流程重拉 [start_date ~ 今天]。
-
-    body: { "start_date": "YYYY-MM-DD" }
+    body: { "start_date": "YYYY-MM-DD", "period": "1d" }
     返回 job_id,可轮询 /api/pipeline/jobs 查看进度。
     """
     import asyncio
@@ -1622,13 +1622,19 @@ async def repair_daily(request: Request):
     from datetime import date as _date
     try:
         body = await request.json()
+        from app.services import kline_periods, preferences
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=422, detail="请求须为JSON对象")
+        period = body.get("period", "1d")
+        if not isinstance(period, str) or period not in kline_periods.TABLES:
+            raise HTTPException(status_code=422, detail="不支持的K线周期")
         raw = body.get("start_date")
         if not raw:
             raise HTTPException(status_code=400, detail="start_date 必填 (YYYY-MM-DD)")
         try:
             start_date = _date.fromisoformat(str(raw))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="start_date 格式错误 (应为 YYYY-MM-DD)")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="start_date 格式错误 (应为 YYYY-MM-DD)") from exc
 
         if start_date > cn_today():
             raise HTTPException(status_code=400, detail="起始日期不能晚于今天")
@@ -1637,16 +1643,33 @@ async def repair_daily(request: Request):
         capset = request.app.state.capabilities
 
         from app.tickflow.capabilities import Cap
-        if not capset.has(Cap.KLINE_DAILY_BATCH):
-            raise HTTPException(status_code=403, detail="需要 Pro+ 权限 (batch K-line)")
+        if period != "10m":
+            daily = period in ("1d", "1w")
+            source = preferences.get_daily_data_provider() if daily else preferences.get_minute_data_provider()
+            if source == "tickflow":
+                cap = Cap.KLINE_DAILY_BATCH if daily else Cap.KLINE_MINUTE_BATCH
+                if not capset.has(cap):
+                    raise HTTPException(status_code=403, detail="当前K线数据源不具备所选周期能力")
+            else:
+                try:
+                    kline_periods._period_provider(period)
+                except ValueError as exc:
+                    raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-        from app.services.repair_daily import run_repair_daily
-        from app.services.pipeline_jobs import JobCancelledError, job_store, release_run_slot, run_with_capacity, try_acquire_run_slot
         from app.api.data import invalidate_storage_cache
+        from app.services.pipeline_jobs import (
+            JobCancelledError,
+            job_store,
+            release_run_slot,
+            run_with_capacity,
+            try_acquire_run_slot,
+        )
+        from app.services.repair_daily import run_repair_daily
 
         job_id, is_new = job_store.create(
-            kind="repair_daily",
-            request={"start_date": start_date.isoformat()},
+            long_running=period.endswith("m"),
+            kind="repair_daily" if period == "1d" else f"kline_{period}",
+            request={"start_date": start_date.isoformat(), "period": period},
         )
         if not is_new:
             return {"status": "reused", "job_id": job_id}
@@ -1667,6 +1690,7 @@ async def repair_daily(request: Request):
                 # 只在实际写盘/删分区时暂停实时行情; 取数与计算阶段保持轮询
                 return run_repair_daily(
                     repo, capset, start_date, on_progress=progress, quote_service=qs,
+                    period=period,
                 )
 
             try:
@@ -1674,6 +1698,7 @@ async def repair_daily(request: Request):
                 if "error" in result:
                     job_store.fail(job_id, result["error"])
                 else:
+                    progress("done", 100, "K线修正完成", stage_pct=100)
                     job_store.succeed(job_id, result)
                 invalidate_storage_cache()
             except JobCancelledError:
@@ -1686,7 +1711,9 @@ async def repair_daily(request: Request):
             finally:
                 release_run_slot(job_id)
 
-        asyncio.create_task(task())
+        running_task = asyncio.create_task(task())
+        _period_tasks.add(running_task)
+        running_task.add_done_callback(_period_tasks.discard)
         return {"status": "started", "job_id": job_id}
     except HTTPException:
         raise

@@ -1,6 +1,6 @@
 # 代码二次开发与 AI 扩展指南
 
-2026-10-26当前源树与部署核对见[本批整合](../reports/current-state-release-20261026/verification.md)。
+2026-10-26当前源树与部署核对见[本批整合](../reports/kline-release-20261026/verification.md)。
 本批L3改动继续使用现有Provider、归档仓库、租户事务、查询键和共享Modal，
 不新增通用扩展API。合并与升级须复核API/Worker/Compute的周期和cache_token契约，
 历史配置/分区/schema保持兼容；实际版本以[版本基线](version-baseline.md)为准。
@@ -11,6 +11,20 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 新增四表在仓库视图、画像schema/缓存、数据清除、发布清单及公共目录同步接线，
 二开不能仅新增卡片或让同一数据混入原1分钟/日K分区。
 用户配置仍走preferences及共享查询键，前端不绕过Provider直接取上游。
+
+个股六周期图表属于L3局部修改，复用共享详情、StockPanel和ECharts图表，不新增插槽。
+`klineDaily`/`klineDailyQueryOptions`的可选周期缺省日K，查询键加入周期；
+分钟响应保留完整`date`和`datetime`，非日K携带`freq`防止实时日K增量混入。
+数量控制复用`visibleBars`，新增`zoomResetKey`与实际可见/可用根数回调；
+二开升级须核对默认60根、50%增减、重复默认和鼠标缩放，不反转用户定义的方向。
+`stock-preview.footer`的`view`仍为`daily | intraday`，其中`daily`表示所有K线模式；
+现有apiVersion及旧不传周期的调用保持兼容。
+
+六周期修正为L3局部接线，复用现有`RepairDailyPanel`、修正API及周期服务，不新增插槽。
+`/api/kline/repair_daily`与`run_repair_daily`的可选period缺省`1d`，旧日K调用保持兼容；
+非日K通过既有快照股票池与独立周期表，10分钟只读本地1分钟，其余沿Provider入口。
+升级复核周期校验/能力路由、任务请求与结果、幂等写盘/缓存广播、取消边界及前端
+对应日期/任务跟踪；不把零行或部分数据包装成完整修复。
 
 专项目录/脚本路径采用[工程布局](reference/engineering.md#layout)；
 按[生产工程](reference/engineering.md#engineering)形成开发闭环，并在

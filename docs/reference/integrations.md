@@ -611,7 +611,7 @@ class MyProvider:
         """分钟K: [symbol, datetime(北京墙钟), open, high, low, close, volume, amount(元, 可空)]"""
 
     def get_intraday_batch(self, symbols, count=300, asset_type="stock") -> pl.DataFrame:
-        """(minute 的可选优化) 盘中修复轮: 给定标的当日 1 分钟K,
+        """(minute 的可选优化) 盘中修复轮: 给定标的当日1分K,
         canonical 8 列同 get_minute; 内部自行分块/限速。"""
 
     def get_intraday_latest(self, symbols=None, count=3) -> pl.DataFrame:
@@ -694,7 +694,7 @@ provider 不应自行切换或回退到其他数据源。
 >
 > - `get_intraday_batch(symbols, count=300, asset_type="stock") -> pl.DataFrame`
 >   — 可选，未实现时复用 `get_minute` 当日窗口。
->   返回给定标的当日 1 分钟K,canonical 8 列
+>   返回给定标的当日1分K,canonical 8 列
 >   `[symbol, datetime(北京墙钟 naive), open, high, low, close, volume, amount]`,
 >   内部自行分块/限速。服务在冷启动、覆盖断档、连续空轮时调用(修复轮)。
 > - `get_intraday_latest(symbols=None, count=3) -> pl.DataFrame` — **可选**,

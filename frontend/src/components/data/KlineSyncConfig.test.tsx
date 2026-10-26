@@ -56,7 +56,7 @@ it('loads the five minute defaults without saving and submits explicit sync sett
 
 it('allows manual history from an empty table and explains the local minute dependency', async () => {
   const onStart = await render('10m')
-  expect(host.textContent).toContain('由本地1分钟K计算')
+  expect(host.textContent).toContain('由本地1分K计算')
   const button = [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!
   expect(button.disabled).toBe(false)
   await act(async () => button.click())

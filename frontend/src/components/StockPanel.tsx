@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
-import { type KlineRow, type FinancialMetricRecord } from '@/lib/api'
+import { type KlinePeriod, type KlineRow, type FinancialMetricRecord } from '@/lib/api'
 import { klineDailyQueryOptions, klineMinuteQueryOptions, klineMinuteRangeQueryOptions, DEFAULT_INTRADAY_DAYS } from '@/lib/kline'
 import { StockInfoBar } from '@/components/StockInfoBar'
 import { StockDailyKChart, getDefaultRange, toOHLC } from '@/components/StockDailyKChart'
@@ -51,6 +51,10 @@ interface Props {
   dailyKlineFlex?: string
   /** 初始可见蜡烛根数 (默认 60); 'all' = 初始适配显示全部数据 (用于全区间回放) */
   visibleBars?: number | 'all'
+  klinePeriod?: KlinePeriod
+  zoomResetKey?: number
+  onVisibleBarsChange?: (count: number) => void
+  onAvailableBarsChange?: (count: number) => void
   /** 加入自选日 (北京时间 YYYY-MM-DD); 有值时日K主图绘制「自选」竖虚线 */
   addedDate?: string | null
 }
@@ -81,6 +85,10 @@ export function StockPanel({
   intradayDays = DEFAULT_INTRADAY_DAYS,
   dailyKlineFlex = 'flex-1',
   visibleBars,
+  klinePeriod = '1d',
+  zoomResetKey,
+  onVisibleBarsChange,
+  onAvailableBarsChange,
   addedDate,
 }: Props) {
   const [linkedPrice, setLinkedPrice] = useState<number | null>(null)
@@ -205,27 +213,31 @@ export function StockPanel({
       />
 
       {infoBarOnly ? null : (
-      <div className="flex gap-3 items-start">
+      <div className="flex flex-col gap-3 items-stretch lg:flex-row lg:items-start">
         <StockDailyKChart
           symbol={symbol}
           height={height}
-          className={`${dailyKlineFlex} min-w-0`}
+          className={`${dailyKlineFlex} w-full min-w-0`}
           dateRange={dateRange}
           markers={markers}
           ranges={ranges}
           priceLines={priceLines}
-          showLimitMarkers={showLimitMarkers}
+          showLimitMarkers={showLimitMarkers && klinePeriod === '1d'}
           showMarkerToggle={showMarkerToggle}
           linkedPrice={linkedPrice}
-          onDateClick={handleDateClick}
+          onDateClick={date => handleDateClick(date.slice(0, 10))}
           onPriceDoubleClick={onPriceDoubleClick}
           visibleBars={visibleBars ?? (showIntraday ? 40 : 60)}
+          period={klinePeriod}
+          zoomResetKey={zoomResetKey}
+          onVisibleBarsChange={onVisibleBarsChange}
+          onAvailableBarsChange={onAvailableBarsChange}
           extColumns={extColumns}
           addedDate={addedDate}
         />
 
         {showIntraday && selectedDate && !intradayDismissed && (
-          <div className="relative flex-1 min-w-0 border-l border-border pl-3">
+          <div className="relative w-full flex-1 min-w-0 border-t border-border pt-3 lg:w-auto lg:border-t-0 lg:border-l lg:pt-0 lg:pl-3">
             <button
               onClick={() => setIntradayDismissed(true)}
               className="absolute -left-1.5 -top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-sm transition-colors hover:text-foreground hover:bg-elevated"

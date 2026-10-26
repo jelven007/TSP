@@ -1,4 +1,4 @@
-"""修正 / 补全日K数据 — 完全复用盘后管道,只是日期范围由用户传入。
+"""六周期 K 线修正; 日K复用盘后管道, 其他周期复用周期同步服务。
 
 典型场景: 昨天没看盘 / 服务挂了一天,本地日K缺了若干天。
 
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import date
+from datetime import date, datetime, time, timedelta
 
 from app.market_time import cn_today
 from app.tickflow.capabilities import CapabilitySet
@@ -32,8 +32,10 @@ def run_repair_daily(
     end_date: date | None = None,
     on_progress: Callable | None = None,
     quote_service=None,
+    *,
+    period: str = "1d",
 ) -> dict:
-    """修正 / 补全数据 — 复用盘后管道,日期范围由用户指定。
+    """修正 / 补全数据, 日期范围由用户指定; 旧调用默认日K。
 
     通过 run_now(override_start_date=start_date) 把日K/除权/指数的拉取起点
     统一设为 start_date (到今天),其余流程与盘后管道完全一致。
@@ -44,6 +46,7 @@ def run_repair_daily(
         start_date:    用户选定的起始日期
         end_date:      保留参数(目前盘后管道固定拉到今天, 此值未使用, 为接口兼容保留)
         on_progress:   进度回调
+        period:        六周期之一; 10m只读取本地1m, 其他非日K按周期接口取数入库。
         quote_service: 实时行情服务; 只在其真正写盘/删分区的临界区暂停轮询,
                        取数与计算阶段保持实时行情正常运行。
 
@@ -54,13 +57,30 @@ def run_repair_daily(
     if start_date > today:
         return {"error": "起始日期不能晚于今天"}
 
-    logger.info("repair_daily: run pipeline with override_start_date=%s", start_date)
-
     from app.jobs.daily_pipeline import run_now
+    from app.services import instrument_sync, kline_periods
     from app.services.realtime_guard import paused_quotes
+
+    if period not in kline_periods.TABLES:
+        return {"error": "不支持的K线周期"}
 
     with paused_quotes(quote_service):
         try:
+            if period != "1d":
+                snapshot = instrument_sync.load_current_stock_pool(repo.store.data_dir, require_complete=True)
+                # 周K以周一入库, 周中起始日期也必须包含所在周的整根K线。
+                period_start = start_date - timedelta(days=start_date.weekday()) if period == "1w" else start_date
+                result = kline_periods.sync_period(
+                    repo, period, datetime.combine(period_start, time.min),
+                    datetime.combine(today, time.max), symbols=list(snapshot.symbols),
+                    on_progress=on_progress,
+                )
+                if result["rows"] == 0:
+                    result["error"] = (
+                        "选定区间没有可计算的本地1分K, 请先修正1分K后重试"
+                        if period == "10m" else f"数据源未返回选定区间的{kline_periods.LABELS[period]}数据"
+                    )
+                return result
             return run_now(repo, capset, on_progress=on_progress, override_start_date=start_date)
         finally:
             # 修正会重写今日 enriched 分区。不重建内存缓存的话, 行情/选股器会继续
@@ -68,7 +88,7 @@ def run_repair_daily(
             # 即使阶段软失败, 已落盘的数据也要刷进内存)。
             try:
                 repo.refresh_cache()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning("repair_daily: refresh cache failed", exc_info=True)
             # 行情已重写但非交易时段没有 quotes_updated, 前端不会失效行情查询。
             # 主动广播一次走既有 SSE 链路 (平台 marker → 网关 → 前端 invalidation),
@@ -76,5 +96,5 @@ def run_repair_daily(
             if quote_service is not None:
                 try:
                     quote_service._broadcast_quote_updated()
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.warning("repair_daily: broadcast quote update failed", exc_info=True)

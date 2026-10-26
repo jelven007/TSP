@@ -33,7 +33,7 @@ import {
 } from '@/lib/useSharedQueries'
 import { useToggleRealtimeQuotes, useUpdateQuoteInterval } from '@/lib/useSharedMutations'
 import { MissingCapChip, routeCapUsable, routeProviderDisplay, type RouteCapId } from '@/lib/capability-labels'
-import { QK } from '@/lib/queryKeys'
+import { KLINE_QUERY_PREFIXES, QK } from '@/lib/queryKeys'
 import { PageHeader } from '@/components/PageHeader'
 import { toast } from '@/components/Toast'
 import { useAdjFactorSyncGate } from '@/components/AdjFactorSyncGate'
@@ -316,12 +316,20 @@ export function Data() {
   void cardVisibleTick
 
   const jobStatus = job.data?.status
+  const jobKind = job.data?.kind
+  const jobId = job.data?.id
   useEffect(() => {
     if (jobStatus && PIPELINE_TERMINAL_STATES.has(jobStatus)) {
       qc.invalidateQueries({ queryKey: QK.dataStatus })
       qc.invalidateQueries({ queryKey: QK.pipelineJobs })
       // 同步任务结束后 regime 覆盖范围可能变化, 一并刷新画像
       qc.invalidateQueries({ queryKey: QK.regimeCoverage })
+      // 失败/取消也可能已有分块落盘; 失效已缓存的K线, 不依赖实时SSE是否开启。
+      if (jobKind === 'repair_daily' || jobKind?.startsWith('kline_')) {
+        qc.invalidateQueries({
+          predicate: query => KLINE_QUERY_PREFIXES.some(prefix => query.queryKey[0] === prefix),
+        })
+      }
       // 同步重写了指数日K/enriched/日K → 失效消费这些数据的查询。
       // 侧边栏指数查询挂在 Layout 常驻不重挂载 (refetchOnWindowFocus 已关),
       // 不失效会一直显示同步前的旧值; 自选相关查询在页面正打开时同理。
@@ -334,7 +342,7 @@ export function Data() {
       const t = setTimeout(() => setActiveJobId(null), 5_000)
       return () => clearTimeout(t)
     }
-  }, [jobStatus, qc])
+  }, [jobStatus, jobKind, jobId, qc])
 
   useEffect(() => {
     if (job.isError && /404/.test(String((job.error as any)?.message ?? ''))) {
@@ -452,7 +460,7 @@ export function Data() {
         return (
           <StatCard
             title="日 K"
-            hint="增量同步 · 全市场"
+            hint="交易日16:00同步"
             stats={s?.daily}
             loading={isLoading}
             active={activeCard === 'daily'}
@@ -560,7 +568,7 @@ export function Data() {
       case 'minute':
         return (
           <StatCard
-            title="1分钟K"
+            title="1分K"
             hint="全市场同步"
             stats={s?.minute}
             loading={isLoading}
@@ -584,8 +592,8 @@ export function Data() {
       case 'weekly': {
         const period = k === 'weekly' ? '1w' : k
         return <StatCard
-          title={k === 'weekly' ? '周K' : `${k.slice(0, -1)}分钟K`}
-          hint={k === '10m' ? '由1分钟K实时计算' : k === 'weekly' ? '交易日16:00同步' : '交易时段周期同步'}
+          title={k === 'weekly' ? '周K' : `${k.slice(0, -1)}分K`}
+          hint={k === '10m' ? '由1分K实时计算' : k === 'weekly' ? '交易日16:00同步' : '交易时段周期同步'}
           stats={s?.[k]} loading={isLoading} tierKey={k === 'weekly' ? 'daily' : 'minute'}
           capLimits={mergedCaps} customProvider={k === '10m' ? '本地计算' : routeProviderDisplay(matrix.data, k === 'weekly' ? 'daily' : 'minute')}
           auto={klineConfigs.data?.[period].enabled ?? true} manual={!autoSyncEnabled}
@@ -947,9 +955,9 @@ export function Data() {
                 ))
               ) : [
                 { label: '个股维表', files: s?.storage.instruments_files, size: s?.storage.instruments_size_mb },
-                { label: '1分钟K',   files: s?.storage.minute_files,      size: s?.storage.minute_size_mb },
+                { label: '1分K',   files: s?.storage.minute_files,      size: s?.storage.minute_size_mb },
                 ...(['5m', '10m', '15m'] as const).map(period => ({
-                  label: `${period.slice(0, -1)}分钟K`, files: s?.storage[`${period}_files`], size: s?.storage[`${period}_size_mb`],
+                  label: `${period.slice(0, -1)}分K`, files: s?.storage[`${period}_files`], size: s?.storage[`${period}_size_mb`],
                 })),
                 { label: '日K',     files: s?.storage.daily_files,       size: s?.storage.daily_size_mb },
                 { label: '周K', files: s?.storage.weekly_files, size: s?.storage.weekly_size_mb },
@@ -1058,7 +1066,7 @@ export function Data() {
 
       <AnimatePresence>
         {openSettings && ['minute', '5m', '10m', '15m', 'daily', 'weekly'].includes(openSettings) && (
-          <SettingsModal title={`${({ minute: '1分钟K', daily: '日K', weekly: '周K' } as Record<string, string>)[openSettings] ?? `${openSettings.slice(0, -1)}分钟K`} · 同步设置`} onClose={() => setOpenSettings(null)}>
+          <SettingsModal title={`${({ minute: '1分K', daily: '日K', weekly: '周K' } as Record<string, string>)[openSettings] ?? `${openSettings.slice(0, -1)}分K`} · 同步设置`} onClose={() => setOpenSettings(null)}>
             <KlineSyncConfig
               period={(({ minute: '1m', daily: '1d', weekly: '1w' } as Record<string, KlinePeriod>)[openSettings] ?? openSettings) as KlinePeriod}
               hasCap={['daily', 'weekly'].includes(openSettings) ? hasDailyBatchCap : openSettings === '10m' || hasMinuteCap}
@@ -1072,12 +1080,21 @@ export function Data() {
 
       <AnimatePresence>
         {showRepair && (
-          <SettingsModal title="日 K · 修正 / 补数据" onClose={() => setShowRepair(false)}>
+          <SettingsModal title="K线修正" onClose={() => setShowRepair(false)}>
             <RepairDailyPanel
               hasCap={hasDailyBatchCap}
+              hasMinuteCap={hasMinuteCap}
               isRunning={!!activeJobId}
-              latestDate={s?.daily?.latest_date ?? null}
-              onStart={() => setShowRepair(false)}
+              latestDates={{
+                '1m': s?.minute?.latest_date, '5m': s?.['5m']?.latest_date,
+                '10m': s?.['10m']?.latest_date, '15m': s?.['15m']?.latest_date,
+                '1d': s?.daily?.latest_date, '1w': s?.weekly?.latest_date,
+              }}
+              onStart={jobId => {
+                setActiveJobId(jobId)
+                startTime.current = Date.now()
+                setShowRepair(false)
+              }}
             />
           </SettingsModal>
         )}

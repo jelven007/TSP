@@ -70,7 +70,7 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
     </section>
     <section className="rounded-card border border-border p-4 space-y-3">
       <h3 className="text-sm font-medium">离线补齐</h3>
-        <p className="text-xs text-muted">{period === '10m' ? '由本地1分钟K计算。请先补齐所需范围的1分钟K；缺失日期不会生成数据。' : '点击获取数据后，从本地最早日期向前扩展历史；空库从今天开始计算范围。'}</p>
+        <p className="text-xs text-muted">{period === '10m' ? '由本地1分K计算。请先补齐所需范围的1分K；缺失日期不会生成数据。' : '点击获取数据后，从本地最早日期向前扩展历史；空库从今天开始计算范围。'}</p>
         {period === '1d' && <p className="text-xs text-muted">获取日K后继续同步除权因子并重算指标。</p>}
         <div className="flex items-center gap-2 text-xs">
           <span className="shrink-0">向前扩展</span>

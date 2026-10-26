@@ -37,10 +37,10 @@ interface CardDef {
 /** 数据画像卡片定义 —— 默认顺序即此数组顺序 */
 export const DATA_CARD_DEFS: CardDef[] = [
   { key: 'instruments', label: '个股维表', desc: 'A 股股票元数据', defaultHiddenIfNoCap: false },
-  { key: 'minute',      label: '1分钟K',   desc: '1分钟K线', defaultHiddenIfNoCap: false },
-  { key: '5m', label: '5分钟K', desc: '5分钟K线', defaultHiddenIfNoCap: false },
-  { key: '10m', label: '10分钟K', desc: '由1分钟K实时计算', defaultHiddenIfNoCap: false },
-  { key: '15m', label: '15分钟K', desc: '15分钟K线', defaultHiddenIfNoCap: false },
+  { key: 'minute',      label: '1分K',   desc: '1分K线', defaultHiddenIfNoCap: false },
+  { key: '5m', label: '5分K', desc: '5分K线', defaultHiddenIfNoCap: false },
+  { key: '10m', label: '10分K', desc: '由1分K实时计算', defaultHiddenIfNoCap: false },
+  { key: '15m', label: '15分K', desc: '15分K线', defaultHiddenIfNoCap: false },
   { key: 'daily',       label: '日 K',     desc: 'A 股日K线数据',          defaultHiddenIfNoCap: false },
   { key: 'weekly', label: '周K', desc: '周K线数据', defaultHiddenIfNoCap: false },
   { key: 'adj_factor',  label: '除权因子', desc: '复权计算因子',           defaultHiddenIfNoCap: true },

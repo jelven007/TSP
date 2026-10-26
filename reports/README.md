@@ -1,8 +1,8 @@
 # 当前主线与目标规划的证据索引
 
-核对日期：2026-10-25。本批集成前冻结基线为
-`7823b84bd0d7d793b33f2b2c26b2afce522ecf36`，应用版本0.4.21。
-完整变更与实际检查见[最新整合](current-state-release-20261025/verification.md)；
+核对日期：2026-10-26。本批集成前冻结基线为
+`4d944cdf66c02ec020c98ea961cb6bdc2b079056`，应用版本0.4.29。
+完整变更与实际检查见[最新整合](kline-release-20261026/verification.md)；
 最终主线版本由CI分配，生产状态另见[版本基线](../docs/version-baseline.md)。
 
 本目录保留当前契约、目标决策、生产兼容或未完成签收仍需要的证据。
@@ -11,6 +11,7 @@
 
 | 保留材料 | 与当前主线或规划的关系 |
 | --- | --- |
+| [六周期K线发布整合](kline-release-20261026/verification.md) | 六周期修正、个股多周期/数量、缓存隔离、文档责任、本地/ECS核对及独立质量门 |
 | [最新现状与发布](current-state-release-20261025/verification.md) | 153文件冻结、六类文档、全量验证、策略归档/并发、UI/调度、本地与线上版本更新 |
 | [生产基线整合](production-baseline-20261025/verification.md) | 官方目录、管理员空间、顶栏/数据总览、示例目录、六类文档和源码恢复工具的本次验证 |
 | [完整本地整合](production-integration-20261024/verification.md)、[五个历史恢复点](production-integration-20261024/version-retention.json) | 本轮全部变更、目录、生命周期映射、全量验证、自审与恢复口径 |

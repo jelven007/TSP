@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { EChartsCandlestick, type OHLC } from './EChartsCandlestick'
+import { EChartsCandlestick, SUB_CHARTS, type OHLC } from './EChartsCandlestick'
 
 const chart = vi.hoisted(() => ({
   handlers: {} as Record<string, (event?: any) => void>,
@@ -112,4 +112,34 @@ it('切股后鼠标未离开图表, 竖虚线重新命中即恢复「至今/周�
   // 移出图表区 → 重新收起
   await act(async () => { surface.dispatchEvent(new MouseEvent('mouseleave')) })
   expect(host.textContent).not.toContain('至今')
+})
+
+it('数量控件覆盖鼠标缩放，默认即使根数未变也回到最新60根，并报告实际根数', async () => {
+  const changed = vi.fn()
+  const data = Array.from({ length: 200 }, (_, i) => ({
+    date: String(i), open: 10, high: 11, low: 9, close: 10, volume: 1,
+  }))
+  const render = async (visibleBars: number, zoomResetKey: number) => {
+    await act(async () => root.render(
+      <EChartsCandlestick data={data} visibleBars={visibleBars} zoomResetKey={zoomResetKey} onVisibleBarsChange={changed} />,
+    ))
+  }
+  await render(60, 0)
+  expect(changed).toHaveBeenLastCalledWith(60)
+  await act(async () => chart.handlers.dataZoom?.())
+  await render(90, 1)
+  expect(chart.dispatchAction).toHaveBeenLastCalledWith(expect.objectContaining({ startValue: 110, endValue: 199 }))
+  await render(60, 2)
+  await act(async () => chart.handlers.dataZoom?.())
+  await render(60, 3)
+  expect(chart.dispatchAction).toHaveBeenLastCalledWith(expect.objectContaining({ startValue: 140, endValue: 199 }))
+  await render(500, 4)
+  expect(changed).toHaveBeenLastCalledWith(200)
+})
+
+it('成交量缺失时不绘制零量柱，也不计算伪造的均量', async () => {
+  const data = rows(10).slice(0, 5).map((row, i) => ({ ...row, volume: i === 0 ? undefined : 100 }))
+  const series = SUB_CHARTS[0].buildSeries(data, { compact: false, volumeCompare: { enabled: false, days: 1 } })
+  expect(series[0].data[0].value).toBeNull()
+  expect(series[1].data[4]).toBeNull()
 })

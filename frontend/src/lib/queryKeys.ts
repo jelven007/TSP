@@ -92,8 +92,8 @@ export const QK = {
   analysisMenu:         (id: string) => ['analysis-menu', id] as const,
 
   // Kline
-  kline:                (symbol: string, start: string, end: string, extColumns?: string) =>
-                           ['kline', symbol, start, end, extColumns ?? ''] as const,
+  kline:                (symbol: string, start: string, end: string, extColumns?: string, period = '1d') =>
+                           ['kline', symbol, start, end, extColumns ?? '', period] as const,
   klineLatest:          (symbol: string) => ['kline-latest', symbol] as const,
   stockLevels:          (symbol: string, days?: number) => ['stock-levels', symbol, days ?? 120] as const,
   klineMinute:          (symbol: string, date: string) =>
@@ -179,6 +179,12 @@ export const SSE_INVALIDATE_PREFIXES = [
   // 概念/行业分析的全市场快照 (#419): 后端读最新日内缓存, 行情更新后需重取,
   // 否则停留页面时板块聚合数值一直停留旧值。仅两页打开时才实际发请求。
   'market-snapshot',
+] as const
+
+export const KLINE_QUERY_PREFIXES = [
+  QK.kline('', '', '')[0], QK.klineLatest('')[0],
+  QK.klineMinute('', '')[0], QK.klineMinuteRange('', 1)[0],
+  QK.minuteBatch('')[0], QK.watchlistKlineBatch('')[0], QK.screenerKlineBatch('')[0],
 ] as const
 
 // 私有事件积压溢出时只重取可能漏掉推送的权威 REST 数据。
