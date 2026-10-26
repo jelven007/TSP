@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from app import desktop
 
@@ -43,14 +44,11 @@ class _FakeWindow:
 
 
 def test_smoke_plugin_validation_accepts_default_rustdx_provider() -> None:
+    manifest = yaml.safe_load(
+        (ROOT / "backend/app/plugins/rustdx/plugin.yaml").read_text(encoding="utf-8")
+    )
     desktop._validate_smoke_plugins(
-        [
-            {
-                "name": name,
-                "available": True,
-                "datasets": sorted(desktop._RUSTDX_DATASETS),
-            } for name in ("rustdx",)
-        ]
+        [{"name": manifest["name"], "available": True, "datasets": manifest["datasets"]}]
     )
 
 
