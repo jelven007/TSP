@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type KlinePeriod, type KlineSyncConfig as Config } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { ExtendHistoryPanel } from './ExtendHistoryPanel'
 
 const inputClass = 'rounded-btn border border-border bg-base px-2 py-1.5 text-xs text-foreground w-full'
 const buttonClass = 'rounded-btn border border-accent/30 bg-accent/10 text-accent px-3 py-2 text-xs disabled:opacity-40'
@@ -71,9 +70,8 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
     </section>
     <section className="rounded-card border border-border p-4 space-y-3">
       <h3 className="text-sm font-medium">离线补齐</h3>
-      {period === '1d' ? <ExtendHistoryPanel hasCap={hasCap} isRunning={isRunning} earliestDate={earliestDate}
-        onStart={onJobStart} /> : <>
         <p className="text-xs text-muted">{period === '10m' ? '由本地1分钟K计算。请先补齐所需范围的1分钟K；缺失日期不会生成数据。' : '点击获取数据后，从本地最早日期向前扩展历史；空库从今天开始计算范围。'}</p>
+        {period === '1d' && <p className="text-xs text-muted">获取日K后继续同步除权因子并重算指标。</p>}
         <div className="flex items-center gap-2 text-xs">
           <span className="shrink-0">向前扩展</span>
           <input aria-label="历史扩展数量" type="number" min={1} max={unit === 'year' ? 10 : 120}
@@ -87,7 +85,6 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
         </button>
         {!hasCap && <p role="alert" className="text-xs text-muted">当前数据源缺少K线能力，请检查数据源设置。</p>}
         {sync.isError && <p role="alert" className="text-xs text-danger">{sync.error.message}</p>}
-      </>}
     </section>
   </div>
 }

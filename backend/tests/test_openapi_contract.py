@@ -96,7 +96,8 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
 # 契约变更记录: 保留 strict_research 兼容缺省; 补既有自动跳过/往返记录端点,
 # 新增公司行为读取/认购和账务加法字段, 策略参数元数据保留在开放响应中;
 # cached新增可选日期/资产/周期, 无日期保持旧快照语义, 开放端点集合不变。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "2b3ac3573cb19296e32e9b057599c70d2e0ef001d3abb26a314a1ba539a16dd7"
+# daily/minute新增可选freq, 省略时保持1d/1m; 响应组件及开放端点集合不变。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "bd2f545bc7dbe8666c9933fe4dfd19a269fd571379dc9ab45d9cb456cd71a93a"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

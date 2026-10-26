@@ -541,13 +541,14 @@ class JobStore:
                 return
             if j["status"] == "cancelling":
                 raise JobCancelledError(job_id)
+            previous_stage = j["stage"]
             j["stage"] = stage
             j["progress"] = max(0, min(100, int(pct)))
             j["last_progress_at"] = utc_now_iso()
             j["updated_at"] = j["last_progress_at"]
             if stage_pct is not None:
                 j["stage_pct"] = max(0, min(100, int(stage_pct)))
-            elif j["stage"] != stage:
+            elif previous_stage != stage:
                 j["stage_pct"] = 0
             entry = {
                 "ts": utc_now_iso(),

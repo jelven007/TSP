@@ -4,6 +4,7 @@
  * - 新增查询只需在此加一行，所有消费方自动引用。
  * - SSE invalidation 基于 SSE_INVALIDATE_PREFIXES 列表，新增 key 无需改 useQuoteStream。
  */
+import type { StrategyResultHistoryFilters } from './api'
 
 // ===== Query Key 工厂 =====
 
@@ -51,7 +52,10 @@ export const QK = {
   screenerCachedSummary: (asOf?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'summary', asOf ?? '', asset, timeframe] as const,
   screenerCachedResult: (strategyId: string, asOf?: string, ext?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'strategy', strategyId, asOf ?? '', ext ?? '', asset, timeframe] as const,
   screenerCached:       (asOf?: string, ext?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'all', asOf ?? '', ext ?? '', asset, timeframe] as const,
-  screenerHistory:      (strategyId: string, cursor?: string) => ['screener-history', strategyId, cursor ?? ''] as const,
+  screenerHistory:      (strategyId: string, cursor?: string, filters: StrategyResultHistoryFilters = {}) =>
+    Object.keys(filters).length
+      ? ['screener-history', strategyId, cursor ?? '', filters] as const
+      : ['screener-history', strategyId, cursor ?? ''] as const,
   screenerHistoryDetail: (strategyId: string, recordId: string) => ['screener-history-detail', strategyId, recordId] as const,
   screenerKlineBatch:   (symbols: string) => ['screener-kline-batch', symbols] as const,
   marketSnapshot:       ['market-snapshot'] as const,

@@ -10,6 +10,18 @@ TickFlow共用`klines.batch(period=...)`；rustdx共用bars频率8/0/1/9/5。
 旧插件未实现统一方法时保持1m/1d兼容，不据方法签名猜测其他周期支持。
 日K批量streaming与分钟增量优化仍保留，上游历史保留期限按真实返回覆盖报告。
 
+HTTP消费方复用 `/api/kline/minute?symbol=600000.SH&date=2026-10-23&freq=5m`
+或 `freq=15m`，周线复用 `/api/kline/daily?symbol=600000.SH&freq=1w`；
+返回沿用原rows结构，周K的date为周一。省略freq保持原1m/1d行为。
+旧分钟插件有显式 `get_minute(..., freq=...)` 时也可接收5m/15m，
+无周期参数不能把1m响应标为其他周期；源失败不静默跨源。
+
+2026-10-26开放契约复核：Tier A端点集合及响应components保持不变，
+仅上述daily/minute两个GET新增可选`freq`，缺省分别1d/1m。
+非法周期或不支持的资产返回422，数据源失败返回502；新周期当前仅支持个股。
+OpenAPI指纹同步为`bd2f545bc7dbe8666c9933fe4dfd19a269fd571379dc9ab45d9cb456cd71a93a`，
+无新增开放历史删除、设置写入或AI端点。客户端不传freq时维持旧行为。
+
 本附录按领域维护实现方法、数据契约和可执行示例。通用开发要求只在[CONTRIBUTING](../../CONTRIBUTING.md)定义；需求与当前/目标边界见[需求](../requirements.md)和[系统方案](../architecture.md#current)。带日期的结果仅证明原版本、环境和窗口，不是本次重新执行的验证。
 
 - [1. 声明式 HTTP 数据源](#http)

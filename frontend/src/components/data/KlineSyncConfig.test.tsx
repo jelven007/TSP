@@ -31,7 +31,7 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function render(period: '5m' | '10m' | '1w', onStart = vi.fn()) {
+async function render(period: '5m' | '10m' | '1w' | '1d', onStart = vi.fn()) {
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -68,4 +68,15 @@ it('uses a daily completion time for weekly synchronization', async () => {
   await render('1w')
   expect(host.querySelector<HTMLInputElement>('input[type="time"]')?.value).toBe('16:00')
   expect(host.textContent).not.toContain('周期间隔（秒）')
+})
+
+it('uses the weekly-style history form and allows daily data from an empty table', async () => {
+  const onStart = await render('1d')
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="历史扩展数量"]')?.value).toBe('6')
+  expect(host.querySelector<HTMLSelectElement>('select[aria-label="历史扩展单位"]')?.value).toBe('month')
+  const button = [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!
+  expect(button.disabled).toBe(false)
+  await act(async () => button.click())
+  expect(mocks.sync).toHaveBeenCalledWith('1d', 6, 'month')
+  expect(onStart).toHaveBeenCalledWith('offline-1')
 })

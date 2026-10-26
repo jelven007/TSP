@@ -397,6 +397,7 @@ def get_daily(
     start_date: Optional[str] = Query(None, description="起始日期 YYYY-MM-DD, 优先于 days"),
     end_date: Optional[str] = Query(None, description="截止日期 YYYY-MM-DD, 默认今天"),
     ext_columns: Optional[str] = Query(None, description="逗号分隔的 ext 列: config_id.field_name"),
+    freq: str = "1d",
 ):
     """读取本地 enriched 表中某只股票的日 K。
 
@@ -408,6 +409,8 @@ def get_daily(
     import polars as pl
 
     repo = request.app.state.repo
+    if freq not in ("1d", "1w"):
+        raise HTTPException(status_code=422, detail="日K接口周期仅支持1d或1w")
     # 未传 end_date 时用北京今天: 实时注入只在内存缓存命中时补当日 K,
     # 缓存冷时 parquet 当日行能否进结果取决于这个窗口右端。
     end = date.fromisoformat(end_date) if end_date else cn_today()
@@ -419,6 +422,18 @@ def get_daily(
     asset_type = repo.resolve_asset_type(symbol)
     stock_info = _get_stock_info(repo, symbol) if asset_type == "stock" else _get_asset_info(repo, symbol, asset_type)
     stock_name = stock_info.get("name")
+    if freq == "1w":
+        from datetime import datetime, time
+
+        from app.services.kline_periods import query_period
+        try:
+            df, source = query_period(repo, freq, symbol, datetime.combine(start, time.min), datetime.combine(end, time.max))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail="周K数据源查询失败") from exc
+        return _gzip_payload(request, {"symbol": symbol, "name": stock_name, "stock_info": stock_info,
+                                      "rows": df.to_dicts(), "source": source}, pref_key="daily_batch_compress")
 
     # 从 enriched 表读取 (已含前复权 OHLCV + 技术指标 + 信号); ETF/指数走独立存储
     df = repo.get_daily_asset(asset_type, symbol, start, end)
@@ -1013,6 +1028,7 @@ def get_minute(
     symbol: str = Query(..., description="标的代码"),
     trade_date: date | None = Query(None, alias="date", description="交易日期, 默认最新"),
     live: bool = Query(False, description="当日盘中跳过本地优先, 直接实时拉取(个股详情分时轮询用)"),
+    freq: str = "1m",
 ):
     """读取某只股票某天的分钟 K 线。
 
@@ -1024,6 +1040,27 @@ def get_minute(
       详情分时图停在上一增量轮, 与行情列表的节奏脱节
     """
     repo = request.app.state.repo
+    if freq not in ("1m", "5m", "15m"):
+        raise HTTPException(status_code=422, detail="分钟接口周期仅支持1m、5m或15m")
+    if freq != "1m":
+        from datetime import datetime, time
+
+        from app.services.kline_periods import period_bounds, query_period
+        day = trade_date
+        if day is None:
+            today = cn_today()
+            day = period_bounds(repo, freq)[1] if today.weekday() >= 5 or trading_day.is_trading_day() is False else today
+            day = day or today
+        try:
+            frame, source = query_period(repo, freq, symbol, datetime.combine(day, time.min), datetime.combine(day, time.max), live=live)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail="分钟K数据源查询失败") from exc
+        info = _get_stock_info(repo, symbol)
+        return _gzip_payload(request, {"symbol": symbol, "name": info.get("name"), "stock_info": info,
+                                      "date": str(day), "rows": frame.to_dicts(), "source": source, "asset_type": "stock"},
+                             pref_key="minute_batch_compress")
     capset = request.app.state.capabilities
     raw_basis = minute_adjust.minute_basis_is_raw(repo.store.data_dir)
     asset_type = repo.resolve_asset_type(symbol)
@@ -1246,10 +1283,10 @@ async def sync_period_job(request: Request, body: dict):
         if not try_acquire_run_slot(job_id):
             job_store.fail(job_id, "已有数据任务在运行, 请稍后重试")
             return
-        def progress(stage, pct, msg):
-            job_store.progress(job_id, stage, pct, msg)
+        def progress(stage, pct, msg, stage_pct=None):
+            job_store.progress(job_id, stage, pct, msg, stage_pct=stage_pct)
         try:
-            progress(f"sync_{period}", 1, "准备离线补齐…")
+            progress(f"sync_{period}", 0, "准备离线补齐…", stage_pct=0)
             result = await asyncio.get_running_loop().run_in_executor(
                 _long_task_executor, run_with_capacity, job_id,
                 lambda: kline_periods.sync_period(
@@ -1257,7 +1294,7 @@ async def sync_period_job(request: Request, body: dict):
                     datetime.combine(end_day, time.max), on_progress=progress,
                 ),
             )
-            progress("done", 100, f"已写入 {result['rows']} 行")
+            progress("done", 100, f"已写入 {result['rows']} 行", stage_pct=100)
             job_store.succeed(job_id, result)
         except JobCancelledError:
             job_store.cancelled(job_id)
@@ -1320,8 +1357,8 @@ async def trigger_minute_sync(repo, capset, *, override_days=None, extend_flag=N
             return
         loop = asyncio.get_event_loop()
 
-        def progress(stage: str, pct: int, msg: str) -> None:
-            job_store.progress(job_id, stage, pct, msg)
+        def progress(stage: str, pct: int, msg: str, stage_pct: int | None = None) -> None:
+            job_store.progress(job_id, stage, pct, msg, stage_pct=stage_pct)
 
         try:
             progress("sync_minute", 5, "解析标的池…")
@@ -1347,7 +1384,8 @@ async def trigger_minute_sync(repo, capset, *, override_days=None, extend_flag=N
             def _on_chunk(done: int, total: int, seg_label: str) -> None:
                 # 进度映射: 10% (标的池解析完) → 95%, 留 5% 给写入+刷新
                 pct = 10 + int((done / max(total, 1)) * 85)
-                progress("sync_minute", pct, f"拉取分钟K… {done}/{total} 批 [{seg_label}]")
+                progress("sync_minute", pct, f"拉取分钟K… {done}/{total} 批 [{seg_label}]",
+                         stage_pct=int(done / max(total, 1) * 100))
 
             def _run():
                 return kline_sync.sync_and_persist_minute(
@@ -1362,7 +1400,7 @@ async def trigger_minute_sync(repo, capset, *, override_days=None, extend_flag=N
             from app.jobs.daily_pipeline import _refresh_single_view
             _refresh_single_view(repo, "kline_minute")
 
-            progress("done", 100, f"分钟 K 同步完成,{written} 行")
+            progress("done", 100, f"分钟 K 同步完成,{written} 行", stage_pct=100)
             job_store.succeed(job_id, {"minute_rows": written, "universe_size": len(universe)})
             invalidate_storage_cache()
         except JobCancelledError:

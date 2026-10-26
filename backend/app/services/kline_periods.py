@@ -151,6 +151,12 @@ def fetch_period(provider, period: str, symbols: list[str], start: datetime, end
         raw = provider.get_daily(symbols, start, end, asset_type="stock")
     elif period == "1m":
         raw = provider.get_minute(symbols, start, end, asset_type="stock", freq=period)
+    elif period in ("5m", "15m"):
+        import inspect
+        minute_method = getattr(provider, "get_minute", None)
+        if not callable(minute_method) or "freq" not in inspect.signature(minute_method).parameters:
+            raise ValueError("当前数据源未声明该K线周期, 请更新数据源接口")
+        raw = minute_method(symbols, start, end, asset_type="stock", freq=period)
     else:
         raise ValueError("当前数据源未声明该K线周期, 请更新数据源接口")
     from app.services.kline_sync import _normalize_daily, _normalize_minute
@@ -218,6 +224,51 @@ def period_bounds(repo, period: str) -> tuple[date | None, date | None]:
             continue
     return (min(days), max(days)) if days else (None, None)
 
+def _period_provider(period: str):
+    from app.data_providers.custom import provider_has_dataset
+    from app.data_providers.registry import get_provider
+
+    dataset = "daily" if period in ("1d", "1w") else "minute"
+    source = preferences.get_daily_data_provider() if dataset == "daily" else preferences.get_minute_data_provider()
+    provider = get_provider(source)
+    if provider is None or not (
+        getattr(getattr(provider, "capabilities", None), dataset, False)
+        or provider_has_dataset(source, dataset)
+    ):
+        raise ValueError("当前K线数据源不可用")
+    return provider, source
+
+
+def query_period(repo, period: str, symbol: str, start: datetime, end: datetime, *, live: bool = False) -> tuple[pl.DataFrame, str]:
+    """复用分钟/日K查询入口, 只读取指定周期的分区或请求有效Provider。"""
+    if period not in ("5m", "15m", "1w") or start > end:
+        raise ValueError("K线周期或日期范围无效")
+    if repo.resolve_asset_type(symbol) != "stock":
+        raise ValueError("该周期当前仅支持个股")
+    weekly = period == "1w"
+    column = "date" if weekly else "datetime"
+    lo = start.date() - timedelta(days=start.weekday()) if weekly else start
+    hi = end.date() if weekly else end
+    paths = []
+    for directory in (repo.store.data_dir / TABLES[period]).glob("date=*"):
+        day = date.fromisoformat(directory.name.removeprefix("date="))
+        if (lo if weekly else lo.date()) <= day <= (hi if weekly else hi.date()):
+            paths.extend(directory.glob("*.parquet"))
+    if paths and not live:
+        frame = pl.scan_parquet(paths).filter(
+            (pl.col("symbol") == symbol) & pl.col(column).is_between(lo, hi),
+        ).sort(column).collect()
+        if not frame.is_empty():
+            return frame, "local"
+    provider, _ = _period_provider(period)
+    fetch_start = datetime.combine(lo, time.min) if weekly else start
+    frame = fetch_period(provider, period, [symbol], fetch_start, end)
+    if weekly and not frame.is_empty():
+        frame = frame.with_columns(
+            (pl.col("date") - pl.duration(days=pl.col("date").dt.weekday() - 1)).cast(pl.Date).alias("date"),
+        )
+    return frame, "live" if not frame.is_empty() else "none"
+
 
 def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: list[str] | None = None, on_progress=None) -> dict:
     if period not in TABLES:
@@ -231,25 +282,26 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
     provider = None
     source = "1m"
     if period != "10m":
-        from app.data_providers.custom import provider_has_dataset
-        from app.data_providers.registry import get_provider
-        source = preferences.get_daily_data_provider() if period in ("1d", "1w") else preferences.get_minute_data_provider()
-        provider = get_provider(source)
-        dataset = "daily" if period in ("1d", "1w") else "minute"
-        if provider is None or not (
-            getattr(getattr(provider, "capabilities", None), dataset, False)
-            or provider_has_dataset(source, dataset)
-        ):
-            raise ValueError("当前K线数据源不可用")
+        provider, source = _period_provider(period)
     rows = 0
     # 有界日期段和标的块; 历史分钟数据不一次性加载全市场多年数据。
     days_per_chunk = 5 if period.endswith("m") else 365
     cursor = start.date()
     segments = max(1, (end.date() - cursor).days // days_per_chunk + 1)
-    done = 0
-    while cursor <= end.date():
+    batches_per_segment = 1 if period == "10m" else max(1, (len(symbols) + 99) // 100)
+    total_batches = segments * batches_per_segment
+    completed_batches = 0
+
+    def emit(message):
         if on_progress:
-            on_progress(f"sync_{period}", int(done / segments * 95), f"{LABELS[period]}: 准备获取 {cursor}")
+            fraction = completed_batches / total_batches
+            on_progress(
+                f"sync_{period}", 10 + int(fraction * 85), message,
+                stage_pct=int(fraction * 100),
+            )
+
+    while cursor <= end.date():
+        emit(f"{LABELS[period]}: 准备获取 {cursor}")
         segment_end = min(end.date(), cursor + timedelta(days=days_per_chunk - 1))
         lo = max(start, datetime.combine(cursor, time.min))
         hi = min(end, datetime.combine(segment_end, time.max))
@@ -265,19 +317,20 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
                     frame = frame.filter(pl.col("symbol").is_in(symbols))
                 frame = aggregate_ten_minute(frame.collect())
                 rows += persist_period(repo, period, frame)
+            completed_batches += 1
         else:
             for offset in range(0, len(symbols), 100):
-                if on_progress:
-                    on_progress(f"sync_{period}", int(done / segments * 95), f"{LABELS[period]}: {cursor}, 标的 {offset}/{len(symbols)}")
+                emit(f"{LABELS[period]}: {cursor}, 标的 {offset}/{len(symbols)}")
                 frame = fetch_period(provider, period, symbols[offset:offset + 100], lo, hi, minute_adjust="none" if raw_minute else "forward")
-                if on_progress:
-                    on_progress(f"sync_{period}", int(done / segments * 95), f"{LABELS[period]}: 正在保存 {offset + 100}/{len(symbols)}")
+                emit(f"{LABELS[period]}: 正在保存 {min(offset + 100, len(symbols))}/{len(symbols)}")
                 rows += persist_period(repo, period, frame)
-        done += 1
-        if on_progress:
-            on_progress(f"sync_{period}", int(done / segments * 95), f"{LABELS[period]}: {cursor}~{segment_end}, 已写入{rows}行")
+                completed_batches += 1
+                emit(f"{LABELS[period]}: 已完成 {completed_batches}/{total_batches} 批, 已写入{rows}行")
+            if not symbols:
+                completed_batches += 1
+        emit(f"{LABELS[period]}: {cursor}~{segment_end}, 已写入{rows}行")
         cursor = segment_end + timedelta(days=1)
-    return {"period": period, "rows": rows, "source": source, "start": start.isoformat(), "end": end.isoformat(),
+    return {"period": period, "rows": rows, "universe_size": len(symbols), "source": source, "start": start.isoformat(), "end": end.isoformat(),
             "price_basis": ("raw" if raw_minute else "legacy_1m") if period in ("1m", "10m") else "raw"}
 
 

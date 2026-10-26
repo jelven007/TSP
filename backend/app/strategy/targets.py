@@ -120,6 +120,14 @@ def ensure_deletable(group_id: str, refs: dict[str, list[str]]) -> None:
         raise ValueError("该自选分组被策略引用，无法删除，请先解除策略引用")
 
 
+def ensure_clearable(group_id: str | None, refs: dict[str, list[str]]) -> None:
+    if group_id is None:
+        if any(refs.values()):
+            raise ValueError("存在被策略引用的自选分组，无法清空自选，请先解除策略引用")
+    elif refs.get(group_id):
+        raise ValueError("该自选分组被策略引用，无法清空，请先解除策略引用")
+
+
 def annotate(groups: list[dict], refs: dict[str, list[str]]) -> list[dict]:
     return [{**group, **({"referenced_by": refs[group["id"]]} if refs.get(group["id"]) else {})}
             for group in groups]
