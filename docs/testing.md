@@ -5,6 +5,8 @@
 本批不沿用旧计数；临时PostgreSQL与隔离市场目录不读取/修改本地业务库。
 Runtime/Compute/API/Worker须固定同一CI revision；部署后单独核对配置、schema、
 HTTPS/admin和全部functions。页面设置原故障仍未复现，24小时/交易日及历史覆盖另签收。
+`test_build_manifest.py` 以真实 Git 临时仓库覆盖 Windows 自动换行与关闭自动换行，
+验证声明文件重新输出后仍能封装清洁源码；真实内容修改继续拒绝发布。
 
 六周期画像候选验证入口为 `backend/tests/test_kline_periods.py`、
 `test_kline_periods_api.py`、`test_rustdx_provider.py`、`test_minute_refresh.py`及
@@ -742,6 +744,8 @@ Actions 使用 `GITHUB_TOKEN` 创建 Git 标签不会触发 tag push 构建；
 版本校验和质量门都通过后，Windows、macOS、Linux 打包矩阵才会启动。Windows
 runner 会实际运行 PyInstaller 便携版，并对 Inno Setup 产物执行静默安装、启动、
 健康检查、默认 rustdx 插件检查、卸载及用户数据保留验证。
+已安装应用还须进入真实 EdgeChromium 窗口，确认页面渲染与非空 DOM；
+该检查不替代完整交互、覆盖升级或消费版真机矩阵。
 所有 Job 固定到所选既有 tag 的完整 SHA，所选平台全部成功后才能发布冻结版本。
 协作回归覆盖旧分支基线、人工改号、版本回退、来源 trailer 伪造、自动提交再触发、
 旧 tag 发布、非法平台选择和过期镜像指针提升；规则模板不等于远程已生效。
@@ -886,7 +890,7 @@ rustdx 的专项验证见[rustdx 数据源说明](reference/integrations.md#rust
 | --- | --- |
 | GHCR `linux/amd64` | 拉取、启动、健康检查、数据卷、重启 |
 | GHCR `linux/arm64` | 拉取或构建、启动、健康检查、数据卷 |
-| Windows x64 | CI 自动安装、启动、健康检查、数据目录、卸载后数据策略；人工 GUI 与覆盖升级 |
+| Windows x64 | CI 自动安装、启动、健康、EdgeChromium 渲染/非空 DOM、数据目录及卸载保留；人工完整交互与覆盖升级 |
 | macOS ARM64 | DMG 打开、拖入 Applications、首次启动、数据目录 |
 | Linux x64 桌面包 | 解压、启动、健康检查、数据目录 |
 
