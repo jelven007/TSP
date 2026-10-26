@@ -7,6 +7,11 @@
 在临时库实际恢复验证，再按Platform目录/缓存→消费者顺序启动。
 保留admin、口令、SMTP和用户随后修改值，重启后核对登录和全部functions。
 
+Windows关闭后进程残留需区分应用清理、日志关闭和原生系统退出；
+v0.4.28诊断确认前两阶段已完成，CRT触发DLL卸载时仍阻塞。
+冻结Windows改用`TerminateProcess`保留返回码，正式发布仍须重新通过GUI与退出烟测。
+该修复不重置数据和配置，不修改ECS或其他平台的退出方式。
+
 六周期画像升级应备份新增四目录 `kline_5minute/kline_10minute/kline_15minute/kline_weekly`
 及受控preferences中的 `kline_sync_<周期>` 配置，公共数据发布同时包含四目录。
 1分钟旧前复权数据沿既有取数基准继续兼容，TickFlow保留原adjust参数；

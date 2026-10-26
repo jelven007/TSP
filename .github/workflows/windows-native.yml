@@ -47,4 +47,4 @@ jobs:
           uv run --frozen --no-sync pytest tests/test_resource_budget.py tests/test_datastore_memory_budget.py tests/test_compute_unavailable.py tests/backtest/test_panel_cache_budget.py tests/test_enriched_full_rebuild.py tests/test_enriched_incremental_memory.py tests/test_enriched_refresh_memory.py tests/test_pipeline_capacity.py tests/test_multitenancy_worker_process.py tests/backtest/test_worker_process.py tests/test_full_schedules.py -q
       - name: Local administrator and personal workspace
         run: |
-          uv run --frozen --no-sync pytest tests/test_local_admin.py tests/test_auth_accounts.py tests/test_auth_env_bootstrap.py tests/test_auth_runtime_mode.py tests/test_desktop_packaging.py -q
+          uv run --frozen --no-sync pytest tests/test_local_admin.py tests/test_auth_accounts.py tests/test_auth_env_bootstrap.py tests/test_auth_runtime_mode.py tests/test_desktop_packaging.py tests/test_desktop_process_exit.py -q

@@ -5,6 +5,11 @@
 下文早期“候选/未发布”描述以[版本基线](version-baseline.md)和本批记录区分时点；
 七角色/双PostgreSQL/Platform先于消费者/Broker固定Compute的生产结构继续沿用。
 
+冻结Windows桌面在`main`完成有界后端清理和单实例锁释放、日志关闭后，
+通过`TerminateProcess`按原返回码结束，避免CRT退出路径的DLL卸载阻塞。
+其他冻结平台保留`os._exit`，源码运行保留`sys.exit`与正常atexit；
+不改变业务持久化、服务角色或Provider契约。
+
 2026-10-26 K线画像由 `services/kline_periods.py` 集中六周期配置、取数、落盘和调度。
 新增 `kline_5minute/kline_10minute/kline_15minute/kline_weekly`，前三张沿用分钟schema，
 周K沿用日K schema并以周一日期作为周内幂等键。10分钟K仅扫描所需1分钟日期分区，

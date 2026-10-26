@@ -10,6 +10,9 @@ HTTPS/admin和全部functions。页面设置原故障仍未复现，24小时/交
 `test_desktop_process_exit.py` 在真实桌面入口子进程中保留一个非daemon工作线程，
 验证冻结程序在应用清理后按0/1退出码结束，源码程序保留正常atexit语义。
 Windows安装烟测须同时具备GUI成功标记和进程真实退出；窗口关闭不能单独签收。
+Windows原生回归另加载阻塞`DLL_PROCESS_DETACH`的测试DLL，在真实入口子进程
+核对应用清理标记与0/1退出码；该测试在非Windows明确跳过，并进入Windows原生CI。
+v0.4.28诊断已排除日志关闭阻塞，详见[原生退出修复](../.claude/artifacts/fixes/windows-native-exit.md)。
 
 六周期画像候选验证入口为 `backend/tests/test_kline_periods.py`、
 `test_kline_periods_api.py`、`test_rustdx_provider.py`、`test_minute_refresh.py`及

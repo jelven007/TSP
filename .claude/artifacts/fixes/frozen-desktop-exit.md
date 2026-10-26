@@ -53,3 +53,8 @@ main的finally已请求后端停止、等待最多15秒并释放单实例锁。
 真实Windows验收必须同时证明GUI成功、退出码正确和卸载保留数据，
 正常入口回归不能替代完整历史、覆盖安装及用户消费版真机验收。
 版本只由main CI递增，原v0.4.27标签保持不动。
+
+后续正式v0.4.28仍在GUI成功后退出超时：本记录的非daemon线程回归不能
+覆盖Windows原生DLL卸载。阶段诊断确认main和logging.shutdown已返回，
+阻塞发生在os._exit的原生退出阶段；进一步修复与原生反向验证见
+[Windows原生退出](windows-native-exit.md)。v0.4.28未正式发布或部署。
