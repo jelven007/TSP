@@ -1,1 +1,2 @@
 backend/uv.lock text eol=lf
+frontend/vite.config.d.ts text eol=lf

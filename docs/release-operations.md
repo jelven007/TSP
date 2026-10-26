@@ -116,6 +116,9 @@ rustdx 的能力标签及详情按四类展示。“套用”仅更新页面四�
 dirty、提交不符或包后文件变化。运行清单不修改已签名的 macOS `.app`。
 Docker 清单包括 app/static、锁文件和原生 wheel；Compute 先验证基础镜像清单，
 再对当前源码生成清单。旧镜像没有清单时应先重新构建 API 基础镜像。
+Windows Git 自动换行与 TypeScript 声明输出须保持一致：受跟踪的
+`frontend/vite.config.d.ts` 由 `.gitattributes` 固定 LF，构建后仍须通过真实源码
+清洁检查；不得把生成文件的换行差异作为跳过 dirty 校验的理由。
 
 <a id="3-版本规则"></a>
 ## 3. 版本与渠道

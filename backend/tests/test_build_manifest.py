@@ -195,6 +195,52 @@ def test_release_seal_requires_matching_clean_source_and_checks_runtime(tmp_path
         manifest.seal(root, payload, artifact, "a" * 40)
 
 
+@pytest.mark.parametrize("autocrlf", ["true", "false"])
+def test_frontend_declaration_emission_preserves_clean_release_source(tmp_path, autocrlf):
+    (tmp_path / "checkout").mkdir()
+    root = tree(tmp_path / "checkout")
+    (root / ".gitattributes").write_bytes((ROOT / ".gitattributes").read_bytes())
+    declaration = root / "frontend/vite.config.d.ts"
+    declaration.parent.mkdir()
+    emitted = (ROOT / "frontend/vite.config.d.ts").read_bytes()
+    declaration.write_bytes(emitted)
+
+    def git(*args):
+        return subprocess.check_output(
+            ["git", "-c", f"core.autocrlf={autocrlf}", "-c", "core.safecrlf=false", *args],
+            cwd=root, text=True,
+        ).strip()
+
+    git("init", "-q")
+    git("config", "core.autocrlf", autocrlf)
+    git("add", ".")
+    git("-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+        "commit", "-qm", "release fixture")
+    declaration.unlink()
+    git("checkout", "HEAD", "--", "frontend/vite.config.d.ts")
+    assert git("status", "--porcelain") == ""
+    # tsc emits LF even when Windows Git checks tracked declarations out as CRLF.
+    declaration.write_bytes(emitted)
+    output = tmp_path / "build-manifest.json"
+    assert manifest.main([
+        "create", "--root", str(root), "--include", "app", "--include", "static",
+        "--version", "0.4.2", "--git-root", str(root), "--output", str(output),
+    ]) == 0
+    payload = json.loads(output.read_bytes())
+    assert payload["source_dirty"] is False
+    artifact = tmp_path / "TSP.exe"
+    artifact.write_bytes(b"installer")
+    assert manifest.seal(root, payload, artifact, git("rev-parse", "HEAD"))["artifact"]["size"] == 9
+    declaration.write_bytes(emitted + b"// changed source\n")
+    output.unlink()
+    assert manifest.main([
+        "create", "--root", str(root), "--include", "app", "--include", "static",
+        "--version", "0.4.2", "--git-root", str(root), "--output", str(output),
+    ]) == 0
+    with pytest.raises(ValueError, match="source commit"):
+        manifest.seal(root, json.loads(output.read_bytes()), artifact, git("rev-parse", "HEAD"))
+
+
 def test_backup_size_limit_and_output_symlink(tmp_path, monkeypatch):
     root = tree(tmp_path)
     before = baseline(root)

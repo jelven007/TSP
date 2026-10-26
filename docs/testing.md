@@ -5,6 +5,8 @@
 本批不沿用旧计数；临时PostgreSQL与隔离市场目录不读取/修改本地业务库。
 Runtime/Compute/API/Worker须固定同一CI revision；部署后单独核对配置、schema、
 HTTPS/admin和全部functions。页面设置原故障仍未复现，24小时/交易日及历史覆盖另签收。
+`test_build_manifest.py` 以真实 Git 临时仓库覆盖 Windows 自动换行与关闭自动换行，
+验证声明文件重新输出后仍能封装清洁源码；真实内容修改继续拒绝发布。
 
 六周期画像候选验证入口为 `backend/tests/test_kline_periods.py`、
 `test_kline_periods_api.py`、`test_rustdx_provider.py`、`test_minute_refresh.py`及
