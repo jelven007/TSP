@@ -47,7 +47,7 @@ def run_repair_daily(
         start_date:    用户选定的起始日期
         end_date:      遗漏检测结束日期; 全量模式保持原固定到今天的行为。
         on_progress:   进度回调
-        period:        六周期之一; 10m只读取本地1m, 其他非日K按周期接口取数入库。
+        period:        六周期之一; 5m/10m/15m只读取本地1m, 周K只读取本地日K。
         mode:          full重拉选定区间; missing只补缺少的证券/时间记录, 不覆盖已有值。
         quote_service: 实时行情服务; 只在其真正写盘/删分区的临界区暂停轮询,
                        取数与计算阶段保持实时行情正常运行。
@@ -84,8 +84,11 @@ def run_repair_daily(
                 )
                 if result["rows"] == 0:
                     result["error"] = (
-                        "选定区间没有可计算的本地1分K, 请先修正1分K后重试"
-                        if period == "10m" else f"数据源未返回选定区间的{kline_periods.LABELS[period]}数据"
+                        "选定区间没有可计算的本地日K, 请先修正日K后重试"
+                        if period in kline_periods.LOCAL_DAILY_PERIODS
+                        else "选定区间没有可计算的本地1分K, 请先修正1分K后重试"
+                        if period in kline_periods.LOCAL_MINUTE_PERIODS
+                        else f"数据源未返回选定区间的{kline_periods.LABELS[period]}数据"
                     )
                 return result
             return run_now(repo, capset, on_progress=on_progress, override_start_date=start_date)

@@ -7,7 +7,7 @@
 
 六周期画像扩展复用 `services/kline_periods.py` 的表映射及周期配置，
 Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/integrations.md)。
-已有1m/1d插件兼容，新5m/15m/1w必须明确适配；10m仅消费本地1m。
+已有1m/1d插件兼容；5m/10m/15m仅消费本地1m，1w仅消费本地日K，不要求Provider适配。
 新增四表在仓库视图、画像schema/缓存、数据清除、发布清单及公共目录同步接线，
 二开不能仅新增卡片或让同一数据混入原1分钟/日K分区。
 用户配置仍走preferences及共享查询键，前端不绕过Provider直接取上游。
@@ -25,10 +25,17 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 可选mode缺省`full`，`missing`接`services/kline_gaps.py`按证券/时间键补采。
 升级保留公布/源证据日历、上市日期及已形成标签边界、100证券有界请求、
 写锁内only_missing防覆盖、无缺口零请求及未补齐计数；不将字段异常视为缺记录。
-日K遗漏仅用本地因子重算受影响证券，10分钟仅补完整本地基础桶，不新增Provider数据集。
-非日K通过既有快照股票池与独立周期表，10分钟只读本地1分钟，其余沿Provider入口。
+日K遗漏仅用本地因子重算受影响证券，5/10/15分钟仅补完整本地基础桶，周K仅聚合本地日K，
+不新增Provider数据集。非日K通过既有快照股票池与独立周期表，5/10/15分钟只读本地1分钟，
+周K只读本地日K，其余沿Provider入口。
 升级复核周期校验/能力路由、任务请求与结果、幂等写盘/缓存广播、取消边界及前端
 对应日期/任务跟踪；不把零行或部分数据包装成完整修复。
+
+本地派生分钟为L3局部修改，复用`aggregate_minute_period`及原`aggregate_ten_minute`
+兼容入口；5/10/15分钟查询优先聚合本地1m，基础无结果时保留已有周期分区读取。
+升级须保留raw/legacy_1m继承、完整桶遗漏补齐、只读日历缓存、无远程回退、
+本地能力门控豁免及离线零输出反馈，实际验证见
+[本地聚合记录](../reports/local-derived-minutes-20261026/verification.md)。未新增插槽或通用插件API。
 
 专项目录/脚本路径采用[工程布局](reference/engineering.md#layout)；
 按[生产工程](reference/engineering.md#engineering)形成开发闭环，并在

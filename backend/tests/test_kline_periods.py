@@ -14,11 +14,19 @@ def test_defaults_and_calendar_windows(tmp_path, monkeypatch):
     assert [configs[p]["interval_seconds"] for p in ("1m", "5m", "10m", "15m")] == [60, 300, 600, 900]
     assert configs["1w"]["time"] == configs["1d"]["time"] == "16:00"
     cfg = configs["5m"]
-    for hour, minute, expected in [(9, 15, True), (11, 35, True), (11, 36, False), (12, 0, False), (13, 0, True), (15, 20, True), (15, 21, False)]:
+    assert cfg["windows"] == [["09:15", "11:45"], ["13:00", "16:00"]]
+    for hour, minute, expected in [(9, 15, True), (11, 44, True), (11, 45, False), (12, 0, False), (13, 0, True), (15, 59, True), (16, 0, False)]:
         assert periods.in_sync_window(cfg, datetime(2026, 10, 26, hour, minute), trading_day=True) is expected
     assert not periods.in_sync_window(cfg, datetime(2026, 10, 26, 10), trading_day=False)
-    periods.save_config("5m", {**cfg, "enabled": False, "interval_seconds": 420}, tmp_path)
-    assert periods.get_configs(tmp_path)["5m"]["interval_seconds"] == 420
+    periods.save_config("5m", {
+        **cfg,
+        "enabled": False,
+        "interval_seconds": 420,
+        "windows": [["09:15", "11:35"], ["13:00", "15:20"]],
+    }, tmp_path)
+    saved = periods.get_configs(tmp_path)["5m"]
+    assert saved["interval_seconds"] == 420
+    assert saved["windows"] == [["09:15", "11:45"], ["13:00", "16:00"]]
     with pytest.raises(ValueError):
         periods.save_config("5m", {**cfg, "windows": [["11:35", "09:15"]]}, tmp_path)
 
@@ -95,13 +103,70 @@ def test_period_write_does_not_invert_the_legacy_repository_partition_locks(tmp_
     assert repo.execute_one("SELECT count(*) FROM kline_minute")[0] == 7
 
 
-def test_ten_minute_sync_uses_local_one_minute_without_network(tmp_path):
+@pytest.mark.parametrize(("period", "count"), [("5m", 7), ("10m", 5), ("15m", 3)])
+def test_derived_minute_sync_uses_local_one_minute_without_network(tmp_path, monkeypatch, period, count):
     repo = KlineRepository(DataStore(tmp_path))
+    monkeypatch.setattr(periods, "_period_provider", lambda *a: pytest.fail("derived minutes must stay local"))
     periods.persist_period(repo, "1m", minute_sample())
-    result = periods.sync_period(repo, "10m", datetime(2026, 10, 26), datetime(2026, 10, 26, 15, 30), symbols=["600000.SH"])
-    assert result["rows"] == 5
+    result = periods.sync_period(repo, period, datetime(2026, 10, 26), datetime(2026, 10, 26, 15, 30), symbols=["600000.SH"])
+    assert result["rows"] == count
     assert result["source"] == "1m"
-    assert periods.sync_period(repo, "10m", datetime(2026, 10, 25), datetime(2026, 10, 25, 15, 30), symbols=["600000.SH"])["rows"] == 0
+    assert result["price_basis"] == "raw"
+    empty = periods.sync_period(repo, period, datetime(2026, 10, 25), datetime(2026, 10, 25, 15, 30), symbols=["600000.SH"])
+    assert empty["rows"] == 0
+    assert "1分K" in empty["error"]
+
+
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+def test_derived_aggregation_preserves_sessions_days_symbols_and_unknowns(period):
+    from datetime import timedelta
+
+    step = int(period[:-1])
+    stamps = [datetime(2026, 10, day) + timedelta(minutes=base + i)
+              for day in (23, 26) for base in (570, 780) for i in range(1, 121)]
+    frame = pl.DataFrame({
+        "symbol": ["600000.SH"] * len(stamps), "datetime": stamps,
+        "open": [float(i) for i in range(len(stamps))],
+        "high": [float(i + 2) for i in range(len(stamps))],
+        "low": [float(i - 1) for i in range(len(stamps))],
+        "close": [float(i + 1) for i in range(len(stamps))],
+        "volume": [100.] * len(stamps), "amount": [1000.] * len(stamps),
+    })
+    other = frame.with_columns(pl.lit("000001.SZ").alias("symbol"),
+                               pl.lit(None, dtype=pl.Float64).alias("volume"))
+    result = periods.aggregate_minute_period(pl.concat([frame.reverse(), other]), period)
+    own = result.filter(pl.col("symbol") == "600000.SH")
+    assert own.height == 480 // step
+    assert own["datetime"].to_list() == [
+        datetime(2026, 10, day) + timedelta(minutes=base + i)
+        for day in (23, 26) for base in (570, 780) for i in range(step, 121, step)
+    ]
+    first = own.row(0, named=True)
+    assert [first[c] for c in ("open", "high", "low", "close", "volume", "amount")] == [
+        0., step + 1., -1., float(step), step * 100., step * 1000.,
+    ]
+    assert result.filter(pl.col("symbol") == "000001.SZ")["volume"].null_count() == 480 // step
+
+
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+def test_derived_query_prefers_current_local_base_even_with_live_and_stale_table(tmp_path, monkeypatch, period):
+    repo = KlineRepository(DataStore(tmp_path))
+    monkeypatch.setattr(periods, "_period_provider", lambda *a: pytest.fail("query must stay local"))
+    periods.persist_period(repo, "1m", minute_sample())
+    periods.persist_period(repo, period, minute_sample().with_columns(pl.lit(99.).alias("close")))
+    for live in (False, True):
+        frame, source = periods.query_period(repo, period, "600000.SH", datetime(2026, 10, 26, 9, 34),
+                                             datetime(2026, 10, 26, 15, 30), live=live)
+        assert source == "local"
+        assert frame["close"][0] == {"5m": 1.5, "10m": 2.5, "15m": 3.5}[period]
+    assert not any((tmp_path / "kline_5minute").glob("date=2026-10-25/*"))
+
+
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+def test_derived_fetch_rejects_remote_even_when_provider_supports_period(period):
+    provider = SimpleNamespace(get_klines=lambda *a, **kw: pytest.fail("must not invoke remote"))
+    with pytest.raises(ValueError, match="远程"):
+        periods.fetch_period(provider, period, ["600000.SH"], datetime(2026, 10, 26), datetime(2026, 10, 26, 15))
 
 
 def test_provider_unsupported_period_fails_closed():
@@ -140,10 +205,10 @@ def test_remote_sync_passes_period_and_persists_only_requested_table(tmp_path, m
     provider = SimpleNamespace(capabilities=ProviderCapabilities(minute=True), get_klines=fetch)
     monkeypatch.setattr("app.data_providers.registry.get_provider", lambda name: provider)
     repo = KlineRepository(DataStore(tmp_path))
-    result = periods.sync_period(repo, "5m", datetime(2026, 10, 26), datetime(2026, 10, 26, 15), symbols=["600000.SH"])
+    result = periods.sync_period(repo, "1m", datetime(2026, 10, 26), datetime(2026, 10, 26, 15), symbols=["600000.SH"])
     assert result["rows"] == 7
-    assert calls == [(["600000.SH"], "stock", "5m")]
-    assert not any((tmp_path / "kline_minute").rglob("*.parquet"))
+    assert calls == [(["600000.SH"], "stock", "1m")]
+    assert not any((tmp_path / "kline_5minute").rglob("*.parquet"))
 
 
 def test_weekly_current_bar_replaces_within_same_week(tmp_path):
@@ -153,7 +218,35 @@ def test_weekly_current_bar_replaces_within_same_week(tmp_path):
         periods.persist_period(repo, "1w", frame)
     assert repo.execute_one("SELECT count(*), max(close) FROM kline_weekly") == (1, 12.)
 
-def test_legacy_one_minute_keeps_fetch_basis_and_ten_minute_inherits_it(tmp_path, monkeypatch):
+
+def test_weekly_sync_aggregates_local_daily_without_provider(tmp_path, monkeypatch):
+    repo = KlineRepository(DataStore(tmp_path))
+    repo.append_daily(pl.DataFrame({
+        "symbol": ["600000.SH"] * 5,
+        "date": [date(2026, 10, day) for day in range(26, 31)],
+        "open": [10., 11., 13., 12., 15.],
+        "high": [12., 14., 15., 16., 17.],
+        "low": [9., 10., 11., 8., 14.],
+        "close": [11., 13., 12., 15., 16.],
+        "volume": [100., 200., 300., 400., 500.],
+        "amount": [1000., 2500., 3600., 5000., 7500.],
+    }))
+    monkeypatch.setattr(periods, "_period_provider", lambda *a: pytest.fail("weekly must stay local"))
+
+    result = periods.sync_period(
+        repo, "1w", datetime(2026, 10, 26), datetime(2026, 10, 31, 23, 59),
+        symbols=["600000.SH"],
+    )
+
+    assert result["rows"] == 1
+    assert result["source"] == "1d"
+    assert repo.execute_one(
+        "SELECT symbol, date, open, high, low, close, volume, amount FROM kline_weekly",
+    ) == ("600000.SH", date(2026, 10, 26), 10., 17., 8., 16., 1500., 19600.)
+
+
+@pytest.mark.parametrize(("period", "count"), [("5m", 7), ("10m", 5), ("15m", 3)])
+def test_legacy_one_minute_keeps_fetch_basis_and_derived_minute_inherits_it(tmp_path, monkeypatch, period, count):
     repo = KlineRepository(DataStore(tmp_path))
     path = tmp_path / "kline_minute/date=2026-10-26/part.parquet"
     path.parent.mkdir(parents=True)
@@ -167,11 +260,11 @@ def test_legacy_one_minute_keeps_fetch_basis_and_ten_minute_inherits_it(tmp_path
     monkeypatch.setattr(periods.preferences, "get_minute_data_provider", lambda: "tickflow")
     monkeypatch.setattr("app.data_providers.registry.get_provider", lambda name: provider)
     one = periods.sync_period(repo, "1m", datetime(2026, 10, 26), datetime(2026, 10, 26, 15), symbols=["600000.SH"])
-    ten = periods.sync_period(repo, "10m", datetime(2026, 10, 26), datetime(2026, 10, 26, 15), symbols=["600000.SH"])
+    ten = periods.sync_period(repo, period, datetime(2026, 10, 26), datetime(2026, 10, 26, 15), symbols=["600000.SH"])
     assert adjustments == ["forward"]
     assert one["price_basis"] == ten["price_basis"] == "legacy_1m"
     assert not (tmp_path / "kline_minute/.raw_basis").exists()
-    assert ten["rows"] == 5
+    assert ten["rows"] == count
 
 
 def test_scheduled_periods_holidays_intervals_and_weekly_retry(monkeypatch):
@@ -200,10 +293,32 @@ def test_scheduled_periods_holidays_intervals_and_weekly_retry(monkeypatch):
     assert not calls
     verdict[0] = True
     periods.scheduled_periods(None)
-    assert calls == ["kline_1w"]
+    assert not calls
     periods.scheduled_periods(None)
-    assert calls == ["kline_1w"]
+    assert not calls
     monkeypatch.setattr(preferences, "get_data_sync_auto_enabled", lambda: False)
     clock[0] = datetime(2026, 10, 27, 16)
     periods.scheduled_periods(None)
+    assert not calls
+
+
+def test_scheduled_weekly_runs_once_on_saturday_without_trading_day(monkeypatch):
+    clock = [datetime(2026, 10, 26, 16)]
+    calls = []
+    monkeypatch.setattr(periods, "cn_now", lambda: clock[0])
+    monkeypatch.setattr("app.services.trading_day.is_trading_day", lambda now: False)
+    monkeypatch.setattr(periods.preferences, "get_data_sync_auto_enabled", lambda: True)
+    monkeypatch.setattr(periods, "get_configs", lambda: {
+        p: {"enabled": p == "1w", "interval_seconds": 60, "windows": periods.DEFAULT_WINDOWS, "time": "16:00"}
+        for p in ("5m", "10m", "15m", "1w")
+    })
+    monkeypatch.setattr("app.jobs.daily_pipeline._run_tracked", lambda fn, label: calls.append(label) or True)
+    monkeypatch.setattr(periods, "_last_success", {})
+
+    periods.scheduled_periods(None)
+    assert calls == []
+    clock[0] = datetime(2026, 10, 31, 16)
+    periods.scheduled_periods(None)
+    periods.scheduled_periods(None)
+
     assert calls == ["kline_1w"]

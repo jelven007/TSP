@@ -237,9 +237,9 @@ def test_past_final_deadline(monkeypatch) -> None:
     def _at(h: int, m: int):
         return datetime.combine(cn_today(), dt_time(h, m), tzinfo=CN_TZ)
 
-    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(15, 14))
+    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(15, 59))
     assert QuoteService._past_final_deadline("close_final") is False
-    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(15, 15))
+    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(16, 0))
     assert QuoteService._past_final_deadline("close_final") is True
     monkeypatch.setattr(qs_module, "cn_now", lambda: _at(12, 9))
     assert QuoteService._past_final_deadline("morning_final") is False
@@ -252,12 +252,12 @@ def test_past_final_deadline(monkeypatch) -> None:
     [
         (9, 14, False),
         (9, 15, True),
-        (11, 29, True),
-        (11, 30, False),
+        (11, 44, True),
+        (11, 45, False),
         (12, 59, False),
         (13, 0, True),
-        (15, 14, True),
-        (15, 15, False),
+        (15, 59, True),
+        (16, 0, False),
     ],
 )
 def test_realtime_polling_uses_two_intraday_windows(
@@ -274,7 +274,7 @@ def test_realtime_polling_uses_two_intraday_windows(
     assert qs._should_poll_for_phase(qs._market_phase()) is expected
 
 
-def test_close_polling_continues_after_final_confirmation_until_1515(monkeypatch) -> None:
+def test_close_polling_continues_after_final_confirmation_until_1600(monkeypatch) -> None:
     monkeypatch.setattr(
         qs_module,
         "cn_now",

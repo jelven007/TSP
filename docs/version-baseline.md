@@ -1,5 +1,10 @@
 # TSP 版本基线
 
+2026-10-27本地数据总览文案补丁已落实到实际frontend3021运行副本，版本仍为0.4.31。
+此前工作区3022与运行副本的来源标签存在差异，现已登录实际页面核对本地计算描述；
+该补丁只认证前端描述，不代表后端聚合功能升级或线上发布。证据见
+[运行页面核对](../reports/local-kline-description-runtime-20261027/verification.md)。
+
 本批遗漏K线获取以
 `cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c` / 0.4.30为集成前基线。
 范围与实际验证见[最新整合记录](../reports/repair-missing-release-20261026/verification.md)；

@@ -61,6 +61,17 @@ it('defaults to daily and exposes exactly the six requested periods', async () =
   expect(onStart).toHaveBeenCalledWith('repair-1')
 })
 
+it('explains repair scope, modes, sources, and daily downstream work', async () => {
+  await render()
+  expect(host.textContent).toContain('修正说明')
+  expect(host.textContent).toContain('从起始日期检查到今天')
+  expect(host.textContent).toContain('重新获取或本地重新计算选定区间，并覆盖同一记录的旧值')
+  expect(host.textContent).toContain('只写入缺失的证券和时间记录，已有数据保持不变')
+  expect(host.textContent).toContain('1分K、日K通过当前数据源接口获取')
+  expect(host.textContent).toContain('5分K、10分K、15分K由本地1分K聚合，周K由本地日K聚合')
+  expect(host.textContent).toContain('日K修正后会重算受影响证券的复权与技术指标')
+})
+
 it('sends the selected period and shows that period’s own latest date', async () => {
   await render()
   await selectPeriod('1m')
@@ -70,14 +81,21 @@ it('sends the selected period and shows that period’s own latest date', async 
   expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1m', 'full')
 })
 
-it('gates remote periods by their route while allowing local ten minute repair', async () => {
+it('gates remote periods by their route while allowing local derived repairs', async () => {
   await render(false, false)
   const button = () => host.querySelector<HTMLButtonElement>('button')!
   expect(button().disabled).toBe(true)
-  await selectPeriod('10m')
+  for (const period of ['5m', '10m', '15m']) {
+    await selectPeriod(period)
+    expect(button().disabled).toBe(false)
+    expect(host.textContent).toContain('本地1分K')
+    expect(host.textContent).not.toContain('kline.minute.batch')
+  }
+  await selectPeriod('1w')
   expect(button().disabled).toBe(false)
-  expect(host.textContent).toContain('本地1分K')
-  await selectPeriod('5m')
+  expect(host.textContent).toContain('本地日K')
+  expect(host.textContent).not.toContain('kline.daily.batch')
+  await selectPeriod('1m')
   expect(button().disabled).toBe(true)
   expect(host.textContent).toContain('kline.minute.batch')
 })

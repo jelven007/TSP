@@ -17,7 +17,7 @@ it.each(['succeeded', 'failed'] as const)('refreshes cached charts after a %s re
     else if (path === '/api/settings/capability-matrix') value = { capabilities: [] }
     else if (path === '/api/settings/kline-sync') value = Object.fromEntries(
       ['1m', '5m', '10m', '15m', '1d', '1w'].map(period => [period, {
-        enabled: true, interval_seconds: 60, windows: [['09:15', '11:35'], ['13:00', '15:20']], time: '16:00',
+        enabled: true, interval_seconds: 60, windows: [['09:15', '11:45'], ['13:00', '16:00']], time: '16:00',
       }]),
     )
     else if (path === '/api/ext-data') value = { items: [] }

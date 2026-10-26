@@ -8,7 +8,7 @@ from app.services import extend_history, kline_periods, pipeline_jobs
 from app.tickflow.repository import DataStore, KlineRepository
 
 
-@pytest.mark.parametrize("period", ["1m", "5m", "15m", "1d", "1w"])
+@pytest.mark.parametrize("period", ["1m", "1d"])
 def test_history_progress_advances_after_each_persisted_symbol_batch(tmp_path, monkeypatch, period):
     repo = KlineRepository(DataStore(tmp_path))
     provider = SimpleNamespace()
@@ -36,12 +36,14 @@ def test_history_progress_advances_after_each_persisted_symbol_batch(tmp_path, m
     repo.db.close()
 
 
-def test_ten_minute_progress_advances_across_empty_date_segments(tmp_path):
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+def test_derived_minute_progress_advances_across_empty_date_segments(tmp_path, monkeypatch, period):
     repo = KlineRepository(DataStore(tmp_path))
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("must stay local"))
     progress = []
     try:
         result = kline_periods.sync_period(
-            repo, "10m", datetime(2026, 10, 1), datetime(2026, 10, 11, 16),
+            repo, period, datetime(2026, 10, 1), datetime(2026, 10, 11, 16),
             symbols=["600000.SH"],
             on_progress=lambda stage, pct, msg, **kw: progress.append((pct, kw["stage_pct"])),
         )

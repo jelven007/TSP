@@ -14,13 +14,13 @@ from app.services import instrument_sync, kline_periods
 logger = logging.getLogger(__name__)
 
 
-def _trading_days(start: date, end: date) -> list[date]:
+def _trading_days(start: date, end: date, *, local_only: bool = False) -> list[date]:
     days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
     unknown = [day for day in days if market_time.published_trading_day(day) is None]
     evidence = None
     if unknown:
-        from app.services.data_integrity import _trading_calendar
-        evidence = _trading_calendar()
+        from app.services.data_integrity import _trading_calendar, cached_trading_calendar
+        evidence = cached_trading_calendar() if local_only else _trading_calendar()
         if not evidence or min(unknown) < min(evidence) or max(unknown) > max(evidence):
             raise ValueError("选定区间缺少可靠交易日历, 无法判断遗漏数据; 请缩小范围或配置交易日历数据源")
     return [
@@ -72,23 +72,17 @@ def _requests(gaps, period, day, last_day, now):
         yield sorted(symbols), start, end
 
 
-def _local_ten_minute(repo, day, symbols):
+def _local_minute_period(repo, period, day, symbols):
     paths = list((repo.store.data_dir / "kline_minute" / f"date={day}").glob("*.parquet"))
     if not paths:
         return pl.DataFrame()
     frame = pl.scan_parquet(paths).filter(pl.col("symbol").is_in(symbols)).collect()
-    minute = pl.col("datetime").dt.hour().cast(pl.Int32) * 60 + pl.col("datetime").dt.minute()
-    # 遗漏模式只补有完整十根基础分钟的桶, 不能用不完整基础数据制造“补齐”。
-    frame = frame.filter(((minute > 570) & (minute <= 690)) | ((minute > 780) & (minute <= 900)))
-    if frame.is_empty():
-        return frame
-    frame = frame.unique(["symbol", "datetime"], keep="last")
-    base = pl.when(minute <= 690).then(570).otherwise(780)
-    bucket = base + ((minute - base + 9) // 10) * 10
-    complete = frame.with_columns(
-        (pl.col("datetime").dt.truncate("1d") + pl.duration(minutes=bucket)).alias("_bucket"),
-    ).group_by("symbol", "_bucket").len().filter(pl.col("len") == 10).rename({"_bucket": "datetime"})
-    return kline_periods.aggregate_ten_minute(frame).join(complete.select("symbol", "datetime"), on=["symbol", "datetime"])
+    return kline_periods.aggregate_minute_period(frame, period, complete_only=True)
+
+
+def _local_weekly_period(repo, start, end, symbols):
+    frame = kline_periods._local_daily_frame(repo, start, end, symbols)
+    return kline_periods.aggregate_weekly(frame)
 
 
 def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None) -> dict:
@@ -106,8 +100,9 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None)
     if "listing_date" in instruments.columns:
         listing_dates = {symbol: parse_listing_date(value) for symbol, value in instruments.select("symbol", "listing_date").iter_rows()}
     calendar_start = start - timedelta(days=start.weekday()) if period == "1w" else start
+    local = period in kline_periods.LOCAL_DERIVED_PERIODS
     try:
-        days = _trading_days(calendar_start, end)
+        days = _trading_days(calendar_start, end, local_only=local)
     except ValueError as exc:
         return {"error": str(exc)}
     if period == "1d":
@@ -122,8 +117,8 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None)
     result = {
         "period": period, "mode": "missing", "rows": 0, "missing_before": 0, "remaining": 0,
         "requests": 0, "universe_size": len(symbols), "start": start.isoformat(), "end": end.isoformat(),
-        "source": "1m" if period == "10m" else None,
-        "price_basis": ("raw" if raw_minute else "legacy_1m") if period in ("1m", "10m") else "raw",
+        "source": "1d" if period in kline_periods.LOCAL_DAILY_PERIODS else ("1m" if local else None),
+        "price_basis": ("raw" if raw_minute else "legacy_1m") if period == "1m" or period in kline_periods.LOCAL_MINUTE_PERIODS else "raw",
     }
     provider = None
     affected = set()
@@ -146,9 +141,14 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None)
             result["missing_before"] += gaps.height
             if gaps.is_empty():
                 continue
-            if period == "10m":
-                frame = _local_ten_minute(repo, day, gaps["symbol"].unique().to_list())
-                emit(f"{day}: 保存遗漏的10分K", completed)
+            if local:
+                symbols_for_gap = gaps["symbol"].unique().to_list()
+                frame = (
+                    _local_weekly_period(repo, day, last_day, symbols_for_gap)
+                    if period in kline_periods.LOCAL_DAILY_PERIODS
+                    else _local_minute_period(repo, period, day, symbols_for_gap)
+                )
+                emit(f"{day}: 保存遗漏的{kline_periods.LABELS[period]}", completed)
                 if not frame.is_empty():
                     frame = frame.join(gaps, on=keys, how="inner")
                     with pause_quotes_for_write():
@@ -193,7 +193,12 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None)
             _refresh_single_view(repo, "kline_enriched")
             invalidate_data_cache("daily")
     if result["remaining"] or failures:
-        reason = "基础1分K不完整, 请先获取遗漏的1分K后重试" if period == "10m" else "数据源未返回部分记录(可能停牌、无数据或请求失败)"
+        reason = (
+            "基础日K不完整, 请先获取遗漏的日K后重试"
+            if period in kline_periods.LOCAL_DAILY_PERIODS
+            else "基础1分K不完整, 请先获取遗漏的1分K后重试"
+            if local else "数据源未返回部分记录(可能停牌、无数据或请求失败)"
+        )
         result["error"] = f"已补{result['rows']}行, 仍有{result['remaining']}行未补齐; {reason}"
     elif result["missing_before"] == 0:
         result["message"] = "选定区间没有遗漏数据, 无需获取"

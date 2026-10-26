@@ -46,7 +46,8 @@ def test_period_config_validation_persistence_and_empty_schema(app):
 
 
 @pytest.mark.asyncio
-async def test_manual_ten_minute_job_has_real_rows_and_completion(app, monkeypatch):
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+async def test_manual_derived_minute_job_has_real_rows_and_completion(app, monkeypatch, period):
     repo = app.state.repo
     now = datetime(2026, 10, 26, 9, 31)
     frame = pl.DataFrame({
@@ -55,18 +56,33 @@ async def test_manual_ten_minute_job_has_real_rows_and_completion(app, monkeypat
         "volume": [100.], "amount": [1000.],
     })
     kline_periods.persist_period(repo, "1m", frame)
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("offline must stay local"))
     monkeypatch.setattr(repo, "get_instruments", lambda: pl.DataFrame({"symbol": ["600000.SH"]}))
     monkeypatch.setattr("app.market_time.cn_today", lambda: now.date())
     request = SimpleNamespace(app=app)
-    result = await kline.sync_period_job(request, {"period": "10m", "value": 1, "unit": "month"})
-    for _ in range(50):
-        job = pipeline_jobs.job_store.get(result["job_id"])
-        if job["status"] not in {"queued", "running"}:
-            break
-        await asyncio.sleep(0.01)
+    result = await kline.sync_period_job(request, {"period": period, "value": 1, "unit": "month"})
+    async with asyncio.timeout(3):
+        while pipeline_jobs.job_store.get(result["job_id"])["status"] in {"queued", "running"}:
+            await asyncio.sleep(0.01)
+    job = pipeline_jobs.job_store.get(result["job_id"])
     assert job["status"] == "succeeded"
     assert job["result"]["rows"] == 1
-    assert repo.execute_one("SELECT close FROM kline_10minute")[0] == 10.5
+    assert job["result"]["source"] == "1m"
+    assert repo.execute_one(f"SELECT close FROM {kline_periods.TABLES[period]}")[0] == 10.5
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+async def test_empty_derived_offline_job_fails_with_local_dependency(app, monkeypatch, period):
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("empty base must stay local"))
+    monkeypatch.setattr(app.state.repo, "get_instruments", lambda: pl.DataFrame({"symbol": ["600000.SH"]}))
+    result = await kline.sync_period_job(SimpleNamespace(app=app), {"period": period, "value": 1, "unit": "month"})
+    async with asyncio.timeout(3):
+        while pipeline_jobs.job_store.get(result["job_id"])["status"] in {"queued", "running"}:
+            await asyncio.sleep(0.01)
+    job = pipeline_jobs.job_store.get(result["job_id"])
+    assert job["status"] == "failed", job
+    assert "1分K" in job["error"]
 
 
 @pytest.mark.parametrize(("endpoint", "period", "column", "timestamp"), [
@@ -97,7 +113,7 @@ def test_existing_query_endpoints_return_requested_period(app, monkeypatch, endp
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("period", ["5m", "15m", "1w"])
+@pytest.mark.parametrize("period", ["1m"])
 async def test_offline_job_uses_existing_provider_period_and_updates_status(app, monkeypatch, period):
     from app.data_providers.base import ProviderCapabilities
     calls = []
@@ -123,6 +139,31 @@ async def test_offline_job_uses_existing_provider_period_and_updates_status(app,
     assert job["result"]["rows"] == 1
     stats = data._safe_aggregate_minute(app.state.repo, kline_periods.TABLES[period])
     assert stats["rows"] == 1
+
+
+@pytest.mark.asyncio
+async def test_offline_weekly_job_aggregates_local_daily_without_provider(app, monkeypatch):
+    repo = app.state.repo
+    repo.append_daily(pl.DataFrame({
+        "symbol": ["600000.SH"] * 3,
+        "date": [datetime(2026, 10, day).date() for day in (21, 22, 23)],
+        "open": [10., 11., 12.], "high": [12., 13., 14.], "low": [9., 10., 11.],
+        "close": [11., 12., 13.], "volume": [100., 200., 300.], "amount": [1000., 2000., 3000.],
+    }))
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("weekly offline must stay local"))
+    monkeypatch.setattr(repo, "get_instruments", lambda: pl.DataFrame({"symbol": ["600000.SH"]}))
+    monkeypatch.setattr("app.market_time.cn_today", lambda: datetime(2026, 10, 23).date())
+
+    result = await kline.sync_period_job(SimpleNamespace(app=app), {"period": "1w", "value": 1, "unit": "month"})
+    async with asyncio.timeout(3):
+        while pipeline_jobs.job_store.get(result["job_id"])["status"] in {"queued", "running"}:
+            await asyncio.sleep(0.01)
+    job = pipeline_jobs.job_store.get(result["job_id"])
+
+    assert job["status"] == "succeeded", job
+    assert job["result"]["source"] == "1d"
+    assert job["result"]["rows"] == 1
+    assert repo.execute_one("SELECT date, close FROM kline_weekly") == (datetime(2026, 10, 19).date(), 13.)
 
 
 @pytest.mark.asyncio
@@ -169,31 +210,21 @@ def test_empty_daily_history_uses_calendar_range_and_retains_pipeline(app, monke
     assert [call[0] for call in calls] == ["daily", "adj", "enriched"]
 
 
-@pytest.mark.parametrize(("endpoint", "period"), [("minute", "5m"), ("minute", "15m"), ("daily", "1w")])
-def test_empty_query_fetches_requested_remote_period_and_propagates_failure(app, monkeypatch, endpoint, period):
-    from app.data_providers.base import ProviderCapabilities
-    calls = []
-    def fetch(symbols, start, end, *, asset_type, freq):
-        calls.append((freq, start, end))
-        column = "date" if freq == "1w" else "datetime"
-        stamp = datetime(2026, 10, 23).date() if column == "date" else datetime(2026, 10, 23, 9, 45)
-        return pl.DataFrame({"symbol": symbols, column: [stamp], "open": [10.], "high": [11.], "low": [9.], "close": [10.5], "volume": [100.], "amount": [1000.]})
-    provider = SimpleNamespace(capabilities=ProviderCapabilities(minute=True, daily=True), get_klines=fetch)
-    monkeypatch.setattr("app.data_providers.registry.get_provider", lambda name: provider)
+def test_weekly_query_aggregates_local_daily_without_remote_fallback(app, monkeypatch):
+    app.state.repo.append_daily(pl.DataFrame({
+        "symbol": ["600000.SH"] * 3,
+        "date": [datetime(2026, 10, day).date() for day in (21, 22, 23)],
+        "open": [10., 11., 12.], "high": [12., 13., 14.], "low": [9., 10., 11.],
+        "close": [11., 12., 13.], "volume": [100., 200., 300.], "amount": [1000., 2000., 3000.],
+    }))
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("weekly query must stay local"))
     monkeypatch.setattr(kline, "_get_stock_info", lambda *a: {"name": "测试"})
-    params = {"symbol": "600000.SH", "freq": period, "date": "2026-10-23",
+    params = {"symbol": "600000.SH", "freq": "1w", "date": "2026-10-23",
               "start_date": "2026-10-21", "end_date": "2026-10-23"}
     with TestClient(app) as client:
-        response = client.get(f"/api/kline/{endpoint}", params=params)
+        response = client.get("/api/kline/daily", params=params)
         assert response.status_code == 200, response.text
-        assert response.json()["source"] == "live"
-        assert response.json()["rows"][0]["close"] == 10.5
-        assert calls[-1][0] == period
-        if period == "1w":
-            assert response.json()["rows"][0]["date"] == "2026-10-19"
-        assert client.get(f"/api/kline/{endpoint}", params={**params, "freq": "invalid"}).status_code == 422
-        def fail(*a, **kw):
-            raise RuntimeError("provider offline")
-        provider.get_klines = fail
-        response = client.get(f"/api/kline/{endpoint}", params=params)
-        assert response.status_code == 502
+        assert response.json()["source"] == "local"
+        assert response.json()["rows"][0]["close"] == 13.
+        assert response.json()["rows"][0]["date"] == "2026-10-19"
+        assert client.get("/api/kline/daily", params={**params, "freq": "invalid"}).status_code == 422

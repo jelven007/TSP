@@ -4,6 +4,10 @@
 源码、标签、安装包和最后已知生产状态统一见[版本基线](version-baseline.md)。
 文档覆盖、代码实现、测试通过、产物发布和生产切流分别判定。
 
+5/10/15分K本地计算候选的范围、实际验证与未部署边界见
+[本地聚合记录](../reports/local-derived-minutes-20261026/verification.md)；
+六类主手册、二开/接入及用户手册已同步默认行为。
+
 本批遗漏K线获取的源码/运行核对、文档责任、验证与发布状态见
 [最新整合记录](../reports/repair-missing-release-20261026/verification.md)；
 页面/菜单/上游分析统一归[分析索引](../reports/page-data-analysis-20261024/README.md)。

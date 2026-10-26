@@ -5,6 +5,14 @@ export const KLINE_PERIOD_LABELS: Record<KlinePeriod, string> = {
   '15m': '15分K', '1d': '日K', '1w': '周K',
 }
 
+export function isLocalMinutePeriod(period: string): boolean {
+  return period === '5m' || period === '10m' || period === '15m'
+}
+
+export function isLocalDerivedPeriod(period: string): boolean {
+  return isLocalMinutePeriod(period) || period === '1w'
+}
+
 export function klineJobPeriod(job: Pick<PipelineJob, 'kind' | 'result'>): KlinePeriod | null {
   if (job.kind === 'minute_sync') return '1m'
   const candidate = job.result?.period ?? job.kind?.replace(/^kline_/, '')
