@@ -1,13 +1,13 @@
-"""六周期 K 线修正; 日K复用盘后管道, 其他周期复用周期同步服务。
+"""六周期 K 线修正; 全量复用原管道/周期同步, 遗漏模式按记录键补采。
 
 典型场景: 昨天没看盘 / 服务挂了一天,本地日K缺了若干天。
 
-设计原则: 不重复盘后管道的任何逻辑。直接调用 daily_pipeline.run_now(),
+全量模式不重复盘后管道逻辑, 直接调用 daily_pipeline.run_now(),
 通过 override_start_date 参数把"自动算日期"换成"用户指定起点",
 读取已有维表股票池, 其余 (A股日K / 除权因子 / enriched / 指数 / ETF / 错误兜底) 全部原样复用。
-这样修正功能与盘后管道永远保持一致,不会出现遗漏。
+遗漏模式独立检测实际缺少的记录, 复用原Provider与仓库写入契约。
 
-落盘是 merge-upsert (按 symbol+date 去重 keep="last"), 新数据天然覆盖旧值,
+全量落盘是 merge-upsert (按 symbol+date 去重 keep="last"), 新数据覆盖旧值,
 不会产生重复。日K/指数/ETF 族无需先删分区; 股票 enriched 例外 — 增量重算
 只算 enriched 里不存在的日期, "分区已存在但内容是盘中快照"的场景由管道内
 的 prune_enriched_partitions 先删坏分区再重算 (run_now 内处理, 此处无需关心)。
@@ -34,8 +34,9 @@ def run_repair_daily(
     quote_service=None,
     *,
     period: str = "1d",
+    mode: str = "full",
 ) -> dict:
-    """修正 / 补全数据, 日期范围由用户指定; 旧调用默认日K。
+    """修正 / 补全数据, 日期范围由用户指定; 旧调用默认全量日K。
 
     通过 run_now(override_start_date=start_date) 把日K/除权/指数的拉取起点
     统一设为 start_date (到今天),其余流程与盘后管道完全一致。
@@ -44,9 +45,10 @@ def run_repair_daily(
         repo:          数据仓库
         capset:        权限集
         start_date:    用户选定的起始日期
-        end_date:      保留参数(目前盘后管道固定拉到今天, 此值未使用, 为接口兼容保留)
+        end_date:      遗漏检测结束日期; 全量模式保持原固定到今天的行为。
         on_progress:   进度回调
         period:        六周期之一; 10m只读取本地1m, 其他非日K按周期接口取数入库。
+        mode:          full重拉选定区间; missing只补缺少的证券/时间记录, 不覆盖已有值。
         quote_service: 实时行情服务; 只在其真正写盘/删分区的临界区暂停轮询,
                        取数与计算阶段保持实时行情正常运行。
 
@@ -63,9 +65,14 @@ def run_repair_daily(
 
     if period not in kline_periods.TABLES:
         return {"error": "不支持的K线周期"}
+    if mode not in ("full", "missing"):
+        return {"error": "不支持的数据获取方式"}
 
     with paused_quotes(quote_service):
         try:
+            if mode == "missing":
+                from app.services.kline_gaps import sync_missing
+                return sync_missing(repo, period, start_date, min(end_date or today, today), on_progress=on_progress)
             if period != "1d":
                 snapshot = instrument_sync.load_current_stock_pool(repo.store.data_dir, require_complete=True)
                 # 周K以周一入库, 周中起始日期也必须包含所在周的整根K线。

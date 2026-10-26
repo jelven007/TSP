@@ -23,6 +23,7 @@ afterEach(async () => {
   client?.clear()
   mocks.repair.mockReset()
   mocks.repair.mockResolvedValue({ job_id: 'repair-1', status: 'started' })
+  vi.useRealTimers()
 })
 
 async function render(hasCap = true, hasMinuteCap = true, isRunning = false) {
@@ -56,7 +57,7 @@ it('defaults to daily and exposes exactly the six requested periods', async () =
   expect(select.value).toBe('1d')
   expect([...select.options].map(option => option.text)).toEqual(['1分K', '5分K', '10分K', '15分K', '日K', '周K'])
   await act(async () => host.querySelector<HTMLButtonElement>('button')!.click())
-  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1d')
+  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1d', 'full')
   expect(onStart).toHaveBeenCalledWith('repair-1')
 })
 
@@ -66,7 +67,7 @@ it('sends the selected period and shows that period’s own latest date', async 
   expect(host.textContent).toContain('2026-10-22')
   expect(host.textContent).not.toContain('2026-10-23')
   await act(async () => host.querySelector<HTMLButtonElement>('button')!.click())
-  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1m')
+  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1m', 'full')
 })
 
 it('gates remote periods by their route while allowing local ten minute repair', async () => {
@@ -92,5 +93,27 @@ it('keeps the panel open and displays a rejected request', async () => {
 
 it('prevents submission while another data task runs', async () => {
   await render(true, true, true)
-  expect(host.querySelector<HTMLButtonElement>('button')!.disabled).toBe(true)
+  expect([...host.querySelectorAll<HTMLButtonElement>('button')].every(button => button.disabled)).toBe(true)
+})
+
+it('offers full and missing acquisition and sends missing mode with the selected period', async () => {
+  await render()
+  await selectPeriod('5m')
+  const buttons = [...host.querySelectorAll<HTMLButtonElement>('button')]
+  expect(buttons.map(button => button.textContent)).toEqual(['获取全量数据', '获取遗漏数据'])
+  await act(async () => buttons[1].click())
+  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '5m', 'missing')
+})
+
+it('disables both actions while submitting and re-enables them after failure', async () => {
+  vi.useFakeTimers()
+  await render()
+  let reject!: (reason: Error) => void
+  mocks.repair.mockImplementationOnce(() => new Promise((_, rej) => { reject = rej }))
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('button')[1].click())
+  await act(async () => { await vi.runOnlyPendingTimersAsync() })
+  expect([...host.querySelectorAll<HTMLButtonElement>('button')].every(button => button.disabled)).toBe(true)
+  await act(async () => reject(new Error('请求失败')))
+  await act(async () => { await vi.runOnlyPendingTimersAsync() })
+  expect([...host.querySelectorAll<HTMLButtonElement>('button')].every(button => !button.disabled)).toBe(true)
 })

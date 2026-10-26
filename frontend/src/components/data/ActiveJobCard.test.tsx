@@ -63,3 +63,13 @@ it('renders an old successful minute job without requiring new result fields', a
   expect(host.textContent).toContain('1分K')
   expect(host.textContent).toContain('240')
 })
+
+it('shows detected and remaining gaps for missing acquisition', async () => {
+  await act(async () => root.render(<ActiveJobCard job={job({
+    status: 'succeeded',
+    result: { period: '5m', mode: 'missing', universe_size: 4, rows: 2, missing_before: 2, remaining: 0 },
+  })} />))
+  expect(host.textContent).toContain('获取遗漏数据')
+  expect(host.textContent).toContain('检测缺口')
+  expect(host.textContent).toContain('剩余缺口')
+})

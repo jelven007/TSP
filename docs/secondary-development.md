@@ -1,6 +1,6 @@
 # 代码二次开发与 AI 扩展指南
 
-2026-10-26当前源树与部署核对见[本批整合](../reports/kline-release-20261026/verification.md)。
+2026-10-26当前源树与部署核对见[本批整合](../reports/repair-missing-release-20261026/verification.md)。
 本批L3改动继续使用现有Provider、归档仓库、租户事务、查询键和共享Modal，
 不新增通用扩展API。合并与升级须复核API/Worker/Compute的周期和cache_token契约，
 历史配置/分区/schema保持兼容；实际版本以[版本基线](version-baseline.md)为准。
@@ -22,6 +22,10 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 
 六周期修正为L3局部接线，复用现有`RepairDailyPanel`、修正API及周期服务，不新增插槽。
 `/api/kline/repair_daily`与`run_repair_daily`的可选period缺省`1d`，旧日K调用保持兼容；
+可选mode缺省`full`，`missing`接`services/kline_gaps.py`按证券/时间键补采。
+升级保留公布/源证据日历、上市日期及已形成标签边界、100证券有界请求、
+写锁内only_missing防覆盖、无缺口零请求及未补齐计数；不将字段异常视为缺记录。
+日K遗漏仅用本地因子重算受影响证券，10分钟仅补完整本地基础桶，不新增Provider数据集。
 非日K通过既有快照股票池与独立周期表，10分钟只读本地1分钟，其余沿Provider入口。
 升级复核周期校验/能力路由、任务请求与结果、幂等写盘/缓存广播、取消边界及前端
 对应日期/任务跟踪；不把零行或部分数据包装成完整修复。

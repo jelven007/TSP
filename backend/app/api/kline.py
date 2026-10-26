@@ -1612,9 +1612,9 @@ async def extend_history(request: Request):
 
 @router.post("/repair_daily")
 async def repair_daily(request: Request):
-    """六周期K线修正 — 从指定起始日期修正到今天, 旧调用默认日K。
+    """六周期K线修正 — 从指定起始日期修正到今天, 旧调用默认全量日K。
 
-    body: { "start_date": "YYYY-MM-DD", "period": "1d" }
+    body: { "start_date": "YYYY-MM-DD", "period": "1d", "mode": "full" | "missing" }
     返回 job_id,可轮询 /api/pipeline/jobs 查看进度。
     """
     import asyncio
@@ -1628,6 +1628,9 @@ async def repair_daily(request: Request):
         period = body.get("period", "1d")
         if not isinstance(period, str) or period not in kline_periods.TABLES:
             raise HTTPException(status_code=422, detail="不支持的K线周期")
+        mode = body.get("mode", "full")
+        if not isinstance(mode, str) or mode not in ("full", "missing"):
+            raise HTTPException(status_code=422, detail="不支持的数据获取方式")
         raw = body.get("start_date")
         if not raw:
             raise HTTPException(status_code=400, detail="start_date 必填 (YYYY-MM-DD)")
@@ -1669,7 +1672,7 @@ async def repair_daily(request: Request):
         job_id, is_new = job_store.create(
             long_running=period.endswith("m"),
             kind="repair_daily" if period == "1d" else f"kline_{period}",
-            request={"start_date": start_date.isoformat(), "period": period},
+            request={"start_date": start_date.isoformat(), "period": period, **({"mode": mode} if "mode" in body else {})},
         )
         if not is_new:
             return {"status": "reused", "job_id": job_id}
@@ -1690,7 +1693,7 @@ async def repair_daily(request: Request):
                 # 只在实际写盘/删分区时暂停实时行情; 取数与计算阶段保持轮询
                 return run_repair_daily(
                     repo, capset, start_date, on_progress=progress, quote_service=qs,
-                    period=period,
+                    period=period, mode=mode,
                 )
 
             try:
@@ -1698,7 +1701,11 @@ async def repair_daily(request: Request):
                 if "error" in result:
                     job_store.fail(job_id, result["error"])
                 else:
-                    progress("done", 100, "K线修正完成", stage_pct=100)
+                    message = (
+                        result.get("message", f"遗漏数据获取完成, 已补{result.get('rows', 0)}行")
+                        if mode == "missing" else "全量数据获取完成"
+                    )
+                    progress("done", 100, message, stage_pct=100)
                     job_store.succeed(job_id, result)
                 invalidate_storage_cache()
             except JobCancelledError:

@@ -163,12 +163,16 @@ def fetch_period(provider, period: str, symbols: list[str], start: datetime, end
     frame = (_normalize_daily if period in ("1d", "1w") else _normalize_minute)(raw)
     if frame.is_empty():
         return frame
+    if period == "1w":
+        frame = frame.with_columns(
+            (pl.col("date") - pl.duration(days=pl.col("date").dt.weekday() - 1)).cast(pl.Date).alias("date"),
+        )
     time_column = "date" if period in ("1d", "1w") else "datetime"
     lo, hi = (start.date(), end.date()) if time_column == "date" else (start, end)
     return frame.filter(pl.col("symbol").is_in(symbols) & pl.col(time_column).is_between(lo, hi))
 
 
-def persist_period(repo, period: str, frame: pl.DataFrame) -> int:
+def persist_period(repo, period: str, frame: pl.DataFrame, *, only_missing: bool = False) -> int:
     from app.services.kline_sync import (
         _atomic_write_parquet,
         _minute_partition_lock,
@@ -188,21 +192,29 @@ def persist_period(repo, period: str, frame: pl.DataFrame) -> int:
             (pl.col("date") - pl.duration(days=pl.col("date").dt.weekday() - 1)).cast(pl.Date).alias("date"),
         )
     directory = repo.store.data_dir / TABLES[period]
+    keys = ["symbol", "date" if period in ("1d", "1w") else "datetime"]
+    written = 0
     if period in ("1d", "1w"):
         for day_frame in frame.partition_by("date"):
             out = directory / f'date={day_frame["date"][0]}' / "part.parquet"
             out.parent.mkdir(parents=True, exist_ok=True)
             with _minute_partition_lock(out):
-                merged = pl.concat([pl.read_parquet(out), day_frame], how="diagonal_relaxed") if out.exists() else day_frame
+                existing = pl.read_parquet(out) if out.exists() else None
+                day_frame = day_frame.unique(keys, keep="last")
+                if only_missing and existing is not None:
+                    day_frame = day_frame.join(existing.select(keys), on=keys, how="anti")
+                if day_frame.is_empty():
+                    continue
+                written += day_frame.height
+                merged = pl.concat([existing, day_frame], how="diagonal_relaxed") if existing is not None else day_frame
                 merged = merged.unique(["symbol", "date"], keep="last").sort("symbol", "date")
                 _atomic_write_parquet(merged, out)
     else:
         # 旧同步可先持仓库锁; 此处只复用分区锁, 避免反序获取全局锁。
         # 公共发布复核前后文件签名, 原子替换保证读者始终读取完整文件。
-        _write_minute_partition(frame, directory)
+        written = _write_minute_partition(frame, directory, only_missing=only_missing)
     refresh_period(repo, period)
-    keys = ["symbol", "date" if period in ("1d", "1w") else "datetime"]
-    return frame.unique(keys).height
+    return written if only_missing else frame.unique(keys).height
 
 
 def refresh_period(repo, period: str) -> None:

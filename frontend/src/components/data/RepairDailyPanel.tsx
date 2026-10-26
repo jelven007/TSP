@@ -38,7 +38,7 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
   const [startDate, setStartDate] = useState(daysAgo(30))
 
   const repair = useMutation({
-    mutationFn: () => api.repairDaily(startDate, period),
+    mutationFn: (mode: 'full' | 'missing') => api.repairDaily(startDate, period, mode),
     onSuccess: ({ job_id }) => {
       onStart(job_id)
       qc.invalidateQueries({ queryKey: QK.pipelineJobs })
@@ -59,8 +59,9 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
         </div>
         <div className="text-[10px] text-muted leading-relaxed">
           {local
-            ? '由本地1分K自动计算10分K并入库；缺少1分K时，请先修正1分K。新数据覆盖相同个股、时间的旧值，不会重复。'
-            : `通过当前K线数据源接口获取${KLINE_PERIOD_LABELS[period]}并入库，新数据覆盖相同个股、时间的旧值，不会重复，也无需先清除。`}
+            ? '由本地1分K自动计算10分K并入库；基础1分K不完整时，请先获取遗漏的1分K。'
+            : `通过当前K线数据源接口获取${KLINE_PERIOD_LABELS[period]}并入库。`}
+          {' '}获取全量数据会重新获取选定区间并覆盖旧值；获取遗漏数据会先检查缺口，仅补缺少的证券和时间，保留已有数据。
         </div>
       </div>
 
@@ -104,25 +105,25 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
       </div>
 
       <div className="text-[10px] text-muted -mt-1">
-        {local ? '将计算 ' : '将重拉 '}<span className="font-mono text-secondary">{startDate}</span>
+        检查区间 <span className="font-mono text-secondary">{startDate}</span>
         {' → '}<span className="font-mono text-secondary">{today}</span>(今天) 的
         {' '}{KLINE_PERIOD_LABELS[period]}
       </div>
 
-      <button
-        onClick={() => repair.mutate()}
-        disabled={!canSubmit}
-        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-btn bg-accent/90 text-white text-xs font-medium hover:bg-accent disabled:opacity-40 disabled:pointer-events-none transition-colors duration-150"
-      >
-        {repair.isPending ? (
-          <>
-            <Loader2 className="h-3 w-3 animate-spin" />
-            请求中…
-          </>
-        ) : (
-          <>开始修正</>
-        )}
-      </button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {(['full', 'missing'] as const).map(mode => (
+          <button
+            key={mode}
+            onClick={() => repair.mutate(mode)}
+            disabled={!canSubmit}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-btn bg-accent/90 text-white text-xs font-medium hover:bg-accent disabled:opacity-40 disabled:pointer-events-none transition-colors duration-150"
+          >
+            {repair.isPending && repair.variables === mode
+              ? <><Loader2 className="h-3 w-3 animate-spin" />请求中…</>
+              : mode === 'full' ? '获取全量数据' : '获取遗漏数据'}
+          </button>
+        ))}
+      </div>
 
       {!hasBatchCap && (
         <span className="block text-center">
