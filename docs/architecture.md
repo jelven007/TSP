@@ -60,6 +60,8 @@
 `business.documents` 事务、租户绑定锁和RLS写入专用namespace；
 不套用配置列表2000条上限，不新增生产schema。独立模式使用
 `user_data/strategy_results.sqlite3`，WAL、FULL同步和事务保证并发写入。
+单进程服务的连接初始化共用进程锁，串行完成WAL转换和建表，再进入
+`BEGIN IMMEDIATE`写事务；锁不覆盖策略计算，避免首次并发写入在事务前冲突。
 记录JSON最多16MiB；历史按索引键分页，摘要查询不加载股票行。
 内存仅缓存序列化明细，32MiB字节上限，读取前验证记录revision；
 未提交事务不进入热缓存。清理旧`strategy_cache`不会删除归档。
