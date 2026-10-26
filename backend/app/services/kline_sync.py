@@ -943,7 +943,7 @@ def _datetime_to_ms(dt: datetime) -> int:
     return int(dt.timestamp() * 1000)
 
 
-def _write_minute_partition(df: pl.DataFrame, minute_dir) -> int:
+def _write_minute_partition(df: pl.DataFrame, minute_dir, *, only_missing: bool = False) -> int:
     """按 _trade_date 分区落盘分钟 K (读旧→concat→unique→原子写)。返回写入行数。
 
     抽自原 sync_and_persist_minute 末尾的循环, 供流式落盘 (每段一次) 与一次性迁移共用。
@@ -966,6 +966,14 @@ def _write_minute_partition(df: pl.DataFrame, minute_dir) -> int:
                 existing = pl.read_parquet(out)
                 if "datetime" in existing.columns:
                     existing = existing.filter(pl.col("datetime").is_not_null())
+                if only_missing:
+                    new_rows = new_rows.join(existing.select("symbol", "datetime"), on=["symbol", "datetime"], how="anti")
+                    if new_rows.is_empty():
+                        continue
+                    written += new_rows.height
+                    merged = pl.concat([existing, new_rows], how="diagonal_relaxed").sort("symbol", "datetime")
+                    _atomic_write_parquet(merged, out)
+                    continue
                 # Only deduplicate touched symbols; preserve the rest verbatim.
                 touched = new_rows["symbol"].unique().to_list()
                 same = existing.filter(pl.col("symbol").is_in(touched))

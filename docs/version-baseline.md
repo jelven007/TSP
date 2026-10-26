@@ -1,19 +1,21 @@
 # TSP 版本基线
 
-本批最新六周期K线变更以
-`4d944cdf66c02ec020c98ea961cb6bdc2b079056` / 0.4.29为集成前基线。
-范围与实际验证见[最新整合记录](../reports/kline-release-20261026/verification.md)；
+本批遗漏K线获取以
+`cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c` / 0.4.30为集成前基线。
+范围与实际验证见[最新整合记录](../reports/repair-missing-release-20261026/verification.md)；
 最终主线版本由合并后的 CI 自动分配，提交与标签以相应质量门记录为准。
 清理范围见[清理记录](../reports/repository-cleanup-20261024/verification.md)。
-2026-10-26已只读复核新ECS生产状态；第二步持续/交易日待签收、第三步未开始
-的边界继续有效。完整合并、自动版本和环境升级结果在执行后更新，不能预先签收。
+2026-10-26已只读复核本地与ECS：两端v0.4.30均就绪，新遗漏获取尚未部署。
+完整历史、持续/交易日及异机恢复待签收的边界继续有效；
+本批完整合并、自动版本和环境升级结果在执行后单独记录，不能预先签收。
 
 初始化自动同步已通过PR #15合入，CI生成 `31cf1a553dbc806aac6e6f93f30f4f41b646aa3e`
 及 `v0.4.19`。后续官方目录、管理员个人空间、统一顶栏、数据总览及六周期落盘
-已进入主线。2026-10-26本批升级前，本地运行0.4.29加六周期补丁，生产运行0.4.29。
-本批候选包括六周期修正、个股多周期与根数控制、周期缓存隔离和任务终态失效。
-上一批v0.4.29正式Windows发布及两端升级已完成，见
-[正式Release](https://github.com/jelven007/TSP/releases/tag/v0.4.29)；
+已进入主线。PR #26六周期修正/个股图表已合并，CI自动分配v0.4.30，
+Windows正式安装、GUI、退出/卸载与两端升级已完成。
+本批候选为获取全量/遗漏拆分、按证券/时间补缺、并发已有值保护及任务反馈。
+上一批v0.4.30正式发布见
+[正式Release](https://github.com/jelven007/TSP/releases/tag/v0.4.30)；
 当次部署实测交付独立保存在工作区。
 
 文档核对日期：2026-10-26。集成前源码身份固定为上列SHA；
@@ -27,23 +29,24 @@
 | 类别 | 当前值 | 状态与用途 |
 | --- | --- | --- |
 | 集成分支 | `main` | 仓库唯一集成线；本批通过独立冻结工作目录和PR归并 |
-| 本次集成前远程主线 | `4d944cdf` / `0.4.29` | main、v0.4.29及上次正式Release同SHA；本批合并后由CI再分配 |
+| 本次集成前远程主线 | `cb0eb282` / `0.4.30` | main、v0.4.30及上次正式Release同SHA；本批合并后由CI再分配 |
 | 单机加固实现基线 | `47b1738d7f6f570daeee818432fade24307689c9` | 行情 fail-fast、发布完整性、验收分类、Worker/Broker、16 GiB 预算、备份保留和告警 |
 | 持续验收记录基线 | `72e9aded9b82186137764ea787af7d83971899a7` | 24 小时窗口及证据入口；运行镜像仍固定到上述实现基线 |
 | Windows 原生运行基线 | `7a20bf37af8e31a41419140651d881706f5efc99` | 完整单机管理员个人空间、4096 MiB 默认预算与有界缓存；Win10 真机及安装包尚未验收 |
 | 策略质量实现基线 | `2ed85de195d11a0f00f988f3d7d5541557c6d068` | 成交/评分/费用/数量/尾部校准、31 个可选入场主题、冻结入场风险及全市场研究证据 |
 | 应用语义版本 | `0.4.30` | 默认安装 rustdx 原生桥接；`frontend/package.json`、后端包、运行时 fallback 和 `VERSION` 保持一致 |
-| 最新稳定 Release | `v0.4.29` | 正式Windows安装、GUI、退出及卸载已验收；新版本另经发布门 |
-| 自动源码标签 | 升级前最新 `v0.4.29` / `4d944cdf66c02ec020c98ea961cb6bdc2b079056` | 新标签仅由main CI质量门成功后创建 |
+| 本次核对时稳定 Release | `v0.4.30` | 正式Windows安装、GUI、退出及卸载已验收；新版本另经发布门 |
+| 自动源码标签 | 升级前最新 `v0.4.30` / `cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c` | 新标签仅由main CI质量门成功后创建 |
 | 活跃支持版本 | 最新版本及最近五个历史版本 | `v*` 标签和Git历史保持不可变；用[源码恢复工具](release-operations.md#31-版本保留)生成当次提交/哈希清单，历史报告不代表动态清单 |
-| 本批升级前生产提交 | `4d944cdf66c02ec020c98ea961cb6bdc2b079056` / v0.4.29 | 2026-10-26实测新ECS / HTTPS；schema v6，七角色及PostgreSQL健康 |
-| 本批升级前Runtime | 固定v0.4.29双架构Runtime及同revision Compute | 实际digest、配置字节SHA-256及部署身份见上次发布记录；不以Docker Id等同config digest |
-| 本地运行基线 | `0.4.29` / `4d944cdf66c02ec020c98ea961cb6bdc2b079056` 加本地补丁；frontend3021/API3028/Platform3029 | 2026-10-26八服务及全部就绪功能通过；保留数据总览并行更新，个股六周期与数量控件已加载，配置及Compute镜像保持原值 |
-| 本轮源码候选 | 2026-10-26六周期K线整合 | 六周期修正/图表、根数控制、缓存隔离、终态刷新及六类文档 |
-| 本轮源码起点 | `4d944cdf66c02ec020c98ea961cb6bdc2b079056`，分支 `integration/kline-release-20261026` | 42个起始文件冻结；独立工作目录验证，534个研究文件散列保留 |
+| 本批升级前生产提交 | `cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c` / v0.4.30 | 2026-10-26实测新ECS / HTTPS；schema v6，七角色及PostgreSQL健康 |
+| 本批升级前Runtime | 固定v0.4.30双架构Runtime及同revision Compute | 索引digest为`sha256:953b118c38c2c7fc8346b0f14d86f9cff3f5919cf236c46605731ce88b1a1664`；不以Docker Id等同config digest |
+| 本地运行基线 | `0.4.30` / `cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c`；frontend3021/API3028/Platform3029 | 2026-10-26干净发布源码、八角色及全部功能就绪；原用户配置保留 |
+| 本轮源码候选 | 2026-10-26遗漏K线获取整合 | 全量/遗漏获取、缺口检测、只追加、任务反馈及六类文档 |
+| 本轮源码起点 | `cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c`，分支 `integration/repair-missing-release-20261026` | 20个起始文件冻结；独立工作目录验证，536个研究文件散列保留 |
 | 开源观察对象 | `shy3130/tick-stock-panel` | 仅用于独立上游版本监控，不是本仓库应用更新或生产版本来源 |
 
-2026-10-26本地使用隔离目录 `v0.4.29-local-kline-stock-preview-20261026`，
+以下为2026-10-26六周期发布前的历史验证，已被v0.4.30正式部署取代。
+当时本地使用隔离目录 `v0.4.29-local-kline-stock-preview-20261026`，
 保留此前数据总览的K线修正与周期文案更新，并叠加个股详情六周期查询、
 默认最近60根和按当前可见数量增减50%的控件。31个文件的哈希清单保存于本机缓存；
 已跟踪文件差异SHA-256为
@@ -61,7 +64,8 @@
 [inode 耗尽修复与验证](../reports/online-timeout-20261021/result.md)、
 [v0.4.11 线上升级结果](../reports/online-upgrade-20261020/deployment-result.md)和
 [2016 起历史回填结果](../reports/history-backfill-20261020/result.md)。
-新ECS当前基线及本次升级见[本批记录](../reports/kline-release-20261026/verification.md)。
+新ECS本批升级前基线见[本批记录](../reports/repair-missing-release-20261026/verification.md)；
+六周期发布前的历史核对见[上一批记录](../reports/kline-release-20261026/verification.md)。
 新实例的日线/分钟覆盖不得沿用旧实例2016回填结论。当前源码候选状态见[策略质量结论](../reports/strategy-optimization-20261019/analysis.md)、
 [五策略实施记录](../reports/five-strategy-parallel-20261019/implementation.md)及
 [二期三步实施计划](planning/phase2-implementation-plan.md)及
@@ -123,10 +127,10 @@ commit SHA 为主标识。CI 质量门和后续镜像使用自动版本提交的
 | --- | --- |
 | 需求 | 保留原203编号及FR-UI-05/06，新增FR-WATCHLIST-06，共206条；164FR+42NFR，目标分阶段签收 |
 | 方案 | 模块化单体/七角色；独立周期分区、统一Provider、批次进度、归档revision与重建标识 |
-| 开发 | 42个起始文件及本批文档纳入独立整合分支；保留并行和用户配置 |
-| 测试 | 本次全量、产物、本地与线上验证统一见[本批报告](../reports/kline-release-20261026/verification.md)，不沿用旧计数 |
+| 开发 | 20个起始文件及本批文档纳入独立整合分支；保留并行研究和用户配置 |
+| 测试 | 本次全量、产物、本地与线上验证统一见[本批报告](../reports/repair-missing-release-20261026/verification.md)，不沿用旧计数 |
 | 运营 | 历史百分比不认证覆盖完整；页面设置点击异常仍未复现，继续留证定位 |
-| 运维 | 新ECS升级前0.4.29/schema v6；固定产物、停写备份、配置保留与完整健康另留证 |
+| 运维 | 两端升级前0.4.30/schema v6；固定产物、停写备份、配置保留与业务健康另留证 |
 
 ## 5. 更新要求
 

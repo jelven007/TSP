@@ -3187,10 +3187,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ value, unit }),
     }),
-  repairDaily: (startDate: string, period: KlinePeriod = '1d') =>
+  repairDaily: (startDate: string, period: KlinePeriod = '1d', mode: 'full' | 'missing' = 'full') =>
     request<{ status: string; job_id: string }>('/api/kline/repair_daily', {
       method: 'POST',
-      body: JSON.stringify({ start_date: startDate, period }),
+      body: JSON.stringify({ start_date: startDate, period, mode }),
     }),
   rebuildEnriched: () =>
     request<{ status: string; job_id: string }>('/api/kline/rebuild_enriched', {
@@ -4673,6 +4673,12 @@ export interface PipelineJob {
   duration_s: number | null
   result: {
     period?: KlinePeriod
+    mode?: 'full' | 'missing'
+    missing_before?: number
+    remaining?: number
+    requests?: number
+    enriched_rows?: number
+    message?: string
     rows?: number
     start?: string
     end?: string
