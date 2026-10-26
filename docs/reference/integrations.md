@@ -2,9 +2,11 @@
 
 六周期画像使用可选统一方法
 `get_klines(symbols, start_time, end_time, asset_type="stock", freq="1d")`，
-接受 `1m/5m/15m/1d/1w`，10分钟只由本地1分钟聚合，不发送给供应商。
+应用同步默认只向供应商发送 `1m/1d/1w`；5/10/15分钟由本地1分钟聚合，
+周期同步、离线补齐、修正和查询都不向供应商请求这些派生周期。
 分钟返回北京时间naive `datetime`、日/周返回`date`及原始OHLCV，volume沿用手、amount为元。
-TickFlow共用`klines.batch(period=...)`；rustdx共用bars频率8/0/1/9/5。
+TickFlow共用`klines.batch(period=...)`；rustdx默认采集使用bars频率8/9/5。
+适配器保留其已有5/15分钟直接调用兼容能力，应用的默认路径不使用这些能力。
 自定义HTTP源使用minute/daily既有配置，`freq_param`同时写入请求参数/请求体；
 未配置周期参数的旧源只允许原1m/1d，其他周期明确拒绝。
 旧插件未实现统一方法时保持1m/1d兼容，不据方法签名猜测其他周期支持。
@@ -13,8 +15,9 @@ TickFlow共用`klines.batch(period=...)`；rustdx共用bars频率8/0/1/9/5。
 HTTP消费方复用 `/api/kline/minute?symbol=600000.SH&date=2026-10-23&freq=5m`
 或 `freq=15m`，周线复用 `/api/kline/daily?symbol=600000.SH&freq=1w`；
 返回沿用原rows结构，周K的date为周一。省略freq保持原1m/1d行为。
-旧分钟插件有显式 `get_minute(..., freq=...)` 时也可接收5m/15m，
-无周期参数不能把1m响应标为其他周期；源失败不静默跨源。
+5m/15m查询优先计算本地1m，基础无结果时兼容已有对应周期分区；
+无本地结果返回空数据，不受上游能力门控、不远程回退。
+1分钟、日K和周K源失败不静默跨源。旧插件无需新增5m/15m方法即可提供派生数据。
 
 2026-10-26开放契约复核：Tier A端点集合及响应components保持不变，
 仅上述daily/minute两个GET新增可选`freq`，缺省分别1d/1m。

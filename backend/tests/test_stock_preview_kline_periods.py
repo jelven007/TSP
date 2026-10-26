@@ -37,16 +37,39 @@ def test_chart_query_returns_requested_period_across_days_in_order(app, monkeypa
         assert rows[1]["date"].startswith("2026-10-23 09:40")
 
 
-def test_missing_ten_minute_data_is_empty_without_remote_or_other_period_substitution(app, monkeypatch):
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+def test_missing_derived_minute_data_is_empty_without_remote_or_other_period_substitution(app, monkeypatch, period):
     monkeypatch.setattr(kline, "_get_stock_info", lambda *a: {})
-    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("10分K不得远程取数"))
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("派生分钟不得远程取数"))
     with TestClient(app) as client:
         response = client.get("/api/kline/daily", params={
-            "symbol": "600000.SH", "freq": "10m", "start_date": "2026-10-19", "end_date": "2026-10-23",
+            "symbol": "600000.SH", "freq": period, "start_date": "2026-10-19", "end_date": "2026-10-23",
         })
     assert response.status_code == 200, response.text
     assert response.json()["rows"] == []
     assert response.json()["source"] == "none"
+
+
+@pytest.mark.parametrize(("period", "count"), [("5m", 6), ("10m", 4), ("15m", 2)])
+def test_chart_computes_derived_period_from_local_one_minute_across_days(app, monkeypatch, period, count):
+    stamps = [datetime(2026, 10, day, 9, minute) for day in (22, 23) for minute in (31, 40, 41)]
+    frame = pl.DataFrame({
+        "symbol": ["600000.SH"] * 6, "datetime": stamps,
+        **{c: [10., 11., 12., 20., 21., 22.] for c in ("open", "high", "low", "close", "volume", "amount")},
+    })
+    kline_periods.persist_period(app.state.repo, "1m", frame)
+    monkeypatch.setattr(kline, "_get_stock_info", lambda *a: {})
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("chart must stay local"))
+    with TestClient(app) as client:
+        response = client.get("/api/kline/daily", params={
+            "symbol": "600000.SH", "freq": period, "start_date": "2026-10-22", "end_date": "2026-10-23",
+        })
+    assert response.status_code == 200, response.text
+    assert response.json()["source"] == "local"
+    rows = response.json()["rows"]
+    assert len(rows) == count
+    assert rows[-1]["close"] == 22.
+    assert rows[-1]["date"].startswith("2026-10-23")
 
 
 def test_chart_period_query_keeps_missing_prices_and_rejects_invalid_range(app, monkeypatch):

@@ -1297,8 +1297,11 @@ async def sync_period_job(request: Request, body: dict):
                     datetime.combine(end_day, time.max), on_progress=progress,
                 ),
             )
-            progress("done", 100, f"已写入 {result['rows']} 行", stage_pct=100)
-            job_store.succeed(job_id, result)
+            if "error" in result:
+                job_store.fail(job_id, result["error"])
+            else:
+                progress("done", 100, f"已写入 {result['rows']} 行", stage_pct=100)
+                job_store.succeed(job_id, result)
         except JobCancelledError:
             job_store.cancelled(job_id)
         except Exception as exc:
@@ -1646,7 +1649,7 @@ async def repair_daily(request: Request):
         capset = request.app.state.capabilities
 
         from app.tickflow.capabilities import Cap
-        if period != "10m":
+        if period not in kline_periods.LOCAL_DERIVED_PERIODS:
             daily = period in ("1d", "1w")
             source = preferences.get_daily_data_provider() if daily else preferences.get_minute_data_provider()
             if source == "tickflow":

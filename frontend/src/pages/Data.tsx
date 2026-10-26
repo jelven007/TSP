@@ -9,7 +9,6 @@ import {
   Loader2,
   HardDrive,
   Clock,
-  Calendar,
   CheckSquare,
   Trash2,
   Plus,
@@ -37,7 +36,6 @@ import { KLINE_QUERY_PREFIXES, QK } from '@/lib/queryKeys'
 import { PageHeader } from '@/components/PageHeader'
 import { toast } from '@/components/Toast'
 import { useAdjFactorSyncGate } from '@/components/AdjFactorSyncGate'
-import { formatScheduleDatePart, formatScheduleTimePart, isToday } from '@/lib/format'
 import { findDataSource } from '@/lib/dataSources'
 
 // 拆分出的子组件
@@ -46,8 +44,9 @@ import { ActiveJobCard } from '@/components/data/ActiveJobCard'
 import { SectionTitle, HistoryRow } from '@/components/data/SectionTitle'
 import { SettingsModal } from '@/components/data/SettingsModal'
 import { StockCatalogDialog } from '@/components/data/StockCatalogDialog'
-import { ScheduleEditor } from '@/components/data/ScheduleEditor'
+import { ScheduleOverview } from '@/components/data/ScheduleOverview'
 import { KlineSyncConfig } from '@/components/data/KlineSyncConfig'
+import { isLocalDerivedPeriod } from '@/lib/klinePeriods'
 import { RepairDailyPanel } from '@/components/data/RepairDailyPanel'
 import { EnrichedRebuildPanel } from '@/components/data/EnrichedRebuildPanel'
 import { RegimeConfigCard } from '@/components/data/RegimeConfigCard'
@@ -156,21 +155,7 @@ export function Data() {
     },
   })
 
-  const updateSchedule = useMutation({
-    mutationFn: ({ hour, minute }: { hour: number; minute: number }) =>
-      api.updatePipelineSchedule(hour, minute),
-    onSuccess: (schedule) => {
-      qc.setQueryData<Awaited<ReturnType<typeof api.preferences>>>(QK.preferences, current =>
-        current ? { ...current, pipeline_schedule: schedule } : current,
-      )
-      qc.invalidateQueries({ queryKey: QK.preferences })
-      qc.invalidateQueries({ queryKey: QK.dataStatus })
-      setShowScheduleEdit(false)
-    },
-  })
-
   const [openSettings, setOpenSettings] = useState<string | null>(null)
-  const [showScheduleEdit, setShowScheduleEdit] = useState(false)
   const [showStockCatalog, setShowStockCatalog] = useState(false)
   const [indexExtendValue, setIndexExtendValue] = useState(6)
   const [indexExtendUnit, setIndexExtendUnit] = useState<'month' | 'year'>('month')
@@ -232,8 +217,6 @@ export function Data() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tfCaps, matrix.data])
 
-  const minuteAuto = prefs.data?.minute_sync_enabled ?? true
-  const pipelineSched = prefs.data?.pipeline_schedule ?? { hour: 16, minute: 0 }
   const indexDailyBatchSize = prefs.data?.index_daily_batch_size ?? 100
   const autoSyncEnabled = prefs.data?.data_sync_auto_enabled ?? true
   const updateAutoSync = useMutation({
@@ -276,33 +259,22 @@ export function Data() {
   }, [])
   const quoteInterval = useQuoteInterval()
   const updateInterval = useUpdateQuoteInterval()
+  const minuteRefresh = useQuery({
+    queryKey: QK.minuteRefreshStatus,
+    queryFn: api.minuteRefreshStatus,
+    refetchInterval: 30_000,
+  })
 
   const realtimeEnabled = prefs.data?.realtime_quotes_enabled ?? true
   const quoteStatus = useQuoteStatus()
   const toggleQuote = useToggleRealtimeQuotes()
   const realtimeIntervalS = quoteInterval.data?.interval ?? quoteStatus.data?.interval_s ?? 3
-  const intradayStatus = !realtimeEnabled ? '已关闭'
-    : quoteStatus.isLoading ? '加载中…'
-    : quoteStatus.isError ? '状态获取失败'
-    : quoteStatus.data?.paused ? '同步期间暂停'
-    : quoteStatus.data?.running
-      ? (quoteStatus.data.is_trading_hours ? '行情运行中' : '非交易时段暂停')
-      : '已停止'
-
+  const realtimeAvailable = routeCapUsable(matrix.data, 'realtime') ?? quoteStatus.data?.realtime_allowed
   // 路由感知能力门控: 矩阵判定生效源可用性, 未加载回退套餐视角
-  const hasAdjCap = usableOr('adj_factor', !!tfCaps?.['adj_factor'])
   const hasDailyBatchCap = usableOr('daily', !!tfCaps?.['kline.daily.batch'])
   const hasMinuteCap = usableOr('minute', !!tfCaps?.['kline.minute.batch'])
   const indexAuto = prefs.data?.pipeline_pull_index ?? true
   const etfAuto = prefs.data?.pipeline_pull_etf ?? true
-  const pipelineSteps = [
-    '日K',
-    ...(hasAdjCap ? ['复权'] : []),
-    '指标',
-    ...(indexAuto ? ['指数'] : []),
-    ...(etfAuto ? ['ETF'] : []),
-    ...((hasMinuteCap && minuteAuto) ? ['分钟K'] : []),
-  ]
 
   // 数据画像卡片显隐(由页面设置弹窗控制,存 localStorage)
   const [cardVisibleTick, setCardVisibleTick] = useState(0)
@@ -593,9 +565,9 @@ export function Data() {
         const period = k === 'weekly' ? '1w' : k
         return <StatCard
           title={k === 'weekly' ? '周K' : `${k.slice(0, -1)}分K`}
-          hint={k === '10m' ? '由1分K实时计算' : k === 'weekly' ? '交易日16:00同步' : '交易时段周期同步'}
+          hint={k === 'weekly' ? '由本地日K计算，不请求上游' : '由本地1分K计算，不请求上游'}
           stats={s?.[k]} loading={isLoading} tierKey={k === 'weekly' ? 'daily' : 'minute'}
-          capLimits={mergedCaps} customProvider={k === '10m' ? '本地计算' : routeProviderDisplay(matrix.data, k === 'weekly' ? 'daily' : 'minute')}
+          capLimits={mergedCaps} customProvider={isLocalDerivedPeriod(period) ? '本地计算' : routeProviderDisplay(matrix.data, 'daily')}
           auto={klineConfigs.data?.[period].enabled ?? true} manual={!autoSyncEnabled}
           active={activeCard === k} done={doneStages.has(k)}
           stagePct={activeCard === k ? job.data?.stage_pct ?? 0 : 0}
@@ -772,7 +744,7 @@ export function Data() {
           )}
         </AnimatePresence>
 
-        {/* 实时行情 / 同步调度 / 存储：桌面 1:2:1，窄屏纵向排列 */}
+        {/* 实时行情 / 自动任务 / 存储：桌面 1:2:1，窄屏纵向排列 */}
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
           <div className="min-w-0 [&>div]:h-full">
             <QuoteConfigCard
@@ -792,141 +764,34 @@ export function Data() {
             />
           </div>
 
-          {/* 自动调度 */}
-          <div className="min-w-0 xl:col-span-2 rounded-card border border-border bg-surface p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="h-4 w-4 text-secondary" />
-              <h3 className="text-sm font-medium text-foreground">同步调度</h3>
-            </div>
-            {isLoading ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between"><Skeleton w="w-16" /><Skeleton w="w-28" /></div>
-                <div className="flex items-center justify-between"><Skeleton w="w-16" /><Skeleton w="w-28" /></div>
-                <div className="flex items-center justify-between"><Skeleton w="w-6" /><Skeleton w="w-20" /></div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-secondary">自动同步</span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    aria-label="自动同步"
-                    className="h-4 w-4 accent-accent cursor-pointer disabled:cursor-not-allowed"
-                    checked={autoSyncEnabled}
-                    onChange={event => updateAutoSync.mutate(event.target.checked)}
-                    disabled={prefs.isLoading || prefs.isError || updateAutoSync.isPending}
-                  />
-                </div>
-                <p className="text-[11px] text-muted leading-relaxed">
-                  {autoSyncEnabled
-                    ? '已开启盘后行情、竞价快照和五档定版任务。个股维表始终自动同步。'
-                    : '手动模式：行情定时任务和启动补跑已暂停。个股维表仍在启动时及每天 09:00 自动同步。'}
+          <div className="min-w-0 xl:col-span-2">
+            <div className="mb-2 flex items-center justify-between gap-3 px-1">
+              <div>
+                <div className="text-xs text-secondary">自动同步总开关</div>
+                <p className="mt-0.5 text-[10px] text-muted">
+                  关闭后，任务清单会保留并明确标注暂停项；个股维表与数据源能力检查继续运行。
                 </p>
-                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted pb-2 border-b border-border/50">
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                    <span className="text-accent/60 font-medium">盘前</span>
-                    <span>个股维表</span>
-                  </span>
-                  <span className="text-border">→</span>
-                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                    <span className="text-accent/60 font-medium">盘中</span>
-                    <span>实时行情</span>
-                  </span>
-                  <span className="text-border">→</span>
-                  <span className="text-accent/60 font-medium">盘后</span>
-                  {pipelineSteps.map((step, i) => (
-                    <span key={step} className="contents">
-                      {i > 0 && <span className="text-border">→</span>}
-                      <span className="whitespace-nowrap">{step}</span>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-muted">时区</span>
-                  <span className="font-mono text-secondary">Asia/Shanghai</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                  <div className="flex items-center gap-1">
-                    <span className="text-muted">盘前 · 个股维表</span>
-                    <span className="text-muted/50">·</span>
-                    <span className="font-mono text-secondary">
-                      09:00
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 font-mono text-secondary">
-                    {s?.last_instruments_run && (
-                      <span className={`inline-flex flex-col items-center leading-tight ${isToday(s.last_instruments_run) ? 'text-bear' : 'text-secondary/70'}`}>
-                        <span>✓ {formatScheduleDatePart(s.last_instruments_run)}</span>
-                        <span>{formatScheduleTimePart(s.last_instruments_run)}</span>
-                      </span>
-                    )}
-                    {s?.next_instruments_run && (
-                      <span className="inline-flex flex-col items-center leading-tight text-foreground">
-                        <span>→ {formatScheduleDatePart(s.next_instruments_run)}</span>
-                        <span>{formatScheduleTimePart(s.next_instruments_run)}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px]">
-                  <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
-                    <span className="text-muted">盘中 · 实时行情</span>
-                    <span className="text-muted/50">·</span>
-                    <span className="font-mono text-secondary">09:15–11:30 / 13:00–15:15</span>
-                  </div>
-                  <span className="text-secondary">{intradayStatus} · {realtimeIntervalS}s</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                  <div className="flex items-center gap-1">
-                    <span className="text-muted">盘后 · 全量管道</span>
-                    <span className="text-muted/50">·</span>
-                    <span className="font-mono text-secondary">
-                      {`${String(pipelineSched.hour).padStart(2, '0')}:${String(pipelineSched.minute).padStart(2, '0')}`}
-                    </span>
-                    <button
-                      onClick={() => setShowScheduleEdit(v => !v)}
-                      aria-label="修改全量管道同步时间"
-                      className={`p-0.5 rounded hover:bg-elevated transition-colors ${showScheduleEdit ? 'text-accent' : 'text-secondary'}`}
-                    >
-                      <Clock className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 font-mono text-secondary">
-                    {s?.last_pipeline_run && (
-                      <span className={`inline-flex flex-col items-center leading-tight ${isToday(s.last_pipeline_run) ? 'text-bear' : 'text-secondary/70'}`}>
-                        <span>✓ {formatScheduleDatePart(s.last_pipeline_run)}</span>
-                        <span>{formatScheduleTimePart(s.last_pipeline_run)}</span>
-                      </span>
-                    )}
-                    {s?.next_pipeline_run && (
-                      <span className="inline-flex flex-col items-center leading-tight text-foreground">
-                        <span>→ {formatScheduleDatePart(s.next_pipeline_run)}</span>
-                        <span>{formatScheduleTimePart(s.next_pipeline_run)}</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <AnimatePresence>
-                  {showScheduleEdit && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                      className="overflow-hidden"
-                    >
-                      <ScheduleEditor
-                        value={pipelineSched}
-                        onSave={(h, m) => updateSchedule.mutate({ hour: h, minute: m })}
-                        loading={updateSchedule.isPending}
-                        hint="不早于 15:35"
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
-            )}
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="自动同步"
+                className="h-4 w-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed"
+                checked={autoSyncEnabled}
+                onChange={event => updateAutoSync.mutate(event.target.checked)}
+                disabled={prefs.isLoading || prefs.isError || updateAutoSync.isPending}
+              />
+            </div>
+            <ScheduleOverview
+              preferences={prefs.data}
+              klineConfigs={klineConfigs.data}
+              minuteRefresh={minuteRefresh.data}
+              quoteStatus={quoteStatus.data}
+              realtimeAvailable={realtimeAvailable}
+              financialAvailable={usableOr('financial', !!tfCaps?.financial)}
+              depthAvailable={usableOr('depth5', !!tfCaps?.['depth5.batch'])}
+              extConfigs={extConfigs.data?.items ?? []}
+            />
           </div>
 
           {/* 存储 */}
@@ -1069,7 +934,7 @@ export function Data() {
           <SettingsModal title={`${({ minute: '1分K', daily: '日K', weekly: '周K' } as Record<string, string>)[openSettings] ?? `${openSettings.slice(0, -1)}分K`} · 同步设置`} onClose={() => setOpenSettings(null)}>
             <KlineSyncConfig
               period={(({ minute: '1m', daily: '1d', weekly: '1w' } as Record<string, KlinePeriod>)[openSettings] ?? openSettings) as KlinePeriod}
-              hasCap={['daily', 'weekly'].includes(openSettings) ? hasDailyBatchCap : openSettings === '10m' || hasMinuteCap}
+              hasCap={openSettings === 'daily' ? hasDailyBatchCap : isLocalDerivedPeriod(openSettings) || hasMinuteCap}
               isRunning={!!activeJobId}
               earliestDate={s?.[openSettings as 'minute' | 'daily' | 'weekly' | '5m' | '10m' | '15m']?.earliest_date ?? null}
               onJobStart={id => { setActiveJobId(id); setOpenSettings(null) }}

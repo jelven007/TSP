@@ -20,12 +20,13 @@ _MORNING_END = dt_time(11, 30)
 _AFTERNOON_START = dt_time(13, 0)
 _AFTERNOON_END = dt_time(15, 0)
 
-# 盘中常驻拉取窗口: 竞价预热从 09:15 开始, 收盘定版延续到 15:15。
-# 结束边界采用半开区间, 11:30 与 15:15 到点即停。
+# 交易日数据采集窗口: 竞价预热从 09:15 开始, 收盘定版延续到 16:00。
+# 结束边界采用半开区间, 11:45 与 16:00 到点即停。
+TRADING_DAY_COLLECTION_WINDOWS = (("09:15", "11:45"), ("13:00", "16:00"))
 _INTRADAY_POLL_MORNING_START = dt_time(9, 15)
-_INTRADAY_POLL_MORNING_END = dt_time(11, 30)
+_INTRADAY_POLL_MORNING_END = dt_time(11, 45)
 _INTRADAY_POLL_AFTERNOON_START = dt_time(13, 0)
-_INTRADAY_POLL_AFTERNOON_END = dt_time(15, 15)
+_INTRADAY_POLL_AFTERNOON_END = dt_time(16, 0)
 
 # 盘前集合竞价采样窗口: 09:15-09:25 (半开区间)。覆盖竞价指示价的持续变化;
 # 09:25 撮合终态由独立的 auction_snapshot 采集, 不在此窗口内。
@@ -113,7 +114,7 @@ def in_continuous_session(now: datetime | None = None) -> bool:
 
 
 def in_intraday_polling_window(now: datetime | None = None) -> bool:
-    """盘中常驻拉取窗口: 09:15-11:30 / 13:00-15:15, 仅工作日。
+    """交易日数据采集窗口: 09:15-11:45 / 13:00-16:00, 仅工作日。
 
     节假日由调用方通过交易日探针判断; 本函数只负责北京时间、周末和双时段边界。
     """
