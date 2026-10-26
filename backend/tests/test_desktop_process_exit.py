@@ -103,8 +103,9 @@ pub extern "system" fn DllMain(
 @pytest.mark.skipif(sys.platform != "win32", reason="requires Windows DLL detach")
 @pytest.mark.parametrize("exit_code", [0, 1])
 def test_frozen_windows_exits_with_blocked_native_detach(
-    blocking_detach_dll: Path, exit_code: int,
+    blocking_detach_dll: Path, exit_code: int, tmp_path: Path,
 ) -> None:
+    cleanup_marker = tmp_path / "cleanup.txt"
     program = """
 import ast
 import ctypes
@@ -116,6 +117,7 @@ library = ctypes.WinDLL(sys.argv[3])
 sys.frozen = True
 footer = ast.parse(Path(sys.argv[1]).read_text()).body[-1]
 def application_main():
+    Path(sys.argv[4]).write_text("APPLICATION_CLEANUP_DONE", encoding="utf-8")
     print("APPLICATION_CLEANUP_DONE", flush=True)
     return int(sys.argv[2])
 exec(compile(ast.Module(body=[footer], type_ignores=[]), "<desktop-entry>", "exec"), {
@@ -126,10 +128,12 @@ exec(compile(ast.Module(body=[footer], type_ignores=[]), "<desktop-entry>", "exe
     try:
         result = subprocess.run(
             [sys.executable, "-c", program, str(DESKTOP), str(exit_code),
-             str(blocking_detach_dll)],
+             str(blocking_detach_dll), str(cleanup_marker)],
             capture_output=True, text=True, timeout=3,
         )
-    except subprocess.TimeoutExpired as error:
-        pytest.fail(f"native detach blocked desktop exit after cleanup: {error.stdout!r}")
+    except subprocess.TimeoutExpired:
+        assert cleanup_marker.read_text(encoding="utf-8") == "APPLICATION_CLEANUP_DONE"
+        pytest.fail("native detach blocked desktop exit after APPLICATION_CLEANUP_DONE")
     assert result.returncode == exit_code, result.stderr
     assert result.stdout.strip() == "APPLICATION_CLEANUP_DONE"
+    assert cleanup_marker.read_text(encoding="utf-8") == "APPLICATION_CLEANUP_DONE"
