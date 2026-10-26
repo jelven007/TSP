@@ -19,7 +19,7 @@ import sys
 import threading
 from pathlib import Path
 
-footer = ast.parse(Path(sys.argv[1]).read_text()).body[-1]
+footer = ast.parse(Path(sys.argv[1]).read_text(encoding="utf-8")).body[-1]
 assert isinstance(footer, ast.If)
 sys.frozen = True
 worker_ready = threading.Event()
@@ -57,7 +57,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-footer = ast.parse(Path(sys.argv[1]).read_text()).body[-1]
+footer = ast.parse(Path(sys.argv[1]).read_text(encoding="utf-8")).body[-1]
 def flush_marker():
     print("NORMAL_ATEXIT", flush=True)
 __import__("atexit").register(flush_marker)
@@ -115,7 +115,7 @@ import sys
 from pathlib import Path
 library = ctypes.WinDLL(sys.argv[3])
 sys.frozen = True
-footer = ast.parse(Path(sys.argv[1]).read_text()).body[-1]
+footer = ast.parse(Path(sys.argv[1]).read_text(encoding="utf-8")).body[-1]
 def application_main():
     Path(sys.argv[4]).write_text("APPLICATION_CLEANUP_DONE", encoding="utf-8")
     print("APPLICATION_CLEANUP_DONE", flush=True)
