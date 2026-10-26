@@ -34,3 +34,19 @@ it('reads explicit historical snapshots and encodes paging and record identifier
   expect(fetch.mock.calls[0][0]).toContain('cursor=id%3Acursor')
   expect(fetch.mock.calls[1][0]).toContain('id%3Arecord')
 })
+
+it('encodes literal history filters and deletes only the selected record', async () => {
+  const fetch = vi.fn(async (_path: string, _init?: RequestInit) => new Response(JSON.stringify({ ok: true })))
+  vi.stubGlobal('fetch', fetch)
+  const filters = { q: '旧名称_100%', start_date: '2026-10-20', end_date: '2026-10-22',
+    asset_type: 'etf' as const, timeframe: '1m' as const }
+  await api.screenerResultHistory('sample/one', 'id:cursor', filters)
+  const url = new URL(fetch.mock.calls[0][0], 'http://test.local')
+  expect(url.pathname).toBe('/api/screener/result-history/sample%2Fone')
+  for (const [name, value] of Object.entries(filters)) expect(url.searchParams.get(name)).toBe(value)
+  expect(QK.screenerHistory('sample', undefined, filters)).not.toEqual(QK.screenerHistory('sample'))
+  expect(QK.screenerHistory('sample')).toEqual(['screener-history', 'sample', ''])
+  await api.screenerResultHistoryDelete('sample/one', 'id:record')
+  expect(fetch.mock.calls[1][0]).toBe('/api/screener/result-history/sample%2Fone/id%3Arecord')
+  expect(fetch.mock.calls[1][1]?.method).toBe('DELETE')
+})

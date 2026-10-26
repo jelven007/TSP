@@ -46,6 +46,100 @@ def test_sql_targets_resolve_only_owned_groups_and_block_deletion(env):
     assert watchlist.delete_group(group["id"])[0] == []
 
 
+@pytest.mark.parametrize("operation", ["clear", "clear_group", "cell_clear"])
+def test_sql_clear_reference_protection_is_atomic_and_tenant_scoped(env, operation):
+    from app.cell.context import AccessError
+    from app.cell.watchlist import Watchlist as CellWatchlist
+
+    own, watchlist = stores(env)
+    _other, foreign = stores(env)
+    _, group = watchlist.create_group("核心", symbols=["600000.SH"])
+    _, second = watchlist.create_group("观察", symbols=["600000.SH"])
+    foreign.add("000001.SZ")
+    config.save_override(own, "target", target(group["id"]))
+    before, rev = watchlist.list_symbols(), watchlist.revision()
+    if operation == "cell_clear":
+        with pytest.raises(AccessError) as error:
+            CellWatchlist(env["db"]).remove(own.context, None)
+        assert error.value.status == 409
+    else:
+        args = [group["id"]] if operation == "clear_group" else []
+        with pytest.raises(ValueError, match="被策略引用"):
+            getattr(watchlist, operation)(*args)
+    assert watchlist.list_symbols() == before and watchlist.revision() == rev
+    assert len(before) == 1 and set(before[0]["group_ids"]) == {group["id"], second["id"]}
+    # 其他租户和不被引用的分组仍可清空。
+    assert foreign.clear() == 1
+    watchlist.clear_group(second["id"])
+    assert watchlist.list_symbols()[0]["group_ids"] == [group["id"]]
+    config.delete_override(own, "target")
+    assert watchlist.clear() == 1
+
+
+def test_sql_watchlist_clear_http_returns_conflict_and_preserves_members(env):
+    from types import SimpleNamespace
+
+    from app.api.watchlist import router
+
+    token, account = register(env)
+    context = env["identity"].context(account, None, "clear-http")
+    own, watchlist = TenantDocuments(env["db"], context), Watchlist(env["db"], context)
+    _, group = watchlist.create_group("核心", symbols=["600000.SH"])
+    config.save_override(own, "target", target(group["id"]))
+    client = env["client"]
+    client.app.include_router(router)
+    client.app.state.repo = SimpleNamespace(get_name_map=lambda _: {})
+    client.cookies.set("tf_session", token)
+    for method, path in [
+        ("delete", "/api/watchlist"), ("post", f"/api/watchlist/groups/{group['id']}/clear"),
+    ]:
+        response = getattr(client, method)(path)
+        assert response.status_code == 409, response.text
+        assert "被策略引用" in response.json()["detail"]
+    assert watchlist.list_symbols()[0]["group_ids"] == [group["id"]]
+    config.delete_override(own, "target")
+    assert client.delete("/api/watchlist").json() == {"removed": 1}
+
+
+def test_sql_strategy_monitor_enable_reloads_current_target_members(env, monkeypatch):
+    from types import SimpleNamespace
+
+    from app.api import monitor_rules, strategy
+
+    token, account = register(env)
+    context = env["identity"].context(account, None, "enable-http")
+    own, watchlist = TenantDocuments(env["db"], context), Watchlist(env["db"], context)
+    _, group = watchlist.create_group("核心", symbols=["600000.SH"])
+    config.save_override(own, "target", target(group["id"]))
+    monkeypatch.setattr(strategy, "_get_engine", lambda _: SimpleNamespace(
+        get=lambda _: object(), validate_context=lambda *_: None,
+    ))
+    load = config.load_override
+    members = []
+
+    def record(storage, sid):
+        value = load(storage, sid)
+        members.append(value["basic_filter"]["target_symbols"])
+        return value
+
+    monkeypatch.setattr(config, "load_override", record)
+    client = env["client"]
+    client.app.include_router(monitor_rules.router)
+    client.app.state.repo = SimpleNamespace()
+    client.cookies.set("tf_session", token)
+    rule = {"id": "target_monitor", "name": "策略监控", "type": "strategy",
+            "scope": "all", "strategy_id": "target", "enabled": True}
+    assert client.post("/api/monitor-rules", json=rule).status_code == 200
+    assert members == [["600000.SH"]]
+    assert client.post("/api/monitor-rules", json={**rule, "enabled": False}).status_code == 200
+    watchlist.add("300750.SZ", group_id=group["id"])
+    assert client.post("/api/monitor-rules", json=rule).status_code == 200
+    assert members == [["600000.SH"], ["300750.SZ", "600000.SH"]]
+    with own.transaction(write=False) as unit:
+        saved = unit.connection.execute("SELECT definition FROM business.monitor_rules").fetchone()["definition"]
+    assert saved["symbols"] == [] and "target_symbols" not in saved["basic_filter"]
+
+
 def test_sql_group_import_and_strategy_save_rollback_together(env):
     own, watchlist = stores(env)
     _, group = watchlist.create_group("核心")

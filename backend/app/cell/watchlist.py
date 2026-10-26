@@ -77,6 +77,11 @@ class Watchlist:
         with self.db.business_transaction(context, write=True) as conn:
             self._lock(conn)
             if symbol is None:
+                from app.strategy.targets import ensure_clearable, sql_references
+                try:
+                    ensure_clearable(None, sql_references(conn))
+                except ValueError as exc:
+                    raise AccessError(409, str(exc)) from exc
                 conn.execute("DELETE FROM business.watchlist_items")
             else:
                 conn.execute("DELETE FROM business.watchlist_items WHERE symbol = %s", (symbol,))

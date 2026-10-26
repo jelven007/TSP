@@ -60,6 +60,33 @@ def test_first_single_run_persists_and_date_switch_reads_without_calculation(run
     assert "rows" not in summary["results"]["sample"]
 
 
+def test_repeated_single_and_batch_runs_share_unchanged_daily_archive(runtime, monkeypatch):
+    import app.services.screener as service
+    from app.api import strategy
+
+    storage, engine, request, _ = runtime
+    monkeypatch.setattr(service, "ScreenerService", screener.ScreenerService)
+    monkeypatch.setattr(screener, "_coverage_warnings", lambda *a, **kw: [])
+    monkeypatch.setattr(engine, "run_all", lambda context, **kw: {
+        "sample": StrategyResult(context.as_of, "sample", [{"symbol": str(context.as_of)}], 1),
+    })
+    day = "2026-10-22"
+    body = screener.PresetRequest(strategy_id="sample", as_of=day)
+    screener.run_preset(body, request)
+    key = strategy_results.capture_identity(engine, storage, "sample")
+    store = strategy_results.StrategyResults(storage)
+    first = store.read(key, day)
+    screener.run_preset(body, request)
+    screener.run_all(request, {"as_of": day})
+    strategy.run_strategy(strategy.RunRequest(strategy_id="sample", as_of=day), request)
+    strategy.run_all(strategy.RunAllRequest(as_of=day), request)
+    repeated = store.read(key, day)
+    assert repeated["result"] == first["result"]
+    assert repeated["_cache_token"] == first["_cache_token"]
+    assert repeated["summary"]["computed_at"] == first["summary"]["computed_at"]
+    assert len(screener.get_result_history("sample", request, limit=30, cursor=None)["records"]) == 1
+
+
 def test_changed_parameters_miss_but_old_snapshot_is_readable(runtime):
     storage, _, request, _ = runtime
     screener.run_preset(screener.PresetRequest(strategy_id="sample", as_of="2026-10-22"), request)
@@ -157,3 +184,44 @@ def test_saved_detail_keeps_other_strategy_membership_for_selected_symbols(runti
         )
     payload = screener.get_cached_result("sample", request, as_of=date(2026, 10, 22))
     assert payload["strategy_ids_by_symbol"] == {"A": ["other", "sample"]}
+
+
+def test_history_http_filters_validation_and_delete(runtime):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    _, _, request, _ = runtime
+    for day in ("2026-10-22", "2026-10-23"):
+        screener.run_preset(screener.PresetRequest(strategy_id="sample", as_of=day), request)
+    app = FastAPI()
+    app.state.repo = request.app.state.repo
+    app.include_router(screener.router)
+    with TestClient(app) as client:
+        url = "/api/screener/result-history/sample"
+        response = client.get(url, params={"q": "样例", "start_date": "2026-10-22",
+                                          "end_date": "2026-10-22", "asset_type": "stock",
+                                          "timeframe": "1d"})
+        assert response.status_code == 200
+        assert [r["as_of"] for r in response.json()["records"]] == ["2026-10-22"]
+        for filters in ({"start_date": "bad"}, {"asset_type": "index"}, {"timeframe": "bad"},
+                        {"start_date": "2026-10-23", "end_date": "2026-10-22"}):
+            assert client.get(url, params=filters).status_code == 400
+        record_id = response.json()["records"][0]["record_id"]
+        assert client.delete(f"/api/screener/result-history/other/{record_id}").status_code == 404
+        assert client.delete(f"{url}/{record_id}").status_code == 200
+        assert client.get(f"{url}/{record_id}").status_code == 404
+        assert client.delete(f"{url}/{record_id}").status_code == 404
+        assert [r["as_of"] for r in client.get(url).json()["records"]] == ["2026-10-23"]
+
+
+def test_history_delete_failure_is_explicit_and_preserves_previous_result(runtime, monkeypatch):
+    storage, engine, request, _ = runtime
+    screener.run_preset(screener.PresetRequest(strategy_id="sample", as_of="2026-10-22"), request)
+    key = strategy_results.capture_identity(engine, storage, "sample")
+    monkeypatch.setattr(strategy_results.StrategyResults, "delete",
+                        lambda *a, **kw: (_ for _ in ()).throw(OSError("private disk path")))
+    with pytest.raises(HTTPException) as error:
+        screener.delete_result_history("sample", key.record_id("2026-10-22"), request)
+    assert error.value.status_code == 503
+    assert "private disk path" not in error.value.detail
+    assert strategy_results.StrategyResults(storage).read(key, "2026-10-22") is not None

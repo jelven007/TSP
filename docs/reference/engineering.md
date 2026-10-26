@@ -1,5 +1,27 @@
 # 工程与交付参考
 
+2026-10-26统一源码冻结、六类文档核对及交付事实见
+[本批整合](../../reports/current-state-release-20261026/verification.md)。
+升级前主线/本地0.4.23，生产0.4.22；新版本只由合并main后的CI分配。
+独立工作目录保留原工作区并行修改；每阶段执行质量门、固定产物、配置/恢复核对，
+构建与上线条件见[发布复核](../../reports/current-state-release-20261026/release-review.md)。
+
+2026-10-26历史结果筛选/删除属于`FR-STRATEGY-05`的L3局部变更：
+需求见[策略契约](../requirements.md)，方案见[归档架构](../architecture.md#strategy-result-history)，
+开发入口为`services/strategy_results.py`、`api/screener.py`、
+`StrategyResultHistoryDialog.tsx`、`api.ts`和`queryKeys.ts`，升级边界见
+[二次开发](../secondary-development.md)。测试见[验收](../testing.md)，
+用户及支持流程见[策略操作](../../操作说明书.md#82-策略卡片)与
+[服务运营](../release-operations.md)，备份/权限/重建缓存见[运维](../operations.md#strategy-history-backup)。
+不新增生产schema、扩展注册或运行配置，保留其他工作区修改，本地版本不加号。
+
+同日重复归档继续归`FR-STRATEGY-05`，L3修改仅在`StrategyResults.save`：
+相同结果复用明细和计算时间，必要时更新摘要中的最新任务顺序及输入来源。
+需求/方案/二开见上方链接，回归覆盖SQLite、真实PostgreSQL和单跑/批跑入口；
+用户说明见[策略操作](../../操作说明书.md#82-策略卡片)，支持及恢复边界见
+[服务运营](../release-operations.md)与[归档运维](../operations.md#strategy-history-backup)。
+旧日期/参数/版本不合并，不执行存量历史清理或迁移，本地不递增应用版本。
+
 2026-10-26六周期画像为L3聚焦变更。需求见[需求补充](../requirements.md)，
 方案见[当前架构](../architecture.md)，开发入口为 `services/kline_periods.py` 与
 `data_providers/*/get_klines`；前端复用 `KlineSyncConfig`、共享查询键和设置弹窗。
@@ -7,7 +29,19 @@
 备份、旧分钟基准及公共目录见[运维](../operations.md)，用户操作见
 [六周期设置](../../操作说明书.md#227-分钟-k-设置)。
 新增表仅用于数据画像和同步，不把它们自动注册为策略/回测可选周期。
+分钟/日K客户端保留原方法，新增可选freq；5m/15m/1w查询由 `query_period`
+复用同一Provider解析与独立分区。页面设置持久值先验证类型并去重，
+日/周离线表单共用 `KlineSyncConfig`，日K仍调用原历史流水线。
 版本沿用当前主线，合并时对基线三方应用，保留其他本地修改。
+
+历史同步进度修复归`FR-DATA-05`：开发接线包括`kline_periods.sync_period`、
+`extend_history.run_extend_history`、`JobStore.progress`及kline API回调；
+前端`ActiveJobCard`/`HistoryRow`经`lib/klinePeriods.ts`共用周期名称。
+不改变数据源、价格基准、分区或取消契约；阶段进度为已有可选字段。
+回归见[测试指南](../testing.md)，用户支持及运行更新边界见
+[运营](../release-operations.md)和[运维](../operations.md)。
+页面设置本轮增加共享Modal/StrictMode/父更新用例；当前环境尚未复现用户报错，
+不能将其标记为已定位修复。再次出现时须记录实际错误与触发环境后继续定位。
 
 本附录按领域维护实现方法、数据契约和可执行示例。通用开发要求只在[CONTRIBUTING](../../CONTRIBUTING.md)定义；需求与当前/目标边界见[需求](../requirements.md)和[系统方案](../architecture.md#current)。带日期的结果仅证明原版本、环境和窗口，不是本次重新执行的验证。
 

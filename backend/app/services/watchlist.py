@@ -97,7 +97,15 @@ def _read_entries() -> pl.DataFrame:
     if "note" not in df.columns:
         df = df.with_columns(pl.lit(None, dtype=pl.Utf8).alias("note"))
     from app.market_scope import filter_market_frame
-    return filter_market_frame(df.select(list(_ENTRY_SCHEMA)))
+    df = filter_market_frame(df.select(list(_ENTRY_SCHEMA)))
+    if df["symbol"].is_duplicated().any():
+        # 旧文件可能按分组重复保存证券; 合并关系, 保留首条的排序、备注和加入日期。
+        df = df.group_by("symbol", maintain_order=True).agg(
+            pl.col("added_at").first(),
+            pl.col("note").first(),
+            pl.col("group_ids").explode(empty_as_null=False).drop_nulls().unique(maintain_order=True),
+        )
+    return df
 
 
 def _write_entries(df: pl.DataFrame) -> None:
@@ -246,7 +254,9 @@ def move_to_top(symbol: str) -> list[dict]:
 
 def clear() -> int:
     """清空自选列表。返回移除的数量。"""
+    from app.strategy.targets import ensure_clearable, file_references
     with _LOCK:
+        ensure_clearable(None, file_references(settings.data_dir))
         df = _read_entries()
         count = df.height
         if count > 0:
@@ -417,10 +427,12 @@ def _strip_group(df: pl.DataFrame, group_id: str) -> pl.DataFrame:
 
 def clear_group(group_id: str) -> list[dict]:
     """清空分组成员:把该分组标签从所有条目摘掉(变未分组),保留分组定义。"""
+    from app.strategy.targets import ensure_clearable, file_references
     with _LOCK:
         groups = _read_groups()
         if not any(group["id"] == group_id for group in groups):
             raise KeyError(group_id)
+        ensure_clearable(group_id, file_references(settings.data_dir))
         df = _strip_group(_read_entries(), group_id)
         _write_entries(df)
         return df.to_dicts()

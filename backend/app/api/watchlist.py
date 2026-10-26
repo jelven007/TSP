@@ -235,6 +235,8 @@ def clear_group(group_id: str, request: Request):
         rows = _service(request).clear_group(group_id)
     except KeyError as e:
         raise HTTPException(404, "自选分组不存在") from e
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
     return {"symbols": _with_names(rows, request)}
 
 
@@ -394,7 +396,10 @@ def remove_one(symbol: str, request: Request):
 @router.delete("")
 def clear_all(request: Request = None):
     """清空自选列表。"""
-    count = _service(request).clear()
+    try:
+        count = _service(request).clear()
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from e
     return {"removed": count}
 
 
