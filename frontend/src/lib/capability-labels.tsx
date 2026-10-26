@@ -67,7 +67,7 @@ export function MissingCapChip({ capKey, label, to = '/settings?tab=data-sources
 // 矩阵未加载时返回 undefined, 调用方回退 TickFlow 套餐视角, 避免首屏闪烁。
 // 数据来自 useCapabilityMatrix (设置页与其他页面共享同一缓存)。
 
-export type RouteCapId = 'realtime' | 'daily' | 'minute' | 'adj_factor' | 'financial'
+export type RouteCapId = 'realtime' | 'daily' | 'minute' | 'depth5' | 'adj_factor' | 'financial'
 
 export function routeCap(matrix: CapabilityMatrix | undefined, id: RouteCapId): CapabilityRoute | undefined {
   return matrix?.capabilities.find(c => c.id === id)

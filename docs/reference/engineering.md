@@ -574,6 +574,12 @@ git ls-remote --tags origin 'refs/tags/v*'
 <a id="trace-本地变更与全生命周期追踪"></a>
 ## 5. 需求与生命周期追踪
 
+2026-10-26本地派生分钟候选关联FR-DATA-05与FR-UI-03查询契约，基于0.4.31，
+范围为5/10/15分钟的本地计算、入库、遗漏检测、门控和文案；六类主手册及二开/接入/
+用户手册同步。实际验证与未部署边界见
+[本地聚合记录](../../reports/local-derived-minutes-20261026/verification.md)。
+保留并行修改及既有行情，不递增版本，不把分支验证当作发布签收。
+
 更新日期：2026-10-25。本次基线为 `31cf1a553dbc806aac6e6f93f30f4f41b646aa3e` / 0.4.19，
 全部有效本地修改的范围和验证见[本批记录](../../reports/current-state-release-20261025/verification.md)。
 

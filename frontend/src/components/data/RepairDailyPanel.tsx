@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { api, type KlinePeriod } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
+import { isLocalDerivedPeriod, KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
 import { MissingCapChip } from '@/lib/capability-labels'
 import { DatePicker } from '@/components/DatePicker'
 
@@ -19,7 +19,7 @@ function daysAgo(n: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-// 日K和分钟K能力均由路由矩阵判定; 10分K仅依赖本地数据。
+// 日K和1分K能力由路由矩阵判定; 派生周期仅依赖本地基础K线。
 export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates, onStart }: {
   hasCap: boolean
   hasMinuteCap: boolean
@@ -30,7 +30,8 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
   const qc = useQueryClient()
   const [period, setPeriod] = useState<KlinePeriod>('1d')
   const daily = period === '1d'
-  const local = period === '10m'
+  const local = isLocalDerivedPeriod(period)
+  const localBase = period === '1w' ? '本地日K' : '本地1分K'
   const hasBatchCap = local || (daily || period === '1w' ? hasCap : hasMinuteCap)
   const latestDate = latestDates[period] ?? null
 
@@ -59,11 +60,37 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
         </div>
         <div className="text-[10px] text-muted leading-relaxed">
           {local
-            ? '由本地1分K自动计算10分K并入库；基础1分K不完整时，请先获取遗漏的1分K。'
+            ? `由${localBase}计算${KLINE_PERIOD_LABELS[period]}并入库，不向上游获取该周期数据；所需${localBase}不完整时，请先补齐${period === '1w' ? '日K' : '1分K'}。`
             : `通过当前K线数据源接口获取${KLINE_PERIOD_LABELS[period]}并入库。`}
-          {' '}获取全量数据会重新获取选定区间并覆盖旧值；获取遗漏数据会先检查缺口，仅补缺少的证券和时间，保留已有数据。
+          {' '}获取全量数据会{local ? '在本地重新计算' : '重新获取'}选定区间并覆盖旧值；获取遗漏数据会先检查缺口，仅补缺少的证券和时间，保留已有数据。
         </div>
       </div>
+
+      <details open className="border-y border-border/60 py-2 text-[10px] leading-relaxed">
+        <summary className="cursor-pointer font-medium text-secondary">修正说明</summary>
+        <dl className="mt-2 space-y-1.5 text-muted">
+          <div>
+            <dt className="inline text-secondary">范围：</dt>
+            <dd className="inline">从起始日期检查到今天；按所选K线周期分别执行。</dd>
+          </div>
+          <div>
+            <dt className="inline text-secondary">获取全量数据：</dt>
+            <dd className="inline">重新获取或本地重新计算选定区间，并覆盖同一记录的旧值。</dd>
+          </div>
+          <div>
+            <dt className="inline text-secondary">获取遗漏数据：</dt>
+            <dd className="inline">只写入缺失的证券和时间记录，已有数据保持不变。</dd>
+          </div>
+          <div>
+            <dt className="inline text-secondary">数据来源：</dt>
+            <dd className="inline">1分K、日K通过当前数据源接口获取；5分K、10分K、15分K由本地1分K聚合，周K由本地日K聚合。</dd>
+          </div>
+          <div>
+            <dt className="inline text-secondary">后续处理：</dt>
+            <dd className="inline">日K修正后会重算受影响证券的复权与技术指标；本地派生周期需先补齐基础K线。</dd>
+          </div>
+        </dl>
+      </details>
 
       <div className="flex items-center justify-between gap-2">
         <label htmlFor="repair-kline-period" className="text-xs text-secondary">K线周期</label>

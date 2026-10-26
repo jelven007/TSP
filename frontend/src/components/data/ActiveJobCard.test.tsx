@@ -26,7 +26,7 @@ const job = (changes: Partial<PipelineJob> = {}): PipelineJob => ({
 
 it('shows the correct period and both total and stage progress', async () => {
   await act(async () => root.render(<ActiveJobCard job={job()} />))
-  expect(host.textContent).toContain('同步5分K')
+  expect(host.textContent).toContain('计算5分K')
   expect(host.textContent).not.toContain('sync_5m')
   expect(host.querySelector('[role="progressbar"][aria-label="同步总进度"]')?.getAttribute('aria-valuenow')).toBe('37')
   expect(host.querySelector('[role="progressbar"][aria-label="当前阶段进度"]')?.getAttribute('aria-valuenow')).toBe('33')

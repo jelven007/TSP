@@ -46,7 +46,7 @@ def minute_frame():
     })
 
 
-@pytest.mark.parametrize("period", ["1m", "5m", "15m", "1w"])
+@pytest.mark.parametrize("period", ["1m"])
 def test_repair_fetches_requested_period_and_upserts_its_own_table(app, monkeypatch, period):
     calls = []
     frame = minute_frame()
@@ -64,7 +64,7 @@ def test_repair_fetches_requested_period_and_upserts_its_own_table(app, monkeypa
     catalog = (app.state.repo.store.data_dir / "instruments/instruments.parquet").read_bytes()
     for _ in range(2):
         result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY, period=period)
-        assert result["rows"] == (1 if period == "1w" else 2)
+        assert result["rows"] == 2
         assert result["period"] == period
     assert calls == [(sorted(SYMBOLS), datetime.combine(DAY, datetime.min.time()),
                       datetime.combine(DAY, datetime.max.time()), "stock", period)] * 2
@@ -72,37 +72,37 @@ def test_repair_fetches_requested_period_and_upserts_its_own_table(app, monkeypa
     assert (app.state.repo.store.data_dir / "instruments/instruments.parquet").read_bytes() == catalog
 
 
-def test_ten_minute_repair_aggregates_local_minutes_without_provider(app, monkeypatch):
-    monkeypatch.setattr("app.data_providers.registry.get_provider", lambda _: pytest.fail("10m must stay local"))
+@pytest.mark.parametrize(("period", "count"), [("5m", 2), ("10m", 1), ("15m", 1)])
+def test_derived_minute_repair_aggregates_local_minutes_without_provider(app, monkeypatch, period, count):
+    monkeypatch.setattr("app.data_providers.registry.get_provider", lambda _: pytest.fail("derived minutes must stay local"))
     kline_periods.persist_period(app.state.repo, "1m", minute_frame())
-    result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY, period="10m")
+    result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY, period=period)
     assert result["source"] == "1m"
-    assert result["rows"] == 1
+    assert result["rows"] == count
     assert app.state.repo.execute_one(
-        "SELECT open, high, low, close, volume, amount FROM kline_10minute",
-    ) == (10., 13., 9., 12., 300., 3000.)
+        f"SELECT sum(volume), sum(amount) FROM {kline_periods.TABLES[period]}",
+    ) == (300., 3000.)
 
 
-def test_ten_minute_repair_without_base_data_explains_the_missing_dependency(app):
-    result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY, period="10m")
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+def test_derived_minute_repair_without_base_data_explains_the_missing_dependency(app, monkeypatch, period):
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("empty base must stay local"))
+    result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY, period=period)
     assert "1分K" in result["error"]
-    assert not any((app.state.repo.store.data_dir / "kline_10minute").rglob("*.parquet"))
+    assert not any((app.state.repo.store.data_dir / kline_periods.TABLES[period]).rglob("*.parquet"))
 
 
 def test_weekly_repair_includes_the_week_containing_the_selected_start_date(app, monkeypatch):
-    starts = []
-    def fetch(symbols, start, end, **kwargs):
-        starts.append(start)
-        return pl.DataFrame({
-            "symbol": [SYMBOLS[0]], "date": [date(2026, 10, 19)],
-            "open": [10.], "high": [13.], "low": [9.], "close": [12.],
-            "volume": [300.], "amount": [3000.],
-        })
-    provider = SimpleNamespace(capabilities=ProviderCapabilities(daily=True), get_klines=fetch)
-    monkeypatch.setattr("app.data_providers.registry.get_provider", lambda _: provider)
+    kline_periods.persist_period(
+        app.state.repo, "1d", pl.DataFrame({
+            "symbol": [SYMBOLS[0]] * 3, "date": [date(2026, 10, day) for day in (21, 22, 23)],
+            "open": [10., 11., 12.], "high": [12., 13., 14.], "low": [9., 10., 11.],
+            "close": [11., 12., 13.], "volume": [100., 100., 100.], "amount": [1000., 1000., 1000.],
+        }),
+    )
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("weekly repair must stay local"))
     result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, date(2026, 10, 21), period="1w")
     assert result["rows"] == 1
-    assert starts == [datetime(2026, 10, 19)]
     assert app.state.repo.execute_one("SELECT date FROM kline_weekly")[0] == date(2026, 10, 19)
 
 
@@ -115,20 +115,23 @@ def test_daily_repair_keeps_the_original_pipeline_and_cache_refresh(app, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_repair_api_keeps_selected_period_and_reports_real_completion(app):
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+async def test_repair_api_keeps_selected_period_and_reports_real_completion(app, monkeypatch, period):
+    monkeypatch.setattr(preferences, "get_minute_data_provider", lambda: "tickflow")
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("local repair has no route gate"))
     kline_periods.persist_period(app.state.repo, "1m", minute_frame())
     app.state.capabilities = SimpleNamespace(has=lambda _: False)
     result = await kline.repair_daily(SimpleNamespace(
-        app=app, json=lambda: async_body({"start_date": DAY.isoformat(), "period": "10m"}),
+        app=app, json=lambda: async_body({"start_date": DAY.isoformat(), "period": period}),
     ))
     async with asyncio.timeout(3):
         while pipeline_jobs.job_store.get(result["job_id"])["status"] in {"queued", "running"}:
             await asyncio.sleep(0.01)
     job = pipeline_jobs.job_store.get(result["job_id"])
     assert job["status"] == "succeeded", job
-    assert job["request"] == {"start_date": DAY.isoformat(), "period": "10m"}
-    assert job["result"]["rows"] == 1
-    assert job["result"]["period"] == "10m"
+    assert job["request"] == {"start_date": DAY.isoformat(), "period": period}
+    assert job["result"]["rows"] == (2 if period == "5m" else 1)
+    assert job["result"]["period"] == period
     assert job["stage_pct"] == job["progress"] == 100
 
 
@@ -137,12 +140,12 @@ async def async_body(body):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("period", ["1m", "5m", "15m", "1d", "1w"])
+@pytest.mark.parametrize("period", ["1m", "1d"])
 async def test_repair_api_uses_custom_route_without_tickflow_entitlement(app, monkeypatch, period):
     app.state.capabilities = SimpleNamespace(has=lambda _: False)
     calls = []
     frame = minute_frame()
-    if period in ("1d", "1w"):
+    if period == "1d":
         frame = frame.with_columns(pl.col("datetime").dt.date().alias("date")).drop("datetime")
 
     def fetch(symbols, start, end, *, asset_type, freq):
@@ -167,7 +170,7 @@ async def test_repair_api_uses_custom_route_without_tickflow_entitlement(app, mo
     assert calls == ([] if period == "1d" else [period])
     if period != "1d":
         assert job["result"]["period"] == period
-        assert job["result"]["rows"] == (1 if period == "1w" else 2)
+        assert job["result"]["rows"] == 2
 
 
 @pytest.mark.asyncio
@@ -180,17 +183,17 @@ async def test_repair_cancel_after_fetch_stops_before_writing_and_releases_slot(
     monkeypatch.setattr("app.data_providers.registry.get_provider", lambda _: provider)
     monkeypatch.setattr(preferences, "get_minute_data_provider", lambda: "custom")
     result = await kline.repair_daily(SimpleNamespace(
-        app=app, json=lambda: async_body({"start_date": DAY.isoformat(), "period": "5m"}),
+        app=app, json=lambda: async_body({"start_date": DAY.isoformat(), "period": "1m"}),
     ))
     async with asyncio.timeout(3):
         while pipeline_jobs.job_store.get(result["job_id"])["status"] in {"queued", "running", "cancelling"}:
             await asyncio.sleep(0.01)
     assert pipeline_jobs.job_store.get(result["job_id"])["status"] == "cancelled"
-    assert not any((app.state.repo.store.data_dir / "kline_5minute").rglob("*.parquet"))
+    assert not any((app.state.repo.store.data_dir / "kline_minute").rglob("*.parquet"))
     assert pipeline_jobs._run_slot_owner is None
 
 
-@pytest.mark.parametrize("period", ["1m", "1d", "1w"])
+@pytest.mark.parametrize("period", ["1m", "1d"])
 def test_repair_api_checks_selected_tickflow_entitlement(app, monkeypatch, period):
     app.state.capabilities = SimpleNamespace(has=lambda _: False)
     monkeypatch.setattr(preferences, "get_daily_data_provider", lambda: "tickflow")
@@ -199,6 +202,14 @@ def test_repair_api_checks_selected_tickflow_entitlement(app, monkeypatch, perio
         response = client.post("/api/kline/repair_daily", json={"start_date": DAY.isoformat(), "period": period})
     assert response.status_code == 403
     assert pipeline_jobs.job_store.list_recent() == []
+
+
+def test_weekly_repair_api_uses_local_daily_without_tickflow_entitlement(app, monkeypatch):
+    app.state.capabilities = SimpleNamespace(has=lambda _: False)
+    monkeypatch.setattr(preferences, "get_daily_data_provider", lambda: "tickflow")
+    with TestClient(app) as client:
+        response = client.post("/api/kline/repair_daily", json={"start_date": DAY.isoformat(), "period": "1w"})
+    assert response.status_code == 200
 
 
 @pytest.mark.parametrize("period", ["invalid", "../1m", None, []])
@@ -370,7 +381,7 @@ def test_missing_daily_whole_day_only_requests_that_day(app, missing_source):
     assert missing_source[0][0][1].date() == date(2026, 10, 23)
 
 
-@pytest.mark.parametrize("period", ["5m", "15m"])
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
 def test_missing_intraday_excludes_lunch_future_bars_and_separates_nonadjacent_gaps(app, missing_source, monkeypatch, period):
     monkeypatch.setattr("app.market_time.cn_now", lambda: datetime(2026, 10, 26, 13, 16))
     step = int(period[:-1])
@@ -381,39 +392,62 @@ def test_missing_intraday_excludes_lunch_future_bars_and_separates_nonadjacent_g
         ~((pl.col("symbol") == SYMBOLS[0]) & pl.col("datetime").is_in(gaps)),
     )
     kline_periods.persist_period(app.state.repo, period, frame)
+    base_stamps = [datetime(2026, 10, 26) + timedelta(minutes=base + i)
+                   for base, duration in ((570, 120), (780, 16)) for i in range(1, duration + 1)]
+    kline_periods.persist_period(app.state.repo, "1m", bars(SYMBOLS, base_stamps))
     result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY, period=period, mode="missing")
-    assert missing_source[0] == [([SYMBOLS[0]], stamp, stamp, period) for stamp in gaps]
+    assert missing_source[0] == []
     assert result["rows"] == 2
     assert result["remaining"] == 0
 
 
-def test_missing_week_accepts_friday_source_label_and_prevents_prelisting_week(app, missing_source, monkeypatch):
+def test_missing_week_aggregates_local_daily_and_prevents_prelisting_week(app, missing_source, monkeypatch):
     monkeypatch.setattr(app.state.repo, "get_instruments", lambda: pl.DataFrame({
         "symbol": SYMBOLS, "listing_date": [date(2026, 10, 21)] + [DAY] * 3,
     }))
-    missing_source[1].get_klines = lambda *a, **kw: bars(SYMBOLS, [date(2026, 10, 23)], "1w")
+    kline_periods.persist_period(
+        app.state.repo, "1d", bars([SYMBOLS[0]], [date(2026, 10, day) for day in (21, 22, 23)], "1d"),
+    )
+    missing_source[1].get_klines = lambda *a, **kw: pytest.fail("weekly missing repair must stay local")
     result = repair_daily.run_repair_daily(
         app.state.repo, app.state.capabilities, date(2026, 10, 21), end_date=date(2026, 10, 23), period="1w", mode="missing",
     )
     assert result["rows"] == 1
     assert result["remaining"] == 0
+    assert missing_source[0] == []
     assert app.state.repo.execute_one("SELECT symbol, date FROM kline_weekly") == (SYMBOLS[0], date(2026, 10, 19))
 
 
-def test_missing_ten_minute_only_fills_complete_local_buckets(app, missing_source, monkeypatch):
-    monkeypatch.setattr("app.market_time.cn_now", lambda: datetime(2026, 10, 26, 9, 50))
-    stamps = [datetime(2026, 10, 26, 9, i) for i in range(31, 51)]
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+def test_missing_derived_minute_only_fills_complete_local_buckets(app, missing_source, monkeypatch, period):
+    step = int(period[:-1])
+    stamps = [datetime(2026, 10, 26, 9, 30) + timedelta(minutes=i) for i in range(1, step * 2 + 1)]
+    monkeypatch.setattr("app.market_time.cn_now", lambda: stamps[-1])
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("missing must stay local"))
     frame = bars(SYMBOLS, stamps).filter(
         ~((pl.col("symbol") == SYMBOLS[0]) & (pl.col("datetime") == stamps[-1])),
     )
     kline_periods.persist_period(app.state.repo, "1m", frame)
-    kline_periods.persist_period(app.state.repo, "10m", bars(SYMBOLS[1:], [stamps[9], stamps[19]], "10m", price=25.))
-    result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY, period="10m", mode="missing")
+    kline_periods.persist_period(app.state.repo, period, bars(SYMBOLS[1:], [stamps[step - 1], stamps[-1]], period, price=25.))
+    result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY, period=period, mode="missing")
     assert result["missing_before"] == 2
     assert result["rows"] == result["remaining"] == 1
     assert "1分K" in result["error"]
     assert missing_source[0] == []
-    assert app.state.repo.execute_one("SELECT close FROM kline_10minute WHERE symbol = '000001.SZ' LIMIT 1")[0] == 25.
+    assert result["source"] == "1m"
+    assert app.state.repo.execute_one(f"SELECT close FROM {kline_periods.TABLES[period]} WHERE symbol = '000001.SZ' LIMIT 1")[0] == 25.
+
+
+@pytest.mark.parametrize("period", ["5m", "10m", "15m"])
+def test_derived_missing_unknown_calendar_never_fetches_upstream(app, monkeypatch, period):
+    monkeypatch.setattr("app.market_time.published_trading_day", lambda _: None)
+    monkeypatch.setattr("app.services.data_integrity.cached_trading_calendar", lambda: set())
+    monkeypatch.setattr("app.services.data_integrity._trading_calendar", lambda: pytest.fail("derived missing must not fetch a calendar"))
+    result = repair_daily.run_repair_daily(
+        app.state.repo, app.state.capabilities, date(2025, 1, 2), end_date=date(2025, 1, 3),
+        period=period, mode="missing",
+    )
+    assert "交易日历" in result["error"]
 
 
 def test_missing_concurrent_fill_is_preserved_and_not_counted_as_own_write(app, missing_source):
