@@ -4,6 +4,7 @@ import importlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import date
+from threading import Barrier
 
 import pytest
 
@@ -265,6 +266,36 @@ def test_concurrent_successes_and_external_updates_invalidate_memory(tmp_path, e
     )
     assert saved["result"]["rows"] == [{"symbol": "22"}]
     assert store.read(key, "2026-10-22")["result"]["rows"] == [{"symbol": "NEW"}]
+
+
+@pytest.mark.parametrize("separate_instances", [False, True])
+def test_concurrent_first_writes_initialize_wal_without_losing_results(
+    tmp_path, separate_instances,
+):
+    module = history()
+    key = module.ResultIdentity(
+        "sample", "示例", "v1", "{}", "{}", "null", "stock", "1d",
+    )
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for attempt in range(32):
+            directory = tmp_path / str(attempt)
+            shared = module.StrategyResults(directory)
+            ready = Barrier(8)
+
+            def save(day, directory=directory, shared=shared, ready=ready):
+                store = module.StrategyResults(directory) if separate_instances else shared
+                ready.wait(timeout=10)
+                return store.save(
+                    key, {"as_of": f"2026-10-{day}", "rows": [{"symbol": str(day)}]},
+                    started_at=day,
+                )
+
+            list(executor.map(save, range(20, 28)))
+            assert len(shared.list_history("sample")["records"]) == 8
+            for day in range(20, 28):
+                assert shared.read(key, f"2026-10-{day}")["result"]["rows"] == [
+                    {"symbol": str(day)}
+                ]
 
 
 def test_helper_logic_changes_version_and_oversized_write_keeps_success(tmp_path, engine):
