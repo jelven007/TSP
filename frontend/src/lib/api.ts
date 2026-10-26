@@ -246,6 +246,7 @@ export interface KlineRow {
 
 export interface KlineDailyResponse {
   symbol: string
+  freq?: KlinePeriod
   name?: string
   stock_info?: { name?: string; total_shares?: number; float_shares?: number; ext?: Record<string, unknown> }
   rows: KlineRow[]
@@ -3074,7 +3075,7 @@ export const api = {
   redetectCapabilities: () =>
     request<CapabilitiesResponse>('/api/capabilities/redetect', { method: 'POST' }),
 
-  klineDaily: (symbol: string, days = 120, dateRange?: { start: string; end: string }, extColumns?: string, freq: '1d' | '1w' = '1d') =>
+  klineDaily: (symbol: string, days = 120, dateRange?: { start: string; end: string }, extColumns?: string, freq: KlinePeriod = '1d') =>
     request<KlineDailyResponse>(
       (dateRange
         ? `/api/kline/daily?symbol=${encodeURIComponent(symbol)}&start_date=${dateRange.start}&end_date=${dateRange.end}`
@@ -3186,10 +3187,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ value, unit }),
     }),
-  repairDaily: (startDate: string) =>
+  repairDaily: (startDate: string, period: KlinePeriod = '1d') =>
     request<{ status: string; job_id: string }>('/api/kline/repair_daily', {
       method: 'POST',
-      body: JSON.stringify({ start_date: startDate }),
+      body: JSON.stringify({ start_date: startDate, period }),
     }),
   rebuildEnriched: () =>
     request<{ status: string; job_id: string }>('/api/kline/rebuild_enriched', {

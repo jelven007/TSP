@@ -171,15 +171,13 @@ export function StatCard({
       ? `标的 · ${((stats?.named ?? stats?.rows) ?? 0).toLocaleString()} 个含名称`
       : stats?.fields
         ? '字段 · 复权 · 技术指标'
-        : title === '日 K' && stats?.trading_days
-          ? '日 · A股标的 · 日线'
-          : stats?.trading_days && !stats?.rows
-            ? '日 · A股标的 · 分钟级'
-            : (() => {
-                const parts = [`行 · ${(stats?.symbols_covered ?? 0)} 只标的`]
-                if (stats?.trading_days) parts.push(`· ${stats.trading_days} 日`)
-                return parts.join(' ')
-              })())
+        : stats?.trading_days && !stats?.rows
+          ? '日 · A股标的 · 分钟级'
+          : (() => {
+              const parts = [`行 · ${(stats?.symbols_covered ?? 0)} 只标的`]
+              if (stats?.trading_days) parts.push(`· ${stats.trading_days} 日`)
+              return parts.join(' ')
+            })())
 
   // 有 fieldTabs 时: 把 subLabel 按分隔符拆开, 每个匹配词后面内联图标
   // 例如 "日 · 维表 · 日K · 指标" → 日 · 维表[icon] · 日K[icon] · 指标[icon]

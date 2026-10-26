@@ -67,7 +67,7 @@ def _setup_custom_provider(monkeypatch, provider: object, has_dataset: bool = Tr
     )
 
 
-# ---------- 测试 1: 自定义源成功返回 1 分钟 K ----------
+# ---------- 测试 1: 自定义源成功返回 1分K ----------
 
 def test_custom_minute_provider_returns_1m_k(monkeypatch):
     """§4 测试 1: 自定义源成功返回 1m K, 且 provider 收到 freq="1m"。"""

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { X, RefreshCw, Clock, LineChart, Star, RadioTower, Maximize2, Minimize2, Activity } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, type KlinePeriod } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { cnSignal } from '@/lib/signals'
 import { useCustomSignalNames } from '@/lib/useCustomSignalNames'
@@ -44,11 +44,24 @@ export interface Props {
 
 // ===== 板块标识（与 Screener 列表一致）=====
 
-// 预设快捷范围（只保留半年和1年）
-const PRESETS: { label: string; months: number }[] = [
-  { label: '半年', months: 6 },
-  { label: '1年', months: 12 },
+const KLINE_PERIODS: { label: string; value: KlinePeriod }[] = [
+  { label: '1分K', value: '1m' },
+  { label: '5分K', value: '5m' },
+  { label: '10分K', value: '10m' },
+  { label: '15分K', value: '15m' },
+  { label: '日K', value: '1d' },
+  { label: '周K', value: '1w' },
 ]
+
+function periodRange(period: KlinePeriod) {
+  if (period === '1d') return getDefaultRange()
+  const end = new Date()
+  const start = new Date(end)
+  if (period === '1w') start.setFullYear(start.getFullYear() - 2)
+  else start.setDate(start.getDate() - 20)
+  const format = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(date)
+  return { start: format(start), end: format(end) }
+}
 
 type PreviewView = 'daily' | 'intraday'
 interface PriceAlertDraft {
@@ -92,6 +105,11 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
   const [view, setView] = useState<PreviewView>('daily')
   const [intradayDays, setIntradayDays] = useState<number | null>(loadIntradayDays)
   const [dateRange, setDateRange] = useState(getDefaultRange)
+  const [klinePeriod, setKlinePeriod] = useState<KlinePeriod>('1d')
+  const [visibleBars, setVisibleBars] = useState(60)
+  const [currentBars, setCurrentBars] = useState(60)
+  const [availableBars, setAvailableBars] = useState(0)
+  const [zoomResetKey, setZoomResetKey] = useState(0)
   const [showMonitorEditor, setShowMonitorEditor] = useState(false)
   const customNames = useCustomSignalNames()
   const [priceAlertDraft, setPriceAlertDraft] = useState<PriceAlertDraft | null>(null)
@@ -174,8 +192,15 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
   // 仅当弹窗首次打开 (symbol 从 null 变非空) 时重置为日K。
   const prevSymbolRef = useRef<string | null>(null)
   useEffect(() => {
-    if (prevSymbolRef.current == null && symbol != null) setView('daily')
+    if (prevSymbolRef.current == null && symbol != null) {
+      setView('daily')
+      setKlinePeriod('1d')
+      setDateRange(getDefaultRange())
+    }
     prevSymbolRef.current = symbol
+    setVisibleBars(60)
+    setCurrentBars(60)
+    setZoomResetKey(key => key + 1)
     setPriceAlertDraft(null)
   }, [symbol])
 
@@ -224,6 +249,23 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
     storage.stockPreviewIntradayDays.set(days)
   }
 
+  const adjustBars = (action: 'default' | 'increase' | 'decrease') => {
+    const count = action === 'default' ? 60
+      : Math.max(1, Math.min(availableBars, Math.round(currentBars * (action === 'increase' ? 1.5 : 0.5))))
+    setVisibleBars(count)
+    setZoomResetKey(key => key + 1)
+  }
+
+  const selectKlinePeriod = (period: KlinePeriod) => {
+    setView('daily')
+    setKlinePeriod(period)
+    setDateRange(periodRange(period))
+    setVisibleBars(60)
+    setCurrentBars(60)
+    setAvailableBars(0)
+    setZoomResetKey(key => key + 1)
+  }
+
   const openPriceAlert = (targetPrice: number, currentPrice: number) => {
     setPriceAlertDraft({ id: Date.now(), targetPrice, currentPrice })
   }
@@ -253,24 +295,11 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
 
               {/* 视图/区间控件: 原第二行并入顶行, 紧邻操作按钮 (原「自选于」标注位置) */}
               <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2.5">
-                {/* 日K / 分时 切换 */}
-                <div role="tablist" aria-label="图表视图" className="inline-flex shrink-0 items-center rounded border border-border/60 bg-base/60 p-0.5">
+                {/* 分时 / K线 切换 */}
+                <div aria-label="图表视图" className="inline-flex shrink-0 items-center rounded border border-border/60 bg-base/60 p-0.5">
                   <button
                     type="button"
-                    role="tab"
-                    aria-selected={view === 'daily'}
-                    onClick={() => setView('daily')}
-                    className={`inline-flex h-6 items-center gap-1 rounded px-2.5 text-[11px] transition-colors ${
-                      view === 'daily' ? 'bg-accent/20 text-accent font-medium' : 'text-muted hover:text-secondary hover:bg-elevated/60'
-                    }`}
-                  >
-                    <LineChart className="h-3 w-3" />
-                    日 K
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={view === 'intraday'}
+                    aria-pressed={view === 'intraday'}
                     onClick={() => setView('intraday')}
                     className={`inline-flex h-6 items-center gap-1 rounded px-2.5 text-[11px] transition-colors ${
                       view === 'intraday' ? 'bg-accent/20 text-accent font-medium' : 'text-muted hover:text-secondary hover:bg-elevated/60'
@@ -279,38 +308,47 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
                     <Clock className="h-3 w-3" />
                     分时
                   </button>
+                  <label className={`inline-flex h-6 items-center gap-1 rounded px-2 text-[11px] ${
+                    view === 'daily' ? 'bg-accent/20 text-accent font-medium' : 'text-muted'
+                  }`}>
+                    <LineChart className="h-3 w-3" />
+                    K线
+                    <select
+                      aria-label="K线周期"
+                      value={klinePeriod}
+                      onFocus={() => setView('daily')}
+                      onClick={() => setView('daily')}
+                      onChange={event => selectKlinePeriod(event.target.value as KlinePeriod)}
+                      className="h-6 cursor-pointer rounded border-0 bg-transparent text-[11px] outline-none"
+                    >
+                      {KLINE_PERIODS.map(period => (
+                        <option key={period.value} value={period.value} className="bg-surface text-foreground">{period.label}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 <span className="h-4 w-px shrink-0 bg-border/70" />
                 {/* 区间选择 — 随视图切换 */}
                 {view === 'daily' ? (
-                  <div className="inline-flex items-center gap-2">
+                  <div className="inline-flex flex-wrap items-center gap-2">
                     <div className="inline-flex items-center rounded border border-border/60 bg-base/60 p-0.5">
-                    {PRESETS.map(p => {
-                      const now = new Date()
-                      const s = new Date(now)
-                      s.setMonth(s.getMonth() - p.months)
-                      const expected = s.toISOString().slice(0, 10)
-                      const isActive = dateRange.start === expected
-                      return (
+                    {([
+                      ['默认', 'default'], ['放大', 'increase'], ['缩小', 'decrease'],
+                    ] as const).map(([label, action]) => (
                         <button
-                          key={p.label}
-                          onClick={() => {
-                            const end = new Date().toISOString().slice(0, 10)
-                            const ns = new Date()
-                            ns.setMonth(ns.getMonth() - p.months)
-                            setDateRange({ start: ns.toISOString().slice(0, 10), end })
-                          }}
-                          className={`h-6 rounded px-2.5 text-[11px] transition-colors cursor-pointer
-                            ${isActive
-                              ? 'bg-accent/20 text-accent font-medium'
-                              : 'text-muted hover:text-secondary hover:bg-elevated/60'
-                            }`}
+                          key={action}
+                          type="button"
+                          disabled={action !== 'default' && availableBars === 0}
+                          onClick={() => adjustBars(action)}
+                          title={action === 'default' ? '显示最近60根K线' : action === 'increase' ? '当前可见K线数量增加50%' : '当前可见K线数量减少50%'}
+                          className="h-6 rounded px-2.5 text-[11px] text-muted transition-colors cursor-pointer hover:text-secondary hover:bg-elevated/60 disabled:opacity-40"
                         >
-                          {p.label}
+                          {label}
                         </button>
-                      )
-                    })}
+                    ))}
                     </div>
+                    <span className="text-[10px] text-muted" aria-live="polite">{availableBars > 0 ? `${currentBars}根` : '—'}</span>
+                    <div className="inline-flex shrink-0 items-center gap-2">
                     <DatePicker
                       value={dateRange.start}
                       onChange={(v) => setDateRange(prev => ({ ...prev, start: v }))}
@@ -322,6 +360,7 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
                       onChange={(v) => setDateRange(prev => ({ ...prev, end: v }))}
                       min={dateRange.start}
                     />
+                    </div>
                   </div>
                 ) : (
                   <div className="inline-flex items-center gap-2">
@@ -387,11 +426,11 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
                   <RefreshCw className="h-4 w-4" />
                 </button>
 
-                {/* 放大 / 缩小 */}
+                {/* 窗口最大化 */}
                 <button
                   onClick={() => setMaximized(v => !v)}
                   className="p-1.5 rounded-btn text-secondary hover:text-foreground hover:bg-elevated transition-colors"
-                  title={maximized ? '缩小' : '放大'}
+                  title={maximized ? '还原窗口' : '最大化窗口'}
                 >
                   {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                 </button>
@@ -507,6 +546,11 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
                   prefetchSymbols={prefetchSymbols}
                   intradayDays={effectiveIntradayDays}
                   dailyKlineFlex="flex-[1.4]"
+                  klinePeriod={klinePeriod}
+                  visibleBars={visibleBars}
+                  zoomResetKey={zoomResetKey}
+                  onVisibleBarsChange={setCurrentBars}
+                  onAvailableBarsChange={setAvailableBars}
                   addedDate={addedDate}
                 />
               ) : (

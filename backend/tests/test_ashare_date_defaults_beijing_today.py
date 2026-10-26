@@ -318,6 +318,7 @@ def test_repair_http_checks_beijing_day_before_capability_guard(monkeypatch, fut
     app.state.repo = MagicMock()
     app.state.capabilities = SimpleNamespace(has=lambda capability: False)
     monkeypatch.setattr(kline_api, "cn_today", lambda: BJ)
+    monkeypatch.setattr("app.services.preferences.get_daily_data_provider", lambda: "tickflow")
     # 本地日期故意比北京早一天; 有效北京日期应通过日期校验后进入能力检查。
     monkeypatch.setattr("datetime.date", _LocalDate)
     day = BJ + timedelta(days=1) if future else BJ

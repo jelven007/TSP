@@ -7,7 +7,7 @@
  * placeholderData 内置"仅同 symbol 占位"守卫: 改日期范围/扩展字段时旧数据可暂显(不闪),
  * 切股时不透传上一只股票的数据(不误显示)。
  */
-import { api, type KlineDailyLatestResponse, type KlineDailyResponse } from '@/lib/api'
+import { api, type KlinePeriod, type KlineDailyLatestResponse, type KlineDailyResponse } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 
 /** 分时 tab 多日分时默认周期 (StockPanel 预取与弹窗存储回退共用, 避免魔数两处漂移) */
@@ -17,14 +17,15 @@ export function klineDailyQueryOptions(
   symbol: string,
   dateRange: { start: string; end: string },
   extColumns?: string,
+  period: KlinePeriod = '1d',
 ) {
   return {
-    queryKey: QK.kline(symbol, dateRange.start, dateRange.end, extColumns),
-    queryFn: () => api.klineDaily(symbol, undefined, dateRange, extColumns),
+    queryKey: QK.kline(symbol, dateRange.start, dateRange.end, extColumns, period),
+    queryFn: () => api.klineDaily(symbol, undefined, dateRange, extColumns, period),
     // 工厂无 TData 泛型, 参数用 any 以便 useQuery/prefetchQuery 共用
     placeholderData: (prev: any, prevQuery: any) => {
       const prevKey = prevQuery?.queryKey as readonly unknown[] | undefined
-      return prevKey?.[1] === symbol ? prev : undefined
+      return prevKey?.[1] === symbol && prevKey?.[5] === period ? prev : undefined
     },
   }
 }
@@ -40,7 +41,7 @@ export function mergeLatestKlineRow(
   current: KlineDailyResponse | undefined,
   latest: KlineDailyLatestResponse,
 ): KlineDailyResponse | undefined {
-  if (!current || !latest.row || current.symbol !== latest.symbol) return current
+  if (!current || !latest.row || current.symbol !== latest.symbol || (current.freq && current.freq !== '1d')) return current
 
   const latestDate = String(latest.row.date).slice(0, 10)
   const last = current.rows.at(-1)

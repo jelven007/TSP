@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, type KlinePeriod } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
+import { KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
 import { MissingCapChip } from '@/lib/capability-labels'
 import { DatePicker } from '@/components/DatePicker'
 
@@ -18,23 +19,28 @@ function daysAgo(n: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-// hasCap: 日K批量能力当前是否可用 (路由矩阵判定, 生效源含插件/自定义源)
-export function RepairDailyPanel({ hasCap, isRunning, latestDate, onStart }: {
+// 日K和分钟K能力均由路由矩阵判定; 10分K仅依赖本地数据。
+export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates, onStart }: {
   hasCap: boolean
+  hasMinuteCap: boolean
   isRunning: boolean
-  latestDate: string | null
-  onStart: () => void
+  latestDates: Partial<Record<KlinePeriod, string | null>>
+  onStart: (jobId: string) => void
 }) {
   const qc = useQueryClient()
-  const hasBatchCap = hasCap
+  const [period, setPeriod] = useState<KlinePeriod>('1d')
+  const daily = period === '1d'
+  const local = period === '10m'
+  const hasBatchCap = local || (daily || period === '1w' ? hasCap : hasMinuteCap)
+  const latestDate = latestDates[period] ?? null
 
   // 默认起始日期: 最新数据往前推 30 天 (兼顾补缺口 + 复核近期数据, 成本不高)
   const [startDate, setStartDate] = useState(daysAgo(30))
 
   const repair = useMutation({
-    mutationFn: () => api.repairDaily(startDate),
-    onSuccess: () => {
-      onStart()
+    mutationFn: () => api.repairDaily(startDate, period),
+    onSuccess: ({ job_id }) => {
+      onStart(job_id)
       qc.invalidateQueries({ queryKey: QK.pipelineJobs })
     },
   })
@@ -49,11 +55,29 @@ export function RepairDailyPanel({ hasCap, isRunning, latestDate, onStart }: {
     <div className="space-y-3">
       <div className="rounded-card bg-accent/8 border border-accent/20 p-3 space-y-1.5">
         <div className="text-xs text-foreground">
-          当数据出现缺口时(漏跑、停服),从这里重拉选定区间到今天的全部数据并重算。
+          当数据出现缺口时，从这里修正选定区间到今天的{KLINE_PERIOD_LABELS[period]}数据。
         </div>
         <div className="text-[10px] text-muted leading-relaxed">
-          完整复用盘后管道流程 (A股日K · 除权因子 · 指标重算 · 指数),新数据按 (个股, 日期) 覆盖旧值,不会重复,也无需先清除。
+          {local
+            ? '由本地1分K自动计算10分K并入库；缺少1分K时，请先修正1分K。新数据覆盖相同个股、时间的旧值，不会重复。'
+            : `通过当前K线数据源接口获取${KLINE_PERIOD_LABELS[period]}并入库，新数据覆盖相同个股、时间的旧值，不会重复，也无需先清除。`}
         </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor="repair-kline-period" className="text-xs text-secondary">K线周期</label>
+        <select
+          id="repair-kline-period"
+          aria-label="K线周期"
+          value={period}
+          onChange={e => { setPeriod(e.target.value as KlinePeriod); repair.reset() }}
+          disabled={isRunning || repair.isPending}
+          className="rounded-btn border border-border bg-elevated px-2 py-1 text-xs text-foreground"
+        >
+          {(Object.entries(KLINE_PERIOD_LABELS) as [KlinePeriod, string][]).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
       </div>
 
       {/* 起始日期 — 用户主要操作,放上面 */}
@@ -80,8 +104,9 @@ export function RepairDailyPanel({ hasCap, isRunning, latestDate, onStart }: {
       </div>
 
       <div className="text-[10px] text-muted -mt-1">
-        将重拉 <span className="font-mono text-secondary">{startDate}</span>
-        {' → '}<span className="font-mono text-secondary">{today}</span>(今天) 的 A股日K · 除权 · 指数并重算指标
+        {local ? '将计算 ' : '将重拉 '}<span className="font-mono text-secondary">{startDate}</span>
+        {' → '}<span className="font-mono text-secondary">{today}</span>(今天) 的
+        {' '}{KLINE_PERIOD_LABELS[period]}
       </div>
 
       <button
@@ -101,8 +126,11 @@ export function RepairDailyPanel({ hasCap, isRunning, latestDate, onStart }: {
 
       {!hasBatchCap && (
         <span className="block text-center">
-          <MissingCapChip capKey="kline.daily.batch" />
+          <MissingCapChip capKey={daily || period === '1w' ? 'kline.daily.batch' : 'kline.minute.batch'} />
         </span>
+      )}
+      {repair.isError && (
+        <div role="alert" className="text-xs text-danger">{repair.error.message}</div>
       )}
     </div>
   )
