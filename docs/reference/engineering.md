@@ -50,6 +50,14 @@ Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清
 
 本附录按领域维护实现方法、数据契约和可执行示例。通用开发要求只在[CONTRIBUTING](../../CONTRIBUTING.md)定义；需求与当前/目标边界见[需求](../requirements.md)和[系统方案](../architecture.md#current)。带日期的结果仅证明原版本、环境和窗口，不是本次重新执行的验证。
 
+修正获取方式拆分归`FR-DATA-05`，L3接线复用修正API、周期服务和共享任务卡；
+领域缺口检测位于`services/kline_gaps.py`，不新增通用扩展接口。
+需求/方案见[需求](../requirements.md)与[架构](../architecture.md)，
+源码/升级边界见[二开](../secondary-development.md)，
+用例见[验收](../testing.md)，用户入口见[修正数据](../../操作说明书.md#223-修正数据)，
+支持和更新见[运营](../release-operations.md)与[运维](../operations.md)。
+默认全量兼容旧调用；遗漏按实际键只追加，未补齐明确失败，不修改用户配置或本地版本。
+
 一级页面顶栏统一复用 `frontend/src/components/PageHeader.tsx`，以策略页为样式基准：
 桌面20px标题、10px说明、最小64px高度和全宽底部分隔线；标题侧可加状态，操作区保持紧凑，
 窄屏单独一行横向滚动并避开菜单按钮。共享规则在 `index.css` 的 `.page-header-actions`，

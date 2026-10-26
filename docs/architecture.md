@@ -1,7 +1,7 @@
 # TSP 系统技术方案
 
 2026-10-26核对源码、完整本地环境与单ECS部署方式，最新范围及逐阶段实测见
-[本批整合](../reports/kline-release-20261026/verification.md)。
+[本批整合](../reports/repair-missing-release-20261026/verification.md)。
 下文早期“候选/未发布”描述以[版本基线](version-baseline.md)和本批记录区分时点；
 七角色/双PostgreSQL/Platform先于消费者/Broker固定Compute的生产结构继续沿用。
 
@@ -20,11 +20,18 @@
 此候选沿用分钟/日K独立能力路由，不新增第八个数据集或策略周期。
 日K画像卡片沿用周K的同步说明，`StatCard`共用记录/标的/交易日统计文案模板。
 
-「K线修正」沿用 `/api/kline/repair_daily`，新增可选`period`且缺省为`1d`。
+「K线修正」沿用 `/api/kline/repair_daily`，可选`period`缺省为`1d`，
+可选`mode=full|missing`缺省为`full`，旧调用保持全量行为。
 面板日K与周K共用取数及范围说明模板，仅展示各自周期名；日K后端编排仍按原流程。
 `repair_daily.run_repair_daily`保留日K盘后流程，其他周期读取既有完整股票池快照后
 调用`kline_periods.sync_period`，按起始日期到北京今天分段取数或本地聚合并幂等落盘。
-10分钟不调用Provider；其余周期依各自日K/分钟路由取数，缺能力、无输出明确反馈。
+遗漏模式由`services/kline_gaps.py`逐交易日/周读取证券与日期/时间键，
+按100证券块检测缺口，仅对连续缺失分钟区间或缺失日/周请求当前Provider。
+使用公布日历及有覆盖证据的源日历，排除上市前、休市及未形成的分钟/当日日K；
+未知日历明确失败。写入前在原分区锁内再次anti-join，保留并发同步已写入的值。
+10分钟只补具备完整十根本地1分钟的桶；日K只重算补入证券的本地复权/指标，
+不额外重拉除权、ETF或指数。无缺口零请求成功，部分返回保留已补数据并报告未补行数。
+10分钟不调用Provider；其余周期依各自日K/分钟路由取数，缺能力、全量无输出明确反馈。
 任务请求保存周期，非日K任务复用已有`kline_<period>`显示契约；落盘刷新对应视图/
 画像缓存，服务收尾刷新仓库并广播行情更新，前端直接跟踪返回的任务ID。
 周期/修正任务终态按集中`KLINE_QUERY_PREFIXES`失效图表查询，失败、取消或中断

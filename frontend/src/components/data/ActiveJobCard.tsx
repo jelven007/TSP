@@ -133,6 +133,11 @@ export function ActiveJobCard({ job }: { job: PipelineJob }) {
             <Pill label="标的池" value={job.result.universe_size ?? '—'} />
             <Pill label="开始日期" value={job.result.start?.slice(0, 10) ?? '—'} />
             <Pill label="结束日期" value={job.result.end?.slice(0, 10) ?? '—'} />
+            {job.result.mode === 'missing' && <>
+              <Pill label="获取方式" value="获取遗漏数据" />
+              <Pill label="检测缺口" value={job.result.missing_before ?? '—'} />
+              <Pill label="剩余缺口" value={job.result.remaining ?? '—'} />
+            </>}
           </div>
         )
         const skipped = new Set(job.result.skipped_stages ?? [])
