@@ -1,8 +1,8 @@
 import type { KlinePeriod, PipelineJob } from './api'
 
 export const KLINE_PERIOD_LABELS: Record<KlinePeriod, string> = {
-  '1m': '1分钟K', '5m': '5分钟K', '10m': '10分钟K',
-  '15m': '15分钟K', '1d': '日K', '1w': '周K',
+  '1m': '1分K', '5m': '5分K', '10m': '10分K',
+  '15m': '15分K', '1d': '日K', '1w': '周K',
 }
 
 export function klineJobPeriod(job: Pick<PipelineJob, 'kind' | 'result'>): KlinePeriod | null {

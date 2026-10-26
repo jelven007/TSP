@@ -1,7 +1,7 @@
 # TSP 系统技术方案
 
 2026-10-26核对源码、完整本地环境与单ECS部署方式，最新范围及逐阶段实测见
-[本批整合](../reports/current-state-release-20261026/verification.md)。
+[本批整合](../reports/kline-release-20261026/verification.md)。
 下文早期“候选/未发布”描述以[版本基线](version-baseline.md)和本批记录区分时点；
 七角色/双PostgreSQL/Platform先于消费者/Broker固定Compute的生产结构继续沿用。
 
@@ -12,17 +12,38 @@
 
 2026-10-26 K线画像由 `services/kline_periods.py` 集中六周期配置、取数、落盘和调度。
 新增 `kline_5minute/kline_10minute/kline_15minute/kline_weekly`，前三张沿用分钟schema，
-周K沿用日K schema并以周一日期作为周内幂等键。10分钟K仅扫描所需1分钟日期分区，
+周K沿用日K schema并以周一日期作为周内幂等键。10分K仅扫描所需1分钟日期分区，
 分别按09:30和13:00起算收盘标签，未知量额保持空值。取数按日期段及100标的块有界执行；
 写盘沿既有分区锁与原子替换，刷新对应视图、画像及存储缓存，公共发布目录同步扩展。
 六周期设置经 `/api/settings/kline-sync`，手工任务经 `/api/kline/sync_period`；
 日K保留原复权/指标补齐流水线，1分钟实时保留既有增量服务，其余周期由调度检查。
 此候选沿用分钟/日K独立能力路由，不新增第八个数据集或策略周期。
+日K画像卡片沿用周K的同步说明，`StatCard`共用记录/标的/交易日统计文案模板。
 
-分钟查询 `/api/kline/minute` 新增 `freq=5m/15m`，日K查询 `/api/kline/daily`
-新增 `freq=1w`，默认值保持1m/1d。`kline_periods.query_period`按周期读取独立分区，
-缺数据经同一Provider入口获取，周K响应统一周一日期；不向周K注入实时日蜡烛。
+「K线修正」沿用 `/api/kline/repair_daily`，新增可选`period`且缺省为`1d`。
+面板日K与周K共用取数及范围说明模板，仅展示各自周期名；日K后端编排仍按原流程。
+`repair_daily.run_repair_daily`保留日K盘后流程，其他周期读取既有完整股票池快照后
+调用`kline_periods.sync_period`，按起始日期到北京今天分段取数或本地聚合并幂等落盘。
+10分钟不调用Provider；其余周期依各自日K/分钟路由取数，缺能力、无输出明确反馈。
+任务请求保存周期，非日K任务复用已有`kline_<period>`显示契约；落盘刷新对应视图/
+画像缓存，服务收尾刷新仓库并广播行情更新，前端直接跟踪返回的任务ID。
+周期/修正任务终态按集中`KLINE_QUERY_PREFIXES`失效图表查询，失败、取消或中断
+也刷新可能已分块落盘的数据；关闭实时SSE不影响这条修正刷新路径。
+
+分钟查询 `/api/kline/minute` 支持 `freq=5m/15m`，共享图表查询 `/api/kline/daily`
+支持六周期`freq`，默认值保持1m/1d。`kline_periods.query_period`按周期读取独立分区，
+缺数据经同一Provider入口获取，10分K只读本地10分钟分区、缺失返回空数据；
+1分K沿用仓库分钟复权投影，周K响应统一周一日期。
+非日K响应附带`freq`，分钟行的`date`保留完整北京时间；实时日K增量不合入其他周期。
 日/周离线表单统一，日K空表从北京今天回溯自然月/年，仍走除权与指标流水线。
+
+个股详情复用`StockPreviewDialogContent→StockPanel→StockDailyKChart→EChartsCandlestick`。
+信息条继续读取日K，图表按周期请求；集中查询键加入周期，占位仅复用同股票同周期，
+不改变Provider、持久化和原分时接口。默认取数范围为日K半年、分钟20日、周K两年，
+日期选择可覆盖；可见根数独立于取数范围，初始60根。
+数量控件通过整数索引定位最新窗口，图表回报实际可见根数供50%增减；
+鼠标缩放保留，显式默认/增减覆盖旧窗口，重复默认同样生效。
+非日K关闭日线量比与涨停标记，未知OHLC不绘制为有效蜡烛。
 
 历史进度由服务按日期段与标的批次计数，每批写盘后更新总进度10%～95%及阶段0%～100%，
 10分钟按本地日期段推进；API透传`stage_pct`，最终成功推进100%。

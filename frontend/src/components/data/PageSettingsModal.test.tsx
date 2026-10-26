@@ -12,7 +12,7 @@ const expectedOrder = [
   'financials', 'index', 'regime', 'etf',
 ]
 const expectedLabels = [
-  '个股维表', '1分钟K', '5分钟K', '10分钟K', '15分钟K', '日 K', '周K', '除权因子', 'Enriched',
+  '个股维表', '1分K', '5分K', '10分K', '15分K', '日 K', '周K', '除权因子', 'Enriched',
   '财务数据', '指数', '环境', 'ETF',
 ]
 const caps = { adj_factor: true, 'kline.minute.batch': true, financial: true }

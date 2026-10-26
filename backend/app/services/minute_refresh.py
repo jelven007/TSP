@@ -24,7 +24,7 @@
   由 provider 自管批量与限速 (rpm 配置/内部并发), 服务不代限。
 - 稳态轮单请求: 无脉冲并发, 间隔可低至 1s; 实际节奏 = max(间隔, 单轮完成),
   服务端响应 ~5s 时自动退化为响应节奏, 不会重叠请求。
-- 固定节奏: 默认 60s 一轮, 由1分钟K周期配置控制, 不补跑 (missed 轮次直接跳过);
+- 固定节奏: 默认 60s 一轮, 由1分K周期配置控制, 不补跑 (missed 轮次直接跳过);
   仅修复轮的自定义源下限抬到 60s (全天批量打不住 1s 节奏)。
 - 默认仅在交易日 09:15-11:35 / 13:00-15:20 运行, 午休/收盘后自动暂停与恢复;
   午休后恢复因覆盖滞后会多跑一次修复轮, 幂等无害。
@@ -70,7 +70,7 @@ _REPAIR_ONLY_MIN_INTERVAL_S = 60
 
 
 def _in_refresh_window(now=None) -> bool:
-    """1分钟K的独立周期同步配置, 北京时间交易日窗口。"""
+    """1分K的独立周期同步配置, 北京时间交易日窗口。"""
     from app.services.kline_periods import get_configs, in_sync_window
     return in_sync_window(get_configs()["1m"], now)
 
