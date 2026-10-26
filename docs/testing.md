@@ -256,6 +256,9 @@ uv run --frozen --no-sync pytest tests/test_config_env.py tests/test_auth_env_bo
 原生桥接安装检查不连接外部节点；缺失、依赖版本、来源提交、接口或连接上限不匹配
 均以非零状态退出。默认依赖回归见 `tests/test_rustdx_installation.py`，本地协议
 连接池回归见 `tests/test_rustdx_native_pool.py`。
+桌面自检以实际 `rustdx/plugin.yaml` 验证七项数据集（含 `corporate_actions`），
+`test_desktop_packaging.py` 不得从待测常量生成成功样本。源码测试通过后仍须验收
+冻结 EXE 的插件加载、真实窗口、安装和卸载；失败不发布正式 Release。
 
 2026-10-17 默认安装专项验证：macOS arm64、CPython 3.11 的全新隔离环境使用
 普通 `uv sync --frozen` 构建安装桥接；再次默认同步和旧 `--extra rustdx` 命令
