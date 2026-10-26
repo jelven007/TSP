@@ -61,6 +61,9 @@ HTTPS/admin和全部functions。页面设置原故障仍未复现，24小时/交
 任务顺序推进后拒绝旧任务、同任务重试不增revision、摘要更新的缓存一致性与事务回滚。
 股票值/排序、评分/信号/警告变化及不同日期/参数/版本须保留；重复摘要更新仍受16MiB
 文档限制，失败不改变已存结果。反向加载修复前仓库须检出重复写入，不能只断言历史行数。
+`test_concurrent_first_writes_initialize_wal_without_losing_results`以屏障同步8个首次
+写入者，覆盖共用/多个仓库实例及32个全新数据库，逐条核对8份结果。
+并发初始化须在Linux SQLite上验证；macOS单次通过不能排除WAL转换的锁冲突。
 前端`Screener.test.tsx`验证A→B→A恢复及迟到响应不改当前日期，
 `screenerHistory.test.ts`校验HTTP维度与查询键，
 `StrategyResultHistoryDialog.test.tsx`校验旧版本/参数和加载失败。
