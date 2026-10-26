@@ -7,6 +7,9 @@ Runtime/Compute/API/Worker须固定同一CI revision；部署后单独核对配�
 HTTPS/admin和全部functions。页面设置原故障仍未复现，24小时/交易日及历史覆盖另签收。
 `test_build_manifest.py` 以真实 Git 临时仓库覆盖 Windows 自动换行与关闭自动换行，
 验证声明文件重新输出后仍能封装清洁源码；真实内容修改继续拒绝发布。
+`test_desktop_process_exit.py` 在真实桌面入口子进程中保留一个非daemon工作线程，
+验证冻结程序在应用清理后按0/1退出码结束，源码程序保留正常atexit语义。
+Windows安装烟测须同时具备GUI成功标记和进程真实退出；窗口关闭不能单独签收。
 
 六周期画像候选验证入口为 `backend/tests/test_kline_periods.py`、
 `test_kline_periods_api.py`、`test_rustdx_provider.py`、`test_minute_refresh.py`及

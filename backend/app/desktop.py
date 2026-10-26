@@ -871,4 +871,10 @@ if __name__ == "__main__":
     import multiprocessing
 
     multiprocessing.freeze_support()
-    sys.exit(main())
+    exit_code = main()
+    if getattr(sys, "frozen", False):
+        # main 已请求关闭后端并完成有界清理, 冻结进程不能再等待供应商
+        # 和 WebView 遗留的非 daemon 线程, 否则关闭窗口后仍无法退出。
+        logging.shutdown()
+        os._exit(exit_code)
+    sys.exit(exit_code)
