@@ -47,6 +47,7 @@ _RUSTDX_DATASETS = {
     "realtime",
     "daily",
     "adj_factor",
+    "corporate_actions",
     "minute",
     "depth5",
     "financial",
