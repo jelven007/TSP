@@ -24,6 +24,7 @@ MEMORY_BYTES = 32 * 1024 * 1024
 _memory: OrderedDict = OrderedDict()
 _memory_size = 0
 _memory_lock = threading.Lock()
+_local_init_lock = threading.Lock()
 
 
 def clear_memory() -> None:
@@ -208,11 +209,14 @@ class StrategyResults:
         conn.row_factory = sqlite3.Row
         try:
             if write:
-                conn.execute("PRAGMA journal_mode=WAL")
-                conn.execute("PRAGMA synchronous=FULL")
-                conn.execute("""CREATE TABLE IF NOT EXISTS strategy_results(
-                    id TEXT PRIMARY KEY, summary TEXT NOT NULL, value TEXT NOT NULL,
-                    revision INTEGER NOT NULL DEFAULT 1)""")
+                # WAL conversion precedes the transaction and does not wait for
+                # another first writer even with SQLite's busy timeout.
+                with _local_init_lock:
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("PRAGMA synchronous=FULL")
+                    conn.execute("""CREATE TABLE IF NOT EXISTS strategy_results(
+                        id TEXT PRIMARY KEY, summary TEXT NOT NULL, value TEXT NOT NULL,
+                        revision INTEGER NOT NULL DEFAULT 1)""")
                 conn.execute("BEGIN IMMEDIATE")
             else:
                 conn.execute("BEGIN")
