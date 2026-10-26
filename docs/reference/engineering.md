@@ -6,6 +6,11 @@
 独立工作目录保留原工作区并行修改；每阶段执行质量门、固定产物、配置/恢复核对，
 构建与上线条件见[发布复核](../../reports/current-state-release-20261026/release-review.md)。
 
+Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清理流程，
+冻结Windows在日志关闭后调用`TerminateProcess`，不新增公共接口或配置。
+`test_desktop_process_exit.py`同时覆盖Python线程与原生DLL卸载阻塞，
+原生用例由Windows CI执行；根因及反向验证见[修复记录](../../.claude/artifacts/fixes/windows-native-exit.md)。
+
 2026-10-26历史结果筛选/删除属于`FR-STRATEGY-05`的L3局部变更：
 需求见[策略契约](../requirements.md)，方案见[归档架构](../architecture.md#strategy-result-history)，
 开发入口为`services/strategy_results.py`、`api/screener.py`、

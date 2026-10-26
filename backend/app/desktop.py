@@ -876,5 +876,16 @@ if __name__ == "__main__":
         # main 已请求关闭后端并完成有界清理, 冻结进程不能再等待供应商
         # 和 WebView 遗留的非 daemon 线程, 否则关闭窗口后仍无法退出。
         logging.shutdown()
+        if sys.platform == "win32":
+            import ctypes
+
+            # os._exit 在 Windows 仍触发 DLL 卸载, 可能等待已终止线程的锁。
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.GetCurrentProcess.argtypes = []
+            kernel.GetCurrentProcess.restype = ctypes.c_void_p
+            kernel.TerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+            kernel.TerminateProcess.restype = ctypes.c_int
+            if not kernel.TerminateProcess(kernel.GetCurrentProcess(), exit_code):
+                raise ctypes.WinError(ctypes.get_last_error())
         os._exit(exit_code)
     sys.exit(exit_code)
