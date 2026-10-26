@@ -11,6 +11,11 @@ from app.config import settings
 from app.services import watchlist
 
 
+@pytest.fixture(autouse=True)
+def local_storage(monkeypatch):
+    monkeypatch.setattr(settings, "multitenancy_enabled", False)
+
+
 def _request():
     repo = MagicMock()
     repo.get_name_map.return_value = {}
@@ -226,6 +231,39 @@ def test_multi_group_membership(monkeypatch, tmp_path):
         watchlist.add_to_group("600118.SH", "missing")
     with pytest.raises(KeyError):
         watchlist.remove_from_group("000001.SZ", ga["id"])
+
+
+def test_adding_same_stock_to_different_groups_keeps_one_entry(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    _, first = watchlist.create_group("一")
+    _, second = watchlist.create_group("二")
+    watchlist.add("600000.SH", group_id=first["id"])
+    result = watchlist_api.add_one(
+        watchlist_api.AddRequest(symbol="600000.SH", group_id=second["id"]), _request(),
+    )
+    assert len(result["symbols"]) == 1
+    assert result["symbols"][0]["group_ids"] == [first["id"], second["id"]]
+
+
+def test_legacy_duplicate_stocks_merge_groups_without_overwriting_metadata(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    path = tmp_path / "user_data" / "watchlist.parquet"
+    path.parent.mkdir(parents=True)
+    pl.DataFrame({
+        "symbol": ["600000.SH", "000001.SZ", "600000.SH"],
+        "added_at": ["2026-10-23T10:00:00", "2026-10-22T10:00:00", "2026-10-21T10:00:00"],
+        "note": ["保留备注", "", "旧备注"],
+        "group_id": ["first", None, "second"],
+    }).write_parquet(path)
+    rows = watchlist.list_symbols()
+    assert [row["symbol"] for row in rows] == ["600000.SH", "000001.SZ"]
+    assert rows[0] == {
+        "symbol": "600000.SH", "added_at": "2026-10-23T10:00:00",
+        "note": "保留备注", "group_ids": ["first", "second"],
+    }
+    assert rows[1]["group_ids"] == []
+    # 读取仅归一快照, 不改写用户文件。
+    assert pl.read_parquet(path).height == 3
 
 
 def test_set_group_exclusive_keeps_only_one(monkeypatch, tmp_path):

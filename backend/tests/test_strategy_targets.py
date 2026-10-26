@@ -83,6 +83,42 @@ def test_referenced_group_cannot_be_deleted_through_service_or_api(local):
     assert watchlist.delete_group(group["id"])[0] == []
 
 
+@pytest.mark.parametrize("operation", ["clear", "clear_group"])
+def test_referenced_group_cannot_be_cleared_through_service_or_api(local, operation):
+    _, group = watchlist.create_group("核心", symbols=["600000.SH"])
+    config.save_override(local, "target", {"basic_filter": {
+        "target_mode": "selected", "boards": [], "include_custom": True,
+        "watchlist_group_ids": [group["id"]],
+    }})
+    before = watchlist.list_symbols()
+    rev = watchlist.revision()
+    args = [group["id"]] if operation == "clear_group" else []
+    with pytest.raises(ValueError, match="被策略引用"):
+        getattr(watchlist, operation)(*args)
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(repo=None)))
+    endpoint = watchlist_api.clear_group if args else watchlist_api.clear_all
+    with pytest.raises(HTTPException) as error:
+        endpoint(*args, request)
+    assert error.value.status_code == 409
+    assert watchlist.list_symbols() == before
+    assert watchlist.revision() == rev
+    config.delete_override(local, "target")
+    getattr(watchlist, operation)(*args)
+    assert all(not row["group_ids"] for row in watchlist.list_symbols())
+
+
+def test_clear_unreferenced_group_preserves_shared_stock_in_referenced_group(local):
+    _, core = watchlist.create_group("核心", symbols=["600000.SH"])
+    _, other = watchlist.create_group("观察", symbols=["600000.SH"])
+    config.save_override(local, "target", {"basic_filter": {
+        "target_mode": "selected", "boards": [], "include_custom": True,
+        "watchlist_group_ids": [core["id"]],
+    }})
+    watchlist.clear_group(other["id"])
+    assert watchlist.list_symbols()[0]["group_ids"] == [core["id"]]
+    assert config.load_override(local, "target")["basic_filter"]["target_symbols"] == ["600000.SH"]
+
+
 def test_save_rejects_missing_target_group_without_replacing_config(local):
     config.save_override(local, "target", {"params": {"x": 2}})
     with pytest.raises(ValueError, match="自选分组不存在"):

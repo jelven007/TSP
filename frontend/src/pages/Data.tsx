@@ -662,6 +662,13 @@ export function Data() {
               )}
               {isStarting ? '启动中…' : isRunning ? '同步中…' : '立即同步'}
             </button>
+            <button
+              onClick={() => setOpenSettings('page-settings')}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-btn text-secondary hover:text-accent hover:bg-accent/8 text-xs transition-colors duration-150"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              页面设置
+            </button>
             {canCancel && !!activeJobId && (
               <button
                 onClick={() => setShowStopConfirm(true)}
@@ -702,13 +709,6 @@ export function Data() {
               >
                 <Wifi className="h-3.5 w-3.5" />
                 测试端点
-              </button>
-              <button
-                onClick={() => setOpenSettings('page-settings')}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-btn text-secondary hover:text-accent hover:bg-accent/8 text-xs transition-colors duration-150"
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                页面设置
               </button>
               <div className="w-px h-4 bg-border" />
               <Link

@@ -2,6 +2,7 @@ import { useRef, useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { formatDuration, formatLogTime } from '@/lib/format'
+import { KLINE_PERIOD_LABELS, klineJobPeriod } from '@/lib/klinePeriods'
 import { Pill } from './StatCard'
 import type { PipelineJob } from '@/lib/api'
 
@@ -15,6 +16,12 @@ export const STAGE_LABELS: Record<string, string> = {
   sync_adj: '同步除权因子',
   compute_enriched: '计算技术指标',
   sync_minute: '同步分钟 K',
+  sync_1m: '同步1分钟K',
+  sync_5m: '同步5分钟K',
+  sync_10m: '计算10分钟K',
+  sync_15m: '同步15分钟K',
+  sync_1d: '同步日K',
+  sync_1w: '同步周K',
   extend_history: '扩展日K历史',
   extend_minute: '扩展分钟K历史',
   rebuild_enriched: '全量计算',
@@ -75,6 +82,9 @@ export function ActiveJobCard({ job }: { job: PipelineJob }) {
   const Icon = meta.icon
   const isDone = ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(job.status)
   const stageLabel = isDone ? meta.label : (STAGE_LABELS[job.stage] ?? job.stage)
+  const progress = job.status === 'succeeded' ? 100 : Math.max(0, Math.min(100, job.progress))
+  const stageProgress = Math.max(0, Math.min(100, job.stage_pct))
+  const period = klineJobPeriod(job)
 
   return (
     <div className={`rounded-card border ${meta.border} ${meta.bg} p-5`}>
@@ -90,34 +100,41 @@ export function ActiveJobCard({ job }: { job: PipelineJob }) {
             </div>
           </div>
         </div>
+        <div className="font-mono text-2xl font-bold tracking-tight">
+          {progress}<span className="text-[16px] leading-6 text-muted">%</span>
+        </div>
+      </div>
+
+      <div className="mb-2">
+        <div role="progressbar" aria-label="同步总进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}
+          className="h-1.5 rounded-full bg-elevated overflow-hidden">
+          <motion.div
+            className={`h-full ${job.status === 'succeeded' ? 'bg-bear' : job.status === 'failed' ? 'bg-danger' : 'bg-accent'}`}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          />
+        </div>
         {!isDone && (
-          <div className="font-mono text-2xl font-bold tracking-tight">
-            {job.progress}<span className="text-[16px] leading-6 text-muted">%</span>
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-[10px] text-muted">当前阶段</span>
+            <span role="progressbar" aria-label="当前阶段进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={stageProgress}
+              className="text-[10px] font-mono text-secondary">{stageProgress}%</span>
           </div>
         )}
       </div>
 
-      {!isDone && (
-        <div className="mb-2">
-          <div className="h-1.5 rounded-full bg-elevated overflow-hidden">
-            <motion.div
-              className="h-full bg-accent"
-              animate={{ width: `${job.progress}%` }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            />
-          </div>
-          {job.stage_pct > 0 && (
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-[10px] text-muted">当前阶段</span>
-              <span className="text-[10px] font-mono text-secondary">{job.stage_pct}%</span>
-            </div>
-          )}
-        </div>
-      )}
-
       <LogViewer log={job.log} />
 
       {job.status === 'succeeded' && job.result && (() => {
+        if (period) return (
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+            <Pill label="同步周期" value={KLINE_PERIOD_LABELS[period]} />
+            <Pill label="写入行数" value={job.result.rows ?? job.result.minute_rows ?? '—'} />
+            <Pill label="标的池" value={job.result.universe_size ?? '—'} />
+            <Pill label="开始日期" value={job.result.start?.slice(0, 10) ?? '—'} />
+            <Pill label="结束日期" value={job.result.end?.slice(0, 10) ?? '—'} />
+          </div>
+        )
         const skipped = new Set(job.result.skipped_stages ?? [])
         const cell = (stage: string | null, v: string) =>
           stage && skipped.has(stage) ? '跳过' : v

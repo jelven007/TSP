@@ -482,10 +482,15 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
 
 
 @router.get("/result-history/{strategy_id}")
-def get_result_history(strategy_id: str, request: Request, limit: int = 30, cursor: str | None = None):
+def get_result_history(
+    strategy_id: str, request: Request, limit: int = 30, cursor: str | None = None,
+    q: str | None = None, start_date: str | None = None, end_date: str | None = None,
+    asset_type: str | None = None, timeframe: str | None = None,
+):
     try:
         return strategy_results.StrategyResults(_private_data_dir(request)).list_history(
-            strategy_id, limit=limit, cursor=cursor,
+            strategy_id, limit=limit, cursor=cursor, q=q, start_date=start_date,
+            end_date=end_date, asset_type=asset_type, timeframe=timeframe,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -497,6 +502,22 @@ def get_result_history_detail(strategy_id: str, record_id: str, request: Request
     if saved is None:
         raise HTTPException(status_code=404, detail="历史结果不存在")
     return saved
+
+
+@router.delete("/result-history/{strategy_id}/{record_id}")
+def delete_result_history(strategy_id: str, record_id: str, request: Request):
+    from app.cell.context import AccessError
+
+    try:
+        deleted = strategy_results.StrategyResults(_private_data_dir(request)).delete(strategy_id, record_id)
+    except AccessError:
+        raise
+    except Exception:
+        logger.error("strategy result deletion failed")
+        raise HTTPException(status_code=503, detail="历史结果删除失败, 请重试") from None
+    if not deleted:
+        raise HTTPException(status_code=404, detail="历史结果不存在")
+    return {"ok": True}
 
 
 def _cached_with_realtime(request: Request) -> dict:

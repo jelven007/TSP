@@ -72,10 +72,11 @@ export function getCardVisibility(
   caps: Record<string, unknown> | undefined,
 ): Record<string, boolean> {
   const has = (capKey: string) => !capKey || !!caps?.[capKey]
-  const override = storage.dataCardVisible.get({})
+  const saved = storage.dataCardVisible.get({})
+  const override = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
   const result: Record<string, boolean> = {}
   for (const def of DATA_CARD_DEFS) {
-    if (def.key in override) {
+    if (typeof override[def.key] === 'boolean') {
       result[def.key] = override[def.key]
     } else if (def.defaultHidden) {
       result[def.key] = false
@@ -93,11 +94,11 @@ export function getCardVisibility(
  */
 export function getCardOrder(): CardKey[] {
   const saved = storage.dataCardOrder.get([])
-  if (!saved.length) return [...DEFAULT_ORDER]
+  if (!Array.isArray(saved) || !saved.length) return [...DEFAULT_ORDER]
   // 老版卡片顺序迁入六周期默认位置；新版用户拖拽继续保留。
   if (!saved.includes('weekly')) return [...DEFAULT_ORDER]
   const known = new Set<CardKey>(DEFAULT_ORDER)
-  const ordered = saved.filter(k => known.has(k as CardKey)) as CardKey[]
+  const ordered = [...new Set(saved.filter(k => known.has(k as CardKey)))] as CardKey[]
   // 补齐新增的 key(默认顺序里新增的卡片追加到末尾)
   for (const k of DEFAULT_ORDER) {
     if (!ordered.includes(k)) ordered.push(k)
@@ -127,7 +128,7 @@ export function PageSettingsModal({
   const toggle = (key: CardKey) => persistVisible({ ...visible, [key]: !(visible[key] ?? true) })
 
   const reset = () => {
-    // 恢复默认: 默认顺序 + 仅勾选前 5 张卡片, 其余隐藏
+    // 恢复默认顺序与显示范围。
     const defaultOrder = [...DEFAULT_ORDER]
     const defaultVisible: Record<string, boolean> = {}
     defaultOrder.forEach((k, i) => { defaultVisible[k] = i < DEFAULT_VISIBLE_COUNT })
@@ -248,6 +249,7 @@ function SortableCardRow({
           on ? 'bg-accent border-accent' : 'bg-base border-border'
         }`}
         role="checkbox"
+        aria-label={`显示${label}`}
         aria-checked={on}
       >
         {on && <Check className="h-3 w-3 text-white" strokeWidth={3} />}

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from app.services import kline_sync
 from app.services.pipeline_jobs import job_store
@@ -114,17 +114,14 @@ def run_extend_history(
     emit = on_progress or _noop
 
     # 0. 计算时间偏移
-    offset = compute_offset(value, unit)
-    today = date.today()
+    from app.market_time import cn_today
+    from app.services.kline_periods import history_start
+    today = cn_today()
 
     # 1. 获取当前最早日期
     emit("extend_history", 2, "检查当前数据范围…")
-    earliest = repo.earliest_daily_date()
-
-    if not earliest:
-        return {"error": "本地无日K数据,请先执行一次完整同步"}
-
-    new_start = earliest - offset
+    earliest = repo.earliest_daily_date() or today
+    new_start = earliest - compute_offset(value, unit) if unit == "day" else history_start(earliest, value, unit)
     # 不能超过今天
     if new_start >= earliest:
         return {"error": "扩展范围无效,请增大时间跨度"}
@@ -140,7 +137,7 @@ def run_extend_history(
     end_str = earliest.strftime("%Y-%m-%d")
 
     # 3. 拉日 K
-    emit("extend_history", 10, f"获取日K [{start_str} ~ {end_str}]…")
+    emit("extend_history", 10, f"获取日K [{start_str} ~ {end_str}]…", stage_pct=0)
     logger.info("extend_history: daily K [%s ~ %s], %d symbols", start_str, end_str, len(universe))
 
     def _daily_chunk(cur: int, tot: int) -> None:
@@ -150,10 +147,10 @@ def run_extend_history(
     written_daily = kline_sync.sync_and_persist_daily_batch(
         universe, repo, capset,
         start_date=datetime.combine(new_start, datetime.min.time()),
-        end_date=datetime.combine(earliest, datetime.min.time()),
+        end_date=datetime.combine(earliest, datetime.max.time()),
         on_chunk_done=_daily_chunk,
     )
-    emit("extend_history", 45, f"日K 完成,写入 {written_daily} 行")
+    emit("extend_history", 45, f"日K 完成,写入 {written_daily} 行", stage_pct=100)
     logger.info("extend_history: daily K done, %d rows", written_daily)
     _refresh_single_view(repo, "kline_daily")
     _invalidate("daily")
@@ -169,7 +166,7 @@ def run_extend_history(
     adj_provider = _prefs.get_adj_factor_provider()
     can_sync_adj = capset.has(Cap.ADJ_FACTOR) or adj_provider != "tickflow"
     if can_sync_adj:
-        emit("extend_history", 48, f"获取除权因子 [{adj_start_str} ~ {adj_end_str}]…")
+        emit("extend_history", 48, f"获取除权因子 [{adj_start_str} ~ {adj_end_str}]…", stage_pct=0)
         logger.info("extend_history: adj_factor [%s ~ %s]", adj_start_str, adj_end_str)
 
         def _adj_chunk(cur: int, tot: int) -> None:
@@ -190,7 +187,7 @@ def run_extend_history(
         logger.info("extend_history: adj_factor skipped, no ADJ_FACTOR capability")
 
     # 5. 全量重算 enriched
-    emit("extend_history", 65, "全量计算 enriched…")
+    emit("extend_history", 65, "全量计算 enriched…", stage_pct=0)
     logger.info("extend_history: full enriched rebuild start")
 
     from app.indicators.pipeline import run_pipeline
@@ -198,7 +195,7 @@ def run_extend_history(
 
     enriched_dir = repo.store.data_dir / "kline_daily_enriched"
     enriched_days = len(list(enriched_dir.glob("date=*"))) if enriched_dir.exists() else 0
-    emit("extend_history", 92, f"enriched 完成,覆盖 {enriched_days} 天")
+    emit("extend_history", 92, f"enriched 完成,覆盖 {enriched_days} 天", stage_pct=100)
     logger.info("extend_history: enriched done, %d days", enriched_days)
     _refresh_single_view(repo, "kline_enriched")
     _invalidate("enriched")
