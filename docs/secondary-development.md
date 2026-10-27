@@ -1,5 +1,12 @@
 # 代码二次开发与 AI 扩展指南
 
+系统设置简化为L3局部变更，复用`StrategyConcurrencyControl`、共享查询键、
+原子preferences及Broker只读配置，不新增插槽或扩展API。配置整数范围1～999与
+执行资源/部署上限分离，升级须同步API/Platform与Compute的配置读取校验。
+旧`screener_auto_run`保留deprecated字段兼容，读取/写入均不能再启用；
+二开不得重建页面挂载/切日期的自动计算effect，每策略仍由原手动监控规则API启停。
+开源设置组件只显示仓库、最新版本号链接和发布时间，共享查询与布局提醒沿原契约。
+
 2026-10-27整合升级必须同时加载匹配的API/Platform/Worker/Compute及前端，
 保留旧API省略字段、旧Parquet、SQL租户关系和用户已存配置。
 本地修改不加版本；固定主线质量门产物后升级，见[本批记录](../reports/latest-release-20261027/verification.md)。
@@ -12,6 +19,8 @@
 二开须保留实时行情独立开关/轮询查询与总开关的加载、保存、错误状态。
 新增日K同步行复用`1d.enabled/time`和盘后管道，不创建新的后端任务或扩展API。
 布局及兼容回归见[验收](testing.md#data-overview-layout)。
+各类任务分组（含扩展数据）使用原生折叠控件，保留category键、实时更新和独立展开。
+总开关仅移除可见文字，仍保留可访问名称和原保存契约。
 
 2026-10-27自选查询挂载重读是关系兼容契约：持久缓存仅用于先显示内容，
 不能因缓存尚在staleTime内而跳过服务端校验。升级保留`refetchOnMount: 'always'`
@@ -32,7 +41,9 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 
 2026-10-27离线生成属于L3局部变更，复用`KlineSyncConfig`及`/api/kline/sync_period`。
 `syncKlinePeriod`仅传period时，5/10/15分钟和周K按本地基础分区区间调用`generate_period`；
-日K使用作用于同一data_dir的`run_pipeline`，从本地日K/因子写入Enriched。
+日K画像恢复历史获取，使用`isLocalDerivedPeriod`区分本地派生周期与1m/1d基础数据，
+明确提交value/unit走原`extend_history`；不得仅传period而误进入本地指标生成。
+旧无范围日K API兼容作用于同一data_dir的`run_pipeline`，从本地日K/因子写入Enriched。
 升级保留显式value/unit旧调用、1分钟历史获取、日K自动同步及LOCAL_DERIVED_PERIODS原定义，
 不能因手工日K可本地生成而更改全局日K数据源路由。
 须复核目标已有数据重算、零输出失败、分块幂等、取消发布和有界缓存换代；
@@ -47,6 +58,9 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 现有apiVersion及旧不传周期的调用保持兼容。
 
 K线修正为L3局部接线，复用现有`RepairDailyPanel`、修正API及周期服务，不新增插槽。
+日期与时分控件复用`DatePicker`/`TimePicker`及`usePickerPopover`，保持行情首排样式；
+扩展字段保留可清空、禁用、标签与日期上下界，弹窗内保持Portal焦点及Escape优先收起弹层。
+不新增扩展注册接口或改动后端日期/时间格式。
 2026-10-27前端入口仅选1m/1d，`api.repairDaily`新增第4可选endDate参数；
 后端可选`end_date`同时限定full/missing，严格日期格式及闭区间校验先于建任务。
 `run_now`新增keyword-only `override_end_date`，统一日K/因子窗口和范围清理；
@@ -123,8 +137,11 @@ M:N关系、only_new、revision与共享查询失效。管理分组`onCreate`仅
 不能把股票的策略标记写入`basic_filter.watchlist_group_ids`或自动启动监控。
 表格/卡片复用`WatchlistRelations`和共享Modal；目录独立全周期查询键
 `QK.watchlistStrategyOptions()`不得与日K目录或加工后的选股目录共用缓存。
-默认排序沿清单顺序，重置只清字段排序；全量导出读取完整`api.watchlistList()`，
-不能使用插槽的已筛选symbols。新增字段及路由不扩大已有插槽、注册或Provider契约。
+默认排序沿清单顺序，重置只清字段排序；页头导出是L3局部交互，`Watchlist.tsx`将
+`selectedGroup`与组名传给`WatchlistExportButton`，读取完整`api.watchlistList()`后按
+全部/未分组/具体组过滤，采用点击时的分类；不能使用插槽的已筛选symbols或行情行。
+图标按钮保留可访问名称，复用代码单列CSV和账户/卸载保护，不新增API、查询键或插槽。
+新增字段及路由不扩大已有插槽、注册或Provider契约。
 
 2026-10-25整合中的官方目录、管理员默认空间和全局顶栏属于L3核心修改：
 官方目录适配位于数据接入层，CRUD复用目录写锁与发布链；管理员复用注册预留/初始化

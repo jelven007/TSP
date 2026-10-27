@@ -1,5 +1,14 @@
 # 工程与交付参考
 
+2026-10-27系统设置简化对应`FR-ADMIN-06`，为L3局部接线：需求与当前架构分别见
+[需求](../requirements.md)和[并发架构](../architecture.md)，开发入口为`System`、
+`StrategyConcurrencyControl`、`Screener`、开源发布组件及原preferences/strategy_resources。
+兼容边界见[二开](../secondary-development.md)，用例矩阵见[测试](../testing.md)，
+用户入口见[系统设置](../../操作说明书.md#238-系统设置)，支持与生效排障见
+[运营](../release-operations.md)和[运维](../operations.md#strategy-concurrency)。
+配置1～999与实际准入上限分开；旧自动运行字段兼容为false，保留已有用户偏好与监控规则。
+本地版本不加号，本轮未更新运行副本或线上。
+
 2026-10-27最新源码整合、精确复审与固定发布阶段见
 [本批记录](../../reports/latest-release-20261027/verification.md)和[源码复审](../../reports/latest-release-20261027/source-review.md)。
 本批沿既有八业务模块与需求编号；源码可合并、main CI、镜像身份及两端运行分别签收，
@@ -44,7 +53,8 @@ Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清
 新增表仅用于数据画像和同步，不把它们自动注册为策略/回测可选周期。
 分钟/日K客户端保留原方法，新增可选freq；5m/15m/1w查询由 `query_period`
 复用同一Provider解析与独立分区。页面设置持久值先验证类型并去重，
-日/周离线表单共用 `KlineSyncConfig`，仅传period走本地生成，显式历史范围旧调用保持兼容。
+六周期离线表单共用 `KlineSyncConfig`，日K/1m提交月年历史范围，派生周期仅传period本地生成；
+旧无范围日K API保持本地生成兼容。
 版本沿用当前主线，合并时对基线三方应用，保留其他本地修改。
 
 2026-10-27离线生成归`FR-DATA-05`的L3局部变更：开发入口为
@@ -71,7 +81,7 @@ Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清
 领域缺口检测位于`services/kline_gaps.py`，不新增通用扩展接口。
 需求/方案见[需求](../requirements.md)与[架构](../architecture.md)，
 源码/升级边界见[二开](../secondary-development.md)，
-用例见[验收](../testing.md)，用户入口见[修正数据](../../操作说明书.md#223-修正数据)，
+用例见[验收](../testing.md)，用户入口见[数据修正](../../操作说明书.md#223-数据修正)，
 支持和更新见[运营](../release-operations.md)与[运维](../operations.md)。
 默认全量兼容旧调用；遗漏按实际键只追加，未补齐明确失败，不修改用户配置或本地版本。
 
@@ -79,7 +89,7 @@ Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清
 `RepairDailyPanel`仅提供1m/1d，沿`api.repairDaily`→修正API→`run_repair_daily`传递结束日期；
 日K复用`run_now`及原范围清理helper，不复制管道或新增扩展接口。
 需求/方案/升级边界见上方链接，验收见[日期范围测试](../testing.md#repair-date-range)，
-用户入口仍为[修正数据](../../操作说明书.md#223-修正数据)，运营/运维及版本分别同步。
+用户入口为[数据修正](../../操作说明书.md#223-数据修正)，运营/运维及版本分别同步。
 旧缺结束日期及六周期API保持兼容，本地候选不递增版本，不签收运行升级或历史覆盖。
 
 一级页面顶栏统一复用 `frontend/src/components/PageHeader.tsx`，以策略页为样式基准：
@@ -87,6 +97,11 @@ Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清
 窄屏单独一行横向滚动并避开菜单按钮。共享规则在 `index.css` 的 `.page-header-actions`，
 页面不再覆盖顶栏间距或重复实现卡片式标题。正文图表和领域操作保留各自结构；
 行情的加载/失败状态也使用同一标题组件。对应需求 `FR-UI-05`。
+
+日期与时分控件以行情首排为基准，分别复用`DatePicker`与`TimePicker`；
+`usePickerPopover`共享触发器、边界定位和关闭逻辑。桌面28px、窄屏32px，
+圆角6px、12px等宽数字与主题表面一致；可留空字段使用`clearable`，禁用及ARIA属性透传到按钮。
+弹层挂到当前Modal内，Escape先关闭弹层并归还焦点，保留原日期校验及YYYY-MM-DD/HH:mm数据契约。
 
 - [1. 仓库布局与文件归属](#layout)
 - [2. 从需求到生产的工程闭环](#engineering)
@@ -657,7 +672,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 官方个股目录 / 数据负责人 | FR-DATA-04/05/08、FR-ADMIN | [当前架构](../architecture.md#current)、[目录契约](market-data.md)、instrument_sync/catalog及管理API | 官方响应完整性、CRUD/权限、SCD2、原子写失败、缓存发布、启动及09:00调度 | 固定官方源，不受行情总开关控制；旧时间偏好失效；手工修订可能被后续官方名单覆盖 |
 | 管理员个人空间 / 应用负责人 | FR-ENTRY、FR-ADMIN、NFR-09/20 | identity预留→持久任务→业务初始化→默认空间激活 | 真实PG并发/容量/双库重试、停用保护、租户隔离、启动接线 | 已有租户与密码保留；失败时管理登录仍可用，业务待空间就绪 |
 | 顶栏与数据总览 / 前端负责人 | FR-UI-05、FR-DATA-07 | PageHeader、Data、Watchlist弹层及共享状态查询 | Vitest/build/lint、桌面与窄屏、浅深色、搜索弹层和目录管理 | 顶栏统一；数据页分盘前/中/后，旧按钮与筛选保持可用 |
-| 数据总览布局 / 前端负责人 | FR-UI-05、FR-DATA-07、FR-ADMIN-05 | Data、ScheduleOverview、PageSettingsModal、QuoteConfigCard及[六类文档验收](../testing.md#data-overview-layout) | 默认/旧排序、新位置/显隐、总开关pending/error/刷新、日K共享时间、1440/390px浅深色、397项及lint/build | 数据同步3/4左对齐，右上总开关，实时行情紧接15分K；仅前端展示与既有API接线，不重置配置或新增调度 |
+| 数据总览布局 / 前端负责人 | FR-UI-05、FR-DATA-07、FR-ADMIN-05 | Data、ScheduleOverview、PageSettingsModal、QuoteConfigCard及[六类文档验收](../testing.md#data-overview-layout) | 默认/旧排序、新位置/显隐、各组含扩展独立折叠/刷新保留、无可见标签开关pending/error、日K共享时间、1440/390px、组件回归及lint/build | 数据同步3/4左对齐，右上仅开关，各组含扩展默认收起，实时行情紧接15分K；仅前端展示与既有API接线，不重置配置或新增调度 |
 | 示例与源码恢复 / 工程负责人 | NFR-01/04/06/08/10 | examples统一、scripts/release/source_recovery.py | 目录/链接、样例接口、真实Git祖先/标签、损坏/越界/覆盖拒绝 | 只归档固定源码，保留最新+5；生产数据与依赖另行备份 |
 
 <a id="trace-2-全部文件的追踪方式"></a>

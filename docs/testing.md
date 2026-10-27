@@ -20,6 +20,11 @@
 [实际记录](../reports/data-overview-layout-20261027/verification.md)。
 仅认证前端与模拟API交互，不认证线上调度执行或真实行情数据。
 
+折叠补充：`ScheduleOverview.disclosure.test.tsx`覆盖各组默认收起与独立展开、
+实时调度刷新后基础与扩展分组展开状态保留，以及无可见标签的开关名称、
+当前值和保存期间禁用。浏览器验收需检查鼠标/Enter/Space展开收起、原生箭头、
+标题与数量可读、桌面与390px无溢出；折叠操作不能保存或重置任务配置。
+
 2026-10-27真实本地验收发现快速刷新缓存问题；`Watchlist.test.tsx`播种新鲜旧缓存，
 验证挂载仍请求清单并显示已保存双策略。先红后绿；最终工作区前端391项通过，
 候选后端71项及独立SQL25项通过；无拦截Chrome验证CSV顺序、多组、多策略、
@@ -41,8 +46,13 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 
 <a id="repair-date-range"></a>
 2026-10-27修正日期范围回归：`RepairDailyPanel.test.tsx`验证仅1m/1d、默认日K、
-可输入结束日期及默认今天、full/missing参数、同日范围、空/反向/未来拒绝、能力及运行中禁用。
+可选择结束日期及默认今天、full/missing参数、同日范围、空/反向/未来拒绝、能力及运行中禁用。
 `api/repairKline.test.ts`检查真实请求正文和旧调用省略结束日期。
+日期与时分统一回归包括`DatePicker.test.tsx`的清空/上下界/禁用及Modal内Escape优先收起、
+`StrategyResultHistoryDialog.test.tsx`的日期选择/单项清空/筛选请求、
+`StockCatalogDialog.test.tsx`的上市日期选择与空值保存、
+`KlineSyncConfig.test.tsx`与`ExtDataPullPanel.test.tsx`的24小时制时间选择/保存及不限时间清空。
+浏览器对照行情首排检查触发器尺寸、圆角、主题和弹层边界；原范围校验及提交参数保持不变。
 `test_repair_kline.py`验证建任务前日期校验、任务请求保存/透传结束日期、旧缺省行为、
 1分钟取数及真实入库包含末日，超范围源返回不覆盖区间外旧值。
 `test_pipeline_beijing_today.py`核对股票/指数/ETF及因子范围、enriched区间外字节保留、
@@ -53,10 +63,14 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 两个按钮参数、空/反向/未来提示、失败重试及无横向溢出；模拟请求不认证真实数据源历史覆盖。
 
 <a id="local-kline-generation"></a>
-2026-10-27离线生成回归：`KlineSyncConfig.test.tsx`覆盖5/10/15分K、日K、周K
-无扩展控件、仅传period、空表/缺能力可点击、任务运行中禁用，1m仍传月/年历史范围。
+2026-10-27离线生成回归：`KlineSyncConfig.test.tsx`覆盖5/10/15分K、周K
+无扩展控件、仅传period、空表/缺能力可点击、任务运行中禁用。
+日K恢复与1m一致的历史控件、月/年及显式范围请求，覆盖缺能力/运行中禁用、
+已有最早日期、失败保留表单及后续除权/指标说明；`Data.test.tsx`从日K画像设置按钮
+验证真实API请求与任务跟踪，保留用户盘后时间。
 `test_kline_periods_api.py`覆盖完整本地基础日期范围、目标已有数据、重复生成与基础数据修订，
-缺基础失败、日K真实本地复权/指标入库、原始日K保留、缓存换代和取消前不发布。
+缺基础失败、旧无范围日K API真实本地复权/指标入库、原始日K保留、缓存换代和取消前不发布；
+日K画像显式范围沿原历史任务，验证月/年参数、能力拒绝、实际结果和100%进度。
 周期服务同时验证缺维表时仍按基础已有证券生成。
 `test_pipeline_capacity.py`验证新生成任务等待共享容量后才计算。
 同时回归周期服务、修正、历史进度、公共缓存和Enriched发布；前端执行全量测试、
@@ -107,7 +121,7 @@ K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
 日K/分钟K/分钟区间查询，保留无关查询缓存，不依赖实时SSE。
 
 数据总览修复用例补充：无效显隐/顺序、重复卡片及页面设置重开；
-日/周无扩展生成表单、日K基础空库失败、1m闰年自然月区间和日K本地复权/指标流程；
+派生周期无扩展生成表单、日K/1m月年历史获取、日K空库闰年自然月区间及后续复权/指标流程；
 原minute/daily入口的5m/15m/1w本地读取、周K空表从日K聚合、非法周期/源失败，
 及三个周期离线任务写盘后画像计数。回归须断言实际周期与行值，不能只检查200。
 
@@ -200,6 +214,14 @@ K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
 `StrategyTargets.test.tsx`与`Modal.test.tsx`运行，并执行前端构建。
 浏览器验证管理分组→单选→下载和窄屏布局；下载文件用现有
 `import_watchlist_csv`解析核对代码/顺序，不将重新导入视为恢复备注或组配置。
+
+页头分类导出按`FR-WATCHLIST-08`验证：`WatchlistExportButton.test.tsx`检查纯图标及
+可访问名称、全部去重、未分组（缺省/空成员）、具体组共享成员、完整最新清单、
+BOM/CRLF、前导零及后缀、对应文件名、各分类空清单、读取失败重试、加载禁用、
+读取期间切换页签仍采用点击时选择、账户切换和卸载保护。`Watchlist.test.tsx`检查
+全部→未分组→各组切换及URL指定组接线，行情未就绪不漏代码。
+回归分组管理导出、关系编辑、批量导入、默认排序和共享弹窗，并执行前端构建；
+浏览器在桌面/窄屏切换分类下载CSV，与当前空间完整清单按成员关系逐项核对。
 
 CSV导入顺序按`FR-WATCHLIST-03`验证：`test_watchlist_csv.py`沿解析→批量API→重新读取
 核对文件首现顺序、重复/未知项、既有证券及多组关系；文件测试显式使用
@@ -512,23 +534,29 @@ uv run pytest tests/test_strategy_safety_validation.py tests/test_strategy_code_
 拒绝更新保留旧策略，以及租户保存拒绝发生在计算服务和私有存储调用前。
 载荷仅参与 AST 解析或由模拟加载器阻止执行，测试不读取真实用户策略。
 
-系统设置“策略页”的全局并发配置对应 `FR-ADMIN-06`：
+系统设置“并发策略”的全局并发配置对应 `FR-ADMIN-06`：
 
 ```bash
 cd backend
 uv run --frozen --no-sync pytest tests/test_strategy_concurrency.py tests/test_full_compute.py tests/test_full_platform.py tests/test_screener_run_all_progressive.py tests/test_strategy_run_queue.py tests/test_openapi_contract.py -q
 cd ../frontend
-pnpm test src/pages/settings/System.test.tsx
+pnpm test src/pages/settings/System.test.tsx src/pages/Screener.test.tsx src/lib/openSourceMonitor.test.tsx
 pnpm build
 ```
 
 覆盖实际主机四分之一预算、内存/CPU限制中的较小推荐值、自动/手工切换、
 重读/持久化、严格输入、HTTP权限和平台转发、IPC只读、降并发旧任务收尾、
 旧新任务共同记账、跨线程等待释放、CPU向下取整及无资源拒绝。
-页面验证控件位于“策略页”、保存失败保留生效值、部署未应用提示、资源缩小时回显
+页面验证控件位于“并发策略”、首次直接显示推荐数字、手工1/999边界与空/小数/越界拒绝、
+编辑不被后台查询覆盖、保存失败保留生效值、部署未应用提示、资源缩小时回显
 保存值及租户只读1不暴露主机配置；桌面/窄屏另检查真实渲染和交互。
+旧自动偏好true/缺失时，进入策略页、切换日期与资产不得请求计算；手动单跑和日线/分钟
+批跑仍有效。开源区域只含仓库链接、最新版本号和发布时间，网络失败保留缓存与错误，
+布局的提醒、已读及每小时观察沿原测试。反向验证使用隔离副本，不覆盖工作区已有修改。
 这些测试采用隔离偏好与模拟计算；不能替代真实 Docker 内存硬限制、
 全市场策略压测、跨主机容量或生产部署验收。推荐值仍是资源限额估算。
+2026-10-27本轮实测后端93项、前端65项及浅深色/窄屏结果见
+[验证记录](../reports/system-settings-20261027/verification.md)；源码候选未更新运行副本或线上。
 
 本地目标范围候选追加：
 

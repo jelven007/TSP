@@ -345,6 +345,38 @@ async def test_explicit_daily_history_range_retains_legacy_entrypoint(app, monke
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(("value", "unit"), [(6, "month"), (1, "year")])
+async def test_daily_profile_acquisition_creates_history_job_with_selected_range(app, monkeypatch, value, unit):
+    from app.services import extend_history
+    calls = []
+    def run(repo, caps, quantity, range_unit, on_progress):
+        calls.append((repo, caps, quantity, range_unit))
+        on_progress("extend_history", 100, "历史日K获取完成", stage_pct=100)
+        return {"daily_rows": 4, "universe_size": 4, "earliest_after": "2025-10-27"}
+    monkeypatch.setattr(extend_history, "run_extend_history", run)
+    monkeypatch.setattr(kline_periods, "generate_period", lambda *a, **kw: pytest.fail("daily profile must acquire history"))
+    body = {"period": "1d", "value": value, "unit": unit}
+    async def json_body():
+        return body
+    started = await kline.sync_period_job(SimpleNamespace(app=app, json=json_body), body)
+    job = await wait_for_job(started["job_id"])
+    assert calls == [(app.state.repo, app.state.capabilities, value, unit)]
+    assert job["kind"] == "extend_history"
+    assert job["request"] == {"value": value, "unit": unit}
+    assert job["status"] == "succeeded"
+    assert job["result"]["daily_rows"] == 4
+    assert job["progress"] == job["stage_pct"] == 100
+
+
+def test_daily_profile_without_daily_capability_rejects_before_creating_history_task(app, monkeypatch):
+    monkeypatch.setattr(app.state.capabilities, "has", lambda cap: False)
+    with TestClient(app) as client:
+        response = client.post("/api/kline/sync_period", json={"period": "1d", "value": 6, "unit": "month"})
+    assert response.status_code == 403
+    assert pipeline_jobs.job_store.list_recent() == []
+
+
+@pytest.mark.asyncio
 async def test_daily_generation_cancels_before_publishing_and_releases_slot(app, monkeypatch):
     repo = app.state.repo
     daily = pl.DataFrame({

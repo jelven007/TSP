@@ -13,6 +13,9 @@
 成功失效preferences/dataStatus，加载失败或保存中禁用，写失败保留旧状态并提示。
 日K周期同步与盘后管道读取同一`1d`配置和时间（回退pipeline_schedule，默认16:00），
 仅补充展示，不注册第二个盘后任务。验证见[数据总览布局](testing.md#data-overview-layout)。
+数据同步的各类分组（含扩展数据）复用数据质量说明的原生`details/summary`，默认收起；
+稳定category键保留查询刷新时的展开状态。开关去除可见标签，保留无障碍名称、
+加载/保存门控和原回调；不新增持久化字段、请求或调度。
 
 2026-10-27真实本地验证补充：自选清单查询设置`refetchOnMount: 'always'`，
 继续使用既有缓存进行首屏展示，但每次挂载校验服务端关系和顺序，
@@ -36,9 +39,11 @@
 1分钟日期分区，分别按09:30和13:00起算收盘标签，未知量额保持空值。取数按日期段及100标的块有界执行；
 写盘沿既有分区锁与原子替换，刷新对应视图、画像及存储缓存，公共发布目录同步扩展。
 六周期设置经 `/api/settings/kline-sync`，手工任务经 `/api/kline/sync_period`；
-手工请求仅传`period`时，5/10/15分K、日K、周K调用`generate_period`：
+日K画像设置与1分K一样提交`period/value/unit`，沿`extend_history`获取历史日K、
+同步除权因子及重算指标；不将日K归入本地派生周期。日K开关、盘后时间与现有配置保持一致。
+手工请求仅传`period`时，5/10/15分K、周K调用`generate_period`：
 按基础1m/1d的非空分区最早到最新日期及已有证券本地计算，派生周期复用有界`sync_period`；
-日K调用`run_pipeline(data_dir=repo.store.data_dir)`重算Enriched，沿已有发布屏障、
+旧无范围日K API兼容本地生成：调用`run_pipeline(data_dir=repo.store.data_dir)`重算Enriched，沿已有发布屏障、
 symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓存。
 日K自动同步保留原复权/指标流水线，1分钟实时保留既有增量服务，其余周期由调度检查。
 显式传`value/unit`的旧历史调用保留；1m缺省也保持远程历史行为。
@@ -47,7 +52,8 @@ symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓
 
 「K线修正」沿用 `/api/kline/repair_daily`，可选`period`缺省为`1d`，
 可选`mode=full|missing`缺省为`full`，旧调用保持全量行为。
-2026-10-27面板仅提供1分K和日K，结束日期原生输入框支持键盘输入，缺省今天；
+2026-10-27面板仅提供1分K和日K，数据总览入口命名为「数据修正」；
+起止日期复用行情首排的`DatePicker`，结束缺省今天；
 全量/遗漏均提交起止闭区间。API可选`end_date`严格校验YYYY-MM-DD及起始≤结束≤北京今天，
 任务请求保存结束日期；旧API省略结束日期仍到今天，六周期服务调用继续兼容。
 `repair_daily.run_repair_daily`保留日K盘后流程，其他周期读取既有完整股票池快照后
@@ -264,17 +270,23 @@ API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期
   共享按类型区分的 freshness 上限（120/420/120/660 秒）。
 - Broker 健康检查实际启动一个同约束沙箱并缓存成功结果；执行槽和等待者均有界，
   并发满最多短时等待，失败诊断最多保留 8 KiB stderr 尾部。
-- “系统设置 → 策略页 → 并发策略数”通过管理员管理面读写
+- “系统设置 → 并发策略”通过管理员管理面读写
   `/api/settings/strategy-concurrency`；复用原子全局偏好保存，Broker 只读同一
   配置文件，`resources` IPC 仅查询，不接受远程资源覆盖。
   `services/strategy_resources.py` 按执行主机内存/CPU 各 25% 计算推荐数与任务
   额度；共享准入同时核对任务数及已占用内存/CPU。Docker 按准入时额度施加硬限，
-  配置降低时保留旧任务及其额度，单进程模式仅提供准入估算。自动为缺省，
-  手工 1–16 受部署上限限制，估算结果不代表实测容量。
+  配置降低时保留旧任务及其额度，单进程模式仅提供准入估算。缺省配置为null，
+  前端直接显示推荐数字；手工配置严格限制1～999并持久保存，实际准入仍受资源预算
+  和既有部署上限约束，超过上限保留保存值并显示生效数。估算结果不代表实测容量。
   API/Platform/Worker 共用一个主机 Broker；批量内部串行，普通租户固定一个槽；
   管理员由认证权限注入可信任务身份，在全局预算内按推荐/手工数并发。
   普通租户 GET 同一设置路径返回只读1，不转发平台或暴露主机预算；POST仍要求管理员。
   不扩展到跨节点调度。接线与生效排障见[运维配置](operations.md#strategy-concurrency)。
+- 策略页挂载、日期或资产切换只读取归档摘要，不再自动补算日线/分钟策略。
+  旧`screener_auto_run`读取兼容为false，旧客户端写入也归一为false；
+  每策略的手动运行和监控开关沿原API，顶部手动重跑继续覆盖日线与分钟。
+  系统设置的开源发布组件仅显示仓库、最新版本号链接和发布时间，沿共享查询读取；
+  应用更新和布局中的自动开源提醒仍使用原独立缓存。
 - `production-16g.env` 将 API 覆盖为两进程，七类应用角色限制为 8,704 MiB，
   单 Compute 为 2,048 MiB，
   六类数据库客户端的双库连接上界为 36；其余内存留给 PostgreSQL、Edge/Broker、
@@ -317,8 +329,11 @@ PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快�
 空数组解除关联，股票不存在返回404；关系不参与策略目标解析或监控启动。
 前端清单是顺序与关系事实源，行情按symbol合并；共享`WatchlistRelations`直接显示名称，
 共享Modal多选编辑。目录用`QK.watchlistStrategyOptions()`全周期独立缓存，
-`useTableSort.reset`恢复清单顺序；全量/分组导出共享`downloadWatchlistCsv`，
-均读取完整清单后在浏览器生成代码单列CSV。验证和部署边界见
+`useTableSort.reset`恢复清单顺序；页头/管理分组导出共享`downloadWatchlistCsv`，
+均读取完整清单后在浏览器生成代码单列CSV。页头`WatchlistExportButton`接收页面的
+`selectedGroup`与组名：全部不筛选，未分组匹配缺省或空`group_ids`，具体组按成员关系
+过滤；分类与文件名采用点击时的选择，其他筛选与行情增强不参与。按钮仅保留图标，
+保留可访问名称、加载禁用及账户/卸载保护，不新增API或缓存。自选关系验证和部署边界见
 [本轮记录](../.claude/artifacts/fixes/watchlist-relations.md)。
 
 公共不可变发布加入变化检测、五分钟间隔和空闲容量保护。自动回收仅删除超过

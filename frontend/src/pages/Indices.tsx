@@ -9,6 +9,7 @@ import { hasPermission } from '@/lib/accountSession'
 import { EChartsCandlestick, type OHLC } from '@/components/EChartsCandlestick'
 import { EChartsIntraday } from '@/components/EChartsIntraday'
 import { PageHeader } from '@/components/PageHeader'
+import { DatePicker } from '@/components/DatePicker'
 
 function defaultRange() {
   const now = new Date()
@@ -201,7 +202,7 @@ export function Indices() {
         </aside>
 
         <main className="min-w-0 rounded-card border border-border bg-surface p-3">
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Activity className="h-4 w-4 text-accent" />
@@ -217,18 +218,19 @@ export function Indices() {
               </div>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <input
-                type="date"
+              <DatePicker
+                aria-label="开始日期"
                 value={range.start}
-                onChange={e => setRange(r => ({ ...r, start: e.target.value }))}
-                className="rounded-btn border border-border bg-base px-2 py-1 text-secondary outline-none focus:border-accent"
+                onChange={start => setRange(r => ({ ...r, start }))}
+                clearable
+                align="left"
               />
               <span className="text-muted">至</span>
-              <input
-                type="date"
+              <DatePicker
+                aria-label="结束日期"
                 value={range.end}
-                onChange={e => setRange(r => ({ ...r, end: e.target.value }))}
-                className="rounded-btn border border-border bg-base px-2 py-1 text-secondary outline-none focus:border-accent"
+                onChange={end => setRange(r => ({ ...r, end }))}
+                clearable
               />
             </div>
           </div>

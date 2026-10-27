@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type KlinePeriod, type KlineSyncConfig as Config } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { isLocalDerivedPeriod } from '@/lib/klinePeriods'
+import { TimePicker } from '@/components/TimePicker'
 
 const inputClass = 'rounded-btn border border-border bg-base px-2 py-1.5 text-xs text-foreground w-full'
 const buttonClass = 'rounded-btn border border-accent/30 bg-accent/10 text-accent px-3 py-2 text-xs disabled:opacity-40'
@@ -19,7 +20,7 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
   const [draft, setDraft] = useState<Config | null>(null)
   const [value, setValue] = useState(6)
   const [unit, setUnit] = useState<'month' | 'year'>('month')
-  const generate = period !== '1m'
+  const generate = isLocalDerivedPeriod(period)
   useEffect(() => { if (query.data) setDraft(query.data[period]) }, [query.data, period])
   const save = useMutation({
     mutationFn: () => api.saveKlineSyncConfig(period, draft!),
@@ -58,7 +59,9 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
             onChange={e => setDraft({ ...draft, interval_seconds: Number(e.target.value) })} />
         </label>
       </> : <label className="block text-xs text-secondary space-y-1"><span>{period === '1w' ? '周六同步时间' : '交易日同步时间'}</span>
-        <input type="time" className={inputClass} value={draft.time} onChange={e => setDraft({ ...draft, time: e.target.value })} />
+        <TimePicker aria-label={period === '1w' ? '周六同步时间' : '交易日同步时间'}
+          value={draft.time} onChange={time => setDraft({ ...draft, time })}
+          className="w-full" buttonClassName="w-full justify-start" align="left" />
       </label>}
       <button className={buttonClass} disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? '保存中…' : '保存周期设置'}</button>
       {save.isSuccess && <p role="status" className="text-xs text-accent">周期设置已保存</p>}
@@ -66,11 +69,10 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
     </section>
     <section className="rounded-card border border-border p-4 space-y-3">
       <h3 className="text-sm font-medium">离线补齐</h3>
-        <p className="text-xs text-muted">{generate ? (
-          period === '1d'
-            ? '由本地日K和本地除权因子重算复权行情与指标，写入 Enriched，不请求上游。'
-            : `由${localBase}计算后入库，覆盖本地基础数据已有日期，不请求上游。`
-        ) : '点击获取数据后，从本地最早日期向前扩展历史；空库从今天开始计算范围。'}</p>
+        <p className="text-xs text-muted">{generate
+          ? `由${localBase}计算后入库，覆盖本地基础数据已有日期，不请求上游。`
+          : '点击获取数据后，从本地最早日期向前扩展历史；空库从今天开始计算范围。'}</p>
+        {period === '1d' && <p className="text-xs text-muted">获取日K后继续同步除权因子并重算指标。</p>}
         {generate && <p className="text-xs text-muted">缺少可计算的{localBase}时，任务会提示先补齐基础数据。</p>}
         {!generate && <div className="flex items-center gap-2 text-xs">
           <span className="shrink-0">向前扩展</span>

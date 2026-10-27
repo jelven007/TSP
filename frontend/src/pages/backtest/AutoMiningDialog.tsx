@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Sparkles, X } from 'lucide-react'
 import { Modal } from '@/components/Modal'
+import { DatePicker } from '@/components/DatePicker'
 import { toast } from '@/components/Toast'
 import { api, type MiningAvailability, type MiningBudgetProfile } from '@/lib/api'
 import { startAutoMining } from '@/lib/miningTask'
@@ -158,11 +159,13 @@ export function AutoMiningDialog({
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
               <span className="mb-1 block text-[10px] text-muted">开始</span>
-              <input type="date" value={start} onChange={event => setStart(event.target.value)} className={INPUT_CLS} />
+              <DatePicker aria-label="开始日期" value={start} onChange={setStart} clearable
+                className="w-full" buttonClassName="w-full justify-start" align="left" />
             </label>
             <label className="block">
               <span className="mb-1 block text-[10px] text-muted">结束</span>
-              <input type="date" value={end} onChange={event => setEnd(event.target.value)} className={INPUT_CLS} />
+              <DatePicker aria-label="结束日期" value={end} onChange={setEnd} clearable
+                className="w-full" buttonClassName="w-full justify-start" />
             </label>
           </div>
           {currentAvailable === false && availability[profile] && (
