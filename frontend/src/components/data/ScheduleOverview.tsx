@@ -348,7 +348,6 @@ export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems
             <h3 className="text-sm font-medium text-foreground">数据同步</h3>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="text-[11px] text-secondary">自动同步总开关</span>
             <button
               type="button"
               role="switch"
@@ -376,15 +375,13 @@ export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems
       </div>
       <div className="space-y-3">
         {groupedItems.map(group => (
-          <div key={group.category}>
-            <div className="mb-1.5 flex items-baseline justify-between gap-3 px-0.5">
-              <div className="min-w-0">
-                <span className="text-[11px] font-medium text-secondary">{group.label}</span>
-                <span className="ml-1.5 text-[10px] text-muted">{group.detail}</span>
-              </div>
-              <span className="shrink-0 font-mono text-[10px] text-muted">{group.items.length} 项</span>
-            </div>
-            <div className="divide-y divide-border/60 border-y border-border/60">
+          <details key={group.category} className="text-xs">
+            <summary className="relative cursor-pointer pr-10 text-secondary">
+              <span className="font-medium">{group.label}</span>
+              <span className="ml-1.5 text-[10px] text-muted">{group.detail}</span>
+              <span className="absolute right-0 top-0 font-mono text-[10px] text-muted">{group.items.length} 项</span>
+            </summary>
+            <div className="mt-3 divide-y divide-border/60 border-y border-border/60">
               {group.items.map(item => {
                 const state = STATE_STYLE[item.state]
                 return (
@@ -405,7 +402,7 @@ export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems
                 )
               })}
             </div>
-          </div>
+          </details>
         ))}
       </div>
     </section>

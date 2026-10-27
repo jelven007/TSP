@@ -21,9 +21,11 @@ afterEach(async () => {
   client?.clear()
   host?.remove()
   vi.clearAllMocks()
+  vi.useRealTimers()
   permission.mockReturnValue(true)
 })
 async function render() {
+  vi.setSystemTime(new Date(2026, 9, 27, 12))
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -70,6 +72,15 @@ async function click(text: string) {
 }
 async function change(label: string, value: string) {
   const input = document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement | HTMLSelectElement
+  if (input.tagName === 'BUTTON') {
+    await act(async () => input.click())
+    const calendar = document.querySelector(`[role="group"][aria-label="${label}日历"]`)!
+    const option = value ? calendar.querySelector<HTMLButtonElement>(`button[aria-label="${value}"]`)
+      : [...calendar.querySelectorAll('button')].find(button => button.textContent === '清空日期')
+    expect(option).not.toBeNull()
+    await act(async () => option!.click())
+    return
+  }
   const prototype = input.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype
   await act(async () => {
     Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(input, value)
@@ -114,6 +125,21 @@ it('rejects an inverted date range without sending a filtered request', async ()
   await click('筛选')
   expect(document.querySelector('[role="alert"]')?.textContent).toContain('开始日期不能晚于结束日期')
   expect(list).toHaveBeenCalledTimes(1)
+})
+
+it('keeps calendar selection in the draft and allows an individual filter to be cleared', async () => {
+  list.mockResolvedValue({ records: [record], next_cursor: null })
+  await render()
+  await change('开始日期', '2026-10-20')
+  expect(list).toHaveBeenCalledTimes(1)
+  await click('筛选')
+  expect(list).toHaveBeenLastCalledWith('sample', undefined, { start_date: '2026-10-20' })
+  await change('开始日期', '')
+  expect(document.querySelector('[aria-label="开始日期"]')?.textContent).toContain('不限日期')
+  await click('筛选')
+  expect(list).toHaveBeenLastCalledWith('sample', undefined, {})
+  expect(document.querySelector('[role="alert"]')).toBeNull()
+  expect(document.body.textContent).toContain('旧名称')
 })
 
 it('confirms deletion, allows cancellation and clears the deleted detail and related queries', async () => {

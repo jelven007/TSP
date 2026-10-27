@@ -8,8 +8,9 @@ import { RepairDailyPanel } from './RepairDailyPanel'
 const mocks = vi.hoisted(() => ({ repair: vi.fn(async () => ({ job_id: 'repair-1', status: 'started' })) }))
 vi.mock('@/lib/api', () => ({ api: { repairDaily: mocks.repair } }))
 vi.mock('@/components/DatePicker', () => ({
-  DatePicker: ({ value, onChange }: { value: string; onChange: (value: string) => void }) =>
-    <input aria-label="起始日期" value={value} onChange={e => onChange(e.target.value)} />,
+  DatePicker: ({ value, onChange, clearable: _clearable, align: _align, ...props }: {
+    value: string; onChange: (value: string) => void; clearable?: boolean; align?: string
+  }) => <input {...props} value={value} onChange={e => onChange(e.target.value)} />,
 }))
 vi.mock('@/lib/capability-labels', () => ({
   MissingCapChip: ({ capKey }: { capKey: string }) => <span>{capKey}</span>,
@@ -125,11 +126,10 @@ it('offers full and missing acquisition and sends missing mode with the selected
   expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1m', 'missing', '2026-10-27')
 })
 
-it.each(['full', 'missing'] as const)('accepts a typed end date for %s acquisition', async mode => {
+it.each(['full', 'missing'] as const)('accepts a selected end date for %s acquisition', async mode => {
   await render()
   const end = host.querySelector<HTMLInputElement>('input[aria-label="结束日期"]')!
   expect(end).not.toBeNull()
-  expect(end.type).toBe('date')
   expect(end.value).toBe('2026-10-27')
   await enterDate('起始日期', '2026-10-22')
   await enterDate('结束日期', '2026-10-23')

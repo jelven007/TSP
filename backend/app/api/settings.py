@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app import secrets_store
 from app.data_providers.custom.config import MAX_TIMEOUT
+from app.services.strategy_resources import MAX_CONFIGURED_CONCURRENCY
 from app.tickflow import client as tf_client
 from app.tickflow.policy import (
     detect_capabilities,
@@ -54,7 +55,7 @@ def update_kline_sync(period: str, body: dict, request: Request) -> dict:
 
 class StrategyConcurrencyPrefs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    strategy_concurrency: int | None = Field(ge=1, le=16)
+    strategy_concurrency: int | None = Field(ge=1, le=MAX_CONFIGURED_CONCURRENCY)
 
 
 @router.get("/strategy-concurrency")
@@ -97,7 +98,7 @@ def update_strategy_concurrency(req: StrategyConcurrencyPrefs) -> dict:
             status.get("error") or "计算服务尚未接入全局策略配置"
         ))
     maximum = status["max_concurrency"]
-    if maximum == 0 or (req.strategy_concurrency is not None and req.strategy_concurrency > maximum):
+    if maximum == 0:
         raise HTTPException(
             status_code=422, detail=f"当前策略资源预算最多允许 {maximum} 个并发任务",
         )
@@ -1212,7 +1213,7 @@ class RealtimeMonitorConfigIn(BaseModel):
     sse_refresh_pages: dict[str, bool] | None = None
     strategy_monitor_enabled: bool | None = None
     strategy_monitor_ids: list[str] | None = None
-    screener_auto_run: bool | None = None
+    screener_auto_run: bool | None = Field(default=None, deprecated=True)
     minute_intraday_refresh: bool | None = None
     minute_intraday_refresh_interval: int | None = None
     # 盘中分钟增量落盘 — 按全量分钟能力路由的双时段常驻服务, 归实时监控配置

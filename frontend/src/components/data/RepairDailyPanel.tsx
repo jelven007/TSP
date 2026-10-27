@@ -111,30 +111,32 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
 
       {/* 起始日期 — 用户主要操作,放上面 */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-secondary">起始日期</span>
+        <label htmlFor="repair-start-date" className="text-xs text-secondary">起始日期</label>
         <DatePicker
+          id="repair-start-date"
+          aria-label="起始日期"
           value={startDate}
-          onChange={setStartDate}
+          onChange={value => { setStartDate(value); repair.reset() }}
           max={today}
           align="right"
-          buttonClassName="font-mono text-xs"
+          clearable
+          disabled={isRunning || repair.isPending}
         />
       </div>
 
       <div className="flex items-center justify-between gap-2">
         <label htmlFor="repair-end-date" className="text-xs text-secondary">结束日期</label>
-        <input
+        <DatePicker
           id="repair-end-date"
           aria-label="结束日期"
-          type="date"
           value={endDate}
-          onChange={e => { setEndDate(e.target.value); repair.reset() }}
+          onChange={value => { setEndDate(value); repair.reset() }}
           min={startDate}
           max={today}
+          clearable
           disabled={isRunning || repair.isPending}
           aria-invalid={!!rangeError}
           aria-describedby={rangeError ? 'repair-range-error' : undefined}
-          className="min-w-0 rounded-btn border border-border bg-elevated px-2 py-1 font-mono text-xs text-foreground"
         />
       </div>
 

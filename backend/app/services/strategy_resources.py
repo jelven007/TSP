@@ -18,6 +18,7 @@ from functools import wraps
 from pathlib import Path
 
 MAX_CONCURRENCY = 16
+MAX_CONFIGURED_CONCURRENCY = 999
 MIN_TASK_MEMORY_MB = 256
 MIN_TASK_CPUS = .25
 BUDGET_RATIO = .25
@@ -157,7 +158,9 @@ class ConcurrencyConfig:
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             value = data.get("strategy_concurrency")
-            if value is not None and (type(value) is not int or not 1 <= value <= MAX_CONCURRENCY):
+            if value is not None and (
+                type(value) is not int or not 1 <= value <= MAX_CONFIGURED_CONCURRENCY
+            ):
                 raise ValueError("invalid strategy concurrency")
         except (OSError, ValueError, AttributeError):
             with self.lock:

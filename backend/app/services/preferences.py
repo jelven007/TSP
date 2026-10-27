@@ -1074,8 +1074,8 @@ def set_webhook_default_channels(channels: list[str]) -> list[str]:
 
 
 def get_screener_auto_run() -> bool:
-    """选股页进入时是否自动运行所有策略 (获取命中数)。默认开。"""
-    return load().get("screener_auto_run", True)
+    """兼容旧客户端字段; 策略已改为手动执行, 旧配置不再启用自动运行。"""
+    return False
 
 
 def get_strategy_monitor_ids() -> list[str]:
@@ -1093,7 +1093,7 @@ def set_realtime_monitor_config(cfg: dict) -> dict:
     if "strategy_monitor_ids" in cfg:
         updates["strategy_monitor_ids"] = cfg["strategy_monitor_ids"]
     if "screener_auto_run" in cfg:
-        updates["screener_auto_run"] = bool(cfg["screener_auto_run"])
+        updates["screener_auto_run"] = False
     if "minute_intraday_refresh" in cfg:
         updates["minute_intraday_refresh"] = bool(cfg["minute_intraday_refresh"])
     if "minute_intraday_refresh_interval" in cfg:

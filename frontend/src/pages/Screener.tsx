@@ -104,8 +104,6 @@ export function Screener() {
   const [showFilter, setShowFilter] = useState(false)
   const [filter, setFilter] = useState<ScreenerFilterType>(defaultFilter)
   const filterMap = useRef<Map<string, ScreenerFilterType>>(new Map())
-  const runAllDateRef = useRef<string | null>(null)
-  const minuteRunDateRef = useRef<string | null>(null)
   const qc = useQueryClient()
 
   // 结果列配置 — 默认内置列，异步合并后端/localStorage 偏好
@@ -154,7 +152,6 @@ export function Screener() {
   )
 
   const { data: prefs } = usePreferences()
-  const screenerAutoRun = prefs?.screener_auto_run ?? true
 
   // 统一列表: 不按周期过滤, 日线+分钟策略合并返回, 分钟策略带 timeframes 标识
   const strategies = useQuery({
@@ -273,7 +270,7 @@ export function Screener() {
     }
   }, [strategies.data?.load_errors])
 
-  // 自动运行只补当前日期缺少保存记录的策略。
+  // 手动批量运行沿原策略池和日期契约执行。
   const runAll = useMutation({
     mutationFn: ({ date, strategyIds, asset = assetType }: { date?: string; strategyIds?: string[]; asset?: 'stock' | 'etf' } = {}) =>
       api.screenerRunAll(
@@ -317,15 +314,7 @@ export function Screener() {
     },
     onError: (e) => toast(`分钟策略计算失败：${String((e as any).message ?? e)}`, 'error'),
   })
-  const minuteMutate = runAllMinute.mutate
-
-  const missingStrategyIds = useMemo(
-    () => dailyPoolIds.filter(id => summaryQuery.data?.results[id]?.as_of !== asOf),
-    [dailyPoolIds, summaryQuery.data, asOf],
-  )
-  const cacheCoversPool = dailyPoolIds.length > 0 && missingStrategyIds.length === 0
-
-  // 防止 reload / auto-run / StrictMode 叠出并发 run_all（后端 Numba 会崩溃）
+  // 防止重复点击在同一渲染周期内叠出并发 run_all
   // 用 ref 同步门闩，避免同一渲染周期内 isPending 尚未更新导致重复触发
   const runAllPendingRef = useRef(false)
   const requestRunAll = useCallback((
@@ -556,42 +545,6 @@ export function Screener() {
   })
   const minuteData = intradayVisible ? (minuteBatch.data?.data ?? {}) : {}
 
-  // asOf 确定后 + 策略列表就绪 + 策略池非空 → 自动跑一次 (受系统设置开关控制)
-  // 缓存命中时秒加载; 未命中时, 仅当 screener_auto_run 开启才自动触发 runAll
-  useEffect(() => {
-    // 分钟筛选视图下不跑日线缓存 (切回 全部/日线 视图时本 effect 会重新评估)
-    // 与分钟 runAll 互斥: 后端并发 run_all 会崩 Numba, 分钟在跑时先让路,
-    // 其结束后 isPending 翻转, 本 effect 重新评估
-    if (tfFilter === '1m') return
-    if (runAllMinute.isPending) return
-    if (!asOf || strategyPresets.length === 0 || !summaryQuery.isSuccess || runAll.isPending || dailyPoolIds.length === 0) return
-    const runKey = `${assetType}|${asOf}|${dailyPoolIds.join(',')}`
-    if (runAllDateRef.current === runKey) return
-    // 缓存已覆盖当前策略池 → 秒加载, 不触发 runAll
-    if (cacheCoversPool) {
-      runAllDateRef.current = runKey
-      return
-    }
-    // 未覆盖: 受系统开关控制
-    if (!screenerAutoRun) return
-    runAllDateRef.current = runKey
-    requestRunAll({ date: asOf, strategyIds: missingStrategyIds })
-  }, [asOf, strategyPresets.length, summaryQuery.isSuccess, dailyPoolIds, cacheCoversPool, missingStrategyIds, screenerAutoRun, assetType, tfFilter, runAll.isPending, runAllMinute.isPending, requestRunAll])
-
-  // 分钟策略在摘要读取成功后补缺，与日线批跑保持原资源准入顺序。
-  useEffect(() => {
-    if (tfFilter === '1d') return
-    if (runAll.isPending || runAllPendingRef.current) return
-    if (!asOf || !summaryQuery.isSuccess || strategyPresets.length === 0 || runAllMinute.isPending || minutePoolIds.length === 0) return
-    const runKey = `${minutePoolIds.join(',')}|${assetType}|${asOf}`
-    if (minuteRunDateRef.current === runKey) return
-    // 受系统开关控制 (与日线一致); 关闭时卡片保留「待计算」点击引导
-    if (!screenerAutoRun) return
-    minuteRunDateRef.current = runKey
-    const missing = minutePoolIds.filter(id => summaryQuery.data?.results[id]?.as_of !== asOf)
-    if (missing.length) minuteMutate({ strategyIds: missing, date: asOf, asset: assetType })
-  }, [asOf, summaryQuery.isSuccess, summaryQuery.data, strategyPresets.length, minutePoolIds, screenerAutoRun, assetType, tfFilter, runAll.isPending, runAllMinute.isPending, minuteMutate])
-
   // 计算数据仍按策略声明周期路由，成功结果统一归档。
   const run = useMutation({
     mutationFn: ({ id, date, timeframe: tf, asset = assetType }: { id: string; date: string; timeframe: '1d' | '1m'; asset?: 'stock' | 'etf' }) =>
@@ -617,12 +570,10 @@ export function Screener() {
     run.mutate({ id: s.id, date: asOf, timeframe: tf, asset: assetType })
   }
 
-  // 日期变化交给统一 effect 计算一次，避免这里与 effect 重复请求。
+  // 日期变化仅切换保存结果；缺记录时等待用户手动运行。
   const handleDateChange = (newDate: string) => {
     setAsOf(newDate)
     viewRef.current.asOf = newDate
-    runAllDateRef.current = null
-    minuteRunDateRef.current = null
     setPendingRun(null)
     setHitCounts({})
     setExpiredCounts({})
@@ -669,9 +620,12 @@ export function Screener() {
     mutationFn: api.strategyReload,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['screener-strategies'] })
-      if (asOf) requestRunAll({ date: asOf })
-      // 分钟策略: 重置去重 key, 策略列表失效重取后 effect 重新触发批量计算
-      minuteRunDateRef.current = null
+      if (asOf) requestRunAll({ date: asOf }, {
+        onSuccess: () => {
+          if (asOf !== viewRef.current.asOf || assetType !== viewRef.current.assetType) return
+          if (minutePoolIds.length) runAllMinute.mutate({ strategyIds: minutePoolIds, date: asOf, asset: assetType })
+        },
+      })
     },
   })
 

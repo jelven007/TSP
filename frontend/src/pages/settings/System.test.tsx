@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, expect, it, vi } from 'vitest'
+import { QK } from '@/lib/queryKeys'
 import { SettingsSystemPanel } from './System'
 
 const { read, save, permitted } = vi.hoisted(() => ({
@@ -72,23 +73,36 @@ async function flushQueries() {
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
 }
 
-function select() {
-  return host.querySelector<HTMLSelectElement>('select[aria-label="并发策略数"]')
+function input() {
+  return host.querySelector<HTMLInputElement>('input[aria-label="策略并发"]')
 }
 
-it('puts global concurrency and the quarter budget inside the strategy section', async () => {
+async function edit(value: string, blur = true) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input(), value)
+    input()!.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  if (blur) await act(async () => input()!.dispatchEvent(new FocusEvent('focusout', { bubbles: true })))
+  await flushQueries()
+}
+
+it('shows recommended concurrency first and removes the automatic-run setting and duplicate title', async () => {
   read.mockResolvedValue(status)
   await render()
   const section = [...host.querySelectorAll('section')].find(
-    node => node.querySelector('h3')?.textContent === '策略页',
+    node => node.querySelector('h3')?.textContent === '并发策略',
   )!
-  expect(section.textContent).toContain('进入策略页自动运行策略')
-  expect(section.textContent).toContain('并发策略数')
+  expect(section.textContent).not.toContain('进入策略页自动运行策略')
+  expect(section.textContent).not.toContain('并发策略数')
   expect(section.textContent).toContain('4 GiB')
   expect(section.textContent).toContain('25%')
   expect(section.textContent).toContain('所有租户')
   expect(section.textContent).toContain('推荐')
-  expect(select()?.value).toBe('auto')
+  expect(input()?.value).toBe('4')
+  expect(input()?.min).toBe('1')
+  expect(input()?.max).toBe('999')
+  expect(host.textContent).toContain('个股外链')
+  expect(host.textContent).not.toContain('个股详情外链')
 })
 
 it('persists a manual value and displays the applied global limit', async () => {
@@ -97,13 +111,9 @@ it('persists a manual value and displays the applied global limit', async () => 
     ...status, strategy_concurrency: 8, effective_concurrency: 8, task_memory_mb: 512,
   })
   await render()
-  await act(async () => {
-    select()!.value = '8'
-    select()!.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-  await flushQueries()
+  await edit('8')
   expect(save).toHaveBeenCalledWith(8)
-  expect(select()!.value).toBe('8')
+  expect(input()!.value).toBe('8')
   expect(host.textContent).toContain('当前生效：8')
   expect(host.textContent).toContain('512 MiB')
 })
@@ -112,13 +122,9 @@ it('keeps the applied value and shows a save error without false success', async
   read.mockResolvedValue(status)
   save.mockRejectedValue(new Error('计算服务暂不可用'))
   await render()
-  await act(async () => {
-    select()!.value = '8'
-    select()!.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-  await flushQueries()
+  await edit('8')
   expect(host.querySelector('[role="alert"]')?.textContent).toContain('计算服务暂不可用')
-  expect(select()!.value).toBe('auto')
+  expect(input()!.value).toBe('4')
   expect(host.textContent).not.toContain('已保存')
 })
 
@@ -128,7 +134,7 @@ it('does not invent host resources when the compute service is unavailable', asy
   })
   await render()
   expect(host.textContent).toContain('计算服务暂不可用')
-  expect(select()).toBeNull()
+  expect(input()).toBeNull()
   expect(host.textContent).not.toContain('4 GiB')
 })
 
@@ -136,13 +142,10 @@ it('restores automatic mode and uses the updated recommendation', async () => {
   read.mockResolvedValue({ ...status, strategy_concurrency: 8, effective_concurrency: 8 })
   save.mockResolvedValue(status)
   await render()
-  await act(async () => {
-    select()!.value = 'auto'
-    select()!.dispatchEvent(new Event('change', { bubbles: true }))
-  })
+  await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent === '使用推荐值')!.click())
   await flushQueries()
   expect(save).toHaveBeenCalledWith(null)
-  expect(select()!.value).toBe('auto')
+  expect(input()!.value).toBe('4')
   expect(host.textContent).toContain('当前生效：4')
 })
 
@@ -151,20 +154,16 @@ it('shows a preserved setting when a smaller host can apply fewer slots', async 
     ...status, strategy_concurrency: 8, max_concurrency: 4, effective_concurrency: 4,
   })
   await render()
-  expect(select()!.value).toBe('8')
+  expect(input()!.value).toBe('8')
   expect(host.textContent).toContain('当前生效：4')
-  expect(host.textContent).toContain('已按当前资源预算限制')
+  expect(host.textContent).toContain('已按当前资源预算及部署上限限制')
 })
 
 it('does not report a saved configuration as applied when the broker has not read it', async () => {
   read.mockResolvedValue(status)
   save.mockResolvedValue({ ...status, strategy_concurrency: 8, pending: true })
   await render()
-  await act(async () => {
-    select()!.value = '8'
-    select()!.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-  await flushQueries()
+  await edit('8')
   expect(host.textContent).toContain('计算服务尚未应用')
   expect(host.textContent).not.toContain('新任务按当前配置执行')
 })
@@ -174,9 +173,35 @@ it('shows a fixed tenant limit without exposing administrator configuration', as
   read.mockResolvedValue({ available: true, editable: false, strategy_concurrency: 1,
     effective_concurrency: 1, recommended_concurrency: 1 })
   await render()
-  expect(select()).toBeNull()
+  expect(input()).toBeNull()
   expect(read).toHaveBeenCalled()
-  expect(host.textContent).toContain('租户并发策略数：1')
+  expect(host.textContent).toContain('租户策略并发：1')
   expect(host.textContent).not.toContain('整机')
+  expect(save).not.toHaveBeenCalled()
+})
+
+it.each(['', '0', '1000', '2.5'])('rejects invalid manual concurrency %s without a save', async value => {
+  read.mockResolvedValue(status)
+  await render()
+  await edit(value)
+  expect(save).not.toHaveBeenCalled()
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('1～999')
+})
+
+it.each([1, 999])('persists the inclusive boundary %s even above the resource limit', async value => {
+  read.mockResolvedValue(status)
+  save.mockResolvedValue({ ...status, strategy_concurrency: value, effective_concurrency: Math.min(value, 16) })
+  await render()
+  await edit(String(value))
+  expect(save).toHaveBeenCalledWith(value)
+  expect(input()!.value).toBe(String(value))
+})
+
+it('keeps a manual draft while background resource status changes', async () => {
+  read.mockResolvedValue(status)
+  await render()
+  await edit('9', false)
+  await act(async () => client.setQueryData(QK.strategyConcurrency, { ...status, recommended_concurrency: 2 }))
+  expect(input()!.value).toBe('9')
   expect(save).not.toHaveBeenCalled()
 })

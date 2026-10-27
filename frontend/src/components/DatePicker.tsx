@@ -1,17 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useModalPortalContainer } from './Modal'
+import { PICKER_BUTTON_CLASS, PICKER_POPOVER_CLASS, usePickerPopover, type PickerButtonProps } from './usePickerPopover'
 
-/** 弹层固定宽度(px) — 与下方 w-[260px] 保持一致,用于水平边界裁剪计算 */
-const POPUP_WIDTH = 260
-/** 弹层预估高度(px) — 用于判断是否需要向上翻转 */
-const POPUP_HEIGHT = 320
-/** 弹层与触发按钮的间距(px) */
-const POPUP_GAP = 6
-
-interface DatePickerProps {
+interface DatePickerProps extends PickerButtonProps {
   value: string          // YYYY-MM-DD
   onChange: (v: string) => void
   min?: string
@@ -20,6 +13,7 @@ interface DatePickerProps {
   className?: string
   buttonClassName?: string
   align?: 'left' | 'right'
+  clearable?: boolean
 }
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
@@ -49,16 +43,12 @@ export function DatePicker({
   className = '',
   buttonClassName = '',
   align = 'right',
+  clearable = false,
+  disabled = false,
+  ...buttonProps
 }: DatePickerProps) {
-  const portalContainer = useModalPortalContainer()
-  const [open, setOpen] = useState(false)
+  const { btnRef, popRef, pos, open, toggle, close, portalContainer } = usePickerPopover({ align, disabled })
   const [showYearPicker, setShowYearPicker] = useState(false)
-  // 触发按钮 ref (外部点击检测 + 计算弹层坐标)
-  const btnRef = useRef<HTMLButtonElement>(null)
-  // 弹层 portal ref (外部点击检测)
-  const popRef = useRef<HTMLDivElement>(null)
-  // 弹层视口坐标 + 展开方向(open 时计算一次,避免滚动时漂移)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
 
   // 当前显示的月份
   const [viewYear, setViewYear] = useState(() => viewDate(value, min, max).year)
@@ -70,50 +60,6 @@ export function DatePicker({
     setViewYear(next.year)
     setViewMonth(next.month)
   }, [value, min, max])
-
-  // 打开弹层: 按钮的视口坐标计算 + 智能方向翻转 + 水平边界裁剪
-  const handleOpen = () => {
-    if (open) { setOpen(false); return }
-    if (!btnRef.current) { setOpen(true); return }
-    const r = btnRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - r.bottom
-    // 下方空间不足 → 向上展开
-    const dropUp = spaceBelow < POPUP_HEIGHT + POPUP_GAP && r.top > POPUP_HEIGHT + POPUP_GAP
-    const top = dropUp
-      ? Math.max(8, r.top - POPUP_HEIGHT - POPUP_GAP)
-      : r.bottom + POPUP_GAP
-    // 水平: 默认按 align 贴齐按钮左/右边缘, 再做右侧溢出裁剪
-    const rawLeft = align === 'left' ? r.left : r.right - POPUP_WIDTH
-    const left = Math.max(8, Math.min(rawLeft, window.innerWidth - POPUP_WIDTH - 8))
-    setPos({ top, left })
-    setOpen(true)
-  }
-
-  // 点击外部关闭 (Portal 下弹层不在 ref 树内, 分别判断按钮与弹层)
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (btnRef.current?.contains(t)) return
-      if (popRef.current?.contains(t)) return
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  // 滚动 / resize 时关闭弹层 (fixed 定位不跟随滚动,关闭比重算更可靠)
-  useEffect(() => {
-    if (!open) return
-    const close = () => setOpen(false)
-    // capture: true → 捕获到任意祖先滚动容器的 scroll
-    window.addEventListener('scroll', close, true)
-    window.addEventListener('resize', close)
-    return () => {
-      window.removeEventListener('scroll', close, true)
-      window.removeEventListener('resize', close)
-    }
-  }, [open])
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1) }
@@ -161,14 +107,15 @@ export function DatePicker({
     <div className={`relative inline-flex ${className}`}>
       {/* 触发按钮 */}
       <button
+        {...buttonProps}
         ref={btnRef}
         type="button"
-        onClick={handleOpen}
-        className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-input border border-border
-          bg-elevated hover:border-accent/50 text-xs text-foreground num
-          focus:outline-none focus:border-accent/60 transition-colors duration-150 cursor-pointer ${buttonClassName}`}
+        disabled={disabled}
+        aria-expanded={open}
+        onClick={toggle}
+        className={`${PICKER_BUTTON_CLASS} ${buttonClassName}`}
       >
-        <Calendar className="h-3.5 w-3.5 text-accent" />
+        <Calendar aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-accent" />
         <span className={value ? undefined : 'text-muted'}>{displayLabel}</span>
       </button>
 
@@ -178,18 +125,20 @@ export function DatePicker({
           {open && pos && (
             <motion.div
               ref={popRef}
+              role="group"
+              aria-label={`${buttonProps['aria-label'] || '日期'}日历`}
               initial={{ opacity: 0, y: -4, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -4, scale: 0.97 }}
               transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
               style={{ position: 'fixed', top: pos.top, left: pos.left }}
-              className="z-[9999] w-[260px] rounded-card border border-border
-                bg-surface shadow-[0_8px_30px_rgba(0,0,0,0.4)] p-3"
+              className={`w-[260px] ${PICKER_POPOVER_CLASS}`}
             >
             {/* 月份导航 */}
             <div className="flex items-center justify-between mb-2">
               <button
                 type="button"
+                aria-label={showYearPicker ? '上一组年份' : '上个月'}
                 onClick={showYearPicker ? () => setViewYear(viewYear - 12) : prevMonth}
                 className="p-1 rounded-btn hover:bg-elevated text-secondary hover:text-foreground transition-colors"
               >
@@ -207,6 +156,7 @@ export function DatePicker({
               </button>
               <button
                 type="button"
+                aria-label={showYearPicker ? '下一组年份' : '下个月'}
                 onClick={showYearPicker ? () => setViewYear(viewYear + 12) : nextMonth}
                 className="p-1 rounded-btn hover:bg-elevated text-secondary hover:text-foreground transition-colors"
               >
@@ -257,11 +207,13 @@ export function DatePicker({
                       <button
                         key={i}
                     type="button"
+                    aria-label={c.dateStr}
                     disabled={c.disabled}
                     onClick={() => {
                       if (!c.disabled) {
                         onChange(c.dateStr)
-                        setOpen(false)
+                        close()
+                        btnRef.current?.focus()
                       }
                     }}
                     className={`
@@ -279,6 +231,14 @@ export function DatePicker({
               })}
             </div>
               </>
+            )}
+            {clearable && value && (
+              <div className="mt-2 border-t border-border pt-2">
+                <button type="button" className="text-xs text-muted hover:text-accent"
+                  onClick={() => { onChange(''); close(); btnRef.current?.focus() }}>
+                  清空日期
+                </button>
+              </div>
             )}
           </motion.div>
         )}

@@ -8,9 +8,7 @@ import { accountStorage as localStorage, hasPermission, multitenancyEnabled } fr
 import { useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { Settings2, Trash2, RefreshCw, Bell, Volume2, Info, ExternalLink, CheckCircle2, Download, ZoomIn, Minus, Plus, Sparkles } from 'lucide-react'
-import { usePreferences, useVersion } from '@/lib/useSharedQueries'
-import { api } from '@/lib/api'
-import { QK } from '@/lib/queryKeys'
+import { useVersion } from '@/lib/useSharedQueries'
 import { refreshAlertToastConfig } from '@/components/AlertToast'
 import { SOUND_OPTIONS, previewSound } from '@/lib/notificationSound'
 import {
@@ -24,11 +22,8 @@ import { StrategyConcurrencyControl } from './StrategyConcurrencyControl'
 
 export function SettingsSystemPanel() {
   const qc = useQueryClient()
-  const { data: prefs } = usePreferences()
   const { data: versionData } = useVersion()
-  const [saving, setSaving] = useState(false)
 
-  const screenerAutoRun = prefs?.screener_auto_run ?? true
   const [extTpl, setExtTpl] = useState(() => loadStockExternalTemplate())
   const [clearing, setClearing] = useState(false)
 
@@ -108,16 +103,6 @@ export function SettingsSystemPanel() {
     }
   }, [voiceConfigured])
 
-  const save = useCallback(async (cfg: Record<string, unknown>) => {
-    setSaving(true)
-    try {
-      await api.updateRealtimeMonitorConfig(cfg)
-      qc.invalidateQueries({ queryKey: QK.preferences })
-    } finally {
-      setSaving(false)
-    }
-  }, [qc])
-
   // 仅后台刷新当前挂载的查询，保留现有内容直到新数据返回。
   // 不重载应用，也不影响 localStorage 中的用户偏好。
   const handleClearCache = useCallback(async () => {
@@ -132,7 +117,7 @@ export function SettingsSystemPanel() {
   if (multitenancyEnabled() && !hasPermission('settings:manage')) {
     return (
       <section className="rounded-card border border-border bg-surface p-5">
-        <h3 className="text-sm font-medium text-foreground">策略页</h3>
+        <h3 className="mb-4 text-sm font-medium text-foreground">并发策略</h3>
         <StrategyConcurrencyControl />
       </section>
     )
@@ -143,16 +128,9 @@ export function SettingsSystemPanel() {
       <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
           <Settings2 className="h-4 w-4 text-secondary" />
-          <h3 className="text-sm font-medium text-foreground">策略页</h3>
+          <h3 className="text-sm font-medium text-foreground">并发策略</h3>
         </div>
 
-        <ToggleRow
-          label="进入策略页自动运行策略"
-          desc="开启后进入策略页自动跑所有策略获取命中数; 关闭则需手动点击"
-          checked={screenerAutoRun}
-          disabled={saving}
-          onChange={(v) => save({ screener_auto_run: v })}
-        />
         <StrategyConcurrencyControl />
       </section>
 
@@ -166,7 +144,6 @@ export function SettingsSystemPanel() {
           label="开启监控通知弹窗"
           desc="收到监控告警时在右下角弹出通知卡片"
           checked={toastEnabled}
-          disabled={saving}
           onChange={(v) => {
             localStorage.setItem('alert_toast_enabled', v ? '1' : '0')
             setToastEnabled(v)
@@ -329,7 +306,7 @@ export function SettingsSystemPanel() {
       <section className="rounded-card border border-border bg-surface p-5">
         <div className="flex items-center gap-2 mb-4">
           <ExternalLink className="h-4 w-4 text-secondary" />
-          <h3 className="text-sm font-medium text-foreground">个股详情外链</h3>
+          <h3 className="text-sm font-medium text-foreground">个股外链</h3>
         </div>
 
         <div className="flex items-center justify-between gap-4 py-2">

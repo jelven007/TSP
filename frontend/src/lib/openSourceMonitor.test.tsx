@@ -91,6 +91,18 @@ afterEach(async () => {
 })
 
 describe('independent open-source monitor', () => {
+  it('系统设置只保留仓库链接、最新版本号和发布时间', async () => {
+    vi.spyOn(api, 'openSourceRelease').mockResolvedValue(first)
+    await render()
+    expect(container.querySelector(`a[href="https://github.com/${OPEN_SOURCE_REPO}"]`)).not.toBeNull()
+    expect(container.textContent).toContain('最新版本号')
+    expect(container.textContent).toContain(first.tag)
+    expect(container.textContent).toContain('发布时间')
+    expect(container.querySelectorAll('button')).toHaveLength(0)
+    expect(container.textContent).not.toContain('上次成功检查')
+    expect(container.textContent).not.toContain('每小时')
+  })
+
   it('首次建立基准，共享请求，与应用更新缓存互不影响', async () => {
     const appCache = JSON.stringify({ current: '0.4.0', latest: '0.4.1', found: true })
     localStorage.setItem('update_check_cache', appCache)
@@ -99,7 +111,8 @@ describe('independent open-source monitor', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(monitor.hasNewRelease).toBe(false)
     expect(container.textContent).toContain('开源版本监控')
-    expect(container.textContent).toContain('暂无新的开源发布')
+    expect(container.textContent).toContain('最新版本号')
+    expect(container.textContent).toContain(first.tag)
     expect(JSON.parse(localStorage.getItem(CACHE_KEY)!)).toMatchObject({ seen: first, latest: first })
     expect(localStorage.getItem('update_check_cache')).toBe(appCache)
   })
@@ -163,9 +176,7 @@ describe('independent open-source monitor', () => {
     await render({ newClient: true })
     expect(monitor.hasNewRelease).toBe(true)
     fetch.mockResolvedValue(next)
-    const button = Array.from(container.querySelectorAll('button')).find(b => b.textContent === '检查开源版本')
-    await act(async () => button?.click())
-    await settle()
+    await check()
     expect(monitor.error).toBeNull()
     expect(monitor.hasNewRelease).toBe(true)
   })

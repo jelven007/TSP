@@ -106,7 +106,7 @@ it('exports the complete fetched list with one code column, BOM, CRLF and dedupl
     createObjectURL: vi.fn((value: Blob) => { blob = value; return 'blob:test' }), revokeObjectURL: vi.fn(),
   })
   const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-  await render(<WatchlistExportButton />)
+  await render(<WatchlistExportButton selectedGroup="all" />)
   await act(async () => host.querySelector<HTMLButtonElement>('button')!.click())
   const text = await new Promise<string>(resolve => {
     const reader = new FileReader()
@@ -130,7 +130,7 @@ it.each(['empty', 'error', 'unmount'])('does not download for %s', async mode =>
     ? Promise.reject(new Error('读取失败'))
     : new Promise(done => { resolve = done }))
   const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-  await render(<WatchlistExportButton />)
+  await render(<WatchlistExportButton selectedGroup="all" />)
   await act(async () => host.querySelector<HTMLButtonElement>('button')!.click())
   if (mode !== 'error') {
     expect(host.querySelector<HTMLButtonElement>('button')!.disabled).toBe(true)
