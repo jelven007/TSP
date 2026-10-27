@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { hasPermission, multitenancyEnabled } from '@/lib/accountSession'
@@ -13,6 +14,8 @@ function cpuLabel(cpus: number) {
 
 export function StrategyConcurrencyControl() {
   const qc = useQueryClient()
+  const [draft, setDraft] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
   const allowed = !multitenancyEnabled() || hasPermission('settings:manage')
   const query = useQuery({
     queryKey: QK.strategyConcurrency,
@@ -22,15 +25,18 @@ export function StrategyConcurrencyControl() {
   })
   const save = useMutation({
     mutationFn: (value: number | null) => api.updateStrategyConcurrency(value),
-    onSuccess: (value) => qc.setQueryData(QK.strategyConcurrency, value),
+    onSuccess: (value) => {
+      qc.setQueryData(QK.strategyConcurrency, value)
+      setDraft(null)
+    },
+    onError: () => setDraft(null),
   })
   const data = query.data
   const error = save.error ?? query.error
   const message = error instanceof Error ? error.message : '无法读取或保存策略并发配置'
   if (!data || !data.available) {
     return (
-      <div className="mt-3 border-t border-border pt-4 text-xs">
-        <div className="mb-2 text-sm text-foreground">并发策略数</div>
+      <div className="text-xs">
         {query.isPending
           ? <p role="status" className="text-muted">正在读取策略资源预算…</p>
           : (
@@ -44,31 +50,53 @@ export function StrategyConcurrencyControl() {
     )
   }
   if (!allowed || data.editable === false) {
-    return <p className="mt-3 border-t border-border pt-4 text-sm text-foreground">租户并发策略数：1</p>
+    return <p className="text-sm text-foreground">租户策略并发：1</p>
   }
   const disabled = save.isPending || !data.config_enabled || data.max_concurrency === 0
   const limited = data.strategy_concurrency !== null && data.strategy_concurrency > data.max_concurrency
+  const commitDraft = () => {
+    if (draft === null || disabled) return
+    const value = Number(draft)
+    if (!/^\d+$/.test(draft) || !Number.isInteger(value) || value < 1 || value > 999) {
+      setValidationError('请输入 1～999 的整数')
+      return
+    }
+    setValidationError(null)
+    if (value === data.strategy_concurrency) setDraft(null)
+    else save.mutate(value)
+  }
   return (
-    <div className="mt-3 space-y-3 border-t border-border pt-4">
+    <div className="space-y-3">
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
-          <label htmlFor="strategy-concurrency" className="text-sm text-foreground">并发策略数</label>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted">
-            管理员默认使用系统推荐值，可手动修改；租户并发策略数默认为 1。所有租户共用下方资源预算。
+          <p className="text-[11px] leading-relaxed text-muted">
+            管理员首次使用推荐值 {data.recommended_concurrency}，可手动输入 1～999；租户策略并发默认为 1。所有租户共用下方资源预算。
           </p>
         </div>
-        <select id="strategy-concurrency" aria-label="并发策略数"
-          value={data.strategy_concurrency ?? 'auto'} disabled={disabled}
-          onChange={(event) => save.mutate(
-            event.target.value === 'auto' ? null : Number(event.target.value),
-          )}
-          className="h-8 max-w-full shrink-0 rounded-btn border border-border bg-base px-2 text-xs text-foreground disabled:opacity-50">
-          <option value="auto">自动（推荐 {data.recommended_concurrency}）</option>
-          {limited && <option value={data.strategy_concurrency!} disabled>{data.strategy_concurrency}（已保存）</option>}
-          {Array.from({ length: data.max_concurrency }, (_, index) => index + 1).map(value => (
-            <option key={value} value={value}>{value}</option>
-          ))}
-        </select>
+        <div className="flex shrink-0 items-center gap-2">
+          <input id="strategy-concurrency" aria-label="策略并发"
+            type="number" min={1} max={999} step={1}
+            value={draft ?? data.strategy_concurrency ?? data.recommended_concurrency} disabled={disabled}
+            aria-invalid={!!validationError}
+            aria-describedby={validationError ? 'strategy-concurrency-error' : undefined}
+            onChange={(event) => {
+              setDraft(event.target.value)
+              setValidationError(null)
+              save.reset()
+            }}
+            onBlur={commitDraft}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur()
+            }}
+            className="h-8 w-20 rounded-btn border border-border bg-base px-2 text-xs text-foreground disabled:opacity-50" />
+          <button type="button" disabled={disabled} onPointerDown={event => event.preventDefault()} onClick={() => {
+            setValidationError(null)
+            setDraft(null)
+            save.mutate(null)
+          }} className="text-xs text-accent hover:underline disabled:opacity-50">
+            使用推荐值
+          </button>
+        </div>
       </div>
       <div className="grid gap-x-6 gap-y-1 rounded-btn bg-base/60 p-3 text-[11px] leading-relaxed text-secondary sm:grid-cols-2">
         <p>策略内存预算：{memoryLabel(data.memory_budget_mb)}（整机 {memoryLabel(data.host_memory_mb)} 的 25%）</p>
@@ -81,8 +109,9 @@ export function StrategyConcurrencyControl() {
         {data.execution_mode === 'in_process' && ' 当前为进程内执行，内存预算用于准入估算。'}
       </p>
       {!data.config_enabled && <p role="alert" className="text-xs text-amber-500">计算服务尚未接入全局策略配置。</p>}
-      {limited && <p role="status" className="text-xs text-amber-500">已按当前资源预算限制为 {data.effective_concurrency}；可选择更小的值或恢复自动。</p>}
+      {limited && <p role="status" className="text-xs text-amber-500">已按当前资源预算及部署上限限制为 {data.effective_concurrency}；可输入更小的值或使用推荐值。</p>}
       {data.max_concurrency === 0 && <p role="alert" className="text-xs text-amber-500">策略资源预算不足，暂时无法运行任务。</p>}
+      {validationError && <p id="strategy-concurrency-error" role="alert" className="text-xs text-red-400">{validationError}</p>}
       {error && <p role="alert" className="text-xs text-red-400">{message}</p>}
       {data.pending && <p role="status" className="text-xs text-amber-500">配置已保存，计算服务尚未应用；请检查部署配置。</p>}
       {save.isPending && <p role="status" className="text-xs text-muted">正在保存…</p>}

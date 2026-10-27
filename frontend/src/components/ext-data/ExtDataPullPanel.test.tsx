@@ -90,7 +90,7 @@ afterEach(() => {
 })
 
 async function click(text: string) {
-  const button = [...node.querySelectorAll('button')]
+  const button = [...document.querySelectorAll('button')]
     .find(item => item.textContent?.trim() === text)!
   await act(async () => button.click())
 }
@@ -139,4 +139,23 @@ it('refreshes persisted failure state while keeping the last valid snapshot visi
   expect(onSaved).toHaveBeenCalled()
   expect(node.textContent).toContain('两级拉取不完整')
   expect(node.textContent).toContain('100 行')
+})
+
+it('selects a time window and can clear it back to unrestricted before saving', async () => {
+  const start = node.querySelector<HTMLButtonElement>('button[aria-label="拉取起始时间"]')!
+  expect(start).not.toBeNull()
+  await act(async () => start.click())
+  await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="09 时"]')!.click())
+  await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="30 分"]')!.click())
+  await click('确定')
+  await click('保存配置')
+  expect(mocks.save).toHaveBeenLastCalledWith('demo', expect.objectContaining({
+    time_window_start: '09:30', time_window_end: null,
+  }))
+  await act(async () => start.click())
+  await click('清空时间')
+  await click('保存配置')
+  expect(mocks.save).toHaveBeenLastCalledWith('demo', expect.objectContaining({
+    time_window_start: null, time_window_end: null,
+  }))
 })

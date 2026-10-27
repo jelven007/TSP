@@ -1,5 +1,6 @@
 import { Modal } from '@/components/Modal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { DatePicker } from '@/components/DatePicker'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { accountStorage as localStorage, hasPermission } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -695,8 +696,10 @@ export function MiningWorkbench() {
             <div className="grid grid-cols-2 gap-2">
               <label><span className={LABEL}>资产</span><select className={INPUT} value={draft.assetType} onChange={event => changeAssetType(event.target.value as 'stock' | 'etf')}><option value="stock">股票</option><option value="etf">ETF</option></select></label>
               <label><span className={LABEL}>置信档</span><select className={INPUT} value={draft.profile} onChange={event => updateDraft('profile', event.target.value as MiningBudgetProfile)}><option value="exploratory">探索 · 219 日</option><option value="balanced">均衡 · 786 日</option><option value="strict">严格 · 1164 日</option></select></label>
-              <label><span className={LABEL}>开始</span><input type="date" className={INPUT} value={draft.start} onChange={event => updateDraft('start', event.target.value)} /></label>
-              <label><span className={LABEL}>结束</span><input type="date" className={INPUT} value={draft.end} onChange={event => updateDraft('end', event.target.value)} /></label>
+              <label><span className={LABEL}>开始</span><DatePicker aria-label="开始日期" value={draft.start}
+                onChange={value => updateDraft('start', value)} clearable className="w-full" buttonClassName="w-full justify-start" align="left" /></label>
+              <label><span className={LABEL}>结束</span><DatePicker aria-label="结束日期" value={draft.end}
+                onChange={value => updateDraft('end', value)} clearable className="w-full" buttonClassName="w-full justify-start" /></label>
             </div>
             {!validDateRange ? (
               <div className="mt-1.5 text-[9px] leading-4 text-danger">开始日期不能晚于结束日期。</div>

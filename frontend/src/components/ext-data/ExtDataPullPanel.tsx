@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Loader2, Search, Check, Clock, Zap, Settings2, AlertCircle, CheckCircle2, Calendar, History, KeyRound } from 'lucide-react'
 import { api, type ExtDataBackfillResult, type ExtDataConfig, type ExtPullAuth, type ExtFanoutRecipe } from '@/lib/api'
 import { toast } from '@/components/Toast'
+import { DatePicker } from '@/components/DatePicker'
+import { TimePicker } from '@/components/TimePicker'
 
 const AUTH_TYPE_LABELS: Record<ExtPullAuth['type'], string> = {
   none: '无',
@@ -362,16 +364,16 @@ export function ExtDataPullPanel({ config, onSaved }: {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className="text-[10px] text-muted mb-1">拉取起始时间 (留空=不限)</div>
-            <input
-              type="time" value={timeWindowStart} onChange={e => setTimeWindowStart(e.target.value)}
-              className="w-full rounded-btn border border-border bg-elevated px-2 py-1.5 text-[10px] font-mono text-foreground"
+            <TimePicker
+              aria-label="拉取起始时间" value={timeWindowStart} onChange={setTimeWindowStart}
+              placeholder="不限时间" clearable className="w-full" buttonClassName="w-full justify-start" align="left"
             />
           </div>
           <div>
             <div className="text-[10px] text-muted mb-1">拉取结束时间 (留空=不限)</div>
-            <input
-              type="time" value={timeWindowEnd} onChange={e => setTimeWindowEnd(e.target.value)}
-              className="w-full rounded-btn border border-border bg-elevated px-2 py-1.5 text-[10px] font-mono text-foreground"
+            <TimePicker
+              aria-label="拉取结束时间" value={timeWindowEnd} onChange={setTimeWindowEnd}
+              placeholder="不限时间" clearable className="w-full" buttonClassName="w-full justify-start"
             />
           </div>
         </div>
@@ -639,15 +641,15 @@ export function ExtDataPullPanel({ config, onSaved }: {
             <span>历史回补</span>
             {!dateParam.trim() && <span className="text-[9px] text-muted/70">· 需先填日期参数名并保存</span>}
           </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="date" value={bfStart} onChange={e => setBfStart(e.target.value)}
-              className="flex-1 min-w-0 rounded-btn border border-border bg-elevated px-2 py-1.5 text-[10px] font-mono text-foreground"
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DatePicker
+              aria-label="回补开始日期" value={bfStart} onChange={setBfStart} clearable
+              className="flex-1 min-w-0" buttonClassName="w-full justify-start" align="left"
             />
             <span className="text-[10px] text-muted shrink-0">至</span>
-            <input
-              type="date" value={bfEnd} onChange={e => setBfEnd(e.target.value)}
-              className="flex-1 min-w-0 rounded-btn border border-border bg-elevated px-2 py-1.5 text-[10px] font-mono text-foreground"
+            <DatePicker
+              aria-label="回补结束日期" value={bfEnd} onChange={setBfEnd} clearable
+              className="flex-1 min-w-0" buttonClassName="w-full justify-start"
             />
             <button
               onClick={handleBackfill}

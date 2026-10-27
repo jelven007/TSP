@@ -153,3 +153,66 @@ it.each(['succeeded', 'failed'] as const)('refreshes cached charts after a %s re
     client.clear()
   }
 })
+
+it('opens daily profile history acquisition and submits the same range controls as one minute', async () => {
+  const fetchMock = vi.fn(async (path: string) => {
+    let value: unknown = {}
+    if (path === '/api/settings/preferences') value = { data_sync_auto_enabled: true }
+    else if (path === '/api/settings/data-sources') value = { builtin: [], plugins: [], custom: [] }
+    else if (path === '/api/settings/capability-matrix') value = {
+      capabilities: [{ id: 'daily', usable: true }],
+    }
+    else if (path === '/api/settings/kline-sync') value = Object.fromEntries(
+      ['1m', '5m', '10m', '15m', '1d', '1w'].map(period => [period, {
+        enabled: true, interval_seconds: 60, windows: [], time: '16:30',
+      }]),
+    )
+    else if (path === '/api/ext-data') value = { items: [] }
+    else if (path === '/api/regime/coverage') value = null
+    else if (path === '/api/data/status') value = {
+      storage: {}, indicators_ready: true,
+      daily: { rows: 4, earliest_date: '2025-10-27', latest_date: '2026-10-27', symbols_covered: 4, trading_days: 1 },
+    }
+    else if (path.startsWith('/api/pipeline/jobs?')) value = { active_id: null, jobs: [] }
+    else if (path === '/api/kline/sync_period') value = { status: 'started', job_id: 'daily-history-1' }
+    else if (path === '/api/pipeline/jobs/daily-history-1') value = {
+      id: 'daily-history-1', kind: 'extend_history', status: 'running', stage: 'extend_history',
+      progress: 10, stage_pct: 0, log: [], started_at: null, finished_at: null, duration_s: null, result: null, error: null,
+    }
+    return new Response(JSON.stringify(value))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  const flush = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
+  try {
+    await act(async () => root.render(
+      <QueryClientProvider client={client}><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Data /></MemoryRouter></QueryClientProvider>,
+    ))
+    await flush()
+    const card = [...host.querySelectorAll('h3')].find(heading => heading.textContent === '日 K')!.closest('.rounded-card')!
+    const settings = card.querySelector<HTMLButtonElement>('button[title="设置"]')!
+    expect(settings).not.toBeNull()
+    await act(async () => settings.click())
+    await flush()
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('日K · 同步设置')
+    expect(dialog.textContent).toContain('获取日K后继续同步除权因子并重算指标')
+    expect(dialog.querySelector<HTMLInputElement>('[aria-label="历史扩展数量"]')?.value).toBe('6')
+    expect(dialog.querySelector('[aria-label="交易日同步时间"]')?.textContent).toContain('16:30')
+    expect(dialog.textContent).toContain('2025-10-27')
+    const acquire = [...dialog.querySelectorAll('button')].find(button => button.textContent === '获取数据')!
+    await act(async () => acquire.click())
+    await flush()
+    expect(fetchMock).toHaveBeenCalledWith('/api/kline/sync_period', expect.objectContaining({
+      method: 'POST', body: '{"period":"1d","value":6,"unit":"month"}',
+    }))
+    expect(host.textContent).toContain('daily-history-1')
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+    client.clear()
+  }
+})

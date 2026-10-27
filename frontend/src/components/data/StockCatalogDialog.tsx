@@ -4,6 +4,7 @@ import { Download, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { api, type StockCatalogFields, type StockCatalogRow } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { SettingsModal } from './SettingsModal'
+import { DatePicker } from '@/components/DatePicker'
 
 const inputClass = 'w-full rounded-btn border border-border bg-base px-3 py-2 text-xs text-foreground focus:outline-none focus:border-accent'
 const buttonClass = 'rounded-btn border border-border px-3 py-2 text-xs hover:bg-elevated disabled:opacity-50 disabled:cursor-not-allowed'
@@ -150,11 +151,15 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
               ] as const).map(([key, label, type]) => (
                 <label key={key} className="text-xs text-secondary space-y-1 block">
                   <span>{label}</span>
-                  <input aria-label={label} className={inputClass} type={type} value={draft[key]}
+                  {type === 'date' ? (
+                    <DatePicker aria-label={label} value={draft[key]} clearable placeholder="未记录"
+                      className="w-full" buttonClassName="w-full justify-start" align="left" disabled={change.isPending}
+                      onChange={value => setDraft({ ...draft, [key]: value })} />
+                  ) : <input aria-label={label} className={inputClass} type={type} value={draft[key]}
                     required={key === 'symbol' || key === 'name'} disabled={key === 'symbol' && !!editing}
                     step={type === 'number' ? 'any' : undefined} min={type === 'number' ? '0.000001' : undefined}
                     maxLength={type === 'text' ? 100 : undefined} placeholder={key === 'symbol' ? '600000.SH / 000001.SZ' : undefined}
-                    onChange={e => setDraft({ ...draft, [key]: e.target.value })} />
+                    onChange={e => setDraft({ ...draft, [key]: e.target.value })} />}
                 </label>
               ))}
             </fieldset>

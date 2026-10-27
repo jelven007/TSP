@@ -1504,13 +1504,13 @@ export function Watchlist() {
             >
               <FileUp className="h-4 w-4" />
             </button>
-            <WatchlistExportButton />
+            <WatchlistExportButton selectedGroup={selectedGroup}
+              groupName={groups.find(group => group.id === selectedGroup)?.name} />
             <button type="button" onClick={resetSort} disabled={!sort}
-              className="inline-flex items-center gap-1.5 h-8 px-2 rounded-btn bg-elevated text-secondary hover:text-foreground disabled:opacity-40"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-btn bg-elevated text-secondary hover:text-foreground disabled:opacity-40"
               title="清除字段排序，恢复已保存的自选顺序"
               aria-label="恢复默认排序">
-              <RotateCcw className="h-4 w-4" />
-              <span className="text-xs whitespace-nowrap">恢复默认排序</span>
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
             </button>
             <div className="w-px h-5 bg-border" />
             {/* 视图 */}

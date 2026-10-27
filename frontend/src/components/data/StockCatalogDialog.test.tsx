@@ -108,6 +108,21 @@ it('keeps unsaved fields and shows permission errors when the server rejects a w
   expect(state.rows).toHaveLength(1)
 })
 
+it('selects and clears an optional listing date without submitting the edit prematurely', async () => {
+  await render()
+  await click('编辑 600000.SH')
+  await click('上市日期')
+  await click('1999-11-12')
+  expect(state.writes).toHaveLength(0)
+  await click('保存')
+  expect(state.rows[0].listing_date).toBe('1999-11-12')
+  await click('编辑 600000.SH')
+  await click('上市日期')
+  await click('清空日期')
+  await click('保存')
+  expect(state.rows[0].listing_date).toBeNull()
+})
+
 async function select(label: string, value: string) {
   const control = host.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)
   expect(control, `missing select: ${label}`).not.toBeNull()

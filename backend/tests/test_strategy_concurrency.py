@@ -103,6 +103,8 @@ def test_corrupt_configuration_preserves_last_valid_global_limit(broker):
     assert value.resource_status()["effective_concurrency"] == 2
     config.write_text('{"strategy_concurrency":true}', encoding="utf-8")
     assert value.resource_status()["effective_concurrency"] == 2
+    config.write_text('{"strategy_concurrency":1000}', encoding="utf-8")
+    assert value.resource_status()["effective_concurrency"] == 2
 
 
 def test_saved_setting_survives_reload_without_overwriting_other_preferences(runtime):
@@ -121,25 +123,69 @@ def test_saved_setting_survives_reload_without_overwriting_other_preferences(run
     assert preferences.load()["strategy_concurrency"] is None
 
 
-@pytest.mark.parametrize("value", [0, 17, True, "2", 2.5])
+@pytest.mark.parametrize("value", [0, 1000, True, "2", 2.5])
 def test_concurrency_setting_is_a_strict_bounded_integer_or_auto(value):
     with pytest.raises(ValidationError):
         settings_api.StrategyConcurrencyPrefs(strategy_concurrency=value)
 
 
-def test_invalid_save_does_not_mutate_preferences(runtime, monkeypatch):
+def test_save_above_resources_preserves_setting_and_limits_effective_slots(runtime, monkeypatch):
     preferences.save({"screener_auto_run": False})
     monkeypatch.setattr(
         "app.services.strategy_resources.local_status",
-        lambda: {"max_concurrency": 2, "config_enabled": True},
+        lambda: {**strategy_resources.budget_status(2048, 2, strategy_resources.configured_concurrency()),
+                 "config_enabled": True},
     )
+    status = settings_api.update_strategy_concurrency(
+        settings_api.StrategyConcurrencyPrefs(strategy_concurrency=999),
+    )
+    assert status["strategy_concurrency"] == 999
+    assert status["effective_concurrency"] == 2
+    assert preferences.load() == {"screener_auto_run": False, "strategy_concurrency": 999}
+    preferences._invalidate_cache()
+    assert settings_api.get_strategy_concurrency()["strategy_concurrency"] == 999
+
+
+@pytest.mark.parametrize(("status", "code"), [
+    ({"available": False, "error": "unavailable"}, 503),
+    ({"available": True, "config_enabled": False}, 503),
+    ({"available": True, "config_enabled": True, "max_concurrency": 0}, 422),
+])
+def test_unavailable_budget_or_configuration_never_changes_preferences(runtime, monkeypatch, status, code):
     from fastapi import HTTPException
+
+    preferences.save({"strategy_concurrency": 3, "pipeline_pull_etf": False})
+    monkeypatch.setattr(settings_api, "get_strategy_concurrency", lambda: status)
     with pytest.raises(HTTPException) as error:
         settings_api.update_strategy_concurrency(
-            settings_api.StrategyConcurrencyPrefs(strategy_concurrency=3),
+            settings_api.StrategyConcurrencyPrefs(strategy_concurrency=999),
         )
-    assert error.value.status_code == 422
-    assert preferences.load() == {"screener_auto_run": False}
+    assert error.value.status_code == code
+    assert preferences.load() == {"strategy_concurrency": 3, "pipeline_pull_etf": False}
+
+
+@pytest.mark.parametrize("limit", [1, 999])
+def test_manual_boundary_survives_broker_reload_with_the_same_budget(broker, limit):
+    value, config = broker
+    config.write_text(json.dumps({"strategy_concurrency": limit}), encoding="utf-8")
+    status = value.resource_status()
+    assert status["strategy_concurrency"] == limit
+    assert strategy_resources.ConcurrencyConfig(config).read() == limit
+    effective = min(limit, status["max_concurrency"])
+    assert status["effective_concurrency"] == effective
+    assert status["task_memory_mb"] * effective <= status["memory_budget_mb"]
+    assert status["task_cpus"] * effective <= status["cpu_budget"]
+
+
+def test_legacy_auto_run_cannot_be_enabled_and_other_preferences_are_preserved(runtime):
+    preferences.save({"screener_auto_run": True, "pipeline_pull_etf": False})
+    assert preferences.get_screener_auto_run() is False
+    preferences.set_realtime_monitor_config({"screener_auto_run": True, "minute_intraday_refresh": True})
+    preferences._invalidate_cache()
+    assert preferences.get_screener_auto_run() is False
+    assert preferences.load()["screener_auto_run"] is False
+    assert preferences.load()["pipeline_pull_etf"] is False
+    assert preferences.get_minute_intraday_refresh() is True
 
 
 def test_resource_queries_never_accept_remote_configuration_overrides(broker):
@@ -271,13 +317,16 @@ def test_http_contract_persists_auto_and_rejects_invalid_body(runtime):
     app = FastAPI()
     app.include_router(settings_api.router)
     with TestClient(app) as client:
-        for body in ({}, {"strategy_concurrency": True}, {"strategy_concurrency": 17},
+        for body in ({}, {"strategy_concurrency": True}, {"strategy_concurrency": 1000},
                      {"strategy_concurrency": 2, "cpu_budget": 999}):
             assert client.post("/api/settings/strategy-concurrency", json=body).status_code == 422
         assert not (runtime / "preferences.json").exists()
         saved = client.post("/api/settings/strategy-concurrency", json={"strategy_concurrency": 3})
         assert saved.status_code == 200 and saved.json()["effective_concurrency"] == 3
         assert client.get("/api/settings/strategy-concurrency").json()["strategy_concurrency"] == 3
+        saved = client.post("/api/settings/strategy-concurrency", json={"strategy_concurrency": 999})
+        assert saved.status_code == 200 and saved.json()["strategy_concurrency"] == 999
+        assert saved.json()["effective_concurrency"] <= saved.json()["max_concurrency"]
         auto = client.post("/api/settings/strategy-concurrency", json={"strategy_concurrency": None})
         assert auto.status_code == 200 and auto.json()["effective_concurrency"] == 4
 

@@ -690,7 +690,7 @@ export function Data() {
               className="inline-flex items-center gap-1 px-2 py-1 rounded-btn text-secondary hover:text-accent hover:bg-accent/8 text-xs transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none"
             >
               <WandSparkles className="h-3.5 w-3.5" />
-              修正数据
+              数据修正
             </button>
             <div className="w-px h-4 bg-border" />
             <div className="flex flex-wrap items-center gap-1.5">

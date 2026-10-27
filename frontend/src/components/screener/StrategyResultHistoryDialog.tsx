@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
 import { Modal } from '@/components/Modal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { DatePicker } from '@/components/DatePicker'
 
 type Props = {
   strategyId: string
@@ -111,13 +112,15 @@ function HistoryContent({ strategyId, onClose }: Props) {
           </label>
           <label className="space-y-1 text-xs text-muted">
             <span>开始日期</span>
-            <input aria-label="开始日期" type="date" className={inputClass} value={draft.start_date ?? ''}
-              onChange={event => setDraft(current => ({ ...current, start_date: event.target.value }))} />
+            <DatePicker aria-label="开始日期" value={draft.start_date ?? ''} placeholder="不限日期" clearable
+              className="w-full" buttonClassName="w-full justify-start" align="left"
+              onChange={value => setDraft(current => ({ ...current, start_date: value }))} />
           </label>
           <label className="space-y-1 text-xs text-muted">
             <span>结束日期</span>
-            <input aria-label="结束日期" type="date" className={inputClass} value={draft.end_date ?? ''}
-              onChange={event => setDraft(current => ({ ...current, end_date: event.target.value }))} />
+            <DatePicker aria-label="结束日期" value={draft.end_date ?? ''} placeholder="不限日期" clearable
+              className="w-full" buttonClassName="w-full justify-start"
+              onChange={value => setDraft(current => ({ ...current, end_date: value }))} />
           </label>
           <div className="col-span-2 flex items-end gap-2">
             <button type="submit" className="h-9 rounded-btn bg-accent px-4 text-xs text-white">筛选</button>
