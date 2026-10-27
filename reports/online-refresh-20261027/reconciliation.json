@@ -1,0 +1,60 @@
+{
+  "base": "6b86f724940682c802919c680e224a6d7510064e",
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "updated_files": 11,
+  "late_changes_preserved": [],
+  "conflicts": [],
+  "research_files": 559,
+  "research_prior_hashes_unchanged": true,
+  "applied": true,
+  "runtime_restarted": false,
+  "local_market_data_changed": false,
+  "backup": "$TSP_LOCAL_STATE/backups/online-refresh-workspace-pre-4da5f30c9b51",
+  "research_current_hashes_preserved": true,
+  "files": {
+    "README.md": {
+      "before": "3f3933fc24a7c9e7a5c041e351620d1577984bfb196ce8e8c5b1ee15851a315c",
+      "after": "1ff90b378ec5e6e67f91ff3856110cec5813f1a185c623be3be45744aef0bb47"
+    },
+    "VERSION": {
+      "before": "ed8349b5805a14c4e3cef114973d73272e7e002403534860cd40e8dd6c8ae571",
+      "after": "9b72206f8657b3a0a6292fdb9953b20db31d1059f0ca7ce53bf2e83c4d19f9a5"
+    },
+    "backend/app/__init__.py": {
+      "before": "139b99dceb266af09fd07886ec70a152288458017b2f79680faa2b4c4b668b53",
+      "after": "fd14586a928f38a575197acac8f4845c1b89e5fa5defae67401a790b663d666d"
+    },
+    "backend/pyproject.toml": {
+      "before": "b9e3dbbb38bf694d0a11b85f4d0bddadbcc2f6264f40e0c18bd5ce732107c8ef",
+      "after": "b79439ba225f3916700507d4ef82a4942591f1d928b3e6108b473cf8afbd0ab0"
+    },
+    "backend/uv.lock": {
+      "before": "bf71184f9d29cf4851432a9a4ccedbd5d64dc46c92e0ac670f79848bf31e7c74",
+      "after": "1d00c2f903288bd8dab7089acc6bd0685d1d90d0859c175e8c3b6cdd0c0cc8e9"
+    },
+    "docs/README.md": {
+      "before": "3ca1bcf3b0d69c3e3b4ff14b8d23b41d2ad119e7aa9b9dd20aceafbbbf4818a8",
+      "after": "314afdbd556fee4dcddeef4fe3d30917ad20e1217f78ced90cd94e5bb0f92d07"
+    },
+    "docs/operations.md": {
+      "before": "0c402f57de70613cd4980ea67bdc1a39ca0546b1b4d43c1e254459f0d7a8782e",
+      "after": "983e70868b5ceebbab3a8ea82a12f44afa8ffce626b69d6b7f27ce0a44885f39"
+    },
+    "docs/requirements.md": {
+      "before": "a800eac12dbb83c447f7b0c12db6fe97d42acb4f2422b2982114c89eb0d8e36e",
+      "after": "a6c85a739322fbcf604d28df447722ccf14ef131cb3a8ea8afe1754a1019664f"
+    },
+    "docs/version-baseline.md": {
+      "before": "2b198003a760393d914d52d3ca8e4b0471c80b179ad00b140b95479beb0ccd72",
+      "after": "281f691406ebf23f94248f8b774fb7c47af14aa66d214319b0e0f87f4f940eeb"
+    },
+    "frontend/package.json": {
+      "before": "0aa0b17404ac041aa789cc1dbaa4cefbeb61e1f57805fa44451cb8fd54ad9d95",
+      "after": "349a45c5f4fe6cc69b60fb960b2b81810f28848547290e90a228cf88f4d2d6ba"
+    },
+    "操作说明书.md": {
+      "before": "4c65a812c91d0807b0909f5f12bfdf053daa34b89a872603657c3b5bd42042dd",
+      "after": "03f39156552b1aaf55ddc81b197b4bddf965196d9bea43b0be35f3bbd51b5ddf"
+    }
+  }
+}

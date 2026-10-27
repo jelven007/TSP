@@ -31,6 +31,8 @@ export const QK = {
   watchlistGroups:      ['watchlist-groups'] as const,
   watchlistQuotes:      ['watchlist-quotes'] as const,
   watchlistEnriched:    (ext?: string) => ['watchlist-enriched', ext] as const,
+  // 全周期策略目录，独立于日K选股及其加工后缓存结构。
+  watchlistStrategyOptions: () => ['strategy-watchlist-options', 'all'] as const,
   // 异动边缘总览 (开启监控时才查询, 参数为 min_closeness/limit)
   abnormalOverview:     (minCloseness: number, limit: number) => ['abnormal-overview', minCloseness, limit] as const,
   // 盘中异动信号聚合 (异动数据「盘中」tab)

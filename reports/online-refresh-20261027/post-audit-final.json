@@ -1,0 +1,396 @@
+{
+  "checked_at": "2026-10-26T18:24:20.971987+00:00",
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "version": "0.4.32",
+  "source": "/opt/tsp-full/releases/4da5f30c9b5165612d78b573c142612f3fe25395",
+  "containers": [
+    {
+      "role": "platform",
+      "image": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "health": "healthy",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "restart_count": 0
+    },
+    {
+      "role": "gateway",
+      "image": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "health": "healthy",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "restart_count": 0
+    },
+    {
+      "role": "api",
+      "image": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "health": "healthy",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "restart_count": 0
+    },
+    {
+      "role": "research",
+      "image": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "health": "healthy",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "restart_count": 0
+    },
+    {
+      "role": "realtime",
+      "image": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "health": "healthy",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "restart_count": 0
+    },
+    {
+      "role": "notifications",
+      "image": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "health": "healthy",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "restart_count": 0
+    },
+    {
+      "role": "scheduled",
+      "image": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "health": "healthy",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "restart_count": 0
+    }
+  ],
+  "postgres_health": "healthy",
+  "units": {
+    "tsp-full.service": "active",
+    "tsp-compute-broker.service": "active",
+    "tsp-full-health.timer": "active",
+    "tsp-public-release-maintenance.timer": "active"
+  },
+  "health": {
+    "api": {
+      "status": "degraded",
+      "ready": true,
+      "checked_at": "2026-10-26T18:24:20.841165+00:00",
+      "checks": {
+        "databases": {
+          "status": "ok"
+        },
+        "research_worker": {
+          "status": "ok",
+          "age_seconds": 2.268304,
+          "max_age_seconds": 120
+        },
+        "realtime_worker": {
+          "status": "ok",
+          "age_seconds": 4.049528,
+          "max_age_seconds": 420
+        },
+        "notifications_worker": {
+          "status": "ok",
+          "age_seconds": 1.666332,
+          "max_age_seconds": 120
+        },
+        "scheduled_worker": {
+          "status": "ok",
+          "age_seconds": 0.051749,
+          "max_age_seconds": 660
+        },
+        "public_files": {
+          "status": "ok",
+          "release_id": "b2ca498685fd48d2b1ca2c11039d0e5d"
+        },
+        "platform": {
+          "status": "ok",
+          "connected": true,
+          "last_marker_at": null,
+          "reconnects": 0,
+          "update_generation": 0,
+          "loaded_generation": 0,
+          "snapshot_fetches": 1,
+          "frame_decodes": 4
+        },
+        "indicator_cache": {
+          "status": "error"
+        },
+        "compute_broker": {
+          "status": "ok"
+        }
+      },
+      "functions": {
+        "market": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "research": {
+          "ready": false,
+          "status": "unavailable",
+          "unavailable_dependencies": [
+            "indicator_cache"
+          ]
+        },
+        "monitoring": {
+          "ready": false,
+          "status": "unavailable",
+          "unavailable_dependencies": [
+            "indicator_cache"
+          ]
+        },
+        "paper_trading": {
+          "ready": false,
+          "status": "unavailable",
+          "unavailable_dependencies": [
+            "indicator_cache"
+          ]
+        },
+        "notifications": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "scheduled": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        }
+      },
+      "version": "0.4.32",
+      "mode": "none"
+    },
+    "gateway": {
+      "status": "ok",
+      "ready": true,
+      "checks": {
+        "databases": {
+          "status": "ok"
+        },
+        "private_events": {
+          "status": "ok",
+          "listener_connected": true,
+          "subscriptions": 1,
+          "poll_runs": 18,
+          "tenant_reads": 17,
+          "notifications": 0,
+          "full_sweeps": 11,
+          "last_event_at": null
+        },
+        "revocations": {
+          "status": "ok",
+          "connected": true,
+          "last_notification_at": null
+        },
+        "public_market_events": {
+          "status": "ok",
+          "connected": true,
+          "last_marker_at": null,
+          "reconnects": 0
+        }
+      },
+      "version": "0.4.32",
+      "mode": "none"
+    }
+  },
+  "configuration": [
+    {
+      "name": "bootstrap-private.json",
+      "mode": "0600",
+      "preserved": true
+    },
+    {
+      "name": "platform.env",
+      "mode": "0600",
+      "preserved": true
+    },
+    {
+      "name": "postgres.env",
+      "mode": "0600",
+      "preserved": true
+    },
+    {
+      "name": "public-release-maintenance.env",
+      "mode": "0600",
+      "preserved": true
+    },
+    {
+      "name": "broker.env",
+      "mode": "0600",
+      "preserved": true
+    },
+    {
+      "name": "admin.env",
+      "mode": "0600",
+      "preserved": true
+    },
+    {
+      "name": "deploy.env",
+      "mode": "0600",
+      "preserved": true
+    },
+    {
+      "name": "runtime.env",
+      "mode": "0600",
+      "preserved": true
+    }
+  ],
+  "other_preferences_preserved": true,
+  "secrets_preserved": true,
+  "configuration_baseline": "quiesced backup",
+  "automatic_sync_enabled": true,
+  "business": {
+    "control": {
+      "preserved": true,
+      "schema_version": 6,
+      "summary": {
+        "users": 2,
+        "tenants": 2,
+        "memberships": 2,
+        "admin_roles": 1,
+        "registration": 1
+      }
+    },
+    "business": {
+      "preserved": true,
+      "schema_version": 6,
+      "summary": {
+        "bindings": 2,
+        "documents": 21,
+        "research_jobs": 53,
+        "artifact_bytes": 0,
+        "paper_accounts": 0,
+        "paper_orders": 0,
+        "paper_fills": 0,
+        "paper_nav": 0,
+        "cash": "0"
+      }
+    }
+  },
+  "subsequent_automatic_sync_change_preserved": true,
+  "full_health_timer_passed": false,
+  "health_acceptance": "all non-indicator dependencies; indicator cache unavailable with empty K-lines",
+  "double_database_restore_verified": true,
+  "tables": {
+    "kline_daily": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_daily_enriched": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_index_daily": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_index_enriched": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_etf_daily": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_etf_enriched": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_etf_minute": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_minute": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_5minute": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_10minute": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_15minute": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    },
+    "kline_weekly": {
+      "source_files": 0,
+      "current_files": 0,
+      "rows": 0
+    }
+  },
+  "public_current": "/opt/tsp-full/public/releases/bbd031ac07944c5b9caf965f10e60598",
+  "initial_sync": "pending",
+  "startup": {
+    "checked_at": "2026-10-26T18:18:27.891995+00:00",
+    "version": "0.4.32",
+    "platform_started_at": "2026-10-26T18:18:06.103518+00:00",
+    "startup_catalog_completed": true,
+    "post_catalog_refresh": true,
+    "platform_snapshot": {
+      "rows": {
+        "stock": 0,
+        "etf": 0,
+        "index": 0
+      },
+      "days": {
+        "stock": null,
+        "etf": null,
+        "index": null
+      },
+      "platform_ready": true
+    },
+    "consumers_recreated_after_refresh": [
+      "gateway",
+      "research",
+      "realtime",
+      "notifications",
+      "scheduled",
+      "api"
+    ],
+    "all_functions_passed": false,
+    "expected_empty_kline": true,
+    "scope": "deployment startup ordering; application source unchanged"
+  },
+  "profile": {
+    "profiles": {
+      "daily": null,
+      "enriched": null,
+      "index_daily": null,
+      "index_enriched": null,
+      "etf_daily": null,
+      "etf_enriched": null,
+      "minute": null,
+      "5m": null,
+      "10m": null,
+      "15m": null,
+      "weekly": null
+    },
+    "initialization": {
+      "auto_enabled": true,
+      "status": "pending",
+      "marker_error": null,
+      "completed_at": null,
+      "data_release_id": null,
+      "job_id": "8939734598",
+      "progress": null,
+      "stages": {
+        "daily": "waiting",
+        "minute": "waiting",
+        "enriched": "waiting",
+        "financials": "available",
+        "instruments": "available",
+        "ai": "unknown",
+        "notifications": "unknown"
+      },
+      "last_successful_pipeline_at": "2026-10-26T12:17:22.932153+00:00"
+    }
+  },
+  "passed": true
+}

@@ -6,9 +6,101 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Data } from './Data'
 import { QK } from '@/lib/queryKeys'
+import { storage } from '@/lib/storage'
+import { ToastContainer } from '@/components/Toast'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  localStorage.clear()
+})
+
+it.each(['success', 'failure', 'preferences-error'] as const)('places quotes in the portrait and handles the %s auto-sync switch', async outcome => {
+  let auto = true
+  let finishUpdate: (value: Response) => void = () => {}
+  let preferencesReads = 0
+  let statusReads = 0
+  const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+    let value: unknown = {}
+    if (path === '/api/settings/preferences/data-sync-auto') {
+      return new Promise<Response>(resolve => {
+        finishUpdate = response => {
+          if (response.ok) auto = JSON.parse(String(init?.body)).enabled
+          resolve(response)
+        }
+      })
+    }
+    if (path === '/api/settings/preferences') {
+      preferencesReads++
+      if (outcome === 'preferences-error') return new Response(JSON.stringify({ detail: '配置不可用' }), { status: 500 })
+      value = { data_sync_auto_enabled: auto, realtime_quotes_enabled: true }
+    } else if (path === '/api/settings/data-sources') value = { builtin: [], plugins: [], custom: [] }
+    else if (path === '/api/settings/capability-matrix') value = { capabilities: [] }
+    else if (path === '/api/settings/kline-sync') value = Object.fromEntries(
+      ['1m', '5m', '10m', '15m', '1d', '1w'].map(period => [period, {
+        enabled: true, interval_seconds: 60, windows: [], time: '16:00',
+      }]),
+    )
+    else if (path === '/api/ext-data') value = { items: [] }
+    else if (path === '/api/regime/coverage') value = null
+    else if (path === '/api/data/status') { statusReads++; value = { storage: {}, indicators_ready: true } }
+    else if (path.startsWith('/api/pipeline/jobs?')) value = { active_id: null, jobs: [] }
+    return new Response(JSON.stringify(value))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  storage.dataCardOrder.set(['instruments', 'minute', '5m', '10m', '15m', 'daily', 'weekly'])
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  const flush = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
+  try {
+    await act(async () => root.render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Data /><ToastContainer /></MemoryRouter>
+      </QueryClientProvider>,
+    ))
+    await flush()
+    const sync = host.querySelector('[aria-label="数据同步"]')
+    expect(sync).not.toBeNull()
+    const toggle = sync!.querySelector<HTMLButtonElement>('[role="switch"][aria-label="自动同步"]')!
+    expect(toggle).not.toBeNull()
+    const portraitTitle = Array.from(host.querySelectorAll('h2')).find(h => h.textContent === '数据画像')!
+    const portrait = portraitTitle.parentElement!
+    const titles = Array.from(portrait.querySelectorAll('h3'), h => h.textContent)
+    expect(titles[titles.indexOf('15分K') + 1]).toBe('实时行情')
+    expect(sync!.querySelector('h3')?.textContent).toBe('数据同步')
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    expect(toggle.disabled).toBe(outcome === 'preferences-error')
+    if (outcome === 'preferences-error') return
+    const oldReads = { preferencesReads, statusReads }
+    await act(async () => toggle.click())
+    await flush()
+    expect(toggle.disabled).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith('/api/settings/preferences/data-sync-auto', expect.objectContaining({
+      method: 'PUT', body: '{"enabled":false}',
+    }))
+    await act(async () => finishUpdate(new Response(
+      JSON.stringify(outcome === 'failure' ? { detail: '保存失败' } : { data_sync_auto_enabled: false }),
+      { status: outcome === 'failure' ? 500 : 200 },
+    )))
+    await flush()
+    await flush()
+    expect(toggle.disabled).toBe(false)
+    expect(toggle.getAttribute('aria-checked')).toBe(outcome === 'success' ? 'false' : 'true')
+    if (outcome === 'success') {
+      expect(preferencesReads).toBeGreaterThan(oldReads.preferencesReads)
+      expect(statusReads).toBeGreaterThan(oldReads.statusReads)
+      expect(portrait.textContent).toContain('实时行情')
+    } else {
+      expect(host.querySelector('[role="status"]')?.textContent).toContain('保存失败')
+    }
+  } finally {
+    await act(async () => root.unmount())
+    host.remove()
+    client.clear()
+  }
+})
 
 it.each(['succeeded', 'failed'] as const)('refreshes cached charts after a %s repair, including partial writes', async (status) => {
   vi.stubGlobal('fetch', vi.fn(async (path: string) => {

@@ -209,6 +209,39 @@ def test_import_functions_do_not_write_watchlist(tmp_path: Path, monkeypatch):
 
 # ---- 分组合并语义（导入落点，M:N 并入服务端依据） ----
 
+@pytest.mark.asyncio
+async def test_csv_confirm_preserves_file_order_through_batch_and_reload(tmp_path: Path, monkeypatch):
+    _write_instruments(tmp_path)
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(watchlist_api, "_service", lambda _request: watchlist)
+    _, old_group = watchlist.create_group("原分组")
+    _, target_group = watchlist.create_group("导入分组")
+    watchlist.add("515880.SH", group_id=old_group["id"])
+    watchlist.add("600000.SH")
+    request = _mock_request(tmp_path)
+    result = await import_from_csv(request, _mock_upload(
+        content="股票代码\n600036\n999999\n515880\n600036\n".encode("utf-8-sig"),
+    ))
+    symbols = [row["symbol"] for row in result["candidates"] if row["matched"]]
+    assert symbols == ["600036.SH", "515880.SH"]
+    saved = watchlist_api.add_batch(watchlist_api.BatchAddRequest(
+        symbols=symbols, group_ids=[target_group["id"]],
+    ), request)
+    assert saved["added"] == 1
+    assert [row["symbol"] for row in saved["symbols"]] == [*symbols, "600000.SH"]
+    reloaded = watchlist_api.list_all(request)["symbols"]
+    assert [row["symbol"] for row in reloaded] == [*symbols, "600000.SH"]
+    assert [row["symbol"] for row in reloaded if target_group["id"] in row["group_ids"]] == symbols
+    assert set(reloaded[1]["group_ids"]) == {old_group["id"], target_group["id"]}
+
+
+def test_batch_duplicate_symbols_keep_first_occurrence_order(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    rows, added = watchlist.add_batch(["600036.SH", "515880.SH", "600036.SH", "300750.SZ"])
+    assert added == 3
+    assert [row["symbol"] for row in rows] == ["600036.SH", "515880.SH", "300750.SZ"]
+
+
 def test_add_batch_merges_into_target_group_mn(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", tmp_path)
     _, g1 = watchlist.create_group("组合一")

@@ -29,10 +29,13 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-async function render() {
+async function render(cached = false) {
   vi.spyOn(api, 'watchlistList').mockResolvedValue({ symbols: [
-    { symbol: '600000.SH', added_at: '', note: '', group_ids: ['core', 'other'] },
+    { symbol: '600000.SH', added_at: '', note: '', group_ids: ['core', 'other'], strategy_ids: ['daily', 'minute'] },
   ] })
+  vi.spyOn(api, 'strategyList').mockResolvedValue({ strategies: [
+    { id: 'daily', name: '日K策略' }, { id: 'minute', name: '分钟策略' },
+  ] as any })
   vi.spyOn(api, 'watchlistGroups').mockResolvedValue({ groups: [
     { id: 'core', name: '核心', color: 'sky', referenced_by: ['demo'] },
     { id: 'other', name: '观察', color: 'teal' },
@@ -48,6 +51,9 @@ async function render() {
   document.body.append(host)
   root = createRoot(host)
   client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+  if (cached) client.setQueryData(QK.watchlist, { symbols: [
+    { symbol: '600000.SH', added_at: '', note: '', group_ids: ['core', 'other'], strategy_ids: [] },
+  ] })
   await act(async () => root.render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <QueryClientProvider client={client}><Watchlist /></QueryClientProvider>
@@ -59,6 +65,16 @@ async function render() {
   })
   return clear
 }
+
+it('revalidates a recently persisted list on mount so saved strategies survive an immediate reload', async () => {
+  await render(true)
+  await vi.waitFor(async () => {
+    await act(async () => new Promise(resolve => setTimeout(resolve, 0)))
+    expect(api.watchlistList).toHaveBeenCalled()
+    expect(host.textContent).toContain('日K策略')
+    expect(host.textContent).toContain('分钟策略')
+  })
+})
 
 it('blocks clearing all watchlist entries while any group is referenced, across tabs', async () => {
   const clearApi = await render()

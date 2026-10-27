@@ -31,13 +31,13 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function render(period: '5m' | '10m' | '15m' | '1m' | '1w' | '1d', onStart = vi.fn(), hasCap = true) {
+async function render(period: '5m' | '10m' | '15m' | '1m' | '1w' | '1d', onStart = vi.fn(), hasCap = true, isRunning = false) {
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   await act(async () => {
-    root!.render(<QueryClientProvider client={client}><KlineSyncConfig period={period} hasCap={hasCap} isRunning={false} earliestDate={null} onJobStart={onStart} /></QueryClientProvider>)
+    root!.render(<QueryClientProvider client={client}><KlineSyncConfig period={period} hasCap={hasCap} isRunning={isRunning} earliestDate={null} onJobStart={onStart} /></QueryClientProvider>)
   })
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
   return onStart
@@ -55,19 +55,36 @@ it('shows the unified intraday collection window and submits explicit sync setti
   expect(mocks.save.mock.calls[0][0]).toBe('5m')
 })
 
-it.each(['5m', '10m', '15m'] as const)('allows local %s history without provider capability and explains the dependency', async period => {
+it.each(['5m', '10m', '15m', '1d', '1w'] as const)('generates local %s data without capability or history controls', async period => {
   const onStart = await render(period, vi.fn(), false)
-  expect(host.textContent).toContain('由本地1分K计算')
-  const button = [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!
+  expect(host.textContent).toContain(period.endsWith('m') ? '本地1分K' : '本地日K')
+  expect(host.textContent).not.toContain('向前扩展')
+  expect(host.querySelector('input[aria-label="历史扩展数量"]')).toBeNull()
+  expect(host.querySelector('select[aria-label="历史扩展单位"]')).toBeNull()
+  const button = [...host.querySelectorAll('button')].find(node => node.textContent === '生成数据')!
   expect(button.disabled).toBe(false)
   await act(async () => button.click())
-  expect(mocks.sync).toHaveBeenCalledWith(period, 6, 'month')
+  expect(mocks.sync).toHaveBeenCalledWith(period)
   expect(onStart).toHaveBeenCalledWith('offline-1')
 })
 
-it('keeps remote one minute history gated by provider capability', async () => {
+it('keeps one minute history controls and provider capability gating', async () => {
   await render('1m', vi.fn(), false)
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="历史扩展数量"]')?.value).toBe('6')
+  expect(host.querySelector<HTMLSelectElement>('select[aria-label="历史扩展单位"]')?.value).toBe('month')
   expect([...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!.disabled).toBe(true)
+})
+
+it('still submits an explicit expansion range for one minute history', async () => {
+  await render('1m')
+  await act(async () => [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!.click())
+  expect(mocks.sync).toHaveBeenCalledWith('1m', 6, 'month')
+})
+
+it.each(['5m', '1d', '1w'] as const)('disables %s generation while another data task runs', async period => {
+  await render(period, vi.fn(), false, true)
+  const button = [...host.querySelectorAll('button')].find(node => node.textContent === '生成数据')!
+  expect(button.disabled).toBe(true)
 })
 
 it('uses a Saturday completion time and local daily history for weekly synchronization', async () => {
@@ -76,16 +93,12 @@ it('uses a Saturday completion time and local daily history for weekly synchroni
   expect(host.textContent).not.toContain('周期间隔（秒）')
   expect(host.textContent).toContain('每周六')
   expect(host.textContent).toContain('本地日K')
-  expect([...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!.disabled).toBe(false)
+  expect([...host.querySelectorAll('button')].find(node => node.textContent === '生成数据')!.disabled).toBe(false)
 })
 
-it('uses the weekly-style history form and allows daily data from an empty table', async () => {
-  const onStart = await render('1d')
-  expect(host.querySelector<HTMLInputElement>('input[aria-label="历史扩展数量"]')?.value).toBe('6')
-  expect(host.querySelector<HTMLSelectElement>('select[aria-label="历史扩展单位"]')?.value).toBe('month')
-  const button = [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!
-  expect(button.disabled).toBe(false)
-  await act(async () => button.click())
-  expect(mocks.sync).toHaveBeenCalledWith('1d', 6, 'month')
-  expect(onStart).toHaveBeenCalledWith('offline-1')
+it('explains daily local recomputation separately from automatic synchronization', async () => {
+  await render('1d', vi.fn(), false)
+  expect(host.textContent).toContain('本地除权因子')
+  expect(host.textContent).toContain('Enriched')
+  expect(host.textContent).toContain('交易日同步时间')
 })

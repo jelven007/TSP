@@ -1,0 +1,571 @@
+{
+  "checked_at": "2026-10-27T09:22:09.022015+08:00",
+  "deleted_releases": [
+    "e8e3e33b433441e1af2a4582635090e1",
+    "778d21f8a606467cb635dff909f3e61f",
+    "ffb91c442afa460fb94264c7b8a39807",
+    "ca087c5f5cf84889a389d2450be373fa",
+    "7ad76dd7487b49d28b58c9c2df4ec97f",
+    "be98dc6fc6574f80b81afc82356cf04f",
+    "40b2faf1d90b49eeaab077f189f633c9",
+    "967b451028f44a2d831ca90e4da6fc9e",
+    "95397aeb47ba4e689a535e8d67fc176d",
+    "cb4155d401ca42798bc2aa999a1d22a2",
+    "ba82f395650c4b7484797c685d939893",
+    "b54a7ad466e54641b182513f23599b85",
+    "c3417bff30dc4a01975a2d2d0919ac96",
+    "d2e17ce55ee848ba8138efa3f5979854",
+    "9385cc327f424034aa7dccd261926a99",
+    "17a1d7303cc84a00b64276dd1ead4b63",
+    "858e482b4e7f4e439f68d28d76c8854b",
+    "56c3d50125f24611b0aa82c0b2626d6c",
+    "020be3c202074e3c9d62e80e84eb6b9c",
+    "056986137ce04a4e954811fb1e230269",
+    "3421bc10507d4a758ddd7297b75bcc6c",
+    "f23c661f02f94cfaabb9a2c18a1a4009",
+    "fafa3eade431484a8c633dc2d99418c5",
+    "5e5aa3f7eb6346e6b728fd09bcea4cfa",
+    "9808b645ac8a40a598a7c2e891d0f003",
+    "2e2df6957f8f463283deb294569e59e4",
+    "c9b6f5b87e674069be4f105c2d2b1a4f",
+    "6ab32acd00624ae4831495bb219bd3a2",
+    "a9fe872d6ac64b658068c5a764044735",
+    "24d21db7c6984f64ab01c3202d9b2eff",
+    "01526ad22ec14b20a379b6109a4cf9a8",
+    "425f3e548d10449a97ab2daa16fc3cf9",
+    "af6cd1492e974977985ba47ed1ba98fc",
+    "bd628eac62ae4940886695a20692230f",
+    "e7cacbc3659a491eacecbcaf9bf2d86d",
+    "32896895db0b4e45807aa311ad687804",
+    "04e0d10304b841ea98a3dff72d5fb1b9",
+    "c8f47f1687e44b78933009a03cbd2385",
+    "662f8f2d639b4f329b362a124ca6aba8",
+    "756a8f7a81a1422ea84d814576e77bfb",
+    "2956c108708446118d7bdb8ba8b1ff35",
+    "3d77096ab5e14bf0b430b46bb482b935",
+    "1665bd5c08804c52969bf202752c89bb",
+    "a6b44e5f9cfd4e3089cfa99a8daf099f",
+    "59b443033c864a9aacf3cedd294291f2",
+    "0314e9fe4cec48b8af98a004d730412e",
+    "7936647def434ed18733ccf58658d535",
+    "246c518b2d2a40f8860b4ab60cfb335f",
+    "bc8c7ef2d35b449f961ccd09ed8950e8",
+    "dee36cc4af1a4a5b8860967bc1ef235b",
+    "12674e56ce0f4f37a55338b6f7c566ef",
+    "3a295fa177974e43849b531ceaa985ab",
+    "0fc7af482a384bfd9a74859e9cf6d32e",
+    "103b2e02235348a28523cf0301a6f295",
+    "1308b5f6d482442a8ceb73823b65c3fe",
+    "ea97e77a784641a69e517ba1cf3b7a81",
+    "d6be4a78d31141ffb88ee4ad46c8a675",
+    "f16fccecdd164892afc87b67689d2919",
+    "f1890777cf004b199f3eb76465d41357",
+    "c526078edf924745abe69b35118ef39d",
+    "758992ff03114b1f96b3621f151186cc",
+    "c7d5b815741e4dd5b34fd38e6e896364",
+    "6b36e6653cd14c4098a98f1f37860eb3",
+    "c131a5804bdf4b0895ca157316375faf",
+    "e0b5557264b5434590a8638db60f2134",
+    "a701de352dbd44cba8195c25b7466c89",
+    "a2f967e87c2b4b26b83ff1391023d375",
+    "31bf8e85e50949d295db2fc447aeace7",
+    "b717d8a8bda1412d9293f7e1948cf4b0",
+    "456bffe02b2c4fe3b9a8dea2d701453d",
+    "19a4e71715a54392b2a9f25c1cd9df3c",
+    "7a00c13f8eaa40968937040b930e35be",
+    "3c24f1b2f930400ab87df529c39eeea9",
+    "7a478612d2f0488aa4cb2b134e09740e",
+    "49eee50db9f14d12a5b2159d5449ef36",
+    "abf19d8b22564fa294d4c57f263729b5",
+    "2dadea6154894816ac44b6a06c1615cc",
+    "fae907f138044802afe0fe0d6a1817f7",
+    "dc11a21eaaec4111b00a1a2604aad027",
+    "c98783f102f24a3da6027e9d0312e23b",
+    "2ea0b4b63c2c423887695d354531b064",
+    "c068ddff81314fd9b1ee2a3109162d75",
+    "1efaea5f0af448c69afae945f80f4f98",
+    "302de7e938c74455b37d43e535dd18eb",
+    "4fecf23e7c8c417fb8d117e3aac811db",
+    "ff46aeb121a94911beca3b87510a7d7a",
+    "293240cf51254dd1afd6b7e14c613301",
+    "2fcc0fd25e9a4faba82f58dfed75833f",
+    "62d14d79cf5249e7a489c11679d5df2f",
+    "944542cbeadc41f49e4fdf5f9f4dbfbc",
+    "025bb011182841a99b78ad24718b3842",
+    "7886db4e0a194212aa6cba65b0045cb5",
+    "14ef49c8080d466eae8c82acf46aa006",
+    "355842d7b05241c390a85f69ef853bc8",
+    "27f040b508ad498e962b854888b31166",
+    "35ac6267daa6417c88f6692e7390f9eb",
+    "3e2f8afd8310494490ec56bb44ff5c1f",
+    "23a60a15ea7448d1ad99a45f98d1b06d",
+    "c5ff31224daa48c29e3857075096da83",
+    "85b3ddd5812b44eca64fe9bb7540af5e",
+    "81a12c1815374943a8e9f510137d2717",
+    "e52c3fa427674f529bedf127dd787442",
+    "c07db5c03e2b4c02af5a1c420c15e3c1",
+    "6d49b8dd6f2a4c269577b22cc08bac2d",
+    "b40d1eb148aa42288c65bb8130e58f8c",
+    "1f5c469d19b341d096190780e751e3ec",
+    "01eefe8ba0da4377bea5b290d58e907b",
+    "f9e053e4d43843989f7325c024acc13a",
+    "a693252040dd4d068eb142810e657d8c",
+    "a038a364df704a3abb7e6ddd5f6e783e",
+    "252545d3576a41d4afabd423147f3473",
+    "52739a910f984fb784b46fda9917b4b2",
+    "70318ea34e2047e8bf6b2cbed0800714",
+    "37512f8f0b0a4214a7966736e82c6c78",
+    "92806deb9f6040328a2af0c6ef97229a",
+    "683177905c634a729eb471a432ebaa49",
+    "bf3c6d94a7b54c3ab982a0d042808e2c",
+    "d361ee0e2b5f4d719495c849839bb9e1",
+    "33552bf05f0a40d796adabbbfbdd88ac",
+    "5b6f911c9d5847dc833c6b53fdf5d7ae",
+    "0fce4fcaab3b4de4befa6108f87f92f9",
+    "5d961a7aa6cf41919846ecee0bab6c33",
+    "b76de572fd494382af60ec7f63b8118a",
+    "57787181e81a41e58632352893bb132f",
+    "4e357e5d4618438d9c81f69469ec8681",
+    "ab7747c1283243f5b3e977ff77ff5b8a",
+    "3064268ff594434f9e7745c9380d0f8d",
+    "52e79fe8d74a44d7b2f374cc64871b6b",
+    "a7683e45751f434d882dd231395d2a6c",
+    "3472e2c801b5492cbbf13d7414e4fe27",
+    "d097922bc96f478d986d23ba7db0f6ad",
+    "ffde49ff2af549f199687a920679403a",
+    "284c2ab04d2246f28eebd3e77496df26",
+    "76801f48dca74802a4b8cd5acda3bc97",
+    "8931a87025e84c8390508248f9f52c41",
+    "758f0b5c0fc44f298787f8c0af0b07c0",
+    "ea81d9b836a042cc916089fbf4da23b9",
+    "5c858baa4a884e2eb8efe48a9331a097",
+    "0d9af6e685ac43ee896af4d8ccfaa601",
+    "9d1dca58bd89462eb9b62b353e14f451",
+    "eabd5fe267e1486893e1d2eaee0992a3",
+    "14882c019d44476bb8be50743b4d3079",
+    "37d121d2fdfa4ea29ab9dd3f30472eeb",
+    "2d9249848d104340b4b71d63c4828a99",
+    "f6d8f2918329453a918c7f494b11248b",
+    "557de964269a4135a5771e16f7c74eb2",
+    "2100dcfe7fb8478e921ddce770db1d06",
+    "3850c4907aea4296b3150b47c05c7a1b",
+    "6e2182af354440ab870e79502eb0b8c7",
+    "e7de2f3a59b94925afa3d0797b8aad4e",
+    "0f1e17e8267c48c0bbc9b478a9141262",
+    "137e2adf5c674782af22c3497783e549",
+    "0caa80827c934bd89ee753398d95e016",
+    "4fcc81f441424d6db9d9935aada76ee8",
+    "9404ad82cabd4d7ab5c9a6a226018320",
+    "58b003b35d7c4d5eb4038e3b0fec3fdd",
+    "31995bd557cb4d53ab3a0305ac128492",
+    "4d0eb76433a840978088d6a087ed1c06",
+    "33b95582145a4dc7bc2f85b79fa35123",
+    "261a4d62a5e142359fc20c1078a3055a",
+    "06cb5e271fe84d7da50f61f470a56174"
+  ],
+  "protected_releases": [
+    "aef0f784568649899952469373c57658"
+  ],
+  "minute_cache_copies_before": 164,
+  "minute_cache_copies_after": 3,
+  "current_release": "f11f2a895089448f9bc800a6041f08fc",
+  "minute_source_unchanged": true,
+  "source": {
+    "kline_minute": {
+      "files": 8,
+      "rows": 10014720,
+      "bytes": 114705796,
+      "column": "datetime",
+      "start": "2026-10-15 09:31:00",
+      "end": "2026-10-26 15:00:00",
+      "errors": []
+    },
+    "kline_5minute": {
+      "files": 0,
+      "rows": 0,
+      "bytes": 0,
+      "column": null,
+      "start": null,
+      "end": null,
+      "errors": []
+    },
+    "kline_10minute": {
+      "files": 0,
+      "rows": 0,
+      "bytes": 0,
+      "column": null,
+      "start": null,
+      "end": null,
+      "errors": []
+    },
+    "kline_15minute": {
+      "files": 0,
+      "rows": 0,
+      "bytes": 0,
+      "column": null,
+      "start": null,
+      "end": null,
+      "errors": []
+    },
+    "kline_daily": {
+      "files": 1208,
+      "rows": 5944839,
+      "bytes": 125421770,
+      "column": "date",
+      "start": "2021-11-01",
+      "end": "2026-10-26",
+      "errors": []
+    },
+    "kline_daily_enriched": {
+      "files": 1208,
+      "rows": 5944839,
+      "bytes": 329928394,
+      "column": "date",
+      "start": "2021-11-01",
+      "end": "2026-10-26",
+      "errors": []
+    },
+    "kline_weekly": {
+      "files": 0,
+      "rows": 0,
+      "bytes": 0,
+      "column": null,
+      "start": null,
+      "end": null,
+      "errors": []
+    },
+    "kline_etf_minute": {
+      "files": 0,
+      "rows": 0,
+      "bytes": 0,
+      "column": null,
+      "start": null,
+      "end": null,
+      "errors": []
+    },
+    "kline_etf_daily": {
+      "files": 242,
+      "rows": 61779,
+      "bytes": 2422050,
+      "column": "date",
+      "start": "2025-10-27",
+      "end": "2026-10-26",
+      "errors": []
+    },
+    "kline_etf_enriched": {
+      "files": 242,
+      "rows": 61779,
+      "bytes": 4037805,
+      "column": "date",
+      "start": "2025-10-27",
+      "end": "2026-10-26",
+      "errors": []
+    },
+    "kline_index_daily": {
+      "files": 242,
+      "rows": 134000,
+      "bytes": 4422297,
+      "column": "date",
+      "start": "2025-10-27",
+      "end": "2026-10-26",
+      "errors": []
+    },
+    "kline_index_enriched": {
+      "files": 242,
+      "rows": 134000,
+      "bytes": 7317694,
+      "column": "date",
+      "start": "2025-10-27",
+      "end": "2026-10-26",
+      "errors": []
+    }
+  },
+  "runtime_minute_cache_directories": [],
+  "backup_minute_copies_retained": 1,
+  "cache_refresh_http_result": "client_timed_out",
+  "cache_rebuild_result": "completed_verified_server_log",
+  "cache_rebuild_evidence": [
+    "2026-10-27 09:20:36,008 [INFO] app.tickflow.repository request_id=f7505b9910924ac2a7ee17b965ace72f: cache refresh done (222.36s)",
+    "2026-10-27 09:20:36,008 [INFO] app.api.data request_id=f7505b9910924ac2a7ee17b965ace72f: refresh-cache: Polars 缓存已重建"
+  ],
+  "content_verification": {
+    "minute": {
+      "rows": 10014720,
+      "symbols": 5222,
+      "start": "2026-10-15 09:31:00",
+      "end": "2026-10-26 15:00:00",
+      "trading_days": 8
+    },
+    "trading_dates": [
+      "2026-10-15",
+      "2026-10-16",
+      "2026-10-19",
+      "2026-10-20",
+      "2026-10-21",
+      "2026-10-22",
+      "2026-10-23",
+      "2026-10-26"
+    ],
+    "duplicate_keys": 0,
+    "source_now": {
+      "files": 8,
+      "rows": 10014720,
+      "bytes": 114705796,
+      "column": "datetime",
+      "start": "2026-10-15 09:31:00",
+      "end": "2026-10-26 15:00:00",
+      "errors": []
+    },
+    "public_current_now": {
+      "files": 8,
+      "rows": 10014720,
+      "bytes": 114705796,
+      "column": "datetime",
+      "start": "2026-10-15 09:31:00",
+      "end": "2026-10-26 15:00:00",
+      "errors": []
+    },
+    "admin_login": true,
+    "api_data": {
+      "minute": {
+        "rows": 10014720,
+        "earliest_date": "2026-10-15",
+        "latest_date": "2026-10-26",
+        "symbols_covered": 5222,
+        "trading_days": 8
+      },
+      "daily": {
+        "rows": 5944839,
+        "earliest_date": "2021-11-01",
+        "latest_date": "2026-10-26",
+        "symbols_covered": 5222,
+        "trading_days": 1208
+      },
+      "enriched": {
+        "rows": 5944839,
+        "fields": 20,
+        "earliest_date": "2021-11-01",
+        "latest_date": "2026-10-26",
+        "symbols_covered": 5222,
+        "trading_days": 1208
+      },
+      "5m": null,
+      "10m": null,
+      "15m": null,
+      "weekly": null,
+      "etf_daily": {
+        "rows": 61779,
+        "earliest_date": "2025-10-27",
+        "latest_date": "2026-10-26",
+        "symbols_covered": 261,
+        "trading_days": 242
+      },
+      "index_daily": {
+        "rows": 134000,
+        "earliest_date": "2025-10-27",
+        "latest_date": "2026-10-26",
+        "symbols_covered": 554,
+        "trading_days": 242
+      }
+    }
+  },
+  "health": {
+    "api": {
+      "status": "ok",
+      "ready": true,
+      "checked_at": "2026-10-27T01:24:01.311890+00:00",
+      "checks": {
+        "databases": {
+          "status": "ok"
+        },
+        "research_worker": {
+          "status": "ok",
+          "age_seconds": 4.685308,
+          "max_age_seconds": 120
+        },
+        "realtime_worker": {
+          "status": "ok",
+          "age_seconds": 2.090415,
+          "max_age_seconds": 420
+        },
+        "notifications_worker": {
+          "status": "ok",
+          "age_seconds": 3.91126,
+          "max_age_seconds": 120
+        },
+        "scheduled_worker": {
+          "status": "ok",
+          "age_seconds": 3.265583,
+          "max_age_seconds": 660
+        },
+        "public_files": {
+          "status": "ok",
+          "release_id": "f11f2a895089448f9bc800a6041f08fc"
+        },
+        "platform": {
+          "status": "ok",
+          "connected": true,
+          "last_marker_at": 1793064240.0944068,
+          "reconnects": 0,
+          "update_generation": 429,
+          "loaded_generation": 416,
+          "snapshot_fetches": 28,
+          "frame_decodes": 112
+        },
+        "indicator_cache": {
+          "status": "ok"
+        },
+        "compute_broker": {
+          "status": "ok"
+        }
+      },
+      "functions": {
+        "market": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "research": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "monitoring": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "paper_trading": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "notifications": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "scheduled": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        }
+      },
+      "version": "0.4.31",
+      "mode": "none"
+    },
+    "platform": {
+      "status": "ok",
+      "ready": true,
+      "checked_at": "2026-10-27T01:22:01Z",
+      "checks": {
+        "repository": {
+          "status": "ok",
+          "initialized": true
+        },
+        "data_dir": {
+          "status": "ok",
+          "exists": true,
+          "writable": true
+        },
+        "disk": {
+          "status": "ok",
+          "total_bytes": 494384795648,
+          "used_bytes": 229238677504,
+          "free_bytes": 265146118144,
+          "total_inodes": 2591061586,
+          "free_inodes": 2589317560
+        },
+        "scheduler": {
+          "status": "ok",
+          "running": true,
+          "jobs": 10
+        },
+        "providers": {
+          "status": "ok",
+          "healthy": true,
+          "policy": "rustdx_only",
+          "single_source": true,
+          "rustdx_only": true,
+          "mixed_sources": false,
+          "sources": [
+            "rustdx"
+          ],
+          "routes": {
+            "realtime": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "depth5": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "minute": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "daily": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "adj_factor": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "corporate_actions": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "financial": {
+              "provider": "rustdx",
+              "usable": true
+            }
+          },
+          "unavailable": [],
+          "issues": []
+        },
+        "data_freshness": {
+          "status": "ok",
+          "stock_daily_latest": "2026-10-26",
+          "stock_enriched_latest": "2026-10-26",
+          "stock_minute_latest": "2026-10-26",
+          "auction_snapshot_latest": "2026-10-26",
+          "calendar_lag_days": 1,
+          "observed_trading_lag": 0,
+          "reference_trading_date": "2026-10-26",
+          "calendar_coverage": "complete",
+          "freshness_cutoff": "2026-10-26",
+          "stale_datasets": [],
+          "missing_datasets": [],
+          "future_datasets": [],
+          "message": null
+        },
+        "tasks": {
+          "status": "ok",
+          "active_id": "713e5c0c8c",
+          "persistence": {
+            "status": "ok",
+            "pending_records": 0,
+            "error_type": null
+          },
+          "last_pipeline": {
+            "id": "028a073b20",
+            "status": "succeeded",
+            "finished_at": "2026-10-26T20:05:39.064520+00:00"
+          }
+        },
+        "data_release": {
+          "status": "ok",
+          "release_id": "234ed5ccf2c34a969b7faa6bc686e6f9",
+          "created_at": "2026-10-26T20:05:35Z",
+          "reason": "daily_pipeline",
+          "generation_mismatches": [],
+          "unavailable_generations": [],
+          "message": null
+        }
+      },
+      "version": "0.4.31",
+      "mode": "none"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-10-26T18:15:46.704800+00:00",
+  "review_sha256": "f7450f110e8466c86471e262797060b9f2c07b96bfde98602de5506c474f3228",
+  "version": "0.4.32",
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "backup": "/opt/tsp-full/backups/pre-v0.4.32-4da5f30c9b51",
+  "main_tag_unchanged": true,
+  "restored_and_compared": true,
+  "twelve_directories_copied_hash_verified": true,
+  "old_images_verified": true,
+  "permitted_stage": "clear twelve K-line directories once; promote this exact revision only after clear/config guards pass",
+  "authorization": "explicit current user upgrade and K-line deletion",
+  "automatic_sync_remains_disabled": true
+}

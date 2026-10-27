@@ -8,7 +8,8 @@ import { RepairDailyPanel } from './RepairDailyPanel'
 const mocks = vi.hoisted(() => ({ repair: vi.fn(async () => ({ job_id: 'repair-1', status: 'started' })) }))
 vi.mock('@/lib/api', () => ({ api: { repairDaily: mocks.repair } }))
 vi.mock('@/components/DatePicker', () => ({
-  DatePicker: ({ value }: { value: string }) => <span data-date={value}>{value}</span>,
+  DatePicker: ({ value, onChange }: { value: string; onChange: (value: string) => void }) =>
+    <input aria-label="起始日期" value={value} onChange={e => onChange(e.target.value)} />,
 }))
 vi.mock('@/lib/capability-labels', () => ({
   MissingCapChip: ({ capKey }: { capKey: string }) => <span>{capKey}</span>,
@@ -27,6 +28,7 @@ afterEach(async () => {
 })
 
 async function render(hasCap = true, hasMinuteCap = true, isRunning = false) {
+  vi.setSystemTime(new Date(2026, 9, 27, 12))
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -50,25 +52,34 @@ async function selectPeriod(period: string) {
   })
 }
 
-it('defaults to daily and exposes exactly the six requested periods', async () => {
+async function enterDate(label: string, value: string) {
+  const input = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!
+  expect(input).not.toBeNull()
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+it('defaults to daily and exposes only minute and daily repairs', async () => {
   const onStart = await render()
   const select = host.querySelector<HTMLSelectElement>('select[aria-label="K线周期"]')!
   expect(select).not.toBeNull()
   expect(select.value).toBe('1d')
-  expect([...select.options].map(option => option.text)).toEqual(['1分K', '5分K', '10分K', '15分K', '日K', '周K'])
+  expect([...select.options].map(option => [option.value, option.text])).toEqual([['1m', '1分K'], ['1d', '日K']])
   await act(async () => host.querySelector<HTMLButtonElement>('button')!.click())
-  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1d', 'full')
+  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1d', 'full', '2026-10-27')
   expect(onStart).toHaveBeenCalledWith('repair-1')
 })
 
 it('explains repair scope, modes, sources, and daily downstream work', async () => {
   await render()
   expect(host.textContent).toContain('修正说明')
-  expect(host.textContent).toContain('从起始日期检查到今天')
-  expect(host.textContent).toContain('重新获取或本地重新计算选定区间，并覆盖同一记录的旧值')
+  expect(host.textContent).toContain('从起始日期检查到结束日期，包含结束当天')
+  expect(host.textContent).toContain('重新获取选定区间，并覆盖同一记录的旧值')
   expect(host.textContent).toContain('只写入缺失的证券和时间记录，已有数据保持不变')
   expect(host.textContent).toContain('1分K、日K通过当前数据源接口获取')
-  expect(host.textContent).toContain('5分K、10分K、15分K由本地1分K聚合，周K由本地日K聚合')
+  expect(host.textContent).not.toContain('由本地1分K聚合')
   expect(host.textContent).toContain('日K修正后会重算受影响证券的复权与技术指标')
 })
 
@@ -78,23 +89,14 @@ it('sends the selected period and shows that period’s own latest date', async 
   expect(host.textContent).toContain('2026-10-22')
   expect(host.textContent).not.toContain('2026-10-23')
   await act(async () => host.querySelector<HTMLButtonElement>('button')!.click())
-  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1m', 'full')
+  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1m', 'full', '2026-10-27')
 })
 
-it('gates remote periods by their route while allowing local derived repairs', async () => {
+it('gates both repairs by their corresponding source capability', async () => {
   await render(false, false)
   const button = () => host.querySelector<HTMLButtonElement>('button')!
   expect(button().disabled).toBe(true)
-  for (const period of ['5m', '10m', '15m']) {
-    await selectPeriod(period)
-    expect(button().disabled).toBe(false)
-    expect(host.textContent).toContain('本地1分K')
-    expect(host.textContent).not.toContain('kline.minute.batch')
-  }
-  await selectPeriod('1w')
-  expect(button().disabled).toBe(false)
-  expect(host.textContent).toContain('本地日K')
-  expect(host.textContent).not.toContain('kline.daily.batch')
+  expect(host.textContent).toContain('kline.daily.batch')
   await selectPeriod('1m')
   expect(button().disabled).toBe(true)
   expect(host.textContent).toContain('kline.minute.batch')
@@ -116,11 +118,42 @@ it('prevents submission while another data task runs', async () => {
 
 it('offers full and missing acquisition and sends missing mode with the selected period', async () => {
   await render()
-  await selectPeriod('5m')
+  await selectPeriod('1m')
   const buttons = [...host.querySelectorAll<HTMLButtonElement>('button')]
   expect(buttons.map(button => button.textContent)).toEqual(['获取全量数据', '获取遗漏数据'])
   await act(async () => buttons[1].click())
-  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '5m', 'missing')
+  expect(mocks.repair).toHaveBeenCalledWith(expect.any(String), '1m', 'missing', '2026-10-27')
+})
+
+it.each(['full', 'missing'] as const)('accepts a typed end date for %s acquisition', async mode => {
+  await render()
+  const end = host.querySelector<HTMLInputElement>('input[aria-label="结束日期"]')!
+  expect(end).not.toBeNull()
+  expect(end.type).toBe('date')
+  expect(end.value).toBe('2026-10-27')
+  await enterDate('起始日期', '2026-10-22')
+  await enterDate('结束日期', '2026-10-23')
+  expect(host.textContent).toContain('2026-10-22 → 2026-10-23')
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('button')[mode === 'full' ? 0 : 1].click())
+  expect(mocks.repair).toHaveBeenCalledWith('2026-10-22', '1d', mode, '2026-10-23')
+})
+
+it.each(['', '2026-10-21', '2026-10-28'])('blocks an empty, reversed or future end date: %s', async end => {
+  await render()
+  await enterDate('起始日期', '2026-10-22')
+  await enterDate('结束日期', end)
+  expect([...host.querySelectorAll<HTMLButtonElement>('button')].every(button => button.disabled)).toBe(true)
+  expect(host.querySelector('[role="alert"]')).not.toBeNull()
+  expect(mocks.repair).not.toHaveBeenCalled()
+})
+
+it('allows a same-day range and blocks an empty start date', async () => {
+  await render()
+  await enterDate('起始日期', '2026-10-23')
+  await enterDate('结束日期', '2026-10-23')
+  expect(host.querySelector<HTMLButtonElement>('button')!.disabled).toBe(false)
+  await enterDate('起始日期', '')
+  expect(host.querySelector<HTMLButtonElement>('button')!.disabled).toBe(true)
 })
 
 it('disables both actions while submitting and re-enables them after failure', async () => {
@@ -131,6 +164,7 @@ it('disables both actions while submitting and re-enables them after failure', a
   await act(async () => host.querySelectorAll<HTMLButtonElement>('button')[1].click())
   await act(async () => { await vi.runOnlyPendingTimersAsync() })
   expect([...host.querySelectorAll<HTMLButtonElement>('button')].every(button => button.disabled)).toBe(true)
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="结束日期"]')!.disabled).toBe(true)
   await act(async () => reject(new Error('请求失败')))
   await act(async () => { await vi.runOnlyPendingTimersAsync() })
   expect([...host.querySelectorAll<HTMLButtonElement>('button')].every(button => !button.disabled)).toBe(true)

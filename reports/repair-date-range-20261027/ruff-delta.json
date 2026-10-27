@@ -1,0 +1,8 @@
+{
+  "base": "HEAD",
+  "head": "working-tree",
+  "files": 11,
+  "baseline_findings": 85,
+  "current_findings": 85,
+  "added": []
+}

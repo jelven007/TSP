@@ -759,7 +759,7 @@ def test_full_watchlist_preserves_original_group_order_date_and_concurrent_updat
     _, group = own.create_group("短线", "orange")
     _, another = own.create_group("观察", "sky")
     rows, added = own.add_batch(["000001.SZ", "600000.SH"], "首批", group_id=group["id"])
-    assert added == 2 and [row["symbol"] for row in rows] == ["600000.SH", "000001.SZ"]
+    assert added == 2 and [row["symbol"] for row in rows] == ["000001.SZ", "600000.SH"]
     dates = {row["symbol"]: row["added_at"] for row in rows}
     rows = own.move_to_top("000001.SZ")
     assert rows[0]["symbol"] == "000001.SZ" and rows[0]["added_at"] == dates["000001.SZ"]

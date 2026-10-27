@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { api, type KlinePeriod } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { isLocalDerivedPeriod, KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
+import { KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
 import { MissingCapChip } from '@/lib/capability-labels'
 import { DatePicker } from '@/components/DatePicker'
 
@@ -19,7 +19,7 @@ function daysAgo(n: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-// 日K和1分K能力由路由矩阵判定; 派生周期仅依赖本地基础K线。
+// 修正入口只获取基础K线; 日K和1分K能力由路由矩阵判定。
 export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates, onStart }: {
   hasCap: boolean
   hasMinuteCap: boolean
@@ -28,18 +28,17 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
   onStart: (jobId: string) => void
 }) {
   const qc = useQueryClient()
-  const [period, setPeriod] = useState<KlinePeriod>('1d')
+  const [period, setPeriod] = useState<'1m' | '1d'>('1d')
   const daily = period === '1d'
-  const local = isLocalDerivedPeriod(period)
-  const localBase = period === '1w' ? '本地日K' : '本地1分K'
-  const hasBatchCap = local || (daily || period === '1w' ? hasCap : hasMinuteCap)
+  const hasBatchCap = daily ? hasCap : hasMinuteCap
   const latestDate = latestDates[period] ?? null
 
   // 默认起始日期: 最新数据往前推 30 天 (兼顾补缺口 + 复核近期数据, 成本不高)
   const [startDate, setStartDate] = useState(daysAgo(30))
+  const [endDate, setEndDate] = useState(todayStr)
 
   const repair = useMutation({
-    mutationFn: (mode: 'full' | 'missing') => api.repairDaily(startDate, period, mode),
+    mutationFn: (mode: 'full' | 'missing') => api.repairDaily(startDate, period, mode, endDate),
     onSuccess: ({ job_id }) => {
       onStart(job_id)
       qc.invalidateQueries({ queryKey: QK.pipelineJobs })
@@ -47,7 +46,11 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
   })
 
   const today = todayStr()
-  const canSubmit = hasBatchCap && !isRunning && !repair.isPending && startDate <= today
+  const rangeError = !startDate || !endDate
+    ? '请填写起始日期和结束日期'
+    : endDate < startDate ? '结束日期不能早于起始日期'
+    : endDate > today ? '结束日期不能晚于今天' : null
+  const canSubmit = hasBatchCap && !isRunning && !repair.isPending && !rangeError
   const gapDays = latestDate
     ? Math.max(0, Math.round((Date.parse(today) - Date.parse(latestDate)) / 86400000))
     : null
@@ -56,13 +59,11 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
     <div className="space-y-3">
       <div className="rounded-card bg-accent/8 border border-accent/20 p-3 space-y-1.5">
         <div className="text-xs text-foreground">
-          当数据出现缺口时，从这里修正选定区间到今天的{KLINE_PERIOD_LABELS[period]}数据。
+          当数据出现缺口时，从这里修正起始日期至结束日期的{KLINE_PERIOD_LABELS[period]}数据。
         </div>
         <div className="text-[10px] text-muted leading-relaxed">
-          {local
-            ? `由${localBase}计算${KLINE_PERIOD_LABELS[period]}并入库，不向上游获取该周期数据；所需${localBase}不完整时，请先补齐${period === '1w' ? '日K' : '1分K'}。`
-            : `通过当前K线数据源接口获取${KLINE_PERIOD_LABELS[period]}并入库。`}
-          {' '}获取全量数据会{local ? '在本地重新计算' : '重新获取'}选定区间并覆盖旧值；获取遗漏数据会先检查缺口，仅补缺少的证券和时间，保留已有数据。
+          通过当前K线数据源接口获取{KLINE_PERIOD_LABELS[period]}并入库。
+          {' '}获取全量数据会重新获取选定区间并覆盖旧值；获取遗漏数据会先检查缺口，仅补缺少的证券和时间，保留已有数据。
         </div>
       </div>
 
@@ -71,11 +72,11 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
         <dl className="mt-2 space-y-1.5 text-muted">
           <div>
             <dt className="inline text-secondary">范围：</dt>
-            <dd className="inline">从起始日期检查到今天；按所选K线周期分别执行。</dd>
+            <dd className="inline">从起始日期检查到结束日期，包含结束当天；按所选K线周期分别执行。</dd>
           </div>
           <div>
             <dt className="inline text-secondary">获取全量数据：</dt>
-            <dd className="inline">重新获取或本地重新计算选定区间，并覆盖同一记录的旧值。</dd>
+            <dd className="inline">重新获取选定区间，并覆盖同一记录的旧值。</dd>
           </div>
           <div>
             <dt className="inline text-secondary">获取遗漏数据：</dt>
@@ -83,11 +84,11 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
           </div>
           <div>
             <dt className="inline text-secondary">数据来源：</dt>
-            <dd className="inline">1分K、日K通过当前数据源接口获取；5分K、10分K、15分K由本地1分K聚合，周K由本地日K聚合。</dd>
+            <dd className="inline">1分K、日K通过当前数据源接口获取。</dd>
           </div>
           <div>
             <dt className="inline text-secondary">后续处理：</dt>
-            <dd className="inline">日K修正后会重算受影响证券的复权与技术指标；本地派生周期需先补齐基础K线。</dd>
+            <dd className="inline">日K修正后会重算受影响证券的复权与技术指标。</dd>
           </div>
         </dl>
       </details>
@@ -98,12 +99,12 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
           id="repair-kline-period"
           aria-label="K线周期"
           value={period}
-          onChange={e => { setPeriod(e.target.value as KlinePeriod); repair.reset() }}
+          onChange={e => { setPeriod(e.target.value as '1m' | '1d'); repair.reset() }}
           disabled={isRunning || repair.isPending}
           className="rounded-btn border border-border bg-elevated px-2 py-1 text-xs text-foreground"
         >
-          {(Object.entries(KLINE_PERIOD_LABELS) as [KlinePeriod, string][]).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
+          {(['1m', '1d'] as const).map(value => (
+            <option key={value} value={value}>{KLINE_PERIOD_LABELS[value]}</option>
           ))}
         </select>
       </div>
@@ -120,6 +121,23 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
         />
       </div>
 
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor="repair-end-date" className="text-xs text-secondary">结束日期</label>
+        <input
+          id="repair-end-date"
+          aria-label="结束日期"
+          type="date"
+          value={endDate}
+          onChange={e => { setEndDate(e.target.value); repair.reset() }}
+          min={startDate}
+          max={today}
+          disabled={isRunning || repair.isPending}
+          aria-invalid={!!rangeError}
+          aria-describedby={rangeError ? 'repair-range-error' : undefined}
+          className="min-w-0 rounded-btn border border-border bg-elevated px-2 py-1 font-mono text-xs text-foreground"
+        />
+      </div>
+
       {/* 本地最新数据 — 参考信息,放下面 */}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted">本地最新数据</span>
@@ -133,9 +151,13 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
 
       <div className="text-[10px] text-muted -mt-1">
         检查区间 <span className="font-mono text-secondary">{startDate}</span>
-        {' → '}<span className="font-mono text-secondary">{today}</span>(今天) 的
+        {' → '}<span className="font-mono text-secondary">{endDate}</span>{endDate === today ? '(今天)' : ''} 的
         {' '}{KLINE_PERIOD_LABELS[period]}
       </div>
+
+      {rangeError && (
+        <div id="repair-range-error" role="alert" className="text-xs text-danger">{rangeError}</div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {(['full', 'missing'] as const).map(mode => (
@@ -154,7 +176,7 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
 
       {!hasBatchCap && (
         <span className="block text-center">
-          <MissingCapChip capKey={daily || period === '1w' ? 'kline.daily.batch' : 'kline.minute.batch'} />
+          <MissingCapChip capKey={daily ? 'kline.daily.batch' : 'kline.minute.batch'} />
         </span>
       )}
       {repair.isError && (

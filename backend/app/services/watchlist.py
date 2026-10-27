@@ -60,6 +60,7 @@ _ENTRY_SCHEMA = {
     "added_at": pl.Utf8,
     "note": pl.Utf8,
     "group_ids": pl.List(pl.Utf8),
+    "strategy_ids": pl.List(pl.Utf8),
 }
 
 
@@ -96,6 +97,8 @@ def _read_entries() -> pl.DataFrame:
         df = df.with_columns(pl.lit("", dtype=pl.Utf8).alias("added_at"))
     if "note" not in df.columns:
         df = df.with_columns(pl.lit(None, dtype=pl.Utf8).alias("note"))
+    if "strategy_ids" not in df.columns:
+        df = df.with_columns(pl.lit([], dtype=pl.List(pl.Utf8)).alias("strategy_ids"))
     from app.market_scope import filter_market_frame
     df = filter_market_frame(df.select(list(_ENTRY_SCHEMA)))
     if df["symbol"].is_duplicated().any():
@@ -104,6 +107,7 @@ def _read_entries() -> pl.DataFrame:
             pl.col("added_at").first(),
             pl.col("note").first(),
             pl.col("group_ids").explode(empty_as_null=False).drop_nulls().unique(maintain_order=True),
+            pl.col("strategy_ids").explode(empty_as_null=False).drop_nulls().unique(maintain_order=True),
         )
     return df
 
@@ -111,11 +115,12 @@ def _read_entries() -> pl.DataFrame:
 def _write_entries(df: pl.DataFrame) -> None:
     global _REVISION
     p = _path()
-    # 首次从旧 schema 迁移到 group_ids 前, 备份原文件(一次性)
+    # 新增关系列首次写回前备份; 保留此前分组迁移已留的备份。
     if p.exists():
         try:
-            if "group_ids" not in pl.read_parquet_schema(p).names():
-                shutil.copy(p, p.with_suffix(p.suffix + ".bak"))
+            backup = p.with_suffix(p.suffix + ".bak")
+            if not backup.exists() and not set(_ENTRY_SCHEMA).issubset(pl.read_parquet_schema(p).names()):
+                shutil.copy(p, backup)
         except OSError as e:
             logger.warning("watchlist backup before migration failed: %s", e)
     tmp = p.with_suffix(p.suffix + ".tmp")
@@ -194,7 +199,7 @@ def add_batch(
     group_id: str | None = None,
     group_ids: list[str] | None = None,
 ) -> tuple[list[dict], int]:
-    """批量添加并保持既有语义：每个新处理的标的移动到列表最前面。
+    """批量标的按输入首现顺序整体置顶, 未涉及的既有标的保持原序。
 
     分组为可选的初始分组：``group_id`` 单组（如从某分组页添加）或 ``group_ids``
     多组（如批量导入同时并入多个分组）。重复添加的标的保留既有全部分组，
@@ -213,7 +218,8 @@ def add_batch(
             apply_ids.append(gid)
         rows = _read_entries().to_dicts()
         added = 0
-        for symbol in symbols:
+        # 每条写入都置顶, 因此倒序处理去重后的输入, 保存时恢复文件顺序。
+        for symbol in reversed(dict.fromkeys(symbols)):
             existing = next((row for row in rows if row["symbol"] == symbol), None)
             if existing is None:
                 added += 1
@@ -227,10 +233,24 @@ def add_batch(
                 "added_at": datetime.utcnow().isoformat(timespec="seconds"),
                 "note": note,
                 "group_ids": gids,
+                "strategy_ids": list((existing or {}).get("strategy_ids") or []),
             })
         out = pl.DataFrame(rows, schema=_ENTRY_SCHEMA) if rows else _empty_entries()
         _write_entries(out)
         return out.to_dicts(), added
+
+
+def set_strategies(symbol: str, strategy_ids: list[str]) -> list[dict]:
+    """更新自选标记关系, 不改变清单顺序、备注、分组或策略运行范围。"""
+    with _LOCK:
+        rows = _read_entries().to_dicts()
+        entry = next((row for row in rows if row["symbol"] == symbol), None)
+        if entry is None:
+            raise KeyError(symbol)
+        entry["strategy_ids"] = list(dict.fromkeys(strategy_ids))
+        out = pl.DataFrame(rows, schema=_ENTRY_SCHEMA)
+        _write_entries(out)
+        return out.to_dicts()
 
 
 def remove(symbol: str) -> list[dict]:
@@ -298,6 +318,7 @@ def create_group(name: str, color: str | None = None, *, symbols: list[str] | No
                         by_symbol[symbol]["group_ids"].append(group["id"])
                     else:
                         rows.insert(0, {"symbol": symbol, "note": "", "group_ids": [group["id"]],
+                                        "strategy_ids": [],
                                         "added_at": datetime.utcnow().isoformat(timespec="seconds")})
                 _write_entries(pl.DataFrame(rows, schema=_ENTRY_SCHEMA))
             except Exception:

@@ -1,5 +1,13 @@
 # 工程与交付参考
 
+2026-10-27最新源码整合、精确复审与固定发布阶段见
+[本批记录](../../reports/latest-release-20261027/verification.md)和[源码复审](../../reports/latest-release-20261027/source-review.md)。
+本批沿既有八业务模块与需求编号；源码可合并、main CI、镜像身份及两端运行分别签收，
+保留原研究数据、用户配置和切换后的新增业务，不把分支清理当作数据清理。
+
+旧工作树核对补入此前未提交的历史日历及四类回归；其余旧行为按当前调用链保留。
+日历来源、未知年份与研究快照身份兼容见[集成参考](integrations.md#rustdx-日历与研究复现)。
+
 2026-10-26统一源码冻结、六类文档核对及交付事实见
 [本批整合](../../reports/current-state-release-20261026/verification.md)。
 升级前主线/本地0.4.23，生产0.4.22；新版本只由合并main后的CI分配。
@@ -36,8 +44,17 @@ Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清
 新增表仅用于数据画像和同步，不把它们自动注册为策略/回测可选周期。
 分钟/日K客户端保留原方法，新增可选freq；5m/15m/1w查询由 `query_period`
 复用同一Provider解析与独立分区。页面设置持久值先验证类型并去重，
-日/周离线表单共用 `KlineSyncConfig`，日K仍调用原历史流水线。
+日/周离线表单共用 `KlineSyncConfig`，仅传period走本地生成，显式历史范围旧调用保持兼容。
 版本沿用当前主线，合并时对基线三方应用，保留其他本地修改。
+
+2026-10-27离线生成归`FR-DATA-05`的L3局部变更：开发入口为
+`kline_periods.generate_period`、kline API、`KlineSyncConfig`及`api.syncKlinePeriod`。
+需求见[需求](../requirements.md)，基础范围、日K发布及缓存见[方案](../architecture.md)，
+旧调用和自动同步兼容见[二开](../secondary-development.md)，
+测试见[离线生成验收](../testing.md#local-kline-generation)，
+用户操作见[六周期设置](../../操作说明书.md#227-分钟-k-设置)，
+支持和运行更新分别见[运营](../release-operations.md)与[运维](../operations.md)。
+本项不递增版本、不迁移数据或用户配置，主线合并与线上升级另行验收。
 
 历史同步进度修复归`FR-DATA-05`：开发接线包括`kline_periods.sync_period`、
 `extend_history.run_extend_history`、`JobStore.progress`及kline API回调；
@@ -57,6 +74,13 @@ Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清
 用例见[验收](../testing.md)，用户入口见[修正数据](../../操作说明书.md#223-修正数据)，
 支持和更新见[运营](../release-operations.md)与[运维](../operations.md)。
 默认全量兼容旧调用；遗漏按实际键只追加，未补齐明确失败，不修改用户配置或本地版本。
+
+2026-10-27修正周期收窄与结束日期输入继续归`FR-DATA-05`的L3局部变更：
+`RepairDailyPanel`仅提供1m/1d，沿`api.repairDaily`→修正API→`run_repair_daily`传递结束日期；
+日K复用`run_now`及原范围清理helper，不复制管道或新增扩展接口。
+需求/方案/升级边界见上方链接，验收见[日期范围测试](../testing.md#repair-date-range)，
+用户入口仍为[修正数据](../../操作说明书.md#223-修正数据)，运营/运维及版本分别同步。
+旧缺结束日期及六周期API保持兼容，本地候选不递增版本，不签收运行升级或历史覆盖。
 
 一级页面顶栏统一复用 `frontend/src/components/PageHeader.tsx`，以策略页为样式基准：
 桌面20px标题、10px说明、最小64px高度和全宽底部分隔线；标题侧可加状态，操作区保持紧凑，
@@ -618,6 +642,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 数据能力与配置说明 / 数据负责人 | FR-DATA/EXT/ADMIN、FR-CORP | [Provider](integrations.md#plugin)、[公司行为](trading-ai.md#corporate)、[配置](../operations.md#configuration) | 能力/日期/账务/旧模式/配置测试 | usable不认证日期；失败保护旧结果，变更源配置拒绝旧请求 |
 | 策略、因子与研究行为补齐 / 研究负责人 | FR-STRATEGY/SIGNAL/FACTOR/MINING/BACKTEST | [策略](research.md#strategy)、[因子](factor-system.md#factor-current)、[研究](research.md#research) | 原价/费用/T+1/固定输入/样本外/候选门槛/缓存 | 研究产物不等于收益承诺；缺历史/时点证据显式受限 |
 | 目标股票与自选导入 / 应用及研究负责人 | FR-STRATEGY-06、FR-WATCHLIST-02/03、FR-ADMIN-06 | targets/config→快照→Polars/矩阵/监控；角色并发与CSV新组事务，L3 | 目标/ST/ETF、动态成员与旧历史、真实SQL隔离/回滚/竞态、API权限、前端两档/多选/CSV/删除提示 | 本地候选未发布；API/Worker/Compute须同版，回退前停用新目标策略，禁止直接删除被引用分组 |
+| 自选CSV顺序 / 应用负责人 | FR-WATCHLIST-03/06 | 候选顺序确认→文件/SQL批量正序保存，管理分组移除CSV导入，L3 | CSV/API重读、重复代码/既有成员/only_new、分组新建/导出、桌面/窄屏及前端构建 | 前后端一起升级；无schema迁移，旧列表不自动翻转；[修复证据](../../.claude/artifacts/fixes/watchlist-csv-order.md) |
 | 监控、模拟与AI说明 / 业务负责人 | FR-MONITOR/PAPER/CORP/AI/REVIEW | [模拟交易](trading-ai.md#paper)、[会话](trading-ai.md#sessions)、功能手册 | 周期仲裁、权益/占用/幂等、确认/取消、会话冲突 | 触发/投递/成交分开；恢复不重放写动作，SMTP配置只读 |
 | 验收/性能/维护脚本归档 / 对应开发与测试 | NFR-14–17/22/28、相关FR | backend/scripts六分类、scripts三分类及各README | 所有受影响脚本测试、沙箱/打包/拷贝路径 | 从backend用新模块名；主机已安装maintenance脚本不自动改名 |
 | 工具测试/工作流 / 发布负责人 | NFR-04/06/10 | Makefile、pyproject测试发现、CI/Windows工作流、版本工具 | tooling版本/工作流、路径/包配置回归 | 质量门SHA与产物一致；本地不加号，远程规则仍需实际核验 |
@@ -632,6 +657,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 官方个股目录 / 数据负责人 | FR-DATA-04/05/08、FR-ADMIN | [当前架构](../architecture.md#current)、[目录契约](market-data.md)、instrument_sync/catalog及管理API | 官方响应完整性、CRUD/权限、SCD2、原子写失败、缓存发布、启动及09:00调度 | 固定官方源，不受行情总开关控制；旧时间偏好失效；手工修订可能被后续官方名单覆盖 |
 | 管理员个人空间 / 应用负责人 | FR-ENTRY、FR-ADMIN、NFR-09/20 | identity预留→持久任务→业务初始化→默认空间激活 | 真实PG并发/容量/双库重试、停用保护、租户隔离、启动接线 | 已有租户与密码保留；失败时管理登录仍可用，业务待空间就绪 |
 | 顶栏与数据总览 / 前端负责人 | FR-UI-05、FR-DATA-07 | PageHeader、Data、Watchlist弹层及共享状态查询 | Vitest/build/lint、桌面与窄屏、浅深色、搜索弹层和目录管理 | 顶栏统一；数据页分盘前/中/后，旧按钮与筛选保持可用 |
+| 数据总览布局 / 前端负责人 | FR-UI-05、FR-DATA-07、FR-ADMIN-05 | Data、ScheduleOverview、PageSettingsModal、QuoteConfigCard及[六类文档验收](../testing.md#data-overview-layout) | 默认/旧排序、新位置/显隐、总开关pending/error/刷新、日K共享时间、1440/390px浅深色、397项及lint/build | 数据同步3/4左对齐，右上总开关，实时行情紧接15分K；仅前端展示与既有API接线，不重置配置或新增调度 |
 | 示例与源码恢复 / 工程负责人 | NFR-01/04/06/08/10 | examples统一、scripts/release/source_recovery.py | 目录/链接、样例接口、真实Git祖先/标签、损坏/越界/覆盖拒绝 | 只归档固定源码，保留最新+5；生产数据与依赖另行备份 |
 
 <a id="trace-2-全部文件的追踪方式"></a>

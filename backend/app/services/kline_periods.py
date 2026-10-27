@@ -440,6 +440,50 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
     return result
 
 
+def generate_period(repo, period: str, *, on_progress=None) -> dict:
+    """手工生成本地基础K线已有区间; 日K重算 enriched, 不请求上游。"""
+    if period not in (*LOCAL_DERIVED_PERIODS, "1d"):
+        raise ValueError("该周期不支持本地生成")
+    base = "1m" if period in LOCAL_MINUTE_PERIODS else "1d"
+    earliest, latest = period_bounds(repo, base)
+    if earliest is None or latest is None:
+        return {"period": period, "rows": 0, "source": base,
+                "error": f"没有可计算的本地{LABELS[base]}, 请先补齐{LABELS[base]}后重试"}
+    start = datetime.combine(earliest, time.min)
+    end = datetime.combine(latest, time.max)
+    if period != "1d":
+        # 生成范围以基础数据为准, 不因维表缺失而丢弃已有证券。
+        symbols = (
+            pl.scan_parquet(repo.store.data_dir / TABLES[base] / "date=*/*.parquet")
+            .select("symbol").unique().collect().get_column("symbol").to_list()
+        )
+        return sync_period(repo, period, start, end, symbols=symbols, on_progress=on_progress)
+
+    from app.indicators.pipeline import run_pipeline
+    from app.jobs.daily_pipeline import _refresh_single_view
+    from app.services.public_query_cache import invalidate_data_cache, invalidate_storage_cache
+
+    def batch_progress(done: int, total: int) -> None:
+        if on_progress:
+            fraction = done / max(total, 1)
+            on_progress("compute_enriched", 10 + int(85 * fraction),
+                        f"本地日K: 计算复权与指标 {done}/{total} 批",
+                        stage_pct=int(100 * fraction))
+
+    rows = run_pipeline(data_dir=repo.store.data_dir, on_batch_done=batch_progress)
+    result = {"period": period, "rows": rows, "source": base,
+              "start": start.isoformat(), "end": end.isoformat()}
+    if rows == 0:
+        result["error"] = "没有可计算的本地日K, 请先补齐日K后重试"
+    else:
+        _refresh_single_view(repo, "kline_enriched")
+        # 沿用盘后发布后的有界缓存刷新, 保证已有内存结果同步换代。
+        repo.refresh_cache()
+        invalidate_data_cache("enriched")
+        invalidate_storage_cache()
+    return result
+
+
 _last_success: dict[str, datetime] = {}
 
 

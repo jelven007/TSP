@@ -44,6 +44,10 @@ export function QuoteConfigCard({ enabled, running, isTrading, lastFetchMs, inte
           <h3 className="text-sm font-medium text-foreground">实时行情</h3>
         </div>
         <button
+          type="button"
+          role="switch"
+          aria-label="实时行情"
+          aria-checked={enabled}
           onClick={() => onToggle(!enabled)}
           disabled={toggling}
           className={`relative inline-flex h-4 w-7 items-center rounded-full shrink-0 transition-colors duration-200 ${

@@ -1,0 +1,11 @@
+{
+  "checked_at": "2026-10-26T18:14:22.698940+00:00",
+  "review_sha256": "a0b015999949e11752a9f60051a4d42f2a65b2f1b865babe6ee86c433790e7d6",
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "version": "0.4.32",
+  "runtime": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+  "compute": "sha256:c6e6c4765f388e279a43159ef564c85caa1acec3552f52771a20699123be2114",
+  "artifact_identity_verified": true,
+  "permitted_stage": "quiesce writers and create/restore/compare matching backups; no deletion yet",
+  "authorization": "current user online upgrade and K-line deletion"
+}

@@ -1,0 +1,145 @@
+{
+  "browser": "Chrome via Playwright; Browser plugin not available",
+  "url": "http://127.0.0.1:3201",
+  "checks": [
+    {
+      "check": "page identity, default order, schedule text, desktop 3:1 alignment and upper-right switch",
+      "result": "PASS",
+      "detail": {
+        "sync": {
+          "x": 176,
+          "width": 812,
+          "y": 104
+        },
+        "storage": {
+          "x": 1004,
+          "width": 260,
+          "y": 104
+        },
+        "gap": 16,
+        "switch": {
+          "x": 943,
+          "y": 121.25
+        },
+        "gridX": 176
+      }
+    },
+    {
+      "check": "auto switch pending, success refresh and independent quote switch",
+      "result": "PASS",
+      "detail": [
+        {
+          "path": "/api/settings/preferences/data-sync-auto",
+          "method": "PUT",
+          "body": {
+            "enabled": false
+          }
+        }
+      ]
+    },
+    {
+      "check": "failed save leaves auto state unchanged and displays error",
+      "result": "PASS",
+      "detail": "保存失败"
+    },
+    {
+      "check": "moved quote toggle and polling editor call existing APIs",
+      "result": "PASS",
+      "detail": [
+        {
+          "path": "/api/settings/preferences/realtime-quotes",
+          "method": "PUT",
+          "body": {
+            "realtime_quotes_enabled": false
+          }
+        },
+        {
+          "path": "/api/settings/preferences/quote-interval",
+          "method": "PUT",
+          "body": {
+            "interval": 5
+          }
+        }
+      ]
+    },
+    {
+      "check": "quote visibility persists and pointer ordering persists after refresh",
+      "result": "PASS",
+      "detail": [
+        "个股维表",
+        "1分K",
+        "5分K",
+        "10分K",
+        "实时行情",
+        "15分K",
+        "日 K",
+        "周K",
+        "除权因子",
+        "Enriched",
+        "财务数据",
+        "指数",
+        "环境"
+      ]
+    },
+    {
+      "check": "old saved order inserts quote after 15m and keeps other positions",
+      "result": "PASS",
+      "detail": [
+        "周K",
+        "15分K",
+        "实时行情",
+        "财务数据",
+        "1分K",
+        "日 K",
+        "个股维表",
+        "5分K",
+        "10分K",
+        "除权因子",
+        "Enriched",
+        "指数",
+        "环境"
+      ]
+    },
+    {
+      "check": "1440x1100 light no horizontal overflow and default order",
+      "result": "PASS",
+      "detail": {
+        "viewport": 1440,
+        "scroll": 1440
+      }
+    },
+    {
+      "check": "390x844 light no horizontal overflow and default order",
+      "result": "PASS",
+      "detail": {
+        "viewport": 390,
+        "scroll": 390
+      }
+    },
+    {
+      "check": "390x844 dark no horizontal overflow and default order",
+      "result": "PASS",
+      "detail": {
+        "viewport": 390,
+        "scroll": 390
+      }
+    },
+    {
+      "check": "preference load error disables auto switch",
+      "result": "PASS",
+      "detail": "503 injected in isolated harness"
+    },
+    {
+      "check": "not blank, no framework overlay, console health",
+      "result": "PASS",
+      "detail": {
+        "relevantErrors": [],
+        "warnings": [],
+        "expectedHttpFailures": [
+          "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+          "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+        ]
+      }
+    }
+  ]
+}

@@ -60,6 +60,7 @@ describe('buildDataScheduleItems', () => {
       'period-5m',
       'period-10m',
       'period-15m',
+      'period-1d',
       'period-1w',
       'daily-pipeline',
       'depth',
@@ -81,6 +82,7 @@ describe('buildDataScheduleItems', () => {
       'kline',
       'kline',
       'kline',
+      'kline',
       'market',
       'maintenance',
       'maintenance',
@@ -88,6 +90,7 @@ describe('buildDataScheduleItems', () => {
       'extension',
     ])
     expect(items.find(item => item.id === 'auction')).toMatchObject({
+      label: '集合竞价',
       schedule: '交易日 09:25:08 / 25 / 45，09:29:15 定版',
       detail: expect.stringContaining('多次采集与发布重试'),
     })
@@ -96,6 +99,7 @@ describe('buildDataScheduleItems', () => {
       schedule: '交易日 09:15–11:45 / 13:00–16:00 · 每 3 秒',
     })
     expect(items.find(item => item.id === 'second-quote-archive')).toMatchObject({
+      label: '秒级行情',
       schedule: '交易日 09:15–09:25',
       state: 'enabled',
     })
@@ -109,9 +113,16 @@ describe('buildDataScheduleItems', () => {
       schedule: '每周六 16:10 后',
     })
     expect(items.find(item => item.id === 'startup-integrity')).toMatchObject({
+      label: '数据完整性',
       schedule: '应用启动后 30 秒',
       state: 'enabled',
     })
+    expect(items.find(item => item.id === 'period-1d')).toMatchObject({
+      label: '日K周期同步', schedule: '交易日 16:00', state: 'enabled',
+    })
+    expect(items.find(item => item.id === 'daily-pipeline')?.schedule).toBe('交易日 16:00')
+    expect(items.find(item => item.id === 'financial-metrics')?.label).toBe('财务指标')
+    expect(items.find(item => item.id === 'capability-reprobe')?.label).toBe('数据源能力')
   })
 
   it('keeps fixed tasks visible while marking auto-sync dependent work disabled', () => {
@@ -130,8 +141,24 @@ describe('buildDataScheduleItems', () => {
     expect(items.find(item => item.id === 'capability-reprobe')?.state).toBe('enabled')
     expect(items.find(item => item.id === 'startup-integrity')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'daily-pipeline')?.state).toBe('disabled')
+    expect(items.find(item => item.id === 'period-1d')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'minute-refresh')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'financial-metrics')?.state).toBe('disabled')
+  })
+
+  it('keeps the daily entry aligned with the saved pipeline schedule and daily switch', () => {
+    const items = buildDataScheduleItems({
+      preferences: { ...preferences, pipeline_schedule: { hour: 17, minute: 10 } },
+      klineConfigs: { ...klineConfigs, '1d': { ...klineConfigs['1d'], enabled: false, time: '17:10' } },
+      financialAvailable: true,
+      depthAvailable: true,
+      extConfigs: [],
+    })
+    for (const id of ['period-1d', 'daily-pipeline']) {
+      expect(items.find(item => item.id === id)).toMatchObject({
+        schedule: '交易日 17:10', state: 'disabled',
+      })
+    }
   })
 
   it('marks capability-gated data tasks unavailable instead of implying that they will run', () => {

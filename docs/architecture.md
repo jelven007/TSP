@@ -1,5 +1,25 @@
 # TSP 系统技术方案
 
+2026-10-27最新整合沿既有Provider、周期服务、JobStore、租户事务及查询键接线，
+统一纳入本地生成、闭区间修正、自选关系和数据总览；无schema迁移或双份日K任务。
+范围、实际检查及固定运行身份见[本批记录](../reports/latest-release-20261027/verification.md)。
+
+本批补入2019–2026年官方交易日历，使历史遗漏请求及跨年周标签无需依赖近一年指数探针。
+未知年份仍要求可靠源证据；研究快照按日历身份隔离，旧快照保留。
+
+2026-10-27数据总览布局复用现有查询和写入口：`Data`将`QuoteConfigCard`通过
+`CardKey=quotes`渲染进数据画像，`PageSettingsModal`迁移旧顺序到15分K之后。
+`ScheduleOverview`接收总开关回调和禁用状态，继续由`updateDataSyncAuto`写偏好，
+成功失效preferences/dataStatus，加载失败或保存中禁用，写失败保留旧状态并提示。
+日K周期同步与盘后管道读取同一`1d`配置和时间（回退pipeline_schedule，默认16:00），
+仅补充展示，不注册第二个盘后任务。验证见[数据总览布局](testing.md#data-overview-layout)。
+
+2026-10-27真实本地验证补充：自选清单查询设置`refetchOnMount: 'always'`，
+继续使用既有缓存进行首屏展示，但每次挂载校验服务端关系和顺序，
+避免持久缓存2秒写入节流与30秒staleTime叠加导致快速刷新显示旧关系。
+不调整全局缓存版本或清理用户存储；实测见
+[本地自选更新](../reports/local-watchlist-update-20261027/verification.md)。
+
 2026-10-26核对源码、完整本地环境与单ECS部署方式，最新范围及逐阶段实测见
 [本批整合](../reports/repair-missing-release-20261026/verification.md)。
 下文早期“候选/未发布”描述以[版本基线](version-baseline.md)和本批记录区分时点；
@@ -16,15 +36,25 @@
 1分钟日期分区，分别按09:30和13:00起算收盘标签，未知量额保持空值。取数按日期段及100标的块有界执行；
 写盘沿既有分区锁与原子替换，刷新对应视图、画像及存储缓存，公共发布目录同步扩展。
 六周期设置经 `/api/settings/kline-sync`，手工任务经 `/api/kline/sync_period`；
-日K保留原复权/指标补齐流水线，1分钟实时保留既有增量服务，其余周期由调度检查。
+手工请求仅传`period`时，5/10/15分K、日K、周K调用`generate_period`：
+按基础1m/1d的非空分区最早到最新日期及已有证券本地计算，派生周期复用有界`sync_period`；
+日K调用`run_pipeline(data_dir=repo.store.data_dir)`重算Enriched，沿已有发布屏障、
+symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓存。
+日K自动同步保留原复权/指标流水线，1分钟实时保留既有增量服务，其余周期由调度检查。
+显式传`value/unit`的旧历史调用保留；1m缺省也保持远程历史行为。
 此候选沿用分钟/日K独立能力路由，不新增第八个数据集或策略周期。
 日K画像卡片沿用周K的同步说明，`StatCard`共用记录/标的/交易日统计文案模板。
 
 「K线修正」沿用 `/api/kline/repair_daily`，可选`period`缺省为`1d`，
 可选`mode=full|missing`缺省为`full`，旧调用保持全量行为。
-面板日K与周K共用取数及范围说明模板，仅展示各自周期名；日K后端编排仍按原流程。
+2026-10-27面板仅提供1分K和日K，结束日期原生输入框支持键盘输入，缺省今天；
+全量/遗漏均提交起止闭区间。API可选`end_date`严格校验YYYY-MM-DD及起始≤结束≤北京今天，
+任务请求保存结束日期；旧API省略结束日期仍到今天，六周期服务调用继续兼容。
 `repair_daily.run_repair_daily`保留日K盘后流程，其他周期读取既有完整股票池快照后
-调用`kline_periods.sync_period`，按起始日期到北京今天分段取数或本地聚合并幂等落盘。
+调用`kline_periods.sync_period`，按起止日期分段取数或本地聚合并幂等落盘。
+日K通过`run_now(override_start_date, override_end_date=...)`统一股票/指数/ETF日K与因子范围；
+显式结束日期时仅清理选定区间enriched及历史ETF实时残留，不附带全库自愈清理或分钟采集。
+复权链与指标仍沿既有依赖重算，可能更新区间外派生指标；自动盘后管道缺省行为保留。
 遗漏模式由`services/kline_gaps.py`逐交易日/周读取证券与日期/时间键，
 按100证券块检测缺口，仅对连续缺失分钟区间或缺失日请求当前Provider。
 使用公布日历及有覆盖证据的源日历，排除上市前、休市及未形成的分钟/当日日K；
@@ -45,7 +75,8 @@
 周K优先读取周K分区，空表时聚合本地日K；只有1分钟缺数据仍经同一Provider入口获取；
 1分K沿用仓库分钟复权投影，周K响应统一周一日期。
 非日K响应附带`freq`，分钟行的`date`保留完整北京时间；实时日K增量不合入其他周期。
-日/周离线表单统一；日K空表从北京今天回溯自然月/年，仍走除权与指标流水线，周K空表提示先补日K。
+派生分钟和日/周离线表单统一为本地生成，不扩展历史；无基础数据或零输出明确失败。
+生成沿用JobStore、共享执行槽、容量预算、进度和取消，日K在计算批次边界响应取消。
 
 个股详情复用`StockPreviewDialogContent→StockPanel→StockDailyKChart→EChartsCandlestick`。
 信息条继续读取日K，图表按周期请求；集中查询键加入周期，占位仅复用同股票同周期，
@@ -269,6 +300,26 @@ PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快�
 `GET /api/watchlist`完整清单，按`group_ids`过滤后生成UTF-8 BOM CSV（仅股票代码列）。
 不依赖行情增强缓存、页面筛选或可见行，不新增API/查询键；只在用户点击时读取，
 不修改成员或revision。弹窗卸载时忽略迟到响应，沿用账户切换重挂载边界。
+
+自选主页面CSV确认沿候选数组过滤勾选项，避免Set重新勾选的插入顺序改变文件顺序。
+`services.watchlist.add_batch`与`multitenancy.Watchlist.add_batch`对首现去重的输入倒序
+置顶写入，最终持久化及API返回保持输入正序，未涉及成员仍保持原序；单股置顶不变。
+沿现有文件锁/SQL事务、revision和前端自选/增强查询失效，不新增字段、查询键或缓存。
+管理分组弹窗移除文件选择、新建并导入及对应状态，CSV导入继续由主页面批量入口处理；
+旧`groups/import-csv`接口保留兼容，历史成员不自动重排。
+
+2026-10-27自选股票新增`strategy_ids`，文件模式以列表列保存，缺列读作空数组；
+首次写回留备份且不覆盖既有`.bak`，重复证券合并多组及多策略关系。
+租户模式复用`business.documents`的`watchlist_strategies`命名空间，ID为证券代码，
+以同租户写锁/事务更新并递增自选revision；清单批量读取关系，删除证券/清空及
+兼容Cell入口同步删除关联文档。完整文件转SQL导入同样转换该列，无新增表或schema迁移。
+`PUT /api/watchlist/{symbol}/strategies`通过现有租户策略引擎校验可见公开策略，
+空数组解除关联，股票不存在返回404；关系不参与策略目标解析或监控启动。
+前端清单是顺序与关系事实源，行情按symbol合并；共享`WatchlistRelations`直接显示名称，
+共享Modal多选编辑。目录用`QK.watchlistStrategyOptions()`全周期独立缓存，
+`useTableSort.reset`恢复清单顺序；全量/分组导出共享`downloadWatchlistCsv`，
+均读取完整清单后在浏览器生成代码单列CSV。验证和部署边界见
+[本轮记录](../.claude/artifacts/fixes/watchlist-relations.md)。
 
 公共不可变发布加入变化检测、五分钟间隔和空闲容量保护。自动回收仅删除超过
 六小时且不属于 current、最近 30 份或研究 input/metadata 引用的版本；

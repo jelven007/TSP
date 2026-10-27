@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-10-26T18:25:20.096060+00:00",
+  "head": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "preserved_research_files": 559,
+  "research_prior_hashes_unchanged": true,
+  "local_market_data_changed": false,
+  "local_runtime_restarted": false,
+  "post_release_document_updates": [
+    "docs/version-baseline.md",
+    "docs/operations.md"
+  ],
+  "post_release_docs_committed": false,
+  "application_version_manually_changed": false
+}

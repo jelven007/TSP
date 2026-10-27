@@ -1,5 +1,68 @@
 # 测试与验收指南
 
+2026-10-27整合冻结源码实际验证：后端及工具4706通过/162跳过，
+一次性PostgreSQL full模块220通过/3跳过，前端397通过及lint/build通过；
+计数有重叠且环境不同，不相加。增量Ruff无新增诊断，原生桥接可用。
+后续PR/main、产物和两端升级分别验收，见[本批记录](../reports/latest-release-20261027/verification.md)。
+
+整合补入历史日历后，日历/修正/发布/快照四模块169通过；
+临时切回旧日历时2020/2023请求及历史周标签四项回归失败。
+周K测试消费本地日K且不请求Provider；增量Ruff覆盖26个Python文件无新增诊断。
+
+<a id="data-overview-layout"></a>
+2026-10-27数据总览布局回归：`PageSettingsModal.test.tsx`覆盖quotes默认位置、
+旧六周期排序插入、新位置/显隐保留及恢复默认；`ScheduleOverview.test.tsx`覆盖
+简化名称、日K紧接15分K、默认/已保存时间及日K开关与总开关门控。
+`Data.test.tsx`用真实页面验证开关位于数据同步内、实时行情在画像15分K后、
+保存中禁用、成功刷新偏好/画像、失败保留及加载失败禁用。
+隔离Chrome验证1440/390px浅深色、3:1左对齐、滑动开关、显隐/排序重开与行情轮询；
+本轮前端397项及lint/build通过，命令和范围见
+[实际记录](../reports/data-overview-layout-20261027/verification.md)。
+仅认证前端与模拟API交互，不认证线上调度执行或真实行情数据。
+
+2026-10-27真实本地验收发现快速刷新缓存问题；`Watchlist.test.tsx`播种新鲜旧缓存，
+验证挂载仍请求清单并显示已保存双策略。先红后绿；最终工作区前端391项通过，
+候选后端71项及独立SQL25项通过；无拦截Chrome验证CSV顺序、多组、多策略、
+刷新、排序、全量CSV和390px，并在finally清理测试项对比原16条清单。
+备份恢复、角色就绪和外部GitHub检查失败的独立边界见
+[本地验收](../reports/local-watchlist-update-20261027/verification.md)。
+
+<a id="watchlist-relations"></a>
+2026-10-27自选关系验收：`test_watchlist_relations.py`覆盖多策略持久化、重导入/移组/置顶、
+删除后重加、空关联、不存在证券、旧schema只读/备份及不可见策略拒绝。
+`test_full_strategy_targets.py`用真实临时PostgreSQL验证跨租户隔离、兼容Cell删除、
+当前租户真实策略目录校验和未登录拒绝；`test_full_legacy_import.py`验证关系导入及对账。
+前端`WatchlistRelations.test.tsx`验证名称、多选保存、失败保留、卸载后迟到保存忽略，
+全量CSV的代码单列、前导零、BOM/CRLF、去重、空/失败/卸载保护；
+`useTableSort.test.tsx`验证默认排序与已有筛选行保留，回归原分组导出/CSV导入。
+Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排序重置、跨组下载、
+保存刷新和解除关联，检查弹窗边界、页面溢出、框架及控制台错误。
+完整实测命令、结果与源码/运行区分见[验证记录](../.claude/artifacts/fixes/watchlist-relations.md)。
+
+<a id="repair-date-range"></a>
+2026-10-27修正日期范围回归：`RepairDailyPanel.test.tsx`验证仅1m/1d、默认日K、
+可输入结束日期及默认今天、full/missing参数、同日范围、空/反向/未来拒绝、能力及运行中禁用。
+`api/repairKline.test.ts`检查真实请求正文和旧调用省略结束日期。
+`test_repair_kline.py`验证建任务前日期校验、任务请求保存/透传结束日期、旧缺省行为、
+1分钟取数及真实入库包含末日，超范围源返回不覆盖区间外旧值。
+`test_pipeline_beijing_today.py`核对股票/指数/ETF及因子范围、enriched区间外字节保留、
+不附带分钟采集和非法区间先于读股票池拒绝。
+`test_data_integrity.py`验证闭区间分区清理和历史实时残留清理仍保护今天及范围外数据。
+同时回归原周期生成、自动盘后、发布、容量、前端全量测试/build/lint及Ruff增量。
+浏览器用真实修正组件/共享Modal及拦截API检查桌面/390px、键盘输入、周期切换、
+两个按钮参数、空/反向/未来提示、失败重试及无横向溢出；模拟请求不认证真实数据源历史覆盖。
+
+<a id="local-kline-generation"></a>
+2026-10-27离线生成回归：`KlineSyncConfig.test.tsx`覆盖5/10/15分K、日K、周K
+无扩展控件、仅传period、空表/缺能力可点击、任务运行中禁用，1m仍传月/年历史范围。
+`test_kline_periods_api.py`覆盖完整本地基础日期范围、目标已有数据、重复生成与基础数据修订，
+缺基础失败、日K真实本地复权/指标入库、原始日K保留、缓存换代和取消前不发布。
+周期服务同时验证缺维表时仍按基础已有证券生成。
+`test_pipeline_capacity.py`验证新生成任务等待共享容量后才计算。
+同时回归周期服务、修正、历史进度、公共缓存和Enriched发布；前端执行全量测试、
+构建及lint。浏览器用隔离组件/共享弹窗和拦截API验证按钮请求及桌面/窄屏，
+实际数据生成由后端固定样本验证，不把模拟页面或局部测试当作生产历史覆盖认证。
+
 2026-10-26冻结候选的全量、行为、构建、本地及生产证据见
 [本批整合](../reports/repair-missing-release-20261026/verification.md)。
 本批不沿用旧计数；临时PostgreSQL与隔离市场目录不读取/修改本地业务库。
@@ -26,7 +89,7 @@ v0.4.28诊断已排除日志关闭阻塞，详见[原生退出修复](../.claude
 测试通过不证明上游拥有多年历史，实际数据覆盖按日期和标的另行验收。
 
 K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
-覆盖六选项/默认日K、请求周期和最新日期切换、日K原管道兼容、1分钟远程修正与周K本地日K
+覆盖两个页面选项/默认日K、请求周期和最新日期切换、日K原管道兼容、1分钟远程修正与旧API周K本地日K
 聚合的幂等入库、5/10/15分钟本地OHLCV/量额聚合及缺基础数据、非法周期、
 自定义源不依赖TickFlow权限、对应能力拒绝和取消后不再写盘。
 页面验收检查「K线修正」标题、失败提示、任务跟踪及桌面/窄屏弹窗；
@@ -38,13 +101,13 @@ K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
 周标签统一、5/10/15分钟完整基础桶、源超范围返回、部分返回/请求失败、
 分区锁内只追加、并发先补保护、100证券上限、取消前停止写入、
 真实enriched重算及仓库刷新。任务成功显示检测/剩余缺口，部分失败保留已补及未补计数。
-前端检查两按钮分别传full/missing，共用周期/日期/能力和运行中禁用，
+前端检查两按钮分别传full/missing，共用基础周期/起止日期/能力和运行中禁用，
 失败可重试；桌面、窄屏、浅深色下按钮及弹窗可操作。
 `frontend/src/pages/Data.test.tsx`验证修正成功及部分写入后失败均失效已缓存的
 日K/分钟K/分钟区间查询，保留无关查询缓存，不依赖实时SSE。
 
 数据总览修复用例补充：无效显隐/顺序、重复卡片及页面设置重开；
-日/周一致表单、日K空库、闰年自然月区间和复权/指标流程；
+日/周无扩展生成表单、日K基础空库失败、1m闰年自然月区间和日K本地复权/指标流程；
 原minute/daily入口的5m/15m/1w本地读取、周K空表从日K聚合、非法周期/源失败，
 及三个周期离线任务写盘后画像计数。回归须断言实际周期与行值，不能只检查200。
 
@@ -137,6 +200,14 @@ K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
 `StrategyTargets.test.tsx`与`Modal.test.tsx`运行，并执行前端构建。
 浏览器验证管理分组→单选→下载和窄屏布局；下载文件用现有
 `import_watchlist_csv`解析核对代码/顺序，不将重新导入视为恢复备注或组配置。
+
+CSV导入顺序按`FR-WATCHLIST-03`验证：`test_watchlist_csv.py`沿解析→批量API→重新读取
+核对文件首现顺序、重复/未知项、既有证券及多组关系；文件测试显式使用
+`MULTITENANCY_ENABLED=false`，真实SQL运行`test_full_identity.py`与
+`test_full_strategy_targets.py`，覆盖position、only_new、revision和租户隔离。
+`WatchlistImportDialog.test.tsx`检查重新勾选及补选既有成员时请求仍按候选顺序；
+`StrategyTargets.test.tsx`检查管理分组无CSV输入且普通新建仍可用。
+桌面/窄屏核对主页面导入后默认行序、重新加载及管理分组导出入口；主动字段排序另验。
 
 一级页面顶栏按 `FR-UI-05` 验证：PageHeader 保留富文本说明、状态和按钮回调，
 标题独立态不生成空工具栏；浏览器在1440px与390px下检查各菜单标题/间距/操作区边界，

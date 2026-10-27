@@ -24,6 +24,8 @@ export function useTableSort<T>(getSortValue: (r: T, col: ColumnConfig) => any =
     })
   }, [])
 
+  const reset = useCallback(() => setSort(null), [])
+
   /** 对行集合按当前 sort 排序（返回新数组）。无 sort 或列不存在时原样返回；
    *  取值为 null 的行排在最后。表头是否可点由 StockDataTable 控制。 */
   const sortRows = useCallback((rows: T[], columns: ColumnConfig[]): T[] => {
@@ -47,5 +49,5 @@ export function useTableSort<T>(getSortValue: (r: T, col: ColumnConfig) => any =
     })
   }, [sort, getSortValue])
 
-  return { sort, toggle, sortRows }
+  return { sort, toggle, reset, sortRows }
 }

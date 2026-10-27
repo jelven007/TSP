@@ -1,5 +1,8 @@
 """目标分组在真实 PostgreSQL 中的隔离、删除竞态和事务一致性。"""
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from test_full_identity import env as env
@@ -20,6 +23,101 @@ def stores(env):
 def target(group_id):
     return {"basic_filter": {"enabled": False, "target_mode": "selected", "boards": [],
                              "include_custom": True, "watchlist_group_ids": [group_id]}}
+
+
+def test_sql_strategy_relation_api_uses_owned_catalog(env, tmp_path):
+    from app.api.watchlist import router
+    from app.multitenancy.strategies import definition_payload
+    from app.strategy.engine import StrategyEngine
+
+    token, account = register(env)
+    context = env["identity"].context(account, None, "relation-http")
+    own, watchlist = TenantDocuments(env["db"], context), Watchlist(env["db"], context)
+    other, foreign = stores(env)
+    watchlist.add("600000.SH")
+    foreign.add("600000.SH")
+    builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "app" / "strategy" / "builtin"])
+    template = builtins.get("factor_rank_research")
+    for storage, sid, research in [(own, "owned", False), (other, "foreign", False), (own, "draft", True)]:
+        definition = replace(template, meta={**template.meta, "id": sid, "research_only": research}, source="custom")
+        storage.put("strategy_sources", sid, {"id": sid, "source": "custom", "code": "",
+                                            "definition": definition_payload(definition)})
+    client = env["client"]
+    client.app.include_router(router)
+    client.app.state.strategy_engine = builtins
+    client.app.state.compute_executor = object()
+    client.app.state.repo = SimpleNamespace(
+        get_name_map=lambda _: {}, store=SimpleNamespace(data_dir=tmp_path),
+    )
+    client.cookies.set("tf_session", token)
+    assert client.put("/api/watchlist/600000.SH/strategies", json={"strategy_ids": ["owned"]}).status_code == 200
+    before, rev = watchlist.list_symbols(), watchlist.revision()
+    for sid in ["foreign", "draft"]:
+        assert client.put("/api/watchlist/600000.SH/strategies", json={"strategy_ids": [sid]}).status_code == 404
+    assert watchlist.list_symbols() == before and watchlist.revision() == rev
+    assert foreign.list_symbols()[0]["strategy_ids"] == []
+    client.cookies.clear()
+    assert client.put("/api/watchlist/600000.SH/strategies", json={"strategy_ids": []}).status_code == 401
+    assert watchlist.revision() == rev
+
+
+@pytest.mark.parametrize("delete_mode", ["remove", "clear", "cell_remove", "cell_clear"])
+def test_sql_stock_strategy_relations_isolated_and_deleted(env, delete_mode):
+    from app.cell.watchlist import Watchlist as CellWatchlist
+
+    own, watchlist = stores(env)
+    _other, foreign = stores(env)
+    _, first = watchlist.create_group("核心")
+    _, second = watchlist.create_group("观察")
+    watchlist.add("000001.SZ", "备注", first["id"])
+    foreign.add("000001.SZ")
+    before = watchlist.list_symbols()[0]
+    rev = watchlist.revision()
+    watchlist.set_strategies("000001.SZ", ["daily", "minute", "daily"])
+    assert watchlist.list_symbols()[0] == {**before, "strategy_ids": ["daily", "minute"]}
+    assert watchlist.revision() == rev + 1
+    assert foreign.list_symbols()[0]["strategy_ids"] == []
+    rev = watchlist.revision()
+    with pytest.raises(KeyError):
+        watchlist.set_strategies("600000.SH", ["daily"])
+    assert watchlist.revision() == rev
+    watchlist.add_batch(["600000.SH", "000001.SZ"], group_ids=[second["id"]])
+    watchlist.move_to_top("000001.SZ")
+    watchlist.clear_group(first["id"])
+    assert watchlist.list_symbols()[0]["strategy_ids"] == ["daily", "minute"]
+    if delete_mode.startswith("cell_"):
+        CellWatchlist(env["db"]).remove(own.context, None if delete_mode == "cell_clear" else "000001.SZ")
+    elif delete_mode == "clear":
+        watchlist.clear()
+    else:
+        watchlist.remove("000001.SZ")
+    assert own.get("watchlist_strategies", "000001.SZ") is None
+    watchlist.add("000001.SZ")
+    assert watchlist.list_symbols()[0]["strategy_ids"] == []
+    watchlist.set_strategies("000001.SZ", ["daily"])
+    assert watchlist.set_strategies("000001.SZ", [])[0]["strategy_ids"] == []
+
+
+@pytest.mark.parametrize("only_new", [False, True])
+def test_sql_watchlist_batch_preserves_input_order_and_memberships(env, only_new):
+    _own, watchlist = stores(env)
+    _other, foreign = stores(env)
+    _, old = watchlist.create_group("原组")
+    _, new = watchlist.create_group("导入组")
+    watchlist.add("515880.SH", group_id=old["id"])
+    watchlist.add("600000.SH")
+    rev = watchlist.revision()
+    symbols = ["600036.SH", "515880.SH", "600036.SH", "300750.SZ"]
+    rows, added = watchlist.add_batch(symbols, group_ids=[new["id"]], only_new=only_new)
+    expected = (["600036.SH", "300750.SZ", "600000.SH", "515880.SH"] if only_new
+                else ["600036.SH", "515880.SH", "300750.SZ", "600000.SH"])
+    assert added == 2
+    assert [row["symbol"] for row in rows] == expected
+    assert watchlist.list_symbols() == rows
+    shared = next(row for row in rows if row["symbol"] == "515880.SH")
+    assert set(shared["group_ids"]) == ({old["id"]} if only_new else {old["id"], new["id"]})
+    assert watchlist.revision() == rev + 1
+    assert foreign.list_symbols() == []
 
 
 def test_sql_targets_resolve_only_owned_groups_and_block_deletion(env):

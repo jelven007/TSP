@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from hashlib import sha256
 
 import pytest
 
@@ -60,6 +61,30 @@ def test_corrupted_snapshot_cannot_be_reused(tmp_path):
         verify_research_snapshot(root)
     with pytest.raises(ResearchSnapshotError, match="checksum"):
         capture_research_snapshot(tmp_path)
+
+
+def test_calendar_upgrade_preserves_old_snapshot_but_requires_new_identity(tmp_path, monkeypatch):
+    from app.market_time import published_trading_days
+    from app.services import research_snapshot
+
+    inputs(tmp_path)
+    current = research_snapshot.trading_calendar_provenance()
+    previous = dict(
+        current, version="SSE-2026-20251222", covered_years=[2026],
+        sha256=sha256("\n".join(day.isoformat() for day in sorted(published_trading_days(2026))).encode()).hexdigest(),
+    )
+    with monkeypatch.context() as old:
+        old.setattr(research_snapshot, "trading_calendar_provenance", lambda: previous)
+        old_root, old_manifest = capture_research_snapshot(tmp_path)
+    with pytest.raises(ResearchSnapshotError, match="trading calendar changed"):
+        verify_research_snapshot(old_root)
+    with pytest.raises(ResearchSnapshotError, match="trading calendar changed"):
+        capture_research_snapshot(tmp_path, snapshot_id=old_manifest["id"])
+    new_root, new_manifest = capture_research_snapshot(tmp_path)
+    assert new_manifest["trading_calendar"] == current
+    assert new_manifest["id"] != old_manifest["id"]
+    assert verify_research_snapshot(new_root)["id"] == new_manifest["id"]
+    assert (old_root / "kline_daily_enriched/date=2024-01-01/part.parquet").read_bytes() == b"old-day"
 
 
 @pytest.mark.parametrize("limit", ["max_files", "max_bytes"])

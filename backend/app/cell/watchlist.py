@@ -82,8 +82,12 @@ class Watchlist:
                     ensure_clearable(None, sql_references(conn))
                 except ValueError as exc:
                     raise AccessError(409, str(exc)) from exc
+                conn.execute("DELETE FROM business.documents WHERE namespace='watchlist_strategies'")
                 conn.execute("DELETE FROM business.watchlist_items")
             else:
+                conn.execute(
+                    "DELETE FROM business.documents WHERE namespace='watchlist_strategies' AND id=%s", (symbol,),
+                )
                 conn.execute("DELETE FROM business.watchlist_items WHERE symbol = %s", (symbol,))
             self._audit(conn, context, "watchlist.clear" if symbol is None else "watchlist.remove", symbol or "*")
             return {"symbols": self._rows(conn)}

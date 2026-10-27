@@ -122,6 +122,7 @@ export function buildDataScheduleItems({
   }
   const formatClock = ({ hour, minute }: { hour: number; minute: number }) =>
     `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  const dailyTime = klineConfigs?.['1d']?.time ?? formatClock(pipelineAt)
   const interval = (seconds: number) =>
     seconds >= 60 && seconds % 60 === 0 ? `每 ${seconds / 60} 分钟` : `每 ${seconds} 秒`
   const intradayWindow = (config?: KlineConfig) =>
@@ -148,7 +149,7 @@ export function buildDataScheduleItems({
     {
       id: 'startup-integrity',
       category: 'foundation',
-      label: '启动数据完整性自检',
+      label: '数据完整性',
       detail: '检查近期分钟快照与分区缺口；仅发现问题时才创建修复任务。',
       schedule: '应用启动后 30 秒',
       state: stateForAuto(),
@@ -156,7 +157,7 @@ export function buildDataScheduleItems({
     {
       id: 'auction',
       category: 'market',
-      label: '集合竞价快照',
+      label: '集合竞价',
       detail: '多次采集与发布重试合并展示，避免把同一份竞价数据重复计数。',
       schedule: '交易日 09:25:08 / 25 / 45，09:29:15 定版',
       state: stateForAuto(),
@@ -180,7 +181,7 @@ export function buildDataScheduleItems({
     {
       id: 'second-quote-archive',
       category: 'market',
-      label: '秒级行情归档',
+      label: '秒级行情',
       detail: '由实时行情采集驱动，写入时按保留期清理过期分区，不单独再起轮询任务。',
       schedule: preferences?.second_quote_archive_window === 'preopen'
         ? '交易日 09:15–09:25'
@@ -215,6 +216,14 @@ export function buildDataScheduleItems({
 
   items.push(
     {
+      id: 'period-1d',
+      category: 'kline',
+      label: '日K周期同步',
+      detail: '随盘后数据管道同步日K，共用日K周期开关与执行时间。',
+      schedule: `交易日 ${dailyTime}`,
+      state: stateForAuto(klineConfigs?.['1d']?.enabled ?? true),
+    },
+    {
       id: 'period-1w',
       category: 'kline',
       label: '周K周期同步',
@@ -235,7 +244,7 @@ export function buildDataScheduleItems({
         preferences?.pipeline_regime_enabled ?? true ? '环境' : null,
         klineConfigs?.['1m']?.enabled ?? preferences?.minute_refresh_enabled ?? true ? '历史分钟K' : null,
       ].filter(Boolean).join(' · '),
-      schedule: `交易日 ${formatClock(pipelineAt)}`,
+      schedule: `交易日 ${dailyTime}`,
       state: stateForAuto(klineConfigs?.['1d']?.enabled ?? true),
     },
     {
@@ -257,7 +266,7 @@ export function buildDataScheduleItems({
     {
       id: 'financial-metrics',
       category: 'maintenance',
-      label: '财务指标更新',
+      label: '财务指标',
       detail: '只自动更新 metrics；其余财务表保持手动同步。',
       schedule: '启动后 60 秒，之后每 7 天',
       state: stateForAuto(true, financialAvailable),
@@ -265,7 +274,7 @@ export function buildDataScheduleItems({
     {
       id: 'capability-reprobe',
       category: 'maintenance',
-      label: '数据源能力检查',
+      label: '数据源能力',
       detail: '重新探测当前数据源能力，避免密钥或数据源变更后继续沿用旧状态。',
       schedule: '每 60 分钟',
       state: 'enabled',
@@ -315,8 +324,12 @@ function ScheduleIcon({ id }: { id: string }) {
   return <CalendarClock className={cls} />
 }
 
-export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems>[0]) {
+export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems>[0] & {
+  onAutoSyncChange: (enabled: boolean) => void
+  autoSyncDisabled: boolean
+}) {
   const items = buildDataScheduleItems(props)
+  const autoSyncEnabled = props.preferences?.data_sync_auto_enabled ?? true
   const enabledCount = items.filter(item => item.state === 'enabled' || item.state === 'running').length
   const groupedItems = CATEGORY_ORDER
     .map(category => ({
@@ -327,16 +340,39 @@ export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems
     .filter(group => group.items.length > 0)
 
   return (
-    <section aria-label="自动数据任务" className="min-w-0 rounded-card border border-border bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <CalendarClock className="h-4 w-4 text-secondary" />
-          <div>
-            <h3 className="text-sm font-medium text-foreground">自动数据任务</h3>
-            <p className="mt-0.5 text-[10px] text-muted">按数据生命周期分类；每项标明自动采集周期。</p>
+    <section aria-label="数据同步" className="min-w-0 rounded-card border border-border bg-surface p-4">
+      <div className="mb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-secondary" />
+            <h3 className="text-sm font-medium text-foreground">数据同步</h3>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="text-[11px] text-secondary">自动同步总开关</span>
+            <button
+              type="button"
+              role="switch"
+              aria-label="自动同步"
+              aria-checked={autoSyncEnabled}
+              onClick={() => props.onAutoSyncChange(!autoSyncEnabled)}
+              disabled={props.autoSyncDisabled}
+              className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors duration-200 ${
+                autoSyncEnabled ? 'bg-accent shadow-[0_0_6px_rgba(59,130,246,0.3)]' : 'bg-elevated'
+              } ${props.autoSyncDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+            >
+              <span className={`inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                autoSyncEnabled ? 'translate-x-[14px]' : 'translate-x-0.5'
+              }`} />
+            </button>
           </div>
         </div>
-        <span className="shrink-0 font-mono text-[10px] text-secondary">{enabledCount}/{items.length} 已启用</span>
+        <p className="mt-2 text-[10px] leading-relaxed text-muted">
+          关闭后保留任务清单并标注暂停项；个股维表与数据源能力继续运行，实时行情独立控制。
+        </p>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[10px]">
+          <span className="text-muted">按数据生命周期分类；每项标明自动采集周期。</span>
+          <span className="font-mono text-secondary">{enabledCount}/{items.length} 已启用</span>
+        </div>
       </div>
       <div className="space-y-3">
         {groupedItems.map(group => (

@@ -1,0 +1,31 @@
+{
+  "checked_at": "2026-10-26T18:18:27.891995+00:00",
+  "version": "0.4.32",
+  "platform_started_at": "2026-10-26T18:18:06.103518+00:00",
+  "startup_catalog_completed": true,
+  "post_catalog_refresh": true,
+  "platform_snapshot": {
+    "rows": {
+      "stock": 0,
+      "etf": 0,
+      "index": 0
+    },
+    "days": {
+      "stock": null,
+      "etf": null,
+      "index": null
+    },
+    "platform_ready": true
+  },
+  "consumers_recreated_after_refresh": [
+    "gateway",
+    "research",
+    "realtime",
+    "notifications",
+    "scheduled",
+    "api"
+  ],
+  "all_functions_passed": false,
+  "expected_empty_kline": true,
+  "scope": "deployment startup ordering; application source unchanged"
+}

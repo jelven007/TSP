@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import date, datetime
 from types import SimpleNamespace
 
 import polars as pl
@@ -228,3 +228,146 @@ def test_weekly_query_aggregates_local_daily_without_remote_fallback(app, monkey
         assert response.json()["rows"][0]["close"] == 13.
         assert response.json()["rows"][0]["date"] == "2026-10-19"
         assert client.get("/api/kline/daily", params={**params, "freq": "invalid"}).status_code == 422
+
+
+async def wait_for_job(job_id):
+    async with asyncio.timeout(10):
+        while pipeline_jobs.job_store.get(job_id)["status"] in {"queued", "running", "cancelling"}:
+            await asyncio.sleep(0.01)
+    return pipeline_jobs.job_store.get(job_id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("period", ["5m", "10m", "15m", "1w"])
+async def test_generation_covers_existing_base_range_and_can_regenerate(app, monkeypatch, period):
+    repo = app.state.repo
+    base = "1d" if period == "1w" else "1m"
+    dates = [date(2026, 6, 1), date(2026, 10, 21), date(2026, 10, 26)]
+    column = "date" if base == "1d" else "datetime"
+    frame = pl.DataFrame({
+        "symbol": ["600000.SH"] * 3,
+        column: dates if base == "1d" else [datetime.combine(day, datetime.min.time()).replace(hour=9, minute=31) for day in dates],
+        "open": [10.] * 3, "high": [11.] * 3, "low": [9.] * 3,
+        "close": [10.5] * 3, "volume": [100.] * 3, "amount": [1000.] * 3,
+    })
+    kline_periods.persist_period(repo, base, frame)
+    existing = frame.slice(1, 1)
+    existing = kline_periods.aggregate_weekly(existing) if period == "1w" else kline_periods.aggregate_minute_period(existing, period)
+    kline_periods.persist_period(repo, period, existing)
+    monkeypatch.setattr(repo, "get_instruments", lambda: pl.DataFrame({"symbol": ["600000.SH"]}))
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("generation must stay local"))
+    monkeypatch.setattr(app.state.capabilities, "has", lambda cap: False)
+    for expected_close in (10.5, 12.5):
+        if expected_close == 12.5:
+            kline_periods.persist_period(repo, base, frame.tail(1).with_columns(pl.lit(12.5).alias("close")))
+        started = await kline.sync_period_job(SimpleNamespace(app=app), {"period": period})
+        job = await wait_for_job(started["job_id"])
+        assert job["status"] == "succeeded", job
+        assert job["result"]["rows"] == 3
+        assert job["result"]["source"] == base
+        assert job["result"]["start"].startswith("2026-06-01")
+        assert job["result"]["end"].startswith("2026-10-26")
+        assert repo.execute_one(f"SELECT count(*) FROM {kline_periods.TABLES[period]}")[0] == 3
+        assert repo.execute_one(f"SELECT close FROM {kline_periods.TABLES[period]} ORDER BY {column} DESC LIMIT 1")[0] == expected_close
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("period", "dependency"), [("5m", "1分K"), ("1d", "日K"), ("1w", "日K")])
+async def test_generation_with_no_base_reports_dependency_without_provider(app, monkeypatch, period, dependency):
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("empty generation must stay local"))
+    monkeypatch.setattr(app.state.capabilities, "has", lambda cap: False)
+    started = await kline.sync_period_job(SimpleNamespace(app=app), {"period": period})
+    job = await wait_for_job(started["job_id"])
+    assert job["status"] == "failed", job
+    assert dependency in job["error"]
+
+
+@pytest.mark.asyncio
+async def test_daily_generation_uses_local_pipeline_and_refreshes_cached_data(app, monkeypatch):
+    from app.services.public_query_cache import public_query_cache
+
+    repo = app.state.repo
+    daily = pl.DataFrame({
+        "symbol": ["600000.SH"] * 2, "date": [date(2026, 10, 21), date(2026, 10, 26)],
+        "open": [20., 10.], "high": [22., 11.], "low": [18., 9.], "close": [20., 10.],
+        "volume": [100., 200.], "amount": [2000., 2000.],
+    })
+    repo.append_daily(daily)
+    factors = repo.store.data_dir / "adj_factor/all.parquet"
+    factors.parent.mkdir(exist_ok=True)
+    pl.DataFrame({
+        "symbol": ["600000.SH"] * 2, "trade_date": daily["date"], "ex_factor": [1., 2.],
+    }).write_parquet(factors)
+    originals = {path: path.read_bytes() for path in (repo.store.data_dir / "kline_daily").rglob("*.parquet")}
+    monkeypatch.setattr(app.state.capabilities, "has", lambda cap: False)
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("daily generation must stay local"))
+    monkeypatch.setattr(kline.kline_sync, "sync_adj_factor", lambda *a, **kw: pytest.fail("factors must stay local"))
+    monkeypatch.setattr(kline.kline_sync, "sync_and_persist_daily_batch", lambda *a, **kw: pytest.fail("daily must stay local"))
+
+    async def generation_body():
+        return {"period": "1d"}
+
+    async def generate():
+        started = await kline.sync_period_job(SimpleNamespace(app=app, json=generation_body), {"period": "1d"})
+        job = await wait_for_job(started["job_id"])
+        assert job["status"] == "succeeded", job.get("error")
+        assert job["result"]["rows"] == 2
+        assert job["result"]["source"] == "1d"
+        assert all(path.read_bytes() == contents for path, contents in originals.items())
+        assert repo.execute_one("SELECT count(*) FROM kline_enriched")[0] == 2
+        return repo.execute_all("SELECT raw_close, close FROM kline_enriched ORDER BY date")
+
+    assert await generate() == [(20., 10.), (10., 10.)]
+    cached, _ = repo.get_enriched_latest()
+    assert cached["close"].to_list() == [10.]
+    public_query_cache.get("data:enriched", "local-generation", 60, lambda: "stale")
+    pl.DataFrame({
+        "symbol": ["600000.SH"] * 2, "trade_date": daily["date"], "ex_factor": [1., 4.],
+    }).write_parquet(factors)
+    assert await generate() == [(20., 5.), (10., 10.)]
+    assert public_query_cache.get("data:enriched", "local-generation", 60, lambda: "fresh") == "fresh"
+    assert repo.get_enriched_range(date(2026, 10, 21), date(2026, 10, 21))["close"].to_list() == [5.]
+
+
+@pytest.mark.asyncio
+async def test_explicit_daily_history_range_retains_legacy_entrypoint(app, monkeypatch):
+    called = []
+
+    async def extend(request):
+        called.append(request)
+        return {"job_id": "legacy-daily", "status": "started"}
+
+    monkeypatch.setattr(kline, "extend_history", extend)
+    request = SimpleNamespace(app=app)
+    result = await kline.sync_period_job(request, {"period": "1d", "value": 1, "unit": "month"})
+    assert result["job_id"] == "legacy-daily"
+    assert called == [request]
+
+
+@pytest.mark.asyncio
+async def test_daily_generation_cancels_before_publishing_and_releases_slot(app, monkeypatch):
+    repo = app.state.repo
+    daily = pl.DataFrame({
+        "symbol": ["600000.SH"], "date": [date(2026, 10, 26)],
+        "open": [10.], "high": [11.], "low": [9.], "close": [10.5],
+        "volume": [100.], "amount": [1000.],
+    })
+    repo.append_daily(daily)
+    repo.append_enriched(daily.with_columns(pl.lit(99.).alias("close")))
+    path = repo.store.data_dir / "kline_daily_enriched/date=2026-10-26/part.parquet"
+    original = path.read_bytes()
+    progress = pipeline_jobs.job_store.progress
+
+    def cancel_after_batch(job_id, stage, pct, msg, **kwargs):
+        if stage == "compute_enriched" and pct > 0:
+            pipeline_jobs.job_store.terminate(job_id, "cancel local generation")
+        progress(job_id, stage, pct, msg, **kwargs)
+
+    monkeypatch.setattr(pipeline_jobs.job_store, "progress", cancel_after_batch)
+    started = await kline.sync_period_job(SimpleNamespace(app=app), {"period": "1d"})
+    job = await wait_for_job(started["job_id"])
+    assert job["status"] == "cancelled", job
+    assert path.read_bytes() == original
+    assert not any((repo.store.data_dir / ".staging/enriched_rebuild").glob("*"))
+    assert pipeline_jobs.try_acquire_run_slot("after-cancel")
+    pipeline_jobs.release_run_slot("after-cancel")

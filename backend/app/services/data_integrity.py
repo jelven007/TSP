@@ -388,8 +388,10 @@ def prune_enriched_partitions(
     data_dir: Path,
     start: date,
     table: str = "kline_daily_enriched",
+    *,
+    end: date | None = None,
 ) -> int:
-    """删除 enriched 表 date ≥ start 的日期分区, 使修复重算把它们当"新日期"。
+    """删除 enriched 的指定闭区间分区; 未传end时删除 date ≥ start。
 
     股票 enriched 增量重算只算 enriched 里不存在的日期; 盘中快照日分区已存在
     (虽是错的), 不删则永远不会被重算。指数/ETF 的 enriched 走 merge-upsert
@@ -408,7 +410,7 @@ def prune_enriched_partitions(
                 d = date.fromisoformat(part.name[5:])
             except ValueError:
                 continue
-            if d >= start:
+            if d >= start and (end is None or d <= end):
                 shutil.rmtree(part, ignore_errors=True)
                 removed += 1
     return removed
@@ -420,6 +422,7 @@ def prune_realtime_residue_rows(
     table: str,
     *,
     today: date | None = None,
+    end: date | None = None,
 ) -> int:
     """删除权威 batch 重拉后仍残留的历史实时行。
 
@@ -444,7 +447,7 @@ def prune_realtime_residue_rows(
             day = date.fromisoformat(part.name[5:])
         except ValueError:
             continue
-        if day < start or day >= today:
+        if day < start or day >= today or (end is not None and day > end):
             continue
         files = sorted(part.glob("*.parquet"))
         if not files:

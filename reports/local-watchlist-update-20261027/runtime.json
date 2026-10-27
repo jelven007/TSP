@@ -1,0 +1,97 @@
+{
+  "candidate": "$TSP_LOCAL_ROOT/releases/local-watchlist-20261027",
+  "base_application_version": "0.4.31",
+  "workspace_version": "0.4.32",
+  "patch_files": 24,
+  "all_patch_hashes_verified": true,
+  "controller_root_persistent": true,
+  "roles": {
+    "platform": {
+      "pid": 3127,
+      "alive": true
+    },
+    "compute": {
+      "pid": 4061,
+      "alive": true
+    },
+    "api": {
+      "pid": 4065,
+      "alive": true,
+      "candidate_path_verified": true
+    },
+    "frontend": {
+      "pid": 4070,
+      "alive": true,
+      "candidate_path_verified": true
+    },
+    "research": {
+      "pid": 4066,
+      "alive": true
+    },
+    "realtime": {
+      "pid": 4067,
+      "alive": true
+    },
+    "notifications": {
+      "pid": 4068,
+      "alive": true
+    },
+    "scheduled": {
+      "pid": 4069,
+      "alive": true
+    }
+  },
+  "ready": true,
+  "functions": {
+    "market": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "research": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "monitoring": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "paper_trading": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "notifications": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "scheduled": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    }
+  },
+  "admin_login_verified": true,
+  "original_watchlist_preserved": true,
+  "stock_count": 16,
+  "group_count": 1,
+  "environment_and_credentials_files_unchanged": true,
+  "user_settings_unchanged": true,
+  "operational_fields_updated": [
+    "financial_sync_times",
+    "last_fetch_ms"
+  ],
+  "compute_config_unchanged": true,
+  "actual_frontend_module_verified": true,
+  "candidate_frontend_tests_passed": 20,
+  "candidate_backend_tests_passed": 71,
+  "candidate_real_sql_tests_passed": 25,
+  "workspace_frontend_tests_passed": 391,
+  "source_and_candidate_builds_passed": true,
+  "source_and_candidate_lint_passed": true,
+  "backup_restore_verified": true,
+  "remote_environment_modified": false
+}

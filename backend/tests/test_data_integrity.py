@@ -327,6 +327,28 @@ def test_prune_enriched_partitions_removes_only_range(tmp_path):
     assert not (base / f"date={FRIDAY.isoformat()}").exists()
     assert not (base / f"date={TODAY.isoformat()}").exists()
 
+def test_prune_enriched_explicit_end_preserves_both_sides(tmp_path):
+    base = tmp_path / "kline_daily_enriched"
+    for day in (THURSDAY, FRIDAY, TODAY):
+        part = base / f"date={day}"
+        part.mkdir(parents=True)
+        (part / "part.parquet").write_bytes(b"x")
+    assert prune_enriched_partitions(tmp_path, FRIDAY, end=FRIDAY) == 1
+    assert (base / f"date={THURSDAY}").exists()
+    assert not (base / f"date={FRIDAY}").exists()
+    assert (base / f"date={TODAY}").exists()
+
+
+def test_realtime_cleanup_respects_inclusive_end_and_never_touches_today(tmp_path):
+    for day in (THURSDAY, FRIDAY, TODAY):
+        _write_daily_partition(tmp_path, "kline_etf_daily", day, _ts_ms(day, time(11)))
+    assert prune_realtime_residue_rows(
+        tmp_path, THURSDAY, "kline_etf_daily", today=TODAY, end=THURSDAY,
+    ) == 1
+    assert not (tmp_path / "kline_etf_daily" / f"date={THURSDAY}").exists()
+    assert (tmp_path / "kline_etf_daily" / f"date={FRIDAY}").exists()
+    assert (tmp_path / "kline_etf_daily" / f"date={TODAY}").exists()
+
 
 def test_prune_realtime_residue_rows_keeps_batch_and_current_rows(tmp_path):
     base = tmp_path / "kline_etf_daily"

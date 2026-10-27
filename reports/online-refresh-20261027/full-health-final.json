@@ -1,0 +1,126 @@
+{
+  "checked_at": "2026-10-26T18:24:29.903268+00:00",
+  "api": {
+    "status": "degraded",
+    "ready": true,
+    "checked_at": "2026-10-26T18:24:29.989318+00:00",
+    "checks": {
+      "databases": {
+        "status": "ok"
+      },
+      "research_worker": {
+        "status": "ok",
+        "age_seconds": 1.337647,
+        "max_age_seconds": 120
+      },
+      "realtime_worker": {
+        "status": "ok",
+        "age_seconds": 2.905409,
+        "max_age_seconds": 420
+      },
+      "notifications_worker": {
+        "status": "ok",
+        "age_seconds": 0.726278,
+        "max_age_seconds": 120
+      },
+      "scheduled_worker": {
+        "status": "ok",
+        "age_seconds": 4.120514,
+        "max_age_seconds": 660
+      },
+      "public_files": {
+        "status": "ok",
+        "release_id": "b2ca498685fd48d2b1ca2c11039d0e5d"
+      },
+      "platform": {
+        "status": "ok",
+        "connected": true,
+        "last_marker_at": null,
+        "reconnects": 0,
+        "update_generation": 0,
+        "loaded_generation": 0,
+        "snapshot_fetches": 1,
+        "frame_decodes": 4
+      },
+      "indicator_cache": {
+        "status": "error"
+      },
+      "compute_broker": {
+        "status": "ok"
+      }
+    },
+    "functions": {
+      "market": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "research": {
+        "ready": false,
+        "status": "unavailable",
+        "unavailable_dependencies": [
+          "indicator_cache"
+        ]
+      },
+      "monitoring": {
+        "ready": false,
+        "status": "unavailable",
+        "unavailable_dependencies": [
+          "indicator_cache"
+        ]
+      },
+      "paper_trading": {
+        "ready": false,
+        "status": "unavailable",
+        "unavailable_dependencies": [
+          "indicator_cache"
+        ]
+      },
+      "notifications": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "scheduled": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      }
+    },
+    "version": "0.4.32",
+    "mode": "none"
+  },
+  "gateway": {
+    "status": "ok",
+    "ready": true,
+    "checks": {
+      "databases": {
+        "status": "ok"
+      },
+      "private_events": {
+        "status": "ok",
+        "listener_connected": true,
+        "subscriptions": 1,
+        "poll_runs": 19,
+        "tenant_reads": 18,
+        "notifications": 0,
+        "full_sweeps": 12,
+        "last_event_at": null
+      },
+      "revocations": {
+        "status": "ok",
+        "connected": true,
+        "last_notification_at": null
+      },
+      "public_market_events": {
+        "status": "ok",
+        "connected": true,
+        "last_marker_at": null,
+        "reconnects": 0
+      }
+    },
+    "version": "0.4.32",
+    "mode": "none"
+  },
+  "passed": false
+}

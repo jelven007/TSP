@@ -8,11 +8,11 @@ import { SettingsModal } from './SettingsModal'
 import { getCardOrder, getCardVisibility, PageSettingsModal } from './PageSettingsModal'
 
 const expectedOrder = [
-  'instruments', 'minute', '5m', '10m', '15m', 'daily', 'weekly', 'adj_factor', 'enriched',
+  'instruments', 'minute', '5m', '10m', '15m', 'quotes', 'daily', 'weekly', 'adj_factor', 'enriched',
   'financials', 'index', 'regime', 'etf',
 ]
 const expectedLabels = [
-  '个股维表', '1分K', '5分K', '10分K', '15分K', '日 K', '周K', '除权因子', 'Enriched',
+  '个股维表', '1分K', '5分K', '10分K', '15分K', '实时行情', '日 K', '周K', '除权因子', 'Enriched',
   '财务数据', '指数', '环境', 'ETF',
 ]
 const caps = { adj_factor: true, 'kline.minute.batch': true, financial: true }
@@ -61,7 +61,7 @@ it('preserves saved ordering and visibility while appending missing cards', asyn
 
   expect(getCardOrder()).toEqual([
     'financials', 'index', 'daily', 'weekly', 'instruments', 'minute', '5m', '10m', '15m',
-    'adj_factor', 'enriched', 'regime', 'etf',
+    'quotes', 'adj_factor', 'enriched', 'regime', 'etf',
   ])
   expect(storage.dataCardOrder.get([])).toEqual(saved)
   expect(getCardVisibility(caps)).toMatchObject({ minute: false, etf: true })
@@ -82,7 +82,7 @@ it('restores the system order and displays all requested cards', async () => {
     expect(renderedLabels()).toEqual(expectedLabels)
     expect(storage.dataCardOrder.get([])).toEqual(expectedOrder)
     expect(getCardOrder().filter(key => getCardVisibility(caps)[key])).toEqual(expectedOrder.slice(0, -1))
-    expect(host.querySelectorAll('[role="checkbox"][aria-checked="true"]')).toHaveLength(12)
+    expect(host.querySelectorAll('[role="checkbox"][aria-checked="true"]')).toHaveLength(13)
     expect(changed).toHaveBeenCalledOnce()
   } finally {
     window.removeEventListener('data-card-visible-change', changed)
@@ -92,6 +92,23 @@ it('restores the system order and displays all requested cards', async () => {
 it('places new periods into the requested order for the previous card layout', () => {
   storage.dataCardOrder.set(['instruments', 'minute', 'daily', 'adj_factor', 'enriched', 'regime', 'index', 'financials', 'etf'])
   expect(getCardOrder()).toEqual(expectedOrder)
+})
+
+it('inserts quotes after 15m in saved six-period layouts without moving existing cards', () => {
+  const saved = ['weekly', '15m', 'financials', 'minute', 'daily', 'instruments', '5m', '10m', 'adj_factor', 'enriched', 'index', 'regime', 'etf']
+  storage.dataCardOrder.set(saved)
+  expect(getCardOrder()).toEqual(['weekly', '15m', 'quotes', ...saved.slice(2)])
+  expect(storage.dataCardOrder.get([])).toEqual(saved)
+})
+
+it('preserves a user-selected quote position and visibility after reopening', async () => {
+  const saved = ['quotes', ...expectedOrder.filter(key => key !== 'quotes')]
+  storage.dataCardOrder.set(saved)
+  storage.dataCardVisible.set({ quotes: false })
+  await act(async () => root.render(<PageSettingsModal caps={caps} />))
+  expect(getCardOrder()).toEqual(saved)
+  expect(renderedLabels()[0]).toBe('实时行情')
+  expect(host.querySelector('[aria-label="显示实时行情"]')?.getAttribute('aria-checked')).toBe('false')
 })
 
 it.each([null, 'weekly', { length: 1 }, 1])('opens page settings with invalid saved order %j', async (saved) => {

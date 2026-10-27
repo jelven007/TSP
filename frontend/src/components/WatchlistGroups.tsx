@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronDown, ChevronUp, Download, FolderCog, FolderInput, Pencil, Plus, Trash2, X, Eraser } from 'lucide-react'
 import { Modal, useModalPortalContainer } from '@/components/Modal'
 import { api } from '@/lib/api'
+import { downloadWatchlistCsv } from '@/lib/watchlistCsv'
 import { hasPermission } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
 import { usePreferences } from '@/lib/useSharedQueries'
@@ -30,7 +31,7 @@ interface GroupBarProps {
   /** 分组等权平均涨跌幅 (key: 'all' | 'ungrouped' | 分组id); 缺省不显示 */
   pcts?: GroupPctMap
   onSelect: (group: WatchlistGroupFilter) => void
-  onCreate: (name: string, color: WatchlistGroupColor, file?: File) => Promise<void>
+  onCreate: (name: string, color: WatchlistGroupColor) => Promise<void>
   onRename: (groupId: string, name: string, color: WatchlistGroupColor) => Promise<void>
   onDelete: (groupId: string) => Promise<void>
   onClearGroup?: (groupId: string) => Promise<void>
@@ -283,7 +284,6 @@ function GroupManagerDialog({
   onReorder,
 }: Omit<GroupBarProps, 'total' | 'onSelect' | 'onClearGroup'> & { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const csvRef = useRef<HTMLInputElement>(null)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState<WatchlistGroupColor>(DEFAULT_WATCHLIST_GROUP_COLOR)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -292,7 +292,6 @@ function GroupManagerDialog({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
-  const [csvFile, setCsvFile] = useState<File | undefined>()
   const [exportGroupId, setExportGroupId] = useState(() => groups.some(group => group.id === selected) ? selected : '')
   const [exporting, setExporting] = useState(false)
   const exportGroup = groups.find(group => group.id === exportGroupId)
@@ -312,14 +311,7 @@ function GroupManagerDialog({
       if (!mountedRef.current) return
       const members = symbols.filter(entry => entry.group_ids?.includes(exportGroup.id))
       if (!members.length) throw new Error('该分组没有股票可导出')
-      const lines = ['股票代码', ...members.map(entry => entry.symbol)]
-      const blob = new Blob(['\ufeff' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${exportGroup.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')}_股票列表.csv`
-      link.click()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      downloadWatchlistCsv(members, `${exportGroup.name}_股票列表.csv`)
     } catch (err) {
       if (mountedRef.current) setError(err instanceof Error ? err.message : '导出失败')
     } finally {
@@ -368,9 +360,8 @@ function GroupManagerDialog({
       return
     }
     await run(async () => {
-      await onCreate(newName.trim(), newColor, csvFile)
+      await onCreate(newName.trim(), newColor)
       setNewName('')
-      setCsvFile(undefined)
       setNewColor(DEFAULT_WATCHLIST_GROUP_COLOR)
       inputRef.current?.focus()
     })
@@ -455,28 +446,13 @@ function GroupManagerDialog({
             className="inline-flex h-8 items-center gap-1.5 rounded-btn bg-accent px-3 text-xs text-white disabled:opacity-50"
           >
             <Plus className="h-3.5 w-3.5" />
-            {csvFile ? '新建并导入' : '新建'}
+            新建
           </button>
         </div>
         <div className="mt-2 flex items-start gap-2">
           <span className="mt-1 shrink-0 text-[11px] text-muted">分组颜色</span>
           <GroupColorPicker value={newColor} onChange={setNewColor} />
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <input ref={csvRef} type="file" accept=".csv" aria-label="导入分组 CSV" className="hidden"
-            onChange={event => {
-              setCsvFile(event.target.files?.[0])
-              event.target.value = ''
-            }} />
-          <button type="button" disabled={pending} onClick={() => csvRef.current?.click()}
-            className="rounded-btn border border-border px-2.5 py-1.5 text-secondary hover:text-accent disabled:opacity-50">
-            导入 CSV 股票列表
-          </button>
-          {csvFile && <span className="min-w-0 break-all text-muted">{csvFile.name}
-            <button type="button" aria-label="移除 CSV 文件" onClick={() => setCsvFile(undefined)} className="ml-1 text-danger">×</button>
-          </span>}
-        </div>
-        <p className="mt-1.5 text-[11px] text-muted">CSV 只需包含股票代码；选择文件后点击「新建并导入」。</p>
         {error && <p role="alert" className="mt-2 text-xs text-danger">{error}</p>}
       </div>
 

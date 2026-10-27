@@ -1,0 +1,10 @@
+{
+  "run": 40370758749,
+  "summary_lines": [
+    "frontend\t\u524d\u7aef\u5168\u91cf\u6d4b\u8bd5\t2026-10-26T17:41:17.6338616Z ^[[2m Test Files ^[[22m ^[[1m^[[32m76 passed^[[39m^[[22m^[[90m (76)^[[39m",
+    "frontend\t\u524d\u7aef\u5168\u91cf\u6d4b\u8bd5\t2026-10-26T17:41:17.6340236Z ^[[2m      Tests ^[[22m ^[[1m^[[32m364 passed^[[39m^[[22m^[[90m (364)^[[39m",
+    "backend\t\u7248\u672c\u89c4\u5219\u6d4b\u8bd5\t2026-10-26T17:41:36.2342833Z 134 passed in 14.84s",
+    "backend\t\u68c0\u67e5 rustdx \u539f\u751f\u6865\u63a5\t2026-10-26T17:41:47.5464607Z test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "backend\t\u540e\u7aef\u5168\u91cf\u6d4b\u8bd5\t2026-10-26T17:46:06.9696748Z 4610 passed, 9 skipped, 151 warnings in 257.65s (0:04:17)"
+  ]
+}

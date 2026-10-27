@@ -1,0 +1,14 @@
+{
+  "version": "0.4.32",
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "merge_revision": "6fbf27f19b89c89c4843942bb7b598bc2d4fe4b9",
+  "pr": 28,
+  "pr_head": "85d753b96aa44e80764c77a376996df4bcd792b4",
+  "pr_ci": 40369618258,
+  "main_ci": 40370758749,
+  "registry_evidence": "$TSP_WORK_TMP/tspp-online-refresh-20261027/registry.json",
+  "digest": "sha256:d4ebf07c54e20fcc5d96695520999efa58887dfd9f12d2c401f3d115f52d4059",
+  "runtime_child": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+  "runtime_config": "sha256:e46d2f8772f81ba3d3f8aa13cb2212931607e4f114cb17cdd9d497125cdded42",
+  "source_hash": "0d1334b5599d29611ff37ca4acd4dedf5fdcde1951d8827ebf46c4575d142845"
+}

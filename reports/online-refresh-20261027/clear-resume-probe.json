@@ -1,0 +1,7 @@
+{
+  "configuration_validated": true,
+  "smtp_port_is_integer": true,
+  "uid": 10001,
+  "gid": 10001,
+  "private_config_written": false
+}

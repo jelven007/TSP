@@ -198,6 +198,7 @@ def run_now(
     override_start_date: _date | None = None,
     *,
     initial_sync: bool = False,
+    override_end_date: _date | None = None,
 ) -> dict:
     """立即执行一次盘后管道,支持进度回调。
 
@@ -205,11 +206,17 @@ def run_now(
     result 里带 skipped_stages 列表供前端展示。
 
     override_start_date: 传入时强制走 batch 拉取分支,用该日期作为日K/除权/指数的
-        拉取起点(到今天),用于「数据修正/补数据」场景。None 时走原有自动判定逻辑。
+        拉取起点,用于「数据修正/补数据」场景。None 时走原有自动判定逻辑。
+    override_end_date: 指定修正结束日期(包含当天); 缺省到北京今天。
     """
     emit = on_progress or _noop
     if initial_sync and override_start_date is None:
         override_start_date = cn_today() - _td(days=365)
+    if override_end_date is not None:
+        if override_start_date is None or override_end_date < override_start_date:
+            raise ValueError("结束日期需要有效的起始日期且不能早于起始日期")
+        if override_end_date > cn_today():
+            raise ValueError("结束日期不能晚于今天")
     skipped: list[str] = []
     # 阶段软失败累积: 下列阶段 try/except 吞异常以不中断管道, 但失败即代表数据可能陈旧。
     # 管道末尾若非空则抛 PipelineStageError, 让任务终态如实标记为 failed(而非误报成功)。
@@ -253,6 +260,7 @@ def run_now(
     # 管道「今天」必须是北京日期: 美西主机 15:35 北京时间仍是本地昨天,
     # date.today() 会把昨日日K当成已齐, 当日官方收盘价永远拉不进来。
     today = cn_today()
+    range_end = override_end_date if override_end_date is not None else today
     today_exists = latest_daily and latest_daily >= today
     new_daily_days = 0
 
@@ -297,8 +305,8 @@ def run_now(
         # 数据修正: 强制用传入日期作起点 batch 拉取, 忽略实时行情覆写分支。
         start_date = override_start_date
         daily_range_start = start_date
-        emit("sync_daily", 12, f"获取日K [{start_date} ~ {today}]…")
-        logger.info("sync_daily: [%s ~ %s] repair/override", start_date, today)
+        emit("sync_daily", 12, f"获取日K [{start_date} ~ {range_end}]…")
+        logger.info("sync_daily: [%s ~ %s] repair/override", start_date, range_end)
 
         def _daily_chunk_progress(cur: int, tot: int) -> None:
             emit("sync_daily", 12 + int(33 * cur / tot),
@@ -306,14 +314,14 @@ def run_now(
         written_daily = kline_sync.sync_and_persist_daily_batch(
             universe, repo, capset,
             start_date=_dt.combine(start_date, _dt.min.time()),
-            end_date=_dt.combine(today, _dt.min.time()),
+            end_date=_dt.combine(range_end, _dt.min.time()),
             on_chunk_done=_daily_chunk_progress,
             **({"strict": True} if initial_sync else {}),
         )
-        gap_days = (today - start_date).days
+        gap_days = (range_end - start_date).days + (1 if override_end_date is not None else 0)
         new_daily_days = gap_days
         emit("sync_daily", 45, f"日K 完成,覆盖 {gap_days} 天")
-        logger.info("sync_daily: [%s ~ %s] done, %d days", start_date, today, gap_days)
+        logger.info("sync_daily: [%s ~ %s] done, %d days", start_date, range_end, gap_days)
     elif (
         today_exists
         and stale_day is None
@@ -387,9 +395,11 @@ def run_now(
             from app.services.data_integrity import prune_enriched_partitions
             pruned = prune_enriched_partitions(
                 repo.store.data_dir, repair_start, "kline_daily_enriched",
+                **({"end": range_end} if override_end_date is not None else {}),
             )
             if pruned:
-                logger.info("integrity: 已删除 %d 个待重算的 enriched 分区 (≥ %s)", pruned, repair_start)
+                logger.info("integrity: 已删除 %d 个待重算的 enriched 分区 (起点 %s, 终点 %s)",
+                            pruned, repair_start, override_end_date or "不限")
         except Exception as e:  # noqa: BLE001
             logger.warning("enriched prune failed (soft): %s", e)
 
@@ -420,7 +430,7 @@ def run_now(
     can_sync_adj = capset.has(Cap.ADJ_FACTOR) or adj_provider != "tickflow"
     if can_sync_adj:
         from datetime import datetime, timedelta
-        adj_end = datetime.now()
+        adj_end = datetime.combine(range_end, datetime.max.time()) if override_end_date is not None else datetime.now()
         if daily_range_start is not None:
             adj_start = datetime.combine(daily_range_start, datetime.min.time())
         else:
@@ -471,7 +481,8 @@ def run_now(
     # 部分分区修复 (#223) + 收盘价过期分区修复: 删除被实时合并提前创建、覆盖不全
     # 或收盘价停留在竞价前快照的 enriched 分区, 让下方计数比较与增量计算把它们
     # 重新当新日期处理 (值级比对以官方日线为准, 实时源不纠错也能自愈)
-    if enriched_exists:
+    # 显式区间已在上方删除待重算分区; 不附带清理区间外的自动自愈候选。
+    if enriched_exists and override_end_date is None:
         partial_pruned = _prune_partial_enriched_partitions(daily_dir, enriched_dir)
         stale_pruned = _prune_stale_price_partitions(daily_dir, enriched_dir)
         pruned_dates = sorted(set(partial_pruned) | set(stale_pruned))
@@ -599,7 +610,7 @@ def run_now(
                     repo,
                     capset,
                     start_date=_dt.combine(index_start, _dt.min.time()),
-                    end_date=_dt.combine(today, _dt.min.time()),
+                    end_date=_dt.combine(range_end, _dt.min.time()),
                     on_chunk_done=_index_chunk,
                 )
                 emit("sync_index", 88, f"指数日K完成,{written_index_daily} 行")
@@ -619,11 +630,15 @@ def run_now(
                     try:
                         emit("sync_index", 88, "同步 ETF 除权因子…")
                         from datetime import datetime, timedelta
-                        adj_end = datetime.now()
+                        adj_end = datetime.combine(range_end, datetime.max.time()) if override_end_date is not None else datetime.now()
                         adj_path = repo.store.data_dir / "adj_factor_etf" / "all.parquet"
                         # 首次无文件时与 ETF 日K 默认一年窗口对齐, 不要只拉 30 天。
                         history_start = adj_end - timedelta(days=365)
-                        adj_start = index_sync.etf_adj_factor_window_start(adj_path, history_start)
+                        adj_start = (
+                            datetime.combine(override_start_date, datetime.min.time())
+                            if override_end_date is not None
+                            else index_sync.etf_adj_factor_window_start(adj_path, history_start)
+                        )
                         _, affected_etfs = index_sync.sync_etf_adj_factor(
                             etf_symbols,
                             repo,
@@ -657,7 +672,7 @@ def run_now(
                     repo,
                     capset,
                     start_date=_dt.combine(etf_start, _dt.min.time()),
-                    end_date=_dt.combine(today, _dt.min.time()),
+                    end_date=_dt.combine(range_end, _dt.min.time()),
                     on_chunk_done=_etf_chunk,
                 )
                 if override_start_date is not None and written_etf_daily:
@@ -668,6 +683,7 @@ def run_now(
                         override_start_date,
                         "kline_etf_daily",
                         today=today,
+                        **({"end": range_end} if override_end_date is not None else {}),
                     )
                     if removed:
                         logger.info(
@@ -694,7 +710,7 @@ def run_now(
 
     # Step 2.5: 分钟 K 同步(可选) — 未启用或无 capability 时静默跳过(不 emit)
     from app.services import preferences
-    minute_on = initial_sync or preferences.get_minute_sync_enabled()
+    minute_on = override_end_date is None and (initial_sync or preferences.get_minute_sync_enabled())
     minute_days = preferences.get_minute_sync_days()
     written_minute = 0
     if minute_on and capset.has(Cap.KLINE_MINUTE_BATCH):

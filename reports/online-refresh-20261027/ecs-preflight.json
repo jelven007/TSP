@@ -1,0 +1,78 @@
+{
+  "checked_at": "2026-10-26T17:23:37.140670+00:00",
+  "version": "v0.4.31",
+  "source": "/opt/tsp-full/releases/6b86f724940682c802919c680e224a6d7510064e",
+  "runtime": "sha256:a65fa3cbbf76be5194adbfa03ebfbb74eee56dee4079e18450036e334f7dc5cb",
+  "data_root": "/opt/tsp-full/platform-data",
+  "tables": {
+    "kline_daily": {
+      "files": 1209,
+      "bytes": 125514083,
+      "rows": 5949170
+    },
+    "kline_daily_enriched": {
+      "files": 1209,
+      "bytes": 328229647,
+      "rows": 5949170
+    },
+    "kline_index_daily": {
+      "files": 242,
+      "bytes": 4420528,
+      "rows": 134000
+    },
+    "kline_index_enriched": {
+      "files": 242,
+      "bytes": 7314156,
+      "rows": 134000
+    },
+    "kline_etf_daily": {
+      "files": 242,
+      "bytes": 2421675,
+      "rows": 61779
+    },
+    "kline_etf_enriched": {
+      "files": 242,
+      "bytes": 4036917,
+      "rows": 61779
+    },
+    "kline_etf_minute": {
+      "files": 0,
+      "bytes": 0,
+      "rows": 0
+    },
+    "kline_minute": {
+      "files": 141,
+      "bytes": 1289984142,
+      "rows": 113362619
+    },
+    "kline_5minute": {
+      "files": 1,
+      "bytes": 2545166,
+      "rows": 177389
+    },
+    "kline_10minute": {
+      "files": 1,
+      "bytes": 1381148,
+      "rows": 88698
+    },
+    "kline_15minute": {
+      "files": 1,
+      "bytes": 938064,
+      "rows": 57396
+    },
+    "kline_weekly": {
+      "files": 43,
+      "bytes": 4829132,
+      "rows": 222966
+    }
+  },
+  "configuration_hashes": {
+    "tsp-full/platform-config/preferences.json": "75185ce54816654c621ee550bdf5d9b208afa410d2603653457b4a3bd9930564",
+    "tsp-full/platform-config/secrets.json": "678101219a876001ed698c04ffd3896642500063fb5c716441bbc1b7f889c625"
+  },
+  "auto_sync_before": true,
+  "public_current": "/opt/tsp-full/public/releases/12cc3d826ac64c4bb8ad1737d6d33c5e",
+  "active_jobs": [],
+  "free_bytes": 130341687296,
+  "data_deleted": false
+}

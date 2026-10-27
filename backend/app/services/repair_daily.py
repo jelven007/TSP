@@ -3,7 +3,7 @@
 典型场景: 昨天没看盘 / 服务挂了一天,本地日K缺了若干天。
 
 全量模式不重复盘后管道逻辑, 直接调用 daily_pipeline.run_now(),
-通过 override_start_date 参数把"自动算日期"换成"用户指定起点",
+通过 override_start_date/override_end_date 参数使用用户指定日期区间,
 读取已有维表股票池, 其余 (A股日K / 除权因子 / enriched / 指数 / ETF / 错误兜底) 全部原样复用。
 遗漏模式独立检测实际缺少的记录, 复用原Provider与仓库写入契约。
 
@@ -38,14 +38,14 @@ def run_repair_daily(
 ) -> dict:
     """修正 / 补全数据, 日期范围由用户指定; 旧调用默认全量日K。
 
-    通过 run_now(override_start_date=start_date) 把日K/除权/指数的拉取起点
-    统一设为 start_date (到今天),其余流程与盘后管道完全一致。
+    通过 run_now 的日期覆盖参数统一日K/除权/指数的拉取范围;
+    未填写结束日期时到今天, 复用既有盘后管道。
 
     Args:
         repo:          数据仓库
         capset:        权限集
         start_date:    用户选定的起始日期
-        end_date:      遗漏检测结束日期; 全量模式保持原固定到今天的行为。
+        end_date:      两种模式的结束日期(包含当天); 缺省今天。
         on_progress:   进度回调
         period:        六周期之一; 5m/10m/15m只读取本地1m, 周K只读取本地日K。
         mode:          full重拉选定区间; missing只补缺少的证券/时间记录, 不覆盖已有值。
@@ -58,6 +58,11 @@ def run_repair_daily(
     today = cn_today()
     if start_date > today:
         return {"error": "起始日期不能晚于今天"}
+    range_end = end_date if end_date is not None else today
+    if range_end < start_date:
+        return {"error": "结束日期不能早于起始日期"}
+    if range_end > today:
+        return {"error": "结束日期不能晚于今天"}
 
     from app.jobs.daily_pipeline import run_now
     from app.services import instrument_sync, kline_periods
@@ -72,14 +77,14 @@ def run_repair_daily(
         try:
             if mode == "missing":
                 from app.services.kline_gaps import sync_missing
-                return sync_missing(repo, period, start_date, min(end_date or today, today), on_progress=on_progress)
+                return sync_missing(repo, period, start_date, range_end, on_progress=on_progress)
             if period != "1d":
                 snapshot = instrument_sync.load_current_stock_pool(repo.store.data_dir, require_complete=True)
                 # 周K以周一入库, 周中起始日期也必须包含所在周的整根K线。
                 period_start = start_date - timedelta(days=start_date.weekday()) if period == "1w" else start_date
                 result = kline_periods.sync_period(
                     repo, period, datetime.combine(period_start, time.min),
-                    datetime.combine(today, time.max), symbols=list(snapshot.symbols),
+                    datetime.combine(range_end, time.max), symbols=list(snapshot.symbols),
                     on_progress=on_progress,
                 )
                 if result["rows"] == 0:
@@ -91,7 +96,10 @@ def run_repair_daily(
                         else f"数据源未返回选定区间的{kline_periods.LABELS[period]}数据"
                     )
                 return result
-            return run_now(repo, capset, on_progress=on_progress, override_start_date=start_date)
+            return run_now(
+                repo, capset, on_progress=on_progress, override_start_date=start_date,
+                **({"override_end_date": end_date} if end_date is not None else {}),
+            )
         finally:
             # 修正会重写今日 enriched 分区。不重建内存缓存的话, 行情/选股器会继续
             # 返回修复前的盘中旧快照 (与盘后管道 _pipeline_then_refresh 对齐:

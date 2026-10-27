@@ -22,7 +22,7 @@ import { storage } from '@/lib/storage'
 export type CardKey =
   | 'instruments' | 'daily' | 'adj_factor' | 'enriched'
   | 'index' | 'etf' | 'minute' | 'financials' | 'regime'
-  | '5m' | '10m' | '15m' | 'weekly'
+  | '5m' | '10m' | '15m' | 'weekly' | 'quotes'
 
 interface CardDef {
   key: CardKey
@@ -41,6 +41,7 @@ export const DATA_CARD_DEFS: CardDef[] = [
   { key: '5m', label: '5分K', desc: '由本地1分K计算，不请求上游', defaultHiddenIfNoCap: false },
   { key: '10m', label: '10分K', desc: '由本地1分K计算，不请求上游', defaultHiddenIfNoCap: false },
   { key: '15m', label: '15分K', desc: '由本地1分K计算，不请求上游', defaultHiddenIfNoCap: false },
+  { key: 'quotes', label: '实时行情', desc: '实时行情开关、轮询间隔和运行状态', defaultHiddenIfNoCap: false },
   { key: 'daily',       label: '日 K',     desc: 'A 股日K线数据',          defaultHiddenIfNoCap: false },
   { key: 'weekly', label: '周K', desc: '由本地日K计算，不请求上游', defaultHiddenIfNoCap: false },
   { key: 'adj_factor',  label: '除权因子', desc: '复权计算因子',           defaultHiddenIfNoCap: true },
@@ -101,7 +102,11 @@ export function getCardOrder(): CardKey[] {
   const ordered = [...new Set(saved.filter(k => known.has(k as CardKey)))] as CardKey[]
   // 补齐新增的 key(默认顺序里新增的卡片追加到末尾)
   for (const k of DEFAULT_ORDER) {
-    if (!ordered.includes(k)) ordered.push(k)
+    if (k !== 'quotes' && !ordered.includes(k)) ordered.push(k)
+  }
+  // 实时行情首次迁入15分K后；用户已保存的新位置继续保留。
+  if (!ordered.includes('quotes')) {
+    ordered.splice(ordered.indexOf('15m') + 1, 0, 'quotes')
   }
   return ordered
 }

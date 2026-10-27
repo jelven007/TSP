@@ -1,0 +1,27 @@
+{
+  "checked_at": "2026-10-26T18:10:44.019510+00:00",
+  "site": "https://shanao.asia",
+  "version": "0.4.31",
+  "status": "ok",
+  "ready": true,
+  "checks": {
+    "databases": "ok",
+    "research_worker": "ok",
+    "realtime_worker": "ok",
+    "notifications_worker": "ok",
+    "scheduled_worker": "ok",
+    "public_files": "ok",
+    "platform": "ok",
+    "indicator_cache": "ok",
+    "compute_broker": "ok"
+  },
+  "functions": {
+    "market": true,
+    "research": true,
+    "monitoring": true,
+    "paper_trading": true,
+    "notifications": true,
+    "scheduled": true
+  },
+  "passed": true
+}

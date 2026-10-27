@@ -1,0 +1,22 @@
+{
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "version": "0.4.32",
+  "digest": "sha256:d4ebf07c54e20fcc5d96695520999efa58887dfd9f12d2c401f3d115f52d4059",
+  "platforms": {
+    "amd64": {
+      "digest": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "config_digest": "sha256:e46d2f8772f81ba3d3f8aa13cb2212931607e4f114cb17cdd9d497125cdded42",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "oci_version": "4da5f30c9b5165612d78b573c142612f3fe25395"
+    },
+    "arm64": {
+      "digest": "sha256:2b6676f83665ca83d04aada8e0b63e2266800b5f8ffee0bc90d5f14661c7fb60",
+      "config_digest": "sha256:831f03783dba52fb4f06b905f2a78ef1501cc5b2be32b7d3620c2da18d0a3ee0",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "oci_version": "4da5f30c9b5165612d78b573c142612f3fe25395"
+    }
+  },
+  "latest_digest": "sha256:ce68d5c78983272395bad829da6a0cbd938a7dafd583b8fc0a564435a0f8d24a",
+  "latest_matches": false,
+  "passed": true
+}

@@ -1,0 +1,11 @@
+{
+  "checked_at": "2026-10-26T17:39:48.730805+00:00",
+  "pr": 28,
+  "head": "85d753b96aa44e80764c77a376996df4bcd792b4",
+  "pr_ci": 40369618258,
+  "quality_passed": true,
+  "review": "source-review.md",
+  "release_readiness": "release-readiness.md",
+  "authorization": "prior and current explicit repository integration and online upgrade",
+  "merge_method": "squash"
+}
