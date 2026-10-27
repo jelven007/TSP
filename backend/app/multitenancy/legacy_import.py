@@ -193,6 +193,10 @@ def build_plan(root: Path, tenant_id: str, author: dict, *, executor=None, chann
             if row.get("added_at"):
                 values["added_at"] = timestamp(row["added_at"])
             plan.add("watchlist_items", **values)
+            if row.get("strategy_ids"):
+                plan.document("watchlist_strategies", row["symbol"], {
+                    "strategy_ids": list(dict.fromkeys(row["strategy_ids"])),
+                })
             for group_id in dict.fromkeys(row.get("group_ids") or ([row["group_id"]] if row.get("group_id") else [])):
                 if group_id not in group_ids:
                     raise ValueError("legacy watchlist references a missing group")

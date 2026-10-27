@@ -1,0 +1,11 @@
+{
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "version": "0.4.32",
+  "runtime": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+  "compute": "sha256:c6e6c4765f388e279a43159ef564c85caa1acec3552f52771a20699123be2114",
+  "preserved_private_configuration": true,
+  "backup": "/opt/tsp-full/backups/pre-v0.4.32-4da5f30c9b51",
+  "previous_source": "/opt/tsp-full/source.pre-4da5f30c9b51",
+  "schema_changed": false,
+  "checked_at": "2026-10-26T18:18:28.025900+00:00"
+}

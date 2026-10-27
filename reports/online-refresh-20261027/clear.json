@@ -1,0 +1,29 @@
+{
+  "release_id": "29811c051f984955b98070644229f9c8",
+  "public_id": "b2ca498685fd48d2b1ca2c11039d0e5d",
+  "generations": {
+    "stock": "9ebb153f66ae4cada8a35a7a5c5737dd",
+    "etf": "74f6609f830b4a81926c7604ad69000a",
+    "index": "2264245698e14efabe4c2bc8d8ea6c2a"
+  },
+  "tables": [
+    "kline_daily",
+    "kline_daily_enriched",
+    "kline_index_daily",
+    "kline_index_enriched",
+    "kline_etf_daily",
+    "kline_etf_enriched",
+    "kline_etf_minute",
+    "kline_minute",
+    "kline_5minute",
+    "kline_10minute",
+    "kline_15minute",
+    "kline_weekly"
+  ],
+  "source_and_current_empty": true,
+  "auto_sync_enabled": false,
+  "checked_at": "2026-10-26T18:17:43.064369+00:00",
+  "retained_originals": "/opt/tsp-full/backups/pre-v0.4.32-4da5f30c9b51/retained-originals",
+  "version": "0.4.32",
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395"
+}

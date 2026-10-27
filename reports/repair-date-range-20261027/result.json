@@ -1,0 +1,71 @@
+{
+  "environment": {
+    "url": "http://127.0.0.1:3199/",
+    "browser": "Chrome via existing Playwright",
+    "reason": "Browser plugin not available",
+    "viewports": [
+      "1440x1000 dark",
+      "390x844 light"
+    ],
+    "actualComponents": [
+      "RepairDailyPanel",
+      "SettingsModal",
+      "DatePicker"
+    ]
+  },
+  "checks": [
+    {
+      "check": "default period, two choices, today default, start calendar, typed end, native keyboard edit",
+      "result": "pass",
+      "keyboardValue": "2026-10-22"
+    },
+    {
+      "check": "full error and retry; minute missing request has selected closed range",
+      "result": "pass"
+    },
+    {
+      "check": "390px light theme, empty/reversed/future blocked, same day valid, no horizontal overflow",
+      "result": "pass",
+      "geometry": {
+        "documentWidth": 390,
+        "viewportWidth": 390,
+        "panelLeft": 16,
+        "panelRight": 374,
+        "panelWidth": 356,
+        "panelScrollWidth": 356
+      }
+    },
+    {
+      "check": "running task and unavailable source disable acquisition",
+      "result": "pass"
+    }
+  ],
+  "requests": [
+    {
+      "start_date": "2026-10-22",
+      "period": "1d",
+      "mode": "full",
+      "end_date": "2026-10-23"
+    },
+    {
+      "start_date": "2026-10-22",
+      "period": "1d",
+      "mode": "full",
+      "end_date": "2026-10-23"
+    },
+    {
+      "start_date": "2026-10-22",
+      "period": "1m",
+      "mode": "missing",
+      "end_date": "2026-10-23"
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ],
+  "explainedConsoleMessages": [
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ],
+  "scope": "isolated actual components with intercepted API; no live market request or production update"
+}

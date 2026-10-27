@@ -179,6 +179,10 @@ def test_in_process_backtests_share_capacity(capacity, monkeypatch, kind):
     ("/api/kline/rebuild_enriched", {}, "app.indicators.pipeline", "run_pipeline", 3),
     ("/api/kline/sync_minute", {"days": 1},
      "app.services.kline_sync", "sync_and_persist_minute", 3),
+    ("/api/kline/sync_period", {"period": "5m"},
+     "app.services.kline_periods", "generate_period", {"rows": 3}),
+    ("/api/kline/sync_period", {"period": "1d"},
+     "app.services.kline_periods", "generate_period", {"rows": 3}),
 ])
 def test_api_jobs_wait_before_computing(
     capacity, monkeypatch, tmp_path, endpoint, body, module_name, function_name, result,

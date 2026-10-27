@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-10-26T18:01:09.891534+00:00",
+  "review": "deliverables/online-refresh-20261027/release-readiness.md",
+  "review_sha256": "3cd10ecd31e1ae2f3aad178489db8f665ff681cad4b3a027a65dfa8c6ebd064d",
+  "stage": "prepare immutable Runtime/Compute only",
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "version": "0.4.32",
+  "index": "sha256:d4ebf07c54e20fcc5d96695520999efa58887dfd9f12d2c401f3d115f52d4059",
+  "amd64_config": "sha256:e46d2f8772f81ba3d3f8aa13cb2212931607e4f114cb17cdd9d497125cdded42",
+  "main_and_tag_verified": true,
+  "backup_clear_promote_still_gated": true,
+  "authorization": "user requested latest local environment online upgrade and K-line deletion"
+}

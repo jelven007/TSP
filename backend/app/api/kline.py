@@ -1264,20 +1264,22 @@ async def sync_period_job(request: Request, body: dict):
         try_acquire_run_slot,
     )
     period = body.get("period", "")
-    if period not in kline_periods.TABLES:
+    if not isinstance(period, str) or period not in kline_periods.TABLES:
         raise HTTPException(status_code=422, detail="不支持的K线周期")
-    if period == "1d":
-        # 保留原离线日K的复权、指标流水线。
+    generate = period != "1m" and "value" not in body and "unit" not in body
+    if period == "1d" and not generate:
+        # 兼容旧客户端显式历史范围; 新卡片只提交周期, 使用本地生成。
         return await extend_history(request)
     repo = request.app.state.repo
-    earliest, _ = kline_periods.period_bounds(repo, period)
-    from app.market_time import cn_today
-    anchor = earliest or cn_today()
-    try:
-        start_day = kline_periods.history_start(anchor, body.get("value", 6), body.get("unit", "month"))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    end_day = anchor if earliest else cn_today()
+    if not generate:
+        earliest, _ = kline_periods.period_bounds(repo, period)
+        from app.market_time import cn_today
+        anchor = earliest or cn_today()
+        try:
+            start_day = kline_periods.history_start(anchor, body.get("value", 6), body.get("unit", "month"))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        end_day = anchor if earliest else cn_today()
     job_id, is_new = job_store.create(long_running=True, kind=f"kline_{period}", request=body)
     if not is_new:
         return {"status": "reused", "job_id": job_id}
@@ -1289,10 +1291,11 @@ async def sync_period_job(request: Request, body: dict):
         def progress(stage, pct, msg, stage_pct=None):
             job_store.progress(job_id, stage, pct, msg, stage_pct=stage_pct)
         try:
-            progress(f"sync_{period}", 0, "准备离线补齐…", stage_pct=0)
+            progress("compute_enriched" if generate and period == "1d" else f"sync_{period}", 0,
+                     "准备生成本地数据…" if generate else "准备离线补齐…", stage_pct=0)
             result = await asyncio.get_running_loop().run_in_executor(
                 _long_task_executor, run_with_capacity, job_id,
-                lambda: kline_periods.sync_period(
+                lambda: kline_periods.generate_period(repo, period, on_progress=progress) if generate else kline_periods.sync_period(
                     repo, period, datetime.combine(start_day, time.min),
                     datetime.combine(end_day, time.max), on_progress=progress,
                 ),
@@ -1615,9 +1618,10 @@ async def extend_history(request: Request):
 
 @router.post("/repair_daily")
 async def repair_daily(request: Request):
-    """六周期K线修正 — 从指定起始日期修正到今天, 旧调用默认全量日K。
+    """K线修正 — 指定闭区间; 旧调用默认全量日K并修正到今天。
 
-    body: { "start_date": "YYYY-MM-DD", "period": "1d", "mode": "full" | "missing" }
+    body: { "start_date": "YYYY-MM-DD", "end_date"?: "YYYY-MM-DD",
+            "period": "1d", "mode": "full" | "missing" }
     返回 job_id,可轮询 /api/pipeline/jobs 查看进度。
     """
     import asyncio
@@ -1642,8 +1646,24 @@ async def repair_daily(request: Request):
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="start_date 格式错误 (应为 YYYY-MM-DD)") from exc
 
-        if start_date > cn_today():
+        today = cn_today()
+        if start_date > today:
             raise HTTPException(status_code=400, detail="起始日期不能晚于今天")
+        end_date = None
+        if "end_date" in body:
+            raw_end = body["end_date"]
+            try:
+                if not isinstance(raw_end, str):
+                    raise ValueError("expected date string")
+                end_date = _date.fromisoformat(raw_end)
+                if raw_end != end_date.isoformat():
+                    raise ValueError("expected YYYY-MM-DD")
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="end_date 格式错误 (应为 YYYY-MM-DD)") from exc
+            if end_date < start_date:
+                raise HTTPException(status_code=400, detail="结束日期不能早于起始日期")
+            if end_date > today:
+                raise HTTPException(status_code=400, detail="结束日期不能晚于今天")
 
         repo = request.app.state.repo
         capset = request.app.state.capabilities
@@ -1675,7 +1695,11 @@ async def repair_daily(request: Request):
         job_id, is_new = job_store.create(
             long_running=period.endswith("m"),
             kind="repair_daily" if period == "1d" else f"kline_{period}",
-            request={"start_date": start_date.isoformat(), "period": period, **({"mode": mode} if "mode" in body else {})},
+            request={
+                "start_date": start_date.isoformat(), "period": period,
+                **({"mode": mode} if "mode" in body else {}),
+                **({"end_date": end_date.isoformat()} if end_date is not None else {}),
+            },
         )
         if not is_new:
             return {"status": "reused", "job_id": job_id}
@@ -1697,6 +1721,7 @@ async def repair_daily(request: Request):
                 return run_repair_daily(
                     repo, capset, start_date, on_progress=progress, quote_service=qs,
                     period=period, mode=mode,
+                    **({"end_date": end_date} if end_date is not None else {}),
                 )
 
             try:

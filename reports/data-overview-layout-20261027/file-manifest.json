@@ -1,0 +1,86 @@
+{
+  "base_commit": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "version": "0.4.32",
+  "files": [
+    {
+      "path": "docs/architecture.md",
+      "baseline_sha256": "6a4688e8a4f0551467b92d875b4d5bfe75a5b0d52a7683336511282c679c4a59",
+      "final_sha256": "2cb28e6e58edd65c2fe2340cee159191bd6aad7c3fcdb26b2bb1d0c4426f2065"
+    },
+    {
+      "path": "docs/operations.md",
+      "baseline_sha256": "517557579b0624983726b031a04ec364e7b2bd63b9ac6aaa320125d03a40bd51",
+      "final_sha256": "d282fc6de3ff750f59341dc4578724ae129f65078f4df2356bc6a6caa24e2f5c"
+    },
+    {
+      "path": "docs/reference/engineering.md",
+      "baseline_sha256": "7f21c2cb4b3f11cfb7d4ee42c4056a6370a5463a1b07f1e4e594f4ee195406bd",
+      "final_sha256": "e48bbee71da85d1f3537916c97eb78591a2a679226af1655005023e5b0ca1ddb"
+    },
+    {
+      "path": "docs/release-operations.md",
+      "baseline_sha256": "44d721e73d582209f69380d9e0e39d679f0d79c8775a6699ef4c547e80f59560",
+      "final_sha256": "3c22eab9507f1c9858b26c2c6e10d9ddbdb2bde979880fb2508aa63a98941d86"
+    },
+    {
+      "path": "docs/requirements.md",
+      "baseline_sha256": "ec6be0b39c876c0a0e4d7b6854ec16768b2d8158dfd214b018c3c7a7bd5a5f0f",
+      "final_sha256": "45332cf7f83f41cc930e81b3af38f31f4b732bfa84e1fc623236728c529adab8"
+    },
+    {
+      "path": "docs/secondary-development.md",
+      "baseline_sha256": "a0f4696e7746149f3c9a6401ac4d84f6b613749b5c7445882e26299a4b7905e0",
+      "final_sha256": "943320b7b56606f34aa4ff95d45e2f13b4e12c75ad7ee173ebfa0b72ed15495d"
+    },
+    {
+      "path": "docs/testing.md",
+      "baseline_sha256": "dae59d2a08b11088887af181f4fc5ef18b75b1bf835898dad45035bd4b579237",
+      "final_sha256": "5ef83ae368763f4754eb67d687dab2c3d86a9881dcb72e526409f437f59daf97"
+    },
+    {
+      "path": "docs/version-baseline.md",
+      "baseline_sha256": "62287660c54c122920f72b4b035e5c02a27870d86961bf828030879aaa465f14",
+      "final_sha256": "94d12e002b2d75b939561be90a3302f0e3fc6b4527e15282c555a1ef93a95d4a"
+    },
+    {
+      "path": "frontend/src/components/data/PageSettingsModal.test.tsx",
+      "baseline_sha256": "5870b3a5d3f934e9062687d15eaf65b42006f6c1e07bc5515f5832c1f2ed1bb2",
+      "final_sha256": "8c5feb813253028543155bfdf73c6734e9e50162b1188047b69bbbd15859308e"
+    },
+    {
+      "path": "frontend/src/components/data/PageSettingsModal.tsx",
+      "baseline_sha256": "3708e97564171c2c351c2f3a923c5255e37366a355f567cd387eddb62c7e9bf1",
+      "final_sha256": "d8fbfce5c4eb64858581bc51d96a331c45bcda529096fc1c6be380f829688061"
+    },
+    {
+      "path": "frontend/src/components/data/QuoteConfigCard.tsx",
+      "baseline_sha256": "688f5c41e24cc9c7e9f8afbcc18fc9a7c3e790987a235e23d56702d0cf5cc32d",
+      "final_sha256": "7520fb0246df898066ff132effa70bea7fbd0495b5c2095d5d2690fa53918aa4"
+    },
+    {
+      "path": "frontend/src/components/data/ScheduleOverview.test.tsx",
+      "baseline_sha256": "b2c85b8f4722bf200e65676ebf633fdec414874d72d81cafbefa8e5da99846c4",
+      "final_sha256": "50cf76678e7a508c744f262d0cd298468179d2cef9adc9cd133766e368810ef4"
+    },
+    {
+      "path": "frontend/src/components/data/ScheduleOverview.tsx",
+      "baseline_sha256": "2f525be0f1ed84460fb794f8b382f43cefc9366aae2e3abdfc6769909e676db6",
+      "final_sha256": "585dc0b9e7ea3f8b20a3568566e3701de8bb9b414b32b9ee423630fbd06861cf"
+    },
+    {
+      "path": "frontend/src/pages/Data.test.tsx",
+      "baseline_sha256": "79147860fab4a445a25ccc6e3d71100395ea459c7c1058ef9d8bfc3f0855ab3b",
+      "final_sha256": "2e196ce7a5b692a17f76bff247b0d4ee0cadded3ab89e5353e1a0047905dd992"
+    },
+    {
+      "path": "frontend/src/pages/Data.tsx",
+      "baseline_sha256": "6182b23e810d904233e7f46ce9cf5527a6ee30a0da3da257e908db9481fb36e0",
+      "final_sha256": "35caf19e9e139203a217eadc961a5f57e7484d58a5c2a2e1905d4ea58ea552e1"
+    },
+    {
+      "path": "操作说明书.md",
+      "baseline_sha256": "26ce0044964d91ea79f75ec89c12b1c5684b6d85982998a2f0e3d08dd463cfb4",
+      "final_sha256": "a069b3db100fb78713d24f1ec6df70e5debe10f5f92f260a6db7c751faf3ab0b"
+    }
+  ]
+}

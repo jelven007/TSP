@@ -13,7 +13,6 @@ import { storage } from '@/lib/storage'
 import { fmtPrice, fmtPct, fmtBigNum, priceColorClass, formatExtNumber } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import { computeGroupPcts, loadGroupStatsConfig, type GroupStatsConfigPatch } from '@/lib/watchlistGroupStats'
-import { toast } from '@/components/Toast'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { StockPreviewDialog } from '@/components/StockPreviewDialog'
@@ -31,6 +30,11 @@ import {
   type WatchlistGroupFilter,
 } from '@/components/WatchlistGroups'
 import { WatchlistGroupCards } from '@/components/WatchlistGroupCards'
+import { WatchlistExportButton } from '@/components/WatchlistExportButton'
+import {
+  WatchlistRelations, WatchlistStrategyDialog, watchlistStrategyQuery,
+  type WatchlistStrategyOption,
+} from '@/components/WatchlistRelations'
 import { WatchlistGroupStatsBar } from '@/components/WatchlistGroupStatsBar'
 import { ExtensionSlot } from '@/extensions/ExtensionSlot'
 
@@ -509,6 +513,8 @@ const StockCard = React.memo(function StockCard({
   groups,
   onToggleMember,
   groupChangePending,
+  strategies,
+  onEditStrategies,
 }: {
   r: any
   candleRows: KlineRow[]
@@ -528,6 +534,8 @@ const StockCard = React.memo(function StockCard({
   groups: WatchlistGroup[]
   onToggleMember: (symbol: string, groupId: string, member: boolean) => void
   groupChangePending: boolean
+  strategies: WatchlistStrategyOption[]
+  onEditStrategies: (symbol: string) => void
 }) {
   const board = boardTag(r.symbol)
   const price = r.rt_price ?? r.close
@@ -611,6 +619,10 @@ const StockCard = React.memo(function StockCard({
             </span>
           )}
           {isMonitored && <span className="ml-auto"><RealtimeDot /></span>}
+        </div>
+        <div className="mb-2">
+          <WatchlistRelations entry={r} groups={groups} strategies={strategies}
+            onEdit={() => onEditStrategies(r.symbol)} />
         </div>
 
         {/* 第二行: 大价格 + 涨跌幅胶囊 */}
@@ -818,7 +830,15 @@ export function Watchlist() {
     queryKey: QK.watchlist,
     queryFn: api.watchlistList,
     staleTime: 30_000,  // 清单慢变 (增删后 mutation 会失效), 减少切页重拉
+    // 持久缓存有2秒写入节流；快速刷新也要重读已保存的关系和顺序。
+    refetchOnMount: 'always',
   })
+  const strategyCatalog = useQuery({
+    ...watchlistStrategyQuery(),
+    enabled: (list.data?.symbols.length ?? 0) > 0,
+  })
+  const strategyOptions = useMemo(() => strategyCatalog.data?.strategies ?? [], [strategyCatalog.data?.strategies])
+  const [strategySymbol, setStrategySymbol] = useState<string | null>(null)
 
   const groupList = useQuery({
     queryKey: QK.watchlistGroups,
@@ -1039,18 +1059,13 @@ export function Watchlist() {
   })
 
   const createGroup = useMutation({
-    mutationFn: ({ name, color, file }: { name: string; color: WatchlistGroupColor; file?: File }): Promise<{
-      groups: WatchlistGroup[]; group: WatchlistGroup; imported?: number; skipped?: number
-    }> =>
-      file ? api.watchlistGroupImportCsv(name, color, file) : api.watchlistGroupCreate(name, color),
+    mutationFn: ({ name, color }: { name: string; color: WatchlistGroupColor }) =>
+      api.watchlistGroupCreate(name, color),
     onSuccess: data => {
       qc.setQueryData(QK.watchlistGroups, { groups: data.groups })
       qc.invalidateQueries({ queryKey: QK.watchlist })
       qc.invalidateQueries({ queryKey: ['watchlist-enriched'] })
       setSelectedGroup(data.group.id)
-      if (data.imported !== undefined) {
-        toast(`已导入 ${data.imported} 只股票${data.skipped ? `，跳过 ${data.skipped} 项未匹配或非股票代码` : ''}`, 'success')
-      }
     },
   })
 
@@ -1117,7 +1132,14 @@ export function Watchlist() {
 
   const listEntries = useMemo(() => list.data?.symbols ?? [], [list.data?.symbols])
   const allSymbols = listEntries.map(s => s.symbol)
-  const rows = useMemo(() => enriched.data?.rows ?? [], [enriched.data?.rows])
+  const rows = useMemo(() => {
+    const bySymbol = new Map((enriched.data?.rows ?? []).map(row => [row.symbol, row]))
+    // 清单是持久顺序与关系的事实源；行情未就绪时仍可查看和编辑关系。
+    return listEntries.map(entry => ({
+      ...entry, ...bySymbol.get(entry.symbol),
+      group_ids: entry.group_ids ?? [], strategy_ids: entry.strategy_ids ?? [],
+    }))
+  }, [enriched.data?.rows, listEntries])
   const groupBySymbol = useMemo(
     () => new Map(listEntries.map(entry => [entry.symbol, entry.group_ids ?? []])),
     [listEntries],
@@ -1296,7 +1318,7 @@ export function Watchlist() {
     }
     return getSortValue(r, col)
   }, [minuteData])
-  const { sort, toggle: handleSortToggle, sortRows } = useTableSort(getWatchlistSortValue)
+  const { sort, toggle: handleSortToggle, reset: resetSort, sortRows } = useTableSort(getWatchlistSortValue)
 
   const sortedRows = useMemo(
     () => sortRows(filteredRows, columns),
@@ -1400,6 +1422,8 @@ export function Watchlist() {
       groups={groups}
       onToggleMember={handleToggleMember}
       groupChangePending={addGroupMember.isPending || removeGroupMember.isPending}
+      strategies={strategyOptions}
+      onEditStrategies={setStrategySymbol}
     />
   )
 
@@ -1479,6 +1503,14 @@ export function Watchlist() {
               aria-label="批量导入自选"
             >
               <FileUp className="h-4 w-4" />
+            </button>
+            <WatchlistExportButton />
+            <button type="button" onClick={resetSort} disabled={!sort}
+              className="inline-flex items-center gap-1.5 h-8 px-2 rounded-btn bg-elevated text-secondary hover:text-foreground disabled:opacity-40"
+              title="清除字段排序，恢复已保存的自选顺序"
+              aria-label="恢复默认排序">
+              <RotateCcw className="h-4 w-4" />
+              <span className="text-xs whitespace-nowrap">恢复默认排序</span>
             </button>
             <div className="w-px h-5 bg-border" />
             {/* 视图 */}
@@ -1583,7 +1615,7 @@ export function Watchlist() {
         total={allSymbols.length}
         pcts={groupPcts}
         onSelect={handleGroupSelect}
-        onCreate={(name, color, file) => createGroup.mutateAsync({ name, color, file }).then(() => undefined)}
+        onCreate={(name, color) => createGroup.mutateAsync({ name, color }).then(() => undefined)}
         onRename={(groupId, name, color) => renameGroup.mutateAsync({ groupId, name, color }).then(() => undefined)}
         onDelete={groupId => deleteGroup.mutateAsync(groupId).then(() => undefined)}
         onClearGroup={groupId => clearGroup.mutateAsync(groupId).then(() => undefined)}
@@ -1711,6 +1743,7 @@ export function Watchlist() {
               onOpenGroup={handleGroupSelect}
               config={groupStatsConfig}
               onConfigChange={updateGroupStatsConfig}
+              strategies={strategyOptions}
             />
           ) : viewMode === 'table' ? (
             <StockDataTable
@@ -1877,6 +1910,8 @@ export function Watchlist() {
                           )}
                         </div>
                       </div>
+                      <WatchlistRelations entry={r} groups={groups} strategies={strategyOptions}
+                        onEdit={() => setStrategySymbol(r.symbol)} />
                     </td>
                   )
                 }
@@ -1987,6 +2022,17 @@ export function Watchlist() {
           )}
         </div>
       </div>
+
+      {strategySymbol && listEntries.some(entry => entry.symbol === strategySymbol) && (
+        <WatchlistStrategyDialog key={strategySymbol}
+          entry={listEntries.find(entry => entry.symbol === strategySymbol)!}
+          onClose={() => setStrategySymbol(null)}
+          onSaved={symbols => {
+            qc.setQueryData(QK.watchlist, { symbols })
+            qc.invalidateQueries({ queryKey: QK.watchlistEnriched(extColumnsParam) })
+            setStrategySymbol(null)
+          }} />
+      )}
 
       {/* 清空确认弹窗 */}
       <AnimatePresence>

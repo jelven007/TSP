@@ -386,7 +386,8 @@ def test_research_fingerprints_detect_input_change_without_generation_change(tmp
     before = data_release.backtest_provenance(tmp_path, asset_type="stock", config={})
     assert before["research_inputs_match_release"] is True
     calendar = before["research_inputs"]["trading_calendar"]
-    assert calendar["covered_years"] == [2026]
+    assert calendar["covered_years"] == list(range(2019, 2027))
+    assert calendar["version"] == "SSE-2019-2026-20261026"
     assert len(calendar["sha256"]) == 64
     path.write_bytes(b"revised financial observation")
     after = data_release.backtest_provenance(tmp_path, asset_type="stock", config={})

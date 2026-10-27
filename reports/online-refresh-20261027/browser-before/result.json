@@ -1,0 +1,18 @@
+{
+  "phase": "before",
+  "base": "https://shanao.asia",
+  "url": "https://shanao.asia/data",
+  "title": "TSP · Quant Terminal",
+  "checks": [
+    "Admin123 real login",
+    "Data and page settings render at 1440px, modal opens/ESC closes",
+    "Data and page settings render at 390px, modal opens/ESC closes"
+  ],
+  "page_errors": [],
+  "console_errors": [],
+  "same_origin_failed_responses": [],
+  "passed": true,
+  "browser_path": "Playwright Chrome; browser_navigate tool discovery returned no tools",
+  "settings_written": false,
+  "history_jobs_started": false
+}

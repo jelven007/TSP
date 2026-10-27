@@ -108,6 +108,10 @@ class GroupAssignRequest(BaseModel):
     group_id: str | None = None
 
 
+class StrategyAssignRequest(BaseModel):
+    strategy_ids: list[str]
+
+
 class ImportCodesRequest(BaseModel):
     text: str
 
@@ -152,6 +156,22 @@ def add_batch(req: BatchAddRequest, request: Request):
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {"symbols": _with_names(rows, request), "added": added}
+
+
+@router.put("/{symbol}/strategies")
+def assign_strategies(symbol: str, req: StrategyAssignRequest, request: Request):
+    from app.api.strategy import _get_engine, _get_public_strategy
+
+    ids = list(dict.fromkeys(req.strategy_ids))
+    if ids:
+        engine = _get_engine(request)
+        for strategy_id in ids:
+            _get_public_strategy(engine, strategy_id)
+    try:
+        rows = _service(request).set_strategies(symbol, ids)
+    except KeyError as exc:
+        raise HTTPException(404, "该股票不在自选中") from exc
+    return {"symbols": _with_names(rows, request)}
 
 
 @router.get("/groups")

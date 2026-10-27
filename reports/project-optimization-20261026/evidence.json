@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-26",
+  "scope": "Current workspace analysis; temporary fixtures and mocked transports; no production benchmark",
+  "baseline": {
+    "git_sha": "cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c",
+    "branch": "fix/repair-missing-data-20261026",
+    "app_version": "0.4.30",
+    "contains_existing_uncommitted_changes": true,
+    "production_current_state_reverified": false
+  },
+  "inventory": {
+    "tracked_backend_app_python": {"files": 329, "lines": 120561},
+    "tracked_frontend_production_ts_tsx": {"files": 270, "lines": 81994},
+    "tracked_backend_test_python": {"files": 425, "lines": 86473},
+    "tracked_frontend_test_ts_tsx": {"files": 75, "lines": 8008},
+    "additional_untracked_kline_gaps_lines": 200
+  },
+  "validation": {
+    "backend_group_1": {"passed": 109, "skipped": 27, "warnings": 3},
+    "backend_group_2": {"passed": 170, "skipped": 0, "warnings": 13},
+    "backend_total": {"passed": 279, "skipped": 27, "warnings": 16},
+    "postgresql_skip_reason": "No disposable TSP_TEST_POSTGRES_DSN configured",
+    "frontend": {"test_files": 75, "passed": 356},
+    "eslint": {"errors": 0, "warnings": 0},
+    "production_build": {"passed": true, "effective_output": "frontend/dist"},
+    "ruff_backend_app": {
+      "passed": false,
+      "findings": 1330,
+      "F_B_rule_findings": 62,
+      "not_runtime_bug_count": true
+    },
+    "ruff_delta_from_head": {
+      "files": 6,
+      "baseline_findings": 80,
+      "current_findings": 80,
+      "added_findings": 0
+    },
+    "native_bridge": {
+      "available": true,
+      "rustdx_version": "1.12.2",
+      "rustdx_source_prefix": "9dfc024",
+      "bridge_version": "0.1.1",
+      "network_connection_attempted": false
+    },
+    "make_check": {
+      "passed": true,
+      "required_paths": 87,
+      "main_markdown_files": 31,
+      "requirement_modules": 8
+    },
+    "full_backend_run": false,
+    "real_browser_run_this_audit": false,
+    "production_load_test": false
+  },
+  "isolated_probes": {
+    "migration": {
+      "conflicting_legacy_file_deleted": true,
+      "new_conflicting_file_preserved": true,
+      "preferences_at_expected_path": false,
+      "preferences_at_nested_user_data_path": true,
+      "legacy_directory_removed": true,
+      "real_user_files_accessed": false
+    },
+    "public_cache": {
+      "simultaneous_same_key_cold_requests": 2,
+      "fetch_calls": 2,
+      "performance_measurement": false
+    },
+    "strategy_queue": {
+      "maxsize": 0,
+      "accepted_distinct_fixture_jobs": 40,
+      "retained_handles": 40,
+      "computation_started": false
+    },
+    "request_deadline": {
+      "body_pending_after_headers": true,
+      "active_deadline_timers_after_headers": 0,
+      "caller_signal_preserved": true,
+      "deadline_timers_created_with_caller_signal": 0,
+      "real_http_requests": false
+    },
+    "mcp_kline_mapping": {
+      "emitted_params": {"symbol": "000001.SZ", "limit": 30},
+      "unsupported_backend_params": ["limit"],
+      "backend_accepts_days": true,
+      "real_http_requests": false
+    }
+  },
+  "build_report_kB": {
+    "main_entry_js": {"minified": 302.98, "gzip": 94.57},
+    "echarts_chunk": {"minified": 659.65, "gzip": 219.47},
+    "backtest_page_chunk": {"minified": 160.79, "gzip": 49.26},
+    "not_initial_page_total": true
+  },
+  "implementation_status": "Recommendations only; no application source/configuration/user-data edits, commits, pushes or deployments by this audit"
+}

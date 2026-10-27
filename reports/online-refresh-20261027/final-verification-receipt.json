@@ -1,0 +1,27 @@
+{
+  "checked_at": "2026-10-26T18:26:11.087954+00:00",
+  "version": "0.4.32",
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "requested_online_upgrade_and_active_kline_clear_verified": true,
+  "restore_verified": true,
+  "twelve_active_directories_empty": true,
+  "business_and_secrets_preserved": true,
+  "real_admin_login_and_desktop_mobile_browser_verified": true,
+  "watch_seconds": 126.899939,
+  "fresh_health_cycles": 2,
+  "automatic_sync_enabled": true,
+  "subsequent_setting_preserved": true,
+  "full_function_readiness": false,
+  "full_health_timer_passed": false,
+  "limitation": "empty indicator cache; user later enabled automatic sync, so future K-lines may regenerate",
+  "fresh_local_checks": {
+    "make_check": "passed",
+    "required_paths": 87,
+    "markdown_files": 31,
+    "requirement_modules": 8,
+    "version": "0.4.32",
+    "git_diff_check": "passed"
+  },
+  "post_release_docs_status": "local operational updates, not another release or manual version increment",
+  "report_sha256": "049aaf60b8301fd146dcd92e4899901389e969482fd5c5a5783141990746f961"
+}
