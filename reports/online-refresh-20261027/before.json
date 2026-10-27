@@ -1,0 +1,21 @@
+{
+  "checked_at": "2026-10-26T18:14:30.914034+00:00",
+  "configuration": {
+    "bootstrap-private.json": "2c990b475839e8a06c3f2864d4d5acf6c2ee612a00a035dbce428f961b318dcd",
+    "platform.env": "8a78d1f875dee86d7b18523d464f5a6baeafc63eb90bb31a29283c6e5cf4acb9",
+    "postgres.env": "01c532e30cc682c8784bcd3700c4ab8ea462bf8ca00ddb87b92bf8ecb1a56209",
+    "public-release-maintenance.env": "bed9196d278f1bf961b9f65f2e3298d6fac78c2f4d77cea3f2928af8819d1a53",
+    "broker.env": "29070859dec89f79e9286fc8f3e7c1bd14248eb24784f070647ffae1c144621e",
+    "admin.env": "d8b7ae75a4ad49e4437ec9b2a21cfe6a0248f6c99f02858eabf44ebccd02fa55",
+    "deploy.env": "7c6f592add716f98c52dfca3d56109792fece4c7d91faf332aca922b01166f27",
+    "runtime.env": "67db29670b4dda465c3836965ce7857bf2c0daec9c657b4245ea8381f51de6ab"
+  },
+  "runtime": "sha256:a65fa3cbbf76be5194adbfa03ebfbb74eee56dee4079e18450036e334f7dc5cb",
+  "compute": "sha256:186190e8258b2be39318e53a3033c5106ee92829e2d50b4f81bff7001528d1dd",
+  "source_version": "v0.4.31",
+  "public_current": "releases/d41d1e23d768445eb3a083cb0602dc7c",
+  "timers": {
+    "tsp-full-health.timer": "active",
+    "tsp-public-release-maintenance.timer": "active"
+  }
+}

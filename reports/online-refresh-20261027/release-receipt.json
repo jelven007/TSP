@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-10-26T17:34:09.811349+00:00",
+  "release_review_sha256": "1cb3b27f90291499f52295a42c62b7cc72d527e8bd80299a1761dfe57a93c68b",
+  "authorization": "current session online upgrade and clear active K-lines",
+  "permitted_stage": "merge only after PR quality success; automatic main version/tag and CI build; prepare immutable artifacts",
+  "promotion_gate": "requires artifact identity and restorable backups before clearing/promoting",
+  "source_pr": 28
+}

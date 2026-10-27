@@ -1,0 +1,96 @@
+{
+  "url": "http://127.0.0.1:3021/watchlist",
+  "title": "TSP · Quant Terminal",
+  "viewports": [
+    "1440x1000",
+    "390x844"
+  ],
+  "original_stock_count": 16,
+  "original_group_count": 1,
+  "temporary_stocks": 2,
+  "temporary_groups": 2,
+  "csv_rows": 18,
+  "checks": [
+    "实际3021页面admin登录成功，更新前后原16条自选顺序/日期/备注/分组/策略保持",
+    "真实CSV导入保序；同股同时加入两个分组，全部仅一条并直接展示组名",
+    "实际PUT保存双策略，刷新后API和同一股票行均保留，日期/备注/分组不变",
+    "真实字段排序恢复默认并保留组筛选；仅展示2条时CSV仍导出全部18条，编码/单列/顺序正确",
+    "390px真实弹窗/卡片无页面溢出，解除策略保存成功，管理分组无CSV导入"
+  ],
+  "errors": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 403 ()",
+    "Failed to load resource: the server responded with a status of 403 ()",
+    "Failed to load resource: the server responded with a status of 403 ()",
+    "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'http://127.0.0.1:3021' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: the server responded with a status of 403 ()",
+    "Failed to load resource: the server responded with a status of 403 ()",
+    "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'http://127.0.0.1:3021' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "responses": [
+    {
+      "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest",
+      "status": 403
+    },
+    {
+      "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest",
+      "status": 403
+    },
+    {
+      "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+      "status": 403
+    },
+    {
+      "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest",
+      "status": 403
+    },
+    {
+      "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+      "status": 403
+    }
+  ],
+  "browser": "Installed Chrome via Playwright; Browser plugin unavailable; no API interception",
+  "cleanup": {
+    "passed": true,
+    "final_stock_count": 16,
+    "final_group_count": 1
+  },
+  "health": {
+    "ready": true,
+    "version": "0.4.31",
+    "functions": {
+      "market": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "research": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "monitoring": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "paper_trading": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "notifications": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      },
+      "scheduled": {
+        "ready": true,
+        "status": "ok",
+        "unavailable_dependencies": []
+      }
+    }
+  }
+}

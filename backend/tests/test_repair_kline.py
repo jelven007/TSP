@@ -113,6 +113,74 @@ def test_daily_repair_keeps_the_original_pipeline_and_cache_refresh(app, monkeyp
     assert repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, DAY) == {"daily_rows": 10}
     assert calls == [{"on_progress": None, "override_start_date": DAY}, "refresh"]
 
+def test_daily_full_repair_passes_the_selected_end_to_the_existing_pipeline(app, monkeypatch):
+    calls = []
+    monkeypatch.setattr("app.jobs.daily_pipeline.run_now", lambda *a, **kw: calls.append(kw) or {"daily_rows": 4})
+    start, end = date(2026, 10, 22), date(2026, 10, 23)
+    result = repair_daily.run_repair_daily(app.state.repo, app.state.capabilities, start, end_date=end)
+    assert result["daily_rows"] == 4
+    assert calls == [{"on_progress": None, "override_start_date": start, "override_end_date": end}]
+
+
+def test_minute_full_repair_includes_end_day_and_preserves_rows_outside_range(app, monkeypatch):
+    stamps = [datetime(2026, 10, d, 9, 31) for d in (21, 22, 23, 26)]
+    kline_periods.persist_period(app.state.repo, "1m", bars([SYMBOLS[0]], stamps, price=25.))
+    calls = []
+
+    def fetch(symbols, start, end, **kw):
+        calls.append((start, end))
+        # Even an overbroad provider response must not overwrite outside the range.
+        return bars([SYMBOLS[0]], stamps, price=99.)
+
+    provider = SimpleNamespace(capabilities=ProviderCapabilities(minute=True), get_klines=fetch)
+    monkeypatch.setattr("app.data_providers.registry.get_provider", lambda _: provider)
+    result = repair_daily.run_repair_daily(
+        app.state.repo, app.state.capabilities, date(2026, 10, 22), end_date=date(2026, 10, 23), period="1m",
+    )
+    assert calls == [(datetime(2026, 10, 22), datetime(2026, 10, 23, 23, 59, 59, 999999))]
+    assert result["rows"] == 2
+    assert app.state.repo.execute_all("SELECT close FROM kline_minute ORDER BY datetime") == [(25.,), (99.,), (99.,), (25.,)]
+
+
+@pytest.mark.parametrize("mode", ["full", "missing"])
+@pytest.mark.parametrize("end", [date(2026, 10, 21), date(2026, 10, 27)])
+def test_repair_service_rejects_reversed_and_future_ranges_before_fetch(app, monkeypatch, mode, end):
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("invalid range must not fetch"))
+    result = repair_daily.run_repair_daily(
+        app.state.repo, app.state.capabilities, date(2026, 10, 22), end_date=end, period="1m", mode=mode,
+    )
+    assert "error" in result
+
+
+@pytest.mark.parametrize("end", ["", None, [], 20261023, "20261023", "2026-10-23T00:00:00", "2026-02-30", "2026-10-21", "2026-10-27"])
+def test_repair_api_rejects_invalid_end_before_creating_jobs(app, monkeypatch, end):
+    app.state.capabilities = SimpleNamespace(has=lambda _: False)
+    monkeypatch.setattr(preferences, "get_minute_data_provider", lambda: "tickflow")
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda *a: pytest.fail("validate before provider gate"))
+    with TestClient(app) as client:
+        response = client.post("/api/kline/repair_daily", json={
+            "start_date": "2026-10-22", "end_date": end, "period": "1m",
+        })
+    assert response.status_code == 400
+    assert pipeline_jobs.job_store.list_recent() == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["full", "missing"])
+async def test_repair_api_records_and_forwards_the_explicit_end_date(app, monkeypatch, mode):
+    calls = []
+    monkeypatch.setattr(repair_daily, "run_repair_daily", lambda *a, **kw: calls.append(kw) or {"rows": 1})
+    body = {"start_date": "2026-10-22", "end_date": "2026-10-23", "period": "1d", "mode": mode}
+    result = await kline.repair_daily(SimpleNamespace(app=app, json=lambda: async_body(body)))
+    async with asyncio.timeout(3):
+        while pipeline_jobs.job_store.get(result["job_id"])["status"] in {"queued", "running"}:
+            await asyncio.sleep(0.01)
+    job = pipeline_jobs.job_store.get(result["job_id"])
+    assert job["status"] == "succeeded", job
+    assert job["request"] == body
+    assert calls[0]["end_date"] == date(2026, 10, 23)
+    assert calls[0]["mode"] == mode
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("period", ["5m", "10m", "15m"])
@@ -316,10 +384,50 @@ def test_missing_excludes_holidays_prelisting_days_and_unfinished_daily_bar(app,
 def test_missing_unknown_calendar_fails_before_requesting_stock_data(app, missing_source, monkeypatch):
     monkeypatch.setattr("app.services.data_integrity._trading_calendar", lambda: None)
     result = repair_daily.run_repair_daily(
-        app.state.repo, app.state.capabilities, date(2025, 1, 2), end_date=date(2025, 1, 3), mode="missing",
+        app.state.repo, app.state.capabilities, date(2018, 1, 2), end_date=date(2018, 1, 3), mode="missing",
     )
     assert "交易日历" in result["error"]
     assert missing_source[0] == []
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "labels"),
+    [
+        (date(2020, 1, 1), date(2020, 1, 10), [date(2019, 12, 30), date(2020, 1, 6)]),
+        (date(2023, 1, 2), date(2023, 1, 13), [date(2023, 1, 2), date(2023, 1, 9)]),
+    ],
+)
+def test_missing_historical_week_uses_official_calendar_and_persists_labels(
+    app, missing_source, monkeypatch, start, end, labels,
+):
+    monkeypatch.setattr("app.services.data_integrity._trading_calendar", lambda: None)
+    dates = (
+        ["2019-12-30", "2019-12-31", "2020-01-02", "2020-01-03", "2020-01-06",
+         "2020-01-07", "2020-01-08", "2020-01-09", "2020-01-10"]
+        if start.year == 2020 else
+        ["2023-01-03", "2023-01-04", "2023-01-05", "2023-01-06", "2023-01-09",
+         "2023-01-10", "2023-01-11", "2023-01-12", "2023-01-13"]
+    )
+    kline_periods.persist_period(
+        app.state.repo, "1d", bars(SYMBOLS, [date.fromisoformat(day) for day in dates], "1d"),
+    )
+    result = repair_daily.run_repair_daily(
+        app.state.repo, app.state.capabilities, start, end_date=end, period="1w", mode="missing",
+    )
+    assert "error" not in result, result
+    assert result["rows"] == result["missing_before"] == 8
+    assert result["remaining"] == 0
+    assert result["requests"] == 0
+    assert missing_source[0] == []
+    assert app.state.repo.execute_all(
+        "SELECT DISTINCT date FROM kline_weekly ORDER BY date",
+    ) == [(label,) for label in labels]
+    calls_before = list(missing_source[0])
+    repeated = repair_daily.run_repair_daily(
+        app.state.repo, app.state.capabilities, start, end_date=end, period="1w", mode="missing",
+    )
+    assert repeated["rows"] == repeated["remaining"] == repeated["requests"] == 0
+    assert missing_source[0] == calls_before
 
 
 def test_missing_partial_response_reports_real_remaining_gaps(app, missing_source):

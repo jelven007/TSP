@@ -1,0 +1,9 @@
+{
+  "restore_and_business_comparison_passed": true,
+  "twelve_directory_hashes_verified_by_backup": true,
+  "old_image_rootfs_labels_verified": true,
+  "previous_image_archive_sha256": "3b9e8a75839d6c04453f53459a5ad86dcf682854708399b0d7ac6766744a335a",
+  "previous_image_archive_bytes": 586871808,
+  "writers_stopped": true,
+  "passed": true
+}

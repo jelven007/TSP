@@ -322,3 +322,18 @@ def test_scheduled_weekly_runs_once_on_saturday_without_trading_day(monkeypatch)
     periods.scheduled_periods(None)
 
     assert calls == ["kline_1w"]
+
+
+@pytest.mark.parametrize("period", ["5m", "10m", "15m", "1w"])
+def test_local_generation_uses_base_symbols_without_instrument_catalog(tmp_path, monkeypatch, period):
+    repo = KlineRepository(DataStore(tmp_path))
+    monkeypatch.setattr(periods, "_period_provider", lambda *a: pytest.fail("generation must stay local"))
+    if period == "1w":
+        repo.append_daily(minute_sample().with_columns(pl.col("datetime").dt.date().alias("date")).drop("datetime").head(1))
+    else:
+        periods.persist_period(repo, "1m", minute_sample().head(1))
+    assert repo.get_instruments().is_empty()
+    result = periods.generate_period(repo, period)
+    assert "error" not in result
+    assert result["rows"] == 1
+    assert repo.execute_one(f"SELECT symbol FROM {periods.TABLES[period]}")[0] == "600000.SH"

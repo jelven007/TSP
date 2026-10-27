@@ -19,6 +19,7 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
   const [draft, setDraft] = useState<Config | null>(null)
   const [value, setValue] = useState(6)
   const [unit, setUnit] = useState<'month' | 'year'>('month')
+  const generate = period !== '1m'
   useEffect(() => { if (query.data) setDraft(query.data[period]) }, [query.data, period])
   const save = useMutation({
     mutationFn: () => api.saveKlineSyncConfig(period, draft!),
@@ -29,7 +30,7 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
     },
   })
   const sync = useMutation({
-    mutationFn: () => api.syncKlinePeriod(period, value, unit),
+    mutationFn: () => generate ? api.syncKlinePeriod(period) : api.syncKlinePeriod(period, value, unit),
     onSuccess: ({ job_id }) => {
       void qc.invalidateQueries({ queryKey: QK.pipelineJobs })
       onJobStart(job_id)
@@ -39,8 +40,8 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
   if (!draft) return <p role="status" className="text-xs text-secondary">正在加载同步设置…</p>
   const intraday = period.endsWith('m')
   const local = isLocalDerivedPeriod(period)
-  const localBase = period === '1w' ? '本地日K' : '本地1分K'
-  const canSync = local || hasCap
+  const localBase = period === '1w' || period === '1d' ? '本地日K' : '本地1分K'
+  const canSync = generate || hasCap
   return <div className="space-y-5">
     <section className="rounded-card border border-border p-4 space-y-3">
       <h3 className="text-sm font-medium">周期同步</h3>
@@ -65,18 +66,22 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
     </section>
     <section className="rounded-card border border-border p-4 space-y-3">
       <h3 className="text-sm font-medium">离线补齐</h3>
-        <p className="text-xs text-muted">{local ? `由${localBase}计算后入库。请先补齐所需范围的${localBase}；缺失日期不会生成数据。` : '点击获取数据后，从本地最早日期向前扩展历史；空库从今天开始计算范围。'}</p>
-        {period === '1d' && <p className="text-xs text-muted">获取日K后继续同步除权因子并重算指标。</p>}
-        <div className="flex items-center gap-2 text-xs">
+        <p className="text-xs text-muted">{generate ? (
+          period === '1d'
+            ? '由本地日K和本地除权因子重算复权行情与指标，写入 Enriched，不请求上游。'
+            : `由${localBase}计算后入库，覆盖本地基础数据已有日期，不请求上游。`
+        ) : '点击获取数据后，从本地最早日期向前扩展历史；空库从今天开始计算范围。'}</p>
+        {generate && <p className="text-xs text-muted">缺少可计算的{localBase}时，任务会提示先补齐基础数据。</p>}
+        {!generate && <div className="flex items-center gap-2 text-xs">
           <span className="shrink-0">向前扩展</span>
           <input aria-label="历史扩展数量" type="number" min={1} max={unit === 'year' ? 10 : 120}
             className={inputClass} value={value} onChange={e => setValue(Number(e.target.value))} />
           <select aria-label="历史扩展单位" className={inputClass} value={unit}
             onChange={e => { setUnit(e.target.value as 'month' | 'year'); setValue(1) }}><option value="month">月</option><option value="year">年</option></select>
-        </div>
+        </div>}
         <p className="text-xs text-muted">当前最早：{earliestDate ?? '暂无数据'}</p>
-        <button className={`${buttonClass} w-full`} onClick={() => sync.mutate()} disabled={!canSync || isRunning || sync.isPending || !Number.isInteger(value) || value < 1}>
-          {sync.isPending ? '请求中…' : '获取数据'}
+        <button className={`${buttonClass} w-full`} onClick={() => sync.mutate()} disabled={!canSync || isRunning || sync.isPending || (!generate && (!Number.isInteger(value) || value < 1))}>
+          {sync.isPending ? '请求中…' : generate ? '生成数据' : '获取数据'}
         </button>
         {!canSync && <p role="alert" className="text-xs text-muted">当前数据源缺少K线能力，请检查数据源设置。</p>}
         {sync.isError && <p role="alert" className="text-xs text-danger">{sync.error.message}</p>}

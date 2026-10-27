@@ -1,0 +1,51 @@
+{
+  "checked_at": "2026-10-26T18:18:58.396774+00:00",
+  "site": "https://shanao.asia",
+  "version": "0.4.32",
+  "status": "degraded",
+  "ready": true,
+  "checks": {
+    "databases": "ok",
+    "research_worker": "ok",
+    "realtime_worker": "ok",
+    "notifications_worker": "ok",
+    "scheduled_worker": "ok",
+    "public_files": "ok",
+    "platform": "ok",
+    "indicator_cache": "error",
+    "compute_broker": "ok"
+  },
+  "functions": {
+    "market": {
+      "ready": true,
+      "unavailable_dependencies": []
+    },
+    "research": {
+      "ready": false,
+      "unavailable_dependencies": [
+        "indicator_cache"
+      ]
+    },
+    "monitoring": {
+      "ready": false,
+      "unavailable_dependencies": [
+        "indicator_cache"
+      ]
+    },
+    "paper_trading": {
+      "ready": false,
+      "unavailable_dependencies": [
+        "indicator_cache"
+      ]
+    },
+    "notifications": {
+      "ready": true,
+      "unavailable_dependencies": []
+    },
+    "scheduled": {
+      "ready": true,
+      "unavailable_dependencies": []
+    }
+  },
+  "passed": true
+}

@@ -21,6 +21,7 @@ import {
 } from '@/lib/watchlist-group-colors'
 import { boardTag } from '@/components/stock-table/primitives'
 import { GroupStatsSettings } from '@/components/GroupStatsSettings'
+import { WatchlistRelations, type WatchlistStrategyOption } from '@/components/WatchlistRelations'
 
 /**
  * 自选「分组卡片」视图 — 每个分组一张卡, 组内按涨跌幅降序排列,
@@ -50,6 +51,8 @@ const GroupCard = React.memo(function GroupCard({
   onToggle,
   onPreview,
   onOpen,
+  groups,
+  strategies,
 }: {
   data: GroupCardData
   pctInfo?: GroupPctInfo
@@ -64,6 +67,8 @@ const GroupCard = React.memo(function GroupCard({
   onToggle: (key: string) => void
   onPreview: (symbol: string, name: string) => void
   onOpen: (key: string) => void
+  groups: WatchlistGroup[]
+  strategies: WatchlistStrategyOption[]
 }) {
   const visible = expanded ? data.rows : data.rows.slice(0, topN)
   const hasMore = data.rows.length > topN
@@ -122,8 +127,8 @@ const GroupCard = React.memo(function GroupCard({
             const cls = priceColorClass(pct)
             const board = boardTag(r.symbol)
             return (
+              <div key={r.symbol}>
               <button
-                key={r.symbol}
                 type="button"
                 onClick={() => onPreview(r.symbol, r.rt_name ?? r.name ?? '')}
                 className="flex w-full items-center gap-2 px-3 py-[5px] text-left transition-colors hover:bg-elevated/50"
@@ -148,6 +153,10 @@ const GroupCard = React.memo(function GroupCard({
                   {fmtPct(pct)}
                 </span>
               </button>
+              <div className="px-3 pb-1">
+                <WatchlistRelations entry={r} groups={groups} strategies={strategies} />
+              </div>
+              </div>
             )
           })}
         </div>
@@ -181,6 +190,7 @@ interface WatchlistGroupCardsProps {
   onOpenGroup: (groupId: string) => void
   config: GroupStatsConfig
   onConfigChange: (patch: GroupStatsConfigPatch) => void
+  strategies?: WatchlistStrategyOption[]
 }
 
 export function WatchlistGroupCards({
@@ -192,6 +202,7 @@ export function WatchlistGroupCards({
   onOpenGroup,
   config,
   onConfigChange,
+  strategies = [],
 }: WatchlistGroupCardsProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
 
@@ -274,6 +285,8 @@ export function WatchlistGroupCards({
             onToggle={toggleExpanded}
             onPreview={onPreview}
             onOpen={onOpenGroup}
+            groups={groups}
+            strategies={strategies}
           />
         ))}
       </div>

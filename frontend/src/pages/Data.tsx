@@ -408,6 +408,24 @@ export function Data() {
   // 按卡片 key 渲染对应的 StatCard (顺序由 getCardOrder 控制, 显隐由 cardVisible 控制)
   const renderStatCard = (k: CardKey): React.ReactNode => {
     switch (k) {
+      case 'quotes':
+        return (
+          <QuoteConfigCard
+            enabled={realtimeEnabled}
+            running={quoteStatus.data?.running ?? false}
+            isTrading={quoteStatus.data?.is_trading_hours ?? false}
+            lastFetchMs={quoteStatus.data?.last_fetch_ms ?? null}
+            intervalS={realtimeIntervalS}
+            intervalMin={quoteInterval.data?.min_interval ?? 1}
+            intervalMax={quoteInterval.data?.max_interval ?? 60}
+            loading={quoteStatus.isLoading}
+            onToggle={(v) => toggleQuote.mutate(v)}
+            toggling={toggleQuote.isPending}
+            showIntervalEdit={showIntervalEdit}
+            onShowIntervalEdit={handleToggleIntervalEdit}
+            onIntervalChange={(v) => updateInterval.mutate(v)}
+          />
+        )
       case 'instruments':
         return (
           <StatCard
@@ -744,45 +762,12 @@ export function Data() {
           )}
         </AnimatePresence>
 
-        {/* 实时行情 / 自动任务 / 存储：桌面 1:2:1，窄屏纵向排列 */}
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-          <div className="min-w-0 [&>div]:h-full">
-            <QuoteConfigCard
-              enabled={realtimeEnabled}
-              running={quoteStatus.data?.running ?? false}
-              isTrading={quoteStatus.data?.is_trading_hours ?? false}
-              lastFetchMs={quoteStatus.data?.last_fetch_ms ?? null}
-              intervalS={realtimeIntervalS}
-              intervalMin={quoteInterval.data?.min_interval ?? 1}
-              intervalMax={quoteInterval.data?.max_interval ?? 60}
-              loading={quoteStatus.isLoading}
-              onToggle={(v) => toggleQuote.mutate(v)}
-              toggling={toggleQuote.isPending}
-              showIntervalEdit={showIntervalEdit}
-              onShowIntervalEdit={handleToggleIntervalEdit}
-              onIntervalChange={(v) => updateInterval.mutate(v)}
-            />
-          </div>
-
-          <div className="min-w-0 xl:col-span-2">
-            <div className="mb-2 flex items-center justify-between gap-3 px-1">
-              <div>
-                <div className="text-xs text-secondary">自动同步总开关</div>
-                <p className="mt-0.5 text-[10px] text-muted">
-                  关闭后，任务清单会保留并明确标注暂停项；个股维表与数据源能力检查继续运行。
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                role="switch"
-                aria-label="自动同步"
-                className="h-4 w-4 shrink-0 cursor-pointer accent-accent disabled:cursor-not-allowed"
-                checked={autoSyncEnabled}
-                onChange={event => updateAutoSync.mutate(event.target.checked)}
-                disabled={prefs.isLoading || prefs.isError || updateAutoSync.isPending}
-              />
-            </div>
+        {/* 数据同步 / 存储：桌面 3:1，窄屏纵向排列 */}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 items-start">
+          <div className="min-w-0 xl:col-span-3">
             <ScheduleOverview
+              onAutoSyncChange={(enabled) => updateAutoSync.mutate(enabled)}
+              autoSyncDisabled={prefs.isLoading || prefs.isError || updateAutoSync.isPending}
               preferences={prefs.data}
               klineConfigs={klineConfigs.data}
               minuteRefresh={minuteRefresh.data}

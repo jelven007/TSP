@@ -101,7 +101,7 @@ it('disables clearing a referenced group and leaves an unrelated group available
   expect(onClearGroup).toHaveBeenCalledWith('other')
 })
 
-it('creates a group with the selected code-only CSV in one submission', async () => {
+it('creates a group without offering CSV import in the group manager', async () => {
   const onCreate = vi.fn().mockResolvedValue(undefined)
   await render(<WatchlistGroupBar groups={[]} counts={{}} selected="all" total={0}
     onSelect={() => {}} onCreate={onCreate} onRename={vi.fn()} onDelete={vi.fn()} />)
@@ -111,13 +111,9 @@ it('creates a group with the selected code-only CSV in one submission', async ()
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(name, '导入分组')
     name.dispatchEvent(new Event('input', { bubbles: true }))
   })
-  const file = new File(['600000\n300750\n'], 'codes.csv', { type: 'text/csv' })
-  const input = document.querySelector<HTMLInputElement>('input[aria-label="导入分组 CSV"]')!
-  await act(async () => {
-    Object.defineProperty(input, 'files', { value: [file] })
-    input.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-  expect(document.body.textContent).toContain('codes.csv')
-  await act(async () => button('新建并导入').click())
-  expect(onCreate).toHaveBeenCalledWith('导入分组', 'sky', file)
+  expect(document.querySelector('input[type="file"]')).toBeNull()
+  expect(document.body.textContent).not.toContain('导入 CSV 股票列表')
+  expect(document.body.textContent).not.toContain('新建并导入')
+  await act(async () => button('新建').click())
+  expect(onCreate).toHaveBeenCalledWith('导入分组', 'sky')
 })

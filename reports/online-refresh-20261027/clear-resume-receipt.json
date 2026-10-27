@@ -1,0 +1,9 @@
+{
+  "checked_at": "2026-10-26T18:17:27.073638+00:00",
+  "cause": "docker run --env-file preserved quotes around AUTH_SMTP_PORT; Compose uses dotenv parsing",
+  "source_state": "twelve empty directories; retained-originals present; private config unchanged; no clear.json yet",
+  "fix": "parse original readonly dotenv in temporary container, drop supplementary groups/gid/uid before app imports; resume publication only",
+  "script_sha256": "661c7be07946b6703019de0cd7482332627058dfb3680fd63bf7c62dc32540ec",
+  "scope": "external maintenance script only; no application/config modification or repeat directory movement",
+  "authorization": "current user K-line clear and online upgrade"
+}

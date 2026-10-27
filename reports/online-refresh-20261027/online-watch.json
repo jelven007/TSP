@@ -1,0 +1,599 @@
+{
+  "started_at": "2026-10-26T18:22:04.448816+00:00",
+  "completed_at": "2026-10-26T18:24:11.348916+00:00",
+  "elapsed_seconds": 126.899939,
+  "fresh_health_cycles": [
+    "2026-10-26T18:22:29.131252+00:00",
+    "2026-10-26T18:23:29.493807+00:00"
+  ],
+  "samples": [
+    {
+      "health_checked_at": "2026-10-26T18:21:28.729693+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    },
+    {
+      "health_checked_at": "2026-10-26T18:21:28.729693+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    },
+    {
+      "health_checked_at": "2026-10-26T18:22:29.131252+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    },
+    {
+      "health_checked_at": "2026-10-26T18:22:29.131252+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    },
+    {
+      "health_checked_at": "2026-10-26T18:22:29.131252+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    },
+    {
+      "health_checked_at": "2026-10-26T18:22:29.131252+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    },
+    {
+      "health_checked_at": "2026-10-26T18:23:29.493807+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    },
+    {
+      "health_checked_at": "2026-10-26T18:23:29.493807+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    },
+    {
+      "health_checked_at": "2026-10-26T18:23:29.493807+00:00",
+      "passed": true,
+      "containers": {
+        "platform": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "gateway": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "api": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "research": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "realtime": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "notifications": {
+          "health": "healthy",
+          "restart_count": 0
+        },
+        "scheduled": {
+          "health": "healthy",
+          "restart_count": 0
+        }
+      },
+      "source_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "current_files": {
+        "kline_daily": 0,
+        "kline_daily_enriched": 0,
+        "kline_index_daily": 0,
+        "kline_index_enriched": 0,
+        "kline_etf_daily": 0,
+        "kline_etf_enriched": 0,
+        "kline_etf_minute": 0,
+        "kline_minute": 0,
+        "kline_5minute": 0,
+        "kline_10minute": 0,
+        "kline_15minute": 0,
+        "kline_weekly": 0
+      },
+      "automatic_sync_enabled": true,
+      "full_health_file_passed": false,
+      "non_indicator_checks_passed": true
+    }
+  ],
+  "passed": true,
+  "automatic_sync_enabled": true,
+  "acceptance": "empty K-lines and all non-indicator dependencies; subsequent automatic-sync setting preserved"
+}

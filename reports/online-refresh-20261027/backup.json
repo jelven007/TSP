@@ -1,0 +1,271 @@
+{
+  "path": "/opt/tsp-full/backups/pre-v0.4.32-4da5f30c9b51",
+  "restore_verified": true,
+  "manifest": {
+    "complete": true,
+    "created_at": "2026-10-26T18:14:45.712644+00:00",
+    "quiesced": true,
+    "databases": {
+      "control": {
+        "name": "tsp_control",
+        "bytes": 35464,
+        "sha256": "7e6d245b858094d01b8f7feeae73dea5f57363e4c4d48abea01a391160da7050"
+      },
+      "data": {
+        "name": "tsp_data",
+        "bytes": 3325449,
+        "sha256": "a4ea43ca336553b7443dbc9af30a38fff9132a9e597278229882a08ad89630a5"
+      }
+    },
+    "includes": {
+      "private-config": {
+        "source": "/etc/tsp-full",
+        "kind": "directory",
+        "evidence": {
+          "files": 12,
+          "bytes": 9959,
+          "sha256": "cfe220d42eaa790a0b98fbd2ce75985f00025f07601fb82609bef713d98612a1"
+        }
+      },
+      "platform-config": {
+        "source": "/opt/tsp-full/platform-config",
+        "kind": "directory",
+        "evidence": {
+          "files": 2,
+          "bytes": 1324,
+          "sha256": "b8c2ec2046a3652c8bea157bed8080bd2066b36bc9216b3c43372de197e1f594"
+        }
+      },
+      "source": {
+        "source": "/opt/tsp-full/source",
+        "kind": "directory",
+        "evidence": {
+          "files": 1606,
+          "bytes": 34363030,
+          "sha256": "831847c19c1a04bb0aec6ba7ad645e51e69cf182a3e003916c77dcc91c85cab2"
+        }
+      },
+      "operations": {
+        "source": "/opt/tsp-full/operations",
+        "kind": "directory",
+        "evidence": {
+          "files": 24,
+          "bytes": 187551,
+          "sha256": "ebc2a2a41454ace8e72be1e5bc198b57b404621016fa1d3e0aa1d0f1231e6d8c"
+        }
+      },
+      "maintenance": {
+        "source": "/opt/tsp-full/maintenance",
+        "kind": "directory",
+        "evidence": {
+          "files": 1,
+          "bytes": 8508,
+          "sha256": "be765e407754b3fb3627880c16f438a9a46c4d8585d840ee7840b63fad2b70fe"
+        }
+      },
+      "broker-unit": {
+        "source": "/etc/systemd/system/tsp-compute-broker.service",
+        "kind": "file",
+        "evidence": {
+          "bytes": 1076,
+          "sha256": "a52e2097f52fe72e3a5ac20d9cdce7a4ce5051dc7a6bf922978366e122451028"
+        }
+      },
+      "broker-overrides": {
+        "source": "/etc/systemd/system/tsp-compute-broker.service.d",
+        "kind": "directory",
+        "evidence": {
+          "files": 2,
+          "bytes": 446,
+          "sha256": "d65c18872975035d635881a8bdce99d043dbb2c5fdbbc0f7c5b2ca36f729517b"
+        }
+      },
+      "full-unit": {
+        "source": "/etc/systemd/system/tsp-full.service",
+        "kind": "file",
+        "evidence": {
+          "bytes": 491,
+          "sha256": "7410ebbc93e36f8387267127acfcf39889bd770ea4b51b78172482c2c478c0d8"
+        }
+      },
+      "market-kline_daily": {
+        "source": "/opt/tsp-full/platform-data/kline_daily",
+        "kind": "directory",
+        "evidence": {
+          "files": 1209,
+          "bytes": 125514083,
+          "sha256": "e77447ffb2412044903a434269c073e3eaf4fdc9f1da1ad6ecdba386adfef346"
+        }
+      },
+      "market-kline_daily_enriched": {
+        "source": "/opt/tsp-full/platform-data/kline_daily_enriched",
+        "kind": "directory",
+        "evidence": {
+          "files": 1209,
+          "bytes": 328229647,
+          "sha256": "d892995e593e4b5473875b1c9c4363d9d537a40045e80de5b6ba1f949e804d54"
+        }
+      },
+      "market-kline_index_daily": {
+        "source": "/opt/tsp-full/platform-data/kline_index_daily",
+        "kind": "directory",
+        "evidence": {
+          "files": 242,
+          "bytes": 4420528,
+          "sha256": "3040f627db8f32205e8ec64317f45276653687facf2adf759f6774eb98689b4f"
+        }
+      },
+      "market-kline_index_enriched": {
+        "source": "/opt/tsp-full/platform-data/kline_index_enriched",
+        "kind": "directory",
+        "evidence": {
+          "files": 242,
+          "bytes": 7314156,
+          "sha256": "eb0979ba3b4176fb71bf4c648ced0a4781a03ba7ab150a56b35ed200008d7e6d"
+        }
+      },
+      "market-kline_etf_daily": {
+        "source": "/opt/tsp-full/platform-data/kline_etf_daily",
+        "kind": "directory",
+        "evidence": {
+          "files": 242,
+          "bytes": 2421675,
+          "sha256": "6c3b67dbb062eedea7db31848923266305668f98c88b0e29197f8ce9d388ba72"
+        }
+      },
+      "market-kline_etf_enriched": {
+        "source": "/opt/tsp-full/platform-data/kline_etf_enriched",
+        "kind": "directory",
+        "evidence": {
+          "files": 242,
+          "bytes": 4036917,
+          "sha256": "435ce808d281f69c6065d67fb819e8545c65a8d2fbf6b4fbd1e2632bec8790bf"
+        }
+      },
+      "market-kline_etf_minute": {
+        "source": "/opt/tsp-full/platform-data/kline_etf_minute",
+        "kind": "directory",
+        "evidence": {
+          "files": 0,
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "market-kline_minute": {
+        "source": "/opt/tsp-full/platform-data/kline_minute",
+        "kind": "directory",
+        "evidence": {
+          "files": 282,
+          "bytes": 1289984142,
+          "sha256": "17ad4e90fec6ce73b1e35f2931234e8ec8f9c0f1cd29e24c8f91a5c2157c69a1"
+        }
+      },
+      "market-kline_5minute": {
+        "source": "/opt/tsp-full/platform-data/kline_5minute",
+        "kind": "directory",
+        "evidence": {
+          "files": 2,
+          "bytes": 2545166,
+          "sha256": "1533594dbfd9f46420b9860f7b5133a1db416dfd926b67781608cb5d8fef2077"
+        }
+      },
+      "market-kline_10minute": {
+        "source": "/opt/tsp-full/platform-data/kline_10minute",
+        "kind": "directory",
+        "evidence": {
+          "files": 2,
+          "bytes": 1381148,
+          "sha256": "452f3897ded9f0664f54215bf0930ee03addf773675a93663f1c009770de81dc"
+        }
+      },
+      "market-kline_15minute": {
+        "source": "/opt/tsp-full/platform-data/kline_15minute",
+        "kind": "directory",
+        "evidence": {
+          "files": 2,
+          "bytes": 938064,
+          "sha256": "72a1f358027b967875700984c66506b32f25917513a621fb98de8ee0135e7dad"
+        }
+      },
+      "market-kline_weekly": {
+        "source": "/opt/tsp-full/platform-data/kline_weekly",
+        "kind": "directory",
+        "evidence": {
+          "files": 86,
+          "bytes": 4829132,
+          "sha256": "d0747ef2cdd6a345169c119a32ee8777c8eb16c2d5245dabb10d1e9ee76f9e0b"
+        }
+      },
+      "market-data_releases": {
+        "source": "/opt/tsp-full/platform-data/data_releases",
+        "kind": "directory",
+        "evidence": {
+          "files": 39,
+          "bytes": 164274,
+          "sha256": "cecd90047b202721df3237f47ec6f438c945cdea4604f79b14bb9f652b699deb"
+        }
+      },
+      "market-matrix_generation_stock-json": {
+        "source": "/opt/tsp-full/platform-data/.matrix_generation_stock.json",
+        "kind": "file",
+        "evidence": {
+          "bytes": 101,
+          "sha256": "c7f0a1ecb832d4034f2a19c54337333f237e4cfca85b29ecbb8e8ee0cbcde26d"
+        }
+      },
+      "market-matrix_generation_etf-json": {
+        "source": "/opt/tsp-full/platform-data/.matrix_generation_etf.json",
+        "kind": "file",
+        "evidence": {
+          "bytes": 101,
+          "sha256": "403c3b9333437afcd06a1e9ff5f5e848d251f9ff0bd9ca86e61ae63945b906d9"
+        }
+      },
+      "market-matrix_generation_index-json": {
+        "source": "/opt/tsp-full/platform-data/.matrix_generation_index.json",
+        "kind": "file",
+        "evidence": {
+          "bytes": 101,
+          "sha256": "2705c9330c1dd7a72fc68b3f5691eb65756c42241ed707c7b7c949c450c714e7"
+        }
+      }
+    },
+    "restore_verification": {
+      "control": {
+        "restored": true,
+        "schema": "control",
+        "schema_version": 6,
+        "table_count": 20,
+        "business_evidence": {
+          "users": 2,
+          "tenants": 2,
+          "memberships": 2,
+          "admin_roles": 1,
+          "registration": 1
+        },
+        "source_matched": true
+      },
+      "data": {
+        "restored": true,
+        "schema": "business",
+        "schema_version": 6,
+        "table_count": 28,
+        "business_evidence": {
+          "bindings": 2,
+          "documents": 21,
+          "research_jobs": 53,
+          "artifact_bytes": 0,
+          "paper_accounts": 0,
+          "paper_orders": 0,
+          "paper_fills": 0,
+          "paper_nav": 0,
+          "cash": "0"
+        },
+        "source_matched": true
+      }
+    }
+  },
+  "previous_images_saved": true,
+  "market": "twelve exact directories copied and SHA256 compared; immutable history retained",
+  "public_current": "releases/d41d1e23d768445eb3a083cb0602dc7c"
+}

@@ -80,6 +80,21 @@ def activate(env, legacy):
     return token, TenantPaper(env["db"], context, root)
 
 
+def test_full_import_retains_stock_strategy_relations(env, legacy):
+    root, tenant_id, _ = legacy
+    path = root / "user_data" / "watchlist.parquet"
+    df = pl.read_parquet(path).with_columns(
+        pl.Series("strategy_ids", [["daily", "minute", "daily"], []], dtype=pl.List(pl.Utf8)),
+    )
+    df.write_parquet(path)
+    assert run_import(env, legacy)["reconciled"]
+    value = env["data"].execute(
+        """SELECT value FROM business.documents
+           WHERE tenant_id=%s AND namespace='watchlist_strategies' AND id='600000.SH'""", (tenant_id,),
+    ).fetchone()
+    assert value and value["value"]["strategy_ids"] == ["daily", "minute"]
+
+
 def test_full_import_retains_content_and_password_with_private_originals(env, legacy):
     result = run_import(env, legacy)
     root, tenant_id, _user_id = legacy

@@ -418,7 +418,9 @@ export function WatchlistImportDialog({
   }
 
   const confirmAdd = async () => {
-    const symbols = [...selected]
+    const symbols = candidates
+      .filter(c => c.symbol && selected.has(c.symbol))
+      .map(c => c.symbol!)
     if (symbols.length === 0) {
       toast('请至少选择一只股票', 'error')
       return

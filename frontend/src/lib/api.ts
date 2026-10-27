@@ -267,6 +267,8 @@ export interface WatchlistEntry {
   name?: string | null
   /** 所属分组 id 列表 (同一标的可属于多个分组; 空数组=未分组) */
   group_ids?: string[]
+  /** 自选标记关联的策略，不改变策略选股范围或监控状态 */
+  strategy_ids?: string[]
 }
 
 export type WatchlistGroupColor =
@@ -2823,7 +2825,7 @@ export const api = {
   klineSyncConfigs: () => request<Record<KlinePeriod, KlineSyncConfig>>('/api/settings/kline-sync'),
   saveKlineSyncConfig: (period: KlinePeriod, config: KlineSyncConfig) =>
     request<KlineSyncConfig>(`/api/settings/kline-sync/${period}`, { method: 'POST', body: JSON.stringify(config) }),
-  syncKlinePeriod: (period: KlinePeriod, value: number, unit: 'month' | 'year') =>
+  syncKlinePeriod: (period: KlinePeriod, value?: number, unit?: 'month' | 'year') =>
     request<{ job_id: string; status: string }>('/api/kline/sync_period', { method: 'POST', body: JSON.stringify({ period, value, unit }) }),
   createStockCatalogRow: (body: StockCatalogFields & { symbol: string }) =>
     request<StockCatalogRow>('/api/data/instruments', { method: 'POST', body: JSON.stringify(body) }),
@@ -3187,10 +3189,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ value, unit }),
     }),
-  repairDaily: (startDate: string, period: KlinePeriod = '1d', mode: 'full' | 'missing' = 'full') =>
+  repairDaily: (startDate: string, period: KlinePeriod = '1d', mode: 'full' | 'missing' = 'full', endDate?: string) =>
     request<{ status: string; job_id: string }>('/api/kline/repair_daily', {
       method: 'POST',
-      body: JSON.stringify({ start_date: startDate, period, mode }),
+      body: JSON.stringify({ start_date: startDate, period, mode, ...(endDate !== undefined ? { end_date: endDate } : {}) }),
     }),
   rebuildEnriched: () =>
     request<{ status: string; job_id: string }>('/api/kline/rebuild_enriched', {
@@ -3198,6 +3200,11 @@ export const api = {
     }),
 
   watchlistList: () => request<{ symbols: WatchlistEntry[] }>('/api/watchlist'),
+  watchlistSetStrategies: (symbol: string, strategyIds: string[]) =>
+    request<{ symbols: WatchlistEntry[] }>(`/api/watchlist/${encodeURIComponent(symbol)}/strategies`, {
+      method: 'PUT',
+      body: JSON.stringify({ strategy_ids: strategyIds }),
+    }),
   watchlistAdd: (symbol: string, note = '', groupId?: string | null) =>
     request<{ symbols: WatchlistEntry[] }>('/api/watchlist', {
       method: 'POST',

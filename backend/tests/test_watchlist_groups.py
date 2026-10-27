@@ -260,6 +260,7 @@ def test_legacy_duplicate_stocks_merge_groups_without_overwriting_metadata(monke
     assert rows[0] == {
         "symbol": "600000.SH", "added_at": "2026-10-23T10:00:00",
         "note": "保留备注", "group_ids": ["first", "second"],
+        "strategy_ids": [],
     }
     assert rows[1]["group_ids"] == []
     # 读取仅归一快照, 不改写用户文件。

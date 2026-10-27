@@ -1,0 +1,13 @@
+{
+  "observed_api_write_time": "2026-10-26T18:19:29.221863529Z",
+  "method": "PUT",
+  "path": "/api/settings/preferences/data-sync-auto",
+  "http_status": 200,
+  "previous_enabled": false,
+  "current_enabled": true,
+  "changed_preference_keys": ["data_sync_auto_enabled"],
+  "browser_verification_completed_at": "2026-10-26T18:18:46.089729+00:00",
+  "source": "post-upgrade settings API operation after verification browser exited",
+  "handling": "preserve the subsequent setting; report possible future K-line regeneration",
+  "actor_not_inferred": true
+}

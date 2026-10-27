@@ -5,6 +5,7 @@ import uuid
 from collections.abc import Callable
 
 from psycopg.errors import UniqueViolation
+from psycopg.types.json import Jsonb
 
 from app.cell.context import TenantContext
 from app.cell.database import Databases
@@ -30,7 +31,14 @@ class Watchlist:
                GROUP BY i.tenant_id,i.symbol
                ORDER BY i.position,i.added_at DESC,i.symbol"""
         ).fetchall()
-        return [{**row, "added_at": row["added_at"].isoformat()} for row in rows]
+        relations = {
+            row["id"]: row["value"].get("strategy_ids", [])
+            for row in conn.execute(
+                "SELECT id,value FROM business.documents WHERE namespace='watchlist_strategies'"
+            ).fetchall()
+        } if rows else {}
+        return [{**row, "added_at": row["added_at"].isoformat(),
+                 "strategy_ids": relations.get(row["symbol"], [])} for row in rows]
 
     def _mutate(self, action: str, target: str, operation: Callable):
         with self.db.business_transaction(self.context, write=True) as conn:
@@ -94,7 +102,8 @@ class Watchlist:
                 self._require_group(conn, group)
             existing = {row["symbol"] for row in self._rows(conn)}
             added = len(set(symbols) - existing)
-            for symbol in symbols:
+            # position 每次减小, 倒序写入才能保持批量输入的首现顺序。
+            for symbol in reversed(dict.fromkeys(symbols)):
                 if only_new and symbol in existing:
                     continue
                 conn.execute(
@@ -115,8 +124,32 @@ class Watchlist:
 
         return self._mutate("watchlist.add", ",".join(symbols)[:4096], apply)
 
+    def set_strategies(self, symbol: str, strategy_ids: list[str]) -> list[dict]:
+        self.context.require("watchlist:write")
+        ids = list(dict.fromkeys(strategy_ids))
+
+        def apply(conn):
+            self._require_symbol(conn, symbol)
+            if ids:
+                conn.execute(
+                    """INSERT INTO business.documents(tenant_id,namespace,id,value)
+                       VALUES(%s,'watchlist_strategies',%s,%s)
+                       ON CONFLICT(tenant_id,namespace,id) DO UPDATE SET
+                         value=excluded.value,revision=business.documents.revision+1,updated_at=now()""",
+                    (self.context.tenant_id, symbol, Jsonb({"strategy_ids": ids})),
+                )
+            else:
+                conn.execute(
+                    "DELETE FROM business.documents WHERE namespace='watchlist_strategies' AND id=%s", (symbol,),
+                )
+            return self._rows(conn)
+        return self._mutate("watchlist.strategies.assign", symbol, apply)
+
     def remove(self, symbol: str) -> list[dict]:
         def apply(conn):
+            conn.execute(
+                "DELETE FROM business.documents WHERE namespace='watchlist_strategies' AND id=%s", (symbol,),
+            )
             conn.execute("DELETE FROM business.watchlist_items WHERE symbol=%s", (symbol,))
             return self._rows(conn)
         return self._mutate("watchlist.remove", symbol, apply)
@@ -125,6 +158,7 @@ class Watchlist:
         def apply(conn):
             from app.strategy.targets import ensure_clearable, sql_references
             ensure_clearable(None, sql_references(conn))
+            conn.execute("DELETE FROM business.documents WHERE namespace='watchlist_strategies'")
             return conn.execute("DELETE FROM business.watchlist_items").rowcount
         return self._mutate("watchlist.clear", "*", apply)
 

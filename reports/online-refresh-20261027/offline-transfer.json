@@ -1,0 +1,20 @@
+{
+  "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+  "image_name": "tsp-runtime-transfer:4da5f30c9b51",
+  "image_sha256": "a835d28331751805aaac88ffd588f762ab41c7833aa2ec72bdb7c09b0ce58438",
+  "registry_index": "sha256:d4ebf07c54e20fcc5d96695520999efa58887dfd9f12d2c401f3d115f52d4059",
+  "registry_config": "sha256:e46d2f8772f81ba3d3f8aa13cb2212931607e4f114cb17cdd9d497125cdded42",
+  "registry_child": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+  "docker_identity": {
+    "docker_id": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+    "registry_config": "sha256:e46d2f8772f81ba3d3f8aa13cb2212931607e4f114cb17cdd9d497125cdded42",
+    "config_bytes_sha256_verified": true,
+    "rootfs_verified": true,
+    "architecture": "amd64",
+    "revision": "4da5f30c9b5165612d78b573c142612f3fe25395"
+  },
+  "transport": "rsync delta against retained v0.4.31 archive",
+  "full_remote_sha256_verified": true,
+  "archive_bytes": 477998080,
+  "passed": true
+}

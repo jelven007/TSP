@@ -1,0 +1,27 @@
+{
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "version",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "frontend",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "backend",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "tag",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/jelven007/TSP/actions/runs/40370758749"
+}
