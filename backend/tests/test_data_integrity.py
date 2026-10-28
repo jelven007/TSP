@@ -656,6 +656,10 @@ def test_pipeline_self_heals_snapshot_day(tmp_path, monkeypatch):
         return 0
 
     monkeypatch.setattr(kline_sync, "sync_and_persist_daily_batch", _fake_batch)
+    monkeypatch.setattr(
+        "app.services.corporate_actions.sync_actions",
+        lambda data_dir, symbols: 0,
+    )
     # run_pipeline() 不传 data_dir 时读 settings.data_dir — 同步指到 tmp
     monkeypatch.setattr(app_settings, "data_dir", tmp_path)
 

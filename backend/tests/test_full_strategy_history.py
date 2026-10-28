@@ -90,14 +90,14 @@ def test_sql_history_filters_delete_isolation_and_rollback(env):
     _, foreign = register(env)
     own = TenantDocuments(env["db"], env["identity"].context(account, None, "history"))
     other = TenantDocuments(env["db"], env["identity"].context(foreign, None, "foreign"))
-    key = ResultIdentity("sample", "旧名称_100%", "Version-ABC", "{}", "{}", "null", "etf", "1m")
+    key = ResultIdentity("sample", "旧名称_100%", "Version-ABC", "{}", "{}", "null", "stock", "1m")
     store = StrategyResults(own)
     for day in ("2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"):
         store.save(key, {"as_of": day, "rows": [{"symbol": "OLD"}]}, started_at=1)
-        store.save(replace(key, asset_type="stock", timeframe="1d"),
+        store.save(replace(key, timeframe="1d"),
                    {"as_of": day, "rows": []}, started_at=1)
     filters = dict(q="旧名称_100%", start_date="2026-10-20", end_date="2026-10-22",
-                   asset_type="etf", timeframe="1m", limit=2)
+                   asset_type="stock", timeframe="1m", limit=2)
     page = store.list_history("sample", **filters)
     assert [r["as_of"] for r in page["records"]] == ["2026-10-22", "2026-10-21"]
     second = store.list_history("sample", cursor=page["next_cursor"], **filters)
