@@ -32,6 +32,7 @@ from app.plugins.rustdx.client import (
     _RUSTDX_SOURCE_REV,
     RustdxClient,
     RustdxError,
+    RustdxSourceChangedError,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ _HISTORY_COLUMNS = {column for fields in _FINANCIAL_MAPS.values() for column in 
     "col314"
 }
 _CACHE_TTL = 3600
-_MAX_CONNECTIONS = 35
+_MAX_CONNECTIONS = 8
 
 
 @dataclass
@@ -284,17 +285,19 @@ class RustdxProvider:
 
     @classmethod
     def _workers(cls, symbol_count: int) -> int:
+        from .client import _connection_count
+
         try:
             configured = int(os.getenv("RUSTDX_WORKERS", str(_MAX_CONNECTIONS)))
         except ValueError:
             configured = _MAX_CONNECTIONS
-        return max(1, min(configured, _MAX_CONNECTIONS, symbol_count))
+        return max(1, min(configured, _connection_count(), symbol_count))
 
     def _persistent_quotes(self, symbols: list[str], *, operation: str) -> list[dict]:
         del operation
         # One native call partitions the universe into 60-symbol requests and
         # schedules them across the process-wide pool. The native pool clamps
-        # its connection count to 35, including concurrent API consumers.
+        # its business connection count to eight, including API consumers.
         return self._client_factory().quotes(symbols)
 
     # ---- instruments ----
@@ -438,16 +441,27 @@ class RustdxProvider:
         # see updated source rows, and no page is downloaded twice in a call.
         pages: dict[int, tuple[list[dict], datetime | None]] = {}
         errors: dict[int, RustdxError] = {}
+        source: dict | None = None
 
         def read_page(page: int) -> tuple[list[dict], datetime | None]:
+            nonlocal source
             if page in errors:
                 raise errors[page]
             if page not in pages:
                 try:
-                    batch = client.bars(
-                        symbol, frequency=frequency,
-                        start=page * _PAGE_SIZE, offset=_PAGE_SIZE,
-                    )
+                    if callable(getattr(client, "bars_with_source", None)):
+                        batch, observed = client.bars_with_source(
+                            symbol, frequency=frequency, start=page * _PAGE_SIZE,
+                            offset=_PAGE_SIZE, expected_source=source,
+                        )
+                        if source is not None and source != observed:
+                            raise RustdxSourceChangedError("rustdx K线分页来源变化, 须从头重采")
+                        source = observed
+                    else:
+                        batch = client.bars(
+                            symbol, frequency=frequency,
+                            start=page * _PAGE_SIZE, offset=_PAGE_SIZE,
+                        )
                 except RustdxError as exc:
                     errors[page] = exc
                     raise
@@ -499,6 +513,8 @@ class RustdxProvider:
                     else:
                         lower = middle
                 return upper
+            except RustdxSourceChangedError:
+                raise
             except RustdxError:
                 # A speculative older page may be outside available history.
                 # Serial scanning still raises if the requested range needs it.
@@ -1387,7 +1403,7 @@ class RustdxProvider:
             except RustdxError as exc:
                 return pl.DataFrame(), max(requests, exc.requests), exc
 
-        # Native pool is shared with quotes/history/finance and enforces 35
+        # Native pool is shared with quotes/history/finance and enforces eight
         # sockets across all consumers, including simultaneous calls.
         with ThreadPoolExecutor(
             max_workers=self._workers(len(valid)), thread_name_prefix="rustdx-latest"

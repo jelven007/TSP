@@ -77,7 +77,14 @@ def run_repair_daily(
         try:
             if mode == "missing":
                 from app.services.kline_gaps import sync_missing
-                return sync_missing(repo, period, start_date, range_end, on_progress=on_progress)
+                return sync_missing(
+                    repo,
+                    period,
+                    start_date,
+                    range_end,
+                    on_progress=on_progress,
+                    capset=capset,
+                )
             if period != "1d":
                 snapshot = instrument_sync.load_current_stock_pool(repo.store.data_dir, require_complete=True)
                 # 周K以周一入库, 周中起始日期也必须包含所在周的整根K线。

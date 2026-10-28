@@ -449,7 +449,7 @@ datasets:
 > 无代码接入(纯 HTTP YAML 配置)请看 [custom-data-source.md](#http),
 > 两种方式遵循同一套内部数据契约。
 >
-> rustdx 的安装、原生桥接、35 连接池、单位校准及覆盖限制见
+> rustdx 的安装、原生桥接、8业务+1探测连接池、单位校准及覆盖限制见
 > [rustdx 数据源](#rustdx)。
 
 <a id="plugin-快速上手"></a>
@@ -829,7 +829,7 @@ uv run --extra dev python -m ruff check app/plugins/<your_plugin>/ tests/test_<y
 ### 现有插件参考
 
 - **`backend/app/plugins/rustdx/`** — 默认 Rust 数据源，覆盖核心行情/财务能力，并提供公司行为观察；
-  PyO3 桥接 `rustdx-complete`，进程内最多 35 条连接，独立财务下载与解析。
+  PyO3 桥接 `rustdx-complete 2.0.4`，进程内最多8业务+1探测连接，独立财务下载与解析。
   运行要求和数据边界见 [rustdx 数据源](#rustdx)。
   `corporate_actions` 独立声明、路由及返回 `CorporateAction` 标准字段；
   日期不明保留空值，不能由除权日推断登记或到账时间。契约见[公司行为](trading-ai.md#corporate)。
@@ -918,11 +918,12 @@ rustdx 全市场分钟逐股取数，有效轮次间隔至少 60 秒，保留原
 ### 原生运行时
 
 后端通过 PyO3 原生扩展调用
-[`jelven-rustdx-complete 1.12.2`](https://crates.io/crates/jelven-rustdx-complete/1.12.2)。
-Cargo 使用精确版本 `=1.12.2`，锁文件保存发布包校验和，构建无需 GitHub 私有仓库凭据。
-发布来源提交为 `9dfc024c9662fa5091099c1f17610569ee2eca8b`；
-原固定提交 `904b33e514d4e368e633622c96a9e63af8a53d37` 仅追加发布文档，
-两者的 Rust 源码和构建声明一致。`tsp-rustdx-native` 已纳入后端默认依赖，
+[`jelven007/rustdx v2.0.4`](https://github.com/jelven007/rustdx/tree/c4c0273456874898aed50447fd900521d9ffd3b8)。
+固定来源提交为 `c4c0273456874898aed50447fd900521d9ffd3b8`，完整101个核心源码文件
+置于 `backend/native/rustdx_native/vendor/rustdx-core/`，Cargo 使用精确 `=2.0.4`
+本地路径依赖。`UPSTREAM.json`、`SOURCE-SHA256SUMS`和`PATCHES.md`记录来源、补丁与摘要；
+`build.rs`在编译前拒绝增删或内容漂移，运行检查同时核对核心和补丁身份。
+不引入上游CLI、调度runner或生产数据。`tsp-rustdx-native` 已纳入后端默认依赖，
 普通 `uv sync --frozen` 会自动构建安装，后续同步也不会因遗漏 extra 移除桥接。
 旧命令中的 `--extra rustdx` 保留兼容，但不再是安装前提。源码环境需要 Rust toolchain：
 
@@ -936,9 +937,9 @@ uv run --frozen --no-sync pytest tests/test_rustdx_provider.py tests/test_rustdx
 ```
 
 未安装 Rust 时，先按 [Rust 官方安装说明](https://www.rust-lang.org/tools/install)
-安装工具链。固定 Git 源需要授权时，使用已有 Git 凭据并设置
-`CARGO_NET_GIT_FETCH_WITH_CLI=true`，让 Cargo 通过 Git CLI 获取源码。
-不要将凭据写入 Cargo 依赖 URL，也不要切换旧提交绕过版本校验。
+安装工具链。已入库核心的校验和构建无需访问GitHub；第三方Cargo依赖仍需可用的
+registry或本地缓存。离线核验运行 `python scripts/vendor_rustdx.py`；
+仅在主动升级核心及补丁后使用其显式 `--refresh --upstream` 命令刷新身份。
 
 Docker 镜像和桌面安装包会在构建阶段编译并包含原生扩展，运行目标机器不需要安装
 Rust。开发启动脚本每次同步后端依赖；脚本启动、Docker 构建、CI 和桌面打包均
@@ -991,25 +992,23 @@ rustdx 目录可能提前包含待上市证券。仅对前收盘价为协议空�
 ### 全市场连接池
 
 全市场实时、竞价和盘口请求按每批最多 60 只标的拆分，由一个进程级持久连接池
-调度。默认和硬上限均为 35 条连接：
+调度。单进程默认和硬上限为8条业务连接，另有1条独立探测连接，总上限9：
 
 ```env
-RUSTDX_QUOTE_CONNECTIONS=35
-RUSTDX_WORKERS=35
-RUSTDX_BACKGROUND_CONNECTIONS=12
+RUSTDX_QUOTE_CONNECTIONS=8
+RUSTDX_WORKERS=8
+RUSTDX_BACKGROUND_CONNECTIONS=7
 RUSTDX_MAX_PAGES=64
 RUSTDX_SERVER=117.34.114.13:7709
 RUSTDX_FINANCIAL_SERVER=120.76.152.87:7709
 RUSTDX_TIMEOUT=8
 ```
 
-- `RUSTDX_QUOTE_CONNECTIONS`：全市场行情连接池大小，范围 `1..35`。
-- `RUSTDX_WORKERS`：日 K、分钟 K、除权等按标的并行任务数，范围 `1..35`。
-- `RUSTDX_BACKGROUND_CONNECTIONS`：共享池中 bars、财务等后台请求的并发**保底下限**，
-  默认 12，范围 `1..连接总数`（内部钳制在池容量之下，确保报价始终有可用槽）。
-  后台始终可占用到该下限的并发，即使报价在排队；高于下限才让路。报价占用其余所有
-  槽。这是请求预算，不创建第二个连接池。离线单节点压测下 12 使全市场分钟一轮降到
-  约 36s、报价 P95 约 548ms（见采集建议文档性能验收），交易时段仍需复测。
+- `RUSTDX_QUOTE_CONNECTIONS`：业务连接池大小，范围 `1..8`。
+- `RUSTDX_WORKERS`：按标的并行任务数，范围 `1..8`，同时不超过实际业务池大小。
+- `RUSTDX_BACKGROUND_CONNECTIONS`：bars、财务等后台请求的并发上限，
+  默认7，内部限制为 `1..max(1,业务池大小-1)`；8条业务连接时至少给实时请求留1槽。
+  后台在上限以内可持续执行，超过上限等待；单槽配置不具备实时保留槽。
 - `RUSTDX_MAX_PAGES`：单标的 K 线最大翻页数，范围 `1..80`。
 - `RUSTDX_SERVER`：行情主站，格式为 `IP:PORT`。
 - `RUSTDX_FALLBACK_SERVERS`：逗号分隔的备选行情节点。未显式设置主站时默认使用
@@ -1017,18 +1016,32 @@ RUSTDX_TIMEOUT=8
   释放故障连接后才切换，成功节点继续复用。财务专用节点不沿用行情备选。
 - `RUSTDX_FINANCIAL_SERVER`：财务归档主站。行情站可能提供目录但不提供 ZIP，
   因此独立选择归档节点；切换节点时先释放槽位中的旧连接，不增加连接池上限。
-- `RUSTDX_TIMEOUT`：连接与协议请求超时秒数，范围 `2..60`。
+- `RUSTDX_TIMEOUT`：单次非分页业务调用及socket传输超时秒数，范围 `2..60`。
+  冷精度目录和全市场报价共用300秒批量任务总时限；直接证券目录与F10完整读取
+  使用120秒分页总时限。这些总时限不按页重置，底层单次socket传输仍受本配置限制。
+  单文件财务下载另受核心300秒批量任务总时限约束；
+  财务每个TCP分块仍使用配置的请求超时，整个文件不按块重置截止时间。
+  报价工作线程继承同一个批量任务绝对截止时间。
+- `RUSTDX_NETWORK_SHARED_DIR`：可选跨进程额度目录；业务共用8个文件额度，
+  `probes/`子目录单独共用1个探测额度。未设置时8+1上限按进程计算；
+  多worker部署需统一设置相同受控目录并分配各进程业务池大小，总和不超过8，
+  避免空闲持久连接占满共享额度。运行中更改目录明确拒绝并要求重启进程。
 
-即使环境变量设置超过 35，Python Provider 和 Rust 原生桥接也会分别钳制到 35。
-同一进程中的并发调用共享连接池，不会为每次请求再创建一组 35 条连接。
+即使历史环境变量设置超过8，Python Provider和Rust桥接也会分别钳制到8。
+行情和财务共用业务槽；行情池用044e证券数量探测，财务池用实际0004心跳应答，
+均要求三轮合格且不发布部分探测快照。每次失败先释放旧TCP，再建立替代连接。
+证券精度元数据在池内共享并串行按所需市场预热，不对ETF价格另行猜测缩放。
+主站、财务站、回退节点、超时或连接配置变化时，Python先关闭旧池并创建新元数据空间。
+多页K线绑定节点、进程唯一连接身份及北京时间观察日；变化时拒绝整个取数结果。
+原有最新页/历史结束边界定位和单次探测页复用保留，不恢复重复近期前缀扫描。
 新建连接错峰，复用连接无需等待；失败最多尝试三次，关闭后旧池拒绝新请求。
-统计包含槽位等待、后台活跃/峰值、重试、失败和实际分钟协议请求数。
+统计包含业务与探测实际活跃/峰值、市场池状态、元数据状态、槽位等待、重试和分钟请求数。
 分钟增量与修复按有界窗口提交逐股任务；同分区读、合并、替换受线程和进程锁保护。
 计数接口的协议错误会终止本轮，排空已提交窗口以统计请求和重试数，并停止提交
 后续窗口。失败轮不提交部分分钟数据，不增加成功轮数、不更新最后成功时间；
 错误保留在服务状态中，健康立即变为 false，后续完整成功轮恢复。成功无数据
 仍按空轮处理，连续失败或空轮触发全天修复。
-本次桥接包为 `tsp-rustdx-native 0.1.1`、接口为 `POOL_API_VERSION=2`；
+本次桥接包为 `tsp-rustdx-native 0.2.0`、接口为 `POOL_API_VERSION=3`；
 源码升级后依赖同步会重建原生扩展，旧接口明确显示不可用。
 
 <a id="rustdx-日历与研究复现"></a>
@@ -1060,13 +1073,13 @@ RUSTDX_TIMEOUT=8
 日 K 按有限窗口流式产出，分钟增量只请求最新几根真实分钟 K。1 秒调度是目标
 轮询间隔，实际完成时间受标的数量与公开节点性能约束，不承诺全市场 1 秒内完成。
 
-固定股票池的 8–30 连接 P95 压测脚本、验收口径和结果文件见
+固定股票池的1–8业务连接压测脚本、验收口径和结果文件见
 [`rustdx 行情连接数压测`](../testing.md#rustdx-benchmark)。
 
 秒级回测新增可选的不可变快照归档、质量门禁和执行验证 API，复用既有轮询结果及
 买卖一档数据，不增加行情请求。启用方法、时间语义和分阶段验收见
 [`秒级行情回测优化与实施方案`](market-data.md#second)。
-该能力保存采样快照；1.12.2 的成交查询时间精度仍不足以补齐历史真实秒级逐笔数据。
+该能力保存采样快照；当前Provider未接入上游逐笔扩展，不能据核心升级宣称补齐历史真实秒级数据。
 
 <a id="rustdx-数据口径"></a>
 ### 数据口径

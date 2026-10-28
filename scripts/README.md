@@ -12,6 +12,7 @@
 | `build_manifest.py`、`upgrade_check.py` | 构建清单与只读升级预检 | `python3 scripts/upgrade_check.py <目标Tag>` |
 | `check_docs.py` | Markdown链接/锚点/围栏、八模块/需求编号 | `python3 scripts/check_docs.py` |
 | `check_repository.py` | 检查源码目录和关键入口 | `python3 scripts/check_repository.py` |
+| `vendor_rustdx.py` | 离线核验固定rustdx源码、补丁与桥接身份；升级时显式刷新 | `python3 scripts/vendor_rustdx.py` |
 | `acceptance/` | 候选镜像构建、计算验收、持续验收启动 | `python3 scripts/acceptance/build_full_candidate.py --help` |
 | `release/` | 最新及五个历史源码归档、清单和离线核验 | `python3 scripts/release/source_recovery.py --help` |
 | `performance/` | 两个工作区的内存预算对比 | `python3 scripts/performance/benchmark_memory_budget.py --help` |

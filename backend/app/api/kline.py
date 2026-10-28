@@ -1266,9 +1266,14 @@ async def sync_period_job(request: Request, body: dict):
     period = body.get("period", "")
     if not isinstance(period, str) or period not in kline_periods.TABLES:
         raise HTTPException(status_code=422, detail="不支持的K线周期")
+    range_keys = {"start_date", "end_date", "mode"}
+    if period in ("1m", "1d") and range_keys.intersection(body):
+        if not range_keys.issubset(body):
+            raise HTTPException(status_code=400, detail="起始日期、结束日期和获取方式均为必填")
+        return await _start_kline_range_job(request, body)
     generate = period != "1m" and "value" not in body and "unit" not in body
     if period == "1d" and not generate:
-        # 兼容旧客户端显式历史范围; 新卡片只提交周期, 使用本地生成。
+        # 兼容旧客户端的value/unit历史范围; 当前卡片提交明确日期闭区间。
         return await extend_history(request)
     repo = request.app.state.repo
     if not generate:
@@ -1615,20 +1620,13 @@ async def extend_history(request: Request):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/repair_daily")
-async def repair_daily(request: Request):
-    """K线修正 — 指定闭区间; 旧调用默认全量日K并修正到今天。
-
-    body: { "start_date": "YYYY-MM-DD", "end_date"?: "YYYY-MM-DD",
-            "period": "1d", "mode": "full" | "missing" }
-    返回 job_id,可轮询 /api/pipeline/jobs 查看进度。
-    """
+async def _start_kline_range_job(request: Request, body: dict):
+    """启动指定闭区间的K线全量或遗漏数据获取任务。"""
     import asyncio
     import traceback as _tb
     from datetime import date as _date
     try:
-        body = await request.json()
-        from app.services import kline_periods, preferences
+        from app.services import kline_periods
         if not isinstance(body, dict):
             raise HTTPException(status_code=422, detail="请求须为JSON对象")
         period = body.get("period", "1d")
@@ -1641,7 +1639,11 @@ async def repair_daily(request: Request):
         if not raw:
             raise HTTPException(status_code=400, detail="start_date 必填 (YYYY-MM-DD)")
         try:
-            start_date = _date.fromisoformat(str(raw))
+            if not isinstance(raw, str):
+                raise ValueError("expected date string")
+            start_date = _date.fromisoformat(raw)
+            if raw != start_date.isoformat():
+                raise ValueError("expected YYYY-MM-DD")
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="start_date 格式错误 (应为 YYYY-MM-DD)") from exc
 
@@ -1667,19 +1669,11 @@ async def repair_daily(request: Request):
         repo = request.app.state.repo
         capset = request.app.state.capabilities
 
-        from app.tickflow.capabilities import Cap
-        if period not in kline_periods.LOCAL_DERIVED_PERIODS:
-            daily = period in ("1d", "1w")
-            source = preferences.get_daily_data_provider() if daily else preferences.get_minute_data_provider()
-            if source == "tickflow":
-                cap = Cap.KLINE_DAILY_BATCH if daily else Cap.KLINE_MINUTE_BATCH
-                if not capset.has(cap):
-                    raise HTTPException(status_code=403, detail="当前K线数据源不具备所选周期能力")
-            else:
-                try:
-                    kline_periods._period_provider(period)
-                except ValueError as exc:
-                    raise HTTPException(status_code=403, detail=str(exc)) from exc
+        if mode == "full" and period not in kline_periods.LOCAL_DERIVED_PERIODS:
+            try:
+                kline_periods.require_period_provider(period, capset)
+            except ValueError as exc:
+                raise HTTPException(status_code=403, detail=str(exc)) from exc
 
         from app.api.data import invalidate_storage_cache
         from app.services.pipeline_jobs import (
@@ -1754,6 +1748,13 @@ async def repair_daily(request: Request):
     except Exception as e:
         logger.error("repair_daily error: %s\n%s", e, _tb.format_exc())
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/repair_daily")
+async def repair_daily(request: Request):
+    """兼容旧客户端的K线区间获取入口。"""
+    body = await request.json()
+    return await _start_kline_range_job(request, body)
 
 
 @router.post("/rebuild_enriched")

@@ -2708,7 +2708,7 @@ provides-extras = ["rustdx", "legacy-cpu", "backtest", "desktop", "dev", "cell"]
 
 [[package]]
 name = "tsp-rustdx-native"
-version = "0.1.1"
+version = "0.2.0"
 source = { directory = "native/rustdx_native" }
 
 [[package]]

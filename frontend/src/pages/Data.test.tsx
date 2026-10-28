@@ -63,6 +63,7 @@ it.each(['success', 'failure', 'preferences-error'] as const)('places quotes in 
     await flush()
     const sync = host.querySelector('[aria-label="数据同步"]')
     expect(sync).not.toBeNull()
+    expect(host.textContent).not.toContain('数据修正')
     const toggle = sync!.querySelector<HTMLButtonElement>('[role="switch"][aria-label="自动同步"]')!
     expect(toggle).not.toBeNull()
     const portraitTitle = Array.from(host.querySelectorAll('h2')).find(h => h.textContent === '数据画像')!
@@ -154,8 +155,8 @@ it.each(['succeeded', 'failed'] as const)('refreshes cached charts after a %s re
   }
 })
 
-it('opens daily profile history acquisition and submits the same range controls as one minute', async () => {
-  const fetchMock = vi.fn(async (path: string) => {
+it('opens daily profile acquisition and submits its selected closed date range', async () => {
+  const fetchMock = vi.fn(async (path: string, _init?: RequestInit) => {
     let value: unknown = {}
     if (path === '/api/settings/preferences') value = { data_sync_auto_enabled: true }
     else if (path === '/api/settings/data-sources') value = { builtin: [], plugins: [], custom: [] }
@@ -200,15 +201,22 @@ it('opens daily profile history acquisition and submits the same range controls 
     const dialog = document.querySelector('[role="dialog"]')!
     expect(dialog.textContent).toContain('日K · 同步设置')
     expect(dialog.textContent).toContain('获取日K后继续同步除权因子并重算指标')
-    expect(dialog.querySelector<HTMLInputElement>('[aria-label="历史扩展数量"]')?.value).toBe('6')
+    expect(dialog.querySelector('[aria-label="历史扩展数量"]')).toBeNull()
+    expect(dialog.querySelector('[aria-label="起始日期"]')).not.toBeNull()
+    expect(dialog.querySelector('[aria-label="结束日期"]')).not.toBeNull()
     expect(dialog.querySelector('[aria-label="交易日同步时间"]')?.textContent).toContain('16:30')
     expect(dialog.textContent).toContain('2025-10-27')
-    const acquire = [...dialog.querySelectorAll('button')].find(button => button.textContent === '获取数据')!
+    const acquire = [...dialog.querySelectorAll('button')].find(button => button.textContent === '获取全量数据')!
     await act(async () => acquire.click())
     await flush()
-    expect(fetchMock).toHaveBeenCalledWith('/api/kline/sync_period', expect.objectContaining({
-      method: 'POST', body: '{"period":"1d","value":6,"unit":"month"}',
-    }))
+    const request = fetchMock.mock.calls.find(call => call[0] === '/api/kline/sync_period')!
+    expect(request[1]).toEqual(expect.objectContaining({ method: 'POST' }))
+    expect(JSON.parse(String(request[1]?.body))).toEqual({
+      period: '1d',
+      start_date: expect.any(String),
+      end_date: expect.any(String),
+      mode: 'full',
+    })
     expect(host.textContent).toContain('daily-history-1')
   } finally {
     await act(async () => root.unmount())

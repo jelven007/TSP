@@ -16,7 +16,6 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   Info,
-  WandSparkles,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { EndpointTestDialog } from '@/components/EndpointTestDialog'
@@ -47,7 +46,6 @@ import { StockCatalogDialog } from '@/components/data/StockCatalogDialog'
 import { ScheduleOverview } from '@/components/data/ScheduleOverview'
 import { KlineSyncConfig } from '@/components/data/KlineSyncConfig'
 import { isLocalDerivedPeriod } from '@/lib/klinePeriods'
-import { RepairDailyPanel } from '@/components/data/RepairDailyPanel'
 import { EnrichedRebuildPanel } from '@/components/data/EnrichedRebuildPanel'
 import { RegimeConfigCard } from '@/components/data/RegimeConfigCard'
 import { PipelineScopeConfig } from '@/components/data/PipelineScopeConfig'
@@ -162,7 +160,6 @@ export function Data() {
   const [schemaTable, setSchemaTable] = useState<string | null>(null)
   const [showEndpointTest, setShowEndpointTest] = useState(false)
   const [showCreateExt, setShowCreateExt] = useState(false)
-  const [showRepair, setShowRepair] = useState(false)
   const [editingExt, setEditingExt] = useState<ExtDataConfig | null>(null)
   const [indexBatchInput, setIndexBatchInput] = useState('100')
 
@@ -684,14 +681,6 @@ export function Data() {
               <CheckSquare className="h-3.5 w-3.5" />
               数据范围
             </button>
-            <button
-              onClick={() => setShowRepair(true)}
-              disabled={!hasData || isRunning}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-btn text-secondary hover:text-accent hover:bg-accent/8 text-xs transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <WandSparkles className="h-3.5 w-3.5" />
-              数据修正
-            </button>
             <div className="w-px h-4 bg-border" />
             <div className="flex flex-wrap items-center gap-1.5">
               <button
@@ -923,28 +912,6 @@ export function Data() {
               isRunning={!!activeJobId}
               earliestDate={s?.[openSettings as 'minute' | 'daily' | 'weekly' | '5m' | '10m' | '15m']?.earliest_date ?? null}
               onJobStart={id => { setActiveJobId(id); setOpenSettings(null) }}
-            />
-          </SettingsModal>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showRepair && (
-          <SettingsModal title="K线修正" onClose={() => setShowRepair(false)}>
-            <RepairDailyPanel
-              hasCap={hasDailyBatchCap}
-              hasMinuteCap={hasMinuteCap}
-              isRunning={!!activeJobId}
-              latestDates={{
-                '1m': s?.minute?.latest_date, '5m': s?.['5m']?.latest_date,
-                '10m': s?.['10m']?.latest_date, '15m': s?.['15m']?.latest_date,
-                '1d': s?.daily?.latest_date, '1w': s?.weekly?.latest_date,
-              }}
-              onStart={jobId => {
-                setActiveJobId(jobId)
-                startTime.current = Date.now()
-                setShowRepair(false)
-              }}
             />
           </SettingsModal>
         )}

@@ -15,6 +15,7 @@ env/
 htmlcov/
 dist/
 build/
+target/
 *.egg-info/
 
 # ===== uv =====

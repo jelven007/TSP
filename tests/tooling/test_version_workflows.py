@@ -187,6 +187,22 @@ def test_desktop_release_pins_every_job_to_existing_tag_revision():
     assert upload["with"]["draft"] == "true"
 
 
+def test_desktop_standalone_smoke_isolates_runtime_configuration():
+    build = workflow("release.yml")["jobs"]["build"]
+    smoke = next(
+        step for step in build["steps"]
+        if step.get("name") == "验证 macOS 和 Linux 本地版无需登录"
+    )
+    command = smoke["run"]
+
+    assert "TICKFLOW_ENV_FILE=/dev/null" in command
+    assert "MULTITENANCY_ENABLED=false" in command
+    assert "SERVICE_ROLE=standalone" in command
+    assert 'DATA_DIR="$data_dir"' in command
+    assert 'data_dir="$RUNNER_TEMP/desktop-smoke"' in command
+    assert 'log="$data_dir/desktop.log"' in command
+
+
 def test_docker_latest_only_promoted_for_current_main_after_build():
     docker = workflow("docker.yml")
     build = docker["jobs"]["build-and-push"]

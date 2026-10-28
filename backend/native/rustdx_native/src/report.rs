@@ -3,6 +3,32 @@ use rustdx_complete::tcp::{Tcp, send_recv_decompress};
 pub const CHUNK_SIZE: u32 = 30_000;
 pub const MAX_FILE_SIZE: usize = 128_000_000;
 
+pub fn validate_listing(bytes: &[u8]) -> Result<(), String> {
+    let text =
+        std::str::from_utf8(bytes).map_err(|e| format!("[InvalidData] report index: {e}"))?;
+    let mut count = 0;
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        let fields = line.split(',').map(str::trim).collect::<Vec<_>>();
+        if fields.len() != 3
+            || request(&format!("tdxfin/{}", fields[0]), 0).is_err()
+            || !fields[0].ends_with(".zip")
+            || fields[1].len() != 32
+            || !fields[1].bytes().all(|b| b.is_ascii_hexdigit())
+            || fields[2]
+                .parse::<usize>()
+                .ok()
+                .is_none_or(|n| n == 0 || n > MAX_FILE_SIZE)
+        {
+            return Err("[InvalidData] invalid rustdx financial index record".into());
+        }
+        count += 1;
+    }
+    if count == 0 {
+        return Err("[InvalidData] empty rustdx financial index".into());
+    }
+    Ok(())
+}
+
 fn request(filename: &str, offset: u32) -> Result<Vec<u8>, String> {
     if filename != "tdxfin/gpcw.txt"
         && !(filename.len() == 23

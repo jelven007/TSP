@@ -106,12 +106,18 @@ afterEach(async () => {
   await act(async () => root.unmount())
   client.clear()
   host.remove()
+  vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 // React Query batches observer notifications on the next timer tick.
 async function settle() {
   for (let i = 0; i < 5; i++) {
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+    await act(async () => {
+      await Promise.resolve()
+      if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(0)
+      else await new Promise(resolve => setTimeout(resolve, 0))
+    })
   }
 }
 
@@ -209,4 +215,37 @@ it('opens data repair with seven indices and defaults to daily with week/month o
   await act(async () => [...dialog.querySelectorAll('button')].find(b => b.textContent === '获取遗漏数据')!.click())
   await settle()
   expect(fixtures.repairs[0]).toEqual([expect.any(String), '1mo', 'missing', expect.any(String)])
+})
+
+it('uses actual available bars and keeps the count outside the buttons with both calendars inline', async () => {
+  await renderPage()
+  const defaultButton = [...host.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.textContent === '默认')!
+  const buttonGroup = defaultButton.parentElement!
+  const startDate = host.querySelector<HTMLElement>('[aria-label="开始日期"]')!
+  const endDate = host.querySelector<HTMLElement>('[aria-label="K线结束日期"]')!
+
+  expect(buttonGroup.textContent).toBe('默认放大缩小')
+  expect(buttonGroup.parentElement?.contains(startDate)).toBe(true)
+  expect(buttonGroup.parentElement?.contains(endDate)).toBe(true)
+  expect(buttonGroup.parentElement?.textContent).toContain('3根')
+  expect(buttonGroup.parentElement?.textContent).not.toContain('3 / 3 根')
+})
+
+it('automatically hides the completed repair task after five seconds', async () => {
+  vi.useFakeTimers()
+  await renderPage()
+  const open = [...host.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.textContent?.includes('数据修正'))!
+  await act(async () => open.click())
+  const submit = [...document.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.textContent === '获取全量数据')!
+  await act(async () => submit.click())
+  await settle()
+
+  expect(host.textContent).toContain('index-job')
+  await act(async () => { await vi.advanceTimersByTimeAsync(4_999) })
+  expect(host.textContent).toContain('index-job')
+  await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+  expect(host.textContent).not.toContain('index-job')
 })

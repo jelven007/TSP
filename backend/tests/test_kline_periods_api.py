@@ -238,6 +238,93 @@ async def wait_for_job(job_id):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(("period", "mode"), [("1m", "full"), ("1m", "missing"), ("1d", "full"), ("1d", "missing")])
+async def test_base_period_sync_forwards_explicit_closed_range_to_shared_repair_service(
+    app, monkeypatch, period, mode,
+):
+    from app.services import repair_daily
+
+    calls = []
+    monkeypatch.setattr(kline_periods, "_period_provider", lambda _: (object(), "rustdx"))
+
+    def run(repo, caps, start_date, **kwargs):
+        calls.append((repo, caps, start_date, kwargs["end_date"], kwargs["period"], kwargs["mode"]))
+        return {"period": period, "mode": mode, "rows": 1}
+
+    monkeypatch.setattr(repair_daily, "run_repair_daily", run)
+    body = {
+        "period": period,
+        "start_date": "2026-10-21",
+        "end_date": "2026-10-23",
+        "mode": mode,
+    }
+    started = await kline.sync_period_job(SimpleNamespace(app=app), body)
+    job = await wait_for_job(started["job_id"])
+
+    assert job["status"] == "succeeded", job
+    assert job["request"] == body
+    assert calls == [(
+        app.state.repo,
+        app.state.capabilities,
+        date(2026, 10, 21),
+        date(2026, 10, 23),
+        period,
+        mode,
+    )]
+
+
+@pytest.mark.asyncio
+async def test_missing_sync_defers_provider_resolution_until_after_local_gap_scan(app, monkeypatch):
+    from app.services import repair_daily
+
+    monkeypatch.setattr(
+        kline_periods,
+        "_period_provider",
+        lambda _: pytest.fail("no-gap missing sync must not resolve the upstream provider"),
+    )
+    monkeypatch.setattr(
+        repair_daily,
+        "run_repair_daily",
+        lambda *args, **kwargs: {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 0,
+            "missing_before": 0,
+            "remaining": 0,
+            "requests": 0,
+            "message": "选定区间没有遗漏数据, 无需获取",
+        },
+    )
+    body = {
+        "period": "1m",
+        "start_date": "2026-10-21",
+        "end_date": "2026-10-23",
+        "mode": "missing",
+    }
+
+    started = await kline.sync_period_job(SimpleNamespace(app=app), body)
+    job = await wait_for_job(started["job_id"])
+
+    assert job["status"] == "succeeded", job
+    assert job["result"]["requests"] == 0
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"period": "1m", "start_date": "2026-10-23", "end_date": "2026-10-21", "mode": "full"},
+        {"period": "1d", "start_date": "2026-10-21", "end_date": "2026-10-29", "mode": "missing"},
+        {"period": "1d", "start_date": "2026-10-21", "end_date": "2026-10-23", "mode": "invalid"},
+    ],
+)
+def test_base_period_sync_rejects_invalid_ranges_and_modes_before_creating_jobs(app, body):
+    with TestClient(app) as client:
+        response = client.post("/api/kline/sync_period", json=body)
+    assert response.status_code in {400, 422}
+    assert pipeline_jobs.job_store.list_recent() == []
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("period", ["5m", "10m", "15m", "1w"])
 async def test_generation_covers_existing_base_range_and_can_regenerate(app, monkeypatch, period):
     repo = app.state.repo

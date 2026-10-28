@@ -51,6 +51,14 @@ def test_runtime_secrets_caches_and_data_are_never_scanned(tmp_path):
         file.write_text("secret")
     assert sorted(baseline(root)["files"]) == ["app/main.py", "static/index.html"]
 
+def test_source_manifest_covers_vendored_native_dependency():
+    payload = manifest.create(ROOT, manifest.SOURCE_SCOPES, version="0.4.36", commit=None)
+    prefix = "backend/native/rustdx_native/vendor/rustdx-core/"
+    assert prefix + "src/tcp/ip/probe.rs" in payload["files"]
+    assert prefix + "src/cache_windows_lock.rs" in payload["files"]
+    assert prefix + "Cargo.toml" in payload["files"]
+    assert prefix + "LICENSE" in payload["files"]
+
 
 def test_frontend_data_components_are_source_not_runtime_data(tmp_path):
     component = tmp_path / "frontend/src/components/data/Skeleton.tsx"

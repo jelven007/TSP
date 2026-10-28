@@ -58,6 +58,15 @@ impl Scheduler {
     }
 
     pub fn acquire(&self, preferred: usize, background: bool) -> Result<Lease<'_>, String> {
+        self.acquire_at(preferred, background, false)
+    }
+
+    pub fn acquire_at(
+        &self,
+        preferred: usize,
+        background: bool,
+        pinned: bool,
+    ) -> Result<Lease<'_>, String> {
         let started = Instant::now();
         let mut state = self.state.lock().map_err(|error| error.to_string())?;
         state.waiting += 1;
@@ -65,12 +74,19 @@ impl Scheduler {
             state.foreground_waiting += 1;
         }
         loop {
-            if state.closed {
+            let error = if state.closed {
+                Some("rustdx connection pool is closed".to_string())
+            } else {
+                rustdx_complete::operation::check()
+                    .err()
+                    .map(super::io_error)
+            };
+            if let Some(error) = error {
                 state.waiting -= 1;
                 if !background {
                     state.foreground_waiting -= 1;
                 }
-                return Err("rustdx connection pool is closed".into());
+                return Err(error);
             }
             // Background holds a guaranteed floor of up to `background_limit`
             // concurrent leases even while foreground is waiting; above that floor
@@ -85,7 +101,7 @@ impl Scheduler {
             let size = state.busy.len();
             let idle = (0..size)
                 .map(|offset| (preferred + offset) % size)
-                .find(|index| !state.busy[*index]);
+                .find(|index| !state.busy[*index] && (!pinned || *index == preferred));
             if let Some(index) = idle.filter(|_| allowed) {
                 state.waiting -= 1;
                 state.busy[index] = true;
@@ -107,8 +123,9 @@ impl Scheduler {
             }
             state = self
                 .changed
-                .wait(state)
-                .map_err(|error| error.to_string())?;
+                .wait_timeout(state, std::time::Duration::from_millis(20))
+                .map_err(|error| error.to_string())?
+                .0;
         }
     }
 
@@ -207,5 +224,23 @@ mod tests {
             pool.close();
             assert!(waiter.join().unwrap().contains("closed"));
         });
+    }
+
+    #[test]
+    fn queued_request_obeys_operation_deadline() {
+        let pool = Scheduler::new(1, 1);
+        let _occupied = pool.acquire(0, true).unwrap();
+        let task =
+            rustdx_complete::operation::OperationContext::new(Duration::from_millis(30), None)
+                .unwrap();
+        let _scope = task.enter();
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(100));
+                pool.close();
+            });
+            assert!(pool.acquire(0, true).err().unwrap().contains("TimedOut"));
+        });
+        assert_eq!(pool.stats()["waiting_requests"], 0);
     }
 }

@@ -348,14 +348,18 @@ jobs:
           else
             exe="backend/dist/TSP/TSP"
           fi
-          data_dir="$(dirname "$exe")/data"
+          data_dir="$RUNNER_TEMP/desktop-smoke"
           rm -rf "$data_dir"
-          TSP_DESKTOP_SMOKE_TEST=1 "$exe"
+          trap 'rm -rf "$data_dir"' EXIT
+          TICKFLOW_ENV_FILE=/dev/null \
+            MULTITENANCY_ENABLED=false \
+            SERVICE_ROLE=standalone \
+            DATA_DIR="$data_dir" \
+            TSP_DESKTOP_SMOKE_TEST=1 "$exe"
           log="$data_dir/desktop.log"
           test -f "$log"
           grep -q 'DESKTOP_SMOKE_TEST_OK' "$log"
           grep -q 'DESKTOP_AUTH_BYPASS_SMOKE_TEST_OK' "$log"
-          rm -rf "$data_dir"
 
       - name: 静默安装、运行和卸载 Windows 安装包
         if: matrix.platform == 'windows'

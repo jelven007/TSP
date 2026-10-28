@@ -1,5 +1,32 @@
 # 测试与验收指南
 
+2026-10-28数据采集统一回归先固定11项前端和7项后端红灯：
+旧数据修正入口、月/年扩展控件、单获取按钮、日期未透传及非法范围仍建任务。
+修复后`KlineSyncConfig/Data`定向23项、前端全量453项、ESLint和生产构建通过；
+周期API 40项、修正与rustdx请求预算102项通过。回归覆盖闭区间full/missing、
+本地缺口先于Provider解析、无缺口零请求、100证券上限、32日分段、
+rustdx旧窗口页预算，以及全量/遗漏取数期间不暂停行情、仅分区写盘暂停。
+证据见[数据采集统一记录](../reports/data-collection-unification-20261028/verification.md)。
+
+2026-10-28周K schema 回归覆盖`quote_ts`只在较早分区或只在较新分区两种顺序。
+旧实现连续三次均2失败，分别为missing column和extra column；修复后周K/周期/生成API/
+共享Parquet/周K修正共83项通过，Ruff通过。ECS实际10月26/27混合分区只读扫描
+10,430行并聚合5,215条周K；未触发真实生成写盘。证据见
+[修复记录](../reports/weekly-parquet-schema-20261028/verification.md)。
+
+2026-10-28指数页回归新增实际根数/工具栏结构与修正任务终态5秒自动收起。
+旧实现连续三次均2项失败，修复后指数定向5项和前端全量453项通过，
+lint/build通过。Playwright以真实ECharts和模拟API检查1600×1000、390×844，
+覆盖60→90→130封顶、数量框外、日历同行、终态消失、无横向溢出和控制台错误。
+证据见[指数页交互记录](../reports/index-page-ui-20261028/verification.md)。
+
+2026-10-28 rustdx v2.0.4回归覆盖8业务+1探测、行情与财务不同资格、
+共享精度元数据、旧桥接拒用、配置变更关闭旧池、排队绝对时限、单文件与分块预算、
+冷精度目录/证券目录分页预算、多页来源变更拒绝及原历史定位预算。
+核心单元/文档测试、独立源码包构建、漂移拒绝、Windows目标交叉编译和公开节点
+只读验证见[实际记录](../reports/rustdx-v204-20261028/verification.md)。
+Windows/Linux原生产物与生产运行另验；未完成正式P95。
+
 2026-10-28历史K线验收新增`test_minute_history_request_budget.py`与
 `test_rustdx_history_request_budget.py`：31/32天、100证券、旧窗口/准确缺口请求预算、
 股票/指数/ETF、日K整日边界、UTC、未知量额、停牌、空/短/重复/坏页、
@@ -86,14 +113,14 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 两个按钮参数、空/反向/未来提示、失败重试及无横向溢出；模拟请求不认证真实数据源历史覆盖。
 
 <a id="local-kline-generation"></a>
-2026-10-27离线生成回归：`KlineSyncConfig.test.tsx`覆盖5/10/15分K、周K
+2026-10-28离线生成回归：`KlineSyncConfig.test.tsx`覆盖5/10/15分K、周K
 无扩展控件、仅传period、空表/缺能力可点击、任务运行中禁用。
-日K恢复与1m一致的历史控件、月/年及显式范围请求，覆盖缺能力/运行中禁用、
-已有最早日期、失败保留表单及后续除权/指标说明；`Data.test.tsx`从日K画像设置按钮
-验证真实API请求与任务跟踪，保留用户盘后时间。
+1m/1d使用两个DatePicker和全量/遗漏按钮，覆盖闭区间请求、缺能力/运行中禁用、
+已有最早日期、失败保留表单及日K后续除权/指标说明；`Data.test.tsx`从日K画像设置按钮
+验证真实API请求、任务跟踪及页面无独立修正入口，保留用户盘后时间。
 `test_kline_periods_api.py`覆盖完整本地基础日期范围、目标已有数据、重复生成与基础数据修订，
 缺基础失败、旧无范围日K API真实本地复权/指标入库、原始日K保留、缓存换代和取消前不发布；
-日K画像显式范围沿原历史任务，验证月/年参数、能力拒绝、实际结果和100%进度。
+基础周期显式范围沿共享区间任务，验证full/missing参数、能力拒绝、实际结果和100%进度。
 周期服务同时验证缺维表时仍按基础已有证券生成。
 `test_pipeline_capacity.py`验证新生成任务等待共享容量后才计算。
 同时回归周期服务、修正、历史进度、公共缓存和Enriched发布；前端执行全量测试、
@@ -125,13 +152,13 @@ v0.4.28诊断已排除日志关闭阻塞，详见[原生退出修复](../.claude
 在相同统计输入下比较日K与周K画像卡片，同步说明和记录统计文案一致，名称及各自数据保持独立。
 测试通过不证明上游拥有多年历史，实际数据覆盖按日期和标的另行验收。
 
-K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
-覆盖两个页面选项/默认日K、请求周期和最新日期切换、日K原管道兼容、1分钟远程修正与旧API周K本地日K
+K线区间获取回归入口为`test_repair_kline.py`、`test_kline_periods_api.py`与
+`KlineSyncConfig.test.tsx`：覆盖1m/1d卡片日期和双按钮、数据总览无修正入口、
+日K原管道兼容、1分钟远程获取与旧API周K本地日K
 聚合的幂等入库、5/10/15分钟本地OHLCV/量额聚合及缺基础数据、非法周期、
 自定义源不依赖TickFlow权限、对应能力拒绝和取消后不再写盘。
-页面验收检查「K线修正」标题、失败提示、任务跟踪及桌面/窄屏弹窗；
-四种分钟周期统一显示为1分K、5分K、10分K、15分K；同时检查卡片、设置、字段说明及任务提示中的动态名称。
-日K与周K的日期范围表单复用，周K说明明确每周六从本地日K聚合，切换后提交仍传各自period。
+页面验收检查1分K/日K设置中的失败提示、任务跟踪及桌面/窄屏弹窗；
+四种分钟周期统一显示为1分K、5分K、10分K、15分K。
 空数据/部分范围不能作为全量历史修复成功的证据。
 遗漏模式在同一后端测试文件覆盖六周期完整数据零请求、整日及分区内单股缺失、
 内部连续/不连续分钟缺口、午休及未形成区间、上市前/休市/未知日历、
@@ -144,7 +171,7 @@ K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
 日K/分钟K/分钟区间查询，保留无关查询缓存，不依赖实时SSE。
 
 数据总览修复用例补充：无效显隐/顺序、重复卡片及页面设置重开；
-派生周期无扩展生成表单、日K/1m月年历史获取、日K空库闰年自然月区间及后续复权/指标流程；
+派生周期无扩展生成表单、日K/1m闭区间全量/遗漏获取及后续复权/指标流程；
 原minute/daily入口的5m/15m/1w本地读取、周K空表从日K聚合、非法周期/源失败，
 及三个周期离线任务写盘后画像计数。回归须断言实际周期与行值，不能只检查200。
 
@@ -1287,7 +1314,7 @@ API 及测试事实源，再检查：
 ## 15. rustdx连接数基准方法
 
 脚本 [`backend/scripts/performance/benchmark_rustdx_quotes.py`](../backend/scripts/performance/benchmark_rustdx_quotes.py)
-对同一份本地股票池逐档测量 8–30 条持久连接的全量行情耗时。默认每个整数档位均测试，
+对同一份本地股票池逐档测量1–8条业务连接的全量行情耗时。默认测试8条，
 每档单独创建进程与连接池，关闭后再运行下一档。
 
 <a id="benchmark-运行"></a>
@@ -1302,13 +1329,13 @@ cd backend
 uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --dry-run
 
 # 23 个档位；每档冷启动 1 轮、预热 5 轮、正式采样 100 轮
-uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 8-30
+uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 1-8
 
 # 以 1000ms 为 P95 验收上限
-uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 8-30 --max-p95-ms 1000
+uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 1-8 --max-p95-ms 1000
 
 # 先做少量真实网络冒烟验证，不作为 P95 验收
-uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 8,30 --rounds 3 --warmup 1
+uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 4,8 --rounds 3 --warmup 1
 ```
 
 默认轮次开始间隔为 1 秒，完整运行约 41 分钟起；慢轮次会增加总时间。上一轮完成后

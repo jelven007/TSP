@@ -155,7 +155,8 @@ Copy-Item .env.example .env
 4. 在“策略”和“回测”页面验证策略结果及费用口径。
 5. 按需配置 AI、监控通知、Open API Token 和 MCP。
 
-全新安装的七项数据能力默认路由到 `rustdx`，全市场请求最多共用 35 个连接，
+全新安装的七项数据能力默认路由到 `rustdx`，采用 v2.0.4 固定源码，
+单进程共用最多 8 条业务连接及 1 条独立探测连接，
 原生桥接随后端依赖默认安装，Docker 和桌面包内置对应平台的扩展；构建和开发
 启动会检查桥接是否就绪。已保存的路由保持原值。数据源实际可用性受公开服务器、
 网络和协议覆盖影响，系统不会在失败时静默切换到其他数据源。
@@ -286,7 +287,7 @@ git diff --check
 | [运维手册](docs/operations.md) | 巡检、备份、恢复和故障处理 |
 | [发布流程](docs/release-operations.md) | 版本、产物、上线和回滚 |
 | [二次开发](docs/secondary-development.md) | 扩展点和核心修改规则 |
-| [rustdx 数据源](docs/reference/integrations.md#rustdx) | 默认路由、35 连接池和历史财务 |
+| [rustdx 数据源](docs/reference/integrations.md#rustdx) | v2.0.4、8业务+1探测和历史财务 |
 | [策略开发](docs/reference/research.md#strategy) | 内置、自定义和 AI 策略 |
 | [MCP 服务器](mcp-server/README.md) | AI 客户端接入 |
 

@@ -2836,8 +2836,13 @@ export const api = {
   klineSyncConfigs: () => request<Record<KlinePeriod, KlineSyncConfig>>('/api/settings/kline-sync'),
   saveKlineSyncConfig: (period: KlinePeriod, config: KlineSyncConfig) =>
     request<KlineSyncConfig>(`/api/settings/kline-sync/${period}`, { method: 'POST', body: JSON.stringify(config) }),
-  syncKlinePeriod: (period: KlinePeriod, value?: number, unit?: 'month' | 'year') =>
-    request<{ job_id: string; status: string }>('/api/kline/sync_period', { method: 'POST', body: JSON.stringify({ period, value, unit }) }),
+  syncKlinePeriod: (period: KlinePeriod, range?: KlineRangeSyncRequest) =>
+    request<{ job_id: string; status: string }>('/api/kline/sync_period', {
+      method: 'POST',
+      body: JSON.stringify(range
+        ? { period, start_date: range.startDate, end_date: range.endDate, mode: range.mode }
+        : { period }),
+    }),
   createStockCatalogRow: (body: StockCatalogFields & { symbol: string }) =>
     request<StockCatalogRow>('/api/data/instruments', { method: 'POST', body: JSON.stringify(body) }),
   updateStockCatalogRow: (symbol: string, body: StockCatalogFields) =>
@@ -4771,6 +4776,11 @@ export interface StockCatalogRow extends StockCatalogFields {
 }
 
 export type KlinePeriod = '1m' | '5m' | '10m' | '15m' | '1d' | '1w'
+export interface KlineRangeSyncRequest {
+  startDate: string
+  endDate: string
+  mode: 'full' | 'missing'
+}
 export interface KlineSyncConfig {
   enabled: boolean
   interval_seconds: number

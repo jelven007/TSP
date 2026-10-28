@@ -1,5 +1,25 @@
 # TSP 系统技术方案
 
+2026-10-28数据总览移除独立`RepairDailyPanel`入口，基础周期离线获取收口到
+`KlineSyncConfig→POST /api/kline/sync_period→_start_kline_range_job→run_repair_daily`。
+1m/1d请求必须携带`start_date/end_date/mode`；5m/10m/15m/1w仍仅传`period`
+并走本地`generate_period`。兼容端点`/api/kline/repair_daily`复用同一启动器，
+不维护第二套校验、JobStore或缺口逻辑。
+`missing`先扫描本地证券/时间键；只有发现首个缺口才通过
+`require_period_provider`检查TickFlow能力并解析Provider，无缺口零请求成功。
+1m全量沿32自然日、100证券有界分块和rustdx v2.0.4历史页定位；
+线程本地行情门闸只包围`persist_period`写盘，网络取数与计算阶段不暂停实时行情。
+
+2026-10-28周K生成的本地基础数据读取统一接回`app.parquet`：
+基础证券枚举使用`scan_parquet_compat`，日K范围读取使用带标准schema/cast的
+`scan_daily_parquet`。它为新增列选择ignore、缺列选择insert，避免Polars以首个文件
+schema严格扫描混合分区；周K聚合、分区写入、视图和缓存失效不变。
+
+2026-10-28指数页K线控制复用`StockDailyKChart`的
+`onAvailableBarsChange/onVisibleBarsChange`，分别保存可用根数与实际可见根数，
+周期切换重置60根并清空旧上限。修正任务终态先失效相关查询，再用可清理的5秒定时器
+解除当前任务跟踪；新任务ID不会被旧定时器清除。无API、缓存键或后端契约变化。
+
 2026-10-28历史K线性能修复沿`sync_period/kline_gaps→fetch_period→Provider→persist_period`。
 1分K日期段从5天扩至最多32自然日、保留100证券批次；rustdx共用分页以实际页时间
 指数探测、二分定位结束边界，再连续读取至起点，单次调用复用探测页且不跨调用缓存。
@@ -62,23 +82,24 @@ symbol/period/range隔离迟到响应，任务终态失效指数缓存。
 1分钟日期分区，分别按09:30和13:00起算收盘标签，未知量额保持空值。取数按日期段及100标的块有界执行；
 写盘沿既有分区锁与原子替换，刷新对应视图、画像及存储缓存，公共发布目录同步扩展。
 六周期设置经 `/api/settings/kline-sync`，手工任务经 `/api/kline/sync_period`；
-日K画像设置与1分K一样提交`period/value/unit`，沿`extend_history`获取历史日K、
-同步除权因子及重算指标；不将日K归入本地派生周期。日K开关、盘后时间与现有配置保持一致。
+1分K和日K画像提交`period/start_date/end_date/mode`，沿共享区间任务获取基础K线；
+日K继续同步除权因子及重算指标，不将日K归入本地派生周期。
+日K开关、盘后时间与现有配置保持一致。
 手工请求仅传`period`时，5/10/15分K、周K调用`generate_period`：
 按基础1m/1d的非空分区最早到最新日期及已有证券本地计算，派生周期复用有界`sync_period`；
 旧无范围日K API兼容本地生成：调用`run_pipeline(data_dir=repo.store.data_dir)`重算Enriched，沿已有发布屏障、
 symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓存。
 日K自动同步保留原复权/指标流水线，1分钟实时保留既有增量服务，其余周期由调度检查。
-显式传`value/unit`的旧历史调用保留；1m缺省也保持远程历史行为。
+显式传`value/unit`的旧历史调用仅保留API兼容；1m缺省也保持旧远程历史行为。
 此候选沿用分钟/日K独立能力路由，不新增第八个数据集或策略周期。
 日K画像卡片沿用周K的同步说明，`StatCard`共用记录/标的/交易日统计文案模板。
 
-「K线修正」沿用 `/api/kline/repair_daily`，可选`period`缺省为`1d`，
-可选`mode=full|missing`缺省为`full`，旧调用保持全量行为。
-2026-10-27面板仅提供1分K和日K，数据总览入口命名为「数据修正」；
-起止日期复用行情首排的`DatePicker`，结束缺省今天；
-全量/遗漏均提交起止闭区间。API可选`end_date`严格校验YYYY-MM-DD及起始≤结束≤北京今天，
-任务请求保存结束日期；旧API省略结束日期仍到今天，六周期服务调用继续兼容。
+数据总览不再提供独立「数据修正」入口。1分K和日K卡片的离线补齐直接提供
+两个`DatePicker`及全量/遗漏按钮，统一调用`/api/kline/sync_period`。
+该入口严格要求`start_date/end_date/mode`，校验YYYY-MM-DD及
+起始≤结束≤北京今天，任务请求保存完整闭区间。
+`/api/kline/repair_daily`仅保留旧客户端兼容，可选`period`缺省`1d`、
+`mode`缺省`full`且省略结束日期时到今天；它与新入口复用同一任务启动器。
 `repair_daily.run_repair_daily`保留日K盘后流程，其他周期读取既有完整股票池快照后
 调用`kline_periods.sync_period`，按起止日期分段取数或本地聚合并幂等落盘。
 日K通过`run_now(override_start_date, override_end_date=...)`统一股票/指数/ETF日K与因子范围；
@@ -89,7 +110,8 @@ symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓
 使用公布日历及有覆盖证据的源日历，排除上市前、休市及未形成的分钟/当日日K；
 未知日历明确失败。写入前在原分区锁内再次anti-join，保留并发同步已写入的值。
 5/10/15分钟分别只补具备完整5/10/15根本地1分钟的桶；日K只重算补入证券的本地复权/指标，
-不额外重拉除权、ETF或指数。无缺口零请求成功，部分返回保留已补数据并报告未补行数。
+不额外重拉除权、ETF或指数。Provider及能力检查延迟到发现首个缺口；
+无缺口零请求成功，部分返回保留已补数据并报告未补行数。
 5/10/15分钟与周K不调用Provider，遗漏检测仅使用公布日历或已有日历缓存，不隐式请求上游日历；
 1分钟、日K依各自路由取数；周K从本地日K聚合，缺基础数据、缺能力或全量无输出明确反馈。
 任务请求保存周期，非日K任务复用已有`kline_<period>`显示契约；落盘刷新对应视图/
@@ -756,7 +778,7 @@ Platform 执行，租户研究/监控/通知/定时工作由对应 Worker 执行
 期间不会由外部调度系统自动补跑所有任务；恢复后应按
 [运维手册](operations.md)检查并人工补齐缺口。
 
-数据修正和完整性自愈通过线程本地写盘门闸接入 `QuoteService`。Provider 取数、
+区间获取和完整性自愈通过线程本地写盘门闸接入 `QuoteService`。Provider 取数、
 扫描和指标计算期间实时轮询保持运行；只有原子 Parquet 写入、发布提交和分区删除
 进入短临界区时按可重入计数暂停，避免嵌套写操作提前恢复。仓库 merge/flush
 自身只依靠写锁与原子替换，不额外进入暂停门闸；修正服务在其写入边界控制暂停。
@@ -1103,7 +1125,7 @@ flowchart TB
 | --- | --- | --- | --- |
 | 前端 | React 18、TypeScript、Vite、TanStack Query、Tailwind CSS、ECharts、lightweight-charts | 复用 | 集中 API/查询键、批量读取、身份缓存隔离 |
 | 后端 | Python 3.11+、FastAPI、Pydantic v2 | 复用领域服务 | 不在 API 热路径扫描历史或直连供应商 |
-| 数据源 | rustdx 1.12.2/PyO3、TickFlow、自定义 Provider | 当前源与能力路由 | 所选源、限速、数据许可和时钟逐项认证 |
+| 数据源 | rustdx 2.0.4/PyO3、TickFlow、自定义 Provider | 当前源与能力路由；8业务+1探测；池内共享精度元数据 | 所选源、限速、数据许可和时钟逐项认证 |
 | 本地计算 | Polars、DuckDB、PyArrow、NumPy、Numba；回测边界 pandas | 复用 | 可选 vectorbt 不阻断主流程；向量化与范围读取 |
 | 业务数据库 | PostgreSQL 16：控制库及每 Cell 业务库，HA | 现有事实基础，HA 为目标 | RLS、事务、WAL/PITR、同步确认与旧主隔离 |
 | 数据库连接 | PgBouncer | 目标采用 | 普通事务池；LISTEN/会话特性专用直连或 session 池 |

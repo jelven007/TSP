@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.plugins.rustdx import client
+from app.plugins.rustdx._native_identity import CORE_SHA256, PATCH_SHA256
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -48,11 +49,14 @@ def _bridge(**overrides) -> SimpleNamespace:
 
     return SimpleNamespace(
         **{
-            "MAX_CONNECTIONS": 35,
-            "__version__": "0.1.1",
-            "RUSTDX_VERSION": "1.12.2",
-            "RUSTDX_SOURCE_REV": "9dfc024c9662fa5091099c1f17610569ee2eca8b",
-            "POOL_API_VERSION": 2,
+            "MAX_CONNECTIONS": 8,
+            "PROBE_CONNECTIONS": 1,
+            "__version__": "0.2.0",
+            "RUSTDX_VERSION": "2.0.4",
+            "RUSTDX_SOURCE_REV": "c4c0273456874898aed50447fd900521d9ffd3b8",
+            "RUSTDX_CORE_SHA256": CORE_SHA256,
+            "RUSTDX_PATCH_SHA256": PATCH_SHA256,
+            "POOL_API_VERSION": 3,
             "RustdxClient": unexpected_connection,
             **overrides,
         }
@@ -64,8 +68,9 @@ def test_installation_check_accepts_locked_bridge_without_network(monkeypatch, c
 
     assert client.main() == 0
     output = capsys.readouterr()
-    assert "1.12.2" in output.out
-    assert "9dfc024" in output.out
+    assert "2.0.4" in output.out
+    assert "c4c0273" in output.out
+    assert PATCH_SHA256[:12] in output.out
     assert output.err == ""
 
 
@@ -76,6 +81,9 @@ def test_installation_check_accepts_locked_bridge_without_network(monkeypatch, c
         {"RUSTDX_SOURCE_REV": "outdated"},
         {"POOL_API_VERSION": 1},
         {"MAX_CONNECTIONS": 36},
+        {"PROBE_CONNECTIONS": 8},
+        {"RUSTDX_CORE_SHA256": "unregistered"},
+        {"RUSTDX_PATCH_SHA256": "unregistered"},
     ],
 )
 def test_installation_check_rejects_incompatible_bridge(monkeypatch, capsys, override) -> None:
