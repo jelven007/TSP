@@ -25,6 +25,12 @@ HTTP消费方复用 `/api/kline/minute?symbol=600000.SH&date=2026-10-23&freq=5m`
 OpenAPI指纹同步为`bd2f545bc7dbe8666c9933fe4dfd19a269fd571379dc9ab45d9cb456cd71a93a`，
 无新增开放历史删除、设置写入或AI端点。客户端不传freq时维持旧行为。
 
+2026-10-28指数分钟接口新增可选`with_prev_close=false`，省略时保持旧响应；
+显式传`true`时另返回前一交易日收盘参考值`prev_close`，缺少历史值时为null。
+69个Tier A端点及其响应组件保持不变，指纹更新为
+`67b03125537850e8cad84166b60fce6f6c866b68dfdb85f70be465db66500c23`。
+指数目录、日/周/月K和修正新入口仍为内部会话接口，没有扩大API Token授权面。
+
 本附录按领域维护实现方法、数据契约和可执行示例。通用开发要求只在[CONTRIBUTING](../../CONTRIBUTING.md)定义；需求与当前/目标边界见[需求](../requirements.md)和[系统方案](../architecture.md#current)。带日期的结果仅证明原版本、环境和窗口，不是本次重新执行的验证。
 
 - [1. 声明式 HTTP 数据源](#http)
@@ -1310,6 +1316,12 @@ Golden symbols: `000403.SZ`, `600489.SH`, `300059.SZ`.
 | `GET /api/index/daily` `/minute` | 核心指数日 K 与分钟 K |
 | `GET /api/overview/market` | 市场行情聚合 |
 | `GET /api/screener/market-snapshot` | 全市场当日快照 |
+
+2026-10-28应用内部指数页新增`GET /api/index/catalog`固定七只目录、
+`GET /api/index/kline`的`period=1d|1w|1mo`周期读取，旧`daily/minute`继续兼容。
+管理修正使用`POST /api/index/repair`及`data:manage`权限，不能用行情读取Token授权写入。
+日K沿当前Provider，周/月仅消费本地指数日K；字段与实际验证见
+[指数扩展记录](../../reports/indices-kline-20261028/verification.md)。
 
 <a id="open-52-扩展数据readext"></a>
 #### 5.2 扩展数据（read:ext）

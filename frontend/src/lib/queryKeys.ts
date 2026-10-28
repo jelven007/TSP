@@ -104,6 +104,10 @@ export const QK = {
                              ['kline-minute-range', symbol, days] as const,
   indexDaily:           (symbol: string, start: string, end: string) =>
                              ['index-daily', symbol, start, end] as const,
+  indexCatalog:         ['index-catalog'] as const,
+  indexPageQuotes:      (symbols: string) => ['index-quotes', symbols] as const,
+  indexKline:           (symbol: string, period: string, start: string, end: string) =>
+                             ['index-kline', symbol, period, start, end] as const,
   indexMinute:          (symbol: string, date: string) =>
                              ['index-minute', symbol, date] as const,
 
@@ -187,6 +191,7 @@ export const KLINE_QUERY_PREFIXES = [
   QK.kline('', '', '')[0], QK.klineLatest('')[0],
   QK.klineMinute('', '')[0], QK.klineMinuteRange('', 1)[0],
   QK.minuteBatch('')[0], QK.watchlistKlineBatch('')[0], QK.screenerKlineBatch('')[0],
+  QK.indexKline('', '', '', '')[0], QK.indexDaily('', '', '')[0], QK.indexMinute('', '')[0],
 ] as const
 
 // 私有事件积压溢出时只重取可能漏掉推送的权威 REST 数据。

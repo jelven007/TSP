@@ -16,6 +16,7 @@ QUERY_POSTS = frozenset({
 PUBLIC_MARKET_GETS = frozenset({
     "/api/kline/instruments/search", "/api/kline/daily", "/api/kline/daily/latest",
     "/api/kline/minute", "/api/kline/minute-range", "/api/index/daily", "/api/index/minute",
+    "/api/index/catalog", "/api/index/kline",
     "/api/intraday/status", "/api/intraday/indices", "/api/overview/market",
     "/api/intraday/minute-refresh/status",
     "/api/abnormal/auction", "/api/abnormal/intraday", "/api/abnormal/overview",
@@ -54,6 +55,7 @@ def management_path(method: str, path: str) -> bool:
     return (
         (path.startswith("/api/kline/") and path not in QUERY_POSTS)
         or path.startswith("/api/index/sync")
+        or path == "/api/index/repair"
         or path in {"/api/regime/recompute", "/api/regime/mainline/recompute"}
         or path == "/api/ext-data" or path.startswith("/api/ext-data/")
         or path.startswith("/api/analysis-menus/")

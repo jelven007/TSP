@@ -1,8 +1,31 @@
 # 代码二次开发与 AI 扩展指南
 
+2026-10-28指数扩展已实现`GET /api/index/catalog`、`GET /api/index/kline`
+及`POST /api/index/repair`，旧`daily/minute/sync_daily`入口保留兼容。
+`IndexKlinePeriod=1d|1w|1mo`独立于股票六周期，`1m`继续表示1分K；
+周期标签与实际交易日期分别用`date/trade_date`，二开不得将周一或月初当作分时交易日。
+`StockDailyKChart.externalData`接收已查询指数行且禁用股票K线请求；
+`RepairDailyPanel scope=index`复用修正表单，周/月不要求远程日K能力。
+目录以`index_const`为单一事实源，保留CORE四只和PAGE七只的不同消费范围；
+新增周期表必须同步只读视图、PublicPublisher、data_release和schema/清理接线。
+本次没有新增扩展插槽或插件注册API；实现与验证见
+[指数扩展记录](../reports/indices-kline-20261028/verification.md)。
+
+2026-10-28行情SSE共享为L3局部变更：`useQuoteStream`沿用原签名、查询失效、
+告警及退避规则，内部`sharedQuoteStream`通过Web Locks和BroadcastChannel按
+账户/租户/auth_version复用连接，取得锁后才换取短期票据。升级保留关闭持有页后
+接管、共享游标换票恢复、账户切换释放与迟到响应隔离；缺少浏览器共享能力时沿用
+单页连接，不宣称该降级路径消除了HTTP/1.1多页连接上限。没有新增后端API或扩展插槽。
+
+2026-10-28精简为L3死代码清理，保留已注册路由、插槽、Provider、旧配置及API兼容；
+`overview.invalidate_overview_cache`重导出与测试注入入口保留，见[清理依据](../reports/project-cleanup-20261028/verification.md)。
+
 系统设置简化为L3局部变更，复用`StrategyConcurrencyControl`、共享查询键、
 原子preferences及Broker只读配置，不新增插槽或扩展API。配置整数范围1～999与
 执行资源/部署上限分离，升级须同步API/Platform与Compute的配置读取校验。
+策略内存和CPU总预算各为执行主机硬件的50%，独立模式与Broker共用
+`strategy_resources.BUDGET_RATIO`；前端按资源响应的`budget_ratio`回显，
+不硬编码百分比或改写已保存并发值。
 旧`screener_auto_run`保留deprecated字段兼容，读取/写入均不能再启用；
 二开不得重建页面挂载/切日期的自动计算effect，每策略仍由原手动监控规则API启停。
 开源设置组件只显示仓库、最新版本号链接和发布时间，共享查询与布局提醒沿原契约。

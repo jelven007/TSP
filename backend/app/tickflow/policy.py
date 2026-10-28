@@ -565,12 +565,6 @@ def _compute_label_and_missing(
     return f"{base.capitalize()} + " + " + ".join(suffix), missing, sorted(c.value for c in extras_set)
 
 
-def _compute_label(capset: CapabilitySet, tiers: dict) -> str:
-    """对外简化签名 — 只要 label。"""
-    label, _missing, _extras = _compute_label_and_missing(capset, tiers)
-    return label
-
-
 def _persist(
     capset: CapabilitySet,
     label: str,

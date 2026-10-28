@@ -72,7 +72,7 @@ def test_status_http_exposes_unknown_historical_evidence(tmp_path, monkeypatch):
     monkeypatch.setattr(data, "_get_table_stats", lambda name, fetch, **kwargs: fetch() if name == "quality" else None)
     monkeypatch.setattr(data, "_get_storage", lambda path: {})
     monkeypatch.setattr(data, "_last_finished", lambda label: None)
-    monkeypatch.setattr(pipeline_jobs.job_store, "list_recent", lambda limit: [])
+    monkeypatch.setattr(pipeline_jobs, "job_store", SimpleNamespace(list_recent=lambda limit: []))
     monkeypatch.setattr(preferences, "get_data_sync_auto_enabled", lambda: True)
     monkeypatch.setattr(data_quality, "audit_provider_routes", lambda: {"routes": {}})
     app = FastAPI()

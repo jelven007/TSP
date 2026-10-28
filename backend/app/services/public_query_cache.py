@@ -2,6 +2,7 @@
 
 Private results must use tenant/revision/authorization scoped storage instead.
 Invalidation generations prevent a slow read from reinstalling a stale value.
+Concurrent readers share a fetch only within the same identity and generation.
 """
 from __future__ import annotations
 
@@ -19,31 +20,61 @@ class PublicQueryCache:
         self._limit = limit
         self._lock = threading.Lock()
         self._generation = 0
+        self._namespace_generations: dict[str, int] = {}
         self._entries: OrderedDict[tuple[str, Hashable], tuple[float, object]] = OrderedDict()
+        self._inflight: dict[
+            tuple[tuple[str, Hashable], tuple[int, int, int]], threading.Event
+        ] = {}
+
+    def _generation_for(self, namespace: str) -> tuple[int, int, int]:
+        return (
+            self._generation,
+            self._namespace_generations.get(namespace, 0),
+            self._namespace_generations.get(namespace.split(":")[0], 0),
+        )
 
     def get(self, namespace: str, key: Hashable, ttl: float, fetch: Callable[[], T]) -> T:
         identity = (namespace, key)
-        with self._lock:
-            entry = self._entries.get(identity)
-            if entry is not None and time.monotonic() - entry[0] < ttl:
-                self._entries.move_to_end(identity)
-                return cast(T, entry[1])
-            generation = self._generation
-        fresh = fetch()
-        with self._lock:
-            if generation == self._generation:
-                self._entries[identity] = (time.monotonic(), fresh)
-                self._entries.move_to_end(identity)
-                while len(self._entries) > self._limit:
-                    self._entries.popitem(last=False)
-        return fresh
+        while True:
+            with self._lock:
+                entry = self._entries.get(identity)
+                if entry is not None and time.monotonic() - entry[0] < ttl:
+                    self._entries.move_to_end(identity)
+                    return cast(T, entry[1])
+                generation = self._generation_for(namespace)
+                flight_key = (identity, generation)
+                pending = self._inflight.get(flight_key)
+                if pending is None:
+                    pending = threading.Event()
+                    self._inflight[flight_key] = pending
+                    break
+            pending.wait()
+
+        try:
+            fresh = fetch()
+            with self._lock:
+                if generation == self._generation_for(namespace):
+                    self._entries[identity] = (time.monotonic(), fresh)
+                    self._entries.move_to_end(identity)
+                    while len(self._entries) > self._limit:
+                        self._entries.popitem(last=False)
+            return fresh
+        finally:
+            with self._lock:
+                del self._inflight[flight_key]
+            pending.set()
 
     def invalidate(self, namespaces: set[str] | None = None) -> None:
         with self._lock:
-            self._generation += 1
             if namespaces is None:
+                self._generation += 1
+                self._namespace_generations.clear()
                 self._entries.clear()
             else:
+                for namespace in namespaces:
+                    self._namespace_generations[namespace] = (
+                        self._namespace_generations.get(namespace, 0) + 1
+                    )
                 for key in list(self._entries):
                     if key[0] in namespaces or key[0].split(":")[0] in namespaces:
                         del self._entries[key]

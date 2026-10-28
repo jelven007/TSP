@@ -1,0 +1,131 @@
+{
+  "recorded_at": "2026-10-27T22:03:07.791179+00:00",
+  "base_commit": "18f6f5cbea5bb651dc5fc09f289016bd01b9b6de",
+  "version": "v0.4.34",
+  "source_dirty": true,
+  "deployed": false,
+  "runtime_restarted": false,
+  "source_file_sha256": {
+    "backend/app/services/public_query_cache.py": "e5ee616f9545879af79b7825dc69926b0b39bb9465d42065f16d194589e5a68f",
+    "backend/tests/test_public_query_cache_concurrency.py": "50507f9ee8577715e64b9d6b0c989953579ac87737da61b50cb67886197708d0",
+    "backend/tests/test_data_quality.py": "00edb8f349061645c09c794924ff2946e0649c07af175b26fa7154b6c52dda55",
+    "docs/architecture.md": "92de11045fe249c5ebecd004cf587ead9c8d7c906dd8a2466f15df2e1e22b014",
+    "docs/testing.md": "7622dfab1dfad0f145089ba04480d051b65dcaf45817af1452b06fa48a29ffa2"
+  },
+  "workspace_file_sha256": {
+    "backend/app/services/public_query_cache.py": "e5ee616f9545879af79b7825dc69926b0b39bb9465d42065f16d194589e5a68f",
+    "backend/tests/test_public_query_cache_concurrency.py": "50507f9ee8577715e64b9d6b0c989953579ac87737da61b50cb67886197708d0",
+    "backend/tests/test_data_quality.py": "00edb8f349061645c09c794924ff2946e0649c07af175b26fa7154b6c52dda55",
+    "docs/architecture.md": "ed4b277291410a65e03c6b1cecc0ea36b2257cb52ac59517e7ee0800bf227d8e",
+    "docs/testing.md": "07821a8e0e29ba2e302af77576d2975433ec4302ab1357ffa4def3f7b392e89f"
+  },
+  "python_files_match_tested_source": true,
+  "static_checks": [
+    {
+      "command": [
+        "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12",
+        "-m",
+        "mypy",
+        "--follow-imports=silent",
+        "backend/app/services/public_query_cache.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12",
+        "-m",
+        "ruff",
+        "check",
+        "backend/app/services/public_query_cache.py",
+        "backend/tests/test_public_query_cache_concurrency.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12",
+        "scripts/check_docs.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "test_files": [
+    "test_public_query_cache.py",
+    "test_public_query_cache_concurrency.py",
+    "test_data_status_parquet_stats.py",
+    "test_data_quality.py",
+    "test_kline_periods_api.py",
+    "test_full_platform.py",
+    "test_overview_dimension_leader.py",
+    "test_regime_builder.py"
+  ],
+  "test_execution": {
+    "cwd": "/private/tmp/tspp-data-status-timeout-20261028/source/backend",
+    "PYTHONPATH": "/private/tmp/tspp-data-status-timeout-20261028/source/backend",
+    "python": "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12",
+    "pytest_arguments": "-q",
+    "passed": 103,
+    "warnings": 14,
+    "failed": 0,
+    "workspace_subset_passed": 18
+  },
+  "files": {
+    "baseline_cache.py": "981629c3a64572bcf9e5d6e8584458fe92194407b87edde9f4d1151e02d4e5bd",
+    "benchmark_status.py": "08c3b9536c2d57a45b0cbc9cdd8469359fa1d96d869976239a1b851c58b62ade",
+    "cache-green-final.txt.gz": "604e189045dd08b6d8ec86fabc3174ceca953376ea806a24fb7083c52260e948",
+    "cache-green-initial.txt.gz": "e44936b015cc2e13505021204a0409e45558ce79d0b43dcb07d33674ab45acfd",
+    "cache-red-1.txt.gz": "89e4805f3b85b2961923e59073e47e338096acfbd37ad3da5b1526a4a8bda44a",
+    "cache-red-2.txt.gz": "ba50cef8014f2453e24996db3f79100a3dffd4b95453a5c0762e824a0934cf6f",
+    "cache-red-3.txt.gz": "c97c5cd3665248752e7418e919cce5a2a38358200f8a5991c91d6f398ef25586",
+    "cache-reverse-red.txt.gz": "0fab45bd082dae465b0ed687f691a4e923c51d82fb7a8e857f2abcf920b4eb6d",
+    "fix.patch.gz": "6d7fa625b18992deba961b8c8164825955ed17e684e038fa7e02240f07cdb0a1",
+    "local-active-jobs.json": "32da2b4f34fc8527c43ddfe456493bda1bd1da8275d3f5d5c6343042b026aa54",
+    "local-current-probe.json": "05b1d32465c679504002172b926d0508b703b1b0db6dd1d2d3848712ad669574",
+    "local-initial-probe.json": "f62fb881255b8721a6bb48f120f7527d7aa41d6391a89948d1c8a4188590ce1b",
+    "online-current-probe.json": "147e25a0cd650a1a8cb12f36f9205c92669583fc96219d4c5d490481cab06550",
+    "online-initial-probe.json": "cc51a12be2435be3777bab69357cbbada0370251171962626921803d6368755d",
+    "static-checks.txt.gz": "8100260440759121fb92b8555acdd8fd8adce8396f9b74dae4767d8143a6c51b",
+    "status-benchmark-after.json": "8dfaab2982dadf2ec76bba5697b3203bc12e7e5759590b7633453aa403947f33",
+    "status-benchmark-after.txt.gz": "214397b0b5f95501ccc80d59c46f1683112e0836bce7ac89ed2bdb49c5ddfff2",
+    "status-benchmark-before.json": "afc799c5016fa041720ed4f4df893493b4fdf4df85aa86a3d5b6e764a3fd5e16",
+    "status-benchmark-before.txt.gz": "f52c754b7b17c32aace2ca77add5e7f47e8630c1961fe827f7b53efa347fe48b",
+    "verification.md": "e0f55ad57f527222a237803c7bbafa1871c8f56e15e301ffcad9878e3cb8a822",
+    "workspace-green.txt.gz": "d7d713518da7602a2c69eb90e95842f75af473959c0560f8ff47c247866147da"
+  },
+  "original_files": {
+    "baseline_cache.py": "981629c3a64572bcf9e5d6e8584458fe92194407b87edde9f4d1151e02d4e5bd",
+    "benchmark_status.py": "08c3b9536c2d57a45b0cbc9cdd8469359fa1d96d869976239a1b851c58b62ade",
+    "cache-green-final.txt": "fc105d3dfe6d179aad4ed810df456f1e3932d83c6fdc12fe667494f58667c9ac",
+    "cache-green-initial.txt": "64430f357648405d22b621f1fc4a138f028c436201fbbc52e8f943c94b7c0d84",
+    "cache-red-1.txt": "620dd47fe7bb6def2a99258484732ed54cf0a53da0fed7ab99682d486d738b11",
+    "cache-red-2.txt": "352791b959da2db2f54e2827e86de2753c157c4170172b715d45fbf249f6212e",
+    "cache-red-3.txt": "272818bd6296a3662a6f6ba04643ebfa9021d3eb86d938eaed8cb5e3f1ad34a8",
+    "cache-reverse-red.txt": "a0f2fb94f5e3cb1790eac3e2adf24a58dc0981a30929365c9002245f66b24488",
+    "fix.patch": "ccc7be426ad997cc5d73b38366fb1f3413bd79f8363d5154f361b0b4dbbff057",
+    "local-active-jobs.json": "32da2b4f34fc8527c43ddfe456493bda1bd1da8275d3f5d5c6343042b026aa54",
+    "local-current-probe.json": "05b1d32465c679504002172b926d0508b703b1b0db6dd1d2d3848712ad669574",
+    "local-initial-probe.json": "f62fb881255b8721a6bb48f120f7527d7aa41d6391a89948d1c8a4188590ce1b",
+    "online-current-probe.json": "147e25a0cd650a1a8cb12f36f9205c92669583fc96219d4c5d490481cab06550",
+    "online-initial-probe.json": "cc51a12be2435be3777bab69357cbbada0370251171962626921803d6368755d",
+    "static-checks.txt": "58812613532640c04fb0dcf37c2a507d0996058a452f40e97edd6574b0151f9d",
+    "status-benchmark-after.json": "8dfaab2982dadf2ec76bba5697b3203bc12e7e5759590b7633453aa403947f33",
+    "status-benchmark-after.txt": "c656fe80649b31f90ed3adcc3cbff7312d47dc103a462143c6b25de71e04451c",
+    "status-benchmark-before.json": "afc799c5016fa041720ed4f4df893493b4fdf4df85aa86a3d5b6e764a3fd5e16",
+    "status-benchmark-before.txt": "e43ee53502795cbf6112c60b2300e392fff87f551c8549cd392ddd0a0eac54a8",
+    "verification.md": "86dd1c4b54c1dfe412a348b8b4b75df2f669840634b08eba4063c240b92d2832",
+    "workspace-green.txt": "6bc0f5c80e0e9059f5b301f975c9e179edf2d54a0337735ac25210135ba74dde"
+  },
+  "publication_encoding": {
+    "logs_and_patch": "gzip; decompressed SHA256 retained in original_files",
+    "historical_checks_unchanged": true
+  }
+}

@@ -29,7 +29,6 @@ from app.services.strategy_resources import limit_local_strategy
 from app.strategy import config as strategy_config
 from app.strategy.ai_generator import AIStrategyGenerator, find_meta_assignment
 from app.strategy.engine import StrategyDef, StrategyEngine
-from app.strategy.monitor import StrategyMonitorService
 from app.strategy.prompt_builder import build_step1, build_step2
 from app.strategy.scoring import (
     SCORING_DIRECTIONS,
@@ -75,13 +74,6 @@ def _get_public_strategy(engine: StrategyEngine, strategy_id: str) -> StrategyDe
     if strategy.meta.get("research_only"):
         raise HTTPException(status_code=404, detail=f"unknown strategy: {strategy_id}")
     return strategy
-
-
-def _get_monitor(request: Request) -> StrategyMonitorService:
-    mon = getattr(request.app.state, "strategy_monitor", None)
-    if not mon:
-        raise HTTPException(status_code=503, detail="策略监控未初始化")
-    return mon
 
 
 def _data_dir(request: Request) -> Path:

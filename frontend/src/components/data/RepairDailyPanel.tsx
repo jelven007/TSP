@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { api, type KlinePeriod } from '@/lib/api'
+import { api, type IndexKlinePeriod, type KlinePeriod } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
+import { INDEX_KLINE_PERIODS, KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
 import { MissingCapChip } from '@/lib/capability-labels'
 import { DatePicker } from '@/components/DatePicker'
 
@@ -20,17 +20,18 @@ function daysAgo(n: number): string {
 }
 
 // 修正入口只获取基础K线; 日K和1分K能力由路由矩阵判定。
-export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates, onStart }: {
+export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates, onStart, scope = 'stock' }: {
   hasCap: boolean
   hasMinuteCap: boolean
   isRunning: boolean
-  latestDates: Partial<Record<KlinePeriod, string | null>>
+  latestDates: Partial<Record<KlinePeriod | IndexKlinePeriod, string | null>>
+  scope?: 'stock' | 'index'
   onStart: (jobId: string) => void
 }) {
   const qc = useQueryClient()
-  const [period, setPeriod] = useState<'1m' | '1d'>('1d')
+  const [period, setPeriod] = useState<'1m' | IndexKlinePeriod>('1d')
   const daily = period === '1d'
-  const hasBatchCap = daily ? hasCap : hasMinuteCap
+  const hasBatchCap = scope === 'index' && !daily ? true : daily ? hasCap : hasMinuteCap
   const latestDate = latestDates[period] ?? null
 
   // 默认起始日期: 最新数据往前推 30 天 (兼顾补缺口 + 复核近期数据, 成本不高)
@@ -38,7 +39,9 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
   const [endDate, setEndDate] = useState(todayStr)
 
   const repair = useMutation({
-    mutationFn: (mode: 'full' | 'missing') => api.repairDaily(startDate, period, mode, endDate),
+    mutationFn: (mode: 'full' | 'missing') => scope === 'index'
+      ? api.repairIndex(startDate, period as IndexKlinePeriod, mode, endDate)
+      : api.repairDaily(startDate, period as '1m' | '1d', mode, endDate),
     onSuccess: ({ job_id }) => {
       onStart(job_id)
       qc.invalidateQueries({ queryKey: QK.pipelineJobs })
@@ -58,11 +61,14 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
   return (
     <div className="space-y-3">
       <div className="rounded-card bg-accent/8 border border-accent/20 p-3 space-y-1.5">
+        {scope === 'index' && <div className="text-xs font-medium text-foreground">
+          每次修正包含七只指数：上证指数、深证成指、创业板指、科创综指、沪深300、上证50、深证100。
+        </div>}
         <div className="text-xs text-foreground">
           当数据出现缺口时，从这里修正起始日期至结束日期的{KLINE_PERIOD_LABELS[period]}数据。
         </div>
         <div className="text-[10px] text-muted leading-relaxed">
-          通过当前K线数据源接口获取{KLINE_PERIOD_LABELS[period]}并入库。
+          {scope === 'index' && !daily ? '从本地指数日K聚合周K、月K并入库；缺少日K时请先修正日K。' : `通过当前K线数据源接口获取${KLINE_PERIOD_LABELS[period]}并入库。`}
           {' '}获取全量数据会重新获取选定区间并覆盖旧值；获取遗漏数据会先检查缺口，仅补缺少的证券和时间，保留已有数据。
         </div>
       </div>
@@ -84,11 +90,11 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
           </div>
           <div>
             <dt className="inline text-secondary">数据来源：</dt>
-            <dd className="inline">1分K、日K通过当前数据源接口获取。</dd>
+            <dd className="inline">{scope === 'index' ? '指数日K通过当前数据源接口获取；周K、月K由本地指数日K聚合。' : '1分K、日K通过当前数据源接口获取。'}</dd>
           </div>
           <div>
             <dt className="inline text-secondary">后续处理：</dt>
-            <dd className="inline">日K修正后会重算受影响证券的复权与技术指标。</dd>
+            <dd className="inline">{scope === 'index' ? '指数日K修正后更新相关周K、月K；各周期分别计算技术指标。周/月日期范围包含起止日期所在整周期，当前周期可能尚未结束。' : '日K修正后会重算受影响证券的复权与技术指标。'}</dd>
           </div>
         </dl>
       </details>
@@ -99,11 +105,11 @@ export function RepairDailyPanel({ hasCap, hasMinuteCap, isRunning, latestDates,
           id="repair-kline-period"
           aria-label="K线周期"
           value={period}
-          onChange={e => { setPeriod(e.target.value as '1m' | '1d'); repair.reset() }}
+          onChange={e => { setPeriod(e.target.value as '1m' | IndexKlinePeriod); repair.reset() }}
           disabled={isRunning || repair.isPending}
           className="rounded-btn border border-border bg-elevated px-2 py-1 text-xs text-foreground"
         >
-          {(['1m', '1d'] as const).map(value => (
+          {(scope === 'index' ? INDEX_KLINE_PERIODS : ['1m', '1d'] as const).map(value => (
             <option key={value} value={value}>{KLINE_PERIOD_LABELS[value]}</option>
           ))}
         </select>

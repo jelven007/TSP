@@ -9,6 +9,7 @@ from app.data_providers import custom as custom_sources
 from app.data_providers import official_stock_catalog
 from app.plugins.rustdx.provider import RustdxProvider
 from app.services import index_sync, instrument_sync, kline_sync, preferences
+from app.services.index_const import PAGE_INDEX_SYMBOLS
 from app.tickflow.capabilities import Cap, CapabilityLimits, CapabilitySet
 from app.tickflow.repository import DataStore, KlineRepository
 
@@ -65,8 +66,8 @@ def test_index_and_etf_catalogs_follow_daily_provider(tmp_path, selected, monkey
     )
     repo = KlineRepository(DataStore(tmp_path))
     try:
-        assert index_sync.sync_index_instruments(repo) == 2
-        assert repo.get_index_instruments()["symbol"].to_list() == ["000001.SH"]
+        assert index_sync.sync_index_instruments(repo) == 8
+        assert set(repo.get_index_instruments()["symbol"]) == set(PAGE_INDEX_SYMBOLS)
         assert repo.get_etf_instruments()["symbol"].to_list() == ["588200.SH"]
     finally:
         repo.db.close()

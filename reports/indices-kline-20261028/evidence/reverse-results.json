@@ -1,0 +1,26 @@
+[
+  {
+    "case": "catalog-four",
+    "exit_code": 1,
+    "summary": "1 failed in 0.50s"
+  },
+  {
+    "case": "period-storage-absent",
+    "exit_code": 1,
+    "summary": "2 failed in 1.10s"
+  },
+  {
+    "case": "concurrent-snapshot",
+    "exit_code": 1,
+    "summary": "1 failed in 0.37s"
+  },
+  {
+    "case": "original-index-page",
+    "exit_code": 1,
+    "summary": [
+      "\u001b[2m   Duration \u001b[22m 811ms\u001b[2m (transform 64ms, setup 0ms, collect 248ms, tests 117ms, environment 227ms, prepare 43ms)\u001b[22m",
+      "",
+      " ELIFECYCLE  Test failed. See above for more details."
+    ]
+  }
+]

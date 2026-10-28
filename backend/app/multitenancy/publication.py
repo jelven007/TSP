@@ -17,6 +17,7 @@ from app.services.observability import measure_runtime_lock
 logger = logging.getLogger(__name__)
 PUBLIC_DIRS = frozenset({
     "kline_daily", "kline_daily_enriched", "kline_index_daily", "kline_index_enriched",
+    "kline_index_weekly", "kline_index_monthly",
     "kline_etf_daily", "kline_etf_enriched", "kline_minute", "kline_etf_minute",
     "kline_5minute", "kline_10minute", "kline_15minute", "kline_weekly",
     "adj_factor", "adj_factor_etf", "financials", "instruments", "instruments_index",

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime

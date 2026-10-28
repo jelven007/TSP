@@ -40,6 +40,8 @@ _DATASET_PATHS = {
     "auction_snapshot": "auction_snapshot",
     "index_daily": "kline_index_daily",
     "index_enriched": "kline_index_enriched",
+    "index_weekly": "kline_index_weekly",
+    "index_monthly": "kline_index_monthly",
     "etf_daily": "kline_etf_daily",
     "etf_enriched": "kline_etf_enriched",
     "etf_minute": "kline_etf_minute",

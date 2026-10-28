@@ -1,0 +1,157 @@
+{
+  "implementation": "before",
+  "readers": 4,
+  "read_only_data_root": "/Users/bytedance/.local/share/tsp-dev/TSPP/data",
+  "polars_threads": 2,
+  "quote_invalidation_interval_seconds": 2,
+  "quote_invalidations": 8,
+  "application_config_and_jobs": "isolated temporary data directory",
+  "phases": [
+    {
+      "phase": "cold",
+      "requests": [
+        {
+          "reader": 0,
+          "status": 200,
+          "seconds": 10.902,
+          "rows": {
+            "daily": 6936704,
+            "enriched": 6936704,
+            "minute": 26504575,
+            "5m": null,
+            "10m": null,
+            "15m": null
+          },
+          "within_30_seconds": true
+        },
+        {
+          "reader": 1,
+          "status": 200,
+          "seconds": 10.903,
+          "rows": {
+            "daily": 6936704,
+            "enriched": 6936704,
+            "minute": 26504575,
+            "5m": null,
+            "10m": null,
+            "15m": null
+          },
+          "within_30_seconds": true
+        },
+        {
+          "reader": 2,
+          "status": 200,
+          "seconds": 10.902,
+          "rows": {
+            "daily": 6936704,
+            "enriched": 6936704,
+            "minute": 26504575,
+            "5m": null,
+            "10m": null,
+            "15m": null
+          },
+          "within_30_seconds": true
+        },
+        {
+          "reader": 3,
+          "status": 200,
+          "seconds": 10.903,
+          "rows": {
+            "daily": 6936704,
+            "enriched": 6936704,
+            "minute": 26504575,
+            "5m": null,
+            "10m": null,
+            "15m": null
+          },
+          "within_30_seconds": true
+        }
+      ],
+      "table_scans": {
+        "daily": 4,
+        "enriched": 4,
+        "index_daily": 2,
+        "index_enriched": 3,
+        "index_instruments": 2,
+        "etf_daily": 3,
+        "etf_enriched": 4,
+        "etf_instruments": 4,
+        "minute": 4,
+        "5m": 1,
+        "10m": 1,
+        "15m": 1,
+        "weekly": 1,
+        "adj_factor": 4,
+        "instruments": 4,
+        "financials": 4,
+        "quality": 4
+      }
+    },
+    {
+      "phase": "warm",
+      "requests": [
+        {
+          "reader": 0,
+          "status": 200,
+          "seconds": 7.118,
+          "rows": {
+            "daily": 6936704,
+            "enriched": 6936704,
+            "minute": 26600575,
+            "5m": null,
+            "10m": null,
+            "15m": null
+          },
+          "within_30_seconds": true
+        },
+        {
+          "reader": 1,
+          "status": 200,
+          "seconds": 7.118,
+          "rows": {
+            "daily": 6936704,
+            "enriched": 6936704,
+            "minute": 26600575,
+            "5m": null,
+            "10m": null,
+            "15m": null
+          },
+          "within_30_seconds": true
+        },
+        {
+          "reader": 2,
+          "status": 200,
+          "seconds": 7.119,
+          "rows": {
+            "daily": 6936704,
+            "enriched": 6936704,
+            "minute": 26600575,
+            "5m": null,
+            "10m": null,
+            "15m": null
+          },
+          "within_30_seconds": true
+        },
+        {
+          "reader": 3,
+          "status": 200,
+          "seconds": 6.535,
+          "rows": {
+            "daily": 6936704,
+            "enriched": 6936704,
+            "minute": 26600575,
+            "5m": null,
+            "10m": null,
+            "15m": null
+          },
+          "within_30_seconds": true
+        }
+      ],
+      "table_scans": {
+        "enriched": 4,
+        "minute": 1,
+        "adj_factor": 4
+      }
+    }
+  ]
+}

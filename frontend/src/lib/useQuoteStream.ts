@@ -7,7 +7,7 @@ import { toast } from '@/components/Toast'
 import { pushAlertToasts } from '@/components/AlertToast'
 import { feedReviewEvent } from './reviewStore'
 import type { KlineDailyResponse, StrategyAlertEvent } from './api'
-import { accountEventStreamUrl } from './accountSession'
+import { createSharedQuoteStream, type QuoteStreamConnection } from './sharedQuoteStream'
 
 // ===== 全局 SSE 连接状态 (模块级 store, 仿 AlertToast.tsx 模式) =====
 // 实时行情 SSE 断开时 UI 无感知 → 会漏掉策略告警。这里暴露连接状态,
@@ -78,7 +78,7 @@ export function useQuoteStream(
   onAlert?: (alerts: StrategyAlertEvent[]) => void,
 ) {
   const qc = useQueryClient()
-  const esRef = useRef<EventSource | null>(null)
+  const esRef = useRef<QuoteStreamConnection | null>(null)
   const retryRef = useRef<ReturnType<typeof setTimeout>>()
   const pagesRef = useRef(sseRefreshPages)
   pagesRef.current = sseRefreshPages
@@ -136,17 +136,10 @@ export function useQuoteStream(
       retryRef.current = setTimeout(() => void connect(), delay)
     }
 
-    async function connect() {
+    function connect() {
       _setStatus(failCount > 0 ? 'reconnecting' : _streamStatus)
-      let streamUrl: string
-      try {
-        streamUrl = await accountEventStreamUrl(lastEventId)
-      } catch {
-        scheduleReconnect()
-        return
-      }
       if (cancelled) return
-      const es = new EventSource(streamUrl)
+      const es = createSharedQuoteStream(lastEventId)
       esRef.current = es
 
       es.onopen = () => {
@@ -266,6 +259,7 @@ export function useQuoteStream(
         })
       })
       es.addEventListener('access_revoked', () => {
+        lastEventId = es.lastEventId
         es.close()
         if (esRef.current !== es) return
         esRef.current = null
@@ -276,6 +270,7 @@ export function useQuoteStream(
       })
 
       es.onerror = () => {
+        lastEventId = es.lastEventId
         es.close()
         if (esRef.current !== es) return
         esRef.current = null

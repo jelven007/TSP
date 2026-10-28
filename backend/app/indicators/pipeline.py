@@ -262,16 +262,6 @@ def _ema_alpha(span: int) -> float:
     return 2.0 / (span + 1)
 
 
-def _math_half_up(expr: pl.Expr, decimals: int = 2) -> pl.Expr:
-    """交易所四舍五入 (round half up)，替代 Python round()（银行家舍入）。
-
-    round(2.625, 2) = 2.62  ← Python 银行家舍入
-    exchange_round(2.625) = 2.63  ← 交易所四舍五入
-    """
-    factor = 10 ** decimals
-    return (expr * factor + 0.5).floor() / factor
-
-
 def _apply_adj_factor(raw: pl.DataFrame, factors: pl.DataFrame) -> pl.DataFrame:
     """对 raw K 线应用前复权 (forward adjustment)。
 

@@ -1,0 +1,80 @@
+[
+  {
+    "file": "app/multitenancy/access.py",
+    "baseline": 0,
+    "current": 0,
+    "added": []
+  },
+  {
+    "file": "app/multitenancy/platform.py",
+    "baseline": 0,
+    "current": 0,
+    "added": []
+  },
+  {
+    "file": "app/multitenancy/publication.py",
+    "baseline": 0,
+    "current": 0,
+    "added": []
+  },
+  {
+    "file": "app/tickflow/repository.py",
+    "baseline": 59,
+    "current": 59,
+    "added": []
+  },
+  {
+    "file": "app/api/contracts.py",
+    "baseline": 0,
+    "current": 0,
+    "added": []
+  },
+  {
+    "file": "app/api/indices.py",
+    "baseline": 4,
+    "current": 4,
+    "added": []
+  },
+  {
+    "file": "app/services/data_release.py",
+    "baseline": 0,
+    "current": 0,
+    "added": []
+  },
+  {
+    "file": "app/services/index_const.py",
+    "baseline": 0,
+    "current": 0,
+    "added": []
+  },
+  {
+    "file": "app/services/index_sync.py",
+    "baseline": 5,
+    "current": 5,
+    "added": []
+  },
+  {
+    "file": "app/services/quote_service.py",
+    "baseline": 45,
+    "current": 45,
+    "added": []
+  },
+  {
+    "file": "app/api/data.py",
+    "baseline": 57,
+    "current": 57,
+    "added": []
+  },
+  {
+    "file": "app/services/index_kline.py",
+    "baseline": 0,
+    "current": 0,
+    "added": []
+  },
+  {
+    "file": "tests/test_index_kline_periods.py",
+    "baseline": 0,
+    "current": 0,
+    "added": []
+  }
+]

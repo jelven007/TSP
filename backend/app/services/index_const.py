@@ -16,3 +16,19 @@ CORE_INDEX_NAMES: dict[str, str] = {
 }
 
 CORE_INDEX_SYMBOLS: tuple[str, ...] = tuple(CORE_INDEX_NAMES.keys())
+
+# 指数页与手工修正的固定目录; 侧栏/总览继续消费上面的四只。
+PAGE_INDEX_NAMES: dict[str, str] = {
+    **CORE_INDEX_NAMES,
+    "000300.SH": "沪深300",
+    "000016.SH": "上证50",
+    "399330.SZ": "深证100",
+}
+PAGE_INDEX_SYMBOLS: tuple[str, ...] = tuple(PAGE_INDEX_NAMES)
+
+
+def page_index_catalog() -> list[dict]:
+    return [
+        {"symbol": symbol, "name": name, "code": symbol.split(".")[0], "asset_type": "index"}
+        for symbol, name in PAGE_INDEX_NAMES.items()
+    ]

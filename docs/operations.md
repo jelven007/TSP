@@ -1,5 +1,18 @@
 # TSP 部署与运维手册
 
+2026-10-28指数扩展升级应同时加载匹配前端、API与Platform，确认
+`GET /api/index/catalog`含七只、`GET /api/index/kline`接受`1d/1w/1mo`，
+`POST /api/index/repair`仅`data:manage`可执行且在Platform写入。
+停写备份包含`kline_index_daily/kline_index_enriched/kline_index_weekly/kline_index_monthly`
+和`instruments_index`；公共发布先更新Platform再更新消费者，新增目录无需SQL账户schema迁移。
+缺周/月数据先核对本地指数日K，再执行对应周期修正；遗漏不覆盖已有记录，
+全量按选定整周期重建。取消后等待任务终态；检查实际分区及剩余缺口。
+本轮仅源码，未更新运行副本/线上或采集真实行情，见[验证记录](../reports/indices-kline-20261028/verification.md)。
+保留管理员、口令、SMTP及用户后续保存的配置，版本由main CI分配。
+
+2026-10-28源码清理移除未使用的`platformdirs`依赖及打包元数据，数据目录定位仍沿原配置。
+无需迁移或重置用户数据，版本及验证边界见[项目精简记录](../reports/project-cleanup-20261028/verification.md)。
+
 2026-10-27本批常规整合升级保留已有行情、账号及配置，不重复之前的K线清理。
 按主线固定源码/产物→分支归档清理→本地停写备份恢复/升级→线上同样检查顺序执行；
 Platform快照先于消费者，真实登录/业务/配置与完整functions分别验收。
@@ -414,8 +427,10 @@ CODEX_CLI_VERSION=0.144.3 docker compose up --build -d
 该数量表示同时执行的计算任务；一次批量任务内部逐策略执行，普通租户一个活动槽，
 管理员可在全局额度内并发；策略页批量任务排队保持有效。
 
-执行主机的总内存与总 CPU 各取 25% 给策略任务。16 GiB 只是示例：其策略
-内存预算为 4 GiB；实际页面取 Broker 执行主机资源，不能取浏览器或 API 容器资源。
+执行主机的总内存与总 CPU 各取 50% 给策略任务。16 GiB 只是示例：其策略
+内存预算为 8 GiB；实际页面取 Broker 执行主机资源，不能取浏览器或 API 容器资源。
+页面百分比由返回的`budget_ratio`显示；升级须同步Compute和独立模式后端，
+旧服务未升级时仍返回原预算，不能仅更新页面就视为50%生效。
 推荐值取内存预算除以单任务内存上限、CPU 预算除以单任务 CPU 上限、部署并发上限
 三者中的较小整数；资源足够至少运行一个任务时最低为 1。默认单任务参考限额为
 4096 MiB / 2 vCPU。推荐依据限额估算，并非实测峰值或已验收容量。

@@ -12,15 +12,13 @@
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sys
 import threading
 import time
-import uuid
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from datetime import time as clock_time
 from pathlib import Path
 from typing import Literal
@@ -37,7 +35,7 @@ from app.enriched_generation import (
     get_enriched_generation,
 )
 from app.market_time import CN_TZ, cn_today
-from app.parquet import scan_enriched_parquet
+from app.parquet import scan_daily_parquet, scan_enriched_parquet
 from app.polars_guard import guarded_collect
 from app.resource_budget import cache_budget_bytes, effective_memory_bytes
 from app.services.minute_adjust import apply_minute_adjustment, minute_basis_is_raw
@@ -142,6 +140,8 @@ class DataStore:
             "kline_daily_enriched",
             "kline_index_daily",
             "kline_index_enriched",
+            "kline_index_weekly",
+            "kline_index_monthly",
             "kline_etf_daily",
             "kline_etf_enriched",
             "kline_etf_minute",
@@ -245,6 +245,10 @@ class DataStore:
                 SELECT * FROM read_parquet('{d}/kline_index_daily/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_index_enriched AS
                 SELECT * FROM read_parquet('{d}/kline_index_enriched/**/*.parquet', union_by_name=true)""",
+            f"""CREATE OR REPLACE VIEW kline_index_weekly AS
+                SELECT * FROM read_parquet('{d}/kline_index_weekly/**/*.parquet', union_by_name=true)""",
+            f"""CREATE OR REPLACE VIEW kline_index_monthly AS
+                SELECT * FROM read_parquet('{d}/kline_index_monthly/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_etf_daily AS
                 SELECT * FROM read_parquet('{d}/kline_etf_daily/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_etf_enriched AS
@@ -290,7 +294,7 @@ class DataStore:
         for sql in statements:
             try:
                 self.db.execute(sql)
-            except Exception as e:  # noqa: BLE001
+            except Exception:
                 # 空数据目录(首次启动)或权限问题时 DuckDB 会抛 IOException;
                 # 跨版本/平台也可能抛 CatalogException 等。空目录缺视图不影响启动
                 # (后续同步写入数据后会重新刷新视图),这里一律降级为 debug 日志。
@@ -2291,6 +2295,49 @@ class KlineRepository:
         df_storage = df.select(storage_cols)
         self._write_daily_partition(df_storage, "kline_daily_enriched")
 
+    def read_index_frame(self, period: str, symbols: list[str], start: date, end: date) -> pl.DataFrame:
+        """仅扫描指定周期/日期分区和指数, 用于本地派生与缺口检查。"""
+        from app.services.index_kline import TABLES
+        if period not in TABLES:
+            raise ValueError("不支持的指数K线周期")
+        paths = []
+        day = start
+        while day <= end:
+            paths.extend((self.store.data_dir / TABLES[period] / f"date={day}").glob("*.parquet"))
+            day += timedelta(days=1)
+        if not paths:
+            return pl.DataFrame()
+        from app.parquet import DAILY_STORAGE_SCHEMA
+        schema = DAILY_STORAGE_SCHEMA if period == "1d" else {**DAILY_STORAGE_SCHEMA, "trade_date": pl.Date}
+        return guarded_collect(scan_daily_parquet(paths, schema=schema).filter(
+            pl.col("symbol").is_in(symbols) & pl.col("date").is_between(start, end),
+        ).sort("symbol", "date"))
+
+    def get_index_period(self, symbol: str, period: str, start: date, end: date) -> pl.DataFrame:
+        from app.services.index_kline import aggregate, bucket
+        if period == "1d":
+            return self.get_index_daily(symbol, start, end)
+        lo = bucket(start, period)
+        warmup = bucket(lo - timedelta(days=1050 if period == "1w" else 4650), period)
+        frame = self.read_index_frame(period, [symbol], warmup, end)
+        if frame.is_empty():
+            frame = aggregate(self.read_index_frame("1d", [symbol], warmup, end), period)
+        elif "trade_date" in frame.columns and frame.filter(pl.col("trade_date") > end).height:
+            # 截止日在桶中间时重新计算边界桶, 不把范围外交易日带入图表。
+            edge = aggregate(self.read_index_frame("1d", [symbol], bucket(end, period), end), period)
+            frame = pl.concat([frame.filter(pl.col("date") < bucket(end, period)), edge], how="diagonal_relaxed")
+        if frame.is_empty():
+            return frame
+        return self._compute_index_enriched_range(frame).filter(pl.col("date").is_between(lo, end))
+
+    def append_index_period(self, df: pl.DataFrame, period: str, *, only_missing: bool = False) -> int:
+        from app.services.index_kline import TABLES
+        if period not in TABLES:
+            raise ValueError("不支持的指数K线周期")
+        if self.store.read_only:
+            raise PermissionError("公共指数数据只读")
+        return self._write_daily_partition(df, TABLES[period], only_missing=only_missing) if not df.is_empty() else 0
+
     def append_index_daily(self, df: pl.DataFrame) -> None:
         """按日分区写入指数日K数据 (merge-upsert)。"""
         if df.is_empty():
@@ -2372,6 +2419,10 @@ class KlineRepository:
                 SELECT * FROM read_parquet('{d}/kline_index_daily/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_index_enriched AS
                 SELECT * FROM read_parquet('{d}/kline_index_enriched/**/*.parquet', union_by_name=true)""",
+            f"""CREATE OR REPLACE VIEW kline_index_weekly AS
+                SELECT * FROM read_parquet('{d}/kline_index_weekly/**/*.parquet', union_by_name=true)""",
+            f"""CREATE OR REPLACE VIEW kline_index_monthly AS
+                SELECT * FROM read_parquet('{d}/kline_index_monthly/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_etf_daily AS
                 SELECT * FROM read_parquet('{d}/kline_etf_daily/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_etf_enriched AS
@@ -2403,6 +2454,8 @@ class KlineRepository:
             "kline_enriched": f"{d}/kline_daily_enriched/**/*.parquet",
             "kline_index_daily": f"{d}/kline_index_daily/**/*.parquet",
             "kline_index_enriched": f"{d}/kline_index_enriched/**/*.parquet",
+            "kline_index_weekly": f"{d}/kline_index_weekly/**/*.parquet",
+            "kline_index_monthly": f"{d}/kline_index_monthly/**/*.parquet",
             "kline_etf_daily": f"{d}/kline_etf_daily/**/*.parquet",
             "kline_etf_enriched": f"{d}/kline_etf_enriched/**/*.parquet",
             "kline_etf_minute": f"{d}/kline_etf_minute/**/*.parquet",
@@ -2440,7 +2493,7 @@ class KlineRepository:
         df.write_parquet(tmp)
         replace_with_retry(tmp, out)
 
-    def _write_daily_partition(self, df: pl.DataFrame, table: str) -> None:
+    def _write_daily_partition(self, df: pl.DataFrame, table: str, *, only_missing: bool = False) -> int:
         """按 date 分区写入 parquet，每个日期一个文件，支持 merge-upsert。"""
         from app.market_scope import filter_market_frame
         df = filter_market_frame(df)
@@ -2455,12 +2508,14 @@ class KlineRepository:
             if generation_asset is not None
             else None
         )
+        written = 0
         for date_df in df.partition_by("date"):
             dt = date_df["date"][0]
             ds = dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
             out = base / f"date={ds}" / "part.parquet"
             out.parent.mkdir(parents=True, exist_ok=True)
-            self._optimistic_upsert_partition(out, date_df, publication)
+            written += self._optimistic_upsert_partition(out, date_df, publication, only_missing=only_missing)
+        return written
 
     @staticmethod
     def _partition_fingerprint(path: Path) -> tuple[int, int] | None:
@@ -2478,7 +2533,8 @@ class KlineRepository:
         publication: EnrichedPublication | None,
         *,
         retries: int = 3,
-    ) -> None:
+        only_missing: bool = False,
+    ) -> int:
         """单分区 merge-upsert: polars 读/合并/排序在 _write_lock 外, 锁内只做
         指纹校验 + 原子替换 + commit。
 
@@ -2487,26 +2543,34 @@ class KlineRepository:
         把读/算移出锁外; 锁内用指纹确认基底未被其他写入者改动, 失配则重试,
         重试耗尽退回锁内直读直写 (正确性优先, 牺牲隔离性)。
         """
+        written = 0
+
         def _merge(existing: pl.DataFrame) -> pl.DataFrame:
+            nonlocal written
+            addition = incoming.unique(["symbol", "date"], keep="last")
+            if only_missing and not existing.is_empty():
+                addition = addition.join(existing.select("symbol", "date"), on=["symbol", "date"], how="anti")
+            written = addition.height
             if existing.is_empty():
-                return incoming.sort(["symbol", "date"])
-            return pl.concat([existing, incoming], how="diagonal_relaxed").unique(
+                return addition.sort(["symbol", "date"])
+            return pl.concat([existing, addition], how="diagonal_relaxed").unique(
                 subset=["symbol", "date"], keep="last"
             ).sort(["symbol", "date"])
 
         for _ in range(retries):
-            existing = pl.read_parquet(out) if out.exists() else pl.DataFrame()
             base_fp = self._partition_fingerprint(out)
+            existing = pl.read_parquet(out) if base_fp is not None else pl.DataFrame()
             merged = _merge(existing)
             with self._write_lock:
                 if self._partition_fingerprint(out) != base_fp:
                     continue  # 基底被并发写入者改过, 出锁重读重算
                 self._write_partition_locked(out, merged, existing, publication)
-            return
+            return written
         # 乐观重试耗尽 (罕见: 高频并发写同一分区): 退回锁内全量模式保证正确性
         with self._write_lock:
             existing = pl.read_parquet(out) if out.exists() else pl.DataFrame()
             self._write_partition_locked(out, _merge(existing), existing, publication)
+        return written
 
     def _write_partition_locked(
         self,

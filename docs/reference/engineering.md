@@ -1,5 +1,16 @@
 # 工程与交付参考
 
+2026-10-28指数扩展对应`FR-RESEARCH-02/FR-ADMIN-05`，复用Provider、JobStore、
+仓储分区写锁与现有前端图表/修正表单。六类主手册、二开和操作说明已同步；
+逐文件范围、验证命令、反向验证与源码/运行边界见
+[交付记录](../../reports/indices-kline-20261028/verification.md)。
+新增的周/月表属于公共行情文件，不新增账号SQL schema或运行配置；本地版本不加号。
+
+2026-10-28并发资源调整仍归`FR-ADMIN-06`：策略内存/CPU总预算各取主机50%，
+复用`strategy_resources.BUDGET_RATIO`与既有准入/推荐计算，页面从`budget_ratio`回显。
+需求、架构、二开、测试、运营与运维按下方既有文档映射维护；
+不改用户保存并发值、部署容量或版本，不把本地源码验证当作运行环境升级。
+
 2026-10-27系统设置简化对应`FR-ADMIN-06`，为L3局部接线：需求与当前架构分别见
 [需求](../requirements.md)和[并发架构](../architecture.md)，开发入口为`System`、
 `StrategyConcurrencyControl`、`Screener`、开源发布组件及原preferences/strategy_resources。

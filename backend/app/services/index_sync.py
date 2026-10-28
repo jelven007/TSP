@@ -164,6 +164,9 @@ def sync_index_instruments(
         index_df = _fetch_instruments_by_type("index", "index")
         if not index_df.is_empty():
             index_parts.append(index_df)
+        from app.services.index_const import page_index_catalog
+        # 数据源目录未覆盖新增指数时仍保留产品固定目录。
+        index_parts.append(pl.DataFrame(page_index_catalog()))
     if pull_etf:
         etf_df = _fetch_instruments_by_type("etf", "etf")
         if not etf_df.is_empty():
@@ -283,6 +286,8 @@ def sync_and_persist_index_daily(
         repo.append_index_daily(raw)
         enriched = compute_enriched(raw, factors=None, instruments=None)
         repo.append_index_enriched(enriched)
+        from app.services.index_kline import rebuild
+        rebuild(repo, chunk, raw["date"].min(), raw["date"].max())
         total_rows += raw.height
         logger.info("index/etf daily synced: %d/%d chunks, +%d rows", i + 1, len(chunks), raw.height)
         if on_chunk_done:

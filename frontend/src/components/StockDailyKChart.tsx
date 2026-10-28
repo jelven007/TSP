@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { type KlinePeriod, type KlineRow } from '@/lib/api'
+import { type IndexKlinePeriod, type KlinePeriod, type KlineRow } from '@/lib/api'
 import { klineDailyQueryOptions } from '@/lib/kline'
 import { storage } from '@/lib/storage'
 import {
@@ -40,7 +40,9 @@ interface Props {
   showInfoBar?: boolean
   /** 初始可见蜡烛根数; 'all' = 适配显示全部数据 */
   visibleBars?: number | 'all'
-  period?: KlinePeriod
+  period?: KlinePeriod | IndexKlinePeriod
+  /** 已由调用方按资产/周期/日期查询的数据; 提供后不发送股票K线请求。 */
+  externalData?: { rows: KlineRow[]; loading: boolean; error: boolean }
   zoomResetKey?: number
   onVisibleBarsChange?: (count: number) => void
   onAvailableBarsChange?: (count: number) => void
@@ -157,6 +159,7 @@ export function StockDailyKChart({
   onPriceDoubleClick,
   extColumns,
   addedDate,
+  externalData,
 }: Props) {
   const [activeIndicators, setActiveIndicators] = useState<string[]>(['vol'])
   const [showMarkers, setShowMarkers] = useState(true)
@@ -168,12 +171,18 @@ export function StockDailyKChart({
   const dateRange = externalDateRange ?? getDefaultRange()
 
   // 查询配置统一来自 klineDailyQueryOptions, 与 StockPanel 信息条/邻近预取共享同一 cache key (只发一次请求)
-  const kline = useQuery({ ...klineDailyQueryOptions(symbol, dateRange, extColumns, period), enabled: !!symbol })
+  const kline = useQuery({
+    ...klineDailyQueryOptions(symbol, dateRange, extColumns, period === '1mo' ? '1d' : period),
+    enabled: !!symbol && externalData === undefined,
+  })
 
-  const rows = useMemo(() => toOHLC(kline.data?.rows ?? []), [kline.data?.rows])
+  const sourceRows = externalData?.rows ?? kline.data?.rows
+  const loading = externalData?.loading ?? kline.isLoading
+  const error = externalData?.error ?? kline.isError
+  const rows = useMemo(() => toOHLC(sourceRows ?? []), [sourceRows])
   useEffect(() => { onAvailableBarsChange?.(rows.length) }, [rows.length, symbol, period, onAvailableBarsChange])
-  const stockInfo = kline.data?.stock_info
-  const limitMarkers = useMemo(() => buildLimitUpMarkers(kline.data?.rows ?? []), [kline.data?.rows])
+  const stockInfo = externalData ? undefined : kline.data?.stock_info
+  const limitMarkers = useMemo(() => showLimitMarkers ? buildLimitUpMarkers(sourceRows ?? []) : [], [sourceRows, showLimitMarkers])
   const allMarkers = useMemo(() => [
     ...(markers ?? []),
     ...(showLimitMarkers ? limitMarkers : []),
@@ -277,12 +286,12 @@ export function StockDailyKChart({
           </div>
         </div>
       )}
-      {kline.isLoading && <div className="text-sm text-muted py-4">加载中…</div>}
-      {kline.isError && <div className="text-sm text-danger py-2">K线加载失败，请检查数据源后重试</div>}
-      {!kline.isLoading && !kline.isError && (kline.data?.rows?.length ?? 0) === 0 && (
+      {loading && <div className="text-sm text-muted py-4">加载中…</div>}
+      {error && <div role="alert" className="text-sm text-danger py-2">K线加载失败，请检查数据源后重试</div>}
+      {!loading && !error && (sourceRows?.length ?? 0) === 0 && (
         <div className="text-sm text-muted py-4">{period === '10m' ? '暂无10分K数据，请先在数据页面同步或修正10分K线' : '所选周期和日期范围暂无K线数据'}</div>
       )}
-      {!kline.isLoading && !kline.isError && (kline.data?.rows?.length ?? 0) > 0 && rows.length === 0 && (
+      {!loading && !error && (sourceRows?.length ?? 0) > 0 && rows.length === 0 && (
         <div className="text-sm text-danger py-2">数据格式异常，请刷新页面</div>
       )}
       {rows.length > 0 && (

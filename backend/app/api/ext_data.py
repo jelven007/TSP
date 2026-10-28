@@ -712,11 +712,6 @@ _DIMENSION_INTRADAY_CACHE_TTL_S = 60.0
 _DIMENSION_INTRADAY_FFILL_CAP = 2000
 
 
-def _bare_symbol_expr(col: str = "symbol") -> pl.Expr:
-    """'000001.SZ' → '000001'; 已是裸代码则原样。"""
-    return pl.col(col).cast(pl.String).str.strip_chars().str.split(".").list.first()
-
-
 def _dimension_member_bares(matched: pl.DataFrame, config: ExtConfig) -> list[str]:
     """成分股裸代码集合 (symbol 列优先级与 dimension-members 端点一致)。"""
     if matched.is_empty():

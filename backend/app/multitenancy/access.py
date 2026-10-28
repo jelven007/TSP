@@ -118,6 +118,7 @@ async def middleware(request: Request, call_next):
                 if path.startswith("/api/kline/") and path not in PUBLIC_QUERY_POSTS:
                     permission = "data:manage"
                 if path.startswith("/api/index/sync") or path in {
+                    "/api/index/repair",
                     "/api/regime/recompute", "/api/regime/mainline/recompute",
                 }:
                     permission = "data:manage"

@@ -325,6 +325,17 @@ export interface IndexInstrument {
   [key: string]: any
 }
 
+export type IndexKlinePeriod = '1d' | '1w' | '1mo'
+
+export interface IndexKlineResponse {
+  symbol: string
+  name?: string | null
+  index_info?: IndexInstrument
+  period: IndexKlinePeriod
+  rows: (KlineRow & { trade_date?: string })[]
+  source: string
+}
+
 export interface IndexQuote {
   symbol: string
   name?: string | null
@@ -3135,6 +3146,16 @@ export const api = {
     }>(
       `/api/kline/minute-range?symbol=${encodeURIComponent(symbol)}&days=${days}`,
     ),
+  indexCatalog: () => request<{ rows: IndexInstrument[]; count: number }>('/api/index/catalog'),
+  indexKline: (symbol: string, period: IndexKlinePeriod, range: { start: string; end: string }) =>
+    request<IndexKlineResponse>(
+      `/api/index/kline?${new URLSearchParams({ symbol, period, start_date: range.start, end_date: range.end })}`,
+    ),
+  repairIndex: (startDate: string, period: IndexKlinePeriod = '1d', mode: 'full' | 'missing' = 'full', endDate?: string) =>
+    request<{ status: string; job_id: string }>('/api/index/repair', {
+      method: 'POST',
+      body: JSON.stringify({ start_date: startDate, period, mode, ...(endDate ? { end_date: endDate } : {}) }),
+    }),
   indexDaily: (symbol: string, days = 120, dateRange?: { start: string; end: string }) =>
     request<{
       symbol: string
@@ -3147,15 +3168,16 @@ export const api = {
         ? `/api/index/daily?symbol=${encodeURIComponent(symbol)}&start_date=${dateRange.start}&end_date=${dateRange.end}`
         : `/api/index/daily?symbol=${encodeURIComponent(symbol)}&days=${days}`,
     ),
-  indexMinute: (symbol: string, date?: string) =>
+  indexMinute: (symbol: string, date?: string, withPrevClose = false) =>
     request<{
       symbol: string
       name?: string
       date: string | null
       rows: NullableMinuteKlineRow[]
+      prev_close?: number | null
       source?: string
     }>(
-      `/api/index/minute?symbol=${encodeURIComponent(symbol)}${date ? `&date=${date}` : ''}`,
+      `/api/index/minute?symbol=${encodeURIComponent(symbol)}${date ? `&date=${date}` : ''}${withPrevClose ? '&with_prev_close=true' : ''}`,
     ),
   syncIndexInstruments: () =>
     request<{ status: string; count: number }>('/api/index/sync_instruments', { method: 'POST' }),
@@ -4679,7 +4701,7 @@ export interface PipelineJob {
   cancellation_reason?: string | null
   duration_s: number | null
   result: {
-    period?: KlinePeriod
+    period?: KlinePeriod | IndexKlinePeriod
     mode?: 'full' | 'missing'
     missing_before?: number
     remaining?: number

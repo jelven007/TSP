@@ -1,0 +1,25 @@
+[
+  {
+    "route": "/api/health",
+    "seconds": 0.038,
+    "status": 200,
+    "bytes": 1226,
+    "version": "0.4.34",
+    "within_30_seconds": true
+  },
+  {
+    "route": "/api/data/status",
+    "seconds": 1.704,
+    "status": 200,
+    "bytes": 5185,
+    "rows": {
+      "daily": 5950054,
+      "enriched": 5950054,
+      "minute": 109800981,
+      "5m": 5222,
+      "10m": null,
+      "15m": null
+    },
+    "within_30_seconds": true
+  }
+]

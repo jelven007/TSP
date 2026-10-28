@@ -23,7 +23,6 @@ import asyncio
 import json
 import logging
 import threading
-import time
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -232,18 +231,15 @@ class WecomBotService:
         本阶段收到消息解析并记 INFO 日志(验证接收能力), 后续消息处理在此扩展。
         """
         while self._running:
+            # 用 wait_for 同时实现"心跳定时"和"接收消息", 哪个先到都行
             try:
-                # 用 wait_for 同时实现"心跳定时"和"接收消息", 哪个先到都行
-                try:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=_HEARTBEAT_INTERVAL)
-                    self._log_incoming(raw)
-                    continue
-                except asyncio.TimeoutError:
-                    pass  # 接收超时 → 到了心跳时间
-                # 发送业务层 ping 保活
-                await ws.send(json.dumps({"cmd": "ping"}))
-            except Exception as e:  # noqa: BLE001 — 连接断开, 抛给上层重连
-                raise
+                raw = await asyncio.wait_for(ws.recv(), timeout=_HEARTBEAT_INTERVAL)
+                self._log_incoming(raw)
+                continue
+            except asyncio.TimeoutError:
+                pass  # 接收超时 → 到了心跳时间
+            # 发送业务层 ping 保活; 连接异常由上层重连处理。
+            await ws.send(json.dumps({"cmd": "ping"}))
 
     def _log_incoming(self, raw) -> None:
         """解析并记录收到的消息帧(供测试接收能力)。"""
