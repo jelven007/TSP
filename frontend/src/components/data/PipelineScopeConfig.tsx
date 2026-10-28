@@ -3,7 +3,7 @@ import { Check, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 
-type PullKey = 'pipeline_pull_a_share' | 'pipeline_pull_etf' | 'pipeline_pull_index'
+type PullKey = 'pipeline_pull_a_share' | 'pipeline_pull_index'
 
 interface ScopeItem {
   key: PullKey
@@ -15,7 +15,6 @@ interface ScopeItem {
 const ITEMS: ScopeItem[] = [
   { key: 'pipeline_pull_a_share', label: 'A股', desc: '沪深 A 股日K', defaultOn: true },
   { key: 'pipeline_pull_index', label: '指数', desc: '主要市场指数(默认全量约 600 只)', defaultOn: true },
-  { key: 'pipeline_pull_etf', label: 'ETF', desc: '场内交易基金(约 1500 只,首次较慢)', defaultOn: true },
 ]
 
 export function PipelineScopeConfig() {

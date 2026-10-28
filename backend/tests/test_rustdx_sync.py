@@ -56,25 +56,28 @@ def test_instrument_failure_does_not_fall_back_or_overwrite(tmp_path, selected, 
     assert snapshot.as_of == date(2026, 10, 15)
 
 
-def test_index_and_etf_catalogs_follow_daily_provider(tmp_path, selected, monkeypatch):
+def test_index_catalog_follows_daily_provider_and_keeps_page_symbols(
+    tmp_path, selected, monkeypatch,
+):
     monkeypatch.setattr(
         selected, "get_instruments",
         lambda asset_type: [{
-            "symbol": "000001.SH" if asset_type == "index" else "588200.SH",
-            "name": "上证指数" if asset_type == "index" else "科创ETF",
+            "symbol": "000003.SH",
+            "name": "上证B指",
         }],
     )
     repo = KlineRepository(DataStore(tmp_path))
     try:
         assert index_sync.sync_index_instruments(repo) == 8
-        assert set(repo.get_index_instruments()["symbol"]) == set(PAGE_INDEX_SYMBOLS)
-        assert repo.get_etf_instruments()["symbol"].to_list() == ["588200.SH"]
+        assert set(repo.get_index_instruments()["symbol"]) == (
+            set(PAGE_INDEX_SYMBOLS) | {"000003.SH"}
+        )
     finally:
         repo.db.close()
 
 
-@pytest.mark.parametrize("asset_type,symbol", [("index", "000001.SH"), ("etf", "588200.SH")])
-def test_index_and_etf_daily_persist_selected_provider(
+@pytest.mark.parametrize("asset_type,symbol", [("index", "000001.SH")])
+def test_index_daily_persists_selected_provider(
     tmp_path, selected, monkeypatch, asset_type, symbol,
 ):
     calls = []
@@ -91,11 +94,7 @@ def test_index_and_etf_daily_persist_selected_provider(
     repo = KlineRepository(DataStore(tmp_path))
     caps = CapabilitySet({})  # Custom sources must work without TickFlow permissions.
     try:
-        sync = (
-            index_sync.sync_and_persist_index_daily if asset_type == "index"
-            else index_sync.sync_and_persist_etf_daily
-        )
-        assert sync(
+        assert index_sync.sync_and_persist_index_daily(
             repo, caps, symbols_override=[symbol],
             start_date=datetime(2026, 9, 30), end_date=datetime(2026, 9, 30, 15),
         ) == 1
@@ -109,20 +108,7 @@ def test_index_and_etf_daily_persist_selected_provider(
         repo.db.close()
 
 
-def test_empty_etf_adjustments_do_not_change_source(tmp_path, selected, monkeypatch):
-    monkeypatch.setattr(selected, "get_adj_factors", lambda *a, **k: pl.DataFrame())
-    repo = KlineRepository(DataStore(tmp_path))
-    try:
-        assert kline_sync.sync_adj_factor(
-            ["588200.SH"], repo,
-            CapabilitySet({Cap.ADJ_FACTOR: CapabilityLimits(batch=50, rpm=None)}),
-            asset_type="etf",
-        ) == (0, [])
-    finally:
-        repo.db.close()
-
-
-@pytest.mark.parametrize("asset_type", ["stock", "index", "etf"])
+@pytest.mark.parametrize("asset_type", ["stock", "index"])
 def test_unavailable_catalog_keeps_existing_data(tmp_path, selected, monkeypatch, asset_type):
     monkeypatch.setattr(custom_sources, "is_custom_provider", lambda name: False)
     if asset_type == "stock":
@@ -132,7 +118,7 @@ def test_unavailable_catalog_keeps_existing_data(tmp_path, selected, monkeypatch
         monkeypatch.setattr(official_stock_catalog, "fetch_official_stock_catalog", unavailable)
         assert instrument_sync.sync_instruments(tmp_path) == 0
     else:
-        assert index_sync._fetch_instruments_by_type(asset_type, asset_type).is_empty()
+        assert index_sync._fetch_instruments_by_type("index", "index").is_empty()
 
 
 def test_missing_daily_capability_never_uses_tickflow(tmp_path, selected, monkeypatch):

@@ -97,13 +97,6 @@ function HistoryContent({ strategyId, onClose }: Props) {
               onChange={event => setDraft(current => ({ ...current, q: event.target.value }))} />
           </label>
           <label className="space-y-1 text-xs text-muted">
-            <span>资产类型</span>
-            <select aria-label="资产类型" className={inputClass} value={draft.asset_type ?? ''}
-              onChange={event => setDraft(current => ({ ...current, asset_type: event.target.value as StrategyResultHistoryFilters['asset_type'] }))}>
-              <option value="">全部资产</option><option value="stock">股票</option><option value="etf">ETF</option>
-            </select>
-          </label>
-          <label className="space-y-1 text-xs text-muted">
             <span>周期</span>
             <select aria-label="周期" className={inputClass} value={draft.timeframe ?? ''}
               onChange={event => setDraft(current => ({ ...current, timeframe: event.target.value as StrategyResultHistoryFilters['timeframe'] }))}>
@@ -152,7 +145,7 @@ function HistoryContent({ strategyId, onClose }: Props) {
               </div>
             </div>
             <p className="text-xs text-muted break-all">
-              {record.asset_type === 'etf' ? 'ETF' : '股票'} · {record.timeframe === '1m' ? '分钟' : '日线'}
+              股票 · {record.timeframe === '1m' ? '分钟' : '日线'}
               {' · '}{record.total} 只 · 版本 {record.strategy_version.slice(0, 12)}
             </p>
             <p className="text-xs text-muted">计算于 {new Date(record.computed_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
@@ -196,7 +189,7 @@ function HistoryContent({ strategyId, onClose }: Props) {
         confirmText="确认删除" onClose={() => { setDeleting(null); deletion.reset() }}
         onConfirm={() => deletion.mutate(deleting)}>
         <p>确定删除「{deleting.strategy_name}」在 {deleting.as_of} 的
-          {deleting.asset_type === 'etf' ? 'ETF' : '股票'}{deleting.timeframe === '1m' ? '分钟' : '日线'}结果吗？
+          股票{deleting.timeframe === '1m' ? '分钟' : '日线'}结果吗？
           删除后无法恢复；再次运行策略会保存新的结果。</p>
         {deletion.isError && <p role="alert" className="mt-2 text-danger">删除失败：{deletion.error.message}，请重试。</p>}
       </ConfirmDialog>}

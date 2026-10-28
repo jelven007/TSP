@@ -145,7 +145,7 @@ async def lifespan(app):
         resources.callback(custom.close_all)
         app.state.capabilities = detect_capabilities()
         # Create all public generation markers before accepting shared readers.
-        for asset in ("stock", "etf", "index"):
+        for asset in ("stock", "index"):
             repo.get_matrix_data_generation(asset)
         from app.services.data_release import ensure_current_release
 

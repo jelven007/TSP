@@ -86,7 +86,7 @@ export function FactorEditor({ editId = '' }: { editId?: string }) {
   const queryClient = useQueryClient()
   const [formula, setFormula] = useState(DEFAULT_FORMULA)
   const [pendingTemplate, setPendingTemplate] = useState<string | null>(null)
-  const [assetType, setAssetType] = useState<'stock' | 'etf'>('stock')
+  const assetType = 'stock' as const
   const [validation, setValidation] = useState<FactorValidateResponse | null>(null)
   const [trial, setTrial] = useState<FactorTrialResponse | null>(null)
   const [saveLabel, setSaveLabel] = useState('')
@@ -366,10 +366,6 @@ export function FactorEditor({ editId = '' }: { editId?: string }) {
 
         {/* 动作行: nowrap 防止按钮文字折行 */}
         <div className="flex flex-wrap items-center gap-2">
-          <select value={assetType} onChange={event => setAssetType(event.target.value as typeof assetType)} className={`${INPUT_CLS} h-8 w-24 shrink-0`} aria-label="试算资产">
-            <option value="stock">股票</option>
-            <option value="etf">ETF</option>
-          </select>
           <button
             type="button"
             onClick={runBoth}

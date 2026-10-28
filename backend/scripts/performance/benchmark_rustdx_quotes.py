@@ -1,7 +1,7 @@
 """Measure full-pool rustdx quote latency with isolated persistent pools.
 
 Run from backend:
-    uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 8-30
+    uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 1-8
     uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --dry-run
 """
 
@@ -45,12 +45,12 @@ def connection_counts(text: str) -> list[int]:
             else:
                 raise ValueError
             for value in values:
-                if not 8 <= value <= 30:
+                if not 1 <= value <= 8:
                     raise ValueError
                 if value not in counts:
                     counts.append(value)
     except ValueError as exc:
-        raise ValueError("连接数必须在 8-30 内, 例如 8-30 或 8,12,16,20,24,30") from exc
+        raise ValueError("业务连接数必须在 1-8 内, 例如 1-8 或 1,2,4,8") from exc
     return counts
 
 
@@ -413,7 +413,7 @@ def write_results(output: Path, report: dict) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="rustdx 全股票池持久连接 P95 压测")
-    parser.add_argument("--connections", default="8-30", help="逐档范围或逗号列表(默认 8-30)")
+    parser.add_argument("--connections", default="8", help="业务连接逐档范围或逗号列表(1-8, 默认 8)")
     parser.add_argument("--rounds", type=int, default=100, help="每档正式采样轮数(默认 100)")
     parser.add_argument("--warmup", type=int, default=5, help="冷启动后预热轮数(默认 5)")
     parser.add_argument("--interval", type=float, default=1, help="轮次开始间隔秒; 0 为连续压测")

@@ -18,7 +18,7 @@ META = {
     "name": "放量创60日新高",
     "description": "收盘突破前60日最高价, 量比配合, 趋势强度确认",
     "tags": ["突破", "新高"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {"id": "require_volume", "label": "要求量比配合", "type": "bool", "default": True},

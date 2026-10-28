@@ -260,9 +260,7 @@ def test_get_factor_and_dependencies() -> None:
 
 def test_asset_type_filter() -> None:
     stock = all_factors(asset_type="stock")
-    etf = all_factors(asset_type="etf")
     assert len(stock) == 77
-    assert len(etf) == 70  # 财务 7 项仅股票
 
 
 def test_register_factor_rejects_duplicate() -> None:
@@ -314,7 +312,7 @@ def test_factors_api_contract() -> None:
     assert first["id"] == "momentum_5d"
     assert first["kind"] == "base"
     assert first["formula"] == "5个交易日累计收益率"
-    assert first["asset_types"] == ["etf", "stock"]
+    assert first["asset_types"] == ["stock"]
     ma20 = next(item for item in factors if item["id"] == "ma20_bias")
     assert ma20["kind"] == "virtual"
     assert ma20["dependencies"] == ["close", "ma20"]
@@ -328,8 +326,8 @@ def test_factors_api_contract() -> None:
 
 def test_factors_api_asset_filter_and_validation() -> None:
     client = _client()
-    etf = client.get("/api/factors", params={"asset_type": "etf"}).json()["factors"]
-    assert len(etf) == 70
-    assert all("stock" in item["asset_types"] for item in etf)
+    stock = client.get("/api/factors", params={"asset_type": "stock"}).json()["factors"]
+    assert len(stock) == 77
+    assert all(item["asset_types"] == ["stock"] for item in stock)
     # 非法资产类型 → 422 (fail-closed, 不静默回退全量)
     assert client.get("/api/factors", params={"asset_type": "index"}).status_code == 422

@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/factors", tags=["factors"])
 
 
 @router.get("")
-def list_factors(asset_type: str | None = Query(default=None, pattern="^(stock|etf)$")) -> dict:
+def list_factors(asset_type: str | None = Query(default=None, pattern="^stock$")) -> dict:
     """注册表因子列表; asset_type 过滤适用资产 (财务因子仅股票)。"""
     specs = all_factors(asset_type=asset_type)
     return {
@@ -64,7 +64,7 @@ def validate_formula(req: FormulaValidateRequest) -> dict:
 
 
 class FormulaTrialRequest(FormulaValidateRequest):
-    asset_type: str = Field(default="stock", pattern="^(stock|etf)$")
+    asset_type: str = Field(default="stock", pattern="^stock$")
     days: int = Field(default=40, ge=20, le=120)
 
 

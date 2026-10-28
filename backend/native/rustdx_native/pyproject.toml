@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "tsp-rustdx-native"
-version = "0.1.1"
+version = "0.2.0"
 requires-python = ">=3.11"
 description = "TSP native bridge for jelven-rustdx-complete"
 license = { text = "MIT" }
@@ -21,4 +21,13 @@ cache-keys = [
     { file = "Cargo.toml" },
     { file = "Cargo.lock" },
     { file = "src/**/*.rs" },
+    { file = "build.rs" },
+    { file = "vendor/rustdx-core/src/**/*.rs" },
+    { file = "vendor/rustdx-core/tests/fixtures/**/*" },
+    { file = "vendor/rustdx-core/*.toml" },
+    { file = "vendor/rustdx-core/*.lock" },
+    { file = "vendor/rustdx-core/*.json" },
+    { file = "vendor/rustdx-core/*.md" },
+    { file = "vendor/rustdx-core/LICENSE" },
+    { file = "vendor/rustdx-core/SOURCE-SHA256SUMS" },
 ]

@@ -1,0 +1,50 @@
+[package]
+name = "jelven-rustdx-complete"
+version = "2.0.4"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT"
+repository = "https://github.com/jelven007/rustdx"
+description = "Vendored rustdx core with TSP financial probe adaptation"
+readme = "README.md"
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+name = "rustdx_complete"
+path = "src/lib.rs"
+
+[dependencies]
+miniz_oxide = "0.9"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+trade_date_a = "2026.0"
+encoding_rs = { version = "0.8", features = ["fast-gb-hanzi-encode"] }
+md-5 = "0.10"
+sha2 = "0.10"
+zip = { version = "=2.4.2", default-features = false, features = ["deflate"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Networking_WinSock", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Threading", "Win32_Security"] }
+
+[dev-dependencies]
+insta = "1"
+csv = "1"
+proptest = { version = "=1.8.0", default-features = false, features = ["std"] }
+
+[features]
+default = []
+docsrs = []
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs)'] }
+
+[lints.clippy]
+# Rust 1.99 introduced style-only rewrites that are not part of the audited
+# upstream v2.0.4 source. Keep the protocol parsers byte-for-byte unchanged.
+manual_is_multiple_of = "allow"
+chunks_exact_to_as_chunks = "allow"

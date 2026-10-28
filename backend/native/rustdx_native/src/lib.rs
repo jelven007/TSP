@@ -4,20 +4,94 @@ mod report;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use rustdx_complete::tcp::TcpConfig;
-use rustdx_complete::tcp::stock::Client;
+use rustdx_complete::operation::{self, OperationContext};
+use rustdx_complete::tcp::ip::{IpPool, ProbeMode, ProbePolicy, configure_probes};
+use rustdx_complete::tcp::stock::{Client, QuoteMetadataStore};
+use rustdx_complete::tcp::{NetworkPolicy, TcpConfig, configure_network};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::SocketAddr;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, TryLockError};
 use std::time::Duration;
 
 const QUOTE_BATCH_SIZE: usize = 60;
-const MAX_CONNECTIONS: usize = 35;
-const RUSTDX_VERSION: &str = "1.12.2";
-const RUSTDX_SOURCE_REV: &str = "9dfc024c9662fa5091099c1f17610569ee2eca8b";
+const MAX_CONNECTIONS: usize = 8;
+const PROBE_CONNECTIONS: usize = 1;
+const RUSTDX_VERSION: &str = "2.0.4";
+const RUSTDX_SOURCE_REV: &str = "c4c0273456874898aed50447fd900521d9ffd3b8";
+type NetworkSetup = (Option<std::path::PathBuf>, Result<(), String>);
+static NETWORK_SETUP: OnceLock<NetworkSetup> = OnceLock::new();
+
+fn configure_budget() -> Result<(), String> {
+    let directory = std::env::var_os("RUSTDX_NETWORK_SHARED_DIR")
+        .filter(|value| !value.is_empty())
+        .map(std::path::PathBuf::from);
+    let setup = NETWORK_SETUP.get_or_init(|| {
+        let result = (|| {
+            let shared =
+                directory
+                    .clone()
+                    .map(|directory| rustdx_complete::tcp::SharedNetworkPolicy {
+                        directory,
+                        max_connections: MAX_CONNECTIONS,
+                    });
+            configure_network(NetworkPolicy {
+                max_connections: MAX_CONNECTIONS,
+                shared: shared.clone(),
+                request_timeout: Duration::from_secs(60),
+                ..Default::default()
+            })
+            .map_err(io_error)?;
+            configure_probes(ProbePolicy {
+                max_connections: PROBE_CONNECTIONS,
+                shared: shared.map(|policy| rustdx_complete::tcp::SharedNetworkPolicy {
+                    directory: policy.directory.join("probes"),
+                    max_connections: PROBE_CONNECTIONS,
+                }),
+                ..Default::default()
+            })
+            .map_err(io_error)
+        })();
+        (directory.clone(), result)
+    });
+    if setup.0 != directory {
+        return Err("[InvalidInput] RUSTDX_NETWORK_SHARED_DIR changed; restart the process to change the global connection budget".into());
+    }
+    setup.1.clone()
+}
+
+fn operation_lock<T>(mutex: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
+    loop {
+        operation::check().map_err(io_error)?;
+        match mutex.try_lock() {
+            Ok(guard) => return Ok(guard),
+            Err(TryLockError::Poisoned(error)) => return Err(error.to_string()),
+            Err(TryLockError::WouldBlock) => {
+                operation::sleep(Duration::from_millis(20)).map_err(io_error)?
+            }
+        }
+    }
+}
+
+fn io_error(error: std::io::Error) -> String {
+    format!("[{:?}] {error}", error.kind())
+}
+
+fn terminal_error(error: &str) -> bool {
+    [
+        "[InvalidInput]",
+        "[InvalidData]",
+        "[NotFound]",
+        "[Interrupted]",
+        "[SourceChanged]",
+    ]
+    .iter()
+    .any(|prefix| error.starts_with(prefix))
+        || error.contains("MissingPrecision")
+        || error.contains("UnsupportedPrecision")
+}
 
 fn validate_security(market: u16, code: &str) -> PyResult<()> {
     if !matches!(market, 0 | 1) || code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
@@ -54,11 +128,26 @@ fn quote_value(market: u16, quote: &impl serde::Serialize) -> Result<Value, Stri
     Ok(value)
 }
 
+fn bar_source(client: &Client, slot: usize) -> Result<Value, String> {
+    Ok(json!({
+        "slot": slot,
+        "endpoint": client.tcp.get_ref().0.peer_addr().map_err(io_error)?.to_string(),
+        "connection_id": client.tcp.connection_id().get(),
+        "observed_date": chrono::Utc::now()
+            .with_timezone(&chrono::FixedOffset::east_opt(8 * 3600).unwrap())
+            .format("%Y%m%d").to_string().parse::<u32>().map_err(|e| e.to_string())?,
+    }))
+}
+
 #[pyclass]
 struct RustdxClient {
     clients: Vec<Mutex<Option<Client>>>,
     scheduler: pool::Scheduler,
     config: TcpConfig,
+    initialization: Mutex<()>,
+    financial_configs: Mutex<HashMap<SocketAddr, TcpConfig>>,
+    quote_metadata: Arc<QuoteMetadataStore>,
+    metadata_warmup: Mutex<()>,
     servers: Vec<SocketAddr>,
     active_server: AtomicUsize,
     retries: AtomicUsize,
@@ -72,6 +161,42 @@ struct RustdxClient {
 }
 
 impl RustdxClient {
+    fn ensure_pool(&self, config: &TcpConfig) -> Result<(), String> {
+        let _initialization = operation_lock(&self.initialization)?;
+        if self.closed.load(Ordering::Acquire) {
+            return Err("rustdx connection pool is closed".into());
+        }
+        let pool = config.ip_pool.as_ref().ok_or("missing rustdx IP pool")?;
+        if pool.snapshot().is_none() {
+            // The core computes this whole-pool deadline using the actual single probe quota.
+            pool.refresh().map_err(io_error)?;
+        }
+        Ok(())
+    }
+
+    fn financial_config(&self, server: Option<&str>) -> Result<TcpConfig, String> {
+        let Some(server) = server else {
+            return Ok(self.config.clone());
+        };
+        let address = server
+            .parse::<SocketAddr>()
+            .map_err(|e| format!("[InvalidInput] {e}"))?;
+        let mut configs = self.financial_configs.lock().map_err(|e| e.to_string())?;
+        if let Some(config) = configs.get(&address) {
+            return Ok(config.clone());
+        }
+        let mut config = self.config.clone();
+        config.ip = Some(address);
+        config.ip_pool = Some(
+            IpPool::with_probe_mode(vec![address], ProbeMode::FinancialHeartbeat)
+                .map_err(io_error)?,
+        );
+        // Only the currently configured financial endpoint is retained.
+        configs.clear();
+        configs.insert(address, config.clone());
+        Ok(config)
+    }
+
     fn next_slot(&self) -> usize {
         self.next_slot.fetch_add(1, Ordering::Relaxed) % self.max_connections
     }
@@ -80,9 +205,16 @@ impl RustdxClient {
         &self,
         index: usize,
         background: bool,
-        operation: impl FnMut(&mut Client) -> Result<T, String>,
+        mut operation: impl FnMut(&mut Client) -> Result<T, String>,
     ) -> Result<T, String> {
-        self.with_client_at(index, &self.config, background, true, operation)
+        self.with_client_at(
+            index,
+            &self.config,
+            background,
+            true,
+            false,
+            |client, _slot| operation(client),
+        )
     }
 
     fn with_client_at<T>(
@@ -91,12 +223,31 @@ impl RustdxClient {
         config: &TcpConfig,
         background: bool,
         failover: bool,
-        mut operation: impl FnMut(&mut Client) -> Result<T, String>,
+        pinned: bool,
+        mut operation: impl FnMut(&mut Client, usize) -> Result<T, String>,
     ) -> Result<T, String> {
-        let lease = self.scheduler.acquire(index, background)?;
+        // A file contains many bounded chunk requests. Its total budget must
+        // not be the timeout of one TCP request.
+        let timeout = if failover {
+            config.timeout
+        } else {
+            rustdx_complete::tcp::network_policy().batch_timeout
+        };
+        let task = OperationContext::current()
+            .is_none()
+            .then(|| OperationContext::new(timeout, None))
+            .transpose()
+            .map_err(io_error)?;
+        let _scope = task.as_ref().map(OperationContext::enter);
+        self.ensure_pool(config)?;
+        let lease = if pinned {
+            self.scheduler.acquire_at(index, background, true)?
+        } else {
+            self.scheduler.acquire(index, background)?
+        };
         let index = lease.index;
         let slot = &self.clients[index % self.clients.len()];
-        let mut guard = slot.lock().map_err(|error| error.to_string())?;
+        let mut guard = operation_lock(slot)?;
         if self.closed.load(Ordering::Acquire) {
             return Err("rustdx connection pool is closed".to_string());
         }
@@ -104,6 +255,7 @@ impl RustdxClient {
         let _active = ActiveRequest(&self.active_connections);
         let mut last_error = None;
         for attempt in 0..3 {
+            operation::check().map_err(io_error)?;
             if attempt > 0 {
                 self.retries.fetch_add(1, Ordering::Relaxed);
             }
@@ -118,7 +270,7 @@ impl RustdxClient {
             }
             if guard
                 .as_ref()
-                .is_some_and(|client| client.tcp.config().ip != selected_config.ip)
+                .is_some_and(|client| client.tcp.config() != &selected_config)
             {
                 *guard = None;
                 self.total_connections.fetch_sub(1, Ordering::Relaxed);
@@ -126,10 +278,11 @@ impl RustdxClient {
             if guard.is_none() {
                 // Stagger only cold handshakes; established sockets run immediately.
                 if attempt == 0 {
-                    std::thread::sleep(Duration::from_millis(index as u64 * 20));
+                    operation::sleep(Duration::from_millis(index as u64 * 20)).map_err(io_error)?;
                 }
                 match protocol_call(|| {
-                    Client::with_config(&selected_config).map_err(|e| e.to_string())
+                    Client::with_quote_metadata(&selected_config, Arc::clone(&self.quote_metadata))
+                        .map_err(io_error)
                 }) {
                     Ok(client) => {
                         *guard = Some(client);
@@ -137,6 +290,9 @@ impl RustdxClient {
                     }
                     Err(error) => {
                         self.failures.fetch_add(1, Ordering::Relaxed);
+                        if terminal_error(&error) {
+                            return Err(error);
+                        }
                         if failover && self.servers.len() > 1 {
                             let _ = self.active_server.compare_exchange(
                                 server_index,
@@ -147,15 +303,22 @@ impl RustdxClient {
                         }
                         last_error = Some(error);
                         if attempt < 2 {
-                            std::thread::sleep(Duration::from_millis(100 * (attempt + 1) as u64));
+                            operation::sleep(Duration::from_millis(100 * (attempt + 1) as u64))
+                                .map_err(io_error)?;
                         }
                         continue;
                     }
                 }
             }
-            match protocol_call(|| operation(guard.as_mut().unwrap())) {
+            let client = guard
+                .as_mut()
+                .ok_or("rustdx client initialization failed")?;
+            match protocol_call(|| operation(client, index)) {
                 Ok(value) => return Ok(value),
                 Err(error) => {
+                    if error.starts_with("[SourceChanged]") {
+                        return Err(error);
+                    }
                     self.failures.fetch_add(1, Ordering::Relaxed);
                     if failover && self.servers.len() > 1 {
                         let _ = self.active_server.compare_exchange(
@@ -168,8 +331,12 @@ impl RustdxClient {
                     last_error = Some(error);
                     *guard = None;
                     self.total_connections.fetch_sub(1, Ordering::Relaxed);
+                    if terminal_error(last_error.as_deref().unwrap_or_default()) {
+                        break;
+                    }
                     if attempt < 2 {
-                        std::thread::sleep(Duration::from_millis(100 * (attempt + 1) as u64));
+                        operation::sleep(Duration::from_millis(100 * (attempt + 1) as u64))
+                            .map_err(io_error)?;
                     }
                 }
             }
@@ -178,8 +345,30 @@ impl RustdxClient {
     }
 
     fn fetch_quotes(&self, securities: Vec<(u16, String)>) -> Result<Vec<Value>, String> {
+        let task =
+            OperationContext::new(rustdx_complete::tcp::network_policy().batch_timeout, None)
+                .map_err(io_error)?;
+        let _scope = task.enter();
+        let context = OperationContext::current().ok_or("missing quote operation context")?;
         if securities.is_empty() {
             return Ok(Vec::new());
+        }
+        {
+            let _warmup = operation_lock(&self.metadata_warmup)?;
+            let markets = [0, 1]
+                .into_iter()
+                .filter(|market| securities.iter().any(|(m, _)| m == market))
+                .collect::<Vec<_>>();
+            let snapshot = self.quote_metadata.snapshot().map_err(io_error)?;
+            let stale = markets
+                .into_iter()
+                .filter(|market| !snapshot.is_fresh(*market, chrono::Utc::now()))
+                .collect::<Vec<_>>();
+            if !stale.is_empty() {
+                self.with_client(0, false, |client| {
+                    client.refresh_quote_metadata(&stale).map_err(io_error)
+                })?;
+            }
         }
         // Upstream QuoteData omits market. Never infer it from response position:
         // servers can reorder rows, and SH/SZ can share the same six-digit code.
@@ -211,7 +400,9 @@ impl RustdxClient {
             for worker_index in 0..worker_count {
                 let queue = Arc::clone(&queue);
                 let results = Arc::clone(&results);
+                let context = context.clone();
                 scope.spawn(move || {
+                    let _scope = context.enter();
                     loop {
                         let task = queue.lock().ok().and_then(|mut queue| queue.pop_front());
                         let Some((batch_index, batch)) = task else {
@@ -222,9 +413,7 @@ impl RustdxClient {
                                 .iter()
                                 .map(|(market, code)| (*market, code.as_str()))
                                 .collect::<Vec<_>>();
-                            let quotes = client
-                                .quotes(&references)
-                                .map_err(|error| error.to_string())?;
+                            let quotes = client.quotes(&references).map_err(io_error)?;
                             if quotes.len() != batch.len() {
                                 return Err(format!(
                                     "rustdx quote batch incomplete: {}/{}",
@@ -297,6 +486,7 @@ impl RustdxClient {
         fallback_servers: Option<Vec<String>>,
     ) -> PyResult<Self> {
         let max_connections = max_connections.clamp(1, MAX_CONNECTIONS);
+        configure_budget().map_err(runtime_error)?;
         let ip = server
             .map(|value| value.parse::<SocketAddr>())
             .transpose()
@@ -318,6 +508,7 @@ impl RustdxClient {
         let config = TcpConfig {
             timeout: Duration::from_secs(timeout_seconds.clamp(2, 60)),
             ip: servers.first().copied(),
+            ip_pool: Some(IpPool::new(servers.clone()).map_err(runtime_error)?),
             auto_reconnect: 0,
             retry_delay_ms: 200,
             // Retry here after dropping the socket; upstream reconnect opens
@@ -331,6 +522,10 @@ impl RustdxClient {
                 background_connections.unwrap_or(max_connections),
             ),
             config,
+            initialization: Mutex::new(()),
+            financial_configs: Mutex::new(HashMap::new()),
+            quote_metadata: Arc::new(QuoteMetadataStore::default()),
+            metadata_warmup: Mutex::new(()),
             servers,
             active_server: AtomicUsize::new(0),
             retries: AtomicUsize::new(0),
@@ -357,7 +552,8 @@ impl RustdxClient {
         serde_json::to_string(&rows.map_err(runtime_error)?).map_err(runtime_error)
     }
 
-    #[pyo3(signature = (market, code, category, start=0, count=800, index=false, with_request_count=false))]
+    #[pyo3(signature = (market, code, category, start=0, count=800, index=false, with_request_count=false, with_source=false, expected_source=None))]
+    #[allow(clippy::too_many_arguments)] // Keep the existing Python positional API.
     fn bars_json(
         &self,
         py: Python<'_>,
@@ -368,15 +564,35 @@ impl RustdxClient {
         count: u16,
         index: bool,
         with_request_count: bool,
+        with_source: bool,
+        expected_source: Option<String>,
     ) -> PyResult<String> {
         validate_security(market, &code)?;
         if !matches!(category, 0..=9) || count == 0 {
             return Err(PyValueError::new_err("invalid rustdx bar category/count"));
         }
-        let slot = self.next_slot();
+        let expected = expected_source
+            .map(|value| serde_json::from_str::<Value>(&value))
+            .transpose()
+            .map_err(runtime_error)?;
+        let slot = if let Some(source) = &expected {
+            source["slot"]
+                .as_u64()
+                .filter(|slot| *slot < self.max_connections as u64)
+                .ok_or_else(|| PyValueError::new_err("invalid bar source slot"))?
+                as usize
+        } else {
+            self.next_slot()
+        };
         py.allow_threads(|| {
             let mut requests = 0;
-            let result = self.with_client(slot, true, |client| {
+            let mut source = None;
+            let result = self.with_client_at(
+                slot, &self.config, true, true, expected.is_some(), |client, actual_slot| {
+                let observed = bar_source(client, actual_slot)?;
+                if expected.as_ref().is_some_and(|value| *value != observed) {
+                    return Err("[SourceChanged] K线来源变化，须从头重采".into());
+                }
                 requests += 1;
                 if category == 8 {
                     self.minute_requests.fetch_add(1, Ordering::Relaxed);
@@ -385,23 +601,29 @@ impl RustdxClient {
                     serde_json::to_string(
                         &client
                             .index_bars(market, &code, category, start, count.min(800))
-                            .map_err(|error| error.to_string())?,
+                            .map_err(io_error)?,
                     )
                 } else {
                     serde_json::to_string(
                         &client
                             .bars(market, &code, category, start, count.min(800))
-                            .map_err(|error| error.to_string())?,
+                            .map_err(io_error)?,
                     )
                 };
-                rows.map_err(|error| error.to_string())
+                let rows = rows.map_err(|error| error.to_string())?;
+                if bar_source(client, actual_slot)? != observed {
+                    return Err("[SourceChanged] K线来源变化，须从头重采".into());
+                }
+                source = Some(observed);
+                Ok(rows)
             });
-            if with_request_count {
+            if with_request_count || with_source {
                 serde_json::to_string(&json!({
                     "rows": result.as_ref().ok().and_then(|value| serde_json::from_str::<Value>(value).ok())
                         .unwrap_or_else(|| json!([])),
                     "requests": requests,
                     "error": result.err(),
+                    "source": source,
                 })).map_err(runtime_error)
             } else {
                 result.map_err(runtime_error)
@@ -413,9 +635,18 @@ impl RustdxClient {
         validate_security(market, "000001")?;
         let slot = self.next_slot();
         py.allow_threads(|| {
+            let task = OperationContext::new(
+                rustdx_complete::tcp::network_policy().pagination_timeout,
+                None,
+            )
+            .map_err(runtime_error)?;
+            let _scope = task.enter();
             self.with_client(slot, true, |client| {
-                serde_json::to_string(&client.stocks(market).map_err(|error| error.to_string())?)
-                    .map_err(|error| error.to_string())
+                serde_json::to_string(&client.stocks(market).map_err(|error| match error {
+                    rustdx_complete::Error::Io(error) => io_error(error),
+                    error => format!("[InvalidData] {error}"),
+                })?)
+                .map_err(|error| error.to_string())
             })
             .map_err(runtime_error)
         })
@@ -428,7 +659,7 @@ impl RustdxClient {
             self.with_client(slot, true, |client| {
                 let rows = client
                     .xdxr(market, &code)
-                    .map_err(|error| error.to_string())?
+                    .map_err(io_error)?
                     .into_iter()
                     .map(|row| {
                         json!({
@@ -457,9 +688,7 @@ impl RustdxClient {
         py.allow_threads(|| {
             self.with_client(slot, true, |client| {
                 serde_json::to_string(&vec![
-                    client
-                        .finance(market, &code)
-                        .map_err(|error| error.to_string())?,
+                    client.finance_legacy(market, &code).map_err(io_error)?,
                 ])
                 .map_err(|error| error.to_string())
             })
@@ -477,10 +706,14 @@ impl RustdxClient {
         validate_security(market, &code)?;
         let slot = self.next_slot();
         py.allow_threads(|| {
+            let task = OperationContext::new(
+                rustdx_complete::tcp::network_policy().pagination_timeout,
+                None,
+            )
+            .map_err(runtime_error)?;
+            let _scope = task.enter();
             self.with_client(slot, true, |client| {
-                let rows = client
-                    .f10(market, &code)
-                    .map_err(|error| error.to_string())?;
+                let rows = client.f10(market, &code).map_err(io_error)?;
                 Ok(rows
                     .into_iter()
                     .find(|(name, _)| name.trim() == category_name.trim())
@@ -498,19 +731,23 @@ impl RustdxClient {
         max_bytes: usize,
         server: Option<String>,
     ) -> PyResult<Bound<'py, PyBytes>> {
-        let mut config = self.config.clone();
-        if let Some(server) = server {
-            config.ip = Some(
-                server
-                    .parse::<SocketAddr>()
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
-        }
+        let config = self
+            .financial_config(server.as_deref())
+            .map_err(runtime_error)?;
         let slot = self.next_slot();
         let data = py
             .allow_threads(|| {
-                self.with_client_at(slot, &config, true, false, |client| {
-                    report::download(&mut client.tcp, &filename, max_bytes)
+                self.with_client_at(slot, &config, true, false, false, |client, _slot| {
+                    if filename != "tdxfin/gpcw.txt" {
+                        let listing =
+                            report::download(&mut client.tcp, "tdxfin/gpcw.txt", 512_000)?;
+                        report::validate_listing(&listing)?;
+                    }
+                    let bytes = report::download(&mut client.tcp, &filename, max_bytes)?;
+                    if filename == "tdxfin/gpcw.txt" {
+                        report::validate_listing(&bytes)?;
+                    }
+                    Ok(bytes)
                 })
             })
             .map_err(runtime_error)?;
@@ -520,8 +757,28 @@ impl RustdxClient {
     fn stats_json(&self) -> PyResult<String> {
         let total = self.total_connections.load(Ordering::Relaxed);
         let active = self.active_connections.load(Ordering::Relaxed);
+        let network = rustdx_complete::tcp::network_stats();
+        let probes = rustdx_complete::tcp::ip::probe_stats();
         serde_json::to_string(&json!({
             "max_connections": self.max_connections,
+            "business_limit": MAX_CONNECTIONS,
+            "probe_limit": PROBE_CONNECTIONS,
+            "total_connection_limit": MAX_CONNECTIONS + PROBE_CONNECTIONS,
+            "network": {
+                "active": network.active, "peak": network.peak,
+                "acquisition_timeouts": network.acquisition_timeouts,
+                "requests": network.requests, "request_failures": network.request_failures,
+                "shared_max_connections": network.shared_max_connections,
+            },
+            "probes": {
+                "active": probes.active, "peak": probes.peak,
+                "waits": probes.waits, "timeouts": probes.timeouts,
+            },
+            "market_pool": self.config.ip_pool.as_ref().and_then(IpPool::snapshot),
+            "financial_pools": self.financial_configs.lock().map_err(runtime_error)?
+                .values().filter_map(|config| config.ip_pool.as_ref().and_then(IpPool::snapshot))
+                .collect::<Vec<_>>(),
+            "quote_metadata": self.quote_metadata.snapshot().map_err(runtime_error)?.status(),
             "total_connections": total,
             "active_connections": active,
             "idle_connections": total.saturating_sub(active),
@@ -542,10 +799,10 @@ impl RustdxClient {
         self.scheduler.close();
         py.allow_threads(|| {
             for slot in &self.clients {
-                if let Ok(mut client) = slot.lock() {
-                    if client.take().is_some() {
-                        self.total_connections.fetch_sub(1, Ordering::Relaxed);
-                    }
+                if let Ok(mut client) = slot.lock()
+                    && client.take().is_some()
+                {
+                    self.total_connections.fetch_sub(1, Ordering::Relaxed);
                 }
             }
         });
@@ -558,8 +815,11 @@ fn tsp_rustdx_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
     module.add("RUSTDX_VERSION", RUSTDX_VERSION)?;
     module.add("RUSTDX_SOURCE_REV", RUSTDX_SOURCE_REV)?;
+    module.add("RUSTDX_CORE_SHA256", env!("RUSTDX_CORE_SHA256"))?;
+    module.add("RUSTDX_PATCH_SHA256", env!("RUSTDX_PATCH_SHA256"))?;
     module.add("MAX_CONNECTIONS", MAX_CONNECTIONS)?;
+    module.add("PROBE_CONNECTIONS", PROBE_CONNECTIONS)?;
     module.add("QUOTE_BATCH_SIZE", QUOTE_BATCH_SIZE)?;
-    module.add("POOL_API_VERSION", 2)?;
+    module.add("POOL_API_VERSION", 3)?;
     Ok(())
 }

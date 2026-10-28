@@ -35,13 +35,6 @@ def test_enriched_history_days_counts_and_filters_as_of(tmp_path):
     assert enriched_history_days(tmp_path / "nonexistent") == 0
 
 
-def test_enriched_history_days_routes_etf_directory(tmp_path):
-    _make_partitions(tmp_path, "kline_etf_enriched", ["2026-09-01"])
-
-    assert enriched_history_days(tmp_path, asset_type="etf") == 1
-    assert enriched_history_days(tmp_path, asset_type="stock") == 0
-
-
 def _svc(tmp_path) -> ScreenerService:
     return ScreenerService(SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)))
 

@@ -155,7 +155,7 @@ async def _application_lifespan(app: FastAPI):
     repo._on_warmup_done = lambda: setattr(app.state, "indicators_ready", True)  # noqa: SLF001
 
     # Polars 缓存预热 — enriched 的重计算 (107万行 compute_indicators) 推后台,
-    # instruments/index/ETF 仍同步 (毫秒级)。应用立即 ready, 指标算完后自动替换。
+    # instruments/index 仍同步 (毫秒级)。应用立即 ready, 指标算完后自动替换。
     repo.refresh_cache(background=True)
 
     # 自定义数据源配置(可选): 失败只记录错误, 不影响 TickFlow 基准路径。
@@ -291,7 +291,6 @@ async def _application_lifespan(app: FastAPI):
     from app.services.screener import ScreenerService
 
     _screener_svc = ScreenerService(repo)
-    _etf_screener_svc = ScreenerService(repo, asset_type="etf")
     strategy_dirs = [
         Path(__file__).resolve().parent / "strategy" / "builtin",
         store.data_dir / "strategies" / "custom",
@@ -371,8 +370,6 @@ async def _application_lifespan(app: FastAPI):
     # 复用 ScreenerService 的历史窗口加载器 (三级缓存, 启动预计算命中 ~0ms),
     # 让声明 filter_history 的策略 (如反包) 也能在实时监控里跑选股 → 盘中触发通知。
     monitor_engine.set_history_loader(_screener_svc._load_enriched_history)
-    # ETF 版历史加载器: asset_type=etf 的 strategy 型规则用 (读 kline_etf_enriched)。
-    monitor_engine.set_history_loader_etf(_etf_screener_svc._load_enriched_history)
 
     # 自动迁移: 把旧 strategy_monitor_ids 同步为 type=strategy 规则 (统一到监控页)
     try:

@@ -67,7 +67,7 @@ def mining_availability(
     start: date | None = None,
     end: date | None = None,
 ) -> MiningAvailability:
-    if asset_type not in {"stock", "etf"}:
+    if asset_type != "stock":
         raise ValueError(f"unsupported mining asset type: {asset_type}")
     if start is not None and end is not None and start > end:
         raise ValueError("mining start must not be after end")

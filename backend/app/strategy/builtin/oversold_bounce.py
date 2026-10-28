@@ -16,7 +16,7 @@ META = {
     "name": "超跌反弹",
     "description": "RSI14 < 30超卖区 + 当日收阳 + 放量, 抄底信号",
     "tags": ["超跌", "反弹", "RSI"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {"id": "use_rsi_filter", "label": "启用RSI过滤", "type": "bool", "default": True},

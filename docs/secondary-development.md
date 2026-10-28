@@ -1,9 +1,29 @@
 # 代码二次开发与 AI 扩展指南
 
+2026-10-28最新整合仍为L3核心修改：rustdx固定v2.0.4，K线区间和周K读取复用现有
+Provider/周期服务；ETF运行资产已退役，二开不得重新暴露ETF枚举、目录或查询入口。
+股票和七只指数继续使用真实存在的契约，不新增扩展API。上游升级时须复跑固定源码身份、
+闭区间/缺口、混合schema、指数保持及ETF不再生测试；完整边界见
+[发布评审](../reports/complete-release-20261028-3/review.md)。
+
+2026-10-28周K schema兼容为L3局部修复，复用现有`scan_parquet_compat/
+scan_daily_parquet`，不新增Provider、表schema或扩展API。二开不得把派生日K读取
+改回裸`pl.scan_parquet`；新增存储元数据列时须覆盖额外列和缺列两种分区顺序。
+
+2026-10-28指数页交互为L3局部修改，复用现有`StockDailyKChart`回调、
+`DatePicker`与任务查询，不新增插槽、查询键或API。二开升级须保留实际可用/
+当前可见根数分离、默认60根、周期重置、终态查询失效及5秒定时器清理。
+
+2026-10-28 rustdx v2.0.4采用固定核心本地路径依赖和桥接API3，为L3源适配。
+不将上游runner、指标引擎或逐笔扩展自动映射为本项目Provider能力。
+二开升级保留8业务+1探测、行情/财务不同探测资格、元数据共享、配置切换关闭旧池、
+分页连接身份及北京时间观察日。现有历史窗口定位优化、标准单位、财务legacy字段、
+七项路由与已有数据保持兼容；补丁刷新和实测见[验证记录](../reports/rustdx-v204-20261028/verification.md)。
+
 2026-10-28历史K线性能为L3局部变更：1分K的`sync_period`使用32自然日段，
 保留100证券批次；rustdx的`_bar_records`用实际页时间定位旧窗口，
 单次复用探测页，不跨调用缓存或猜测停牌/交易日偏移，仍受原最大页数限制。
-全量/遗漏修正及股票/指数/ETF共用该逻辑；准确缺口、已有值保护、
+全量/遗漏修正及股票/指数共用该逻辑；准确缺口、已有值保护、
 日K整日边界和异常/取消必须保留。日K及本地派生周期的分块不变。已有Provider仍使用
 `get_klines/get_minute`，不新增批量/游标接口或扩展插槽。
 升级保留闭区间、复权基准、原子合并、进度和取消；不能恢复重复近期前缀扫描。
@@ -37,7 +57,7 @@
 不硬编码百分比或改写已保存并发值。
 旧`screener_auto_run`保留deprecated字段兼容，读取/写入均不能再启用；
 二开不得重建页面挂载/切日期的自动计算effect，每策略仍由原手动监控规则API启停。
-开源设置组件只显示仓库、最新版本号链接和发布时间，共享查询与布局提醒沿原契约。
+开源设置组件只显示仓库、最新版本号链接和发布时间；布局不再自动轮询或显示新版本提醒。
 
 2026-10-27整合升级必须同时加载匹配的API/Platform/Worker/Compute及前端，
 保留旧API省略字段、旧Parquet、SQL租户关系和用户已存配置。
@@ -71,12 +91,12 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 二开不能仅新增卡片或让同一数据混入原1分钟/日K分区。
 用户配置仍走preferences及共享查询键，前端不绕过Provider直接取上游。
 
-2026-10-27离线生成属于L3局部变更，复用`KlineSyncConfig`及`/api/kline/sync_period`。
+2026-10-28离线生成属于L3局部变更，复用`KlineSyncConfig`及`/api/kline/sync_period`。
 `syncKlinePeriod`仅传period时，5/10/15分钟和周K按本地基础分区区间调用`generate_period`；
-日K画像恢复历史获取，使用`isLocalDerivedPeriod`区分本地派生周期与1m/1d基础数据，
-明确提交value/unit走原`extend_history`；不得仅传period而误进入本地指标生成。
+1m/1d基础周期明确提交`start_date/end_date/mode`走共享区间任务，
+使用`isLocalDerivedPeriod`区分本地派生周期；不得仅传period而误进入本地指标生成。
 旧无范围日K API兼容作用于同一data_dir的`run_pipeline`，从本地日K/因子写入Enriched。
-升级保留显式value/unit旧调用、1分钟历史获取、日K自动同步及LOCAL_DERIVED_PERIODS原定义，
+升级保留显式value/unit旧API调用、日K自动同步及LOCAL_DERIVED_PERIODS原定义，
 不能因手工日K可本地生成而更改全局日K数据源路由。
 须复核目标已有数据重算、零输出失败、分块幂等、取消发布和有界缓存换代；
 没有新增Provider数据集、前端插槽或通用扩展接口。
@@ -89,19 +109,22 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 `stock-preview.footer`的`view`仍为`daily | intraday`，其中`daily`表示所有K线模式；
 现有apiVersion及旧不传周期的调用保持兼容。
 
-K线修正为L3局部接线，复用现有`RepairDailyPanel`、修正API及周期服务，不新增插槽。
+K线区间获取为L3局部接线，数据总览复用`KlineSyncConfig`、`DatePicker`、
+`/api/kline/sync_period`及周期服务，不新增插槽。
 日期与时分控件复用`DatePicker`/`TimePicker`及`usePickerPopover`，保持行情首排样式；
 扩展字段保留可清空、禁用、标签与日期上下界，弹窗内保持Portal焦点及Escape优先收起弹层。
 不新增扩展注册接口或改动后端日期/时间格式。
-2026-10-27前端入口仅选1m/1d，`api.repairDaily`新增第4可选endDate参数；
-后端可选`end_date`同时限定full/missing，严格日期格式及闭区间校验先于建任务。
+2026-10-28基础周期入口仅为1m/1d，`syncKlinePeriod`范围对象包含
+`startDate/endDate/mode`；后端三项均必填，严格日期格式及闭区间校验先于建任务。
 `run_now`新增keyword-only `override_end_date`，统一日K/因子窗口和范围清理；
 显式范围不附带分钟采集或全库自愈删除，派生指标仍沿既有历史依赖重算。
 升级保留旧缺结束日期到今天、后台六周期API、自动盘后流程及无新增字段的旧任务。
-`/api/kline/repair_daily`与`run_repair_daily`的可选period缺省`1d`，旧日K调用保持兼容；
+`/api/kline/repair_daily`仅保留兼容，并与`sync_period`复用`_start_kline_range_job`；
+`run_repair_daily`的可选period缺省`1d`，旧日K调用保持兼容；
 可选mode缺省`full`，`missing`接`services/kline_gaps.py`按证券/时间键补采。
 升级保留公布/源证据日历、上市日期及已形成标签边界、100证券有界请求、
-写锁内only_missing防覆盖、无缺口零请求及未补齐计数；不将字段异常视为缺记录。
+写锁内only_missing防覆盖、无缺口零请求及未补齐计数；Provider与能力解析必须在
+本地缺口确认之后，不将字段异常视为缺记录。
 日K遗漏仅用本地因子重算受影响证券，5/10/15分钟仅补完整本地基础桶，周K仅聚合本地日K，
 不新增Provider数据集。非日K通过既有快照股票池与独立周期表，5/10/15分钟只读本地1分钟，
 周K只读本地日K，其余沿Provider入口。

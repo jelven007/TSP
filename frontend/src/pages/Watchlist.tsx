@@ -65,9 +65,7 @@ import {
 const BOARDS = ['沪主板', '深主板', '创业板', '科创板'] as const
 type BoardType = typeof BOARDS[number]
 
-// 板块筛选选项 = 股票板块 + ETF（ETF 无 symbol 板块语义，按 asset_type 匹配）
-const ETF_BOARD = 'ETF'
-const BOARD_OPTIONS = [...BOARDS, ETF_BOARD]
+const BOARD_OPTIONS = [...BOARDS]
 
 function getBoardType(symbol: string): BoardType | null {
   if (/^(300|301)/.test(symbol)) return '创业板'
@@ -263,8 +261,8 @@ function StockSearchBox({
   const [activeIdx, setActiveIdx] = useState(-1)
 
   const search = useQuery({
-    queryKey: QK.instrumentSearch(query, 'stock,etf,index'),
-    queryFn: () => api.instrumentSearch(query, 20, 'stock,etf,index'),
+    queryKey: QK.instrumentSearch(query, 'stock,index'),
+    queryFn: () => api.instrumentSearch(query, 20, 'stock,index'),
     enabled: query.trim().length > 0,
     staleTime: 30_000,
   })
@@ -377,9 +375,6 @@ function StockSearchBox({
                     {/* 名称+标签组: 标签紧贴名称文字, 而不是被 flex-1 推到行尾 */}
                     <span className="flex min-w-0 flex-1 items-center gap-1">
                       <span className="truncate text-secondary">{r.name}</span>
-                      {r.asset_type === 'etf' && (
-                        <span className="shrink-0 px-1 py-0.5 rounded text-[10px] leading-none bg-accent/10 text-accent">ETF</span>
-                      )}
                       {r.asset_type === 'index' && (
                         <span className="shrink-0 px-1 py-0.5 rounded text-[10px] leading-none bg-sky-500/10 text-sky-400">指数</span>
                       )}
@@ -1196,12 +1191,11 @@ export function Watchlist() {
   const [filters, setFilters] = useState<Record<string, { min?: string; max?: string; text?: string }>>({})
 
   // 板块筛选（持久化）
-  // 兼容: 旧存储不含 ETF 键 → 加载时补上，保持 ETF 行默认可见
   const [boardFilter, setBoardFilter] = useState<Set<string>>(() => {
     const raw = storage.watchlistBoardFilter.get([])
-    const saved = raw.filter(board => BOARD_OPTIONS.includes(board))
+    const saved = raw.filter((board): board is BoardType => BOARD_OPTIONS.includes(board as BoardType))
     if (saved.length !== raw.length) storage.watchlistBoardFilter.set(saved)
-    return saved.length > 0 ? new Set([...saved, ETF_BOARD]) : new Set(BOARD_OPTIONS) // 默认全选
+    return saved.length > 0 ? new Set(saved) : new Set(BOARD_OPTIONS) // 默认全选
   })
   const persistBoardFilter = useCallback((next: Set<string>) => {
     setBoardFilter(next)
@@ -1273,7 +1267,6 @@ export function Watchlist() {
     let result = rowsInSelectedGroup
     if (boardFilter.size > 0 && boardFilter.size < BOARD_OPTIONS.length) {
       result = result.filter(r => {
-        if (r.asset_type === 'etf') return boardFilter.has(ETF_BOARD)
         // 其他非股票 (指数等) 无板块语义, 不受板块筛选影响
         if (r.asset_type && r.asset_type !== 'stock') return true
         const board = getBoardType(r.symbol)
@@ -1355,7 +1348,7 @@ export function Watchlist() {
   // 每次渲染直读 getVirtualItems (滚动不换 deps, 不能 useMemo), 副作用集中在 effect。
   const visibleCardSymbols = (() => {
     if (!virtualizeCards) return null
-    // 与 minuteSymbols 同口径: 剔除指数 (minute-batch 契约只收股票/ETF)
+    // 与 minuteSymbols 同口径: 剔除指数 (minute-batch 契约只收股票)
     const scope = new Set(minuteSymbols as string[])
     const items = cardRowVirtualizer.getVirtualItems()
     const out: string[] = []

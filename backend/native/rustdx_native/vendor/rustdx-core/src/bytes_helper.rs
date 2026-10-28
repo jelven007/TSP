@@ -1,0 +1,76 @@
+/// 把 slice 转换为长度为 4 的 array 。
+/// [泛型写法](https://stackoverflow.com/a/37682288/15448980)
+#[inline]
+pub fn into_arr4(slice: &[u8], pos: usize) -> [u8; 4] {
+    let mut arr = [0; 4];
+    if let Some(bytes) = pos.checked_add(4).and_then(|end| slice.get(pos..end)) {
+        arr.copy_from_slice(bytes);
+    }
+    arr
+}
+
+#[inline]
+pub fn u32_from_le_bytes(slice: &[u8], pos: usize) -> u32 {
+    u32::from_le_bytes(into_arr4(slice, pos))
+}
+
+#[inline]
+pub fn f32_from_le_bytes(slice: &[u8], pos: usize) -> f32 {
+    f32::from_le_bytes(into_arr4(slice, pos))
+}
+
+/// 把 slice 转换为长度为 2 的 array
+#[inline]
+pub fn into_arr2(slice: &[u8], pos: usize) -> [u8; 2] {
+    let mut arr = [0; 2];
+    if let Some(bytes) = pos.checked_add(2).and_then(|end| slice.get(pos..end)) {
+        arr.copy_from_slice(bytes);
+    }
+    arr
+}
+
+#[inline]
+pub fn u16_from_le_bytes(slice: &[u8], pos: usize) -> u16 {
+    u16::from_le_bytes(into_arr2(slice, pos))
+}
+
+#[inline]
+pub fn u8_from_le_bytes(slice: &[u8], pos: usize) -> u8 {
+    if pos < slice.len() { slice[pos] } else { 0 }
+}
+
+/// 把 6 位 u32 日期转化成 `%Y-%m-%d` 格式，比如 `20210801` => `2021-08-01`
+#[inline]
+pub fn date_string(x: u32) -> String {
+    let [y, m, d] = [x / 10000, x % 10000 / 100, x % 10000 % 100];
+    let fill = |x: u32| if x > 9 { "" } else { "0" };
+    format!("{}-{}{}-{}{}", y, fill(m), m, fill(d), d)
+}
+
+pub fn ser_date_string<S>(date: &u32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&crate::bytes_helper::date_string(*date))
+}
+
+/// 序列化完整的股票代码字符串（含市场前缀，如 `sh600000` / `sz200b07`）。
+pub fn ser_code_string<S>(code: &str, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn overflowing_and_truncated_offsets_keep_legacy_zero_fallback() {
+        for pos in [0, 1, usize::MAX - 3, usize::MAX - 1, usize::MAX] {
+            assert_eq!(into_arr4(&[1], pos), [0; 4]);
+            assert_eq!(into_arr2(&[1], pos), [0; 2]);
+        }
+        assert_eq!(into_arr4(&[1, 2, 3, 4], 0), [1, 2, 3, 4]);
+    }
+}

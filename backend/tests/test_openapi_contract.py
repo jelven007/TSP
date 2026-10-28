@@ -98,7 +98,7 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
 # cached新增可选日期/资产/周期, 无日期保持旧快照语义, 开放端点集合不变。
 # daily/minute新增可选freq, 省略时保持1d/1m; 响应组件及开放端点集合不变。
 # index/minute新增可选with_prev_close=false, 旧请求/响应组件和69端点集合不变。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "67b03125537850e8cad84166b60fce6f6c866b68dfdb85f70be465db66500c23"
+EXPECTED_TIER_A_SCHEMA_SHA256 = "0867dab4745fc3510ceb93d37baa7e62aeee21b5bcda226e42ba802f783dcf4d"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

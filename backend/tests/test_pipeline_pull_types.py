@@ -1,4 +1,4 @@
-"""盘后管道「A股 / ETF / 指数」拉取开关回归测试。
+"""盘后管道「A股 / 指数」拉取开关回归测试。
 
 覆盖 issue #216: `get_pipeline_pull_a_share()` 硬编码 True 且 A股键不在
 `set_pipeline_pull_types()` 白名单内, 导致取消勾选 A 股完全不生效。
@@ -22,10 +22,9 @@ def _isolated(tmp_path, monkeypatch):
 
 
 def test_a_share_defaults_to_true_when_unset():
-    """未设置时 A 股、指数和 ETF 均默认开启。"""
+    """未设置时 A 股和指数均默认开启。"""
     assert preferences.get_pipeline_pull_a_share() is True
     assert preferences.get_pipeline_pull_index() is True
-    assert preferences.get_pipeline_pull_etf() is True
 
 
 def test_a_share_toggle_off_is_honored():
@@ -45,16 +44,14 @@ def test_set_pipeline_pull_types_persists_a_share():
 
 
 def test_set_pipeline_pull_types_independent_switches():
-    """三个开关互相独立: 关 A 股不影响 ETF / 指数。"""
+    """两个开关互相独立。"""
     result = preferences.set_pipeline_pull_types(
         {
             "pipeline_pull_a_share": False,
-            "pipeline_pull_etf": True,
             "pipeline_pull_index": False,
         }
     )
     assert result == {
         "pipeline_pull_a_share": False,
-        "pipeline_pull_etf": True,
         "pipeline_pull_index": False,
     }

@@ -63,6 +63,8 @@ class ScreenerResult:
 
 class ScreenerService:
     def __init__(self, repo: KlineRepository, asset_type: str = "stock") -> None:
+        if asset_type != "stock":
+            raise ValueError("unsupported screener asset type")
         self.repo = repo
         self.asset_type = asset_type
         from app.tickflow.repository import enriched_dirname
@@ -234,7 +236,7 @@ class ScreenerService:
         df_full = compute_indicators(df_hist)
         df_full = compute_signals(df_full)
 
-        # 计算涨跌停信号 (需要 instruments; 涨停为股票专有, ETF 跳过)
+        # 计算股票涨跌停信号。
         instruments = self.repo.get_instruments_asset(self.asset_type)
         if self.asset_type == "stock" and instruments is not None and not instruments.is_empty():
             df_full = compute_limit_signals(

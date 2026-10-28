@@ -130,7 +130,7 @@ def _copy_file(source, target, cancel):
 def _assert_stable(root, before, cancel):
     _check_cancel(cancel)
     if _inventory(root) != before or any(
-        enriched_publication_incomplete(root, asset) for asset in ("stock", "etf", "index")
+        enriched_publication_incomplete(root, asset) for asset in ("stock", "index")
     ):
         raise ResearchSnapshotError("research inputs changed during capture; retry")
 
@@ -229,7 +229,7 @@ def capture_research_snapshot(
     generated = {}
     # Legacy local datasets may have no generation marker. Give only the retained
     # view a content-derived generation; this does not certify a published release.
-    for asset in ("stock", "etf", "index"):
+    for asset in ("stock", "index"):
         name = f".matrix_generation_{asset}.json"
         if name not in files:
             payload = json.dumps({

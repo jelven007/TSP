@@ -62,7 +62,7 @@ def test_saved_proximity_units_and_disabled_filters_remain_compatible():
     assert a.entry.all()
     assert support.max_hold_days == 20
     assert bounce.max_hold_days == 15
-    assert support.meta["asset_types"] == ["stock", "etf"]
+    assert support.meta["asset_types"] == ["stock"]
     assert bounce.meta["asset_types"] == ["stock"]
     assert len(support.exit_signals) == 1
     assert len(bounce.exit_signals) == 2

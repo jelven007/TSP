@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class _Native:
-    max_connections = 35
+    max_connections = 8
 
     def __init__(self):
         self.quote_calls = []
@@ -40,10 +40,9 @@ class _Native:
             ]
         )
 
-    def bars_json(self, market, code, category, start, count, index):
+    def bars_json(self, market, code, category, start, count, index, **options):
         self.bar_calls.append((market, code, category, start, count, index))
-        return json.dumps(
-            [
+        rows = [
                 {
                     "dt": {"year": 2026, "month": 10, "day": 9, "hour": 15, "minute": 0},
                     "code": code,
@@ -55,10 +54,15 @@ class _Native:
                     "amount": 129_150,
                 }
             ]
-        )
+        if options:
+            return json.dumps({
+                "rows": rows, "requests": 1, "error": None,
+                "source": {"endpoint": "test:7709", "connection_id": 1, "observed_date": 20261028},
+            })
+        return json.dumps(rows)
 
     def stats_json(self):
-        return json.dumps({"max_connections": 35, "quote_batch_size": 60})
+        return json.dumps({"max_connections": 8, "quote_batch_size": 60})
 
 
 @pytest.fixture
@@ -78,7 +82,7 @@ def test_client_preserves_explicit_exchange_and_native_pool(native):
         (1, "000001"),
         (0, "000001"),
     ]
-    assert client.max_connections == 35
+    assert client.max_connections == 8
     assert client.stats()["quote_batch_size"] == 60
 
 
@@ -109,16 +113,16 @@ def test_client_normalizes_tdx_zero_sentinel(native):
     assert row["amount"] == 0.0
 
 
-def test_client_corrects_new_sh_etf_price_coefficient(native):
+def test_client_preserves_upstream_sh_etf_price_precision(native):
     native.quotes_json = lambda *_args: json.dumps(
         [
             {
                 "market": 1,
                 "code": "588200",
-                "price": 15.32,
-                "last_close": 15.30,
-                "bid1": 15.31,
-                "ask1": 15.32,
+                "price": 1.532,
+                "last_close": 1.530,
+                "bid1": 1.531,
+                "ask1": 1.532,
                 "vol": 300,
             }
         ]
@@ -154,24 +158,101 @@ def test_client_rejects_unsupported_exchange(native):
         RustdxClient().quotes(["920001.BJ"])
 
 
-def test_provider_caps_full_market_workers_at_35(monkeypatch):
+def test_provider_caps_full_market_workers_at_8(monkeypatch):
     monkeypatch.setenv("RUSTDX_WORKERS", "99")
     monkeypatch.setenv("RUSTDX_QUOTE_CONNECTIONS", "99")
 
-    assert RustdxProvider._workers(5_223) == 35
-    assert rustdx_client._connection_count() == 35
+    assert RustdxProvider._workers(5_223) == 8
+    assert rustdx_client._connection_count() == 8
+    assert rustdx_client._background_connections() == 7
 
 
-def test_native_bridge_clamps_direct_constructor_to_35():
+def test_provider_workers_follow_smaller_business_pool(monkeypatch):
+    monkeypatch.setenv("RUSTDX_QUOTE_CONNECTIONS", "3")
+    monkeypatch.setenv("RUSTDX_WORKERS", "99")
+    monkeypatch.setenv("RUSTDX_BACKGROUND_CONNECTIONS", "12")
+    assert RustdxProvider._workers(100) == 3
+    assert rustdx_client._background_connections() == 2
+
+
+@pytest.mark.parametrize("setting,value", [
+    ("RUSTDX_SERVER", "127.0.0.1:7710"),
+    ("RUSTDX_FINANCIAL_SERVER", "127.0.0.1:7711"),
+    ("RUSTDX_QUOTE_CONNECTIONS", "3"),
+    ("RUSTDX_TIMEOUT", "4"),
+    ("RUSTDX_BACKGROUND_CONNECTIONS", "2"),
+    ("RUSTDX_FALLBACK_SERVERS", "127.0.0.1:7712"),
+])
+def test_configuration_change_closes_old_native_pool(monkeypatch, setting, value):
+    import types
+
+    instances = []
+
+    class Pool:
+        def __init__(self, *_args, **_kwargs):
+            self.closed = False
+            instances.append(self)
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(rustdx_client, "_NATIVE_CLIENT", None)
+    monkeypatch.setattr(rustdx_client, "availability", lambda: (True, "ready"))
+    monkeypatch.setattr(
+        rustdx_client.importlib, "import_module",
+        lambda _name: types.SimpleNamespace(RustdxClient=Pool),
+    )
+    first = rustdx_client._native_client()
+    assert rustdx_client._native_client() is first
+    monkeypatch.setenv(setting, value)
+    second = rustdx_client._native_client()
+    assert second is not first
+    assert first.closed is True
+    rustdx_client.close_native_pool()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("endpoint", "127.0.0.1:7710"),
+    ("connection_id", 2),
+    ("connection_generation", 2),
+    ("observed_date", 20261029),
+])
+def test_bar_pagination_rejects_changed_source(field, value):
+    from datetime import timedelta
+
+    class Pages:
+        def bars(self, _symbol, *, start, **_kwargs):
+            end = datetime(2026, 10, 28, 15) - timedelta(minutes=start)
+            return [{"datetime": end - timedelta(minutes=i)} for i in range(800)]
+
+        def bars_with_source(self, symbol, *, expected_source=None, **kwargs):
+            source = {
+                "endpoint": "127.0.0.1:7709", "connection_id": 1,
+                "connection_generation": 1, "observed_date": 20261028,
+            }
+            if kwargs["start"]:
+                source[field] = value
+            return self.bars(symbol, **kwargs), source
+
+    with pytest.raises(RustdxError, match="来源"):
+        RustdxProvider()._bar_records(
+            Pages(), "600519.SH", 8,
+            datetime(2026, 10, 25), datetime(2026, 10, 26),
+        )
+
+
+def test_native_bridge_clamps_direct_constructor_to_8():
     native_module = pytest.importorskip("tsp_rustdx_native")
-    assert native_module.RUSTDX_VERSION == "1.12.2"
+    assert native_module.RUSTDX_VERSION == "2.0.4"
     assert (
         native_module.RUSTDX_SOURCE_REV
-        == "9dfc024c9662fa5091099c1f17610569ee2eca8b"
+        == "c4c0273456874898aed50447fd900521d9ffd3b8"
     )
     client = native_module.RustdxClient(100)
     try:
-        assert client.max_connections == 35
+        assert client.max_connections == 8
+        assert native_module.POOL_API_VERSION == 3
+        assert native_module.PROBE_CONNECTIONS == 1
         assert json.loads(client.stats_json())["quote_batch_size"] == 60
     finally:
         client.close()
@@ -195,7 +276,8 @@ def test_missing_native_bridge_is_isolated(monkeypatch):
 
 def test_native_bridge_dependency_mismatch_is_rejected(monkeypatch):
     class StaleNative:
-        MAX_CONNECTIONS = 35
+        MAX_CONNECTIONS = 8
+        PROBE_CONNECTIONS = 1
         __version__ = "0.1.0"
         RUSTDX_VERSION = "1.11.0"
         RUSTDX_SOURCE_REV = "stale"
@@ -216,8 +298,8 @@ def test_old_bridge_with_current_sdk_requires_rebuild(monkeypatch):
     from types import SimpleNamespace
 
     old = SimpleNamespace(
-        MAX_CONNECTIONS=35, __version__="0.1.0",
-        RUSTDX_VERSION="1.12.2", RUSTDX_SOURCE_REV=rustdx_client._RUSTDX_SOURCE_REV,
+        MAX_CONNECTIONS=8, PROBE_CONNECTIONS=1, __version__="0.1.0",
+        RUSTDX_VERSION="2.0.4", RUSTDX_SOURCE_REV=rustdx_client._RUSTDX_SOURCE_REV,
     )
     monkeypatch.setattr(rustdx_client.importlib, "import_module", lambda name: old)
     available, reason = rustdx_client.availability()
@@ -601,7 +683,7 @@ def test_native_bridge_declares_bounded_parallel_quote_batches():
         encoding="utf-8"
     )
 
-    assert "const MAX_CONNECTIONS: usize = 35;" in source
+    assert "const MAX_CONNECTIONS: usize = 8;" in source
     assert "const QUOTE_BATCH_SIZE: usize = 60;" in source
     assert ".chunks(QUOTE_BATCH_SIZE)" in source
     assert "max_connections.min(batches.len()).max(1)" in source

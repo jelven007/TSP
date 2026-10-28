@@ -482,8 +482,6 @@ class MonitorRuleEngine:
         # 用于声明 filter_history 的策略 (如反包), 实时监控时拼历史窗口 + 今日行情跑选股。
         # 为 None 时, filter_history 策略仍会被跳过 (保持旧行为, 不破坏无历史场景)。
         self._history_loader: Callable[[_dt.date, int], "pl.DataFrame"] | None = None
-        # ETF 版历史窗口加载器 (asset_type=etf 的规则用)。为 None 时 ETF filter_history 策略跳过。
-        self._history_loader_etf: Callable[[_dt.date, int], "pl.DataFrame"] | None = None
         self._active_matrix_snapshots: dict[str, Any] = {}
         # 本轮 evaluate() 产出的策略选股结果: strategy_id → {rows, total, as_of}
         # 供策略页实时回显复用 (/api/screener/cached 端点直接读取, 避免重跑)。
@@ -585,18 +583,8 @@ class MonitorRuleEngine:
         """
         self._history_loader = fn
 
-    def set_history_loader_etf(self, fn) -> None:
-        """注入 ETF 版历史窗口加载器 (asset_type=etf 的 strategy 型规则用)。
-
-        签名同 set_history_loader; 复用 ScreenerService(asset_type='etf')._load_enriched_history。
-        为 None 时 ETF filter_history 策略退回到跳过逻辑。
-        """
-        self._history_loader_etf = fn
-
     def _history_loader_for(self, rule: dict):
-        """按规则的 asset_type 选历史加载器。etf → ETF 加载器, 否则股票加载器。"""
-        if rule.get("asset_type") == "etf":
-            return self._history_loader_etf
+        """Return the stock history loader for strategy rules."""
         return self._history_loader
 
     def set_name_map(self, name_map: dict[str, str]) -> None:
@@ -782,7 +770,7 @@ class MonitorRuleEngine:
 
     # ── 评估 ───────────────────────────────────────────
     def has_asset_rules(self, asset_type: str) -> bool:
-        """是否存在指定资产类型的 (已启用) 规则。供 quote_service 判断是否需要 ETF 评估轮。"""
+        """是否存在指定资产类型的已启用规则。"""
         if not self._rules:
             return False
         return any(
@@ -867,7 +855,7 @@ class MonitorRuleEngine:
             }
         else:
             groups = {}
-        order = {"stock": 0, "etf": 1, "index": 2}
+        order = {"stock": 0, "index": 1}
         frozen_frames = tuple(
             (asset_type, frame.clone())
             for asset_type, frame in sorted(
@@ -910,7 +898,6 @@ class MonitorRuleEngine:
             strategy_engine = self._strategy_engine
             data_dir = self._data_dir
             history_loader = self._history_loader
-            history_loader_etf = self._history_loader_etf
 
         (
             outcomes,
@@ -923,7 +910,7 @@ class MonitorRuleEngine:
             snapshot,
             strategy_engine,
             data_dir,
-            {"stock": history_loader, "etf": history_loader_etf},
+            {"stock": history_loader},
         )
         proxy = _PrecomputedMonitorStrategyEngine(
             strategy_engine,
@@ -1273,9 +1260,7 @@ class MonitorRuleEngine:
                  execution_events: list[dict] | None = None) -> list[dict]:
         """行情更新后评估规则。
 
-        按 asset_type 只评估匹配资产类型的规则; ETF 规则应传 ETF enriched 快照。
-        股票/ETF 分两轮评估时, 仅股票轮重置 _latest_strategy_results (它供股票策略页
-        /cached 回显; ETF 策略页走实时单跑, 不依赖它)。
+        按 asset_type 只评估匹配资产类型的规则。
 
         Args:
             df: 实时 enriched 数据 (含 signal_/csg_/指标列)
@@ -1294,7 +1279,7 @@ class MonitorRuleEngine:
         # 原子化: reset 轮 (股票轮) 时先把本轮结果写到临时容器, 算完后一次性替换
         # _latest_strategy_results。这样 /cached 并发读取永远拿到完整结果,
         # 不会在「清空 → 逐个回填」窗口里读到空中间态 (曾导致策略页闪烁)。
-        # 非 reset 轮 (ETF 轮) 继续往同一临时容器追加 (_match_strategy 仅写 stock, 实际不追加)。
+        # 非 reset 轮继续往同一临时容器追加。
         if reset_strategy_results:
             self._building_strategy_results = {}
             self._latest_strategy_result_ids.clear()
@@ -1989,7 +1974,7 @@ class MonitorRuleEngine:
             logger.warning("策略 %s 入场已关闭, 仍处理退出信号: %s", sid, entry_filter_error)
         # 记录本轮完整选股结果 (供策略页实时回显: /cached 端点直接读取, 不落盘)。
         # 与下面的事件无关, 无论是否产生通知结果都用于策略页实时回显。
-        # 策略结果缓存仅用于股票策略页 /cached 回显; ETF 策略页走实时单跑, 不写入。
+        # 策略结果缓存用于股票策略页 /cached 回显。
         # 写到 evaluate 提供的临时容器 (_building_strategy_results), 算完后整体替换,
         # 避免并发读到半填充状态。
         if at == "stock":

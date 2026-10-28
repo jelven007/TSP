@@ -1,6 +1,6 @@
 [package]
 name = "tsp-rustdx-native"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 
@@ -10,6 +10,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.25" }
-jelven-rustdx-complete = "=1.12.2"
+rustdx_complete = { package = "jelven-rustdx-complete", version = "=2.0.4", path = "vendor/rustdx-core" }
 serde = "1"
+serde_json = "1"
+chrono = "0.4"
+
+[build-dependencies]
+sha2 = "0.10"
 serde_json = "1"

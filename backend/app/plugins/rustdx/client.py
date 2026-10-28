@@ -10,12 +10,15 @@ import threading
 from pathlib import Path
 from typing import Any
 
-_RUSTDX_CRATE_VERSION = "1.12.2"
-_RUSTDX_SOURCE_REV = "9dfc024c9662fa5091099c1f17610569ee2eca8b"
-_MAX_CONNECTIONS = 35
+from ._native_identity import CORE_SHA256, PATCH_SHA256
+
+_RUSTDX_CRATE_VERSION = "2.0.4"
+_RUSTDX_SOURCE_REV = "c4c0273456874898aed50447fd900521d9ffd3b8"
+_MAX_CONNECTIONS = 8
 _DEFAULT_SERVER = "117.34.114.13:7709"
 _NATIVE_LOCK = threading.Lock()
 _NATIVE_CLIENT = None
+_NATIVE_CONFIG = None
 
 
 class RustdxError(RuntimeError):
@@ -24,6 +27,10 @@ class RustdxError(RuntimeError):
     def __init__(self, message: str, *, requests: int = 0) -> None:
         super().__init__(message)
         self.requests = requests
+
+
+class RustdxSourceChangedError(RustdxError):
+    """A paginated result must restart after its source changes."""
 
 
 def _connection_count() -> int:
@@ -44,19 +51,29 @@ def _timeout_seconds() -> int:
 
 def _background_connections() -> int:
     try:
-        value = int(os.getenv("RUSTDX_BACKGROUND_CONNECTIONS", "12"))
+        value = int(os.getenv("RUSTDX_BACKGROUND_CONNECTIONS", "7"))
     except ValueError:
-        value = 12
-    return max(1, min(value, _connection_count()))
+        value = 7
+    return max(1, min(value, max(1, _connection_count() - 1)))
 
 
 def _native_client():
-    global _NATIVE_CLIENT
+    global _NATIVE_CLIENT, _NATIVE_CONFIG
     with _NATIVE_LOCK:
+        config = tuple(os.getenv(key, "") for key in (
+            "RUSTDX_SERVER", "RUSTDX_FALLBACK_SERVERS", "RUSTDX_TIMEOUT",
+            "RUSTDX_QUOTE_CONNECTIONS", "RUSTDX_BACKGROUND_CONNECTIONS",
+            "RUSTDX_FINANCIAL_SERVER", "RUSTDX_NETWORK_SHARED_DIR",
+        ))
+        if _NATIVE_CLIENT is not None and config != _NATIVE_CONFIG:
+            _NATIVE_CLIENT.close()
+            _NATIVE_CLIENT = None
+            _NATIVE_CONFIG = None
         if _NATIVE_CLIENT is None:
             module = importlib.import_module("tsp_rustdx_native")
-            if getattr(module, "POOL_API_VERSION", 0) != 2:
-                raise RustdxError("rustdx 原生桥接需要重新构建: 连接池接口版本不一致")
+            available, detail = availability()
+            if not available:
+                raise RustdxError(detail)
             server = os.getenv("RUSTDX_SERVER", _DEFAULT_SERVER).strip() or _DEFAULT_SERVER
             _NATIVE_CLIENT = module.RustdxClient(
                 _connection_count(),
@@ -72,6 +89,7 @@ def _native_client():
                     if value.strip()
                 ],
             )
+            _NATIVE_CONFIG = config
         return _NATIVE_CLIENT
 
 
@@ -85,28 +103,35 @@ def availability() -> tuple[bool, str]:
         rustdx_source_rev = str(module.RUSTDX_SOURCE_REV)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         return False, f"缺少 rustdx 原生桥接: {exc}"
-    if maximum != _MAX_CONNECTIONS:
+    if maximum != _MAX_CONNECTIONS or getattr(module, "PROBE_CONNECTIONS", 0) != 1:
         return False, f"rustdx 原生桥接连接上限异常: {maximum}"
     if (
         rustdx_version != _RUSTDX_CRATE_VERSION
         or rustdx_source_rev != _RUSTDX_SOURCE_REV
     ):
         return False, "rustdx 原生桥接依赖版本与项目锁定版本不一致"
-    if getattr(module, "POOL_API_VERSION", 0) != 2:
+    if getattr(module, "POOL_API_VERSION", 0) != 3:
         return False, "rustdx 原生桥接需要重新构建: 连接池接口版本不一致"
+    if (
+        getattr(module, "RUSTDX_CORE_SHA256", "") != CORE_SHA256
+        or getattr(module, "RUSTDX_PATCH_SHA256", "") != PATCH_SHA256
+    ):
+        return False, "rustdx 原生桥接源码或补丁身份不一致, 需要重新构建"
     return (
         True,
         f"jelven-rustdx-complete {_RUSTDX_CRATE_VERSION} "
-        f"(jelven007/rustdx@{_RUSTDX_SOURCE_REV[:7]}) / bridge {version}",
+        f"(jelven007/rustdx@{_RUSTDX_SOURCE_REV[:7]}) / bridge {version} "
+        f"/ patch {PATCH_SHA256[:12]} / 8业务+1探测",
     )
 
 
 def close_native_pool() -> None:
-    global _NATIVE_CLIENT
+    global _NATIVE_CLIENT, _NATIVE_CONFIG
     with _NATIVE_LOCK:
         if _NATIVE_CLIENT is not None:
             _NATIVE_CLIENT.close()
             _NATIVE_CLIENT = None
+        _NATIVE_CONFIG = None
 
 
 def _security(symbol: str) -> tuple[int, str]:
@@ -154,7 +179,7 @@ def _datetime_text(value: Any) -> str | None:
 
 
 class RustdxClient:
-    """One facade over a process-wide native pool capped at 35 connections."""
+    """One facade over eight business connections and one separate probe."""
 
     def __enter__(self) -> RustdxClient:
         _native_client()
@@ -196,19 +221,6 @@ class RustdxClient:
             for field in ("vol", "amount"):
                 if row.get(field) == 2.0**-127:
                     row[field] = 0.0
-            if row.get("market") == 1 and str(row.get("code", "")).startswith(
-                ("52", "53", "56", "58", "59")
-            ):
-                for field in (
-                    "price",
-                    "last_close",
-                    "open",
-                    "high",
-                    "low",
-                    *(f"{side}{level}" for side in ("bid", "ask") for level in range(1, 6)),
-                ):
-                    if row.get(field) is not None:
-                        row[field] /= 10.0
         return rows
 
     def bars(
@@ -219,17 +231,34 @@ class RustdxClient:
         start: int = 0,
         offset: int = 800,
     ) -> list[dict]:
-        rows, _ = self._bars(code, frequency=frequency, start=start, offset=offset, counted=False)
+        rows, _, _ = self._bars(code, frequency=frequency, start=start, offset=offset, counted=False)
         return rows
 
     def bars_with_count(self, code: str, *, frequency: int, offset: int) -> tuple[list[dict], int]:
-        return self._bars(code, frequency=frequency, start=0, offset=offset, counted=True)
+        rows, requests, _ = self._bars(code, frequency=frequency, start=0, offset=offset, counted=True)
+        return rows, requests
 
-    def _bars(self, code: str, *, frequency: int, start: int, offset: int, counted: bool):
+    def bars_with_source(
+        self, code: str, *, frequency: int, start: int, offset: int,
+        expected_source: dict | None = None,
+    ) -> tuple[list[dict], dict]:
+        rows, _, source = self._bars(
+            code, frequency=frequency, start=start, offset=offset,
+            counted=True, sourced=True, expected_source=expected_source,
+        )
+        if not source:
+            raise RustdxSourceChangedError("rustdx K线来源身份缺失")
+        return rows, source
+
+    def _bars(
+        self, code: str, *, frequency: int, start: int, offset: int, counted: bool,
+        sourced: bool = False, expected_source: dict | None = None,
+    ):
         market, raw_code = _security(code)
         index = _is_index(market, raw_code)
         wire_frequency = 4 if index and frequency == 9 else frequency
         requests = 0
+        source = None
         try:
             payload = _native_client().bars_json(
                 market,
@@ -239,16 +268,20 @@ class RustdxClient:
                 min(max(offset, 1), 800),
                 index,
                 **({"with_request_count": True} if counted else {}),
+                **({"with_source": True, "expected_source": json.dumps(expected_source)
+                    if expected_source else None} if sourced else {}),
             )
             if counted:
                 result = json.loads(payload)
                 requests = int(result["requests"])
                 if result.get("error") is not None:
-                    raise RustdxError(
+                    error_type = RustdxSourceChangedError if "[SourceChanged]" in result["error"] else RustdxError
+                    raise error_type(
                         f"rustdx minute {code} failed after {requests} requests: {result['error']}",
                         requests=requests,
                     )
                 rows = _records(json.dumps(result["rows"]))
+                source = result.get("source")
             else:
                 rows, requests = _records(payload), 1
         except RustdxError:
@@ -262,7 +295,7 @@ class RustdxClient:
                     row[field] = 0.0
             if index and frequency in {0, 1, 2, 3, 7, 8}:
                 row["vol"] = None
-        return rows, requests
+        return rows, requests, source
 
     def stocks(self, market: int) -> list[dict]:
         if market not in {0, 1}:

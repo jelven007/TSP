@@ -470,10 +470,10 @@ function OrderForm({ acc, onDone }: { acc: string; onDone: () => void }) {
     m.mutate({ ...body, request_id: pendingRequest.current.id })
   }
 
-  // 标的联想: 代码 / 中文名 / 拼音首字母, 与自选搜索同一后端 (ETF 可一并搜出)
+  // 标的联想: 代码 / 中文名 / 拼音首字母。
   const symbolSearch = useQuery({
-    queryKey: QK.instrumentSearch(symbol.trim(), 'stock,etf'),
-    queryFn: () => api.instrumentSearch(symbol.trim(), 20, 'stock,etf'),
+    queryKey: QK.instrumentSearch(symbol.trim(), 'stock'),
+    queryFn: () => api.instrumentSearch(symbol.trim(), 20, 'stock'),
     enabled: symbol.trim().length > 0,
     staleTime: 30_000,
   })
@@ -550,7 +550,7 @@ function OrderForm({ acc, onDone }: { acc: string; onDone: () => void }) {
               <button
                 key={t}
                 onClick={() => setOrderType(t)}
-                title={t === 'market' ? '盘中按最新快照价成交; ETF 即时单自动转次日开盘' : undefined}
+                title={t === 'market' ? '盘中按最新快照价成交' : undefined}
                 className={cn(
                   'flex-1 rounded-btn border py-1 text-[11px] transition-colors',
                   orderType === t ? 'border-accent/40 bg-accent/10 text-accent' : 'border-border text-muted hover:text-secondary',

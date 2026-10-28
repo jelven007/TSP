@@ -490,7 +490,7 @@ def compute_indicators(
 
     # Pass 3: KDJ
     if "kdj_k" in want:
-        # 9 日内最高价=最低价 (场内货币 ETF、长期无成交标的) 时分母是 0 而不是空值,
+        # 9 日内最高价=最低价 (长期无成交标的) 时分母是 0 而不是空值,
         # fill_null 拦不住: 0/0 得到 NaN, 再被 ewm 递推永久传染。与矩阵路径口径一致 ——
         # 该日 RSV 置空, EWM 跳过空值后继续递推。
         _kdj_range = pl.col("_kdj_hn") - pl.col("_kdj_ln")

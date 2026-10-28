@@ -85,7 +85,7 @@ def _local_weekly_period(repo, start, end, symbols):
     return kline_periods.aggregate_weekly(frame)
 
 
-def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None) -> dict:
+def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None, capset=None) -> dict:
     from app.services.minute_adjust import minute_basis_is_raw
     from app.services.pipeline_jobs import JobCancelledError
     from app.services.realtime_guard import pause_quotes_for_write
@@ -155,7 +155,11 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None)
                         result["rows"] += kline_periods.persist_period(repo, period, frame, only_missing=True)
             else:
                 if provider is None:
-                    provider, result["source"] = kline_periods._period_provider(period)
+                    provider, result["source"] = (
+                        kline_periods.require_period_provider(period, capset)
+                        if capset is not None
+                        else kline_periods._period_provider(period)
+                    )
                 for batch, lo, hi in _requests(gaps, period, day, last_day, now):
                     emit(f"{day}: 获取 {len(batch)} 只证券的遗漏区间 {lo.time()}~{hi.time()}", completed)
                     result["requests"] += 1

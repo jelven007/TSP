@@ -80,7 +80,7 @@ function stripMiningRequestExtras(request: MiningRun['request']): MiningRequestV
 }
 
 interface MiningDraft {
-  assetType: 'stock' | 'etf'
+  assetType: 'stock'
   start: string
   end: string
   profile: MiningBudgetProfile
@@ -186,7 +186,7 @@ function RequestSummaryLine({ result }: { result: MiningResult }) {
   const request = result.request_summary
   if (!request) return null
   const items: [string, string][] = [
-    ['资产', request.asset_type === 'etf' ? 'ETF' : '股票'],
+    ['资产', '股票'],
     ['档位', PROFILE_LABELS[request.budget_profile as MiningBudgetProfile] || request.budget_profile],
     ['区间', `${request.start || '—'} → ${request.end || '—'}`],
     ['因子', String(request.factor_count)],
@@ -507,13 +507,6 @@ export function MiningWorkbench() {
   const updateDraft = <K extends keyof MiningDraft>(key: K, value: MiningDraft[K]) => {
     setDraft(current => ({ ...current, [key]: value }))
   }
-  const changeAssetType = (assetType: MiningDraft['assetType']) => {
-    setDraft(current => ({
-      ...current,
-      assetType,
-      strategyIds: [],
-    }))
-  }
   const toggleFactor = (id: string) => {
     setDraft(current => ({
       ...current,
@@ -694,7 +687,7 @@ export function MiningWorkbench() {
           <section>
             <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold text-secondary"><Database className="h-3 w-3" />数据范围</div>
             <div className="grid grid-cols-2 gap-2">
-              <label><span className={LABEL}>资产</span><select className={INPUT} value={draft.assetType} onChange={event => changeAssetType(event.target.value as 'stock' | 'etf')}><option value="stock">股票</option><option value="etf">ETF</option></select></label>
+              <label><span className={LABEL}>资产</span><div className={INPUT}>股票</div></label>
               <label><span className={LABEL}>置信档</span><select className={INPUT} value={draft.profile} onChange={event => updateDraft('profile', event.target.value as MiningBudgetProfile)}><option value="exploratory">探索 · 219 日</option><option value="balanced">均衡 · 786 日</option><option value="strict">严格 · 1164 日</option></select></label>
               <label><span className={LABEL}>开始</span><DatePicker aria-label="开始日期" value={draft.start}
                 onChange={value => updateDraft('start', value)} clearable className="w-full" buttonClassName="w-full justify-start" align="left" /></label>

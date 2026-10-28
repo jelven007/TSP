@@ -493,18 +493,6 @@ def test_minute_context_empty_store_raises_with_guidance():
         assert "分钟K" in str(e)
 
 
-def test_minute_context_rejects_non_stock_asset():
-    svc = _svc({date(2026, 8, 25): _bars("510300.SH", [(10.0, 10.2, 10.3)] * 3)}, asset_type="etf")
-    try:
-        svc.build_strategy_context(
-            None, date(2026, 8, 25), [], timeframe="1m",
-            current=pl.DataFrame({"symbol": ["510300.SH"]}),
-        )
-        raise AssertionError("expected ValueError")
-    except ValueError as e:
-        assert "A 股" in str(e)
-
-
 def test_minute_context_loads_daily_history_for_declared_strategies():
     class _FakeEngine:
         def minute_daily_history_bars(self, strategy_ids):

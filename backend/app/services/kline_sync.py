@@ -651,7 +651,7 @@ def sync_adj_factor(symbols: list[str], repo: KlineRepository,
                 return 0, []
             else:
                 affected = new_data["symbol"].unique().to_list()
-                factor_dir = "adj_factor_etf" if asset_type == "etf" else "adj_factor"
+                factor_dir = "adj_factor"
                 out = repo.store.data_dir / factor_dir / "all.parquet"
                 out.parent.mkdir(parents=True, exist_ok=True)
                 if out.exists():
@@ -725,7 +725,7 @@ def sync_adj_factor(symbols: list[str], repo: KlineRepository,
     # 提取受影响的 symbol 列表(合并前)
     affected = new_data["symbol"].unique().to_list()
 
-    factor_dir = "adj_factor_etf" if asset_type == "etf" else "adj_factor"
+    factor_dir = "adj_factor"
     out = repo.store.data_dir / factor_dir / "all.parquet"
     out.parent.mkdir(parents=True, exist_ok=True)
 

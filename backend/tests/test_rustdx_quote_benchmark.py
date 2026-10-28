@@ -15,9 +15,9 @@ from scripts.performance import benchmark_rustdx_quotes as bench
 
 
 def test_connection_range_and_invalid_inputs():
-    assert bench.connection_counts("8-30") == list(range(8, 31))
-    assert bench.connection_counts("8,12-14,30,8") == [8, 12, 13, 14, 30]
-    for value in ("", "7", "31", "30-8", "8,", "abc"):
+    assert bench.connection_counts("1-8") == list(range(1, 9))
+    assert bench.connection_counts("1,4-6,8,1") == [1, 4, 5, 6, 8]
+    for value in ("", "0", "9", "8-1", "8,", "abc", "8-30"):
         with pytest.raises(ValueError):
             bench.connection_counts(value)
 
@@ -220,11 +220,11 @@ def test_connection_profiles_use_separate_processes(monkeypatch):
             bench.ProfileConfig(connections=count, rounds=1, warmup=0, interval=0),
             ["600000.SH"], worker_target=fake_worker,
         )
-        for count in (8, 30)
+        for count in (8, 4)
     ]
     assert results[0]["pid"] != results[1]["pid"]
     assert [result["samples"][0]["pool_stats"]["max_connections"] for result in results] == [
-        8, 30,
+        8, 4,
     ]
     assert all(result["status"] == "completed" for result in results)
     assert os.environ["RUSTDX_QUOTE_CONNECTIONS"] == "35"

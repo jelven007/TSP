@@ -203,7 +203,7 @@ export function startBacktest(params: {
   overrides?: Record<string, any> | null
   mode?: 'position' | 'full'
   holding_days?: number
-  asset_type?: 'stock' | 'etf'
+  asset_type?: 'stock'
   minute_fill?: boolean
   input_snapshot_id?: string
   experiment_id?: string

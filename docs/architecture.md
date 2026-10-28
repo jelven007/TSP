@@ -1,5 +1,31 @@
 # TSP 系统技术方案
 
+2026-10-28最新整合在`v0.4.36`基线上收口为股票与固定七指数：
+ETF运行路径从Provider到存储、研究和交易全链路退役，指数目录、周期表和现有回补逻辑保留。
+rustdx v2.0.4、闭区间K线任务、周K兼容读取及指数交互沿原模块边界接线，
+没有新增平行Provider、任务系统或SQL schema。固定范围、质量门与部署迁移见
+[发布评审](../reports/complete-release-20261028-3/review.md)。
+
+2026-10-28数据总览移除独立`RepairDailyPanel`入口，基础周期离线获取收口到
+`KlineSyncConfig→POST /api/kline/sync_period→_start_kline_range_job→run_repair_daily`。
+1m/1d请求必须携带`start_date/end_date/mode`；5m/10m/15m/1w仍仅传`period`
+并走本地`generate_period`。兼容端点`/api/kline/repair_daily`复用同一启动器，
+不维护第二套校验、JobStore或缺口逻辑。
+`missing`先扫描本地证券/时间键；只有发现首个缺口才通过
+`require_period_provider`检查TickFlow能力并解析Provider，无缺口零请求成功。
+1m全量沿32自然日、100证券有界分块和rustdx v2.0.4历史页定位；
+线程本地行情门闸只包围`persist_period`写盘，网络取数与计算阶段不暂停实时行情。
+
+2026-10-28周K生成的本地基础数据读取统一接回`app.parquet`：
+基础证券枚举使用`scan_parquet_compat`，日K范围读取使用带标准schema/cast的
+`scan_daily_parquet`。它为新增列选择ignore、缺列选择insert，避免Polars以首个文件
+schema严格扫描混合分区；周K聚合、分区写入、视图和缓存失效不变。
+
+2026-10-28指数页K线控制复用`StockDailyKChart`的
+`onAvailableBarsChange/onVisibleBarsChange`，分别保存可用根数与实际可见根数，
+周期切换重置60根并清空旧上限。修正任务终态先失效相关查询，再用可清理的5秒定时器
+解除当前任务跟踪；新任务ID不会被旧定时器清除。无API、缓存键或后端契约变化。
+
 2026-10-28历史K线性能修复沿`sync_period/kline_gaps→fetch_period→Provider→persist_period`。
 1分K日期段从5天扩至最多32自然日、保留100证券批次；rustdx共用分页以实际页时间
 指数探测、二分定位结束边界，再连续读取至起点，单次调用复用探测页且不跨调用缓存。
@@ -62,34 +88,36 @@ symbol/period/range隔离迟到响应，任务终态失效指数缓存。
 1分钟日期分区，分别按09:30和13:00起算收盘标签，未知量额保持空值。取数按日期段及100标的块有界执行；
 写盘沿既有分区锁与原子替换，刷新对应视图、画像及存储缓存，公共发布目录同步扩展。
 六周期设置经 `/api/settings/kline-sync`，手工任务经 `/api/kline/sync_period`；
-日K画像设置与1分K一样提交`period/value/unit`，沿`extend_history`获取历史日K、
-同步除权因子及重算指标；不将日K归入本地派生周期。日K开关、盘后时间与现有配置保持一致。
+1分K和日K画像提交`period/start_date/end_date/mode`，沿共享区间任务获取基础K线；
+日K继续同步除权因子及重算指标，不将日K归入本地派生周期。
+日K开关、盘后时间与现有配置保持一致。
 手工请求仅传`period`时，5/10/15分K、周K调用`generate_period`：
 按基础1m/1d的非空分区最早到最新日期及已有证券本地计算，派生周期复用有界`sync_period`；
 旧无范围日K API兼容本地生成：调用`run_pipeline(data_dir=repo.store.data_dir)`重算Enriched，沿已有发布屏障、
 symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓存。
 日K自动同步保留原复权/指标流水线，1分钟实时保留既有增量服务，其余周期由调度检查。
-显式传`value/unit`的旧历史调用保留；1m缺省也保持远程历史行为。
+显式传`value/unit`的旧历史调用仅保留API兼容；1m缺省也保持旧远程历史行为。
 此候选沿用分钟/日K独立能力路由，不新增第八个数据集或策略周期。
 日K画像卡片沿用周K的同步说明，`StatCard`共用记录/标的/交易日统计文案模板。
 
-「K线修正」沿用 `/api/kline/repair_daily`，可选`period`缺省为`1d`，
-可选`mode=full|missing`缺省为`full`，旧调用保持全量行为。
-2026-10-27面板仅提供1分K和日K，数据总览入口命名为「数据修正」；
-起止日期复用行情首排的`DatePicker`，结束缺省今天；
-全量/遗漏均提交起止闭区间。API可选`end_date`严格校验YYYY-MM-DD及起始≤结束≤北京今天，
-任务请求保存结束日期；旧API省略结束日期仍到今天，六周期服务调用继续兼容。
+数据总览不再提供独立「数据修正」入口。1分K和日K卡片的离线补齐直接提供
+两个`DatePicker`及全量/遗漏按钮，统一调用`/api/kline/sync_period`。
+该入口严格要求`start_date/end_date/mode`，校验YYYY-MM-DD及
+起始≤结束≤北京今天，任务请求保存完整闭区间。
+`/api/kline/repair_daily`仅保留旧客户端兼容，可选`period`缺省`1d`、
+`mode`缺省`full`且省略结束日期时到今天；它与新入口复用同一任务启动器。
 `repair_daily.run_repair_daily`保留日K盘后流程，其他周期读取既有完整股票池快照后
 调用`kline_periods.sync_period`，按起止日期分段取数或本地聚合并幂等落盘。
-日K通过`run_now(override_start_date, override_end_date=...)`统一股票/指数/ETF日K与因子范围；
-显式结束日期时仅清理选定区间enriched及历史ETF实时残留，不附带全库自愈清理或分钟采集。
+日K通过`run_now(override_start_date, override_end_date=...)`统一股票/指数日K与因子范围；
+显式结束日期时仅清理选定区间enriched，不附带全库自愈清理或分钟采集。
 复权链与指标仍沿既有依赖重算，可能更新区间外派生指标；自动盘后管道缺省行为保留。
 遗漏模式由`services/kline_gaps.py`逐交易日/周读取证券与日期/时间键，
 按100证券块检测缺口，仅对连续缺失分钟区间或缺失日请求当前Provider。
 使用公布日历及有覆盖证据的源日历，排除上市前、休市及未形成的分钟/当日日K；
 未知日历明确失败。写入前在原分区锁内再次anti-join，保留并发同步已写入的值。
 5/10/15分钟分别只补具备完整5/10/15根本地1分钟的桶；日K只重算补入证券的本地复权/指标，
-不额外重拉除权、ETF或指数。无缺口零请求成功，部分返回保留已补数据并报告未补行数。
+不额外重拉除权或指数。Provider及能力检查延迟到发现首个缺口；
+无缺口零请求成功，部分返回保留已补数据并报告未补行数。
 5/10/15分钟与周K不调用Provider，遗漏检测仅使用公布日历或已有日历缓存，不隐式请求上游日历；
 1分钟、日K依各自路由取数；周K从本地日K聚合，缺基础数据、缺能力或全量无输出明确反馈。
 任务请求保存周期，非日K任务复用已有`kline_<period>`显示契约；落盘刷新对应视图/
@@ -211,7 +239,7 @@ Standalone 与 Platform 记录待同步状态并通过 `start_initial_sync` 创�
 个股维表独立于总开关：`start_scheduler` 启动后台官方目录任务，并在每天北京时间
 09:00 执行，包含周末与节假日；复用持久化 JobStore 的 `instruments_sync` 任务类型，
 同类单飞，不占行情重任务槽，下载失败不阻塞启动。
-实时行情（含 ETF）、盘中分钟和分时图刷新、秒级归档、内置概念/行业自动拉取默认开启。
+股票实时行情、盘中分钟和分时图刷新、秒级归档、内置概念/行业自动拉取默认开启。
 实时监控间隔由现有 preferences getter 提供行情 3 秒、分时图 5 秒、盘中分钟落盘 60 秒
 缺省值，四页 SSE 刷新默认开启；已保存值优先，读取不改写文件。前端初始回退与 API
 无行情服务时的返回值采用同一口径，实际轮询仍由数据源能力及成本限制。
@@ -279,7 +307,7 @@ API / Research / Realtime / Notifications / Scheduled -> 双 PostgreSQL
 API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期 Compute
 ```
 
-- Platform 是唯一行情写入者。公共发布在同一写锁内核对最新 stock/ETF/index
+- Platform 是唯一行情写入者。公共发布在同一写锁内核对最新 stock/index
   原始日分区与 enriched 标的覆盖；失败保留旧 `current`。
 - API 和 Platform 生产角色的公共日线读请求不调用 Provider 补数。缺少已发布历史时
   返回 `503 market_history_unavailable`；独立模式保留原请求内补数能力。
@@ -319,7 +347,7 @@ API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期
 `include_custom`、`watchlist_group_ids` 与 `exclude_st`。`strategy/targets.py`集中
 校验、动态解析与引用检查；扩展只服务该领域，不新增通用候选插件。
 执行时展开内部 `target_symbols`，不写回配置、不从详情API下发；
-Polars与回测矩阵使用同一范围，目标关闭数值过滤仍生效，ETF资产中和股票目标。
+Polars与回测矩阵使用同一范围，目标关闭数值过滤仍生效。
 PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快照；成员进入归档身份，
 新成员不覆盖旧历史。文件模式以mtime/size缓存成员并返回独立快照。
 保存分组引用与删除共用租户绑定写锁；文件模式共用自选锁。分组列表携带
@@ -489,26 +517,25 @@ API 层不应直接实现供应商协议或全量数据计算。前端不应复�
 读取方只消费已经发布的 generation。enriched 采用逐分区原子替换, 不具备整个
 目录的自动回滚: 中途失败可能留下不同批次的文件, 此时标记保持 `publishing`，
 读取必须拒绝。属主进程退出、读请求或单日实时写入都不能解除该状态。
-股票管道检测到中断会强制全量重建; ETF 同步先从全部本地 ETF 日线分批暂存、
-校验日期覆盖并重建。全部分区提交后才发布新 generation。
+股票管道检测到中断会强制全量重建。全部分区提交后才发布新 generation。
 
 稳定写入边界还会在 `DATA_DIR/data_releases/` 发布全局 release manifest：
 
 - `current.json` 指向当前发布，`manifests/<release_id>.json` 保留不可变历史。
-- manifest 记录各核心数据集的覆盖摘要、stock/ETF enriched generation 和七类
+- manifest 记录各核心数据集的覆盖摘要、stock enriched generation 和七类
   Provider 生效路由。
 - 盘后管道只有全部阶段成功才推进 release；维表、财务、竞价归档和清库使用各自
   的明确发布原因。
 - manifest 是追溯元数据，不复制或冻结 Parquet 内容。实时增量导致 generation
   超前于当前 release 时，健康检查和回测 provenance 会标记不一致。
-- 发布前后比较 stock/ETF generation, 最后在两个资产的发布锁内再次校验并写入
+- 发布前后比较 stock generation, 最后在发布锁内再次校验并写入
   manifest/current。中断、损坏或版本变动会拒绝发布并保留原 current。
   其他数据集仍是元数据摘要, 这不构成跨数据集的不可变数据快照。
 - 读取 manifest 校验嵌套数据集类型、状态、日期、计数、generation 和 Provider
   映射。未完成 generation 属于 readiness 错误; 正常增量超前于 release 属于告警。
 
-完整多租户的 `PublicPublisher` 还会发布独立的不可变文件版本。对于 stock、ETF
-和 index，只要最新原始日线分区存在，就要求同日 enriched 分区存在，且原始标的
+完整多租户的 `PublicPublisher` 还会发布独立的不可变文件版本。对于 stock 和
+index，只要最新原始日线分区存在，就要求同日 enriched 分区存在，且原始标的
 集合是 enriched 标的集合的子集。校验、清单、复制和最终世代复核均在平台写锁内；
 任何失败都不会切换公共 `current`。
 
@@ -540,7 +567,7 @@ XLSX 下载，并核对各源总数、重复代码和四板覆盖；`services/in
 `api/instruments.py` 的 `/api/data/instruments` GET/POST/PUT/DELETE 复用现有公共数据
 管理转发，后端逐次检查管理员身份；前端复用 StatCard 管理入口、StockCatalogDialog、
 API 类型和集中查询键。变更后刷新当前维表视图、名称与股票缓存、数据/总览/筛选缓存，
-发布 data release 并失效前端相关查询；不清空 ETF/指数历史缓存。官方缺股本时保留旧值，
+发布 data release 并失效前端相关查询；不清空指数历史缓存。官方缺股本时保留旧值，
 不从报价或首根行情日期推断上市日。
 管理查询支持搜索、交易所与四板筛选组合，筛选先于分页并进入集中查询键；
 管理页支持输入有效页码跳转，筛选变化回到第一页。
@@ -756,7 +783,7 @@ Platform 执行，租户研究/监控/通知/定时工作由对应 Worker 执行
 期间不会由外部调度系统自动补跑所有任务；恢复后应按
 [运维手册](operations.md)检查并人工补齐缺口。
 
-数据修正和完整性自愈通过线程本地写盘门闸接入 `QuoteService`。Provider 取数、
+区间获取和完整性自愈通过线程本地写盘门闸接入 `QuoteService`。Provider 取数、
 扫描和指标计算期间实时轮询保持运行；只有原子 Parquet 写入、发布提交和分区删除
 进入短临界区时按可重入计数暂停，避免嵌套写操作提前恢复。仓库 merge/flush
 自身只依靠写锁与原子替换，不额外进入暂停门闸；修正服务在其写入边界控制暂停。
@@ -887,7 +914,7 @@ URL、查询参数、请求体或认证头，避免高基数和敏感信息泄�
 | --- | --- | --- |
 | 行情 | `/` | 市场摘要、布局编辑与 SSE 更新；[操作说明](../操作说明书.md#6-行情) |
 | 自选 | `/watchlist` | 分组、表格/卡片、详情与 OCR 导入 |
-| 策略 | `/screener` | 股票/ETF 筛选，内置、自定义、AI与叠加策略；[策略](reference/research.md#strategy) |
+| 策略 | `/screener` | 股票筛选，内置、自定义、AI与叠加策略；[策略](reference/research.md#strategy) |
 | 因子 | `/factors` | `inspect/library/editor/composite/mining` 五个 tab；[因子平台](reference/factor-system.md#factor-current) |
 | 复盘 | `/review` | AI 流式报告、历史、下载与定时推送 |
 | 回测 | `/backtest` | 策略与验证两视图，候选保存、复测和导出；[研究配置](reference/research.md#research) |
@@ -1103,7 +1130,7 @@ flowchart TB
 | --- | --- | --- | --- |
 | 前端 | React 18、TypeScript、Vite、TanStack Query、Tailwind CSS、ECharts、lightweight-charts | 复用 | 集中 API/查询键、批量读取、身份缓存隔离 |
 | 后端 | Python 3.11+、FastAPI、Pydantic v2 | 复用领域服务 | 不在 API 热路径扫描历史或直连供应商 |
-| 数据源 | rustdx 1.12.2/PyO3、TickFlow、自定义 Provider | 当前源与能力路由 | 所选源、限速、数据许可和时钟逐项认证 |
+| 数据源 | rustdx 2.0.4/PyO3、TickFlow、自定义 Provider | 当前源与能力路由；8业务+1探测；池内共享精度元数据 | 所选源、限速、数据许可和时钟逐项认证 |
 | 本地计算 | Polars、DuckDB、PyArrow、NumPy、Numba；回测边界 pandas | 复用 | 可选 vectorbt 不阻断主流程；向量化与范围读取 |
 | 业务数据库 | PostgreSQL 16：控制库及每 Cell 业务库，HA | 现有事实基础，HA 为目标 | RLS、事务、WAL/PITR、同步确认与旧主隔离 |
 | 数据库连接 | PgBouncer | 目标采用 | 普通事务池；LISTEN/会话特性专用直连或 session 池 |
@@ -1148,7 +1175,7 @@ Kafka 与 JetStream 分别有自己的确认、复制和恢复范围。Redis Pub
 | 字段组 | 拟新增内容 | 必须保留的语义 |
 | --- | --- | --- |
 | 版本与身份 | schema/event/capture/batch ID、publisher/routing epoch | 重试 ID 稳定，旧发布者被拒，浏览器 ID 按字符串 |
-| 数据归属 | asset、instrument、symbol、trade_date、session、universe_version | 股票/ETF/指数、交易日及名单分别确定 |
+| 数据归属 | asset、instrument、symbol、trade_date、session、universe_version | 股票/指数、交易日及名单分别确定 |
 | 来源 | provider、route_version、source_kind | 快照、可信分钟和逐笔不混用 |
 | 时间 | received/observed/provider/source_at、source_time_verified | 来源未知保留未知；接收时间不冒充交易所时间 |
 | 价量与单位 | 原始价格、日累计量额、unit_contract、price_basis | 金额元、比例小数/百分数、股/手显式映射，缺值为 NULL |

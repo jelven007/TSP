@@ -170,7 +170,6 @@ class BacktestService:
         """加载 [date × symbol] 价格面板 — Polars scan_parquet + 即时计算指标。
 
         **全项目唯一从 Polars 转 pandas 的边界**(§7.4 / ADR-19)。
-        asset_type='etf' 时读 ETF enriched。
         """
         try:
             from app.tickflow.repository import enriched_dirname

@@ -99,7 +99,7 @@ class RuntimeRequest:
     factor_names: tuple[str, ...]
     strategy_ids: tuple[str, ...]
     symbols: list[str] | None
-    asset_type: Literal["stock", "etf"]
+    asset_type: Literal["stock"]
     start: date
     end: date
     profile: Literal["exploratory", "balanced", "strict"]
@@ -818,8 +818,8 @@ def _decode_runtime_request(
     if len(set(strategy_ids)) != len(strategy_ids) or len(strategy_ids) > 8:
         raise ValueError("strategy_ids must be unique and contain at most 8 strategies")
     asset_type = str(request.get("asset_type") or "stock")
-    if asset_type not in {"stock", "etf"}:
-        raise ValueError("mining asset_type must be stock or etf")
+    if asset_type != "stock":
+        raise ValueError("mining asset_type must be stock")
     for strategy_id in strategy_ids:
         strategy = strategy_engine.get(strategy_id)
         if strategy.meta.get("research_only"):

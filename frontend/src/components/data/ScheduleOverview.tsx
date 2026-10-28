@@ -41,7 +41,6 @@ type SchedulePreferences = {
   depth_finalize_time?: { hour: number; minute: number }
   pipeline_schedule?: { hour: number; minute: number }
   pipeline_pull_a_share?: boolean
-  pipeline_pull_etf?: boolean
   pipeline_pull_index?: boolean
   pipeline_regime_enabled?: boolean
 }
@@ -240,7 +239,6 @@ export function buildDataScheduleItems({
         preferences?.pipeline_pull_a_share ?? true ? '日K' : null,
         '除权与指标',
         preferences?.pipeline_pull_index ?? true ? '指数' : null,
-        preferences?.pipeline_pull_etf ?? true ? 'ETF' : null,
         preferences?.pipeline_regime_enabled ?? true ? '环境' : null,
         klineConfigs?.['1m']?.enabled ?? preferences?.minute_refresh_enabled ?? true ? '历史分钟K' : null,
       ].filter(Boolean).join(' · '),

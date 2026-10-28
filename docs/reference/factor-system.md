@@ -75,7 +75,7 @@
 
 | 步骤 | 当前行为与约束 |
 | --- | --- |
-| 选择与检验 | 77项内置目录，动态自定义/复合/扩展字段另计；预设替换选择，手动改选回自定义；股票与ETF分别计算 |
+| 选择与检验 | 77项内置目录，动态自定义/复合/扩展字段另计；预设替换选择，手动改选回自定义；当前按股票计算 |
 | 判读 | IC方向是当前样本结果；Newey-West、BH-FDR及服务端判读不认证未来收益；理论多空不等于可执行做空 |
 | 编辑 | 25算子按时序/截面/工具分组；双语字段插入；替换非初始公式先确认；校验返回位置、依赖与预热 |
 | 试算与保存 | 公式最长2,000字符，试算默认40日、范围20–120；创建/改公式前以最近40交易日检查非全空；失败保留草稿 |
@@ -161,7 +161,7 @@ class FactorSpec:
     warmup_bars: int             # 历史窗口需求（交易日数）；对齐 _ROLLING_SCORING_WARMUP 语义
     pit: bool                    # 是否点时数据依赖（财务因子 = True）
     pit_source: Literal["financial_announce", "share_capital_announce", "none"]
-    asset_types: frozenset[Literal["stock", "etf"]]
+    asset_types: frozenset[Literal["stock"]]
     incremental_safe: bool       # 盘中增量路径（pipeline.py:1795）能否复算；False 则盘中不含该列
     scale_free: bool             # 跨标的可比（可直接截面排序）；如 atr_14 原值 = False，atr_pct = True
     null_policy: Literal["keep", "drop_row"]

@@ -76,7 +76,7 @@ def _write_enriched_dates(
     asset_type: str = "stock",
     first: date = date(2020, 1, 1),
 ) -> list[date]:
-    dirname = "kline_etf_enriched" if asset_type == "etf" else "kline_daily_enriched"
+    dirname = "kline_daily_enriched"
     values = [first + timedelta(days=index) for index in range(count)]
     for value in values:
         partition = data_dir / dirname / f"date={value.isoformat()}"
@@ -333,34 +333,6 @@ def test_start_rejects_balanced_625_bar_range_before_creating_run(tmp_path):
         "folds; effective range 2024-01-15 to 2025-09-30 has 625"
     )
     assert store.list_runs() == []
-
-
-def test_availability_uses_asset_specific_valid_partitions(tmp_path):
-    client, _store = _client(tmp_path)
-    etf_dates = _write_enriched_dates(
-        tmp_path,
-        219,
-        asset_type="etf",
-        first=date(2024, 1, 1),
-    )
-    malformed = tmp_path / "kline_etf_enriched" / "date=not-a-date"
-    malformed.mkdir(parents=True)
-    (malformed / "part.parquet").touch()
-    (tmp_path / "kline_etf_enriched" / "date=2023-12-31").mkdir(parents=True)
-
-    response = client.get(
-        "/api/backtest/mining/availability",
-        params={
-            "asset_type": "etf",
-            "budget_profile": "exploratory",
-            "start": etf_dates[0].isoformat(),
-            "end": etf_dates[-1].isoformat(),
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.json()["trading_bars"] == 219
-    assert response.json()["eligible"] is True
 
 
 def test_result_reconstructs_artifacts_without_exposing_definition(tmp_path):

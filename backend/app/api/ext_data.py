@@ -1424,7 +1424,7 @@ def _refresh_views(request: Request) -> None:
                 pass
 
     # 扩展列已接入 enriched 帧 (compute_signals/compute_enriched_today 注入):
-    # repo 内存 enriched 缓存 (_enriched_cache/_etf_/_index_) 持有含旧扩展列的
+    # repo 内存 enriched 缓存持有含旧扩展列的
     # 帧, 必须一并清理, 否则写入后监控/列表仍用旧值 (服务层已清扩展帧与策略缓存)。
     invalidate = getattr(repo, "invalidate_computed_caches", None)
     if callable(invalidate):

@@ -37,10 +37,10 @@ def _monitor_engine(request: Request):
 
 
 def _reconcile_index_asset_type(rule: dict, repo) -> dict:
-    """纠正误存为 stock 的指数/ETF 规则 (asset_type → index/etf)。
+    """纠正误存为 stock 的指数规则 (asset_type → index)。
 
-    个股弹窗加监控 / 点位提醒等入口未传 asset_type, 指数/ETF symbol 的规则被存成
-    stock, 导致监控中心显示「个股」、引擎在股票轮评估 (指数/ETF symbol 永不命中)。
+    个股弹窗加监控 / 点位提醒等入口未传 asset_type, 指数 symbol 的规则被存成
+    stock, 导致监控中心显示「个股」、引擎在股票轮评估。
     仅当规则全部 symbols 都 resolve 为同一非 stock 类型时纠正 (混合池不动)。
     """
     if rule.get("asset_type", "stock") != "stock" or rule.get("scope") != "symbols":
@@ -54,7 +54,7 @@ def _reconcile_index_asset_type(rule: dict, repo) -> dict:
         return rule
     if len(types) == 1:
         only = next(iter(types))
-        if only in ("index", "etf"):
+        if only == "index":
             rule["asset_type"] = only
     return rule
 
@@ -99,7 +99,7 @@ class RuleModel(BaseModel):
     name: str
     enabled: bool = True
     type: str          # strategy | signal | price | market | sector | abnormal
-    asset_type: str = "stock"   # stock | etf (etf: strategy 型走 ETF 历史加载器)
+    asset_type: str = "stock"   # stock | index
     scope: str = "symbols"   # symbols | all | sector | watchlist_group
     symbols: list[str] = []
     # watchlist_group 作用域: 绑定的自选分组 id (成员动态解析, 增删自选自动生效)

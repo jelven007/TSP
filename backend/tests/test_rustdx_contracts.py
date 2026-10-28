@@ -629,16 +629,3 @@ def test_empty_trial_reports_no_data_and_can_recover():
     fake.quote_rows = [{"code": "600519", "market": 1, "price": 1258.62}]
     valid = provider.test_dataset("realtime", ["600519.SH"])
     assert valid["rows"] == 1 and "error" not in valid
-
-
-def test_etf_dividend_reference_keeps_mill_precision():
-    fake = _FakeClient()
-    fake.xdxr_rows = [
-        {"year": 2026, "month": 7, "day": 1, "category": 1, "fenhong": 0.04}
-    ]
-    fake.bars_by_frequency[9] = [
-        {"datetime": "2026-06-30 15:00", "close": 1.08},
-        {"datetime": "2026-07-01 15:00", "close": 1.076},
-    ]
-    factors = _provider(fake).get_adj_factors(["588200.SH"], None, None, asset_type="etf")
-    assert factors["ex_factor"][0] == pytest.approx(1.08 / 1.076)

@@ -18,7 +18,7 @@ META = {
     "name": "量价齐升",
     "description": "突破MA20 + 放量 + 收阳",
     "tags": ["量价", "突破"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {"id": "require_ma20_breakout", "label": "要求突破MA20", "type": "bool", "default": True},

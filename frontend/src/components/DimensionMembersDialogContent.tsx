@@ -398,7 +398,7 @@ function DimensionIntradaySection({ configId, field, value, date, kind }: {
       ) : !data || data.status === 'empty' || data.points.length < 2 ? (
         <div className="grid h-[44px] place-items-center text-[11px] text-muted">
           {data?.reason === 'minute_anomalies' ? '成分股分钟价格均未通过校验, 暂无可用走势'
-            : data?.reason === 'no_member_bars' ? '成分股当日无分钟数据 (ETF 等标的无分钟落盘)' : '暂无成分股分时数据'}
+            : data?.reason === 'no_member_bars' ? '成分股当日无分钟数据' : '暂无成分股分时数据'}
         </div>
       ) : (
         <IntradayChart points={data.points} kind={kind} />

@@ -484,7 +484,7 @@ class MiningCandidateService:
     @staticmethod
     def _asset_type(manifest: Mapping[str, Any]) -> str:
         asset_type = MiningCandidateService._request(manifest).get("asset_type")
-        if asset_type not in {"stock", "etf"}:
+        if asset_type != "stock":
             raise ValueError("mining origin asset_type is invalid")
         return str(asset_type)
 

@@ -143,4 +143,4 @@ def test_monitor_and_paper_reject_removed_market(tmp_path):
     paper.create_account(tmp_path, 100_000)
     order, error = paper.create_order(tmp_path, "920001.BJ", "buy", qty=100)
     assert order is None
-    assert error == "模拟交易仅支持沪深市场"
+    assert error == "模拟交易仅支持股票"

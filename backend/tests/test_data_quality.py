@@ -93,7 +93,6 @@ def test_business_availability_uses_real_cache_and_isolates_public_releases(tmp_
     monkeypatch.setattr(data, "public_query_cache", PublicQueryCache())
     monkeypatch.setattr(data_quality, "audit_provider_routes", lambda: {"routes": {}})
     monkeypatch.setattr(data, "_safe_aggregate_enriched", lambda repo: {"rows": repo.rows})
-    monkeypatch.setattr(data, "_safe_aggregate_etf_enriched", lambda repo: None)
     monkeypatch.setattr(data, "_safe_aggregate_daily", lambda repo: {"rows": repo.rows})
     monkeypatch.setattr(data, "_safe_aggregate_instruments", lambda repo: {
         "symbols_covered": repo.symbols,
@@ -121,7 +120,7 @@ def test_business_availability_uses_real_cache_and_isolates_public_releases(tmp_
             response = client.get("/api/business/data-availability")
             assert response.status_code == 200
             result = response.json()
-            assert set(result) == {"enriched", "etf_enriched", "indicators_ready", "quality"}
+            assert set(result) == {"enriched", "indicators_ready", "quality"}
             assert result["enriched"] == {"rows": rows}
             assert result["quality"]["datasets"]["daily"]["rows"] == rows
             assert result["quality"]["latest_daily"]["coverage_ratio"] == 1 / symbols

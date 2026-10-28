@@ -1,0 +1,26 @@
+[
+  {
+    "viewport": "desktop",
+    "heading": "1分K",
+    "layout": {
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "dialogWidth": 478,
+      "dialogClientWidth": 478
+    },
+    "relevantConsoleErrors": [],
+    "relevantHttpErrors": []
+  },
+  {
+    "viewport": "mobile",
+    "heading": "日 K",
+    "layout": {
+      "viewport": 390,
+      "documentWidth": 390,
+      "dialogWidth": 356,
+      "dialogClientWidth": 356
+    },
+    "relevantConsoleErrors": [],
+    "relevantHttpErrors": []
+  }
+]

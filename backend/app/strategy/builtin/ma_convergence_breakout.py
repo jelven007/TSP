@@ -18,7 +18,7 @@ META = {
     "name": "均线粘合突破",
     "description": "MA5/10/20 粘合收敛后放量突破, 挤压释放的变盘启动点",
     "tags": ["均线", "粘合", "突破"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {

@@ -114,7 +114,7 @@ def build_snapshot_frame(
 ) -> pl.DataFrame:
     """Normalize one full-market capture without conflating its three clocks."""
     rows: list[dict[str, Any]] = []
-    for asset_type in ("stock", "etf", "index"):
+    for asset_type in ("stock", "index"):
         for record in records_by_asset.get(asset_type, ()):
             symbol = str(record.get("symbol") or "").strip()
             if not symbol:
@@ -228,13 +228,13 @@ class SecondQuoteArchive:
         except Exception as exc:
             self._set_error(f"archive preference unavailable: {exc}")
             return False
-        if not any(records_by_asset.get(asset) for asset in ("stock", "etf", "index")):
+        if not any(records_by_asset.get(asset) for asset in ("stock", "index")):
             return False
         batch = _ArchiveBatch(
             # The caller may reuse dictionaries after this method returns.
             records_by_asset={
                 asset: tuple(dict(record) for record in records_by_asset.get(asset, ()))
-                for asset in ("stock", "etf", "index")
+                for asset in ("stock", "index")
             },
             provider=str(provider),
             capture_id=int(time.time_ns() if capture_id is None else capture_id),

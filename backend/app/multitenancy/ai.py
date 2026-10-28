@@ -135,7 +135,7 @@ async def run_tool_backtest(
     from app.backtest.strategy import StrategyBacktestConfig
     from app.services.tool_catalog import _BACKTEST_STATS_KEYS, _DEFAULT_BACKTEST_DAYS
 
-    if asset_type not in {"stock", "etf"}:
+    if asset_type != "stock":
         raise AccessError(400, "资产类型错误")
     engine.get(strategy_id)
     end_date = date.fromisoformat(end) if end else cn_today()

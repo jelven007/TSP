@@ -27,7 +27,7 @@ class _FakeRepo:
     """最小 fake: 只实现 market_data 用到的接口。"""
     def __init__(self, index_df=None):
         self.calls: list[tuple] = []
-        self._asset = {"000001.SH": "index", "510300.SH": "etf", "600000.SH": "stock"}
+        self._asset = {"000001.SH": "index", "600000.SH": "stock"}
         self._index_df = index_df if index_df is not None else pl.DataFrame(
             {"date": ["2026-01-02"], "close": [3000.0], "macd_dif": [1.0], "macd_dea": [2.0]}
         )
@@ -40,10 +40,6 @@ class _FakeRepo:
     def get_index_daily(self, symbol, start=None, end=None, columns=None):
         self.calls.append(("index", symbol, start, end, columns))
         return self._index_df if symbol == "000001.SH" else self._empty
-
-    def get_etf_daily(self, symbol, start=None, end=None, columns=None):
-        self.calls.append(("etf", symbol, start, end, columns))
-        return self._empty
 
     def get_daily(self, symbol, start=None, end=None, columns=None):
         self.calls.append(("stock", symbol, start, end, columns))
@@ -75,7 +71,6 @@ def test_get_index_daily_delegates_and_normalizes_dates(fake_repo):
 
 @pytest.mark.parametrize("symbol,expected_kind", [
     ("000001.SH", "index"),
-    ("510300.SH", "etf"),
     ("600000.SH", "stock"),
 ])
 def test_get_daily_dispatch_by_asset_type(fake_repo, symbol, expected_kind):
@@ -88,7 +83,6 @@ def test_get_daily_dispatch_by_asset_type(fake_repo, symbol, expected_kind):
 def test_bad_symbol_returns_empty_without_calling_repo(fake_repo):
     assert market_data.get_index_daily("").is_empty()
     assert market_data.get_index_daily(None).is_empty()
-    assert market_data.get_etf_daily("").is_empty()
     assert market_data.get_daily(None).is_empty()
     assert fake_repo.calls == []
 
@@ -106,14 +100,13 @@ BJ = datetime.date(2026, 3, 2)  # 钉死的北京日期, 不会碰巧等于跑�
 
 @pytest.mark.parametrize("fn,symbol,kind", [
     ("get_index_daily", "000001.SH", "index"),
-    ("get_etf_daily", "510300.SH", "etf"),
     ("get_daily", "600000.SH", "stock"),
 ])
 def test_default_end_is_beijing_today(fake_repo, monkeypatch, fn, symbol, kind):
     """未传 end 时日K窗口右端必须是北京今天, 不能用服务器本地 date.today()。
 
     CONTRIBUTING §3.3: A 股交易时段按北京时间, 服务器时区不能成为隐式输入。
-    自定义/AI 策略在选股页读指数/ETF/个股日K 时常省略 end, 缺省走本模块。
+    自定义/AI 策略在选股页读指数或个股日K 时常省略 end, 缺省走本模块。
 
     美西主机整个 A 股交易时段、UTC 主机北京 00:00-08:00, 本地日历日比北京
     早一天: 管道已写入的当日官方 K 被排除, 相对强弱/对照指数停在昨天。

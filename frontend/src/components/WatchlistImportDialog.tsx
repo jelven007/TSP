@@ -554,7 +554,7 @@ export function WatchlistImportDialog({
                 onKeyDown={e => {
                   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') void runCodes()
                 }}
-                placeholder={'示例：\n600519\n000001 平安银行\n515880 通信ETF国泰'}
+                placeholder={'示例：\n600519\n000001 平安银行\n300750 宁德时代'}
                 rows={4}
                 className="w-full resize-y rounded-btn border border-border bg-surface px-3 py-2 text-xs text-foreground placeholder:text-muted focus:border-accent/50 focus:outline-none"
               />

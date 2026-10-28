@@ -115,7 +115,7 @@ function BatchDiscovery({ onInspect, focusFactor }: { onInspect: (factorName: st
   const initialized = useRef(false)
   const [selected, setSelected] = useState<string[]>([])
   const [symbols, setSymbols] = useState('')
-  const [assetType, setAssetType] = useState<'stock' | 'etf'>('stock')
+  const assetType = 'stock' as const
   const [start, setStart] = useState(monthsAgo(3))
   const [end, setEnd] = useState(TODAY)
   const [nGroups, setNGroups] = useState(5)
@@ -377,21 +377,6 @@ function BatchDiscovery({ onInspect, focusFactor }: { onInspect: (factorName: st
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-secondary">资产与范围</label>
-          <div className="mb-2 inline-flex h-8 overflow-hidden rounded-btn border border-border">
-            {(['stock', 'etf'] as const).map(value => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => { setAssetType(value); setSymbols('') }}
-                className={`h-full px-3 text-xs font-medium transition-colors ${assetType === value
-                  ? 'bg-accent/10 text-accent'
-                  : 'text-muted hover:text-foreground'
-                }`}
-              >
-                {value === 'stock' ? '股票' : 'ETF'}
-              </button>
-            ))}
-          </div>
           <div className="flex items-center gap-1.5">
             <input
               type="text"

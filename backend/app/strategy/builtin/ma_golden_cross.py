@@ -18,7 +18,7 @@ META = {
     "name": "MA 金叉",
     "description": "MA5上穿MA20当日触发, 量能配合, MA60近5个交易日不下降",
     "tags": ["均线", "金叉"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {"id": "require_ma_golden", "label": "要求MA5上穿MA20", "type": "bool", "default": True},

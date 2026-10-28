@@ -17,9 +17,6 @@ const TABLE_TITLES: Record<string, string> = {
   index_instruments: '指数维表',
   index_daily: '指数日 K',
   index_enriched: '指数 Enriched',
-  etf_instruments: 'ETF 维表',
-  etf_daily: 'ETF 日 K',
-  etf_enriched: 'ETF Enriched',
 }
 
 function categorize(name: string): string {

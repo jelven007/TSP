@@ -37,7 +37,7 @@ class SecondQuoteValidateRequest(SecondQuoteRange):
     expected_symbols: int | None = Field(default=None, gt=0)
     min_coverage_ratio: float = Field(default=1.0, gt=0, le=1)
     symbols: list[str] | None = Field(default=None, min_length=1, max_length=200)
-    asset_type: Literal["stock", "etf", "index"] = "stock"
+    asset_type: Literal["stock", "index"] = "stock"
     start_ms: int | None = Field(default=None, ge=0)
     end_ms: int | None = Field(default=None, ge=0)
     trading_dates: list[date] | None = Field(default=None, min_length=1, max_length=31)

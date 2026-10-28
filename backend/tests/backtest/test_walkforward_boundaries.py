@@ -90,13 +90,12 @@ def test_adjacent_windows_sorted_by_date_compound_once():
     assert [point["fold"] for point in result["oos_equity_curve"]] == [0, 1]
 
 
-def test_repository_calendar_ignores_empty_malformed_and_other_asset_partitions(tmp_path):
+def test_repository_calendar_ignores_empty_and_malformed_partitions(tmp_path):
     for directory in (
         "kline_daily_enriched/date=2024-02-08",
         "kline_daily_enriched/date=2024-02-19",
         "kline_daily_enriched/date=bad",
         "kline_daily_enriched/date=2024-02-20",
-        "kline_etf_enriched/date=2024-02-21",
     ):
         partition = tmp_path / directory
         partition.mkdir(parents=True)
@@ -105,7 +104,6 @@ def test_repository_calendar_ignores_empty_malformed_and_other_asset_partitions(
     repo = KlineRepository.__new__(KlineRepository)
     repo.store = SimpleNamespace(data_dir=tmp_path)
     assert repo.list_daily_dates(SESSIONS[0], SESSIONS[-1]) == SESSIONS[2:4]
-    assert repo.list_daily_dates(SESSIONS[0], SESSIONS[-1], "etf") == [SESSIONS[5]]
 
 
 def test_fold_policy_records_observed_calendar_and_legacy_config_default():

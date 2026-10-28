@@ -43,7 +43,7 @@ import {
 const SHOW_STRATEGY_STORE = false
 
 export function Screener() {
-  const [assetType, setAssetType] = useState<'stock' | 'etf'>('stock')
+  const assetType = 'stock' as const
   // 周期显示筛选: 全部 / 日线 / 分钟 — 只过滤卡片显示, 不影响池和执行;
   // 执行按每个策略自己声明的 timeframes 路由 (日线走盘后缓存, 分钟走本地分钟K分区)
   const [tfFilter, setTfFilter] = useState<'all' | '1d' | '1m'>('all')
@@ -169,7 +169,7 @@ export function Screener() {
   }, [strategies.data, activeStrategy])
 
   // 卡片首屏只读取轻量摘要；明细在点击策略或“全部”时按需加载。
-  // 摘要读取当前日期的股票/ETF、日线/分钟保存记录。
+  // 摘要读取当前日期的股票日线/分钟保存记录。
   // run_all 渐进式返回后后台仍在算 → 轮询摘要, 算完的策略逐个点亮。
   const summaryQuery = useQuery({
     queryKey: QK.screenerCachedSummary(asOf, assetType, 'all'),
@@ -272,7 +272,7 @@ export function Screener() {
 
   // 手动批量运行沿原策略池和日期契约执行。
   const runAll = useMutation({
-    mutationFn: ({ date, strategyIds, asset = assetType }: { date?: string; strategyIds?: string[]; asset?: 'stock' | 'etf' } = {}) =>
+    mutationFn: ({ date, strategyIds, asset = assetType }: { date?: string; strategyIds?: string[]; asset?: 'stock' } = {}) =>
       api.screenerRunAll(
         date,
         strategyIds ?? dailyPoolIds,
@@ -301,7 +301,7 @@ export function Screener() {
 
   // 分钟策略也按所选日期保存，摘要响应不携带明细。
   const runAllMinute = useMutation({
-    mutationFn: ({ strategyIds, date, asset }: { strategyIds: string[]; date: string; asset: 'stock' | 'etf' }) =>
+    mutationFn: ({ strategyIds, date, asset }: { strategyIds: string[]; date: string; asset: 'stock' }) =>
       api.screenerRunAll(date, strategyIds, asset, '1m'),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ['screener-cached'] })
@@ -547,7 +547,7 @@ export function Screener() {
 
   // 计算数据仍按策略声明周期路由，成功结果统一归档。
   const run = useMutation({
-    mutationFn: ({ id, date, timeframe: tf, asset = assetType }: { id: string; date: string; timeframe: '1d' | '1m'; asset?: 'stock' | 'etf' }) =>
+    mutationFn: ({ id, date, timeframe: tf, asset = assetType }: { id: string; date: string; timeframe: '1d' | '1m'; asset?: 'stock' }) =>
       api.screenerRunPreset(id, undefined, date || undefined, extColumnsParam || undefined, asset, tf),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ['screener-cached'] })
@@ -649,8 +649,7 @@ export function Screener() {
         qc.invalidateQueries({ queryKey: QK.monitorRules }),
       )
     } else {
-      // 未监控 → 直接创建 type=strategy 规则; 必须带当前页资产类型,
-      // 否则 ETF 页点监控会默认 stock, 引擎在股票轮评估, ETF 命中永不告警。
+      // 未监控 → 直接创建 type=strategy 规则并明确资产类型。
       api.monitorRuleSave({
         id: genRuleId(),
         name: `策略监控 · ${strategyName}`,
@@ -695,26 +694,6 @@ export function Screener() {
         subtitle="基于本地 enriched 表 · 毫秒级 SQL"
         right={
           <div className="flex items-center gap-2 flex-nowrap overflow-x-auto max-w-full [&>*]:shrink-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {/* 资产类型切换: 股票 / ETF (分钟策略 asset_types 仅股票, ETF 列表自然不含) */}
-            <div className="flex items-center h-7 rounded-btn border border-border overflow-hidden">
-              {(['stock', 'etf'] as const).map(t => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    viewRef.current.assetType = t
-                    setAssetType(t); setActiveStrategy(null); setResult(null); setShowAll(false)
-                    setHitCounts({}); setExpiredCounts({}); setPendingRun(null)
-                  }}
-                  className={`h-full px-2.5 text-xs font-medium transition-colors
-                    cursor-pointer ${assetType === t
-                      ? 'bg-accent/10 text-accent'
-                      : 'text-muted hover:text-secondary hover:bg-elevated'
-                    }`}
-                >
-                  {t === 'stock' ? '股票' : 'ETF'}
-                </button>
-              ))}
-            </div>
             {/* 周期筛选: 全部 / 日线 / 分钟 — 只过滤卡片显示, 不影响池与执行路由 */}
             <div className="flex items-center h-7 rounded-btn border border-border overflow-hidden">
               {(['all', '1d', '1m'] as const).map(tf => (

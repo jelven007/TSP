@@ -19,7 +19,6 @@ from app.strategy import paper, paper_auto
 from app.tickflow.repository import DataStore, KlineRepository
 
 SYM = "600519.SH"
-ETF = "510300.SH"
 DAY = date(2026, 9, 24)
 NEXT = DAY + timedelta(days=1)
 # (日期, open, close): 当日开 10.2 收 10.8; 次日开 10.5 收 10.9 (均在涨跌幅内)
@@ -44,7 +43,6 @@ def _frame(symbol: str, rows: list[tuple[date, float, float]]) -> pl.DataFrame:
 def _write_bars(tmp_path: Path) -> None:
     repo = KlineRepository(DataStore(tmp_path))
     repo.append_daily(_frame(SYM, BARS))
-    repo.append_etf_daily(_frame(ETF, BARS))
 
 
 def _freeze(monkeypatch, day: date, hhmm: time) -> None:
@@ -86,17 +84,6 @@ def test_next_open_placed_before_open_fills_same_day_open(data_dir, monkeypatch)
     assert paper.settle_day(data_dir, DAY.isoformat())["filled"] == 1
     got = paper.get_order(data_dir, order["id"])
     assert got["fill_price"] == pytest.approx(paper.apply_slippage(10.2, "buy", 5.0))
-
-
-def test_etf_market_order_intraday_waits_for_next_open(data_dir, monkeypatch):
-    """ETF 即时单盘中自动转次日开盘: 同样不能按当日已过去的开盘价成交。"""
-    _freeze(monkeypatch, DAY, time(10, 30))
-    paper.create_account(data_dir, 1_000_000)
-    order, err = paper.create_order(data_dir, ETF, "buy", qty=100, asset_type="etf", ref_price=10.5)
-    assert err is None and order["order_type"] == "next_open"
-    assert paper.settle_day(data_dir, DAY.isoformat())["filled"] == 0
-    assert paper.settle_day(data_dir, NEXT.isoformat())["filled"] == 1
-    assert paper.get_order(data_dir, order["id"])["fill_price"] == pytest.approx(paper.apply_slippage(10.5, "buy", 5.0))
 
 
 def test_limit_queue_intraday_waits_for_next_open(data_dir, monkeypatch):

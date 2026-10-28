@@ -1,5 +1,27 @@
 # 工程与交付参考
 
+2026-10-28最新整合以
+[统一发布评审](../../reports/complete-release-20261028-3/review.md)
+串联需求、方案、开发、测试、运营、运维和用户手册。源码候选由三笔聚焦提交组成，
+保持Provider/JobStore/公共发布边界；rustdx固定来源与ETF退役迁移分别验证。
+PR、自动版本/标签、正式镜像、分支清理及两端升级按阶段独立签收，
+不得用本地全量测试替代远程产物或运行验收。
+
+2026-10-28周K混合Parquet schema修复对应`FR-DATA-05`，仅修改周期服务读取入口
+及回归测试；无API、Provider、配置、存储迁移或版本变化。六类文档、真实ECS只读证据
+与未部署边界见[交付记录](../../reports/weekly-parquet-schema-20261028/verification.md)。
+
+2026-10-28指数页交互修复对应`FR-RESEARCH-02/FR-ADMIN-05`，
+只改`Indices`及其回归测试；无后端、存储、配置和版本变更。
+六类文档、用户操作、反向验证与浏览器证据见
+[交付记录](../../reports/index-page-ui-20261028/verification.md)。
+
+2026-10-28 rustdx v2.0.4融合归`FR-DATA-05`，为L3数据源与构建边界修改：
+固定完整核心源码、保留MIT许可证并记录局部补丁，沿既有Provider映射七项数据集。
+8业务+1探测预算、金融探测资格、精度元数据及分页源身份均有定向回归；
+原生构建、来源摘要、CI、构建清单、恢复范围及六类手册同步核对。
+实际命令、平台边界与接入状态见[交付记录](../../reports/rustdx-v204-20261028/verification.md)。
+
 2026-10-28历史K线性能修复对应`FR-DATA-05`，L3日期分块与Provider内部分页调整。
 历史获取、全量/遗漏修正及相关资产统一受益；派生周期保持本地生成。
 六类主手册、二开及操作说明按既有映射维护；逐文件范围、请求预算回归、
@@ -673,7 +695,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 融合系统目标 / 架构负责人 | FR-REALTIME/STATS/HISTORY/SCREEN/BACKTEST、NFR-23–42 | [系统目标](../architecture.md#target)、[二期计划](../planning/phase2-implementation-plan.md) | A–I、3.1–3.6联合矩阵，未实现项未执行 | 容量/成本/可靠性目标未签收，轻量不强装新组件 |
 | 数据能力与配置说明 / 数据负责人 | FR-DATA/EXT/ADMIN、FR-CORP | [Provider](integrations.md#plugin)、[公司行为](trading-ai.md#corporate)、[配置](../operations.md#configuration) | 能力/日期/账务/旧模式/配置测试 | usable不认证日期；失败保护旧结果，变更源配置拒绝旧请求 |
 | 策略、因子与研究行为补齐 / 研究负责人 | FR-STRATEGY/SIGNAL/FACTOR/MINING/BACKTEST | [策略](research.md#strategy)、[因子](factor-system.md#factor-current)、[研究](research.md#research) | 原价/费用/T+1/固定输入/样本外/候选门槛/缓存 | 研究产物不等于收益承诺；缺历史/时点证据显式受限 |
-| 目标股票与自选导入 / 应用及研究负责人 | FR-STRATEGY-06、FR-WATCHLIST-02/03、FR-ADMIN-06 | targets/config→快照→Polars/矩阵/监控；角色并发与CSV新组事务，L3 | 目标/ST/ETF、动态成员与旧历史、真实SQL隔离/回滚/竞态、API权限、前端两档/多选/CSV/删除提示 | 本地候选未发布；API/Worker/Compute须同版，回退前停用新目标策略，禁止直接删除被引用分组 |
+| 目标股票与自选导入 / 应用及研究负责人 | FR-STRATEGY-06、FR-WATCHLIST-02/03、FR-ADMIN-06 | targets/config→快照→Polars/矩阵/监控；角色并发与CSV新组事务，L3 | 目标/ST、动态成员与旧历史、真实SQL隔离/回滚/竞态、API权限、前端两档/多选/CSV/删除提示 | 本地候选未发布；API/Worker/Compute须同版，回退前停用新目标策略，禁止直接删除被引用分组 |
 | 自选CSV顺序 / 应用负责人 | FR-WATCHLIST-03/06 | 候选顺序确认→文件/SQL批量正序保存，管理分组移除CSV导入，L3 | CSV/API重读、重复代码/既有成员/only_new、分组新建/导出、桌面/窄屏及前端构建 | 前后端一起升级；无schema迁移，旧列表不自动翻转；[修复证据](../../.claude/artifacts/fixes/watchlist-csv-order.md) |
 | 监控、模拟与AI说明 / 业务负责人 | FR-MONITOR/PAPER/CORP/AI/REVIEW | [模拟交易](trading-ai.md#paper)、[会话](trading-ai.md#sessions)、功能手册 | 周期仲裁、权益/占用/幂等、确认/取消、会话冲突 | 触发/投递/成交分开；恢复不重放写动作，SMTP配置只读 |
 | 验收/性能/维护脚本归档 / 对应开发与测试 | NFR-14–17/22/28、相关FR | backend/scripts六分类、scripts三分类及各README | 所有受影响脚本测试、沙箱/打包/拷贝路径 | 从backend用新模块名；主机已安装maintenance脚本不自动改名 |

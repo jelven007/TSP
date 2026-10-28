@@ -792,13 +792,13 @@ function StrategyParamInput({ param, value, onChange }: {
   )
 }
 
-function StockPoolPicker({ value, onChange, assetType = 'stock' }: { value: string; onChange: (value: string) => void; assetType?: 'stock' | 'etf' }) {
+function StockPoolPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const symbols = useMemo(() => value.split(',').map(s => s.trim()).filter(Boolean), [value])
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [symbolNames, setSymbolNames] = useState<Record<string, string>>({})
   const ref = useRef<HTMLDivElement>(null)
-  const searchAssetTypes = assetType === 'etf' ? 'stock,etf' : 'stock'
+  const searchAssetTypes = 'stock'
   const search = useQuery({
     queryKey: QK.instrumentSearch(query, searchAssetTypes),
     queryFn: () => api.instrumentSearch(query, 20, searchAssetTypes),
@@ -973,7 +973,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(saved?.selectedStrategy ?? null)
   const [strategyGroup, setStrategyGroup] = useState<StrategyGroup>('all')
   const [symbols, setSymbols] = useState(saved?.symbols ?? '')
-  const [assetType, setAssetType] = useState<'stock' | 'etf'>(saved?.assetType ?? 'stock')
+  const assetType = 'stock' as const
   const [start, setStart] = useState(saved?.start ?? THREE_MONTHS_AGO)
   const [end, setEnd] = useState(saved?.end ?? TODAY)
   // 成交口径: 建仓/清仓可独立配置。向后兼容老 matching (派生为 entry=exit=matching)。
@@ -1024,7 +1024,6 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     if (!loadCandidate) return
     const cfg = (loadCandidate.config ?? {}) as Record<string, any>
     if (cfg.strategy_id) setSelectedStrategy(String(cfg.strategy_id))
-    if (cfg.asset_type === 'stock' || cfg.asset_type === 'etf') setAssetType(cfg.asset_type)
     if (cfg.symbols != null) {
       setSymbols(Array.isArray(cfg.symbols) ? cfg.symbols.join(',') : String(cfg.symbols))
     }
@@ -1154,12 +1153,10 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   })
 
   const dataStatus = useDataStatus()
-  const backtestDataStatus = assetType === 'etf'
-    ? dataStatus.data?.etf_enriched
-    : dataStatus.data?.enriched
+  const backtestDataStatus = dataStatus.data?.enriched
   const earliestDate = backtestDataStatus?.earliest_date ?? null
   const backtestDataUnavailable = dataStatus.isSuccess && !earliestDate
-  const backtestDataLabel = assetType === 'etf' ? 'ETF 指标数据' : '股票指标数据'
+  const backtestDataLabel = '股票指标数据'
 
   const resetConfigFromDetail = (detail: StrategyDetail) => {
     setStrategyParams(strategyDefaultParams(detail))
@@ -2042,7 +2039,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
         </div>
         <div className="space-y-1.5 text-[11px] leading-4 text-secondary">
-          <div>印花税留空时按卖出日期自动计算：2023-08-28 前 1‰，之后 0.5‰；ETF 免征。</div>
+          <div>印花税留空时按卖出日期自动计算：2023-08-28 前 1‰，之后 0.5‰。</div>
           <div>最低佣金和额外费用请按券商费表填写；佣金已包含的费用不要重复填写。旧配置默认均为0。</div>
           <label className="flex items-start gap-2">
             <input type="checkbox" checked={strictResearch} onChange={e => setStrictResearch(e.target.checked)} className="mt-0.5" />
@@ -2924,24 +2921,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
 
               {settingsTab === 'range' && (
                 <ConfigSection title="回测范围">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-muted">资产类型</span>
-                    <div className="inline-flex h-8 rounded-btn border border-border overflow-hidden">
-                      {(['stock', 'etf'] as const).map(t => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => { setAssetType(t); setSelectedStrategy(null); setSymbols('') }}
-                          className={`h-full px-3 text-xs font-medium transition-colors cursor-pointer
-                            ${assetType === t ? 'bg-accent/10 text-accent' : 'text-muted hover:text-foreground'}`}
-                        >
-                          {t === 'stock' ? '股票' : 'ETF'}
-                        </button>
-                      ))}
-                    </div>
-                    <span className="text-[11px] text-muted/70">ETF 仅技术类策略,读 ETF enriched</span>
-                  </div>
-                  <StockPoolPicker value={symbols} onChange={setSymbols} assetType={assetType} />
+                  <StockPoolPicker value={symbols} onChange={setSymbols} />
                   <div className="text-[11px] leading-5 text-muted">默认全市场回测，由基础过滤、策略条件和买卖触发器筛选；需要单票调试或自选池回测时再限定股票池。</div>
                 </ConfigSection>
               )}

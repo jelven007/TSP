@@ -143,8 +143,6 @@ class SectorMonitorService:
             indices = self._repo.get_index_instruments()
             if not indices.is_empty() and "symbol" in indices.columns:
                 for row in indices.to_dicts():
-                    if row.get("asset_type") == "etf":
-                        continue
                     symbol = str(row.get("symbol") or "").strip().upper()
                     if symbol:
                         index_names[symbol] = str(row.get("name") or symbol)

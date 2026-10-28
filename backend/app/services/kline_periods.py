@@ -7,6 +7,7 @@ from datetime import date, datetime, time, timedelta
 import polars as pl
 
 from app.market_time import CN_TZ, TRADING_DAY_COLLECTION_WINDOWS, cn_now
+from app.parquet import scan_daily_parquet, scan_parquet_compat
 from app.services import preferences
 
 TABLES = {
@@ -200,7 +201,7 @@ def _local_daily_frame(repo, start: date, end: date, symbols: list[str]) -> pl.D
         day += timedelta(days=1)
     if not paths:
         return pl.DataFrame()
-    return pl.scan_parquet(paths).filter(
+    return scan_daily_parquet(paths).filter(
         pl.col("symbol").is_in(symbols) & pl.col("date").is_between(start, end),
     ).collect()
 
@@ -311,6 +312,19 @@ def _period_provider(period: str):
     return provider, source
 
 
+def require_period_provider(period: str, capset):
+    """Validate source-specific entitlement immediately before an upstream request."""
+    from app.tickflow.capabilities import Cap
+
+    daily = period in ("1d", "1w")
+    source = preferences.get_daily_data_provider() if daily else preferences.get_minute_data_provider()
+    if source == "tickflow":
+        cap = Cap.KLINE_DAILY_BATCH if daily else Cap.KLINE_MINUTE_BATCH
+        if not capset.has(cap):
+            raise ValueError("当前K线数据源不具备所选周期能力")
+    return _period_provider(period)
+
+
 def query_period(repo, period: str, symbol: str, start: datetime, end: datetime, *, live: bool = False) -> tuple[pl.DataFrame, str]:
     """派生分钟优先计算本地1m, 周K无本地表时由日K聚合。"""
     if period not in ("1m", "5m", "10m", "15m", "1w") or start > end:
@@ -370,6 +384,7 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
     if start > end:
         raise ValueError("开始时间不得晚于结束时间")
     from app.services.minute_adjust import minute_basis_is_raw
+    from app.services.realtime_guard import pause_quotes_for_write
     raw_minute = minute_basis_is_raw(repo.store.data_dir) or not any((repo.store.data_dir / "kline_minute").rglob("*.parquet"))
     if symbols is None:
         symbols = repo.get_instruments().get_column("symbol").to_list()
@@ -418,14 +433,19 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
                     frame = aggregate_minute_period(frame.collect(), period)
             if not frame.is_empty():
                 emit(f"{LABELS[period]}: 正在保存本地计算结果")
-                rows += persist_period(repo, period, frame)
+                with pause_quotes_for_write():
+                    rows += persist_period(repo, period, frame)
             completed_batches += 1
         else:
             for offset in range(0, len(symbols), 100):
                 emit(f"{LABELS[period]}: {cursor}, 标的 {offset}/{len(symbols)}")
                 frame = fetch_period(provider, period, symbols[offset:offset + 100], lo, hi, minute_adjust="none" if raw_minute else "forward")
                 emit(f"{LABELS[period]}: 正在保存 {min(offset + 100, len(symbols))}/{len(symbols)}")
-                rows += persist_period(repo, period, frame)
+                if frame.is_empty():
+                    rows += persist_period(repo, period, frame)
+                else:
+                    with pause_quotes_for_write():
+                        rows += persist_period(repo, period, frame)
                 completed_batches += 1
                 emit(f"{LABELS[period]}: 已完成 {completed_batches}/{total_batches} 批, 已写入{rows}行")
             if not symbols:
@@ -456,7 +476,7 @@ def generate_period(repo, period: str, *, on_progress=None) -> dict:
     if period != "1d":
         # 生成范围以基础数据为准, 不因维表缺失而丢弃已有证券。
         symbols = (
-            pl.scan_parquet(repo.store.data_dir / TABLES[base] / "date=*/*.parquet")
+            scan_parquet_compat(repo.store.data_dir / TABLES[base] / "date=*/*.parquet")
             .select("symbol").unique().collect().get_column("symbol").to_list()
         )
         return sync_period(repo, period, start, end, symbols=symbols, on_progress=on_progress)

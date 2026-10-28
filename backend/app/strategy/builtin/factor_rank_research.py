@@ -15,7 +15,7 @@ META = {
     "name": "因子排名研究",
     "description": "受控多因子截面评分、阈值与排名选股策略",
     "tags": ["因子", "研究", "截面排名"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "research_only": True,
     "params": [

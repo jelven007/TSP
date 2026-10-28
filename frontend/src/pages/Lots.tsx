@@ -112,7 +112,7 @@ export function Lots() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="持仓提醒" subtitle="记录个股 / ETF 买入批次, 自动生成止盈止损 / 到期监控规则" />
+      <PageHeader title="持仓提醒" subtitle="记录个股买入批次, 自动生成止盈止损 / 到期监控规则" />
       <div className="flex-1 min-h-0 px-5 py-4">
         <div className="mx-auto max-w-5xl space-y-4">
           <div className="flex items-center justify-between">
@@ -272,8 +272,8 @@ function LotDialog({ lot, onClose }: { lot: Lot; onClose: () => void }) {
   })
 
   const symbolSearch = useQuery({
-    queryKey: QK.instrumentSearch(symbolQuery, 'stock,etf'),
-    queryFn: () => api.instrumentSearch(symbolQuery, 20, 'stock,etf'),
+    queryKey: QK.instrumentSearch(symbolQuery, 'stock'),
+    queryFn: () => api.instrumentSearch(symbolQuery, 20, 'stock'),
     enabled: symbolQuery.trim().length > 0,
   })
 

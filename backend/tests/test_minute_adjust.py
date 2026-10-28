@@ -104,20 +104,6 @@ def test_apply_adjustment_identity_cases(tmp_path):
     assert out_no_events.equals(df)
 
 
-def test_apply_adjustment_etf_routing(tmp_path):
-    """ETF 用 adj_factor_etf 表路由。"""
-    etf = "159001.SZ"
-    (tmp_path / "adj_factor_etf").mkdir(parents=True)
-    pl.DataFrame({
-        "symbol": [etf], "trade_date": [EX_DATE], "ex_factor": [EX_FACTOR],
-    }, schema={"symbol": pl.String, "trade_date": pl.Date, "ex_factor": pl.Float64},
-    ).write_parquet(tmp_path / "adj_factor_etf" / "all.parquet")
-
-    df = _minute_frame(etf, date(2026, 6, 30), 10.0)
-    out = minute_adjust.apply_minute_adjustment(df, tmp_path, "etf")
-    assert abs(out["close"][0] - 10.0 * RATIO_BEFORE) < 1e-9
-
-
 # ================================================================
 # 基准标记与读取门控
 # ================================================================

@@ -1,8 +1,43 @@
 # 测试与验收指南
 
+2026-10-28最新整合在同一候选分支完成全量门禁：后端4,610 passed、
+162 skipped、173 warnings；前端84文件/451项通过，ESLint与生产构建通过；
+仓库工具136 passed，`make check`通过。rustdx核心203项、文档55项及2项
+compile-fail、PyO3桥接7项通过；ETF退役相关132项通过。
+各计数来自不同测试层，不相加；跳过项、Windows正式产物、全市场历史覆盖和两端迁移
+仍须单独验收。完整命令边界与发布停止条件见
+[统一发布评审](../reports/complete-release-20261028-3/review.md)。
+
+2026-10-28数据采集统一回归先固定11项前端和7项后端红灯：
+旧数据修正入口、月/年扩展控件、单获取按钮、日期未透传及非法范围仍建任务。
+修复后`KlineSyncConfig/Data`定向23项、前端全量453项、ESLint和生产构建通过；
+周期API 40项、修正与rustdx请求预算102项通过。回归覆盖闭区间full/missing、
+本地缺口先于Provider解析、无缺口零请求、100证券上限、32日分段、
+rustdx旧窗口页预算，以及全量/遗漏取数期间不暂停行情、仅分区写盘暂停。
+证据见[数据采集统一记录](../reports/data-collection-unification-20261028/verification.md)。
+
+2026-10-28周K schema 回归覆盖`quote_ts`只在较早分区或只在较新分区两种顺序。
+旧实现连续三次均2失败，分别为missing column和extra column；修复后周K/周期/生成API/
+共享Parquet/周K修正共83项通过，Ruff通过。ECS实际10月26/27混合分区只读扫描
+10,430行并聚合5,215条周K；未触发真实生成写盘。证据见
+[修复记录](../reports/weekly-parquet-schema-20261028/verification.md)。
+
+2026-10-28指数页回归新增实际根数/工具栏结构与修正任务终态5秒自动收起。
+旧实现连续三次均2项失败，修复后指数定向5项和前端全量453项通过，
+lint/build通过。Playwright以真实ECharts和模拟API检查1600×1000、390×844，
+覆盖60→90→130封顶、数量框外、日历同行、终态消失、无横向溢出和控制台错误。
+证据见[指数页交互记录](../reports/index-page-ui-20261028/verification.md)。
+
+2026-10-28 rustdx v2.0.4回归覆盖8业务+1探测、行情与财务不同资格、
+共享精度元数据、旧桥接拒用、配置变更关闭旧池、排队绝对时限、单文件与分块预算、
+冷精度目录/证券目录分页预算、多页来源变更拒绝及原历史定位预算。
+核心单元/文档测试、独立源码包构建、漂移拒绝、Windows目标交叉编译和公开节点
+只读验证见[实际记录](../reports/rustdx-v204-20261028/verification.md)。
+Windows/Linux原生产物与生产运行另验；未完成正式P95。
+
 2026-10-28历史K线验收新增`test_minute_history_request_budget.py`与
 `test_rustdx_history_request_budget.py`：31/32天、100证券、旧窗口/准确缺口请求预算、
-股票/指数/ETF、日K整日边界、UTC、未知量额、停牌、空/短/重复/坏页、
+股票/指数、日K整日边界、UTC、未知量额、停牌、空/短/重复/坏页、
 探测失败回退、目标页失败、取消与跨调用源更新。原实现及进程内反向验证均超预算；
 修复与周期/API/修正/Provider/写盘邻接回归通过。
 同8证券同月两端各自前后实测分页1344降至128，输出42240行及SHA256一致；
@@ -78,7 +113,7 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 浏览器对照行情首排检查触发器尺寸、圆角、主题和弹层边界；原范围校验及提交参数保持不变。
 `test_repair_kline.py`验证建任务前日期校验、任务请求保存/透传结束日期、旧缺省行为、
 1分钟取数及真实入库包含末日，超范围源返回不覆盖区间外旧值。
-`test_pipeline_beijing_today.py`核对股票/指数/ETF及因子范围、enriched区间外字节保留、
+`test_pipeline_beijing_today.py`核对股票/指数及因子范围、enriched区间外字节保留、
 不附带分钟采集和非法区间先于读股票池拒绝。
 `test_data_integrity.py`验证闭区间分区清理和历史实时残留清理仍保护今天及范围外数据。
 同时回归原周期生成、自动盘后、发布、容量、前端全量测试/build/lint及Ruff增量。
@@ -86,14 +121,14 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 两个按钮参数、空/反向/未来提示、失败重试及无横向溢出；模拟请求不认证真实数据源历史覆盖。
 
 <a id="local-kline-generation"></a>
-2026-10-27离线生成回归：`KlineSyncConfig.test.tsx`覆盖5/10/15分K、周K
+2026-10-28离线生成回归：`KlineSyncConfig.test.tsx`覆盖5/10/15分K、周K
 无扩展控件、仅传period、空表/缺能力可点击、任务运行中禁用。
-日K恢复与1m一致的历史控件、月/年及显式范围请求，覆盖缺能力/运行中禁用、
-已有最早日期、失败保留表单及后续除权/指标说明；`Data.test.tsx`从日K画像设置按钮
-验证真实API请求与任务跟踪，保留用户盘后时间。
+1m/1d使用两个DatePicker和全量/遗漏按钮，覆盖闭区间请求、缺能力/运行中禁用、
+已有最早日期、失败保留表单及日K后续除权/指标说明；`Data.test.tsx`从日K画像设置按钮
+验证真实API请求、任务跟踪及页面无独立修正入口，保留用户盘后时间。
 `test_kline_periods_api.py`覆盖完整本地基础日期范围、目标已有数据、重复生成与基础数据修订，
 缺基础失败、旧无范围日K API真实本地复权/指标入库、原始日K保留、缓存换代和取消前不发布；
-日K画像显式范围沿原历史任务，验证月/年参数、能力拒绝、实际结果和100%进度。
+基础周期显式范围沿共享区间任务，验证full/missing参数、能力拒绝、实际结果和100%进度。
 周期服务同时验证缺维表时仍按基础已有证券生成。
 `test_pipeline_capacity.py`验证新生成任务等待共享容量后才计算。
 同时回归周期服务、修正、历史进度、公共缓存和Enriched发布；前端执行全量测试、
@@ -125,13 +160,13 @@ v0.4.28诊断已排除日志关闭阻塞，详见[原生退出修复](../.claude
 在相同统计输入下比较日K与周K画像卡片，同步说明和记录统计文案一致，名称及各自数据保持独立。
 测试通过不证明上游拥有多年历史，实际数据覆盖按日期和标的另行验收。
 
-K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
-覆盖两个页面选项/默认日K、请求周期和最新日期切换、日K原管道兼容、1分钟远程修正与旧API周K本地日K
+K线区间获取回归入口为`test_repair_kline.py`、`test_kline_periods_api.py`与
+`KlineSyncConfig.test.tsx`：覆盖1m/1d卡片日期和双按钮、数据总览无修正入口、
+日K原管道兼容、1分钟远程获取与旧API周K本地日K
 聚合的幂等入库、5/10/15分钟本地OHLCV/量额聚合及缺基础数据、非法周期、
 自定义源不依赖TickFlow权限、对应能力拒绝和取消后不再写盘。
-页面验收检查「K线修正」标题、失败提示、任务跟踪及桌面/窄屏弹窗；
-四种分钟周期统一显示为1分K、5分K、10分K、15分K；同时检查卡片、设置、字段说明及任务提示中的动态名称。
-日K与周K的日期范围表单复用，周K说明明确每周六从本地日K聚合，切换后提交仍传各自period。
+页面验收检查1分K/日K设置中的失败提示、任务跟踪及桌面/窄屏弹窗；
+四种分钟周期统一显示为1分K、5分K、10分K、15分K。
 空数据/部分范围不能作为全量历史修复成功的证据。
 遗漏模式在同一后端测试文件覆盖六周期完整数据零请求、整日及分区内单股缺失、
 内部连续/不连续分钟缺口、午休及未形成区间、上市前/休市/未知日历、
@@ -144,7 +179,7 @@ K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
 日K/分钟K/分钟区间查询，保留无关查询缓存，不依赖实时SSE。
 
 数据总览修复用例补充：无效显隐/顺序、重复卡片及页面设置重开；
-派生周期无扩展生成表单、日K/1m月年历史获取、日K空库闰年自然月区间及后续复权/指标流程；
+派生周期无扩展生成表单、日K/1m闭区间全量/遗漏获取及后续复权/指标流程；
 原minute/daily入口的5m/15m/1w本地读取、周K空表从日K聚合、非法周期/源失败，
 及三个周期离线任务写盘后画像计数。回归须断言实际周期与行值，不能只检查200。
 
@@ -212,7 +247,7 @@ K线修正回归入口为`test_repair_kline.py`与`RepairDailyPanel.test.tsx`：
 前端`Screener.test.tsx`验证A→B→A恢复及迟到响应不改当前日期，
 `screenerHistory.test.ts`校验HTTP维度与查询键，
 `StrategyResultHistoryDialog.test.tsx`校验旧版本/参数和加载失败。
-浏览器在桌面及390px下检查日期恢复、ETF隔离、历史明细和弹窗滚动；
+浏览器在桌面及390px下检查日期恢复、资产隔离、历史明细和弹窗滚动；
 模拟接口联调不替代生产容量、真实行情和Windows签收。
 
 历史筛选/删除继续归`FR-STRATEGY-05`：仓库与API测试覆盖五维组合、字面关键词、
@@ -597,7 +632,7 @@ pnpm build
 ```
 
 真实SQL命令须提供隔离 PostgreSQL 的 `TSP_TEST_POSTGRES_DSN`，不使用生产库。
-覆盖目标范围独立数值开关、板块/分组并集、空选择、ST、矩阵一致性、ETF豁免、
+覆盖目标范围独立数值开关、板块/分组并集、空选择、ST、矩阵一致性、
 成员变化与固定子策略快照、引用不存在拒写、服务/API/Cell删除保护、跨租户隔离、
 事务回滚和保存/删除竞态；CSV代码列、去重、跳过未知、不留空组、既有备注/日期保留。
 租户GET只读1、POST403，管理员自动/手工及旧任务额度继续回归；前端只标准/详细，
@@ -617,7 +652,7 @@ uv run pytest tests/test_paper_daily_scan_schema.py tests/test_paper_trading.py 
   tests/test_paper_api.py tests/test_paper_settle_price_time.py -q
 ```
 
-模拟交易应通过统一日线存储 schema 读取新旧股票、ETF 与指数日线分区，
+模拟交易应通过统一日线存储 schema 读取股票与指数日线分区，
 允许 `quote_ts` 等附加列并补齐历史缺列。固定样本断言当日开收盘、
 前收盘和沪深 300 基准价格，相关回归覆盖涨跌停判断、T+1 与结算时间。
 
@@ -725,7 +760,7 @@ uv run pytest -q \
 
 - 多租户 API/Platform 空历史快速 503，且不调用 Provider。
 - 行情代理短超时、管理代理长超时及稳定错误契约。
-- stock/ETF/index 最新原始日分区与 enriched symbol 覆盖门槛。
+- stock/index 最新原始日分区与 enriched symbol 覆盖门槛。
 - 隔离违规与同租户一致性违规分离、旧验收状态兼容。
 - Worker 按类型 freshness、真实 Broker 沙箱探针、有界等待和 stderr 尾部。
 - 16 GiB Compose 预算、36 条双库连接上界。
@@ -788,7 +823,7 @@ TSP_TEST_POSTGRES_DSN='<一次性 PostgreSQL 根 DSN>' \
 uv run --frozen pytest tests/test_enriched_generation.py tests/test_enriched_full_rebuild.py tests/test_enriched_recovery.py tests/test_data_release.py tests/test_health.py -q
 ```
 
-覆盖属主死亡后保持不可读、局部股票/ETF 写入不得接管、恢复取消/第二分区写入
+覆盖属主死亡后保持不可读、局部股票写入不得接管、恢复取消/第二分区写入
 失败后的重试、替换后目录 fsync 失败保持不可读、全量历史覆盖检查、
 嵌套 manifest 损坏、首次 generation 漂移、
 元数据采集及最终写入边界的版本竞态, 以及单项健康检查异常隔离。
@@ -908,7 +943,7 @@ JSON 注入处理函数未返回的缺省字段。快照失败时必须确认兼
 
 指数分钟接口的可选`with_prev_close=false`已核对为唯一Tier A schema变化；
 省略参数保留旧响应，69端点和响应组件不变。目录回归同时验证所选Provider返回的
-ETF与固定七只指数均保存，不能继续用旧单指数夹具数量判断失败。
+固定七只指数均保存，不能继续用旧单指数夹具数量判断失败。
 
 `.github/workflows/docker.yml` 的 `main` 构建只接受主线 push 的成功 CI
 `workflow_run`，从该次运行的 `ci-revision` artifact 读取实际通过测试的 SHA，
@@ -1004,7 +1039,7 @@ Provider 时，至少记录：
 
 1. Provider 名称、版本和测试日期。
 2. 使用的数据能力，不记录密钥。
-3. 一个股票、ETF、指数的代表性代码和数据日期。
+3. 一个股票和一个指数的代表性代码及数据日期。
 4. 返回行数、时间范围、必要字段和单位抽查。
 5. 空数据、超时、限流和不支持能力的表现。
 6. 结果是否落盘，以及重启后能否读取。
@@ -1163,7 +1198,7 @@ uv run --project backend --no-sync pytest backend/tests/test_build_manifest.py \
 | H 运行与发布 | NFR-01–17/20/21/28 | 锁/版本/产物清单、各目标平台、磁盘/inode、预算、存活/就绪、停写备份、恢复/增量对账 | 固定产物匹配代码/数据，声明适用平台与剩余风险 |
 | I 万人与DFX | NFR-31–42及A–H | 独立活跃业务、后台/数据/研究混合压力、最大故障域、跨节点撤权/单写/区域恢复/成本 | 逐项目标签收，未执行不算通过 |
 
-测试至少覆盖沪深股票、ETF、固定指数各自适用规则；管理员、普通租户、独立服务、
+测试至少覆盖沪深股票、固定指数各自适用规则；管理员、普通租户、独立服务、
 Windows管理员个人空间和macOS/Linux冻结桌面分别执行适用入口。
 性能成功分位数与全部尝试/超时单列，P0/P1不放行；P2修复或显式缩小范围并重新验收。
 
@@ -1287,7 +1322,7 @@ API 及测试事实源，再检查：
 ## 15. rustdx连接数基准方法
 
 脚本 [`backend/scripts/performance/benchmark_rustdx_quotes.py`](../backend/scripts/performance/benchmark_rustdx_quotes.py)
-对同一份本地股票池逐档测量 8–30 条持久连接的全量行情耗时。默认每个整数档位均测试，
+对同一份本地股票池逐档测量1–8条业务连接的全量行情耗时。默认测试8条，
 每档单独创建进程与连接池，关闭后再运行下一档。
 
 <a id="benchmark-运行"></a>
@@ -1302,13 +1337,13 @@ cd backend
 uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --dry-run
 
 # 23 个档位；每档冷启动 1 轮、预热 5 轮、正式采样 100 轮
-uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 8-30
+uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 1-8
 
 # 以 1000ms 为 P95 验收上限
-uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 8-30 --max-p95-ms 1000
+uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 1-8 --max-p95-ms 1000
 
 # 先做少量真实网络冒烟验证，不作为 P95 验收
-uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 8,30 --rounds 3 --warmup 1
+uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connections 4,8 --rounds 3 --warmup 1
 ```
 
 默认轮次开始间隔为 1 秒，完整运行约 41 分钟起；慢轮次会增加总时间。上一轮完成后
@@ -1316,7 +1351,7 @@ uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connect
 `--connections 8,12,16,20,24,30`。需要更多尾部样本时设置 `--rounds 300`。
 
 输入固定为 `data/instruments/instruments.parquet`，使用现有的股票身份与退市过滤规则，
-保留有效沪深主板、科创板、创业板股票，包含 ST 和停牌股票；排除指数、ETF、B 股和
+保留有效沪深主板、科创板、创业板股票，包含 ST 和停牌股票；排除指数、基金、B 股和
 不支持的市场。`--data-dir` 指定另一个数据目录。股票池在父进程一次性读取并去重，
 所有档位传入相同列表；不会在压测中重新请求证券目录。
 

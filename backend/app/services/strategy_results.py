@@ -432,7 +432,7 @@ class StrategyResults:
         end_date = date.fromisoformat(str(end_date)).isoformat() if end_date else None
         if start_date and end_date and start_date > end_date:
             raise ValueError("开始日期不能晚于结束日期")
-        if asset_type not in (None, "", "stock", "etf"):
+        if asset_type not in (None, "", "stock"):
             raise ValueError("历史资产类型无效")
         if timeframe not in (None, "", "1d", "1m"):
             raise ValueError("历史周期无效")

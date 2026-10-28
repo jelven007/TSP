@@ -16,8 +16,6 @@ export const CARD_META: Record<string, {
   daily:       { capKey: 'kline.daily.batch',       missingCapName: '日 K(批量)' },
   adj_factor:  { capKey: 'adj_factor',              missingCapName: '复权因子' },
   enriched:    { capKey: '',                        missingCapName: '' },
-  // ETF 复用日K批量能力(免费档即可),缺能力时随日K卡提示,不单独显示徽章
-  etf:         { capKey: 'kline.daily.batch',       missingCapName: '' },
   minute:      { capKey: 'kline.minute.batch',      missingCapName: '分钟 K(批量)' },
   financials:  { capKey: 'financial',               missingCapName: '财务数据' },
   regime:      { capKey: '',                        missingCapName: '' },

@@ -130,29 +130,6 @@ def test_daily_latest_returns_none_when_symbol_is_missing(monkeypatch) -> None:
         "row": None,
         "source": "none",
     }
-
-
-def test_daily_latest_uses_etf_enriched_cache(monkeypatch) -> None:
-    from app.api import kline as kline_api
-
-    monkeypatch.setattr(kline_api, "cn_today", lambda: date.today())
-    etf = _live_frame().with_columns(pl.lit("510300.SH").alias("symbol"))
-    client, repo = _client(
-        pl.DataFrame(),
-        None,
-        asset_type="etf",
-        latest_asset=(etf, date.today()),
-    )
-
-    response = client.get("/api/kline/daily/latest", params={"symbol": "510300.SH"})
-
-    assert response.status_code == 200
-    assert response.json()["row"]["close"] == 10.6
-    assert response.json()["source"] == "live"
-    assert repo.latest_asset_calls == 1
-    assert repo.latest_asset_refresh is False
-
-
 def test_daily_latest_uses_index_enriched_cache(monkeypatch) -> None:
     """指数日K的当日实时行走独立 index enriched 缓存, 不能直接 return None。"""
     from app.api import kline as kline_api

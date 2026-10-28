@@ -21,7 +21,6 @@ def _bare_repo() -> KlineRepository:
     repo._enriched_cache = None
     repo._enriched_cache_date = None
     repo._enriched_warming = False
-    repo._etf_enriched_cache = None
     repo._index_enriched_cache = None
     repo._asset_enriched_warming = set()
     repo._asset_warmup_lock = threading.Lock()
@@ -65,9 +64,9 @@ def test_ensure_enriched_warmup_dispatches_only_requested_assets():
     repo._start_enriched_warmup = lambda: started.append("stock")  # type: ignore[method-assign]
     repo._start_asset_enriched_warmup = started.append  # type: ignore[method-assign]
 
-    repo.ensure_enriched_warmup(("etf", "index"))
+    repo.ensure_enriched_warmup(("index",))
 
-    assert started == ["etf", "index"]
+    assert started == ["index"]
     assert "stock" not in started
 
 
@@ -82,12 +81,12 @@ def test_asset_enriched_warmup_runs_single_flight():
         started.set()
         release.wait(5)
 
-    repo._refresh_etf_enriched = _refresh  # type: ignore[method-assign]
+    repo._refresh_index_enriched = _refresh  # type: ignore[method-assign]
 
-    repo.ensure_enriched_warmup(("etf",))
+    repo.ensure_enriched_warmup(("index",))
     assert started.wait(5), "预热线程未启动"
-    repo.ensure_enriched_warmup(("etf",))
-    assert repo._asset_enriched_warming == {"etf"}
+    repo.ensure_enriched_warmup(("index",))
+    assert repo._asset_enriched_warming == {"index"}
     assert calls == [1], "预热进行中不得重复起线程"
 
     release.set()

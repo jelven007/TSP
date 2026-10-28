@@ -24,6 +24,7 @@ MAX_BACKUP_BYTES = 256 * 1024 * 1024
 SOURCE_SCOPES = [
     "backend/app", "backend/native/rustdx_native/src", "backend/native/rustdx_native/Cargo.toml",
     "backend/native/rustdx_native/Cargo.lock", "backend/native/rustdx_native/pyproject.toml",
+    "backend/native/rustdx_native/build.rs", "backend/native/rustdx_native/vendor",
     "backend/pyproject.toml", "backend/uv.lock", "frontend/src", "frontend/public",
     "frontend/package.json", "frontend/pnpm-lock.yaml", "frontend/index.html",
     "frontend/vite.config.ts", "frontend/tsconfig.json", "frontend/tsconfig.node.json",

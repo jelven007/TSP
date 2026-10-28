@@ -24,7 +24,7 @@ export interface SecondQuoteWindow {
   start: string
   end: string
   symbols?: string[]
-  asset_type?: 'stock' | 'etf' | 'index'
+  asset_type?: 'stock' | 'index'
   start_ms?: number
   end_ms?: number
   trading_dates?: string[]
@@ -74,7 +74,7 @@ export interface SecondQuoteRow {
   source_date_inferred: boolean
   provider: string
   provider_version: string
-  asset_type: 'stock' | 'etf' | 'index'
+  asset_type: 'stock' | 'index'
   symbol: string
   last_price: number | null
   prev_close: number | null

@@ -21,7 +21,7 @@ import { storage } from '@/lib/storage'
 
 export type CardKey =
   | 'instruments' | 'daily' | 'adj_factor' | 'enriched'
-  | 'index' | 'etf' | 'minute' | 'financials' | 'regime'
+  | 'index' | 'minute' | 'financials' | 'regime'
   | '5m' | '10m' | '15m' | 'weekly' | 'quotes'
 
 interface CardDef {
@@ -49,12 +49,11 @@ export const DATA_CARD_DEFS: CardDef[] = [
   { key: 'financials',  label: '财务数据', desc: '财报数据(依赖财务数据)',    defaultHiddenIfNoCap: false },
   { key: 'index',       label: '指数',     desc: '主要市场指数日K',        defaultHiddenIfNoCap: false },
   { key: 'regime',      label: '环境', desc: '每日环境状态(本地计算)', defaultHiddenIfNoCap: false },
-  { key: 'etf',         label: 'ETF',      desc: '场内交易基金日K',         defaultHiddenIfNoCap: false, defaultHidden: true },
 ]
 
 const DEFAULT_ORDER = DATA_CARD_DEFS.map(d => d.key)
-/** 恢复默认时显示的卡片数量(按默认顺序取前 N 张) */
-const DEFAULT_VISIBLE_COUNT = DATA_CARD_DEFS.length - 1
+/** 恢复默认时显示全部当前卡片。 */
+const DEFAULT_VISIBLE_COUNT = DATA_CARD_DEFS.length
 
 const CAP_KEY_MAP: Partial<Record<CardKey, string>> = {
   adj_factor: 'adj_factor',

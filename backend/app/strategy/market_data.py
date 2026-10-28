@@ -1,6 +1,6 @@
-"""策略可访问的指数/ETF 日K读取模块 — 白名单放行的只读数据入口。
+"""策略可访问的股票和指数日K读取模块 — 白名单放行的只读数据入口。
 
-供 Custom/AI 策略在 filter_history 内读取任意指数(及 ETF)的完整日K。
+供 Custom/AI 策略在 filter_history 内读取完整日K。
 策略通过白名单 import 本模块, 调用纯读函数; 禁止写操作或任意文件访问。
 
 设计要点:
@@ -73,7 +73,7 @@ def get_index_daily(symbol, start=None, end=None, columns=None):
         logger.warning("market_data: 非法指数 symbol %r", symbol)
         return pl.DataFrame()
     s = _norm_date(start, _FULL_START)
-    # 窗口右端必须是北京今天: 策略对照指数/ETF 的分区日期是北京交易日。
+    # 窗口右端必须是北京今天: 策略对照指数的分区日期是北京交易日。
     # 美西主机整个 A 股交易时段、UTC 主机北京 00:00-08:00, date.today() 比北京早一天,
     # 未传 end 时会把当日官方 K 排除在窗口外。
     e = _norm_date(end, cn_today())
@@ -84,22 +84,8 @@ def get_index_daily(symbol, start=None, end=None, columns=None):
         return pl.DataFrame()
 
 
-def get_etf_daily(symbol, start=None, end=None, columns=None):
-    """读取 ETF 日K(含技术指标)。同 get_index_daily 语义。"""
-    if not _validate_symbol(symbol):
-        logger.warning("market_data: 非法 ETF symbol %r", symbol)
-        return pl.DataFrame()
-    s = _norm_date(start, _FULL_START)
-    e = _norm_date(end, cn_today())
-    try:
-        return _get_repo().get_etf_daily(symbol, s, e, columns)
-    except Exception as exc:
-        logger.warning("market_data get_etf_daily failed %s: %s", symbol, exc)
-        return pl.DataFrame()
-
-
 def get_daily(symbol, start=None, end=None, columns=None):
-    """按资产类型自动分派读取日K: 指数 → get_index_daily; ETF → get_etf_daily; 股票 → get_daily。"""
+    """按资产类型自动分派读取日K: 指数或股票。"""
     if not _validate_symbol(symbol):
         logger.warning("market_data: 非法 symbol %r", symbol)
         return pl.DataFrame()
@@ -110,8 +96,6 @@ def get_daily(symbol, start=None, end=None, columns=None):
         asset_type = repo.resolve_asset_type(symbol)
         if asset_type == "index":
             return repo.get_index_daily(symbol, s, e, columns)
-        if asset_type == "etf":
-            return repo.get_etf_daily(symbol, s, e, columns)
         return repo.get_daily(symbol, s, e, columns)
     except Exception as exc:
         logger.warning("market_data get_daily failed %s: %s", symbol, exc)

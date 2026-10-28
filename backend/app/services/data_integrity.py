@@ -46,12 +46,11 @@ SCAN_WINDOW_DAYS = 7
 AUTO_REPAIR_MAX_LAG_DAYS = 5
 
 # 参与检测的日K族表 (实时 flush 会写这三族的 daily/enriched)
-_DAILY_TABLES = ("kline_daily", "kline_etf_daily", "kline_index_daily")
+_DAILY_TABLES = ("kline_daily", "kline_index_daily")
 
 # 表 → 资产族 (用于管道/修复侧按族取起点)
 TABLE_FAMILY = {
     "kline_daily": "stock",
-    "kline_etf_daily": "etf",
     "kline_index_daily": "index",
 }
 
@@ -394,7 +393,7 @@ def prune_enriched_partitions(
     """删除 enriched 的指定闭区间分区; 未传end时删除 date ≥ start。
 
     股票 enriched 增量重算只算 enriched 里不存在的日期; 盘中快照日分区已存在
-    (虽是错的), 不删则永远不会被重算。指数/ETF 的 enriched 走 merge-upsert
+    (虽是错的), 不删则永远不会被重算。指数 enriched 走 merge-upsert
     全行覆盖, 无需删除。删除后 run_pipeline(new_dates_only=True) 用剩余分区
     最近 60 天做历史前缀重算 (修复窗口 ≤5 天, 回看充足)。
     """

@@ -393,16 +393,11 @@ def get_financial_provider() -> str:
     return provider if provider in _allowed_data_providers() else _DEFAULT_DATA_PROVIDER
 
 
-# ===== 盘后管道拉取内容开关 (A股 / ETF / 指数 独立控制) =====
+# ===== 盘后管道拉取内容开关 (A股 / 指数 独立控制) =====
 
 def get_pipeline_pull_a_share() -> bool:
     """是否拉取 A 股日K。默认 True。"""
     return load().get("pipeline_pull_a_share", True)
-
-
-def get_pipeline_pull_etf() -> bool:
-    """是否拉取 ETF 日K。默认 True。"""
-    return load().get("pipeline_pull_etf", True)
 
 
 def get_pipeline_pull_index() -> bool:
@@ -541,14 +536,13 @@ def set_mainline_filter_config(cfg: dict) -> dict:
     return get_mainline_filter_config()
 
 
-_PIPELINE_PULL_KEYS = ("pipeline_pull_a_share", "pipeline_pull_etf", "pipeline_pull_index")
+_PIPELINE_PULL_KEYS = ("pipeline_pull_a_share", "pipeline_pull_index")
 
 
 def get_pipeline_pull_types() -> dict:
-    """返回三个拉取开关的当前值。"""
+    """返回两个拉取开关的当前值。"""
     return {
         "pipeline_pull_a_share": get_pipeline_pull_a_share(),
-        "pipeline_pull_etf": get_pipeline_pull_etf(),
         "pipeline_pull_index": get_pipeline_pull_index(),
     }
 
@@ -811,14 +805,9 @@ def get_realtime_pull_stock() -> bool:
     return load().get("realtime_pull_stock", True)
 
 
-def get_realtime_pull_etf() -> bool:
-    """ETF 实时拉取默认开启, 已保存的关闭值优先。"""
-    return load().get("realtime_pull_etf", True)
-
-
 def set_realtime_quote_scope(cfg: dict) -> dict:
     updates = {}
-    for key in ("realtime_pull_stock", "realtime_pull_etf"):
+    for key in ("realtime_pull_stock",):
         if key in cfg and cfg[key] is not None:
             updates[key] = bool(cfg[key])
     if updates:
@@ -829,7 +818,6 @@ def set_realtime_quote_scope(cfg: dict) -> dict:
 def get_realtime_quote_scope() -> dict:
     return {
         "realtime_pull_stock": get_realtime_pull_stock(),
-        "realtime_pull_etf": get_realtime_pull_etf(),
     }
 
 

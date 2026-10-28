@@ -72,6 +72,40 @@ def test_persist_isolated_tables_and_idempotent_merge(tmp_path):
     periods.persist_period(repo, "1w", weekly)
     assert repo.execute_one("SELECT count(*) FROM kline_weekly")[0] == 1
 
+
+@pytest.mark.parametrize("quote_day", [date(2026, 10, 26), date(2026, 10, 27)])
+def test_weekly_generation_tolerates_daily_quote_schema_evolution(tmp_path, quote_day):
+    repo = KlineRepository(DataStore(tmp_path))
+    try:
+        for day, close in ((date(2026, 10, 26), 10.0), (date(2026, 10, 27), 11.0)):
+            data = {
+                "symbol": ["600000.SH"],
+                "date": [day],
+                "open": [close - 0.2],
+                "high": [close + 0.3],
+                "low": [close - 0.4],
+                "close": [close],
+                "volume": [1000.0],
+                "amount": [close * 1000],
+            }
+            if day == quote_day:
+                data["quote_ts"] = [1_793_073_600_000]
+            out = tmp_path / "kline_daily" / f"date={day}" / "part.parquet"
+            out.parent.mkdir(parents=True)
+            pl.DataFrame(data).write_parquet(out)
+
+        result = periods.generate_period(repo, "1w")
+
+        assert result["rows"] == 1
+        assert result["source"] == "1d"
+        weekly = pl.read_parquet(tmp_path / "kline_weekly" / "date=2026-10-26" / "part.parquet")
+        assert weekly.select("symbol", "date", "open", "high", "low", "close").row(0) == (
+            "600000.SH", date(2026, 10, 26), 9.8, 11.3, 9.6, 11.0,
+        )
+    finally:
+        repo.db.close()
+
+
 def test_period_write_does_not_invert_the_legacy_repository_partition_locks(tmp_path, monkeypatch):
     from contextlib import contextmanager
 

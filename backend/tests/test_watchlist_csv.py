@@ -29,9 +29,9 @@ def _write_instruments(data_dir: Path) -> None:
     inst.mkdir()
     pl.DataFrame(
         {
-            "code": ["600036", "515880"],
-            "symbol": ["600036.SH", "515880.SH"],
-            "name": ["招商银行", "通信ETF国泰"],
+            "code": ["600036", "601636"],
+            "symbol": ["600036.SH", "601636.SH"],
+            "name": ["招商银行", "旗滨集团"],
         }
     ).write_parquet(inst / "instruments.parquet")
 
@@ -82,37 +82,37 @@ def test_decode_empty_raises():
 # ---- 解析 ----
 
 def test_parse_comma_csv_with_header():
-    text = "股票代码,股票名称,最新价\n600036,招商银行,42.50\n515880,通信ETF,1.34\n"
+    text = "股票代码,股票名称,最新价\n600036,招商银行,42.50\n601636,旗滨集团,10.34\n"
     rows = parse_csv_rows(text)
     # 表头行保留（无代码），由 import 层按名称是否命中主数据过滤
     assert rows[0] == ([], "股票代码")
     assert [(codes, name) for codes, name in rows[1:]] == [
         (["600036"], "招商银行"),
-        (["515880"], "通信ETF"),
+        (["601636"], "旗滨集团"),
     ]
 
 
 def test_parse_tab_separated():
-    text = "600036\t招商银行\t42.50\n515880\t通信ETF\t1.34\n"
+    text = "600036\t招商银行\t42.50\n601636\t旗滨集团\t10.34\n"
     rows = parse_csv_rows(text)
     assert [(codes, name) for codes, name in rows] == [
         (["600036"], "招商银行"),
-        (["515880"], "通信ETF"),
+        (["601636"], "旗滨集团"),
     ]
 
 
 def test_parse_plain_codes_one_per_line():
-    text = "600036\n515880\n"
-    assert [codes for codes, _ in parse_csv_rows(text)] == [["600036"], ["515880"]]
+    text = "600036\n601636\n"
+    assert [codes for codes, _ in parse_csv_rows(text)] == [["600036"], ["601636"]]
 
 
 def test_parse_concatenated_code_name_cell():
     # 通达信风格：代码+名称在同一字段
-    text = "600036招商银行\n515880通信ETF国泰\n"
+    text = "600036招商银行\n601636旗滨集团\n"
     rows = parse_csv_rows(text)
     assert [(codes, name) for codes, name in rows] == [
         (["600036"], "600036招商银行"),
-        (["515880"], "515880通信ETF国泰"),
+        (["601636"], "601636旗滨集团"),
     ]
 
 
@@ -123,7 +123,7 @@ def test_import_matched_name_fallback_and_unmatched(tmp_path: Path):
     raw = (
         "代码,名称,现价\n"
         "600036,招商银行,42.50\n"
-        "通信ETF国泰,1.34\n"
+        "旗滨集团,10.34\n"
         "000001,平安银行\n"
         "999999,不存在,1.00\n"
     ).encode()
@@ -134,7 +134,7 @@ def test_import_matched_name_fallback_and_unmatched(tmp_path: Path):
     assert by_code["600036"]["name"] == "招商银行"
     # 名称兜底命中（无代码行）
     assert any(
-        c["symbol"] == "515880.SH" and c["matched"] and c["name"] == "通信ETF国泰"
+        c["symbol"] == "601636.SH" and c["matched"] and c["name"] == "旗滨集团"
         for c in res["candidates"]
     )
     assert by_code["000001"]["matched"] is False
@@ -147,10 +147,10 @@ def test_import_matched_name_fallback_and_unmatched(tmp_path: Path):
 
 def test_import_dedupe_and_header_skipped(tmp_path: Path):
     _write_instruments(tmp_path)
-    raw = "代码,名称\n600036,招商银行\n600036,招商银行\n515880,通信ETF国泰\n".encode()
+    raw = "代码,名称\n600036,招商银行\n600036,招商银行\n601636,旗滨集团\n".encode()
     res = import_watchlist_csv(raw, tmp_path)
     symbols = [c["symbol"] for c in res["candidates"]]
-    assert symbols == ["600036.SH", "515880.SH"]
+    assert symbols == ["600036.SH", "601636.SH"]
 
 
 def test_import_junk_rows_ignored(tmp_path: Path):
@@ -164,9 +164,9 @@ def test_import_junk_rows_ignored(tmp_path: Path):
 
 def test_codes_dedupe_order_and_counts(tmp_path: Path):
     _write_instruments(tmp_path)
-    res = import_watchlist_codes("600036\n515880\n999999\n600036", tmp_path)
+    res = import_watchlist_codes("600036\n601636\n999999\n600036", tmp_path)
     assert res["provider"] == "codes"
-    assert res["codes"] == ["600036", "515880", "999999"]
+    assert res["codes"] == ["600036", "601636", "999999"]
     assert res["matched_count"] == 2
     assert res["unmatched_count"] == 1
     by_code = {c["code"]: c for c in res["candidates"]}
@@ -177,8 +177,8 @@ def test_codes_dedupe_order_and_counts(tmp_path: Path):
 def test_codes_same_line_multiple_codes_not_collapsed(tmp_path: Path):
     # 同行多码（逗号/空格分隔）不得被压成单候选
     _write_instruments(tmp_path)
-    res = import_watchlist_codes("600036, 515880   601636", tmp_path)
-    assert res["codes"] == ["600036", "515880", "601636"]
+    res = import_watchlist_codes("600036, 601636   600519", tmp_path)
+    assert res["codes"] == ["600036", "601636", "600519"]
     assert res["matched_count"] == 2
     assert res["unmatched_count"] == 1
 
@@ -203,7 +203,7 @@ def test_import_functions_do_not_write_watchlist(tmp_path: Path, monkeypatch):
     before = watchlist.list_symbols()
     assert before == []
     import_watchlist_csv("600036,招商银行\n".encode(), tmp_path)
-    import_watchlist_codes("515880", tmp_path)
+    import_watchlist_codes("601636", tmp_path)
     assert watchlist.list_symbols() == []
 
 
@@ -216,14 +216,14 @@ async def test_csv_confirm_preserves_file_order_through_batch_and_reload(tmp_pat
     monkeypatch.setattr(watchlist_api, "_service", lambda _request: watchlist)
     _, old_group = watchlist.create_group("原分组")
     _, target_group = watchlist.create_group("导入分组")
-    watchlist.add("515880.SH", group_id=old_group["id"])
+    watchlist.add("601636.SH", group_id=old_group["id"])
     watchlist.add("600000.SH")
     request = _mock_request(tmp_path)
     result = await import_from_csv(request, _mock_upload(
-        content="股票代码\n600036\n999999\n515880\n600036\n".encode("utf-8-sig"),
+        content="股票代码\n600036\n999999\n601636\n600036\n".encode("utf-8-sig"),
     ))
     symbols = [row["symbol"] for row in result["candidates"] if row["matched"]]
-    assert symbols == ["600036.SH", "515880.SH"]
+    assert symbols == ["600036.SH", "601636.SH"]
     saved = watchlist_api.add_batch(watchlist_api.BatchAddRequest(
         symbols=symbols, group_ids=[target_group["id"]],
     ), request)
@@ -237,9 +237,9 @@ async def test_csv_confirm_preserves_file_order_through_batch_and_reload(tmp_pat
 
 def test_batch_duplicate_symbols_keep_first_occurrence_order(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", tmp_path)
-    rows, added = watchlist.add_batch(["600036.SH", "515880.SH", "600036.SH", "300750.SZ"])
+    rows, added = watchlist.add_batch(["600036.SH", "601636.SH", "600036.SH", "300750.SZ"])
     assert added == 3
-    assert [row["symbol"] for row in rows] == ["600036.SH", "515880.SH", "300750.SZ"]
+    assert [row["symbol"] for row in rows] == ["600036.SH", "601636.SH", "300750.SZ"]
 
 
 def test_add_batch_merges_into_target_group_mn(tmp_path: Path, monkeypatch):
@@ -248,13 +248,13 @@ def test_add_batch_merges_into_target_group_mn(tmp_path: Path, monkeypatch):
     _, g2 = watchlist.create_group("组合二")
     watchlist.add("600036.SH", group_id=g1["id"])
 
-    rows, added = watchlist.add_batch(["600036.SH", "515880.SH"], group_id=g2["id"])
+    rows, added = watchlist.add_batch(["600036.SH", "601636.SH"], group_id=g2["id"])
     by_symbol = {r["symbol"]: r for r in rows}
     # 已在自选且属组合一：并入组合二，两组共存（M:N）
     assert g1["id"] in by_symbol["600036.SH"]["group_ids"]
     assert g2["id"] in by_symbol["600036.SH"]["group_ids"]
     # 真正新增的才计 added
-    assert g2["id"] in by_symbol["515880.SH"]["group_ids"]
+    assert g2["id"] in by_symbol["601636.SH"]["group_ids"]
     assert added == 1
 
 
@@ -267,14 +267,14 @@ def test_add_batch_merges_into_multiple_groups_mn(tmp_path: Path, monkeypatch):
 
     # 一次批量调用同时并入 g2/g3（多组导入，原子单写；含重复 id 验证去重）
     rows, added = watchlist.add_batch(
-        ["600036.SH", "515880.SH"],
+        ["600036.SH", "601636.SH"],
         group_ids=[g2["id"], g3["id"], g2["id"]],
     )
     by_symbol = {r["symbol"]: r for r in rows}
     gids600 = by_symbol["600036.SH"]["group_ids"]
     # 保留原有 g1 且并入 g2/g3
     assert sorted(gids600) == sorted([g1["id"], g2["id"], g3["id"]])
-    assert sorted(by_symbol["515880.SH"]["group_ids"]) == sorted([g2["id"], g3["id"]])
+    assert sorted(by_symbol["601636.SH"]["group_ids"]) == sorted([g2["id"], g3["id"]])
     assert added == 1
 
 
@@ -348,11 +348,11 @@ async def test_import_csv_success(tmp_path: Path, monkeypatch):
     _write_instruments(tmp_path)
     monkeypatch.setattr(watchlist, "list_symbols", lambda: [])
     request = _mock_request(tmp_path)
-    file = _mock_upload(content="代码,名称\n600036,招商银行\n515880,通信ETF国泰\n".encode())
+    file = _mock_upload(content="代码,名称\n600036,招商银行\n601636,旗滨集团\n".encode())
     res = await import_from_csv(request, file)
     assert res["provider"] == "csv"
     assert res["matched_count"] == 2
-    assert {c["symbol"] for c in res["candidates"]} == {"600036.SH", "515880.SH"}
+    assert {c["symbol"] for c in res["candidates"]} == {"600036.SH", "601636.SH"}
     assert "raw_text" not in res
 
 
@@ -404,9 +404,9 @@ def test_import_codes_success(tmp_path: Path, monkeypatch):
     _write_instruments(tmp_path)
     monkeypatch.setattr(watchlist, "list_symbols", lambda: [])
     request = _mock_request(tmp_path)
-    res = import_from_codes(ImportCodesRequest(text="600036\n515880\n999999"), request)
+    res = import_from_codes(ImportCodesRequest(text="600036\n601636\n999999"), request)
     assert res["provider"] == "codes"
     assert res["matched_count"] == 2
     assert res["unmatched_count"] == 1
-    assert {c["symbol"] for c in res["candidates"] if c["matched"]} == {"600036.SH", "515880.SH"}
+    assert {c["symbol"] for c in res["candidates"] if c["matched"]} == {"600036.SH", "601636.SH"}
     assert "raw_text" not in res

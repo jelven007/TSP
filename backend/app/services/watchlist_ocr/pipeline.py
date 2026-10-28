@@ -13,7 +13,7 @@ from app.services.watchlist_ocr.provider import OcrProvider, get_ocr_provider
 
 logger = logging.getLogger(__name__)
 
-# A 股 / ETF 六位代码；含 OCR 常见拆分：5881 70 / 5881\n70
+# A 股六位代码; 含 OCR 常见拆分: 6000 00 / 6000\n00
 _CODE_RE = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 _SPLIT_CODE_RE = re.compile(r"(?<!\d)(\d{3,5})\s+(\d{1,3})(?!\d)")
 
@@ -54,17 +54,13 @@ def extract_codes(text: str) -> list[str]:
 
 
 def build_instrument_lookups(data_dir: Path) -> tuple[dict[str, str], dict[str, str]]:
-    """构建 code→symbol、symbol→name（股票 + ETF）。"""
+    """构建股票 code→symbol、symbol→name。"""
     code_to_symbol: dict[str, str] = {}
     symbol_to_name: dict[str, str] = {}
 
     paths: list[Path] = [
         data_dir / "instruments" / "instruments.parquet",
     ]
-    etf_dir = data_dir / "instruments_etf"
-    if etf_dir.is_dir():
-        paths.extend(sorted(etf_dir.glob("*.parquet")))
-
     for path in paths:
         if not path.exists():
             continue

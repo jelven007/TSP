@@ -8,16 +8,14 @@ import pytest
 
 from app.enriched_generation import EnrichedGenerationUnavailableError, get_enriched_generation
 from app.indicators import pipeline
-from app.services import index_sync
-from app.tickflow.repository import DataStore, KlineRepository
 
 
 def _seed(tmp_path, asset):
-    daily = "kline_daily" if asset == "stock" else "kline_etf_daily"
-    enriched = "kline_daily_enriched" if asset == "stock" else "kline_etf_enriched"
+    daily = "kline_daily"
+    enriched = "kline_daily_enriched"
     for day in (14, 15):
         frame = pl.DataFrame({
-            "symbol": ["600000.SH", "600001.SH"] if asset == "stock" else ["510300.SH", "510500.SH"],
+            "symbol": ["600000.SH", "600001.SH"],
             "date": [date(2026, 8, day)] * 2,
             "open": [10.0, 11.0], "high": [10.0, 11.0],
             "low": [10.0, 11.0], "close": [10.0, 11.0],
@@ -36,13 +34,11 @@ def _seed(tmp_path, asset):
 
 
 def _recover(tmp_path, asset):
-    if asset == "stock":
-        # 失败恢复应忽略局部请求, 强制覆盖全部标的、全部日期。
-        return pipeline.run_pipeline(tmp_path, symbols=["600000.SH"], new_dates_only=True)
-    return index_sync.rebuild_etf_enriched(KlineRepository(DataStore(tmp_path)))
+    # 失败恢复应忽略局部请求, 强制覆盖全部标的、全部日期。
+    return pipeline.run_pipeline(tmp_path, symbols=["600000.SH"], new_dates_only=True)
 
 
-@pytest.mark.parametrize("asset", ["stock", "etf"])
+@pytest.mark.parametrize("asset", ["stock"])
 def test_full_recovery_rewrites_all_partitions(tmp_path, asset):
     root = _seed(tmp_path, asset)
     assert _recover(tmp_path, asset) == 4
@@ -51,7 +47,7 @@ def test_full_recovery_rewrites_all_partitions(tmp_path, asset):
         assert pl.read_parquet(path).sort("symbol")["close"].to_list() == [10.0, 11.0]
 
 
-@pytest.mark.parametrize("asset", ["stock", "etf"])
+@pytest.mark.parametrize("asset", ["stock"])
 def test_failed_recovery_remains_closed_and_can_retry(tmp_path, monkeypatch, asset):
     _seed(tmp_path, asset)
     from app.enriched_generation import EnrichedPublication
@@ -71,14 +67,3 @@ def test_failed_recovery_remains_closed_and_can_retry(tmp_path, monkeypatch, ass
         get_enriched_generation(tmp_path, asset)
     assert _recover(tmp_path, asset) == 4
     assert get_enriched_generation(tmp_path, asset)
-
-
-def test_etf_recovery_rejects_incomplete_daily_history(tmp_path):
-    root = _seed(tmp_path, "etf")
-    before = (root / "date=2026-08-14" / "part.parquet").read_bytes()
-    (tmp_path / "kline_etf_daily" / "date=2026-08-15" / "part.parquet").unlink()
-    with pytest.raises(RuntimeError, match="缺少已有日期分区"):
-        _recover(tmp_path, "etf")
-    assert (root / "date=2026-08-14" / "part.parquet").read_bytes() == before
-    with pytest.raises(EnrichedGenerationUnavailableError):
-        get_enriched_generation(tmp_path, "etf")

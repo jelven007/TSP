@@ -101,13 +101,12 @@ it('applies combined filters and resets the cursor and detail when clearing them
   await change('名称或版本', 'old')
   await change('开始日期', '2026-10-20')
   await change('结束日期', '2026-10-22')
-  await change('资产类型', 'etf')
   await change('周期', '1m')
   const count = list.mock.calls.length
   await click('筛选')
   expect(list.mock.calls.length).toBe(count + 1)
   expect(list).toHaveBeenLastCalledWith('sample', undefined, {
-    q: 'old', start_date: '2026-10-20', end_date: '2026-10-22', asset_type: 'etf', timeframe: '1m',
+    q: 'old', start_date: '2026-10-20', end_date: '2026-10-22', timeframe: '1m',
   })
   expect(document.body.textContent).toContain('没有符合筛选条件的结果')
   expect(document.body.textContent).not.toContain('第二页明细')
@@ -151,7 +150,6 @@ it('confirms deletion, allows cancellation and clears the deleted detail and rel
   client.setQueryData(['screener-cached', 'summary', '2026-10-22', 'stock', '1d'], { saved: true })
   client.setQueryData(['screener-cached', 'summary', '2026-10-22', 'stock', 'all'], { saved: true })
   client.setQueryData(['screener-cached', 'all', '2026-10-22', '', 'stock', 'all'], { saved: true })
-  client.setQueryData(['screener-cached', 'summary', '2026-10-22', 'etf', 'all'], { saved: true })
   client.setQueryData(['screener-cached', 'summary', '2026-10-21', 'stock', '1d'], { saved: true })
   await click('查看')
   await click('删除')
@@ -168,7 +166,6 @@ it('confirms deletion, allows cancellation and clears the deleted detail and rel
   expect(client.getQueryState(['screener-cached', 'summary', '2026-10-22', 'stock', '1d'])?.isInvalidated).toBe(true)
   expect(client.getQueryState(['screener-cached', 'summary', '2026-10-22', 'stock', 'all'])?.isInvalidated).toBe(true)
   expect(client.getQueryState(['screener-cached', 'all', '2026-10-22', '', 'stock', 'all'])?.isInvalidated).toBe(true)
-  expect(client.getQueryState(['screener-cached', 'summary', '2026-10-22', 'etf', 'all'])?.isInvalidated).toBe(false)
   expect(client.getQueryState(['screener-cached', 'summary', '2026-10-21', 'stock', '1d'])?.isInvalidated).toBe(false)
 })
 

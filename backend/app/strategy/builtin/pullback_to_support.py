@@ -16,7 +16,7 @@ META = {
     "name": "缩量回踩",
     "description": "回踩MA20附近 + 缩量 + 中期趋势向上",
     "tags": ["回踩", "支撑"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {"id": "use_ma20_proximity", "label": "启用MA20附近过滤", "type": "bool", "default": True},

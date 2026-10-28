@@ -20,6 +20,23 @@ vi.mock('@/lib/api', () => ({
     saveKlineSyncConfig: mocks.save, syncKlinePeriod: mocks.sync,
   },
 }))
+vi.mock('@/components/DatePicker', () => ({
+  DatePicker: ({
+    value,
+    onChange,
+    buttonClassName: _buttonClassName,
+    align: _align,
+    clearable: _clearable,
+    ...props
+  }: {
+    value: string
+    onChange: (value: string) => void
+    buttonClassName?: string
+    align?: string
+    clearable?: boolean
+    [key: string]: unknown
+  }) => <input {...props} type="date" value={value} onChange={event => onChange(event.target.value)} />,
+}))
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root | undefined
 let host: HTMLDivElement
@@ -68,18 +85,38 @@ it.each(['5m', '10m', '15m', '1w'] as const)('generates local %s data without ca
   expect(onStart).toHaveBeenCalledWith('offline-1')
 })
 
-it.each(['1m', '1d'] as const)('keeps %s history controls and provider capability gating', async period => {
+it.each(['1m', '1d'] as const)('uses date range controls and provider capability gating for %s', async period => {
   await render(period, vi.fn(), false)
-  expect(host.querySelector<HTMLInputElement>('input[aria-label="历史扩展数量"]')?.value).toBe('6')
-  expect(host.querySelector<HTMLSelectElement>('select[aria-label="历史扩展单位"]')?.value).toBe('month')
-  expect([...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!.disabled).toBe(true)
+  expect(host.querySelector('input[aria-label="历史扩展数量"]')).toBeNull()
+  expect(host.querySelector('select[aria-label="历史扩展单位"]')).toBeNull()
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="起始日期"]')).not.toBeNull()
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="结束日期"]')).not.toBeNull()
+  expect([...host.querySelectorAll('button')].find(node => node.textContent === '获取全量数据')!.disabled).toBe(true)
+  expect([...host.querySelectorAll('button')].find(node => node.textContent === '获取遗漏数据')!.disabled).toBe(true)
 })
 
-it.each(['1m', '1d'] as const)('submits an explicit expansion range for %s history', async period => {
+it.each(['1m', '1d'] as const)('submits the selected closed range for full and missing %s acquisition', async period => {
   const onStart = await render(period)
-  await act(async () => [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!.click())
-  expect(mocks.sync).toHaveBeenCalledWith(period, 6, 'month')
-  expect(onStart).toHaveBeenCalledWith('offline-1')
+  const start = host.querySelector<HTMLInputElement>('input[aria-label="起始日期"]')!
+  const end = host.querySelector<HTMLInputElement>('input[aria-label="结束日期"]')!
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+  await act(async () => {
+    setValue.call(start, '2026-09-01')
+    start.dispatchEvent(new Event('input', { bubbles: true }))
+    setValue.call(end, '2026-09-30')
+    end.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  for (const mode of ['full', 'missing'] as const) {
+    const label = mode === 'full' ? '获取全量数据' : '获取遗漏数据'
+    await act(async () => [...host.querySelectorAll('button')].find(node => node.textContent === label)!.click())
+    expect(mocks.sync).toHaveBeenLastCalledWith(period, {
+      startDate: '2026-09-01',
+      endDate: '2026-09-30',
+      mode,
+    })
+  }
+  expect(onStart).toHaveBeenCalledTimes(2)
+  expect(onStart).toHaveBeenLastCalledWith('offline-1')
 })
 
 it.each(['5m', '1w'] as const)('disables %s generation while another data task runs', async period => {
@@ -115,36 +152,28 @@ it('restores daily provider acquisition and subsequent adjustment and indicators
   expect(host.textContent).toContain('交易日同步时间')
 })
 
-it('uses the selected year range and keeps the existing earliest daily date visible', async () => {
+it('keeps the existing earliest daily date visible beside the selected range', async () => {
   await render('1d', vi.fn(), true, false, '2025-04-01')
-  const unit = host.querySelector<HTMLSelectElement>('select[aria-label="历史扩展单位"]')!
-  const quantity = host.querySelector<HTMLInputElement>('input[aria-label="历史扩展数量"]')!
-  expect(unit).not.toBeNull()
-  expect(quantity).not.toBeNull()
-  await act(async () => {
-    unit.value = 'year'
-    unit.dispatchEvent(new Event('change', { bubbles: true }))
-  })
-  expect(quantity.value).toBe('1')
-  expect(quantity.max).toBe('10')
   expect(host.textContent).toContain('2025-04-01')
-  await act(async () => [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!.click())
-  expect(mocks.sync).toHaveBeenCalledWith('1d', 1, 'year')
+  expect(host.querySelector('input[aria-label="起始日期"]')).not.toBeNull()
+  expect(host.querySelector('input[aria-label="结束日期"]')).not.toBeNull()
 })
 
 it('disables daily acquisition while another data task runs', async () => {
   await render('1d', vi.fn(), true, true)
-  const button = [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!
-  expect(button).toBeDefined()
-  expect(button.disabled).toBe(true)
+  for (const label of ['获取全量数据', '获取遗漏数据']) {
+    const button = [...host.querySelectorAll('button')].find(node => node.textContent === label)!
+    expect(button).toBeDefined()
+    expect(button.disabled).toBe(true)
+  }
 })
 
 it('keeps the daily form and displays an acquisition failure', async () => {
   const onStart = await render('1d')
   mocks.sync.mockRejectedValueOnce(new Error('日K获取失败'))
-  await act(async () => [...host.querySelectorAll('button')].find(node => node.textContent === '获取数据')!.click())
+  await act(async () => [...host.querySelectorAll('button')].find(node => node.textContent === '获取全量数据')!.click())
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
   expect(host.querySelector('[role="alert"]')?.textContent).toBe('日K获取失败')
-  expect(host.querySelector('[aria-label="历史扩展数量"]')).not.toBeNull()
+  expect(host.querySelector('[aria-label="起始日期"]')).not.toBeNull()
   expect(onStart).not.toHaveBeenCalled()
 })
