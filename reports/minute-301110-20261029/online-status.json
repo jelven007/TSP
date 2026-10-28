@@ -1,0 +1,42 @@
+{
+  "minute": {
+    "id": "minute",
+    "label": "分钟K",
+    "desc": "历史分钟K、分时图、分钟回测与盘中全市场落盘",
+    "field": "minute_data_provider",
+    "default": "rustdx",
+    "tf_tier": "pro",
+    "tf_available": false,
+    "usable": true,
+    "current": "rustdx",
+    "current_display": "rustdx",
+    "effective": "rustdx",
+    "effective_display": "rustdx",
+    "candidates": [
+      {
+        "name": "rustdx",
+        "display": "rustdx",
+        "kind": "plugin",
+        "available": true,
+        "status": "jelven-rustdx-complete 2.0.4 (jelven007/rustdx@c4c0273) / bridge 0.2.0 / patch 6ffce99f5e2d / 8业务+1探测",
+        "note": null
+      }
+    ],
+    "pending": []
+  },
+  "active_job": {
+    "id": "09d6676b93",
+    "status": "running",
+    "kind": "kline_1m",
+    "progress": 5,
+    "stage": "sync_1m",
+    "stage_progress": null,
+    "request": {
+      "start_date": "2026-03-30",
+      "period": "1m",
+      "mode": "missing",
+      "end_date": "2026-04-30"
+    },
+    "updated_at": "2026-10-28T22:35:29.729304+00:00"
+  }
+}

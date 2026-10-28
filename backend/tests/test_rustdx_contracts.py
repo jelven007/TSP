@@ -502,10 +502,9 @@ def test_repeated_full_bar_page_stops_pagination(monkeypatch):
         }] * 800
 
     fake.bars = repeat
-    frame = _provider(fake).get_daily(
+    assert _provider(fake).get_daily(
         ["600519.SH"], datetime(2026, 1, 1), datetime(2026, 10, 1),
-    )
-    assert frame.height == 1
+    ).is_empty()
     assert calls == [0, 800]
 
 
@@ -539,7 +538,7 @@ def test_partial_instrument_catalog_is_not_published_or_cached():
 
 
 @pytest.mark.parametrize("dataset", ["daily", "minute"])
-def test_protocol_outage_stops_after_three_failures_and_rejects_partial_result(dataset, monkeypatch):
+def test_symbol_failures_preserve_healthy_result_and_continue_batch(dataset, monkeypatch):
     monkeypatch.setenv("RUSTDX_WORKERS", "1")
     fake = _FakeClient()
     calls = []
@@ -555,12 +554,12 @@ def test_protocol_outage_stops_after_three_failures_and_rejects_partial_result(d
 
     fake.bars = bars
     provider = _provider(fake)
-    with pytest.raises(RustdxError, match="不完整"):
-        getattr(provider, f"get_{dataset}")(
-            [f"{600000 + i}.SH" for i in range(20)],
-            datetime(2026, 9, 30), datetime(2026, 9, 30, 15),
-        )
-    assert len(calls) == 4
+    frame = getattr(provider, f"get_{dataset}")(
+        [f"{600000 + i}.SH" for i in range(20)],
+        datetime(2026, 9, 30), datetime(2026, 9, 30, 15),
+    )
+    assert frame["symbol"].to_list() == ["600000.SH"]
+    assert len(calls) == 20
 
 
 def test_one_minute_preserves_opening_labels_and_session_final_bars():
