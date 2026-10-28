@@ -380,7 +380,9 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
         provider, source = _period_provider(period)
     rows = 0
     # 有界日期段和标的块; 历史分钟数据不一次性加载全市场多年数据。
-    days_per_chunk = 5 if period.endswith("m") else 364
+    # 1分K覆盖一个闭区间自然月, 避免TDX每个5天窗口从最新页重复回扫。
+    # 32自然日、每批100证券仍有界, 每股根数也低于TickFlow的10000上限。
+    days_per_chunk = 32 if period == "1m" else (5 if period.endswith("m") else 364)
     cursor = start.date() - timedelta(days=start.weekday()) if period == "1w" else start.date()
     segments = max(1, (end.date() - cursor).days // days_per_chunk + 1)
     batches_per_segment = 1 if local else max(1, (len(symbols) + 99) // 100)

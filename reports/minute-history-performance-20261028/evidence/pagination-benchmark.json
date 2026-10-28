@@ -1,0 +1,557 @@
+{
+  "note": "bars_calls counts Python bars calls; native retry attempts are not counted. All data partitions are temporary.",
+  "results": [
+    {
+      "file": "tspp-pagination-ecs-all-full.json",
+      "measurement": {
+        "variant": "all",
+        "scenario": "full",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "elapsed_s": 2.929116810031701,
+        "fetch_s": 2.8834350570105016,
+        "persist_s": 0.04403799801366404,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T00:00:00",
+            "end": "2026-07-17T23:59:59.999999",
+            "rows": 42240,
+            "seconds": 2.8834350570105016
+          }
+        ],
+        "bars_calls": 128,
+        "downloaded_rows": 96000,
+        "output_rows": 42240,
+        "partitions": 22,
+        "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+        "result": {
+          "period": "1m",
+          "rows": 42240,
+          "universe_size": 8,
+          "source": "rustdx",
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-ecs-all-missing.json",
+      "measurement": {
+        "variant": "all",
+        "scenario": "missing",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-06-17T23:59:59.999999",
+        "elapsed_s": 1.0547013250179589,
+        "fetch_s": 1.0388902799459174,
+        "persist_s": 0.006481683987658471,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T09:32:00",
+            "end": "2026-06-17T09:33:00",
+            "rows": 16,
+            "seconds": 0.5069431809824891
+          },
+          {
+            "start": "2026-06-17T14:59:00",
+            "end": "2026-06-17T14:59:00",
+            "rows": 8,
+            "seconds": 0.5319470989634283
+          }
+        ],
+        "bars_calls": 176,
+        "downloaded_rows": 116800,
+        "output_rows": 1920,
+        "partitions": 1,
+        "output_sha256": "7f1b6d9d31a4f8fdb251d0132b6421213899095de1b3cca62716cca7ac30ab1b",
+        "result": {
+          "period": "1m",
+          "mode": "missing",
+          "rows": 24,
+          "missing_before": 24,
+          "remaining": 0,
+          "requests": 2,
+          "universe_size": 8,
+          "start": "2026-06-17",
+          "end": "2026-06-17",
+          "source": "rustdx",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-ecs-before-full.json",
+      "measurement": {
+        "variant": "before",
+        "scenario": "full",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "elapsed_s": 29.43517577595776,
+        "fetch_s": 29.38078313600272,
+        "persist_s": 0.05241576401749626,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T00:00:00",
+            "end": "2026-06-21T23:59:59.999999",
+            "rows": 3840,
+            "seconds": 6.770650503982324
+          },
+          {
+            "start": "2026-06-22T00:00:00",
+            "end": "2026-06-26T23:59:59.999999",
+            "rows": 9600,
+            "seconds": 3.6026026110048406
+          },
+          {
+            "start": "2026-06-27T00:00:00",
+            "end": "2026-07-01T23:59:59.999999",
+            "rows": 5760,
+            "seconds": 3.878832828020677
+          },
+          {
+            "start": "2026-07-02T00:00:00",
+            "end": "2026-07-06T23:59:59.999999",
+            "rows": 5760,
+            "seconds": 4.626399812987074
+          },
+          {
+            "start": "2026-07-07T00:00:00",
+            "end": "2026-07-11T23:59:59.999999",
+            "rows": 7680,
+            "seconds": 4.016277652001008
+          },
+          {
+            "start": "2026-07-12T00:00:00",
+            "end": "2026-07-16T23:59:59.999999",
+            "rows": 7680,
+            "seconds": 4.149752875964623
+          },
+          {
+            "start": "2026-07-17T00:00:00",
+            "end": "2026-07-17T23:59:59.999999",
+            "rows": 1920,
+            "seconds": 2.336266852042172
+          }
+        ],
+        "bars_calls": 1344,
+        "downloaded_rows": 1075200,
+        "output_rows": 42240,
+        "partitions": 22,
+        "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+        "result": {
+          "period": "1m",
+          "rows": 42240,
+          "universe_size": 8,
+          "source": "rustdx",
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-ecs-before-missing.json",
+      "measurement": {
+        "variant": "before",
+        "scenario": "missing",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-06-17T23:59:59.999999",
+        "elapsed_s": 3.1521560219698586,
+        "fetch_s": 3.1358037389582023,
+        "persist_s": 0.006921502004843205,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T09:32:00",
+            "end": "2026-06-17T09:33:00",
+            "rows": 16,
+            "seconds": 1.5737779319752008
+          },
+          {
+            "start": "2026-06-17T14:59:00",
+            "end": "2026-06-17T14:59:00",
+            "rows": 8,
+            "seconds": 1.5620258069830015
+          }
+        ],
+        "bars_calls": 432,
+        "downloaded_rows": 345600,
+        "output_rows": 1920,
+        "partitions": 1,
+        "output_sha256": "7f1b6d9d31a4f8fdb251d0132b6421213899095de1b3cca62716cca7ac30ab1b",
+        "result": {
+          "period": "1m",
+          "mode": "missing",
+          "rows": 24,
+          "missing_before": 24,
+          "remaining": 0,
+          "requests": 2,
+          "universe_size": 8,
+          "start": "2026-06-17",
+          "end": "2026-06-17",
+          "source": "rustdx",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-ecs-window-full.json",
+      "measurement": {
+        "variant": "window",
+        "scenario": "full",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "elapsed_s": 3.5295160489622504,
+        "fetch_s": 3.4841907889931463,
+        "persist_s": 0.04370173503411934,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T00:00:00",
+            "end": "2026-07-17T23:59:59.999999",
+            "rows": 42240,
+            "seconds": 3.4841907889931463
+          }
+        ],
+        "bars_calls": 216,
+        "downloaded_rows": 172800,
+        "output_rows": 42240,
+        "partitions": 22,
+        "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+        "result": {
+          "period": "1m",
+          "rows": 42240,
+          "universe_size": 8,
+          "source": "rustdx",
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-local-all-full.json",
+      "measurement": {
+        "variant": "all",
+        "scenario": "full",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "elapsed_s": 4.200980540999808,
+        "fetch_s": 4.053094375000001,
+        "persist_s": 0.14736479099883582,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T00:00:00",
+            "end": "2026-07-17T23:59:59.999999",
+            "rows": 42240,
+            "seconds": 4.053094375000001
+          }
+        ],
+        "bars_calls": 128,
+        "downloaded_rows": 96000,
+        "output_rows": 42240,
+        "partitions": 22,
+        "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+        "result": {
+          "period": "1m",
+          "rows": 42240,
+          "universe_size": 8,
+          "source": "rustdx",
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-local-all-missing.json",
+      "measurement": {
+        "variant": "all",
+        "scenario": "missing",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-06-17T23:59:59.999999",
+        "elapsed_s": 1.401620874999935,
+        "fetch_s": 1.381291666000834,
+        "persist_s": 0.014223125999706099,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T09:32:00",
+            "end": "2026-06-17T09:33:00",
+            "rows": 16,
+            "seconds": 0.5772731659999408
+          },
+          {
+            "start": "2026-06-17T14:59:00",
+            "end": "2026-06-17T14:59:00",
+            "rows": 8,
+            "seconds": 0.8040185000008933
+          }
+        ],
+        "bars_calls": 176,
+        "downloaded_rows": 116800,
+        "output_rows": 1920,
+        "partitions": 1,
+        "output_sha256": "7f1b6d9d31a4f8fdb251d0132b6421213899095de1b3cca62716cca7ac30ab1b",
+        "result": {
+          "period": "1m",
+          "mode": "missing",
+          "rows": 24,
+          "missing_before": 24,
+          "remaining": 0,
+          "requests": 2,
+          "universe_size": 8,
+          "start": "2026-06-17",
+          "end": "2026-06-17",
+          "source": "rustdx",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-local-before-full.json",
+      "measurement": {
+        "variant": "before",
+        "scenario": "full",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "elapsed_s": 26.992959709001298,
+        "fetch_s": 26.807932585001254,
+        "persist_s": 0.184342041004129,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T00:00:00",
+            "end": "2026-06-21T23:59:59.999999",
+            "rows": 3840,
+            "seconds": 6.183957749999536
+          },
+          {
+            "start": "2026-06-22T00:00:00",
+            "end": "2026-06-26T23:59:59.999999",
+            "rows": 9600,
+            "seconds": 5.249475624999832
+          },
+          {
+            "start": "2026-06-27T00:00:00",
+            "end": "2026-07-01T23:59:59.999999",
+            "rows": 5760,
+            "seconds": 2.421622292000393
+          },
+          {
+            "start": "2026-07-02T00:00:00",
+            "end": "2026-07-06T23:59:59.999999",
+            "rows": 5760,
+            "seconds": 3.7960882500010484
+          },
+          {
+            "start": "2026-07-07T00:00:00",
+            "end": "2026-07-11T23:59:59.999999",
+            "rows": 7680,
+            "seconds": 2.2748557920003805
+          },
+          {
+            "start": "2026-07-12T00:00:00",
+            "end": "2026-07-16T23:59:59.999999",
+            "rows": 7680,
+            "seconds": 3.5323606670008303
+          },
+          {
+            "start": "2026-07-17T00:00:00",
+            "end": "2026-07-17T23:59:59.999999",
+            "rows": 1920,
+            "seconds": 3.349572208999234
+          }
+        ],
+        "bars_calls": 1344,
+        "downloaded_rows": 1075200,
+        "output_rows": 42240,
+        "partitions": 22,
+        "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+        "result": {
+          "period": "1m",
+          "rows": 42240,
+          "universe_size": 8,
+          "source": "rustdx",
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-local-before-missing.json",
+      "measurement": {
+        "variant": "before",
+        "scenario": "missing",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-06-17T23:59:59.999999",
+        "elapsed_s": 3.613161499999478,
+        "fetch_s": 3.5883308749998832,
+        "persist_s": 0.01713324900083535,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T09:32:00",
+            "end": "2026-06-17T09:33:00",
+            "rows": 16,
+            "seconds": 1.2608723749999626
+          },
+          {
+            "start": "2026-06-17T14:59:00",
+            "end": "2026-06-17T14:59:00",
+            "rows": 8,
+            "seconds": 2.3274584999999206
+          }
+        ],
+        "bars_calls": 432,
+        "downloaded_rows": 345600,
+        "output_rows": 1920,
+        "partitions": 1,
+        "output_sha256": "7f1b6d9d31a4f8fdb251d0132b6421213899095de1b3cca62716cca7ac30ab1b",
+        "result": {
+          "period": "1m",
+          "mode": "missing",
+          "rows": 24,
+          "missing_before": 24,
+          "remaining": 0,
+          "requests": 2,
+          "universe_size": 8,
+          "start": "2026-06-17",
+          "end": "2026-06-17",
+          "source": "rustdx",
+          "price_basis": "raw"
+        }
+      }
+    },
+    {
+      "file": "tspp-pagination-local-window-full.json",
+      "measurement": {
+        "variant": "window",
+        "scenario": "full",
+        "symbols": [
+          "000001.SZ",
+          "000002.SZ",
+          "000063.SZ",
+          "000333.SZ",
+          "600000.SH",
+          "600036.SH",
+          "600519.SH",
+          "601318.SH"
+        ],
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "elapsed_s": 5.04176224999901,
+        "fetch_s": 4.842483458000061,
+        "persist_s": 0.1987781250008993,
+        "provider_windows": [
+          {
+            "start": "2026-06-17T00:00:00",
+            "end": "2026-07-17T23:59:59.999999",
+            "rows": 42240,
+            "seconds": 4.842483458000061
+          }
+        ],
+        "bars_calls": 216,
+        "downloaded_rows": 172800,
+        "output_rows": 42240,
+        "partitions": 22,
+        "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+        "result": {
+          "period": "1m",
+          "rows": 42240,
+          "universe_size": 8,
+          "source": "rustdx",
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "price_basis": "raw"
+        }
+      }
+    }
+  ]
+}
