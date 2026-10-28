@@ -8,6 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api import indices as indices_api
 from app.api.indices import router
 from app.services import index_kline
 from app.services.index_const import CORE_INDEX_SYMBOLS, PAGE_INDEX_NAMES
@@ -169,6 +170,29 @@ def test_period_api_empty_and_invalid_parameters(repo):
     assert body["period"] == "1mo" and body["rows"] == [] and body["source"] == "none"
     assert client.get("/api/index/kline?symbol=000016.SH&period=1m").status_code == 422
     assert client.get("/api/index/kline?symbol=000016.SH&start_date=bad").status_code == 422
+
+
+@pytest.mark.parametrize("period", ["1d", "1w", "1mo"])
+def test_period_api_without_start_returns_all_local_history(repo, monkeypatch, period):
+    days = [date(2020, 11, 2), date(2026, 10, 28)]
+    raw = frame(days)
+    repo.append_index_daily(raw)
+    repo.append_index_enriched(raw)
+    if period != "1d":
+        repo.append_index_period(index_kline.aggregate(raw, period), period)
+    monkeypatch.setattr(indices_api, "cn_today", lambda: date(2026, 10, 29))
+
+    app = FastAPI()
+    app.include_router(router)
+    app.state.repo = repo
+    body = TestClient(app).get(
+        "/api/index/kline",
+        params={"symbol": "000300.SH", "period": period},
+    ).json()
+
+    assert len(body["rows"]) == 2
+    assert body["rows"][0]["date"].startswith("2020-")
+    assert body["start_date"] == body["rows"][0]["date"]
 
 
 @pytest.mark.parametrize("body", [
