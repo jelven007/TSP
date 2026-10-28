@@ -360,9 +360,6 @@ class StrategyMonitorService:
 # 通用监控规则引擎 MonitorRuleEngine
 # ================================================================
 
-_SIGNAL_PREFIXES = ("signal_", "csg_")
-
-
 # ── 自选分组作用域: group_id → 成员集合解析 (进程内缓存) ────
 # 缓存按 watchlist 数据版本号失效: 版本不变时零磁盘 IO; 自选页任何增删
 # 分组/成员的操作都会 bump 版本号, 下一轮评估立即拿到新成员 (无需等 TTL)。
@@ -413,10 +410,6 @@ def _group_members_or_none(rule: dict, groups: dict | None = None) -> frozenset[
                 rule.get("id"), group_id,
             )
     return members
-
-
-def _is_signal_field(field: str) -> bool:
-    return any(field.startswith(p) for p in _SIGNAL_PREFIXES)
 
 
 def _build_condition_mask(df: pl.DataFrame, conditions: list[dict], logic: str) -> pl.DataFrame:

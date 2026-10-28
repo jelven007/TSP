@@ -1,0 +1,55 @@
+[
+  {
+    "route": "/api/health",
+    "seconds": 0.997,
+    "status": 200,
+    "bytes": 1225,
+    "version": "0.4.34",
+    "within_30_seconds": true
+  },
+  {
+    "route": "/api/data/status",
+    "seconds": 26.182,
+    "status": 200,
+    "bytes": 5075,
+    "rows": {
+      "daily": 6936704,
+      "enriched": 6936704,
+      "minute": 13787935,
+      "5m": null,
+      "10m": null,
+      "15m": null
+    },
+    "within_30_seconds": true
+  },
+  {
+    "route": "/api/data/status",
+    "seconds": 13.243,
+    "status": 200,
+    "bytes": 5076,
+    "rows": {
+      "daily": 6936704,
+      "enriched": 6936704,
+      "minute": 14001775,
+      "5m": null,
+      "10m": null,
+      "15m": null
+    },
+    "within_30_seconds": true
+  },
+  {
+    "route": "/api/data/status",
+    "seconds": 10.589,
+    "status": 200,
+    "bytes": 5076,
+    "rows": {
+      "daily": 6936704,
+      "enriched": 6936704,
+      "minute": 14145775,
+      "5m": null,
+      "10m": null,
+      "15m": null
+    },
+    "within_30_seconds": true
+  }
+]

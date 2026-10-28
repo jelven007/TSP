@@ -99,8 +99,8 @@ export function StrategyConcurrencyControl() {
         </div>
       </div>
       <div className="grid gap-x-6 gap-y-1 rounded-btn bg-base/60 p-3 text-[11px] leading-relaxed text-secondary sm:grid-cols-2">
-        <p>策略内存预算：{memoryLabel(data.memory_budget_mb)}（整机 {memoryLabel(data.host_memory_mb)} 的 25%）</p>
-        <p>策略 CPU 预算：{cpuLabel(data.cpu_budget)} vCPU（整机 {cpuLabel(data.host_cpus)} vCPU 的 25%）</p>
+        <p>策略内存预算：{memoryLabel(data.memory_budget_mb)}（整机 {memoryLabel(data.host_memory_mb)} 的 {data.budget_ratio * 100}%）</p>
+        <p>策略 CPU 预算：{cpuLabel(data.cpu_budget)} vCPU（整机 {cpuLabel(data.host_cpus)} vCPU 的 {data.budget_ratio * 100}%）</p>
         <p>当前生效：{data.effective_concurrency} · 运行中：{data.active}</p>
         <p>新任务资源上限：{memoryLabel(data.task_memory_mb)} / {cpuLabel(data.task_cpus)} vCPU</p>
       </div>

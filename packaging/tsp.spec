@@ -148,7 +148,7 @@ for pkg in (
     "fastapi", "pydantic", "pydantic_settings", "starlette", "anyio",
     "tickflow",  # tickflow/__version__.py 用 importlib.metadata 读版本
     "uvicorn", "polars", "duckdb", "pyarrow", "httpx", "numpy", "pandas",
-    "openai", "platformdirs", "winotify", "plyer", "apscheduler",
+    "openai", "winotify", "plyer", "apscheduler",
     "python-dotenv", "fastexcel", "tsp-rustdx-native",
     # 桌面启动诊断和 Windows GUI 后端会读取这些发行包的元数据。冻结包必须
     # 一并收集，避免 importlib.metadata.version() 抛 PackageNotFoundError。

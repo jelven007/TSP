@@ -7,6 +7,8 @@ import { accountEventStreamUrl } from './accountSession'
 import { useQuoteStream } from './useQuoteStream'
 
 vi.mock('./accountSession', () => ({
+  accountScope: () => 'tsp-v1:admin:market:1',
+  subscribeAccountScopeChanges: () => () => {},
   accountEventStreamUrl: vi.fn(async () => '/api/events?ticket=test'),
 }))
 vi.mock('./useQueryConfig', () => ({

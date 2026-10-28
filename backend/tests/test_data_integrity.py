@@ -5,7 +5,6 @@ null); 历史交易日的 quote_ts 时刻 < 15:00 即盘中快照 → 坏。
 """
 from __future__ import annotations
 
-import time
 from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 

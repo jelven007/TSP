@@ -44,14 +44,15 @@ def broker():
             yield value, config
 
 
-def test_quarter_of_host_memory_is_for_all_strategy_jobs_not_system(broker):
+def test_half_of_host_memory_and_cpu_is_shared_by_all_strategy_jobs(broker):
     value, _ = broker
     status = value.resource_status()
     assert status["host_memory_mb"] == 16384
-    assert status["memory_budget_mb"] == 4096
-    assert status["cpu_budget"] == 8
-    assert status["recommended_concurrency"] == 4
-    assert status["effective_concurrency"] == 4
+    assert status["budget_ratio"] == .5
+    assert status["memory_budget_mb"] == 8192
+    assert status["cpu_budget"] == 16
+    assert status["recommended_concurrency"] == 8
+    assert status["effective_concurrency"] == 8
     assert status["strategy_concurrency"] is None
 
 
@@ -60,7 +61,7 @@ def test_manual_concurrency_is_live_and_shares_the_same_total_budget(broker):
     config.write_text('{"strategy_concurrency":8}', encoding="utf-8")
     status = value.resource_status()
     assert status["effective_concurrency"] == 8
-    assert status["task_memory_mb"] == 512
+    assert status["task_memory_mb"] == 1024
     assert status["task_cpus"] == 1
     assert status["task_memory_mb"] * 8 <= status["memory_budget_mb"]
     assert status["task_cpus"] * 8 <= status["cpu_budget"]
@@ -85,11 +86,12 @@ def test_reducing_concurrency_does_not_replace_permits_or_kill_active_jobs(broke
 def test_new_allocations_cannot_exceed_budget_while_old_jobs_finish(broker):
     value, config = broker
     assert value.permits.acquire(blocking=False)  # 1024 MiB
-    config.write_text('{"strategy_concurrency":8}', encoding="utf-8")
+    config.write_text('{"strategy_concurrency":16}', encoding="utf-8")
     acquired = 0
     while value.permits.acquire(blocking=False):
         acquired += 1
-    assert acquired == 6  # 1024 + 6 * 512 = 4096, not 8 new slots
+    assert acquired == 14  # 1024 + 14 * 512 = 8192, with the old allocation retained.
+    assert value.permits.usage()["reserved_memory_mb"] == 8192
     for _ in range(acquired + 1):
         value.permits.release()
     assert value.resource_status()["active"] == 0
@@ -140,7 +142,7 @@ def test_save_above_resources_preserves_setting_and_limits_effective_slots(runti
         settings_api.StrategyConcurrencyPrefs(strategy_concurrency=999),
     )
     assert status["strategy_concurrency"] == 999
-    assert status["effective_concurrency"] == 2
+    assert status["effective_concurrency"] == 4
     assert preferences.load() == {"screener_auto_run": False, "strategy_concurrency": 999}
     preferences._invalidate_cache()
     assert settings_api.get_strategy_concurrency()["strategy_concurrency"] == 999
@@ -195,7 +197,7 @@ def test_resource_queries_never_accept_remote_configuration_overrides(broker):
     try:
         from app.multitenancy.executor import ComputeExecutor
         status = ComputeExecutor(str(value.server_address)).resources()
-        assert status["memory_budget_mb"] == 4096
+        assert status["memory_budget_mb"] == 8192
         with pytest.raises(ValueError, match="unsupported"):
             ComputeExecutor(str(value.server_address)).execute({
                 "kind": "configure", "strategy_concurrency": 16,
@@ -250,11 +252,11 @@ def test_auto_and_restart_use_the_current_host_not_the_example_machine(broker):
     config.write_text('{"strategy_concurrency":8}', encoding="utf-8")
     assert value.resource_status()["effective_concurrency"] == 8
     config.write_text('{"strategy_concurrency":null}', encoding="utf-8")
-    assert value.resource_status()["effective_concurrency"] == 4
+    assert value.resource_status()["effective_concurrency"] == 8
     assert strategy_resources.ConcurrencyConfig(config).read() is None
     status = strategy_resources.budget_status(262144, 32, None)
-    assert status["memory_budget_mb"] == 65536
-    assert status["recommended_concurrency"] == 4  # CPU is the smaller budget.
+    assert status["memory_budget_mb"] == 131072
+    assert status["recommended_concurrency"] == 8  # CPU is the smaller budget.
 
 
 def test_waiting_thread_wakes_after_old_allocation_is_released(broker):
@@ -290,7 +292,7 @@ def test_waiting_thread_wakes_after_old_allocation_is_released(broker):
 def test_fractional_cpu_allocations_and_docker_limits_never_round_up(broker):
     value, config = broker
     config.write_text('{"strategy_concurrency":3}', encoding="utf-8")
-    value.host_cpus = 8
+    value.host_cpus = 4
     for _ in range(3):
         assert value.permits.acquire(blocking=False)
     command = value.command("fractional")
@@ -328,7 +330,8 @@ def test_http_contract_persists_auto_and_rejects_invalid_body(runtime):
         assert saved.status_code == 200 and saved.json()["strategy_concurrency"] == 999
         assert saved.json()["effective_concurrency"] <= saved.json()["max_concurrency"]
         auto = client.post("/api/settings/strategy-concurrency", json={"strategy_concurrency": None})
-        assert auto.status_code == 200 and auto.json()["effective_concurrency"] == 4
+        assert auto.status_code == 200 and auto.json()["effective_concurrency"] == 8
+        assert auto.json()["budget_ratio"] == .5
 
 
 @pytest.mark.parametrize("method", ["get", "post"])
@@ -448,5 +451,5 @@ def test_tenant_reads_a_fixed_limit_without_host_configuration(runtime):
 def test_trusted_platform_admin_role_reads_the_host_budget(runtime):
     request = SimpleNamespace(state=SimpleNamespace(account={"role": "admin", "email": ""}))
     status = settings_api.get_strategy_concurrency(request)
-    assert status["recommended_concurrency"] == 4
+    assert status["recommended_concurrency"] == 8
     assert status["host_memory_mb"] == 65536
