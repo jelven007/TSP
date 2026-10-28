@@ -1,0 +1,290 @@
+{
+  "cases": {
+    "ecs-before": {
+      "variant": "before",
+      "host": "Linux",
+      "symbols": [
+        "000001.SZ",
+        "000002.SZ",
+        "000063.SZ",
+        "000333.SZ",
+        "600000.SH",
+        "600036.SH",
+        "600519.SH",
+        "601318.SH"
+      ],
+      "start": "2026-06-17T00:00:00",
+      "end": "2026-07-17T23:59:59.999999",
+      "elapsed_s": 38.66244938399177,
+      "fetch_s": 38.61444304307224,
+      "persist_s": 0.0459671740536578,
+      "provider_windows": [
+        {
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-06-21T23:59:59.999999",
+          "rows": 3840,
+          "seconds": 8.800271718006115
+        },
+        {
+          "start": "2026-06-22T00:00:00",
+          "end": "2026-06-26T23:59:59.999999",
+          "rows": 9600,
+          "seconds": 4.476996107026935
+        },
+        {
+          "start": "2026-06-27T00:00:00",
+          "end": "2026-07-01T23:59:59.999999",
+          "rows": 5760,
+          "seconds": 4.929577091010287
+        },
+        {
+          "start": "2026-07-02T00:00:00",
+          "end": "2026-07-06T23:59:59.999999",
+          "rows": 5760,
+          "seconds": 5.225829146045726
+        },
+        {
+          "start": "2026-07-07T00:00:00",
+          "end": "2026-07-11T23:59:59.999999",
+          "rows": 7680,
+          "seconds": 5.58896346000256
+        },
+        {
+          "start": "2026-07-12T00:00:00",
+          "end": "2026-07-16T23:59:59.999999",
+          "rows": 7680,
+          "seconds": 4.780378081020899
+        },
+        {
+          "start": "2026-07-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "rows": 1920,
+          "seconds": 4.81242743995972
+        }
+      ],
+      "protocol_calls": 1344,
+      "protocol_rows": 1075200,
+      "zero_offset_calls": 56,
+      "output_rows": 42240,
+      "partitions": 22,
+      "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+      "result": {
+        "period": "1m",
+        "rows": 42240,
+        "universe_size": 8,
+        "source": "rustdx",
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "price_basis": "raw"
+      }
+    },
+    "ecs-after": {
+      "variant": "after",
+      "host": "Linux",
+      "symbols": [
+        "000001.SZ",
+        "000002.SZ",
+        "000063.SZ",
+        "000333.SZ",
+        "600000.SH",
+        "600036.SH",
+        "600519.SH",
+        "601318.SH"
+      ],
+      "start": "2026-06-17T00:00:00",
+      "end": "2026-07-17T23:59:59.999999",
+      "elapsed_s": 7.983142696961295,
+      "fetch_s": 7.940340826986358,
+      "persist_s": 0.04112577304476872,
+      "provider_windows": [
+        {
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "rows": 42240,
+          "seconds": 7.940340826986358
+        }
+      ],
+      "protocol_calls": 216,
+      "protocol_rows": 172800,
+      "zero_offset_calls": 8,
+      "output_rows": 42240,
+      "partitions": 22,
+      "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+      "result": {
+        "period": "1m",
+        "rows": 42240,
+        "universe_size": 8,
+        "source": "rustdx",
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "price_basis": "raw"
+      }
+    },
+    "local-before": {
+      "variant": "before",
+      "host": "Darwin",
+      "symbols": [
+        "000001.SZ",
+        "000002.SZ",
+        "000063.SZ",
+        "000333.SZ",
+        "600000.SH",
+        "600036.SH",
+        "600519.SH",
+        "601318.SH"
+      ],
+      "start": "2026-06-17T00:00:00",
+      "end": "2026-07-17T23:59:59.999999",
+      "elapsed_s": 19.594111417000022,
+      "fetch_s": 19.447285001002456,
+      "persist_s": 0.14595304199792736,
+      "provider_windows": [
+        {
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-06-21T23:59:59.999999",
+          "rows": 3840,
+          "seconds": 4.687932500000898
+        },
+        {
+          "start": "2026-06-22T00:00:00",
+          "end": "2026-06-26T23:59:59.999999",
+          "rows": 9600,
+          "seconds": 2.2371710000006715
+        },
+        {
+          "start": "2026-06-27T00:00:00",
+          "end": "2026-07-01T23:59:59.999999",
+          "rows": 5760,
+          "seconds": 1.9053552499990474
+        },
+        {
+          "start": "2026-07-02T00:00:00",
+          "end": "2026-07-06T23:59:59.999999",
+          "rows": 5760,
+          "seconds": 3.8806634590000613
+        },
+        {
+          "start": "2026-07-07T00:00:00",
+          "end": "2026-07-11T23:59:59.999999",
+          "rows": 7680,
+          "seconds": 2.4106669169996167
+        },
+        {
+          "start": "2026-07-12T00:00:00",
+          "end": "2026-07-16T23:59:59.999999",
+          "rows": 7680,
+          "seconds": 2.101743000001079
+        },
+        {
+          "start": "2026-07-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "rows": 1920,
+          "seconds": 2.2237528750010824
+        }
+      ],
+      "protocol_calls": 1344,
+      "protocol_rows": 1075200,
+      "zero_offset_calls": 56,
+      "output_rows": 42240,
+      "partitions": 22,
+      "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+      "result": {
+        "period": "1m",
+        "rows": 42240,
+        "universe_size": 8,
+        "source": "rustdx",
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "price_basis": "raw"
+      }
+    },
+    "local-after": {
+      "variant": "after",
+      "host": "Darwin",
+      "symbols": [
+        "000001.SZ",
+        "000002.SZ",
+        "000063.SZ",
+        "000333.SZ",
+        "600000.SH",
+        "600036.SH",
+        "600519.SH",
+        "601318.SH"
+      ],
+      "start": "2026-06-17T00:00:00",
+      "end": "2026-07-17T23:59:59.999999",
+      "elapsed_s": 4.945211750000453,
+      "fetch_s": 4.7602429170001415,
+      "persist_s": 0.18410666700037837,
+      "provider_windows": [
+        {
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "rows": 42240,
+          "seconds": 4.7602429170001415
+        }
+      ],
+      "protocol_calls": 216,
+      "protocol_rows": 172800,
+      "zero_offset_calls": 8,
+      "output_rows": 42240,
+      "partitions": 22,
+      "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+      "result": {
+        "period": "1m",
+        "rows": 42240,
+        "universe_size": 8,
+        "source": "rustdx",
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "price_basis": "raw"
+      }
+    },
+    "local-final-after": {
+      "variant": "after",
+      "host": "Darwin",
+      "symbols": [
+        "000001.SZ",
+        "000002.SZ",
+        "000063.SZ",
+        "000333.SZ",
+        "600000.SH",
+        "600036.SH",
+        "600519.SH",
+        "601318.SH"
+      ],
+      "start": "2026-06-17T00:00:00",
+      "end": "2026-07-17T23:59:59.999999",
+      "elapsed_s": 7.503080250000494,
+      "fetch_s": 7.300614207999388,
+      "persist_s": 0.20169162500133098,
+      "provider_windows": [
+        {
+          "start": "2026-06-17T00:00:00",
+          "end": "2026-07-17T23:59:59.999999",
+          "rows": 42240,
+          "seconds": 7.300614207999388
+        }
+      ],
+      "protocol_calls": 216,
+      "protocol_rows": 172800,
+      "zero_offset_calls": 8,
+      "output_rows": 42240,
+      "partitions": 22,
+      "output_sha256": "ec1751dd6ee5310269b5269e2dabc73665bd3303773a4d72f06889afc2de3c7d",
+      "result": {
+        "period": "1m",
+        "rows": 42240,
+        "universe_size": 8,
+        "source": "rustdx",
+        "start": "2026-06-17T00:00:00",
+        "end": "2026-07-17T23:59:59.999999",
+        "price_basis": "raw"
+      }
+    }
+  },
+  "request_reduction_pct": 83.92857142857143,
+  "ecs_time_reduction_pct": 79.3516892381197,
+  "real_services_changed": false,
+  "marketwide_new_job_started": false
+}
