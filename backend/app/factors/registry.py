@@ -25,7 +25,7 @@ Unit = Literal["ratio", "pct", "score", "count", "days", "currency", "none"]
 PitSource = Literal["financial_announce", "share_capital_announce", "none"]
 Stability = Literal["stable", "experimental", "deprecated"]
 
-_ALL_ASSETS = frozenset({"stock", "etf"})
+_ALL_ASSETS = frozenset({"stock"})
 _STOCK_ONLY = frozenset({"stock"})
 
 

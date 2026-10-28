@@ -23,7 +23,6 @@ from app.services.data_integrity import (
     _trading_calendar,
     earliest_issue_day,
     prune_enriched_partitions,
-    prune_realtime_residue_rows,
     scan_recent_integrity,
     within_auto_repair_window,
 )
@@ -296,15 +295,6 @@ def test_interior_history_hole_not_flagged(tmp_path):
     assert issues == []
 
 
-def test_etf_family_independent(tmp_path):
-    # ETF 族近期无活动 → 不判定, 即便股票族有问题
-    _write_daily_partition(tmp_path, "kline_daily", FRIDAY, _ts_ms(FRIDAY, time(11, 58)))
-    _write_daily_partition(tmp_path, "kline_daily", TODAY, _ts_ms(TODAY, time(10, 0)))
-    issues = scan_recent_integrity(tmp_path, today=TODAY)
-    assert all(i.table == "kline_daily" for i in issues)
-    assert earliest_issue_day(issues, ("kline_etf_daily",)) is None
-
-
 def test_auto_repair_window():
     assert within_auto_repair_window(TODAY - timedelta(days=AUTO_REPAIR_MAX_LAG_DAYS), today=TODAY) is True
     assert within_auto_repair_window(TODAY - timedelta(days=AUTO_REPAIR_MAX_LAG_DAYS + 1), today=TODAY) is False
@@ -336,52 +326,6 @@ def test_prune_enriched_explicit_end_preserves_both_sides(tmp_path):
     assert (base / f"date={THURSDAY}").exists()
     assert not (base / f"date={FRIDAY}").exists()
     assert (base / f"date={TODAY}").exists()
-
-
-def test_realtime_cleanup_respects_inclusive_end_and_never_touches_today(tmp_path):
-    for day in (THURSDAY, FRIDAY, TODAY):
-        _write_daily_partition(tmp_path, "kline_etf_daily", day, _ts_ms(day, time(11)))
-    assert prune_realtime_residue_rows(
-        tmp_path, THURSDAY, "kline_etf_daily", today=TODAY, end=THURSDAY,
-    ) == 1
-    assert not (tmp_path / "kline_etf_daily" / f"date={THURSDAY}").exists()
-    assert (tmp_path / "kline_etf_daily" / f"date={FRIDAY}").exists()
-    assert (tmp_path / "kline_etf_daily" / f"date={TODAY}").exists()
-
-
-def test_prune_realtime_residue_rows_keeps_batch_and_current_rows(tmp_path):
-    base = tmp_path / "kline_etf_daily"
-    historical = base / f"date={FRIDAY.isoformat()}"
-    historical.mkdir(parents=True)
-    pl.DataFrame({
-        "symbol": ["510300.SH", "158046.SZ"],
-        "date": [FRIDAY, FRIDAY],
-        "close": [4.36, 1.23],
-        "volume": [1000.0, 200.0],
-        "quote_ts": [None, _ts_ms(FRIDAY, time(11, 58))],
-        "quote_time_basis": [None, "received"],
-    }).write_parquet(historical / "part.parquet")
-    current = base / f"date={TODAY.isoformat()}"
-    current.mkdir(parents=True)
-    pl.DataFrame({
-        "symbol": ["510300.SH"],
-        "date": [TODAY],
-        "close": [4.40],
-        "volume": [1000.0],
-        "quote_ts": [_ts_ms(TODAY, time(10, 0))],
-        "quote_time_basis": ["source_snapshot"],
-    }).write_parquet(current / "part.parquet")
-
-    removed = prune_realtime_residue_rows(
-        tmp_path,
-        FRIDAY,
-        "kline_etf_daily",
-        today=TODAY,
-    )
-
-    assert removed == 1
-    assert pl.read_parquet(historical / "part.parquet")["symbol"].to_list() == ["510300.SH"]
-    assert pl.read_parquet(current / "part.parquet").height == 1
 
 
 # ── 管道起点决策 (分支3降级后的起点) ────────────────────────────────
@@ -732,64 +676,6 @@ def test_pipeline_self_heals_snapshot_day(tmp_path, monkeypatch):
     assert result["enriched_days"] > 0
 
 
-def test_pipeline_override_repairs_etf_from_requested_start(tmp_path, monkeypatch):
-    """显式数据修正必须让 ETF 日K使用同一起点，不能只刷新最新分区。"""
-    from app.config import settings as app_settings
-    from app.jobs import daily_pipeline
-    from app.services import index_sync, instrument_sync, kline_sync
-    from app.tickflow.capabilities import Cap
-    from app.tickflow.repository import DataStore, KlineRepository
-
-    today = datetime.now(CN_TZ).date()
-    repair_day = _recent_trading_day_before(today)
-    _write_full_partition(tmp_path, "kline_daily", today, None)
-    _write_full_partition(
-        tmp_path, "kline_etf_daily", repair_day,
-        _ts_ms(repair_day, time(11, 58)),
-    )
-    _write_full_partition(tmp_path, "kline_etf_enriched", today, None)
-
-    monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir, **kwargs: 0)
-    monkeypatch.setattr(
-        instrument_sync,
-        "load_current_stock_pool",
-        lambda data_dir, **kwargs: SimpleNamespace(
-            symbols=("600001.SH",),
-            as_of=repair_day,
-            source="test",
-            boards=("沪主板",),
-        ),
-    )
-    monkeypatch.setattr(daily_pipeline, "_resolve_universe", lambda capset, repo=None: ["600001.SH"])
-    monkeypatch.setattr(kline_sync, "sync_and_persist_daily_batch", lambda *args, **kwargs: 0)
-    monkeypatch.setattr(app_settings, "data_dir", tmp_path)
-    monkeypatch.setattr(daily_pipeline._prefs, "get_pipeline_pull_index", lambda: False)
-    # 用户关闭日常 ETF 自动同步时，显式完整性修正仍须覆盖已有 ETF 数据。
-    monkeypatch.setattr(daily_pipeline._prefs, "get_pipeline_pull_etf", lambda: False)
-    monkeypatch.setattr(index_sync, "sync_etf_instruments", lambda repo: 1)
-
-    etf_starts: list[date] = []
-
-    def _fake_etf_daily(repo, capset, start_date=None, end_date=None, on_chunk_done=None):
-        etf_starts.append(start_date.date())
-        return 0
-
-    monkeypatch.setattr(index_sync, "sync_and_persist_etf_daily", _fake_etf_daily)
-
-    repo = KlineRepository(DataStore(tmp_path))
-    monkeypatch.setattr(
-        repo,
-        "get_etf_instruments",
-        lambda: pl.DataFrame({"symbol": ["510300.SH"]}),
-    )
-    monkeypatch.setattr(repo, "refresh_index_views", lambda: None)
-    capset = SimpleNamespace(has=lambda key: key in {Cap.QUOTE_POOL, Cap.KLINE_DAILY_BATCH})
-
-    daily_pipeline.run_now(repo, capset, override_start_date=repair_day)  # type: ignore[arg-type]
-
-    assert etf_starts == [repair_day]
-
-
 def test_quotes_flush_partition_keeps_quote_ts_for_integrity_scan(tmp_path, monkeypatch):
     """实时行情覆写当日分区必须写 quote_ts, 否则停机后自检漏判盘中快照。
 
@@ -980,11 +866,3 @@ def test_minute_activity_detects_missing_daily_symbol(tmp_path):
     issues = scan_recent_integrity(tmp_path, today=TODAY)
     assert issues == [IntegrityIssue(day=FRIDAY, table="kline_daily", kind="coverage")]
     assert di._daily_missing_traded_symbols(tmp_path, FRIDAY) == {"600002.SH"}
-
-
-def test_scan_no_false_missing_when_etf_lags_over_holiday(tmp_path, monkeypatch):
-    """端到端: ETF 表停在休市前最后一个交易日 + 日历可用 → 扫描不误报 missing。"""
-    _patch_fuyao_calendar(monkeypatch, _CAL_FAKE_2026_09)
-    for day in (date(2026, 9, 22), date(2026, 9, 23), date(2026, 9, 24)):
-        _write_daily_partition(tmp_path, "kline_etf_daily", day, None)
-    assert scan_recent_integrity(tmp_path, today=date(2026, 9, 28)) == []

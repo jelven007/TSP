@@ -1,9 +1,9 @@
 """分钟K复权投影与原始基准迁移 (与日K复权架构同构, 见 CONTRIBUTING §3.2)。
 
 三层架构:
-- 事实层: kline_minute / kline_etf_minute 存原始价 + 原始 amount (拉取 adjust='none',
+- 事实层: kline_minute 存原始价 + 原始 amount (拉取 adjust='none',
   落盘后不可变)。原始价与成交额天然同口径, 均价线在存储层即正确。
-- 因子层: 共享日K的 adj_factor (股票) / adj_factor_etf (ETF), 只追加。
+- 因子层: 共享日K的 adj_factor, 只追加。
 - 投影层: 读取时复权 ratio = 截至 D 日累积因子 / 全部累积因子, 价格与 amount 同乘,
   volume 不变。amount 同乘保证 VWAP 与复权价严格同口径。当日 ratio 恒为 1
   (今天不可能有未来事件), 盘中实时路径整体短路。
@@ -66,7 +66,7 @@ def minute_fetch_adjust(data_dir: Path | str) -> str:
 
 
 def _factor_table_dir(data_dir: Path, asset_type: str) -> Path:
-    return data_dir / ("adj_factor_etf" if asset_type == "etf" else "adj_factor")
+    return data_dir / "adj_factor"
 
 
 def _load_factor_frames(data_dir: Path, asset_type: str) -> tuple[pl.DataFrame, pl.DataFrame]:
@@ -211,7 +211,7 @@ def migrate_minute_to_raw(
     write_lock: threading.Lock | None = None,
     progress_cb=None,
 ) -> dict:
-    """把 kline_minute / kline_etf_minute 全部分区换算为原始口径, 成功后创建基准标记。
+    """把 kline_minute 全部分区换算为原始口径, 成功后创建基准标记。
 
     换算法: 每 (symbol, 分区日) 的锚点 k = 最后一根分钟 close ÷ 日K原始 close;
     已是原始价的行 k≈1 不动, 前复权价除以 k 还原为原始价。amount 本就是原始值, 不动。
@@ -227,7 +227,6 @@ def migrate_minute_to_raw(
 
     jobs: list[tuple[Path, Path]] = [
         (data_dir / "kline_minute", data_dir / "kline_daily"),
-        (data_dir / "kline_etf_minute", data_dir / "kline_etf_daily"),
     ]
     for minute_root, daily_root in jobs:
         if not minute_root.exists():

@@ -75,8 +75,10 @@ def replace_with_retry(src: Path, dst: Path, *, attempts: int = 10, delay_s: flo
 
 
 def enriched_dirname(asset_type: str) -> str:
-    """asset_type → enriched parquet 目录名。ETF 走独立目录, 其余(stock)用日K enriched。"""
-    return "kline_etf_enriched" if asset_type == "etf" else "kline_daily_enriched"
+    """Return the stock enriched parquet directory."""
+    if asset_type != "stock":
+        raise ValueError("unsupported asset type")
+    return "kline_daily_enriched"
 
 
 # 盘中递推状态的最长窗口 (交易日): MA60 部分和 tail(59)、60 日动量 tail(60)
@@ -142,20 +144,15 @@ class DataStore:
             "kline_index_enriched",
             "kline_index_weekly",
             "kline_index_monthly",
-            "kline_etf_daily",
-            "kline_etf_enriched",
-            "kline_etf_minute",
             "kline_minute",
             "kline_5minute",
             "kline_10minute",
             "kline_15minute",
             "kline_weekly",
             "adj_factor",
-            "adj_factor_etf",
             "financials",
             "instruments",
             "instruments_index",
-            "instruments_etf",
             "instruments_ext",
             "kline_ext",
             "pools",
@@ -249,24 +246,14 @@ class DataStore:
                 SELECT * FROM read_parquet('{d}/kline_index_weekly/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_index_monthly AS
                 SELECT * FROM read_parquet('{d}/kline_index_monthly/**/*.parquet', union_by_name=true)""",
-            f"""CREATE OR REPLACE VIEW kline_etf_daily AS
-                SELECT * FROM read_parquet('{d}/kline_etf_daily/**/*.parquet', union_by_name=true)""",
-            f"""CREATE OR REPLACE VIEW kline_etf_enriched AS
-                SELECT * FROM read_parquet('{d}/kline_etf_enriched/**/*.parquet', union_by_name=true)""",
-            f"""CREATE OR REPLACE VIEW kline_etf_minute AS
-                SELECT * FROM read_parquet('{d}/kline_etf_minute/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_minute AS
                 SELECT * FROM read_parquet('{d}/kline_minute/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW adj_factor AS
                 SELECT * FROM read_parquet('{d}/adj_factor/**/*.parquet', union_by_name=true)""",
-            f"""CREATE OR REPLACE VIEW adj_factor_etf AS
-                SELECT * FROM read_parquet('{d}/adj_factor_etf/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW instruments AS
                 SELECT * FROM read_parquet('{d}/instruments/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW instruments_index AS
                 SELECT * FROM read_parquet('{d}/instruments_index/**/*.parquet', union_by_name=true)""",
-            f"""CREATE OR REPLACE VIEW instruments_etf AS
-                SELECT * FROM read_parquet('{d}/instruments_etf/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW instruments_ext AS
                 SELECT * FROM read_parquet('{d}/instruments_ext/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_ext AS
@@ -327,19 +314,10 @@ class DataStore:
                        'index' AS asset_type, 'tickflow' AS source
                 FROM kline_index_daily
             """)
-        if self._has_parquet("kline_etf_daily"):
-            daily_parts.append("""
-                SELECT symbol, date, open, high, low, close, volume, amount,
-                       'etf' AS asset_type, 'tickflow' AS source
-                FROM kline_etf_daily
-            """)
-
         if self._has_parquet("kline_daily_enriched"):
             enriched_parts.append("SELECT *, 'stock' AS asset_type, 'tickflow' AS source FROM kline_enriched")
         if self._has_parquet("kline_index_enriched"):
             enriched_parts.append("SELECT *, 'index' AS asset_type, 'tickflow' AS source FROM kline_index_enriched")
-        if self._has_parquet("kline_etf_enriched"):
-            enriched_parts.append("SELECT *, 'etf' AS asset_type, 'tickflow' AS source FROM kline_etf_enriched")
 
         if self._has_parquet("kline_minute"):
             minute_parts.append("""
@@ -347,13 +325,6 @@ class DataStore:
                        'stock' AS asset_type, 'tickflow' AS source
                 FROM kline_minute
             """)
-        if self._has_parquet("kline_etf_minute"):
-            minute_parts.append("""
-                SELECT symbol, datetime, open, high, low, close, volume, amount,
-                       'etf' AS asset_type, 'tickflow' AS source
-                FROM kline_etf_minute
-            """)
-
         if self._has_parquet("instruments"):
             inst_parts.append("""
                 SELECT symbol, name, code, exchange, 'stock' AS asset_type, 'tickflow' AS source
@@ -363,12 +334,6 @@ class DataStore:
             inst_parts.append("""
                 SELECT symbol, name, code, NULL AS exchange, 'index' AS asset_type, 'tickflow' AS source
                 FROM instruments_index
-                WHERE coalesce(asset_type, 'index') != 'etf'
-            """)
-        if self._has_parquet("instruments_etf"):
-            inst_parts.append("""
-                SELECT symbol, name, code, NULL AS exchange, 'etf' AS asset_type, 'tickflow' AS source
-                FROM instruments_etf
             """)
 
         unions = {
@@ -413,14 +378,8 @@ class KlineRepository:
         self._enriched_history_start: date | None = None
         self._enriched_history_generation: str | None = None
         self._index_instruments_cache: pl.DataFrame | None = None
-        self._etf_enriched_cache: pl.DataFrame | None = None
-        self._etf_enriched_cache_date: date | None = None
-        self._etf_live_agg_cache: pl.DataFrame | None = None
-        self._etf_live_agg_cache_date: date | None = None
-        self._etf_instruments_cache: pl.DataFrame | None = None
         # symbol 集合 memo (随对应 instruments 缓存失效): 供每请求资产分流用
         self._index_symbol_set_cache: set[str] | None = None
-        self._etf_symbol_set_cache: set[str] | None = None
         self._index_enriched_cache: pl.DataFrame | None = None
         self._index_enriched_cache_date: date | None = None
 
@@ -431,7 +390,7 @@ class KlineRepository:
         self._enriched_warming: bool = False
         self._warmup_thread: threading.Thread | None = None
         self._warmup_lock = threading.Lock()
-        # ETF/指数 enriched 的按需后台预热 (自选/监控首次读到冷缓存时触发)
+        # 指数 enriched 的按需后台预热 (监控首次读到冷缓存时触发)
         self._asset_enriched_warming: set[str] = set()
         self._asset_warmup_lock = threading.Lock()
         # 预热完成后的回调 (lifespan 注入, 用于设置 app.state.indicators_ready)
@@ -442,12 +401,9 @@ class KlineRepository:
         # parquet glob 路径
         self._enriched_glob = str(store.data_dir / "kline_daily_enriched" / "**" / "*.parquet")
         self._index_enriched_glob = str(store.data_dir / "kline_index_enriched" / "**" / "*.parquet")
-        self._etf_enriched_glob = str(store.data_dir / "kline_etf_enriched" / "**" / "*.parquet")
         self._minute_glob = str(store.data_dir / "kline_minute" / "**" / "*.parquet")
-        self._etf_minute_glob = str(store.data_dir / "kline_etf_minute" / "**" / "*.parquet")
         self._inst_glob = str(store.data_dir / "instruments" / "**" / "*.parquet")
         self._index_inst_glob = str(store.data_dir / "instruments_index" / "**" / "*.parquet")
-        self._etf_inst_glob = str(store.data_dir / "instruments_etf" / "**" / "*.parquet")
 
     def execute_all(self, sql: str, params: list | None = None) -> list[tuple]:
         """线程安全的 SELECT → fetchall。DuckDB 单 connection 非线程安全，所有读路径须走此方法。"""
@@ -474,7 +430,7 @@ class KlineRepository:
     def refresh_cache(self, background: bool = False) -> None:
         """刷新 Polars 缓存。在 pipeline 完成后、服务启动时调用。
 
-        background=True (启动时): instruments/index/ETF 同步刷新 (毫秒级),
+        background=True (启动时): instruments/index 同步刷新 (毫秒级),
         enriched 的重计算 (compute_indicators, 107万行) 推到 daemon 线程,
         不阻塞 FastAPI lifespan。预热期间上层走空表降级。
         background=False (盘后管道/手动刷新): 全部同步, 保证数据即时一致。
@@ -492,15 +448,6 @@ class KlineRepository:
         self._refresh_index_instruments()
         logger.info("cache refresh step done: index instruments (%.2fs)", time.perf_counter() - step)
 
-        step = time.perf_counter()
-        logger.info("cache refresh step start: ETF instruments")
-        self._refresh_etf_instruments()
-        logger.info("cache refresh step done: ETF instruments (%.2fs)", time.perf_counter() - step)
-
-        # ETF enriched 只失效不重建: 下次访问时按新数据懒加载,
-        # 避免自选无 ETF 的用户在管道后白付全量重算成本
-        self._etf_enriched_cache = None
-        self._etf_enriched_cache_date = None
         # 指数 enriched 同样只失效不重建 (懒加载)
         self._index_enriched_cache = None
         self._index_enriched_cache_date = None
@@ -565,17 +512,14 @@ class KlineRepository:
         if "stock" in asset_types and self._enriched_cache is None:
             self._start_enriched_warmup()
         for asset_type in asset_types:
-            if asset_type == "etf" and self._etf_enriched_cache is None:
-                self._start_asset_enriched_warmup("etf")
-            elif asset_type == "index" and self._index_enriched_cache is None:
+            if asset_type == "index" and self._index_enriched_cache is None:
                 self._start_asset_enriched_warmup("index")
 
     def _start_asset_enriched_warmup(self, asset_type: str) -> None:
-        """后台预热 ETF/指数 enriched 缓存; 同一资产同时只跑一个线程。"""
-        refresh = (
-            self._refresh_etf_enriched if asset_type == "etf"
-            else self._refresh_index_enriched
-        )
+        """后台预热指数 enriched 缓存; 同时只跑一个线程。"""
+        if asset_type != "index":
+            return
+        refresh = self._refresh_index_enriched
         with self._asset_warmup_lock:
             if asset_type in self._asset_enriched_warming:
                 return
@@ -628,9 +572,7 @@ class KlineRepository:
         self._instrument_history_cache = None
         self._instrument_history_mtime_ns = None
         self._index_instruments_cache = None
-        self._etf_instruments_cache = None
         self._index_symbol_set_cache = None
-        self._etf_symbol_set_cache = None
         self._name_map_cache = None
 
     def invalidate_computed_caches(self) -> None:
@@ -648,10 +590,6 @@ class KlineRepository:
         self._live_agg_cache = None
         self._live_agg_cache_date = None
         self._live_agg_check_date = None
-        self._etf_enriched_cache = None
-        self._etf_enriched_cache_date = None
-        self._etf_live_agg_cache = None
-        self._etf_live_agg_cache_date = None
         self._index_enriched_cache = None
         self._index_enriched_cache_date = None
 
@@ -1161,50 +1099,6 @@ class KlineRepository:
 
         return df_hist, agg_a
 
-    def _refresh_etf_enriched(self) -> None:
-        """从 ETF enriched parquet 加载最新日到内存缓存。"""
-        try:
-            enriched_dir = self.store.data_dir / "kline_etf_enriched"
-            dates = sorted(
-                p.name[5:] for p in enriched_dir.glob("date=*")
-                if p.is_dir() and p.name.startswith("date=")
-            ) if enriched_dir.exists() else []
-            if not dates:
-                self._etf_enriched_cache = None
-                self._etf_enriched_cache_date = None
-                return
-            latest = date.fromisoformat(dates[-1])
-            target_parquet = enriched_dir / f"date={dates[-1]}" / "part.parquet"
-            df_latest = pl.read_parquet(target_parquet)
-            if df_latest.is_empty():
-                return
-
-            from datetime import timedelta
-            from app.indicators.pipeline import compute_indicators, compute_signals
-            start_full = latest - timedelta(days=300)
-            read_cols = [c for c in ["symbol", "date", "open", "high", "low", "close",
-                                     "volume", "amount", "raw_open", "raw_close", "raw_high", "raw_low",
-                                     "quote_ts", "quote_time_basis"]
-                         if c in df_latest.columns]
-            df_hist = guarded_collect(
-                scan_enriched_parquet(self._etf_enriched_glob,
-                                cast_options=pl.ScanCastOptions(integer_cast="allow-float"))
-                .filter(pl.col("date") >= start_full)
-                .select(read_cols)
-                .sort(["symbol", "date"]),
-                priority="background",
-            )
-            if df_hist.is_empty():
-                cache_df = df_latest.sort(["symbol"])
-            else:
-                df_full = compute_signals(compute_indicators(df_hist))
-                cache_df = df_full.filter(pl.col("date") == latest).sort(["symbol"])
-            with self._write_lock:
-                self._etf_enriched_cache = cache_df
-                self._etf_enriched_cache_date = latest
-        except Exception as e:  # noqa: BLE001
-            logger.debug("ETF enriched 缓存刷新跳过: %s", e)
-
     def _refresh_index_enriched(self) -> None:
         """从指数 enriched parquet 加载最新日到内存缓存 (300天重算通用指标)。
 
@@ -1263,7 +1157,7 @@ class KlineRepository:
             logger.warning("instruments 缓存刷新失败: %s", e)
 
     def refresh_current_instruments(self) -> None:
-        """维表发布只失效股票派生缓存, ETF/指数及磁盘历史保持原状。"""
+        """维表发布只失效股票派生缓存, 指数及磁盘历史保持原状。"""
         path = self.store.data_dir / "instruments" / "instruments.parquet"
         frame = pl.read_parquet(path)
         self.rebuild_views()
@@ -1294,30 +1188,6 @@ class KlineRepository:
         except Exception as e:  # noqa: BLE001
             logger.debug("index instruments 缓存刷新跳过: %s", e)
 
-    def _refresh_etf_instruments(self) -> None:
-        """加载 ETF instruments 到内存；兼容旧版 instruments_index 中的 ETF。"""
-        parts: list[pl.DataFrame] = []
-        try:
-            df = guarded_collect(pl.scan_parquet(self._etf_inst_glob), priority="background")
-            if not df.is_empty():
-                parts.append(df)
-        except Exception as e:  # noqa: BLE001
-            logger.debug("etf instruments 缓存刷新跳过(new): %s", e)
-        try:
-            legacy = self.get_index_instruments()
-            if not legacy.is_empty() and "asset_type" in legacy.columns:
-                legacy = legacy.filter(pl.col("asset_type") == "etf")
-                if not legacy.is_empty():
-                    parts.append(legacy)
-        except Exception as e:  # noqa: BLE001
-            logger.debug("etf instruments legacy fallback skipped: %s", e)
-        if parts:
-            df_all = pl.concat(parts, how="diagonal_relaxed").unique(subset=["symbol"], keep="last").sort("symbol")
-            self._etf_instruments_cache = df_all
-            self._etf_symbol_set_cache = None
-            self._name_map_cache = None
-            logger.info("ETF instruments 缓存已加载: %d 只", len(df_all))
-
     def get_enriched_latest(self, refresh: bool = True) -> tuple[pl.DataFrame, date | None]:
         """返回缓存的 enriched 最新日 DataFrame + 日期。如无缓存则懒加载。
 
@@ -1337,18 +1207,10 @@ class KlineRepository:
     def get_enriched_latest_asset(self, asset_type: str, refresh: bool = True) -> tuple[pl.DataFrame, date | None]:
         """按资产类型返回最新 enriched 缓存。stock 保持旧缓存语义。
 
-        refresh=False: 缓存冷时不触发同步 _refresh_etf_enriched(300 天 scan+compute)。
-        供行情轮询线程使用 —— 避免在热路径上做重活阻塞股票行情/告警;缓存由 ETF 实时
-        flush 焐热, 未焐热(无 ETF 实时数据)时返回空表, 本轮跳过 ETF 评估即可。
+        指数缓存冷时可在后台重建, 调用方也可用 refresh=False 避免热路径重算。
         """
         if asset_type == "stock":
             return self.get_enriched_latest(refresh=refresh)
-        if asset_type == "etf":
-            if self._etf_enriched_cache is None and refresh:
-                self._refresh_etf_enriched()
-            if self._etf_enriched_cache is None:
-                return pl.DataFrame(), self._etf_enriched_cache_date
-            return self._etf_enriched_cache, self._etf_enriched_cache_date
         if asset_type == "index":
             if self._index_enriched_cache is None and refresh:
                 self._refresh_index_enriched()
@@ -1527,25 +1389,12 @@ class KlineRepository:
             return pl.DataFrame()
         return self._index_instruments_cache
 
-    def get_etf_instruments(self) -> pl.DataFrame:
-        """返回缓存的 ETF instruments DataFrame；兼容旧版 instruments_index 中的 ETF。"""
-        if self._etf_instruments_cache is None:
-            self._refresh_etf_instruments()
-        if self._etf_instruments_cache is None:
-            return pl.DataFrame()
-        return self._etf_instruments_cache
-
     def get_instruments_asset(self, asset_type: str) -> pl.DataFrame:
         """按资产类型返回 instruments；老 stock 路径保持原样。"""
         if asset_type == "stock":
             return self.get_instruments()
         if asset_type == "index":
-            df = self.get_index_instruments()
-            if not df.is_empty() and "asset_type" in df.columns:
-                return df.filter(pl.col("asset_type") != "etf")
-            return df
-        if asset_type == "etf":
-            return self.get_etf_instruments()
+            return self.get_index_instruments()
         return pl.DataFrame()
 
     def get_index_symbol_set(self) -> set[str]:
@@ -1557,29 +1406,14 @@ class KlineRepository:
             self._index_symbol_set_cache = set(df["symbol"].cast(pl.Utf8).to_list())
         return self._index_symbol_set_cache
 
-    def get_etf_symbol_set(self) -> set[str]:
-        """返回已缓存 ETF symbol 集合 (memo, 随 instruments 缓存失效)。"""
-        if self._etf_symbol_set_cache is None:
-            df = self.get_etf_instruments()
-            if df.is_empty() or "symbol" not in df.columns:
-                return set()
-            self._etf_symbol_set_cache = set(df["symbol"].cast(pl.Utf8).to_list())
-        return self._etf_symbol_set_cache
-
     def resolve_asset_type(self, symbol: str) -> str:
-        """按 symbol 判定资产类型: etf / index / stock(默认)。
-
-        供 API 层对单标的查询做资产分流 (get_daily_asset 等)。
-        ETF/指数集合为 memo, 每请求查询成本可忽略。
-        """
-        if symbol in self.get_etf_symbol_set():
-            return "etf"
+        """按 symbol 判定资产类型: index / stock(默认)。"""
         if symbol in self.get_index_symbol_set():
             return "index"
         return "stock"
 
     def get_name_map(self, symbols: list[str] | None = None) -> dict[str, str]:
-        """返回 {symbol: name} 映射, 合并股票 + ETF + 指数 instruments (股票优先去重)。
+        """返回 {symbol: name} 映射, 合并股票与固定指数 instruments。
 
         自选列表/名称批查等场景的统一名称解析入口, 避免各调用方自行合并两份缓存。
         symbols 非 None 时只返回命中的条目。
@@ -1595,7 +1429,7 @@ class KlineRepository:
         # 若把过滤后的结果写入缓存, 后续不同 symbols 的查询会命中残缺缓存,
         # 导致新加入自选的标的查不到名称。
         name_map: dict[str, str] = {}
-        for df in (self.get_instruments(), self.get_etf_instruments(), self.get_instruments_asset("index")):
+        for df in (self.get_instruments(), self.get_instruments_asset("index")):
             if df.is_empty() or "symbol" not in df.columns or "name" not in df.columns:
                 continue
             for symbol, name in df.select(["symbol", "name"]).iter_rows():
@@ -1758,36 +1592,6 @@ class KlineRepository:
             df = df.select(existing)
         return df
 
-    def get_etf_daily(
-        self,
-        symbol: str,
-        start: date,
-        end: date,
-        columns: list[str] | None = None,
-    ) -> pl.DataFrame:
-        """ETF 日K查询 — 优先读独立 ETF enriched，兼容旧版 index enriched 中的 ETF。"""
-        from datetime import timedelta
-
-        # 快路径: 独立 ETF 数据 + 请求列全是 parquet 存储列 → 直接 scan 列下推, 跳过 warmup + compute。
-        # 无独立 ETF 数据 (旧版存入 index enriched) 时 df 为空, 自然回退到下方完整路径。
-        if columns:
-            df = self._scan_etf_daily_symbol(symbol, start, end, columns)
-            if not df.is_empty() and all(c in df.columns for c in columns):
-                return df
-
-        warmup_start = start - timedelta(days=150)
-        df = self._scan_etf_daily_symbol(symbol, warmup_start, end, None)
-        if df.is_empty():
-            # 旧版 ETF 曾存入 kline_index_enriched；没有独立数据时回退读取。
-            df = self._scan_index_daily_symbol(symbol, warmup_start, end, None)
-        if not df.is_empty():
-            df = self._compute_index_enriched_range(df)
-            df = df.filter((pl.col("date") >= start) & (pl.col("date") <= end))
-        if columns and not df.is_empty():
-            existing = [c for c in columns if c in df.columns]
-            df = df.select(existing)
-        return df
-
     def get_daily_asset(
         self,
         asset_type: str,
@@ -1800,13 +1604,13 @@ class KlineRepository:
             return self.get_daily(symbol, start, end, columns)
         if asset_type == "index":
             return self.get_index_daily(symbol, start, end, columns)
-        if asset_type == "etf":
-            return self.get_etf_daily(symbol, start, end, columns)
         return pl.DataFrame()
 
     def _minute_glob_for(self, asset_type: str) -> str:
-        """按资产类型选择分钟K parquet glob。ETF 分钟数据独立存储于 kline_etf_minute。"""
-        return self._etf_minute_glob if asset_type == "etf" else self._minute_glob
+        """Return the stock minute parquet glob."""
+        if asset_type != "stock":
+            raise ValueError("unsupported minute asset type")
+        return self._minute_glob
 
     def _maybe_adjust_minute(self, df: pl.DataFrame, asset_type: str) -> pl.DataFrame:
         """原始基准标记开启时应用读取时复权投影 (services/minute_adjust 三层架构)。
@@ -1931,7 +1735,9 @@ class KlineRepository:
         """
         if not symbols or not dates:
             return pl.DataFrame()
-        base = self._etf_minute_glob.rsplit("/", 2)[0] if asset_type == "etf" else self._minute_glob.rsplit("/", 2)[0]
+        if asset_type != "stock":
+            return pl.DataFrame()
+        base = self._minute_glob.rsplit("/", 2)[0]
         # 收集存在的分区文件路径, 避免对不存在的文件 scan 报错
         parts: list[str] = []
         for d in dates:
@@ -2060,23 +1866,6 @@ class KlineRepository:
             logger.warning("指数日K查询失败: %s", e)
             return pl.DataFrame()
 
-    def _scan_etf_daily_symbol(self, symbol: str, start: date, end: date, columns: list[str] | None) -> pl.DataFrame:
-        try:
-            lf = scan_enriched_parquet(self._etf_enriched_glob,
-                                 cast_options=pl.ScanCastOptions(integer_cast="allow-float")).filter(
-                (pl.col("symbol") == symbol)
-                & (pl.col("date") >= start)
-                & (pl.col("date") <= end)
-            ).sort("date")
-            if columns:
-                schema_names = lf.collect_schema().names()
-                existing = [c for c in columns if c in schema_names]
-                lf = lf.select(existing)
-            return guarded_collect(lf)
-        except Exception as e:  # noqa: BLE001
-            logger.debug("ETF 日K查询跳过: %s", e)
-            return pl.DataFrame()
-
     def _merge_cached_and_scan(
         self,
         cached: pl.DataFrame,
@@ -2120,7 +1909,9 @@ class KlineRepository:
         # 注意: 必须走 execute_one (cursor+close)。直连 self.db.execute(...).fetchone()
         # 的未消费结果集会把首个分区 parquet 的句柄钉在共享连接上, Windows 下阻塞
         # 同步写入的 os.replace → 个股分时"补齐数据"500。
-        table = "kline_etf_minute" if asset_type == "etf" else "kline_minute"
+        if asset_type != "stock":
+            return None
+        table = "kline_minute"
         try:
             row = self.execute_one(
                 f"SELECT max(CAST(datetime AS DATE)) FROM {table} WHERE symbol = ?",
@@ -2190,8 +1981,9 @@ class KlineRepository:
         分钟回测按交易日精确对日: 缺分区的日子由调用方显式跳过,
         不做"回退最近分区" (那是实盘选股的语义, 回放会串日)。
         """
-        dirname = "kline_minute" if asset_type == "stock" else f"kline_{asset_type}_minute"
-        minute_dir = self.store.data_dir / dirname
+        if asset_type != "stock":
+            return []
+        minute_dir = self.store.data_dir / "kline_minute"
         if not minute_dir.exists():
             return []
         out: list[date] = []
@@ -2300,6 +2092,8 @@ class KlineRepository:
         from app.services.index_kline import TABLES
         if period not in TABLES:
             raise ValueError("不支持的指数K线周期")
+        if not symbols:
+            return pl.DataFrame()
         paths = []
         day = start
         while day <= end:
@@ -2353,29 +2147,12 @@ class KlineRepository:
         df_storage = df.select(storage_cols)
         self._write_daily_partition(df_storage, "kline_index_enriched")
 
-    def append_etf_daily(self, df: pl.DataFrame) -> None:
-        """按日分区写入 ETF 日K数据 (merge-upsert)。"""
-        if df.is_empty():
-            return
-        self._write_daily_partition(df, "kline_etf_daily")
-
-    def append_etf_enriched(self, df: pl.DataFrame) -> None:
-        """按日分区写入 ETF enriched 数据。磁盘仅写入基础行情窄表。"""
-        if df.is_empty():
-            return
-        from app.indicators.pipeline import ENRICHED_STORAGE_COLS
-        storage_cols = [c for c in ENRICHED_STORAGE_COLS if c in df.columns]
-        df_storage = df.select(storage_cols)
-        self._write_daily_partition(df_storage, "kline_etf_enriched")
-
     def append_daily_asset(self, asset_type: str, df: pl.DataFrame) -> None:
         """按资产类型写入日K；stock/index 保持旧目录兼容。"""
         if asset_type == "stock":
             self.append_daily(df)
         elif asset_type == "index":
             self.append_index_daily(df)
-        elif asset_type == "etf":
-            self.append_etf_daily(df)
 
     def append_enriched_asset(self, asset_type: str, df: pl.DataFrame) -> None:
         """按资产类型写入 enriched；stock/index 保持旧目录兼容。"""
@@ -2383,8 +2160,6 @@ class KlineRepository:
             self.append_enriched(df)
         elif asset_type == "index":
             self.append_index_enriched(df)
-        elif asset_type == "etf":
-            self.append_etf_enriched(df)
 
     def save_index_instruments(self, df: pl.DataFrame) -> None:
         """保存指数标的维表。"""
@@ -2394,22 +2169,8 @@ class KlineRepository:
         out.parent.mkdir(parents=True, exist_ok=True)
         self._atomic_write_parquet(df.unique(subset=["symbol"], keep="last").sort("symbol"), out)
         self._index_instruments_cache = None
-        self._etf_instruments_cache = None
         self._name_map_cache = None
         self._refresh_index_instruments()
-
-    def save_etf_instruments(self, df: pl.DataFrame) -> None:
-        """保存 ETF 标的维表到独立目录。"""
-        if df.is_empty() or "symbol" not in df.columns:
-            return
-        if "asset_type" not in df.columns:
-            df = df.with_columns(pl.lit("etf").alias("asset_type"))
-        out = self.store.data_dir / "instruments_etf" / "instruments_etf.parquet"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        self._atomic_write_parquet(df.unique(subset=["symbol"], keep="last").sort("symbol"), out)
-        self._etf_instruments_cache = None
-        self._name_map_cache = None
-        self._refresh_etf_instruments()
 
     def refresh_index_views(self) -> None:
         """刷新指数相关 DuckDB 视图。"""
@@ -2423,21 +2184,15 @@ class KlineRepository:
                 SELECT * FROM read_parquet('{d}/kline_index_weekly/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW kline_index_monthly AS
                 SELECT * FROM read_parquet('{d}/kline_index_monthly/**/*.parquet', union_by_name=true)""",
-            f"""CREATE OR REPLACE VIEW kline_etf_daily AS
-                SELECT * FROM read_parquet('{d}/kline_etf_daily/**/*.parquet', union_by_name=true)""",
-            f"""CREATE OR REPLACE VIEW kline_etf_enriched AS
-                SELECT * FROM read_parquet('{d}/kline_etf_enriched/**/*.parquet', union_by_name=true)""",
             f"""CREATE OR REPLACE VIEW instruments_index AS
                 SELECT * FROM read_parquet('{d}/instruments_index/**/*.parquet', union_by_name=true)""",
-            f"""CREATE OR REPLACE VIEW instruments_etf AS
-                SELECT * FROM read_parquet('{d}/instruments_etf/**/*.parquet', union_by_name=true)""",
         ]
         for sql in statements:
             try:
                 with self._lock:
                     self.db.execute(sql)
             except Exception as e:  # noqa: BLE001
-                logger.debug("index/etf view refresh skipped: %s", e)
+                logger.debug("index view refresh skipped: %s", e)
         with self._lock:
             self.store._register_unified_views()
 
@@ -2456,15 +2211,10 @@ class KlineRepository:
             "kline_index_enriched": f"{d}/kline_index_enriched/**/*.parquet",
             "kline_index_weekly": f"{d}/kline_index_weekly/**/*.parquet",
             "kline_index_monthly": f"{d}/kline_index_monthly/**/*.parquet",
-            "kline_etf_daily": f"{d}/kline_etf_daily/**/*.parquet",
-            "kline_etf_enriched": f"{d}/kline_etf_enriched/**/*.parquet",
-            "kline_etf_minute": f"{d}/kline_etf_minute/**/*.parquet",
             "kline_minute": f"{d}/kline_minute/**/*.parquet",
             "adj_factor": f"{d}/adj_factor/**/*.parquet",
-            "adj_factor_etf": f"{d}/adj_factor_etf/**/*.parquet",
             "instruments": f"{d}/instruments/**/*.parquet",
             "instruments_index": f"{d}/instruments_index/**/*.parquet",
-            "instruments_etf": f"{d}/instruments_etf/**/*.parquet",
         }
         for name, path in views.items():
             try:
@@ -2500,7 +2250,6 @@ class KlineRepository:
         base = self.store.data_dir / table
         generation_asset = {
             "kline_daily_enriched": "stock",
-            "kline_etf_enriched": "etf",
         }.get(table)
         # 局部 upsert 不能恢复失败的历史发布; 必须由全量重建显式接管。
         publication = (
@@ -2597,7 +2346,6 @@ class KlineRepository:
         table = {
             "stock": "kline_daily",
             "index": "kline_index_daily",
-            "etf": "kline_etf_daily",
         }.get(asset_type)
         if not table:
             return
@@ -2610,7 +2358,7 @@ class KlineRepository:
 
     def _with_instrument_metadata(self, asset_type: str, df: pl.DataFrame) -> pl.DataFrame:
         """补齐实时内存缓存所需的维表字段；这些字段不会写入 enriched 分区。"""
-        if asset_type not in {"stock", "etf"} or df.is_empty():
+        if asset_type != "stock" or df.is_empty():
             return df
         instruments = self.get_instruments_asset(asset_type)
         if instruments.is_empty() or "symbol" not in instruments.columns:
@@ -2637,9 +2385,6 @@ class KlineRepository:
         if asset_type == "stock":
             table = "kline_daily_enriched"
             existing_cache = self._enriched_cache if self._enriched_cache_date == dt else pl.DataFrame()
-        elif asset_type == "etf":
-            table = "kline_etf_enriched"
-            existing_cache = self._etf_enriched_cache if self._etf_enriched_cache_date == dt else pl.DataFrame()
         elif asset_type == "index":
             table = "kline_index_enriched"
             existing_cache = self._index_enriched_cache if self._index_enriched_cache_date == dt else pl.DataFrame()
@@ -2663,7 +2408,7 @@ class KlineRepository:
         out.parent.mkdir(parents=True, exist_ok=True)
         publication = (
             EnrichedPublication(self.store.data_dir, asset_type)
-            if asset_type in {"stock", "etf"}
+            if asset_type == "stock"
             else None
         )
         self._optimistic_upsert_partition(out, df_storage, publication)
@@ -2672,9 +2417,6 @@ class KlineRepository:
             if asset_type == "stock":
                 self._enriched_cache = merged_cache
                 self._enriched_cache_date = dt
-            elif asset_type == "etf":
-                self._etf_enriched_cache = merged_cache
-                self._etf_enriched_cache_date = dt
             elif asset_type == "index":
                 self._index_enriched_cache = merged_cache
                 self._index_enriched_cache_date = dt
@@ -2694,7 +2436,6 @@ class KlineRepository:
         table = {
             "stock": "kline_daily",
             "index": "kline_index_daily",
-            "etf": "kline_etf_daily",
         }.get(asset_type)
         if not table:
             return
@@ -2716,7 +2457,6 @@ class KlineRepository:
             return
         fields = {
             "stock": ("_enriched_cache", "_enriched_cache_date"),
-            "etf": ("_etf_enriched_cache", "_etf_enriched_cache_date"),
             "index": ("_index_enriched_cache", "_index_enriched_cache_date"),
         }
         if asset_type not in fields:
@@ -2736,7 +2476,6 @@ class KlineRepository:
 
         fields = {
             "stock": ("_enriched_cache", "_enriched_cache_date"),
-            "etf": ("_etf_enriched_cache", "_etf_enriched_cache_date"),
             "index": ("_index_enriched_cache", "_index_enriched_cache_date"),
         }
         if asset_type not in fields:
@@ -2811,8 +2550,6 @@ class KlineRepository:
         cache_df = self._with_instrument_metadata(asset_type, df).sort(["symbol"])
         if asset_type == "stock":
             table = "kline_daily_enriched"
-        elif asset_type == "etf":
-            table = "kline_etf_enriched"
         elif asset_type == "index":
             table = "kline_index_enriched"
         else:
@@ -2827,7 +2564,7 @@ class KlineRepository:
         out.parent.mkdir(parents=True, exist_ok=True)
         publication = (
             EnrichedPublication(self.store.data_dir, asset_type)
-            if asset_type in {"stock", "etf"}
+            if asset_type == "stock"
             else None
         )
         # 覆写语义: 读旧内容只为跳过无变化的写, 读在锁外 (误判最多造成一次
@@ -2839,9 +2576,6 @@ class KlineRepository:
             if asset_type == "stock":
                 self._enriched_cache = cache_df
                 self._enriched_cache_date = dt
-            elif asset_type == "etf":
-                self._etf_enriched_cache = cache_df
-                self._etf_enriched_cache_date = dt
             elif asset_type == "index":
                 self._index_enriched_cache = cache_df
                 self._index_enriched_cache_date = dt

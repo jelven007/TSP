@@ -302,7 +302,7 @@ class RustdxProvider:
 
     # ---- instruments ----
     def get_instruments(self, asset_type: str = "stock") -> list[dict]:
-        if asset_type not in {"stock", "index", "etf"}:
+        if asset_type not in {"stock", "index"}:
             return []
         today = cn_now().date()
         with self._instrument_lock:
@@ -331,15 +331,10 @@ class RustdxProvider:
                                 is not None
                                 and not is_delisted_name(name)
                             )
-                        elif asset_type == "index":
+                        else:
                             matches = (
                                 exchange == "SH" and code.startswith("000")
                             ) or (exchange == "SZ" and code.startswith("399"))
-                        else:
-                            matches = "ETF" in name.upper() and (
-                                (exchange == "SH" and code.startswith(("51", "52", "56", "58")))
-                                or (exchange == "SZ" and code.startswith("15"))
-                            )
                         if not matches:
                             continue
                         if asset_type == "stock" and item.get("pre_close") in (0, 2.0**-127):
@@ -411,7 +406,7 @@ class RustdxProvider:
     def _name_map(self) -> dict[str, str]:
         return {
             row["symbol"]: row["name"]
-            for asset_type in ("stock", "etf")
+            for asset_type in ("stock",)
             for row in self.get_instruments(asset_type)
             if row.get("symbol") and row.get("name")
         }
@@ -898,7 +893,7 @@ class RustdxProvider:
 
     def get_realtime(self) -> list[dict]:
         symbols = [
-            row["symbol"] for asset_type in ("stock", "etf")
+            row["symbol"] for asset_type in ("stock",)
             for row in self.get_instruments(asset_type)
         ]
         return self._quote_rows(symbols, include_names=True)
@@ -967,7 +962,7 @@ class RustdxProvider:
         """TDX category 1 has only ex-date; never infer registration/payment dates."""
         from app.data_providers.corporate_actions import CorporateAction
 
-        if asset_type not in {"stock", "etf"}:
+        if asset_type != "stock":
             return pl.DataFrame()
         output = []
         # Bound each task to one symbol, share the existing native pool. Any
@@ -1025,7 +1020,7 @@ class RustdxProvider:
     ) -> pl.DataFrame:
         schema = {"symbol": pl.String, "trade_date": pl.Date, "ex_factor": pl.Float64}
         valid = [symbol for symbol in symbols if _symbol(symbol) is not None]
-        if not valid or asset_type not in {"stock", "etf"}:
+        if not valid or asset_type != "stock":
             return pl.DataFrame(schema=schema)
         output: list[dict] = []
         try:
@@ -1101,7 +1096,7 @@ class RustdxProvider:
                                     bonus,
                                     allot,
                                     allot_value / allot if allot else 0.0,
-                                    decimals=3 if asset_type == "etf" else 2,
+                                    decimals=2,
                                 )
                                 if reference is None or reference <= 0:
                                     continue
@@ -1109,7 +1104,7 @@ class RustdxProvider:
                                 ex_days = [day for day in days if day >= event_date]
                                 if ex_days:
                                     adjusted_return = closes[ex_days[0]] / reference - 1.0
-                                    limit = 0.20 if asset_type == "etf" else _price_limit(symbol)
+                                    limit = _price_limit(symbol)
                                     if abs(adjusted_return) > limit + 0.02:
                                         logger.warning(
                                             "%s 除权因子自检剔除 %s %s: %.2f%%",

@@ -383,7 +383,7 @@ export interface StrategyResultHistoryFilters {
   q?: string
   start_date?: string
   end_date?: string
-  asset_type?: 'stock' | 'etf'
+  asset_type?: 'stock'
   timeframe?: '1d' | '1m'
 }
 
@@ -395,7 +395,7 @@ export interface StrategyResultHistorySummary {
   params: Record<string, unknown>
   overrides: Record<string, unknown>
   pool: string[] | null
-  asset_type: 'stock' | 'etf'
+  asset_type: 'stock'
   timeframe: '1d' | '1m'
   as_of: string
   total: number
@@ -1035,7 +1035,7 @@ export interface MonitorRule {
   name: string
   enabled: boolean
   type: 'strategy' | 'signal' | 'price' | 'market' | 'ladder' | 'sector' | 'abnormal' | 'volume_delta' | 'date'
-  asset_type?: 'stock' | 'etf' | 'index'
+  asset_type?: 'stock' | 'index'
   scope: 'symbols' | 'all' | 'sector' | 'watchlist_group'
   symbols: string[]
   /** scope=watchlist_group 时绑定的自选分组 id (成员动态解析, 增删自选自动生效) */
@@ -1669,7 +1669,7 @@ export type MiningRunStatus =
   | 'skipped_prerequisite'
 
 export interface MiningAvailability {
-  asset_type: 'stock' | 'etf'
+  asset_type: 'stock'
   budget_profile: MiningBudgetProfile
   trading_bars: number
   required_bars: number
@@ -1687,7 +1687,7 @@ export interface MiningRequestV1 {
   factor_names: string[]
   strategy_ids?: string[]
   symbols?: string[] | null
-  asset_type?: 'stock' | 'etf'
+  asset_type?: 'stock'
   start?: string | null
   end?: string | null
   budget_profile?: MiningBudgetProfile
@@ -1744,7 +1744,7 @@ export interface AutoScreening {
 }
 
 export interface MiningAutoStartPayload {
-  asset_type?: 'stock' | 'etf'
+  asset_type?: 'stock'
   start?: string | null
   end?: string | null
   budget_profile?: MiningBudgetProfile
@@ -2336,9 +2336,7 @@ export interface Preferences {
   minute_batch_compress: boolean
   daily_batch_compress: boolean
   realtime_pull_stock?: boolean
-  realtime_pull_etf?: boolean
   pipeline_pull_a_share: boolean
-  pipeline_pull_etf: boolean
   pipeline_pull_index: boolean
   pipeline_regime_enabled: boolean
   regime_batch_days: number
@@ -2799,10 +2797,9 @@ export const api = {
         ? '/api/intraday/minute-refresh/status'
         : '/api/settings/minute-refresh/status',
     ),
-  updatePipelinePullTypes: (cfg: Partial<Pick<Preferences, 'pipeline_pull_a_share' | 'pipeline_pull_etf' | 'pipeline_pull_index'>>) =>
+  updatePipelinePullTypes: (cfg: Partial<Pick<Preferences, 'pipeline_pull_a_share' | 'pipeline_pull_index'>>) =>
     request<{
       pipeline_pull_a_share: boolean
-      pipeline_pull_etf: boolean
       pipeline_pull_index: boolean
     }>('/api/settings/preferences/pipeline-pull-types', {
       method: 'PUT',
@@ -2870,7 +2867,7 @@ export const api = {
         second_quote_archive_window: window,
       }),
     }),
-  updateRealtimeQuoteScope: (cfg: Partial<Pick<Preferences, 'realtime_pull_stock' | 'realtime_pull_etf'>>) =>
+  updateRealtimeQuoteScope: (cfg: Partial<Pick<Preferences, 'realtime_pull_stock'>>) =>
     request<Partial<Preferences>>('/api/settings/preferences/realtime-quote-scope', {
       method: 'PUT',
       body: JSON.stringify(cfg),
@@ -2891,7 +2888,6 @@ export const api = {
       symbol_count: number
       watchlist_symbol_count?: number
       index_symbol_count?: number
-      etf_symbol_count?: number
       quote_age_ms: number | null
       is_trading_hours: boolean
       is_polling_window?: boolean
@@ -3134,7 +3130,7 @@ export const api = {
       date: string | null
       rows: MinuteKlineRow[]
       source?: 'local' | 'live' | 'none'
-      asset_type?: 'stock' | 'etf' | 'index'
+      asset_type?: 'stock' | 'index'
       price_limit?: PriceLimitInfo | null
       prev_close?: number | null
     }>(
@@ -3144,7 +3140,7 @@ export const api = {
     request<{
       symbol: string
       name?: string
-      asset_type: 'stock' | 'etf' | 'index'
+      asset_type: 'stock' | 'index'
       requested_days: number
       sessions: MinuteKlineSession[]
       source: 'local' | 'none'
@@ -3347,25 +3343,25 @@ export const api = {
     ),
 
   // timeframe='all' 时不传参数 → 后端不过滤周期, 返回日线+分钟合并列表
-  screenerStrategies: async (assetType?: 'stock' | 'etf' | 'index', timeframe: '1d' | '1m' | 'all' = '1d') => {
+  screenerStrategies: async (assetType?: 'stock' | 'index', timeframe: '1d' | '1m' | 'all' = '1d') => {
     const data = await request<{ strategies: StrategyDetail[]; load_errors?: StrategyLoadError[] }>(
       `/api/strategies?${assetType ? `asset_type=${assetType}&` : ''}${timeframe !== 'all' ? `timeframe=${timeframe}` : ''}`,
     )
     return { presets: data.strategies, load_errors: data.load_errors }
   },
-  screenerRunPreset: (strategy_id: string, pool?: string[], asOf?: string, extColumns?: string, assetType: 'stock' | 'etf' = 'stock', timeframe: '1d' | '1m' = '1d') =>
+  screenerRunPreset: (strategy_id: string, pool?: string[], asOf?: string, extColumns?: string, assetType: 'stock' = 'stock', timeframe: '1d' | '1m' = '1d') =>
     request<ScreenerResult>('/api/screener/run_preset', {
       method: 'POST',
       timeoutMs: COMPUTE_REQUEST_TIMEOUT_MS,
       body: JSON.stringify({ strategy_id, pool, as_of: asOf ?? null, ext_columns: extColumns || null, asset_type: assetType, timeframe }),
     }),
-  screenerRunCustom: (conditions: string[], orderBy?: string, limit = 30, pool?: string[], extColumns?: string, assetType: 'stock' | 'etf' = 'stock') =>
+  screenerRunCustom: (conditions: string[], orderBy?: string, limit = 30, pool?: string[], extColumns?: string, assetType: 'stock' = 'stock') =>
     request<ScreenerResult>('/api/screener/run', {
       method: 'POST',
       timeoutMs: COMPUTE_REQUEST_TIMEOUT_MS,
       body: JSON.stringify({ conditions, order_by: orderBy, limit, pool, ext_columns: extColumns || null, asset_type: assetType }),
     }),
-  screenerRunAll: (asOf?: string, strategyIds?: string[], assetType: 'stock' | 'etf' = 'stock', timeframe: '1d' | '1m' = '1d') =>
+  screenerRunAll: (asOf?: string, strategyIds?: string[], assetType: 'stock' = 'stock', timeframe: '1d' | '1m' = '1d') =>
     request<ScreenerRunAllSummary>(
       '/api/screener/run_all', { method: 'POST', timeoutMs: COMPUTE_REQUEST_TIMEOUT_MS, body: JSON.stringify({ as_of: asOf ?? null, strategy_ids: strategyIds ?? null, asset_type: assetType, timeframe, summary_only: true }) },
     ),
@@ -3481,7 +3477,7 @@ export const api = {
     stop_loss_pct?: number
     max_hold_days?: number
     matching?: 'close_t' | 'open_t+1'
-    asset_type?: 'stock' | 'etf' | 'index'
+    asset_type?: 'stock' | 'index'
   }) =>
     request<BacktestResult>('/api/backtest/run', {
       method: 'POST',
@@ -3492,7 +3488,7 @@ export const api = {
   factorColumns: () =>
     request<{ columns: FactorColumn[] }>('/api/backtest/factor/columns'),
 
-  factorLibrary: (assetType?: 'stock' | 'etf') =>
+  factorLibrary: (assetType?: 'stock') =>
     request<{ factors: FactorLibraryItem[] }>(
       `/api/factors${assetType ? `?asset_type=${assetType}` : ''}`,
     ),
@@ -3503,7 +3499,7 @@ export const api = {
       body: JSON.stringify({ formula }),
     }),
 
-  factorTrial: (payload: { formula: string; asset_type?: 'stock' | 'etf'; days?: number }) =>
+  factorTrial: (payload: { formula: string; asset_type?: 'stock'; days?: number }) =>
     request<FactorTrialResponse>('/api/factors/trial', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -3575,7 +3571,7 @@ export const api = {
     weight?: 'equal' | 'factor_weight'
     fees_pct?: number
     slippage_bps?: number
-    asset_type?: 'stock' | 'etf' | 'index'
+    asset_type?: 'stock' | 'index'
   }) =>
     request<FactorBacktestResult>('/api/backtest/factor/run', {
       method: 'POST',
@@ -3593,7 +3589,7 @@ export const api = {
     weight?: 'equal' | 'factor_weight'
     fees_pct?: number
     slippage_bps?: number
-    asset_type?: 'stock' | 'etf' | 'index'
+    asset_type?: 'stock' | 'index'
   }) =>
     request<FactorBatchResult>('/api/backtest/factor/batch', {
       method: 'POST',
@@ -3605,7 +3601,7 @@ export const api = {
     request<{ items: MiningRun[] }>('/api/backtest/mining/runs'),
 
   miningAvailability: (params: {
-    assetType: 'stock' | 'etf'
+    assetType: 'stock'
     budgetProfile: MiningBudgetProfile
     start?: string
     end?: string
@@ -3718,7 +3714,7 @@ export const api = {
     max_positions?: number
     initial_capital?: number
     position_sizing?: 'equal' | 'score_weight'
-    asset_type?: 'stock' | 'etf' | 'index'
+    asset_type?: 'stock' | 'index'
     minute_fill?: boolean
     strict_research?: boolean
   }) =>
@@ -4261,7 +4257,7 @@ export const api = {
   },
 
   // ===== Strategy Engine =====
-  strategyList: (assetType?: 'stock' | 'etf', timeframe: '1d' | '1m' | 'all' = '1d', includeResearch = false) => {
+  strategyList: (assetType?: 'stock', timeframe: '1d' | '1m' | 'all' = '1d', includeResearch = false) => {
     const params = new URLSearchParams()
     if (assetType) params.set('asset_type', assetType)
     if (timeframe && timeframe !== 'all') params.set('timeframe', timeframe)
@@ -4796,9 +4792,6 @@ export interface DataStatus {
   index_daily: TableStats | null
   index_enriched: TableStats | null
   index_instruments: InstrumentsStats | null
-  etf_daily: TableStats | null
-  etf_enriched: TableStats | null
-  etf_instruments: InstrumentsStats | null
   minute: TableStats | null
   '5m'?: TableStats | null
   '10m'?: TableStats | null
@@ -4819,14 +4812,6 @@ export interface DataStatus {
     index_enriched_size_mb?: number
     index_instruments_files?: number
     index_instruments_size_mb?: number
-    etf_daily_files?: number
-    etf_daily_size_mb?: number
-    etf_enriched_files?: number
-    etf_enriched_size_mb?: number
-    etf_instruments_files?: number
-    etf_instruments_size_mb?: number
-    etf_adj_factor_files?: number
-    etf_adj_factor_size_mb?: number
     minute_files: number
     minute_size_mb: number
     adj_factor_files: number

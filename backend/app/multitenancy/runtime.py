@@ -192,7 +192,7 @@ class FullWorker:
                 )
                 prices, opening_rows = {}, {}
                 if fresh:
-                    for asset in ("stock", "etf"):
+                    for asset in ("stock",):
                         if snapshot.get("days", {}).get(asset) != cn_today().isoformat():
                             continue
                         frame = decode_frame(snapshot["frames"][asset])

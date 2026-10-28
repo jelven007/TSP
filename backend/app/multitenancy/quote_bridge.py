@@ -124,7 +124,6 @@ class PublicQuoteBridge(QuoteService):
             repo = KlineRepository(store)
             repo._refresh_instruments()
             repo._refresh_index_instruments()
-            repo._refresh_etf_instruments()
         for asset, frame in frames.items():
             repo.install_public_snapshot(asset, frame)
         self.set_repo(repo)

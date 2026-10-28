@@ -238,7 +238,7 @@ def test_matrix_reader_retries_when_generation_changes_during_build(
     assert calls == ["generation-a", "generation-b"]
 
 
-@pytest.mark.parametrize("asset_type", ["stock", "etf"])
+@pytest.mark.parametrize("asset_type", ["stock"])
 @pytest.mark.parametrize("method", [
     "append_enriched_asset", "merge_live_enriched_asset", "flush_live_enriched_asset",
 ])

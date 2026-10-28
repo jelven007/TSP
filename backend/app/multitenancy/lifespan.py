@@ -71,7 +71,6 @@ async def lifespan(app: FastAPI):
         app.state.indicators_ready = False
         repo._refresh_instruments()
         repo._refresh_index_instruments()
-        repo._refresh_etf_instruments()
         app.state.capabilities = detect_capabilities()
         # This instance supplies the existing public read contracts only.
         # boot_check/start_polling/schedulers belong to the platform process.

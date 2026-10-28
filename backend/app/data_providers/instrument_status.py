@@ -41,7 +41,7 @@ def current_a_share_identity(
     """Normalize one supported current-pool stock identity.
 
     The production stock pool covers only Shanghai/Shenzhen main boards,
-    STAR Market and ChiNext. ETFs, indices, B shares and other markets
+    STAR Market and ChiNext. Indices, B shares and other markets
     cannot match these exchange-specific prefixes.
     """
     symbol_text = str(symbol or "").strip().upper()

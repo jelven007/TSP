@@ -145,12 +145,11 @@ def search_instruments(
     request: Request,
     q: str = Query("", min_length=0, max_length=50, description="搜索关键词"),
     limit: int = Query(20, ge=1, le=50),
-    asset_types: str = Query("stock", description="逗号分隔的资产类型: stock,etf"),
+    asset_types: str = Query("stock", description="逗号分隔的资产类型: stock,index"),
 ):
     """模糊搜索标的 (代码 / 名称)。从内存 instruments 缓存中查。
 
-    默认只搜股票, 保持既有调用方行为不变; 自选等场景传 asset_types=stock,etf
-    可一并搜出 ETF, 结果附带 asset_type 字段供前端区分。
+    默认只搜股票; 自选等场景可传 asset_types=stock,index。
     """
     if not q.strip():
         return {"results": []}
@@ -158,13 +157,13 @@ def search_instruments(
     repo = request.app.state.repo
     import polars as pl
 
-    types = [t.strip() for t in asset_types.split(",") if t.strip()]
+    types = [t.strip() for t in asset_types.split(",") if t.strip() in {"stock", "index"}]
     parts: list[pl.DataFrame] = []
     for t in types:
         df_t = repo.get_instruments_asset(t)
         if df_t.is_empty() or "symbol" not in df_t.columns:
             continue
-        # dtype 全部归一到 Utf8: 股票/ETF 两份缓存来源不同 (ETF 含 legacy 合并), 防 concat SchemaError
+        # dtype 全部归一到 Utf8, 防止不同资产缓存拼接时出现 SchemaError。
         parts.append(df_t.with_columns([
             pl.col("symbol").cast(pl.Utf8).alias("symbol"),
             (pl.col("name").cast(pl.Utf8) if "name" in df_t.columns else pl.lit("")).alias("name"),
@@ -227,7 +226,7 @@ def search_instruments(
 
 @router.post("/instruments/names")
 def instruments_names(request: Request, symbols: list[str]):
-    """批量查标的名称 (股票 + ETF + 指数)。传入 symbol 列表, 返回 {symbol: name}。"""
+    """批量查股票和指数名称。传入 symbol 列表, 返回 {symbol: name}。"""
     if not symbols:
         return {"names": {}}
     repo = request.app.state.repo
@@ -260,7 +259,7 @@ def _get_stock_info(repo, symbol: str) -> dict:
 
 
 def _get_asset_info(repo, symbol: str, asset_type: str) -> dict:
-    """非股票标的 (ETF / 指数) 的名称信息 — 从对应 instruments 缓存查, 无股本概念。"""
+    """指数名称信息: 从对应 instruments 缓存查询。"""
     import polars as pl
     try:
         df = repo.get_instruments_asset(asset_type)
@@ -438,7 +437,7 @@ def get_daily(
         return _gzip_payload(request, {"symbol": symbol, "freq": freq, "name": stock_name, "stock_info": stock_info,
                                       "rows": rows, "source": source}, pref_key="daily_batch_compress")
 
-    # 从 enriched 表读取 (已含前复权 OHLCV + 技术指标 + 信号); ETF/指数走独立存储
+    # 从 enriched 表读取 (已含前复权 OHLCV + 技术指标 + 信号); 指数走独立存储。
     df = repo.get_daily_asset(asset_type, symbol, start, end)
 
     if df.is_empty():
@@ -541,7 +540,7 @@ def _latest_live_candle(
         if not qs:
             return None
         df_today, enriched_date = qs.get_enriched_today()
-    elif asset_type in {"etf", "index"}:
+    elif asset_type == "index":
         df_today, enriched_date = request.app.state.repo.get_enriched_latest_asset(
             asset_type, refresh=refresh_asset,
         )
@@ -665,15 +664,12 @@ def get_daily_batch(request: Request, body: dict):
 
     cols = ["symbol", "date", "open", "high", "low", "close", "volume"]
 
-    # 按资产类型分组: stock 走批量缓存; etf/index 逐只查独立存储 (数量少, 成本可忽略)
+    # 按资产类型分组: stock 走批量缓存; index 逐只查独立存储。
     stock_symbols: list[str] = []
-    etf_symbols: list[str] = []
     index_symbols: list[str] = []
     for s in symbols:
         t = repo.resolve_asset_type(s)
-        if t == "etf":
-            etf_symbols.append(s)
-        elif t == "index":
+        if t == "index":
             index_symbols.append(s)
         else:
             stock_symbols.append(s)
@@ -683,10 +679,6 @@ def get_daily_batch(request: Request, body: dict):
         df_stock = repo.get_daily_batch(stock_symbols, start, end, columns=cols)
         if not df_stock.is_empty():
             frames.append(df_stock)
-    for sym in etf_symbols:
-        sub = repo.get_etf_daily(sym, start, end, columns=cols)
-        if not sub.is_empty():
-            frames.append(sub)
     for sym in index_symbols:
         sub = repo.get_index_daily(sym, start, end, columns=cols)
         if not sub.is_empty():
@@ -735,9 +727,7 @@ def get_minute_batch(request: Request, body: dict):
                 since_dt = since_dt.astimezone(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
         except ValueError:
             since_dt = None
-    # 自选分时本地优先标志: 全量分钟服务健康时, 股票缺口不再批量补拉
-    # (本地分区由服务按间隔持续写入, 下一轮自然补全; 停牌/临停票补拉也是空, 无损)。
-    # ETF 不在全量分钟 universe 内, 恒走补拉。服务不健康时回落现状补拉兜底。
+    # 自选分时本地优先标志: 全量分钟服务健康时, 股票缺口不再批量补拉。
     prefer_local = bool(body.get("prefer_local", False))
     if not symbols:
         return {"data": {}}
@@ -774,17 +764,11 @@ def get_minute_batch(request: Request, body: dict):
             if recent_date is not None:
                 trade_date = recent_date
 
-    # Step 1: 本地优先 — 一次 scan 读全部 symbol 当日分钟K (股票 / ETF 分钟数据分开存储)
-    etf_set = repo.get_etf_symbol_set()
-    stock_syms = [s for s in symbols if s not in etf_set]
-    etf_syms = [s for s in symbols if s in etf_set]
-    df_local = repo.get_minute_batch(stock_syms, trade_date)
-    if etf_syms:
-        df_etf = repo.get_minute_batch(etf_syms, trade_date, asset_type="etf")
-        if df_local.is_empty():
-            df_local = df_etf
-        elif not df_etf.is_empty():
-            df_local = pl.concat([df_local, df_etf], how="diagonal_relaxed")
+    # Step 1: 本地优先 — 一次 scan 读全部股票当日分钟K。
+    index_symbols = repo.get_index_symbol_set()
+    if any(symbol in index_symbols for symbol in symbols):
+        raise HTTPException(status_code=400, detail="分时批量仅支持股票")
+    df_local = repo.get_minute_batch(symbols, trade_date)
 
     # 期望条数 (盘中按当前时刻估算, 盘后 240)
     now = cn_now()
@@ -846,28 +830,22 @@ def get_minute_batch(request: Request, body: dict):
         svc = getattr(request.app.state, "minute_refresh", None)
         full_minute_healthy = bool(svc is not None and svc.is_healthy())
     if full_minute_healthy:
-        # 纯尾部落后 (stale_last): 服务的增量轮下一轮就会补上, 股票不补拉省请求。
+        # 纯尾部落后 (stale_last): 服务的增量轮下一轮就会补上, 不补拉省请求。
         # 空洞 (full_pull: 空分区 / 中间洞 / 前部洞): 服务增量锚定本地最新时间,
         # 永远不会回看洞 → 不压制, 由端点全天拉取并落盘修复。
-        # ETF 不在服务 universe 内, 两类均维持补拉。
         for sym in stale_last:
-            if sym not in etf_set:
-                sub = local_parts.get(sym)
-                if sub is not None and not sub.is_empty():
-                    result[sym] = sub.to_dicts()
-        stale_last = {s: t for s, t in stale_last.items() if s in etf_set}
+            sub = local_parts.get(sym)
+            if sub is not None and not sub.is_empty():
+                result[sym] = sub.to_dicts()
+        stale_last = {}
 
     # Step 2: 补拉并落盘 (取到即写, upsert 语义; 下一轮命中本地, 请求量骤降)。
     # 落盘失败只降级 (log 后继续返回本轮数据), 不影响响应 —— 持久化是优化而非正确性前提。
-    # 契约: 本端点只接受 stock/ETF (指数分钟K走 /api/index/minute 独立路径),
-    # 按 asset_type 拆分调用 (自定义源 / TickFlow 路由均依赖 asset_type 正确传递)。
+    # 契约: 本端点只接受股票, 指数分钟K走 /api/index/minute 独立路径。
     day_start = datetime(trade_date.year, trade_date.month, trade_date.day, 9, 25, 0)
     session_end = datetime(trade_date.year, trade_date.month, trade_date.day, 15, 5, 0)
     lim = capset.limits(Cap.KLINE_MINUTE_BATCH)
-    minute_dirs = {
-        "stock": repo.store.data_dir / "kline_minute",
-        "etf": repo.store.data_dir / "kline_etf_minute",
-    }
+    minute_dirs = {"stock": repo.store.data_dir / "kline_minute"}
     live_map: dict[str, pl.DataFrame] = {}
 
     def _pull(asset: str, sym_list: list[str], start: datetime) -> None:
@@ -903,15 +881,13 @@ def get_minute_batch(request: Request, body: dict):
         for part in df_live.partition_by("symbol", maintain_order=True):
             live_map[part["symbol"][0]] = part.sort("datetime")
 
-    _pull("stock", [s for s in full_pull if s not in etf_set], day_start)
-    _pull("etf", [s for s in full_pull if s in etf_set], day_start)
+    _pull("stock", full_pull, day_start)
     if stale_last:
         # 增量公共起点 = 最旧的最后一根本身: 最后一根是形成中的动态K (分钟内
         # 收盘/量/额持续变化), 必须重拉并以定版值覆盖; 重叠由 upsert/合并去重吸收
         inc_start = min(stale_last.values())
         if inc_start < session_end:
-            _pull("stock", [s for s in stale_last if s not in etf_set], inc_start)
-            _pull("etf", [s for s in stale_last if s in etf_set], inc_start)
+            _pull("stock", list(stale_last), inc_start)
 
     # 合并: 有增量/回填的 symbol = 本地 + 拉取 upsert; 仅拉到的 (missing) 直接进结果
     for sym, sub in local_parts.items():
@@ -1500,7 +1476,6 @@ async def minute_migrate(request: Request):
     if stats.get("marked"):
         from app.jobs.daily_pipeline import _refresh_single_view
         _refresh_single_view(repo, "kline_minute")
-        _refresh_single_view(repo, "kline_etf_minute")
     return {"status": "ok", **stats}
 
 

@@ -29,7 +29,7 @@ Windows/Linux原生产物与生产运行另验；未完成正式P95。
 
 2026-10-28历史K线验收新增`test_minute_history_request_budget.py`与
 `test_rustdx_history_request_budget.py`：31/32天、100证券、旧窗口/准确缺口请求预算、
-股票/指数/ETF、日K整日边界、UTC、未知量额、停牌、空/短/重复/坏页、
+股票/指数、日K整日边界、UTC、未知量额、停牌、空/短/重复/坏页、
 探测失败回退、目标页失败、取消与跨调用源更新。原实现及进程内反向验证均超预算；
 修复与周期/API/修正/Provider/写盘邻接回归通过。
 同8证券同月两端各自前后实测分页1344降至128，输出42240行及SHA256一致；
@@ -105,7 +105,7 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 浏览器对照行情首排检查触发器尺寸、圆角、主题和弹层边界；原范围校验及提交参数保持不变。
 `test_repair_kline.py`验证建任务前日期校验、任务请求保存/透传结束日期、旧缺省行为、
 1分钟取数及真实入库包含末日，超范围源返回不覆盖区间外旧值。
-`test_pipeline_beijing_today.py`核对股票/指数/ETF及因子范围、enriched区间外字节保留、
+`test_pipeline_beijing_today.py`核对股票/指数及因子范围、enriched区间外字节保留、
 不附带分钟采集和非法区间先于读股票池拒绝。
 `test_data_integrity.py`验证闭区间分区清理和历史实时残留清理仍保护今天及范围外数据。
 同时回归原周期生成、自动盘后、发布、容量、前端全量测试/build/lint及Ruff增量。
@@ -239,7 +239,7 @@ K线区间获取回归入口为`test_repair_kline.py`、`test_kline_periods_api.
 前端`Screener.test.tsx`验证A→B→A恢复及迟到响应不改当前日期，
 `screenerHistory.test.ts`校验HTTP维度与查询键，
 `StrategyResultHistoryDialog.test.tsx`校验旧版本/参数和加载失败。
-浏览器在桌面及390px下检查日期恢复、ETF隔离、历史明细和弹窗滚动；
+浏览器在桌面及390px下检查日期恢复、资产隔离、历史明细和弹窗滚动；
 模拟接口联调不替代生产容量、真实行情和Windows签收。
 
 历史筛选/删除继续归`FR-STRATEGY-05`：仓库与API测试覆盖五维组合、字面关键词、
@@ -624,7 +624,7 @@ pnpm build
 ```
 
 真实SQL命令须提供隔离 PostgreSQL 的 `TSP_TEST_POSTGRES_DSN`，不使用生产库。
-覆盖目标范围独立数值开关、板块/分组并集、空选择、ST、矩阵一致性、ETF豁免、
+覆盖目标范围独立数值开关、板块/分组并集、空选择、ST、矩阵一致性、
 成员变化与固定子策略快照、引用不存在拒写、服务/API/Cell删除保护、跨租户隔离、
 事务回滚和保存/删除竞态；CSV代码列、去重、跳过未知、不留空组、既有备注/日期保留。
 租户GET只读1、POST403，管理员自动/手工及旧任务额度继续回归；前端只标准/详细，
@@ -644,7 +644,7 @@ uv run pytest tests/test_paper_daily_scan_schema.py tests/test_paper_trading.py 
   tests/test_paper_api.py tests/test_paper_settle_price_time.py -q
 ```
 
-模拟交易应通过统一日线存储 schema 读取新旧股票、ETF 与指数日线分区，
+模拟交易应通过统一日线存储 schema 读取股票与指数日线分区，
 允许 `quote_ts` 等附加列并补齐历史缺列。固定样本断言当日开收盘、
 前收盘和沪深 300 基准价格，相关回归覆盖涨跌停判断、T+1 与结算时间。
 
@@ -752,7 +752,7 @@ uv run pytest -q \
 
 - 多租户 API/Platform 空历史快速 503，且不调用 Provider。
 - 行情代理短超时、管理代理长超时及稳定错误契约。
-- stock/ETF/index 最新原始日分区与 enriched symbol 覆盖门槛。
+- stock/index 最新原始日分区与 enriched symbol 覆盖门槛。
 - 隔离违规与同租户一致性违规分离、旧验收状态兼容。
 - Worker 按类型 freshness、真实 Broker 沙箱探针、有界等待和 stderr 尾部。
 - 16 GiB Compose 预算、36 条双库连接上界。
@@ -815,7 +815,7 @@ TSP_TEST_POSTGRES_DSN='<一次性 PostgreSQL 根 DSN>' \
 uv run --frozen pytest tests/test_enriched_generation.py tests/test_enriched_full_rebuild.py tests/test_enriched_recovery.py tests/test_data_release.py tests/test_health.py -q
 ```
 
-覆盖属主死亡后保持不可读、局部股票/ETF 写入不得接管、恢复取消/第二分区写入
+覆盖属主死亡后保持不可读、局部股票写入不得接管、恢复取消/第二分区写入
 失败后的重试、替换后目录 fsync 失败保持不可读、全量历史覆盖检查、
 嵌套 manifest 损坏、首次 generation 漂移、
 元数据采集及最终写入边界的版本竞态, 以及单项健康检查异常隔离。
@@ -935,7 +935,7 @@ JSON 注入处理函数未返回的缺省字段。快照失败时必须确认兼
 
 指数分钟接口的可选`with_prev_close=false`已核对为唯一Tier A schema变化；
 省略参数保留旧响应，69端点和响应组件不变。目录回归同时验证所选Provider返回的
-ETF与固定七只指数均保存，不能继续用旧单指数夹具数量判断失败。
+固定七只指数均保存，不能继续用旧单指数夹具数量判断失败。
 
 `.github/workflows/docker.yml` 的 `main` 构建只接受主线 push 的成功 CI
 `workflow_run`，从该次运行的 `ci-revision` artifact 读取实际通过测试的 SHA，
@@ -1031,7 +1031,7 @@ Provider 时，至少记录：
 
 1. Provider 名称、版本和测试日期。
 2. 使用的数据能力，不记录密钥。
-3. 一个股票、ETF、指数的代表性代码和数据日期。
+3. 一个股票和一个指数的代表性代码及数据日期。
 4. 返回行数、时间范围、必要字段和单位抽查。
 5. 空数据、超时、限流和不支持能力的表现。
 6. 结果是否落盘，以及重启后能否读取。
@@ -1190,7 +1190,7 @@ uv run --project backend --no-sync pytest backend/tests/test_build_manifest.py \
 | H 运行与发布 | NFR-01–17/20/21/28 | 锁/版本/产物清单、各目标平台、磁盘/inode、预算、存活/就绪、停写备份、恢复/增量对账 | 固定产物匹配代码/数据，声明适用平台与剩余风险 |
 | I 万人与DFX | NFR-31–42及A–H | 独立活跃业务、后台/数据/研究混合压力、最大故障域、跨节点撤权/单写/区域恢复/成本 | 逐项目标签收，未执行不算通过 |
 
-测试至少覆盖沪深股票、ETF、固定指数各自适用规则；管理员、普通租户、独立服务、
+测试至少覆盖沪深股票、固定指数各自适用规则；管理员、普通租户、独立服务、
 Windows管理员个人空间和macOS/Linux冻结桌面分别执行适用入口。
 性能成功分位数与全部尝试/超时单列，P0/P1不放行；P2修复或显式缩小范围并重新验收。
 
@@ -1343,7 +1343,7 @@ uv run --no-sync python scripts/performance/benchmark_rustdx_quotes.py --connect
 `--connections 8,12,16,20,24,30`。需要更多尾部样本时设置 `--rounds 300`。
 
 输入固定为 `data/instruments/instruments.parquet`，使用现有的股票身份与退市过滤规则，
-保留有效沪深主板、科创板、创业板股票，包含 ST 和停牌股票；排除指数、ETF、B 股和
+保留有效沪深主板、科创板、创业板股票，包含 ST 和停牌股票；排除指数、基金、B 股和
 不支持的市场。`--data-dir` 指定另一个数据目录。股票池在父进程一次性读取并去重，
 所有档位传入相同列表；不会在压测中重新请求证券目录。
 

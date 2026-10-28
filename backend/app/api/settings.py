@@ -639,7 +639,6 @@ def get_preferences(request: Request = None) -> dict:
         "daily_batch_compress": preferences.get_daily_batch_compress(),
         **preferences.get_realtime_quote_scope(),
         "pipeline_pull_a_share": preferences.get_pipeline_pull_a_share(),
-        "pipeline_pull_etf": preferences.get_pipeline_pull_etf(),
         "pipeline_pull_index": preferences.get_pipeline_pull_index(),
         "pipeline_regime_enabled": preferences.get_pipeline_regime_enabled(),
         "regime_batch_days": preferences.get_regime_batch_days(),
@@ -1076,7 +1075,6 @@ class SecondQuoteArchivePrefs(BaseModel):
 
 class RealtimeQuoteScopePrefs(BaseModel):
     realtime_pull_stock: bool | None = None
-    realtime_pull_etf: bool | None = None
 
 
 @router.put("/preferences/second-quote-archive")
@@ -1254,9 +1252,8 @@ def update_realtime_monitor_config(req: RealtimeMonitorConfigIn, request: Reques
 
 
 class PipelinePullTypesIn(BaseModel):
-    """盘后管道拉取内容开关(A股 / ETF / 指数 独立控制)。"""
+    """盘后管道拉取内容开关(A股 / 指数 独立控制)。"""
     pipeline_pull_a_share: bool | None = None
-    pipeline_pull_etf: bool | None = None
     pipeline_pull_index: bool | None = None
 
 

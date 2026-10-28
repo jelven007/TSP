@@ -18,7 +18,7 @@ META = {
     "name": "新低反转",
     "description": "触及60日新低后当日收阳放量, 反转信号",
     "tags": ["反转", "新低"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {"id": "require_n_day_low", "label": "要求60日新低", "type": "bool", "default": True},

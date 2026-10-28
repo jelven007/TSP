@@ -70,20 +70,20 @@ def _mock_request(data_dir: Path) -> Request:
 
 
 def test_extract_codes_order_and_dedupe():
-    text = "563230 融\n515880\n价格 1.340\n563230 重复\nXAUUSD\n601636"
-    assert extract_codes(text) == ["563230", "515880", "601636"]
+    text = "600000 浦发\n601636\n价格 10.34\n600000 重复\nXAUUSD\n300750"
+    assert extract_codes(text) == ["600000", "601636", "300750"]
 
 
 def test_extract_codes_joins_ocr_split():
-    text = "科创半导体\n5881 70 [融]\n创业板\n159382"
-    assert extract_codes(text) == ["588170", "159382"]
+    text = "贵州茅台\n6005 19 [融]\n宁德时代\n300750"
+    assert extract_codes(text) == ["600519", "300750"]
 
 
 def test_resolve_candidates_matched_and_unmatched():
-    code_to_symbol = {"600036": "600036.SH", "515880": "515880.SH"}
-    symbol_to_name = {"600036.SH": "招商银行", "515880.SH": "通信ETF国泰"}
+    code_to_symbol = {"600036": "600036.SH", "601636": "601636.SH"}
+    symbol_to_name = {"600036.SH": "招商银行", "601636.SH": "旗滨集团"}
     rows = resolve_candidates(
-        ["600036", "999999", "515880"],
+        ["600036", "999999", "601636"],
         code_to_symbol,
         symbol_to_name,
         existing_symbols={"600036.SH"},
@@ -99,13 +99,13 @@ def test_import_watchlist_image_with_fake_ocr(tmp_path: Path):
     inst.mkdir()
     pl.DataFrame(
         {
-            "code": ["600036", "515880"],
-            "symbol": ["600036.SH", "515880.SH"],
-            "name": ["招商银行", "通信ETF国泰"],
+            "code": ["600036", "601636"],
+            "symbol": ["600036.SH", "601636.SH"],
+            "name": ["招商银行", "旗滨集团"],
         }
     ).write_parquet(inst / "instruments.parquet")
 
-    fake_text = "招商银行\n600036\n通信ETF\n515880\n伦敦金 XAUUSD"
+    fake_text = "招商银行\n600036\n旗滨集团\n601636\n伦敦金 XAUUSD"
     result = import_watchlist_image(
         b"fake-bytes",
         tmp_path,
@@ -113,7 +113,7 @@ def test_import_watchlist_image_with_fake_ocr(tmp_path: Path):
         provider=_FakeOcr(fake_text),
     )
     assert result["provider"] == "fake"
-    assert result["codes"] == ["600036", "515880"]
+    assert result["codes"] == ["600036", "601636"]
     assert result["matched_count"] == 2
     assert result["unmatched_count"] == 0
 
@@ -270,9 +270,9 @@ def test_add_batch_reports_net_new(monkeypatch, tmp_path: Path):
     watchlist.add("600036.SH")
     request = _mock_request(tmp_path)
     result = add_batch(
-        BatchAddRequest(symbols=["600036.SH", "515880.SH", "000001.SZ"]),
+        BatchAddRequest(symbols=["600036.SH", "601636.SH", "000001.SZ"]),
         request,
     )
     assert result["added"] == 2
     symbols = {r["symbol"] for r in result["symbols"]}
-    assert symbols == {"600036.SH", "515880.SH", "000001.SZ"}
+    assert symbols == {"600036.SH", "601636.SH", "000001.SZ"}

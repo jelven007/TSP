@@ -18,21 +18,20 @@ logger = logging.getLogger(__name__)
 PUBLIC_DIRS = frozenset({
     "kline_daily", "kline_daily_enriched", "kline_index_daily", "kline_index_enriched",
     "kline_index_weekly", "kline_index_monthly",
-    "kline_etf_daily", "kline_etf_enriched", "kline_minute", "kline_etf_minute",
+    "kline_minute",
     "kline_5minute", "kline_10minute", "kline_15minute", "kline_weekly",
-    "adj_factor", "adj_factor_etf", "financials", "instruments", "instruments_index",
-    "instruments_etf", "instruments_ext", "kline_ext", "depth5", "auction_snapshot",
+    "adj_factor", "financials", "instruments", "instruments_index",
+    "instruments_ext", "kline_ext", "depth5", "auction_snapshot",
     "quote_second", "regime_history", "mainline_history", "ext_data", "analysis_menus",
     "instrument_status", "data_releases",
     "market_snapshot", "corporate_actions",
 })
 PUBLIC_FILES = frozenset({
-    ".matrix_generation_stock.json", ".matrix_generation_etf.json", ".matrix_generation_index.json",
+    ".matrix_generation_stock.json", ".matrix_generation_index.json",
     "settlement_ready.json", "capabilities.json",
 })
 DAILY_COVERAGE_DIRS = (
     ("stock", "kline_daily", "kline_daily_enriched"),
-    ("etf", "kline_etf_daily", "kline_etf_enriched"),
     ("index", "kline_index_daily", "kline_index_enriched"),
 )
 
@@ -71,7 +70,7 @@ class PublicPublisher:
         from app.enriched_generation import get_enriched_generation
 
         return {asset: get_enriched_generation(self.source, asset, initialize=False)
-                for asset in ("stock", "etf", "index")}
+                for asset in ("stock", "index")}
 
     def inventory(self):
         files = {}

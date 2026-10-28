@@ -32,7 +32,7 @@ def _record(symbol="002084.SZ", price=7.10, **extra):
 def live(tmp_path, monkeypatch):
     repo = KlineRepository(DataStore(tmp_path))
     repo.clear_cache()
-    symbols = ["002084.SZ", "600000.SH", "510300.SH", "000001.SH"]
+    symbols = ["002084.SZ", "600000.SH", "000001.SH"]
     history = pl.DataFrame([
         {
             "symbol": symbol, "date": cn_today() - timedelta(days=offset),
@@ -45,13 +45,12 @@ def live(tmp_path, monkeypatch):
     qs._repo = repo
     monkeypatch.setattr(repo, "get_live_agg", pl.DataFrame)
     monkeypatch.setattr(repo, "get_instruments", pl.DataFrame)
-    monkeypatch.setattr(repo, "get_etf_instruments", lambda: pl.DataFrame({"symbol": ["510300.SH"]}))
     monkeypatch.setattr(qs, "_load_enriched_history_window", lambda *a: history)
     monkeypatch.setattr(qs_module, "_persist_last_fetch", lambda ms: None)
     events = []
     monkeypatch.setattr(qs, "_broadcast_quote_updated", lambda: events.append("updated"))
 
-    for asset, selected in (("stock", symbols[:2]), ("etf", symbols[2:3]), ("index", symbols[3:])):
+    for asset, selected in (("stock", symbols[:2]), ("index", symbols[2:])):
         records = [
             _record(symbol, 7.07, timestamp=_ms(14, 59, 59), timestamp_basis="source_snapshot")
             for symbol in selected
@@ -83,10 +82,10 @@ def test_received_close_updates_actual_prices_without_persisting(live):
     before, generation = _files(repo), get_enriched_generation(repo.store.data_dir)
     history = repo._enriched_history_cache
     result = qs._process_full_market_records(
-        [_record(), _record("510300.SH"), _record("000001.SH")],
+        [_record(), _record("000001.SH")],
         t0=0, now_ts=0, final_boundary_ms=_ms(15, 0),
     )
-    for asset, symbol in (("stock", "002084.SZ"), ("etf", "510300.SH"), ("index", "000001.SH")):
+    for asset, symbol in (("stock", "002084.SZ"), ("index", "000001.SH")):
         row = _price(repo, symbol, asset)
         assert row["raw_close"] == pytest.approx(7.10)
         assert row["close"] == pytest.approx(7.10)
@@ -172,7 +171,7 @@ def test_delayed_provisional_snapshot_does_not_move_price_backwards(live):
     assert _price(repo)["raw_close"] == pytest.approx(7.10)
 
 
-@pytest.mark.parametrize("asset", ["stock", "etf", "index"])
+@pytest.mark.parametrize("asset", ["stock", "index"])
 def test_restart_preserves_quote_clock_and_batch_authority(live, asset):
     _, repo, _ = live
     frame, _ = repo.get_enriched_latest_asset(asset)
@@ -291,17 +290,4 @@ def test_empty_snapshot_keeps_all_cached_prices(live):
     qs._process_full_market_records([], t0=0, now_ts=0, final_boundary_ms=_ms(15, 0))
     assert _price(repo)["raw_close"] == 7.07
     assert _price(repo, "600000.SH")["raw_close"] == 7.07
-    assert _files(repo) == before
-
-
-def test_partial_etf_snapshot_cannot_truncate_day(live, monkeypatch):
-    qs, repo, _ = live
-    monkeypatch.setattr(repo, "get_etf_instruments", lambda: pl.DataFrame({"symbol": ["510300.SH", "510500.SH"]}))
-    before = _files(repo)
-    qs._process_full_market_records(
-        [_record("510300.SH", timestamp_basis="source_snapshot")],
-        t0=0, now_ts=0, final_boundary_ms=_ms(15, 0),
-    )
-    assert _price(repo, "510300.SH", "etf")["raw_close"] == pytest.approx(7.10)
-    assert qs._last_final_confirmed is False
     assert _files(repo) == before

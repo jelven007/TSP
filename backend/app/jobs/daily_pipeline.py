@@ -269,7 +269,6 @@ def run_now(
     # 命中 → 本次管道放弃实时覆写分支, 降级为从最早坏日起的范围拉取。
     integrity_issues: list = []
     stale_day: _date | None = None
-    etf_stale_day: _date | None = None
     index_stale_day: _date | None = None
     if override_start_date is None:
         try:
@@ -279,7 +278,6 @@ def run_now(
             )
             if integrity_issues:
                 stale_day = data_integrity.earliest_issue_day(integrity_issues, ("kline_daily",))
-                etf_stale_day = data_integrity.earliest_issue_day(integrity_issues, ("kline_etf_daily",))
                 index_stale_day = data_integrity.earliest_issue_day(integrity_issues, ("kline_index_daily",))
                 logger.warning(
                     "integrity: 检测到 %d 个不完整分区(%s), 本次管道改走范围拉取修复",
@@ -558,34 +556,16 @@ def run_now(
     # 均线/动量/量比等指标暖机不足, 管道各 stage 都"成功"但选股会静默全 0。
     enriched_total_days = warn_if_enriched_too_thin(repo.store.data_dir)
 
-    # Step 2.3: 指数 / ETF 同步 — 物理分开存储；ETF 可复权，指数不复权。
+    # Step 2.3: 指数同步, 不复权。
     written_index_daily = 0
-    written_etf_daily = 0
     index_count = 0
-    etf_count = 0
-    etf_adj_symbols = 0
     pull_index = _prefs.get_pipeline_pull_index()
-    pull_etf = _prefs.get_pipeline_pull_etf()
-    if override_start_date is not None and not pull_etf:
-        # 显式数据修正必须覆盖已存在的 ETF 数据，即使用户关闭了日常 ETF
-        # 自动同步；否则完整性门禁会重复发现同一坏分区并循环创建修复任务。
-        pull_etf = any(
-            (repo.store.data_dir / table).exists()
-            for table in ("kline_etf_daily", "kline_etf_enriched")
-        )
-
-    if capset.has(Cap.KLINE_DAILY_BATCH) and (pull_index or pull_etf):
-        _types = []
-        if pull_index:
-            _types.append("指数")
-        if pull_etf:
-            _types.append("ETF")
-        emit("sync_index", 88, f"同步{'+'.join(_types)}日K…")
-        # 子阶段进度分配: 88.0(开始) → 89.0(完成), 指数占前半, ETF 占后半
+    if capset.has(Cap.KLINE_DAILY_BATCH) and pull_index:
+        emit("sync_index", 88, "同步指数日K…")
         try:
             if pull_index:
                 emit("sync_index", 88, "同步指数维表…")
-                index_count = index_sync.sync_index_instruments(repo, pull_index=True, pull_etf=False)
+                index_count = index_sync.sync_index_instruments(repo)
                 emit("sync_index", 88, f"指数维表完成,{index_count} 只")
                 index_dir = repo.store.data_dir / "kline_index_enriched"
                 index_dates = sorted(
@@ -618,93 +598,16 @@ def run_now(
                 _invalidate("index_daily")
                 _invalidate("index_enriched")
 
-            if pull_etf:
-                emit("sync_index", 88, "同步 ETF 维表…")
-                etf_count = index_sync.sync_etf_instruments(repo)
-                emit("sync_index", 88, f"ETF 维表完成,{etf_count} 只")
-                etf_symbols: list[str] = []
-                etf_inst = repo.get_etf_instruments()
-                if not etf_inst.is_empty() and "symbol" in etf_inst.columns:
-                    etf_symbols = sorted(set(etf_inst["symbol"].to_list()))
-                if etf_symbols and capset.has(Cap.ADJ_FACTOR):
-                    try:
-                        emit("sync_index", 88, "同步 ETF 除权因子…")
-                        from datetime import datetime, timedelta
-                        adj_end = datetime.combine(range_end, datetime.max.time()) if override_end_date is not None else datetime.now()
-                        adj_path = repo.store.data_dir / "adj_factor_etf" / "all.parquet"
-                        # 首次无文件时与 ETF 日K 默认一年窗口对齐, 不要只拉 30 天。
-                        history_start = adj_end - timedelta(days=365)
-                        adj_start = (
-                            datetime.combine(override_start_date, datetime.min.time())
-                            if override_end_date is not None
-                            else index_sync.etf_adj_factor_window_start(adj_path, history_start)
-                        )
-                        _, affected_etfs = index_sync.sync_etf_adj_factor(
-                            etf_symbols,
-                            repo,
-                            capset,
-                            start_time=adj_start,
-                            end_time=adj_end,
-                        )
-                        etf_adj_symbols = len(affected_etfs)
-                        emit("sync_index", 88, f"ETF 除权因子完成,{etf_adj_symbols} 只")
-                    except Exception as e:  # noqa: BLE001
-                        logger.warning("ETF adj_factor skipped: %s", e)
-                        stage_errors.append(f"ETF adj_factor: {e}")
-                etf_dir = repo.store.data_dir / "kline_etf_enriched"
-                etf_dates = sorted(
-                    d.name[5:] for d in etf_dir.glob("date=*")
-                    if d.is_dir() and d.name.startswith("date=")
-                ) if etf_dir.exists() else []
-                if override_start_date:
-                    etf_start = override_start_date
-                else:
-                    etf_start = _date.fromisoformat(etf_dates[-1]) if etf_dates else today - _td(days=365)
-                # 同指数: 完整性修复时把 ETF 起点提前到最早坏日
-                if etf_stale_day is not None and etf_start > etf_stale_day:
-                    etf_start = etf_stale_day
-
-                def _etf_chunk(cur: int, tot: int) -> None:
-                    emit("sync_index", 88, f"ETF 日K批次 {cur}/{tot}",
-                         stage_pct=int(100 * cur / tot) if tot else 100, skip_log=cur < tot)
-
-                written_etf_daily = index_sync.sync_and_persist_etf_daily(
-                    repo,
-                    capset,
-                    start_date=_dt.combine(etf_start, _dt.min.time()),
-                    end_date=_dt.combine(range_end, _dt.min.time()),
-                    on_chunk_done=_etf_chunk,
-                )
-                if override_start_date is not None and written_etf_daily:
-                    from app.services.data_integrity import prune_realtime_residue_rows
-
-                    removed = prune_realtime_residue_rows(
-                        repo.store.data_dir,
-                        override_start_date,
-                        "kline_etf_daily",
-                        today=today,
-                        **({"end": range_end} if override_end_date is not None else {}),
-                    )
-                    if removed:
-                        logger.info(
-                            "integrity: 已删除 %d 行未被 batch 覆盖的 ETF 实时残留",
-                            removed,
-                        )
-                emit("sync_index", 88, f"ETF 日K完成,{written_etf_daily} 行")
-                _invalidate("etf_instruments")
-                _invalidate("etf_daily")
-
             repo.refresh_index_views()
             emit(
                 "sync_index",
                 89,
-                f"同步完成,指数 {index_count} 只/{written_index_daily} 行, ETF {etf_count} 只/{written_etf_daily} 行"
-                + (f", ETF复权 {etf_adj_symbols} 只" if etf_adj_symbols else ""),
+                f"同步完成,指数 {index_count} 只/{written_index_daily} 行",
             )
         except Exception as e:  # noqa: BLE001
-            logger.warning("sync_index/etf failed: %s", e)
-            emit("sync_index", 89, f"指数/ETF同步失败:{e}")
-            stage_errors.append(f"index/etf sync: {e}")
+            logger.warning("sync_index failed: %s", e)
+            emit("sync_index", 89, f"指数同步失败:{e}")
+            stage_errors.append(f"index sync: {e}")
     else:
         skipped.append("sync_index")
 
@@ -876,9 +779,6 @@ def run_now(
         "enriched_days": written_enriched,
         "index_count": index_count,
         "index_daily_rows": written_index_daily,
-        "etf_count": etf_count,
-        "etf_daily_rows": written_etf_daily,
-        "etf_adj_factor_symbols": etf_adj_symbols,
         "minute_rows": written_minute,
         "regime_days": regime_days,
         "mainline_rows": mainline_rows,
@@ -960,19 +860,14 @@ def _refresh_single_view(repo: KlineRepository, name: str) -> None:
         "kline_enriched": f"{d}/kline_daily_enriched/**/*.parquet",
         "kline_index_daily": f"{d}/kline_index_daily/**/*.parquet",
         "kline_index_enriched": f"{d}/kline_index_enriched/**/*.parquet",
-        "kline_etf_daily": f"{d}/kline_etf_daily/**/*.parquet",
-        "kline_etf_enriched": f"{d}/kline_etf_enriched/**/*.parquet",
-        "kline_etf_minute": f"{d}/kline_etf_minute/**/*.parquet",
         "kline_minute": f"{d}/kline_minute/**/*.parquet",
         "kline_5minute": f"{d}/kline_5minute/**/*.parquet",
         "kline_10minute": f"{d}/kline_10minute/**/*.parquet",
         "kline_15minute": f"{d}/kline_15minute/**/*.parquet",
         "kline_weekly": f"{d}/kline_weekly/**/*.parquet",
         "adj_factor": f"{d}/adj_factor/**/*.parquet",
-        "adj_factor_etf": f"{d}/adj_factor_etf/**/*.parquet",
         "instruments": f"{d}/instruments/**/*.parquet",
         "instruments_index": f"{d}/instruments_index/**/*.parquet",
-        "instruments_etf": f"{d}/instruments_etf/**/*.parquet",
     }
     path = paths.get(name)
     if not path:

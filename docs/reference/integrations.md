@@ -251,7 +251,7 @@ asset_type_param: asset_type
 freq_param: period
 ```
 
-配置后，分钟请求会分别传入 `stock` / `etf` / `index` 和 `1m`；留空时不向上游发送这两个参数，以兼容已有数据源。
+配置后，分钟请求会分别传入 `stock` / `index` 和 `1m`；留空时不向上游发送这两个参数，以兼容已有数据源。
 
 <a id="http-请求超时"></a>
 #### 请求超时
@@ -484,7 +484,7 @@ homepage: "https://example.com"          # (可选)官网/申请地址, 显示�
 只声明真实提供的数据集;未声明的数据集 `provider_has_dataset` 返回 False。
 能力矩阵以 `usable` 表示当前是否可用。不要声明做不了的数据集。
 股票当前维表固定使用沪深交易所官方目录，独立于七项行情能力路由；
-指数和 ETF 标的维表继续跟随日K源，缺少标的接口时保留本地维表。
+指数标的维表继续跟随日K源，缺少标的接口时保留本地维表。
 Provider 的 `get_instruments("stock")` 与元数据扩展方法保留兼容，但不再决定当前股票池。
 
 <a id="official-stock-catalog"></a>
@@ -548,7 +548,7 @@ def availability() -> tuple[bool, str]:
 <a id="plugin-代码格式"></a>
 #### 代码格式
 
-- symbol 统一带交易所后缀: `600519.SH` / `000001.SZ` / `300750.SZ`; ETF、指数同格式。
+- symbol 统一带交易所后缀: `600519.SH` / `000001.SZ` / `300750.SZ`; 指数同格式。
 - 接口返回裸代码(如 `600519`)或异构格式时,在 client 层实测一页并归一,不要直接透传。
 
 <a id="plugin-单位制"></a>
@@ -558,7 +558,7 @@ def availability() -> tuple[bool, str]:
 | --- | --- | --- |
 | `change_pct` | **小数制**, `0.0366` = 3.66% | 接口给百分数(3.66)时必须在 provider 内显式 /100 |
 | `turnover_rate`(realtime 入口) | **小数制**, `0.05` = 5% | 下游 enriched 管道统一转百分数值存储 |
-| `volume` | **手**, `436231` = 43,623,100 股 | 日K 与实时快照均以手计(1手=100股), 股票/ETF/指数一致(与上游 TickFlow 口径一致, 可用 amount÷volume÷100≈当日均价自验); 接口给股时必须在 provider 内显式 /100(参考 fuyao) |
+| `volume` | **手**, `436231` = 43,623,100 股 | 日K 与实时快照均以手计(1手=100股), 股票/指数一致(与上游 TickFlow 口径一致, 可用 amount÷volume÷100≈当日均价自验); 接口给股时必须在 provider 内显式 /100(参考 fuyao) |
 | `amount` / `turnover` | 元 | |
 | 日K OHLC | **不复权原始价** | 复权由 adj_factor + enriched 管道处理, provider 不得自行复权 |
 
@@ -574,12 +574,10 @@ def availability() -> tuple[bool, str]:
 ### 能力声明的粒度(重要)
 
 `datasets` 声明是**数据集级**的,不是资产类型级的:声明了 `realtime`,整个全市场实时
-轮询周期(含指数与 ETF 部分)就全部路由给插件。若你的快照只覆盖 A 股股票:
+轮询周期(含指数部分)就全部路由给插件。若你的快照只覆盖 A 股股票:
 
 - 指数行情自动降级为日线推导值(非实时),不报错;
-- ETF 实时计数为 0。
-
-这是当前框架的设计行为。要么在数据里尽量覆盖指数/ETF,要么接受降级并在
+这是当前框架的设计行为。要么在数据里覆盖所需指数,要么接受降级并在
 `description` 里向用户说明覆盖范围。
 
 <a id="plugin-provider-接口契约"></a>
@@ -647,7 +645,7 @@ class MyProvider:
 
     def get_instruments(self, asset_type="stock") -> list[dict]:
         """(可选)标的维表: 返回 tickflow Instrument 形状的行。
-        ETF/指数同步沿用本接口；股票当前目录固定官方源。"""
+        指数同步沿用本接口；股票当前目录固定官方源。"""
 
     def get_instrument_metadata(self, symbols: list[str]) -> list[dict]:
         """(可选, 保留兼容)股票元数据，不在实时名称查询中调用。
@@ -865,9 +863,9 @@ TickFlow 和 fuyao 是两种备选数据源，各能力仍可独立选择。已�
 <a id="rustdx-沪深市场范围与升级"></a>
 ### 沪深市场范围与升级
 
-股票范围仅含沪主板、深主板、创业板、科创板；沪深 ETF 与指数保留。采集、行情
+股票范围仅含沪主板、深主板、创业板、科创板；指数保留。采集、行情
 聚合、导入、指标、回测和持久化边界统一过滤不支持的市场代码，包括错误附上
-沪深后缀的旧代码。股票身份仍按交易所对应代码前缀校验，不把指数或 ETF 当作股票。
+沪深后缀的旧代码。股票身份仍按交易所对应代码前缀校验，不把指数当作股票。
 
 `DataStore` 在加载视图和启动任务前执行幂等迁移：混合 Parquet 按证券行清理，
 只含旧市场的文件删除，JSON 中旧证券引用和板块选项清除。成功完成才保存迁移标记；
@@ -958,7 +956,7 @@ Standalone 和多租户 Platform 在数据目录没有股票日线时记录待�
 多租户 API、Gateway 和 Worker 不触发公共数据初始化。
 已有日线和已保存的合法配置保留。
 
-实时行情及 ETF 范围、分时图/盘中分钟刷新、盘后 ETF、秒级归档和内置概念/行业
+实时行情范围、分时图/盘中分钟刷新、指数、秒级归档和内置概念/行业
 自动拉取缺省开启；各服务仍检查能力和执行窗口。财务能力可用时默认启动周期任务，
 启动后 60 秒首轮、随后约每周同步 metrics，执行时检查总开关并复用后台线程、
 互斥与公共发布路径；首次任务仍拉取全部五张历史财务表。
@@ -1322,7 +1320,7 @@ Golden symbols: `000403.SZ`, `600489.SH`, `300059.SZ`.
 
 | 端点 | 说明 |
 |---|---|
-| `GET /api/kline/instruments/search` | 标的搜索（代码/名称/拼音首字母, 含 ETF/指数） |
+| `GET /api/kline/instruments/search` | 标的搜索（代码/名称/拼音首字母, 含股票/指数） |
 | `GET /api/kline/daily?symbol=&start_date=&end_date=` | 日K（前复权/不复权口径参数） |
 | `GET /api/kline/minute` `/minute-range` | 单日或区间分钟 K |
 | `GET /api/intraday/status` `/indices` | 实时服务状态与核心指数快照 |

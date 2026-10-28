@@ -18,10 +18,8 @@ def test_computed_invalidation_preserves_instrument_dependencies(tmp_path):
     repo = _repo(tmp_path)
     stock = pl.DataFrame({"symbol": ["600519.SH"]})
     index = pl.DataFrame({"symbol": ["000001.SH"]})
-    etf = pl.DataFrame({"symbol": ["588200.SH"]})
     repo._instruments_cache = stock
     repo._index_instruments_cache = index
-    repo._etf_instruments_cache = etf
     repo._enriched_cache = pl.DataFrame({"symbol": ["600519.SH"]})
     repo._enriched_history_cache = pl.DataFrame({"symbol": ["600519.SH"]})
     repo._live_agg_cache = pl.DataFrame({"symbol": ["600519.SH"]})
@@ -30,7 +28,6 @@ def test_computed_invalidation_preserves_instrument_dependencies(tmp_path):
 
     assert repo._instruments_cache is stock
     assert repo._index_instruments_cache is index
-    assert repo._etf_instruments_cache is etf
     assert repo._enriched_cache is None
     assert repo._enriched_history_cache is None
     assert repo._live_agg_cache is None
@@ -40,13 +37,11 @@ def test_full_clear_still_clears_instrument_dependencies(tmp_path):
     repo = _repo(tmp_path)
     repo._instruments_cache = pl.DataFrame({"symbol": ["600519.SH"]})
     repo._index_instruments_cache = pl.DataFrame({"symbol": ["000001.SH"]})
-    repo._etf_instruments_cache = pl.DataFrame({"symbol": ["588200.SH"]})
 
     repo.clear_cache()
 
     assert repo._instruments_cache is None
     assert repo._index_instruments_cache is None
-    assert repo._etf_instruments_cache is None
 
 
 def test_lazy_enriched_refresh_loads_instruments_before_compute(tmp_path, monkeypatch):

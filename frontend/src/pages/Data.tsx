@@ -271,7 +271,6 @@ export function Data() {
   const hasDailyBatchCap = usableOr('daily', !!tfCaps?.['kline.daily.batch'])
   const hasMinuteCap = usableOr('minute', !!tfCaps?.['kline.minute.batch'])
   const indexAuto = prefs.data?.pipeline_pull_index ?? true
-  const etfAuto = prefs.data?.pipeline_pull_etf ?? true
 
   // 数据画像卡片显隐(由页面设置弹窗控制,存 localStorage)
   const [cardVisibleTick, setCardVisibleTick] = useState(0)
@@ -342,14 +341,6 @@ export function Data() {
     latest_date: s.index_daily?.latest_date ?? s.index_enriched?.latest_date ?? null,
     symbols_covered: s.index_daily?.symbols_covered ?? s.index_instruments?.rows ?? 0,
     trading_days: s.index_daily?.trading_days ?? s.index_enriched?.trading_days ?? 0,
-  } : null
-  // ETF 统计(后端已按 asset_type='etf' 从 index 存储中拆分)
-  const etfOverviewStats = s ? {
-    rows: 0,
-    earliest_date: s.etf_daily?.earliest_date ?? s.etf_enriched?.earliest_date ?? null,
-    latest_date: s.etf_daily?.latest_date ?? s.etf_enriched?.latest_date ?? null,
-    symbols_covered: s.etf_daily?.symbols_covered ?? s.etf_instruments?.rows ?? 0,
-    trading_days: s.etf_daily?.trading_days ?? s.etf_enriched?.trading_days ?? 0,
   } : null
   const indexOverviewLabel = s ? '日 · 维表 · 日K · 指标' : undefined
   const indexEarliestDate = s?.index_daily?.earliest_date ?? s?.index_enriched?.earliest_date ?? null
@@ -529,27 +520,6 @@ export function Data() {
             onShowFields={(t) => setSchemaTable(t ?? 'index_daily')}
             onSettings={hasData ? () => setOpenSettings(v => v === 'index' ? null : 'index') : undefined}
             settingsOpen={openSettings === 'index'}
-          />
-        )
-      case 'etf':
-        return (
-          <StatCard
-            title="ETF"
-            hint="场内基金 · 独立存储"
-            stats={etfOverviewStats}
-            loading={isLoading}
-            tierKey="etf"
-            capLimits={mergedCaps}
-            customProvider={routeProviderDisplay(matrix.data, 'daily')}
-            auto={etfAuto}
-            manual={!autoSyncEnabled}
-            subLabel="维表 · 日K · 指标"
-            fieldTabs={[
-              { label: '维表', table: 'etf_instruments' },
-              { label: '日K', table: 'etf_daily' },
-              { label: '指标', table: 'etf_enriched' },
-            ] as FieldTab[]}
-            onShowFields={(t) => setSchemaTable(t ?? 'etf_daily')}
           />
         )
       case 'minute':
@@ -1125,7 +1095,7 @@ export function Data() {
                   <ul className="mt-2 text-[11px] text-muted leading-relaxed space-y-0.5">
                     <li>· 个股维表、日 K、除权因子</li>
                     <li>· Enriched 指标数据、分钟 K</li>
-                    <li>· 财务数据、指数、ETF</li>
+                    <li>· 财务数据、指数</li>
                   </ul>
                   <p className="mt-2 text-[11px] text-danger/90">
                     操作不可恢复，需重新执行同步才能恢复数据。

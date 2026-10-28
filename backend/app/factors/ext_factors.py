@@ -295,7 +295,7 @@ def attach_ext_columns(
             try:
                 if cfg.mode == "timeseries":
                     if not has_date:
-                        continue  # 无日期列无法 PIT 对齐, 跳过 (ETF/指数单行帧等)
+                        continue  # 无日期列无法 PIT 对齐, 跳过 (指数单行帧等)
                     ext = _timeseries_frame(root, cfg, fields)
                     if ext.is_empty():
                         continue

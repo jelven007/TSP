@@ -118,7 +118,7 @@ export function FactorLibrary({ onInspect, onEdit }: { onInspect: (factorId: str
                   </td>
                   <td className="px-3 py-2.5 font-mono text-secondary">{item.warmup_bars > 1 ? `${item.warmup_bars}日` : '—'}</td>
                   <td className="px-3 py-2.5 text-muted">
-                    {item.asset_types.includes('stock') && item.asset_types.includes('etf') ? '股票/ETF' : item.asset_types.join('/')}
+                    {item.asset_types.join('/')}
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <button

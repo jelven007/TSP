@@ -547,7 +547,7 @@ _SHARE_CAP_FILTER_KEYS = (
 )
 
 # 换手率界同样依赖股本派生字段 (turnover_rate ← float_shares):
-# 非股票资产 (etf/index) 没有股本数据, 若保留非 None 的换手率界,
+# 指数没有股本数据, 若保留非 None 的换手率界,
 # _basic_filter_dependencies 会解析出 turnover_rate 字段需求,
 # 矩阵缓存档构建时因无 float_shares 而失败 (matrix turnover_rate requires
 # float_shares)。与市值界同一族问题, 必须一并中和。
@@ -556,9 +556,7 @@ _TURNOVER_FILTER_KEYS = (
     "turnover_max",
 )
 
-# 股票专属的价格界与板块过滤对非股票资产同样不可满足 (#215):
-# ETF 单价普遍 0.5~7 元, 会被 price_min=3 整列误杀; boards 按股票代码
-# 前缀匹配, ETF 代码不属于任何板块 → 掩码全 False, 静默零信号。
+# 股票专属的价格界与板块过滤对指数同样不可满足 (#215)。
 _STOCK_ONLY_FILTER_KEYS = (
     *_SHARE_CAP_FILTER_KEYS,
     *_TURNOVER_FILTER_KEYS,
@@ -571,10 +569,9 @@ _STOCK_ONLY_FILTER_KEYS = (
 
 
 def _basic_filter_for_asset(basic_filter: dict, asset_type: str) -> dict:
-    """非股票资产没有股本数据 (etf/index 维表只有 symbol/name), 市值、流通
-    市值与换手率界对它们既无意义也不可满足: 依赖解析与运行期过滤前先置
-    None。价格界 (price_min/max) 与板块过滤 (boards) 是股票专属口径, 对
-    ETF 同样不可满足, 一并中和, 否则入场候选在运行期被静默清零 (#215)。
+    """指数维表只有 symbol/name, 市值、流通市值与换手率界对它既无意义
+    也不可满足: 依赖解析与运行期过滤前先置 None。价格界 (price_min/max)
+    与板块过滤 (boards) 是股票专属口径, 一并中和。
 
     置 None 后: 依赖解析不再产出 total_shares/float_shares/turnover_rate
     需求; polars 侧有列守卫 (engine._basic_filter_expr), 矩阵侧
@@ -1038,7 +1035,7 @@ class StrategyBacktestService:
 
         overrides = first.overrides or {}
         # 运行期过滤用的也是同一份 basic_filter: 在入口处按资产类型中和,
-        # 否则 boards/price_min 会在掩码阶段静默清零 ETF 候选 (#215)
+        # 否则 boards/price_min 会在掩码阶段静默清零指数候选 (#215)
         basic_filter = _basic_filter_for_asset(
             self._effective_basic_filter(strategy, overrides), first.asset_type
         )

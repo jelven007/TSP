@@ -13,7 +13,7 @@ from app.strategy.engine import StrategyEngine
 
 CODE = '''
 import polars as pl
-META = {"id": "sample", "name": "示例", "asset_types": ["stock", "etf"],
+META = {"id": "sample", "name": "示例", "asset_types": ["stock"],
         "params": [{"id": "threshold", "default": 10}]}
 BASIC_FILTER = {"exclude_new_days": 0}
 def filter(df, params):
@@ -62,7 +62,6 @@ def test_identity_dimensions_and_effective_defaults(tmp_path, engine):
     assert key == identity(module, engine, tmp_path, params={}, overrides={"params": {"threshold": 10}})
     variants = [
         identity(module, engine, tmp_path, params={"threshold": 11}),
-        identity(module, engine, tmp_path, asset_type="etf"),
         identity(module, engine, tmp_path, timeframe="1m"),
         identity(module, engine, tmp_path, pool=["A"]),
         identity(module, engine, tmp_path, overrides={"display_limit": 5}),
@@ -70,7 +69,7 @@ def test_identity_dimensions_and_effective_defaults(tmp_path, engine):
         replace(key, strategy_version="different"),
         replace(key, strategy_id="other"),
     ]
-    assert len({key.fingerprint, *(item.fingerprint for item in variants)}) == 9
+    assert len({key.fingerprint, *(item.fingerprint for item in variants)}) == 8
 
 
 def test_version_is_logic_not_name_or_comments(tmp_path, engine):
@@ -332,12 +331,12 @@ def test_history_filters_are_combined_before_pagination(tmp_path, engine):
     key = identity(module, engine, tmp_path)
     store = module.StrategyResults(tmp_path)
     target = replace(key, strategy_name="旧名称_100%", strategy_version="Version-ABC",
-                     asset_type="etf", timeframe="1m")
+                     asset_type="stock", timeframe="1m")
     for day in ("2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"):
         store.save(target, {"as_of": day, "rows": []}, started_at=1)
         store.save(key, {"as_of": day, "rows": []}, started_at=1)
     filters = dict(q="旧名称_100%", start_date="2026-10-20", end_date="2026-10-22",
-                   asset_type="etf", timeframe="1m", limit=2)
+                   asset_type="stock", timeframe="1m", limit=2)
     page = store.list_history("sample", **filters)
     assert [r["as_of"] for r in page["records"]] == ["2026-10-22", "2026-10-21"]
     second = store.list_history("sample", cursor=page["next_cursor"], **filters)

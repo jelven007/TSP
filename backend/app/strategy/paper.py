@@ -70,7 +70,7 @@ MAX_POSTPONE_DAYS = 3             # 顺延上限: 连续 N 个交易日无法成
 # 不能按当日这个价成交 (下单时价格已知), 留到下一交易日结算
 _SESSION_OPEN = _time(9, 30)
 _SESSION_CLOSE = _time(15, 0)
-LOT_SIZE = 100                     # 一手 100 股 (股票/ETF 同)
+LOT_SIZE = 100                     # 一手 100 股
 MAX_POSITION_SYMBOLS = 50          # 持仓标的数上限 (防误操作)
 DEFAULT_ACCOUNT_ID = "default"
 _ACCOUNT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
@@ -318,8 +318,6 @@ def limit_pct(
     is_risk_warning: bool = False,
 ) -> float:
     """Return the applicable limit, including date-aware stock ST rules."""
-    if asset_type == "etf":
-        return 0.10
     return stock_price_limit_pct(
         symbol,
         trade_date or cn_today(),
@@ -335,15 +333,14 @@ def limit_prices(
     trade_date: _date | None = None,
     is_risk_warning: bool = False,
 ) -> tuple[float, float]:
-    """(涨停价, 跌停价)。股票 2 位小数, 基金 3 位小数。"""
+    """(涨停价, 跌停价)。"""
     pct = limit_pct(
         symbol,
         asset_type,
         trade_date=trade_date,
         is_risk_warning=is_risk_warning,
     )
-    digits = 3 if asset_type == "etf" else 2
-    return round(prev_close * (1 + pct), digits), round(prev_close * (1 - pct), digits)
+    return round(prev_close * (1 + pct), 2), round(prev_close * (1 - pct), 2)
 
 
 # ── 数量 (纯函数) ───────────────────────────────────────
@@ -371,19 +368,18 @@ def portfolio_budget(data_dir, account_id=DEFAULT_ACCOUNT_ID, *, prices=None, ex
     holdings, pending = {}, {}
     positions = load_positions(data_dir, account_id)
     fallback = {}
-    for asset in ("stock", "etf"):
-        missing = [symbol for symbol, pos in positions.items() if pos["qty"] > 0
-                   and pos.get("asset_type", "stock") == asset and not valid_price(prices.get(symbol))]
-        base = _daily_path(data_dir, asset)
-        if missing and base.exists():
-            try:
-                rows = (pl.scan_parquet((base / "**" / "*.parquet").as_posix())
-                        .filter(pl.col("symbol").is_in(missing) & (pl.col("date") <= cn_today()))
-                        .group_by("symbol").agg(pl.col("close").sort_by("date").last())
-                        .collect())
-                fallback.update({row["symbol"]: row["close"] for row in rows.iter_rows(named=True)})
-            except Exception as exc:
-                logger.warning("paper portfolio marks unavailable: %s", exc)
+    missing = [symbol for symbol, pos in positions.items() if pos["qty"] > 0
+               and pos.get("asset_type", "stock") == "stock" and not valid_price(prices.get(symbol))]
+    base = _daily_path(data_dir, "stock")
+    if missing and base.exists():
+        try:
+            rows = (pl.scan_parquet((base / "**" / "*.parquet").as_posix())
+                    .filter(pl.col("symbol").is_in(missing) & (pl.col("date") <= cn_today()))
+                    .group_by("symbol").agg(pl.col("close").sort_by("date").last())
+                    .collect())
+            fallback.update({row["symbol"]: row["close"] for row in rows.iter_rows(named=True)})
+        except Exception as exc:
+            logger.warning("paper portfolio marks unavailable: %s", exc)
     for symbol, pos in positions.items():
         if pos["qty"] <= 0:
             continue
@@ -525,7 +521,6 @@ def create_order(
     """创建订单并校验。qty 与 amount 二选一 (amount 按参考价折算百股)。
 
     order_type: market(即时, 盘中钩子撮合) / next_open / close。
-    ETF 即时单自动转 next_open (盘中钩子只喂股票快照)。
     返回 (order, None) 或 (None, 错误信息)。
     """
     with paper_lock(data_dir, PAPER_LOCK):
@@ -552,15 +547,12 @@ def create_order(
         symbol = (symbol or "").strip()
         if not symbol:
             return None, "symbol 不能为空"
-        from app.market_scope import removed_market_symbol
-        if removed_market_symbol(symbol):
-            return None, "模拟交易仅支持沪深市场"
-        if asset_type is None:
-            asset_type = "etf" if symbol.endswith((".SH", ".SZ")) and symbol.split(".")[0].startswith(("51", "56", "58", "15")) else "stock"
-
-        # ETF 即时单 → 次日开盘 (盘中钩子只喂股票快照)
-        if order_type == "market" and asset_type == "etf":
-            order_type = "next_open"
+        from app.market_scope import supported_symbol
+        if not supported_symbol(symbol, "stock"):
+            return None, "模拟交易仅支持股票"
+        asset_type = asset_type or "stock"
+        if asset_type != "stock":
+            return None, "模拟交易仅支持股票"
 
         if qty is None and amount is None:
             return None, "qty 与 amount 必须提供一个"
@@ -892,7 +884,7 @@ def _limit_price_error(
         bonus = sum(action.bonus_per_share for action in actions)
         rights = sum(action.rights_per_share for action in actions)
         payment = sum(action.rights_per_share * (action.rights_price or 0) for action in actions)
-        prev = round((prev - dividend + payment) / (1 + bonus + rights), 3 if asset_type == "etf" else 2)
+        prev = round((prev - dividend + payment) / (1 + bonus + rights), 2)
     trade_date = _date.fromisoformat(day)
     up, down = limit_prices(
         prev, symbol, asset_type, trade_date=trade_date,
@@ -1179,7 +1171,7 @@ def evaluate_intraday(
     """盘中钩子: 用最新快照价撮合 pending 即时单。返回本次成交事件列表。
 
     snapshot: {symbol: raw 最新价} (来自 enriched raw_close)。仅处理 market 单;
-    调用方 (quote_service) 已保证交易时段。ETF 不在快照内自然顺延。
+    调用方 (quote_service) 已保证交易时段。
     事件由调用方广播 (SSE/语音/系统通知/留痕/Webhook), 域模块只产出不投递。
     """
     events: list[dict] = []
@@ -1270,8 +1262,7 @@ def evaluate_opening(data_dir, rows, account_id=DEFAULT_ACCOUNT_ID):
 
 def _daily_path(data_dir: Path, asset_type: str) -> Path:
     data_dir = market_path(data_dir)
-    sub = "kline_etf_daily" if asset_type == "etf" else "kline_daily"
-    return data_dir / sub
+    return data_dir / "kline_daily"
 
 
 def read_daily_bar(data_dir: Path, symbol: str, asset_type: str, day: str) -> dict | None:
@@ -1345,8 +1336,7 @@ def _entry_reference_on(data_dir, snapshot, symbol, asset_type, day):
             return None
         reference = dict(snapshot.get("signal_reference") or {})
         factor = 1.
-        sub = "adj_factor_etf" if asset_type == "etf" else "adj_factor"
-        path = market_path(data_dir) / sub / "all.parquet"
+        path = market_path(data_dir) / "adj_factor" / "all.parquet"
         if path.exists() and start < end:
             factors = pl.scan_parquet(path).filter(
                 (pl.col("symbol") == symbol) & (pl.col("trade_date") > start)
@@ -1366,8 +1356,7 @@ def _entry_reference_on(data_dir, snapshot, symbol, asset_type, day):
 def _factor_on(data_dir: Path, symbol: str, asset_type: str, day: str) -> float | None:
     """symbol 在 day 的除权因子 (无因子文件/无当日事件返回 None)。"""
     data_dir = market_path(data_dir)
-    sub = "adj_factor_etf" if asset_type == "etf" else "adj_factor"
-    p = data_dir / sub / "all.parquet"
+    p = data_dir / "adj_factor" / "all.parquet"
     if not p.exists():
         return None
     try:

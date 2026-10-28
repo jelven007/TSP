@@ -21,6 +21,8 @@ def removed_market_symbol(value: object) -> bool:
 
 def supported_symbol(value: object, asset_type: str | None = None) -> bool:
     text = str(value or "").strip().upper()
+    if asset_type not in (None, "stock", "index"):
+        return False
     if asset_type == "stock":
         from app.data_providers.instrument_status import current_a_share_identity
         return current_a_share_identity(text) is not None
