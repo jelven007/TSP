@@ -1,5 +1,12 @@
 # 工程与交付参考
 
+2026-10-28最新整合以
+[统一发布评审](../../reports/complete-release-20261028-3/review.md)
+串联需求、方案、开发、测试、运营、运维和用户手册。源码候选由三笔聚焦提交组成，
+保持Provider/JobStore/公共发布边界；rustdx固定来源与ETF退役迁移分别验证。
+PR、自动版本/标签、正式镜像、分支清理及两端升级按阶段独立签收，
+不得用本地全量测试替代远程产物或运行验收。
+
 2026-10-28周K混合Parquet schema修复对应`FR-DATA-05`，仅修改周期服务读取入口
 及回归测试；无API、Provider、配置、存储迁移或版本变化。六类文档、真实ECS只读证据
 与未部署边界见[交付记录](../../reports/weekly-parquet-schema-20261028/verification.md)。

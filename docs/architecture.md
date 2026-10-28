@@ -1,5 +1,11 @@
 # TSP 系统技术方案
 
+2026-10-28最新整合在`v0.4.36`基线上收口为股票与固定七指数：
+ETF运行路径从Provider到存储、研究和交易全链路退役，指数目录、周期表和现有回补逻辑保留。
+rustdx v2.0.4、闭区间K线任务、周K兼容读取及指数交互沿原模块边界接线，
+没有新增平行Provider、任务系统或SQL schema。固定范围、质量门与部署迁移见
+[发布评审](../reports/complete-release-20261028-3/review.md)。
+
 2026-10-28数据总览移除独立`RepairDailyPanel`入口，基础周期离线获取收口到
 `KlineSyncConfig→POST /api/kline/sync_period→_start_kline_range_job→run_repair_daily`。
 1m/1d请求必须携带`start_date/end_date/mode`；5m/10m/15m/1w仍仅传`period`
