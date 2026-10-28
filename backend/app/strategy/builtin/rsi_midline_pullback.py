@@ -18,7 +18,7 @@ META = {
     "name": "RSI 中轴回踩",
     "description": "多头趋势 (MA60 上方) 中 RSI 回落至 50 中轴区间企稳, 强势股低吸",
     "tags": ["RSI", "趋势", "低吸"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {

@@ -56,7 +56,6 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
         engine.set_strategy_engine(strategy_engine)
         engine.set_data_dir(private_root)
         engine.set_history_loader(ScreenerService(repo)._load_enriched_history)
-        engine.set_history_loader_etf(ScreenerService(repo, asset_type="etf")._load_enriched_history)
     engine.set_sector_monitor_service(SectorSnapshots(snapshot.get("sectors", {})))
     intraday = IntradaySignalEvaluator()
     intraday._last_bar = {
@@ -64,7 +63,7 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
     }
     events, execution_events, current_frames = [], [], {}
     if snapshot["status"].get("is_trading_hours"):
-        for asset in ("stock", "etf", "index"):
+        for asset in ("stock", "index"):
             if snapshot.get("days", {}).get(asset) != cn_today().isoformat():
                 continue
             frame = fresh_frame(decode_frame(snapshot["frames"][asset]))

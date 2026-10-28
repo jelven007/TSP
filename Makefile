@@ -25,7 +25,15 @@ test-tooling:
 	$(UV) run --project backend --frozen --no-sync pytest tests/tooling -q
 
 test-backend:
-	cd backend && $(UV) run --frozen --no-sync pytest tests -q
+	@tmp_dir="$$(mktemp -d "$${TMPDIR:-/tmp}/tsp-tests.XXXXXX")"; \
+	trap 'rm -rf "$$tmp_dir"' 0; \
+	cd backend && \
+	TICKFLOW_ENV_FILE=/dev/null \
+	MULTITENANCY_ENABLED=false \
+	SERVICE_ROLE=standalone \
+	DATA_DIR="$$tmp_dir" \
+	POLARS_MAX_THREADS=4 \
+	$(UV) run --frozen --no-sync pytest tests -q
 
 test-frontend:
 	cd frontend && $(PNPM) test

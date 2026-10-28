@@ -642,6 +642,53 @@ def test_missing_pauses_quotes_only_for_writes_and_broadcasts_after_refresh(app,
     assert not active
 
 
+def test_full_minute_pauses_quotes_only_for_partition_writes(app, monkeypatch):
+    from app.services import kline_sync
+
+    active = False
+    writes = []
+
+    @contextmanager
+    def paused():
+        nonlocal active
+        active = True
+        try:
+            yield
+        finally:
+            active = False
+
+    def fetch(symbols, start, end, *, asset_type, freq):
+        assert not active
+        return bars(symbols, [datetime(2026, 10, 26, 9, 31)])
+
+    provider = SimpleNamespace(
+        capabilities=ProviderCapabilities(minute=True),
+        get_klines=fetch,
+    )
+    monkeypatch.setattr("app.data_providers.registry.get_provider", lambda _: provider)
+    write = kline_sync._atomic_write_parquet
+
+    def guarded_write(frame, out):
+        assert active
+        writes.append(out)
+        write(frame, out)
+
+    monkeypatch.setattr(kline_sync, "_atomic_write_parquet", guarded_write)
+    quote_service = SimpleNamespace(paused=paused, _broadcast_quote_updated=lambda: None)
+    result = repair_daily.run_repair_daily(
+        app.state.repo,
+        app.state.capabilities,
+        DAY,
+        period="1m",
+        mode="full",
+        quote_service=quote_service,
+    )
+
+    assert result["rows"] == len(SYMBOLS)
+    assert len(writes) == 1
+    assert not active
+
+
 def test_missing_daily_recomputes_real_enriched_and_refreshes_repository(app, monkeypatch):
     monkeypatch.setattr("app.market_time.cn_now", lambda: datetime(2026, 10, 26, 16))
     provider = SimpleNamespace(capabilities=ProviderCapabilities(daily=True),

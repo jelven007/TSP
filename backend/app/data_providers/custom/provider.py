@@ -315,7 +315,7 @@ class GenericHTTPProvider:
         asset_type / freq 默认不传上游 (minute dataset URL 应返回 1m 数据)。
         在 dataset 配置中设置 asset_type_param / freq_param 后, 这两个参数会以
         配置的参数名注入请求 (GET → params, POST → body), 用于上游需区分
-        stock/ETF/index 或固定频率的场景。
+        stock/index 或固定频率的场景。
         """
         return self._fetch_minute_dataset(
             "minute", symbols, start_time, end_time, asset_type, freq, on_chunk_done,

@@ -29,12 +29,11 @@ def _data_dir(request: Request) -> Path:
 
 
 def _resolve_asset_type(request: Request, symbol: str) -> str:
-    """按 symbol 解析资产类型 (stock/etf); 解析失败默认 stock (fail-safe)。"""
+    """按 symbol 解析资产类型 (stock/index); 解析失败默认 stock。"""
     repo = getattr(request.app.state, "repo", None)
     try:
         return repo.resolve_asset_type(symbol) if repo is not None else "stock"
     except Exception:
-        # 回退为 stock 会让 etf 批次的止盈止损规则落入错误的监控轮, 必须留痕排查
         logging.getLogger(__name__).warning(
             "resolve_asset_type failed for %s, falling back to stock", symbol, exc_info=True
         )
@@ -74,7 +73,7 @@ def sync_lot(request: Request, lot: dict) -> None:
             data_dir.get("notification_preferences", "default", {}).get("default_channels", [])
             if isinstance(data_dir, TenantDocuments) else preferences.get_webhook_default_channels()
         )
-        # ETF/指数等资产类型解析 (止盈止损价格规则须走对应资产监控轮才会触发)
+        # 指数资产类型解析 (止盈止损价格规则须走对应资产监控轮才会触发)
         asset_type = _resolve_asset_type(request, lot["symbol"])
         price_rule, date_rule = lots_domain.lot_to_rules(lot)
         rules_to_write: list[dict] = []
@@ -111,6 +110,9 @@ def list_lots(request: Request):
 def upsert_lot(lot_in: LotModel, request: Request):
     """新建/更新一个批次。id 缺省时服务端生成 (紧凑, 保证 {id}_p/_d 规则 id ≤ 40 字符)。"""
     lot = lot_in.model_dump()
+    from app.market_scope import supported_symbol
+    if not supported_symbol(lot.get("symbol"), "stock"):
+        raise HTTPException(status_code=400, detail="持仓提醒仅支持股票")
     if not lot.get("id"):
         lot["id"] = f"lot_{int(time.time() * 1000):x}_{secrets.token_hex(2)}"
     try:

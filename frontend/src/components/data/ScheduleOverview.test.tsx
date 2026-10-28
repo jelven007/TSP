@@ -22,7 +22,6 @@ const preferences = {
   depth_finalize_time: { hour: 15, minute: 2 },
   pipeline_schedule: { hour: 16, minute: 0 },
   pipeline_pull_a_share: true,
-  pipeline_pull_etf: true,
   pipeline_pull_index: true,
   pipeline_regime_enabled: true,
 } as const

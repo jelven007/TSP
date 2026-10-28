@@ -16,7 +16,6 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   Info,
-  WandSparkles,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { EndpointTestDialog } from '@/components/EndpointTestDialog'
@@ -47,7 +46,6 @@ import { StockCatalogDialog } from '@/components/data/StockCatalogDialog'
 import { ScheduleOverview } from '@/components/data/ScheduleOverview'
 import { KlineSyncConfig } from '@/components/data/KlineSyncConfig'
 import { isLocalDerivedPeriod } from '@/lib/klinePeriods'
-import { RepairDailyPanel } from '@/components/data/RepairDailyPanel'
 import { EnrichedRebuildPanel } from '@/components/data/EnrichedRebuildPanel'
 import { RegimeConfigCard } from '@/components/data/RegimeConfigCard'
 import { PipelineScopeConfig } from '@/components/data/PipelineScopeConfig'
@@ -162,7 +160,6 @@ export function Data() {
   const [schemaTable, setSchemaTable] = useState<string | null>(null)
   const [showEndpointTest, setShowEndpointTest] = useState(false)
   const [showCreateExt, setShowCreateExt] = useState(false)
-  const [showRepair, setShowRepair] = useState(false)
   const [editingExt, setEditingExt] = useState<ExtDataConfig | null>(null)
   const [indexBatchInput, setIndexBatchInput] = useState('100')
 
@@ -274,7 +271,6 @@ export function Data() {
   const hasDailyBatchCap = usableOr('daily', !!tfCaps?.['kline.daily.batch'])
   const hasMinuteCap = usableOr('minute', !!tfCaps?.['kline.minute.batch'])
   const indexAuto = prefs.data?.pipeline_pull_index ?? true
-  const etfAuto = prefs.data?.pipeline_pull_etf ?? true
 
   // 数据画像卡片显隐(由页面设置弹窗控制,存 localStorage)
   const [cardVisibleTick, setCardVisibleTick] = useState(0)
@@ -345,14 +341,6 @@ export function Data() {
     latest_date: s.index_daily?.latest_date ?? s.index_enriched?.latest_date ?? null,
     symbols_covered: s.index_daily?.symbols_covered ?? s.index_instruments?.rows ?? 0,
     trading_days: s.index_daily?.trading_days ?? s.index_enriched?.trading_days ?? 0,
-  } : null
-  // ETF 统计(后端已按 asset_type='etf' 从 index 存储中拆分)
-  const etfOverviewStats = s ? {
-    rows: 0,
-    earliest_date: s.etf_daily?.earliest_date ?? s.etf_enriched?.earliest_date ?? null,
-    latest_date: s.etf_daily?.latest_date ?? s.etf_enriched?.latest_date ?? null,
-    symbols_covered: s.etf_daily?.symbols_covered ?? s.etf_instruments?.rows ?? 0,
-    trading_days: s.etf_daily?.trading_days ?? s.etf_enriched?.trading_days ?? 0,
   } : null
   const indexOverviewLabel = s ? '日 · 维表 · 日K · 指标' : undefined
   const indexEarliestDate = s?.index_daily?.earliest_date ?? s?.index_enriched?.earliest_date ?? null
@@ -534,27 +522,6 @@ export function Data() {
             settingsOpen={openSettings === 'index'}
           />
         )
-      case 'etf':
-        return (
-          <StatCard
-            title="ETF"
-            hint="场内基金 · 独立存储"
-            stats={etfOverviewStats}
-            loading={isLoading}
-            tierKey="etf"
-            capLimits={mergedCaps}
-            customProvider={routeProviderDisplay(matrix.data, 'daily')}
-            auto={etfAuto}
-            manual={!autoSyncEnabled}
-            subLabel="维表 · 日K · 指标"
-            fieldTabs={[
-              { label: '维表', table: 'etf_instruments' },
-              { label: '日K', table: 'etf_daily' },
-              { label: '指标', table: 'etf_enriched' },
-            ] as FieldTab[]}
-            onShowFields={(t) => setSchemaTable(t ?? 'etf_daily')}
-          />
-        )
       case 'minute':
         return (
           <StatCard
@@ -683,14 +650,6 @@ export function Data() {
             >
               <CheckSquare className="h-3.5 w-3.5" />
               数据范围
-            </button>
-            <button
-              onClick={() => setShowRepair(true)}
-              disabled={!hasData || isRunning}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-btn text-secondary hover:text-accent hover:bg-accent/8 text-xs transition-colors duration-150 disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <WandSparkles className="h-3.5 w-3.5" />
-              数据修正
             </button>
             <div className="w-px h-4 bg-border" />
             <div className="flex flex-wrap items-center gap-1.5">
@@ -929,28 +888,6 @@ export function Data() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showRepair && (
-          <SettingsModal title="K线修正" onClose={() => setShowRepair(false)}>
-            <RepairDailyPanel
-              hasCap={hasDailyBatchCap}
-              hasMinuteCap={hasMinuteCap}
-              isRunning={!!activeJobId}
-              latestDates={{
-                '1m': s?.minute?.latest_date, '5m': s?.['5m']?.latest_date,
-                '10m': s?.['10m']?.latest_date, '15m': s?.['15m']?.latest_date,
-                '1d': s?.daily?.latest_date, '1w': s?.weekly?.latest_date,
-              }}
-              onStart={jobId => {
-                setActiveJobId(jobId)
-                startTime.current = Date.now()
-                setShowRepair(false)
-              }}
-            />
-          </SettingsModal>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {openSettings === 'enriched' && (
           <SettingsModal title="Enriched · 计算设置" onClose={() => setOpenSettings(null)}>
             <EnrichedRebuildPanel
@@ -1158,7 +1095,7 @@ export function Data() {
                   <ul className="mt-2 text-[11px] text-muted leading-relaxed space-y-0.5">
                     <li>· 个股维表、日 K、除权因子</li>
                     <li>· Enriched 指标数据、分钟 K</li>
-                    <li>· 财务数据、指数、ETF</li>
+                    <li>· 财务数据、指数</li>
                   </ul>
                   <p className="mt-2 text-[11px] text-danger/90">
                     操作不可恢复，需重新执行同步才能恢复数据。

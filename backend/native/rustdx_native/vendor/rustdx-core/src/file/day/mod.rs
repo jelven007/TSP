@@ -1,0 +1,158 @@
+use std::path::Path;
+
+use {
+    crate::bytes_helper::{ser_code_string, ser_date_string},
+    serde::{Serialize, Serializer},
+};
+
+pub mod fq;
+
+pub(crate) fn validate_records(bytes: &[u8]) -> crate::Result<()> {
+    if !bytes.len().is_multiple_of(32) {
+        return Err(
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "day文件末尾记录截断").into(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_record(chunk: &[u8]) -> crate::Result<()> {
+    if chunk.len() != 32 {
+        return Err(crate::Error::Custom("day记录必须为32字节"));
+    }
+    crate::data::date_from_u32(crate::bytes_helper::u32_from_le_bytes(chunk, 0))?;
+    let amount = crate::bytes_helper::f32_from_le_bytes(chunk, 20);
+    // Prices and volume are unsigned integers on disk; amount is the only float.
+    if !amount.is_finite() || amount < 0.0 {
+        return Err(crate::Error::Custom("day成交额非法"));
+    }
+    Ok(())
+}
+
+/// 解析 `*.day` 文件中的一条日线数据，即其 32 个字节所代表的所有信息。
+///
+/// 注意：这个类型只对 `*.day` 文件进行了初步解析，
+/// 所以日期 `date` 是 `u32` 类型，
+/// 而股票代码 `code` 是**含市场前缀的字符串**（如 `sh600000`、`sz000001`、`sz200b07`），
+/// 这样在合并多个市场（sh/sz/bj）输出时不会发生代码混叠，
+/// 也能保留带字母的特殊品种代码（如深市板块指数 `200b07`）。
+///
+/// ## 注意
+/// 开启 `serde` feature 时，此结构体的序列化 (serialize) 时：
+/// 1. `date` 为 `年-月-日` 格式
+/// 2. `code` 为含市场前缀的股票代码字符串
+#[derive(Debug, Clone, Serialize)]
+pub struct Day {
+    #[serde(serialize_with = "ser_date_string")]
+    pub date: u32,
+    #[serde(serialize_with = "ser_code_string")]
+    pub code: String,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub amount: f64,
+    #[serde(serialize_with = "ser_vol")]
+    pub vol: u32,
+}
+
+fn ser_vol<S>(vol: &u32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_f64(*vol as f64 / 100.)
+}
+
+impl Day {
+    /// 从 `*.day` 文件中获取数据，该文件中，每 32 个字节存储了一根日线数据，
+    /// 各字节存储数据如下：
+    ///
+    /// |   字节位置   |     含义     | 解析方式 |     额外处理     |
+    /// | ------------ | ------------ | -------- | ---------------- |
+    /// | 00 ~ 03 字节 | 年月日       | u32      | 见下文           |
+    /// | 04 ~ 07 字节 | 开盘价       | u32      | 所解析的数字/100 |
+    /// | 08 ~ 11 字节 | 最高价       | u32      | 所解析的数字/100 |
+    /// | 12 ~ 15 字节 | 最低价       | u32      | 所解析的数字/100 |
+    /// | 16 ~ 19 字节 | 收盘价       | u32      | 所解析的数字/100 |
+    /// | 20 ~ 23 字节 | 成交额（元） | f32      | /                |
+    /// | 24 ~ 27 字节 | 成交量（股） | u32      | /                |
+    /// | 28 ~ 31 字节 | 保留字段     | /        | /                |
+    ///
+    /// 年月日处理方式：例如对 `20210810` 结果进行如下处理
+    ///
+    /// 年：20210810/10000 = 2021
+    ///
+    /// 月：20210810%10000/100 = 8
+    ///
+    /// 日：20210810%10000%100 = 10
+    /// `code` 为含市场前缀的字符串（如 `sh600000`、`sz200b07`）。
+    pub fn from_bytes(code: &str, arr: &[u8]) -> Self {
+        use crate::bytes_helper::{f32_from_le_bytes, u32_from_le_bytes};
+        Self {
+            date: u32_from_le_bytes(arr, 0),
+            open: u32_from_le_bytes(arr, 4) as f64 / 100.,
+            high: u32_from_le_bytes(arr, 8) as f64 / 100.,
+            low: u32_from_le_bytes(arr, 12) as f64 / 100.,
+            close: u32_from_le_bytes(arr, 16) as f64 / 100.,
+            amount: f32_from_le_bytes(arr, 20) as f64,
+            vol: u32_from_le_bytes(arr, 24),
+            code: code.to_owned(),
+        }
+    }
+
+    /// Checked record parsing for untrusted input; retains non-equity OHLC anomalies.
+    pub fn try_from_bytes(code: &str, arr: &[u8]) -> crate::Result<Self> {
+        validate_record(arr)?;
+        code.parse::<crate::data::Symbol>()?;
+        Ok(Self::from_bytes(code, arr))
+    }
+
+    /// 一次性以**同步**方式读取单个 `*.day` 文件所有数据，然后转化成 Vec。
+    /// `code` 为含市场前缀的字符串（如 `sh600000`、`sz200b07`）。
+    pub fn from_file_into_vec<P: AsRef<Path>>(code: &str, p: P) -> crate::Result<Vec<Day>> {
+        let bytes = std::fs::read(p)?;
+        Self::from_bytes_into_vec(code, &bytes)
+    }
+
+    /// Parse a complete file snapshot, rejecting truncated records.
+    pub fn from_bytes_into_vec(code: &str, bytes: &[u8]) -> crate::Result<Vec<Day>> {
+        Ok(Self::iter_checked(code, bytes)?.collect())
+    }
+
+    pub(crate) fn iter_checked<'a>(
+        code: &'a str,
+        bytes: &'a [u8],
+    ) -> crate::Result<impl ExactSizeIterator<Item = Day> + Clone + 'a> {
+        validate_records(bytes)?;
+        code.parse::<crate::data::Symbol>()?;
+        for chunk in bytes.as_chunks::<32>().0 {
+            crate::operation::check()?;
+            validate_record(chunk)?;
+        }
+        Ok(bytes
+            .as_chunks::<32>()
+            .0
+            .iter()
+            .map(move |chunk| Self::from_bytes(code, chunk)))
+    }
+
+    /// `%Y-%m-%d` 格式的日期
+    pub fn date_string(&self) -> String {
+        crate::bytes_helper::date_string(self.date)
+    }
+
+    /// `[年, 月, 日]` 格式的日期
+    pub fn ymd_arr(&self) -> [u32; 3] {
+        let x = self.date;
+        [x / 10000, x % 10000 / 100, x % 10000 % 100]
+    }
+
+    /// chrono 格式的日期：用于某些序列化或者与时间相关的计算
+    pub fn ymd(&self) -> chrono::naive::NaiveDate {
+        self.try_ymd().expect("非法day日期")
+    }
+
+    pub fn try_ymd(&self) -> crate::Result<chrono::NaiveDate> {
+        crate::data::date_from_u32(self.date)
+    }
+}

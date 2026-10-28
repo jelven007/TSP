@@ -325,6 +325,10 @@ def validate(rule: dict) -> None:
             raise ValueError("scope=symbols 时 symbols 不能为空")
         if any(removed_market_symbol(symbol) for symbol in syms):
             raise ValueError("监控标的仅支持沪深市场")
+        if rule.get("asset_type", "stock") == "stock":
+            from app.market_scope import supported_symbol
+            if any(not supported_symbol(symbol, "stock") for symbol in syms):
+                raise ValueError("股票监控仅支持在册 A 股")
     if rule.get("scope") == "watchlist_group":
         # 动态绑定自选分组: 评估时实时解析成员 (分组后续增删自动生效)。
         # 分组存在性由 API 层在保存时校验 (strategy 层不依赖 services)。

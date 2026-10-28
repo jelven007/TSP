@@ -493,7 +493,7 @@ class BacktestEngine:
         *,
         expected_generation: str | None = None,
     ) -> pl.DataFrame:
-        """加载 enriched 数据面板，带缓存。asset_type='etf' 时读 ETF enriched。"""
+        """加载 enriched 数据面板, 带缓存。"""
         attempts = 1 if expected_generation is not None else 2
         for attempt in range(attempts):
             generation = (
@@ -791,8 +791,7 @@ class BacktestEngine:
             return df
 
         from app.indicators.pipeline import compute_all
-        # 按 asset_type 取维表: ETF 回测须用 ETF 维表, 否则名称 JOIN 失败(全 null)、
-        # 涨停信号算在错误的 instruments 上。
+        # 按 asset_type 取维表, 避免名称 JOIN 或市场属性使用错误的数据集。
         instruments = self.repo.get_instruments_asset(asset_type)
         df = compute_all(
             df,
@@ -2631,11 +2630,8 @@ class BacktestEngine:
                     trigger_dates.add(self._date_str(panel_dates[idx]))
                     trigger_symbols.add(str(panel_symbols[idx]))
             if trigger_dates and trigger_symbols:
-                asset_type = "etf" if all(
-                    str(s).endswith(".SH") and str(s).startswith("5") for s in list(trigger_symbols)[:5]
-                ) else "stock"
                 loaded = self._load_minute_for_fills(
-                    self.repo, list(trigger_symbols), trigger_dates, asset_type,
+                    self.repo, list(trigger_symbols), trigger_dates, "stock",
                 )
                 for key, marr in loaded.items():
                     if marr is not None and len(marr) > 0:

@@ -128,7 +128,7 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
     setDraft(current => ({ ...current, webhook_channels: notificationPrefs.data!.default_channels }))
   }, [full, notificationPrefs.data])
   const assetType = draft.asset_type ?? 'stock'
-  // 策略列表跟随资产类型: ETF 只列技术类策略。
+  // 策略列表跟随资产类型。
   const strategies = useQuery({
     queryKey: QK.screenerStrategies(assetType),
     queryFn: () => api.screenerStrategies(assetType),
@@ -180,8 +180,8 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
   })
   const [strategyQuery, setStrategyQuery] = useState('')
   const [strategyCategory, setStrategyCategory] = useState<'all' | 'builtin' | 'custom' | 'ai' | 'composite'>('all')
-  // 标的搜索资产类型: ETF 一并搜股票; 指数只搜指数; 否则只搜股票。
-  const symbolAssetTypes = assetType === 'etf' ? 'stock,etf' : assetType === 'index' ? 'index' : 'stock'
+  // 指数只搜指数, 否则只搜股票。
+  const symbolAssetTypes = assetType === 'index' ? 'index' : 'stock'
   const symbolSearch = useQuery({
     queryKey: QK.instrumentSearch(symbolQuery, symbolAssetTypes),
     queryFn: () => api.instrumentSearch(symbolQuery, 20, symbolAssetTypes),
@@ -430,7 +430,7 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
   const visibleTypes = (options.data?.types ?? []).filter(
     t => t.key !== 'date' && (assetType !== 'index' || t.key === 'signal' || t.key === 'price'),
   )
-  // 指数: 作用范围仅 symbols (无全市场/板块语义); ETF: 不支持自选分组 (分组为个股)
+  // 指数作用范围仅 symbols, 无全市场或板块语义。
   const visibleScopes = (options.data?.scopes ?? []).filter(
     s => (assetType !== 'index' || s.key === 'symbols')
       && (assetType === 'stock' || s.key !== 'watchlist_group'),
@@ -578,12 +578,12 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
       </div>
 
       <div className="modal-body space-y-4">
-      {/* 资产类型: 股票 / ETF / 指数 (个股极简模式不显示; 板块/异动仅个股) */}
+      {/* 资产类型: 股票 / 指数 (个股极简模式不显示; 板块/异动仅个股) */}
       {!simple && draft.type !== 'sector' && draft.type !== 'abnormal' && (
         <div className="space-y-1.5">
           <span className="text-[11px] text-muted">资产类型</span>
           <div className="inline-flex h-9 rounded-btn border border-border overflow-hidden">
-            {(['stock', 'etf', 'index'] as const).map(t => (
+            {(['stock', 'index'] as const).map(t => (
               <button
                 key={t}
                 type="button"
@@ -596,10 +596,8 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
                     strategy_id: null,
                     symbols: [],
                     type: t === 'index' && d.type !== 'signal' && d.type !== 'price' ? 'signal' : d.type,
-                    // 指数仅指定标的; ETF 不支持分组作用域 (自选分组为个股)
-                    scope: t === 'index' || (t !== 'stock' && d.scope === 'watchlist_group')
-                      ? 'symbols'
-                      : d.scope,
+                    // 指数仅指定标的。
+                    scope: t === 'index' ? 'symbols' : d.scope,
                   }))
                   setStrategyQuery('')
                   setStrategyCategory('all')
@@ -607,7 +605,7 @@ export function RuleEditor({ rule, preset, simple, onClose, onSaved }: Props) {
                 className={`h-full px-4 text-xs font-medium transition-colors cursor-pointer
                   ${assetType === t ? 'bg-accent/10 text-accent' : 'text-muted hover:text-foreground'}`}
               >
-                {t === 'stock' ? '股票' : t === 'etf' ? 'ETF' : '指数'}
+                {t === 'stock' ? '股票' : '指数'}
               </button>
             ))}
           </div>

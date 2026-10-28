@@ -69,7 +69,7 @@ export function renderBuiltinDataCell(r: any, col: ColumnConfig): ReactNode | nu
     case 'high':         return <td key={col.id} className={numCls}>{fmtMaybePrice(r.high)}</td>
     case 'low':          return <td key={col.id} className={numCls}>{fmtMaybePrice(r.low)}</td>
     case 'prev_close':   return <td key={col.id} className={numCls}>{fmtMaybePrice(r.prev_close)}</td>
-    // 涨跌停价 (仅股票有值, ETF/指数后端置 null); A 股口径红涨绿跌
+    // 涨跌停价 (仅股票有值, 指数后端置 null); A 股口径红涨绿跌
     case 'limit_up_price':
       return <td key={col.id} className={`${numCls} ${r.limit_up_price != null ? 'text-danger' : ''}`}>{r.limit_up_price != null ? fmtPrice(r.limit_up_price) : '—'}</td>
     case 'limit_down_price':

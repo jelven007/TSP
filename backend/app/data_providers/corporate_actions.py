@@ -12,7 +12,7 @@ class CorporateAction(BaseModel):
 
     id: str = Field(min_length=1, max_length=160, pattern=r"^[A-Za-z0-9_.:-]+$")
     symbol: str = Field(pattern=r"^\d{6}\.(SH|SZ)$")
-    asset_type: Literal["stock", "etf"] = "stock"
+    asset_type: Literal["stock"] = "stock"
     source: str = Field(min_length=1, max_length=80)
     ex_date: date
     record_date: date | None = None

@@ -23,7 +23,6 @@ def _records(price: float, source_time: str = "09:30:01.250") -> dict[str, list[
                 "source_time": source_time,
             }
         ],
-        "etf": [],
         "index": [],
     }
 
@@ -149,9 +148,6 @@ def test_quote_service_archives_without_changing_daily_write_path(monkeypatch) -
         def get_index_symbol_set(self) -> set[str]:
             return set()
 
-        def get_etf_instruments(self) -> pl.DataFrame:
-            return pl.DataFrame()
-
         def flush_live_daily(self, frame: pl.DataFrame) -> None:
             self.daily_rows += frame.height
 
@@ -189,7 +185,6 @@ def test_quote_service_archives_without_changing_daily_write_path(monkeypatch) -
     assert len(archive.calls) == 1
     archived, kwargs = archive.calls[0]
     assert archived["stock"][0]["symbol"] == "600519.SH"
-    assert archived["etf"] == []
     assert archived["index"] == []
     assert kwargs["provider"] == "rustdx"
 
@@ -307,9 +302,6 @@ def _preopen_service(monkeypatch, now: datetime):
     class Repo:
         def get_index_symbol_set(self) -> set[str]:
             return set()
-
-        def get_etf_instruments(self) -> pl.DataFrame:
-            return pl.DataFrame()
 
         def flush_live_daily(self, frame: pl.DataFrame) -> None:
             pass

@@ -258,11 +258,9 @@ _QUOTE_COLUMNS = (
 
 
 def _asset_quote_frame(ctx: ToolContext, symbols: list[str]) -> pl.DataFrame:
-    """symbols 的行情快照: 股票取 get_quotes_compat, ETF / 指数取各自的 enriched 缓存。
+    """symbols 的行情快照: 股票取实时缓存, 指数取独立指标缓存。
 
-    get_quotes_compat 只含股票 enriched 缓存; ETF 与指数是独立缓存, 与自选页
-    /api/watchlist/enriched 一样须按资产类型分流, 否则 ETF / 指数永远查不到价格。
-    只对股票缓存里没有的代码判定资产类型, 全是股票时不加载 ETF / 指数缓存。
+    只对股票缓存里没有的代码判定资产类型, 全是股票时不加载指数缓存。
     """
     frames: list[pl.DataFrame] = []
     df = ctx.quote_service.get_quotes_compat()
@@ -274,7 +272,7 @@ def _asset_quote_frame(ctx: ToolContext, symbols: list[str]) -> pl.DataFrame:
         by_asset: dict[str, list[str]] = {}
         for symbol in missing:
             asset_type = ctx.repo.resolve_asset_type(symbol)
-            if asset_type != "stock":
+            if asset_type == "index":
                 by_asset.setdefault(asset_type, []).append(symbol)
         for asset_type, members in by_asset.items():
             asset_df, _ = ctx.repo.get_enriched_latest_asset(asset_type)

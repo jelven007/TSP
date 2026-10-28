@@ -119,7 +119,7 @@ def _with_names(rows: list[dict], request: Request) -> list[dict]:
     if not rows:
         return rows
     try:
-        # 股票 + ETF 名称统一由 repo.get_name_map 解析, 自选列表可混合持有
+        # 股票与指数名称统一由 repo.get_name_map 解析。
         name_by_symbol = request.app.state.repo.get_name_map([r.get("symbol") for r in rows])
         if not name_by_symbol:
             return rows
@@ -134,8 +134,23 @@ def list_all(request: Request):
     return {"symbols": _with_names(_service(request).list_symbols(), request)}
 
 
+def _supported_watchlist_symbol(request: Request, symbol: str) -> bool:
+    from app.market_scope import supported_symbol
+
+    value = str(symbol or "").strip().upper()
+    repo = getattr(request.app.state, "repo", None)
+    try:
+        if repo is not None and value in repo.get_index_symbol_set():
+            return True
+    except Exception:
+        logger.warning("index symbol validation failed for %s", value, exc_info=True)
+    return supported_symbol(value, "stock")
+
+
 @router.post("")
 def add_one(req: AddRequest, request: Request):
+    if not _supported_watchlist_symbol(request, req.symbol):
+        raise HTTPException(400, "自选仅支持股票和指数")
     try:
         rows = _service(request).add(req.symbol, req.note, req.group_id)
     except ValueError as e:
@@ -145,6 +160,9 @@ def add_one(req: AddRequest, request: Request):
 
 @router.post("/batch")
 def add_batch(req: BatchAddRequest, request: Request):
+    unsupported = [symbol for symbol in req.symbols if not _supported_watchlist_symbol(request, symbol)]
+    if unsupported:
+        raise HTTPException(400, f"自选仅支持股票和指数: {unsupported[0]}")
     try:
         rows, added = _service(request).add_batch(
             req.symbols,
@@ -479,7 +497,7 @@ def _added_base_closes(
 
     返回 symbol/base_close 两列表; 无可用值返回空表, 由调用方按 null 降级。
 
-    - **只覆盖股票**: 内存历史缓存 (get_enriched_range) 仅含股票, ETF/指数只有最新日
+    - **只覆盖股票**: 内存历史缓存 (get_enriched_range) 仅含股票, 指数只有最新日
       缓存, 逐只回补会在行情 tick 热路径上形成 N+1 parquet 扫描, 故显式降级为「—」。
     - **基准日取 <= 加入日**: 周末/节假日/停牌自然回落到前一交易日。与 K 线竖线的
       「不 snap」有意不同 —— 价格口径可以回落, 日期事实不行。
@@ -543,13 +561,10 @@ def watchlist_enriched(
     if not symbols:
         return {"rows": [], "as_of": None, "elapsed_ms": 0}
 
-    # 按资产拆分自选 symbol; ETF enriched 是独立缓存, 仅自选真的含 ETF 才去加载
-    # (避免无 ETF 用户在缓存冷启动时触发 ETF 全量懒加载)
-    etf_set = repo.get_etf_symbol_set()
+    # 按资产拆分自选 symbol。
     index_set = repo.get_index_symbol_set()
-    etf_symbols = [s for s in symbols if s in etf_set]
-    index_symbols = [s for s in symbols if s not in etf_set and s in index_set]
-    stock_symbols = [s for s in symbols if s not in etf_set and s not in index_set]
+    index_symbols = [s for s in symbols if s in index_set]
+    stock_symbols = [s for s in symbols if s not in index_set]
 
     # 冷缓存交给后台预热, 请求线程只读: 预热期间返回空表 (指标列为 null),
     # 避免 tick 热路径同步跑 300 天全量重算而超时/并发重复重算。
@@ -569,20 +584,7 @@ def watchlist_enriched(
     else:
         df = pl.DataFrame()
 
-    # ETF 行合并; 缺失列 (换手率/涨跌停信号等) 为 null
-    etf_date = None
-    if etf_symbols:
-        repo.ensure_enriched_warmup(("etf",))
-        df_etf_all, etf_date = repo.get_enriched_latest_asset("etf", refresh=False)
-        etf_watchlist_df = pl.DataFrame({"symbol": etf_symbols})
-        if not df_etf_all.is_empty():
-            # ETF 同样以自选为主表 LEFT JOIN, 缺失标的指标为 null
-            df_etf = etf_watchlist_df.join(df_etf_all, on="symbol", how="left")
-        else:
-            df_etf = etf_watchlist_df
-        df = df_etf if df.is_empty() else pl.concat([df, df_etf], how="diagonal_relaxed")
-
-    # 指数行合并 (镜像 ETF 分支); 缺失列 (换手率/涨跌停信号等) 为 null
+    # 指数行合并; 缺失列 (换手率/涨跌停信号等) 为 null
     index_date = None
     if index_symbols:
         repo.ensure_enriched_warmup(("index",))
@@ -594,13 +596,13 @@ def watchlist_enriched(
             df_idx = idx_watchlist_df
         df = df_idx if df.is_empty() else pl.concat([df, df_idx], how="diagonal_relaxed")
 
-    # as_of 取三类缓存中较旧者
-    dates = [d for d in (cache_date if stock_symbols else None, etf_date, index_date) if d is not None]
+    # as_of 取两类缓存中较旧者
+    dates = [d for d in (cache_date if stock_symbols else None, index_date) if d is not None]
     as_of = min(dates) if dates else None
     if df.is_empty():
         return {"rows": [], "as_of": str(as_of) if as_of else None, "elapsed_ms": 0}
 
-    # JOIN float_shares (仅股票有) + 名称 (股票/ETF 统一走 get_name_map)
+    # JOIN float_shares (仅股票有) + 名称。
     df_i = repo.get_instruments()
     if not df_i.is_empty() and "float_shares" in df_i.columns:
         df = df.join(df_i.select(["symbol", "float_shares"]), on="symbol", how="left")
@@ -610,7 +612,7 @@ def watchlist_enriched(
     )
 
     # 标注资产类型: 前端据此渲染徽标/豁免板块筛选/分时列降级
-    asset_map = {**{s: "etf" for s in etf_symbols}, **{s: "index" for s in index_symbols}}
+    asset_map = {s: "index" for s in index_symbols}
     df = df.with_columns(
         pl.col("symbol").replace_strict(asset_map, default="stock", return_dtype=pl.Utf8).alias("asset_type")
     )
@@ -620,8 +622,8 @@ def watchlist_enriched(
     df = df.select(keep)
 
     # 涨跌停价 (交易所整数分半进位口径, 仅股票): prev_close/名称已在行上, 对自选的
-    # 几十~几百行向量化现算为亚毫秒级, 不写回 enriched 存储。ETF (跨境/债券 5% 等)
-    # 与指数的涨跌幅规则不在 price_limits 覆盖内, 置 null 由前端渲染 "—"。
+    # 几十~几百行向量化现算为亚毫秒级, 不写回 enriched 存储。指数的涨跌幅规则
+    # 不在 price_limits 覆盖内, 置 null 由前端渲染 "—"。
     as_of_date = as_of if isinstance(as_of, date) else None
     if as_of_date is None and as_of:
         try:
@@ -647,7 +649,7 @@ def watchlist_enriched(
         )
 
     # 「加入日期」与「加入以来」— 与涨跌停价同为读时现算, 不落盘。只在这一处挂一次即
-    # 覆盖 stock/etf/index 三分支。pct_since_added 为小数口径 (与 momentum_* 一致)。
+    # 覆盖 stock/index 两分支。pct_since_added 为小数口径 (与 momentum_* 一致)。
     try:
         added_at_df = pl.DataFrame(
             {
@@ -660,7 +662,7 @@ def watchlist_enriched(
         with_base = df.join(added_at_df, on="symbol", how="left")
         base_df = _added_base_closes(repo, _added_dates_bj(entries), set(stock_symbols))
         if base_df.is_empty():
-            # 无基准价 (缓存冷 / 全为 ETF 或超窗): 整列降级为 null
+            # 无基准价 (缓存冷 / 全为指数或超窗): 整列降级为 null
             df = with_base.with_columns(pl.lit(None, dtype=pl.Float64).alias("pct_since_added"))
         else:
             # 整链算完再回绑 df, 异常时 df 保持原样

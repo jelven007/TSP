@@ -119,7 +119,6 @@ def data_availability(request: Request) -> dict:
 
     response = {
         "enriched": table_stats("enriched", lambda: data._safe_aggregate_enriched(repo)),
-        "etf_enriched": table_stats("etf_enriched", lambda: data._safe_aggregate_etf_enriched(repo)),
         "indicators_ready": getattr(request.app.state, "indicators_ready", False),
     }
     from app.services.data_quality import quality_summary

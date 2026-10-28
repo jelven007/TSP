@@ -8,7 +8,7 @@ import { useCapabilities, useCapabilityMatrix } from '@/lib/useSharedQueries'
 import { routeCapUsable } from '@/lib/capability-labels'
 import { INDEX_KLINE_PERIODS, KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
 import { hasPermission } from '@/lib/accountSession'
-import { StockDailyKChart, toOHLC } from '@/components/StockDailyKChart'
+import { StockDailyKChart } from '@/components/StockDailyKChart'
 import { EChartsIntraday } from '@/components/EChartsIntraday'
 import { PageHeader } from '@/components/PageHeader'
 import { DatePicker } from '@/components/DatePicker'
@@ -46,6 +46,8 @@ export function Indices() {
   const [hoverPrice, setHoverPrice] = useState<{ context: string; price: number | null } | null>(null)
   const [view, setView] = useState<'kline' | 'intraday'>('kline')
   const [visibleBars, setVisibleBars] = useState(60)
+  const [currentBars, setCurrentBars] = useState(60)
+  const [availableBars, setAvailableBars] = useState(0)
   const [zoomResetKey, setZoomResetKey] = useState(0)
   const [showRepair, setShowRepair] = useState(false)
   const [jobId, setJobId] = useState<string | null>(null)
@@ -83,7 +85,6 @@ export function Indices() {
   })
   const dataMatches = daily.data?.context === context && daily.data.symbol === selectedSymbol && daily.data.period === period && !rangeError
   const sourceRows = useMemo(() => dataMatches ? daily.data?.rows ?? [] : [], [dataMatches, daily.data?.rows])
-  const chartRows = useMemo(() => toOHLC(sourceRows), [sourceRows])
   const tradeDate = (label: string) => sourceRows.find(row => row.date === label)?.trade_date ?? label
   const selectedDate = selection?.context === context && sourceRows.some(row => (row.trade_date ?? row.date) === selection.day)
     ? selection.day : sourceRows.at(-1)?.trade_date ?? sourceRows.at(-1)?.date ?? null
@@ -124,8 +125,19 @@ export function Indices() {
       for (const queryKey of [QK.indexQuotes, ['index-kline'], ['index-daily'], ['index-minute'], QK.dataStatus, QK.pipelineJobs]) {
         void qc.invalidateQueries({ queryKey })
       }
+      const timer = window.setTimeout(() => {
+        setJobId(current => current === completedJobId ? null : current)
+      }, 5_000)
+      return () => window.clearTimeout(timer)
     }
   }, [jobStatus, completedJobId, qc])
+
+  const adjustBars = (action: 'default' | 'increase' | 'decrease') => {
+    const count = action === 'default' ? 60
+      : Math.max(1, Math.min(availableBars, Math.round(currentBars * (action === 'increase' ? 1.5 : 0.5))))
+    setVisibleBars(count)
+    setZoomResetKey(key => key + 1)
+  }
 
   const quoteBySymbol = useMemo(() => {
     const m = new Map<string, any>()
@@ -231,40 +243,49 @@ export function Indices() {
                   <select aria-label="K线周期" value={period} onFocus={() => setView('kline')} onClick={() => setView('kline')}
                     onChange={event => {
                       const next = event.target.value as IndexKlinePeriod
-                      setPeriod(next); setRange(defaultRange(next)); setVisibleBars(60); setZoomResetKey(k => k + 1); setView('kline')
+                      setPeriod(next); setRange(defaultRange(next)); setVisibleBars(60); setCurrentBars(60)
+                      setAvailableBars(0); setZoomResetKey(k => k + 1); setView('kline')
                     }} className="h-6 rounded border-0 bg-transparent outline-none">
                     {INDEX_KLINE_PERIODS.map(value => <option key={value} value={value} className="bg-surface">{KLINE_PERIOD_LABELS[value]}</option>)}
                   </select>
                 </label>
               </div>
-              {view === 'kline' && <div className="inline-flex items-center rounded border border-border/60 bg-base/60 p-0.5">
-                {(['默认', '放大', '缩小'] as const).map(label => <button key={label} type="button"
-                  disabled={label !== '默认' && chartRows.length === 0}
-                  onClick={() => {
-                    setVisibleBars(count => label === '默认' ? 60 : Math.max(1, Math.min(chartRows.length, Math.round(count * (label === '放大' ? 1.5 : 0.5)))))
-                    setZoomResetKey(k => k + 1)
-                  }} className="h-6 rounded px-2.5 text-[11px] text-muted hover:bg-elevated disabled:opacity-40">{label}</button>)}
-                <span className="px-2 font-mono text-[10px] text-muted">{Math.min(visibleBars, chartRows.length)} / {chartRows.length} 根</span>
+              {view === 'kline' && <div className="inline-flex flex-wrap items-center gap-2">
+                <div className="inline-flex items-center rounded border border-border/60 bg-base/60 p-0.5">
+                  {([
+                    ['默认', 'default'], ['放大', 'increase'], ['缩小', 'decrease'],
+                  ] as const).map(([label, action]) => <button key={action} type="button"
+                    disabled={action !== 'default' && availableBars === 0}
+                    onClick={() => adjustBars(action)}
+                    className="h-6 rounded px-2.5 text-[11px] text-muted hover:bg-elevated disabled:opacity-40">{label}</button>)}
+                </div>
+                <span className="text-[10px] text-muted" aria-live="polite">
+                  {availableBars > 0 ? `${Math.min(currentBars, availableBars)}根` : '—'}
+                </span>
+                <div className="inline-flex shrink-0 items-center gap-2">
+                  <DatePicker
+                    aria-label="开始日期"
+                    value={range.start}
+                    onChange={start => setRange(r => ({ ...r, start }))}
+                    max={range.end}
+                    clearable
+                    align="left"
+                  />
+                  <span className="text-muted/70 text-[10px]">~</span>
+                  <DatePicker
+                    aria-label="K线结束日期"
+                    value={range.end}
+                    onChange={end => setRange(r => ({ ...r, end }))}
+                    min={range.start}
+                    clearable
+                  />
+                </div>
               </div>}
             </div>
           </div>
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-              <DatePicker
-                aria-label="开始日期"
-                value={range.start}
-                onChange={start => setRange(r => ({ ...r, start }))}
-                clearable
-                align="left"
-              />
-              <span className="text-muted">至</span>
-              <DatePicker
-                aria-label="K线结束日期"
-                value={range.end}
-                onChange={end => setRange(r => ({ ...r, end }))}
-                clearable
-              />
-            {period !== '1d' && <span className="text-[10px] text-muted">点选周期联动最后交易日分时；当前周期可能尚未结束</span>}
-          </div>
+          {view === 'kline' && period !== '1d' && <div className="mb-3 text-right text-[10px] text-muted">
+            点选周期联动最后交易日分时；当前周期可能尚未结束
+          </div>}
           {rangeError && <div role="alert" className="text-xs text-danger">{rangeError}</div>}
           <div className={`grid grid-cols-1 gap-3 ${view === 'kline' ? 'xl:grid-cols-2' : ''}`}>
               {view === 'kline' && <div className="min-w-0">
@@ -282,7 +303,8 @@ export function Indices() {
                   }}
                   visibleBars={visibleBars}
                   zoomResetKey={zoomResetKey}
-                  onVisibleBarsChange={setVisibleBars}
+                  onVisibleBarsChange={setCurrentBars}
+                  onAvailableBarsChange={setAvailableBars}
                 />
               </div>}
               <div className="min-w-0 border-t border-border pt-3 xl:border-t-0" style={{ minHeight: 500 }}>

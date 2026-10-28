@@ -13,8 +13,8 @@ const { summary, detail, run, runAll, reload, oldPreferences } = vi.hoisted(() =
 vi.mock('@/lib/api', () => ({
   api: {
     screenerStrategies: async () => ({ presets: [
-      { id: 'sample', name: '样例', asset_types: ['stock', 'etf'], timeframes: ['1d'] },
-      { id: 'minute', name: '分钟样例', asset_types: ['stock', 'etf'], timeframes: ['1m'] },
+      { id: 'sample', name: '样例', asset_types: ['stock'], timeframes: ['1d'] },
+      { id: 'minute', name: '分钟样例', asset_types: ['stock'], timeframes: ['1m'] },
     ] }),
     screenerCachedSummary: summary,
     screenerCachedResult: detail,
@@ -134,15 +134,13 @@ it('ignores a late run from the previous date and keeps the selected date', asyn
   expect(host.textContent).not.toContain('LATE')
 })
 
-it.each([true, undefined])('does not run strategies on entry, date or asset change with legacy auto-run %s', async value => {
+it.each([true, undefined])('does not run strategies on entry or date change with legacy auto-run %s', async value => {
   oldPreferences.screener_auto_run = value
   summary.mockImplementation(async (day: string) => ({ as_of: day, results: {}, today_ever_counts: {} }))
   runAll.mockResolvedValue({ as_of: '2026-10-23', results: {} })
   await render()
   await flush()
   await setDate('2026-10-22')
-  await act(async () => button('ETF').click())
-  await flush()
   expect(runAll).not.toHaveBeenCalled()
   expect(run).not.toHaveBeenCalled()
 })

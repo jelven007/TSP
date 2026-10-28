@@ -60,13 +60,13 @@ def build_tool_schemas() -> list[dict[str, Any]]:
             LIST_FACTORS,
             "检索可用因子目录 (约 100 个)。返回因子 id、中文名、分组、公式说明、"
             "依赖列与适用资产, 用于挑选合法的评分字段与信号依赖。可按 asset_type "
-            "(stock/etf) 过滤, stable_only=true 时只返回稳定因子。",
+            "(stock) 过滤, stable_only=true 时只返回稳定因子。",
             {
                 "type": "object",
                 "properties": {
                     "asset_type": {
                         "type": "string",
-                        "enum": ["stock", "etf"],
+                        "enum": ["stock"],
                         "description": "按适用资产过滤; 缺省返回全部",
                     },
                     "stable_only": {
@@ -122,7 +122,7 @@ def build_tool_schemas() -> list[dict[str, Any]]:
                     },
                     "asset_type": {
                         "type": "string",
-                        "enum": ["stock", "etf"],
+                        "enum": ["stock"],
                         "description": "资产类型; 缺省 stock",
                     },
                 },

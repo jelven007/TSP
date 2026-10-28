@@ -55,7 +55,7 @@ class MiningStartRequest(BaseModel):
     factor_names: list[str] = Field(min_length=1, max_length=48)
     strategy_ids: list[str] = Field(default_factory=list, max_length=8)
     symbols: list[str] | None = None
-    asset_type: Literal["stock", "etf"] = "stock"
+    asset_type: Literal["stock"] = "stock"
     start: date | None = None
     end: date | None = None
     budget_profile: Literal["exploratory", "balanced", "strict"] = "balanced"
@@ -127,7 +127,7 @@ class MiningAutoStartRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    asset_type: Literal["stock", "etf"] = "stock"
+    asset_type: Literal["stock"] = "stock"
     start: date | None = None
     end: date | None = None
     budget_profile: Literal["exploratory", "balanced", "strict"] = "balanced"
@@ -157,7 +157,7 @@ class MiningAutoStartRequest(BaseModel):
 @router.get("/availability")
 def get_availability(
     request: Request,
-    asset_type: Annotated[Literal["stock", "etf"], Query()] = "stock",
+    asset_type: Annotated[Literal["stock"], Query()] = "stock",
     budget_profile: Annotated[
         Literal["exploratory", "balanced", "strict"], Query()
     ] = "balanced",

@@ -1,0 +1,202 @@
+use crate::tcp::Tdx;
+
+/// 对应 pytdx 的 hq.get_xdxr_info、GetXdXrInfo。获取单只股票的股本变迁信息。
+#[derive(Debug, Clone)]
+pub struct Xdxr<'d> {
+    pub send: Box<[u8]>,
+    pub market: u16,
+    pub code: &'d str,
+    pub response: Vec<u8>,
+    pub count: Option<usize>,
+    pub data: Vec<XdxrData>,
+}
+
+impl<'d> Xdxr<'d> {
+    /// 创建除权除息查询请求。
+    ///
+    /// ## panic
+    /// 当 code 的字节长度不是 6 时，程序会 panic。
+    pub fn new(market: u16, code: &'d str) -> Self {
+        assert_eq!(code.len(), 6, "股票代码必须是6位");
+        let mut send = [0u8; Self::LEN];
+        // pytdx GetXdXrInfo 布局：包头 14 字节 + market(u8)@14 + code(6)@15
+        // （注意：旧实现把 market 误写到包头 12..14 处，任意股票都返回 0 条记录）
+        send[0..14].copy_from_slice(&Self::SEND[0..14]);
+        send[14] = market as u8;
+        send[15..21].copy_from_slice(code.as_bytes());
+        Self {
+            send: send.into(),
+            market,
+            code,
+            response: Vec::new(),
+            count: None,
+            data: Vec::new(),
+        }
+    }
+}
+
+impl<'d> Default for Xdxr<'d> {
+    fn default() -> Self {
+        Self {
+            send: {
+                let mut arr = [0; Self::LEN];
+                arr.copy_from_slice(Self::SEND);
+                arr.into()
+            },
+            market: 0,
+            code: "000001",
+            response: Vec::new(),
+            count: None,
+            data: Vec::new(),
+        }
+    }
+}
+
+impl<'a> Tdx for Xdxr<'a> {
+    type Item = [XdxrData];
+
+    // market=0; code="000001"
+    const SEND: &'static [u8] = &[
+        0x0c, 0x1f, 0x18, 0x76, 0x00, 0x01, 0x0b, 0x00, 0x0b, 0x00, 0x0f, 0x00, 0x01, 0x00, 0x00,
+        0x30, 0x30, 0x30, 0x30, 0x30, 0x31,
+    ];
+    const TAG: &'static str = "除权除息";
+
+    fn send(&mut self) -> &[u8] {
+        &self.send
+    }
+
+    fn parse(&mut self, v: Vec<u8>) {
+        let _ = self.try_parse(v);
+    }
+
+    fn try_parse(&mut self, v: Vec<u8>) -> std::io::Result<()> {
+        use crate::tcp::reader::{Reader, require_len};
+        self.data.clear();
+        self.count = None;
+        self.response = v;
+        require_len(&self.response, 11)?;
+        let count = crate::bytes_helper::u16_from_le_bytes(&self.response, 9) as usize;
+        require_len(&self.response, 11 + count * 29)?;
+        let mut data = Vec::with_capacity(count);
+        for c in self.response[11..11 + count * 29].as_chunks::<29>().0 {
+            Reader::new(&c[1..]).code()?;
+            data.push(XdxrData::parse(c));
+        }
+        self.data = data;
+        self.count = Some(count);
+        Ok(())
+    }
+
+    fn result(&self) -> &Self::Item {
+        &self.data
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct XdxrData {
+    pub market: u8,
+    /// 6 位股票代码
+    pub code: String,
+    /// 日期
+    pub date: u32,
+    /// 信息类型
+    ///
+    /// |   | 类别                           |    | 类别                                    |
+    /// | - | ------------------------------ | -- | --------------------------------------- |
+    /// | 1 | 除权除息                       | 8  | 增发新股上市                            |
+    /// | 2 | 送配股上市                     | 9  | 转配股上市                              |
+    /// | 3 | 非流通股上市股                 | 10 | 可转债上市                              |
+    /// | 4 | 未知股本变动                   | 11 | 扩缩股 songgu:比例                      |
+    /// | 5 | 股本变化                       | 12 | 非流通股缩股 songgu: 比例               |
+    /// | 6 | 增发新股 peigujia; songgu:未知 | 13 | 送认购权证 songgu: 份数; hongli: 行权价 |
+    /// | 7 | 股份回购                       | 14 | 送认沽权证 songgu: 份数; hongli: 行权价 |
+    pub category: u8,
+    /// 分红（每 10 股派现金 x 元）| 前流通盘：
+    pub fh_qltp: f32,
+    /// 配股价（每股配股价 x 元）| 前总股本
+    pub pgj_qzgb: f32,
+    /// 送转股（每 10 股送转股比例 x 股） | 后流通盘
+    pub sg_hltp: f32,
+    /// 配股（每 10 股配股比例 x 股）| 后总股本：
+    pub pg_hzgb: f32,
+}
+
+impl XdxrData {
+    /// 解析方式：
+    ///
+    /// | 位置 | 0    | 1-7  | 7 | 8-12             | 13   | 13-29    |
+    /// | ---- | ---- | ---- | - | ---------------- | ---- | -------- |
+    /// | 类型 | u8   | &str | / | [`DateTime`][DT] | u8   | /        |
+    /// | 含义 | 市场 | 代码 | / | 日期             | 类别 | 四组数据 |
+    ///
+    /// [DT]: crate::tcp::helper::DateTime
+    /// ## 注意
+    /// `bytes` 为长度 29 的 slice
+    pub fn parse(bytes: &[u8]) -> XdxrData {
+        use crate::bytes_helper::{f32_from_le_bytes, u8_from_le_bytes, u32_from_le_bytes};
+        fn f32_(b: &[u8], p: usize) -> f32 {
+            let tmp = u32_from_le_bytes(b, p);
+            if tmp == 0 {
+                0.
+            } else {
+                crate::tcp::helper::vol_amount(tmp as i32) as f32
+            }
+        }
+        let market = u8_from_le_bytes(bytes, 0);
+        if bytes.len() < 29 {
+            return Self::default();
+        }
+        let code = std::str::from_utf8(&bytes[1..7]).unwrap_or("").into();
+        let date = crate::tcp::helper::datetime(&bytes[8..12], 9).to_u32();
+        let category = u8_from_le_bytes(bytes, 12);
+        let (fh_qltp, pgj_qzgb, sg_hltp, pg_hzgb) = match category {
+            1 | 11..=14 => (
+                f32_from_le_bytes(bytes, 13),
+                f32_from_le_bytes(bytes, 17),
+                f32_from_le_bytes(bytes, 21),
+                f32_from_le_bytes(bytes, 25),
+            ),
+            _ => (
+                f32_(bytes, 13),
+                f32_(bytes, 17),
+                f32_(bytes, 21),
+                f32_(bytes, 25),
+            ),
+        };
+        Self {
+            market,
+            code,
+            date,
+            category,
+            fh_qltp,
+            pgj_qzgb,
+            sg_hltp,
+            pg_hzgb,
+        }
+    }
+}
+
+#[test]
+fn connection() -> std::io::Result<()> {
+    crate::tcp::tests::connection(Xdxr::default())
+}
+
+#[test]
+fn xdxrdata_parse() {
+    let target = XdxrData {
+        market: 0,
+        code: "000001".to_string(),
+        date: 19900301,
+        category: 1,
+        fh_qltp: 0.0,
+        pgj_qzgb: 3.56,
+        sg_hltp: 0.0,
+        pg_hzgb: 1.0,
+    };
+    let parsed = XdxrData::parse(&[
+        0x00, 0x30, 0x30, 0x30, 0x30, 0x30, 0x31, 0x00, 0x8d, 0xa7, 0x2f, 0x01, 0x01, 0x00, 0x00,
+        0x00, 0x00, 0x0a, 0xd7, 0x63, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3f,
+    ]);
+    compare!(parsed, target);
+}

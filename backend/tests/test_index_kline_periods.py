@@ -246,7 +246,7 @@ def test_empty_source_catalog_still_initializes_seven_indices(repo, monkeypatch)
     from app.services import index_sync, preferences
     monkeypatch.setattr(index_sync, "_fetch_instruments_by_type", lambda *args: pl.DataFrame())
     monkeypatch.setattr(preferences, "get_daily_data_provider", lambda: "custom")
-    assert index_sync.sync_index_instruments(repo, pull_etf=False) == 7
+    assert index_sync.sync_index_instruments(repo) == 7
     assert set(repo.get_index_instruments()["symbol"]) == set(PAGE_INDEX_NAMES)
 
 

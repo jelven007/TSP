@@ -161,7 +161,7 @@ def full_snapshot(request: Request, authorization: Annotated[str | None, Header(
     repo = state.repo
     status = service.status()
     frames, days = {}, {}
-    for asset in ("stock", "etf", "index"):
+    for asset in ("stock", "index"):
         frame, day = repo.get_enriched_latest_asset(asset, refresh=False)
         # Only standardized public fields enter the bridge. Platform process
         # configuration must also disable legacy private registry injection.

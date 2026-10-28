@@ -42,10 +42,6 @@ _DATASET_PATHS = {
     "index_enriched": "kline_index_enriched",
     "index_weekly": "kline_index_weekly",
     "index_monthly": "kline_index_monthly",
-    "etf_daily": "kline_etf_daily",
-    "etf_enriched": "kline_etf_enriched",
-    "etf_minute": "kline_etf_minute",
-    "etf_adj_factor": "adj_factor_etf",
     "depth5": "depth5",
     "market_snapshot": "market_snapshot",
 }
@@ -153,7 +149,6 @@ def collect_dataset_snapshot(data_dir: Path) -> dict[str, dict[str, Any]]:
         for name, relative in _DATASET_PATHS.items()
     }
     datasets["stock_enriched"]["generation"] = _generation(data_dir, "stock")
-    datasets["etf_enriched"]["generation"] = _generation(data_dir, "etf")
     return datasets
 
 
@@ -240,7 +235,7 @@ def _publish_data_release(
 
 def _publication_generations(data_dir: Path) -> dict[str, str | None]:
     generations = {}
-    for asset in ("stock", "etf"):
+    for asset in ("stock",):
         if enriched_publication_incomplete(data_dir, asset):
             raise DataReleaseError(f"{asset} enriched publication is incomplete")
         generations[asset] = _generation(data_dir, asset)
@@ -459,7 +454,7 @@ def backtest_provenance(
 
     if data_generation is None:
         data_generation = _generation(data_dir, asset_type)
-    dataset_name = "etf_enriched" if asset_type == "etf" else "stock_enriched"
+    dataset_name = "stock_enriched"
     release_dataset = (
         (release.get("datasets") or {}).get(dataset_name, {})
         if release is not None
@@ -519,7 +514,6 @@ def release_health(data_dir: Path) -> dict[str, Any]:
     unavailable: list[str] = []
     for asset_type, dataset_name in (
         ("stock", "stock_enriched"),
-        ("etf", "etf_enriched"),
     ):
         current = _generation(Path(data_dir), asset_type)
         if enriched_publication_incomplete(Path(data_dir), asset_type):

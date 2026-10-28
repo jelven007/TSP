@@ -39,9 +39,8 @@ def _write_daily(tmp_path, rows: list[tuple[date, float, float]]) -> None:
     repo.append_daily(df)
 
 
-def _write_factor(tmp_path, day: date, factor: float, asset_type: str = "stock") -> None:
-    sub = "adj_factor_etf" if asset_type == "etf" else "adj_factor"
-    out = tmp_path / sub / "all.parquet"
+def _write_factor(tmp_path, day: date, factor: float) -> None:
+    out = tmp_path / "adj_factor" / "all.parquet"
     out.parent.mkdir(parents=True, exist_ok=True)
     pl.DataFrame(
         {"symbol": [SYM], "trade_date": [day], "ex_factor": [factor]},
@@ -73,11 +72,8 @@ def test_limit_prices_by_board():
     assert paper.limit_pct("688981.SH", "stock") == 0.20
     with pytest.raises(ValueError, match="不支持"):
         paper.limit_pct("832000.BJ", "stock")
-    assert paper.limit_pct("510300.SH", "etf") == 0.10
     up, down = paper.limit_prices(10.0, "600519.SH", "stock")
     assert (up, down) == (11.0, 9.0)
-    up3, down3 = paper.limit_prices(1.0, "510300.SH", "etf")
-    assert (up3, down3) == (1.1, 0.9)  # 3 位小数 round 不改变该值
 
 
 def test_qty_from_amount_floors_to_lot():
@@ -98,15 +94,6 @@ def test_create_order_rejects_bad_qty_and_insufficient_cash(tmp_path):
     assert "100 的整数倍" in err
     _, err = paper.create_order(tmp_path, SYM, "buy", qty=2000, ref_price=100.0)
     assert "资金不足" in err
-
-
-def test_create_order_etf_market_converts_to_next_open(tmp_path):
-    _cap_account(tmp_path)
-    order, err = paper.create_order(
-        tmp_path, "510300.SH", "buy", qty=1000, order_type="market", asset_type="etf", ref_price=4.0,
-    )
-    assert err is None
-    assert order["order_type"] == "next_open"
 
 
 def test_sell_requires_holding_and_t1(tmp_path, monkeypatch):

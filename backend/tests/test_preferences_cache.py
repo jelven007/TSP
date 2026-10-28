@@ -71,9 +71,7 @@ _SYNC_GETTERS = {
     "minute_intraday_refresh": preferences.get_minute_intraday_refresh,
     "pipeline_pull_a_share": preferences.get_pipeline_pull_a_share,
     "pipeline_pull_index": preferences.get_pipeline_pull_index,
-    "pipeline_pull_etf": preferences.get_pipeline_pull_etf,
     "realtime_pull_stock": preferences.get_realtime_pull_stock,
-    "realtime_pull_etf": preferences.get_realtime_pull_etf,
 }
 
 
@@ -197,7 +195,6 @@ def test_data_initial_defaults_match_configured_baseline(_isolated, existing):
     assert preferences.get_minute_refresh_interval() == 60
     assert preferences.get_pipeline_pull_a_share() is True
     assert preferences.get_pipeline_pull_index() is True
-    assert preferences.get_pipeline_pull_etf() is True
     assert preferences.get_instruments_schedule() == {"hour": 9, "minute": 0}
     assert preferences.get_pipeline_schedule() == {"hour": 16, "minute": 0}
     assert preferences.get_pipeline_regime_enabled() is True

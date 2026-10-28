@@ -18,7 +18,7 @@ META = {
     "name": "均线多头",
     "description": "MA5>MA10>MA20>MA60多头排列 + 短期动量为正",
     "tags": ["均线", "多头"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {

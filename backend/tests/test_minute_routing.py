@@ -147,27 +147,24 @@ def test_provider_without_minute_dataset_returns_empty(monkeypatch):
 # ---------- 测试 5: asset_type 透传到 provider ----------
 
 def test_asset_type_threaded_to_provider(monkeypatch):
-    """§4 测试 5: stock/etf/index asset_type 透传到 provider.get_minute。"""
+    """§4 测试 5: stock/index asset_type 透传到 provider.get_minute。"""
     spy = MagicMock(return_value=_mock_minute_df())
     mock_provider = MagicMock()
     mock_provider.get_minute = spy
     _setup_custom_provider(monkeypatch, mock_provider, has_dataset=True)
 
-    # 三次调用不同 asset_type
+    # 两次调用不同 asset_type
     kline_sync.fetch_minute_single(
         "600519.SH", date(2026, 1, 15), asset_type="stock", capset=_empty_capset(),
-    )
-    kline_sync.fetch_minute_single(
-        "510300.SH", date(2026, 1, 15), asset_type="etf", capset=_empty_capset(),
     )
     kline_sync.fetch_minute_single(
         "000001.SH", date(2026, 1, 15), asset_type="index", capset=_empty_capset(),
     )
 
-    # spy 被调 3 次, 每次收到对应 asset_type
-    assert spy.call_count == 3
+    # spy 被调 2 次, 每次收到对应 asset_type
+    assert spy.call_count == 2
     received_assets = [call.kwargs.get("asset_type") for call in spy.call_args_list]
-    assert received_assets == ["stock", "etf", "index"]
+    assert received_assets == ["stock", "index"]
 
 
 # ---------- 测试 6: 自定义源成功时不调 TickFlow ----------
@@ -258,28 +255,17 @@ def test_on_chunk_done_wrapped_to_3_args(monkeypatch):
 
 # ---------- 测试 9: get_minute_batch 按 asset_type 拆分调用 sync_minute_batch ----------
 
-def test_get_minute_batch_splits_stock_and_etf(monkeypatch):
-    """get_minute_batch 把 incomplete 拆成 stock/ETF 两组, 分别以
-    asset_type='stock'/'etf' 调用 sync_minute_batch, 结果 concat 返回。
-
-    覆盖 kline.py get_minute_batch 的双调用拼接逻辑 (本次提交改动量最大的部分)。
-    契约: 本端点只接受 stock/ETF, 故两分支覆盖全部 incomplete。
-    """
+def test_get_minute_batch_pulls_stock_batch(monkeypatch):
+    """get_minute_batch 以股票资产类型批量补拉缺失标的。"""
     from app.api import kline as kline_api
 
-    # mock sync_minute_batch: stock 返回 df_s, etf 返回 df_e (不同 symbol 便于 concat 后 filter 验证)
     def fake_sync(symbols, *, start_time, end_time, batch_size, rpm, asset_type, raw_basis=False):
-        if asset_type == "stock":
-            return _mock_minute_df(symbol="600519.SH")
-        if asset_type == "etf":
-            return _mock_minute_df(symbol="510300.SH")
-        return pl.DataFrame()
+        return pl.concat([_mock_minute_df(symbol=symbol) for symbol in symbols])
     sync_spy = MagicMock(side_effect=fake_sync)
     monkeypatch.setattr(kline_api.kline_sync, "sync_minute_batch", sync_spy)
 
-    # mock repo: ETF 集合含 510300.SH; 本地分钟K返回空 (强制走 incomplete 补拉)
     mock_repo = MagicMock()
-    mock_repo.get_etf_symbol_set.return_value = {"510300.SH"}
+    mock_repo.get_index_symbol_set.return_value = set()
     mock_repo.get_minute_batch.return_value = pl.DataFrame()
 
     # mock capset: 有权限, limits 返回 None (lim.batch 访问被 `if lim else` 守护)
@@ -291,17 +277,15 @@ def test_get_minute_batch_splits_stock_and_etf(monkeypatch):
     mock_request.app.state.repo = mock_repo
     mock_request.app.state.capabilities = mock_capset
 
-    body = {"symbols": ["600519.SH", "510300.SH"], "date": "2026-01-15"}
+    body = {"symbols": ["600519.SH", "000001.SZ"], "date": "2026-01-15"}
     result = kline_api.get_minute_batch(mock_request, body)
 
-    # sync_minute_batch 被调 2 次, asset_type 分别为 stock 和 etf
-    assert sync_spy.call_count == 2
-    call_assets = sorted(call.kwargs.get("asset_type") for call in sync_spy.call_args_list)
-    assert call_assets == ["etf", "stock"]
+    assert sync_spy.call_count == 1
+    assert sync_spy.call_args.kwargs.get("asset_type") == "stock"
 
     # 两个 symbol 都在结果里 (concat 后按 symbol filter 命中)
     assert "600519.SH" in result["data"]
-    assert "510300.SH" in result["data"]
+    assert "000001.SZ" in result["data"]
 
 
 # ---------- 测试 9b: 取到即落盘 + 增量拉取 (尾部落后 / 中间洞 / fresh) ----------
@@ -655,15 +639,15 @@ def _capture_request_rows(provider):
 
 
 def test_generic_http_get_minute_passes_asset_type_when_configured():
-    """Issue 3: 配了 asset_type_param="asset" → override 含 {"asset": "etf"}。"""
+    """Issue 3: 配了 asset_type_param="asset" → override 含 {"asset": "index"}。"""
     config = _make_minute_config(asset_type_param="asset")
     provider = GenericHTTPProvider(config)
     captured = _capture_request_rows(provider)
 
-    provider.get_minute(["600519.SH"], None, None, asset_type="etf", freq="1m")
+    provider.get_minute(["000001.SH"], None, None, asset_type="index", freq="1m")
 
-    assert captured["override_params"] == {"asset": "etf"}
-    assert captured["override_body"] == {"asset": "etf"}
+    assert captured["override_params"] == {"asset": "index"}
+    assert captured["override_body"] == {"asset": "index"}
 
 
 def test_generic_http_get_minute_passes_freq_when_configured():
@@ -684,7 +668,7 @@ def test_generic_http_get_minute_omits_params_when_not_configured():
     provider = GenericHTTPProvider(config)
     captured = _capture_request_rows(provider)
 
-    provider.get_minute(["600519.SH"], None, None, asset_type="etf", freq="1m")
+    provider.get_minute(["000001.SH"], None, None, asset_type="index", freq="1m")
 
     # override 为 None (空 dict → `override or None`), 不传上游
     assert captured["override_params"] is None
@@ -880,12 +864,12 @@ def test_get_minute_batch_prefer_local_healthy_skips_stock_refetch(monkeypatch):
     本地现有数据(哪怕 <90%)直接返回; ETF 不在服务 universe, 维持补拉。"""
     from app.api import kline as kline_api
 
-    sync_spy = MagicMock(return_value=_mock_minute_df(symbol="510300.SH"))
+    sync_spy = MagicMock(return_value=_mock_minute_df(symbol="600000.SH"))
     monkeypatch.setattr(kline_api.kline_sync, "sync_minute_batch", sync_spy)
 
     mock_repo = MagicMock()
-    mock_repo.get_etf_symbol_set.return_value = {"510300.SH"}
-    # 股票本地 100 根 (expected=240 → <90% 判 incomplete), ETF 本地空
+    mock_repo.get_index_symbol_set.return_value = set()
+    # 一只股票本地 100 根, 另一只本地为空。
     mock_repo.get_minute_batch.side_effect = (
         lambda syms, d, asset_type="stock":
         _mock_minute_rows("600519.SH", 100) if asset_type == "stock" else pl.DataFrame()
@@ -900,13 +884,13 @@ def test_get_minute_batch_prefer_local_healthy_skips_stock_refetch(monkeypatch):
     mock_request.app.state.capabilities = mock_capset
     mock_request.app.state.minute_refresh = _healthy_svc(monkeypatch, True)
 
-    body = {"symbols": ["600519.SH", "510300.SH"], "date": "2026-01-15", "prefer_local": True}
+    body = {"symbols": ["600519.SH", "600000.SH"], "date": "2026-01-15", "prefer_local": True}
     result = kline_api.get_minute_batch(mock_request, body)
 
-    # 股票未被补拉: sync_minute_batch 只为 ETF 调了一次
+    # 有局部数据的股票未被补拉, 只补全缺失股票。
     assert sync_spy.call_count == 1
-    assert sync_spy.call_args.kwargs.get("asset_type") == "etf"
-    assert sync_spy.call_args.args[0] == ["510300.SH"]
+    assert sync_spy.call_args.kwargs.get("asset_type") == "stock"
+    assert sync_spy.call_args.args[0] == ["600000.SH"]
     # 股票返回的是本地 100 根 (部分数据, 不因 incomplete 而缺失)
     assert len(result["data"]["600519.SH"]) == 100
     assert result["full_minute_local"] is True

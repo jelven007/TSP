@@ -21,7 +21,7 @@ from app.multitenancy.quote_bridge import PublicQuoteBridge
 
 def market_files(source):
     source.mkdir()
-    for asset in ("stock", "etf", "index"):
+    for asset in ("stock", "index"):
         get_enriched_generation(source, asset)
     path = source / "instruments" / "instruments.parquet"
     path.parent.mkdir()
@@ -200,7 +200,6 @@ def test_publication_start_uses_previous_release_when_capacity_is_low(tmp_path, 
 
 @pytest.mark.parametrize(("raw_dir", "enriched_dir"), [
     ("kline_daily", "kline_daily_enriched"),
-    ("kline_etf_daily", "kline_etf_enriched"),
     ("kline_index_daily", "kline_index_enriched"),
 ])
 def test_publication_rejects_incomplete_latest_enriched_partition(
@@ -289,7 +288,7 @@ def test_quote_bridge_keeps_depth_age_and_replaces_repository_on_new_release(tmp
     frame = encode_frame(pl.DataFrame({"symbol": ["600000.SH"], "date": [date(2026, 10, 14)], "close": [10.0]}))
     snapshot = {
         "sequence": 1, "status": {"symbol_count": 1, "quote_age_ms": 10, "is_trading_hours": True},
-        "frames": {"stock": frame, "etf": frame, "index": frame},
+        "frames": {"stock": frame, "index": frame},
         "indices": encode_frame(pl.DataFrame()), "public_release": {"id": first["id"]},
         "depth": {"day": "2026-10-14", "ready": True, "age": 3,
                   "entries": {"600000.SH": {"sealed_up": True, "bid1_vol": 123}}},
@@ -325,7 +324,7 @@ def test_api_quote_bridge_uses_markers_and_refreshes_frames_only_on_demand(tmp_p
         "sequence": 1,
         "captured_at": time.time(),
         "status": {"symbol_count": 1, "quote_age_ms": 10, "is_trading_hours": True},
-        "frames": {"stock": frame, "etf": frame, "index": frame},
+        "frames": {"stock": frame, "index": frame},
         "indices": encode_frame(pl.DataFrame()),
     }
 
@@ -358,12 +357,12 @@ def test_api_quote_bridge_uses_markers_and_refreshes_frames_only_on_demand(tmp_p
         bridge.start()
         assert markers.started and market.calls == 0
         bridge.update(snapshot)
-        assert bridge.frame_decodes == 4
+        assert bridge.frame_decodes == 3
         bridge.mark_event("quotes_updated")
         bridge.ensure_fresh()
-        assert market.calls == 1 and bridge.frame_decodes == 8
+        assert market.calls == 1 and bridge.frame_decodes == 6
         bridge.ensure_fresh()
-        assert market.calls == 1 and bridge.frame_decodes == 8
+        assert market.calls == 1 and bridge.frame_decodes == 6
     finally:
         bridge.close()
         store.db.close()
@@ -384,7 +383,7 @@ def test_idle_bridge_refreshes_when_public_current_changes(tmp_path, monkeypatch
     }))
     snapshot = {
         "sequence": 1, "status": {"symbol_count": 1},
-        "frames": {"stock": frame, "etf": frame, "index": frame},
+        "frames": {"stock": frame, "index": frame},
         "indices": encode_frame(pl.DataFrame()), "public_release": {"id": first["id"]},
     }
     calls = []

@@ -238,85 +238,6 @@ def _safe_aggregate_index_instruments(repo) -> dict | None:
     }
 
 
-def _safe_aggregate_etf_instruments(repo) -> dict | None:
-    """ETF instruments 统计 — 优先独立 instruments_etf，兼容旧 instruments_index。"""
-    queries = [
-        """SELECT count(*) AS rows,
-                  count(DISTINCT symbol) AS symbols,
-                  count_if(name IS NOT NULL AND name != '') AS named
-           FROM instruments_etf""",
-        """SELECT count(*) AS rows,
-                  count(DISTINCT symbol) AS symbols,
-                  count_if(name IS NOT NULL AND name != '') AS named
-           FROM instruments_index
-           WHERE asset_type = 'etf'""",
-    ]
-    for sql in queries:
-        try:
-            row = repo.execute_one(sql)
-        except Exception as e:  # noqa: BLE001
-            logger.debug("aggregate etf instruments fallback failed: %s", e)
-            continue
-        if row and row[0]:
-            return {
-                "rows": int(row[0]),
-                "symbols_covered": int(row[1] or 0),
-                "latest_as_of": None,
-                "named": int(row[2] or 0),
-            }
-    return None
-
-
-def _safe_aggregate_etf_enriched(repo) -> dict | None:
-    """ETF enriched 统计 — 独立 kline_etf_enriched。"""
-    fields = 0
-    try:
-        cols = repo.execute_all("DESCRIBE kline_etf_enriched")
-        fields = len(cols)
-    except Exception:  # noqa: BLE001
-        pass
-    stats = _safe_aggregate(repo, "kline_etf_enriched")
-    if not stats:
-        return None
-    return {**stats, "fields": fields}
-
-
-def _safe_aggregate_etf_daily(repo) -> dict | None:
-    """ETF 日K统计 — 优先独立 kline_etf_daily，兼容旧 index 存储。"""
-    queries = [
-        """SELECT count(*) AS rows,
-                  min(date) AS earliest,
-                  max(date) AS latest,
-                  count(DISTINCT symbol) AS symbols,
-                  count(DISTINCT date) AS trading_days
-           FROM kline_etf_daily""",
-        """SELECT count(*) AS rows,
-                  min(date) AS earliest,
-                  max(date) AS latest,
-                  count(DISTINCT symbol) AS symbols,
-                  count(DISTINCT date) AS trading_days
-           FROM kline_index_daily
-           WHERE symbol IN (
-               SELECT DISTINCT symbol FROM instruments_index WHERE asset_type = 'etf'
-           )""",
-    ]
-    for sql in queries:
-        try:
-            row = repo.execute_one(sql)
-        except Exception as e:  # noqa: BLE001
-            logger.debug("aggregate etf daily fallback failed: %s", e)
-            continue
-        if row and row[0]:
-            return {
-                "rows": int(row[0]),
-                "earliest_date": str(row[1]) if row[1] else None,
-                "latest_date": str(row[2]) if row[2] else None,
-                "symbols_covered": int(row[3] or 0),
-                "trading_days": int(row[4] or 0),
-            }
-    return None
-
-
 def _safe_aggregate_adj_factor(repo) -> dict | None:
     """adj_factor 视图统计,日期范围对齐日 K 覆盖区间。"""
     try:
@@ -465,10 +386,6 @@ def _compute_storage(data_dir: Path) -> dict:
         "index_daily": data_dir / "kline_index_daily",
         "index_enriched": data_dir / "kline_index_enriched",
         "index_instruments": data_dir / "instruments_index",
-        "etf_daily": data_dir / "kline_etf_daily",
-        "etf_enriched": data_dir / "kline_etf_enriched",
-        "etf_instruments": data_dir / "instruments_etf",
-        "etf_adj_factor": data_dir / "adj_factor_etf",
         "minute": data_dir / "kline_minute",
         "5m": data_dir / "kline_5minute",
         "10m": data_dir / "kline_10minute",
@@ -578,9 +495,6 @@ def status(request: Request) -> dict:
         "index_daily": table_stats("index_daily", lambda: _safe_aggregate_index_daily(repo)),
         "index_enriched": table_stats("index_enriched", lambda: _safe_aggregate_index_enriched(repo)),
         "index_instruments": table_stats("index_instruments", lambda: _safe_aggregate_index_instruments(repo)),
-        "etf_daily": table_stats("etf_daily", lambda: _safe_aggregate_etf_daily(repo)),
-        "etf_enriched": table_stats("etf_enriched", lambda: _safe_aggregate_etf_enriched(repo)),
-        "etf_instruments": table_stats("etf_instruments", lambda: _safe_aggregate_etf_instruments(repo)),
         "minute": table_stats("minute", lambda: _safe_aggregate_minute(repo)),
         "5m": table_stats("5m", lambda: _safe_aggregate_minute(repo, "kline_5minute")),
         "10m": table_stats("10m", lambda: _safe_aggregate_minute(repo, "kline_10minute")),
@@ -630,16 +544,15 @@ def clear_data(request: Request):
     # 仍会被拦(another publication is active), 写盘竞态保护不受影响。
     publications = {
         "kline_daily_enriched": EnrichedPublication(data_dir, "stock", recover=True),
-        "kline_etf_enriched": EnrichedPublication(data_dir, "etf", recover=True),
     }
 
     for sub in (
         "kline_daily", "kline_daily_enriched", "kline_index_daily", "kline_index_enriched",
         "kline_index_weekly", "kline_index_monthly",
-        "kline_etf_daily", "kline_etf_enriched", "kline_etf_minute", "kline_minute",
+        "kline_minute",
         "kline_5minute", "kline_10minute", "kline_15minute", "kline_weekly",
-        "adj_factor", "adj_factor_etf", "instruments", "instrument_status",
-        "instruments_index", "instruments_etf", "pools", "financials",
+        "adj_factor", "instruments", "instrument_status",
+        "instruments_index", "pools", "financials",
         "backtest_results", "screener_results", "ai_cache",
     ):
         d = data_dir / sub
@@ -740,17 +653,6 @@ _TABLE_FIELD_DESC: dict[str, dict[str, str]] = {
         "amount": "成交额",
     },
     "kline_index_enriched": ENRICHED_COLUMNS,
-    "kline_etf_daily": {
-        "symbol": "ETF代码",
-        "date": "交易日期",
-        "open": "开盘价",
-        "high": "最高价",
-        "low": "最低价",
-        "close": "收盘价",
-        "volume": "成交量",
-        "amount": "成交额",
-    },
-    "kline_etf_enriched": ENRICHED_COLUMNS,
     "kline_minute": {
         "symbol": "股票代码",
         "datetime": "分钟时间戳",
@@ -788,13 +690,6 @@ _TABLE_FIELD_DESC: dict[str, dict[str, str]] = {
         "code": "指数编码(纯数字)",
         "asset_type": "资产类型(index)",
     },
-    "instruments_etf": {
-        "symbol": "ETF代码",
-        "name": "ETF名称",
-        "code": "ETF编码(纯数字)",
-        "asset_type": "资产类型(etf)",
-        "source": "数据源",
-    },
 }
 
 # view 名 → DuckDB 视图名
@@ -815,9 +710,6 @@ _SCHEMA_VIEWS: dict[str, str] = {
     "index_weekly": "kline_index_weekly",
     "index_monthly": "kline_index_monthly",
     "index_instruments": "instruments_index",
-    "etf_daily": "kline_etf_daily",
-    "etf_enriched": "kline_etf_enriched",
-    "etf_instruments": "instruments_etf",
     "minute": "kline_minute",
     "5m": "kline_5minute",
     "10m": "kline_10minute",

@@ -32,13 +32,11 @@ const PROFILE_HINTS: Record<MiningBudgetProfile, string> = {
 /** 自动挖掘入口弹窗: L1 全量统计筛选 → 达标因子池 → 嵌套样本外组合挖掘。 */
 export function AutoMiningDialog({
   onClose,
-  defaultAssetType = 'stock',
 }: {
   onClose: () => void
-  defaultAssetType?: 'stock' | 'etf'
 }) {
   const navigate = useNavigate()
-  const [assetType, setAssetType] = useState<'stock' | 'etf'>(defaultAssetType)
+  const assetType = 'stock' as const
   const [profile, setProfile] = useState<MiningBudgetProfile>('balanced')
   const [profileTouched, setProfileTouched] = useState(false)
   const [start, setStart] = useState(isoDaysAgo(365 * 2))
@@ -123,21 +121,6 @@ export function AutoMiningDialog({
 
       <div className="modal-body min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <div className="space-y-3">
-          <div>
-            <div className="mb-1 text-[10px] text-muted">资产</div>
-            <div className="inline-flex rounded-btn border border-border bg-surface/80 p-0.5">
-              {(['stock', 'etf'] as const).map(value => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setAssetType(value)}
-                  className={`h-7 rounded-[5px] px-3 text-[11px] font-medium transition-colors ${assetType === value ? 'bg-accent text-white' : 'text-secondary hover:text-foreground'}`}
-                >
-                  {value === 'stock' ? '股票' : 'ETF'}
-                </button>
-              ))}
-            </div>
-          </div>
           <label className="block">
             <span className="mb-1 block text-[10px] text-muted">验证档位（决定筛选门槛与样本要求）</span>
             <select

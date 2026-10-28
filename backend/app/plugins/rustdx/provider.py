@@ -32,6 +32,7 @@ from app.plugins.rustdx.client import (
     _RUSTDX_SOURCE_REV,
     RustdxClient,
     RustdxError,
+    RustdxSourceChangedError,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ _HISTORY_COLUMNS = {column for fields in _FINANCIAL_MAPS.values() for column in 
     "col314"
 }
 _CACHE_TTL = 3600
-_MAX_CONNECTIONS = 35
+_MAX_CONNECTIONS = 8
 
 
 @dataclass
@@ -284,22 +285,24 @@ class RustdxProvider:
 
     @classmethod
     def _workers(cls, symbol_count: int) -> int:
+        from .client import _connection_count
+
         try:
             configured = int(os.getenv("RUSTDX_WORKERS", str(_MAX_CONNECTIONS)))
         except ValueError:
             configured = _MAX_CONNECTIONS
-        return max(1, min(configured, _MAX_CONNECTIONS, symbol_count))
+        return max(1, min(configured, _connection_count(), symbol_count))
 
     def _persistent_quotes(self, symbols: list[str], *, operation: str) -> list[dict]:
         del operation
         # One native call partitions the universe into 60-symbol requests and
         # schedules them across the process-wide pool. The native pool clamps
-        # its connection count to 35, including concurrent API consumers.
+        # its business connection count to eight, including API consumers.
         return self._client_factory().quotes(symbols)
 
     # ---- instruments ----
     def get_instruments(self, asset_type: str = "stock") -> list[dict]:
-        if asset_type not in {"stock", "index", "etf"}:
+        if asset_type not in {"stock", "index"}:
             return []
         today = cn_now().date()
         with self._instrument_lock:
@@ -328,15 +331,10 @@ class RustdxProvider:
                                 is not None
                                 and not is_delisted_name(name)
                             )
-                        elif asset_type == "index":
+                        else:
                             matches = (
                                 exchange == "SH" and code.startswith("000")
                             ) or (exchange == "SZ" and code.startswith("399"))
-                        else:
-                            matches = "ETF" in name.upper() and (
-                                (exchange == "SH" and code.startswith(("51", "52", "56", "58")))
-                                or (exchange == "SZ" and code.startswith("15"))
-                            )
                         if not matches:
                             continue
                         if asset_type == "stock" and item.get("pre_close") in (0, 2.0**-127):
@@ -408,7 +406,7 @@ class RustdxProvider:
     def _name_map(self) -> dict[str, str]:
         return {
             row["symbol"]: row["name"]
-            for asset_type in ("stock", "etf")
+            for asset_type in ("stock",)
             for row in self.get_instruments(asset_type)
             if row.get("symbol") and row.get("name")
         }
@@ -438,16 +436,27 @@ class RustdxProvider:
         # see updated source rows, and no page is downloaded twice in a call.
         pages: dict[int, tuple[list[dict], datetime | None]] = {}
         errors: dict[int, RustdxError] = {}
+        source: dict | None = None
 
         def read_page(page: int) -> tuple[list[dict], datetime | None]:
+            nonlocal source
             if page in errors:
                 raise errors[page]
             if page not in pages:
                 try:
-                    batch = client.bars(
-                        symbol, frequency=frequency,
-                        start=page * _PAGE_SIZE, offset=_PAGE_SIZE,
-                    )
+                    if callable(getattr(client, "bars_with_source", None)):
+                        batch, observed = client.bars_with_source(
+                            symbol, frequency=frequency, start=page * _PAGE_SIZE,
+                            offset=_PAGE_SIZE, expected_source=source,
+                        )
+                        if source is not None and source != observed:
+                            raise RustdxSourceChangedError("rustdx K线分页来源变化, 须从头重采")
+                        source = observed
+                    else:
+                        batch = client.bars(
+                            symbol, frequency=frequency,
+                            start=page * _PAGE_SIZE, offset=_PAGE_SIZE,
+                        )
                 except RustdxError as exc:
                     errors[page] = exc
                     raise
@@ -499,6 +508,8 @@ class RustdxProvider:
                     else:
                         lower = middle
                 return upper
+            except RustdxSourceChangedError:
+                raise
             except RustdxError:
                 # A speculative older page may be outside available history.
                 # Serial scanning still raises if the requested range needs it.
@@ -882,7 +893,7 @@ class RustdxProvider:
 
     def get_realtime(self) -> list[dict]:
         symbols = [
-            row["symbol"] for asset_type in ("stock", "etf")
+            row["symbol"] for asset_type in ("stock",)
             for row in self.get_instruments(asset_type)
         ]
         return self._quote_rows(symbols, include_names=True)
@@ -951,7 +962,7 @@ class RustdxProvider:
         """TDX category 1 has only ex-date; never infer registration/payment dates."""
         from app.data_providers.corporate_actions import CorporateAction
 
-        if asset_type not in {"stock", "etf"}:
+        if asset_type != "stock":
             return pl.DataFrame()
         output = []
         # Bound each task to one symbol, share the existing native pool. Any
@@ -1009,7 +1020,7 @@ class RustdxProvider:
     ) -> pl.DataFrame:
         schema = {"symbol": pl.String, "trade_date": pl.Date, "ex_factor": pl.Float64}
         valid = [symbol for symbol in symbols if _symbol(symbol) is not None]
-        if not valid or asset_type not in {"stock", "etf"}:
+        if not valid or asset_type != "stock":
             return pl.DataFrame(schema=schema)
         output: list[dict] = []
         try:
@@ -1085,7 +1096,7 @@ class RustdxProvider:
                                     bonus,
                                     allot,
                                     allot_value / allot if allot else 0.0,
-                                    decimals=3 if asset_type == "etf" else 2,
+                                    decimals=2,
                                 )
                                 if reference is None or reference <= 0:
                                     continue
@@ -1093,7 +1104,7 @@ class RustdxProvider:
                                 ex_days = [day for day in days if day >= event_date]
                                 if ex_days:
                                     adjusted_return = closes[ex_days[0]] / reference - 1.0
-                                    limit = 0.20 if asset_type == "etf" else _price_limit(symbol)
+                                    limit = _price_limit(symbol)
                                     if abs(adjusted_return) > limit + 0.02:
                                         logger.warning(
                                             "%s 除权因子自检剔除 %s %s: %.2f%%",
@@ -1387,7 +1398,7 @@ class RustdxProvider:
             except RustdxError as exc:
                 return pl.DataFrame(), max(requests, exc.requests), exc
 
-        # Native pool is shared with quotes/history/finance and enforces 35
+        # Native pool is shared with quotes/history/finance and enforces eight
         # sockets across all consumers, including simultaneous calls.
         with ThreadPoolExecutor(
             max_workers=self._workers(len(valid)), thread_name_prefix="rustdx-latest"

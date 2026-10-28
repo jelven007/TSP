@@ -142,10 +142,12 @@ def four_board_pipeline(tmp_path, monkeypatch):
         get_instruments=lambda asset_type: [{"symbol": s, "name": s} for s in symbols],
         get_daily=daily, get_minute=minute, get_financials=financial,
         get_adj_factors=lambda *args, **kwargs: pl.DataFrame(),
+        get_corporate_actions=lambda **kwargs: pl.DataFrame(),
         get_realtime=lambda: [{"symbol": s, "last": 99.0} for s in symbols],
         get_depth_batch=lambda selected: {s: {"bid_prices": [9.0]} for s in selected},
     )
     monkeypatch.setattr(custom, "get_provider", lambda name: provider)
+    monkeypatch.setattr("app.data_providers.get_provider", lambda name: provider)
     monkeypatch.setattr(
         "app.data_providers.official_stock_catalog.fetch_official_stock_catalog",
         lambda: [{"symbol": s, "name": s} for s in symbols],

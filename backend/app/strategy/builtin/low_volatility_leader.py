@@ -17,7 +17,7 @@ META = {
     "name": "低波动龙头",
     "description": "20日动量为正 + 年化波动 < 30% + MA20上方",
     "tags": ["低波动", "龙头"],
-    "asset_types": ["stock", "etf"],
+    "asset_types": ["stock"],
     "timeframes": ["1d"],
     "params": [
         {

@@ -9,11 +9,11 @@ import { getCardOrder, getCardVisibility, PageSettingsModal } from './PageSettin
 
 const expectedOrder = [
   'instruments', 'minute', '5m', '10m', '15m', 'quotes', 'daily', 'weekly', 'adj_factor', 'enriched',
-  'financials', 'index', 'regime', 'etf',
+  'financials', 'index', 'regime',
 ]
 const expectedLabels = [
   '个股维表', '1分K', '5分K', '10分K', '15分K', '实时行情', '日 K', '周K', '除权因子', 'Enriched',
-  '财务数据', '指数', '环境', 'ETF',
+  '财务数据', '指数', '环境',
 ]
 const caps = { adj_factor: true, 'kline.minute.batch': true, financial: true }
 let host: HTMLDivElement
@@ -51,25 +51,25 @@ it('initializes the settings and portrait order without writing a user preferenc
   expect(renderedLabels()).toEqual(expectedLabels)
   expect(getCardOrder()).toEqual(expectedOrder)
   expect(storage.dataCardOrder.get([])).toEqual([])
-  expect(getCardVisibility(caps).etf).toBe(false)
+  expect(getCardVisibility(caps).regime).toBe(true)
 })
 
 it('preserves saved ordering and visibility while appending missing cards', async () => {
   const saved = ['financials', 'index', 'removed-card', 'daily', 'weekly']
   storage.dataCardOrder.set(saved)
-  storage.dataCardVisible.set({ minute: false, etf: true })
+  storage.dataCardVisible.set({ minute: false, index: false })
 
   expect(getCardOrder()).toEqual([
     'financials', 'index', 'daily', 'weekly', 'instruments', 'minute', '5m', '10m', '15m',
-    'quotes', 'adj_factor', 'enriched', 'regime', 'etf',
+    'quotes', 'adj_factor', 'enriched', 'regime',
   ])
   expect(storage.dataCardOrder.get([])).toEqual(saved)
-  expect(getCardVisibility(caps)).toMatchObject({ minute: false, etf: true })
+  expect(getCardVisibility(caps)).toMatchObject({ minute: false, index: false })
 })
 
 it('restores the system order and displays all requested cards', async () => {
   storage.dataCardOrder.set([...expectedOrder].reverse())
-  storage.dataCardVisible.set({ etf: true, instruments: false })
+  storage.dataCardVisible.set({ index: false, instruments: false })
   const changed = vi.fn()
   window.addEventListener('data-card-visible-change', changed)
   try {
@@ -81,7 +81,7 @@ it('restores the system order and displays all requested cards', async () => {
 
     expect(renderedLabels()).toEqual(expectedLabels)
     expect(storage.dataCardOrder.get([])).toEqual(expectedOrder)
-    expect(getCardOrder().filter(key => getCardVisibility(caps)[key])).toEqual(expectedOrder.slice(0, -1))
+    expect(getCardOrder().filter(key => getCardVisibility(caps)[key])).toEqual(expectedOrder)
     expect(host.querySelectorAll('[role="checkbox"][aria-checked="true"]')).toHaveLength(13)
     expect(changed).toHaveBeenCalledOnce()
   } finally {
@@ -90,12 +90,12 @@ it('restores the system order and displays all requested cards', async () => {
 })
 
 it('places new periods into the requested order for the previous card layout', () => {
-  storage.dataCardOrder.set(['instruments', 'minute', 'daily', 'adj_factor', 'enriched', 'regime', 'index', 'financials', 'etf'])
+  storage.dataCardOrder.set(['instruments', 'minute', 'daily', 'adj_factor', 'enriched', 'regime', 'index', 'financials'])
   expect(getCardOrder()).toEqual(expectedOrder)
 })
 
 it('inserts quotes after 15m in saved six-period layouts without moving existing cards', () => {
-  const saved = ['weekly', '15m', 'financials', 'minute', 'daily', 'instruments', '5m', '10m', 'adj_factor', 'enriched', 'index', 'regime', 'etf']
+  const saved = ['weekly', '15m', 'financials', 'minute', 'daily', 'instruments', '5m', '10m', 'adj_factor', 'enriched', 'index', 'regime']
   storage.dataCardOrder.set(saved)
   expect(getCardOrder()).toEqual(['weekly', '15m', 'quotes', ...saved.slice(2)])
   expect(storage.dataCardOrder.get([])).toEqual(saved)

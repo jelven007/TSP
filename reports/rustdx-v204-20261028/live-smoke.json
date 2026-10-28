@@ -1,0 +1,31 @@
+{
+  "bar_rows": 3,
+  "business_limit": 8,
+  "finance_fields_sample": [
+    "baoliu2",
+    "bgu",
+    "changqifuzhai",
+    "code",
+    "cunhuo",
+    "faqirenfarengu",
+    "farengu",
+    "gudingzichan"
+  ],
+  "financial_index_bytes": 8577,
+  "financial_index_rows": 148,
+  "network_peak": 3,
+  "probe_limit": 1,
+  "probe_peak": 1,
+  "quote_codes": [
+    "600519",
+    "000001",
+    "588200"
+  ],
+  "quote_prices": [
+    1330.75,
+    11.31,
+    0.872
+  ],
+  "read_only": true,
+  "tested_at": "2026-10-28"
+}
