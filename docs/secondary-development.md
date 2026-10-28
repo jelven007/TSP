@@ -1,5 +1,14 @@
 # 代码二次开发与 AI 扩展指南
 
+2026-10-28历史K线性能为L3局部变更：1分K的`sync_period`使用32自然日段，
+保留100证券批次；rustdx的`_bar_records`用实际页时间定位旧窗口，
+单次复用探测页，不跨调用缓存或猜测停牌/交易日偏移，仍受原最大页数限制。
+全量/遗漏修正及股票/指数/ETF共用该逻辑；准确缺口、已有值保护、
+日K整日边界和异常/取消必须保留。日K及本地派生周期的分块不变。已有Provider仍使用
+`get_klines/get_minute`，不新增批量/游标接口或扩展插槽。
+升级保留闭区间、复权基准、原子合并、进度和取消；不能恢复重复近期前缀扫描。
+回归和实测见[性能记录](../reports/minute-history-performance-20261028/verification.md)。
+
 2026-10-28指数扩展已实现`GET /api/index/catalog`、`GET /api/index/kline`
 及`POST /api/index/repair`，旧`daily/minute/sync_daily`入口保留兼容。
 `IndexKlinePeriod=1d|1w|1mo`独立于股票六周期，`1m`继续表示1分K；

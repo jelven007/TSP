@@ -1,5 +1,13 @@
 # TSP 系统技术方案
 
+2026-10-28历史K线性能修复沿`sync_period/kline_gaps→fetch_period→Provider→persist_period`。
+1分K日期段从5天扩至最多32自然日、保留100证券批次；rustdx共用分页以实际页时间
+指数探测、二分定位结束边界，再连续读取至起点，单次调用复用探测页且不跨调用缓存。
+日/周K包结束整日；异常探测回退原有保护的顺序扫描，所需页失败仍拒绝结果。
+遗漏仍按连续缺口取数、仅补写缺失键；派生5/10/15分K及周/月K沿本地基础数据生成。
+不新增Provider协议、配置或存储格式，价格基准、分区原子合并及缓存失效沿原路径；
+依据和实测见[性能记录](../reports/minute-history-performance-20261028/verification.md)。
+
 2026-10-28指数页沿`index_const→index_sync/quote_service→repository→api/indices→Indices`接线。
 `kline_index_daily`及窄表`kline_index_enriched`沿用；新增
 `kline_index_weekly/kline_index_monthly`，DuckDB视图、公共发布、数据release及清理/schema同步。

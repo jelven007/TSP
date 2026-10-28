@@ -1,5 +1,15 @@
 # TSP 部署与运维手册
 
+2026-10-28历史K线性能候选改后端1分K日期分块及rustdx共用历史分页，
+覆盖获取、全量/遗漏修正及相关资产，无配置或Parquet迁移。
+更新须让行情写端Platform加载匹配源码；已启动任务保持原执行逻辑，
+待其终态后再按固定发布产物升级，不为提速中断已有取数。
+新分块最多32自然日/100证券；定位偏移仍受原最大页数约束，
+探测页只在一次调用中复用，不跨任务缓存。内存峰值需按实际数据验证，
+仍受源历史深度限制，未找到记录须检查真实剩余缺口。
+同环境基准与未部署边界见[性能记录](../reports/minute-history-performance-20261028/verification.md)；
+保留账号、行情、口令、SMTP和用户已保存的配置。
+
 2026-10-28指数扩展升级应同时加载匹配前端、API与Platform，确认
 `GET /api/index/catalog`含七只、`GET /api/index/kline`接受`1d/1w/1mo`，
 `POST /api/index/repair`仅`data:manage`可执行且在Platform写入。

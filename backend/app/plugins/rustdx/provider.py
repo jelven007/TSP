@@ -432,25 +432,91 @@ class RustdxProvider:
             )
         except ValueError:
             max_pages = 64
+        # Offsets are relative to the latest bar, not to the requested date.
+        # Locate an older end bound from actual page times, then read only its
+        # contiguous history. Probe pages live for this call only: repairs must
+        # see updated source rows, and no page is downloaded twice in a call.
+        pages: dict[int, tuple[list[dict], datetime | None]] = {}
+        errors: dict[int, RustdxError] = {}
+
+        def read_page(page: int) -> tuple[list[dict], datetime | None]:
+            if page in errors:
+                raise errors[page]
+            if page not in pages:
+                try:
+                    batch = client.bars(
+                        symbol, frequency=frequency,
+                        start=page * _PAGE_SIZE, offset=_PAGE_SIZE,
+                    )
+                except RustdxError as exc:
+                    errors[page] = exc
+                    raise
+                dates = [
+                    value for row in batch
+                    if (value := _as_beijing_datetime(row.get("datetime"))) is not None
+                ]
+                pages[page] = batch, min(dates) if dates else None
+            return pages[page]
+
+        def locate_end() -> int:
+            batch, minimum = read_page(0)
+            bound = end_dt
+            if frequency in (_DAILY_FREQUENCY, 5):
+                bound = bound.replace(hour=23, minute=59, second=59, microsecond=999999)
+            if not end_time or not minimum or minimum <= bound or len(batch) < _PAGE_SIZE or max_pages == 1:
+                return 0
+
+            def beyond_end(page: int) -> bool | None:
+                batch, minimum = read_page(page)
+                if batch and (
+                    minimum is None or any(
+                        stamp is not None and (
+                            (other < page and stamp <= minimum)
+                            or (other > page and stamp >= minimum)
+                        )
+                        for other, (_, stamp) in pages.items() if other != page
+                    )
+                ):
+                    return None  # Bad/repeated probe: use the guarded serial scan.
+                return not batch or minimum <= bound or len(batch) < _PAGE_SIZE
+
+            lower, upper = 0, 1
+            try:
+                while True:
+                    beyond = beyond_end(upper)
+                    if beyond is None:
+                        return 0
+                    if beyond or upper == max_pages - 1:
+                        break
+                    lower, upper = upper, min(upper * 2, max_pages - 1)
+                while lower + 1 < upper:
+                    middle = (lower + upper) // 2
+                    beyond = beyond_end(middle)
+                    if beyond is None:
+                        return 0
+                    if beyond:
+                        upper = middle
+                    else:
+                        lower = middle
+                return upper
+            except RustdxError:
+                # A speculative older page may be outside available history.
+                # Serial scanning still raises if the requested range needs it.
+                return 0
+
+        first_page = locate_end()
         records: list[dict] = []
         oldest: datetime | None = None
-        for page in range(max_pages):
-            batch = client.bars(
-                symbol,
-                frequency=frequency,
-                start=page * _PAGE_SIZE,
-                offset=_PAGE_SIZE,
-            )
+        for page in range(first_page, max_pages):
+            batch, minimum = read_page(page)
             if not batch:
                 break
-            parsed = [_as_beijing_datetime(row.get("datetime")) for row in batch]
-            dates = [value for value in parsed if value is not None]
-            if not dates or (oldest is not None and min(dates) >= oldest):
+            if minimum is None or (oldest is not None and minimum >= oldest):
                 logger.warning("%s %s K线分页未前进或缺少时间字段", self.name, symbol)
                 break
-            oldest = min(dates)
+            oldest = minimum
             records.extend(batch)
-            if dates and min(dates) <= start_dt:
+            if minimum <= start_dt:
                 break
             if len(batch) < _PAGE_SIZE:
                 break
