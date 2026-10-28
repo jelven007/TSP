@@ -1,0 +1,111 @@
+{
+  "symbol": "301110.SZ",
+  "requested_rows": 5520,
+  "rows": 0,
+  "missing_before": 5520,
+  "attempts": [
+    {
+      "endpoint": "115.238.56.198:7709",
+      "returned_rows": 0
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "returned_rows": 0
+    }
+  ],
+  "remaining": 5520,
+  "gap_report": "kline_gap_reports/301110-20261029.csv",
+  "status": "succeeded_with_gaps",
+  "alternate_validation": [
+    {
+      "endpoint": "115.238.56.198:7709",
+      "shift_minutes": 0,
+      "native_bars": 240,
+      "mismatch_count": {
+        "high": 203,
+        "low": 213,
+        "close": 220,
+        "vol": 237,
+        "amount": 238,
+        "open": 221,
+        "missing_bucket": 2
+      },
+      "max_delta": {
+        "high": 0.46000000000000085,
+        "low": 0.6000000000000014,
+        "close": 0.7199999999999989,
+        "vol": 163000.0,
+        "amount": 5779154.75,
+        "open": 0.5900000000000034
+      }
+    },
+    {
+      "endpoint": "115.238.56.198:7709",
+      "shift_minutes": 1,
+      "native_bars": 240,
+      "mismatch_count": {
+        "low": 3,
+        "amount": 226,
+        "high": 2,
+        "missing_bucket": 1
+      },
+      "max_delta": {
+        "low": 0.12000000000000455,
+        "amount": 34388.0,
+        "high": 0.020000000000003126
+      }
+    },
+    {
+      "endpoint": "115.238.56.198:7709",
+      "interface": "history_minute",
+      "mismatch_count": {
+        "volume": 2
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "shift_minutes": 0,
+      "native_bars": 240,
+      "mismatch_count": {
+        "high": 203,
+        "low": 213,
+        "close": 220,
+        "vol": 237,
+        "amount": 238,
+        "open": 221,
+        "missing_bucket": 2
+      },
+      "max_delta": {
+        "high": 0.46000000000000085,
+        "low": 0.6000000000000014,
+        "close": 0.7199999999999989,
+        "vol": 163000.0,
+        "amount": 5779154.75,
+        "open": 0.5900000000000034
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "shift_minutes": 1,
+      "native_bars": 240,
+      "mismatch_count": {
+        "low": 3,
+        "amount": 226,
+        "high": 2,
+        "missing_bucket": 1
+      },
+      "max_delta": {
+        "low": 0.12000000000000455,
+        "amount": 34388.0,
+        "high": 0.020000000000003126
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "interface": "history_minute",
+      "mismatch_count": {
+        "volume": 2
+      }
+    }
+  ]
+}

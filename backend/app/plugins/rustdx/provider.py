@@ -420,6 +420,22 @@ class RustdxProvider:
         start_time: datetime | None,
         end_time: datetime | None,
     ) -> list[dict]:
+        try:
+            return self._bar_records_once(client, symbol, frequency, start_time, end_time)
+        except RustdxSourceChangedError:
+            # Every cached page belongs to the expired source identity. Restart
+            # the whole symbol once; repeated changes still reject partial data.
+            logger.warning("%s %s K线来源变化, 丢弃旧分页后从头重采一次", self.name, symbol)
+            return self._bar_records_once(client, symbol, frequency, start_time, end_time)
+
+    def _bar_records_once(
+        self,
+        client,
+        symbol: str,
+        frequency: int,
+        start_time: datetime | None,
+        end_time: datetime | None,
+    ) -> list[dict]:
         end_dt = _as_beijing_datetime(end_time or cn_now())
         default_days = 365 if frequency == _DAILY_FREQUENCY else self.minute_history_days
         start_dt = _as_beijing_datetime(start_time) or (end_dt - timedelta(days=default_days))
@@ -464,6 +480,10 @@ class RustdxProvider:
                     value for row in batch
                     if (value := _as_beijing_datetime(row.get("datetime"))) is not None
                 ]
+                if len(dates) != len(batch):
+                    error = RustdxError(f"{self.name} {symbol} K线分页缺少有效时间字段")
+                    errors[page] = error
+                    raise error
                 pages[page] = batch, min(dates) if dates else None
             return pages[page]
 
@@ -523,8 +543,7 @@ class RustdxProvider:
             if not batch:
                 break
             if minimum is None or (oldest is not None and minimum >= oldest):
-                logger.warning("%s %s K线分页未前进或缺少时间字段", self.name, symbol)
-                break
+                raise RustdxError(f"{self.name} {symbol} K线分页未前进或缺少时间字段")
             oldest = minimum
             records.extend(batch)
             if minimum <= start_dt:
@@ -581,8 +600,6 @@ class RustdxProvider:
         if not valid:
             return
         frames: list[pl.DataFrame] = []
-        failures = 0
-        failed_symbols: list[str] = []
         try:
             with self._client_factory() as client:
                 for index, symbol in enumerate(valid):
@@ -595,25 +612,17 @@ class RustdxProvider:
                             end_time,
                         )
                         frame = self._daily_frame(raw, symbol, start_time, end_time)
-                        failures = 0
                         if not frame.is_empty():
                             frames.append(frame)
                     except RustdxError as exc:
-                        failures += 1
-                        failed_symbols.append(symbol)
-                        logger.warning("%s 日K %s 拉取失败: %s", self.name, symbol, exc)
+                        logger.warning("%s 日K %s 拉取失败, 跳过该证券: %s", self.name, symbol, exc)
                     if on_chunk_done:
                         on_chunk_done(index + 1, len(valid))
-                    if failures >= 3:
-                        logger.warning("%s 日K连续连接/协议失败, 终止本批次", self.name)
-                        break
                     if len(frames) >= _DAILY_YIELD_SYMBOLS:
                         yield pl.concat(frames, how="diagonal_relaxed")
                         frames.clear()
         except RustdxError:
             raise
-        if failed_symbols:
-            raise RustdxError(f"日K取数不完整, 拒绝提交: {failed_symbols[:5]}")
         if frames:
             yield pl.concat(frames, how="diagonal_relaxed")
 
@@ -721,8 +730,6 @@ class RustdxProvider:
         end_time: datetime | None,
     ) -> list[pl.DataFrame]:
         frames: list[pl.DataFrame] = []
-        failures = 0
-        failed_symbols: list[str] = []
         try:
             with self._client_factory() as client:
                 for symbol in symbols:
@@ -735,20 +742,12 @@ class RustdxProvider:
                             end_time,
                         )
                         frame = self._minute_frame(raw, symbol, start_time, end_time, frequency)
-                        failures = 0
                         if not frame.is_empty():
                             frames.append(frame)
                     except RustdxError as exc:
-                        failures += 1
-                        failed_symbols.append(symbol)
-                        logger.warning("%s 分钟K %s 拉取失败: %s", self.name, symbol, exc)
-                    if failures >= 3:
-                        logger.warning("%s 分钟K连续连接/协议失败, 终止本批次", self.name)
-                        break
+                        logger.warning("%s 分钟K %s 拉取失败, 跳过该证券: %s", self.name, symbol, exc)
         except RustdxError:
             raise
-        if failed_symbols:
-            raise RustdxError(f"分钟K取数不完整, 拒绝提交: {failed_symbols[:5]}")
         return frames
 
     def get_minute(

@@ -1,0 +1,12 @@
+{
+  "available_source_rows": 23760,
+  "persisted_rows": 23762,
+  "source_keys_missing_from_storage": 0,
+  "persisted_keys_not_in_source": 2,
+  "native_reads_with_simulated_source_change": true,
+  "restart_attempts": 2,
+  "recovered_rows": 3600,
+  "recovered_equals_uninterrupted_read": true,
+  "read_only": true,
+  "passed": true
+}

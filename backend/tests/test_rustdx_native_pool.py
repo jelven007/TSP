@@ -46,6 +46,8 @@ class _Server:
         valid_bars=False,
         report_delay=0,
         catalog_delay=0,
+        bar_delay=0,
+        xdxr_delay=0,
     ):
         self.listener = socket.socket()
         self.listener.bind(("127.0.0.1", 0))
@@ -64,6 +66,9 @@ class _Server:
         self.valid_bars = valid_bars
         self.report_delay = report_delay
         self.catalog_delay = catalog_delay
+        self.bar_delay = bar_delay
+        self.xdxr_delay = xdxr_delay
+        self.report_started = threading.Event()
         self.opcodes = {}
         self.thread = threading.Thread(target=self._accept, daemon=True)
         self.thread.start()
@@ -111,6 +116,7 @@ class _Server:
                             + b"".join(_quote(market, code) for market, code in returned)
                         )
                     elif request[:2] == b"\xb9\x06":
+                        self.report_started.set()
                         time.sleep(self.report_delay)
                         offset = struct.unpack_from("<I", request, 2)[0]
                         data = (b"invalid finance index\r\n" if self.invalid_listing else LISTING) if offset == 0 else b""
@@ -138,7 +144,11 @@ class _Server:
                     elif request[:2] == b"\x04\x00":
                         response = b"\0" * 10
                     elif request[:2] == b"\x2d\x05":
+                        time.sleep(self.bar_delay)
                         response = b"\0\0" if self.valid_bars else b"\x01"
+                    elif request[:2] == b"\x0f\x00":
+                        time.sleep(self.xdxr_delay)
+                        response = b"\0" * 11
                     reply = bytearray(16)
                     reply[:4] = b"\xb1\xcb\x74\0"
                     reply[5:9] = header[1:5]
@@ -335,6 +345,74 @@ def test_native_bar_pages_pin_connection_and_reject_replacement():
         client.close()
         server.close()
         reports.close()
+
+
+def test_bar_queue_wait_does_not_consume_single_transport_timeout():
+    module = pytest.importorskip("tsp_rustdx_native")
+    server = _Server(valid_bars=True, report_delay=1.1, bar_delay=1.1)
+    client = module.RustdxClient(1, server.address, 2)
+    try:
+        initial = json.loads(client.bars_json(0, "000001", 8, with_source=True))
+        assert initial["error"] is None
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            report = pool.submit(client.report_file, "tdxfin/gpcw.txt", 512_000)
+            assert server.report_started.wait(timeout=5)
+            page = pool.submit(
+                client.bars_json, 0, "000001", 8, 800, 800, False, True, True,
+                json.dumps(initial["source"]),
+            )
+            result = json.loads(page.result(timeout=15))
+            assert bytes(report.result(timeout=15)) == LISTING
+        assert result["error"] is None
+        assert result["requests"] == 1
+        assert result["source"] == initial["source"]
+        assert json.loads(client.stats_json())["scheduler"]["waiting_requests"] == 0
+        assert server.peak <= 2  # one business connection and one probe
+    finally:
+        client.close()
+        server.close()
+
+
+def test_real_bar_transport_timeout_retries_boundedly_and_pool_recovers():
+    module = pytest.importorskip("tsp_rustdx_native")
+    server = _Server(valid_bars=True, bar_delay=2.2)
+    client = module.RustdxClient(1, server.address, 2)
+    try:
+        started = time.monotonic()
+        failed = json.loads(client.bars_json(0, "000001", 8, with_source=True))
+        assert "[TimedOut]" in failed["error"]
+        assert failed["requests"] == 3
+        assert time.monotonic() - started < 12
+        stats = json.loads(client.stats_json())
+        assert stats["total_connections"] == 0
+        assert stats["scheduler"]["waiting_requests"] == 0
+        server.bar_delay = 0
+        recovered = json.loads(client.bars_json(0, "000001", 8, with_source=True))
+        assert recovered["error"] is None and recovered["requests"] == 1
+        assert json.loads(client.stats_json())["total_connections"] == 1
+        assert server.peak <= 2
+    finally:
+        client.close()
+        server.close()
+
+
+def test_single_business_request_also_keeps_queue_outside_transport_timeout():
+    module = pytest.importorskip("tsp_rustdx_native")
+    server = _Server(report_delay=1.1, xdxr_delay=1.1)
+    client = module.RustdxClient(1, server.address, 2)
+    try:
+        assert json.loads(client.xdxr_json(0, "000001")) == []
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            report = pool.submit(client.report_file, "tdxfin/gpcw.txt", 512_000)
+            assert server.report_started.wait(timeout=5)
+            request = pool.submit(client.xdxr_json, 0, "000001")
+            assert json.loads(request.result(timeout=15)) == []
+            assert bytes(report.result(timeout=15)) == LISTING
+        assert json.loads(client.stats_json())["scheduler"]["waiting_requests"] == 0
+        assert server.peak <= 2
+    finally:
+        client.close()
+        server.close()
 
 
 def test_financial_index_invalid_fails_without_retrying():

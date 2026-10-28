@@ -145,10 +145,9 @@ def test_bad_probe_falls_back_without_losing_target_or_hiding_target_failure(bad
     assert result.equals(provider._minute_frame(raw, "600000.SH", start, end))
     assert len({call[2] for call in client.calls}) == len(client.calls)
     if bad == "error":
-        # A failure on the page containing requested data must still reject it.
+        # A failed target must not publish the incomplete pages of that security.
         client = Pages(raw, {26: RustdxError("injected target failure")})
-        with pytest.raises(RustdxError, match="取数不完整"):
-            RustdxProvider(client_factory=lambda: client).get_minute(["600000.SH"], start, end)
+        assert RustdxProvider(client_factory=lambda: client).get_minute(["600000.SH"], start, end).is_empty()
 
 
 def test_separate_calls_observe_updated_historical_rows():

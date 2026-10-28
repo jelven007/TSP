@@ -1,0 +1,365 @@
+{
+  "local": {
+    "environment": "local",
+    "benchmarks": {
+      "local-baseline-full": {
+        "mode": "baseline",
+        "case": "full",
+        "symbols": 100,
+        "symbols_sha256": "020d57e68697bbd9c971c00f0aaa1097c471e2984ec661946830d9279147d0bf",
+        "start": "2026-08-03T00:00:00",
+        "end": "2026-08-31T23:59:59",
+        "seconds": 16.826004374997865,
+        "cpu_seconds": 11.108256,
+        "fetch_seconds": 16.54016287500417,
+        "save_seconds": 0.2854270000025281,
+        "fetch_calls": 1,
+        "logical_bar_calls": 1400,
+        "wire_bar_requests": 1400,
+        "returned_page_rows": 1120000,
+        "rows": 504000,
+        "unique_keys": 504000,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "result": {
+          "period": "1m",
+          "rows": 504000,
+          "universe_size": 100,
+          "source": "rustdx",
+          "start": "2026-08-03T00:00:00",
+          "end": "2026-08-31T23:59:59",
+          "price_basis": "raw"
+        },
+        "error": null,
+        "network_peak": 8,
+        "probe_peak": 1
+      },
+      "local-baseline-missing": {
+        "mode": "baseline",
+        "case": "missing",
+        "symbols": 100,
+        "symbols_sha256": "020d57e68697bbd9c971c00f0aaa1097c471e2984ec661946830d9279147d0bf",
+        "start": "2026-08-03T00:00:00",
+        "end": "2026-08-31T23:59:59",
+        "seconds": 352.9444369999983,
+        "cpu_seconds": 254.194483,
+        "fetch_seconds": 352.16558816703764,
+        "save_seconds": 0.5785357100103283,
+        "fetch_calls": 42,
+        "logical_bar_calls": 38100,
+        "wire_bar_requests": 38100,
+        "returned_page_rows": 30480000,
+        "rows": 504000,
+        "unique_keys": 504000,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "result": {
+          "period": "1m",
+          "mode": "missing",
+          "rows": 504000,
+          "missing_before": 504000,
+          "remaining": 0,
+          "requests": 42,
+          "universe_size": 100,
+          "start": "2026-08-03",
+          "end": "2026-08-31",
+          "source": "rustdx",
+          "price_basis": "raw"
+        },
+        "error": null,
+        "network_peak": 8,
+        "probe_peak": 1
+      },
+      "local-final-candidate-full": {
+        "mode": "candidate",
+        "case": "full",
+        "symbols": 100,
+        "symbols_sha256": "020d57e68697bbd9c971c00f0aaa1097c471e2984ec661946830d9279147d0bf",
+        "start": "2026-08-03T00:00:00",
+        "end": "2026-08-31T23:59:59",
+        "seconds": 12.711834333000297,
+        "cpu_seconds": 8.504369,
+        "fetch_seconds": 11.897610041996813,
+        "save_seconds": 0.2469965839991346,
+        "fetch_calls": 1,
+        "logical_bar_calls": 1400,
+        "wire_bar_requests": 1400,
+        "returned_page_rows": 1120000,
+        "rows": 504000,
+        "unique_keys": 504000,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "result": {
+          "period": "1m",
+          "rows": 504000,
+          "universe_size": 100,
+          "source": "rustdx",
+          "start": "2026-08-03T00:00:00",
+          "end": "2026-08-31T23:59:59",
+          "price_basis": "raw",
+          "remaining": 0
+        },
+        "error": null,
+        "network_peak": 8,
+        "probe_peak": 1
+      },
+      "local-final-candidate-missing": {
+        "mode": "candidate",
+        "case": "missing",
+        "symbols": 100,
+        "symbols_sha256": "020d57e68697bbd9c971c00f0aaa1097c471e2984ec661946830d9279147d0bf",
+        "start": "2026-08-03T00:00:00",
+        "end": "2026-08-31T23:59:59",
+        "seconds": 13.441598208999494,
+        "cpu_seconds": 8.463569000000001,
+        "fetch_seconds": 12.602151625003899,
+        "save_seconds": 0.237892416997056,
+        "fetch_calls": 1,
+        "logical_bar_calls": 1400,
+        "wire_bar_requests": 1400,
+        "returned_page_rows": 1120000,
+        "rows": 504000,
+        "unique_keys": 504000,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "result": {
+          "period": "1m",
+          "mode": "missing",
+          "rows": 504000,
+          "missing_before": 504000,
+          "remaining": 0,
+          "requests": 1,
+          "universe_size": 100,
+          "start": "2026-08-03",
+          "end": "2026-08-31",
+          "source": "rustdx",
+          "price_basis": "raw"
+        },
+        "error": null,
+        "network_peak": 8,
+        "probe_peak": 1
+      }
+    },
+    "comparison": {
+      "candidate_full_equals_baseline_full": true,
+      "candidate_missing_equals_baseline_full": true,
+      "old_missing_overlap_keys_and_values_equal": true,
+      "old_missing_overlap_rows": 504000,
+      "recovered_missing_rows": 0,
+      "reference_rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+      "recovered_windows": []
+    },
+    "improvement": {
+      "full": {
+        "seconds_ratio": 1.323648808993448,
+        "seconds_reduction_percent": 24.451259789941005,
+        "bar_requests_reduction_percent": 0.0
+      },
+      "missing": {
+        "seconds_ratio": 26.25762439199328,
+        "seconds_reduction_percent": 96.19158235691371,
+        "bar_requests_reduction_percent": 96.3254593175853
+      }
+    }
+  },
+  "online": {
+    "environment": "online",
+    "benchmarks": {
+      "online-baseline-full": {
+        "mode": "baseline",
+        "case": "full",
+        "symbols": 100,
+        "symbols_sha256": "020d57e68697bbd9c971c00f0aaa1097c471e2984ec661946830d9279147d0bf",
+        "start": "2026-08-03T00:00:00",
+        "end": "2026-08-31T23:59:59",
+        "seconds": 62.48981301905587,
+        "cpu_seconds": 18.634776178,
+        "fetch_seconds": 62.3187136889901,
+        "save_seconds": 0.1692972609307617,
+        "fetch_calls": 1,
+        "logical_bar_calls": 1400,
+        "wire_bar_requests": 1400,
+        "returned_page_rows": 1120000,
+        "rows": 504000,
+        "unique_keys": 504000,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "result": {
+          "period": "1m",
+          "rows": 504000,
+          "universe_size": 100,
+          "source": "rustdx",
+          "start": "2026-08-03T00:00:00",
+          "end": "2026-08-31T23:59:59",
+          "price_basis": "raw"
+        },
+        "error": null,
+        "network_peak": 8,
+        "probe_peak": 1
+      },
+      "online-baseline-missing": {
+        "mode": "baseline",
+        "case": "missing",
+        "symbols": 100,
+        "symbols_sha256": "020d57e68697bbd9c971c00f0aaa1097c471e2984ec661946830d9279147d0bf",
+        "start": "2026-08-03T00:00:00",
+        "end": "2026-08-31T23:59:59",
+        "seconds": 480.3778451899998,
+        "cpu_seconds": 411.919164385,
+        "fetch_seconds": 479.7410412231693,
+        "save_seconds": 0.3534988135797903,
+        "fetch_calls": 42,
+        "logical_bar_calls": 38092,
+        "wire_bar_requests": 38089,
+        "returned_page_rows": 30469600,
+        "rows": 492000,
+        "unique_keys": 492000,
+        "rows_sha256": "e16d3162d0a6c8c9cb4dce338a1b633f0f61fe9cf551fdba146675d286842767",
+        "result": {
+          "period": "1m",
+          "mode": "missing",
+          "rows": 492000,
+          "missing_before": 504000,
+          "remaining": 12000,
+          "requests": 42,
+          "universe_size": 100,
+          "start": "2026-08-03",
+          "end": "2026-08-31",
+          "source": "rustdx",
+          "price_basis": "raw",
+          "error": "已补492000行, 仍有12000行未补齐; 数据源未返回部分记录(可能停牌、无数据或请求失败)"
+        },
+        "error": null,
+        "network_peak": 8,
+        "probe_peak": 1
+      },
+      "online-candidate-full": {
+        "mode": "candidate",
+        "case": "full",
+        "symbols": 100,
+        "symbols_sha256": "020d57e68697bbd9c971c00f0aaa1097c471e2984ec661946830d9279147d0bf",
+        "start": "2026-08-03T00:00:00",
+        "end": "2026-08-31T23:59:59",
+        "seconds": 12.351479865028523,
+        "cpu_seconds": 13.830773943999999,
+        "fetch_seconds": 11.367598552023992,
+        "save_seconds": 0.17302174493670464,
+        "fetch_calls": 1,
+        "logical_bar_calls": 1400,
+        "wire_bar_requests": 1400,
+        "returned_page_rows": 1120000,
+        "rows": 504000,
+        "unique_keys": 504000,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "result": {
+          "period": "1m",
+          "rows": 504000,
+          "universe_size": 100,
+          "source": "rustdx",
+          "start": "2026-08-03T00:00:00",
+          "end": "2026-08-31T23:59:59",
+          "price_basis": "raw",
+          "remaining": 0
+        },
+        "error": null,
+        "code_sha256": {
+          "app.plugins.rustdx.client": "abaf05c4e0d6a47b4a5ac5c1997fd4163d92f073ea0edca49be1d88eb4075042",
+          "app.plugins.rustdx.provider": "98d263f5baf488a3e7088467527e19b5ae6e996bbefcb7943e89a531e94a3265",
+          "app.services.kline_gaps": "928bd506653c348a0cb9c7e466bdddb8a958f7f2b8a089f2a4b9ecf158e0f7b1",
+          "app.services.kline_periods": "0e51ae068a5629ca023aa90f8dabdda2d08372a336c8b19635628ffba4b4c6f8"
+        },
+        "network_peak": 8,
+        "probe_peak": 1
+      },
+      "online-candidate-missing": {
+        "mode": "candidate",
+        "case": "missing",
+        "symbols": 100,
+        "symbols_sha256": "020d57e68697bbd9c971c00f0aaa1097c471e2984ec661946830d9279147d0bf",
+        "start": "2026-08-03T00:00:00",
+        "end": "2026-08-31T23:59:59",
+        "seconds": 12.591032380936667,
+        "cpu_seconds": 13.939552405,
+        "fetch_seconds": 11.572806789074093,
+        "save_seconds": 0.1558494589990005,
+        "fetch_calls": 1,
+        "logical_bar_calls": 1400,
+        "wire_bar_requests": 1400,
+        "returned_page_rows": 1120000,
+        "rows": 504000,
+        "unique_keys": 504000,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "result": {
+          "period": "1m",
+          "mode": "missing",
+          "rows": 504000,
+          "missing_before": 504000,
+          "remaining": 0,
+          "requests": 1,
+          "universe_size": 100,
+          "start": "2026-08-03",
+          "end": "2026-08-31",
+          "source": "rustdx",
+          "price_basis": "raw"
+        },
+        "error": null,
+        "code_sha256": {
+          "app.plugins.rustdx.client": "abaf05c4e0d6a47b4a5ac5c1997fd4163d92f073ea0edca49be1d88eb4075042",
+          "app.plugins.rustdx.provider": "98d263f5baf488a3e7088467527e19b5ae6e996bbefcb7943e89a531e94a3265",
+          "app.services.kline_gaps": "928bd506653c348a0cb9c7e466bdddb8a958f7f2b8a089f2a4b9ecf158e0f7b1",
+          "app.services.kline_periods": "0e51ae068a5629ca023aa90f8dabdda2d08372a336c8b19635628ffba4b4c6f8"
+        },
+        "network_peak": 8,
+        "probe_peak": 1
+      }
+    },
+    "comparison": {
+      "candidate_full_equals_baseline_full": true,
+      "candidate_missing_equals_baseline_full": true,
+      "old_missing_overlap_keys_and_values_equal": true,
+      "old_missing_overlap_rows": 492000,
+      "recovered_missing_rows": 12000,
+      "reference_rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+      "recovered_windows": [
+        {
+          "day": "2026-08-06",
+          "symbols": 100,
+          "rows": 12000,
+          "first": "2026-08-06 09:31:00",
+          "last": "2026-08-06 11:30:00"
+        }
+      ]
+    },
+    "improvement": {
+      "full": {
+        "seconds_ratio": 5.059297647076848,
+        "seconds_reduction_percent": 80.2344105890315,
+        "bar_requests_reduction_percent": 0.0
+      },
+      "missing": {
+        "seconds_ratio": 38.15237945994892,
+        "seconds_reduction_percent": 97.37893150006602,
+        "bar_requests_reduction_percent": 96.32439812019217
+      }
+    }
+  },
+  "audit": {
+    "same_symbols_both_environments": true,
+    "same_candidate_output_both_environments": true,
+    "canonical_columns": [
+      "symbol",
+      "datetime",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "amount"
+    ],
+    "canonical_sort": [
+      "symbol",
+      "datetime"
+    ],
+    "canonical_encoding": "UTF-8 Polars write_csv",
+    "evidence_sha256": {
+      "local-evidence.json": "d52a3fc5f7446165d83710e6d2aff499b30cb39604d8a028706fb539a2beac61",
+      "online-evidence.json": "920ca287488d79905ecbd7330b0e68d36870862376422f1208fb84c6a0d9586e"
+    },
+    "historical_coverage_claim": "100 securities, 2026-08-03 through 2026-08-31 only"
+  }
+}

@@ -1,17 +1,48 @@
 """按交易日、证券与收盘标签补采缺失 K 线, 扫描和请求均有界。"""
 from __future__ import annotations
 
+import csv
 import logging
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
+from uuid import uuid4
 
 import polars as pl
 
 from app import market_time
+from app.parquet import scan_parquet_compat
 from app.price_limits import parse_listing_date
 from app.services import instrument_sync, kline_periods
 
 logger = logging.getLogger(__name__)
+
+
+def record_unfilled(repo, result: dict, gaps: pl.DataFrame, *, reason: str) -> None:
+    """保存逐证券/交易日的缺口摘要, 不将缺失价格伪装成已补齐。"""
+    if gaps.is_empty():
+        return
+    column = "date" if result["period"] in ("1d", "1w") else "datetime"
+    grouped = gaps.with_columns(pl.col(column).cast(pl.Date).alias("day")).group_by(
+        "symbol", "day",
+    ).agg(
+        pl.len().alias("missing_count"),
+        pl.col(column).min().alias("first_missing"),
+        pl.col(column).max().alias("last_missing"),
+    ).sort("symbol", "day")
+    if "gap_report" not in result:
+        result["gap_report"] = f"kline_gap_reports/{uuid4().hex}.csv"
+    path = repo.store.data_dir / result["gap_report"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    new = not path.exists()
+    with path.open("a", encoding="utf-8", newline="") as stream:
+        writer = csv.writer(stream)
+        if new:
+            writer.writerow(["period", "source", "symbol", "day", "missing_count",
+                             "first_missing", "last_missing", "reason"])
+        for symbol, day, count, first, last in grouped.iter_rows():
+            writer.writerow([result["period"], result.get("source"), symbol, day.isoformat(),
+                             count, first.isoformat(), last.isoformat(), reason])
+    result["skipped_symbols"] = sorted(set(result.get("skipped_symbols", [])) | set(grouped["symbol"]))
 
 
 def _trading_days(start: date, end: date, *, local_only: bool = False) -> list[date]:
@@ -30,12 +61,15 @@ def _trading_days(start: date, end: date, *, local_only: bool = False) -> list[d
     ]
 
 
-def _keys(repo, period, day) -> pl.DataFrame:
+def _keys(repo, period, day, symbols=None) -> pl.DataFrame:
     column = "date" if period in ("1d", "1w") else "datetime"
     paths = list((repo.store.data_dir / kline_periods.TABLES[period] / f"date={day}").glob("*.parquet"))
     if not paths:
         return pl.DataFrame(schema={"symbol": pl.String, column: pl.Date if column == "date" else pl.Datetime("us")})
-    return pl.scan_parquet(paths).select("symbol", column).drop_nulls().unique().collect()
+    frame = scan_parquet_compat(paths).select("symbol", column).drop_nulls()
+    if symbols is not None:
+        frame = frame.filter(pl.col("symbol").is_in(symbols))
+    return frame.unique().collect()
 
 
 def _expected(symbols, listing_dates, period, day, last_day, now):
@@ -53,9 +87,14 @@ def _expected(symbols, listing_dates, period, day, last_day, now):
 
 
 def _requests(gaps, period, day, last_day, now):
-    """仅合并同一证券连续的缺口; 午休和已有记录不会被请求跨过。"""
+    """多日分钟批次共享一次定位; 单日仍按连续缺口请求。"""
     if period in ("1d", "1w"):
         yield gaps["symbol"].unique().sort().to_list(), datetime.combine(day, time.min), min(datetime.combine(last_day, time.max), now)
+        return
+    if gaps["datetime"].dt.date().n_unique() > 1:
+        # The caller retains the exact gap keys and intersects the response
+        # before only-missing writes. No page cache crosses source calls.
+        yield gaps["symbol"].unique().sort().to_list(), gaps["datetime"].min(), gaps["datetime"].max()
         return
     grouped = defaultdict(list)
     step = timedelta(minutes=int(period[:-1]))
@@ -76,7 +115,7 @@ def _local_minute_period(repo, period, day, symbols):
     paths = list((repo.store.data_dir / "kline_minute" / f"date={day}").glob("*.parquet"))
     if not paths:
         return pl.DataFrame()
-    frame = pl.scan_parquet(paths).filter(pl.col("symbol").is_in(symbols)).collect()
+    frame = scan_parquet_compat(paths).filter(pl.col("symbol").is_in(symbols)).collect()
     return kline_periods.aggregate_minute_period(frame, period, complete_only=True)
 
 
@@ -125,19 +164,33 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
     failures = 0
     column = "date" if period in ("1d", "1w") else "datetime"
     keys = ["symbol", column]
+    windows = defaultdict(list)
+    for index, item in enumerate(units.items()):
+        window = (item[0] - start).days // 32 if period == "1m" else index
+        windows[window].append(item)
 
     def emit(message, completed):
         if on_progress:
-            fraction = completed / max(1, len(units))
+            fraction = completed / max(1, len(windows))
             on_progress(f"sync_{period}", 5 + int(fraction * 85), message, stage_pct=int(fraction * 100))
 
-    for completed, (day, last_day) in enumerate(units.items()):
-        emit(f"{kline_periods.LABELS[period]}: 检查 {day} 的遗漏数据", completed)
-        existing = _keys(repo, period, day)
+    for completed, window in enumerate(windows.values()):
+        day, last_day = window[0][0], window[-1][1]
+        emit(f"{kline_periods.LABELS[period]}: 检查 {day}~{last_day} 的遗漏数据", completed)
+        existing = _keys(repo, period, day) if period != "1m" else None
         for offset in range(0, len(symbols), 100):
-            emit(f"{day}: 检查标的 {offset}/{len(symbols)}, 已补{result['rows']}行", completed)
-            expected = _expected(symbols[offset:offset + 100], listing_dates, period, day, last_day, now)
-            gaps = expected.join(existing, on=keys, how="anti")
+            fraction = completed + offset / max(1, len(symbols))
+            emit(f"{day}~{last_day}: 检查标的 {offset}/{len(symbols)}, 已补{result['rows']}行", fraction)
+            selected = symbols[offset:offset + 100]
+            expected = pl.concat([
+                _expected(selected, listing_dates, period, label, final_day, now)
+                for label, final_day in window
+            ])
+            batch_existing = (
+                pl.concat([_keys(repo, period, label, selected) for label, _ in window])
+                if period == "1m" else existing
+            )
+            gaps = expected.join(batch_existing, on=keys, how="anti")
             result["missing_before"] += gaps.height
             if gaps.is_empty():
                 continue
@@ -148,7 +201,7 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
                     if period in kline_periods.LOCAL_DAILY_PERIODS
                     else _local_minute_period(repo, period, day, symbols_for_gap)
                 )
-                emit(f"{day}: 保存遗漏的{kline_periods.LABELS[period]}", completed)
+                emit(f"{day}: 保存遗漏的{kline_periods.LABELS[period]}", fraction)
                 if not frame.is_empty():
                     frame = frame.join(gaps, on=keys, how="inner")
                     with pause_quotes_for_write():
@@ -161,7 +214,7 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
                         else kline_periods._period_provider(period)
                     )
                 for batch, lo, hi in _requests(gaps, period, day, last_day, now):
-                    emit(f"{day}: 获取 {len(batch)} 只证券的遗漏区间 {lo.time()}~{hi.time()}", completed)
+                    emit(f"{day}: 获取 {len(batch)} 只证券的遗漏区间 {lo}~{hi}", fraction)
                     result["requests"] += 1
                     try:
                         frame = kline_periods.fetch_period(provider, period, batch, lo, hi, minute_adjust="none" if raw_minute else "forward")
@@ -171,7 +224,7 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
                         failures += 1
                         logger.warning("missing Kline fetch failed: period=%s day=%s", period, day, exc_info=True)
                         continue
-                    emit(f"{day}: 保存遗漏数据", completed)  # 获取后再次检查协作取消。
+                    emit(f"{day}: 保存遗漏数据", fraction)  # 获取后再次检查协作取消。
                     if not frame.is_empty():
                         frame = frame.join(gaps, on=keys, how="inner")
                         with pause_quotes_for_write():
@@ -179,18 +232,28 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
                         result["rows"] += written
                         if period == "1d" and written:
                             affected.update(frame["symbol"].to_list())
+            if period == "1m":
+                # Keep both scans bounded to 100 securities / 32 calendar days.
+                # Re-read after writes to include a concurrently filled gap.
+                current = pl.concat([_keys(repo, period, label, selected) for label, _ in window])
+                unfilled = expected.join(current, on=keys, how="anti")
+                result["remaining"] += unfilled.height
+                record_unfilled(repo, result, unfilled, reason="source_missing_or_fetch_failed")
         # 并发同步可能已经填入缺口, 终态以重新读取的持久数据为准。
-        current = _keys(repo, period, day)
-        for offset in range(0, len(symbols), 100):
-            expected = _expected(symbols[offset:offset + 100], listing_dates, period, day, last_day, now)
-            result["remaining"] += expected.join(current, on=keys, how="anti").height
+        if period != "1m":
+            current = _keys(repo, period, day)
+            for offset in range(0, len(symbols), 100):
+                expected = _expected(symbols[offset:offset + 100], listing_dates, period, day, last_day, now)
+                unfilled = expected.join(current, on=keys, how="anti")
+                result["remaining"] += unfilled.height
+                record_unfilled(repo, result, unfilled, reason="local_base_incomplete" if local else "source_missing_or_fetch_failed")
         emit(f"{day}: 已补{result['rows']}行, 剩余{result['remaining']}行", completed + 1)
     if affected:
         from app.indicators.pipeline import run_pipeline
         from app.jobs.daily_pipeline import _refresh_single_view
         from app.services.public_query_cache import invalidate_data_cache
-        emit("重算已补日K证券的复权与指标", len(units))
-        callback = (lambda done, total: emit(f"重算已完成 {done}/{total} 批", len(units))) if on_progress else None
+        emit("重算已补日K证券的复权与指标", len(windows))
+        callback = (lambda done, total: emit(f"重算已完成 {done}/{total} 批", len(windows))) if on_progress else None
         try:
             result["enriched_rows"] = run_pipeline(data_dir=repo.store.data_dir, symbols=sorted(affected), on_batch_done=callback)
         finally:
@@ -203,7 +266,8 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
             else "基础1分K不完整, 请先获取遗漏的1分K后重试"
             if local else "数据源未返回部分记录(可能停牌、无数据或请求失败)"
         )
-        result["error"] = f"已补{result['rows']}行, 仍有{result['remaining']}行未补齐; {reason}"
+        message = f"已补{result['rows']}行, 仍有{result['remaining']}行未补齐; {reason}"
+        result["error" if local or failures else "warning"] = message
     elif result["missing_before"] == 0:
         result["message"] = "选定区间没有遗漏数据, 无需获取"
     return result

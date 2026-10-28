@@ -1,0 +1,83 @@
+[
+  {
+    "endpoint": "117.34.114.13:7709",
+    "error_type": "RustdxError",
+    "error": "\u5206\u949fK\u53d6\u6570\u4e0d\u5b8c\u6574, \u62d2\u7edd\u63d0\u4ea4: ['301110.SZ']"
+  },
+  {
+    "endpoint": "115.238.56.198:7709",
+    "rows": 23520,
+    "first": "2026-06-04 09:31:00",
+    "last": "2026-10-28 15:00:00",
+    "before_2026_05_02": 0,
+    "offset_probes": {
+      "24000": {
+        "rows": 0,
+        "source": {
+          "connection_id": 1,
+          "endpoint": "115.238.56.198:7709",
+          "observed_date": 20261029,
+          "slot": 0
+        }
+      },
+      "32000": {
+        "rows": 0,
+        "source": {
+          "connection_id": 1,
+          "endpoint": "115.238.56.198:7709",
+          "observed_date": 20261029,
+          "slot": 0
+        }
+      },
+      "63200": {
+        "rows": 0,
+        "source": {
+          "connection_id": 1,
+          "endpoint": "115.238.56.198:7709",
+          "observed_date": 20261029,
+          "slot": 0
+        }
+      }
+    },
+    "elapsed_seconds": 1.051,
+    "stage": "115.238.56.198.parquet"
+  },
+  {
+    "endpoint": "180.153.18.170:7709",
+    "rows": 23760,
+    "first": "2026-06-03 09:31:00",
+    "last": "2026-10-28 15:00:00",
+    "before_2026_05_02": 0,
+    "offset_probes": {
+      "24000": {
+        "rows": 0,
+        "source": {
+          "connection_id": 2,
+          "endpoint": "180.153.18.170:7709",
+          "observed_date": 20261029,
+          "slot": 0
+        }
+      },
+      "32000": {
+        "rows": 0,
+        "source": {
+          "connection_id": 2,
+          "endpoint": "180.153.18.170:7709",
+          "observed_date": 20261029,
+          "slot": 0
+        }
+      },
+      "63200": {
+        "rows": 0,
+        "source": {
+          "connection_id": 2,
+          "endpoint": "180.153.18.170:7709",
+          "observed_date": 20261029,
+          "slot": 0
+        }
+      }
+    },
+    "elapsed_seconds": 0.828,
+    "stage": "180.153.18.170.parquet"
+  }
+]

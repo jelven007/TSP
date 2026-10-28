@@ -1,5 +1,25 @@
 # TSP 系统技术方案
 
+2026-10-29分钟遗漏以100证券/32自然日生成精确缺口，跨日共享一次Provider定位，
+响应相交后沿only_missing落盘，分批重读确认剩余；单日仍保留连续区间。
+原生bars以60秒请求预算约束排队/资格检查/重连，入槽后另启用户传输超时；
+不改变8业务+1探测上限。已解码行直接验证，派生读取兼容schema，
+必需坏页拒绝该证券部分历史，公布日历确认的全闭市段不取数。
+逐证券隔离、缺口报告及验证边界见
+[复核记录](../reports/minute-collection-reliability-20261029/verification.md)。
+
+2026-10-29K线取数按证券隔离，保留分页来源保护及健康帧。
+`kline_gaps.record_unfilled`按证券/交易日保存CSV，遗漏和全量1分K以持久键重读反馈缺口；
+沿原周期服务、JobStore、写锁和缓存链，不增加数据源数据集或SQL schema。
+成功响应的个别缺口为警告，批次异常、取消和持久化失败保持异常。见
+[追加核验](../reports/minute-301110-20261029/skip-and-backfill.md)。
+
+2026-10-29 rustdx共享分页入口`_bar_records`仅处理`RustdxSourceChangedError`：
+完整丢弃旧局部状态，调用`_bar_records_once`从第零页重采一次。
+日K、分钟及远程周K共用；不变更Provider接口、JobStore、写盘或发布链。
+源码与实际ECS验证、源保留限制及部署状态见
+[301110.SZ记录](../reports/minute-301110-20261029/verification.md)。
+
 2026-10-28最新整合在`v0.4.36`基线上收口为股票与固定七指数：
 ETF运行路径从Provider到存储、研究和交易全链路退役，指数目录、周期表和现有回补逻辑保留。
 rustdx v2.0.4、闭区间K线任务、周K兼容读取及指数交互沿原模块边界接线，

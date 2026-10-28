@@ -159,6 +159,10 @@ def _records(payload: str) -> list[dict[str, Any]]:
         rows = json.loads(payload)
     except (TypeError, ValueError) as exc:
         raise RustdxError(f"rustdx 返回无效 JSON: {exc}") from exc
+    return _record_rows(rows)
+
+
+def _record_rows(rows: Any) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
         raise RustdxError("rustdx 返回结构不是数组")
     return [dict(row) for row in rows if isinstance(row, dict)]
@@ -280,7 +284,7 @@ class RustdxClient:
                         f"rustdx minute {code} failed after {requests} requests: {result['error']}",
                         requests=requests,
                     )
-                rows = _records(json.dumps(result["rows"]))
+                rows = _record_rows(result["rows"])
                 source = result.get("source")
             else:
                 rows, requests = _records(payload), 1

@@ -438,7 +438,9 @@ def test_missing_partial_response_reports_real_remaining_gaps(app, missing_sourc
     assert result["missing_before"] == 4
     assert result["rows"] == 1
     assert result["remaining"] == 3
-    assert "3" in result["error"]
+    assert "error" not in result
+    assert "3" in result["warning"]
+    assert len(result["skipped_symbols"]) == 3
 
 
 @pytest.mark.parametrize("period", ["1m", "1d", "1w"])
@@ -572,7 +574,7 @@ def test_missing_concurrent_fill_is_preserved_and_not_counted_as_own_write(app, 
 
 
 @pytest.mark.asyncio
-async def test_missing_partial_failure_task_is_failed_with_written_and_remaining_counts(app, missing_source, monkeypatch):
+async def test_missing_partial_response_task_completes_with_written_and_remaining_counts(app, missing_source, monkeypatch):
     monkeypatch.setattr(preferences, "get_daily_data_provider", lambda: "custom")
     monkeypatch.setattr("app.market_time.cn_now", lambda: datetime(2026, 10, 26, 16))
     missing_source[1].get_klines = lambda *a, **kw: bars([SYMBOLS[0]], [DAY], "1d")
@@ -583,9 +585,11 @@ async def test_missing_partial_failure_task_is_failed_with_written_and_remaining
         while pipeline_jobs.job_store.get(result["job_id"])["status"] in {"queued", "running"}:
             await asyncio.sleep(0.01)
     job = pipeline_jobs.job_store.get(result["job_id"])
-    assert job["status"] == "failed"
-    assert "已补1行" in job["error"]
-    assert "3行" in job["error"]
+    assert job["status"] == "succeeded"
+    assert job["result"]["rows"] == 1
+    assert job["result"]["remaining"] == 3
+    assert "3行" in job["result"]["warning"]
+    assert (app.state.repo.store.data_dir / job["result"]["gap_report"]).exists()
     assert app.state.repo.execute_one("SELECT count(*) FROM kline_daily")[0] == 1
 
 

@@ -317,7 +317,8 @@ async def test_missing_sync_defers_provider_resolution_until_after_local_gap_sca
         {"period": "1d", "start_date": "2026-10-21", "end_date": "2026-10-23", "mode": "invalid"},
     ],
 )
-def test_base_period_sync_rejects_invalid_ranges_and_modes_before_creating_jobs(app, body):
+def test_base_period_sync_rejects_invalid_ranges_and_modes_before_creating_jobs(app, body, monkeypatch):
+    monkeypatch.setattr(kline, "cn_today", lambda: date(2026, 10, 28))
     with TestClient(app) as client:
         response = client.post("/api/kline/sync_period", json=body)
     assert response.status_code in {400, 422}
