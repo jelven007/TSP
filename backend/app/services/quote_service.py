@@ -43,7 +43,7 @@ from app.market_time import (
 )
 from app.parquet import scan_daily_parquet
 from app.polars_guard import guarded_collect
-from app.services.index_const import CORE_INDEX_SYMBOLS
+from app.services.index_const import PAGE_INDEX_SYMBOLS
 from app.services.quote_time import confirms_boundary, source_snapshot_ms
 from app.strategy.intraday_signals import IntradaySignalEvaluator
 from app.strategy.monitor import format_alert_quote
@@ -825,7 +825,7 @@ class QuoteService:
                         # 四只过滤, 多拉的指数不进侧栏。
                         from app.indicators.pipeline import BENCHMARK_INDEX_SYMBOLS
                         wanted = sorted(
-                            set(CORE_INDEX_SYMBOLS)
+                            set(PAGE_INDEX_SYMBOLS)
                             | BENCHMARK_INDEX_SYMBOLS
                             | self._collect_monitor_index_symbols()
                         )
@@ -864,7 +864,7 @@ class QuoteService:
         try:
             from app.services import preferences
             all_index_symbols = set(self._repo.get_index_symbol_set()) if self._repo else set()
-            core_index_symbols = set(CORE_INDEX_SYMBOLS)
+            core_index_symbols = set(PAGE_INDEX_SYMBOLS)
             all_index_symbols.update(core_index_symbols)
             # 指数监控规则标的并入显式拉取 (quotes.get 按码覆盖)
             monitor_index_symbols = self._collect_monitor_index_symbols()
@@ -964,7 +964,7 @@ class QuoteService:
 
         records = [r for r in records if not removed_market_symbol(r.get("symbol"))]
         all_index_symbols = set(self._repo.get_index_symbol_set()) if self._repo else set()
-        core_index_symbols = set(CORE_INDEX_SYMBOLS)
+        core_index_symbols = set(PAGE_INDEX_SYMBOLS)
         all_index_symbols.update(core_index_symbols)
         all_etf_symbols = set()
         if self._repo:

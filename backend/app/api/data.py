@@ -635,6 +635,7 @@ def clear_data(request: Request):
 
     for sub in (
         "kline_daily", "kline_daily_enriched", "kline_index_daily", "kline_index_enriched",
+        "kline_index_weekly", "kline_index_monthly",
         "kline_etf_daily", "kline_etf_enriched", "kline_etf_minute", "kline_minute",
         "kline_5minute", "kline_10minute", "kline_15minute", "kline_weekly",
         "adj_factor", "adj_factor_etf", "instruments", "instrument_status",
@@ -800,12 +801,19 @@ _TABLE_FIELD_DESC: dict[str, dict[str, str]] = {
 for _period_table in ("kline_5minute", "kline_10minute", "kline_15minute"):
     _TABLE_FIELD_DESC[_period_table] = _TABLE_FIELD_DESC["kline_minute"]
 _TABLE_FIELD_DESC["kline_weekly"] = _TABLE_FIELD_DESC["kline_daily"]
+for _index_period_table in ("kline_index_weekly", "kline_index_monthly"):
+    _TABLE_FIELD_DESC[_index_period_table] = {
+        **_TABLE_FIELD_DESC["kline_index_daily"],
+        "date": "周期起始日期", "trade_date": "周期最后交易日",
+    }
 
 _SCHEMA_VIEWS: dict[str, str] = {
     "daily": "kline_daily",
     "enriched": "kline_enriched",
     "index_daily": "kline_index_daily",
     "index_enriched": "kline_index_enriched",
+    "index_weekly": "kline_index_weekly",
+    "index_monthly": "kline_index_monthly",
     "index_instruments": "instruments_index",
     "etf_daily": "kline_etf_daily",
     "etf_enriched": "kline_etf_enriched",

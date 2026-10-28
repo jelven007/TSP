@@ -102,6 +102,10 @@ class IndexMinuteResponse(ContractModel):
     source: str
 
 
+class IndexKlineResponse(IndexDailyResponse):
+    period: Literal["1d", "1w", "1mo"]
+
+
 class QuoteStatusResponse(ContractModel):
     enabled: bool
     running: bool

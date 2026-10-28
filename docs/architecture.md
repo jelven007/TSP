@@ -1,5 +1,20 @@
 # TSP 系统技术方案
 
+2026-10-28指数页沿`index_const→index_sync/quote_service→repository→api/indices→Indices`接线。
+`kline_index_daily`及窄表`kline_index_enriched`沿用；新增
+`kline_index_weekly/kline_index_monthly`，DuckDB视图、公共发布、数据release及清理/schema同步。
+周标签为周一、月标签为1日，`trade_date`为最后交易日；OHLC按时间顺序聚合、量额求和，
+MA/MACD/RSI/KDJ/BOLL在各周期序列上计算，未知量额保留空值，不套股票复权/股本规则。
+单指数查询有界扫描并预读指标暖身，结束日期在周期中间时重算边界柱，读接口不写盘。
+`POST /api/index/repair`沿共享JobStore、执行槽、取消与Platform管理转发；
+日K经生效Provider，周/月本地生成，日K修正同步刷新受影响整周期。
+前端复用`StockDailyKChart.externalData`与`RepairDailyPanel scope=index`，
+symbol/period/range隔离迟到响应，任务终态失效指数缓存。
+范围与实测见[指数扩展记录](../reports/indices-kline-20261028/verification.md)。
+
+市场总览聚合唯一实现在`services/market_overview_builder.py`，API只保留委托与公共缓存；
+旧页面/面板消重及依赖核对见[项目精简记录](../reports/project-cleanup-20261028/verification.md)。
+
 2026-10-27最新整合沿既有Provider、周期服务、JobStore、租户事务及查询键接线，
 统一纳入本地生成、闭区间修正、自选关系和数据总览；无schema迁移或双份日K任务。
 范围、实际检查及固定运行身份见[本批记录](../reports/latest-release-20261027/verification.md)。
@@ -273,7 +288,7 @@ API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期
 - “系统设置 → 并发策略”通过管理员管理面读写
   `/api/settings/strategy-concurrency`；复用原子全局偏好保存，Broker 只读同一
   配置文件，`resources` IPC 仅查询，不接受远程资源覆盖。
-  `services/strategy_resources.py` 按执行主机内存/CPU 各 25% 计算推荐数与任务
+  `services/strategy_resources.py` 按执行主机内存/CPU 各 50% 计算推荐数与任务
   额度；共享准入同时核对任务数及已占用内存/CPU。Docker 按准入时额度施加硬限，
   配置降低时保留旧任务及其额度，单进程模式仅提供准入估算。缺省配置为null，
   前端直接显示推荐数字；手工配置严格限制1～999并持久保存，实际准入仍受资源预算
@@ -690,6 +705,11 @@ TanStack Query。写操作必须同时考虑：
 
 前端在刷新期间保留上一份有效数据，避免把短暂加载状态显示为业务零值。缓存键应
 包含资产类型、日期、周期和参数等所有结果维度。
+
+公共查询缓存按表或命名空间维护失效世代；实时总览和分钟表更新不会丢弃正在计算的
+无关日线统计。同一数据目录、表和世代的并发读取共享一次计算，扫描在锁外执行，
+其他表或目录独立读取。表级、前缀及全量失效后，新请求直接读取新世代；旧扫描不得
+覆盖新值，扫描异常仍释放等待者。已有容量上限、TTL和数据统计口径保持不变。
 
 前端查询失效遵循最小影响范围：设置页只重拉当前活动查询，策略或因子写入只失效
 对应策略清单和关联选项，应用内入口使用路由导航。行情未显式选择日期时，在实时

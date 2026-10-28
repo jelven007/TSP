@@ -527,8 +527,6 @@ def sync_daily_by_quotes(repo: KlineRepository) -> int:
     一个请求覆盖 ~5500 只股票,比 batch K-line 快几个数量级。
     返回写入的行数。
     """
-    from datetime import date as _date
-
     from app.tickflow.client import get_client
 
     tf = get_client()
@@ -544,7 +542,6 @@ def sync_daily_by_quotes(repo: KlineRepository) -> int:
 
     records = []
     for q in resp:
-        ext = q.get("ext") or {}
         records.append({
             "symbol": q.get("symbol"),
             "open": q.get("open"),
@@ -1189,7 +1186,6 @@ def sync_minute_batch(
             seg_label = f"{cur_start.strftime('%m-%d')}~{cur_end.strftime('%m-%d')}"
         else:
             seg_label = "最新"
-        seg_total = len(time_segments)
         chunks = chunked(symbols, batch_size)
         for i, chunk in enumerate(chunks):
             sleep_between_batches(step, rpm)

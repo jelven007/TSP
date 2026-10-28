@@ -8,6 +8,8 @@ import type { PipelineJob } from '@/lib/api'
 
 export const STAGE_LABELS: Record<string, string> = {
   init: '初始化',
+  index_fetch: '获取指数日K',
+  index_aggregate: '计算指数周/月K',
   resolve_universe: '解析标的池',
   sync_instruments: '同步个股维表',
   sync_financial: '同步历史财务与股本',

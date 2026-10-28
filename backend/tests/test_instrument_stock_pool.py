@@ -102,7 +102,6 @@ def test_instrument_job_retains_last_valid_snapshot(tmp_path, monkeypatch):
         }
     ).write_parquet(target)
     monkeypatch.setattr(instrument_sync, "sync_instruments", lambda data_dir, **kwargs: 0)
-    monkeypatch.setattr(daily_pipeline, "_refresh_instruments_view", lambda repo: None)
     monkeypatch.setattr(daily_pipeline, "_invalidate", lambda table=None: None)
     monkeypatch.setattr(
         "app.services.data_release.publish_data_release",

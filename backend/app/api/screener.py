@@ -6,7 +6,6 @@ import glob as _glob
 import logging
 import math
 import os
-import re
 import time
 from dataclasses import asdict, replace
 from datetime import date, datetime

@@ -11,6 +11,9 @@
 
 | 保留材料 | 与当前主线或规划的关系 |
 | --- | --- |
+| [指数页与三周期修正](indices-kline-20261028/verification.md) | 七只目录、独立周/月表、真实遗漏保护、管理任务与Chrome模拟API验收；未部署或初始化真实行情 |
+| [状态统计超时修复](data-status-timeout-20261028/verification.md) | 公共缓存局部世代、并发共享扫描、实际行情基准与尚未部署的边界 |
+| [源码与依赖精简](project-cleanup-20261028/verification.md) | 全仓盘点、失效页面/聚合副本删除、冻结依赖核对与本次实际回归 |
 | [六周期K线发布整合](kline-release-20261026/verification.md) | 六周期修正、个股多周期/数量、缓存隔离、文档责任、本地/ECS核对及独立质量门 |
 | [最新现状与发布](current-state-release-20261025/verification.md) | 153文件冻结、六类文档、全量验证、策略归档/并发、UI/调度、本地与线上版本更新 |
 | [生产基线整合](production-baseline-20261025/verification.md) | 官方目录、管理员空间、顶栏/数据总览、示例目录、六类文档和源码恢复工具的本次验证 |

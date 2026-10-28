@@ -1,0 +1,636 @@
+{
+  "checks": [
+    "七只指数切换日/周/月K，真实ECharts组件渲染",
+    "默认60根、放大90根、缩小45根、恢复默认",
+    "修正日期校验、周K遗漏请求、42%进度与取消",
+    "月K全量请求与完成后查询刷新",
+    "服务端权限/能力错误保留在弹窗",
+    "K线空数据与加载失败提示",
+    "390px浅/深色、无横向溢出、窄屏弹窗、只读账户隐藏修正",
+    "七只行情单次批量请求，未请求股票日K"
+  ],
+  "calls": [
+    {
+      "path": "/api/auth/status",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/settings",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/business/preferences",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/custom-signals",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/business/version",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/intraday/status",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/analysis-menus",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs",
+      "search": "?limit=1",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/alerts",
+      "search": "?days=7&limit=1",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/events/ticket",
+      "search": "",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "path": "/api/capabilities",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/settings/capability-matrix",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/catalog",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/intraday/indices",
+      "search": "?symbols=000001.SH%2C399001.SZ%2C399006.SZ%2C000680.SH%2C000300.SH%2C000016.SH%2C399330.SZ",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000001.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=000001.SH&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000001.SH&period=1w&start_date=2023-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000001.SH&period=1mo&start_date=2016-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399001.SZ&period=1mo&start_date=2016-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399001.SZ&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=399001.SZ&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399001.SZ&period=1w&start_date=2023-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399006.SZ&period=1mo&start_date=2016-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399006.SZ&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=399006.SZ&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399006.SZ&period=1w&start_date=2023-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000680.SH&period=1mo&start_date=2016-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000680.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=000680.SH&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000680.SH&period=1w&start_date=2023-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000300.SH&period=1mo&start_date=2016-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000300.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=000300.SH&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000300.SH&period=1w&start_date=2023-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000016.SH&period=1mo&start_date=2016-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000016.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=000016.SH&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000016.SH&period=1w&start_date=2023-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399330.SZ&period=1mo&start_date=2016-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399330.SZ&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=399330.SZ&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399330.SZ&period=1w&start_date=2023-10-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/repair",
+      "search": "",
+      "method": "POST",
+      "body": {
+        "start_date": "2026-10-20",
+        "period": "1w",
+        "mode": "missing",
+        "end_date": "2026-10-28"
+      }
+    },
+    {
+      "path": "/api/pipeline/jobs",
+      "search": "?limit=15",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs/fixture-index-job-1",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs/fixture-index-job-1/cancel",
+      "search": "",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs/fixture-index-job-1",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs",
+      "search": "?limit=15",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/intraday/indices",
+      "search": "?symbols=000001.SH%2C399001.SZ%2C399006.SZ%2C000680.SH%2C000300.SH%2C000016.SH%2C399330.SZ",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399330.SZ&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=399330.SZ&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs",
+      "search": "?limit=15",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/repair",
+      "search": "",
+      "method": "POST",
+      "body": {
+        "start_date": "2026-09-28",
+        "period": "1mo",
+        "mode": "full",
+        "end_date": "2026-10-28"
+      }
+    },
+    {
+      "path": "/api/pipeline/jobs",
+      "search": "?limit=15",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs/fixture-index-job-2",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs/fixture-index-job-2",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/intraday/indices",
+      "search": "?symbols=000001.SH%2C399001.SZ%2C399006.SZ%2C000680.SH%2C000300.SH%2C000016.SH%2C399330.SZ",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=399330.SZ&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=399330.SZ&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs",
+      "search": "?limit=15",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/repair",
+      "search": "",
+      "method": "POST",
+      "body": {
+        "start_date": "2026-09-28",
+        "period": "1d",
+        "mode": "full",
+        "end_date": "2026-10-28"
+      }
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000016.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=000016.SH&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000300.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=000300.SH&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/events/ticket",
+      "search": "",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000300.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000300.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000300.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/auth/status",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/settings",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/business/preferences",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/custom-signals",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/business/version",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/intraday/status",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/analysis-menus",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/pipeline/jobs",
+      "search": "?limit=1",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/alerts",
+      "search": "?days=7&limit=1",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/events/ticket",
+      "search": "",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "path": "/api/capabilities",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/settings/capability-matrix",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/catalog",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/intraday/indices",
+      "search": "?symbols=000001.SH%2C399001.SZ%2C399006.SZ%2C000680.SH%2C000300.SH%2C000016.SH%2C399330.SZ",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000001.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=000001.SH&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/auth/status",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/business/settings",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/business/preferences",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/custom-signals",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/business/version",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/intraday/status",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/analysis-menus",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/alerts",
+      "search": "?days=7&limit=1",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/events/ticket",
+      "search": "",
+      "method": "POST",
+      "body": null
+    },
+    {
+      "path": "/api/capabilities",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/business/capabilities",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/catalog",
+      "search": "",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/intraday/indices",
+      "search": "?symbols=000001.SH%2C399001.SZ%2C399006.SZ%2C000680.SH%2C000300.SH%2C000016.SH%2C399330.SZ",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/kline",
+      "search": "?symbol=000001.SH&period=1d&start_date=2026-04-28&end_date=2026-10-28",
+      "method": "GET",
+      "body": null
+    },
+    {
+      "path": "/api/index/minute",
+      "search": "?symbol=000001.SH&date=2026-10-28&with_prev_close=true",
+      "method": "GET",
+      "body": null
+    }
+  ],
+  "expectedErrors": [
+    "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+    "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+    "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+    "Failed to load resource: the server responded with a status of 502 (Bad Gateway)",
+    "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+  ]
+}

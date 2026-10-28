@@ -1,0 +1,15 @@
+{
+  "active_id": "47642d8172",
+  "active_jobs": [
+    {
+      "id": "47642d8172",
+      "kind": "kline_1m",
+      "source": "manual",
+      "status": "running",
+      "progress": 53,
+      "stage": "sync_1m",
+      "created_at": "2026-10-27T21:42:45.272856+00:00",
+      "started_at": "2026-10-27T21:42:45.276450+00:00"
+    }
+  ]
+}

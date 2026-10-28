@@ -37,9 +37,9 @@ let host: HTMLDivElement
 let client: QueryClient
 const status = {
   available: true, pending: false, config_enabled: true, execution_mode: 'sandbox',
-  host_memory_mb: 16384, host_cpus: 32, budget_ratio: .25,
-  memory_budget_mb: 4096, cpu_budget: 8, recommended_concurrency: 4,
-  max_concurrency: 16, strategy_concurrency: null, effective_concurrency: 4,
+  host_memory_mb: 16384, host_cpus: 32, budget_ratio: .5,
+  memory_budget_mb: 8192, cpu_budget: 16, recommended_concurrency: 8,
+  max_concurrency: 16, strategy_concurrency: null, effective_concurrency: 8,
   task_memory_mb: 1024, task_cpus: 1, active: 0, recommendation_basis: 'task_limits',
 }
 
@@ -94,11 +94,11 @@ it('shows recommended concurrency first and removes the automatic-run setting an
   )!
   expect(section.textContent).not.toContain('进入策略页自动运行策略')
   expect(section.textContent).not.toContain('并发策略数')
-  expect(section.textContent).toContain('4 GiB')
-  expect(section.textContent).toContain('25%')
+  expect(section.textContent).toContain('8 GiB')
+  expect(section.textContent).toContain('50%')
   expect(section.textContent).toContain('所有租户')
   expect(section.textContent).toContain('推荐')
-  expect(input()?.value).toBe('4')
+  expect(input()?.value).toBe('8')
   expect(input()?.min).toBe('1')
   expect(input()?.max).toBe('999')
   expect(host.textContent).toContain('个股外链')
@@ -108,13 +108,13 @@ it('shows recommended concurrency first and removes the automatic-run setting an
 it('persists a manual value and displays the applied global limit', async () => {
   read.mockResolvedValue(status)
   save.mockResolvedValue({
-    ...status, strategy_concurrency: 8, effective_concurrency: 8, task_memory_mb: 512,
+    ...status, strategy_concurrency: 16, effective_concurrency: 16, task_memory_mb: 512,
   })
   await render()
-  await edit('8')
-  expect(save).toHaveBeenCalledWith(8)
-  expect(input()!.value).toBe('8')
-  expect(host.textContent).toContain('当前生效：8')
+  await edit('16')
+  expect(save).toHaveBeenCalledWith(16)
+  expect(input()!.value).toBe('16')
+  expect(host.textContent).toContain('当前生效：16')
   expect(host.textContent).toContain('512 MiB')
 })
 
@@ -122,9 +122,9 @@ it('keeps the applied value and shows a save error without false success', async
   read.mockResolvedValue(status)
   save.mockRejectedValue(new Error('计算服务暂不可用'))
   await render()
-  await edit('8')
+  await edit('16')
   expect(host.querySelector('[role="alert"]')?.textContent).toContain('计算服务暂不可用')
-  expect(input()!.value).toBe('4')
+  expect(input()!.value).toBe('8')
   expect(host.textContent).not.toContain('已保存')
 })
 
@@ -135,18 +135,29 @@ it('does not invent host resources when the compute service is unavailable', asy
   await render()
   expect(host.textContent).toContain('计算服务暂不可用')
   expect(input()).toBeNull()
-  expect(host.textContent).not.toContain('4 GiB')
+  expect(host.textContent).not.toContain('8 GiB')
+})
+
+it('shows the actual ratio returned by a service that has not yet upgraded', async () => {
+  read.mockResolvedValue({
+    ...status, budget_ratio: .25, memory_budget_mb: 4096, cpu_budget: 8,
+    recommended_concurrency: 4, effective_concurrency: 4,
+  })
+  await render()
+  expect(host.textContent).toContain('策略内存预算：4 GiB（整机 16 GiB 的 25%）')
+  expect(host.textContent).toContain('策略 CPU 预算：8 vCPU（整机 32 vCPU 的 25%）')
+  expect(host.querySelector('section')!.textContent).not.toContain('50%')
 })
 
 it('restores automatic mode and uses the updated recommendation', async () => {
-  read.mockResolvedValue({ ...status, strategy_concurrency: 8, effective_concurrency: 8 })
+  read.mockResolvedValue({ ...status, strategy_concurrency: 3, effective_concurrency: 3 })
   save.mockResolvedValue(status)
   await render()
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent === '使用推荐值')!.click())
   await flushQueries()
   expect(save).toHaveBeenCalledWith(null)
-  expect(input()!.value).toBe('4')
-  expect(host.textContent).toContain('当前生效：4')
+  expect(input()!.value).toBe('8')
+  expect(host.textContent).toContain('当前生效：8')
 })
 
 it('shows a preserved setting when a smaller host can apply fewer slots', async () => {
@@ -161,9 +172,9 @@ it('shows a preserved setting when a smaller host can apply fewer slots', async 
 
 it('does not report a saved configuration as applied when the broker has not read it', async () => {
   read.mockResolvedValue(status)
-  save.mockResolvedValue({ ...status, strategy_concurrency: 8, pending: true })
+  save.mockResolvedValue({ ...status, strategy_concurrency: 16, pending: true })
   await render()
-  await edit('8')
+  await edit('16')
   expect(host.textContent).toContain('计算服务尚未应用')
   expect(host.textContent).not.toContain('新任务按当前配置执行')
 })

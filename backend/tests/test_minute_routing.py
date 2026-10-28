@@ -1202,7 +1202,6 @@ def test_get_minute_batch_plain_without_accept_encoding(monkeypatch):
 
 def _daily_mock_env(monkeypatch, *, compress_on, accept="gzip, deflate"):
     """构造 get_daily_batch 压缩路径的最小 mock。"""
-    from app.api import kline as kline_api
     from app.services import preferences as prefs
 
     monkeypatch.setattr(prefs, "get_daily_batch_compress", lambda: compress_on)

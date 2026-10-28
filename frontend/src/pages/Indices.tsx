@@ -1,50 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Activity, Loader2, Lock, RefreshCw } from 'lucide-react'
-import { api, type IndexInstrument, type KlineRow, type NullableMinuteKlineRow } from '@/lib/api'
+import { Activity, Clock, LineChart, Lock, RefreshCw } from 'lucide-react'
+import { api, type IndexInstrument, type IndexKlinePeriod, type NullableMinuteKlineRow } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { useCapabilities } from '@/lib/useSharedQueries'
+import { useCapabilities, useCapabilityMatrix } from '@/lib/useSharedQueries'
+import { routeCapUsable } from '@/lib/capability-labels'
+import { INDEX_KLINE_PERIODS, KLINE_PERIOD_LABELS } from '@/lib/klinePeriods'
 import { hasPermission } from '@/lib/accountSession'
-import { EChartsCandlestick, type OHLC } from '@/components/EChartsCandlestick'
+import { StockDailyKChart, toOHLC } from '@/components/StockDailyKChart'
 import { EChartsIntraday } from '@/components/EChartsIntraday'
 import { PageHeader } from '@/components/PageHeader'
 import { DatePicker } from '@/components/DatePicker'
+import { SettingsModal } from '@/components/data/SettingsModal'
+import { RepairDailyPanel } from '@/components/data/RepairDailyPanel'
+import { ActiveJobCard } from '@/components/data/ActiveJobCard'
 
-function defaultRange() {
+function defaultRange(period: IndexKlinePeriod = '1d') {
   const now = new Date()
   const end = now.toISOString().slice(0, 10)
   const s = new Date(now)
-  s.setMonth(s.getMonth() - 6)
+  s.setMonth(s.getMonth() - (period === '1d' ? 6 : period === '1w' ? 36 : 120))
   return { start: s.toISOString().slice(0, 10), end }
-}
-
-function toOHLC(rows: KlineRow[]): OHLC[] {
-  return rows
-    .filter(r => r?.date != null && r.open != null && r.close != null)
-    .map(r => ({
-      date: typeof r.date === 'string' ? r.date.slice(0, 10) : String(r.date),
-      open: Number(r.open),
-      high: Number(r.high),
-      low: Number(r.low),
-      close: Number(r.close),
-      volume: Number(r.volume ?? 0),
-      ma5: r.ma5 != null ? Number(r.ma5) : null,
-      ma10: r.ma10 != null ? Number(r.ma10) : null,
-      ma20: r.ma20 != null ? Number(r.ma20) : null,
-      ma60: r.ma60 != null ? Number(r.ma60) : null,
-      macd_dif: r.macd_dif != null ? Number(r.macd_dif) : null,
-      macd_dea: r.macd_dea != null ? Number(r.macd_dea) : null,
-      macd_hist: r.macd_hist != null ? Number(r.macd_hist) : null,
-      rsi_6: r.rsi_6 != null ? Number(r.rsi_6) : null,
-      rsi_14: r.rsi_14 != null ? Number(r.rsi_14) : null,
-      rsi_24: r.rsi_24 != null ? Number(r.rsi_24) : null,
-      kdj_k: r.kdj_k != null ? Number(r.kdj_k) : null,
-      kdj_d: r.kdj_d != null ? Number(r.kdj_d) : null,
-      kdj_j: r.kdj_j != null ? Number(r.kdj_j) : null,
-      boll_upper: r.boll_upper != null ? Number(r.boll_upper) : null,
-      boll_lower: r.boll_lower != null ? Number(r.boll_lower) : null,
-    }))
 }
 
 function fmtPct(v: number | null | undefined) {
@@ -57,68 +34,98 @@ function fmtNum(v: number | null | undefined, digits = 2) {
   return Number(v).toFixed(digits)
 }
 
-const PINNED_INDEXES = [
-  { symbol: '000001.SH', name: '上证指数' },
-  { symbol: '399001.SZ', name: '深证成指' },
-  { symbol: '399006.SZ', name: '创业板指' },
-  { symbol: '000680.SH', name: '科创综指' },
-]
+const TERMINAL_STATES = new Set(['succeeded', 'failed', 'cancelled', 'interrupted'])
 
 export function Indices() {
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const symbolParam = searchParams.get('symbol') ?? ''
-  const [selected, setSelected] = useState<string>(symbolParam)
-  const [range, setRange] = useState(defaultRange)
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [linkedPrice, setLinkedPrice] = useState<number | null>(null)
+  const [period, setPeriod] = useState<IndexKlinePeriod>('1d')
+  const [range, setRange] = useState(() => defaultRange())
+  const [selection, setSelection] = useState<{ context: string; day: string } | null>(null)
+  const [hoverPrice, setHoverPrice] = useState<{ context: string; price: number | null } | null>(null)
+  const [view, setView] = useState<'kline' | 'intraday'>('kline')
+  const [visibleBars, setVisibleBars] = useState(60)
+  const [zoomResetKey, setZoomResetKey] = useState(0)
+  const [showRepair, setShowRepair] = useState(false)
+  const [jobId, setJobId] = useState<string | null>(null)
+  const canManage = hasPermission('data:manage')
 
   // 分时数据依赖分钟K批量数据 (kline.minute.batch)
   const caps = useCapabilities()
-  const hasMinuteCap = !!caps.data?.capabilities?.['kline.minute.batch']
+  const matrix = useCapabilityMatrix()
+  const hasMinuteCap = routeCapUsable(matrix.data, 'minute') ?? !!caps.data?.capabilities?.['kline.minute.batch']
+  const hasDailyCap = routeCapUsable(matrix.data, 'daily') ?? !!caps.data?.capabilities?.['kline.daily.batch']
 
-  // 指数标的固定核心四只 (产品契约, 不再提供全指数搜索/浏览)
-  const topRows: IndexInstrument[] = PINNED_INDEXES.map(p => ({
-    symbol: p.symbol, name: p.name, asset_type: 'index' as const,
-  }))
-
-  const selectedSymbol = selected || topRows[0]?.symbol || ''
-
-  useEffect(() => {
-    if (symbolParam && symbolParam !== selected) setSelected(symbolParam)
-  }, [selected, symbolParam])
+  const catalog = useQuery({ queryKey: QK.indexCatalog, queryFn: api.indexCatalog, staleTime: Infinity })
+  const topRows = catalog.data?.rows ?? []
+  const selectedSymbol = topRows.some(row => row.symbol === symbolParam) ? symbolParam : topRows[0]?.symbol ?? ''
+  const context = `${selectedSymbol}:${period}:${range.start}:${range.end}`
+  const rangeError = !range.start || !range.end ? '请选择开始日期和结束日期'
+    : range.start > range.end ? '结束日期不能早于开始日期' : null
 
   const selectIndex = (symbol: string) => {
-    setSelected(symbol)
     setSearchParams({ symbol })
   }
 
   const quotes = useQuery({
-    queryKey: QK.indexQuotes,
-    queryFn: () => api.indexQuotes(),
+    queryKey: QK.indexPageQuotes(topRows.map(row => row.symbol).join(',')),
+    queryFn: () => api.indexQuotes(topRows.map(row => row.symbol)),
+    enabled: topRows.length > 0,
     placeholderData: (prev) => prev,
   })
 
   const daily = useQuery({
-    queryKey: QK.indexDaily(selectedSymbol, range.start, range.end),
-    queryFn: () => api.indexDaily(selectedSymbol, 180, range),
-    enabled: !!selectedSymbol,
+    queryKey: QK.indexKline(selectedSymbol, period, range.start, range.end),
+    queryFn: async () => ({ ...await api.indexKline(selectedSymbol, period, range), context }),
+    enabled: !!selectedSymbol && !rangeError,
     placeholderData: (prev) => prev,
   })
+  const dataMatches = daily.data?.context === context && daily.data.symbol === selectedSymbol && daily.data.period === period && !rangeError
+  const sourceRows = useMemo(() => dataMatches ? daily.data?.rows ?? [] : [], [dataMatches, daily.data?.rows])
+  const chartRows = useMemo(() => toOHLC(sourceRows), [sourceRows])
+  const tradeDate = (label: string) => sourceRows.find(row => row.date === label)?.trade_date ?? label
+  const selectedDate = selection?.context === context && sourceRows.some(row => (row.trade_date ?? row.date) === selection.day)
+    ? selection.day : sourceRows.at(-1)?.trade_date ?? sourceRows.at(-1)?.date ?? null
+  const linkedPrice = hoverPrice?.context === context ? hoverPrice.price : null
 
   const minute = useQuery({
     queryKey: QK.indexMinute(selectedSymbol, selectedDate ?? ''),
-    queryFn: () => api.indexMinute(selectedSymbol, selectedDate ?? undefined),
+    queryFn: () => api.indexMinute(selectedSymbol, selectedDate ?? undefined, true),
     enabled: !!selectedSymbol && !!selectedDate && hasMinuteCap,
   })
 
-  const syncDaily = useMutation({
-    mutationFn: () => api.syncIndexDaily(365),
+  const jobs = useQuery({
+    queryKey: QK.pipelineJobs,
+    queryFn: () => api.pipelineJobs(15),
+    enabled: canManage,
+    refetchInterval: 10_000,
+  })
+  const activeIndexJob = jobs.data?.jobs.find(job => job.kind === 'index_repair' && !TERMINAL_STATES.has(job.status))
+  const trackedId = jobId ?? activeIndexJob?.id ?? null
+  const job = useQuery({
+    queryKey: QK.pipelineJob(trackedId ?? ''),
+    queryFn: () => api.pipelineJob(trackedId!),
+    enabled: canManage && !!trackedId,
+    refetchInterval: q => q.state.data && TERMINAL_STATES.has(q.state.data.status) ? false : 1_000,
+  })
+  const isRunning = !!jobs.data?.active_id || !!activeIndexJob || (!!job.data && !TERMINAL_STATES.has(job.data.status))
+  const stop = useMutation({
+    mutationFn: () => api.pipelineJobCancel(trackedId!),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QK.indexQuotes })
-      qc.invalidateQueries({ queryKey: ['index-daily'] })
+      qc.invalidateQueries({ queryKey: QK.pipelineJob(trackedId!) })
+      qc.invalidateQueries({ queryKey: QK.pipelineJobs })
     },
   })
+  const jobStatus = job.data?.status
+  const completedJobId = job.data?.id
+  useEffect(() => {
+    if (jobStatus && TERMINAL_STATES.has(jobStatus)) {
+      for (const queryKey of [QK.indexQuotes, ['index-kline'], ['index-daily'], ['index-minute'], QK.dataStatus, QK.pipelineJobs]) {
+        void qc.invalidateQueries({ queryKey })
+      }
+    }
+  }, [jobStatus, completedJobId, qc])
 
   const quoteBySymbol = useMemo(() => {
     const m = new Map<string, any>()
@@ -129,28 +136,15 @@ export function Indices() {
   const selectedQuoteValue = selectedQuote?.last_price ?? selectedQuote?.price ?? selectedQuote?.close
   const selectedQuotePct = selectedQuote?.change_pct ?? selectedQuote?.pct
 
-  const chartRows = useMemo(() => toOHLC(daily.data?.rows ?? []), [daily.data?.rows])
   const selectedInfo = topRows.find(r => r.symbol === selectedSymbol) || daily.data?.index_info
   const minuteRows: NullableMinuteKlineRow[] = minute.data?.symbol === selectedSymbol
-    && minute.data?.date === selectedDate && daily.data?.symbol === selectedSymbol
+    && minute.data?.date === selectedDate && dataMatches
     ? minute.data.rows : []
-  const selectedIdx = selectedDate ? chartRows.findIndex(r => r.date === selectedDate) : -1
-  const prevClose = selectedIdx > 0
-    ? chartRows[selectedIdx - 1].close
-    : chartRows.length >= 2
-      ? chartRows[chartRows.length - 2].close
-      : undefined
+  const selectedIdx = selectedDate ? sourceRows.findIndex(r => (r.trade_date ?? r.date) === selectedDate) : -1
+  const prevClose = minute.data?.prev_close ?? (
+    period === '1d' && selectedIdx > 0 ? sourceRows[selectedIdx - 1].close : undefined
+  )
 
-  useEffect(() => {
-    setSelectedDate(null)
-    setLinkedPrice(null)
-  }, [selectedSymbol])
-
-  useEffect(() => {
-    if ((!selectedDate || !chartRows.some(r => r.date === selectedDate)) && chartRows.length > 0 && daily.data?.symbol === selectedSymbol) {
-      setSelectedDate(chartRows[chartRows.length - 1].date)
-    }
-  }, [chartRows, daily.data?.symbol, selectedDate, selectedSymbol])
   const renderIndexItem = (item: IndexInstrument) => {
     const q = quoteBySymbol.get(item.symbol)
     const pct = q?.change_pct ?? q?.pct
@@ -159,6 +153,7 @@ export function Indices() {
     return (
       <button
         key={item.symbol}
+        aria-pressed={active}
         onClick={() => selectIndex(item.symbol)}
         className={`w-full rounded-btn px-2 py-2 text-left transition-colors ${active ? 'bg-accent/15 text-foreground' : 'hover:bg-elevated text-secondary'}`}
       >
@@ -178,25 +173,35 @@ export function Indices() {
     <div className="h-full overflow-auto bg-base">
       <PageHeader
         title="指数"
-        subtitle="核心指数 · 日K与分时"
+        subtitle="七只指数 · 日K / 周K / 月K与分时"
         right={
           <div className="flex items-center gap-2">
-          {hasPermission('data:manage') && <button
-            onClick={() => syncDaily.mutate()}
-            disabled={syncDaily.isPending}
+          {canManage && <button
+            onClick={() => setShowRepair(true)}
             className="inline-flex items-center gap-1.5 rounded-btn bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
           >
-            {syncDaily.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            同步指数日K
+            <RefreshCw className="h-3.5 w-3.5" />
+            数据修正
           </button>}
           </div>
         }
       />
 
-      <div className="grid grid-cols-[15rem_1fr] gap-4 p-4">
-        <aside className="rounded-card border border-border bg-surface p-3">
-          <div className="mb-2 px-1 text-[11px] uppercase tracking-wider text-muted">核心指数</div>
-          <div className="space-y-1">
+      {job.data && <div className="px-4 pt-4 space-y-2">
+        <ActiveJobCard job={job.data} />
+        {!TERMINAL_STATES.has(job.data.status) && <button disabled={stop.isPending || job.data.status === 'cancelling'}
+          onClick={() => stop.mutate()} className="rounded-btn border border-danger/30 px-3 py-1.5 text-xs text-danger disabled:opacity-40">
+          {job.data.status === 'cancelling' ? '正在取消…' : '停止修正'}
+        </button>}
+        {stop.isError && <div role="alert" className="text-xs text-danger">{stop.error.message}</div>}
+      </div>}
+      {job.isError && <div role="alert" className="px-4 pt-3 text-xs text-danger">修正进度加载失败，请重试</div>}
+      <div className="grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] gap-4 p-4">
+        <aside className="self-start rounded-card border border-border bg-surface p-3">
+          <div className="mb-2 px-1 text-[11px] uppercase tracking-wider text-muted">指数列表</div>
+          {catalog.isLoading && <div className="text-xs text-muted">指数加载中…</div>}
+          {catalog.isError && <div role="alert" className="text-xs text-danger">指数列表加载失败 <button onClick={() => catalog.refetch()}>重试</button></div>}
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
             {topRows.map(renderIndexItem)}
           </div>
         </aside>
@@ -204,7 +209,7 @@ export function Indices() {
         <main className="min-w-0 rounded-card border border-border bg-surface p-3">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Activity className="h-4 w-4 text-accent" />
                 <h2 className="truncate text-sm font-semibold text-foreground">
                   {selectedInfo?.name || selectedSymbol || '未选择指数'}
@@ -213,11 +218,37 @@ export function Indices() {
                 {selectedSymbol && <span className="font-mono text-xs text-foreground">{fmtNum(selectedQuoteValue)}</span>}
                 {selectedSymbol && <span className={`font-mono text-xs ${Number(selectedQuotePct ?? 0) >= 0 ? 'text-bull' : 'text-bear'}`}>{fmtPct(selectedQuotePct)}</span>}
               </div>
-              <div className="mt-1 text-xs text-muted">
-                实时缓存 {quotes.data?.count ?? 0} 只指数 · 日K来源 {daily.data?.source ?? '--'}
-              </div>
+              {quotes.isError && <div className="mt-1 text-xs text-danger">行情加载失败，请重试</div>}
             </div>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div aria-label="图表视图" className="inline-flex items-center rounded border border-border/60 bg-base/60 p-0.5">
+                <button type="button" aria-pressed={view === 'intraday'} onClick={() => setView('intraday')}
+                  className={`inline-flex h-6 items-center gap-1 rounded px-2.5 text-[11px] ${view === 'intraday' ? 'bg-accent/20 text-accent' : 'text-muted hover:bg-elevated'}`}>
+                  <Clock className="h-3 w-3" />分时
+                </button>
+                <label className={`inline-flex h-6 items-center gap-1 rounded px-2 text-[11px] ${view === 'kline' ? 'bg-accent/20 text-accent' : 'text-muted'}`}>
+                  <LineChart className="h-3 w-3" />K线
+                  <select aria-label="K线周期" value={period} onFocus={() => setView('kline')} onClick={() => setView('kline')}
+                    onChange={event => {
+                      const next = event.target.value as IndexKlinePeriod
+                      setPeriod(next); setRange(defaultRange(next)); setVisibleBars(60); setZoomResetKey(k => k + 1); setView('kline')
+                    }} className="h-6 rounded border-0 bg-transparent outline-none">
+                    {INDEX_KLINE_PERIODS.map(value => <option key={value} value={value} className="bg-surface">{KLINE_PERIOD_LABELS[value]}</option>)}
+                  </select>
+                </label>
+              </div>
+              {view === 'kline' && <div className="inline-flex items-center rounded border border-border/60 bg-base/60 p-0.5">
+                {(['默认', '放大', '缩小'] as const).map(label => <button key={label} type="button"
+                  disabled={label !== '默认' && chartRows.length === 0}
+                  onClick={() => {
+                    setVisibleBars(count => label === '默认' ? 60 : Math.max(1, Math.min(chartRows.length, Math.round(count * (label === '放大' ? 1.5 : 0.5)))))
+                    setZoomResetKey(k => k + 1)
+                  }} className="h-6 rounded px-2.5 text-[11px] text-muted hover:bg-elevated disabled:opacity-40">{label}</button>)}
+                <span className="px-2 font-mono text-[10px] text-muted">{Math.min(visibleBars, chartRows.length)} / {chartRows.length} 根</span>
+              </div>}
+            </div>
+          </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
               <DatePicker
                 aria-label="开始日期"
                 value={range.start}
@@ -227,41 +258,35 @@ export function Indices() {
               />
               <span className="text-muted">至</span>
               <DatePicker
-                aria-label="结束日期"
+                aria-label="K线结束日期"
                 value={range.end}
                 onChange={end => setRange(r => ({ ...r, end }))}
                 clearable
               />
-            </div>
+            {period !== '1d' && <span className="text-[10px] text-muted">点选周期联动最后交易日分时；当前周期可能尚未结束</span>}
           </div>
-
-          {daily.isLoading && <div className="py-10 text-center text-sm text-muted">日K加载中…</div>}
-          {daily.isError && <div className="py-4 text-sm text-danger">指数日K加载失败</div>}
-          {!daily.isLoading && !daily.isError && chartRows.length === 0 && (
-            <div className="rounded-card bg-elevated p-6 text-center text-sm text-muted">
-              暂无日K数据。可以先同步指数日K，或选择其他指数。
-            </div>
-          )}
-          {chartRows.length > 0 && (
-            <div className="flex items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <EChartsCandlestick
-                  data={chartRows}
-                  height={620}
-                  showMA={true}
-                  showInfoBar={true}
-                  showMarkers={false}
+          {rangeError && <div role="alert" className="text-xs text-danger">{rangeError}</div>}
+          <div className={`grid grid-cols-1 gap-3 ${view === 'kline' ? 'xl:grid-cols-2' : ''}`}>
+              {view === 'kline' && <div className="min-w-0">
+                <StockDailyKChart
+                  externalData={{ rows: sourceRows, loading: daily.isLoading || daily.isPlaceholderData, error: daily.isError }}
+                  height={400}
+                  showLimitMarkers={false}
+                  showMarkerToggle={false}
+                  period={period}
                   symbol={selectedSymbol}
                   linkedPrice={linkedPrice}
                   onDateClick={(date) => {
-                    setSelectedDate(date)
-                    setLinkedPrice(null)
+                    setSelection({ context, day: tradeDate(date) })
+                    setHoverPrice(null)
                   }}
-                  visibleBars={48}
-                  activeIndicators={['vol', 'macd']}
+                  visibleBars={visibleBars}
+                  zoomResetKey={zoomResetKey}
+                  onVisibleBarsChange={setVisibleBars}
                 />
-              </div>
-              <div className="min-w-0 flex-1 border-l border-border pl-3" style={{ height: 620 }}>
+              </div>}
+              <div className="min-w-0 border-t border-border pt-3 xl:border-t-0" style={{ minHeight: 500 }}>
+                <div className="mb-2 flex items-center gap-2 text-xs text-secondary"><Clock className="h-3.5 w-3.5" />分时 <span className="font-mono text-muted">{selectedDate ?? '请选择K线日期'}</span></div>
                 {!hasMinuteCap ? (
                   <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
                     <Lock className="h-5 w-5 text-muted" />
@@ -271,7 +296,8 @@ export function Indices() {
                 ) : (
                   <>
                     {minute.isLoading && <div className="py-2 text-xs text-muted">分时加载中…</div>}
-                    {!minute.isLoading && minuteRows.length === 0 && (
+                    {minute.isError && <div role="alert" className="py-2 text-xs text-danger">指数分时加载失败 <button onClick={() => minute.refetch()}>重试</button></div>}
+                    {!minute.isLoading && !minute.isError && minuteRows.length === 0 && (
                       <div className="flex h-full items-center justify-center text-xs text-muted">
                         暂无分时数据
                       </div>
@@ -280,21 +306,25 @@ export function Indices() {
                       <EChartsIntraday
                         key={`${selectedSymbol}:${selectedDate}`}
                         data={minuteRows}
-                        height={620}
+                        height={500}
                         prevClose={prevClose}
                         date={selectedDate ?? undefined}
                         showLimitLines={false}
                         showAvgLine={false}
-                        onPriceHover={setLinkedPrice}
+                        onPriceHover={price => setHoverPrice({ context, price })}
                       />
                     )}
                   </>
                 )}
               </div>
             </div>
-          )}
         </main>
       </div>
+      {showRepair && canManage && <SettingsModal title="数据修正" onClose={() => setShowRepair(false)}>
+        <RepairDailyPanel scope="index" hasCap={hasDailyCap} hasMinuteCap={hasMinuteCap}
+          isRunning={isRunning} latestDates={{}}
+          onStart={id => { setJobId(id); setShowRepair(false) }} />
+      </SettingsModal>}
     </div>
   )
 }

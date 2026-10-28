@@ -991,18 +991,6 @@ def _resolve_minute_symbols(capset: CapabilitySet, repo=None) -> list[str]:
     return _resolve_universe(capset, repo)
 
 
-def _refresh_instruments_view(repo: KlineRepository) -> None:
-    """单独刷新 instruments 视图。"""
-    d = repo.store.data_dir.as_posix()
-    try:
-        repo.db.execute(
-            f"CREATE OR REPLACE VIEW instruments AS "
-            f"SELECT * FROM read_parquet('{d}/instruments/**/*.parquet', union_by_name=true)"
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.warning("refresh instruments view failed: %s", e)
-
-
 def _push_phase_change_alert(data_dir) -> None:
     """情绪周期阶段切换 → 推送监控通知(SSE toast + 监控中心)。
 
