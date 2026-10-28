@@ -393,6 +393,13 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
     local = period in LOCAL_DERIVED_PERIODS
     if not local:
         provider, source = _period_provider(period)
+    gap_status = {"period": period, "source": source, "remaining": 0}
+    listing_dates = {}
+    if period == "1m":
+        from app.price_limits import parse_listing_date
+        instruments = repo.get_instruments()
+        if "listing_date" in instruments.columns:
+            listing_dates = {symbol: parse_listing_date(value) for symbol, value in instruments.select("symbol", "listing_date").iter_rows()}
     rows = 0
     # 有界日期段和标的块; 历史分钟数据不一次性加载全市场多年数据。
     # 1分K覆盖一个闭区间自然月, 避免TDX每个5天窗口从最新页重复回扫。
@@ -415,6 +422,16 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
     while cursor <= end.date():
         emit(f"{LABELS[period]}: 准备{'本地计算' if local else '获取'} {cursor}")
         segment_end = min(end.date(), cursor + timedelta(days=days_per_chunk - 1))
+        if period == "1m":
+            from app.market_time import published_trading_day
+            if all(
+                published_trading_day(cursor + timedelta(days=offset)) is False
+                for offset in range((segment_end - cursor).days + 1)
+            ):
+                completed_batches += batches_per_segment
+                emit(f"{LABELS[period]}: {cursor}~{segment_end} 为已确认休市区间, 无需获取")
+                cursor = segment_end + timedelta(days=1)
+                continue
         lo = max(start, datetime.combine(cursor, time.min))
         hi = min(end, datetime.combine(segment_end, time.max))
         if local:
@@ -428,7 +445,7 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
                     day += timedelta(days=1)
                 frame = pl.DataFrame()
                 if paths:
-                    frame = pl.scan_parquet(paths).filter(pl.col("datetime").is_between(lo, hi))
+                    frame = scan_parquet_compat(paths).filter(pl.col("datetime").is_between(lo, hi))
                     frame = frame.filter(pl.col("symbol").is_in(symbols))
                     frame = aggregate_minute_period(frame.collect(), period)
             if not frame.is_empty():
@@ -446,6 +463,23 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
                 else:
                     with pause_quotes_for_write():
                         rows += persist_period(repo, period, frame)
+                if period == "1m":
+                    from app.services import kline_gaps
+                    now = cn_now().replace(tzinfo=None, second=0, microsecond=0)
+                    try:
+                        days = kline_gaps._trading_days(lo.date(), hi.date(), local_only=True)
+                    except ValueError as exc:
+                        gap_status["gap_check_warning"] = str(exc)
+                    else:
+                        batch = symbols[offset:offset + 100]
+                        for day in days:
+                            expected = kline_gaps._expected(batch, listing_dates, period, day, day, now).filter(
+                                pl.col("datetime").is_between(lo, hi),
+                            )
+                            current = kline_gaps._keys(repo, period, day, batch)
+                            unfilled = expected.join(current, on=["symbol", "datetime"], how="anti")
+                            gap_status["remaining"] += unfilled.height
+                            kline_gaps.record_unfilled(repo, gap_status, unfilled, reason="source_missing_or_fetch_failed")
                 completed_batches += 1
                 emit(f"{LABELS[period]}: 已完成 {completed_batches}/{total_batches} 批, 已写入{rows}行")
             if not symbols:
@@ -454,6 +488,10 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
         cursor = segment_end + timedelta(days=1)
     result = {"period": period, "rows": rows, "universe_size": len(symbols), "source": source, "start": start.isoformat(), "end": end.isoformat(),
               "price_basis": ("raw" if raw_minute else "legacy_1m") if period == "1m" or local else "raw"}
+    if period == "1m":
+        result.update(gap_status)
+        if result["remaining"]:
+            result["warning"] = f"已写入{rows}行, 跳过仍缺少的{result['remaining']}行, 详见缺口报告"
     if local and rows == 0:
         result["error"] = (
             "选定区间没有可计算的本地日K, 请先补齐日K后重试"

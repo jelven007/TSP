@@ -229,7 +229,7 @@ impl RustdxClient {
         // A file contains many bounded chunk requests. Its total budget must
         // not be the timeout of one TCP request.
         let timeout = if failover {
-            config.timeout
+            rustdx_complete::tcp::network_policy().request_timeout
         } else {
             rustdx_complete::tcp::network_policy().batch_timeout
         };
@@ -313,7 +313,19 @@ impl RustdxClient {
             let client = guard
                 .as_mut()
                 .ok_or("rustdx client initialization failed")?;
-            match protocol_call(|| operation(client, index)) {
+            match protocol_call(|| {
+                // Bare callers perform one business request. Give admission
+                // its own budget and start the original timeout at transport.
+                // Explicit pagination/file scopes retain their own deadlines.
+                let transport = task
+                    .as_ref()
+                    .filter(|_| failover)
+                    .map(|_| OperationContext::new(config.timeout, None))
+                    .transpose()
+                    .map_err(io_error)?;
+                let _transport_scope = transport.as_ref().map(OperationContext::enter);
+                operation(client, index)
+            }) {
                 Ok(value) => return Ok(value),
                 Err(error) => {
                     if error.starts_with("[SourceChanged]") {
@@ -585,6 +597,14 @@ impl RustdxClient {
             self.next_slot()
         };
         py.allow_threads(|| {
+            // Queueing, pool qualification and bounded reconnects need their
+            // own budget; the transport deadline starts only after admission.
+            let task = OperationContext::new(
+                rustdx_complete::tcp::network_policy().request_timeout,
+                None,
+            )
+            .map_err(runtime_error)?;
+            let _scope = task.enter();
             let mut requests = 0;
             let mut source = None;
             let result = self.with_client_at(
@@ -593,6 +613,8 @@ impl RustdxClient {
                 if expected.as_ref().is_some_and(|value| *value != observed) {
                     return Err("[SourceChanged] K线来源变化，须从头重采".into());
                 }
+                let transport = OperationContext::new(self.config.timeout, None).map_err(io_error)?;
+                let _transport_scope = transport.enter();
                 requests += 1;
                 if category == 8 {
                     self.minute_requests.fetch_add(1, Ordering::Relaxed);

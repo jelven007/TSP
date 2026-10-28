@@ -94,7 +94,7 @@ def run_repair_daily(
                     datetime.combine(range_end, time.max), symbols=list(snapshot.symbols),
                     on_progress=on_progress,
                 )
-                if result["rows"] == 0:
+                if result["rows"] == 0 and not result.get("warning"):
                     result["error"] = (
                         "选定区间没有可计算的本地日K, 请先修正日K后重试"
                         if period in kline_periods.LOCAL_DAILY_PERIODS

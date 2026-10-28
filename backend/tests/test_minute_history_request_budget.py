@@ -41,7 +41,10 @@ def test_month_history_reads_recent_pages_once_and_preserves_all_bars(tmp_path, 
             return latest_first[start:start + offset]
 
     provider = RustdxProvider(client_factory=Client)
-    repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    repo = SimpleNamespace(
+        store=SimpleNamespace(data_dir=tmp_path),
+        get_instruments=lambda: pl.DataFrame({"symbol": ["600000.SH"]}),
+    )
     monkeypatch.setattr(kline_periods, "_period_provider", lambda _: (provider, "rustdx"))
     monkeypatch.setattr(kline_periods, "refresh_period", lambda *_: None)
     progress = []
@@ -63,7 +66,10 @@ def test_month_history_reads_recent_pages_once_and_preserves_all_bars(tmp_path, 
 
 
 def test_long_history_keeps_bounded_windows_symbol_batches_and_exact_boundaries(tmp_path, monkeypatch):
-    repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path))
+    repo = SimpleNamespace(
+        store=SimpleNamespace(data_dir=tmp_path),
+        get_instruments=lambda: pl.DataFrame(schema={"symbol": pl.String}),
+    )
     monkeypatch.setattr(kline_periods, "_period_provider", lambda _: (object(), "test"))
     monkeypatch.setattr(kline_periods, "persist_period", lambda *_: 0)
     windows = []

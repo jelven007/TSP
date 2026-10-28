@@ -1284,7 +1284,7 @@ async def sync_period_job(request: Request, body: dict):
             if "error" in result:
                 job_store.fail(job_id, result["error"])
             else:
-                progress("done", 100, f"已写入 {result['rows']} 行", stage_pct=100)
+                progress("done", 100, result.get("warning", f"已写入 {result['rows']} 行"), stage_pct=100)
                 job_store.succeed(job_id, result)
         except JobCancelledError:
             job_store.cancelled(job_id)
@@ -1697,7 +1697,7 @@ async def _start_kline_range_job(request: Request, body: dict):
                 if "error" in result:
                     job_store.fail(job_id, result["error"])
                 else:
-                    message = (
+                    message = result.get("warning") or (
                         result.get("message", f"遗漏数据获取完成, 已补{result.get('rows', 0)}行")
                         if mode == "missing" else "全量数据获取完成"
                     )
