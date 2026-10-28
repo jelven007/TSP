@@ -19,6 +19,24 @@ LABELS = {"1d": "日K", "1w": "周K", "1mo": "月K"}
 VALUES = ("open", "high", "low", "close", "volume", "amount")
 
 
+def available_range(repo, period: str) -> tuple[date | None, date | None]:
+    """返回本地指定周期实际存在的分区范围。"""
+    if period not in TABLES:
+        raise ValueError("不支持的指数K线周期")
+    table = "kline_index_enriched" if period == "1d" else TABLES[period]
+    days = []
+    for partition in (repo.store.data_dir / table).glob("date=*"):
+        if not partition.is_dir() or not any(partition.glob("*.parquet")):
+            continue
+        try:
+            days.append(date.fromisoformat(partition.name[5:]))
+        except ValueError:
+            continue
+    if not days and period != "1d":
+        return available_range(repo, "1d")
+    return (min(days), max(days)) if days else (None, None)
+
+
 def bucket(day: date, period: str) -> date:
     if period not in TABLES:
         raise ValueError("不支持的指数K线周期")
