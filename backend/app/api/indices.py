@@ -55,9 +55,10 @@ def get_index_kline(
     start_date: date | None = None,
     end_date: date | None = None,
 ):
-    from app.services.index_kline import bucket
+    from app.services.index_kline import available_range, bucket
     end = end_date or cn_today()
-    start = start_date or end - timedelta(days={"1d": 180, "1w": 1095, "1mo": 3650}[period])
+    available_start = available_range(request.app.state.repo, period)[0] if start_date is None else None
+    start = start_date or available_start or end - timedelta(days={"1d": 180, "1w": 1095, "1mo": 3650}[period])
     if start > end:
         raise HTTPException(400, "结束日期不能早于起始日期")
     repo = request.app.state.repo
@@ -67,10 +68,12 @@ def get_index_kline(
         from app.api.kline import _maybe_inject_live_candle
         rows = _maybe_inject_live_candle(request, symbol, rows, "index")
         rows = [row for row in rows if start.isoformat() <= str(row["date"])[:10] <= end.isoformat()]
+    actual_start = str(rows[0]["date"])[:10] if rows else None
     return {
         "symbol": symbol, "name": info.get("name"), "index_info": info,
         "period": period, "rows": rows, "source": "local" if rows else "none",
         "start_date": bucket(start, period).isoformat(), "end_date": end.isoformat(),
+        "available_start_date": actual_start,
     }
 
 

@@ -1,0 +1,11 @@
+{
+  "peaks": {
+    "business": 24,
+    "probe": 3,
+    "tcp": 27,
+    "endpoint": 9
+  },
+  "closed_business": 0,
+  "closed_probe": 0,
+  "observation": "unique local/remote TCP address pairs; repeated FDs deduplicated"
+}

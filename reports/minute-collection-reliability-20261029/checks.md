@@ -1,8 +1,24 @@
 # 分钟采集最终门禁记录
 
-日期：2026-10-29。基线：v0.4.37 / f4d8c11b。
+日期：2026-10-29。修复对照基线：v0.4.37 / f4d8c11b。
 证据以[核验说明](verification.md)和[两端基准JSON](benchmarks.json)为准。
-本轮工作区未提交；Linux候选用于隔离验收，常驻服务未升级。
+PR #34已提交、推送并归并；成功main CI固定v0.4.38 / 5b273174。
+正式双架构产物、本地及ECS升级、实际任务和重启验收已通过，Release已发布。
+下列为修复阶段的命令记录，Linux候选用于隔离验收；正式交付证据见
+[deployment.md](deployment.md)、[deployment.json](deployment.json)及[发布门禁](release-gate.md)。
+
+## 正式发布验证
+
+| 命令/验证 | 实际结果 |
+| --- | --- |
+| main CI40787761848与Docker40788719301 | success；自动版本提交5b273174，后端4,803 passed/9 skipped，前端453项通过 |
+| 两架构OCI、正式源码、wheel及Runtime/Compute核验 | 固定提交、冻结锁和完整清单通过；无网依赖导入通过 |
+| 两端停写备份与临时库恢复 | control20/business28表逐表一致，schema v6/v6，行情/config全哈希通过 |
+| HTTP登录、六功能、七指数及设置对账 | 两端启动与完整重启后通过 |
+| 常驻分钟任务与重启后持久结果/CSV | 两端闭市零请求；10月28日均succeeded、remaining=6，CSV计数及SHA256一致 |
+| ECS健康timer自然触发 | 08:32:18重启后08:33:15自然成功，退出码0；D-Bus微秒验证通过 |
+| latest及正式Release回读 | latest index及两个平台一致；v0.4.38非draft/非prerelease |
+| 仓库、文档、版本和完整diff检查 | 全部exit 0；最终结果及日志摘要见deployment.json |
 
 ## 实际执行
 

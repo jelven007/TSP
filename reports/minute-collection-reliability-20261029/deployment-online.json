@@ -1,0 +1,245 @@
+{
+  "version": "0.4.38",
+  "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "origin": "https://shanao.asia",
+  "checked_at": "2026-10-29T00:33:29.774940+00:00",
+  "ci": {
+    "main": 40787761848,
+    "docker": "https://github.com/jelven007/TSP/actions/runs/40788719301"
+  },
+  "artifacts": {
+    "digest": "sha256:80f329fda646cc128b4957be7c2d93bfa0c721057971a0f1aa3a185d8ee6333f",
+    "runtime": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+    "compute": "sha256:a517c7d6abe6fc332cb394a29e59853f0ece9d805cbfe4d12b58fcf43cb44845"
+  },
+  "backup": {
+    "path": "/opt/tsp-full/backups/pre-v0.4.38-5b273174f2e2",
+    "restore_verified": true,
+    "market_snapshot_verified": true,
+    "previous_images_saved": true,
+    "restored_table_counts": {
+      "control": 20,
+      "business": 28
+    }
+  },
+  "promotion_at": "2026-10-29T00:29:50.953755+00:00",
+  "restart_at": "2026-10-29T00:32:18.227482+00:00",
+  "containers": [
+    {
+      "role": "platform",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "gateway",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "api",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "research",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "realtime",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "notifications",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "scheduled",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    }
+  ],
+  "postgres_health": "healthy",
+  "schemas": {
+    "control": 6,
+    "business": 6
+  },
+  "ready_functions": 6,
+  "administrator_login_passed": true,
+  "configuration_preserved": true,
+  "user_preferences_preserved": true,
+  "watchlist_count": 16,
+  "watchlist_group_count": 2,
+  "index_catalog_count": 7,
+  "index_samples": {
+    "1d": {
+      "rows": 122,
+      "source": "local"
+    },
+    "1w": {
+      "rows": 27,
+      "source": "local"
+    },
+    "1mo": {
+      "rows": 7,
+      "source": "local"
+    }
+  },
+  "page_status": {
+    "/data": 200,
+    "/indices": 200,
+    "/settings": 200
+  },
+  "market_rows_preserved": {
+    "daily": {
+      "before_rows": 6941920,
+      "after_rows": 6941920
+    },
+    "enriched": {
+      "before_rows": 6941920,
+      "after_rows": 6941920
+    },
+    "minute": {
+      "before_rows": 118448923,
+      "after_rows": 118451238
+    },
+    "5m": {
+      "before_rows": 23686992,
+      "after_rows": 23686992
+    },
+    "10m": {
+      "before_rows": 0,
+      "after_rows": 0
+    },
+    "15m": {
+      "before_rows": 0,
+      "after_rows": 0
+    },
+    "weekly": {
+      "before_rows": 1469646,
+      "after_rows": 1469646
+    },
+    "index_daily": {
+      "before_rows": 798762,
+      "after_rows": 798762
+    }
+  },
+  "actual_collection_jobs": [
+    {
+      "id": "ed67a0eeb1",
+      "request": {
+        "period": "1m",
+        "mode": "missing",
+        "start_date": "2026-10-01",
+        "end_date": "2026-10-07"
+      },
+      "status": "succeeded",
+      "finished_at": "2026-10-29T00:30:31.377221+00:00",
+      "seconds": 4.147744458998204,
+      "result": {
+        "period": "1m",
+        "mode": "missing",
+        "rows": 0,
+        "missing_before": 0,
+        "remaining": 0,
+        "requests": 0,
+        "universe_size": 5222,
+        "start": "2026-10-01",
+        "end": "2026-10-07",
+        "source": null,
+        "price_basis": "legacy_1m",
+        "message": "选定区间没有遗漏数据, 无需获取"
+      }
+    },
+    {
+      "id": "150e8ae25b",
+      "request": {
+        "period": "1m",
+        "mode": "missing",
+        "start_date": "2026-10-28",
+        "end_date": "2026-10-28"
+      },
+      "status": "succeeded",
+      "finished_at": "2026-10-29T00:31:13.021006+00:00",
+      "seconds": 41.17863358300383,
+      "result": {
+        "period": "1m",
+        "mode": "missing",
+        "rows": 2315,
+        "missing_before": 2321,
+        "remaining": 6,
+        "requests": 27,
+        "universe_size": 5222,
+        "start": "2026-10-28",
+        "end": "2026-10-28",
+        "source": "rustdx",
+        "price_basis": "legacy_1m",
+        "gap_report": "kline_gap_reports/ab0013dfc9294be287dc4545305b3218.csv",
+        "skipped_symbols": [
+          "002717.SZ",
+          "002827.SZ",
+          "301468.SZ",
+          "601326.SH",
+          "605258.SH",
+          "688496.SH"
+        ],
+        "warning": "已补2315行, 仍有6行未补齐; 数据源未返回部分记录(可能停牌、无数据或请求失败)"
+      }
+    }
+  ],
+  "terminal_jobs_preserved_after_restart": true,
+  "gap_files": [
+    {
+      "id": "ed67a0eeb1",
+      "remaining": 0,
+      "csv_required": false,
+      "passed": true
+    },
+    {
+      "id": "150e8ae25b",
+      "remaining": 6,
+      "csv_required": true,
+      "grouped_rows": 6,
+      "sha256": "f88f92a5ecf7e18c0b318f4b8828b2327cb6a28230e00330f0fd80079559f5f0",
+      "passed": true
+    }
+  ],
+  "natural_health_timer": {
+    "service": {
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Thu 2026-10-29 08:33:15 CST",
+      "ExecMainExitTimestamp": "Thu 2026-10-29 08:33:15 CST",
+      "ExecMainStartTimestampMonotonic": "579759351112"
+    },
+    "timer": {
+      "ActiveState": "active",
+      "LastTriggerUSec": "Thu 2026-10-29 08:33:15 CST",
+      "LastTriggerUSecMonotonic": 579759338710,
+      "LastTriggerUSecMonotonicDisplay": "6d 17h 2min 39.338710s",
+      "NextElapseUSecMonotonic": "6d 17h 3min 39.351204s"
+    },
+    "natural_trigger_verified": true
+  },
+  "previous_source": "/opt/tsp-full/source.pre-5b273174f2e2",
+  "scope": "Existing ECS upgrade to fixed v0.4.38; no schema or initialization reset",
+  "limitations": "Deployment acceptance does not certify all historical source coverage or a full-market one-second SLA",
+  "passed": true
+}

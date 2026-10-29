@@ -16,12 +16,9 @@ import { SettingsModal } from '@/components/data/SettingsModal'
 import { RepairDailyPanel } from '@/components/data/RepairDailyPanel'
 import { ActiveJobCard } from '@/components/data/ActiveJobCard'
 
-function defaultRange(period: IndexKlinePeriod = '1d') {
+function defaultRange() {
   const now = new Date()
-  const end = now.toISOString().slice(0, 10)
-  const s = new Date(now)
-  s.setMonth(s.getMonth() - (period === '1d' ? 6 : period === '1w' ? 36 : 120))
-  return { start: s.toISOString().slice(0, 10), end }
+  return { start: '', end: now.toISOString().slice(0, 10) }
 }
 
 function fmtPct(v: number | null | undefined) {
@@ -63,8 +60,8 @@ export function Indices() {
   const topRows = catalog.data?.rows ?? []
   const selectedSymbol = topRows.some(row => row.symbol === symbolParam) ? symbolParam : topRows[0]?.symbol ?? ''
   const context = `${selectedSymbol}:${period}:${range.start}:${range.end}`
-  const rangeError = !range.start || !range.end ? '请选择开始日期和结束日期'
-    : range.start > range.end ? '结束日期不能早于开始日期' : null
+  const rangeError = !range.end ? '请选择结束日期'
+    : range.start && range.start > range.end ? '结束日期不能早于开始日期' : null
 
   const selectIndex = (symbol: string) => {
     setSearchParams({ symbol })
@@ -83,6 +80,17 @@ export function Indices() {
     enabled: !!selectedSymbol && !rangeError,
     placeholderData: (prev) => prev,
   })
+  useEffect(() => {
+    if (
+      !range.start
+      && daily.data?.context === context
+      && daily.data.available_start_date
+    ) {
+      setRange(current => current.start
+        ? current
+        : { ...current, start: daily.data!.available_start_date! })
+    }
+  }, [context, daily.data, range.start])
   const dataMatches = daily.data?.context === context && daily.data.symbol === selectedSymbol && daily.data.period === period && !rangeError
   const sourceRows = useMemo(() => dataMatches ? daily.data?.rows ?? [] : [], [dataMatches, daily.data?.rows])
   const tradeDate = (label: string) => sourceRows.find(row => row.date === label)?.trade_date ?? label
@@ -243,7 +251,7 @@ export function Indices() {
                   <select aria-label="K线周期" value={period} onFocus={() => setView('kline')} onClick={() => setView('kline')}
                     onChange={event => {
                       const next = event.target.value as IndexKlinePeriod
-                      setPeriod(next); setRange(defaultRange(next)); setVisibleBars(60); setCurrentBars(60)
+                      setPeriod(next); setRange(defaultRange()); setVisibleBars(60); setCurrentBars(60)
                       setAvailableBars(0); setZoomResetKey(k => k + 1); setView('kline')
                     }} className="h-6 rounded border-0 bg-transparent outline-none">
                     {INDEX_KLINE_PERIODS.map(value => <option key={value} value={value} className="bg-surface">{KLINE_PERIOD_LABELS[value]}</option>)}

@@ -1,0 +1,134 @@
+{
+  "passed": true,
+  "production_version": "v0.4.38",
+  "isolated_pipeline_runs": [
+    {
+      "run": "pipeline-0",
+      "phase": "cold",
+      "minute_requests": 2275,
+      "expected_minute_requests": 2275,
+      "request_reduction_percent": 12.5,
+      "group_seconds": 50.587331375005306,
+      "actual_inflight_peak": 32,
+      "station_inflight_peaks": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "first_verified_symbol_seconds": 4.1853790000022855,
+      "conflicts": 45,
+      "direct_reference_symbols": 0,
+      "reused_source_symbols": 25,
+      "hashes": {
+        "minute": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "daily": "e9a1b574ec41747d9abeba72bbb337a4564474fb20f3141310b5a2231a06bda0"
+      }
+    },
+    {
+      "run": "pipeline-0",
+      "phase": "warm",
+      "minute_requests": 1690,
+      "expected_minute_requests": 1690,
+      "request_reduction_percent": 35.0,
+      "group_seconds": 61.16920516699611,
+      "actual_inflight_peak": 32,
+      "station_inflight_peaks": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "first_verified_symbol_seconds": 3.7453302499925485,
+      "conflicts": 47,
+      "direct_reference_symbols": 45,
+      "reused_source_symbols": 70,
+      "hashes": {
+        "minute": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "daily": "e9a1b574ec41747d9abeba72bbb337a4564474fb20f3141310b5a2231a06bda0"
+      }
+    },
+    {
+      "run": "pipeline-1",
+      "phase": "cold",
+      "minute_requests": 2275,
+      "expected_minute_requests": 2275,
+      "request_reduction_percent": 12.5,
+      "group_seconds": 58.18138412501139,
+      "actual_inflight_peak": 32,
+      "station_inflight_peaks": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "first_verified_symbol_seconds": 4.640558459010208,
+      "conflicts": 45,
+      "direct_reference_symbols": 0,
+      "reused_source_symbols": 25,
+      "hashes": {
+        "minute": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "daily": "e9a1b574ec41747d9abeba72bbb337a4564474fb20f3141310b5a2231a06bda0"
+      }
+    },
+    {
+      "run": "pipeline-1",
+      "phase": "warm",
+      "minute_requests": 1690,
+      "expected_minute_requests": 1690,
+      "request_reduction_percent": 35.0,
+      "group_seconds": 57.584416875004536,
+      "actual_inflight_peak": 32,
+      "station_inflight_peaks": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "first_verified_symbol_seconds": 5.454683791002026,
+      "conflicts": 46,
+      "direct_reference_symbols": 45,
+      "reused_source_symbols": 70,
+      "hashes": {
+        "minute": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "daily": "e9a1b574ec41747d9abeba72bbb337a4564474fb20f3141310b5a2231a06bda0"
+      }
+    }
+  ],
+  "current_serial_control": [
+    {
+      "phase": "cold",
+      "group_seconds": 94.17450525000459,
+      "reference_seconds": 68.80542395899829,
+      "minute_requests": 2600
+    },
+    {
+      "phase": "warm",
+      "group_seconds": 87.5937614160066,
+      "reference_seconds": 66.45503245800501,
+      "minute_requests": 2600
+    }
+  ],
+  "historical_serial": [
+    {
+      "phase": "cold",
+      "group_seconds": 53.94772362500953
+    },
+    {
+      "phase": "warm",
+      "group_seconds": 42.66589999999269
+    }
+  ],
+  "pipeline_tests": 17,
+  "provider_compatibility_tests": 141,
+  "reverse_failed_tests": 3,
+  "frozen_integrity_evidence_files_preserved": 29,
+  "native_tcp_gate_passed": true,
+  "patch_applied_and_compared": true,
+  "production_provider_changed": false,
+  "production_version_changed": false,
+  "committed": false,
+  "pushed": false,
+  "deployed": false,
+  "runtime_market_data_written": false
+}
