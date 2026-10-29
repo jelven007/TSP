@@ -193,6 +193,29 @@ it('retains compatible boards and resets page and jump draft when changing excha
   expect(api.stockCatalog).not.toHaveBeenCalledWith('', 'SZ', expect.any(Number), 50, '沪主板')
 })
 
+it('keeps manual pagination after the initial search debounce expires', async () => {
+  const base = state.rows[0]
+  state.rows = Array.from({ length: 105 }, (_, index) => ({
+    ...base, symbol: `${600000 + index}.SH`, code: String(600000 + index), name: `股票${index}`,
+  }))
+  vi.useFakeTimers()
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}><StockCatalogDialog onClose={() => {}} /></QueryClientProvider>))
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    host = document.querySelector<HTMLDivElement>('[role="dialog"]')!
+    const next = Array.from(host.querySelectorAll('button')).find(button => button.textContent === '下一页')!
+    await act(async () => next.click())
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(host.textContent).toContain('第 2 / 3 页')
+    const requests = vi.mocked(api.stockCatalog).mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(host.textContent).toContain('第 2 / 3 页')
+    expect(api.stockCatalog).toHaveBeenCalledTimes(requests)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
 it('jumps to a specified page, validates the range, and resets pagination on filters', async () => {
   const base = state.rows[0]
   state.rows = Array.from({ length: 105 }, (_, index) => ({

@@ -51,12 +51,12 @@ def _bridge(**overrides) -> SimpleNamespace:
         **{
             "MAX_CONNECTIONS": 8,
             "PROBE_CONNECTIONS": 1,
-            "__version__": "0.2.0",
+            "__version__": "0.3.0",
             "RUSTDX_VERSION": "2.0.4",
             "RUSTDX_SOURCE_REV": "c4c0273456874898aed50447fd900521d9ffd3b8",
             "RUSTDX_CORE_SHA256": CORE_SHA256,
             "RUSTDX_PATCH_SHA256": PATCH_SHA256,
-            "POOL_API_VERSION": 3,
+            "POOL_API_VERSION": 4,
             "RustdxClient": unexpected_connection,
             **overrides,
         }

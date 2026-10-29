@@ -36,10 +36,13 @@ struct State {
 #[derive(Debug)]
 struct Inner {
     mode: ProbeMode,
+    group: Option<super::ProbeGroup>,
     state: Mutex<State>,
     changed: Condvar,
     refresh: Mutex<()>,
     started: AtomicBool,
+    closed: AtomicBool,
+    cancellation: Mutex<Option<crate::operation::OperationContext>>,
 }
 
 /// 可由集成项目独立创建或共享的初始池和当日有效池。
@@ -87,6 +90,30 @@ impl IpPool {
         Ok(Self::from_nodes_with_mode(addresses, mode))
     }
 
+    pub fn with_probe_group(
+        addresses: Vec<SocketAddr>,
+        mode: ProbeMode,
+        group: super::ProbeGroup,
+    ) -> io::Result<Self> {
+        validate(&addresses)?;
+        Ok(Self::from_nodes_scoped(addresses, mode, Some(group)))
+    }
+
+    /// Stop this pool's pending and daily probes. A stopped pool cannot revive.
+    pub fn stop(&self) {
+        self.inner.closed.store(true, Ordering::Release);
+        if let Some(context) = self
+            .inner
+            .cancellation
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
+            context.cancel();
+        }
+        self.inner.changed.notify_all();
+    }
+
     pub fn probe_mode(&self) -> ProbeMode {
         self.inner.mode
     }
@@ -96,9 +123,18 @@ impl IpPool {
     }
 
     fn from_nodes_with_mode(initial: Vec<SocketAddr>, mode: ProbeMode) -> Self {
+        Self::from_nodes_scoped(initial, mode, None)
+    }
+
+    fn from_nodes_scoped(
+        initial: Vec<SocketAddr>,
+        mode: ProbeMode,
+        group: Option<super::ProbeGroup>,
+    ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 mode,
+                group,
                 state: Mutex::new(State {
                     initial,
                     daily: None,
@@ -107,6 +143,8 @@ impl IpPool {
                 changed: Condvar::new(),
                 refresh: Mutex::new(()),
                 started: AtomicBool::new(false),
+                closed: AtomicBool::new(false),
+                cancellation: Mutex::new(None),
             }),
         }
     }
@@ -179,6 +217,9 @@ impl IpPool {
 
     /// 读取当前北京时间日期的快照；尚未测速或只有昨天的结果时返回None。
     pub fn snapshot(&self) -> Option<DailyIpPool> {
+        if self.inner.closed.load(Ordering::Acquire) {
+            return None;
+        }
         let today = beijing_now().date_naive();
         self.state()
             .daily
@@ -206,7 +247,10 @@ impl IpPool {
     }
 
     pub(crate) fn probe_budget(&self) -> io::Result<Duration> {
-        let batches = self.list().len().div_ceil(super::coordinator::workers());
+        let batches = self
+            .list()
+            .len()
+            .div_ceil(super::coordinator::workers_for(self.inner.group));
         let phases = batches
             .checked_mul(DAILY_PROBE_ROUNDS * 3)
             .and_then(|phases| u32::try_from(phases).ok())
@@ -225,6 +269,21 @@ impl IpPool {
             Some(deadline) => crate::tcp::governance::lock_until(&self.inner.refresh, deadline)?,
             None => self.inner.refresh.lock().unwrap_or_else(|e| e.into_inner()),
         };
+        let context = crate::operation::OperationContext::new(
+            self.probe_budget()?.saturating_add(Duration::from_secs(5)),
+            None,
+        )?;
+        {
+            let mut cancellation = crate::tcp::governance::lock_until(
+                &self.inner.cancellation,
+                deadline.unwrap_or(Instant::now() + Duration::from_secs(5)),
+            )?;
+            if self.inner.closed.load(Ordering::Acquire) {
+                return Err(io::Error::new(io::ErrorKind::Interrupted, "IP池已关闭"));
+            }
+            *cancellation = Some(context.clone());
+        }
+        let _scope = context.enter();
         let now = beijing_now();
         let initial = {
             let state = self.state();
@@ -239,9 +298,11 @@ impl IpPool {
             DAILY_PROBE_TIMEOUT,
             deadline,
             self.inner.mode,
+            self.inner.group,
         );
         match results {
             Ok(results) => {
+                crate::operation::check()?;
                 if let Some(deadline) = deadline {
                     crate::tcp::governance::remaining(deadline)?;
                 }
@@ -286,6 +347,9 @@ impl IpPool {
     /// 启动一个进程内后台线程，每天北京时间09:00刷新；重复调用不会重复启动。
     /// 无当日结果时立即补测。最后一个池引用释放后，线程至多60秒内退出。
     pub fn start_daily_refresh(&self) -> io::Result<()> {
+        if self.inner.closed.load(Ordering::Acquire) {
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "IP池已关闭"));
+        }
         if self.inner.started.swap(true, Ordering::AcqRel) {
             return Ok(());
         }
@@ -295,7 +359,13 @@ impl IpPool {
             .spawn(move || {
                 while let Some(inner) = weak.upgrade() {
                     let pool = Self { inner };
+                    if pool.inner.closed.load(Ordering::Acquire) {
+                        break;
+                    }
                     if let Err(error) = pool.refresh_inner(false, None) {
+                        if pool.inner.closed.load(Ordering::Acquire) {
+                            break;
+                        }
                         log::warn!("当日IP池刷新失败: {error}");
                         let state = pool.state();
                         let _wait = pool
@@ -373,7 +443,8 @@ impl IpPool {
 
     pub(crate) fn contains_current(&self, address: SocketAddr) -> bool {
         let state = self.state();
-        !needs_refresh(&state, beijing_now())
+        !self.inner.closed.load(Ordering::Acquire)
+            && !needs_refresh(&state, beijing_now())
             && state
                 .daily
                 .as_ref()

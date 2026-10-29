@@ -1,0 +1,382 @@
+{
+  "started": "2026-10-30T00:45:00.126315",
+  "finished": "2026-10-30T00:46:10.170819",
+  "qualification": {
+    "115.238.56.198:7709": {
+      "seconds": 0.9020689169992693,
+      "snapshot": {
+        "date": "2026-10-30",
+        "tested_at": "2026-10-30T00:45:00.126460+08:00",
+        "completed_at": "2026-10-30T00:45:01.028454+08:00",
+        "results": [
+          {
+            "address": "115.238.56.198:7709",
+            "rounds": [
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 0,
+                  "nanos": 74535750
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 80719291
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 81343750
+                },
+                "elapsed": {
+                  "secs": 0,
+                  "nanos": 236668208
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              },
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 0,
+                  "nanos": 91439000
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 102740333
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 111363875
+                },
+                "elapsed": {
+                  "secs": 0,
+                  "nanos": 305750208
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              },
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 0,
+                  "nanos": 115230625
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 124175000
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 120011292
+                },
+                "elapsed": {
+                  "secs": 0,
+                  "nanos": 359506667
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              }
+            ]
+          }
+        ],
+        "valid_nodes": [
+          "115.238.56.198:7709"
+        ]
+      },
+      "quote_rows": 1
+    },
+    "117.34.114.13:7709": {
+      "seconds": 2.5325173330056714,
+      "snapshot": {
+        "date": "2026-10-30",
+        "tested_at": "2026-10-30T00:45:00.130327+08:00",
+        "completed_at": "2026-10-30T00:45:02.662746+08:00",
+        "results": [
+          {
+            "address": "117.34.114.13:7709",
+            "rounds": [
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 1,
+                  "nanos": 565379458
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 130276416
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 127803000
+                },
+                "elapsed": {
+                  "secs": 1,
+                  "nanos": 823551791
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              },
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 0,
+                  "nanos": 449211334
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 37654166
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 42227708
+                },
+                "elapsed": {
+                  "secs": 0,
+                  "nanos": 529206167
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              },
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 0,
+                  "nanos": 45768000
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 60972750
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 72754792
+                },
+                "elapsed": {
+                  "secs": 0,
+                  "nanos": 179574000
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              }
+            ]
+          }
+        ],
+        "valid_nodes": [
+          "117.34.114.13:7709"
+        ]
+      },
+      "quote_rows": 1
+    },
+    "180.153.18.170:7709": {
+      "seconds": 0.8751225419982802,
+      "snapshot": {
+        "date": "2026-10-30",
+        "tested_at": "2026-10-30T00:45:00.132152+08:00",
+        "completed_at": "2026-10-30T00:45:01.007171+08:00",
+        "results": [
+          {
+            "address": "180.153.18.170:7709",
+            "rounds": [
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 0,
+                  "nanos": 71396375
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 80974000
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 82691333
+                },
+                "elapsed": {
+                  "secs": 0,
+                  "nanos": 235111875
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              },
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 0,
+                  "nanos": 109976334
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 101271834
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 106519750
+                },
+                "elapsed": {
+                  "secs": 0,
+                  "nanos": 317876834
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              },
+              {
+                "mode": "SecurityCount",
+                "tcp": {
+                  "secs": 0,
+                  "nanos": 103196666
+                },
+                "handshake": {
+                  "secs": 0,
+                  "nanos": 109186250
+                },
+                "heartbeat": {
+                  "secs": 0,
+                  "nanos": 109451458
+                },
+                "elapsed": {
+                  "secs": 0,
+                  "nanos": 321918833
+                },
+                "security_count": 24507,
+                "heartbeat_ack": null,
+                "failure": null
+              }
+            ]
+          }
+        ],
+        "valid_nodes": [
+          "180.153.18.170:7709"
+        ]
+      },
+      "quote_rows": 1
+    }
+  },
+  "closed_window_comparisons": [
+    {
+      "symbol": "000001.SZ",
+      "frequency": 8,
+      "nodes": {
+        "115.238.56.198:7709": {
+          "keys": 240,
+          "sha256": "b78e55075ece95847bdd24fd50d7d91aace915bc4edecb65866c8786204d0beb",
+          "requests": 1,
+          "seconds": 2.737770374995307
+        },
+        "117.34.114.13:7709": {
+          "keys": 240,
+          "sha256": "b78e55075ece95847bdd24fd50d7d91aace915bc4edecb65866c8786204d0beb",
+          "requests": 1,
+          "seconds": 1.5908910410071258
+        },
+        "180.153.18.170:7709": {
+          "keys": 240,
+          "sha256": "b78e55075ece95847bdd24fd50d7d91aace915bc4edecb65866c8786204d0beb",
+          "requests": 1,
+          "seconds": 1.8367978750029579
+        }
+      },
+      "complete_reference_comparison": {
+        "115.238.56.198:7709": true,
+        "180.153.18.170:7709": true
+      }
+    },
+    {
+      "symbol": "000001.SZ",
+      "frequency": 9,
+      "nodes": {
+        "115.238.56.198:7709": {
+          "keys": 15,
+          "sha256": "fd6eac8076f54ec6eb17bfc13c7cf8c7450d83948e9ea0bce9315ec500779183",
+          "requests": 1,
+          "seconds": 2.9602957919996697
+        },
+        "117.34.114.13:7709": {
+          "keys": 15,
+          "sha256": "fd6eac8076f54ec6eb17bfc13c7cf8c7450d83948e9ea0bce9315ec500779183",
+          "requests": 1,
+          "seconds": 0.3141892500134418
+        },
+        "180.153.18.170:7709": {
+          "keys": 15,
+          "sha256": "fd6eac8076f54ec6eb17bfc13c7cf8c7450d83948e9ea0bce9315ec500779183",
+          "requests": 1,
+          "seconds": 0.2709873329877155
+        }
+      },
+      "complete_reference_comparison": {
+        "115.238.56.198:7709": true,
+        "180.153.18.170:7709": true
+      }
+    },
+    {
+      "symbol": "600000.SH",
+      "frequency": 8,
+      "nodes": {
+        "115.238.56.198:7709": {
+          "keys": 240,
+          "sha256": "faa75467b677d35e20bab3749ec78772c24e855aeb0161a6770a172c8b644319",
+          "requests": 1,
+          "seconds": 0.21522920799907297
+        },
+        "117.34.114.13:7709": {
+          "keys": 240,
+          "sha256": "faa75467b677d35e20bab3749ec78772c24e855aeb0161a6770a172c8b644319",
+          "requests": 1,
+          "seconds": 0.11046650000207592
+        },
+        "180.153.18.170:7709": {
+          "keys": 240,
+          "sha256": "faa75467b677d35e20bab3749ec78772c24e855aeb0161a6770a172c8b644319",
+          "requests": 1,
+          "seconds": 0.1890433339867741
+        }
+      },
+      "complete_reference_comparison": {
+        "115.238.56.198:7709": true,
+        "180.153.18.170:7709": true
+      }
+    },
+    {
+      "symbol": "600000.SH",
+      "frequency": 9,
+      "nodes": {
+        "115.238.56.198:7709": {
+          "keys": 15,
+          "sha256": "64195f3de6aa39f01a0269c5e9f8d34446dcbb574778caa79a8e6c33d7794cc3",
+          "requests": 1,
+          "seconds": 0.0480944580049254
+        },
+        "117.34.114.13:7709": {
+          "keys": 15,
+          "sha256": "64195f3de6aa39f01a0269c5e9f8d34446dcbb574778caa79a8e6c33d7794cc3",
+          "requests": 1,
+          "seconds": 0.10859916699700989
+        },
+        "180.153.18.170:7709": {
+          "keys": 15,
+          "sha256": "64195f3de6aa39f01a0269c5e9f8d34446dcbb574778caa79a8e6c33d7794cc3",
+          "requests": 1,
+          "seconds": 0.4826098329940578
+        }
+      },
+      "complete_reference_comparison": {
+        "115.238.56.198:7709": true,
+        "180.153.18.170:7709": true
+      }
+    }
+  ],
+  "runtime_validation": {
+    "windows": 2,
+    "cache_hits": 0,
+    "conflicts": 0,
+    "reference_requests": 2,
+    "reference_seconds": 2.286541291992762
+  }
+}

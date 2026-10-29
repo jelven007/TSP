@@ -179,7 +179,7 @@ pub(crate) fn lock_until<T>(mutex: &Mutex<T>, deadline: Instant) -> io::Result<M
 }
 
 impl Governor {
-    fn new(policy: NetworkPolicy) -> Self {
+    pub(crate) fn new(policy: NetworkPolicy) -> Self {
         Self {
             policy,
             state: Mutex::new(State::default()),

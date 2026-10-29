@@ -35,9 +35,10 @@ export function StockCatalogDialog({ onClose }: { onClose: () => void }) {
   const [deleting, setDeleting] = useState<StockCatalogRow | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
+    if (search.trim() === query) return
     const timer = setTimeout(() => { setQuery(search.trim()); setPage(1); setPageInput('') }, 250)
     return () => clearTimeout(timer)
-  }, [search])
+  }, [search, query])
   const rows = useQuery({
     queryKey: QK.stockCatalog(query, exchange, page, board),
     queryFn: () => api.stockCatalog(query, exchange, page, 50, board),

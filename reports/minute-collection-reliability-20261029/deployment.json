@@ -1,0 +1,799 @@
+{
+  "checked_at": "2026-10-29T00:37:50.565691+00:00",
+  "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "version": "0.4.38",
+  "pull_request": "https://github.com/jelven007/TSP/pull/34",
+  "release": "https://github.com/jelven007/TSP/releases/tag/v0.4.38",
+  "main_ci": "https://github.com/jelven007/TSP/actions/runs/40787761848",
+  "docker_ci": "https://github.com/jelven007/TSP/actions/runs/40788719301",
+  "registry": {
+    "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+    "version": "0.4.38",
+    "digest": "sha256:80f329fda646cc128b4957be7c2d93bfa0c721057971a0f1aa3a185d8ee6333f",
+    "platforms": {
+      "amd64": {
+        "digest": "sha256:078c51370723f9422ab8d13655b2fc55391d1a3b7894b7e99e95d8aa304443d7",
+        "config_digest": "sha256:e5370bc5c0dea765ad9d5ae3818401de63c29dd716ec75efca51e2a9a12c95bf",
+        "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+        "oci_version": "5b273174f2e2a8ac539fcea363fa02315a61ebe9"
+      },
+      "arm64": {
+        "digest": "sha256:7d555bc475d3f79bde0bea3c8bc5db067b45ef99a917c74685ffcb14f50f83cd",
+        "config_digest": "sha256:676b0da05d2e28427e663c6c481761011f12da535161b8c8db172855049d8679",
+        "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+        "oci_version": "5b273174f2e2a8ac539fcea363fa02315a61ebe9"
+      }
+    },
+    "latest_digest": "sha256:80f329fda646cc128b4957be7c2d93bfa0c721057971a0f1aa3a185d8ee6333f",
+    "latest_matches": true,
+    "latest_platforms_match": true,
+    "passed": true
+  },
+  "native_wheel_sha256": "cb140a0ca9d8df3fda1fdd5d5ef2f894c6bbc9feddc9bd563b8af838b000fec4",
+  "source_verification": {
+    "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+    "source_files_verified": 1930,
+    "source_archive_sha256": "2bcb9498a9ea8048ac4dc5ec7189862db076872348aff83ca90849d00f523272",
+    "clean_source_content_matches_git": true,
+    "passed": true
+  },
+  "environments": {
+    "local": {
+      "version": "0.4.38",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "origin": "http://127.0.0.1:3021",
+      "runtime_image": "sha256:5a80bd71cbd90da4a8eaeb7343728939910c5991e0427ab8c688a7ee57576736",
+      "compute_image": "sha256:25acd538cfe0d3bd9496b85f33e5baad941a0aa8960ba6f1ffd6fcdc814a4129",
+      "backup_path": "/Users/bytedance/.cache/tsp-dev/TSPP/backups/minute-collection-release-20261029/local-pre-5b273174f2e2",
+      "source_directory": "/Users/bytedance/.local/share/tsp-dev/TSPP/releases/v0.4.38-5b273174f2e2",
+      "database_restore_table_counts": {
+        "control": 20,
+        "business": 28
+      },
+      "administrator_login_passed": true,
+      "ready_functions": 6,
+      "full_restart_verified": true,
+      "user_preferences_preserved": true,
+      "secrets_preserved": true,
+      "watchlist_and_groups_preserved": true,
+      "business_settings_preserved": true,
+      "market_rows_preserved": {
+        "daily": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "enriched": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "minute": {
+          "before_rows": 72373518,
+          "after_rows": 72674988
+        },
+        "5m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 1469646,
+          "after_rows": 1469646
+        },
+        "index_daily": {
+          "before_rows": 143564,
+          "after_rows": 143564
+        }
+      },
+      "sampled_minute_collection": {
+        "version": "0.4.38",
+        "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+        "scope": "real Provider and durable JobStore on isolated 100-symbol sample; no production writes",
+        "symbols": [
+          "000001.SZ",
+          "000151.SZ",
+          "000524.SZ",
+          "000597.SZ",
+          "000686.SZ",
+          "000767.SZ",
+          "000856.SZ",
+          "000931.SZ",
+          "001210.SZ",
+          "001301.SZ",
+          "001400.SZ",
+          "002050.SZ",
+          "002106.SZ",
+          "002163.SZ",
+          "002215.SZ",
+          "002272.SZ",
+          "002328.SZ",
+          "002384.SZ",
+          "002440.SZ",
+          "002498.SZ",
+          "002557.SZ",
+          "002612.SZ",
+          "002668.SZ",
+          "002728.SZ",
+          "002791.SZ",
+          "002850.SZ",
+          "002907.SZ",
+          "002966.SZ",
+          "003021.SZ",
+          "300035.SZ",
+          "300092.SZ",
+          "300150.SZ",
+          "300206.SZ",
+          "300261.SZ",
+          "300320.SZ",
+          "300383.SZ",
+          "300438.SZ",
+          "300491.SZ",
+          "300547.SZ",
+          "300601.SZ",
+          "300655.SZ",
+          "300709.SZ",
+          "300768.SZ",
+          "300823.SZ",
+          "300876.SZ",
+          "300931.SZ",
+          "300987.SZ",
+          "301042.SZ",
+          "301100.SZ",
+          "301167.SZ",
+          "301225.SZ",
+          "301293.SZ",
+          "301360.SZ",
+          "301488.SZ",
+          "301578.SZ",
+          "301687.SZ",
+          "600067.SH",
+          "600137.SH",
+          "600207.SH",
+          "600280.SH",
+          "600351.SH",
+          "600423.SH",
+          "600506.SH",
+          "600571.SH",
+          "600633.SH",
+          "600703.SH",
+          "600760.SH",
+          "600826.SH",
+          "600888.SH",
+          "600983.SH",
+          "601101.SH",
+          "601319.SH",
+          "601669.SH",
+          "601916.SH",
+          "603026.SH",
+          "603088.SH",
+          "603158.SH",
+          "603215.SH",
+          "603288.SH",
+          "603353.SH",
+          "603466.SH",
+          "603600.SH",
+          "603687.SH",
+          "603798.SH",
+          "603889.SH",
+          "603986.SH",
+          "605138.SH",
+          "605377.SH",
+          "688037.SH",
+          "688099.SH",
+          "688160.SH",
+          "688218.SH",
+          "688281.SH",
+          "688339.SH",
+          "688403.SH",
+          "688513.SH",
+          "688582.SH",
+          "688652.SH",
+          "688721.SH",
+          "689009.SH"
+        ],
+        "sample_listing_before": "2026-08-03",
+        "results": {
+          "full": {
+            "job_id": "38dfb5867e",
+            "seconds": 17.57715204199485,
+            "result": {
+              "period": "1m",
+              "rows": 504000,
+              "universe_size": 100,
+              "source": "rustdx",
+              "start": "2026-08-03T00:00:00",
+              "end": "2026-08-31T23:59:59",
+              "price_basis": "raw",
+              "remaining": 0
+            },
+            "terminal_persisted": true,
+            "progress": 100
+          },
+          "missing": {
+            "job_id": "cc63b993e8",
+            "seconds": 14.36612441699981,
+            "result": {
+              "period": "1m",
+              "mode": "missing",
+              "rows": 504000,
+              "missing_before": 504000,
+              "remaining": 0,
+              "requests": 1,
+              "universe_size": 100,
+              "start": "2026-08-03",
+              "end": "2026-08-31",
+              "source": "rustdx",
+              "price_basis": "raw"
+            },
+            "terminal_persisted": true,
+            "progress": 100
+          },
+          "no_gap": {
+            "job_id": "47eafea573",
+            "seconds": 0.5286857910032268,
+            "result": {
+              "period": "1m",
+              "mode": "missing",
+              "rows": 0,
+              "missing_before": 0,
+              "remaining": 0,
+              "requests": 0,
+              "universe_size": 100,
+              "start": "2026-08-03",
+              "end": "2026-08-31",
+              "source": null,
+              "price_basis": "raw",
+              "message": "选定区间没有遗漏数据, 无需获取"
+            },
+            "terminal_persisted": true,
+            "progress": 100
+          },
+          "unavailable_history": {
+            "job_id": "a22746dbd2",
+            "seconds": 1.2870199579992914,
+            "result": {
+              "period": "1m",
+              "rows": 0,
+              "universe_size": 1,
+              "source": "rustdx",
+              "start": "2026-03-30T00:00:00",
+              "end": "2026-04-30T23:59:59",
+              "price_basis": "raw",
+              "remaining": 5520,
+              "gap_report": "kline_gap_reports/0e83007446ce43b1aa30e5b486dc8e7c.csv",
+              "skipped_symbols": [
+                "301110.SZ"
+              ],
+              "warning": "已写入0行, 跳过仍缺少的5520行, 详见缺口报告"
+            },
+            "terminal_persisted": true,
+            "progress": 100
+          }
+        },
+        "rows": 504000,
+        "unique_keys": 504000,
+        "full_missing_values_identical": true,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "exact_unavailable_gap_missing_keys": 5520,
+        "gap_csv_grouped_days": 23,
+        "network_peak": 8,
+        "probe_peak": 1,
+        "business_limit": 8,
+        "probe_limit": 1,
+        "minute_requests": 2811,
+        "passed": true
+      },
+      "actual_jobs": [
+        {
+          "id": "1d035949c4",
+          "status": "succeeded",
+          "finished_at": "2026-10-29T00:15:00.694187+00:00",
+          "result": {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 0,
+            "missing_before": 0,
+            "remaining": 0,
+            "requests": 0,
+            "universe_size": 5222,
+            "start": "2026-10-01",
+            "end": "2026-10-07",
+            "source": null,
+            "price_basis": "legacy_1m",
+            "message": "选定区间没有遗漏数据, 无需获取"
+          },
+          "elapsed_seconds": 4.0506673749987385
+        },
+        {
+          "id": "24e37cab2e",
+          "status": "succeeded",
+          "finished_at": "2026-10-29T00:24:59.456652+00:00",
+          "result": {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 301470,
+            "missing_before": 301476,
+            "remaining": 6,
+            "requests": 499,
+            "universe_size": 5222,
+            "start": "2026-10-28",
+            "end": "2026-10-28",
+            "source": "rustdx",
+            "price_basis": "legacy_1m",
+            "gap_report": "kline_gap_reports/4ffe27bc4c34417496caf1236ddc9b8b.csv",
+            "skipped_symbols": [
+              "002717.SZ",
+              "002827.SZ",
+              "301468.SZ",
+              "601326.SH",
+              "605258.SH",
+              "688496.SH"
+            ],
+            "warning": "已补301470行, 仍有6行未补齐; 数据源未返回部分记录(可能停牌、无数据或请求失败)"
+          },
+          "elapsed_seconds": 598.1288452499939
+        }
+      ],
+      "terminal_jobs_preserved_after_restart": true,
+      "passed": true,
+      "persisted_gap_files": {
+        "environment": "local",
+        "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+        "checked_at": "2026-10-29T00:26:53.866363+00:00",
+        "jobs": [
+          {
+            "id": "1d035949c4",
+            "remaining": 0,
+            "csv_required": false,
+            "passed": true
+          },
+          {
+            "id": "24e37cab2e",
+            "remaining": 6,
+            "csv_required": true,
+            "grouped_rows": 6,
+            "sha256": "f88f92a5ecf7e18c0b318f4b8828b2327cb6a28230e00330f0fd80079559f5f0",
+            "passed": true
+          }
+        ],
+        "persisted_gap_files_verified": true,
+        "passed": true
+      }
+    },
+    "online": {
+      "version": "0.4.38",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "origin": "https://shanao.asia",
+      "runtime_image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "compute_image": "sha256:a517c7d6abe6fc332cb394a29e59853f0ece9d805cbfe4d12b58fcf43cb44845",
+      "backup_path": "/opt/tsp-full/backups/pre-v0.4.38-5b273174f2e2",
+      "source_directory": "/opt/tsp-full/releases/5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "database_restore_table_counts": {
+        "control": 20,
+        "business": 28
+      },
+      "administrator_login_passed": true,
+      "ready_functions": 6,
+      "full_restart_verified": true,
+      "user_preferences_preserved": true,
+      "secrets_preserved": true,
+      "watchlist_and_groups_preserved": true,
+      "business_settings_preserved": true,
+      "market_rows_preserved": {
+        "daily": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "enriched": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "minute": {
+          "before_rows": 118448923,
+          "after_rows": 118451238
+        },
+        "5m": {
+          "before_rows": 23686992,
+          "after_rows": 23686992
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 1469646,
+          "after_rows": 1469646
+        },
+        "index_daily": {
+          "before_rows": 798762,
+          "after_rows": 798762
+        }
+      },
+      "sampled_minute_collection": {
+        "version": "0.4.38",
+        "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+        "scope": "real Provider and durable JobStore on isolated 100-symbol sample; no production writes",
+        "symbols": [
+          "000001.SZ",
+          "000151.SZ",
+          "000524.SZ",
+          "000597.SZ",
+          "000686.SZ",
+          "000767.SZ",
+          "000856.SZ",
+          "000931.SZ",
+          "001210.SZ",
+          "001301.SZ",
+          "001400.SZ",
+          "002050.SZ",
+          "002106.SZ",
+          "002163.SZ",
+          "002215.SZ",
+          "002272.SZ",
+          "002328.SZ",
+          "002384.SZ",
+          "002440.SZ",
+          "002498.SZ",
+          "002557.SZ",
+          "002612.SZ",
+          "002668.SZ",
+          "002728.SZ",
+          "002791.SZ",
+          "002850.SZ",
+          "002907.SZ",
+          "002966.SZ",
+          "003021.SZ",
+          "300035.SZ",
+          "300092.SZ",
+          "300150.SZ",
+          "300206.SZ",
+          "300261.SZ",
+          "300320.SZ",
+          "300383.SZ",
+          "300438.SZ",
+          "300491.SZ",
+          "300547.SZ",
+          "300601.SZ",
+          "300655.SZ",
+          "300709.SZ",
+          "300768.SZ",
+          "300823.SZ",
+          "300876.SZ",
+          "300931.SZ",
+          "300987.SZ",
+          "301042.SZ",
+          "301100.SZ",
+          "301167.SZ",
+          "301225.SZ",
+          "301293.SZ",
+          "301360.SZ",
+          "301488.SZ",
+          "301578.SZ",
+          "301687.SZ",
+          "600067.SH",
+          "600137.SH",
+          "600207.SH",
+          "600280.SH",
+          "600351.SH",
+          "600423.SH",
+          "600506.SH",
+          "600571.SH",
+          "600633.SH",
+          "600703.SH",
+          "600760.SH",
+          "600826.SH",
+          "600888.SH",
+          "600983.SH",
+          "601101.SH",
+          "601319.SH",
+          "601669.SH",
+          "601916.SH",
+          "603026.SH",
+          "603088.SH",
+          "603158.SH",
+          "603215.SH",
+          "603288.SH",
+          "603353.SH",
+          "603466.SH",
+          "603600.SH",
+          "603687.SH",
+          "603798.SH",
+          "603889.SH",
+          "603986.SH",
+          "605138.SH",
+          "605377.SH",
+          "688037.SH",
+          "688099.SH",
+          "688160.SH",
+          "688218.SH",
+          "688281.SH",
+          "688339.SH",
+          "688403.SH",
+          "688513.SH",
+          "688582.SH",
+          "688652.SH",
+          "688721.SH",
+          "689009.SH"
+        ],
+        "sample_listing_before": "2026-08-03",
+        "results": {
+          "full": {
+            "job_id": "974a863366",
+            "seconds": 12.687383551034145,
+            "result": {
+              "period": "1m",
+              "rows": 504000,
+              "universe_size": 100,
+              "source": "rustdx",
+              "start": "2026-08-03T00:00:00",
+              "end": "2026-08-31T23:59:59",
+              "price_basis": "raw",
+              "remaining": 0
+            },
+            "terminal_persisted": true,
+            "progress": 100
+          },
+          "missing": {
+            "job_id": "665adcb391",
+            "seconds": 11.878086511977017,
+            "result": {
+              "period": "1m",
+              "mode": "missing",
+              "rows": 504000,
+              "missing_before": 504000,
+              "remaining": 0,
+              "requests": 1,
+              "universe_size": 100,
+              "start": "2026-08-03",
+              "end": "2026-08-31",
+              "source": "rustdx",
+              "price_basis": "raw"
+            },
+            "terminal_persisted": true,
+            "progress": 100
+          },
+          "no_gap": {
+            "job_id": "2f50444df8",
+            "seconds": 0.8088345370488241,
+            "result": {
+              "period": "1m",
+              "mode": "missing",
+              "rows": 0,
+              "missing_before": 0,
+              "remaining": 0,
+              "requests": 0,
+              "universe_size": 100,
+              "start": "2026-08-03",
+              "end": "2026-08-31",
+              "source": null,
+              "price_basis": "raw",
+              "message": "选定区间没有遗漏数据, 无需获取"
+            },
+            "terminal_persisted": true,
+            "progress": 100
+          },
+          "unavailable_history": {
+            "job_id": "a65fe96a37",
+            "seconds": 0.48654939397238195,
+            "result": {
+              "period": "1m",
+              "rows": 0,
+              "universe_size": 1,
+              "source": "rustdx",
+              "start": "2026-03-30T00:00:00",
+              "end": "2026-04-30T23:59:59",
+              "price_basis": "raw",
+              "remaining": 5520,
+              "gap_report": "kline_gap_reports/99924ccadb3c491fa2036c4bba75364b.csv",
+              "skipped_symbols": [
+                "301110.SZ"
+              ],
+              "warning": "已写入0行, 跳过仍缺少的5520行, 详见缺口报告"
+            },
+            "terminal_persisted": true,
+            "progress": 100
+          }
+        },
+        "rows": 504000,
+        "unique_keys": 504000,
+        "full_missing_values_identical": true,
+        "rows_sha256": "6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4",
+        "exact_unavailable_gap_missing_keys": 5520,
+        "gap_csv_grouped_days": 23,
+        "network_peak": 8,
+        "probe_peak": 1,
+        "business_limit": 8,
+        "probe_limit": 1,
+        "minute_requests": 2811,
+        "passed": true
+      },
+      "actual_jobs": [
+        {
+          "id": "ed67a0eeb1",
+          "status": "succeeded",
+          "finished_at": "2026-10-29T00:30:31.377221+00:00",
+          "result": {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 0,
+            "missing_before": 0,
+            "remaining": 0,
+            "requests": 0,
+            "universe_size": 5222,
+            "start": "2026-10-01",
+            "end": "2026-10-07",
+            "source": null,
+            "price_basis": "legacy_1m",
+            "message": "选定区间没有遗漏数据, 无需获取"
+          },
+          "elapsed_seconds": 4.147744458998204
+        },
+        {
+          "id": "150e8ae25b",
+          "status": "succeeded",
+          "finished_at": "2026-10-29T00:31:13.021006+00:00",
+          "result": {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 2315,
+            "missing_before": 2321,
+            "remaining": 6,
+            "requests": 27,
+            "universe_size": 5222,
+            "start": "2026-10-28",
+            "end": "2026-10-28",
+            "source": "rustdx",
+            "price_basis": "legacy_1m",
+            "gap_report": "kline_gap_reports/ab0013dfc9294be287dc4545305b3218.csv",
+            "skipped_symbols": [
+              "002717.SZ",
+              "002827.SZ",
+              "301468.SZ",
+              "601326.SH",
+              "605258.SH",
+              "688496.SH"
+            ],
+            "warning": "已补2315行, 仍有6行未补齐; 数据源未返回部分记录(可能停牌、无数据或请求失败)"
+          },
+          "elapsed_seconds": 41.17863358300383
+        }
+      ],
+      "terminal_jobs_preserved_after_restart": true,
+      "passed": true,
+      "persisted_gap_files": {
+        "environment": "online",
+        "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+        "checked_at": "2026-10-29T00:33:07.541317+00:00",
+        "jobs": [
+          {
+            "id": "ed67a0eeb1",
+            "remaining": 0,
+            "csv_required": false,
+            "passed": true
+          },
+          {
+            "id": "150e8ae25b",
+            "remaining": 6,
+            "csv_required": true,
+            "grouped_rows": 6,
+            "sha256": "f88f92a5ecf7e18c0b318f4b8828b2327cb6a28230e00330f0fd80079559f5f0",
+            "passed": true
+          }
+        ],
+        "persisted_gap_files_verified": true,
+        "passed": true
+      }
+    }
+  },
+  "health_timer": {
+    "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+    "passed": true,
+    "restart_finished_monotonic_us": 579701989160,
+    "service": {
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Thu 2026-10-29 08:33:15 CST",
+      "ExecMainExitTimestamp": "Thu 2026-10-29 08:33:15 CST",
+      "ExecMainStartTimestampMonotonic": "579759351112"
+    },
+    "timer": {
+      "ActiveState": "active",
+      "LastTriggerUSec": "Thu 2026-10-29 08:33:15 CST",
+      "LastTriggerUSecMonotonic": 579759338710,
+      "LastTriggerUSecMonotonicDisplay": "6d 17h 2min 39.338710s",
+      "NextElapseUSecMonotonic": "6d 17h 3min 39.351204s"
+    },
+    "maintenance_timer_active": true,
+    "timer_definition": "# /etc/systemd/system/tsp-full-health.timer\n[Unit]\nDescription=Check TSP complete functional readiness every minute\n\n[Timer]\nOnBootSec=5min\nOnUnitActiveSec=1min\nUnit=tsp-full-health.service\n\n[Install]\nWantedBy=timers.target\n",
+    "timer_listing": "NEXT                            LEFT LAST                              PASSED UNIT                                 ACTIVATES\nThu 2026-10-29 08:34:15 CST      36s Thu 2026-10-29 08:33:15 CST      23s ago tsp-full-health.timer                tsp-full-health.service\nThu 2026-10-29 08:37:28 CST 3min 49s Thu 2026-10-29 08:32:28 CST 1min 10s ago tsp-public-release-maintenance.timer tsp-public-release-maintenance.service\n\n2 timers listed.\nPass --all to see loaded but inactive timers, too.\n",
+    "natural_trigger_verified": true,
+    "checked_at": "2026-10-29T00:33:39.252591+00:00"
+  },
+  "workspace_verification": {
+    "checked_at": "2026-10-29T00:37:49.616197+00:00",
+    "checks": {
+      "repository": {
+        "command": [
+          "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python",
+          "scripts/check_repository.py"
+        ],
+        "exit_code": 0,
+        "passed": true,
+        "output_sha256": "445b697855bd0066ee3d077dd7325c32e0acf731dce1218e444e007172421e70"
+      },
+      "documentation": {
+        "command": [
+          "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python",
+          "scripts/check_docs.py"
+        ],
+        "exit_code": 0,
+        "passed": true,
+        "output_sha256": "8382a49b19a9ce8c5ba6f64e33dc641413686644c9fd529018237d558dd601b9"
+      },
+      "version": {
+        "command": [
+          "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python",
+          "scripts/check_version.py",
+          "--current",
+          "VERSION"
+        ],
+        "exit_code": 0,
+        "passed": true,
+        "output_sha256": "a6fd159cd8268a3b2da1c97918904997ed23e17fbb2035ab2b503f501391410d"
+      },
+      "diff_except_historical_csv": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "--",
+          ".",
+          ":(exclude)reports/minute-301110-20261029/missing-5520.csv"
+        ],
+        "exit_code": 0,
+        "passed": true,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "full_diff": {
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exit_code": 0,
+        "passed": true,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+    "remote_main": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+    "version": "0.4.38",
+    "historical_csv_raw_matches_blob": true,
+    "historical_csv_normalized_matches_blob": true,
+    "concurrent_changes_preserved": true,
+    "status_log": "workspace-final-status.log",
+    "passed": true
+  },
+  "schema_changed": false,
+  "existing_user_configuration_preserved": true,
+  "historical_unavailable_symbol": "301110.SZ",
+  "historical_unavailable_keys": 5520,
+  "latest_actual_remaining_keys": {
+    "local": 6,
+    "online": 6
+  },
+  "historical_coverage_claim": "Release and bounded job acceptance; historical initialization remains incomplete",
+  "evidence_directory": "/Users/bytedance/.cache/tsp-dev/TSPP/minute-release-20261029",
+  "passed": true
+}
