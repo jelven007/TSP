@@ -7,7 +7,7 @@ import pytest
 from test_rustdx_native_pool import _Server
 
 
-def _invalidate_business_socket(endpoint):
+def _invalidate_business_socket(endpoint, shutdown=socket.SHUT_RDWR):
     """Shutdown this test's existing TCP, as a failed idle heartbeat does."""
     host, port = endpoint.split(":")
     for entry in os.listdir("/dev/fd"):
@@ -23,7 +23,7 @@ def _invalidate_business_socket(endpoint):
         with candidate:
             try:
                 if candidate.getpeername() == (host, int(port)):
-                    candidate.shutdown(socket.SHUT_RDWR)
+                    candidate.shutdown(shutdown)
                     return
             except OSError:
                 continue
@@ -32,7 +32,8 @@ def _invalidate_business_socket(endpoint):
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX test socket fault injection")
 @pytest.mark.parametrize("pinned", [False, True])
-def test_stale_socket_is_replaced_before_reading_bar_source(pinned):
+@pytest.mark.parametrize("shutdown", [socket.SHUT_RDWR, socket.SHUT_WR])
+def test_stale_socket_is_replaced_before_reading_bar_source(pinned, shutdown):
     module = pytest.importorskip("tsp_rustdx_native")
     server = _Server(valid_bars=True)
     client = module.RustdxClient(1, server.address, 2)
@@ -40,13 +41,18 @@ def test_stale_socket_is_replaced_before_reading_bar_source(pinned):
         first = json.loads(client.bars_json(0, "000001", 8, 0, 800,
             with_request_count=True, with_source=True))
         assert first["error"] is None
-        _invalidate_business_socket(server.address)
+        _invalidate_business_socket(server.address, shutdown)
+        before_requests = json.loads(client.stats_json())["minute_requests"]
         second = json.loads(client.bars_json(0, "000001", 8, 800, 800,
             with_request_count=True, with_source=True,
             expected_source=json.dumps(first["source"]) if pinned else None))
         if pinned:
             assert "[SourceChanged]" in second["error"], second
-            assert second["requests"] == 0 and second["rows"] == []
+            # A shutdown socket can retain peer_addr until the first write.
+            # Count that failed attempt, but never accept a page after reconnect.
+            assert second["requests"] in (0, 1) and second["rows"] == []
+            assert second["source"] is None
+            assert json.loads(client.stats_json())["minute_requests"] - before_requests == second["requests"]
             second = json.loads(client.bars_json(0, "000001", 8, 0, 800,
                 with_request_count=True, with_source=True))
         assert second["error"] is None, second
