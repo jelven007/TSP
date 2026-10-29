@@ -6,6 +6,8 @@ struct State {
     background_active: usize,
     background_peak: usize,
     foreground_waiting: usize,
+    priority_waiting: usize,
+    background_limit: usize,
     waiting: usize,
     acquisitions: u64,
     wait_us: u64,
@@ -16,7 +18,7 @@ struct State {
 pub struct Scheduler {
     state: Mutex<State>,
     changed: Condvar,
-    pub background_limit: usize,
+    queue_limit: usize,
 }
 
 pub struct Lease<'a> {
@@ -38,12 +40,18 @@ impl Drop for Lease<'_> {
 
 impl Scheduler {
     pub fn new(size: usize, background_limit: usize) -> Self {
+        Self::with_queue_limit(size, background_limit, 64)
+    }
+
+    pub fn with_queue_limit(size: usize, background_limit: usize, queue_limit: usize) -> Self {
         Self {
             state: Mutex::new(State {
                 busy: vec![false; size],
                 background_active: 0,
                 background_peak: 0,
                 foreground_waiting: 0,
+                priority_waiting: 0,
+                background_limit: background_limit.clamp(1, size),
                 waiting: 0,
                 acquisitions: 0,
                 wait_us: 0,
@@ -51,10 +59,14 @@ impl Scheduler {
                 closed: false,
             }),
             changed: Condvar::new(),
-            // Reserve the floor strictly below pool size so at least one slot is
-            // always reachable by foreground; a single-slot pool keeps floor 1.
-            background_limit: background_limit.clamp(1, size.saturating_sub(1).max(1)),
+            queue_limit,
         }
+    }
+
+    pub fn set_background_limit(&self, limit: usize) {
+        let mut state = self.state.lock().unwrap();
+        state.background_limit = limit.clamp(1, state.busy.len());
+        self.changed.notify_all();
     }
 
     pub fn acquire(&self, preferred: usize, background: bool) -> Result<Lease<'_>, String> {
@@ -67,9 +79,25 @@ impl Scheduler {
         background: bool,
         pinned: bool,
     ) -> Result<Lease<'_>, String> {
+        self.acquire_priority(preferred, background, pinned, false)
+    }
+
+    pub fn acquire_priority(
+        &self,
+        preferred: usize,
+        background: bool,
+        pinned: bool,
+        priority: bool,
+    ) -> Result<Lease<'_>, String> {
         let started = Instant::now();
         let mut state = self.state.lock().map_err(|error| error.to_string())?;
+        if state.waiting >= self.queue_limit {
+            return Err("[Quota] rustdx admission queue is full".into());
+        }
         state.waiting += 1;
+        if priority {
+            state.priority_waiting += 1;
+        }
         if !background {
             state.foreground_waiting += 1;
         }
@@ -83,27 +111,27 @@ impl Scheduler {
             };
             if let Some(error) = error {
                 state.waiting -= 1;
+                if priority {
+                    state.priority_waiting -= 1;
+                }
                 if !background {
                     state.foreground_waiting -= 1;
                 }
                 return Err(error);
             }
-            // Background holds a guaranteed floor of up to `background_limit`
-            // concurrent leases even while foreground is waiting; above that floor
-            // it yields. Foreground is never blocked beyond the floor because the
-            // floor is clamped below pool size, so idle slots always remain for it.
-            // Without this reservation, one-per-second quote polling keeps
-            // `foreground_waiting > 0` almost continuously and starves the
-            // background minute sweep (full-market pass stuck ~94s regardless of
-            // the limit); the floor lets the sweep keep steady parallelism while
-            // quotes still take every other slot.
-            let allowed = !background || state.background_active < self.background_limit;
+            // Minute admission changes from six to eight after the session.
+            // Urgent quotes take the next free lease ahead of queued polling.
+            let allowed = (!background || state.background_active < state.background_limit)
+                && (priority || state.priority_waiting == 0);
             let size = state.busy.len();
             let idle = (0..size)
                 .map(|offset| (preferred + offset) % size)
                 .find(|index| !state.busy[*index] && (!pinned || *index == preferred));
             if let Some(index) = idle.filter(|_| allowed) {
                 state.waiting -= 1;
+                if priority {
+                    state.priority_waiting -= 1;
+                }
                 state.busy[index] = true;
                 if background {
                     state.background_active += 1;
@@ -138,7 +166,9 @@ impl Scheduler {
     pub fn stats(&self) -> serde_json::Value {
         let state = self.state.lock().unwrap();
         serde_json::json!({
-            "background_limit": self.background_limit,
+            "background_limit": state.background_limit,
+            "queue_limit": self.queue_limit,
+            "priority_waiting": state.priority_waiting,
             "background_active": state.background_active,
             "background_peak": state.background_peak,
             "waiting_requests": state.waiting,
@@ -170,7 +200,7 @@ mod tests {
         // size=4, requested floor=2: background keeps up to 2 concurrent leases
         // even with foreground waiting, and foreground still acquires a slot.
         let pool = Scheduler::new(4, 2);
-        assert_eq!(pool.background_limit, 2);
+        assert_eq!(pool.stats()["background_limit"], 2);
         let bg1 = pool.acquire(0, true).unwrap();
         let bg2 = pool.acquire(0, true).unwrap();
         // Third background is above the floor and must not run while all other
@@ -242,5 +272,75 @@ mod tests {
             assert!(pool.acquire(0, true).err().unwrap().contains("TimedOut"));
         });
         assert_eq!(pool.stats()["waiting_requests"], 0);
+    }
+
+    #[test]
+    fn minute_reserves_two_slots_then_uses_all_eight_after_close() {
+        let pool = Scheduler::new(8, 6);
+        let held = (0..6)
+            .map(|i| pool.acquire(i, true).unwrap())
+            .collect::<Vec<_>>();
+        let increment = pool.acquire(6, false).unwrap();
+        assert_eq!(increment.index, 6);
+        drop(increment);
+        pool.set_background_limit(8);
+        let seventh = pool.acquire(6, true).unwrap();
+        let eighth = pool.acquire(7, true).unwrap();
+        assert_eq!(pool.stats()["background_active"], 8);
+        drop((held, seventh, eighth));
+    }
+
+    #[test]
+    fn admission_queue_is_bounded() {
+        let pool = Scheduler::with_queue_limit(1, 1, 1);
+        let _held = pool.acquire(0, false).unwrap();
+        std::thread::scope(|scope| {
+            let waiter = scope.spawn(|| pool.acquire(0, false).err().unwrap());
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while pool.stats()["waiting_requests"] != 1 {
+                assert!(std::time::Instant::now() < deadline);
+                std::thread::yield_now();
+            }
+            assert!(pool.acquire(0, false).err().unwrap().contains("[Quota]"));
+            pool.close();
+            assert!(waiter.join().unwrap().contains("closed"));
+        });
+    }
+
+    #[test]
+    fn urgent_request_gets_next_lease_before_ordinary_polling() {
+        let pool = Scheduler::new(1, 1);
+        let held = pool.acquire(0, false).unwrap();
+        let (sender, receiver) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let ordinary_sender = sender.clone();
+            let pool_ref = &pool;
+            scope.spawn(move || {
+                let _lease = pool_ref.acquire(0, false).unwrap();
+                ordinary_sender.send("ordinary").unwrap();
+            });
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while pool.stats()["waiting_requests"] != 1 {
+                assert!(std::time::Instant::now() < deadline);
+                std::thread::yield_now();
+            }
+            scope.spawn(|| {
+                let _lease = pool.acquire_priority(0, false, false, true).unwrap();
+                sender.send("urgent").unwrap();
+            });
+            while pool.stats()["waiting_requests"] != 2 {
+                assert!(std::time::Instant::now() < deadline);
+                std::thread::yield_now();
+            }
+            drop(held);
+            assert_eq!(
+                receiver.recv_timeout(Duration::from_secs(2)).unwrap(),
+                "urgent"
+            );
+            assert_eq!(
+                receiver.recv_timeout(Duration::from_secs(2)).unwrap(),
+                "ordinary"
+            );
+        });
     }
 }

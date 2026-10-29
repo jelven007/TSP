@@ -179,6 +179,14 @@ def _as_beijing_datetime(value) -> datetime | None:
         parsed = parsed.astimezone(_BEIJING).replace(tzinfo=None)
     return parsed.replace(microsecond=0)
 
+def _bar_fingerprint(row):
+    return (
+        _as_beijing_datetime(row.get("datetime")),
+        *(_to_float(row.get(key)) for key in ("open", "high", "low", "close")),
+        _to_float(row.get("volume", row.get("vol"))),
+        _to_float(row.get("amount")),
+    )
+
 
 def _symbol(code: str, exchange: str | None = None) -> str | None:
     from app.market_scope import removed_market_symbol
@@ -294,11 +302,11 @@ class RustdxProvider:
         return max(1, min(configured, _connection_count(), symbol_count))
 
     def _persistent_quotes(self, symbols: list[str], *, operation: str) -> list[dict]:
-        del operation
-        # One native call partitions the universe into 60-symbol requests and
-        # schedules them across the process-wide pool. The native pool clamps
-        # its business connection count to eight, including API consumers.
-        return self._client_factory().quotes(symbols)
+        client = self._client_factory()
+        task_quotes = getattr(client, "quotes_for_task", None)
+        if callable(task_quotes):
+            return task_quotes(symbols, operation=operation)
+        return client.quotes(symbols)
 
     # ---- instruments ----
     def get_instruments(self, asset_type: str = "stock") -> list[dict]:
@@ -419,14 +427,35 @@ class RustdxProvider:
         frequency: int,
         start_time: datetime | None,
         end_time: datetime | None,
+        *,
+        validate: bool = True,
     ) -> list[dict]:
+        context = {}
         try:
-            return self._bar_records_once(client, symbol, frequency, start_time, end_time)
+            rows = self._bar_records_once(client, symbol, frequency, start_time, end_time, context)
         except RustdxSourceChangedError:
             # Every cached page belongs to the expired source identity. Restart
             # the whole symbol once; repeated changes still reject partial data.
             logger.warning("%s %s K线来源变化, 丢弃旧分页后从头重采一次", self.name, symbol)
-            return self._bar_records_once(client, symbol, frequency, start_time, end_time)
+            rows = self._bar_records_once(client, symbol, frequency, start_time, end_time, context)
+        validator = getattr(client, "validate_bar_window", None)
+        if validate and callable(validator):
+            def reference_read():
+                reference = client.reference_view()
+                try:
+                    result = self._bar_records(
+                        reference, symbol, frequency, start_time, end_time, validate=False,
+                    )
+                    return result, reference._protocol_requests
+                except RustdxError as error:
+                    # Failed reference requests remain visible to the caller.
+                    error.requests = max(error.requests, reference._protocol_requests)
+                    raise
+            return validator(
+                rows, scope=context["scope"], source=context.get("source"),
+                reference_read=reference_read,
+            )
+        return rows
 
     def _bar_records_once(
         self,
@@ -435,10 +464,13 @@ class RustdxProvider:
         frequency: int,
         start_time: datetime | None,
         end_time: datetime | None,
+        context: dict | None = None,
     ) -> list[dict]:
         end_dt = _as_beijing_datetime(end_time or cn_now())
         default_days = 365 if frequency == _DAILY_FREQUENCY else self.minute_history_days
         start_dt = _as_beijing_datetime(start_time) or (end_dt - timedelta(days=default_days))
+        if context is not None:
+            context["scope"] = (symbol, frequency, start_dt, end_dt)
         try:
             max_pages = max(
                 1,
@@ -453,9 +485,13 @@ class RustdxProvider:
         pages: dict[int, tuple[list[dict], datetime | None]] = {}
         errors: dict[int, RustdxError] = {}
         source: dict | None = None
+        anchor = None
+        seen = {}
+        now = _as_beijing_datetime(cn_now())
+        anchor_reader = getattr(client, "bar_anchor", None)
 
         def read_page(page: int) -> tuple[list[dict], datetime | None]:
-            nonlocal source
+            nonlocal source, anchor
             if page in errors:
                 raise errors[page]
             if page not in pages:
@@ -468,6 +504,8 @@ class RustdxProvider:
                         if source is not None and source != observed:
                             raise RustdxSourceChangedError("rustdx K线分页来源变化, 须从头重采")
                         source = observed
+                        if context is not None:
+                            context["source"] = source
                     else:
                         batch = client.bars(
                             symbol, frequency=frequency,
@@ -484,6 +522,24 @@ class RustdxProvider:
                     error = RustdxError(f"{self.name} {symbol} K线分页缺少有效时间字段")
                     errors[page] = error
                     raise error
+                for row in batch:
+                    fingerprint = _bar_fingerprint(row)
+                    stamp = fingerprint[0]
+                    if stamp in seen and fingerprint != seen[stamp]:
+                        raise RustdxError(f"{self.name} {symbol} K线同时间键值冲突: {stamp}")
+                    seen[stamp] = fingerprint
+                if page == 0 and dates and frequency in _MINUTE_FREQUENCIES.values():
+                    newest = max(batch, key=lambda row: _as_beijing_datetime(row.get("datetime")))
+                    if max(dates).date() == now.date() and (9, 15) <= (now.hour, now.minute) <= (15, 5):
+                        anchor = _bar_fingerprint(newest)
+                # Both speculative page location and serial pages use latest-relative
+                # offsets. A growing or revised current bar invalidates the entire call.
+                if page != 0 and anchor is not None and callable(anchor_reader):
+                    observed_anchor = anchor_reader(
+                        symbol, frequency=frequency, expected_source=source,
+                    )
+                    if observed_anchor is None or _bar_fingerprint(observed_anchor) != anchor:
+                        raise RustdxSourceChangedError("rustdx 分钟锚点变化, 须从头重采")
                 pages[page] = batch, min(dates) if dates else None
             return pages[page]
 
@@ -550,7 +606,10 @@ class RustdxProvider:
                 break
             if len(batch) < _PAGE_SIZE:
                 break
-        return records
+        unique = {}
+        for row in records:
+            unique.setdefault(_as_beijing_datetime(row.get("datetime")), row)
+        return list(unique.values())
 
     @classmethod
     def _daily_frame(
@@ -820,6 +879,7 @@ class RustdxProvider:
         *,
         include_names: bool,
         include_depth: bool = False,
+        operation: str = "实时行情",
     ) -> list[dict]:
         supported = [
             symbol for symbol in symbols if symbol.endswith((".SH", ".SZ"))
@@ -833,7 +893,7 @@ class RustdxProvider:
         request_started_ms = int(time.time() * 1000)
         result: list[dict] = []
         try:
-            rows = self._persistent_quotes(supported, operation="实时行情")
+            rows = self._persistent_quotes(supported, operation=operation)
         except RustdxError as exc:
             logger.warning("%s 实时行情连接失败: %s", self.name, exc)
             return []
@@ -903,7 +963,9 @@ class RustdxProvider:
 
     def get_auction_snapshot(self, symbols: list[str]) -> list[dict]:
         """Return one explicit-symbol snapshot with auction/depth evidence."""
-        return self._quote_rows(symbols, include_names=False, include_depth=True)
+        return self._quote_rows(
+            symbols, include_names=False, include_depth=True, operation="集合竞价",
+        )
 
     def get_depth_batch(self, symbols: list[str]) -> dict[str, dict]:
         supported = [
@@ -1387,11 +1449,13 @@ class RustdxProvider:
             try:
                 with self._client_factory() as client:
                     if counted:
-                        raw, requests = client.bars_with_count(
+                        method = getattr(client, "incremental_bars_with_count", client.bars_with_count)
+                        raw, requests = method(
                             symbol, frequency=8, offset=max(1, min(int(count), 800)),
                         )
                     else:
-                        raw = client.bars(symbol, frequency=8, offset=max(1, min(int(count), 800)))
+                        method = getattr(client, "incremental_bars", client.bars)
+                        raw = method(symbol, frequency=8, offset=max(1, min(int(count), 800)))
                         requests = 1
                 return self._minute_frame(raw, symbol, start, end), requests, None
             except RustdxError as exc:

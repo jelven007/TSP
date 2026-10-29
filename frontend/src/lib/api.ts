@@ -334,6 +334,7 @@ export interface IndexKlineResponse {
   period: IndexKlinePeriod
   rows: (KlineRow & { trade_date?: string })[]
   source: string
+  available_start_date?: string | null
 }
 
 export interface IndexQuote {
@@ -3150,7 +3151,12 @@ export const api = {
   indexCatalog: () => request<{ rows: IndexInstrument[]; count: number }>('/api/index/catalog'),
   indexKline: (symbol: string, period: IndexKlinePeriod, range: { start: string; end: string }) =>
     request<IndexKlineResponse>(
-      `/api/index/kline?${new URLSearchParams({ symbol, period, start_date: range.start, end_date: range.end })}`,
+      `/api/index/kline?${new URLSearchParams({
+        symbol,
+        period,
+        ...(range.start ? { start_date: range.start } : {}),
+        end_date: range.end,
+      })}`,
     ),
   repairIndex: (startDate: string, period: IndexKlinePeriod = '1d', mode: 'full' | 'missing' = 'full', endDate?: string) =>
     request<{ status: string; job_id: string }>('/api/index/repair', {

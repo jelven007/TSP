@@ -251,7 +251,7 @@ def test_native_bridge_clamps_direct_constructor_to_8():
     client = native_module.RustdxClient(100)
     try:
         assert client.max_connections == 8
-        assert native_module.POOL_API_VERSION == 3
+        assert native_module.POOL_API_VERSION == 4
         assert native_module.PROBE_CONNECTIONS == 1
         assert json.loads(client.stats_json())["quote_batch_size"] == 60
     finally:

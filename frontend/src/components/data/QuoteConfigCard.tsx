@@ -128,44 +128,23 @@ function IntervalEditor({ min, max, value, onChange }: {
   min: number; max: number; value: number; onChange: (v: number) => void
 }) {
   const [draft, setDraft] = useState(value)
-  const clamped = Math.max(min, Math.min(max, draft))
-  const step = min < 1 ? 0.1 : min < 3 ? 0.5 : 1
-  const presets = min <= 1
-    ? [1, 3, 5, 10, 30, 60]
-    : min <= 3
-      ? [3, 5, 10, 30, 60]
-      : [5, 10, 15, 30, 60]
+  const clamped = Math.max(min, Math.min(max, Math.round(draft)))
 
   return (
     <div className="mt-2 pt-2 border-t border-border/50">
       <div className="text-[10px] text-muted mb-1.5">
         轮询间隔 <span className="text-muted/60">({min}s ~ {max}s)</span>
       </div>
-      <div className="flex flex-wrap gap-1 mb-2">
-        {presets.map(p => (
-          <button
-            key={p}
-            onClick={() => { setDraft(p); onChange(p) }}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
-              Math.abs(clamped - p) < 0.01
-                ? 'bg-accent/15 text-accent border border-accent/30'
-                : 'bg-elevated text-secondary hover:text-foreground border border-transparent'
-            }`}
-          >
-            {p}s
-          </button>
-        ))}
-      </div>
       <div className="flex items-center gap-2">
         <input
           type="range"
-          min={min} max={max} step={step}
+          min={min} max={max} step={1}
           value={clamped}
-          onChange={e => { const v = parseFloat(e.target.value); setDraft(v); onChange(v) }}
+          onChange={e => { const v = parseInt(e.target.value, 10); setDraft(v); onChange(v) }}
           className="flex-1 h-1 accent-accent cursor-pointer"
         />
         <span className="text-[10px] font-mono text-foreground w-8 text-right">
-          {clamped < 1 ? clamped.toFixed(1) : clamped.toFixed(0)}s
+          {clamped}s
         </span>
       </div>
     </div>

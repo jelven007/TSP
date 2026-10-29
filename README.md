@@ -1,5 +1,10 @@
 # TSP
 
+2026-10-30最新版本整合范围、六类文档和发布顺序见
+[本轮发布评审](reports/current-release-20261030/review.md)，
+新鲜源码验证与本地/ECS升级状态见[本轮验证](reports/current-release-20261030/verification.md)。
+应用版本只由远程main CI分配；下方带日期记录按各自历史时点理解。
+
 生产系统规范入口：[需求总纲与八模块](docs/requirements.md)、
 [工程目录](docs/reference/engineering.md#layout)、[生产开发](docs/reference/engineering.md#engineering)、
 [联合验收](docs/testing.md#acceptance)、[服务运营](docs/release-operations.md#service-2-开通与用户生命周期)。
@@ -156,7 +161,8 @@ Copy-Item .env.example .env
 5. 按需配置 AI、监控通知、Open API Token 和 MCP。
 
 全新安装的七项数据能力默认路由到 `rustdx`，采用 v2.0.4 固定源码，
-单进程共用最多 8 条业务连接及 1 条独立探测连接，
+实时、分钟与基础历史三组各共用最多8条业务连接及1条独立探测连接，
+全局24业务/3探测；候选绑定及完整窗口核验见[任务连接](docs/rustdx-task-routing.md)。
 原生桥接随后端依赖默认安装，Docker 和桌面包内置对应平台的扩展；构建和开发
 启动会检查桥接是否就绪。已保存的路由保持原值。数据源实际可用性受公开服务器、
 网络和协议覆盖影响，系统不会在失败时静默切换到其他数据源。
@@ -287,7 +293,7 @@ git diff --check
 | [运维手册](docs/operations.md) | 巡检、备份、恢复和故障处理 |
 | [发布流程](docs/release-operations.md) | 版本、产物、上线和回滚 |
 | [二次开发](docs/secondary-development.md) | 扩展点和核心修改规则 |
-| [rustdx 数据源](docs/reference/integrations.md#rustdx) | v2.0.4、8业务+1探测和历史财务 |
+| [rustdx 数据源](docs/reference/integrations.md#rustdx) | v2.0.4、三组各8业务+1探测和历史财务 |
 | [策略开发](docs/reference/research.md#strategy) | 内置、自定义和 AI 策略 |
 | [MCP 服务器](mcp-server/README.md) | AI 客户端接入 |
 

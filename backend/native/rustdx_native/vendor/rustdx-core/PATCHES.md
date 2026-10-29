@@ -18,13 +18,19 @@ runtime data or additional business engine is imported.
 - `src/tcp/ip/coordinator.rs`, `daily.rs`: worker count and whole-pool timeout
   use the configured local/shared quota instead of assuming eight probes.
   No partial snapshot is published after cancellation, timeout or quota failure.
+- `coordinator.rs`, `probe.rs`, `daily.rs`, `ip.rs`, `governance.rs`: task
+  probe labels share one group permit and one physical-endpoint permit, in
+  addition to the process probe budget. Existing governor file locks enforce
+  the same dimensions across cooperating processes. Scoped pools use one
+  worker, including their whole-pool timeout calculation. Explicit pool stop
+  cancels active probes and wakes the daily thread; it cannot revive a pool.
 - `src/tcp/heartbeat.rs`: derive Deserialize for the actual recorded ack.
 - `src/tcp/mod.rs`: narrowly allow fetch_update's deprecation on Rust 1.99
   while preserving the upstream minimum Rust 1.89 API.
 
 Validation: core unit and doc tests with external integration tests disabled;
 local fragmented-frame server tests; bridge mixed quote/report traffic with
-eight business permits plus one probe; independent live read-only validation.
+three groups of eight business permits plus one probe each; independent live read-only validation.
 The v2.0.4 Windows cache lock source and required `windows-sys` features are
 retained unchanged and cross-checked with the Windows GNU Rust target.
 
