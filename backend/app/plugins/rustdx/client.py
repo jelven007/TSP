@@ -49,12 +49,12 @@ def _timeout_seconds() -> int:
     return max(2, min(configured, 60))
 
 
-def _background_connections() -> int:
+def _background_connections(*, reserve: int = 1) -> int:
     try:
         value = int(os.getenv("RUSTDX_BACKGROUND_CONNECTIONS", "7"))
     except ValueError:
         value = 7
-    return max(1, min(value, max(1, _connection_count() - 1)))
+    return max(1, min(value, max(1, _connection_count() - reserve)))
 
 
 def _native_client():
@@ -64,6 +64,10 @@ def _native_client():
             "RUSTDX_SERVER", "RUSTDX_FALLBACK_SERVERS", "RUSTDX_TIMEOUT",
             "RUSTDX_QUOTE_CONNECTIONS", "RUSTDX_BACKGROUND_CONNECTIONS",
             "RUSTDX_FINANCIAL_SERVER", "RUSTDX_NETWORK_SHARED_DIR",
+            "RUSTDX_TASK_GROUPS", "RUSTDX_NODE_SERVERS",
+            "RUSTDX_REALTIME_SERVER", "RUSTDX_REALTIME_FALLBACK_SERVERS",
+            "RUSTDX_MINUTE_SERVER", "RUSTDX_MINUTE_FALLBACK_SERVERS",
+            "RUSTDX_HISTORY_SERVER", "RUSTDX_HISTORY_FALLBACK_SERVERS",
         ))
         if _NATIVE_CLIENT is not None and config != _NATIVE_CONFIG:
             _NATIVE_CLIENT.close()
@@ -75,20 +79,35 @@ def _native_client():
             if not available:
                 raise RustdxError(detail)
             server = os.getenv("RUSTDX_SERVER", _DEFAULT_SERVER).strip() or _DEFAULT_SERVER
-            _NATIVE_CLIENT = module.RustdxClient(
-                _connection_count(),
-                server,
-                _timeout_seconds(),
-                background_connections=_background_connections(),
-                fallback_servers=[
+            fallback = [
                     value.strip()
                     for value in os.getenv(
                         "RUSTDX_FALLBACK_SERVERS",
                         "" if os.getenv("RUSTDX_SERVER") else "115.238.56.198:7709,180.153.18.170:7709",
                     ).split(",")
                     if value.strip()
-                ],
-            )
+                ]
+            if os.getenv("RUSTDX_TASK_GROUPS", "1").strip().lower() not in {"0", "false", "off"}:
+                from .routing import TaskRuntime
+
+                _NATIVE_CLIENT = TaskRuntime(
+                    module.RustdxClient, connections=_connection_count(),
+                    reference=server, timeout=_timeout_seconds(),
+                    background_connections=_background_connections(reserve=0)
+                    if "RUSTDX_BACKGROUND_CONNECTIONS" in os.environ else None,
+                    fallback_servers=fallback if "RUSTDX_FALLBACK_SERVERS" in os.environ else None,
+                    seed_nodes=[
+                        value.strip() for value in os.getenv(
+                            "RUSTDX_NODE_SERVERS",
+                            ",".join(getattr(module, "SEED_SERVERS", [])[:9]),
+                        ).split(",") if value.strip()
+                    ],
+                )
+            else:
+                _NATIVE_CLIENT = module.RustdxClient(
+                    _connection_count(), server, _timeout_seconds(),
+                    background_connections=_background_connections(), fallback_servers=fallback,
+                )
             _NATIVE_CONFIG = config
         return _NATIVE_CLIENT
 
@@ -110,7 +129,7 @@ def availability() -> tuple[bool, str]:
         or rustdx_source_rev != _RUSTDX_SOURCE_REV
     ):
         return False, "rustdx 原生桥接依赖版本与项目锁定版本不一致"
-    if getattr(module, "POOL_API_VERSION", 0) != 3:
+    if getattr(module, "POOL_API_VERSION", 0) != 4:
         return False, "rustdx 原生桥接需要重新构建: 连接池接口版本不一致"
     if (
         getattr(module, "RUSTDX_CORE_SHA256", "") != CORE_SHA256
@@ -121,7 +140,7 @@ def availability() -> tuple[bool, str]:
         True,
         f"jelven-rustdx-complete {_RUSTDX_CRATE_VERSION} "
         f"(jelven007/rustdx@{_RUSTDX_SOURCE_REV[:7]}) / bridge {version} "
-        f"/ patch {PATCH_SHA256[:12]} / 8业务+1探测",
+        f"/ patch {PATCH_SHA256[:12]} / 三组各8业务+1探测",
     )
 
 
@@ -183,7 +202,7 @@ def _datetime_text(value: Any) -> str | None:
 
 
 class RustdxClient:
-    """One facade over eight business connections and one separate probe."""
+    """Shared facade over bounded native task pools."""
 
     def __enter__(self) -> RustdxClient:
         _native_client()
@@ -206,12 +225,19 @@ class RustdxClient:
     def stats(self) -> dict[str, Any]:
         return dict(json.loads(_native_client().stats_json()))
 
-    def quotes(self, codes: list[str]) -> list[dict]:
+    def quotes_for_task(self, codes: list[str], *, operation: str) -> list[dict]:
+        return self.quotes(codes, priority=operation in {"集合竞价", "五档"})
+
+    def quotes(self, codes: list[str], *, priority: bool = False) -> list[dict]:
         if not codes:
             return []
         try:
             securities = [_security(code) for code in codes]
-            rows = _records(_native_client().quotes_json(securities))
+            native = _native_client()
+            rows = _records(native.quotes_json(
+                securities,
+                **({"priority": priority} if getattr(native, "supports_task_options", False) else {}),
+            ))
         except RustdxError:
             raise
         except Exception as exc:
@@ -242,6 +268,18 @@ class RustdxClient:
         rows, requests, _ = self._bars(code, frequency=frequency, start=0, offset=offset, counted=True)
         return rows, requests
 
+    def incremental_bars_with_count(self, code: str, *, frequency: int, offset: int):
+        rows, requests, _ = self._bars(
+            code, frequency=frequency, start=0, offset=offset, counted=True, background=False,
+        )
+        return rows, requests
+
+    def incremental_bars(self, code: str, *, frequency: int, offset: int):
+        rows, _, _ = self._bars(
+            code, frequency=frequency, start=0, offset=offset, counted=False, background=False,
+        )
+        return rows
+
     def bars_with_source(
         self, code: str, *, frequency: int, start: int, offset: int,
         expected_source: dict | None = None,
@@ -254,9 +292,30 @@ class RustdxClient:
             raise RustdxSourceChangedError("rustdx K线来源身份缺失")
         return rows, source
 
+    def bar_anchor(self, code: str, *, frequency: int, expected_source: dict):
+        rows, _, _ = self._bars(
+            code, frequency=frequency, start=0, offset=1, counted=True,
+            sourced=True, expected_source=expected_source,
+        )
+        return max(rows, key=lambda row: row["datetime"]) if rows else None
+
+    def reference_view(self):
+        view = RustdxClient()
+        view._reference = True
+        view._protocol_requests = 0
+        return view
+
+    def validate_bar_window(self, rows, *, scope, source, reference_read):
+        native = _native_client()
+        validate = getattr(native, "validate_bar_window", None)
+        if callable(validate):
+            return validate(rows, scope=scope, source=source, reference_read=reference_read)
+        return rows
+
     def _bars(
         self, code: str, *, frequency: int, start: int, offset: int, counted: bool,
         sourced: bool = False, expected_source: dict | None = None,
+        background: bool = True,
     ):
         market, raw_code = _security(code)
         index = _is_index(market, raw_code)
@@ -264,7 +323,9 @@ class RustdxClient:
         requests = 0
         source = None
         try:
-            payload = _native_client().bars_json(
+            native = _native_client()
+            method = native.reference_bars_json if getattr(self, "_reference", False) else native.bars_json
+            payload = method(
                 market,
                 raw_code,
                 wire_frequency,
@@ -274,6 +335,7 @@ class RustdxClient:
                 **({"with_request_count": True} if counted else {}),
                 **({"with_source": True, "expected_source": json.dumps(expected_source)
                     if expected_source else None} if sourced else {}),
+                **({"background": background} if getattr(native, "supports_task_options", False) else {}),
             )
             if counted:
                 result = json.loads(payload)
@@ -289,9 +351,11 @@ class RustdxClient:
             else:
                 rows, requests = _records(payload), 1
         except RustdxError:
+            self._protocol_requests = getattr(self, "_protocol_requests", 0) + requests
             raise
         except Exception as exc:
             raise RustdxError(f"rustdx bars 调用失败: {exc}", requests=requests) from exc
+        self._protocol_requests = getattr(self, "_protocol_requests", 0) + requests
         for row in rows:
             row["datetime"] = _datetime_text(row.pop("dt", None))
             for field in ("vol", "amount"):

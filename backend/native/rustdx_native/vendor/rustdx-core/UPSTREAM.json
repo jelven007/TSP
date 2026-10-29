@@ -3,7 +3,7 @@
     "Cargo.lock": "90cd07f0ced7ef427a9aa001034ce81f0211db5826480aef037208ee8dbf3d0c",
     "Cargo.toml": "b99a31f4133e3d2f6c226bd0b468b673d1d51bfc2ba844cfc89867f7c33bac88",
     "LICENSE": "9b0dc07dd841fcc1f51f4f1c73a4460ed2dea57ef89442b30ae4429bab8395ee",
-    "PATCHES.md": "6545f491ebe7688e7a79e31989592a27fc85290bbd915b87d93fd156331272a1",
+    "PATCHES.md": "a14e73b43eab60039538ac19798f3b58d3e0859aaeb354b9f99a73341a9b3953",
     "README.md": "c420ef2fdc79c9a5fb8932bf8ec3be23a2e6151aa400c1487d63e336cd198756",
     "src/atomic_file.rs": "973150d4e9caedc8b0eedfce2537b852f2977572945cb62c12d4287baccff716",
     "src/builder.rs": "294d870d070b4236a20db269dafe80261ded590ae79458ffed32de2d451de943",
@@ -33,14 +33,14 @@
     "src/tcp/basic.rs": "2b22e893790bb2a06ae6d5d0e8fbbe5ad5b1373cbcf16e955b0ff6248748e7db",
     "src/tcp/evidence.rs": "1f562a9d71c3d89aedae0d0b2ac8e173a7cefe72069ea1f4744ab8599718c5ba",
     "src/tcp/frame.rs": "4218fe3699f591951157232b26e755be479a55b75bb5f41556b81909ec03b3b0",
-    "src/tcp/governance.rs": "390391e04597a06052d4baa89dc931e4daa9764a5cd74c0d76b84d1c8b5f5946",
+    "src/tcp/governance.rs": "85f547552f5f72a58addb0226c364badbd426e76eeef80f017c6178768c0e96a",
     "src/tcp/heartbeat.rs": "6302d43aab56bc966a4a5b5e6eb3fdb3df818928806205ec29260a2ded6ab4fc",
     "src/tcp/helper.rs": "0075197a12abd0fadefb67a902303ace8aed9d09f33715e67d357dcebf92311c",
-    "src/tcp/ip.rs": "8535e916c8c577fd05d63883f966d7b7c34e1ddd3efbed0d6de407a944aa4a7b",
+    "src/tcp/ip.rs": "8a19b04f4b90b518279173a7870456e84c8b2d2ec2bdd937402ebd2d3d36a1a4",
     "src/tcp/ip/capabilities.rs": "35947212f1ab59c38f9b078f8a6794f65c39817379a5d78695e04e8cf68231dc",
-    "src/tcp/ip/coordinator.rs": "6b24d9632aceba1091ca342a8f916b6dc7949545a1a1fb2afe1a8615dd2cbfb2",
-    "src/tcp/ip/daily.rs": "93d06623fde89ad0e71b589914e419a47bfdadff526ff122ec017c2bf70c7aff",
-    "src/tcp/ip/probe.rs": "351a4a558f927332544dcf3c4a8a20e85feb84e29d0ac7e45fd3750f031f29e0",
+    "src/tcp/ip/coordinator.rs": "88ea0e7f9e83b6ab74dd0ad210c7ccb082d40ecb3cbe0ececb248c6384800d2a",
+    "src/tcp/ip/daily.rs": "b60050704388c00bc77e18e12f2e915e75a9d0d4f5af01549fde178f943a0c08",
+    "src/tcp/ip/probe.rs": "e3aa70f6222c6c79b861f50c33f0fad0c96d528a8f3f540e2dbc8436f6dbc781",
     "src/tcp/mod.rs": "a47df3a9e93f09f86b8ec44a3301942f90d08581aecb4d472548390b98e346f2",
     "src/tcp/reader.rs": "da8c78974fca205a112f8876944d13e7bbfb28493a1ebb02644dcb5ee8848f04",
     "src/tcp/socket_poll.rs": "cc18ac20136b242e447e10d459b7669233a18a414fe194a2e7f24c9b0bfe0047",
@@ -108,7 +108,7 @@
     "src/tcp/tests.rs": "b1130f896b2e846c172d92b4fc75a2c0ea4340c232d3ab878659931d1b69e168",
     "tests/fixtures/kline/stock-day.response.hex": "1f24fe9180ee741dcefc73962dff299f4d34f108e3808c07e72880ac98e56f95"
   },
-  "core_sha256": "9c5082e8a43d217dc1f2ba2558545648830a953b84e83962d8bc0660f90955d5",
+  "core_sha256": "f2b821dc5b4ce6ac7c495ebe3cbcfccec5d2daf5cfe726684719607a27a75fde",
   "original_sha256": {
     "Cargo.toml": "442c7f029ac90ec339c58222bef95bc271adde700f90a55401d648d44b89d809",
     "LICENSE": "9b0dc07dd841fcc1f51f4f1c73a4460ed2dea57ef89442b30ae4429bab8395ee",
@@ -216,7 +216,7 @@
     "src/tcp/tests.rs": "b1130f896b2e846c172d92b4fc75a2c0ea4340c232d3ab878659931d1b69e168",
     "tests/fixtures/kline/stock-day.response.hex": "1f24fe9180ee741dcefc73962dff299f4d34f108e3808c07e72880ac98e56f95"
   },
-  "patch_sha256": "6ffce99f5e2d31e12673e3a9eb391c5953750471e734f7cab1d49213f47e17bd",
+  "patch_sha256": "3907851f578f846774bb820d23f076d68a9123fe44c4e5d91674de43085585d5",
   "patches": {
     "Cargo.lock": {
       "adapted": "90cd07f0ced7ef427a9aa001034ce81f0211db5826480aef037208ee8dbf3d0c",
@@ -227,27 +227,31 @@
       "upstream": "442c7f029ac90ec339c58222bef95bc271adde700f90a55401d648d44b89d809"
     },
     "PATCHES.md": {
-      "adapted": "6545f491ebe7688e7a79e31989592a27fc85290bbd915b87d93fd156331272a1",
+      "adapted": "a14e73b43eab60039538ac19798f3b58d3e0859aaeb354b9f99a73341a9b3953",
       "upstream": null
+    },
+    "src/tcp/governance.rs": {
+      "adapted": "85f547552f5f72a58addb0226c364badbd426e76eeef80f017c6178768c0e96a",
+      "upstream": "390391e04597a06052d4baa89dc931e4daa9764a5cd74c0d76b84d1c8b5f5946"
     },
     "src/tcp/heartbeat.rs": {
       "adapted": "6302d43aab56bc966a4a5b5e6eb3fdb3df818928806205ec29260a2ded6ab4fc",
       "upstream": "a5e8c6e15c12faab01ee00b668125f263941592ff45d4dd9e1330d1b2029e72f"
     },
     "src/tcp/ip.rs": {
-      "adapted": "8535e916c8c577fd05d63883f966d7b7c34e1ddd3efbed0d6de407a944aa4a7b",
+      "adapted": "8a19b04f4b90b518279173a7870456e84c8b2d2ec2bdd937402ebd2d3d36a1a4",
       "upstream": "979fcdb311440a51d449d7110bda433c49dcef34b496b856d8ab2c11a5cf5d02"
     },
     "src/tcp/ip/coordinator.rs": {
-      "adapted": "6b24d9632aceba1091ca342a8f916b6dc7949545a1a1fb2afe1a8615dd2cbfb2",
+      "adapted": "88ea0e7f9e83b6ab74dd0ad210c7ccb082d40ecb3cbe0ececb248c6384800d2a",
       "upstream": "50acdb60ed77b1b22d3074140ef4863c954565702d7ba8c4932ee863d651d7a8"
     },
     "src/tcp/ip/daily.rs": {
-      "adapted": "93d06623fde89ad0e71b589914e419a47bfdadff526ff122ec017c2bf70c7aff",
+      "adapted": "b60050704388c00bc77e18e12f2e915e75a9d0d4f5af01549fde178f943a0c08",
       "upstream": "5efbfe42e1764687b02399f6ab55fced212427a8c1430ffea41e2b82612962ee"
     },
     "src/tcp/ip/probe.rs": {
-      "adapted": "351a4a558f927332544dcf3c4a8a20e85feb84e29d0ac7e45fd3750f031f29e0",
+      "adapted": "e3aa70f6222c6c79b861f50c33f0fad0c96d528a8f3f540e2dbc8436f6dbc781",
       "upstream": "aa0884a45dc6c00e0428cdd0ff0e642bc5b2bf98f96bda4193126fa94285723d"
     },
     "src/tcp/mod.rs": {

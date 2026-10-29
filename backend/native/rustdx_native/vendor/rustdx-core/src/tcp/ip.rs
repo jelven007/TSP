@@ -16,7 +16,7 @@ mod coordinator;
 mod daily;
 mod probe;
 pub use capabilities::{CapabilityObservation, CapabilityStatus, capability_observation};
-pub use coordinator::{ProbePolicy, ProbeStats, configure_probes, probe_stats};
+pub use coordinator::{ProbeGroup, ProbePolicy, ProbeStats, configure_probes, probe_stats};
 pub use daily::{DailyIpPool, IpPool, default_pool};
 pub use probe::{
     DAILY_PROBE_ROUNDS, DAILY_PROBE_TIMEOUT, DAILY_PROBE_WORKERS, NodeTestResult, ProbeFailure,
@@ -105,13 +105,14 @@ pub fn check_alive(timeout: Duration) -> Vec<SocketAddr> {
 pub fn tcp_connect_ok(addr: &SocketAddr, timeout: Duration) -> bool {
     let result = (|| {
         let deadline = crate::tcp::governance::deadline_after(timeout)?;
-        let _permit = coordinator::acquire(Some(deadline))?;
+        let _permit = coordinator::acquire_at(Some(deadline), None, *addr)?;
         let stream = std::net::TcpStream::connect_timeout(
             addr,
             crate::tcp::governance::remaining(deadline)?,
         )?;
         crate::tcp::governance::remaining(deadline)?;
-        Ok::<_, std::io::Error>(stream)
+        drop(stream);
+        Ok::<_, std::io::Error>(())
     })();
     result.is_ok()
 }

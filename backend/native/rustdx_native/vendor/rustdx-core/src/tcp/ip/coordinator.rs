@@ -1,11 +1,33 @@
 //! One separate probe quota for all pools and diagnostics in a process.
 use crate::tcp::governance::{deadline_after, remaining};
 use std::{
+    collections::HashMap,
     fs::{File, OpenOptions},
     io,
+    net::SocketAddr,
     sync::{Arc, Condvar, Mutex, OnceLock},
     time::{Duration, Instant},
 };
+
+/// Immutable quota identity shared by all pools assigned to a task.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProbeGroup {
+    Legacy,
+    Realtime,
+    Minute,
+    History,
+}
+
+impl ProbeGroup {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Legacy => "legacy",
+            Self::Realtime => "realtime",
+            Self::Minute => "minute",
+            Self::History => "history",
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ProbePolicy {
@@ -39,6 +61,7 @@ struct Coordinator {
     state: Mutex<ProbeStats>,
     validated: Mutex<bool>,
     available: Condvar,
+    scoped: Mutex<HashMap<String, Arc<crate::tcp::governance::Governor>>>,
 }
 
 static COORDINATOR: OnceLock<Arc<Coordinator>> = OnceLock::new();
@@ -99,10 +122,41 @@ pub(super) fn workers() -> usize {
         .min(super::DAILY_PROBE_WORKERS)
 }
 
-pub(super) fn acquire(deadline: Option<Instant>) -> io::Result<ProbePermit> {
+pub(super) fn workers_for(group: Option<ProbeGroup>) -> usize {
+    if group.is_some() { 1 } else { workers() }
+}
+
+pub(super) fn acquire_at(
+    deadline: Option<Instant>,
+    group: Option<ProbeGroup>,
+    address: SocketAddr,
+) -> io::Result<ProbePermit> {
     let coordinator = global();
     let local = deadline_after(coordinator.policy.acquire_timeout)?;
-    coordinator.acquire(deadline.map_or(local, |deadline| deadline.min(local)))
+    let deadline = deadline.map_or(local, |deadline| deadline.min(local));
+    // Group precedes endpoint, which precedes total; no waiter retains the
+    // scarce total quota while waiting behind probes of its own task.
+    let mut scoped = Vec::new();
+    if let Some(group) = group {
+        scoped.push(
+            coordinator
+                .scope(format!("group-{}", group.name()), deadline)?
+                .acquire(deadline)?,
+        );
+    }
+    let encoded: String = address
+        .to_string()
+        .bytes()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    scoped.push(
+        coordinator
+            .scope(format!("endpoint-{encoded}"), deadline)?
+            .acquire(deadline)?,
+    );
+    let mut permit = coordinator.acquire(deadline)?;
+    permit.scoped = scoped;
+    Ok(permit)
 }
 
 impl Coordinator {
@@ -112,7 +166,40 @@ impl Coordinator {
             state: Mutex::new(ProbeStats::default()),
             validated: Mutex::new(false),
             available: Condvar::new(),
+            scoped: Mutex::new(HashMap::new()),
         }
+    }
+
+    fn scope(
+        &self,
+        key: String,
+        deadline: Instant,
+    ) -> io::Result<Arc<crate::tcp::governance::Governor>> {
+        let mut scoped = crate::tcp::governance::lock_until(&self.scoped, deadline)?;
+        if let Some(governor) = scoped.get(&key) {
+            return Ok(Arc::clone(governor));
+        }
+        let shared = self
+            .policy
+            .shared
+            .as_ref()
+            .map(|shared| crate::tcp::SharedNetworkPolicy {
+                directory: shared.directory.join("scopes").join(&key),
+                max_connections: 1,
+            });
+        if let Some(shared) = &shared {
+            crate::tcp::governance::validate_shared_until(shared, deadline)?;
+        }
+        let governor = Arc::new(crate::tcp::governance::Governor::new(
+            crate::tcp::NetworkPolicy {
+                max_connections: 1,
+                acquire_timeout: self.policy.acquire_timeout,
+                shared,
+                ..Default::default()
+            },
+        ));
+        scoped.insert(key, Arc::clone(&governor));
+        Ok(governor)
     }
 
     fn acquire(self: &Arc<Self>, deadline: Instant) -> io::Result<ProbePermit> {
@@ -160,6 +247,7 @@ impl Coordinator {
                     return Ok(ProbePermit {
                         coordinator: self.clone(),
                         shared: file,
+                        scoped: Vec::new(),
                     });
                 }
             }
@@ -179,11 +267,13 @@ impl Coordinator {
 pub(super) struct ProbePermit {
     coordinator: Arc<Coordinator>,
     shared: Option<File>,
+    scoped: Vec<crate::tcp::governance::Permit>,
 }
 
 impl Drop for ProbePermit {
     fn drop(&mut self) {
         self.shared.take();
+        self.scoped.clear();
         let mut state = self
             .coordinator
             .state

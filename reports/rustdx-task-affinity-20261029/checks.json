@@ -1,0 +1,283 @@
+{
+  "application_version": "0.4.38",
+  "bridge_version": "0.3.0",
+  "pool_api": 4,
+  "base_revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "publication": {
+    "committed": false,
+    "pushed": false,
+    "deployed": false
+  },
+  "checks": {
+    "workspace_backend": {
+      "passed": 4680,
+      "skipped": 162,
+      "warnings": 173,
+      "seconds": 258.07
+    },
+    "workspace_focused": {
+      "passed": 288,
+      "seconds": 57.6
+    },
+    "workspace_combined": {
+      "passed": 28,
+      "seconds": 22.86
+    },
+    "workspace_tooling": {
+      "passed": 136,
+      "seconds": 49.95
+    },
+    "bridge_unit": {
+      "passed": 10
+    },
+    "core_unit": {
+      "passed": 203,
+      "network_integration_enabled": false
+    },
+    "core_doctests": {
+      "passed": 57,
+      "ignored": 18
+    },
+    "windows_core_check": "PASS; compile check only",
+    "clippy": "PASS; core and bridge --all-targets -D warnings",
+    "ruff": "PASS; six changed Python files",
+    "make_check": "PASS",
+    "frozen_lock": "PASS; offline",
+    "vendor_identity": "PASS"
+  },
+  "corrected_verification_failures": [
+    "explicit smaller minute background cap ignored after session: 8 != 3",
+    "explicit history background cap ignored: 8 != 3",
+    "vendor verifier invoked with unsupported verify --offline arguments; corrected to repository command",
+    "macOS TCP FD duplicates counted 99; unique local/remote pairs verified 27"
+  ],
+  "merge": {
+    "task_files": 37,
+    "unrelated_baseline_hashes_preserved": 19,
+    "existing_report_index_preserved": true,
+    "files": [
+      {
+        "path": ".env.example",
+        "before_sha256": "5621e854b37d797812393b075cb1b9e743247d19078e09d2d60760e0e252c35a",
+        "final_sha256": "671086844d5c35088a7d1b9b54891ab8ea4469af2a25038acee344c1d982ab86",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "CONTRIBUTING.md",
+        "before_sha256": "a8633876ca4187534fd8da11beca1dfe240fd62b4c9aae6ede5d4a0f64a26ebc",
+        "final_sha256": "2cc675e6dda282dc20c1673abd350f63407be04c0a5ded1c0528a6b5ee033399",
+        "parallel_content_preserved": true
+      },
+      {
+        "path": "README.md",
+        "before_sha256": "5a461e7f441c395916c0872ba2c2ff31c5d1ae7a57dc50c94e9309b1762f8d64",
+        "final_sha256": "f286eff35eab8e7daf64dab6c67df98b50a20e9943b12d3602aa8e73a998dad8",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/app/plugins/rustdx/_native_identity.py",
+        "before_sha256": "2b66310ebec3ca3a89f52c74f40baf1f39abdc0ffb190fbeecf93b211e25000d",
+        "final_sha256": "19ea6663958c83595a30f500e66a10efab2d28c66dd9b968d5703a9cdfd505d2",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/app/plugins/rustdx/client.py",
+        "before_sha256": "abaf05c4e0d6a47b4a5ac5c1997fd4163d92f073ea0edca49be1d88eb4075042",
+        "final_sha256": "830ac97ca1e7565647c34d8cd0bc2624935f73ad1030558dcb76859b898bd550",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/app/plugins/rustdx/provider.py",
+        "before_sha256": "98d263f5baf488a3e7088467527e19b5ae6e996bbefcb7943e89a531e94a3265",
+        "final_sha256": "5c8e08e63d8c3244909c02f5e3afbf52e293299706920cc1ba9a5516a0979d0a",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/app/plugins/rustdx/routing.py",
+        "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_sha256": "2140cc8565f669696ebf07e4622622ed9ecf181a48ac942f9bfdd48c7942106c",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/Cargo.lock",
+        "before_sha256": "9053180824c61fcde8d0af04ca23387f87a196563582f3e29769cf2fe062fafc",
+        "final_sha256": "741b72790336dc26fa71533cdbcadb3ff2b161c75c085c25abeddf746cc2e8ce",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/Cargo.toml",
+        "before_sha256": "95cbd51b5a52b1cb87dec3c61aea20078a0dad365dc970329b9cc7ba3466d53e",
+        "final_sha256": "f8501e40552c73f9b27751b300f504626599b95495a6a906a3dd8c21f8e3a723",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/pyproject.toml",
+        "before_sha256": "b96211e9a83c89f6ce149e3b6f01d318062cd0a1a296a7cd929b78f6bd282496",
+        "final_sha256": "6fce47049efa4fcf1c39be6cc1d3120f768b1c1cd0b2b8dfbebbf04d2bf43050",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/src/lib.rs",
+        "before_sha256": "676864328fe76460e1ee95f25fadbd94b38a4babb0e97af788344e97b839695f",
+        "final_sha256": "9bd1a3769f5af350ed25566687ad00202674581a348acea8314c28a480805072",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/src/pool.rs",
+        "before_sha256": "335e2ac418134676d1e9bc2a2ca1071c40b122ce26869a7410294a5c4eef180a",
+        "final_sha256": "c2736cbfac6cce743832071c286ff2a6c88a60a00b8ddef77d1b7826914c9130",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/src/quota.rs",
+        "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_sha256": "ba13d386455f50eeb9fac451ca0023688f8f5495284c2ffcd107c616503b54cc",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/vendor/rustdx-core/PATCHES.md",
+        "before_sha256": "6545f491ebe7688e7a79e31989592a27fc85290bbd915b87d93fd156331272a1",
+        "final_sha256": "a14e73b43eab60039538ac19798f3b58d3e0859aaeb354b9f99a73341a9b3953",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/vendor/rustdx-core/SOURCE-SHA256SUMS",
+        "before_sha256": "9c5082e8a43d217dc1f2ba2558545648830a953b84e83962d8bc0660f90955d5",
+        "final_sha256": "f2b821dc5b4ce6ac7c495ebe3cbcfccec5d2daf5cfe726684719607a27a75fde",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/vendor/rustdx-core/UPSTREAM.json",
+        "before_sha256": "5785f637a8575d5e18c5851dfc4e1a97d1c9a0d177ebd4940208f093c53906ce",
+        "final_sha256": "e181ae17327a078814454d1ea4df10e7f7da212581af4ade26214114a9f13082",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/governance.rs",
+        "before_sha256": "390391e04597a06052d4baa89dc931e4daa9764a5cd74c0d76b84d1c8b5f5946",
+        "final_sha256": "85f547552f5f72a58addb0226c364badbd426e76eeef80f017c6178768c0e96a",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip.rs",
+        "before_sha256": "8535e916c8c577fd05d63883f966d7b7c34e1ddd3efbed0d6de407a944aa4a7b",
+        "final_sha256": "8a19b04f4b90b518279173a7870456e84c8b2d2ec2bdd937402ebd2d3d36a1a4",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip/coordinator.rs",
+        "before_sha256": "6b24d9632aceba1091ca342a8f916b6dc7949545a1a1fb2afe1a8615dd2cbfb2",
+        "final_sha256": "88ea0e7f9e83b6ab74dd0ad210c7ccb082d40ecb3cbe0ececb248c6384800d2a",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip/daily.rs",
+        "before_sha256": "93d06623fde89ad0e71b589914e419a47bfdadff526ff122ec017c2bf70c7aff",
+        "final_sha256": "b60050704388c00bc77e18e12f2e915e75a9d0d4f5af01549fde178f943a0c08",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip/probe.rs",
+        "before_sha256": "351a4a558f927332544dcf3c4a8a20e85feb84e29d0ac7e45fd3750f031f29e0",
+        "final_sha256": "e3aa70f6222c6c79b861f50c33f0fad0c96d528a8f3f540e2dbc8436f6dbc781",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/tests/test_rustdx_installation.py",
+        "before_sha256": "63b4c4bcb0043bcb356493bdc25222e32a9864634033a779f092af5c59c2cc4e",
+        "final_sha256": "aa1a7dd22a27cab23df0dbcf4cb1978b53b51948fce7a89ae21be069c3f1348f",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/tests/test_rustdx_native_pool.py",
+        "before_sha256": "e807b87c5e5075c208c24dd06395aaa255e8d5425d3a8735181c65161f345ced",
+        "final_sha256": "fbe828753a55f63e44fee728556cd80854e6f4285fe9ffc735e8a634b23d6191",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/tests/test_rustdx_provider.py",
+        "before_sha256": "c0b59090a0fbcf21d6f69498cd00662f1e690ddadfddf09775eb3d9c5e6a984d",
+        "final_sha256": "f935fd4bbf088b18cea792b896c36d66f7e0927392c2922cfeb624344a464fe7",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/tests/test_rustdx_task_quotas.py",
+        "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_sha256": "60379bfe4d6b26def895d8ba614131d256165327025e32de612731a0b4e32e28",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/tests/test_rustdx_task_routing.py",
+        "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_sha256": "9c1e30b9dd8f311e5150fe702106b35128f111ed24a52c7c67595dcc9a71ea68",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/tests/test_rustdx_window_consistency.py",
+        "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_sha256": "faf77592c14792b09e338ae8bc44931d12196736ad3e9ab5a1ef68d1bdca5e1d",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "backend/uv.lock",
+        "before_sha256": "5f267638b2cfa589f2077056ba35926964b1562bca18083a05032286f033dc8c",
+        "final_sha256": "7877c446c17c1f7f482bb3458e4e87120910a671d77a5a40a202664996ffff1a",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "docs/README.md",
+        "before_sha256": "49046d0a6bd36fb3dfb1c91aeda0aa5d36360a0b9ff1084eb16980cab23e4968",
+        "final_sha256": "591834cfb49d7dca564c45526a13fc63f5cd56121fde95c634bbbd63f090a6a8",
+        "parallel_content_preserved": true
+      },
+      {
+        "path": "docs/architecture.md",
+        "before_sha256": "5204c39b0fcdb3139b377109fccb797847de0c97b22b9c0ea4655964139daffc",
+        "final_sha256": "1af4c582dce1a7946fa1e38f90bb3a8a0dec3d1aaa86f7d02ea17288f8abafe8",
+        "parallel_content_preserved": true
+      },
+      {
+        "path": "docs/operations.md",
+        "before_sha256": "b6e40e89e3e17541d45d77e7ea0bb61f01f937f3bef7bcc97124f30bb837c2ff",
+        "final_sha256": "d69c7c6c00affb3c00bfe8ee1028a39d01fd13694a9ec23d15f9567fb1060f79",
+        "parallel_content_preserved": true
+      },
+      {
+        "path": "docs/reference/integrations.md",
+        "before_sha256": "429336ceda77594f744d4d6804089fc2c03643cd3e0504967c039d1d5b671e07",
+        "final_sha256": "e8aa111dd37e6b6572038c12b36f52727bbf4ae14ef60e513a4e84f6f57b0217",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "docs/requirements.md",
+        "before_sha256": "c1a34c9c96ec3ba1d9014ce46ff4600528875ed2a1826bf9088a3391d7db89bc",
+        "final_sha256": "722017fbafab9433d54d6b12f46c6695f2e5f0b37b356e6e2be082b85b406e7c",
+        "parallel_content_preserved": true
+      },
+      {
+        "path": "docs/rustdx-task-routing.md",
+        "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "final_sha256": "0689db86827071fba182cdd5952939e47396f6581360f6237590ddade5dee368",
+        "parallel_content_preserved": false
+      },
+      {
+        "path": "docs/secondary-development.md",
+        "before_sha256": "739b746215ec7b56d1c413dbae6eb1f5c97ce3b4a3b29c12f47d4674c0ec7564",
+        "final_sha256": "11fcbde8bbe624f6eeb97fb9707a472765f64a94ef075f231a17288f43a74f84",
+        "parallel_content_preserved": true
+      },
+      {
+        "path": "docs/testing.md",
+        "before_sha256": "4431aa6a1a184d00b5fae0b0210801e3fb5a5a096ad948dd4f32faf66f9e772b",
+        "final_sha256": "5ae38f05e49a215794eff684c44311458bd9665c4cb1a0ee08af5b82411aba96",
+        "parallel_content_preserved": true
+      },
+      {
+        "path": "操作说明书.md",
+        "before_sha256": "c79053f01cd667b94ab0c893c0ac27d8588a89a5ec3fdd2ecc586e8a75d4646b",
+        "final_sha256": "a235b410f1c1b24389751b9c1a1ab1e1371456372d98365f6c2a95124c3539ac",
+        "parallel_content_preserved": true
+      }
+    ]
+  }
+}

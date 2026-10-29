@@ -1,0 +1,3936 @@
+{
+  "nodes": [
+    "117.34.114.13:7709",
+    "115.238.56.198:7709",
+    "180.153.18.170:7709",
+    "110.41.147.114:7709",
+    "8.129.13.54:7709",
+    "120.24.149.49:7709",
+    "47.113.94.204:7709",
+    "8.129.174.169:7709",
+    "110.41.154.219:7709",
+    "124.70.176.52:7709",
+    "47.100.236.28:7709",
+    "101.133.214.242:7709",
+    "47.116.21.80:7709",
+    "47.116.105.28:7709",
+    "124.70.199.56:7709",
+    "106.14.201.131:7709",
+    "106.14.190.242:7709",
+    "121.36.225.169:7709",
+    "123.60.70.228:7709",
+    "123.60.73.44:7709",
+    "124.70.133.119:7709",
+    "124.71.187.72:7709",
+    "124.71.187.122:7709",
+    "123.60.84.66:7709",
+    "121.36.54.217:7709",
+    "121.36.81.195:7709",
+    "123.249.15.60:7709",
+    "124.70.75.113:7709",
+    "120.46.186.223:7709",
+    "124.70.22.210:7709",
+    "139.9.133.247:7709",
+    "124.71.85.110:7709",
+    "139.9.51.18:7709",
+    "139.159.239.163:7709",
+    "124.71.9.153:7709",
+    "116.205.163.254:7709",
+    "116.205.171.132:7709",
+    "116.205.183.150:7709",
+    "119.97.185.59:7709",
+    "47.107.64.168:7709",
+    "47.107.228.47:7719"
+  ],
+  "results": [
+    {
+      "endpoint": "117.34.114.13:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "117.34.114.13-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "117.34.114.13-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "81fd8642e4b11e859097725e20320d23ce486565dea3c46ba0b06c52d7aba9f3",
+          "file": "117.34.114.13-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "cddfa5c27646a4941607f4b4440fbf4cdaf2b4ac4524f85e034605f2ee11865b",
+          "file": "117.34.114.13-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "117.34.114.13-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "117.34.114.13-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "81fd8642e4b11e859097725e20320d23ce486565dea3c46ba0b06c52d7aba9f3",
+          "file": "117.34.114.13-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "cddfa5c27646a4941607f4b4440fbf4cdaf2b4ac4524f85e034605f2ee11865b",
+          "file": "117.34.114.13-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        }
+      ],
+      "error": null,
+      "seconds": 1.2518040419963654,
+      "qualified": true
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "180.153.18.170-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "180.153.18.170-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "12ff0feb00a75b4061a801321cbc8cb86710bc1f2a38b348eadeaaeca45798c2",
+          "file": "180.153.18.170-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "bd8b8e5d72ddfe36a130e29b33b9fbc40b844d1d3aa3e59833f7ed767494113e",
+          "file": "180.153.18.170-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "180.153.18.170-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "180.153.18.170-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "12ff0feb00a75b4061a801321cbc8cb86710bc1f2a38b348eadeaaeca45798c2",
+          "file": "180.153.18.170-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "bd8b8e5d72ddfe36a130e29b33b9fbc40b844d1d3aa3e59833f7ed767494113e",
+          "file": "180.153.18.170-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 84,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-05 10:28:00",
+                "open": 132.57,
+                "close": 133.17,
+                "high": 133.17,
+                "low": 132.56,
+                "volume": 173.0,
+                "amount": 2298159.0,
+                "raw_volume_u32": 1183262720,
+                "raw_amount_u32": 1242318012,
+                "record_bytes_hex": "25b3740254980998094a00288746bc440c4a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-05 10:28:00",
+                "open": 132.56,
+                "close": 133.17,
+                "high": 133.17,
+                "low": 132.56,
+                "volume": 173.0,
+                "amount": 2298159.0,
+                "raw_volume_u32": 1183262720,
+                "raw_amount_u32": 1242318012,
+                "record_bytes_hex": "25b374025ea209a2090000288746bc440c4a"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-05 14:44:00",
+                "open": 138.61,
+                "close": 138.47,
+                "high": 138.61,
+                "low": 138.47,
+                "volume": 96.0,
+                "amount": 1327897.0,
+                "raw_volume_u32": 1175846912,
+                "raw_amount_u32": 1235359944,
+                "record_bytes_hex": "25b3740300cc0200cc0200001646c818a249"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-05 14:44:00",
+                "open": 138.59,
+                "close": 138.47,
+                "high": 138.6,
+                "low": 138.47,
+                "volume": 96.0,
+                "amount": 1327897.0,
+                "raw_volume_u32": 1175846912,
+                "raw_amount_u32": 1235359944,
+                "record_bytes_hex": "25b3740354f8010af80100001646c818a249"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 84,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-05 10:28:00",
+                "open": 132.57,
+                "close": 133.17,
+                "high": 133.17,
+                "low": 132.56,
+                "volume": 173.0,
+                "amount": 2298159.0,
+                "raw_volume_u32": 1183262720,
+                "raw_amount_u32": 1242318012,
+                "record_bytes_hex": "25b3740254980998094a00288746bc440c4a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-05 10:28:00",
+                "open": 132.56,
+                "close": 133.17,
+                "high": 133.17,
+                "low": 132.56,
+                "volume": 173.0,
+                "amount": 2298159.0,
+                "raw_volume_u32": 1183262720,
+                "raw_amount_u32": 1242318012,
+                "record_bytes_hex": "25b374025ea209a2090000288746bc440c4a"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-05 14:44:00",
+                "open": 138.61,
+                "close": 138.47,
+                "high": 138.61,
+                "low": 138.47,
+                "volume": 96.0,
+                "amount": 1327897.0,
+                "raw_volume_u32": 1175846912,
+                "raw_amount_u32": 1235359944,
+                "record_bytes_hex": "25b3740300cc0200cc0200001646c818a249"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-05 14:44:00",
+                "open": 138.59,
+                "close": 138.47,
+                "high": 138.6,
+                "low": 138.47,
+                "volume": 96.0,
+                "amount": 1327897.0,
+                "raw_volume_u32": 1175846912,
+                "raw_amount_u32": 1235359944,
+                "record_bytes_hex": "25b3740354f8010af80100001646c818a249"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.2638243330002297,
+      "qualified": false
+    },
+    {
+      "endpoint": "115.238.56.198:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "115.238.56.198-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "115.238.56.198-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "f058af5c3e29949cc96ebd55c57bbe6cc675fb41dc31482b6df80a5771ef6113",
+          "file": "115.238.56.198-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "cddfa5c27646a4941607f4b4440fbf4cdaf2b4ac4524f85e034605f2ee11865b",
+          "file": "115.238.56.198-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "115.238.56.198-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "115.238.56.198-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "f058af5c3e29949cc96ebd55c57bbe6cc675fb41dc31482b6df80a5771ef6113",
+          "file": "115.238.56.198-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "cddfa5c27646a4941607f4b4440fbf4cdaf2b4ac4524f85e034605f2ee11865b",
+          "file": "115.238.56.198-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 88,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:34:00",
+                "open": 145.42,
+                "close": 145.52,
+                "high": 146.24,
+                "low": 145.42,
+                "volume": 301.0,
+                "amount": 4387613.0,
+                "raw_volume_u32": 1189816320,
+                "raw_amount_u32": 1250289210,
+                "record_bytes_hex": "39b33e0200a401b40c000028eb463ae6854a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:34:00",
+                "open": 145.42,
+                "close": 145.52,
+                "high": 146.24,
+                "low": 145.42,
+                "volume": 297.0,
+                "amount": 4329349.0,
+                "raw_volume_u32": 1189611520,
+                "raw_amount_u32": 1250172682,
+                "record_bytes_hex": "39b33e0200a401b40c000008e8460a1f844a"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:35:00",
+                "open": 145.56,
+                "close": 145.03,
+                "high": 146.18,
+                "low": 144.65,
+                "volume": 1169.0,
+                "amount": 16953124.0,
+                "raw_volume_u32": 1206145536,
+                "raw_amount_u32": 1266767762,
+                "record_bytes_hex": "39b33f0228d208ac09ce0e0052e4479257814b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:35:00",
+                "open": 145.52,
+                "close": 144.88,
+                "high": 146.18,
+                "low": 144.65,
+                "volume": 1060.0,
+                "amount": 15373002.0,
+                "raw_volume_u32": 1204750336,
+                "raw_amount_u32": 1265275594,
+                "record_bytes_hex": "39b33f0200c00a940ae60d0008cf47ca926a4b"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 88,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:34:00",
+                "open": 145.42,
+                "close": 145.52,
+                "high": 146.24,
+                "low": 145.42,
+                "volume": 301.0,
+                "amount": 4387613.0,
+                "raw_volume_u32": 1189816320,
+                "raw_amount_u32": 1250289210,
+                "record_bytes_hex": "39b33e0200a401b40c000028eb463ae6854a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:34:00",
+                "open": 145.42,
+                "close": 145.52,
+                "high": 146.24,
+                "low": 145.42,
+                "volume": 297.0,
+                "amount": 4329349.0,
+                "raw_volume_u32": 1189611520,
+                "raw_amount_u32": 1250172682,
+                "record_bytes_hex": "39b33e0200a401b40c000008e8460a1f844a"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:35:00",
+                "open": 145.56,
+                "close": 145.03,
+                "high": 146.18,
+                "low": 144.65,
+                "volume": 1169.0,
+                "amount": 16953124.0,
+                "raw_volume_u32": 1206145536,
+                "raw_amount_u32": 1266767762,
+                "record_bytes_hex": "39b33f0228d208ac09ce0e0052e4479257814b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:35:00",
+                "open": 145.52,
+                "close": 144.88,
+                "high": 146.18,
+                "low": 144.65,
+                "volume": 1060.0,
+                "amount": 15373002.0,
+                "raw_volume_u32": 1204750336,
+                "raw_amount_u32": 1265275594,
+                "record_bytes_hex": "39b33f0200c00a940ae60d0008cf47ca926a4b"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.305722290999256,
+      "qualified": false
+    },
+    {
+      "endpoint": "110.41.147.114:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "110.41.147.114-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "110.41.147.114-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "2047b796dcb49247194c202bfb8750a8933d2537349acb10563bb0afb17532d2",
+          "file": "110.41.147.114-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "110.41.147.114-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "110.41.147.114-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "110.41.147.114-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "2047b796dcb49247194c202bfb8750a8933d2537349acb10563bb0afb17532d2",
+          "file": "110.41.147.114-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "110.41.147.114-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 78,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 78,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.4528239159990335,
+      "qualified": false
+    },
+    {
+      "endpoint": "8.129.13.54:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0024112079991028,
+      "qualified": false
+    },
+    {
+      "endpoint": "120.24.149.49:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.002501458002371,
+      "qualified": false
+    },
+    {
+      "endpoint": "47.113.94.204:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.002609000002849,
+      "qualified": false
+    },
+    {
+      "endpoint": "8.129.174.169:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0026388749975013,
+      "qualified": false
+    },
+    {
+      "endpoint": "110.41.154.219:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0030587500077672,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.70.176.52:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0030003749998286,
+      "qualified": false
+    },
+    {
+      "endpoint": "47.100.236.28:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0028684589924524,
+      "qualified": false
+    },
+    {
+      "endpoint": "47.116.105.28:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "ConnectionRefusedError(61, 'Connection refused')",
+      "seconds": 0.06035891699139029,
+      "qualified": false
+    },
+    {
+      "endpoint": "101.133.214.242:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0028411660023266,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.70.199.56:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.70.199.56-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.70.199.56-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "8b6bc7a886553df265430602b9eeeccbd58fd6ae0ce1388b5ec9f00590465b40",
+          "file": "124.70.199.56-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.70.199.56-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.70.199.56-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.70.199.56-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "8b6bc7a886553df265430602b9eeeccbd58fd6ae0ce1388b5ec9f00590465b40",
+          "file": "124.70.199.56-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.70.199.56-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 85,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 85,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.4507819170103176,
+      "qualified": false
+    },
+    {
+      "endpoint": "47.116.21.80:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.004115791991353,
+      "qualified": false
+    },
+    {
+      "endpoint": "106.14.201.131:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0023724170023343,
+      "qualified": false
+    },
+    {
+      "endpoint": "106.14.190.242:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0031884999916656,
+      "qualified": false
+    },
+    {
+      "endpoint": "121.36.225.169:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "121.36.225.169-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "121.36.225.169-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "7ebcb8ce0f0e09366861f8eb48e8094df6e3728dacf55cf8095bad20b4eec45c",
+          "file": "121.36.225.169-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "121.36.225.169-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "121.36.225.169-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "121.36.225.169-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "7ebcb8ce0f0e09366861f8eb48e8094df6e3728dacf55cf8095bad20b4eec45c",
+          "file": "121.36.225.169-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "121.36.225.169-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 83,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 83,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 2.249852875000215,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.70.133.119:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.70.133.119-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.70.133.119-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "8b6bc7a886553df265430602b9eeeccbd58fd6ae0ce1388b5ec9f00590465b40",
+          "file": "124.70.133.119-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.70.133.119-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.70.133.119-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.70.133.119-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "8b6bc7a886553df265430602b9eeeccbd58fd6ae0ce1388b5ec9f00590465b40",
+          "file": "124.70.133.119-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.70.133.119-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 85,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 85,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.1320935830008239,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.71.187.72:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.71.187.72-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.71.187.72-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "d1d149b0aa545802d022e7b4e236fd369d070010f858c405610aa49cffdf5e10",
+          "file": "124.71.187.72-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.71.187.72-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.71.187.72-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.71.187.72-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "d1d149b0aa545802d022e7b4e236fd369d070010f858c405610aa49cffdf5e10",
+          "file": "124.71.187.72-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.71.187.72-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 84,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 84,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 0.7044224160054,
+      "qualified": false
+    },
+    {
+      "endpoint": "123.60.73.44:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "123.60.73.44-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "123.60.73.44-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "8b6bc7a886553df265430602b9eeeccbd58fd6ae0ce1388b5ec9f00590465b40",
+          "file": "123.60.73.44-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "123.60.73.44-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "123.60.73.44-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "123.60.73.44-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "8b6bc7a886553df265430602b9eeeccbd58fd6ae0ce1388b5ec9f00590465b40",
+          "file": "123.60.73.44-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "123.60.73.44-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 85,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 85,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.5212567499984289,
+      "qualified": false
+    },
+    {
+      "endpoint": "123.60.70.228:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "123.60.70.228-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "123.60.70.228-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "7ebcb8ce0f0e09366861f8eb48e8094df6e3728dacf55cf8095bad20b4eec45c",
+          "file": "123.60.70.228-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "123.60.70.228-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "123.60.70.228-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "123.60.70.228-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "7ebcb8ce0f0e09366861f8eb48e8094df6e3728dacf55cf8095bad20b4eec45c",
+          "file": "123.60.70.228-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "123.60.70.228-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 83,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 83,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.7009475420054514,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.71.187.122:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.71.187.122-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.71.187.122-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "7ebcb8ce0f0e09366861f8eb48e8094df6e3728dacf55cf8095bad20b4eec45c",
+          "file": "124.71.187.122-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.71.187.122-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.71.187.122-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.71.187.122-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "7ebcb8ce0f0e09366861f8eb48e8094df6e3728dacf55cf8095bad20b4eec45c",
+          "file": "124.71.187.122-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.71.187.122-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 83,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 83,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 0.8823584579949966,
+      "qualified": false
+    },
+    {
+      "endpoint": "123.60.84.66:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "123.60.84.66-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "123.60.84.66-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "d1d149b0aa545802d022e7b4e236fd369d070010f858c405610aa49cffdf5e10",
+          "file": "123.60.84.66-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "123.60.84.66-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "123.60.84.66-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "123.60.84.66-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "d1d149b0aa545802d022e7b4e236fd369d070010f858c405610aa49cffdf5e10",
+          "file": "123.60.84.66-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "123.60.84.66-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 84,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 84,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 2.148196709007607,
+      "qualified": false
+    },
+    {
+      "endpoint": "121.36.54.217:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0039451659977203,
+      "qualified": false
+    },
+    {
+      "endpoint": "121.36.81.195:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0080628339928808,
+      "qualified": false
+    },
+    {
+      "endpoint": "123.249.15.60:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0049069999950007,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.70.75.113:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.004134583999985,
+      "qualified": false
+    },
+    {
+      "endpoint": "120.46.186.223:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0057670829992276,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.70.22.210:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.00621179099835,
+      "qualified": false
+    },
+    {
+      "endpoint": "139.9.133.247:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0043554580042837,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.71.9.153:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.71.9.153-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.71.9.153-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "f81d0254354b527a80924214907573a053102149606d8a9b9c1040311a5c3628",
+          "file": "124.71.9.153-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.71.9.153-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "124.71.9.153-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "124.71.9.153-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "f81d0254354b527a80924214907573a053102149606d8a9b9c1040311a5c3628",
+          "file": "124.71.9.153-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "124.71.9.153-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 79,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 79,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 0.6581066249927972,
+      "qualified": false
+    },
+    {
+      "endpoint": "116.205.163.254:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "116.205.163.254-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "116.205.163.254-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "8f34a580a0f6d025a1d39aaec3f9e18abd5798987875d40454d46fa46d4ad7c3",
+          "file": "116.205.163.254-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "116.205.163.254-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "116.205.163.254-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "116.205.163.254-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "8f34a580a0f6d025a1d39aaec3f9e18abd5798987875d40454d46fa46d4ad7c3",
+          "file": "116.205.163.254-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "116.205.163.254-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 80,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 80,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 0.6232088329998078,
+      "qualified": false
+    },
+    {
+      "endpoint": "124.71.85.110:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.006370249990141,
+      "qualified": false
+    },
+    {
+      "endpoint": "116.205.171.132:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "116.205.171.132-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "116.205.171.132-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "9fe5424dc51dfd94d43d9cef6b5e0595ffce3a5f369961543953ba427e8407d3",
+          "file": "116.205.171.132-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "116.205.171.132-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "116.205.171.132-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "116.205.171.132-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "9fe5424dc51dfd94d43d9cef6b5e0595ffce3a5f369961543953ba427e8407d3",
+          "file": "116.205.171.132-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "116.205.171.132-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 81,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 81,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.0756270840065554,
+      "qualified": false
+    },
+    {
+      "endpoint": "139.9.51.18:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.004589666990796,
+      "qualified": false
+    },
+    {
+      "endpoint": "139.159.239.163:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.005747542003519,
+      "qualified": false
+    },
+    {
+      "endpoint": "116.205.183.150:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "116.205.183.150-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "116.205.183.150-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "2047b796dcb49247194c202bfb8750a8933d2537349acb10563bb0afb17532d2",
+          "file": "116.205.183.150-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "116.205.183.150-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "116.205.183.150-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "116.205.183.150-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "2047b796dcb49247194c202bfb8750a8933d2537349acb10563bb0afb17532d2",
+          "file": "116.205.183.150-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "9f3fd21538f76a479e83663382a4ae7ddaa42e80f0033d67f0fae3fdbd5b33c4",
+          "file": "116.205.183.150-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 78,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 78,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 687.0,
+                "amount": 9627931.0,
+                "raw_volume_u32": 1199975936,
+                "raw_amount_u32": 1259530523,
+                "record_bytes_hex": "26b35e024aec09a40bda0b002e86471be9124b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:06:00",
+                "open": 140.25,
+                "close": 139.63,
+                "high": 140.99,
+                "low": 139.52,
+                "volume": 677.0,
+                "amount": 9488319.0,
+                "raw_volume_u32": 1199847936,
+                "raw_amount_u32": 1259390911,
+                "record_bytes_hex": "26b35e024aec09a40bda0b003a8447bfc7104b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.51,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 355.0,
+                "amount": 4952055.0,
+                "raw_volume_u32": 1191881728,
+                "raw_amount_u32": 1251418094,
+                "record_bytes_hex": "26b35f02f801729c03fe0700ac0a47ee1f974a"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-06 10:07:00",
+                "open": 139.23,
+                "close": 139.46,
+                "high": 139.73,
+                "low": 139.0,
+                "volume": 365.0,
+                "amount": 5091667.0,
+                "raw_volume_u32": 1192137728,
+                "raw_amount_u32": 1251697318,
+                "record_bytes_hex": "26b35f02d006a603b407e60300940e47a6629b4a"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 1.145176417005132,
+      "qualified": false
+    },
+    {
+      "endpoint": "119.97.185.59:7709",
+      "pages": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "119.97.185.59-7709-0-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "119.97.185.59-7709-0-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 9600,
+          "sha256": "8b530546be54cd06b30b8ced4c3a5f4b58c0c5a9c8b71e8c92a0479b0cf93392",
+          "file": "119.97.185.59-7709-0-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "start": 12800,
+          "sha256": "cddfa5c27646a4941607f4b4440fbf4cdaf2b4ac4524f85e034605f2ee11865b",
+          "file": "119.97.185.59-7709-0-688652.SH-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "32704ea32e5bf3dc95671baab69e9022bdfc218aea20f46be351799000661884",
+          "file": "119.97.185.59-7709-1-001400.SZ-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "f1ddd336c8b282bc249c62c4578fa566d4687873a43ca45819bb9733409fb8ab",
+          "file": "119.97.185.59-7709-1-001400.SZ-16.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 9600,
+          "sha256": "8b530546be54cd06b30b8ced4c3a5f4b58c0c5a9c8b71e8c92a0479b0cf93392",
+          "file": "119.97.185.59-7709-1-688652.SH-12.bin",
+          "rows": 800
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "start": 12800,
+          "sha256": "cddfa5c27646a4941607f4b4440fbf4cdaf2b4ac4524f85e034605f2ee11865b",
+          "file": "119.97.185.59-7709-1-688652.SH-16.bin",
+          "rows": 800
+        }
+      ],
+      "comparisons": [
+        {
+          "symbol": "001400.SZ",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 0,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 71,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:35:00",
+                "open": 145.56,
+                "close": 145.03,
+                "high": 146.18,
+                "low": 144.65,
+                "volume": 1169.0,
+                "amount": 16953124.0,
+                "raw_volume_u32": 1206145536,
+                "raw_amount_u32": 1266767762,
+                "record_bytes_hex": "39b33f0228d208ac09ce0e0052e4479257814b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:35:00",
+                "open": 145.56,
+                "close": 144.88,
+                "high": 146.18,
+                "low": 144.65,
+                "volume": 1056.0,
+                "amount": 15314738.0,
+                "raw_volume_u32": 1204699136,
+                "raw_amount_u32": 1265217330,
+                "record_bytes_hex": "39b33f0228e80aac09ce0e0040ce4732af694b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:36:00",
+                "open": 144.96,
+                "close": 142.75,
+                "high": 144.96,
+                "low": 142.0,
+                "volume": 1174.0,
+                "amount": 16793706.0,
+                "raw_volume_u32": 1206209536,
+                "raw_amount_u32": 1266688053,
+                "record_bytes_hex": "39b34002c601e22200d02e004ce5473520804b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:36:00",
+                "open": 145.03,
+                "close": 142.75,
+                "high": 145.03,
+                "low": 142.0,
+                "volume": 1287.0,
+                "amount": 18432092.0,
+                "raw_volume_u32": 1207655936,
+                "raw_amount_u32": 1267507246,
+                "record_bytes_hex": "39b340029602e82300d62f005efb472ea08c4b"
+              }
+            }
+          ]
+        },
+        {
+          "symbol": "001400.SZ",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 0,
+          "samples": []
+        },
+        {
+          "symbol": "688652.SH",
+          "repeat": 1,
+          "common": 1600,
+          "missing": 0,
+          "extra": 0,
+          "changed": 71,
+          "samples": [
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:35:00",
+                "open": 145.56,
+                "close": 145.03,
+                "high": 146.18,
+                "low": 144.65,
+                "volume": 1169.0,
+                "amount": 16953124.0,
+                "raw_volume_u32": 1206145536,
+                "raw_amount_u32": 1266767762,
+                "record_bytes_hex": "39b33f0228d208ac09ce0e0052e4479257814b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:35:00",
+                "open": 145.56,
+                "close": 144.88,
+                "high": 146.18,
+                "low": 144.65,
+                "volume": 1056.0,
+                "amount": 15314738.0,
+                "raw_volume_u32": 1204699136,
+                "raw_amount_u32": 1265217330,
+                "record_bytes_hex": "39b33f0228e80aac09ce0e0040ce4732af694b"
+              }
+            },
+            {
+              "reference": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:36:00",
+                "open": 144.96,
+                "close": 142.75,
+                "high": 144.96,
+                "low": 142.0,
+                "volume": 1174.0,
+                "amount": 16793706.0,
+                "raw_volume_u32": 1206209536,
+                "raw_amount_u32": 1266688053,
+                "record_bytes_hex": "39b34002c601e22200d02e004ce5473520804b"
+              },
+              "other": {
+                "symbol": "688652.SH",
+                "datetime": "2026-08-25 09:36:00",
+                "open": 145.03,
+                "close": 142.75,
+                "high": 145.03,
+                "low": 142.0,
+                "volume": 1287.0,
+                "amount": 18432092.0,
+                "raw_volume_u32": 1207655936,
+                "raw_amount_u32": 1267507246,
+                "record_bytes_hex": "39b340029602e82300d62f005efb472ea08c4b"
+              }
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "seconds": 0.526207582995994,
+      "qualified": false
+    },
+    {
+      "endpoint": "47.107.64.168:7709",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0059027910028817,
+      "qualified": false
+    },
+    {
+      "endpoint": "47.107.228.47:7719",
+      "pages": [],
+      "comparisons": [],
+      "error": "TimeoutError('timed out')",
+      "seconds": 3.0063330420089187,
+      "qualified": false
+    }
+  ],
+  "qualified": [
+    "117.34.114.13:7709"
+  ]
+}

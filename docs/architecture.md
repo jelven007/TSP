@@ -1,5 +1,22 @@
 # TSP 系统技术方案
 
+2026-10-30最终整合复用TaskRuntime与指数服务：三组各8+1共同遵守物理端点/
+全局额度，切站排空并认证完整参考窗口；指数默认区间按本地实际分区确定，
+显式日期仍优先。轮询滑块沿原preferences/API保存，后端源限速不变。
+单写Platform、公共发布、缓存及schema保持，见[本轮方案与发布评审](../reports/current-release-20261030/review.md)。
+
+2026-10-29 v0.4.38正式发布已完成，固定提交`5b273174f2e2a8ac539fcea363fa02315a61ebe9`。
+本地与ECS登录、六功能、真实分钟任务及正常重启通过，配置与原行情保持；
+301110.SZ三四月5,520键和10月28日两端各6个未返回键仍如实列入缺口。
+单写Platform、七角色、双PG及Broker/Compute边界保持，无schema迁移；见[正式升级验收](../reports/minute-collection-reliability-20261029/deployment.md)。
+
+
+2026-10-29 rustdx由Python`TaskRuntime`组合实时、分钟、基础历史原生子池，
+每组8业务/1探测，并同时约束物理端点与全局24/3。切站等待旧请求、排空TCP、
+增加世代并重建精度；分页锚点/完整参考窗口核验保留源一致性。
+分钟增量走前台，盘中回填6/盘后8。原服务、数据单位、写盘与发布链保持，
+具体调用和配置见[任务连接](rustdx-task-routing.md)。
+
 2026-10-29分钟遗漏以100证券/32自然日生成精确缺口，跨日共享一次Provider定位，
 响应相交后沿only_missing落盘，分批重读确认剩余；单日仍保留连续区间。
 原生bars以60秒请求预算约束排队/资格检查/重连，入槽后另启用户传输超时；
@@ -1150,7 +1167,7 @@ flowchart TB
 | --- | --- | --- | --- |
 | 前端 | React 18、TypeScript、Vite、TanStack Query、Tailwind CSS、ECharts、lightweight-charts | 复用 | 集中 API/查询键、批量读取、身份缓存隔离 |
 | 后端 | Python 3.11+、FastAPI、Pydantic v2 | 复用领域服务 | 不在 API 热路径扫描历史或直连供应商 |
-| 数据源 | rustdx 2.0.4/PyO3、TickFlow、自定义 Provider | 当前源与能力路由；8业务+1探测；池内共享精度元数据 | 所选源、限速、数据许可和时钟逐项认证 |
+| 数据源 | rustdx 2.0.4/PyO3、TickFlow、自定义 Provider | 当前源与能力路由；三组各8业务+1探测；组内共享精度元数据 | 所选源、限速、数据许可和时钟逐项认证 |
 | 本地计算 | Polars、DuckDB、PyArrow、NumPy、Numba；回测边界 pandas | 复用 | 可选 vectorbt 不阻断主流程；向量化与范围读取 |
 | 业务数据库 | PostgreSQL 16：控制库及每 Cell 业务库，HA | 现有事实基础，HA 为目标 | RLS、事务、WAL/PITR、同步确认与旧主隔离 |
 | 数据库连接 | PgBouncer | 目标采用 | 普通事务池；LISTEN/会话特性专用直连或 session 池 |

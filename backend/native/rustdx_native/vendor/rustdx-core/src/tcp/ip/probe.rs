@@ -91,7 +91,14 @@ pub(super) fn probe_all(
     rounds: usize,
     timeout: Duration,
 ) -> io::Result<Vec<NodeTestResult>> {
-    probe_all_until(addresses, rounds, timeout, None, ProbeMode::SecurityCount)
+    probe_all_until(
+        addresses,
+        rounds,
+        timeout,
+        None,
+        ProbeMode::SecurityCount,
+        None,
+    )
 }
 
 pub(super) fn probe_all_until(
@@ -100,6 +107,7 @@ pub(super) fn probe_all_until(
     timeout: Duration,
     deadline: Option<Instant>,
     mode: ProbeMode,
+    group: Option<super::ProbeGroup>,
 ) -> io::Result<Vec<NodeTestResult>> {
     if timeout.is_zero() || rounds == 0 {
         return Err(io::Error::new(
@@ -112,7 +120,7 @@ pub(super) fn probe_all_until(
     let context = crate::operation::OperationContext::current();
     thread::scope(|scope| {
         let mut handles = Vec::new();
-        for _ in 0..super::coordinator::workers().min(addresses.len()) {
+        for _ in 0..super::coordinator::workers_for(group).min(addresses.len()) {
             let next = &next;
             let context = context.clone();
             handles.push(
@@ -130,7 +138,8 @@ pub(super) fn probe_all_until(
                             let mut samples = Vec::with_capacity(rounds);
                             for _ in 0..rounds {
                                 check_batch(deadline)?;
-                                let round = probe_one_until(address, timeout, deadline, mode);
+                                let round =
+                                    probe_one_group(address, timeout, deadline, mode, group);
                                 if let Some(failure) = &round.failure
                                     && failure.stage == ProbeStage::Quota
                                 {
@@ -185,11 +194,22 @@ fn probe_one(address: SocketAddr, timeout: Duration) -> ProbeRound {
     probe_one_until(address, timeout, None, ProbeMode::SecurityCount)
 }
 
+#[cfg(test)]
 fn probe_one_until(
     address: SocketAddr,
     timeout: Duration,
     deadline: Option<Instant>,
     mode: ProbeMode,
+) -> ProbeRound {
+    probe_one_group(address, timeout, deadline, mode, None)
+}
+
+fn probe_one_group(
+    address: SocketAddr,
+    timeout: Duration,
+    deadline: Option<Instant>,
+    mode: ProbeMode,
+    group: Option<super::ProbeGroup>,
 ) -> ProbeRound {
     let started = Instant::now();
     let mut round = ProbeRound {
@@ -204,7 +224,7 @@ fn probe_one_until(
     };
     let mut stage = ProbeStage::Quota;
     let result: io::Result<()> = (|| {
-        let _permit = super::coordinator::acquire(deadline)?;
+        let _permit = super::coordinator::acquire_at(deadline, group, address)?;
         stage = ProbeStage::Tcp;
         let tcp_deadline = phase_deadline(timeout, deadline)?;
         let mut stream = TcpStream::connect_timeout(&address, left(tcp_deadline)?)?;

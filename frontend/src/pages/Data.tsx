@@ -404,8 +404,8 @@ export function Data() {
             isTrading={quoteStatus.data?.is_trading_hours ?? false}
             lastFetchMs={quoteStatus.data?.last_fetch_ms ?? null}
             intervalS={realtimeIntervalS}
-            intervalMin={quoteInterval.data?.min_interval ?? 1}
-            intervalMax={quoteInterval.data?.max_interval ?? 60}
+            intervalMin={1}
+            intervalMax={10}
             loading={quoteStatus.isLoading}
             onToggle={(v) => toggleQuote.mutate(v)}
             toggling={toggleQuote.isPending}

@@ -48,6 +48,8 @@ class _Server:
         catalog_delay=0,
         bar_delay=0,
         xdxr_delay=0,
+        idle_timeout=3,
+        probe_delay=0,
     ):
         self.listener = socket.socket()
         self.listener.bind(("127.0.0.1", 0))
@@ -68,6 +70,8 @@ class _Server:
         self.catalog_delay = catalog_delay
         self.bar_delay = bar_delay
         self.xdxr_delay = xdxr_delay
+        self.idle_timeout = idle_timeout
+        self.probe_delay = probe_delay
         self.report_started = threading.Event()
         self.opcodes = {}
         self.thread = threading.Thread(target=self._accept, daemon=True)
@@ -90,7 +94,7 @@ class _Server:
     def _handle(self, connection):
         try:
             with connection:
-                connection.settimeout(3)
+                connection.settimeout(self.idle_timeout)
                 while not self.closed.is_set():
                     header = _exact(connection, 10)
                     request = _exact(connection, struct.unpack_from("<H", header, 6)[0])
@@ -122,6 +126,7 @@ class _Server:
                         data = (b"invalid finance index\r\n" if self.invalid_listing else LISTING) if offset == 0 else b""
                         response = struct.pack("<I", len(data)) + data
                     elif request[:2] == b"\x4e\x04":
+                        time.sleep(self.probe_delay)
                         response = struct.pack("<H", 2_100)
                     elif request[:2] == b"\x50\x04":
                         time.sleep(self.catalog_delay)
@@ -194,8 +199,11 @@ def test_native_pool_reuses_8_business_sockets_and_preserves_response_identity()
         )
         stats = json.loads(client.stats_json())
         assert stats["total_connections"] == 8
-        assert stats["network"]["peak"] <= 8
-        assert stats["probes"]["peak"] <= 1
+        # Process peaks include other task pools tested earlier in this process.
+        assert stats["network"]["peak"] <= 24
+        assert stats["probes"]["peak"] <= 3
+        assert stats["task_quota"]["active"] == 8
+        assert stats["task_quota"]["peak"] <= 8
         client.close()
         assert json.loads(client.stats_json())["closed"] is True
         with pytest.raises(RuntimeError, match="closed"):

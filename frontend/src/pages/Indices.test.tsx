@@ -14,7 +14,7 @@ type MinuteResponse = {
 const fixtures = vi.hoisted(() => ({
   pending: [] as { symbol: string; day: string; resolve: (value: MinuteResponse) => void }[],
   mounts: 0,
-  klines: [] as { symbol: string; period: string }[],
+  klines: [] as { symbol: string; period: string; range: { start: string; end: string } }[],
   repairs: [] as unknown[][],
 }))
 
@@ -27,10 +27,10 @@ vi.mock('@/lib/api', () => ({
       { symbol: '399330.SZ', name: '深证100' },
     ] }),
     indexQuotes: async () => ({ rows: [] }),
-    indexKline: async (symbol: string, period: string) => {
-      fixtures.klines.push({ symbol, period })
+    indexKline: async (symbol: string, period: string, range: { start: string; end: string }) => {
+      fixtures.klines.push({ symbol, period, range })
       return {
-        symbol, period,
+        symbol, period, available_start_date: '2020-11-02', end_date: range.end,
         rows: ['2026-09-09', '2026-09-10', '2026-09-11'].map((date, i) => ({
           date: period === '1d' ? date : `2026-0${7 + i}-01`, trade_date: date,
           open: 10, high: 12, low: 9, close: 11, volume: 1,
@@ -191,10 +191,24 @@ it('shows seven indices and switches the added index across day, week and month'
       select.dispatchEvent(new Event('change', { bubbles: true }))
     })
     await settle()
-    expect(fixtures.klines).toContainEqual({ symbol: '399330.SZ', period })
+    expect(fixtures.klines).toContainEqual(expect.objectContaining({ symbol: '399330.SZ', period }))
   }
   await resolveDay('2026-09-11', 13, '399330.SZ')
   expect(host.querySelector('[data-chart]')?.textContent).toContain('2026-09-11')
+})
+
+it('requests all locally available history before applying an explicit range', async () => {
+  await renderPage()
+  expect(fixtures.klines[0]).toEqual(expect.objectContaining({
+    symbol: '000001.SH',
+    period: '1d',
+    range: expect.objectContaining({ start: '' }),
+  }))
+  expect(fixtures.klines).toContainEqual(expect.objectContaining({
+    symbol: '000001.SH',
+    period: '1d',
+    range: expect.objectContaining({ start: '2020-11-02' }),
+  }))
 })
 
 it('opens data repair with seven indices and defaults to daily with week/month options', async () => {
