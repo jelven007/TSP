@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 def _bootstrap_registration_secret(identity: AccountIdentity) -> None:
     """Initialize registration/recovery once, preserving an existing secret."""
     secret = settings.auth_registration_secret.strip() or REGISTRATION_SECRET
+    if not secret:
+        if identity.registration_enabled():
+            return
+        raise RuntimeError("AUTH_REGISTRATION_SECRET is required for first initialization")
     identity.set_registration_secret(secret, only_if_missing=True)
 
 

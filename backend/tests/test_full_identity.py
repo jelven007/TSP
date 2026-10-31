@@ -69,19 +69,21 @@ def full_cluster():
                 db.open()
                 stack.callback(db.close)
                 with db.control.connection() as runtime:
-                    assert bootstrap_full_identity(runtime) is True
+                    assert bootstrap_full_identity(runtime, password="fixture-admin-password") is True
                 identity = AccountIdentity(db)
                 assert identity.bootstrap_admin_tenants() == 1
-                from app.multitenancy.lifespan import _bootstrap_registration_secret
+                from app.multitenancy import lifespan as lifespan_module
 
-                _bootstrap_registration_secret(identity)
+                with pytest.MonkeyPatch.context() as patch:
+                    patch.setattr(lifespan_module, "REGISTRATION_SECRET", "fixture-registration-secret")
+                    patch.setattr(lifespan_module.settings, "auth_registration_secret", "")
+                    lifespan_module._bootstrap_registration_secret(identity)
                 assert identity.registration_enabled()
-                from app.bootstrap_defaults import REGISTRATION_SECRET
                 from app.cell.passwords import verify_password
 
                 record = admins[0].execute("SELECT * FROM control.registration_config").fetchone()
-                assert verify_password(REGISTRATION_SECRET, record["secret_salt"], record["secret_hash"])
-                _bootstrap_registration_secret(identity)
+                assert verify_password("fixture-registration-secret", record["secret_salt"], record["secret_hash"])
+                lifespan_module._bootstrap_registration_secret(identity)
                 assert admins[0].execute("SELECT * FROM control.registration_config").fetchone() == record
                 identity.set_registration_secret(SECRET)
                 yield {"control": admins[0], "data": admins[1], "db": db, "identity": identity,
@@ -161,20 +163,20 @@ def unprovisioned_admin(env):
 
 def test_admin_username_no_fake_email_and_password_never_reset(env):
     identity = env["identity"]
-    token, admin = identity.login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    token, admin = identity.login("admin", "fixture-admin-password", uuid.uuid4().hex)
     assert admin["username"] == "admin" and admin["email"] is None
     assert admin["role"] == "admin" and admin["default_tenant_id"]
     assert "settings:manage" in admin["permissions"]
-    identity.change_password(token, "<REDACTED_CREDENTIAL>", "Updated<REDACTED_CREDENTIAL>")
+    identity.change_password(token, "fixture-admin-password", "Updatedfixture-admin-password")
     with pytest.raises(AccessError, match="会话已过期"):
         identity.current_user(token)
     with env["db"].control.connection() as runtime:
         before = runtime.execute("SELECT * FROM control.users WHERE username='admin'").fetchone()
         assert bootstrap_full_identity(runtime) is False
         assert runtime.execute("SELECT * FROM control.users WHERE username='admin'").fetchone() == before
-    token, changed = AccountIdentity(env["db"]).login("admin", "Updated<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    token, changed = AccountIdentity(env["db"]).login("admin", "Updatedfixture-admin-password", uuid.uuid4().hex)
     assert changed["id"] == admin["id"]
-    identity.change_password(token, "Updated<REDACTED_CREDENTIAL>", "<REDACTED_CREDENTIAL>")
+    identity.change_password(token, "Updatedfixture-admin-password", "fixture-admin-password")
 
 
 def test_public_credential_preflight_uses_existing_hashes_without_reset(env):
@@ -182,8 +184,10 @@ def test_public_credential_preflight_uses_existing_hashes_without_reset(env):
 
     conn = env["control"]
     with conn.transaction(force_rollback=True):
-        with pytest.raises(RuntimeError, match="administrator"):
-            check_public_credentials(conn)
+        # Strong initialization credentials now come from controlled configuration.
+        initial = conn.execute("SELECT * FROM control.users WHERE username='admin'").fetchone()
+        check_public_credentials(conn)
+        assert conn.execute("SELECT * FROM control.users WHERE username='admin'").fetchone() == initial
         salt, digest = hash_password("deployment-private-admin-password")
         conn.execute(
             "UPDATE control.users SET password_salt=%s,password_hash=%s WHERE username='admin'",
@@ -204,7 +208,7 @@ def test_admin_default_tenant_supports_private_business_and_isolation(env, monke
 
     monkeypatch.setattr("app.api.settings.get_preferences", lambda request: {})
     identity = env["identity"]
-    token, admin = identity.login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    token, admin = identity.login("admin", "fixture-admin-password", uuid.uuid4().hex)
     assert {"business:read", "business:write", "account:manage"} <= set(admin["permissions"])
     env["client"].cookies.set("tf_session", token)
     response = env["client"].get("/api/watchlist")
@@ -354,6 +358,7 @@ def test_registration_secret_bootstraps_once_from_environment(monkeypatch) -> No
     """The full-product API must honour AUTH_REGISTRATION_SECRET like legacy mode."""
     from app.multitenancy import lifespan as lifespan_module
 
+    monkeypatch.setattr(lifespan_module, "REGISTRATION_SECRET", "fixture-registration-secret")
     calls: list[tuple[str, bool]] = []
 
     class Recorder:
@@ -365,7 +370,7 @@ def test_registration_secret_bootstraps_once_from_environment(monkeypatch) -> No
     monkeypatch.setattr(lifespan_module.settings, "auth_registration_secret", "")
     lifespan_module._bootstrap_registration_secret(Recorder())
 
-    assert calls == [("注册口令", True), ("<REDACTED_CREDENTIAL>", True)]
+    assert calls == [("注册口令", True), ("fixture-registration-secret", True)]
 
 
 def test_chinese_secret_is_required_before_any_email(env):
@@ -624,18 +629,18 @@ def test_cross_origin_registration_and_role_forgery_are_denied(env):
     client = env["client"]
     assert client.post(
         "/api/auth/login", headers={"Origin": "https://hostile.test"},
-        json={"identifier": "admin", "password": "<REDACTED_CREDENTIAL>"},
+        json={"identifier": "admin", "password": "fixture-admin-password"},
     ).status_code == 403
     assert client.post(
         "/api/auth/register", json={"email": "forge@example.test", "password": PASSWORD,
                                      "code": "123456", "role": "admin"},
     ).status_code == 422
-    assert client.post("/api/auth/setup", json={"password": "<REDACTED_CREDENTIAL>"}).status_code == 401
+    assert client.post("/api/auth/setup", json={"password": "fixture-admin-password"}).status_code == 401
 
 
 def test_rbac_changes_and_suspension_invalidate_other_process_sessions(env):
     token, account = register(env)
-    _, admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    _, admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     another_process = AccountIdentity(env["db"])
     assert another_process.current_user(token)["role"] == "tenant"
     env["identity"].update_user(admin, account["id"], "tenant", False, "suspend-test")
@@ -689,7 +694,7 @@ def test_administrator_menu_changes_are_shared_without_overriding_personal_colum
     from app.multitenancy.preferences import UserPreferences
     from app.services import preferences as platform
 
-    token, admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    token, admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     monkeypatch.setattr("app.api.settings.get_preferences", lambda request: {"nav_order": [], "nav_hidden": []})
     monkeypatch.setattr(platform, "get_nav_order", lambda: ["indices", "watchlist", "dashboard"])
     monkeypatch.setattr(platform, "get_nav_hidden", lambda: ["financials"])

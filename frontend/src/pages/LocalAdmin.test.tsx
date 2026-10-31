@@ -70,12 +70,12 @@ it('signs in as admin and exposes personal space and settings without tenant req
     })
   }
   await setInput('input[autocomplete="username"]', 'admin')
-  await setInput('input[autocomplete="current-password"]', '<REDACTED_CREDENTIAL>')
+  await setInput('input[autocomplete="current-password"]', 'fixture-admin-password')
   await act(async () => {
     container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
   })
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
-  expect(login).toHaveBeenCalledWith('admin', '<REDACTED_CREDENTIAL>')
+  expect(login).toHaveBeenCalledWith('admin', 'fixture-admin-password')
   expect(container.textContent).toContain('管理员')
   expect(container.textContent).toContain('个人空间')
   expect(container.textContent).toContain('修改密码')

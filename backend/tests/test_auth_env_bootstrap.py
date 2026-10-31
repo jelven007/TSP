@@ -21,6 +21,8 @@ def isolated_auth_store(
     monkeypatch.setattr(app_config.settings, "data_dir", tmp_path)
     from app.services import auth
 
+    monkeypatch.setattr(auth, "ADMIN_PASSWORD", "fixture-admin-password")
+    monkeypatch.setattr(auth, "REGISTRATION_SECRET", "fixture-registration-secret")
     auth_path = tmp_path / "user_data" / "auth.json"
     env_path = tmp_path / ".env"
     monkeypatch.setattr(app_config, "_ENV_FILE", env_path)
@@ -78,17 +80,18 @@ def test_admin_preseed_keeps_macos_email_mode_and_existing_accounts(
 ) -> None:
     import json
 
-    from app.api import auth as auth_api
-    from app.services import auth_verification
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
+
+    from app.api import auth as auth_api
+    from app.services import auth_verification
 
     auth, auth_path, env_path = isolated_auth_store
     monkeypatch.setattr(app_config.sys, "platform", "darwin")
     auth.set_registration_secret("registration-secret")
     existing_token, existing_user = auth.register_user("owner@example.com", "owner-password")
     existing_record = json.loads(auth_path.read_text())["users"][existing_user["id"]]
-    env_path.write_text("AUTH_USERNAME=admin\nAUTH_PASSWORD=<REDACTED_CREDENTIAL>\n", encoding="utf-8")
+    env_path.write_text("AUTH_USERNAME=admin\nAUTH_PASSWORD=fixture-admin-password\n", encoding="utf-8")
 
     assert auth.bootstrap_from_env() is True
     assert app_config.settings.local_admin_mode is False
@@ -97,7 +100,7 @@ def test_admin_preseed_keeps_macos_email_mode_and_existing_accounts(
     assert auth.verify_registration_secret("registration-secret") is True
     assert auth.registered_emails() == ["owner@example.com"]
     assert not (auth_path.parent / "local_admin.json").exists()
-    assert "<REDACTED_CREDENTIAL>" not in auth_path.read_text()
+    assert "fixture-admin-password" not in auth_path.read_text()
 
     auth_api._fail_counter.clear()
     app = FastAPI()
@@ -107,7 +110,7 @@ def test_admin_preseed_keeps_macos_email_mode_and_existing_accounts(
     assert status["local_admin_mode"] is False
     assert status["registration_enabled"] is True
     assert status["email_verification_required"] is True
-    response = client.post("/api/auth/login", json={"email": "admin", "password": "<REDACTED_CREDENTIAL>"})
+    response = client.post("/api/auth/login", json={"email": "admin", "password": "fixture-admin-password"})
     assert response.status_code == 200
     user = response.json()["user"]
     assert user["username"] == "admin"
@@ -123,17 +126,17 @@ def test_admin_preseed_keeps_macos_email_mode_and_existing_accounts(
 
 def test_admin_preseed_is_idempotent_and_keeps_changed_password(isolated_auth_store) -> None:
     auth, auth_path, env_path = isolated_auth_store
-    env_path.write_text("AUTH_USERNAME=admin\nAUTH_PASSWORD=<REDACTED_CREDENTIAL>\n", encoding="utf-8")
+    env_path.write_text("AUTH_USERNAME=admin\nAUTH_PASSWORD=fixture-admin-password\n", encoding="utf-8")
     assert auth.bootstrap_from_env() is True
-    result = auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>")
+    result = auth.authenticate_user("admin", "fixture-admin-password")
     assert result is not None
     token, user = result
-    assert auth.change_password(token, "<REDACTED_CREDENTIAL>", "changed-password") is True
+    assert auth.change_password(token, "fixture-admin-password", "changed-password") is True
     before = auth_path.read_bytes()
 
     assert auth.bootstrap_from_env() is False
     assert auth_path.read_bytes() == before
-    assert auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>") is None
+    assert auth.authenticate_user("admin", "fixture-admin-password") is None
     assert auth.authenticate_user("admin", "changed-password")[1] == user
 
 
@@ -144,7 +147,7 @@ def test_admin_preseed_rejects_invalid_username_without_touching_store(
     auth, auth_path, env_path = isolated_auth_store
     auth.register_user("owner@example.com", "owner-password")
     before = auth_path.read_bytes()
-    env_path.write_text(f"AUTH_USERNAME={username}\nAUTH_PASSWORD=<REDACTED_CREDENTIAL>\n", encoding="utf-8")
+    env_path.write_text(f"AUTH_USERNAME={username}\nAUTH_PASSWORD=fixture-admin-password\n", encoding="utf-8")
     assert auth.bootstrap_from_env() is False
     assert auth_path.read_bytes() == before
 
@@ -153,7 +156,7 @@ def test_admin_preseed_cannot_bypass_legacy_password_owner(isolated_auth_store) 
     auth, auth_path, env_path = isolated_auth_store
     auth.set_password("owner-password")
     before = auth_path.read_bytes()
-    env_path.write_text("AUTH_USERNAME=admin\nAUTH_PASSWORD=<REDACTED_CREDENTIAL>\n", encoding="utf-8")
+    env_path.write_text("AUTH_USERNAME=admin\nAUTH_PASSWORD=fixture-admin-password\n", encoding="utf-8")
     assert auth.bootstrap_from_env() is False
     assert auth_path.read_bytes() == before
     assert auth.requires_legacy_migration() is True
@@ -185,14 +188,14 @@ async def test_fresh_startup_preseeds_admin_without_dotenv(
         async with main._application_lifespan(FastAPI()):
             pytest.fail("startup should stop at the data layer")
 
-    result = auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>")
+    result = auth.authenticate_user("admin", "fixture-admin-password")
     assert result is not None
     assert result[1]["username"] == result[1]["role"] == "admin"
     assert configured.local_admin_mode is (platform == "win32")
     assert app_config.authentication_required() is (platform == "win32" or not frozen)
     path = auth._path()
     assert path.name == ("local_admin.json" if platform == "win32" else "auth.json")
-    assert "<REDACTED_CREDENTIAL>" not in path.read_text()
+    assert "fixture-admin-password" not in path.read_text()
 
 
 def test_default_bootstrap_keeps_existing_email_account_and_session(isolated_auth_store) -> None:
@@ -203,19 +206,19 @@ def test_default_bootstrap_keeps_existing_email_account_and_session(isolated_aut
     assert auth.bootstrap_from_env() is False
     assert auth_path.read_bytes() == before
     assert auth.current_user(token) == user
-    assert auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>") is None
+    assert auth.authenticate_user("admin", "fixture-admin-password") is None
 
 
 def test_default_bootstrap_keeps_changed_admin_password(isolated_auth_store) -> None:
     auth, auth_path, _ = isolated_auth_store
     assert auth.bootstrap_from_env() is True
-    token, user = auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>")
-    assert auth.change_password(token, "<REDACTED_CREDENTIAL>", "changed-password")
+    token, user = auth.authenticate_user("admin", "fixture-admin-password")
+    assert auth.change_password(token, "fixture-admin-password", "changed-password")
     before = auth_path.read_bytes()
 
     assert auth.bootstrap_from_env() is False
     assert auth_path.read_bytes() == before
-    assert auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>") is None
+    assert auth.authenticate_user("admin", "fixture-admin-password") is None
     assert auth.authenticate_user("admin", "changed-password")[1] == user
 
 
@@ -236,7 +239,7 @@ def test_copied_initialization_template_preseeds_admin_and_smtp(
     secrets_store._cache_sig = None
     try:
         assert auth.bootstrap_from_env() is True
-        assert auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>") is not None
+        assert auth.authenticate_user("admin", "fixture-admin-password") is not None
         smtp, password = email_adapter.get_registration_smtp("user@example.com")
         assert smtp == {**SMTP_CONFIG, "to_addresses": ["user@example.com"]}
         assert password == ""
@@ -254,9 +257,9 @@ def test_default_registration_secret_initializes_chinese_value_once(
     auth, auth_path, _ = isolated_auth_store
     monkeypatch.setattr(app_config.settings, "auth_registration_secret", "")
     assert auth.bootstrap_registration_secret_from_env() is True
-    assert auth.verify_registration_secret("<REDACTED_CREDENTIAL>") is True
-    assert auth.verify_registration_secret("<REDACTED_CREDENTIAL>") is False
-    assert "<REDACTED_CREDENTIAL>" not in auth_path.read_text()
+    assert auth.verify_registration_secret("fixture-registration-secret") is True
+    assert auth.verify_registration_secret("fixture-admin-password") is False
+    assert "fixture-registration-secret" not in auth_path.read_text()
     before = auth_path.read_bytes()
     assert auth.bootstrap_registration_secret_from_env() is False
     assert auth_path.read_bytes() == before
