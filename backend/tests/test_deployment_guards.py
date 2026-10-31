@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.bootstrap_defaults import ADMIN_PASSWORD, REGISTRATION_SECRET
+from app.cell import deployment
 from app.cell.admin import bootstrap_full_identity
 from app.cell.deployment import check_public_credentials, check_schema_history
 from app.cell.passwords import hash_password
@@ -24,7 +24,7 @@ class _Rows:
 
 
 class _Control:
-    def __init__(self, admin=ADMIN_PASSWORD, secret=REGISTRATION_SECRET, *, existing=True):
+    def __init__(self, admin="fixture-admin-password", secret="fixture-registration-secret", *, existing=True):
         salt, digest = hash_password(admin)
         self.admins = [{"password_salt": salt, "password_hash": digest}]
         salt = secrets.token_hex(16)
@@ -63,14 +63,16 @@ def test_existing_password_is_not_reset_by_deployment_configuration():
     control = _Control(admin="old-private-password")
     assert bootstrap_full_identity(control, public=True, password="new-private-password") is False
     assert control.writes == []
-    assert bootstrap_full_identity(_Control(existing=False)) is True
+    assert bootstrap_full_identity(_Control(existing=False), password="fixture-admin-password") is True
 
 
 @pytest.mark.parametrize("admin,secret,message", [
-    (ADMIN_PASSWORD, "private-register-secret", "administrator"),
-    ("private-admin-password", REGISTRATION_SECRET, "registration"),
+    ("short-pass", "private-register-secret", "administrator"),
+    ("private-admin-password", "short", "registration"),
 ])
-def test_public_deployment_rejects_known_default_credentials(admin, secret, message):
+def test_public_deployment_rejects_weak_configured_credentials(monkeypatch, admin, secret, message):
+    monkeypatch.setattr(deployment, "ADMIN_PASSWORD", admin)
+    monkeypatch.setattr(deployment, "REGISTRATION_SECRET", secret)
     control = _Control(admin, secret)
     with pytest.raises(RuntimeError, match=message):
         check_public_credentials(control)

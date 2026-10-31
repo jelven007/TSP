@@ -9,6 +9,12 @@ from pydantic import SecretStr
 from app.multitenancy import lifespan as full
 
 
+@pytest.fixture(autouse=True)
+def controlled_initialization(monkeypatch):
+    monkeypatch.setattr(full, "ADMIN_PASSWORD", "fixture-admin-password")
+    monkeypatch.setattr(full, "REGISTRATION_SECRET", "fixture-registration-secret")
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("bootstrap_fails", [False, True])
 async def test_full_api_initializes_admin_with_runtime_connection(monkeypatch, bootstrap_fails):
@@ -34,7 +40,7 @@ async def test_full_api_initializes_admin_with_runtime_connection(monkeypatch, b
 
     def bootstrap(control, *, password, public):
         assert control is connection
-        assert password == "<REDACTED_CREDENTIAL>" and public is False
+        assert password == "fixture-admin-password" and public is False
         calls.append("bootstrap")
         if bootstrap_fails:
             raise StopStartupError
@@ -67,7 +73,36 @@ def test_full_initialization_enables_registration_and_recovery_without_env(monke
 
     monkeypatch.setattr(full.settings, "auth_registration_secret", "")
     full._bootstrap_registration_secret(Identity())
-    assert calls == [("<REDACTED_CREDENTIAL>", True)]
+    assert calls == [("fixture-registration-secret", True)]
+
+
+def test_full_restart_keeps_stored_registration_secret_without_bootstrap_config(monkeypatch):
+    monkeypatch.setattr(full.settings, "auth_registration_secret", "")
+    monkeypatch.setattr(full, "REGISTRATION_SECRET", "")
+
+    class Identity:
+        def registration_enabled(self):
+            return True
+
+        def set_registration_secret(self, *_args, **_kwargs):
+            pytest.fail("persisted registration secret must remain unchanged")
+
+    full._bootstrap_registration_secret(Identity())
+
+
+def test_fresh_full_registration_requires_controlled_configuration(monkeypatch):
+    monkeypatch.setattr(full.settings, "auth_registration_secret", "")
+    monkeypatch.setattr(full, "REGISTRATION_SECRET", "")
+
+    class Identity:
+        def registration_enabled(self):
+            return False
+
+        def set_registration_secret(self, *_args, **_kwargs):
+            pytest.fail("missing config must not initialize a replacement secret")
+
+    with pytest.raises(RuntimeError, match="AUTH_REGISTRATION_SECRET"):
+        full._bootstrap_registration_secret(Identity())
 
 
 @pytest.mark.asyncio

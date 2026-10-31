@@ -542,7 +542,7 @@ def test_live_stream_stops_when_admin_changes_selected_tenant(owned):
     from app.multitenancy.access import verify_live_access
 
     identity = owned.env["identity"]
-    token, admin = identity.login("admin", "<REDACTED_CREDENTIAL>", "stream-select")
+    token, admin = identity.login("admin", "fixture-admin-password", "stream-select")
     previous = admin["default_tenant_id"]
     try:
         identity.choose_tenant(admin, owned.documents.context.tenant_id, "first")

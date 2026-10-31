@@ -128,7 +128,7 @@ def bootstrap_full_identity(control, *, password: str = ADMIN_PASSWORD, public: 
             if not role:
                 raise ValueError("admin identifier collision; explicit remediation required")
             return False
-        if public and (password == ADMIN_PASSWORD or not 12 <= len(password) <= 128):
+        if public and not 12 <= len(password) <= 128:
             raise ValueError("public deployment requires an explicit administrator password of 12-128 characters")
         salt, digest = hash_password(password)
         user_id = uuid.uuid4().hex

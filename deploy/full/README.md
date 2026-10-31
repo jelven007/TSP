@@ -103,7 +103,8 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 ## 初始化与启动
 
 非 Windows 默认开启完整多租户，未指定服务角色时使用 `api`；Windows 默认单机管理员。
-初始化自动预置 `admin/<REDACTED_CREDENTIAL>` 和注册口令 `<REDACTED_CREDENTIAL>`，注册与密码找回共用该口令。
+初始化从受控环境读取 `AUTH_USERNAME`、`AUTH_PASSWORD` 和 `AUTH_REGISTRATION_SECRET`，
+注册与密码找回共用该口令；源码不提供默认密码。
 `AUTH_REGISTRATION_SECRET` 可在首次自定义，已有 SQL 口令不会被重置。
 多租户初始化依赖下面的双库、schema 与内部服务准备，默认开关不替代这些资源。
 

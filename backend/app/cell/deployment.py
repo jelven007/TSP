@@ -34,14 +34,16 @@ def check_public_credentials(control) -> None:
     if not admins:
         raise RuntimeError("public deployment requires an active administrator")
     for row in admins:
-        if not valid_record(row["password_salt"], row["password_hash"]) or verify_password(
-            ADMIN_PASSWORD, row["password_salt"], row["password_hash"],
+        if not valid_record(row["password_salt"], row["password_hash"]) or (
+            0 < len(ADMIN_PASSWORD) < 12
+            and verify_password(ADMIN_PASSWORD, row["password_salt"], row["password_hash"])
         ):
             raise RuntimeError("public deployment administrator credential requires remediation")
     record = control.execute(
         "SELECT secret_salt,secret_hash FROM control.registration_config WHERE singleton=true"
     ).fetchone()
-    if not record or not valid_record(record["secret_salt"], record["secret_hash"]) or verify_password(
-        REGISTRATION_SECRET, record["secret_salt"], record["secret_hash"],
+    if not record or not valid_record(record["secret_salt"], record["secret_hash"]) or (
+        0 < len(REGISTRATION_SECRET) < 8
+        and verify_password(REGISTRATION_SECRET, record["secret_salt"], record["secret_hash"])
     ):
         raise RuntimeError("public deployment registration credential requires remediation")

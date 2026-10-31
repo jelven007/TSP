@@ -19,7 +19,7 @@ def test_admin_tenant_directory_displays_owner_accounts_for_legacy_names(env):
         "UPDATE control.tenants SET name='个人工作空间' WHERE id=%s",
         (first["default_tenant_id"],),
     )
-    admin_token, _ = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    admin_token, _ = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     client = env["client"]
     client.cookies.set("tf_session", admin_token)
     response = client.get("/api/account/tenants")
@@ -46,7 +46,7 @@ def test_admin_tenant_directory_prefers_owner_username_without_duplicate_spaces(
         "INSERT INTO control.memberships(tenant_id,user_id,role) VALUES(%s,%s,'owner')",
         (first["default_tenant_id"], second["id"]),
     )
-    _, admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    _, admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     entries = [
         entry for entry in env["identity"].directory(admin)
         if entry["id"] == first["default_tenant_id"]
@@ -64,7 +64,7 @@ def test_admin_tenant_directory_preserves_named_spaces_without_an_owner(env):
     env["control"].execute(
         "DELETE FROM control.memberships WHERE tenant_id=%s", (tenant_id,),
     )
-    _, admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    _, admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     entry = next(entry for entry in env["identity"].directory(admin) if entry["id"] == tenant_id)
     assert entry["display_name"] == "机构研究组"
 
@@ -72,7 +72,7 @@ def test_admin_tenant_directory_preserves_named_spaces_without_an_owner(env):
 def test_admin_selection_persists_and_old_ui_scope_is_rejected(env):
     _, first = register(env)
     _, second = register(env)
-    token, admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    token, admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     client = env["client"]
     client.cookies.set("tf_session", token)
     assert client.post("/api/account/tenant", json={"tenant_id": first["default_tenant_id"]}).status_code == 200
@@ -94,7 +94,7 @@ def test_admin_selection_persists_and_old_ui_scope_is_rejected(env):
 def test_tokens_bind_admin_target_and_scope_not_current_selection(env):
     _, first = register(env)
     _, second = register(env)
-    session, admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    session, admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     service = env["identity"]
     service.choose_tenant(admin, first["default_tenant_id"], "token-setup")
     admin = service.current_user(session)
@@ -137,7 +137,7 @@ def test_original_token_routes_and_external_post_do_not_require_cookie_or_origin
         return {"token_id": request.state.tenant_context.token_id}
 
     _, tenant = register(env)
-    session, admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    session, admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     env["identity"].choose_tenant(admin, tenant["default_tenant_id"], "route-setup")
     client = env["client"]
     client.cookies.set("tf_session", session)
@@ -159,7 +159,7 @@ def test_original_token_routes_and_external_post_do_not_require_cookie_or_origin
 
 def test_token_versions_and_background_authorization_fail_closed(env):
     _, account = register(env)
-    _, root_admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+    _, root_admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
     env["identity"].update_user(root_admin, account["id"], "admin", True, "promote")
     session, account = env["identity"].login(account["email"], "full-tenant-password", uuid.uuid4().hex)
     tokens = Tokens(env["identity"])
@@ -251,7 +251,7 @@ def test_admin_platform_forwarding_preserves_body_and_excludes_browser_credentia
     client.cookies.set("tf_session", tenant_token)
     assert client.post("/api/pipeline/run", json={"years": 1}).status_code == 403
     assert not seen
-    session, _ = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", "platform-test")
+    session, _ = env["identity"].login("admin", "fixture-admin-password", "platform-test")
     client.cookies.set("tf_session", session)
     response = client.post("/api/pipeline/run", json={"years": 1})
     assert response.status_code == 200 and response.json() == {"queued": True}
@@ -382,7 +382,7 @@ def test_ext_config_reads_return_platform_pull_only_to_admin_sessions(env, tmp_p
         assert "private-upstream-key" not in public.text
         assert not seen
 
-        admin_session, admin = env["identity"].login("admin", "<REDACTED_CREDENTIAL>", uuid.uuid4().hex)
+        admin_session, admin = env["identity"].login("admin", "fixture-admin-password", uuid.uuid4().hex)
         env["identity"].choose_tenant(admin, tenant["default_tenant_id"], "ext-config-read")
         client.cookies.set("tf_session", admin_session)
         response = client.request(method, "/api/ext-data", params={"source": "data-page"})

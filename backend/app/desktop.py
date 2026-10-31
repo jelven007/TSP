@@ -495,11 +495,13 @@ def _run_local_admin_smoke(base_url: str) -> None:
     ):
         raise RuntimeError("local admin authentication status mismatch")
     check_anonymous_denied()
-    request("/api/auth/login", {"email": "admin", "password": "<REDACTED_CREDENTIAL>"})
+    from app.bootstrap_defaults import ADMIN_PASSWORD, ADMIN_USERNAME
+
+    request("/api/auth/login", {"email": ADMIN_USERNAME, "password": ADMIN_PASSWORD})
     status = request("/api/auth/status")
     user = status.get("user") or {}
     if (
-        not status.get("authenticated") or user.get("username") != "admin"
+        not status.get("authenticated") or user.get("username") != ADMIN_USERNAME
         or user.get("role") != "admin"
         or user.get("default_tenant_id") != "personal"
         or (user.get("workspace") or {}).get("id") != "personal"

@@ -15,6 +15,7 @@ from app.services import auth
 
 @pytest.fixture
 def local_admin(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "ADMIN_PASSWORD", "fixture-admin-password")
     monkeypatch.setattr(config.settings, "local_admin_mode", True)
     monkeypatch.setattr(config.settings, "service_role", "standalone")
     monkeypatch.setattr(config.settings, "multitenancy_enabled", False)
@@ -57,7 +58,7 @@ def test_bootstrap_preserves_legacy_identity_and_changed_password(local_admin):
     legacy.parent.mkdir(parents=True)
     legacy.write_text('{"legacy": "preserve"}', encoding="utf-8")
     assert auth.bootstrap_local_admin() is True
-    token, user = auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>")
+    token, user = auth.authenticate_user("admin", "fixture-admin-password")
     assert user["username"] == "admin"
     assert user["role"] == "admin"
     assert user["email"] is None
@@ -65,11 +66,11 @@ def test_bootstrap_preserves_legacy_identity_and_changed_password(local_admin):
     assert user["workspace"] == {"id": "personal", "name": "个人空间"}
     assert "password_hash" not in user
     assert auth.registered_emails() == []
-    assert auth.authenticate_user("other", "<REDACTED_CREDENTIAL>") is None
-    assert auth.authenticate_user("admin@example.com", "<REDACTED_CREDENTIAL>") is None
-    assert auth.change_password(token, "<REDACTED_CREDENTIAL>", "changed-password") is True
+    assert auth.authenticate_user("other", "fixture-admin-password") is None
+    assert auth.authenticate_user("admin@example.com", "fixture-admin-password") is None
+    assert auth.change_password(token, "fixture-admin-password", "changed-password") is True
     assert auth.bootstrap_local_admin() is False
-    assert auth.authenticate_user("admin", "<REDACTED_CREDENTIAL>") is None
+    assert auth.authenticate_user("admin", "fixture-admin-password") is None
     token, after = auth.authenticate_user("admin", "changed-password")
     assert after == user
     auth._sessions.clear()
@@ -77,7 +78,7 @@ def test_bootstrap_preserves_legacy_identity_and_changed_password(local_admin):
     assert auth.current_user(token) == user
     assert legacy.read_text(encoding="utf-8") == '{"legacy": "preserve"}'
     saved = (legacy.parent / "local_admin.json").read_text(encoding="utf-8")
-    assert "<REDACTED_CREDENTIAL>" not in saved
+    assert "fixture-admin-password" not in saved
     assert "changed-password" not in saved
     assert len(json.loads(saved)["users"]) == 1
 
@@ -112,11 +113,11 @@ def test_local_admin_api_even_in_frozen_build(local_admin, monkeypatch):
     assert status["email_verification_required"] is False
     assert status["authenticated"] is False
     assert client.get("/api/personal").status_code == 401
-    assert client.post("/api/auth/login", json={"password": "<REDACTED_CREDENTIAL>"}).status_code == 400
+    assert client.post("/api/auth/login", json={"password": "fixture-admin-password"}).status_code == 400
     assert client.post("/api/auth/login", json={
-        "email": "other", "password": "<REDACTED_CREDENTIAL>",
+        "email": "other", "password": "fixture-admin-password",
     }).status_code == 401
-    response = client.post("/api/auth/login", json={"email": "admin", "password": "<REDACTED_CREDENTIAL>"})
+    response = client.post("/api/auth/login", json={"email": "admin", "password": "fixture-admin-password"})
     assert response.status_code == 200
     assert "HttpOnly" in response.headers["set-cookie"]
     assert client.get("/api/personal").json() == {"saved": True}
@@ -125,7 +126,7 @@ def test_local_admin_api_even_in_frozen_build(local_admin, monkeypatch):
         assert client.post(f"/api/auth/{path}", json={}).status_code == 403
     assert client.get("/api/account/tenants").status_code == 403
     assert client.post("/api/auth/change-password", json={
-        "old_password": "<REDACTED_CREDENTIAL>", "new_password": "changed-password",
+        "old_password": "fixture-admin-password", "new_password": "changed-password",
     }).status_code == 200
     assert client.get("/api/personal").status_code == 401
     assert client.post("/api/auth/login", json={
@@ -144,7 +145,7 @@ def test_admin_personal_watchlist_survives_logout_and_restart(local_admin):
     app.include_router(auth_api.router)
     app.include_router(watchlist.router)
     client = TestClient(app)
-    login = {"email": "admin", "password": "<REDACTED_CREDENTIAL>"}
+    login = {"email": "admin", "password": "fixture-admin-password"}
     assert client.post("/api/watchlist", json={"symbol": "600000.SH"}).status_code == 401
     assert client.post("/api/auth/login", json=login).status_code == 200
     added = client.post("/api/watchlist", json={"symbol": "600000.SH", "note": "个人研究"})

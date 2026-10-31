@@ -70,7 +70,7 @@ TSP 是持续维护的专用版本，当前重点是：
 
 Windows 桌面版与原生源码版使用单机管理员模式，暂停多租户：
 
-- 默认账号 `admin`，初始密码 `<REDACTED_CREDENTIAL>`；登录后拥有个人空间和完整业务功能。
+- 首次安装通过受控配置提供 `AUTH_USERNAME` 和 `AUTH_PASSWORD`；登录后拥有个人空间和完整业务功能。
 - 在「设置 → 账户」修改密码，重启不会重置；不开放注册和租户切换。
 - 数据和敏感配置保存在本机。
 
@@ -91,7 +91,7 @@ macOS 和 Linux 桌面包保留免登录模式。Windows 10 / 16 GB 的启动、
 非 Windows 首次初始化默认开启多租户，注册和找回密码同时启用；
 Windows 默认使用单机管理员模式：
 
-- 默认管理员 `admin/<REDACTED_CREDENTIAL>`，默认注册口令 `<REDACTED_CREDENTIAL>`；注册、找回及邮件通知需配置系统 SMTP。
+- 管理员和注册口令由受控配置 `AUTH_USERNAME`、`AUTH_PASSWORD`、`AUTH_REGISTRATION_SECRET` 提供；注册、找回及邮件通知需配置系统 SMTP。
 - 多租户须准备 PostgreSQL 双库、运行角色、平台和 Worker；入口见[完整部署](deploy/full/README.md)。
 - 已修改密码、注册口令和自定义邮件配置不因启动重置。
 - 公网部署必须使用 HTTPS，并限制 `.env`、数据目录和备份权限。

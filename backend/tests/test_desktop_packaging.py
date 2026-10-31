@@ -59,8 +59,8 @@ def test_desktop_smoke_covers_windows_admin_and_other_platform_bypass() -> None:
     assert 'auth_status.get("auth_required") is not False' in source
     assert 'f"{base_url}/api/capabilities"' in source
     assert 'f"{base_url}/api/auth/login"' in source
-    assert '"password": "<REDACTED_CREDENTIAL>"' in source
-    assert 'user.get("username") != "admin"' in source
+    assert '"password": ADMIN_PASSWORD' in source
+    assert 'user.get("username") != ADMIN_USERNAME' in source
     assert 'user.get("default_tenant_id") != "personal"' in source
     assert '(user.get("workspace") or {}).get("id") != "personal"' in source
     assert 'logger.info("DESKTOP_LOCAL_ADMIN_SMOKE_TEST_OK")' in source
