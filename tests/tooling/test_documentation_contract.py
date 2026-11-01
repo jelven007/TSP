@@ -3,7 +3,14 @@
 from pathlib import Path
 
 import pytest
-from check_docs import MODULES, anchors, check, check_links, check_requirements
+from check_docs import (
+    MODULES,
+    anchors,
+    check,
+    check_initialization_credentials,
+    check_links,
+    check_requirements,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -17,6 +24,29 @@ def write(root, name, text):
 
 def test_repository_documentation_contract():
     assert check(ROOT) == []
+
+
+@pytest.mark.parametrize("name", [
+    "README.md", "AGENTS.md", ".env.example", "docs/operations.md",
+    "reports/verification.md", "reports/browser/result.json", "deliverables/guide.html",
+    ".claude/artifacts/plans/initialization.md",
+])
+@pytest.mark.parametrize("field", ["ADMIN_PASSWORD", "REGISTRATION_SECRET"])
+def test_initialization_credentials_are_rejected_even_in_examples(tmp_path, name, field):
+    values = {
+        "ADMIN_PASSWORD": "fixture-admin-password",
+        "REGISTRATION_SECRET": "fixture-registration-secret",
+    }
+    write(tmp_path, "backend/app/bootstrap_defaults.py",
+          "\n".join(f"{key} = {value!r}" for key, value in values.items()))
+    path = write(tmp_path, name, f"```ini\nPASSWORD='{values[field].upper()}'\n```\n")
+    errors = check_initialization_credentials(tmp_path)
+    assert errors == [
+        f"{name}:2: initialization credential {field} must stay in configuration",
+    ]
+    assert all(value not in error.casefold() for value in values.values() for error in errors)
+    path.write_text("初始化凭据由配置提供。\n", encoding="utf-8")
+    assert check_initialization_credentials(tmp_path) == []
 
 
 def test_moved_relative_link_requires_correct_parent_and_anchor(tmp_path):

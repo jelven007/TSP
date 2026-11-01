@@ -1,0 +1,574 @@
+{
+  "date": "2026-11-01",
+  "scope": "TSP ECS historical images and disposable image/build caches",
+  "sanitization": "No production endpoint, SSH key/fingerprint, account, credential, config hash, PID or container ID included",
+  "identity": {
+    "alias_matches_current_controlled_endpoint": false,
+    "controlled_url_resolves_to_current_endpoint": true,
+    "matching_preexisting_key_algorithms": [
+      "ecdsa-sha2-nistp256",
+      "ssh-ed25519",
+      "ssh-rsa"
+    ],
+    "host_key_verified": true,
+    "known_hosts_modified": false,
+    "strict_host_checking_disabled": false,
+    "authenticated_connection": true
+  },
+  "inventory_checked_at_utc": "2026-10-31T18:22:27.710333+00:00",
+  "cleanup_checked_at_utc": "2026-10-31T18:26:42.452444+00:00",
+  "integrity_checked_at_utc": "2026-10-31T18:28:40.078004+00:00",
+  "docker_before": {
+    "Images": {
+      "TotalCount": "34",
+      "Active": "2",
+      "Size": "40.02GB",
+      "Reclaimable": "15.76GB (39%)"
+    },
+    "Containers": {
+      "TotalCount": "8",
+      "Active": "8",
+      "Size": "155.6kB",
+      "Reclaimable": "0B (0%)"
+    },
+    "Local Volumes": {
+      "TotalCount": "1",
+      "Active": "1",
+      "Size": "83.75MB",
+      "Reclaimable": "0B (0%)"
+    },
+    "Build Cache": {
+      "TotalCount": "470",
+      "Active": "0",
+      "Size": "15.69GB",
+      "Reclaimable": "10.15GB"
+    }
+  },
+  "docker_after": {
+    "Images": {
+      "TotalCount": "6",
+      "Active": "2",
+      "Size": "5.227GB",
+      "Reclaimable": "2.206GB (42%)"
+    },
+    "Containers": {
+      "TotalCount": "8",
+      "Active": "8",
+      "Size": "155.6kB",
+      "Reclaimable": "0B (0%)"
+    },
+    "Local Volumes": {
+      "TotalCount": "1",
+      "Active": "1",
+      "Size": "83.78MB",
+      "Reclaimable": "0B (0%)"
+    },
+    "Build Cache": {
+      "TotalCount": "0",
+      "Active": "0",
+      "Size": "0B",
+      "Reclaimable": "0B"
+    }
+  },
+  "disk_available_before_bytes": 62622756864,
+  "disk_available_after_bytes": 103566004224,
+  "disk_available_increase_bytes": 40943247360,
+  "disk_available_increase_gib": 38.131370544433594,
+  "removed_image_count": 28,
+  "removed_images": [
+    {
+      "id": "sha256:0625a664d26493d26049591d0c31b0e45039509573ea3f64ba662f6300a327da",
+      "tags": [
+        "tsp-full-compute:v0.4.34-18f6f5cbea5b",
+        "tsp-full-rollback-compute:pre-1c630cc2d13c"
+      ],
+      "version": "0.4.34",
+      "revision": "18f6f5cbea5bb651dc5fc09f289016bd01b9b6de",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:078c51370723f9422ab8d13655b2fc55391d1a3b7894b7e99e95d8aa304443d7",
+      "tags": [
+        "tsp-runtime-transfer:5b273174f2e2"
+      ],
+      "version": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:0ba6ce3201e80fdbed8611a74fb2d793a8ed40075a348b3d68239caa3ef09487",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-f4d8c11b766b",
+        "tsp-full-runtime:v0.4.36-1c630cc2d13c",
+        "tsp-runtime-transfer:1c630cc2d13c"
+      ],
+      "version": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+      "revision": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:16f8636ff398783bcda47825acd375574cfc7d2ebc09c7248b06a7edea1ce487",
+      "tags": [
+        "tsp-full-compute:v0.4.37-f4d8c11b766b",
+        "tsp-full-rollback-compute:pre-5b273174f2e2"
+      ],
+      "version": "0.4.37",
+      "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:17cb2210d8590d3451fb89f015bd37f2124b89f69412f1a59e3c8f67d024eb82",
+      "tags": [
+        "tsp-full-compute:v0.4.36-1c630cc2d13c",
+        "tsp-full-rollback-compute:pre-f4d8c11b766b"
+      ],
+      "version": "0.4.36",
+      "revision": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:186190e8258b2be39318e53a3033c5106ee92829e2d50b4f81bff7001528d1dd",
+      "tags": [
+        "tsp-full-compute:v0.4.31-6b86f7249406",
+        "tsp-full-rollback-compute:pre-4da5f30c9b51"
+      ],
+      "version": "0.4.31",
+      "revision": "6b86f724940682c802919c680e224a6d7510064e",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:1932b6951d3ab40b60a255d661541594bc308acf123a478be304f11c5db3aef6",
+      "tags": [
+        "tsp-full-rollback-compute:20261026",
+        "tsp-release-compute:8b669fb5ff96606dce60349f088aea736dba6640-amd64"
+      ],
+      "version": "8b669fb5ff96606dce60349f088aea736dba6640",
+      "revision": "8b669fb5ff96606dce60349f088aea736dba6640",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:19c5511ec74a64f8f9425209241b25304c148f0544c86145286d3004b6611dd7",
+      "tags": [
+        "tsp-full-compute:v0.4.21-7823b84b"
+      ],
+      "version": "7823b84bd0d7d793b33f2b2c26b2afce522ecf36",
+      "revision": "7823b84bd0d7d793b33f2b2c26b2afce522ecf36",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:1ca744301cd18e280f7224e4e2c7bf0c5feb7771462650540af8809cbd86a077",
+      "tags": [
+        "tsp-full-compute:v0.4.26-5651b33d489a"
+      ],
+      "version": "0.4.26",
+      "revision": "5651b33d489a5bc8ba521d0b0b25c7f420e1cbf4",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:356af996d5beb911a3b8bf7e533677b3862a7080658309eff2a970d5734a9985",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-1c630cc2d13c",
+        "tsp-full-runtime:v0.4.34-18f6f5cbea5b",
+        "tsp-runtime-transfer:18f6f5cbea5b"
+      ],
+      "version": "18f6f5cbea5bb651dc5fc09f289016bd01b9b6de",
+      "revision": "18f6f5cbea5bb651dc5fc09f289016bd01b9b6de",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:3b436a4a3b4c0bf16d19e0eb9228ce58fcd168a58f1fe11d2ccc06426b3ff1db",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-5b273174f2e2",
+        "tsp-full-runtime:v0.4.37-f4d8c11b766b",
+        "tsp-runtime-transfer:f4d8c11b766b"
+      ],
+      "version": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:4b4e70119b056b7b9603b65c742f94d01eb2b0a9438907542cf0d69a7db3d239",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-18f6f5cbea5b",
+        "tsp-full-runtime:v0.4.33-ded70245bf95",
+        "tsp-runtime-transfer:ded70245bf95"
+      ],
+      "version": "ded70245bf95aac467ddc53a73418c093bdae51a",
+      "revision": "ded70245bf95aac467ddc53a73418c093bdae51a",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:4d6e63546cab1051d4a265bc16ab989f0be12b07ca21c61b678773628dfdc658",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-6b86f7249406",
+        "tsp-full-runtime:v0.4.30-cb0eb2820f1d",
+        "tsp-runtime-transfer:cb0eb2820f1d"
+      ],
+      "version": "cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c",
+      "revision": "cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:55f3a26eb307939c1dc541ffeb6f5239cfc1c233afcb326447a503a7a262d3e6",
+      "tags": [
+        "tspp-minute-native:audit-20261029"
+      ],
+      "version": null,
+      "revision": null,
+      "tsp_source": false
+    },
+    {
+      "id": "sha256:56fd2a062c30daa409eda4d012d54fa0220ce303c89f61704039d0a8e59e77c0",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-ded70245bf95",
+        "tsp-full-runtime:v0.4.32-4da5f30c9b51",
+        "tsp-runtime-transfer:4da5f30c9b51"
+      ],
+      "version": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:6f7fffff387b619f3baefbf0544405d6890f9282a33025665df61b1b5cd7d441",
+      "tags": [
+        "tsp-full-compute:v0.4.28-846a6c7484aa"
+      ],
+      "version": "0.4.28",
+      "revision": "846a6c7484aa62df569a6fabc91417d8a265e10e",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:77636fcec53022d111b0074bf14d5e82634008ffa65f57ebddb43320c1967665",
+      "tags": [
+        "tspp-minute-candidate:audit-20261029"
+      ],
+      "version": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:860a1ed7901a6fe66343a78b1344974aa94699db89fbb163a6752f19e2683d90",
+      "tags": [
+        "tsp@sha256:860a1ed7901a6fe66343a78b1344974aa94699db89fbb163a6752f19e2683d90",
+        "tsp-full-runtime:v0.4.26-5651b33d489a"
+      ],
+      "version": "5651b33d489a5bc8ba521d0b0b25c7f420e1cbf4",
+      "revision": "5651b33d489a5bc8ba521d0b0b25c7f420e1cbf4",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:92660decfd3b10f0dcf614f61b2bf71ab2dc1af0cbe49a60143e1605c79b846e",
+      "tags": [
+        "tsp@sha256:92660decfd3b10f0dcf614f61b2bf71ab2dc1af0cbe49a60143e1605c79b846e",
+        "tsp-full-runtime:v0.4.21-7823b84b"
+      ],
+      "version": "7823b84bd0d7d793b33f2b2c26b2afce522ecf36",
+      "revision": "7823b84bd0d7d793b33f2b2c26b2afce522ecf36",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:a65fa3cbbf76be5194adbfa03ebfbb74eee56dee4079e18450036e334f7dc5cb",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-4da5f30c9b51",
+        "tsp-full-runtime:v0.4.31-6b86f7249406",
+        "tsp-runtime-transfer:6b86f7249406"
+      ],
+      "version": "6b86f724940682c802919c680e224a6d7510064e",
+      "revision": "6b86f724940682c802919c680e224a6d7510064e",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:af2b928a963771a2170d78827bea00d2284ebcaade7ca2b777fe2b80cae65343",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-cb0eb2820f1d",
+        "tsp-full-runtime:v0.4.29-4d944cdf66c0",
+        "tsp-runtime-transfer:4d944cdf66c0"
+      ],
+      "version": "4d944cdf66c02ec020c98ea961cb6bdc2b079056",
+      "revision": "4d944cdf66c02ec020c98ea961cb6bdc2b079056",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:b165899ad34b08deb173a4d2a1f76e7f57d7374bd673496dfc0b95c99a993b47",
+      "tags": [
+        "tsp-full-runtime:v0.4.28-846a6c7484aa",
+        "tsp-runtime-transfer:846a6c7484aa"
+      ],
+      "version": "846a6c7484aa62df569a6fabc91417d8a265e10e",
+      "revision": "846a6c7484aa62df569a6fabc91417d8a265e10e",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:b9b6da254356c41b3bc5c75319273d11328ed063b98b5456489daa0bf04dfaab",
+      "tags": [
+        "tsp-full-compute:v0.4.30-cb0eb2820f1d",
+        "tsp-full-rollback-compute:pre-6b86f7249406"
+      ],
+      "version": "0.4.30",
+      "revision": "cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:c6dc1806603d376dd28bf980256305fe81e692e3edb0dc33a90d3bd8baf32407",
+      "tags": [
+        "tsp-runtime-transfer:bac72d9a83c0"
+      ],
+      "version": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+      "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:c6e6c4765f388e279a43159ef564c85caa1acec3552f52771a20699123be2114",
+      "tags": [
+        "tsp-full-compute:v0.4.32-4da5f30c9b51",
+        "tsp-full-rollback-compute:pre-ded70245bf95"
+      ],
+      "version": "0.4.32",
+      "revision": "4da5f30c9b5165612d78b573c142612f3fe25395",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:e3228e833450c0053d31979c658ac7d5fbb1f56cfb70c5e9c3f36b42afa4a367",
+      "tags": [
+        "tsp@sha256:e3228e833450c0053d31979c658ac7d5fbb1f56cfb70c5e9c3f36b42afa4a367",
+        "tsp-full-rollback-runtime:20261026",
+        "tsp-release-runtime:8b669fb5ff96606dce60349f088aea736dba6640-amd64"
+      ],
+      "version": "8b669fb5ff96606dce60349f088aea736dba6640",
+      "revision": "8b669fb5ff96606dce60349f088aea736dba6640",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:e6510781bee381806efcb9d9521c73e453f6a0ec1eb69be8a732429cce416630",
+      "tags": [
+        "tsp-full-compute:v0.4.29-4d944cdf66c0",
+        "tsp-full-rollback-compute:pre-cb0eb2820f1d"
+      ],
+      "version": "0.4.29",
+      "revision": "4d944cdf66c02ec020c98ea961cb6bdc2b079056",
+      "tsp_source": true
+    },
+    {
+      "id": "sha256:ee3dd74e8e7ae6e0926ca096ffbca54b6080915f02ba216ea77ade0f1c4e7f66",
+      "tags": [
+        "tsp-full-compute:v0.4.33-ded70245bf95",
+        "tsp-full-rollback-compute:pre-18f6f5cbea5b"
+      ],
+      "version": "0.4.33",
+      "revision": "ded70245bf95aac467ddc53a73418c093bdae51a",
+      "tsp_source": true
+    }
+  ],
+  "retained_images": [
+    {
+      "id": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "tags": [
+        "tsp-financial-base:5b273174f2e2",
+        "tsp-full-cell:v0.4.38-5b273174f2e2",
+        "tsp-full-runtime:v0.4.38-5b273174f2e2"
+      ],
+      "version": "0.4.38",
+      "metadata_equal": true
+    },
+    {
+      "id": "sha256:6420311935048783ca64a1b9475824f8e8987b8e5c74f9854766ea032987447d",
+      "tags": [
+        "tsp-full-rollback-runtime:pre-bac72d9a83c0",
+        "tsp-full-runtime:financial-storage-20261030"
+      ],
+      "version": "0.4.38",
+      "metadata_equal": true
+    },
+    {
+      "id": "sha256:8947fad337917352c8435ac43dc136f7e405da0433834cfc30a490337c6f1fca",
+      "tags": [
+        "tsp-full-cell:v0.4.39-bac72d9a83c0",
+        "tsp-full-runtime:v0.4.39-bac72d9a83c0"
+      ],
+      "version": "0.4.39",
+      "metadata_equal": true
+    },
+    {
+      "id": "sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97",
+      "tags": [
+        "postgres:16"
+      ],
+      "version": null,
+      "metadata_equal": true
+    },
+    {
+      "id": "sha256:a517c7d6abe6fc332cb394a29e59853f0ece9d805cbfe4d12b58fcf43cb44845",
+      "tags": [
+        "tsp-full-compute:v0.4.38-5b273174f2e2",
+        "tsp-full-rollback-compute:pre-bac72d9a83c0"
+      ],
+      "version": "0.4.38",
+      "metadata_equal": true
+    },
+    {
+      "id": "sha256:be83d6076825746da75d9705d62ab409a7336bd7429b4b5bdd86e4c465529889",
+      "tags": [
+        "tsp-full-compute:v0.4.39-bac72d9a83c0"
+      ],
+      "version": "0.4.39",
+      "metadata_equal": true
+    }
+  ],
+  "removed_transfer_archives": 12,
+  "removed_transfer_chunks": 63,
+  "removed_transfer_allocated_bytes": 6004510720,
+  "removed_transfers": [
+    {
+      "name": "image-chunks-6b86f724940682c802919c680e224a6d7510064e",
+      "kind": "image-chunks",
+      "files": 63,
+      "allocated_bytes": 263974912
+    },
+    {
+      "name": "runtime-18f6f5cbea5bb651dc5fc09f289016bd01b9b6de.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 478543872
+    },
+    {
+      "name": "runtime-1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 478539776
+    },
+    {
+      "name": "runtime-4d944cdf66c02ec020c98ea961cb6bdc2b079056.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 477880320
+    },
+    {
+      "name": "runtime-4da5f30c9b5165612d78b573c142612f3fe25395.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 477999104
+    },
+    {
+      "name": "runtime-5b273174f2e2a8ac539fcea363fa02315a61ebe9.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 478867456
+    },
+    {
+      "name": "runtime-6b86f724940682c802919c680e224a6d7510064e.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 477884416
+    },
+    {
+      "name": "runtime-700d25dad13b7b12c678e4443a893886299117a8.delta-upload.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 478539776
+    },
+    {
+      "name": "runtime-846a6c7484aa62df569a6fabc91417d8a265e10e.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 477884416
+    },
+    {
+      "name": "runtime-bac72d9a83c03890cbb954e0e13782b8421d6073.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 478978048
+    },
+    {
+      "name": "runtime-cb0eb2820f1d7e8650fb7daf92b9725557d6dd1c.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 477888512
+    },
+    {
+      "name": "runtime-ded70245bf95aac467ddc53a73418c093bdae51a.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 478662656
+    },
+    {
+      "name": "runtime-f4d8c11b766bf62c269d8fca05b7ef6d9a559e42.tar",
+      "kind": "docker-save-archive",
+      "files": 1,
+      "allocated_bytes": 478867456
+    }
+  ],
+  "chunk_duplication_proof": {
+    "file_count": 63,
+    "numeric_regular_file_count": 63,
+    "minimum_chunk_number": 9,
+    "maximum_chunk_number": 113,
+    "chunk_sizes": [
+      3927040,
+      4194304
+    ],
+    "matched_complete_archive_chunks": 63,
+    "all_chunks_exactly_match_complete_image_archive": true
+  },
+  "cleanup_integrity_verified": true,
+  "checks": {
+    "exact_retained_image_set": true,
+    "retained_image_metadata_equal": true,
+    "container_identity_start_restart_counts_equal": true,
+    "container_mounts_equal": true,
+    "volumes_equal": true,
+    "configs_and_modes_equal": true,
+    "protected_paths_exist": true,
+    "baseline_absent_paths_still_absent": true,
+    "stable_systemd_service_identity_equal": true,
+    "deleted_paths_absent": true,
+    "all_eight_containers_running_healthy": false,
+    "health_http_probes_pass": false
+  },
+  "protected_config_count": 45,
+  "container_count_before": 8,
+  "container_count_after": 8,
+  "volume_count_before": 1,
+  "volume_count_after": 1,
+  "health_observation": {
+    "api_unhealthy_before_cleanup": true,
+    "api_health_during_integrity_check": "unhealthy",
+    "api_http_during_integrity_check": 503,
+    "gateway_http_during_integrity_check": 200,
+    "platform_http_during_integrity_check": 200,
+    "subsequent_api_readiness_http": 200,
+    "subsequent_api_ready": true,
+    "continuous_health_verified": false,
+    "status": "Intermittent API readiness failures observed before and after cleanup; cause not diagnosed"
+  },
+  "preserved": [
+    "production_data",
+    "postgresql_volume",
+    "backups",
+    "user_configs",
+    "current_and_rollback_images",
+    "source_worktrees",
+    "source_archives",
+    "imports",
+    "unfinished_diagnostic_evidence"
+  ],
+  "performed_restarts": false,
+  "application_version_changed": false,
+  "commit_or_push_performed": false,
+  "documentation_verification": {
+    "make_check": "PASS",
+    "required_paths": 87,
+    "current_markdown_files": 36,
+    "include_reports_check": "PASS",
+    "markdown_files_including_reports": 233,
+    "application_version": "0.4.39",
+    "diff_whitespace": "PASS",
+    "sensitive_matches_in_four_changed_reports": 0,
+    "concurrent_non_task_file_edits_observed": 4,
+    "concurrent_files_preserved": true
+  },
+  "limits": [
+    "Disk delta includes live filesystem activity; it is not an image logical-size sum",
+    "Image layers reside primarily in containerd managed storage; no storage directories were deleted directly",
+    "Continuous API health, credential rotation and published source/release sanitization are outside this cleanup result"
+  ]
+}

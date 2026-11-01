@@ -1,6 +1,9 @@
 # 因子平台：实现、技术契约与后续设计
 
-核对日期：2026-10-23；合并日期：2026-10-24。注册、DSL、组合与服务端统计已有实现；完整历史宇宙、中性化、自动衰减和自动权重仍是目标。当前请求响应以[factors API](../../backend/app/api/factors.py)与[契约测试](../../backend/tests/test_factor_api.py)为准，不能照目标示例导入不存在的模块。
+内容核对日期：2026-10-30。注册、DSL、组合与服务端统计已有实现；
+完整历史宇宙、中性化、自动衰减和自动权重仍是目标。
+当前请求响应以[factors API](../../backend/app/api/factors.py)与[契约测试](../../backend/tests/test_factor_api.py)为准，
+不能照目标示例导入不存在的模块；原性能数字仅证明各自记录的环境与窗口。
 
 - [1. 当前实现与使用闭环](#factor-current)
 - [2. 后续技术设计](#factor-target)

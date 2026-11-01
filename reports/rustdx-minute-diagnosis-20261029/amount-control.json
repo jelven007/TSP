@@ -1,0 +1,14 @@
+[
+  {
+    "binary32_amount": 14.0,
+    "raw_bits": "0x41600000",
+    "legacy_vol_amount": 1544.0,
+    "new_binary32_amount": 14.0
+  },
+  {
+    "binary32_amount": 16.0,
+    "raw_bits": "0x41800000",
+    "legacy_vol_amount": 2056.0,
+    "new_binary32_amount": 16.0
+  }
+]

@@ -95,16 +95,16 @@ def test_ma60_non_declining_filter_can_restore_original_entry_behavior():
     assert strategy.matrix_strategy.required_warmup_bars({"require_ma60_non_declining": False}) == 60
 
 
-def test_catalog_groups_exactly_22_defaults_and_excludes_research_template():
+def test_catalog_groups_defaults_and_excludes_research_template():
     from app.strategy.families import BUILTIN_FAMILIES, builtin_family
 
     engine = StrategyEngine([BUILTIN])
     ids = [sid for _, members in BUILTIN_FAMILIES.values() for sid in members]
-    assert len(ids) == len(set(ids)) == 22
+    assert len(ids) == len(set(ids)) == 24
     assert set(ids) == {s["id"] for s in engine.list_strategies()}
     assert builtin_family("factor_rank_research") is None
     assert builtin_family("custom_unknown") is None
-    assert len(BUILTIN_FAMILIES) == 6
+    assert len(BUILTIN_FAMILIES) == 7
 
 
 def test_api_family_contract_keeps_ids_overrides_and_uncategorized_strategies(tmp_path, monkeypatch):
@@ -125,7 +125,8 @@ def test_api_family_contract_keeps_ids_overrides_and_uncategorized_strategies(tm
         response = client.get("/api/strategies")
     assert response.status_code == 200
     items = {s["id"]: s for s in response.json()["strategies"]}
-    assert len(items) == 22
+    assert len(items) == 24
+    assert items["s02"]["family"] == {"id": "overnight", "name": "隔夜交易"}
     assert items["ma_golden_cross"]["family"] == {"id": "trend", "name": "趋势跟随"}
     assert items["ma_golden_cross"]["params_defaults"]["require_ma60_non_declining"] is False
     custom = engine.get("oversold_bounce")

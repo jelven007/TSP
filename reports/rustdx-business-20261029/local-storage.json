@@ -1,0 +1,328 @@
+{
+  "fetched_at": "2026-10-29T06:52:47.724287+08:00",
+  "network_and_normalization_ms": 15809.17045899696,
+  "returned": 5222,
+  "missing": [],
+  "duplicate_count": 0,
+  "source_time_null_rows": 2,
+  "source_timestamp_null_rows": 5222,
+  "timestamp_bases": [
+    "received"
+  ],
+  "pool": {
+    "active_connections": 0,
+    "active_server": "115.238.56.198:7709",
+    "business_limit": 8,
+    "closed": false,
+    "failures": 1,
+    "financial_pools": [],
+    "idle_connections": 8,
+    "market_pool": {
+      "completed_at": "2026-10-29T06:52:33.179425+08:00",
+      "date": "2026-10-29",
+      "results": [
+        {
+          "address": "117.34.114.13:7709",
+          "rounds": [
+            {
+              "elapsed": {
+                "nanos": 298211667,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 32773625,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 31871375,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 233512875,
+                "secs": 0
+              }
+            },
+            {
+              "elapsed": {
+                "nanos": 94450959,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 33172958,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 33006292,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 28222167,
+                "secs": 0
+              }
+            },
+            {
+              "elapsed": {
+                "nanos": 92989917,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 32556791,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 32477042,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 27865375,
+                "secs": 0
+              }
+            }
+          ]
+        },
+        {
+          "address": "115.238.56.198:7709",
+          "rounds": [
+            {
+              "elapsed": {
+                "nanos": 120233125,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 43142583,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 41354375,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 35685708,
+                "secs": 0
+              }
+            },
+            {
+              "elapsed": {
+                "nanos": 99900208,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 34769125,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 35553375,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 29520958,
+                "secs": 0
+              }
+            },
+            {
+              "elapsed": {
+                "nanos": 108929375,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 37949500,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 37616167,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 33311584,
+                "secs": 0
+              }
+            }
+          ]
+        },
+        {
+          "address": "180.153.18.170:7709",
+          "rounds": [
+            {
+              "elapsed": {
+                "nanos": 110566875,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 39428417,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 37819291,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 33258791,
+                "secs": 0
+              }
+            },
+            {
+              "elapsed": {
+                "nanos": 242529667,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 174724291,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 37530167,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 30211834,
+                "secs": 0
+              }
+            },
+            {
+              "elapsed": {
+                "nanos": 94102500,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 32727209,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 32601500,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 28717125,
+                "secs": 0
+              }
+            }
+          ]
+        }
+      ],
+      "tested_at": "2026-10-29T06:52:31.917379+08:00",
+      "valid_nodes": [
+        "117.34.114.13:7709",
+        "115.238.56.198:7709",
+        "180.153.18.170:7709"
+      ]
+    },
+    "max_connections": 8,
+    "minute_requests": 0,
+    "network": {
+      "acquisition_timeouts": 0,
+      "active": 8,
+      "peak": 8,
+      "request_failures": 0,
+      "requests": 124,
+      "shared_max_connections": null
+    },
+    "probe_limit": 1,
+    "probes": {
+      "active": 0,
+      "peak": 1,
+      "timeouts": 0,
+      "waits": 0
+    },
+    "quote_batch_size": 60,
+    "quote_metadata": [
+      {
+        "as_of_date": "2026-10-29",
+        "fetched_at": "2026-10-28T22:52:39.357198Z",
+        "market": 0,
+        "securities": 24480,
+        "source_endpoint": "117.34.114.13:7709",
+        "unsupported": 0
+      },
+      {
+        "as_of_date": "2026-10-29",
+        "fetched_at": "2026-10-28T22:52:39.357198Z",
+        "market": 1,
+        "securities": 27545,
+        "source_endpoint": "117.34.114.13:7709",
+        "unsupported": 0
+      }
+    ],
+    "retries": 1,
+    "scheduler": {
+      "background_active": 0,
+      "background_limit": 7,
+      "background_peak": 0,
+      "foreground_waiting": 0,
+      "slot_acquisitions": 89,
+      "slot_wait_ms_max": 0.001,
+      "slot_wait_ms_total": 0.002,
+      "waiting_requests": 0
+    },
+    "total_connection_limit": 9,
+    "total_connections": 8
+  },
+  "build_daily_and_extra_ms": 13.805457994749304,
+  "daily_rows": 5216,
+  "daily_excluded_symbols": [
+    "002717.SZ",
+    "002827.SZ",
+    "301468.SZ",
+    "601326.SH",
+    "605258.SH",
+    "688496.SH"
+  ],
+  "extra_rows": 5222,
+  "archive_submit_ms": 1.0274579981341958,
+  "archive_first_visible_ms": 10072.732000000542,
+  "archive_accepted": true,
+  "archive_status": {
+    "enabled": true,
+    "running": true,
+    "retention_days": 7,
+    "flush_rounds": 10,
+    "queue_capacity": 30,
+    "queued_rounds": 0,
+    "accepted_rounds": 1,
+    "written_rounds": 1,
+    "written_rows": 5222,
+    "written_files": 1,
+    "dropped_rounds": 0,
+    "last_flush_ms": 1793227977774,
+    "last_error": null,
+    "pending_rounds": 0,
+    "queue_peak": 1,
+    "last_write_ms": 7.108,
+    "last_drop_ms": null
+  }
+}

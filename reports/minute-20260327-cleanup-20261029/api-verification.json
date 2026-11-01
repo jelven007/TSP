@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "checked_at": "2026-10-29T00:47:47.685253+00:00",
+  "version": "0.4.38",
+  "ready": true,
+  "admin_login_verified": true,
+  "minute": {
+    "rows": 118450998,
+    "earliest_date": "2026-03-30",
+    "latest_date": "2026-10-28",
+    "symbols_covered": 5222,
+    "trading_days": 141
+  }
+}

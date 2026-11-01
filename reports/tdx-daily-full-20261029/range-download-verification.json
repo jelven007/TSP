@@ -1,0 +1,147 @@
+{
+  "status": "verified",
+  "initial_bytes": 332103680,
+  "final_bytes": 550818570,
+  "appended_bytes": 218714890,
+  "etag": "\"6ae2fcbb-20d4d30a\"",
+  "concurrency": 3,
+  "range_bytes_limit": 8388608,
+  "archive_entries": 12228,
+  "ranges": [
+    {
+      "start": 332103680,
+      "end": 340492287,
+      "sha256": "a76b955d8587bf199622c312556d20c09025cf4d421cebf21958d746b4ffb318"
+    },
+    {
+      "start": 340492288,
+      "end": 348880895,
+      "sha256": "33ca55721fcd006c1429f7edd4f2c550ad5b9d772b3ca027d050ab8ea4a92efe"
+    },
+    {
+      "start": 348880896,
+      "end": 357269503,
+      "sha256": "925390eeac4dfd7173059b8251e6c6dc13c975150129d808e0b1add1fdd37405"
+    },
+    {
+      "start": 357269504,
+      "end": 365658111,
+      "sha256": "9eb2a234e317c45a89ce43253f6a957906aae3fd75d37ad865b1baf91e57a529"
+    },
+    {
+      "start": 365658112,
+      "end": 374046719,
+      "sha256": "ca9084faa0290cdcd7096f606ad9a22efcf9ca92027951b3c35a16a737c9c991"
+    },
+    {
+      "start": 374046720,
+      "end": 382435327,
+      "sha256": "8db5f349014b6035d05ae9838f3ffcf795675da3bdbb6b03bb88c9e05a77ba6e"
+    },
+    {
+      "start": 382435328,
+      "end": 390823935,
+      "sha256": "2ce851ad1a7d2832f8def0f18bfade58a29fec9ad0b71694edc1a0cdb47a9c0f"
+    },
+    {
+      "start": 390823936,
+      "end": 399212543,
+      "sha256": "0180d711a4162e9742aee374af2bdfdcf35e76f0736c6c6956d7ad73c2d59bbb"
+    },
+    {
+      "start": 399212544,
+      "end": 407601151,
+      "sha256": "2c882d2ba7d8eff38f47abc333d329b6e62236e84f10610496b7c29545ebad5a"
+    },
+    {
+      "start": 407601152,
+      "end": 415989759,
+      "sha256": "e07af3d0804ff97ec2ce78ecbba0ef0db495a14a8f5d568b7cbb5e05f7dda940"
+    },
+    {
+      "start": 415989760,
+      "end": 424378367,
+      "sha256": "223046401bdb80dd105cd1ea6aa772931ede15b53d030afe72df181bdaec911b"
+    },
+    {
+      "start": 424378368,
+      "end": 432766975,
+      "sha256": "8aefc13bb7058faec36999438a04f970fcfa92fd1cf329a926a0ee6e89a8cd43"
+    },
+    {
+      "start": 432766976,
+      "end": 441155583,
+      "sha256": "7242e9777da6db1d035fab6b9435b613c9300cc6f2b6e643884540c7917fa93e"
+    },
+    {
+      "start": 441155584,
+      "end": 449544191,
+      "sha256": "88d66aee607c39d9a61b9e319e7d6d8ece858ac0dc3d47d6b78c5077828af47c"
+    },
+    {
+      "start": 449544192,
+      "end": 457932799,
+      "sha256": "e3fad117ad5b274964350e25ea26e439e42dfd7f4e7284bdf8c4ae13e5c2b2a5"
+    },
+    {
+      "start": 457932800,
+      "end": 466321407,
+      "sha256": "d69036e189ce5ac002d62dd7dfd64bae7e85f084870e08ef53578d086f4e1bc3"
+    },
+    {
+      "start": 466321408,
+      "end": 474710015,
+      "sha256": "2a12ee934f2e19391e8a447015a9d8365a4263afe184f38338d0e1a76539bec1"
+    },
+    {
+      "start": 474710016,
+      "end": 483098623,
+      "sha256": "c4899663549ead3127cd7125a9060e71c7a305d02dc5b08ac2a86e092630e5c2"
+    },
+    {
+      "start": 483098624,
+      "end": 491487231,
+      "sha256": "9801e52b5293a2ecc8ab5d44611d4c4e012fbe47e9092a81e8475eac8fc9a0e8"
+    },
+    {
+      "start": 491487232,
+      "end": 499875839,
+      "sha256": "c8b15ebb054067b797b36fe8315e201745162b3c03f0ffca8fcf84df7469e15f"
+    },
+    {
+      "start": 499875840,
+      "end": 508264447,
+      "sha256": "2133006d1bbcfd2abc8c333bcf82e144abb2ba2960d6631f7e2ab24b286057a1"
+    },
+    {
+      "start": 508264448,
+      "end": 516653055,
+      "sha256": "db19479a20b3ef6fd50f91dc26b6a9ef4d9678252aa9862f294fd0bd8a24e79c"
+    },
+    {
+      "start": 516653056,
+      "end": 525041663,
+      "sha256": "04fa63a2bba124115129b636d31578f1b0b877d718a017110d2851bc204ce6f9"
+    },
+    {
+      "start": 525041664,
+      "end": 533430271,
+      "sha256": "935631de45a7d292a43362650687692983a773a8da1288436e46f63b33c3ec9b"
+    },
+    {
+      "start": 533430272,
+      "end": 541818879,
+      "sha256": "2b61820fc8cdeb8ea622681befe43c68a23826b24358020ae796d07ffd91cda4"
+    },
+    {
+      "start": 541818880,
+      "end": 550207487,
+      "sha256": "fdc864cfb3df9ca4ea82a5d210560dc66ba1287d16ff10bccc6643536359c3ff"
+    },
+    {
+      "start": 550207488,
+      "end": 550818569,
+      "sha256": "73bc3aa556bc03e0082d18c7c6a17aa451c078edb7cceb59761c3e5e745e6266"
+    }
+  ]
+}

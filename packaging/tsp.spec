@@ -260,7 +260,7 @@ if _IS_MACOS:
         version=APP_VERSION,   # → CFBundleShortVersionString / CFBundleVersion
         info_plist={
             "CFBundleName": "TSP",
-            "CFBundleDisplayName": "TSP",
+            "CFBundleDisplayName": "Tick Stock Platform",
             "CFBundleVersion": APP_VERSION,
             "NSHighResolutionCapable": True,
             "LSMinimumSystemVersion": "10.13",

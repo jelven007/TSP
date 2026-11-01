@@ -1,4 +1,4 @@
-# TSP MCP 服务器
+# Tick Stock Platform（TSP）MCP 服务器
 
 把面板的开放接口包装成 **MCP (Model Context Protocol)** 工具, 让 Claude / ZCode / Cursor 等 AI 客户端直接查询行情、环境、策略与告警, 触发回测。
 

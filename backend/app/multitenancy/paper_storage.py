@@ -137,6 +137,7 @@ class PaperSession:
         key = (
             f"action:{value['action_id']}:{value['stage']}" if value.get("kind") == "corporate_action"
             else f"corp:{value['symbol']}:{value['date']}" if value.get("kind") == "corp_action"
+            else f"minute:{value['execution_id']}" if value.get("execution_id")
             else f"fill:{value['order_id']}"
         )
         existing = self.conn.execute(

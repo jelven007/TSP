@@ -8,9 +8,9 @@
 本目录是完整产品单机多租户部署入口，沿用原 `app.main`、完整前端和原业务引擎。
 一期于 2026-10-14 完成生产切流与 100 用户验收，见
 [一期实施记录](../../reports/document-consolidation-20261024/historical-evidence.md#phase1)。
-2026-10-25本批升级前实测新ECS `118.196.108.188`/`https://shanao.asia`
-已运行0.4.21/7823b84b/schema v6，七角色及PostgreSQL健康；最新发布状态见
-[本批记录](../../reports/current-state-release-20261025/verification.md)。
+当前固定源码、镜像与最后已知运行身份见[版本基线](../../docs/version-baseline.md)，
+保存的v0.4.39本地/ECS恢复、切换和重启验收见
+[发布记录](../../reports/current-release-20261030/deployment.md)。
 旧实例inode修复和双库恢复见[历史结果](../../reports/online-timeout-20261021/result.md)。
 候选升级继续按下述流程执行，不能与旧实例同时
 写一个行情目录；候选数据、数据库及监听端口必须与生产分离。
@@ -103,13 +103,12 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 ## 初始化与启动
 
 非 Windows 默认开启完整多租户，未指定服务角色时使用 `api`；Windows 默认单机管理员。
-初始化从受控环境读取 `AUTH_USERNAME`、`AUTH_PASSWORD` 和 `AUTH_REGISTRATION_SECRET`，
-注册与密码找回共用该口令；源码不提供默认密码。
+初始化按配置自动预置管理员和注册口令，注册与密码找回共用该口令。
 `AUTH_REGISTRATION_SECRET` 可在首次自定义，已有 SQL 口令不会被重置。
 多租户初始化依赖下面的双库、schema 与内部服务准备，默认开关不替代这些资源。
 
 1. 备份两个 PostgreSQL 库、原 `data/user_data`、策略/研究/模拟交易目录、平台配置、镜像及 Nginx 配置，记录可恢复路径。
-2. 对独立候选库执行原 `app.cell.admin migrate --target-version 6`，分别指定 control/business runtime 角色并登记 Cell。API 首次启动使用已有运行权限自动创建缺失的 `admin/<REDACTED_CREDENTIAL>` 和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
+2. 对独立候选库执行原 `app.cell.admin migrate --target-version 6`，分别指定 control/business runtime 角色并登记 Cell。API 首次启动使用已有运行权限，按初始化配置自动创建缺失的管理员和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
 3. 对明确暂停的 legacy 租户执行 `import-full-product --directory <原data的一致备份> --tenant-id <id> --owner-id <原owner> --report <摘要路径>`，随后执行 `verify-full-import --directory <同一备份> --tenant-id <id> --report <对账路径>`。该命令覆盖账号与完整业务；仅 `import-full-accounts` 或旧 v4 导入不够。旧通知名称须通过 `--channel-map '{"email":"legacy-email"}'` 明确绑定至该租户的已有渠道，实际值以对账结果为准。
 4. 将平台偏好、密钥和 `data_sources/` 从旧目录复制到独立平台配置目录，完成数量/内容对账。保留管理员维护的全局菜单配置；个人布局/列配置和租户定时/通知配置分别导入其 SQL 归属。保留旧文件用于恢复。
 5. 启动独立 `platform` 并等待首个完整公共版本。版本发布逐项复制新文件、复用上一不可变版本的相同文件，并在数据世代或文件清单变化时放弃本次发布。
@@ -145,8 +144,21 @@ Docker 维护只清理到期 BuildKit 缓存和悬空镜像，不使用 `image p
 版本前按完整文件/目录清单估算空间，保留至少 10% 或 100,000 个 inode，以及
 1 GiB 字节空间。容量不足时保留上一份不可变版本，不创建半成品；健康检查报告
 inode 余量。无有效历史版本的首次启动仍须成功完成发布。
-API 在快照至少五秒未更新且 `current` 变化时按需切换仓库，即使盘后行情
-marker 流仍连接，也不会长期读取已到期目录。
+本地修复候选在每个API进程启动5秒发布身份巡检，无业务请求或探活时也能跟随
+`current`；身份不变不拉快照，业务行情仍按marker按需刷新。准备在短更新锁外完成，
+就绪检查捕获同一已提交仓库、快照及租约。旧绑定有效时提供最多30秒同步宽限，
+持续失配、巡检超龄、入口或清单失效仍返回503。
+
+API使用只读打开的不可变`.public_release.json`持共享锁，旧仓库的最后一个引用
+释放后才关闭连接和锁。维护在同文件取得非阻塞排他锁，持锁复核current、近期版本
+及研究引用后删除；锁忙或锁能力不可用则跳过，并报告`release_skip_counts`。
+没有`flock`时保留读取能力但禁用该清理路径，跨主机共享存储另行核验。
+该修复尚未生产部署，源码及验证状态见[实施记录](../../reports/api-public-release-binding-implementation-20261101.md)。
+
+升级此候选前先保存回滚产物并核对空间，暂停公共回收timer；全部API子进程更新并
+确认共享锁及闲置收敛后，先dry-run再恢复维护。旧API不持锁，混跑不能保证读者安全。
+代表性候选须确认25秒内逐进程收敛、探活p95≤500 ms且最大耗时<6秒；
+生产验收覆盖真实发布/回收及至少6小时窗口。回退前同样先暂停维护。
 
 将 `backend/scripts/operations/maintain_full_host.py` 安装到
 `/opt/tsp-full/maintenance/maintain_full_host.py`，在

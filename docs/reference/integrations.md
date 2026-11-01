@@ -1,8 +1,12 @@
 # 数据源与开放接口接入
 
+核对日期：2026-10-30。当前源码/发布/运行身份见[版本基线](../version-baseline.md)；
+接口行为以Provider定义、标准字段和相邻契约测试为准。
+
 六周期画像使用可选统一方法
 `get_klines(symbols, start_time, end_time, asset_type="stock", freq="1d")`，
-应用同步默认只向供应商发送 `1m/1d/1w`；5/10/15分钟由本地1分钟聚合，
+应用基础同步默认只向供应商发送`1m/1d`；股票周K从本地日K聚合，适配器远程1w保留兼容；
+5/10/15分钟由本地1分钟聚合，
 周期同步、离线补齐、修正和查询都不向供应商请求这些派生周期。
 分钟返回北京时间naive `datetime`、日/周返回`date`及原始OHLCV，volume沿用手、amount为元。
 TickFlow共用`klines.batch(period=...)`；rustdx默认采集使用bars频率8/9/5。
@@ -19,13 +23,11 @@ HTTP消费方复用 `/api/kline/minute?symbol=600000.SH&date=2026-10-23&freq=5m`
 无本地结果返回空数据，不受上游能力门控、不远程回退。
 1分钟、日K和周K源失败不静默跨源。旧插件无需新增5m/15m方法即可提供派生数据。
 
-2026-10-26开放契约复核：Tier A端点集合及响应components保持不变，
-仅上述daily/minute两个GET新增可选`freq`，缺省分别1d/1m。
+股票daily/minute两个GET支持可选`freq`，缺省分别1d/1m。
 非法周期或不支持的资产返回422，数据源失败返回502；新周期当前仅支持个股。
-OpenAPI指纹同步为`bd2f545bc7dbe8666c9933fe4dfd19a269fd571379dc9ab45d9cb456cd71a93a`，
 无新增开放历史删除、设置写入或AI端点。客户端不传freq时维持旧行为。
 
-2026-10-28指数分钟接口新增可选`with_prev_close=false`，省略时保持旧响应；
+指数分钟接口支持可选`with_prev_close=false`，省略时保持旧响应；
 显式传`true`时另返回前一交易日收盘参考值`prev_close`，缺少历史值时为null。
 69个Tier A端点及其响应组件保持不变，指纹更新为
 `67b03125537850e8cad84166b60fce6f6c866b68dfdb85f70be465db66500c23`。
@@ -827,7 +829,8 @@ uv run --extra dev python -m ruff check app/plugins/<your_plugin>/ tests/test_<y
 ### 现有插件参考
 
 - **`backend/app/plugins/rustdx/`** — 默认 Rust 数据源，覆盖核心行情/财务能力，并提供公司行为观察；
-  PyO3 桥接 `rustdx-complete 2.0.4`，进程内最多8业务+1探测连接，独立财务下载与解析。
+  固定核心`rustdx-complete 2.0.4`与PyO3桥接0.3.0/API4，三组各8业务+1探测，
+  物理端点与全局24/3共同约束，财务下载与解析沿history现有额度。
   运行要求和数据边界见 [rustdx 数据源](#rustdx)。
   `corporate_actions` 独立声明、路由及返回 `CorporateAction` 标准字段；
   日期不明保留空值，不能由除权日推断登记或到账时间。契约见[公司行为](trading-ai.md#corporate)。
@@ -1052,7 +1055,7 @@ RUSTDX_TIMEOUT=8
 <a id="rustdx-日历与研究复现"></a>
 ### 日历与研究复现
 
-本批公布日历覆盖2019–2026年，版本为`SSE-2019-2026-20261026`；
+公布日历覆盖2019–2026年，版本为`SSE-2019-2026-20261026`；
 2019劳动节修订、2020春节延长和2024除夕按交易所公告处理。
 研究追溯记录版本、覆盖年份和SHA-256；旧快照保留，使用旧构建回放，
 新研究捕获新日历身份，不能混用。来源和回归见

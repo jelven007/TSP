@@ -1,0 +1,214 @@
+{
+  "origin": "https://server.example.com",
+  "administrator_login_passed": true,
+  "version": "0.4.37",
+  "ready": true,
+  "functions": {
+    "market": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "research": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "monitoring": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "paper_trading": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "notifications": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    },
+    "scheduled": {
+      "ready": true,
+      "status": "ok",
+      "unavailable_dependencies": []
+    }
+  },
+  "catalog_count": 7,
+  "query_checks": [
+    {
+      "symbol": "000001.SH",
+      "period": "1d",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 1452,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-28"
+    },
+    {
+      "symbol": "000001.SH",
+      "period": "1w",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 307,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-26"
+    },
+    {
+      "symbol": "000001.SH",
+      "period": "1mo",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 72,
+      "first_label": "2020-11-01",
+      "last_label": "2026-10-01"
+    },
+    {
+      "symbol": "399001.SZ",
+      "period": "1d",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 1452,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-28"
+    },
+    {
+      "symbol": "399001.SZ",
+      "period": "1w",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 307,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-26"
+    },
+    {
+      "symbol": "399001.SZ",
+      "period": "1mo",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 72,
+      "first_label": "2020-11-01",
+      "last_label": "2026-10-01"
+    },
+    {
+      "symbol": "399006.SZ",
+      "period": "1d",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 1452,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-28"
+    },
+    {
+      "symbol": "399006.SZ",
+      "period": "1w",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 307,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-26"
+    },
+    {
+      "symbol": "399006.SZ",
+      "period": "1mo",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 72,
+      "first_label": "2020-11-01",
+      "last_label": "2026-10-01"
+    },
+    {
+      "symbol": "000680.SH",
+      "period": "1d",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 1452,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-28"
+    },
+    {
+      "symbol": "000680.SH",
+      "period": "1w",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 307,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-26"
+    },
+    {
+      "symbol": "000680.SH",
+      "period": "1mo",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 72,
+      "first_label": "2020-11-01",
+      "last_label": "2026-10-01"
+    },
+    {
+      "symbol": "000300.SH",
+      "period": "1d",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 1452,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-28"
+    },
+    {
+      "symbol": "000300.SH",
+      "period": "1w",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 307,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-26"
+    },
+    {
+      "symbol": "000300.SH",
+      "period": "1mo",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 72,
+      "first_label": "2020-11-01",
+      "last_label": "2026-10-01"
+    },
+    {
+      "symbol": "000016.SH",
+      "period": "1d",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 1452,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-28"
+    },
+    {
+      "symbol": "000016.SH",
+      "period": "1w",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 307,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-26"
+    },
+    {
+      "symbol": "000016.SH",
+      "period": "1mo",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 72,
+      "first_label": "2020-11-01",
+      "last_label": "2026-10-01"
+    },
+    {
+      "symbol": "399330.SZ",
+      "period": "1d",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 1452,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-28"
+    },
+    {
+      "symbol": "399330.SZ",
+      "period": "1w",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 307,
+      "first_label": "2020-11-02",
+      "last_label": "2026-10-26"
+    },
+    {
+      "symbol": "399330.SZ",
+      "period": "1mo",
+      "pre_cutoff_rows": 0,
+      "retained_rows": 72,
+      "first_label": "2020-11-01",
+      "last_label": "2026-10-01"
+    }
+  ],
+  "pages": {
+    "/indices": 200,
+    "/data": 200
+  },
+  "passed": true
+}

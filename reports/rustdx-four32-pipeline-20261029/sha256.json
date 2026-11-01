@@ -1,0 +1,144 @@
+{
+  "published": [
+    {
+      "name": "benchmark.py",
+      "bytes": 16344,
+      "sha256": "ae77c01a4ee8073a6258e84358b9363bf66e0e532e27c938e3475ad8ea6dc898"
+    },
+    {
+      "name": "checks.json",
+      "bytes": 3759,
+      "sha256": "99ea25ba1ebd3f527e5b6874959ec88d901f4a7a6b744f122eedb965de2b26a5"
+    },
+    {
+      "name": "experimental-native-contract-mismatch.log",
+      "bytes": 1525,
+      "sha256": "1a3a4bea04225ee0016f1fcad6d63358c3b056e84ac4d5c075cded69a154b979"
+    },
+    {
+      "name": "independent-verification.log",
+      "bytes": 3760,
+      "sha256": "91b9bbcb22d9a8ae32b3f3e3d750971e0f1ab4c16aaf395cb19d82a702691f88"
+    },
+    {
+      "name": "measure_serial.py",
+      "bytes": 448,
+      "sha256": "0604199d4f222180c2ef56c8716868a701bb6d3f87ef330d359993530388726b"
+    },
+    {
+      "name": "pipeline-first-run.log",
+      "bytes": 1070,
+      "sha256": "4684345c715ef52910e6d801af0c4db3d16611740e60cbc49d50fee285caa759"
+    },
+    {
+      "name": "pipeline-first.json",
+      "bytes": 139278,
+      "sha256": "a40bed9e7b64e9ffca9d0ed562a8002772d274ceb8bdb13c84df60b0a9cd3c45"
+    },
+    {
+      "name": "pipeline-green.log",
+      "bytes": 99,
+      "sha256": "f479f3e2ad3297ddfb2ee50892445b1e61a0ad45e1de28783b792c066a2c97be"
+    },
+    {
+      "name": "pipeline-red.log",
+      "bytes": 5918,
+      "sha256": "577fe9fca14bdd132a8d25166ebd4ed647b5332e50db3d66742ee59e862c737d"
+    },
+    {
+      "name": "pipeline-repeat-run.log",
+      "bytes": 1069,
+      "sha256": "60538888b2d32efcee71c9036cafc337cb1553293a6d83186c776ccac24494bb"
+    },
+    {
+      "name": "pipeline-repeat.json",
+      "bytes": 146797,
+      "sha256": "d76cdf8ac263a6dee4bd7c3241da6176eb8f425bc6d41340397095d00f10678e"
+    },
+    {
+      "name": "pipeline-reverse-red.log",
+      "bytes": 6359,
+      "sha256": "4a042065af8bd5eda7fa5bc5c6c6538adc3a6fd484d13df4d539e3a159c64583"
+    },
+    {
+      "name": "pipeline.patch",
+      "bytes": 22211,
+      "sha256": "ce43c66889b345500bb860108040d8b36eb6c06a6a3f430fb773a70cb5b08a55"
+    },
+    {
+      "name": "provider-green.log",
+      "bytes": 180,
+      "sha256": "293cc9c13e6a1a995d0058268ff1273965cabdce24f9a88de71b09ee1ca89513"
+    },
+    {
+      "name": "publish.py",
+      "bytes": 8665,
+      "sha256": "8c7e626a570c7e1e88a7f43ba9de2f04c9b5087dd8d7dc78d4528f7227cf774a"
+    },
+    {
+      "name": "report.md",
+      "bytes": 8523,
+      "sha256": "705f8fa889fbd08c27051ce0ac8c6eeb2b0c739327cde4111d0d1b7463aab9d4"
+    },
+    {
+      "name": "reverse.py",
+      "bytes": 473,
+      "sha256": "c094a4ee5b97f9d0e5e7ad5c5665da8e93b7ad23ddeefc78a85888ef5f5bb2f8"
+    },
+    {
+      "name": "routing.py",
+      "bytes": 10759,
+      "sha256": "90ac1f8f8204105ed215672696630681119c9aba1a8a9e7fab895c54bcdbd047"
+    },
+    {
+      "name": "ruff.log",
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "name": "serial-control-run.log",
+      "bytes": 1065,
+      "sha256": "2ff8b992f998aeb7e88e4e6c6a93407344f482f7615976f0793ddd3b7c0895b4"
+    },
+    {
+      "name": "serial-control.json",
+      "bytes": 137338,
+      "sha256": "088e105bfa281488302f9c9947173fb56156124d641bd6c144f4be9f3e8cd9a6"
+    },
+    {
+      "name": "tcp-gate32.json",
+      "bytes": 14008,
+      "sha256": "af26b50dac0db5b46e9be5366cf2f1de4c4e0807a20da14ab2faf8c5f6cbde33"
+    },
+    {
+      "name": "tcp-gate32.log",
+      "bytes": 7603,
+      "sha256": "264f9cba2da5723a6e70515cccc80fe2c9865627de3fcfcd4dbca49027035307"
+    },
+    {
+      "name": "tcp_gate32.py",
+      "bytes": 3884,
+      "sha256": "0ac4647607571493d213b5281e810788b2fc4d8d2be03bdf7e0e7f702ebad708"
+    },
+    {
+      "name": "test_verified_pipeline.py",
+      "bytes": 6681,
+      "sha256": "84a14e9f89b8eb2e7422c49bf355455f1856d48fd5aa888ed76aae0ee6186d02"
+    },
+    {
+      "name": "test_verified_routing.py",
+      "bytes": 3976,
+      "sha256": "1784f72ed31f61f610ca2c533b2bbd1dfddc66d1a67ed0f0d43bce62a2a48e7f"
+    }
+  ],
+  "task_artifact": {
+    "path": "/path/to/home/Documents/TSPP/.claude/artifacts/fixes/rustdx-four32-pipeline.md",
+    "sha256": "9eb760b1148cfa02ae3b33fadd464da3b19eecde8c81826010faf5962449e9a2"
+  },
+  "native_binary": [
+    {
+      "path": "/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/repair-native/tsp_rustdx_native/tsp_rustdx_native.cpython-312-darwin.so",
+      "sha256": "83f0843119afe583ff10eab398906ca20321118fa2c12e00739faa9880d0ede2"
+    }
+  ]
+}

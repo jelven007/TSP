@@ -11,7 +11,7 @@
 
 ## 实现与数据边界
 
-[实现](routing.py)使用四个独立工作队列，每站最多8个消费者，继续复用既有原生准入、
+实现（附件保存在受控归档）使用四个独立工作队列，每站最多8个消费者，继续复用既有原生准入、
 固定endpoint与分页connection_id保护。固定来源任务100只，其他三站只安排未复用的
 候选任务；不会先等待整批候选完成。单证券校验直接比较本次数据，避免反复扫描整批
 50.4万行结果。校验完成即释放该证券的临时配对数据，最后拼接有序结果。
@@ -81,7 +81,7 @@
 
 原始记录：[首组流水线](pipeline-first.json)、[就近串行对照](serial-control.json)、
 [再次流水线及分站计时](pipeline-repeat.json)。首组脚本尚未增加分站计时字段；
-本目录[最终测量脚本](benchmark.py)包括此次增加的观测，采集与校验实现两组保持一致。
+本目录最终测量脚本（附件保存在受控归档）包括此次增加的观测，采集与校验实现两组保持一致。
 
 分钟输出SHA256：
 `6c04f44b1908501ad459a96948f332e2ef7b455fe0134143b68a6c69ac0fb9a4`。
@@ -101,7 +101,7 @@
   增量补丁在前次冻结文件副本上实际`git apply --check`及应用成功，逐字节与新文件一致。
   前次29份发布证据SHA256保持不变。
 
-本轮[增量补丁](pipeline.patch)以[前次冻结校验版](../rustdx-four32-integrity-repair-20261029/routing.py)
+本轮增量补丁（附件保存在受控归档）以前次冻结校验版（附件保存在受控归档）
 为基线，修改隔离目录内的路由、校验测试和测量脚本。继承的四站原生实验构建与来源
 保护见[前次报告](../rustdx-four32-integrity-repair-20261029/report.md)；增量补丁不用于
 直接替换生产Provider。详细输入、输出身份、验证和适用边界见[检查记录](checks.json)。
@@ -109,7 +109,7 @@
 ```sh
 PYTHONPATH=/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/repair-native:/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/backend \
 TSPP_BENCH_HOSTS=4 TSPP_BENCH_TOTAL_CONNECTIONS=32 \
-/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12 \
+/path/to/home/Documents/TSPP/backend/.venv/bin/python3.12 \
 /tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/measure32.py \
 --name four32 --verify-sources --work <隔离目录内预先创建的新输出目录>
 ```

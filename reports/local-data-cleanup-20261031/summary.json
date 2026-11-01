@@ -1,0 +1,23 @@
+{
+  "TSP": {
+    "files": 135,
+    "logical_bytes": 14544962,
+    "allocated_bytes_removed": 14872576,
+    "tracked_files": 0,
+    "report_files": 4
+  },
+  "rustdx": {
+    "files": 1604,
+    "logical_bytes": 27345923,
+    "allocated_bytes_removed": 32079872,
+    "tracked_files": 0,
+    "report_files": 1587
+  },
+  "AIGC": {
+    "files": 30,
+    "logical_bytes": 126854,
+    "allocated_bytes_removed": 196608,
+    "tracked_files": 22,
+    "report_files": 0
+  }
+}

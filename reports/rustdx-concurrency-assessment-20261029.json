@@ -1,0 +1,25 @@
+{
+  "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "assessment_only": true,
+  "production_code_changed": false,
+  "source_sha256": {
+    "backend/native/rustdx_native/src/lib.rs": "13768cb3baf34670e2da769ecd67cd1538b19f5e64bd765b99af811346732173",
+    "backend/native/rustdx_native/src/pool.rs": "335e2ac418134676d1e9bc2a2ca1071c40b122ce26869a7410294a5c4eef180a",
+    "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/governance.rs": "390391e04597a06052d4baa89dc931e4daa9764a5cd74c0d76b84d1c8b5f5946",
+    "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip/coordinator.rs": "6b24d9632aceba1091ca342a8f916b6dc7949545a1a1fb2afe1a8615dd2cbfb2",
+    "backend/app/plugins/rustdx/client.py": "abaf05c4e0d6a47b4a5ac5c1997fd4163d92f073ea0edca49be1d88eb4075042",
+    "backend/app/plugins/rustdx/provider.py": "98d263f5baf488a3e7088467527e19b5ae6e996bbefcb7943e89a531e94a3265",
+    "frontend/src/pages/settings/System.tsx": "5a55f08767bd392f3f046baa48ede675b90475a0a59d6dd82c6aec22b52dde39",
+    "backend/app/api/settings.py": "a02528beac18204726bdbbe4e85922b5be1d129d62d0d7be6d05f29f518b1d41"
+  },
+  "report_sha256": "3c0aecdf5e7d944969ee5750737fd566ebe9f3771c73a72fb45cd1945f60c42d",
+  "source_references_checked": 22,
+  "contract_tests": {
+    "passed": 68,
+    "seconds": 27.29,
+    "exit_code": 0,
+    "public_host_capacity_test": false
+  },
+  "new_multi_host_feature_implemented": false,
+  "passed": true
+}

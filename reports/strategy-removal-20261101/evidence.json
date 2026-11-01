@@ -1,0 +1,389 @@
+{
+  "date": "2026-11-01",
+  "api": {
+    "catalog_count": 22,
+    "unchanged_source_and_effective_config": 22,
+    "target_status": {
+      "custom_strategy002": {
+        "detail": 404,
+        "source": 404
+      },
+      "custom_s02": {
+        "detail": 404,
+        "source": 404
+      },
+      "custom_s023": {
+        "detail": 404,
+        "source": 404
+      }
+    },
+    "target_history_counts": {
+      "custom_strategy002": 0,
+      "custom_s02": 0,
+      "custom_s023": 0
+    },
+    "target_rules": 0,
+    "paper_accounts": 0,
+    "research_references": 0,
+    "cached_target_references": 0,
+    "authenticated_after_restart": true
+  },
+  "browser": {
+    "strategyPoolCount": 22,
+    "targetOptions": 0,
+    "backtestTargetReferences": 0,
+    "authenticatedUI": true,
+    "mobile": {
+      "width": 390,
+      "documentWidth": 390
+    },
+    "errors": [],
+    "browser": "Playwright with local Chrome",
+    "fallbackReason": "Browser MCP tools unavailable in current tool registry; prior bridge clicks did not update page state"
+  },
+  "artifact_cleanup": {
+    "removed": [
+      {
+        "path": "reports/s02-current",
+        "files": 640,
+        "bytes": 136017944
+      },
+      {
+        "path": "reports/s02-management-20261101",
+        "files": 31,
+        "bytes": 2702999
+      },
+      {
+        "path": ".trae-html-share-packages/reports/s01-s02-resume-20261101",
+        "files": 1,
+        "bytes": 584
+      },
+      {
+        "path": ".trae-html-share-packages/reports/s02-capital-20261031",
+        "files": 1,
+        "bytes": 456083
+      },
+      {
+        "path": ".trae-html-share-packages/reports/s02-risk6-tp4-20261101",
+        "files": 1,
+        "bytes": 2428578
+      },
+      {
+        "path": ".trae-html-share-packages/reports/s01-s02-clean-raw-20261031",
+        "files": 1,
+        "bytes": 1733278
+      },
+      {
+        "path": ".trae-html-share-packages/reports/s01-s02-exit1330-tp4-20261031",
+        "files": 1,
+        "bytes": 630
+      },
+      {
+        "path": ".trae-html-share-packages/reports/s01-s02-latest-rules-full-20261031",
+        "files": 1,
+        "bytes": 3281936
+      },
+      {
+        "path": "reports/s01-s02-clean-raw-20261031.zip",
+        "files": 1,
+        "bytes": 13172
+      },
+      {
+        "path": "reports/s01-s02-exit1330-tp4-20261031.zip",
+        "files": 1,
+        "bytes": 18569
+      },
+      {
+        "path": "reports/s01-s02-high50-20261101.zip",
+        "files": 1,
+        "bytes": 1256912
+      },
+      {
+        "path": "reports/s01-s02-latest-capital-20261031.zip",
+        "files": 1,
+        "bytes": 15025
+      },
+      {
+        "path": "reports/s01-s02-latest-rules-full-20261031.zip",
+        "files": 1,
+        "bytes": 1758029
+      },
+      {
+        "path": "reports/s01-s02-resume-20261101.zip",
+        "files": 1,
+        "bytes": 1571872
+      }
+    ],
+    "renamed": [
+      {
+        "from": "reports/s01-s02-clean-raw-20261031",
+        "to": "reports/s01-clean-raw-20261031"
+      },
+      {
+        "from": "reports/s01-s02-clean-raw-20261031.zip",
+        "to": "reports/s01-clean-raw-20261031.zip"
+      },
+      {
+        "from": "reports/s01-s02-exit1330-tp4-20261031",
+        "to": "reports/s01-exit1330-tp4-20261031"
+      },
+      {
+        "from": "reports/s01-s02-exit1330-tp4-20261031.zip",
+        "to": "reports/s01-exit1330-tp4-20261031.zip"
+      },
+      {
+        "from": "reports/s01-s02-high50-20261101",
+        "to": "reports/s01-high50-20261101"
+      },
+      {
+        "from": "reports/s01-s02-high50-20261101.zip",
+        "to": "reports/s01-high50-20261101.zip"
+      },
+      {
+        "from": "reports/s01-s02-latest-capital-20261031",
+        "to": "reports/s01-latest-capital-20261031"
+      },
+      {
+        "from": "reports/s01-s02-latest-capital-20261031.zip",
+        "to": "reports/s01-latest-capital-20261031.zip"
+      },
+      {
+        "from": "reports/s01-s02-latest-rules-full-20261031",
+        "to": "reports/s01-latest-rules-full-20261031"
+      },
+      {
+        "from": "reports/s01-s02-latest-rules-full-20261031.zip",
+        "to": "reports/s01-latest-rules-full-20261031.zip"
+      },
+      {
+        "from": "reports/s01-s02-resume-20261101",
+        "to": "reports/s01-resume-20261101"
+      },
+      {
+        "from": "reports/s01-s02-resume-20261101.zip",
+        "to": "reports/s01-resume-20261101.zip"
+      }
+    ],
+    "preserved_ledgers": [
+      {
+        "path": "reports/s01-high50-20261101/results/s01_100000.json",
+        "ledger_sha256": "80eaf9a5f01cc493b193fe8b9b19e07d7ad08b77b315a14c55ea3f1506783f45"
+      },
+      {
+        "path": "reports/s01-high50-20261101/results/s01_200000.json",
+        "ledger_sha256": "453a64de119f0de199ecbb828394ae73e5bb0b7f5cfb93b9b3951c5ecd7aa366"
+      },
+      {
+        "path": "reports/s01-high50-20261101/results/s01_1000000.json",
+        "ledger_sha256": "882f5e2cedbe1e5e67a7eff9f4d38a6b905cf725185c26009f0ef5d5bd2f5185"
+      },
+      {
+        "path": "reports/s01-high50-20261101/results/s01_500000.json",
+        "ledger_sha256": "baf06b1a5dbcfe440770e6d20c91d5571e58b574e167986b20bab024f0c5ee34"
+      },
+      {
+        "path": "reports/s01-high50-20261101/results/s01_300000.json",
+        "ledger_sha256": "0e73e53ddee60544e5a6eb7207d385e82cefaa564b73f29f03d814724f473f29"
+      },
+      {
+        "path": "reports/s01-latest-rules-full-20261031/results/s01_100000.json",
+        "ledger_sha256": "2c52c36f6a95a4db0e2e655c7816b0e84662f15c5ca055749c7cd0193c151842"
+      },
+      {
+        "path": "reports/s01-latest-rules-full-20261031/results/s01_200000.json",
+        "ledger_sha256": "d4e89c9aeb0358eb66b0badb6fd310e52fc0145e92b8bb4318e4c9acfdbbeef5"
+      },
+      {
+        "path": "reports/s01-latest-rules-full-20261031/results/s01_1000000.json",
+        "ledger_sha256": "88e8f7f5b4e0ff34e9c19bd49d93091c339290251bd20f3daba9acb377bf866e"
+      },
+      {
+        "path": "reports/s01-latest-rules-full-20261031/results/s01_500000.json",
+        "ledger_sha256": "efe334a51e8b3d0b8a29dbd36cf73d99c9be69b8378de7ec2c00c1d0ea0b4d82"
+      },
+      {
+        "path": "reports/s01-latest-rules-full-20261031/results/s01_300000.json",
+        "ledger_sha256": "3ea970e35c7e65351b2ebb4693b4dc319bd1cd564aa2a42af3bebd261cec94d8"
+      },
+      {
+        "path": "reports/s01-resume-20261101/results/s01_100000.json",
+        "ledger_sha256": "55ba1eb20a6b3fc1fc3b3a71076131968d77f5f78c8620c0d2ca95aceffc9502"
+      },
+      {
+        "path": "reports/s01-resume-20261101/results/s01_200000.json",
+        "ledger_sha256": "cbcc4c14653eff37212054c2d845907f7188b6b587c85db5ca2e0eab782fb17a"
+      },
+      {
+        "path": "reports/s01-resume-20261101/results/s01_1000000.json",
+        "ledger_sha256": "5599145600601c70c063aeada0a7269aa852c1e99bf0e890cb66189d255e1268"
+      },
+      {
+        "path": "reports/s01-resume-20261101/results/s01_500000.json",
+        "ledger_sha256": "52626b2ec3186cc14a21062255751df1e4434b5aa946f9f2ad140f951678de42"
+      },
+      {
+        "path": "reports/s01-resume-20261101/results/s01_300000.json",
+        "ledger_sha256": "da17fc1e40777351572beefa7d7c0268d812b7b2100bf4f3363a2c0784855d1a"
+      }
+    ]
+  },
+  "installation": {
+    "base": "/path/to/home/.local/share/tsp-dev/TSPP/releases/v0.4.39-bac72d9a83c0",
+    "frontend": "/path/to/home/.local/share/tsp-dev/TSPP/frontends/strategy-cleanup-20261101",
+    "image_before": "sha256:ce9cc3f78e6fb7024bd906f05691268f080f6330453fc21d958284c61e04a47f",
+    "image_after": "sha256:36152822f16d609d9ff0d5875376e22713ae3a7faf8bebf7eb5cc885b5664d7a",
+    "files": [
+      {
+        "path": "backend/app/api/strategy.py",
+        "before_sha256": "47b9704137bb5cd4a79566825574abb70b08a1bec03791028866ceaa0838ef98",
+        "after_sha256": "0824cd2d69ae56e9d3a028b4233ad50e3c4914bf9c3a6c9796f35dbe5f4033d5",
+        "removal_edits": 1
+      },
+      {
+        "path": "backend/app/strategy/engine.py",
+        "before_sha256": "127c71d2d14376b8871139a6e9ed690aa1ba4bbacde1e999dc98597ec6ea8d28",
+        "after_sha256": "d09563cbdf80de7f14ac01e03130b04a1b4e63689d9f066c788786fed12a7904",
+        "removal_edits": 3
+      },
+      {
+        "path": "backend/app/services/screener.py",
+        "before_sha256": "d3abdf9b9fb672eab16d986f855898c4458fa9d61cd0db29fe0a8f0cccab52b3",
+        "after_sha256": "5efbe9656542854abfbc8f89e5ee5b204948f1d6936fa186848fe4bfe92ff789",
+        "removal_edits": 3
+      },
+      {
+        "path": "backend/app/backtest/strategy.py",
+        "before_sha256": "002d8ae491c84e6d71e68daf7883d648fd4156a7dc94da97d5af84adc08fa17a",
+        "after_sha256": "6519104b0c78c2be6fdf7264c28cd0fb245b938be097f958a08274462606e831",
+        "removal_edits": 1
+      },
+      {
+        "path": "backend/app/strategy/overnight_runtime.py",
+        "before_sha256": "456e1e021d787fb9800f3d873283d1f1aba5852de4808fbe3b5000906c5ece16",
+        "after_sha256": "9148f3bacb157d1c25ebaf3b73942148a558b6edc026c2f27c96c98a7bc0c6e1",
+        "removal_edits": 1
+      },
+      {
+        "path": "backend/app/strategy/ai_generator.py",
+        "before_sha256": "71edefe5a4115ccd6ca7a37f4e8cb85c015f47def9202fdaaac89f8b184489a9",
+        "after_sha256": "51b07cd74e9fafcf3ac7d332ec8dc55d6b8bb768c1d18a3976982a8c643e295a",
+        "removal_edits": 1
+      },
+      {
+        "path": "backend/app/strategy/paper.py",
+        "before_sha256": "c230a6af7d7aeb32143c6e484c71f5d6e937d8553e4325ee4c8d33e8c10f7509",
+        "after_sha256": "0c9cb7deda47ac2d128983ecbc61492fedaa34628a6ae1c9c035726cd763da36",
+        "removal_edits": 3
+      },
+      {
+        "path": "backend/app/strategy/paper_auto.py",
+        "before_sha256": "52af033002974d83315b4fd91e3fdad3f519888a1187baf9677dc20a72e9ddb8",
+        "after_sha256": "976df7ec804b6846e0c7275f5e852cba9ec08cbe38346721f7ac9b80f200e40e",
+        "removal_edits": 2
+      },
+      {
+        "path": "backend/app/strategy/builtin/_overnight.py",
+        "before_sha256": "fee4a8661aacb7444389d8e5309667b9f80652c701e1df36a50a78dcf53161b0",
+        "after_sha256": "2d8940a535758b7352ae5fa7fa637028023e8764eba4b313ce026bc9751988b1",
+        "removal_edits": 1
+      },
+      {
+        "path": "backend/app/backtest/overnight.py",
+        "before_sha256": "33fb77b034043d6bb6bb83971a15c626b5e216531a96cdfef5f45d8d3c84f5f5",
+        "after_sha256": "58486c6d7a6cc02fdeb90e06fdc6cf4576043dabd1c4d3b0544763f8c6d0371e",
+        "removal_edits": 12
+      },
+      {
+        "path": "frontend/src/components/OvernightExecutionSummary.tsx",
+        "before_sha256": "32a40652f8b5406447e018c608861430096da874895b9316b4a54eeda009496f",
+        "after_sha256": "406e930f4f0adaf51a0bbf482e0a0b9ddba010272b9d9399c81f115b1b40b910",
+        "removal_edits": 7
+      },
+      {
+        "path": "frontend/src/components/screener/StrategySettingsDialog.tsx",
+        "before_sha256": "1cbf885b655f122001d5dc78c7be312ebaebe5d251d51731a944eefe388398e1",
+        "after_sha256": "8163f3b95c46efe3d7f5b5437d0db933b28a3c56a371d75cd82fa6b3f5b0ae7a",
+        "removal_edits": 1
+      },
+      {
+        "path": "frontend/src/lib/api.ts",
+        "before_sha256": "b4e8cdef39e1a6511857f160af3c17b36063a07630b56597852ae5e9d218626b",
+        "after_sha256": "38e3122a23db502c2bc1f63285fd517ba41a915f91a14ccf332ba64842f57997",
+        "removal_edits": 1
+      },
+      {
+        "path": "frontend/src/pages/backtest/StrategyBacktest.tsx",
+        "before_sha256": "708145b162499756a1cc6fa565579c52582957b0d1a065a04f945815fc8bbc8c",
+        "after_sha256": "51a97b5f5548af4285cc148937e0140012ca6ed01f563760e7cd05ca1dc563f2",
+        "removal_edits": 8
+      }
+    ],
+    "deleted": [
+      "backend/app/strategy/momentum_data.py",
+      "backend/app/strategy/momentum_rules.py",
+      "backend/app/strategy/momentum_runtime.py",
+      "backend/app/strategy/momentum_selection.py",
+      "backend/app/strategy/paper_momentum.py",
+      "backend/app/backtest/momentum.py"
+    ]
+  },
+  "verification": {
+    "workspace_backend": {
+      "passed": 118,
+      "skipped": 7
+    },
+    "workspace_frontend": {
+      "passed": 10
+    },
+    "candidate_backend": {
+      "passed": 88
+    },
+    "workspace_build": "passed",
+    "candidate_build": "passed",
+    "backend_import_syntax": "passed",
+    "frontend_changed_files_lint": "passed",
+    "documentation": "passed",
+    "compute_manifest": "passed",
+    "broad_backend_lint": "existing localized punctuation and style findings; no unrelated cleanup performed"
+  },
+  "online_deployed": false,
+  "new_backtest_run": false,
+  "committed": false,
+  "version_changed": false,
+  "retired_runtime_paths_removed": [
+    {
+      "path": "/path/to/home/.cache/tsp-dev/TSPP/s02-management-backup-20261101",
+      "files": 13
+    },
+    {
+      "path": "/path/to/home/.local/share/tsp-dev/TSPP/frontends/s02-management-20261101",
+      "files": 924
+    },
+    {
+      "path": "/tmp/tsp-s02-management-tests",
+      "files": 0
+    },
+    {
+      "path": "/tmp/tsp-s02-management-runtime-20261101",
+      "files": 1174
+    }
+  ],
+  "retired_scratch_material_removed": [
+    "/tmp/tsp-strategy-update-20261031/s02-before.py",
+    "/tmp/tsp-strategy-update-20261031/s02-after.py",
+    "/tmp/tsp-strategy-update-20261031/s02-build.log",
+    "/tmp/tsp-strategy-update-20261031/saved-validation.json",
+    "/tmp/tsp-strategy-update-20261031/validate_update.py",
+    "/tmp/tsp-strategy-update-20261031/sync_verified.py",
+    "/tmp/tsp-strategy-update-20261031/plan.md",
+    "/tmp/tsp-strategy-update-20261031/design.md",
+    "/tmp/tsp-s02-ui-check"
+  ],
+  "unrelated_worktrees_preserved": true,
+  "retired_image_tags_removed": [
+    "tsp-s02-management:20261101",
+    "tspp-compute:strategy-cleanup-base-20261101",
+    "tsp-s02-management-base:20261101"
+  ],
+  "scratch_cleanup_completed": true
+}

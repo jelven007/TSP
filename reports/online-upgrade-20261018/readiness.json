@@ -1,7 +1,7 @@
 {
   "recorded_at": "2026-10-18T09:55:50.248250+08:00",
   "deployment_status": "not_executed_missing_server_access",
-  "requested_origin": "https://118.196.108.188",
+  "requested_origin": "https://203.0.113.10",
   "main": {
     "version": "0.4.8",
     "commit": "bb8ea7045b613f189159e7ebd84162567ffb09e5",
@@ -38,9 +38,9 @@
     },
     {
       "program": "ssh",
-      "target": "root@118.196.108.188",
+      "target": "redacted@example.com",
       "returncode": 255,
-      "error": "No ED25519 host key is known for 118.196.108.188 and you have requested strict checking.\nHost key verification failed."
+      "error": "No ED25519 host key is known for 203.0.113.10 and you have requested strict checking.\nHost key verification failed."
     },
     {
       "program": "ssh-add",

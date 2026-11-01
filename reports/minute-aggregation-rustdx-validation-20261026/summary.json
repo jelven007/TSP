@@ -1,0 +1,174 @@
+{
+  "expected_grid": 16384,
+  "local_minute_rows": 58552,
+  "upstream_minute_rows": 61440,
+  "minute_common_rows": 58536,
+  "minute_common_differences": 0,
+  "missing_local_minutes": 2904,
+  "local_only_minutes": 16,
+  "duplicate_local_minutes": 0,
+  "all_days_each_period_minimum_10_satisfied": true,
+  "independent_aggregation_checks": 1952,
+  "upstream_amount_all_f32_representable": true,
+  "by_period": {
+    "5m": {
+      "expected_bars": 12288,
+      "paired_bars": 11712,
+      "complete_pairs": 11673,
+      "statuses": {
+        "amount_precision_only": 7224,
+        "exact_match": 4443,
+        "volume_precision_only": 6,
+        "missing_local": 576,
+        "incomplete_or_extra_minutes": 39
+      },
+      "complete_price_matches": 11673,
+      "complete_price_volume_matches": 11667,
+      "complete_all_field_matches": 4443,
+      "complete_amount_within_precision": 11673,
+      "complete_volume_within_precision": 11673,
+      "complete_precision_matches": 11673,
+      "complete_volume_strict_differences": 6,
+      "max_complete_volume_absolute_error_lots": 0.0400000000372529,
+      "significant_differences": 39,
+      "paired_price_volume_differences": 45,
+      "paired_price_differences": 31,
+      "paired_volume_differences": 45,
+      "max_complete_amount_absolute_error_yuan": 160.0,
+      "max_complete_amount_relative_error_pct": 1.4884595562913971e-05,
+      "upstream_self_check_pairs": 12288,
+      "upstream_self_check_price_volume_differences": 6,
+      "upstream_self_check_price_differences": 0,
+      "upstream_self_check_volume_exceeds_precision": 0,
+      "upstream_self_check_amount_exceeds_precision": 0
+    },
+    "15m": {
+      "expected_bars": 4096,
+      "paired_bars": 3904,
+      "complete_pairs": 3865,
+      "statuses": {
+        "amount_precision_only": 3408,
+        "exact_match": 441,
+        "volume_precision_only": 16,
+        "missing_local": 192,
+        "incomplete_or_extra_minutes": 39
+      },
+      "complete_price_matches": 3865,
+      "complete_price_volume_matches": 3849,
+      "complete_all_field_matches": 441,
+      "complete_amount_within_precision": 3865,
+      "complete_volume_within_precision": 3865,
+      "complete_precision_matches": 3865,
+      "complete_volume_strict_differences": 16,
+      "max_complete_volume_absolute_error_lots": 0.31999999983236194,
+      "significant_differences": 39,
+      "paired_price_volume_differences": 55,
+      "paired_price_differences": 30,
+      "paired_volume_differences": 55,
+      "max_complete_amount_absolute_error_yuan": 416.0,
+      "max_complete_amount_relative_error_pct": 1.4560069020752016e-05,
+      "upstream_self_check_pairs": 4096,
+      "upstream_self_check_price_volume_differences": 16,
+      "upstream_self_check_price_differences": 0,
+      "upstream_self_check_volume_exceeds_precision": 0,
+      "upstream_self_check_amount_exceeds_precision": 0
+    }
+  },
+  "timestamp_diagnosis": {
+    "time_label_pairs": 16,
+    "all_six_values_match": true,
+    "counterfactual_scope": "in-memory diagnostic only; original data unchanged",
+    "by_period": {
+      "5m": {
+        "remaining_missing_input_buckets": 8,
+        "remaining_gaps": [
+          {
+            "symbol": "601012.SH",
+            "datetime": "2026-10-26 14:05:00",
+            "missing_minutes": "14:03"
+          },
+          {
+            "symbol": "601318.SH",
+            "datetime": "2026-10-26 14:05:00",
+            "missing_minutes": "14:03"
+          },
+          {
+            "symbol": "601398.SH",
+            "datetime": "2026-10-26 14:05:00",
+            "missing_minutes": "14:03"
+          },
+          {
+            "symbol": "601888.SH",
+            "datetime": "2026-10-26 14:05:00",
+            "missing_minutes": "14:03"
+          },
+          {
+            "symbol": "688981.SH",
+            "datetime": "2026-10-26 13:05:00",
+            "missing_minutes": "13:02"
+          },
+          {
+            "symbol": "688981.SH",
+            "datetime": "2026-10-26 13:30:00",
+            "missing_minutes": "13:27"
+          },
+          {
+            "symbol": "688981.SH",
+            "datetime": "2026-10-26 13:40:00",
+            "missing_minutes": "13:40"
+          },
+          {
+            "symbol": "688981.SH",
+            "datetime": "2026-10-26 14:05:00",
+            "missing_minutes": "14:03"
+          }
+        ]
+      },
+      "15m": {
+        "remaining_missing_input_buckets": 8,
+        "remaining_gaps": [
+          {
+            "symbol": "601012.SH",
+            "datetime": "2026-10-26 14:15:00",
+            "missing_minutes": "14:03"
+          },
+          {
+            "symbol": "601318.SH",
+            "datetime": "2026-10-26 14:15:00",
+            "missing_minutes": "14:03"
+          },
+          {
+            "symbol": "601398.SH",
+            "datetime": "2026-10-26 14:15:00",
+            "missing_minutes": "14:03"
+          },
+          {
+            "symbol": "601888.SH",
+            "datetime": "2026-10-26 14:15:00",
+            "missing_minutes": "14:03"
+          },
+          {
+            "symbol": "688981.SH",
+            "datetime": "2026-10-26 13:15:00",
+            "missing_minutes": "13:02"
+          },
+          {
+            "symbol": "688981.SH",
+            "datetime": "2026-10-26 13:30:00",
+            "missing_minutes": "13:27"
+          },
+          {
+            "symbol": "688981.SH",
+            "datetime": "2026-10-26 13:45:00",
+            "missing_minutes": "13:40"
+          },
+          {
+            "symbol": "688981.SH",
+            "datetime": "2026-10-26 14:15:00",
+            "missing_minutes": "14:03"
+          }
+        ]
+      }
+    }
+  }
+}

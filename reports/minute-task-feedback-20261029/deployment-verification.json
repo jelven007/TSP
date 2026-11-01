@@ -1,0 +1,93 @@
+{
+  "passed": true,
+  "checked_at": "2026-10-29T00:32:53.684379+00:00",
+  "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "version": "0.4.38",
+  "containers": [
+    {
+      "role": "platform",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "gateway",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "api",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "research",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "realtime",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "notifications",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    },
+    {
+      "role": "scheduled",
+      "image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
+      "health": "healthy",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "restart_count": 0
+    }
+  ],
+  "postgres_health": "healthy",
+  "configuration_preserved": true,
+  "preferences_preserved": true,
+  "secrets_preserved": true,
+  "dual_database_restore_verified": true,
+  "restored_table_counts": {
+    "control": 20,
+    "business": 28
+  },
+  "normal_restart_verified": true,
+  "terminal_jobs_preserved_after_restart": true,
+  "live_validation_results": [
+    {
+      "id": "ed67a0eeb1",
+      "status": "succeeded",
+      "rows": 0,
+      "remaining": 0,
+      "terminal_message": "选定区间没有遗漏数据, 无需获取"
+    },
+    {
+      "id": "150e8ae25b",
+      "status": "succeeded",
+      "rows": 2315,
+      "remaining": 6,
+      "terminal_message": "已补2315行, 仍有6行未补齐; 数据源未返回部分记录(可能停牌、无数据或请求失败)"
+    }
+  ],
+  "receipts_sha256": {
+    "online/backup.json": "3474b3c4c0b716f42824197766dc7ec26908dadbd9b4f0b9a3ba38c3e5166087",
+    "online/promotion.json": "5a871b865d46ff9e98d35437ddb6010e3827f80cf7dfc966d1a58b53a520a0e4",
+    "online/post-audit.json": "39532b11185a565ef2f8e3e931a3ac55d03886ec6875798b11eb1bc8a4333f66",
+    "online/restart.json": "02f36a9686d25b364098e4e5b4a022129b47d7b630583cf556742caebc54a513",
+    "online-http-acceptance.json": "6882c71fa252b7c51ea337e416275b73429caa43ce2a531f87cd099b7c66b89d",
+    "online-live-task.json": "7d848e8ab9c9907673b02c4b658e7e1fdb7c74f125103e1b97a661871a01431b",
+    "online-live-gap-audit.json": "2e2089d517df28b2d3c7bb9f9db51861404d17685447605e735dc7a5598be4c9"
+  }
+}

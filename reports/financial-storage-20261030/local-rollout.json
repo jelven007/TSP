@@ -1,0 +1,12 @@
+{
+  "status": "starting",
+  "local_root": "/path/to/home/.local/share/tsp-dev/TSPP/releases/v0.4.38-financial-storage-20261030",
+  "base_root": "/path/to/home/.local/share/tsp-dev/TSPP/releases/v0.4.38-5b273174f2e2",
+  "supervisor_pid": 12343,
+  "financial_files_unchanged": true,
+  "environment_config_unchanged": true,
+  "compute_config_sha256": "bb92c8a99424f12b64f2b376457ba72410671354e2b305370f41048b1e431430",
+  "source_patch_sha256": "e462a8ce6885a389dd5707030da626a8e92dec4ce95a0b9a9d463fa95fc6c5b5",
+  "previous_financial_files": 115,
+  "previous_financial_bytes": 79838134
+}

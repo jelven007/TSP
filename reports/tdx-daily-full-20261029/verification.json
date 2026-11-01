@@ -1,0 +1,12 @@
+{
+  "status": "verified",
+  "download_content_length_matches": true,
+  "archive_central_directory_read": true,
+  "required_member_crcs_verified_by_zipfile": true,
+  "gap_keys_unique": true,
+  "all_target_keys_classified": true,
+  "normalized_rows_match_valid_candidates": true,
+  "no_candidate_duplicate_keys": true,
+  "original_gap_csv_sha256": "bbec156942d1c583f824ffd8df0643ad5c6a8f2c2d4b73705129bc774c0f3ee8",
+  "source_binary_contract": "backend/native/rustdx_native/vendor/rustdx-core/src/file/day/mod.rs"
+}

@@ -1,0 +1,14 @@
+{
+  "environment": "local",
+  "status": "verified",
+  "applied_at": "2026-10-29T17:46:03.798672+00:00",
+  "added_files": 35,
+  "replaced_metadata_files": 12,
+  "before_files": 118,
+  "after_files": 153,
+  "revision_files": 148,
+  "revision_bytes": 74104316,
+  "backup": "/path/to/home/.cache/tsp-dev/TSPP/financial-history-unify-20261030/local-backup/financials-before.tar.gz",
+  "backup_sha256": "dc76f67963e328e00536422a4638e37384844e3dc1a02f8999c7f96f884113a0",
+  "original_payloads_and_observations_preserved": true
+}

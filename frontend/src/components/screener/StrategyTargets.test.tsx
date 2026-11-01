@@ -43,11 +43,12 @@ function button(text: string) {
 
 it('defaults to all stocks, loads custom groups and saves board and group union independently of numeric filters', async () => {
   get.mockResolvedValue({ id: 'test', name: '测试', source: 'custom', params: [],
-    params_defaults: {}, scoring: {}, basic_filter: { enabled: false }, entry_signals: [], exit_signals: [] })
+    params_defaults: {}, scoring: {}, basic_filter: { enabled: false, boards: ['沪主板'], exclude_st: true }, entry_signals: [], exit_signals: [] })
   groups.mockResolvedValue({ groups: [{ id: 'core', name: '核心', color: 'sky' }] })
   save.mockResolvedValue({ ok: true })
   await render(<StrategySettingsDialog strategyId="test" onClose={() => {}} />)
   expect(document.querySelector<HTMLInputElement>('input[aria-label="全部股票"]')?.checked).toBe(true)
+  expect(document.querySelector<HTMLInputElement>('input[aria-label="剔除 *ST 和 ST"]')?.checked).toBe(false)
   await act(async () => document.querySelector<HTMLInputElement>('input[aria-label="选择股票范围"]')!.click())
   await act(async () => document.querySelector<HTMLInputElement>('input[aria-label="自定义"]')!.click())
   expect(groups).toHaveBeenCalled()

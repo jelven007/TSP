@@ -1,0 +1,40 @@
+{
+  "status": "verified",
+  "verified_at_beijing": "2026-10-30T09:51:14.696114+08:00",
+  "period": "1m",
+  "start": "2026-06-01",
+  "end": "2026-06-16",
+  "exact_key_anti_join_checks": [
+    {
+      "day": "2026-06-01",
+      "expected_keys": 1245600,
+      "missing_keys": 1233360
+    },
+    {
+      "day": "2026-06-10",
+      "expected_keys": 1245840,
+      "missing_keys": 820560
+    },
+    {
+      "day": "2026-06-11",
+      "expected_keys": 1245840,
+      "missing_keys": 305520
+    },
+    {
+      "day": "2026-06-16",
+      "expected_keys": 1245840,
+      "missing_keys": 70800
+    }
+  ],
+  "summary_stock_day_minute_totals_match": true,
+  "listing_filtered_denominator_verified": true,
+  "source_files": 12,
+  "source_rows": 5829600,
+  "source_stable_after_audit": true,
+  "public_release_id": "231073f15ca941a387cd1863f8e0c441",
+  "public_manifest_matches_source": true,
+  "data_modified": false,
+  "all_days_missing_stocks": 289,
+  "report_links_verified": true,
+  "report_statistics_verified": true
+}

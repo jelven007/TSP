@@ -83,7 +83,7 @@ PR质量门 → squash归并 → main CI自动递增一次 →
 | Area | Evidence | Residual Risk | Exception Or Blocker | Owner |
 | --- | --- | --- | --- | --- |
 | 凭据/权限 | 沿既有非owner数据库角色、只读公共目录和无网Compute；配置不输出 | 既有部署信任边界保持 | 两端身份及配置核验通过 | 当前发布会话 |
-| 身份 | 用户预置及随后保存配置保留；验证现有<REDACTED_CREDENTIAL>登录 | 不重跑bootstrap，不外发邮件 | 配置字节和语义对账 | 当前发布会话 |
+| 身份 | 用户预置及随后保存配置保留；验证现有管理员登录 | 不重跑bootstrap，不外发邮件 | 配置字节和语义对账 | 当前发布会话 |
 
 ## Launch Blockers
 

@@ -70,6 +70,12 @@ _SIGNAL_CN: dict[str, str] = {
     "momentum_5d": "5日动量", "momentum_20d": "20日动量", "momentum_60d": "60日动量",
     "atr_14": "ATR14", "annual_vol_20d": "20日年化波动",
     "consecutive_limit_ups": "连板数", "consecutive_limit_downs": "跌停连板",
+    "overnight_morning_vwap_or_trailing": "完整早盘均价失守或盈利回落",
+    "overnight_volume_decline": "短时放量下跌",
+    "overnight_time_guard": "隔夜时间清仓",
+    "momentum_net_stop": "扣费净止损",
+    "momentum_gross_target": "毛止盈",
+    "momentum_time_guard": "价格策略时间清仓",
 }
 
 
@@ -1149,6 +1155,12 @@ class MonitorRuleEngine:
                     cache_key=f"monitor:{asset_type}",
                 )
                 try:
+                    if backend == "minute_filter":
+                        from app.strategy.overnight_runtime import monitor_context
+
+                        context = monitor_context(
+                            loader, strategy_engine, strategy_id, today, current, data_dir,
+                        )
                     strategy_run_count += 1
                     result = strategy_engine.run(
                         strategy_id,
@@ -1188,7 +1200,7 @@ class MonitorRuleEngine:
         from app.strategy.version import runtime_identity
 
         return {"runtime_identity": runtime_identity(strategy, overrides),
-                "asset_type": asset_type, "timeframe": "1d",
+                "asset_type": asset_type, "timeframe": "1m" if strategy.meta.get("minute_execution") else "1d",
                 "computed_at": time.time_ns() // 1_000_000, "source": "realtime"}
 
     @staticmethod
@@ -1206,6 +1218,9 @@ class MonitorRuleEngine:
         }
         if getattr(result, "entry_filter_error", None):
             payload["warnings"] = [result.entry_filter_error]
+        if getattr(result, "sections", None) is not None:
+            payload.update(sections=result.sections, state=result.state,
+                           portfolio_scope=result.portfolio_scope, execution_error=result.execution_error)
         return payload
 
     def publish_strategy_group(
@@ -1956,6 +1971,13 @@ class MonitorRuleEngine:
                 if s.filter_history_fn:
                     return []
         try:
+            if getattr(s, "execution_backend", "polars_expr") == "minute_filter":
+                from app.strategy.overnight_runtime import monitor_context
+
+                current_context = monitor_context(
+                    self._history_loader_for(rule), self._strategy_engine, sid,
+                    cn_today(), df, self._data_dir,
+                )
             result = self._strategy_engine.run(
                 sid,
                 current_context,
@@ -1981,13 +2003,7 @@ class MonitorRuleEngine:
             try:
                 self._building_strategy_results[sid] = {
                     **self._live_result_identity(s, overrides, at),
-                    "total": result.total,
-                    "as_of": str(cn_today()),
-                    "rows": [
-                        {k: (None if isinstance(v, float) and not math.isfinite(v) else v)
-                         for k, v in row.items()}
-                        for row in result.rows
-                    ],
+                    **self._strategy_result_payload(result),
                 }
                 if entry_filter_error:
                     self._building_strategy_results[sid]["warnings"] = [entry_filter_error]
@@ -2072,6 +2088,9 @@ class MonitorRuleEngine:
 
             entry_policy = {
                 "version": 1, "strategy_id": sid,
+                "minute_execution": s.meta.get("minute_execution"),
+                "entry_price_field": s.meta.get("entry_price_field"),
+                "selection_profile": s.meta.get("selection_profile"),
                 "policy": strategy_policy(s, overrides).to_dict(),
                 "entry_risk": EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).to_dict(),
                 "overlay_filter": effective_conditions(overrides),

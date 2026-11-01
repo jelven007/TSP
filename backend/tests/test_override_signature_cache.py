@@ -82,15 +82,18 @@ def test_load_returns_deep_copy_not_cached_object(tmp_path):
     assert "extra" not in again
 
 
-def test_basic_filter_cleaning_preserved(tmp_path):
+def test_basic_filter_explicit_null_survives_cache_and_reload(tmp_path):
     strat_config.save_override(
         tmp_path, "s1", {"basic_filter": {"keep": 1, "drop": None}},
     )
     data = strat_config.load_override(tmp_path, "s1")
-    assert data["basic_filter"] == {"keep": 1}
+    assert data["basic_filter"] == {"keep": 1, "drop": None}
 
     strat_config.save_override(tmp_path, "s2", {"basic_filter": {"drop": None}})
-    assert "basic_filter" not in strat_config.load_override(tmp_path, "s2")
+    assert strat_config.load_override(tmp_path, "s2")["basic_filter"] == {"drop": None}
+    strat_config._override_cache.clear()
+    strat_config._override_cache_sig.clear()
+    assert strat_config.load_override(tmp_path, "s2")["basic_filter"] == {"drop": None}
 
 
 def test_load_missing_override_returns_empty(tmp_path):

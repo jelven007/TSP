@@ -1,0 +1,67 @@
+{
+  "strategy": "fixed previous A; no parameter search",
+  "initial_cash": 1000000,
+  "requested_start": "2026-06-15",
+  "requested_end": "2026-10-30",
+  "observed_asof": "2026-10-30T11:29:00",
+  "source_root": "/path/to/home/.local/share/tsp-dev/TSPP/public/releases/52ec64ac954a471c898d6b1bab84967b",
+  "scratch_snapshot": "/tmp/tspp-a877-update-20261030/snapshot",
+  "parameter_search": false,
+  "current_universe": 2329,
+  "old_frozen_universe": 2387,
+  "universe_definition": "current SH/SZ non-ST mainboard; current marketcap3-50bn CNY",
+  "current_market_cap_price_basis": "latest observed valid10/30minute; prior daily fallback explicitly marked",
+  "historical_status": "current nonST fallback, as in prior A; historicalST unavailable before initial observation",
+  "previous_return_inclusive": [
+    0.005,
+    0.06
+  ],
+  "return1430_strict_min": 0.005,
+  "minute_MA": {
+    "bars": 5,
+    "consecutive_strict_rises": 7,
+    "required_minutes": "14:19-14:30"
+  },
+  "observed_breadth_min": 0.45,
+  "breadth_uses": "exact14:30 valid rawprice/valid reference; available listed universe",
+  "budget_cny": 30000,
+  "stock_max_NAV_fraction": 0.1,
+  "ranking": "previous20record mean amount descending, then symbol ascending",
+  "entry_price": "ceil_cent(signal1430close*1.001)",
+  "entry_minute_participation": 0.1,
+  "exit_minute_participation": 0.1,
+  "take_profit": 0.015,
+  "deadline": "11:25 next actual trading day",
+  "stop_loss": null,
+  "T_plus_1": true,
+  "whole_order_exit": true,
+  "costs": {
+    "commission_each_side": 0.0002,
+    "minimum_commission_CNY": 5,
+    "sell_stamp_tax": 0.0005,
+    "transfer_fee": 0,
+    "additional_market_exit_slippage_main": 0
+  },
+  "end_policy": "No final-day new order unless next session observed; partial final minute retains open positions. No forced liquidation.",
+  "position_sizing_marks": "prior-day closing mark for already-held positions, reproducing prior A",
+  "corporate_actions": "unverified entitlements listed separately, never credited into price-plus-fee reference account",
+  "calendar": {
+    "version": "SSE-2019-2026-20261026",
+    "covered_years": [
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "sha256": "51fc950004885a1ea88d4c306a5ea2285e34ae3b2191412a5cad9c289f0336aa",
+    "unknown_year_policy": "provider_evidence"
+  },
+  "minute_raw_marker": false,
+  "minute_observed_dates": 93,
+  "complete_last_day": false,
+  "rules_differences_from_previous": "latest current pool; exact14:30 breadth denominator and actual consecutive prior trading-day references; no new trading parameters"
+}

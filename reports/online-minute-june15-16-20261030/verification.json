@@ -1,0 +1,23 @@
+{
+  "status": "verified",
+  "verified_at_beijing": "2026-10-30T10:53:29.825036+08:00",
+  "exact_key_checks": [
+    {
+      "day": "2026-06-15",
+      "expected_keys": 1245840,
+      "missing_keys": 137040
+    },
+    {
+      "day": "2026-06-16",
+      "expected_keys": 1245840,
+      "missing_keys": 70800
+    }
+  ],
+  "all_gap_summaries_reconcile": true,
+  "source_files": 2,
+  "source_rows": 2283840,
+  "source_and_pool_stable": true,
+  "public_release_id": "680706af248d4cce803ad82e3b8cfff6",
+  "public_source_sha256_matches": true,
+  "data_modified": false
+}

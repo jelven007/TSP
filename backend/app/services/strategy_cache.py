@@ -135,6 +135,8 @@ def write_cache(
     data_dir: Path,
     as_of: str,
     results: dict[str, Any],
+    *,
+    generations: dict[str, int] | None = None,
 ) -> None:
     """将策略结果写入缓存文件，同时更新今日曾命中集合。
 
@@ -142,16 +144,26 @@ def write_cache(
     - 同一天内合并 (并集) 之前曾命中的 symbol，并用最新行数据更新
     """
     from app.multitenancy.documents import TenantDocuments
+    from app.services.strategy_results import StrategyResults
+
+    def current(storage):
+        states = StrategyResults(storage).states(results)
+        return {sid: value for sid, value in results.items()
+                if not states.get(sid, {}).get("deleted")
+                and (generations is None or sid not in generations
+                     or generations[sid] == int(states.get(sid, {}).get("generation", 0)))}
 
     if isinstance(data_dir, TenantDocuments):
-        data_dir.mutate("strategy_cache", "default", lambda old: _merged_payload(old, as_of, results, None))
+        with data_dir.transaction() as session:
+            filtered = current(session)
+            session.mutate("strategy_cache", "default", lambda old: _merged_payload(old, as_of, filtered, None))
         return
     path = _cache_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     # 整个 read-modify-write 持锁: 避免并发 write 丢更新, 也避免与 read_cache 撕裂
     with _file_lock:
-        _write_cache_locked(path, data_dir, as_of, results)
+        _write_cache_locked(path, data_dir, as_of, current(data_dir))
 
 
 def _write_cache_locked(

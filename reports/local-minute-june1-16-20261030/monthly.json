@@ -1,0 +1,33 @@
+[
+  {
+    "month": "2026-06",
+    "trading_days": 12,
+    "eligible_symbols": 62286,
+    "stored_rows": 5829600,
+    "unique_keys": 5829600,
+    "expected_keys": 14948640,
+    "present_expected_keys": 5829600,
+    "missing_expected_keys": 9119040,
+    "whole_missing_symbols": 37996,
+    "partial_missing_symbols": 0,
+    "partial_missing_keys": 0,
+    "complete_symbols": 24290,
+    "whole_missing_with_traded_daily": 37918,
+    "whole_missing_daily_unknown": 78,
+    "whole_missing_daily_no_trade": 0,
+    "missing_keys_with_traded_daily": 9100320,
+    "traded_daily_expected_keys": 14929920,
+    "missing_keys_daily_unknown": 18720,
+    "missing_keys_daily_no_trade": 0,
+    "extra_keys": 0,
+    "out_of_pool_keys": 0,
+    "before_listing_keys": 0,
+    "duplicate_rows": 0,
+    "wrong_partition_date_rows": 0,
+    "invalid_numeric_or_ohlc_rows": 0,
+    "null_key_rows": 0,
+    "zero_activity_rows": 112643,
+    "coverage_pct": 38.99752753,
+    "traded_daily_coverage_pct": 39.0464249
+  }
+]

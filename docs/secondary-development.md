@@ -1,91 +1,57 @@
 # 代码二次开发与 AI 扩展指南
 
-2026-10-30整合属于L3内部适配：三组原生桥接0.3.0/API4、
-指数`available_start_date`可选字段与省略开始日期的旧接口兼容扩展，
-实时轮询界面沿原保存接口，不新增插槽或Provider能力。
-二开升级须同时更新匹配后端、原生桥接与前端；精度世代、整窗来源认证、
-显式日期/源限速/已存配置保持。见[本轮开发与验收映射](../reports/current-release-20261030/review.md)。
+核对日期：2026-11-01。先完整阅读[贡献指南](../CONTRIBUTING.md)，
+扩展点以第1章真实定义为准；当前源码/发布/运行身份见[版本基线](version-baseline.md)，
+逐次升级与验证结果见[证据索引](../reports/README.md)。
 
-2026-10-29 v0.4.38正式发布已完成，固定提交`5b273174f2e2a8ac539fcea363fa02315a61ebe9`。
-本地与ECS登录、六功能、真实分钟任务及正常重启通过，配置与原行情保持；
-301110.SZ三四月5,520键和10月28日两端各6个未返回键仍如实列入缺口。
-本轮仍为L3局部修复，不新增扩展API；实际运行身份与兼容验收见[正式升级验收](../reports/minute-collection-reliability-20261029/deployment.md)。
+## 当前核心兼容边界
 
+策略设置复用`BasicFilterEditor`与`strategyBasicFilter`；添加数值字段需同时更新
+模板注入、单位与前后端校验。配置中null表示取消限制，缺省继承；
+PATCH的basic_filter按字段合并，整段替换仍使用POST。详情可选
+`definition_defaults`仅提供当前策略定义的原始可编辑快照，前端恢复到草稿后再保存，
+不可重新引入“预览默认值即删除覆盖”的副作用。此项属于L3内部配置契约；
+保留原参数`display_scale/unit`与专用分钟执行摘要，不声明新增插件接口。
 
-2026-10-29任务绑定为L3内部适配：桥接0.3.0/API4，核心仍2.0.4。
-二开须保留三组与物理端点额度、候选黏性、旧参考站、切站世代与元数据排空，
-分钟前台预留、锚点重采和完整参考核验。旧Fake客户端仍可通过无参数
-`_native_client()`注入；新选项只传给支持分组的运行时。没有新增七项Provider能力
-或扩展插槽，准确接口和配置见[任务连接](rustdx-task-routing.md)。
+s01的可选 `META.minute_execution="overnight_capacity_v1"` 属于内部L3执行契约，
+保留 `minute_filter`；共享选股/卖出纯函数、实际持仓上下文与分钟组合撮合见
+[s01接入](reference/s01.md)。升级须复核配置保存/失效、代码并列排序、T+1、
+容量及汇总费用、缺数据和期限失败台账、模拟自动委托拒绝，以及新增结果字段缺省兼容。
+不据此假设存在通用仓位/成本继承接口或新前端插槽。
 
-2026-10-29本轮为L3内部修复，复用Provider/周期服务，不新增远程能力或依赖。
-升级须保留队列与传输的嵌套时限、单证券来源完整重采、多日精确缺口相交、
-100证券/32日边界、单日午休、混合schema、坏页拒绝及取消。
-JSON数组复用仍须校验结构、复制记录并保留实际请求计数。
-代码、兼容回归和生效边界见
-[性能与可靠性记录](../reports/minute-collection-reliability-20261029/verification.md)。
+以下为L3内部实现和升级约束，不代表新增的公共扩展API。
 
-2026-10-29逐证券跳过为L3核心契约修改：rustdx失败证券不再导致整批异常，
-仍禁止提交该证券不完整旧页；后续证券必须继续。周期结果兼容增加warning、
-remaining、skipped_symbols和gap_report，相对路径指向运行目录中的CSV。
-升级保留100证券/32日边界、真实日历/上市日期、取消、only_missing和缓存失效。
-历史分时/逐笔并未新增为Provider能力，完整分钟K仍须认证OHLC和成交额。见
-[核验记录](../reports/minute-301110-20261029/skip-and-backfill.md)。
+S02的`momentum_capacity_v1`连续回测须保留25日日线预热及原始价格/股本输入。
+不使用的日线信号须同时从基础列和信号计算需求移除，不能只清计算需求或关闭
+共享加载器校验。升级跑真实Parquet到专用执行器的回归，通用分钟/S01物化路径保持；
+此处未新增API、Provider能力、前端插槽或迁移格式。
 
-2026-10-29来源变化恢复为L3数据源内部修复，不新增扩展API。
-升级需保留`_bar_records`的一次完整重采与`_bar_records_once`的来源检查，
-新尝试不得复用旧页/错误/累计结果；普通异常和取消不能按该信号重试。
-实际回归、源覆盖限制及未部署边界见
-[301110.SZ记录](../reports/minute-301110-20261029/verification.md)。
+| 领域 | 升级时必须保留 |
+| --- | --- |
+| rustdx | 核心2.0.4、桥接0.3.0/API4；三组/物理端点/全局额度、共享许可、切站排空与精度世代、整窗参考核验；旧无参Fake注入兼容，详见[任务连接](rustdx-task-routing.md) |
+| 历史采集 | 100证券/32自然日、准确缺口相交、嵌套排队/传输时限、坏页拒绝、证券隔离与取消；来源变化只完整重采一次，不复用旧页 |
+| 任务结果 | 可选warning/remaining/skipped_symbols/gap_report，旧缺字段可读；路径指向运行目录CSV，不以成功认证历史完整 |
+| 周K读取 | 复用`scan_parquet_compat/scan_daily_parquet`，覆盖缺列/多列两种分区顺序，不改回裸严格扫描 |
+| 指数 | CORE四只/PAGE七只；`IndexKlinePeriod=1d|1w|1mo`，date标签/trade_date分开，省略start读完整本地历史，available_start_date可选，旧接口兼容 |
+| 图表与修正 | `StockDailyKChart.externalData`、可用/可见根数分开、默认60根、周期重置、终态失效及5秒清理；`RepairDailyPanel scope=index`沿共享任务链 |
+| 资产与数据源 | ETF退役、七项Provider路由；不把上游runner/逐笔/指标引擎映射为已实现能力，保留单位、复权及财务legacy字段 |
+| 公共数据 | 新周期表同步只读视图、PublicPublisher、data_release、schema和清理；Platform先于消费者，用户配置和研究版本引用保持 |
+| 财务空间 | 当前只计五张权威表的part.parquet，revision计financials/revisions/，旧storage字段兼容；快照/观察事件不可用统计修复改写 |
 
-2026-10-28最新整合仍为L3核心修改：rustdx固定v2.0.4，K线区间和周K读取复用现有
-Provider/周期服务；ETF运行资产已退役，二开不得重新暴露ETF枚举、目录或查询入口。
-股票和七只指数继续使用真实存在的契约，不新增扩展API。上游升级时须复跑固定源码身份、
-闭区间/缺口、混合schema、指数保持及ETF不再生测试；完整边界见
-[发布评审](../reports/complete-release-20261028-3/review.md)。
+### SSE、设置与数据总览
 
-2026-10-28周K schema兼容为L3局部修复，复用现有`scan_parquet_compat/
-scan_daily_parquet`，不新增Provider、表schema或扩展API。二开不得把派生日K读取
-改回裸`pl.scan_parquet`；新增存储元数据列时须覆盖额外列和缺列两种分区顺序。
-
-2026-10-28指数页交互为L3局部修改，复用现有`StockDailyKChart`回调、
-`DatePicker`与任务查询，不新增插槽、查询键或API。二开升级须保留实际可用/
-当前可见根数分离、默认60根、周期重置、终态查询失效及5秒定时器清理。
-
-2026-10-28 rustdx v2.0.4采用固定核心本地路径依赖和桥接API3，为L3源适配。
-不将上游runner、指标引擎或逐笔扩展自动映射为本项目Provider能力。
-二开升级保留8业务+1探测、行情/财务不同探测资格、元数据共享、配置切换关闭旧池、
-分页连接身份及北京时间观察日。现有历史窗口定位优化、标准单位、财务legacy字段、
-七项路由与已有数据保持兼容；补丁刷新和实测见[验证记录](../reports/rustdx-v204-20261028/verification.md)。
-
-2026-10-28历史K线性能为L3局部变更：1分K的`sync_period`使用32自然日段，
-保留100证券批次；rustdx的`_bar_records`用实际页时间定位旧窗口，
-单次复用探测页，不跨调用缓存或猜测停牌/交易日偏移，仍受原最大页数限制。
-全量/遗漏修正及股票/指数共用该逻辑；准确缺口、已有值保护、
-日K整日边界和异常/取消必须保留。日K及本地派生周期的分块不变。已有Provider仍使用
-`get_klines/get_minute`，不新增批量/游标接口或扩展插槽。
-升级保留闭区间、复权基准、原子合并、进度和取消；不能恢复重复近期前缀扫描。
-回归和实测见[性能记录](../reports/minute-history-performance-20261028/verification.md)。
-
-2026-10-28指数扩展已实现`GET /api/index/catalog`、`GET /api/index/kline`
-及`POST /api/index/repair`，旧`daily/minute/sync_daily`入口保留兼容。
-`IndexKlinePeriod=1d|1w|1mo`独立于股票六周期，`1m`继续表示1分K；
-周期标签与实际交易日期分别用`date/trade_date`，二开不得将周一或月初当作分时交易日。
-`StockDailyKChart.externalData`接收已查询指数行且禁用股票K线请求；
-`RepairDailyPanel scope=index`复用修正表单，周/月不要求远程日K能力。
-目录以`index_const`为单一事实源，保留CORE四只和PAGE七只的不同消费范围；
-新增周期表必须同步只读视图、PublicPublisher、data_release和schema/清理接线。
-本次没有新增扩展插槽或插件注册API；实现与验证见
-[指数扩展记录](../reports/indices-kline-20261028/verification.md)。
-
-2026-10-28行情SSE共享为L3局部变更：`useQuoteStream`沿用原签名、查询失效、
+`useQuoteStream`沿用原签名、查询失效、
 告警及退避规则，内部`sharedQuoteStream`通过Web Locks和BroadcastChannel按
 账户/租户/auth_version复用连接，取得锁后才换取短期票据。升级保留关闭持有页后
 接管、共享游标换票恢复、账户切换释放与迟到响应隔离；缺少浏览器共享能力时沿用
 单页连接，不宣称该降级路径消除了HTTP/1.1多页连接上限。没有新增后端API或扩展插槽。
 
-2026-10-28精简为L3死代码清理，保留已注册路由、插槽、Provider、旧配置及API兼容；
+死代码清理保留已注册路由、插槽、Provider、旧配置及API兼容；
 `overview.invalidate_overview_cache`重导出与测试注入入口保留，见[清理依据](../reports/project-cleanup-20261028/verification.md)。
+
+Full公共版本绑定同步保留旧无`public_release`的股票快照注入；
+带发布身份的真实快照仍须包含股票／指数两部分，缺项不能提交新绑定。
+新绑定及在途租约由读端拥有，二开不能在巡检中关闭仍被请求持有的仓库。
 
 系统设置简化为L3局部变更，复用`StrategyConcurrencyControl`、共享查询键、
 原子preferences及Broker只读配置，不新增插槽或扩展API。配置整数范围1～999与
@@ -97,14 +63,14 @@ scan_daily_parquet`，不新增Provider、表schema或扩展API。二开不得�
 二开不得重建页面挂载/切日期的自动计算effect，每策略仍由原手动监控规则API启停。
 开源设置组件只显示仓库、最新版本号链接和发布时间；布局不再自动轮询或显示新版本提醒。
 
-2026-10-27整合升级必须同时加载匹配的API/Platform/Worker/Compute及前端，
+升级必须同时加载匹配的API/Platform/Worker/Compute及前端，
 保留旧API省略字段、旧Parquet、SQL租户关系和用户已存配置。
-本地修改不加版本；固定主线质量门产物后升级，见[本批记录](../reports/latest-release-20261027/verification.md)。
+本地修改不加版本，固定主线质量门产物后升级。
 
 历史日历沿`market_time`既有版本化接口扩展2019–2026年，缺年仍返回未知并要求源证据。
 研究快照不能跨日历身份复用；二开不得改成仅按工作日猜测，也不改写旧快照。
 
-2026-10-27数据总览是L3局部布局变更：实时行情卡片使用`quotes`键，旧六周期
+数据总览实时行情卡片使用`quotes`键，旧六周期
 排序首次插入15分K后；已有quotes位置和显隐优先，不在读取时改写用户存储。
 二开须保留实时行情独立开关/轮询查询与总开关的加载、保存、错误状态。
 新增日K同步行复用`1d.enabled/time`和盘后管道，不创建新的后端任务或扩展API。
@@ -112,15 +78,12 @@ scan_daily_parquet`，不新增Provider、表schema或扩展API。二开不得�
 各类任务分组（含扩展数据）使用原生折叠控件，保留category键、实时更新和独立展开。
 总开关仅移除可见文字，仍保留可访问名称和原保存契约。
 
-2026-10-27自选查询挂载重读是关系兼容契约：持久缓存仅用于先显示内容，
+自选查询挂载重读是关系兼容契约：持久缓存仅用于先显示内容，
 不能因缓存尚在staleTime内而跳过服务端校验。升级保留`refetchOnMount: 'always'`
 及新鲜旧缓存回归，避免快速刷新或旧客户端缓存掩盖已保存的策略关系。
 本地补丁范围和实际运行验收见[记录](../reports/local-watchlist-update-20261027/verification.md)。
 
-2026-10-26当前源树与部署核对见[本批整合](../reports/repair-missing-release-20261026/verification.md)。
-本批L3改动继续使用现有Provider、归档仓库、租户事务、查询键和共享Modal，
-不新增通用扩展API。合并与升级须复核API/Worker/Compute的周期和cache_token契约，
-历史配置/分区/schema保持兼容；实际版本以[版本基线](version-baseline.md)为准。
+### 周期查询与区间任务
 
 六周期画像扩展复用 `services/kline_periods.py` 的表映射及周期配置，
 Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/integrations.md)。
@@ -129,7 +92,7 @@ Provider可选实现统一 `get_klines`，契约见[数据源协议](reference/i
 二开不能仅新增卡片或让同一数据混入原1分钟/日K分区。
 用户配置仍走preferences及共享查询键，前端不绕过Provider直接取上游。
 
-2026-10-28离线生成属于L3局部变更，复用`KlineSyncConfig`及`/api/kline/sync_period`。
+离线生成复用`KlineSyncConfig`及`/api/kline/sync_period`。
 `syncKlinePeriod`仅传period时，5/10/15分钟和周K按本地基础分区区间调用`generate_period`；
 1m/1d基础周期明确提交`start_date/end_date/mode`走共享区间任务，
 使用`isLocalDerivedPeriod`区分本地派生周期；不得仅传period而误进入本地指标生成。
@@ -152,7 +115,20 @@ K线区间获取为L3局部接线，数据总览复用`KlineSyncConfig`、`DateP
 日期与时分控件复用`DatePicker`/`TimePicker`及`usePickerPopover`，保持行情首排样式；
 扩展字段保留可清空、禁用、标签与日期上下界，弹窗内保持Portal焦点及Escape优先收起弹层。
 不新增扩展注册接口或改动后端日期/时间格式。
-2026-10-28基础周期入口仅为1m/1d，`syncKlinePeriod`范围对象包含
+持仓提醒的`LotExpiryPicker`为L3共用组件，新增批次与编辑股票均接
+`/api/lots/expiry-options?base_date=YYYY-MM-DD`；域函数`strategy.lots.expiry_options`
+返回`base_date/next_trading_day/five_trading_days`，后两项在日历未知时可为空。
+快捷项排除基准当天，基准为买入日或北京时间今天；沿用`remind_date`保存，
+手选日期可清空，加载失败或未知日历不覆盖原值。升级须保留该契约与共享查询键。
+持仓提醒样式对齐为L3局部前端修改，复用`PageHeader/EmptyState/StockDataTable`，
+不新增插槽、API、配置或schema。升级保留`lot.id`行键、批次/历史记录隔离及原监控失效键；
+共享表格须置于统一横纵滚动容器内，以保留固定表头和超过100行时的虚拟化。
+整批删除为L3内部接口 `DELETE /api/lots/batches/{batch_id}`，不是扩展插件API。
+升级保留租户写事务/文件回滚、成员ID校验、两类托管规则清理和序号不复用；
+前端沿 `ConfirmDialog` 与 `QK.lots/lotBatches/monitorRules` 更新，历史股票不传合成ID删除。
+删除图标置于`PageHeader.right`新增批次后，保持自选图标按钮样式及选中批次上下文；
+不新增独立信息/删除行，保留标签和按钮提示中的编号及可访问名称。
+基础周期入口仅为1m/1d，`syncKlinePeriod`范围对象包含
 `startDate/endDate/mode`；后端三项均必填，严格日期格式及闭区间校验先于建任务。
 `run_now`新增keyword-only `override_end_date`，统一日K/因子窗口和范围清理；
 显式范围不附带分钟采集或全库自愈删除，派生指标仍沿既有历史依赖重算。
@@ -180,8 +156,8 @@ K线区间获取为L3局部接线，数据总览复用`KlineSyncConfig`、`DateP
 [变更映射](reference/engineering.md#trace)关联需求/方案/开发/测试/运营/运维。
 现有插槽/注册器保持原契约，目标数据适配不能据文档示例虚构API。
 
-2026-10-25本批L3变更为策略结果生命周期、全局并发预算、共享Modal及调度分离，
-范围见[最新记录](../reports/current-state-release-20261025/verification.md)。
+### 策略归档、自选与共享组件
+
 升级重点复核加载定义版本、运行快照、归档查询维度/热缓存revision、
 单飞身份、Platform→Broker配置和受控弹窗接口；没有新增通用候选过滤插槽。
 现有SQLite/PostgreSQL归档与原策略快照并存，清缓存不清历史，分钟缺日不回退。
@@ -195,12 +171,18 @@ K线区间获取为L3局部接线，数据总览复用`KlineSyncConfig`、`DateP
 不能只清当前进程内存而忽略同ID删除后重建。前端删除刷新须包含对应日期的
 “全部周期”查询，并取消该记录的旧明细请求。该候选不授权自动清理历史。
 
+用户策略删除级联是另一个L3生命周期变更，沿原策略删除API，不新增插件或注册接口。
+升级保留SQLite生命周期表/Full同名namespace、执行世代捕获和提交守卫，
+全部历史身份清理、租户事务/文件失败补偿、研究任务lease撤销及前端旧查询取消。
+同ID重建不能重置世代；世代不改变交易参数、历史指纹或选股买卖规则。
+共享冻结输入和模拟交易账本不随策略删除；没有部署或追溯批量清理授权。
+
 同日重复归档为`StrategyResults.save`内的L3修改，不新增API、schema或注册接口。
 相同身份与日期下，单跑/批跑空字段等价，耗时与计算时间不参与重复判定；
 真实股票/评分/信号/警告变化仍更新结果。升级保留重复结果的摘要更新、revision失效
 及最新任务顺序检查，避免较早任务覆盖重复重跑确认的最新成功；旧归档继续兼容读取。
 
-目标股票/分组CSV/角色并发候选是L3聚焦修改。`strategy/targets.py`仅提供该领域的
+`strategy/targets.py`仅提供目标股票领域的
 校验、动态成员解析和删除引用检查，不是通用CandidateFilter插槽。
 升级复核 `config.load_override/list_overrides`、运行快照、Polars/矩阵、监控任务、
 同租户保存/删除事务及CSV新组回滚；`target_symbols`只属于执行快照，
@@ -211,7 +193,7 @@ K线区间获取为L3局部接线，数据总览复用`KlineSyncConfig`、`DateP
 目标配置，各计算轮次仍动态解析；升级须保留这两处重读，不能固化启用时的成员列表。
 管理员并发身份从认证权限构造任务，不采信页面请求字段；普通租户GET设置只读1。
 前端卡片类型仅normal/large，历史mini/hidden在读取时回normal。
-当前候选未改变应用版本或生产部署，既有插槽/注册契约保持原定义。
+既有插槽/注册契约保持原定义，源码更新不代表运行环境已经升级。
 管理分组CSV导出属于L3局部交互，位于`WatchlistGroups.tsx`，复用当前账户的
 `api.watchlistList()`完整清单与`group_ids`成员关系，不增加插槽或后端API。
 升级保留选中分组、默认仅代码单列、完整导出和卸载后的迟到响应保护；不能用
@@ -223,7 +205,7 @@ M:N关系、only_new、revision与共享查询失效。管理分组`onCreate`仅
 移除文件参数及CSV控件；主页面批量导入继续可用，旧后端新组CSV接口保留兼容。
 没有新增插槽、存储字段或扩展API，历史列表不自动重排。
 
-2026-10-27自选关系候选是L3局部变更：`WatchlistEntry.strategy_ids`为可选字符串数组，
+`WatchlistEntry.strategy_ids`为可选字符串数组，
 缺省为空；文件新增列表列，SQL复用`documents/watchlist_strategies`且完整业务导入保留关系。
 关联更新走`PUT /api/watchlist/{symbol}/strategies`及当前租户可见公开策略校验；
 批量添加、旧新组CSV、移组、置顶须保留关系列，证券删除和清空须在同一写事务内清理。
@@ -236,7 +218,7 @@ M:N关系、only_new、revision与共享查询失效。管理分组`onCreate`仅
 图标按钮保留可访问名称，复用代码单列CSV和账户/卸载保护，不新增API、查询键或插槽。
 新增字段及路由不扩大已有插槽、注册或Provider契约。
 
-2026-10-25整合中的官方目录、管理员默认空间和全局顶栏属于L3核心修改：
+官方目录、管理员默认空间和全局顶栏沿既有核心实现：
 官方目录适配位于数据接入层，CRUD复用目录写锁与发布链；管理员复用注册预留/初始化
 流程；页面复用PageHeader，弹层需避开工具栏滚动裁剪。升级复核对应历史证券状态、
 租户权限/重试、共享缓存失效和前端交互测试。新增源码恢复工具只用于离线归档，
@@ -249,7 +231,7 @@ M:N关系、only_new、revision与共享查询失效。管理分组`onCreate`仅
 金融数据口径、缓存、并发、数据源和测试要求以该文档为准；开始分支、上游基线、
 当前 `main` 和生产版本的归类以[版本基线](version-baseline.md)为准。
 
-2026-10-22 整合沿用现有扩展边界：Windows 启动预算属于 L1 配置，核心身份、
+Windows 启动预算属于 L1 配置，核心身份、
 字节缓存、公共发布/回收、五档判定和收盘临时缓存属于 L3 聚焦修改。
 复用 `PublicPublisher`、`PublicQuoteBridge`、`DepthService`、
 `KlineRepository.update_provisional_enriched_asset` 和现有账户/查询接口；

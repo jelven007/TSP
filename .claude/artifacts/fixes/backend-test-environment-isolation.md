@@ -44,7 +44,7 @@ pytest在导入期取得API多租户和平台目录，破坏了单测约定的st
 
 - V-1：回归测试在修复后通过。
 - V-2：临时撤回Makefile修复后回归测试重新失败，恢复后再次通过。
-- V-3：`make test-backend UV=/Users/bytedance/.local/bin/uv`结果为
+- V-3：`make test-backend UV=/path/to/home/bin/uv`结果为
   `4663 passed, 162 skipped`。
 - V-4：原16个失败文件在隔离环境下为`209 passed`。
 

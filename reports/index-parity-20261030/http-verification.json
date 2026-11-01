@@ -1,0 +1,285 @@
+{
+  "status": "verified",
+  "environments": {
+    "local": {
+      "checked_at": "2026-10-29T22:55:30.558986+00:00",
+      "version": "0.4.39",
+      "ready": true,
+      "storage": {
+        "daily_files": 1453,
+        "daily_size_mb": 139.88,
+        "enriched_files": 1453,
+        "enriched_size_mb": 366.43,
+        "index_daily_files": 1453,
+        "index_daily_size_mb": 24.91,
+        "index_enriched_files": 1453,
+        "index_enriched_size_mb": 41.83,
+        "index_instruments_files": 1,
+        "index_instruments_size_mb": 0.01,
+        "minute_files": 238,
+        "minute_size_mb": 1291.37,
+        "5m_files": 0,
+        "5m_size_mb": 0.0,
+        "10m_files": 0,
+        "10m_size_mb": 0.0,
+        "15m_files": 0,
+        "15m_size_mb": 0.0,
+        "weekly_files": 614,
+        "weekly_size_mb": 30.26,
+        "adj_factor_files": 1,
+        "adj_factor_size_mb": 0.19,
+        "instruments_files": 1,
+        "instruments_size_mb": 0.12,
+        "ext_data_files": 6,
+        "ext_data_size_mb": 0.77,
+        "financials_files": 153,
+        "financials_size_mb": 88.83,
+        "total_size_mb": 2017.18
+      },
+      "index_daily": {
+        "rows": 799315,
+        "earliest_date": "2020-11-02",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 554,
+        "trading_days": 1453
+      },
+      "index_enriched": {
+        "rows": 799315,
+        "earliest_date": "2020-11-02",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 554,
+        "trading_days": 1453,
+        "fields": 14
+      },
+      "login_passed": true
+    },
+    "online": {
+      "checked_at": "2026-10-29T22:55:32.882100+00:00",
+      "version": "0.4.39",
+      "ready": true,
+      "storage": {
+        "daily_files": 1453,
+        "daily_size_mb": 139.88,
+        "enriched_files": 1453,
+        "enriched_size_mb": 366.43,
+        "index_daily_files": 1453,
+        "index_daily_size_mb": 24.91,
+        "index_enriched_files": 1453,
+        "index_enriched_size_mb": 41.83,
+        "index_instruments_files": 1,
+        "index_instruments_size_mb": 0.01,
+        "minute_files": 238,
+        "minute_size_mb": 1291.37,
+        "5m_files": 0,
+        "5m_size_mb": 0.0,
+        "10m_files": 0,
+        "10m_size_mb": 0.0,
+        "15m_files": 0,
+        "15m_size_mb": 0.0,
+        "weekly_files": 614,
+        "weekly_size_mb": 30.26,
+        "adj_factor_files": 1,
+        "adj_factor_size_mb": 0.19,
+        "instruments_files": 1,
+        "instruments_size_mb": 0.12,
+        "ext_data_files": 6,
+        "ext_data_size_mb": 0.77,
+        "financials_files": 153,
+        "financials_size_mb": 88.83,
+        "total_size_mb": 1984.6
+      },
+      "index_daily": {
+        "rows": 799315,
+        "earliest_date": "2020-11-02",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 554,
+        "trading_days": 1453
+      },
+      "index_enriched": {
+        "rows": 799315,
+        "earliest_date": "2020-11-02",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 554,
+        "trading_days": 1453,
+        "fields": 14
+      },
+      "login_passed": true
+    }
+  },
+  "queries": {
+    "local": {
+      "000001.SH:1d": {
+        "rows": 21,
+        "sha256": "81e89061fbb8b2a4d083b0476c17850be812c202f1bb1f9f8a3b55861f017b4b"
+      },
+      "000001.SH:1w": {
+        "rows": 5,
+        "sha256": "d1b4c82c90af0458f3a99d404bae1b7a34c81018af1dec545846540c4642f1ef"
+      },
+      "000001.SH:1mo": {
+        "rows": 1,
+        "sha256": "e1cb55c7b6f248c2f8baa7532253fea5a868bb6c0571167ba68c7d8faeee0cd8"
+      },
+      "399001.SZ:1d": {
+        "rows": 21,
+        "sha256": "22a566d5a9ca9c6d2ccf615dc26d18e492a90e7fd615ade1daadc7b98a9d48a8"
+      },
+      "399001.SZ:1w": {
+        "rows": 5,
+        "sha256": "71c33a8f955c827fcaf263dbc852f346462225562c048fa272041b85b7389923"
+      },
+      "399001.SZ:1mo": {
+        "rows": 1,
+        "sha256": "e2451a00fc99afba83808d64d3e4f6c7793cddf2304fe2f93c77552b61944329"
+      },
+      "399006.SZ:1d": {
+        "rows": 21,
+        "sha256": "61700f65a23dc5f436e90308a720923b2a6f0ecf97446ea248d7641ce63a0c35"
+      },
+      "399006.SZ:1w": {
+        "rows": 5,
+        "sha256": "2b0cb957fc32d65b5972056a01a72e8a2232f093c17e6e56ac8736ac29ad5ed1"
+      },
+      "399006.SZ:1mo": {
+        "rows": 1,
+        "sha256": "2b53ce8dbf61a21475474fb76c044a5cfa7d324eb456359cdee074459018aa92"
+      },
+      "000680.SH:1d": {
+        "rows": 21,
+        "sha256": "93844bea6bea3bace1190c199cb4ed9e770f3e83a32c7c47c8a05d2eb9cbf5f1"
+      },
+      "000680.SH:1w": {
+        "rows": 5,
+        "sha256": "7e7a8272d64e13bb2e13794dcb7d90f9ab1367c367164ff091df0eb34096c5a2"
+      },
+      "000680.SH:1mo": {
+        "rows": 1,
+        "sha256": "5a385950ec97d9b2b6a9c5d2b9421b5c942c37ad53f11552c4bd38d6d6322e26"
+      },
+      "000300.SH:1d": {
+        "rows": 21,
+        "sha256": "184e495084d25666fc6afacc363804d232dd1ca9295dfd70e6d454c281e0ebf2"
+      },
+      "000300.SH:1w": {
+        "rows": 5,
+        "sha256": "d36f2519b40c92cfc2dbc4b9da2bcb975e042615a9f4c8032703539e9e6a15a2"
+      },
+      "000300.SH:1mo": {
+        "rows": 1,
+        "sha256": "75f35c812db18dfee57f5297ac0742019228fad01ac0511499c668c4e45acc12"
+      },
+      "000016.SH:1d": {
+        "rows": 21,
+        "sha256": "2279a0954da7aeaf662f949a40624b39b8bdb039c7ee834b05a05be551e7f9d9"
+      },
+      "000016.SH:1w": {
+        "rows": 5,
+        "sha256": "feff29fb392a27e5271ab1688fc4ba2dfb34164b0e8f9a701d7eed87f94b1c6a"
+      },
+      "000016.SH:1mo": {
+        "rows": 1,
+        "sha256": "bc07e07422fd43f4e310e44b44ffaa5a63f63280281f16f8f7577d84f81786f4"
+      },
+      "399330.SZ:1d": {
+        "rows": 21,
+        "sha256": "36456a6bd016cfc990fe3595e42c8d19f9d16539a06e89af0dcbebedab258fff"
+      },
+      "399330.SZ:1w": {
+        "rows": 5,
+        "sha256": "1156f87734f9b00c2f1012dccf071dde8d5ec042e597a1662a67862a33a65262"
+      },
+      "399330.SZ:1mo": {
+        "rows": 1,
+        "sha256": "ed8455e883deaad32e9625b7730850b6d1df8848992cc431ea5e70b29f7edd76"
+      }
+    },
+    "online": {
+      "000001.SH:1d": {
+        "rows": 21,
+        "sha256": "81e89061fbb8b2a4d083b0476c17850be812c202f1bb1f9f8a3b55861f017b4b"
+      },
+      "000001.SH:1w": {
+        "rows": 5,
+        "sha256": "d1b4c82c90af0458f3a99d404bae1b7a34c81018af1dec545846540c4642f1ef"
+      },
+      "000001.SH:1mo": {
+        "rows": 1,
+        "sha256": "e1cb55c7b6f248c2f8baa7532253fea5a868bb6c0571167ba68c7d8faeee0cd8"
+      },
+      "399001.SZ:1d": {
+        "rows": 21,
+        "sha256": "22a566d5a9ca9c6d2ccf615dc26d18e492a90e7fd615ade1daadc7b98a9d48a8"
+      },
+      "399001.SZ:1w": {
+        "rows": 5,
+        "sha256": "71c33a8f955c827fcaf263dbc852f346462225562c048fa272041b85b7389923"
+      },
+      "399001.SZ:1mo": {
+        "rows": 1,
+        "sha256": "e2451a00fc99afba83808d64d3e4f6c7793cddf2304fe2f93c77552b61944329"
+      },
+      "399006.SZ:1d": {
+        "rows": 21,
+        "sha256": "61700f65a23dc5f436e90308a720923b2a6f0ecf97446ea248d7641ce63a0c35"
+      },
+      "399006.SZ:1w": {
+        "rows": 5,
+        "sha256": "2b0cb957fc32d65b5972056a01a72e8a2232f093c17e6e56ac8736ac29ad5ed1"
+      },
+      "399006.SZ:1mo": {
+        "rows": 1,
+        "sha256": "2b53ce8dbf61a21475474fb76c044a5cfa7d324eb456359cdee074459018aa92"
+      },
+      "000680.SH:1d": {
+        "rows": 21,
+        "sha256": "93844bea6bea3bace1190c199cb4ed9e770f3e83a32c7c47c8a05d2eb9cbf5f1"
+      },
+      "000680.SH:1w": {
+        "rows": 5,
+        "sha256": "7e7a8272d64e13bb2e13794dcb7d90f9ab1367c367164ff091df0eb34096c5a2"
+      },
+      "000680.SH:1mo": {
+        "rows": 1,
+        "sha256": "5a385950ec97d9b2b6a9c5d2b9421b5c942c37ad53f11552c4bd38d6d6322e26"
+      },
+      "000300.SH:1d": {
+        "rows": 21,
+        "sha256": "184e495084d25666fc6afacc363804d232dd1ca9295dfd70e6d454c281e0ebf2"
+      },
+      "000300.SH:1w": {
+        "rows": 5,
+        "sha256": "d36f2519b40c92cfc2dbc4b9da2bcb975e042615a9f4c8032703539e9e6a15a2"
+      },
+      "000300.SH:1mo": {
+        "rows": 1,
+        "sha256": "75f35c812db18dfee57f5297ac0742019228fad01ac0511499c668c4e45acc12"
+      },
+      "000016.SH:1d": {
+        "rows": 21,
+        "sha256": "2279a0954da7aeaf662f949a40624b39b8bdb039c7ee834b05a05be551e7f9d9"
+      },
+      "000016.SH:1w": {
+        "rows": 5,
+        "sha256": "feff29fb392a27e5271ab1688fc4ba2dfb34164b0e8f9a701d7eed87f94b1c6a"
+      },
+      "000016.SH:1mo": {
+        "rows": 1,
+        "sha256": "bc07e07422fd43f4e310e44b44ffaa5a63f63280281f16f8f7577d84f81786f4"
+      },
+      "399330.SZ:1d": {
+        "rows": 21,
+        "sha256": "36456a6bd016cfc990fe3595e42c8d19f9d16539a06e89af0dcbebedab258fff"
+      },
+      "399330.SZ:1w": {
+        "rows": 5,
+        "sha256": "1156f87734f9b00c2f1012dccf071dde8d5ec042e597a1662a67862a33a65262"
+      },
+      "399330.SZ:1mo": {
+        "rows": 1,
+        "sha256": "ed8455e883deaad32e9625b7730850b6d1df8848992cc431ea5e70b29f7edd76"
+      }
+    }
+  },
+  "query_count": 42,
+  "index_data_and_queries_equal": true
+}

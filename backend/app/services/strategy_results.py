@@ -14,12 +14,14 @@ from datetime import date, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from app.cell.context import AccessError
 from app.multitenancy.documents import DocumentSession, TenantDocuments, json_value
 from app.strategy.eligibility import ENTRY_POLICY_VERSION
 from app.strategy.version import DISPLAY_FIELDS, digest, logic_version, runtime_identity
 
 logger = logging.getLogger(__name__)
 NAMESPACE = "strategy_result_history"
+LIFECYCLE_NAMESPACE = "strategy_result_lifecycle"
 MEMORY_BYTES = 32 * 1024 * 1024
 _memory: OrderedDict = OrderedDict()
 _memory_size = 0
@@ -71,13 +73,19 @@ class ResultIdentity:
     asset_type: str
     timeframe: str
     runtime_identity: str = ""
+    storage_generation: int = 0
+    daily_record: bool = False
 
     @property
     def fingerprint(self) -> str:
-        return digest(asdict(self))
+        fields = asdict(self)
+        fields.pop("storage_generation")
+        fields.pop("daily_record")
+        return digest(fields)
 
     def record_id(self, as_of: str) -> str:
-        return f"{digest(self.strategy_id)[:16]}:{date.fromisoformat(str(as_of)).isoformat()}:{self.fingerprint}"
+        fingerprint = digest({"strategy_daily_record": self.strategy_id}) if self.daily_record else self.fingerprint
+        return f"{digest(self.strategy_id)[:16]}:{date.fromisoformat(str(as_of)).isoformat()}:{fingerprint}"
 
     def snapshot(self) -> dict:
         return {
@@ -90,11 +98,16 @@ class ResultIdentity:
         }
 
 
-def execution_snapshot(engine):
+def execution_snapshot(engine, storage=None):
     """Keep the definition/configuration used by an in-flight run stable during reload."""
     if not hasattr(engine, "_strategies"):
         return engine
+    lifecycle = StrategyResults(storage).states(engine._strategies) if storage is not None else None
     snapshot = copy.copy(engine)
+    if storage is not None:
+        snapshot._daily_state_loader = lambda sid, day: previous_daily_state(storage, sid, day)
+    if lifecycle is not None:
+        snapshot._result_lifecycle = lifecycle
     if hasattr(engine, "_strategies"):
         snapshot._strategies = dict(engine._strategies)
     loader = getattr(engine, "_override_loader", None)
@@ -112,6 +125,59 @@ def input_generation(repo, engine, asset_type):
     getter = getattr(repo, "get_matrix_data_generation", None)
     return {"market": getter(asset_type) if callable(getter) else None,
             "public_release_id": getattr(engine, "public_release_id", None)}
+
+
+def previous_daily_state(storage, strategy_id, as_of):
+    """Read only the immediately preceding market day, never a future/latest state."""
+    from app.market_time import published_trading_days
+    day = date.fromisoformat(str(as_of))
+    past = sorted(d for year in (day.year - 1, day.year)
+                  for d in published_trading_days(year) if d < day)
+    if not past:
+        raise ValueError("缺少前交易日历")
+    identity = ResultIdentity(strategy_id, "", "", "{}", "{}", "null", "stock", "1m", daily_record=True)
+    saved = StrategyResults(storage).read(identity, str(past[-1]))
+    state = (saved or {}).get("result", {}).get("state")
+    if not state:
+        first = StrategyResults(storage).read(identity, str(day))
+        state = (first or {}).get("result", {}).get("initial_state")
+        saved = first
+    if not state or not state.get("complete") or str(state.get("as_of")) != str(past[-1]):
+        raise ValueError(f"{strategy_id}缺少{past[-1]}完整组合状态, 请先运行并归档基准回测")
+    params = (saved or {}).get("summary", {}).get("params", {})
+    return {**state, **{k: params[k] for k in ("suspension_policy", "suspension_events")
+                      if k in params and k not in state}}
+
+
+def archive_daily_backtest(storage, result, *, started_at, generation=0):
+    """Archive only the declared baseline; pressure/capital experiments retain their own jobs."""
+    params = result.get("config", {}).get("params", {})
+    sid = result.get("strategy_info", {}).get("id")
+    if (sid != "s02" or result.get("error")
+            or params.get("initial_cash") != 100000 or params.get("slippage") != .0005
+            or params.get("stop_loss_pct") != .06
+            or params.get("take_profit_pct") != .06):
+        return 0
+    identity = ResultIdentity(
+        sid, result["strategy_info"].get("name", sid),
+        result.get("provenance", {}).get("strategy_hash") or digest(result["strategy_info"]),
+        json.dumps(params, sort_keys=True, ensure_ascii=False),
+        json.dumps(result.get("config", {}).get("overrides") or {}, sort_keys=True, ensure_ascii=False),
+        json.dumps(result.get("config", {}).get("symbols")), "stock", "1m",
+        storage_generation=generation, daily_record=True)
+    store = StrategyResults(storage)
+    days = result.get("daily_results") or []
+    for index, item in enumerate(days):
+        payload = {**item, "strategy_id": sid, "execution_error": item.get("error")}
+        if index == 0:
+            from app.market_time import published_trading_days
+            day = date.fromisoformat(item["as_of"])
+            previous = max(d for year in (day.year - 1, day.year)
+                           for d in published_trading_days(year) if d < day)
+            payload["initial_state"] = {"as_of": str(previous), "cash": params["initial_cash"],
+                                       "nav": params["initial_cash"], "positions": [], "complete": True}
+        store.save(identity, payload, started_at=started_at)
+    return len(days)
 
 
 def _dependencies(storage):
@@ -133,20 +199,31 @@ def _dependencies(storage):
 def capture_identities(engine, storage, strategy_ids, *, params_map=None, overrides_map=None,
                        asset_type="stock", timeframe="1d"):
     dependencies = _dependencies(storage)
+    states = getattr(engine, "_result_lifecycle", None)
+    if states is None:
+        states = StrategyResults(storage).states(strategy_ids)
     return {
         sid: capture_identity(
             engine, storage, sid, params=(params_map or {}).get(sid),
             overrides=(overrides_map or {}).get(sid), asset_type=asset_type,
             timeframe=(engine.get(sid).meta.get("timeframes") or ["1d"])[0] if timeframe == "all" else timeframe,
             dependencies=dependencies,
+            lifecycle=states.get(sid, {}),
         ) for sid in strategy_ids
     }
 
 
 def capture_identity(engine, storage, strategy_id, *, params=None, overrides=None,
-                     pool=None, asset_type="stock", timeframe="1d", dependencies=None) -> ResultIdentity:
+                     pool=None, asset_type="stock", timeframe="1d", dependencies=None,
+                     lifecycle=None) -> ResultIdentity:
     """Capture before execution, using the loaded definition and resolved defaults."""
     strategy = engine.get(strategy_id)
+    if lifecycle is None and getattr(engine, "_result_lifecycle", None) is not None:
+        lifecycle = engine._result_lifecycle.get(strategy_id, {})
+    lifecycle = (StrategyResults(storage).states([strategy_id]).get(strategy_id, {})
+                 if lifecycle is None else lifecycle)
+    if lifecycle.get("deleted"):
+        raise AccessError(409, "策略已删除, 请刷新策略列表")
     from app.strategy.engine import StrategyEngine
     resolved = StrategyEngine.resolve_params(strategy, params, overrides)
     configuration = {key: value for key, value in (overrides or {}).items()
@@ -184,6 +261,8 @@ def capture_identity(engine, storage, strategy_id, *, params=None, overrides=Non
         pool_json=json.dumps(sorted(set(pool)) if pool is not None else None),
         asset_type=asset_type, timeframe=timeframe,
         runtime_identity=runtime_identity(strategy, overrides or {}),
+        storage_generation=int(lifecycle.get("generation", 0)),
+        daily_record=strategy.meta.get("minute_execution") == "momentum_capacity_v1",
     )
 
 
@@ -217,6 +296,9 @@ class StrategyResults:
                     conn.execute("""CREATE TABLE IF NOT EXISTS strategy_results(
                         id TEXT PRIMARY KEY, summary TEXT NOT NULL, value TEXT NOT NULL,
                         revision INTEGER NOT NULL DEFAULT 1)""")
+                    conn.execute("""CREATE TABLE IF NOT EXISTS strategy_result_lifecycle(
+                        strategy_id TEXT PRIMARY KEY, generation INTEGER NOT NULL,
+                        deleted INTEGER NOT NULL)""")
                 conn.execute("BEGIN IMMEDIATE")
             else:
                 conn.execute("BEGIN")
@@ -229,6 +311,114 @@ class StrategyResults:
         finally:
             conn.close()
 
+    def _state(self, conn, strategy_id):
+        if conn is None:
+            return {}
+        if self.tenant:
+            row = conn.execute(
+                "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
+                (LIFECYCLE_NAMESPACE, strategy_id),
+            ).fetchone()
+            return row["value"] if row else {}
+        # Existing SQLite histories predate the lifecycle table.
+        if not conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='strategy_result_lifecycle'",
+        ).fetchone():
+            return {}
+        row = conn.execute(
+            "SELECT generation,deleted FROM strategy_result_lifecycle WHERE strategy_id=?",
+            (strategy_id,),
+        ).fetchone()
+        return dict(row) if row else {}
+
+    def states(self, strategy_ids):
+        if not strategy_ids:
+            return {}
+        if self.tenant:
+            with self.storage._transaction() as conn:
+                rows = conn.execute(
+                    "SELECT id,value FROM business.documents WHERE namespace=%s AND id=ANY(%s)",
+                    (LIFECYCLE_NAMESPACE, list(strategy_ids)),
+                ).fetchall()
+            return {row["id"]: row["value"] for row in rows}
+        with self._local() as conn:
+            if conn is None or not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='strategy_result_lifecycle'",
+            ).fetchone():
+                return {}
+            ids = list(strategy_ids)
+            rows = conn.execute(
+                f"""SELECT strategy_id,generation,deleted FROM strategy_result_lifecycle
+                    WHERE strategy_id IN ({','.join('?' for _ in ids)})""", ids,
+            ).fetchall()
+            return {row["strategy_id"]: dict(row) for row in rows}
+
+    def _set_state(self, conn, strategy_id, generation, deleted):
+        if self.tenant:
+            from psycopg.types.json import Jsonb
+            conn.execute(
+                """INSERT INTO business.documents(tenant_id,namespace,id,value) VALUES(%s,%s,%s,%s)
+                   ON CONFLICT(tenant_id,namespace,id) DO UPDATE SET value=excluded.value,
+                   revision=business.documents.revision+1,updated_at=now()""",
+                (self.storage.context.tenant_id, LIFECYCLE_NAMESPACE, strategy_id,
+                 Jsonb({"generation": generation, "deleted": deleted})),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO strategy_result_lifecycle VALUES(?,?,?)
+                   ON CONFLICT(strategy_id) DO UPDATE SET generation=excluded.generation,deleted=excluded.deleted""",
+                (strategy_id, generation, int(deleted)),
+            )
+
+    def _check_generation(self, conn, strategy_id, generation):
+        state = self._state(conn, strategy_id)
+        if state.get("deleted") or int(state.get("generation", 0)) != generation:
+            raise AccessError(409, "策略已删除或重建, 本次旧任务结果已丢弃")
+
+    @contextmanager
+    def guard(self, strategy_id, generation):
+        """Serialize a derived result write with strategy deletion."""
+        transaction = self.storage._transaction if self.tenant else self._local
+        with transaction(write=True) as conn:
+            self._check_generation(conn, strategy_id, generation)
+            yield
+
+    def activate(self, strategy_id):
+        # Only a previously deleted ID needs a durable lifecycle record.
+        if not self.states([strategy_id]).get(strategy_id, {}).get("deleted"):
+            return
+        transaction = self.storage._transaction if self.tenant else self._local
+        with transaction(write=True) as conn:
+            state = self._state(conn, strategy_id)
+            self._set_state(conn, strategy_id, int(state.get("generation", 0)), False)
+
+    @contextmanager
+    def deleting_strategy(self, strategy_id):
+        """Delete every snapshot and fence old executions in the same transaction."""
+        transaction = self.storage._transaction if self.tenant else self._local
+        with transaction(write=True) as conn:
+            state = self._state(conn, strategy_id)
+            self._set_state(conn, strategy_id, int(state.get("generation", 0)) + 1, True)
+            if self.tenant:
+                conn.execute(
+                    """DELETE FROM business.documents WHERE namespace=%s
+                       AND value->'summary'->>'strategy_id'=%s""", (NAMESPACE, strategy_id),
+                )
+            else:
+                conn.execute(
+                    "DELETE FROM strategy_results WHERE json_extract(summary,'$.strategy_id')=?",
+                    (strategy_id,),
+                )
+            yield
+        # Other processes recheck SQL before using their own hot caches.
+        if self.cacheable:
+            global _memory_size
+            prefix = digest(strategy_id)[:16] + ":"
+            with _memory_lock:
+                for key in [key for key in _memory if key[0] == self.scope and key[1].startswith(prefix)]:
+                    _, size = _memory.pop(key)
+                    _memory_size -= size
+
     def save(self, identity: ResultIdentity, result: dict, *, started_at: int,
              input_generation=None) -> dict:
         as_of = date.fromisoformat(str(result["as_of"])).isoformat()
@@ -238,7 +428,8 @@ class StrategyResults:
             # Single and batch runners omit different empty optional fields.
             defaults = {"strategy_id": identity.strategy_id, "total": 0, "rows": [],
                         "scores": {}, "warnings": [], "entry_signal_hits": [],
-                        "exit_signal_hits": [], "entry_filter_error": None}
+                        "exit_signal_hits": [], "entry_filter_error": None, "sections": None,
+                        "state": None, "portfolio_scope": None, "execution_error": None}
             return {**defaults, **{key: item for key, item in value.items()
                                    if key not in {"computed_at", "elapsed_ms"}}}
 
@@ -271,6 +462,7 @@ class StrategyResults:
         if self.tenant:
             from psycopg.types.json import Jsonb
             with self.storage._transaction(write=True) as conn:
+                self._check_generation(conn, identity.strategy_id, identity.storage_generation)
                 row = conn.execute(
                     "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
                     (NAMESPACE, record_id),
@@ -291,6 +483,7 @@ class StrategyResults:
                     )
         else:
             with self._local(write=True) as conn:
+                self._check_generation(conn, identity.strategy_id, identity.storage_generation)
                 row = conn.execute("SELECT value FROM strategy_results WHERE id=?", (record_id,)).fetchone()
                 value, update = merged(json.loads(row["value"]) if row else None)
                 if update == "summary":
@@ -522,6 +715,9 @@ def persist_result(storage, identity, result, *, started_at, input_generation=No
     try:
         return StrategyResults(storage).save(identity, result, started_at=started_at,
                                              input_generation=input_generation)
+    except AccessError as exc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from None
     except Exception:
         logger.error("strategy result persistence failed")
         from fastapi import HTTPException

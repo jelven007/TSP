@@ -1,0 +1,17 @@
+{
+  "source-manifest.json": "038fd8f7213c7524298a8d7f41f455a8acffe6f9fda22675bbbfb07539f06072",
+  "online-mobile.png": "1831bf34307ecc196173b6cee3e9d102638e12dd6ee1c1591ff3f0b40e2c6ddd",
+  "local-final-http.json": "20895e4d078d3f628eb6035d413434134fb0c1c6fb2ab957fff8c5485fa2a18c",
+  "online-final-files.json": "632292e4a0798dd53c9e43580056fb8ee40341912750cc8ac00c4dbf48341af1",
+  "repair.patch": "e462a8ce6885a389dd5707030da626a8e92dec4ce95a0b9a9d463fa95fc6c5b5",
+  "online-desktop.png": "dfd9caa421cb03e6fab03601b301bc77c1e7536133c30a510ae94ce00fc7d01e",
+  "rollout.json": "c113fcf76ec90ebf6fde55866c3f7295233ad149b3ccf5b1d65760ab94f7059c",
+  "local-rollout.json": "30a2a0be27a06471c6851846215bd088d759deea7c3a9dc6b8861161c41bf262",
+  "online-final-http.json": "99177d91f3c1e1f6a13cfbd3dad76c43adbb2334d63681f3810da9d994ab51a9",
+  "verification.md": "9814c05cbe604fade6810e2db6cb949332e2a8ed9f91c0e6feab4aa542bd2c7c",
+  "local-mobile.png": "b78c917879b15d405e7edba9500db0f1e7a4aec0c56b2f2b9776e27bb73fcac9",
+  "browser-check.json": "3a87469e8d4bb3e8dfb9e27de6e35368ef89eaef2943d06bc8020be192d78dd2",
+  "local-final-files.json": "3b094c25dfdf2c05729b7bde75e2e7c2630f2321b6eda5f4dde77e81ed5e71b3",
+  "verification.json": "14da8f4d055a26764723e003c26b2955c30b485193b17df4d97ffc148455eac8",
+  "local-desktop.png": "14e688ae5e59aab43657d23affc48426ecfed76be157b2987516548cd92be65d"
+}

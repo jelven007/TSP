@@ -43,6 +43,16 @@ def buy_and_fill(storage, symbol=SYM, qty=700):
     return order
 
 
+def test_capacity_strategy_does_not_fall_back_to_snapshot_market_order(account):
+    make_rule(account, cooldown_days=0)
+    orders = paper_auto.on_rule_events(account, [event(
+        "buy_signal", entry_policy={"strategy_id": "strategy-one",
+                                    "minute_execution": "overnight_capacity_v1"})])
+    assert orders == []
+    assert paper.load_orders(account) == []
+    assert paper_auto.load_auto_skips(account)[-1]["reason"] == "minute_capacity_unsupported"
+
+
 @pytest.mark.parametrize("entry,exit_kind", [
     ("buy_signal", "sell_signal"), ("pool_entry", "pool_exit"),
 ])

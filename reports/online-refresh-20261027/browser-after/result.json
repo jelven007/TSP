@@ -1,10 +1,10 @@
 {
   "phase": "after",
-  "base": "https://shanao.asia",
-  "url": "https://shanao.asia/data",
+  "base": "https://server.example.com",
+  "url": "https://server.example.com/data",
   "title": "TSP · Quant Terminal",
   "checks": [
-    "<REDACTED_CREDENTIAL> real login",
+    "Configured administrator real login",
     "New local source schedule, Saturday weekly and automatic sync off",
     "Six repair periods, two modes and explicit local weekly input",
     "Data and page settings render at 1440px, modal opens/ESC closes",

@@ -1,0 +1,19 @@
+{
+  "environment": "local",
+  "expected": "2026-09-09",
+  "visible_start_row": "起2026-09-09",
+  "card_text": "1分K\n手动\n全市场同步\nrustdx\n3348.0万\n行 · 5222 只标的 · 30 日\n起\n2026-09-09\n止\n2026-10-28",
+  "api_minute": {
+    "rows": 33479598,
+    "earliest_date": "2026-09-09",
+    "latest_date": "2026-10-28",
+    "symbols_covered": 5222,
+    "trading_days": 30
+  },
+  "verified": true,
+  "quote_enabled": true,
+  "quote_running": true,
+  "quote_paused": false,
+  "health_ready": true,
+  "version": "0.4.36"
+}

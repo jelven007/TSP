@@ -455,6 +455,13 @@ class ScreenerService:
             return StrategyDataContext(self.asset_type, timeframe, as_of)
         if current is None:
             current = self._load_enriched_for_date(as_of)
+        fallback_daily = None
+        if timeframe == "1m" and current.is_empty():
+            daily_bars = engine.minute_daily_history_bars(strategy_ids) if engine is not None else 0
+            fallback_daily = self._load_enriched_history(as_of, max(daily_bars, 1))
+            prior = fallback_daily.filter(pl.col("date") < as_of) if not fallback_daily.is_empty() else fallback_daily
+            if not prior.is_empty():
+                current = prior.filter(pl.col("date") == prior["date"].max())
         from app.strategy.eligibility import attach_listing_age
         instruments = None
         if self.asset_type == "stock":
@@ -470,7 +477,28 @@ class ScreenerService:
             if engine is not None:
                 daily_bars = engine.minute_daily_history_bars(strategy_ids)
                 if daily_bars > 0:
-                    daily_history = self._load_enriched_history(as_of, daily_bars)
+                    daily_history = fallback_daily if fallback_daily is not None else self._load_enriched_history(as_of, daily_bars)
+            from app.market_time import cn_now, cn_today
+            completed_through = None
+            if as_of == cn_today():
+                completed_through = cn_now().replace(tzinfo=None, second=0, microsecond=0)
+                history = history.filter(pl.col("datetime") <= completed_through)
+            if daily_history is not None and instruments is not None:
+                daily_history = attach_listing_age(daily_history, instruments)
+            if callable(getattr(engine, "get", None)) and any(
+                engine.get(sid).meta.get("minute_execution") == "overnight_capacity_v1"
+                for sid in strategy_ids
+            ) and daily_history is not None:
+                from app.strategy.overnight_runtime import annotate_daily
+
+                daily_history = annotate_daily(daily_history, self.repo)
+            if callable(getattr(engine, "get", None)) and any(
+                engine.get(sid).meta.get("minute_execution") == "momentum_capacity_v1"
+                for sid in strategy_ids
+            ) and daily_history is not None:
+                from app.backtest.momentum_run import prepare_daily
+
+                daily_history = prepare_daily(daily_history, self.repo, as_of=as_of)
             return StrategyDataContext(
                 asset_type=self.asset_type,
                 timeframe=timeframe,
@@ -478,8 +506,8 @@ class ScreenerService:
                 current=current,
                 history=history,
                 daily_history=daily_history,
-                market=None,
                 cache_key=cache_key,
+                completed_through=completed_through,
             )
         history_bars = engine.required_history_bars(
             strategy_ids,

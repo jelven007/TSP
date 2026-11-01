@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import math
 from pathlib import Path
 
 from app.market_scope import clean_market_config
@@ -65,14 +66,7 @@ def load_override(data_dir: Path, strategy_id: str) -> dict:
         return resolve(data_dir, cached)
     try:
         data = clean_market_config(json.loads(p.read_text(encoding="utf-8")))
-        # 清理 basic_filter 中值为 None/空的键（避免固化无意义的空值）
-        bf = data.get("basic_filter")
-        if isinstance(bf, dict):
-            cleaned = {k: v for k, v in bf.items() if v is not None}
-            if cleaned:
-                data["basic_filter"] = cleaned
-            else:
-                del data["basic_filter"]
+        # 显式 null 取消策略原始限制; 缺省键才继承, 不能在读取时丢弃。
         _override_cache[key] = data
         _override_cache_sig[key] = sig
     except Exception as e:
@@ -88,6 +82,7 @@ def save_override(data_dir: Path, strategy_id: str, overrides: dict) -> None:
     from app.strategy.targets import validate
 
     overrides = copy.deepcopy(overrides)
+    validate_basic_filter(overrides.get("basic_filter"))
     if "overlay_filter" in overrides:
         overrides["overlay_filter"] = effective_conditions(overrides)
 
@@ -106,6 +101,34 @@ def save_override(data_dir: Path, strategy_id: str, overrides: dict) -> None:
         p = _path(data_dir, strategy_id)
         atomic_write_text(p, json.dumps(clean_market_config(overrides), ensure_ascii=False, indent=2))
         _invalidate_override_cache(p)
+
+
+def validate_basic_filter(bf: dict | None) -> None:
+    """校验数值过滤, 不改变目标范围或空值的继承语义。"""
+    if bf is None:
+        return
+    if not isinstance(bf, dict):
+        raise ValueError("基础过滤必须为对象")
+    if "enabled" in bf and not isinstance(bf["enabled"], bool):
+        raise ValueError("基础过滤开关必须为布尔值")
+    for stem in ("price", "market_cap", "float_cap", "amount", "turnover"):
+        for suffix in ("min", "max"):
+            key = f"{stem}_{suffix}"
+            value = bf.get(key)
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, (int, float))
+                or not math.isfinite(value) or value < 0
+            ):
+                raise ValueError(f"{key} 必须为非负有限数值")
+        low, high = bf.get(f"{stem}_min"), bf.get(f"{stem}_max")
+        if low is not None and high is not None and low > high:
+            raise ValueError(f"{stem} 最小值不能大于最大值")
+    days = bf.get("exclude_new_days")
+    if days is not None and (
+        isinstance(days, bool) or not isinstance(days, (int, float))
+        or not math.isfinite(days) or days < 0 or int(days) != days
+    ):
+        raise ValueError("上市天数必须为非负整数")
 
 
 def delete_override(data_dir: Path, strategy_id: str) -> None:

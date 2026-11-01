@@ -40,7 +40,8 @@ def test_no_trades_and_no_losses_do_not_invent_finite_profit_factor():
 
 def test_registered_hypotheses_cover_exactly_default_strategies():
     source = Path(__file__).resolve().parents[2] / "backend/app/strategy/builtin"
-    ids = {item["id"] for item in StrategyEngine([source]).list_strategies()}
+    ids = {item["id"] for item in StrategyEngine([source]).list_strategies()
+           if "1d" in item["timeframes"]}
     declared = [sid for family in RESEARCH_FAMILIES.values() for sid in family]
     assert len(declared) == len(set(declared)) == 22
     assert set(declared) == ids

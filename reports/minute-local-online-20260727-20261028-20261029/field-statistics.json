@@ -1,0 +1,61 @@
+{
+  "complete": true,
+  "exact_value_different_rows": 206,
+  "both_volumes_zero": 191,
+  "fields": {
+    "open": {
+      "count": 0,
+      "null_mismatch": 0,
+      "finite_count": 0,
+      "abs_difference_le_1e_8": 0,
+      "abs_difference_ge_0_01": 0,
+      "max_abs_difference": null,
+      "min_abs_difference": null
+    },
+    "high": {
+      "count": 0,
+      "null_mismatch": 0,
+      "finite_count": 0,
+      "abs_difference_le_1e_8": 0,
+      "abs_difference_ge_0_01": 0,
+      "max_abs_difference": null,
+      "min_abs_difference": null
+    },
+    "low": {
+      "count": 0,
+      "null_mismatch": 0,
+      "finite_count": 0,
+      "abs_difference_le_1e_8": 0,
+      "abs_difference_ge_0_01": 0,
+      "max_abs_difference": null,
+      "min_abs_difference": null
+    },
+    "close": {
+      "count": 0,
+      "null_mismatch": 0,
+      "finite_count": 0,
+      "abs_difference_le_1e_8": 0,
+      "abs_difference_ge_0_01": 0,
+      "max_abs_difference": null,
+      "min_abs_difference": null
+    },
+    "volume": {
+      "count": 0,
+      "null_mismatch": 0,
+      "finite_count": 0,
+      "abs_difference_le_1e_8": 0,
+      "abs_difference_ge_0_01": 0,
+      "max_abs_difference": null,
+      "min_abs_difference": null
+    },
+    "amount": {
+      "count": 206,
+      "null_mismatch": 0,
+      "finite_count": 206,
+      "abs_difference_le_1e_8": 28,
+      "abs_difference_ge_0_01": 178,
+      "max_abs_difference": 32767.5,
+      "min_abs_difference": 1.4210854715202004e-14
+    }
+  }
+}

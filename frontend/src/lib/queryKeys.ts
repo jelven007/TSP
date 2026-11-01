@@ -123,6 +123,8 @@ export const QK = {
   monitorRules:         ['monitor-rules'] as const,
   monitorRuleOptions:   ['monitor-rule-options'] as const,
   lots:                 ['lots'] as const,
+  lotBatches:           ['lot-batches'] as const,
+  lotExpiryOptions:     (base: string) => ['lot-expiry-options', base] as const,
   lotsKline:            (symbols: string) => ['lots-kline', symbols] as const,
 
   // 模拟交易 (多账户: 键按账户隔离; paperAll 作账户无关失效前缀)

@@ -84,6 +84,13 @@ class TenantStrategyEngine(StrategyEngine):
             if kind in {"backtest", "optimize", "walkforward"} and isinstance(values.get("config"), dict):
                 values = copy.deepcopy(values)
                 values["config"]["overrides"] = resolve(session, values["config"].get("overrides") or {})
+            sid = (values.get("config") or {}).get("strategy_id")
+            if sid:
+                from app.services.strategy_results import StrategyResults
+                lifecycle = StrategyResults(session).states([sid]).get(sid, {})
+                if lifecycle.get("deleted"):
+                    raise AccessError(409, "策略已删除，请刷新策略列表")
+                values["strategy_generation"] = int(lifecycle.get("generation", 0))
             return {
                 "kind": kind, "tenant_id": self.documents.context.tenant_id,
                 "administrator": self.administrator,
@@ -126,10 +133,13 @@ class TenantStrategyEngine(StrategyEngine):
         if cancel is not None and cancel.is_set():
             raise AccessError(409, "策略生成已取消")
         value = {"id": sid, "source": source, "code": code, "definition": definition}
-        self.documents.put("strategy_sources", sid, value,
-                           expected_revision=record["revision"] if record else 0,
-                           expected_collection={row["id"]: row["revision"] for row in records})
-        self.documents.delete("strategy_cache", "default")
+        from app.services.strategy_results import StrategyResults
+        with self.documents.transaction() as session:
+            session.put("strategy_sources", sid, value,
+                        expected_revision=record["revision"] if record else 0,
+                        expected_collection={row["id"]: row["revision"] for row in records})
+            StrategyResults(session).activate(sid)
+            session.delete("strategy_cache", "default")
         self.reload()
         return {"ok": True, "strategy_id": sid, "source": source, "path": f"{source}/{sid}.py",
                 "meta": definition["meta"], "research_only": definition["meta"].get("research_only", False)}
@@ -153,11 +163,21 @@ class TenantStrategyEngine(StrategyEngine):
                              for child in row["value"]["definition"].get("children") or [])]
         if dependents:
             raise AccessError(409, f"该策略被叠加策略 {dependents} 引用，请先解除引用")
-        self.documents.delete("strategy_sources", sid,
-                              expected_collection={row["id"]: row["revision"] for row in records})
-        self.documents.delete("strategy_overrides", sid)
-        self.documents.delete("strategy_cache", "default")
-        self.reload()
+        from app.multitenancy.research import ResearchJobs
+        from app.services.strategy_results import StrategyResults
+
+        with self.documents.transaction() as session:
+            session.delete("strategy_sources", sid,
+                           expected_collection={row["id"]: row["revision"] for row in records})
+            with StrategyResults(session).deleting_strategy(sid):
+                ResearchJobs(session).delete_strategy(sid)
+                session.delete("strategy_overrides", sid)
+                session.delete("strategy_cache", "default")
+                for row in session.records("monitor_rules"):
+                    if row["value"].get("strategy_id") == sid:
+                        session.put("monitor_rules", row["id"], {**row["value"], "enabled": False},
+                                    expected_revision=row["revision"])
+        self.unregister(sid)
 
     def required_history_bars(self, strategy_ids: list[str], *, params_map=None, overrides_map=None) -> int:
         if all(self.builtins.has(sid) for sid in strategy_ids):
@@ -172,10 +192,16 @@ class TenantStrategyEngine(StrategyEngine):
         self, strategy_id: str, context: StrategyDataContext, pool=None, params=None, overrides=None,
     ) -> StrategyResult:
         self.validate_context(self.get(strategy_id), context)
+        previous_states = {}
+        if self.get(strategy_id).meta.get("minute_execution") == "momentum_capacity_v1":
+            from app.services.strategy_results import previous_daily_state
+
+            previous_states[strategy_id] = previous_daily_state(self.documents, strategy_id, context.as_of)
         response = self.executor.execute(self.task(
             "strategy", strategy_ids=[strategy_id], asset_type=context.asset_type, timeframe=context.timeframe,
             as_of=str(context.as_of), pool=pool, params_map={strategy_id: params or {}},
             overrides_map={strategy_id: overrides or {}},
+            previous_states=previous_states,
         ))
         return StrategyResult(**{**response["results"][strategy_id], "as_of": context.as_of})
 
@@ -188,9 +214,13 @@ class TenantStrategyEngine(StrategyEngine):
                                and context.timeframe in meta.get("timeframes", ["1d"])]
         for sid in ids:
             self.validate_context(self.get(sid), context)
+        from app.services.strategy_results import previous_daily_state
+        previous_states = {sid: previous_daily_state(self.documents, sid, context.as_of) for sid in ids
+                           if self.get(sid).meta.get("minute_execution") == "momentum_capacity_v1"}
         response = self.executor.execute(self.task(
             "strategy", strategy_ids=ids, asset_type=context.asset_type, timeframe=context.timeframe,
             as_of=str(context.as_of), params_map=params_map or {}, overrides_map=overrides_map or {},
+            previous_states=previous_states,
         ))
         return {sid: StrategyResult(**{**value, "as_of": date.fromisoformat(value["as_of"])})
                 for sid, value in response["results"].items()}

@@ -314,6 +314,7 @@ def persist_backtest_manifest(
     *,
     kind: str,
     result: Mapping[str, Any],
+    strategy_generation: int | None = None,
 ) -> dict[str, Any]:
     """Persist compact trace metadata without duplicating large backtest output."""
     run_id = result.get("run_id")
@@ -336,7 +337,16 @@ def persist_backtest_manifest(
         "trade_count": len(result.get("trades") or []),
     }
     path = Path(data_dir) / "backtest_results" / "manifests" / f"{run_id}.json"
-    _atomic_write_json(path, manifest)
+    sid = config.get("strategy_id")
+    if sid:
+        from app.services.strategy_results import StrategyResults
+        store = StrategyResults(data_dir)
+        generation = (int(store.states([sid]).get(sid, {}).get("generation", 0))
+                      if strategy_generation is None else strategy_generation)
+        with store.guard(sid, generation):
+            _atomic_write_json(path, manifest)
+    else:
+        _atomic_write_json(path, manifest)
     return manifest
 
 

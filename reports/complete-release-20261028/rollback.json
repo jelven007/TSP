@@ -1,0 +1,50 @@
+{
+  "checked_at": "2026-10-28T04:27:26.187144+00:00",
+  "version": "0.4.34",
+  "revision": "18f6f5cbea5bb651dc5fc09f289016bd01b9b6de",
+  "local_original_runtime_restored": true,
+  "online_original_runtime_retained": true,
+  "user_data_and_configuration_preserved": true,
+  "local_editable_metadata_and_compute_restored": true,
+  "repository_main": "700d25dad13b7b12c678e4443a893886299117a8",
+  "integrated_source_and_backups_retained": true,
+  "environments": {
+    "local": {
+      "origin": "http://127.0.0.1:3021",
+      "version": "0.4.34",
+      "all_functions_ready": true,
+      "admin_login_verified": true,
+      "original_job_id": "b006938174",
+      "continuation_job_id": "3c3ba6f154",
+      "continuation_status": "running",
+      "continuation_progress": 5,
+      "period": "1m",
+      "mode": "missing",
+      "original_start": "2026-08-09",
+      "original_end": "2026-09-09",
+      "original_window_and_universe_preserved": true,
+      "watchlist_count": 16,
+      "group_count": 2,
+      "passed": true
+    },
+    "online": {
+      "origin": "https://server.example.com",
+      "version": "0.4.34",
+      "all_functions_ready": true,
+      "admin_login_verified": true,
+      "original_job_id": "a18e81f8f3",
+      "continuation_job_id": "9e4308689c",
+      "continuation_status": "running",
+      "continuation_progress": 5,
+      "period": "1m",
+      "mode": "missing",
+      "original_start": "2026-04-18",
+      "original_end": "2026-05-18",
+      "original_window_and_universe_preserved": true,
+      "watchlist_count": 16,
+      "group_count": 2,
+      "passed": true
+    }
+  },
+  "passed": true
+}

@@ -1,0 +1,228 @@
+{
+  "local": {
+    "plan": {
+      "environment": "local",
+      "target_days": [
+        "2026-08-10",
+        "2026-08-11",
+        "2026-08-12",
+        "2026-08-13",
+        "2026-08-14",
+        "2026-08-17",
+        "2026-08-18",
+        "2026-08-19"
+      ],
+      "cancelled_jobs": [
+        "b006938174",
+        "3c3ba6f154",
+        "3f4e554afc"
+      ],
+      "target_files": {
+        "kline_minute/date=2026-08-10/part.parquet": {
+          "bytes": 13988709,
+          "sha256": "8f96aa56f4b546baccc4378f5d53605e3ec6a509240f92bfbe159123b6aa1301",
+          "rows": 1248000
+        },
+        "kline_minute/date=2026-08-11/part.parquet": {
+          "bytes": 14094066,
+          "sha256": "f6bbd5f4243b2f4acc063a342d2abb46a7090174c88620c39de09537f3edda67",
+          "rows": 1248000
+        },
+        "kline_minute/date=2026-08-12/part.parquet": {
+          "bytes": 13665733,
+          "sha256": "4a036d573e83e67e5f8a3da1d9a9b2cac93db19c8c8700af508e8171f73d9af2",
+          "rows": 1247760
+        },
+        "kline_minute/date=2026-08-13/part.parquet": {
+          "bytes": 14215458,
+          "sha256": "b1ceae21ac5d560a2a352523408dce8647f6df2d8b414666bd05e17dd5067eb1",
+          "rows": 1248000
+        },
+        "kline_minute/date=2026-08-14/part.parquet": {
+          "bytes": 14063197,
+          "sha256": "fe41c0cbce91b9b27e25c481e9856a44ef6350433f08a01048af9806715be303",
+          "rows": 1248000
+        },
+        "kline_minute/date=2026-08-17/part.parquet": {
+          "bytes": 13895769,
+          "sha256": "785fbe1ca878616c6e3c048e3cb89cee53a560c25956142d46f95b405331d796",
+          "rows": 1247520
+        },
+        "kline_minute/date=2026-08-18/part.parquet": {
+          "bytes": 14030106,
+          "sha256": "96683e59270d0918a0e044637cc90cec209b167108b4556c75b5cd95703c988d",
+          "rows": 1247760
+        },
+        "kline_minute/date=2026-08-19/part.parquet": {
+          "bytes": 7044877,
+          "sha256": "203e3dbdf098982214ee9a2e4cb02fc3f687812041f72671ddc9788598baa2b7",
+          "rows": 622560
+        }
+      },
+      "profile_before": {
+        "rows": 42769390,
+        "earliest_date": "2026-08-10",
+        "latest_date": "2026-10-28",
+        "symbols_covered": 5222,
+        "trading_days": 38
+      },
+      "prepared_at": "2026-10-28T06:02:20.010409+00:00"
+    },
+    "backup": {
+      "environment": "local",
+      "backup": "/path/to/home/.cache/tsp-dev/TSPP/backups/cancelled-minute-cleanup-20261028",
+      "verified_partitions": 8,
+      "rows": 9357600
+    },
+    "result": {
+      "environment": "local",
+      "deleted_partitions": 8,
+      "deleted_rows": 9357600,
+      "protected_historical_minute_files": 29,
+      "protected_historical_minute_sha256_unchanged": true,
+      "jobs_preserved": true
+    },
+    "verify": {
+      "environment": "local",
+      "earliest": "2026-09-09 09:31:00",
+      "latest": "2026-10-28 13:55:00",
+      "rows_at_check": 33411790,
+      "public_release_id": "acd7c3c79fd04dc4a146330a4abf4578",
+      "source_public_historical_checksums_match": true,
+      "remaining_partitions": 30,
+      "profile": {
+        "rows": 33411790,
+        "earliest_date": "2026-09-09",
+        "latest_date": "2026-10-28",
+        "symbols_covered": 5222,
+        "trading_days": 30
+      },
+      "active_id": "6571a2cf95"
+    },
+    "final": {
+      "environment": "local",
+      "version": "0.4.36",
+      "health_ready": true,
+      "realtime_quotes_enabled": true,
+      "protected_historical_minute_sha256_unchanged": true,
+      "earliest_date": "2026-09-09",
+      "active_id": null,
+      "automatic_integrity_task": {
+        "id": "6571a2cf95",
+        "status": "succeeded"
+      },
+      "original_minute_tasks": [
+        {
+          "id": "b006938174",
+          "status": "cancelled"
+        },
+        {
+          "id": "3c3ba6f154",
+          "status": "cancelled"
+        },
+        {
+          "id": "3f4e554afc",
+          "status": "cancelled"
+        }
+      ]
+    }
+  },
+  "ecs": {
+    "plan": {
+      "environment": "ecs",
+      "target_days": [
+        "2026-04-20",
+        "2026-04-21",
+        "2026-04-22"
+      ],
+      "cancelled_jobs": [
+        "a18e81f8f3",
+        "9e4308689c",
+        "83de9259fc"
+      ],
+      "target_files": {
+        "kline_minute/date=2026-04-20/part.parquet": {
+          "bytes": 6162,
+          "sha256": "4d1cfa83ab949358739f155556a31eb14df56e664305727126c0403685c7209e",
+          "rows": 240
+        },
+        "kline_minute/date=2026-04-21/part.parquet": {
+          "bytes": 5860,
+          "sha256": "3025ebd0b44061a4da1013bdcda0e13757f10564f5da380d631340184d8df4b4",
+          "rows": 240
+        },
+        "kline_minute/date=2026-04-22/part.parquet": {
+          "bytes": 6382,
+          "sha256": "0c85a7cd0aeb56c373783fc5cc20ea7dc524adf6198c67dc64305b984cbfa9c4",
+          "rows": 240
+        }
+      },
+      "profile_before": {
+        "rows": 118114371,
+        "earliest_date": "2026-04-20",
+        "latest_date": "2026-10-28",
+        "symbols_covered": 5222,
+        "trading_days": 114
+      },
+      "prepared_at": "2026-10-28T06:02:20.775167+00:00"
+    },
+    "backup": {
+      "environment": "ecs",
+      "backup": "/opt/tsp-full/backups/cancelled-minute-cleanup-20261028",
+      "verified_partitions": 3,
+      "rows": 720
+    },
+    "result": {
+      "environment": "ecs",
+      "deleted_partitions": 3,
+      "deleted_rows": 720,
+      "protected_historical_minute_files": 110,
+      "protected_historical_minute_sha256_unchanged": true,
+      "jobs_preserved": true
+    },
+    "verify": {
+      "environment": "ecs",
+      "earliest": "2026-05-18 09:31:00",
+      "latest": "2026-10-28 13:59:00",
+      "rows_at_check": 118113651,
+      "public_release_id": "01c58c2256b742fc9ac36d67ebeba075",
+      "source_public_historical_checksums_match": true,
+      "remaining_partitions": 111,
+      "profile": {
+        "rows": 118113651,
+        "earliest_date": "2026-05-18",
+        "latest_date": "2026-10-28",
+        "symbols_covered": 5222,
+        "trading_days": 111
+      },
+      "active_id": "6d92d76be7"
+    },
+    "final": {
+      "environment": "ecs",
+      "version": "0.4.36",
+      "health_ready": true,
+      "realtime_quotes_enabled": true,
+      "protected_historical_minute_sha256_unchanged": true,
+      "earliest_date": "2026-05-18",
+      "active_id": null,
+      "automatic_integrity_task": {
+        "id": "6d92d76be7",
+        "status": "succeeded"
+      },
+      "original_minute_tasks": [
+        {
+          "id": "a18e81f8f3",
+          "status": "cancelled"
+        },
+        {
+          "id": "9e4308689c",
+          "status": "cancelled"
+        },
+        {
+          "id": "83de9259fc",
+          "status": "cancelled"
+        }
+      ]
+    }
+  }
+}

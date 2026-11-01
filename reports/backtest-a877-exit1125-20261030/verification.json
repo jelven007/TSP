@@ -1,0 +1,60 @@
+{
+  "status": "PASS",
+  "only_changed_strategy_key": "deadline",
+  "accounts": {
+    "exit1125": {
+      "cross_scenario_trade_rows": 759,
+      "independent_first_fill_paths": 759,
+      "decimal_ledger_events": 1518,
+      "independent_equity_snapshots": 93,
+      "independent_sizing_checks": 759,
+      "independent_price_limit_checks": 1518,
+      "maximum_account_error_CNY": 1.1641532182693481e-09,
+      "participation_limits": {
+        "exit1125": {
+          "max_entry": 0.1,
+          "max_exit": 0.1
+        }
+      }
+    },
+    "exit1125_slip5bp": {
+      "cross_scenario_trade_rows": 758,
+      "independent_first_fill_paths": 758,
+      "decimal_ledger_events": 1516,
+      "independent_equity_snapshots": 93,
+      "independent_sizing_checks": 758,
+      "independent_price_limit_checks": 1516,
+      "maximum_account_error_CNY": 5.820766091346741e-10,
+      "participation_limits": {
+        "exit1125_slip5bp": {
+          "max_entry": 0.1,
+          "max_exit": 0.1
+        }
+      }
+    },
+    "exit1125_slip10bp": {
+      "cross_scenario_trade_rows": 760,
+      "independent_first_fill_paths": 760,
+      "decimal_ledger_events": 1520,
+      "independent_equity_snapshots": 93,
+      "independent_sizing_checks": 760,
+      "independent_price_limit_checks": 1520,
+      "maximum_account_error_CNY": 1.1641532182693481e-10,
+      "participation_limits": {
+        "exit1125_slip10bp": {
+          "max_entry": 0.1,
+          "max_exit": 0.1
+        }
+      }
+    }
+  },
+  "shared_input_files_unchanged": 102,
+  "same_candidates_in_every_scenario": 969,
+  "take_profit_after_revised_deadline": false,
+  "future_after_frozen_cutoff_used": false,
+  "each_deadline_audited_separately": true,
+  "comparison_data_asof": "2026-10-30T11:29:00",
+  "parameter_search": false,
+  "scope": "price-plus-fee reference account; historicalST and cash entitlement dates unverified",
+  "retained_scope": "latest11:25 account and its cost sensitivities; former strategy comparison artifacts removed"
+}

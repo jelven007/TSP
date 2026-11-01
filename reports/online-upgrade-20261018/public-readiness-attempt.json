@@ -1,5 +1,5 @@
 {
-  "base_url": "https://118.196.108.188",
+  "base_url": "https://203.0.113.10",
   "tls_verification": "system_trust",
   "endpoints": {
     "/health/live": {

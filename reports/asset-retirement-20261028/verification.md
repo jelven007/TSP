@@ -21,7 +21,7 @@
 
 ### 本地
 
-- 公共数据：`/Users/bytedance/.local/share/tsp-dev/TSPP/public/current`
+- 公共数据：`/path/to/home/.local/share/tsp-dev/TSPP/public/current`
 - 总量：约 3.3 GiB，10,835 个 parquet 文件。
 - 独立退休目录约 7.7 MiB：
   `adj_factor_etf`、`instruments_etf`、`kline_etf_daily`、
@@ -32,7 +32,7 @@
 
 ### 生产
 
-- 主机：文档及可信 SSH 指纹确认的 `118.196.108.188`。
+- 主机：文档及可信 SSH 指纹确认的 `203.0.113.10`。
 - 公共数据：`/opt/tsp-full/public/current`
 - 总量：约 4.7 GiB。
 - 独立退休目录约 9.7 MiB。

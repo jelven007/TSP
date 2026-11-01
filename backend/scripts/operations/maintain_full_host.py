@@ -6,9 +6,15 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import time
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 
 RELEASE_ID = re.compile(r"^[0-9a-f]{32}$")
 REFERENCE_QUERY = (
@@ -116,6 +122,69 @@ def docker_prune_commands(*, until: str, keep_storage: str) -> list[list[str]]:
     ]
 
 
+def delete_release_if_unused(
+    path: Path, *, root: Path, protected: set[str], read_references, keep: int,
+    min_age_days: int = 30, min_age_hours: int | None = None,
+) -> str:
+    """Hold the same immutable manifest's exclusive lock through deletion."""
+    if fcntl is None:
+        return "reader_lock_unavailable"
+    fd = None
+    try:
+        root = root.resolve(strict=True)
+        releases = root / "releases"
+        if (
+            path.is_symlink() or not RELEASE_ID.fullmatch(path.name)
+            or path.resolve(strict=True).parent != releases
+        ):
+            return "invalid_release"
+        directory = path.stat()
+        marker = path / ".public_release.json"
+        fd = os.open(
+            marker, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
+        )
+        original = os.fstat(fd)
+        if not stat.S_ISREG(original.st_mode):
+            return "invalid_release"
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return "reader_lock_busy"
+        except OSError:
+            return "reader_lock_unavailable"
+        current = marker.lstat()
+        if (
+            not stat.S_ISREG(current.st_mode)
+            or (current.st_dev, current.st_ino) != (original.st_dev, original.st_ino)
+            or json.loads(os.pread(fd, original.st_size, 0)).get("id") != path.name
+        ):
+            return "invalid_release"
+    except (OSError, ValueError, AttributeError):
+        return "invalid_release"
+    else:
+        # A failed research query still terminates maintenance. It must not be
+        # swallowed as a file-lock skip and followed by further deletions.
+        protected = protected | read_references()
+        available = release_candidates(
+            root, protected=protected, keep=keep, min_age_days=min_age_days,
+            min_age_hours=min_age_hours,
+        )
+        if path not in available:
+            return "retained"
+        final_marker, final_dir = marker.lstat(), path.lstat()
+        if (
+            path.is_symlink()
+            or (final_dir.st_dev, final_dir.st_ino) != (directory.st_dev, directory.st_ino)
+            or (final_marker.st_dev, final_marker.st_ino) != (original.st_dev, original.st_ino)
+        ):
+            return "invalid_release"
+        shutil.rmtree(path)
+        return "deleted"
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--release-root", type=Path, required=True)
@@ -165,6 +234,7 @@ def main() -> None:
         report["release_candidates"] = [path.name for path in candidates]
         if args.apply:
             report["deleted_releases"] = []
+            report["release_skip_counts"] = {}
             for offset in range(0, len(candidates), 30):
                 # Recheck current/recent releases and new research references
                 # between bounded batches while the publisher remains active.
@@ -177,12 +247,17 @@ def main() -> None:
                 for path in candidates[offset:offset + 30]:
                     if path not in available:
                         continue
-                    if path.is_symlink() or path.resolve().parent != (
-                        args.release_root.resolve() / "releases"
-                    ):
-                        raise ValueError("release target changed during maintenance")
-                    shutil.rmtree(path)
-                    report["deleted_releases"].append(path.name)
+                    outcome = delete_release_if_unused(
+                        path, root=args.release_root, protected=protected,
+                        read_references=read_references, keep=args.keep_releases,
+                        min_age_days=args.min_release_age_days,
+                        min_age_hours=args.min_release_age_hours,
+                    )
+                    if outcome == "deleted":
+                        report["deleted_releases"].append(path.name)
+                    else:
+                        counts = report["release_skip_counts"]
+                        counts[outcome] = counts.get(outcome, 0) + 1
     else:
         report["release_prune_skipped"] = (
             f"{args.data_admin_dsn_env} or a PostgreSQL container/database is required "

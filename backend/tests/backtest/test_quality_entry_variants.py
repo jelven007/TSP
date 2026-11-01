@@ -101,7 +101,9 @@ def test_each_candidate_is_prefix_causal_retains_exits_and_rejects_nontrading_ba
 
 def test_catalog_has_at_most_two_hypotheses_and_defaults_remain_original():
     engine = StrategyEngine([BUILTIN])
-    assert len(engine.list_strategies()) == 22
+    assert len(engine.list_strategies()) == 24
+    assert {item["id"] for item in engine.list_strategies()
+            if item["timeframes"] == ["1m"]} == {"s01", "s02"}
     for sid, variants in VARIANTS.items():
         assert 1 <= len(variants) <= 2
         loaded = engine.get(sid)

@@ -1,0 +1,19 @@
+{
+  "source_commit": "8b669fb5ff96606dce60349f088aea736dba6640",
+  "architecture": "arm64",
+  "passed": true,
+  "seconds": 516.37,
+  "record_kind": "historical_verification",
+  "cache_removed_on": "2026-10-30",
+  "cache_note": "Rebuildable layer files and duplicate download fragments were removed during documentation maintenance. Digests and original verification results are retained; this record is not a current file inventory.",
+  "layers": [
+    {
+      "digest": "sha256:fd11ccd0bbfa16671b2ca51a5f21e955e25f4e6b741608ae3b9d80738d454f79",
+      "bytes": 239308859
+    },
+    {
+      "digest": "sha256:92ad248cc63c328932125fd5f62f8a344746920a36eb4eca749cf1c6bf2ce38d",
+      "bytes": 105965068
+    }
+  ]
+}

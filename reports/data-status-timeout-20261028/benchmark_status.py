@@ -51,7 +51,7 @@ def counted_stats(name, fetch, *, data_dir):
 
 
 data._get_table_stats = counted_stats
-data_dir = Path("/Users/bytedance/.local/share/tsp-dev/TSPP/data")
+data_dir = Path("/path/to/home/.local/share/tsp-dev/TSPP/data")
 store = DataStore(data_dir, read_only=True)
 app = FastAPI()
 app.include_router(data.router)

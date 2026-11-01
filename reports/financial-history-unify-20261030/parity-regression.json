@@ -1,0 +1,32 @@
+[
+  {
+    "stage": "before-1",
+    "expected_exit": 1,
+    "actual_exit": 1
+  },
+  {
+    "stage": "before-2",
+    "expected_exit": 1,
+    "actual_exit": 1
+  },
+  {
+    "stage": "before-3",
+    "expected_exit": 1,
+    "actual_exit": 1
+  },
+  {
+    "stage": "after",
+    "expected_exit": 0,
+    "actual_exit": 0
+  },
+  {
+    "stage": "reverse-before",
+    "expected_exit": 1,
+    "actual_exit": 1
+  },
+  {
+    "stage": "final-after",
+    "expected_exit": 0,
+    "actual_exit": 0
+  }
+]

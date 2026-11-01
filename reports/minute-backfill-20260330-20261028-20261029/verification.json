@@ -1,0 +1,17 @@
+{
+  "status": "verified",
+  "verified_at_beijing": "2026-10-29T20:35:48.787598+08:00",
+  "source_files_verified": 141,
+  "source_rows": 121356351,
+  "original_rows_preserved": 118454991,
+  "changed_original_partitions": 20,
+  "backup_checksums_match": true,
+  "source_checksums_match": true,
+  "basis_marker_preserved": true,
+  "public_release_id": "d8af7a2c07e448e8b3462c4315347e72",
+  "public_matches_source": true,
+  "unavailable_csv_totals_match": true,
+  "all_remaining_rows_checked_on_three_nodes": true,
+  "remaining_dates": 142,
+  "remaining_symbols": 5190
+}

@@ -772,7 +772,16 @@ export function Data() {
                 { label: '周K', files: s?.storage.weekly_files, size: s?.storage.weekly_size_mb },
                 { label: '除权因子', files: s?.storage.adj_factor_files,  size: s?.storage.adj_factor_size_mb },
                 { label: 'Enriched', files: s?.storage.enriched_files,    size: s?.storage.enriched_size_mb },
-                { label: '财务数据', files: s?.storage.financials_files,   size: s?.storage.financials_size_mb },
+                {
+                  label: '财务数据',
+                  files: s?.storage.financials_current_files ?? s?.storage.financials_files,
+                  size: s?.storage.financials_current_size_mb ?? s?.storage.financials_size_mb,
+                },
+                ...(s?.storage.financials_revision_files !== undefined ? [{
+                  label: '财务历史快照',
+                  files: s.storage.financials_revision_files,
+                  size: s.storage.financials_revision_size_mb,
+                }] : []),
                 { label: '扩展数据', files: s?.storage.ext_data_files,    size: s?.storage.ext_data_size_mb },
               ].map((item) => (
                 <div key={item.label} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px]">

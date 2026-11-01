@@ -1,0 +1,190 @@
+{
+  "status": "verified",
+  "period": "1d",
+  "start": "2020-11-02",
+  "end": "2026-10-29",
+  "started_at_beijing": "2026-10-29T22:41:03.473595+08:00",
+  "finished_at_beijing": "2026-10-29T22:41:22.901727+08:00",
+  "pool_size": 5222,
+  "pool_as_of": "2026-10-29",
+  "pool_source": "official_exchanges",
+  "stock_pool_boards": [
+    "创业板",
+    "沪主板",
+    "深主板",
+    "科创板"
+  ],
+  "listing_dates_unknown": 0,
+  "trading_days": 1453,
+  "gap_symbols": 1265,
+  "days_with_gaps": 1411,
+  "whole_market_missing_days": [],
+  "days_without_partition": [],
+  "nontrading_stock_partition_days": [],
+  "coverage_pct": 99.86250665,
+  "stock_totals": {
+    "expected_keys": 6956700,
+    "stored_rows": 6947135,
+    "unique_keys": 6947135,
+    "present_expected_keys": 6947135,
+    "missing_keys": 9565,
+    "extra_keys": 0,
+    "out_of_current_pool_keys": 0,
+    "before_listing_keys": 0,
+    "enriched_stored_rows": 6947135,
+    "enriched_missing_keys": 9565,
+    "raw_missing_enriched_present": 0,
+    "invalid_rows": 0,
+    "duplicate_rows": 0,
+    "conflicting_duplicate_keys": 0,
+    "wrong_partition_date_rows": 0,
+    "zero_activity_rows": 0,
+    "null_required_rows": 0
+  },
+  "enriched_quality_totals": {
+    "invalid_rows": 0,
+    "duplicate_rows": 0,
+    "conflicting_duplicate_keys": 0,
+    "wrong_partition_date_rows": 0,
+    "zero_activity_rows": 0,
+    "null_required_rows": 0
+  },
+  "latest_day": {
+    "day": "2026-10-29",
+    "expected_keys": 5222,
+    "stored_rows": 5215,
+    "unique_keys": 5215,
+    "present_expected_keys": 5215,
+    "missing_keys": 7,
+    "extra_keys": 0,
+    "out_of_current_pool_keys": 0,
+    "before_listing_keys": 0,
+    "coverage_pct": 99.86595174,
+    "enriched_stored_rows": 5215,
+    "enriched_missing_keys": 7,
+    "raw_missing_enriched_present": 0,
+    "invalid_rows": 0,
+    "duplicate_rows": 0,
+    "conflicting_duplicate_keys": 0,
+    "wrong_partition_date_rows": 0,
+    "zero_activity_rows": 0,
+    "null_required_rows": 0
+  },
+  "index_results": [
+    {
+      "symbol": "000001.SH",
+      "name": "上证指数",
+      "expected_keys": 1453,
+      "present_expected_keys": 1453,
+      "missing_keys": 0,
+      "before_first_stored_date": 0,
+      "within_or_after_stored_coverage": 0,
+      "first_stored_date": "2020-11-02",
+      "last_stored_date": "2026-10-29"
+    },
+    {
+      "symbol": "399001.SZ",
+      "name": "深证成指",
+      "expected_keys": 1453,
+      "present_expected_keys": 1453,
+      "missing_keys": 0,
+      "before_first_stored_date": 0,
+      "within_or_after_stored_coverage": 0,
+      "first_stored_date": "2020-11-02",
+      "last_stored_date": "2026-10-29"
+    },
+    {
+      "symbol": "399006.SZ",
+      "name": "创业板指",
+      "expected_keys": 1453,
+      "present_expected_keys": 1453,
+      "missing_keys": 0,
+      "before_first_stored_date": 0,
+      "within_or_after_stored_coverage": 0,
+      "first_stored_date": "2020-11-02",
+      "last_stored_date": "2026-10-29"
+    },
+    {
+      "symbol": "000680.SH",
+      "name": "科创综指",
+      "expected_keys": 1453,
+      "present_expected_keys": 1453,
+      "missing_keys": 0,
+      "before_first_stored_date": 0,
+      "within_or_after_stored_coverage": 0,
+      "first_stored_date": "2020-11-02",
+      "last_stored_date": "2026-10-29"
+    },
+    {
+      "symbol": "000300.SH",
+      "name": "沪深300",
+      "expected_keys": 1453,
+      "present_expected_keys": 1453,
+      "missing_keys": 0,
+      "before_first_stored_date": 0,
+      "within_or_after_stored_coverage": 0,
+      "first_stored_date": "2020-11-02",
+      "last_stored_date": "2026-10-29"
+    },
+    {
+      "symbol": "000016.SH",
+      "name": "上证50",
+      "expected_keys": 1453,
+      "present_expected_keys": 1453,
+      "missing_keys": 0,
+      "before_first_stored_date": 0,
+      "within_or_after_stored_coverage": 0,
+      "first_stored_date": "2020-11-02",
+      "last_stored_date": "2026-10-29"
+    },
+    {
+      "symbol": "399330.SZ",
+      "name": "深证100",
+      "expected_keys": 1453,
+      "present_expected_keys": 1453,
+      "missing_keys": 0,
+      "before_first_stored_date": 0,
+      "within_or_after_stored_coverage": 0,
+      "first_stored_date": "2020-11-02",
+      "last_stored_date": "2026-10-29"
+    }
+  ],
+  "index_missing_keys": 0,
+  "source_stable": true,
+  "instruments_stable": true,
+  "instruments_sha256": "22cfc1620fed57d5aa775022ad42c034de3ce4a02ebbfd87a28b5bdff7a1eff4",
+  "calendar_provenance": {
+    "version": "SSE-2019-2026-20261026",
+    "covered_years": [
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "sha256": "51fc950004885a1ea88d4c306a5ea2285e34ae3b2191412a5cad9c289f0336aa",
+    "unknown_year_policy": "provider_evidence"
+  },
+  "public_release_id": "87924a4f1b2e4b3e8960bc3b7f452469",
+  "public_release_path": "/public/releases/87924a4f1b2e4b3e8960bc3b7f452469",
+  "public_stats": {
+    "kline_daily": {
+      "files": 1453,
+      "rows": 6947135
+    },
+    "kline_daily_enriched": {
+      "files": 1453,
+      "rows": 6947135
+    },
+    "kline_index_daily": {
+      "files": 1453,
+      "rows": 799315
+    }
+  },
+  "public_mismatches": [],
+  "public_stock_daily_matches_source": true,
+  "interpretation": "Stock expectations exclude pre-listing dates and closed days. Missing records may include halts; no source availability was probed. Historical delisted stocks outside the current pool are not certified. Index full-window expectations do not establish availability before an index's inception or backcast base date."
+}

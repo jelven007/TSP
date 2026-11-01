@@ -1,91 +1,96 @@
-# TSP 文档中心
+# Tick Stock Platform（TSP）文档中心
 
-2026-10-30最新版本整合已建立需求、方案、开发、测试、运营与运维映射，
-包含三组连接、失效会话、指数全历史与轮询界面。应用版本由main CI分配。
-最新发布状态见[本轮发布评审](../reports/current-release-20261030/review.md)及
-[本轮验证记录](../reports/current-release-20261030/verification.md)，下方部署说明按历史时点理解。
+s02参数、每日三Tab与回测历史查询见
+[策略参考](reference/s02.md)。
 
-2026-10-29 v0.4.38正式发布已完成，固定提交`5b273174f2e2a8ac539fcea363fa02315a61ebe9`。
-本地与ECS登录、六功能、真实分钟任务及正常重启通过，配置与原行情保持；
-301110.SZ三四月5,520键和10月28日两端各6个未返回键仍如实列入缺口。
-六类手册的当前部署入口为[正式升级验收](../reports/minute-collection-reliability-20261029/deployment.md)；以下旧候选及部署段落保留各自时点。
+应用语义版本为 `0.4.40`。内容核对日期：2026-11-01。
+本目录面向完整项目工程，覆盖使用、需求、架构、开发、测试、发布、运维与扩展。
+源码版本、已发布产物和最后已知运行状态统一见[版本基线](version-baseline.md)。
 
+## 从这里开始
 
-rustdx三组任务绑定、24业务/3探测、分钟前台预留及历史窗口核验见
-[任务连接](rustdx-task-routing.md)。本次为源码更新，应用版本保持0.4.38。
+| 读者与任务 | 阅读顺序 |
+| --- | --- |
+| 首次安装或本地开发 | [开始使用](getting-started.md) → [操作说明书](../操作说明书.md) |
+| 日常看盘、选股、研究与模拟观察 | [操作说明书](../操作说明书.md) → 对应专题参考 |
+| 管理数据、账号与服务 | [部署与运维](operations.md) → [部署目录](../deploy/README.md) |
+| 修改或审查代码 | [AGENTS](../AGENTS.md) → [CONTRIBUTING](../CONTRIBUTING.md) → [系统方案](architecture.md#current) → [测试指南](testing.md) |
+| 二次开发或接入外部系统 | [二次开发](secondary-development.md) → [API 导航](api.md) → [接入协议](reference/integrations.md) |
+| 准备发布、升级与恢复 | [发布运营](release-operations.md) → [运维手册](operations.md) → [版本基线](version-baseline.md) |
+| 维护文档或清理资料 | [文档维护与清理规则](maintenance.md) |
 
-2026-10-28指数页七只、日/周/月K、数据修正及六类文档同步见
-[指数扩展验证](../reports/indices-kline-20261028/verification.md)。
-本轮工作区源码未更新运行副本或线上，真实行情覆盖另行核对。
+## 项目文档地图
 
-应用语义版本为 `0.4.40`。内容核对日期：2026-10-30。
-源码、标签、安装包和最后已知生产状态统一见[版本基线](version-baseline.md)。
-文档覆盖、代码实现、测试通过、产物发布和生产切流分别判定。
-
-2026-10-27 第二批同步分类、自选导出、日期时分与系统设置的源码复审、验证和
-六类文档入口见[本批整合核对](../reports/complete-release-20261027-2/verification.md)。
-两端实际升级状态在部署验收中独立签收。
-
-5/10/15分K本地计算候选的范围、实际验证与未部署边界见
-[本地聚合记录](../reports/local-derived-minutes-20261026/verification.md)；
-六类主手册、二开/接入及用户手册已同步默认行为。
-
-本批遗漏K线获取的源码/运行核对、文档责任、验证与发布状态见
-[最新整合记录](../reports/repair-missing-release-20261026/verification.md)；
-页面/菜单/上游分析统一归[分析索引](../reports/page-data-analysis-20261024/README.md)。
+```text
+README.md                         项目介绍与入口
+AGENTS.md                         AI 开发入口
+CONTRIBUTING.md                    开发、数据契约与复审规范
+操作说明书.md                     用户功能手册
+docs/
+  README.md                       文档地图
+  getting-started.md               环境、安装、首次配置与验证
+  requirements.md                 唯一需求定义与八业务模块
+  architecture.md                 当前架构、功能血缘与后续系统目标
+  api.md                          会话、开放 API、SSE 与 MCP 导航
+  secondary-development.md        实际扩展点及升级兼容
+  testing.md                      验证矩阵、命令与签收边界
+  release-operations.md           产物、发布、支持与运营
+  operations.md                   配置、调度、备份、恢复与故障处理
+  version-baseline.md             源码、发布和运行版本分类
+  maintenance.md                  文档归属、清理范围与检查方法
+  reference/
+    engineering.md                目录、构建身份、协作与追踪
+    market-data.md                行情、K线、目录与扩展数据
+    research.md                   策略、固定输入、回测与挖掘
+    s01.md                        隔夜分钟策略参数、成交与使用边界
+    s02.md                        动量策略、每日组合与回测查询
+    factor-system.md              因子实现及明确标记的后续设计
+    trading-ai.md                 模拟账务、公司行为与AI协议
+    integrations.md               Provider、HTTP源与开放授权
+  rustdx-task-routing.md           三组连接、额度与窗口核验
+  planning/
+    phase2-implementation-plan.md  阶段工作包与待签收能力
+```
 
 ## 六类主手册
 
-| 工作 | 唯一主入口 | 内容与完成依据 |
+| 生命周期 | 唯一主入口 | 维护内容 |
 | --- | --- | --- |
-| 需求 | [需求基线](requirements.md) | 用户、角色、对象、八业务章节、164条FR与42条NFR、阶段和验收条件 |
-| 方案 | [系统技术方案](architecture.md) | 当前运行架构、页面/能力/源码事实源、统一系统目标、DFX与容量设计 |
-| 开发 | [CONTRIBUTING](../CONTRIBUTING.md) | 调用链、数据口径、缓存、插件、质量门、版本、PR与复审 |
-| 测试 | [测试与联合签收](testing.md) | 环境/命令、领域回归、产物平台、A–I、3.1–3.6、负载/恢复、统一证据模板 |
-| 运营 | [发布与服务运营](release-operations.md) | 发布角色/产物/放行、开通、公告、质量成本、支持与反馈 |
-| 运维 | [部署与运维](operations.md) | 模式安装、配置优先级、账户/Windows、健康、调度、备份、恢复、故障与交接 |
+| 需求 | [需求基线](requirements.md) | 角色、对象、八业务模块、164 条 FR、42 条 NFR、状态与验收条件 |
+| 方案 | [系统技术方案](architecture.md) | 当前运行拓扑、源码事实源、数据和缓存链路、明确标记的目标架构 |
+| 开发 | [贡献规范](../CONTRIBUTING.md) | 分层、金融口径、Provider、并发、兼容、质量门和 PR 复审 |
+| 测试 | [测试与验收](testing.md) | 隔离环境、定向回归、工程检查、平台与生产签收 |
+| 运营 | [发布与服务运营](release-operations.md) | 发布身份、渠道、放行、支持、成本与反馈 |
+| 运维 | [部署与运维](operations.md) | 模式安装、配置、权限、健康、调度、备份、恢复与值班 |
 
-用户日常操作统一见[操作说明书](../操作说明书.md)。
-代码二次开发仍必须阅读[扩展与上游兼容指南](secondary-development.md)；
-真实执行状态只在[二期工作包](planning/phase2-implementation-plan.md)维护。
-一期实施和旧验证已归入[历史依据](../reports/document-consolidation-20261024/historical-evidence.md)。
+用户操作只在操作说明书定义，协议细节归专题参考。其他文件链接到主章节，
+避免重复维护第二套需求、配置默认值或发布状态。
 
-## 专题参考
+<a id="source-map"></a>
+## 当前功能与工程入口
 
-| 专题 | 单一维护文件 | 保留的细节 |
+| 领域 | 文档 | 主要实现入口 |
 | --- | --- | --- |
-| 工程交付 | [工程参考](reference/engineering.md) | 实际目录、依赖方向、构建清单、离线升级、协作权限、生命周期追踪与决策 |
-| 行情质量 | [行情与扩展数据](reference/market-data.md) | 收盘保护、五档证据、市场阶段、完整拉取/恢复、秒级归档与执行验证 |
-| 研究 | [策略与研究](reference/research.md) | 策略参数/交易规则、固定输入、试验族、样本外、挖掘与AI迭代 |
-| 因子 | [因子体系](reference/factor-system.md) | 当前五视图与生命周期、注册/DSL/统计/组合、明确标记的后续规格 |
-| 交易与AI | [账务与AI协议](reference/trading-ai.md) | 模拟撮合、公司行为/应收/权益、完整工具响应、会话revision与恢复 |
-| 接入 | [数据源与开放接口](reference/integrations.md) | HTTP/YAML、Provider、rustdx、TickFlow预算/探测、Token/Tier A与网关 |
+| 六周期股票 K 线、指数日/周/月 K 线、采集与缺口 | [行情数据](reference/market-data.md) | [周期服务](../backend/app/services/kline_periods.py)、[指数 API](../backend/app/api/indices.py) |
+| 数据源路由、实时、五档、财务与公司行为 | [接入参考](reference/integrations.md) | [能力注册表](../backend/app/data_providers/capabilities.py) |
+| 自选、策略与持久结果、历史研究 | [用户手册](../操作说明书.md)、[研究契约](reference/research.md) | [页面路由](../frontend/src/router.tsx)、[策略结果仓库](../backend/app/services/strategy_results.py) |
+| 因子、信号与挖掘 | [因子体系](reference/factor-system.md)、[研究契约](reference/research.md#mining) | [因子模块](../backend/app/factors/)、[挖掘 API](../backend/app/api/mining.py) |
+| 监控、模拟交易、AI 与复盘 | [账务和 AI](reference/trading-ai.md) | [监控 API](../backend/app/api/monitor_rules.py)、[模拟交易 API](../backend/app/api/paper.py) |
+| 认证、API、SSE 与 MCP | [API 导航](api.md) | [开放网关](../backend/app/services/api_gateway.py)、[MCP 包](../mcp-server/README.md) |
 
-实际部署文件和模式步骤见[deploy入口](../deploy/README.md)；
-脚本命令见[仓库脚本](../scripts/README.md)与[后端脚本](../backend/scripts/README.md)。
-可运行样例见[HTTP数据源](../examples/custom-data-source/README.md)、
-[Open API](../examples/open-api/README.md)与[MCP](../mcp-server/README.md)。
+运行模板见[部署目录](../deploy/README.md)，仓库命令见[脚本入口](../scripts/README.md)
+和[后端操作模块](../backend/scripts/README.md)，可运行样例见[examples](../examples/README.md)。
 
 <a id="maintenance"></a>
-## 事实源与维护规则
+## 事实源与维护
 
-当前行为先核对源码、运行配置和相邻契约测试；字段/单位/空值遵循CONTRIBUTING。
-目标只在需求和方案声明，验收只引用相同版本、环境和范围的实际记录；
-生产状态只引用固定提交、digest、schema与切流证据。历史数字不能填入新验收记录。
+当前行为以源码、配置读取规则和相邻契约测试为依据；生产状态必须附固定提交、
+产物哈希或 digest、schema 和实际切换证据。代码实现、测试通过、发布和部署分别判断。
+历史任务成功不等于历史行情全部补齐，规划容量不等于已经通过负载验收。
 
-每项变更按“需求/阶段→方案→文件→测试→用户/运营/运维影响→实际证据”同步。
-同一规则只在上表的唯一归属定义，其他文档链接到具体章节。
-专题附录保留字段、代码样例、缓存键和失败契约；用户手册不把目标写为可用功能。
-删除/移动正文先保留需求编号与独有约束，再同步所有文件链接、锚点和代码内入口。
+每次行为、接口、拓扑或配置变化同步相应主手册与专题参考，至少每月复核一次。
+正文保留现行规则，发布过程与原始证据归[报告目录](../reports/README.md)。
+完整维护责任与清理规则见[maintenance.md](maintenance.md)。
 
-运行 `make check` 及受影响测试；历史导航可执行
-`python scripts/check_docs.py --include-reports`。检查不联网，也不替代业务或生产验收。
-源码与运行数据、凭据、构建输出、冻结交付分开维护，历史证据见[报告索引](../reports/README.md)。
-本轮合并范围、迁移映射与实际验证见[合并记录](../reports/document-consolidation-20261024/verification.md)。
-
-2026-10-28源码/依赖冗余核对、删除依据及回归范围见[项目精简记录](../reports/project-cleanup-20261028/verification.md)。
-
-文档由表中领域负责人和变更作者共同维护，每次行为、接口、拓扑、配置或部署变更
-立即核对，至少每月复核一次。超过周期或出现源码/运行状态漂移时标记待复核，
-完成验证后再用于发布。历史材料保留原日期与结果，不将旧部署作为当前状态。
-本次具体责任、事实源和失效信号见[文档清单](../reports/repair-missing-release-20261026/verification.md#文档事实源与维护责任)。
+从仓库根执行 `make check`。历史资料引用可另执行
+`python3 scripts/check_docs.py --include-reports`；这些检查不替代业务、真实数据或生产验收。

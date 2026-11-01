@@ -1,0 +1,132 @@
+{
+  "status": "complete",
+  "completed_at_beijing": "2026-10-29T23:52:13.978114+08:00",
+  "scope": "daily coverage audit and official TDX complete-package comparison",
+  "environments": {
+    "host": {
+      "status": "complete",
+      "mode": "host",
+      "finished_at_beijing": "2026-10-29T23:50:36.932281+08:00",
+      "removed": [
+        {
+          "path": "/opt/tsp-full/imports/daily-coverage-20201102-20261029",
+          "logical_bytes": 15789,
+          "allocated_bytes": 20480
+        },
+        {
+          "path": "/opt/tsp-full/imports/tdx-daily-full-20261029",
+          "logical_bytes": 927865256,
+          "allocated_bytes": 927916032
+        }
+      ],
+      "removed_logical_bytes": 927881045,
+      "removed_allocated_bytes": 927936512,
+      "protected_daily_snapshot_before": {
+        "files": 2906,
+        "sha256": "2d38d020904c86a78ed4884721bb51310d23b728cf84e5d478026132c041c503"
+      },
+      "protected_daily_snapshot_after": {
+        "files": 2906,
+        "sha256": "2d38d020904c86a78ed4884721bb51310d23b728cf84e5d478026132c041c503"
+      },
+      "protected_daily_data_unchanged": true,
+      "business_data_deletion_targets": 0
+    },
+    "container": {
+      "status": "complete",
+      "mode": "container",
+      "finished_at_beijing": "2026-10-29T23:50:38.041204+08:00",
+      "removed": [
+        {
+          "path": "/tmp/daily-coverage-20201102-20261029",
+          "logical_bytes": 2841169,
+          "allocated_bytes": 2875392
+        },
+        {
+          "path": "/tmp/tdx-daily-full-20261029",
+          "logical_bytes": 2307086,
+          "allocated_bytes": 2347008
+        }
+      ],
+      "removed_logical_bytes": 5148255,
+      "removed_allocated_bytes": 5222400,
+      "protected_daily_snapshot_before": {
+        "files": 2906,
+        "sha256": "2d38d020904c86a78ed4884721bb51310d23b728cf84e5d478026132c041c503"
+      },
+      "protected_daily_snapshot_after": {
+        "files": 2906,
+        "sha256": "2d38d020904c86a78ed4884721bb51310d23b728cf84e5d478026132c041c503"
+      },
+      "protected_daily_data_unchanged": true,
+      "business_data_deletion_targets": 0
+    },
+    "local": {
+      "status": "complete",
+      "mode": "local",
+      "finished_at_beijing": "2026-10-29T23:50:34.926376+08:00",
+      "removed": [
+        {
+          "path": "/path/to/home/.cache/tsp-dev/TSPP/daily-coverage-20201102-20261029",
+          "logical_bytes": 50174,
+          "allocated_bytes": 53248
+        },
+        {
+          "path": "/path/to/home/.cache/tsp-dev/TSPP/tdx-daily-full-20261029",
+          "logical_bytes": 11041479,
+          "allocated_bytes": 11702272
+        },
+        {
+          "path": "/path/to/home/Documents/TSPP/reports/daily-coverage-20201102-20261029/days.json",
+          "logical_bytes": 829877,
+          "allocated_bytes": 831488
+        },
+        {
+          "path": "/path/to/home/Documents/TSPP/reports/daily-coverage-20201102-20261029/monthly.json",
+          "logical_bytes": 43525,
+          "allocated_bytes": 45056
+        },
+        {
+          "path": "/path/to/home/Documents/TSPP/reports/daily-coverage-20201102-20261029/index-gaps.csv",
+          "logical_bytes": 26,
+          "allocated_bytes": 4096
+        },
+        {
+          "path": "/path/to/home/Documents/TSPP/reports/daily-coverage-20201102-20261029/invalid-rows.csv",
+          "logical_bytes": 32,
+          "allocated_bytes": 4096
+        },
+        {
+          "path": "/path/to/home/Documents/TSPP/reports/tdx-daily-full-20261029/obtained-missing-daily.csv",
+          "logical_bytes": 46,
+          "allocated_bytes": 4096
+        },
+        {
+          "path": "/path/to/home/Documents/TSPP/reports/tdx-daily-full-20261029/obtained-missing-daily.parquet",
+          "logical_bytes": 798,
+          "allocated_bytes": 4096
+        },
+        {
+          "path": "/path/to/home/Documents/TSPP/reports/tdx-daily-full-20261029/source-records-for-gap-keys.csv",
+          "logical_bytes": 95,
+          "allocated_bytes": 4096
+        }
+      ],
+      "removed_logical_bytes": 11966052,
+      "removed_allocated_bytes": 12652544,
+      "protected_daily_snapshot_before": null,
+      "protected_daily_snapshot_after": null,
+      "protected_daily_data_unchanged": null,
+      "business_data_deletion_targets": 0
+    }
+  },
+  "removed_allocated_bytes": 945811456,
+  "removed_logical_bytes": 944995352,
+  "preserved_missing_keys": 9565,
+  "online_daily_files_unchanged": 2906,
+  "business_data_deletion_targets": 0,
+  "preserved_reports": [
+    "/path/to/home/Documents/TSPP/reports/daily-coverage-20201102-20261029/report.md",
+    "/path/to/home/Documents/TSPP/reports/tdx-daily-full-20261029/report.md"
+  ]
+}

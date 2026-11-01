@@ -1,0 +1,83 @@
+{
+  "started_at": "2026-10-26T23:20:51.177949+08:00",
+  "window_start": "2026-09-26",
+  "window_end": "2026-10-26",
+  "trading_days": [
+    "2026-09-28",
+    "2026-09-29",
+    "2026-09-30",
+    "2026-10-08",
+    "2026-10-09",
+    "2026-10-12",
+    "2026-10-13",
+    "2026-10-14",
+    "2026-10-15",
+    "2026-10-16",
+    "2026-10-19",
+    "2026-10-20",
+    "2026-10-21",
+    "2026-10-22",
+    "2026-10-23",
+    "2026-10-26"
+  ],
+  "symbols": [
+    "000001.SZ",
+    "000002.SZ",
+    "000333.SZ",
+    "002415.SZ",
+    "002594.SZ",
+    "300059.SZ",
+    "300750.SZ",
+    "600000.SH",
+    "600031.SH",
+    "600036.SH",
+    "600519.SH",
+    "601012.SH",
+    "601318.SH",
+    "601398.SH",
+    "601888.SH",
+    "688981.SH"
+  ],
+  "source_release": "ba82f395650c4b7484797c685d939893",
+  "raw_basis_marker": false,
+  "rustdx_availability": [
+    true,
+    "jelven-rustdx-complete 1.12.2 (jelven007/rustdx@9dfc024) / bridge 0.1.1"
+  ],
+  "calendar": {
+    "version": "SSE-2026-20251222",
+    "covered_years": [
+      2026
+    ],
+    "sha256": "ddade224998c4dbc373572985b08a8ae3ecf822eb3fef6a05e88da56af43126c",
+    "unknown_year_policy": "provider_evidence"
+  },
+  "server": "117.34.114.13:7709",
+  "collection_policy": "serial; native pool 2 connections; background 1; timeout 8 seconds",
+  "native_stats": {
+    "active_connections": 0,
+    "active_server": "117.34.114.13:7709",
+    "closed": false,
+    "failures": 0,
+    "idle_connections": 2,
+    "max_connections": 2,
+    "minute_requests": 80,
+    "quote_batch_size": 60,
+    "retries": 0,
+    "scheduler": {
+      "background_active": 0,
+      "background_limit": 1,
+      "background_peak": 1,
+      "foreground_waiting": 0,
+      "slot_acquisitions": 112,
+      "slot_wait_ms_max": 0.001,
+      "slot_wait_ms_total": 0.005,
+      "waiting_requests": 0
+    },
+    "total_connections": 2
+  },
+  "failures": [],
+  "finished_at": "2026-10-26T23:21:07.634827+08:00",
+  "source_link_still_same": true,
+  "source_partitions_unchanged": true
+}

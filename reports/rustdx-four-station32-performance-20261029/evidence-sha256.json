@@ -1,0 +1,392 @@
+{
+  "published": [
+    {
+      "name": "analysis.json",
+      "sha256": "0a79cde5096d08edcc49446d8ec507f941139370ce882f58e23dc32a66b92fb5",
+      "bytes": 25640
+    },
+    {
+      "name": "checks.json",
+      "sha256": "bf3bf43c01fd1517c6bf258a428fe61c0cdff774f4ef73997cf2c0380d2d8e24",
+      "bytes": 626
+    },
+    {
+      "name": "measurements.json",
+      "sha256": "9f8f8cee8f0d6cb006847f2852c0a6bc5389c47ffa09098427fb1f00fd866ff3",
+      "bytes": 412827
+    },
+    {
+      "name": "prototype.patch",
+      "sha256": "e73b98b56556c1d89e2fb31667be768ed98970d4043853aa14dd53d931d7bf86",
+      "bytes": 13483
+    },
+    {
+      "name": "report.md",
+      "sha256": "6cced38461e355c3e7d1be0c5575f1890124e8a5cf980644a334302be69b8ec9",
+      "bytes": 10431
+    },
+    {
+      "name": "run-records.json",
+      "sha256": "c64a2ed24bcb9734914efaf58fdf15a0da30bd26ede68262be267994cb1f2ad7",
+      "bytes": 3562
+    },
+    {
+      "name": "tcp-gate32.json",
+      "sha256": "ae343d88c212fb902814aa6c8ae2610925a5548f70e83b77021ddf33bf3ba98e",
+      "bytes": 14004
+    },
+    {
+      "name": "verification.json",
+      "sha256": "c178a423eea1193750a21890c7aa3962efd749a77ef5a456f92c23488051d672",
+      "bytes": 313
+    }
+  ],
+  "intermediate_evidence": [
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/analysis32.json",
+      "sha256": "0a79cde5096d08edcc49446d8ec507f941139370ce882f58e23dc32a66b92fb5",
+      "bytes": 25640
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/analysis32.log",
+      "sha256": "bf4d5966979522cc03cdf9afe89bcc729a8822a822cd62334d23a9030ebb5a99",
+      "bytes": 3604
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/analyze32.py",
+      "sha256": "51b5dccdac57c4ae6ede446eaafd8d57c15f41eed1c112b4bcd150ae54135acb",
+      "bytes": 5136
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/cold-daily-changed.parquet",
+      "sha256": "5340d8d4590bebf69a6fdc258c65d7e3db57eef3c2874e492863a23e1a3e536f",
+      "bytes": 1351
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/cold-daily-raw.parquet",
+      "sha256": "36e7166bf77f41e27fc20d4aa4d60eae6ded743901ce66a8c2a118ea7ad0d31c",
+      "bytes": 42800
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/cold-daily.parquet",
+      "sha256": "16d86edc4b08c13660da0ce85e281acf34e626d4d4778649af10f43270f8d648",
+      "bytes": 42569
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/cold-minute-changed.parquet",
+      "sha256": "7e8c623f0a948935b1b7f1d677da32516845bfe47b9d23a8b4d1de4d1c708096",
+      "bytes": 50201
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/cold-minute-raw.parquet",
+      "sha256": "3f06fc362d3e2fcb6a25bfb8fc431821590a2338c287ef01782bd465112d2dff",
+      "bytes": 4832235
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/cold-minute.parquet",
+      "sha256": "3f06fc362d3e2fcb6a25bfb8fc431821590a2338c287ef01782bd465112d2dff",
+      "bytes": 4832235
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/result.json",
+      "sha256": "2cfccbfd71cfe54573d5e708f51aecf4c33dd26c99258e422b331dfd16044ff5",
+      "bytes": 150134
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/run.log",
+      "sha256": "3555e4a91fd1283af408e2ad8e4707d4664dcce359e6a2716b4c853c8eb81047",
+      "bytes": 1080
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/warm-daily-changed.parquet",
+      "sha256": "5340d8d4590bebf69a6fdc258c65d7e3db57eef3c2874e492863a23e1a3e536f",
+      "bytes": 1351
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/warm-daily-raw.parquet",
+      "sha256": "29f0d540f2de469170b82884872481ed609c389968047985f2d24adb5d703683",
+      "bytes": 40142
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/warm-daily.parquet",
+      "sha256": "42dd82b16d1bc221d525733046447995d284cdcd804a823392f0a76013f4ec29",
+      "bytes": 39863
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/warm-minute-changed.parquet",
+      "sha256": "936929b3ac115ad954d1712f08665497a89fd66fe67da0bb2958cf2794561c80",
+      "bytes": 67523
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/warm-minute-raw.parquet",
+      "sha256": "bebd492642faed15ccab13fb0589f85ecd2bc411928f8ce77cad67a4e6c4d950",
+      "bytes": 4512647
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/warm-minute.parquet",
+      "sha256": "bebd492642faed15ccab13fb0589f85ecd2bc411928f8ce77cad67a4e6c4d950",
+      "bytes": 4512647
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/cold-daily-changed.parquet",
+      "sha256": "5340d8d4590bebf69a6fdc258c65d7e3db57eef3c2874e492863a23e1a3e536f",
+      "bytes": 1351
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/cold-daily-raw.parquet",
+      "sha256": "b7c0ab2e3c2574079b87cdd9b983fe362a02b5a613dd72cc239242ed998438d6",
+      "bytes": 42933
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/cold-daily.parquet",
+      "sha256": "16d86edc4b08c13660da0ce85e281acf34e626d4d4778649af10f43270f8d648",
+      "bytes": 42569
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/cold-minute-changed.parquet",
+      "sha256": "e99a059d55cc3e690694c78ad0ad5e90c26ba5d3cf29ea42389bfa925e0f4653",
+      "bytes": 1362
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/cold-minute-raw.parquet",
+      "sha256": "1cb1e78a3854f7e130159d8f9466cff05a6a65600e30ebe5946b1ec3eb6810ff",
+      "bytes": 5568498
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/cold-minute.parquet",
+      "sha256": "1cb1e78a3854f7e130159d8f9466cff05a6a65600e30ebe5946b1ec3eb6810ff",
+      "bytes": 5568498
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/result.json",
+      "sha256": "bbe07006e7328f85d1fe3d085768e61db940fefb067cd290f1008c9e815253b2",
+      "bytes": 106340
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/run.log",
+      "sha256": "cbbf1322bf75e7fa29749a85737b522baa9d6bc4d1616275ea27a9af3b5e1629",
+      "bytes": 1057
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/warm-daily-changed.parquet",
+      "sha256": "5340d8d4590bebf69a6fdc258c65d7e3db57eef3c2874e492863a23e1a3e536f",
+      "bytes": 1351
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/warm-daily-raw.parquet",
+      "sha256": "b7c0ab2e3c2574079b87cdd9b983fe362a02b5a613dd72cc239242ed998438d6",
+      "bytes": 42933
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/warm-daily.parquet",
+      "sha256": "16d86edc4b08c13660da0ce85e281acf34e626d4d4778649af10f43270f8d648",
+      "bytes": 42569
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/warm-minute-changed.parquet",
+      "sha256": "e99a059d55cc3e690694c78ad0ad5e90c26ba5d3cf29ea42389bfa925e0f4653",
+      "bytes": 1362
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/warm-minute-raw.parquet",
+      "sha256": "46032c6251d4edc887e03847a327fa5b3bf24921802abe7e58c36e82f742ec5c",
+      "bytes": 4890405
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/warm-minute.parquet",
+      "sha256": "46032c6251d4edc887e03847a327fa5b3bf24921802abe7e58c36e82f742ec5c",
+      "bytes": 4890405
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/cold-daily-changed.parquet",
+      "sha256": "5340d8d4590bebf69a6fdc258c65d7e3db57eef3c2874e492863a23e1a3e536f",
+      "bytes": 1351
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/cold-daily-raw.parquet",
+      "sha256": "36e7166bf77f41e27fc20d4aa4d60eae6ded743901ce66a8c2a118ea7ad0d31c",
+      "bytes": 42800
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/cold-daily.parquet",
+      "sha256": "16d86edc4b08c13660da0ce85e281acf34e626d4d4778649af10f43270f8d648",
+      "bytes": 42569
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/cold-minute-changed.parquet",
+      "sha256": "7c5de46d45207b775e0c6c8b4c517a6b38b62eb3b8146dbf582892697b1f5b0e",
+      "bytes": 68225
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/cold-minute-raw.parquet",
+      "sha256": "a00a23b4181fcd1b28847eaf90c14e6469cdbdc9dd22cf2ecd6fdd977ad3009c",
+      "bytes": 5568545
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/cold-minute.parquet",
+      "sha256": "a00a23b4181fcd1b28847eaf90c14e6469cdbdc9dd22cf2ecd6fdd977ad3009c",
+      "bytes": 5568545
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/result.json",
+      "sha256": "691f9de9c589eef91ccf4d3f7f89504e0eba05a136454cb23becada420ffb973",
+      "bytes": 124945
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/run.log",
+      "sha256": "19335380de90e8c638a0c89e6465962b00fae1608d8da6c6a5a803cfb0b75199",
+      "bytes": 1082
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/warm-daily-changed.parquet",
+      "sha256": "5340d8d4590bebf69a6fdc258c65d7e3db57eef3c2874e492863a23e1a3e536f",
+      "bytes": 1351
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/warm-daily-raw.parquet",
+      "sha256": "36e7166bf77f41e27fc20d4aa4d60eae6ded743901ce66a8c2a118ea7ad0d31c",
+      "bytes": 42800
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/warm-daily.parquet",
+      "sha256": "16d86edc4b08c13660da0ce85e281acf34e626d4d4778649af10f43270f8d648",
+      "bytes": 42569
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/warm-minute-changed.parquet",
+      "sha256": "90c463afa52094e314210598a32151dbcdc0e325e4c70b856d99d1ff9cc87601",
+      "bytes": 41429
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/warm-minute-raw.parquet",
+      "sha256": "3edc61f7f83dc0a6ac3eff981b1e02ab82cc45dbab1e96abdf355ce75f04a8ec",
+      "bytes": 5009947
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/warm-minute.parquet",
+      "sha256": "3edc61f7f83dc0a6ac3eff981b1e02ab82cc45dbab1e96abdf355ce75f04a8ec",
+      "bytes": 5009947
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/measure32.py",
+      "sha256": "1ddf51a3fb9b842900f5d801b74cde7278feee766d8fbe7956e2e70ab31dc0c6",
+      "bytes": 14084
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/measurements-full.json",
+      "sha256": "9f8f8cee8f0d6cb006847f2852c0a6bc5389c47ffa09098427fb1f00fd866ff3",
+      "bytes": 412827
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/publish32.log",
+      "sha256": "7cc99b880128d46913e788669a5ae5596f361d5577d75ae61a55cf3a47668f25",
+      "bytes": 627
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/publish32.py",
+      "sha256": "725fd2bce74dee7356f4eab8040774a0a7121b89da16fee1870094e7257acfa1",
+      "bytes": 4961
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/ruff.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/run-results.json",
+      "sha256": "c64a2ed24bcb9734914efaf58fdf15a0da30bd26ede68262be267994cb1f2ad7",
+      "bytes": 3562
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/run32.log",
+      "sha256": "83053aed98c8d16af5d4d4c292da98cecaf62bb6fe42bf8d989900ef992e2506",
+      "bytes": 2627
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/run32.py",
+      "sha256": "6bdfd992f874cd58ae720d83a4e0cd20c5297ee33cc06276a61e633e9dccb62e",
+      "bytes": 1868
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/tcp-gate32.json",
+      "sha256": "ae343d88c212fb902814aa6c8ae2610925a5548f70e83b77021ddf33bf3ba98e",
+      "bytes": 14004
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/tcp-gate32.log",
+      "sha256": "04812cdd92a18c056df0e13a75623eb51cc05dbda0924c99b298dad9b10adf49",
+      "bytes": 7599
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/tcp_gate32.py",
+      "sha256": "0ac4647607571493d213b5281e810788b2fc4d8d2be03bdf7e0e7f702ebad708",
+      "bytes": 3884
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/verify32.py",
+      "sha256": "cd5d3151f8098169e86fcce140a113ab4cf54e31ed3135ab2f50c03e195dcd12",
+      "bytes": 2755
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/backend/native/rustdx_native/src/lib.rs",
+      "sha256": "a3ee4808fcdd44c407a66039d6bf8cf9d44a86d41e0e533fb0039e7515bd27aa",
+      "bytes": 35791
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/backend/native/rustdx_native/src/pool.rs",
+      "sha256": "a05c0fbb302ec6406fb6df83b78048d8188dccb4f61c044a6b431bee930cff64",
+      "bytes": 9401
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/backend/app/plugins/rustdx/routing.py",
+      "sha256": "fde2039a563972937b367dec945dcb23c618a48e3a00fd6ef396361dfbbaac6c",
+      "bytes": 4977
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/wheels/tsp_rustdx_native-0.2.0-cp312-cp312-macosx_11_0_arm64.whl",
+      "sha256": "846b9faf0b360a81dc9faed9eb292ee2afae9d700570a0e8adeafaa22df0c0cb",
+      "bytes": 850096
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/cargo-test.log",
+      "sha256": "0c21693f3d94efb4e7bd2c0617b6cc5f2d9b7910a00efcd6066d606d344c683f",
+      "bytes": 1051
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/clippy.log",
+      "sha256": "13d1bb2670093bf6f805a8642aa447deeb34e4862a60f638347252b5783a567f",
+      "bytes": 317
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/native-compatibility.log",
+      "sha256": "13a3c32d5a9e1860c8eed8119ccdbc77e6032bfe57edea52a973dcc0ff5fbd75",
+      "bytes": 100
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/baseline/backend/app/plugins/rustdx/provider.py",
+      "sha256": "98d263f5baf488a3e7088467527e19b5ae6e996bbefcb7943e89a531e94a3265",
+      "bytes": 60937
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/baseline/backend/app/plugins/rustdx/client.py",
+      "sha256": "abaf05c4e0d6a47b4a5ac5c1997fd4163d92f073ea0edca49be1d88eb4075042",
+      "bytes": 13757
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/baseline/backend/native/rustdx_native/Cargo.lock",
+      "sha256": "9053180824c61fcde8d0af04ca23387f87a196563582f3e29769cf2fe062fafc",
+      "bytes": 20674
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/native/tsp_rustdx_native/tsp_rustdx_native.cpython-312-darwin.so",
+      "sha256": "61029560311984a15935288ef550ef443ee124f76b55f8be603c5904d83edbad",
+      "bytes": 1941408
+    }
+  ],
+  "intermediate_retention": "Original raw frames and scripts remain under the temporary experiment directory."
+}

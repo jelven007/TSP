@@ -10,14 +10,14 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 
 from app.cell.config import CellSettings
 from app.cell.context import AccessError
 from app.cell.database import Databases
 from app.cell.scheduler import Scheduler
-from app.market_time import cn_today
+from app.market_time import cn_now, cn_today
 from app.multitenancy.alerts import append_in_transaction
 from app.multitenancy.documents import TenantDocuments
 from app.multitenancy.events import append_event
@@ -116,6 +116,24 @@ class FullWorker:
                 "signals": unit.values("custom_signals"), "factors": unit.values("custom_factors"),
                 **({"public_release_id": snapshot["public_release"]["id"]} if snapshot.get("public_release") else {}),
             }
+            from app.services.strategy_results import capture_identity, previous_daily_state
+            payload["previous_states"] = {}
+            payload["daily_identities"] = {}
+            for sid in {r.get("strategy_id") for r in rules} & {"s02"}:
+                try:
+                    payload["previous_states"][sid] = previous_daily_state(unit, sid, cn_today())
+                    if not hasattr(self, "_daily_strategy_engine"):
+                        from pathlib import Path
+
+                        from app.strategy.engine import StrategyEngine
+                        self._daily_strategy_engine = StrategyEngine(
+                            [Path(__file__).resolve().parents[1] / "strategy/builtin"])
+                    payload["daily_identities"][sid] = asdict(capture_identity(
+                        self._daily_strategy_engine, unit, sid,
+                        overrides=payload["overrides"].get(sid), timeframe="1m"))
+                except ValueError:
+                    # Missing history disables this strategy in the compute kernel.
+                    pass
             observed = fingerprint(conn)
         return account, context, payload, observed
 
@@ -176,6 +194,11 @@ class FullWorker:
                         })
                     unit.put("monitor_runtime", "default", {**result["state"], "sequence": sequence})
                     if result["results"]:
+                        from app.services.strategy_results import ResultIdentity, StrategyResults
+                        for sid, daily in result["results"].items():
+                            if daily.get("sections") is not None and sid in payload.get("daily_identities", {}):
+                                record = ResultIdentity(**payload["daily_identities"][sid])
+                                StrategyResults(unit).save(record, daily, started_at=sequence * 1000000)
                         unit.put("monitor_results", "default", {
                             "sequence": sequence, "results": result["results"],
                             "fingerprint": fingerprint(conn, include_state=False),
@@ -222,6 +245,7 @@ class FullWorker:
                         execution_events + [event for event in events if event["source"] != "strategy"],
                         account_id, prices={symbol: quote[0] for symbol, quote in prices.items()},
                         allow_entries=fresh,
+                        minute_repo=self.repo, completed_through=cn_now(),
                     )
                 self.settle(session, snapshot)
                 for account_id in session.account_ids():

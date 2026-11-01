@@ -59,7 +59,7 @@ class PresetRequest(BaseModel):
     as_of: Optional[date] = None
     ext_columns: Optional[str] = None
     asset_type: str = "stock"
-    timeframe: str = "1d"
+    timeframe: str | None = None
 
 
 def _safe(result_dict: dict) -> dict:
@@ -252,7 +252,8 @@ def _cache_payload_with_ext(cached: dict, ext_values: dict[str, dict[str, Any]])
     return payload
 
 
-def _update_cache_strategy(data_dir, as_of: str, strategy_id: str, safe_data: dict) -> None:
+def _update_cache_strategy(data_dir, as_of: str, strategy_id: str, safe_data: dict,
+                           *, generation: int = 0) -> None:
     """单跑后更新缓存中该策略的结果，保持缓存与最新计算一致。"""
     from app.services import strategy_cache
     cached = strategy_cache.read_cache(data_dir)
@@ -267,7 +268,7 @@ def _update_cache_strategy(data_dir, as_of: str, strategy_id: str, safe_data: di
             # 数据不足提示 (#303) 随缓存下发 (get_cached 原样读出),
             # 单跑刷新不得冲掉 run_all 写入的提示
             results[strategy_id]["warnings"] = safe_data["warnings"]
-        strategy_cache.write_cache(data_dir, as_of, results)
+        strategy_cache.write_cache(data_dir, as_of, results, generations={strategy_id: generation})
 
 
 @router.get("/strategies", response_model=contracts.ScreenerStrategiesResponse)
@@ -340,7 +341,7 @@ def run_preset(req: PresetRequest, request: Request):
     engine = _strategy_engine(request)
     if not engine:
         raise HTTPException(status_code=404, detail=f"策略引擎未初始化或策略 {req.strategy_id} 不存在")
-    engine = strategy_results.execution_snapshot(engine)
+    engine = strategy_results.execution_snapshot(engine, data_dir)
     if getattr(engine, "remote_context", False):
         overrides = engine._override_loader(req.strategy_id)
 
@@ -349,19 +350,20 @@ def run_preset(req: PresetRequest, request: Request):
             raise ValueError(f"unknown strategy: {req.strategy_id}")
         if engine.get(req.strategy_id).meta.get("research_only"):
             raise ValueError(f"unknown strategy: {req.strategy_id}")
+        timeframe = req.timeframe or (engine.get(req.strategy_id).meta.get("timeframes") or ["1d"])[0]
         params = dict(overrides.get("params") or {})
         generation = strategy_results.input_generation(repo, engine, req.asset_type)
         context = svc.build_strategy_context(
             engine,
             as_of,
             [req.strategy_id],
-            timeframe=req.timeframe,
+            timeframe=timeframe,
             params_map={req.strategy_id: params},
             overrides_map={req.strategy_id: overrides or {}},
         )
         identity = strategy_results.capture_identity(
             engine, data_dir, req.strategy_id, params=params, overrides=overrides,
-            pool=req.pool, asset_type=req.asset_type, timeframe=req.timeframe,
+            pool=req.pool, asset_type=req.asset_type, timeframe=timeframe,
         )
         result = engine.run(
             req.strategy_id,
@@ -375,7 +377,7 @@ def run_preset(req: PresetRequest, request: Request):
         raise HTTPException(status_code=status_code, detail=str(e)) from e
 
     safe_data = _safe(asdict(result))
-    if req.timeframe == "1d":
+    if timeframe == "1d":
         # 数据不足提示随结果返回并写入盘后缓存 (#303); 分钟周期结果不写入盘后缓存
         # (strategy_cache 是日线语义, as_of/updated_at 混入分钟结果会污染页面秒加载路径),
         # 分钟策略数据源也与日线 enriched 历史无关, 不提示。
@@ -393,8 +395,9 @@ def run_preset(req: PresetRequest, request: Request):
     )
     safe_data["computed_at"] = saved["summary"]["computed_at"]
     safe_data["record_id"] = saved["record_id"]
-    if req.timeframe == "1d":
-        _update_cache_strategy(data_dir, str(as_of), req.strategy_id, safe_data)
+    if timeframe == "1d":
+        _update_cache_strategy(data_dir, str(as_of), req.strategy_id, safe_data,
+                               generation=identity.storage_generation)
     return _result_with_ext(safe_data, ext_values)
 
 
@@ -461,7 +464,7 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
             if saved:
                 results[identity.strategy_id] = {
                     **saved["result"], "record_id": saved["record_id"],
-                    "source": "saved", "strategy_version": identity.strategy_version,
+                    "source": "saved", "strategy_version": saved["summary"]["strategy_version"],
                 }
                 ever[identity.strategy_id] = saved["ever_rows"]
     for sid, live in realtime.items():
@@ -654,6 +657,10 @@ def get_cached_result(
         "computed_at": raw_result.get("computed_at"),
         "record_id": raw_result.get("record_id"),
         "source": raw_result.get("source"),
+        "sections": raw_result.get("sections"),
+        "state": raw_result.get("state"),
+        "portfolio_scope": raw_result.get("portfolio_scope"),
+        "execution_error": raw_result.get("execution_error"),
     }
 
     ever_rows = None
@@ -832,14 +839,16 @@ def _run_all_progressive(
             elapsed_map[sid] = (time.perf_counter() - t0) * 1000
             # 逐策略增量落盘 (write_cache 同日按 sid 合并), 前端轮询即可逐个看到
             try:
-                strategy_cache.write_cache(data_dir, str(as_of), {sid: payload})
+                strategy_cache.write_cache(data_dir, str(as_of), {sid: payload},
+                                           generations={sid: identities[sid].storage_generation})
             except Exception:
                 logger.warning("run_all 渐进写入缓存失败: %s", sid, exc_info=True)
             handle.complete(sid, {k: v for k, v in payload.items() if k != "rows"})
         # 收尾: 与旧版口径一致的整体重写 + 耗时落盘供下次排序
         if all_results:
             with contextlib.suppress(Exception):
-                strategy_cache.write_cache(data_dir, str(as_of), all_results)
+                strategy_cache.write_cache(data_dir, str(as_of), all_results,
+                                           generations={sid: identities[sid].storage_generation for sid in all_results})
         strategy_run_queue.record_run_timings(data_dir, elapsed_map)
 
     handle = strategy_run_queue.MANAGER.get_or_submit(key, ordered_ids, job)
@@ -884,7 +893,8 @@ def run_all(request: Request, body: Optional[dict] = None):
     engine = _strategy_engine(request)
     if engine is None:
         raise HTTPException(status_code=503, detail="策略引擎未初始化")
-    engine = strategy_results.execution_snapshot(engine)
+    data_dir = _private_data_dir(request)
+    engine = strategy_results.execution_snapshot(engine, data_dir)
 
     # 解析日期
     raw_date = body.get("as_of")
@@ -1014,7 +1024,8 @@ def run_all(request: Request, body: Optional[dict] = None):
     # 写入策略缓存 (供页面秒加载); 分钟周期结果不落盘 (日线语义缓存)
     if results and timeframe == "1d":
         try:
-            strategy_cache.write_cache(data_dir, str(as_of), results)
+            strategy_cache.write_cache(data_dir, str(as_of), results,
+                                       generations={sid: identities[sid].storage_generation for sid in results})
         except Exception:  # noqa: BLE001
             pass
 

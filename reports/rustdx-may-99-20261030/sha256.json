@@ -1,0 +1,14 @@
+{
+  "confirmed-missing-stock-days.csv": "59b603c41b7c4e86d8aa9968a06182d2b3d62d55048d8833ae95e4fd2b52a595",
+  "finished-boundaries.json": "ba49ace6f4d3eb7b06249a783c6cdaa45f2a379a2b172865fd14541946a758df",
+  "fresh-verification.json": "331515352e155652809c91256a01846eeeb4719dd40f5620425403ee308b2997",
+  "node-screen.json": "95b9309259b27864ae2b8400eabc0b674051b92f8ffa66d5c4f015ea79816be4",
+  "raw-evidence-final.tar.gz": "2f9269329f03ab1e47879587ceb4b749d0c8d31f9d80081fcd9063d92bedfe53",
+  "raw-protocol-audit.json": "d4732a80c366c25830308b044ab1fb38eb2917448afcbf8ccbc54518def6a812",
+  "reconstruction-audit.json": "a7994c6837a9d1fd4b94ce43fd12324c1b210eab224bca1a9cfee8926cc67a75",
+  "refined-reconstruction.json": "28c6a66c1e7f8a342be7f7efcc8b78173ac02015669fda1c700a28b4573623c2",
+  "report.md": "45f348c46245459175cc02008de259dd936812ef10677b8e36b54a73a17a5a30",
+  "result.json": "510b2ec7deec44e705755fa6fe77937fa53dd07be4c62f18a038de75e0fb674a",
+  "sample-audit.json": "0fa65c1af9d1fd34924013d8c72d45f8dc1f2bf46746b70272f2137c10e77b5e",
+  "verification.json": "cd5aac3ac6ff01ce9aac264b69fac87840295a4412fa55632f233e709788a3a4"
+}

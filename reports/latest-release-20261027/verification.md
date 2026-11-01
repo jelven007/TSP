@@ -49,7 +49,7 @@
 ## 升级前实际环境
 
 本地入口`http://127.0.0.1:3021`，API3028、Platform3029，当前版本0.4.31；
-线上`https://shanao.asia`，当前版本0.4.32。两端ready=true、status=ok，
+线上`https://server.example.com`，当前版本0.4.32。两端ready=true、status=ok，
 market/research/monitoring/paper_trading/notifications/scheduled均就绪。
 本地采用8角色与独立Compute，线上采用7容器角色、主机Broker和PostgreSQL。
 本次常规升级保留现有数据，不重复此前六周期清理操作。

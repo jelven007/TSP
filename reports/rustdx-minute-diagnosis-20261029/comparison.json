@@ -1,0 +1,1082 @@
+{
+  "identities": {
+    "old": {
+      "core": "1.12.2",
+      "rev": "9dfc024c9662fa5091099c1f17610569ee2eca8b",
+      "bridge": "0.1.1",
+      "pool_api": 2,
+      "binary_sha256": "4779d0c0bea6cf973968832f6e266bd21a324a6dfe4c51ce32fd2cd3d378a313"
+    },
+    "before": {
+      "core": "2.0.4",
+      "rev": "c4c0273456874898aed50447fd900521d9ffd3b8",
+      "bridge": "0.2.0",
+      "pool_api": 3,
+      "binary_sha256": "4e2be2c4bbc2f93a987804783b6ec992e27a78a072b36922e680164688bcd8ee"
+    },
+    "fixed": {
+      "core": "2.0.4",
+      "rev": "c4c0273456874898aed50447fd900521d9ffd3b8",
+      "bridge": "0.2.0",
+      "pool_api": 3,
+      "binary_sha256": "92eb04f23a2903748cdfccb1871a55b579c54abd8d8969837549cd32cd572189"
+    }
+  },
+  "started_at": {
+    "old": "2026-10-29T00:18:01.706526+00:00",
+    "before": "2026-10-29T00:16:33.039166+00:00",
+    "fixed": "2026-10-29T00:16:33.284224+00:00"
+  },
+  "finished_at": {
+    "old": "2026-10-29T00:18:22.156952+00:00",
+    "before": "2026-10-29T00:16:55.414185+00:00",
+    "fixed": "2026-10-29T00:16:55.184912+00:00"
+  },
+  "scope": "3 equities x 3 fixed endpoints x 3 native binaries; one connection, 8s timeout, no failover",
+  "comparisons": [
+    {
+      "endpoint": "117.34.114.13:7709",
+      "symbol": "600000.SH",
+      "versions": {
+        "old": {
+          "rows": 22320,
+          "unique_keys": 22320,
+          "minimum": "2026-06-11 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 31
+        },
+        "before": {
+          "rows": 22320,
+          "unique_keys": 22320,
+          "minimum": "2026-06-11 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 31
+        },
+        "fixed": {
+          "rows": 22320,
+          "unique_keys": 22320,
+          "minimum": "2026-06-11 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 31
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 22320,
+          "different_rows": 0,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        },
+        "before": {
+          "common_keys": 22320,
+          "different_rows": 0,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        }
+      }
+    },
+    {
+      "endpoint": "117.34.114.13:7709",
+      "symbol": "301110.SZ",
+      "versions": {
+        "old": {
+          "rows": 23760,
+          "unique_keys": 23760,
+          "minimum": "2026-06-03 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        },
+        "before": {
+          "rows": 23760,
+          "unique_keys": 23760,
+          "minimum": "2026-06-03 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        },
+        "fixed": {
+          "rows": 23760,
+          "unique_keys": 23760,
+          "minimum": "2026-06-03 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 23760,
+          "different_rows": 0,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        },
+        "before": {
+          "common_keys": 23760,
+          "different_rows": 0,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        }
+      }
+    },
+    {
+      "endpoint": "117.34.114.13:7709",
+      "symbol": "688121.SH",
+      "versions": {
+        "old": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        },
+        "before": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        },
+        "fixed": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 24000,
+          "different_rows": 14,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 1,
+          "october28_different_rows": 2,
+          "difference_examples": [
+            {
+              "datetime": "2026-08-26 14:22",
+              "old": [
+                1.83,
+                1.83,
+                1.83,
+                1.83,
+                0.0,
+                1544.0
+              ],
+              "fixed": [
+                1.83,
+                1.83,
+                1.83,
+                1.83,
+                0.0,
+                14.0
+              ]
+            },
+            {
+              "datetime": "2026-09-16 11:24",
+              "old": [
+                1.23,
+                1.23,
+                1.23,
+                1.23,
+                0.0,
+                2056.0
+              ],
+              "fixed": [
+                1.23,
+                1.23,
+                1.23,
+                1.23,
+                0.0,
+                16.0
+              ]
+            }
+          ]
+        },
+        "before": {
+          "common_keys": 24000,
+          "different_rows": 0,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        }
+      }
+    },
+    {
+      "endpoint": "115.238.56.198:7709",
+      "symbol": "600000.SH",
+      "versions": {
+        "old": {
+          "rows": 22800,
+          "unique_keys": 22800,
+          "minimum": "2026-06-09 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 32
+        },
+        "before": {
+          "rows": 22800,
+          "unique_keys": 22800,
+          "minimum": "2026-06-09 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 32
+        },
+        "fixed": {
+          "rows": 22560,
+          "unique_keys": 22560,
+          "minimum": "2026-06-10 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 32
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 22560,
+          "different_rows": 564,
+          "only_version_keys": 240,
+          "only_fixed_keys": 0,
+          "august_different_rows": 473,
+          "october28_different_rows": 0,
+          "difference_examples": [
+            {
+              "datetime": "2026-06-23 09:31",
+              "old": [
+                9.14,
+                9.2,
+                9.13,
+                9.2,
+                920600.0,
+                8426274.0
+              ],
+              "fixed": [
+                9.14,
+                9.19,
+                9.13,
+                9.18,
+                879000.0,
+                8043940.0
+              ]
+            },
+            {
+              "datetime": "2026-06-23 09:32",
+              "old": [
+                9.18,
+                9.22,
+                9.18,
+                9.22,
+                1063000.0,
+                9788285.0
+              ],
+              "fixed": [
+                9.2,
+                9.22,
+                9.18,
+                9.22,
+                1104600.0,
+                10170619.0
+              ]
+            }
+          ]
+        },
+        "before": {
+          "common_keys": 22560,
+          "different_rows": 766,
+          "only_version_keys": 240,
+          "only_fixed_keys": 0,
+          "august_different_rows": 371,
+          "october28_different_rows": 0,
+          "difference_examples": [
+            {
+              "datetime": "2026-06-23 09:34",
+              "before": [
+                9.25,
+                9.25,
+                9.24,
+                9.24,
+                738600.0,
+                6827065.0
+              ],
+              "fixed": [
+                9.25,
+                9.25,
+                9.24,
+                9.25,
+                696900.0,
+                6441737.0
+              ]
+            },
+            {
+              "datetime": "2026-06-23 09:35",
+              "before": [
+                9.25,
+                9.27,
+                9.24,
+                9.26,
+                1431600.0,
+                13251423.0
+              ],
+              "fixed": [
+                9.24,
+                9.27,
+                9.24,
+                9.26,
+                1473300.0,
+                13636751.0
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "115.238.56.198:7709",
+      "symbol": "301110.SZ",
+      "versions": {
+        "old": {
+          "rows": 23760,
+          "unique_keys": 23760,
+          "minimum": "2026-06-03 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        },
+        "before": {
+          "rows": 23760,
+          "unique_keys": 23760,
+          "minimum": "2026-06-03 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        },
+        "fixed": {
+          "rows": 23520,
+          "unique_keys": 23520,
+          "minimum": "2026-06-04 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 23520,
+          "different_rows": 0,
+          "only_version_keys": 240,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        },
+        "before": {
+          "common_keys": 23520,
+          "different_rows": 0,
+          "only_version_keys": 240,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        }
+      }
+    },
+    {
+      "endpoint": "115.238.56.198:7709",
+      "symbol": "688121.SH",
+      "versions": {
+        "old": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        },
+        "before": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        },
+        "fixed": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 24000,
+          "different_rows": 161,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 37,
+          "october28_different_rows": 2,
+          "difference_examples": [
+            {
+              "datetime": "2026-04-07 09:31",
+              "old": [
+                10.38,
+                10.48,
+                10.38,
+                10.43,
+                46000.0,
+                479256.0
+              ],
+              "fixed": [
+                10.38,
+                10.48,
+                10.38,
+                10.43,
+                47500.0,
+                494901.0
+              ]
+            },
+            {
+              "datetime": "2026-04-07 09:32",
+              "old": [
+                10.43,
+                10.43,
+                10.4,
+                10.41,
+                25700.0,
+                268579.0
+              ],
+              "fixed": [
+                10.43,
+                10.43,
+                10.4,
+                10.41,
+                24200.0,
+                252934.0
+              ]
+            }
+          ]
+        },
+        "before": {
+          "common_keys": 24000,
+          "different_rows": 328,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 42,
+          "october28_different_rows": 0,
+          "difference_examples": [
+            {
+              "datetime": "2026-04-07 09:31",
+              "before": [
+                10.38,
+                10.48,
+                10.38,
+                10.43,
+                46000.0,
+                479256.0
+              ],
+              "fixed": [
+                10.38,
+                10.48,
+                10.38,
+                10.43,
+                47500.0,
+                494901.0
+              ]
+            },
+            {
+              "datetime": "2026-04-07 09:32",
+              "before": [
+                10.43,
+                10.43,
+                10.4,
+                10.41,
+                25700.0,
+                268579.0
+              ],
+              "fixed": [
+                10.43,
+                10.43,
+                10.4,
+                10.41,
+                24200.0,
+                252934.0
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "symbol": "600000.SH",
+      "versions": {
+        "old": {
+          "rows": 23520,
+          "unique_keys": 23520,
+          "minimum": "2026-06-04 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        },
+        "before": {
+          "rows": 23520,
+          "unique_keys": 23520,
+          "minimum": "2026-06-04 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        },
+        "fixed": {
+          "rows": 23520,
+          "unique_keys": 23520,
+          "minimum": "2026-06-04 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 23520,
+          "different_rows": 172,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 97,
+          "october28_different_rows": 0,
+          "difference_examples": [
+            {
+              "datetime": "2026-06-12 10:35",
+              "old": [
+                9.55,
+                9.56,
+                9.55,
+                9.55,
+                83500.0,
+                797539.0
+              ],
+              "fixed": [
+                9.56,
+                9.56,
+                9.55,
+                9.55,
+                83500.0,
+                797539.0
+              ]
+            },
+            {
+              "datetime": "2026-06-23 10:54",
+              "old": [
+                9.2,
+                9.22,
+                9.2,
+                9.22,
+                161600.0,
+                1488273.0
+              ],
+              "fixed": [
+                9.2,
+                9.22,
+                9.2,
+                9.21,
+                144100.0,
+                1326935.0
+              ]
+            }
+          ]
+        },
+        "before": {
+          "common_keys": 23520,
+          "different_rows": 203,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 116,
+          "october28_different_rows": 0,
+          "difference_examples": [
+            {
+              "datetime": "2026-06-12 10:35",
+              "before": [
+                9.55,
+                9.56,
+                9.55,
+                9.55,
+                83500.0,
+                797539.0
+              ],
+              "fixed": [
+                9.56,
+                9.56,
+                9.55,
+                9.55,
+                83500.0,
+                797539.0
+              ]
+            },
+            {
+              "datetime": "2026-06-18 11:09",
+              "before": [
+                9.11,
+                9.11,
+                9.1,
+                9.11,
+                105400.0,
+                959250.0
+              ],
+              "fixed": [
+                9.11,
+                9.11,
+                9.1,
+                9.1,
+                94100.0,
+                856369.0
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "symbol": "301110.SZ",
+      "versions": {
+        "old": {
+          "rows": 23760,
+          "unique_keys": 23760,
+          "minimum": "2026-06-03 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        },
+        "before": {
+          "rows": 23760,
+          "unique_keys": 23760,
+          "minimum": "2026-06-03 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        },
+        "fixed": {
+          "rows": 23760,
+          "unique_keys": 23760,
+          "minimum": "2026-06-03 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 0,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 33
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 23760,
+          "different_rows": 0,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        },
+        "before": {
+          "common_keys": 23760,
+          "different_rows": 0,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 0,
+          "october28_different_rows": 0,
+          "difference_examples": []
+        }
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "symbol": "688121.SH",
+      "versions": {
+        "old": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        },
+        "before": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        },
+        "fixed": {
+          "rows": 24000,
+          "unique_keys": 24000,
+          "minimum": "2026-03-27 09:31",
+          "maximum": "2026-10-28 15:00",
+          "march_april_rows": 5520,
+          "august_rows": 5040,
+          "october28_rows": 240,
+          "errors": [],
+          "deep_probes": {
+            "24000": 0,
+            "32000": 0,
+            "63200": 0
+          },
+          "terminated": true,
+          "actual_bar_requests": 34
+        }
+      },
+      "differences_against_fixed": {
+        "old": {
+          "common_keys": 24000,
+          "different_rows": 97,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 5,
+          "october28_different_rows": 2,
+          "difference_examples": [
+            {
+              "datetime": "2026-04-07 10:08",
+              "old": [
+                10.62,
+                10.62,
+                10.59,
+                10.6,
+                5900.0,
+                63456.0
+              ],
+              "fixed": [
+                10.62,
+                10.62,
+                10.59,
+                10.59,
+                5400.0,
+                57583.0
+              ]
+            },
+            {
+              "datetime": "2026-04-07 10:09",
+              "old": [
+                10.6,
+                10.61,
+                10.57,
+                10.61,
+                19900.0,
+                210504.0
+              ],
+              "fixed": [
+                10.6,
+                10.61,
+                10.57,
+                10.61,
+                20400.0,
+                216377.0
+              ]
+            }
+          ]
+        },
+        "before": {
+          "common_keys": 24000,
+          "different_rows": 93,
+          "only_version_keys": 0,
+          "only_fixed_keys": 0,
+          "august_different_rows": 12,
+          "october28_different_rows": 0,
+          "difference_examples": [
+            {
+              "datetime": "2026-04-07 10:30",
+              "before": [
+                10.61,
+                10.61,
+                10.6,
+                10.6,
+                2300.0,
+                24468.0
+              ],
+              "fixed": [
+                10.61,
+                10.61,
+                10.6,
+                10.61,
+                8100.0,
+                85932.0
+              ]
+            },
+            {
+              "datetime": "2026-04-07 10:31",
+              "before": [
+                10.61,
+                10.67,
+                10.61,
+                10.67,
+                84100.0,
+                894530.0
+              ],
+              "fixed": [
+                10.62,
+                10.67,
+                10.62,
+                10.67,
+                78300.0,
+                833066.0
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

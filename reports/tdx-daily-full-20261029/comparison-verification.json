@@ -1,0 +1,16 @@
+{
+  "status": "verified",
+  "target_key_csv_json_totals_match": true,
+  "source_record_csv_totals_match": true,
+  "classification_totals_match": true,
+  "candidate_csv_parquet_totals_match": true,
+  "candidates_are_original_missing_keys": true,
+  "candidate_duplicate_keys": 0,
+  "candidate_rows": 0,
+  "target_keys": 9565,
+  "online_reference_bars": 13,
+  "official_file_online_overlap_bars": 9,
+  "share_to_lot_unit_scale_verified": true,
+  "archive_sha256": "3d2afd03d4e858cf8c9f61805bbe5c987a7eefe8702e3832ae036711c3399281",
+  "binary_unit_and_edge_tests": "9 passed"
+}

@@ -1,0 +1,11 @@
+{
+  "online-logs-cleared.json": "f291683184be0279e712ed02cf2f7c69aff64ce8debbe0e602fb58a26cb630c9",
+  "local-logs-cleared.json": "321bff58ae9be81b73bde85d591df6ab858e05de87ce2ed729647674f38e7cea",
+  "verification.md": "f2b87b4c7df60ab471b3578931ff1e06b61860e05c2eab1bf7a060d779337277",
+  "http-storage-final.json": "f7a95af02655c7ffea7194099a171f986caf9085d3edd06de7463840cf1b1f2c",
+  "local-file-verification.json": "28150257297462411b070622cbfce283b7d52efba31331e37a04e1e16b04d23a",
+  "online-file-verification.json": "822ec5dbd3e79ab1dc9985cc328929591c2be1cce19d5dded7d61f4ec59d35c2",
+  "http-verification.json": "74a07b273f71ff26bf6747660a143a8b72bd8ce22b86df8dd2ac48b429beff9b",
+  "local-control.json": "aa7cab6491dda80dd529eabd49853a399805f21b49a70e7618ec1eb57a42d91c",
+  "local-applied.json": "740ea31cab9c2d74c47d7aa521e586a1673691e8fc8cf69122cd41dc5e18bb63"
+}

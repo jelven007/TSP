@@ -1,0 +1,44 @@
+{
+  "stage": "verified",
+  "status": "succeeded",
+  "started_at": "2026-10-29T00:19:00.878777+00:00",
+  "job_id": "7ae6fcc72e",
+  "request": {
+    "start_date": "2026-03-23",
+    "period": "1m",
+    "mode": "full",
+    "end_date": "2026-03-27"
+  },
+  "version": "0.4.38",
+  "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "job_status": "succeeded",
+  "progress": 100,
+  "message": "已写入240行, 跳过仍缺少的6202800行, 详见缺口报告",
+  "result": {
+    "passed": true,
+    "version": "0.4.38",
+    "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+    "job_id": "7ae6fcc72e",
+    "original_job_id": "429ac3fde7",
+    "request": {
+      "start_date": "2026-03-23",
+      "period": "1m",
+      "mode": "full",
+      "end_date": "2026-03-27"
+    },
+    "task_status": "succeeded",
+    "finished_at": "2026-10-29T00:39:41.037146+00:00",
+    "completion_message": "已写入240行, 跳过仍缺少的6202800行, 详见缺口报告",
+    "processed_write_rows": 240,
+    "new_scope_rows": 0,
+    "scope_rows_before": 240,
+    "scope_rows_after": 240,
+    "scope_days_before": 1,
+    "scope_days_after": 1,
+    "remaining": 6202800,
+    "global_partition_days_before": 142,
+    "global_partition_days_after": 142,
+    "summary_matches_disk": true,
+    "minute_basis_preserved": true
+  }
+}

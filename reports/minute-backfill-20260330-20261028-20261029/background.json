@@ -1,0 +1,13 @@
+{
+  "task_id": "minute-backfill-20260330-20261028-20261029",
+  "service": "tsp-minute-backfill-20260330-20261028-20261029.service",
+  "launch_active_state": "active",
+  "launch_sub_state": "running",
+  "worker_shell_command_id": "f6cb217b6e1bb38e83385151390e1de4",
+  "collector_shell_command_id": "6de6e23d39b2069ae600768ad4afccf5",
+  "operational_guard_tests_passed": 6,
+  "existing_missing_mode_contract_tests_passed": 10,
+  "ruff": "passed",
+  "worker_sha256": "bdeb53d0c12b180b32b92e1cfaf579b287e5ae283a69fac0412f219c6ee0961b",
+  "collector_configured": true
+}

@@ -1,0 +1,86 @@
+{
+  "kline_minute/date=2026-06-01/part.parquet": {
+    "size": 142382,
+    "mtime_ns": 1793312732505868295,
+    "inode": 25311040,
+    "rows": 12240,
+    "sha256": "608e09ed2f95bea5fc8ab9d09a1452718e761c9fc846713dfed48fdda34ff9a9"
+  },
+  "kline_minute/date=2026-06-02/part.parquet": {
+    "size": 167800,
+    "mtime_ns": 1793312732513898810,
+    "inode": 25311041,
+    "rows": 14640,
+    "sha256": "66d94945df581e6651da3e83dc9125aef1659aaac996462609c5c6a0228023a3"
+  },
+  "kline_minute/date=2026-06-03/part.parquet": {
+    "size": 1178311,
+    "mtime_ns": 1793312738871965951,
+    "inode": 25311080,
+    "rows": 97200,
+    "sha256": "69dda7609b4c76b24628e25c0c988caaa62135c236f7edf08e38cbe8316f55e9"
+  },
+  "kline_minute/date=2026-06-04/part.parquet": {
+    "size": 1997573,
+    "mtime_ns": 1793312735935562674,
+    "inode": 25311054,
+    "rows": 166320,
+    "sha256": "22053b631f7b11aad7f1679fb20f5d6e130d75e788993bcaea745c6d451cdd1e"
+  },
+  "kline_minute/date=2026-06-05/part.parquet": {
+    "size": 2870119,
+    "mtime_ns": 1793312735981095885,
+    "inode": 25311055,
+    "rows": 228960,
+    "sha256": "8fe873e1614f645f51e6b2d2f8217beda457adee5a637f2cbef13ad3f74c57e2"
+  },
+  "kline_minute/date=2026-06-08/part.parquet": {
+    "size": 3721515,
+    "mtime_ns": 1793312736035109321,
+    "inode": 25311056,
+    "rows": 288960,
+    "sha256": "92ff5af669e40e7d6dff5cb5c63b9072b9100f95a7a36192812ac656e47c9f45"
+  },
+  "kline_minute/date=2026-06-09/part.parquet": {
+    "size": 4152157,
+    "mtime_ns": 1793312736099808735,
+    "inode": 25311057,
+    "rows": 340320,
+    "sha256": "9f5debb6492b1df29ae9b72d2fa714bed732f3029f744853e583003fdc063ff4"
+  },
+  "kline_minute/date=2026-06-10/part.parquet": {
+    "size": 5275837,
+    "mtime_ns": 1793312736177724591,
+    "inode": 25311058,
+    "rows": 425280,
+    "sha256": "24ac81c3e5287ad27ed8ae99115ce0a00d15c6a8f2c23a5088e410ee8fec1499"
+  },
+  "kline_minute/date=2026-06-11/part.parquet": {
+    "size": 11056275,
+    "mtime_ns": 1793312736341269277,
+    "inode": 25311059,
+    "rows": 940320,
+    "sha256": "567cfe583a5739746d43030e51528b1e66ee782b9525ab66116f037777d234e3"
+  },
+  "kline_minute/date=2026-06-12/part.parquet": {
+    "size": 12250802,
+    "mtime_ns": 1793312736526102419,
+    "inode": 25311060,
+    "rows": 1031520,
+    "sha256": "febc39a66bbdce3c80b0f4bde065fe9fe640c9affa2e9675aff3e2dd6c450e87"
+  },
+  "kline_minute/date=2026-06-15/part.parquet": {
+    "size": 12724077,
+    "mtime_ns": 1793312736716352446,
+    "inode": 25311061,
+    "rows": 1108800,
+    "sha256": "25118d23ad76839b6b4038479a8ba6552f17582495e46bd23e54d55dd839d864"
+  },
+  "kline_minute/date=2026-06-16/part.parquet": {
+    "size": 13614598,
+    "mtime_ns": 1793312736913514945,
+    "inode": 25311063,
+    "rows": 1175040,
+    "sha256": "de118a0b488f4ab2109199a700736396f01fc97892a54ad1333a5fc2d32b3344"
+  }
+}

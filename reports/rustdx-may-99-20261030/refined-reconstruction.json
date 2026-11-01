@@ -1,0 +1,900 @@
+{
+  "checked_at_beijing": "2026-10-30T07:04:08.817386+08:00",
+  "results": [
+    {
+      "endpoint": "117.34.114.13:7709",
+      "symbol": "000001.SZ",
+      "date": "2026-10-29",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 239,
+        "missing_minutes": 1,
+        "exact_ohlcv": 236,
+        "exact_by_field": {
+          "open": 239,
+          "high": 236,
+          "low": 239,
+          "close": 239,
+          "volume_shares": 239
+        },
+        "sum_estimate_minus_reported_amount": 706152.6250000002,
+        "mismatch_examples": [
+          {
+            "datetime": "2026-10-29 09:55:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 09:55:00",
+              "open": 11.43,
+              "high": 11.45,
+              "low": 11.43,
+              "close": 11.43,
+              "volume_shares": 2167600.0,
+              "amount": 24788476.0
+            },
+            "reconstructed": {
+              "open": 11.43,
+              "high": 11.44,
+              "low": 11.43,
+              "close": 11.43,
+              "volume_shares": 2167600,
+              "amount_estimate": 24787696.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 10:04:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 10:04:00",
+              "open": 11.47,
+              "high": 11.48,
+              "low": 11.44,
+              "close": 11.44,
+              "volume_shares": 3725200.0,
+              "amount": 42670476.0
+            },
+            "reconstructed": {
+              "open": 11.47,
+              "high": 11.47,
+              "low": 11.44,
+              "close": 11.44,
+              "volume_shares": 3725200,
+              "amount_estimate": 42702385.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 13:46:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 13:46:00",
+              "open": 11.49,
+              "high": 11.53,
+              "low": 11.49,
+              "close": 11.51,
+              "volume_shares": 7099600.0,
+              "amount": 81741584.0
+            },
+            "reconstructed": {
+              "open": 11.49,
+              "high": 11.52,
+              "low": 11.49,
+              "close": 11.51,
+              "volume_shares": 7099600,
+              "amount_estimate": 81729626.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          }
+        ],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 199350400.0,
+        "reported_amount_total": 2283899669.375,
+        "missing_source_minutes": [
+          "2026-10-29 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "117.34.114.13:7709",
+      "symbol": "600000.SH",
+      "date": "2026-10-29",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 238,
+        "missing_minutes": 2,
+        "exact_ohlcv": 236,
+        "exact_by_field": {
+          "open": 238,
+          "close": 238,
+          "volume_shares": 238,
+          "high": 236,
+          "low": 237
+        },
+        "sum_estimate_minus_reported_amount": -8878.000000001877,
+        "mismatch_examples": [
+          {
+            "datetime": "2026-10-29 09:31:00",
+            "reported": {
+              "symbol": "600000.SH",
+              "datetime": "2026-10-29 09:31:00",
+              "open": 9.85,
+              "high": 9.92,
+              "low": 9.84,
+              "close": 9.89,
+              "volume_shares": 1407000.0,
+              "amount": 13901009.0
+            },
+            "reconstructed": {
+              "open": 9.85,
+              "high": 9.9,
+              "low": 9.85,
+              "close": 9.89,
+              "volume_shares": 1407000,
+              "amount_estimate": 13903532.0
+            },
+            "mismatched": [
+              "high",
+              "low"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 14:52:00",
+            "reported": {
+              "symbol": "600000.SH",
+              "datetime": "2026-10-29 14:52:00",
+              "open": 9.97,
+              "high": 10.01,
+              "low": 9.97,
+              "close": 10.0,
+              "volume_shares": 1465600.0,
+              "amount": 14650412.0
+            },
+            "reconstructed": {
+              "open": 9.97,
+              "high": 10.0,
+              "low": 9.97,
+              "close": 10.0,
+              "volume_shares": 1465600,
+              "amount_estimate": 14639963.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          }
+        ],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 75394900.0,
+        "reported_amount_total": 748543846.0,
+        "missing_source_minutes": [
+          "2026-10-29 14:58:00",
+          "2026-10-29 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "117.34.114.13:7709",
+      "symbol": "688496.SH",
+      "date": "2026-05-06",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 236,
+        "missing_minutes": 4,
+        "exact_ohlcv": 236,
+        "exact_by_field": {
+          "open": 236,
+          "high": 236,
+          "low": 236,
+          "close": 236,
+          "volume_shares": 236
+        },
+        "sum_estimate_minus_reported_amount": -17339.999999999225,
+        "mismatch_examples": [],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 22865400.0,
+        "reported_amount_total": 95971749.0,
+        "missing_source_minutes": [
+          "2026-05-06 14:20:00",
+          "2026-05-06 14:22:00",
+          "2026-05-06 14:23:00",
+          "2026-05-06 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "117.34.114.13:7709",
+      "symbol": "688496.SH",
+      "date": "2026-05-29",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 219,
+        "missing_minutes": 21,
+        "exact_ohlcv": 218,
+        "exact_by_field": {
+          "open": 219,
+          "high": 218,
+          "low": 219,
+          "close": 219,
+          "volume_shares": 219
+        },
+        "sum_estimate_minus_reported_amount": 4988.0000000000655,
+        "mismatch_examples": [
+          {
+            "datetime": "2026-05-29 09:33:00",
+            "reported": {
+              "symbol": "688496.SH",
+              "datetime": "2026-05-29 09:33:00",
+              "open": 1.04,
+              "high": 1.05,
+              "low": 1.03,
+              "close": 1.04,
+              "volume_shares": 266000.0,
+              "amount": 277225.0
+            },
+            "reconstructed": {
+              "open": 1.04,
+              "high": 1.04,
+              "low": 1.03,
+              "close": 1.04,
+              "volume_shares": 266000,
+              "amount_estimate": 276633.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          }
+        ],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 17432500.0,
+        "reported_amount_total": 17450853.0,
+        "missing_source_minutes": [
+          "2026-05-29 09:54:00",
+          "2026-05-29 10:54:00",
+          "2026-05-29 10:55:00",
+          "2026-05-29 11:01:00",
+          "2026-05-29 11:15:00",
+          "2026-05-29 11:18:00",
+          "2026-05-29 11:20:00",
+          "2026-05-29 11:21:00",
+          "2026-05-29 11:22:00",
+          "2026-05-29 11:26:00",
+          "2026-05-29 11:27:00",
+          "2026-05-29 13:11:00",
+          "2026-05-29 13:17:00",
+          "2026-05-29 13:32:00",
+          "2026-05-29 13:37:00",
+          "2026-05-29 13:38:00",
+          "2026-05-29 13:46:00",
+          "2026-05-29 13:48:00",
+          "2026-05-29 14:30:00",
+          "2026-05-29 14:58:00",
+          "2026-05-29 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "115.238.56.198:7709",
+      "symbol": "000001.SZ",
+      "date": "2026-10-29",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 239,
+        "missing_minutes": 1,
+        "exact_ohlcv": 236,
+        "exact_by_field": {
+          "open": 239,
+          "high": 236,
+          "low": 239,
+          "close": 239,
+          "volume_shares": 239
+        },
+        "sum_estimate_minus_reported_amount": 706152.6250000002,
+        "mismatch_examples": [
+          {
+            "datetime": "2026-10-29 09:55:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 09:55:00",
+              "open": 11.43,
+              "high": 11.45,
+              "low": 11.43,
+              "close": 11.43,
+              "volume_shares": 2167600.0,
+              "amount": 24788476.0
+            },
+            "reconstructed": {
+              "open": 11.43,
+              "high": 11.44,
+              "low": 11.43,
+              "close": 11.43,
+              "volume_shares": 2167600,
+              "amount_estimate": 24787696.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 10:04:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 10:04:00",
+              "open": 11.47,
+              "high": 11.48,
+              "low": 11.44,
+              "close": 11.44,
+              "volume_shares": 3725200.0,
+              "amount": 42670476.0
+            },
+            "reconstructed": {
+              "open": 11.47,
+              "high": 11.47,
+              "low": 11.44,
+              "close": 11.44,
+              "volume_shares": 3725200,
+              "amount_estimate": 42702385.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 13:46:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 13:46:00",
+              "open": 11.49,
+              "high": 11.53,
+              "low": 11.49,
+              "close": 11.51,
+              "volume_shares": 7099600.0,
+              "amount": 81741584.0
+            },
+            "reconstructed": {
+              "open": 11.49,
+              "high": 11.52,
+              "low": 11.49,
+              "close": 11.51,
+              "volume_shares": 7099600,
+              "amount_estimate": 81729626.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          }
+        ],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 199350400.0,
+        "reported_amount_total": 2283899669.375,
+        "missing_source_minutes": [
+          "2026-10-29 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "115.238.56.198:7709",
+      "symbol": "600000.SH",
+      "date": "2026-10-29",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 238,
+        "missing_minutes": 2,
+        "exact_ohlcv": 236,
+        "exact_by_field": {
+          "open": 238,
+          "close": 238,
+          "volume_shares": 238,
+          "high": 236,
+          "low": 237
+        },
+        "sum_estimate_minus_reported_amount": -8878.000000001877,
+        "mismatch_examples": [
+          {
+            "datetime": "2026-10-29 09:31:00",
+            "reported": {
+              "symbol": "600000.SH",
+              "datetime": "2026-10-29 09:31:00",
+              "open": 9.85,
+              "high": 9.92,
+              "low": 9.84,
+              "close": 9.89,
+              "volume_shares": 1407000.0,
+              "amount": 13901009.0
+            },
+            "reconstructed": {
+              "open": 9.85,
+              "high": 9.9,
+              "low": 9.85,
+              "close": 9.89,
+              "volume_shares": 1407000,
+              "amount_estimate": 13903532.0
+            },
+            "mismatched": [
+              "high",
+              "low"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 14:52:00",
+            "reported": {
+              "symbol": "600000.SH",
+              "datetime": "2026-10-29 14:52:00",
+              "open": 9.97,
+              "high": 10.01,
+              "low": 9.97,
+              "close": 10.0,
+              "volume_shares": 1465600.0,
+              "amount": 14650412.0
+            },
+            "reconstructed": {
+              "open": 9.97,
+              "high": 10.0,
+              "low": 9.97,
+              "close": 10.0,
+              "volume_shares": 1465600,
+              "amount_estimate": 14639963.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          }
+        ],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 75394900.0,
+        "reported_amount_total": 748543846.0,
+        "missing_source_minutes": [
+          "2026-10-29 14:58:00",
+          "2026-10-29 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "symbol": "000001.SZ",
+      "date": "2026-10-29",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 239,
+        "missing_minutes": 1,
+        "exact_ohlcv": 236,
+        "exact_by_field": {
+          "open": 239,
+          "high": 236,
+          "low": 239,
+          "close": 239,
+          "volume_shares": 239
+        },
+        "sum_estimate_minus_reported_amount": 706152.6250000002,
+        "mismatch_examples": [
+          {
+            "datetime": "2026-10-29 09:55:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 09:55:00",
+              "open": 11.43,
+              "high": 11.45,
+              "low": 11.43,
+              "close": 11.43,
+              "volume_shares": 2167600.0,
+              "amount": 24788476.0
+            },
+            "reconstructed": {
+              "open": 11.43,
+              "high": 11.44,
+              "low": 11.43,
+              "close": 11.43,
+              "volume_shares": 2167600,
+              "amount_estimate": 24787696.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 10:04:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 10:04:00",
+              "open": 11.47,
+              "high": 11.48,
+              "low": 11.44,
+              "close": 11.44,
+              "volume_shares": 3725200.0,
+              "amount": 42670476.0
+            },
+            "reconstructed": {
+              "open": 11.47,
+              "high": 11.47,
+              "low": 11.44,
+              "close": 11.44,
+              "volume_shares": 3725200,
+              "amount_estimate": 42702385.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 13:46:00",
+            "reported": {
+              "symbol": "000001.SZ",
+              "datetime": "2026-10-29 13:46:00",
+              "open": 11.49,
+              "high": 11.53,
+              "low": 11.49,
+              "close": 11.51,
+              "volume_shares": 7099600.0,
+              "amount": 81741584.0
+            },
+            "reconstructed": {
+              "open": 11.49,
+              "high": 11.52,
+              "low": 11.49,
+              "close": 11.51,
+              "volume_shares": 7099600,
+              "amount_estimate": 81729626.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          }
+        ],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 199350400.0,
+        "reported_amount_total": 2283899669.375,
+        "missing_source_minutes": [
+          "2026-10-29 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "symbol": "600000.SH",
+      "date": "2026-10-29",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 238,
+        "missing_minutes": 2,
+        "exact_ohlcv": 236,
+        "exact_by_field": {
+          "open": 238,
+          "close": 238,
+          "volume_shares": 238,
+          "high": 236,
+          "low": 237
+        },
+        "sum_estimate_minus_reported_amount": -8824.000000001877,
+        "mismatch_examples": [
+          {
+            "datetime": "2026-10-29 09:31:00",
+            "reported": {
+              "symbol": "600000.SH",
+              "datetime": "2026-10-29 09:31:00",
+              "open": 9.85,
+              "high": 9.92,
+              "low": 9.84,
+              "close": 9.89,
+              "volume_shares": 1407000.0,
+              "amount": 13901009.0
+            },
+            "reconstructed": {
+              "open": 9.85,
+              "high": 9.9,
+              "low": 9.85,
+              "close": 9.89,
+              "volume_shares": 1407000,
+              "amount_estimate": 13903532.0
+            },
+            "mismatched": [
+              "high",
+              "low"
+            ]
+          },
+          {
+            "datetime": "2026-10-29 14:52:00",
+            "reported": {
+              "symbol": "600000.SH",
+              "datetime": "2026-10-29 14:52:00",
+              "open": 9.97,
+              "high": 10.01,
+              "low": 9.97,
+              "close": 10.0,
+              "volume_shares": 1465600.0,
+              "amount": 14650412.0
+            },
+            "reconstructed": {
+              "open": 9.97,
+              "high": 10.0,
+              "low": 9.97,
+              "close": 10.0,
+              "volume_shares": 1465600,
+              "amount_estimate": 14639963.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          }
+        ],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 75394900.0,
+        "reported_amount_total": 748543846.0,
+        "missing_source_minutes": [
+          "2026-10-29 14:58:00",
+          "2026-10-29 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "symbol": "688496.SH",
+      "date": "2026-05-06",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 236,
+        "missing_minutes": 4,
+        "exact_ohlcv": 236,
+        "exact_by_field": {
+          "open": 236,
+          "high": 236,
+          "low": 236,
+          "close": 236,
+          "volume_shares": 236
+        },
+        "sum_estimate_minus_reported_amount": -17352.999999999225,
+        "mismatch_examples": [],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 22865400.0,
+        "reported_amount_total": 95971749.0,
+        "missing_source_minutes": [
+          "2026-05-06 14:20:00",
+          "2026-05-06 14:22:00",
+          "2026-05-06 14:23:00",
+          "2026-05-06 14:59:00"
+        ]
+      }
+    },
+    {
+      "endpoint": "180.153.18.170:7709",
+      "symbol": "688496.SH",
+      "date": "2026-05-29",
+      "reference": "genuine 052d category 8 rows; same endpoint as captured events",
+      "comparison": {
+        "shift_minutes": 1,
+        "reported_bars": 240,
+        "reconstructed_minutes": 219,
+        "missing_minutes": 21,
+        "exact_ohlcv": 218,
+        "exact_by_field": {
+          "open": 219,
+          "high": 218,
+          "low": 219,
+          "close": 219,
+          "volume_shares": 219
+        },
+        "sum_estimate_minus_reported_amount": 4988.0000000000655,
+        "mismatch_examples": [
+          {
+            "datetime": "2026-05-29 09:33:00",
+            "reported": {
+              "symbol": "688496.SH",
+              "datetime": "2026-05-29 09:33:00",
+              "open": 1.04,
+              "high": 1.05,
+              "low": 1.03,
+              "close": 1.04,
+              "volume_shares": 266000.0,
+              "amount": 277225.0
+            },
+            "reconstructed": {
+              "open": 1.04,
+              "high": 1.04,
+              "low": 1.03,
+              "close": 1.04,
+              "volume_shares": 266000,
+              "amount_estimate": 276633.0
+            },
+            "mismatched": [
+              "high"
+            ]
+          }
+        ],
+        "reference_raw_quantity_to_shares": 1,
+        "reported_source_raw_volume_total": 17432500.0,
+        "reported_amount_total": 17450853.0,
+        "missing_source_minutes": [
+          "2026-05-29 09:54:00",
+          "2026-05-29 10:54:00",
+          "2026-05-29 10:55:00",
+          "2026-05-29 11:01:00",
+          "2026-05-29 11:15:00",
+          "2026-05-29 11:18:00",
+          "2026-05-29 11:20:00",
+          "2026-05-29 11:21:00",
+          "2026-05-29 11:22:00",
+          "2026-05-29 11:26:00",
+          "2026-05-29 11:27:00",
+          "2026-05-29 13:11:00",
+          "2026-05-29 13:17:00",
+          "2026-05-29 13:32:00",
+          "2026-05-29 13:37:00",
+          "2026-05-29 13:38:00",
+          "2026-05-29 13:46:00",
+          "2026-05-29 13:48:00",
+          "2026-05-29 14:30:00",
+          "2026-05-29 14:58:00",
+          "2026-05-29 14:59:00"
+        ]
+      }
+    }
+  ],
+  "imports": 0,
+  "evidence": [
+    {
+      "file": "117.34.114.13-7709-000001.SZ-bars-8-0.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "19ee176692f1c81a558e152ab581d5da6324e86e72500fc26a13de6deafb7dad"
+    },
+    {
+      "file": "117.34.114.13-7709-600000.SH-bars-8-0.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "cab2ca0a5d06eee953de66ff49dfc811c521c52425dc1bb9b56f8a95ea43c7be"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-11200.bin",
+      "command": "052d",
+      "bytes": 12807,
+      "sha256": "44c17edf11ddaff9d0727749761f3c4a612db53131655c0398281a19ef6d7acc"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-17600.bin",
+      "command": "052d",
+      "bytes": 12803,
+      "sha256": "ecac9eb32d3eb60900d0388e5260b17f1aecdbdc600927ff4b86c5e918899aef"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-20800.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "53d34cd0da19e97ed8a8cc5e5260ce2403d0c9d2d2ef7cf9d52b4168651f7c3b"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-22400.bin",
+      "command": "052d",
+      "bytes": 2563,
+      "sha256": "cca0d13c3ef85ac94cb8b39f2d6bc16dc86153b1b25867d25957840124accfc0"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-21600.bin",
+      "command": "052d",
+      "bytes": 12811,
+      "sha256": "98d6ad3686ecfed040452540d1dffadfefce744f4204c4a138cdd771989d69cd"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-11200.bin",
+      "command": "052d",
+      "bytes": 12807,
+      "sha256": "44c17edf11ddaff9d0727749761f3c4a612db53131655c0398281a19ef6d7acc"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-17600.bin",
+      "command": "052d",
+      "bytes": 12803,
+      "sha256": "ecac9eb32d3eb60900d0388e5260b17f1aecdbdc600927ff4b86c5e918899aef"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-16800.bin",
+      "command": "052d",
+      "bytes": 12814,
+      "sha256": "992f95008e06a457fea3b1e70448d86c88dd55f8ece31a7886b529ea37d97d77"
+    },
+    {
+      "file": "117.34.114.13-7709-688496.SH-bars-8-18400.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "ef829160508975d07e2d5a4041c911921d04b089e9cb3501b6689898f0480b69"
+    },
+    {
+      "file": "115.238.56.198-7709-000001.SZ-bars-8-0.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "19ee176692f1c81a558e152ab581d5da6324e86e72500fc26a13de6deafb7dad"
+    },
+    {
+      "file": "115.238.56.198-7709-600000.SH-bars-8-0.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "cab2ca0a5d06eee953de66ff49dfc811c521c52425dc1bb9b56f8a95ea43c7be"
+    },
+    {
+      "file": "180.153.18.170-7709-000001.SZ-bars-8-0.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "19ee176692f1c81a558e152ab581d5da6324e86e72500fc26a13de6deafb7dad"
+    },
+    {
+      "file": "180.153.18.170-7709-600000.SH-bars-8-0.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "e94587a61831cdc4c3f6a9d70a20bc550edca030605ac632e04581ca2370eec5"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-11200.bin",
+      "command": "052d",
+      "bytes": 12807,
+      "sha256": "44c17edf11ddaff9d0727749761f3c4a612db53131655c0398281a19ef6d7acc"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-17600.bin",
+      "command": "052d",
+      "bytes": 12803,
+      "sha256": "1b8e651dc9f4ba0822500398c0ec2caacaf834bde92144a6386249994696d75c"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-20800.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "53d34cd0da19e97ed8a8cc5e5260ce2403d0c9d2d2ef7cf9d52b4168651f7c3b"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-22400.bin",
+      "command": "052d",
+      "bytes": 2563,
+      "sha256": "cca0d13c3ef85ac94cb8b39f2d6bc16dc86153b1b25867d25957840124accfc0"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-21600.bin",
+      "command": "052d",
+      "bytes": 12811,
+      "sha256": "0014ffe7b4c7c44aae6508427fdf3c4c88be2714915bdfe6d7bb41dd12019b52"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-11200.bin",
+      "command": "052d",
+      "bytes": 12807,
+      "sha256": "44c17edf11ddaff9d0727749761f3c4a612db53131655c0398281a19ef6d7acc"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-17600.bin",
+      "command": "052d",
+      "bytes": 12803,
+      "sha256": "1b8e651dc9f4ba0822500398c0ec2caacaf834bde92144a6386249994696d75c"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-16800.bin",
+      "command": "052d",
+      "bytes": 12814,
+      "sha256": "565f9df7b9eb5a840bdb812daf3d7e85829284b4f49662a3b9aa91b0aa95219b"
+    },
+    {
+      "file": "180.153.18.170-7709-688496.SH-bars-8-18400.bin",
+      "command": "052d",
+      "bytes": 12805,
+      "sha256": "ef829160508975d07e2d5a4041c911921d04b089e9cb3501b6689898f0480b69"
+    }
+  ]
+}

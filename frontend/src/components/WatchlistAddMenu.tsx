@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Folder, Inbox, List, LoaderCircle, RefreshCw } from 'lucide-react'
+import { Check, Folder, Inbox, List, LoaderCircle, Plus, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { resolveWatchlistGroupColor } from '@/lib/watchlist-group-colors'
 import { useModalPortalContainer } from './Modal'
+import { WatchlistGroupCreateDialog } from './WatchlistGroupCreateDialog'
 
 const MENU_WIDTH = 224
 const MENU_MAX_HEIGHT = 320
@@ -26,6 +27,7 @@ export interface WatchlistGroupMenuProps {
   triggerClassName?: string
   title?: string
   ariaLabel?: string
+  allowCreate?: boolean
 }
 
 /**
@@ -46,9 +48,11 @@ export function WatchlistGroupMenu({
   triggerClassName = '',
   title = '加入自选',
   ariaLabel = title,
+  allowCreate = false,
 }: WatchlistGroupMenuProps) {
   const portalContainer = useModalPortalContainer()
   const [open, setOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -256,9 +260,19 @@ export function WatchlistGroupMenu({
               })}
             </div>
           )}
+          {allowCreate && <div className="mt-1 border-t border-border/70 pt-1">
+            <button type="button" role="menuitem" className={menuItemClass}
+              onClick={() => { setOpen(false); setCreating(true) }}>
+              <Plus className="h-3.5 w-3.5 text-accent" />
+              新建自选分组
+            </button>
+          </div>}
         </div>,
         portalContainer,
       )}
+      {creating && <WatchlistGroupCreateDialog
+        onClose={() => { setCreating(false); triggerRef.current?.focus() }}
+        onCreated={groupId => { setCreating(false); choose(groupId) }} />}
     </>
   )
 }

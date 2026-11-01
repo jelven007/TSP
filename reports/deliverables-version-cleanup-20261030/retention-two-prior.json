@@ -1,0 +1,91 @@
+{
+  "execution_time": "2026-10-30T23:01:54.256675+08:00",
+  "scope": "deliverables/version-recovery",
+  "policy": "latest_source_plus_two_prior_versions",
+  "max_history_versions": 2,
+  "max_total_versions": 3,
+  "removed_file_count": 3,
+  "removed_bytes": 71501735,
+  "removed_archives": [
+    {
+      "version": "0.4.36",
+      "ref": "v0.4.36",
+      "commit": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+      "archive": "TSP-v0.4.36.tar.gz",
+      "sha256": "b610f7a705210ed7446813c63e0e00b1a6c12c8873f5957c2f8d523560c48f9e",
+      "bytes": 24229134
+    },
+    {
+      "version": "0.4.35",
+      "ref": "v0.4.35",
+      "commit": "700d25dad13b7b12c678e4443a893886299117a8",
+      "archive": "TSP-v0.4.35.tar.gz",
+      "sha256": "83b789891275b31b7ff38e461c38b52d0abef3a8e4a35f38ba08924c20a812ae",
+      "bytes": 24208814
+    },
+    {
+      "version": "0.4.34",
+      "ref": "v0.4.34",
+      "commit": "18f6f5cbea5bb651dc5fc09f289016bd01b9b6de",
+      "archive": "TSP-v0.4.34.tar.gz",
+      "sha256": "0a5a256417b507a1a381ed457d7db15766315632d14d4cf5ef090c946d0dce17",
+      "bytes": 23063787
+    }
+  ],
+  "retained_archive_bytes": 74667393,
+  "retained_archives": [
+    {
+      "version": "0.4.39",
+      "ref": "v0.4.39",
+      "commit": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+      "archive": "TSP-v0.4.39.tar.gz",
+      "sha256": "dc3be17432e6d3389af4be17c6b13d1685d31d7b9e882889ed88dbebb0cb8f44",
+      "bytes": 25009013
+    },
+    {
+      "version": "0.4.38",
+      "ref": "v0.4.38",
+      "commit": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "archive": "TSP-v0.4.38.tar.gz",
+      "sha256": "34867e12491913ddd01753ec6c142b1a07da77cf7f5436a0b98c6940025ab4e7",
+      "bytes": 24853324
+    },
+    {
+      "version": "0.4.37",
+      "ref": "v0.4.37",
+      "commit": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "archive": "TSP-v0.4.37.tar.gz",
+      "sha256": "e87ec9ee0bf3a2a0613bf56f204c391b1813343977af10a3e3fdb95c728d0433",
+      "bytes": 24805056
+    }
+  ],
+  "removed_files_absent": true,
+  "retained_archive_hashes_unchanged": true,
+  "all_deliverables_version_archives": [
+    "deliverables/version-recovery/TSP-v0.4.37.tar.gz",
+    "deliverables/version-recovery/TSP-v0.4.38.tar.gz",
+    "deliverables/version-recovery/TSP-v0.4.39.tar.gz"
+  ],
+  "public_preset_count": 22,
+  "preset_source_file_count": 26,
+  "preset_source_and_parameters_hashes_unchanged": true,
+  "git_history_tags_and_head_unchanged": true,
+  "head": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+  "git_refs_and_head_sha256": "9ba65948c553360cc968e6096937ccc8f43337c6aa5960d07a8c47861cd5c479",
+  "version_unchanged": true,
+  "checks": {
+    "count_and_short_history_red_failed": 8,
+    "obsolete_policy_red_failed": 2,
+    "recovery_regression_tests_passed": 28,
+    "targeted_ruff": "passed",
+    "active_recovery_cli": "Verified 3 source versions; latest 0.4.39",
+    "make_check": "passed",
+    "required_paths_checked": 87,
+    "current_markdown_checked": 35,
+    "markdown_including_reports_checked": 195,
+    "requirement_modules_checked": 8,
+    "delivery_indexes_checked": 3,
+    "documentation_and_navigation": "passed",
+    "cleanup_evidence_matches_computed_result": true
+  }
+}

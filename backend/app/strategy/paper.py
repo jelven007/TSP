@@ -759,6 +759,9 @@ def replay_positions(
             if pos.get("risk_entry_price") and factor:
                 pos["risk_entry_price"] /= factor
                 pos["risk_factor"] = pos.get("risk_factor", 1.0) * factor
+            if pos.get("shares"):
+                pos["shares"] *= factor
+                pos["remaining"] = pos["qty"]
             pos["available_qty"] = round(sum(lot["qty"] for lot in pos["lots"]), 6)
             continue
         side, qty, price, fee = f["side"], int(f["qty"]), float(f["price"]), float(f.get("fee", 0))
@@ -778,8 +781,13 @@ def replay_positions(
                 pos["risk_entry_price"] = price
                 pos["risk_factor"] = 1.0
                 pos["frozen_stop_price"] = f.get("frozen_stop_price")
+                pos.update(shares=0, entry_notional=0., entry_value=0.,
+                           sell_notional=0., sell_fee_paid=0., sell_days={})
             total_cost = pos["avg_cost"] * pos["qty"] + qty * price + fee
             pos["qty"] += qty
+            pos["shares"] += qty
+            pos["entry_notional"] += qty * price
+            pos["entry_value"] += qty * price + fee
             pos["avg_cost"] = round(total_cost / pos["qty"], 6) if pos["qty"] else 0.0
             pos["lots"].append({"date": f.get("date", ""), "qty": qty})
         else:
@@ -803,9 +811,15 @@ def replay_positions(
                 remain -= take
             pos["lots"] = [lot for lot in pos["lots"] if lot["qty"] > 1e-9]
             pos["qty"] = max(0, pos["qty"] - qty)
+            pos["sell_notional"] = pos.get("sell_notional", 0.) + qty * price
+            pos["sell_fee_paid"] = pos.get("sell_fee_paid", 0.) + fee
+            sales = pos.setdefault("sell_days", {}).setdefault(f.get("date", ""), {"notional": 0., "fee": 0.})
+            sales["notional"] += qty * price
+            sales["fee"] += fee
             if pos["qty"] == 0:
                 pos["avg_cost"] = 0.0
         pos["available_qty"] = _available_of(pos)
+        pos["remaining"] = pos["qty"]
     return positions, round(cash, 2)
 
 

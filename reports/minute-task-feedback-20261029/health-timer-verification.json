@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "version": "0.4.38",
+  "normal_restart_completed_at": "2026-10-29T00:32:18.227482+00:00",
+  "health_service_result": "success",
+  "health_service_exit_status": 0,
+  "health_service_exit_at": "2026-10-29 08:37:17 CST",
+  "health_timer_last_trigger": "2026-10-29 08:37:17 CST",
+  "health_timer_active": true,
+  "full_service_active": true,
+  "compute_broker_service_active": true,
+  "observed_during_job": "7ae6fcc72e"
+}

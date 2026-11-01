@@ -418,6 +418,24 @@ def _compute_storage(data_dir: Path) -> dict:
         stats["financials_files"] = fc
         stats["financials_size_mb"] = sz
         total_size += sz
+        # Independent observation histories must not inflate current-table coverage.
+        from app.services.financial_sync import FINANCIAL_TABLES
+
+        current_files = 0
+        current_bytes = 0
+        for table in FINANCIAL_TABLES:
+            path = fin_dir / table / "part.parquet"
+            if path.is_file() and not path.is_symlink():
+                try:
+                    current_bytes += path.stat().st_size
+                    current_files += 1
+                except OSError:
+                    continue
+        stats["financials_current_files"] = current_files
+        stats["financials_current_size_mb"] = round(current_bytes / 1048576, 2)
+        revision_files, revision_mb = _scan_dir_stats(fin_dir / "revisions")
+        stats["financials_revision_files"] = revision_files
+        stats["financials_revision_size_mb"] = revision_mb
     # 根目录散文件
     for entry in os.scandir(data_dir):
         if entry.is_file(follow_symlinks=False):

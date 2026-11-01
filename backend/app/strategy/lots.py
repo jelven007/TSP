@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+import math
+from datetime import UTC, datetime, timedelta
 from datetime import date as _date
 from pathlib import Path
 
@@ -22,6 +23,26 @@ logger = logging.getLogger(__name__)
 # id 需满足规则 id 同款正则, 且为后缀留位: 派生规则 {id}_p/_d 不得超过 40 字符
 _ID = monitor_rules.ID_RE
 _MAX_ID_LEN = 40 - 2  # 派生规则 id 后缀 "_p" / "_d"
+
+
+def expiry_options(base: _date) -> dict[str, str | None]:
+    """基准日之后第 1/5 个 A 股交易日; 未覆盖日历不猜测, 返回空选项。"""
+    from app.market_time import published_trading_day
+
+    days: list[str] = []
+    current = base
+    while len(days) < 5 and current < _date.max:
+        current += timedelta(days=1)
+        trading = published_trading_day(current)
+        if trading is None:
+            break
+        if trading:
+            days.append(current.isoformat())
+    return {
+        "base_date": base.isoformat(),
+        "next_trading_day": days[0] if days else None,
+        "five_trading_days": days[4] if len(days) == 5 else None,
+    }
 
 
 def _dir(data_dir: Path) -> Path:
@@ -49,11 +70,11 @@ def validate_lot(lot: dict) -> None:
     if not (lot.get("symbol") or "").strip():
         raise ValueError("symbol 不能为空")
     cost = lot.get("cost_price")
-    if isinstance(cost, bool) or not isinstance(cost, (int, float)) or cost <= 0:
+    if isinstance(cost, bool) or not isinstance(cost, (int, float)) or not math.isfinite(cost) or cost <= 0:
         raise ValueError("cost_price 必须是正数")
     for key, label in (("qty", "数量"), ("target_pct", "止盈%"), ("stop_pct", "止损%")):
         v = lot.get(key, 0)
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0:
             raise ValueError(f"{label} 不能为负数")
     lead = lot.get("lead_days", 0)
     if isinstance(lead, bool) or not isinstance(lead, int) or lead < 0:
@@ -118,6 +139,66 @@ def delete_one(data_dir: Path, lot_id: str) -> bool:
         p.unlink()
         return True
     return False
+
+
+# 批次元数据与每日序号; 旧 lot 没有 batch_id, 由页面展示为“历史股票”。
+def _batch_day() -> str:
+    from app.market_time import cn_today
+
+    return cn_today().strftime("%Y%m%d")
+
+
+def _batch_path(data_dir: Path) -> Path:
+    return _dir(data_dir) / "_batches.json"
+
+
+def _batch_state(data_dir: Path) -> dict:
+    path = _batch_path(data_dir)
+    if not path.exists():
+        return {"batches": {}, "sequences": {}}
+    # 序号文件损坏时拒绝创建, 不能从 01 重启导致编号复用。
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_batches(data_dir: Path) -> list[dict]:
+    rows = (data_dir.values("lot_batches") if isinstance(data_dir, TenantDocuments)
+            else list(_batch_state(data_dir)["batches"].values()))
+    return sorted(rows, key=lambda row: row["number"], reverse=True)
+
+
+def next_batch_number(data_dir: Path) -> str | None:
+    day = _batch_day()
+    seq = (data_dir.get("lot_batch_sequences", day, 0) if isinstance(data_dir, TenantDocuments)
+           else _batch_state(data_dir)["sequences"].get(day, 0))
+    return f"{day}{seq + 1:02d}" if seq < 99 else None
+
+
+def save_batch(data_dir: Path, batch: dict) -> dict:
+    """调用方持有写事务/锁; 失败时批次、序号与股票一起回滚。"""
+    number = next_batch_number(data_dir)
+    if number is None:
+        raise ValueError("当天已创建99个批次, 请次日再创建")
+    saved = {**batch, "number": number, "id": number, "created_at": _now_iso()}
+    saved["name"] = saved["name"] or f"持仓批次 {number}"
+    if isinstance(data_dir, TenantDocuments):
+        data_dir.put("lot_batch_sequences", number[:8], int(number[8:]))
+        data_dir.put("lot_batches", saved["id"], saved)
+    else:
+        state = _batch_state(data_dir)
+        state["sequences"][number[:8]] = int(number[8:])
+        state["batches"][saved["id"]] = saved
+        atomic_write_text(_batch_path(data_dir), json.dumps(state, ensure_ascii=False))
+    return saved
+
+
+def delete_batch(data_dir: Path, batch_id: str) -> None:
+    """调用方持有写事务/锁; 只删元数据, 保留每日序号防止编号复用。"""
+    if isinstance(data_dir, TenantDocuments):
+        data_dir.delete("lot_batches", batch_id)
+    else:
+        state = _batch_state(data_dir)
+        state["batches"].pop(batch_id, None)
+        atomic_write_text(_batch_path(data_dir), json.dumps(state, ensure_ascii=False))
 
 
 # ── 批次 → 监控规则 (纯映射) ───────────────────────────

@@ -304,7 +304,7 @@ def save_rule(req: RuleModel, request: Request):
                 strategy,
                 StrategyDataContext(
                     asset_type=str(rule.get("asset_type") or "stock"),
-                    timeframe="1d",
+                    timeframe=(getattr(strategy, "meta", {}).get("timeframes") or ["1d"])[0],
                     as_of=date.today(),
                 ),
             )

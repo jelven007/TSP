@@ -6,7 +6,7 @@ import subprocess
 from collections import Counter
 from pathlib import Path
 
-root = Path("/Users/bytedance/Documents/TSPP")
+root = Path("/path/to/home/Documents/TSPP")
 base = Path("/tmp/tspp-indices-baseline")
 target = Path("/tmp/tspp-indices-reverse")
 target.mkdir(exist_ok=True)

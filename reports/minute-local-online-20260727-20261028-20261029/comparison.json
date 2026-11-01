@@ -1,0 +1,1200 @@
+{
+  "audit_completed": true,
+  "checked_at": "2026-10-29T01:20:35.415603+00:00",
+  "range_start": "2026-07-27",
+  "range_end": "2026-10-28",
+  "compared_columns": [
+    "symbol",
+    "datetime",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "amount"
+  ],
+  "local_rows": 72674988,
+  "online_rows": 77456358,
+  "days": 62,
+  "identical_days": 21,
+  "different_days": [
+    "2026-07-27",
+    "2026-07-28",
+    "2026-07-29",
+    "2026-07-30",
+    "2026-07-31",
+    "2026-08-03",
+    "2026-08-04",
+    "2026-08-05",
+    "2026-08-06",
+    "2026-08-07",
+    "2026-08-10",
+    "2026-08-11",
+    "2026-08-12",
+    "2026-08-13",
+    "2026-08-14",
+    "2026-08-17",
+    "2026-08-18",
+    "2026-08-19",
+    "2026-08-20",
+    "2026-08-21",
+    "2026-08-24",
+    "2026-08-25",
+    "2026-08-26",
+    "2026-08-27",
+    "2026-08-28",
+    "2026-08-31",
+    "2026-09-01",
+    "2026-09-02",
+    "2026-09-03",
+    "2026-09-04",
+    "2026-09-07",
+    "2026-09-08",
+    "2026-09-09",
+    "2026-09-10",
+    "2026-09-11",
+    "2026-10-12",
+    "2026-10-13",
+    "2026-10-14",
+    "2026-10-26",
+    "2026-10-27",
+    "2026-10-28"
+  ],
+  "local_only": 3993,
+  "online_only": 4785363,
+  "common_rows": 72670995,
+  "value_different_rows": 206,
+  "field_differences": {
+    "open": 0,
+    "high": 0,
+    "low": 0,
+    "close": 0,
+    "volume": 0,
+    "amount": 206
+  },
+  "local_minute_basis_raw": false,
+  "online_minute_basis_raw": false,
+  "local_snapshot_stable": true,
+  "online_snapshot_stable": true,
+  "source_files_revalidated": true,
+  "duplicate_rows": 0,
+  "daily_results": [
+    {
+      "day": "2026-07-27",
+      "local_rows": 1245120,
+      "online_rows": 1245120,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1245120,
+      "value_different_rows": 13,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 13
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-07-28",
+      "local_rows": 1245360,
+      "online_rows": 1245360,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1245360,
+      "value_different_rows": 7,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 7
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-07-29",
+      "local_rows": 1245120,
+      "online_rows": 1245120,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1245120,
+      "value_different_rows": 4,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 4
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-07-30",
+      "local_rows": 1246080,
+      "online_rows": 1246080,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1246080,
+      "value_different_rows": 2,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 2
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-07-31",
+      "local_rows": 1246080,
+      "online_rows": 1246080,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1246080,
+      "value_different_rows": 4,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 4
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-03",
+      "local_rows": 1246080,
+      "online_rows": 1246080,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1246080,
+      "value_different_rows": 8,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 8
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-04",
+      "local_rows": 1246080,
+      "online_rows": 1246080,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1246080,
+      "value_different_rows": 5,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 5
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-05",
+      "local_rows": 1246560,
+      "online_rows": 1246560,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1246560,
+      "value_different_rows": 6,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 6
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-06",
+      "local_rows": 1246800,
+      "online_rows": 1246800,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1246800,
+      "value_different_rows": 3,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 3
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-07",
+      "local_rows": 1247280,
+      "online_rows": 1247280,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1247280,
+      "value_different_rows": 5,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 5
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-10",
+      "local_rows": 1248000,
+      "online_rows": 1248000,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248000,
+      "value_different_rows": 7,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 7
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-11",
+      "local_rows": 1248000,
+      "online_rows": 1248000,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248000,
+      "value_different_rows": 4,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 4
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-12",
+      "local_rows": 1247760,
+      "online_rows": 1247760,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1247760,
+      "value_different_rows": 5,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 5
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-13",
+      "local_rows": 1248000,
+      "online_rows": 1248000,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248000,
+      "value_different_rows": 1,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 1
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-14",
+      "local_rows": 1248000,
+      "online_rows": 1248000,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248000,
+      "value_different_rows": 7,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 7
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-17",
+      "local_rows": 1247520,
+      "online_rows": 1247520,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1247520,
+      "value_different_rows": 9,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 9
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-18",
+      "local_rows": 1247760,
+      "online_rows": 1247760,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1247760,
+      "value_different_rows": 3,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 3
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-19",
+      "local_rows": 1247760,
+      "online_rows": 1247760,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1247760,
+      "value_different_rows": 3,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 3
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-20",
+      "local_rows": 1247760,
+      "online_rows": 1247760,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1247760,
+      "value_different_rows": 8,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 8
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-21",
+      "local_rows": 1248000,
+      "online_rows": 1248000,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248000,
+      "value_different_rows": 6,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 6
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-24",
+      "local_rows": 1248720,
+      "online_rows": 1248720,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248720,
+      "value_different_rows": 4,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 4
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-25",
+      "local_rows": 1248960,
+      "online_rows": 1248960,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248960,
+      "value_different_rows": 3,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 3
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-26",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 11,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 11
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-27",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 7,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 7
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-28",
+      "local_rows": 215040,
+      "online_rows": 1248720,
+      "local_only": 0,
+      "online_only": 1033680,
+      "common_rows": 215040,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-08-31",
+      "local_rows": 1248480,
+      "online_rows": 1248480,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248480,
+      "value_different_rows": 8,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 8
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-01",
+      "local_rows": 1248960,
+      "online_rows": 1248960,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248960,
+      "value_different_rows": 2,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 2
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-02",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 6,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 6
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-03",
+      "local_rows": 1249440,
+      "online_rows": 1249440,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249440,
+      "value_different_rows": 11,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 11
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-04",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 2,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 2
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-07",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 6,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 6
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-08",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 8,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 8
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-09",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 8,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 8
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-10",
+      "local_rows": 1248960,
+      "online_rows": 1248960,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1248960,
+      "value_different_rows": 13,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 13
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-11",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 5,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 5
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-09-14",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-15",
+      "local_rows": 1249200,
+      "online_rows": 1249200,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249200,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-16",
+      "local_rows": 1249440,
+      "online_rows": 1249440,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249440,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-17",
+      "local_rows": 1250160,
+      "online_rows": 1250160,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250160,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-18",
+      "local_rows": 1250160,
+      "online_rows": 1250160,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250160,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-21",
+      "local_rows": 1250160,
+      "online_rows": 1250160,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250160,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-22",
+      "local_rows": 1250160,
+      "online_rows": 1250160,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250160,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-23",
+      "local_rows": 1250400,
+      "online_rows": 1250400,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250400,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-24",
+      "local_rows": 1250400,
+      "online_rows": 1250400,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250400,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-28",
+      "local_rows": 1250400,
+      "online_rows": 1250400,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250400,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-29",
+      "local_rows": 1250640,
+      "online_rows": 1250640,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250640,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-09-30",
+      "local_rows": 1250880,
+      "online_rows": 1250880,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250880,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-08",
+      "local_rows": 1249920,
+      "online_rows": 1249920,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1249920,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-09",
+      "local_rows": 1250160,
+      "online_rows": 1250160,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250160,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-12",
+      "local_rows": 240,
+      "online_rows": 1250640,
+      "local_only": 0,
+      "online_only": 1250400,
+      "common_rows": 240,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-10-13",
+      "local_rows": 240,
+      "online_rows": 1250640,
+      "local_only": 0,
+      "online_only": 1250400,
+      "common_rows": 240,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-10-14",
+      "local_rows": 240,
+      "online_rows": 1251120,
+      "local_only": 0,
+      "online_only": 1250880,
+      "common_rows": 240,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-10-15",
+      "local_rows": 1251360,
+      "online_rows": 1251360,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1251360,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-16",
+      "local_rows": 1251600,
+      "online_rows": 1251600,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1251600,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-19",
+      "local_rows": 1250880,
+      "online_rows": 1250880,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1250880,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-20",
+      "local_rows": 1251840,
+      "online_rows": 1251840,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1251840,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-21",
+      "local_rows": 1251600,
+      "online_rows": 1251600,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1251600,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-22",
+      "local_rows": 1252080,
+      "online_rows": 1252080,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1252080,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-23",
+      "local_rows": 1252080,
+      "online_rows": 1252080,
+      "local_only": 0,
+      "online_only": 0,
+      "common_rows": 1252080,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": true
+    },
+    {
+      "day": "2026-10-26",
+      "local_rows": 1253280,
+      "online_rows": 1251600,
+      "local_only": 1680,
+      "online_only": 0,
+      "common_rows": 1251600,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-10-27",
+      "local_rows": 1258495,
+      "online_rows": 1256182,
+      "local_only": 2313,
+      "online_only": 0,
+      "common_rows": 1256182,
+      "value_different_rows": 0,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      },
+      "consistent": false
+    },
+    {
+      "day": "2026-10-28",
+      "local_rows": 1258493,
+      "online_rows": 1258496,
+      "local_only": 0,
+      "online_only": 3,
+      "common_rows": 1258493,
+      "value_different_rows": 2,
+      "field_differences": {
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 2
+      },
+      "consistent": false
+    }
+  ],
+  "consistent": false
+}

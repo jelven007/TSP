@@ -659,6 +659,9 @@ class StrategyBacktestResult:
     elapsed_ms: float = 0.0
     error: str | None = None
     provenance: dict = field(default_factory=dict)
+    fills: list[dict] = field(default_factory=list)
+    signals: list[dict] = field(default_factory=list)
+    daily_results: list[dict] = field(default_factory=list)
 
 
 def _strategy_definition_hash(
@@ -1240,6 +1243,28 @@ class StrategyBacktestService:
 
         params = self._normalize_params(config.params or {}, s)
         overrides = config.overrides or {}
+        if s.meta.get("minute_execution") == "momentum_capacity_v1":
+            from app.backtest.momentum_run import run_momentum
+
+            try:
+                return run_momentum(
+                    self, config, s, StrategyEngine.resolve_params(s, config.params, overrides),
+                    overrides, progress_cb=progress_cb, cancel_event=cancel_event,
+                    result_policy=result_policy, run_id=run_id, t0=t0, provenance=provenance,
+                )
+            except (ValueError, TypeError) as exc:
+                return _err(str(exc))
+        if s.meta.get("minute_execution") == "overnight_capacity_v1":
+            from app.backtest.overnight import run_overnight
+
+            try:
+                return run_overnight(
+                    self, config, s, StrategyEngine.resolve_params(s, config.params, overrides),
+                    overrides, progress_cb=progress_cb, cancel_event=cancel_event,
+                    result_policy=result_policy, run_id=run_id, t0=t0, provenance=provenance,
+                )
+            except (ValueError, TypeError) as exc:
+                return _err(str(exc))
         # 同回测 run 路径: 挖掘运行期也要按资产类型中和股票专属过滤键 (#215)
         basic_filter = _basic_filter_for_asset(
             self._effective_basic_filter(s, overrides), config.asset_type

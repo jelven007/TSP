@@ -1,0 +1,731 @@
+{
+  "checked_at": "2026-10-28T22:38:10.019766+00:00",
+  "requested_start": "2020-11-02",
+  "provider": "rustdx",
+  "version": "0.4.37",
+  "tables": {
+    "metrics": {
+      "rows_per_environment": 124953,
+      "symbols": 5222,
+      "sha256": "86150a8f7e33586330ba06e32bf2bf942f014480a95a18fa2452203f549c99b2",
+      "source_and_public_equal": true,
+      "min_period_end": "2019-12-31",
+      "max_period_end": "2026-09-30",
+      "min_announce_date": "2020-04-24",
+      "max_announce_date": "2026-10-29",
+      "period_counts": {
+        "2019-12-31": 1243,
+        "2020-03-31": 70,
+        "2020-06-30": 596,
+        "2020-09-30": 4071,
+        "2020-12-31": 5157,
+        "2021-03-31": 4290,
+        "2021-06-30": 4858,
+        "2021-09-30": 4514,
+        "2021-12-31": 5164,
+        "2022-03-31": 4640,
+        "2022-06-30": 5055,
+        "2022-09-30": 4788,
+        "2022-12-31": 5222,
+        "2023-03-31": 4939,
+        "2023-06-30": 5080,
+        "2023-09-30": 5007,
+        "2023-12-31": 5222,
+        "2024-03-31": 5037,
+        "2024-06-30": 5139,
+        "2024-09-30": 5083,
+        "2024-12-31": 5222,
+        "2025-03-31": 5129,
+        "2025-06-30": 5214,
+        "2025-09-30": 5171,
+        "2025-12-31": 5222,
+        "2026-03-31": 5206,
+        "2026-06-30": 5222,
+        "2026-09-30": 3392
+      },
+      "start_coverage": {
+        "eligible": 3857,
+        "available_strictly_before_cutoff": 3857,
+        "missing": []
+      },
+      "duplicates": 0,
+      "invalid_dates": 0,
+      "before_rows": {
+        "local": 38859,
+        "online": 38859
+      },
+      "added_rows": {
+        "local": 86094,
+        "online": 86094
+      },
+      "existing_keys_preserved": true,
+      "all_fields_equal": true,
+      "content_sha256": "ecb436c7cca5ef5e9d28180fed6d3ff3a572d97db3e4364a35110e150f103f3a"
+    },
+    "income": {
+      "rows_per_environment": 124953,
+      "symbols": 5222,
+      "sha256": "c8d992c11d357aa787fd7702a2f6e42bb83bdcf762b351eccd21b6ff21e73ca7",
+      "source_and_public_equal": true,
+      "min_period_end": "2019-12-31",
+      "max_period_end": "2026-09-30",
+      "min_announce_date": "2020-04-24",
+      "max_announce_date": "2026-10-29",
+      "period_counts": {
+        "2019-12-31": 1243,
+        "2020-03-31": 70,
+        "2020-06-30": 596,
+        "2020-09-30": 4071,
+        "2020-12-31": 5157,
+        "2021-03-31": 4290,
+        "2021-06-30": 4858,
+        "2021-09-30": 4514,
+        "2021-12-31": 5164,
+        "2022-03-31": 4640,
+        "2022-06-30": 5055,
+        "2022-09-30": 4788,
+        "2022-12-31": 5222,
+        "2023-03-31": 4939,
+        "2023-06-30": 5080,
+        "2023-09-30": 5007,
+        "2023-12-31": 5222,
+        "2024-03-31": 5037,
+        "2024-06-30": 5139,
+        "2024-09-30": 5083,
+        "2024-12-31": 5222,
+        "2025-03-31": 5129,
+        "2025-06-30": 5214,
+        "2025-09-30": 5171,
+        "2025-12-31": 5222,
+        "2026-03-31": 5206,
+        "2026-06-30": 5222,
+        "2026-09-30": 3392
+      },
+      "start_coverage": {
+        "eligible": 3857,
+        "available_strictly_before_cutoff": 3857,
+        "missing": []
+      },
+      "duplicates": 0,
+      "invalid_dates": 0,
+      "before_rows": {
+        "local": 38029,
+        "online": 38031
+      },
+      "added_rows": {
+        "local": 86924,
+        "online": 86922
+      },
+      "existing_keys_preserved": true,
+      "all_fields_equal": true,
+      "content_sha256": "596993bc67436d267939d998e91a812664cbec55f9eeb8dacffc75736ed49492"
+    },
+    "balance_sheet": {
+      "rows_per_environment": 124953,
+      "symbols": 5222,
+      "sha256": "3073c4020bb0b6d2632daeaadafa7f53b851838f325497aa48a471face503c15",
+      "source_and_public_equal": true,
+      "min_period_end": "2019-12-31",
+      "max_period_end": "2026-09-30",
+      "min_announce_date": "2020-04-24",
+      "max_announce_date": "2026-10-29",
+      "period_counts": {
+        "2019-12-31": 1243,
+        "2020-03-31": 70,
+        "2020-06-30": 596,
+        "2020-09-30": 4071,
+        "2020-12-31": 5157,
+        "2021-03-31": 4290,
+        "2021-06-30": 4858,
+        "2021-09-30": 4514,
+        "2021-12-31": 5164,
+        "2022-03-31": 4640,
+        "2022-06-30": 5055,
+        "2022-09-30": 4788,
+        "2022-12-31": 5222,
+        "2023-03-31": 4939,
+        "2023-06-30": 5080,
+        "2023-09-30": 5007,
+        "2023-12-31": 5222,
+        "2024-03-31": 5037,
+        "2024-06-30": 5139,
+        "2024-09-30": 5083,
+        "2024-12-31": 5222,
+        "2025-03-31": 5129,
+        "2025-06-30": 5214,
+        "2025-09-30": 5171,
+        "2025-12-31": 5222,
+        "2026-03-31": 5206,
+        "2026-06-30": 5222,
+        "2026-09-30": 3392
+      },
+      "start_coverage": {
+        "eligible": 3857,
+        "available_strictly_before_cutoff": 3857,
+        "missing": []
+      },
+      "duplicates": 0,
+      "invalid_dates": 0,
+      "before_rows": {
+        "local": 38029,
+        "online": 38031
+      },
+      "added_rows": {
+        "local": 86924,
+        "online": 86922
+      },
+      "existing_keys_preserved": true,
+      "all_fields_equal": true,
+      "content_sha256": "b71ac2e09dfa45ef013a2dc29639da634f8c10ff2e856101cd9cf013759345f8"
+    },
+    "cash_flow": {
+      "rows_per_environment": 124953,
+      "symbols": 5222,
+      "sha256": "d1111b7a04953ca2ec6266120cd95267685b33df7a5d16471785369f1590b534",
+      "source_and_public_equal": true,
+      "min_period_end": "2019-12-31",
+      "max_period_end": "2026-09-30",
+      "min_announce_date": "2020-04-24",
+      "max_announce_date": "2026-10-29",
+      "period_counts": {
+        "2019-12-31": 1243,
+        "2020-03-31": 70,
+        "2020-06-30": 596,
+        "2020-09-30": 4071,
+        "2020-12-31": 5157,
+        "2021-03-31": 4290,
+        "2021-06-30": 4858,
+        "2021-09-30": 4514,
+        "2021-12-31": 5164,
+        "2022-03-31": 4640,
+        "2022-06-30": 5055,
+        "2022-09-30": 4788,
+        "2022-12-31": 5222,
+        "2023-03-31": 4939,
+        "2023-06-30": 5080,
+        "2023-09-30": 5007,
+        "2023-12-31": 5222,
+        "2024-03-31": 5037,
+        "2024-06-30": 5139,
+        "2024-09-30": 5083,
+        "2024-12-31": 5222,
+        "2025-03-31": 5129,
+        "2025-06-30": 5214,
+        "2025-09-30": 5171,
+        "2025-12-31": 5222,
+        "2026-03-31": 5206,
+        "2026-06-30": 5222,
+        "2026-09-30": 3392
+      },
+      "start_coverage": {
+        "eligible": 3857,
+        "available_strictly_before_cutoff": 3857,
+        "missing": []
+      },
+      "duplicates": 0,
+      "invalid_dates": 0,
+      "before_rows": {
+        "local": 38029,
+        "online": 38031
+      },
+      "added_rows": {
+        "local": 86924,
+        "online": 86922
+      },
+      "existing_keys_preserved": true,
+      "all_fields_equal": true,
+      "content_sha256": "4709e77fe4ffdc29f73735db74466a5122e5c88f980705b7f8f779382923e885"
+    },
+    "shares": {
+      "rows_per_environment": 124953,
+      "symbols": 5222,
+      "sha256": "632a03d800422dd6f62b8e621101b6660a7d246c816a6fd5c0a1f7f3b8eb44f0",
+      "source_and_public_equal": true,
+      "min_period_end": "2019-12-31",
+      "max_period_end": "2026-09-30",
+      "min_announce_date": "2020-04-24",
+      "max_announce_date": "2026-10-29",
+      "period_counts": {
+        "2019-12-31": 1243,
+        "2020-03-31": 70,
+        "2020-06-30": 596,
+        "2020-09-30": 4071,
+        "2020-12-31": 5157,
+        "2021-03-31": 4290,
+        "2021-06-30": 4858,
+        "2021-09-30": 4514,
+        "2021-12-31": 5164,
+        "2022-03-31": 4640,
+        "2022-06-30": 5055,
+        "2022-09-30": 4788,
+        "2022-12-31": 5222,
+        "2023-03-31": 4939,
+        "2023-06-30": 5080,
+        "2023-09-30": 5007,
+        "2023-12-31": 5222,
+        "2024-03-31": 5037,
+        "2024-06-30": 5139,
+        "2024-09-30": 5083,
+        "2024-12-31": 5222,
+        "2025-03-31": 5129,
+        "2025-06-30": 5214,
+        "2025-09-30": 5171,
+        "2025-12-31": 5222,
+        "2026-03-31": 5206,
+        "2026-06-30": 5222,
+        "2026-09-30": 3392
+      },
+      "start_coverage": {
+        "eligible": 3857,
+        "available_strictly_before_cutoff": 3857,
+        "missing": []
+      },
+      "duplicates": 0,
+      "invalid_dates": 0,
+      "before_rows": {
+        "local": 38029,
+        "online": 38031
+      },
+      "added_rows": {
+        "local": 86924,
+        "online": 86922
+      },
+      "existing_keys_preserved": true,
+      "all_fields_equal": true,
+      "content_sha256": "1b21cbba2b4329abe1223f0d452737992aa368237539f1ea0bbd63e03dc8c5d5"
+    }
+  },
+  "rows_per_environment": 624765,
+  "same_financial_content_in_both_environments": true,
+  "http": {
+    "local": {
+      "environment": "local",
+      "origin": "http://127.0.0.1:3021",
+      "version": "0.4.37",
+      "ready": true,
+      "administrator_login_passed": true,
+      "tables": {
+        "metrics": {
+          "rows": 124953,
+          "symbols": 5222
+        },
+        "income": {
+          "rows": 124953,
+          "symbols": 5222
+        },
+        "balance_sheet": {
+          "rows": 124953,
+          "symbols": 5222
+        },
+        "cash_flow": {
+          "rows": 124953,
+          "symbols": 5222
+        },
+        "shares": {
+          "rows": 124953,
+          "symbols": 5222
+        }
+      },
+      "history_queries": [
+        {
+          "table": "metrics",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "3c1b91696852c67468751aa615ffe6844df143eb9ad4e3a3f04ff602af67dd97"
+        },
+        {
+          "table": "metrics",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "95c59a4a9013d96acc6df0bec54e0b7c8fe8c96c8b942bd02cc893f49a628f38"
+        },
+        {
+          "table": "income",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "322e1edc29a239394fd9bda3234c6ed60eb313a893283f654e2e0969ed3edf61"
+        },
+        {
+          "table": "income",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "b078fee1754820ff0934c1b9f6149fea5a86153d70122e7566164cace41f0506"
+        },
+        {
+          "table": "balance_sheet",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "94824dc6356feff463f8c34ddd501f422fd8e5b8ff709462d9a315531b0d6642"
+        },
+        {
+          "table": "balance_sheet",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "304c20e2255aa7e360b3ee4fec397d7884f3744af12a7bbcabb13f8c41d9edb7"
+        },
+        {
+          "table": "cash_flow",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "31325eb24bc7790365a060305db566af7e56e858c316beb8958a12f8e7b740bd"
+        },
+        {
+          "table": "cash_flow",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "bcce387d60f582536731bcdb36544525e71f2d34b5a0381f1baa6ac45e40e637"
+        },
+        {
+          "table": "shares",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "1099d4911fe29b8975bcbff5eabdb3dfea19d1fa7085b72a38487e6e947d8762"
+        },
+        {
+          "table": "shares",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "63f7df61882c2a82a73a95c7a259245c1ff6a8f427feec8823cac6a5608d6398"
+        }
+      ],
+      "pages": {
+        "/data": 200,
+        "/financials": 200
+      },
+      "passed": true
+    },
+    "online": {
+      "environment": "online",
+      "origin": "https://server.example.com",
+      "version": "0.4.37",
+      "ready": true,
+      "administrator_login_passed": true,
+      "tables": {
+        "metrics": {
+          "rows": 124953,
+          "symbols": 5222
+        },
+        "income": {
+          "rows": 124953,
+          "symbols": 5222
+        },
+        "balance_sheet": {
+          "rows": 124953,
+          "symbols": 5222
+        },
+        "cash_flow": {
+          "rows": 124953,
+          "symbols": 5222
+        },
+        "shares": {
+          "rows": 124953,
+          "symbols": 5222
+        }
+      },
+      "history_queries": [
+        {
+          "table": "metrics",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "3c1b91696852c67468751aa615ffe6844df143eb9ad4e3a3f04ff602af67dd97"
+        },
+        {
+          "table": "metrics",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "95c59a4a9013d96acc6df0bec54e0b7c8fe8c96c8b942bd02cc893f49a628f38"
+        },
+        {
+          "table": "income",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "322e1edc29a239394fd9bda3234c6ed60eb313a893283f654e2e0969ed3edf61"
+        },
+        {
+          "table": "income",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "b078fee1754820ff0934c1b9f6149fea5a86153d70122e7566164cace41f0506"
+        },
+        {
+          "table": "balance_sheet",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "94824dc6356feff463f8c34ddd501f422fd8e5b8ff709462d9a315531b0d6642"
+        },
+        {
+          "table": "balance_sheet",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "304c20e2255aa7e360b3ee4fec397d7884f3744af12a7bbcabb13f8c41d9edb7"
+        },
+        {
+          "table": "cash_flow",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "31325eb24bc7790365a060305db566af7e56e858c316beb8958a12f8e7b740bd"
+        },
+        {
+          "table": "cash_flow",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "bcce387d60f582536731bcdb36544525e71f2d34b5a0381f1baa6ac45e40e637"
+        },
+        {
+          "table": "shares",
+          "symbol": "000001.SZ",
+          "rows": 25,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-09-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "1099d4911fe29b8975bcbff5eabdb3dfea19d1fa7085b72a38487e6e947d8762"
+        },
+        {
+          "table": "shares",
+          "symbol": "600519.SH",
+          "rows": 24,
+          "min_period_end": "2020-09-30",
+          "max_period_end": "2026-06-30",
+          "has_cutoff_anchor": true,
+          "response_sha256": "63f7df61882c2a82a73a95c7a259245c1ff6a8f427feec8823cac6a5608d6398"
+        }
+      ],
+      "pages": {
+        "/data": 200,
+        "/financials": 200
+      },
+      "passed": true
+    }
+  },
+  "processes": {
+    "local": {
+      "platform_pid": 82664,
+      "started_at": 1793226675.9878101,
+      "passed": true,
+      "freeze_seconds": 9.374,
+      "same_platform_process_resumed": true
+    },
+    "online": {
+      "platform_started_at": "2026-10-28T12:08:42.540899739Z",
+      "platform_pid": 2600583,
+      "timers_before": {
+        "tsp-full-health.timer": true,
+        "tsp-public-release-maintenance.timer": true
+      },
+      "passed": true,
+      "freeze_seconds": 8.462,
+      "same_platform_process_resumed": true,
+      "timers_restored": true
+    }
+  },
+  "configuration": {
+    "local": {
+      "configuration_unchanged": true,
+      "checked_files": 3
+    },
+    "online": {
+      "configuration_unchanged": true,
+      "checked_files": 9
+    }
+  },
+  "reconciliation": {
+    "tables": [
+      "metrics",
+      "income",
+      "shares"
+    ],
+    "changed_cells": 12,
+    "changed_report_keys": 5,
+    "source_value_verified": true,
+    "backup": "/path/to/home/.cache/tsp-dev/TSPP/financial-backfill-20261029/reconciliation-backup-223653",
+    "platform_pid": 82664,
+    "data_release_id": "e9af9f0f9f7c4728a7f354e15af81785",
+    "public_release_id": "773f1293c4874b8db07203c13af86178",
+    "passed": true,
+    "freeze_seconds": 8.007,
+    "same_platform_process_resumed": true
+  },
+  "changed_fields_http": {
+    "checks": {
+      "local": [
+        {
+          "table": "metrics",
+          "symbol": "001223.SZ",
+          "period_end": "2026-09-30",
+          "fields": [
+            "eps_basic",
+            "bps",
+            "gross_margin",
+            "net_margin",
+            "revenue_yoy",
+            "net_income_yoy",
+            "debt_to_asset_ratio"
+          ],
+          "matches_verified_source": true
+        },
+        {
+          "table": "metrics",
+          "symbol": "600030.SH",
+          "period_end": "2026-09-30",
+          "fields": [
+            "bps"
+          ],
+          "matches_verified_source": true
+        },
+        {
+          "table": "income",
+          "symbol": "603977.SH",
+          "period_end": "2026-09-30",
+          "fields": [
+            "operating_cost",
+            "basic_eps"
+          ],
+          "matches_verified_source": true
+        },
+        {
+          "table": "income",
+          "symbol": "002717.SZ",
+          "period_end": "2025-12-31",
+          "fields": [
+            "basic_eps"
+          ],
+          "matches_verified_source": true
+        },
+        {
+          "table": "shares",
+          "symbol": "300124.SZ",
+          "period_end": "2026-09-30",
+          "fields": [
+            "float_shares"
+          ],
+          "matches_verified_source": true
+        }
+      ],
+      "online": [
+        {
+          "table": "metrics",
+          "symbol": "001223.SZ",
+          "period_end": "2026-09-30",
+          "fields": [
+            "eps_basic",
+            "bps",
+            "gross_margin",
+            "net_margin",
+            "revenue_yoy",
+            "net_income_yoy",
+            "debt_to_asset_ratio"
+          ],
+          "matches_verified_source": true
+        },
+        {
+          "table": "metrics",
+          "symbol": "600030.SH",
+          "period_end": "2026-09-30",
+          "fields": [
+            "bps"
+          ],
+          "matches_verified_source": true
+        },
+        {
+          "table": "income",
+          "symbol": "603977.SH",
+          "period_end": "2026-09-30",
+          "fields": [
+            "operating_cost",
+            "basic_eps"
+          ],
+          "matches_verified_source": true
+        },
+        {
+          "table": "income",
+          "symbol": "002717.SZ",
+          "period_end": "2025-12-31",
+          "fields": [
+            "basic_eps"
+          ],
+          "matches_verified_source": true
+        },
+        {
+          "table": "shares",
+          "symbol": "300124.SZ",
+          "period_end": "2026-09-30",
+          "fields": [
+            "float_shares"
+          ],
+          "matches_verified_source": true
+        }
+      ]
+    },
+    "passed": true
+  },
+  "backups": {
+    "local": "/path/to/home/.cache/tsp-dev/TSPP/financial-backfill-20261029/backup-223116",
+    "online": "/opt/tsp-full/platform-data/cache/financial-backfill-20261029/backup-223020"
+  },
+  "data_releases": {
+    "local": "e9af9f0f9f7c4728a7f354e15af81785",
+    "online": "226f3154503d44a2b42f42b155248531"
+  },
+  "verification_tests": {
+    "passed": 36,
+    "elapsed_seconds": 1.3
+  },
+  "history_default_periods": 8,
+  "one_time_requested_periods": 28,
+  "source_publication_time_certified": false,
+  "passed": true
+}

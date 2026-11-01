@@ -129,6 +129,12 @@ class ResearchJobs:
         version = user["auth_version"] if expected_version is None else expected_version
         with (authorize(identity, self.context, version) as ctx,
               self.db.business_transaction(ctx, write=True) as conn):
+            sid = (payload.get("config") or {}).get("strategy_id")
+            if sid:
+                from app.services.strategy_results import StrategyResults
+                StrategyResults(self.documents)._check_generation(
+                    conn, sid, int(payload.get("strategy_generation", 0)),
+                )
             if claim:
                 from app.multitenancy.runtime import valid_claim
                 valid_claim(conn, claim)
@@ -259,6 +265,22 @@ class ResearchJobs:
                    for item in (candidates["value"] if candidates else [])):
                 raise AccessError(409, "研究任务仍被候选方案引用，请先删除相关候选")
             conn.execute("DELETE FROM business.research_jobs WHERE id=%s", (job_id,))
+
+    def delete_strategy(self, strategy_id: str):
+        """Remove owned experiments; deleting the row revokes its worker lease."""
+        with self.documents._transaction(write=True) as conn:
+            rows = conn.execute(
+                """DELETE FROM business.research_jobs WHERE kind=ANY(%s)
+                   AND input->'config'->>'strategy_id'=%s RETURNING id""",
+                (["backtest", "optimize", "walkforward"], strategy_id),
+            ).fetchall()
+            job_ids = {row["id"] for row in rows}
+            candidates = self.documents.get("research_candidates", "default", [])
+            remaining = [item for item in candidates
+                         if (item.get("config") or {}).get("strategy_id") != strategy_id
+                         and (item.get("config") or {}).get("research_job_id") not in job_ids]
+            if remaining != candidates:
+                self.documents.put("research_candidates", "default", remaining)
 
     def artifact(self, job_id: str, name: str) -> bytes:
         with self.db.business_transaction(self.context) as conn:
@@ -518,6 +540,25 @@ class ResearchWorker:
                            VALUES(%s,%s,%s,%s)""", (context.tenant_id, row["id"], name, data),
                     )
                 result = json_value(result)
+                if current["kind"] == "backtest" and result.get("daily_results"):
+                    from app.multitenancy.documents import DocumentSession
+                    from app.services.strategy_results import archive_daily_backtest
+
+                    archive_daily_backtest(
+                        DocumentSession(self.db, context, conn, True), result,
+                        started_at=int(current["created_at"].timestamp() * 1_000_000_000),
+                        generation=int(current["input"].get("strategy_generation", 0)))
+            elif (
+                status == "failed" and isinstance(result, dict) and result.get("error")
+                and current["kind"] == "backtest"
+                and result.get("stats", {}).get("minute_execution")
+                in {"overnight_capacity_v1", "momentum_capacity_v1"}
+                and isinstance(result.get("stats", {}).get("execution"), dict)
+            ):
+                # A rejected NAV still has real simulated fills and remaining shares.
+                # Cancellation/revocation and retry paths must discard private output.
+                result = json_value({key: value for key, value in result.items()
+                                     if key != "artifact_data"})
             else:
                 result = None
             metadata = {**current["metadata"], "finished_at": datetime.now(UTC).isoformat()}
@@ -543,6 +584,8 @@ def run_sync(request: Request, kind: str, config: dict) -> dict:
     deadline = time.monotonic() + 7300
     while time.monotonic() < deadline:
         current = jobs.get(row["id"])
+        if current is None:
+            raise AccessError(409, "策略或研究任务已删除，结果已丢弃")
         if current["state"] in SUCCESS_TASK_STATUSES:
             return current["result"]
         if current["state"] in TERMINAL_TASK_STATUSES:

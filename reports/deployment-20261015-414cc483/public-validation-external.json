@@ -1,6 +1,6 @@
 {
   "commit": "414cc48379cd6ecdb664d373b22d37dcdac5b29a",
-  "base_url": "https://118.196.108.188",
+  "base_url": "https://203.0.113.10",
   "tls_verified_with": "/tmp/tsp-root-ca.crt",
   "health": {
     "/health/live": {

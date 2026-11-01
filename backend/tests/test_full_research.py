@@ -237,6 +237,40 @@ def test_cancel_and_role_revocation_discard_late_results(env):
             worker.close()
 
 
+@pytest.mark.parametrize("execution", ["overnight_capacity_v1", "momentum_capacity_v1"])
+def test_failed_minute_backtest_retains_actual_ledger_without_archiving_success(env, execution):
+    from app.services.strategy_results import StrategyResults
+
+    _, _, jobs = tenant(env)
+    _, _, other = tenant(env)
+    row = jobs.submit(payload(jobs, config={"strategy_id": "s02"}))
+    partial = {
+        "error": "卖出窗口缺少分钟, 保留实际持仓",
+        "stats": {"minute_execution": execution, "status": "rejected_before_NAV",
+                  "execution": {"cash": 80000, "remaining_positions": [
+                      {"symbol": "002274.SZ", "remaining": 3200},
+                  ]}},
+        "trades": [], "fills": [{"side": "buy", "shares": 3200}],
+        "daily_results": [{"as_of": "2026-08-26", "state": {"complete": False}}],
+        "artifact_data": {"candidates": "not-a-success-artifact"},
+    }
+    worker = ResearchWorker(env["db"], Compute(partial))
+    try:
+        worker.run(jobs.context, worker.claim(jobs.context))
+    finally:
+        worker.close()
+    recovered = ResearchJobs(TenantDocuments(env["db"], jobs.context)).get(row["id"])
+    assert recovered["state"] == "failed"
+    assert recovered["error"] == partial["error"]
+    assert recovered["result"]["stats"]["execution"]["remaining_positions"][0]["remaining"] == 3200
+    assert recovered["result"]["fills"] == partial["fills"]
+    assert "artifact_data" not in recovered["result"]
+    assert StrategyResults(jobs.documents).list_history("s02")["records"] == []
+    assert other.get(row["id"]) is None
+    with pytest.raises(AccessError):
+        jobs.artifact(row["id"], "candidates")
+
+
 def test_busy_broker_requeues_and_fences_previous_owner(env):
     _, _, jobs = tenant(env)
     row = jobs.submit(payload(jobs))

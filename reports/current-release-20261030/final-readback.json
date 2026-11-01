@@ -1,0 +1,37 @@
+{
+  "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+  "version": "0.4.39",
+  "checked_at": "2026-10-29T19:23:58.114327+00:00",
+  "current_branch": "main",
+  "main_and_tag_match": true,
+  "remote_main_matches": true,
+  "latest_both_architectures_match": true,
+  "hosted_asset_digests_verified": true,
+  "public_evidence_hashes_match": true,
+  "parallel_work_preserved": true,
+  "health": {
+    "local": {
+      "version": "0.4.39",
+      "origin": "http://127.0.0.1:3021",
+      "ready": true,
+      "ready_functions": 6,
+      "administrator_login_verified": true,
+      "watchlist_count": 16,
+      "groups": 2,
+      "business_settings_preserved": true,
+      "terminal_jobs_preserved": true
+    },
+    "online": {
+      "version": "0.4.39",
+      "origin": "https://server.example.com",
+      "ready": true,
+      "ready_functions": 6,
+      "administrator_login_verified": true,
+      "watchlist_count": 16,
+      "groups": 2,
+      "business_settings_preserved": true,
+      "terminal_jobs_preserved": true
+    }
+  },
+  "passed": true
+}

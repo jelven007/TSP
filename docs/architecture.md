@@ -1,201 +1,17 @@
-# TSP 系统技术方案
+# Tick Stock Platform（TSP）系统技术方案
 
-2026-10-30最终整合复用TaskRuntime与指数服务：三组各8+1共同遵守物理端点/
-全局额度，切站排空并认证完整参考窗口；指数默认区间按本地实际分区确定，
-显式日期仍优先。轮询滑块沿原preferences/API保存，后端源限速不变。
-单写Platform、公共发布、缓存及schema保持，见[本轮方案与发布评审](../reports/current-release-20261030/review.md)。
+s02复用纯选股与单日组合内核；每日保存三部分及期末状态，
+只读前交易日状态，稳定日期键和生命周期generation阻止重复与迟到写入。
+研究任务完成与基准每日归档在租户SQL同一事务提交。
+契约及发布边界见[s02](reference/s02.md)。
 
-2026-10-29 v0.4.38正式发布已完成，固定提交`5b273174f2e2a8ac539fcea363fa02315a61ebe9`。
-本地与ECS登录、六功能、真实分钟任务及正常重启通过，配置与原行情保持；
-301110.SZ三四月5,520键和10月28日两端各6个未返回键仍如实列入缺口。
-单写Platform、七角色、双PG及Broker/Compute边界保持，无schema迁移；见[正式升级验收](../reports/minute-collection-reliability-20261029/deployment.md)。
+S02连续回测使用独立日线依赖计划：从通用计划同时移除不使用的日线信号请求及
+对应基础列，保留原始价格和股本输入；共享投影、PanelCache及缺列检查保持原路径。
+此为内部L3局部修复，API、结果schema、持久归档及通用分钟计划没有变化。
+分钟执行拒绝完整净值时，ResearchWorker保留失败任务的部分账本，独立于成功每日归档；
+仅授权仍有效、租约仍当前且终态为业务失败时写入，取消／重试／撤权继续丢弃。
 
-
-2026-10-29 rustdx由Python`TaskRuntime`组合实时、分钟、基础历史原生子池，
-每组8业务/1探测，并同时约束物理端点与全局24/3。切站等待旧请求、排空TCP、
-增加世代并重建精度；分页锚点/完整参考窗口核验保留源一致性。
-分钟增量走前台，盘中回填6/盘后8。原服务、数据单位、写盘与发布链保持，
-具体调用和配置见[任务连接](rustdx-task-routing.md)。
-
-2026-10-29分钟遗漏以100证券/32自然日生成精确缺口，跨日共享一次Provider定位，
-响应相交后沿only_missing落盘，分批重读确认剩余；单日仍保留连续区间。
-原生bars以60秒请求预算约束排队/资格检查/重连，入槽后另启用户传输超时；
-不改变8业务+1探测上限。已解码行直接验证，派生读取兼容schema，
-必需坏页拒绝该证券部分历史，公布日历确认的全闭市段不取数。
-逐证券隔离、缺口报告及验证边界见
-[复核记录](../reports/minute-collection-reliability-20261029/verification.md)。
-
-2026-10-29K线取数按证券隔离，保留分页来源保护及健康帧。
-`kline_gaps.record_unfilled`按证券/交易日保存CSV，遗漏和全量1分K以持久键重读反馈缺口；
-沿原周期服务、JobStore、写锁和缓存链，不增加数据源数据集或SQL schema。
-成功响应的个别缺口为警告，批次异常、取消和持久化失败保持异常。见
-[追加核验](../reports/minute-301110-20261029/skip-and-backfill.md)。
-
-2026-10-29 rustdx共享分页入口`_bar_records`仅处理`RustdxSourceChangedError`：
-完整丢弃旧局部状态，调用`_bar_records_once`从第零页重采一次。
-日K、分钟及远程周K共用；不变更Provider接口、JobStore、写盘或发布链。
-源码与实际ECS验证、源保留限制及部署状态见
-[301110.SZ记录](../reports/minute-301110-20261029/verification.md)。
-
-2026-10-28最新整合在`v0.4.36`基线上收口为股票与固定七指数：
-ETF运行路径从Provider到存储、研究和交易全链路退役，指数目录、周期表和现有回补逻辑保留。
-rustdx v2.0.4、闭区间K线任务、周K兼容读取及指数交互沿原模块边界接线，
-没有新增平行Provider、任务系统或SQL schema。固定范围、质量门与部署迁移见
-[发布评审](../reports/complete-release-20261028-3/review.md)。
-
-2026-10-28数据总览移除独立`RepairDailyPanel`入口，基础周期离线获取收口到
-`KlineSyncConfig→POST /api/kline/sync_period→_start_kline_range_job→run_repair_daily`。
-1m/1d请求必须携带`start_date/end_date/mode`；5m/10m/15m/1w仍仅传`period`
-并走本地`generate_period`。兼容端点`/api/kline/repair_daily`复用同一启动器，
-不维护第二套校验、JobStore或缺口逻辑。
-`missing`先扫描本地证券/时间键；只有发现首个缺口才通过
-`require_period_provider`检查TickFlow能力并解析Provider，无缺口零请求成功。
-1m全量沿32自然日、100证券有界分块和rustdx v2.0.4历史页定位；
-线程本地行情门闸只包围`persist_period`写盘，网络取数与计算阶段不暂停实时行情。
-
-2026-10-28周K生成的本地基础数据读取统一接回`app.parquet`：
-基础证券枚举使用`scan_parquet_compat`，日K范围读取使用带标准schema/cast的
-`scan_daily_parquet`。它为新增列选择ignore、缺列选择insert，避免Polars以首个文件
-schema严格扫描混合分区；周K聚合、分区写入、视图和缓存失效不变。
-
-2026-10-28指数页K线控制复用`StockDailyKChart`的
-`onAvailableBarsChange/onVisibleBarsChange`，分别保存可用根数与实际可见根数，
-周期切换重置60根并清空旧上限。修正任务终态先失效相关查询，再用可清理的5秒定时器
-解除当前任务跟踪；新任务ID不会被旧定时器清除。无API、缓存键或后端契约变化。
-
-2026-10-28历史K线性能修复沿`sync_period/kline_gaps→fetch_period→Provider→persist_period`。
-1分K日期段从5天扩至最多32自然日、保留100证券批次；rustdx共用分页以实际页时间
-指数探测、二分定位结束边界，再连续读取至起点，单次调用复用探测页且不跨调用缓存。
-日/周K包结束整日；异常探测回退原有保护的顺序扫描，所需页失败仍拒绝结果。
-遗漏仍按连续缺口取数、仅补写缺失键；派生5/10/15分K及周/月K沿本地基础数据生成。
-不新增Provider协议、配置或存储格式，价格基准、分区原子合并及缓存失效沿原路径；
-依据和实测见[性能记录](../reports/minute-history-performance-20261028/verification.md)。
-
-2026-10-28指数页沿`index_const→index_sync/quote_service→repository→api/indices→Indices`接线。
-`kline_index_daily`及窄表`kline_index_enriched`沿用；新增
-`kline_index_weekly/kline_index_monthly`，DuckDB视图、公共发布、数据release及清理/schema同步。
-周标签为周一、月标签为1日，`trade_date`为最后交易日；OHLC按时间顺序聚合、量额求和，
-MA/MACD/RSI/KDJ/BOLL在各周期序列上计算，未知量额保留空值，不套股票复权/股本规则。
-单指数查询有界扫描并预读指标暖身，结束日期在周期中间时重算边界柱，读接口不写盘。
-`POST /api/index/repair`沿共享JobStore、执行槽、取消与Platform管理转发；
-日K经生效Provider，周/月本地生成，日K修正同步刷新受影响整周期。
-前端复用`StockDailyKChart.externalData`与`RepairDailyPanel scope=index`，
-symbol/period/range隔离迟到响应，任务终态失效指数缓存。
-范围与实测见[指数扩展记录](../reports/indices-kline-20261028/verification.md)。
-
-市场总览聚合唯一实现在`services/market_overview_builder.py`，API只保留委托与公共缓存；
-旧页面/面板消重及依赖核对见[项目精简记录](../reports/project-cleanup-20261028/verification.md)。
-
-2026-10-27最新整合沿既有Provider、周期服务、JobStore、租户事务及查询键接线，
-统一纳入本地生成、闭区间修正、自选关系和数据总览；无schema迁移或双份日K任务。
-范围、实际检查及固定运行身份见[本批记录](../reports/latest-release-20261027/verification.md)。
-
-本批补入2019–2026年官方交易日历，使历史遗漏请求及跨年周标签无需依赖近一年指数探针。
-未知年份仍要求可靠源证据；研究快照按日历身份隔离，旧快照保留。
-
-2026-10-27数据总览布局复用现有查询和写入口：`Data`将`QuoteConfigCard`通过
-`CardKey=quotes`渲染进数据画像，`PageSettingsModal`迁移旧顺序到15分K之后。
-`ScheduleOverview`接收总开关回调和禁用状态，继续由`updateDataSyncAuto`写偏好，
-成功失效preferences/dataStatus，加载失败或保存中禁用，写失败保留旧状态并提示。
-日K周期同步与盘后管道读取同一`1d`配置和时间（回退pipeline_schedule，默认16:00），
-仅补充展示，不注册第二个盘后任务。验证见[数据总览布局](testing.md#data-overview-layout)。
-数据同步的各类分组（含扩展数据）复用数据质量说明的原生`details/summary`，默认收起；
-稳定category键保留查询刷新时的展开状态。开关去除可见标签，保留无障碍名称、
-加载/保存门控和原回调；不新增持久化字段、请求或调度。
-
-2026-10-27真实本地验证补充：自选清单查询设置`refetchOnMount: 'always'`，
-继续使用既有缓存进行首屏展示，但每次挂载校验服务端关系和顺序，
-避免持久缓存2秒写入节流与30秒staleTime叠加导致快速刷新显示旧关系。
-不调整全局缓存版本或清理用户存储；实测见
-[本地自选更新](../reports/local-watchlist-update-20261027/verification.md)。
-
-2026-10-26核对源码、完整本地环境与单ECS部署方式，最新范围及逐阶段实测见
-[本批整合](../reports/repair-missing-release-20261026/verification.md)。
-下文早期“候选/未发布”描述以[版本基线](version-baseline.md)和本批记录区分时点；
-七角色/双PostgreSQL/Platform先于消费者/Broker固定Compute的生产结构继续沿用。
-
-冻结Windows桌面在`main`完成有界后端清理和单实例锁释放、日志关闭后，
-通过`TerminateProcess`按原返回码结束，避免CRT退出路径的DLL卸载阻塞。
-其他冻结平台保留`os._exit`，源码运行保留`sys.exit`与正常atexit；
-不改变业务持久化、服务角色或Provider契约。
-
-2026-10-26 K线画像由 `services/kline_periods.py` 集中六周期配置、取数、落盘和调度。
-新增 `kline_5minute/kline_10minute/kline_15minute/kline_weekly`，前三张沿用分钟schema，
-周K沿用日K schema并以周一日期作为周内幂等键，每周六从本地日K聚合。5/10/15分K仅扫描所需
-1分钟日期分区，分别按09:30和13:00起算收盘标签，未知量额保持空值。取数按日期段及100标的块有界执行；
-写盘沿既有分区锁与原子替换，刷新对应视图、画像及存储缓存，公共发布目录同步扩展。
-六周期设置经 `/api/settings/kline-sync`，手工任务经 `/api/kline/sync_period`；
-1分K和日K画像提交`period/start_date/end_date/mode`，沿共享区间任务获取基础K线；
-日K继续同步除权因子及重算指标，不将日K归入本地派生周期。
-日K开关、盘后时间与现有配置保持一致。
-手工请求仅传`period`时，5/10/15分K、周K调用`generate_period`：
-按基础1m/1d的非空分区最早到最新日期及已有证券本地计算，派生周期复用有界`sync_period`；
-旧无范围日K API兼容本地生成：调用`run_pipeline(data_dir=repo.store.data_dir)`重算Enriched，沿已有发布屏障、
-symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓存。
-日K自动同步保留原复权/指标流水线，1分钟实时保留既有增量服务，其余周期由调度检查。
-显式传`value/unit`的旧历史调用仅保留API兼容；1m缺省也保持旧远程历史行为。
-此候选沿用分钟/日K独立能力路由，不新增第八个数据集或策略周期。
-日K画像卡片沿用周K的同步说明，`StatCard`共用记录/标的/交易日统计文案模板。
-
-数据总览不再提供独立「数据修正」入口。1分K和日K卡片的离线补齐直接提供
-两个`DatePicker`及全量/遗漏按钮，统一调用`/api/kline/sync_period`。
-该入口严格要求`start_date/end_date/mode`，校验YYYY-MM-DD及
-起始≤结束≤北京今天，任务请求保存完整闭区间。
-`/api/kline/repair_daily`仅保留旧客户端兼容，可选`period`缺省`1d`、
-`mode`缺省`full`且省略结束日期时到今天；它与新入口复用同一任务启动器。
-`repair_daily.run_repair_daily`保留日K盘后流程，其他周期读取既有完整股票池快照后
-调用`kline_periods.sync_period`，按起止日期分段取数或本地聚合并幂等落盘。
-日K通过`run_now(override_start_date, override_end_date=...)`统一股票/指数日K与因子范围；
-显式结束日期时仅清理选定区间enriched，不附带全库自愈清理或分钟采集。
-复权链与指标仍沿既有依赖重算，可能更新区间外派生指标；自动盘后管道缺省行为保留。
-遗漏模式由`services/kline_gaps.py`逐交易日/周读取证券与日期/时间键，
-按100证券块检测缺口，仅对连续缺失分钟区间或缺失日请求当前Provider。
-使用公布日历及有覆盖证据的源日历，排除上市前、休市及未形成的分钟/当日日K；
-未知日历明确失败。写入前在原分区锁内再次anti-join，保留并发同步已写入的值。
-5/10/15分钟分别只补具备完整5/10/15根本地1分钟的桶；日K只重算补入证券的本地复权/指标，
-不额外重拉除权或指数。Provider及能力检查延迟到发现首个缺口；
-无缺口零请求成功，部分返回保留已补数据并报告未补行数。
-5/10/15分钟与周K不调用Provider，遗漏检测仅使用公布日历或已有日历缓存，不隐式请求上游日历；
-1分钟、日K依各自路由取数；周K从本地日K聚合，缺基础数据、缺能力或全量无输出明确反馈。
-任务请求保存周期，非日K任务复用已有`kline_<period>`显示契约；落盘刷新对应视图/
-画像缓存，服务收尾刷新仓库并广播行情更新，前端直接跟踪返回的任务ID。
-周期/修正任务终态按集中`KLINE_QUERY_PREFIXES`失效图表查询，失败、取消或中断
-也刷新可能已分块落盘的数据；关闭实时SSE不影响这条修正刷新路径。
-
-分钟查询 `/api/kline/minute` 支持 `freq=5m/15m`，共享图表查询 `/api/kline/daily`
-支持六周期`freq`，默认值保持1m/1d。`kline_periods.query_period`优先从本地1分K
-计算5/10/15分K，包括live查询；先读整日基础数据，再按聚合标签裁剪区间。
-基础数据没有可用结果时兼容读取既有对应周期分区；两者均为空即返回空数据，不请求Provider。
-周K优先读取周K分区，空表时聚合本地日K；只有1分钟缺数据仍经同一Provider入口获取；
-1分K沿用仓库分钟复权投影，周K响应统一周一日期。
-非日K响应附带`freq`，分钟行的`date`保留完整北京时间；实时日K增量不合入其他周期。
-派生分钟和日/周离线表单统一为本地生成，不扩展历史；无基础数据或零输出明确失败。
-生成沿用JobStore、共享执行槽、容量预算、进度和取消，日K在计算批次边界响应取消。
-
-个股详情复用`StockPreviewDialogContent→StockPanel→StockDailyKChart→EChartsCandlestick`。
-信息条继续读取日K，图表按周期请求；集中查询键加入周期，占位仅复用同股票同周期，
-不改变Provider、持久化和原分时接口。默认取数范围为日K半年、分钟20日、周K两年，
-日期选择可覆盖；可见根数独立于取数范围，初始60根。
-数量控件通过整数索引定位最新窗口，图表回报实际可见根数供50%增减；
-鼠标缩放保留，显式默认/增减覆盖旧窗口，重复默认同样生效。
-非日K关闭日线量比与涨停标记，未知OHLC不绘制为有效蜡烛。
-
-历史进度由服务按日期段与标的批次计数，每批写盘后更新总进度10%～95%及阶段0%～100%，
-5/10/15分钟按本地日期段推进；API透传`stage_pct`，最终成功推进100%。
-`JobStore.progress`先保存旧阶段再更新，以便阶段切换清零；日K在同名阶段内
-进入日K/除权/指标子阶段时显式重置。前端任务卡与历史行使用实际周期、行数及范围，
-成功保留100%进度条，失败/取消/中断保留实际值，历史结果缺字段保持可读。
-
-2026-10-26本地派生分钟调整沿用`aggregate_ten_minute`兼容入口，实际验证与边界见
-[本地聚合记录](../reports/local-derived-minutes-20261026/verification.md)。常规同步保留盘中
-部分桶，遗漏补齐仅写完整基础桶；零输出提示先补1分K，不把执行成功等同完整历史覆盖。
-
-2026-10-25本批补入策略结果归档/全局资源准入、统一弹窗、两步向导、
-目录与行情同步分离、盘后16:00默认及研究界面刷新；
-工程目录及六类文档的对应关系见[生命周期追踪](reference/engineering.md#trace)，
-本次实际验证与发布状态见[整合记录](../reports/current-state-release-20261025/verification.md)。
-
-核对日期：2026-10-25。本手册集中记录当前实现与系统目标；
+核对日期：2026-11-01。本手册集中记录当前实现与系统目标；
 当前实现以源码和相邻测试为准，目标方案不代表已接入、验收或部署；
 生产状态只在[版本基线](version-baseline.md)维护。
 
@@ -207,6 +23,103 @@ symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓
 
 <a id="current"></a>
 ## 一、当前架构与运行契约
+
+### 策略参数作用域
+
+新建模板沿用账户浏览器storage，仅注入后续创建的META；现有策略由
+`config.load_override`与策略定义合并。文件/租户存储均保留显式null取消限制，
+缺省键继承。详情可选`definition_defaults`提供原始可编辑配置，恢复仅改前端草稿。
+共享`BasicFilterEditor`维护数值字段/单位，目标/ST独立；PATCH按字段合并basic_filter，
+批量只发送勾选目标的数值字段。退出覆盖完整回显/保存，分钟专用参数沿用原执行路径。
+此项为L3配置与页面修正，无交易规则、数据迁移或新增插件接口。
+
+### 公共版本读端同步
+
+API通过`public_reader`的租约绑定读取公共版本，
+每个API进程由`public_binding_sync`独立检查当前发布身份。先构建完整新绑定再提交，
+已有请求继续持有旧租约，归零后关闭旧仓库；准备失败保留原绑定并明确就绪状态。
+巡检不写公共数据、不触发行情发布，也不扫描整库或解除研究冻结版本引用。
+实时Worker仍沿原dispatch循环切换仓库，scheduled按本轮任务打开当前仓库；
+research由Broker挂载冻结版本，notifications不新增行情读端。
+本次整合及生产观察状态见[整合记录](../reports/release-consolidation-20261101.md)。
+
+### 行情采集与周期服务
+
+[s01隔夜策略](reference/s01.md)为当前源码新增的内部分钟执行路径：
+共享纯函数负责候选/卖出信号，`StrategyBacktestService`按可选协议路由到连续现金、
+容量分片撮合；监控读取实际模拟持仓并复用信号规则。原策略与快照撮合保持既有路径。
+缺交易日、完整早盘或到期容量时保留台账并拒绝完整收益结果，模拟自动委托拒绝该协议。
+
+股票范围为沪深股票，ETF已从运行链退役；指数页固定七只，侧栏/市场总览保留核心四只。
+市场总览聚合唯一入口为`services/market_overview_builder.py`。
+行情写入与不可变公共发布由Platform负责；七角色、双PostgreSQL、
+Broker/Compute与消费者读端边界保持。源码与部署证据分开记录。
+
+rustdx由`TaskRuntime`组合realtime/minute/history三组，每组8业务/1探测，
+同时受物理端点8/1、全局24/3及跨进程共享许可约束。分钟盘中回填最多6并预留2给增量。
+切站等待旧请求、排空TCP、增加世代并重载精度；历史窗口与本次完整参考逐键核验。
+仅`RustdxSourceChangedError`丢弃局部分页并从零重采一次，重复变化拒绝该证券结果。
+原生bars的60秒预算覆盖排队/资格/重连，入槽后另计用户传输超时。
+配置、来源身份与准确额度见[任务连接](rustdx-task-routing.md)。
+
+`services/kline_periods.py`集中股票六周期配置、查询、落盘与调度。
+基础1m/1d走独立Provider路由；派生5m/10m/15m只读本地1m，1w只读本地1d。
+分钟表沿用分钟schema，周K沿用日K schema、周一幂等键。
+聚合以09:30/13:00起算收盘标签，未知量额保持空值；常规同步允许盘中部分桶，
+遗漏仅补完整基础桶。`scan_parquet_compat/scan_daily_parquet`兼容渐进分区schema。
+
+数据总览基础离线获取沿
+`KlineSyncConfig→POST /api/kline/sync_period→_start_kline_range_job→run_repair_daily`，
+保存`period/start_date/end_date/mode`，严格校验起始≤结束≤北京今天。
+派生仅传`period`调用`generate_period`覆盖本地基础分区；旧无范围日K请求兼容重算Enriched，
+旧`repair_daily/value/unit`保持读取与请求兼容，实际接口见[API参考](api.md)。
+日K全量统一股票/指数/因子窗口，仅清选定区间Enriched；复权与指标依赖可能更新区间外派生值。
+
+`kline_gaps`按证券/交易日/时间键扫描，最多100证券/32自然日；
+遗漏跨日共享Provider定位，仅补准确缺键，锁内再次anti-join。
+无缺口不解析Provider、不请求上游；公布日历和有覆盖证据的缓存排除休市、
+上市前及未形成记录，未知年份明确失败。2019–2026官方日历不证明行情覆盖。
+单证券取数失败隔离；全量/遗漏重读持久键并由`record_unfilled`保存CSV、warning与remaining。
+必需坏页拒绝该证券部分历史，批次异常/取消/持久化失败保持异常状态。
+网络与计算不暂停实时轮询，行情门闸仅覆盖真实分区写盘。
+
+任务沿JobStore、共享执行槽、容量预算与取消契约；分块落盘后更新总/阶段进度，
+成功为100%，失败/取消/中断保留实际值。终态按`KLINE_QUERY_PREFIXES`失效查询，
+包括已经部分落盘的异常任务；不依赖实时SSE是否开启。
+图表查询以股票/周期/日期隔离缓存和迟到响应，派生空基础时兼容已有周期分区，
+仍为空则返回空数据。个股详情默认60根，可用范围和可见根数分开；
+未知OHLC不绘成有效蜡烛，实时日K不混入其他周期。
+
+指数沿`index_const→index_sync/quote_service→repository→api/indices→Indices`，
+日K和窄Enriched表沿用，周/月分别存`kline_index_weekly/kline_index_monthly`。
+周一/月1日作标签、`trade_date`保留最后交易日，OHLC顺序聚合、量额求和，
+通用指标按周期计算，不套股票复权/股本规则。查询有界预读暖身，边界柱按截止日期重算，
+读接口不写盘；省略开始日期读取完整本地历史，显式日期优先。
+修正复用JobStore、Platform管理转发和`data:manage`权限；
+日K走Provider，周/月本地生成，日K修正刷新受影响整周期。
+
+### 数据总览与财务历史
+
+数据画像的实时行情卡由`QuoteConfigCard/CardKey=quotes`渲染；
+页面顺序迁移插入15分K之后，保存显隐/排序仍优先。
+`ScheduleOverview`沿`updateDataSyncAuto`写偏好并失效preferences/dataStatus，
+加载失败或保存中禁用，写失败保留旧值。分类`details/summary`默认收起，
+稳定category保留刷新时展开状态；日K开关与盘后时间共享，默认交易日16:00。
+实时轮询1～10秒整数滑块沿原preferences/API保存，源限速和已有配置优先。
+
+财务`storage`保留整目录字段与缓存，新增current/revision文件数和大小：
+当前仅枚举`financial_sync.FINANCIAL_TABLES`中的`part.parquet`，
+历史枚举`financials/revisions/`；前端旧响应回退原字段。
+这些统计在本轮起始工作区已有源码改动，发布身份仍以版本基线为准。
+真实两端财务历史并集保留原Parquet/观察事件字节，同内容用真实最早观察时间，
+latest指向最新真实事件；冲突元数据和来源保存到`merge-provenance.json`。
+观察时间不等于已认证公告时间，补齐不建立跨环境自动同步契约，
+旧不可变公共版本保留。实测见[财务历史验收](../reports/financial-history-unify-20261030/verification.md)。
+
+自选清单`refetchOnMount: 'always'`保留首屏缓存并在每次挂载核对服务端关系/顺序，
+避免持久缓存写入节流叠加staleTime显示旧关系。桌面有界清理、单实例锁释放和日志关闭后，
+冻结Windows使用`TerminateProcess`保留退出码，其他冻结平台`os._exit`，
+源码运行`sys.exit`和正常atexit；Windows正式退出仍须原平台产物验收。
 
 <a id="strategy-result-history"></a>
 ### 策略结果归档
@@ -230,6 +143,15 @@ symbol批次和日期分区发布，随后刷新enriched视图及有界仓库缓
 记录JSON最多16MiB；历史按索引键分页，摘要查询不加载股票行。
 内存仅缓存序列化明细，32MiB字节上限，读取前验证记录revision；
 未提交事务不进入热缓存。清理旧`strategy_cache`不会删除归档。
+
+用户策略删除沿原`DELETE /api/strategies/{strategy_id}`级联清理全部历史身份。
+`strategy_result_lifecycle`保存删除世代和禁写状态，执行快照先冻结世代，
+归档和旧快照缓存写入核对该世代；它不进入交易身份指纹，旧归档ID保持兼容。
+Full在同一租户事务内删除源、覆盖、历史、直接关联研究任务/附件和候选，
+停用关联监控；删除任务撤销Worker提交资格。独立模式同一SQLite事务串行结果写入，
+本地候选/溯源文件与源文件使用异常补偿恢复，存储清理失败不返回成功。
+同ID重建重新启用当前世代，删除前的执行仍拒绝写回。
+本地文件补偿不提供跨文件与SQLite的崩溃原子性；生产升级需先备份。
 
 历史列表在SQL分页前按名称/版本字面关键词、含首尾的日期范围、资产和周期取交集。
 `DELETE /api/screener/result-history/{strategy_id}/{record_id}`仅删除可信租户中的
@@ -380,7 +302,7 @@ API / Worker -> Unix socket -> Broker -> 无网络、无凭据的短生命周期
   六类数据库客户端的双库连接上界为 36；其余内存留给 PostgreSQL、Edge/Broker、
   内核、Docker 和文件缓存。
 
-本地目标股票候选沿既有 `basic_filter` 保存 `target_mode`、`boards`、
+目标股票范围沿既有 `basic_filter` 保存 `target_mode`、`boards`、
 `include_custom`、`watchlist_group_ids` 与 `exclude_st`。`strategy/targets.py`集中
 校验、动态解析与引用检查；扩展只服务该领域，不新增通用候选插件。
 执行时展开内部 `target_symbols`，不写回配置、不从详情API下发；
@@ -395,7 +317,7 @@ PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快�
 计算轮次继续动态读取成员，不固定启用时的旧成员。
 `POST /api/watchlist/groups/import-csv`复用CSV解析/主数据匹配，新建组与成员在SQL
 事务中提交；文件写入失败恢复旧文件。CSV仅含代码即可，重复去重，空匹配拒绝建组，
-已有笔记、加入日期和其他分组保留。该候选未发布到生产。
+已有笔记、加入日期和其他分组保留；运行身份另见版本基线。
 管理分组CSV导出由`WatchlistGroups.tsx`复用`api.watchlistList()`与现有当前空间
 `GET /api/watchlist`完整清单，按`group_ids`过滤后生成UTF-8 BOM CSV（仅股票代码列）。
 不依赖行情增强缓存、页面筛选或可见行，不新增API/查询键；只在用户点击时读取，
@@ -408,7 +330,7 @@ PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快�
 管理分组弹窗移除文件选择、新建并导入及对应状态，CSV导入继续由主页面批量入口处理；
 旧`groups/import-csv`接口保留兼容，历史成员不自动重排。
 
-2026-10-27自选股票新增`strategy_ids`，文件模式以列表列保存，缺列读作空数组；
+自选股票的`strategy_ids`在文件模式以列表列保存，缺列读作空数组；
 首次写回留备份且不覆盖既有`.bak`，重复证券合并多组及多策略关系。
 租户模式复用`business.documents`的`watchlist_strategies`命名空间，ID为证券代码，
 以同租户写锁/事务更新并递增自选revision；清单批量读取关系，删除证券/清空及
@@ -428,8 +350,7 @@ PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快�
 六小时且不属于 current、最近 30 份或研究 input/metadata 引用的版本；
 缺少业务库拒绝清理。空闲公共读者按标记及有界时间重新加载。
 
-2026-10-25实测新ECS已运行v0.4.21/7823b84b/schema v6，七应用角色健康，
-现有公共容量保护与周期回收保留。旧v0.4.11/092bd79c属于历史实例。
+当前环境身份统一见[版本基线](version-baseline.md)，公共容量保护与周期回收保留。
 自选业务连接池获取超时的底层原因仍未确认；源码整合不替代生产验收，
 见[本次生命周期基线](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 
@@ -461,9 +382,10 @@ Vite :3011  --代理/API-->  FastAPI :3018  -->  ./data
 上述单进程图仅用于显式旧独立模式；设置 `MULTITENANCY_ENABLED=false`
 或 `SERVICE_ROLE=standalone` 时仍沿用旧调用链。Windows 保持单机管理员默认值。
 
-所有模式的首次初始化共用 `app/bootstrap_defaults.py` 中的非秘密管理员
-默认值。普通运行在无身份时创建哈希账号；完整多租户 API 使用已有 SQL 运行权限
-幂等创建缺失管理员和默认注册口令 `<REDACTED_CREDENTIAL>`，开放注册及找回密码，不执行 schema 迁移。
+所有模式的首次初始化沿 `app/bootstrap_defaults.py` 及受控初始化配置获取管理员信息。
+普通运行在无身份时创建哈希账号；完整多租户 API 使用已有 SQL 运行权限
+幂等创建缺失管理员和注册口令，口令具体值只在受控配置中提供；
+开放注册及找回密码，不执行 schema 迁移。
 已有口令保持不变；口令初始化失败阻止 API 宣称初始化完成。
 有效管理员默认继承全部租户业务权限；`AccountIdentity.bootstrap_admin_tenants`
 为没有默认租户的管理员创建个人空间。复用注册的容量锁、owner 成员关系、
@@ -638,9 +560,10 @@ enriched 分区持久化 `is_risk_warning`、`is_listed` 和
 - `EntryRiskPolicy` 在回测和模拟交易间共享成交溢价、冻结 ATR/信号低点及权益风险
   预算；政策只缩减原仓位，首笔成交后不被当前策略配置改写。
 
-22 个公开策略 ID 和默认参数保持不变；19 项策略的 31 个可选入场主题及入场风险
+原22个公开策略ID和默认参数保持不变，当前源码增加s01为第23项；
+19项策略的31个可选入场主题及入场风险
 政策属于显式研究配置，不因历史批次相对改善而自动晋级。详细契约见
-[策略指南](reference/research.md#strategy)和[策略质量研究结论](../reports/strategy-optimization-20261019/analysis.md)。
+[策略指南](reference/research.md#strategy)和[策略质量研究结论（过程材料已清理）](../reports/strategy-results-cleanup-20261030/清理记录.md#removed-research)。
 
 信号、因子和策略回测结果统一携带 `provenance`：数据 release ID、读取时的
 enriched generation、Provider 路由、配置哈希，以及策略回测的源码哈希。回测
@@ -947,6 +870,24 @@ URL、查询参数、请求体或认证头，避免高基数和敏感信息泄�
 影响。扩展菜单数量不计入基础菜单。路由存在不表示当前数据或权限足够。
 依据：[路由](../frontend/src/router.tsx)、[导航](../frontend/src/components/Layout.tsx)。
 
+策略结果批量范围由 `Screener` 控制当前每日页签，`StrategyDailyResults` 可接受受控页签，
+独立历史弹窗保留内部切换。自选菜单可选创建入口复用分组 API；`StrategyLotBatchDialog`
+并行读取归档参数／有效设置和批次号，再复用 `LotBatchDialog`。草稿只在打开时初始化，
+策略比例换算为百分数，到期默认复用交易日历查询；迟到结果不覆盖手选日期。
+手动新增批次保留空日期默认值，合并结果不猜测唯一策略；沿用现有批次保存及监控失效键。
+
+`Lots.tsx` 的持仓提醒布局沿自选复用 `PageHeader`、`EmptyState` 和 `StockDataTable`，
+固定计算列只负责显示原始提醒字段，不新增数据查询或改变监控规则。行键为 `lot.id`，
+批次编号与计数由原批次/股票结果派生；外层统一滚动容器支持固定表头及长列表虚拟化，
+编辑、删除、详情导航和日期快捷项沿原调用链。
+整批删除按钮置于 `PageHeader.right` 的新增批次按钮后，复用自选图标按钮及共享顶栏尺寸；
+批次标签后直接展示表格或状态，编号放在标签/删除按钮提示中，不另渲染信息和删除行。
+整批删除通过 `DELETE /api/lots/batches/{batch_id}`，服务端在 `_write_unit` 内解析
+当前租户成员并校验ID，级联删除股票、两类托管规则及批次元数据；SQL共用事务，
+文件模式共用锁及回滚快照，提交后才重载引擎。每日序号不删除。
+页面复用 `ConfirmDialog` 锁定待删除批次；成功后取消旧列表请求、移除缓存并失效
+`QK.lots/lotBatches/monitorRules`，防止已删除批次短暂回显。
+
 | 菜单 | 当前路径 | 核心操作与文档 |
 | --- | --- | --- |
 | 行情 | `/` | 市场摘要、布局编辑与 SSE 更新；[操作说明](../操作说明书.md#6-行情) |
@@ -956,7 +897,7 @@ URL、查询参数、请求体或认证头，避免高基数和敏感信息泄�
 | 复盘 | `/review` | AI 流式报告、历史、下载与定时推送 |
 | 回测 | `/backtest` | 策略与验证两视图，候选保存、复测和导出；[研究配置](reference/research.md#research) |
 | 信号指标 | `/signals` | 日线/盘中条件、因子信号与触发器 |
-| 持仓提醒 | `/lots` | 观察持仓及提醒；与模拟交易账本分开 |
+| 持仓提醒 | `/lots` | 观察持仓及提醒；与模拟交易账本分开；到期快捷日由 `strategy.lots.expiry_options` 复用公布交易日历，经 `/api/lots/expiry-options` 返回，下个/第5个交易日不含基准当天，未知日历返回空选项 |
 | 异动 | `/abnormal` | 竞价、盘中、偏移三种口径 |
 | 连板梯队 | `/limit-ladder` | 涨停候选与真实五档证据；[盘口契约](reference/market-data.md#depth) |
 | 个股分析 | `/stock-analysis` | 日 K、关键价位与 AI 四维分析 |
@@ -1013,7 +954,7 @@ TickFlow 暂无公司行为适配。接口和单位见[插件](reference/integra
 
 | 能力 | 当前确认 | 明确限制 |
 | --- | --- | --- |
-| 内置策略 | 22 个公开策略；19 项另有 31 个可选入场主题 | 研究模板不进入选股清单；默认主题不自动替换 |
+| 内置策略 | 23个公开策略，新增s01源码候选；19项另有31个可选入场主题 | 研究模板不进入选股清单；默认主题不自动替换；s01自动委托未支持 |
 | 因子 | 77 项内置目录；25 个 DSL 算子；动态追加自定义/复合/合格扩展因子 | 目录数量随注册变化；无巡检 tab 或自动衰减任务 |
 | AI 策略迭代 | 创建窗口可开启自动生成→回测→诊断→修改，UI 最多四轮 | 草稿必须显式保存；无三栏迭代工作台；Codex CLI 不支持该工具迭代 |
 | 固定输入 | 单机版本副本；多租户公共 release + SQL 私有输入 | 当前网页无历史输入选择器；输入一致不等于历史可信 |
@@ -1057,7 +998,7 @@ S0–S3 是数据、研究等产品能力的建设维度；二期第一至第三
 
 | 状态 | 内容与边界 |
 | --- | --- |
-| 已实现基础 | React/FastAPI 工作台；七类 Provider；Polars/DuckDB/Parquet；策略、因子、回测、监控、模拟交易、AI、Open API/MCP；PostgreSQL 多租户；独立 SSE Gateway；Worker/Broker/受限 Compute |
+| 已实现基础 | React/FastAPI 工作台；七项Provider数据集；Polars/DuckDB/Parquet；策略、因子、回测、监控、模拟交易、AI、Open API/MCP；PostgreSQL 多租户；独立 SSE Gateway；Worker/Broker/受限 Compute |
 | 部分实现 | 秒级归档、公共快照、增量指标、固定输入、历史证券状态和短窗口秒级研究；仍需容量、可信度和恢复验证 |
 | 纳入完整目标 | Kafka、Flink、ClickHouse 应用接入、Redis、TOS、NATS JetStream、PgBouncer；多节点 HA、强隔离、目录与迁移、发布治理及万人联合验收 |
 | 条件扩展 | Ray、Iceberg、Spark、WebSocket、Kubernetes；由任务并行、湖表互操作、批处理、双向交互或编排需求触发 |
@@ -1065,9 +1006,9 @@ S0–S3 是数据、研究等产品能力的建设维度；二期第一至第三
 
 当前完整单机模式为 API、Gateway、Platform 和四类 Worker，API 默认四进程；16 GiB 配置为两进程。当前 Gateway 单副本、Platform 单写，独立模式仍是单 API 主进程。不能直接增加共享 `DATA_DIR` 的写副本来获得多节点能力。[4](#cite-4)
 
-当前目录事实包括18个业务菜单加设置、22个公开策略、77项内置因子、25个DSL算子、69个开放方法/路径契约和12个MCP工具；普通租户不显示“数据总览”菜单。
-本批升级前实测新ECS为0.4.21/7823b84b/schema v6，后续部署的完整SHA与产物
-以[版本基线](version-baseline.md)和[本次记录](../reports/current-state-release-20261025/verification.md)为准。[4](#cite-4)
+页面/策略/因子目录以当前注册器和权限为准；开放接口当前为69个Tier A方法/路径契约、
+六项scope和12个MCP工具，入口见[API参考](api.md)。普通租户不显示“数据总览”菜单。
+运行版本、完整SHA与产物以[版本基线](version-baseline.md)为准。[4](#cite-4)
 
 <a id="target-2-系统范围与设计原则"></a>
 ### 2. 系统范围与设计原则
@@ -1607,7 +1548,8 @@ PRD 的 20 个页面小档在线延迟用于分段试点，不能自动外推到
 
 查询可切回旧读路径的已支持范围，不能声称旧单机提供十年秒级容量。计算回退重建连续基线，已通知/已成交事实保留；有新写后回退必须携带增量，含新账本/schema 的代码与数据匹配。生产发布和采购按独立流程执行，文档完成不代表已切流。
 
-交付工作包需容量/安全/故障/区域恢复/成本报告及可执行发布、排空、回退、恢复 runbook。版本仍由远程 main 集成后的 CI 递增，本次本地文档整合保持 0.4.17。
+交付工作包需容量/安全/故障/区域恢复/成本报告及可执行发布、排空、回退、恢复runbook。
+应用版本只由远程main集成后的CI递增，本地文档迭代不加号。
 
 工程实现位置与开发闭环见[生产工程](reference/engineering.md#engineering)，
 需求总纲/八模块及全本地变更见[生命周期映射](reference/engineering.md#trace)；
@@ -1651,7 +1593,7 @@ A–I、3.1–3.6和恢复目标见[联合验收](testing.md#acceptance)。
 2. <a id="cite-2"></a> TSP，二期三步实施计划，第三步 3.1–3.6 和容量/DFX 门槛。[实施计划](planning/phase2-implementation-plan.md)
 3. <a id="cite-3"></a> TSP，两期路线与二期架构分析，授权、Cell、fencing、任务与恢复；历史瓶颈不作为当前事实。[两期路线](#target)、[二期分析](../reports/phase2-architecture-20261016/architecture-analysis.md)
 4. <a id="cite-4"></a> TSP，当前架构、能力与版本边界。[当前架构](#current)、[实现索引](#capabilities)、[版本基线](version-baseline.md)
-5. <a id="cite-5"></a> TSP，0.4.17 需求基线，实时/历史/研究与阶段要求。[需求基线](requirements.md)
+5. <a id="cite-5"></a> TSP，需求基线，实时/历史/研究与阶段要求。[需求基线](requirements.md)
 6. <a id="cite-6"></a> TSP，开发、金融数据、租户和版本规范。[贡献指南](../CONTRIBUTING.md)
 7. <a id="cite-7"></a> TSP，已存在和按需新增的扩展边界。[二次开发](secondary-development.md)
 8. <a id="cite-8"></a> TSP，秒级可信度、五档与收盘保护。[秒级研究](reference/market-data.md#second)、[五档](reference/market-data.md#depth)、[收盘](reference/market-data.md#closing)

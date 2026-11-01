@@ -198,6 +198,8 @@ def _strategy_detail(
     s: StrategyDef,
     overrides: dict | None = None,
     engine: StrategyEngine | None = None,
+    *,
+    include_defaults: bool = True,
 ) -> dict:
     """策略详情（含用户覆盖）"""
     bf = {**s.basic_filter}
@@ -228,12 +230,23 @@ def _strategy_detail(
         "family": builtin_family(s.meta["id"]) if s.source == "builtin" else None,
         "research_only": s.meta.get("research_only", False),
         "execution_backend": s.execution_backend,
+        "minute_execution": s.meta.get("minute_execution"),
         "asset_types": s.meta.get("asset_types", ["stock"]),
         "timeframes": s.meta.get("timeframes", ["1d"]),
         "version": s.meta.get("version", "1.0.0"),
         "basic_filter": bf,
         "params": s.meta.get("params", []),
         "params_defaults": params_defaults,
+        **({"definition_defaults": {
+            key: value for key, value in _strategy_detail(s, engine=engine, include_defaults=False).items()
+            if key in {
+                "name", "description", "basic_filter", "params_defaults", "scoring",
+                "scoring_directions", "overlay_filter", "entry_signals", "exit_signals",
+                "stop_loss", "entry_risk", "take_profit", "trailing_stop",
+                "trailing_take_profit_activate", "trailing_take_profit_drawdown",
+                "max_hold_days", "display_limit", "composite_children",
+            }
+        }} if include_defaults else {}),
         "scoring": scoring,
         "overlay_filter": effective_conditions(overrides),
         "scoring_directions": {
@@ -246,10 +259,10 @@ def _strategy_detail(
         "minute_exit_trigger_supported_signals": sorted(MINUTE_EXIT_TRIGGER_SIGNALS),
         "stop_loss": overrides.get("stop_loss", s.stop_loss) if overrides else s.stop_loss,
         "entry_risk": (overrides or {}).get("entry_risk", {}),
-        "take_profit": getattr(s, "take_profit", None),
-        "trailing_stop": getattr(s, "trailing_stop", None),
-        "trailing_take_profit_activate": getattr(s, "trailing_take_profit_activate", None),
-        "trailing_take_profit_drawdown": getattr(s, "trailing_take_profit_drawdown", None),
+        "take_profit": (overrides or {}).get("take_profit", getattr(s, "take_profit", None)),
+        "trailing_stop": (overrides or {}).get("trailing_stop", getattr(s, "trailing_stop", None)),
+        "trailing_take_profit_activate": (overrides or {}).get("trailing_take_profit_activate", getattr(s, "trailing_take_profit_activate", None)),
+        "trailing_take_profit_drawdown": (overrides or {}).get("trailing_take_profit_drawdown", getattr(s, "trailing_take_profit_drawdown", None)),
         "max_hold_days": overrides.get("max_hold_days", s.max_hold_days) if overrides else s.max_hold_days,
         "order_by": s.meta.get("order_by", "score"),
         "descending": s.meta.get("descending", True),
@@ -280,7 +293,7 @@ class RunRequest(BaseModel):
     pool: list[str] | None = None
     params: dict | None = None
     asset_type: str = "stock"
-    timeframe: str = "1d"
+    timeframe: str | None = None
 
 
 class RunAllRequest(BaseModel):
@@ -396,9 +409,10 @@ def get_strategy(strategy_id: str, request: Request):
 @limit_local_strategy
 def run_strategy(req: RunRequest, request: Request):
     started_at = time.time_ns()
-    engine = strategy_results.execution_snapshot(_get_engine(request))
-    _get_public_strategy(engine, req.strategy_id)
     data_dir = _data_dir(request)
+    engine = strategy_results.execution_snapshot(_get_engine(request), data_dir)
+    definition = _get_public_strategy(engine, req.strategy_id)
+    timeframe = req.timeframe or (definition.meta.get("timeframes") or ["1d"])[0]
 
     # 读取用户覆盖配置
     overrides = (engine._override_loader(req.strategy_id) if getattr(engine, "remote_context", False)
@@ -427,13 +441,13 @@ def run_strategy(req: RunRequest, request: Request):
             engine,
             as_of,
             [req.strategy_id],
-            timeframe=req.timeframe,
+            timeframe=timeframe,
             params_map={req.strategy_id: params},
             overrides_map={req.strategy_id: overrides or {}},
         )
         identity = strategy_results.capture_identity(
             engine, data_dir, req.strategy_id, params=params, overrides=overrides,
-            pool=req.pool, asset_type=req.asset_type, timeframe=req.timeframe,
+            pool=req.pool, asset_type=req.asset_type, timeframe=timeframe,
         )
         result = engine.run(
             req.strategy_id,
@@ -455,8 +469,8 @@ def run_strategy(req: RunRequest, request: Request):
 @limit_local_strategy
 def run_all(req: RunAllRequest, request: Request):
     started_at = time.time_ns()
-    engine = strategy_results.execution_snapshot(_get_engine(request))
     data_dir = _data_dir(request)
+    engine = strategy_results.execution_snapshot(_get_engine(request), data_dir)
 
     as_of = req.as_of
     if not as_of:
@@ -519,6 +533,7 @@ def save_config(req: SaveConfigRequest, request: Request):
     engine = _get_engine(request)
     strategy = _get_public_strategy(engine, req.strategy_id)
 
+    _validate_basic_filter(req.overrides, strategy)
     _validate_scoring_config(req.overrides)
     _validate_overlay_config(req.overrides, strategy)
     _validate_entry_risk(req.overrides, strategy)
@@ -538,7 +553,28 @@ def patch_config(req: SaveConfigRequest, request: Request):
     strategy = _get_public_strategy(engine, req.strategy_id)
     data_dir = _data_dir(request)
     overrides = strategy_config.load_override(data_dir, req.strategy_id)
-    overrides.update(req.overrides)
+    bf_patch = req.overrides.get("basic_filter")
+    if isinstance(bf_patch, dict):
+        previous_bf = {**strategy.basic_filter, **overrides.get("basic_filter", {})}
+        scope = {}
+        if ("target_mode" not in previous_bf and "target_mode" not in bf_patch
+                and "enabled" in bf_patch
+                and bf_patch["enabled"] != previous_bf.get("enabled", True)):
+            # 旧格式把板块/ST绑定到enabled; 切换数值过滤前固定原来的有效范围。
+            previous_enabled = previous_bf.get("enabled", True)
+            boards = previous_bf.get("boards") if previous_enabled else []
+            scope = {
+                "target_mode": "selected" if boards else "all", "boards": boards or [],
+                "exclude_st": bool(previous_enabled and previous_bf.get("exclude_st")),
+                "include_custom": False, "watchlist_group_ids": [],
+            }
+        req_overrides = {**req.overrides, "basic_filter": {
+            **overrides.get("basic_filter", {}), **scope, **bf_patch,
+        }}
+    else:
+        req_overrides = req.overrides
+    overrides.update(req_overrides)
+    _validate_basic_filter(overrides, strategy)
     _validate_scoring_config(overrides)
     _validate_overlay_config(overrides, strategy)
     _validate_entry_risk(overrides, strategy)
@@ -551,17 +587,26 @@ def patch_config(req: SaveConfigRequest, request: Request):
     return {"ok": True}
 
 
+def _validate_basic_filter(overrides: dict, strategy: StrategyDef) -> None:
+    try:
+        bf = overrides.get("basic_filter")
+        strategy_config.validate_basic_filter(bf)
+        strategy_config.validate_basic_filter({**strategy.basic_filter, **(bf or {})})
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 def _validate_entry_risk(overrides: dict, strategy: StrategyDef) -> None:
     from app.strategy.entry_risk import EntryRiskPolicy
     from app.strategy.risk_policy import strategy_policy
 
     try:
+        risk = strategy_policy(strategy, overrides)
         policy = EntryRiskPolicy.from_mapping(overrides.get("entry_risk"))
         if not policy.enabled:
             return
         if strategy.execution_backend == "minute_filter":
             raise ValueError("冻结日线入场风险暂不支持分钟策略")
-        risk = strategy_policy(strategy, overrides)
         if (policy.risk_per_trade_pct is not None and risk.stop_loss_pct is None
                 and policy.stop_atr_multiple is None and not policy.stop_signal_low):
             raise ValueError("按风险配仓必须配置固定止损、ATR止损或信号日低点保护")
@@ -570,6 +615,24 @@ def _validate_entry_risk(overrides: dict, strategy: StrategyDef) -> None:
 
 
 def _validate_overlay_config(overrides: dict, strategy: StrategyDef) -> None:
+    if strategy.meta.get("minute_execution") in {"overnight_capacity_v1", "momentum_capacity_v1"}:
+        if strategy.meta["minute_execution"] == "momentum_capacity_v1":
+            from app.strategy.momentum_rules import parameters
+        else:
+            from app.strategy.builtin._overnight import parameters
+
+        try:
+            parameters({
+                **{p["id"]: p["default"] for p in strategy.meta.get("params", [])},
+                **(overrides.get("params") or {}),
+            })
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(400, detail=str(exc)) from exc
+        if any(overrides.get(key) for key in (
+            "scoring", "entry_signals", "exit_signals", "stop_loss", "take_profit",
+            "trailing_stop", "trailing_take_profit_activate", "trailing_take_profit_drawdown",
+        )):
+            raise HTTPException(400, detail="隔夜分钟执行请通过策略参数设置选股、卖出及成交规则")
     from app.strategy.custom_signals import _string_ext_fields
     from app.strategy.overlay import effective_conditions, fields
 
@@ -921,6 +984,7 @@ def _save_strategy_code(req: StrategyCodeSaveRequest, request: Request, *, legac
                 "策略引用了未定义的自定义信号: " + ", ".join(sorted(missing))
                 + " — 请先在「自定义信号」管理中创建对应信号后再保存"
             )
+        strategy_results.StrategyResults(data_dir).activate(sid)
     except Exception as e:
         _restore_strategy_file(path, previous_code)
         engine.reload()
@@ -1259,6 +1323,7 @@ def _save_composite_strategy(req: StrategyCompositeSaveRequest, request: Request
             raise ValueError(f"策略来源异常: 期望 composite, 实际 {loaded.source}")
         if loaded.execution_backend != "composite":
             raise ValueError("策略后端异常: 期望 composite")
+        strategy_results.StrategyResults(data_dir).activate(sid)
     except Exception as e:
         _restore_strategy_file(path, previous_code)
         engine.reload()
@@ -1374,8 +1439,7 @@ def delete_strategy(strategy_id: str, request: Request):
 
     if isinstance(engine, TenantStrategyEngine):
         engine.delete_source(strategy_id)
-        warnings = _cleanup_deleted_strategy(request, strategy_id)
-        return {"ok": True, "warnings": warnings}
+        return {"ok": True, "warnings": []}
     path = s.file_path
     data_dir = _data_dir(request)
     if path is None or s.source not in {"custom", "ai", "composite"}:
@@ -1389,20 +1453,33 @@ def delete_strategy(strategy_id: str, request: Request):
     if not resolved_path.is_relative_to(allowed_dir):
         raise HTTPException(status_code=400, detail="策略源文件不在用户策略目录, 拒绝删除")
 
+    previous_code = None
     try:
-        resolved_path.unlink(missing_ok=True)
-    except OSError as e:
-        reason = e.strerror or str(e)
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"无法删除策略文件 {resolved_path.name}: {reason}。"
-                "请确认数据目录可写; Docker 部署请检查数据卷不是只读挂载。"
-            ),
-        ) from e
+        from app.services.strategy_deletion import delete_local_results
+        previous_code = resolved_path.read_bytes() if resolved_path.exists() else None
+        with delete_local_results(data_dir, strategy_id):
+            try:
+                resolved_path.unlink(missing_ok=True)
+            except OSError as e:
+                reason = e.strerror or str(e)
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"无法删除策略文件 {resolved_path.name}: {reason}。"
+                        "请确认数据目录可写; Docker 部署请检查数据卷不是只读挂载。"
+                    ),
+                ) from e
+    except HTTPException:
+        raise
+    except Exception as e:
+        if previous_code is not None and not resolved_path.exists():
+            resolved_path.write_bytes(previous_code)
+        raise HTTPException(status_code=503, detail="策略历史清理失败, 未完成删除, 请重试") from e
 
     # 删除只影响当前策略, 全量 reload 会让其他损坏或重复 ID 的文件阻塞本次删除。
     engine.unregister(strategy_id)
+    from app.api.backtest import clear_strategy_jobs
+    clear_strategy_jobs(strategy_id)
     warnings = _cleanup_deleted_strategy(request, strategy_id)
     return {"ok": True, "warnings": warnings}
 

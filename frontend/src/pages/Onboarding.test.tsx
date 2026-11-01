@@ -83,7 +83,7 @@ describe('two-step onboarding', () => {
     await click('我已了解,继续')
 
     expect(node.textContent).toContain('2 / 2')
-    expect(node.textContent).toContain('欢迎使用 TSP')
+    expect(node.textContent).toContain('欢迎使用 Tick Stock Platform')
     expect(node.textContent).not.toContain('开始配置')
     expect(node.textContent).not.toContain('配置数据源')
     expect(node.textContent).not.toContain('能力路由检测')
@@ -126,7 +126,7 @@ describe('two-step onboarding', () => {
     await click('进入面板')
 
     expect(node.querySelector('[role="alert"]')?.textContent).toContain('保存引导状态失败，请重试')
-    expect(node.textContent).toContain('欢迎使用 TSP')
+    expect(node.textContent).toContain('欢迎使用 Tick Stock Platform')
     expect(node.textContent).not.toContain('业务面板')
     expect(queryClient.getQueryData(QK.settings)).toMatchObject({ onboarding_completed: false })
 

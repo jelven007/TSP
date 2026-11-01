@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "retained_strategy_groups": 3,
+  "protected_files_total": 565,
+  "preserved_files_hash_verified": 564,
+  "strategy002_files_preserved": 40,
+  "latest_trade_count": 759,
+  "latest_net_pnl": 37406.332499998854,
+  "latest_deadline": "11:25",
+  "latest_package_members": 34,
+  "obsolete_strategy_in_latest_package": false,
+  "report_links_checked": 69,
+  "removed_targets_verified": 69,
+  "trash_hashes_verified": 2246,
+  "both_xlsx_zip_integrity_checked": true,
+  "initial_user_code_and_static_identity_hashes_unchanged": true,
+  "live_preferences_untouched_by_cleanup": {
+    "initial_sha256": "3b39d4c10cc9f2973913b55b9b7cc3ecffd0774ee74fbd1b21e197d821918a5b",
+    "current_sha256": "763bbd29a2ff5435c616b02342488231af74897e5138464c40a1bdaea5997b26",
+    "excluded_from_cleanup_targets": true,
+    "app_may_save_during_cleanup": true
+  },
+  "authorized_document_link_edits_original_content_preserved": [
+    "docs/architecture.md",
+    "docs/version-baseline.md"
+  ],
+  "application_runtime_or_remote_mutated": false,
+  "old_git_history_preserved": true,
+  "research_recomputed": false
+}

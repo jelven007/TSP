@@ -1,0 +1,212 @@
+{
+  "phase": "before_delete",
+  "scope_start": "2026-06-01",
+  "scope_end": "2026-06-12",
+  "deleted": {
+    "kline_minute": {
+      "partitions": 10,
+      "files": 10,
+      "rows": 3545760,
+      "bytes": 42812771
+    },
+    "kline_5minute": {
+      "partitions": 10,
+      "files": 10,
+      "rows": 709152,
+      "bytes": 10484988
+    },
+    "kline_10minute": {
+      "partitions": 10,
+      "files": 10,
+      "rows": 354576,
+      "bytes": 5717793
+    },
+    "kline_15minute": {
+      "partitions": 10,
+      "files": 10,
+      "rows": 236384,
+      "bytes": 4017019
+    }
+  },
+  "partitions": [
+    {
+      "path": "kline_minute/date=2026-06-01",
+      "rows": 12240
+    },
+    {
+      "path": "kline_minute/date=2026-06-02",
+      "rows": 14640
+    },
+    {
+      "path": "kline_minute/date=2026-06-03",
+      "rows": 97200
+    },
+    {
+      "path": "kline_minute/date=2026-06-04",
+      "rows": 166320
+    },
+    {
+      "path": "kline_minute/date=2026-06-05",
+      "rows": 228960
+    },
+    {
+      "path": "kline_minute/date=2026-06-08",
+      "rows": 288960
+    },
+    {
+      "path": "kline_minute/date=2026-06-09",
+      "rows": 340320
+    },
+    {
+      "path": "kline_minute/date=2026-06-10",
+      "rows": 425280
+    },
+    {
+      "path": "kline_minute/date=2026-06-11",
+      "rows": 940320
+    },
+    {
+      "path": "kline_minute/date=2026-06-12",
+      "rows": 1031520
+    },
+    {
+      "path": "kline_5minute/date=2026-06-01",
+      "rows": 2448
+    },
+    {
+      "path": "kline_5minute/date=2026-06-02",
+      "rows": 2928
+    },
+    {
+      "path": "kline_5minute/date=2026-06-03",
+      "rows": 19440
+    },
+    {
+      "path": "kline_5minute/date=2026-06-04",
+      "rows": 33264
+    },
+    {
+      "path": "kline_5minute/date=2026-06-05",
+      "rows": 45792
+    },
+    {
+      "path": "kline_5minute/date=2026-06-08",
+      "rows": 57792
+    },
+    {
+      "path": "kline_5minute/date=2026-06-09",
+      "rows": 68064
+    },
+    {
+      "path": "kline_5minute/date=2026-06-10",
+      "rows": 85056
+    },
+    {
+      "path": "kline_5minute/date=2026-06-11",
+      "rows": 188064
+    },
+    {
+      "path": "kline_5minute/date=2026-06-12",
+      "rows": 206304
+    },
+    {
+      "path": "kline_10minute/date=2026-06-01",
+      "rows": 1224
+    },
+    {
+      "path": "kline_10minute/date=2026-06-02",
+      "rows": 1464
+    },
+    {
+      "path": "kline_10minute/date=2026-06-03",
+      "rows": 9720
+    },
+    {
+      "path": "kline_10minute/date=2026-06-04",
+      "rows": 16632
+    },
+    {
+      "path": "kline_10minute/date=2026-06-05",
+      "rows": 22896
+    },
+    {
+      "path": "kline_10minute/date=2026-06-08",
+      "rows": 28896
+    },
+    {
+      "path": "kline_10minute/date=2026-06-09",
+      "rows": 34032
+    },
+    {
+      "path": "kline_10minute/date=2026-06-10",
+      "rows": 42528
+    },
+    {
+      "path": "kline_10minute/date=2026-06-11",
+      "rows": 94032
+    },
+    {
+      "path": "kline_10minute/date=2026-06-12",
+      "rows": 103152
+    },
+    {
+      "path": "kline_15minute/date=2026-06-01",
+      "rows": 816
+    },
+    {
+      "path": "kline_15minute/date=2026-06-02",
+      "rows": 976
+    },
+    {
+      "path": "kline_15minute/date=2026-06-03",
+      "rows": 6480
+    },
+    {
+      "path": "kline_15minute/date=2026-06-04",
+      "rows": 11088
+    },
+    {
+      "path": "kline_15minute/date=2026-06-05",
+      "rows": 15264
+    },
+    {
+      "path": "kline_15minute/date=2026-06-08",
+      "rows": 19264
+    },
+    {
+      "path": "kline_15minute/date=2026-06-09",
+      "rows": 22688
+    },
+    {
+      "path": "kline_15minute/date=2026-06-10",
+      "rows": 28352
+    },
+    {
+      "path": "kline_15minute/date=2026-06-11",
+      "rows": 62688
+    },
+    {
+      "path": "kline_15minute/date=2026-06-12",
+      "rows": 68768
+    }
+  ],
+  "retained": {
+    "kline_minute": {
+      "files": 93,
+      "rows": 115080458
+    },
+    "kline_5minute": {
+      "files": 92,
+      "rows": 22918032
+    },
+    "kline_10minute": {
+      "files": 92,
+      "rows": 11459016
+    },
+    "kline_15minute": {
+      "files": 92,
+      "rows": 7639344
+    }
+  },
+  "backup_created": false
+}

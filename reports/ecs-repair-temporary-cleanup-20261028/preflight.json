@@ -1,0 +1,253 @@
+{
+  "jobs": [
+    {
+      "id": "9cd7bcddef",
+      "kind": "kline_1m",
+      "source": "manual",
+      "status": "cancelled",
+      "request": {
+        "start_date": "2026-05-18",
+        "period": "1m",
+        "mode": "missing",
+        "end_date": "2026-05-20"
+      },
+      "created_at": "2026-10-28T06:15:42.645854+00:00",
+      "finished_at": "2026-10-28T06:17:07.171652+00:00",
+      "result": null,
+      "error": null,
+      "log_sample": [
+        {
+          "ts": "2026-10-28T06:16:49.947070+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-05-18: 获取 99 只证券的遗漏区间 09:31:00~11:30:00"
+        },
+        {
+          "ts": "2026-10-28T06:16:57.168977+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-05-18: 保存遗漏数据"
+        },
+        {
+          "ts": "2026-10-28T06:16:57.168996+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-05-18: 获取 99 只证券的遗漏区间 13:01:00~15:00:00"
+        }
+      ],
+      "bytes": 4499
+    },
+    {
+      "id": "6d92d76be7",
+      "kind": "integrity_repair",
+      "source": "automatic",
+      "status": "succeeded",
+      "request": {
+        "start_date": "2026-10-27"
+      },
+      "created_at": "2026-10-28T06:05:32.951234+00:00",
+      "finished_at": "2026-10-28T06:10:54.978992+00:00",
+      "result": {
+        "universe_size": 5222,
+        "universe_as_of": "2026-10-28",
+        "universe_source": "official_exchanges",
+        "universe_boards": [
+          "创业板",
+          "沪主板",
+          "深主板",
+          "科创板"
+        ],
+        "universe_refreshed": false,
+        "daily_rows": 10431,
+        "financial_rows": {},
+        "initial_sync": false,
+        "daily_days": 1,
+        "adj_factor_symbols": 11,
+        "enriched_days": 24380,
+        "index_count": 554,
+        "index_daily_rows": 1108,
+        "etf_count": 263,
+        "etf_daily_rows": 521,
+        "etf_adj_factor_symbols": 1,
+        "minute_rows": 57371,
+        "regime_days": 1452,
+        "mainline_rows": 20947,
+        "paper_settle": {
+          "filled": 0,
+          "expired": 0,
+          "corp_actions": 0,
+          "nav": null,
+          "accounts": []
+        },
+        "lagging_symbols": 6,
+        "enriched_total_days": 1452,
+        "integrity_repair_from": "2026-10-27",
+        "integrity_issues": 0,
+        "skipped_stages": [],
+        "stage_errors": [],
+        "data_release_id": "8cad1294a80d4e88a72f00f2fdab255e"
+      },
+      "error": null,
+      "log_sample": [
+        {
+          "ts": "2026-10-28T06:10:49.711516+00:00",
+          "stage": "paper_settle",
+          "msg": "模拟交易结算完成"
+        },
+        {
+          "ts": "2026-10-28T06:10:49.711523+00:00",
+          "stage": "refresh_views",
+          "msg": "刷新 DuckDB 视图…"
+        },
+        {
+          "ts": "2026-10-28T06:10:50.405989+00:00",
+          "stage": "done",
+          "msg": "完成"
+        }
+      ],
+      "bytes": 5538
+    },
+    {
+      "id": "83de9259fc",
+      "kind": "kline_1m",
+      "source": "manual",
+      "status": "cancelled",
+      "request": {
+        "start_date": "2026-04-18",
+        "period": "1m",
+        "mode": "missing",
+        "end_date": "2026-05-18"
+      },
+      "created_at": "2026-10-28T05:48:26.167004+00:00",
+      "finished_at": "2026-10-28T05:51:26.637754+00:00",
+      "result": null,
+      "error": null,
+      "log_sample": [
+        {
+          "ts": "2026-10-28T05:51:10.042372+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-04-20: 获取 100 只证券的遗漏区间 09:31:00~11:30:00"
+        },
+        {
+          "ts": "2026-10-28T05:51:16.569698+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-04-20: 保存遗漏数据"
+        },
+        {
+          "ts": "2026-10-28T05:51:16.569719+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-04-20: 获取 100 只证券的遗漏区间 13:01:00~15:00:00"
+        }
+      ],
+      "bytes": 8773
+    },
+    {
+      "id": "9e4308689c",
+      "kind": "kline_1m",
+      "source": "manual",
+      "status": "cancelled",
+      "request": {
+        "start_date": "2026-04-18",
+        "period": "1m",
+        "mode": "missing",
+        "end_date": "2026-05-18"
+      },
+      "created_at": "2026-10-28T04:21:38.655465+00:00",
+      "finished_at": "2026-10-28T05:26:52.129410+00:00",
+      "result": null,
+      "error": null,
+      "log_sample": [
+        {
+          "ts": "2026-10-28T05:24:51.000898+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-04-21: 获取 100 只证券的遗漏区间 09:31:00~11:30:00"
+        },
+        {
+          "ts": "2026-10-28T05:25:16.868240+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-04-21: 保存遗漏数据"
+        },
+        {
+          "ts": "2026-10-28T05:25:16.868280+00:00",
+          "stage": "sync_1m",
+          "msg": "2026-04-21: 获取 100 只证券的遗漏区间 13:01:00~15:00:00"
+        }
+      ],
+      "bytes": 25152
+    },
+    {
+      "id": "a9af9857dd",
+      "kind": "repair_daily",
+      "source": "manual",
+      "status": "succeeded",
+      "request": {
+        "start_date": "2026-10-28",
+        "period": "1d",
+        "mode": "missing",
+        "end_date": "2026-10-28"
+      },
+      "created_at": "2026-10-28T01:33:46.073997+00:00",
+      "finished_at": "2026-10-28T01:33:48.301435+00:00",
+      "result": {
+        "period": "1d",
+        "mode": "missing",
+        "rows": 0,
+        "missing_before": 0,
+        "remaining": 0,
+        "requests": 0,
+        "universe_size": 5222,
+        "start": "2026-10-28",
+        "end": "2026-10-28",
+        "source": null,
+        "price_basis": "raw",
+        "message": "选定区间没有遗漏数据, 无需获取"
+      },
+      "error": null,
+      "log_sample": [
+        {
+          "ts": "2026-10-28T01:33:46.076692+00:00",
+          "stage": "init",
+          "msg": "等待其他计算任务完成…"
+        },
+        {
+          "ts": "2026-10-28T01:33:48.301380+00:00",
+          "stage": "done",
+          "msg": "选定区间没有遗漏数据, 无需获取"
+        }
+      ],
+      "bytes": 1138
+    },
+    {
+      "id": "2a6d97305e",
+      "kind": "repair_daily",
+      "source": "manual",
+      "status": "failed",
+      "request": {
+        "start_date": "2026-07-01",
+        "period": "1d",
+        "mode": "missing"
+      },
+      "created_at": "2026-10-26T15:05:47.828515+00:00",
+      "finished_at": "2026-10-26T15:06:30.323271+00:00",
+      "result": null,
+      "error": "已补0行, 仍有480行未补齐; 数据源未返回部分记录(可能停牌、无数据或请求失败)",
+      "log_sample": [
+        {
+          "ts": "2026-10-26T15:06:28.088306+00:00",
+          "stage": "sync_1d",
+          "msg": "2026-10-26: 检查标的 5100/5222, 已补0行"
+        },
+        {
+          "ts": "2026-10-26T15:06:28.088680+00:00",
+          "stage": "sync_1d",
+          "msg": "2026-10-26: 检查标的 5200/5222, 已补0行"
+        },
+        {
+          "ts": "2026-10-26T15:06:28.107186+00:00",
+          "stage": "sync_1d",
+          "msg": "2026-10-26: 已补0行, 剩余480行"
+        }
+      ],
+      "bytes": 24927
+    }
+  ],
+  "temporary_files": [],
+  "unpublished_stages": []
+}

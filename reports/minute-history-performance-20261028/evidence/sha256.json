@@ -1,0 +1,14 @@
+{
+  "runtime-observations.json": "109edd3530c6f5c07ad043b7c671f584cb166366112dd54e6bd99d1cfc1dc3ab",
+  "runtime-final.json": "7d433877cc85769da31aa6ab3b191c8130d6c6a3151ebff5929e9b7c9f721582",
+  "fix.patch": "371b23554b2b94e71e63483c39a9c6f8210d9aa1127852a726078af5b7bf0594",
+  "benchmark.py": "f2a620d09c7e9f9d7c625e75d0586115be958a520131cb8e7ebd9c0c5072643f",
+  "benchmark.json": "7aad2bec4ff270f9204f18010842ed96dc4767b7af0ecf4c5b0ee657670ded26",
+  "workspace-green.txt": "3c5d72678f2677f71ec0fce342aa3dded2a324c1df7c8a40dfcb230b38a9a4e0",
+  "red-3.txt": "1f99ca9e4ff2be5b665987e34b89bc4d3fc4f8386ad816770877a6a4480e4d1b",
+  "red-2.txt": "277da7af74b6fefe278e54334381d7cf63eed0659629460a6dc29b43bfddfa29",
+  "red-1.txt": "5383cab908728fff81fe5ce5492260bcb8ca2b5d19eba984484ca05b3a6e0bdf",
+  "regression-green.txt": "f53ff122c2d56f7e2caf65fc2471a647f6480bfae3dd0fb3b3d52ecccf13a803",
+  "reverse.txt": "255d5ad97731510cb186e5bf21a3a887d8e505620820107ac33cde713b5327d8",
+  "repository-checks.txt": "43c7f248b972768855e6e5b8df471f60f20b2f91f851484046f5c08420705dec"
+}

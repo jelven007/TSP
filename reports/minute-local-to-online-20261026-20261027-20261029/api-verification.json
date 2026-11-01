@@ -1,0 +1,85 @@
+{
+  "status": "verified",
+  "verified_at": "2026-10-29T02:10:40.111488+00:00",
+  "origin": "https://server.example.com",
+  "version": "0.4.38",
+  "ready_functions": 6,
+  "administrator_login_passed": true,
+  "minute_statistics": {
+    "rows": 118653166,
+    "earliest_date": "2026-03-30",
+    "latest_date": "2026-10-29",
+    "symbols_covered": 5222,
+    "trading_days": 142
+  },
+  "earlier_source_statistics": {
+    "rows": 118637521,
+    "trading_days": 142,
+    "earliest_date": "2026-03-30",
+    "latest_date": "2026-10-29"
+  },
+  "samples": [
+    {
+      "symbol": "002717.SZ",
+      "day": "2026-10-26",
+      "rows": 240,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "002827.SZ",
+      "day": "2026-10-26",
+      "rows": 240,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "301468.SZ",
+      "day": "2026-10-26",
+      "rows": 240,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "600621.SH",
+      "day": "2026-10-26",
+      "rows": 240,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "601326.SH",
+      "day": "2026-10-26",
+      "rows": 240,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "605258.SH",
+      "day": "2026-10-26",
+      "rows": 240,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "688496.SH",
+      "day": "2026-10-26",
+      "rows": 240,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "600000.SH",
+      "day": "2026-10-27",
+      "rows": 241,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "603220.SH",
+      "day": "2026-10-27",
+      "rows": 241,
+      "all_fields_match_local": true
+    },
+    {
+      "symbol": "689009.SH",
+      "day": "2026-10-27",
+      "rows": 241,
+      "all_fields_match_local": true
+    }
+  ],
+  "sampled_rows_checked": 2403,
+  "public_api_observes_repaired_data": true
+}

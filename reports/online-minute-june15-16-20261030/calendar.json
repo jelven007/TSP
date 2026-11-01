@@ -1,0 +1,23 @@
+{
+  "start": "2026-06-15",
+  "end": "2026-06-16",
+  "trading_days": [
+    "2026-06-15",
+    "2026-06-16"
+  ],
+  "provenance": {
+    "version": "SSE-2019-2026-20261026",
+    "covered_years": [
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "sha256": "51fc950004885a1ea88d4c306a5ea2285e34ae3b2191412a5cad9c289f0336aa",
+    "unknown_year_policy": "provider_evidence"
+  }
+}

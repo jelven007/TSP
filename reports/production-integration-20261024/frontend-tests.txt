@@ -34,7 +34,7 @@ stderr | src/pages/LocalAdmin.test.tsx > signs in as admin and exposes personal 
  ✓ src/pages/Auth.test.tsx (2 tests) 226ms
  ✓ src/pages/LocalAdmin.test.tsx (1 test) 306ms
    ✓ signs in as admin and exposes personal space and settings without tenant requests  305ms
-stderr | src/components/TenantSelector.test.tsx > administrator tenant labels > displays owner owner@example.test while preserving the tenant ID
+stderr | src/components/TenantSelector.test.tsx > administrator tenant labels > displays owner redacted@example.com while preserving the tenant ID
 ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
 ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
 

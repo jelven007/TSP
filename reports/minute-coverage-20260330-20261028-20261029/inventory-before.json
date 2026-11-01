@@ -1,0 +1,1705 @@
+{
+  "minute": {
+    "kline_minute/date=2026-03-30/part.parquet": {
+      "size": 6260,
+      "mtime_ns": 1793225595491642867,
+      "inode": 4681752,
+      "rows": 240
+    },
+    "kline_minute/date=2026-03-31/part.parquet": {
+      "size": 6425,
+      "mtime_ns": 1793225595493642886,
+      "inode": 4681755,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-01/part.parquet": {
+      "size": 6177,
+      "mtime_ns": 1793225595495642906,
+      "inode": 4681758,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-02/part.parquet": {
+      "size": 6439,
+      "mtime_ns": 1793225595496642915,
+      "inode": 4681761,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-03/part.parquet": {
+      "size": 6327,
+      "mtime_ns": 1793225595498642934,
+      "inode": 4681764,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-07/part.parquet": {
+      "size": 6328,
+      "mtime_ns": 1793225595500642953,
+      "inode": 4681767,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-08/part.parquet": {
+      "size": 6143,
+      "mtime_ns": 1793225595502642973,
+      "inode": 4681770,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-09/part.parquet": {
+      "size": 6119,
+      "mtime_ns": 1793225595503642982,
+      "inode": 4681773,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-10/part.parquet": {
+      "size": 6298,
+      "mtime_ns": 1793225595505643001,
+      "inode": 4681776,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-13/part.parquet": {
+      "size": 5916,
+      "mtime_ns": 1793225595507643020,
+      "inode": 4681779,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-14/part.parquet": {
+      "size": 6144,
+      "mtime_ns": 1793225595509643040,
+      "inode": 4681782,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-15/part.parquet": {
+      "size": 6219,
+      "mtime_ns": 1793225595510643049,
+      "inode": 4681785,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-16/part.parquet": {
+      "size": 6041,
+      "mtime_ns": 1793225595512643068,
+      "inode": 4681788,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-17/part.parquet": {
+      "size": 6008,
+      "mtime_ns": 1793225595514643088,
+      "inode": 4681791,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-20/part.parquet": {
+      "size": 6162,
+      "mtime_ns": 1793225595516643107,
+      "inode": 4681794,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-21/part.parquet": {
+      "size": 5860,
+      "mtime_ns": 1793225595517643116,
+      "inode": 4681797,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-22/part.parquet": {
+      "size": 6382,
+      "mtime_ns": 1793225595519643135,
+      "inode": 4681800,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-23/part.parquet": {
+      "size": 6445,
+      "mtime_ns": 1793225595521643155,
+      "inode": 4681803,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-24/part.parquet": {
+      "size": 6560,
+      "mtime_ns": 1793225595522643164,
+      "inode": 4681806,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-27/part.parquet": {
+      "size": 9151,
+      "mtime_ns": 1793225614585825778,
+      "inode": 4681819,
+      "rows": 480
+    },
+    "kline_minute/date=2026-04-28/part.parquet": {
+      "size": 8904,
+      "mtime_ns": 1793225614588825807,
+      "inode": 4681809,
+      "rows": 480
+    },
+    "kline_minute/date=2026-04-29/part.parquet": {
+      "size": 4875,
+      "mtime_ns": 1793225595528643222,
+      "inode": 4681815,
+      "rows": 240
+    },
+    "kline_minute/date=2026-04-30/part.parquet": {
+      "size": 8145,
+      "mtime_ns": 1793225614592825845,
+      "inode": 4681812,
+      "rows": 480
+    },
+    "kline_minute/date=2026-05-06/part.parquet": {
+      "size": 6044,
+      "mtime_ns": 1793209759639123456,
+      "inode": 4681731,
+      "rows": 240
+    },
+    "kline_minute/date=2026-05-07/part.parquet": {
+      "size": 5836,
+      "mtime_ns": 1793209759642123485,
+      "inode": 4681734,
+      "rows": 240
+    },
+    "kline_minute/date=2026-05-08/part.parquet": {
+      "size": 6059,
+      "mtime_ns": 1793209759644123504,
+      "inode": 4681737,
+      "rows": 240
+    },
+    "kline_minute/date=2026-05-12/part.parquet": {
+      "size": 3888,
+      "mtime_ns": 1793209759645123513,
+      "inode": 4681740,
+      "rows": 240
+    },
+    "kline_minute/date=2026-05-13/part.parquet": {
+      "size": 4036,
+      "mtime_ns": 1793209759647123533,
+      "inode": 4681743,
+      "rows": 240
+    },
+    "kline_minute/date=2026-05-14/part.parquet": {
+      "size": 4073,
+      "mtime_ns": 1793209759649123552,
+      "inode": 4681746,
+      "rows": 240
+    },
+    "kline_minute/date=2026-05-15/part.parquet": {
+      "size": 4672,
+      "mtime_ns": 1793209759651123571,
+      "inode": 4681749,
+      "rows": 240
+    },
+    "kline_minute/date=2026-05-18/part.parquet": {
+      "size": 16614,
+      "mtime_ns": 1793209759654123599,
+      "inode": 4170579,
+      "rows": 960
+    },
+    "kline_minute/date=2026-05-19/part.parquet": {
+      "size": 22477,
+      "mtime_ns": 1793141384126719908,
+      "inode": 4175712,
+      "rows": 1440
+    },
+    "kline_minute/date=2026-05-20/part.parquet": {
+      "size": 31712,
+      "mtime_ns": 1793141384130719945,
+      "inode": 4175719,
+      "rows": 2160
+    },
+    "kline_minute/date=2026-05-21/part.parquet": {
+      "size": 37296,
+      "mtime_ns": 1793141384133719973,
+      "inode": 4175722,
+      "rows": 2640
+    },
+    "kline_minute/date=2026-05-22/part.parquet": {
+      "size": 40843,
+      "mtime_ns": 1793142440340407333,
+      "inode": 4175731,
+      "rows": 2880
+    },
+    "kline_minute/date=2026-05-25/part.parquet": {
+      "size": 47373,
+      "mtime_ns": 1793142440344407370,
+      "inode": 4175728,
+      "rows": 3360
+    },
+    "kline_minute/date=2026-05-26/part.parquet": {
+      "size": 54233,
+      "mtime_ns": 1793142440348407407,
+      "inode": 4175725,
+      "rows": 4320
+    },
+    "kline_minute/date=2026-05-27/part.parquet": {
+      "size": 146527,
+      "mtime_ns": 1793143535487431404,
+      "inode": 4175740,
+      "rows": 11760
+    },
+    "kline_minute/date=2026-05-28/part.parquet": {
+      "size": 159931,
+      "mtime_ns": 1793143535493431458,
+      "inode": 4175741,
+      "rows": 13200
+    },
+    "kline_minute/date=2026-05-29/part.parquet": {
+      "size": 198494,
+      "mtime_ns": 1793143535500431522,
+      "inode": 4175734,
+      "rows": 16080
+    },
+    "kline_minute/date=2026-06-01/part.parquet": {
+      "size": 994228,
+      "mtime_ns": 1793144597367172783,
+      "inode": 4175746,
+      "rows": 81360
+    },
+    "kline_minute/date=2026-06-02/part.parquet": {
+      "size": 1828025,
+      "mtime_ns": 1793144597396173050,
+      "inode": 4175755,
+      "rows": 151200
+    },
+    "kline_minute/date=2026-06-03/part.parquet": {
+      "size": 2847351,
+      "mtime_ns": 1793144597349172618,
+      "inode": 4175749,
+      "rows": 233760
+    },
+    "kline_minute/date=2026-06-04/part.parquet": {
+      "size": 3629744,
+      "mtime_ns": 1793144597253171736,
+      "inode": 4175752,
+      "rows": 302640
+    },
+    "kline_minute/date=2026-06-05/part.parquet": {
+      "size": 4567851,
+      "mtime_ns": 1793144597310172259,
+      "inode": 4175743,
+      "rows": 365520
+    },
+    "kline_minute/date=2026-06-08/part.parquet": {
+      "size": 5428039,
+      "mtime_ns": 1793145647308892684,
+      "inode": 4175764,
+      "rows": 425520
+    },
+    "kline_minute/date=2026-06-09/part.parquet": {
+      "size": 5782274,
+      "mtime_ns": 1793145647371893270,
+      "inode": 4175758,
+      "rows": 476640
+    },
+    "kline_minute/date=2026-06-10/part.parquet": {
+      "size": 6927268,
+      "mtime_ns": 1793145647436893875,
+      "inode": 4175761,
+      "rows": 560640
+    },
+    "kline_minute/date=2026-06-11/part.parquet": {
+      "size": 12685021,
+      "mtime_ns": 1793146690502600574,
+      "inode": 4175767,
+      "rows": 1074960
+    },
+    "kline_minute/date=2026-06-12/part.parquet": {
+      "size": 13862057,
+      "mtime_ns": 1793146690635601810,
+      "inode": 4175770,
+      "rows": 1165920
+    },
+    "kline_minute/date=2026-06-15/part.parquet": {
+      "size": 14316390,
+      "mtime_ns": 1793146690757602944,
+      "inode": 4175773,
+      "rows": 1242720
+    },
+    "kline_minute/date=2026-06-16/part.parquet": {
+      "size": 14449308,
+      "mtime_ns": 1793147709738091235,
+      "inode": 4175158,
+      "rows": 1243920
+    },
+    "kline_minute/date=2026-06-17/part.parquet": {
+      "size": 14377555,
+      "mtime_ns": 1793147709862092393,
+      "inode": 4175776,
+      "rows": 1242960
+    },
+    "kline_minute/date=2026-06-18/part.parquet": {
+      "size": 14578694,
+      "mtime_ns": 1793133252339726744,
+      "inode": 4175150,
+      "rows": 1242240
+    },
+    "kline_minute/date=2026-06-22/part.parquet": {
+      "size": 15196301,
+      "mtime_ns": 1793134245315718931,
+      "inode": 4175166,
+      "rows": 1242960
+    },
+    "kline_minute/date=2026-06-23/part.parquet": {
+      "size": 14837463,
+      "mtime_ns": 1793134245499720611,
+      "inode": 4175181,
+      "rows": 1243920
+    },
+    "kline_minute/date=2026-06-24/part.parquet": {
+      "size": 14832088,
+      "mtime_ns": 1793134245648721973,
+      "inode": 4175185,
+      "rows": 1243680
+    },
+    "kline_minute/date=2026-06-25/part.parquet": {
+      "size": 14830107,
+      "mtime_ns": 1793134245796723325,
+      "inode": 4175184,
+      "rows": 1243440
+    },
+    "kline_minute/date=2026-06-26/part.parquet": {
+      "size": 15061643,
+      "mtime_ns": 1793134245951724741,
+      "inode": 4175174,
+      "rows": 1243680
+    },
+    "kline_minute/date=2026-06-29/part.parquet": {
+      "size": 15123238,
+      "mtime_ns": 1793135185562338131,
+      "inode": 4175187,
+      "rows": 1242720
+    },
+    "kline_minute/date=2026-06-30/part.parquet": {
+      "size": 14610940,
+      "mtime_ns": 1793135185730339675,
+      "inode": 4175190,
+      "rows": 1242720
+    },
+    "kline_minute/date=2026-07-01/part.parquet": {
+      "size": 15064249,
+      "mtime_ns": 1793135185913341356,
+      "inode": 4175193,
+      "rows": 1243440
+    },
+    "kline_minute/date=2026-07-02/part.parquet": {
+      "size": 15000480,
+      "mtime_ns": 1793136085459630055,
+      "inode": 4175196,
+      "rows": 1244640
+    },
+    "kline_minute/date=2026-07-03/part.parquet": {
+      "size": 14800634,
+      "mtime_ns": 1793136085584631209,
+      "inode": 4175199,
+      "rows": 1244400
+    },
+    "kline_minute/date=2026-07-06/part.parquet": {
+      "size": 14864830,
+      "mtime_ns": 1793136085705632326,
+      "inode": 4175202,
+      "rows": 1244640
+    },
+    "kline_minute/date=2026-07-07/part.parquet": {
+      "size": 14735617,
+      "mtime_ns": 1793136950824644899,
+      "inode": 4175214,
+      "rows": 1244400
+    },
+    "kline_minute/date=2026-07-08/part.parquet": {
+      "size": 14690849,
+      "mtime_ns": 1793136950960646177,
+      "inode": 4175215,
+      "rows": 1244400
+    },
+    "kline_minute/date=2026-07-09/part.parquet": {
+      "size": 15030566,
+      "mtime_ns": 1793136951089647390,
+      "inode": 4175205,
+      "rows": 1244400
+    },
+    "kline_minute/date=2026-07-10/part.parquet": {
+      "size": 15025626,
+      "mtime_ns": 1793136951221648632,
+      "inode": 4175208,
+      "rows": 1244640
+    },
+    "kline_minute/date=2026-07-13/part.parquet": {
+      "size": 14856307,
+      "mtime_ns": 1793137773447399875,
+      "inode": 4175226,
+      "rows": 1245360
+    },
+    "kline_minute/date=2026-07-14/part.parquet": {
+      "size": 14931613,
+      "mtime_ns": 1793137773581401138,
+      "inode": 4175227,
+      "rows": 1245840
+    },
+    "kline_minute/date=2026-07-15/part.parquet": {
+      "size": 14624256,
+      "mtime_ns": 1793137773721402458,
+      "inode": 4175217,
+      "rows": 1246080
+    },
+    "kline_minute/date=2026-07-16/part.parquet": {
+      "size": 14707765,
+      "mtime_ns": 1793137773859403759,
+      "inode": 4175220,
+      "rows": 1245840
+    },
+    "kline_minute/date=2026-07-17/part.parquet": {
+      "size": 15364166,
+      "mtime_ns": 1793138550867692966,
+      "inode": 4175223,
+      "rows": 1245600
+    },
+    "kline_minute/date=2026-07-20/part.parquet": {
+      "size": 15439004,
+      "mtime_ns": 1793114433188584964,
+      "inode": 4171569,
+      "rows": 1246080
+    },
+    "kline_minute/date=2026-07-21/part.parquet": {
+      "size": 15250767,
+      "mtime_ns": 1793114433334586313,
+      "inode": 4171572,
+      "rows": 1246320
+    },
+    "kline_minute/date=2026-07-22/part.parquet": {
+      "size": 14599942,
+      "mtime_ns": 1793115194825626863,
+      "inode": 4171585,
+      "rows": 1246320
+    },
+    "kline_minute/date=2026-07-23/part.parquet": {
+      "size": 14250993,
+      "mtime_ns": 1793115194989628379,
+      "inode": 4171578,
+      "rows": 1246320
+    },
+    "kline_minute/date=2026-07-24/part.parquet": {
+      "size": 14173683,
+      "mtime_ns": 1793115195142629793,
+      "inode": 4171581,
+      "rows": 1246080
+    },
+    "kline_minute/date=2026-07-27/part.parquet": {
+      "size": 14011850,
+      "mtime_ns": 1793115908901231104,
+      "inode": 4171604,
+      "rows": 1245120
+    },
+    "kline_minute/date=2026-07-28/part.parquet": {
+      "size": 13989540,
+      "mtime_ns": 1793115909023232232,
+      "inode": 4171603,
+      "rows": 1245360
+    },
+    "kline_minute/date=2026-07-29/part.parquet": {
+      "size": 14354522,
+      "mtime_ns": 1793115909148233388,
+      "inode": 4171599,
+      "rows": 1245120
+    },
+    "kline_minute/date=2026-07-30/part.parquet": {
+      "size": 14585993,
+      "mtime_ns": 1793115909276234572,
+      "inode": 4171600,
+      "rows": 1246080
+    },
+    "kline_minute/date=2026-07-31/part.parquet": {
+      "size": 13984561,
+      "mtime_ns": 1793115909404235756,
+      "inode": 4171587,
+      "rows": 1246080
+    },
+    "kline_minute/date=2026-08-03/part.parquet": {
+      "size": 13734913,
+      "mtime_ns": 1793116545201120070,
+      "inode": 4171606,
+      "rows": 1246080
+    },
+    "kline_minute/date=2026-08-04/part.parquet": {
+      "size": 13707546,
+      "mtime_ns": 1793116545360121543,
+      "inode": 4171609,
+      "rows": 1246080
+    },
+    "kline_minute/date=2026-08-05/part.parquet": {
+      "size": 13924950,
+      "mtime_ns": 1793116546111128499,
+      "inode": 4171612,
+      "rows": 1246560
+    },
+    "kline_minute/date=2026-08-06/part.parquet": {
+      "size": 14239225,
+      "mtime_ns": 1793117141846646796,
+      "inode": 4171615,
+      "rows": 1246800
+    },
+    "kline_minute/date=2026-08-07/part.parquet": {
+      "size": 14220279,
+      "mtime_ns": 1793117142080648964,
+      "inode": 4171618,
+      "rows": 1247280
+    },
+    "kline_minute/date=2026-08-10/part.parquet": {
+      "size": 13988709,
+      "mtime_ns": 1793117142236650409,
+      "inode": 4171621,
+      "rows": 1248000
+    },
+    "kline_minute/date=2026-08-11/part.parquet": {
+      "size": 14094066,
+      "mtime_ns": 1793117736442164274,
+      "inode": 4171633,
+      "rows": 1248000
+    },
+    "kline_minute/date=2026-08-12/part.parquet": {
+      "size": 13665733,
+      "mtime_ns": 1793117736679166475,
+      "inode": 4171634,
+      "rows": 1247760
+    },
+    "kline_minute/date=2026-08-13/part.parquet": {
+      "size": 14215458,
+      "mtime_ns": 1793117736837167942,
+      "inode": 4171624,
+      "rows": 1248000
+    },
+    "kline_minute/date=2026-08-14/part.parquet": {
+      "size": 14063197,
+      "mtime_ns": 1793117736994169400,
+      "inode": 4171627,
+      "rows": 1248000
+    },
+    "kline_minute/date=2026-08-17/part.parquet": {
+      "size": 13895769,
+      "mtime_ns": 1793118249168925382,
+      "inode": 4171630,
+      "rows": 1247520
+    },
+    "kline_minute/date=2026-08-18/part.parquet": {
+      "size": 14030106,
+      "mtime_ns": 1793111169933402418,
+      "inode": 4171506,
+      "rows": 1247760
+    },
+    "kline_minute/date=2026-08-19/part.parquet": {
+      "size": 14484476,
+      "mtime_ns": 1793111170066403653,
+      "inode": 4171509,
+      "rows": 1247760
+    },
+    "kline_minute/date=2026-08-20/part.parquet": {
+      "size": 14095936,
+      "mtime_ns": 1793111654189889548,
+      "inode": 4171512,
+      "rows": 1247760
+    },
+    "kline_minute/date=2026-08-21/part.parquet": {
+      "size": 13899856,
+      "mtime_ns": 1793111654311890677,
+      "inode": 4171515,
+      "rows": 1248000
+    },
+    "kline_minute/date=2026-08-24/part.parquet": {
+      "size": 14218988,
+      "mtime_ns": 1793111654432891796,
+      "inode": 4171518,
+      "rows": 1248720
+    },
+    "kline_minute/date=2026-08-25/part.parquet": {
+      "size": 14088091,
+      "mtime_ns": 1793112133267322596,
+      "inode": 4171530,
+      "rows": 1248960
+    },
+    "kline_minute/date=2026-08-26/part.parquet": {
+      "size": 13796169,
+      "mtime_ns": 1793112133409323910,
+      "inode": 4171531,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-08-27/part.parquet": {
+      "size": 13796192,
+      "mtime_ns": 1793112133527325002,
+      "inode": 4171521,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-08-28/part.parquet": {
+      "size": 13777869,
+      "mtime_ns": 1793112133645326094,
+      "inode": 4171524,
+      "rows": 1248720
+    },
+    "kline_minute/date=2026-08-31/part.parquet": {
+      "size": 14006729,
+      "mtime_ns": 1793112539507076497,
+      "inode": 4171539,
+      "rows": 1248480
+    },
+    "kline_minute/date=2026-09-01/part.parquet": {
+      "size": 13772752,
+      "mtime_ns": 1793112539661077920,
+      "inode": 4171542,
+      "rows": 1248960
+    },
+    "kline_minute/date=2026-09-02/part.parquet": {
+      "size": 13782369,
+      "mtime_ns": 1793112539825079435,
+      "inode": 4171533,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-09-03/part.parquet": {
+      "size": 13968378,
+      "mtime_ns": 1793112539971080784,
+      "inode": 4171536,
+      "rows": 1249440
+    },
+    "kline_minute/date=2026-09-04/part.parquet": {
+      "size": 14250452,
+      "mtime_ns": 1793112906402466818,
+      "inode": 4171545,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-09-07/part.parquet": {
+      "size": 13563570,
+      "mtime_ns": 1793112906556468241,
+      "inode": 4171548,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-09-08/part.parquet": {
+      "size": 13750305,
+      "mtime_ns": 1793112907091473185,
+      "inode": 4171551,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-09-09/part.parquet": {
+      "size": 13734268,
+      "mtime_ns": 1793113241461563582,
+      "inode": 4171554,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-09-10/part.parquet": {
+      "size": 13540348,
+      "mtime_ns": 1793113241585564729,
+      "inode": 4171557,
+      "rows": 1248960
+    },
+    "kline_minute/date=2026-09-11/part.parquet": {
+      "size": 14341335,
+      "mtime_ns": 1793113241707565858,
+      "inode": 4171560,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-09-14/part.parquet": {
+      "size": 13708798,
+      "mtime_ns": 1793113541876342066,
+      "inode": 4171437,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-09-15/part.parquet": {
+      "size": 13639039,
+      "mtime_ns": 1793113542034343528,
+      "inode": 4171563,
+      "rows": 1249200
+    },
+    "kline_minute/date=2026-09-16/part.parquet": {
+      "size": 13771561,
+      "mtime_ns": 1793094047999720482,
+      "inode": 4171438,
+      "rows": 1249440
+    },
+    "kline_minute/date=2026-09-17/part.parquet": {
+      "size": 13715326,
+      "mtime_ns": 1793094048128721707,
+      "inode": 4171428,
+      "rows": 1250160
+    },
+    "kline_minute/date=2026-09-18/part.parquet": {
+      "size": 13582156,
+      "mtime_ns": 1793094048258722941,
+      "inode": 4171431,
+      "rows": 1250160
+    },
+    "kline_minute/date=2026-09-21/part.parquet": {
+      "size": 13619710,
+      "mtime_ns": 1793094314133247456,
+      "inode": 4171450,
+      "rows": 1250160
+    },
+    "kline_minute/date=2026-09-22/part.parquet": {
+      "size": 13862715,
+      "mtime_ns": 1793094314256248623,
+      "inode": 4171451,
+      "rows": 1250160
+    },
+    "kline_minute/date=2026-09-23/part.parquet": {
+      "size": 13544106,
+      "mtime_ns": 1793094314381249810,
+      "inode": 4171441,
+      "rows": 1250400
+    },
+    "kline_minute/date=2026-09-24/part.parquet": {
+      "size": 13785874,
+      "mtime_ns": 1793094314512251053,
+      "inode": 4171452,
+      "rows": 1250400
+    },
+    "kline_minute/date=2026-09-28/part.parquet": {
+      "size": 14166899,
+      "mtime_ns": 1793094536697360170,
+      "inode": 4171457,
+      "rows": 1250400
+    },
+    "kline_minute/date=2026-09-29/part.parquet": {
+      "size": 13622684,
+      "mtime_ns": 1793094536836361489,
+      "inode": 4171458,
+      "rows": 1250640
+    },
+    "kline_minute/date=2026-09-30/part.parquet": {
+      "size": 13678997,
+      "mtime_ns": 1793094722825125094,
+      "inode": 4171460,
+      "rows": 1250880
+    },
+    "kline_minute/date=2026-10-08/part.parquet": {
+      "size": 14289185,
+      "mtime_ns": 1793094909231894050,
+      "inode": 4171467,
+      "rows": 1249920
+    },
+    "kline_minute/date=2026-10-09/part.parquet": {
+      "size": 14923583,
+      "mtime_ns": 1793094909359895265,
+      "inode": 4171463,
+      "rows": 1250160
+    },
+    "kline_minute/date=2026-10-12/part.parquet": {
+      "size": 13986321,
+      "mtime_ns": 1793171194714583595,
+      "inode": 4182615,
+      "rows": 1250640
+    },
+    "kline_minute/date=2026-10-13/part.parquet": {
+      "size": 14631267,
+      "mtime_ns": 1793171194943586442,
+      "inode": 4171469,
+      "rows": 1250640
+    },
+    "kline_minute/date=2026-10-14/part.parquet": {
+      "size": 13958028,
+      "mtime_ns": 1793171195121588655,
+      "inode": 4171472,
+      "rows": 1251120
+    },
+    "kline_minute/date=2026-10-15/part.parquet": {
+      "size": 14422781,
+      "mtime_ns": 1793171195299590868,
+      "inode": 692646,
+      "rows": 1251360
+    },
+    "kline_minute/date=2026-10-16/part.parquet": {
+      "size": 14406161,
+      "mtime_ns": 1793171195474593044,
+      "inode": 691167,
+      "rows": 1251600
+    },
+    "kline_minute/date=2026-10-19/part.parquet": {
+      "size": 14395986,
+      "mtime_ns": 1793171195656595306,
+      "inode": 4171475,
+      "rows": 1250880
+    },
+    "kline_minute/date=2026-10-20/part.parquet": {
+      "size": 13960559,
+      "mtime_ns": 1793171195837597557,
+      "inode": 4171057,
+      "rows": 1251840
+    },
+    "kline_minute/date=2026-10-21/part.parquet": {
+      "size": 13690924,
+      "mtime_ns": 1793171196018599807,
+      "inode": 4171060,
+      "rows": 1251600
+    },
+    "kline_minute/date=2026-10-22/part.parquet": {
+      "size": 14341767,
+      "mtime_ns": 1793171196191601958,
+      "inode": 4171061,
+      "rows": 1252080
+    },
+    "kline_minute/date=2026-10-23/part.parquet": {
+      "size": 15385075,
+      "mtime_ns": 1793171196366604134,
+      "inode": 4171045,
+      "rows": 1252080
+    },
+    "kline_minute/date=2026-10-26/part.parquet": {
+      "size": 14102543,
+      "mtime_ns": 1793239542360824849,
+      "inode": 4170595,
+      "rows": 1253280
+    },
+    "kline_minute/date=2026-10-27/part.parquet": {
+      "size": 14355722,
+      "mtime_ns": 1793239544161842072,
+      "inode": 4170599,
+      "rows": 1258495
+    },
+    "kline_minute/date=2026-10-28/part.parquet": {
+      "size": 14239288,
+      "mtime_ns": 1793233870142485528,
+      "inode": 4170597,
+      "rows": 1258496
+    }
+  },
+  "daily": {
+    "kline_daily/date=2026-03-30/part.parquet": {
+      "size": 110095,
+      "mtime_ns": 1793039450695914006,
+      "inode": 2512313,
+      "rows": 5154
+    },
+    "kline_daily/date=2026-03-31/part.parquet": {
+      "size": 110262,
+      "mtime_ns": 1793039450709914134,
+      "inode": 2512315,
+      "rows": 5158
+    },
+    "kline_daily/date=2026-04-01/part.parquet": {
+      "size": 110332,
+      "mtime_ns": 1793039450722914253,
+      "inode": 2512317,
+      "rows": 5161
+    },
+    "kline_daily/date=2026-04-02/part.parquet": {
+      "size": 110261,
+      "mtime_ns": 1793039450736914381,
+      "inode": 2512319,
+      "rows": 5161
+    },
+    "kline_daily/date=2026-04-03/part.parquet": {
+      "size": 110294,
+      "mtime_ns": 1793039450749914500,
+      "inode": 2512321,
+      "rows": 5162
+    },
+    "kline_daily/date=2026-04-07/part.parquet": {
+      "size": 110074,
+      "mtime_ns": 1793039450762914619,
+      "inode": 2512323,
+      "rows": 5161
+    },
+    "kline_daily/date=2026-04-08/part.parquet": {
+      "size": 110575,
+      "mtime_ns": 1793039450775914739,
+      "inode": 2512325,
+      "rows": 5166
+    },
+    "kline_daily/date=2026-04-09/part.parquet": {
+      "size": 110606,
+      "mtime_ns": 1793039450789914867,
+      "inode": 2512327,
+      "rows": 5167
+    },
+    "kline_daily/date=2026-04-10/part.parquet": {
+      "size": 110735,
+      "mtime_ns": 1793039450802914986,
+      "inode": 2512329,
+      "rows": 5170
+    },
+    "kline_daily/date=2026-04-13/part.parquet": {
+      "size": 110786,
+      "mtime_ns": 1793039450815915105,
+      "inode": 2512331,
+      "rows": 5169
+    },
+    "kline_daily/date=2026-04-14/part.parquet": {
+      "size": 110646,
+      "mtime_ns": 1793039450828915224,
+      "inode": 2512333,
+      "rows": 5172
+    },
+    "kline_daily/date=2026-04-15/part.parquet": {
+      "size": 111073,
+      "mtime_ns": 1793039450842915352,
+      "inode": 2512335,
+      "rows": 5170
+    },
+    "kline_daily/date=2026-04-16/part.parquet": {
+      "size": 111173,
+      "mtime_ns": 1793039450855915471,
+      "inode": 2512337,
+      "rows": 5173
+    },
+    "kline_daily/date=2026-04-17/part.parquet": {
+      "size": 111174,
+      "mtime_ns": 1793039450869915600,
+      "inode": 2512339,
+      "rows": 5173
+    },
+    "kline_daily/date=2026-04-20/part.parquet": {
+      "size": 111165,
+      "mtime_ns": 1793039450882915719,
+      "inode": 2512341,
+      "rows": 5168
+    },
+    "kline_daily/date=2026-04-21/part.parquet": {
+      "size": 111145,
+      "mtime_ns": 1793039450897915856,
+      "inode": 2512343,
+      "rows": 5173
+    },
+    "kline_daily/date=2026-04-22/part.parquet": {
+      "size": 111210,
+      "mtime_ns": 1793039450911915985,
+      "inode": 2512345,
+      "rows": 5172
+    },
+    "kline_daily/date=2026-04-23/part.parquet": {
+      "size": 111249,
+      "mtime_ns": 1793039450924916103,
+      "inode": 2512347,
+      "rows": 5170
+    },
+    "kline_daily/date=2026-04-24/part.parquet": {
+      "size": 111280,
+      "mtime_ns": 1793039450938916232,
+      "inode": 2512349,
+      "rows": 5170
+    },
+    "kline_daily/date=2026-04-27/part.parquet": {
+      "size": 111111,
+      "mtime_ns": 1793039450951916351,
+      "inode": 2512351,
+      "rows": 5168
+    },
+    "kline_daily/date=2026-04-28/part.parquet": {
+      "size": 110854,
+      "mtime_ns": 1793039450965916479,
+      "inode": 2512353,
+      "rows": 5163
+    },
+    "kline_daily/date=2026-04-29/part.parquet": {
+      "size": 110560,
+      "mtime_ns": 1793039450979916607,
+      "inode": 2512355,
+      "rows": 5139
+    },
+    "kline_daily/date=2026-04-30/part.parquet": {
+      "size": 110789,
+      "mtime_ns": 1793039450992916726,
+      "inode": 2512357,
+      "rows": 5144
+    },
+    "kline_daily/date=2026-05-06/part.parquet": {
+      "size": 111493,
+      "mtime_ns": 1793039451006916855,
+      "inode": 2512359,
+      "rows": 5176
+    },
+    "kline_daily/date=2026-05-07/part.parquet": {
+      "size": 111834,
+      "mtime_ns": 1793039451019916974,
+      "inode": 2512361,
+      "rows": 5178
+    },
+    "kline_daily/date=2026-05-08/part.parquet": {
+      "size": 111658,
+      "mtime_ns": 1793039451033917102,
+      "inode": 2512363,
+      "rows": 5176
+    },
+    "kline_daily/date=2026-05-11/part.parquet": {
+      "size": 111899,
+      "mtime_ns": 1793039451046917221,
+      "inode": 2512365,
+      "rows": 5177
+    },
+    "kline_daily/date=2026-05-12/part.parquet": {
+      "size": 111712,
+      "mtime_ns": 1793039451060917349,
+      "inode": 2512367,
+      "rows": 5175
+    },
+    "kline_daily/date=2026-05-13/part.parquet": {
+      "size": 111901,
+      "mtime_ns": 1793039451073917469,
+      "inode": 2512369,
+      "rows": 5179
+    },
+    "kline_daily/date=2026-05-14/part.parquet": {
+      "size": 111861,
+      "mtime_ns": 1793039451087917597,
+      "inode": 2512371,
+      "rows": 5179
+    },
+    "kline_daily/date=2026-05-15/part.parquet": {
+      "size": 111904,
+      "mtime_ns": 1793039451100917716,
+      "inode": 2512373,
+      "rows": 5180
+    },
+    "kline_daily/date=2026-05-18/part.parquet": {
+      "size": 111687,
+      "mtime_ns": 1793039451114917844,
+      "inode": 2512375,
+      "rows": 5183
+    },
+    "kline_daily/date=2026-05-19/part.parquet": {
+      "size": 111548,
+      "mtime_ns": 1793039451127917963,
+      "inode": 2512377,
+      "rows": 5177
+    },
+    "kline_daily/date=2026-05-20/part.parquet": {
+      "size": 111849,
+      "mtime_ns": 1793039451140918082,
+      "inode": 2512379,
+      "rows": 5181
+    },
+    "kline_daily/date=2026-05-21/part.parquet": {
+      "size": 111844,
+      "mtime_ns": 1793039451154918210,
+      "inode": 2512381,
+      "rows": 5184
+    },
+    "kline_daily/date=2026-05-22/part.parquet": {
+      "size": 111760,
+      "mtime_ns": 1793039451167918330,
+      "inode": 2512383,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-05-25/part.parquet": {
+      "size": 111878,
+      "mtime_ns": 1793039451180918449,
+      "inode": 2512385,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-05-26/part.parquet": {
+      "size": 111716,
+      "mtime_ns": 1793039451194918577,
+      "inode": 2512387,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-05-27/part.parquet": {
+      "size": 111765,
+      "mtime_ns": 1793039451207918696,
+      "inode": 2512389,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-05-28/part.parquet": {
+      "size": 111579,
+      "mtime_ns": 1793039451221918824,
+      "inode": 2512391,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-05-29/part.parquet": {
+      "size": 111656,
+      "mtime_ns": 1793039451234918943,
+      "inode": 2512393,
+      "rows": 5185
+    },
+    "kline_daily/date=2026-06-01/part.parquet": {
+      "size": 111366,
+      "mtime_ns": 1793039451247919062,
+      "inode": 2512395,
+      "rows": 5183
+    },
+    "kline_daily/date=2026-06-02/part.parquet": {
+      "size": 111233,
+      "mtime_ns": 1793039451261919191,
+      "inode": 2512397,
+      "rows": 5182
+    },
+    "kline_daily/date=2026-06-03/part.parquet": {
+      "size": 111161,
+      "mtime_ns": 1793039451274919310,
+      "inode": 2512399,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-06-04/part.parquet": {
+      "size": 111196,
+      "mtime_ns": 1793039451287919429,
+      "inode": 2512401,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-06-05/part.parquet": {
+      "size": 111529,
+      "mtime_ns": 1793039451300919548,
+      "inode": 2512403,
+      "rows": 5188
+    },
+    "kline_daily/date=2026-06-08/part.parquet": {
+      "size": 110941,
+      "mtime_ns": 1793039451313919667,
+      "inode": 2512405,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-06-09/part.parquet": {
+      "size": 110918,
+      "mtime_ns": 1793039451327919795,
+      "inode": 2512407,
+      "rows": 5187
+    },
+    "kline_daily/date=2026-06-10/part.parquet": {
+      "size": 110831,
+      "mtime_ns": 1793039451340919914,
+      "inode": 2512409,
+      "rows": 5184
+    },
+    "kline_daily/date=2026-06-11/part.parquet": {
+      "size": 110827,
+      "mtime_ns": 1793039451353920033,
+      "inode": 2512411,
+      "rows": 5182
+    },
+    "kline_daily/date=2026-06-12/part.parquet": {
+      "size": 111117,
+      "mtime_ns": 1793039451366920152,
+      "inode": 2512413,
+      "rows": 5183
+    },
+    "kline_daily/date=2026-06-15/part.parquet": {
+      "size": 111247,
+      "mtime_ns": 1793039451380920281,
+      "inode": 2512415,
+      "rows": 5178
+    },
+    "kline_daily/date=2026-06-16/part.parquet": {
+      "size": 111404,
+      "mtime_ns": 1793039451394920409,
+      "inode": 2512417,
+      "rows": 5183
+    },
+    "kline_daily/date=2026-06-17/part.parquet": {
+      "size": 111173,
+      "mtime_ns": 1793039451407920528,
+      "inode": 2512419,
+      "rows": 5179
+    },
+    "kline_daily/date=2026-06-18/part.parquet": {
+      "size": 111240,
+      "mtime_ns": 1793039451420920647,
+      "inode": 2512421,
+      "rows": 5176
+    },
+    "kline_daily/date=2026-06-22/part.parquet": {
+      "size": 111482,
+      "mtime_ns": 1793039451433920766,
+      "inode": 2512423,
+      "rows": 5179
+    },
+    "kline_daily/date=2026-06-23/part.parquet": {
+      "size": 111503,
+      "mtime_ns": 1793039451446920885,
+      "inode": 2512425,
+      "rows": 5183
+    },
+    "kline_daily/date=2026-06-24/part.parquet": {
+      "size": 111405,
+      "mtime_ns": 1793039451460921013,
+      "inode": 2512427,
+      "rows": 5182
+    },
+    "kline_daily/date=2026-06-25/part.parquet": {
+      "size": 111454,
+      "mtime_ns": 1793039451473921133,
+      "inode": 2512429,
+      "rows": 5181
+    },
+    "kline_daily/date=2026-06-26/part.parquet": {
+      "size": 111105,
+      "mtime_ns": 1793039451486921252,
+      "inode": 2512431,
+      "rows": 5182
+    },
+    "kline_daily/date=2026-06-29/part.parquet": {
+      "size": 111270,
+      "mtime_ns": 1793039451499921371,
+      "inode": 2512433,
+      "rows": 5178
+    },
+    "kline_daily/date=2026-06-30/part.parquet": {
+      "size": 111030,
+      "mtime_ns": 1793039451513921499,
+      "inode": 2512435,
+      "rows": 5178
+    },
+    "kline_daily/date=2026-07-01/part.parquet": {
+      "size": 111399,
+      "mtime_ns": 1793039451526921618,
+      "inode": 2512437,
+      "rows": 5181
+    },
+    "kline_daily/date=2026-07-02/part.parquet": {
+      "size": 111350,
+      "mtime_ns": 1793039451539921737,
+      "inode": 2512439,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-07-03/part.parquet": {
+      "size": 111356,
+      "mtime_ns": 1793039451552921856,
+      "inode": 2512441,
+      "rows": 5185
+    },
+    "kline_daily/date=2026-07-06/part.parquet": {
+      "size": 111292,
+      "mtime_ns": 1793039451565921976,
+      "inode": 2512443,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-07-07/part.parquet": {
+      "size": 111028,
+      "mtime_ns": 1793039451579922104,
+      "inode": 2512445,
+      "rows": 5185
+    },
+    "kline_daily/date=2026-07-08/part.parquet": {
+      "size": 110905,
+      "mtime_ns": 1793039451594922241,
+      "inode": 2512447,
+      "rows": 5185
+    },
+    "kline_daily/date=2026-07-09/part.parquet": {
+      "size": 110836,
+      "mtime_ns": 1793039451608922369,
+      "inode": 2512449,
+      "rows": 5185
+    },
+    "kline_daily/date=2026-07-10/part.parquet": {
+      "size": 111004,
+      "mtime_ns": 1793039451621922488,
+      "inode": 2512451,
+      "rows": 5186
+    },
+    "kline_daily/date=2026-07-13/part.parquet": {
+      "size": 110634,
+      "mtime_ns": 1793039451634922607,
+      "inode": 2512453,
+      "rows": 5189
+    },
+    "kline_daily/date=2026-07-14/part.parquet": {
+      "size": 110570,
+      "mtime_ns": 1793039451647922727,
+      "inode": 2512455,
+      "rows": 5191
+    },
+    "kline_daily/date=2026-07-15/part.parquet": {
+      "size": 110425,
+      "mtime_ns": 1793039451661922855,
+      "inode": 2512457,
+      "rows": 5192
+    },
+    "kline_daily/date=2026-07-16/part.parquet": {
+      "size": 110284,
+      "mtime_ns": 1793039451674922974,
+      "inode": 2512459,
+      "rows": 5191
+    },
+    "kline_daily/date=2026-07-17/part.parquet": {
+      "size": 110448,
+      "mtime_ns": 1793039451687923093,
+      "inode": 2512461,
+      "rows": 5190
+    },
+    "kline_daily/date=2026-07-20/part.parquet": {
+      "size": 109972,
+      "mtime_ns": 1793039451700923212,
+      "inode": 2512463,
+      "rows": 5192
+    },
+    "kline_daily/date=2026-07-21/part.parquet": {
+      "size": 110278,
+      "mtime_ns": 1793039451714923340,
+      "inode": 2512465,
+      "rows": 5193
+    },
+    "kline_daily/date=2026-07-22/part.parquet": {
+      "size": 110035,
+      "mtime_ns": 1793039451727923460,
+      "inode": 2512467,
+      "rows": 5193
+    },
+    "kline_daily/date=2026-07-23/part.parquet": {
+      "size": 110170,
+      "mtime_ns": 1793039451740923578,
+      "inode": 2512469,
+      "rows": 5193
+    },
+    "kline_daily/date=2026-07-24/part.parquet": {
+      "size": 109916,
+      "mtime_ns": 1793039451754923707,
+      "inode": 2512471,
+      "rows": 5192
+    },
+    "kline_daily/date=2026-07-27/part.parquet": {
+      "size": 109871,
+      "mtime_ns": 1793039451767923826,
+      "inode": 2512473,
+      "rows": 5188
+    },
+    "kline_daily/date=2026-07-28/part.parquet": {
+      "size": 109805,
+      "mtime_ns": 1793039451780923945,
+      "inode": 2512475,
+      "rows": 5189
+    },
+    "kline_daily/date=2026-07-29/part.parquet": {
+      "size": 109886,
+      "mtime_ns": 1793039451793924064,
+      "inode": 2512477,
+      "rows": 5188
+    },
+    "kline_daily/date=2026-07-30/part.parquet": {
+      "size": 109860,
+      "mtime_ns": 1793039451806924183,
+      "inode": 2512479,
+      "rows": 5192
+    },
+    "kline_daily/date=2026-07-31/part.parquet": {
+      "size": 109923,
+      "mtime_ns": 1793039451819924302,
+      "inode": 2512481,
+      "rows": 5192
+    },
+    "kline_daily/date=2026-08-03/part.parquet": {
+      "size": 110056,
+      "mtime_ns": 1793039451834924440,
+      "inode": 2512483,
+      "rows": 5192
+    },
+    "kline_daily/date=2026-08-04/part.parquet": {
+      "size": 110302,
+      "mtime_ns": 1793039451847924559,
+      "inode": 2512485,
+      "rows": 5192
+    },
+    "kline_daily/date=2026-08-05/part.parquet": {
+      "size": 110485,
+      "mtime_ns": 1793039451860924678,
+      "inode": 2512487,
+      "rows": 5194
+    },
+    "kline_daily/date=2026-08-06/part.parquet": {
+      "size": 110728,
+      "mtime_ns": 1793039451874924806,
+      "inode": 2512489,
+      "rows": 5195
+    },
+    "kline_daily/date=2026-08-07/part.parquet": {
+      "size": 110904,
+      "mtime_ns": 1793039451887924925,
+      "inode": 2512491,
+      "rows": 5197
+    },
+    "kline_daily/date=2026-08-10/part.parquet": {
+      "size": 111079,
+      "mtime_ns": 1793039451901925053,
+      "inode": 2512493,
+      "rows": 5200
+    },
+    "kline_daily/date=2026-08-11/part.parquet": {
+      "size": 110949,
+      "mtime_ns": 1793039451914925172,
+      "inode": 2512495,
+      "rows": 5200
+    },
+    "kline_daily/date=2026-08-12/part.parquet": {
+      "size": 110858,
+      "mtime_ns": 1793039451927925292,
+      "inode": 2512497,
+      "rows": 5199
+    },
+    "kline_daily/date=2026-08-13/part.parquet": {
+      "size": 110900,
+      "mtime_ns": 1793039451941925420,
+      "inode": 2512499,
+      "rows": 5200
+    },
+    "kline_daily/date=2026-08-14/part.parquet": {
+      "size": 110870,
+      "mtime_ns": 1793039451953925530,
+      "inode": 2512501,
+      "rows": 5200
+    },
+    "kline_daily/date=2026-08-17/part.parquet": {
+      "size": 110942,
+      "mtime_ns": 1793039451967925658,
+      "inode": 2512503,
+      "rows": 5198
+    },
+    "kline_daily/date=2026-08-18/part.parquet": {
+      "size": 111058,
+      "mtime_ns": 1793039451979925768,
+      "inode": 2512505,
+      "rows": 5199
+    },
+    "kline_daily/date=2026-08-19/part.parquet": {
+      "size": 110720,
+      "mtime_ns": 1793039451993925896,
+      "inode": 2512507,
+      "rows": 5199
+    },
+    "kline_daily/date=2026-08-20/part.parquet": {
+      "size": 110474,
+      "mtime_ns": 1793039452006926015,
+      "inode": 2512509,
+      "rows": 5199
+    },
+    "kline_daily/date=2026-08-21/part.parquet": {
+      "size": 110659,
+      "mtime_ns": 1793039452019926134,
+      "inode": 2512511,
+      "rows": 5200
+    },
+    "kline_daily/date=2026-08-24/part.parquet": {
+      "size": 110610,
+      "mtime_ns": 1793039452032926253,
+      "inode": 2512513,
+      "rows": 5203
+    },
+    "kline_daily/date=2026-08-25/part.parquet": {
+      "size": 110613,
+      "mtime_ns": 1793039452046926382,
+      "inode": 2512515,
+      "rows": 5204
+    },
+    "kline_daily/date=2026-08-26/part.parquet": {
+      "size": 110810,
+      "mtime_ns": 1793039452059926501,
+      "inode": 2512517,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-08-27/part.parquet": {
+      "size": 110906,
+      "mtime_ns": 1793039452072926620,
+      "inode": 2512519,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-08-28/part.parquet": {
+      "size": 110797,
+      "mtime_ns": 1793039452085926739,
+      "inode": 2512521,
+      "rows": 5203
+    },
+    "kline_daily/date=2026-08-31/part.parquet": {
+      "size": 110648,
+      "mtime_ns": 1793039452098926858,
+      "inode": 2512523,
+      "rows": 5202
+    },
+    "kline_daily/date=2026-09-01/part.parquet": {
+      "size": 110997,
+      "mtime_ns": 1793039452111926977,
+      "inode": 2512525,
+      "rows": 5204
+    },
+    "kline_daily/date=2026-09-02/part.parquet": {
+      "size": 110700,
+      "mtime_ns": 1793039452124927096,
+      "inode": 2512527,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-09-03/part.parquet": {
+      "size": 110797,
+      "mtime_ns": 1793039452138927224,
+      "inode": 2512529,
+      "rows": 5206
+    },
+    "kline_daily/date=2026-09-04/part.parquet": {
+      "size": 111005,
+      "mtime_ns": 1793039452151927344,
+      "inode": 2512531,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-09-07/part.parquet": {
+      "size": 111040,
+      "mtime_ns": 1793039452164927463,
+      "inode": 2512533,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-09-08/part.parquet": {
+      "size": 110856,
+      "mtime_ns": 1793039452177927582,
+      "inode": 2512535,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-09-09/part.parquet": {
+      "size": 110860,
+      "mtime_ns": 1793039452190927701,
+      "inode": 2512537,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-09-10/part.parquet": {
+      "size": 110420,
+      "mtime_ns": 1793039452203927820,
+      "inode": 2512539,
+      "rows": 5204
+    },
+    "kline_daily/date=2026-09-11/part.parquet": {
+      "size": 110604,
+      "mtime_ns": 1793039452216927939,
+      "inode": 2512541,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-09-14/part.parquet": {
+      "size": 110256,
+      "mtime_ns": 1793039452231928077,
+      "inode": 2512543,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-09-15/part.parquet": {
+      "size": 110528,
+      "mtime_ns": 1793039452244928195,
+      "inode": 2512545,
+      "rows": 5205
+    },
+    "kline_daily/date=2026-09-16/part.parquet": {
+      "size": 110754,
+      "mtime_ns": 1793039452257928315,
+      "inode": 2512547,
+      "rows": 5206
+    },
+    "kline_daily/date=2026-09-17/part.parquet": {
+      "size": 110534,
+      "mtime_ns": 1793039452270928434,
+      "inode": 2512549,
+      "rows": 5209
+    },
+    "kline_daily/date=2026-09-18/part.parquet": {
+      "size": 110788,
+      "mtime_ns": 1793039452284928562,
+      "inode": 2512551,
+      "rows": 5209
+    },
+    "kline_daily/date=2026-09-21/part.parquet": {
+      "size": 111076,
+      "mtime_ns": 1793039452297928681,
+      "inode": 2512553,
+      "rows": 5209
+    },
+    "kline_daily/date=2026-09-22/part.parquet": {
+      "size": 111162,
+      "mtime_ns": 1793039452311928809,
+      "inode": 2512555,
+      "rows": 5209
+    },
+    "kline_daily/date=2026-09-23/part.parquet": {
+      "size": 111102,
+      "mtime_ns": 1793039452324928928,
+      "inode": 2512557,
+      "rows": 5210
+    },
+    "kline_daily/date=2026-09-24/part.parquet": {
+      "size": 110945,
+      "mtime_ns": 1793039452337929048,
+      "inode": 2512559,
+      "rows": 5210
+    },
+    "kline_daily/date=2026-09-28/part.parquet": {
+      "size": 110730,
+      "mtime_ns": 1793039452350929166,
+      "inode": 2512561,
+      "rows": 5210
+    },
+    "kline_daily/date=2026-09-29/part.parquet": {
+      "size": 110511,
+      "mtime_ns": 1793039452364929295,
+      "inode": 2512563,
+      "rows": 5211
+    },
+    "kline_daily/date=2026-09-30/part.parquet": {
+      "size": 110786,
+      "mtime_ns": 1793039452378929423,
+      "inode": 2512565,
+      "rows": 5212
+    },
+    "kline_daily/date=2026-10-08/part.parquet": {
+      "size": 110507,
+      "mtime_ns": 1793039452391929542,
+      "inode": 2512567,
+      "rows": 5208
+    },
+    "kline_daily/date=2026-10-09/part.parquet": {
+      "size": 110690,
+      "mtime_ns": 1793039452404929661,
+      "inode": 2512569,
+      "rows": 5209
+    },
+    "kline_daily/date=2026-10-12/part.parquet": {
+      "size": 110601,
+      "mtime_ns": 1793039452418929789,
+      "inode": 2512571,
+      "rows": 5211
+    },
+    "kline_daily/date=2026-10-13/part.parquet": {
+      "size": 110353,
+      "mtime_ns": 1793039452431929909,
+      "inode": 2512573,
+      "rows": 5211
+    },
+    "kline_daily/date=2026-10-14/part.parquet": {
+      "size": 110272,
+      "mtime_ns": 1793039452444930028,
+      "inode": 2512575,
+      "rows": 5213
+    },
+    "kline_daily/date=2026-10-15/part.parquet": {
+      "size": 110173,
+      "mtime_ns": 1793039452457930147,
+      "inode": 2512577,
+      "rows": 5214
+    },
+    "kline_daily/date=2026-10-16/part.parquet": {
+      "size": 110353,
+      "mtime_ns": 1793039452471930275,
+      "inode": 2512579,
+      "rows": 5215
+    },
+    "kline_daily/date=2026-10-19/part.parquet": {
+      "size": 109923,
+      "mtime_ns": 1793039452484930394,
+      "inode": 2512581,
+      "rows": 5212
+    },
+    "kline_daily/date=2026-10-20/part.parquet": {
+      "size": 110098,
+      "mtime_ns": 1793039452498930522,
+      "inode": 2512583,
+      "rows": 5216
+    },
+    "kline_daily/date=2026-10-21/part.parquet": {
+      "size": 110223,
+      "mtime_ns": 1793039452511930641,
+      "inode": 2512585,
+      "rows": 5215
+    },
+    "kline_daily/date=2026-10-22/part.parquet": {
+      "size": 110351,
+      "mtime_ns": 1793039452525930770,
+      "inode": 2512587,
+      "rows": 5217
+    },
+    "kline_daily/date=2026-10-23/part.parquet": {
+      "size": 110524,
+      "mtime_ns": 1793039452540930907,
+      "inode": 2512589,
+      "rows": 5217
+    },
+    "kline_daily/date=2026-10-26/part.parquet": {
+      "size": 110265,
+      "mtime_ns": 1793039452603931484,
+      "inode": 2512591,
+      "rows": 5215
+    },
+    "kline_daily/date=2026-10-27/part.parquet": {
+      "size": 110564,
+      "mtime_ns": 1793167693374432169,
+      "inode": 4182604,
+      "rows": 5215
+    },
+    "kline_daily/date=2026-10-28/part.parquet": {
+      "size": 111019,
+      "mtime_ns": 1793170799486419185,
+      "inode": 4182606,
+      "rows": 5216
+    }
+  },
+  "instruments_sha256": "22cfc1620fed57d5aa775022ad42c034de3ce4a02ebbfd87a28b5bdff7a1eff4"
+}

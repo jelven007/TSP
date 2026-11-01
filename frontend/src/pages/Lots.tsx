@@ -1,30 +1,39 @@
 import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUpRight, CalendarClock, Pencil, Plus, Search, Trash2 } from 'lucide-react'
-import { api, type Lot } from '@/lib/api'
+import { ArrowUpRight, BellRing, CalendarClock, FolderOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { api, type Lot, type LotBatch } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { cn } from '@/lib/cn'
 import { fmtPct, fmtPrice, priceColorClass } from '@/lib/format'
 import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/Modal'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DatePicker } from '@/components/DatePicker'
 import { DateShortcuts } from '@/components/DateShortcuts'
+import { LotExpiryPicker } from '@/components/LotExpiryPicker'
+import { LotBatchDialog } from '@/components/LotBatchDialog'
 import { StockPreviewDialog } from '@/components/StockPreviewDialog'
+import { EmptyState } from '@/components/EmptyState'
+import { StockDataTable } from '@/components/stock-table/StockDataTable'
+import type { ColumnConfig } from '@/lib/list-columns'
 import { toNavItems } from '@/lib/listNav'
 import { boardTag } from '@/components/stock-table/primitives'
 
-const emptyDraft = (): Lot => ({
-  id: '',
-  symbol: '',
-  qty: 0,
-  cost_price: 0,
-  buy_date: '',
-  target_pct: 0,
-  stop_pct: 0,
-  remind_date: '',
-  lead_days: 1,
-})
+const LOT_COLUMNS = ([
+  { id: 'symbol', label: '代码/名称', align: 'left' },
+  { id: 'qty', label: '数量(参考)', align: 'right' },
+  { id: 'cost', label: '成本价', align: 'right' },
+  { id: 'price', label: '现价', align: 'right' },
+  { id: 'pnl', label: '盈亏%', align: 'right' },
+  { id: 'target', label: '止盈%', align: 'right' },
+  { id: 'stop', label: '止损%', align: 'right' },
+  { id: 'buy_date', label: '买入日期', align: 'center' },
+  { id: 'remaining', label: '剩余天数', align: 'right' },
+  { id: 'remind_date', label: '到期提醒', align: 'left' },
+] satisfies Pick<ColumnConfig, 'id' | 'label' | 'align'>[]).map<ColumnConfig>(column => ({
+  ...column, visible: true, source: { type: 'computed', key: column.id },
+}))
 
 /** 剩余天数单元格: 到期日 − 今天, 可为负 = 已超期; 无到期日 → — */
 function RemainingDays({ remind }: { remind?: string | null }) {
@@ -48,12 +57,34 @@ export function Lots() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [editing, setEditing] = useState<Lot | null>(null) // null=关闭
+  const [creating, setCreating] = useState(false)
+  const [activeBatch, setActiveBatch] = useState<string | null>(null)
+  const [deletingBatch, setDeletingBatch] = useState<{ batch: LotBatch; count: number } | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [previewSymbol, setPreviewSymbol] = useState<string | null>(null)
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const lotsQuery = useQuery({ queryKey: QK.lots, queryFn: api.lotsList })
   const lots = useMemo(() => lotsQuery.data?.lots ?? [], [lotsQuery.data?.lots])
+  const batchesQuery = useQuery({ queryKey: QK.lotBatches, queryFn: api.lotBatches })
+  const batches = useMemo(() => {
+    const rows = batchesQuery.data?.batches ?? []
+    const legacy: LotBatch[] = lots.some(lot => !lot.batch_id)
+      ? [{ id: 'legacy', name: '历史股票', number: '', created_at: '' }] : []
+    return [...rows, ...legacy]
+  }, [batchesQuery.data?.batches, lots])
+  const selectedBatch = batches.some(b => b.id === activeBatch) ? activeBatch : batches[0]?.id
+  const visibleLots = useMemo(() => lots.filter(lot =>
+    selectedBatch === 'legacy' ? !lot.batch_id : lot.batch_id === selectedBatch), [lots, selectedBatch])
+  const batchCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const lot of lots) {
+      const id = lot.batch_id || 'legacy'
+      counts.set(id, (counts.get(id) ?? 0) + 1)
+    }
+    return counts
+  }, [lots])
+  const currentBatch = batches.find(batch => batch.id === selectedBatch)
 
   const allSymbols = useMemo(() => Array.from(new Set(lots.map(l => l.symbol))), [lots])
   const namesQuery = useQuery({
@@ -66,8 +97,8 @@ export function Lots() {
 
   // 9999 哨兵: 未记买入日期的排最后
   const sortedLots = useMemo(() => {
-    return [...lots].sort((a, b) => (a.buy_date ?? '9999-12-31').localeCompare(b.buy_date ?? '9999-12-31'))
-  }, [lots])
+    return [...visibleLots].sort((a, b) => (a.buy_date || '9999-12-31').localeCompare(b.buy_date || '9999-12-31'))
+  }, [visibleLots])
   const lotsNavItems = useMemo(
     () => toNavItems(sortedLots.map(l => ({ symbol: l.symbol, name: symbolNames[l.symbol] }))),
     [sortedLots, symbolNames],
@@ -97,6 +128,25 @@ export function Lots() {
     },
   })
 
+  const batchDel = useMutation({
+    mutationFn: (id: string) => api.lotBatchDelete(id),
+    onSuccess: async (_, id) => {
+      await qc.cancelQueries({ queryKey: QK.lots })
+      await qc.cancelQueries({ queryKey: QK.lotBatches })
+      qc.setQueryData<Awaited<ReturnType<typeof api.lotsList>>>(QK.lots, old =>
+        old && { ...old, lots: old.lots.filter(lot => lot.batch_id !== id) })
+      qc.setQueryData<Awaited<ReturnType<typeof api.lotBatches>>>(QK.lotBatches, old =>
+        old && { ...old, batches: old.batches.filter(batch => batch.id !== id) })
+      setActiveBatch(null)
+      setPreviewSymbol(null)
+      setConfirmId(null)
+      setDeletingBatch(null)
+      qc.invalidateQueries({ queryKey: QK.lots })
+      qc.invalidateQueries({ queryKey: QK.lotBatches })
+      qc.invalidateQueries({ queryKey: QK.monitorRules })
+    },
+  })
+
   // 删除: 第一次进确认态, 第二次真删, 3 秒后自动复位 (与监控中心一致)
   const handleClickDelete = (id: string) => {
     if (confirmId === id) {
@@ -112,132 +162,190 @@ export function Lots() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="持仓提醒" subtitle="记录个股买入批次, 自动生成止盈止损 / 到期监控规则" />
-      <div className="flex-1 min-h-0 px-5 py-4">
-        <div className="mx-auto max-w-5xl space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-xs text-secondary">{lots.length} 个批次</div>
-            <button
-              onClick={() => setEditing(emptyDraft())}
-              className="inline-flex h-9 items-center gap-1.5 rounded-btn border border-accent/30 bg-accent/10 px-3 text-xs font-medium text-accent transition-colors hover:bg-accent/15 cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />新增批次
+      <PageHeader
+        title="持仓提醒"
+        subtitle="按批次管理股票，自动生成止盈止损与到期提醒"
+        titleExtra={
+          <span className="inline-flex items-baseline gap-0.5 rounded-md bg-elevated/70 px-2 py-0.5 text-[11px]" title="当前批次记录 / 全部股票记录">
+            <span className="font-mono font-semibold tabular-nums text-secondary">{visibleLots.length}</span>
+            <span className="text-muted/50">/</span>
+            <span className="font-mono tabular-nums text-muted">{lots.length}</span>
+            <span className="ml-0.5 text-muted/60">条</span>
+          </span>
+        }
+        right={
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => navigate('/monitor')}
+              className="inline-flex h-8 items-center gap-1.5 rounded-btn bg-elevated px-3 text-xs text-secondary transition-colors hover:bg-elevated/80 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              title="查看自动生成的监控规则">
+              <BellRing className="h-3.5 w-3.5" aria-hidden="true" />监控中心
+              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
             </button>
+            <div className="h-5 w-px bg-border" aria-hidden="true" />
+            <button type="button" onClick={() => setCreating(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-btn bg-accent/15 px-3 text-xs font-medium text-accent transition-colors hover:bg-accent/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />新增批次
+            </button>
+            {currentBatch?.number && (
+              <button type="button"
+                disabled={lotsQuery.isLoading || batchesQuery.isLoading || lotsQuery.isError || batchesQuery.isError || del.isPending || batchDel.isPending}
+                onClick={() => {
+                  batchDel.reset()
+                  setDeletingBatch({ batch: currentBatch, count: visibleLots.length })
+                }}
+                title={`删除当前批次 ${currentBatch.name}（${currentBatch.number}）`}
+                aria-label="删除批次"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-btn bg-danger/10 text-danger transition-colors duration-150 hover:bg-danger/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-danger disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-danger/10"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
           </div>
-
-          {lotsQuery.isLoading ? (
-            <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-xs text-muted">加载中…</div>
-          ) : lotsQuery.isError ? (
-            <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
-              <div className="text-xs text-danger">批次加载失败</div>
-              <button
-                onClick={() => lotsQuery.refetch()}
-                className="mt-2 rounded-btn border border-border px-3 py-1 text-[11px] text-secondary hover:bg-elevated cursor-pointer"
+        }
+      />
+      {batches.length > 0 && (
+        <div className="flex h-10 shrink-0 items-stretch border-b border-border bg-surface/40 px-3 sm:px-5">
+          <div role="tablist" aria-label="持仓批次" className="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto">
+            {batches.map(batch => {
+              const active = selectedBatch === batch.id
+              return (
+                <button key={batch.id} type="button" role="tab" aria-selected={active}
+                  aria-controls="holding-batch-panel" id={`holding-batch-${batch.id}`}
+                  title={batch.number ? `${batch.name} · ${batch.number}` : batch.name}
+                  onClick={() => setActiveBatch(batch.id)}
+                  className={cn('my-1.5 inline-flex shrink-0 items-center gap-1.5 rounded-btn border px-3 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+                    active ? 'border-accent/40 bg-accent/10 text-accent' : 'border-transparent text-secondary hover:bg-elevated hover:text-foreground')}>
+                  <span>{batch.name}</span>
+                  <span className={cn('font-mono text-[10px] tabular-nums', active ? 'text-accent/80' : 'text-muted')}>
+                    {batchCounts.get(batch.id) ?? 0}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      <div id="holding-batch-panel" role="tabpanel" aria-labelledby={selectedBatch ? `holding-batch-${selectedBatch}` : undefined}
+        className="flex min-h-0 flex-1 flex-col gap-3 px-3 py-3 sm:px-5">
+          {lotsQuery.isLoading || batchesQuery.isLoading ? (
+            <div role="status" className="flex flex-1 items-center justify-center text-sm text-muted">加载中…</div>
+          ) : lotsQuery.isError || batchesQuery.isError ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3">
+              <div role="alert" className="text-sm text-danger">批次加载失败</div>
+              <button type="button"
+                onClick={() => { lotsQuery.refetch(); batchesQuery.refetch() }}
+                className="h-8 rounded-btn bg-elevated px-3 text-xs text-secondary transition-colors hover:text-foreground"
               >
                 重试
               </button>
             </div>
-          ) : lots.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center">
-              <div className="text-sm text-muted">还没有批次</div>
-              <div className="mt-1 text-[11px] text-muted/70">记录一笔买入后, 系统会按成本价 ± 止盈/止损% 生成价格监控; 填了到期日则自动生成到期提醒。这里只用于生成提醒, 不是持仓记账。</div>
+          ) : visibleLots.length === 0 ? (
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <EmptyState icon={batches.length ? FolderOpen : BellRing}
+                title={batches.length ? '当前批次没有股票' : '还没有批次'}
+                hint="点击右上角「新增批次」录入股票、成本价和提醒条件，系统会自动同步价格与到期监控规则。" />
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border bg-surface/40 shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-border/60 bg-surface/60 text-[10px] uppercase tracking-wide text-muted">
-                      <th className="px-4 py-2 font-medium">标的</th>
-                      <th className="px-2 py-2 font-medium text-right">数量(参考)</th>
-                      <th className="px-2 py-2 font-medium text-right">成本价</th>
-                      <th className="px-2 py-2 font-medium text-right">现价</th>
-                      <th className="px-2 py-2 font-medium text-right">盈亏%</th>
-                      <th className="px-2 py-2 font-medium text-right">止盈%</th>
-                      <th className="px-2 py-2 font-medium text-right">止损%</th>
-                      <th className="px-2 py-2 font-medium">买入日期</th>
-                      <th className="px-2 py-2 font-medium text-right">剩余天数</th>
-                      <th className="px-2 py-2 font-medium">到期提醒</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedLots.map(lot => (
-                      <tr key={lot.id} className="border-b border-border/40 last:border-0 hover:bg-elevated/40">
-                        <td className="px-4 py-2.5">
-                          <button
+            <div className="min-h-0 flex-1 overflow-auto rounded-card border border-border bg-surface">
+            <StockDataTable columns={LOT_COLUMNS} rows={sortedLots} rowKey={(lot: Lot) => lot.id}
+              minWidth={1100} headerSticky extraHeader="操作"
+              className="min-w-full"
+              rowClassName={(lot: Lot) => cn('border-t border-border hover:bg-elevated/50', lot.symbol === previewSymbol && 'bg-accent/10 hover:bg-accent/15')}
+              renderCell={(lot: Lot, column) => {
+                const numericClass = 'whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums'
+                switch (column.id) {
+                  case 'symbol': {
+                    const board = boardTag(lot.symbol)
+                    return (
+                        <td className="px-3 py-2.5">
+                          <button type="button"
                             onClick={() => setPreviewSymbol(lot.symbol)}
                             title={`查看 ${lot.symbol} 日K`}
-                            className="inline-flex items-center gap-1.5 min-w-0 hover:bg-elevated/50 rounded px-0.5 py-0.5 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1.5 whitespace-nowrap text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                           >
-                            <span className="font-mono font-medium text-foreground">{lot.symbol}</span>
-                            {(() => { const b = boardTag(lot.symbol); return b && <span className={`inline-flex items-center justify-center rounded px-1 text-[9px] font-bold leading-tight border ${b.color}`}>{b.label}</span> })()}
-                            {symbolNames[lot.symbol] && <span className="text-secondary truncate max-w-28">{symbolNames[lot.symbol]}</span>}
+                            <span className="font-mono text-xs text-foreground transition-colors group-hover:text-accent">{lot.symbol}</span>
+                            {symbolNames[lot.symbol] && <span className="max-w-28 truncate text-xs text-secondary transition-colors group-hover:text-foreground">{symbolNames[lot.symbol]}</span>}
+                            {board && <span className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border text-[9px] font-bold leading-none ${board.color}`}>{board.label}</span>}
                           </button>
                         </td>
-                        <td className="px-2 py-2.5 text-right font-mono text-secondary">{lot.qty}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-foreground">{lot.cost_price}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-secondary">{lastPrices[lot.symbol] != null ? fmtPrice(lastPrices[lot.symbol]) : '—'}</td>
-                        <td className="px-2 py-2.5 text-right"><CostPnL close={lastPrices[lot.symbol]} cost={lot.cost_price} /></td>
-                        <td className="px-2 py-2.5 text-right font-mono text-bull">{lot.target_pct > 0 ? `${lot.target_pct}%` : '—'}</td>
-                        <td className="px-2 py-2.5 text-right font-mono text-bear">{lot.stop_pct > 0 ? `${lot.stop_pct}%` : '—'}</td>
-                        <td className="px-2 py-2.5 text-muted">{lot.buy_date || '—'}</td>
-                        <td className="px-2 py-2.5 text-right"><RemainingDays remind={lot.remind_date} /></td>
-                        <td className="px-2 py-2.5">
+                    )
+                  }
+                  case 'qty': return <td className={cn(numericClass, 'text-secondary')}>{lot.qty}</td>
+                  case 'cost': return <td className={cn(numericClass, 'text-foreground')}>{fmtPrice(lot.cost_price)}</td>
+                  case 'price': return <td className={cn(numericClass, 'text-secondary')}>{lastPrices[lot.symbol] != null ? fmtPrice(lastPrices[lot.symbol]) : '—'}</td>
+                  case 'pnl': return <td className={numericClass}><CostPnL close={lastPrices[lot.symbol]} cost={lot.cost_price} /></td>
+                  case 'target': return <td className={cn(numericClass, 'text-bull')}>{lot.target_pct > 0 ? `${lot.target_pct}%` : '—'}</td>
+                  case 'stop': return <td className={cn(numericClass, 'text-bear')}>{lot.stop_pct > 0 ? `${lot.stop_pct}%` : '—'}</td>
+                  case 'buy_date': return <td className="whitespace-nowrap px-3 py-2.5 text-center font-mono text-xs text-muted">{lot.buy_date || '—'}</td>
+                  case 'remaining': return <td className={numericClass}><RemainingDays remind={lot.remind_date} /></td>
+                  case 'remind_date': return (
+                        <td className="whitespace-nowrap px-3 py-2.5 text-xs">
                           {lot.remind_date ? (
-                            <span className="inline-flex items-center gap-1 text-rose-400">
-                              <CalendarClock className="h-3 w-3" />
-                              {lot.remind_date}
-                              {lot.lead_days > 0 && <span className="text-muted">· 提前{lot.lead_days}天</span>}
+                            <span className="inline-flex items-center gap-1.5 text-secondary">
+                              <CalendarClock className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                              <span className="font-mono tabular-nums">{lot.remind_date}</span>
+                              {lot.lead_days > 0 && <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-muted">提前{lot.lead_days}天</span>}
                             </span>
                           ) : <span className="text-muted/60">—</span>}
                         </td>
+                  )
+                  default: return null
+                }
+              }}
+              renderExtraCol={(lot: Lot) => (
                         <td className="px-3 py-2.5">
-                          <div className="flex items-center justify-end gap-0.5">
-                            <button
+                          <div className="flex items-center justify-end gap-1">
+                            <button type="button"
                               onClick={() => setEditing(lot)}
-                              title="编辑"
-                              className="p-1.5 rounded-md text-secondary transition-all hover:bg-accent/10 hover:text-accent cursor-pointer"
+                              title="编辑股票"
+                              aria-label={`编辑股票 ${lot.symbol}`}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-btn text-secondary transition-colors hover:bg-accent/10 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                             >
-                              <Pencil className="h-3.5 w-3.5" />
+                              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
                             {confirmId === lot.id ? (
-                              <button
+                              <button type="button"
                                 onClick={() => handleClickDelete(lot.id)}
-                                title="再次点击确认删除"
-                                className="inline-flex items-center gap-1 rounded-md bg-danger/15 px-1.5 py-0.5 text-[9px] font-medium text-danger border border-danger/30 animate-pulse cursor-pointer"
+                                title="确认删除股票"
+                                className="inline-flex h-7 items-center gap-1 rounded-btn bg-danger/10 px-2 text-[11px] font-medium text-danger transition-colors hover:bg-danger/20"
                               >
-                                <Trash2 className="h-2.5 w-2.5" />确认
+                                <Trash2 className="h-3 w-3" aria-hidden="true" />确认
                               </button>
                             ) : (
-                              <button
+                              <button type="button"
                                 onClick={() => handleClickDelete(lot.id)}
-                                title="删除 (同步删除生成的监控规则)"
-                                className="p-1.5 rounded-md text-secondary transition-all hover:bg-danger/10 hover:text-danger cursor-pointer"
+                                title="删除股票 (同步删除生成的监控规则)"
+                                aria-label={`删除股票 ${lot.symbol}`}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-btn text-secondary transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-danger"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                               </button>
                             )}
                           </div>
                         </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              )}
+            />
             </div>
           )}
-
-          <div className="flex items-center justify-center gap-1 text-[11px] text-muted">
-            生成的止盈止损 / 到期提醒规则已同步至监控中心
-            <button onClick={() => navigate('/monitor')} className="inline-flex items-center gap-0.5 text-accent hover:text-accent/80 cursor-pointer">
-              去查看 <ArrowUpRight className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
+        <p className="shrink-0 text-[11px] leading-relaxed text-muted">
+          提醒规则同步至监控中心；现价取最近日K收盘价，盈亏为价格涨跌参考，不计费用。此页用于提醒，不作为持仓账本。
+        </p>
       </div>
 
       {editing && <LotDialog lot={editing} onClose={() => setEditing(null)} />}
+      {creating && <LotBatchDialog nextNumber={batchesQuery.data?.next_number}
+        onClose={() => setCreating(false)} onCreated={batch => { setActiveBatch(batch.id); setCreating(false) }} />}
+
+      {deletingBatch && (
+        <ConfirmDialog title="删除批次" confirmText="确认删除批次" danger pending={batchDel.isPending}
+          onClose={() => setDeletingBatch(null)} onConfirm={() => batchDel.mutate(deletingBatch.batch.id)}>
+          <p>确定删除「{deletingBatch.batch.name}」<span className="font-mono">（{deletingBatch.batch.number}）</span>？</p>
+          <p className="mt-2">将删除该批次的 {deletingBatch.count} 条股票记录，以及对应的止盈止损与到期提醒。此操作无法撤销。</p>
+          {batchDel.isError && <p role="alert" className="mt-2 text-danger">
+            {batchDel.error instanceof Error ? batchDel.error.message : '删除失败，请重试'}
+          </p>}
+        </ConfirmDialog>
+      )}
 
       <StockPreviewDialog
         symbol={previewSymbol}
@@ -313,9 +421,9 @@ function LotDialog({ lot, onClose }: { lot: Lot; onClose: () => void }) {
   }
 
   return (
-    <Modal onClose={onClose} ariaLabel={lot.id ? '编辑批次' : '新增批次'} size="sm">
+    <Modal onClose={onClose} closeDisabled={save.isPending} ariaLabel="编辑股票" size="sm">
       <div className="modal-header flex items-center justify-between">
-        <span className="text-sm font-medium text-foreground">{lot.id ? '编辑批次' : '新增批次'}</span>
+        <span className="text-sm font-medium text-foreground">编辑股票</span>
         <span className="text-[10px] text-muted">保存后自动同步监控规则</span>
       </div>
       <div className="space-y-3 px-4 py-4">
@@ -385,8 +493,8 @@ function LotDialog({ lot, onClose }: { lot: Lot; onClose: () => void }) {
           </div>
           <div className="space-y-1.5">
             <span className="text-[11px] text-muted">到期日 (可选)</span>
-            <DateShortcuts value={draft.remind_date ?? ''} onChange={v => setDraft(d => ({ ...d, remind_date: v || null }))} options={[{ label: '5天', days: 5 }, { label: '10天', days: 10 }, { label: '15天', days: 15 }]} base={draft.buy_date || undefined} />
-            <DatePicker value={draft.remind_date ?? ''} onChange={v => setDraft(d => ({ ...d, remind_date: v || null }))} placeholder="不提醒" />
+            <LotExpiryPicker ariaLabel="股票到期日期" buyDate={draft.buy_date}
+              value={draft.remind_date ?? ''} onChange={v => setDraft(d => ({ ...d, remind_date: v || null }))} />
           </div>
         </div>
 

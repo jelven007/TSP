@@ -5,7 +5,7 @@
 ## 根因与修复
 
 本地正式访问端口3021由
-`/Users/bytedance/.local/share/tsp-dev/TSPP/releases/v0.4.31-6b86f7249406/frontend`
+`/path/to/home/.local/share/tsp-dev/TSPP/releases/v0.4.31-6b86f7249406/frontend`
 提供；工作区开发服务为3022。之前只修改工作区并验证临时页面，
 没有把描述更新落实到3021的运行副本。
 
@@ -22,7 +22,7 @@
 
 涉及5个前端组件/页面和1个现有测试。运行版本保持0.4.31，
 没有提交、推送或操作线上环境。源代码备份及前后摘要清单位于受控本地目录
-`/Users/bytedance/.cache/tsp-dev/TSPP/backups/local-kline-description-20261027/`。
+`/path/to/home/.cache/tsp-dev/TSPP/backups/local-kline-description-20261027/`。
 运行副本重启仍读取这批已修改文件；后续升级须继承工作区对应修改。
 
 ## 实际验证

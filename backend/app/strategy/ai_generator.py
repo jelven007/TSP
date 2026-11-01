@@ -216,8 +216,12 @@ def _strategy_execution_backend(tree: ast.Module, meta: dict | None = None) -> s
 
 def _strategy_entrypoint_error(code: str, meta: dict | None = None) -> str | None:
     tree = ast.parse(code)
-    if _strategy_execution_backend(tree, meta) == "matrix_native":
+    backend = _strategy_execution_backend(tree, meta)
+    if backend == "matrix_native":
         return None if _top_level_assignment(tree, "MATRIX_STRATEGY") else _MATRIX_ENTRYPOINT_ERROR
+    if backend == "minute_filter":
+        return None if any(isinstance(node, ast.FunctionDef) and node.name == "filter_minute_history"
+                           for node in tree.body) else "分钟策略必须声明 filter_minute_history()"
     has_polars_entrypoint = any(
         isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and node.name in {"filter", "filter_history"}

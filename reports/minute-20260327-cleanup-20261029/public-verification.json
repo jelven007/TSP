@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "published_removal_verified": true,
+  "release_id": "dfb4d0597bf1402fa9959f1422fa993a",
+  "digest": "5fcd9f920918086d9e3ccadb0c819a650478bbfa12ada60ef500005f2f014162",
+  "march27_partition_absent": true,
+  "march30_partition_present": true,
+  "all_seven_roles_healthy": true,
+  "postgres_healthy": true,
+  "health_timer_active": true
+}

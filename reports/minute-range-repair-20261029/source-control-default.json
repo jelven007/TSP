@@ -1,0 +1,97 @@
+[
+  {
+    "endpoint": "117.34.114.13:7709",
+    "symbols": [
+      {
+        "symbol": "600000.SH",
+        "pages": [
+          {
+            "offset": 0,
+            "rows": 800,
+            "first": "2026-10-23 13:41",
+            "last": "2026-10-28 15:00"
+          },
+          {
+            "offset": 16000,
+            "rows": 800,
+            "first": "2026-07-15 09:31",
+            "last": "2026-07-20 10:50"
+          },
+          {
+            "offset": 32000,
+            "rows": 0,
+            "first": null,
+            "last": null
+          },
+          {
+            "offset": 50400,
+            "rows": 0,
+            "first": null,
+            "last": null
+          }
+        ],
+        "recent_control_rows": 240
+      },
+      {
+        "symbol": "301110.SZ",
+        "pages": [
+          {
+            "offset": 0,
+            "rows": 800,
+            "first": "2026-10-23 13:41",
+            "last": "2026-10-28 15:00"
+          },
+          {
+            "offset": 16000,
+            "rows": 800,
+            "first": "2026-07-15 09:31",
+            "last": "2026-07-20 10:50"
+          },
+          {
+            "offset": 32000,
+            "rows": 0,
+            "first": null,
+            "last": null
+          },
+          {
+            "offset": 50400,
+            "rows": 0,
+            "first": null,
+            "last": null
+          }
+        ],
+        "recent_control_rows": 240
+      },
+      {
+        "symbol": "688121.SH",
+        "pages": [
+          {
+            "offset": 0,
+            "rows": 800,
+            "first": "2026-10-23 13:41",
+            "last": "2026-10-28 15:00"
+          },
+          {
+            "offset": 16000,
+            "rows": 800,
+            "first": "2026-07-15 09:31",
+            "last": "2026-07-20 10:50"
+          },
+          {
+            "offset": 32000,
+            "rows": 0,
+            "first": null,
+            "last": null
+          },
+          {
+            "offset": 50400,
+            "rows": 0,
+            "first": null,
+            "last": null
+          }
+        ],
+        "recent_control_rows": 240
+      }
+    ]
+  }
+]

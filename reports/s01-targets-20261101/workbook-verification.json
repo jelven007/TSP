@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "single_sheet": true,
+  "formula_errors": 0,
+  "formulas": 27676,
+  "native_metric_cells_checked": 760,
+  "hidden_rows": 118976,
+  "charts": 1,
+  "current_research_config_matches_backtest": true,
+  "output_bytes": 10376655
+}

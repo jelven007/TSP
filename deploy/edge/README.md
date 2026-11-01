@@ -40,7 +40,7 @@ access-controlled backup of the CA key and certificate; never distribute the
 CA private key. The issuer refuses to replace a missing or incomplete CA
 silently. The root lasts ten years; server certificates last 365 days.
 
-The default IP is `118.196.108.188`. For a different IP, set `TSP_EDGE_IP` in
+The default IP is `203.0.113.10`. For a different IP, set `TSP_EDGE_IP` in
 `.edge.env` and in the issuer environment, and update `https.conf`'s redirect
 and `server_name`. Update the registered `control.cells.api_url` for the full
 deployment to the public HTTPS origin. Test migrated data and authenticated tenant
@@ -60,7 +60,7 @@ instruct users to disable certificate validation.
 
 ```bash
 openssl x509 -in /etc/tsp-edge/ca/root-ca.crt -noout -fingerprint -sha256
-curl --cacert /etc/tsp-edge/ca/root-ca.crt https://118.196.108.188/health/ready
+curl --cacert /etc/tsp-edge/ca/root-ca.crt https://203.0.113.10/health/ready
 ```
 
 ## Renewal

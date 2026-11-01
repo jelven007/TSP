@@ -1,0 +1,38 @@
+{
+  "id": "minute-backfill-remaining-20261029",
+  "status_verified": "running",
+  "started_at": "2026-10-29T13:05:07.332498+00:00",
+  "started_at_beijing": "2026-10-29T21:05:07.332498+08:00",
+  "unit": "tsp-minute-backfill-remaining-20261029.service",
+  "active_state": "active",
+  "sub_state": "running",
+  "host_main_pid": 4086211,
+  "container_worker_pid": 84782,
+  "baseline_rows": 121356351,
+  "baseline_missing_labels": 55780100,
+  "scope_start": "2026-03-30",
+  "scope_end": "2026-10-28",
+  "windows": "oldest first; at most 32 calendar days and 100 symbols per request",
+  "nodes": [
+    "110.41.147.114:7709",
+    "117.34.114.13:7709",
+    "115.238.56.198:7709",
+    "180.153.18.170:7709"
+  ],
+  "runtime_environment": {
+    "POLARS_MAX_THREADS": "2",
+    "RUSTDX_WORKERS": "3",
+    "RUSTDX_QUOTE_CONNECTIONS": "4",
+    "RUSTDX_BACKGROUND_CONNECTIONS": "3",
+    "RUSTDX_MAX_PAGES": "80"
+  },
+  "worker_command_id": "f64a9cc6e79fcb6eb9bc83180772e730",
+  "report_collector_command_id": "1da8e2f06fb57b85c88af7291fbe3d8d",
+  "staging_checksums_match": true,
+  "staging_sha256": {
+    "repair.py": "d91ef13055fed28756dbe639a7dd608e6a150947cb2e833b7ed0daa2e41b35ce",
+    "before-audit.json": "3f8786f526e349b6c91a4b5d617f48d9335553c5c08adf437a11daa47e77a3d1",
+    "before-fingerprints.json": "0f7e4d07d3f69c141448b7995a97aa7bed42be38681e41f9eda48287c10715bd",
+    "excluded-labels.csv": "9ccffa1e4155f47588fe2b5fc4c180d10b1ff677bb3c31a4022535d6f410e143"
+  }
+}

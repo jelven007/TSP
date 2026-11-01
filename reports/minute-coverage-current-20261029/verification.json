@@ -1,0 +1,52 @@
+{
+  "status": "verified",
+  "verified_at_beijing": "2026-10-30T00:03:22.655301+08:00",
+  "exact_key_anti_join_checks": [
+    {
+      "day": "2026-03-30",
+      "expected_keys": 1240800,
+      "missing_keys": 1240560
+    },
+    {
+      "day": "2026-05-11",
+      "expected_keys": 1244400,
+      "missing_keys": 1244400
+    },
+    {
+      "day": "2026-07-27",
+      "expected_keys": 1247280,
+      "missing_keys": 2160
+    },
+    {
+      "day": "2026-10-29",
+      "expected_keys": 1253280,
+      "missing_keys": 2320
+    }
+  ],
+  "summary_symbol_label_totals_match": true,
+  "source_files": 142,
+  "source_rows": 122627893,
+  "source_stable_after_audit": true,
+  "stock_pool_stable": true,
+  "minute_price_basis_unchanged": true,
+  "public_current_release_id": "7e9429bc77b240658f9b1d69e8b956d8",
+  "public_manifest_matches_audited_source": true,
+  "backfill_task": {
+    "id": "minute-backfill-remaining-20261029",
+    "status": "succeeded",
+    "progress": 100,
+    "updated_at": "2026-10-29T16:00:14.265928+00:00",
+    "finished_at": "2026-10-29T16:00:14.265928+00:00",
+    "written_rows": 15360,
+    "upstream_requests": 1012,
+    "message": "已追加 15360 行; 四个节点仍未提供或一致性检查拒绝的 55764740 个标签已汇总"
+  },
+  "backfill_result": {
+    "status": "verified",
+    "rows": 15360,
+    "remaining": 55764740,
+    "stored_rows_after": 121371711,
+    "missing_before": 55780100,
+    "skipped_symbols": 5190
+  }
+}

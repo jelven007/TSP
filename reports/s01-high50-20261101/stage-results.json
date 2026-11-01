@@ -1,0 +1,57 @@
+[
+  {
+    "strategy": "s01",
+    "capital": 100000,
+    "scope": "full_period",
+    "last_valued_date": "2026-10-30",
+    "nav": 95279.94844636018,
+    "return": -0.04720051553639815,
+    "completed_trades": 160,
+    "realized_pnl": -4720.051553639814,
+    "total_fees": 3170.9405536400004
+  },
+  {
+    "strategy": "s01",
+    "capital": 200000,
+    "scope": "full_period",
+    "last_valued_date": "2026-10-30",
+    "nav": 190237.46920922038,
+    "return": -0.04881265395389811,
+    "completed_trades": 160,
+    "realized_pnl": -9762.530790779652,
+    "total_fees": 6241.571290780001
+  },
+  {
+    "strategy": "s01",
+    "capital": 300000,
+    "scope": "full_period",
+    "last_valued_date": "2026-10-30",
+    "nav": 285559.7829502804,
+    "return": -0.048134056832398686,
+    "completed_trades": 160,
+    "realized_pnl": -14440.217049719548,
+    "total_fees": 9290.91404972
+  },
+  {
+    "strategy": "s01",
+    "capital": 500000,
+    "scope": "full_period",
+    "last_valued_date": "2026-10-30",
+    "nav": 478180.68703676085,
+    "return": -0.04363862592647827,
+    "completed_trades": 160,
+    "realized_pnl": -21819.31296323905,
+    "total_fees": 14901.21196324
+  },
+  {
+    "strategy": "s01",
+    "capital": 1000000,
+    "scope": "full_period",
+    "last_valued_date": "2026-10-30",
+    "nav": 957229.6988943418,
+    "return": -0.04277030110565816,
+    "completed_trades": 160,
+    "realized_pnl": -42770.301105658524,
+    "total_fees": 26350.229605660003
+  }
+]

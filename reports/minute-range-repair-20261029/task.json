@@ -1,0 +1,50 @@
+{
+  "id": "minute-range-20261029-all-sources",
+  "kind": "kline_range_repair",
+  "source": "operational",
+  "status": "succeeded",
+  "created_at": "2026-10-28T23:27:30.561549+00:00",
+  "request": {
+    "period": "1m",
+    "mode": "missing",
+    "start_date": "2026-03-30",
+    "end_date": "2026-04-30",
+    "unavailable": "skip_and_record"
+  },
+  "progress": 100,
+  "schema_version": 1,
+  "updated_at": "2026-10-28T23:27:33.314470+00:00",
+  "started_at": "2026-10-28T23:27:30.561567+00:00",
+  "finished_at": "2026-10-28T23:27:33.314470+00:00",
+  "cancellation_requested_at": null,
+  "error": null,
+  "result": {
+    "period": "1m",
+    "mode": "missing",
+    "start": "2026-03-30",
+    "end": "2026-04-30",
+    "universe_size": 5222,
+    "trading_days": 23,
+    "missing_before": 28572000,
+    "rows": 0,
+    "candidate_rows": 0,
+    "remaining": 28572000,
+    "source": "rustdx",
+    "price_basis": "rustdx_raw",
+    "legacy_marker_preserved": true,
+    "gap_report": "kline_gap_reports/minute-range-20261029/remaining-summary.csv",
+    "existing_price_ratio_min": 1.0,
+    "skipped_symbol_count": 5182,
+    "existing_rows_preserved": true,
+    "coverage_filled": 0,
+    "warning": "已追加 0 行；三个节点无法提供的 28572000 个时间点已跳过并记录",
+    "default_source_added_rows": 0,
+    "sources_checked": [
+      "117.34.114.13:7709",
+      "115.238.56.198:7709",
+      "180.153.18.170:7709"
+    ]
+  },
+  "stage": "complete",
+  "message": "已追加 0 行；三个节点无法提供的 28572000 个时间点已跳过并记录"
+}

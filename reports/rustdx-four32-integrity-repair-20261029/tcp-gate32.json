@@ -1,0 +1,530 @@
+{
+  "passed": true,
+  "business_tcp_peak": 32,
+  "actual_inflight_peak": 32,
+  "station_inflight_peaks": [
+    8,
+    8,
+    8,
+    8
+  ],
+  "background_peaks": [
+    8,
+    8,
+    8,
+    7
+  ],
+  "probe_peak": 3,
+  "station_tcp_peaks": [
+    8,
+    8,
+    8,
+    8
+  ],
+  "snapshot_count": 30,
+  "snapshot_max_seconds": 0.17286491599224973,
+  "wrong_station_rejected_before_io": true,
+  "stats": [
+    {
+      "active_connections": 0,
+      "active_server": "127.0.0.1:59166",
+      "benchmark_hosts": 4,
+      "business_limit": 32,
+      "closed": false,
+      "failures": 0,
+      "financial_pools": [],
+      "idle_connections": 8,
+      "market_pool": {
+        "completed_at": "2026-10-29T21:13:15.309336+08:00",
+        "date": "2026-10-29",
+        "results": [
+          {
+            "address": "127.0.0.1:59166",
+            "rounds": [
+              {
+                "elapsed": {
+                  "nanos": 940958,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 368250,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 330125,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 237041,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 1069000,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 522416,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 392167,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 150792,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 1063541,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 580750,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 311125,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 168916,
+                  "secs": 0
+                }
+              }
+            ]
+          }
+        ],
+        "tested_at": "2026-10-29T21:13:15.306226+08:00",
+        "valid_nodes": [
+          "127.0.0.1:59166"
+        ]
+      },
+      "max_connections": 8,
+      "minute_requests": 50,
+      "network": {
+        "acquisition_timeouts": 0,
+        "active": 32,
+        "peak": 32,
+        "request_failures": 0,
+        "requests": 234,
+        "shared_max_connections": null
+      },
+      "probe_limit": 4,
+      "probes": {
+        "active": 0,
+        "peak": 3,
+        "timeouts": 0,
+        "waits": 0
+      },
+      "quote_batch_size": 60,
+      "quote_metadata": [],
+      "retries": 0,
+      "scheduler": {
+        "background_active": 0,
+        "background_limit": 8,
+        "background_peak": 8,
+        "foreground_waiting": 0,
+        "slot_acquisitions": 50,
+        "slot_wait_ms_max": 833.526,
+        "slot_wait_ms_total": 10544.216,
+        "waiting_requests": 0
+      },
+      "total_connection_limit": 36,
+      "total_connections": 8
+    },
+    {
+      "active_connections": 0,
+      "active_server": "127.0.0.1:59167",
+      "benchmark_hosts": 4,
+      "business_limit": 32,
+      "closed": false,
+      "failures": 0,
+      "financial_pools": [],
+      "idle_connections": 8,
+      "market_pool": {
+        "completed_at": "2026-10-29T21:13:15.309405+08:00",
+        "date": "2026-10-29",
+        "results": [
+          {
+            "address": "127.0.0.1:59167",
+            "rounds": [
+              {
+                "elapsed": {
+                  "nanos": 1016500,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 393208,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 399333,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 220083,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 1150875,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 368084,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 645542,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 133584,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 915250,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 451750,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 332666,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 128916,
+                  "secs": 0
+                }
+              }
+            ]
+          }
+        ],
+        "tested_at": "2026-10-29T21:13:15.306289+08:00",
+        "valid_nodes": [
+          "127.0.0.1:59167"
+        ]
+      },
+      "max_connections": 8,
+      "minute_requests": 50,
+      "network": {
+        "acquisition_timeouts": 0,
+        "active": 32,
+        "peak": 32,
+        "request_failures": 0,
+        "requests": 234,
+        "shared_max_connections": null
+      },
+      "probe_limit": 4,
+      "probes": {
+        "active": 0,
+        "peak": 3,
+        "timeouts": 0,
+        "waits": 0
+      },
+      "quote_batch_size": 60,
+      "quote_metadata": [],
+      "retries": 0,
+      "scheduler": {
+        "background_active": 0,
+        "background_limit": 8,
+        "background_peak": 8,
+        "foreground_waiting": 0,
+        "slot_acquisitions": 50,
+        "slot_wait_ms_max": 1033.421,
+        "slot_wait_ms_total": 9769.367,
+        "waiting_requests": 0
+      },
+      "total_connection_limit": 36,
+      "total_connections": 8
+    },
+    {
+      "active_connections": 0,
+      "active_server": "127.0.0.1:59168",
+      "benchmark_hosts": 4,
+      "business_limit": 32,
+      "closed": false,
+      "failures": 0,
+      "financial_pools": [],
+      "idle_connections": 8,
+      "market_pool": {
+        "completed_at": "2026-10-29T21:13:15.309330+08:00",
+        "date": "2026-10-29",
+        "results": [
+          {
+            "address": "127.0.0.1:59168",
+            "rounds": [
+              {
+                "elapsed": {
+                  "nanos": 1003666,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 542750,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 291833,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 166333,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 1083875,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 518958,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 434875,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 126792,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 847875,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 453625,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 252542,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 138458,
+                  "secs": 0
+                }
+              }
+            ]
+          }
+        ],
+        "tested_at": "2026-10-29T21:13:15.306363+08:00",
+        "valid_nodes": [
+          "127.0.0.1:59168"
+        ]
+      },
+      "max_connections": 8,
+      "minute_requests": 50,
+      "network": {
+        "acquisition_timeouts": 0,
+        "active": 32,
+        "peak": 32,
+        "request_failures": 0,
+        "requests": 234,
+        "shared_max_connections": null
+      },
+      "probe_limit": 4,
+      "probes": {
+        "active": 0,
+        "peak": 3,
+        "timeouts": 0,
+        "waits": 0
+      },
+      "quote_batch_size": 60,
+      "quote_metadata": [],
+      "retries": 0,
+      "scheduler": {
+        "background_active": 0,
+        "background_limit": 8,
+        "background_peak": 8,
+        "foreground_waiting": 0,
+        "slot_acquisitions": 50,
+        "slot_wait_ms_max": 625.655,
+        "slot_wait_ms_total": 8554.1,
+        "waiting_requests": 0
+      },
+      "total_connection_limit": 36,
+      "total_connections": 8
+    },
+    {
+      "active_connections": 0,
+      "active_server": "127.0.0.1:59169",
+      "benchmark_hosts": 4,
+      "business_limit": 32,
+      "closed": false,
+      "failures": 0,
+      "financial_pools": [],
+      "idle_connections": 8,
+      "market_pool": {
+        "completed_at": "2026-10-29T21:13:15.174240+08:00",
+        "date": "2026-10-29",
+        "results": [
+          {
+            "address": "127.0.0.1:59169",
+            "rounds": [
+              {
+                "elapsed": {
+                  "nanos": 454875,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 128541,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 110209,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 198167,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 284250,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 107917,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 68791,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 103958,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 258459,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 93042,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 65333,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 2100,
+                "tcp": {
+                  "nanos": 96625,
+                  "secs": 0
+                }
+              }
+            ]
+          }
+        ],
+        "tested_at": "2026-10-29T21:13:15.173166+08:00",
+        "valid_nodes": [
+          "127.0.0.1:59169"
+        ]
+      },
+      "max_connections": 8,
+      "minute_requests": 50,
+      "network": {
+        "acquisition_timeouts": 0,
+        "active": 32,
+        "peak": 32,
+        "request_failures": 0,
+        "requests": 234,
+        "shared_max_connections": null
+      },
+      "probe_limit": 4,
+      "probes": {
+        "active": 0,
+        "peak": 3,
+        "timeouts": 0,
+        "waits": 0
+      },
+      "quote_batch_size": 60,
+      "quote_metadata": [
+        {
+          "as_of_date": "2026-10-29",
+          "fetched_at": "2026-10-29T13:13:15.281021Z",
+          "market": 0,
+          "securities": 2100,
+          "source_endpoint": "127.0.0.1:59169",
+          "unsupported": 0
+        }
+      ],
+      "retries": 0,
+      "scheduler": {
+        "background_active": 0,
+        "background_limit": 7,
+        "background_peak": 7,
+        "foreground_waiting": 0,
+        "slot_acquisitions": 82,
+        "slot_wait_ms_max": 1032.495,
+        "slot_wait_ms_total": 12736.017,
+        "waiting_requests": 0
+      },
+      "total_connection_limit": 36,
+      "total_connections": 8
+    }
+  ]
+}

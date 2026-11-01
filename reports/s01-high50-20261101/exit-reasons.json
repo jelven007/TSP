@@ -1,0 +1,92 @@
+[
+  {
+    "strategy": "s01",
+    "capital": 100000,
+    "reason": "time_guard",
+    "trades": 145
+  },
+  {
+    "strategy": "s01",
+    "capital": 100000,
+    "reason": "gross_target",
+    "trades": 14
+  },
+  {
+    "strategy": "s01",
+    "capital": 100000,
+    "reason": "net_stop",
+    "trades": 1
+  },
+  {
+    "strategy": "s01",
+    "capital": 200000,
+    "reason": "time_guard",
+    "trades": 145
+  },
+  {
+    "strategy": "s01",
+    "capital": 200000,
+    "reason": "gross_target",
+    "trades": 14
+  },
+  {
+    "strategy": "s01",
+    "capital": 200000,
+    "reason": "net_stop",
+    "trades": 1
+  },
+  {
+    "strategy": "s01",
+    "capital": 300000,
+    "reason": "time_guard",
+    "trades": 145
+  },
+  {
+    "strategy": "s01",
+    "capital": 300000,
+    "reason": "gross_target",
+    "trades": 14
+  },
+  {
+    "strategy": "s01",
+    "capital": 300000,
+    "reason": "net_stop",
+    "trades": 1
+  },
+  {
+    "strategy": "s01",
+    "capital": 500000,
+    "reason": "time_guard",
+    "trades": 145
+  },
+  {
+    "strategy": "s01",
+    "capital": 500000,
+    "reason": "gross_target",
+    "trades": 14
+  },
+  {
+    "strategy": "s01",
+    "capital": 500000,
+    "reason": "net_stop",
+    "trades": 1
+  },
+  {
+    "strategy": "s01",
+    "capital": 1000000,
+    "reason": "time_guard",
+    "trades": 145
+  },
+  {
+    "strategy": "s01",
+    "capital": 1000000,
+    "reason": "gross_target",
+    "trades": 14
+  },
+  {
+    "strategy": "s01",
+    "capital": 1000000,
+    "reason": "net_stop",
+    "trades": 1
+  }
+]

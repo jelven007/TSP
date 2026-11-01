@@ -1,0 +1,85 @@
+{
+  "observed_at": "2026-10-29T06:52:28.197516+08:00",
+  "is_published_trading_day": true,
+  "calendar": {
+    "version": "SSE-2019-2026-20261026",
+    "covered_years": [
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "sha256": "51fc950004885a1ea88d4c306a5ea2285e34ae3b2191412a5cad9c289f0336aa",
+    "unknown_year_policy": "provider_evidence"
+  },
+  "native": {
+    "__version__": "0.2.0",
+    "RUSTDX_VERSION": "2.0.4",
+    "RUSTDX_SOURCE_REV": "c4c0273456874898aed50447fd900521d9ffd3b8",
+    "POOL_API_VERSION": 3,
+    "MAX_CONNECTIONS": 8,
+    "PROBE_CONNECTIONS": 1,
+    "RUSTDX_CORE_SHA256": "9c5082e8a43d217dc1f2ba2558545648830a953b84e83962d8bc0660f90955d5",
+    "RUSTDX_PATCH_SHA256": "6ffce99f5e2d31e12673e3a9eb391c5953750471e734f7cab1d49213f47e17bd"
+  },
+  "preferences": {
+    "realtime_quotes_enabled": true,
+    "realtime_quote_interval": 1.0,
+    "minute_refresh_interval": 60,
+    "minute_intraday_refresh_interval": 30,
+    "minute_sync_enabled": true,
+    "minute_sync_days": 5,
+    "minute_refresh_enabled": true
+  },
+  "configured_rustdx": {
+    "RUSTDX_SERVER": "117.34.114.13:7709",
+    "RUSTDX_FALLBACK_SERVERS": null,
+    "RUSTDX_TIMEOUT": "8",
+    "RUSTDX_QUOTE_CONNECTIONS": "35",
+    "RUSTDX_WORKERS": "35",
+    "RUSTDX_BACKGROUND_CONNECTIONS": null,
+    "RUSTDX_NETWORK_SHARED_DIR": null
+  },
+  "universe": {
+    "rows": 5222,
+    "unique_symbols": 5222,
+    "symbols_sha256": "77ba73082a39eafcfa5f0b8114391f669b12b2db8931154dc29e3e557dfa3f5d",
+    "as_of": [
+      "2026-10-28"
+    ],
+    "boards": [
+      {
+        "board": "创业板",
+        "len": 1411
+      },
+      {
+        "board": "沪主板",
+        "len": 1700
+      },
+      {
+        "board": "深主板",
+        "len": 1493
+      },
+      {
+        "board": "科创板",
+        "len": 618
+      }
+    ]
+  },
+  "last_trading_archive": {
+    "trade_date": "2026-10-28",
+    "files": 1768,
+    "bytes": 1013100481,
+    "versions": {
+      "1.12.2@9dfc024c9662fa5091099c1f17610569ee2eca8b": {
+        "rows": 78627654,
+        "first_ms": 1793150104971,
+        "last_ms": 1793174399451
+      }
+    }
+  }
+}

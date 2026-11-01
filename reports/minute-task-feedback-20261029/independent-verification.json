@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "checked_at": "2026-10-29T00:40:08.331822+00:00",
+  "job_id": "7ae6fcc72e",
+  "version": "0.4.38",
+  "processed_write_rows": 240,
+  "new_scope_rows": 0,
+  "remaining": 6202800,
+  "grouped_gap_rows": 25845,
+  "skipped_symbols": 5170,
+  "gaps_by_day": {
+    "2026-03-23": 1240320,
+    "2026-03-24": 1240320,
+    "2026-03-25": 1240800,
+    "2026-03-26": 1240800,
+    "2026-03-27": 1240560
+  },
+  "csv_sha256": "b0e69a3e1c5b804349831a19f48f14a92b7225bb82f8c8ed59730f08f77d5042",
+  "terminal_message_matches": true,
+  "unique_disk_keys_match": true,
+  "per_symbol_day_csv_counts_match": true,
+  "deployment_and_restart_verified": true
+}

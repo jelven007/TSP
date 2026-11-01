@@ -1,0 +1,14 @@
+{
+  "status": "verified",
+  "verified_at_beijing": "2026-10-29T22:41:22.901727+08:00",
+  "csv_gap_count": 9565,
+  "csv_gap_symbols": 1265,
+  "csv_gap_days": 1411,
+  "daily_monthly_and_total_counts_match": true,
+  "physical_footer_row_counts_match": true,
+  "public_source_checksums_match": true,
+  "source_files": 4359,
+  "source_and_stock_pool_stable": true,
+  "latest_day_gaps_match": true,
+  "index_gap_counts_match": true
+}

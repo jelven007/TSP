@@ -1,0 +1,96 @@
+{
+  "status": "verified",
+  "application_version": "0.4.38",
+  "current_financial_files_each": 5,
+  "current_financial_bytes_each": 19036078,
+  "current_financial_mb_each": 18.15,
+  "current_financial_rows_each": 625956,
+  "current_tables_all_hashes_equal": true,
+  "local_revision_files": 113,
+  "local_revision_mb": 61.0,
+  "online_revision_files": 83,
+  "online_revision_mb": 44.86,
+  "retention": {
+    "local": {
+      "all_existing_paths_retained": true,
+      "previous_files": 115,
+      "current_files": 118,
+      "new_files": [
+        "revisions/metrics/a9bf6ed25f21b8c3b55251af1a5f8295769326553456b773a733b368388ec296.json",
+        "revisions/metrics/a9bf6ed25f21b8c3b55251af1a5f8295769326553456b773a733b368388ec296.parquet",
+        "revisions/metrics/observations/33728d001471415281229b0328e96b4f.json"
+      ],
+      "scheduled_sync_changed_files": [
+        "metrics/part.parquet",
+        "revisions/metrics/latest.json"
+      ],
+      "existing_immutable_revisions_unchanged": true
+    },
+    "online": {
+      "all_existing_paths_retained": true,
+      "previous_files": 85,
+      "current_files": 88,
+      "new_files": [
+        "revisions/metrics/a9bf6ed25f21b8c3b55251af1a5f8295769326553456b773a733b368388ec296.json",
+        "revisions/metrics/a9bf6ed25f21b8c3b55251af1a5f8295769326553456b773a733b368388ec296.parquet",
+        "revisions/metrics/observations/7ca1713902564fa8aae7c13a6731bbd9.json"
+      ],
+      "scheduled_sync_changed_files": [
+        "metrics/part.parquet",
+        "revisions/metrics/latest.json"
+      ],
+      "existing_immutable_revisions_unchanged": true
+    }
+  },
+  "local_ready": true,
+  "online_ready": true,
+  "backend_regressions": "24 passed",
+  "frontend_build": "passed",
+  "rendered_qa": [
+    {
+      "environment": "local",
+      "url": "http://127.0.0.1:3021/data",
+      "title": "TSP · Quant Terminal",
+      "current_financial_text": "财务数据\n5 文件\n18.1 MB",
+      "history_text": "财务历史快照\n113 文件\n61.0 MB",
+      "reload_keeps_statistics": true,
+      "page_errors": [],
+      "desktop_viewport": [
+        1440,
+        1000
+      ],
+      "mobile_viewport": [
+        390,
+        844
+      ],
+      "browser": "Chrome Playwright",
+      "browser_plugin": "not available"
+    },
+    {
+      "environment": "online",
+      "url": "https://server.example.com/data",
+      "title": "TSP · Quant Terminal",
+      "current_financial_text": "财务数据\n5 文件\n18.1 MB",
+      "history_text": "财务历史快照\n83 文件\n44.9 MB",
+      "reload_keeps_statistics": true,
+      "page_errors": [],
+      "desktop_viewport": [
+        1440,
+        1000
+      ],
+      "mobile_viewport": [
+        390,
+        844
+      ],
+      "browser": "Chrome Playwright",
+      "browser_plugin": "not available"
+    }
+  ],
+  "base_revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "repair_runtime_image": "sha256:6420311935048783ca64a1b9475824f8e8987b8e5c74f9854766ea032987447d",
+  "local_runtime_root": "/path/to/home/.local/share/tsp-dev/TSPP/releases/v0.4.38-financial-storage-20261030",
+  "source_worktree": "/path/to/home/.cache/tsp-dev/TSPP/financial-storage-20261030/source",
+  "source_committed": false,
+  "source_pushed": false,
+  "repair_artifact_has_separate_provenance": true
+}

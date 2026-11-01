@@ -93,7 +93,7 @@ export function Onboarding() {
             className="shrink-0"
             style={{ color: BRAND, filter: `drop-shadow(0 0 8px ${BRAND}55)` }}
           />
-          <span className="text-sm font-semibold tracking-tight">TSP</span>
+          <span className="text-sm font-semibold tracking-tight" title="Tick Stock Platform">TSP</span>
         </div>
         {/* 步骤进度条 —— 胶囊式 */}
         <div className="flex items-center gap-1.5">
@@ -210,11 +210,11 @@ function WelcomeStep({ onNext, pending, error }: { onNext: () => void; pending: 
       </motion.div>
 
       <h1 className="mt-6 text-3xl font-bold text-foreground tracking-tight">
-        欢迎使用 TSP
+        欢迎使用 Tick Stock Platform
       </h1>
       <p className="mt-3 text-sm text-secondary leading-relaxed max-w-md mx-auto">
-        一个本地化的 A 股量化分析面板 —— 行情、选股、回测、监控、财务一体化。
-        数据源与其他配置可在进入面板后前往设置调整。
+        一个本地化的 A 股量化分析平台 —— 行情、选股、回测、监控、财务一体化。
+        数据源与其他配置可在进入平台后前往设置调整。
       </p>
 
       {/* 特性卡片 —— 3×3 网格,横向布局压缩高度 */}

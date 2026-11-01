@@ -1,6 +1,7 @@
 # rustdx 三组任务连接
 
-本次沿用核心2.0.4，原生桥接独立升级0.3.0/API4；应用版本仍为0.4.38。
+核对日期：2026-10-30。当前沿用核心2.0.4、原生桥接0.3.0/API4；
+应用源码与最后已知运行身份统一见[版本基线](version-baseline.md)。
 源码安装须重新构建桥接。默认`RUSTDX_TASK_GROUPS=1`，
 `0/false/off`保留原单池模式。配置读取不写回用户偏好或环境。
 
@@ -58,5 +59,7 @@
 验证入口为`test_rustdx_task_routing.py`、`test_rustdx_task_quotas.py`、
 `test_rustdx_window_consistency.py`及原有rustdx测试。须同时保留本地真实TCP、
 两进程共享目录、操作系统探测连接数、取消、分页覆盖、金融单位与构建身份检查。
-本次授权仅为源码更新；生产容量、正式P95和部署生效需另行验证。
-实际测试、公开节点范围与尚未验证项见[实施验收](../reports/rustdx-task-affinity-20261029/verification.md)。
+三组连接已纳入v0.4.39正式发布，保存的运行验收见
+[发布证据](../reports/current-release-20261030/deployment.md)；
+该证据不认证全市场历史、生产容量或正式P95。
+初始测试与公开节点范围见[实施验收](../reports/rustdx-task-affinity-20261029/verification.md)。

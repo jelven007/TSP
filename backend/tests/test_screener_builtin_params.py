@@ -83,8 +83,8 @@ def _install_api_fakes(monkeypatch):
     _CapturingStrategyEngine.calls = []
     monkeypatch.setattr(screener_api, "ScreenerService", _CapturingScreenerService)
     monkeypatch.setattr(screener_api, "_load_ext_value_maps", lambda *_args: {})
-    monkeypatch.setattr(screener_api, "_update_cache_strategy", lambda *_args: None)
-    monkeypatch.setattr(screener_api.strategy_cache, "write_cache", lambda *_args: None)
+    monkeypatch.setattr(screener_api, "_update_cache_strategy", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(screener_api.strategy_cache, "write_cache", lambda *_args, **_kwargs: None)
 
 
 def test_single_run_passes_saved_params_to_strategy_engine(monkeypatch, tmp_path):
@@ -142,7 +142,7 @@ def test_batch_summary_response_still_writes_full_cache(monkeypatch, tmp_path):
     _install_api_fakes(monkeypatch)
     written = []
     monkeypatch.setattr(screener_api.strategy_config, "list_overrides", lambda *_args: {})
-    monkeypatch.setattr(screener_api.strategy_cache, "write_cache", lambda *args: written.append(args))
+    monkeypatch.setattr(screener_api.strategy_cache, "write_cache", lambda *args, **kwargs: written.append(args))
 
     payload = screener_api.run_all(
         request,

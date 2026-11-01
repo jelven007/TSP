@@ -1,0 +1,168 @@
+{
+  "checked_at_beijing": "2026-10-30T06:41:02.728436+08:00",
+  "endpoint": "117.34.114.13:7709",
+  "samples": [
+    {
+      "symbol": "000001.SZ",
+      "page_offset": 0,
+      "rows": 800,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-10-26",
+      "last_returned_date": "2026-10-29",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "000001.SZ",
+      "page_offset": 16000,
+      "rows": 800,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-07-16",
+      "last_returned_date": "2026-07-21",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "000001.SZ",
+      "page_offset": 20000,
+      "rows": 800,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-06-23",
+      "last_returned_date": "2026-06-26",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "000001.SZ",
+      "page_offset": 21600,
+      "rows": 800,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-06-11",
+      "last_returned_date": "2026-06-16",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "000001.SZ",
+      "page_offset": 22400,
+      "rows": 160,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-06-11",
+      "last_returned_date": "2026-06-11",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "000001.SZ",
+      "page_offset": 23200,
+      "rows": 0,
+      "protocol_requests": 1,
+      "first_returned_date": null,
+      "last_returned_date": null,
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "000001.SZ",
+      "page_offset": 24000,
+      "rows": 0,
+      "protocol_requests": 1,
+      "first_returned_date": null,
+      "last_returned_date": null,
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "000001.SZ",
+      "page_offset": 63200,
+      "rows": 0,
+      "protocol_requests": 1,
+      "first_returned_date": null,
+      "last_returned_date": null,
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "688496.SH",
+      "page_offset": 0,
+      "rows": 800,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-09-08",
+      "last_returned_date": "2026-10-29",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "688496.SH",
+      "page_offset": 16000,
+      "rows": 800,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-06-05",
+      "last_returned_date": "2026-06-10",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "688496.SH",
+      "page_offset": 20000,
+      "rows": 800,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-05-13",
+      "last_returned_date": "2026-05-18",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "688496.SH",
+      "page_offset": 21600,
+      "rows": 800,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-04-27",
+      "last_returned_date": "2026-05-06",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "688496.SH",
+      "page_offset": 22400,
+      "rows": 160,
+      "protocol_requests": 1,
+      "first_returned_date": "2026-04-27",
+      "last_returned_date": "2026-04-27",
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "688496.SH",
+      "page_offset": 23200,
+      "rows": 0,
+      "protocol_requests": 1,
+      "first_returned_date": null,
+      "last_returned_date": null,
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "688496.SH",
+      "page_offset": 24000,
+      "rows": 0,
+      "protocol_requests": 1,
+      "first_returned_date": null,
+      "last_returned_date": null,
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    },
+    {
+      "symbol": "688496.SH",
+      "page_offset": 63200,
+      "rows": 0,
+      "protocol_requests": 1,
+      "first_returned_date": null,
+      "last_returned_date": null,
+      "error": null,
+      "endpoint": "117.34.114.13:7709"
+    }
+  ],
+  "scope": "two stocks, eight offsets each; raw native endpoint",
+  "writes_to_market_data": 0
+}

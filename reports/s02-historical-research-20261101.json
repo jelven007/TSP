@@ -1,0 +1,107 @@
+{
+  "record_type": "normalized_historical_subset",
+  "source_date": "2026-11-01",
+  "version": "0.4.39",
+  "not_a_new_execution": true,
+  "backtests": [
+    {
+      "key": "s02-100000-10",
+      "job_id": "495ee92895dc484e8d175795fe8ede9b",
+      "state": "succeeded",
+      "trades": 78
+    },
+    {
+      "key": "s02-100000-20",
+      "job_id": "e6083873a16642c3bf2c7965fc01facf",
+      "state": "succeeded",
+      "trades": 78
+    },
+    {
+      "key": "s02-100000-5",
+      "job_id": "77d1eeebea8b4384a30d124a94f5e87b",
+      "state": "succeeded",
+      "trades": 78
+    },
+    {
+      "key": "s02-1000000-10",
+      "job_id": "a5d1a9433e74443fb2d3024a00970787",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-1000000-20",
+      "job_id": "455ae5ba2d60468bbaf65a7a3aeba549",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-1000000-5",
+      "job_id": "8930dfe1351f40a9a4a3674890ddccbc",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-200000-10",
+      "job_id": "25bd1104fdd8429e9688a64d634c1456",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-200000-20",
+      "job_id": "81c5844629a44cd1931a9256065eeb42",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-200000-5",
+      "job_id": "41288d7dcb084bfca9881de81b692e8a",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-300000-10",
+      "job_id": "62f3b206f33743f0910d68cd81649e28",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-300000-20",
+      "job_id": "5566dbef95f943abb1d7bd9cde9f4f8e",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-300000-5",
+      "job_id": "f6f37c3411174755b5c48da134c35455",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-500000-10",
+      "job_id": "6be9a49c7f07411081cb6bc624bc3b08",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-500000-20",
+      "job_id": "5b39f5c662a34f678f0c2d6ad29cb346",
+      "state": "succeeded",
+      "trades": 79
+    },
+    {
+      "key": "s02-500000-5",
+      "job_id": "e018d2875b30493488689debc9e64d18",
+      "state": "succeeded",
+      "trades": 79
+    }
+  ],
+  "historical_oracle": {
+    "status": "PASS",
+    "days": 92,
+    "selections": 119,
+    "source_files_reverified": 236,
+    "share_snapshot_fallback_observations": 711
+  },
+  "current_validation": "s02-migration-20261101.json",
+  "online_deploy": false
+}

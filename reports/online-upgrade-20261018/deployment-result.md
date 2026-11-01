@@ -4,7 +4,7 @@
 
 ## 结论
 
-火山引擎上海 ECS-XM（`118.196.108.188`）已完成 v0.4.8 单机多租户候选发布、双库
+火山引擎上海 ECS-XM（`203.0.113.10`）已完成 v0.4.8 单机多租户候选发布、双库
 schema v5 → v6 迁移和 Edge 切流。发布完成时 API、Gateway、Platform、四类 Worker、
 Compute Broker、PostgreSQL 与 Edge 均正常。
 

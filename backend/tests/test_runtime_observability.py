@@ -42,6 +42,15 @@ def test_runtime_failure_releases_lock_and_separates_wait_from_execution():
     assert len(runtime_metrics_snapshot()) == 2
 
 
+@pytest.mark.parametrize("stage", [
+    "public.binding_check", "public.binding_prepare", "public.binding_commit",
+])
+def test_public_binding_stages_have_bounded_metrics(stage):
+    with measure_runtime_stage(stage):
+        pass
+    assert runtime_metrics_snapshot()[stage]["calls"] == 1
+
+
 def test_http_serialization_keeps_runtime_stages_and_sanitized_pool_stats():
     with measure_runtime_stage("tenant.factor_definitions"):
         pass

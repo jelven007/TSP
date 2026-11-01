@@ -1,6 +1,6 @@
 {
   "checked_at": "2026-10-26T18:18:58.396774+00:00",
-  "site": "https://shanao.asia",
+  "site": "https://server.example.com",
   "version": "0.4.32",
   "status": "degraded",
   "ready": true,

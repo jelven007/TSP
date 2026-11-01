@@ -1,0 +1,591 @@
+{
+  "repository": {
+    "id": 1413125426,
+    "node_id": "R_kgDOVDqVMg",
+    "name": "rustdx",
+    "full_name": "jelven007/rustdx",
+    "private": false,
+    "owner": {
+      "login": "jelven007",
+      "id": 24818820,
+      "node_id": "MDQ6VXNlcjI0ODE4ODIw",
+      "avatar_url": "https://avatars.githubusercontent.com/u/24818820?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/jelven007",
+      "html_url": "https://github.com/jelven007",
+      "followers_url": "https://api.github.com/users/jelven007/followers",
+      "following_url": "https://api.github.com/users/jelven007/following{/other_user}",
+      "gists_url": "https://api.github.com/users/jelven007/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/jelven007/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/jelven007/subscriptions",
+      "organizations_url": "https://api.github.com/users/jelven007/orgs",
+      "repos_url": "https://api.github.com/users/jelven007/repos",
+      "events_url": "https://api.github.com/users/jelven007/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/jelven007/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "html_url": "https://github.com/jelven007/rustdx",
+    "description": "rust tdx",
+    "fork": false,
+    "url": "https://api.github.com/repos/jelven007/rustdx",
+    "forks_url": "https://api.github.com/repos/jelven007/rustdx/forks",
+    "keys_url": "https://api.github.com/repos/jelven007/rustdx/keys{/key_id}",
+    "collaborators_url": "https://api.github.com/repos/jelven007/rustdx/collaborators{/collaborator}",
+    "teams_url": "https://api.github.com/repos/jelven007/rustdx/teams",
+    "hooks_url": "https://api.github.com/repos/jelven007/rustdx/hooks",
+    "issue_events_url": "https://api.github.com/repos/jelven007/rustdx/issues/events{/number}",
+    "events_url": "https://api.github.com/repos/jelven007/rustdx/events",
+    "assignees_url": "https://api.github.com/repos/jelven007/rustdx/assignees{/user}",
+    "branches_url": "https://api.github.com/repos/jelven007/rustdx/branches{/branch}",
+    "tags_url": "https://api.github.com/repos/jelven007/rustdx/tags",
+    "blobs_url": "https://api.github.com/repos/jelven007/rustdx/git/blobs{/sha}",
+    "git_tags_url": "https://api.github.com/repos/jelven007/rustdx/git/tags{/sha}",
+    "git_refs_url": "https://api.github.com/repos/jelven007/rustdx/git/refs{/sha}",
+    "trees_url": "https://api.github.com/repos/jelven007/rustdx/git/trees{/sha}",
+    "statuses_url": "https://api.github.com/repos/jelven007/rustdx/statuses/{sha}",
+    "languages_url": "https://api.github.com/repos/jelven007/rustdx/languages",
+    "stargazers_url": "https://api.github.com/repos/jelven007/rustdx/stargazers",
+    "contributors_url": "https://api.github.com/repos/jelven007/rustdx/contributors",
+    "subscribers_url": "https://api.github.com/repos/jelven007/rustdx/subscribers",
+    "subscription_url": "https://api.github.com/repos/jelven007/rustdx/subscription",
+    "commits_url": "https://api.github.com/repos/jelven007/rustdx/commits{/sha}",
+    "git_commits_url": "https://api.github.com/repos/jelven007/rustdx/git/commits{/sha}",
+    "comments_url": "https://api.github.com/repos/jelven007/rustdx/comments{/number}",
+    "issue_comment_url": "https://api.github.com/repos/jelven007/rustdx/issues/comments{/number}",
+    "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/{+path}",
+    "compare_url": "https://api.github.com/repos/jelven007/rustdx/compare/{base}...{head}",
+    "merges_url": "https://api.github.com/repos/jelven007/rustdx/merges",
+    "archive_url": "https://api.github.com/repos/jelven007/rustdx/{archive_format}{/ref}",
+    "downloads_url": "https://api.github.com/repos/jelven007/rustdx/downloads",
+    "issues_url": "https://api.github.com/repos/jelven007/rustdx/issues{/number}",
+    "pulls_url": "https://api.github.com/repos/jelven007/rustdx/pulls{/number}",
+    "milestones_url": "https://api.github.com/repos/jelven007/rustdx/milestones{/number}",
+    "notifications_url": "https://api.github.com/repos/jelven007/rustdx/notifications{?since,all,participating}",
+    "labels_url": "https://api.github.com/repos/jelven007/rustdx/labels{/name}",
+    "releases_url": "https://api.github.com/repos/jelven007/rustdx/releases{/id}",
+    "deployments_url": "https://api.github.com/repos/jelven007/rustdx/deployments",
+    "created_at": "2026-10-10T11:45:24Z",
+    "updated_at": "2026-10-28T07:08:20Z",
+    "pushed_at": "2026-10-28T07:27:42Z",
+    "git_url": "git://github.com/jelven007/rustdx.git",
+    "ssh_url": "redacted@example.com:jelven007/rustdx.git",
+    "clone_url": "https://github.com/jelven007/rustdx.git",
+    "svn_url": "https://github.com/jelven007/rustdx",
+    "homepage": null,
+    "size": 133655,
+    "stargazers_count": 1,
+    "watchers_count": 1,
+    "language": "Rust",
+    "has_issues": true,
+    "has_projects": true,
+    "has_downloads": false,
+    "has_wiki": true,
+    "has_pages": false,
+    "has_discussions": false,
+    "forks_count": 0,
+    "mirror_url": null,
+    "archived": false,
+    "disabled": false,
+    "open_issues_count": 0,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "allow_forking": true,
+    "is_template": false,
+    "web_commit_signoff_required": false,
+    "has_pull_requests": true,
+    "pull_request_creation_policy": "all",
+    "topics": [],
+    "visibility": "public",
+    "forks": 0,
+    "open_issues": 0,
+    "watchers": 1,
+    "default_branch": "main",
+    "permissions": {
+      "admin": true,
+      "maintain": true,
+      "push": true,
+      "triage": true,
+      "pull": true
+    },
+    "temp_clone_token": "",
+    "allow_squash_merge": true,
+    "allow_merge_commit": true,
+    "allow_rebase_merge": true,
+    "allow_auto_merge": false,
+    "delete_branch_on_merge": false,
+    "allow_update_branch": false,
+    "use_squash_pr_title_as_default": false,
+    "squash_merge_commit_message": "COMMIT_MESSAGES",
+    "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+    "merge_commit_message": "PR_TITLE",
+    "merge_commit_title": "MERGE_MESSAGE",
+    "security_and_analysis": {
+      "secret_scanning": {
+        "status": "enabled"
+      },
+      "secret_scanning_push_protection": {
+        "status": "enabled"
+      },
+      "dependabot_security_updates": {
+        "status": "disabled"
+      },
+      "secret_scanning_non_provider_patterns": {
+        "status": "disabled"
+      },
+      "secret_scanning_validity_checks": {
+        "status": "disabled"
+      }
+    },
+    "network_count": 0,
+    "subscribers_count": 0
+  },
+  "tags": [
+    {
+      "name": "v2.0.4",
+      "zipball_url": "https://api.github.com/repos/jelven007/rustdx/zipball/refs/tags/v2.0.4",
+      "tarball_url": "https://api.github.com/repos/jelven007/rustdx/tarball/refs/tags/v2.0.4",
+      "commit": {
+        "sha": "c4c0273456874898aed50447fd900521d9ffd3b8",
+        "url": "https://api.github.com/repos/jelven007/rustdx/commits/c4c0273456874898aed50447fd900521d9ffd3b8"
+      },
+      "node_id": "REF_kwDOVDqVMrByZWZzL3RhZ3MvdjIuMC40"
+    },
+    {
+      "name": "v2.0.3",
+      "zipball_url": "https://api.github.com/repos/jelven007/rustdx/zipball/refs/tags/v2.0.3",
+      "tarball_url": "https://api.github.com/repos/jelven007/rustdx/tarball/refs/tags/v2.0.3",
+      "commit": {
+        "sha": "d6bf22a0e5954c778ef6ad58be8e5f81aacc75c3",
+        "url": "https://api.github.com/repos/jelven007/rustdx/commits/d6bf22a0e5954c778ef6ad58be8e5f81aacc75c3"
+      },
+      "node_id": "REF_kwDOVDqVMrByZWZzL3RhZ3MvdjIuMC4z"
+    },
+    {
+      "name": "v2.0.2",
+      "zipball_url": "https://api.github.com/repos/jelven007/rustdx/zipball/refs/tags/v2.0.2",
+      "tarball_url": "https://api.github.com/repos/jelven007/rustdx/tarball/refs/tags/v2.0.2",
+      "commit": {
+        "sha": "18cc661d1b0ff0169dcbfcaa571f48a5b96dcdf3",
+        "url": "https://api.github.com/repos/jelven007/rustdx/commits/18cc661d1b0ff0169dcbfcaa571f48a5b96dcdf3"
+      },
+      "node_id": "REF_kwDOVDqVMrByZWZzL3RhZ3MvdjIuMC4y"
+    },
+    {
+      "name": "history/source-2.0.4",
+      "zipball_url": "https://api.github.com/repos/jelven007/rustdx/zipball/refs/tags/history/source-2.0.4",
+      "tarball_url": "https://api.github.com/repos/jelven007/rustdx/tarball/refs/tags/history/source-2.0.4",
+      "commit": {
+        "sha": "c4c0273456874898aed50447fd900521d9ffd3b8",
+        "url": "https://api.github.com/repos/jelven007/rustdx/commits/c4c0273456874898aed50447fd900521d9ffd3b8"
+      },
+      "node_id": "REF_kwDOVDqVMr5yZWZzL3RhZ3MvaGlzdG9yeS9zb3VyY2UtMi4wLjQ"
+    },
+    {
+      "name": "history/source-2.0.3",
+      "zipball_url": "https://api.github.com/repos/jelven007/rustdx/zipball/refs/tags/history/source-2.0.3",
+      "tarball_url": "https://api.github.com/repos/jelven007/rustdx/tarball/refs/tags/history/source-2.0.3",
+      "commit": {
+        "sha": "d6bf22a0e5954c778ef6ad58be8e5f81aacc75c3",
+        "url": "https://api.github.com/repos/jelven007/rustdx/commits/d6bf22a0e5954c778ef6ad58be8e5f81aacc75c3"
+      },
+      "node_id": "REF_kwDOVDqVMr5yZWZzL3RhZ3MvaGlzdG9yeS9zb3VyY2UtMi4wLjM"
+    },
+    {
+      "name": "history/source-2.0.2",
+      "zipball_url": "https://api.github.com/repos/jelven007/rustdx/zipball/refs/tags/history/source-2.0.2",
+      "tarball_url": "https://api.github.com/repos/jelven007/rustdx/tarball/refs/tags/history/source-2.0.2",
+      "commit": {
+        "sha": "18cc661d1b0ff0169dcbfcaa571f48a5b96dcdf3",
+        "url": "https://api.github.com/repos/jelven007/rustdx/commits/18cc661d1b0ff0169dcbfcaa571f48a5b96dcdf3"
+      },
+      "node_id": "REF_kwDOVDqVMr5yZWZzL3RhZ3MvaGlzdG9yeS9zb3VyY2UtMi4wLjI"
+    }
+  ],
+  "releases": [],
+  "head": {
+    "sha": "c4c0273456874898aed50447fd900521d9ffd3b8",
+    "node_id": "C_kwDOVDqVMtoAKGM0YzAyNzM0NTY4NzQ4OThhZWQ1MDQ0N2ZkOTAwNTIxZDlmZmQzYjg",
+    "commit": {
+      "author": {
+        "name": "github-actions[bot]",
+        "email": "41898282+github-actions[bot]@users.noreply.github.com",
+        "date": "2026-10-28T07:08:15Z"
+      },
+      "committer": {
+        "name": "github-actions[bot]",
+        "email": "41898282+github-actions[bot]@users.noreply.github.com",
+        "date": "2026-10-28T07:08:15Z"
+      },
+      "message": "chore: main push 40648119990 version 2.0.4",
+      "tree": {
+        "sha": "3e225a22f48fa66c92f323a6e85723967761d2a3",
+        "url": "https://api.github.com/repos/jelven007/rustdx/git/trees/3e225a22f48fa66c92f323a6e85723967761d2a3"
+      },
+      "url": "https://api.github.com/repos/jelven007/rustdx/git/commits/c4c0273456874898aed50447fd900521d9ffd3b8",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/jelven007/rustdx/commits/c4c0273456874898aed50447fd900521d9ffd3b8",
+    "html_url": "https://github.com/jelven007/rustdx/commit/c4c0273456874898aed50447fd900521d9ffd3b8",
+    "comments_url": "https://api.github.com/repos/jelven007/rustdx/commits/c4c0273456874898aed50447fd900521d9ffd3b8/comments",
+    "author": {
+      "login": "github-actions[bot]",
+      "id": 41898282,
+      "node_id": "MDM6Qm90NDE4OTgyODI=",
+      "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+      "html_url": "https://github.com/apps/github-actions",
+      "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+      "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+      "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+      "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+      "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+      "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+      "type": "Bot",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "github-actions[bot]",
+      "id": 41898282,
+      "node_id": "MDM6Qm90NDE4OTgyODI=",
+      "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+      "html_url": "https://github.com/apps/github-actions",
+      "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+      "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+      "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+      "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+      "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+      "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+      "type": "Bot",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "591df97b004558641f18f9767f8b61f1fec5c7b6",
+        "url": "https://api.github.com/repos/jelven007/rustdx/commits/591df97b004558641f18f9767f8b61f1fec5c7b6",
+        "html_url": "https://github.com/jelven007/rustdx/commit/591df97b004558641f18f9767f8b61f1fec5c7b6"
+      }
+    ],
+    "stats": {
+      "total": 63,
+      "additions": 36,
+      "deletions": 27
+    },
+    "files": [
+      {
+        "sha": "b548c2d4bb57134d49a023dd4d320b6b3463b916",
+        "filename": ".github/version-events/40648119990.json",
+        "status": "added",
+        "additions": 9,
+        "deletions": 0,
+        "changes": 9,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/.github%2Fversion-events%2F40648119990.json",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/.github%2Fversion-events%2F40648119990.json",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/.github%2Fversion-events%2F40648119990.json?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -0,0 +1,9 @@\n+{\n+  \"schema_version\": 1,\n+  \"run_id\": \"40648119990\",\n+  \"source_head\": \"591df97b004558641f18f9767f8b61f1fec5c7b6\",\n+  \"before\": \"d6bf22a0e5954c778ef6ad58be8e5f81aacc75c3\",\n+  \"base_commit\": \"591df97b004558641f18f9767f8b61f1fec5c7b6\",\n+  \"old_version\": \"2.0.3\",\n+  \"version\": \"2.0.4\"\n+}"
+      },
+      {
+        "sha": "d4bf195e4cd70c34b8ecbcd3525bcfd2abce1676",
+        "filename": "Cargo.lock",
+        "status": "modified",
+        "additions": 4,
+        "deletions": 4,
+        "changes": 8,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/Cargo.lock",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/Cargo.lock",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/Cargo.lock?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -635,7 +635,7 @@ checksum = \"4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c\"\n \n [[package]]\n name = \"jelven-rustdx-cli\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n dependencies = [\n  \"argh\",\n  \"calamine\",\n@@ -658,7 +658,7 @@ dependencies = [\n \n [[package]]\n name = \"jelven-rustdx-complete\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n dependencies = [\n  \"chrono\",\n  \"csv\",\n@@ -1078,7 +1078,7 @@ checksum = \"a157657054ffe556d8858504af8a672a054a6e0bd9e8ee531059100c0fa11bb2\"\n \n [[package]]\n name = \"rustdx-runner\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n dependencies = [\n  \"argh\",\n  \"chrono\",\n@@ -1310,7 +1310,7 @@ dependencies = [\n \n [[package]]\n name = \"tests-integration\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n dependencies = [\n  \"chrono\",\n  \"insta\","
+      },
+      {
+        "sha": "889dead0e5918d2a484533730e4ba041f587179a",
+        "filename": "README.md",
+        "status": "modified",
+        "additions": 2,
+        "deletions": 2,
+        "changes": 4,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/README.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/README.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/README.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,12 +1,12 @@\n # rustdx\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n Rust 行情库、通达信日线处理工具和单机数据发布控制层。项目使用 Rust 2024，最低 Rust 1.89，采用同步 I/O、有界线程和显式资源预算。\n \n 当前源码覆盖 eltdx 3.3.0 的 26 个同码命令，并提供 day/lc/gbbq 文件解析、复权、指标、日历和日期化规则。26 个同码入口不代表所有增强业务契约已经验收：市场2、0feb响应日期、0547真实盘中主动推送及目标生产负载仍有明确边界。\n \n-当前核心包 `jelven-rustdx-complete` <!-- version:core -->2.0.3<!-- /version -->，导入名 `rustdx_complete`；CLI 包 `jelven-rustdx-cli` <!-- version:cli -->2.0.3<!-- /version -->，二进制 `rustdx`；控制层 `rustdx-runner` <!-- version:runner -->2.0.3<!-- /version --> 不发布。历史核心与CLI 2.0.0已发布到crates.io，源码身份和包摘要见[发布记录](docs/archive/release/PUBLICATION_20261025.md)，迁移见[行为说明](docs/release/MIGRATION.md)。\n+当前核心包 `jelven-rustdx-complete` <!-- version:core -->2.0.4<!-- /version -->，导入名 `rustdx_complete`；CLI 包 `jelven-rustdx-cli` <!-- version:cli -->2.0.4<!-- /version -->，二进制 `rustdx`；控制层 `rustdx-runner` <!-- version:runner -->2.0.4<!-- /version --> 不发布。历史核心与CLI 2.0.0已发布到crates.io，源码身份和包摘要见[发布记录](docs/archive/release/PUBLICATION_20261025.md)，迁移见[行为说明](docs/release/MIGRATION.md)。\n \n ## 快速开始\n "
+      },
+      {
+        "sha": "2165f8f9b6a830a9d8dd3d2857d7fb86eba1d250",
+        "filename": "VERSION",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/VERSION",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/VERSION",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/VERSION?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1 +1 @@\n-2.0.3\n+2.0.4"
+      },
+      {
+        "sha": "acd9ec21c6dcd028c69a569b2c0832044c522244",
+        "filename": "apps/rustdx-cli/Cargo.toml",
+        "status": "modified",
+        "additions": 2,
+        "deletions": 2,
+        "changes": 4,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/apps%2Frustdx-cli%2FCargo.toml",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/apps%2Frustdx-cli%2FCargo.toml",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/apps%2Frustdx-cli%2FCargo.toml?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,6 +1,6 @@\n [package]\n name        = \"jelven-rustdx-cli\"\n-version     = \"2.0.3\"\n+version     = \"2.0.4\"\n edition     = \"2024\"\n rust-version = \"1.89\"\n license     = \"MIT\"\n@@ -35,7 +35,7 @@ thiserror = { workspace = true }\n \n [dependencies.rustdx-complete]\n package = \"jelven-rustdx-complete\"\n-version  = \"2.0.3\"\n+version  = \"2.0.4\"\n path = \"../../crates/rustdx-core\"\n \n [dependencies.ureq]"
+      },
+      {
+        "sha": "63127bd7456e2ecb94bef63baa80ae36456bac02",
+        "filename": "apps/rustdx-cli/README.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/apps%2Frustdx-cli%2FREADME.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/apps%2Frustdx-cli%2FREADME.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/apps%2Frustdx-cli%2FREADME.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,6 +1,6 @@\n # rustdx CLI\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n 包名 `jelven-rustdx-cli`，当前版本由上方标记描述；库名 `rustdx_cli`，二进制 `rustdx`。Rust 2024 / MSRV 1.89。处理通达信日线目录、官网 ZIP、指定 URL 或本地 ZIP，输出 CSV、质量清单，或导入 ClickHouse/MongoDB 并精确回读。\n "
+      },
+      {
+        "sha": "e727229edec2fbf67cfd6cfc9a1320df9571d81b",
+        "filename": "apps/rustdx-runner/Cargo.toml",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/apps%2Frustdx-runner%2FCargo.toml",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/apps%2Frustdx-runner%2FCargo.toml",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/apps%2Frustdx-runner%2FCargo.toml?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,6 +1,6 @@\n [package]\n name = \"rustdx-runner\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n edition = \"2024\"\n rust-version = \"1.89\"\n publish = false"
+      },
+      {
+        "sha": "b70509b4f7656418e50ec705f9544107e9b1279f",
+        "filename": "apps/rustdx-runner/README.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/apps%2Frustdx-runner%2FREADME.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/apps%2Frustdx-runner%2FREADME.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/apps%2Frustdx-runner%2FREADME.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,6 +1,6 @@\n # rustdx-runner\n \n-当前runner源码版本：<!-- version:runner -->2.0.3<!-- /version -->；由主线CI同步，publish=false。\n+当前runner源码版本：<!-- version:runner -->2.0.4<!-- /version -->；由主线CI同步，publish=false。\n \n <!-- lifecycle:registry -->\n 读者：开发/部署；责任：runner维护者。源码核验2026-10-28，每30日及配置/入口/操作变化复核，现场另验；见[文档治理](../../docs/development/DOCUMENTATION_GOVERNANCE.md)。"
+      },
+      {
+        "sha": "8a0c1e98b886ce3e80e9db876acfd4d5bdd84749",
+        "filename": "crates/rustdx-core/Cargo.toml",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/crates%2Frustdx-core%2FCargo.toml",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/crates%2Frustdx-core%2FCargo.toml",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/crates%2Frustdx-core%2FCargo.toml?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,7 +1,7 @@\n [package]\n name = \"jelven-rustdx-complete\"\n autoexamples = false\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n edition.workspace = true\n rust-version.workspace = true\n license.workspace = true"
+      },
+      {
+        "sha": "8cb94a65603878efca3b1ae50fd50d4ed96b7052",
+        "filename": "crates/rustdx-core/README.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/crates%2Frustdx-core%2FREADME.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/crates%2Frustdx-core%2FREADME.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/crates%2Frustdx-core%2FREADME.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,6 +1,6 @@\n # rustdx_complete\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n 通达信同步 TCP 行情、本地 day/lc/gbbq 文件解析、复权、指标、日历及日期化交易规则的 Rust 库。包名 `jelven-rustdx-complete`，导入名 `rustdx_complete`；Rust 2024，最低 Rust 1.89。\n "
+      },
+      {
+        "sha": "41ee47ba157b3c7ab058c51ab4dd720eda6461ae",
+        "filename": "docs/README.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2FREADME.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2FREADME.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2FREADME.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -4,7 +4,7 @@\n 读者：所有维护者；责任：文档维护者。源码核验2026-10-28，每30日及配置/入口/操作变化复核，现场另验；见[文档治理](development/DOCUMENTATION_GOVERNANCE.md)。\n <!-- /lifecycle -->\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n 更新日期：2026-10-28。本文档集对应当前源码。读者按工作任务进入下表；维护者按[文档治理](development/DOCUMENTATION_GOVERNANCE.md)和[FR追踪矩阵](requirements/TRACEABILITY.md)更新相关材料。\n "
+      },
+      {
+        "sha": "495500c7717fd07d76f90bd632ce43814e237621",
+        "filename": "docs/architecture/PROJECT_ANALYSIS.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Farchitecture%2FPROJECT_ANALYSIS.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Farchitecture%2FPROJECT_ANALYSIS.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2Farchitecture%2FPROJECT_ANALYSIS.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -70,4 +70,4 @@ TCP日线窗口最多8线程，启动前预留原始行、正文、receipt和wir\n | 跨主机与高可用 | 当前无跨机协调 | 明确外部协调和失效写入隔离方案后单独实现 |\n | 数据库灾难恢复 | 本地账本/文件可隔离恢复 | 服务端一致性备份、恢复或新命名空间重建及精确验收 |\n \n-目录整理本身保留公开API；当前 <!-- version:project -->2.0.3<!-- /version --> 源码包含明确破坏性迁移，见[迁移说明](../release/MIGRATION.md)。同步有界设计继续保留。新目录规则见[工程结构](PROJECT_STRUCTURE.md)，实际检查范围见[当前验收矩阵](../testing/PRODUCTION_ACCEPTANCE.md)。\n+目录整理本身保留公开API；当前 <!-- version:project -->2.0.4<!-- /version --> 源码包含明确破坏性迁移，见[迁移说明](../release/MIGRATION.md)。同步有界设计继续保留。新目录规则见[工程结构](PROJECT_STRUCTURE.md)，实际检查范围见[当前验收矩阵](../testing/PRODUCTION_ACCEPTANCE.md)。"
+      },
+      {
+        "sha": "9af8800c73881a548c402f5ccf6b2a4b9a14b072",
+        "filename": "docs/development/APPLICATION_INTEGRATION.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Fdevelopment%2FAPPLICATION_INTEGRATION.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Fdevelopment%2FAPPLICATION_INTEGRATION.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2Fdevelopment%2FAPPLICATION_INTEGRATION.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -4,7 +4,7 @@\n 读者：应用集成者；责任：API维护者。源码核验：2026-10-28；每90日及跨接口消费合同变化复核。状态为源码已核验，目标现场另验；过期信号和权威输入见[文档治理](DOCUMENTATION_GOVERNANCE.md)登记。\n <!-- /lifecycle -->\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n 更新日期：2026-10-28。适用于应用通过 `rustdx_complete::tcp::stock::Client`、checked 请求及公开结果模型使用本仓库核心库。逐命令签名、返回字段和具体参数上限见[26命令接口手册](../reference/COMMAND_API.md)，已解析/候选/未知字段及证据范围见[字段解析状态](../reference/RESPONSE_FIELD_SEMANTICS.md)；本页定义跨接口的调用和消费规则。\n "
+      },
+      {
+        "sha": "d6a4f848c737a0f2042b9550fd8db050f517414c",
+        "filename": "docs/operations/IMPORTS.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Foperations%2FIMPORTS.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Foperations%2FIMPORTS.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2Foperations%2FIMPORTS.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -10,7 +10,7 @@ runner的insert-only、唯一release、完整目录和账本schema3属于独立\n \n `day` 在解析/采集开始前写入运行清单。默认最新清单为 `<output>.manifest.json`；`--report report.json` 可替换该路径。每次运行还保留 `<清单路径>.<run_id>.json`，供后续核查。清单通过同目录原子替换持久化，Unix 同步目录项。\n \n-同一run_id归档在检查点更新，结束后保存最终结果；每个检查点先保存归档，再保存最新清单。两文件分别原子更新，不构成一个事务。参数/路径冲突、锁获取或下载来源解析可能发生在采集开始前，这些失败不保证生成清单。project_version来自CLI Cargo版本，当前为 <!-- version:cli -->2.0.3<!-- /version -->；部署/运营记录另存源码及二进制摘要，同版本号不作为内容身份。\n+同一run_id归档在检查点更新，结束后保存最终结果；每个检查点先保存归档，再保存最新清单。两文件分别原子更新，不构成一个事务。参数/路径冲突、锁获取或下载来源解析可能发生在采集开始前，这些失败不保证生成清单。project_version来自CLI Cargo版本，当前为 <!-- version:cli -->2.0.4<!-- /version -->；部署/运营记录另存源码及二进制摘要，同版本号不作为内容身份。\n \n 当前schema_version=7。schema3增加database_verification，schema4增加覆盖告警，schema5增加可配回读批量/耗时及CSV行序摘要，schema6增加每任务阶段观测与新鲜度。schema7收敛为通达信采集契约并移除专用HTTP页字段；runner读取schema6/7，其他消费者须按版本处理。run_version是本次客户端开始时间的纳秒标识；ClickHouse沿用表内服务端纳秒默认版本，MongoDB按`(date,code)` upsert，两者不能混作客户端版本。\n "
+      },
+      {
+        "sha": "ff618bb824e62bee6315ca7a95997616c57b5517",
+        "filename": "docs/operations/OPERATIONS.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Foperations%2FOPERATIONS.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Foperations%2FOPERATIONS.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2Foperations%2FOPERATIONS.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -4,7 +4,7 @@\n 读者：数据运营；责任：数据运营维护者。源码核验：2026-10-25；每30日及业务事实、补数或成功条件变化复核。状态为源码已核验，目标现场另验；过期信号和权威输入见[文档治理](../development/DOCUMENTATION_GOVERNANCE.md)登记。\n <!-- /lifecycle -->\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n 更新日期：2026-10-25；适用当前仓库源码。运营任务是确认行情日期、业务覆盖、计算口径及下游可用版本，并在源故障或漏跑时安排补数。[需求说明](../requirements/REQUIREMENTS.md)定义产品行为，[运维手册](../runbooks/RUNBOOK.md)定义部署和恢复操作。\n "
+      },
+      {
+        "sha": "4e0ef5349d78b813f7c59c701ed72458339922d7",
+        "filename": "docs/release/MIGRATION.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Frelease%2FMIGRATION.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Frelease%2FMIGRATION.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2Frelease%2FMIGRATION.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -4,7 +4,7 @@\n 读者：升级集成者；责任：API及发布维护者。源码核验：2026-10-28；每90日及破坏性行为或升级路径变化复核。状态为源码已核验，目标现场另验；过期信号和权威输入见[文档治理](../development/DOCUMENTATION_GOVERNANCE.md)登记。\n <!-- /lifecycle -->\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n 更新日期：2026-10-28。核心/CLI 2.0.0已发布到crates.io，源码身份和实际包摘要见[发布记录](../archive/release/PUBLICATION_20261025.md)。2.0.0主版本迁移及较早历史章节保留当轮版本事实；2026-10-25之后的变更须使用新的已发布包或固定源码提交。runner仍仅交付源码与二进制。外部应用共同消费约定见[应用接入](../development/APPLICATION_INTEGRATION.md)。\n "
+      },
+      {
+        "sha": "aaad705eee46b5a2f0f01a4f21fe686fe2c7641a",
+        "filename": "docs/release/RELEASES.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Frelease%2FRELEASES.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Frelease%2FRELEASES.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2Frelease%2FRELEASES.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -4,7 +4,7 @@\n 读者：开发/发布；责任：发布维护者。源码核验：2026-10-27；每30日及CI、包发布或权限变化复核。状态为源码已核验，目标现场另验；过期信号和权威输入见[文档治理](../development/DOCUMENTATION_GOVERNANCE.md)登记。\n <!-- /lifecycle -->\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n 更新日期：2026-10-27。历史核心/CLI 2.0.0已发布到crates.io，runner仅交付源码与二进制。该次注册表发布来自提交`82c6de4e52dae907cb9055d4cd07bbb9444e0c47`；实际包摘要、核验结果和安装命令见[发布记录](../archive/release/PUBLICATION_20261025.md)。当前源码版本不证明同版本已经上传。\n "
+      },
+      {
+        "sha": "b90629df517dccde002212a0c509e5ff5a7fe7e8",
+        "filename": "docs/release/VERSION_POLICY.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Frelease%2FVERSION_POLICY.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Frelease%2FVERSION_POLICY.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2Frelease%2FVERSION_POLICY.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -4,7 +4,7 @@\n 读者：开发/发布；责任：发布维护者。源码核验：2026-10-25；每90日及版本、历史保留或事件规则变化复核。状态为源码已核验，目标现场另验；过期信号和权威输入见[文档治理](../development/DOCUMENTATION_GOVERNANCE.md)登记。\n <!-- /lifecycle -->\n \n-当前项目版本：<!-- version:project -->2.0.3<!-- /version -->。唯一递增源为根目录 `VERSION`；\n+当前项目版本：<!-- version:project -->2.0.4<!-- /version -->。唯一递增源为根目录 `VERSION`；\n 版本格式严格为 `a.b.c`，每位为 0–9，按十进制进位：\n `0.4.9 → 0.5.0`、`0.9.9 → 1.0.0`，到 `9.9.9` 后停止并明确报错。\n 这套数字是提交序列，兼容性和破坏性变更另见 [MIGRATION.md](MIGRATION.md)。"
+      },
+      {
+        "sha": "a68390e42cd8076285c56d9124d730b79effb06f",
+        "filename": "docs/requirements/REQUIREMENTS.md",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Frequirements%2FREQUIREMENTS.md",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/docs%2Frequirements%2FREQUIREMENTS.md",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/docs%2Frequirements%2FREQUIREMENTS.md?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -4,7 +4,7 @@\n 读者：产品/开发/验收；责任：产品维护者。源码核验：2026-10-25；每90日及可观察行为、范围或FR变更复核。状态为源码已核验，目标现场另验；过期信号和权威输入见[文档治理](../development/DOCUMENTATION_GOVERNANCE.md)登记。\n <!-- /lifecycle -->\n \n-当前源码版本：<!-- version:project -->2.0.3<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n+当前源码版本：<!-- version:project -->2.0.4<!-- /version -->。数字由主线 CI 同步；注册表历史发布事实另列。\n \n 文档修订：生产工程生命周期，2026-10-25。适用对象：当前仓库源码。本文件是需求的唯一主文档，FR-01至FR-18编号继续有效；需求、实现、验证与运营责任按同一编号追踪。工程目录采用核心库、应用、外部测试和工具工作区分层。\n "
+      },
+      {
+        "sha": "5da13ac0295bc438e304af98607cafe7c4c3496f",
+        "filename": "tests/integration/Cargo.toml",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/tests%2Fintegration%2FCargo.toml",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/tests%2Fintegration%2FCargo.toml",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/tests%2Fintegration%2FCargo.toml?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,6 +1,6 @@\n [package]\n name = \"tests-integration\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n edition = \"2024\"\n rust-version = \"1.89\"\n publish = false"
+      },
+      {
+        "sha": "2f0c6d00ce6c25cada46425ed7980a73d6fd9d7d",
+        "filename": "tools/fuzz/Cargo.lock",
+        "status": "modified",
+        "additions": 2,
+        "deletions": 2,
+        "changes": 4,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/tools%2Ffuzz%2FCargo.lock",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/tools%2Ffuzz%2FCargo.lock",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/tools%2Ffuzz%2FCargo.lock?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -329,7 +329,7 @@ checksum = \"8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682\"\n \n [[package]]\n name = \"jelven-rustdx-complete\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n dependencies = [\n  \"chrono\",\n  \"encoding_rs\",\n@@ -483,7 +483,7 @@ checksum = \"f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf\"\n \n [[package]]\n name = \"rustdx-fuzz\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n dependencies = [\n  \"jelven-rustdx-complete\",\n  \"libfuzzer-sys\","
+      },
+      {
+        "sha": "7b9b87472aa8ea0a072a2c5f281479b835374e64",
+        "filename": "tools/fuzz/Cargo.toml",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "changes": 2,
+        "blob_url": "https://github.com/jelven007/rustdx/blob/c4c0273456874898aed50447fd900521d9ffd3b8/tools%2Ffuzz%2FCargo.toml",
+        "raw_url": "https://github.com/jelven007/rustdx/raw/c4c0273456874898aed50447fd900521d9ffd3b8/tools%2Ffuzz%2FCargo.toml",
+        "contents_url": "https://api.github.com/repos/jelven007/rustdx/contents/tools%2Ffuzz%2FCargo.toml?ref=c4c0273456874898aed50447fd900521d9ffd3b8",
+        "patch": "@@ -1,6 +1,6 @@\n [package]\n name = \"rustdx-fuzz\"\n-version = \"2.0.3\"\n+version = \"2.0.4\"\n publish = false\n edition = \"2024\"\n rust-version = \"1.89\""
+      }
+    ]
+  },
+  "documents": [
+    {
+      "path": "README.md",
+      "sha": "889dead0e5918d2a484533730e4ba041f587179a",
+      "url": "https://github.com/jelven007/rustdx/blob/v2.0.4/README.md",
+      "saved_as": "upstream-1.md"
+    },
+    {
+      "path": "docs/development/APPLICATION_INTEGRATION.md",
+      "sha": "9af8800c73881a548c402f5ccf6b2a4b9a14b072",
+      "url": "https://github.com/jelven007/rustdx/blob/v2.0.4/docs/development/APPLICATION_INTEGRATION.md",
+      "saved_as": "upstream-2.md"
+    },
+    {
+      "path": "docs/testing/PRODUCTION_ACCEPTANCE.md",
+      "sha": "6b2ccaf37bbc7569b7310a09a5a769bde552dc6a",
+      "url": "https://github.com/jelven007/rustdx/blob/v2.0.4/docs/testing/PRODUCTION_ACCEPTANCE.md",
+      "saved_as": "upstream-3.md"
+    },
+    {
+      "path": "docs/reference/COMMAND_API.md",
+      "sha": "d76269a13d8c0e8574f010d44a357a4199bc2218",
+      "url": "https://github.com/jelven007/rustdx/blob/v2.0.4/docs/reference/COMMAND_API.md",
+      "saved_as": "upstream-4.md"
+    }
+  ]
+}

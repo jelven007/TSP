@@ -1,0 +1,2010 @@
+{
+  "environment": "online",
+  "days": [
+    {
+      "day": "2026-07-27",
+      "rows": 1245120,
+      "unique_keys": 1245120,
+      "duplicate_rows": 0,
+      "symbols": 5188,
+      "content_sha256": "59244d8aba1a4da834e88dbbe65fd8b5e64245bd61d955b3638092dc3abc9bb2",
+      "keys_sha256": "c212081cff3cbc11d44e9fecc09903b99f0d14b76813403af58b595ee4a8d30a",
+      "first": "2026-07-27 09:31:00",
+      "last": "2026-07-27 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "797c1aeecd13688a8dcf501818a51f79b6ec5d26fc03da7d7f6a4321243d184a"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-07-28",
+      "rows": 1245360,
+      "unique_keys": 1245360,
+      "duplicate_rows": 0,
+      "symbols": 5189,
+      "content_sha256": "42698a30005edd8fae9cd4c7d2dc2a955ef2c6ce734602c5ab4c9b96ce64867e",
+      "keys_sha256": "1376ce75ddfe7c7527b02d84a4a1dea97512f0ce3e436d0c18552e1bc961f7c1",
+      "first": "2026-07-28 09:31:00",
+      "last": "2026-07-28 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "a1a45e59a7d6e8dfb539a1a063bf55b9c7719b8d95c48c9185b58819ab945a85"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-07-29",
+      "rows": 1245120,
+      "unique_keys": 1245120,
+      "duplicate_rows": 0,
+      "symbols": 5188,
+      "content_sha256": "db53c128f435f6e8bf651906bf2bd7e059fe2c491587b1e0d0a0cef217a027fa",
+      "keys_sha256": "8d1448e59c432a2ae76fad8a5f388d579429744eda5acad5972c8afe04eb9d8b",
+      "first": "2026-07-29 09:31:00",
+      "last": "2026-07-29 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "c1aca2b26928d12eeb51be5cdc643525a04e3ded44545a79d7deec8f01b47900"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-07-30",
+      "rows": 1246080,
+      "unique_keys": 1246080,
+      "duplicate_rows": 0,
+      "symbols": 5192,
+      "content_sha256": "96248409e16b950d82158a96e417ad4d525c1a3139f27748bb2ed857ac91a819",
+      "keys_sha256": "aaf285bc739a7af7aa126f1add551a087ff4ee1c4cfb469fe2c90adbe2968202",
+      "first": "2026-07-30 09:31:00",
+      "last": "2026-07-30 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "e4a895ae9e3e89d41726022eb74617a7685f715931534535a391de870f3fd9c3"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-07-31",
+      "rows": 1246080,
+      "unique_keys": 1246080,
+      "duplicate_rows": 0,
+      "symbols": 5192,
+      "content_sha256": "313dc4a05d87533248a019f29c315f6567e10a320d8fcccc30d71f2546874350",
+      "keys_sha256": "dc097ed4e0e3efb968218301fd7c0191411bc29609a639cc1d43684a02cdc1cf",
+      "first": "2026-07-31 09:31:00",
+      "last": "2026-07-31 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "bc77300ac9c32496b56d7f67741d9a2e25e5275259e225f0fef2b328ff4902b2"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-03",
+      "rows": 1246080,
+      "unique_keys": 1246080,
+      "duplicate_rows": 0,
+      "symbols": 5192,
+      "content_sha256": "e5fa05c0b0524724c2b1609c2640f652512fc767c4365674edf3fcc6a6b91fed",
+      "keys_sha256": "d92c4159d2daaf76df17846a6086b77bb36d7eb27ee0014c8fdfd0f2f005e845",
+      "first": "2026-08-03 09:31:00",
+      "last": "2026-08-03 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "cf24c0f41a05367d99807556015bd42f0a741023640a375c77c471c9585028a8"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-04",
+      "rows": 1246080,
+      "unique_keys": 1246080,
+      "duplicate_rows": 0,
+      "symbols": 5192,
+      "content_sha256": "3b63ae8800d460fb5feadf7aeff4eb78efb0876a696911fb427102898057cc51",
+      "keys_sha256": "4d846f3d8eaffc082e31aa9fd1499e3cf25c73dcb21c4ec7d703a6082b982121",
+      "first": "2026-08-04 09:31:00",
+      "last": "2026-08-04 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "fa78f4762200158602389fcb3da4bc3f01c909e8e7e54f348a709759b50cfe32"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-05",
+      "rows": 1246560,
+      "unique_keys": 1246560,
+      "duplicate_rows": 0,
+      "symbols": 5194,
+      "content_sha256": "244f13c1b68b50b46dcfa46cd314b396f37c5025cd9bbb1afe16785ba6923bb3",
+      "keys_sha256": "e08960eb4c1b856b20f44b9740a40889521ac8dba1c53b7f010c088f9442390c",
+      "first": "2026-08-05 09:31:00",
+      "last": "2026-08-05 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "4c1108ba63e37fe7056bb7d2417990f4bd33103437e8fea0252522247f065bda"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-06",
+      "rows": 1246800,
+      "unique_keys": 1246800,
+      "duplicate_rows": 0,
+      "symbols": 5195,
+      "content_sha256": "69c6a335f436bb38fb21be7abf566ce94eb4c386885a72caaadd724cc7cec4c9",
+      "keys_sha256": "c4eed0cff0693e9b0ec23209612dc64da5fe1d189692fed39b63a5ec61d87b9b",
+      "first": "2026-08-06 09:31:00",
+      "last": "2026-08-06 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "3c0afa841c7e32f4167fdf646cc93298fa82d0006c4da1eb018bdfc489c0ee20"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-07",
+      "rows": 1247280,
+      "unique_keys": 1247280,
+      "duplicate_rows": 0,
+      "symbols": 5197,
+      "content_sha256": "08b4d8ebafbd8de21073e8d1c1115f7b8b47db8f98f82ace42ff4b412866f9e9",
+      "keys_sha256": "dca3f5c62e45be72ae121654e1876b52bee51a1321cc9a9f4df240be01f32029",
+      "first": "2026-08-07 09:31:00",
+      "last": "2026-08-07 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "96d051aa88c4842e594abe374b231e281524909dc0ea735763a68d52825db41a"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-10",
+      "rows": 1248000,
+      "unique_keys": 1248000,
+      "duplicate_rows": 0,
+      "symbols": 5200,
+      "content_sha256": "3b6e8fe1fdb20e70ff20f68619c310be49ecd3520424df210b6f5c38864970a1",
+      "keys_sha256": "46cf9d1d9623bf12c5bd54632bd2f7b0c93e8bd6df7e99644ee871a999a4b991",
+      "first": "2026-08-10 09:31:00",
+      "last": "2026-08-10 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "8f96aa56f4b546baccc4378f5d53605e3ec6a509240f92bfbe159123b6aa1301"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-11",
+      "rows": 1248000,
+      "unique_keys": 1248000,
+      "duplicate_rows": 0,
+      "symbols": 5200,
+      "content_sha256": "533c1bb8959a0223dd2eaf7d70e208e93a41da939090067acf6ec2e2bb90ec6d",
+      "keys_sha256": "610de9e4f9d7b55bf3d5228a479e8230007f1cb54c1242260819dc0ab05896f5",
+      "first": "2026-08-11 09:31:00",
+      "last": "2026-08-11 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "f6bbd5f4243b2f4acc063a342d2abb46a7090174c88620c39de09537f3edda67"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-12",
+      "rows": 1247760,
+      "unique_keys": 1247760,
+      "duplicate_rows": 0,
+      "symbols": 5199,
+      "content_sha256": "f005f7390b9a3623f28d13b933de2c9802670f75cc7a7f7437e15323cf19b669",
+      "keys_sha256": "525514356187531a52052c4333868408fa5fa5923e2800b5cdcbb32c5c608599",
+      "first": "2026-08-12 09:31:00",
+      "last": "2026-08-12 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "4a036d573e83e67e5f8a3da1d9a9b2cac93db19c8c8700af508e8171f73d9af2"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-13",
+      "rows": 1248000,
+      "unique_keys": 1248000,
+      "duplicate_rows": 0,
+      "symbols": 5200,
+      "content_sha256": "445a5a75bc4f7bc0c6909f6df1ba4da82e0ba8a22c2408b39e6a3ddd33af0258",
+      "keys_sha256": "991581ce5f81400d40fa7c6f878fa5064a4c41efb00544cf5a666801050f7bde",
+      "first": "2026-08-13 09:31:00",
+      "last": "2026-08-13 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "b1ceae21ac5d560a2a352523408dce8647f6df2d8b414666bd05e17dd5067eb1"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-14",
+      "rows": 1248000,
+      "unique_keys": 1248000,
+      "duplicate_rows": 0,
+      "symbols": 5200,
+      "content_sha256": "c2201e7bc274eb851630be8d86cf1310d5ce05281e514b34c5b74e8f1fb23041",
+      "keys_sha256": "068d8780d8d76466053d834c139f2375949e4fbd2d7d70d8fae6de509abc5a9c",
+      "first": "2026-08-14 09:31:00",
+      "last": "2026-08-14 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "fe41c0cbce91b9b27e25c481e9856a44ef6350433f08a01048af9806715be303"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-17",
+      "rows": 1247520,
+      "unique_keys": 1247520,
+      "duplicate_rows": 0,
+      "symbols": 5198,
+      "content_sha256": "8989304a3ee45a902af0e8d1fddb54961ddde8ac9baf6a49bbc3a068c2841620",
+      "keys_sha256": "362e5816a460c86e82ee9ed634dd5e69cae280ea326385020cd9df28dcee66f1",
+      "first": "2026-08-17 09:31:00",
+      "last": "2026-08-17 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "785fbe1ca878616c6e3c048e3cb89cee53a560c25956142d46f95b405331d796"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-18",
+      "rows": 1247760,
+      "unique_keys": 1247760,
+      "duplicate_rows": 0,
+      "symbols": 5199,
+      "content_sha256": "96f4f447199ddd6e71af3de9ae7aae2599f75833089a3b7b79104d6a30df905d",
+      "keys_sha256": "137f59ba07fdbf8837caee7f90cd233bb2b9a619fdba16abc0ce1cf501af7b26",
+      "first": "2026-08-18 09:31:00",
+      "last": "2026-08-18 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "96683e59270d0918a0e044637cc90cec209b167108b4556c75b5cd95703c988d"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-19",
+      "rows": 1247760,
+      "unique_keys": 1247760,
+      "duplicate_rows": 0,
+      "symbols": 5199,
+      "content_sha256": "8f5c52e027c7c0561569f624b9eb77e219f482ebee66dac401a28695ffe5af4f",
+      "keys_sha256": "c76e327f0c9c1dce9ba004536f0ab84b49518b1f1d6c2029dece03ff4bd247e1",
+      "first": "2026-08-19 09:31:00",
+      "last": "2026-08-19 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "29c60d26fbb3ebe3c3a462695f243298834ea1d5e541c2a49f1f265e5e6e3ec6"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-20",
+      "rows": 1247760,
+      "unique_keys": 1247760,
+      "duplicate_rows": 0,
+      "symbols": 5199,
+      "content_sha256": "61c52318a83147fb3a3a20925d58b17a44e65f9737a7004ee1e82b84d0f841ea",
+      "keys_sha256": "cfda948aef3dcae46a969719c04e77f4e8dc72fd4de4d50daf75dfdd097baadd",
+      "first": "2026-08-20 09:31:00",
+      "last": "2026-08-20 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "1aa5acafb5adf635fda385d86d1b6116fe4780e73489f30c81766759faf89dca"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-21",
+      "rows": 1248000,
+      "unique_keys": 1248000,
+      "duplicate_rows": 0,
+      "symbols": 5200,
+      "content_sha256": "517a2efe471ad814dbaa7110670826d446a7835ab07cf6399421278da0b98dda",
+      "keys_sha256": "4ba4949629d90c71b696879d583bc38d227c7b6ae08ef4a2134b271fa71af1d3",
+      "first": "2026-08-21 09:31:00",
+      "last": "2026-08-21 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "012eff8775e026ff023d08ea0e4728cd65232eee296f653e91c25e3e697d9c9d"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-24",
+      "rows": 1248720,
+      "unique_keys": 1248720,
+      "duplicate_rows": 0,
+      "symbols": 5203,
+      "content_sha256": "4942dc4397c4447fcc0a26bff31e924e274bf2f45f44270a9c3c548cf20cca67",
+      "keys_sha256": "39d2645522f060f206f1e83550ce152a6270cafece6739b03180aca430853661",
+      "first": "2026-08-24 09:31:00",
+      "last": "2026-08-24 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "6c5266e82c6611007da14b2ce2d200462e47136b0f23c7fb6f4f91c30477a655"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-25",
+      "rows": 1248960,
+      "unique_keys": 1248960,
+      "duplicate_rows": 0,
+      "symbols": 5204,
+      "content_sha256": "9ce747c4ae42ff9186f130631b795dc91c8560d798f8fa08c6f11c55c8627d57",
+      "keys_sha256": "b856e02b7dc25e8b8d8d5f770ea9015f4876f9309ad7ae304d81868063a65497",
+      "first": "2026-08-25 09:31:00",
+      "last": "2026-08-25 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "792496242f457986611aa97c9155b29812f04a6ef8eebee390b5872ae49002b1"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-26",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "5b781f12933ec2ffce68fc625de739da765800d97767b017934e643b110091a5",
+      "keys_sha256": "b055906988412046b2f2ba033451a1cef6a19bcacc8fdf835ca6498faca440ba",
+      "first": "2026-08-26 09:31:00",
+      "last": "2026-08-26 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "af8de0b929e3685c77929bd18289cfd221f159eb87cfa4efe9519c29fc42794b"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-27",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "1bbff5648e286901726186ec5ac1c47fe0132fe7b95a718350d6e947bd96f2a9",
+      "keys_sha256": "c124c6009302fed3f3e185689db2743ca1c0cb77f2494d5058fa8463c015ff2e",
+      "first": "2026-08-27 09:31:00",
+      "last": "2026-08-27 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "5510618389e85dee81569d71f640289bc2d64f1bdf59ef0b65ea195b18a4cbee"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-28",
+      "rows": 1248720,
+      "unique_keys": 1248720,
+      "duplicate_rows": 0,
+      "symbols": 5203,
+      "content_sha256": "fef7c155a76c7169b562318913a06ed6bf3433d2e242d0c2b22401fc8517c385",
+      "keys_sha256": "87486021ed72010c6a1c15947140b827019ba0350929c741cdbc13c47992bf3e",
+      "first": "2026-08-28 09:31:00",
+      "last": "2026-08-28 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "7c0733aec3d99e590b7d83f2c818bcc6f3495cab7bb7d3f2d9e13ce847c65a31"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-08-31",
+      "rows": 1248480,
+      "unique_keys": 1248480,
+      "duplicate_rows": 0,
+      "symbols": 5202,
+      "content_sha256": "99e53f453f80f6b1f452e9956ebc4a8145fd87e209bbf30c81b5e12775f4fcab",
+      "keys_sha256": "de2cc04a126985c8272370d3cad18d750b581846ed5545c4929dc479d9ee0458",
+      "first": "2026-08-31 09:31:00",
+      "last": "2026-08-31 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "72cda83a91ffbb6eaeffd47a03d09bdcac8ebefc27733b9924fd75397cf34a81"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-01",
+      "rows": 1248960,
+      "unique_keys": 1248960,
+      "duplicate_rows": 0,
+      "symbols": 5204,
+      "content_sha256": "3cee94beeceef3892c89d8ee29ec071b6684892f8392b816f79c1db3b0d6bb54",
+      "keys_sha256": "45856b0828eb4c0df0806b67b7e82cbedb0e319258b309b7d572a4118beaaec7",
+      "first": "2026-09-01 09:31:00",
+      "last": "2026-09-01 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "c7c6da996c0b1bab7b06f89ccf845eef757738aac921cc72dd74af12d3520528"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-02",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "170fbac26819b3fe1b0f82f2a264400f0a440266cc712ea79a4b143ba6b066cb",
+      "keys_sha256": "4fe250ad8f2e750993904f1c671692cb733721a742efbe7c749606dfcd4a7975",
+      "first": "2026-09-02 09:31:00",
+      "last": "2026-09-02 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "5492b095e57245a5e1d17d530859c9e2a67e63c2910c3cff3a5505194957798b"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-03",
+      "rows": 1249440,
+      "unique_keys": 1249440,
+      "duplicate_rows": 0,
+      "symbols": 5206,
+      "content_sha256": "40dafc143b6fbcba239b8c8d89e3e16aa770e5c507cf8d86572a618f8247b07c",
+      "keys_sha256": "d6fd2cf566a0c9f61fc55409181daede05f0c60092642566ca61e2cdb66cb144",
+      "first": "2026-09-03 09:31:00",
+      "last": "2026-09-03 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "653d61b59ab95e839300cd6927c44c47ccb980f0e4f6530d524b8e721fd8b633"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-04",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "fb8570a5453ab30632fad7962e13eea3a7d8f9b827c32fc7a68cc482a72ec36a",
+      "keys_sha256": "f04631df029be8a4c7e4dff3f8c7f44f128afe915ce1babecfde4e1fd7a4e96b",
+      "first": "2026-09-04 09:31:00",
+      "last": "2026-09-04 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "abf2fe52e1ec5c73b81857f7111058a86020b0be65853d559a12b268a3dbed69"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-07",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "e3df7a4c7cde1e1d45c34da787ebf326d71acceb49d6bb248bd8ff1cce0c101d",
+      "keys_sha256": "a6ce54931d11701360e0d70c7a964db19ae346fe8f7c7f47a3fa55f0ef20efe6",
+      "first": "2026-09-07 09:31:00",
+      "last": "2026-09-07 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "660fa1956ebf415a455e9fe26c35461f996619b7ccad1715697ab6252c6c166f"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-08",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "349147404ccb9d1f916ea5c4939fcf0ef2d8ed63f7e86d4339e3dc3b7bc72c2b",
+      "keys_sha256": "c2b0e6e621d39e0b89e2415b1907c593cbaf60a3326eab4db95d021594c7c26c",
+      "first": "2026-09-08 09:31:00",
+      "last": "2026-09-08 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "e4548c72aeb9d0094a9cb66178ce87e873d3c942ca75f3defdb0bed4ee277ee0"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-09",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "870eb85e61bb007f5607fdf34c5cc73c397eabc7273fe6153f9b3ad9c067cd26",
+      "keys_sha256": "54256e96978bb29c71accf30f003104f6548952559c0887466af38e4ba0865dd",
+      "first": "2026-09-09 09:31:00",
+      "last": "2026-09-09 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "aa66c883719785e45e978d6e59df6d442e7d4a3b6efff2298d1223557303e3df"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-10",
+      "rows": 1248960,
+      "unique_keys": 1248960,
+      "duplicate_rows": 0,
+      "symbols": 5204,
+      "content_sha256": "9a84e67e6b7fe359fc98d0dfd7fc0e6603f80a920644332ea33b5d30abf11451",
+      "keys_sha256": "9c638f74a169270b2cc90401b1a082d4c07149014b3f73e8eab4d24bccdd4f07",
+      "first": "2026-09-10 09:31:00",
+      "last": "2026-09-10 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "d734f4127945dfb7cfa1b1bbacbef7430817996d7ffe292b4a4858a7d1ee95ca"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-11",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "cb1de3f5b72b07bda8eb92a2715f85f60d0b0e2aeef678be304cd07bc5ab4c8c",
+      "keys_sha256": "7f06def0823cb2deabe514d08311121afe4ddf6ab1f91a3ff80fbce965a50828",
+      "first": "2026-09-11 09:31:00",
+      "last": "2026-09-11 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "634e41998ca87a204be885e682068a4de09198144368d69b04d8c2ca1f3543fb"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-14",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "960eafce0f17865c8417d8e644e2751f3d72b421b045a445db0cfa2653f57577",
+      "keys_sha256": "3fd8b3dec1c28cfceedbaa84ad8528e96eb5609adcc4211ef3e4333f9cf9df46",
+      "first": "2026-09-14 09:31:00",
+      "last": "2026-09-14 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "4d7b20741fc46f72931bf2cfa835996e3b3e34020b5641e79e8c8e89a11b04fd"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-15",
+      "rows": 1249200,
+      "unique_keys": 1249200,
+      "duplicate_rows": 0,
+      "symbols": 5205,
+      "content_sha256": "3a9f582d17a1ad4e8d586f2bbf377a976cc71e81eb1a3abd2215c61d3d513d8a",
+      "keys_sha256": "a2a7688d784161f9fb5a4f3fdc4cea0c47a9380f49720d2c497ec0cb8cbf8ba0",
+      "first": "2026-09-15 09:31:00",
+      "last": "2026-09-15 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "aa2c729e8e8708cfd7611652eee3852d73f1bf356acb813cd4e7bd70aec0b8fd"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-16",
+      "rows": 1249440,
+      "unique_keys": 1249440,
+      "duplicate_rows": 0,
+      "symbols": 5206,
+      "content_sha256": "bb61c8aa7ec0612c632396a5d2bfd3826ca62067174c5c19f18ca18b3b356f5a",
+      "keys_sha256": "6967aefb915ac35200479e9a97cb4e3fac573120d4fc6c8f100a6b97f8a09edd",
+      "first": "2026-09-16 09:31:00",
+      "last": "2026-09-16 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "2c02ad67921220264ac2a28ea3182ebb3b1dcdc6a98f230f608f7e9604aeac95"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-17",
+      "rows": 1250160,
+      "unique_keys": 1250160,
+      "duplicate_rows": 0,
+      "symbols": 5209,
+      "content_sha256": "2bbdc508de58375ee31e58a910dee8080212a503961a09caacbc8607b97cb10d",
+      "keys_sha256": "6282e9352fbbbf71ea5f33752f950bdb9079c4ff55e27e6dc0335a7015518e76",
+      "first": "2026-09-17 09:31:00",
+      "last": "2026-09-17 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "a4a56b44df5a5f14d784d70999ae3c48d766f03b028e3578debb7afffb197e46"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-18",
+      "rows": 1250160,
+      "unique_keys": 1250160,
+      "duplicate_rows": 0,
+      "symbols": 5209,
+      "content_sha256": "a7ddcb7022c490467c96bf5210d32873b36cd1288b6abc4e6fc4fbfe1fa94aac",
+      "keys_sha256": "e8bc53e6aac077c0f4e8d5f5eb8cb669f8fb1f9c38430c6a19530fca0645f54d",
+      "first": "2026-09-18 09:31:00",
+      "last": "2026-09-18 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "1147674ac9bdc786e8aee5217610c46c38c9c89aa9b58190985ab0d8297527f1"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-21",
+      "rows": 1250160,
+      "unique_keys": 1250160,
+      "duplicate_rows": 0,
+      "symbols": 5209,
+      "content_sha256": "c9c3ab3288f2226f9806541e2d6bddbfd2afc598de8cf95370c7fe1bada2fc74",
+      "keys_sha256": "bf19241f16befa6ff35a72089d8d504b4f2dac742a796291ed2f2e8c66bc24e6",
+      "first": "2026-09-21 09:31:00",
+      "last": "2026-09-21 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "74cb0e508a475ee68f3770fe313115ebf1dce933dca795bc87c992899780d7fc"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-22",
+      "rows": 1250160,
+      "unique_keys": 1250160,
+      "duplicate_rows": 0,
+      "symbols": 5209,
+      "content_sha256": "1d6aae4acb9df75088fe06ed71cda322a495252d941ab43ff80726a73b408221",
+      "keys_sha256": "d8186a702761defcbbf82110ce3faefd02fd043ccf2df3301698160d6c6aa2dc",
+      "first": "2026-09-22 09:31:00",
+      "last": "2026-09-22 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "1e77c3bc8ad45fc1891a36a130dd6c8d3960f80e86cee446fc4fe4ac58c6007b"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-23",
+      "rows": 1250400,
+      "unique_keys": 1250400,
+      "duplicate_rows": 0,
+      "symbols": 5210,
+      "content_sha256": "690dc85190180ada27b67c3850e53827ccef1dbe5768458d9daf911a6c5d98ce",
+      "keys_sha256": "683b6710696f2f77c2f908a3cf5e11bec4ac959d6d64c5a6fa82ee74529e3ffa",
+      "first": "2026-09-23 09:31:00",
+      "last": "2026-09-23 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "61d988e6acbffe52c1690d0a91211bedfa2640f5957f6a7faf07d3ec0d76e0f1"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-24",
+      "rows": 1250400,
+      "unique_keys": 1250400,
+      "duplicate_rows": 0,
+      "symbols": 5210,
+      "content_sha256": "fb89c84106e5998e98aa3bc16c8877294c3dce7dc3a5be7a4e4325f1c1694391",
+      "keys_sha256": "b107986428dbba6164451d9617068ee17afa32536564aefc4fe0a1c92131f087",
+      "first": "2026-09-24 09:31:00",
+      "last": "2026-09-24 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "a92b843246af1577f1c4b475cd62123a7c4e34b74099f5d6984136e2643adf95"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-28",
+      "rows": 1250400,
+      "unique_keys": 1250400,
+      "duplicate_rows": 0,
+      "symbols": 5210,
+      "content_sha256": "8ed6260a9ebbd26cf73b547257091ebe6594e74a5ab0396ce0e90465c62d2755",
+      "keys_sha256": "18539bde09784b6d8606ff3c4c0af8dce6a53c0387a0a3b9ba9447c12ccee28a",
+      "first": "2026-09-28 09:31:00",
+      "last": "2026-09-28 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "54e6fa323e82e4ca6fd279f101dce2572c873af262159d50b60823edc0cb7ca6"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-29",
+      "rows": 1250640,
+      "unique_keys": 1250640,
+      "duplicate_rows": 0,
+      "symbols": 5211,
+      "content_sha256": "1735cc78f37b4cc040f92d4a1e69029b84a3634ed2d812722d7eb09d86d444ab",
+      "keys_sha256": "c5ac9646c6149551aef3e975fb5010267fe8bdd30f60d870c45d7be3ee6dd41a",
+      "first": "2026-09-29 09:31:00",
+      "last": "2026-09-29 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "40f458cccc2ad19fa884c2bd477c636a84215fcb29bfaddb512c98882a7442ae"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-09-30",
+      "rows": 1250880,
+      "unique_keys": 1250880,
+      "duplicate_rows": 0,
+      "symbols": 5212,
+      "content_sha256": "4fdd485dc2f085bd1dfe68a734ebed5a750b566b25b720f6569a71fee5775659",
+      "keys_sha256": "ec662ee7fd46c02d49e24afcd5b373129729c2acf41ed38795435f370c69b411",
+      "first": "2026-09-30 09:31:00",
+      "last": "2026-09-30 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "002dd2c020e252bba805a227dbed5be3f9824cd9e5f16bc7b58a8e9cac3e7969"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-08",
+      "rows": 1249920,
+      "unique_keys": 1249920,
+      "duplicate_rows": 0,
+      "symbols": 5208,
+      "content_sha256": "afed70ecf58f2b11076c65926d6121717aa4295f5d31ce736466fd63c9845e06",
+      "keys_sha256": "9c63ba29fbcaf6c87677766cb32108b82c6d989a3ef5c7975027cda8343d03c7",
+      "first": "2026-10-08 09:31:00",
+      "last": "2026-10-08 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "46e8d36549e5e129bf5e9a1cd4697cd6e760cea5cc65a6e78ed9f99acea158c7"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-09",
+      "rows": 1250160,
+      "unique_keys": 1250160,
+      "duplicate_rows": 0,
+      "symbols": 5209,
+      "content_sha256": "64442815a1d73fbc244c26040c8cd077db4a811c99d1e5e50ed7c13072a1265a",
+      "keys_sha256": "0873d8e472ac074c92535c6eec20593c55faf2f71b505c22e0e6344eb0257e4a",
+      "first": "2026-10-09 09:31:00",
+      "last": "2026-10-09 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "7f698a81ea472d73ab57f418ed0b0761f7759cd2f3678cc20a5989654c0da9fb"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-12",
+      "rows": 1250640,
+      "unique_keys": 1250640,
+      "duplicate_rows": 0,
+      "symbols": 5211,
+      "content_sha256": "c8240431cee1982f9ff63e8b41083601fe4e9bd4799412f0d7d6a3006185a186",
+      "keys_sha256": "6b83f26e1e4d89282a67f95e69f8f57a839ea29931a57d1ede636a3924f71750",
+      "first": "2026-10-12 09:31:00",
+      "last": "2026-10-12 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "1afd4eba3ab43bbf386d0e695a988c6c362e7911ae727085eddb5260a961b983"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-13",
+      "rows": 1250640,
+      "unique_keys": 1250640,
+      "duplicate_rows": 0,
+      "symbols": 5211,
+      "content_sha256": "1ee0e33da28e66f76c22ec841bd8dc95a6e28a437ccc07b5c296c0b29e599b64",
+      "keys_sha256": "4c29480000f8afc413d0efc7762959eabfc43695c8d3d069999bcca506b6f515",
+      "first": "2026-10-13 09:31:00",
+      "last": "2026-10-13 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "3d138bdc62ced8d60f98bf3d832f89550b803b4077fffda264f192570c6c878d"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-14",
+      "rows": 1251120,
+      "unique_keys": 1251120,
+      "duplicate_rows": 0,
+      "symbols": 5213,
+      "content_sha256": "922c2a3eab7e41b066d04ee6c4a9b68e147e5c29f0755ef474f9d590a5e0e1f9",
+      "keys_sha256": "f2ba61e7444c06b177f58ccbe61bd9ae764217f88b68cfe95c770e92c79bf17e",
+      "first": "2026-10-14 09:31:00",
+      "last": "2026-10-14 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "721f181bda330ef86c9876ff42861299946f77b0ad25373a385f26ac419b8401"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-15",
+      "rows": 1251360,
+      "unique_keys": 1251360,
+      "duplicate_rows": 0,
+      "symbols": 5214,
+      "content_sha256": "ba0c861916a5670594734855c3da284bd3376bf8077ba17534603f6ca4781004",
+      "keys_sha256": "57b3f42c9306562caa3922e552c04174783d629c4c27bff4ef3ede6fa76e971b",
+      "first": "2026-10-15 09:31:00",
+      "last": "2026-10-15 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "50b59b05e90d14b0fd4caf9157e73c44d9455edd346e960b75f57034bfad1f9e"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-16",
+      "rows": 1251600,
+      "unique_keys": 1251600,
+      "duplicate_rows": 0,
+      "symbols": 5215,
+      "content_sha256": "a5ab966af90192ae52133f6363a1feec48c1782dccea7a926d6603ada1e45101",
+      "keys_sha256": "f214607d1f9bc0e20bd077b3abf1ed4cd7528fbfdf3636bc88473fae82513a32",
+      "first": "2026-10-16 09:31:00",
+      "last": "2026-10-16 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "5857800614bb7a86d9a365b8bf533171016c35b68039ec7aa53f4cbeb33357e7"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-19",
+      "rows": 1250880,
+      "unique_keys": 1250880,
+      "duplicate_rows": 0,
+      "symbols": 5212,
+      "content_sha256": "fb4a01f80359e302e06ddca380b8756fe3eece55123bdb15ccb5385954a531af",
+      "keys_sha256": "0475d84a393cd4a8fd06e656aa6b4a9ce083d7425711a44706b2026f8435da6f",
+      "first": "2026-10-19 09:31:00",
+      "last": "2026-10-19 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "e3291ff0e5c3ade04f87916f9f0ed08e06489bd0490b2c88a7ae33cdee8b5768"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-20",
+      "rows": 1251840,
+      "unique_keys": 1251840,
+      "duplicate_rows": 0,
+      "symbols": 5216,
+      "content_sha256": "e950f8780d2b8a9791d600cbbe6456cc9bd3c6847f1d77ea74fc145fe171ad54",
+      "keys_sha256": "ae3ccb45aad4d98171587e3f1cd7e6eb71bed0bff74e44454de282dafa305646",
+      "first": "2026-10-20 09:31:00",
+      "last": "2026-10-20 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "9848d347da58aa33ad44c7ae600a4de94ae27a64caff1851211dd4869308e755"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-21",
+      "rows": 1251600,
+      "unique_keys": 1251600,
+      "duplicate_rows": 0,
+      "symbols": 5215,
+      "content_sha256": "10c8b2b64d4a1a99833af6143e21f271186c6cea0dd419fda18fddfe3fba3943",
+      "keys_sha256": "ac08a3739357d0f4471921a676cdc246616e653f8f8870e21493311c915b6cdb",
+      "first": "2026-10-21 09:31:00",
+      "last": "2026-10-21 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "66ddbd5c03d9d164fb28f2867b4727d17ec0fb018073b8eddf7201a42a620d3c"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-22",
+      "rows": 1252080,
+      "unique_keys": 1252080,
+      "duplicate_rows": 0,
+      "symbols": 5217,
+      "content_sha256": "8eb27911f818e893fb60999975af60f08050a00f7bd56488045f228f364c92e2",
+      "keys_sha256": "dc752155459d775e9d1fd06116dc7bff7a1e637cb55b311ca440e2783aa23bed",
+      "first": "2026-10-22 09:31:00",
+      "last": "2026-10-22 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "4aa82f1236af136d6f7e6c226c54ff772cf3c4440ccc0c6b804f6e93fba9eb01"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-23",
+      "rows": 1252080,
+      "unique_keys": 1252080,
+      "duplicate_rows": 0,
+      "symbols": 5217,
+      "content_sha256": "81d570076d48b90a473e7d0f78b1096921a118588f27c7cd907edbe59f1d093d",
+      "keys_sha256": "98e37c6cc201c78aec039f0b0bba3890c19d5a3f88c8879867ec2764ceea1461",
+      "first": "2026-10-23 09:31:00",
+      "last": "2026-10-23 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "479e5924ec259d7239a96c4a00fccf06961d71486dd1098cffbe97d04701bbbb"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-26",
+      "rows": 1251600,
+      "unique_keys": 1251600,
+      "duplicate_rows": 0,
+      "symbols": 5215,
+      "content_sha256": "78a60921ac5ec51033a1ae97dedc0a52cb94e17b8619d0d4bb2c56cc99147342",
+      "keys_sha256": "3213da160cbb3185fd60840c62312d8c71aa3e46c7af1b2633e7048602760436",
+      "first": "2026-10-26 09:31:00",
+      "last": "2026-10-26 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "34161393dc33d1a48febeeff5848c53d08a6d24f81964401adc02f3b8a7854f9"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-27",
+      "rows": 1256182,
+      "unique_keys": 1256182,
+      "duplicate_rows": 0,
+      "symbols": 5222,
+      "content_sha256": "139e4efa7e550b1dd925ae6c40b727a6b279402892141deba369499fdb9abc7a",
+      "keys_sha256": "3dc5f7a3b3c07b27716e6315ce1dd78854358338e88d2d561e85ec59dc09e391",
+      "first": "2026-10-27 09:31:00",
+      "last": "2026-10-27 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "45ab20fa2e71dd9c2d789967e87f4c90807af0e6391a212667bb2c6b1b63275b"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    },
+    {
+      "day": "2026-10-28",
+      "rows": 1258496,
+      "unique_keys": 1258496,
+      "duplicate_rows": 0,
+      "symbols": 5222,
+      "content_sha256": "75af9c6daa28b7baa346987cf02331289292991ef3dad1d8240858ce7b4a7d6d",
+      "keys_sha256": "f4f40643a7f9adfd7877e20216910b305d5ad62f3bf38c0a1f9a1df749701f5d",
+      "first": "2026-10-28 09:31:00",
+      "last": "2026-10-28 15:00:00",
+      "schema": {
+        "part.parquet": "symbol: large_string\ndatetime: timestamp[us]\nopen: double\nhigh: double\nlow: double\nclose: double\nvolume: double\namount: double"
+      },
+      "parquet_sha256": {
+        "part.parquet": "90f2e1587eca0f915128fd9c5523cf0a90ef5378caed0a6483603ccafe3d169f"
+      },
+      "null_counts": {
+        "symbol": 0,
+        "datetime": 0,
+        "open": 0,
+        "high": 0,
+        "low": 0,
+        "close": 0,
+        "volume": 0,
+        "amount": 0
+      }
+    }
+  ],
+  "checked_at": "2026-10-29T00:54:55.393002+00:00",
+  "data_root": "/app/data",
+  "start": "2026-07-27",
+  "end": "2026-10-28",
+  "columns": [
+    "symbol",
+    "datetime",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "amount"
+  ],
+  "polars": "1.44.1",
+  "minute_basis_raw": false,
+  "total_days": 62,
+  "inventory": {
+    "kline_minute/date=2026-07-27/part.parquet": [
+      14011850,
+      1793115908901231104,
+      4171604
+    ],
+    "kline_minute/date=2026-07-28/part.parquet": [
+      13989540,
+      1793115909023232232,
+      4171603
+    ],
+    "kline_minute/date=2026-07-29/part.parquet": [
+      14354522,
+      1793115909148233388,
+      4171599
+    ],
+    "kline_minute/date=2026-07-30/part.parquet": [
+      14585993,
+      1793115909276234572,
+      4171600
+    ],
+    "kline_minute/date=2026-07-31/part.parquet": [
+      13984561,
+      1793115909404235756,
+      4171587
+    ],
+    "kline_minute/date=2026-08-03/part.parquet": [
+      13734913,
+      1793116545201120070,
+      4171606
+    ],
+    "kline_minute/date=2026-08-04/part.parquet": [
+      13707546,
+      1793116545360121543,
+      4171609
+    ],
+    "kline_minute/date=2026-08-05/part.parquet": [
+      13924950,
+      1793116546111128499,
+      4171612
+    ],
+    "kline_minute/date=2026-08-06/part.parquet": [
+      14239225,
+      1793117141846646796,
+      4171615
+    ],
+    "kline_minute/date=2026-08-07/part.parquet": [
+      14220279,
+      1793117142080648964,
+      4171618
+    ],
+    "kline_minute/date=2026-08-10/part.parquet": [
+      13988709,
+      1793117142236650409,
+      4171621
+    ],
+    "kline_minute/date=2026-08-11/part.parquet": [
+      14094066,
+      1793117736442164274,
+      4171633
+    ],
+    "kline_minute/date=2026-08-12/part.parquet": [
+      13665733,
+      1793117736679166475,
+      4171634
+    ],
+    "kline_minute/date=2026-08-13/part.parquet": [
+      14215458,
+      1793117736837167942,
+      4171624
+    ],
+    "kline_minute/date=2026-08-14/part.parquet": [
+      14063197,
+      1793117736994169400,
+      4171627
+    ],
+    "kline_minute/date=2026-08-17/part.parquet": [
+      13895769,
+      1793118249168925382,
+      4171630
+    ],
+    "kline_minute/date=2026-08-18/part.parquet": [
+      14030106,
+      1793111169933402418,
+      4171506
+    ],
+    "kline_minute/date=2026-08-19/part.parquet": [
+      14484476,
+      1793111170066403653,
+      4171509
+    ],
+    "kline_minute/date=2026-08-20/part.parquet": [
+      14095936,
+      1793111654189889548,
+      4171512
+    ],
+    "kline_minute/date=2026-08-21/part.parquet": [
+      13899856,
+      1793111654311890677,
+      4171515
+    ],
+    "kline_minute/date=2026-08-24/part.parquet": [
+      14218988,
+      1793111654432891796,
+      4171518
+    ],
+    "kline_minute/date=2026-08-25/part.parquet": [
+      14088091,
+      1793112133267322596,
+      4171530
+    ],
+    "kline_minute/date=2026-08-26/part.parquet": [
+      13796169,
+      1793112133409323910,
+      4171531
+    ],
+    "kline_minute/date=2026-08-27/part.parquet": [
+      13796192,
+      1793112133527325002,
+      4171521
+    ],
+    "kline_minute/date=2026-08-28/part.parquet": [
+      13777869,
+      1793112133645326094,
+      4171524
+    ],
+    "kline_minute/date=2026-08-31/part.parquet": [
+      14006729,
+      1793112539507076497,
+      4171539
+    ],
+    "kline_minute/date=2026-09-01/part.parquet": [
+      13772752,
+      1793112539661077920,
+      4171542
+    ],
+    "kline_minute/date=2026-09-02/part.parquet": [
+      13782369,
+      1793112539825079435,
+      4171533
+    ],
+    "kline_minute/date=2026-09-03/part.parquet": [
+      13968378,
+      1793112539971080784,
+      4171536
+    ],
+    "kline_minute/date=2026-09-04/part.parquet": [
+      14250452,
+      1793112906402466818,
+      4171545
+    ],
+    "kline_minute/date=2026-09-07/part.parquet": [
+      13563570,
+      1793112906556468241,
+      4171548
+    ],
+    "kline_minute/date=2026-09-08/part.parquet": [
+      13750305,
+      1793112907091473185,
+      4171551
+    ],
+    "kline_minute/date=2026-09-09/part.parquet": [
+      13734268,
+      1793113241461563582,
+      4171554
+    ],
+    "kline_minute/date=2026-09-10/part.parquet": [
+      13540348,
+      1793113241585564729,
+      4171557
+    ],
+    "kline_minute/date=2026-09-11/part.parquet": [
+      14341335,
+      1793113241707565858,
+      4171560
+    ],
+    "kline_minute/date=2026-09-14/part.parquet": [
+      13708798,
+      1793113541876342066,
+      4171437
+    ],
+    "kline_minute/date=2026-09-15/part.parquet": [
+      13639039,
+      1793113542034343528,
+      4171563
+    ],
+    "kline_minute/date=2026-09-16/part.parquet": [
+      13771561,
+      1793094047999720482,
+      4171438
+    ],
+    "kline_minute/date=2026-09-17/part.parquet": [
+      13715326,
+      1793094048128721707,
+      4171428
+    ],
+    "kline_minute/date=2026-09-18/part.parquet": [
+      13582156,
+      1793094048258722941,
+      4171431
+    ],
+    "kline_minute/date=2026-09-21/part.parquet": [
+      13619710,
+      1793094314133247456,
+      4171450
+    ],
+    "kline_minute/date=2026-09-22/part.parquet": [
+      13862715,
+      1793094314256248623,
+      4171451
+    ],
+    "kline_minute/date=2026-09-23/part.parquet": [
+      13544106,
+      1793094314381249810,
+      4171441
+    ],
+    "kline_minute/date=2026-09-24/part.parquet": [
+      13785874,
+      1793094314512251053,
+      4171452
+    ],
+    "kline_minute/date=2026-09-28/part.parquet": [
+      14166899,
+      1793094536697360170,
+      4171457
+    ],
+    "kline_minute/date=2026-09-29/part.parquet": [
+      13622684,
+      1793094536836361489,
+      4171458
+    ],
+    "kline_minute/date=2026-09-30/part.parquet": [
+      13678997,
+      1793094722825125094,
+      4171460
+    ],
+    "kline_minute/date=2026-10-08/part.parquet": [
+      14289185,
+      1793094909231894050,
+      4171467
+    ],
+    "kline_minute/date=2026-10-09/part.parquet": [
+      14923583,
+      1793094909359895265,
+      4171463
+    ],
+    "kline_minute/date=2026-10-12/part.parquet": [
+      13986321,
+      1793171194714583595,
+      4182615
+    ],
+    "kline_minute/date=2026-10-13/part.parquet": [
+      14631267,
+      1793171194943586442,
+      4171469
+    ],
+    "kline_minute/date=2026-10-14/part.parquet": [
+      13958028,
+      1793171195121588655,
+      4171472
+    ],
+    "kline_minute/date=2026-10-15/part.parquet": [
+      14422781,
+      1793171195299590868,
+      692646
+    ],
+    "kline_minute/date=2026-10-16/part.parquet": [
+      14406161,
+      1793171195474593044,
+      691167
+    ],
+    "kline_minute/date=2026-10-19/part.parquet": [
+      14395986,
+      1793171195656595306,
+      4171475
+    ],
+    "kline_minute/date=2026-10-20/part.parquet": [
+      13960559,
+      1793171195837597557,
+      4171057
+    ],
+    "kline_minute/date=2026-10-21/part.parquet": [
+      13690924,
+      1793171196018599807,
+      4171060
+    ],
+    "kline_minute/date=2026-10-22/part.parquet": [
+      14341767,
+      1793171196191601958,
+      4171061
+    ],
+    "kline_minute/date=2026-10-23/part.parquet": [
+      15385075,
+      1793171196366604134,
+      4171045
+    ],
+    "kline_minute/date=2026-10-26/part.parquet": [
+      14100636,
+      1793171196535606235,
+      4171048
+    ],
+    "kline_minute/date=2026-10-27/part.parquet": [
+      14340700,
+      1793171196716608486,
+      4171069
+    ],
+    "kline_minute/date=2026-10-28/part.parquet": [
+      14239288,
+      1793233870142485528,
+      4170597
+    ]
+  },
+  "snapshot_stable": true,
+  "total_rows": 77456358
+}

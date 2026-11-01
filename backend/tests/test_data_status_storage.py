@@ -59,3 +59,58 @@ def test_missing_dirs_contribute_zero(tmp_path):
     assert stats.get("financials_files", 0) == 0
     assert stats.get("financials_size_mb", 0.0) == 0.0
     assert stats["total_size_mb"] == 1.0
+
+
+def test_equal_current_financials_are_comparable_with_different_observation_histories(tmp_path):
+    local, online = tmp_path / "local", tmp_path / "online"
+    for root in (local, online):
+        for table in ("metrics", "income", "balance_sheet", "cash_flow", "shares"):
+            _write_mb(root / "financials" / table / "part.parquet", 1.0)
+    _write_mb(local / "financials/revisions/metrics/old.parquet", 2.0)
+    _write_mb(local / "financials/revisions/metrics/observations/first.json", 1.0)
+    _write_mb(online / "financials/revisions/metrics/old.parquet", 1.0)
+
+    local_stats = _compute_storage(local)
+    online_stats = _compute_storage(online)
+
+    for stats in (local_stats, online_stats):
+        assert stats["financials_current_files"] == 5
+        assert stats["financials_current_size_mb"] == 5.0
+    assert local_stats["financials_revision_files"] == 2
+    assert local_stats["financials_revision_size_mb"] == 3.0
+    assert online_stats["financials_revision_files"] == 1
+    assert online_stats["financials_revision_size_mb"] == 1.0
+    # Preserve actual disk accounting and the existing API fields.
+    assert local_stats["financials_files"] == 7
+    assert local_stats["financials_size_mb"] == local_stats["total_size_mb"] == 8.0
+    assert online_stats["financials_files"] == 6
+    assert online_stats["financials_size_mb"] == online_stats["total_size_mb"] == 6.0
+
+
+def test_current_financials_only_count_live_table_files(tmp_path):
+    _write_mb(tmp_path / "financials/metrics/part.parquet", 1.0)
+    _write_mb(tmp_path / "financials/metrics/old.parquet", 2.0)
+    _write_mb(tmp_path / "financials/revisions/metrics/snapshot.parquet", 3.0)
+    _write_mb(tmp_path / "financials/revisions/metrics/observations/first.json", 1.0)
+    _write_mb(tmp_path / "financials/unrelated.json", 1.0)
+
+    stats = _compute_storage(tmp_path)
+
+    assert stats["financials_current_files"] == 1
+    assert stats["financials_current_size_mb"] == 1.0
+    assert stats["financials_revision_files"] == 2
+    assert stats["financials_revision_size_mb"] == 4.0
+    assert stats["financials_files"] == 5
+    assert stats["financials_size_mb"] == stats["total_size_mb"] == 8.0
+
+
+def test_financial_history_without_current_table_is_not_current_data(tmp_path):
+    _write_mb(tmp_path / "financials/revisions/metrics/snapshot.parquet", 2.0)
+
+    stats = _compute_storage(tmp_path)
+
+    assert stats["financials_current_files"] == 0
+    assert stats["financials_current_size_mb"] == 0.0
+    assert stats["financials_revision_files"] == 1
+    assert stats["financials_revision_size_mb"] == 2.0
+    assert stats["total_size_mb"] == 2.0

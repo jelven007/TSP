@@ -1,0 +1,66 @@
+{
+  "date": "2026-11-01",
+  "version": "0.4.39",
+  "status": "local_fixed_and_verified",
+  "root_cause": "monitor-save validation hardcoded daily timeframe",
+  "change": "use strategy metadata execution timeframe, retain daily fallback",
+  "api_before": {
+    "status_code": 400,
+    "detail": "strategy s02 does not support timeframe '1d'; supported=['1m']",
+    "saved": false,
+    "history_records": 92,
+    "research_jobs": 16,
+    "financial_results_unchanged": true,
+    "auto_trading_enabled": false
+  },
+  "api_after": {
+    "status_code": 200,
+    "detail": null,
+    "saved": true,
+    "history_records": 92,
+    "research_jobs": 16,
+    "financial_results_unchanged": true,
+    "auto_trading_enabled": false
+  },
+  "browser": {
+    "s02_enable_disable_reenable": true,
+    "daily_enable_disable": true,
+    "monitor_save_http": 200,
+    "no_timeframe_rejection": true,
+    "desktop": [
+      1440,
+      1000
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "page_errors": []
+  },
+  "affected_tests_passed": 70,
+  "installed_tests_passed": 6,
+  "existing_group_mock_failures_reproduced_before_fix": 2,
+  "ruff": {
+    "existing_api_lint": 13,
+    "new_api_lint": 0,
+    "regression_test_lint": 0
+  },
+  "regression_fails_without_fix": true,
+  "s02_research_jobs": 16,
+  "test_monitoring_rows_removed": true,
+  "test_accounts_disabled": 2,
+  "full_service_restart": true,
+  "trading_rules_changed": false,
+  "new_backtest_run": false,
+  "online_deploy": false,
+  "commit_push": false,
+  "proof_sha256": {
+    "red-1.log": "207cc127b5f61a68bad22e15c0c6ee368646a1069ed473d70b1ed87b5c17a1a0",
+    "red-2.log": "6b9a48ff534e46c596fefafcce076fd7974f89fc37f8c745aab4981b1aecf5aa",
+    "red-3.log": "be561350d9e3dbf3216f8fb689e5a53472ee383676b4e7571df8da3e387d1967",
+    "reverse-red.log": "526384463da27ceb3c1069a67e90a43ea2a8eac078438fe24eabaf2209ac13a4",
+    "scoped-tests.log": "01e99962cbc4ce2ce062492b6bcaf60cf66eb74c710825639022ef55ad4ae686",
+    "installed-tests.log": "317dc2193bdb3fe2961da9790d2150818f32b8c24b0155107c1bb025a4d8301f",
+    "browser.json": "093e7d985ae13158123070d4247a6e3012ea9fcd558a8b604c37917ac210564b"
+  }
+}

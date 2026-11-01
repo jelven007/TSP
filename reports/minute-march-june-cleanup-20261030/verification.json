@@ -1,0 +1,73 @@
+{
+  "status": "verified",
+  "verified_at_beijing": "2026-10-30T00:18:09.754401+08:00",
+  "checks": [
+    {
+      "path": "/api/business/version",
+      "http_status": 200,
+      "passed": true
+    },
+    {
+      "path": "/health/live",
+      "http_status": 200,
+      "passed": true
+    },
+    {
+      "path": "/health/ready",
+      "http_status": 200,
+      "passed": true
+    },
+    {
+      "path": "/api/data/status",
+      "http_status": 200,
+      "minute": {
+        "rows": 101131333,
+        "earliest_date": "2026-07-01",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 5222,
+        "trading_days": 81
+      },
+      "passed": true
+    },
+    {
+      "path": "/api/kline/minute",
+      "date": "2026-03-30",
+      "freq": "5m",
+      "rows": 0,
+      "source": "none",
+      "passed": true
+    },
+    {
+      "path": "/api/kline/minute",
+      "date": "2026-04-01",
+      "freq": "5m",
+      "rows": 0,
+      "source": "none",
+      "passed": true
+    },
+    {
+      "path": "/api/kline/minute",
+      "date": "2026-05-08",
+      "freq": "5m",
+      "rows": 0,
+      "source": "none",
+      "passed": true
+    },
+    {
+      "path": "/api/kline/minute",
+      "date": "2026-06-30",
+      "freq": "5m",
+      "rows": 0,
+      "source": "none",
+      "passed": true
+    },
+    {
+      "path": "/api/kline/minute",
+      "date": "2026-07-01",
+      "rows": 240,
+      "source": "local",
+      "passed": true
+    }
+  ],
+  "service_role": "api"
+}

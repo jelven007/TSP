@@ -1,0 +1,1463 @@
+{
+  "status": "verified",
+  "started_at": "2026-10-29T02:05:41.492245+00:00",
+  "days": [
+    {
+      "day": "2026-10-26",
+      "before_rows": 1251600,
+      "appended_rows": 1680,
+      "after_rows": 1253280,
+      "original_rows_preserved": 1251600,
+      "backup_sha256": "34161393dc33d1a48febeeff5848c53d08a6d24f81964401adc02f3b8a7854f9",
+      "online_after_sha256": "008dcc5f935e7dfe0f82f8ec520b3ad151a78dcd63b1b6e42b7323931b3339fb",
+      "online_after_content_sha256": "f5bd7576ca911281c715902734ef67fd78bad557057dbf05e13236b41420de08",
+      "local_content_sha256": "f5bd7576ca911281c715902734ef67fd78bad557057dbf05e13236b41420de08",
+      "matches_local": true,
+      "duplicate_rows": 0,
+      "verified_at": "2026-10-29T02:05:43.430259+00:00"
+    },
+    {
+      "day": "2026-10-27",
+      "before_rows": 1256182,
+      "appended_rows": 2313,
+      "after_rows": 1258495,
+      "original_rows_preserved": 1256182,
+      "backup_sha256": "45ab20fa2e71dd9c2d789967e87f4c90807af0e6391a212667bb2c6b1b63275b",
+      "online_after_sha256": "b75765b1d653f2d2e2407309d126fd3755ed78b89d647a260d9c96bcc9003275",
+      "online_after_content_sha256": "56deba83a4bcd97bf4ed2b2e87cb56f6a9adbc7c070331154f831b3fa93c7bd8",
+      "local_content_sha256": "56deba83a4bcd97bf4ed2b2e87cb56f6a9adbc7c070331154f831b3fa93c7bd8",
+      "matches_local": true,
+      "duplicate_rows": 0,
+      "verified_at": "2026-10-29T02:05:45.265372+00:00"
+    }
+  ],
+  "backup_path": "/app/data/operational_backups/minute-local-to-online-20261026-20261027-20261029",
+  "minute_basis_raw": false,
+  "completed_at": "2026-10-29T02:05:45.271275+00:00",
+  "total_appended_rows": 3993,
+  "other_minute_partition_changes": [],
+  "source_inventory_before": {
+    "kline_minute/date=2026-05-21/part.parquet": [
+      37296,
+      1793141384133719973,
+      4175722
+    ],
+    "kline_minute/date=2026-07-01/part.parquet": [
+      15064249,
+      1793135185913341356,
+      4175193
+    ],
+    "kline_minute/date=2026-08-12/part.parquet": [
+      13665733,
+      1793117736679166475,
+      4171634
+    ],
+    "kline_minute/date=2026-08-21/part.parquet": [
+      13899856,
+      1793111654311890677,
+      4171515
+    ],
+    "kline_minute/date=2026-06-30/part.parquet": [
+      14610940,
+      1793135185730339675,
+      4175190
+    ],
+    "kline_minute/date=2026-06-23/part.parquet": [
+      14837463,
+      1793134245499720611,
+      4175181
+    ],
+    "kline_minute/date=2026-09-30/part.parquet": [
+      13678997,
+      1793094722825125094,
+      4171460
+    ],
+    "kline_minute/date=2026-04-17/part.parquet": [
+      6008,
+      1793225595514643088,
+      4681791
+    ],
+    "kline_minute/date=2026-10-21/part.parquet": [
+      13690924,
+      1793171196018599807,
+      4171060
+    ],
+    "kline_minute/date=2026-10-26/part.parquet": [
+      14100636,
+      1793171196535606235,
+      4171048
+    ],
+    "kline_minute/date=2026-03-30/part.parquet": [
+      6260,
+      1793225595491642867,
+      4681752
+    ],
+    "kline_minute/date=2026-10-16/part.parquet": [
+      14406161,
+      1793171195474593044,
+      691167
+    ],
+    "kline_minute/date=2026-05-22/part.parquet": [
+      40843,
+      1793142440340407333,
+      4175731
+    ],
+    "kline_minute/date=2026-08-03/part.parquet": [
+      13734913,
+      1793116545201120070,
+      4171606
+    ],
+    "kline_minute/date=2026-10-27/part.parquet": [
+      14340700,
+      1793171196716608486,
+      4171069
+    ],
+    "kline_minute/date=2026-05-18/part.parquet": [
+      16614,
+      1793209759654123599,
+      4170579
+    ],
+    "kline_minute/date=2026-06-26/part.parquet": [
+      15061643,
+      1793134245951724741,
+      4175174
+    ],
+    "kline_minute/date=2026-06-08/part.parquet": [
+      5428039,
+      1793145647308892684,
+      4175764
+    ],
+    "kline_minute/date=2026-07-20/part.parquet": [
+      15439004,
+      1793114433188584964,
+      4171569
+    ],
+    "kline_minute/date=2026-04-14/part.parquet": [
+      6144,
+      1793225595509643040,
+      4681782
+    ],
+    "kline_minute/date=2026-06-02/part.parquet": [
+      1828025,
+      1793144597396173050,
+      4175755
+    ],
+    "kline_minute/date=2026-08-07/part.parquet": [
+      14220279,
+      1793117142080648964,
+      4171618
+    ],
+    "kline_minute/date=2026-06-29/part.parquet": [
+      15123238,
+      1793135185562338131,
+      4175187
+    ],
+    "kline_minute/date=2026-06-22/part.parquet": [
+      15196301,
+      1793134245315718931,
+      4175166
+    ],
+    "kline_minute/date=2026-10-13/part.parquet": [
+      14631267,
+      1793171194943586442,
+      4171469
+    ],
+    "kline_minute/date=2026-06-05/part.parquet": [
+      4567851,
+      1793144597310172259,
+      4175743
+    ],
+    "kline_minute/date=2026-04-03/part.parquet": [
+      6327,
+      1793225595498642934,
+      4681764
+    ],
+    "kline_minute/date=2026-04-24/part.parquet": [
+      6560,
+      1793225595522643164,
+      4681806
+    ],
+    "kline_minute/date=2026-05-12/part.parquet": [
+      3888,
+      1793209759645123513,
+      4681740
+    ],
+    "kline_minute/date=2026-09-04/part.parquet": [
+      14250452,
+      1793112906402466818,
+      4171545
+    ],
+    "kline_minute/date=2026-04-30/part.parquet": [
+      8145,
+      1793225614592825845,
+      4681812
+    ],
+    "kline_minute/date=2026-08-05/part.parquet": [
+      13924950,
+      1793116546111128499,
+      4171612
+    ],
+    "kline_minute/date=2026-06-09/part.parquet": [
+      5782274,
+      1793145647371893270,
+      4175758
+    ],
+    "kline_minute/date=2026-08-04/part.parquet": [
+      13707546,
+      1793116545360121543,
+      4171609
+    ],
+    "kline_minute/date=2026-05-28/part.parquet": [
+      159931,
+      1793143535493431458,
+      4175741
+    ],
+    "kline_minute/date=2026-09-29/part.parquet": [
+      13622684,
+      1793094536836361489,
+      4171458
+    ],
+    "kline_minute/date=2026-10-23/part.parquet": [
+      15385075,
+      1793171196366604134,
+      4171045
+    ],
+    "kline_minute/date=2026-04-08/part.parquet": [
+      6143,
+      1793225595502642973,
+      4681770
+    ],
+    "kline_minute/date=2026-05-20/part.parquet": [
+      31712,
+      1793141384130719945,
+      4175719
+    ],
+    "kline_minute/date=2026-07-03/part.parquet": [
+      14800634,
+      1793136085584631209,
+      4175199
+    ],
+    "kline_minute/date=2026-03-31/part.parquet": [
+      6425,
+      1793225595493642886,
+      4681755
+    ],
+    "kline_minute/date=2026-09-24/part.parquet": [
+      13785874,
+      1793094314512251053,
+      4171452
+    ],
+    "kline_minute/date=2026-08-26/part.parquet": [
+      13796169,
+      1793112133409323910,
+      4171531
+    ],
+    "kline_minute/date=2026-04-29/part.parquet": [
+      4875,
+      1793225595528643222,
+      4681815
+    ],
+    "kline_minute/date=2026-08-25/part.parquet": [
+      14088091,
+      1793112133267322596,
+      4171530
+    ],
+    "kline_minute/date=2026-06-16/part.parquet": [
+      14449308,
+      1793147709738091235,
+      4175158
+    ],
+    "kline_minute/date=2026-10-20/part.parquet": [
+      13960559,
+      1793171195837597557,
+      4171057
+    ],
+    "kline_minute/date=2026-08-27/part.parquet": [
+      13796192,
+      1793112133527325002,
+      4171521
+    ],
+    "kline_minute/date=2026-05-15/part.parquet": [
+      4672,
+      1793209759651123571,
+      4681749
+    ],
+    "kline_minute/date=2026-07-17/part.parquet": [
+      15364166,
+      1793138550867692966,
+      4175223
+    ],
+    "kline_minute/date=2026-05-26/part.parquet": [
+      54233,
+      1793142440348407407,
+      4175725
+    ],
+    "kline_minute/date=2026-09-21/part.parquet": [
+      13619710,
+      1793094314133247456,
+      4171450
+    ],
+    "kline_minute/date=2026-08-18/part.parquet": [
+      14030106,
+      1793111169933402418,
+      4171506
+    ],
+    "kline_minute/date=2026-09-14/part.parquet": [
+      13708798,
+      1793113541876342066,
+      4171437
+    ],
+    "kline_minute/date=2026-10-22/part.parquet": [
+      14341767,
+      1793171196191601958,
+      4171061
+    ],
+    "kline_minute/date=2026-04-01/part.parquet": [
+      6177,
+      1793225595495642906,
+      4681758
+    ],
+    "kline_minute/date=2026-05-25/part.parquet": [
+      47373,
+      1793142440344407370,
+      4175728
+    ],
+    "kline_minute/date=2026-07-31/part.parquet": [
+      13984561,
+      1793115909404235756,
+      4171587
+    ],
+    "kline_minute/date=2026-04-02/part.parquet": [
+      6439,
+      1793225595496642915,
+      4681761
+    ],
+    "kline_minute/date=2026-04-16/part.parquet": [
+      6041,
+      1793225595512643068,
+      4681788
+    ],
+    "kline_minute/date=2026-04-09/part.parquet": [
+      6119,
+      1793225595503642982,
+      4681773
+    ],
+    "kline_minute/date=2026-04-27/part.parquet": [
+      9151,
+      1793225614585825778,
+      4681819
+    ],
+    "kline_minute/date=2026-09-23/part.parquet": [
+      13544106,
+      1793094314381249810,
+      4171441
+    ],
+    "kline_minute/date=2026-06-15/part.parquet": [
+      14316390,
+      1793146690757602944,
+      4175773
+    ],
+    "kline_minute/date=2026-04-15/part.parquet": [
+      6219,
+      1793225595510643049,
+      4681785
+    ],
+    "kline_minute/date=2026-06-03/part.parquet": [
+      2847351,
+      1793144597349172618,
+      4175749
+    ],
+    "kline_minute/date=2026-08-06/part.parquet": [
+      14239225,
+      1793117141846646796,
+      4171615
+    ],
+    "kline_minute/date=2026-10-19/part.parquet": [
+      14395986,
+      1793171195656595306,
+      4171475
+    ],
+    "kline_minute/date=2026-06-18/part.parquet": [
+      14578694,
+      1793133252339726744,
+      4175150
+    ],
+    "kline_minute/date=2026-08-20/part.parquet": [
+      14095936,
+      1793111654189889548,
+      4171512
+    ],
+    "kline_minute/date=2026-06-10/part.parquet": [
+      6927268,
+      1793145647436893875,
+      4175761
+    ],
+    "kline_minute/date=2026-07-14/part.parquet": [
+      14931613,
+      1793137773581401138,
+      4175227
+    ],
+    "kline_minute/date=2026-05-13/part.parquet": [
+      4036,
+      1793209759647123533,
+      4681743
+    ],
+    "kline_minute/date=2026-10-09/part.parquet": [
+      14923583,
+      1793094909359895265,
+      4171463
+    ],
+    "kline_minute/date=2026-07-10/part.parquet": [
+      15025626,
+      1793136951221648632,
+      4175208
+    ],
+    "kline_minute/date=2026-07-09/part.parquet": [
+      15030566,
+      1793136951089647390,
+      4175205
+    ],
+    "kline_minute/date=2026-07-13/part.parquet": [
+      14856307,
+      1793137773447399875,
+      4175226
+    ],
+    "kline_minute/date=2026-07-24/part.parquet": [
+      14173683,
+      1793115195142629793,
+      4171581
+    ],
+    "kline_minute/date=2026-10-29/part.parquet": [
+      2436687,
+      1793239541322814922,
+      4687925
+    ],
+    "kline_minute/date=2026-10-28/part.parquet": [
+      14239288,
+      1793233870142485528,
+      4170597
+    ],
+    "kline_minute/date=2026-10-12/part.parquet": [
+      13986321,
+      1793171194714583595,
+      4182615
+    ],
+    "kline_minute/date=2026-07-02/part.parquet": [
+      15000480,
+      1793136085459630055,
+      4175196
+    ],
+    "kline_minute/date=2026-05-07/part.parquet": [
+      5836,
+      1793209759642123485,
+      4681734
+    ],
+    "kline_minute/date=2026-08-19/part.parquet": [
+      14484476,
+      1793111170066403653,
+      4171509
+    ],
+    "kline_minute/date=2026-09-15/part.parquet": [
+      13639039,
+      1793113542034343528,
+      4171563
+    ],
+    "kline_minute/date=2026-09-18/part.parquet": [
+      13582156,
+      1793094048258722941,
+      4171431
+    ],
+    "kline_minute/date=2026-06-24/part.parquet": [
+      14832088,
+      1793134245648721973,
+      4175185
+    ],
+    "kline_minute/date=2026-04-21/part.parquet": [
+      5860,
+      1793225595517643116,
+      4681797
+    ],
+    "kline_minute/date=2026-07-15/part.parquet": [
+      14624256,
+      1793137773721402458,
+      4175217
+    ],
+    "kline_minute/date=2026-05-19/part.parquet": [
+      22477,
+      1793141384126719908,
+      4175712
+    ],
+    "kline_minute/date=2026-04-13/part.parquet": [
+      5916,
+      1793225595507643020,
+      4681779
+    ],
+    "kline_minute/date=2026-06-01/part.parquet": [
+      994228,
+      1793144597367172783,
+      4175746
+    ],
+    "kline_minute/date=2026-07-30/part.parquet": [
+      14585993,
+      1793115909276234572,
+      4171600
+    ],
+    "kline_minute/date=2026-07-06/part.parquet": [
+      14864830,
+      1793136085705632326,
+      4175202
+    ],
+    "kline_minute/date=2026-04-23/part.parquet": [
+      6445,
+      1793225595521643155,
+      4681803
+    ],
+    "kline_minute/date=2026-07-07/part.parquet": [
+      14735617,
+      1793136950824644899,
+      4175214
+    ],
+    "kline_minute/date=2026-08-28/part.parquet": [
+      13777869,
+      1793112133645326094,
+      4171524
+    ],
+    "kline_minute/date=2026-09-09/part.parquet": [
+      13734268,
+      1793113241461563582,
+      4171554
+    ],
+    "kline_minute/date=2026-07-27/part.parquet": [
+      14011850,
+      1793115908901231104,
+      4171604
+    ],
+    "kline_minute/date=2026-08-10/part.parquet": [
+      13988709,
+      1793117142236650409,
+      4171621
+    ],
+    "kline_minute/date=2026-07-28/part.parquet": [
+      13989540,
+      1793115909023232232,
+      4171603
+    ],
+    "kline_minute/date=2026-09-11/part.parquet": [
+      14341335,
+      1793113241707565858,
+      4171560
+    ],
+    "kline_minute/date=2026-08-31/part.parquet": [
+      14006729,
+      1793112539507076497,
+      4171539
+    ],
+    "kline_minute/date=2026-08-17/part.parquet": [
+      13895769,
+      1793118249168925382,
+      4171630
+    ],
+    "kline_minute/date=2026-09-16/part.parquet": [
+      13771561,
+      1793094047999720482,
+      4171438
+    ],
+    "kline_minute/date=2026-07-22/part.parquet": [
+      14599942,
+      1793115194825626863,
+      4171585
+    ],
+    "kline_minute/date=2026-04-07/part.parquet": [
+      6328,
+      1793225595500642953,
+      4681767
+    ],
+    "kline_minute/date=2026-09-02/part.parquet": [
+      13782369,
+      1793112539825079435,
+      4171533
+    ],
+    "kline_minute/date=2026-04-20/part.parquet": [
+      6162,
+      1793225595516643107,
+      4681794
+    ],
+    "kline_minute/date=2026-09-22/part.parquet": [
+      13862715,
+      1793094314256248623,
+      4171451
+    ],
+    "kline_minute/date=2026-09-28/part.parquet": [
+      14166899,
+      1793094536697360170,
+      4171457
+    ],
+    "kline_minute/date=2026-07-08/part.parquet": [
+      14690849,
+      1793136950960646177,
+      4175215
+    ],
+    "kline_minute/date=2026-05-27/part.parquet": [
+      146527,
+      1793143535487431404,
+      4175740
+    ],
+    "kline_minute/date=2026-04-10/part.parquet": [
+      6298,
+      1793225595505643001,
+      4681776
+    ],
+    "kline_minute/date=2026-08-13/part.parquet": [
+      14215458,
+      1793117736837167942,
+      4171624
+    ],
+    "kline_minute/date=2026-07-16/part.parquet": [
+      14707765,
+      1793137773859403759,
+      4175220
+    ],
+    "kline_minute/date=2026-10-15/part.parquet": [
+      14422781,
+      1793171195299590868,
+      692646
+    ],
+    "kline_minute/date=2026-04-22/part.parquet": [
+      6382,
+      1793225595519643135,
+      4681800
+    ],
+    "kline_minute/date=2026-05-29/part.parquet": [
+      198494,
+      1793143535500431522,
+      4175734
+    ],
+    "kline_minute/date=2026-05-08/part.parquet": [
+      6059,
+      1793209759644123504,
+      4681737
+    ],
+    "kline_minute/date=2026-06-12/part.parquet": [
+      13862057,
+      1793146690635601810,
+      4175770
+    ],
+    "kline_minute/date=2026-07-23/part.parquet": [
+      14250993,
+      1793115194989628379,
+      4171578
+    ],
+    "kline_minute/date=2026-09-10/part.parquet": [
+      13540348,
+      1793113241585564729,
+      4171557
+    ],
+    "kline_minute/date=2026-09-17/part.parquet": [
+      13715326,
+      1793094048128721707,
+      4171428
+    ],
+    "kline_minute/date=2026-08-14/part.parquet": [
+      14063197,
+      1793117736994169400,
+      4171627
+    ],
+    "kline_minute/date=2026-05-06/part.parquet": [
+      6044,
+      1793209759639123456,
+      4681731
+    ],
+    "kline_minute/date=2026-08-24/part.parquet": [
+      14218988,
+      1793111654432891796,
+      4171518
+    ],
+    "kline_minute/date=2026-07-21/part.parquet": [
+      15250767,
+      1793114433334586313,
+      4171572
+    ],
+    "kline_minute/date=2026-09-03/part.parquet": [
+      13968378,
+      1793112539971080784,
+      4171536
+    ],
+    "kline_minute/date=2026-09-07/part.parquet": [
+      13563570,
+      1793112906556468241,
+      4171548
+    ],
+    "kline_minute/date=2026-06-11/part.parquet": [
+      12685021,
+      1793146690502600574,
+      4175767
+    ],
+    "kline_minute/date=2026-05-14/part.parquet": [
+      4073,
+      1793209759649123552,
+      4681746
+    ],
+    "kline_minute/date=2026-07-29/part.parquet": [
+      14354522,
+      1793115909148233388,
+      4171599
+    ],
+    "kline_minute/date=2026-09-08/part.parquet": [
+      13750305,
+      1793112907091473185,
+      4171551
+    ],
+    "kline_minute/date=2026-06-25/part.parquet": [
+      14830107,
+      1793134245796723325,
+      4175184
+    ],
+    "kline_minute/date=2026-10-08/part.parquet": [
+      14289185,
+      1793094909231894050,
+      4171467
+    ],
+    "kline_minute/date=2026-08-11/part.parquet": [
+      14094066,
+      1793117736442164274,
+      4171633
+    ],
+    "kline_minute/date=2026-04-28/part.parquet": [
+      8904,
+      1793225614588825807,
+      4681809
+    ],
+    "kline_minute/date=2026-09-01/part.parquet": [
+      13772752,
+      1793112539661077920,
+      4171542
+    ],
+    "kline_minute/date=2026-06-04/part.parquet": [
+      3629744,
+      1793144597253171736,
+      4175752
+    ],
+    "kline_minute/date=2026-06-17/part.parquet": [
+      14377555,
+      1793147709862092393,
+      4175776
+    ],
+    "kline_minute/date=2026-10-14/part.parquet": [
+      13958028,
+      1793171195121588655,
+      4171472
+    ]
+  },
+  "source_inventory_after": {
+    "kline_minute/date=2026-05-21/part.parquet": [
+      37296,
+      1793141384133719973,
+      4175722
+    ],
+    "kline_minute/date=2026-07-01/part.parquet": [
+      15064249,
+      1793135185913341356,
+      4175193
+    ],
+    "kline_minute/date=2026-08-12/part.parquet": [
+      13665733,
+      1793117736679166475,
+      4171634
+    ],
+    "kline_minute/date=2026-08-21/part.parquet": [
+      13899856,
+      1793111654311890677,
+      4171515
+    ],
+    "kline_minute/date=2026-06-30/part.parquet": [
+      14610940,
+      1793135185730339675,
+      4175190
+    ],
+    "kline_minute/date=2026-06-23/part.parquet": [
+      14837463,
+      1793134245499720611,
+      4175181
+    ],
+    "kline_minute/date=2026-09-30/part.parquet": [
+      13678997,
+      1793094722825125094,
+      4171460
+    ],
+    "kline_minute/date=2026-04-17/part.parquet": [
+      6008,
+      1793225595514643088,
+      4681791
+    ],
+    "kline_minute/date=2026-10-21/part.parquet": [
+      13690924,
+      1793171196018599807,
+      4171060
+    ],
+    "kline_minute/date=2026-10-26/part.parquet": [
+      14102543,
+      1793239542360824849,
+      4170595
+    ],
+    "kline_minute/date=2026-03-30/part.parquet": [
+      6260,
+      1793225595491642867,
+      4681752
+    ],
+    "kline_minute/date=2026-10-16/part.parquet": [
+      14406161,
+      1793171195474593044,
+      691167
+    ],
+    "kline_minute/date=2026-05-22/part.parquet": [
+      40843,
+      1793142440340407333,
+      4175731
+    ],
+    "kline_minute/date=2026-08-03/part.parquet": [
+      13734913,
+      1793116545201120070,
+      4171606
+    ],
+    "kline_minute/date=2026-10-27/part.parquet": [
+      14355722,
+      1793239544161842072,
+      4170599
+    ],
+    "kline_minute/date=2026-05-18/part.parquet": [
+      16614,
+      1793209759654123599,
+      4170579
+    ],
+    "kline_minute/date=2026-06-26/part.parquet": [
+      15061643,
+      1793134245951724741,
+      4175174
+    ],
+    "kline_minute/date=2026-06-08/part.parquet": [
+      5428039,
+      1793145647308892684,
+      4175764
+    ],
+    "kline_minute/date=2026-07-20/part.parquet": [
+      15439004,
+      1793114433188584964,
+      4171569
+    ],
+    "kline_minute/date=2026-04-14/part.parquet": [
+      6144,
+      1793225595509643040,
+      4681782
+    ],
+    "kline_minute/date=2026-06-02/part.parquet": [
+      1828025,
+      1793144597396173050,
+      4175755
+    ],
+    "kline_minute/date=2026-08-07/part.parquet": [
+      14220279,
+      1793117142080648964,
+      4171618
+    ],
+    "kline_minute/date=2026-06-29/part.parquet": [
+      15123238,
+      1793135185562338131,
+      4175187
+    ],
+    "kline_minute/date=2026-06-22/part.parquet": [
+      15196301,
+      1793134245315718931,
+      4175166
+    ],
+    "kline_minute/date=2026-10-13/part.parquet": [
+      14631267,
+      1793171194943586442,
+      4171469
+    ],
+    "kline_minute/date=2026-06-05/part.parquet": [
+      4567851,
+      1793144597310172259,
+      4175743
+    ],
+    "kline_minute/date=2026-04-03/part.parquet": [
+      6327,
+      1793225595498642934,
+      4681764
+    ],
+    "kline_minute/date=2026-04-24/part.parquet": [
+      6560,
+      1793225595522643164,
+      4681806
+    ],
+    "kline_minute/date=2026-05-12/part.parquet": [
+      3888,
+      1793209759645123513,
+      4681740
+    ],
+    "kline_minute/date=2026-09-04/part.parquet": [
+      14250452,
+      1793112906402466818,
+      4171545
+    ],
+    "kline_minute/date=2026-04-30/part.parquet": [
+      8145,
+      1793225614592825845,
+      4681812
+    ],
+    "kline_minute/date=2026-08-05/part.parquet": [
+      13924950,
+      1793116546111128499,
+      4171612
+    ],
+    "kline_minute/date=2026-06-09/part.parquet": [
+      5782274,
+      1793145647371893270,
+      4175758
+    ],
+    "kline_minute/date=2026-08-04/part.parquet": [
+      13707546,
+      1793116545360121543,
+      4171609
+    ],
+    "kline_minute/date=2026-05-28/part.parquet": [
+      159931,
+      1793143535493431458,
+      4175741
+    ],
+    "kline_minute/date=2026-09-29/part.parquet": [
+      13622684,
+      1793094536836361489,
+      4171458
+    ],
+    "kline_minute/date=2026-10-23/part.parquet": [
+      15385075,
+      1793171196366604134,
+      4171045
+    ],
+    "kline_minute/date=2026-04-08/part.parquet": [
+      6143,
+      1793225595502642973,
+      4681770
+    ],
+    "kline_minute/date=2026-05-20/part.parquet": [
+      31712,
+      1793141384130719945,
+      4175719
+    ],
+    "kline_minute/date=2026-07-03/part.parquet": [
+      14800634,
+      1793136085584631209,
+      4175199
+    ],
+    "kline_minute/date=2026-03-31/part.parquet": [
+      6425,
+      1793225595493642886,
+      4681755
+    ],
+    "kline_minute/date=2026-09-24/part.parquet": [
+      13785874,
+      1793094314512251053,
+      4171452
+    ],
+    "kline_minute/date=2026-08-26/part.parquet": [
+      13796169,
+      1793112133409323910,
+      4171531
+    ],
+    "kline_minute/date=2026-04-29/part.parquet": [
+      4875,
+      1793225595528643222,
+      4681815
+    ],
+    "kline_minute/date=2026-08-25/part.parquet": [
+      14088091,
+      1793112133267322596,
+      4171530
+    ],
+    "kline_minute/date=2026-06-16/part.parquet": [
+      14449308,
+      1793147709738091235,
+      4175158
+    ],
+    "kline_minute/date=2026-10-20/part.parquet": [
+      13960559,
+      1793171195837597557,
+      4171057
+    ],
+    "kline_minute/date=2026-08-27/part.parquet": [
+      13796192,
+      1793112133527325002,
+      4171521
+    ],
+    "kline_minute/date=2026-05-15/part.parquet": [
+      4672,
+      1793209759651123571,
+      4681749
+    ],
+    "kline_minute/date=2026-07-17/part.parquet": [
+      15364166,
+      1793138550867692966,
+      4175223
+    ],
+    "kline_minute/date=2026-05-26/part.parquet": [
+      54233,
+      1793142440348407407,
+      4175725
+    ],
+    "kline_minute/date=2026-09-21/part.parquet": [
+      13619710,
+      1793094314133247456,
+      4171450
+    ],
+    "kline_minute/date=2026-08-18/part.parquet": [
+      14030106,
+      1793111169933402418,
+      4171506
+    ],
+    "kline_minute/date=2026-09-14/part.parquet": [
+      13708798,
+      1793113541876342066,
+      4171437
+    ],
+    "kline_minute/date=2026-10-22/part.parquet": [
+      14341767,
+      1793171196191601958,
+      4171061
+    ],
+    "kline_minute/date=2026-04-01/part.parquet": [
+      6177,
+      1793225595495642906,
+      4681758
+    ],
+    "kline_minute/date=2026-05-25/part.parquet": [
+      47373,
+      1793142440344407370,
+      4175728
+    ],
+    "kline_minute/date=2026-07-31/part.parquet": [
+      13984561,
+      1793115909404235756,
+      4171587
+    ],
+    "kline_minute/date=2026-04-02/part.parquet": [
+      6439,
+      1793225595496642915,
+      4681761
+    ],
+    "kline_minute/date=2026-04-16/part.parquet": [
+      6041,
+      1793225595512643068,
+      4681788
+    ],
+    "kline_minute/date=2026-04-09/part.parquet": [
+      6119,
+      1793225595503642982,
+      4681773
+    ],
+    "kline_minute/date=2026-04-27/part.parquet": [
+      9151,
+      1793225614585825778,
+      4681819
+    ],
+    "kline_minute/date=2026-09-23/part.parquet": [
+      13544106,
+      1793094314381249810,
+      4171441
+    ],
+    "kline_minute/date=2026-06-15/part.parquet": [
+      14316390,
+      1793146690757602944,
+      4175773
+    ],
+    "kline_minute/date=2026-04-15/part.parquet": [
+      6219,
+      1793225595510643049,
+      4681785
+    ],
+    "kline_minute/date=2026-06-03/part.parquet": [
+      2847351,
+      1793144597349172618,
+      4175749
+    ],
+    "kline_minute/date=2026-08-06/part.parquet": [
+      14239225,
+      1793117141846646796,
+      4171615
+    ],
+    "kline_minute/date=2026-10-19/part.parquet": [
+      14395986,
+      1793171195656595306,
+      4171475
+    ],
+    "kline_minute/date=2026-06-18/part.parquet": [
+      14578694,
+      1793133252339726744,
+      4175150
+    ],
+    "kline_minute/date=2026-08-20/part.parquet": [
+      14095936,
+      1793111654189889548,
+      4171512
+    ],
+    "kline_minute/date=2026-06-10/part.parquet": [
+      6927268,
+      1793145647436893875,
+      4175761
+    ],
+    "kline_minute/date=2026-07-14/part.parquet": [
+      14931613,
+      1793137773581401138,
+      4175227
+    ],
+    "kline_minute/date=2026-05-13/part.parquet": [
+      4036,
+      1793209759647123533,
+      4681743
+    ],
+    "kline_minute/date=2026-10-09/part.parquet": [
+      14923583,
+      1793094909359895265,
+      4171463
+    ],
+    "kline_minute/date=2026-07-10/part.parquet": [
+      15025626,
+      1793136951221648632,
+      4175208
+    ],
+    "kline_minute/date=2026-07-09/part.parquet": [
+      15030566,
+      1793136951089647390,
+      4175205
+    ],
+    "kline_minute/date=2026-07-13/part.parquet": [
+      14856307,
+      1793137773447399875,
+      4175226
+    ],
+    "kline_minute/date=2026-07-24/part.parquet": [
+      14173683,
+      1793115195142629793,
+      4171581
+    ],
+    "kline_minute/date=2026-10-29/part.parquet": [
+      2436687,
+      1793239541322814922,
+      4687925
+    ],
+    "kline_minute/date=2026-10-28/part.parquet": [
+      14239288,
+      1793233870142485528,
+      4170597
+    ],
+    "kline_minute/date=2026-10-12/part.parquet": [
+      13986321,
+      1793171194714583595,
+      4182615
+    ],
+    "kline_minute/date=2026-07-02/part.parquet": [
+      15000480,
+      1793136085459630055,
+      4175196
+    ],
+    "kline_minute/date=2026-05-07/part.parquet": [
+      5836,
+      1793209759642123485,
+      4681734
+    ],
+    "kline_minute/date=2026-08-19/part.parquet": [
+      14484476,
+      1793111170066403653,
+      4171509
+    ],
+    "kline_minute/date=2026-09-15/part.parquet": [
+      13639039,
+      1793113542034343528,
+      4171563
+    ],
+    "kline_minute/date=2026-09-18/part.parquet": [
+      13582156,
+      1793094048258722941,
+      4171431
+    ],
+    "kline_minute/date=2026-06-24/part.parquet": [
+      14832088,
+      1793134245648721973,
+      4175185
+    ],
+    "kline_minute/date=2026-04-21/part.parquet": [
+      5860,
+      1793225595517643116,
+      4681797
+    ],
+    "kline_minute/date=2026-07-15/part.parquet": [
+      14624256,
+      1793137773721402458,
+      4175217
+    ],
+    "kline_minute/date=2026-05-19/part.parquet": [
+      22477,
+      1793141384126719908,
+      4175712
+    ],
+    "kline_minute/date=2026-04-13/part.parquet": [
+      5916,
+      1793225595507643020,
+      4681779
+    ],
+    "kline_minute/date=2026-06-01/part.parquet": [
+      994228,
+      1793144597367172783,
+      4175746
+    ],
+    "kline_minute/date=2026-07-30/part.parquet": [
+      14585993,
+      1793115909276234572,
+      4171600
+    ],
+    "kline_minute/date=2026-07-06/part.parquet": [
+      14864830,
+      1793136085705632326,
+      4175202
+    ],
+    "kline_minute/date=2026-04-23/part.parquet": [
+      6445,
+      1793225595521643155,
+      4681803
+    ],
+    "kline_minute/date=2026-07-07/part.parquet": [
+      14735617,
+      1793136950824644899,
+      4175214
+    ],
+    "kline_minute/date=2026-08-28/part.parquet": [
+      13777869,
+      1793112133645326094,
+      4171524
+    ],
+    "kline_minute/date=2026-09-09/part.parquet": [
+      13734268,
+      1793113241461563582,
+      4171554
+    ],
+    "kline_minute/date=2026-07-27/part.parquet": [
+      14011850,
+      1793115908901231104,
+      4171604
+    ],
+    "kline_minute/date=2026-08-10/part.parquet": [
+      13988709,
+      1793117142236650409,
+      4171621
+    ],
+    "kline_minute/date=2026-07-28/part.parquet": [
+      13989540,
+      1793115909023232232,
+      4171603
+    ],
+    "kline_minute/date=2026-09-11/part.parquet": [
+      14341335,
+      1793113241707565858,
+      4171560
+    ],
+    "kline_minute/date=2026-08-31/part.parquet": [
+      14006729,
+      1793112539507076497,
+      4171539
+    ],
+    "kline_minute/date=2026-08-17/part.parquet": [
+      13895769,
+      1793118249168925382,
+      4171630
+    ],
+    "kline_minute/date=2026-09-16/part.parquet": [
+      13771561,
+      1793094047999720482,
+      4171438
+    ],
+    "kline_minute/date=2026-07-22/part.parquet": [
+      14599942,
+      1793115194825626863,
+      4171585
+    ],
+    "kline_minute/date=2026-04-07/part.parquet": [
+      6328,
+      1793225595500642953,
+      4681767
+    ],
+    "kline_minute/date=2026-09-02/part.parquet": [
+      13782369,
+      1793112539825079435,
+      4171533
+    ],
+    "kline_minute/date=2026-04-20/part.parquet": [
+      6162,
+      1793225595516643107,
+      4681794
+    ],
+    "kline_minute/date=2026-09-22/part.parquet": [
+      13862715,
+      1793094314256248623,
+      4171451
+    ],
+    "kline_minute/date=2026-09-28/part.parquet": [
+      14166899,
+      1793094536697360170,
+      4171457
+    ],
+    "kline_minute/date=2026-07-08/part.parquet": [
+      14690849,
+      1793136950960646177,
+      4175215
+    ],
+    "kline_minute/date=2026-05-27/part.parquet": [
+      146527,
+      1793143535487431404,
+      4175740
+    ],
+    "kline_minute/date=2026-04-10/part.parquet": [
+      6298,
+      1793225595505643001,
+      4681776
+    ],
+    "kline_minute/date=2026-08-13/part.parquet": [
+      14215458,
+      1793117736837167942,
+      4171624
+    ],
+    "kline_minute/date=2026-07-16/part.parquet": [
+      14707765,
+      1793137773859403759,
+      4175220
+    ],
+    "kline_minute/date=2026-10-15/part.parquet": [
+      14422781,
+      1793171195299590868,
+      692646
+    ],
+    "kline_minute/date=2026-04-22/part.parquet": [
+      6382,
+      1793225595519643135,
+      4681800
+    ],
+    "kline_minute/date=2026-05-29/part.parquet": [
+      198494,
+      1793143535500431522,
+      4175734
+    ],
+    "kline_minute/date=2026-05-08/part.parquet": [
+      6059,
+      1793209759644123504,
+      4681737
+    ],
+    "kline_minute/date=2026-06-12/part.parquet": [
+      13862057,
+      1793146690635601810,
+      4175770
+    ],
+    "kline_minute/date=2026-07-23/part.parquet": [
+      14250993,
+      1793115194989628379,
+      4171578
+    ],
+    "kline_minute/date=2026-09-10/part.parquet": [
+      13540348,
+      1793113241585564729,
+      4171557
+    ],
+    "kline_minute/date=2026-09-17/part.parquet": [
+      13715326,
+      1793094048128721707,
+      4171428
+    ],
+    "kline_minute/date=2026-08-14/part.parquet": [
+      14063197,
+      1793117736994169400,
+      4171627
+    ],
+    "kline_minute/date=2026-05-06/part.parquet": [
+      6044,
+      1793209759639123456,
+      4681731
+    ],
+    "kline_minute/date=2026-08-24/part.parquet": [
+      14218988,
+      1793111654432891796,
+      4171518
+    ],
+    "kline_minute/date=2026-07-21/part.parquet": [
+      15250767,
+      1793114433334586313,
+      4171572
+    ],
+    "kline_minute/date=2026-09-03/part.parquet": [
+      13968378,
+      1793112539971080784,
+      4171536
+    ],
+    "kline_minute/date=2026-09-07/part.parquet": [
+      13563570,
+      1793112906556468241,
+      4171548
+    ],
+    "kline_minute/date=2026-06-11/part.parquet": [
+      12685021,
+      1793146690502600574,
+      4175767
+    ],
+    "kline_minute/date=2026-05-14/part.parquet": [
+      4073,
+      1793209759649123552,
+      4681746
+    ],
+    "kline_minute/date=2026-07-29/part.parquet": [
+      14354522,
+      1793115909148233388,
+      4171599
+    ],
+    "kline_minute/date=2026-09-08/part.parquet": [
+      13750305,
+      1793112907091473185,
+      4171551
+    ],
+    "kline_minute/date=2026-06-25/part.parquet": [
+      14830107,
+      1793134245796723325,
+      4175184
+    ],
+    "kline_minute/date=2026-10-08/part.parquet": [
+      14289185,
+      1793094909231894050,
+      4171467
+    ],
+    "kline_minute/date=2026-08-11/part.parquet": [
+      14094066,
+      1793117736442164274,
+      4171633
+    ],
+    "kline_minute/date=2026-04-28/part.parquet": [
+      8904,
+      1793225614588825807,
+      4681809
+    ],
+    "kline_minute/date=2026-09-01/part.parquet": [
+      13772752,
+      1793112539661077920,
+      4171542
+    ],
+    "kline_minute/date=2026-06-04/part.parquet": [
+      3629744,
+      1793144597253171736,
+      4175752
+    ],
+    "kline_minute/date=2026-06-17/part.parquet": [
+      14377555,
+      1793147709862092393,
+      4175776
+    ],
+    "kline_minute/date=2026-10-14/part.parquet": [
+      13958028,
+      1793171195121588655,
+      4171472
+    ]
+  }
+}

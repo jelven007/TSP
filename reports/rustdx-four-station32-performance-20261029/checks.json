@@ -1,0 +1,20 @@
+{
+  "baseline_head": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "native_wheel_reused": true,
+  "new_tcp_gate": true,
+  "python_ruff": "All checks passed!",
+  "candidate_completed_phases": 4,
+  "candidate_peaks_32": true,
+  "candidate_quality_passed": 0,
+  "vendor_files_compared": 109,
+  "vendor_mismatches": [],
+  "original_provider_unchanged": true,
+  "original_facade_unchanged": true,
+  "production_provider_matches_baseline": true,
+  "prior_native_tests": 7,
+  "prior_single_station_socket_tests": 14,
+  "prior_native_checks_reexecuted_this_round": false,
+  "committed": false,
+  "pushed": false,
+  "deployed": false
+}
