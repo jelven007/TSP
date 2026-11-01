@@ -1,0 +1,984 @@
+{
+  "observations": [
+    {
+      "case": "case-0-four32",
+      "name": "four32",
+      "phase": "cold",
+      "group_seconds": 69.52646391700546,
+      "background_seconds": 62.24549941699661,
+      "task_seconds": {
+        "daily": 12.166077625006437,
+        "minute": 62.24418404100288
+      },
+      "actual_inflight_peak": 32,
+      "station_inflight_peaks": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "quality_passed": false,
+      "differences": {
+        "minute": {
+          "missing": 65520,
+          "extra": 0,
+          "changed": 1431
+        },
+        "daily": {
+          "missing": 0,
+          "extra": 0,
+          "changed": 0
+        }
+      },
+      "error_types": {
+        "socket_timeout": 24,
+        "source_changed": 6
+      },
+      "retries_by_station": [
+        24,
+        6,
+        0,
+        23
+      ],
+      "network_failures": 27,
+      "snapshots": {
+        "n": 1,
+        "median": 69.5263359160017,
+        "p95": 69.5263359160017,
+        "max": 69.5263359160017
+      },
+      "warmed_snapshots": {
+        "n": 0,
+        "median": null,
+        "p95": null,
+        "max": null
+      },
+      "snapshot_errors": [],
+      "endpoints": {
+        "117.34.114.13:7709": {
+          "assigned_symbols": 25,
+          "rows": 100800,
+          "missing_rows": 25200,
+          "changed_rows": 0,
+          "skipped_symbol_signals": 5,
+          "attempted_errors": 14,
+          "changed_fields": {
+            "open": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "high": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "low": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "close": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "volume": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "amount": {
+              "count": 0,
+              "max_abs_difference": 0
+            }
+          }
+        },
+        "115.238.56.198:7709": {
+          "assigned_symbols": 25,
+          "rows": 115920,
+          "missing_rows": 10080,
+          "changed_rows": 988,
+          "skipped_symbol_signals": 2,
+          "attempted_errors": 3,
+          "changed_fields": {
+            "open": {
+              "count": 366,
+              "max_abs_difference": 0.30000000000001137
+            },
+            "high": {
+              "count": 106,
+              "max_abs_difference": 0.22000000000002728
+            },
+            "low": {
+              "count": 95,
+              "max_abs_difference": 0.25
+            },
+            "close": {
+              "count": 376,
+              "max_abs_difference": 0.3199999999999932
+            },
+            "volume": {
+              "count": 976,
+              "max_abs_difference": 25867.0
+            },
+            "amount": {
+              "count": 984,
+              "max_abs_difference": 27011472.0
+            }
+          }
+        },
+        "180.153.18.170:7709": {
+          "assigned_symbols": 25,
+          "rows": 126000,
+          "missing_rows": 0,
+          "changed_rows": 403,
+          "skipped_symbol_signals": 0,
+          "attempted_errors": 0,
+          "changed_fields": {
+            "open": {
+              "count": 164,
+              "max_abs_difference": 0.25
+            },
+            "high": {
+              "count": 43,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "low": {
+              "count": 49,
+              "max_abs_difference": 0.18000000000000682
+            },
+            "close": {
+              "count": 93,
+              "max_abs_difference": 0.21999999999999886
+            },
+            "volume": {
+              "count": 307,
+              "max_abs_difference": 654.0
+            },
+            "amount": {
+              "count": 309,
+              "max_abs_difference": 948235.0
+            }
+          }
+        },
+        "110.41.147.114:7709": {
+          "assigned_symbols": 25,
+          "rows": 95760,
+          "missing_rows": 30240,
+          "changed_rows": 40,
+          "skipped_symbol_signals": 6,
+          "attempted_errors": 13,
+          "changed_fields": {
+            "open": {
+              "count": 11,
+              "max_abs_difference": 0.02000000000000135
+            },
+            "high": {
+              "count": 4,
+              "max_abs_difference": 0.010000000000001563
+            },
+            "low": {
+              "count": 1,
+              "max_abs_difference": 0.009999999999999787
+            },
+            "close": {
+              "count": 4,
+              "max_abs_difference": 0.019999999999999574
+            },
+            "volume": {
+              "count": 32,
+              "max_abs_difference": 127.0
+            },
+            "amount": {
+              "count": 32,
+              "max_abs_difference": 63808.0
+            }
+          }
+        }
+      },
+      "cold_warm": {
+        "changed_shared_keys": 1323,
+        "missing_from_warm": 80640,
+        "extra_in_warm": 60480
+      }
+    },
+    {
+      "case": "case-0-four32",
+      "name": "four32",
+      "phase": "warm",
+      "group_seconds": 34.161783959003515,
+      "background_seconds": 33.49475391699525,
+      "task_seconds": {
+        "daily": 8.248107416002313,
+        "minute": 33.47366945800604
+      },
+      "actual_inflight_peak": 32,
+      "station_inflight_peaks": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "quality_passed": false,
+      "differences": {
+        "minute": {
+          "missing": 85680,
+          "extra": 0,
+          "changed": 2000
+        },
+        "daily": {
+          "missing": 168,
+          "extra": 0,
+          "changed": 0
+        }
+      },
+      "error_types": {
+        "invalid_argument": 27,
+        "source_changed": 30,
+        "socket_timeout": 1
+      },
+      "retries_by_station": [
+        13,
+        8,
+        8,
+        14
+      ],
+      "network_failures": 50,
+      "snapshots": {
+        "n": 21,
+        "median": 0.16346349999366794,
+        "p95": 4.133180375007214,
+        "max": 4.145958791006706
+      },
+      "warmed_snapshots": {
+        "n": 21,
+        "median": 0.16346349999366794,
+        "p95": 4.133180375007214,
+        "max": 4.145958791006706
+      },
+      "snapshot_errors": [
+        "rustdx quotes 调用失败: [InvalidInput] Client::quotes(n=56): Invalid argument (os error 22)"
+      ],
+      "endpoints": {
+        "117.34.114.13:7709": {
+          "assigned_symbols": 25,
+          "rows": 120960,
+          "missing_rows": 5040,
+          "changed_rows": 0,
+          "skipped_symbol_signals": 1,
+          "attempted_errors": 12,
+          "changed_fields": {
+            "open": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "high": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "low": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "close": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "volume": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "amount": {
+              "count": 0,
+              "max_abs_difference": 0
+            }
+          }
+        },
+        "115.238.56.198:7709": {
+          "assigned_symbols": 25,
+          "rows": 80640,
+          "missing_rows": 45360,
+          "changed_rows": 1313,
+          "skipped_symbol_signals": 10,
+          "attempted_errors": 16,
+          "changed_fields": {
+            "open": {
+              "count": 548,
+              "max_abs_difference": 0.5800000000000125
+            },
+            "high": {
+              "count": 111,
+              "max_abs_difference": 0.4300000000000068
+            },
+            "low": {
+              "count": 130,
+              "max_abs_difference": 0.46000000000000796
+            },
+            "close": {
+              "count": 519,
+              "max_abs_difference": 0.6899999999999977
+            },
+            "volume": {
+              "count": 1292,
+              "max_abs_difference": 86585.0
+            },
+            "amount": {
+              "count": 1310,
+              "max_abs_difference": 25196183.0
+            }
+          }
+        },
+        "180.153.18.170:7709": {
+          "assigned_symbols": 25,
+          "rows": 105840,
+          "missing_rows": 20160,
+          "changed_rows": 216,
+          "skipped_symbol_signals": 11,
+          "attempted_errors": 19,
+          "changed_fields": {
+            "open": {
+              "count": 89,
+              "max_abs_difference": 0.14999999999999858
+            },
+            "high": {
+              "count": 22,
+              "max_abs_difference": 0.04999999999999716
+            },
+            "low": {
+              "count": 31,
+              "max_abs_difference": 0.0899999999999963
+            },
+            "close": {
+              "count": 47,
+              "max_abs_difference": 0.0899999999999963
+            },
+            "volume": {
+              "count": 164,
+              "max_abs_difference": 550.0
+            },
+            "amount": {
+              "count": 164,
+              "max_abs_difference": 420359.0
+            }
+          }
+        },
+        "110.41.147.114:7709": {
+          "assigned_symbols": 25,
+          "rows": 110880,
+          "missing_rows": 15120,
+          "changed_rows": 471,
+          "skipped_symbol_signals": 3,
+          "attempted_errors": 11,
+          "changed_fields": {
+            "open": {
+              "count": 138,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "high": {
+              "count": 30,
+              "max_abs_difference": 0.04999999999999716
+            },
+            "low": {
+              "count": 27,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "close": {
+              "count": 105,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "volume": {
+              "count": 453,
+              "max_abs_difference": 4127.0
+            },
+            "amount": {
+              "count": 453,
+              "max_abs_difference": 2868298.0
+            }
+          }
+        }
+      },
+      "cold_warm": {
+        "changed_shared_keys": 1323,
+        "missing_from_warm": 80640,
+        "extra_in_warm": 60480
+      }
+    },
+    {
+      "case": "case-1-baseline8",
+      "name": "baseline8",
+      "phase": "cold",
+      "group_seconds": 33.53112912499637,
+      "background_seconds": 33.53103137500875,
+      "task_seconds": {
+        "daily": 4.069582458003424,
+        "minute": 33.52980324999953
+      },
+      "actual_inflight_peak": 8,
+      "station_inflight_peaks": [
+        8
+      ],
+      "quality_passed": true,
+      "differences": {
+        "minute": {
+          "missing": 0,
+          "extra": 0,
+          "changed": 0
+        },
+        "daily": {
+          "missing": 0,
+          "extra": 0,
+          "changed": 0
+        }
+      },
+      "error_types": {},
+      "retries_by_station": [
+        0
+      ],
+      "network_failures": 0,
+      "snapshots": {
+        "n": 31,
+        "median": 0.12549645800027065,
+        "p95": 0.907440625000163,
+        "max": 10.876997625004151
+      },
+      "warmed_snapshots": {
+        "n": 30,
+        "median": 0.12549645800027065,
+        "p95": 0.7608737909904448,
+        "max": 0.907440625000163
+      },
+      "snapshot_errors": [],
+      "endpoints": {
+        "117.34.114.13:7709": {
+          "assigned_symbols": 100,
+          "rows": 504000,
+          "missing_rows": 0,
+          "changed_rows": 0,
+          "skipped_symbol_signals": 0,
+          "attempted_errors": 0,
+          "changed_fields": {
+            "open": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "high": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "low": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "close": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "volume": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "amount": {
+              "count": 0,
+              "max_abs_difference": 0
+            }
+          }
+        }
+      },
+      "cold_warm": {
+        "changed_shared_keys": 0,
+        "missing_from_warm": 70560,
+        "extra_in_warm": 0
+      }
+    },
+    {
+      "case": "case-1-baseline8",
+      "name": "baseline8",
+      "phase": "warm",
+      "group_seconds": 57.743140250007855,
+      "background_seconds": 57.69640812500438,
+      "task_seconds": {
+        "daily": 12.944499208999332,
+        "minute": 57.69615737500135
+      },
+      "actual_inflight_peak": 8,
+      "station_inflight_peaks": [
+        8
+      ],
+      "quality_passed": false,
+      "differences": {
+        "minute": {
+          "missing": 70560,
+          "extra": 0,
+          "changed": 0
+        },
+        "daily": {
+          "missing": 0,
+          "extra": 0,
+          "changed": 0
+        }
+      },
+      "error_types": {
+        "source_changed": 37
+      },
+      "retries_by_station": [
+        39
+      ],
+      "network_failures": 39,
+      "snapshots": {
+        "n": 46,
+        "median": 0.121361416997388,
+        "p95": 4.619168541001272,
+        "max": 5.511561874998733
+      },
+      "warmed_snapshots": {
+        "n": 46,
+        "median": 0.121361416997388,
+        "p95": 4.619168541001272,
+        "max": 5.511561874998733
+      },
+      "snapshot_errors": [],
+      "endpoints": {
+        "117.34.114.13:7709": {
+          "assigned_symbols": 100,
+          "rows": 433440,
+          "missing_rows": 70560,
+          "changed_rows": 0,
+          "skipped_symbol_signals": 14,
+          "attempted_errors": 37,
+          "changed_fields": {
+            "open": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "high": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "low": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "close": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "volume": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "amount": {
+              "count": 0,
+              "max_abs_difference": 0
+            }
+          }
+        }
+      },
+      "cold_warm": {
+        "changed_shared_keys": 0,
+        "missing_from_warm": 70560,
+        "extra_in_warm": 0
+      }
+    },
+    {
+      "case": "case-2-four32",
+      "name": "four32",
+      "phase": "cold",
+      "group_seconds": 12.853457624994917,
+      "background_seconds": 12.853349124998203,
+      "task_seconds": {
+        "daily": 7.310629792002146,
+        "minute": 12.852931332992739
+      },
+      "actual_inflight_peak": 32,
+      "station_inflight_peaks": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "quality_passed": false,
+      "differences": {
+        "minute": {
+          "missing": 0,
+          "extra": 0,
+          "changed": 1945
+        },
+        "daily": {
+          "missing": 0,
+          "extra": 0,
+          "changed": 0
+        }
+      },
+      "error_types": {},
+      "retries_by_station": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "network_failures": 0,
+      "snapshots": {
+        "n": 5,
+        "median": 0.16899041600117926,
+        "p95": 9.613200457999483,
+        "max": 9.613200457999483
+      },
+      "warmed_snapshots": {
+        "n": 4,
+        "median": 0.16899041600117926,
+        "p95": 0.5561503339995397,
+        "max": 0.5561503339995397
+      },
+      "snapshot_errors": [],
+      "endpoints": {
+        "117.34.114.13:7709": {
+          "assigned_symbols": 25,
+          "rows": 126000,
+          "missing_rows": 0,
+          "changed_rows": 0,
+          "skipped_symbol_signals": 0,
+          "attempted_errors": 0,
+          "changed_fields": {
+            "open": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "high": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "low": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "close": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "volume": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "amount": {
+              "count": 0,
+              "max_abs_difference": 0
+            }
+          }
+        },
+        "115.238.56.198:7709": {
+          "assigned_symbols": 25,
+          "rows": 126000,
+          "missing_rows": 0,
+          "changed_rows": 1041,
+          "skipped_symbol_signals": 0,
+          "attempted_errors": 0,
+          "changed_fields": {
+            "open": {
+              "count": 401,
+              "max_abs_difference": 0.5800000000000125
+            },
+            "high": {
+              "count": 107,
+              "max_abs_difference": 0.4300000000000068
+            },
+            "low": {
+              "count": 100,
+              "max_abs_difference": 0.46000000000000796
+            },
+            "close": {
+              "count": 397,
+              "max_abs_difference": 0.6899999999999977
+            },
+            "volume": {
+              "count": 1026,
+              "max_abs_difference": 6592.0
+            },
+            "amount": {
+              "count": 1037,
+              "max_abs_difference": 39779040.0
+            }
+          }
+        },
+        "180.153.18.170:7709": {
+          "assigned_symbols": 25,
+          "rows": 126000,
+          "missing_rows": 0,
+          "changed_rows": 420,
+          "skipped_symbol_signals": 0,
+          "attempted_errors": 0,
+          "changed_fields": {
+            "open": {
+              "count": 162,
+              "max_abs_difference": 0.25
+            },
+            "high": {
+              "count": 40,
+              "max_abs_difference": 0.1700000000000017
+            },
+            "low": {
+              "count": 50,
+              "max_abs_difference": 0.0899999999999963
+            },
+            "close": {
+              "count": 92,
+              "max_abs_difference": 0.21999999999999886
+            },
+            "volume": {
+              "count": 319,
+              "max_abs_difference": 654.0
+            },
+            "amount": {
+              "count": 322,
+              "max_abs_difference": 948235.0
+            }
+          }
+        },
+        "110.41.147.114:7709": {
+          "assigned_symbols": 25,
+          "rows": 126000,
+          "missing_rows": 0,
+          "changed_rows": 484,
+          "skipped_symbol_signals": 0,
+          "attempted_errors": 0,
+          "changed_fields": {
+            "open": {
+              "count": 140,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "high": {
+              "count": 31,
+              "max_abs_difference": 0.04999999999999716
+            },
+            "low": {
+              "count": 28,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "close": {
+              "count": 107,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "volume": {
+              "count": 465,
+              "max_abs_difference": 4127.0
+            },
+            "amount": {
+              "count": 465,
+              "max_abs_difference": 2868298.0
+            }
+          }
+        }
+      },
+      "cold_warm": {
+        "changed_shared_keys": 865,
+        "missing_from_warm": 45360,
+        "extra_in_warm": 0
+      }
+    },
+    {
+      "case": "case-2-four32",
+      "name": "four32",
+      "phase": "warm",
+      "group_seconds": 23.452428791002603,
+      "background_seconds": 23.45235025000875,
+      "task_seconds": {
+        "daily": 7.486824666004395,
+        "minute": 23.452074875007384
+      },
+      "actual_inflight_peak": 32,
+      "station_inflight_peaks": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "quality_passed": false,
+      "differences": {
+        "minute": {
+          "missing": 45360,
+          "extra": 0,
+          "changed": 1154
+        },
+        "daily": {
+          "missing": 0,
+          "extra": 0,
+          "changed": 0
+        }
+      },
+      "error_types": {
+        "source_changed": 28,
+        "invalid_argument": 6,
+        "socket_timeout": 12
+      },
+      "retries_by_station": [
+        11,
+        20,
+        11,
+        16
+      ],
+      "network_failures": 40,
+      "snapshots": {
+        "n": 15,
+        "median": 0.21892762499919627,
+        "p95": 3.4082738750003045,
+        "max": 3.4082738750003045
+      },
+      "warmed_snapshots": {
+        "n": 15,
+        "median": 0.21892762499919627,
+        "p95": 3.4082738750003045,
+        "max": 3.4082738750003045
+      },
+      "snapshot_errors": [
+        "rustdx quotes 调用失败: [TimedOut] connection timed out"
+      ],
+      "endpoints": {
+        "117.34.114.13:7709": {
+          "assigned_symbols": 25,
+          "rows": 126000,
+          "missing_rows": 0,
+          "changed_rows": 0,
+          "skipped_symbol_signals": 0,
+          "attempted_errors": 10,
+          "changed_fields": {
+            "open": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "high": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "low": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "close": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "volume": {
+              "count": 0,
+              "max_abs_difference": 0
+            },
+            "amount": {
+              "count": 0,
+              "max_abs_difference": 0
+            }
+          }
+        },
+        "115.238.56.198:7709": {
+          "assigned_symbols": 25,
+          "rows": 90720,
+          "missing_rows": 35280,
+          "changed_rows": 281,
+          "skipped_symbol_signals": 7,
+          "attempted_errors": 16,
+          "changed_fields": {
+            "open": {
+              "count": 102,
+              "max_abs_difference": 0.049999999999998934
+            },
+            "high": {
+              "count": 18,
+              "max_abs_difference": 0.040000000000000924
+            },
+            "low": {
+              "count": 15,
+              "max_abs_difference": 0.019999999999999574
+            },
+            "close": {
+              "count": 85,
+              "max_abs_difference": 0.040000000000000924
+            },
+            "volume": {
+              "count": 274,
+              "max_abs_difference": 86585.0
+            },
+            "amount": {
+              "count": 279,
+              "max_abs_difference": 25196183.0
+            }
+          }
+        },
+        "180.153.18.170:7709": {
+          "assigned_symbols": 25,
+          "rows": 126000,
+          "missing_rows": 0,
+          "changed_rows": 438,
+          "skipped_symbol_signals": 0,
+          "attempted_errors": 10,
+          "changed_fields": {
+            "open": {
+              "count": 181,
+              "max_abs_difference": 0.25
+            },
+            "high": {
+              "count": 45,
+              "max_abs_difference": 0.1700000000000017
+            },
+            "low": {
+              "count": 55,
+              "max_abs_difference": 0.18000000000000682
+            },
+            "close": {
+              "count": 103,
+              "max_abs_difference": 0.21999999999999886
+            },
+            "volume": {
+              "count": 339,
+              "max_abs_difference": 550.0
+            },
+            "amount": {
+              "count": 341,
+              "max_abs_difference": 1987595.0
+            }
+          }
+        },
+        "110.41.147.114:7709": {
+          "assigned_symbols": 25,
+          "rows": 115920,
+          "missing_rows": 10080,
+          "changed_rows": 435,
+          "skipped_symbol_signals": 2,
+          "attempted_errors": 10,
+          "changed_fields": {
+            "open": {
+              "count": 127,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "high": {
+              "count": 27,
+              "max_abs_difference": 0.04999999999999716
+            },
+            "low": {
+              "count": 22,
+              "max_abs_difference": 0.05999999999999872
+            },
+            "close": {
+              "count": 96,
+              "max_abs_difference": 0.07000000000000028
+            },
+            "volume": {
+              "count": 419,
+              "max_abs_difference": 4127.0
+            },
+            "amount": {
+              "count": 419,
+              "max_abs_difference": 2868298.0
+            }
+          }
+        }
+      },
+      "cold_warm": {
+        "changed_shared_keys": 865,
+        "missing_from_warm": 45360,
+        "extra_in_warm": 0
+      }
+    }
+  ],
+  "complete_cases": 3,
+  "complete_phases": 6,
+  "candidate_phases": 4,
+  "candidate_quality_passed": 0,
+  "all_candidate_peaks_32": true,
+  "fastest_full_row_candidate_seconds": 12.853457624994917,
+  "single_full_quality_control_seconds": 33.53112912499637,
+  "fastest_elapsed_reduction_percent": 61.66708977475774,
+  "elapsed_reduction_is_usable_speedup": false
+}

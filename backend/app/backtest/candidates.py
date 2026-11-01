@@ -6,6 +6,7 @@ import json
 import os
 import threading
 import uuid
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -149,6 +150,17 @@ class CandidateStore:
         with _lock:
             return self._load()
 
+    def _strategy_guard(self, config):
+        sid = config.get("strategy_id")
+        # SQL's in-memory validation adapter is guarded by its owning transaction.
+        if not sid or not hasattr(self, "path"):
+            return nullcontext()
+        from app.services.strategy_results import StrategyResults
+
+        store = StrategyResults(self.path.parent.parent)
+        generation = int(store.states([sid]).get(sid, {}).get("generation", 0))
+        return store.guard(sid, generation)
+
     def create(
         self,
         *,
@@ -167,7 +179,7 @@ class CandidateStore:
         clean_config = self._validate_config(kind, config)
         clean_metrics = self._validate_metrics(kind, metrics)
 
-        with _lock:
+        with _lock, self._strategy_guard(clean_config):
             items = self._load()
             if len(items) >= MAX_CANDIDATES:
                 raise CandidateValidationError(f"候选方案最多保存 {MAX_CANDIDATES} 个")
@@ -214,7 +226,7 @@ class CandidateStore:
         ):
             raise CandidateValidationError("候选来源与配置中的挖掘溯源不一致")
 
-        with _lock:
+        with _lock, self._strategy_guard(clean_config):
             items = self._load()
             for item in items:
                 item_config = item.get("config") or {}

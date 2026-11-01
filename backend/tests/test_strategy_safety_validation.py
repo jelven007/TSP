@@ -114,6 +114,7 @@ def test_all_shipped_builtin_strategies_pass():
         f"app.strategy.builtin.{name}"
         for name in dependency_names
     )
+    dependency_names |= frozenset({"app.strategy.momentum_selection"})
     paths = sorted(path for path in root.glob("*.py") if not path.name.startswith("_"))
     assert paths, "兼容性校验必须覆盖实际内置策略"
     for path in paths:

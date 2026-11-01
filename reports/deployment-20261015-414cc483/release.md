@@ -5,7 +5,7 @@
 - 状态：成功
 - 生产版本：`414cc48379cd6ecdb664d373b22d37dcdac5b29a`
 - 切流时间：2026-10-15 20:37:03 至 20:37:26（UTC+8）
-- 生产地址：<https://118.196.108.188/>
+- 生产地址：<https://203.0.113.10/>
 - 当前 release：`/opt/tsp-full/release-414cc483`
 - 前一版本：`/opt/tsp-full/release-2a3b395`
 

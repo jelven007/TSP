@@ -239,7 +239,7 @@ export function WatchlistGroupBar({
   )
 }
 
-function GroupColorPicker({
+export function GroupColorPicker({
   value,
   onChange,
 }: {

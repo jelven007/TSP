@@ -1,0 +1,14 @@
+{
+  "only_changed_strategy_key": "deadline",
+  "baseline_reproduced_all_metrics": true,
+  "baseline_reproduced_parquet_tables": [
+    "trades",
+    "equity",
+    "orders",
+    "ledger",
+    "entitlements"
+  ],
+  "shared_input_files_unchanged": 102,
+  "parameter_search": false,
+  "no_rolling_price_or_universe_refresh": true
+}

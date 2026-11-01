@@ -2,7 +2,8 @@
 
 脚本复用 `backend/app/` 的既有服务、仓库与数据契约。
 从 `backend` 执行 `uv run --frozen --no-sync python -m scripts.<分类>.<模块> ...`；
-先按冻结锁安装依赖。旧位置转换见[迁移表](../../reports/document-consolidation-20261024/historical-evidence.md#layout-history-3-目录迁移对照)。
+先按冻结锁安装依赖。当前文件归属见[工程目录](../../docs/reference/engineering.md#layout)，
+历史位置转换见[迁移表](../../reports/document-consolidation-20261024/historical-evidence.md#layout-history-3-目录迁移对照)。
 
 | 分类 | 现有模块 | 职责 |
 | --- | --- | --- |

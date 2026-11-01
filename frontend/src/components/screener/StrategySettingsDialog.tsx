@@ -13,6 +13,10 @@ import { ScoringEditor } from '@/components/ScoringEditor'
 import { OverlayFilterEditor } from './OverlayFilterEditor'
 import { StrategyParamGroups } from '@/components/StrategyParamGroups'
 import { applyParamValue } from '@/lib/strategyParams'
+import { OvernightExecutionSummary } from '@/components/OvernightExecutionSummary'
+import { BasicFilterEditor, ALL_BOARDS } from './BasicFilterEditor'
+import { validateBasicFilter } from '@/lib/strategyBasicFilter'
+export { RangeField, ALL_BOARDS } from './BasicFilterEditor'
 
 // 内置列名 → 中文标签
 const FIELD_LABEL: Record<string, string> = {}
@@ -81,46 +85,20 @@ function Section({ icon: Icon, title, accent, defaultOpen = true, children, extr
 }
 
 
-// ===== 区间字段（最小 ~ 最大） =====
-export function RangeField({ label, minVal, maxVal, onMinChange, onMaxChange, unit, step }: {
-  label: string
-  minVal: any
-  maxVal: any
-  onMinChange: (v: any) => void
-  onMaxChange: (v: any) => void
-  unit?: string
-  step?: string
-}) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[11px] text-secondary w-16 shrink-0 text-right">{label}</span>
-      <input
-        type="number"
-        value={minVal ?? ''}
-        onChange={e => onMinChange(e.target.value === '' ? null : Number(e.target.value))}
-        placeholder="最小"
-        step={step}
-        className="w-20 px-1.5 py-0.5 rounded bg-base border border-border text-[11px] font-mono text-foreground text-center focus:outline-none focus:border-accent/50"
-      />
-      <span className="text-[10px] text-muted">~</span>
-      <input
-        type="number"
-        value={maxVal ?? ''}
-        onChange={e => onMaxChange(e.target.value === '' ? null : Number(e.target.value))}
-        placeholder="最大"
-        step={step}
-        className="w-20 px-1.5 py-0.5 rounded bg-base border border-border text-[11px] font-mono text-foreground text-center focus:outline-none focus:border-accent/50"
-      />
-      {unit && <span className="text-[10px] text-muted shrink-0">{unit}</span>}
-    </div>
-  )
+function initializeTargets(bf: Record<string, any>) {
+  if (!bf.target_mode) {
+    const legacyBoards = bf.boards as string[] | undefined
+    bf.target_mode = bf.enabled !== false && legacyBoards?.length && legacyBoards.length < ALL_BOARDS.length ? 'selected' : 'all'
+    bf.boards = bf.target_mode === 'selected' ? legacyBoards : []
+    bf.include_custom = false
+    bf.watchlist_group_ids = []
+    bf.exclude_st = bf.enabled !== false && !!bf.exclude_st
+  }
+  return bf
 }
 
-// 板块标签
-export const ALL_BOARDS = ['沪主板', '深主板', '创业板', '科创板']
-
 // 策略参数字段
-function ParamField({ def, value, onChange }: {
+export function ParamField({ def, value, onChange }: {
   def: StrategyParamDef
   value: any
   onChange: (v: any) => void
@@ -129,7 +107,7 @@ function ParamField({ def, value, onChange }: {
     const checked = value === true || value === 'true' || value === 'True'
     return (
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-secondary w-16 shrink-0 text-right">{def.label}</span>
+        <span className="text-[11px] text-secondary w-40 shrink-0 text-right">{def.label}</span>
         <button
           type="button"
           onClick={() => onChange(!checked)}
@@ -149,12 +127,12 @@ function ParamField({ def, value, onChange }: {
   if (def.type === 'select' && def.options) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-secondary w-16 shrink-0 text-right">{def.label}</span>
+        <span className="text-[11px] text-secondary w-40 shrink-0 text-right">{def.label}</span>
         <select
           aria-label={def.label}
           value={value ?? def.default}
           onChange={e => onChange(e.target.value)}
-          className="w-24 px-1.5 py-0.5 rounded bg-base border border-border text-[11px] font-mono text-foreground focus:outline-none focus:border-accent/50"
+          className="flex-1 min-w-0 px-1.5 py-0.5 rounded bg-base border border-border text-[11px] font-mono text-foreground focus:outline-none focus:border-accent/50"
         >
           {def.options.map(o => <option key={o} value={o}>{def.option_labels?.[o] ?? o}</option>)}
         </select>
@@ -164,7 +142,7 @@ function ParamField({ def, value, onChange }: {
   if (def.type === 'string') {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-secondary w-16 shrink-0 text-right">{def.label}</span>
+        <span className="text-[11px] text-secondary w-40 shrink-0 text-right">{def.label}</span>
         <input
           type="text"
           aria-label={def.label}
@@ -175,26 +153,44 @@ function ParamField({ def, value, onChange }: {
       </div>
     )
   }
-
-
+  const scale = def.display_scale ?? 1
+  const displayed = Number((Number(value ?? def.default) * scale).toPrecision(12))
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] text-secondary w-16 shrink-0 text-right">{def.label}</span>
+      <span className="text-[11px] text-secondary w-40 shrink-0 text-right">{def.label}</span>
       <input
         type="number"
         aria-label={def.label}
-        value={value ?? def.default}
-        onChange={e => onChange(e.target.value === '' ? def.default : Number(e.target.value))}
-        step={def.step ?? 0.1}
-        min={def.min}
-        max={def.max}
+        value={displayed}
+        onChange={e => onChange(e.target.value === '' ? def.default : Number(e.target.value) / scale)}
+        step={def.step != null ? def.step * scale : 0.1}
+        min={def.min != null ? def.min * scale : undefined}
+        max={def.max != null ? def.max * scale : undefined}
         className="w-20 px-1.5 py-0.5 rounded bg-base border border-border text-[11px] font-mono text-foreground text-center focus:outline-none focus:border-accent/50"
       />
+      {def.unit && <span className="text-[10px] text-muted">{def.unit}</span>}
       {def.min != null && def.max != null && (
-        <span className="text-[10px] text-muted">{def.min}~{def.max}</span>
+        <span className="text-[10px] text-muted">{def.min * scale}~{def.max * scale}</span>
       )}
     </div>
   )
+}
+
+function PercentField({ label, value, onChange, max = 50, min = 0 }: {
+  label: string
+  value: number | null
+  onChange: (value: number | null) => void
+  max?: number
+  min?: number
+}) {
+  return <label className="flex items-center gap-2 text-xs text-secondary">
+    <span className="min-w-0 flex-1">{label}</span>
+    <input type="number" aria-label={label} value={value == null ? '' : Number((Math.abs(value) * 100).toPrecision(12))}
+      placeholder="关闭" min={min} max={max} step={0.5}
+      onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value) / 100)}
+      className="w-16 px-1.5 py-1 rounded bg-base border border-border text-xs font-mono text-foreground text-center" />
+    <span className="text-[10px] text-muted">%</span>
+  </label>
 }
 
 export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModify, onDeleted }: Props) {
@@ -202,7 +198,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const [detail, setDetail] = useState<StrategyDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [resetting, setResetting] = useState(false)
+  const [restored, setRestored] = useState(false)
 
   // 编辑状态
   const [strategyName, setStrategyName] = useState('')
@@ -214,6 +210,10 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const [overlayFilter, setOverlayFilter] = useState<CustomSignalCondition[]>([])
   const [saveError, setSaveError] = useState('')
   const [stopLoss, setStopLoss] = useState<number | null>(null)
+  const [takeProfit, setTakeProfit] = useState<number | null>(null)
+  const [trailingStop, setTrailingStop] = useState<number | null>(null)
+  const [trailingActivate, setTrailingActivate] = useState<number | null>(null)
+  const [trailingDrawdown, setTrailingDrawdown] = useState<number | null>(null)
   const [entryRisk, setEntryRisk] = useState<EntryRiskPolicy>({})
   const [maxHoldDays, setMaxHoldDays] = useState<number | null>(null)
   const [entrySignals, setEntrySignals] = useState<string[]>([])
@@ -239,59 +239,58 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
     queryKey: QK.watchlistGroups, queryFn: api.watchlistGroups,
     enabled: !!strategyId && basicFilter.target_mode === 'selected' && !!basicFilter.include_custom,
   })
-  const initializeTargets = (bf: Record<string, any>) => {
-    if (!bf.target_mode) {
-      const legacyBoards = bf.boards as string[] | undefined
-      bf.target_mode = legacyBoards?.length && legacyBoards.length < ALL_BOARDS.length ? 'selected' : 'all'
-      bf.boards = bf.target_mode === 'selected' ? legacyBoards : []
-      bf.include_custom = false
-      bf.watchlist_group_ids = []
-      bf.exclude_st = bf.enabled !== false && !!bf.exclude_st
-    }
-    return bf
-  }
+  const applyDraft = useCallback((d: StrategyDetail) => {
+    setStrategyName(d.name ?? '')
+    setStrategyDesc(d.description ?? '')
+    setBasicFilter(initializeTargets({ ...d.basic_filter }))
+    setParams({ ...d.params_defaults })
+    setScoring({ ...d.scoring })
+    setScoringDirections({ ...d.scoring_directions })
+    setOverlayFilter((d.overlay_filter ?? []).map(c => ({ ...c })))
+    setStopLoss(d.stop_loss ?? null)
+    setTakeProfit(d.take_profit ?? null)
+    setTrailingStop(d.trailing_stop ?? null)
+    setTrailingActivate(d.trailing_take_profit_activate ?? null)
+    setTrailingDrawdown(d.trailing_take_profit_drawdown ?? null)
+    setEntryRisk({ ...d.entry_risk })
+    setMaxHoldDays(d.max_hold_days ?? null)
+    setEntrySignals([...(d.entry_signals ?? [])])
+    setExitSignals([...(d.exit_signals ?? [])])
+    setDisplayLimit(d.display_limit ?? null)
+    setBasicFilterEnabled(d.basic_filter?.enabled !== false)
+    const list = d.composite_children ?? []
+    const pcts = toPercentages(list.map(c => c.weight))
+    setCompositeChildren(list.map((c, i) => ({ ...c, weight: pcts[i] })))
+  }, [])
 
   // 加载策略详情
   useEffect(() => {
+    let cancelled = false
+    setDetail(null)
     if (!strategyId) return
     setEditingChildId(null)
     setLoading(true)
     setSaveError('')
+    setRestored(false)
+    setShowDeleteConfirm(false)
+    setShowAddChild(false)
+    setAllStrategies([])
     api.strategyGet(strategyId)
       .then(d => {
+        if (cancelled) return
         setDetail(d)
-        setStrategyName(d.name ?? '')
-        setStrategyDesc(d.description ?? '')
-        // 确保 boards 有默认值
-        const bf = { ...d.basic_filter }
-        setBasicFilter(initializeTargets(bf))
-        setParams(d.params_defaults)
-        setScoring(d.scoring)
-        setScoringDirections(d.scoring_directions ?? {})
-        setOverlayFilter((d.overlay_filter ?? []).map(c => ({ ...c })))
-        setStopLoss(d.stop_loss)
-        setEntryRisk(d.entry_risk ?? {})
-        setMaxHoldDays(d.max_hold_days)
-        setEntrySignals(d.entry_signals ?? [])
-        setExitSignals(d.exit_signals ?? [])
-        setDisplayLimit(d.display_limit ?? null)
-        setBasicFilterEnabled(d.basic_filter?.enabled !== false)
-        setCompositeChildren((() => {
-          // 存储的小数权重 → 滑块百分比口径
-          const list = d.composite_children ?? []
-          const pcts = toPercentages(list.map(c => c.weight))
-          return list.map((c, i) => ({ ...c, weight: pcts[i] }))
-        })())
+        applyDraft(d)
         // composite 策略: 加载全部可选子策略(排除自身和其他 composite)供添加
         if (d.source === 'composite') {
           api.screenerStrategies().then(data => {
-            setAllStrategies((data.presets ?? []).filter(s => s.id !== strategyId && s.source !== 'composite'))
-          }).catch(() => setAllStrategies([]))
+            if (!cancelled) setAllStrategies((data.presets ?? []).filter(s => s.id !== strategyId && s.source !== 'composite'))
+          }).catch(() => { if (!cancelled) setAllStrategies([]) })
         }
       })
-      .catch(() => setDetail(null))
-      .finally(() => setLoading(false))
-  }, [strategyId])
+      .catch(() => { if (!cancelled) setDetail(null) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [strategyId, applyDraft])
 
   // 叠加策略: 滑块百分比口径, 允许总和 ≠100, 保存时自动按比例归一
   const compositeTotal = compositeChildren.reduce((s, c) => s + (c.weight || 0), 0)
@@ -306,7 +305,12 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
 
   // 保存
   const handleSave = async () => {
-    if (!strategyId) return
+    if (!strategyId || !detail || loading || saving || detail.id !== strategyId) return
+    const problem = validateBasicFilter(basicFilter)
+    if (problem) { setSaveError(problem); return }
+    if (trailingActivate != null && trailingDrawdown != null && Math.abs(trailingDrawdown) > Math.abs(trailingActivate)) {
+      setSaveError('移动止盈回撤不能大于启动涨幅'); return
+    }
     setSaving(true)
     setSaveError('')
     try {
@@ -322,6 +326,10 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
           scoring_replace: true,
         } : {}),
         stop_loss: stopLoss,
+        take_profit: takeProfit,
+        trailing_stop: trailingStop,
+        trailing_take_profit_activate: trailingActivate,
+        trailing_take_profit_drawdown: trailingDrawdown,
         entry_risk: entryRisk,
         max_hold_days: maxHoldDays,
         entry_signals: entrySignals,
@@ -337,6 +345,8 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
           : {}),
       })
       await qc.invalidateQueries({ queryKey: QK.watchlistGroups })
+      await qc.invalidateQueries({ queryKey: ['screener-strategies'] })
+      await qc.invalidateQueries({ queryKey: ['strategies'] })
       onSaved?.(displayLimit)
       onClose()
     } catch (error) {
@@ -347,33 +357,11 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   }
 
   // 重置
-  const handleReset = async () => {
-    if (!strategyId) return
-    setResetting(true)
-    try {
-      await api.strategyResetConfig(strategyId)
-      // 重新加载默认值
-      const d = await api.strategyGet(strategyId)
-      setDetail(d)
-      setStrategyName(d.name ?? '')
-      setStrategyDesc(d.description ?? '')
-      const bf = { ...d.basic_filter }
-      setBasicFilter(initializeTargets(bf))
-      setParams(d.params_defaults)
-      setScoring(d.scoring)
-      setScoringDirections(d.scoring_directions ?? {})
-      setOverlayFilter((d.overlay_filter ?? []).map(c => ({ ...c })))
-      setStopLoss(d.stop_loss)
-      setEntryRisk(d.entry_risk ?? {})
-      setMaxHoldDays(d.max_hold_days)
-      setEntrySignals(d.entry_signals ?? [])
-      setExitSignals(d.exit_signals ?? [])
-      setDisplayLimit(d.display_limit ?? null)
-      setBasicFilterEnabled(d.basic_filter?.enabled !== false)
-      setCompositeChildren(d.composite_children ?? [])
-    } finally {
-      setResetting(false)
-    }
+  const handleReset = () => {
+    if (!detail?.definition_defaults) return
+    applyDraft({ ...detail, ...detail.definition_defaults })
+    setRestored(true)
+    setSaveError('')
   }
 
   const handleDelete = async () => {
@@ -382,6 +370,24 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
     setDeleteError('')
     try {
       await api.strategyDelete(strategyId)
+      const removed = {
+        predicate: (query: { queryKey: readonly unknown[] }) => {
+          const key = query.queryKey
+          return ((key[0] === QK.screenerHistory(strategyId)[0]
+            || key[0] === QK.screenerHistoryDetail(strategyId, '')[0]
+            || key[0] === QK.strategyDetail(strategyId)[0]) && key[1] === strategyId)
+            || (key[0] === QK.screenerCached()[0] && key[1] === 'strategy' && key[2] === strategyId)
+        },
+      }
+      await qc.cancelQueries(removed)
+      qc.removeQueries(removed)
+      await Promise.all([
+        ['screener-strategies'], ['strategies'], QK.strategyLinkOptions(),
+        QK.watchlistStrategyOptions(), QK.watchlistGroups, QK.researchCandidates, ['research-jobs'],
+      ].map(queryKey => qc.invalidateQueries({ queryKey })))
+      await qc.invalidateQueries({ predicate: query =>
+        query.queryKey[0] === QK.screenerCached()[0] && query.queryKey[1] !== 'strategy',
+      })
       onDeleted?.()
       onClose()
       setShowDeleteConfirm(false)
@@ -411,6 +417,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
     <>
     <Modal
       onClose={onClose}
+      closeDisabled={saving}
       labelledBy="strategy-settings-title"
       size="xl"
     >
@@ -434,7 +441,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                   下载策略
                 </button>
               )}
-              <button aria-label="关闭" onClick={onClose} className="modal-close"><X className="h-4 w-4 text-muted" /></button>
+              <button aria-label="关闭" disabled={saving} onClick={onClose} className="modal-close"><X className="h-4 w-4 text-muted" /></button>
             </div>
           </div>
 
@@ -444,8 +451,13 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
               <div className="flex items-center justify-center py-16"><div className="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin" /></div>
             ) : detail ? (
               <>
+                <p className="text-xs text-muted leading-5">
+                  当前策略设置：显示原始定义与已保存修改合并后的值；新建策略模板不影响这里。
+                  保存后用于下次运行，历史选股和回测结果保留。
+                </p>
+                {restored && <p role="status" className="text-xs text-accent">已将策略原始值载入草稿，点击保存设置后生效；关闭可取消。</p>}
                 {/* 名称 + 描述 + 显示上限 */}
-                <div className="flex items-end gap-4">
+                <div className="flex flex-wrap items-end gap-4">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-muted/50 uppercase tracking-wider w-8 shrink-0">名称</span>
@@ -625,20 +637,9 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                 : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
                   {/* 列1：选股条件 */}
-                    <Section icon={Filter} title="基础参数" accent="text-sky-400">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] text-muted">启用基础参数过滤</span>
-                        <button onClick={() => setBasicFilterEnabled(v => !v)}
-                          className={`relative w-8 h-[18px] rounded-full transition-colors ${basicFilterEnabled ? 'bg-sky-500' : 'bg-border'}`}>
-                          <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform ${basicFilterEnabled ? 'left-[16px]' : 'left-0.5'}`} />
-                        </button>
-                      </div>
-                      <div className={`space-y-2 transition-opacity duration-200 ${basicFilterEnabled ? '' : 'opacity-25 pointer-events-none'}`}>
-                      <RangeField label="价格" minVal={basicFilter.price_min} maxVal={basicFilter.price_max} onMinChange={v => setBF('price_min', v)} onMaxChange={v => setBF('price_max', v)} unit="元" step="1" />
-                      <RangeField label="流通市值" minVal={basicFilter.float_cap_min != null ? basicFilter.float_cap_min / 1e8 : null} maxVal={basicFilter.float_cap_max != null ? basicFilter.float_cap_max / 1e8 : null} onMinChange={v => setBF('float_cap_min', v != null ? v * 1e8 : null)} onMaxChange={v => setBF('float_cap_max', v != null ? v * 1e8 : null)} unit="亿" step="5" />
-                      <RangeField label="成交额" minVal={basicFilter.amount_min != null ? basicFilter.amount_min / 1e8 : null} maxVal={basicFilter.amount_max != null ? basicFilter.amount_max / 1e8 : null} onMinChange={v => setBF('amount_min', v != null ? v * 1e8 : null)} onMaxChange={v => setBF('amount_max', v != null ? v * 1e8 : null)} unit="亿" step="0.5" />
-                      <RangeField label="换手率" minVal={basicFilter.turnover_min} maxVal={basicFilter.turnover_max} onMinChange={v => setBF('turnover_min', v)} onMaxChange={v => setBF('turnover_max', v)} unit="%" step="0.5" />
-                    </div>
+                    <Section icon={Filter} title="数值过滤" accent="text-sky-400">
+                      <BasicFilterEditor value={{ ...basicFilter, enabled: basicFilterEnabled }} disabled={saving}
+                        onChange={next => { setBasicFilter(next); setBasicFilterEnabled(next.enabled !== false) }} />
                   </Section>
 
                   {/* 列2：策略参数 */}
@@ -663,6 +664,9 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
 
                   {/* 列3：评分 + 交易 */}
                   <div className="space-y-3">
+                    {['overnight_capacity_v1', 'momentum_capacity_v1'].includes(detail.minute_execution ?? '') ? (
+                      <OvernightExecutionSummary params={params} momentum={detail.minute_execution === 'momentum_capacity_v1'} />
+                    ) : <>
                     <Section icon={Star} title="评分权重" accent="text-amber-400">
                       <ScoringEditor
                         key={detail.id}
@@ -675,18 +679,18 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                         }}
                       />
                     </Section>
-
                     <Section icon={TrendingUp} title="交易参数" accent="text-emerald-400">
                       <div className="space-y-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] text-secondary w-12 shrink-0">止损</span>
-                          <input type="number" value={stopLoss ?? ''} onChange={e => setStopLoss(e.target.value === '' ? null : Number(e.target.value))} step={0.01} min={-0.5} max={0}
-                            className="w-16 h-6 px-1.5 rounded bg-base border border-border text-[11px] font-mono text-foreground text-center focus:outline-none focus:border-accent/50" />
-                          <span className="text-[10px] text-muted">{stopLoss != null ? `${(stopLoss * 100).toFixed(1)}%` : '—'}</span>
-                        </div>
+                        <p className="text-[11px] text-muted leading-4">统一输入百分数，例如 6 表示 6%；留空关闭。分钟专用策略的退出规则由策略参数管理。</p>
+                        <PercentField label="固定止损" value={stopLoss} onChange={v => setStopLoss(v == null ? null : -v)} />
+                        <PercentField label="固定止盈" value={takeProfit} onChange={setTakeProfit} min={1} max={500} />
+                        <PercentField label="移动止损" value={trailingStop} onChange={v => setTrailingStop(v == null ? null : -v)} min={0.5} />
+                        <PercentField label="移动止盈启动" value={trailingActivate} onChange={setTrailingActivate} min={1} max={200} />
+                        <PercentField label="移动止盈回撤" value={trailingDrawdown} onChange={setTrailingDrawdown} min={0.5} />
+                        <p className="text-[10px] text-muted">移动止盈需同时设置启动和回撤；回撤不得大于启动涨幅。</p>
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] text-secondary w-12 shrink-0">持有</span>
-                          <input type="number" value={maxHoldDays ?? ''} onChange={e => setMaxHoldDays(e.target.value === '' ? null : Number(e.target.value))} step={1} min={1}
+                          <input type="number" aria-label="最长持有" placeholder="关闭" value={maxHoldDays ?? ''} onChange={e => setMaxHoldDays(e.target.value === '' ? null : Number(e.target.value))} step={1} min={1}
                             className="w-16 h-6 px-1.5 rounded bg-base border border-border text-[11px] font-mono text-foreground text-center focus:outline-none focus:border-accent/50" />
                           <span className="text-[10px] text-muted">天</span>
                         </div>
@@ -749,7 +753,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                     <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2 text-[10px] leading-4 text-muted">
                       入场叠加条件对选股、回测和监控统一生效。出场触发器及风控退出独立执行。
                     </div>
-
+                    </>}
                   </div>
                 </div>
                 )}
@@ -763,9 +767,9 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
           {saveError && <p role="alert" className="px-5 py-2 text-xs text-danger">{saveError}</p>}
           <div className="modal-footer flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <button onClick={handleReset} disabled={resetting}
+              <button onClick={handleReset} disabled={saving || loading || !detail?.definition_defaults}
                 className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-surface text-xs text-secondary hover:text-danger hover:border-danger/30 transition-colors cursor-pointer disabled:opacity-50">
-                <RotateCcw className="h-3.5 w-3.5" />{resetting ? '重置中…' : '重置默认'}
+                <RotateCcw className="h-3.5 w-3.5" />恢复策略原始值
               </button>
               {(detail?.source === 'ai' || detail?.source === 'custom' || detail?.source === 'composite') && (
                 <button onClick={() => { setDeleteError(''); setShowDeleteConfirm(true) }}
@@ -779,7 +783,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                   <Sparkles className="h-3.5 w-3.5" />AI 修改
                 </button>
               )}
-              <button onClick={handleSave} disabled={saving}
+              <button onClick={handleSave} disabled={saving || loading || !detail}
                 className="inline-flex items-center gap-1.5 h-8 px-4 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors cursor-pointer disabled:opacity-50">
                 <Save className="h-3.5 w-3.5" />{saving ? '保存中…' : '保存设置'}
               </button>
@@ -801,7 +805,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                 <div className="text-xs text-muted mt-1">确定要删除「{detail?.name ?? strategyId}」吗？</div>
               </div>
               <div className="text-[11px] text-danger/70 bg-danger/[0.04] rounded-lg px-3 py-2 border border-danger/10">
-                删除后无法恢复，策略文件、配置和关联数据将被永久清除。
+                删除后无法恢复。策略文件、配置、历史选股结果及关联的回测、优化记录和研究候选将永久清除，正在执行的关联任务结果会被丢弃。
               </div>
               {deleteError && (
                 <div className="text-[11px] text-danger bg-danger/10 rounded-lg px-3 py-2 border border-danger/20">

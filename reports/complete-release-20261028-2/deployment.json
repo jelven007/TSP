@@ -1,0 +1,444 @@
+{
+  "checked_at": "2026-10-28T05:48:53.964426+00:00",
+  "version": "0.4.36",
+  "revision": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+  "registry_digest": "sha256:52538c6d70969f49bb222aa96c86865cc779dab54daf45cdd3e53a0ccb48d69e",
+  "source_archive_sha256": "7b9310b5b75bede32ce63eb0d58fcff243f7ad59226551e59eb7ef095cf98a9c",
+  "pr": "https://github.com/jelven007/TSP/pull/32",
+  "main_ci": 40633477842,
+  "docker_ci": 40634117169,
+  "branch_deleted": "fix/minute-history-performance-20261028",
+  "unrelated_files_preserved": 780,
+  "preserved_stash": "bda3f14e8faee49ec675b406c3f2c5a49ee4feb1",
+  "git_bundle": "/path/to/home/.cache/tsp-dev/TSPP/release-20261028-2/pre-sync.bundle",
+  "environments": {
+    "local": {
+      "url": "http://127.0.0.1:3021",
+      "version": "0.4.36",
+      "six_functions_ready": true,
+      "admin_login_verified": true,
+      "watchlist": 16,
+      "groups": 2,
+      "backup": "/path/to/home/.cache/tsp-dev/TSPP/backups/complete-release-20261028-2/local-pre-1c630cc2d13c",
+      "runtime_image": "sha256:98a2d3166e0474f8b3b2fc896d2807d2c42c38a91d40f3a38ffee6d9661ce43b",
+      "compute_image": "sha256:4648cf89b9e6a07b3c1c0c8924d234fe3862731e1701f3d2e6547256f829a105",
+      "market_rows_preserved": {
+        "daily": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "enriched": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "minute": {
+          "before_rows": 41395832,
+          "after_rows": 41395832
+        },
+        "5m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "index_daily": {
+          "before_rows": 134016,
+          "after_rows": 134019
+        },
+        "etf_daily": {
+          "before_rows": 62300,
+          "after_rows": 62300
+        }
+      },
+      "configuration_and_secrets_preserved": true,
+      "browser_checks": [
+        "同步分类默认收起；桌面与390px窄屏可展开，内容和总开关保留",
+        "数据同步左侧约3/4宽度，总开关在右上；六项简化名称、日K顺序均正确",
+        "日K与盘后管道均显示交易日 16:00；与升级前保存配置一致",
+        "实时行情位于数据画像15分K后，原有卡片顺序后移",
+        "390px数据同步布局及页面无横向溢出",
+        "日K历史数量/单位控件恢复；24小时与60分钟选择器可用，Escape先关闭弹层再关闭对话框，配置未改变",
+        "修正起止日期使用站内日期控件；打开检查后退出，没有触发获取或修正任务",
+        "原自选顺序/日期/备注/分组/策略关系保留；全部/未分组/每个自定义分类CSV内容及文件名通过，导出/恢复排序为图标按钮",
+        "进入策略页只读取保存结果，没有发起策略运行或重载请求",
+        "系统设置并发输入范围1～999、自动运行开关移除、个股外链名称通过；浅深色桌面/窄屏无横向溢出，配置未改变",
+        "实际Compute/Platform响应budget_ratio=0.5，内存及CPU均为硬件50%，已保存并发值保留",
+        "扩展数据字段、映射、概念/行业拉取配方及启用状态与升级前一致",
+        "真实服务七只指数×日/周/月K读取成功，修正弹窗三周期与本地聚合说明正确；未执行修正或历史初始化"
+      ],
+      "index_period_rows": [
+        {
+          "symbol": "000001.SH",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "000001.SH",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "000001.SH",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "399001.SZ",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "399001.SZ",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "399001.SZ",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "399006.SZ",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "399006.SZ",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "399006.SZ",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "000680.SH",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "000680.SH",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "000680.SH",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "000300.SH",
+          "period": "1d",
+          "rows": 118,
+          "source": "local"
+        },
+        {
+          "symbol": "000300.SH",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "000300.SH",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "000016.SH",
+          "period": "1d",
+          "rows": 118,
+          "source": "local"
+        },
+        {
+          "symbol": "000016.SH",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "000016.SH",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "399330.SZ",
+          "period": "1d",
+          "rows": 118,
+          "source": "local"
+        },
+        {
+          "symbol": "399330.SZ",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "399330.SZ",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        }
+      ],
+      "quote_stream_checks": {
+        "initial_pages": 6,
+        "market_streams_at_each_checkpoint": 1,
+        "natural_ticket_rotation_verified": true,
+        "owner_close_takeover_verified": true
+      },
+      "external_update_errors": 0,
+      "task": {
+        "id": "3f4e554afc",
+        "status": "running",
+        "request": {
+          "start_date": "2026-08-09",
+          "period": "1m",
+          "mode": "missing",
+          "end_date": "2026-09-09"
+        },
+        "original_job": "3c3ba6f154",
+        "symbols": 5222,
+        "symbols_sha256": "77ba73082a39eafcfa5f0b8114391f669b12b2db8931154dc29e3e557dfa3f5d"
+      }
+    },
+    "online": {
+      "url": "https://server.example.com",
+      "version": "0.4.36",
+      "six_functions_ready": true,
+      "admin_login_verified": true,
+      "watchlist": 16,
+      "groups": 2,
+      "backup": "/opt/tsp-full/backups/pre-v0.4.36-1c630cc2d13c",
+      "runtime_image": "sha256:0ba6ce3201e80fdbed8611a74fb2d793a8ed40075a348b3d68239caa3ef09487",
+      "compute_image": "sha256:17cb2210d8590d3451fb89f015bd37f2124b89f69412f1a59e3c8f67d024eb82",
+      "market_rows_preserved": {
+        "daily": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "enriched": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "minute": {
+          "before_rows": 118037731,
+          "after_rows": 118037731
+        },
+        "5m": {
+          "before_rows": 5222,
+          "after_rows": 5222
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "index_daily": {
+          "before_rows": 135106,
+          "after_rows": 135106
+        },
+        "etf_daily": {
+          "before_rows": 62300,
+          "after_rows": 62300
+        }
+      },
+      "configuration_and_secrets_preserved": true,
+      "browser_checks": [
+        "同步分类默认收起；桌面与390px窄屏可展开，内容和总开关保留",
+        "数据同步左侧约3/4宽度，总开关在右上；六项简化名称、日K顺序均正确",
+        "日K与盘后管道均显示交易日 15:35；与升级前保存配置一致",
+        "实时行情位于数据画像15分K后，原有卡片顺序后移",
+        "390px数据同步布局及页面无横向溢出",
+        "日K历史数量/单位控件恢复；24小时与60分钟选择器可用，Escape先关闭弹层再关闭对话框，配置未改变",
+        "修正起止日期使用站内日期控件；打开检查后退出，没有触发获取或修正任务",
+        "原自选顺序/日期/备注/分组/策略关系保留；全部/未分组/每个自定义分类CSV内容及文件名通过，导出/恢复排序为图标按钮",
+        "进入策略页只读取保存结果，没有发起策略运行或重载请求",
+        "系统设置并发输入范围1～999、自动运行开关移除、个股外链名称通过；浅深色桌面/窄屏无横向溢出，配置未改变",
+        "实际Compute/Platform响应budget_ratio=0.5，内存及CPU均为硬件50%，已保存并发值保留",
+        "扩展数据字段、映射、概念/行业拉取配方及启用状态与升级前一致",
+        "真实服务七只指数×日/周/月K读取成功，修正弹窗三周期与本地聚合说明正确；未执行修正或历史初始化"
+      ],
+      "index_period_rows": [
+        {
+          "symbol": "000001.SH",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "000001.SH",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "000001.SH",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "399001.SZ",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "399001.SZ",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "399001.SZ",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "399006.SZ",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "399006.SZ",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "399006.SZ",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "000680.SH",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "000680.SH",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "000680.SH",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "000300.SH",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "000300.SH",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "000300.SH",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "000016.SH",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "000016.SH",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "000016.SH",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        },
+        {
+          "symbol": "399330.SZ",
+          "period": "1d",
+          "rows": 119,
+          "source": "local"
+        },
+        {
+          "symbol": "399330.SZ",
+          "period": "1w",
+          "rows": 52,
+          "source": "local"
+        },
+        {
+          "symbol": "399330.SZ",
+          "period": "1mo",
+          "rows": 13,
+          "source": "local"
+        }
+      ],
+      "quote_stream_checks": {
+        "initial_pages": 6,
+        "market_streams_at_each_checkpoint": 1,
+        "natural_ticket_rotation_verified": true,
+        "owner_close_takeover_verified": true
+      },
+      "external_update_errors": 0,
+      "task": {
+        "id": "83de9259fc",
+        "status": "running",
+        "request": {
+          "start_date": "2026-04-18",
+          "period": "1m",
+          "mode": "missing",
+          "end_date": "2026-05-18"
+        },
+        "original_job": "9e4308689c",
+        "symbols": 5222,
+        "symbols_sha256": "77ba73082a39eafcfa5f0b8114391f669b12b2db8931154dc29e3e557dfa3f5d"
+      }
+    }
+  },
+  "private_evidence": "/path/to/home/.cache/tsp-dev/TSPP/release-20261028-2",
+  "passed": true
+}

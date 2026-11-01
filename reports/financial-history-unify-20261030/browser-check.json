@@ -1,0 +1,66 @@
+[
+  {
+    "environment": "local",
+    "url": "http://127.0.0.1:3021/data",
+    "title": "TSP · Quant Terminal",
+    "desktop": {
+      "current": "财务数据\n5 文件\n18.1 MB",
+      "history": "财务历史快照\n148 文件\n70.7 MB"
+    },
+    "mobile_history": "财务历史快照\n148 文件\n70.7 MB",
+    "reload_keeps_statistics": true,
+    "page_errors": [],
+    "console_errors": [],
+    "desktop_viewport": [
+      1440,
+      1000
+    ],
+    "mobile_viewport": [
+      390,
+      844
+    ],
+    "storage": {
+      "financials_files": 153,
+      "financials_size_mb": 88.83,
+      "financials_current_files": 5,
+      "financials_current_size_mb": 18.15,
+      "financials_revision_files": 148,
+      "financials_revision_size_mb": 70.67
+    },
+    "browser": "Chrome Playwright",
+    "browser_plugin": "not available",
+    "fallback_reason": "No browser automation tools exposed in this session"
+  },
+  {
+    "environment": "online",
+    "url": "https://server.example.com/data",
+    "title": "TSP · Quant Terminal",
+    "desktop": {
+      "current": "财务数据\n5 文件\n18.1 MB",
+      "history": "财务历史快照\n148 文件\n70.7 MB"
+    },
+    "mobile_history": "财务历史快照\n148 文件\n70.7 MB",
+    "reload_keeps_statistics": true,
+    "page_errors": [],
+    "console_errors": [],
+    "desktop_viewport": [
+      1440,
+      1000
+    ],
+    "mobile_viewport": [
+      390,
+      844
+    ],
+    "storage": {
+      "financials_files": 153,
+      "financials_size_mb": 88.83,
+      "financials_current_files": 5,
+      "financials_current_size_mb": 18.15,
+      "financials_revision_files": 148,
+      "financials_revision_size_mb": 70.67
+    },
+    "browser": "Chrome Playwright",
+    "browser_plugin": "not available",
+    "fallback_reason": "No browser automation tools exposed in this session"
+  }
+]

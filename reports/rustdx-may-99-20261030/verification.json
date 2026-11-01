@@ -1,0 +1,33 @@
+{
+  "verified_at_utc": "2026-10-29T23:13:12.002116+00:00",
+  "status": "evidence_verified",
+  "target_99pct_achieved": false,
+  "checks": [
+    "59 confirmed missing symbols",
+    "All 1062 witness stock days have traded daily references",
+    "All 17 usable endpoint tails completed",
+    "All seven replay scripts parse successfully",
+    "Both initial audits completed all 41 seeds",
+    "CSV witnesses match the 18-day missing and traded daily baseline",
+    "Confirmed missing key arithmetic",
+    "Counterexample amount estimate differs from source amount",
+    "Counterexample quantities match in shares",
+    "Each endpoint contains all 59 witnesses",
+    "Every witness has both categories ending with empty pages",
+    "Expanded standard probes returned no May rows",
+    "Final storage hashes match the initial source and public release",
+    "May minute missing high counterexample is present",
+    "Native core identity is consistent",
+    "Native patch identity is consistent",
+    "No duplicate stored keys",
+    "Ordinary endpoint ceiling is below 99 percent",
+    "Raw TCP payload hash matches capture",
+    "Reconstruction payload hash matches capture",
+    "Sample and tail endpoint identity match",
+    "Source and public rows are both 42960",
+    "Ten genuine source minute comparisons completed"
+  ],
+  "verified_raw_payload_references": 784,
+  "archive_files": 784,
+  "archive_has_unsafe_paths": false
+}

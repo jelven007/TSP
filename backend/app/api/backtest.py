@@ -568,10 +568,11 @@ import hashlib
 
 class _BacktestJob:
     """单个回测任务的状态, 存模块级供重连使用。"""
-    __slots__ = ("key", "cancel_event", "progress", "result", "error", "done", "finish_ts")
+    __slots__ = ("cancel_event", "done", "error", "finish_ts", "key", "progress", "result", "strategy_id")
 
-    def __init__(self, key: str):
+    def __init__(self, key: str, strategy_id: str | None = None):
         self.key = key
+        self.strategy_id = strategy_id
         self.cancel_event = threading.Event()
         self.progress: list[dict] = []   # 进度历史 (新连接可回放)
         self.result = None               # 完成后的结果
@@ -584,6 +585,17 @@ class _BacktestJob:
 _running_jobs: dict[str, _BacktestJob] = {}
 _jobs_lock = threading.Lock()
 _JOB_TTL = 300  # 完成后保留 5 分钟
+
+
+def clear_strategy_jobs(strategy_id: str):
+    with _jobs_lock:
+        for key, job in list(_running_jobs.items()):
+            if job.strategy_id == strategy_id:
+                job.cancel_event.set()
+                job.result = None
+                job.error = "策略已删除, 任务结果已丢弃"
+                job.done = True
+                _running_jobs.pop(key, None)
 
 
 def _cleanup_stale_jobs():
@@ -599,6 +611,8 @@ def _finish_job(job: _BacktestJob, *, result=None, error: str | None = None) -> 
     """Publish the terminal state and proactively drop the reconnect entry after TTL."""
     finished_at = time.time()
     with _jobs_lock:
+        if job.cancel_event.is_set():
+            result, error = None, error or "任务已取消, 结果已丢弃"
         job.result = result
         job.error = error
         job.done = True
@@ -771,7 +785,7 @@ async def strategy_stream(
     with _jobs_lock:
         job = _running_jobs.get(job_key)
         if job is None:
-            job = _BacktestJob(job_key)
+            job = _BacktestJob(job_key, strategy_id)
             _running_jobs[job_key] = job
             is_new = True
         else:
@@ -1124,7 +1138,7 @@ async def optimize_stream(
     with _jobs_lock:
         job = _running_jobs.get(job_key)
         if job is None:
-            job = _BacktestJob(job_key)
+            job = _BacktestJob(job_key, strategy_id)
             _running_jobs[job_key] = job
             is_new = True
         else:
@@ -1404,7 +1418,7 @@ async def walkforward_stream(
     with _jobs_lock:
         job = _running_jobs.get(job_key)
         if job is None:
-            job = _BacktestJob(job_key)
+            job = _BacktestJob(job_key, strategy_id)
             _running_jobs[job_key] = job
             is_new = True
         else:

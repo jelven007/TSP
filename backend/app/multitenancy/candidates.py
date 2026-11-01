@@ -50,6 +50,12 @@ class SQLCandidateStore:
             return memory.items
 
         with self.documents.transaction() as session:
+            sid = (kwargs.get("config") or {}).get("strategy_id")
+            if sid:
+                from app.services.strategy_results import StrategyResults
+                lifecycle = StrategyResults(session).states([sid]).get(sid, {})
+                if lifecycle.get("deleted"):
+                    raise AccessError(409, "策略已删除, 无法保存旧研究候选")
             job_id = (kwargs.get("config") or {}).get("research_job_id")
             if job_id and not session.connection.execute(
                 "SELECT id FROM business.research_jobs WHERE id=%s", (job_id,),

@@ -32,11 +32,11 @@
 
 ## 修复范围
 
-- [正式代码补丁](production-fix.patch)：只修改复用槽位的健康检查，增加两项真实TCP回归；
+- 正式代码补丁（附件保存在受控归档）：只修改复用槽位的健康检查，增加两项真实TCP回归；
   不更改vendor/core、默认连接预算、应用版本或已有行情。
-- [四站实验补丁](four32-experiment.patch)：每站8、总32，共享全局准入；每个证券仍固定站点，
+- 四站实验补丁（附件保存在受控归档）：每站8、总32，共享全局准入；每个证券仍固定站点，
   分页仍固定连接身份。前三站后台8，第四站后台7并保留实时槽位。
-- [来源校验实现](routing.py)：本轮每次采集先用四站取得候选，再从同一共享池的固定来源
+- 来源校验实现（附件保存在受控归档）：本轮每次采集先用四站取得候选，再从同一共享池的固定来源
   完整读取本窗口，逐证券比较所有键及六个值字段。冲突时使用整只证券的本次完整重采结果；
   不使用旧parquet的数值填补、不改单个量额值、不取交集。空参考或重复键拒绝返回。
   两轮各44只冲突证券，固定来源的完整窗口来自真实请求，费用计入总时长。
@@ -69,7 +69,7 @@ p95 0.617秒。正确性通过与冷启动/校验性能尚需优化分开记录�
 - vendor逐文件与冻结基线核对：109文件未变化。代码、测量和日志身份见SHA256清单。
 
 命令及原始输出保存于本目录的`workspace-*.log`和`source-tests-*.log`。
-工作区测试使用 `/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12`；
+工作区测试使用 `/path/to/home/Documents/TSPP/backend/.venv/bin/python3.12`；
 Rust测试显式设置 `PYO3_PYTHON`，避免误选Xcode已失效的Python3.9。
 原生生产wheel和四站实验wheel分别使用独立target目录，且导入路径和构造签名已核对；
 共用target的首次实验打包拿到错误签名，在发行情请求前失败，随后独立构建重测。
@@ -79,10 +79,10 @@ Rust测试显式设置 `PYO3_PYTHON`，避免误选Xcode已失效的Python3.9。
 ```sh
 PYTHONPATH=/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/repair-native:/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/backend \
 TSPP_BENCH_HOSTS=4 TSPP_BENCH_TOTAL_CONNECTIONS=32 \
-/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12 \
+/path/to/home/Documents/TSPP/backend/.venv/bin/python3.12 \
 /private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/measure32.py --name four32 --verify-sources --work <隔离目录内新建输出目录>
 ```
 
-[benchmark.py](benchmark.py)是本轮脚本副本，其冻结基线、100证券目录和原始parquet输入保留在
+benchmark.py（附件保存在受控归档）是本轮脚本副本，其冻结基线、100证券目录和原始parquet输入保留在
 临时实验目录；新输出目录必须先创建。本轮没有提交、推送、部署、覆盖生产行情或恢复用户配置。
 本结论只覆盖本次证券与窗口，不把其他日期的上游历史缺口称为已补齐。

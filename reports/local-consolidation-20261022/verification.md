@@ -34,7 +34,7 @@
 - [剩余 P2](../p2-remaining-20261017/verification.md)
 - [上游对比](../upstream-comparison-20261017/analysis.md)
 - [上游分步集成](../upstream-ports-20261018/verification.md)
-- [策略第一版方案](../strategy-optimization-20261019/plan-first-version.md)：
+- [策略第一版方案（过程材料已清理）](../strategy-results-cleanup-20261030/清理记录.md#removed-research)：
   作为旧研究起点补存，没有覆盖主线当前方案、实施和研究结论。
 
 原历史报告中的失败、跳过、当时的未提交状态与平台限制保持原义。

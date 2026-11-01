@@ -1,0 +1,434 @@
+{
+  "local-quotes": {
+    "summary": {
+      "connections": 8,
+      "status": "completed",
+      "requested_rounds": 100,
+      "attempted_rounds": 100,
+      "successful_rounds": 100,
+      "failed_rounds": 0,
+      "unattempted_rounds": 0,
+      "success_rate": 1.0,
+      "min_coverage": 1.0,
+      "min_valid_coverage": 1.0,
+      "cold_ms": 7593.203958000231,
+      "cold_status": "ok",
+      "p50_ms": 658.0935829988448,
+      "p95_ms": 1417.2824580018641,
+      "p99_ms": 2327.8064580008504,
+      "mean_ms": 759.9433770899486,
+      "max_ms": 2365.220125000633,
+      "all_attempts_p95_ms": 1417.2824580018641,
+      "all_attempts_censored": false,
+      "snapshot_capacity_per_second": 1.315887512342433,
+      "sample_sufficient": true,
+      "connection_config_matches": true,
+      "observed_connections_min": 8,
+      "observed_connections_max": 8,
+      "passed": false
+    },
+    "min_ms": 452.4997499975143,
+    "max_ms": 2365.220125000633,
+    "over_1s": 16,
+    "count": 100,
+    "first": "2026-10-29T06:50:01.554+08:00",
+    "last": "2026-10-29T06:51:47.931+08:00",
+    "initial_pool": {
+      "active_connections": 0,
+      "active_server": "117.34.114.13:7709",
+      "business_limit": 8,
+      "closed": false,
+      "failures": 0,
+      "financial_pools": [],
+      "idle_connections": 0,
+      "market_pool": null,
+      "max_connections": 8,
+      "minute_requests": 0,
+      "network": {
+        "acquisition_timeouts": 0,
+        "active": 0,
+        "peak": 0,
+        "request_failures": 0,
+        "requests": 0,
+        "shared_max_connections": null
+      },
+      "probe_limit": 1,
+      "probes": {
+        "active": 0,
+        "peak": 0,
+        "timeouts": 0,
+        "waits": 0
+      },
+      "quote_batch_size": 60,
+      "quote_metadata": [],
+      "retries": 0,
+      "scheduler": {
+        "background_active": 0,
+        "background_limit": 7,
+        "background_peak": 0,
+        "foreground_waiting": 0,
+        "slot_acquisitions": 0,
+        "slot_wait_ms_max": 0.0,
+        "slot_wait_ms_total": 0.0,
+        "waiting_requests": 0
+      },
+      "total_connection_limit": 9,
+      "total_connections": 0
+    },
+    "final_pool": {
+      "active_connections": 0,
+      "active_server": "117.34.114.13:7709",
+      "business_limit": 8,
+      "closed": false,
+      "failures": 0,
+      "financial_pools": [],
+      "idle_connections": 8,
+      "market_pool": {
+        "completed_at": "2026-10-29T06:49:51.276835+08:00",
+        "date": "2026-10-29",
+        "results": [
+          {
+            "address": "117.34.114.13:7709",
+            "rounds": [
+              {
+                "elapsed": {
+                  "nanos": 93143167,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 32599625,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 32184083,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 24480,
+                "tcp": {
+                  "nanos": 28275375,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 141015542,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 31991167,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 81979750,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 24480,
+                "tcp": {
+                  "nanos": 26950209,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 91674375,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 33256416,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 31448167,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 24480,
+                "tcp": {
+                  "nanos": 26857542,
+                  "secs": 0
+                }
+              }
+            ]
+          }
+        ],
+        "tested_at": "2026-10-29T06:49:50.950893+08:00",
+        "valid_nodes": [
+          "117.34.114.13:7709"
+        ]
+      },
+      "max_connections": 8,
+      "minute_requests": 0,
+      "network": {
+        "acquisition_timeouts": 0,
+        "active": 8,
+        "peak": 8,
+        "request_failures": 0,
+        "requests": 9188,
+        "shared_max_connections": null
+      },
+      "probe_limit": 1,
+      "probes": {
+        "active": 0,
+        "peak": 1,
+        "timeouts": 0,
+        "waits": 0
+      },
+      "quote_batch_size": 60,
+      "quote_metadata": [
+        {
+          "as_of_date": "2026-10-29",
+          "fetched_at": "2026-10-28T22:49:57.877384Z",
+          "market": 0,
+          "securities": 24480,
+          "source_endpoint": "117.34.114.13:7709",
+          "unsupported": 0
+        },
+        {
+          "as_of_date": "2026-10-29",
+          "fetched_at": "2026-10-28T22:49:57.877384Z",
+          "market": 1,
+          "securities": 27545,
+          "source_endpoint": "117.34.114.13:7709",
+          "unsupported": 0
+        }
+      ],
+      "retries": 0,
+      "scheduler": {
+        "background_active": 0,
+        "background_limit": 7,
+        "background_peak": 0,
+        "foreground_waiting": 0,
+        "slot_acquisitions": 9153,
+        "slot_wait_ms_max": 0.009,
+        "slot_wait_ms_total": 0.1,
+        "waiting_requests": 0
+      },
+      "total_connection_limit": 9,
+      "total_connections": 8
+    }
+  },
+  "ecs-quotes": {
+    "summary": {
+      "connections": 8,
+      "status": "completed",
+      "requested_rounds": 100,
+      "attempted_rounds": 100,
+      "successful_rounds": 100,
+      "failed_rounds": 0,
+      "unattempted_rounds": 0,
+      "success_rate": 1.0,
+      "min_coverage": 1.0,
+      "min_valid_coverage": 1.0,
+      "cold_ms": 5916.486163041554,
+      "cold_status": "ok",
+      "p50_ms": 525.0363640952855,
+      "p95_ms": 695.2513359719887,
+      "p99_ms": 979.5971310231835,
+      "mean_ms": 550.9485268651042,
+      "max_ms": 992.3031989019364,
+      "all_attempts_p95_ms": 695.2513359719887,
+      "all_attempts_censored": false,
+      "snapshot_capacity_per_second": 1.8150515905541986,
+      "sample_sufficient": true,
+      "connection_config_matches": true,
+      "observed_connections_min": 8,
+      "observed_connections_max": 8,
+      "passed": true
+    },
+    "min_ms": 511.83832506649196,
+    "max_ms": 992.3031989019364,
+    "over_1s": 0,
+    "count": 100,
+    "first": "2026-10-29T06:50:22.454+08:00",
+    "last": "2026-10-29T06:52:01.986+08:00",
+    "initial_pool": {
+      "active_connections": 0,
+      "active_server": "117.34.114.13:7709",
+      "business_limit": 8,
+      "closed": false,
+      "failures": 0,
+      "financial_pools": [],
+      "idle_connections": 0,
+      "market_pool": null,
+      "max_connections": 8,
+      "minute_requests": 0,
+      "network": {
+        "acquisition_timeouts": 0,
+        "active": 0,
+        "peak": 0,
+        "request_failures": 0,
+        "requests": 0,
+        "shared_max_connections": null
+      },
+      "probe_limit": 1,
+      "probes": {
+        "active": 0,
+        "peak": 0,
+        "timeouts": 0,
+        "waits": 0
+      },
+      "quote_batch_size": 60,
+      "quote_metadata": [],
+      "retries": 0,
+      "scheduler": {
+        "background_active": 0,
+        "background_limit": 7,
+        "background_peak": 0,
+        "foreground_waiting": 0,
+        "slot_acquisitions": 0,
+        "slot_wait_ms_max": 0.0,
+        "slot_wait_ms_total": 0.0,
+        "waiting_requests": 0
+      },
+      "total_connection_limit": 9,
+      "total_connections": 0
+    },
+    "final_pool": {
+      "active_connections": 0,
+      "active_server": "117.34.114.13:7709",
+      "business_limit": 8,
+      "closed": false,
+      "failures": 0,
+      "financial_pools": [],
+      "idle_connections": 8,
+      "market_pool": {
+        "completed_at": "2026-10-29T06:50:13.841816773+08:00",
+        "date": "2026-10-29",
+        "results": [
+          {
+            "address": "117.34.114.13:7709",
+            "rounds": [
+              {
+                "elapsed": {
+                  "nanos": 101970092,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 36408163,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 35332738,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 24480,
+                "tcp": {
+                  "nanos": 30217485,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 95787357,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 33951094,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 33540244,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 24480,
+                "tcp": {
+                  "nanos": 28286730,
+                  "secs": 0
+                }
+              },
+              {
+                "elapsed": {
+                  "nanos": 102742676,
+                  "secs": 0
+                },
+                "failure": null,
+                "handshake": {
+                  "nanos": 36578135,
+                  "secs": 0
+                },
+                "heartbeat": {
+                  "nanos": 35697273,
+                  "secs": 0
+                },
+                "heartbeat_ack": null,
+                "mode": "SecurityCount",
+                "security_count": 24480,
+                "tcp": {
+                  "nanos": 30460573,
+                  "secs": 0
+                }
+              }
+            ]
+          }
+        ],
+        "tested_at": "2026-10-29T06:50:13.541166988+08:00",
+        "valid_nodes": [
+          "117.34.114.13:7709"
+        ]
+      },
+      "max_connections": 8,
+      "minute_requests": 0,
+      "network": {
+        "acquisition_timeouts": 0,
+        "active": 8,
+        "peak": 8,
+        "request_failures": 0,
+        "requests": 9188,
+        "shared_max_connections": null
+      },
+      "probe_limit": 1,
+      "probes": {
+        "active": 0,
+        "peak": 1,
+        "timeouts": 0,
+        "waits": 0
+      },
+      "quote_batch_size": 60,
+      "quote_metadata": [
+        {
+          "as_of_date": "2026-10-29",
+          "fetched_at": "2026-10-28T22:50:18.787604656Z",
+          "market": 0,
+          "securities": 24480,
+          "source_endpoint": "117.34.114.13:7709",
+          "unsupported": 0
+        },
+        {
+          "as_of_date": "2026-10-29",
+          "fetched_at": "2026-10-28T22:50:18.787604656Z",
+          "market": 1,
+          "securities": 27545,
+          "source_endpoint": "117.34.114.13:7709",
+          "unsupported": 0
+        }
+      ],
+      "retries": 0,
+      "scheduler": {
+        "background_active": 0,
+        "background_limit": 7,
+        "background_peak": 0,
+        "foreground_waiting": 0,
+        "slot_acquisitions": 9153,
+        "slot_wait_ms_max": 0.009,
+        "slot_wait_ms_total": 0.016,
+        "waiting_requests": 0
+      },
+      "total_connection_limit": 9,
+      "total_connections": 8
+    }
+  }
+}

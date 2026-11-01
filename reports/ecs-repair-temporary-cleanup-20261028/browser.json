@@ -1,0 +1,17 @@
+{
+  "removed_status_codes": {
+    "9cd7bcddef": 404,
+    "83de9259fc": 404,
+    "9e4308689c": 404,
+    "a9af9857dd": 404,
+    "2a6d97305e": 404,
+    "6d92d76be7": 404
+  },
+  "remaining_jobs": 44,
+  "successful_history_preserved": true,
+  "minute_earliest": "2026-05-18",
+  "realtime_running": true,
+  "health_ready": true,
+  "version": "0.4.36",
+  "verified": true
+}

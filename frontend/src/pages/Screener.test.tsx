@@ -5,9 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { Screener } from './Screener'
 
-const { summary, detail, run, runAll, reload, oldPreferences } = vi.hoisted(() => ({
+const { summary, detail, run, runAll, reload, batchMutate, oldPreferences } = vi.hoisted(() => ({
   summary: vi.fn(), detail: vi.fn(), run: vi.fn(), runAll: vi.fn(),
-  reload: vi.fn(),
+  reload: vi.fn(), batchMutate: vi.fn(),
   oldPreferences: { screener_auto_run: false as boolean | undefined },
 }))
 vi.mock('@/lib/api', () => ({
@@ -25,6 +25,8 @@ vi.mock('@/lib/api', () => ({
     monitorRulesList: async () => ({ rules: [] }),
     minuteRefreshStatus: async () => ({}),
     watchlistGroups: async () => ({ groups: [] }),
+    strategyGet: async () => ({ params_defaults: { position_limit: 5, take_profit_pct: .06, stop_loss_pct: .05 } }),
+    lotBatches: async () => ({ batches: [], next_number: '2026110101' }),
   },
 }))
 vi.mock('@/lib/useSharedQueries', () => ({
@@ -33,7 +35,10 @@ vi.mock('@/lib/useSharedQueries', () => ({
   useCapabilities: () => ({ data: {} }),
   useQuoteStatus: () => ({ data: {} }),
 }))
-vi.mock('@/lib/useSharedMutations', () => ({ useWatchlistBatchAdd: () => ({ mutate: vi.fn() }) }))
+vi.mock('@/lib/useSharedMutations', () => ({ useWatchlistBatchAdd: () => ({ mutate: batchMutate }) }))
+vi.mock('@/components/screener/StrategyLotBatchDialog', () => ({
+  StrategyLotBatchDialog: ({ rows }: any) => <div role="dialog" aria-label="策略新增批次">{JSON.stringify(rows)}</div>,
+}))
 vi.mock('@/lib/useStrategyPool', () => ({
   useStrategyPool: () => ({ pool: ['sample', 'minute'], prune: vi.fn() }),
 }))
@@ -189,4 +194,58 @@ it('does not continue a manual refresh into minute tasks after the selected date
   await flush()
   expect(runAll).toHaveBeenCalledTimes(1)
   expect(host.querySelector<HTMLInputElement>('input[aria-label="测试日期"]')!.value).toBe('2026-10-22')
+})
+
+it('uses the active result tab for both bulk actions, including after changing dates', async () => {
+  summary.mockImplementation(async (day: string) => ({
+    as_of: day, results: { sample: { total: 1, as_of: day } }, today_ever_counts: {},
+  }))
+  detail.mockImplementation(async (_sid: string, _ext: string, day: string) => ({
+    result: { as_of: day, strategy: 'sample', rows: [{ symbol: 'WRONG' }], total: 1,
+      sections: { sell: [{ symbol: `${day}-SELL` }], select: [{ symbol: `${day}-SELECT` }],
+        buy: [{ symbol: `${day}-BUY`, filled_shares: 100, buy_price: 10 }] } },
+    today_ever_rows: {}, strategy_ids_by_symbol: {},
+  }))
+  await render()
+  await act(async () => button('样例').click())
+  await flush()
+  for (const [index, suffix] of [[0, 'SELL'], [1, 'SELECT']] as const) {
+    await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index].click())
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="批量加入自选"]')!.click())
+    await flush()
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click())
+    expect(batchMutate).toHaveBeenLastCalledWith(
+      { symbols: [`2026-10-23-${suffix}`], groupId: null }, expect.anything(),
+    )
+  }
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2].click())
+  const watchlist = host.querySelector<HTMLButtonElement>('[aria-label="批量加入自选"]')!
+  const holdings = host.querySelector<HTMLButtonElement>('[aria-label="批量加持仓"]')
+  expect(holdings).not.toBeNull()
+  expect(watchlist.parentElement).toBe(holdings!.parentElement)
+  await act(async () => holdings!.click())
+  expect(host.querySelector('[role="dialog"]')?.textContent).toContain('2026-10-23-BUY')
+  expect(host.querySelector('[role="dialog"]')?.textContent).not.toContain('WRONG')
+  await setDate('2026-10-22')
+  await flush()
+  expect(host.querySelector('[role="dialog"]')).toBeNull()
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="批量加入自选"]')!.click())
+  await flush()
+  await act(async () => document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click())
+  expect(batchMutate).toHaveBeenLastCalledWith(
+    { symbols: ['2026-10-22-SELL'], groupId: null }, expect.anything(),
+  )
+})
+
+it('shows no bulk actions on an empty active tab even if another tab has buys', async () => {
+  summary.mockImplementation(async (day: string) => ({
+    as_of: day, results: { sample: { total: 1, as_of: day } }, today_ever_counts: {},
+  }))
+  detail.mockResolvedValue({ result: { as_of: '2026-10-23', strategy: 'sample', rows: [{ symbol: 'BUY' }],
+    total: 1, sections: { sell: [], select: [], buy: [{ symbol: 'BUY' }] } }, today_ever_rows: {} })
+  await render()
+  await act(async () => button('样例').click())
+  await flush()
+  expect(host.querySelector('[aria-label="批量加入自选"]')).toBeNull()
+  expect(host.querySelector('[aria-label="批量加持仓"]')).toBeNull()
 })

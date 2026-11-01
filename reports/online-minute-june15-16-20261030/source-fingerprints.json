@@ -1,0 +1,16 @@
+{
+  "kline_minute/date=2026-06-15/part.parquet": {
+    "size": 12724077,
+    "mtime_ns": 1793327642318762534,
+    "inode": 4695973,
+    "rows": 1108800,
+    "sha256": "25118d23ad76839b6b4038479a8ba6552f17582495e46bd23e54d55dd839d864"
+  },
+  "kline_minute/date=2026-06-16/part.parquet": {
+    "size": 13614598,
+    "mtime_ns": 1793327642508764370,
+    "inode": 4689366,
+    "rows": 1175040,
+    "sha256": "de118a0b488f4ab2109199a700736396f01fc97892a54ad1333a5fc2d32b3344"
+  }
+}

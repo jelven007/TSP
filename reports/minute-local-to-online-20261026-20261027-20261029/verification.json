@@ -1,0 +1,40 @@
+{
+  "status": "verified",
+  "verified_at": "2026-10-29T02:09:39.308224+00:00",
+  "total_appended_rows": 3993,
+  "days": [
+    {
+      "day": "2026-10-26",
+      "rows": 1253280,
+      "appended_rows": 1680,
+      "original_rows_preserved": 1251600,
+      "sha256": "008dcc5f935e7dfe0f82f8ec520b3ad151a78dcd63b1b6e42b7323931b3339fb",
+      "content_sha256": "f5bd7576ca911281c715902734ef67fd78bad557057dbf05e13236b41420de08",
+      "local_matches": true,
+      "duplicate_rows": 0,
+      "nulls": 0
+    },
+    {
+      "day": "2026-10-27",
+      "rows": 1258495,
+      "appended_rows": 2313,
+      "original_rows_preserved": 1256182,
+      "sha256": "b75765b1d653f2d2e2407309d126fd3755ed78b89d647a260d9c96bcc9003275",
+      "content_sha256": "56deba83a4bcd97bf4ed2b2e87cb56f6a9adbc7c070331154f831b3fa93c7bd8",
+      "local_matches": true,
+      "duplicate_rows": 0,
+      "nulls": 0
+    }
+  ],
+  "totals": {
+    "rows": 118637521,
+    "trading_days": 142,
+    "earliest_date": "2026-03-30",
+    "latest_date": "2026-10-29"
+  },
+  "minute_basis_raw": false,
+  "backup_verified": true,
+  "public_release_id": "6fa066bc4c7e4ce0b4e8a39ddb5ee0ae",
+  "public_partitions_match_source_and_local": true,
+  "other_partitions_preserved_at_write": true
+}

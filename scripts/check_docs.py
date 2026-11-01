@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import html
 import json
 import re
@@ -182,8 +183,46 @@ def check_requirements(root: Path, expected_ids: set[str] | None = None) -> list
     return errors
 
 
+def check_initialization_credentials(root: Path) -> list[str]:
+    """Reject bootstrap passwords in documentation without echoing their values."""
+    config = root / "backend/app/bootstrap_defaults.py"
+    if not config.exists():
+        return []
+    credentials = {}
+    for node in ast.parse(config.read_text(encoding="utf-8")).body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if (isinstance(target, ast.Name)
+                    and target.id in {"ADMIN_PASSWORD", "REGISTRATION_SECRET"}
+                    and isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str) and node.value.value):
+                credentials[target.id] = node.value.value.casefold()
+    paths = set(maintained_paths(root, include_reports=True))
+    paths.add(root / ".env.example")
+    suffixes = {".md", ".txt", ".html", ".json", ".yaml", ".yml"}
+    for folder in ("reports", "deliverables", ".claude/artifacts", "brand", "deploy", "examples"):
+        paths.update(
+            path for path in (root / folder).rglob("*")
+            if path.is_file() and not path.is_symlink() and path.suffix.lower() in suffixes
+            and not any(part in {".venv", ".git", "node_modules", "__pycache__"}
+                        for part in path.relative_to(root).parts)
+        )
+    errors = []
+    for path in sorted(paths):
+        if not path.is_file():
+            continue
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for name, value in credentials.items():
+                if value in line.casefold():
+                    errors.append(f"{path.relative_to(root)}:{number}: "
+                                  f"initialization credential {name} must stay in configuration")
+    return errors
+
+
 def check(root: Path, include_reports: bool = False) -> list[str]:
-    return check_links(root, maintained_paths(root, include_reports)) + check_requirements(root)
+    return (check_links(root, maintained_paths(root, include_reports))
+            + check_requirements(root) + check_initialization_credentials(root))
 
 
 def main() -> None:

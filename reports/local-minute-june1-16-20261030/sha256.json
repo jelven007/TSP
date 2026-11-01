@@ -1,0 +1,17 @@
+{
+  "all-days-missing-stocks.csv": "162c48bb5e02551b8f1f60f97765e057ca75a4e293f4594257be8c42b6b1a60e",
+  "calendar.json": "40c7f199bdcb74408a1f0132a7dfa8a603a0b129ccd394a19020be00d024c3b2",
+  "days.csv": "2a1af4de7552f9cbf01d4f950c17ed7597005895b5563e2acd8b02c1ab2b8c91",
+  "days.json": "5d9941ab76a055aa3858e1bbd11fa3c358a8bb05166e3bc5f0d1829ba0065457",
+  "gaps-by-minute.csv": "918e92f5fed0257ad628f8c8e02176b2afacff8c76df419cc2a8ad5e8ed7f176",
+  "gaps-by-symbol-day.csv": "328614c48ce8b3e6a9adbaeb38448b69c22810c1b310545262a65d0d7eb39719",
+  "gaps-by-symbol.csv": "8995818148562b00aca56604b68d8d4f15f0c4bb42f485ae812c1712fe733c3b",
+  "monthly.csv": "c365920426a4e951c357395217f5c5d5a4f77256b3effcbb48cb6f8d3f4a7753",
+  "monthly.json": "9ded699b5f494332dc74d6264433985f2117713858722e44fec370ac37fa11a3",
+  "partial-gaps.csv": "c2962ab6dce722efb1f318af839e325a2e51c331a8c62bae95acf11ac5244ba0",
+  "report.md": "3e219830748887c8867923d5b28e3ba385819450d38996a88fb342d2679771d9",
+  "result.json": "fc23ace6de33626ec1a45d5850f930194c61087076f4f3df5fbfca0f4cc29266",
+  "source-fingerprints.json": "bcc86282b932dec40455426af44e4fc48081df6a75a784f5e1a1a6c7f5e01d1e",
+  "verification.json": "1e50002be5d5503d4b504674bece46ac77c414ea07de3d2ebb6556b657bbf62d",
+  "whole-day-gaps-with-traded-daily.csv": "1d80c308cbac33e01c7f269449981fec1331f6506d40ca62052c804e9443e58b"
+}

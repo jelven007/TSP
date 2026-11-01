@@ -11,7 +11,7 @@ import polars as pl
 from app.market_time import cn_today
 from app.services import quote_service
 from app.services.quote_service import QuoteService, QuoteSubscriber
-from app.strategy.engine import StrategyEngine
+from app.strategy.engine import StrategyEngine, StrategyResult
 from app.strategy.monitor import MonitorRuleEngine
 
 
@@ -70,7 +70,7 @@ class _EmptyResultStrategyEngine:
     def run(self, strategy_id: str, context, **kwargs):
         assert strategy_id == "strategy_1"
         assert context.current.height == 1
-        return SimpleNamespace(total=0, rows=[])
+        return StrategyResult(as_of=context.as_of, strategy_id=strategy_id)
 
 
 class _FailingStrategyEngine(_EmptyResultStrategyEngine):

@@ -60,7 +60,7 @@ admin原密码在两端启动和重启后登录成功，注册/找回、SMTP、�
 自选/分组及业务设置保留；真实邮箱授权码仅留在受控配置和备份中。
 ECS七角色及数据库健康，Broker及两个既有timer正常，重启后的健康timer自然触发并成功退出。
 
-本地备份：`/Users/bytedance/.cache/tsp-dev/TSPP/backups/minute-collection-release-20261029/local-pre-5b273174f2e2`。
+本地备份：`/path/to/home/.cache/tsp-dev/TSPP/backups/minute-collection-release-20261029/local-pre-5b273174f2e2`。
 ECS备份：`/opt/tsp-full/backups/pre-v0.4.38-5b273174f2e2`。
 完整控制脚本、构建日志、固定源码和离线镜像留在受控证据目录及备份中。
 

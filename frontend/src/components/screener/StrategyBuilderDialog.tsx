@@ -103,11 +103,14 @@ export function renderBasicFilterPy(bf: DefaultStrategyBasicFilter): string {
   const boards = bf.boards.length ? bf.boards : [...ALL_BOARDS]
   return [
     `        "price_min": ${py(bf.price_min)}, "price_max": ${py(bf.price_max)},`,
-    `        "market_cap_min": None,`,
+    `        "enabled": ${py(bf.enabled !== false)},`,
+    `        "target_mode": "${boards.length === ALL_BOARDS.length ? 'all' : 'selected'}",`,
+    `        "include_custom": False, "watchlist_group_ids": [],`,
+    `        "market_cap_min": ${py(bf.market_cap_min ?? null)}, "market_cap_max": ${py(bf.market_cap_max ?? null)},`,
     `        "float_cap_min": ${py(bf.float_cap_min)}, "float_cap_max": ${py(bf.float_cap_max)},`,
     `        "amount_min": ${py(bf.amount_min)}, "amount_max": ${py(bf.amount_max)},`,
     `        "turnover_min": ${py(bf.turnover_min)}, "turnover_max": ${py(bf.turnover_max)},`,
-    `        "exclude_st": ${py(bf.exclude_st)}, "exclude_new_days": 30,`,
+    `        "exclude_st": ${py(bf.exclude_st)}, "exclude_new_days": ${py(bf.exclude_new_days === undefined ? 30 : bf.exclude_new_days)},`,
     `        "boards": [${boards.map(b => `"${b}"`).join(', ')}],`,
   ].join('\n')
 }
@@ -346,7 +349,9 @@ export function StrategyBuilderDialog({ open, onClose, onSavedId, mode = 'create
         const id = resolveStrategyId('ai')
         setStrategyId(id); setSource('ai'); setPreviewTab('code')
         let finalResult: any = null
-        for await (const evt of api.strategyBuildStream(1, { name: name.trim(), description: description.trim(), direction, execution_backend: executionBackend, rules: rules.trim(), strategy_id: id, basic_filter: defaultBF })) {
+        for await (const evt of api.strategyBuildStream(1, { name: name.trim(), description: description.trim(), direction, execution_backend: executionBackend, rules: rules.trim(), strategy_id: id,
+          basic_filter: { ...defaultBF, target_mode: defaultBF.boards.length === ALL_BOARDS.length ? 'all' : 'selected',
+            include_custom: false, watchlist_group_ids: [] } })) {
           if (evt.type === 'delta') {
             setCode(prev => prev + evt.content)
           } else if (evt.type === 'error') {

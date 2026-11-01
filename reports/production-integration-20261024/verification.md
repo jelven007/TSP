@@ -75,8 +75,11 @@ Rust1.99.0、隔离PostgreSQL16.15；冻结依赖、空dotenv与受控临时DATA
 
 保留合并后的最新源码以及最近五个历史版本。历史恢复点为0.4.17、16、15、14、13；
 14/13从Git版本提交恢复，不伪造旧CI或安装包签收。完整SHA、元数据核对与恢复标签见
-[版本清单](version-retention.json)。恢复归档存于忽略的 `deliverables/version-recovery/`；
+[版本清单](version-retention.json)。当时恢复归档存于忽略的 `deliverables/version-recovery/`；
 不删除Git提交历史或移动受保护标签。
+
+上述版本和清单仅描述本报告时点。2026-10-30旧本地集合已退役，
+该路径现保存v0.4.39及最近五个历史版本，见[当前恢复记录](../deliverables-version-cleanup-20261030/verification.md)。
 
 ## 5. 审查及边界
 

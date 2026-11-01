@@ -1,0 +1,11 @@
+{
+  "status": "verified",
+  "csv_json_daily_symbol_counts_match": true,
+  "source_public_job_rows_match": true,
+  "job_remaining_matches_current_gap_count": true,
+  "stored_rows": 42960,
+  "missing_keys": 22363440,
+  "source_sample_count": 16,
+  "source_sample_errors": 0,
+  "source_probe_contains_recent_nonempty_and_deep_empty_pages": true
+}

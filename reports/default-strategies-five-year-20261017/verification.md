@@ -22,8 +22,8 @@
 | Ruff | 变更文件原有29条、当前29条，按文件/规则/消息比对，**新增0条** |
 | 空白与补丁检查 | `git diff --check`通过 |
 
-完整聚合记录与源码哈希见[evidence.json](evidence.json)，155份结果哈希见
-[result-hashes.csv](result-hashes.csv)。原始数据、完整逐笔、无信号失败结果和本地
+完整聚合记录与源码哈希见[evidence.json（过程材料已清理）](../strategy-results-cleanup-20261030/清理记录.md#removed-research)，155份结果哈希见
+[result-hashes.csv（过程材料已清理）](../strategy-results-cleanup-20261030/清理记录.md#removed-research)。原始数据、完整逐笔、无信号失败结果和本地
 测试日志留在隔离研究目录，不提交Git。
 
 最终后端执行命令（从仓库根目录，`PYTHON`指向已安装项目依赖的解释器）：

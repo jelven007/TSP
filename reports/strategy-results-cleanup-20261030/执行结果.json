@@ -1,0 +1,25 @@
+{
+  "trash": "/path/to/home/.Trash/TSPP策略过程清理-20261030-154555",
+  "files": 2246,
+  "workspace_files": 1020,
+  "scratch_files": 1226,
+  "workspace_bytes": 148094415,
+  "scratch_bytes": 1011184753,
+  "edited_link_files": [
+    "docs/architecture.md",
+    "docs/version-baseline.md",
+    "docs/reference/research.md",
+    "reports/README.md",
+    "reports/document-consolidation-20261024/historical-evidence.md",
+    "reports/strategy-optimization-20261019/implementation.md",
+    "reports/strategy-optimization-20261019/change-description.md",
+    "reports/local-consolidation-20261022/verification.md",
+    "reports/backtest-a877-exit1125-20261030/report.md",
+    "reports/default-strategies-five-year-20261017/verification.md"
+  ],
+  "retained": [
+    "/path/to/home/Documents/TSPP/reports/backtest-a877-exit1125-20261030",
+    "/path/to/home/Documents/TSPP/deliverables/已清理研究_20260615至20261023_参数回测",
+    "/path/to/home/Documents/TSPP/deliverables/策略002_20260615至20261023_固定参数回测"
+  ]
+}

@@ -68,6 +68,9 @@ class WorkerHealth:
 
 def readiness(state, data_dir):
     checks = {}
+    quotes = getattr(state, "quote_service", None)
+    view = quotes.binding_snapshot() if quotes and hasattr(quotes, "binding_snapshot") else None
+    snapshot = view.snapshot if view is not None else getattr(quotes, "snapshot", None)
     identity = getattr(state, "account_identity", None)
     try:
         with identity.db.control.connection() as conn:
@@ -94,18 +97,49 @@ def readiness(state, data_dir):
     except Exception:
         checks["databases"] = {"status": "error"}
     try:
-        release = json.loads((data_dir / ".public_release.json").read_text())
-        checks["public_files"] = {"status": "ok", "release_id": release["id"]}
-    except (OSError, ValueError, KeyError):
-        checks["public_files"] = {"status": "error"}
-    quotes = getattr(state, "quote_service", None)
-    snapshot = getattr(quotes, "snapshot", None)
+        if view is not None:
+            from app.config import settings
+            from app.multitenancy.public_reader import PublicReleaseError, current_release
+
+            diag = {
+                "binding_current": False,
+                "sync_age_seconds": view.sync["last_checked_age_seconds"],
+                "mismatch_age_seconds": view.sync["mismatch_age_seconds"],
+                "last_error_kind": view.sync["last_error_kind"],
+                "reader_lock_held": bool(view.lease and view.lease.held),
+            }
+            checks["public_files"] = {"status": "error", **diag}
+            if view.repo is None or view.lease is None:
+                raise PublicReleaseError()
+            release = view.lease.validate()
+            target = current_release(settings.data_dir)
+            checks["public_files"]["binding_current"] = target == view.repo.store.data_dir
+            # Check the current manifest as well when the old binding is in its
+            # grace period. A broken current entry must still fail immediately.
+            if target != view.repo.store.data_dir:
+                from app.multitenancy.public_reader import PublicReleaseLease
+
+                current_lease = PublicReleaseLease.acquire(target)
+                try:
+                    current_lease.validate()
+                finally:
+                    current_lease.close()
+            if view.sync["last_error_kind"] in {"sync_stalled", "stopped", "current_unavailable"}:
+                raise PublicReleaseError(view.sync["last_error_kind"])
+            checks["public_files"].update(status="ok", release_id=release["id"])
+        else:
+            release = json.loads((data_dir / ".public_release.json").read_text())
+            checks["public_files"] = {"status": "ok", "release_id": release["id"]}
+    except (OSError, ValueError, KeyError) as exc:
+        checks.setdefault("public_files", {})["status"] = "error"
+        if view is not None:
+            checks["public_files"]["last_error_kind"] = getattr(exc, "kind", "invalid_release")
     bridge = quotes.bridge_status() if quotes and hasattr(quotes, "bridge_status") else {}
     connected = bool(
         snapshot
         and (
             bridge.get("connected")
-            or time.monotonic() - quotes.received_at <= 15
+            or time.monotonic() - (view.received_at if view is not None else quotes.received_at) <= 15
         )
     )
     checks["platform"] = {
@@ -113,7 +147,8 @@ def readiness(state, data_dir):
         "connected": connected,
         **bridge,
     }
-    checks["indicator_cache"] = {"status": "ok" if getattr(state, "indicators_ready", False) else "error"}
+    indicators_ready = view.indicators_ready if view is not None else getattr(state, "indicators_ready", False)
+    checks["indicator_cache"] = {"status": "ok" if indicators_ready else "error"}
     try:
         healthy = state.compute_executor.health()["ready"]
         checks["compute_broker"] = {"status": "ok" if healthy else "error"}

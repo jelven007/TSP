@@ -1,0 +1,159 @@
+{
+  "status": "verified",
+  "start": "2020-11-02",
+  "end": "2026-10-29",
+  "started_at_beijing": "2026-10-29T23:37:05.084447+08:00",
+  "finished_at_beijing": "2026-10-29T23:37:09.148863+08:00",
+  "requested_page": "https://www.tdx.com.cn/article/vipdata.html",
+  "archive_url": "https://data.tdx.com.cn/vipdoc/hsjday.zip",
+  "archive_bytes": 550818570,
+  "archive_sha256": "3d2afd03d4e858cf8c9f61805bbe5c987a7eefe8702e3832ae036711c3399281",
+  "official_archive_update": "2026-10-29 15:58:51+08:00",
+  "archive_entries": 12228,
+  "examined_stock_files": 1267,
+  "extraction_subset_bytes": 157332914,
+  "extraction_subset_sha256": "6ce444f4f260117452a742e22b6368dff4f8df74fefcb3280d2154de806b6a17",
+  "target_symbols": 1265,
+  "target_missing_keys": 9565,
+  "obtained_valid_daily_rows": 0,
+  "source_records_on_gap_keys": 0,
+  "classification_counts": {
+    "not_present_between_stored_dates": 9498,
+    "after_stock_file_last_date": 67
+  },
+  "remaining_keys_without_valid_record": 9565,
+  "latest_date_in_examined_stock_files": "2026-10-29",
+  "all_required_stock_members_verified": true,
+  "stock_file_errors": [],
+  "conflicting_target_dates": 0,
+  "baseline_public_release": "87924a4f1b2e4b3e8960bc3b7f452469",
+  "baseline_audit_time": "2026-10-29T22:41:22.901727+08:00",
+  "normalization": {
+    "record_bytes": 32,
+    "layout": "<IIIIIfII",
+    "price": "integer / 100, CNY",
+    "source_volume": "u32 at byte 24, shares",
+    "output_volume": "source shares / 100, A-share daily lots",
+    "amount": "f32 at byte 20, CNY",
+    "price_basis": "unadjusted .day values; no forward adjustment applied",
+    "halt_filter": "existing normalize_daily/filter_halt_days; no zero-value fabrication"
+  },
+  "online_imported_rows": 0,
+  "interpretation": "A missing key with a valid complete-package row is a recoverable candidate. No record in the official ZIP alone does not prove a trading halt. The target universe is the previously audited current Shanghai/Shenzhen four-board pool; Beijing and other asset records are outside this request.",
+  "yearly_summary": [
+    {
+      "year": "2020",
+      "target_keys": 356,
+      "valid_candidates": 0,
+      "halt_or_zero_activity": 0,
+      "remaining_keys": 356
+    },
+    {
+      "year": "2021",
+      "target_keys": 1853,
+      "valid_candidates": 0,
+      "halt_or_zero_activity": 0,
+      "remaining_keys": 1853
+    },
+    {
+      "year": "2022",
+      "target_keys": 1567,
+      "valid_candidates": 0,
+      "halt_or_zero_activity": 0,
+      "remaining_keys": 1567
+    },
+    {
+      "year": "2023",
+      "target_keys": 890,
+      "valid_candidates": 0,
+      "halt_or_zero_activity": 0,
+      "remaining_keys": 890
+    },
+    {
+      "year": "2024",
+      "target_keys": 1073,
+      "valid_candidates": 0,
+      "halt_or_zero_activity": 0,
+      "remaining_keys": 1073
+    },
+    {
+      "year": "2025",
+      "target_keys": 2310,
+      "valid_candidates": 0,
+      "halt_or_zero_activity": 0,
+      "remaining_keys": 2310
+    },
+    {
+      "year": "2026",
+      "target_keys": 1516,
+      "valid_candidates": 0,
+      "halt_or_zero_activity": 0,
+      "remaining_keys": 1516
+    }
+  ],
+  "latest_day_comparison": [
+    {
+      "symbol": "002717.SZ",
+      "name": "*ST岭南",
+      "day": "2026-10-29",
+      "classification": "after_stock_file_last_date",
+      "member": "sz\\lday\\sz002717.day",
+      "file_first_date": "2014-02-19",
+      "file_last_date": "2026-10-12"
+    },
+    {
+      "symbol": "002827.SZ",
+      "name": "高争民爆",
+      "day": "2026-10-29",
+      "classification": "after_stock_file_last_date",
+      "member": "sz\\lday\\sz002827.day",
+      "file_first_date": "2016-12-09",
+      "file_last_date": "2026-10-23"
+    },
+    {
+      "symbol": "301468.SZ",
+      "name": "博盈特焊",
+      "day": "2026-10-29",
+      "classification": "after_stock_file_last_date",
+      "member": "sz\\lday\\sz301468.day",
+      "file_first_date": "2023-07-24",
+      "file_last_date": "2026-10-16"
+    },
+    {
+      "symbol": "601326.SH",
+      "name": "秦港股份",
+      "day": "2026-10-29",
+      "classification": "after_stock_file_last_date",
+      "member": "sh\\lday\\sh601326.day",
+      "file_first_date": "2017-08-16",
+      "file_last_date": "2026-10-20"
+    },
+    {
+      "symbol": "605258.SH",
+      "name": "协和电子",
+      "day": "2026-10-29",
+      "classification": "after_stock_file_last_date",
+      "member": "sh\\lday\\sh605258.day",
+      "file_first_date": "2020-12-03",
+      "file_last_date": "2026-10-23"
+    },
+    {
+      "symbol": "688121.SH",
+      "name": "*ST卓然",
+      "day": "2026-10-29",
+      "classification": "after_stock_file_last_date",
+      "member": "sh\\lday\\sh688121.day",
+      "file_first_date": "2021-09-06",
+      "file_last_date": "2026-10-28"
+    },
+    {
+      "symbol": "688496.SH",
+      "name": "*ST清越",
+      "day": "2026-10-29",
+      "classification": "after_stock_file_last_date",
+      "member": "sh\\lday\\sh688496.day",
+      "file_first_date": "2022-12-28",
+      "file_last_date": "2026-09-10"
+    }
+  ]
+}

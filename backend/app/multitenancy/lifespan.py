@@ -60,21 +60,17 @@ async def lifespan(app: FastAPI):
         from app.data_providers import custom as custom_sources
         from app.multitenancy.events import EventHub
         from app.multitenancy.market import PublicMarket
+        from app.multitenancy.public_reader import current_release, open_public_repository
         from app.multitenancy.quote_bridge import PublicQuoteBridge
         from app.multitenancy.quote_markers import QuoteMarkerBridge
         from app.tickflow.policy import detect_capabilities
-        from app.tickflow.repository import DataStore, KlineRepository
 
         custom_sources.load_all()
         resources.callback(custom_sources.close_all)
-        store = DataStore(settings.data_dir.resolve(), read_only=True)
-        resources.callback(store.db.close)
-        repo = KlineRepository(store)
-        app.state.datastore = store
+        repo = open_public_repository(current_release(settings.data_dir))
+        app.state.datastore = repo.store
         app.state.repo = repo
         app.state.indicators_ready = False
-        repo._refresh_instruments()
-        repo._refresh_index_instruments()
         app.state.capabilities = detect_capabilities()
         # This instance supplies the existing public read contracts only.
         # boot_check/start_polling/schedulers belong to the platform process.
@@ -89,13 +85,13 @@ async def lifespan(app: FastAPI):
         app.state.scheduler = None
         resources.callback(quotes.close)
         quotes.refresh()
+        # The committed binding owns these resources; startup locals must not
+        # pin the initial release for the entire process lifetime.
+        del repo
         hub = EventHub(db)
         app.state.tenant_event_hub = hub
         hub.start()
         resources.callback(hub.close)
-        from app.services.sector_monitor import SectorMonitorService
-
-        app.state.sector_monitor_service = SectorMonitorService(repo)
         quotes.start()
 
         from app.strategy.engine import StrategyEngine

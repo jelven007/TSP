@@ -132,6 +132,7 @@ def execute(payload: dict, private_root: Path) -> dict:
                 engine, as_of, ids, timeframe=payload.get("timeframe", "1d"),
                 params_map=payload.get("params_map"), overrides_map=payload.get("overrides_map"),
             )
+            context.previous_states = payload.get("previous_states")
             if context.current is not None and context.current.is_empty():
                 raise ValueError("无可用行情数据，请稍后重试")
             if len(ids) == 1:

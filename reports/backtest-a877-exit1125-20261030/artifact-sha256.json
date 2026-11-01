@@ -1,0 +1,177 @@
+[
+  {
+    "file": "cost-sensitivity.csv",
+    "sha256": "4aa8f40b8e17be5d9d433cf9e0a7218679f34a8c35b58768d9af408685c5c332",
+    "bytes": 476
+  },
+  {
+    "file": "daily-analysis/daily-pnl.csv",
+    "sha256": "9c2bb6c34dd833c0ed68038aaf21fbe215a8f1bc90a1f28888cc65e10d9e8546",
+    "bytes": 15689
+  },
+  {
+    "file": "daily-analysis/entry-day-pnl.csv",
+    "sha256": "696b00202d46750f454eb276ebb3bdd004e4197c4754828bf6f191060ff91453",
+    "bytes": 69645
+  },
+  {
+    "file": "daily-analysis/report.md",
+    "sha256": "ca487f5451ca3028eca7a69c41f9111e848ebbf7f4b960950e5fd4e0b26f212a",
+    "bytes": 2619
+  },
+  {
+    "file": "daily-analysis/summary.json",
+    "sha256": "546b8d8e7c9f7649a00dd7311dfe5cfb62d1614d4b92870d9729933eab33ea69",
+    "bytes": 3249
+  },
+  {
+    "file": "daily-analysis/verification.json",
+    "sha256": "f6aa3826ec55b5cd049338c0cd4e94cdf88f92c7848b9637da8b95548d37da2f",
+    "bytes": 817
+  },
+  {
+    "file": "entitlements.csv",
+    "sha256": "1f6ca16838069b4640bda3633eb158ff99965bff5e702507cca4bb06c2474ebb",
+    "bytes": 231
+  },
+  {
+    "file": "equity.csv",
+    "sha256": "a893b235d5a83e77699cb8dc56ed44555a136e227e3ffc4ca5735593ccc33f37",
+    "bytes": 8646
+  },
+  {
+    "file": "input-manifest.json",
+    "sha256": "65cd9dbaf293ef4401f53994276caf4f3a714990752b5da6f2d1478928029486",
+    "bytes": 15991
+  },
+  {
+    "file": "ledger.csv",
+    "sha256": "baf6a97fafab7f2867afe02881dd65fd0a86f52ad9690edf1fbcb5064693231f",
+    "bytes": 157478
+  },
+  {
+    "file": "monthly-realized.csv",
+    "sha256": "4dbe421179c3bb745b53891805ab592852920883e3d56e9273f58b2158680608",
+    "bytes": 293
+  },
+  {
+    "file": "open-positions.csv",
+    "sha256": "964b492713724a72a5383183887e079bacb3ac16808c4193ae79ff6423cc150c",
+    "bytes": 45
+  },
+  {
+    "file": "orders.csv",
+    "sha256": "325cba2c4b1e9aa0a0eb6a3cd907f512ccadcc8531789266bf83de13cb2620e7",
+    "bytes": 410243
+  },
+  {
+    "file": "provenance.json",
+    "sha256": "79e0f6eb1dec7e6bf9dd69ec6c4b8e8e52b75cd8a299378973f9fe6522aed30e",
+    "bytes": 968
+  },
+  {
+    "file": "report.md",
+    "sha256": "32823cf3f52fef514ec198131a4cba4fee39a10a3aaec88dd0cd17e32ad724f5",
+    "bytes": 4392
+  },
+  {
+    "file": "results.json",
+    "sha256": "2356e3bd811a838336cbd909a06b53c80425583a3b610224a3a29ce18d3f8ac2",
+    "bytes": 1393
+  },
+  {
+    "file": "run-checks.json",
+    "sha256": "45a6c87a33dad986441125114064ad6169f7c3283a6e24c7dc97513895735167",
+    "bytes": 326
+  },
+  {
+    "file": "slippage10bp/entitlements.csv",
+    "sha256": "1f6ca16838069b4640bda3633eb158ff99965bff5e702507cca4bb06c2474ebb",
+    "bytes": 231
+  },
+  {
+    "file": "slippage10bp/equity.csv",
+    "sha256": "3e1c8854b206194eb0d5124add85eafdb60acb6578a73d14955929db1358708b",
+    "bytes": 8649
+  },
+  {
+    "file": "slippage10bp/ledger.csv",
+    "sha256": "c255230edf0989f28544a5d2bfb88d1c1dd95246a2f24b2fbed482bf442f52fb",
+    "bytes": 157777
+  },
+  {
+    "file": "slippage10bp/open-positions.csv",
+    "sha256": "964b492713724a72a5383183887e079bacb3ac16808c4193ae79ff6423cc150c",
+    "bytes": 45
+  },
+  {
+    "file": "slippage10bp/orders.csv",
+    "sha256": "1defccd466fb837d32b9bee1eda074dab990ebb8d11332661b75897acf9267ab",
+    "bytes": 411072
+  },
+  {
+    "file": "slippage10bp/results.json",
+    "sha256": "b33a4927c7da7fa5242f983b7a2c1db584b86f087234974c37b1053d9b68e0f1",
+    "bytes": 1403
+  },
+  {
+    "file": "slippage10bp/trades.csv",
+    "sha256": "970ec6ff2f97c12e82f57c6199ca7a120f5a22021404866684acd9edeb3f955c",
+    "bytes": 467172
+  },
+  {
+    "file": "slippage5bp/entitlements.csv",
+    "sha256": "1f6ca16838069b4640bda3633eb158ff99965bff5e702507cca4bb06c2474ebb",
+    "bytes": 231
+  },
+  {
+    "file": "slippage5bp/equity.csv",
+    "sha256": "a8909172b96f3a51e7291e0273230609c2c9cf71c60b2326d91173c0ca57cbad",
+    "bytes": 8647
+  },
+  {
+    "file": "slippage5bp/ledger.csv",
+    "sha256": "a6901166d3367dc9cfabf6f3631e9288f5778ac618ce0cf6990d589a84be25f8",
+    "bytes": 157533
+  },
+  {
+    "file": "slippage5bp/open-positions.csv",
+    "sha256": "964b492713724a72a5383183887e079bacb3ac16808c4193ae79ff6423cc150c",
+    "bytes": 45
+  },
+  {
+    "file": "slippage5bp/orders.csv",
+    "sha256": "4881e2bdb1542e201cea44a940e1210daaff62cc6b39809176748c4c8261f852",
+    "bytes": 411121
+  },
+  {
+    "file": "slippage5bp/results.json",
+    "sha256": "2598de9b3f2e7e5d9d3e67f646612cb0ff16df422cb6bcdf52d099d9514aabca",
+    "bytes": 1405
+  },
+  {
+    "file": "slippage5bp/trades.csv",
+    "sha256": "aadeec3898f3fb411cad05c2c2dee45aa2352f4df5917a17a14012928f60f84b",
+    "bytes": 466065
+  },
+  {
+    "file": "strategy.json",
+    "sha256": "b9e1325c2a4fe2b17219bdb879ad853d9e835cf013ac6a52868549ab9f63ff40",
+    "bytes": 2628
+  },
+  {
+    "file": "trades.csv",
+    "sha256": "41c0d6cb62c262471ce7d0213d2a5ce01354a3bb59f64d692ef6f18229bb9e88",
+    "bytes": 466295
+  },
+  {
+    "file": "verification.json",
+    "sha256": "5bc8691f85de466aaef5d4c7b63d8bf433431b97870457fa0bcd88d4a25e3545",
+    "bytes": 2004
+  },
+  {
+    "file": "backtest-results.zip",
+    "sha256": "ef7856f66e5eb72c6a2ea51897e9d0508265291e0ea612d77edce7205da35562",
+    "bytes": 905511
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "http_status": 200,
+  "body": {
+    "enabled": true,
+    "running": true,
+    "symbol_count": 0,
+    "index_symbol_count": 0,
+    "quote_age_ms": null,
+    "is_trading_hours": false,
+    "last_fetch_ms": 1793174400307.0,
+    "paused": false,
+    "mode": "full_market",
+    "realtime_allowed": true,
+    "interval_s": 1.0,
+    "is_polling_window": false,
+    "market_phase": "closed",
+    "final_sync_done": false,
+    "final_sync_failed": null,
+    "second_quote_archive": {
+      "enabled": true,
+      "running": false,
+      "retention_days": 0,
+      "flush_rounds": 10,
+      "queue_capacity": 30,
+      "queued_rounds": 0,
+      "accepted_rounds": 0,
+      "written_rounds": 0,
+      "written_rows": 0,
+      "written_files": 0,
+      "dropped_rounds": 0,
+      "last_flush_ms": null,
+      "last_error": null,
+      "pending_rounds": 0,
+      "queue_peak": 0,
+      "last_write_ms": null,
+      "last_drop_ms": null
+    }
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "published": [
+    {
+      "name": "benchmark.py",
+      "sha256": "c0c3c2a85b5a2628f4067c49c503b497c872e6dbbf6b077877adf705f666a118",
+      "bytes": 14637
+    },
+    {
+      "name": "checks.json",
+      "sha256": "76b18d6dd165fc12b873411a3a6e36445cef3ed7030ad9ec7aeb2e8b85e9b0cc",
+      "bytes": 761
+    },
+    {
+      "name": "connection-repaired.json",
+      "sha256": "a5822107711e117e6d887d2cef216b1b71b1cb3d10c6f382e8376427037530a8",
+      "bytes": 96890
+    },
+    {
+      "name": "four32-experiment.patch",
+      "sha256": "e70a07f772bf02a2380d5abbb8591cf1356dfff8b15a4cceca89051e42f7f70a",
+      "bytes": 20913
+    },
+    {
+      "name": "node-qualification.json",
+      "sha256": "ea0d3261e8ba409a676d63093fdd4486ca45d7f3965247f0f6139356dd6ed846",
+      "bytes": 125971
+    },
+    {
+      "name": "original-1945.json",
+      "sha256": "47a528bc379d3c547578e4bec5278922391f0d2ba124ed2f1c3a54c1f445c2ed",
+      "bytes": 935
+    },
+    {
+      "name": "production-fix.patch",
+      "sha256": "ca8ab7d3cca7f978b386188de738ae5aa4c8ee9cba4af710d15cb6a6a67818aa",
+      "bytes": 3597
+    },
+    {
+      "name": "qualify_nodes.py",
+      "sha256": "002c9cde2c020c72f688a598bf49fbf3561d1ad1937d3130dd2bd35c5abf196f",
+      "bytes": 4604
+    },
+    {
+      "name": "raw-response-summary.json",
+      "sha256": "84b3db40379ac072a3dbd226e70d2df5a207a1f06c9527b1d4b021cae630cf40",
+      "bytes": 65598
+    },
+    {
+      "name": "repaired-run.log",
+      "sha256": "ebd32c87ab842a2aa2cc565483c8a16256d0f6a099cbb6afb60e46bee0f27910",
+      "bytes": 1076
+    },
+    {
+      "name": "report.md",
+      "sha256": "8f326100c4d1f5ca507127760348a6c509142821d8ddf874a5868237f311b575",
+      "bytes": 6553
+    },
+    {
+      "name": "routing.py",
+      "sha256": "d6856cd53f5c8b5197454520232a925962e1ae0f2d5232432445bab402b22f0b",
+      "bytes": 7802
+    },
+    {
+      "name": "source-ruff.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19
+    },
+    {
+      "name": "source-tests-green.log",
+      "sha256": "bfb71ff885b655792c7c90000cbed5d04bcd9a434d347321bd152b7dda72f67e",
+      "bytes": 98
+    },
+    {
+      "name": "source-tests-reverse-red.log",
+      "sha256": "394eb015ccc405083255700dec656e3d08986f4f039cd21b829ecdafdd42a3c3",
+      "bytes": 11550
+    },
+    {
+      "name": "source-verified.json",
+      "sha256": "17dc2917bd7b141ec2225e90ae1d86a5aee8c05872377165ddb553bafb30a3a5",
+      "bytes": 126310
+    },
+    {
+      "name": "stale-red-1.log",
+      "sha256": "22ce15b3d822a98cbcaef6f120efbef33792fef8bbeaf9553d05f9d9f428f197",
+      "bytes": 3694
+    },
+    {
+      "name": "stale-red-2.log",
+      "sha256": "c3486c1100766db79605fe90bda1591ab81fd6b6cbb43db11fc02723fbedaa81",
+      "bytes": 3694
+    },
+    {
+      "name": "stale-reverse-red.log",
+      "sha256": "1837071ce1154704ce980654b51c91bb8156b24cac4c2c199de212375544285d",
+      "bytes": 3726
+    },
+    {
+      "name": "tcp-gate32.json",
+      "sha256": "9f3761e3568e524cb60bdc5058a0c80240b89d10a6c3e69ebf9991d26e9d13e6",
+      "bytes": 14003
+    },
+    {
+      "name": "test_stale_source.py",
+      "sha256": "a77184d0d3fd27ffb22cfaecabdd285975c01dc0217c0514485891851ba19ab6",
+      "bytes": 2325
+    },
+    {
+      "name": "test_verified_routing.py",
+      "sha256": "6c787bc50779eff889bc2fba09bafbf4d0cf9316b6b47c033737f67432399cae",
+      "bytes": 3586
+    },
+    {
+      "name": "verified-run.log",
+      "sha256": "350bc5fb98d05f4264062f91df86f989d1fb9a992bc5a2168172b77f067619c4",
+      "bytes": 1070
+    },
+    {
+      "name": "workspace-build.log",
+      "sha256": "e6c93f91892335f2350ba91b968e873e5c0e9cc9c27c574ef2e6ffd1cbe1bf39",
+      "bytes": 4928
+    },
+    {
+      "name": "workspace-clippy.log",
+      "sha256": "a18f996388a956f3c95fa3a8274e27e94bc3e992ef065b65950c17ad6f3ccf5f",
+      "bytes": 2383
+    },
+    {
+      "name": "workspace-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "name": "workspace-python-green.log",
+      "sha256": "e922ef412d0c3811894a5d919545d3f72248d2fdbb878cc8d6a64bc521e77f38",
+      "bytes": 261
+    },
+    {
+      "name": "workspace-ruff.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19
+    },
+    {
+      "name": "workspace-rust-green.log",
+      "sha256": "79efbde552974b01ec7d245691e99c6af6737ba618863319411352de5df74fd2",
+      "bytes": 3790
+    }
+  ],
+  "intermediate": [
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/raw-integrity-probe/result.json",
+      "sha256": "93f323b3269233c9c12162e10b2fad4f733d861c8cd9d9a5240f12a392e6f00d",
+      "bytes": 15690894
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/node-integrity/result.json",
+      "sha256": "ea0d3261e8ba409a676d63093fdd4486ca45d7f3965247f0f6139356dd6ed846",
+      "bytes": 125971
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/verified-0/cold-minute.parquet",
+      "sha256": "1cb1e78a3854f7e130159d8f9466cff05a6a65600e30ebe5946b1ec3eb6810ff",
+      "bytes": 5568498
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/verified-0/warm-minute.parquet",
+      "sha256": "1cb1e78a3854f7e130159d8f9466cff05a6a65600e30ebe5946b1ec3eb6810ff",
+      "bytes": 5568498
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/verified-0/cold-daily.parquet",
+      "sha256": "16d86edc4b08c13660da0ce85e281acf34e626d4d4778649af10f43270f8d648",
+      "bytes": 42569
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/verified-0/warm-daily.parquet",
+      "sha256": "16d86edc4b08c13660da0ce85e281acf34e626d4d4778649af10f43270f8d648",
+      "bytes": 42569
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/backend/native/rustdx_native/src/lib.rs",
+      "sha256": "fe7e024beaf049a6eb9db2b6c67cfc6584bff7240f6940324580f2bd6e4b6290",
+      "bytes": 36045
+    },
+    {
+      "path": "/path/to/home/Documents/TSPP/backend/native/rustdx_native/src/lib.rs",
+      "sha256": "676864328fe76460e1ee95f25fadbd94b38a4babb0e97af788344e97b839695f",
+      "bytes": 34745
+    },
+    {
+      "path": "/path/to/home/Documents/TSPP/backend/tests/test_rustdx_stale_source.py",
+      "sha256": "a77184d0d3fd27ffb22cfaecabdd285975c01dc0217c0514485891851ba19ab6",
+      "bytes": 2325
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/mixed-task/repair-native/tsp_rustdx_native/tsp_rustdx_native.cpython-312-darwin.so",
+      "sha256": "83f0843119afe583ff10eab398906ca20321118fa2c12e00739faa9880d0ede2",
+      "bytes": 1941488
+    },
+    {
+      "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/repair32/native/tsp_rustdx_native/tsp_rustdx_native.cpython-312-darwin.so",
+      "sha256": "584a6dcf2ae5c0a31d876c355aa64ecf5413af99d5d7e9f750ee7fa59853786b",
+      "bytes": 1940672
+    }
+  ]
+}

@@ -1,4 +1,6 @@
-# TSP 品牌资产 · 唯一来源
+# Tick Stock Platform（TSP）品牌资产 · 唯一来源
+
+产品全称为 **Tick Stock Platform**，简称 **TSP**；产品名称中的 Platform 表示平台。
 
 图形：**方括号 `[ ]` + 中央 bullish K 线**，品牌紫渐变，全直角（无圆角/圆笔帽）。
 设计提案与评审记录见 [`logo-proposals.html`](logo-proposals.html)。

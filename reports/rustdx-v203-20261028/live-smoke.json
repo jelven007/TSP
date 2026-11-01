@@ -1,0 +1,848 @@
+{
+  "bridge": [
+    true,
+    "jelven-rustdx-complete 2.0.3 (jelven007/rustdx@d6bf22a) / bridge 0.2.0 / patch 159703baa8d9 / 8业务+1探测"
+  ],
+  "checks": {
+    "stock_etf_index_quotes_depth": {
+      "status": "pass",
+      "seconds": 4.56748916700235,
+      "value": [
+        {
+          "amount": 4358058496.0,
+          "ask1": 1331.32,
+          "ask2": 1331.33,
+          "ask3": 1331.39,
+          "ask4": 1331.4,
+          "ask5": 1331.41,
+          "b_vol": 15152.0,
+          "bid1": 1330.78,
+          "bid2": 1330.77,
+          "bid3": 1330.75,
+          "bid4": 1330.72,
+          "bid5": 1330.66,
+          "change": -25.080000000000155,
+          "change_percent": -1.8496939302308544,
+          "code": "600519",
+          "cur_vol": 8.0,
+          "high": 1354.98,
+          "last_close": 1355.9,
+          "low": 1322.6,
+          "market": 1,
+          "open": 1354.98,
+          "price": 1330.82,
+          "s_vol": 17432.0,
+          "servertime": "14:09:46.914",
+          "speed": -0.09,
+          "vol": 32583.0,
+          "bid_vol1": 5.0,
+          "bid_vol2": 2.0,
+          "bid_vol3": 2.0,
+          "bid_vol4": 27.0,
+          "bid_vol5": 6.0,
+          "ask_vol1": 3.0,
+          "ask_vol2": 7.0,
+          "ask_vol3": 1.0,
+          "ask_vol4": 1.0,
+          "ask_vol5": 1.0
+        },
+        {
+          "amount": 2808985088.0,
+          "ask1": 0.867,
+          "ask2": 0.868,
+          "ask3": 0.869,
+          "ask4": 0.87,
+          "ask5": 0.871,
+          "b_vol": 16921610.0,
+          "bid1": 0.866,
+          "bid2": 0.865,
+          "bid3": 0.864,
+          "bid4": 0.863,
+          "bid5": 0.862,
+          "change": 0.027000000000000024,
+          "change_percent": 3.2142857142857175,
+          "code": "588200",
+          "cur_vol": 100.0,
+          "high": 0.882,
+          "last_close": 0.84,
+          "low": 0.851,
+          "market": 1,
+          "open": 0.86,
+          "price": 0.867,
+          "s_vol": 15523892.0,
+          "servertime": "",
+          "speed": 0.23,
+          "vol": 32445501.0,
+          "bid_vol1": 8612.0,
+          "bid_vol2": 137929.0,
+          "bid_vol3": 99359.0,
+          "bid_vol4": 74556.0,
+          "bid_vol5": 58971.0,
+          "ask_vol1": 62036.0,
+          "ask_vol2": 99221.0,
+          "ask_vol3": 83872.0,
+          "ask_vol4": 58386.0,
+          "ask_vol5": 17161.0
+        },
+        {
+          "amount": 654422048768.0,
+          "ask1": 3674.67,
+          "ask2": 4583.44,
+          "ask3": 3674.67,
+          "ask4": 3674.67,
+          "ask5": 3674.67,
+          "b_vol": 191251904.0,
+          "bid1": 393562.29,
+          "bid2": 47960.09,
+          "bid3": 1262257.37,
+          "bid4": 3674.67,
+          "bid5": 3674.67,
+          "change": 26.36999999999989,
+          "change_percent": 0.722802401118326,
+          "code": "000001",
+          "cur_vol": 721738.0,
+          "high": 3684.49,
+          "last_close": 3648.3,
+          "low": 3652.37,
+          "market": 1,
+          "open": 3676.92,
+          "price": 3674.67,
+          "s_vol": 184020503.0,
+          "servertime": "",
+          "speed": 0.05,
+          "vol": 375272328.0,
+          "bid_vol1": 1625.0,
+          "bid_vol2": 33.0,
+          "bid_vol3": 1236.0,
+          "bid_vol4": 0.0,
+          "bid_vol5": 0.0,
+          "ask_vol1": 636.0,
+          "ask_vol2": 4.0,
+          "ask_vol3": 1083.0,
+          "ask_vol4": 0.0,
+          "ask_vol5": 0.0
+        }
+      ]
+    },
+    "bars_600519.SH_9": {
+      "status": "pass",
+      "seconds": 0.03516045799915446,
+      "value": [
+        [
+          {
+            "amount": 5576217088.0,
+            "close": 1318.49,
+            "code": "600519",
+            "high": 1322.0,
+            "low": 1296.0,
+            "open": 1303.21,
+            "vol": 42491.0,
+            "datetime": "2026-10-22 15:00"
+          },
+          {
+            "amount": 7677216256.0,
+            "close": 1335.0,
+            "code": "600519",
+            "high": 1343.88,
+            "low": 1310.0,
+            "open": 1311.84,
+            "vol": 57685.0,
+            "datetime": "2026-10-23 15:00"
+          },
+          {
+            "amount": 5574287872.0,
+            "close": 1349.98,
+            "code": "600519",
+            "high": 1350.0,
+            "low": 1324.79,
+            "open": 1325.4,
+            "vol": 41599.0,
+            "datetime": "2026-10-26 15:00"
+          },
+          {
+            "amount": 5226798592.0,
+            "close": 1355.9,
+            "code": "600519",
+            "high": 1357.0,
+            "low": 1338.01,
+            "open": 1343.88,
+            "vol": 38669.0,
+            "datetime": "2026-10-27 15:00"
+          },
+          {
+            "amount": 4358058496.0,
+            "close": 1330.82,
+            "code": "600519",
+            "high": 1354.98,
+            "low": 1322.6,
+            "open": 1354.98,
+            "vol": 32583.0,
+            "datetime": "2026-10-28 15:00"
+          }
+        ],
+        {
+          "connection_id": 1,
+          "endpoint": "117.34.114.13:7709",
+          "observed_date": 20261028,
+          "slot": 0
+        }
+      ]
+    },
+    "bars_600519.SH_8": {
+      "status": "pass",
+      "seconds": 0.18394158400042215,
+      "value": [
+        [
+          {
+            "amount": 12255928.0,
+            "close": 1332.17,
+            "code": "600519",
+            "high": 1332.97,
+            "low": 1332.0,
+            "open": 1332.97,
+            "vol": 9200.0,
+            "datetime": "2026-10-28 14:20"
+          },
+          {
+            "amount": 9059107.0,
+            "close": 1331.39,
+            "code": "600519",
+            "high": 1332.9,
+            "low": 1331.39,
+            "open": 1332.0,
+            "vol": 6800.0,
+            "datetime": "2026-10-28 14:21"
+          },
+          {
+            "amount": 5727759.0,
+            "close": 1332.11,
+            "code": "600519",
+            "high": 1332.48,
+            "low": 1331.44,
+            "open": 1331.44,
+            "vol": 4300.0,
+            "datetime": "2026-10-28 14:22"
+          },
+          {
+            "amount": 6257728.0,
+            "close": 1331.0,
+            "code": "600519",
+            "high": 1331.8,
+            "low": 1331.0,
+            "open": 1331.79,
+            "vol": 4700.0,
+            "datetime": "2026-10-28 14:23"
+          },
+          {
+            "amount": 3460722.0,
+            "close": 1330.82,
+            "code": "600519",
+            "high": 1331.0,
+            "low": 1330.82,
+            "open": 1331.0,
+            "vol": 2600.0,
+            "datetime": "2026-10-28 14:24"
+          }
+        ],
+        {
+          "connection_id": 2,
+          "endpoint": "117.34.114.13:7709",
+          "observed_date": 20261028,
+          "slot": 1
+        }
+      ]
+    },
+    "bars_588200.SH_9": {
+      "status": "pass",
+      "seconds": 0.14549558300132048,
+      "value": [
+        [
+          {
+            "amount": 2444407296.0,
+            "close": 0.889,
+            "code": "588200",
+            "high": 0.928,
+            "low": 0.888,
+            "open": 0.926,
+            "vol": 27045928.0,
+            "datetime": "2026-10-22 15:00"
+          },
+          {
+            "amount": 4147123456.0,
+            "close": 0.922,
+            "code": "588200",
+            "high": 0.923,
+            "low": 0.849,
+            "open": 0.871,
+            "vol": 46821176.0,
+            "datetime": "2026-10-23 15:00"
+          },
+          {
+            "amount": 2381504768.0,
+            "close": 0.882,
+            "code": "588200",
+            "high": 0.909,
+            "low": 0.88,
+            "open": 0.905,
+            "vol": 26730010.0,
+            "datetime": "2026-10-26 15:00"
+          },
+          {
+            "amount": 2290375168.0,
+            "close": 0.84,
+            "code": "588200",
+            "high": 0.901,
+            "low": 0.839,
+            "open": 0.898,
+            "vol": 26268154.0,
+            "datetime": "2026-10-27 15:00"
+          },
+          {
+            "amount": 2808985088.0,
+            "close": 0.867,
+            "code": "588200",
+            "high": 0.882,
+            "low": 0.851,
+            "open": 0.86,
+            "vol": 32445500.0,
+            "datetime": "2026-10-28 15:00"
+          }
+        ],
+        {
+          "connection_id": 3,
+          "endpoint": "117.34.114.13:7709",
+          "observed_date": 20261028,
+          "slot": 2
+        }
+      ]
+    },
+    "bars_588200.SH_8": {
+      "status": "pass",
+      "seconds": 0.19800333300008788,
+      "value": [
+        [
+          {
+            "amount": 2818286.0,
+            "close": 0.865,
+            "code": "588200",
+            "high": 0.865,
+            "low": 0.864,
+            "open": 0.864,
+            "vol": 3261100.0,
+            "datetime": "2026-10-28 14:20"
+          },
+          {
+            "amount": 6659025.0,
+            "close": 0.865,
+            "code": "588200",
+            "high": 0.865,
+            "low": 0.864,
+            "open": 0.864,
+            "vol": 7701400.0,
+            "datetime": "2026-10-28 14:21"
+          },
+          {
+            "amount": 1537198.0,
+            "close": 0.866,
+            "code": "588200",
+            "high": 0.866,
+            "low": 0.865,
+            "open": 0.865,
+            "vol": 1776800.0,
+            "datetime": "2026-10-28 14:22"
+          },
+          {
+            "amount": 3998463.0,
+            "close": 0.867,
+            "code": "588200",
+            "high": 0.867,
+            "low": 0.865,
+            "open": 0.865,
+            "vol": 4618300.0,
+            "datetime": "2026-10-28 14:23"
+          },
+          {
+            "amount": 65884.0,
+            "close": 0.867,
+            "code": "588200",
+            "high": 0.867,
+            "low": 0.867,
+            "open": 0.867,
+            "vol": 76000.0,
+            "datetime": "2026-10-28 14:24"
+          }
+        ],
+        {
+          "connection_id": 4,
+          "endpoint": "117.34.114.13:7709",
+          "observed_date": 20261028,
+          "slot": 3
+        }
+      ]
+    },
+    "bars_000001.SH_9": {
+      "status": "pass",
+      "seconds": 0.8696121670000139,
+      "value": [
+        [
+          {
+            "amount": 706095677440.0,
+            "close": 3658.03,
+            "code": "000001",
+            "down_count": 2121,
+            "high": 3714.48,
+            "low": 3649.86,
+            "open": 3714.48,
+            "up_count": 219,
+            "vol": 437691968.0,
+            "datetime": "2026-10-22 15:00"
+          },
+          {
+            "amount": 898666856448.0,
+            "close": 3690.48,
+            "code": "000001",
+            "down_count": 437,
+            "high": 3691.4,
+            "low": 3574.27,
+            "open": 3623.57,
+            "up_count": 1853,
+            "vol": 552842880.0,
+            "datetime": "2026-10-23 15:00"
+          },
+          {
+            "amount": 746528047104.0,
+            "close": 3697.52,
+            "code": "000001",
+            "down_count": 1228,
+            "high": 3699.01,
+            "low": 3664.82,
+            "open": 3671.0,
+            "up_count": 1070,
+            "vol": 432794304.0,
+            "datetime": "2026-10-26 15:00"
+          },
+          {
+            "amount": 672414367744.0,
+            "close": 3648.3,
+            "code": "000001",
+            "down_count": 2037,
+            "high": 3708.2,
+            "low": 3648.3,
+            "open": 3698.44,
+            "up_count": 291,
+            "vol": 417789536.0,
+            "datetime": "2026-10-27 15:00"
+          },
+          {
+            "amount": 654422048768.0,
+            "close": 3674.669,
+            "code": "000001",
+            "down_count": 636,
+            "high": 3684.49,
+            "low": 3652.365,
+            "open": 3676.918,
+            "up_count": 1625,
+            "vol": 375272320.0,
+            "datetime": "2026-10-28 15:00"
+          }
+        ],
+        {
+          "connection_id": 5,
+          "endpoint": "117.34.114.13:7709",
+          "observed_date": 20261028,
+          "slot": 4
+        }
+      ]
+    },
+    "bars_000001.SH_8": {
+      "status": "pass",
+      "seconds": 0.2069607499979611,
+      "value": [
+        [
+          {
+            "amount": 1509097088.0,
+            "close": 3672.762,
+            "code": "000001",
+            "down_count": 690,
+            "high": 3673.257,
+            "low": 3672.601,
+            "open": 3673.094,
+            "up_count": 1574,
+            "vol": null,
+            "datetime": "2026-10-28 14:20"
+          },
+          {
+            "amount": 1643748224.0,
+            "close": 3673.967,
+            "code": "000001",
+            "down_count": 664,
+            "high": 3674.109,
+            "low": 3672.495,
+            "open": 3673.265,
+            "up_count": 1603,
+            "vol": null,
+            "datetime": "2026-10-28 14:21"
+          },
+          {
+            "amount": 1672957952.0,
+            "close": 3674.181,
+            "code": "000001",
+            "down_count": 647,
+            "high": 3675.405,
+            "low": 3673.931,
+            "open": 3673.931,
+            "up_count": 1620,
+            "vol": null,
+            "datetime": "2026-10-28 14:22"
+          },
+          {
+            "amount": 1561126400.0,
+            "close": 3674.819,
+            "code": "000001",
+            "down_count": 631,
+            "high": 3675.227,
+            "low": 3674.234,
+            "open": 3674.249,
+            "up_count": 1624,
+            "vol": null,
+            "datetime": "2026-10-28 14:23"
+          },
+          {
+            "amount": 309892064.0,
+            "close": 3674.669,
+            "code": "000001",
+            "down_count": 636,
+            "high": 3674.843,
+            "low": 3674.512,
+            "open": 3674.843,
+            "up_count": 1625,
+            "vol": null,
+            "datetime": "2026-10-28 14:24"
+          }
+        ],
+        {
+          "connection_id": 6,
+          "endpoint": "117.34.114.13:7709",
+          "observed_date": 20261028,
+          "slot": 5
+        }
+      ]
+    },
+    "xdxr": {
+      "status": "pass",
+      "seconds": 0.21869862499806914,
+      "value": [
+        {
+          "category": 1,
+          "code": "600519",
+          "day": 25,
+          "fenhong": 6.0,
+          "market": 1,
+          "month": 7,
+          "peigu": 0.0,
+          "peigujia": 0.0,
+          "songzhuangu": 1.0,
+          "year": 2002
+        },
+        {
+          "category": 2,
+          "code": "600519",
+          "day": 26,
+          "fenhong": 7150.0,
+          "market": 1,
+          "month": 7,
+          "peigu": 27500.0,
+          "peigujia": 25000.0,
+          "songzhuangu": 7865.0,
+          "year": 2002
+        },
+        {
+          "category": 1,
+          "code": "600519",
+          "day": 14,
+          "fenhong": 2.0,
+          "market": 1,
+          "month": 7,
+          "peigu": 0.0,
+          "peigujia": 0.0,
+          "songzhuangu": 1.0,
+          "year": 2003
+        }
+      ]
+    },
+    "finance_legacy": {
+      "status": "pass",
+      "seconds": 0.2390655000017432,
+      "value": [
+        {
+          "market": 1,
+          "code": "600519",
+          "liutongguben": 1250081562.5,
+          "province": 29,
+          "industry": 37,
+          "updated_date": 20260815,
+          "ipo_date": 20010827,
+          "zongguben": 1250081562.5,
+          "guojiagu": 12150000.0,
+          "faqirenfarengu": 454029600000.0,
+          "farengu": 893893520000.0,
+          "bgu": 0.0,
+          "hgu": 0.0,
+          "zhigonggu": 355699.9969482422,
+          "zongzichan": 3090507840000.0,
+          "liudongzichan": 2607246560000.0,
+          "gudingzichan": 222208900000.0,
+          "wuxingzichan": 85787440000.0,
+          "gudongrenshu": 296404.0,
+          "liudongfuzhai": 466450760000.0,
+          "changqifuzhai": 108427580000.0,
+          "zibengongjijin": 15770000.0,
+          "jingzichan": 2512536000000.0,
+          "zhuyingshouru": 907032640000.0,
+          "zhuyinglirun": 94737620000.0,
+          "yingshouzhangkuan": 5708000.48828125,
+          "yingyelirun": 614112880000.0,
+          "touzishouyu": 10137999.877929688,
+          "jingyingxianjinliu": 706907520000.0,
+          "zongxianjinliu": 583870000000.0,
+          "cunhuo": 613172080000.0,
+          "lirunzonghe": 614384200000.0,
+          "shuihoulirun": 460333280000.0,
+          "jinglirun": 445168800000.0,
+          "weifenpeilirun": 1996832160000.0,
+          "meigujingzichan": 200.99000549316406,
+          "baoliu2": 6.0
+        }
+      ]
+    },
+    "F10": {
+      "status": "pass",
+      "seconds": 2.203087499998219,
+      "value": "☆公司概况☆ ◇600519 贵州茅台 更新日期：2026-10-22◇ 港澳资讯 灵通V9.0\r\n★本栏包括【1.基本资料】【2.发行上市】【3.上市定价预测】【4.关联企业】★\r\n\r\n【1.基本资料】\r\n┌────────┬──────"
+    },
+    "full_market_and_mixed": {
+      "status": "pass",
+      "seconds": 11.394554582999262,
+      "value": {
+        "universe": 5222,
+        "elapsed_ms": [
+          544.7364580031717,
+          548.1535839971912,
+          498.578249997081
+        ],
+        "coverage": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "mixed_rows": [
+          5222,
+          5,
+          1
+        ],
+        "p95_certified": false,
+        "reason": "three samples; formal P95 requires 100"
+      }
+    },
+    "market_stats": {
+      "status": "pass",
+      "seconds": 0.0001674170016485732,
+      "value": {
+        "active_connections": 0,
+        "active_server": "117.34.114.13:7709",
+        "business_limit": 8,
+        "closed": false,
+        "failures": 0,
+        "idle_connections": 8,
+        "market_pool": {
+          "completed_at": "2026-10-28T14:23:05.863059+08:00",
+          "date": "2026-10-28",
+          "results": [
+            {
+              "address": "117.34.114.13:7709",
+              "rounds": [
+                {
+                  "elapsed": {
+                    "nanos": 677305334,
+                    "secs": 0
+                  },
+                  "failure": null,
+                  "handshake": {
+                    "nanos": 45013708,
+                    "secs": 0
+                  },
+                  "heartbeat": {
+                    "nanos": 40657375,
+                    "secs": 0
+                  },
+                  "heartbeat_ack": null,
+                  "mode": "SecurityCount",
+                  "security_count": 24480,
+                  "tcp": {
+                    "nanos": 591515542,
+                    "secs": 0
+                  }
+                },
+                {
+                  "elapsed": {
+                    "nanos": 125047208,
+                    "secs": 0
+                  },
+                  "failure": null,
+                  "handshake": {
+                    "nanos": 44789209,
+                    "secs": 0
+                  },
+                  "heartbeat": {
+                    "nanos": 43624541,
+                    "secs": 0
+                  },
+                  "heartbeat_ack": null,
+                  "mode": "SecurityCount",
+                  "security_count": 24480,
+                  "tcp": {
+                    "nanos": 36560041,
+                    "secs": 0
+                  }
+                },
+                {
+                  "elapsed": {
+                    "nanos": 106730792,
+                    "secs": 0
+                  },
+                  "failure": null,
+                  "handshake": {
+                    "nanos": 38680959,
+                    "secs": 0
+                  },
+                  "heartbeat": {
+                    "nanos": 34475334,
+                    "secs": 0
+                  },
+                  "heartbeat_ack": null,
+                  "mode": "SecurityCount",
+                  "security_count": 24480,
+                  "tcp": {
+                    "nanos": 33511459,
+                    "secs": 0
+                  }
+                }
+              ]
+            }
+          ],
+          "tested_at": "2026-10-28T14:23:04.953881+08:00",
+          "valid_nodes": [
+            "117.34.114.13:7709"
+          ]
+        },
+        "max_connections": 8,
+        "minute_requests": 4,
+        "network": {
+          "acquisition_timeouts": 0,
+          "active": 8,
+          "peak": 8,
+          "request_failures": 0,
+          "requests": 455,
+          "shared_max_connections": null
+        },
+        "probe_limit": 1,
+        "probes": {
+          "active": 0,
+          "peak": 1,
+          "timeouts": 0,
+          "waits": 0
+        },
+        "quote_batch_size": 60,
+        "quote_metadata": [
+          {
+            "as_of_date": "2026-10-28",
+            "fetched_at": "2026-10-28T06:23:17.008507Z",
+            "market": 0,
+            "securities": 24480,
+            "source_endpoint": "117.34.114.13:7709",
+            "unsupported": 0
+          },
+          {
+            "as_of_date": "2026-10-28",
+            "fetched_at": "2026-10-28T06:23:20.618819Z",
+            "market": 1,
+            "securities": 27545,
+            "source_endpoint": "117.34.114.13:7709",
+            "unsupported": 0
+          }
+        ],
+        "retries": 0,
+        "scheduler": {
+          "background_active": 0,
+          "background_limit": 7,
+          "background_peak": 2,
+          "foreground_waiting": 0,
+          "slot_acquisitions": 371,
+          "slot_wait_ms_max": 32.111,
+          "slot_wait_ms_total": 39.592,
+          "waiting_requests": 0
+        },
+        "total_connection_limit": 9,
+        "total_connections": 8
+      }
+    },
+    "financial_archive": {
+      "status": "pass",
+      "seconds": 2.5663064580003265,
+      "value": {
+        "entries": 148,
+        "listing_sha256": "62101b6cadfa93c8f7f10548fe31fdcec1083777584d83895428aae6fca49c95",
+        "filename": "gpcw20261231.zip",
+        "bytes": 164,
+        "md5_verified": true,
+        "rows": []
+      }
+    },
+    "financial_stats": {
+      "status": "pass",
+      "seconds": 0.00013570900046033785,
+      "value": {
+        "active_connections": 0,
+        "active_server": "117.34.114.13:7709",
+        "business_limit": 8,
+        "closed": false,
+        "failures": 0,
+        "idle_connections": 1,
+        "market_pool": null,
+        "max_connections": 1,
+        "minute_requests": 0,
+        "network": {
+          "acquisition_timeouts": 0,
+          "active": 1,
+          "peak": 8,
+          "request_failures": 0,
+          "requests": 461,
+          "shared_max_connections": null
+        },
+        "probe_limit": 1,
+        "probes": {
+          "active": 0,
+          "peak": 1,
+          "timeouts": 0,
+          "waits": 0
+        },
+        "quote_batch_size": 60,
+        "quote_metadata": [],
+        "retries": 0,
+        "scheduler": {
+          "background_active": 0,
+          "background_limit": 1,
+          "background_peak": 1,
+          "foreground_waiting": 0,
+          "slot_acquisitions": 2,
+          "slot_wait_ms_max": 0.0,
+          "slot_wait_ms_total": 0.0,
+          "waiting_requests": 0
+        },
+        "total_connection_limit": 9,
+        "total_connections": 1
+      }
+    }
+  },
+  "upstream": "d6bf22a0e5954c778ef6ad58be8e5f81aacc75c3"
+}

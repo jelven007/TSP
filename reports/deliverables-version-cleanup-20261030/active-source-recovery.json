@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "policy": "latest_source_plus_five_prior_versions",
+  "latest": "0.4.39",
+  "versions": [
+    {
+      "version": "0.4.39",
+      "ref": "v0.4.39",
+      "commit": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+      "archive": "TSP-v0.4.39.tar.gz",
+      "sha256": "dc3be17432e6d3389af4be17c6b13d1685d31d7b9e882889ed88dbebb0cb8f44"
+    },
+    {
+      "version": "0.4.38",
+      "ref": "v0.4.38",
+      "commit": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "archive": "TSP-v0.4.38.tar.gz",
+      "sha256": "34867e12491913ddd01753ec6c142b1a07da77cf7f5436a0b98c6940025ab4e7"
+    },
+    {
+      "version": "0.4.37",
+      "ref": "v0.4.37",
+      "commit": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "archive": "TSP-v0.4.37.tar.gz",
+      "sha256": "e87ec9ee0bf3a2a0613bf56f204c391b1813343977af10a3e3fdb95c728d0433"
+    },
+    {
+      "version": "0.4.36",
+      "ref": "v0.4.36",
+      "commit": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+      "archive": "TSP-v0.4.36.tar.gz",
+      "sha256": "b610f7a705210ed7446813c63e0e00b1a6c12c8873f5957c2f8d523560c48f9e"
+    },
+    {
+      "version": "0.4.35",
+      "ref": "v0.4.35",
+      "commit": "700d25dad13b7b12c678e4443a893886299117a8",
+      "archive": "TSP-v0.4.35.tar.gz",
+      "sha256": "83b789891275b31b7ff38e461c38b52d0abef3a8e4a35f38ba08924c20a812ae"
+    },
+    {
+      "version": "0.4.34",
+      "ref": "v0.4.34",
+      "commit": "18f6f5cbea5bb651dc5fc09f289016bd01b9b6de",
+      "archive": "TSP-v0.4.34.tar.gz",
+      "sha256": "0a5a256417b507a1a381ed457d7db15766315632d14d4cf5ef090c946d0dce17"
+    }
+  ],
+  "git_history_and_tags_unchanged": true,
+  "production_deployed": false
+}

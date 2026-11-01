@@ -7,6 +7,7 @@ import { QK } from '@/lib/queryKeys'
 import { Modal } from '@/components/Modal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { DatePicker } from '@/components/DatePicker'
+import { StrategyDailyResults } from './StrategyDailyResults'
 
 type Props = {
   strategyId: string
@@ -161,6 +162,9 @@ function HistoryContent({ strategyId, onClose }: Props) {
                 <pre className="text-xs whitespace-pre-wrap break-all bg-elevated p-2 rounded-btn">
                   {JSON.stringify({ 参数: detail.data.summary.params, 配置: detail.data.summary.overrides }, null, 2)}
                 </pre>
+                {detail.data.result.sections ? <StrategyDailyResults
+                  key={recordId} result={{ ...detail.data.result, strategy: strategyId }}
+                  positionLimit={Number(detail.data.summary.overrides.position_limit ?? detail.data.summary.params.position_limit ?? 5)} /> : <>
                 {detail.data.result.rows.length === 0 && <p className="text-xs text-muted">该次计算无命中</p>}
                 <div className="max-h-64 overflow-auto">
                   <table className="w-full text-xs text-left">
@@ -173,6 +177,7 @@ function HistoryContent({ strategyId, onClose }: Props) {
                     ))}</tbody>
                   </table>
                 </div>
+                </>}
               </>
             )}
           </section>

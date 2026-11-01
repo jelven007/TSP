@@ -1,0 +1,18 @@
+{
+  "after-fingerprints.json": "0f7e4d07d3f69c141448b7995a97aa7bed42be38681e41f9eda48287c10715bd",
+  "background.json": "43d73184461c8cde42951d4c6a23f41c0d687f1bfbdae1d124a4088fd649b967",
+  "execution-manifest.json": "367b8a0079576e2f91865bc0a015d59dd3724c8dd699918ab8d99fcfd8958c5f",
+  "execution-plan.md": "977713f2231841ef664198d6360305d188322b2ce82d8cfb20fbf6ea86bbfbdb",
+  "progress-result.json": "1e3adb10656cc2f32f7c83bef213c2dbbe3d99038de9e6ba342d8240d9fd1c11",
+  "report.md": "dd1cb654e51a06bf64c2d3b89f09903a90a9add9a1ba34e306a8b7678c205b95",
+  "result.json": "c74041e7ec300651a0bc67f686baafcb05c27f7b5b4276756e1345e43f90f088",
+  "source-attempts.jsonl": "f06b367b03e0cf9a7967a6f4436783755c199e9db2a826b0266a6dbe748fc45f",
+  "task.json": "395b3585158aef8a70b865c6ff00bb4aa9a3beaf94d04d27403a7874c97f5909",
+  "unavailable-by-day.csv": "b3ba304d30e90b647dc13b2659557ba682b65a67d217eb8d39f0d58c7ab4d042",
+  "unavailable-by-reason.csv": "aedbb03d7de168f54a4812fc61ec1fed70552edb3a86285294961b065a051e77",
+  "unavailable-by-symbol-day.csv": "769f697915b3cb038ba1d455be4c93f48e25536220e8d927bf8d1651a3baf84f",
+  "unavailable-by-symbol.csv": "3bbd074f722f1cd3a9d3c34b6352e4f484c61b3f4266d0d1bd56cce22df9008b",
+  "unavailable-partial.csv": "7a971da9eb754e1d92296dc071850ca8b8b3e859cfa2c8ba4defb00bd9cdac53",
+  "verification.json": "01dd671fb62ff2382999d3cca9975712d7b629a976af68daa4043e039e6c4f57",
+  "write-ledger.jsonl": "55286b5b6f341276dd48f263cb60f31d19325b247fcf5b38d9882dcff2b8ee14"
+}

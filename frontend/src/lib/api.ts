@@ -26,7 +26,7 @@ export interface ResearchJob {
   created_at: string
   updated_at: string
   metadata: { source?: string; finished_at?: string | null }
-  config: { strategy_id?: string; start?: string; end?: string; request?: { start?: string; end?: string } }
+  config: { strategy_id?: string; start?: string; end?: string; initial_capital?: number; params?: Record<string, unknown>; request?: { start?: string; end?: string } }
 }
 
 /**
@@ -378,6 +378,10 @@ export interface ScreenerResult {
   computed_at?: number
   record_id?: string
   source?: 'saved' | 'realtime'
+  sections?: { sell: any[]; select: any[]; buy: any[] } | null
+  state?: { as_of: string; cash: number; positions: any[]; nav: number; complete: boolean } | null
+  portfolio_scope?: string | null
+  execution_error?: string | null
 }
 
 export interface StrategyResultHistoryFilters {
@@ -810,6 +814,8 @@ export interface StrategyParamDef {
   min?: number
   max?: number
   step?: number
+  display_scale?: number | null
+  unit?: string | null
   options?: string[]
   option_labels?: Record<string, string>
   group?: string
@@ -833,12 +839,15 @@ export interface StrategyDetail {
   family?: { id: string; name: string } | null
   research_only?: boolean
   execution_backend: 'polars_expr' | 'matrix_native' | 'python_history_legacy' | 'composite' | 'minute_filter'
+  minute_execution?: 'overnight_capacity_v1' | 'momentum_capacity_v1' | null
   asset_types: string[]
   timeframes: string[]
   version: string
   basic_filter: Record<string, any>
   params: StrategyParamDef[]
   params_defaults: Record<string, any>
+  /** 策略定义的原始可编辑配置，与当前生效配置分开，用于本地草稿恢复。 */
+  definition_defaults?: Partial<StrategyDetail> | null
   scoring: Record<string, number>
   scoring_directions: Record<string, ScoringDirection>
   overlay_filter?: CustomSignalCondition[]
@@ -1080,6 +1089,7 @@ export interface MonitorRule {
 // 批次登记 (薄批次, 页面名"持仓提醒") — 只作监控规则生成的载体, 不做任何会计
 export interface Lot {
   id: string
+  batch_id?: string | null
   symbol: string
   qty: number
   cost_price: number
@@ -1089,6 +1099,19 @@ export interface Lot {
   remind_date?: string | null
   lead_days: number
   created_at?: string
+}
+
+export interface LotBatch {
+  id: string
+  name: string
+  number: string
+  created_at: string
+}
+
+export interface LotExpiryOptions {
+  base_date: string
+  next_trading_day: string | null
+  five_trading_days: string | null
 }
 
 // ===== Paper (虚拟账户/模拟交易) =====
@@ -1954,6 +1977,8 @@ export interface StrategyBacktestTrade {
 
 export interface StrategyBacktestResult {
   run_id: string
+  fills?: Array<{ datetime: string; date: string; symbol: string; side: 'buy' | 'sell'; shares: number; price: number; fee: number; participation: number; bar: number; notional: number; minute_volume_shares: number }>
+  signals?: Array<{ date: string; symbol: string; signal_bar: number; reason: string }>
   research?: {
     provenance?: { job_id: string; input_snapshot: string; public_release_id: string | null }
     runtime?: { app_sources_sha256: string }
@@ -4377,6 +4402,20 @@ export const api = {
   lotsList: () =>
     request<{ lots: Lot[] }>('/api/lots'),
 
+  lotBatches: () =>
+    request<{ batches: LotBatch[]; next_number: string | null }>('/api/lots/batches'),
+
+  lotExpiryOptions: (base: string) =>
+    request<LotExpiryOptions>(`/api/lots/expiry-options?base_date=${encodeURIComponent(base)}`),
+
+  lotBatchCreate: (batch: { name: string; request_id: string; stocks: Omit<Lot, 'id'>[] }) =>
+    request<{ ok: boolean; batch: LotBatch; lots: Lot[] }>('/api/lots/batches', {
+      method: 'POST', body: JSON.stringify(batch),
+    }),
+
+  lotBatchDelete: (id: string) =>
+    request<{ ok: boolean; deleted_lots: number }>(`/api/lots/batches/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   lotSave: (lot: Lot) =>
     request<{ ok: boolean; lot: Lot }>('/api/lots', {
       method: 'POST',
@@ -4826,6 +4865,10 @@ export interface DataStatus {
     instruments_size_mb: number
     financials_files?: number
     financials_size_mb?: number
+    financials_current_files?: number
+    financials_current_size_mb?: number
+    financials_revision_files?: number
+    financials_revision_size_mb?: number
     ext_data_files?: number
     ext_data_size_mb?: number
     total_size_mb: number

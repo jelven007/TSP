@@ -1,0 +1,625 @@
+{
+  "version": "0.4.39",
+  "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+  "pr_url": "https://github.com/jelven007/TSP/pull/35",
+  "release_url": "https://github.com/jelven007/TSP/releases/tag/v0.4.39",
+  "checked_at": "2026-10-29T19:21:08.120533+00:00",
+  "source_sha256": "9c7e7212ceefa3c6991313cbbe4fc9f7b14193750df91a0ae0b939e17b20d77b",
+  "registry_index": "sha256:37d4f35becf14ad51495496111d827e23966031dd03c783b951096be4c1a4dd5",
+  "platforms": {
+    "amd64": {
+      "digest": "sha256:c6dc1806603d376dd28bf980256305fe81e692e3edb0dc33a90d3bd8baf32407",
+      "config_digest": "sha256:33ccff208ed3cd36e560997c2dab40f323c1defa44302257bef934421e3267e9",
+      "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+      "oci_version": "bac72d9a83c03890cbb954e0e13782b8421d6073"
+    },
+    "arm64": {
+      "digest": "sha256:5257b878ceb13558c1f17b7408d279407bc748d6e95184846b9e1e6a53ce921a",
+      "config_digest": "sha256:251e915a32e906dff0c791f7495cc59175683548e6af2791f05ea2d04a108d8f",
+      "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+      "oci_version": "bac72d9a83c03890cbb954e0e13782b8421d6073"
+    }
+  },
+  "quality_gate": {
+    "backend_passed": 4838,
+    "backend_skipped": 9,
+    "tooling_passed": 136,
+    "frontend_passed": 456,
+    "frontend_files": 85,
+    "native_bridge_passed": 10,
+    "core_unit_passed": 203,
+    "core_doctest_passed": 55,
+    "core_compile_fail_passed": 2,
+    "source_files_verified": 1964,
+    "documentation_files": 32,
+    "requirement_modules": 8,
+    "repository_paths": 87,
+    "passed": true
+  },
+  "main_ci": "https://github.com/jelven007/TSP/actions/runs/40926104748",
+  "docker_ci": "https://github.com/jelven007/TSP/actions/runs/40927697112",
+  "native_bridge": {
+    "version": "0.3.0",
+    "api": 4,
+    "core": "2.0.4",
+    "wheel_sha256": "1268447ac0e9b323eb8de1d3799dc2b0a81bb6501377568654cd43c2e9360b8d"
+  },
+  "environments": {
+    "local": {
+      "version": "0.4.39",
+      "origin": "http://127.0.0.1:3021",
+      "runtime": "sha256:0b47af715463a33e187fa4d063cf8bb83fb3a27ca7cefcc5132ddfb33c2a4ddd",
+      "compute": "sha256:404d1a119a296c942019a06a73217f42569afebf19dd0d3d685add9f52961121",
+      "preserved_health_warnings": {
+        "tasks": {
+          "id": "f7ab21717a",
+          "status": "failed",
+          "finished_at": "2026-10-29T08:10:34.653140+00:00"
+        }
+      },
+      "added_configuration": null,
+      "backup_path": "/path/to/home/.cache/tsp-dev/TSPP/backups/latest-release-20261030/local-pre-bac72d9a83c0",
+      "market_snapshot_verified": true,
+      "database_restore_tables": {
+        "control": 20,
+        "business": 28
+      },
+      "ready_functions": 6,
+      "administrator_login_passed": true,
+      "watchlist_count": 16,
+      "groups": 2,
+      "private_configuration_preserved": true,
+      "market_rows": {
+        "daily": {
+          "before_rows": 6947135,
+          "after_rows": 6947135
+        },
+        "enriched": {
+          "before_rows": 6947135,
+          "after_rows": 6947135
+        },
+        "minute": {
+          "before_rows": 97381963,
+          "after_rows": 97381963
+        },
+        "5m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 1469646,
+          "after_rows": 1469646
+        },
+        "index_daily": {
+          "before_rows": 144117,
+          "after_rows": 144117
+        }
+      },
+      "index_samples": {
+        "1d": {
+          "rows": 122,
+          "source": "local",
+          "full_history_rows": 1452,
+          "available_start_date": "2020-11-02",
+          "earliest_trade_date": "2020-11-02",
+          "omitted_start_verified": true
+        },
+        "1w": {
+          "rows": 27,
+          "source": "local",
+          "full_history_rows": 307,
+          "available_start_date": "2020-11-02",
+          "earliest_trade_date": "2020-11-06",
+          "omitted_start_verified": true
+        },
+        "1mo": {
+          "rows": 7,
+          "source": "local",
+          "full_history_rows": 72,
+          "available_start_date": "2020-11-01",
+          "earliest_trade_date": "2020-11-30",
+          "omitted_start_verified": true
+        }
+      },
+      "ui_acceptance": {
+        "environment": "local",
+        "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+        "version": "0.4.39",
+        "origin": "http://127.0.0.1:3021",
+        "browser": "installed Playwright and Chrome",
+        "mocked_index_response": false,
+        "browser_plugin": "not available in tool discovery",
+        "intercepted_interval_writes": true,
+        "interval_preserved": true,
+        "periods": {
+          "1d": {
+            "rows": 1453,
+            "available_start_date": "2020-11-02",
+            "omitted_start_and_date_display_verified": true,
+            "chart_rendered": true
+          },
+          "1w": {
+            "rows": 307,
+            "available_start_date": "2020-11-02",
+            "omitted_start_and_date_display_verified": true,
+            "chart_rendered": true
+          },
+          "1mo": {
+            "rows": 72,
+            "available_start_date": "2020-11-01",
+            "omitted_start_and_date_display_verified": true,
+            "chart_rendered": true
+          }
+        },
+        "requests": [
+          {
+            "period": "1d",
+            "start": null
+          },
+          {
+            "period": "1d",
+            "start": "2020-11-02"
+          },
+          {
+            "period": "1w",
+            "start": null
+          },
+          {
+            "period": "1w",
+            "start": "2020-11-02"
+          },
+          {
+            "period": "1mo",
+            "start": null
+          },
+          {
+            "period": "1mo",
+            "start": "2020-11-01"
+          }
+        ],
+        "saved": [
+          {
+            "interval": 10
+          },
+          {
+            "interval": 9
+          }
+        ],
+        "viewports": [
+          "1440x1000",
+          "390x844"
+        ],
+        "identities": [
+          {
+            "url": "http://127.0.0.1:3021/indices?symbol=000001.SH",
+            "title": "TSP · Quant Terminal",
+            "meaningful_heading": "指数"
+          },
+          {
+            "url": "http://127.0.0.1:3021/data",
+            "title": "TSP · Quant Terminal",
+            "meaningful_heading": "实时行情"
+          }
+        ],
+        "framework_overlay": false,
+        "console_messages": [],
+        "page_errors": [],
+        "mobile_horizontal_overflow": false,
+        "charts_rendered_for_all_periods": true,
+        "mobile_slider_bounds": {
+          "x": 49,
+          "y": 84,
+          "width": 252,
+          "height": 4
+        },
+        "slider": {
+          "min": 1,
+          "max": 10,
+          "step": 1
+        },
+        "passed": true
+      },
+      "full_restart_verified": true,
+      "actual_collection_jobs": [
+        {
+          "id": "278cbeb6f9",
+          "request": {
+            "period": "1m",
+            "mode": "missing",
+            "start_date": "2026-10-01",
+            "end_date": "2026-10-07"
+          },
+          "status": "succeeded",
+          "finished_at": "2026-10-29T18:57:45.286243+00:00",
+          "seconds": 4.068673041998409,
+          "result": {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 0,
+            "missing_before": 0,
+            "remaining": 0,
+            "requests": 0,
+            "universe_size": 5222,
+            "start": "2026-10-01",
+            "end": "2026-10-07",
+            "source": null,
+            "price_basis": "legacy_1m",
+            "message": "选定区间没有遗漏数据, 无需获取"
+          }
+        },
+        {
+          "id": "ae3cae3a22",
+          "request": {
+            "period": "1m",
+            "mode": "missing",
+            "start_date": "2026-10-28",
+            "end_date": "2026-10-28"
+          },
+          "status": "succeeded",
+          "finished_at": "2026-10-29T18:58:18.920043+00:00",
+          "seconds": 32.2972322919959,
+          "result": {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 0,
+            "missing_before": 6,
+            "remaining": 6,
+            "requests": 6,
+            "universe_size": 5222,
+            "start": "2026-10-28",
+            "end": "2026-10-28",
+            "source": "rustdx",
+            "price_basis": "legacy_1m",
+            "gap_report": "kline_gap_reports/00bce382d2274960a3598cb937c199dd.csv",
+            "skipped_symbols": [
+              "002717.SZ",
+              "002827.SZ",
+              "301468.SZ",
+              "601326.SH",
+              "605258.SH",
+              "688496.SH"
+            ],
+            "warning": "已补0行, 仍有6行未补齐; 数据源未返回部分记录(可能停牌、无数据或请求失败)"
+          }
+        }
+      ],
+      "terminal_jobs_preserved_after_restart": true,
+      "persisted_gap_files": [
+        {
+          "id": "278cbeb6f9",
+          "remaining": 0,
+          "csv_required": false,
+          "passed": true
+        },
+        {
+          "id": "ae3cae3a22",
+          "remaining": 6,
+          "csv_required": true,
+          "grouped_rows": 6,
+          "sha256": "f88f92a5ecf7e18c0b318f4b8828b2327cb6a28230e00330f0fd80079559f5f0",
+          "passed": true
+        }
+      ],
+      "isolated_sample": {
+        "rows": 504000,
+        "symbols": 100,
+        "business_limit": 24,
+        "probe_limit": 3,
+        "all_task_groups_verified": true,
+        "gap_missing_keys": 5520,
+        "full_and_missing_values_identical": true
+      },
+      "passed": true
+    },
+    "online": {
+      "version": "0.4.39",
+      "origin": "https://server.example.com",
+      "runtime": "sha256:8947fad337917352c8435ac43dc136f7e405da0433834cfc30a490337c6f1fca",
+      "compute": "sha256:be83d6076825746da75d9705d62ab409a7336bd7429b4b5bdd86e4c465529889",
+      "preserved_health_warnings": {},
+      "added_configuration": {
+        "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+        "key": "RUSTDX_NODE_SERVERS",
+        "filename": "platform.env",
+        "added_only": true,
+        "nodes": [
+          "180.153.18.170:7709",
+          "123.60.70.228:7709",
+          "124.70.199.56:7709",
+          "123.60.84.66:7709",
+          "124.71.187.72:7709",
+          "123.60.73.44:7709",
+          "124.71.187.122:7709",
+          "121.36.225.169:7709",
+          "124.70.133.119:7709",
+          "115.238.56.198:7709",
+          "119.97.185.59:7709",
+          "117.34.114.13:7709",
+          "124.71.9.153:7709",
+          "116.205.171.132:7709",
+          "116.205.183.150:7709",
+          "116.205.163.254:7709",
+          "110.41.147.114:7709"
+        ],
+        "reference_server": "117.34.114.13:7709",
+        "before_sha256": "8a78d1f875dee86d7b18523d464f5a6baeafc63eb90bb31a29283c6e5cf4acb9",
+        "after_sha256": "2827525a7bd9b47cc9e2e91adeed9e42c7d79c9e3d2d6dd02363844302583737",
+        "passed": true
+      },
+      "backup_path": "/opt/tsp-full/backups/pre-v0.4.39-bac72d9a83c0",
+      "market_snapshot_verified": true,
+      "database_restore_tables": {
+        "control": 20,
+        "business": 28
+      },
+      "ready_functions": 6,
+      "administrator_login_passed": true,
+      "watchlist_count": 16,
+      "groups": 2,
+      "private_configuration_preserved": true,
+      "market_rows": {
+        "daily": {
+          "before_rows": 6947135,
+          "after_rows": 6947135
+        },
+        "enriched": {
+          "before_rows": 6947135,
+          "after_rows": 6947135
+        },
+        "minute": {
+          "before_rows": 101133646,
+          "after_rows": 101133646
+        },
+        "5m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 1469646,
+          "after_rows": 1469646
+        },
+        "index_daily": {
+          "before_rows": 799315,
+          "after_rows": 799315
+        }
+      },
+      "index_samples": {
+        "1d": {
+          "rows": 122,
+          "source": "local",
+          "full_history_rows": 1452,
+          "available_start_date": "2020-11-02",
+          "earliest_trade_date": "2020-11-02",
+          "omitted_start_verified": true
+        },
+        "1w": {
+          "rows": 27,
+          "source": "local",
+          "full_history_rows": 307,
+          "available_start_date": "2020-11-02",
+          "earliest_trade_date": "2020-11-06",
+          "omitted_start_verified": true
+        },
+        "1mo": {
+          "rows": 7,
+          "source": "local",
+          "full_history_rows": 72,
+          "available_start_date": "2020-11-01",
+          "earliest_trade_date": "2020-11-30",
+          "omitted_start_verified": true
+        }
+      },
+      "ui_acceptance": {
+        "environment": "online",
+        "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+        "version": "0.4.39",
+        "origin": "https://server.example.com",
+        "browser": "installed Playwright and Chrome",
+        "mocked_index_response": false,
+        "browser_plugin": "not available in tool discovery",
+        "intercepted_interval_writes": true,
+        "interval_preserved": true,
+        "periods": {
+          "1d": {
+            "rows": 1453,
+            "available_start_date": "2020-11-02",
+            "omitted_start_and_date_display_verified": true,
+            "chart_rendered": true
+          },
+          "1w": {
+            "rows": 307,
+            "available_start_date": "2020-11-02",
+            "omitted_start_and_date_display_verified": true,
+            "chart_rendered": true
+          },
+          "1mo": {
+            "rows": 72,
+            "available_start_date": "2020-11-01",
+            "omitted_start_and_date_display_verified": true,
+            "chart_rendered": true
+          }
+        },
+        "requests": [
+          {
+            "period": "1d",
+            "start": null
+          },
+          {
+            "period": "1d",
+            "start": "2020-11-02"
+          },
+          {
+            "period": "1w",
+            "start": null
+          },
+          {
+            "period": "1w",
+            "start": "2020-11-02"
+          },
+          {
+            "period": "1mo",
+            "start": null
+          },
+          {
+            "period": "1mo",
+            "start": "2020-11-01"
+          }
+        ],
+        "saved": [
+          {
+            "interval": 10
+          },
+          {
+            "interval": 9
+          }
+        ],
+        "viewports": [
+          "1440x1000",
+          "390x844"
+        ],
+        "identities": [
+          {
+            "url": "https://server.example.com/indices?symbol=000001.SH",
+            "title": "TSP · Quant Terminal",
+            "meaningful_heading": "指数"
+          },
+          {
+            "url": "https://server.example.com/data",
+            "title": "TSP · Quant Terminal",
+            "meaningful_heading": "实时行情"
+          }
+        ],
+        "framework_overlay": false,
+        "console_messages": [],
+        "page_errors": [],
+        "mobile_horizontal_overflow": false,
+        "charts_rendered_for_all_periods": true,
+        "mobile_slider_bounds": {
+          "x": 49,
+          "y": 498.5,
+          "width": 252,
+          "height": 4
+        },
+        "slider": {
+          "min": 1,
+          "max": 10,
+          "step": 1
+        },
+        "passed": true
+      },
+      "full_restart_verified": true,
+      "actual_collection_jobs": [
+        {
+          "id": "7d31a48edf",
+          "request": {
+            "period": "1m",
+            "mode": "missing",
+            "start_date": "2026-10-01",
+            "end_date": "2026-10-07"
+          },
+          "status": "succeeded",
+          "finished_at": "2026-10-29T19:17:56.162900+00:00",
+          "seconds": 4.159528999996837,
+          "result": {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 0,
+            "missing_before": 0,
+            "remaining": 0,
+            "requests": 0,
+            "universe_size": 5222,
+            "start": "2026-10-01",
+            "end": "2026-10-07",
+            "source": null,
+            "price_basis": "legacy_1m",
+            "message": "选定区间没有遗漏数据, 无需获取"
+          }
+        },
+        {
+          "id": "cb9408a78a",
+          "request": {
+            "period": "1m",
+            "mode": "missing",
+            "start_date": "2026-10-28",
+            "end_date": "2026-10-28"
+          },
+          "status": "succeeded",
+          "finished_at": "2026-10-29T19:18:05.246591+00:00",
+          "seconds": 8.281271416999516,
+          "result": {
+            "period": "1m",
+            "mode": "missing",
+            "rows": 0,
+            "missing_before": 6,
+            "remaining": 6,
+            "requests": 6,
+            "universe_size": 5222,
+            "start": "2026-10-28",
+            "end": "2026-10-28",
+            "source": "rustdx",
+            "price_basis": "legacy_1m",
+            "gap_report": "kline_gap_reports/b6639332ba554fcfb35041d1d27864e2.csv",
+            "skipped_symbols": [
+              "002717.SZ",
+              "002827.SZ",
+              "301468.SZ",
+              "601326.SH",
+              "605258.SH",
+              "688496.SH"
+            ],
+            "warning": "已补0行, 仍有6行未补齐; 数据源未返回部分记录(可能停牌、无数据或请求失败)"
+          }
+        }
+      ],
+      "terminal_jobs_preserved_after_restart": true,
+      "persisted_gap_files": [
+        {
+          "id": "7d31a48edf",
+          "remaining": 0,
+          "csv_required": false,
+          "passed": true
+        },
+        {
+          "id": "cb9408a78a",
+          "remaining": 6,
+          "csv_required": true,
+          "grouped_rows": 6,
+          "sha256": "f88f92a5ecf7e18c0b318f4b8828b2327cb6a28230e00330f0fd80079559f5f0",
+          "passed": true
+        }
+      ],
+      "isolated_sample": {
+        "rows": 504000,
+        "symbols": 100,
+        "business_limit": 24,
+        "probe_limit": 3,
+        "all_task_groups_verified": true,
+        "gap_missing_keys": 5520,
+        "full_and_missing_values_identical": true
+      },
+      "passed": true
+    }
+  },
+  "natural_health_timer_verified": true,
+  "limitations": [
+    "并行财务存储工作尚未整合，原工作树与研究资料保留。",
+    "301110.SZ三四月5,520键历史缺口保留；部署验收不认证全部历史初始化或全市场一秒性能。"
+  ],
+  "passed": true
+}

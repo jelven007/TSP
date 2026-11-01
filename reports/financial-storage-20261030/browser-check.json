@@ -1,0 +1,40 @@
+[
+  {
+    "environment": "local",
+    "url": "http://127.0.0.1:3021/data",
+    "title": "TSP · Quant Terminal",
+    "current_financial_text": "财务数据\n5 文件\n18.1 MB",
+    "history_text": "财务历史快照\n113 文件\n61.0 MB",
+    "reload_keeps_statistics": true,
+    "page_errors": [],
+    "desktop_viewport": [
+      1440,
+      1000
+    ],
+    "mobile_viewport": [
+      390,
+      844
+    ],
+    "browser": "Chrome Playwright",
+    "browser_plugin": "not available"
+  },
+  {
+    "environment": "online",
+    "url": "https://server.example.com/data",
+    "title": "TSP · Quant Terminal",
+    "current_financial_text": "财务数据\n5 文件\n18.1 MB",
+    "history_text": "财务历史快照\n83 文件\n44.9 MB",
+    "reload_keeps_statistics": true,
+    "page_errors": [],
+    "desktop_viewport": [
+      1440,
+      1000
+    ],
+    "mobile_viewport": [
+      390,
+      844
+    ],
+    "browser": "Chrome Playwright",
+    "browser_plugin": "not available"
+  }
+]

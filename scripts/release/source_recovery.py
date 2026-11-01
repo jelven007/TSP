@@ -1,4 +1,4 @@
-"""Create or verify six source archives: the tagged main revision plus five ancestors."""
+"""Create or verify source archives: the tagged revision and up to one prior version."""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 versioning = importlib.import_module("versioning")
 
 VERSION = r"[0-9]\.[0-9]\.(?:0|[1-9][0-9]?)"
-COUNT = 6
+MAX_COUNT = 2
+POLICY = "latest_source_plus_one_prior_version"
 
 
 def git(root: Path, *args: str) -> str:
@@ -51,9 +52,9 @@ def select_versions(root: Path, revision: str) -> list[dict]:
             raise ValueError(f"{ref} disagrees with its VERSION")
         if version not in candidates or not ref.startswith("recovery/"):
             candidates[version] = {"version": version, "ref": ref, "commit": commit}
-    versions = sorted(candidates, key=lambda value: tuple(map(int, value.split("."))), reverse=True)[:COUNT]
-    if len(versions) != COUNT or versions[0] != current:
-        raise ValueError("cannot establish current plus five prior versions")
+    versions = sorted(candidates, key=lambda value: tuple(map(int, value.split("."))), reverse=True)[:MAX_COUNT]
+    if not versions or versions[0] != current:
+        raise ValueError("cannot establish tagged current version")
     return [candidates[version] for version in versions]
 
 
@@ -62,7 +63,8 @@ def verify(output: Path) -> dict:
         raise ValueError("recovery set must not be a symlink")
     manifest = json.loads((output / "index.json").read_text())
     records = manifest["versions"]
-    if manifest.get("format") != 1 or len(records) != COUNT:
+    if (manifest.get("format") != 1 or manifest.get("policy") != POLICY
+            or not 1 <= len(records) <= MAX_COUNT):
         raise ValueError("invalid recovery manifest")
     seen = set()
     for record in records:
@@ -113,14 +115,14 @@ def create(root: Path, revision: str, output: Path) -> dict:
             )
             record.update(archive=archive.name, sha256=hashlib.sha256(archive.read_bytes()).hexdigest())
         manifest = {
-            "format": 1, "policy": "latest_source_plus_five_prior_versions",
+            "format": 1, "policy": POLICY,
             "latest": records[0]["version"], "versions": records,
             "git_history_and_tags_unchanged": True, "production_deployed": False,
         }
         (staging / "index.json").write_text(json.dumps(manifest, indent=2) + "\n")
         rows = [
             "# 源码恢复集合", "",
-            "最新源码及五个历史版本。归档不包含用户数据、运行配置或依赖安装包。",
+        "保留最新源码及最多一个历史版本, 合计最多两版。归档不包含用户数据、运行配置或依赖安装包。",
             "Git 历史和标签保持不变。本记录不表示生产部署。", "",
             "| 版本 | 源码引用 | 提交 | SHA-256 |", "| --- | --- | --- | --- |",
         ]

@@ -1,0 +1,27 @@
+{
+  "status": "verified",
+  "revision_files": 148,
+  "revision_bytes": 74104316,
+  "financial_files": 153,
+  "financial_bytes": 93140394,
+  "snapshot_counts": {
+    "metrics": 23,
+    "income": 6,
+    "balance_sheet": 5,
+    "cash_flow": 5,
+    "shares": 6
+  },
+  "observation_counts": {
+    "metrics": 26,
+    "income": 7,
+    "balance_sheet": 6,
+    "cash_flow": 6,
+    "shares": 7
+  },
+  "actual_replay_events_verified": 52,
+  "before_first_observation_is_empty": true,
+  "source_and_public_match_union": true,
+  "original_observation_bytes_preserved": true,
+  "current_tables_unchanged": true,
+  "file_index_sha256": "5c4f48987a81a927198e05841aae0f49d5720952a63eea8436b99aef370252cc"
+}

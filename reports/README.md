@@ -1,61 +1,107 @@
-# 当前主线与目标规划的证据索引
+# 项目验证与历史证据索引
 
-2026-10-30最新发布整合与六类文档映射见[本轮评审](current-release-20261030/review.md)，
-源码、PR/main、正式产物、本地与ECS分别验收；实际结果见
-[本轮验证](current-release-20261030/verification.md)。
+2026-11-01 [本地整合、发布与两端升级](release-consolidation-20261101.md)：
+本次统一源码、六类文档、临时清理及两版恢复；各阶段真实结果独立记录。
 
-2026-10-29 v0.4.38正式发布已完成，固定提交`5b273174f2e2a8ac539fcea363fa02315a61ebe9`。
-本地与ECS登录、六功能、真实分钟任务及正常重启通过，配置与原行情保持；
-301110.SZ三四月5,520键和10月28日两端各6个未返回键仍如实列入缺口。
-[当前正式发布证据](minute-collection-reliability-20261029/deployment.md)。旧报告仅证明其标注时点。
+2026-11-01 [S02回测依赖修复](../.claude/artifacts/fixes/s02-backtest-panel-dependencies.md)：
+仅修正专用日线计划，补真实Parquet加载和成交/失败边界回归；
+后续本地API／Compute已生效，并补入公开停复牌证据后完成59日10万元验证；
+五资金历史未重跑，具体结果和边界见修复记录及本次整合记录。
 
+2026-11-01 [s02标识更新及退役验收](s02-migration-20261101.md)：
+当前工作区与本地运行统一为s02，保留原15份研究任务和92份每日结果；
+退役策略记录、相关副本及旧前端已清理，规则与收益沿用原执行，未上线。
 
-以下索引起始核对日期：2026-10-26，当时集成前冻结基线为
-`4d944cdf66c02ec020c98ea961cb6bdc2b079056`，应用版本0.4.29。
-完整变更与实际检查见[最新整合](kline-release-20261026/verification.md)；
-最终主线版本由CI分配，生产状态另见[版本基线](../docs/version-baseline.md)。
+2026-11-01 [策略系列清理验证](strategy-removal-20261101.md)：
+对应源码、设置、结果和专属报告清理；其余22个策略与独立s01研究保留。
 
-本目录保留当前契约、目标决策、生产兼容或未完成签收仍需要的证据。
-<a id="history"></a>
-以下历史记录只证明其标注的版本/环境/窗口，不能作为当前生产或新目标通过记录。
+2026-11-01 [s01恢复盈利版本](s01-current/README.md)：当前研究入口恢复为
+10%分钟容量、14:47～14:49分片买入、11:15/11:22早盘信号和13:30截止。
+源码与2026-10-31干净重跑盈利版一致；已有五档收益6.24%～8.09%，本次未新跑全区间。
+恢复配置与定向回归证据单独保存，安装环境未升级。
 
-| 保留材料 | 与当前主线或规划的关系 |
+核对日期：2026-11-01。当前源码、已发布产物和最后已知运行状态统一见
+[版本基线](../docs/version-baseline.md)。报告只证明其记录的提交、环境和窗口；
+本次文档整理未重新探测生产，也不把旧测试计数计为本次结果。
+
+2026-10-31安全复核见[文档脱敏与公开暴露处置记录](document-security-20261031.md)。
+涉及的本地文档、证据和分享包已脱敏；原有校验值仍描述原始历史证据，
+脱敏副本使用本次清单中的新校验值。公开主线、历史版本及冻结附件的剩余暴露单独列出。
+
+2026-11-01 [ECS身份核验及历史镜像/缓存清理](ecs-historical-image-cache-cleanup-20261101.md)：
+删除28个闲置镜像，构建缓存回读为0，实测可用空间增加约38.13 GiB；
+当前/回滚镜像、容器、卷及受控配置保持，既有API就绪波动另行记录。
+前一阶段的GHCR、Actions及本地处置见
+[历史镜像与缓存记录](historical-image-cache-cleanup-20261031.md)。
+
+2026-11-01 [API间歇就绪异常根因调查](api-readiness-root-cause-20261101.md)：
+确认3个API进程仍绑定已由定时维护删除的旧公共发布，60次采样中45次503；
+确定性复现3/3，调查时现有相关测试79项通过；该计数只属于原调查。
+
+对应[闲置API发布绑定修复方案](api-public-release-binding-plan-20261101.md)已形成：
+每进程巡检、仅发布变化时更新、共享读锁保护旧仓库、回收排他守卫及一致就绪读取；
+方案阶段只生成设计；用户批准后的[实施记录](api-public-release-binding-implementation-20261101.md)
+单独保存源码、反证、本地和Linux证据，代表性候选及生产6小时验收仍待完成。
+
+## 最新发布与当前数据边界
+
+| 材料 | 用途与边界 |
 | --- | --- |
-| [三组任务连接实施](rustdx-task-affinity-20261029/verification.md) | 24业务/3探测、候选黏性、分钟预留、完整窗口参考、跨进程额度及源码/部署边界 |
-| [四站32逐证券流水线](rustdx-four32-pipeline-20261029/report.md) | 固定来源复用、采集校验并行、已确认冲突新参考直采；真实请求减少、数据完整性与耗时波动对照，未部署 |
-| [四站32差异与漏采修复](rustdx-four32-integrity-repair-20261029/report.md) | 失效会话复用根因、1,945行跨源差异证据；完整来源校验冷/热零缺失零差异、实际32连接，校验性能开销及未部署边界 |
-| [指数页与三周期修正](indices-kline-20261028/verification.md) | 七只目录、独立周/月表、真实遗漏保护、管理任务与Chrome模拟API验收；未部署或初始化真实行情 |
-| [状态统计超时修复](data-status-timeout-20261028/verification.md) | 公共缓存局部世代、并发共享扫描、实际行情基准与尚未部署的边界 |
-| [源码与依赖精简](project-cleanup-20261028/verification.md) | 全仓盘点、失效页面/聚合副本删除、冻结依赖核对与本次实际回归 |
-| [六周期K线发布整合](kline-release-20261026/verification.md) | 六周期修正、个股多周期/数量、缓存隔离、文档责任、本地/ECS核对及独立质量门 |
-| [最新现状与发布](current-state-release-20261025/verification.md) | 153文件冻结、六类文档、全量验证、策略归档/并发、UI/调度、本地与线上版本更新 |
-| [生产基线整合](production-baseline-20261025/verification.md) | 官方目录、管理员空间、顶栏/数据总览、示例目录、六类文档和源码恢复工具的本次验证 |
-| [完整本地整合](production-integration-20261024/verification.md)、[五个历史恢复点](production-integration-20261024/version-retention.json) | 本轮全部变更、目录、生命周期映射、全量验证、自审与恢复口径 |
-| [页面与数据分析](page-data-analysis-20261024/README.md) | 页面/菜单数量、数据血缘与上游分类；原根目录五份分析的可移植归档 |
-| [目标设计输入](design-inputs-20261023/README.md) | 融合方案、ClickHouse八表/SQL和用户原图是统一目标的依据 |
-| [系统目标整合](system-target-20261023/verification.md)、[二期架构分析](phase2-architecture-20261016/architecture-analysis.md) | 统一目标和二期3.1–3.6的来源与范围；保留其引用的[414cc483历史发布](deployment-20261015-414cc483/release.md) |
-| [二期第一步](phase2-step1-20261016/implementation.md)、[第二步](phase2-step2-20261016/implementation.md) | 阶段实现、百用户证据和仍待完成的持续验收 |
-| [单机实现](single-host/implementation.md)、[候选验证](single-host/verification.md)、[持续窗口](single-host/continuous-acceptance.md) | 现有七角色、隔离计算、故障恢复与未签收窗口 |
-| [v0.4.8最终发布](online-upgrade-20261018/deployment-result.md) | 当前schema v6的升级/备份/回退兼容历史；配套原始JSON保留 |
-| [v0.4.11最终发布](online-upgrade-20261020/deployment-result.md)、[历史回填](history-backfill-20261020/result.md) | 最后已知生产和实际日线覆盖边界 |
-| [inode修复](online-timeout-20261021/result.md)、[连接池调查](online-timeout-20261021/watchlist-pool-investigation.md)、[延长验证](online-timeout-20261021/extended-validation.md) | 生产问题、待确认根因和未取得终态的窗口，不能因日期较早删除 |
-| [22策略原始研究](default-strategies-five-year-20261017/analysis.md)、[策略质量升级](strategy-optimization-20261019/analysis.md)、[五策略实施](five-strategy-parallel-20261019/implementation.md) | 默认参数未被替换的研究依据、原价/费用/共享资金口径、候选与后续观察 |
-| [主线整合](main-consolidation-20261018/verification.md)、[最新源码整合](local-consolidation-20261022/verification.md#全工作区变更整合与交付记录) | 当前主线的兼容与集成证据，及其引用的原修复结果 |
-| [上游对比](upstream-comparison-20261017/analysis.md)、[移植结果](upstream-ports-20261018/verification.md) | 当前整合记录引用的取舍、已移植与保留边界 |
-| [策略安全](strategy-safety-port-20261017/verification.md)、[正确性](p2-correctness-port-20261017/verification.md)、[其余P2与观察](p2-remaining-20261017/verification.md) | 安全/金融修复和未完成观察仍被主线整合引用 |
-| [功能文档核对](documentation-sync-20261023/verification.md)、[PRD补齐](prd-completion-20261023/verification.md) | 当前页面、数据能力、需求与实现/测试的对应依据 |
-| [生产体系整合](production-system-consolidation-20261023/verification.md) | 203个需求、目录迁移及本地适用回归的冻结证据；旧清单只代表当时文件状态 |
-| [本次清理](repository-cleanup-20261024/verification.md) | 被替代材料、重复副本和缓存的移出清单、恢复信息及检查结果 |
+| [v0.4.39部署](current-release-20261030/deployment.md)、[验证](current-release-20261030/verification.md)、[评审](current-release-20261030/review.md) | PR #35、main自动版本、固定产物、本地/ECS切换、恢复和正常重启；当前正式提交为bac72d9a83c03890cbb954e0e13782b8421d6073 |
+| [财务存储统计](financial-storage-20261030/verification.md) | 当前五表与历史快照分开显示；源码修改和独立修复产物有各自身份，不自动归为正式发布内容 |
+| [财务历史并集](financial-history-unify-20261030/verification.md) | 原快照/观察事件保留、两端并集与公共副本逐文件校验、A→B→A回放；原记录148文件/74,104,316字节仅代表该验收时点 |
+| [分钟采集可靠性](minute-collection-reliability-20261029/deployment.md) | v0.4.38历史升级、队列预算、准确缺口、逐证券隔离、CSV与双库恢复证据 |
+| [301110.SZ缺口](minute-301110-20261029/verification.md)、[隔离与补采](minute-301110-20261029/skip-and-backfill.md) | 源端历史深度、真实剩余键与备用接口限制；任务成功不代表全历史补齐 |
+| [指数一致性](index-parity-20261030/verification.md) | 专项数据/环境对照，以报告内实际窗口和限制为准 |
+| [三组连接实施](rustdx-task-affinity-20261029/verification.md) | 组/端点/全局额度、切站、完整来源核验；已由v0.4.39承接，初始源码报告保留原状态 |
+| [rustdx业务实测](rustdx-business-20261029/verification.md) | 固定证券池、跨端模块身份、真实请求和写盘；上游固定tag来源与本地运行证据分开 |
+| [历史策略交付重置](strategy-results-cleanup-20261030/历史交付重置.md)、研究起点（附件保存在受控归档） | 历史已清理研究/002交付移出，当前新增研究与结果索引归零；预置22个策略保持完整 |
 
-无当前入口引用且已被现行规范/整合记录承接的旧独立回执已移出工作区。
-这不改变历史测试结果，也不把现行说明当作旧测试原始证据。
-清理前后均不删除生产备份、运行数据、凭据或Git历史。
+## 功能与工程依据
 
-新证据按专题与日期保存，记录完整提交/本地差异、版本、环境、数据窗口、命令、
-结果和限制。截图随对应报告保存，不再建立缺少元数据的散图集合。
+| 专题 | 保留原因 |
+| --- | --- |
+| [统一发布与ETF退役](complete-release-20261028-3/review.md) | 股票/固定七指数范围、迁移门槛、指数保护、源身份和完整质量门 |
+| [数据采集统一](data-collection-unification-20261028/verification.md)、[周K渐进schema](weekly-parquet-schema-20261028/verification.md) | 闭区间、本地缺口优先、读兼容与真实固定样本 |
+| [指数三周期](indices-kline-20261028/verification.md)、[指数交互](index-page-ui-20261028/verification.md) | 独立周/月表、遗漏保护、权限/任务、根数控制和浏览器验证 |
+| [历史分页性能](minute-history-performance-20261028/verification.md)、[状态缓存](data-status-timeout-20261028/verification.md) | 同环境请求/内容基准、缓存局部世代和失效边界 |
+| [项目精简](project-cleanup-20261028/verification.md) | 已删除实现、依赖与冻结构建兼容的逐项依据 |
+| [六周期发布](kline-release-20261026/verification.md)、[本地派生](local-derived-minutes-20261026/verification.md) | 周期表、查询、任务、价格基准、本地计算与取消契约 |
+| [自选运行](local-watchlist-update-20261027/verification.md)、[数据布局](data-overview-layout-20261027/verification.md) | 关系/CSV/缓存挂载、共享开关与旧设置兼容 |
+| [最新功能整合](latest-release-20261027/verification.md)、[归档与调度](current-state-release-20261025/verification.md) | 持久结果、全局准入、共享弹窗、目录/行情分离与各阶段验收 |
+| [生产工程整合](production-system-consolidation-20261023/verification.md) | 原需求编号、目录迁移、生命周期与冻结清单；requirement-ids.json仍为文档回归输入 |
+| [工程归并](production-integration-20261024/verification.md)、[生产基线](production-baseline-20261025/verification.md) | 初始化/认证/SMTP、目录/菜单/示例、恢复点与完整环境兼容 |
+| [文档合并](document-consolidation-20261024/verification.md)、[原始依据](document-consolidation-20261024/historical-evidence.md) | 历史实施与目录迁移结论，原日期/版本/计数保持 |
+| [页面数据分析](page-data-analysis-20261024/README.md)、[功能核对](documentation-sync-20261023/verification.md)、[PRD补齐](prd-completion-20261023/verification.md) | 历史页面、数据血缘和需求依据；旧ETF材料按退役前时点阅读 |
 
-本轮正文消重、六类主手册与六份专题参考的迁移和验证见
-[文档合并记录](document-consolidation-20261024/verification.md)。
-原分散的一期实施、技术复核、因子/行情/rustdx验证集中在
-[历史依据](document-consolidation-20261024/historical-evidence.md)，保留原日期/版本/计数，
-复跑使用当前手册路径。
+<a id="history"></a>
+## 规划、未完成调查与历史兼容
+
+| 材料 | 保留原因与状态 |
+| --- | --- |
+| [系统目标](system-target-20261023/verification.md)、[设计输入](design-inputs-20261023/README.md)、[二期分析](phase2-architecture-20261016/architecture-analysis.md) | 目标组件、ClickHouse设计与原图；万人/分布式容量未签收 |
+| [第一步](phase2-step1-20261016/implementation.md)、[第二步](phase2-step2-20261016/implementation.md)、[单机持续窗口](single-host/continuous-acceptance.md) | 已有阶段实施及百用户证据，持续窗口/故障恢复仍按各自状态判断 |
+| [inode修复](online-timeout-20261021/result.md)、[业务池调查](online-timeout-20261021/watchlist-pool-investigation.md)、[延长观察](online-timeout-20261021/extended-validation.md) | 旧实例故障与未确认根因，不能因新实例健康或日期较早删除 |
+| [v0.4.8](online-upgrade-20261018/deployment-result.md)、[v0.4.11](online-upgrade-20261020/deployment-result.md)、[回填](history-backfill-20261020/result.md) | schema与恢复兼容历史，历史行情覆盖不适用于新实例 |
+| [四站32完整性试验](rustdx-four32-integrity-repair-20261029/report.md)、[流水线试验](rustdx-four32-pipeline-20261029/report.md) | 未采用的独立方案、来源差异与性能成本；不作为当前三组实现或部署证据 |
+| [上游比较](upstream-comparison-20261017/analysis.md)、[移植](upstream-ports-20261018/verification.md)、[主线归并](main-consolidation-20261018/verification.md) | 历史取舍及当前仍引用的修复依据 |
+| [策略安全](strategy-safety-port-20261017/verification.md)、[金融正确性](p2-correctness-port-20261017/verification.md)、[P2观察](p2-remaining-20261017/verification.md) | 安全、金融边界与未完成观察 |
+| [仓库清理](repository-cleanup-20261024/verification.md) | 旧副本/缓存移出范围与历史检查结果 |
+| [旧版本交付清理](deliverables-version-cleanup-20261030/verification.md)、[历史保留规则更新](deliverables-version-cleanup-20261030/retention-two-prior.md)、当前恢复集合（附件保存在受控归档） | 原阶段884个旧交付文件移出；随后三版上限是历史快照，2026-10-31已调整为v0.4.38、v0.4.39共两版，归档及原始清单存入本机受控目录 |
+| [文档工程更新与清理](documentation-refresh-20261030/verification.md) | 当前文档入口、历史流水消重、85项垃圾文件清单及本次实际验证 |
+| [本地三项目数据清理](local-data-cleanup-20261031/verification.md) | TSP分享/测试缓存、rustdx可重建打包副本及AIGC旧探测材料；逐文件删除依据和实际核验 |
+| [历史镜像与缓存清理](image-cache-cleanup-20261031/verification.md) | 已完成下载用途的中转镜像、闲置构建/包缓存及VM空闲块回收；当前与前两个版本运行镜像保持 |
+| [本地历史版本两版保留](version-retention-20261031.md) | 当前和一个历史版本共两版；清理v0.4.37镜像/副本、旧导出包及重复源码，唯一差异和数据备份保持 |
+
+## 保存与清理规则
+
+新报告按“专题-日期”归档，记录提交/未提交差异、环境、窗口、命令、实际结果、
+失败/跳过、限制和必要的恢复位置。截图与机器结果随对应报告保存，
+当前手册只维护现行规则并链接证据。
+
+不按日期或体积直接删除报告。未提交工作、当前发布原始证据、需求检查基准、
+用户策略/结果、缺口清单、未完成调查和必要恢复点均保留。
+无有效引用的重复全文、已完成下载的分片、可重建镜像层和系统元数据可按
+[维护规则](../docs/maintenance.md)清理并记录准确范围。
+历史hash/文件清单描述原采集时点，不是当前目录清单；清理副本须注明并修正入口，
+不篡改原测试计数、失败或验收结论。

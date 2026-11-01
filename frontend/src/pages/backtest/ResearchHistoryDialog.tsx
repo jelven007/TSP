@@ -25,6 +25,7 @@ export function ResearchHistoryDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [filter, setFilter] = useState('all')
+  const [strategy, setStrategy] = useState('all')
   const jobs = useQuery({ queryKey: QUERY_KEY, queryFn: api.researchJobs, refetchInterval: 5000 })
   const originals = useQuery({ queryKey: ['research-originals'], queryFn: api.researchOriginals, enabled: multitenancyEnabled() })
   const cancel = useMutation({ mutationFn: api.researchJobCancel, onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }) })
@@ -58,12 +59,16 @@ export function ResearchHistoryDialog({ onClose }: { onClose: () => void }) {
     else if (job.kind === 'mining') navigate(`/factors?tab=mining&run=${encodeURIComponent(job.id)}`)
     onClose()
   }
-  const visible = (jobs.data?.items ?? []).filter(job => filter === 'all' || (filter === 'active' ? ACTIVE.has(job.status) : !ACTIVE.has(job.status)))
+  const strategyIds = [...new Set((jobs.data?.items ?? []).map(job => String(job.config?.strategy_id || '')).filter(Boolean))].sort()
+  const visible = (jobs.data?.items ?? []).filter(job =>
+    (strategy === 'all' || job.config?.strategy_id === strategy)
+    && (filter === 'all' || (filter === 'active' ? ACTIVE.has(job.status) : !ACTIVE.has(job.status))))
   const error = jobs.error || originals.error || cancel.error || remove.error || download.error || downloadOriginal.error
   return (
     <Modal onClose={onClose} labelledBy="research-history-title" size="xl">
       <div className="modal-header flex items-center gap-2">
         <History className="h-4 w-4 text-accent" /><h2 id="research-history-title" className="flex-1 text-sm font-medium">研究任务历史</h2>
+        <select aria-label="筛选任务策略" value={strategy} onChange={event => setStrategy(event.target.value)} className="rounded-btn border border-border bg-base px-2 py-1 text-xs"><option value="all">全部策略</option>{strategyIds.map(id => <option key={id} value={id}>{id}</option>)}</select>
         <select aria-label="筛选任务状态" value={filter} onChange={event => setFilter(event.target.value)} className="rounded-btn border border-border bg-base px-2 py-1 text-xs"><option value="all">全部</option><option value="active">执行中</option><option value="finished">已结束</option></select>
         <button type="button" aria-label="关闭任务历史" onClick={onClose} className="modal-close"><X className="h-4 w-4" /></button>
       </div>
@@ -73,10 +78,10 @@ export function ResearchHistoryDialog({ onClose }: { onClose: () => void }) {
         {!visible.length && <p className="py-10 text-center text-sm text-muted">{jobs.isLoading ? '正在加载…' : '暂无研究任务'}</p>}
         {!!visible.length && <table className="w-full min-w-[650px] text-left text-xs"><thead className="border-b border-border text-muted"><tr><th className="py-2">任务</th><th>状态</th><th>创建时间</th><th>来源</th><th className="text-right">操作</th></tr></thead>
           <tbody>{visible.map(job => <tr key={job.id} className="border-b border-border/50">
-            <td className="max-w-80 py-3 pr-4"><span className="block font-medium">{KINDS[job.kind] || job.kind}{job.config?.strategy_id ? ` · ${job.config.strategy_id}` : ''}</span><span className="mt-1 block font-mono text-[10px] text-muted">{job.id.slice(0, 12)}</span>{job.error && <span className="mt-1 block text-danger">{job.error}</span>}</td>
+            <td className="max-w-80 py-3 pr-4"><span className="block font-medium">{KINDS[job.kind] || job.kind}{job.config?.strategy_id ? ` · ${job.config.strategy_id}` : ''}</span>{job.config?.strategy_id && <span className="mt-1 block text-muted">{String(job.config.start || '')}～{String(job.config.end || '')} · {Number((job.config.params as Record<string, unknown> | undefined)?.initial_cash || job.config.initial_capital || 0).toLocaleString('zh-CN')} 元 · {Number((job.config.params as Record<string, unknown> | undefined)?.slippage || 0) * 10000} 基点</span>}<span className="mt-1 block font-mono text-[10px] text-muted">{job.id.slice(0, 12)}</span>{job.error && <span className="mt-1 block text-danger">{job.error}</span>}</td>
             <td className={ACTIVE.has(job.status) ? 'text-accent' : 'text-secondary'}>{STATES[job.status] || job.status}</td>
             <td className="text-muted">{new Date(job.created_at).toLocaleString('zh-CN', { hour12: false })}</td>
-            <td className="text-muted">{job.metadata.source === 'scheduled' ? '定时' : job.metadata.source === 'legacy' ? '历史导入' : '手动'}</td>
+            <td className="text-muted">{job.metadata.source === 'scheduled' ? '定时' : job.metadata.source === 'legacy' ? '历史导入' : job.metadata.source === 'restored_research' ? '本次研究回测' : '手动'}</td>
             <td><div className="flex justify-end gap-2">
               {['backtest', 'optimize', 'walkforward', 'mining'].includes(job.kind) && <button type="button" onClick={() => open(job)} className="inline-flex items-center gap-1 text-accent"><RotateCcw className="h-3 w-3" />查看</button>}
               {!ACTIVE.has(job.status) && <button type="button" aria-label={`导出任务 ${job.id}`} disabled={download.isPending} onClick={() => download.mutate(job.id)} className="p-1 text-secondary"><Download className="h-3.5 w-3.5" /></button>}

@@ -1,0 +1,281 @@
+{
+  "bridge": [
+    true,
+    "jelven-rustdx-complete 2.0.3 (jelven007/rustdx@d6bf22a) / bridge 0.2.0 / patch 159703baa8d9 / 8业务+1探测"
+  ],
+  "checks": {
+    "market_stats": {
+      "status": "pass",
+      "seconds": 0.0005185000009078067,
+      "value": {
+        "active_connections": 0,
+        "active_server": "117.34.114.13:7709",
+        "business_limit": 8,
+        "closed": false,
+        "failures": 0,
+        "financial_pools": [],
+        "idle_connections": 0,
+        "market_pool": null,
+        "max_connections": 8,
+        "minute_requests": 0,
+        "network": {
+          "acquisition_timeouts": 0,
+          "active": 0,
+          "peak": 0,
+          "request_failures": 0,
+          "requests": 0,
+          "shared_max_connections": null
+        },
+        "probe_limit": 1,
+        "probes": {
+          "active": 0,
+          "peak": 0,
+          "timeouts": 0,
+          "waits": 0
+        },
+        "quote_batch_size": 60,
+        "quote_metadata": [],
+        "retries": 0,
+        "scheduler": {
+          "background_active": 0,
+          "background_limit": 7,
+          "background_peak": 0,
+          "foreground_waiting": 0,
+          "slot_acquisitions": 0,
+          "slot_wait_ms_max": 0.0,
+          "slot_wait_ms_total": 0.0,
+          "waiting_requests": 0
+        },
+        "total_connection_limit": 9,
+        "total_connections": 0
+      }
+    },
+    "financial_archive": {
+      "status": "pass",
+      "seconds": 34.20111554200048,
+      "value": {
+        "entries": 148,
+        "listing_sha256": "62101b6cadfa93c8f7f10548fe31fdcec1083777584d83895428aae6fca49c95",
+        "filename": "gpcw20260630.zip",
+        "bytes": 5765778,
+        "md5_verified": true,
+        "rows": [
+          {
+            "code": "000001",
+            "report_date": "20260630",
+            "col1": 1.2400000095367432,
+            "col4": 24.1299991607666,
+            "col238": 19405918208.0,
+            "col239": 19405684736.0
+          },
+          {
+            "code": "600519",
+            "report_date": "20260630",
+            "col1": 35.56999969482422,
+            "col4": 200.98980712890625,
+            "col238": 1250081664.0,
+            "col239": 1250081664.0
+          }
+        ]
+      }
+    },
+    "financial_stats": {
+      "status": "pass",
+      "seconds": 9.220799984177575e-05,
+      "value": {
+        "active_connections": 0,
+        "active_server": "117.34.114.13:7709",
+        "business_limit": 8,
+        "closed": false,
+        "failures": 0,
+        "financial_pools": [
+          {
+            "completed_at": "2026-10-28T14:34:45.349253+08:00",
+            "date": "2026-10-28",
+            "results": [
+              {
+                "address": "120.76.152.87:7709",
+                "rounds": [
+                  {
+                    "elapsed": {
+                      "nanos": 66915959,
+                      "secs": 1
+                    },
+                    "failure": null,
+                    "handshake": {
+                      "nanos": 811017292,
+                      "secs": 0
+                    },
+                    "heartbeat": {
+                      "nanos": 176998583,
+                      "secs": 0
+                    },
+                    "heartbeat_ack": {
+                      "raw_payload": [
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0,
+                        164,
+                        40,
+                        53,
+                        1
+                      ],
+                      "reserved_raw": [
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0
+                      ],
+                      "server_date": "2026-10-28",
+                      "server_date_raw": 20261028
+                    },
+                    "mode": "FinancialHeartbeat",
+                    "security_count": null,
+                    "tcp": {
+                      "nanos": 78793209,
+                      "secs": 0
+                    }
+                  },
+                  {
+                    "elapsed": {
+                      "nanos": 170003459,
+                      "secs": 0
+                    },
+                    "failure": null,
+                    "handshake": {
+                      "nanos": 46997667,
+                      "secs": 0
+                    },
+                    "heartbeat": {
+                      "nanos": 49457208,
+                      "secs": 0
+                    },
+                    "heartbeat_ack": {
+                      "raw_payload": [
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0,
+                        164,
+                        40,
+                        53,
+                        1
+                      ],
+                      "reserved_raw": [
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0
+                      ],
+                      "server_date": "2026-10-28",
+                      "server_date_raw": 20261028
+                    },
+                    "mode": "FinancialHeartbeat",
+                    "security_count": null,
+                    "tcp": {
+                      "nanos": 73491209,
+                      "secs": 0
+                    }
+                  },
+                  {
+                    "elapsed": {
+                      "nanos": 168429166,
+                      "secs": 0
+                    },
+                    "failure": null,
+                    "handshake": {
+                      "nanos": 53084083,
+                      "secs": 0
+                    },
+                    "heartbeat": {
+                      "nanos": 55069333,
+                      "secs": 0
+                    },
+                    "heartbeat_ack": {
+                      "raw_payload": [
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0,
+                        164,
+                        40,
+                        53,
+                        1
+                      ],
+                      "reserved_raw": [
+                        0,
+                        0,
+                        1,
+                        0,
+                        0,
+                        0
+                      ],
+                      "server_date": "2026-10-28",
+                      "server_date_raw": 20261028
+                    },
+                    "mode": "FinancialHeartbeat",
+                    "security_count": null,
+                    "tcp": {
+                      "nanos": 60223666,
+                      "secs": 0
+                    }
+                  }
+                ]
+              }
+            ],
+            "tested_at": "2026-10-28T14:34:43.943757+08:00",
+            "valid_nodes": [
+              "120.76.152.87:7709"
+            ]
+          }
+        ],
+        "idle_connections": 1,
+        "market_pool": null,
+        "max_connections": 1,
+        "minute_requests": 0,
+        "network": {
+          "acquisition_timeouts": 0,
+          "active": 1,
+          "peak": 1,
+          "request_failures": 0,
+          "requests": 198,
+          "shared_max_connections": null
+        },
+        "probe_limit": 1,
+        "probes": {
+          "active": 0,
+          "peak": 1,
+          "timeouts": 0,
+          "waits": 0
+        },
+        "quote_batch_size": 60,
+        "quote_metadata": [],
+        "retries": 0,
+        "scheduler": {
+          "background_active": 0,
+          "background_limit": 1,
+          "background_peak": 1,
+          "foreground_waiting": 0,
+          "slot_acquisitions": 2,
+          "slot_wait_ms_max": 0.0,
+          "slot_wait_ms_total": 0.0,
+          "waiting_requests": 0
+        },
+        "total_connection_limit": 9,
+        "total_connections": 1
+      }
+    }
+  },
+  "upstream": "d6bf22a0e5954c778ef6ad58be8e5f81aacc75c3"
+}

@@ -1,0 +1,32 @@
+{
+  "status": "unfilled_no_authenticated_source_records",
+  "requested": 20,
+  "appended": 0,
+  "remaining_standard_labels": 20,
+  "zero_trade_placeholder_stock_days": 20,
+  "three_nodes_checked": true,
+  "local_target_keys_present": 0,
+  "control_source_600000_rows_per_node": 720,
+  "source_partitions_unchanged": true,
+  "verified_at_beijing": "2026-10-29T20:34:02.232427+08:00",
+  "days": [
+    {
+      "day": "2026-10-26",
+      "requested": 7,
+      "appended": 0,
+      "remaining": 7
+    },
+    {
+      "day": "2026-10-27",
+      "requested": 7,
+      "appended": 0,
+      "remaining": 7
+    },
+    {
+      "day": "2026-10-28",
+      "requested": 6,
+      "appended": 0,
+      "remaining": 6
+    }
+  ]
+}

@@ -166,3 +166,20 @@ def test_hour_retention_preserves_recent_current_and_research(tmp_path):
     assert [path.name for path in candidates] == [f"{3:032x}"]
     with pytest.raises(ValueError, match="at least one hour"):
         release_candidates(root, protected=set(), keep=2, min_age_hours=0)
+
+
+def test_maintenance_script_dry_run_requires_only_standard_library(tmp_path):
+    import shutil
+    import sys
+    from pathlib import Path
+
+    from scripts.operations import maintain_full_host
+
+    script = tmp_path / "maintain.py"
+    shutil.copy2(Path(maintain_full_host.__file__), script)
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", str(script), "--release-root", str(tmp_path)],
+        capture_output=True, text=True, timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["release_prune_skipped"]

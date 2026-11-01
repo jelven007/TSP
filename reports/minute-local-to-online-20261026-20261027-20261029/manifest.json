@@ -1,0 +1,37 @@
+{
+  "prepared_at": "2026-10-29T02:03:22.410105+00:00",
+  "minute_basis_raw": false,
+  "days": [
+    {
+      "day": "2026-10-26",
+      "patch_rows": 1680,
+      "patch_symbols": 7,
+      "patch_file": "patch-2026-10-26.parquet",
+      "patch_sha256": "89b799fa81a9f87c5c23b323ab394298ad77fb40c206213f5074e3160ab88a82",
+      "patch_content_sha256": "2ae28899ba7772112ddad8c84589a856dc818e5f10745a9d2656c2efc038381a",
+      "patch_bytes": 4142,
+      "online_before_rows": 1251600,
+      "online_before_sha256": "34161393dc33d1a48febeeff5848c53d08a6d24f81964401adc02f3b8a7854f9",
+      "online_before_content_sha256": "78a60921ac5ec51033a1ae97dedc0a52cb94e17b8619d0d4bb2c56cc99147342",
+      "local_rows": 1253280,
+      "local_parquet_sha256": "008dcc5f935e7dfe0f82f8ec520b3ad151a78dcd63b1b6e42b7323931b3339fb",
+      "local_content_sha256": "f5bd7576ca911281c715902734ef67fd78bad557057dbf05e13236b41420de08"
+    },
+    {
+      "day": "2026-10-27",
+      "patch_rows": 2313,
+      "patch_symbols": 2313,
+      "patch_file": "patch-2026-10-27.parquet",
+      "patch_sha256": "1efb6c5a08a1e18cda842915f572e8304088915bf35bc5d855e6294e096b4c0c",
+      "patch_content_sha256": "f340b527dde206bb0dd55eda8f46e2f6b86dc6786cf4390516c5c48b2901179f",
+      "patch_bytes": 47679,
+      "online_before_rows": 1256182,
+      "online_before_sha256": "45ab20fa2e71dd9c2d789967e87f4c90807af0e6391a212667bb2c6b1b63275b",
+      "online_before_content_sha256": "139e4efa7e550b1dd925ae6c40b727a6b279402892141deba369499fdb9abc7a",
+      "local_rows": 1258495,
+      "local_parquet_sha256": "b75765b1d653f2d2e2407309d126fd3755ed78b89d647a260d9c96bcc9003275",
+      "local_content_sha256": "56deba83a4bcd97bf4ed2b2e87cb56f6a9adbc7c070331154f831b3fa93c7bd8"
+    }
+  ],
+  "total_patch_rows": 3993
+}

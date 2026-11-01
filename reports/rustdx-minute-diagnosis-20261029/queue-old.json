@@ -1,0 +1,36 @@
+{
+  "core": "1.12.2",
+  "bridge": "0.1.1",
+  "socket_timeout_s": 2,
+  "report_chunk_delay_s": 1.1,
+  "bar_transport_delay_s": 1.1,
+  "trials": [
+    {
+      "trial": 1,
+      "error": null,
+      "requests": 1,
+      "rows": 0,
+      "elapsed_s": 3.31,
+      "socket_peak": 1,
+      "source_unchanged": true
+    },
+    {
+      "trial": 2,
+      "error": null,
+      "requests": 1,
+      "rows": 0,
+      "elapsed_s": 3.31,
+      "socket_peak": 1,
+      "source_unchanged": true
+    },
+    {
+      "trial": 3,
+      "error": null,
+      "requests": 1,
+      "rows": 0,
+      "elapsed_s": 3.31,
+      "socket_peak": 1,
+      "source_unchanged": true
+    }
+  ]
+}

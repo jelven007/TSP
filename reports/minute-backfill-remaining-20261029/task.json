@@ -1,0 +1,33 @@
+{
+  "id": "minute-backfill-remaining-20261029",
+  "kind": "kline_range_repair",
+  "source": "operational",
+  "status": "succeeded",
+  "created_at": "2026-10-29T13:05:07.330554+00:00",
+  "progress": 100,
+  "stage": "complete",
+  "request": {
+    "period": "1m",
+    "mode": "missing",
+    "start_date": "2026-03-30",
+    "end_date": "2026-10-28",
+    "unavailable": "skip_and_record"
+  },
+  "schema_version": 1,
+  "updated_at": "2026-10-29T16:00:14.265928+00:00",
+  "started_at": "2026-10-29T13:05:07.332498+00:00",
+  "finished_at": "2026-10-29T16:00:14.265928+00:00",
+  "cancellation_requested_at": null,
+  "error": null,
+  "message": "已追加 15360 行; 四个节点仍未提供或一致性检查拒绝的 55764740 个标签已汇总",
+  "written_rows": 15360,
+  "upstream_requests": 1012,
+  "result": {
+    "rows": 15360,
+    "remaining": 55764740,
+    "missing_before": 55780100,
+    "skipped_symbols": 5190,
+    "unavailable_symbol_days": 232373,
+    "gap_report": "kline_gap_reports/minute-backfill-remaining-20261029/unavailable-by-symbol-day.csv"
+  }
+}

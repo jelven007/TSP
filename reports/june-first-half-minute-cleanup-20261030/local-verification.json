@@ -1,0 +1,205 @@
+{
+  "files": {
+    "source": {
+      "kline_minute": {
+        "target_rows": 0,
+        "rows": 115101881,
+        "files": 93,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": [
+          {
+            "path": "kline_minute/date=2026-10-30/part.parquet",
+            "before_rows": 474655,
+            "rows": 496078
+          }
+        ]
+      },
+      "kline_5minute": {
+        "target_rows": 0,
+        "rows": 22918032,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      },
+      "kline_10minute": {
+        "target_rows": 0,
+        "rows": 11459016,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      },
+      "kline_15minute": {
+        "target_rows": 0,
+        "rows": 7639344,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      }
+    },
+    "cleanup_public": {
+      "kline_minute": {
+        "target_rows": 0,
+        "rows": 115080458,
+        "files": 93,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      },
+      "kline_5minute": {
+        "target_rows": 0,
+        "rows": 22918032,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      },
+      "kline_10minute": {
+        "target_rows": 0,
+        "rows": 11459016,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      },
+      "kline_15minute": {
+        "target_rows": 0,
+        "rows": 7639344,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      }
+    },
+    "current_public": {
+      "kline_minute": {
+        "target_rows": 0,
+        "rows": 115080458,
+        "files": 93,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      },
+      "kline_5minute": {
+        "target_rows": 0,
+        "rows": 22918032,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      },
+      "kline_10minute": {
+        "target_rows": 0,
+        "rows": 11459016,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      },
+      "kline_15minute": {
+        "target_rows": 0,
+        "rows": 7639344,
+        "files": 92,
+        "retained_historical_checksums_match": true,
+        "today_live_changes_after_resume": []
+      }
+    },
+    "platform_data_status": {
+      "minute": {
+        "rows": 115080458,
+        "earliest_date": "2026-06-15",
+        "latest_date": "2026-10-30",
+        "symbols_covered": 5222,
+        "trading_days": 93
+      },
+      "5m": {
+        "rows": 22918032,
+        "earliest_date": "2026-06-15",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 5222,
+        "trading_days": 92
+      },
+      "10m": {
+        "rows": 11459016,
+        "earliest_date": "2026-06-15",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 5222,
+        "trading_days": 92
+      },
+      "15m": {
+        "rows": 7639344,
+        "earliest_date": "2026-06-15",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 5222,
+        "trading_days": 92
+      }
+    },
+    "current_public_release": "2369aa4c75594abc8f9a73f3c8ad9465",
+    "june_15_16_preserved": {
+      "2026-06-15": {
+        "rows": 1108800,
+        "checksums_unchanged": true
+      },
+      "2026-06-16": {
+        "rows": 1175040,
+        "checksums_unchanged": true
+      }
+    },
+    "platform_views_and_caches_refreshed": true,
+    "platform_health_passed": true,
+    "minute_price_basis_raw": false
+  },
+  "api": {
+    "status": "verified",
+    "checks": [
+      {
+        "check": "administrator_login",
+        "passed": true
+      },
+      {
+        "path": "/health/live",
+        "http_status": 200,
+        "passed": true
+      },
+      {
+        "path": "/health/ready",
+        "http_status": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/business/version",
+        "http_status": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/data/status",
+        "http_status": 200,
+        "all_minute_table_counts_match": true
+      }
+    ],
+    "minute_tables": {
+      "minute": {
+        "rows": 115101881,
+        "earliest_date": "2026-06-15",
+        "latest_date": "2026-10-30",
+        "symbols_covered": 5222,
+        "trading_days": 93
+      },
+      "5m": {
+        "rows": 22918032,
+        "earliest_date": "2026-06-15",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 5222,
+        "trading_days": 92
+      },
+      "10m": {
+        "rows": 11459016,
+        "earliest_date": "2026-06-15",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 5222,
+        "trading_days": 92
+      },
+      "15m": {
+        "rows": 7639344,
+        "earliest_date": "2026-06-15",
+        "latest_date": "2026-10-29",
+        "symbols_covered": 5222,
+        "trading_days": 92
+      }
+    }
+  },
+  "environment": "local",
+  "status": "verified"
+}

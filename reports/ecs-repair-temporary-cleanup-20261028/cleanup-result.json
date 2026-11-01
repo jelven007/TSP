@@ -1,0 +1,23 @@
+{
+  "removed_tasks": 6,
+  "removed_ids": [
+    "9cd7bcddef",
+    "83de9259fc",
+    "9e4308689c",
+    "a9af9857dd",
+    "2a6d97305e",
+    "6d92d76be7"
+  ],
+  "removed_record_bytes": 70027,
+  "backup": "/opt/tsp-full/backups/repair-temporary-cleanup-20261028",
+  "backup_verified": true,
+  "other_task_records_unchanged": true,
+  "repair_window_minute_data_unchanged": true,
+  "market_files_deleted": 0,
+  "preflight_temporary_data_files_found": 0,
+  "preflight_unpublished_stages_found": 0,
+  "latest_cancelled_repair_added_rows": 0,
+  "api_removed_tasks_absent": true,
+  "remaining_task_records": 44,
+  "active_id": null
+}

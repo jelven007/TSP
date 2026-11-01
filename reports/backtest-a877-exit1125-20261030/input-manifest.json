@@ -1,0 +1,402 @@
+[
+  {
+    "path": "/tmp/tspp-a877-update-20261030/features.parquet",
+    "sha256": "4b9d6c613a5dfa3421603a5da83b3773d5d2722b8ec8a6c5bc0e138b1ec83c21"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/daily.parquet",
+    "sha256": "627eef31517a96480cc3bebe830bc91b7b37ecbdff4957b5f417384b027919df"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/marks.parquet",
+    "sha256": "c84bdb1db9bbe9dcdf20776c8d96bf1af548d776431f8698df0b00458e0fb49d"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/universe.parquet",
+    "sha256": "57f244f9e77737a7b864ea6e849d421ce30a59f4ab5a40470d614005cbf24b6d"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/protocol.json",
+    "sha256": "55cc26d4fe1b593e175adb657af4c9c1dbfe7ec78745bc50244be57c9a49e27f"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-15.parquet",
+    "sha256": "a994cf03192802f1a7ae78c0c817df024ab82898ac5857f1a2eb04a74a05a3c5"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-16.parquet",
+    "sha256": "5a979b380db9e4fd6efa8e9a3ad513ef90637c9303cf3299a78c0e3c19138b03"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-17.parquet",
+    "sha256": "b2373b469405bc3f22c0ac0846cfb8eee295c0697c25d0b0127a9a64797b4016"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-18.parquet",
+    "sha256": "5211f94b89e9389000feb825ed11b3dad048866bd4a178f2de5563cb1b04992c"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-22.parquet",
+    "sha256": "5cb8aad7dd131ecbfa996f5cb6ef509f1cc0204a7ae2e3717ac8a1ca806cbae8"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-23.parquet",
+    "sha256": "57fcd2fd009fcf4e572718ff1866e90243ac823beea72362483490ff259f0bd3"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-24.parquet",
+    "sha256": "67013c051b457d379f04729484c68a93bd8f655f6c1a09d2d04a854751678caa"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-25.parquet",
+    "sha256": "42a88a0d09ac5bc631e48816b8dbb4e1b9c4254d2b8693ba43d7d2767f33bd8a"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-26.parquet",
+    "sha256": "72bbff9cd56f79afd40a47bcd41895c8939cbabe36027ae6df090923d490891c"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-29.parquet",
+    "sha256": "4fcccbd61566030141c1f986ce186e3b945dbf04ef9fba1cd603615566c37401"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-06-30.parquet",
+    "sha256": "4425adb7e30db6dcebaa233244861693f93942249a5f27c2fa037b659909b78f"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-01.parquet",
+    "sha256": "89c0a9e1fe57d5fd855c776772eb6c0ee9a1fc1f67d55c817c01d8778bc82cc7"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-02.parquet",
+    "sha256": "57fee1f48b455cd8f8816fb4d160fb2018c0876bf78bd9f3cbe2a1b9bb5c3b32"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-03.parquet",
+    "sha256": "edca78768be9c15c69395e142d3053338159855fce75c1cfe6afd021e67de44e"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-06.parquet",
+    "sha256": "a114446e6f5e04843e78838be2c8d4310bbac6e030e18f3fbb3c46bd6b1ce6c1"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-07.parquet",
+    "sha256": "d64c6a8e1eb77eddacff0a93e2fe4686cd5ab81c8af05c37585d92c88119ff2f"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-08.parquet",
+    "sha256": "0b0df157e1473968956ae6357d4e54b9468ffdd6c5b25624ca82d2a5ccfaf5b1"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-09.parquet",
+    "sha256": "fbd7f86fad19cbbaa8fbb3d9c22ed15b6f3a1a12ee321af1f2015ee57a03c465"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-10.parquet",
+    "sha256": "46d8d06017e05d2be8a7351ad37ef8ad67e2b292e7b339b866bd08f04787db26"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-13.parquet",
+    "sha256": "06e6aac62f6e3d26908e70d0d595f3a18278748bb0e5a7924f042469231cd5e5"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-14.parquet",
+    "sha256": "fd5e04ea332ff0b32970618a690714f365b23abb1bc06e9741e40963949de8cc"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-15.parquet",
+    "sha256": "fab9e9edc863360a117b640bff328cba002be0d1183226cb0121ffe0b63e3b43"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-16.parquet",
+    "sha256": "9c7b5fe793dbfaac492e03f82bc0e484a113e505b9cdbd34d83a335f7f401081"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-17.parquet",
+    "sha256": "2ac130d6fa7dccaa6176acaca65720e9ca66a547b7920b2e3e087392f52e4403"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-20.parquet",
+    "sha256": "e7d67ec2fdcdf6d5fdb53c9d75da800c632073f197bcddad9dcbfb31437e7895"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-21.parquet",
+    "sha256": "c1079b94946edf8fa0743873a192035f11413ddd81518d17ad521bad2b95228c"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-22.parquet",
+    "sha256": "079c59a41fe55c0e9d7624dad1141c93a7473212ab2181266e5c263217dc2f49"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-23.parquet",
+    "sha256": "dc88abd39f653ed0d232fd148d6bff556265756ebfaacc232e19d985ac7c10fc"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-24.parquet",
+    "sha256": "e046fcdd6fe52aff9402cad63e036f5c2c0f30bd1a0bd0ae6f3451c1a002cf62"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-27.parquet",
+    "sha256": "5f9ba66c73fcf6c39979cbfd6b5c5562324d94e95c6da777b814bb4b240daa67"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-28.parquet",
+    "sha256": "fedbdbf3c34055e68fc9a75fc503e26004995fa6c130e123f546b2a6ee7f35c7"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-29.parquet",
+    "sha256": "4b7c1b53a0ea7e2b6f023efbdf3f2b8af6aba8bd7c4e8b26854df81bb95dc987"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-30.parquet",
+    "sha256": "155646e4284970667b048be09d140f897fd50597ce0bbb12d404f5f9a1eaee93"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-07-31.parquet",
+    "sha256": "564022a3f38dfef0d83471bdd03885a3d48dfc50afbc586274aff04dba5fad94"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-03.parquet",
+    "sha256": "14c960ec0058902edf3e8f2123536eee5b85545f93017402d194953307f5f0bc"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-04.parquet",
+    "sha256": "0873ca2cc9011ee0a8a63c156e7a5ff492c1e4d730992f02f5d9fde1981d0936"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-05.parquet",
+    "sha256": "2c7fde926c579714c579f9a7ed5ef452658ff3f36c846b042b4a92f206e58417"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-06.parquet",
+    "sha256": "21a015c04c7ed17d0fa7e0604f1e1cb59d1a2dac56008d2d23d6646895d097da"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-07.parquet",
+    "sha256": "e6d2004ac8acf5443309e312dd17396833f5ec0b71aaac57d7d6d27f7c1a70f6"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-10.parquet",
+    "sha256": "e3ace9b3d5b2970be3c6d55511be323f4b8bb74ae6d3d8e70cf7592988016301"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-11.parquet",
+    "sha256": "3db448c34e961a6d1fc2de2607170733217b3e7acaf6ceff175a0dfe4fb7a9e6"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-12.parquet",
+    "sha256": "730eabd117f999234bb214c7ad6a227c6fcb118860575ddb8162727eff5da9ef"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-13.parquet",
+    "sha256": "655d347781740db771ca25e7ce3fac3411b2ab83c454153a8baf8bbdeebf9c80"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-14.parquet",
+    "sha256": "f1062da19d7691e16ea1a0e32f93c8e5a3c0308c39d35e4848628ac7dbfa6a44"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-17.parquet",
+    "sha256": "8641e9550053e755faa56cf6f1c6651ff63112958a878e5570f0e44573a058b2"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-18.parquet",
+    "sha256": "57fc8895b8c5bd86843279a38148e3b91be77b4fefa07d70e8d832ca7380156f"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-19.parquet",
+    "sha256": "510286fc7abf2aad5f798be5336a1fa8da4229d8853063c6e3c5c4020fb2337d"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-20.parquet",
+    "sha256": "52626953a095c8b692fa446d193213296b490364b2408cf98990ca1a76833a7a"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-21.parquet",
+    "sha256": "e89d1397661589f6d25d9d06cb4d580ea11e9bb4627b65ac6e367a99d32c5aff"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-24.parquet",
+    "sha256": "17ffe8c76f035fc2fe7b4646a01287748978ff14ffc4aa0c99bb7b4ff6a37652"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-25.parquet",
+    "sha256": "e4ecf3c343c66bbf39d7aa143b4f3928483607b117c87a3adec80ab9cb992411"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-26.parquet",
+    "sha256": "302eaaaf6a2245e2ee73c6e8212dcbe8d9c919686123b3b7b756aa3ef5cd1d26"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-27.parquet",
+    "sha256": "b6f591a6bf2b140c028a1e634e40bfefbfdfc98552a0638b9f5c5b43d85360f7"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-28.parquet",
+    "sha256": "faebc3b92cc6a75c44fcb687512df9f3855e0c490cdedf6e75f9e6f958772be1"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-08-31.parquet",
+    "sha256": "41ac4e1b0dfb3b96d0bfc3132aca08ae1382e4fb2b3567bab64d64676d097f98"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-01.parquet",
+    "sha256": "c4987541b189d50157cd7a68f1079481f1bdb571b191d1bf5b4b72569a71bef7"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-02.parquet",
+    "sha256": "f9abd0a31d02df29e42a0e7a19ae75d0004c5a30e2f36841675c3cb3e6216b79"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-03.parquet",
+    "sha256": "59ed9cac837086d849ffa40b3143eb8861206107b815e457513c09e0b6a4f176"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-04.parquet",
+    "sha256": "03a0cac32483da533c36323774eb022a559c9a7f1a7d89b5a3e1e20d84b39034"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-07.parquet",
+    "sha256": "a6f6b743618cb96e3b055a28c8026a495b1ef14f5716970603c54d6df35ed6a3"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-08.parquet",
+    "sha256": "eb0268eeeb26846e8549aef8426c046cb1a977520a382ef22af83eecb1497ccb"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-09.parquet",
+    "sha256": "6b9dc4627b7376bcd20bae55e9b21c28c1645e4fb8c58b063288724f4e80ccd6"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-10.parquet",
+    "sha256": "7d0fe7ea8828f273fedf72820e3afbdc9ef4292047edc4db89a277690d26268d"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-11.parquet",
+    "sha256": "9ee47ed167315265cc788c93bd7235cda1ce6704ce12977e83b97de04df9f295"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-14.parquet",
+    "sha256": "1942df0ba54e16acf22d1cfebf0949ad50acfefb3f82e34fca4d254e3e13f2ec"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-15.parquet",
+    "sha256": "488facc365fdaca7182c2056aa54ded9e0d0fb4ab3b67a8e1d7b785e163d6dc9"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-16.parquet",
+    "sha256": "7c262458ea6e7c450b5051a5540c9b16d6e9604a56705bb822b3562e5509f15d"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-17.parquet",
+    "sha256": "d333e706b881516010c67838394ab4a6840cf01a4bf5bc789ca0af69b56bd08d"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-18.parquet",
+    "sha256": "814b556095b0f39665d73b5e7390b97d995ab978fa860e8a75b8af913d49c7c6"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-21.parquet",
+    "sha256": "39133aac550c144c96667c8ca35c5121d75a61a89c43370179cf918bbc2b19b7"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-22.parquet",
+    "sha256": "261f493566c087e9ba283e9d7fd2a85dcc98abb012ea04e71994d2b096358c8c"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-23.parquet",
+    "sha256": "8777e9063b2249516ca8fdaa1ec33c0e8020a3d2ff6cb7339846653c7781da5f"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-24.parquet",
+    "sha256": "b674406bf36a760edff1317fc19100ed77f3131fda5f67bdfb5118cc59c8b114"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-28.parquet",
+    "sha256": "32d40dbe54c116d4fcbed46c38e504482386ab8f3b5c71f841e04067bdd497d0"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-29.parquet",
+    "sha256": "54d5c6d159629278c79b2cb921f6380ac48ae7919a4c8a88f0c21633aef1f1a7"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-09-30.parquet",
+    "sha256": "818d01afb6b909c5f827c762ab6eb829846a8664f7d95504e280a2e0a1446bbc"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-08.parquet",
+    "sha256": "5df2b484fe54627ab47ba65b3db4e916eca198961dc1fad1de865ee0469352b9"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-09.parquet",
+    "sha256": "6e816497407a103c669a3b28e8b705c4d33a1daf757c6553cbe591c6bb527ec5"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-12.parquet",
+    "sha256": "f0b4efe8adea8f99a82afbc622a3884c352d70b72a430de5b9c30c11d00efd0a"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-13.parquet",
+    "sha256": "e400e6b1b785943d20dd8bea1288bc7b41e3aadd5948be36f1d9ab5a0470cafb"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-14.parquet",
+    "sha256": "79afe639570ed7a7ef893c160771ba9672dd84fd2a72d041d8f7368346bb573f"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-15.parquet",
+    "sha256": "299773b9509dccc231eee52baaf5a68d2be6b434d53d75191e12588a5b7f38cf"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-16.parquet",
+    "sha256": "d2b61476219dc74d0962a67fd13b6bff57c49c1d5b1312ced7156076b6e1f172"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-19.parquet",
+    "sha256": "4b85fe3755418419182a72ce1ea067e0d00efdbacdf632d3891c10e14147c422"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-20.parquet",
+    "sha256": "bb6b2a48ae45149ecf30a1ca40c1e3d6f06ad19df97d5d0e38d1aca4fd88102e"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-21.parquet",
+    "sha256": "49a680dab9308fa7250ed2d7718238ae9dfb9f913106a972df575a225ae9ba6b"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-22.parquet",
+    "sha256": "4f8362a2ec53fc1aef125f656f1b90a438ce40644fe3bc07a6111d437f9910fc"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-23.parquet",
+    "sha256": "258c2e0597548fba60c5ebc74fec3313dcea8b307e6041f1cfb118753dcdbf0e"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-26.parquet",
+    "sha256": "b1467f0e66d556dfdba5a9715f9f0f78f38db6f35e41791bd93fb1bd80e4c147"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-27.parquet",
+    "sha256": "7710b8d047e307dcf3acabe995ecddd95979d599976caec0a61076068fbd8942"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-28.parquet",
+    "sha256": "a108fc9e1d7ba83651106630c39e01322e79196ef1dae8aa5f1a11d4031e2f73"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-29.parquet",
+    "sha256": "7e3fa0af3d3fa117b1c4508e933e9b1f4b4f524fba56b9c167d5b1c2b5da04a1"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/bars/2026-10-30.parquet",
+    "sha256": "0d62a6016b1b2991006064c8ac389dec630d07b4a88308298dc3e9e28fc3eb66"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/snapshot/instruments/instruments.parquet",
+    "sha256": "83e98aa0c5ebd2bbb981795f57b5d6559409a1d29bba1b8f977a39d8b7b1bd85"
+  },
+  {
+    "path": "/tmp/tspp-a877-update-20261030/snapshot/corporate_actions/all.parquet",
+    "sha256": "f9f66a8c9c0caecfd40a93873aa4bc5269eaed4fc6d61c9eac16ca0161c4a020"
+  }
+]

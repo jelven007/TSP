@@ -384,6 +384,7 @@ export function Layout() {
               <div
                 className="font-bold text-[11px] uppercase tracking-[0.14em] text-foreground whitespace-nowrap"
                 style={{ textShadow: `0 0 10px ${BRAND}44` }}
+                title="Tick Stock Platform"
               >
                 TSP
               </div>

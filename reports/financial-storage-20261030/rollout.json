@@ -1,0 +1,14 @@
+{
+  "image": "sha256:6420311935048783ca64a1b9475824f8e8987b8e5c74f9854766ea032987447d",
+  "base_revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+  "source_tree": "7ddf81ca9b3d980849f39ed526b027e982a4a7434c03b5bd7e3ee7735848dc01",
+  "backup": "/opt/tsp-full/backups/financial-storage-20261030",
+  "previous_financial_files": 85,
+  "previous_financial_bytes": 62907331,
+  "status": "switched",
+  "financial_files_unchanged": true,
+  "financial_content_unchanged": true,
+  "nonimage_config_unchanged": true,
+  "timers_restored": true,
+  "services_switched": true
+}

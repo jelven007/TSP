@@ -1,0 +1,134 @@
+{
+  "version": "0.4.39",
+  "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+  "checked_at": "2026-10-29T19:20:23.278964+00:00",
+  "main_synced": true,
+  "parallel_diff_preserved": true,
+  "untracked_files_preserved": true,
+  "stash_retained": "004249e4d3fda066099a240b565250e08dd84b16",
+  "deleted_local": [
+    {
+      "branch": "fix/index-full-history-20261029",
+      "revision": "37b6bb630877a8fe8a86148551a1361cae1f08a2",
+      "ancestor": true,
+      "patch_equivalent": false,
+      "working_files_retained": true,
+      "retained_file_hashes": {}
+    },
+    {
+      "branch": "fix/minute-collection-release-20261029",
+      "revision": "8d1b5069e92054695af1043c460597cb732101fc",
+      "ancestor": false,
+      "patch_equivalent": true,
+      "working_files_retained": true,
+      "retained_file_hashes": {}
+    },
+    {
+      "branch": "codex/rustdx-32-integrity-20261029",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "ancestor": true,
+      "patch_equivalent": false,
+      "working_files_retained": true,
+      "retained_file_hashes": {
+        "backend/native/rustdx_native/src/lib.rs": "676864328fe76460e1ee95f25fadbd94b38a4babb0e97af788344e97b839695f",
+        "backend/tests/test_rustdx_stale_source.py": "a77184d0d3fd27ffb22cfaecabdd285975c01dc0217c0514485891851ba19ab6",
+        "native/tsp_rustdx_native-0.2.0.dist-info/METADATA": "9b4526fcc7781a189a0e3374c624cbb50414f5ab4e391ae7374b4bc3b486fa70",
+        "native/tsp_rustdx_native-0.2.0.dist-info/RECORD": "154b7a75077a5b1d7640f73e63fb140f66f77c10da7fc7d754b52c238e92e902",
+        "native/tsp_rustdx_native-0.2.0.dist-info/WHEEL": "9f0d77ef6f204689028afc08e9209a9de9e758180339f961da51efa2f330022f",
+        "native/tsp_rustdx_native/__init__.py": "49f0bd708a87439093d0ada2e7c84dbf6be0a5d49c24920604a84099646a63ba",
+        "wheels/tsp_rustdx_native-0.2.0-cp312-cp312-macosx_11_0_arm64.whl": "2b905668be76605b8e110182735c287cd1c61af0b388f3b20c0da36c505011a4"
+      }
+    },
+    {
+      "branch": "feat/rustdx-task-affinity-20261029",
+      "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
+      "ancestor": true,
+      "patch_equivalent": false,
+      "working_files_retained": true,
+      "retained_file_hashes": {
+        ".env.example": "671086844d5c35088a7d1b9b54891ab8ea4469af2a25038acee344c1d982ab86",
+        "CONTRIBUTING.md": "aa6f1f4d3074481715120e3a16e84af2c2a7b64ae4694f8a541cdf1b0f05083f",
+        "README.md": "f286eff35eab8e7daf64dab6c67df98b50a20e9943b12d3602aa8e73a998dad8",
+        "backend/app/plugins/rustdx/_native_identity.py": "19ea6663958c83595a30f500e66a10efab2d28c66dd9b968d5703a9cdfd505d2",
+        "backend/app/plugins/rustdx/client.py": "830ac97ca1e7565647c34d8cd0bc2624935f73ad1030558dcb76859b898bd550",
+        "backend/app/plugins/rustdx/provider.py": "5c8e08e63d8c3244909c02f5e3afbf52e293299706920cc1ba9a5516a0979d0a",
+        "backend/app/plugins/rustdx/routing.py": "2140cc8565f669696ebf07e4622622ed9ecf181a48ac942f9bfdd48c7942106c",
+        "backend/native/rustdx_native/Cargo.lock": "741b72790336dc26fa71533cdbcadb3ff2b161c75c085c25abeddf746cc2e8ce",
+        "backend/native/rustdx_native/Cargo.toml": "f8501e40552c73f9b27751b300f504626599b95495a6a906a3dd8c21f8e3a723",
+        "backend/native/rustdx_native/pyproject.toml": "6fce47049efa4fcf1c39be6cc1d3120f768b1c1cd0b2b8dfbebbf04d2bf43050",
+        "backend/native/rustdx_native/src/lib.rs": "9bd1a3769f5af350ed25566687ad00202674581a348acea8314c28a480805072",
+        "backend/native/rustdx_native/src/pool.rs": "c2736cbfac6cce743832071c286ff2a6c88a60a00b8ddef77d1b7826914c9130",
+        "backend/native/rustdx_native/src/quota.rs": "ba13d386455f50eeb9fac451ca0023688f8f5495284c2ffcd107c616503b54cc",
+        "backend/native/rustdx_native/vendor/rustdx-core/PATCHES.md": "a14e73b43eab60039538ac19798f3b58d3e0859aaeb354b9f99a73341a9b3953",
+        "backend/native/rustdx_native/vendor/rustdx-core/SOURCE-SHA256SUMS": "f2b821dc5b4ce6ac7c495ebe3cbcfccec5d2daf5cfe726684719607a27a75fde",
+        "backend/native/rustdx_native/vendor/rustdx-core/UPSTREAM.json": "e181ae17327a078814454d1ea4df10e7f7da212581af4ade26214114a9f13082",
+        "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/governance.rs": "85f547552f5f72a58addb0226c364badbd426e76eeef80f017c6178768c0e96a",
+        "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip.rs": "8a19b04f4b90b518279173a7870456e84c8b2d2ec2bdd937402ebd2d3d36a1a4",
+        "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip/coordinator.rs": "88ea0e7f9e83b6ab74dd0ad210c7ccb082d40ecb3cbe0ececb248c6384800d2a",
+        "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip/daily.rs": "b60050704388c00bc77e18e12f2e915e75a9d0d4f5af01549fde178f943a0c08",
+        "backend/native/rustdx_native/vendor/rustdx-core/src/tcp/ip/probe.rs": "e3aa70f6222c6c79b861f50c33f0fad0c96d528a8f3f540e2dbc8436f6dbc781",
+        "backend/tests/test_rustdx_installation.py": "aa1a7dd22a27cab23df0dbcf4cb1978b53b51948fce7a89ae21be069c3f1348f",
+        "backend/tests/test_rustdx_native_pool.py": "fbe828753a55f63e44fee728556cd80854e6f4285fe9ffc735e8a634b23d6191",
+        "backend/tests/test_rustdx_provider.py": "f935fd4bbf088b18cea792b896c36d66f7e0927392c2922cfeb624344a464fe7",
+        "backend/tests/test_rustdx_stale_source.py": "a77184d0d3fd27ffb22cfaecabdd285975c01dc0217c0514485891851ba19ab6",
+        "backend/tests/test_rustdx_task_quotas.py": "4ee52cc5a09eed860ec32d27951eb1c7dce29072eb4cacef9db884b01bc5977c",
+        "backend/tests/test_rustdx_task_routing.py": "9c1e30b9dd8f311e5150fe702106b35128f111ed24a52c7c67595dcc9a71ea68",
+        "backend/tests/test_rustdx_window_consistency.py": "faf77592c14792b09e338ae8bc44931d12196736ad3e9ab5a1ef68d1bdca5e1d",
+        "backend/uv.lock": "7877c446c17c1f7f482bb3458e4e87120910a671d77a5a40a202664996ffff1a",
+        "docs/README.md": "2b2e42c2c682493d685de0ebc6ceab6726e574239b890907839ed0061e356c24",
+        "docs/architecture.md": "14f861a482d090ecc357e20523ee57193faf8372aea15bba68b177e2c16f85ab",
+        "docs/operations.md": "e13efcbbd8587cf58352a35cb23dd3faff0a18f445ed4dd980c5a6d954da2443",
+        "docs/reference/integrations.md": "e8aa111dd37e6b6572038c12b36f52727bbf4ae14ef60e513a4e84f6f57b0217",
+        "docs/requirements.md": "a8f9e5945d53d96fd96a701ba49562e09ed5a754bc2565ddcc18cce1e91a19b9",
+        "docs/rustdx-task-routing.md": "ff1745ee7b56509110eee8366521918cbf555fb2caf7fd9b4c2175d45c6ca1b1",
+        "docs/secondary-development.md": "f0f0135c74793773e665c4462bcf7cdd362661e8d11942764a679dbd18620bfe",
+        "docs/testing.md": "17ef6fdd6807dd95cfb0bdcf7f9ad3539bfa5b1c862e7dfb10ef3e7a827780df",
+        "操作说明书.md": "5c1797b92f8fa29752a6882a833c53494a178f4ee1d9ea2c8a2791956ad87e69"
+      }
+    },
+    {
+      "branch": "codex/minute-301110-20261029",
+      "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "ancestor": true,
+      "patch_equivalent": false,
+      "working_files_retained": true,
+      "retained_file_hashes": {
+        "backend/app/api/kline.py": "bc76f8434b66687bfe43dc65e2484aa4ccdefb6af3b95fc8d4693b81b15b55ac",
+        "backend/app/plugins/rustdx/provider.py": "5059185aff3f45aa3767ba332a093c0b8b7a70bcbffb55fca2aead344fe953e3",
+        "backend/app/services/kline_gaps.py": "a4a0a88e9e3edb121fc13e635062ff09fe2b3e22b0f77cf6c012f6b5dab0bc8c",
+        "backend/app/services/kline_periods.py": "6f9b64e610c895346492426d2fdba0763d5008eea8600702202ea3254752af05",
+        "backend/app/services/repair_daily.py": "4ae70e59e8e25ff26821e834a307c2d8b1dbf276dfb62162d8a009d0e8b8ecec",
+        "backend/tests/test_kline_symbol_isolation.py": "4290b9b12d5827c22057fe5a91a5a6b33ce71d60e88c1964d9e45b076315f4e4",
+        "backend/tests/test_repair_kline.py": "9879d92eabe09c1145bf14f6d045e68f9418c164a9d05e5e3f9a86bdbf623181",
+        "backend/tests/test_rustdx_contracts.py": "54e1c59a3d67d5d760c6340bb0dd3094c09f13cc0ceb17c894d3b0c5959f3feb",
+        "backend/tests/test_rustdx_history_request_budget.py": "f97c7365c09655a99f26328d6e857557f71cbec4016e3858d4a2b913e6029ee2",
+        "backend/tests/test_rustdx_source_restart.py": "d3c2f79edca14e240af01549f940f327653a529e66ded47c792b1ae18f76d344"
+      }
+    },
+    {
+      "branch": "release/latest-20261030",
+      "ancestor": true
+    }
+  ],
+  "deleted_remote": [
+    {
+      "branch": "fix/index-full-history-20261029",
+      "revision": "37b6bb630877a8fe8a86148551a1361cae1f08a2",
+      "integrated": true
+    },
+    {
+      "branch": "fix/minute-collection-release-20261029",
+      "revision": "8d1b5069e92054695af1043c460597cb732101fc",
+      "integrated": true
+    },
+    {
+      "branch": "release/latest-20261030",
+      "revision": "b0cefb81656ddc4240f52315b5e69559df78925e",
+      "integrated": true
+    }
+  ],
+  "retained_branches": [
+    "fix/financial-storage-20261030"
+  ],
+  "passed": true
+}

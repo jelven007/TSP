@@ -149,11 +149,20 @@ def make_worker_task(kind: str, data_dir: Path, config) -> dict[str, Any]:
         encoded = dict(config)
     else:
         raise ValueError(f"unsupported worker task kind: {kind}")
-    return {
+    task = {
         "kind": kind,
         "data_dir": str(data_dir.resolve()),
         "config": encoded,
     }
+    if kind in {"backtest", "optimize", "walkforward"}:
+        from app.cell.context import AccessError
+        from app.services.strategy_results import StrategyResults
+
+        state = StrategyResults(data_dir).states([encoded["strategy_id"]]).get(encoded["strategy_id"], {})
+        if state.get("deleted"):
+            raise AccessError(409, "策略已删除, 请刷新策略列表")
+        task["strategy_generation"] = int(state.get("generation", 0))
+    return task
 
 
 def _attach_worker_metrics(
@@ -267,6 +276,7 @@ def _worker_entry(task: dict[str, Any], event_queue, cancel_event) -> None:
                 output_dir,
                 kind="strategy",
                 result=result,
+                strategy_generation=int(task.get("strategy_generation", 0)),
             )
 
         serialization_started = time.perf_counter()
@@ -287,7 +297,14 @@ def _worker_entry(task: dict[str, Any], event_queue, cancel_event) -> None:
             "task_elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
         }
         _attach_worker_metrics(kind, result, metrics)
-        event_queue.put({"type": "result", "payload": result})
+        if kind in {"backtest", "optimize", "walkforward"}:
+            from app.services.strategy_results import StrategyResults
+            with StrategyResults(output_dir).guard(
+                task["config"]["strategy_id"], int(task.get("strategy_generation", 0)),
+            ):
+                event_queue.put({"type": "result", "payload": result})
+        else:
+            event_queue.put({"type": "result", "payload": result})
     except BaseException as exc:
         with suppress(Exception):
             sampler.stop()

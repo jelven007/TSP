@@ -23,7 +23,7 @@
   "static_checks": [
     {
       "command": [
-        "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12",
+        "/path/to/home/Documents/TSPP/backend/.venv/bin/python3.12",
         "-m",
         "mypy",
         "--follow-imports=silent",
@@ -33,7 +33,7 @@
     },
     {
       "command": [
-        "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12",
+        "/path/to/home/Documents/TSPP/backend/.venv/bin/python3.12",
         "-m",
         "ruff",
         "check",
@@ -44,7 +44,7 @@
     },
     {
       "command": [
-        "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12",
+        "/path/to/home/Documents/TSPP/backend/.venv/bin/python3.12",
         "scripts/check_docs.py"
       ],
       "exit_code": 0
@@ -71,7 +71,7 @@
   "test_execution": {
     "cwd": "/private/tmp/tspp-data-status-timeout-20261028/source/backend",
     "PYTHONPATH": "/private/tmp/tspp-data-status-timeout-20261028/source/backend",
-    "python": "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python3.12",
+    "python": "/path/to/home/Documents/TSPP/backend/.venv/bin/python3.12",
     "pytest_arguments": "-q",
     "passed": 103,
     "warnings": 14,

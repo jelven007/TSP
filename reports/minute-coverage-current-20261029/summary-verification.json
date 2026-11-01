@@ -1,0 +1,14 @@
+{
+  "status": "verified",
+  "verified_at_beijing": "2026-10-30T00:03:22.655301+08:00",
+  "csv_json_daily_monthly_symbol_totals_match": true,
+  "minute_label_and_stock_day_totals_match": true,
+  "physical_footer_rows_match": true,
+  "partial_gaps_match": true,
+  "baseline_comparison_same_scope": true,
+  "source_public_unchanged": true,
+  "gap_keys": 55767060,
+  "early_months_gap_share_pct": 99.7922,
+  "historical_added_since_initial_audit": 2916720,
+  "backfill_new_rows": 15360
+}

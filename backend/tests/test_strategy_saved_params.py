@@ -108,3 +108,107 @@ def test_strategy_detail_exposes_group_configuration_without_expanded_member_sna
     }, engine)
     assert detail["basic_filter"]["watchlist_group_ids"] == ["core"]
     assert "target_symbols" not in detail["basic_filter"]
+
+
+def test_cleared_basic_bound_survives_save_reload_and_execution(tmp_path):
+    engine, _ = _make_engine()
+    engine.get("saved_params").basic_filter = {"enabled": True, "price_min": 5}
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        strategy_engine=engine, repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)),
+    )))
+    strategy_api.save_config(strategy_api.SaveConfigRequest(
+        strategy_id="saved_params", overrides={"basic_filter": {"price_min": None}},
+    ), request)
+    saved = strategy_config.load_override(tmp_path, "saved_params")
+    assert saved["basic_filter"]["price_min"] is None
+    assert strategy_config.load_override(tmp_path, "saved_params")["basic_filter"]["price_min"] is None
+    context = StrategyDataContext(asset_type="stock", timeframe="1d", as_of=date(2026, 7, 15),
+                                  current=pl.DataFrame({"symbol": ["A"], "value": [1], "close": [3.0]}))
+    assert engine.run("saved_params", context, overrides=saved).total == 1
+
+
+def test_patch_basic_filter_merges_fields_and_preserves_target_scope(tmp_path):
+    engine, _ = _make_engine()
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        strategy_engine=engine, repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)),
+    )))
+    strategy_config.save_override(tmp_path, "saved_params", {
+        "basic_filter": {"target_mode": "selected", "boards": ["沪主板"], "exclude_st": False,
+                         "include_custom": False, "watchlist_group_ids": [], "price_max": 100},
+        "take_profit": .12, "params": {"min_value": 2},
+    })
+    strategy_api.patch_config(strategy_api.SaveConfigRequest(
+        strategy_id="saved_params", overrides={"basic_filter": {"price_min": 3}},
+    ), request)
+    saved = strategy_config.load_override(tmp_path, "saved_params")
+    assert saved["basic_filter"]["boards"] == ["沪主板"]
+    assert saved["basic_filter"]["exclude_st"] is False
+    assert saved["basic_filter"]["price_max"] == 100
+    assert saved["basic_filter"]["price_min"] == 3
+    assert saved["take_profit"] == .12
+    assert saved["params"] == {"min_value": 2}
+
+
+@pytest.mark.parametrize("bf", [
+    {"price_min": -1}, {"price_min": 20, "price_max": 10},
+    {"turnover_min": float("nan")}, {"amount_max": True},
+    {"exclude_new_days": 1.5}, {"enabled": "true"},
+])
+def test_invalid_numeric_filter_is_not_persisted(tmp_path, bf):
+    engine, _ = _make_engine()
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        strategy_engine=engine, repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)),
+    )))
+    with pytest.raises(HTTPException):
+        strategy_api.save_config(strategy_api.SaveConfigRequest(
+            strategy_id="saved_params", overrides={"basic_filter": bf},
+        ), request)
+    assert strategy_config.load_override(tmp_path, "saved_params") == {}
+
+
+def test_invalid_filter_against_inherited_bound_is_rejected(tmp_path):
+    engine, _ = _make_engine()
+    engine.get("saved_params").basic_filter = {"enabled": True, "price_max": 10}
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        strategy_engine=engine, repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)),
+    )))
+    with pytest.raises(HTTPException, match="最小值不能大于最大值"):
+        strategy_api.patch_config(strategy_api.SaveConfigRequest(
+            strategy_id="saved_params", overrides={"basic_filter": {"price_min": 20}},
+        ), request)
+    assert strategy_config.load_override(tmp_path, "saved_params") == {}
+
+
+def test_invalid_exit_combination_is_rejected_without_entry_risk(tmp_path):
+    engine, _ = _make_engine()
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        strategy_engine=engine, repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)),
+    )))
+    with pytest.raises(HTTPException, match="不能大于"):
+        strategy_api.save_config(strategy_api.SaveConfigRequest(
+            strategy_id="saved_params", overrides={
+                "trailing_take_profit_activate": .05, "trailing_take_profit_drawdown": .08,
+            },
+        ), request)
+    assert strategy_config.load_override(tmp_path, "saved_params") == {}
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_numeric_toggle_preserves_effective_legacy_board_and_st_scope(tmp_path, enabled):
+    engine, _ = _make_engine()
+    strategy = engine.get("saved_params")
+    strategy.basic_filter = {"enabled": enabled, "boards": ["沪主板"], "exclude_st": True}
+    df = pl.DataFrame({"symbol": ["600000.SH", "300001.SZ", "600001.SH"],
+                       "name": ["普通", "创业", "*ST测试"], "close": [10.0, 10.0, 10.0]})
+    before_expr = engine._basic_filter_expr(df, strategy.basic_filter)
+    before = df.filter(before_expr)["symbol"].to_list() if before_expr is not None else df["symbol"].to_list()
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        strategy_engine=engine, repo=SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)),
+    )))
+    strategy_api.patch_config(strategy_api.SaveConfigRequest(
+        strategy_id="saved_params", overrides={"basic_filter": {"enabled": not enabled}},
+    ), request)
+    saved = strategy_config.load_override(tmp_path, "saved_params")
+    after_expr = engine._basic_filter_expr(df, {**strategy.basic_filter, **saved["basic_filter"]})
+    after = df.filter(after_expr)["symbol"].to_list() if after_expr is not None else df["symbol"].to_list()
+    assert after == before

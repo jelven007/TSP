@@ -44,8 +44,8 @@
       "origin": "http://127.0.0.1:3021",
       "runtime_image": "sha256:5a80bd71cbd90da4a8eaeb7343728939910c5991e0427ab8c688a7ee57576736",
       "compute_image": "sha256:25acd538cfe0d3bd9496b85f33e5baad941a0aa8960ba6f1ffd6fcdc814a4129",
-      "backup_path": "/Users/bytedance/.cache/tsp-dev/TSPP/backups/minute-collection-release-20261029/local-pre-5b273174f2e2",
-      "source_directory": "/Users/bytedance/.local/share/tsp-dev/TSPP/releases/v0.4.38-5b273174f2e2",
+      "backup_path": "/path/to/home/.cache/tsp-dev/TSPP/backups/minute-collection-release-20261029/local-pre-5b273174f2e2",
+      "source_directory": "/path/to/home/.local/share/tsp-dev/TSPP/releases/v0.4.38-5b273174f2e2",
       "database_restore_table_counts": {
         "control": 20,
         "business": 28
@@ -369,7 +369,7 @@
     "online": {
       "version": "0.4.38",
       "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
-      "origin": "https://shanao.asia",
+      "origin": "https://server.example.com",
       "runtime_image": "sha256:5c9b38b92f100e69fe46a33202b67963129083cf1566d1ed155ac63b81c64bb9",
       "compute_image": "sha256:a517c7d6abe6fc332cb394a29e59853f0ece9d805cbfe4d12b58fcf43cb44845",
       "backup_path": "/opt/tsp-full/backups/pre-v0.4.38-5b273174f2e2",
@@ -725,7 +725,7 @@
     "checks": {
       "repository": {
         "command": [
-          "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python",
+          "/path/to/home/Documents/TSPP/backend/.venv/bin/python",
           "scripts/check_repository.py"
         ],
         "exit_code": 0,
@@ -734,7 +734,7 @@
       },
       "documentation": {
         "command": [
-          "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python",
+          "/path/to/home/Documents/TSPP/backend/.venv/bin/python",
           "scripts/check_docs.py"
         ],
         "exit_code": 0,
@@ -743,7 +743,7 @@
       },
       "version": {
         "command": [
-          "/Users/bytedance/Documents/TSPP/backend/.venv/bin/python",
+          "/path/to/home/Documents/TSPP/backend/.venv/bin/python",
           "scripts/check_version.py",
           "--current",
           "VERSION"
@@ -794,6 +794,6 @@
     "online": 6
   },
   "historical_coverage_claim": "Release and bounded job acceptance; historical initialization remains incomplete",
-  "evidence_directory": "/Users/bytedance/.cache/tsp-dev/TSPP/minute-release-20261029",
+  "evidence_directory": "/path/to/home/.cache/tsp-dev/TSPP/minute-release-20261029",
   "passed": true
 }

@@ -1,0 +1,519 @@
+{
+  "completed_at": "2026-10-27T11:25:23.167481+00:00",
+  "version": "0.4.33",
+  "revision": "ded70245bf95aac467ddc53a73418c093bdae51a",
+  "pr": 29,
+  "main_ci": 40487265356,
+  "docker_ci": 40488168868,
+  "main_backend_passed": 4725,
+  "main_backend_skipped": 9,
+  "frontend_passed": 397,
+  "registry": {
+    "revision": "ded70245bf95aac467ddc53a73418c093bdae51a",
+    "version": "0.4.33",
+    "digest": "sha256:a52fb3dd823b44ee549e31a4d69058dff3b30aced3669ca23344bbe7cb8211de",
+    "platforms": {
+      "amd64": {
+        "digest": "sha256:4b4e70119b056b7b9603b65c742f94d01eb2b0a9438907542cf0d69a7db3d239",
+        "config_digest": "sha256:14c4b7a776de7ae859b943ab04490eaa028812485d2efa95833c5282460bd616",
+        "revision": "ded70245bf95aac467ddc53a73418c093bdae51a",
+        "oci_version": "ded70245bf95aac467ddc53a73418c093bdae51a"
+      },
+      "arm64": {
+        "digest": "sha256:5e5b2f85d0655cd1b2f6a20f4fa60fad4eb4bf4339db6a29881a372a8abb4180",
+        "config_digest": "sha256:7597f1ef0800f560d3cfad2f8f919fd8605c4eed4120ba644b84cdccccb903df",
+        "revision": "ded70245bf95aac467ddc53a73418c093bdae51a",
+        "oci_version": "ded70245bf95aac467ddc53a73418c093bdae51a"
+      }
+    },
+    "latest_digest": "sha256:a52fb3dd823b44ee549e31a4d69058dff3b30aced3669ca23344bbe7cb8211de",
+    "latest_matches": true,
+    "passed": true
+  },
+  "latest_promotion": {
+    "checked_at": "2026-10-27T10:41:51.006529+00:00",
+    "revision": "ded70245bf95aac467ddc53a73418c093bdae51a",
+    "version": "0.4.33",
+    "previous_digest": "sha256:ce68d5c78983272395bad829da6a0cbd938a7dafd583b8fc0a564435a0f8d24a",
+    "digest": "sha256:a52fb3dd823b44ee549e31a4d69058dff3b30aced3669ca23344bbe7cb8211de",
+    "reason": "promote-latest job skipped after successful workflow_run build",
+    "current_main_verified": true,
+    "exact_index_bytes_promoted": true,
+    "passed": true
+  },
+  "final_readback": {
+    "checked_at": "2026-10-27T11:25:23.030951+00:00",
+    "revision": "ded70245bf95aac467ddc53a73418c093bdae51a",
+    "version": "0.4.33",
+    "local_main_remote_main_and_tag_match": true,
+    "both_only_main": true,
+    "tracked_worktree_clean": true,
+    "untracked_materials_preserved": true,
+    "health": {
+      "local": {
+        "status": "ok",
+        "ready": true,
+        "checked_at": "2026-10-27T11:25:22.296547+00:00",
+        "checks": {
+          "databases": {
+            "status": "ok"
+          },
+          "research_worker": {
+            "status": "ok",
+            "age_seconds": 0.463345,
+            "max_age_seconds": 120
+          },
+          "realtime_worker": {
+            "status": "ok",
+            "age_seconds": 0.790172,
+            "max_age_seconds": 420
+          },
+          "notifications_worker": {
+            "status": "ok",
+            "age_seconds": 3.988995,
+            "max_age_seconds": 120
+          },
+          "scheduled_worker": {
+            "status": "ok",
+            "age_seconds": 0.248915,
+            "max_age_seconds": 660
+          },
+          "public_files": {
+            "status": "ok",
+            "release_id": "ac355ddc39484a66bfc83e9419420d50"
+          },
+          "platform": {
+            "status": "ok",
+            "connected": true,
+            "last_marker_at": null,
+            "reconnects": 0,
+            "update_generation": 0,
+            "loaded_generation": 0,
+            "snapshot_fetches": 2,
+            "frame_decodes": 8
+          },
+          "indicator_cache": {
+            "status": "ok"
+          },
+          "compute_broker": {
+            "status": "ok"
+          }
+        },
+        "functions": {
+          "market": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "research": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "monitoring": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "paper_trading": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "notifications": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "scheduled": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          }
+        },
+        "version": "0.4.33",
+        "mode": "none"
+      },
+      "online": {
+        "status": "ok",
+        "ready": true,
+        "checked_at": "2026-10-27T11:25:23.019614+00:00",
+        "checks": {
+          "databases": {
+            "status": "ok"
+          },
+          "research_worker": {
+            "status": "ok",
+            "age_seconds": 2.842186,
+            "max_age_seconds": 120
+          },
+          "realtime_worker": {
+            "status": "ok",
+            "age_seconds": 0.942062,
+            "max_age_seconds": 420
+          },
+          "notifications_worker": {
+            "status": "ok",
+            "age_seconds": 1.846955,
+            "max_age_seconds": 120
+          },
+          "scheduled_worker": {
+            "status": "ok",
+            "age_seconds": 0.571535,
+            "max_age_seconds": 660
+          },
+          "public_files": {
+            "status": "ok",
+            "release_id": "01429079646e4bd083ee0364d98df4d1"
+          },
+          "platform": {
+            "status": "ok",
+            "connected": true,
+            "last_marker_at": null,
+            "reconnects": 0,
+            "update_generation": 0,
+            "loaded_generation": 0,
+            "snapshot_fetches": 2,
+            "frame_decodes": 8
+          },
+          "indicator_cache": {
+            "status": "ok"
+          },
+          "compute_broker": {
+            "status": "ok"
+          }
+        },
+        "functions": {
+          "market": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "research": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "monitoring": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "paper_trading": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "notifications": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          },
+          "scheduled": {
+            "ready": true,
+            "status": "ok",
+            "unavailable_dependencies": []
+          }
+        },
+        "version": "0.4.33",
+        "mode": "none"
+      }
+    },
+    "passed": true
+  },
+  "branches": {
+    "local_deleted": 40,
+    "remote_deleted": 15,
+    "worktrees_preserved": 32,
+    "only_main_remains": true,
+    "bundle_sha256": "2dd55b79fac16a9267121392515bce303951938ddd4b82dd44f5cb1c5a0f34a8"
+  },
+  "deployments": {
+    "local": {
+      "url": "http://127.0.0.1:3021",
+      "version": "0.4.33",
+      "passed": true,
+      "configuration_preserved": true,
+      "double_database_restore_verified": true,
+      "market_rows_preserved": {
+        "daily": {
+          "before_rows": 6936704,
+          "after_rows": 6936704
+        },
+        "enriched": {
+          "before_rows": 6936704,
+          "after_rows": 6936704
+        },
+        "minute": {
+          "before_rows": 11268000,
+          "after_rows": 11268000
+        },
+        "5m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "index_daily": {
+          "before_rows": 134008,
+          "after_rows": 134008
+        },
+        "etf_daily": {
+          "before_rows": 62040,
+          "after_rows": 62040
+        }
+      },
+      "watchlist_count": 16,
+      "group_count": 2,
+      "strategy_count": 22,
+      "daily_schedule_time": "16:00",
+      "saved_schedule_preserved": true,
+      "viewports": [
+        "1600x1000",
+        "1600x2000",
+        "1440x1000",
+        "390x844"
+      ],
+      "browser_checks": [
+        "数据同步左侧约3/4宽度，总开关在右上；六项简化名称、日K顺序均正确",
+        "日K与盘后管道均显示交易日 16:00；本地16:00默认、线上原有自定义时间保留",
+        "实时行情位于数据画像15分K后，原有卡片顺序后移",
+        "390px数据同步布局及页面无横向溢出",
+        "原自选顺序/日期/备注/分组/策略关系保留；默认排序恢复、全部CSV导出及策略弹窗通过"
+      ],
+      "browser_errors": [],
+      "console_errors": [],
+      "bad_responses": [],
+      "external_update_errors": [
+        {
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest",
+          "path": "/repos/shy3130/tick-stock-panel/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest"
+        },
+        {
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+          "path": "/repos/jelven007/TSP/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest"
+        },
+        {
+          "text": "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'http://127.0.0.1:3021' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+          "url": "http://127.0.0.1:3021/data"
+        },
+        {
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+          "error": "net::ERR_FAILED"
+        },
+        {
+          "text": "Failed to load resource: net::ERR_FAILED",
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json"
+        },
+        {
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest",
+          "path": "/repos/shy3130/tick-stock-panel/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest"
+        },
+        {
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+          "path": "/repos/jelven007/TSP/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest"
+        },
+        {
+          "text": "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'http://127.0.0.1:3021' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+          "url": "http://127.0.0.1:3021/watchlist"
+        },
+        {
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+          "error": "net::ERR_FAILED"
+        },
+        {
+          "text": "Failed to load resource: net::ERR_FAILED",
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json"
+        }
+      ]
+    },
+    "online": {
+      "url": "https://server.example.com",
+      "version": "0.4.33",
+      "passed": true,
+      "configuration_preserved": true,
+      "double_database_restore_verified": true,
+      "market_rows_preserved": {
+        "daily": {
+          "before_rows": 5950054,
+          "after_rows": 5950054
+        },
+        "enriched": {
+          "before_rows": 5950054,
+          "after_rows": 5950054
+        },
+        "minute": {
+          "before_rows": 31273701,
+          "after_rows": 31273701
+        },
+        "5m": {
+          "before_rows": 5222,
+          "after_rows": 5222
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "index_daily": {
+          "before_rows": 134554,
+          "after_rows": 134554
+        },
+        "etf_daily": {
+          "before_rows": 62040,
+          "after_rows": 62040
+        }
+      },
+      "watchlist_count": 16,
+      "group_count": 2,
+      "strategy_count": 22,
+      "daily_schedule_time": "15:35",
+      "saved_schedule_preserved": true,
+      "viewports": [
+        "1600x1000",
+        "1600x2000",
+        "1440x1000",
+        "390x844"
+      ],
+      "browser_checks": [
+        "数据同步左侧约3/4宽度，总开关在右上；六项简化名称、日K顺序均正确",
+        "日K与盘后管道均显示交易日 15:35；本地16:00默认、线上原有自定义时间保留",
+        "实时行情位于数据画像15分K后，原有卡片顺序后移",
+        "390px数据同步布局及页面无横向溢出",
+        "原自选顺序/日期/备注/分组/策略关系保留；默认排序恢复、全部CSV导出及策略弹窗通过"
+      ],
+      "browser_errors": [],
+      "console_errors": [],
+      "bad_responses": [],
+      "external_update_errors": [
+        {
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+          "path": "/repos/jelven007/TSP/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest"
+        },
+        {
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest",
+          "path": "/repos/shy3130/tick-stock-panel/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest"
+        },
+        {
+          "text": "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'https://server.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+          "url": "https://server.example.com/data"
+        },
+        {
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+          "error": "net::ERR_FAILED"
+        },
+        {
+          "text": "Failed to load resource: net::ERR_FAILED",
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json"
+        },
+        {
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest",
+          "path": "/repos/shy3130/tick-stock-panel/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest"
+        },
+        {
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+          "path": "/repos/jelven007/TSP/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest"
+        },
+        {
+          "text": "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'https://server.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+          "url": "https://server.example.com/watchlist"
+        },
+        {
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+          "error": "net::ERR_FAILED"
+        },
+        {
+          "text": "Failed to load resource: net::ERR_FAILED",
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json"
+        },
+        {
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest",
+          "path": "/repos/shy3130/tick-stock-panel/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/shy3130/tick-stock-panel/releases/latest"
+        },
+        {
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+          "path": "/repos/jelven007/TSP/releases/latest",
+          "status": 403
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 ()",
+          "url": "https://api.github.com/repos/jelven007/TSP/releases/latest"
+        },
+        {
+          "text": "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'https://server.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+          "url": "https://server.example.com/watchlist"
+        },
+        {
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+          "error": "net::ERR_FAILED"
+        },
+        {
+          "text": "Failed to load resource: net::ERR_FAILED",
+          "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json"
+        }
+      ]
+    }
+  }
+}

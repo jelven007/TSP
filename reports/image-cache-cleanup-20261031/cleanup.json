@@ -1,0 +1,1023 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-31",
+  "docker_before": {
+    "images": [
+      {
+        "Id": "sha256:078c51370723f9422ab8d13655b2fc55391d1a3b7894b7e99e95d8aa304443d7",
+        "RepoTags": [
+          "tsp-runtime-transfer:5b273174f2e2"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-transfer@sha256:078c51370723f9422ab8d13655b2fc55391d1a3b7894b7e99e95d8aa304443d7"
+        ],
+        "Size": 478841515
+      },
+      {
+        "Id": "sha256:0b47af715463a33e187fa4d063cf8bb83fb3a27ca7cefcc5132ddfb33c2a4ddd",
+        "RepoTags": [
+          "tspp-cell-local:v0.4.39-bac72d9a83c0"
+        ],
+        "RepoDigests": [
+          "tspp-cell-local@sha256:0b47af715463a33e187fa4d063cf8bb83fb3a27ca7cefcc5132ddfb33c2a4ddd"
+        ],
+        "Size": 460645549
+      },
+      {
+        "Id": "sha256:25acd538cfe0d3bd9496b85f33e5baad941a0aa8960ba6f1ffd6fcdc814a4129",
+        "RepoTags": [
+          "tspp-compute-local:v0.4.38-5b273174f2e2"
+        ],
+        "RepoDigests": [
+          "tspp-compute-local@sha256:25acd538cfe0d3bd9496b85f33e5baad941a0aa8960ba6f1ffd6fcdc814a4129"
+        ],
+        "Size": 568064357
+      },
+      {
+        "Id": "sha256:3b436a4a3b4c0bf16d19e0eb9228ce58fcd168a58f1fe11d2ccc06426b3ff1db",
+        "RepoTags": [
+          "tsp-runtime-transfer:f4d8c11b766b"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-transfer@sha256:3b436a4a3b4c0bf16d19e0eb9228ce58fcd168a58f1fe11d2ccc06426b3ff1db"
+        ],
+        "Size": 478835571
+      },
+      {
+        "Id": "sha256:404d1a119a296c942019a06a73217f42569afebf19dd0d3d685add9f52961121",
+        "RepoTags": [
+          "tspp-compute-local:v0.4.39-bac72d9a83c0"
+        ],
+        "RepoDigests": [
+          "tspp-compute-local@sha256:404d1a119a296c942019a06a73217f42569afebf19dd0d3d685add9f52961121"
+        ],
+        "Size": 568175212
+      },
+      {
+        "Id": "sha256:5257b878ceb13558c1f17b7408d279407bc748d6e95184846b9e1e6a53ce921a",
+        "RepoTags": [
+          "tsp-runtime-host:bac72d9a83c0-arm64"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-host@sha256:5257b878ceb13558c1f17b7408d279407bc748d6e95184846b9e1e6a53ce921a"
+        ],
+        "Size": 460149672
+      },
+      {
+        "Id": "sha256:5a80bd71cbd90da4a8eaeb7343728939910c5991e0427ab8c688a7ee57576736",
+        "RepoTags": [
+          "tspp-cell-local:v0.4.38-5b273174f2e2"
+        ],
+        "RepoDigests": [
+          "tspp-cell-local@sha256:5a80bd71cbd90da4a8eaeb7343728939910c5991e0427ab8c688a7ee57576736"
+        ],
+        "Size": 460542572
+      },
+      {
+        "Id": "sha256:7d555bc475d3f79bde0bea3c8bc5db067b45ef99a917c74685ffcb14f50f83cd",
+        "RepoTags": [
+          "tsp-runtime-host:5b273174f2e2-arm64"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-host@sha256:7d555bc475d3f79bde0bea3c8bc5db067b45ef99a917c74685ffcb14f50f83cd"
+        ],
+        "Size": 460046681
+      },
+      {
+        "Id": "sha256:ae2d3eecfd33c4258e7d5e2182979b9c0acd8564a411ab8821fcf06b22adbbde",
+        "RepoTags": [
+          "tspp-compute-local:v0.4.37-f4d8c11b766b"
+        ],
+        "RepoDigests": [
+          "tspp-compute-local@sha256:ae2d3eecfd33c4258e7d5e2182979b9c0acd8564a411ab8821fcf06b22adbbde"
+        ],
+        "Size": 567658021
+      },
+      {
+        "Id": "sha256:c6dc1806603d376dd28bf980256305fe81e692e3edb0dc33a90d3bd8baf32407",
+        "RepoTags": [
+          "tsp-runtime-transfer:bac72d9a83c0"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-transfer@sha256:c6dc1806603d376dd28bf980256305fe81e692e3edb0dc33a90d3bd8baf32407"
+        ],
+        "Size": 478945970
+      },
+      {
+        "Id": "sha256:dcf97ed4367b29c9a582b8d038805a041f8be79009414f0c487f493ed84695ca",
+        "RepoTags": [
+          "tsp-runtime-host:f4d8c11b766b-arm64"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-host@sha256:dcf97ed4367b29c9a582b8d038805a041f8be79009414f0c487f493ed84695ca"
+        ],
+        "Size": 460041807
+      }
+    ],
+    "containers": [],
+    "volumes": [],
+    "df": "TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          11        0         18.68GB   2.863GB (15%)\nContainers      0         0         0B        0B\nLocal Volumes   0         0         0B        0B\nBuild Cache     210       0         4.968GB   3.174GB\n",
+    "build_cache": "ID                           RECLAIMABLE   SIZE       LAST ACCESSED\nokjk1vcneyrjwq2ia9713xppf    true          91B        3 days ago\ng1w50612tl7szzssdji7l1bkb    true          92B*       31 hours ago\n7bfesgptbj512gm6c0az1ab96    true          93B*       2 days ago\npqz7250cwlgw2r1kdiq39sysu    true          93B        4 days ago\nufyjr95qjgn59ckoq7i6l4oqo    true          149B       5 days ago\n6ia3e38yk7pqvgonoxpw3gs8f    true          150B*      2 days ago\nbyf50cktbu6d3fjcq4acsdnwq    true          150B       5 days ago\nf3jckawbnsf5n55x0kscxcxat    true          150B*      31 hours ago\njijsqvbrh59az4j1cwp9afkpe    true          150B*      2 days ago\n6smb49p024or203ujoibn0aez    true          249B       4 days ago\nqly6x623jk80iwgbbtcgpn0hz    true          249B       3 days ago\nutqig590bf2m234jo935jh2am    true          251B*      31 hours ago\nmofu21l1s0661yp6hkx33lql7    true          306B*      2 days ago\nltxbifxkmmplbj1c3balt6wbp    true          307B*      31 hours ago\nmn152eb7h2j6o6zadcnm57dwa    true          307B*      2 days ago\nq1vtxhy2aio9oow91jazzlvfe    true          307B       5 days ago\nsniqpez7jcssvw6kg5ho5qbms    true          309B       5 days ago\n22q8z7ho624r8dq0ha5o7jwnl    true          1.714kB    4 days ago\nfyvbzs5b3h2e65hxfa3u1u75i    true          1.714kB*   2 days ago\n1a3718ikbj77tl0oz3kvaho3m    true          1.715kB    4 days ago\n5woyrine0o6a7c0lfp6ohasgb    true          1.715kB    5 days ago\n9xbufzhmxv3sbm4msen0vnr50    true          1.715kB    3 days ago\nikpbkts5qnimkafec07zuri7o    true          1.715kB    3 days ago\nkqa5leo19in8boor9j8yp9uby    true          1.715kB    5 days ago\n550w3eiuqm2b0eneotkx6xor9    true          1.716kB    5 days ago\nn69ev1j3rf1ce5dbd4k45zxts    true          1.716kB    4 days ago\nt8byh27wh9tzhs2qdf5w4yayn    true          1.716kB*   2 days ago\ntb0y0j1mm7wb3emzqpyu2sutc    true          1.716kB    5 days ago\n8nb8qyjsaqgcbm9h0w76svle1    true          1.717kB    4 days ago\ntrffduxpqg3vhn3nm0v0hi17q    true          1.718kB*   31 hours ago\nrwfbq4ftviri1xw9r6y0ala59*   true          4.096kB    5 days ago\njfetymiog3chbjrkkvru7ewss    true          4.128kB    2 days ago\nkvdnwa84ouptxv3cb23zh005j    true          4.128kB*   31 hours ago\nulrw5yty9pjfg1y6gnex0ig3m    true          4.128kB    2 days ago\nx9zz12z7ga2l8q9yz7ox4e6pq    true          4.128kB    6 hours ago\n07v0jx632df8l6jp8vmyve7uf    true          4.797kB    5 days ago\njw42j6g2twmom94lw4x745vcg    true          4.798kB    5 days ago\nyhxee8m94e2lcrvtbav8s5de6    true          4.812kB*   2 days ago\njw2si61lsrn9s0r9x2tjl3qlb    true          4.813kB*   2 days ago\ntgdo6cgussqq2i1tocwdc58vv    true          4.815kB*   31 hours ago\nnl6h2pj9r1mosij620p3f6kui    true          7.61kB     5 days ago\nevtqpipwn0qcmz9u43ccbyjdb    true          7.619kB    5 days ago\ntmhzs35yunx85iaozk5xdsqms    true          7.636kB    5 days ago\nsucwza7lorpbiumaju0yktdpj    true          7.637kB    4 days ago\nrzki71x6u9xdn45yf266lctp8    true          7.638kB    4 days ago\nvd3lsvggxjnuh2vm9836pf6wd    true          7.638kB    4 days ago\n10c75lodlrpwg0s4ruk5i9lyt    true          7.639kB    3 days ago\nj6z91fus3607bzwluebkhftv4    true          7.639kB    4 days ago\nnxbdku38b3unjz8cookbaqoz8    true          7.639kB    5 days ago\nwwb0lak47m3m5pja92ocbs6we    true          7.639kB    3 days ago\nwdu3o18xcaay78i5g9851y885    true          7.657kB*   2 days ago\n9k2lr97nmzpnoqq9dt6lrjobw    true          7.659kB*   2 days ago\nylpyscmcm31gvs77gigeqe84x    true          7.865kB*   31 hours ago\n0ioe81u7sl6kdva5tj8bqhz98*   true          8.192kB    4 days ago\n2dua9dhw27mxndl60pcu8k1rg*   true          8.192kB    5 days ago\nde2c7irb4ot8k99nmr6nuzp5l*   true          8.192kB    4 days ago\nljlvbckx0nn75qjddvbxxhgn2*   true          8.192kB    2 days ago\nwddvzyuwohpu7o2c6eo5odhss*   true          8.192kB    2 days ago\n2miul0q4wzfxxmk9rj9gh2ej8    true          8.224kB*   31 hours ago\n4lx947uqqvwkgb6vfmetgwsur    true          8.224kB*   31 hours ago\nilwx4t46a8jgacadv9k8brnyy    true          8.224kB*   31 hours ago\nk2ccebazs38tgpkq9e53h5xo2    true          8.224kB*   2 days ago\nnfd0bcrjdkcald875o744tpgc    true          8.224kB    2 days ago\nryy075b2wlv6igjyukxj2ghrw    true          8.224kB*   2 days ago\nvgrdh6briddo1ruz5pt4kp2t1    true          8.224kB    2 days ago\n9vioxlzgjds3pn18ycwbikecw    true          12.44kB*   31 hours ago\n7z6z4pxhvnat3whe8t1wxlb6w    true          13.02kB    3 days ago\ntkt1xti2hz4hdx1us5c6ou0u5    true          13.02kB    4 days ago\nhn7mww4rn9med8y1m3eg79x0k    true          13.02kB    5 days ago\ni34eopdp7z1px2ob9y3g53w32    true          13.02kB    4 days ago\nkomcn5z8i2y8vgw1xzfhqwekr    true          13.02kB    5 days ago\nrz0tzly88bpv82lqqg9k9wz8h    true          13.02kB    5 days ago\n26g1zzbitajjafheznp3mqk1b    true          13.02kB    4 days ago\nt47f0i7eilzqq9wo3s6jqxspv    true          13.02kB    5 days ago\nuik22goqswe94brz39d8y0u6w    true          13.02kB    3 days ago\niu7ic2dskl9ct9e9fmyz6653e    true          13.02kB    4 days ago\nd7zay103e2dqw7dq2vpw1n3fp    true          14.37kB    5 days ago\n8rxbul65i8zi49o8ae98xedxv    true          14.37kB    4 days ago\nj6e3oj0q5g3fgjcud344hd0e3    true          14.37kB    5 days ago\nqf55vmsynkpfo02jsesuvxh0f    true          14.37kB    5 days ago\nv00anqwidr73rr2bnqjxg7zdb    true          14.37kB    4 days ago\nzor45ptovgtuxtcygjgflmmom    true          14.37kB    3 days ago\nzqyaf3hfelur90k3laqsw7bzf    true          14.37kB    4 days ago\nqk00obnkj6n2e3vicqb7k6mmc    true          14.38kB    3 days ago\nx29c8b8lxawrth1hmxdksbh9n    true          14.38kB    5 days ago\nxns090gtialbrl70lk5q809w0    true          14.38kB    4 days ago\n4d6zvi91fgrgfj13xrrnefukb    true          15.45kB*   2 days ago\na9x6rbawu948fy7b0fbcehja9    true          15.5kB*    2 days ago\n7daxgpryqipwbkgu675cvhiem    true          16.51kB*   31 hours ago\nww4b6y9uast9vvygpjdheanab    true          17.44kB*   31 hours ago\nm8a8kxt97jtnc81yq82mlynrs    true          18.1kB*    31 hours ago\natb22ddo3l30r9paibowh01lw    true          29.39kB*   31 hours ago\npz5o8wuw98ogau8lsk35i31h9    true          32.95kB    6 hours ago\nbnffc2rid6a8cgo30v1m37afu    true          33.43kB    5 days ago\nyx75q4d8eifampblusn3hu90a    true          33.74kB*   2 days ago\nhh4fdzzptj9o1yaliv3vzk2dh    true          33.75kB*   2 days ago\nuk12c15r5hlbjlbam9w1pxo6x    true          33.83kB*   31 hours ago\ny3l52irrz0utq88xwmlrz0qrq*   true          61.44kB    5 days ago\ngv8nynd7cji5q7jemq3mh24k3    true          100.6kB*   31 hours ago\njqzoyx435jvq8m3ao8o7hgelr    true          160.8kB*   31 hours ago\n1qtoeyh5nquvyun276ejsvz43    true          171.7kB*   2 days ago\nq7lw2msgizj1dt9z9mj4tulq5    true          171.7kB*   2 days ago\nr27hgaqgnpw4dvurzdd2sp02k    true          171.7kB*   31 hours ago\ncjrjrybbphr8sz01bai83yoby    true          172kB      4 days ago\n2c3bwlfrea7d8bjc6td8dsvj9    true          172kB      5 days ago\nhwgrikgqwiub83m60aefblcaa    true          172kB      5 days ago\nqr3agjq81sbsmfk1z6uvb4glh    true          172kB      5 days ago\ntuws8sotvroe3awxpr5yma50r    true          172kB      4 days ago\n4sdw5bbjdpp8tdn5epqgpyv4o    true          172kB      3 days ago\nog1ycshkr44zuu0zrudxq5mc9    true          172kB      4 days ago\nw1zuduom77zix5g2g810183si    true          172kB      4 days ago\nt1qqwy2230vff6rehtfkyjmj7    true          172kB      3 days ago\nv4l6v3fkptno8wcvhb2xti1f0    true          172kB      5 days ago\nmi29t3fj1ubwzsriwd2w9vaix    true          313.3kB*   2 days ago\nqnc20znwhugpyw0otrm8aw7gy    true          313.6kB*   2 days ago\n90f8ezsohzqoj6fcckxcbuuo9    true          319.4kB*   31 hours ago\n1mjflh1bqc9jy4k59ri3qbw1o    true          609.9kB    5 days ago\n53t1cqxkvhtiewyaqm1e92sow    true          609.9kB    3 days ago\nn9ms2rj298hg8ni39n8rhxwd2    true          609.9kB    4 days ago\nzrl07nwax5wzg3nacnlb4b6ct    true          609.9kB    5 days ago\nimukhdh0vbamd43x7rl75ni53    true          609.9kB    4 days ago\nqik6h9zmbqyc4qrm7xo0vrqed    true          609.9kB    3 days ago\nt0jut9uckyar8cxdler55w1st    true          609.9kB    5 days ago\ntu64mjr0h5lp69agib3i4n36z    true          609.9kB    4 days ago\nznliwry7tsf9jcag7l7f1hmdw    true          609.9kB    5 days ago\nzorvrgch78m8ufaggcl1agp92    true          609.9kB    4 days ago\n2fvd8ducpqaa10lp29fijz9zw    true          629.1kB    4 days ago\nul3j1hfht286b2xfoxko5qhb1    true          629.1kB    4 days ago\nxday19intwt03ziiaqn3pxy8l    true          629.1kB    5 days ago\n2xzkvdogepwg87sfxrb0lxspc    true          629.1kB    4 days ago\ny10qtoyi7clsxdno0nv7zcxmg    true          629.1kB    3 days ago\ni6kxx0fbtblesgv0ulq0s91gw    true          629.1kB    3 days ago\nm6gtph520okcrx1sk5x0toj7a    true          629.1kB    5 days ago\n46cihleau6z55d6mxqqab8b0x    true          629.1kB    5 days ago\n76kl0w2zm5mm5biyhk7hpudze    true          629.2kB    5 days ago\nqu1cj5n8ejna0r2p8u0cy65ei    true          629.2kB    4 days ago\nnchyue4epjsbrbokx1cmmg1fn    true          909.3kB*   2 days ago\nahvjar6fjduuy5i68hz97oe55    true          909.7kB*   2 days ago\nnrmq73z0xh7rsobjay41s8cy1    true          939.2kB*   2 days ago\n3gozp9s6pvv9dfale2u59uvge    true          939.9kB*   2 days ago\nwe54x860wtzcjni3lybgyxil3    true          954.4kB*   31 hours ago\nfqf0eytkf2ixkzqwz4pa3gs32    true          987.1kB*   31 hours ago\nn24dulalii8cxiavgr5scc8so    true          1.333MB    5 days ago\niqod7cotz2j07sm466b2c4muv    true          1.357MB    5 days ago\nznwjkfhd8rjx9ztstlua40a24    true          1.373MB    5 days ago\nvlkwvarke0ux9l66lhjepiy7m    true          1.373MB    5 days ago\nu1gj00dfpqm9cmuimeuait2av    true          1.373MB    4 days ago\nj6llgghu8brt007hnjofcrtye    true          1.373MB    4 days ago\nqvrlklycss3q2nnfi7n9zucfc    true          1.374MB    4 days ago\nn3b1y12pmo051yn47gs6njb00    true          1.376MB*   2 days ago\nle7djw9okn1jnk4lsltkuadd1    true          1.378MB    4 days ago\n9lad4e6euu2ps59jzkvfiwqze    true          1.378MB*   2 days ago\nxgpxy5kki8wtwusysagl7xh78    true          1.382MB    3 days ago\nhsgfp3gabtv04dd26hu6gjoht    true          1.382MB    3 days ago\nlzu0uph7u8w3nc4amquiqnckk    true          1.382MB*   31 hours ago\nh97scfdttfaiox2eu68xuznmm    true          2.308MB*   31 hours ago\nhylfz7x26z13b7zcko9ycnn2r    true          2.308MB*   2 days ago\npefsit840aks1g0db0yrv9cql    true          2.738MB    5 days ago\nd07t1d6h87vshwgpchf35mbzv    true          2.744MB    6 hours ago\nxomtry7lcyoidrw5sjv7lqwvy    true          2.744MB    5 days ago\njlp37zyy0fyyilaya60h7xhbt    true          2.744MB    6 hours ago\nsxqyf8f0uyzwf5484u6phcwdo    true          2.744MB    6 hours ago\nkmcc5n90ke24qizl6g70kgjvx    true          2.746MB    6 hours ago\nxwlz5gug807zl3livwct3i8y1    true          2.746MB    6 hours ago\nnddhsrz0xedt2o6vwqet8tyrk    true          2.749MB    3 days ago\ns71bay48led9hu3xmxdjy0obj    true          2.75MB     3 days ago\nv9ubbp1pa4yh25yk6hosdt64a    true          2.751MB*   31 hours ago\n7l8ff2qbhmi809w0bb2u7wkqz    true          2.752MB*   2 days ago\nyuupfhvi8atqbul6r4lucjnbf    true          2.752MB*   2 days ago\ntjlwo2bjnf8nxwqrj7zm8evd9    true          2.865MB    5 days ago\nlbex8de2o3i2qxig4wbk8vhtu    true          3.173MB    4 days ago\ns1s78gqnnz9m6ee2fgfza888w    true          3.174MB*   31 hours ago\nacgf4chvgy525pta5suw0ewne    true          3.81MB     3 days ago\nivfznjq650747fs07h8qdme70*   true          6.005MB    4 days ago\nmybp3gd843o9r05cbgquux0wi    true          7.387MB*   31 hours ago\nt0dnnouccld1777emtsvv3iwg    true          15.96MB*   31 hours ago\nqjvso4e0mg751ae43waxv1xva    true          15.96MB    4 days ago\nv5vwde4gsm3ma20verzzledpj    true          15.97MB    3 days ago\nj1f4agjd174sapa4w8025jl8t    true          24.14MB    4 days ago\n09ryqdby253duc8osnzsmv5du    true          24.14MB*   2 days ago\nr2dia69xly46acf3sbynjwuir    true          24.14MB*   31 hours ago\n5vb8jkbfjnshwln5cbkm1ea1t    true          24.14MB    3 days ago\nz2x9wpj1ebouqoezxn5bblqkg    true          28.14MB*   31 hours ago\nntclfxh9f597gmb98tnqcrbvq    true          28.14MB    4 days ago\n70qza28x6s8qdgy3e1tvrb8uo    true          36.82MB    4 days ago\n2nzfwseqa0mzw4jveu7w6xodi    true          36.82MB*   2 days ago\nfmocs0lhnxiqhj2f5wtkhg7xy    true          36.82MB*   31 hours ago\nncqmg9xuo2fhgy9yewtwkw2a3    true          36.82MB    3 days ago\nae49ewdp2sn4q1fbx18edj4jl    true          106MB      5 days ago\nsnyd0mzs7hrwamjd6np99et13    true          106MB      6 hours ago\nifxv3rvjecrmvc2306jyok95f    true          106MB      5 days ago\njvfyefuctgk75sk32rnaxt1kj    true          106MB      6 hours ago\nymenl66ee8zxylo2ezat576bl    true          106MB*     31 hours ago\n7mu41ya4o7wazbkvwaxe0ibnr    true          106MB*     2 days ago\ny1yxlu87y6thbc89ftdwn1vyo    true          106MB*     2 days ago\nyrtw920q5twzcpt95uw5ttyyw    true          106MB      6 hours ago\ngpob0fdotulmoetutckg3an5z    true          239.3MB*   2 days ago\nkpa5bn38odm0m2e5vq6ph7vns    true          239.3MB*   31 hours ago\nsmiscygpdz1xd751rp2i41zaq    true          239.3MB*   2 days ago\nfd53fhij89nwtetl99u1m6gv4    true          239.3MB    5 days ago\nn73b09ws0g6tg5ld8npusbqng    true          239.3MB    3 days ago\nbptnu5qidvxpt1zya7gj2kbbz    true          239.3MB    5 days ago\n3p5hnqedc76ysrfn7mx1bbvbh    true          239.3MB    5 days ago\ncwb3rg8hhz3c1tbwo6bhd39eb    true          239.3MB    3 days ago\nk2vjm26xf4qkoxvoyc88e4dx0    true          239.3MB    4 days ago\ncby1gfrncdyab4t1og6tlamx2    true          239.3MB    5 days ago\nqmvsajso7hv4dnudgifd1k8dg    true          239.3MB    4 days ago\nuia24fe0mgvo82o3e3qv10e49    true          239.3MB    4 days ago\ntrcwhtkfxqhdglv2mnq5py4gs    true          239.3MB    4 days ago\nlj1usk54v5c2sxkd9k8el1e85    true          556.6MB*   31 hours ago\nShared:\t\t1.794GB\nPrivate:\t3.174GB\nReclaimable:\t4.968GB\nTotal:\t\t4.968GB\n",
+    "vm_disk_allocated": 22254530560
+  },
+  "docker_after": {
+    "images": [
+      {
+        "Id": "sha256:0b47af715463a33e187fa4d063cf8bb83fb3a27ca7cefcc5132ddfb33c2a4ddd",
+        "RepoTags": [
+          "tspp-cell-local:v0.4.39-bac72d9a83c0"
+        ],
+        "RepoDigests": [
+          "tspp-cell-local@sha256:0b47af715463a33e187fa4d063cf8bb83fb3a27ca7cefcc5132ddfb33c2a4ddd"
+        ],
+        "Size": 460645549
+      },
+      {
+        "Id": "sha256:25acd538cfe0d3bd9496b85f33e5baad941a0aa8960ba6f1ffd6fcdc814a4129",
+        "RepoTags": [
+          "tspp-compute-local:v0.4.38-5b273174f2e2"
+        ],
+        "RepoDigests": [
+          "tspp-compute-local@sha256:25acd538cfe0d3bd9496b85f33e5baad941a0aa8960ba6f1ffd6fcdc814a4129"
+        ],
+        "Size": 568064357
+      },
+      {
+        "Id": "sha256:404d1a119a296c942019a06a73217f42569afebf19dd0d3d685add9f52961121",
+        "RepoTags": [
+          "tspp-compute-local:v0.4.39-bac72d9a83c0"
+        ],
+        "RepoDigests": [
+          "tspp-compute-local@sha256:404d1a119a296c942019a06a73217f42569afebf19dd0d3d685add9f52961121"
+        ],
+        "Size": 568175212
+      },
+      {
+        "Id": "sha256:5257b878ceb13558c1f17b7408d279407bc748d6e95184846b9e1e6a53ce921a",
+        "RepoTags": [
+          "tsp-runtime-host:bac72d9a83c0-arm64"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-host@sha256:5257b878ceb13558c1f17b7408d279407bc748d6e95184846b9e1e6a53ce921a"
+        ],
+        "Size": 460149672
+      },
+      {
+        "Id": "sha256:5a80bd71cbd90da4a8eaeb7343728939910c5991e0427ab8c688a7ee57576736",
+        "RepoTags": [
+          "tspp-cell-local:v0.4.38-5b273174f2e2"
+        ],
+        "RepoDigests": [
+          "tspp-cell-local@sha256:5a80bd71cbd90da4a8eaeb7343728939910c5991e0427ab8c688a7ee57576736"
+        ],
+        "Size": 460542572
+      },
+      {
+        "Id": "sha256:7d555bc475d3f79bde0bea3c8bc5db067b45ef99a917c74685ffcb14f50f83cd",
+        "RepoTags": [
+          "tsp-runtime-host:5b273174f2e2-arm64"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-host@sha256:7d555bc475d3f79bde0bea3c8bc5db067b45ef99a917c74685ffcb14f50f83cd"
+        ],
+        "Size": 460046681
+      },
+      {
+        "Id": "sha256:ae2d3eecfd33c4258e7d5e2182979b9c0acd8564a411ab8821fcf06b22adbbde",
+        "RepoTags": [
+          "tspp-compute-local:v0.4.37-f4d8c11b766b"
+        ],
+        "RepoDigests": [
+          "tspp-compute-local@sha256:ae2d3eecfd33c4258e7d5e2182979b9c0acd8564a411ab8821fcf06b22adbbde"
+        ],
+        "Size": 567658021
+      },
+      {
+        "Id": "sha256:dcf97ed4367b29c9a582b8d038805a041f8be79009414f0c487f493ed84695ca",
+        "RepoTags": [
+          "tsp-runtime-host:f4d8c11b766b-arm64"
+        ],
+        "RepoDigests": [
+          "tsp-runtime-host@sha256:dcf97ed4367b29c9a582b8d038805a041f8be79009414f0c487f493ed84695ca"
+        ],
+        "Size": 460041807
+      }
+    ],
+    "containers": [],
+    "volumes": [],
+    "df": "TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          8         0         6.699GB   1.693GB (25%)\nContainers      0         0         0B        0B\nLocal Volumes   0         0         0B        0B\nBuild Cache     0         0         0B        0B\n",
+    "build_cache": "ID        RECLAIMABLE   SIZE      LAST ACCESSED\nReclaimable:\t0B\nTotal:\t\t0B\n",
+    "vm_disk_allocated": 7106580480
+  },
+  "cache_directories_removed": [
+    {
+      "path": "/path/to/home/.npm/_cacache",
+      "files": 2620,
+      "logical_bytes": 589328869,
+      "exclusive_allocated_bytes": 596262912,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/.npm/_prebuilds",
+      "files": 2,
+      "logical_bytes": 4908049,
+      "exclusive_allocated_bytes": 4915200,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/Library/Caches/pip",
+      "files": 114,
+      "logical_bytes": 358276914,
+      "exclusive_allocated_bytes": 358535168,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/Library/Caches/node-gyp",
+      "files": 2811,
+      "logical_bytes": 60986346,
+      "exclusive_allocated_bytes": 67567616,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/Library/Caches/colima/caches",
+      "files": 1,
+      "logical_bytes": 332354401,
+      "exclusive_allocated_bytes": 332357632,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/.cargo/registry/cache",
+      "files": 223,
+      "logical_bytes": 33138313,
+      "exclusive_allocated_bytes": 33583104,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/.cargo/registry/src",
+      "files": 11982,
+      "logical_bytes": 164814508,
+      "exclusive_allocated_bytes": 195309568,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/.cargo/registry/index",
+      "files": 202,
+      "logical_bytes": 11797518,
+      "exclusive_allocated_bytes": 12234752,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/.cargo/git/checkouts",
+      "files": 26725,
+      "logical_bytes": 909314922,
+      "exclusive_allocated_bytes": 873062400,
+      "removed_in_initial_attempt": true
+    },
+    {
+      "path": "/path/to/home/.cargo/git/db",
+      "files": 12,
+      "logical_bytes": 131457349,
+      "exclusive_allocated_bytes": 28672,
+      "at_removal": {
+        "files": 12,
+        "logical_bytes": 131457349,
+        "exclusive_allocated_bytes": 131502080
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/tsp-dev/TSPP/cargo-target",
+      "files": 2,
+      "logical_bytes": 2062176,
+      "exclusive_allocated_bytes": 2064384,
+      "at_removal": {
+        "files": 2,
+        "logical_bytes": 2062176,
+        "exclusive_allocated_bytes": 2064384
+      }
+    },
+    {
+      "path": "/path/to/home/.npm/_npx/57e5b9c57ed85305",
+      "files": 5819,
+      "logical_bytes": 191417541,
+      "exclusive_allocated_bytes": 197029888,
+      "at_removal": {
+        "files": 5819,
+        "logical_bytes": 191417541,
+        "exclusive_allocated_bytes": 197029888
+      }
+    },
+    {
+      "path": "/path/to/home/.npm/_npx/d537ee5ee2a13f03",
+      "files": 515,
+      "logical_bytes": 12107801,
+      "exclusive_allocated_bytes": 13180928,
+      "at_removal": {
+        "files": 515,
+        "logical_bytes": 12107801,
+        "exclusive_allocated_bytes": 13180928
+      }
+    },
+    {
+      "path": "/path/to/home/.npm/_npx/e41f203b7505f1fb",
+      "files": 180,
+      "logical_bytes": 18692309,
+      "exclusive_allocated_bytes": 19140608,
+      "at_removal": {
+        "files": 180,
+        "logical_bytes": 18692309,
+        "exclusive_allocated_bytes": 19140608
+      }
+    },
+    {
+      "path": "/path/to/home/.npm/_npx/a4d0c66fe73b166b",
+      "files": 526,
+      "logical_bytes": 12134154,
+      "exclusive_allocated_bytes": 13238272,
+      "at_removal": {
+        "files": 526,
+        "logical_bytes": 12134154,
+        "exclusive_allocated_bytes": 13238272
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/bUjLz_nZlP_nftBhiUp7k",
+      "files": 22,
+      "logical_bytes": 447719,
+      "exclusive_allocated_bytes": 499712,
+      "at_removal": {
+        "files": 22,
+        "logical_bytes": 447719,
+        "exclusive_allocated_bytes": 499712
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/41DhQ-W-EVdaAjW5c_0N-",
+      "files": 19,
+      "logical_bytes": 122170,
+      "exclusive_allocated_bytes": 163840,
+      "at_removal": {
+        "files": 19,
+        "logical_bytes": 122170,
+        "exclusive_allocated_bytes": 163840
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/eMAJGcEd0bU4AXU6MON2n",
+      "files": 19,
+      "logical_bytes": 115368,
+      "exclusive_allocated_bytes": 159744,
+      "at_removal": {
+        "files": 19,
+        "logical_bytes": 115368,
+        "exclusive_allocated_bytes": 159744
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/Wi1Rni4S1EbkuLi8kiZyT",
+      "files": 43,
+      "logical_bytes": 476081,
+      "exclusive_allocated_bytes": 573440,
+      "at_removal": {
+        "files": 43,
+        "logical_bytes": 476081,
+        "exclusive_allocated_bytes": 573440
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/Av6vl2MlWibIB7tnD_CPJ",
+      "files": 349,
+      "logical_bytes": 4621166,
+      "exclusive_allocated_bytes": 5296128,
+      "at_removal": {
+        "files": 349,
+        "logical_bytes": 4621166,
+        "exclusive_allocated_bytes": 5296128
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/j9F_ORghykEJN6lofR8Z5",
+      "files": 73,
+      "logical_bytes": 2064741,
+      "exclusive_allocated_bytes": 2244608,
+      "at_removal": {
+        "files": 73,
+        "logical_bytes": 2064741,
+        "exclusive_allocated_bytes": 2244608
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/OtbMVf1X9iXOTl1QhBTvB",
+      "files": 9,
+      "logical_bytes": 989738,
+      "exclusive_allocated_bytes": 1077248,
+      "at_removal": {
+        "files": 9,
+        "logical_bytes": 989738,
+        "exclusive_allocated_bytes": 1077248
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/z5PdKIBI2IQih4N5XL6e5",
+      "files": 5,
+      "logical_bytes": 182767,
+      "exclusive_allocated_bytes": 196608,
+      "at_removal": {
+        "files": 5,
+        "logical_bytes": 182767,
+        "exclusive_allocated_bytes": 196608
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/E-I2QK6pMzHcAoVQQ6hE5",
+      "files": 13,
+      "logical_bytes": 262110,
+      "exclusive_allocated_bytes": 290816,
+      "at_removal": {
+        "files": 13,
+        "logical_bytes": 262110,
+        "exclusive_allocated_bytes": 290816
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/z4iYtROs-vZj_xEmGTEli",
+      "files": 105,
+      "logical_bytes": 1245816,
+      "exclusive_allocated_bytes": 1470464,
+      "at_removal": {
+        "files": 105,
+        "logical_bytes": 1245816,
+        "exclusive_allocated_bytes": 1470464
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/yoCVbUJ5Kv6X2v9SGnmpA",
+      "files": 12,
+      "logical_bytes": 244625,
+      "exclusive_allocated_bytes": 274432,
+      "at_removal": {
+        "files": 12,
+        "logical_bytes": 244625,
+        "exclusive_allocated_bytes": 274432
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/HeX55Wusw-Cg78dt1RFsh",
+      "files": 125,
+      "logical_bytes": 2599760,
+      "exclusive_allocated_bytes": 2867200,
+      "at_removal": {
+        "files": 125,
+        "logical_bytes": 2599760,
+        "exclusive_allocated_bytes": 2867200
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/WpqTKgZ2Uugv-jPr-4soE",
+      "files": 53,
+      "logical_bytes": 539217,
+      "exclusive_allocated_bytes": 643072,
+      "at_removal": {
+        "files": 53,
+        "logical_bytes": 539217,
+        "exclusive_allocated_bytes": 643072
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/toRFxMxit_0S1DJ0oXjsW",
+      "files": 923,
+      "logical_bytes": 20598838,
+      "exclusive_allocated_bytes": 23252992,
+      "at_removal": {
+        "files": 923,
+        "logical_bytes": 20598838,
+        "exclusive_allocated_bytes": 23252992
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/HLlh_emQRpvwvt5V6M17l",
+      "files": 26,
+      "logical_bytes": 114386,
+      "exclusive_allocated_bytes": 172032,
+      "at_removal": {
+        "files": 26,
+        "logical_bytes": 114386,
+        "exclusive_allocated_bytes": 172032
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/lw7ueiJac4vITbTc9E4Fc",
+      "files": 13,
+      "logical_bytes": 104225,
+      "exclusive_allocated_bytes": 139264,
+      "at_removal": {
+        "files": 13,
+        "logical_bytes": 104225,
+        "exclusive_allocated_bytes": 139264
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/1l82cLqASaa6krgubKFg4",
+      "files": 80,
+      "logical_bytes": 713258,
+      "exclusive_allocated_bytes": 880640,
+      "at_removal": {
+        "files": 80,
+        "logical_bytes": 713258,
+        "exclusive_allocated_bytes": 880640
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/m8yfHgLI4J2oeLuTPtKi2",
+      "files": 36,
+      "logical_bytes": 288016,
+      "exclusive_allocated_bytes": 368640,
+      "at_removal": {
+        "files": 36,
+        "logical_bytes": 288016,
+        "exclusive_allocated_bytes": 368640
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/pVp10HYQfllCxRSiCQUxQ",
+      "files": 15,
+      "logical_bytes": 65897,
+      "exclusive_allocated_bytes": 110592,
+      "at_removal": {
+        "files": 15,
+        "logical_bytes": 65897,
+        "exclusive_allocated_bytes": 110592
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/qTKgv0rc67rVUoIC7eV7X",
+      "files": 9,
+      "logical_bytes": 54538,
+      "exclusive_allocated_bytes": 73728,
+      "at_removal": {
+        "files": 9,
+        "logical_bytes": 54538,
+        "exclusive_allocated_bytes": 73728
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/qg6bGsMdCFLnG-9dAH6b-",
+      "files": 7,
+      "logical_bytes": 17188,
+      "exclusive_allocated_bytes": 32768,
+      "at_removal": {
+        "files": 7,
+        "logical_bytes": 17188,
+        "exclusive_allocated_bytes": 32768
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/6dIvoPBETqejc8L2bjLQM",
+      "files": 13,
+      "logical_bytes": 54852,
+      "exclusive_allocated_bytes": 90112,
+      "at_removal": {
+        "files": 13,
+        "logical_bytes": 54852,
+        "exclusive_allocated_bytes": 90112
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/p6Oewij-kjoZ2iiOzTWA4",
+      "files": 11,
+      "logical_bytes": 4830389,
+      "exclusive_allocated_bytes": 5664768,
+      "at_removal": {
+        "files": 11,
+        "logical_bytes": 4830389,
+        "exclusive_allocated_bytes": 5664768
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/NXPs7TBVto9PFIUAwawLn",
+      "files": 8,
+      "logical_bytes": 22872,
+      "exclusive_allocated_bytes": 45056,
+      "at_removal": {
+        "files": 8,
+        "logical_bytes": 22872,
+        "exclusive_allocated_bytes": 45056
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/TcxSWiUoM28BrSaNsB7Yb",
+      "files": 16,
+      "logical_bytes": 342091,
+      "exclusive_allocated_bytes": 380928,
+      "at_removal": {
+        "files": 16,
+        "logical_bytes": 342091,
+        "exclusive_allocated_bytes": 380928
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/3PVcCYeUiskceWeeZEBcm",
+      "files": 116,
+      "logical_bytes": 845126,
+      "exclusive_allocated_bytes": 1114112,
+      "at_removal": {
+        "files": 116,
+        "logical_bytes": 845126,
+        "exclusive_allocated_bytes": 1114112
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/zAdBtGKc1xGjNl_UTdDcs",
+      "files": 29,
+      "logical_bytes": 295303,
+      "exclusive_allocated_bytes": 360448,
+      "at_removal": {
+        "files": 29,
+        "logical_bytes": 295303,
+        "exclusive_allocated_bytes": 360448
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/1FFicOEHRyK8BiN_fKLLV",
+      "files": 41,
+      "logical_bytes": 275681,
+      "exclusive_allocated_bytes": 368640,
+      "at_removal": {
+        "files": 41,
+        "logical_bytes": 275681,
+        "exclusive_allocated_bytes": 368640
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/j78AURa3gf5ChQppR9YN5",
+      "files": 120,
+      "logical_bytes": 11011100,
+      "exclusive_allocated_bytes": 11395072,
+      "at_removal": {
+        "files": 120,
+        "logical_bytes": 11011100,
+        "exclusive_allocated_bytes": 11395072
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/q3A_nxNlu1zuahByJn6Kp",
+      "files": 95,
+      "logical_bytes": 646558,
+      "exclusive_allocated_bytes": 835584,
+      "at_removal": {
+        "files": 95,
+        "logical_bytes": 646558,
+        "exclusive_allocated_bytes": 835584
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/PevkqKewy7HHkt5BHT5Y2",
+      "files": 21,
+      "logical_bytes": 1125701,
+      "exclusive_allocated_bytes": 1183744,
+      "at_removal": {
+        "files": 21,
+        "logical_bytes": 1125701,
+        "exclusive_allocated_bytes": 1183744
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/fZY8o7XCiFtlSqomGMMDx",
+      "files": 7,
+      "logical_bytes": 36347,
+      "exclusive_allocated_bytes": 53248,
+      "at_removal": {
+        "files": 7,
+        "logical_bytes": 36347,
+        "exclusive_allocated_bytes": 53248
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/RX7kmEYeBkgLVxhXTcA7Y",
+      "files": 11,
+      "logical_bytes": 20196,
+      "exclusive_allocated_bytes": 49152,
+      "at_removal": {
+        "files": 11,
+        "logical_bytes": 20196,
+        "exclusive_allocated_bytes": 49152
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/8zKnOdnE5CqKupL1HW8jW",
+      "files": 26,
+      "logical_bytes": 234397,
+      "exclusive_allocated_bytes": 303104,
+      "at_removal": {
+        "files": 26,
+        "logical_bytes": 234397,
+        "exclusive_allocated_bytes": 303104
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/rj8FBh7UL3bTDXzRwc8TM",
+      "files": 28,
+      "logical_bytes": 47261,
+      "exclusive_allocated_bytes": 122880,
+      "at_removal": {
+        "files": 28,
+        "logical_bytes": 47261,
+        "exclusive_allocated_bytes": 122880
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/rwxs4uSYSTaGGb70cTT2y",
+      "files": 51,
+      "logical_bytes": 294179,
+      "exclusive_allocated_bytes": 409600,
+      "at_removal": {
+        "files": 51,
+        "logical_bytes": 294179,
+        "exclusive_allocated_bytes": 409600
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/1lu2rzhmJ3cJb3ts5tKbp",
+      "files": 17,
+      "logical_bytes": 103935,
+      "exclusive_allocated_bytes": 155648,
+      "at_removal": {
+        "files": 17,
+        "logical_bytes": 103935,
+        "exclusive_allocated_bytes": 155648
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/2j_oZ079i7cKsfACtYVSj",
+      "files": 41,
+      "logical_bytes": 487603,
+      "exclusive_allocated_bytes": 589824,
+      "at_removal": {
+        "files": 41,
+        "logical_bytes": 487603,
+        "exclusive_allocated_bytes": 589824
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/BRJhjpe_12rBL7HHEx6XW",
+      "files": 13,
+      "logical_bytes": 186735,
+      "exclusive_allocated_bytes": 225280,
+      "at_removal": {
+        "files": 13,
+        "logical_bytes": 186735,
+        "exclusive_allocated_bytes": 225280
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/iC3bw5_XyDBcVfqmoa5h8",
+      "files": 11,
+      "logical_bytes": 23308,
+      "exclusive_allocated_bytes": 53248,
+      "at_removal": {
+        "files": 11,
+        "logical_bytes": 23308,
+        "exclusive_allocated_bytes": 53248
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/N6OYY0ctxze40CTmCxYBT",
+      "files": 8,
+      "logical_bytes": 9515,
+      "exclusive_allocated_bytes": 32768,
+      "at_removal": {
+        "files": 8,
+        "logical_bytes": 9515,
+        "exclusive_allocated_bytes": 32768
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/gDT-1eAHGep0vPFPGXc_C",
+      "files": 15,
+      "logical_bytes": 381343,
+      "exclusive_allocated_bytes": 417792,
+      "at_removal": {
+        "files": 15,
+        "logical_bytes": 381343,
+        "exclusive_allocated_bytes": 417792
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/KSTbwFlf40BGWzA8hpK8q",
+      "files": 13,
+      "logical_bytes": 18479,
+      "exclusive_allocated_bytes": 57344,
+      "at_removal": {
+        "files": 13,
+        "logical_bytes": 18479,
+        "exclusive_allocated_bytes": 57344
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/lBBbadsPBedm2ro9S5vZu",
+      "files": 31,
+      "logical_bytes": 615840,
+      "exclusive_allocated_bytes": 688128,
+      "at_removal": {
+        "files": 31,
+        "logical_bytes": 615840,
+        "exclusive_allocated_bytes": 688128
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/65aW3kA5RhwlmnCWzytTu",
+      "files": 11,
+      "logical_bytes": 46862,
+      "exclusive_allocated_bytes": 73728,
+      "at_removal": {
+        "files": 11,
+        "logical_bytes": 46862,
+        "exclusive_allocated_bytes": 73728
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/NSplUtPh9qkNG4SlSm5ej",
+      "files": 111,
+      "logical_bytes": 1974511,
+      "exclusive_allocated_bytes": 2232320,
+      "at_removal": {
+        "files": 111,
+        "logical_bytes": 1974511,
+        "exclusive_allocated_bytes": 2232320
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/7VYgi2Zo462vaKcIKrs-0",
+      "files": 17,
+      "logical_bytes": 367360,
+      "exclusive_allocated_bytes": 417792,
+      "at_removal": {
+        "files": 17,
+        "logical_bytes": 367360,
+        "exclusive_allocated_bytes": 417792
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/18M5Jp9_Ava9UQ78dsR0b",
+      "files": 10,
+      "logical_bytes": 184810,
+      "exclusive_allocated_bytes": 208896,
+      "at_removal": {
+        "files": 10,
+        "logical_bytes": 184810,
+        "exclusive_allocated_bytes": 208896
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/C6xDVMDk8j_-yWig5F1-R",
+      "files": 42,
+      "logical_bytes": 450461,
+      "exclusive_allocated_bytes": 548864,
+      "at_removal": {
+        "files": 42,
+        "logical_bytes": 450461,
+        "exclusive_allocated_bytes": 548864
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/hm14k8gOwzyBjdiSbnOyl",
+      "files": 74,
+      "logical_bytes": 244684,
+      "exclusive_allocated_bytes": 425984,
+      "at_removal": {
+        "files": 74,
+        "logical_bytes": 244684,
+        "exclusive_allocated_bytes": 425984
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/7evLIniypb-R70YHIRI3G",
+      "files": 10,
+      "logical_bytes": 40006,
+      "exclusive_allocated_bytes": 65536,
+      "at_removal": {
+        "files": 10,
+        "logical_bytes": 40006,
+        "exclusive_allocated_bytes": 65536
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/VU7bOK5e-Wr85jsM6rWZ2",
+      "files": 27,
+      "logical_bytes": 306878,
+      "exclusive_allocated_bytes": 368640,
+      "at_removal": {
+        "files": 27,
+        "logical_bytes": 306878,
+        "exclusive_allocated_bytes": 368640
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/7kfVcwVW6Tlkgt9qRMVyf",
+      "files": 35,
+      "logical_bytes": 233691,
+      "exclusive_allocated_bytes": 327680,
+      "at_removal": {
+        "files": 35,
+        "logical_bytes": 233691,
+        "exclusive_allocated_bytes": 327680
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/archive-v0/AAMp4B4EyHiZg14JHPXo-",
+      "files": 29,
+      "logical_bytes": 442527,
+      "exclusive_allocated_bytes": 507904,
+      "at_removal": {
+        "files": 29,
+        "logical_bytes": 442527,
+        "exclusive_allocated_bytes": 507904
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/builds-v0",
+      "files": 0,
+      "logical_bytes": 0,
+      "exclusive_allocated_bytes": 0,
+      "at_removal": {
+        "files": 0,
+        "logical_bytes": 0,
+        "exclusive_allocated_bytes": 0
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/sdists-v9",
+      "files": 2,
+      "logical_bytes": 0,
+      "exclusive_allocated_bytes": 0,
+      "at_removal": {
+        "files": 2,
+        "logical_bytes": 0,
+        "exclusive_allocated_bytes": 0
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/sdists-v10",
+      "files": 2,
+      "logical_bytes": 0,
+      "exclusive_allocated_bytes": 0,
+      "at_removal": {
+        "files": 2,
+        "logical_bytes": 0,
+        "exclusive_allocated_bytes": 0
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/wheels-v5",
+      "files": 108,
+      "logical_bytes": 66024,
+      "exclusive_allocated_bytes": 442368,
+      "at_removal": {
+        "files": 162,
+        "logical_bytes": 66024,
+        "exclusive_allocated_bytes": 442368
+      }
+    },
+    {
+      "path": "/path/to/home/.cache/uv/simple-v16",
+      "files": 54,
+      "logical_bytes": 37912800,
+      "exclusive_allocated_bytes": 38010880,
+      "at_removal": {
+        "files": 54,
+        "logical_bytes": 37912800,
+        "exclusive_allocated_bytes": 38010880
+      }
+    }
+  ],
+  "active_cache_directories_kept": [
+    "/path/to/home/.npm/_npx/57c35de36e7d43c4",
+    "/path/to/home/.npm/_npx/e6de3b0d55dec5d6"
+  ],
+  "checks": {
+    "containers_preserved": true,
+    "volumes_preserved": true,
+    "cache_paths_absent": true,
+    "active_cache_paths_preserved": true,
+    "project_heads_preserved": true,
+    "retained_image_ids_and_tags_preserved": true,
+    "transfer_images_removed": true,
+    "original_project_git_statuses_preserved": true,
+    "original_vm_stopped_state_restored": true
+  },
+  "totals": {
+    "intermediate_images_removed": 3,
+    "cache_directories_removed": 74,
+    "cache_files_removed_actual": 55018,
+    "cache_file_allocated_bytes_before_removal": 2827526144,
+    "vm_data_disk_allocated_bytes_before": 22254530560,
+    "vm_data_disk_allocated_bytes_after": 7106580480,
+    "vm_data_disk_allocated_bytes_reduced": 15147950080,
+    "combined_allocation_reduction_gib": 16.740966796875
+  },
+  "project_heads": {
+    "TSP": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+    "rustdx": "c4c0273456874898aed50447fd900521d9ffd3b8",
+    "AIGC": "9099386dcc3a8eb57136aeea98305d7651278055"
+  },
+  "note": "Allocation accounting, not summed Docker layer sizes or guaranteed APFS free-space delta; excludes VM startup sparsification."
+}

@@ -1,0 +1,21 @@
+{
+  "anomalies.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+  "audit.py": "f210306e9a147a3154584aebc00a2023ad3954a4f56d1e9bd5619fccd6f5c9a5",
+  "calendar.json": "c2b42ef571529b56d872b6ca6bf3f7dc9fe38bcd5148851a7b016a3eda1d02ec",
+  "days.csv": "beb3d24fb2554c28d3a030fd38f34892b17095dc6b0f129aeebeeb324ea11bb8",
+  "days.json": "772e05d81eb10268f34bbb96b401ab495f592c6509ebe714fa4c9d81f5442971",
+  "final-online-verification.json": "3eb5207d4b09a25bcc91d61141f34a25fa6e0364bca44f5009b591a71f2f3b3a",
+  "gaps-by-minute.csv": "37825adda01c2e8c150b5ff66f36bc96dcd34af87a68b8c1dda4c3a5d6d3484f",
+  "gaps-by-symbol-day.csv": "4c8278961a9e695ba4a27a8365bd08ff937d06392d27344c154e5ecb9005dbaf",
+  "gaps-by-symbol.csv": "680b647c18078c5b5ebf3b69e1cb139a1cd592794e6c576e84be1e22a96dec65",
+  "inventory-before.json": "a63df176fe094ce8a26456836d2927721bdf36fbadc5ead5cf96a05cda006185",
+  "monthly.csv": "69d0428a70e2050c6b4899eb815345b1bed7ad80c6ed09bb55aa00a04cf8a680",
+  "monthly.json": "6ef623977e51e9a23fe91bf741e94e8e9d3a5d4093ba580430f0946d0a48a2b4",
+  "partial-gaps.csv": "ffe73009a855557a431d467ce8d3396d2a447e143633494e21fae9a6d40e3dcf",
+  "report.md": "095d6a3a04a12d0bd0071845f50846257986a4b589bc33e1a4b13600f890e299",
+  "result.json": "83812fd1117047a25cb0dd2fa61e6d5fd8e2d4ecfb86d2b98bd2228b2153ad74",
+  "source-fingerprints.json": "9c10013b5750c9b8bf09ffd25fd2f1a937e575426737461ab81fd3f4b2fb9154",
+  "stock-pool.csv": "752b6cdab7740c00ff78a7d293c7cc36a54e572bdc58862da7b1519f1c5f89a2",
+  "verification.json": "c25de3c883417166520942e094fd92ce60679de91d969f041f2b442252e5a8e0",
+  "verify.py": "e5f425224451800b53cf15209cfbf27ab2daf12bc7706c7a4b1c05bae7cff59d"
+}

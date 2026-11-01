@@ -1,0 +1,42 @@
+{
+  "version": "0.4.39",
+  "revision": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+  "url": "https://github.com/jelven007/TSP/releases/tag/v0.4.39",
+  "published_at": "2026-10-29T19:23:24Z",
+  "checked_at": "2026-10-29T19:23:25.909532+00:00",
+  "assets": [
+    {
+      "name": "deployment.json",
+      "bytes": 18830,
+      "sha256": "3ac6369947634b1478571e4ddaccecfbed8ffb241da912e95974b61e85fbdc14",
+      "url": "https://github.com/jelven007/TSP/releases/download/v0.4.39/deployment.json"
+    },
+    {
+      "name": "deployment.md",
+      "bytes": 3277,
+      "sha256": "57f0bdf59e439b0a5a1cf749579898f0c48c1f5775338924c99f2bb51a9795b6",
+      "url": "https://github.com/jelven007/TSP/releases/download/v0.4.39/deployment.md"
+    },
+    {
+      "name": "sha256.json",
+      "bytes": 351,
+      "sha256": "4836249d829b04517b587e23dd330e42582853dc7b786dfa3b14d80b101d733f",
+      "url": "https://github.com/jelven007/TSP/releases/download/v0.4.39/sha256.json"
+    },
+    {
+      "name": "source-bac72d9a83c03890cbb954e0e13782b8421d6073.tar.gz",
+      "bytes": 25005815,
+      "sha256": "9c7e7212ceefa3c6991313cbbe4fc9f7b14193750df91a0ae0b939e17b20d77b",
+      "url": "https://github.com/jelven007/TSP/releases/download/v0.4.39/source-bac72d9a83c03890cbb954e0e13782b8421d6073.tar.gz"
+    },
+    {
+      "name": "tsp_rustdx_native-0.3.0-cp312-cp312-macosx_11_0_arm64.whl",
+      "bytes": 892023,
+      "sha256": "1268447ac0e9b323eb8de1d3799dc2b0a81bb6501377568654cd43c2e9360b8d",
+      "url": "https://github.com/jelven007/TSP/releases/download/v0.4.39/tsp_rustdx_native-0.3.0-cp312-cp312-macosx_11_0_arm64.whl"
+    }
+  ],
+  "tag_verified": true,
+  "hosted_asset_digests_verified": true,
+  "passed": true
+}

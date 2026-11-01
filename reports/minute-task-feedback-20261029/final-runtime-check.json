@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "checked_at": "2026-10-29T00:41:48.650807+00:00",
+  "version": "0.4.38",
+  "ready": true,
+  "admin_login_verified": true,
+  "job_id": "7ae6fcc72e",
+  "status": "succeeded",
+  "active_id": null,
+  "rows": 240,
+  "remaining": 6202800,
+  "terminal_message": "已写入240行, 跳过仍缺少的6202800行, 详见缺口报告"
+}

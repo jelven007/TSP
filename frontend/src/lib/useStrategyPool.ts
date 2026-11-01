@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { storage } from '@/lib/storage'
+import { migrateStoredStrategyValue } from './strategyIdMigration'
 
 // 旧版按周期隔离的双池 ('strategy-pool' 日线 + 'strategy-pool-1m' 分钟) 已合并为
 // 统一池 ('strategy-pool'): 策略自带周期声明, 执行时按各自 timeframes 路由,
@@ -8,14 +9,8 @@ import { storage } from '@/lib/storage'
 function loadUnifiedPool(): string[] {
   const minute = storage.strategyPoolMinute.get([])
   const daily = storage.strategyPool.get([])
-  if (minute.length === 0) {
-    storage.strategyPoolMinute.remove()
-    return daily
-  }
-  const merged = [...daily]
-  for (const id of minute) {
-    if (!merged.includes(id)) merged.push(id)
-  }
+  // 旧标识只用于已保存偏好的单次迁移, 不再注册或运行旧策略。
+  const merged = [...new Set(migrateStoredStrategyValue([...daily, ...minute]) as string[])]
   storage.strategyPool.set(merged)
   storage.strategyPoolMinute.remove()
   return merged

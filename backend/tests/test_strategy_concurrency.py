@@ -375,6 +375,7 @@ def test_standalone_legacy_strategy_entrypoint_cannot_bypass_admission(runtime, 
         raise ValueError("stop-after-admission")
 
     monkeypatch.setattr(strategy, "_get_engine", engine)
+    monkeypatch.setattr(strategy, "_data_dir", lambda request: runtime)
     with pytest.raises(ValueError, match="stop-after-admission"):
         strategy.run_strategy(strategy.RunRequest(strategy_id="test"), None)
     with pytest.raises(ValueError, match="stop-after-admission"):

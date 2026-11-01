@@ -1,0 +1,14 @@
+{
+  "calendar.json": "c0f7bf6d5b4d17f069f3af9e8a67c83495b397b6536061ba391548c9814ea425",
+  "days.csv": "4454b44a7d524b3b582f8ab0899dfbaa1ca669ae0b78820718dcd76a2267ae3b",
+  "days.json": "1401dd077d45bcf0a862edb028cbfee916a9731b1590ce00212d893fbe22bea6",
+  "gaps-by-minute.csv": "f299be8526125054e510ed741f6cfe41c6eb487cfa1009655073c59a96a9fc10",
+  "gaps-by-symbol-day.csv": "3a782849bcbfbf08d738d0c8425094b120af3dcf6c0c6c6b6b30ea4aa8b4c4bd",
+  "gaps-by-symbol.csv": "3b9d25972f549fd1a21106ca4aa365d9855dc4ed7c0204e2978876dbb66bbeb6",
+  "partial-gaps.csv": "c2962ab6dce722efb1f318af839e325a2e51c331a8c62bae95acf11ac5244ba0",
+  "report.md": "ad962ddd3cd06c8b15d507ac324e8f5efe0d477f4be1e75f9e66d98fa637af21",
+  "result.json": "e7e86e06c481c41439a12c97fe62567689768193d1fe62fdac617805ce9ef630",
+  "source-fingerprints.json": "4ddf58265c93ca4b7b464c1a53e5c74b71afa7bf5d5e3428fc36f2c4a4e2d6c7",
+  "verification.json": "171d3d1ac92b15c2bfe6b33c0aa60222e7968e45991560a44d0af8bb06502d4d",
+  "whole-day-gaps-with-traded-daily.csv": "cf431b3e97a0f03baadfef8c6d747f175167fdc347dbfedcda3beda9f02f5817"
+}

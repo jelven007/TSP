@@ -1,17 +1,52 @@
 """A single public market reader per full API process; original read/SSE contract."""
 from __future__ import annotations
 
-import json
+import logging
 import threading
 import time
-import weakref
+from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import settings
 from app.multitenancy.market import decode_frame
+from app.multitenancy.public_reader import (
+    RELEASE_ID,
+    PublicReleaseError,
+    attach_public_lease,
+    current_release,
+    open_public_repository,
+)
 from app.services.depth_service import DepthService
-from app.services.observability import measure_runtime_lock
+from app.services.observability import measure_runtime_lock, measure_runtime_stage
 from app.services.quote_service import QuoteService
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class PublicBindingView:
+    repo: object
+    snapshot: dict | None
+    lease: object
+    received_at: float
+    indicators_ready: bool
+    sync: dict
+
+
+@dataclass
+class PreparedPublicBinding:
+    repo: object
+    snapshot: dict
+    frames: dict
+    indices: object
+    depth: object
+    sector: object
+    new_repository: bool
+    committed: bool = False
+
+    def close(self):
+        if self.new_repository and not self.committed:
+            self.repo.store._public_release_finalizer()
 
 
 class PublicQuoteBridge(QuoteService):
@@ -30,18 +65,61 @@ class PublicQuoteBridge(QuoteService):
         self.loaded_generation = -1
         self.snapshot_fetches = 0
         self.frame_decodes = 0
+        self._closed = threading.Event()
+        self._started = False
+        if RELEASE_ID.fullmatch(repo.store.data_dir.name) and repo.store.data_dir.parent.name == "releases":
+            attach_public_lease(repo.store)
+        from app.multitenancy.public_binding_sync import PublicBindingSynchronizer
+
+        self.binding_sync = PublicBindingSynchronizer(self)
 
     def start(self):
+        with self.update_lock:
+            if self._started or self._closed.is_set():
+                return
+            self._started = True
         if self.markers is not None:
             self.markers.start()
+        if self.snapshot and self.snapshot.get("public_release"):
+            self.binding_sync.start()
 
     def attach_markers(self, markers):
         self.markers = markers
 
     def close(self):
+        if self._closed.is_set():
+            return
+        self._closed.set()
+        # Signal first, then close transports to unblock I/O, then join. Live
+        # request/thread references continue owning their stores on timeout.
+        self.binding_sync.close(timeout=0)
         if self.markers is not None:
             self.markers.close()
         self.market.close()
+        self.binding_sync.close()
+        with self.update_lock:
+            repo = self._repo
+            if self.state is not None:
+                for name in ("repo", "datastore", "sector_monitor_service"):
+                    value = getattr(self.state, name, None)
+                    if value is repo or value is getattr(repo, "store", None) or getattr(value, "_repo", None) is repo:
+                        setattr(self.state, name, None)
+            self._repo = None
+            self.depth.set_repo(None)
+            self.snapshot = None
+
+    def bound_release(self):
+        with self.update_lock:
+            return self._repo.store.data_dir if self._repo is not None else None
+
+    def binding_snapshot(self):
+        with self.update_lock:
+            repo = self._repo
+            return PublicBindingView(
+                repo, self.snapshot, getattr(getattr(repo, "store", None), "_public_release_lease", None),
+                self.received_at, bool(getattr(self.state, "indicators_ready", False)),
+                self.binding_sync.snapshot(),
+            )
 
     def status(self):
         if self.snapshot is None:
@@ -69,12 +147,10 @@ class PublicQuoteBridge(QuoteService):
             )
             if not force and not stale and not fallback_stale:
                 return self.status()
-            generation = self.update_generation
-            snapshot = self.market.snapshot()
-            self.snapshot_fetches += 1
             with self.update_lock:
-                self._update(snapshot)
-                self.loaded_generation = generation
+                generation = self.update_generation
+            snapshot = self._fetch_snapshot()
+            self._update(snapshot, generation=generation)
             return self.status()
 
     def ensure_fresh(self, max_age=5):
@@ -91,59 +167,142 @@ class PublicQuoteBridge(QuoteService):
         return self.status()
 
     def update(self, snapshot):
-        with self.update_lock:
+        with measure_runtime_lock(self.refresh_lock, "public.refresh"):
             if self.snapshot and snapshot.get("captured_at", 0) < self.snapshot.get("captured_at", 0):
                 return
-            result = self._update(snapshot)
-            self.loaded_generation = self.update_generation
-            return result
+            return self._update(snapshot, generation=self.update_generation)
 
-    def _update(self, snapshot):
-        previous = self.snapshot
+    def _fetch_snapshot(self):
+        try:
+            snapshot = self.market.snapshot()
+        except Exception:
+            raise PublicReleaseError("snapshot_unavailable") from None
+        self.snapshot_fetches += 1
+        return snapshot
+
+    def sync_public_release(self, *, stopped=None, clock=time.monotonic, max_age=30):
+        target = current_release(settings.data_dir)
+        if target == self.bound_release():
+            return "unchanged"
+        with measure_runtime_stage("public.refresh_wait"):
+            acquired = self.refresh_lock.acquire(blocking=False)
+        if not acquired:
+            return "busy"
+        try:
+            with measure_runtime_stage("public.refresh"):
+                target = current_release(settings.data_dir)
+                if target == self.bound_release():
+                    return "unchanged"
+                started = clock()
+                generation = self.update_generation
+                snapshot = self._fetch_snapshot()
+                self._update(
+                    snapshot, generation=generation, expected=target,
+                    stopped=stopped, clock=clock, deadline=started + max_age,
+                )
+                return "updated"
+        finally:
+            self.refresh_lock.release()
+
+    def _prepare(self, snapshot, expected):
         frames = {asset: decode_frame(encoded) for asset, encoded in snapshot["frames"].items()}
+        if (
+            "stock" not in frames or set(frames) - {"stock", "index"}
+            or (snapshot.get("public_release") and "index" not in frames)
+        ):
+            raise PublicReleaseError("prepare_failed")
         indices = decode_frame(snapshot["indices"])
         self.frame_decodes += len(frames) + 1
         repo = self._repo
         release = snapshot.get("public_release")
-        if release and (not previous or previous.get("public_release", {}).get("id") != release["id"]):
-            from app.tickflow.repository import DataStore, KlineRepository
+        new_repository = False
+        if release:
+            if not isinstance(release, dict) or not isinstance(release.get("id"), str) or not RELEASE_ID.fullmatch(release["id"]):
+                raise PublicReleaseError()
+            target = current_release(settings.data_dir)
+            if target.name != release["id"] or (expected is not None and target != expected):
+                raise PublicReleaseError("snapshot_release_mismatch")
+            if repo.store.data_dir != target:
+                repo = open_public_repository(target)
+                new_repository = True
+            else:
+                attach_public_lease(repo.store).validate()
+        elif expected is not None:
+            raise PublicReleaseError("snapshot_release_mismatch")
+        candidate = PreparedPublicBinding(repo, snapshot, frames, indices, None, None, new_repository)
+        try:
+            snapshot["status"].get("symbol_count", 0)
+            candidate.depth = PublicDepthBridge(repo)
+            candidate.depth.update(snapshot.get("depth"))
+            if self.state is not None:
+                from app.services.sector_monitor import SectorMonitorService
 
-            root = Path(settings.data_dir).resolve()
-            # DATA_DIR is /public/current; only the sibling releases are accepted.
-            target = root.parent / release["id"]
-            if len(release["id"]) != 32 or any(char not in "0123456789abcdef" for char in release["id"]):
-                raise ValueError("invalid public release")
-            target = target.resolve(strict=True)
-            if target.parent != root.parent:
-                raise ValueError("invalid public release path")
-            marker = json.loads((target / ".public_release.json").read_text())
-            if marker["id"] != release["id"]:
-                raise ValueError("public release marker mismatch")
-            store = DataStore(target, read_only=True)
-            weakref.finalize(store, store.db.close)
-            repo = KlineRepository(store)
-            repo._refresh_instruments()
-            repo._refresh_index_instruments()
-        for asset, frame in frames.items():
-            repo.install_public_snapshot(asset, frame)
-        self.set_repo(repo)
-        self.depth.set_repo(repo)
-        self.depth.update(snapshot.get("depth"))
-        if self.state is not None:
-            from app.services.sector_monitor import SectorMonitorService
+                candidate.sector = getattr(self.state, "sector_monitor_service", None)
+                if getattr(candidate.sector, "_repo", None) is not repo:
+                    candidate.sector = SectorMonitorService(repo)
+            if new_repository:
+                for asset, frame in frames.items():
+                    repo.install_public_snapshot(asset, frame)
+            return candidate
+        except BaseException:
+            candidate.close()
+            raise
 
-            self.state.repo, self.state.datastore = repo, repo.store
-            self.state.indicators_ready = not frames["stock"].is_empty()
-            if repo is not getattr(getattr(self.state, "sector_monitor_service", None), "_repo", None):
-                self.state.sector_monitor_service = SectorMonitorService(repo)
-        with self._lock:
-            self._index_quotes_cache = indices
-        self._symbol_count = snapshot["status"].get("symbol_count", 0)
-        self.snapshot, self.received_at = snapshot, time.monotonic()
+    def _update(self, snapshot, *, generation, expected=None, stopped=None, clock=time.monotonic, deadline=None):
+        if self._closed.is_set():
+            raise PublicReleaseError("stopped")
+        with measure_runtime_stage("public.binding_prepare"):
+            candidate = self._prepare(snapshot, expected)
+        try:
+            release = snapshot.get("public_release")
+            if release and current_release(settings.data_dir).name != release["id"]:
+                raise PublicReleaseError("snapshot_release_mismatch")
+            if deadline is not None and clock() > deadline:
+                raise PublicReleaseError("sync_stalled")
+            with measure_runtime_stage("public.binding_commit"), self.update_lock:
+                if self._closed.is_set() or (stopped is not None and stopped.is_set()):
+                    raise PublicReleaseError("stopped")
+                if release and current_release(settings.data_dir).name != release["id"]:
+                    raise PublicReleaseError("snapshot_release_mismatch")
+                previous = self.snapshot
+                repo = candidate.repo
+                if not candidate.new_repository:
+                    for asset, frame in candidate.frames.items():
+                        repo.install_public_snapshot(asset, frame)
+                self._repo = repo
+                # Keep the externally held depth service stable for same-release
+                # updates. Parsing already succeeded outside the update lock.
+                if candidate.new_repository:
+                    self.depth = candidate.depth
+                elif snapshot.get("depth"):
+                    with self.depth._lock:
+                        for name in ("_sealed_cache", "_sealed_date", "_sealed_ready", "_sealed_fetched_ts"):
+                            setattr(self.depth, name, getattr(candidate.depth, name))
+                if self.state is not None:
+                    self.state.repo, self.state.datastore = repo, repo.store
+                    self.state.depth_service = self.depth
+                    self.state.sector_monitor_service = candidate.sector
+                    self.state.indicators_ready = not candidate.frames["stock"].is_empty()
+                with self._lock:
+                    self._index_quotes_cache = candidate.indices
+                self._symbol_count = snapshot["status"].get("symbol_count", 0)
+                self.snapshot, self.received_at = snapshot, time.monotonic()
+                self.loaded_generation = generation
+                candidate.committed = True
+        finally:
+            candidate.close()
+        if snapshot.get("public_release"):
+            self.binding_sync._observe(current_release(settings.data_dir))
+        # Delivery failure cannot revoke ownership of an installed repository.
+        try:
+            self._notify_update(previous, snapshot)
+        except Exception:
+            logger.warning("public binding notification failed kind=prepare_failed")
+
+    def _notify_update(self, previous, snapshot):
         if (previous is None or previous["sequence"] != snapshot["sequence"]
                 or previous.get("public_release") != snapshot.get("public_release")):
             self._broadcast_quote_updated()
-        # Depth can change independently of the stock quote cycle.
         self.notify_depth_updated()
 
     def mark_event(self, event):

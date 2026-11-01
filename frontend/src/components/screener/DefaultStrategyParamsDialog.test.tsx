@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
-// 「默认基础参数」: 对话框编辑保存写 localStorage; 纯函数把默认参数渲染进
-// 新建策略模板的 META.basic_filter 段 (Python 字面量)。
-// 「一键应用到全部策略」: 二次确认后逐策略 PATCH basic_filter 并存为默认配置。
+// 新建模板与存量策略作用域独立，批量同步仅更新勾选策略的数值过滤。
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -77,7 +75,9 @@ it('renders nothing when show=false', async () => {
 it('shows the basic filter fields when open', async () => {
   await render({ show: true })
 
-  expect(container.textContent).toContain('默认基础参数')
+  expect(container.textContent).toContain('新建策略模板')
+  expect(container.textContent).toContain('总市值')
+  expect(container.textContent).toContain('上市天数')
   expect(container.textContent).toContain('价格')
   expect(container.textContent).toContain('流通市值')
   expect(container.textContent).toContain('板块')
@@ -109,7 +109,7 @@ it('reset restores builtin defaults', async () => {
   storage.defaultStrategyBasicFilter.set({ ...BUILTIN_DEFAULT_BASIC_FILTER, price_min: 100 })
   await render({ show: true })
 
-  const resetBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('恢复默认'))!
+  const resetBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('恢复模板初始值'))!
   act(() => { resetBtn.click() })
 
   expect((container.querySelector('input[type="number"]') as HTMLInputElement).value).toBe('5')
@@ -141,41 +141,72 @@ it('buildCustomTemplate embeds custom defaults into the code template', () => {
 // ===== 一键应用到全部策略 =====
 
 
-it('apply button shows strategy count after list loads', async () => {
+it('batch application starts without preselected strategies', async () => {
   await render({ show: true })
-
-  const btn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('一键应用'))!
-  expect(btn.textContent).toContain('2')
-  // 未点击确认前不发起任何 PATCH
+  const btn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('应用到所选策略'))!
+  expect(btn.disabled).toBe(true)
   expect(mockPatchConfig).not.toHaveBeenCalled()
 })
 
-it('apply requires confirm, then patches every strategy with current values', async () => {
+it('batch application only patches selected numeric filters and does not save the template', async () => {
   await render({ show: true })
-
-  // 第一步: 点「一键应用」→ 出现二次确认, 尚未请求
-  const applyBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('一键应用'))!
-  await act(async () => { applyBtn.click() })
-  expect(mockPatchConfig).not.toHaveBeenCalled()
-  expect(container.textContent).toContain('确认覆盖')
-
-  // 第二步: 确认 → 逐策略 PATCH, 值为当前表单值 (改过 price_min=3)
   const input = container.querySelector('input[type="number"]') as HTMLInputElement
   const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
   act(() => {
     nativeSetter.call(input, '3')
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
-  const confirmBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('确认覆盖'))!
+  await act(async () => { container.querySelector<HTMLInputElement>('input[aria-label="strategy_a"]')!.click() })
+  const applyBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('应用到所选策略'))!
+  await act(async () => { applyBtn.click() })
+  expect(mockPatchConfig).not.toHaveBeenCalled()
+  expect(input.disabled).toBe(true)
+  const confirmBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('确认应用'))!
   await act(async () => { confirmBtn.click() })
   await act(async () => {})
 
-  expect(mockPatchConfig).toHaveBeenCalledTimes(2)
+  expect(mockPatchConfig).toHaveBeenCalledTimes(1)
   const ids = mockPatchConfig.mock.calls.map(c => c[0])
-  expect(ids).toEqual(['strategy_a', 'strategy_b'])
-  for (const call of mockPatchConfig.mock.calls) {
-    expect(call[1]).toEqual({ basic_filter: { ...BUILTIN_DEFAULT_BASIC_FILTER, price_min: 3 } })
-  }
-  // 应用即所见: 同时存为默认配置
-  expect(storage.defaultStrategyBasicFilter.get(null)?.price_min).toBe(3)
+  expect(ids).toEqual(['strategy_a'])
+  const applied = mockPatchConfig.mock.calls[0][1].basic_filter as Record<string, unknown>
+  expect(applied.price_min).toBe(3)
+  expect(applied.boards).toBeUndefined()
+  expect(applied.exclude_st).toBeUndefined()
+  expect(applied.target_mode).toBeUndefined()
+  expect(storage.defaultStrategyBasicFilter.get(null)).toBeNull()
+})
+
+it('blocks invalid ranges and carries all numeric template fields into generated code', async () => {
+  const onClose = vi.fn()
+  await render({ show: true, onClose })
+  const input = container.querySelector('input[type="number"]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '300')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  act(() => [...container.querySelectorAll('button')].find(b => b.textContent === '保存模板')!.click())
+  expect(storage.defaultStrategyBasicFilter.get(null)).toBeNull()
+  expect(onClose).not.toHaveBeenCalled()
+  expect(container.textContent).toContain('最小值不能大于最大值')
+  const code = renderBasicFilterPy({ ...BUILTIN_DEFAULT_BASIC_FILTER,
+    market_cap_min: 20e8, market_cap_max: 100e8, exclude_new_days: 60, enabled: false })
+  expect(code).toContain('"market_cap_min": 2000000000, "market_cap_max": 10000000000')
+  expect(code).toContain('"exclude_new_days": 60')
+  expect(code).toContain('"enabled": False')
+  expect(code).toContain('"target_mode": "all"')
+})
+
+it('shows failed strategy names and freezes controls throughout a batch request', async () => {
+  let reject!: (error: Error) => void
+  mockPatchConfig.mockImplementationOnce(() => new Promise((_resolve, rejectFn) => { reject = rejectFn }))
+  await render({ show: true })
+  act(() => container.querySelector<HTMLInputElement>('input[aria-label="strategy_a"]')!.click())
+  act(() => [...container.querySelectorAll('button')].find(b => b.textContent?.includes('应用到所选策略'))!.click())
+  await act(async () => { [...container.querySelectorAll('button')].find(b => b.textContent === '确认应用')!.click() })
+  expect(container.querySelector<HTMLInputElement>('input[type="number"]')!.disabled).toBe(true)
+  expect(container.querySelector<HTMLButtonElement>('button[aria-label="关闭新建策略模板"]')!.disabled).toBe(true)
+  await act(async () => reject(new Error('测试保存失败')))
+  expect(container.textContent).toContain('strategy_a：测试保存失败')
+  expect(container.textContent).toContain('已应用 0/1')
+  expect(storage.defaultStrategyBasicFilter.get(null)).toBeNull()
 })

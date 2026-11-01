@@ -18,8 +18,8 @@
 ;   - 卸载入口 (控制面板可见)
 ; ===========================================================================
 
-#define MyAppName          "TSP"
-#define MyAppNameEN       "TSP"
+#define MyAppName          "Tick Stock Platform"
+#define MyAppNameEN       "Tick Stock Platform"
 #define MyAppExeName      "TSP.exe"
 #define MyAppPublisher    "TSP"
 #define WebView2SetupName "MicrosoftEdgeWebView2Setup.exe"

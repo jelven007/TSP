@@ -82,3 +82,27 @@ def test_partial_override_keeps_other_default():
     detail = _strategy_detail(s, overrides={"entry_signals": ["signal_x"]})
     assert detail["entry_signals"] == ["signal_x"]
     assert detail["exit_signals"] == ["signal_ma20_breakdown"]
+
+
+def test_detail_returns_effective_exit_controls_and_separate_definition_defaults():
+    s = _make_strategy(["entry"], ["exit"])
+    s.basic_filter = {"enabled": True, "price_min": 5}
+    s.meta["params"] = [{"id": "period", "default": 20}]
+    s.take_profit = .1
+    s.trailing_stop = -.04
+    detail = _strategy_detail(s, overrides={
+        "take_profit": .15, "trailing_stop": None, "trailing_take_profit_activate": .08,
+        "trailing_take_profit_drawdown": .03, "basic_filter": {"price_min": None},
+        "params": {"period": 30},
+    })
+    assert detail["take_profit"] == .15
+    assert detail["trailing_stop"] is None
+    assert detail["trailing_take_profit_activate"] == .08
+    assert detail["trailing_take_profit_drawdown"] == .03
+    defaults = detail["definition_defaults"]
+    assert defaults["basic_filter"]["price_min"] == 5
+    assert defaults["params_defaults"]["period"] == 20
+    assert defaults["take_profit"] == .1
+    assert defaults["trailing_stop"] == -.04
+    detail["basic_filter"]["price_min"] = 100
+    assert defaults["basic_filter"]["price_min"] == 5

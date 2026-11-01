@@ -157,7 +157,7 @@ class Settings(BaseSettings):
     # 前端轮询 cached-summary 点亮卡片。0 = 关闭 (整段阻塞, 旧行为)。
     strategy_run_all_first_return_s: float = 15.0
 
-    # Auth — 全新安装未配置身份时预置 admin/<REDACTED_CREDENTIAL>, 与运行模式无关。
+    # Auth — 全新安装未配置身份时按初始化配置预置管理员, 与运行模式无关。
     # 首次启动时可预置邮箱账户。AUTH_EMAIL 与 AUTH_PASSWORD 同时配置时
     # 创建邮箱账户; 只配置 AUTH_PASSWORD 时保留旧版密码模式, 登录后可绑定邮箱。
     # AUTH_USERNAME 只预置管理员账户, 不启用 Windows 单机模式。

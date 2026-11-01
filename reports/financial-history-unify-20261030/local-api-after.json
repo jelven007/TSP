@@ -1,0 +1,59 @@
+{
+  "environment": "local",
+  "origin": "http://127.0.0.1:3021",
+  "version": "0.4.38",
+  "ready": true,
+  "checks": {
+    "databases": "ok",
+    "research_worker": "ok",
+    "realtime_worker": "ok",
+    "notifications_worker": "ok",
+    "scheduled_worker": "ok",
+    "public_files": "ok",
+    "platform": "ok",
+    "indicator_cache": "ok",
+    "compute_broker": "ok"
+  },
+  "storage": {
+    "financials_files": 153,
+    "financials_size_mb": 88.83,
+    "financials_current_files": 5,
+    "financials_current_size_mb": 18.15,
+    "financials_revision_files": 148,
+    "financials_revision_size_mb": 70.67
+  },
+  "financial_rows": 625956,
+  "financial_tables": {
+    "metrics": {
+      "rows": 126144,
+      "symbols": 5222
+    },
+    "income": {
+      "rows": 124953,
+      "symbols": 5222
+    },
+    "balance_sheet": {
+      "rows": 124953,
+      "symbols": 5222
+    },
+    "cash_flow": {
+      "rows": 124953,
+      "symbols": 5222
+    },
+    "shares": {
+      "rows": 124953,
+      "symbols": 5222
+    }
+  },
+  "financial_history_response_sha256": {
+    "metrics": "d54f5fcf4682fceabb63579b278ff224358c1c36168fae5f0d98649b079fbc0e",
+    "shares": "a7b065968e29eae8c5e5ffe2e26be4de80453f74d56956d91bb30287dad9f8f4"
+  },
+  "active_pipeline_jobs": [
+    {
+      "id": "5c7d55a288",
+      "kind": "kline_1m",
+      "status": "running"
+    }
+  ]
+}

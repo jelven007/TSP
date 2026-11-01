@@ -1,0 +1,39 @@
+{
+  "status": "verified",
+  "finished_at_beijing": "2026-10-30T21:34:49.706686+08:00",
+  "project_name": "TSP",
+  "workspace": "/path/to/home/Documents/TSP",
+  "legacy_workspace_link": "/path/to/home/Documents/TSPP",
+  "compatibility_links": {
+    "/path/to/home/Documents/TSPP": "/path/to/home/Documents/TSP",
+    "/path/to/home/.cache/tsp-dev/TSP": "/path/to/home/.cache/tsp-dev/TSPP",
+    "/path/to/home/.local/share/tsp-dev/TSP": "/path/to/home/.local/share/tsp-dev/TSPP"
+  },
+  "head": "bac72d9a83c03890cbb954e0e13782b8421d6073",
+  "git_head_unchanged": true,
+  "existing_changes_unchanged": true,
+  "protected_config_and_source_files_unchanged": true,
+  "runtime_and_data_directory_inodes_unchanged": true,
+  "linked_worktrees_verified": 17,
+  "linked_worktree_failures": [],
+  "backend_virtualenv_verified": true,
+  "polars_version": "1.44.1",
+  "api_before": {
+    "reachable": false,
+    "status": null
+  },
+  "api_after": {
+    "reachable": false,
+    "status": null
+  },
+  "frontend_before": {
+    "reachable": false,
+    "status": null
+  },
+  "frontend_after": {
+    "reachable": false,
+    "status": null
+  },
+  "services_stopped": false,
+  "remote_repository_name_already_TSP": true
+}

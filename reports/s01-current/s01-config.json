@@ -1,0 +1,37 @@
+{
+  "strategy_id": "s01",
+  "overrides": {
+    "params": {
+      "prior_price_min": 6.0,
+      "prior_price_max": 50.0,
+      "prior_return_min": 0.04,
+      "prior_return_max": 0.12,
+      "prior_range_max": 0.055,
+      "amount_min": 60000000.0,
+      "listing_days": 60,
+      "current_return_min": 0.012,
+      "current_return_max": 0.03,
+      "current_range_max": 0.05,
+      "market_min_valid": 1000,
+      "market_positive_min": 0.6,
+      "vwap_buffer": 0.0003,
+      "peak_profit_min": 0.02,
+      "peak_retrace_min": 0.005,
+      "return_15m_max": -0.003,
+      "decline_3m": 0.002,
+      "volume_ratio_min": 1.5,
+      "guard_time": "11:28",
+      "sell_deadline": "13:30",
+      "initial_cash": 100000.0,
+      "entry_nav_fraction": 0.2,
+      "entry_budget": 0.0,
+      "position_limit": 5,
+      "participation": 0.1,
+      "slippage": 0.0005,
+      "commission": 0.00025,
+      "minimum_commission": 5.0,
+      "transfer_fee": 0.00001,
+      "stamp_tax": 0.0005
+    }
+  }
+}

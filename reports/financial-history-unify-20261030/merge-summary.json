@@ -1,0 +1,71 @@
+{
+  "status": "verified",
+  "before": {
+    "local": {
+      "file_count": 118,
+      "revision_bytes": 63967168,
+      "revision_file_count": 113,
+      "total_bytes": 83003246
+    },
+    "online": {
+      "file_count": 88,
+      "revision_bytes": 47036365,
+      "revision_file_count": 83,
+      "total_bytes": 66072443
+    }
+  },
+  "after": {
+    "file_count": 153,
+    "revision_bytes": 74104316,
+    "revision_file_count": 148,
+    "total_bytes": 93140394
+  },
+  "snapshot_counts": {
+    "balance_sheet": 5,
+    "cash_flow": 5,
+    "income": 6,
+    "metrics": 23,
+    "shares": 6
+  },
+  "observation_counts": {
+    "balance_sheet": 6,
+    "cash_flow": 6,
+    "income": 7,
+    "metrics": 26,
+    "shares": 7
+  },
+  "add_files": {
+    "local": 35,
+    "online": 65
+  },
+  "metadata_changes": {
+    "local": [
+      "revisions/balance_sheet/e62480b78e5421aced89f0ea47cea15609cd3d17f69853789543a9ef8b20e41a.json",
+      "revisions/balance_sheet/latest.json",
+      "revisions/cash_flow/438a27d2d99794f03d6c6195e08a12d4d3f41187ac12f6a44510a034b8ecfda5.json",
+      "revisions/cash_flow/latest.json",
+      "revisions/income/e456e4dcfb173f9131d95f4074fee4261d7ce482e4bc4e833cdd07f7cb209730.json",
+      "revisions/income/latest.json",
+      "revisions/metrics/32d6b93b3444f6768d5640be746a411101b9b3cf4461b7074e0f75ec1d4995ae.json",
+      "revisions/metrics/a9bf6ed25f21b8c3b55251af1a5f8295769326553456b773a733b368388ec296.json",
+      "revisions/metrics/d45bb0c4f0a3e8251b4dd699a4afc81f6adc3bb32829133b56e88721a19cc395.json",
+      "revisions/metrics/latest.json",
+      "revisions/shares/38ba669c522c0c366de74b4f82b6527033828f7712eeef5876b76309272abbdc.json",
+      "revisions/shares/latest.json"
+    ],
+    "online": [
+      "revisions/balance_sheet/e62480b78e5421aced89f0ea47cea15609cd3d17f69853789543a9ef8b20e41a.json",
+      "revisions/balance_sheet/latest.json",
+      "revisions/cash_flow/438a27d2d99794f03d6c6195e08a12d4d3f41187ac12f6a44510a034b8ecfda5.json",
+      "revisions/cash_flow/latest.json",
+      "revisions/income/e456e4dcfb173f9131d95f4074fee4261d7ce482e4bc4e833cdd07f7cb209730.json",
+      "revisions/income/latest.json",
+      "revisions/metrics/32d6b93b3444f6768d5640be746a411101b9b3cf4461b7074e0f75ec1d4995ae.json",
+      "revisions/metrics/a9bf6ed25f21b8c3b55251af1a5f8295769326553456b773a733b368388ec296.json",
+      "revisions/metrics/d45bb0c4f0a3e8251b4dd699a4afc81f6adc3bb32829133b56e88721a19cc395.json",
+      "revisions/metrics/latest.json",
+      "revisions/shares/38ba669c522c0c366de74b4f82b6527033828f7712eeef5876b76309272abbdc.json",
+      "revisions/shares/latest.json"
+    ]
+  }
+}

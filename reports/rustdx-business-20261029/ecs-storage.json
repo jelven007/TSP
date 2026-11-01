@@ -1,0 +1,184 @@
+{
+  "fetched_at": "2026-10-29T06:52:37.461379+08:00",
+  "network_and_normalization_ms": 5788.1584509741515,
+  "returned": 5222,
+  "missing": [],
+  "duplicate_count": 0,
+  "source_time_null_rows": 2,
+  "source_timestamp_null_rows": 5222,
+  "timestamp_bases": [
+    "received"
+  ],
+  "pool": {
+    "active_connections": 0,
+    "active_server": "117.34.114.13:7709",
+    "business_limit": 8,
+    "closed": false,
+    "failures": 0,
+    "financial_pools": [],
+    "idle_connections": 8,
+    "market_pool": {
+      "completed_at": "2026-10-29T06:52:31.972511499+08:00",
+      "date": "2026-10-29",
+      "results": [
+        {
+          "address": "117.34.114.13:7709",
+          "rounds": [
+            {
+              "elapsed": {
+                "nanos": 100028818,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 35453475,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 34809387,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 29750736,
+                "secs": 0
+              }
+            },
+            {
+              "elapsed": {
+                "nanos": 95916458,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 34250812,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 33375534,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 28282710,
+                "secs": 0
+              }
+            },
+            {
+              "elapsed": {
+                "nanos": 96808451,
+                "secs": 0
+              },
+              "failure": null,
+              "handshake": {
+                "nanos": 34339824,
+                "secs": 0
+              },
+              "heartbeat": {
+                "nanos": 33839895,
+                "secs": 0
+              },
+              "heartbeat_ack": null,
+              "mode": "SecurityCount",
+              "security_count": 24480,
+              "tcp": {
+                "nanos": 28622207,
+                "secs": 0
+              }
+            }
+          ]
+        }
+      ],
+      "tested_at": "2026-10-29T06:52:31.679607019+08:00",
+      "valid_nodes": [
+        "117.34.114.13:7709"
+      ]
+    },
+    "max_connections": 8,
+    "minute_requests": 0,
+    "network": {
+      "acquisition_timeouts": 0,
+      "active": 8,
+      "peak": 8,
+      "request_failures": 0,
+      "requests": 124,
+      "shared_max_connections": null
+    },
+    "probe_limit": 1,
+    "probes": {
+      "active": 0,
+      "peak": 1,
+      "timeouts": 0,
+      "waits": 0
+    },
+    "quote_batch_size": 60,
+    "quote_metadata": [
+      {
+        "as_of_date": "2026-10-29",
+        "fetched_at": "2026-10-28T22:52:36.801466974Z",
+        "market": 0,
+        "securities": 24480,
+        "source_endpoint": "117.34.114.13:7709",
+        "unsupported": 0
+      },
+      {
+        "as_of_date": "2026-10-29",
+        "fetched_at": "2026-10-28T22:52:36.801466974Z",
+        "market": 1,
+        "securities": 27545,
+        "source_endpoint": "117.34.114.13:7709",
+        "unsupported": 0
+      }
+    ],
+    "retries": 0,
+    "scheduler": {
+      "background_active": 0,
+      "background_limit": 7,
+      "background_peak": 0,
+      "foreground_waiting": 0,
+      "slot_acquisitions": 89,
+      "slot_wait_ms_max": 0.0,
+      "slot_wait_ms_total": 0.0,
+      "waiting_requests": 0
+    },
+    "total_connection_limit": 9,
+    "total_connections": 8
+  },
+  "build_daily_and_extra_ms": 43.76927495468408,
+  "daily_rows": 5216,
+  "daily_excluded_symbols": [
+    "002717.SZ",
+    "002827.SZ",
+    "301468.SZ",
+    "601326.SH",
+    "605258.SH",
+    "688496.SH"
+  ],
+  "extra_rows": 5222,
+  "archive_submit_ms": 1.2650340795516968,
+  "archive_first_visible_ms": 20027.091831085272,
+  "archive_accepted": true,
+  "archive_status": {
+    "enabled": true,
+    "running": true,
+    "retention_days": 7,
+    "flush_rounds": 10,
+    "queue_capacity": 30,
+    "queued_rounds": 0,
+    "accepted_rounds": 1,
+    "written_rounds": 0,
+    "written_rows": 0,
+    "written_files": 0,
+    "dropped_rounds": 1,
+    "last_flush_ms": null,
+    "last_error": "archive write failed: insufficient disk space for second quote archive",
+    "pending_rounds": 0,
+    "queue_peak": 1,
+    "last_write_ms": null,
+    "last_drop_ms": 1793227967553
+  }
+}

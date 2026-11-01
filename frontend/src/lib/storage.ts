@@ -6,13 +6,21 @@
  */
 
 import { accountStorage as localStorage } from './accountSession'
+import { migrateStoredStrategyValue } from './strategyIdMigration'
 
 function kv<T>(key: string) {
   return {
     get(fallback: T): T {
       try {
         const raw = localStorage.getItem(key)
-        if (raw !== null) return JSON.parse(raw) as T
+        if (raw !== null) {
+          const value = JSON.parse(raw)
+          if (!key.startsWith('strategy-')) return value as T
+          const migrated = migrateStoredStrategyValue(value)
+          const encoded = JSON.stringify(migrated)
+          if (encoded !== raw) localStorage.setItem(key, encoded)
+          return migrated as T
+        }
       } catch { /* ignore */ }
       return fallback
     },
@@ -27,8 +35,11 @@ function kv<T>(key: string) {
 
 /** 新建策略默认基础过滤参数 (与策略 META.basic_filter 字段/单位一致: 价格元, 市值/成交额元, 换手%) */
 export interface DefaultStrategyBasicFilter {
+  enabled?: boolean
   price_min: number | null
   price_max: number | null
+  market_cap_min?: number | null
+  market_cap_max?: number | null
   float_cap_min: number | null
   float_cap_max: number | null
   amount_min: number | null
@@ -36,6 +47,7 @@ export interface DefaultStrategyBasicFilter {
   turnover_min: number | null
   turnover_max: number | null
   exclude_st: boolean
+  exclude_new_days?: number | null
   boards: string[]
 }
 

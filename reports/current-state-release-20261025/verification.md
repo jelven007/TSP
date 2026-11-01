@@ -47,7 +47,7 @@
 - 本地主线源码为0.4.21，已有完整开发环境：frontend3021、API3028、
   Platform3029、PostgreSQL、四类worker与隔离Compute Broker；此前启动进程
   不自动等同本批源码已加载，发布后需重建Compute并完整重启核验。
-- 2026-10-25线上只读实测：`https://shanao.asia` / `118.196.108.188`，
+- 2026-10-25线上只读实测：`https://server.example.com` / `203.0.113.10`，
   七应用角色与PostgreSQL均healthy。当前Runtime固定0.4.21/7823b84b，
   Runtime ID `sha256:92660decfd3b10f0dcf614f61b2bf71ab2dc1af0cbe49a60143e1605c79b846e`，
   Compute ID `sha256:19c5511ec74a64f8f9425209241b25304c148f0544c86145286d3004b6611dd7`。

@@ -1,0 +1,210 @@
+{
+  "cutoff": "2020-11-02",
+  "scope": "ECS active index data and current public release",
+  "version": "0.4.37",
+  "removed_rows": 299382,
+  "deleted_partition_files": 557,
+  "before": {
+    "kline_index_daily": {
+      "files": 1698,
+      "rows": 930974,
+      "rows_before_cutoff": 132212,
+      "label_min": "2019-10-28",
+      "label_max": "2026-10-28",
+      "actual_min": "2019-10-28",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_enriched": {
+      "files": 1698,
+      "rows": 930974,
+      "rows_before_cutoff": 132212,
+      "label_min": "2019-10-28",
+      "label_max": "2026-10-28",
+      "actual_min": "2019-10-28",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_weekly": {
+      "files": 359,
+      "rows": 196950,
+      "rows_before_cutoff": 27962,
+      "label_min": "2019-10-28",
+      "label_max": "2026-10-26",
+      "actual_min": "2019-11-01",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_monthly": {
+      "files": 85,
+      "rows": 46637,
+      "rows_before_cutoff": 6996,
+      "label_min": "2019-10-01",
+      "label_max": "2026-10-01",
+      "actual_min": "2019-10-31",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    }
+  },
+  "after": {
+    "kline_index_daily": {
+      "files": 1452,
+      "rows": 798762,
+      "rows_before_cutoff": 0,
+      "label_min": "2020-11-02",
+      "label_max": "2026-10-28",
+      "actual_min": "2020-11-02",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_enriched": {
+      "files": 1452,
+      "rows": 798762,
+      "rows_before_cutoff": 0,
+      "label_min": "2020-11-02",
+      "label_max": "2026-10-28",
+      "actual_min": "2020-11-02",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_weekly": {
+      "files": 307,
+      "rows": 168988,
+      "rows_before_cutoff": 0,
+      "label_min": "2020-11-02",
+      "label_max": "2026-10-26",
+      "actual_min": "2020-11-06",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_monthly": {
+      "files": 72,
+      "rows": 39641,
+      "rows_before_cutoff": 0,
+      "label_min": "2020-11-01",
+      "label_max": "2026-10-01",
+      "actual_min": "2020-11-30",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    }
+  },
+  "public_after": {
+    "kline_index_daily": {
+      "files": 1452,
+      "rows": 798762,
+      "rows_before_cutoff": 0,
+      "label_min": "2020-11-02",
+      "label_max": "2026-10-28",
+      "actual_min": "2020-11-02",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_enriched": {
+      "files": 1452,
+      "rows": 798762,
+      "rows_before_cutoff": 0,
+      "label_min": "2020-11-02",
+      "label_max": "2026-10-28",
+      "actual_min": "2020-11-02",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_weekly": {
+      "files": 307,
+      "rows": 168988,
+      "rows_before_cutoff": 0,
+      "label_min": "2020-11-02",
+      "label_max": "2026-10-26",
+      "actual_min": "2020-11-06",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    },
+    "kline_index_monthly": {
+      "files": 72,
+      "rows": 39641,
+      "rows_before_cutoff": 0,
+      "label_min": "2020-11-01",
+      "label_max": "2026-10-01",
+      "actual_min": "2020-11-30",
+      "actual_max": "2026-10-28",
+      "symbol_count": 554
+    }
+  },
+  "quote_second": {
+    "files": 5118,
+    "assets": [
+      {
+        "asset_type": "index",
+        "rows": 301370,
+        "first": "2026-10-26",
+        "last": "2026-10-28",
+        "rows_before_cutoff": 0
+      },
+      {
+        "asset_type": "stock",
+        "rows": 182717780,
+        "first": "2026-10-26",
+        "last": "2026-10-28",
+        "rows_before_cutoff": 0
+      }
+    ]
+  },
+  "backup": {
+    "path": "/opt/tsp-full/backups/index-cutoff-20261029",
+    "files": 3844,
+    "bytes": 89418620,
+    "restore_verified": true,
+    "public_current_before": "releases/04665a9591484294a39a830a3265a87b"
+  },
+  "execution": {
+    "started_at": "2026-10-28T22:18:03.856548+00:00",
+    "timers_before": {
+      "tsp-full-health.timer": true,
+      "tsp-public-release-maintenance.timer": true
+    },
+    "platform_started_at": "2026-10-28T12:08:42.540899739Z",
+    "platform_pid": 2600583,
+    "runtime": "sha256:3b436a4a3b4c0bf16d19e0eb9228ce58fcd168a58f1fe11d2ccc06426b3ff1db",
+    "public_releases_retained": 32,
+    "passed": true,
+    "freeze_seconds": 26.668,
+    "same_platform_process_resumed": true,
+    "private_configuration_unchanged": true,
+    "timers_restored": true
+  },
+  "retained_index_file_hashes_verified": true,
+  "november_month_recomputed_from_retained_daily_matches": true,
+  "protected_filesystem": {
+    "entries": 12901,
+    "sha256": "ea1d76f20f19bbacce7b8048f877e874e968b10dd8044a8f8d64e6a8cc591713"
+  },
+  "protected_filesystem_unchanged": true,
+  "configuration_hashes_unchanged": true,
+  "index_generation": "c42290f3eeaf452f99c9beb468352c4b",
+  "data_release": "71139e5d6935456387ea760663963aaf",
+  "public_release": "ba04df84965946d8b460ca414fab54ac",
+  "http_query_count": 42,
+  "ready": true,
+  "administrator_login_passed": true,
+  "containers_healthy_observed": 8,
+  "collector_task": {
+    "id": "528dd8d387",
+    "status": "failed",
+    "error": "分钟K取数不完整, 拒绝提交: [301110.SZ]",
+    "progress": 72,
+    "updated_at": "2026-10-28T22:18:39.847453+00:00",
+    "restarted_by_cleanup": false
+  },
+  "source_evidence_sha256": {
+    "before.json": "24778a9bfadca2972985899e6b246af86c9b5178605e11519356157cf30b4a9f",
+    "backup.json": "e14bb84af0ea3f29a4a18df84d97186a751d81afeca0a2783bcebfb9267f0470",
+    "apply.json": "88b874a2a3b0b1afd792f84ddaab187c90dd783d79bbd867bde33c8b97eb8069",
+    "execution.json": "3b3ba07ed7ebe19efdc9b1929fac586b79152dd12b86587fa78846e9f1621ee5",
+    "after.json": "bb544866dd7c573139e119ed366fb9fae9922d1b7ea880312a6d01af147950cd",
+    "http.json": "e2c43a19907b223837ceed28407fb44ebe1b9baca9b54e0c16a8222c906a2a9f",
+    "index_cutoff.py": "22798d4087501a5c2fdf12851c8203d2b14c0ade4d07afa174c380229be3e0de",
+    "execute_cutoff.py": "2427b0783dc0f00c8db48bf5d0d684f3448a04dd873bafa21e55fd7d31fa8fc0",
+    "verify_http.py": "a2ffb06fc693a123252cf6002a9ae91e8d91fb11f9a736cfc40e689446691238"
+  },
+  "passed": true
+}

@@ -385,6 +385,7 @@ _SKIP_LABELS = {
     "max_positions": "持仓数已达规则上限",
     "missing_entry_policy": "缺入场政策快照, 风控跟随规则不买入",
     "invalid_entry_policy": "入场风险配置无效",
+    "minute_capacity_unsupported": "此策略需要分钟容量分片, 当前自动委托不支持该执行协议",
     "risk_follow_required": "启用入场风险控制需开启跟随策略风控",
     "no_reference_price": "缺有效参考价",
     "zero_qty": "按现金与仓位余量算得可买数量为 0",
@@ -823,6 +824,7 @@ def evaluate_position_risk(data_dir, prices, account_id=paper.DEFAULT_ACCOUNT_ID
 def on_rule_events(
     data_dir: Path, events: list[dict], account_id: str = paper.DEFAULT_ACCOUNT_ID, *,
     prices: dict[str, float] | None = None, allow_entries: bool = True,
+    minute_repo=None, completed_through=None,
 ) -> list[dict]:
     """逐证券事件 → 跟单。先保存退出意图, 再处理入场, 最后重试全部退出待办。
 
@@ -898,6 +900,9 @@ def on_rule_events(
         bought = set()
         for match in matches:
             rule, ev, side = match["rule"], match["event"], match["side"]
+            if (ev.get("entry_policy") or {}).get("minute_execution") in {"overnight_capacity_v1", "momentum_capacity_v1"}:
+                _record_skip(data_dir, account_id, rule, ev, "minute_capacity_unsupported")
+                continue
             symbol = ev["symbol"].strip()
             grouped_strategy = _is_grouped_strategy_match(match)
             effective_rule = {

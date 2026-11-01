@@ -304,6 +304,8 @@ class StrategyParam(ContractModel):
     label: str
     type: str
     default: Any
+    display_scale: float | None = None
+    unit: str | None = None
 
 
 class StrategyFamily(ContractModel):
@@ -320,12 +322,14 @@ class StrategyDetailResponse(ContractModel):
     family: StrategyFamily | None = None
     research_only: bool = False
     execution_backend: str
+    minute_execution: str | None = None
     asset_types: list[str]
     timeframes: list[str]
     version: str
     basic_filter: JsonRecord
     params: list[StrategyParam]
     params_defaults: JsonRecord
+    definition_defaults: JsonRecord | None = None
     scoring: dict[str, float]
     scoring_directions: dict[str, str]
     entry_signals: list[str]
@@ -358,6 +362,10 @@ class ScreenerResultResponse(ContractModel):
     rows: list[JsonRecord]
     total: int
     elapsed_ms: float
+    sections: dict[str, list[JsonRecord]] | None = None
+    state: JsonRecord | None = None
+    portfolio_scope: str | None = None
+    execution_error: str | None = None
 
 
 class ScreenerCachedResponse(ContractModel):

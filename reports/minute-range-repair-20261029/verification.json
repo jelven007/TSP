@@ -1,0 +1,161 @@
+{
+  "status": "verified",
+  "task_status": "succeeded",
+  "task_finished_at": "2026-10-28T23:27:33.314470+00:00",
+  "universe_size": 5222,
+  "trading_days": 23,
+  "expected_rows": 28578240,
+  "missing_before": 28572000,
+  "written_rows": 0,
+  "remaining_rows": 28572000,
+  "skipped_symbols": 5182,
+  "original_rows_preserved": 6240,
+  "public_release_id": "78436ed773364f4b86185c14a5a93321",
+  "public_partitions_match_source": true,
+  "minute_basis_marker_preserved": true,
+  "source_nodes_checked": [
+    "117.34.114.13:7709",
+    "115.238.56.198:7709",
+    "180.153.18.170:7709"
+  ],
+  "days": [
+    {
+      "day": "2026-03-30",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1240560
+    },
+    {
+      "day": "2026-03-31",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1241040
+    },
+    {
+      "day": "2026-04-01",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1241280
+    },
+    {
+      "day": "2026-04-02",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1241280
+    },
+    {
+      "day": "2026-04-03",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1241280
+    },
+    {
+      "day": "2026-04-07",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1241280
+    },
+    {
+      "day": "2026-04-08",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1241520
+    },
+    {
+      "day": "2026-04-09",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1241520
+    },
+    {
+      "day": "2026-04-10",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1242000
+    },
+    {
+      "day": "2026-04-13",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1242000
+    },
+    {
+      "day": "2026-04-14",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1242000
+    },
+    {
+      "day": "2026-04-15",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1242000
+    },
+    {
+      "day": "2026-04-16",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1242480
+    },
+    {
+      "day": "2026-04-17",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1242720
+    },
+    {
+      "day": "2026-04-20",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1242720
+    },
+    {
+      "day": "2026-04-21",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1243200
+    },
+    {
+      "day": "2026-04-22",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1243200
+    },
+    {
+      "day": "2026-04-23",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1243200
+    },
+    {
+      "day": "2026-04-24",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1243440
+    },
+    {
+      "day": "2026-04-27",
+      "existing_rows": 480,
+      "filled": 0,
+      "remaining": 1243200
+    },
+    {
+      "day": "2026-04-28",
+      "existing_rows": 480,
+      "filled": 0,
+      "remaining": 1243200
+    },
+    {
+      "day": "2026-04-29",
+      "existing_rows": 240,
+      "filled": 0,
+      "remaining": 1243440
+    },
+    {
+      "day": "2026-04-30",
+      "existing_rows": 480,
+      "filled": 0,
+      "remaining": 1243440
+    }
+  ]
+}

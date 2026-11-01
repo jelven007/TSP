@@ -1,0 +1,1884 @@
+{
+  "run_id": "238ccfe904",
+  "config": {
+    "strategy_id": "s01",
+    "symbols": null,
+    "start": "2026-09-01",
+    "end": "2026-10-30",
+    "params": {
+      "prior_price_min": 6.0,
+      "prior_price_max": 50.0,
+      "prior_return_min": 0.04,
+      "prior_return_max": 0.12,
+      "prior_range_max": 0.055,
+      "amount_min": 60000000.0,
+      "listing_days": 60,
+      "current_return_min": 0.012,
+      "current_return_max": 0.03,
+      "current_range_max": 0.05,
+      "market_min_valid": 1000,
+      "market_positive_min": 0.6,
+      "vwap_buffer": 0.0003,
+      "peak_profit_min": 0.02,
+      "peak_retrace_min": 0.005,
+      "return_15m_max": -0.003,
+      "decline_3m": 0.002,
+      "volume_ratio_min": 1.5,
+      "guard_time": "11:28",
+      "sell_deadline": "13:30",
+      "initial_cash": 100000.0,
+      "entry_nav_fraction": 0.2,
+      "entry_budget": 0.0,
+      "position_limit": 5,
+      "participation": 0.1,
+      "slippage": 0.0005,
+      "commission": 0.00025,
+      "minimum_commission": 5.0,
+      "transfer_fee": 1e-05,
+      "stamp_tax": 0.0005
+    },
+    "overrides": null,
+    "score_min": null,
+    "score_max": null,
+    "matching": "open_t+1",
+    "entry_fill": "close_t",
+    "exit_fill": "close_t",
+    "timing_mode": "strict",
+    "fees_pct": 0.0002,
+    "commission_pct": 0.00025,
+    "stamp_tax_pct": 0.0005,
+    "minimum_commission": 5.0,
+    "transfer_fee_pct": 1e-05,
+    "stamp_tax_mode": "historical",
+    "cost_model_version": "cn_stock_tax_minimum_commission_v2",
+    "execution_model_version": "raw_price_frozen_entry_risk_v6",
+    "entry_policy_version": "raw_price_complete_score_exit_first_v2",
+    "strict_research": false,
+    "slippage_bps": 5.0,
+    "max_positions": 5,
+    "max_exposure_pct": 1.0,
+    "initial_capital": 100000.0,
+    "position_sizing": "equal",
+    "mode": "position",
+    "holding_days": 5,
+    "minute_fill": false,
+    "regime_filter": null,
+    "asset_type": "stock",
+    "minute_execution": "overnight_capacity_v1",
+    "execution_entry_fill": "capacity_window",
+    "execution_exit_fill": "persistent_signal_capacity_window"
+  },
+  "stats": {
+    "warnings": [
+      "历史证券状态不足: 197984 条观测 (100.0%)缺少可验证的 ST/上市状态",
+      "历史退市股票池完整性未经验证, 缺失比例未知",
+      "财务原公告及修订可见时间未经验证, 输入行未知比例 100.0%",
+      "当前证券目录及已记录ST排除; 完整历史证券池与公司行为未经认证",
+      "此结果重建买入撮合, 冻结190笔买入账本的历史收益需单独核验"
+    ],
+    "trade_metrics_version": "net_trades_v1",
+    "payoff_ratio": 1.1258,
+    "profit_factor_amount": 3.8152,
+    "net_expectancy": 0.009006,
+    "gross_profit_amount": 4060.78,
+    "gross_loss_amount": 1064.37,
+    "n_wins": 13,
+    "n_losses": 4,
+    "n_flat": 0,
+    "total_return": 0.02996417593566636,
+    "annual_return": 0.2162725270220831,
+    "max_drawdown": -0.0031694562507997848,
+    "sharpe": 2.48,
+    "sortino": 19.98,
+    "calmar": 66.31,
+    "win_rate": 0.7647,
+    "profit_factor": 1.13,
+    "n_trades": 17,
+    "avg_pnl": 0.009,
+    "avg_win": 0.0162,
+    "avg_loss": 0.0144,
+    "best": 0.0669,
+    "worst": -0.0265,
+    "median_pnl": 0.0046,
+    "avg_holding_days": 1.0,
+    "final_equity": 102996.42,
+    "initial_capital": 100000.0,
+    "avg_exposure": 0.0859,
+    "max_exposure": 0.9685,
+    "return_moments": {
+      "basis": "daily_portfolio",
+      "annualized": false,
+      "n_obs": 38,
+      "sharpe": 0.15403392572893526,
+      "skewness": 5.668236304171985,
+      "kurtosis": 34.14375883215928,
+      "status": "available"
+    },
+    "execution_backend": "minute_filter",
+    "minute_execution": "overnight_capacity_v1",
+    "execution": {
+      "fill_count": 39,
+      "buy_fills": 17,
+      "sell_fills": 22,
+      "deadline_violations": 0,
+      "failures": [],
+      "remaining_positions": [],
+      "cash": 102996.41759356664,
+      "capacity_checked": true,
+      "aggregated_order_fees": true
+    },
+    "result_scope": "raw_price_cash_ledger_excluding_unverified_dividends",
+    "certified": false
+  },
+  "equity_curve": [
+    {
+      "date": "2026-09-01",
+      "value": 99933.48063439,
+      "cash": 4137.480634390002,
+      "positions": 5
+    },
+    {
+      "date": "2026-09-02",
+      "value": 99945.26597737169,
+      "cash": 99945.26597737169,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-03",
+      "value": 99945.26597737169,
+      "cash": 99945.26597737169,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-04",
+      "value": 99945.26597737169,
+      "cash": 99945.26597737169,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-07",
+      "value": 99945.26597737169,
+      "cash": 99945.26597737169,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-08",
+      "value": 100014.6732350917,
+      "cash": 63460.673235091694,
+      "positions": 2
+    },
+    {
+      "date": "2026-09-09",
+      "value": 99702.69760203504,
+      "cash": 99702.69760203504,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-10",
+      "value": 99702.69760203504,
+      "cash": 99702.69760203504,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-11",
+      "value": 99702.69760203504,
+      "cash": 99702.69760203504,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-14",
+      "value": 99702.69760203504,
+      "cash": 99702.69760203504,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-15",
+      "value": 99702.69760203504,
+      "cash": 99702.69760203504,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-16",
+      "value": 99702.69760203504,
+      "cash": 99702.69760203504,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-17",
+      "value": 99702.69760203504,
+      "cash": 99702.69760203504,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-18",
+      "value": 99697.68110383504,
+      "cash": 80047.68110383504,
+      "positions": 1
+    },
+    {
+      "date": "2026-09-21",
+      "value": 99994.51112190064,
+      "cash": 3154.71112190064,
+      "positions": 5
+    },
+    {
+      "date": "2026-09-22",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-23",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-24",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-28",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-29",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-09-30",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-08",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-09",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-12",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-13",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-14",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-15",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-16",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-19",
+      "value": 103109.58130442331,
+      "cash": 103109.58130442331,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-20",
+      "value": 103241.01123967531,
+      "cash": 64220.01123967531,
+      "positions": 2
+    },
+    {
+      "date": "2026-10-21",
+      "value": 103262.61788023665,
+      "cash": 103262.61788023665,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-22",
+      "value": 103262.61788023665,
+      "cash": 103262.61788023665,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-23",
+      "value": 103262.61788023665,
+      "cash": 103262.61788023665,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-26",
+      "value": 103262.61788023665,
+      "cash": 103262.61788023665,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-27",
+      "value": 103262.61788023665,
+      "cash": 103262.61788023665,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-28",
+      "value": 103217.59469454664,
+      "cash": 62418.59469454664,
+      "positions": 2
+    },
+    {
+      "date": "2026-10-29",
+      "value": 102996.41759356664,
+      "cash": 102996.41759356664,
+      "positions": 0
+    },
+    {
+      "date": "2026-10-30",
+      "value": 102996.41759356664,
+      "cash": 102996.41759356664,
+      "positions": 0
+    }
+  ],
+  "drawdown_curve": [
+    {
+      "date": "2026-09-01",
+      "value": -0.0006651936561000715
+    },
+    {
+      "date": "2026-09-02",
+      "value": -0.0005473402262831106
+    },
+    {
+      "date": "2026-09-03",
+      "value": -0.0005473402262831106
+    },
+    {
+      "date": "2026-09-04",
+      "value": -0.0005473402262831106
+    },
+    {
+      "date": "2026-09-07",
+      "value": -0.0005473402262831106
+    },
+    {
+      "date": "2026-09-08",
+      "value": 0.0
+    },
+    {
+      "date": "2026-09-09",
+      "value": -0.0031192986285456525
+    },
+    {
+      "date": "2026-09-10",
+      "value": -0.0031192986285456525
+    },
+    {
+      "date": "2026-09-11",
+      "value": -0.0031192986285456525
+    },
+    {
+      "date": "2026-09-14",
+      "value": -0.0031192986285456525
+    },
+    {
+      "date": "2026-09-15",
+      "value": -0.0031192986285456525
+    },
+    {
+      "date": "2026-09-16",
+      "value": -0.0031192986285456525
+    },
+    {
+      "date": "2026-09-17",
+      "value": -0.0031192986285456525
+    },
+    {
+      "date": "2026-09-18",
+      "value": -0.0031694562507997848
+    },
+    {
+      "date": "2026-09-21",
+      "value": -0.00020159155190835332
+    },
+    {
+      "date": "2026-09-22",
+      "value": 0.0
+    },
+    {
+      "date": "2026-09-23",
+      "value": 0.0
+    },
+    {
+      "date": "2026-09-24",
+      "value": 0.0
+    },
+    {
+      "date": "2026-09-28",
+      "value": 0.0
+    },
+    {
+      "date": "2026-09-29",
+      "value": 0.0
+    },
+    {
+      "date": "2026-09-30",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-08",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-09",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-12",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-13",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-14",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-15",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-16",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-19",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-20",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-21",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-22",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-23",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-26",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-27",
+      "value": 0.0
+    },
+    {
+      "date": "2026-10-28",
+      "value": -0.00043600662673715096
+    },
+    {
+      "date": "2026-10-29",
+      "value": -0.002577895971790478
+    },
+    {
+      "date": "2026-10-30",
+      "value": -0.002577895971790478
+    }
+  ],
+  "benchmark_curve": [],
+  "trades": [
+    {
+      "symbol": "601882.SH",
+      "name": "",
+      "entry_date": "2026-09-01 14:47",
+      "exit_date": "2026-09-02 11:29",
+      "entry_price": 22.501244999999997,
+      "exit_price": 22.628680000000003,
+      "pnl_pct": 0.004583732190241108,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 800,
+      "lots": 8.0,
+      "position_pct": 0.0,
+      "entry_value": 18006.17600996,
+      "exit_value": 18088.711498560002,
+      "pnl_amount": 82.53548860000228,
+      "entry_score": -0.007377556397429329,
+      "entry_signal_date": "2026-09-01 14:45",
+      "exit_signal_date": "2026-09-02 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 800,
+      "raw_entry_price": 22.501244999999997,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 100000.0,
+      "entry_budget": 20000.0
+    },
+    {
+      "symbol": "601665.SH",
+      "name": "",
+      "entry_date": "2026-09-01 14:47",
+      "exit_date": "2026-09-02 11:29",
+      "entry_price": 7.1202250000000005,
+      "exit_price": 7.159751666666668,
+      "pnl_pct": 0.004525128921847976,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 2800,
+      "lots": 28.0,
+      "position_pct": 0.0,
+      "entry_value": 19941.8293663,
+      "exit_value": 20032.068715120004,
+      "pnl_amount": 90.23934882000322,
+      "entry_score": -0.00838813143951455,
+      "entry_signal_date": "2026-09-01 14:45",
+      "exit_signal_date": "2026-09-02 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 2800,
+      "raw_entry_price": 7.1202250000000005,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99985.82399004,
+      "entry_budget": 19997.164798008
+    },
+    {
+      "symbol": "002301.SZ",
+      "name": "",
+      "entry_date": "2026-09-01 14:47",
+      "exit_date": "2026-09-02 11:30",
+      "entry_price": 8.207434999999998,
+      "exit_price": 8.24559736111111,
+      "pnl_pct": 0.00361873464784912,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 2400,
+      "lots": 24.0,
+      "position_pct": 0.0,
+      "entry_value": 19703.040978439996,
+      "exit_value": 19774.34105549667,
+      "pnl_amount": 71.30007705667231,
+      "entry_score": -0.009958020541118103,
+      "entry_signal_date": "2026-09-01 14:45",
+      "exit_signal_date": "2026-09-02 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 2400,
+      "raw_entry_price": 8.207434999999998,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99979.99462374,
+      "entry_budget": 19995.998924748
+    },
+    {
+      "symbol": "601988.SH",
+      "name": "",
+      "entry_date": "2026-09-01 14:47",
+      "exit_date": "2026-09-02 11:29",
+      "entry_price": 6.65666,
+      "exit_price": 6.673328333333333,
+      "pnl_pct": 0.001481343950077152,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 3000,
+      "lots": 30.0,
+      "position_pct": 0.0,
+      "entry_value": 19975.1796998,
+      "exit_value": 20004.7698114,
+      "pnl_amount": 29.590111600002274,
+      "entry_score": -0.010841449666992041,
+      "entry_signal_date": "2026-09-01 14:45",
+      "exit_signal_date": "2026-09-02 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 3000,
+      "raw_entry_price": 6.65666,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99956.9536453,
+      "entry_budget": 19991.390729060004
+    },
+    {
+      "symbol": "600031.SH",
+      "name": "",
+      "entry_date": "2026-09-01 14:47",
+      "exit_date": "2026-09-02 11:29",
+      "entry_price": 20.256789999999995,
+      "exit_price": 19.91337166666667,
+      "pnl_pct": -0.018007993351638163,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 900,
+      "lots": 9.0,
+      "position_pct": 0.0,
+      "entry_value": 18236.293311109996,
+      "exit_value": 17907.894262405003,
+      "pnl_amount": -328.3990487049923,
+      "entry_score": -0.013138116416544547,
+      "entry_signal_date": "2026-09-01 14:45",
+      "exit_signal_date": "2026-09-02 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 900,
+      "raw_entry_price": 20.256789999999995,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99931.7739455,
+      "entry_budget": 19986.3547891
+    },
+    {
+      "symbol": "300892.SZ",
+      "name": "",
+      "entry_date": "2026-09-08 14:47",
+      "exit_date": "2026-09-09 11:30",
+      "entry_price": 25.27263,
+      "exit_price": 24.628631904761907,
+      "pnl_pct": -0.02654653714174926,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 700,
+      "lots": 7.0,
+      "position_pct": 0.0,
+      "entry_value": 17696.017908410002,
+      "exit_value": 17226.249911743336,
+      "pnl_amount": -469.76799666666557,
+      "entry_score": -0.017758407496723392,
+      "entry_signal_date": "2026-09-08 14:45",
+      "exit_signal_date": "2026-09-09 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 700,
+      "raw_entry_price": 25.27263,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99945.26597737169,
+      "entry_budget": 19989.05319547434
+    },
+    {
+      "symbol": "300839.SZ",
+      "name": "",
+      "entry_date": "2026-09-08 14:47",
+      "exit_date": "2026-09-09 11:21",
+      "entry_price": 13.416704999999999,
+      "exit_price": 13.593200000000003,
+      "pnl_pct": 0.012092435074981589,
+      "duration": 1,
+      "exit_reason": "volume_decline",
+      "shares": 1400,
+      "lots": 14.0,
+      "position_pct": 0.0,
+      "entry_value": 18788.57483387,
+      "exit_value": 19015.774455200004,
+      "pnl_amount": 227.19962133000445,
+      "entry_score": -0.022530340920672715,
+      "entry_signal_date": "2026-09-08 14:45",
+      "exit_signal_date": "2026-09-09 11:20",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_volume_decline",
+      "raw_entry_shares": 1400,
+      "raw_entry_price": 13.416704999999999,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99931.2480689617,
+      "entry_budget": 19986.24961379234
+    },
+    {
+      "symbol": "000571.SZ",
+      "name": "",
+      "entry_date": "2026-09-18 14:47",
+      "exit_date": "2026-09-21 11:29",
+      "entry_price": 6.54994,
+      "exit_price": 6.633348333333334,
+      "pnl_pct": 0.011695715384978378,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 3000,
+      "lots": 30.0,
+      "position_pct": 0.0,
+      "entry_value": 19655.0164982,
+      "exit_value": 19884.89597705,
+      "pnl_amount": 229.87947885000176,
+      "entry_score": -0.023223669452710302,
+      "entry_signal_date": "2026-09-18 14:45",
+      "exit_signal_date": "2026-09-21 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 3000,
+      "raw_entry_price": 6.54994,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99702.69760203504,
+      "entry_budget": 19940.53952040701
+    },
+    {
+      "symbol": "002241.SZ",
+      "name": "",
+      "entry_date": "2026-09-21 14:47",
+      "exit_date": "2026-09-22 11:16",
+      "entry_price": 23.735194999999997,
+      "exit_price": 24.837574999999998,
+      "pnl_pct": 0.04536222281280522,
+      "duration": 1,
+      "exit_reason": "morning_vwap_or_trailing",
+      "shares": 800,
+      "lots": 8.0,
+      "position_pct": 0.0,
+      "entry_value": 18993.34588156,
+      "exit_value": 19854.9262694,
+      "pnl_amount": 861.5803878400002,
+      "entry_score": 0.0003671297527939425,
+      "entry_signal_date": "2026-09-21 14:45",
+      "exit_signal_date": "2026-09-22 11:15",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_morning_vwap_or_trailing",
+      "raw_entry_shares": 800,
+      "raw_entry_price": 23.735194999999997,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99932.57708088504,
+      "entry_budget": 19986.515416177008
+    },
+    {
+      "symbol": "688380.SH",
+      "name": "",
+      "entry_date": "2026-09-21 14:47",
+      "exit_date": "2026-09-22 11:16",
+      "entry_price": 41.90094,
+      "exit_price": 43.00182166666667,
+      "pnl_pct": 0.025226200653370556,
+      "duration": 1,
+      "exit_reason": "morning_vwap_or_trailing",
+      "shares": 476,
+      "lots": 4.76,
+      "position_pct": 0.0,
+      "entry_value": 19950.046888474397,
+      "exit_value": 20453.310774327205,
+      "pnl_amount": 503.263885852808,
+      "entry_score": -0.0010790646039810677,
+      "entry_signal_date": "2026-09-21 14:45",
+      "exit_signal_date": "2026-09-22 11:15",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_morning_vwap_or_trailing",
+      "raw_entry_shares": 476,
+      "raw_entry_price": 41.90094,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99915.23119932503,
+      "entry_budget": 19983.04623986501
+    },
+    {
+      "symbol": "300458.SZ",
+      "name": "",
+      "entry_date": "2026-09-21 14:47",
+      "exit_date": "2026-09-22 11:29",
+      "entry_price": 31.725855,
+      "exit_price": 33.88305,
+      "pnl_pct": 0.0668922754750465,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 600,
+      "lots": 6.0,
+      "position_pct": 0.0,
+      "entry_value": 19040.703355129997,
+      "exit_value": 20314.379329199997,
+      "pnl_amount": 1273.67597407,
+      "entry_score": -0.0018062521655639666,
+      "entry_signal_date": "2026-09-21 14:45",
+      "exit_signal_date": "2026-09-22 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 600,
+      "raw_entry_price": 31.725855,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99876.26431085063,
+      "entry_budget": 19975.252862170128
+    },
+    {
+      "symbol": "300304.SZ",
+      "name": "",
+      "entry_date": "2026-09-21 14:47",
+      "exit_date": "2026-09-22 11:29",
+      "entry_price": 11.779219999999999,
+      "exit_price": 11.917371666666666,
+      "pnl_pct": 0.010668908286294965,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 1600,
+      "lots": 16.0,
+      "position_pct": 0.0,
+      "entry_value": 18851.94046752,
+      "exit_value": 19053.070091386664,
+      "pnl_amount": 201.1296238666655,
+      "entry_score": -0.008082993545163432,
+      "entry_signal_date": "2026-09-21 14:45",
+      "exit_signal_date": "2026-09-22 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 1600,
+      "raw_entry_price": 11.779219999999999,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99855.56095572063,
+      "entry_budget": 19971.11219114413
+    },
+    {
+      "symbol": "688709.SH",
+      "name": "",
+      "entry_date": "2026-09-21 14:47",
+      "exit_date": "2026-09-22 11:17",
+      "entry_price": 25.429375,
+      "exit_price": 25.88597910714286,
+      "pnl_pct": 0.01691692099617015,
+      "duration": 1,
+      "exit_reason": "morning_vwap_or_trailing",
+      "shares": 784,
+      "lots": 7.84,
+      "position_pct": 0.0,
+      "entry_value": 19941.8293663,
+      "exit_value": 20279.183718208802,
+      "pnl_amount": 337.3543519088016,
+      "entry_score": -0.008816925577867604,
+      "entry_signal_date": "2026-09-21 14:45",
+      "exit_signal_date": "2026-09-22 11:15",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_morning_vwap_or_trailing",
+      "raw_entry_shares": 784,
+      "raw_entry_price": 25.429375,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 99835.62048820064,
+      "entry_budget": 19967.12409764013
+    },
+    {
+      "symbol": "688728.SH",
+      "name": "",
+      "entry_date": "2026-10-20 14:47",
+      "exit_date": "2026-10-21 11:29",
+      "entry_price": 12.71969,
+      "exit_price": 12.806926666666667,
+      "pnl_pct": 0.005831667043834088,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 1620,
+      "lots": 16.2,
+      "position_pct": 0.0,
+      "entry_value": 20611.255333428,
+      "exit_value": 20731.453311888,
+      "pnl_amount": 120.19797846000074,
+      "entry_score": -0.014614270281097293,
+      "entry_signal_date": "2026-10-20 14:45",
+      "exit_signal_date": "2026-10-21 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 1620,
+      "raw_entry_price": 12.71969,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 103109.58130442331,
+      "entry_budget": 20621.916260884664
+    },
+    {
+      "symbol": "301101.SZ",
+      "name": "",
+      "entry_date": "2026-10-20 14:47",
+      "exit_date": "2026-10-21 13:01",
+      "entry_price": 30.45522,
+      "exit_price": 30.54249888888889,
+      "pnl_pct": 0.001796587805606542,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 600,
+      "lots": 6.0,
+      "position_pct": 0.0,
+      "entry_value": 18278.314731320002,
+      "exit_value": 18311.153328673332,
+      "pnl_amount": 32.83859735332953,
+      "entry_score": -0.015514774509158991,
+      "entry_signal_date": "2026-10-20 14:45",
+      "exit_signal_date": "2026-10-21 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 600,
+      "raw_entry_price": 30.45522,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 103104.72597099532,
+      "entry_budget": 20620.945194199066
+    },
+    {
+      "symbol": "600901.SH",
+      "name": "",
+      "entry_date": "2026-10-28 14:47",
+      "exit_date": "2026-10-29 11:25",
+      "entry_price": 7.533765,
+      "exit_price": 7.499581666666667,
+      "pnl_pct": -0.005552458599551668,
+      "duration": 1,
+      "exit_reason": "volume_decline",
+      "shares": 2700,
+      "lots": 27.0,
+      "position_pct": 0.0,
+      "entry_value": 20346.45420303,
+      "exit_value": 20233.481358420002,
+      "pnl_amount": -112.97284460999799,
+      "entry_score": -0.011740712996279875,
+      "entry_signal_date": "2026-10-28 14:45",
+      "exit_signal_date": "2026-10-29 11:24",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_volume_decline",
+      "raw_entry_shares": 2700,
+      "raw_entry_price": 7.533765,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 103262.61788023665,
+      "entry_budget": 20652.52357604733
+    },
+    {
+      "symbol": "002034.SZ",
+      "name": "",
+      "entry_date": "2026-10-28 14:47",
+      "exit_date": "2026-10-29 11:29",
+      "entry_price": 14.637315,
+      "exit_price": 14.542725,
+      "pnl_pct": -0.0074753958476548865,
+      "duration": 1,
+      "exit_reason": "time_guard",
+      "shares": 1400,
+      "lots": 14.0,
+      "position_pct": 0.0,
+      "entry_value": 20497.56898266,
+      "exit_value": 20344.341540600002,
+      "pnl_amount": -153.22744205999697,
+      "entry_score": -0.014629660706467606,
+      "entry_signal_date": "2026-10-28 14:45",
+      "exit_signal_date": "2026-10-29 11:28",
+      "blocked_exit_days": 0,
+      "entry_signal_id": null,
+      "exit_signal_id": "overnight_time_guard",
+      "raw_entry_shares": 1400,
+      "raw_entry_price": 14.637315,
+      "raw_frozen_stop_price": null,
+      "entry_nav": 103247.16367720664,
+      "entry_budget": 20649.43273544133
+    }
+  ],
+  "per_symbol_stats": [],
+  "strategy_info": {
+    "id": "s01",
+    "name": "s01 · 尾盘低振幅隔夜",
+    "description": "14:45完整分钟筛选, 次日11:15早盘均价/盈利回落、短时放量下跌及11:22清仓信号。分钟容量分片; 研究参数尚无独立样本验证。",
+    "execution_backend": "minute_filter",
+    "minute_execution": "overnight_capacity_v1",
+    "params": {
+      "prior_price_min": 6.0,
+      "prior_price_max": 50.0,
+      "prior_return_min": 0.04,
+      "prior_return_max": 0.12,
+      "prior_range_max": 0.055,
+      "amount_min": 60000000.0,
+      "listing_days": 60,
+      "current_return_min": 0.012,
+      "current_return_max": 0.03,
+      "current_range_max": 0.05,
+      "market_min_valid": 1000,
+      "market_positive_min": 0.6,
+      "vwap_buffer": 0.0003,
+      "peak_profit_min": 0.02,
+      "peak_retrace_min": 0.005,
+      "return_15m_max": -0.003,
+      "decline_3m": 0.002,
+      "volume_ratio_min": 1.5,
+      "guard_time": "11:28",
+      "sell_deadline": "13:30",
+      "initial_cash": 100000.0,
+      "entry_nav_fraction": 0.2,
+      "entry_budget": 0.0,
+      "position_limit": 5,
+      "participation": 0.1,
+      "slippage": 0.0005,
+      "commission": 0.00025,
+      "minimum_commission": 5.0,
+      "transfer_fee": 1e-05,
+      "stamp_tax": 0.0005
+    }
+  },
+  "factor_attribution": null,
+  "elapsed_ms": 849.3,
+  "error": null,
+  "provenance": {
+    "schema_version": 1,
+    "captured_at": "2026-10-31T22:18:23Z",
+    "dataset_release_id": "4f4c8ced8894457ca24b66be52c16f26",
+    "dataset_release_created_at": "2026-10-30T08:15:43Z",
+    "dataset_release_reason": "daily_pipeline",
+    "asset_type": "stock",
+    "data_generation": "4c4cbd7599424f80928b8dc0e46ad1d0",
+    "release_generation": "4c4cbd7599424f80928b8dc0e46ad1d0",
+    "release_consistent": true,
+    "providers": {
+      "adj_factor": "rustdx",
+      "corporate_actions": "rustdx",
+      "daily": "rustdx",
+      "depth5": "rustdx",
+      "financial": "rustdx",
+      "minute": "rustdx",
+      "realtime": "rustdx"
+    },
+    "config_hash": "f1be4775d9cf78f39b9d59b9f3d9603f4627b8128ad072a658374fee32626f8c",
+    "strategy_hash": "82c73a594709dcab64387a3c0b357064543e986fa10b38e9c35661c18736e401",
+    "release_error": null,
+    "research_inputs": {
+      "files": {
+        "instruments/instruments.parquet": {
+          "sha256": "83e98aa0c5ebd2bbb981795f57b5d6559409a1d29bba1b8f977a39d8b7b1bd85",
+          "bytes": 130237
+        },
+        "instrument_status/history.parquet": {
+          "sha256": "fa3d6fa579ed2a4c11fd03b13f53a657e486cba4e9b2a0c10d0d7e81f95be91c",
+          "bytes": 62577
+        },
+        "financials/metrics/part.parquet": {
+          "sha256": "c3ddb7077174cc65d5f940d4f0e183ed55c53503920c465c394bda11742fdde8",
+          "bytes": 3134909
+        },
+        "financials/income/part.parquet": {
+          "sha256": "c8d992c11d357aa787fd7702a2f6e42bb83bdcf762b351eccd21b6ff21e73ca7",
+          "bytes": 6296657
+        },
+        "financials/balance_sheet/part.parquet": {
+          "sha256": "3073c4020bb0b6d2632daeaadafa7f53b851838f325497aa48a471face503c15",
+          "bytes": 6241984
+        },
+        "financials/cash_flow/part.parquet": {
+          "sha256": "d1111b7a04953ca2ec6266120cd95267685b33df7a5d16471785369f1590b534",
+          "bytes": 2903634
+        },
+        "financials/shares/part.parquet": {
+          "sha256": "632a03d800422dd6f62b8e621101b6660a7d246c816a6fd5c0a1f7f3b8eb44f0",
+          "bytes": 458894
+        }
+      },
+      "trading_calendar": {
+        "version": "SSE-2019-2026-20261026",
+        "covered_years": [
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "sha256": "51fc950004885a1ea88d4c306a5ea2285e34ae3b2191412a5cad9c289f0336aa",
+        "unknown_year_policy": "provider_evidence"
+      }
+    },
+    "research_inputs_error": null,
+    "research_inputs_match_release": true,
+    "financial_revisions": {
+      "captured_at": "2026-10-31T22:18:23Z",
+      "error": null,
+      "tables": {
+        "metrics": {
+          "observed_at": "2026-10-29T17:23:20.291711+00:00",
+          "content_hash": "a9bf6ed25f21b8c3b55251af1a5f8295769326553456b773a733b368388ec296",
+          "publication_time_verified": false
+        },
+        "income": {
+          "observed_at": "2026-10-28T22:36:55.547929+00:00",
+          "content_hash": "e456e4dcfb173f9131d95f4074fee4261d7ce482e4bc4e833cdd07f7cb209730",
+          "publication_time_verified": false
+        },
+        "balance_sheet": {
+          "observed_at": "2026-10-28T22:31:18.929885+00:00",
+          "content_hash": "e62480b78e5421aced89f0ea47cea15609cd3d17f69853789543a9ef8b20e41a",
+          "publication_time_verified": false
+        },
+        "cash_flow": {
+          "observed_at": "2026-10-28T22:31:19.345321+00:00",
+          "content_hash": "438a27d2d99794f03d6c6195e08a12d4d3f41187ac12f6a44510a034b8ecfda5",
+          "publication_time_verified": false
+        },
+        "shares": {
+          "observed_at": "2026-10-28T22:36:55.899994+00:00",
+          "content_hash": "38ba669c522c0c366de74b4f82b6527033828f7712eeef5876b76309272abbdc",
+          "publication_time_verified": false
+        }
+      }
+    },
+    "historical_inputs": {
+      "universe": {
+        "survivorship_verified": false,
+        "missing_delisted_ratio": null,
+        "reason": "historical_universe_denominator_unavailable"
+      },
+      "financial_publication": {
+        "basis": "retained_input_rows",
+        "rows": 625956,
+        "unknown_rows": 625956,
+        "unknown_ratio": 1.0,
+        "tables": {
+          "metrics": {
+            "rows": 126144,
+            "unknown_publication_ratio": 1.0
+          },
+          "income": {
+            "rows": 124953,
+            "unknown_publication_ratio": 1.0
+          },
+          "balance_sheet": {
+            "rows": 124953,
+            "unknown_publication_ratio": 1.0
+          },
+          "cash_flow": {
+            "rows": 124953,
+            "unknown_publication_ratio": 1.0
+          },
+          "shares": {
+            "rows": 124953,
+            "unknown_publication_ratio": 1.0
+          }
+        },
+        "errors": [],
+        "publication_time_verified": false
+      }
+    },
+    "input_snapshot": {
+      "mode": "public_release",
+      "id": "8b6a5666fe0e4f68827e2e99e01d7ba9",
+      "file_count": 13455
+    },
+    "research_governance": {
+      "strict": false,
+      "cost_model_version": "cn_stock_tax_minimum_commission_v2",
+      "status_quality": {
+        "observations": 197984,
+        "unknown_status_observations": 197984,
+        "status_coverage": 0.0,
+        "unknown_status_ratio": 1.0,
+        "historical_status_complete": false
+      },
+      "issues": [
+        "历史证券状态不足: 197984 条观测 (100.0%)缺少可验证的 ST/上市状态",
+        "历史退市股票池完整性未经验证, 缺失比例未知",
+        "财务原公告及修订可见时间未经验证, 输入行未知比例 100.0%"
+      ],
+      "status_and_cost_gate_passed": false,
+      "historical_pit_verified": false
+    }
+  },
+  "fills": [
+    {
+      "date": "2026-09-01",
+      "symbol": "601882.SH",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-01 14:47:00",
+      "shares": 800,
+      "price": 22.501244999999997,
+      "notional": 18000.996,
+      "fee": 5.18000996,
+      "minute_volume_shares": 111900.0,
+      "participation": 0.0071492403932082215
+    },
+    {
+      "date": "2026-09-01",
+      "symbol": "601665.SH",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-01 14:47:00",
+      "shares": 2800,
+      "price": 7.1202250000000005,
+      "notional": 19936.63,
+      "fee": 5.1993663,
+      "minute_volume_shares": 382800.0,
+      "participation": 0.0073145245559038665
+    },
+    {
+      "date": "2026-09-01",
+      "symbol": "002301.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-01 14:47:00",
+      "shares": 2400,
+      "price": 8.207434999999998,
+      "notional": 19697.843999999997,
+      "fee": 5.19697844,
+      "minute_volume_shares": 81700.0,
+      "participation": 0.02937576499388005
+    },
+    {
+      "date": "2026-09-01",
+      "symbol": "601988.SH",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-01 14:47:00",
+      "shares": 3000,
+      "price": 6.65666,
+      "notional": 19969.98,
+      "fee": 5.1996998,
+      "minute_volume_shares": 584600.0,
+      "participation": 0.005131713992473486
+    },
+    {
+      "date": "2026-09-01",
+      "symbol": "600031.SH",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-01 14:47:00",
+      "shares": 900,
+      "price": 20.25679,
+      "notional": 18231.110999999997,
+      "fee": 5.18231111,
+      "minute_volume_shares": 224000.0,
+      "participation": 0.0040178571428571425
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "601882.SH",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-02 11:29:00",
+      "shares": 800,
+      "price": 22.628680000000003,
+      "notional": 18102.944000000003,
+      "fee": 14.232501440000002,
+      "minute_volume_shares": 11900.0,
+      "participation": 0.06722689075630252
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "601665.SH",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-02 11:29:00",
+      "shares": 2800,
+      "price": 7.159751666666668,
+      "notional": 20047.30466666667,
+      "fee": 15.23595154666667,
+      "minute_volume_shares": 43200.0,
+      "participation": 0.06481481481481481
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "002301.SZ",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-02 11:29:00",
+      "shares": 2300,
+      "price": 8.245875,
+      "notional": 18965.5125,
+      "fee": 14.672411375000001,
+      "minute_volume_shares": 23400.0,
+      "participation": 0.09829059829059829
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "002301.SZ",
+      "side": "sell",
+      "bar": 690,
+      "datetime": "2026-09-02 11:30:00",
+      "shares": 100,
+      "price": 8.239211666666668,
+      "notional": 823.9211666666667,
+      "fee": 0.42019979500000026,
+      "minute_volume_shares": 17700.0,
+      "participation": 0.005649717514124294
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "601988.SH",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-02 11:29:00",
+      "shares": 3000,
+      "price": 6.673328333333334,
+      "notional": 20019.985,
+      "fee": 15.215188600000001,
+      "minute_volume_shares": 1468600.0,
+      "participation": 0.0020427618139724907
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "600031.SH",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-02 11:29:00",
+      "shares": 900,
+      "price": 19.91337166666667,
+      "notional": 17922.0345,
+      "fee": 14.140237595000002,
+      "minute_volume_shares": 85500.0,
+      "participation": 0.010526315789473684
+    },
+    {
+      "date": "2026-09-08",
+      "symbol": "300892.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-08 14:47:00",
+      "shares": 700,
+      "price": 25.27263,
+      "notional": 17690.841,
+      "fee": 5.17690841,
+      "minute_volume_shares": 12300.0,
+      "participation": 0.056910569105691054
+    },
+    {
+      "date": "2026-09-08",
+      "symbol": "300839.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-08 14:47:00",
+      "shares": 1400,
+      "price": 13.416705,
+      "notional": 18783.387,
+      "fee": 5.18783387,
+      "minute_volume_shares": 52300.0,
+      "participation": 0.02676864244741874
+    },
+    {
+      "date": "2026-09-09",
+      "symbol": "300892.SZ",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-09 11:29:00",
+      "shares": 100,
+      "price": 24.654333333333337,
+      "notional": 2465.433333333334,
+      "fee": 6.257371000000001,
+      "minute_volume_shares": 1800.0,
+      "participation": 0.05555555555555555
+    },
+    {
+      "date": "2026-09-09",
+      "symbol": "300892.SZ",
+      "side": "sell",
+      "bar": 690,
+      "datetime": "2026-09-09 11:30:00",
+      "shares": 600,
+      "price": 24.624348333333334,
+      "notional": 14774.609,
+      "fee": 7.535050590000001,
+      "minute_volume_shares": 6200.0,
+      "participation": 0.0967741935483871
+    },
+    {
+      "date": "2026-09-09",
+      "symbol": "300839.SZ",
+      "side": "sell",
+      "bar": 681,
+      "datetime": "2026-09-09 11:21:00",
+      "shares": 1400,
+      "price": 13.593200000000001,
+      "notional": 19030.480000000003,
+      "fee": 14.705544800000002,
+      "minute_volume_shares": 38600.0,
+      "participation": 0.03626943005181347
+    },
+    {
+      "date": "2026-09-18",
+      "symbol": "000571.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-18 14:47:00",
+      "shares": 3000,
+      "price": 6.549939999999999,
+      "notional": 19649.82,
+      "fee": 5.1964982,
+      "minute_volume_shares": 292800.0,
+      "participation": 0.010245901639344262
+    },
+    {
+      "date": "2026-09-21",
+      "symbol": "000571.SZ",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-21 11:29:00",
+      "shares": 3000,
+      "price": 6.633348333333334,
+      "notional": 19900.045000000002,
+      "fee": 15.14902295,
+      "minute_volume_shares": 98700.0,
+      "participation": 0.030395136778115502
+    },
+    {
+      "date": "2026-09-21",
+      "symbol": "002241.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-21 14:47:00",
+      "shares": 800,
+      "price": 23.735194999999997,
+      "notional": 18988.156,
+      "fee": 5.18988156,
+      "minute_volume_shares": 641500.0,
+      "participation": 0.0012470771628994544
+    },
+    {
+      "date": "2026-09-21",
+      "symbol": "688380.SH",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-21 14:47:00",
+      "shares": 476,
+      "price": 41.90094,
+      "notional": 19944.847439999998,
+      "fee": 5.1994484744,
+      "minute_volume_shares": 149800.0,
+      "participation": 0.003177570093457944
+    },
+    {
+      "date": "2026-09-21",
+      "symbol": "300458.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-21 14:47:00",
+      "shares": 600,
+      "price": 31.725854999999996,
+      "notional": 19035.513,
+      "fee": 5.19035513,
+      "minute_volume_shares": 124300.0,
+      "participation": 0.004827031375703942
+    },
+    {
+      "date": "2026-09-21",
+      "symbol": "300304.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-21 14:47:00",
+      "shares": 1600,
+      "price": 11.779219999999997,
+      "notional": 18846.751999999997,
+      "fee": 5.18846752,
+      "minute_volume_shares": 128100.0,
+      "participation": 0.01249024199843872
+    },
+    {
+      "date": "2026-09-21",
+      "symbol": "688709.SH",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-09-21 14:47:00",
+      "shares": 784,
+      "price": 25.429375,
+      "notional": 19936.63,
+      "fee": 5.1993663,
+      "minute_volume_shares": 8700.0,
+      "participation": 0.09011494252873563
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "002241.SZ",
+      "side": "sell",
+      "bar": 676,
+      "datetime": "2026-09-22 11:16:00",
+      "shares": 800,
+      "price": 24.837574999999998,
+      "notional": 19870.059999999998,
+      "fee": 15.1337306,
+      "minute_volume_shares": 603700.0,
+      "participation": 0.001325161504058307
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "688380.SH",
+      "side": "sell",
+      "bar": 676,
+      "datetime": "2026-09-22 11:16:00",
+      "shares": 476,
+      "price": 43.00182166666667,
+      "notional": 20468.867113333337,
+      "fee": 15.556339006133337,
+      "minute_volume_shares": 43000.0,
+      "participation": 0.011069767441860464
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "300458.SZ",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-22 11:29:00",
+      "shares": 600,
+      "price": 33.88305,
+      "notional": 20329.829999999998,
+      "fee": 15.450670799999997,
+      "minute_volume_shares": 131400.0,
+      "participation": 0.0045662100456621
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "300304.SZ",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-09-22 11:29:00",
+      "shares": 1600,
+      "price": 11.917371666666666,
+      "notional": 19067.794666666665,
+      "fee": 14.72457528,
+      "minute_volume_shares": 36800.0,
+      "participation": 0.043478260869565216
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "688709.SH",
+      "side": "sell",
+      "bar": 676,
+      "datetime": "2026-09-22 11:16:00",
+      "shares": 350,
+      "price": 25.897045000000002,
+      "notional": 9063.965750000001,
+      "fee": 9.622622532500001,
+      "minute_volume_shares": 3500.0,
+      "participation": 0.1
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "688709.SH",
+      "side": "sell",
+      "bar": 677,
+      "datetime": "2026-09-22 11:17:00",
+      "shares": 434,
+      "price": 25.877055000000002,
+      "notional": 11230.641870000001,
+      "fee": 5.801279258700001,
+      "minute_volume_shares": 9100.0,
+      "participation": 0.047692307692307694
+    },
+    {
+      "date": "2026-10-20",
+      "symbol": "688728.SH",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-10-20 14:47:00",
+      "shares": 1620,
+      "price": 12.719689999999998,
+      "notional": 20605.8978,
+      "fee": 5.357533427999999,
+      "minute_volume_shares": 140600.0,
+      "participation": 0.011522048364153627
+    },
+    {
+      "date": "2026-10-20",
+      "symbol": "301101.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-10-20 14:47:00",
+      "shares": 600,
+      "price": 30.45522,
+      "notional": 18273.132,
+      "fee": 5.18273132,
+      "minute_volume_shares": 36400.0,
+      "participation": 0.016483516483516484
+    },
+    {
+      "date": "2026-10-21",
+      "symbol": "688728.SH",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-10-21 11:29:00",
+      "shares": 1620,
+      "price": 12.806926666666667,
+      "notional": 20747.2212,
+      "fee": 15.767888112000001,
+      "minute_volume_shares": 22000.0,
+      "participation": 0.07363636363636364
+    },
+    {
+      "date": "2026-10-21",
+      "symbol": "301101.SZ",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-10-21 11:29:00",
+      "shares": 200,
+      "price": 30.511403333333334,
+      "notional": 6102.280666666667,
+      "fee": 8.11216314,
+      "minute_volume_shares": 2200.0,
+      "participation": 0.09090909090909091
+    },
+    {
+      "date": "2026-10-21",
+      "symbol": "301101.SZ",
+      "side": "sell",
+      "bar": 690,
+      "datetime": "2026-10-21 11:30:00",
+      "shares": 200,
+      "price": 30.564710000000005,
+      "notional": 6112.942000000001,
+      "fee": 3.1176004200000023,
+      "minute_volume_shares": 2500.0,
+      "participation": 0.08
+    },
+    {
+      "date": "2026-10-21",
+      "symbol": "301101.SZ",
+      "side": "sell",
+      "bar": 781,
+      "datetime": "2026-10-21 13:01:00",
+      "shares": 200,
+      "price": 30.551383333333334,
+      "notional": 6110.276666666667,
+      "fee": 3.116241099999998,
+      "minute_volume_shares": 48000.0,
+      "participation": 0.004166666666666667
+    },
+    {
+      "date": "2026-10-28",
+      "symbol": "600901.SH",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-10-28 14:47:00",
+      "shares": 2700,
+      "price": 7.533765,
+      "notional": 20341.1655,
+      "fee": 5.28870303,
+      "minute_volume_shares": 150800.0,
+      "participation": 0.01790450928381963
+    },
+    {
+      "date": "2026-10-28",
+      "symbol": "002034.SZ",
+      "side": "buy",
+      "bar": 887,
+      "datetime": "2026-10-28 14:47:00",
+      "shares": 1400,
+      "price": 14.637315,
+      "notional": 20492.240999999998,
+      "fee": 5.32798266,
+      "minute_volume_shares": 33300.0,
+      "participation": 0.042042042042042045
+    },
+    {
+      "date": "2026-10-29",
+      "symbol": "600901.SH",
+      "side": "sell",
+      "bar": 685,
+      "datetime": "2026-10-29 11:25:00",
+      "shares": 2700,
+      "price": 7.499581666666667,
+      "notional": 20248.8705,
+      "fee": 15.389141580000002,
+      "minute_volume_shares": 45800.0,
+      "participation": 0.05895196506550218
+    },
+    {
+      "date": "2026-10-29",
+      "symbol": "002034.SZ",
+      "side": "sell",
+      "bar": 689,
+      "datetime": "2026-10-29 11:29:00",
+      "shares": 1400,
+      "price": 14.542725000000003,
+      "notional": 20359.815000000002,
+      "fee": 15.473459400000003,
+      "minute_volume_shares": 73300.0,
+      "participation": 0.019099590723055934
+    }
+  ],
+  "signals": [
+    {
+      "date": "2026-09-02",
+      "symbol": "601882.SH",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "601665.SH",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "002301.SZ",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "601988.SH",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-02",
+      "symbol": "600031.SH",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-09",
+      "symbol": "300892.SZ",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-09",
+      "symbol": "300839.SZ",
+      "signal_bar": 680,
+      "first_eligible_bar": 681,
+      "last_eligible_bar": 810,
+      "ret_3m": -0.0021994134897361795,
+      "volume_ratio_3m": 1.6371100164203611,
+      "reason": "volume_decline"
+    },
+    {
+      "date": "2026-09-21",
+      "symbol": "000571.SZ",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "002241.SZ",
+      "signal_bar": 675,
+      "first_eligible_bar": 676,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "morning_vwap_or_trailing"
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "688380.SH",
+      "signal_bar": 675,
+      "first_eligible_bar": 676,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "morning_vwap_or_trailing"
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "300458.SZ",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "300304.SZ",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-09-22",
+      "symbol": "688709.SH",
+      "signal_bar": 675,
+      "first_eligible_bar": 676,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "morning_vwap_or_trailing"
+    },
+    {
+      "date": "2026-10-21",
+      "symbol": "688728.SH",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-10-21",
+      "symbol": "301101.SZ",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    },
+    {
+      "date": "2026-10-29",
+      "symbol": "600901.SH",
+      "signal_bar": 684,
+      "first_eligible_bar": 685,
+      "last_eligible_bar": 810,
+      "ret_3m": -0.0026595744680850686,
+      "volume_ratio_3m": 2.347136563876652,
+      "reason": "volume_decline"
+    },
+    {
+      "date": "2026-10-29",
+      "symbol": "002034.SZ",
+      "signal_bar": 688,
+      "first_eligible_bar": 689,
+      "last_eligible_bar": 810,
+      "ret_3m": null,
+      "volume_ratio_3m": null,
+      "reason": "time_guard"
+    }
+  ],
+  "research_tag": "selected_later"
+}

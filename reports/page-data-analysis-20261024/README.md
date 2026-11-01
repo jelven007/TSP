@@ -12,6 +12,7 @@
 | [页面数据血缘与上游接口清单](页面数据血缘与上游接口清单.md) | 页面 → API → 服务 → Provider/存储 |
 | [数据源分类与需求清单](数据源分类与需求清单.md) | 数据集、单位、来源和覆盖限制 |
 
-对应本地 Excel 位于忽略的 `deliverables/page-data-analysis-20261024/`，
-不作为应用运行输入或源码发布文件。目录与全生命周期变更见
+对应本地 Excel 原位于忽略的 `deliverables/page-data-analysis-20261024/`，
+已随[旧版本交付清理](../deliverables-version-cleanup-20261030/verification.md)移出；
+本目录五份原始分析正文继续保留。Excel不作为应用运行输入或源码发布文件。目录与全生命周期变更见
 [最新整合记录](../production-integration-20261024/verification.md)。

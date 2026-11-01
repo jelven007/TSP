@@ -33,12 +33,13 @@ def repo(tmp_path, request):
     return root
 
 
-def test_archives_are_six_tagged_versions_and_refs_are_unchanged(repo):
+def test_archives_keep_current_and_one_prior_version_without_changing_refs(repo):
     before = git(repo, "show-ref")
     output = repo.parent / "recovery"
     manifest = recovery.create(repo, "main", output)
     assert recovery.verify(output) == manifest
-    assert [r["version"] for r in manifest["versions"]] == [f"0.4.{i}" for i in range(7, 1, -1)]
+    assert [r["version"] for r in manifest["versions"]] == ["0.4.7", "0.4.6"]
+    assert manifest["policy"] == "latest_source_plus_one_prior_version"
     assert git(repo, "show-ref") == before
     assert not list(repo.parent.glob(".source-recovery-*"))
 
@@ -92,8 +93,39 @@ def test_verification_rejects_corruption_and_unsafe_paths(repo, damage):
         recovery.verify(output)
 
 
-def test_missing_historical_version_does_not_publish_partial_set(repo):
-    git(repo, "tag", "-d", "v0.4.1", "v0.4.2")
-    with pytest.raises(ValueError, match="five prior"):
-        recovery.create(repo, "main", repo.parent / "recovery")
-    assert not (repo.parent / "recovery").exists()
+@pytest.mark.parametrize("latest", [1, 2, 3])
+def test_short_tagged_history_keeps_only_available_versions(repo, latest):
+    output = repo.parent / "recovery"
+    manifest = recovery.create(repo, f"v0.4.{latest}", output)
+    assert recovery.verify(output) == manifest
+    assert [r["version"] for r in manifest["versions"]] == [
+        f"0.4.{i}" for i in range(latest, max(0, latest - 2), -1)
+    ]
+
+
+@pytest.mark.parametrize("policy", [
+    "latest_source_plus_two_prior_versions", "latest_source_plus_five_prior_versions",
+])
+def test_verification_rejects_obsolete_retention_policy(repo, policy):
+    output = repo.parent / "recovery"
+    manifest = recovery.create(repo, "main", output)
+    manifest["policy"] = policy
+    (output / "index.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="manifest"):
+        recovery.verify(output)
+
+
+@pytest.mark.parametrize("count", [0, 3])
+def test_verification_rejects_empty_or_excess_versions(repo, count):
+    output = repo.parent / "recovery"
+    manifest = recovery.create(repo, "main", output)
+    if count == 0:
+        manifest["versions"] = []
+    else:
+        earlier = repo.parent / "earlier"
+        record = recovery.create(repo, "v0.4.5", earlier)["versions"][0]
+        (output / record["archive"]).write_bytes((earlier / record["archive"]).read_bytes())
+        manifest["versions"].append(record)
+    (output / "index.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="manifest"):
+        recovery.verify(output)

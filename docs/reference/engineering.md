@@ -1,153 +1,14 @@
 # 工程与交付参考
 
-2026-10-29 `FR-DATA-05`可靠性复核沿既有客户端/Provider/周期服务，兼顾
-排队、遗漏重复定位、JSON重复解析、派生schema、坏页及逐证券隔离。
-模拟、真实100证券两端对照、全量门禁、固定产物和常驻恢复分阶段验收；
-各项实际结果与六类文档入口见
-[交付记录](../../reports/minute-collection-reliability-20261029/verification.md)。
-
-2026-10-29`FR-DATA-05`追加逐证券失败隔离及持久缺口，沿Provider→周期服务→
-Task结果/CSV接线；KlineRepository和发布链保持。定向后台补采、备用接口字段认证、
-源码测试、主线发布和常驻升级分开验收，不用分时非空或任务成功冒充完整K线。
-六类文档和真实验证见
-[追加交付记录](../../reports/minute-301110-20261029/skip-and-backfill.md)。
-
-2026-10-29 `FR-DATA-05`分页来源恢复仅修改rustdx Provider及9项回归。
-需求、方案、二开、测试、行情操作和运维同步维护；
-来源变化重采的代码证明与上游实际历史覆盖分别验收。
-六类映射、ECS只读对账及未发布状态见
-[交付记录](../../reports/minute-301110-20261029/verification.md)。
-
-2026-10-28最新整合以
-[统一发布评审](../../reports/complete-release-20261028-3/review.md)
-串联需求、方案、开发、测试、运营、运维和用户手册。源码候选由三笔聚焦提交组成，
-保持Provider/JobStore/公共发布边界；rustdx固定来源与ETF退役迁移分别验证。
-PR、自动版本/标签、正式镜像、分支清理及两端升级按阶段独立签收，
-不得用本地全量测试替代远程产物或运行验收。
-
-2026-10-28周K混合Parquet schema修复对应`FR-DATA-05`，仅修改周期服务读取入口
-及回归测试；无API、Provider、配置、存储迁移或版本变化。六类文档、真实ECS只读证据
-与未部署边界见[交付记录](../../reports/weekly-parquet-schema-20261028/verification.md)。
-
-2026-10-28指数页交互修复对应`FR-RESEARCH-02/FR-ADMIN-05`，
-只改`Indices`及其回归测试；无后端、存储、配置和版本变更。
-六类文档、用户操作、反向验证与浏览器证据见
-[交付记录](../../reports/index-page-ui-20261028/verification.md)。
-
-2026-10-28 rustdx v2.0.4融合归`FR-DATA-05`，为L3数据源与构建边界修改：
-固定完整核心源码、保留MIT许可证并记录局部补丁，沿既有Provider映射七项数据集。
-8业务+1探测预算、金融探测资格、精度元数据及分页源身份均有定向回归；
-原生构建、来源摘要、CI、构建清单、恢复范围及六类手册同步核对。
-实际命令、平台边界与接入状态见[交付记录](../../reports/rustdx-v204-20261028/verification.md)。
-
-2026-10-28历史K线性能修复对应`FR-DATA-05`，L3日期分块与Provider内部分页调整。
-历史获取、全量/遗漏修正及相关资产统一受益；派生周期保持本地生成。
-六类主手册、二开及操作说明按既有映射维护；逐文件范围、请求预算回归、
-同环境性能及源码/运行边界见[交付记录](../../reports/minute-history-performance-20261028/verification.md)。
-没有新增依赖、Provider协议、配置、存储schema或版本号。
-
-2026-10-28指数扩展对应`FR-RESEARCH-02/FR-ADMIN-05`，复用Provider、JobStore、
-仓储分区写锁与现有前端图表/修正表单。六类主手册、二开和操作说明已同步；
-逐文件范围、验证命令、反向验证与源码/运行边界见
-[交付记录](../../reports/indices-kline-20261028/verification.md)。
-新增的周/月表属于公共行情文件，不新增账号SQL schema或运行配置；本地版本不加号。
-
-2026-10-28并发资源调整仍归`FR-ADMIN-06`：策略内存/CPU总预算各取主机50%，
-复用`strategy_resources.BUDGET_RATIO`与既有准入/推荐计算，页面从`budget_ratio`回显。
-需求、架构、二开、测试、运营与运维按下方既有文档映射维护；
-不改用户保存并发值、部署容量或版本，不把本地源码验证当作运行环境升级。
-
-2026-10-27系统设置简化对应`FR-ADMIN-06`，为L3局部接线：需求与当前架构分别见
-[需求](../requirements.md)和[并发架构](../architecture.md)，开发入口为`System`、
-`StrategyConcurrencyControl`、`Screener`、开源发布组件及原preferences/strategy_resources。
-兼容边界见[二开](../secondary-development.md)，用例矩阵见[测试](../testing.md)，
-用户入口见[系统设置](../../操作说明书.md#238-系统设置)，支持与生效排障见
-[运营](../release-operations.md)和[运维](../operations.md#strategy-concurrency)。
-配置1～999与实际准入上限分开；旧自动运行字段兼容为false，保留已有用户偏好与监控规则。
-本地版本不加号，本轮未更新运行副本或线上。
-
-2026-10-27最新源码整合、精确复审与固定发布阶段见
-[本批记录](../../reports/latest-release-20261027/verification.md)和[源码复审](../../reports/latest-release-20261027/source-review.md)。
-本批沿既有八业务模块与需求编号；源码可合并、main CI、镜像身份及两端运行分别签收，
-保留原研究数据、用户配置和切换后的新增业务，不把分支清理当作数据清理。
-
-旧工作树核对补入此前未提交的历史日历及四类回归；其余旧行为按当前调用链保留。
-日历来源、未知年份与研究快照身份兼容见[集成参考](integrations.md#rustdx-日历与研究复现)。
-
-2026-10-26统一源码冻结、六类文档核对及交付事实见
-[本批整合](../../reports/current-state-release-20261026/verification.md)。
-升级前主线/本地0.4.23，生产0.4.22；新版本只由合并main后的CI分配。
-独立工作目录保留原工作区并行修改；每阶段执行质量门、固定产物、配置/恢复核对，
-构建与上线条件见[发布复核](../../reports/current-state-release-20261026/release-review.md)。
-
-Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清理流程，
-冻结Windows在日志关闭后调用`TerminateProcess`，不新增公共接口或配置。
-`test_desktop_process_exit.py`同时覆盖Python线程与原生DLL卸载阻塞，
-原生用例由Windows CI执行；根因及反向验证见[修复记录](../../.claude/artifacts/fixes/windows-native-exit.md)。
-
-2026-10-26历史结果筛选/删除属于`FR-STRATEGY-05`的L3局部变更：
-需求见[策略契约](../requirements.md)，方案见[归档架构](../architecture.md#strategy-result-history)，
-开发入口为`services/strategy_results.py`、`api/screener.py`、
-`StrategyResultHistoryDialog.tsx`、`api.ts`和`queryKeys.ts`，升级边界见
-[二次开发](../secondary-development.md)。测试见[验收](../testing.md)，
-用户及支持流程见[策略操作](../../操作说明书.md#82-策略卡片)与
-[服务运营](../release-operations.md)，备份/权限/重建缓存见[运维](../operations.md#strategy-history-backup)。
-不新增生产schema、扩展注册或运行配置，保留其他工作区修改，本地版本不加号。
-
-同日重复归档继续归`FR-STRATEGY-05`，L3修改仅在`StrategyResults.save`：
-相同结果复用明细和计算时间，必要时更新摘要中的最新任务顺序及输入来源。
-需求/方案/二开见上方链接，回归覆盖SQLite、真实PostgreSQL和单跑/批跑入口；
-用户说明见[策略操作](../../操作说明书.md#82-策略卡片)，支持及恢复边界见
-[服务运营](../release-operations.md)与[归档运维](../operations.md#strategy-history-backup)。
-旧日期/参数/版本不合并，不执行存量历史清理或迁移，本地不递增应用版本。
-
-2026-10-26六周期画像为L3聚焦变更。需求见[需求补充](../requirements.md)，
-方案见[当前架构](../architecture.md)，开发入口为 `services/kline_periods.py` 与
-`data_providers/*/get_klines`；前端复用 `KlineSyncConfig`、共享查询键和设置弹窗。
-测试映射见[验收指南](../testing.md)，运营入口见[发布运营](../release-operations.md)，
-备份、旧分钟基准及公共目录见[运维](../operations.md)，用户操作见
-[六周期设置](../../操作说明书.md#227-分钟-k-设置)。
-新增表仅用于数据画像和同步，不把它们自动注册为策略/回测可选周期。
-分钟/日K客户端保留原方法，新增可选freq；5m/15m/1w查询由 `query_period`
-复用同一Provider解析与独立分区。页面设置持久值先验证类型并去重，
-六周期离线表单共用 `KlineSyncConfig`，日K/1m提交月年历史范围，派生周期仅传period本地生成；
-旧无范围日K API保持本地生成兼容。
-版本沿用当前主线，合并时对基线三方应用，保留其他本地修改。
-
-2026-10-27离线生成归`FR-DATA-05`的L3局部变更：开发入口为
-`kline_periods.generate_period`、kline API、`KlineSyncConfig`及`api.syncKlinePeriod`。
-需求见[需求](../requirements.md)，基础范围、日K发布及缓存见[方案](../architecture.md)，
-旧调用和自动同步兼容见[二开](../secondary-development.md)，
-测试见[离线生成验收](../testing.md#local-kline-generation)，
-用户操作见[六周期设置](../../操作说明书.md#227-分钟-k-设置)，
-支持和运行更新分别见[运营](../release-operations.md)与[运维](../operations.md)。
-本项不递增版本、不迁移数据或用户配置，主线合并与线上升级另行验收。
-
-历史同步进度修复归`FR-DATA-05`：开发接线包括`kline_periods.sync_period`、
-`extend_history.run_extend_history`、`JobStore.progress`及kline API回调；
-前端`ActiveJobCard`/`HistoryRow`经`lib/klinePeriods.ts`共用周期名称。
-不改变数据源、价格基准、分区或取消契约；阶段进度为已有可选字段。
-回归见[测试指南](../testing.md)，用户支持及运行更新边界见
-[运营](../release-operations.md)和[运维](../operations.md)。
-页面设置本轮增加共享Modal/StrictMode/父更新用例；当前环境尚未复现用户报错，
-不能将其标记为已定位修复。再次出现时须记录实际错误与触发环境后继续定位。
+核对日期：2026-10-30。本文维护工程目录、开发闭环、构建身份、多人协作和生命周期追踪；
+版本身份见[版本基线](../version-baseline.md)，历史交付结果见[证据索引](../../reports/README.md)。
 
 本附录按领域维护实现方法、数据契约和可执行示例。通用开发要求只在[CONTRIBUTING](../../CONTRIBUTING.md)定义；需求与当前/目标边界见[需求](../requirements.md)和[系统方案](../architecture.md#current)。带日期的结果仅证明原版本、环境和窗口，不是本次重新执行的验证。
 
-修正获取方式拆分归`FR-DATA-05`，L3接线复用修正API、周期服务和共享任务卡；
-领域缺口检测位于`services/kline_gaps.py`，不新增通用扩展接口。
-需求/方案见[需求](../requirements.md)与[架构](../architecture.md)，
-源码/升级边界见[二开](../secondary-development.md)，
-用例见[验收](../testing.md)，用户入口见[数据修正](../../操作说明书.md#223-数据修正)，
-支持和更新见[运营](../release-operations.md)与[运维](../operations.md)。
-默认全量兼容旧调用；遗漏按实际键只追加，未补齐明确失败，不修改用户配置或本地版本。
-
-2026-10-27修正周期收窄与结束日期输入继续归`FR-DATA-05`的L3局部变更：
-`RepairDailyPanel`仅提供1m/1d，沿`api.repairDaily`→修正API→`run_repair_daily`传递结束日期；
-日K复用`run_now`及原范围清理helper，不复制管道或新增扩展接口。
-需求/方案/升级边界见上方链接，验收见[日期范围测试](../testing.md#repair-date-range)，
-用户入口为[数据修正](../../操作说明书.md#223-数据修正)，运营/运维及版本分别同步。
-旧缺结束日期及六周期API保持兼容，本地候选不递增版本，不签收运行升级或历史覆盖。
+当前源码入口与功能映射见[文档地图](../README.md#source-map)；
+六周期获取复用周期服务、JobStore及分区锁，股票数据总览由`KlineSyncConfig`发起，
+`RepairDailyPanel`保留指数修正场景，旧股票API仅用于兼容。
+逐证券取数失败和实际缺口反馈不等于整批异常；持久化、取消及批次异常仍保持原状态。
 
 一级页面顶栏统一复用 `frontend/src/components/PageHeader.tsx`，以策略页为样式基准：
 桌面20px标题、10px说明、最小64px高度和全宽底部分隔线；标题侧可加状态，操作区保持紧凑，
@@ -173,7 +34,7 @@ Windows桌面退出修复为L3入口局部变更，复用`desktop.main`已有清
 
 生产开发闭环见[生产工程](#engineering)，全部本地变更见[生命周期追踪](#trace)。
 
-更新日期：2026-10-25。本文定义中型生产系统的实际仓库布局、文件归属和目录迁移规则。
+更新日期：2026-10-30。本文定义中型生产系统的实际仓库布局、文件归属和目录迁移规则。
 当前系统采用模块化单体与独立运行角色，源码目录不等同部署进程。
 实现架构见[当前架构](../architecture.md#current)，开发规则见[贡献指南](../../CONTRIBUTING.md)。
 
@@ -257,7 +118,7 @@ TSP/
 │   ├── build_manifest.py            # 构建清单与离线核验
 │   ├── upgrade_check.py             # 上游升级只读预检
 │   ├── acceptance/                 # 候选镜像构建与验收启动
-│   ├── release/source_recovery.py  # 最新及五个历史源码归档与离线核验
+│   ├── release/source_recovery.py  # 最新及最多一个历史源码归档与离线核验
 │   ├── performance/                # 跨工作区性能对比
 │   └── research/                   # 策略试验与结果汇总
 ├── tests/tooling/                   # 仓库工具、版本与工作流测试
@@ -366,10 +227,8 @@ ClickHouse、对象存储、Ray 及消息流方案尚未接入当前应用，不
 <a id="layout-7-当前内容保留规则"></a>
 ### 7. 当前内容保留规则
 
-2026-10-24 清理开始时，远程`main`为`cc837b95f471e5b299bf5e8618332d500bff7e3a`、
-应用0.4.17。清理以该主线、当前需求和统一目标为依据；完整本地变更已纳入
-[整合记录](../../reports/production-integration-20261024/verification.md)，
-后续主线版本与标签由CI分配并校验。
+清理以当前源码、有效引用、用户保留要求和未完成验收为依据。
+具体判断与验证见[文档维护](../maintenance.md)，运行/发布身份见[版本基线](../version-baseline.md)。
 
 - 保留真实发布单元、全部现有业务源码/测试、依赖锁、配置模板、部署/升级入口。
 - 保留203条需求、系统目标、三步计划、领域契约和数据源中立路线。
@@ -663,41 +522,19 @@ git ls-remote --tags origin 'refs/tags/v*'
 
 实施结果与平台限制见本次验收报告，不根据旧聊天或模板猜测远程状态。
 
-版本格式、计数、重跑、自动标签与固定 SHA 规则统一见[CONTRIBUTING 第10.1节](../../CONTRIBUTING.md#101-主线版本规则)。日常支持保留最新版本与最近五个历史版本，源码标签仍不可变；源代码回退通过新 PR，生产回退固定旧 digest。恢复标签、清单与缺失历史标签的处理见[版本保留](../release-operations.md#31-版本保留)。
+版本格式、计数、重跑、自动标签与固定 SHA 规则统一见[CONTRIBUTING 第10.1节](../../CONTRIBUTING.md#101-主线版本规则)。日常支持保留最新版本与最多一个最近历史版本，源码标签仍不可变；源代码回退通过新 PR，生产回退固定旧 digest。恢复标签、清单与缺失历史标签的处理见[版本保留](../release-operations.md#31-版本保留)。
 
 <a id="trace"></a>
 
 <a id="trace-本地变更与全生命周期追踪"></a>
 ## 5. 需求与生命周期追踪
 
-2026-10-26本地派生分钟候选关联FR-DATA-05与FR-UI-03查询契约，基于0.4.31，
-范围为5/10/15分钟的本地计算、入库、遗漏检测、门控和文案；六类主手册及二开/接入/
-用户手册同步。实际验证与未部署边界见
-[本地聚合记录](../../reports/local-derived-minutes-20261026/verification.md)。
-保留并行修改及既有行情，不递增版本，不把分支验证当作发布签收。
-
-更新日期：2026-10-25。本次基线为 `31cf1a553dbc806aac6e6f93f30f4f41b646aa3e` / 0.4.19，
-全部有效本地修改的范围和验证见[本批记录](../../reports/current-state-release-20261025/verification.md)。
-
-当前主手册163FR+42NFR=205条，保留原203编号并新增FR-UI-05/06。
-本批逐项归属包括策略结果归档、全局资源预算、目录仅读同步、两步向导、
-标准弹窗及研究界面；原始153文件冻结，独立整合分支验证后经PR归并。
-文档责任/事实源/每月复核与漂移信号见
-[文档清单](../../reports/current-state-release-20261025/verification.md#文档事实源与更新责任)。
-本地与线上均从同一通过质量门的提交更新Runtime/Compute及Broker，
-每个阶段独立核对版本、静态资源、完整功能健康、配置和业务数据保留。
-下列2026-10-23/24记录保留当时的范围和结果：
-逐文件新增、修改、删除、迁移和SHA-256清单见
-[整合证据](../../reports/production-system-consolidation-20261023/verification.md)。
-现状核对基线为`cc837b95f471e5b299bf5e8618332d500bff7e3a`，应用版本保持0.4.17。
-
-2026-10-24补充：上述清单是2026-10-23冻结快照；随后按用户要求清理被替代的旧材料、
-重复交付与缓存，当前文件变化以[清理记录](../../reports/repository-cleanup-20261024/verification.md)
-及其移出清单为增量。需求/系统目标正文保持，原全生命周期同步结论不代表被清理文件仍存在。
-
-本轮完整逐文件清单、最终验证及提交前复审以
-[2026-10-24整合记录](../../reports/production-integration-20261024/verification.md)为准。
-旧清单中的业务“未改动”结论仅适用于其原时点；本轮包含下列已存在的业务修改。
+更新日期：2026-10-30。当前主手册164FR+42NFR=206条，保留原203编号。
+原始编号清单由文档检查器作为回归基准；新增编号与八模块状态不能因清理资料而丢失。
+生命周期维护责任与事实源见[文档维护](../maintenance.md)，
+当前入口见[文档地图](../README.md)，逐次冻结/发布/恢复证据见[报告索引](../../reports/README.md)。
+每项变更追踪需求→方案/源码→验证→操作/支持→运行恢复，
+源码、CI、固定产物和环境切换分别记录，不沿用旧文件清单或旧测试计数。
 
 <a id="trace-1-状态与责任"></a>
 ### 1. 状态与责任
@@ -709,12 +546,14 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 变更组 / 责任 | 需求 | 方案 / 开发 | 测试 | 运营 / 运维影响 |
 | --- | --- | --- | --- | --- |
 | 工程目录 / 开发负责人 | NFR-01/04/06/10 | [布局](#layout)、[生产工程](#engineering)、ADR0001/0002 | tooling、脚本import/CLI、CI、文档门禁 | 外部作业同步新路径，模式/端口/数据目录不随源码迁移 |
-| 需求基线与八模块 / 产品负责人 | 全163FR、42NFR | [需求总纲](../requirements.md)、[当前索引](../architecture.md#capabilities) | 保留203个原编号、新增FR-UI-05/06；唯一性、状态与链接 | 用户说明只写当前能力，阶段/生产/目标独立 |
+| 需求基线与八模块 / 产品负责人 | 全164FR、42NFR | [需求总纲](../requirements.md)、[当前索引](../architecture.md#capabilities) | 保留203个原编号；唯一性、八模块、状态与链接 | 用户说明只写当前能力，阶段/生产/目标独立 |
 | 融合系统目标 / 架构负责人 | FR-REALTIME/STATS/HISTORY/SCREEN/BACKTEST、NFR-23–42 | [系统目标](../architecture.md#target)、[二期计划](../planning/phase2-implementation-plan.md) | A–I、3.1–3.6联合矩阵，未实现项未执行 | 容量/成本/可靠性目标未签收，轻量不强装新组件 |
 | 数据能力与配置说明 / 数据负责人 | FR-DATA/EXT/ADMIN、FR-CORP | [Provider](integrations.md#plugin)、[公司行为](trading-ai.md#corporate)、[配置](../operations.md#configuration) | 能力/日期/账务/旧模式/配置测试 | usable不认证日期；失败保护旧结果，变更源配置拒绝旧请求 |
 | 策略、因子与研究行为补齐 / 研究负责人 | FR-STRATEGY/SIGNAL/FACTOR/MINING/BACKTEST | [策略](research.md#strategy)、[因子](factor-system.md#factor-current)、[研究](research.md#research) | 原价/费用/T+1/固定输入/样本外/候选门槛/缓存 | 研究产物不等于收益承诺；缺历史/时点证据显式受限 |
-| 目标股票与自选导入 / 应用及研究负责人 | FR-STRATEGY-06、FR-WATCHLIST-02/03、FR-ADMIN-06 | targets/config→快照→Polars/矩阵/监控；角色并发与CSV新组事务，L3 | 目标/ST、动态成员与旧历史、真实SQL隔离/回滚/竞态、API权限、前端两档/多选/CSV/删除提示 | 本地候选未发布；API/Worker/Compute须同版，回退前停用新目标策略，禁止直接删除被引用分组 |
+| 目标股票与自选导入 / 应用及研究负责人 | FR-STRATEGY-06、FR-WATCHLIST-02/03、FR-ADMIN-06 | targets/config→快照→Polars/矩阵/监控；角色并发与CSV新组事务，L3 | 目标/ST、动态成员与旧历史、真实SQL隔离/回滚/竞态、API权限、前端两档/多选/CSV/删除提示 | API/Worker/Compute须同版，回退前停用新目标策略，禁止直接删除被引用分组 |
+| 策略参数作用域 / 应用负责人 | FR-STRATEGY-06/08、NFR-06 | BasicFilterEditor/strategyBasicFilter、storage/Builder/Settings/Screener、API/contracts/config，L3；[设计](../../.claude/artifacts/designs/strategy-parameter-clarity.md) | null保存/缓存重读/运行、PATCH保留范围、退出回显、恢复取消、切换隔离、选择批量与失败、前端构建/两档布局；[验证](../../.claude/artifacts/fixes/strategy-parameter-clarity.md) | [需求](../requirements.md)、[方案](../architecture.md)、[测试](../testing.md)、[支持](../release-operations.md)、[运维](../operations.md)及操作说明同步；前后端/Compute同版，不改现存账户配置或版本 |
 | 自选CSV顺序 / 应用负责人 | FR-WATCHLIST-03/06 | 候选顺序确认→文件/SQL批量正序保存，管理分组移除CSV导入，L3 | CSV/API重读、重复代码/既有成员/only_new、分组新建/导出、桌面/窄屏及前端构建 | 前后端一起升级；无schema迁移，旧列表不自动翻转；[修复证据](../../.claude/artifacts/fixes/watchlist-csv-order.md) |
+| 策略结果批量自选／持仓 / 前端负责人 | FR-STRATEGY-05、FR-WATCHLIST-02、FR-LOTS-01/02 | Screener受控页签→当前页股票→新组／共享LotBatchDialog；快照风险、成交字段、交易日历，L3；[计划](../../.claude/artifacts/plans/strategy-bulk-holdings.md) | 切页／切日／空页、缺值／比例、新组及保存失败、旧手动默认、全量前端／构建／两档布局 | 沿用现有API，无schema／版本变更；本地环境已更新并实测，线上未部署，不改变策略成交或模拟持仓 |
 | 监控、模拟与AI说明 / 业务负责人 | FR-MONITOR/PAPER/CORP/AI/REVIEW | [模拟交易](trading-ai.md#paper)、[会话](trading-ai.md#sessions)、功能手册 | 周期仲裁、权益/占用/幂等、确认/取消、会话冲突 | 触发/投递/成交分开；恢复不重放写动作，SMTP配置只读 |
 | 验收/性能/维护脚本归档 / 对应开发与测试 | NFR-14–17/22/28、相关FR | backend/scripts六分类、scripts三分类及各README | 所有受影响脚本测试、沙箱/打包/拷贝路径 | 从backend用新模块名；主机已安装maintenance脚本不自动改名 |
 | 工具测试/工作流 / 发布负责人 | NFR-04/06/10 | Makefile、pyproject测试发现、CI/Windows工作流、版本工具 | tooling版本/工作流、路径/包配置回归 | 质量门SHA与产物一致；本地不加号，远程规则仍需实际核验 |
@@ -725,12 +564,12 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 管理员/认证启动 / 应用负责人 | FR-ENTRY/AUTH-LOCAL/ADMIN、NFR-09/20 | bootstrap_defaults、auth、Cell admin、full lifespan、loopback cookie | 哈希/幂等、旧账户/改密保留、失败关闭、跨平台默认、真实SQL权限 | 非Windows默认api/full需双库/平台/Worker；远程HTTPS与本地HTTP会话分别处理 |
 | 邮件配置与认证 / 应用和运维 | FR-ADMIN/MONITOR/REVIEW、NFR-09 | 环境 → 旧系统配置 → Cell；共享SMTP AUTH LOGIN | 未配置/缺密码、优先级、无秘密响应、LOGIN及通知/注册收件人 | 实际授权码仅受控配置；本地旧值已保留，不携带进Git/镜像，新部署必须配置 |
 | 菜单/亮色/数据源设置 / 前端负责人 | FR-UI/DASHBOARD/DATA/ADMIN、NFR-02 | theme首屏、Layout/MenuSettings、capabilities权威顺序、DataSources派生列表 | 前端全量/lint/build、路由冲突、既有偏好和页面状态 | 行情/环境/信号指标/模拟交易/数据总览等名称更新；设置源rustdx→fuyao→自定义，保留旧TickFlow生效路由 |
-| 分析材料/版本保留 / 发布负责人 | 全FR、NFR-01/04/06/08/10 | 页面血缘分析归reports，Excel归deliverables；最新+5恢复点 | 相对链接、203编号、文件清单/哈希、恢复归档 | 文档快照与当前行为分别维护；不删除Git历史、冻结标签或生产备份 |
+| 分析材料/版本保留 / 发布负责人 | 全FR、NFR-01/04/06/08/10 | 页面血缘分析归reports，Excel归deliverables；最新及最多一个历史恢复点 | 相对链接、203编号、文件清单/哈希、恢复归档 | 文档快照与当前行为分别维护；不删除Git历史、冻结标签或生产备份 |
 | 官方个股目录 / 数据负责人 | FR-DATA-04/05/08、FR-ADMIN | [当前架构](../architecture.md#current)、[目录契约](market-data.md)、instrument_sync/catalog及管理API | 官方响应完整性、CRUD/权限、SCD2、原子写失败、缓存发布、启动及09:00调度 | 固定官方源，不受行情总开关控制；旧时间偏好失效；手工修订可能被后续官方名单覆盖 |
 | 管理员个人空间 / 应用负责人 | FR-ENTRY、FR-ADMIN、NFR-09/20 | identity预留→持久任务→业务初始化→默认空间激活 | 真实PG并发/容量/双库重试、停用保护、租户隔离、启动接线 | 已有租户与密码保留；失败时管理登录仍可用，业务待空间就绪 |
 | 顶栏与数据总览 / 前端负责人 | FR-UI-05、FR-DATA-07 | PageHeader、Data、Watchlist弹层及共享状态查询 | Vitest/build/lint、桌面与窄屏、浅深色、搜索弹层和目录管理 | 顶栏统一；数据页分盘前/中/后，旧按钮与筛选保持可用 |
 | 数据总览布局 / 前端负责人 | FR-UI-05、FR-DATA-07、FR-ADMIN-05 | Data、ScheduleOverview、PageSettingsModal、QuoteConfigCard及[六类文档验收](../testing.md#data-overview-layout) | 默认/旧排序、新位置/显隐、各组含扩展独立折叠/刷新保留、无可见标签开关pending/error、日K共享时间、1440/390px、组件回归及lint/build | 数据同步3/4左对齐，右上仅开关，各组含扩展默认收起，实时行情紧接15分K；仅前端展示与既有API接线，不重置配置或新增调度 |
-| 示例与源码恢复 / 工程负责人 | NFR-01/04/06/08/10 | examples统一、scripts/release/source_recovery.py | 目录/链接、样例接口、真实Git祖先/标签、损坏/越界/覆盖拒绝 | 只归档固定源码，保留最新+5；生产数据与依赖另行备份 |
+| 示例与源码恢复 / 工程负责人 | NFR-01/04/06/08/10 | examples统一、scripts/release/source_recovery.py | 目录/链接、样例接口、真实Git祖先/标签、损坏/越界/覆盖拒绝 | 只归档固定源码，保留最新及最多一个历史版本；生产数据与依赖另行备份 |
 
 <a id="trace-2-全部文件的追踪方式"></a>
 ### 2. 全部文件的追踪方式
@@ -775,7 +614,7 @@ Win10真机、安装包、真实数据覆盖/许可/时钟和区域恢复另行�
 | --- | --- | --- |
 | ADR0001：按发布单元与职责组织仓库 | 已接受，2026-10-23 | 保留backend/frontend/MCP，脚本分类、tooling集中、SQL随包；部署角色不拆重复源码；文档/证据目录细化由下一项承接 |
 | ADR0002：文档分层与需求追踪 | 2026-10-23接受，2026-10-24更新正文组织 | 保留203编号及六类生命周期追踪；八需求模块改为单手册内章节，专题文件合并为六份附录，历史证据统一归reports |
-| ADR0003：示例和恢复材料分离 | 已接受，2026-10-25 | 可执行示例统一到examples，源码恢复工具归scripts/release；六份归档只由不可变主线版本生成，不修改Git历史或混入运行数据 |
+| ADR0003：示例和恢复材料分离 | 已接受，2026-10-25；2026-10-31调整保留上限 | 可执行示例统一到examples，源码恢复工具归scripts/release；最新及最多一个历史归档只由不可变主线版本生成，不修改Git历史或混入运行数据 |
 
 本轮更新的理由是分目录仍留下重复正文和多套维护入口。需求、方案、开发、测试、
 发布运营和运维各有一个主入口；操作说明书只描述当前用户行为。

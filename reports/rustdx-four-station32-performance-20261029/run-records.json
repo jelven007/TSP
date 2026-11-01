@@ -1,0 +1,152 @@
+[
+  {
+    "index": 0,
+    "name": "four32",
+    "exit_code": 0,
+    "seconds": 105.14898100000573,
+    "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-0-four32/result.json",
+    "passed": false,
+    "results": [
+      {
+        "phase": "cold",
+        "group_seconds": 69.52646391700546,
+        "task_seconds": {
+          "daily": 12.166077625006437,
+          "minute": 62.24418404100288
+        },
+        "rows": {
+          "minute": 438480,
+          "daily": 2100
+        },
+        "actual_inflight_peak": 32,
+        "station_inflight_peaks": [
+          8,
+          8,
+          8,
+          8
+        ],
+        "network_failures": 27,
+        "quality_passed": false
+      },
+      {
+        "phase": "warm",
+        "group_seconds": 34.161783959003515,
+        "task_seconds": {
+          "daily": 8.248107416002313,
+          "minute": 33.47366945800604
+        },
+        "rows": {
+          "minute": 418320,
+          "daily": 1932
+        },
+        "actual_inflight_peak": 32,
+        "station_inflight_peaks": [
+          8,
+          8,
+          8,
+          8
+        ],
+        "network_failures": 50,
+        "quality_passed": false
+      }
+    ]
+  },
+  {
+    "index": 1,
+    "name": "baseline8",
+    "exit_code": 0,
+    "seconds": 93.22857187500631,
+    "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-1-baseline8/result.json",
+    "passed": false,
+    "results": [
+      {
+        "phase": "cold",
+        "group_seconds": 33.53112912499637,
+        "task_seconds": {
+          "daily": 4.069582458003424,
+          "minute": 33.52980324999953
+        },
+        "rows": {
+          "minute": 504000,
+          "daily": 2100
+        },
+        "actual_inflight_peak": 8,
+        "station_inflight_peaks": [
+          8
+        ],
+        "network_failures": 0,
+        "quality_passed": true
+      },
+      {
+        "phase": "warm",
+        "group_seconds": 57.743140250007855,
+        "task_seconds": {
+          "daily": 12.944499208999332,
+          "minute": 57.69615737500135
+        },
+        "rows": {
+          "minute": 433440,
+          "daily": 2100
+        },
+        "actual_inflight_peak": 8,
+        "station_inflight_peaks": [
+          8
+        ],
+        "network_failures": 39,
+        "quality_passed": false
+      }
+    ]
+  },
+  {
+    "index": 2,
+    "name": "four32",
+    "exit_code": 0,
+    "seconds": 37.240299875003984,
+    "path": "/private/tmp/tspp-rustdx-performance-20261029.DzgQTt/four-station32/case-2-four32/result.json",
+    "passed": false,
+    "results": [
+      {
+        "phase": "cold",
+        "group_seconds": 12.853457624994917,
+        "task_seconds": {
+          "daily": 7.310629792002146,
+          "minute": 12.852931332992739
+        },
+        "rows": {
+          "minute": 504000,
+          "daily": 2100
+        },
+        "actual_inflight_peak": 32,
+        "station_inflight_peaks": [
+          8,
+          8,
+          8,
+          8
+        ],
+        "network_failures": 0,
+        "quality_passed": false
+      },
+      {
+        "phase": "warm",
+        "group_seconds": 23.452428791002603,
+        "task_seconds": {
+          "daily": 7.486824666004395,
+          "minute": 23.452074875007384
+        },
+        "rows": {
+          "minute": 458640,
+          "daily": 2100
+        },
+        "actual_inflight_peak": 32,
+        "station_inflight_peaks": [
+          8,
+          8,
+          8,
+          8
+        ],
+        "network_failures": 40,
+        "quality_passed": false
+      }
+    ]
+  }
+]

@@ -34,7 +34,7 @@ from app.backtest.strategy import (
 from app.strategy.builtin._quality_entries import ENTRY_RULE_VERSION, VARIANTS
 from app.strategy.engine import StrategyEngine
 from app.strategy.entry_risk import ENTRY_RISK_VERSION
-from app.strategy.families import BUILTIN_FAMILIES
+from app.strategy.families import BUILTIN_FAMILIES as ALL_BUILTIN_FAMILIES
 from app.tickflow.repository import DataStore, KlineRepository
 from research_default_strategies import (
     monthly_block_comparison,
@@ -44,6 +44,10 @@ from research_default_strategies import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
+# This study uses daily matrices; dedicated capacity strategies have separate ledgers.
+BUILTIN_FAMILIES = {
+    key: value for key, value in ALL_BUILTIN_FAMILIES.items() if key != "overnight"
+}
 PRIORITY = [
     "n_day_low_reversal", "long_lower_shadow_reversal", "oversold_reversal",
     "macd_below_zero_revival", "pullback_ma20_bounce", "platform_consolidation_breakout",

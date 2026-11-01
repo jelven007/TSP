@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "projects": {
+    "TSP": {
+      "retained_files_hashed": 3605,
+      "head_unchanged": true
+    },
+    "rustdx": {
+      "retained_files_hashed": 30736,
+      "head_unchanged": true
+    },
+    "AIGC": {
+      "retained_files_hashed": 1313,
+      "head_unchanged": true
+    }
+  },
+  "removed_paths_reappeared": [],
+  "unexpected_changes": [],
+  "status": "passed",
+  "regenerated_system_metadata": [
+    [
+      "TSP",
+      ".DS_Store"
+    ],
+    [
+      "rustdx",
+      ".DS_Store"
+    ],
+    [
+      "rustdx",
+      "docs/.DS_Store"
+    ],
+    [
+      "rustdx",
+      "docs/testing/.DS_Store"
+    ],
+    [
+      "rustdx",
+      "docs/testing/evidence/.DS_Store"
+    ],
+    [
+      "rustdx",
+      "docs/testing/evidence/acceptance-stage6-20261024/.DS_Store"
+    ],
+    [
+      "rustdx",
+      "docs/testing/evidence/acceptance-stage6-20261024/linux/.DS_Store"
+    ],
+    [
+      "rustdx",
+      "docs/testing/evidence/acceptance-stage6-20261024/linux/evidence/.DS_Store"
+    ],
+    [
+      "rustdx",
+      "docs/testing/evidence/acceptance-stage6-20261024/linux/evidence/attempt2/.DS_Store"
+    ],
+    [
+      "rustdx",
+      "docs/testing/evidence/acceptance-stage6-20261024/linux/evidence/attempt1/.DS_Store"
+    ],
+    [
+      "rustdx",
+      "reports/.DS_Store"
+    ],
+    [
+      "AIGC",
+      ".DS_Store"
+    ]
+  ]
+}

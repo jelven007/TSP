@@ -1,0 +1,146 @@
+{
+  "date": "2026-10-30",
+  "removed_files": 85,
+  "removed_bytes": 691102006,
+  "size_basis": "Sum of original logical file sizes; excludes the verification metadata relocation and text removed from retained manuals.",
+  "image_cache": {
+    "root": "deliverables/current-state-release-20261025/evidence/layers-arm64",
+    "files": 44,
+    "bytes": 690547854,
+    "reason": "Two completed image layers and their duplicate download fragments; no external references require this cache.",
+    "fragment_naming": "<digest>.<offset>; fragment size is min(8388608, complete_bytes - offset).",
+    "layers": [
+      {
+        "digest": "92ad248cc63c328932125fd5f62f8a344746920a36eb4eca749cf1c6bf2ce38d",
+        "complete_bytes": 105965068,
+        "fragment_offsets": [
+          0,
+          8388608,
+          16777216,
+          25165824,
+          33554432,
+          41943040,
+          50331648,
+          58720256,
+          67108864,
+          75497472,
+          83886080,
+          92274688,
+          100663296
+        ]
+      },
+      {
+        "digest": "fd11ccd0bbfa16671b2ca51a5f21e955e25f4e6b741608ae3b9d80738d454f79",
+        "complete_bytes": 239308859,
+        "fragment_offsets": [
+          0,
+          8388608,
+          16777216,
+          25165824,
+          33554432,
+          41943040,
+          50331648,
+          58720256,
+          67108864,
+          75497472,
+          83886080,
+          92274688,
+          100663296,
+          109051904,
+          117440512,
+          125829120,
+          134217728,
+          142606336,
+          150994944,
+          159383552,
+          167772160,
+          176160768,
+          184549376,
+          192937984,
+          201326592,
+          209715200,
+          218103808,
+          226492416,
+          234881024
+        ]
+      }
+    ],
+    "preserved_metadata": "deliverables/current-state-release-20261025/evidence/arm64-layer-verification.json",
+    "digest_check": "Both complete files matched their SHA-256 names before removal."
+  },
+  "upstream_copies": {
+    "files": 4,
+    "bytes": 261140,
+    "reason": "Duplicate external repository documents; citation entry points now use the original fixed v2.0.4 URLs.",
+    "entries": [
+      {
+        "path": "reports/rustdx-business-20261029/upstream-1.md",
+        "bytes": 5261
+      },
+      {
+        "path": "reports/rustdx-business-20261029/upstream-2.md",
+        "bytes": 48886
+      },
+      {
+        "path": "reports/rustdx-business-20261029/upstream-3.md",
+        "bytes": 15172
+      },
+      {
+        "path": "reports/rustdx-business-20261029/upstream-4.md",
+        "bytes": 191821
+      }
+    ],
+    "historical_metadata": "Original upstream.json and sha256.json describe the original collection, not the current directory."
+  },
+  "macos_metadata": {
+    "files": 37,
+    "bytes": 293012,
+    "excluded_roots": [
+      "data",
+      ".git",
+      ".venv",
+      "node_modules",
+      ".tools"
+    ],
+    "paths": [
+      ".DS_Store",
+      ".github/.DS_Store",
+      ".mypy_cache/.DS_Store",
+      "backend/.DS_Store",
+      "backend/app/.DS_Store",
+      "backend/dist/.DS_Store",
+      "backend/native/.DS_Store",
+      "backend/native/rustdx_native/.DS_Store",
+      "backend/native/rustdx_native/target/.DS_Store",
+      "deliverables/.DS_Store",
+      "deliverables/current-state-release-20261025/.DS_Store",
+      "deliverables/current-state-release-20261025/evidence/.DS_Store",
+      "deliverables/current-state-release-20261025/evidence/layers-arm64/.DS_Store",
+      "deliverables/ecs-deployment-20261025/.DS_Store",
+      "deliverables/online-refresh-20261027/.DS_Store",
+      "deliverables/production-20261025/.DS_Store",
+      "deliverables/release-v0.4.29-20261026/.DS_Store",
+      "deliverables/release-v0.4.30-20261026/.DS_Store",
+      "deliverables/release-v0.4.30-20261026/ecs-ui/.DS_Store",
+      "deliverables/release-v0.4.30-20261026/local-ui/.DS_Store",
+      "deliverables/release-v0.4.31-20261026/.DS_Store",
+      "deliverables/system-optimization-20261025/.DS_Store",
+      "deliverables/system-publication-20261025/.DS_Store",
+      "deliverables/system-publication-20261025/evidence/.DS_Store",
+      "deliverables/tsp-system-target-20261023/.DS_Store",
+      "deliverables/tsp-system-target-20261023/_shared/.DS_Store",
+      "deliverables/已清理研究_20260615至20261023_参数回测/.DS_Store",
+      "deliverables/策略002_20260615至20261023_固定参数回测/.DS_Store",
+      "deploy/.DS_Store",
+      "docs/.DS_Store",
+      "examples/.DS_Store",
+      "frontend/.DS_Store",
+      "reports/.DS_Store",
+      "reports/historical-calendar-20261026/.DS_Store",
+      "reports/rustdx-business-20261029/.DS_Store",
+      "scripts/.DS_Store",
+      "tests/.DS_Store"
+    ],
+    "note": "Finder may recreate .DS_Store after removal."
+  }
+}

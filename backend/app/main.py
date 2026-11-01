@@ -480,9 +480,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="TSP",
+    title="Tick Stock Platform",
     version=__version__,
-    description="A 股选股 + 回测面板 — TickFlow 适配",
+    description="A 股选股 + 回测平台 — TickFlow 适配",
     lifespan=lifespan,
     exception_handlers={Exception: request_id_server_error},
 )

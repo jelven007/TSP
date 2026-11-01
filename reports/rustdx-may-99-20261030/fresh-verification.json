@@ -1,0 +1,183 @@
+{
+  "checked_at_beijing": "2026-10-30T07:10:08.990150+08:00",
+  "baseline_expected_keys": 22406400,
+  "target_99pct_keys": 22182336,
+  "source_rows": 42960,
+  "public_rows": 42960,
+  "duplicate_source_keys": 0,
+  "days": [
+    {
+      "date": "2026-05-06",
+      "source_rows": 240,
+      "public_rows": 240,
+      "source_sha256": "3a5ad373199b55afe975cc4bbc2d9a2a978246ffb4d376f7ca8a41b9c94d06cd",
+      "public_sha256": "3a5ad373199b55afe975cc4bbc2d9a2a978246ffb4d376f7ca8a41b9c94d06cd",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "4fbe3c9fa798146fd62b152f0597bf542d0bf1ceb8521496b73de4e93465498f"
+    },
+    {
+      "date": "2026-05-07",
+      "source_rows": 240,
+      "public_rows": 240,
+      "source_sha256": "fe0f66db5b2b0ac619c6cbebf718ffb600ed899ff60b90ca0874f6a5fb66f8b0",
+      "public_sha256": "fe0f66db5b2b0ac619c6cbebf718ffb600ed899ff60b90ca0874f6a5fb66f8b0",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "46a6359addd2497bebbc9c594ce27c1eb8c9eeb5c3b04bd3a3db5372512fd935"
+    },
+    {
+      "date": "2026-05-08",
+      "source_rows": 240,
+      "public_rows": 240,
+      "source_sha256": "6071f68f0a9a208184018efd05a1762ed692bea325816f7a3ea7cbb7725445e7",
+      "public_sha256": "6071f68f0a9a208184018efd05a1762ed692bea325816f7a3ea7cbb7725445e7",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "06af16457f283cc635ae189b85ad4da71e2e969383ea4b7e2a951fe2f911c771"
+    },
+    {
+      "date": "2026-05-11",
+      "source_rows": 0,
+      "public_rows": 0,
+      "source_sha256": null,
+      "public_sha256": null,
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "dfcc8179236142c6889f6aed9c368c8d5abba5bb39128ceb534213d60242df35"
+    },
+    {
+      "date": "2026-05-12",
+      "source_rows": 240,
+      "public_rows": 240,
+      "source_sha256": "a400a8f1f57560e290faade36cbc7d3736be607cda7804fb939491ce24ca22b9",
+      "public_sha256": "a400a8f1f57560e290faade36cbc7d3736be607cda7804fb939491ce24ca22b9",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "65143ca1daf4abf01c82828d5235815b606165f02c5fb7257799a1574c86745b"
+    },
+    {
+      "date": "2026-05-13",
+      "source_rows": 240,
+      "public_rows": 240,
+      "source_sha256": "1b47a9564fe5afd15f5b57638bd33e64e532cb823adff693ff45a752a1dd04fa",
+      "public_sha256": "1b47a9564fe5afd15f5b57638bd33e64e532cb823adff693ff45a752a1dd04fa",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "7f899a28d705964628b21465aa88cadac929cf09d0b0c053f59ae9a04f43abb9"
+    },
+    {
+      "date": "2026-05-14",
+      "source_rows": 240,
+      "public_rows": 240,
+      "source_sha256": "f329980f219d51b6bcfb5a0fcf5c59bce596d5c427bf4b347209deaf16d45c88",
+      "public_sha256": "f329980f219d51b6bcfb5a0fcf5c59bce596d5c427bf4b347209deaf16d45c88",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "bbb24c3f2261a9e1554707af67498c6fa3aadf2823e9875822075ef978b06ffe"
+    },
+    {
+      "date": "2026-05-15",
+      "source_rows": 240,
+      "public_rows": 240,
+      "source_sha256": "082565acdd5d511182f37a2c4f88746b6636dfb88ea6165398c0029d37d70000",
+      "public_sha256": "082565acdd5d511182f37a2c4f88746b6636dfb88ea6165398c0029d37d70000",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "6c3484bb87097330d33561339c758371fcbadbfe0f5f70ec6bc511627d414449"
+    },
+    {
+      "date": "2026-05-18",
+      "source_rows": 480,
+      "public_rows": 480,
+      "source_sha256": "fc9e3573281830b2d774e2d5efe90c26850dfc12aefa78b1b72554167e292631",
+      "public_sha256": "fc9e3573281830b2d774e2d5efe90c26850dfc12aefa78b1b72554167e292631",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "56d3ef66eaca03f39f40e227c03e578101a599aebf0ba11cbef33e0c807ad456"
+    },
+    {
+      "date": "2026-05-19",
+      "source_rows": 720,
+      "public_rows": 720,
+      "source_sha256": "cf4a981c05bd0d811a86163f406d3f1b8f308982f05d72aba7d09f380c8e7796",
+      "public_sha256": "cf4a981c05bd0d811a86163f406d3f1b8f308982f05d72aba7d09f380c8e7796",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "19c885a4eea31baa0bfb4721094729d9b2fbf20c452bb6f4d32ca5db5e8e620e"
+    },
+    {
+      "date": "2026-05-20",
+      "source_rows": 1200,
+      "public_rows": 1200,
+      "source_sha256": "3b558e9f3b6bf67eb6b46bee53e1d8bb7a7e6470f6af8313a856a0f35b7ab5b9",
+      "public_sha256": "3b558e9f3b6bf67eb6b46bee53e1d8bb7a7e6470f6af8313a856a0f35b7ab5b9",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "f0e9663061b230b2a01dbcb8bd7eb2d316d04fb4645a8d6a583cec52a5d6aa89"
+    },
+    {
+      "date": "2026-05-21",
+      "source_rows": 1680,
+      "public_rows": 1680,
+      "source_sha256": "a82a3a4bf9df55299d26d8139a6190e46cea2cc3d351c16d3f6f8a9b6a074409",
+      "public_sha256": "a82a3a4bf9df55299d26d8139a6190e46cea2cc3d351c16d3f6f8a9b6a074409",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "8427aa32b85bcbd183c3d3766a0c2bddfe06a9863b0b09c5e6b9418bc048de45"
+    },
+    {
+      "date": "2026-05-22",
+      "source_rows": 1920,
+      "public_rows": 1920,
+      "source_sha256": "3e6a8d620f8bacedec6c6374c23d3012008fd1700ded450ea48b03293dcbe46a",
+      "public_sha256": "3e6a8d620f8bacedec6c6374c23d3012008fd1700ded450ea48b03293dcbe46a",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "07f7ec333b108ec6a9b95885ed87d0dcaedf5d38a37b9125d9767f9e74eaeb4c"
+    },
+    {
+      "date": "2026-05-25",
+      "source_rows": 2160,
+      "public_rows": 2160,
+      "source_sha256": "de9225a8a827c98017bc7641c709308f1b3ffecf6f48efa28a22b3b48ed68038",
+      "public_sha256": "de9225a8a827c98017bc7641c709308f1b3ffecf6f48efa28a22b3b48ed68038",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "a5afaf6b142bd707d8c3af00ed1cda48c6b401b32a6ca94773eb639213d225dd"
+    },
+    {
+      "date": "2026-05-26",
+      "source_rows": 2400,
+      "public_rows": 2400,
+      "source_sha256": "e47622eb75eea6d2e45b582750a9c6854ce1ebb93da24a64d80f8a83159c073a",
+      "public_sha256": "e47622eb75eea6d2e45b582750a9c6854ce1ebb93da24a64d80f8a83159c073a",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "03ef26d5cbeb9bcddfc69ee4779569c0070e953d81ae107116effc2c23dbac60"
+    },
+    {
+      "date": "2026-05-27",
+      "source_rows": 8880,
+      "public_rows": 8880,
+      "source_sha256": "2f0e4fd2d5391c7cbb37cbd5a0135163bf42f9fecbca864b41bf7653bb50a4ca",
+      "public_sha256": "2f0e4fd2d5391c7cbb37cbd5a0135163bf42f9fecbca864b41bf7653bb50a4ca",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "6ede555e4a735d086566140854d5f7957df35d0d7c6cce428acbfaf52e3aec15"
+    },
+    {
+      "date": "2026-05-28",
+      "source_rows": 10080,
+      "public_rows": 10080,
+      "source_sha256": "6203a9b1d68b7e062435adfeed1028f13c11601b8184a7f9dfaf44ba433e5f56",
+      "public_sha256": "6203a9b1d68b7e062435adfeed1028f13c11601b8184a7f9dfaf44ba433e5f56",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "52f565bb24fce2a0c6366ec0775d4739591eb4e1cb36cfa113e2e52ce38eba31"
+    },
+    {
+      "date": "2026-05-29",
+      "source_rows": 11760,
+      "public_rows": 11760,
+      "source_sha256": "ec3be96d71c6af1f89a8a1dd68b11f838f2e132f0ec4692ac44c9e852015708a",
+      "public_sha256": "ec3be96d71c6af1f89a8a1dd68b11f838f2e132f0ec4692ac44c9e852015708a",
+      "witness_traded_daily_symbols": 59,
+      "daily_reference_sha256": "9f32987e17391a3ffb92e8adb069cdc9673f53f615cb419be891f8ca4e1a807f"
+    }
+  ],
+  "source_hashes_match_initial": true,
+  "public_hashes_match_source": true,
+  "public_release": "0477f15a7a3b4d4382e097b35f0a82cc",
+  "native_core_sha256": "f2b821dc5b4ce6ac7c495ebe3cbcfccec5d2daf5cfe726684719607a27a75fde",
+  "native_patch_sha256": "3907851f578f846774bb820d23f076d68a9123fe44c4e5d91674de43085585d5",
+  "witness_symbols": 59,
+  "witness_traded_daily_stock_days": 1062,
+  "imports": 0,
+  "actual_coverage_pct": 0.19173093401885175,
+  "actual_missing_keys": 22363440,
+  "keys_to_add_to_reach_99pct": 22139376
+}

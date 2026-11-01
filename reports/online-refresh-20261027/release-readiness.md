@@ -77,7 +77,7 @@ Compute ID为c6e6c4765f38，完整值见artifacts.json。
 | 架构 | Pass，现网核对 | 单ECS，Platform→immutable公共文件→API/Workers→Broker/Compute，PG双库 |
 | Runtime/Compute | Pass，ECS实测 | 注册表/config/rootfs/623文件manifest、原生桥与vectorbt；固定Docker ID |
 | 恢复 | Pass，停写后实测 | 双库恢复临时DB并比对业务项；12目录3760文件hash相等，旧镜像归档可读 |
-| 配置/权限 | Pass，现网受控摘要 | admin/<REDACTED_CREDENTIAL>与用户当前注册/找回/SMTP，除自动同步外保留 |
+| 配置/权限 | Pass，现网受控摘要 | 管理员凭据与用户当前注册/找回/SMTP，除自动同步外保留 |
 | 容量 | Pass，本次preflight | 可用约122GiB，新增备份与产物先预算 |
 | 行情完整性 | 清零实测通过 | 12个源/current目录为空，11类画像null，初始化pending |
 | 运行/监控 | 基础通过；全功能未就绪 | API/Gateway ready，非指标依赖正常，七角色/PG healthy；自动同步随后开启，分钟全功能巡检FAIL |

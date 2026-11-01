@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "daily_pnl_reconciled_with_ending_equity": true,
+  "maximum_drawdown_reconciled_with_backtest": true,
+  "daily_observations": 93,
+  "entry_day_mark_records": 759,
+  "input_hashes_unchanged": {
+    "/path/to/home/Documents/TSPP/reports/backtest-a877-exit1125-20261030/equity.csv": "a893b235d5a83e77699cb8dc56ed44555a136e227e3ffc4ca5735593ccc33f37",
+    "/path/to/home/Documents/TSPP/reports/backtest-a877-exit1125-20261030/trades.csv": "41c0d6cb62c262471ce7d0213d2a5ce01354a3bb59f64d692ef6f18229bb9e88",
+    "/path/to/home/Documents/TSPP/reports/backtest-a877-exit1125-20261030/results.json": "2356e3bd811a838336cbd909a06b53c80425583a3b610224a3a29ce18d3f8ac2",
+    "/tmp/tspp-a877-update-20261030/daily.parquet": "627eef31517a96480cc3bebe830bc91b7b37ecbdff4957b5f417384b027919df"
+  }
+}

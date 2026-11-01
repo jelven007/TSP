@@ -1,0 +1,350 @@
+{
+  "checked_at": "2026-10-28T12:14:14.119702+00:00",
+  "version": "0.4.37",
+  "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+  "pr": "https://github.com/jelven007/TSP/pull/33",
+  "release": "https://github.com/jelven007/TSP/releases/tag/v0.4.37",
+  "main_ci": 40673908867,
+  "docker_ci": 40674953044,
+  "tests": {
+    "backend_passed": 4763,
+    "backend_skipped": 9,
+    "backend_warnings": 173,
+    "frontend_passed": 453,
+    "frontend_test_files": 84,
+    "migration_backup_restore_tests": 2,
+    "asset_retirement_tests": 13,
+    "repository_required_paths": 87,
+    "documentation_files": 31,
+    "requirements_modules": 8
+  },
+  "registry": {
+    "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+    "version": "0.4.37",
+    "digest": "sha256:e818aa73e592ea1c50b0fb2b99ba21dd65e8af805672c175e67dbc40117e176f",
+    "platforms": {
+      "amd64": {
+        "digest": "sha256:3b436a4a3b4c0bf16d19e0eb9228ce58fcd168a58f1fe11d2ccc06426b3ff1db",
+        "config_digest": "sha256:c02a469363b235af8983a9f18229ebbc941eba2dec498567d1d1a2e2b57c19a6",
+        "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+        "oci_version": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42"
+      },
+      "arm64": {
+        "digest": "sha256:dcf97ed4367b29c9a582b8d038805a041f8be79009414f0c487f493ed84695ca",
+        "config_digest": "sha256:c7fc9c12788dbeb37a30e5bf7fe0feaf8e25018d396363aef0b86bff055c2287",
+        "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+        "oci_version": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42"
+      }
+    },
+    "latest_digest": "sha256:e818aa73e592ea1c50b0fb2b99ba21dd65e8af805672c175e67dbc40117e176f",
+    "latest_matches": true,
+    "latest_platforms_match": true,
+    "passed": true
+  },
+  "environments": {
+    "local": {
+      "version": "0.4.37",
+      "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "passed": true,
+      "source_and_runtime_verified": true,
+      "ready_functions": 6,
+      "administrator_login_after_restart": true,
+      "full_restart_verified": true,
+      "preferences_and_secrets_preserved": true,
+      "database_restore_table_counts": {
+        "control": 20,
+        "business": 28
+      },
+      "schema_versions": {
+        "control": 6,
+        "business": 6
+      },
+      "backup_path": "/path/to/home/.cache/tsp-dev/TSPP/backups/complete-release-20261028-3/local-pre-f4d8c11b766b",
+      "market_rows_preserved": {
+        "daily": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "enriched": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "minute": {
+          "before_rows": 33479598,
+          "after_rows": 33479598
+        },
+        "5m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "index_daily": {
+          "before_rows": 143564,
+          "after_rows": 143564
+        }
+      },
+      "retired_asset_migration": {
+        "etf_rows_removed": 7989151,
+        "quote_rows_before": {
+          "index": 261369,
+          "etf": 7989151,
+          "stock": 158628694
+        },
+        "quote_rows_after": {
+          "index": 261369,
+          "stock": 158628694
+        },
+        "index_fingerprint_preserved": {
+          "files": 3285,
+          "bytes": 21132190,
+          "sha256": "cb3a0a3bdd089b9e582b6849045e326faa67d3ce8a65dee1e073adde229a28c8"
+        },
+        "active_public_etf_paths": [],
+        "all_tenants_private_audit": {
+          "retired_symbols_checked": 263,
+          "columns_checked": 22,
+          "all_tenants_checked_with_database_owner": true,
+          "symbol_hits": 0,
+          "json_token_hits": 0,
+          "passed": true
+        }
+      },
+      "http_acceptance": {
+        "version": "0.4.37",
+        "origin": "http://127.0.0.1:3021",
+        "administrator_login_passed": true,
+        "ready_functions": 6,
+        "index_catalog_count": 7,
+        "index_samples": {
+          "1d": {
+            "rows": 122,
+            "source": "local"
+          },
+          "1w": {
+            "rows": 27,
+            "source": "local"
+          },
+          "1mo": {
+            "rows": 7,
+            "source": "local"
+          }
+        },
+        "page_status": {
+          "/data": 200,
+          "/indices": 200,
+          "/settings": 200
+        },
+        "passed": true
+      }
+    },
+    "online": {
+      "version": "0.4.37",
+      "revision": "f4d8c11b766bf62c269d8fca05b7ef6d9a559e42",
+      "passed": true,
+      "source_and_runtime_verified": true,
+      "ready_functions": 6,
+      "administrator_login_after_restart": true,
+      "full_restart_verified": true,
+      "preferences_and_secrets_preserved": true,
+      "database_restore_table_counts": {
+        "control": 20,
+        "business": 28
+      },
+      "schema_versions": {
+        "control": 6,
+        "business": 6
+      },
+      "backup_path": "/opt/tsp-full/backups/pre-v0.4.37-f4d8c11b766b",
+      "market_rows_preserved": {
+        "daily": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "enriched": {
+          "before_rows": 6941920,
+          "after_rows": 6941920
+        },
+        "minute": {
+          "before_rows": 118440763,
+          "after_rows": 118440763
+        },
+        "5m": {
+          "before_rows": 23686992,
+          "after_rows": 23686992
+        },
+        "10m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "15m": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "weekly": {
+          "before_rows": 0,
+          "after_rows": 0
+        },
+        "index_daily": {
+          "before_rows": 135108,
+          "after_rows": 135108
+        }
+      },
+      "retired_asset_migration": {
+        "etf_rows_removed": 9202370,
+        "quote_rows_before": {
+          "stock": 182717780,
+          "etf": 9202370,
+          "index": 301370
+        },
+        "quote_rows_after": {
+          "index": 301370,
+          "stock": 182717780
+        },
+        "index_fingerprint_preserved": {
+          "files": 492,
+          "bytes": 11879271,
+          "sha256": "3d83fd1376407d867a510c954a9544957efb6009fb28121348793cb96b3ab54f"
+        },
+        "active_public_etf_paths": [],
+        "all_tenants_private_audit": {
+          "retired_symbols_checked": 263,
+          "columns_checked": 22,
+          "all_tenants_checked_with_database_owner": true,
+          "symbol_hits": 0,
+          "json_token_hits": 0,
+          "passed": true
+        }
+      },
+      "http_acceptance": {
+        "version": "0.4.37",
+        "origin": "https://server.example.com",
+        "administrator_login_passed": true,
+        "ready_functions": 6,
+        "index_catalog_count": 7,
+        "index_samples": {
+          "1d": {
+            "rows": 122,
+            "source": "local"
+          },
+          "1w": {
+            "rows": 1,
+            "source": "local"
+          },
+          "1mo": {
+            "rows": 1,
+            "source": "local"
+          }
+        },
+        "page_status": {
+          "/data": 200,
+          "/indices": 200,
+          "/settings": 200
+        },
+        "passed": true
+      }
+    }
+  },
+  "browser_acceptance": {
+    "method": "browser native navigation and controls; read-only DOM inspection",
+    "local_minute_and_daily_calendars": {
+      "start_label": "起始日期",
+      "end_label": "结束日期",
+      "actions": [
+        "获取全量数据",
+        "获取遗漏数据"
+      ],
+      "passed": true
+    },
+    "local_index": {
+      "default_bars": 60,
+      "maximum_bars": 122,
+      "matching_api_rows": 122,
+      "maximum_stays_at_limit": true,
+      "calendar_button_tops": [
+        477,
+        477
+      ],
+      "passed": true
+    },
+    "online_index": {
+      "default_bars": 60,
+      "calendar_button_tops": [
+        477,
+        477
+      ],
+      "passed": true
+    },
+    "online_data": {
+      "independent_repair_button": false,
+      "etf_entry": false,
+      "minute_and_daily_cards_present": true,
+      "passed": true
+    },
+    "screenshots": "Browser screenshot capture unavailable; DOM observations were used."
+  },
+  "branches": {
+    "local": [
+      "main"
+    ],
+    "remote": [
+      "main"
+    ],
+    "feature_branches_removed": 7,
+    "dirty_files_archived_and_verified": [
+      {
+        "worktree": "/private/tmp/tsp-rustdx-integration-20261028",
+        "head": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+        "archive": "/path/to/home/.cache/tsp-dev/TSPP/release-20261028-3/dirty-files-rustdx.tar.gz",
+        "sha256": "f8faaa8843c4e95fd764ff48e6a0b9a462e0881668eaf494812f8232ca9ff64e",
+        "dirty_files_verified": 1305,
+        "deleted_files": [],
+        "passed": true
+      },
+      {
+        "worktree": "/private/tmp/tspp-index-page-ui-20261028",
+        "head": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+        "archive": "/path/to/home/.cache/tsp-dev/TSPP/release-20261028-3/dirty-files-index-ui.tar.gz",
+        "sha256": "45b2ae1d0ffc87dc54055890b22e72a46f82d37704ac9549a498c34db1b95e07",
+        "dirty_files_verified": 13,
+        "deleted_files": [],
+        "passed": true
+      },
+      {
+        "worktree": "/private/tmp/tspp-unified-kline-backfill",
+        "head": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+        "archive": "/path/to/home/.cache/tsp-dev/TSPP/release-20261028-3/dirty-files-unified-backfill.tar.gz",
+        "sha256": "252010a6afbbd864f2fc3266edb0fb732d75e4fc469f9acc7e8e14262973db1e",
+        "dirty_files_verified": 2,
+        "deleted_files": [],
+        "passed": true
+      },
+      {
+        "worktree": "/private/tmp/tspp-weekly-parquet-schema-20261028",
+        "head": "1c630cc2d13cf3e2ed545b9a4d9ff5b340d224af",
+        "archive": "/path/to/home/.cache/tsp-dev/TSPP/release-20261028-3/dirty-files-weekly-schema.tar.gz",
+        "sha256": "9f5f33d7d4cc2195d3d6ce7485f436dbc99861d2075e35cf04e64928c60ea108",
+        "dirty_files_verified": 13,
+        "deleted_files": [],
+        "passed": true
+      }
+    ]
+  },
+  "limits": [
+    "Desktop installation packages are outside this server/container release.",
+    "Existing historical-data coverage was preserved; this release does not certify complete historical backfill.",
+    "Nine backend tests were skipped according to their environment requirements.",
+    "CI skipped latest promotion; the verified immutable index was promoted manually and rechecked."
+  ],
+  "passed": true
+}

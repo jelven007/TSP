@@ -1,310 +1,132 @@
-# TSP
+# Tick Stock Platform（TSP）
 
-2026-10-30最新版本整合范围、六类文档和发布顺序见
-[本轮发布评审](reports/current-release-20261030/review.md)，
-新鲜源码验证与本地/ECS升级状态见[本轮验证](reports/current-release-20261030/verification.md)。
-应用版本只由远程main CI分配；下方带日期记录按各自历史时点理解。
-
-生产系统规范入口：[需求总纲与八模块](docs/requirements.md)、
-[工程目录](docs/reference/engineering.md#layout)、[生产开发](docs/reference/engineering.md#engineering)、
-[联合验收](docs/testing.md#acceptance)、[服务运营](docs/release-operations.md#service-2-开通与用户生命周期)。
-全部本地变更与证据见[生命周期追踪](docs/reference/engineering.md#trace)。
-2026-10-25最新整合策略日期归档/全局并发预算、两步向导、共享弹窗、
-目录只读行情同步、16:00盘后默认和研究界面；
-具体范围、全量验证与环境更新见[整合记录](reports/current-state-release-20261025/verification.md)。
-
-面向沪深市场研究、数据治理、策略筛选和回测验证的一体化量化工作台。项目运行时
-沿用 `TSP` 作为应用标识和 API Token 前缀。
+面向沪深股票与指数的数据治理、看盘、策略筛选、因子研究和回测验证工作台，
+支持单机运行与完整单机多租户部署。
 
 [![CI](https://github.com/jelven007/TSP/actions/workflows/ci.yml/badge.svg)](https://github.com/jelven007/TSP/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> 本系统用于数据分析和量化研究，不提供投资建议。回测结果不代表未来收益，
-> 使用者需要自行核验数据授权、数据质量和交易风险。
-
-## 版本状态
-
-仓库集成线为 `main`，本文所在源码应用语义版本为 `0.4.40`。
-2026-10-25升级前实测新ECS `https://shanao.asia` 已运行
-`7823b84b` / v0.4.21 / schema v6。本批源码候选与随后部署结果分别留证；
-旧实例`092bd79c`/v0.4.11及2016起回填属于历史证据。
-稳定标签、生产提交、源码候选和开源观察对象的完整分类见
-[版本基线](docs/version-baseline.md)。
-
-2026-10-22 源码整合补齐五档封板证据、收盘临时价保护、公共版本回收和 Windows
-单机资源控制，详见[全生命周期变更](reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
-自选接口连接池超时仍在调查；本次源码整合不表示生产升级或永久修复完成。
-
-## 项目定位
-
-TSP 是持续维护的专用版本，当前重点是：
-
-- 默认使用 `rustdx` 建立沪深行情数据层，保留 TickFlow、fuyao 作为备选 Provider。
-- 将选股、信号、因子、回测、监控和复盘统一到同一份标准化数据口径。
-- 对策略结果提供可追溯的配置、数据版本、费用和风险指标。
-- 同时支持本地桌面运行和服务端部署，并明确区分两种环境的认证边界。
-- 保持生产级测试、发布、备份、升级和回滚文档。
-
-本仓库仅保留产品、工程、部署和合规所需内容，不包含与运行无关的推广或个人入口。
+应用语义版本为 `0.4.40`。文档核对日期：2026-11-01。
+源码、正式发布和最后已知运行状态见[版本基线](docs/version-baseline.md)。
+本次本地功能、六类文档与清理范围见[整合记录](reports/release-consolidation-20261101.md)。
 
 ## 主要能力
 
-| 领域 | 能力 |
+| 领域 | 当前功能 |
 | --- | --- |
-| 数据 | 七项独立路由：日 K、除权因子、公司行为、实时、分钟、五档、财务；分钟历史与盘中落盘共用选源；股票、核心指数与扩展数据 |
-| 数据治理 | 标的 SCD2、历史 ST/风险警示治理、数据完整性检查、增量与盘后同步 |
-| 研究 | 22个公开内置策略、入场主题/风险政策、自定义策略/信号/因子；结果按日期、版本和参数归档，可查看旧历史 |
-| 回测 | 原始价成交约束、T+1、最低佣金、印花税、滑点、申报数量、未平仓、归因与导出 |
-| 盘中 | 自选、实时行情、集合竞价、异动、连板梯队、共享快照策略监控与通知 |
-| 交易辅助 | 持仓提醒、模拟交易、多账户对比、自动跟单、组合裁决；带日期证据门禁的分红/送转/配股账务 |
-| AI | 兼容服务与 Codex CLI；Chat Completions / Responses、受控工具助手、会话同步与显式保存的策略迭代草稿 |
-| 开放能力 | 六个 Token scope、69 个 Tier A 方法/路径、SSE、12 个 MCP 工具 |
+| 数据管理 | 七项 Provider 路由、官方证券目录、SCD2 状态、日 K/分钟采集、财务与公司行为、扩展数据 |
+| K 线与指数 | 股票 1m/5m/10m/15m/1d/1w；固定七只指数日/周/月 K 与分时；全量/遗漏获取及持久缺口反馈 |
+| 看盘与自选 | 实时行情、集合竞价、异动、连板梯队；一股多组、多策略标记、CSV 导入导出与详情联动 |
+| 策略与研究 | 内置、自定义、叠加和 AI 策略；参数、目标股票、信号与评分；按日期、版本和参数归档结果 |
+| 因子与回测 | 因子检验、组合、挖掘、策略归因、参数优化与步进优化；明确的成交、费用、T+1 和历史质量约束 |
+| 监控与模拟 | 策略/价格/信号监控、通知、多虚拟账户、自动跟单、组合裁决、公司行为权益台账 |
+| AI 与复盘 | 兼容模型或 Codex CLI、受控工具助手、会话恢复、显式保存的迭代草稿与复盘 |
+| 开放与扩展 | 六种 Token scope、69 个 Tier A 方法/路径、SSE、12 个 MCP 工具；Provider 和源码扩展注册 |
 
-页面、功能、源码及限制的对应关系见[当前功能索引](docs/architecture.md#capabilities)。
-公司行为日期不完整时暂停相关账务及撮合；可选秒级归档只保存启用后的真实快照。
-十年历史筛选、ClickHouse 和分布式研究属于[后续需求](docs/requirements.md)。
+完整页面、能力和源码对应见[功能地图](docs/architecture.md#capabilities)，
+日常操作见[操作说明书](操作说明书.md)，接口入口见[API 导航](docs/api.md)。
+ETF 已退役。公司行为日期证据不足时暂停相关账务和撮合；
+秒级归档只保存启用后的真实快照。
 
-## 运行模式
+## 开始使用
 
-### 本地桌面版
+详细步骤见[开始使用](docs/getting-started.md)。
 
-Windows 桌面版与原生源码版使用单机管理员模式，暂停多租户：
+| 运行方式 | 说明 |
+| --- | --- |
+| 本地源码 | Python 3.11+、Node.js 20+、uv、pnpm 9、Rust；`./dev.sh` 或 `.\dev.ps1` |
+| 根 Docker Compose | 单容器托管前后端；单机模式须显式关闭多租户 |
+| 完整多租户 | [deploy/full](deploy/full/README.md)：PostgreSQL 双库、平台、API、Gateway、Worker、Compute/Broker |
+| 桌面安装包 | 从 [Releases](https://github.com/jelven007/TSP/releases) 获取目标平台已验收资产 |
 
-- 首次安装通过受控配置提供 `AUTH_USERNAME` 和 `AUTH_PASSWORD`；登录后拥有个人空间和完整业务功能。
-- 在「设置 → 账户」修改密码，重启不会重置；不开放注册和租户切换。
-- 数据和敏感配置保存在本机。
+非 Windows 源码环境默认多租户，不能只复制环境模板就假定双库与内部服务已准备。
+Windows 默认完整单机管理员个人空间，`SERVICE_ROLE=standalone`，
+关闭注册、找回与租户切换。桌面认证仍取决于实际运行模式。
 
-macOS 和 Linux 桌面包保留免登录模式。Windows 10 / 16 GB 的启动、资源配置和
-旧多租户切换步骤见[单机管理员说明](docs/operations.md#windows)。
-
-桌面产物以当前仓库的
-[GitHub Releases](https://github.com/jelven007/TSP/releases) 为准。
-
-### 服务端部署
-
-完整单机多租户版本已完成一期部署，支持管理员和租户角色、邮箱验证码注册、
-自动创建个人租户、PostgreSQL 业务隔离以及 100 个独立用户混合负载。
-部署入口见[deploy/full](deploy/full/README.md)，发布记录见
-[一期实施与验收](reports/document-consolidation-20261024/historical-evidence.md#phase1)。生产部署状态以
-[版本基线](docs/version-baseline.md)和对应不可变发布记录为准。
-
-非 Windows 首次初始化默认开启多租户，注册和找回密码同时启用；
-Windows 默认使用单机管理员模式：
-
-- 管理员和注册口令由受控配置 `AUTH_USERNAME`、`AUTH_PASSWORD`、`AUTH_REGISTRATION_SECRET` 提供；注册、找回及邮件通知需配置系统 SMTP。
-- 多租户须准备 PostgreSQL 双库、运行角色、平台和 Worker；入口见[完整部署](deploy/full/README.md)。
-- 已修改密码、注册口令和自定义邮件配置不因启动重置。
-- 公网部署必须使用 HTTPS，并限制 `.env`、数据目录和备份权限。
-
-## 快速开始
-
-### Docker Compose
-
-默认完整多租户需先按[完整部署](deploy/full/README.md)准备双库、私密环境和内部服务，
-再使用 `deploy/full/compose.yml` 启动。仅复制 `.env.example` 不足以准备这些依赖。
-
-根目录 Compose 仍可作为显式旧独立模式使用，保留多邮箱共享空间：
+单机开发：
 
 ```bash
 git clone https://github.com/jelven007/TSP.git
 cd TSP
-cp .env.example .env
-# 仅旧独立模式需要显式关闭多租户
-printf '\nMULTITENANCY_ENABLED=false\n' >> .env
-docker compose up --build -d
+cp -n .env.example .env
 ```
 
-打开 <http://localhost:3018>。
-
-当前文档默认从源码构建镜像，不依赖未验证的公共镜像标签。生产环境应从经过验收的
-提交或版本标签构建，并记录最终镜像 digest。
-
-### 开发模式
-
-前置要求：
-
-- Python 3.11+
-- Node.js 20+
-- [`uv`](https://docs.astral.sh/uv/)
-- pnpm 9
-- [Rust 编译工具链](https://www.rust-lang.org/tools/install)（源码安装默认原生桥接）
-
-macOS / Linux 默认多租户：先准备双库 schema v6、平台与 Worker，
-将运行 DSN 和内部服务配置写入私密 `.env`（见[完整部署](deploy/full/README.md)），再启动 API 和前端：
+在 `.env` 中设置 `MULTITENANCY_ENABLED=false`、`SERVICE_ROLE=standalone`，
+保留已有用户配置，再运行：
 
 ```bash
-cp .env.example .env
 ./dev.sh
 ```
 
-Windows PowerShell：
+默认前端 `http://localhost:3011`，后端 `http://localhost:3018`。
+相同单机配置也可运行 `docker compose up --build -d`，访问端口 3018。
+生产安装、Windows 和旧 CPU 兼容见[运维手册](docs/operations.md#installation)。
 
-```powershell
-Copy-Item .env.example .env
-.\dev.ps1
-```
+## 首次配置与数据
 
-默认地址：
+全新安装按初始化配置预置管理员；用户指定的账户、注册/找回口令和 SMTP
+配置优先，后续修改不因重启重置。真实授权码只保存在受控运行配置。
+已有 `.env`、身份、策略和行情不能被初始化步骤覆盖。
 
-- 前端开发服务：<http://localhost:3011>
-- 后端服务：<http://localhost:3018>
+先核对数据源能力，完成证券目录、日 K、除权因子与指标准备，再按需要补分钟和财务。
+默认使用 rustdx，保留 TickFlow、fuyao、HTTP 和插件接入；
+实时、分钟、日 K、除权、公司行为、五档与财务按能力矩阵独立路由。
+5/10/15 分 K 只由本地 1 分 K 生成，周 K 只由本地日 K 生成。
 
-完整部署、反向代理、老 CPU 兼容和账户初始化说明见
-[部署指南](docs/operations.md#installation)。
+1 分 K/日 K 手动采集使用明确起止闭区间。“获取全量数据”更新该范围，
+“获取遗漏数据”先查本地并仅补缺失键。任务成功、零请求或 100% 进度
+不等于多年历史已经完整；查看剩余计数和持久缺口清单。
+当前财务表和历史观察快照分别核对，观察时间不能冒充已认证公告时间。
 
-## 首次配置
-
-1. 打开“设置 → 数据源”，确认默认 rustdx 及其运行状态。未就绪时仍可选择并保存路由，页面显示依赖安装说明。
-2. 首次启动默认自动同步；打开“数据总览”查看任务进度、结果及数据画像，失败后可点击“立即同步”重试。数据任务缺省开启，已有关闭设置保留。
-3. 初始化失败后修复数据源，再手动重试；按需开启“同步调度 → 自动同步”恢复增量任务，实时、分钟与扩展自动拉取分别配置。
-4. 在“策略”和“回测”页面验证策略结果及费用口径。
-5. 按需配置 AI、监控通知、Open API Token 和 MCP。
-
-全新安装的七项数据能力默认路由到 `rustdx`，采用 v2.0.4 固定源码，
-实时、分钟与基础历史三组各共用最多8条业务连接及1条独立探测连接，
-全局24业务/3探测；候选绑定及完整窗口核验见[任务连接](docs/rustdx-task-routing.md)。
-原生桥接随后端依赖默认安装，Docker 和桌面包内置对应平台的扩展；构建和开发
-启动会检查桥接是否就绪。已保存的路由保持原值。数据源实际可用性受公开服务器、
-网络和协议覆盖影响，系统不会在失败时静默切换到其他数据源。
-
-初始化覆盖沪主板、深主板、创业板、科创板的当前有效股票：一年日线及对应除权、
-五张历史财务与股本表、配置窗口内的分钟线（默认 5 天，强制回溯含休市余量）、
-当前实时行情和五档盘口。实时与盘口保存在独立快照中，不替代官方历史日线。
-详细的恢复和部署行为见 [rustdx 数据源](docs/reference/integrations.md#rustdx-首次启动初始化)。
-
-## 关键配置
-
-从 `.env.example` 创建 `.env`。不要提交真实密钥。
-
-```ini
-# 服务
-HOST=0.0.0.0
-PORT=3018
-DATA_DIR=./data
-
-# 可选数据源
-TICKFLOW_API_KEY=
-
-# 可选 AI
-AI_PROVIDER=openai_compat
-AI_PROTOCOL=chat_completions
-AI_BASE_URL=https://api.deepseek.com/v1
-AI_API_KEY=
-AI_MODEL=deepseek-chat
-
-# 可选覆盖内置扩展概念/行业上游，留空使用默认接口
-EXT_CONCEPT_DATA_URL=
-EXT_INDUSTRY_DATA_URL=
-```
-
-扩展概念和扩展行业默认可直接拉取，环境变量可独立替换对应上游；调度保持交易日
-`09:15-11:30`、`13:00-15:15` 每分钟一次，启动时立即刷新。
-旧版未使用的空预设会恢复默认配置；已有用户保存的 URL、主动关闭状态和定制
-调度设置保持不变。默认地址及关闭入口见[配置说明](docs/operations.md#config-内置扩展概念与行业)。
-
-配置全集见[配置说明](docs/operations.md#configuration)。
-
-## 数据与调度原则
-
-- 实时行情：交易日 `09:15-11:30`、`13:00-15:15`，轮询偏好 1 秒；实际间隔和源新鲜度需量测。
-- 盘中分钟增量：相同交易时段，偏好 1 秒；rustdx 生效周期至少 60 秒，其他 Provider 按能力和下限执行。
-- 扩展概念/行业：内置默认上游，交易日双时段每分钟一次，可替换来源或关闭。
-- 盘后主管道：同步日线、除权因子、分钟数据并重算 enriched 指标。
-- 所有边界采用半开区间，午休期间不拉取。
-
-独立模式的 `data/` 保存行情和私有业务；完整多租户还使用两个 PostgreSQL 库、
-独立平台配置与不可变公共版本目录。升级、迁移和回滚按模式完成一致性备份，
-见[运维手册](docs/operations.md)。
-
-## 回测正确性
-
-生产研究应至少满足：
-
-- 使用历史时点可见的数据，禁止未来函数。
-- 纳入历史 ST/风险警示治理数据。
-- 纳入佣金、滑点和卖出印花税。
-- 遵守 A 股 T+1、停牌和涨跌停约束。
-- 绝对价格、申报数量和涨跌停使用原始价；指标与收益在一致复权尺度计算。
-- 开盘封板、最低佣金、同日资金顺序、买单过期和期末未平仓不能被理想化成交掩盖。
-- 盈亏比、金额利润因子和单笔净期望使用各自明确定义，不能互换。
-- 跨越完整市场周期评估，不以单一年度结果代替稳定性结论。
-- 对比结果时确认策略源码、参数和数据 release/config hash 一致。
-
-详细规则见[贡献与复审指南](CONTRIBUTING.md)和
-[测试与验收](docs/testing.md)。
-
-## 架构摘要
+## 工程结构
 
 ```text
-数据源 / 插件
-  -> Provider 能力路由与标准化
-  -> Parquet / DuckDB 数据层
-  -> enriched 指标流水线
-  -> 策略 / 因子 / 回测 / 监控 / 分析服务
-  -> FastAPI / SSE / Open API
-  -> React 前端 / MCP 客户端
+backend/app/       API、业务服务、数据仓库、指标、策略、因子、回测与多租户
+backend/native/    固定 rustdx 核心与 PyO3 桥接
+frontend/src/      React 页面、共享组件、API 类型、查询键与扩展
+deploy/           单机多租户、HTTPS、PostgreSQL 与 Windows 模板
+packaging/        桌面构建与安装资源
+scripts/          工程检查、版本、构建身份、升级和源码恢复
+tests/tooling/    仓库工具、文档与发布契约回归
+examples/         HTTP 数据源与开放 API 样例
+mcp-server/       独立 MCP 包
+docs/             当前工程文档与专题参考
+reports/          需保留的验收证据与调查
+data/             运行时数据，不提交到 Git
 ```
 
-后端复用模块化单体引擎。独立模式由一个主进程编排行情与任务；
-完整多租户拆为 Platform、API、Gateway 和四类 Worker，计算经主机 Broker 隔离执行。
-前端使用 React、TypeScript、Vite、TanStack Query 和 Tailwind CSS。
+完整目录归属和构建边界见[工程参考](docs/reference/engineering.md#layout)。
+当前是模块化单体与七角色单机实现；
+分布式研究、Kafka/Flink/ClickHouse 等组件和万人活跃容量属于
+[阶段目标](docs/planning/phase2-implementation-plan.md)，按实际证据分别签收。
 
-完整边界见[架构文档](docs/architecture.md#current)。
+## 开发与验证
 
-## 验证
+修改或审查前完整阅读 [AGENTS](AGENTS.md) 和 [CONTRIBUTING](CONTRIBUTING.md)；
+二次开发还须阅读[扩展与升级契约](docs/secondary-development.md)。
+技术栈为 FastAPI/Pydantic、Polars/DuckDB/Parquet、
+React 18/TypeScript/Vite/TanStack Query。pandas 用于回测边界，vectorbt 为可选依赖。
 
-后端：
+安装冻结开发依赖后按改动范围执行：
 
 ```bash
-cd backend
-uv sync --extra dev --extra backtest --frozen
-uv run --frozen --no-sync python -m app.plugins.rustdx.client
-uv run --no-sync pytest
+make check
+make test-tooling
+make test-backend
+make test-frontend
+make build-frontend
 ```
 
-前端：
+命令和隔离要求见[测试指南](docs/testing.md)。
+本地和功能分支不递增版本；远程 `main` 集成后由 CI 自动递增一次，
+固定同一 SHA 的质量门、标签与产物分别验收。
 
-```bash
-cd frontend
-pnpm install --frozen-lockfile
-pnpm test -- --run
-pnpm lint
-pnpm build
-```
+## 文档与维护
 
-提交前还应执行：
+[文档中心](docs/README.md)是完整入口，覆盖需求、方案、开发、测试、运营和运维。
+备份与恢复见[运维手册](docs/operations.md)，发布见[运营手册](docs/release-operations.md)，
+数据字段和外部接入见[专题参考](docs/reference/integrations.md)。
+历史资料按[维护规则](docs/maintenance.md)清理，保留实际验收、未完成调查和所需恢复点。
 
-```bash
-git diff --check
-```
-
-## 文档
-
-| 文档 | 用途 |
-| --- | --- |
-| [文档中心](docs/README.md) | 文档地图、事实源和更新规则 |
-| [当前功能索引](docs/architecture.md#capabilities) | 页面入口、七项能力、实现与测试依据、当前限制 |
-| [工程目录](docs/reference/engineering.md#layout) | 中型生产系统目录、职责、脚本迁移与检查入口 |
-| [操作说明书](操作说明书.md#tsp-a-股智能量化工作台操作说明书) | 页面操作、维护和排错 |
-| [部署指南](docs/operations.md#installation) | Compose、开发和服务端部署 |
-| [配置说明](docs/operations.md#configuration) | 环境变量和页面配置 |
-| [功能说明](操作说明书.md#1-项目概览) | 当前功能边界 |
-| [架构文档](docs/architecture.md#current) | 模块、数据流和故障边界 |
-| [运维手册](docs/operations.md) | 巡检、备份、恢复和故障处理 |
-| [发布流程](docs/release-operations.md) | 版本、产物、上线和回滚 |
-| [二次开发](docs/secondary-development.md) | 扩展点和核心修改规则 |
-| [rustdx 数据源](docs/reference/integrations.md#rustdx) | v2.0.4、三组各8业务+1探测和历史财务 |
-| [策略开发](docs/reference/research.md#strategy) | 内置、自定义和 AI 策略 |
-| [MCP 服务器](mcp-server/README.md) | AI 客户端接入 |
-
-## 第三方组件与数据源
-
-项目会按配置使用第三方依赖和数据服务，包括 `rustdx`、TickFlow、fuyao、OpenAI、
-DeepSeek、GLM 等。仓库中的链接用于说明功能或许可证，不代表合作、背书或可用性
-承诺。部署者必须自行确认服务条款、数据授权、隐私政策和网络可达性。
-
-第三方许可证和翻译归属属于法定或上游许可信息，保留在相应文件中。
-
-## License
-
-本项目代码按 [MIT License](LICENSE) 发布。第三方依赖及资源适用各自许可证。
+项目用于数据分析与量化研究，不构成投资建议；历史表现不代表未来收益。
+第三方数据使用仍需遵守供应商授权与服务条款。代码采用 [MIT License](LICENSE)。

@@ -1,0 +1,78 @@
+{
+  "version": "0.4.37",
+  "universe_size": 5222,
+  "minute_basis_raw": false,
+  "runtime_has_gap_report": false,
+  "scope_rows": 240,
+  "expected_rows": 6203040,
+  "remaining": 6202800,
+  "scope_days": 1,
+  "global_partition_days": 142,
+  "days": [
+    {
+      "day": "2026-03-23",
+      "expected_rows": 1240320,
+      "rows": 0,
+      "unique_expected_keys": 0,
+      "remaining": 1240320,
+      "symbols_covered": 0,
+      "per_symbol": [],
+      "content_sha256": null,
+      "first": null,
+      "last": null
+    },
+    {
+      "day": "2026-03-24",
+      "expected_rows": 1240320,
+      "rows": 0,
+      "unique_expected_keys": 0,
+      "remaining": 1240320,
+      "symbols_covered": 0,
+      "per_symbol": [],
+      "content_sha256": null,
+      "first": null,
+      "last": null
+    },
+    {
+      "day": "2026-03-25",
+      "expected_rows": 1240800,
+      "rows": 0,
+      "unique_expected_keys": 0,
+      "remaining": 1240800,
+      "symbols_covered": 0,
+      "per_symbol": [],
+      "content_sha256": null,
+      "first": null,
+      "last": null
+    },
+    {
+      "day": "2026-03-26",
+      "expected_rows": 1240800,
+      "rows": 0,
+      "unique_expected_keys": 0,
+      "remaining": 1240800,
+      "symbols_covered": 0,
+      "per_symbol": [],
+      "content_sha256": null,
+      "first": null,
+      "last": null
+    },
+    {
+      "day": "2026-03-27",
+      "expected_rows": 1240800,
+      "rows": 240,
+      "unique_expected_keys": 240,
+      "remaining": 1240560,
+      "symbols_covered": 1,
+      "per_symbol": [
+        {
+          "symbol": "688121.SH",
+          "rows": 240
+        }
+      ],
+      "content_sha256": "dfe01850b302e04bc9b35d8d94e2258a5375001938d52ea2e3ebf8e1104789a0",
+      "first": "2026-03-27 09:31:00",
+      "last": "2026-03-27 15:00:00"
+    }
+  ]
+}

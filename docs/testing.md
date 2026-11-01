@@ -1,137 +1,80 @@
 # 测试与验收指南
 
-2026-10-30发布验收以最终整合diff为准：三组额度/切站/完整来源、
-失效会话、指数完整本地历史及轮询保存分别验证，前端执行全量测试/lint/build。
-固定产物与本地/ECS恢复、真实任务、正常重启另行验收；
-新鲜结果见[本轮验证记录](../reports/current-release-20261030/verification.md)，不沿用下方历史计数证明新版本。
+s02定向验证涵盖全选/限买、因果分钟窗口、扣费止损、T+1、容量、
+截止失败、SQL日期唯一/迟到/重连/删除/租户隔离，以及真实Compute与研究结果。
+页面核验每日三Tab、历史日期与回测策略筛选；
+金融与发布边界见[s02](reference/s02.md)。
 
-2026-10-29 v0.4.38正式发布已完成，固定提交`5b273174f2e2a8ac539fcea363fa02315a61ebe9`。
-本地与ECS登录、六功能、真实分钟任务及正常重启通过，配置与原行情保持；
-301110.SZ三四月5,520键和10月28日两端各6个未返回键仍如实列入缺口。
-主线后端4,803 passed/9 skipped，前端453项通过，双架构固定产物及无网导入通过。
-两端恢复、重启后的任务与CSV持久化及自然健康timer证据见[正式升级验收](../reports/minute-collection-reliability-20261029/deployment.md)；不以样本推断全市场SLA。
+S02连续回测补充`backend/tests/backtest/test_momentum_backtest.py`：
+真实临时Parquet投影、依赖加载及专用执行链；复权价/原始价不同仍按原始价成交，
+覆盖T+1、14:32最高价、含费20%预算、50%容量、证券元数据缺列、
+缺日线/分钟分区、卖出缺分钟及零容量余股，并保护通用分钟信号物化。
+必须先在旧实现失败，再修复通过，并临时反转本进程执行器证明测试捕获根因。
+此类合成测试不构成新历史收益回测或运行环境部署验收。
+`test_full_research.py`以真实PostgreSQL覆盖S01／S02失败后的成交／持仓恢复、
+不生成成功每日历史、不保存成功附件及跨租户隔离；已有取消／撤权／租约失效测试共同复验。
+2026-11-01本地生效另行验证旧/新Compute镜像红绿对照、新运行目录8项回归、
+工作区相关96项测试、健康/配置/四租户历史保持，以及真实Broker的单日无归档执行；
+单日无完整交易，不据此认证完整区间收益或数据覆盖，详见
+[修复记录](../.claude/artifacts/fixes/s02-backtest-panel-dependencies.md)。
 
+核对日期：2026-11-01。本文定义测试方法与最低门禁；
+历史通过数、失败、跳过及部署结果保留在[证据索引](../reports/README.md)对应原始报告中，
+不计为本次验证。源码与运行身份见[版本基线](version-baseline.md)。
 
-2026-10-29三组连接回归入口为`test_rustdx_task_routing.py`、
-`test_rustdx_task_quotas.py`、`test_rustdx_window_consistency.py`。
-涵盖9节点分组、旧配置/Fake兼容、真实24业务/3探测、两进程共享额度、
-切站排空、分钟前台预留、探测取消、锚点重采与完整参考冲突回退。
-金融单位、旧历史页预算与上游身份仍须回归，范围见[任务连接](rustdx-task-routing.md)。
+<a id="public-binding-sync"></a>
+### 公共版本绑定同步验收
 
-2026-10-29分钟复核包含32/65/364天、100/101/201证券、上市日、空源、部分返回、
-并发补齐、取消、闭市/未知日历、混合schema及必需坏页；TCP模拟验证排队、
-传输超时、有界重试和失败后恢复。两端共用100证券/同月，分开记录窗口、
-实际bar请求、返回页行数、保存耗时和内容摘要；不得以解析样本推断全市场SLA。
-实际命令结果、全量复验及平台边界见
-[验收记录](../reports/minute-collection-reliability-20261029/verification.md)。
+运行`test_public_binding_sync.py`、`test_public_reader_lease.py`及受影响Full、
+行情查询与健康测试：覆盖闲置进程主动更新、新绑定准备失败、在途租约、
+旧仓库关闭、停止／取消、研究固定版本及旧注入兼容。上线逐进程核对绑定
+与当前发布版本，发布／回收后检查请求无旧路径503，并保留至少6小时观察记录。
+本轮命令、结果与观察状态只以[整合记录](../reports/release-consolidation-20261101.md)为准。
 
-2026-10-29隔离回归覆盖连续三只失败后健康证券、单/双工作线程、
-连接初始化、遗漏/全量持久缺口及报告写入失败。旧部分响应任务预期改为
-succeeded并验证实际写入、remaining和报告，不再要求整批failed；
-批次异常、取消和本地基础不足的失败预期保持。备用接口须与权威分钟/日K对照，
-不能只断言非空。实际计数和整合边界见
-[追加验收](../reports/minute-301110-20261029/skip-and-backfill.md)。
+## 当前功能回归矩阵
 
-2026-10-29来源变化恢复新增9项回归，覆盖探测/连续分页、身份不一致、
-日K/远程周K、不混旧价格、重复失败、取消及普通异常。反向移除重采后8失败/1通过。
-邻接303项在固定业务日通过，原生/安装/预算39项通过；真实当天有一条主线既有
-未来日期测试失效，不能报告全量绿灯。ECS真实原生读取加一次故障注入后，
-3,600行与无中断读取相等；源端全部23,760分钟键在本地已存，无可供缺口。
-完整计数范围、历史限制及未升级状态见
-[核验记录](../reports/minute-301110-20261029/verification.md)。
+| 领域 | 测试入口与关键验收 |
+| --- | --- |
+| 三组连接 | test_rustdx_task_routing/task_quotas/window_consistency：9节点、旧Fake/配置、24业务/3探测、两进程共享、切站排空、分钟预留、取消、整窗冲突回退 |
+| 分钟可靠性 | 32/65/364天、100/101/201证券、上市/闭市/未知日历、部分返回/并发补齐/混合schema/坏页；排队与传输超时分离，失败后恢复 |
+| 来源与缺口 | 探测/连续页、日K/远程周K、只重采一次、不混旧页；连续失败证券后健康证券继续，warning/remaining/CSV及报告失败状态 |
+| 历史性能 | test_minute_history_request_budget、test_rustdx_history_request_budget：31/32日、有界请求、准确缺口、整日末边界、异常回退、取消/跨调用更新；同数据窗口核对请求数和内容摘要 |
+| 指数周期 | test_index_kline_periods：CORE四只/PAGE七只、跨年周月、未知量额、独立表/指标/只读、截止柱、遗漏保护、并发重读、权限/任务/发布；省略start与显式日期分别验收 |
+| 前端指数/轮询 | 实际根数封顶、默认60、日历同行、5秒终态与旧定时器清理，1～10秒整数/保存失败/已存值保留；桌面/390px及浅深色 |
+| 财务存储 | test_data_status_storage：只计当前五表part.parquet、revision目录、缺目录/缓存/旧字段；原快照与观察时间不得改变 |
+| 财务并集 | 原快照/观察字节、并集时间线、A→B→A回放、损坏/并发变化拒绝、幂等和公共副本；见[历史补齐证据](../reports/financial-history-unify-20261030/verification.md) |
+| s01隔夜执行 | test_s01_strategy、test_minute_strategy、test_paper_auto及监控/回测回归：参数API保存/回显、225/105根完整前缀、持续信号、独立持仓/T+1、7.5%容量、汇总最低佣金、现金/余股/缺交易日拒绝；StrategyBacktest.test.tsx与浏览器验证摘要、全量模式禁用、错误成交台账导出及参数重开 |
+| 持仓到期日期 | test_lot_expiry_dates：国庆/周末/跨年、北京时间今天、未知日历/极限日期、非法日期、批次多股保存与派生规则、单股手选/清空；Lots.test.tsx与DatePicker.test.tsx：新快捷项、买入日/今天基准、批量保存、手选清空、失败/未知禁用且保留日期；浏览器核验桌面与390px显示及交互 |
+| 策略结果批量操作 | Screener、strategyLotDraft、WatchlistAddMenu、StrategyLotBatchDialog测试：卖／选／买及空页／切日范围、成交预填／缺值／零值、快照覆盖及比例单位、新组创建／失败、国庆下一交易日、迟到默认不覆盖手选、保存失败幂等重试；Lots与历史结果测试保护原入口兼容。全量前端、lint、build及桌面／390px浏览器独立验证；测试写入只用隔离数据 |
+| 策略参数作用域 | test_strategy_saved_params/detail_signals：null保存、缓存重读及运行、PATCH保留目标、继承范围校验、退出完整覆盖/原始快照；DefaultStrategyParamsDialog/StrategySettingsClarity/StrategyTargets/StrategyParameterUnits：模板与当前设置、完整字段/单位、批量选中/冻结/失败、草稿恢复取消、异步切换；桌面1440/窄屏390浅深色、构建/lint；[本次验证](../.claude/artifacts/fixes/strategy-parameter-clarity.md) |
 
-2026-10-28最新整合在同一候选分支完成全量门禁：后端4,610 passed、
-162 skipped、173 warnings；前端84文件/451项通过，ESLint与生产构建通过；
-仓库工具136 passed，`make check`通过。rustdx核心203项、文档55项及2项
-compile-fail、PyO3桥接7项通过；ETF退役相关132项通过。
-各计数来自不同测试层，不相加；跳过项、Windows正式产物、全市场历史覆盖和两端迁移
-仍须单独验收。完整命令边界与发布停止条件见
-[统一发布评审](../reports/complete-release-20261028-3/review.md)。
-
-2026-10-28数据采集统一回归先固定11项前端和7项后端红灯：
-旧数据修正入口、月/年扩展控件、单获取按钮、日期未透传及非法范围仍建任务。
-修复后`KlineSyncConfig/Data`定向23项、前端全量453项、ESLint和生产构建通过；
-周期API 40项、修正与rustdx请求预算102项通过。回归覆盖闭区间full/missing、
-本地缺口先于Provider解析、无缺口零请求、100证券上限、32日分段、
-rustdx旧窗口页预算，以及全量/遗漏取数期间不暂停行情、仅分区写盘暂停。
-证据见[数据采集统一记录](../reports/data-collection-unification-20261028/verification.md)。
-
-2026-10-28周K schema 回归覆盖`quote_ts`只在较早分区或只在较新分区两种顺序。
-旧实现连续三次均2失败，分别为missing column和extra column；修复后周K/周期/生成API/
-共享Parquet/周K修正共83项通过，Ruff通过。ECS实际10月26/27混合分区只读扫描
-10,430行并聚合5,215条周K；未触发真实生成写盘。证据见
-[修复记录](../reports/weekly-parquet-schema-20261028/verification.md)。
-
-2026-10-28指数页回归新增实际根数/工具栏结构与修正任务终态5秒自动收起。
-旧实现连续三次均2项失败，修复后指数定向5项和前端全量453项通过，
-lint/build通过。Playwright以真实ECharts和模拟API检查1600×1000、390×844，
-覆盖60→90→130封顶、数量框外、日历同行、终态消失、无横向溢出和控制台错误。
-证据见[指数页交互记录](../reports/index-page-ui-20261028/verification.md)。
-
-2026-10-28 rustdx v2.0.4回归覆盖8业务+1探测、行情与财务不同资格、
-共享精度元数据、旧桥接拒用、配置变更关闭旧池、排队绝对时限、单文件与分块预算、
-冷精度目录/证券目录分页预算、多页来源变更拒绝及原历史定位预算。
-核心单元/文档测试、独立源码包构建、漂移拒绝、Windows目标交叉编译和公开节点
-只读验证见[实际记录](../reports/rustdx-v204-20261028/verification.md)。
-Windows/Linux原生产物与生产运行另验；未完成正式P95。
-
-2026-10-28历史K线验收新增`test_minute_history_request_budget.py`与
-`test_rustdx_history_request_budget.py`：31/32天、100证券、旧窗口/准确缺口请求预算、
-股票/指数、日K整日边界、UTC、未知量额、停牌、空/短/重复/坏页、
-探测失败回退、目标页失败、取消与跨调用源更新。原实现及进程内反向验证均超预算；
-修复与周期/API/修正/Provider/写盘邻接回归通过。
-同8证券同月两端各自前后实测分页1344降至128，输出42240行及SHA256一致；
-遗漏修正432降至176，补24行、剩余0，已有值及完整分区内容一致。
-命令、实际计数及小样本/未部署限制见[性能记录](../reports/minute-history-performance-20261028/verification.md)。
-
-2026-10-28指数页验收：`test_index_kline_periods.py`覆盖七只目录、原四只侧栏、
-跨年周/月聚合、未知量额、独立表幂等/只读、周期指标、截止日期剪裁、
-真正遗漏的日/证券请求、已有值保护、并发写入快照重读、基础日K缺口、
-任务成功/失败/取消/执行槽占用、初始化、公开发布及写权限。
-相关指数/Provider/任务后端174项通过；前端全量451项通过及lint/build通过。
-原后端环境读取多租户配置使一项旧冷启动JobStore测试失败，改用隔离standalone配置后通过，
-未修改运行配置。Chrome使用模拟API验证真实ECharts、7×3周期、数量、
-修正全量/遗漏、进度/取消/错误、1600px与390px浅深色及只读权限。
-反向验证、Ruff基线和原始证据见[本轮记录](../reports/indices-kline-20261028/verification.md)；
-这些结果不认证线上升级或真实七指数历史完整。
-
-2026-10-28源码消重复核前端全量测试/lint/build、后端、工具、冻结依赖与Ruff增量；
-实际结果及平台限制见[项目精简记录](../reports/project-cleanup-20261028/verification.md)。
-
-2026-10-27整合冻结源码实际验证：后端及工具4706通过/162跳过，
-一次性PostgreSQL full模块220通过/3跳过，前端397通过及lint/build通过；
-计数有重叠且环境不同，不相加。增量Ruff无新增诊断，原生桥接可用。
-后续PR/main、产物和两端升级分别验收，见[本批记录](../reports/latest-release-20261027/verification.md)。
-
-整合补入历史日历后，日历/修正/发布/快照四模块169通过；
-临时切回旧日历时2020/2023请求及历史周标签四项回归失败。
-周K测试消费本地日K且不请求Provider；增量Ruff覆盖26个Python文件无新增诊断。
+固定产物、本地/ECS恢复、真实任务与完整重启独立签收。
+公开节点或小样本一致不认证全市场历史、正式P95或万人并发。
 
 <a id="data-overview-layout"></a>
-2026-10-27数据总览布局回归：`PageSettingsModal.test.tsx`覆盖quotes默认位置、
+### 数据总览布局
+
+`PageSettingsModal.test.tsx`覆盖quotes默认位置、
 旧六周期排序插入、新位置/显隐保留及恢复默认；`ScheduleOverview.test.tsx`覆盖
 简化名称、日K紧接15分K、默认/已保存时间及日K开关与总开关门控。
 `Data.test.tsx`用真实页面验证开关位于数据同步内、实时行情在画像15分K后、
 保存中禁用、成功刷新偏好/画像、失败保留及加载失败禁用。
 隔离Chrome验证1440/390px浅深色、3:1左对齐、滑动开关、显隐/排序重开与行情轮询；
-本轮前端397项及lint/build通过，命令和范围见
-[实际记录](../reports/data-overview-layout-20261027/verification.md)。
-仅认证前端与模拟API交互，不认证线上调度执行或真实行情数据。
+模拟API交互只认证前端，不认证线上调度执行或真实行情数据；
+历史结果见[布局记录](../reports/data-overview-layout-20261027/verification.md)。
 
 折叠补充：`ScheduleOverview.disclosure.test.tsx`覆盖各组默认收起与独立展开、
 实时调度刷新后基础与扩展分组展开状态保留，以及无可见标签的开关名称、
 当前值和保存期间禁用。浏览器验收需检查鼠标/Enter/Space展开收起、原生箭头、
 标题与数量可读、桌面与390px无溢出；折叠操作不能保存或重置任务配置。
 
-2026-10-27真实本地验收发现快速刷新缓存问题；`Watchlist.test.tsx`播种新鲜旧缓存，
-验证挂载仍请求清单并显示已保存双策略。先红后绿；最终工作区前端391项通过，
-候选后端71项及独立SQL25项通过；无拦截Chrome验证CSV顺序、多组、多策略、
-刷新、排序、全量CSV和390px，并在finally清理测试项对比原16条清单。
-备份恢复、角色就绪和外部GitHub检查失败的独立边界见
-[本地验收](../reports/local-watchlist-update-20261027/verification.md)。
+`Watchlist.test.tsx`播种新鲜旧缓存，验证挂载仍请求清单并显示服务端已保存关系。
+真实浏览器对账和原记录保留的历史结果见[本地验收](../reports/local-watchlist-update-20261027/verification.md)。
 
 <a id="watchlist-relations"></a>
-2026-10-27自选关系验收：`test_watchlist_relations.py`覆盖多策略持久化、重导入/移组/置顶、
+### 自选关系
+
+`test_watchlist_relations.py`覆盖多策略持久化、重导入/移组/置顶、
 删除后重加、空关联、不存在证券、旧schema只读/备份及不可见策略拒绝。
 `test_full_strategy_targets.py`用真实临时PostgreSQL验证跨租户隔离、兼容Cell删除、
 当前租户真实策略目录校验和未登录拒绝；`test_full_legacy_import.py`验证关系导入及对账。
@@ -143,8 +86,11 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 完整实测命令、结果与源码/运行区分见[验证记录](../.claude/artifacts/fixes/watchlist-relations.md)。
 
 <a id="repair-date-range"></a>
-2026-10-27修正日期范围回归：`RepairDailyPanel.test.tsx`验证仅1m/1d、默认日K、
-可选择结束日期及默认今天、full/missing参数、同日范围、空/反向/未来拒绝、能力及运行中禁用。
+### 修正日期范围
+
+股票数据总览由`KlineSyncConfig.test.tsx`验证1m/1d闭区间，
+`RepairDailyPanel.test.tsx`保留指数scope；覆盖可选择结束日期及默认今天、
+full/missing参数、同日范围、空/反向/未来拒绝、能力及运行中禁用。
 `api/repairKline.test.ts`检查真实请求正文和旧调用省略结束日期。
 日期与时分统一回归包括`DatePicker.test.tsx`的清空/上下界/禁用及Modal内Escape优先收起、
 `StrategyResultHistoryDialog.test.tsx`的日期选择/单项清空/筛选请求、
@@ -161,7 +107,9 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 两个按钮参数、空/反向/未来提示、失败重试及无横向溢出；模拟请求不认证真实数据源历史覆盖。
 
 <a id="local-kline-generation"></a>
-2026-10-28离线生成回归：`KlineSyncConfig.test.tsx`覆盖5/10/15分K、周K
+### 本地生成与基础获取
+
+`KlineSyncConfig.test.tsx`覆盖5/10/15分K、周K
 无扩展控件、仅传period、空表/缺能力可点击、任务运行中禁用。
 1m/1d使用两个DatePicker和全量/遗漏按钮，覆盖闭区间请求、缺能力/运行中禁用、
 已有最早日期、失败保留表单及日K后续除权/指标说明；`Data.test.tsx`从日K画像设置按钮
@@ -175,9 +123,9 @@ Chrome隔离API验证1440/390px下的一股多组/多策略、持久顺序、排
 构建及lint。浏览器用隔离组件/共享弹窗和拦截API验证按钮请求及桌面/窄屏，
 实际数据生成由后端固定样本验证，不把模拟页面或局部测试当作生产历史覆盖认证。
 
-2026-10-26冻结候选的全量、行为、构建、本地及生产证据见
-[本批整合](../reports/repair-missing-release-20261026/verification.md)。
-本批不沿用旧计数；临时PostgreSQL与隔离市场目录不读取/修改本地业务库。
+### 原生构建、六周期与进度
+
+临时PostgreSQL与隔离市场目录不读取/修改本地业务库。
 Runtime/Compute/API/Worker须固定同一CI revision；部署后单独核对配置、schema、
 HTTPS/admin和全部functions。页面设置原故障仍未复现，24小时/交易日及历史覆盖另签收。
 `test_build_manifest.py` 以真实 Git 临时仓库覆盖 Windows 自动换行与关闭自动换行，
@@ -187,9 +135,9 @@ HTTPS/admin和全部functions。页面设置原故障仍未复现，24小时/交
 Windows安装烟测须同时具备GUI成功标记和进程真实退出；窗口关闭不能单独签收。
 Windows原生回归另加载阻塞`DLL_PROCESS_DETACH`的测试DLL，在真实入口子进程
 核对应用清理标记与0/1退出码；该测试在非Windows明确跳过，并进入Windows原生CI。
-v0.4.28诊断已排除日志关闭阻塞，详见[原生退出修复](../.claude/artifacts/fixes/windows-native-exit.md)。
+根因与旧版本诊断见[原生退出修复](../.claude/artifacts/fixes/windows-native-exit.md)。
 
-六周期画像候选验证入口为 `backend/tests/test_kline_periods.py`、
+六周期画像验证入口为 `backend/tests/test_kline_periods.py`、
 `test_kline_periods_api.py`、`test_rustdx_provider.py`、`test_minute_refresh.py`及
 `test_instrument_catalog_admin.py`；前端为 `KlineSyncConfig.test.tsx`、
 `PageSettingsModal.test.tsx`、`StockCatalogDialog.test.tsx`及`Monitoring.test.tsx`。
@@ -250,18 +198,15 @@ K线区间获取回归入口为`test_repair_kline.py`、`test_kline_periods_api.
 描述验收覆盖5/15分K的本地1分K来源及周K的本地日K来源，卡片、页面设置、
 周期设置、修正说明和任务阶段一致显示本地计算；全量修正说明使用本地重算。
 
-2026-10-25本批全量验证、本地更新、PR/CI和线上升级结果统一见
-[最新现状验证](../reports/current-state-release-20261025/verification.md)。
 命令和矩阵定义“如何验证”；带日期的旧计数只证明当时版本。
 示例迁移验证从 `examples/custom-data-source/` 加载真实服务与YAML，
 检查日K、复权、实时响应。源码恢复工具的测试在
-`tests/tooling/test_source_recovery.py`，使用一次性Git仓库覆盖六版本选择、
+`tests/tooling/test_source_recovery.py`，使用一次性Git仓库覆盖最新及最多一个历史版本选择、
+历史不足时的一至三版本集合、过期政策/空集合/超限拒绝、
 非主线标签排除、未打标签拒绝、归档损坏、路径越界、重复版本和旧目录保护。
 
 统一功能A–I、二期第三步3.1–3.6、负载/持续窗口、恢复目标和签收模板见
-[生产验收](#acceptance)。本地文件清单及实际检查见
-[生产体系验证](../reports/production-system-consolidation-20261023/verification.md)；
-历史通过数保持日期，不能计入本次。
+[生产验收](#acceptance)。
 
 发布验证须明确源码SHA、应用版本、schema、Runtime/Compute身份及实际环境。
 本地全量通过后仍需主线CI、构建清单核验和生产功能检查；健康检查同时核对
@@ -269,6 +214,18 @@ K线区间获取回归入口为`test_repair_kline.py`、`test_kline_periods_api.
 停写备份实际恢复至一次性双库后方可替换产物。升级后验证可信域名HTTPS、
 静态资产、原管理员登录、权限隔离、日期结果和受控配置保留。
 每次发布更新证据；至少每月复核命令，接口/配置变化而文档未更新即标记待复核。
+
+### 策略、自选与公共交互
+
+用户策略删除级联覆盖`FR-STRATEGY-08`与`FR-STRATEGY-05`：
+`test_strategy_history_cascade.py`验证多日期/参数/名称/周期全部清理、他策略保留、
+只读失败、SQLite提交失败文件补偿、路径符号链接保护、迟到归档/缓存/回测清单、
+同ID重建与执行快照延迟捕获；`test_full_strategy_cascade.py`使用一次性PostgreSQL
+验证RLS、源/历史/研究附件/候选事务回滚、HTTP同源与业务写权限、
+运行任务失去提交资格及同ID新旧快照隔离。
+前端`StrategyDelete.test.tsx`验证说明、目标历史缓存清除、共享结果/研究查询刷新
+及清理失败保留弹窗。受影响回归还须覆盖原策略删除、代码保存、归档、旧缓存、
+渐进扫描、研究任务与实际回测worker进程；不得连接生产数据库运行这些测试。
 
 策略日期归档按`FR-STRATEGY-05`验证：
 `test_strategy_result_history.py`覆盖日期/版本/有效参数/资产/周期/标的池隔离、
@@ -334,6 +291,33 @@ CSV导入顺序按`FR-WATCHLIST-03`验证：`test_watchlist_csv.py`沿解析→�
 长工具栏可滚动、菜单按钮无遮挡，页签和弹窗保持原交互。浅/深色、加载/空/失败态
 沿用同一外观，不把页面暂无行情解释为顶栏渲染失败。
 
+持仓提醒与自选样式对齐使用 `Lots.test.tsx` 和 `Watchlist.test.tsx` 回归。
+整批删除覆盖 `test_holding_batches.py` 的级联/空批次/编号保留/非法ID/文件失败回滚，
+`test_holding_batches_sql.py` 的真实SQL事务、同号跨租户隔离及中途失败回滚；
+`Lots.test.tsx` 覆盖选中身份、确认/取消、失败重试、切换剩余批次和历史记录保护。
+2026-11-01新增功能定向后端24项、隔离PostgreSQL10项、前端15项通过，
+build通过；lint零错误，保留Screener已有依赖警告。上述计数不是全量测试认证。
+Browser工具验证选中第二批次、取消及确认删除后切换；缓存Playwright/Chromium补充
+1440/390px浅/深色尺寸、失败重试及空/历史批次。实际3021/3028已更新，
+当前运行目录24项回归及真实页面临时批次删除通过，删除2条记录/4条规则；
+原2批次/3提醒、自选16股/1组、3条规则和偏好/版本响应哈希保持。
+实际页面桌面/窄屏确认、取消和删除均通过，无pageerror；仅本地部署，未发布线上。
+同日删除入口调整复用上述15项前端回归，补验顶栏中紧随新增批次、仅图标且移除独立信息行；
+定向lint及build通过。实际1440/390px按钮顺序、共享尺寸、确认/取消和无溢出通过，
+业务响应哈希保持；本次仅更新前端，未重启服务或执行删除。
+2026-11-01定向11项通过，新增验证同证券跨批次编辑身份和历史/空批次隔离；
+前端build与定向lint通过。隔离样例浏览器验证1400/390px、浅/深色、加载/空/错误态、
+批次切换、编辑保存、新增弹窗及监控跳转，并检查180行虚拟化和滚动后表头固定。
+Browser工具完成556px批次交互，缓存Playwright/Chromium补充尺寸检查；
+这些证据不认证真实行情、监控推送或实际部署。
+
+同日实际本地前端更新另行验证：构建只包含持仓提醒相对已安装前端的差异，
+原1批次/2条股票提醒由真实API读取；1440/390px检查顶栏、表格、新增/编辑弹窗、
+交易日快捷项及监控跳转，无页面错误或本地请求失败。验证未保存或删除业务记录。
+更新前后批次、自选、监控规则、偏好及版本响应的规范化哈希一致；
+前端与API静态入口均匹配候选哈希，8类服务进程ID保持且API/Platform就绪。
+正式Release、线上部署及通知真实发送不在本次验证范围内。
+
 弹窗按 `FR-UI-06` 验证：`Modal.test.tsx` 覆盖裁剪容器外渲染、背景滚动锁、
 隐藏上传控件的初始焦点、嵌套ESC/焦点归还、拖选遮罩、提交保护和弹窗内日历键盘操作。
 涉及portal的组件测试从实际 `role="dialog"` 查询，不能假设面板在React挂载容器内。
@@ -341,10 +325,11 @@ CSV导入顺序按`FR-WATCHLIST-03`验证：`test_watchlist_csv.py`沿解析→�
 80%/120%界面缩放及长内容滚动；设置、策略池、监控编辑、个股详情及嵌套确认
 均需覆盖，标题和操作区域不能随内容滚出可视范围。
 
-2026-10-24 完整本地变更验证见[最新整合记录](../reports/production-integration-20261024/verification.md)：
-后端全量、仓库工具、前端 test/lint/build、原生 Cargo 和页面检查分别留证。
-历史批次覆盖首次手动同步与调度暂停、管理员幂等/旧身份、跨平台认证默认、
-SMTP未配置/优先级/LOGIN、路由保护和亮色恢复均纳入定向边界。
+### 初始化、目录与持续集成
+
+后端、仓库工具、前端test/lint/build、原生Cargo和页面检查分别留证。
+首次同步与调度暂停、管理员幂等/旧身份、跨平台认证默认、
+SMTP未配置/优先级/LOGIN、路由保护和亮色恢复纳入定向边界。
 CI、Docker手动质量门及桌面质量门提供独立 PostgreSQL 16 服务，
 `TSP_TEST_POSTGRES_DSN` 仅指向一次性测试库；默认配置测试自行清理环境变量，
 旧独立业务测试以显式 standalone/空dotenv/隔离DATA_DIR执行。
@@ -391,11 +376,9 @@ Job 级 `env` 不允许引用 `runner` 上下文。工作流修改应另外运�
 [工程目录与迁移表](reference/engineering.md#layout)。
 CI在后端质量门中检查目录、文档契约并收集整个`tests/tooling/`，前后端既有测试入口保持不变。
 
-2026-10-23 当前功能与源码的对应关系见[实现索引](architecture.md#capabilities)；
-本轮文档核对的实际结果见[同步记录](../reports/documentation-sync-20261023/verification.md)。
-下文带日期的通过数是历史记录，不计入本轮。
+当前功能与源码的对应关系见[实现索引](architecture.md#capabilities)。
 
-2026-10-22 整合测试覆盖五档证据与候选统计、收盘临时价/权威缓存/重启、
+五档证据与候选统计、收盘临时价/权威缓存/重启、
 公共发布/回收/空闲读者、Windows 管理员与资源预算、仓库写入锁和前端账户切换。
 整合态执行结果见本次交付报告，历史报告中的失败和跳过不追溯改成通过。
 
@@ -408,9 +391,8 @@ pnpm lint --max-warnings 0
 pnpm build
 ```
 
-生产旧补丁镜像的 100/250/500 SSE 压测共 93,360 次请求零错误，
-500 档 P99 152.6 ms，详见[延长验证](../reports/online-timeout-20261021/extended-validation.md)。
-该结果不证明整合源码已上线、业务连接池超时已修复或完整交易日已通过。
+历史SSE压测仅证明原镜像/窗口，见[延长验证](../reports/online-timeout-20261021/extended-validation.md)；
+不证明当前源码上线、业务连接池超时已修复或完整交易日已通过。
 Windows CI、Win10 22H2 真机与安装包验收分别记录；
 真实数据同步、全部研究任务、取消/重启和进程树内存仍须真机覆盖。
 阶段与验收门槛见[本次整合](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。

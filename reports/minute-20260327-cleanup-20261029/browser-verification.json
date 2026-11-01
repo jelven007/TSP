@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "url": "https://server.example.com/data",
+  "observed_minute_card": "1分K自动全市场同步rustdx1.2亿行 · 5222 只标的 · 141 日起2026-03-30止2026-10-28",
+  "earliest_date": "2026-03-30",
+  "latest_date": "2026-10-28",
+  "trading_days": 141
+}

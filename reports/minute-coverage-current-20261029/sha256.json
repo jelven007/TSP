@@ -1,0 +1,16 @@
+{
+  "calendar.json": "f870cc5a37d902ac75e8349ed715cc9ed39aa3157f3af67d57595476e9d98071",
+  "days.csv": "f7be67c2a97d1f9dfbc5289aeb6aa250da4b0d42ef7f157eed0eba0bc6b640d5",
+  "days.json": "adb5cf8e7670616fbdb414d2c18f4fba2cebff58c55e053ef94683d82414b2ad",
+  "gaps-by-minute.csv": "eaba27eaa74fefec25545fae0f1be7c7cba372916138804a76708831326a7830",
+  "gaps-by-symbol-day.csv": "9a1c22d8f1f8bb47d139f4f9c355b019bd661e60932c28cc0922613ba941636c",
+  "gaps-by-symbol.csv": "1d770f9ead2db5037f293153f222d42671f78b47fb9f7611468cac8666d1f4a1",
+  "monthly.csv": "63103006ab7435bed9cb005cc3476aa5698dea91c5c38d3d5750154d2d778469",
+  "monthly.json": "ab73d636c8de05d0a0486994dfe4b2efd49d81e10fb205bd5e8664d1873f847f",
+  "partial-gaps.csv": "f81dfe2beae229fbb53fbc9b445ec7d61c81cbbcc818dd049bf4e96287806343",
+  "report.md": "c2ba1cf57297142cbabd7cf4e52779021886785f2fe817797ca655ad5032a732",
+  "result.json": "b96102f2c17b4e775e58405ea0050c4f54ef9b8bc599adf30a9cd5183962e805",
+  "source-fingerprints.json": "de3934b6d2b5478beb0231aee4b99e2b2a860f8368b7680ae8148356f2998843",
+  "summary-verification.json": "9bde5084f2b6bb36bc5fb3840e77ea929cd9d5410051f419ce2bd06157773165",
+  "verification.json": "1c959c94514e03d2f22dccb493633278fe3cdae549b6d650f281b3a0e950d282"
+}

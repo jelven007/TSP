@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "verified_cases": 3,
+  "verified_phases": 6,
+  "four_station_candidate_phases": 4,
+  "real_candidate_inflight_peak": 32,
+  "station_limit": 8,
+  "source_routes_verified": true,
+  "data_failures_retained": true,
+  "output_hashes_verified": true,
+  "prototype_patch_apply_check_passed": true
+}

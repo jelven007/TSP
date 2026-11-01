@@ -1,0 +1,14 @@
+{
+  "environment": "online",
+  "status": "verified",
+  "applied_at": "2026-10-29T17:47:22.289374+00:00",
+  "added_files": 65,
+  "replaced_metadata_files": 12,
+  "before_files": 88,
+  "after_files": 153,
+  "revision_files": 148,
+  "revision_bytes": 74104316,
+  "backup": "/opt/tsp-full/backups/financial-history-unify-20261030/financials-before.tar.gz",
+  "backup_sha256": "4712ca744d546be3ca91ea81128df985649fb6a50ba8f3d1dbf992b38857f155",
+  "original_payloads_and_observations_preserved": true
+}

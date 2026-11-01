@@ -1,0 +1,63 @@
+{
+  "files": {
+    "source": {
+      "may_rows": 0,
+      "total_minute_rows": 118151563,
+      "files": 102,
+      "retained_checksums_match": true
+    },
+    "current_public": {
+      "may_rows": 0,
+      "total_minute_rows": 118151563,
+      "files": 102,
+      "retained_checksums_match": true
+    },
+    "current_public_release": "d16aea9e2c364537b0a01256ad7c99b6",
+    "platform_caches_refreshed": true
+  },
+  "api": {
+    "status": "verified",
+    "checks": [
+      {
+        "check": "administrator_login",
+        "passed": true
+      },
+      {
+        "path": "/health/live",
+        "http_status": 200,
+        "passed": true
+      },
+      {
+        "path": "/health/ready",
+        "http_status": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/business/version",
+        "http_status": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/data/status",
+        "http_status": 200,
+        "minute": {
+          "rows": 118151563,
+          "earliest_date": "2026-06-01",
+          "latest_date": "2026-10-29",
+          "symbols_covered": 5222,
+          "trading_days": 102
+        },
+        "passed": true
+      },
+      {
+        "path": "/api/kline/minute",
+        "date": "2026-07-01",
+        "rows": 240,
+        "source": "local",
+        "passed": true
+      }
+    ]
+  },
+  "environment": "local",
+  "status": "verified"
+}

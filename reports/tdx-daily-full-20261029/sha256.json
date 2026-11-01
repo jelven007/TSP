@@ -1,0 +1,14 @@
+{
+  "calibration.csv": "d182474e9fff88525c687c73438650fd7390059f1574e47d71c1383234c5ed30",
+  "cleanup.json": "a1f857eeb46a5b8606fa16093505a6b05499af35787289d42001fbfd30d797a4",
+  "comparison-by-symbol-day.csv": "3bf39476f6aa7f913f25219f3c796bcc2d59beba7ab053a93378798be7bc73d3",
+  "comparison-verification.json": "d4e04fcd67bbc0e82b8685a54ed350e3ef9b14b079daaaff2c24a285fbf39d33",
+  "online-unit-comparison.csv": "c1a894d724a5301defbf9a4fcb3bdbadae410593785fb3b3eac7fc652cec3e38",
+  "original-archive-provenance.json": "e1b98f9ae9e92f2aacbee9fb0b56acabc58f41d9e0be6f2e499d08e12935a204",
+  "range-download-verification.json": "af8239b59e8d8146ae04578a1cf6c434f251b4ceb1572a5657bd3feaf3833f5f",
+  "report.md": "5a6d346a08fb41fb8db42449fc517e4d67a7921245274a64784cbf30f29e4d7d",
+  "result.json": "19b01de1d48c12c09969c2ebdb7677535b4817b6b7a574e71f06393ef6f610f8",
+  "stock-file-coverage.csv": "c47c14315f940b0e3479735ac87cb2b7345cb9fa0e742906c30777addec6cf68",
+  "verification.json": "49d02410c930bb3e582a889e899d65d8c86d09e3a2f794735baf3d8a4edb382a",
+  "yearly-summary.csv": "b209ffec893bf1c4eb3a758e68065cba53ad21f1332817b814c05575c6dadbc4"
+}

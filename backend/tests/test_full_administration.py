@@ -6,6 +6,7 @@ import pytest
 from fastapi import Request
 from test_full_identity import env, full_cluster, register
 
+from app.bootstrap_defaults import ADMIN_PASSWORD
 from app.cell.context import AccessError
 from app.multitenancy.access import verify_live_access
 from app.multitenancy.research import authorize

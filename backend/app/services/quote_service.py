@@ -1713,6 +1713,7 @@ class QuoteService:
                             data_dir,
                             execution_events + [ev for ev in rule_events if ev["source"] != "strategy"],
                             account_id=acc_id, prices=snapshot,
+                            minute_repo=self._repo, completed_through=cn_now(),
                         )
                         paper_events.extend(paper_auto.auto_order_events(created, account_id=acc_id))
                     # 成交/自动跟单下单推送 (V3): 复用监控中心既有管道 —— SSE toast /

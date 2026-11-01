@@ -1,0 +1,87 @@
+{
+  "date": "2026-11-01",
+  "version": "0.4.39",
+  "status": "local_verified",
+  "migration": {
+    "retained_research_jobs": 15,
+    "retained_daily_records": 92,
+    "removed_research_jobs": 15,
+    "removed_daily_records": 92,
+    "all_retained_financial_fields_reconciled": true
+  },
+  "compute_image": "sha256:02901db1abdc17babc08640c7672d233263e62fa697a16b327dcc16d98cdb94c",
+  "real_api_compute": {
+    "catalog_count": 23,
+    "retained_jobs": 15,
+    "daily_records": 92,
+    "retired_detail_and_source": 404,
+    "retired_history_empty": true,
+    "normalized_job_export_content": true,
+    "compute_day": "2026-07-15",
+    "compute_previous_state_cash_nav_buy_sell_unchanged": true,
+    "selected": 20,
+    "buy": 5,
+    "default_timeframe": "1m",
+    "same_day_unique": true,
+    "new_full_backtest_run": false
+  },
+  "full_restart": {
+    "login": true,
+    "catalog": 23,
+    "s02_daily_records": 92,
+    "s02_research_jobs": 15,
+    "job_input_signature_consistent": true,
+    "old_business_records": 0,
+    "old_lifecycle_fences": 2,
+    "version": "0.4.39",
+    "full_service_restart": true,
+    "new_compute_or_backtest_run": false
+  },
+  "browser": {
+    "strategy_pool_migrated": true,
+    "old_strategy_options_absent": true,
+    "stock_details_verified": 12,
+    "selection_priority_verified": true,
+    "historical_filter_verified": true,
+    "research_jobs": 15,
+    "holdings_preserved": true,
+    "desktop": [
+      1440,
+      1000
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "page_errors": []
+  },
+  "checks": {
+    "backend_targeted": 34,
+    "frontend_targeted": 33,
+    "ruff": "pass",
+    "eslint": "0 errors, 1 existing hook dependency warning",
+    "frontend_build": "pass",
+    "compute_manifest": "pass"
+  },
+  "cleanup": {
+    "related_paths_removed": 100,
+    "related_copies_normalized": 35,
+    "temporary_migration_backups_disposed": true,
+    "git_history_rewritten": false
+  },
+  "full_backtest_rerun": false,
+  "online_deploy": false,
+  "commit_push": false,
+  "known_unrelated_failures": [
+    "installed candidate deletion guard baseline mismatch",
+    "preexisting OpenAPI fingerprint mismatch"
+  ],
+  "proof_sha256": {
+    "backend-final-tests.log": "0338ed885eb62624b02ed0a85902ca13671cc4539d808d66b707d5f6f63606fc",
+    "frontend-final-tests.log": "eae74b3bc5cfb27403f2b353700a0cc5cbdaa7133dffe48b7dba6fe669c69487",
+    "compute-build.log": "e43f185bb403852c465fe22a111c7698279ac0a5210bb6088f80c2a94e2a81e0",
+    "browser.json": "2bddb842cbc0ec2b38c7754ad211f56a0e9fb5bc2109a310ca826f36fb7275c6",
+    "live.json": "437f812a0555b009a2bdd31c17e825118bc9e1f25869858dc274be667c5688d2",
+    "restart.json": "ea528965de363ad9d26aee3a873fa56448d50ea4af5e5cfa642e7c02fd3add12"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "status": "verified",
+  "verified_at_beijing": "2026-10-29T16:28:11.399275+08:00",
+  "historical_source_files_unchanged": true,
+  "public_release_id": "7f1bc1e01095479489d5901ef0c05a55",
+  "public_source_and_prior_audit_sha256_all_match": true,
+  "files_verified": 141,
+  "instruments_unchanged": true
+}

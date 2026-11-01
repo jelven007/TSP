@@ -27,6 +27,9 @@ import { StrategyBuilderDialog } from '@/components/screener/StrategyBuilderDial
 import { StrategyStoreDialog } from '@/components/screener/StrategyStoreDialog'
 import { CompositeStrategyDialog } from '@/components/screener/CompositeStrategyDialog'
 import { StrategyResultHistoryDialog } from '@/components/screener/StrategyResultHistoryDialog'
+import { StrategyDailyResults, type StrategyResultTab } from '@/components/screener/StrategyDailyResults'
+import { StrategyLotBatchDialog } from '@/components/screener/StrategyLotBatchDialog'
+import { strategyLotStocks } from '@/lib/strategyLotDraft'
 import { ListColumnCustomizer } from '@/components/ListColumnCustomizer'
 import { useTableSort } from '@/components/stock-table/useTableSort'
 import { resolveCandleConfig } from '@/lib/list-columns'
@@ -101,6 +104,16 @@ export function Screener() {
   // 截断提示可关闭 (仅本次会话, 不持久化)
   const [intradayCapDismissed, setIntradayCapDismissed] = useState(false)
   const [showAll, setShowAll] = useState(false)
+  const resultViewKey = `${activeStrategy}-${asOf}-${showAll}-${result?.record_id ?? ''}`
+  const [dailyView, setDailyView] = useState<{ key: string; tab: StrategyResultTab } | null>(null)
+  const activeResultTab = dailyView?.key === resultViewKey ? dailyView.tab : 'sell'
+  const [holdingDraft, setHoldingDraft] = useState<{
+    key: string; strategyId: string | null; recordId?: string; rows: Record<string, unknown>[]
+  } | null>(null)
+  useEffect(() => {
+    setDailyView(null)
+    setHoldingDraft(null)
+  }, [resultViewKey])
   const [showFilter, setShowFilter] = useState(false)
   const [filter, setFilter] = useState<ScreenerFilterType>(defaultFilter)
   const filterMap = useRef<Map<string, ScreenerFilterType>>(new Map())
@@ -462,6 +475,10 @@ export function Screener() {
     return mainRows
   }, [showAll, allRows, filteredRows, filter, activeStrategy, strategyLimits, expiredRows, sort, sortRows, columns])
 
+  // 每日三页结果与传统列表共用同一批量范围；不从其他页补入买入结果。
+  const bulkRows = !showAll && result?.sections ? result.sections[activeResultTab] : displayRows
+  const bulkSymbols = strategyLotStocks(bulkRows).map(stock => stock.symbol)
+
   // 日k列是否启用 → 决定是否加载批量 kline 数据
   const candleColumn = useMemo(() =>
     columns.find(c => c.source.type === 'builtin' && c.source.key === 'candle' && c.visible),
@@ -640,6 +657,20 @@ export function Screener() {
     }
     return m
   }, [monitorRules.data])
+  const dailyGenerationAttempts = useRef(new Set<string>())
+  const generateMinuteResults = runAllMinute.mutate
+  const generatingMinuteResults = runAllMinute.isPending
+  useEffect(() => {
+    if (!asOf || !summaryQuery.isSuccess || !monitorRules.isSuccess || generatingMinuteResults) return
+    const ids = minutePoolIds.filter(id => id === 's02'
+      && strategyMonitorMap.has(`${assetType}:${id}`)
+      && summaryQuery.data?.results[id]?.as_of !== asOf
+      && !dailyGenerationAttempts.current.has(`${id}:${asOf}`))
+    if (!ids.length) return
+    ids.forEach(id => dailyGenerationAttempts.current.add(`${id}:${asOf}`))
+    generateMinuteResults({ strategyIds: ids, date: asOf, asset: assetType })
+  }, [asOf, minutePoolIds, assetType, strategyMonitorMap, summaryQuery.data, summaryQuery.isSuccess,
+    monitorRules.isSuccess, generatingMinuteResults, generateMinuteResults])
 
   const toggleStrategyMonitor = (strategyId: string, strategyName: string) => {
     const existingRuleId = strategyMonitorMap.get(`${assetType}:${strategyId}`)
@@ -672,9 +703,8 @@ export function Screener() {
   }
 
   const handleBatchAdd = (groupId: string | null) => {
-    if (!displayRows.length) return
-    const symbols = displayRows.map((r: any) => r.symbol)
-    batchAdd.mutate({ symbols, groupId }, {
+    if (!bulkSymbols.length) return
+    batchAdd.mutate({ symbols: bulkSymbols, groupId }, {
       onSuccess: (data) => {
         setBatchMsg(`已添加 ${data.added} 只到自选`)
         setTimeout(() => setBatchMsg(''), 3000)
@@ -818,7 +848,8 @@ export function Screener() {
             </button>
             <button
               onClick={() => setShowDefaultParams(true)}
-              title="默认基础参数 — 新建策略默认使用的基础过滤配置"
+              title="新建策略模板：只用于之后新建的策略"
+              aria-label="新建策略模板"
               className="inline-flex items-center justify-center h-7 w-7 rounded-btn
                 border border-border bg-surface text-muted
                 hover:text-accent hover:border-accent/50 transition-colors cursor-pointer"
@@ -909,7 +940,7 @@ export function Screener() {
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               className="space-y-3"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
                 <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
                   {!showAll && activeStrategy && (
                     <span className="text-secondary">{strategyIdToName[activeStrategy] ?? ''}</span>
@@ -934,7 +965,7 @@ export function Screener() {
                     <span className="text-[11px] text-muted animate-pulse">扫描中…</span>
                   )}
                 </h2>
-                <div className="flex items-center gap-3">
+                <div className="flex max-w-full items-center gap-3 overflow-x-auto [&>*]:shrink-0">
                   {(showAll ? allRows.length > 0 : !!result?.rows.length) && (
                     <div className="inline-flex items-stretch h-7 rounded-btn border border-border bg-surface overflow-hidden">
                       <button
@@ -973,8 +1004,11 @@ export function Screener() {
                       )}
                     </div>
                   )}
-                  {displayRows.length > 0 && (
+                  {bulkSymbols.length > 0 && (
+                    <div className="inline-flex flex-nowrap items-center gap-2 whitespace-nowrap [&>button]:shrink-0">
                     <WatchlistAddMenu
+                      key={resultViewKey}
+                      allowCreate
                       onSelect={handleBatchAdd}
                       disabled={batchAdd.isPending}
                       align="right"
@@ -987,6 +1021,15 @@ export function Screener() {
                       <Star className="h-3 w-3" />
                       {batchAdd.isPending ? '添加中…' : '批量加自选'}
                     </WatchlistAddMenu>
+                    <button type="button" aria-label="批量加持仓" title="将当前页股票加入持仓提醒批次"
+                      onClick={() => setHoldingDraft({
+                        key: resultViewKey, strategyId: showAll ? null : result?.strategy ?? activeStrategy,
+                        recordId: showAll ? undefined : result?.record_id, rows: [...bulkRows],
+                      })}
+                      className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-btn border border-accent/40 bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors cursor-pointer">
+                      <Layers className="h-3 w-3" />批量加持仓
+                    </button>
+                    </div>
                   )}
                   <button
                     onClick={() => setCustomizerOpen(true)}
@@ -1038,7 +1081,14 @@ export function Screener() {
                 />
               )}
 
-              {displayRows.length === 0 ? (
+              {!showAll && result?.sections ? (
+                <StrategyDailyResults key={`${result.strategy}-${result.as_of}`} result={result}
+                  activeTab={activeResultTab}
+                  onTabChange={tab => setDailyView({ key: resultViewKey, tab })}
+                  onPreview={(symbol, name, navList) => {
+                    setPreviewSymbol(symbol); setPreviewName(name ?? ''); setPreviewNavList(navList)
+                  }} />
+              ) : displayRows.length === 0 ? (
                 <EmptyState
                   icon={ScanSearch}
                   title={filterActive(filter) ? '筛选后无命中' : '今日无命中'}
@@ -1165,6 +1215,11 @@ export function Screener() {
           }
         }}
       />
+
+      {holdingDraft?.key === resultViewKey && <StrategyLotBatchDialog
+        strategyId={holdingDraft.strategyId} recordId={holdingDraft.recordId} rows={holdingDraft.rows}
+        onClose={() => setHoldingDraft(null)}
+        onCreated={batch => { setHoldingDraft(null); toast(`已创建持仓提醒批次 ${batch.name}`, 'success') }} />}
 
       {showPoolDialog && (
         <StrategyPoolDialog

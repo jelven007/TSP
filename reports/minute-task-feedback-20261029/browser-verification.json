@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "url": "https://server.example.com/data",
+  "version": "0.4.38",
+  "job_id": "7ae6fcc72e",
+  "history_row": "7ae6fcc72e 10/29 08:32 · 7m 1分K 240行 · 2026-03-23~2026-03-27",
+  "observed_completion_label": "完成",
+  "observed_terminal_message": "已写入240行, 跳过仍缺少的6202800行, 详见缺口报告",
+  "observed_final_batch_message": "1分K: 已完成 53/53 批, 已写入240行",
+  "method": "线上数据总览中点击任务历史行，再读取实际页面日志；终态提示与API及磁盘缺口相符"
+}

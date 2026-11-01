@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "scope": "post-cleanup delivery validation",
+  "strategy_groups_in_package": 1,
+  "csv_trade_rows": 759,
+  "zip_integrity": true,
+  "obsolete_comparison_removed": true
+}

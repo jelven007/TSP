@@ -14,7 +14,7 @@ import time
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -164,6 +164,10 @@ class StrategyDataContext:
     daily_history: pl.DataFrame | None = None
     market: Any | None = None
     cache_key: str | None = None
+    # 可选实际持仓快照; 与候选池分离, 成本为含买入费原始币值。
+    positions: list[dict] | None = None
+    completed_through: datetime | None = None
+    previous_states: dict[str, dict] | None = None
 
 
 @dataclass(frozen=True)
@@ -226,6 +230,10 @@ class StrategyResult:
     entry_signal_hits: list[dict] = field(default_factory=list)
     exit_signal_hits: list[dict] = field(default_factory=list)
     entry_filter_error: str | None = None
+    sections: dict[str, list[dict]] | None = None
+    state: dict | None = None
+    portfolio_scope: str | None = None
+    execution_error: str | None = None
 
 
 @dataclass
@@ -391,6 +399,7 @@ class StrategyEngine:
                 f"app.strategy.builtin.{name}"
                 for name in dependency_names
             )
+            allowed_dependency_modules |= frozenset({"app.strategy.momentum_selection"})
         try:
             code = path.read_text(encoding="utf-8")
             dependency_sources = {
@@ -932,6 +941,28 @@ class StrategyEngine:
         if conditions and s.execution_backend == "minute_filter":
             raise ValueError("日线入场叠加条件暂不支持分钟策略, 请使用分钟策略自身的条件")
         params = self.resolve_params(s, params, overrides)
+        if s.meta.get("minute_execution") == "momentum_capacity_v1":
+            from app.strategy.momentum_day import run_day
+
+            previous = (context.previous_states or {}).get(strategy_id)
+            loader = getattr(self, "_daily_state_loader", None)
+            if previous is None and callable(loader):
+                previous = loader(strategy_id, as_of)
+            if previous is None:
+                raise ValueError("连续策略组合缺少前交易日状态, 请先运行并归档该策略的基准回测")
+            selected = s.filter_minute_history_fn(context.history, params, daily=context.daily_history)
+            if pool is not None and not selected.is_empty():
+                selected = selected.filter(pl.col("symbol").is_in(pool))
+            computed = run_day(context, params, selected,
+                               previous_state=previous)
+            return StrategyResult(
+                as_of=as_of, strategy_id=strategy_id, rows=computed["rows"], total=computed["total"],
+                elapsed_ms=(time.perf_counter() - t0) * 1000, sections=computed["sections"],
+                state=computed["state"], portfolio_scope=computed["portfolio_scope"],
+                execution_error=computed["error"],
+                exit_signal_hits=[{"symbol": r["symbol"], "signals": ["momentum_" + r.get("reason", "pending")],
+                                   **r} for r in computed["sections"]["sell"]],
+            )
         entry_signals = self._effective_signals(overrides, "entry_signals", s.entry_signals)
         exit_signals = self._effective_signals(overrides, "exit_signals", s.exit_signals)
 
@@ -974,6 +1005,10 @@ class StrategyEngine:
         if pool and not signal_df.is_empty():
             signal_df = signal_df.filter(pl.col("symbol").is_in(pool))
         exit_signal_hits = self._collect_signal_hits(signal_df, exit_signals)
+        if s.meta.get("minute_execution") == "overnight_capacity_v1":
+            from app.strategy.overnight_runtime import exit_hits
+
+            exit_signal_hits = exit_hits(context, params)
 
         # 普通策略只读目标日期；历史策略读取调用方注入的历史窗口。
         if s.execution_backend == "minute_filter":
@@ -1109,7 +1144,11 @@ class StrategyEngine:
         limit = self._result_limit(s, overrides)
         order_desc = s.meta.get("descending", True)
         if "score" in df.columns:
-            df = df.sort("score", descending=order_desc)
+            df = (
+                df.sort(["score", "symbol"], descending=[order_desc, False])
+                if s.meta.get("tie_break") == "symbol"
+                else df.sort("score", descending=order_desc)
+            )
         elif s.meta.get("order_by") and s.meta["order_by"] != "score":
             ob = s.meta["order_by"]
             if ob in df.columns:

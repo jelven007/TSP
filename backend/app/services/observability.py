@@ -251,6 +251,7 @@ _runtime_metrics = _HttpMetrics()
 _RUNTIME_STAGES = frozenset({
     "identity.authenticate", "tenant.context", "tenant.factor_definitions",
     "public.refresh_wait", "public.refresh", "public.publish_wait", "public.publish",
+    "public.binding_check", "public.binding_prepare", "public.binding_commit",
 })
 
 

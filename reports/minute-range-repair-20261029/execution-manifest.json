@@ -1,0 +1,16 @@
+{
+  "runtime_image": "sha256:3b436a4a3b4c0bf16d19e0eb9228ce58fcd168a58f1fe11d2ccc06426b3ff1db",
+  "frozen_files": {
+    "kline_gaps.py": "928bd506653c348a0cb9c7e466bdddb8a958f7f2b8a089f2a4b9ecf158e0f7b1",
+    "kline_periods.py": "0e51ae068a5629ca023aa90f8dabdda2d08372a336c8b19635628ffba4b4c6f8",
+    "provider.py": "98d263f5baf488a3e7088467527e19b5ae6e996bbefcb7943e89a531e94a3265",
+    "client.py": "abaf05c4e0d6a47b4a5ac5c1997fd4163d92f073ea0edca49be1d88eb4075042",
+    "finalize_sources.py": "e305e851b9452f050524e65b422cd9a5d867c476b1ba4b63ca88f61c0e52935d",
+    "source_control.py": "c42ea75e89abefa645e5421dd2e571db7ade279cb397f10bb155225106c5a678",
+    "check_default_source.py": "9007e8ba6faf983f0d27850a70c89a8ef7f8bff0f9ed6f90a6272992a16776a4",
+    "scan_range.py": "c641ed24f0d4f8448fe748fe10e21dc7b7b9caac78f80f2e4d73febc16a1cd31",
+    "repair_range.py": "e6b46912444225748215bbf778a1823ff2bcaca1a73eaaf59a5d1c4aed20b6fa",
+    "verify_range.py": "63d7c95a4a1eafa3c69c61289c870c3cdefd65a3fc435edc6e7766dd5e95cfd4",
+    "write_report.py": "54da03942093c592b98100c5508f71a13b3a464843053016d5f158889c47b645"
+  }
+}

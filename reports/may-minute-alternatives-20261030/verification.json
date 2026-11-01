@@ -1,0 +1,34 @@
+{
+  "checked_at_utc": "2026-10-29T23:41:40.610021+00:00",
+  "status": "report_structure_verified",
+  "official_external_urls": [
+    "https://dict.thinktrader.net/nativeApi/xtdata.html",
+    "https://docs.tickflow.org/zh-Hans/quickstart",
+    "https://docs.tickflow.org/zh-Hans/sdk/python-quickstart",
+    "https://help.tdx.com.cn/quant/docs/markdown/mindoc-1ctuhthaq5qmg/mindoc-1h10g60jt68sc.html",
+    "https://help.tdx.com.cn/quant/docs/markdown/mindoc-1hdhbmi50d038.html",
+    "https://help.tdx.com.cn/quant/docs/markdown/mindoc-1hjbgqpdhv114.html",
+    "https://tickflow.org/",
+    "https://tushare.pro/document/2?doc_id=290",
+    "https://tushare.pro/wctapi/documents/370.md",
+    "https://www.joinquant.com/help/api/doc?id=9990&name=JQDatadoc",
+    "https://www.joinquant.com/help/api/doc?name=logon&id=9830",
+    "https://www.ricequant.com/doc/quant/research",
+    "https://www.ricequant.com/doc/rqdata/python/generic-api.html#rqdata-API-get_price-genericapi",
+    "https://www.ricequant.com/doc/sources/rqdata/python/generic-api.md"
+  ],
+  "local_references": [
+    "../../backend/app/data_providers/tickflow_provider.py",
+    "../../backend/app/services/kline_sync.py",
+    "../../docs/reference/integrations.md#rustdx",
+    "../rustdx-may-99-20261030/report.md",
+    "../rustdx-may-99-20261030/fresh-verification.json",
+    "../rustdx-may-99-20261030/confirmed-missing-stock-days.csv",
+    "../../docs/reference/integrations.md#plugin-get_minute-的-datetime-时区契约"
+  ],
+  "anchor_count": 35,
+  "missing_links": [],
+  "report_sha256": "e93647f028c1bd1cf98c317c4e7c7d5b98582c63e99eac83cb85640a076eeade",
+  "new_provider_full_may_coverage_measured": false,
+  "new_7709_endpoint_certified": false
+}

@@ -1,0 +1,97 @@
+{
+  "time_label_pairs": 16,
+  "all_six_values_match": true,
+  "counterfactual_scope": "in-memory diagnostic only; original data unchanged",
+  "by_period": {
+    "5m": {
+      "remaining_missing_input_buckets": 8,
+      "remaining_gaps": [
+        {
+          "symbol": "601012.SH",
+          "datetime": "2026-10-26 14:05:00",
+          "missing_minutes": "14:03"
+        },
+        {
+          "symbol": "601318.SH",
+          "datetime": "2026-10-26 14:05:00",
+          "missing_minutes": "14:03"
+        },
+        {
+          "symbol": "601398.SH",
+          "datetime": "2026-10-26 14:05:00",
+          "missing_minutes": "14:03"
+        },
+        {
+          "symbol": "601888.SH",
+          "datetime": "2026-10-26 14:05:00",
+          "missing_minutes": "14:03"
+        },
+        {
+          "symbol": "688981.SH",
+          "datetime": "2026-10-26 13:05:00",
+          "missing_minutes": "13:02"
+        },
+        {
+          "symbol": "688981.SH",
+          "datetime": "2026-10-26 13:30:00",
+          "missing_minutes": "13:27"
+        },
+        {
+          "symbol": "688981.SH",
+          "datetime": "2026-10-26 13:40:00",
+          "missing_minutes": "13:40"
+        },
+        {
+          "symbol": "688981.SH",
+          "datetime": "2026-10-26 14:05:00",
+          "missing_minutes": "14:03"
+        }
+      ]
+    },
+    "15m": {
+      "remaining_missing_input_buckets": 8,
+      "remaining_gaps": [
+        {
+          "symbol": "601012.SH",
+          "datetime": "2026-10-26 14:15:00",
+          "missing_minutes": "14:03"
+        },
+        {
+          "symbol": "601318.SH",
+          "datetime": "2026-10-26 14:15:00",
+          "missing_minutes": "14:03"
+        },
+        {
+          "symbol": "601398.SH",
+          "datetime": "2026-10-26 14:15:00",
+          "missing_minutes": "14:03"
+        },
+        {
+          "symbol": "601888.SH",
+          "datetime": "2026-10-26 14:15:00",
+          "missing_minutes": "14:03"
+        },
+        {
+          "symbol": "688981.SH",
+          "datetime": "2026-10-26 13:15:00",
+          "missing_minutes": "13:02"
+        },
+        {
+          "symbol": "688981.SH",
+          "datetime": "2026-10-26 13:30:00",
+          "missing_minutes": "13:27"
+        },
+        {
+          "symbol": "688981.SH",
+          "datetime": "2026-10-26 13:45:00",
+          "missing_minutes": "13:40"
+        },
+        {
+          "symbol": "688981.SH",
+          "datetime": "2026-10-26 14:15:00",
+          "missing_minutes": "14:03"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "core": "2.0.4",
+  "bridge": "0.2.0",
+  "socket_timeout_s": 2,
+  "report_chunk_delay_s": 1.1,
+  "bar_transport_delay_s": 1.1,
+  "trials": [
+    {
+      "trial": 1,
+      "error": "[TimedOut] 任务总时限已耗尽",
+      "requests": 0,
+      "rows": 0,
+      "elapsed_s": 2.211,
+      "socket_peak": 1,
+      "source_unchanged": false
+    },
+    {
+      "trial": 2,
+      "error": "[TimedOut] 任务总时限已耗尽",
+      "requests": 0,
+      "rows": 0,
+      "elapsed_s": 2.21,
+      "socket_peak": 1,
+      "source_unchanged": false
+    },
+    {
+      "trial": 3,
+      "error": "[TimedOut] 任务总时限已耗尽",
+      "requests": 0,
+      "rows": 0,
+      "elapsed_s": 2.207,
+      "socket_peak": 1,
+      "source_unchanged": false
+    }
+  ]
+}

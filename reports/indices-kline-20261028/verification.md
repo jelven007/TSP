@@ -78,13 +78,13 @@ Playwright 1.64.1及本机Google Chrome。浏览器插件工具未提供可用�
 将工具目录加入PATH：
 
 ```sh
-export PATH="/Users/bytedance/.local/bin:/Users/bytedance/.trae-cn/binaries/node/versions/24.22.1/bin:$PATH"
+export PATH="/path/to/home/.local/bin:/path/to/home/.trae-cn/binaries/node/versions/24.22.1/bin:$PATH"
 ```
 
 在`backend/`执行：
 
 ```sh
-PYTHONPATH=/Users/bytedance/Documents/TSPP/backend \
+PYTHONPATH=/path/to/home/Documents/TSPP/backend \
 TICKFLOW_ENV_FILE=/dev/null MULTITENANCY_ENABLED=false SERVICE_ROLE=standalone \
 DATA_DIR=/tmp/tspp-indices-test-runtime \
 uv run --frozen --no-sync pytest \

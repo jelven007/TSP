@@ -1,0 +1,16 @@
+{
+  "application_version": "v0.4.36",
+  "bridge_version": "0.2.0",
+  "rustdx_version": "2.0.3",
+  "revision": "d6bf22a0e5954c778ef6ad58be8e5f81aacc75c3",
+  "pool_api": 3,
+  "core_sha256": "63f15c4d7b496bf4e6b654294d40d03eb3496d8a0ba4ee71b71e061443cc9aa9",
+  "patch_sha256": "159703baa8d90c657183f4b71350df6fe18ee5c41cfcde93a8ffdb1e7dda7a52",
+  "installed_binary_sha256": "49f0bd708a87439093d0ada2e7c84dbf6be0a5d49c24920604a84099646a63ba",
+  "business_connections": 8,
+  "probe_connections": 1,
+  "offline_identity_verified": true,
+  "synchronized_python_tests": 334,
+  "synchronized_rust_tests": 7,
+  "service_restarted": false
+}

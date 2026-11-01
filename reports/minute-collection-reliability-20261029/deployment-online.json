@@ -1,7 +1,7 @@
 {
   "version": "0.4.38",
   "revision": "5b273174f2e2a8ac539fcea363fa02315a61ebe9",
-  "origin": "https://shanao.asia",
+  "origin": "https://server.example.com",
   "checked_at": "2026-10-29T00:33:29.774940+00:00",
   "ci": {
     "main": 40787761848,

@@ -1,0 +1,42 @@
+{
+  "status": "verified",
+  "changed_files": 2977,
+  "summary": {
+    "kline_index_daily": {
+      "files": 1453,
+      "bytes": 26121323,
+      "rows": 799315,
+      "first": "2020-11-02",
+      "last": "2026-10-29"
+    },
+    "kline_index_enriched": {
+      "files": 1453,
+      "bytes": 43864171,
+      "rows": 799315,
+      "first": "2020-11-02",
+      "last": "2026-10-29"
+    },
+    "kline_index_weekly": {
+      "files": 0,
+      "bytes": 0,
+      "rows": 0,
+      "first": null,
+      "last": null
+    },
+    "kline_index_monthly": {
+      "files": 72,
+      "bytes": 1334151,
+      "rows": 39641,
+      "first": "2020-11-01",
+      "last": "2026-10-01"
+    }
+  },
+  "generation": "4070e637ac7542b29a26543a37bfae66",
+  "data_release": "8ac4f1978757488f9410ce3385c135e8",
+  "public_release": "58f7f84d52a64ceb9f04085784de7466",
+  "previous_public_release": "142c341fd72c431aa595b14dd5040b4d",
+  "previous_public_unchanged": true,
+  "unrelated_data_unchanged": true,
+  "backup_verified": true,
+  "seconds": 13.58
+}

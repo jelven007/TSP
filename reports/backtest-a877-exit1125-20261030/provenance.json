@@ -1,0 +1,33 @@
+{
+  "analysis_date": "2026-10-30",
+  "source_release": "52ec64ac954a471c898d6b1bab84967b",
+  "data_asof": "2026-10-30T11:29:00",
+  "requested_interval": [
+    "2026-06-15",
+    "2026-10-30"
+  ],
+  "universe_count": 2329,
+  "data_or_selection_changes": false,
+  "extra_slippage_scenarios": [
+    0.0005,
+    0.001
+  ],
+  "scripts": [
+    {
+      "name": "study.py",
+      "sha256": "127e67750c84b5e82da070248ed01a2d80edca4dbb21e55134e4e14145d3d73f"
+    },
+    {
+      "name": "verify.py",
+      "sha256": "bae0aa22fa7eabac3d9fd1269dff45d0277cf61a4d966c8d837f1c22d85df58f"
+    },
+    {
+      "name": "publish.py",
+      "sha256": "f5c24132ffc5355749f3ac942ee243389e8bb10a7ef71b532e0c6c02c866070a"
+    }
+  ],
+  "script_directory": "/tmp/tspp-a877-exit1125-20261030",
+  "no_application_or_live_order_changes": true,
+  "retained_strategy": "候选A：14:30买入、次交易日11:25退出、1.5%止盈",
+  "process_results_removed_at": "2026-10-30T15:46:54.635455+08:00"
+}
