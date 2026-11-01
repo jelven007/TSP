@@ -144,6 +144,43 @@ def test_sql_targets_resolve_only_owned_groups_and_block_deletion(env):
     assert watchlist.delete_group(group["id"])[0] == []
 
 
+def test_new_source_defaults_validate_owned_groups_and_keep_durable_references(env):
+    from app.multitenancy.strategies import TenantStrategyEngine, definition_payload
+    from app.strategy.engine import StrategyEngine
+
+    own, watchlist = stores(env)
+    other, _foreign = stores(env)
+    _, first = watchlist.create_group("核心", symbols=["600000.SH"])
+    _, second = watchlist.create_group("观察", symbols=["300750.SZ"])
+    builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "app" / "strategy" / "builtin"])
+    definition = definition_payload(replace(builtins.get("factor_rank_research"),
+        meta={"id": "custom_groups", "name": "分组模板", "params": [], "scoring": {}},
+        source="custom", basic_filter={**target(first["id"])["basic_filter"],
+            "watchlist_group_ids": [first["id"], second["id"]],
+            "data_reference": "previous_trade_day", "change_pct_min": -1.2}))
+    executor = SimpleNamespace(execute=lambda _task, **_: {"definition": definition})
+    engine = TenantStrategyEngine(own, builtins, executor)
+    engine.save_source("custom_groups", "", "custom")
+    rebuilt = TenantStrategyEngine(own, builtins, executor)
+    persisted = own.get("strategy_sources", "custom_groups")["definition"]["basic_filter"]
+    assert persisted["change_pct_min"] == -1.2
+    assert persisted["watchlist_group_ids"] == [first["id"], second["id"]]
+    assert "target_symbols" not in persisted
+    assert rebuilt.task("scan")["overrides"]["custom_groups"]["basic_filter"]["target_symbols"] == ["300750.SZ", "600000.SH"]
+    assert {g["id"]: g["referenced_by"] for g in watchlist.list_groups()} == {
+        first["id"]: ["custom_groups"], second["id"]: ["custom_groups"]}
+    with pytest.raises(ValueError, match="被策略引用"):
+        watchlist.delete_group(first["id"])
+    foreign = TenantStrategyEngine(other, builtins, executor)
+    with pytest.raises(ValueError, match="不存在"):
+        foreign.save_source("custom_groups", "", "custom")
+    assert other.get("strategy_sources", "custom_groups") is None
+    config.save_override(own, "custom_groups", {"basic_filter": {"target_mode": "selected", "include_custom": False}})
+    assert all("referenced_by" not in group for group in watchlist.list_groups())
+    config.delete_override(own, "custom_groups")
+    assert all(group["referenced_by"] == ["custom_groups"] for group in watchlist.list_groups())
+
+
 @pytest.mark.parametrize("operation", ["clear", "clear_group", "cell_clear"])
 def test_sql_clear_reference_protection_is_atomic_and_tenant_scoped(env, operation):
     from app.cell.context import AccessError

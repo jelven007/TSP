@@ -1,0 +1,94 @@
+{
+  "checks": [
+    {
+      "side": "入场",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "bounds": {
+        "width": 720,
+        "scroll": 718,
+        "client": 718
+      },
+      "existing_selections": [
+        "已有日线买点",
+        "通用条件",
+        "尾盘走强"
+      ]
+    },
+    {
+      "side": "出场",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "bounds": {
+        "width": 720,
+        "scroll": 718,
+        "client": 718
+      },
+      "existing_selections": [
+        "已有日线卖点",
+        "早盘清仓"
+      ]
+    },
+    {
+      "side": "入场",
+      "viewport": [
+        390,
+        844
+      ],
+      "bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      },
+      "existing_selections": [
+        "已有日线买点",
+        "通用条件",
+        "尾盘走强"
+      ]
+    },
+    {
+      "side": "出场",
+      "viewport": [
+        390,
+        844
+      ],
+      "bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      },
+      "existing_selections": [
+        "已有日线卖点",
+        "早盘清仓"
+      ]
+    }
+  ],
+  "saved_entry_signals": [
+    "signal_ma_golden_cross",
+    "csg_daily_entry",
+    "csg_common",
+    "csgi_late_session_strength"
+  ],
+  "saved_exit_signals": [
+    "csg_daily_exit",
+    "csgi_morning_liquidation"
+  ],
+  "search_verified": true,
+  "direction_filters": true,
+  "disabled_signals_blocked": true,
+  "daily_minute_incompatibility_visible": true,
+  "real_config_save_and_reload": true,
+  "page_errors": [],
+  "selection_calculation_requests": 0,
+  "existing_post_save_refresh": [
+    {
+      "url": "http://127.0.0.1:3021/api/screener/run_preset",
+      "stage": "existing_post_save_refresh"
+    }
+  ],
+  "browser_fallback_reason": "Tool discovery exposed no browser automation tools; used installed Playwright."
+}

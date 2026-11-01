@@ -91,6 +91,8 @@ class Databases:
                 expected.update({"documents", "research_jobs", "research_artifacts", "full_events",
                                  "full_paper_accounts", "full_paper_orders", "full_paper_fills", "full_paper_nav",
                                  "legacy_artifacts"})
+            if self.settings.schema_version >= 7:
+                expected.add("daily_stock_pools")
             unsafe = conn.execute(
                 """SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                    WHERE n.nspname = 'business' AND c.relname = ANY(%s)

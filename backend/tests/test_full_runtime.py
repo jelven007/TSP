@@ -69,6 +69,17 @@ def price_rule(**changes):
     })
 
 
+def test_monitor_legacy_source_uses_record_key_and_keeps_persistent_value(owned):
+    owned.documents.put("strategy_sources", "legacy_source", {
+        "source": "custom", "code": "", "definition": {"exit_signals": []},
+    })
+    stored = owned.documents.records("strategy_sources")
+    _account, _context, payload, _observed = owned.worker.prepare(
+        owned.documents.context.tenant_id, owned.snapshot())
+    assert payload["sources"][0]["id"] == "legacy_source"
+    assert owned.documents.records("strategy_sources") == stored
+
+
 def test_restart_retains_cooldown_and_event_replay_is_tenant_scoped(owned):
     Rules(owned.documents).save_one(price_rule())
     tenant = owned.documents.context.tenant_id
@@ -89,6 +100,33 @@ def test_restart_retains_cooldown_and_event_replay_is_tenant_scoped(owned):
         assert other.pop() == []
     finally:
         hub.close()
+
+
+def test_morning_monitor_payload_contains_only_owned_remaining_purchase_batches(owned):
+    from app.strategy import custom_signals
+
+    sig = {"id": "morning_liquidation", "name": "早盘清仓", "kind": "exit",
+           "timeframe": "intraday", "template": "morning_liquidation", "conditions": [],
+           "params": {"time": "10:30:00", "amplitude_pct": 6}, "enabled": True}
+    custom_signals.save_one(owned.documents, sig)
+    owned.documents.put("strategy_overrides", "ma_golden_cross", {"exit_signals": ["csgi_morning_liquidation"]})
+    Rules(owned.documents).save_one(monitor_rules.normalize({
+        "id": "morning", "name": "清仓", "type": "strategy", "strategy_id": "ma_golden_cross", "scope": "all",
+    }))
+    for documents, symbol in [(owned.documents, "600000.SH"), (owned.other, "600519.SH")]:
+        paper.create_account(documents, 10000, account_id="one")
+        for index, entry in enumerate(["2026-10-29", "2026-10-30"]):
+            paper._append_fill(documents, {"symbol": symbol, "side": "buy", "qty": 100,
+                "price": 10., "fee": 0., "date": entry, "order_id": str(index),
+                "entry_policy": {"strategy_id": "ma_golden_cross"}}, "one")
+    _account, _context, payload, _fingerprint = owned.worker.prepare(
+        owned.documents.context.tenant_id, owned.snapshot(),
+    )
+    positions = payload["positions"]["ma_golden_cross"]
+    assert {row["symbol"] for row in positions} == {"600000.SH"}
+    assert [row["entry_date"] for row in positions] == ["2026-10-29", "2026-10-30"]
+    assert all(row["available_qty"] == 100 for row in positions)
+    assert all("fills" not in row and "avg_cost" not in row for row in positions)
 
 
 def test_rule_edit_invalidates_cooldown_and_group_snapshot_never_reads_global(owned, monkeypatch):

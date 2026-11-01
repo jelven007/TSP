@@ -4042,6 +4042,10 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
         return np.ones(market.shape, dtype=bool)
 
     mask = np.ones(market.shape, dtype=bool)
+    if config.get("exclude_suspended"):
+        state = market.fields.get("is_suspended")
+        if state is not None:
+            mask &= ~np.isfinite(state) | (state < .5)
     if "target_mode" in config:
         from app.strategy.targets import expression
         panel = pl.DataFrame({"symbol": market.symbols, "name": market.names})
@@ -4055,9 +4059,25 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
         mask &= risk
     if not config.get("enabled", True):
         return mask
+    from app.strategy.basic_filter import previous_session, uses_previous
+    previous_rows = None
+    if uses_previous(config):
+        # All intraday rows use the prior session's final daily values, never
+        # the preceding minute or the last available row for an individual stock.
+        dates = [date.fromisoformat(label[:10]) for label in market.timestamp_labels]
+        final_rows = {day: row for row, day in enumerate(dates)}
+        previous_rows = np.array([final_rows.get(previous_session(day), -1) for day in dates])
+
+    def reference(values):
+        if previous_rows is None:
+            return values
+        output = np.full(market.shape, np.nan)
+        valid = previous_rows >= 0
+        output[valid] = values[previous_rows[valid]]
+        return output
     # Absolute price/capitalization use the observed unadjusted close. Legacy
     # frames without raw prices retain their explicit close fallback.
-    close = market.fields.get("raw_close", market.close)
+    close = reference(market.fields.get("raw_close", market.close))
     if any(
         config.get(f"{prefix}_{bound}") is not None
         for prefix in ("price", "market_cap", "float_cap")
@@ -4071,15 +4091,21 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
 
     for prefix, name in (("market_cap", "total_shares"), ("float_cap", "float_shares")):
         if any(config.get(f"{prefix}_{bound}") is not None for bound in ("min", "max")):
-            shares = _optional_field(market, name)
+            shares = reference(_optional_field(market, name))
             mask &= np.isfinite(shares) & (shares > 0)
             _apply_bound(mask, close * shares, config, prefix)
-    _apply_bound(mask, _required_field_for_bound(market, config, "amount"), config, "amount")
-    _apply_bound(mask, _optional_field(market, "turnover_rate"), config, "turnover")
+    for stem, field_name, scale in (("amount", "amount", 1), ("turnover", "turnover_rate", 1),
+                                    ("change_pct", "change_pct", 100)):
+        if any(config.get(f"{stem}_{side}") is not None for side in ("min", "max")):
+            values = (matrix_feature(market, "change_pct")
+                      if stem == "change_pct" else _optional_field(market, field_name))
+            values = reference(values) * scale
+            mask &= np.isfinite(values)
+            _apply_bound(mask, values, config, stem)
 
     minimum_age = new_stock_min_days(config)
     if minimum_age:
-        mask &= _optional_field(market, "listing_age_days") >= minimum_age
+        mask &= reference(_optional_field(market, "listing_age_days")) >= minimum_age
 
     if config.get("exclude_st"):
         historical_risk = market.fields.get("is_risk_warning")

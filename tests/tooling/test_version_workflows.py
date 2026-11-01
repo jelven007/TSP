@@ -211,7 +211,10 @@ def test_docker_latest_only_promoted_for_current_main_after_build():
     assert "type=raw,value=${{ steps.revision.outputs.revision }}\n" in tags
     promotion = docker["jobs"]["promote-latest"]
     assert promotion["needs"] == "build-and-push"
-    assert promotion["if"] == "github.event_name == 'workflow_run'"
+    assert promotion["if"].strip() == (
+        "always() && github.event_name == 'workflow_run' && "
+        "needs.build-and-push.result == 'success'"
+    )
     assert promotion["concurrency"]["cancel-in-progress"] == "false"
     publish = promotion["steps"][-1]
     assert "is_current_main(Path.cwd(), revision)" in publish["run"]

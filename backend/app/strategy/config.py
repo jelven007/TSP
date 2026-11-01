@@ -111,15 +111,23 @@ def validate_basic_filter(bf: dict | None) -> None:
         raise ValueError("基础过滤必须为对象")
     if "enabled" in bf and not isinstance(bf["enabled"], bool):
         raise ValueError("基础过滤开关必须为布尔值")
-    for stem in ("price", "market_cap", "float_cap", "amount", "turnover"):
+    if "exclude_suspended" in bf and not isinstance(bf["exclude_suspended"], bool):
+        raise ValueError("停牌过滤开关必须为布尔值")
+    if "data_reference" in bf and bf["data_reference"] not in ("previous_trade_day", "signal_day"):
+        raise ValueError("数值过滤数据日期无效")
+    for stem in ("price", "market_cap", "float_cap", "amount", "turnover", "change_pct"):
         for suffix in ("min", "max"):
             key = f"{stem}_{suffix}"
             value = bf.get(key)
             if value is not None and (
                 isinstance(value, bool) or not isinstance(value, (int, float))
-                or not math.isfinite(value) or value < 0
+                or not math.isfinite(value) or (stem != "change_pct" and value < 0)
             ):
                 raise ValueError(f"{key} 必须为非负有限数值")
+            if stem == "change_pct" and value is not None and (
+                not -50 <= value <= 50 or not math.isclose(value * 10, round(value * 10), abs_tol=1e-8)
+            ):
+                raise ValueError("涨跌幅须在-50%到+50%之间, 最多1位小数")
         low, high = bf.get(f"{stem}_min"), bf.get(f"{stem}_max")
         if low is not None and high is not None and low > high:
             raise ValueError(f"{stem} 最小值不能大于最大值")

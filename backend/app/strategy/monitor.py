@@ -214,10 +214,10 @@ class _PrecomputedMonitorStrategyEngine:
             if symbol in symbols
         }
 
-        def filter_hits(hits):
+        def filter_hits(hits, *, holdings=False):
             return [
                 hit for hit in hits
-                if allowed is None or str(hit.get("symbol", "")) in allowed
+                if allowed is None or str(hit.get("symbol", "")) in allowed or (holdings and hit.get("holding_exit"))
             ]
 
         return replace(
@@ -226,7 +226,7 @@ class _PrecomputedMonitorStrategyEngine:
             total=len(rows),
             scores=scores,
             entry_signal_hits=filter_hits(result.entry_signal_hits),
-            exit_signal_hits=filter_hits(result.exit_signal_hits),
+            exit_signal_hits=filter_hits(result.exit_signal_hits, holdings=True),
         )
 
 
@@ -1144,7 +1144,12 @@ class MonitorRuleEngine:
                     calculation_overrides["display_limit"] = None
                 pool = pools_map[strategy_id]
                 if pool == []:
-                    continue
+                    from app.strategy.morning_liquidation import selected_definitions
+
+                    if not selected_definitions(strategy_engine, strategy_engine._effective_signals(
+                        calculation_overrides, "exit_signals", strategy.exit_signals,
+                    )):
+                        continue
                 context = StrategyDataContext(
                     asset_type=asset_type,
                     timeframe="1d",
@@ -1221,6 +1226,10 @@ class MonitorRuleEngine:
         if getattr(result, "sections", None) is not None:
             payload.update(sections=result.sections, state=result.state,
                            portfolio_scope=result.portfolio_scope, execution_error=result.execution_error)
+        if getattr(result, "daily_stock_pool", None) is not None:
+            payload["daily_stock_pool"] = result.daily_stock_pool
+        if getattr(result, "daily_stock_pool_error", None):
+            payload["daily_stock_pool_error"] = result.daily_stock_pool_error
         return payload
 
     def publish_strategy_group(

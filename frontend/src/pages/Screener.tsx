@@ -137,7 +137,7 @@ export function Screener() {
 
   const extColumnsParam = useMemo(() => buildExtColumnsParam(columns), [columns])
 
-  // 各策略命中数 (进入页面自动跑)
+  // 各策略命中数：读取归档或显式执行后更新。
   const [hitCounts, setHitCounts] = useState<Record<string, number>>({})
   // 各策略失效数 (今日曾命中 - 当前命中)
   const [expiredCounts, setExpiredCounts] = useState<Record<string, number>>({})
@@ -576,15 +576,12 @@ export function Screener() {
     },
   })
 
-  const handleRun = (s: ScreenerStrategy) => {
+  const handleSelect = (s: ScreenerStrategy) => {
     handleStrategySwitch(s.id)
     setActiveStrategy(s.id)
+    viewRef.current.activeStrategy = s.id
     setShowAll(false)
     if (result?.strategy !== s.id || result.as_of !== asOf) setResult(null)
-    const tf = s.timeframes?.includes('1m') ? '1m' as const : '1d' as const
-    // 摘要命中时由 singleCachedQuery 按需加载明细；缺失时才单独计算。
-    if (summaryQuery.data?.results[s.id]?.as_of === asOf || runAll.isPending) return
-    run.mutate({ id: s.id, date: asOf, timeframe: tf, asset: assetType })
   }
 
   // 日期变化仅切换保存结果；缺记录时等待用户手动运行。
@@ -657,48 +654,56 @@ export function Screener() {
     }
     return m
   }, [monitorRules.data])
-  const dailyGenerationAttempts = useRef(new Set<string>())
-  const generateMinuteResults = runAllMinute.mutate
-  const generatingMinuteResults = runAllMinute.isPending
-  useEffect(() => {
-    if (!asOf || !summaryQuery.isSuccess || !monitorRules.isSuccess || generatingMinuteResults) return
-    const ids = minutePoolIds.filter(id => id === 's02'
-      && strategyMonitorMap.has(`${assetType}:${id}`)
-      && summaryQuery.data?.results[id]?.as_of !== asOf
-      && !dailyGenerationAttempts.current.has(`${id}:${asOf}`))
-    if (!ids.length) return
-    ids.forEach(id => dailyGenerationAttempts.current.add(`${id}:${asOf}`))
-    generateMinuteResults({ strategyIds: ids, date: asOf, asset: assetType })
-  }, [asOf, minutePoolIds, assetType, strategyMonitorMap, summaryQuery.data, summaryQuery.isSuccess,
-    monitorRules.isSuccess, generatingMinuteResults, generateMinuteResults])
-
-  const toggleStrategyMonitor = (strategyId: string, strategyName: string) => {
+  const monitorPendingRef = useRef(new Set<string>())
+  const [monitorPendingIds, setMonitorPendingIds] = useState<string[]>([])
+  const toggleStrategyMonitor = async (strategyId: string, strategyName: string) => {
+    if (monitorPendingRef.current.has(strategyId)) return
     const existingRuleId = strategyMonitorMap.get(`${assetType}:${strategyId}`)
-    if (existingRuleId) {
-      // 已监控 → 删除规则
-      api.monitorRuleDelete(existingRuleId).then(() =>
-        qc.invalidateQueries({ queryKey: QK.monitorRules }),
-      )
-    } else {
-      // 未监控 → 直接创建 type=strategy 规则并明确资产类型。
-      api.monitorRuleSave({
-        id: genRuleId(),
-        name: `策略监控 · ${strategyName}`,
-        enabled: true,
-        type: 'strategy',
-        asset_type: assetType,
-        scope: 'all',
-        symbols: [],
-        sector: null,
-        strategy_id: strategyId,
-        direction: 'entry',
-        notify_events: [...DEFAULT_STRATEGY_NOTIFY_EVENTS],
-        conditions: [],
-        logic: 'or',
-        cooldown_seconds: 3600,
-        severity: 'info',
-        message: '',
-      }).then(() => qc.invalidateQueries({ queryKey: QK.monitorRules }))
+    const latestDate = dataStatus.data?.enriched?.latest_date
+    const strategy = strategyMap.get(strategyId)
+    if (!existingRuleId && (!latestDate || !strategy)) {
+      toast('交易日数据尚未就绪，请稍后重试', 'error')
+      return
+    }
+    monitorPendingRef.current.add(strategyId)
+    setMonitorPendingIds(ids => [...ids, strategyId])
+    try {
+      if (existingRuleId) {
+        await api.monitorRuleDelete(existingRuleId)
+      } else {
+        // 使用共享画像中的最近可用交易日；历史查看日期不用于新监控的首次运行。
+        handleDateChange(latestDate!)
+        handleSelect(strategy!)
+        await api.monitorRuleSave({
+          id: genRuleId(),
+          name: `策略监控 · ${strategyName}`,
+          enabled: true,
+          type: 'strategy',
+          asset_type: assetType,
+          scope: 'all',
+          symbols: [],
+          sector: null,
+          strategy_id: strategyId,
+          direction: 'entry',
+          notify_events: [...DEFAULT_STRATEGY_NOTIFY_EVENTS],
+          conditions: [],
+          logic: 'or',
+          cooldown_seconds: 3600,
+          severity: 'info',
+          message: '',
+        })
+        run.mutate({
+          id: strategyId, date: latestDate!,
+          timeframe: strategy!.timeframes?.includes('1m') ? '1m' : '1d',
+          asset: assetType,
+        })
+      }
+      await qc.invalidateQueries({ queryKey: QK.monitorRules })
+    } catch (error) {
+      toast(`策略监控${existingRuleId ? '取消' : '开启'}失败：${String((error as Error).message ?? error)}`, 'error')
+    } finally {
+      monitorPendingRef.current.delete(strategyId)
+      setMonitorPendingIds(ids => ids.filter(id => id !== strategyId))
     }
   }
 
@@ -910,13 +915,14 @@ export function Screener() {
                   expiredCount={expiredCounts[id]}
                   loading={runAll.isPending}
                   computing={pendingRunIds.has(id) || selfRunning || minuteRunning}
-                  awaitRun={hitCounts[id] == null && isMinute && !selfRunning && !minuteRunning}
+                  awaitRun={hitCounts[id] == null && !selfRunning && !minuteRunning}
                   cardSize={cardSize}
-                  onRun={() => handleRun(s)}
+                  onRun={() => handleSelect(s)}
                   disabled={run.isPending && activeStrategy === s.id}
                   onSettings={() => setSettingsStrategyId(s.id)}
                   monitored={strategyMonitorMap.has(`${assetType}:${s.id}`)}
-                  onToggleMonitor={() => toggleStrategyMonitor(s.id, s.name)}
+                  monitorPending={monitorPendingIds.includes(s.id)}
+                  onToggleMonitor={() => void toggleStrategyMonitor(s.id, s.name)}
                   timeframeBadge={isMinute ? '分钟' : undefined}
                 />
               )
@@ -1224,17 +1230,7 @@ export function Screener() {
       {showPoolDialog && (
         <StrategyPoolDialog
           pool={pool}
-          onConfirm={(newPool) => {
-            // 新增的日线策略立即自动扫描, 免去手动点刷新; 纯排序/删除不重跑
-            if (assetType === 'stock') {
-              const prev = new Set(pool)
-              const addedDaily = newPool.filter(
-                id => !prev.has(id) && !(strategyMap.get(id)?.timeframes?.includes('1m') ?? false),
-              )
-              if (addedDaily.length > 0) requestRunAll({ date: asOf || undefined, strategyIds: addedDaily })
-            }
-            reorderPool(newPool)
-          }}
+          onConfirm={reorderPool}
           onClose={() => setShowPoolDialog(false)}
         />
       )}
@@ -1254,11 +1250,6 @@ export function Screener() {
             throw new Error(`策略 ${id} 已保存但未加载，请检查策略代码`)
           }
           addToPool(id)
-          // 新建策略为日线时立即扫描, 免去手动点刷新 (分钟策略仍手动单跑)
-          const preset = data.presets.find(s => s.id === id)
-          if (assetType === 'stock' && preset && !preset.timeframes?.includes('1m')) {
-            requestRunAll({ date: asOf || undefined, strategyIds: [id] })
-          }
         }}
       />
 
@@ -1266,13 +1257,8 @@ export function Screener() {
         open={showComposite}
         onClose={() => setShowComposite(false)}
         onSavedId={async id => {
-          const data = await qc.fetchQuery({ queryKey: QK.screenerStrategies('all'), queryFn: () => api.screenerStrategies(), staleTime: 0 })
+          await qc.fetchQuery({ queryKey: QK.screenerStrategies('all'), queryFn: () => api.screenerStrategies(), staleTime: 0 })
           addToPool(id)
-          // 新建叠加策略为日线时立即扫描, 免去手动点刷新 (分钟策略仍手动单跑)
-          const preset = data.presets.find(s => s.id === id)
-          if (assetType === 'stock' && preset && !preset.timeframes?.includes('1m')) {
-            requestRunAll({ date: asOf || undefined, strategyIds: [id] })
-          }
         }}
       />
 

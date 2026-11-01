@@ -41,27 +41,63 @@ function button(text: string) {
   return [...document.querySelectorAll('button')].find(el => el.textContent === text)!
 }
 
-it('defaults to all stocks, loads custom groups and saves board and group union independently of numeric filters', async () => {
+it('expands stock scope and saves board and multiple group union independently of numeric filters', async () => {
   get.mockResolvedValue({ id: 'test', name: '测试', source: 'custom', params: [],
     params_defaults: {}, scoring: {}, basic_filter: { enabled: false, boards: ['沪主板'], exclude_st: true }, entry_signals: [], exit_signals: [] })
-  groups.mockResolvedValue({ groups: [{ id: 'core', name: '核心', color: 'sky' }] })
+  groups.mockResolvedValue({ groups: [{ id: 'core', name: '核心', color: 'sky' }, { id: 'other', name: '观察', color: 'sky' }] })
   save.mockResolvedValue({ ok: true })
   await render(<StrategySettingsDialog strategyId="test" onClose={() => {}} />)
-  expect(document.querySelector<HTMLInputElement>('input[aria-label="全部股票"]')?.checked).toBe(true)
+  expect(document.querySelector('input[aria-label="全部股票"]')).toBeNull()
+  expect(document.querySelector('input[aria-label="选择股票范围"]')).toBeNull()
+  expect(document.body.textContent).toContain('股票范围')
+  expect(document.querySelector('input[aria-label="启用数值过滤"]')).toBeNull()
+  expect(document.body.textContent).not.toContain('启用数值过滤')
+  expect([...document.querySelectorAll<HTMLInputElement>('input[type="number"]')].every(input => !input.disabled)).toBe(true)
+  expect(document.querySelector<HTMLInputElement>('input[aria-label="沪主板"]')?.checked).toBe(true)
   expect(document.querySelector<HTMLInputElement>('input[aria-label="剔除 *ST 和 ST"]')?.checked).toBe(false)
-  await act(async () => document.querySelector<HTMLInputElement>('input[aria-label="选择股票范围"]')!.click())
   await act(async () => document.querySelector<HTMLInputElement>('input[aria-label="自定义"]')!.click())
   expect(groups).toHaveBeenCalled()
   await act(async () => {
-    document.querySelector<HTMLInputElement>('input[aria-label="沪主板"]')!.click()
+    for (const board of ['深主板', '创业板', '科创板']) document.querySelector<HTMLInputElement>(`input[aria-label="${board}"]`)!.click()
     document.querySelector<HTMLInputElement>('input[aria-label="核心"]')!.click()
+    document.querySelector<HTMLInputElement>('input[aria-label="观察"]')!.click()
     document.querySelector<HTMLInputElement>('input[aria-label="剔除 *ST 和 ST"]')!.click()
+    document.querySelector<HTMLInputElement>('input[aria-label="剔除当日停牌"]')!.click()
   })
   await act(async () => button('保存设置').click())
   expect(save).toHaveBeenCalledWith('test', expect.objectContaining({ basic_filter: expect.objectContaining({
-    enabled: false, target_mode: 'selected', boards: ['沪主板'],
-    include_custom: true, watchlist_group_ids: ['core'], exclude_st: true,
+    enabled: true, target_mode: 'selected', boards: ['沪主板'],
+    include_custom: true, watchlist_group_ids: ['core', 'other'], exclude_st: true,
+    exclude_suspended: true,
+    data_reference: 'previous_trade_day',
   }) }))
+})
+
+it('restores disabled definition filters into an enabled draft and only persists on save', async () => {
+  get.mockResolvedValue({ id: 'test', name: '测试', source: 'custom', params: [],
+    params_defaults: {}, scoring: {}, basic_filter: {
+      enabled: false, target_mode: 'selected', boards: ['沪主板'], exclude_st: true, price_min: 5,
+    }, definition_defaults: { basic_filter: {
+      enabled: false, target_mode: 'selected', boards: ['深主板'], exclude_st: true, price_min: 7,
+    } }, entry_signals: [], exit_signals: [] })
+  let finishSave!: (value: { ok: boolean }) => void
+  save.mockImplementationOnce(() => new Promise(resolve => { finishSave = resolve }))
+  await render(<StrategySettingsDialog strategyId="test" onClose={() => {}} />)
+  const price = () => document.querySelector<HTMLInputElement>('input[aria-label="价格范围最小值"]')!
+  expect(price().disabled).toBe(false)
+  expect(price().value).toBe('5')
+  expect(document.querySelector<HTMLInputElement>('input[aria-label="剔除 *ST 和 ST"]')!.checked).toBe(true)
+  expect(save).not.toHaveBeenCalled()
+  await act(async () => button('恢复策略原始值').click())
+  expect(price().value).toBe('7')
+  expect(price().disabled).toBe(false)
+  expect(save).not.toHaveBeenCalled()
+  await act(async () => button('保存设置').click())
+  expect(price().disabled).toBe(true)
+  expect(save).toHaveBeenCalledWith('test', expect.objectContaining({ basic_filter: expect.objectContaining({
+    enabled: true, price_min: 7, boards: ['深主板'], exclude_st: true, data_reference: 'previous_trade_day',
+  }) }))
+  await act(async () => finishSave({ ok: true }))
 })
 
 it('immediately explains why a referenced group cannot be deleted', async () => {

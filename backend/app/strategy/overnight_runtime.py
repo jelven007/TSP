@@ -57,11 +57,24 @@ def monitor_context(loader, engine, strategy_id, as_of, current, data_dir):
     if service is None or not hasattr(service, "build_strategy_context"):
         raise ValueError("分钟监控缺少共享行情仓库")
     capacity = engine.get(strategy_id).meta.get("minute_execution") == "overnight_capacity_v1"
+    from app.strategy.morning_liquidation import selected_definitions
+
+    if engine._override_loader:
+        overrides = engine._override_loader(strategy_id)
+    elif data_dir is not None:
+        from app.strategy.config import load_override
+
+        overrides = load_override(data_dir, strategy_id)
+    else:
+        overrides = {}
+    morning = bool(selected_definitions(
+        engine, engine._effective_signals(overrides, "exit_signals", engine.get(strategy_id).exit_signals),
+    ))
     try:
         context = service.build_strategy_context(
             engine, as_of, [strategy_id], timeframe="1m", current=current)
     except ValueError:
-        if not capacity:
+        if not capacity and not morning:
             raise
         # 缺分钟数据仍允许时钟清仓, 指标分支保持关闭。
         from app.strategy.engine import StrategyDataContext
@@ -70,6 +83,13 @@ def monitor_context(loader, engine, strategy_id, as_of, current, data_dir):
                                       completed_through=cn_now())
     if capacity:
         context.positions = position_snapshot(data_dir, strategy_id, as_of) if data_dir is not None else []
+    if morning:
+        from app.strategy.morning_liquidation import holding_snapshot
+
+        loader = getattr(engine, "_position_loader", None)
+        context.positions = (loader(strategy_id, as_of) if callable(loader)
+                             else holding_snapshot(data_dir, strategy_id, as_of) if data_dir is not None else None)
+        context.observed_at = cn_now()
     if engine.get(strategy_id).meta.get("minute_execution") == "momentum_capacity_v1":
         from app.services.strategy_results import previous_daily_state
 

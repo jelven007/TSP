@@ -35,7 +35,7 @@ MINUTE_DAILY_PANEL_COLUMNS = frozenset({
 MINUTE_INSTRUMENT_COLUMNS = frozenset({"name", "total_shares", "float_shares"})
 
 
-def minute_replay_feature_plan(daily_bars: int):
+def minute_replay_feature_plan(daily_bars: int, basic_filter: dict | None = None):
     """分钟回测的日线面板加载计划。
 
     execution_backend 用 polars_expr 走"按需计算信号"路径: enriched 分区只落
@@ -48,7 +48,9 @@ def minute_replay_feature_plan(daily_bars: int):
     return ResolvedFeaturePlan(
         base_columns=MINUTE_DAILY_PANEL_COLUMNS,
         intermediate_columns=frozenset(),
-        indicator_columns=frozenset(),
+        indicator_columns=frozenset({"change_pct"} if any(
+            (basic_filter or {}).get(f"change_pct_{side}") is not None for side in ("min", "max")
+        ) else ()),
         signal_columns=frozenset({
             "signal_limit_up", "signal_limit_down", "signal_broken_limit_up",
         }),
@@ -118,6 +120,21 @@ class MinuteReplayResult:
     elapsed_ms: float = 0.0
 
 
+def requires_full_pool(strategy_engine, strategy, overrides) -> bool:
+    from app.strategy import custom_signals
+    from app.strategy.late_session_strength import TEMPLATE
+
+    requested = set(overrides.get("entry_signals", strategy.entry_signals) or []) | set(strategy.required_features)
+    if not any(name.startswith("csgi_") for name in requested):
+        return False
+    storage = strategy_engine._user_data_dir()
+    if storage is None:
+        return False
+    return any(sig.get("template") == TEMPLATE
+               and custom_signals.intraday_column_name(sig["id"]) in requested
+               for sig in custom_signals.load_intraday_all(storage))
+
+
 class MinuteSignalReplayer:
     """逐交易日回放分钟策略, 产出与实盘选股同源的入场命中。"""
 
@@ -146,8 +163,14 @@ class MinuteSignalReplayer:
         if panel.is_empty():
             return result
 
-        universe = symbols if symbols else panel.get_column("symbol").unique().to_list()
+        full_pool = requires_full_pool(self.strategy_engine, strategy, overrides)
+        universe = (panel.get_column("symbol").unique().to_list()
+                    if full_pool or not symbols else symbols)
         daily_bars = int(strategy.minute_daily_bars or 0)
+        from app.strategy.basic_filter import uses_previous
+        bf = {**(strategy.basic_filter or {}), **(overrides.get("basic_filter") or {})}
+        if uses_previous(bf):
+            daily_bars = max(daily_bars, 2)
         next_minute_open = strategy.meta.get("minute_entry_fill") == "next_minute_open"
 
         # 面板交易日序列 (升序) — 日线窗口切片与缺分区日判定的基准。
@@ -236,6 +259,7 @@ class MinuteSignalReplayer:
                 current=current if not current.is_empty() else None,
                 history=history,
                 daily_history=daily_history if not daily_history.is_empty() else None,
+                pool_history=current if not current.is_empty() else None,
             )
             try:
                 run_result = self.strategy_engine.run(
@@ -252,6 +276,12 @@ class MinuteSignalReplayer:
 
             result.replayed_days += 1
             result.strategy_matches += len(run_result.rows)
+            entries = overrides.get("entry_signals", strategy.entry_signals) or []
+            if any(str(name).startswith("csgi_") for name in entries):
+                triggered = {hit["symbol"] for hit in run_result.entry_signal_hits}
+                run_result.rows = [row for row in run_result.rows if row.get("symbol") in triggered]
+            if symbols:
+                run_result.rows = [row for row in run_result.rows if row.get("symbol") in symbols]
             fill_lookup = {}
             if next_minute_open and run_result.rows:
                 hit_symbols = [row["symbol"] for row in run_result.rows]

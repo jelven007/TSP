@@ -36,6 +36,12 @@ function kv<T>(key: string) {
 /** 新建策略默认基础过滤参数 (与策略 META.basic_filter 字段/单位一致: 价格元, 市值/成交额元, 换手%) */
 export interface DefaultStrategyBasicFilter {
   enabled?: boolean
+  data_reference?: 'previous_trade_day' | 'signal_day'
+  target_mode?: 'selected' | 'all'
+  include_custom?: boolean
+  watchlist_group_ids?: string[]
+  change_pct_min?: number | null
+  change_pct_max?: number | null
   price_min: number | null
   price_max: number | null
   market_cap_min?: number | null
@@ -47,6 +53,7 @@ export interface DefaultStrategyBasicFilter {
   turnover_min: number | null
   turnover_max: number | null
   exclude_st: boolean
+  exclude_suspended?: boolean
   exclude_new_days?: number | null
   boards: string[]
 }

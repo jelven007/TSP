@@ -69,25 +69,28 @@ interface StrategyCardProps {
   expiredCount?: number
   loading: boolean
   cardSize: CardSize
+  /** 选择策略并读取保存结果；执行由监控按钮触发。 */
   onRun: () => void
   disabled: boolean
   onSettings: () => void
   /** 是否已加入策略监控 */
   monitored?: boolean
+  /** 监控保存／取消正在进行，避免重复点击。 */
+  monitorPending?: boolean
   /** 切换策略监控 (点击 RadioTower 图标) */
   onToggleMonitor?: () => void
   /** 周期徽章 (如 '分钟'); 日线策略不传 */
   timeframeBadge?: string
   /** 后台计算中 (渐进式 run_all): 数字未出时显示脉冲占位 */
   computing?: boolean
-  /** 等待手动运行: 数字未出时显示「待计算」点击引导 */
+  /** 等待开启监控执行: 数字未出时显示「待计算」引导 */
   awaitRun?: boolean
 }
 
 export function StrategyCard({
   name, description, source, active, count, expiredCount,
   loading, cardSize,
-  onRun, disabled, onSettings, monitored, onToggleMonitor, timeframeBadge, computing, awaitRun,
+  onRun, disabled, onSettings, monitored, monitorPending, onToggleMonitor, timeframeBadge, computing, awaitRun,
 }: StrategyCardProps) {
   const cs = CARD_STYLES[cardSize]
   const activeCls = active
@@ -141,7 +144,7 @@ export function StrategyCard({
               <span className="mt-1.5 text-sm font-mono font-bold text-muted/50 animate-pulse">···</span>
             )}
             {count == null && !loading && !computing && awaitRun && (
-              <span className="mt-1.5 text-[10px] text-muted/60 transition-colors group-hover:text-accent/80" title="点击卡片运行策略">待计算</span>
+              <span className="mt-1.5 text-[10px] text-muted/60 transition-colors group-hover:text-accent/80" title="点击开启策略监控后计算">待计算</span>
             )}
             {loading && <div className="mt-1 h-4 w-10 rounded bg-elevated animate-pulse" />}
           </button>
@@ -150,7 +153,7 @@ export function StrategyCard({
             <Settings2 className="h-3 w-3 text-muted hover:text-accent transition-colors" />
           </button>
           {onToggleMonitor && (
-            <button onClick={(e) => { e.stopPropagation(); onToggleMonitor() }}
+            <button disabled={monitorPending} onClick={(e) => { e.stopPropagation(); onToggleMonitor() }}
               className="absolute top-1.5 right-7 p-0.5 rounded hover:bg-elevated transition-colors cursor-pointer" title={monitored ? '取消策略监控' : '开启策略监控'}>
               <RadioTower className={`relative h-3 w-3 transition-colors ${monitored ? 'text-accent' : 'text-muted hover:text-accent'}`} />
               {monitored && <span className="absolute inset-0 rounded animate-ping bg-accent/20" />}
@@ -174,7 +177,7 @@ export function StrategyCard({
                 <span className="text-xs font-mono font-bold text-muted/50 animate-pulse shrink-0">···</span>
               )}
               {count == null && !loading && !computing && awaitRun && (
-                <span className="text-[10px] text-muted/60 transition-colors group-hover:text-accent/80 shrink-0" title="点击卡片运行策略">待计算</span>
+                <span className="text-[10px] text-muted/60 transition-colors group-hover:text-accent/80 shrink-0" title="点击开启策略监控后计算">待计算</span>
               )}
               {loading && <span className="w-5 h-3 rounded bg-elevated animate-pulse shrink-0" />}
             </div>
@@ -192,7 +195,7 @@ export function StrategyCard({
             <Settings2 className="h-3 w-3 text-muted hover:text-accent transition-colors" />
           </button>
           {onToggleMonitor && (
-            <button onClick={(e) => { e.stopPropagation(); onToggleMonitor() }}
+            <button disabled={monitorPending} onClick={(e) => { e.stopPropagation(); onToggleMonitor() }}
               className="absolute top-1.5 right-7 p-0.5 rounded hover:bg-elevated transition-colors cursor-pointer" title={monitored ? '取消策略监控' : '开启策略监控'}>
               <RadioTower className={`relative h-3 w-3 transition-colors ${monitored ? 'text-accent' : 'text-muted hover:text-accent'}`} />
               {monitored && <span className="absolute inset-0 rounded animate-ping bg-accent/20" />}

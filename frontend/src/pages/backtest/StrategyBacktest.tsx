@@ -216,7 +216,7 @@ const ADVANCED_TABS: { id: AdvancedSettingsTab; label: string }[] = [
   { id: 'risk', label: '风控' },
   { id: 'range', label: '回测范围' },
 ]
-const toSignalId = (sig: string) => (sig.startsWith('signal_') || sig.startsWith('csg_')) ? sig : `signal_${sig}`
+const toSignalId = (sig: string) => (sig.startsWith('signal_') || sig.startsWith('csg_') || sig.startsWith('csgi_')) ? sig : `signal_${sig}`
 
 /** 环境数据缺口的一键补算入口: 补算区间后自动重跑回测 */
 function RegimeRecomputeButton({ from, to, pending, onClick }: {
@@ -3048,12 +3048,13 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                 <ConfigSection
                   title="入场触发器"
                   hint="任一入场点满足即可进入候选"
-                  actions={<SignalTriggerActions kind="entry" signals={entrySignals} onChange={next => updateOverride('entry_signals', next)} />}
+                  actions={<SignalTriggerActions kind="entry" signals={entrySignals} onChange={next => updateOverride('entry_signals', next)} allowIntraday={isMinuteStrategy && !detail.minute_execution} />}
                 >
                   <SignalPicker
                     signals={entrySignals}
                     onChange={next => updateOverride('entry_signals', next)}
                     kind="entry"
+                    options={{ allowIntraday: isMinuteStrategy && !detail.minute_execution, allowHoldingExit: false }}
                   />
                 </ConfigSection>
               )}
@@ -3068,6 +3069,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                     signals={exitSignals}
                     onChange={next => updateOverride('exit_signals', next)}
                     kind="exit"
+                    options={{ allowIntraday: isMinuteStrategy && !detail.minute_execution, allowHoldingExit: false }}
                   />
                 </ConfigSection>
               )}

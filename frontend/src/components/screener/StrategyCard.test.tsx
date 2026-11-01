@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 // 分钟策略卡片数字未出时的占位引导: awaitRun → 「待计算」; computing → 脉冲 ···。
-// 分钟策略不在 run_all/盘后缓存覆盖内 (Screener.tsx dailyPoolIds 过滤), 首屏
-// 数字必为空, 纯空白无引导会让用户以为坏了 — 占位明确引导点击单跑。
+// 未运行的策略显示占位，卡片点击只选择；首次执行由监控按钮触发。
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -37,6 +36,12 @@ it('shows 待计算 hint when awaitRun and count is missing', () => {
 
   expect(container.textContent).toContain('待计算')
   expect(container.textContent).not.toContain('···')
+})
+
+it.each(['normal', 'large'])('directs the waiting hint to monitoring in %s cards', cardSize => {
+  render({ awaitRun: true, cardSize })
+  expect(container.querySelector('[title="点击开启策略监控后计算"]')).not.toBeNull()
+  expect(container.querySelector('[title="点击卡片运行策略"]')).toBeNull()
 })
 
 it('shows pulsing placeholder (not hint) when computing', () => {

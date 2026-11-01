@@ -165,7 +165,7 @@ def get_options(request: Request):
     custom_sigs = []
     try:
         for cs in load_csg(_data_dir(request)):
-            if cs.get("enabled") is not False:
+            if cs.get("enabled") is not False and cs.get("timeframe", "daily") == "daily":
                 custom_sigs.append({
                     "key": f"csg_{cs['id']}",
                     "label": cs.get("name", cs["id"]),
@@ -279,7 +279,23 @@ def list_rules(request: Request):
 # ── 新建 / 更新 ────────────────────────────────────────
 @router.post("")
 def save_rule(req: RuleModel, request: Request):
-    rule = monitor_rules.normalize(req.model_dump())
+    rule = req.model_dump()
+    from app.strategy import custom_signals
+    from app.strategy.late_session_strength import TEMPLATE
+
+    pool_signals = {
+        custom_signals.intraday_column_name(sig["id"])
+        for sig in custom_signals.load_all(_data_dir(request)) if sig.get("template") == TEMPLATE
+    }
+    if any(condition.get("field") in pool_signals for condition in rule.get("conditions", [])):
+        raise HTTPException(status_code=400, detail="尾盘走强需要策略完整当日股票池, 请通过分钟策略监控使用")
+    holding_signals = {
+        custom_signals.intraday_column_name(sig["id"])
+        for sig in custom_signals.load_all(_data_dir(request)) if sig.get("template") == "morning_liquidation"
+    }
+    if any(condition.get("field") in holding_signals for condition in rule.get("conditions", [])):
+        raise HTTPException(status_code=400, detail="早盘清仓需要实际持仓和买入日期, 请通过通用分钟策略监控使用")
+    rule = monitor_rules.normalize(rule)
     rule = _reconcile_index_asset_type(rule, request.app.state.repo)
     # 连板梯队封单监控 (type=ladder) 依赖五档盘口数据, 需 Pro+ (DEPTH5_BATCH 能力)。
     # 无能力时拒绝创建, 避免规则存了却永远无法触发。

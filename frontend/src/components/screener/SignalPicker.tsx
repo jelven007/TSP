@@ -4,6 +4,7 @@ import { PenLine } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { SIGNAL_OPTIONS, cnSignal } from '@/lib/signals'
+import { customSignalColumn } from '@/lib/customSignals'
 
 /** 展示与过滤可选项 (全部可选, 有默认值) */
 interface SignalPickerOptions {
@@ -18,6 +19,8 @@ interface SignalPickerOptions {
    * (与内置信号一致: builtinSignals 透传时本就不按 kind 过滤)。
    */
   filterCustomByKind?: boolean
+  allowIntraday?: boolean
+  allowHoldingExit?: boolean
 }
 
 interface Props {
@@ -38,16 +41,18 @@ interface Props {
  * - entry 蓝色主题, exit 橙色主题; 自定义信号边框配色与内置一致, 右上角 PenLine 角标区分
  */
 export function SignalPicker({ signals, onChange, kind, options }: Props) {
-  const { variant = 'panel', builtinSignals, disabledSignals = [], disabledSignalHint, filterCustomByKind = true } = options ?? {}
+  const { variant = 'panel', builtinSignals, disabledSignals = [], disabledSignalHint, filterCustomByKind = true, allowIntraday = false, allowHoldingExit = true } = options ?? {}
   const customSignalsQuery = useQuery({ queryKey: QK.customSignals, queryFn: api.customSignalsList })
 
   const customOptions = useMemo(() => {
     const list = (customSignalsQuery.data?.signals ?? [])
-      .filter(s => s.enabled && (!filterCustomByKind || s.kind === kind || s.kind === 'both'))
+      .filter(s => s.enabled && (s.timeframe !== 'intraday' || allowIntraday)
+        && (s.template !== 'morning_liquidation' || (allowHoldingExit && filterCustomByKind))
+        && (!filterCustomByKind || s.kind === kind || s.kind === 'both'))
     const names: Record<string, string> = {}
-    for (const cs of list) names[`csg_${cs.id}`] = cs.name
+    for (const cs of list) names[customSignalColumn(cs)] = cs.name
     return { list, names }
-  }, [customSignalsQuery.data, kind, filterCustomByKind])
+  }, [customSignalsQuery.data, kind, filterCustomByKind, allowIntraday, allowHoldingExit])
 
   const toggle = (sig: string) => {
     const next = signals.includes(sig) ? signals.filter(x => x !== sig) : [...signals, sig]
@@ -86,7 +91,7 @@ export function SignalPicker({ signals, onChange, kind, options }: Props) {
         )
       })}
       {customOptions.list.map(cs => {
-        const id = `csg_${cs.id}`
+        const id = customSignalColumn(cs)
         return (
           <button
             key={id}

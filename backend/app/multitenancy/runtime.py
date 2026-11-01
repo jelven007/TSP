@@ -111,14 +111,44 @@ class FullWorker:
                 "administrator": "settings:manage" in account["permissions"],
                 "watchlist": Watchlist._rows(conn),
                 "state": unit.get("monitor_runtime", "default", {}),
-                "sources": unit.values("strategy_sources"),
+                "sources": [{**row["value"], "id": row["id"]}
+                            for row in unit.records("strategy_sources")],
                 "overrides": list_overrides(unit),
                 "signals": unit.values("custom_signals"), "factors": unit.values("custom_factors"),
                 **({"public_release_id": snapshot["public_release"]["id"]} if snapshot.get("public_release") else {}),
             }
+            from app.strategy.morning_liquidation import holding_snapshot
+
+            morning_columns = {
+                "csgi_" + sig["id"] for sig in payload["signals"]
+                if sig.get("template") == "morning_liquidation" and sig.get("enabled", True)
+            }
+            source_exits = {
+                source["id"]: source.get("definition", {}).get("exit_signals", [])
+                for source in payload["sources"]
+            }
+            payload["positions"] = {
+                sid: holding_snapshot(PaperSession(unit, conn, False), sid, cn_today())
+                for sid in {r.get("strategy_id") for r in rules}
+                if sid and morning_columns.intersection(
+                    payload["overrides"].get(sid, {}).get("exit_signals", source_exits.get(sid, [])) or [],
+                )
+            }
             from app.services.strategy_results import capture_identity, previous_daily_state
             payload["previous_states"] = {}
             payload["daily_identities"] = {}
+            if self.db.settings.schema_version >= 7:
+                from pathlib import Path
+
+                from app.multitenancy.strategies import TenantStrategyEngine
+                from app.strategy.engine import StrategyEngine
+                catalog = TenantStrategyEngine(unit, StrategyEngine(
+                    [Path(__file__).resolve().parents[1] / "strategy/builtin"]), self.executor)
+                for sid in {r.get("strategy_id") for r in rules}:
+                    if sid and catalog.has(sid):
+                        payload["daily_identities"][sid] = asdict(capture_identity(
+                            catalog, unit, sid, overrides=payload["overrides"].get(sid),
+                            timeframe=(catalog.get(sid).meta.get("timeframes") or ["1d"])[0]))
             for sid in {r.get("strategy_id") for r in rules} & {"s02"}:
                 try:
                     payload["previous_states"][sid] = previous_daily_state(unit, sid, cn_today())
@@ -196,9 +226,14 @@ class FullWorker:
                     if result["results"]:
                         from app.services.strategy_results import ResultIdentity, StrategyResults
                         for sid, daily in result["results"].items():
-                            if daily.get("sections") is not None and sid in payload.get("daily_identities", {}):
+                            if sid in payload.get("daily_identities", {}):
                                 record = ResultIdentity(**payload["daily_identities"][sid])
-                                StrategyResults(unit).save(record, daily, started_at=sequence * 1000000)
+                                if daily.get("sections") is not None:
+                                    StrategyResults(unit).save(record, daily, started_at=sequence * 1000000)
+                                elif daily.get("daily_stock_pool") is not None:
+                                    from app.services.daily_stock_pools import DailyStockPools
+                                    DailyStockPools(unit).save(record, daily["daily_stock_pool"],
+                                        started_at=sequence * 1000000)
                         unit.put("monitor_results", "default", {
                             "sequence": sequence, "results": result["results"],
                             "fingerprint": fingerprint(conn, include_state=False),

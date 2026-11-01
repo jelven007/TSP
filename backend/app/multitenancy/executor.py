@@ -16,7 +16,7 @@ from app.cell.context import AccessError
 
 MAX_MESSAGE_BYTES = 128 * 1024 * 1024
 KINDS = frozenset({"describe", "plan", "strategy", "backtest", "optimize", "walkforward", "mining",
-                   "signal_backtest", "factor_backtest", "factor_batch", "auto_screen", "monitor"})
+                   "signal_backtest", "factor_backtest", "factor_batch", "auto_screen", "monitor", "daily_stock_pools"})
 
 
 class ComputeExecutor:
