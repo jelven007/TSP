@@ -6,7 +6,7 @@
 [![CI](https://github.com/jelven007/TSP/actions/workflows/ci.yml/badge.svg)](https://github.com/jelven007/TSP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-应用语义版本为 `0.4.41`。文档核对日期：2026-11-02。
+应用语义版本为 `0.4.42`。文档核对日期：2026-11-02。
 源码、正式发布和最后已知运行状态见[版本基线](docs/version-baseline.md)。
 本次本地功能、六类文档与清理范围见[整合记录](reports/release-consolidation-20261101.md)。
 
