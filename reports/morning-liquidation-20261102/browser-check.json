@@ -1,0 +1,47 @@
+{
+  "created": false,
+  "saved_signal": {
+    "id": "morning_liquidation",
+    "kind": "exit",
+    "name": "早盘清仓",
+    "params": {
+      "time": "10:30:00",
+      "amplitude_pct": 6
+    },
+    "enabled": true,
+    "min_bars": 0,
+    "template": "morning_liquidation",
+    "timeframe": "intraday",
+    "conditions": []
+  },
+  "checks": [
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "parameters_reloaded": true,
+      "bounds": {
+        "width": 720,
+        "scroll": 718,
+        "client": 718
+      }
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "parameters_reloaded": true,
+      "bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      }
+    }
+  ],
+  "page_errors": [],
+  "parameter_edit_roundtrip": true,
+  "existing_entry_template_preserved": true,
+  "browser_fallback_reason": "Browser tool discovery exposed no browser automation tools; used installed Playwright."
+}

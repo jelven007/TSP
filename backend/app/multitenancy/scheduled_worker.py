@@ -167,6 +167,63 @@ class TenantSchedules:
             append_event(unit.connection, documents.context.tenant_id, "review_progress",
                          {"type": "done", "archived": True})
 
+    def daily_pools(self, documents, snapshot, repo, now, claim):
+        """One scope/float-cap snapshot per strategy/day, independent of settlement."""
+        from app.market_time import published_trading_day
+        from app.multitenancy.runtime import fingerprint
+        from app.services.daily_stock_pools import DailyStockPools
+        from app.services.strategy_results import capture_identities
+        from app.strategy.config import list_overrides
+        from app.strategy.daily_pool import DEFINITION_VERSION
+        from app.strategy.engine import StrategyEngine
+
+        if (self.db.settings.schema_version < 7 or (now.hour, now.minute) < (9, 35)
+                or published_trading_day(now.date()) is not True):
+            return
+        day = str(now.date())
+        if snapshot.get("days", {}).get("stock") != day:
+            return
+        frame = decode_frame(snapshot.get("frames", {}).get("stock"))
+        if frame.is_empty():
+            return
+        account, context = self.runtime.account(documents.context.tenant_id)
+        with authorize(self.identity, context, account["auth_version"]), documents.transaction(write=False) as unit:
+            valid_claim(unit.connection, claim)
+            observed = fingerprint(unit.connection, include_state=False)
+            builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "strategy" / "builtin"])
+            engine = TenantStrategyEngine(unit, builtins, self.executor,
+                administrator="settings:manage" in account["permissions"])
+            ids = [sid for sid, strategy in engine._strategies.items()
+                   if not strategy.meta.get("research_only")
+                   and "stock" in strategy.meta.get("asset_types", ["stock"])]
+            overrides = list_overrides(unit)
+            identities = capture_identities(engine, unit, ids, overrides_map=overrides, timeframe="all")
+            release = snapshot.get("public_release", {}).get("id")
+            marker = signature({"input": observed, "release": release, "day": day,
+                                "definition_version": DEFINITION_VERSION})
+            previous = unit.get("daily_stock_pool_jobs", day, {})
+            completed = set(previous.get("completed", [])) if previous.get("signature") == marker else set()
+            pending = [sid for sid in ids if sid not in completed]
+            if not pending:
+                return
+            task = engine.task("daily_stock_pools", strategy_ids=pending, as_of=day,
+                               overrides_map=overrides, current=snapshot["frames"]["stock"],
+                               **({"public_release_id": release} if release else {}))
+        started_at = time.time_ns()
+        response = self.executor.execute(task)
+        with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+            valid_claim(unit.connection, claim)
+            if fingerprint(unit.connection, include_state=False) != observed:
+                raise AccessError(409, "股票池配置已更新，将自动重新生成")
+            for sid, pool in response["pools"].items():
+                DailyStockPools(unit).save(identities[sid], pool, started_at=started_at,
+                    input_generation={"public_release_id": release, "signature": marker})
+                completed.add(sid)
+            unit.put("daily_stock_pool_jobs", day, {
+                "signature": marker, "completed": sorted(completed),
+                "errors": response.get("errors", {}), "updated_at": now.isoformat(),
+            })
+
     async def process(self, claim, snapshot, repo, *, now=None):
         now = beijing_now(now)
         _account, context = await asyncio.to_thread(self.runtime.account, claim["tenant_id"])
@@ -187,6 +244,8 @@ class TenantSchedules:
                 await asyncio.to_thread(self.health.record, progress=False)
 
         async def work():
+            if self.db.settings.schema_version >= 7:
+                await asyncio.to_thread(self.daily_pools, documents, snapshot, repo, now, claim)
             if now.date().isoformat() not in snapshot.get("settlement_days", []):
                 return
             mining = await asyncio.to_thread(documents.record, "mining_schedule", "default")
@@ -213,7 +272,8 @@ class TenantSchedules:
             with documents.transaction(write=False) as unit:
                 review = unit.get("review_schedule", "default", {})
                 mining = unit.get("mining_schedule", "default", {})
-                if not review.get("enabled") and not mining.get("mining_schedule_enabled"):
+                if (self.db.settings.schema_version < 7
+                        and not review.get("enabled") and not mining.get("mining_schedule_enabled")):
                     due = None
         finally:
             task.cancel()

@@ -1,0 +1,1 @@
+-- Schema v7 adds tenant daily stock pools only in the business database.

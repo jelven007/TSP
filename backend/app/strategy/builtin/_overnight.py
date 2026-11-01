@@ -82,9 +82,9 @@ def parameters(values):
     guard = minute_number(params["guard_time"])
     deadline = minute_number(params["sell_deadline"])
     momentum = params.get("_execution") == "momentum_capacity_v1"
-    if not (571 <= guard <= 689 if momentum else 675 <= guard <= 688):
+    if not ((571 <= guard <= 690 or 781 <= guard <= 900) if momentum else 675 <= guard <= 688):
         raise ValueError("兜底信号时间必须在11:15~11:28")
-    if not guard < deadline <= 900 or 691 <= deadline <= 780:
+    if not (guard <= deadline <= 900 if momentum else guard < deadline <= 900) or 691 <= deadline <= 780:
         raise ValueError("卖出截止必须晚于兜底信号且在收盘前的交易分钟, 不得位于午休")
     if not 0 < params["participation"] <= 1:
         raise ValueError("分钟参与率必须大于0且不超过1")

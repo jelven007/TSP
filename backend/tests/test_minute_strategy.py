@@ -495,7 +495,7 @@ def test_minute_context_empty_store_raises_with_guidance():
 
 def test_minute_context_loads_daily_history_for_declared_strategies():
     class _FakeEngine:
-        def minute_daily_history_bars(self, strategy_ids):
+        def minute_daily_history_bars(self, strategy_ids, *, overrides_map=None):
             return 5
 
     daily = _daily("600001.SH", 6, {1})

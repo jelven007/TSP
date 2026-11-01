@@ -1,0 +1,9 @@
+{
+  "manifest": {
+    "changed": [],
+    "missing": [],
+    "added": []
+  },
+  "probe": "6% inclusive amplitude, next trading day/T+1, fresh quote, stale rejection, deadline without minutes and candidate-independent holding exit passed",
+  "image": "sha256:df2263d7979553297446cbbbd29dbd05a1823a969ba0556f5c08315d335bdeed"
+}

@@ -96,6 +96,24 @@ def execute(payload: dict, private_root: Path) -> dict:
             from app.multitenancy.monitor_compute import evaluate_snapshot
 
             return evaluate_snapshot(payload, repo, engine, private_root)
+        if kind == "daily_stock_pools":
+            from app.multitenancy.market import decode_frame
+            from app.services.screener import ScreenerService
+            from app.strategy.daily_pool import build_pool
+
+            as_of = date.fromisoformat(payload["as_of"])
+            current = decode_frame(payload["current"]) if payload.get("current") else None
+            context = ScreenerService(repo).build_daily_pool_context(as_of, current=current)
+            results, errors = {}, {}
+            for sid in payload["strategy_ids"]:
+                try:
+                    if engine.get(sid).meta.get("research_only"):
+                        continue
+                    results[sid] = build_pool(engine, sid, context,
+                        overrides=payload.get("overrides_map", {}).get(sid))
+                except Exception as exc:
+                    errors[sid] = str(exc)
+            return {"pools": results, "errors": errors}
         backtest_engine = BacktestEngine(repo)
         if kind in {"signal_backtest", "factor_backtest", "factor_batch", "auto_screen"}:
             values = dict(payload["config"])

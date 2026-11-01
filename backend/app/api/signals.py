@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.strategy import custom_signals
 from app.strategy.intraday_features import INTRADAY_FEATURES
@@ -60,10 +60,12 @@ class SignalModel(BaseModel):
     id: str
     name: str
     kind: str        # entry | exit | both
-    conditions: list[ConditionModel]
+    conditions: list[ConditionModel] = Field(default_factory=list)
     enabled: bool = True
     timeframe: str = "daily"   # daily | intraday(分钟K特征, 输出当日条件上升沿)
     min_bars: int = 0          # 仅 intraday: 当日最少已完成 bar 数, 不足不触发
+    template: str | None = None
+    params: dict = Field(default_factory=dict)
 
 
 class IntradayReplayRequest(BaseModel):
@@ -73,6 +75,8 @@ class IntradayReplayRequest(BaseModel):
     end_date: str     # YYYY-MM-DD
     symbols: list[str]
     asset_type: str = "stock"
+    strategy_id: str | None = None
+    positions: list[dict] = Field(default_factory=list)
 
 
 class AIGenerateRequest(BaseModel):
@@ -281,6 +285,31 @@ def intraday_replay(req: IntradayReplayRequest, request: Request):
         raise HTTPException(status_code=404, detail="信号不存在")
     if sig.get("timeframe") != custom_signals.TIMEFRAME_INTRADAY:
         raise HTTPException(status_code=400, detail="该信号不是盘中(timeframe=intraday)信号")
+    if sig.get("template") == "morning_liquidation":
+        if req.asset_type != "stock" or not req.positions or len(req.positions) > 200:
+            raise HTTPException(status_code=400, detail="早盘清仓回放须提供 1~200 笔带买入日期的股票持仓 positions")
+        from app.market_time import published_trading_day
+        from app.services.morning_liquidation_replay import replay
+        from app.strategy.overnight_runtime import next_market_day
+
+        positions = []
+        for position in req.positions:
+            try:
+                entry = date.fromisoformat(str(position["entry_date"]))
+                if position.get("symbol") not in symbols or published_trading_day(entry) is not True:
+                    raise ValueError
+                next_market_day(entry)
+            except (KeyError, TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="持仓需包含所选 symbol 和有效交易日 entry_date") from None
+            positions.append({**position, "qty": 1, "available_qty": 1})
+        return replay(request.app.state.repo, sig, start=start, end=end, symbols=symbols, positions=positions)
+    if sig.get("template") == "late_session_strength":
+        if not req.strategy_id or req.asset_type != "stock":
+            raise HTTPException(status_code=400, detail="尾盘走强回放须指定股票策略 strategy_id, 使用其完整当日股票池快照")
+        from app.services.late_session_replay import replay
+
+        return replay(request.app.state.repo, _data_dir(request), sig,
+                      strategy_id=req.strategy_id, start=start, end=end, symbols=symbols)
     exprs = custom_signals.build_intraday_expressions([sig])
     col = custom_signals.intraday_column_name(sig["id"])
     if col not in exprs:

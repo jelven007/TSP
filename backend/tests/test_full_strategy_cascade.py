@@ -32,6 +32,19 @@ def catalog(env, tmp_path):
     return docs, engine
 
 
+def test_legacy_source_ids_are_taken_from_sql_record_keys_without_rewriting(env, tmp_path):
+    docs, engine = catalog(env, tmp_path)
+    before = docs.records("strategy_sources")
+    with docs.transaction() as unit:
+        value = unit.get("strategy_sources", "custom_target")
+        unit.put("strategy_sources", "custom_target", {**value, "id": "wrong_embedded_id"})
+    stored = docs.records("strategy_sources")
+    task = engine.task("plan", strategy_ids=["custom_target"])
+    assert {source["id"] for source in task["sources"]} == {"custom_target", "custom_other"}
+    assert docs.records("strategy_sources") == stored
+    assert "id" not in before[0]["value"]
+
+
 def test_sql_deletion_cascades_history_jobs_artifacts_and_candidates(env, tmp_path):
     docs, engine = catalog(env, tmp_path)
     foreign, _ = catalog(env, tmp_path)

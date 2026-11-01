@@ -1,5 +1,33 @@
 # API、事件与 MCP 导航
 
+`POST /api/custom-signals`早盘清仓定义使用`template=morning_liquidation`、
+`timeframe=intraday`、`kind=exit`、空`conditions`，`params`为
+`{"time":"10:30:00","amplitude_pct":6}`。时间09:30:00～11:30:00，秒精度；
+振幅有限数值0～100，按百分数6传入，未知参数拒绝。
+`POST /api/custom-signals/intraday/replay`使用原日期/证券字段，另须提供1～200条
+`positions`，每条含所选`symbol`与已确认交易日`entry_date`，可附`account_id/cycle_id`；
+回放只判断日期与信号，输入数量不代表成交或账户授权。
+返回`triggers`的`reason`（amplitude/deadline）、`trigger_time`、
+`source`（completed_minute/clock）、`diagnostics`和`execution=signal_only`。
+普通无持仓信号监控拒绝此模板，通用分钟策略监控使用租户实际持仓。
+
+内部`POST /api/custom-signals`新增可选`template`及`params`。
+尾盘走强使用`template=late_session_strength`、`timeframe=intraday`、`kind=entry`、
+空`conditions`；参数为`time`、`change_min_pct`、`change_max_pct`、
+`pool_up_min_pct`、`ma5_1m_count`、`ma5_5m_count`，百分数按0.4/4/60传入。
+默认14:30:00、0.4～4、60、7、4；时间为午后整分钟，数量为整数且至少2。
+`POST /api/custom-signals/intraday/replay`回放模板必须指定`strategy_id`，
+使用该策略已保存的当日股票池，响应`diagnostics`列出缺快照或数据日期，
+`symbols`仅限定输出、不能改变上涨占比分母。现有普通信号请求兼容，无新增Tier A授权。
+
+内部会话接口`GET /api/screener/daily-stock-pool/{strategy_id}`以必填`as_of`
+查询当日基础池，返回`pool`（尚未生成时null），可选`record_id`选择快照；
+`limit`为1～1000、`offset`非负，完整数量在`total`，`symbols`为当前页。
+名单与策略最终结果独立；此接口遵循现有租户会话权限，不新增Tier A开放端点。
+新生成名单只满足股票范围和流通市值约束，`basic_filter`保存入池所用配置，
+`definition_version`为`scope_float_cap_v2`；历史快照缺版本字段时保留原口径，
+不因读取新接口而重算或重新标注。
+
 核对日期：2026-11-01。接口行为以运行实例生成的 OpenAPI 和对应源码为准。
 本文提供调用入口和授权边界；完整字段、单位、Provider 和事件协议见
 [接入参考](reference/integrations.md)。

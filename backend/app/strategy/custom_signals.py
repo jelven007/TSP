@@ -270,6 +270,26 @@ def validate(sig: dict) -> None:
     timeframe = sig.get("timeframe", TIMEFRAME_DAILY)
     if timeframe not in (TIMEFRAME_DAILY, TIMEFRAME_INTRADAY):
         raise ValueError(f"timeframe 必须是 {TIMEFRAME_DAILY} / {TIMEFRAME_INTRADAY}: {timeframe!r}")
+    if sig.get("template"):
+        from app.strategy.late_session_strength import TEMPLATE, parameters
+
+        if sig["template"] == "morning_liquidation":
+            from app.strategy.morning_liquidation import parameters as morning_parameters
+
+            if timeframe != TIMEFRAME_INTRADAY or sig["kind"] != "exit":
+                raise ValueError("早盘清仓仅支持盘中出场信号")
+            if sig.get("conditions"):
+                raise ValueError("早盘清仓使用专用参数, 不能混入普通条件")
+            morning_parameters(sig)
+            return
+        if sig["template"] != TEMPLATE:
+            raise ValueError("不支持的信号模板")
+        if timeframe != TIMEFRAME_INTRADAY or sig["kind"] != "entry":
+            raise ValueError("尾盘走强仅支持盘中入场信号")
+        if sig.get("conditions"):
+            raise ValueError("尾盘走强使用专用参数, 不能混入普通条件")
+        parameters(sig)
+        return
     conds = sig.get("conditions")
     if not isinstance(conds, list) or len(conds) == 0:
         raise ValueError("conditions 不能为空")
@@ -327,7 +347,7 @@ def build_expressions(signals: list[dict], allow_shift: bool = True) -> dict[str
     out: dict[str, pl.Expr] = {}
     string_fields = _string_ext_fields()
     for sig in signals:
-        if sig.get("enabled") is False:
+        if sig.get("enabled") is False or sig.get("timeframe", TIMEFRAME_DAILY) != TIMEFRAME_DAILY:
             continue
         try:
             conds = sig["conditions"]
@@ -481,7 +501,7 @@ def build_intraday_expressions(signals: list[dict]) -> dict[str, pl.Expr]:
     """
     out: dict[str, pl.Expr] = {}
     for sig in signals:
-        if sig.get("enabled") is False or sig.get("timeframe") != TIMEFRAME_INTRADAY:
+        if sig.get("enabled") is False or sig.get("timeframe") != TIMEFRAME_INTRADAY or sig.get("template"):
             continue
         try:
             parts: list[pl.Expr] = []

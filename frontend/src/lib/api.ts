@@ -930,6 +930,24 @@ export interface CustomSignal {
   kind: 'entry' | 'exit' | 'both'
   conditions: CustomSignalCondition[]
   enabled: boolean
+  timeframe?: 'daily' | 'intraday'
+  template?: 'late_session_strength' | 'morning_liquidation' | null
+  params?: LateSessionStrengthParams | MorningLiquidationParams
+  min_bars?: number
+}
+
+export interface LateSessionStrengthParams {
+  time: string
+  change_min_pct: number
+  change_max_pct: number
+  pool_up_min_pct: number
+  ma5_1m_count: number
+  ma5_5m_count: number
+}
+
+export interface MorningLiquidationParams {
+  time: string
+  amplitude_pct: number
 }
 
 export interface CustomSignalFieldGroup {
@@ -1367,6 +1385,7 @@ export interface VDBasicFilter {
   float_cap_max?: number | null             // 流通市值上限 (元)
   amount_min?: number | null                // 当日成交额下限 (元)
   exclude_st?: boolean                      // 剔除 ST
+  exclude_suspended?: boolean               // 剔除所选当日已知停牌
 }
 
 export interface MonitorRuleOptions {
@@ -4720,6 +4739,7 @@ export const api = {
     rules?: string
     execution_backend?: 'polars_expr' | 'matrix_native'
     max_rounds?: number
+    basic_filter?: Record<string, unknown>
   }) =>
     request<AiIterateResult>('/api/strategies/ai/iterate', {
       method: 'POST',

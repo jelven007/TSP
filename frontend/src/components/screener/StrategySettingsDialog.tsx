@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Settings2, RotateCcw, Save, ChevronDown, Filter, Star, TrendingUp, Sparkles, Download, Layers, Plus, Trash2 } from 'lucide-react'
 import { api, type StrategyDetail, type StrategyParamDef, type CompositeChildInfo, type ScoringDirection, type CustomSignalCondition, type EntryRiskPolicy } from '@/lib/api'
@@ -16,6 +16,7 @@ import { applyParamValue } from '@/lib/strategyParams'
 import { OvernightExecutionSummary } from '@/components/OvernightExecutionSummary'
 import { BasicFilterEditor, ALL_BOARDS } from './BasicFilterEditor'
 import { validateBasicFilter } from '@/lib/strategyBasicFilter'
+import { StockScopeEditor } from './StockScopeEditor'
 export { RangeField, ALL_BOARDS } from './BasicFilterEditor'
 
 // 内置列名 → 中文标签
@@ -94,6 +95,8 @@ function initializeTargets(bf: Record<string, any>) {
     bf.watchlist_group_ids = []
     bf.exclude_st = bf.enabled !== false && !!bf.exclude_st
   }
+  if (bf.target_mode === 'all') bf.boards = [...ALL_BOARDS]
+  bf.target_mode = 'selected'
   return bf
 }
 
@@ -219,7 +222,6 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const [entrySignals, setEntrySignals] = useState<string[]>([])
   const [exitSignals, setExitSignals] = useState<string[]>([])
   const [displayLimit, setDisplayLimit] = useState<number | null>(null)
-  const [basicFilterEnabled, setBasicFilterEnabled] = useState(true)
   // 叠加策略: 子策略列表与权重(composite 专属, 编辑权重后随 override 保存)
   const [compositeChildren, setCompositeChildren] = useState<CompositeChildInfo[]>([])
   // 点击子策略名打开其配置编辑(composite 专属; 子策略必非 composite, 不会再嵌套)
@@ -231,18 +233,11 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
-  // 辅助：更新 basicFilter 某个 key
-  const setBF = useCallback((key: string, value: any) => {
-    setBasicFilter(prev => ({ ...prev, [key]: value }))
-  }, [])
-  const groupsQuery = useQuery({
-    queryKey: QK.watchlistGroups, queryFn: api.watchlistGroups,
-    enabled: !!strategyId && basicFilter.target_mode === 'selected' && !!basicFilter.include_custom,
-  })
   const applyDraft = useCallback((d: StrategyDetail) => {
     setStrategyName(d.name ?? '')
     setStrategyDesc(d.description ?? '')
-    setBasicFilter(initializeTargets({ ...d.basic_filter }))
+    const bf = initializeTargets({ ...d.basic_filter })
+    setBasicFilter(d.source === 'composite' ? bf : { ...bf, enabled: true })
     setParams({ ...d.params_defaults })
     setScoring({ ...d.scoring })
     setScoringDirections({ ...d.scoring_directions })
@@ -257,7 +252,6 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
     setEntrySignals([...(d.entry_signals ?? [])])
     setExitSignals([...(d.exit_signals ?? [])])
     setDisplayLimit(d.display_limit ?? null)
-    setBasicFilterEnabled(d.basic_filter?.enabled !== false)
     const list = d.composite_children ?? []
     const pcts = toPercentages(list.map(c => c.weight))
     setCompositeChildren(list.map((c, i) => ({ ...c, weight: pcts[i] })))
@@ -317,7 +311,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
       await api.strategySaveConfig(strategyId, {
         name: strategyName,
         description: strategyDesc,
-        basic_filter: { ...basicFilter, enabled: basicFilterEnabled },
+        basic_filter: { ...basicFilter, enabled: basicFilter.enabled !== false, data_reference: 'previous_trade_day' },
         params,
         overlay_filter: overlayFilter,
         ...(detail?.source !== 'composite' ? {
@@ -479,59 +473,9 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                 </div>
 
                 {detail.asset_types?.includes('stock') !== false && (
-                  <Section icon={Filter} title="目标股票" accent="text-sky-400">
-                    <div className="flex flex-wrap gap-4 text-xs text-secondary">
-                      <label className="flex items-center gap-2">
-                        <input type="radio" name={`targets-${strategyId}`} aria-label="全部股票"
-                          checked={basicFilter.target_mode === 'all'} onChange={() => setBF('target_mode', 'all')} />
-                        全部股票
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input type="radio" name={`targets-${strategyId}`} aria-label="选择股票范围"
-                          checked={basicFilter.target_mode === 'selected'} onChange={() => setBF('target_mode', 'selected')} />
-                        选择股票范围
-                      </label>
-                    </div>
-                    {basicFilter.target_mode === 'selected' && (
-                      <div className="space-y-3 pt-2">
-                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-secondary">
-                          {[...ALL_BOARDS, '自定义'].map(board => {
-                            const selected = board === '自定义' ? !!basicFilter.include_custom : (basicFilter.boards ?? []).includes(board)
-                            return <label key={board} className="flex items-center gap-2">
-                              <input type="checkbox" aria-label={board} checked={selected} onChange={event => {
-                                if (board === '自定义') setBF('include_custom', event.target.checked)
-                                else setBF('boards', event.target.checked ? [...(basicFilter.boards ?? []), board]
-                                  : (basicFilter.boards ?? []).filter((value: string) => value !== board))
-                              }} />{board}
-                            </label>
-                          })}
-                        </div>
-                        {basicFilter.include_custom && (
-                          <div className="rounded-lg border border-border/40 bg-base/40 p-3 space-y-2">
-                            <p className="text-[11px] text-muted">选择自选分组（可多选）</p>
-                            {groupsQuery.isPending ? <p role="status" className="text-xs text-muted">加载自选分组中…</p>
-                              : groupsQuery.isError ? <p role="alert" className="text-xs text-danger">自选分组加载失败 <button onClick={() => groupsQuery.refetch()} className="underline">重试</button></p>
-                              : !groupsQuery.data?.groups.length ? <p className="text-xs text-muted">暂无分组，请先在「自选」中新建。</p>
-                              : <div className="flex flex-wrap gap-x-5 gap-y-2">
-                                {groupsQuery.data.groups.map(group => <label key={group.id} className="flex items-center gap-2 text-xs text-secondary">
-                                  <input type="checkbox" aria-label={group.name}
-                                    checked={(basicFilter.watchlist_group_ids ?? []).includes(group.id)}
-                                    onChange={event => setBF('watchlist_group_ids', event.target.checked
-                                      ? [...(basicFilter.watchlist_group_ids ?? []), group.id]
-                                      : (basicFilter.watchlist_group_ids ?? []).filter((id: string) => id !== group.id))} />
-                                  {group.name}
-                                </label>)}
-                              </div>}
-                          </div>
-                        )}
-                        <p className="text-[11px] text-muted">所选板块与自选分组取并集；未选择范围或分组为空时不会匹配股票。</p>
-                      </div>
-                    )}
-                    <label className="flex items-center gap-2 pt-1 text-xs text-secondary">
-                      <input type="checkbox" aria-label="剔除 *ST 和 ST" checked={!!basicFilter.exclude_st}
-                        onChange={event => setBF('exclude_st', event.target.checked)} />
-                      剔除 *ST 和 ST
-                    </label>
+                  <Section icon={Filter} title="股票范围" accent="text-sky-400">
+                    <StockScopeEditor value={basicFilter}
+                      onChange={next => setBasicFilter(prev => ({ ...prev, ...next }))} />
                   </Section>
                 )}
 
@@ -638,8 +582,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
                   {/* 列1：选股条件 */}
                     <Section icon={Filter} title="数值过滤" accent="text-sky-400">
-                      <BasicFilterEditor value={{ ...basicFilter, enabled: basicFilterEnabled }} disabled={saving}
-                        onChange={next => { setBasicFilter(next); setBasicFilterEnabled(next.enabled !== false) }} />
+                      <BasicFilterEditor value={basicFilter} disabled={saving} alwaysEnabled onChange={setBasicFilter} />
                   </Section>
 
                   {/* 列2：策略参数 */}
@@ -733,9 +676,9 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                       title="入场触发器"
                       accent="text-accent"
                       defaultOpen={false}
-                      extra={<SignalTriggerActions kind="entry" signals={entrySignals} onChange={setEntrySignals} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
+                      extra={<SignalTriggerActions selectExisting kind="entry" signals={entrySignals} onChange={setEntrySignals} allowIntraday={detail.execution_backend === 'minute_filter' && !detail.minute_execution} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
                     >
-                      <SignalPicker signals={entrySignals} onChange={setEntrySignals} kind="entry" options={{ variant: 'dialog' }} />
+                      <SignalPicker signals={entrySignals} onChange={setEntrySignals} kind="entry" options={{ variant: 'dialog', allowIntraday: detail.execution_backend === 'minute_filter' && !detail.minute_execution }} />
                       <div className="text-[10px] leading-4 text-muted/70">任一入场点满足即进入候选。</div>
                     </Section>
 
@@ -744,9 +687,9 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                       title="出场触发器"
                       accent="text-warning"
                       defaultOpen={false}
-                      extra={<SignalTriggerActions kind="exit" signals={exitSignals} onChange={setExitSignals} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
+                      extra={<SignalTriggerActions selectExisting kind="exit" signals={exitSignals} onChange={setExitSignals} allowIntraday={detail.execution_backend === 'minute_filter' && !detail.minute_execution} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
                     >
-                      <SignalPicker signals={exitSignals} onChange={setExitSignals} kind="exit" options={{ variant: 'dialog' }} />
+                      <SignalPicker signals={exitSignals} onChange={setExitSignals} kind="exit" options={{ variant: 'dialog', allowIntraday: detail.execution_backend === 'minute_filter' && !detail.minute_execution }} />
                       <div className="text-[10px] leading-4 text-muted/70">任一出场点满足即触发出场。</div>
                     </Section>
 

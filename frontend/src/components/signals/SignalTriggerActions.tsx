@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Settings2, Zap } from 'lucide-react'
+import { ListChecks, Plus, Settings2, Zap } from 'lucide-react'
 import type { CustomSignal } from '@/lib/api'
 import { CustomSignalDialog } from './CustomSignalDialog'
 import { AddFactorSignalDialog } from '@/pages/backtest/AddFactorSignalDialog'
+import { customSignalColumn } from '@/lib/customSignals'
+import { ExistingSignalDialog } from './ExistingSignalDialog'
 
 interface Props {
   kind: 'entry' | 'exit'
@@ -11,12 +13,15 @@ interface Props {
   onChange: (next: string[]) => void
   buttonClassName?: string
   iconClassName?: string
+  allowIntraday?: boolean
+  selectExisting?: boolean
 }
 
-export function SignalTriggerActions({ kind, signals, onChange, buttonClassName, iconClassName }: Props) {
+export function SignalTriggerActions({ kind, signals, onChange, buttonClassName, iconClassName, allowIntraday = false, selectExisting = false }: Props) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [factorOpen, setFactorOpen] = useState(false)
+  const [existingOpen, setExistingOpen] = useState(false)
 
   const accent = kind === 'entry' ? 'hover:text-accent hover:border-accent/40' : 'hover:text-warning hover:border-warning/40'
   const btnCls = buttonClassName ?? 'rounded-btn border border-border bg-base p-1 text-muted transition-colors cursor-pointer'
@@ -27,12 +32,17 @@ export function SignalTriggerActions({ kind, signals, onChange, buttonClassName,
     onChange(signals.includes(signalId) ? signals : [...signals, signalId])
   }
 
-  const handleSaved = (signal: CustomSignal) => enableSignal(`csg_${signal.id}`, signal.kind)
+  const handleSaved = (signal: CustomSignal) => enableSignal(customSignalColumn(signal), signal.kind)
   const handleFactorCreated = (signal: { id: string; kind: 'entry' | 'exit' | 'both' }) =>
     enableSignal(`csg_${signal.id}`, signal.kind)
 
   return (
     <>
+      {selectExisting && <button type="button" onClick={() => setExistingOpen(true)}
+        aria-label={`选择已有${kind === 'entry' ? '入场' : '出场'}信号`} title="从信号指标选择已有自定义信号"
+        className={`${btnCls} inline-flex items-center gap-1.5 whitespace-nowrap ${accent}`}>
+        <ListChecks className={iconCls} /><span className="text-[10px]">选择已有信号</span>
+      </button>}
       <button
         type="button"
         onClick={() => setFactorOpen(true)}
@@ -61,9 +71,13 @@ export function SignalTriggerActions({ kind, signals, onChange, buttonClassName,
       <CustomSignalDialog
         open={open}
         defaultKind={kind}
+        allowLateSession={allowIntraday && kind === 'entry'}
+        allowMorningLiquidation={allowIntraday && kind === 'exit'}
         onClose={() => setOpen(false)}
         onSaved={handleSaved}
       />
+      {existingOpen && <ExistingSignalDialog kind={kind} signals={signals} allowIntraday={allowIntraday}
+        onChange={onChange} onClose={() => setExistingOpen(false)} />}
       {factorOpen && (
         <AddFactorSignalDialog
           defaultKind={kind}

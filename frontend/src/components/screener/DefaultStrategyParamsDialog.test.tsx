@@ -23,6 +23,7 @@ vi.mock('@/lib/api', () => ({
       ],
     })),
     strategyPatchConfig: (id: string, ov: Record<string, unknown>) => mockPatchConfig(id, ov),
+    watchlistGroups: vi.fn(async () => ({ groups: [{ id: 'core', name: '核心' }, { id: 'other', name: '观察' }] })),
   },
 }))
 
@@ -80,8 +81,8 @@ it('shows the basic filter fields when open', async () => {
   expect(container.textContent).toContain('上市天数')
   expect(container.textContent).toContain('价格')
   expect(container.textContent).toContain('流通市值')
-  expect(container.textContent).toContain('板块')
-  expect(container.textContent).toContain('排除')
+  expect(container.textContent).toContain('自定义')
+  expect(container.textContent).toContain('剔除')
 })
 
 it('save persists to localStorage and closes', async () => {
@@ -90,7 +91,7 @@ it('save persists to localStorage and closes', async () => {
 
   // 改价格下限: 第一对 min/max 输入 (RangeField 价格)
   // React 受控 input 需经原生 value setter + input 事件触发 onChange
-  const input = container.querySelector('input[type="number"]') as HTMLInputElement
+  const input = container.querySelector('input[aria-label="价格范围最小值"]') as HTMLInputElement
   const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
   act(() => {
     nativeSetter.call(input, '3')
@@ -112,7 +113,7 @@ it('reset restores builtin defaults', async () => {
   const resetBtn = [...container.querySelectorAll('button')].find(b => b.textContent?.includes('恢复模板初始值'))!
   act(() => { resetBtn.click() })
 
-  expect((container.querySelector('input[type="number"]') as HTMLInputElement).value).toBe('5')
+  expect((container.querySelector('input[aria-label="价格范围最小值"]') as HTMLInputElement).value).toBe('5')
 })
 
 // ===== 模板注入 (纯函数) =====
@@ -138,6 +139,27 @@ it('buildCustomTemplate embeds custom defaults into the code template', () => {
   expect(code).toContain('def filter(df: pl.DataFrame, params: dict) -> pl.Expr:')
 })
 
+it('saves custom-only scope with multiple groups and preserves it in generated code', async () => {
+  await render({ show: true })
+  await act(async () => container.querySelector<HTMLInputElement>('input[aria-label="自定义"]')!.click())
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)) })
+  await act(async () => {
+    for (const board of ['沪主板', '深主板', '创业板', '科创板']) {
+      container.querySelector<HTMLInputElement>(`input[aria-label="${board}"]`)!.click()
+    }
+    container.querySelector<HTMLInputElement>('input[aria-label="核心"]')!.click()
+    container.querySelector<HTMLInputElement>('input[aria-label="观察"]')!.click()
+  })
+  act(() => [...container.querySelectorAll('button')].find(b => b.textContent === '保存模板')!.click())
+  const saved = storage.defaultStrategyBasicFilter.get(null)!
+  expect(saved).toMatchObject({ boards: [], include_custom: true, watchlist_group_ids: ['core', 'other'],
+    data_reference: 'previous_trade_day', target_mode: 'selected' })
+  const code = renderBasicFilterPy(saved)
+  expect(code).toContain('"boards": []')
+  expect(code).toContain('"include_custom": True, "watchlist_group_ids": ["core","other"]')
+  expect(code).toContain('"data_reference": "previous_trade_day"')
+})
+
 // ===== 一键应用到全部策略 =====
 
 
@@ -150,7 +172,7 @@ it('batch application starts without preselected strategies', async () => {
 
 it('batch application only patches selected numeric filters and does not save the template', async () => {
   await render({ show: true })
-  const input = container.querySelector('input[type="number"]') as HTMLInputElement
+  const input = container.querySelector('input[aria-label="价格范围最小值"]') as HTMLInputElement
   const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
   act(() => {
     nativeSetter.call(input, '3')
@@ -179,7 +201,7 @@ it('batch application only patches selected numeric filters and does not save th
 it('blocks invalid ranges and carries all numeric template fields into generated code', async () => {
   const onClose = vi.fn()
   await render({ show: true, onClose })
-  const input = container.querySelector('input[type="number"]')!
+  const input = container.querySelector('input[aria-label="价格范围最小值"]')!
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '300')
     input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -193,7 +215,7 @@ it('blocks invalid ranges and carries all numeric template fields into generated
   expect(code).toContain('"market_cap_min": 2000000000, "market_cap_max": 10000000000')
   expect(code).toContain('"exclude_new_days": 60')
   expect(code).toContain('"enabled": False')
-  expect(code).toContain('"target_mode": "all"')
+  expect(code).toContain('"target_mode": "selected"')
 })
 
 it('shows failed strategy names and freezes controls throughout a batch request', async () => {

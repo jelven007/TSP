@@ -38,7 +38,7 @@ def validate(value: dict, available: set[str]) -> dict:
         raise ValueError("目标股票板块无效")
     if not isinstance(ids, list) or any(not isinstance(gid, str) for gid in ids):
         raise ValueError("目标自选分组格式无效")
-    for key in ("include_custom", "exclude_st"):
+    for key in ("include_custom", "exclude_st", "exclude_suspended"):
         if key in bf and not isinstance(bf[key], bool):
             raise ValueError("目标股票开关必须为布尔值")
     if not set(group_ids(value)) <= available:
@@ -80,9 +80,13 @@ def resolve(storage, value: dict, *, members: list[dict] | None = None) -> dict:
     return value
 
 
-def references(overrides: dict[str, dict], rules: list[dict]) -> dict[str, list[str]]:
+def references(overrides: dict[str, dict], rules: list[dict], sources: dict[str, dict] | None = None) -> dict[str, list[str]]:
     refs: dict[str, set[str]] = {}
-    for sid, value in overrides.items():
+    effective = copy.deepcopy(overrides)
+    for sid, source in (sources or {}).items():
+        default = source.get("definition", source).get("basic_filter") or {}
+        effective[sid] = {"basic_filter": {**default, **(overrides.get(sid, {}).get("basic_filter") or {})}}
+    for sid, value in effective.items():
         for gid in group_ids(value):
             refs.setdefault(gid, set()).add(sid)
     for rule in rules:
@@ -98,7 +102,13 @@ def file_references(storage: Path) -> dict[str, list[str]]:
         for path in (storage / "user_data" / namespace).glob("*.json"):
             result[path.stem] = json.loads(path.read_text(encoding="utf-8"))
         return result
-    return references(documents("strategy_overrides"), list(documents("monitor_rules").values()))
+    from app.strategy.ai_generator import AIStrategyGenerator
+    sources = {}
+    for kind in ("custom", "ai"):
+        for path in (storage / "strategies" / kind).glob("*.py"):
+            meta = AIStrategyGenerator._extract_meta(path.read_text(encoding="utf-8"))
+            sources[meta.get("id", path.stem)] = meta
+    return references(documents("strategy_overrides"), list(documents("monitor_rules").values()), sources)
 
 
 def sql_references(conn) -> dict[str, list[str]]:
@@ -106,12 +116,13 @@ def sql_references(conn) -> dict[str, list[str]]:
         return {}
     rows = conn.execute(
         "SELECT namespace,id,value FROM business.documents WHERE namespace=ANY(%s)",
-        (["strategy_overrides", "monitor_rules"],),
+        (["strategy_overrides", "monitor_rules", "strategy_sources"],),
     ).fetchall()
     return references(
         {row["id"]: row["value"] for row in rows if row["namespace"] == "strategy_overrides"},
         [row["value"] for row in rows if row["namespace"] == "monitor_rules"]
         + [row["definition"] for row in conn.execute("SELECT definition FROM business.monitor_rules").fetchall()],
+        {row["id"]: row["value"] for row in rows if row["namespace"] == "strategy_sources"},
     )
 
 

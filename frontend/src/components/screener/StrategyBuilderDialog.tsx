@@ -6,7 +6,6 @@ import { api, friendlyStreamError } from '@/lib/api'
 import type { AiIterateRound } from '@/lib/api'
 import { storage, type DefaultStrategyBasicFilter } from '@/lib/storage'
 import { cn } from '@/lib/cn'
-import { ALL_BOARDS } from './StrategySettingsDialog'
 import { loadDefaultBasicFilter } from './DefaultStrategyParamsDialog'
 
 // ===== 工具函数 =====
@@ -100,17 +99,20 @@ const DIRECTIONS = [
 /** 渲染 basic_filter 的 Python 字面量段 (缩进 8 空格, 与模板 META 对齐) */
 export function renderBasicFilterPy(bf: DefaultStrategyBasicFilter): string {
   const py = (v: number | boolean | null) => (v === null ? 'None' : v === true ? 'True' : v === false ? 'False' : String(v))
-  const boards = bf.boards.length ? bf.boards : [...ALL_BOARDS]
+  const boards = bf.boards
   return [
     `        "price_min": ${py(bf.price_min)}, "price_max": ${py(bf.price_max)},`,
     `        "enabled": ${py(bf.enabled !== false)},`,
-    `        "target_mode": "${boards.length === ALL_BOARDS.length ? 'all' : 'selected'}",`,
-    `        "include_custom": False, "watchlist_group_ids": [],`,
+    `        "data_reference": "previous_trade_day",`,
+    `        "target_mode": "selected",`,
+    `        "include_custom": ${py(!!bf.include_custom)}, "watchlist_group_ids": ${JSON.stringify(bf.watchlist_group_ids ?? [])},`,
     `        "market_cap_min": ${py(bf.market_cap_min ?? null)}, "market_cap_max": ${py(bf.market_cap_max ?? null)},`,
     `        "float_cap_min": ${py(bf.float_cap_min)}, "float_cap_max": ${py(bf.float_cap_max)},`,
     `        "amount_min": ${py(bf.amount_min)}, "amount_max": ${py(bf.amount_max)},`,
     `        "turnover_min": ${py(bf.turnover_min)}, "turnover_max": ${py(bf.turnover_max)},`,
+    `        "change_pct_min": ${py(bf.change_pct_min ?? null)}, "change_pct_max": ${py(bf.change_pct_max ?? null)},`,
     `        "exclude_st": ${py(bf.exclude_st)}, "exclude_new_days": ${py(bf.exclude_new_days === undefined ? 30 : bf.exclude_new_days)},`,
+    `        "exclude_suspended": ${py(!!bf.exclude_suspended)},`,
     `        "boards": [${boards.map(b => `"${b}"`).join(', ')}],`,
   ].join('\n')
 }
@@ -335,6 +337,7 @@ export function StrategyBuilderDialog({ open, onClose, onSavedId, mode = 'create
         const result = await api.strategyAiIterate({
           name: name.trim(), description: description.trim(), direction,
           execution_backend: executionBackend, rules: rules.trim(), max_rounds: 4,
+          basic_filter: { ...defaultBF },
         })
         setCode(result.final_code)
         iterateSavedCodeRef.current = result.final_code
@@ -350,8 +353,7 @@ export function StrategyBuilderDialog({ open, onClose, onSavedId, mode = 'create
         setStrategyId(id); setSource('ai'); setPreviewTab('code')
         let finalResult: any = null
         for await (const evt of api.strategyBuildStream(1, { name: name.trim(), description: description.trim(), direction, execution_backend: executionBackend, rules: rules.trim(), strategy_id: id,
-          basic_filter: { ...defaultBF, target_mode: defaultBF.boards.length === ALL_BOARDS.length ? 'all' : 'selected',
-            include_custom: false, watchlist_group_ids: [] } })) {
+          basic_filter: defaultBF })) {
           if (evt.type === 'delta') {
             setCode(prev => prev + evt.content)
           } else if (evt.type === 'error') {

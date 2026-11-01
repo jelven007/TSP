@@ -9,6 +9,7 @@ import { CustomSignalDialog } from '@/components/signals/CustomSignalDialog'
 import { Skeleton } from '@/components/data/Skeleton'
 import { PageHeader } from '@/components/PageHeader'
 import { AnchorWrap } from '@/lib/useCardFlash'
+import { customSignalColumn, lateSessionSummary, morningLiquidationSummary } from '@/lib/customSignals'
 
 type SignalSection = 'builtin' | 'custom'
 
@@ -132,7 +133,7 @@ function SignalsBody({ highlight }: { highlight: string }) {
           })}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-muted">自定义信号保存为 <span className="font-mono text-secondary">csg_*</span> 列，条件字段可用行情指标与全部注册因子</span>
+          <span className="text-[11px] text-muted">支持普通条件组合与「尾盘走强」分钟入场模板</span>
           <button
             onClick={openNew}
             className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-btn border border-amber-400/30 bg-amber-400/5 px-3 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-400/10"
@@ -158,7 +159,7 @@ function SignalsBody({ highlight }: { highlight: string }) {
                       </span>
                       {!sig.enabled && <span className="rounded bg-muted/10 px-1.5 py-0.5 text-[10px] text-muted">已停用</span>}
                     </div>
-                    <p className="mt-1 truncate font-mono text-[11px] text-muted">csg_{sig.id}</p>
+                    <p className="mt-1 truncate font-mono text-[11px] text-muted">{customSignalColumn(sig)}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <button onClick={() => toggleEnabled(sig)} title={sig.enabled ? '停用' : '启用'} className={`cursor-pointer rounded p-1 ${sig.enabled ? 'text-emerald-400 hover:bg-emerald-400/10' : 'text-muted hover:bg-elevated'}`}>
@@ -189,6 +190,14 @@ function SignalsBody({ highlight }: { highlight: string }) {
                   </div>
                 </div>
                 <div className="mt-3 space-y-1">
+                  {sig.template === 'late_session_strength' && <>
+                    {lateSessionSummary(sig).map(text => <p key={text} className="text-[11px] leading-5 text-secondary">{text}</p>)}
+                    <p className="pt-1 text-[10px] text-muted">全部条件同时满足 · 已完成 K 线 · 用于分钟策略</p>
+                  </>}
+                  {sig.template === 'morning_liquidation' && <>
+                    {morningLiquidationSummary(sig).map(text => <p key={text} className="text-[11px] leading-5 text-secondary">{text}</p>)}
+                    <p className="pt-1 text-[10px] text-muted">持仓次交易日 · 达标提前 / 到时清仓 · 用于分钟策略监控</p>
+                  </>}
                   {sig.conditions.map((c, i) => (
                     <div key={i} className="flex items-center gap-1.5 text-[11px] text-secondary">
                       <span className="w-6 text-right text-muted/50">{i === 0 ? '当' : '且'}</span>

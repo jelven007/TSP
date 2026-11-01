@@ -28,6 +28,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/screener", tags=["screener"])
 
 
+@router.get("/daily-stock-pool/{strategy_id}")
+def daily_stock_pool(request: Request, strategy_id: str, as_of: date,
+                     record_id: str | None = None, limit: int = Query(500, ge=1, le=1000),
+                     offset: int = Query(0, ge=0)):
+    from app.services.daily_stock_pools import DailyStockPools
+    engine = _strategy_engine(request)
+    if not engine or not engine.has(strategy_id):
+        raise HTTPException(404, "策略不存在")
+    value = DailyStockPools(_private_data_dir(request)).read(
+        strategy_id, as_of, record_id=record_id, limit=limit, offset=offset)
+    return {"pool": value}
+
+
 def _private_data_dir(request: Request):
     from app.multitenancy.documents import private_storage
 
@@ -817,6 +830,9 @@ def _run_all_progressive(
                 "as_of": str(result.as_of),
                 "rows": _safe(asdict(result)).get("rows", []),
                 "computed_at": int(time.time() * 1000),
+                **({"daily_stock_pool": result.daily_stock_pool} if getattr(result, "daily_stock_pool", None) is not None else {}),
+                **({"daily_stock_pool_error": result.daily_stock_pool_error}
+                   if getattr(result, "daily_stock_pool_error", None) else {}),
             }
             if timeframe == "1d":
                 w = _coverage_warnings(
@@ -1002,6 +1018,9 @@ def run_all(request: Request, body: Optional[dict] = None):
             "total": result.total,
             "as_of": str(result.as_of),
             "rows": safe_rows,
+            **({"daily_stock_pool": result.daily_stock_pool} if getattr(result, "daily_stock_pool", None) is not None else {}),
+            **({"daily_stock_pool_error": result.daily_stock_pool_error}
+               if getattr(result, "daily_stock_pool_error", None) else {}),
         }
         if timeframe == "1d":
             w = _coverage_warnings(

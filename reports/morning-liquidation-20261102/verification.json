@@ -1,0 +1,14 @@
+{
+  "backend_tests": 163,
+  "core_tests": 30,
+  "postgres_tests": 27,
+  "frontend_tests": 40,
+  "frontend_build": true,
+  "compute_manifest": true,
+  "ruff_added": 0,
+  "application_version": "v0.4.41",
+  "local_installed": true,
+  "online_deployed": false,
+  "new_profit_backtest": false,
+  "configuration_preserved": true
+}

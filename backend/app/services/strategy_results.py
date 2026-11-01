@@ -299,6 +299,11 @@ class StrategyResults:
                     conn.execute("""CREATE TABLE IF NOT EXISTS strategy_result_lifecycle(
                         strategy_id TEXT PRIMARY KEY, generation INTEGER NOT NULL,
                         deleted INTEGER NOT NULL)""")
+                    conn.execute("""CREATE TABLE IF NOT EXISTS daily_stock_pools(
+                        id TEXT PRIMARY KEY, strategy_id TEXT NOT NULL, day TEXT NOT NULL,
+                        started_at INTEGER NOT NULL, value TEXT NOT NULL)""")
+                    conn.execute("""CREATE INDEX IF NOT EXISTS daily_stock_pools_day_idx
+                        ON daily_stock_pools(strategy_id,day,started_at DESC,id DESC)""")
                 conn.execute("BEGIN IMMEDIATE")
             else:
                 conn.execute("BEGIN")
@@ -400,11 +405,14 @@ class StrategyResults:
             state = self._state(conn, strategy_id)
             self._set_state(conn, strategy_id, int(state.get("generation", 0)) + 1, True)
             if self.tenant:
+                if self.storage.db.settings.schema_version >= 7:
+                    conn.execute("DELETE FROM business.daily_stock_pools WHERE strategy_id=%s", (strategy_id,))
                 conn.execute(
                     """DELETE FROM business.documents WHERE namespace=%s
                        AND value->'summary'->>'strategy_id'=%s""", (NAMESPACE, strategy_id),
                 )
             else:
+                conn.execute("DELETE FROM daily_stock_pools WHERE strategy_id=?", (strategy_id,))
                 conn.execute(
                     "DELETE FROM strategy_results WHERE json_extract(summary,'$.strategy_id')=?",
                     (strategy_id,),
@@ -429,7 +437,8 @@ class StrategyResults:
             defaults = {"strategy_id": identity.strategy_id, "total": 0, "rows": [],
                         "scores": {}, "warnings": [], "entry_signal_hits": [],
                         "exit_signal_hits": [], "entry_filter_error": None, "sections": None,
-                        "state": None, "portfolio_scope": None, "execution_error": None}
+                        "state": None, "portfolio_scope": None, "execution_error": None,
+                        "daily_stock_pool": None, "daily_stock_pool_error": None}
             return {**defaults, **{key: item for key, item in value.items()
                                    if key not in {"computed_at", "elapsed_ms"}}}
 
@@ -463,6 +472,11 @@ class StrategyResults:
             from psycopg.types.json import Jsonb
             with self.storage._transaction(write=True) as conn:
                 self._check_generation(conn, identity.strategy_id, identity.storage_generation)
+                if result.get("daily_stock_pool") is not None:
+                    from app.services.daily_stock_pools import DailyStockPools
+                    DailyStockPools(self.storage).save_in_transaction(
+                        conn, identity, result["daily_stock_pool"], started_at=started_at,
+                        input_generation=input_generation)
                 row = conn.execute(
                     "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
                     (NAMESPACE, record_id),
@@ -484,6 +498,11 @@ class StrategyResults:
         else:
             with self._local(write=True) as conn:
                 self._check_generation(conn, identity.strategy_id, identity.storage_generation)
+                if result.get("daily_stock_pool") is not None:
+                    from app.services.daily_stock_pools import DailyStockPools
+                    DailyStockPools(self.storage).save_in_transaction(
+                        conn, identity, result["daily_stock_pool"], started_at=started_at,
+                        input_generation=input_generation)
                 row = conn.execute("SELECT value FROM strategy_results WHERE id=?", (record_id,)).fetchone()
                 value, update = merged(json.loads(row["value"]) if row else None)
                 if update == "summary":

@@ -435,6 +435,22 @@ class ScreenerService:
             elapsed_ms=elapsed,
         )
 
+    def build_daily_pool_context(self, as_of: date, *, current=None):
+        """Load only scope/reference inputs, never minute formulas or positions."""
+        from app.market_time import cn_today
+        from app.strategy.eligibility import attach_listing_age
+        from app.strategy.engine import StrategyDataContext
+        history = self._load_enriched_history(as_of, 2)
+        if current is None:
+            current = self._load_enriched_for_date(as_of)
+        instruments = self.repo.get_instruments_asset("stock")
+        if instruments is not None and not instruments.is_empty():
+            history = attach_listing_age(history, instruments)
+            current = attach_listing_age(current, instruments)
+        return StrategyDataContext(
+            "stock", "1d", as_of, current=current, pool_history=history,
+            pool_universe=instruments if as_of == cn_today() else None)
+
     def build_strategy_context(
         self,
         engine,
@@ -455,9 +471,12 @@ class ScreenerService:
             return StrategyDataContext(self.asset_type, timeframe, as_of)
         if current is None:
             current = self._load_enriched_for_date(as_of)
+        pool_context = (self.build_daily_pool_context(as_of, current=current)
+                        if engine is not None and callable(getattr(self.repo, "get_enriched_history", None))
+                        else StrategyDataContext(self.asset_type, "1d", as_of))
         fallback_daily = None
         if timeframe == "1m" and current.is_empty():
-            daily_bars = engine.minute_daily_history_bars(strategy_ids) if engine is not None else 0
+            daily_bars = engine.minute_daily_history_bars(strategy_ids, overrides_map=overrides_map) if engine is not None else 0
             fallback_daily = self._load_enriched_history(as_of, max(daily_bars, 1))
             prior = fallback_daily.filter(pl.col("date") < as_of) if not fallback_daily.is_empty() else fallback_daily
             if not prior.is_empty():
@@ -475,7 +494,7 @@ class ScreenerService:
             # 供分钟策略叠加日线维度条件 (如 N 日内涨停过)。
             daily_history = None
             if engine is not None:
-                daily_bars = engine.minute_daily_history_bars(strategy_ids)
+                daily_bars = engine.minute_daily_history_bars(strategy_ids, overrides_map=overrides_map)
                 if daily_bars > 0:
                     daily_history = fallback_daily if fallback_daily is not None else self._load_enriched_history(as_of, daily_bars)
             from app.market_time import cn_now, cn_today
@@ -508,6 +527,8 @@ class ScreenerService:
                 daily_history=daily_history,
                 cache_key=cache_key,
                 completed_through=completed_through,
+                pool_history=pool_context.pool_history,
+                pool_universe=pool_context.pool_universe,
             )
         history_bars = engine.required_history_bars(
             strategy_ids,
@@ -527,6 +548,8 @@ class ScreenerService:
             history=history,
             market=market,
             cache_key=cache_key,
+            pool_history=pool_context.pool_history,
+            pool_universe=pool_context.pool_universe,
         )
 
     def _load_minute_history(self, as_of: date, current: pl.DataFrame | None) -> pl.DataFrame:

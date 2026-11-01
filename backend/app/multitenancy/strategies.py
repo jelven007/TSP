@@ -81,6 +81,16 @@ class TenantStrategyEngine(StrategyEngine):
         from app.strategy.targets import resolve
 
         with self.documents.transaction(write=False) as session:
+            sources = [{**row["value"], "id": row["id"]}
+                       for row in session.records("strategy_sources")]
+            overrides = list_overrides(session)
+            for source in sources:
+                sid = source["id"]
+                bf = {**(source["definition"].get("basic_filter") or {}),
+                      **(overrides.get(sid, {}).get("basic_filter") or {})}
+                if bf.get("include_custom"):
+                    overrides[sid] = {**overrides.get(sid, {}),
+                                      **resolve(session, {"basic_filter": bf})}
             if kind in {"backtest", "optimize", "walkforward"} and isinstance(values.get("config"), dict):
                 values = copy.deepcopy(values)
                 values["config"]["overrides"] = resolve(session, values["config"].get("overrides") or {})
@@ -94,8 +104,8 @@ class TenantStrategyEngine(StrategyEngine):
             return {
                 "kind": kind, "tenant_id": self.documents.context.tenant_id,
                 "administrator": self.administrator,
-                "sources": session.values("strategy_sources"),
-                "overrides": list_overrides(session),
+                "sources": sources,
+                "overrides": overrides,
                 "watchlist": Watchlist._rows(session.connection),
                 "factors": session.values("custom_factors"),
                 "signals": session.values("custom_signals"),
@@ -135,6 +145,14 @@ class TenantStrategyEngine(StrategyEngine):
         value = {"id": sid, "source": source, "code": code, "definition": definition}
         from app.services.strategy_results import StrategyResults
         with self.documents.transaction() as session:
+            from app.strategy.config import validate_basic_filter
+            from app.strategy.targets import validate
+            bf = definition.get("basic_filter") or {}
+            validate_basic_filter(bf)
+            available = {row["id"] for row in session.connection.execute(
+                "SELECT id FROM business.watchlist_groups",
+            ).fetchall()}
+            validate({"basic_filter": bf}, available)
             session.put("strategy_sources", sid, value,
                         expected_revision=record["revision"] if record else 0,
                         expected_collection={row["id"]: row["revision"] for row in records})

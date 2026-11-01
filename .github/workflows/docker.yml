@@ -189,7 +189,9 @@ jobs:
 
   promote-latest:
     needs: build-and-push
-    if: github.event_name == 'workflow_run'
+    # workflow_run intentionally skips the repeated quality jobs. Evaluate the
+    # promotion after its successful build despite those skipped ancestors.
+    if: always() && github.event_name == 'workflow_run' && needs.build-and-push.result == 'success'
     runs-on: ubuntu-latest
     # 仅可变指针串行化；版本镜像构建仍独立运行，不取消其他版本构建。
     concurrency:

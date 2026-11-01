@@ -9,6 +9,7 @@ import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { numericBasicFilter, validateBasicFilter, type NumericBasicFilter } from '@/lib/strategyBasicFilter'
 import { BasicFilterEditor, ALL_BOARDS } from './BasicFilterEditor'
+import { StockScopeEditor } from './StockScopeEditor'
 
 export const BUILTIN_DEFAULT_BASIC_FILTER: DefaultStrategyBasicFilter = {
   enabled: true, price_min: 5, price_max: 200,
@@ -16,6 +17,8 @@ export const BUILTIN_DEFAULT_BASIC_FILTER: DefaultStrategyBasicFilter = {
   float_cap_min: 30e8, float_cap_max: 1500e8,
   amount_min: null, amount_max: null,
   turnover_min: 1, turnover_max: null, exclude_new_days: 30,
+  change_pct_min: null, change_pct_max: null, data_reference: 'previous_trade_day',
+  target_mode: 'selected', include_custom: false, watchlist_group_ids: [],
   exclude_st: true, boards: [...ALL_BOARDS],
 }
 
@@ -23,6 +26,9 @@ export function loadDefaultBasicFilter(): DefaultStrategyBasicFilter {
   const saved = storage.defaultStrategyBasicFilter.get(null)
   const next = { ...BUILTIN_DEFAULT_BASIC_FILTER, ...saved }
   next.boards = Array.isArray(next.boards) ? next.boards.filter(b => ALL_BOARDS.includes(b)) : [...ALL_BOARDS]
+  next.target_mode = 'selected'
+  next.data_reference = 'previous_trade_day'
+  next.watchlist_group_ids = Array.isArray(next.watchlist_group_ids) ? next.watchlist_group_ids.filter(id => typeof id === 'string') : []
   // 兼容旧浏览器模板；读取/取消不写入配置。
   return next
 }
@@ -62,7 +68,8 @@ export function DefaultStrategyParamsDialog({ show, onClose }: Props) {
   if (!show) return null
 
   const validate = () => {
-    const problem = validateBasicFilter(bf) ?? (!bf.boards.length ? '请至少选择一个股票板块' : null)
+    const problem = validateBasicFilter(bf) ?? (!bf.boards.length && !(bf.include_custom && bf.watchlist_group_ids?.length)
+      ? '请至少选择一个板块或自选分组' : null)
     setError(problem ?? '')
     return !problem
   }
@@ -115,18 +122,8 @@ export function DefaultStrategyParamsDialog({ show, onClose }: Props) {
       <BasicFilterEditor value={bf} disabled={frozen} onChange={next => setBf(prev => ({ ...prev, ...next }))} />
       <fieldset disabled={frozen} className="space-y-3 border-t border-border/50 pt-3">
         <legend className="text-xs text-secondary">新建策略的股票范围</legend>
-        <p className="text-[11px] text-muted">板块（至少选择一个）</p>
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {ALL_BOARDS.map(board => <label key={board} className="flex items-center gap-1.5 text-xs text-secondary">
-            <input type="checkbox" checked={bf.boards.includes(board)} onChange={e => setBf(prev => ({
-              ...prev, boards: e.target.checked ? [...prev.boards, board] : prev.boards.filter(b => b !== board),
-            }))} />{board}
-          </label>)}
-        </div>
-        <label className="flex items-center gap-2 text-xs text-secondary">
-          <input type="checkbox" checked={bf.exclude_st} onChange={e => setBf(prev => ({ ...prev, exclude_st: e.target.checked }))} />
-          排除 *ST 和 ST
-        </label>
+        <StockScopeEditor value={bf} disabled={frozen}
+          onChange={next => setBf(prev => ({ ...prev, ...next }))} />
       </fieldset>
       <details className="border-t border-border/50 pt-3">
         <summary className="cursor-pointer text-xs text-secondary">批量应用数值过滤到现有策略</summary>

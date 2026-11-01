@@ -17,7 +17,10 @@ def sell_position(frame, symbol, prior_close, position, values):
     state = dict(position)
     state.setdefault("sell_notional", 0.)
     state.setdefault("sell_fee_paid", 0.)
-    state["day_sell_notional"] = 0.
+    sale_day = str(source["datetime"][0].date()) if not source.is_empty() else position.get("sell_fee_date")
+    if state.get("sell_fee_date") != sale_day:
+        state["day_sell_notional"] = 0.
+    state.setdefault("day_sell_notional", 0.)
     initial_notional = state["sell_notional"]
     stopped = state.get("stop_pending", False)
     fills, signals, reasons, fee = [], [], set(), 0.
@@ -46,4 +49,5 @@ def sell_position(frame, symbol, prior_close, position, values):
     notional = state["sell_notional"] - initial_notional
     return {"fills": fills, "signals": signals, "remaining": state["remaining"],
             "shares": position["remaining"] - state["remaining"], "notional": notional,
-            "fee": fee, "value": notional - fee, "stop_pending": stopped}
+            "fee": fee, "value": notional - fee, "stop_pending": stopped,
+            "day_sell_notional": state["day_sell_notional"], "sell_fee_date": sale_day}

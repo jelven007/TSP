@@ -96,7 +96,7 @@ def run_momentum(service, config, strategy, values, overrides, *,
         return finish("动量容量策略请通过策略自身参数配置选股、退出、资金和费用")
     repo = service.engine.repo
     try:
-        plan = minute_replay_feature_plan(25)
+        plan = minute_replay_feature_plan(25, service._effective_basic_filter(strategy, overrides))
         # S02 uses raw prices, not daily limit signals; omit their required columns too.
         plan = replace(plan, base_columns=plan.base_columns - plan.signal_columns,
                        signal_columns=frozenset())
@@ -132,6 +132,13 @@ def run_momentum(service, config, strategy, values, overrides, *,
             context = StrategyDataContext("stock", "1m", day, history=frame,
                 daily_history=panel.filter(pl.col("date") <= day))
             selected = strategy.filter_minute_history_fn(frame, params, daily=context.daily_history)
+            basic_filter = service._effective_basic_filter(strategy, overrides)
+            if basic_filter.get("data_reference") == "previous_trade_day" or "target_mode" in (overrides.get("basic_filter") or {}):
+                from app.strategy.engine import StrategyEngine
+                selected = StrategyEngine._join_basic_columns(selected,
+                    context.daily_history.filter(pl.col("date") == day))
+                selected = StrategyEngine._apply_basic_filter(selected, basic_filter,
+                    history=context.daily_history, as_of=day)
             if config.symbols is not None and not selected.is_empty():
                 selected = selected.filter(pl.col("symbol").is_in(config.symbols))
             result = run_day(context, params, selected, previous_state=state, allow_buy=i < len(days) - 1)

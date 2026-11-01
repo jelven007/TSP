@@ -319,6 +319,7 @@ class AIIterateRequest(BaseModel):
     rules: str = ""
     execution_backend: Literal["polars_expr", "matrix_native"] = "polars_expr"
     max_rounds: int = Field(default=4, ge=1, le=10)
+    basic_filter: dict[str, Any] | None = None
 
 
 class AISaveRequest(BaseModel):
@@ -893,6 +894,9 @@ def _prepare_strategy_code(req: StrategyCodeValidateRequest | StrategyCodeSaveRe
     # 安全校验始终执行 (此前 strict 字段可被客户端设 false 绕过, 已移除)
     AIStrategyGenerator._validate_safety(code)
     meta = AIStrategyGenerator._extract_meta(code)
+    strategy_config.validate_basic_filter(meta.get("basic_filter"))
+    if "target_symbols" in (meta.get("basic_filter") or {}):
+        raise ValueError("股票范围请保存板块和分组引用, 不可持久化运行快照的target_symbols")
     AIStrategyGenerator._validate_meta_semantics(code, meta)
     return {"code": code, "meta": meta}
 
@@ -959,6 +963,11 @@ def _save_strategy_code(req: StrategyCodeSaveRequest, request: Request, *, legac
     path.parent.mkdir(parents=True, exist_ok=True)
 
     prepared = _prepare_strategy_code(req)
+
+    from app.strategy.targets import validate
+    groups_path = data_dir / "user_data" / "watchlist_groups.json"
+    groups = json.loads(groups_path.read_text(encoding="utf-8")) if groups_path.exists() else []
+    validate({"basic_filter": prepared["meta"].get("basic_filter") or {}}, {group["id"] for group in groups})
 
     # AI 新建策略默认草稿态(research_only=True): 不进公开列表、不可运行, 需显式 publish。
     # 仅 create 注入; update 保留既有 research_only, 避免静默取消已发布状态。
@@ -1172,6 +1181,7 @@ async def ai_iterate(req: AIIterateRequest, request: Request):
         prompt = build_step1(
             req.name, req.description, req.direction, req.rules,
             strategy_id="", execution_backend=req.execution_backend,
+            basic_filter=req.basic_filter,
         )
         iterator = AIStrategyIterator(max_rounds=req.max_rounds)
         from app.multitenancy.access import verify_live_access

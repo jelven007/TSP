@@ -516,7 +516,11 @@ def _filter_dependencies(strategy: StrategyDef, params: dict) -> tuple[set[str],
 
 def _basic_filter_dependencies(config: dict) -> set[str]:
     if not config or not config.get("enabled", True):
-        return ({"symbol", "is_risk_warning"} if config.get("exclude_st") else {"symbol"}) if config.get("target_mode") else set()
+        dependencies = (({"symbol", "is_risk_warning"} if config.get("exclude_st") else {"symbol"})
+                        if config.get("target_mode") else set())
+        if config.get("exclude_suspended"):
+            dependencies.add("is_suspended")
+        return dependencies
     dependencies = {"symbol", "close"}
     if any(
         config.get(f"{prefix}_{bound}") is not None
@@ -528,12 +532,16 @@ def _basic_filter_dependencies(config: dict) -> set[str]:
         dependencies.add("amount")
     if any(config.get(key) is not None for key in ("turnover_min", "turnover_max")):
         dependencies.add("turnover_rate")
+    if any(config.get(key) is not None for key in ("change_pct_min", "change_pct_max")):
+        dependencies.add("change_pct")
     if any(config.get(key) is not None for key in ("market_cap_min", "market_cap_max")):
         dependencies.add("total_shares")
     if any(config.get(key) is not None for key in ("float_cap_min", "float_cap_max")):
         dependencies.add("float_shares")
     if config.get("exclude_st"):
         dependencies.add("is_risk_warning")
+    if config.get("exclude_suspended"):
+        dependencies.add("is_suspended")
     if config.get("exclude_new_days"):
         dependencies.add("listing_age_days")
     return dependencies
@@ -1243,6 +1251,15 @@ class StrategyBacktestService:
 
         params = self._normalize_params(config.params or {}, s)
         overrides = config.overrides or {}
+        from app.strategy.morning_liquidation import selected_definitions
+
+        if selected_definitions(self.strategy_engine, self._effective_signals(overrides, "exit_signals", s.exit_signals)):
+            return _err("早盘清仓暂不支持收益回测, 请使用带买入日期的盘中信号回放")
+        if s.meta.get("minute_execution") and any(
+            str(name).startswith("csgi_")
+            for name in self._effective_signals(overrides, "entry_signals", s.entry_signals)
+        ):
+            return _err("该策略使用专用分钟执行规则, 暂不支持自定义分钟入场触发器")
         if s.meta.get("minute_execution") == "momentum_capacity_v1":
             from app.backtest.momentum_run import run_momentum
 
@@ -1747,10 +1764,12 @@ class StrategyBacktestService:
             # basic_filter 只影响买入候选，不能删除持仓估值和卖出所需行情。
             basic_mask = pl.Series("_basic", [True] * len(panel), dtype=pl.Boolean)
             if basic_filter:
-                expr = StrategyEngine._basic_filter_expr(panel, basic_filter)
+                from app.strategy.basic_filter import attach_previous_values
+                filter_panel = attach_previous_values(panel, basic_filter)
+                expr = StrategyEngine._basic_filter_expr(filter_panel, basic_filter)
                 if expr is not None:
                     try:
-                        basic_mask = panel.select(expr.alias("_basic"))["_basic"].fill_null(False).cast(pl.Boolean)
+                        basic_mask = filter_panel.select(expr.alias("_basic"))["_basic"].fill_null(False).cast(pl.Boolean)
                     except Exception as e:  # noqa: BLE001
                         logger.warning("basic_filter mask failed: %s", e)
                         return _err(f"基础过滤计算失败: {e}")
@@ -2014,7 +2033,14 @@ class StrategyBacktestService:
 
         # 日线面板一次加载: 覆盖首个回测日的日线窗口 + 模拟区间 (含 full 模式尾部)。
         daily_bars = int(s.minute_daily_bars or 0)
-        feature_plan = _with_status_fields(minute_replay_feature_plan(daily_bars), "stock")
+        bf = self._effective_basic_filter(s, overrides)
+        from app.backtest.minute_replay import requires_full_pool
+        from app.strategy.basic_filter import uses_previous
+
+        full_signal_pool = requires_full_pool(self.strategy_engine, s, overrides)
+        if uses_previous(bf):
+            daily_bars = max(daily_bars, 2)
+        feature_plan = _with_status_fields(minute_replay_feature_plan(daily_bars, bf), "stock")
         load_start = minute_panel_start(config.start, daily_bars)
         full_horizon_days = int(max_hold_days or config.holding_days or 5)
         load_end = config.end
@@ -2026,7 +2052,7 @@ class StrategyBacktestService:
         t_load = time.perf_counter()
         try:
             panel = self.engine.load_panel_for_backtest(
-                config.symbols,
+                None if full_signal_pool else config.symbols,
                 load_start,
                 load_end,
                 feature_plan,
@@ -2211,7 +2237,7 @@ class StrategyBacktestService:
             "strategy_matches": replay.strategy_matches,
             "entry_candidates": raw_candidates,
             "entry_trigger_filtered": max(replay.strategy_matches - raw_candidates, 0),
-            "entry_trigger_enabled": False,
+            "entry_trigger_enabled": any(str(name).startswith("csgi_") for name in overrides.get("entry_signals", s.entry_signals) or []),
         }
         result.stats["minute_replay"] = {
             "replayed_days": replay.replayed_days,
@@ -2230,7 +2256,7 @@ class StrategyBacktestService:
             "id": s.meta.get("id", config.strategy_id),
             "name": s.meta.get("name", config.strategy_id),
             "description": s.meta.get("description", ""),
-            "entry_signals": [],
+            "entry_signals": list(overrides.get("entry_signals", s.entry_signals) or []),
             "exit_signals": [],
             "stop_loss": stop_loss,
             "entry_risk": EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).to_dict(),

@@ -65,30 +65,44 @@ def run_day(context, values, selected, *, previous_state=None, allow_buy=True):
             "portfolio_scope": "strategy_research_simulation",
         }
 
-    # T+1, 卖出的已到账现金才能进入当天14:32预算。
-    for symbol, pos in list(positions.items()):
+    # 先执行14:32及以前卖出, 买入后再继续; 不提前使用下午卖出现金或空位。
+    sell_symbols = list(positions)
+    sell_rows = {}
+
+    def execute_sales(first_bar, last):
+      nonlocal cash, error
+      for symbol in sell_symbols:
+        if symbol not in positions:
+            continue
+        pos = positions[symbol]
         if str(day) < str(pos["sell_date"]):
             continue
-        row = {"symbol": symbol, "name": pos.get("name"), "shares": pos["remaining"], "entry_price": pos["entry_notional"] / pos["shares"],
+        row = sell_rows.get(symbol)
+        if row is None:
+            row = {"symbol": symbol, "name": pos.get("name"), "shares": pos["remaining"], "entry_price": pos["entry_notional"] / pos["shares"],
                "entry_value": pos["entry_value"], "net_stop_quote": stop_quote(pos, params),
                "gross_target_quote": target_quote(pos, params), "guard_time": params["guard_time"],
                "sell_deadline": params["sell_deadline"], "sell_date": pos["sell_date"]}
-        sections["sell"].append(row)
+            sell_rows[symbol] = row
+            sections["sell"].append(row)
         if suspended_on(symbol, day, params):
             pos["suspended"] = True
             row.update(reason="suspended", remaining=pos["remaining"], status="停牌等待复牌")
-            suspensions.append({"date": str(day), "symbol": symbol, "remaining": pos["remaining"]})
+            if first_bar == 571:
+                suspensions.append({"date": str(day), "symbol": symbol, "remaining": pos["remaining"]})
             continue
         if pos.pop("suspended", False):
             pos["time_guard_pending"] = True
         source = frame.filter(pl.col("symbol") == symbol) if not frame.is_empty() else frame
         deadline = minute_number(params["sell_deadline"])
-        expected = set(range(571, min(last_bar, deadline) + 1))
+        last = min(last, deadline)
+        expected = {b for b in range(first_bar, last + 1) if b <= 690 or b >= 781}
         actual = set(source["bar"].to_list()) if not source.is_empty() else set()
         if expected - actual:
             error = f"{day} {symbol}卖出窗口缺少{len(expected - actual)}根分钟, 保留实际持仓"
             row.update(status="数据不足", remaining=pos["remaining"])
-            return finish()
+            return
+        source = source.filter(pl.col("bar").is_between(first_bar, last)) if not source.is_empty() else source
         sale = sell_position(source, symbol, lookup.get(symbol), pos, params)
         fills.extend(sale["fills"])
         signals.extend({"date": str(day), "symbol": symbol, **s} for s in sale["signals"])
@@ -97,14 +111,21 @@ def run_day(context, values, selected, *, previous_state=None, allow_buy=True):
         pos["sell_notional"] = pos.get("sell_notional", 0.) + sale["notional"]
         pos["sell_fee_paid"] = pos.get("sell_fee_paid", 0.) + sale["fee"]
         pos["stop_pending"] = sale["stop_pending"]
-        row.update(reason=sale["signals"][0]["reason"] if sale["signals"] else "pending",
-                   sold_shares=sale["shares"], remaining=pos["remaining"], sell_fee=sale["fee"],
-                   sell_notional=sale["notional"], status="已完成" if not pos["remaining"] else "等待成交")
+        pos["day_sell_notional"] = sale["day_sell_notional"]
+        pos["sell_fee_date"] = sale["sell_fee_date"]
+        reason = row.get("reason", "pending")
+        if reason == "pending" and sale["signals"]:
+            reason = sale["signals"][0]["reason"]
+        row.update(reason=reason,
+                   sold_shares=row.get("sold_shares", 0) + sale["shares"],
+                   remaining=pos["remaining"], sell_fee=row.get("sell_fee", 0.) + sale["fee"],
+                   sell_notional=row.get("sell_notional", 0.) + sale["notional"],
+                   status="已完成" if not pos["remaining"] else "等待成交")
         if pos["remaining"]:
-            if last_bar >= deadline:
+            if last >= deadline:
                 error = f"{day} {symbol}{params['sell_deadline']}到期剩余{pos['remaining']}股, 保留实际持仓"
                 row["status"] = "到期未完成"
-                return finish()
+                return
             continue
         exit_value = pos["sell_notional"] - pos["sell_fee_paid"]
         from app.market_time import published_trading_days
@@ -124,6 +145,9 @@ def run_day(context, values, selected, *, previous_state=None, allow_buy=True):
         }
         trades.append(trade)
         positions.pop(symbol)
+    execute_sales(571, min(last_bar, 872))
+    if error:
+        return finish()
     if allow_buy and last_bar >= 872:
         for rank, row in enumerate(ranked_candidates(selected, params).to_dicts(), 1):
             symbol = row["symbol"]
@@ -159,4 +183,6 @@ def run_day(context, values, selected, *, previous_state=None, allow_buy=True):
                 "last_buy_time": "14:32", "last_mark": buy["fills"][-1]["price"],
                 "score": row.get("return_1430", 0.), "sell_notional": 0., "sell_fee_paid": 0.,
             }
+    if last_bar > 872:
+        execute_sales(873, last_bar)
     return finish()

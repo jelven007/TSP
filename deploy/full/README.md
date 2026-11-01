@@ -22,7 +22,7 @@
 - `gateway`：单进程实时入口，仅开放 `/api/events`、`/api/events/ticket` 和健康端点；本地验签一次性租户票据，监听撤权和私有事件通知，并转发平台行情 marker，不挂载公共行情、平台配置或计算 socket。
 - `research`、`realtime`、`notifications`、`scheduled`：独立任务进程，分别处理受限研究、监控与模拟交易、通知 outbox、租户周度挖掘和每日复盘。
 - 主机计算 Broker：固定计算镜像、每租户一个，全机并发按策略预算及配置限制；仅 Broker 有 Docker 权限。API/Platform/Worker 只挂载 Unix socket。计算容器无网络、无凭据、UID 10001、只读公共文件。
-- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，均迁移到 schema v6。
+- PostgreSQL 16：控制库和业务库使用不同无继承关系的非 owner、非超级用户、非 BYPASSRLS 角色，均迁移到 schema v7；v7新增当日股票池及每日调度唤醒。
 
 ## 小规格单机候选
 
@@ -108,7 +108,7 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 多租户初始化依赖下面的双库、schema 与内部服务准备，默认开关不替代这些资源。
 
 1. 备份两个 PostgreSQL 库、原 `data/user_data`、策略/研究/模拟交易目录、平台配置、镜像及 Nginx 配置，记录可恢复路径。
-2. 对独立候选库执行原 `app.cell.admin migrate --target-version 6`，分别指定 control/business runtime 角色并登记 Cell。API 首次启动使用已有运行权限，按初始化配置自动创建缺失的管理员和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
+2. 对独立候选库执行原 `app.cell.admin migrate --target-version 7`，分别指定 control/business runtime 角色并登记 Cell。API 首次启动使用已有运行权限，按初始化配置自动创建缺失的管理员和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
 3. 对明确暂停的 legacy 租户执行 `import-full-product --directory <原data的一致备份> --tenant-id <id> --owner-id <原owner> --report <摘要路径>`，随后执行 `verify-full-import --directory <同一备份> --tenant-id <id> --report <对账路径>`。该命令覆盖账号与完整业务；仅 `import-full-accounts` 或旧 v4 导入不够。旧通知名称须通过 `--channel-map '{"email":"legacy-email"}'` 明确绑定至该租户的已有渠道，实际值以对账结果为准。
 4. 将平台偏好、密钥和 `data_sources/` 从旧目录复制到独立平台配置目录，完成数量/内容对账。保留管理员维护的全局菜单配置；个人布局/列配置和租户定时/通知配置分别导入其 SQL 归属。保留旧文件用于恢复。
 5. 启动独立 `platform` 并等待首个完整公共版本。版本发布逐项复制新文件、复用上一不可变版本的相同文件，并在数据世代或文件清单变化时放弃本次发布。

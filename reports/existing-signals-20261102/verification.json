@@ -1,0 +1,12 @@
+{
+  "frontend_tests": 44,
+  "build": true,
+  "eslint": true,
+  "real_config_save_reload": true,
+  "desktop_mobile": true,
+  "local_installed": true,
+  "online_deployed": false,
+  "new_profit_backtest": false,
+  "version": "0.4.41",
+  "temporary_tenant_removed": true
+}

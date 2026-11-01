@@ -77,7 +77,7 @@ function HistoryContent({ strategyId, onClose }: Props) {
     setRecordId('')
     setMessage('')
   }
-  const inputClass = 'w-full min-w-0 h-9 rounded-btn border border-border bg-elevated px-2 text-xs text-foreground'
+  const inputClass = 'min-w-0 h-8 rounded-btn border border-border bg-elevated px-2 text-xs text-foreground'
   return (
     <Modal size="lg" onClose={onClose} closeDisabled={deletion.isPending} ariaLabel="策略历史结果">
       <div className="modal-header flex items-center justify-between gap-3">
@@ -86,39 +86,39 @@ function HistoryContent({ strategyId, onClose }: Props) {
       </div>
       <div className="modal-body space-y-4">
         <p className="text-xs text-muted">按计算时的名称、版本、参数和日期查看保存结果。</p>
-        <form className="grid grid-cols-2 gap-3 sm:grid-cols-4" onSubmit={event => {
+        <form className="flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap pb-1" onSubmit={event => {
           event.preventDefault()
           applyFilters(Object.fromEntries(Object.entries(draft).filter(([, value]) => value?.trim())
             .map(([key, value]) => [key, value!.trim()])))
         }}>
-          <label className="col-span-2 space-y-1 text-xs text-muted">
+          <label className="flex min-w-[220px] flex-1 items-center gap-1.5 text-xs text-muted">
             <span>名称或版本</span>
             <input aria-label="名称或版本" placeholder="输入历史名称或版本关键词" maxLength={200}
-              className={inputClass} value={draft.q ?? ''}
+              className={`${inputClass} w-full`} value={draft.q ?? ''}
               onChange={event => setDraft(current => ({ ...current, q: event.target.value }))} />
           </label>
-          <label className="space-y-1 text-xs text-muted">
+          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
             <span>周期</span>
-            <select aria-label="周期" className={inputClass} value={draft.timeframe ?? ''}
+            <select aria-label="周期" className={`${inputClass} w-20`} value={draft.timeframe ?? ''}
               onChange={event => setDraft(current => ({ ...current, timeframe: event.target.value as StrategyResultHistoryFilters['timeframe'] }))}>
               <option value="">全部周期</option><option value="1d">日线</option><option value="1m">分钟</option>
             </select>
           </label>
-          <label className="space-y-1 text-xs text-muted">
+          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
             <span>开始日期</span>
             <DatePicker aria-label="开始日期" value={draft.start_date ?? ''} placeholder="不限日期" clearable
-              className="w-full" buttonClassName="w-full justify-start" align="left"
+              className="w-[120px]" buttonClassName="h-8 w-full justify-start" align="left"
               onChange={value => setDraft(current => ({ ...current, start_date: value }))} />
           </label>
-          <label className="space-y-1 text-xs text-muted">
+          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
             <span>结束日期</span>
             <DatePicker aria-label="结束日期" value={draft.end_date ?? ''} placeholder="不限日期" clearable
-              className="w-full" buttonClassName="w-full justify-start"
+              className="w-[120px]" buttonClassName="h-8 w-full justify-start"
               onChange={value => setDraft(current => ({ ...current, end_date: value }))} />
           </label>
-          <div className="col-span-2 flex items-end gap-2">
-            <button type="submit" className="h-9 rounded-btn bg-accent px-4 text-xs text-white">筛选</button>
-            <button type="button" className="h-9 rounded-btn border border-border px-4 text-xs"
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="submit" className="h-8 rounded-btn bg-accent px-3 text-xs text-white">筛选</button>
+            <button type="button" className="h-8 rounded-btn border border-border px-3 text-xs"
               onClick={() => { setDraft({}); applyFilters({}) }}>重置</button>
           </div>
         </form>

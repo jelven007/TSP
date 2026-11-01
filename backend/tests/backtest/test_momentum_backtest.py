@@ -78,6 +78,9 @@ def replay(tmp_path):
 
 
 def _run(replay):
+    replay.config.params = {"guard_time": "10:30", "sell_deadline": "11:30"}
+    replay.config.overrides = {"basic_filter": {
+        "price_min": None, "price_max": None, "exclude_st": False, "exclude_new_days": 0}}
     return replay.service.run(replay.config, result_policy=BacktestResultPolicy(include_monte_carlo=False))
 
 
@@ -156,3 +159,42 @@ def test_shared_minute_plan_still_materializes_limit_signals(replay):
         None, START - timedelta(days=80), END, minute_replay_feature_plan(25))
     assert set(panel.columns) >= LIMIT_SIGNALS
     assert panel.height == 27
+
+
+@pytest.mark.parametrize("price,age,risk,expected", [
+    (4.99, 100, False, 0), (5., 60, False, 1),
+    (100., 60, False, 1), (100.01, 100, False, 0),
+    (10., 59, False, 0), (10., 60, True, 0),
+])
+def test_s02_default_filters_use_previous_raw_close_and_age(replay, price, age, risk, expected):
+    scale = price / 10.
+    data = pl.read_parquet(replay.path).with_columns(
+        *[(pl.col(c) * scale).alias(c) for c in
+          ("open", "high", "low", "close", "raw_close", "raw_high", "raw_low")],
+        pl.lit(risk).alias("is_risk_warning"))
+    data.write_parquet(replay.path)
+    replay.instruments = replay.instruments.with_columns(
+        pl.lit(date(2026, 8, 24) - timedelta(days=age)).alias("listing_date"),
+        pl.lit(1e9 / scale).alias("float_shares"),
+        pl.lit("*ST合成" if risk else "合成股票").alias("name"))
+    replay.service.engine.repo.get_instruments_asset = lambda _: replay.instruments
+    for day, frame in replay.minutes.items():
+        replay.minutes[day] = frame.with_columns(
+            *[(pl.col(c) * scale).alias(c) for c in ("open", "high", "low", "close")])
+    result = replay.service.run(replay.config,
+        result_policy=BacktestResultPolicy(include_monte_carlo=False))
+    assert result.error is None, result.error
+    assert len(result.daily_results[0]["sections"]["buy"]) == expected
+    if expected:
+        assert result.fills[-1]["bar"] == 900
+
+
+def test_s02_default_holds_until_afternoon_target(replay):
+    replay.minutes[END] = replay.minutes[END].with_columns(
+        pl.when(pl.col("datetime") == datetime(2026, 8, 26, 14, 45))
+        .then(10.9).otherwise(pl.col("high")).alias("high"))
+    result = replay.service.run(replay.config,
+        result_policy=BacktestResultPolicy(include_monte_carlo=False))
+    assert result.error is None, result.error
+    assert result.fills[-1]["bar"] == 885
+    assert result.trades[0]["exit_reason"] == "gross_target"
