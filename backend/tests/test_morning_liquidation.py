@@ -294,3 +294,120 @@ def test_cached_monitor_does_not_drop_owned_holding_exit_outside_candidate_rows(
     cached = _PrecomputedMonitorStrategyEngine(source, {("stock", "sample"): StrategyResult(
         strategy_id="sample", as_of=DAY, exit_signal_hits=[hit])}, {})
     assert cached.result_for("stock", "sample", {"b"}).exit_signal_hits == [hit]
+
+
+def suspension_events(*, late=False):
+    return pl.DataFrame({
+        "symbol": ["a", "a"],
+        "effective_date": [DAY, date(2026, 9, 9)],
+        "announced_on": [DAY if late else date(2026, 9, 4), date(2026, 9, 9)],
+        "announced_at": [datetime(2026, 9, 7, 19) if late else datetime(2026, 9, 4, 19),
+                         datetime(2026, 9, 9, 8, 21)],
+        "is_suspended": [True, False],
+        "source_url": ["https://example.test/halt", "https://example.test/resume"],
+    })
+
+
+def test_confirmed_suspension_suppresses_deadline_and_resume_exits_immediately():
+    from app.strategy.morning_liquidation import evaluate as evaluate_morning
+
+    events = suspension_events()
+    halted = evaluate(frame=pl.DataFrame(), prev_close={}, now=NOW.replace(minute=30),
+                      suspension_history=events)
+    assert not halted.hits
+    assert any("停牌" in message for message in halted.diagnostics)
+    resumed = evaluate_morning(
+        pl.DataFrame(), definition(), day=date(2026, 9, 9), now=datetime(2026, 9, 9, 9, 30),
+        positions=[position()], prev_close={}, suspension_history=events,
+    )
+    hit, = resumed.hits
+    assert hit["reason"] == "resume" and hit["source"] == "suspension_evidence"
+    assert hit["trigger_time"] == "2026-09-09T09:30:00"
+    assert hit["available_qty"] == 100 and hit["cycle_id"] == "lot1"
+    assert not hit["deadline_elapsed"]
+
+
+def test_late_or_unknown_halt_cannot_justify_overdue_exit():
+    from app.strategy.morning_liquidation import evaluate as evaluate_morning
+
+    assert evaluate(frame=pl.DataFrame(), now=NOW.replace(minute=30),
+                    suspension_history=suspension_events(late=True)).hits[0]["reason"] == "deadline"
+    for events in (suspension_events(late=True), pl.DataFrame()):
+        result = evaluate_morning(
+            pl.DataFrame(), definition(), day=date(2026, 9, 9), now=datetime(2026, 9, 9, 10, 30),
+            positions=[position()], prev_close={}, suspension_history=events,
+        )
+        assert not result.hits
+
+
+def test_engine_resume_exit_keeps_evidence_outside_candidate_universe(tmp_path):
+    from app.strategy.engine import StrategyDataContext
+
+    engine = sample_engine(tmp_path)
+    context = StrategyDataContext(
+        "stock", "1m", date(2026, 9, 9), history=pl.DataFrame(), positions=[position()],
+        observed_at=datetime(2026, 9, 9, 9, 31), suspension_history=suspension_events(),
+        pool_universe=pl.DataFrame({"symbol": ["b"]}),
+    )
+    hit, = engine.run("sample", context, pool=["b"],
+                     overrides={"exit_signals": ["csgi_morning_liquidation"]}).exit_signal_hits
+    assert hit["symbol"] == "a" and hit["reason"] == "resume"
+
+
+def test_monitor_missing_minutes_retains_repository_halt_evidence(tmp_path, monkeypatch):
+    from app.strategy import overnight_runtime
+
+    engine = sample_engine(tmp_path)
+    engine._override_loader = lambda sid: {"exit_signals": ["csgi_morning_liquidation"]}
+    engine._position_loader = lambda sid, day: [position()]
+
+    class Service:
+        repo = SimpleNamespace(get_suspension_history=suspension_events)
+
+        def build_strategy_context(self, *args, **kwargs):
+            raise ValueError("缺少分钟数据")
+
+        def load(self):
+            pass
+
+    monkeypatch.setattr(overnight_runtime, "cn_now", lambda: NOW.replace(minute=30, second=7))
+    context = overnight_runtime.monitor_context(Service().load, engine, "sample", DAY, pl.DataFrame(), tmp_path)
+    assert not engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]}).exit_signal_hits
+
+
+def test_signal_replay_uses_resume_evidence_without_simulating_fills():
+    from app.services.morning_liquidation_replay import replay
+
+    class Repo:
+        def get_suspension_history(self):
+            return suspension_events()
+
+        def get_daily_batch(self, *args, **kwargs):
+            return pl.DataFrame({"symbol": ["a"], "date": [date(2026, 9, 4)], "close": [10.], "raw_close": [10.]})
+
+        def get_minute_batch(self, *args, **kwargs):
+            return pl.DataFrame()
+
+    result = replay(Repo(), definition(), start=DAY, end=date(2026, 9, 9), symbols=["a"], positions=[position()])
+    hit, = result["triggers"]
+    assert hit["reason"] == "resume" and hit["date"] == "2026-09-09"
+    assert result["execution"] == "signal_only"
+
+
+def test_resume_signal_cannot_precede_same_day_publication_time():
+    from app.strategy.morning_liquidation import evaluate as evaluate_morning
+
+    events = suspension_events().with_columns(
+        pl.when(~pl.col("is_suspended")).then(datetime(2026, 9, 9, 11, 10))
+        .otherwise(pl.col("announced_at")).alias("announced_at"),
+    )
+    day = date(2026, 9, 9)
+    assert not evaluate_morning(
+        pl.DataFrame(), definition(), day=day, now=datetime(2026, 9, 9, 11),
+        positions=[position()], prev_close={}, suspension_history=events,
+    ).hits
+    hit, = evaluate_morning(
+        pl.DataFrame(), definition(), day=day, now=datetime(2026, 9, 9, 15),
+        positions=[position()], prev_close={}, suspension_history=events,
+    ).hits
+    assert hit["trigger_time"] == "2026-09-09T11:10:00"

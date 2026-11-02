@@ -1,5 +1,5 @@
 """Official dated suspension events, independent of price and listing history."""
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 
 import polars as pl
@@ -40,10 +40,10 @@ def load_suspension_history(data_dir: Path) -> pl.DataFrame:
         raise ValueError("停复牌历史证据无效或不可读") from exc
 
 
-def dated_status(history: pl.DataFrame, day: date, *, observed_at: datetime | None = None) -> pl.DataFrame:
+def _dated_events(history: pl.DataFrame, day: date, *, observed_at: datetime | None = None) -> pl.DataFrame:
     """Unknown publication times remain unavailable on the announcement day."""
     if history.is_empty():
-        return pl.DataFrame(schema={"symbol": pl.String, DATE_COLUMN: pl.Date, STATUS_COLUMN: pl.Boolean})
+        return history
     available = pl.col("announced_on") < day
     if observed_at is not None and "announced_at" in history.columns:
         from app.market_time import CN_TZ
@@ -55,8 +55,14 @@ def dated_status(history: pl.DataFrame, day: date, *, observed_at: datetime | No
         history.filter((pl.col("effective_date") <= day) & available)
         .sort(["symbol", "effective_date", "announced_on"])
         .unique("symbol", keep="last", maintain_order=True)
-        .select("symbol", pl.lit(day).alias(DATE_COLUMN), pl.col("is_suspended").alias(STATUS_COLUMN))
     )
+
+
+def dated_status(history: pl.DataFrame, day: date, *, observed_at: datetime | None = None) -> pl.DataFrame:
+    events = _dated_events(history, day, observed_at=observed_at)
+    if events.is_empty():
+        return pl.DataFrame(schema={"symbol": pl.String, DATE_COLUMN: pl.Date, STATUS_COLUMN: pl.Boolean})
+    return events.select("symbol", pl.lit(day).alias(DATE_COLUMN), pl.col("is_suspended").alias(STATUS_COLUMN))
 
 
 def pool_evidence(repo, day: date, universe: pl.DataFrame | None = None, *,
@@ -71,3 +77,28 @@ def pool_evidence(repo, day: date, universe: pl.DataFrame | None = None, *,
     if universe is None or universe.is_empty():
         return status
     return universe.join(status, on="symbol", how="left")
+
+
+def holding_exit_status(history: pl.DataFrame | None, symbol: str, due: date,
+                        day: date, *, observed_at: datetime) -> str | None:
+    """Only a halt known at the original due-day open authorizes delayed exits."""
+    if history is None or history.is_empty() or day < due:
+        return None
+    history = history.filter(pl.col("symbol") == symbol)
+    if history.is_empty():
+        return None
+    from app.market_time import CN_TZ
+
+    now = observed_at.astimezone(CN_TZ).replace(tzinfo=None) if observed_at.tzinfo else observed_at
+    opening = datetime.combine(due, time(9, 30))
+    original = dated_status(history, due, observed_at=min(now, opening))
+    if original.is_empty() or original[STATUS_COLUMN][0] is not True:
+        return None
+    current = dated_status(history, day, observed_at=now)
+    return "suspended" if current[STATUS_COLUMN][0] is True else "resume"
+
+
+def resume_exit_time(history: pl.DataFrame, symbol: str, day: date, *, observed_at: datetime) -> datetime:
+    event = _dated_events(history.filter(pl.col("symbol") == symbol), day, observed_at=observed_at).row(0, named=True)
+    opening = datetime.combine(day, time(9, 30))
+    return max(opening, event["announced_at"]) if event["announced_on"] == day else opening

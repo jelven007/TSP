@@ -1,9 +1,19 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+停牌延期与复牌退出复用`instrument_suspension.holding_exit_status/resume_exit_time`，
+证据通过`StrategyDataContext.suspension_history`沿Screener、监控和独立回放传递，
+读取完整持仓证据，不由候选范围裁剪。收益账本标识为`generic_morning_liquidation_resume_v2`：
+仅原精确到期日开盘前已知停牌允许延期；离线定位公告触发点后仍按事件时点撮合，
+复牌成交取公告之后首个已完成分钟，午休跳至13:01，收盘后无成交分钟明确失败。
+停牌余股按最后真实原始价估值并记录日期，现金/仓位不释放；复牌容量余股跨日保持，
+各日卖额与最低佣金独立累计，完整交易仅在最终卖清后生成。无新API或SQL迁移，
+新执行身份不改旧研究任务，见[追加整合](../reports/release-consolidation-resume-20261102.md)。
+
 停复牌Loader保留可选`announced_at`并验证北京时间公告日；`pool_evidence`
 按显式`observed_at`过滤，Screener／回放共用尾盘信号截止，盘前批次传递08:00或09:00。
 文件缓存和研究指纹沿原路径，不增加SQL迁移；[真实收益执行](../reports/custom-s02-full-range-online-20261102.md)
-仍在强制清仓不可成交时保留账本并拒绝完整净值。
+仍在未知停牌、缺数据或普通强制清仓不可成交时保留账本并拒绝完整净值；
+已确认停牌延期的最后价估值与完整成交收益分别表达。
 
 2026-11-02整合沿原单机七角色／双库及隔离Compute拓扑发布，完整候选映射见
 [整合清单](../reports/release-consolidation-20261102-followup.md)。

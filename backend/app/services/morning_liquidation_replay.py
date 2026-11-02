@@ -7,6 +7,7 @@ from app.strategy.morning_liquidation import evaluate
 
 
 def replay(repo, sig, *, start, end, symbols, positions):
+    suspension_history = getattr(repo, "get_suspension_history", lambda: None)()
     daily = repo.get_daily_batch(symbols, start-timedelta(days=15), end, columns=["symbol", "date", "close", "raw_close"])
     triggers, diagnostics = [], []
     bars_scanned = days_scanned = 0
@@ -18,8 +19,8 @@ def replay(repo, sig, *, start, end, symbols, positions):
             days_scanned += 1
         prior = daily.filter(daily["date"] < day).sort("date").unique("symbol", keep="last") if not daily.is_empty() else daily
         references = {row["symbol"]: row.get("raw_close", row["close"]) for row in prior.iter_rows(named=True)}
-        result = evaluate(minutes, sig, day=day, now=datetime.combine(day, time(11, 30)),
-                          positions=positions, prev_close=references)
+        result = evaluate(minutes, sig, day=day, now=datetime.combine(day, time(15)),
+                          positions=positions, prev_close=references, suspension_history=suspension_history)
         for hit in result.hits:
             triggers.append({"date": str(day), "time": hit["trigger_time"].split("T")[1], **hit})
         diagnostics.extend({"date": str(day), "message": message} for message in result.diagnostics)

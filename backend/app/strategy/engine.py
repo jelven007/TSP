@@ -172,6 +172,8 @@ class StrategyDataContext:
     pool_universe: pl.DataFrame | None = None
     # 实时时钟保留秒精度; completed_through 仅约束已完成分钟K。
     observed_at: datetime | None = None
+    # 独立公共证据覆盖实际持仓, 不随候选股票范围裁剪。
+    suspension_history: pl.DataFrame | None = None
 
 
 @dataclass(frozen=True)
@@ -1114,6 +1116,7 @@ class StrategyEngine:
                 result = evaluate(
                     history, sig, day=as_of, now=now, positions=context.positions,
                     prev_close=previous_closes(context), quotes=current,
+                    suspension_history=context.suspension_history,
                 )
                 if result.diagnostics:
                     logger.warning("%s", "; ".join(result.diagnostics))

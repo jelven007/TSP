@@ -1,4 +1,4 @@
-"""早盘清仓: 持仓次交易日的实时振幅与截止时钟, 不执行委托。"""
+"""早盘清仓与已确认停牌后的复牌卖出信号, 不执行委托。"""
 from __future__ import annotations
 
 import math
@@ -45,6 +45,7 @@ def evaluate(
     minute_df: pl.DataFrame, sig: dict, *, day: date, now: datetime,
     positions: list[dict] | None, prev_close: dict[str, float],
     quotes: pl.DataFrame | None = None,
+    suspension_history: pl.DataFrame | None = None,
 ) -> Evaluation:
     params = parameters(sig)
     result = Evaluation()
@@ -83,7 +84,24 @@ def evaluate(
         except (TypeError, ValueError):
             result.diagnostics.append(f"早盘清仓: {symbol} 缺少有效买入日期或交易日历")
             continue
-        if sell_day != day or position.get("qty", 0) <= 0 or position.get("available_qty", 0) <= 0:
+        if position.get("qty", 0) <= 0 or position.get("available_qty", 0) <= 0:
+            continue
+        from app.instrument_suspension import holding_exit_status, resume_exit_time
+
+        status = holding_exit_status(suspension_history, symbol, sell_day, day, observed_at=now)
+        if status == "suspended":
+            result.diagnostics.append(f"早盘清仓: {symbol} 已确认停牌, 持有至复牌直接卖出")
+            continue
+        if sell_day != day and status != "resume":
+            continue
+        if status == "resume":
+            result.hits.append({
+                "symbol": symbol, "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id"),
+                "entry_date": str(entry), "available_qty": position["available_qty"], "holding_exit": True,
+                "deadline_elapsed": False, "reason": "resume", "amplitude_pct": None,
+                "trigger_time": resume_exit_time(suspension_history, symbol, day, observed_at=now).isoformat(),
+                "source": "suspension_evidence",
+            })
             continue
         pending = None
         previous = prev_close.get(symbol)
