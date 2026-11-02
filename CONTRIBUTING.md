@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）开发、贡献与复审指南
 
+停复牌事件可带可选北京时间`announced_at`，同日必须按观察时点消费；
+盘前08:00/09:00及尾盘信号不能借用更晚公告。旧未知时间仍延后，
+持仓次日停牌不能虚构清仓或完整净值，见[线上全区间执行](reports/custom-s02-full-range-online-20261102.md)。
+
 本轮统一候选及六类文档映射见[补丁整合记录](reports/release-consolidation-20261102-followup.md)。
 停复牌证据与价格数据分开，按此前已公开且已生效事件消费；
 未知缺行情不推断停牌，旧研究快照不追溯改写，无新增schema迁移。

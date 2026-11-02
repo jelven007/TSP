@@ -44,6 +44,27 @@ def parameters(sig: dict) -> dict:
     return params
 
 
+def pool_cutoff(engine, strategy_ids, overrides_map, day: date, fallback: datetime) -> datetime:
+    """A full-pool signal cannot exclude securities using a later publication."""
+    from app.strategy import custom_signals
+
+    getter = getattr(engine, "_user_data_dir", None)
+    storage = getter() if callable(getter) else None
+    if storage is None or not callable(getattr(engine, "get", None)):
+        return fallback
+    requested = set()
+    for sid in strategy_ids:
+        strategy = engine.get(sid)
+        override = (overrides_map or {}).get(sid) or {}
+        requested.update(override.get("entry_signals", strategy.entry_signals) or [])
+        requested.update(strategy.required_features)
+    times = [datetime.combine(day, time.fromisoformat(parameters(sig)["time"]))
+             for sig in custom_signals.load_intraday_all(storage)
+             if sig.get("template") == TEMPLATE and sig.get("enabled") is not False
+             and custom_signals.intraday_column_name(sig["id"]) in requested]
+    return min([fallback, *times])
+
+
 @dataclass
 class Evaluation:
     symbols: list[str] = field(default_factory=list)

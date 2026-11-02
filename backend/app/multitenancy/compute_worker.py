@@ -104,7 +104,9 @@ def execute(payload: dict, private_root: Path) -> dict:
             as_of = date.fromisoformat(payload["as_of"])
             current = decode_frame(payload["current"]) if payload.get("current") else None
             premarket = payload.get("premarket", False)
-            context = ScreenerService(repo).build_daily_pool_context(as_of, current=current, premarket=premarket)
+            observed_at = datetime.fromisoformat(payload["observed_at"]) if payload.get("observed_at") else None
+            context = ScreenerService(repo).build_daily_pool_context(
+                as_of, current=current, premarket=premarket, observed_at=observed_at)
             results, errors = {}, {}
             for sid in payload["strategy_ids"]:
                 try:

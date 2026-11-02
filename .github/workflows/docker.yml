@@ -213,14 +213,25 @@ jobs:
       - name: 仅将当前主线的镜像提升为 latest
         env:
           BUILD_REVISION: ${{ needs.build-and-push.outputs.revision }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - <<'PY'
+          import base64
           import os
           from pathlib import Path
           import subprocess
           import sys
           sys.path.insert(0, "scripts")
           from prepare_release import is_current_main
+          # Checkout does not persist credentials. Authenticate the private
+          # remote lookup only for this step without writing Git configuration.
+          os.environ.update(
+              GIT_CONFIG_COUNT="1",
+              GIT_CONFIG_KEY_0="http.https://github.com/.extraheader",
+              GIT_CONFIG_VALUE_0="AUTHORIZATION: basic " + base64.b64encode(
+                  ("x-access-token:" + os.environ["GH_TOKEN"]).encode()
+              ).decode(),
+          )
           revision = os.environ["BUILD_REVISION"]
           if is_current_main(Path.cwd(), revision):
               image = "ghcr.io/" + os.environ["GITHUB_REPOSITORY"].lower()

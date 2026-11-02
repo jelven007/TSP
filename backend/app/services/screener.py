@@ -10,7 +10,8 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from datetime import time as clock_time
 from pathlib import Path
 
 import polars as pl
@@ -435,7 +436,7 @@ class ScreenerService:
             elapsed_ms=elapsed,
         )
 
-    def build_daily_pool_context(self, as_of: date, *, current=None, premarket=False):
+    def build_daily_pool_context(self, as_of: date, *, current=None, premarket=False, observed_at=None):
         """Load only scope/reference inputs, never minute formulas or positions."""
         from app.instrument_suspension import pool_evidence
         from app.market_time import cn_today
@@ -456,7 +457,7 @@ class ScreenerService:
                     if c not in {"close", "raw_close", "volume", "is_suspended", "date"})
                 current = current.with_columns(pl.lit(as_of).alias("date"))
             return StrategyDataContext("stock", "1d", as_of, current=current, pool_history=history,
-                                       pool_universe=pool_evidence(self.repo, as_of))
+                                       pool_universe=pool_evidence(self.repo, as_of, observed_at=observed_at))
         history = self._load_enriched_history(as_of, 2)
         if current is None:
             current = self._load_enriched_for_date(as_of)
@@ -466,7 +467,8 @@ class ScreenerService:
             current = attach_listing_age(current, instruments)
         return StrategyDataContext(
             "stock", "1d", as_of, current=current, pool_history=history,
-            pool_universe=pool_evidence(self.repo, as_of, instruments if as_of == cn_today() else None))
+            pool_universe=pool_evidence(self.repo, as_of, instruments if as_of == cn_today() else None,
+                                        observed_at=observed_at))
 
     def build_strategy_context(
         self,
@@ -488,7 +490,13 @@ class ScreenerService:
             return StrategyDataContext(self.asset_type, timeframe, as_of)
         if current is None:
             current = self._load_enriched_for_date(as_of)
-        pool_context = (self.build_daily_pool_context(as_of, current=current)
+        from app.market_time import cn_now, cn_today
+        from app.strategy.late_session_strength import pool_cutoff
+        observed_at = (cn_now().replace(tzinfo=None) if as_of == cn_today()
+                       else datetime.combine(as_of, clock_time(15)))
+        if engine is not None:
+            observed_at = pool_cutoff(engine, strategy_ids, overrides_map, as_of, observed_at)
+        pool_context = (self.build_daily_pool_context(as_of, current=current, observed_at=observed_at)
                         if engine is not None and callable(getattr(self.repo, "get_enriched_history", None))
                         else StrategyDataContext(self.asset_type, "1d", as_of))
         fallback_daily = None

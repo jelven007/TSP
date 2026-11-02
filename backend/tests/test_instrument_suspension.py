@@ -1,5 +1,5 @@
 """Dated official halts must work without a fabricated current price row."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import polars as pl
@@ -204,3 +204,69 @@ def test_research_fingerprint_includes_suspension_events(tmp_path):
     after = research_input_fingerprints(tmp_path)
     assert before != after
     assert len(after["files"]["instrument_status/suspensions.parquet"]["sha256"]) == 64
+
+
+@pytest.mark.parametrize("clock,known", [("08:00", False), ("09:00", False),
+                                       ("09:28", False), ("09:29", True), ("14:30", True)])
+def test_exact_publication_time_is_consumed_only_after_observation(clock, known):
+    from app.instrument_suspension import dated_status
+
+    event = events().head(1).with_columns(
+        pl.lit(DAY).alias("announced_on"),
+        pl.lit(datetime(2026, 6, 29, 9, 29)).alias("announced_at"))
+    observed = datetime.fromisoformat(f"{DAY} {clock}")
+    result = dated_status(event, DAY, observed_at=observed)
+    assert result.height == int(known)
+    assert dated_status(event, DAY).is_empty()
+    assert dated_status(event, DAY, observed_at=observed.replace(
+        tzinfo=timezone(timedelta(hours=8)))).equals(result)
+
+
+def test_optional_timestamp_loader_preserves_old_schema_and_rejects_wrong_date(tmp_path):
+    from app.instrument_suspension import load_suspension_history
+
+    path = tmp_path / "instrument_status/suspensions.parquet"
+    path.parent.mkdir()
+    events().write_parquet(path)
+    assert load_suspension_history(tmp_path)["announced_at"].null_count() == 2
+    events().with_columns(pl.lit(datetime(2026, 6, 28, 9)).alias("announced_at")).write_parquet(path)
+    with pytest.raises(ValueError, match="停复牌"):
+        load_suspension_history(tmp_path)
+
+
+@pytest.mark.parametrize("published,error", [(9, False), (15, True)])
+def test_replay_uses_signal_time_not_end_of_day_for_suspension(engine, tmp_path, published, error):
+    from test_late_session_strength import bars, definition
+
+    from app.backtest.minute_replay import MinuteSignalReplayer
+    from app.strategy import custom_signals
+
+    minute = bars().filter(pl.col("symbol") == "a").with_columns(
+        pl.lit(ACTIVE).alias("symbol"), pl.col("datetime").dt.offset_by("-67d"))
+    custom_signals.save_one(tmp_path, definition())
+    engine._user_data_dir = lambda: tmp_path
+    event = events().head(1).with_columns(
+        pl.lit(DAY).alias("announced_on"),
+        pl.lit(datetime(2026, 6, 29, published)).alias("announced_at"))
+    repo = SimpleNamespace(get_suspension_history=lambda: event,
+                           list_minute_dates=lambda *_: [DAY],
+                           get_minute_by_dates=lambda *_: minute)
+    result = MinuteSignalReplayer(SimpleNamespace(repo=repo), engine).replay(
+        engine.get("sample"), panel=prices(), start=DAY, end=DAY, params={},
+        overrides={"basic_filter": BF, "entry_signals": ["csgi_late_session_strength"]})
+    assert bool(result.errors) is error
+
+
+@pytest.mark.parametrize("clock,excluded", [("08:00", False), ("09:00", True)])
+def test_premarket_pool_honors_each_batch_clock(engine, monkeypatch, clock, excluded):
+    event = events().head(1).with_columns(
+        pl.lit(DAY).alias("announced_on"),
+        pl.lit(datetime(2026, 6, 29, 8, 23)).alias("announced_at"))
+    repo = SimpleNamespace(get_instruments_asset=lambda _: pl.DataFrame({
+        "symbol": [ACTIVE, HALTED]}), get_suspension_history=lambda: event)
+    service = ScreenerService(repo)
+    monkeypatch.setattr(service, "_load_enriched_history", lambda *_: prices())
+    context = service.build_daily_pool_context(
+        DAY, premarket=True, observed_at=datetime.fromisoformat(f"{DAY} {clock}"))
+    pool = build_pool(engine, "sample", context, premarket=True, overrides={"basic_filter": BF})
+    assert (HALTED not in pool["symbols"]) is excluded

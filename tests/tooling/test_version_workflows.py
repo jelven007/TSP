@@ -221,6 +221,33 @@ def test_docker_latest_only_promoted_for_current_main_after_build():
     assert publish["env"]["BUILD_REVISION"] == "${{ needs.build-and-push.outputs.revision }}"
 
 
+def test_private_repository_main_check_receives_ephemeral_authentication(tmp_path):
+    promotion = workflow("docker.yml")["jobs"]["promote-latest"]
+    publish = promotion["steps"][-1]
+    assert publish["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    fake_git = tmp_path / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env python3\n"
+        "import base64,os,sys\n"
+        "assert os.environ['GIT_CONFIG_COUNT']=='1'\n"
+        "assert os.environ['GIT_CONFIG_KEY_0']=='http.https://github.com/.extraheader'\n"
+        "assert os.environ['GIT_CONFIG_VALUE_0']=='AUTHORIZATION: basic '+"
+        "base64.b64encode(b'x-access-token:test-only-token').decode()\n"
+        "print('a'*40+'\\trefs/heads/main')\n"
+    )
+    fake_git.chmod(0o755)
+    result = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", publish["run"]],
+        cwd=ROOT,
+        env={**os.environ, "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"],
+             "GH_TOKEN": "test-only-token", "BUILD_REVISION": "b" * 40},
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "main has advanced" in result.stdout
+    assert "test-only-token" not in result.stdout + result.stderr
+
+
 def test_history_and_tags_are_protected_even_when_automation_bypasses_integration():
     policies = {
         name: json.loads((ROOT / ".github/rulesets" / f"{name}.json").read_text())

@@ -162,7 +162,10 @@ def generate_local(engine, service, storage, as_of, *, slot=None):
     saved, errors = [], {}
     started_at = time.time_ns()
     try:
-        context = (service.build_daily_pool_context(as_of, premarket=True) if slot
+        from datetime import datetime
+        from datetime import time as clock_time
+        context = (service.build_daily_pool_context(as_of, premarket=True,
+                   observed_at=datetime.combine(as_of, clock_time.fromisoformat(slot))) if slot
                    else service.build_daily_pool_context(as_of))
     except Exception:
         if slot:
