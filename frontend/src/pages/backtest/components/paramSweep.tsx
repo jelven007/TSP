@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { StrategyDetail, StrategyParamDef } from '@/lib/api'
-import { applyParamValue, fixedParamIds, visibleParams } from '@/lib/strategyParams'
+import { applyParamValue, fixedParamIds, layoutStrategyParams, visibleParams } from '@/lib/strategyParams'
 import { StrategyParamGroups } from '@/components/StrategyParamGroups'
 
 /** 参数扫描配置的共享逻辑与 UI — 优化器与 walk-forward 复用。 */
@@ -76,7 +76,7 @@ export function useParamSweep(strategies: StrategyDetail[], onStrategyChange?: (
 
   const selected = strategies.find(s => s.id === strategyId)
   const definitions = selected?.params ?? []
-  const params = definitions
+  const params = layoutStrategyParams(strategyId, definitions)
   const fixedIds = fixedParamIds(definitions)
   const scanParams = visibleParams(definitions, values).filter(p => !fixedIds.has(p.id) && p.type !== 'string')
 

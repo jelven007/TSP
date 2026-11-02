@@ -83,8 +83,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         return finish("早盘清仓信号已禁用, 无法执行清仓收益回测")
     sig_params = parameters(sig)
     deadline_clock = clock.fromisoformat(sig_params["time"])
-    if deadline_clock <= clock(9, 30) or deadline_clock.second:
-        return finish("早盘清仓收益回测需要09:31至11:30的整分钟截止时间")
+    fallback_clock = clock.fromisoformat(sig_params.get("fallback_time", sig_params["time"]))
+    if any(at <= clock(9, 30) or at.second for at in (deadline_clock, fallback_clock)):
+        return finish("早盘清仓收益回测需要09:31至11:30的整分钟止损及兜底时间")
     risk = strategy_policy(strategy, overrides)
     if config.regime_filter or any(v is not None for v in asdict(risk).values()):
         return finish("早盘清仓收益回测暂不支持环境过滤、固定/移动风控或最长持有")
@@ -178,6 +179,18 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         return (matcher.buy_value(notional) - notional if side == "buy"
                 else notional - matcher.sell_value(notional, day))
 
+    def reject_overdue(day):
+        overdue = [p for p in positions.values() if p["entry_date"] < day
+                   and not p.get("suspension_deferred")]
+        if overdue:
+            counters["deadline_violations"] += len(overdue)
+            detail = "; ".join(
+                f"{p['symbol']} 剩余{p['remaining']}股, 已卖{p['shares'] - p['remaining']}/{p['shares']}股"
+                for p in overdue
+            )
+            return finish(f"{day} {sig_params.get('fallback_time', sig_params['time'])}清仓截止后仍有余股, {detail}; 保留实际成交和持仓")
+        return None
+
     try:
         for index, day in enumerate(days):
             if cancel_event is not None and cancel_event.is_set():
@@ -257,12 +270,22 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 if not valid_price(prev):
                     return finish(f"{day} {symbol} 缺原始昨收")
                 pos["sell_reference"] = prev
+                observation = datetime.combine(day, clock(15) if status == "resume" else deadline_clock)
+                if "fallback_time" in sig_params and status != "resume":
+                    observation -= timedelta(microseconds=1)
                 evaluated = evaluate(
-                    frame, sig, day=day, now=datetime.combine(day, clock(15) if status == "resume" else deadline_clock),
+                    frame, sig, day=day, now=observation,
                     positions=[{**pos, "entry_date": str(pos["entry_date"]),
                                 "qty": pos["remaining"], "available_qty": pos["remaining"]}],
                     prev_close={symbol: prev}, suspension_history=suspension_history,
                 )
+                if not evaluated.hits and "fallback_time" in sig_params and status != "resume":
+                    evaluated = evaluate(
+                        frame, sig, day=day, now=datetime.combine(day, deadline_clock),
+                        positions=[{**pos, "entry_date": str(pos["entry_date"]),
+                                    "qty": pos["remaining"], "available_qty": pos["remaining"]}],
+                        prev_close={symbol: prev}, suspension_history=suspension_history,
+                    )
                 if not evaluated.hits:
                     return finish(f"{day} {symbol} 无法确定早盘清仓触发")
                 hit = evaluated.hits[0]
@@ -317,13 +340,25 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         marks[row["symbol"]] = row[price_field]
                 for symbol in list(positions):
                     trigger = triggers.get(symbol)
-                    deadline = clock(15) if trigger and trigger["reason"] == "resume" else deadline_clock
+                    deadline = clock(15) if trigger and trigger["reason"] == "resume" else fallback_clock
                     if (phase == 0 or not trigger
                             or not datetime.fromisoformat(trigger["trigger_time"]) <= at <= datetime.combine(day, deadline)
                             or not (clock(9, 31) <= at.time() <= clock(11, 30)
                                     or clock(13, 1) <= at.time() <= clock(15))):
                         continue
                     pos = positions[symbol]
+                    if ("fallback_time" in sig_params and trigger["reason"] != "resume"
+                            and (at == datetime.combine(day, fallback_clock)
+                                 or (at == datetime.combine(day, deadline_clock)
+                                     and trigger["reason"] != "stop_time"))):
+                        stage_hit = evaluate(
+                            pl.DataFrame(), sig, day=day, now=at,
+                            positions=[{**pos, "entry_date": str(pos["entry_date"]),
+                                        "qty": pos["remaining"], "available_qty": pos["remaining"]}],
+                            prev_close={symbol: pos["sell_reference"]}, suspension_history=suspension_history,
+                        ).hits[0]
+                        output.signals.append({"date": str(day), "side": "sell", **stage_hit,
+                                               "signal_id": exits[0], "signal_bar": at.hour * 60 + at.minute})
                     rows = rows_at.get(symbol, [])
                     expected_at = last_sale[symbol] + timedelta(minutes=1)
                     if expected_at.time() == clock(11, 31):
@@ -389,6 +424,10 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         if pos.get("suspension_deferred"):
                             counters["resume_exit_trades"] += 1
                         del positions[symbol]
+                if phase == 1 and at.time() >= fallback_clock:
+                    rejected = reject_overdue(day)
+                    if rejected is not None:
+                        return rejected
                 candidates = []
                 if entry_error:
                     continue
@@ -473,11 +512,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     if last_sale[symbol] != datetime.combine(day, clock(15)):
                         return finish(f"{day} {symbol} 复牌卖出成交窗口未完整覆盖至收盘")
                     counters["resume_pending_position_days"] += 1
-            overdue = [p for p in positions.values() if p["entry_date"] < day
-                       and not p.get("suspension_deferred")]
-            if overdue:
-                counters["deadline_violations"] += len(overdue)
-                return finish(f"{day} {sig_params['time']}清仓截止后仍有余股, 保留实际成交和持仓")
+            rejected = reject_overdue(day)
+            if rejected is not None:
+                return rejected
             if entry_error:
                 return finish(entry_error)
             for symbol in positions:

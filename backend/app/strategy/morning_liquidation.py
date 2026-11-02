@@ -11,23 +11,31 @@ from app.market_time import CN_TZ, published_trading_day
 from app.strategy.overnight_runtime import next_market_day
 
 TEMPLATE = "morning_liquidation"
-DEFAULT_PARAMS = {"time": "10:30:00", "amplitude_pct": 6.0}
+DEFAULT_PARAMS = {"time": "10:30:00", "fallback_time": "10:45:00", "rise_pct": 6.0, "fall_pct": 6.0}
 
 
 def parameters(sig: dict) -> dict:
     raw = sig.get("params") or {}
-    if not isinstance(raw, dict) or set(raw) - set(DEFAULT_PARAMS):
+    if not isinstance(raw, dict) or set(raw) - (set(DEFAULT_PARAMS) | {"amplitude_pct"}):
         raise ValueError("早盘清仓参数格式错误或包含未知参数")
-    params = {**DEFAULT_PARAMS, **raw}
-    try:
-        at = time.fromisoformat(params["time"])
-        if at.strftime("%H:%M:%S") != params["time"] or at.tzinfo or not time(9, 30) <= at <= time(11, 30):
-            raise ValueError
-    except (TypeError, ValueError):
-        raise ValueError("早盘清仓时间须为 09:30:00~11:30:00 (北京时间)") from None
-    value = params["amplitude_pct"]
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 100:
-        raise ValueError("振幅阈值须为 0~100% 的有限数值")
+    legacy = "amplitude_pct" in raw
+    if legacy and set(raw) & {"fallback_time", "rise_pct", "fall_pct"}:
+        raise ValueError("旧振幅与新涨跌幅参数不能混用")
+    params = {**({"time": "10:30:00", "amplitude_pct": 6.0} if legacy else DEFAULT_PARAMS), **raw}
+    for key in ("time",) if legacy else ("time", "fallback_time"):
+        try:
+            at = time.fromisoformat(params[key])
+            if at.strftime("%H:%M:%S") != params[key] or at.tzinfo or not time(9, 30) <= at <= time(11, 30):
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError("早盘清仓时间须为 09:30:00~11:30:00 (北京时间)") from None
+    if not legacy and params["fallback_time"] <= params["time"]:
+        raise ValueError("兜底时间须晚于止损时间")
+    for key in ("amplitude_pct",) if legacy else ("rise_pct", "fall_pct"):
+        value = params[key]
+        if (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+                or not (0 <= value <= 100 if legacy else 0 < value <= 100)):
+            raise ValueError("振幅阈值须为 0~100% 的有限数值" if legacy else "涨跌幅阈值须为大于0且不超过100%的有限数值")
     return params
 
 
@@ -58,17 +66,22 @@ def evaluate(
         result.diagnostics.append("早盘清仓需要包含买入日期的实际持仓快照")
         return result
     deadline = datetime.combine(day, time.fromisoformat(params["time"]))
+    legacy = "amplitude_pct" in params
+    fallback = datetime.combine(day, time.fromisoformat(params.get("fallback_time", params["time"])))
     # 已完成分钟仅提供触发时间上界; 缺口期间的真实首次触发不可伪造。
     frame = pl.DataFrame()
-    if minute_df is not None and {"symbol", "datetime", "high", "low"}.issubset(minute_df.columns):
+    price_field = "raw_close" if minute_df is not None and "raw_close" in minute_df.columns else "close"
+    required = {"symbol", "datetime", "high", "low"} if legacy else {"symbol", "datetime", price_field}
+    if minute_df is not None and required.issubset(minute_df.columns):
         dt = pl.col("datetime")
         if minute_df.schema["datetime"].time_zone:
             dt = dt.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
+        valid = (pl.col("high").is_finite() & pl.col("low").is_finite()
+                 & (pl.col("low") > 0) & (pl.col("high") >= pl.col("low"))) if legacy else (
+            pl.col(price_field).is_finite() & (pl.col(price_field) > 0))
         frame = minute_df.with_columns(dt.alias("datetime")).filter(
             (pl.col("datetime").dt.date() == day) & (pl.col("datetime").dt.time() > time(9, 30))
-            & (pl.col("datetime") <= min(now, deadline))
-            & pl.col("high").is_finite() & pl.col("low").is_finite()
-            & (pl.col("low") > 0) & (pl.col("high") >= pl.col("low")),
+            & (pl.col("datetime") <= min(now, deadline)) & valid,
         ).sort("datetime")
     minute_groups = frame.partition_by("symbol", as_dict=True) if not frame.is_empty() else {}
     live = {}
@@ -106,7 +119,7 @@ def evaluate(
         pending = None
         previous = prev_close.get(symbol)
         history = minute_groups.get((symbol,))
-        if _positive(previous) and history is not None:
+        if legacy and _positive(previous) and history is not None:
             ranges = history.with_columns(
                 ((pl.col("high").cum_max()-pl.col("low").cum_min()) / previous * 100).alias("_amplitude"),
             ).filter(pl.col("_amplitude") + 1e-10 >= params["amplitude_pct"])
@@ -114,10 +127,19 @@ def evaluate(
                 row = ranges.row(0, named=True)
                 pending = {"reason": "amplitude", "amplitude_pct": row["_amplitude"],
                            "trigger_time": row["datetime"].isoformat(), "source": "completed_minute"}
+        elif _positive(previous) and history is not None:
+            changes = history.with_columns((pl.col(price_field) / previous - 1).alias("_change")).filter(
+                (pl.col("_change") + 1e-12 >= params["rise_pct"] / 100)
+                | (pl.col("_change") - 1e-12 <= -params["fall_pct"] / 100))
+            if not changes.is_empty():
+                row = changes.row(0, named=True)
+                pending = {"reason": "rise" if row["_change"] > 0 else "fall",
+                           "change_pct": row["_change"],
+                           "trigger_time": row["datetime"].isoformat(), "source": "completed_minute"}
         quote = live.get(symbol, {})
         reference = quote.get("prev_close") if _positive(quote.get("prev_close")) else previous
         stamp = quote.get("quote_ts", quote.get("timestamp"))
-        if (_positive(stamp) and _positive(reference) and _positive(quote.get("high"))
+        if (legacy and _positive(stamp) and _positive(reference) and _positive(quote.get("high"))
                 and _positive(quote.get("low")) and quote["high"] >= quote["low"]
                 and now < deadline and pending is None):
             seconds = stamp / 1000 if stamp > 1e12 else stamp
@@ -127,18 +149,35 @@ def evaluate(
                 if amplitude + 1e-10 >= params["amplitude_pct"]:
                     pending = {"reason": "amplitude", "amplitude_pct": amplitude,
                                "trigger_time": at.isoformat(), "source": "live_quote"}
+        price = quote.get("price", quote.get("close"))
+        if (not legacy and pending is None and now < deadline and _positive(stamp)
+                and _positive(previous) and _positive(price)):
+            seconds = stamp / 1000 if stamp > 1e12 else stamp
+            at = datetime.fromtimestamp(seconds, CN_TZ).replace(tzinfo=None)
+            if at.date() == day and at.time() >= time(9, 30) and -2 <= (now-at).total_seconds() <= 15:
+                change = price / previous - 1
+                if change + 1e-12 >= params["rise_pct"] / 100 or change - 1e-12 <= -params["fall_pct"] / 100:
+                    pending = {"reason": "rise" if change > 0 else "fall", "change_pct": change,
+                               "trigger_time": at.isoformat(), "source": "live_quote"}
+        if not legacy and now >= fallback:
+            pending = {"reason": "fallback", "change_pct": None,
+                       "trigger_time": fallback.isoformat(), "source": "clock"}
+        elif not legacy and now >= deadline:
+            pending = {"reason": "stop_time", "change_pct": None,
+                       "trigger_time": deadline.isoformat(), "source": "clock"}
         if pending is None and now >= deadline:
-            pending = {"reason": "deadline", "amplitude_pct": None,
+            pending = {"reason": "deadline" if legacy else "stop_time",
+                       "amplitude_pct" if legacy else "change_pct": None,
                        "trigger_time": deadline.isoformat(), "source": "clock"}
         if pending:
             result.hits.append({
                 "symbol": symbol, "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id"),
                 "entry_date": str(entry), "available_qty": position["available_qty"],
                 "holding_exit": True,
-                "deadline_elapsed": now > deadline, **pending,
+                "deadline_elapsed": now > fallback, **pending,
             })
         elif not _positive(previous) or history is None:
-            result.diagnostics.append(f"早盘清仓: {symbol} 缺少可用振幅行情或昨收, 截止时钟仍有效")
+            result.diagnostics.append(f"早盘清仓: {symbol} 缺少可用{'振幅' if legacy else '现价'}行情或昨收, 清仓时钟仍有效")
     return result
 
 

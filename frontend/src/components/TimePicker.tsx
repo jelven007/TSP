@@ -5,8 +5,9 @@ import { Clock3 } from 'lucide-react'
 import { PICKER_BUTTON_CLASS, PICKER_POPOVER_CLASS, usePickerPopover, type PickerButtonProps } from './usePickerPopover'
 
 interface TimePickerProps extends PickerButtonProps {
-  value: string // HH:mm，24 小时制
+  value: string // HH:mm 或 HH:mm:ss，24 小时制
   onChange: (value: string) => void
+  showSeconds?: boolean
   placeholder?: string
   clearable?: boolean
   className?: string
@@ -15,29 +16,35 @@ interface TimePickerProps extends PickerButtonProps {
 }
 
 const pad = (value: number) => String(value).padStart(2, '0')
+const timeParts = (value: string, showSeconds: boolean) =>
+  (value || '00:00').split(':').concat('00').slice(0, showSeconds ? 3 : 2)
 
 export function TimePicker({
-  value, onChange, placeholder = '选择时间', clearable = false,
+  value, onChange, showSeconds = false, placeholder = '选择时间', clearable = false,
   className = '', buttonClassName = '', align = 'right', disabled = false, ...buttonProps
 }: TimePickerProps) {
   const { btnRef, popRef, pos, open, toggle, close, portalContainer } = usePickerPopover({ align, disabled })
-  const [draft, setDraft] = useState((value || '00:00').split(':'))
+  const [draft, setDraft] = useState(() => timeParts(value, showSeconds))
   const hourRef = useRef<HTMLButtonElement>(null)
   const minuteRef = useRef<HTMLButtonElement>(null)
+  const secondRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (open) {
       hourRef.current?.scrollIntoView?.({ block: 'nearest' })
       minuteRef.current?.scrollIntoView?.({ block: 'nearest' })
+      secondRef.current?.scrollIntoView?.({ block: 'nearest' })
     }
   }, [open])
   const select = (next: string) => { onChange(next); close(); btnRef.current?.focus() }
   return (
     <div className={`relative inline-flex ${className}`}>
       <button {...buttonProps} ref={btnRef} type="button" disabled={disabled} aria-expanded={open}
-        onClick={() => { if (!open) setDraft((value || '00:00').split(':')); toggle() }}
+        onClick={() => { if (!open) setDraft(timeParts(value, showSeconds)); toggle() }}
         className={`${PICKER_BUTTON_CLASS} ${buttonClassName}`}>
         <Clock3 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className={value ? undefined : 'text-muted'}>{value || placeholder}</span>
+        <span className={value ? undefined : 'text-muted'}>
+          {value ? showSeconds ? timeParts(value, true).join(':') : value : placeholder}
+        </span>
       </button>
       {createPortal(
         <AnimatePresence>
@@ -48,8 +55,8 @@ export function TimePicker({
               transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
               style={{ position: 'fixed', top: pos.top, left: pos.left }}
               className={`w-[260px] ${PICKER_POPOVER_CLASS}`}>
-              <div className="grid grid-cols-2 gap-2">
-                {(['时', '分'] as const).map((label, index) => (
+              <div className={`grid ${showSeconds ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
+                {(showSeconds ? ['时', '分', '秒'] : ['时', '分']).map((label, index) => (
                   <div key={label}>
                     <div className="mb-1 text-center text-xs text-muted">{label}</div>
                     <div className="max-h-48 overflow-y-auto space-y-0.5">
@@ -57,7 +64,7 @@ export function TimePicker({
                         const option = pad(number)
                         const selected = draft[index] === option
                         return <button key={option} type="button" aria-label={`${option} ${label}`} aria-pressed={selected}
-                          ref={selected ? index === 0 ? hourRef : minuteRef : undefined}
+                          ref={selected ? [hourRef, minuteRef, secondRef][index] : undefined}
                           onClick={() => setDraft(current => current.map((part, i) => i === index ? option : part))}
                           className={`h-7 w-full rounded-btn text-xs num transition-colors ${selected ? 'bg-accent text-white font-bold' : 'text-foreground hover:bg-elevated'}`}>
                           {option}

@@ -552,7 +552,8 @@ class ResearchWorker:
                 status == "failed" and isinstance(result, dict) and result.get("error")
                 and current["kind"] == "backtest"
                 and result.get("stats", {}).get("minute_execution")
-                in {"overnight_capacity_v1", "momentum_capacity_v1"}
+                in {"overnight_capacity_v1", "momentum_capacity_v1",
+                    "generic_morning_liquidation_v1", "generic_morning_liquidation_resume_v2"}
                 and isinstance(result.get("stats", {}).get("execution"), dict)
             ):
                 # A rejected NAV still has real simulated fills and remaining shares.
@@ -621,7 +622,10 @@ def stream(request: Request, jobs: ResearchJobs, row: dict, key: str):
                     yield f"event: done\ndata: {json.dumps(current['result'], ensure_ascii=False, default=str)}\n\n"
                 else:
                     message = current["error"] or ("任务已取消" if current["state"] == "cancelled" else "任务已中断，请重新提交")
-                    yield f"event: error\ndata: {json.dumps({'message': message}, ensure_ascii=False)}\n\n"
+                    failure = {"message": message}
+                    if current["state"] == "failed" and current["result"] is not None:
+                        failure["result"] = current["result"]
+                    yield f"event: error\ndata: {json.dumps(failure, ensure_ascii=False, default=str)}\n\n"
                 return
             if time.monotonic() - heartbeat > 15:
                 yield ": heartbeat\n\n"

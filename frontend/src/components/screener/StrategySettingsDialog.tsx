@@ -601,7 +601,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                     )}
                     {detail.params.length > 0 ? (
                       <Section icon={Settings2} title="策略参数" accent="text-muted">
-                        <StrategyParamGroups params={detail.params} values={params}>
+                        <StrategyParamGroups strategyId={detail.id} params={detail.params} values={params}>
                           {p => <ParamField key={p.id} def={p} value={params[p.id] ?? p.default}
                             onChange={v => setParams(prev => applyParamValue(detail.params, prev, p.id, v))} />}
                         </StrategyParamGroups>

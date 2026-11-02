@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -237,11 +238,16 @@ def test_cancel_and_role_revocation_discard_late_results(env):
             worker.close()
 
 
-@pytest.mark.parametrize("execution", ["overnight_capacity_v1", "momentum_capacity_v1"])
+@pytest.mark.parametrize("execution", [
+    "overnight_capacity_v1", "momentum_capacity_v1",
+    "generic_morning_liquidation_v1", "generic_morning_liquidation_resume_v2",
+])
 def test_failed_minute_backtest_retains_actual_ledger_without_archiving_success(env, execution):
+    from app.api.backtest import router
     from app.services.strategy_results import StrategyResults
 
-    _, _, jobs = tenant(env)
+    env["client"].app.include_router(router)
+    token, _, jobs = tenant(env)
     _, _, other = tenant(env)
     row = jobs.submit(payload(jobs, config={"strategy_id": "s02"}))
     partial = {
@@ -266,6 +272,12 @@ def test_failed_minute_backtest_retains_actual_ledger_without_archiving_success(
     assert recovered["result"]["fills"] == partial["fills"]
     assert "artifact_data" not in recovered["result"]
     assert StrategyResults(jobs.documents).list_history("s02")["records"] == []
+    env["client"].cookies.set("tf_session", token)
+    response = env["client"].get("/api/backtest/jobs/" + row["id"] + "/stream")
+    assert response.status_code == 200 and "event: error" in response.text
+    message = json.loads(response.text.split("event: error\ndata: ", 1)[1].split("\n\n", 1)[0])
+    assert message["result"]["fills"] == partial["fills"]
+    assert message["result"]["stats"]["execution"]["remaining_positions"] == partial["stats"]["execution"]["remaining_positions"]
     assert other.get(row["id"]) is None
     with pytest.raises(AccessError):
         jobs.artifact(row["id"], "candidates")

@@ -2007,7 +2007,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
           {hasMorningExit && (
             <div className="col-span-2 text-[10px] leading-4 text-muted">
-              按实际买入日期，在下一交易日早盘达到振幅阈值或截止时间时清仓；不足成交量保留余股并报告失败。
+              按实际买入日期，在下一交易日早盘达到所配阈值或止损时间时清仓；余股继续撮合至兜底时间，仍未卖完保留余股并报告失败。旧振幅定义沿用冻结规则。
               使用仓位模拟和回测费用设置，日线叠加只读取已完成日K。
             </div>
           )}
@@ -2265,7 +2265,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           <MinuteExecutionLedger result={result} />
         </>}
 
-        {backtestTask?.error && (
+        {backtestTask?.error && !backtestTask.result && (
           <div className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-btn px-3 py-2">
             <div>{backtestTask.error}</div>
             {result && (
@@ -2968,7 +2968,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                 <div className="mt-1">触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。</div>
                 {hasMorningExit ? <>
                   <div>分钟建仓按策略声明的信号分钟收盘或紧邻下一分钟开盘；清仓使用下一交易日触发分钟收盘。</div>
-                  <div>早盘振幅达到阈值提前清仓，否则到截止时间清仓；需关闭其他出场触发器、固定/移动风控及最长持有。</div>
+                  <div>现价相对原始昨收达到涨幅或跌幅阈值提前清仓，否则到止损时间清仓，兜底时间再次处理余股；旧振幅定义沿用冻结规则。需关闭其他出场触发器、固定/移动风控及最长持有。</div>
                 </> : <>
                   <div>成交口径可分别设置建仓/清仓：默认建仓次日开盘（避免未来函数）、清仓当日收盘（持仓中可盘中/收盘卖）。</div>
                   <div>退出优先级：止损/移动止损 &gt; 卖点信号 &gt; 到期平仓；到期只作兜底，不抢占卖点或风控。</div>
@@ -2987,7 +2987,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               {settingsTab === 'params' && (
                 <ConfigSection title="策略参数" hint="自动限制 min/max">
                   {detail.params.length > 0 ? (
-                    <StrategyParamGroups params={detail.params} values={strategyParams}
+                    <StrategyParamGroups strategyId={detail.id} params={detail.params} values={strategyParams}
                       className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {param => (
                         <StrategyParamInput

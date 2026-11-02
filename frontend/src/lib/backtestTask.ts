@@ -145,8 +145,9 @@ async function connectSSE(url: string): Promise<void> {
     // SSE error 事件: 有 data 说明是后端主动推送的错误/取消; 无 data 说明是连接断开
     if (e.data) {
       try {
-        const msg = JSON.parse(e.data)?.message ?? '回测出错'
-        current = { ...current, isPending: false, error: msg, reconnecting: false }
+        const payload = JSON.parse(e.data)
+        const msg = payload?.message ?? '回测出错'
+        current = { ...current, isPending: false, result: payload?.result ?? current.result, error: msg, reconnecting: false }
         emit()
       } catch {
         current = { ...current, isPending: false, error: '回测出错', reconnecting: false }
