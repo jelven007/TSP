@@ -2173,7 +2173,14 @@ class MonitorRuleEngine:
         rule_id, strategy_id, asset_type = pool_key
         state_key = (rule_id, strategy_id, asset_type, event_type)
         date_key = str(as_of)
-        current = {str(hit["symbol"]) for hit in hits}
+        def identity(hit):
+            symbol = str(hit["symbol"])
+            if hit.get("holding_exit") and hit.get("reason") in ("rise", "fall", "stop_time", "fallback"):
+                return (symbol, hit.get("account_id"), hit.get("cycle_id"), hit.get("entry_date"),
+                        hit["reason"], hit.get("trigger_time"))
+            return symbol
+
+        current = {identity(hit) for hit in hits}
         previous = self._strategy_signal_state.get(state_key)
         self._strategy_signal_state[state_key] = (date_key, current)
 
@@ -2191,7 +2198,7 @@ class MonitorRuleEngine:
         }
         for symbol in fresh:
             self._strategy_signal_seen[(*state_key, symbol)] = date_key
-        return fresh
+        return {key[0] if isinstance(key, tuple) else key for key in fresh}
 
     @staticmethod
     def _match_conditions(

@@ -1,15 +1,18 @@
 import type { ReactNode } from 'react'
 import type { StrategyParamDef } from '@/lib/api'
-import { groupParams, visibleParams } from '@/lib/strategyParams'
+import { groupParams, layoutStrategyParams, visibleParams } from '@/lib/strategyParams'
 
 /** 三个研究入口共享分组与显隐，输入控件仍保留各页面的布局/数值校验。 */
-export function StrategyParamGroups({ params, values, children, className = 'space-y-1.5' }: {
+export function StrategyParamGroups({
+  params, values, children, className = 'space-y-1.5', strategyId = '',
+}: {
   params: StrategyParamDef[]
   values: Record<string, any>
   children: (param: StrategyParamDef) => ReactNode
   className?: string
+  strategyId?: string
 }) {
-  const groups = groupParams(visibleParams(params, values))
+  const groups = groupParams(layoutStrategyParams(strategyId, visibleParams(params, values)))
   if (!groups.length) return <div className="text-xs text-muted">当前条件下无可调参数。</div>
   return (
     <div className="space-y-3">

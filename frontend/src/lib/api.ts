@@ -949,7 +949,10 @@ export interface LateSessionStrengthParams {
 
 export interface MorningLiquidationParams {
   time: string
-  amplitude_pct: number
+  fallback_time?: string
+  rise_pct?: number
+  fall_pct?: number
+  amplitude_pct?: number // 冻结旧振幅定义，仅用于兼容读取
 }
 
 export interface CustomSignalFieldGroup {

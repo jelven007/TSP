@@ -1115,7 +1115,9 @@ class StrategyEngine:
             for sig in morning_signals:
                 result = evaluate(
                     history, sig, day=as_of, now=now, positions=context.positions,
-                    prev_close=previous_closes(context), quotes=current,
+                    prev_close=previous_closes(
+                        context, exact_session="amplitude_pct" not in (sig.get("params") or {}),
+                    ), quotes=current,
                     suspension_history=context.suspension_history,
                 )
                 if result.diagnostics:

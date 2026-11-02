@@ -7,7 +7,10 @@ import { expect, it, vi } from 'vitest'
 import { CustomSignalDialog } from './CustomSignalDialog'
 import { api } from '@/lib/api'
 
-vi.mock('@/components/Modal', () => ({ Modal: ({ children }: any) => <div>{children}</div> }))
+vi.mock('@/components/Modal', () => ({
+  Modal: ({ children }: any) => <div>{children}</div>,
+  useModalPortalContainer: () => document.body,
+}))
 
 it('creates and edits the late-session entry preset with all configurable defaults', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -45,7 +48,7 @@ it('creates and edits the late-session entry preset with all configurable defaul
   vi.restoreAllMocks()
 })
 
-it('saves the morning exit preset and reloads configurable deadline and amplitude', async () => {
+it('saves the morning exit preset and reloads configurable times and returns', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   vi.spyOn(api, 'customSignalsOptions').mockResolvedValue({ fields: [], operators: [], kinds: [] })
   vi.spyOn(api, 'strategyAiStatus').mockResolvedValue({ configured: false } as any)
@@ -63,18 +66,18 @@ it('saves the morning exit preset and reloads configurable deadline and amplitud
     template.value = 'morning_liquidation'
     template.dispatchEvent(new Event('change', { bubbles: true }))
   })
-  expect(host.querySelector<HTMLInputElement>('input[aria-label="清仓截止时间"]')?.value).toBe('10:30:00')
-  expect(host.querySelector<HTMLInputElement>('input[aria-label="振幅阈值（%）"]')?.value).toBe('6')
+  expect(host.querySelector('button[aria-label="止损时间"]')?.textContent).toBe('10:30:00')
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="涨幅阈值（%）"]')?.value).toBe('6')
   expect(host.textContent).toContain('下一个交易日')
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save).toHaveBeenCalledWith(expect.objectContaining({
     name: '早盘清仓', kind: 'exit', timeframe: 'intraday', template: 'morning_liquidation',
-    conditions: [], params: { time: '10:30:00', amplitude_pct: 6 },
+    conditions: [], params: { time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6 },
   }))
   const stored = save.mock.calls[0][0]
-  await act(async () => render({ ...stored, params: { time: '10:15:32', amplitude_pct: 5 } }))
-  expect(host.querySelector<HTMLInputElement>('input[aria-label="清仓截止时间"]')?.value).toBe('10:15:32')
-  expect(host.querySelector<HTMLInputElement>('input[aria-label="振幅阈值（%）"]')?.value).toBe('5')
+  await act(async () => render({ ...stored, params: { time: '10:15:32', fallback_time: '10:50:00', rise_pct: 5, fall_pct: 2 } }))
+  expect(host.querySelector('button[aria-label="止损时间"]')?.textContent).toBe('10:15:32')
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="涨幅阈值（%）"]')?.value).toBe('5')
   await act(async () => root.unmount())
   vi.restoreAllMocks()
 })

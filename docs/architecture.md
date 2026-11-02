@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+公共`TimePicker`的`showSeconds`只扩展显示和确认格式，默认`HH:mm`保持；
+早盘止损与兜底启用`HH:mm:ss`，草稿确认后仍沿原`time/fallback_time`保存。
+本轮六类文档与候选验证见[最新整合](../reports/release-consolidation-dual-20261102.md)。
+
 停牌延期与复牌退出复用`instrument_suspension.holding_exit_status/resume_exit_time`，
 证据通过`StrategyDataContext.suspension_history`沿Screener、监控和独立回放传递，
 读取完整持仓证据，不由候选范围裁剪。收益账本标识为`generic_morning_liquidation_resume_v2`：
@@ -74,11 +78,16 @@ API单次/批量/缓存和实时发布透传sections、section_mode、section_er
 应用后交给父级`entry_signals/exit_signals`，沿现有`strategySaveConfig`保存。
 列名仍为日线`csg_`/盘中`csgi_`，不复制定义、不新增后台计算或API。
 
-早盘清仓沿`custom_signals`保存`morning_liquidation`模板及`time/amplitude_pct`，
+早盘清仓沿`custom_signals`保存`morning_liquidation`及`time/fallback_time/rise_pct/fall_pct`，
+旧`time/amplitude_pct`冻结定义保持单截止及振幅语义，混合两种参数拒绝。
 纯计算在`strategy/morning_liquidation.py`，模板不进入通用表达式编译。
 通用分钟引擎先按独立持仓快照收集出场，再计算候选/评分，空候选与空分钟不吞掉截止出场。
 `observed_at`保留实时秒精度，分钟完成标签只作为提前触发时间上界；
-新鲜报价使用当日累计高低价与原始昨收，过期或未来报价拒绝。
+新定义使用分钟`raw_close`（缺列用原始分钟`close`）或新鲜报价现价相对原始昨收，
+不使用报价自带昨收覆盖权威参考；旧定义仍用累计高低价。过期或未来报价拒绝。
+监控按持仓批次、原因和触发时间去重，兜底可独立通知；信号回放保留最早触发及兜底，
+收益撮合上界与最终余股失败时间取兜底，止损后继续真实分钟续卖；
+只对真实余股生成兜底，失败账本沿持久任务/SSE/前端保留，不将信号次数当成交次数。
 持仓快照只读当前租户归属策略的账本剩余批次，按买入日期分组；
 Full Worker在已授权事务中提取最小字段传给Compute，不复制账本或账户秘密。
 预计算监控结果保留`holding_exit`出场，避免候选范围把持仓出场过滤掉。
@@ -88,6 +97,9 @@ S02全天卖出候选继续共享`momentum_day.run_day`：
 卖出按14:32及以前/14:33以后分段，夹入原14:32买入，保持T+1及现金/仓位因果顺序。
 `sell_position`携带当日累计卖额及费用日期；隔日重置、同日续成交不重复最低佣金。
 基础过滤通过`basic_filter`精确前交易日联表，专用回测补入选股当日证券状态。
+前端`layoutStrategyParams`只为内置`s02`重排参数副本并覆盖展示分组，
+设置、回测及参数扫描共享该布局；后端`PARAMS`顺序和内容不变，避免展示调整
+改变逻辑版本、运行身份或历史结果键。
 无新API、schema、Provider或公共插件契约；版本和部署边界见
 [S02](reference/s02.md)及[本次Excel](../reports/s02-full-day-20261102.md)。
 

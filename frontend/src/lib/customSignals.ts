@@ -5,8 +5,8 @@ export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
   pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4,
 }
 
-export const MORNING_LIQUIDATION_DEFAULTS: MorningLiquidationParams = {
-  time: '10:30:00', amplitude_pct: 6,
+export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParams, 'amplitude_pct'>> = {
+  time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
 }
 
 export const customSignalColumn = (signal: CustomSignal) =>
@@ -24,10 +24,16 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
 }
 
 export function morningLiquidationSummary(signal: CustomSignal): string[] {
-  const p = { ...MORNING_LIQUIDATION_DEFAULTS, ...signal.params as Partial<MorningLiquidationParams> }
+  const stored = signal.params as Partial<MorningLiquidationParams> | undefined
+  if (stored?.amplitude_pct != null) return [
+    `旧振幅 ≥ ${stored.amplitude_pct}%，次交易日 ${stored.time ?? '10:30:00'} 前提前清仓`,
+    `未达到阈值，在 ${stored.time ?? '10:30:00'} 触发清仓（北京时间）`,
+    '旧振幅 =（当日至当前最高价 − 最低价）/ 昨收 × 100%；编辑保存后转换为涨跌幅规则',
+  ]
+  const p = { ...MORNING_LIQUIDATION_DEFAULTS, ...stored }
   return [
-    `买入后下一个交易日 ${p.time} 前，振幅 ≥ ${p.amplitude_pct}% 提前清仓`,
-    `未达到阈值，在 ${p.time} 触发清仓（北京时间）`,
-    '振幅 =（当日至当前最高价 − 最低价）/ 昨收 × 100%',
+    `止损时间 ${p.time}，兜底时间 ${p.fallback_time}（北京时间，买入后下一个交易日）`,
+    `现价相对原始昨收：涨幅 ≥ ${p.rise_pct}% 或跌幅 ≥ ${p.fall_pct}% 提前清仓`,
+    '止损时间到无条件清仓；兜底时间再次处理余股，成交受停牌、跌停及容量限制',
   ]
 }

@@ -1,4 +1,5 @@
 import { Modal } from '@/components/Modal'
+import { TimePicker } from '@/components/TimePicker'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence } from 'framer-motion'
@@ -53,7 +54,13 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
   const morning = draft.template === 'morning_liquidation'
   const specialized = lateSession || morning
   const lateParams = { ...LATE_SESSION_DEFAULTS, ...draft.params as Partial<LateSessionStrengthParams> }
-  const morningParams = { ...MORNING_LIQUIDATION_DEFAULTS, ...draft.params as Partial<MorningLiquidationParams> }
+  const storedMorning = draft.params as Partial<MorningLiquidationParams> | undefined
+  const morningParams = {
+    time: storedMorning?.time ?? MORNING_LIQUIDATION_DEFAULTS.time,
+    fallback_time: storedMorning?.fallback_time ?? MORNING_LIQUIDATION_DEFAULTS.fallback_time,
+    rise_pct: storedMorning?.rise_pct ?? MORNING_LIQUIDATION_DEFAULTS.rise_pct,
+    fall_pct: storedMorning?.fall_pct ?? MORNING_LIQUIDATION_DEFAULTS.fall_pct,
+  }
 
   useEffect(() => {
     if (!open) return
@@ -99,10 +106,12 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
       if (!d.name.trim()) throw new Error('请输入信号名称')
       if (!specialized && d.conditions.length === 0) throw new Error('至少需要一个条件')
       if (morning) {
-        if (!/^(09|10|11):[0-5]\d:[0-5]\d$/.test(morningParams.time)
-          || morningParams.time < '09:30:00' || morningParams.time > '11:30:00') throw new Error('清仓截止时间须为 09:30:00～11:30:00')
-        if (!Number.isFinite(morningParams.amplitude_pct) || morningParams.amplitude_pct < 0
-          || morningParams.amplitude_pct > 100) throw new Error('振幅阈值须为 0～100%')
+        if (![morningParams.time, morningParams.fallback_time].every(at =>
+          /^(09|10|11):[0-5]\d:[0-5]\d$/.test(at) && at >= '09:30:00' && at <= '11:30:00'))
+          throw new Error('止损时间和兜底时间须为 09:30:00～11:30:00')
+        if (morningParams.fallback_time <= morningParams.time) throw new Error('兜底时间须晚于止损时间')
+        if (![morningParams.rise_pct, morningParams.fall_pct].every(value =>
+          Number.isFinite(value) && value > 0 && value <= 100)) throw new Error('涨跌幅阈值须大于0且不超过100%')
       }
       if (lateSession) {
         const p = lateParams
@@ -209,26 +218,39 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className="space-y-1.5">
-                      <span className="text-[11px] text-muted">清仓截止时间（北京时间）</span>
-                      <input aria-label="清仓截止时间" type="time" step="1" min="09:30:00" max="11:30:00"
-                        value={morningParams.time} onChange={e => setDraft(d => ({ ...d,
-                          params: { ...morningParams, time: e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value } }))}
-                        className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                      <span className="text-[11px] text-muted">止损时间（北京时间）</span>
+                      <TimePicker aria-label="止损时间" showSeconds align="left"
+                        value={morningParams.time} onChange={time => setDraft(d => ({ ...d,
+                          params: { ...morningParams, time } }))}
+                        className="w-full" buttonClassName="h-9 w-full justify-start" />
                     </label>
                     <label className="space-y-1.5">
-                      <span className="text-[11px] text-muted">振幅阈值（%）</span>
-                      <input aria-label="振幅阈值（%）" type="number" min="0" max="100" step="0.1" value={morningParams.amplitude_pct}
+                      <span className="text-[11px] text-muted">兜底时间（北京时间）</span>
+                      <TimePicker aria-label="兜底时间" showSeconds align="left"
+                        value={morningParams.fallback_time} onChange={fallback_time => setDraft(d => ({ ...d,
+                          params: { ...morningParams, fallback_time } }))}
+                        className="w-full" buttonClassName="h-9 w-full justify-start" />
+                    </label>
+                    {([['rise_pct', '涨幅阈值（%）'], ['fall_pct', '跌幅阈值（%）']] as const).map(([key, label]) => (
+                    <label key={key} className="space-y-1.5">
+                      <span className="text-[11px] text-muted">{label}</span>
+                      <input aria-label={label} type="number" min="0.1" max="100" step="0.1" value={morningParams[key]}
                         onChange={e => setDraft(d => ({ ...d, params: { ...morningParams,
-                          amplitude_pct: e.target.value === '' ? NaN : Number(e.target.value) } }))}
+                          [key]: e.target.value === '' ? NaN : Number(e.target.value) } }))}
                         className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
                     </label>
+                    ))}
                   </div>
+                  {signal?.template === 'morning_liquidation' && (signal.params as MorningLiquidationParams)?.amplitude_pct != null && (
+                    <p className="text-[11px] leading-5 text-amber-400">此信号原为旧振幅规则，保存后转换为以上涨跌幅及双时间规则。</p>
+                  )}
                   <p className="text-[11px] leading-5 text-muted">
                     以每笔持仓买入后的下一个交易日为准，跳过周末和休市日。
-                    截止时间前振幅达到或超过阈值即触发清仓；仍未达到时，截止时间一到立即触发。
-                    振幅 =（当日至当前最高价 − 最低价）/ 昨收 × 100%。
-                    使用新鲜实时行情，已完成分钟 K 线可用于补判；行情缺失时截止清仓仍有效。
-                    用于有买入日期的通用分钟策略持仓监控；S01/S02 专用规则与收益回测暂不支持。
+                    现价相对原始昨收的涨幅或跌幅达到对应阈值时提前清仓。
+                    涨跌幅 =（现价 / 原始昨收 − 1）× 100%，跌幅参数填写正数。
+                    止损时间到无条件清仓；未卖完继续处理，兜底时间再次对余股触发。
+                    使用新鲜实时行情，已完成分钟 K 线可用于补判；行情缺失时清仓时钟仍有效。
+                    用于有买入日期的通用分钟策略持仓监控及连续资金收益回测；回测时间须为整分钟。S01/S02 专用执行规则暂不支持追加本触发器。
                     信号触发后由交易模块处理成交，停牌、跌停或不可卖持仓可能无法成交。
                   </p>
                 </div>

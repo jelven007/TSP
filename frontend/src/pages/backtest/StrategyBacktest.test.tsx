@@ -261,10 +261,14 @@ it.each(['overnight_capacity_v1', 'generic_morning_liquidation_v1', 'generic_mor
     shares: 100, price: 10, notional: 1000, fee: 5.01, minute_volume_shares: 2000, participation: .05,
   }]
   task.result!.signals = [{ date: '2026-10-02', symbol: '600000.SH', reason: 'time_guard', signal_bar: 682 }]
+  task.error = task.result!.error
+  task.result!.stats.execution.remaining_positions = [{ symbol: '600000.SH', remaining: 100 }]
   state.task = task
   await render()
   expect(host.textContent).toContain('11:29到期剩余100股')
   expect(host.textContent).toContain('分钟成交分片（1行）')
+  expect(host.textContent).toContain('600000.SH 剩余100股')
+  expect(host.textContent).not.toContain('下方仍展示上一次成功结果')
   const create = vi.fn((_blob: Blob) => 'blob:minute-ledger')
   const revoke = vi.fn()
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: create })

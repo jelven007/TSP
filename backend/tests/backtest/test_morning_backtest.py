@@ -187,6 +187,33 @@ def test_deadline_failure_preserves_actual_fills_and_remaining(tmp_path, kind):
     assert result.stats["execution"]["cash"] == pytest.approx(6949.48 if kind == "too_small" else 5915)
 
 
+def test_deadline_failure_stops_before_later_entry_and_preserves_same_minute_sales(tmp_path):
+    other = "000002.SZ"
+    later = "600000.SH"
+    symbols = [SYMBOL, other, later]
+    panel = _daily_panel(_trading_days(47, start=date(2026, 7, 6)), symbols).with_columns(
+        pl.lit(10.).alias("close"), pl.lit(10.).alias("raw_close"), pl.lit(2e8).alias("amount"),
+    )
+    sells = pl.concat([
+        morning_frame().with_columns(pl.lit(1.).alias("volume")),
+        morning_frame().with_columns(pl.lit(other).alias("symbol")),
+        _minute_frame(SELL, [(later, "14:30", 10.3)]),
+    ])
+    service, _, _ = service_fixture(tmp_path, panel=panel, frames={
+        BUY: _minute_frame(BUY, [(symbol, "14:30", 10.2) for symbol in symbols[:2]]),
+        SELL: sells,
+    })
+    result = service.run(configuration(symbols=symbols))
+    assert result.error and "余股" in result.error
+    assert not [f for f in result.fills if f["datetime"] > f"{SELL} 10:30:00"]
+    assert [f["shares"] for f in result.fills if f["side"] == "sell"] == [100, 400]
+    assert len(result.trades) == 1 and result.trades[0]["symbol"] == other
+    pos, = result.stats["execution"]["remaining_positions"]
+    assert pos["symbol"] == SYMBOL and pos["remaining"] == 300
+    assert result.stats["execution"]["cash"] == pytest.approx(7017.4)
+    assert not result.equity_curve
+
+
 def test_slippage_applied_once_on_each_leg(tmp_path):
     result = run_frames(tmp_path, morning_frame(), slippage_bps=10)
     assert not result.error, result.error

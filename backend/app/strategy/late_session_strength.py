@@ -160,7 +160,7 @@ def evaluate(
     return result
 
 
-def previous_closes(context) -> dict[str, float]:
+def previous_closes(context, *, exact_session: bool = False) -> dict[str, float]:
     """昨收使用严格早于信号日的未复权价格, 不读取当日收盘。"""
     source = context.pool_history
     if source is None or source.is_empty():
@@ -170,6 +170,15 @@ def previous_closes(context) -> dict[str, float]:
     if source is None or source.is_empty() or "date" not in source.columns:
         return {}
     prior = source.filter(pl.col("date") < context.as_of).sort("date")
+    if exact_session:
+        from app.market_time import published_trading_day
+
+        previous = context.as_of - timedelta(days=1)
+        while published_trading_day(previous) is False:
+            previous -= timedelta(days=1)
+        if published_trading_day(previous) is not True:
+            return {}
+        prior = prior.filter(pl.col("date") == previous)
     column = "raw_close" if "raw_close" in prior.columns else "close"
     if column not in prior.columns:
         return {}

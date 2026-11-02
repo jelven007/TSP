@@ -2,12 +2,15 @@
 
 `POST /api/custom-signals`早盘清仓定义使用`template=morning_liquidation`、
 `timeframe=intraday`、`kind=exit`、空`conditions`，`params`为
-`{"time":"10:30:00","amplitude_pct":6}`。时间09:30:00～11:30:00，秒精度；
-振幅有限数值0～100，按百分数6传入，未知参数拒绝。
+`{"time":"10:30:00","fallback_time":"10:45:00","rise_pct":6,"fall_pct":6}`。
+时间09:30:00～11:30:00，支持秒且兜底晚于止损；涨跌幅须有限正数且≤100，百分数按6传入。
+现价相对精确前交易日原始昨收计算；跌幅填写正数，未知参数或混用旧振幅拒绝。
+仅`time/amplitude_pct`旧定义保持原振幅及单截止，编辑保存后明确转换。
 `POST /api/custom-signals/intraday/replay`使用原日期/证券字段，另须提供1～200条
 `positions`，每条含所选`symbol`与已确认交易日`entry_date`，可附`account_id/cycle_id`；
 回放只判断日期与信号，输入数量不代表成交或账户授权。
-返回`triggers`的`reason`（amplitude/deadline）、`trigger_time`、
+返回`triggers`的`reason`（rise/fall/stop_time/fallback/resume，旧定义amplitude/deadline）、`trigger_time`、
+新阈值的`change_pct`为小数（0.06代表6%），
 `source`（completed_minute/clock）、`diagnostics`和`execution=signal_only`。
 普通无持仓信号监控拒绝此模板，通用分钟策略监控使用租户实际持仓。
 
