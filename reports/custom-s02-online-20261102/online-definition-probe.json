@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "image": "sha256:eba57de048001d2c215fd5117dbcb9974b10efb7466ebba3b4729b04d3a8311e",
+  "checks": 18,
+  "signal_definitions": "exact enabled online definitions and parameter values",
+  "output": "7 candidate/real task checks passed: full pool, exact pulse, future rows, pre-time exclusion, deadline, T+1 and empty quotes\n3 restored condition checks passed: completed 20-day yuan units/full pool, future exclusion and signal-price ranking\n8 independent signal-section checks passed in real Compute",
+  "data": "synthetic market and holding fixtures"
+}

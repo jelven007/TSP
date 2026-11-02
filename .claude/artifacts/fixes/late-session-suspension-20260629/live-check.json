@@ -1,0 +1,243 @@
+{
+  "http": {
+    "3028/health/live": {
+      "status": "ok",
+      "version": "0.4.42"
+    },
+    "3028/health/ready": {
+      "status": "ok",
+      "ready": true,
+      "checked_at": "2026-11-02T03:08:19.408357+00:00",
+      "checks": {
+        "databases": {
+          "status": "ok"
+        },
+        "research_worker": {
+          "status": "ok",
+          "age_seconds": 2.412147,
+          "max_age_seconds": 120
+        },
+        "realtime_worker": {
+          "status": "ok",
+          "age_seconds": 12.98942,
+          "max_age_seconds": 420
+        },
+        "notifications_worker": {
+          "status": "ok",
+          "age_seconds": 0.174647,
+          "max_age_seconds": 120
+        },
+        "scheduled_worker": {
+          "status": "ok",
+          "age_seconds": 0.437514,
+          "max_age_seconds": 660
+        },
+        "public_files": {
+          "status": "ok",
+          "binding_current": true,
+          "sync_age_seconds": 0.6925763750041369,
+          "mismatch_age_seconds": null,
+          "last_error_kind": null,
+          "reader_lock_held": true,
+          "release_id": "b831094bb2a34144bb9565722818c65c"
+        },
+        "platform": {
+          "status": "ok",
+          "connected": true,
+          "last_marker_at": 1793588897.98755,
+          "reconnects": 0,
+          "update_generation": 72,
+          "loaded_generation": 71,
+          "snapshot_fetches": 15,
+          "frame_decodes": 45
+        },
+        "indicator_cache": {
+          "status": "ok"
+        },
+        "compute_broker": {
+          "status": "ok"
+        }
+      },
+      "functions": {
+        "market": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "research": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "monitoring": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "paper_trading": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "notifications": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        },
+        "scheduled": {
+          "ready": true,
+          "status": "ok",
+          "unavailable_dependencies": []
+        }
+      },
+      "version": "0.4.42",
+      "mode": "none"
+    },
+    "3029/health/live": {
+      "status": "ok",
+      "version": "0.4.42"
+    },
+    "3029/health/ready": {
+      "status": "degraded",
+      "ready": true,
+      "checked_at": "2026-11-02T03:08:18Z",
+      "checks": {
+        "repository": {
+          "status": "ok",
+          "initialized": true
+        },
+        "data_dir": {
+          "status": "ok",
+          "exists": true,
+          "writable": true
+        },
+        "disk": {
+          "status": "ok",
+          "total_bytes": 494384795648,
+          "used_bytes": 181232861184,
+          "free_bytes": 313151934464,
+          "total_inodes": 3061758007,
+          "free_inodes": 3058124360
+        },
+        "scheduler": {
+          "status": "ok",
+          "running": true,
+          "jobs": 10
+        },
+        "providers": {
+          "status": "ok",
+          "healthy": true,
+          "policy": "rustdx_only",
+          "single_source": true,
+          "rustdx_only": true,
+          "mixed_sources": false,
+          "sources": [
+            "rustdx"
+          ],
+          "routes": {
+            "realtime": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "depth5": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "minute": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "daily": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "adj_factor": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "corporate_actions": {
+              "provider": "rustdx",
+              "usable": true
+            },
+            "financial": {
+              "provider": "rustdx",
+              "usable": true
+            }
+          },
+          "unavailable": [],
+          "issues": []
+        },
+        "data_freshness": {
+          "status": "ok",
+          "stock_daily_latest": "2026-11-02",
+          "stock_enriched_latest": "2026-11-02",
+          "stock_minute_latest": "2026-11-02",
+          "auction_snapshot_latest": "2026-11-02",
+          "calendar_lag_days": 0,
+          "observed_trading_lag": 0,
+          "reference_trading_date": "2026-10-30",
+          "calendar_coverage": "complete",
+          "freshness_cutoff": "2026-11-01",
+          "stale_datasets": [],
+          "missing_datasets": [],
+          "future_datasets": [],
+          "message": null
+        },
+        "tasks": {
+          "status": "ok",
+          "active_id": null,
+          "persistence": {
+            "status": "ok",
+            "pending_records": 0,
+            "error_type": null
+          },
+          "last_pipeline": null
+        },
+        "data_release": {
+          "status": "warning",
+          "release_id": "c8549a73c77b4b0b959e6069281fe547",
+          "created_at": "2026-11-02T03:06:37Z",
+          "reason": "financial_sync:metrics",
+          "generation_mismatches": [
+            "stock_enriched"
+          ],
+          "unavailable_generations": [],
+          "message": "存在尚未纳入全局 release 的 enriched 更新"
+        }
+      },
+      "version": "0.4.42",
+      "mode": "none"
+    }
+  },
+  "roles": {
+    "api": "running",
+    "platform": "running",
+    "compute": "running",
+    "research": "running",
+    "realtime": "running",
+    "scheduled": "running",
+    "notifications": "running",
+    "frontend": "running"
+  },
+  "compute": {
+    "ready": true,
+    "cached": true,
+    "age_seconds": 39.813
+  },
+  "runtime_files_match": {
+    "backend/app/instrument_suspension.py": true,
+    "backend/app/tickflow/repository.py": true,
+    "backend/app/strategy/suspension.py": true,
+    "backend/app/strategy/daily_pool.py": true,
+    "backend/app/services/screener.py": true,
+    "backend/app/backtest/minute_replay.py": true,
+    "backend/app/services/data_release.py": true
+  },
+  "controlled_configuration_preserved": true,
+  "frontend_pointer_preserved": true,
+  "administrator_login": true,
+  "strategy_parameters_preserved": true,
+  "version": "v0.4.42",
+  "image": "sha256:a8192826fbf2b11b396364e60e60be423668affb978140a83e5df4973f9be932",
+  "local_only": true
+}

@@ -1,0 +1,21 @@
+{
+  "processes": {
+    "platform": true,
+    "compute": true,
+    "api": true,
+    "frontend": true,
+    "research": true,
+    "realtime": true,
+    "notifications": true,
+    "scheduled": true
+  },
+  "health": {
+    "3028/live": "ok",
+    "3028/ready": "ok",
+    "3029/live": "ok",
+    "3029/ready": "ok"
+  },
+  "compute_ready": true,
+  "configuration_preserved": true,
+  "version": "v0.4.42"
+}

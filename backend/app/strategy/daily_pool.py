@@ -7,7 +7,7 @@ from app.strategy.suspension import COLUMN, annotate
 DEFINITION_VERSION = "scope_float_cap_v2"
 
 
-def build_pool(engine, strategy_id, context, *, overrides=None) -> dict:
+def build_pool(engine, strategy_id, context, *, overrides=None, premarket=False) -> dict:
     strategy = engine.get(strategy_id)
     bf = engine._resolve_filter_scope({**(strategy.basic_filter or {}),
                                       **((overrides or {}).get("basic_filter") or {})})
@@ -15,6 +15,9 @@ def build_pool(engine, strategy_id, context, *, overrides=None) -> dict:
     # or pool data dependencies. Work on a copy so the strategy keeps all filters.
     excluded = {f"{stem}_{side}" for stem in RANGES if stem != "float_cap" for side in ("min", "max")}
     bf = {key: value for key, value in bf.items() if key not in excluded | {"exclude_new_days"}}
+    configured_reference = bf.get("data_reference", "signal_day")
+    if premarket:
+        bf = {**bf, "data_reference": "previous_trade_day"}
     history = context.pool_history
     if history is None:
         history = context.daily_history if context.timeframe == "1m" else context.history
@@ -22,13 +25,21 @@ def build_pool(engine, strategy_id, context, *, overrides=None) -> dict:
     day = context.as_of
     prior_day = previous_session(day) if bf.get("data_reference") == "previous_trade_day" else None
     parts = []
-    if context.pool_universe is not None and not context.pool_universe.is_empty():
-        parts.append(context.pool_universe)
+    pool_universe = context.pool_universe
+    # A status-only frame supplies evidence, never additional pool membership.
+    from app.instrument_suspension import DATE_COLUMN, STATUS_COLUMN
+    has_universe = (pool_universe is not None and not pool_universe.is_empty()
+                    and bool(set(pool_universe.columns) - {"symbol", DATE_COLUMN, STATUS_COLUMN}))
+    if not premarket and has_universe:
+        parts.append(pool_universe)
     if history is not None and not history.is_empty() and "date" in history.columns:
         # The universe does not shrink just because a halted stock has no
         # current bar. Signal-day float-cap bounds still require today's values.
         parts.append(history.filter(pl.col("date") == previous_session(day)))
-        parts.append(history.filter(pl.col("date") == day))
+        if not premarket:
+            parts.append(history.filter(pl.col("date") == day))
+    if premarket and has_universe:
+        parts.append(pool_universe)
     if current is not None and not current.is_empty():
         if "date" in current.columns:
             current = current.filter(pl.col("date") == day)
@@ -49,7 +60,7 @@ def build_pool(engine, strategy_id, context, *, overrides=None) -> dict:
             if source_name not in reference.columns or reference[source_name].null_count() == reference.height:
                 raise ValueError(f"当日股票池参考数据缺少{name}")
     universe = pl.concat(parts, how="diagonal_relaxed").unique("symbol", keep="last", maintain_order=True)
-    universe = annotate(universe, as_of=day)
+    universe = annotate(universe, as_of=day, evidence=pool_universe)
     # Signal-day float cap cannot use yesterday's row; previous-day reference can
     # retain a qualifying halted stock even when it has no current quote.
     if fields(bf) and not uses_previous(bf) and "date" in universe.columns:
@@ -71,4 +82,6 @@ def build_pool(engine, strategy_id, context, *, overrides=None) -> dict:
         "basic_filter": bf, "symbols": symbols, "total": len(symbols),
         "suspended_count": before_halt.filter(pl.col(COLUMN) == True).height,  # noqa: E712
         "unknown_suspension_count": before_halt[COLUMN].null_count(),
+        **({"configured_data_reference": configured_reference,
+            "reference_policy": "premarket_previous_trade_day"} if premarket else {}),
     }

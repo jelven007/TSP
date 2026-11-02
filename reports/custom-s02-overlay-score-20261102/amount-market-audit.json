@@ -1,0 +1,14 @@
+{
+  "as_of": "2026-10-30",
+  "reference_date": "2026-10-29",
+  "pool_total": 1552,
+  "requested_daily_bars": 22,
+  "observed_daily_rows": 34122,
+  "mean_20d_pass_total": 1156,
+  "mean_20d_pass_is_trade_count": false,
+  "threshold_yuan": 100000000,
+  "factor_unit": "亿元",
+  "completed_daily_only": true,
+  "actual_signal_entries": 0,
+  "profit_backtest": false
+}

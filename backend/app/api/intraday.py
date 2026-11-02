@@ -89,11 +89,18 @@ def _fallback_index_quotes_from_daily(request: Request, symbols: list[str] | Non
 @router.get("/status", response_model=contracts.QuoteStatusResponse)
 def status(request: Request):
     """行情状态 (来自全局 QuoteService)。"""
+    from app.market_time import cn_now, published_trading_day
+
     qs = _get_quote_service(request)
-    if qs:
-        return qs.status()
-    return {"enabled": False, "running": False, "symbol_count": 0, "index_symbol_count": 0,
-            "quote_age_ms": None, "is_trading_hours": False, "last_fetch_ms": None}
+    payload = qs.status() if qs else {
+        "enabled": False, "running": False, "symbol_count": 0, "index_symbol_count": 0,
+        "quote_age_ms": None, "is_trading_hours": False, "last_fetch_ms": None,
+    }
+    # Stamp the request clock, including before market open and without quotes.
+    # The service can be a cached Full public read model from the previous day.
+    now = cn_now()
+    return {**payload, "market_date": now.date().isoformat(), "market_time": now.isoformat(),
+            "is_trading_day": published_trading_day(now.date())}
 
 
 @router.get("/minute-refresh/status")

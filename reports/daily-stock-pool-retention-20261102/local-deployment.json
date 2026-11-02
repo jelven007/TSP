@@ -1,0 +1,36 @@
+{
+  "version": "0.4.42",
+  "configuration_preserved": true,
+  "roles": {
+    "platform": true,
+    "compute": true,
+    "api": true,
+    "frontend": true,
+    "research": true,
+    "realtime": true,
+    "notifications": true,
+    "scheduled": true
+  },
+  "compute_before": "sha256:4150d2d256fb269fb5fa54618c7d17c8c3f28faea19beaba49733bc132424855",
+  "compute_after": "sha256:66132ddf5325346055a5e72bec678670356124cb7b497e628cfe3106cf8d9dde",
+  "changed_files": {
+    "backend/app/services/daily_stock_pools.py": "57750d154ddca7abebfed23d6a4b2553068d4323cc19cc4a316012e69f898b11"
+  },
+  "non_task_artifact_files_unchanged": true,
+  "two_database_restore": {
+    "control": {
+      "restored": true,
+      "table_counts_matched": true,
+      "tables": 20,
+      "sha256": "3bb47702dfd877cd5bf7afb102c912a7fc08901f32fadaeef2d6e7f65ce4ae26"
+    },
+    "data": {
+      "restored": true,
+      "table_counts_matched": true,
+      "tables": 29,
+      "sha256": "d6ca5bd71b3fa38644b4765491f4814831fec155916b131976c9ff1b4aec2540"
+    }
+  },
+  "launcher_path_corrected": true,
+  "graceful_stop_children": 8
+}

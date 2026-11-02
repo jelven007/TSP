@@ -1,0 +1,39 @@
+{
+  "strategy_id": "custom_mvxxcp88",
+  "administrator_login": true,
+  "checks": [
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "amount_mean_20d": 1,
+      "scoring_weight_pct": 100,
+      "direction": "high",
+      "bounds": {
+        "width": 1200,
+        "scroll": 1198,
+        "client": 1198
+      }
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "amount_mean_20d": 1,
+      "scoring_weight_pct": 100,
+      "direction": "high",
+      "bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      }
+    }
+  ],
+  "reload_preserved": true,
+  "signals_preserved": true,
+  "page_errors": [],
+  "ui_calculation_requests": [],
+  "source_sha256": "d55d64cc184581260060554ce55969d918b1d216ae014e3ac7ce3f2dbd24e2b6"
+}

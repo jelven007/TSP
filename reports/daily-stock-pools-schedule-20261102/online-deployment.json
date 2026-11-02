@@ -1,0 +1,57 @@
+{
+  "version": "0.4.42",
+  "snapshot": "pool-0809-20261102-on-7b60562dd7fa",
+  "base_revision": "7b60562dd7fa5054f383319bbf0d706227dfabc1",
+  "patch_sha256": "7c3f6a74f2f34b2f31e2e54123773c03ea4e58c7ad4e374547b7bbae92b0e54d",
+  "runtime": "sha256:00fac979fbf0e5b99dcb14aa3d9a7822aaff74d897c0afccc9be23fdcf1237d5",
+  "compute": "sha256:95ceff636475358fe50540ebc10e0db687fb5bb0531c76baf3ba9dc3fb61175b",
+  "configuration_preserved": true,
+  "schema_changed": true,
+  "two_database_restore": true,
+  "previous_images_saved": true,
+  "non_task_artifact_files_unchanged": true,
+  "market_files_unchanged": true,
+  "roles": {
+    "tsp-full-api-1": {
+      "image": "sha256:00fac979fbf0e5b99dcb14aa3d9a7822aaff74d897c0afccc9be23fdcf1237d5",
+      "health": "healthy"
+    },
+    "tsp-full-platform-1": {
+      "image": "sha256:00fac979fbf0e5b99dcb14aa3d9a7822aaff74d897c0afccc9be23fdcf1237d5",
+      "health": "healthy"
+    },
+    "tsp-full-gateway-1": {
+      "image": "sha256:00fac979fbf0e5b99dcb14aa3d9a7822aaff74d897c0afccc9be23fdcf1237d5",
+      "health": "healthy"
+    },
+    "tsp-full-research-1": {
+      "image": "sha256:00fac979fbf0e5b99dcb14aa3d9a7822aaff74d897c0afccc9be23fdcf1237d5",
+      "health": "healthy"
+    },
+    "tsp-full-scheduled-1": {
+      "image": "sha256:00fac979fbf0e5b99dcb14aa3d9a7822aaff74d897c0afccc9be23fdcf1237d5",
+      "health": "healthy"
+    },
+    "tsp-full-realtime-1": {
+      "image": "sha256:00fac979fbf0e5b99dcb14aa3d9a7822aaff74d897c0afccc9be23fdcf1237d5",
+      "health": "healthy"
+    },
+    "tsp-full-notifications-1": {
+      "image": "sha256:00fac979fbf0e5b99dcb14aa3d9a7822aaff74d897c0afccc9be23fdcf1237d5",
+      "health": "healthy"
+    }
+  },
+  "changed_files": {
+    "backend/app/main.py": "8e82f7c20282ab1289d17e9ddee5fca869d07b2812979e08cf13214f5e2c8476",
+    "backend/app/multitenancy/scheduled_worker.py": "5c2aa53417a9cf6e64079e601f9b4191ac311736e213759f164f84f640365185",
+    "backend/app/multitenancy/compute_worker.py": "82cf18949ca585072c06009852dbb41cfd94b618a83a5a1a917e958ef562d684",
+    "backend/app/services/screener.py": "09019c729a0c0e910eeb970c7940baaaf524cc644ae625265b74623839bece40",
+    "backend/app/services/daily_stock_pools.py": "17799f570bcd60809f3ac0bff0dbd690148d23a9b6cf566fd529138d99ae2570",
+    "backend/app/strategy/daily_pool.py": "7fb70f3709bfca47d93021de6d9a71d0675163c8d43dad7eb811bae383b7aa30",
+    "backend/app/services/daily_pool_schedule.py": "dee101f9a9156cb5ac4134d1d66616b0ae901cc86850df09b251c4bfa2dd3ce6"
+  },
+  "scheduler": {
+    "awake_tenants": 2,
+    "earliest_due": "2026-11-01T23:27:12.167631+00:00"
+  }
+}

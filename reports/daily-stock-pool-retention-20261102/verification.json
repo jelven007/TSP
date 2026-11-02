@@ -1,0 +1,26 @@
+{
+  "pytest": {
+    "passed": 191,
+    "failed": 0,
+    "skipped": 0,
+    "scope": "pool, two slots, actual Parquet, SQL lifecycle/targets, Compute, calendar, local lifespan",
+    "runtime_mode": "MULTITENANCY_ENABLED=false for standalone lifespan; disposable PostgreSQL for Full"
+  },
+  "red": {
+    "failed": 4,
+    "passed": 9,
+    "scope": "new pool retention regressions before implementation"
+  },
+  "ruff": {
+    "task_files": 1,
+    "baseline_findings": 0,
+    "current_findings": 0,
+    "added_findings": 0
+  },
+  "version_check": true,
+  "docs_check": true,
+  "diff_check": true,
+  "backtest_run": false,
+  "version_incremented": false,
+  "git_commit_or_push": false
+}

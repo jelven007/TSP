@@ -9,7 +9,6 @@ import signal
 import time
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.cell.config import CellSettings
@@ -168,27 +167,34 @@ class TenantSchedules:
                          {"type": "done", "archived": True})
 
     def daily_pools(self, documents, snapshot, repo, now, claim):
-        """One scope/float-cap snapshot per strategy/day, independent of settlement."""
-        from app.market_time import published_trading_day
+        """Two independent premarket snapshots, independent of current quotes/settlement."""
+        from app.market_time import as_cn_datetime
         from app.multitenancy.runtime import fingerprint
+        from app.services.daily_pool_schedule import batch_pool, due_slot
         from app.services.daily_stock_pools import DailyStockPools
         from app.services.strategy_results import capture_identities
         from app.strategy.config import list_overrides
         from app.strategy.daily_pool import DEFINITION_VERSION
         from app.strategy.engine import StrategyEngine
 
-        if (self.db.settings.schema_version < 7 or (now.hour, now.minute) < (9, 35)
-                or published_trading_day(now.date()) is not True):
+        now = as_cn_datetime(now)
+        slot = due_slot(now)
+        if self.db.settings.schema_version < 7 or slot is None:
             return
         day = str(now.date())
-        if snapshot.get("days", {}).get("stock") != day:
-            return
-        frame = decode_frame(snapshot.get("frames", {}).get("stock"))
-        if frame.is_empty():
-            return
+        key = f"{day}:{slot}"
         account, context = self.runtime.account(documents.context.tenant_id)
-        with authorize(self.identity, context, account["auth_version"]), documents.transaction(write=False) as unit:
+        with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
             valid_claim(unit.connection, claim)
+            previous = unit.get("daily_stock_pool_jobs", key, {})
+            if previous.get("state") == "succeeded":
+                return
+            if slot == "09:00":
+                earlier_key = f"{day}:08:00"
+                earlier = unit.get("daily_stock_pool_jobs", earlier_key, {})
+                if earlier.get("state") not in {"succeeded", "interrupted"}:
+                    unit.put("daily_stock_pool_jobs", earlier_key, {**earlier, "state": "interrupted",
+                             "reason": "已错过08:00批次，生成最近09:00批次"})
             observed = fingerprint(unit.connection, include_state=False)
             builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "strategy" / "builtin"])
             engine = TenantStrategyEngine(unit, builtins, self.executor,
@@ -200,35 +206,55 @@ class TenantSchedules:
             identities = capture_identities(engine, unit, ids, overrides_map=overrides, timeframe="all")
             release = snapshot.get("public_release", {}).get("id")
             marker = signature({"input": observed, "release": release, "day": day,
+                                "slot": slot,
                                 "definition_version": DEFINITION_VERSION})
-            previous = unit.get("daily_stock_pool_jobs", day, {})
             completed = set(previous.get("completed", [])) if previous.get("signature") == marker else set()
             pending = [sid for sid in ids if sid not in completed]
-            if not pending:
-                return
             task = engine.task("daily_stock_pools", strategy_ids=pending, as_of=day,
-                               overrides_map=overrides, current=snapshot["frames"]["stock"],
+                               overrides_map=overrides, premarket=True,
                                **({"public_release_id": release} if release else {}))
+            unit.put("daily_stock_pool_jobs", key, {
+                "signature": marker, "completed": sorted(completed), "state": "running",
+                "attempts": previous.get("attempts", 0) + 1, "started_at": time.time_ns(),
+            })
         started_at = time.time_ns()
-        response = self.executor.execute(task)
+        try:
+            response = self.executor.execute(task) if pending else {"pools": {}, "errors": {}}
+        except Exception:
+            with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+                valid_claim(unit.connection, claim)
+                old = unit.get("daily_stock_pool_jobs", key, {})
+                unit.put("daily_stock_pool_jobs", key, {**old, "state": "failed",
+                         "errors": {sid: "股票池计算暂不可用，将自动重试" for sid in pending}})
+            raise
         with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
             valid_claim(unit.connection, claim)
             if fingerprint(unit.connection, include_state=False) != observed:
                 raise AccessError(409, "股票池配置已更新，将自动重新生成")
             for sid, pool in response["pools"].items():
-                DailyStockPools(unit).save(identities[sid], pool, started_at=started_at,
+                DailyStockPools(unit).save(identities[sid], batch_pool(pool, now.date(), slot), started_at=started_at,
                     input_generation={"public_release_id": release, "signature": marker})
                 completed.add(sid)
-            unit.put("daily_stock_pool_jobs", day, {
+            errors = response.get("errors", {})
+            missing = set(pending) - completed - set(errors)
+            errors = {**errors, **{sid: "股票池结果缺失，将自动重试" for sid in missing}}
+            unit.put("daily_stock_pool_jobs", key, {
+                **unit.get("daily_stock_pool_jobs", key, {}),
                 "signature": marker, "completed": sorted(completed),
-                "errors": response.get("errors", {}), "updated_at": now.isoformat(),
+                "state": "failed" if errors else "succeeded",
+                "errors": errors, "finished_at": time.time_ns(),
             })
 
     async def process(self, claim, snapshot, repo, *, now=None):
         now = beijing_now(now)
-        _account, context = await asyncio.to_thread(self.runtime.account, claim["tenant_id"])
+        from app.services.daily_pool_schedule import next_check
+        due = next_check()
+        try:
+            _account, context = await asyncio.to_thread(self.runtime.account, claim["tenant_id"])
+        except AccessError:
+            await asyncio.to_thread(self.scheduler.finish, claim, due)
+            raise
         documents = TenantDocuments(self.db, context)
-        due = datetime.now(UTC) + timedelta(minutes=1)
         async def renew():
             while True:
                 await asyncio.sleep(20)
@@ -313,7 +339,8 @@ async def run(db, market, stopped):
             except Exception:
                 logger.exception("tenant scheduling dependencies unavailable")
                 for claim in claims:
-                    schedules.scheduler.finish(claim, datetime.now(UTC) + timedelta(minutes=1))
+                    from app.services.daily_pool_schedule import next_check
+                    schedules.scheduler.finish(claim, next_check())
     finally:
         schedules.runtime.close()
 

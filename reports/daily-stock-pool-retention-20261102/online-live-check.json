@@ -1,0 +1,151 @@
+{
+  "passed": true,
+  "environment": "online",
+  "checked_at": "2026-11-02T07:52:58.612512+08:00",
+  "login": true,
+  "real_broker_compute": true,
+  "no_today_quote_dependency": true,
+  "strategy_count": 25,
+  "successful_strategies": 25,
+  "pools": {
+    "active_limit_gene": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "boll_breakout": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "breakout_new_high_60d": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "bullish_alignment": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "consecutive_limit_ups": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "high_turnover_surge": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "long_lower_shadow_reversal": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "low_volatility_leader": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "ma_convergence_breakout": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "ma_golden_cross": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "macd_below_zero_revival": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "macd_golden": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "n_day_low_reversal": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "near_limit_up": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "oversold_bounce": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "oversold_reversal": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "platform_consolidation_breakout": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "pullback_ma20_bounce": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "pullback_to_support": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "rsi_midline_pullback": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "s01": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "s02": {
+      "total": 3193,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 3193
+    },
+    "strong_open": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "volume_price_surge": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "private_strategy_1": {
+      "total": 1542,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 1542
+    }
+  },
+  "errors": {},
+  "isolated_store_two_slots": true,
+  "superseded_pool_deleted": true,
+  "late_old_pool_rejected": true,
+  "verification_clock": "real data; injected slots only in disposable SQLite",
+  "next_real_batches": [
+    "2026-11-02T08:00:00+08:00",
+    "2026-11-02T09:00:00+08:00"
+  ],
+  "next_worker_check_by_policy": "2026-11-02T07:54:09.453054+08:00",
+  "real_batch_states": {
+    "08:00": "not_due",
+    "09:00": "not_due"
+  }
+}

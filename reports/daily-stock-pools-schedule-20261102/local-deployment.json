@@ -1,0 +1,42 @@
+{
+  "version": "0.4.42",
+  "configuration_preserved": true,
+  "roles": {
+    "platform": true,
+    "compute": true,
+    "api": true,
+    "frontend": true,
+    "research": true,
+    "realtime": true,
+    "notifications": true,
+    "scheduled": true
+  },
+  "compute_before": "sha256:a42fa5a50cfc9acd9b205c0e2fad5c032426fc2fa0dd8fd30cca72b5b53e193a",
+  "compute_after": "sha256:4150d2d256fb269fb5fa54618c7d17c8c3f28faea19beaba49733bc132424855",
+  "changed_files": {
+    "backend/app/main.py": "8e82f7c20282ab1289d17e9ddee5fca869d07b2812979e08cf13214f5e2c8476",
+    "backend/app/multitenancy/scheduled_worker.py": "5c2aa53417a9cf6e64079e601f9b4191ac311736e213759f164f84f640365185",
+    "backend/app/multitenancy/compute_worker.py": "82cf18949ca585072c06009852dbb41cfd94b618a83a5a1a917e958ef562d684",
+    "backend/app/services/screener.py": "09019c729a0c0e910eeb970c7940baaaf524cc644ae625265b74623839bece40",
+    "backend/app/services/daily_stock_pools.py": "17799f570bcd60809f3ac0bff0dbd690148d23a9b6cf566fd529138d99ae2570",
+    "backend/app/strategy/daily_pool.py": "7fb70f3709bfca47d93021de6d9a71d0675163c8d43dad7eb811bae383b7aa30",
+    "backend/app/services/daily_pool_schedule.py": "dee101f9a9156cb5ac4134d1d66616b0ae901cc86850df09b251c4bfa2dd3ce6"
+  },
+  "non_task_artifact_files_unchanged": true,
+  "two_database_restore": {
+    "control": {
+      "restored": true,
+      "table_counts_matched": true,
+      "tables": 20,
+      "sha256": "16e68c0ff2d853e734609cb384eb8d37083fa14d495f81b4a12c1a8cf052fc11"
+    },
+    "data": {
+      "restored": true,
+      "table_counts_matched": true,
+      "tables": 29,
+      "sha256": "169354eb766347875c19b09c685a0ef506cc3e689fa56bf45bcef32d97db1db3"
+    }
+  },
+  "launcher_path_corrected": true,
+  "graceful_stop_children": 8
+}

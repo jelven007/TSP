@@ -159,6 +159,7 @@ def research_input_fingerprints(data_dir: Path) -> dict[str, Any]:
     paths = [
         "instruments/instruments.parquet",
         "instrument_status/history.parquet",
+        "instrument_status/suspensions.parquet",
         *(f"financials/{table}/part.parquet"
           for table in ("metrics", "income", "balance_sheet", "cash_flow", "shares")),
     ]

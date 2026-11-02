@@ -229,7 +229,8 @@ class FullWorker:
                             if sid in payload.get("daily_identities", {}):
                                 record = ResultIdentity(**payload["daily_identities"][sid])
                                 if daily.get("sections") is not None:
-                                    StrategyResults(unit).save(record, daily, started_at=sequence * 1000000)
+                                    saved = StrategyResults(unit).save(record, daily, started_at=sequence * 1000000)
+                                    daily.update(saved["result"])
                                 elif daily.get("daily_stock_pool") is not None:
                                     from app.services.daily_stock_pools import DailyStockPools
                                     DailyStockPools(unit).save(record, daily["daily_stock_pool"],

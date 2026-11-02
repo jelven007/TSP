@@ -1,0 +1,404 @@
+{
+  "passed": true,
+  "environment": "local",
+  "checked_at": "2026-11-02T08:32:57.199418+08:00",
+  "login": true,
+  "real_broker_compute": true,
+  "no_today_quote_dependency": true,
+  "strategy_count": 25,
+  "successful_strategies": 25,
+  "pools": {
+    "active_limit_gene": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "boll_breakout": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "breakout_new_high_60d": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "bullish_alignment": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "consecutive_limit_ups": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "high_turnover_surge": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "long_lower_shadow_reversal": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "low_volatility_leader": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "ma_convergence_breakout": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "ma_golden_cross": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "macd_below_zero_revival": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "macd_golden": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "n_day_low_reversal": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "near_limit_up": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "oversold_bounce": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "oversold_reversal": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "platform_consolidation_breakout": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "pullback_ma20_bounce": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "pullback_to_support": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "rsi_midline_pullback": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "s01": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "s02": {
+      "total": 3193,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 3193
+    },
+    "strong_open": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "volume_price_surge": {
+      "total": 5220,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 5220
+    },
+    "private_strategy_1": {
+      "total": 1542,
+      "reference_date": "2026-10-30",
+      "unknown_suspension_count": 1542
+    }
+  },
+  "errors": {},
+  "isolated_store_two_slots": true,
+  "installed": {
+    "definition": "scope_float_cap_v2",
+    "builder": "bf968127f62c159d0552d9e670f90255230079781cdb43a3774c26b9b748d0a8",
+    "context": "ce9106f7ee3c302e250339344219229e7851ea82c8ebab46d4ec9fb92e64a57e",
+    "retention": "d1457c04bea7d4abfc86953c708a3746483226c5a60031bb45ecc32cfe79e31d",
+    "slots": [
+      "08:00",
+      "09:00"
+    ]
+  },
+  "actual_0800_pools": {
+    "active_limit_gene": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654046,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "boll_breakout": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654052,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "breakout_new_high_60d": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654055,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "bullish_alignment": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654058,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "consecutive_limit_ups": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654062,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "high_turnover_surge": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654066,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "long_lower_shadow_reversal": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654069,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "low_volatility_leader": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654072,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "ma_convergence_breakout": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654076,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "ma_golden_cross": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654079,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "macd_below_zero_revival": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654082,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "macd_golden": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654085,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "n_day_low_reversal": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654089,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "near_limit_up": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654092,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "oversold_bounce": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654095,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "oversold_reversal": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654098,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "platform_consolidation_breakout": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654101,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "pullback_ma20_bounce": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654104,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "pullback_to_support": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654107,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "rsi_midline_pullback": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654110,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "s01": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654113,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "s02": {
+      "total": 3193,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654116,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "strong_open": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654119,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "volume_price_surge": {
+      "total": 5220,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654122,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    },
+    "private_strategy_1": {
+      "total": 1542,
+      "generation_slot": "08:00",
+      "reference_date": "2026-10-30",
+      "computed_at": 1793578654124,
+      "scheduled_for": "2026-11-02T08:00:00+08:00",
+      "definition": "scope_float_cap_v2",
+      "matches_current_scope": true
+    }
+  },
+  "actual_batches": {
+    "08:00": {
+      "state": "succeeded",
+      "completed_count": 25,
+      "error_count": 0
+    },
+    "09:00": {
+      "state": "not_due",
+      "completed_count": 0,
+      "error_count": 0
+    }
+  },
+  "daily_duplicate_groups": 0,
+  "api_pool_total": 3193,
+  "api_definition_verified": true,
+  "pending_current_strategy_pool_count": 0,
+  "existing_pool_current_scope_change_count": 0,
+  "stored_actual_0800_count": 25,
+  "verification_clock": "real data; injected slots only in disposable SQLite",
+  "next_real_batches": [
+    "2026-11-02T08:00:00+08:00",
+    "2026-11-02T09:00:00+08:00"
+  ],
+  "next_worker_check_by_policy": "2026-11-02T08:34:13.509909+08:00",
+  "real_batch_states": {
+    "08:00": "succeeded",
+    "09:00": "not_due"
+  }
+}

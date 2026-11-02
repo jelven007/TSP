@@ -1,0 +1,110 @@
+{
+  "day": "2026-06-29",
+  "strategy_id": "custom_mvxxcp88",
+  "failed_job_id": "e064672600b64ee68d4190fd45369524",
+  "original_failed_job_current_visibility": "not_visible",
+  "verification_definition": "preserved_current_definition",
+  "snapshots": [
+    {
+      "snapshot": "original_failed_snapshot",
+      "public_release_id": "144a166f24474f6bb5339c13395f4cab",
+      "pool_total": 1561,
+      "suspended_count": 0,
+      "unknown_suspension_count": 1,
+      "contains_601369": true,
+      "pool_up_pct": null,
+      "template_hits": 0,
+      "entry_hits_after_strategy_filters": 0,
+      "diagnostics": [
+        "尾盘走强: 股票池中 1/1561 只缺少指定分钟价格或昨收"
+      ]
+    },
+    {
+      "snapshot": "new_snapshot",
+      "public_release_id": "b831094bb2a34144bb9565722818c65c",
+      "pool_total": 1560,
+      "suspended_count": 1,
+      "unknown_suspension_count": 0,
+      "contains_601369": false,
+      "pool_up_pct": 48.26923076923077,
+      "template_hits": 0,
+      "entry_hits_after_strategy_filters": 0,
+      "diagnostics": [],
+      "entry_replay": {
+        "replayed_days": 1,
+        "errors": [],
+        "hits": 0,
+        "buy_limit_up": 0,
+        "buy_no_next_minute": 0
+      },
+      "601369_boundaries": [
+        {
+          "day": "2026-06-26",
+          "suspended": null,
+          "minute_rows": 240
+        },
+        {
+          "day": "2026-06-29",
+          "suspended": true,
+          "minute_rows": 0
+        },
+        {
+          "day": "2026-07-10",
+          "suspended": true,
+          "minute_rows": 0
+        },
+        {
+          "day": "2026-07-13",
+          "suspended": false,
+          "minute_rows": 240
+        }
+      ]
+    }
+  ],
+  "entry_parameters": {
+    "time": "14:30:00",
+    "change_min_pct": 0.4,
+    "change_max_pct": 4,
+    "pool_up_min_pct": 60,
+    "ma5_1m_count": 7,
+    "ma5_5m_count": 4
+  },
+  "basic_filter": {
+    "boards": [
+      "沪主板",
+      "深主板"
+    ],
+    "enabled": true,
+    "price_max": null,
+    "price_min": null,
+    "amount_max": null,
+    "amount_min": null,
+    "exclude_st": true,
+    "target_mode": "selected",
+    "turnover_max": null,
+    "turnover_min": null,
+    "float_cap_max": 50000000000,
+    "float_cap_min": 5000000000,
+    "change_pct_max": 6,
+    "change_pct_min": 0.5,
+    "data_reference": "previous_trade_day",
+    "include_custom": false,
+    "market_cap_max": null,
+    "market_cap_min": null,
+    "exclude_new_days": null,
+    "exclude_suspended": true,
+    "watchlist_group_ids": []
+  },
+  "entry_risk": {},
+  "exit_parameters": {
+    "time": "10:30:00",
+    "amplitude_pct": 6
+  },
+  "sandbox": {
+    "pool_total": 1560,
+    "entry_hits": 0,
+    "pool_error": null
+  },
+  "historical_profit_backtest_run": false,
+  "local_only": true
+}

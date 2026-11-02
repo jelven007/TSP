@@ -1,0 +1,39 @@
+{
+  "phase": "after",
+  "checks": [
+    {
+      "scenario": "deleted_saved_selection",
+      "missing_detail_requests": 0,
+      "persistent_selection_cleared": true,
+      "general_inputs_preserved": true
+    },
+    {
+      "scenario": "reload",
+      "missing_detail_requests": 0
+    },
+    {
+      "scenario": "valid_selection",
+      "detail_status": 200,
+      "id": "ma_golden_cross"
+    },
+    {
+      "scenario": "empty_catalog",
+      "missing_detail_requests": 0,
+      "selection_cleared": true,
+      "catalog_status": 200
+    },
+    {
+      "scenario": "failed_catalog",
+      "missing_detail_requests": 0,
+      "selection_cleared": false,
+      "catalog_status": 503
+    },
+    {
+      "scenario": "mobile",
+      "missing_detail_requests": 0
+    }
+  ],
+  "page_errors": [],
+  "calculation_requests": 0,
+  "browser_fallback_reason": "Tool discovery exposed no browser automation tools; used installed Playwright."
+}

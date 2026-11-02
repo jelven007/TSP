@@ -427,6 +427,60 @@ class StrategyResults:
                     _, size = _memory.pop(key)
                     _memory_size -= size
 
+    def _with_previous_buy(self, conn, identity, result, as_of):
+        if result.get("section_mode") != "signals":
+            return result
+        from app.strategy.basic_filter import previous_session
+        previous = str(previous_session(date.fromisoformat(as_of)))
+        prefix = digest(identity.strategy_id)[:16] + ":" + previous + ":"
+        if self.tenant:
+            row = conn.execute(
+                """SELECT id,value FROM business.documents WHERE namespace=%s AND id LIKE %s
+                   AND value->'summary'->>'strategy_id'=%s
+                   AND value->'summary'->>'as_of'=%s
+                   AND value->'summary'->>'asset_type'=%s
+                   AND value->'summary'->>'timeframe'=%s
+                   AND value->'result'->>'execution_error' IS NULL
+                   AND value->'result'->>'entry_filter_error' IS NULL
+                   AND value->'result'->'section_errors'->>'buy' IS NULL
+                   AND (value->'result'->>'sections' IS NULL
+                        OR value->'result'->>'section_mode'='signals')
+                   ORDER BY (value->'summary'->>'started_at')::bigint DESC,id DESC LIMIT 1""",
+                (NAMESPACE, prefix + "%", identity.strategy_id, previous,
+                 identity.asset_type, identity.timeframe),
+            ).fetchone()
+            archived = row["value"] if row else None
+        else:
+            row = conn.execute(
+                """SELECT id,value FROM strategy_results WHERE id LIKE ?
+                   AND json_extract(summary,'$.strategy_id')=?
+                   AND json_extract(summary,'$.as_of')=?
+                   AND json_extract(summary,'$.asset_type')=?
+                   AND json_extract(summary,'$.timeframe')=?
+                   AND json_extract(value,'$.result.execution_error') IS NULL
+                   AND json_extract(value,'$.result.entry_filter_error') IS NULL
+                   AND json_extract(value,'$.result.section_errors.buy') IS NULL
+                   AND (json_extract(value,'$.result.sections') IS NULL
+                        OR json_extract(value,'$.result.section_mode')='signals')
+                   ORDER BY json_extract(summary,'$.started_at') DESC,id DESC LIMIT 1""",
+                (prefix + "%", identity.strategy_id, previous, identity.asset_type, identity.timeframe),
+            ).fetchone()
+            archived = json.loads(row["value"]) if row else None
+        current = copy.deepcopy(result)
+        errors = dict(current.get("section_errors") or {})
+        if archived is None:
+            current["sections"]["sell"] = []
+            errors["sell"] = f"缺少{previous}买入信号归档。无法确认本交易日卖出关注名单"
+        else:
+            prior = archived["result"]
+            buys = (prior.get("sections") or {}).get("buy", prior.get("rows", []))
+            current["sections"]["sell"] = [
+                {**item, "entry_date": previous, "entry_record_id": archived["record_id"]} for item in buys
+            ]
+            errors.pop("sell", None)
+        current["section_errors"] = errors
+        return current
+
     def save(self, identity: ResultIdentity, result: dict, *, started_at: int,
              input_generation=None) -> dict:
         as_of = date.fromisoformat(str(result["as_of"])).isoformat()
@@ -438,14 +492,15 @@ class StrategyResults:
                         "scores": {}, "warnings": [], "entry_signal_hits": [],
                         "exit_signal_hits": [], "entry_filter_error": None, "sections": None,
                         "state": None, "portfolio_scope": None, "execution_error": None,
-                        "daily_stock_pool": None, "daily_stock_pool_error": None}
+                        "daily_stock_pool": None, "daily_stock_pool_error": None,
+                        "section_mode": None, "section_errors": None}
             return {**defaults, **{key: item for key, item in value.items()
                                    if key not in {"computed_at", "elapsed_ms"}}}
 
-        def merged(old):
+        def merged(old, conn):
             if old and old["summary"]["started_at"] > started_at:
                 return old, "unchanged"
-            current = json_value(result)
+            current = json_value(self._with_previous_buy(conn, identity, result, as_of))
             if old and comparable(old["result"]) == comparable(current):
                 # Advance the run order even when the output is unchanged, so a
                 # late older run cannot replace the latest successful result.
@@ -481,7 +536,7 @@ class StrategyResults:
                     "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
                     (NAMESPACE, record_id),
                 ).fetchone()
-                value, update = merged(row["value"] if row else None)
+                value, update = merged(row["value"] if row else None, conn)
                 if update == "summary":
                     conn.execute(
                         """UPDATE business.documents SET value=jsonb_set(value,'{summary}',%s),
@@ -504,7 +559,7 @@ class StrategyResults:
                         conn, identity, result["daily_stock_pool"], started_at=started_at,
                         input_generation=input_generation)
                 row = conn.execute("SELECT value FROM strategy_results WHERE id=?", (record_id,)).fetchone()
-                value, update = merged(json.loads(row["value"]) if row else None)
+                value, update = merged(json.loads(row["value"]) if row else None, conn)
                 if update == "summary":
                     summary = _encode(value["summary"])
                     conn.execute(

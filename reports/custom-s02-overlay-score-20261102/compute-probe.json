@@ -1,0 +1,10 @@
+{
+  "manifest": {
+    "changed": [],
+    "missing": [],
+    "added": []
+  },
+  "probe": "7 candidate/real task checks passed: full pool, exact pulse, future rows, pre-time exclusion, deadline, T+1 and empty quotes\n3 restored condition checks passed: completed 20-day yuan units/full pool, future exclusion and signal-price ranking",
+  "image": "sha256:a42fa5a50cfc9acd9b205c0e2fad5c032426fc2fa0dd8fd30cca72b5b53e193a",
+  "data": "synthetic signal fixtures; no profit backtest"
+}

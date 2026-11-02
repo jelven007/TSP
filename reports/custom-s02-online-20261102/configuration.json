@@ -1,0 +1,89 @@
+{
+  "strategy_id": "custom_mvxxcp88",
+  "name": "s02",
+  "period": "1m",
+  "execution_backend": "minute_filter",
+  "source_sha256": "64051a939b51ffa62a724ef762a026c4c581810b0ddbcad8ae3586ef14df7fc8",
+  "local_source_revision": 4,
+  "local_override_revision": 14,
+  "online_source_revision": 1,
+  "online_override_revision": 1,
+  "override": {
+    "name": "s02",
+    "params": {},
+    "scoring": {
+      "change_pct": 1
+    },
+    "stop_loss": null,
+    "entry_risk": {},
+    "description": "20日均成交额≥1亿元，尾盘走强入场，下一交易日早盘清仓",
+    "take_profit": null,
+    "basic_filter": {
+      "boards": [
+        "沪主板",
+        "深主板"
+      ],
+      "enabled": true,
+      "price_max": null,
+      "price_min": null,
+      "amount_max": null,
+      "amount_min": null,
+      "exclude_st": true,
+      "target_mode": "selected",
+      "turnover_max": null,
+      "turnover_min": null,
+      "float_cap_max": 50000000000,
+      "float_cap_min": 5000000000,
+      "change_pct_max": 6,
+      "change_pct_min": 0.5,
+      "data_reference": "previous_trade_day",
+      "include_custom": false,
+      "market_cap_max": null,
+      "market_cap_min": null,
+      "exclude_new_days": null,
+      "exclude_suspended": true,
+      "watchlist_group_ids": []
+    },
+    "exit_signals": [
+      "csgi_morning_liquidation"
+    ],
+    "display_limit": null,
+    "entry_signals": [
+      "csgi_late_session_strength"
+    ],
+    "max_hold_days": null,
+    "trailing_stop": null,
+    "overlay_filter": [
+      {
+        "op": ">=",
+        "left": "amount_mean_20d",
+        "right": "1.0",
+        "leftDays": 0,
+        "rightDays": 0
+      }
+    ],
+    "params_defaults": {},
+    "scoring_replace": true,
+    "scoring_directions": {
+      "change_pct": "high"
+    },
+    "trailing_take_profit_activate": null,
+    "trailing_take_profit_drawdown": null
+  },
+  "signals": {
+    "entry_signals": {
+      "local": "csgi_late_session_strength",
+      "online": "csgi_late_session_strength",
+      "name": "尾盘走强",
+      "template": "late_session_strength",
+      "revision": 1
+    },
+    "exit_signals": {
+      "local": "csgi_morning_liquidation",
+      "online": "csgi_morning_liquidation",
+      "name": "早盘清仓",
+      "template": "morning_liquidation",
+      "revision": 1
+    }
+  }
+}

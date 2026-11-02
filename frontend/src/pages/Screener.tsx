@@ -53,6 +53,7 @@ export function Screener() {
   const [activeStrategy, setActiveStrategy] = useState<string | null>(null)
   const [result, setResult] = useState<ScreenerResult | null>(null)
   const [asOf, setAsOf] = useState<string>('')
+  const followCurrentDay = useRef(true)
   const [historyStrategyId, setHistoryStrategyId] = useState<string | null>(null)
   const viewRef = useRef({ asOf, assetType, activeStrategy })
   viewRef.current = { asOf, assetType, activeStrategy }
@@ -206,12 +207,35 @@ export function Screener() {
   })
 
   const dataStatus = useDataStatus({ staleTime: 0 })
+  const quoteStatus = useQuoteStatus()
+  const realtimeRunning = quoteStatus.data?.running ?? false
+  const currentTradeDate = quoteStatus.data?.is_trading_day === true
+    ? quoteStatus.data.market_date || dataStatus.data?.enriched?.latest_date
+    : dataStatus.data?.enriched?.latest_date
 
-  // 首次进入使用最新日期，后续数据刷新保留用户选择。
+  // Calendar day and data coverage are separate: today starts at Beijing midnight.
+  // Keep explicit historical views; following the current day never runs a strategy.
   useEffect(() => {
-    const latest = dataStatus.data?.enriched?.latest_date
-    if (latest) setAsOf(current => current || latest)
-  }, [dataStatus.data?.enriched?.latest_date])
+    if (!currentTradeDate || (asOf && (!followCurrentDay.current || asOf === currentTradeDate))) return
+    setAsOf(currentTradeDate)
+    viewRef.current.asOf = currentTradeDate
+    setPendingRun(null)
+    setHitCounts({})
+    setExpiredCounts({})
+    setResult(null)
+  }, [currentTradeDate, asOf])
+
+  const marketTime = quoteStatus.data?.market_time
+  useEffect(() => {
+    if (!marketTime) return
+    const now = Date.parse(marketTime)
+    const midnight = Date.parse(`${marketTime.slice(0, 10)}T00:00:00+08:00`) + 86_400_000
+    if (!Number.isFinite(now) || !Number.isFinite(midnight)) return
+    const timer = window.setTimeout(() => {
+      void qc.invalidateQueries({ queryKey: QK.quoteStatus })
+    }, midnight - now + 1)
+    return () => window.clearTimeout(timer)
+  }, [marketTime, qc])
 
   const strategyPresets = useMemo(
     () => (strategies.data?.presets ?? []).filter(s => s.asset_types.includes(assetType)),
@@ -529,8 +553,6 @@ export function Screener() {
   //  - 刷新: minute_intraday_refresh 偏好开启时按用户设定间隔轮询; 否则仅首次加载,
   //    用户可点表头刷新按钮手动更新
   const minuteBatchCap = caps.data?.capabilities?.['kline.minute.batch']?.batch ?? 100
-  const quoteStatus = useQuoteStatus()
-  const realtimeRunning = quoteStatus.data?.running ?? false
   const intradayRefreshEnabled = prefs?.minute_intraday_refresh ?? false
   const intradayRefreshInterval = prefs?.minute_intraday_refresh_interval ?? 5
 
@@ -586,6 +608,7 @@ export function Screener() {
 
   // 日期变化仅切换保存结果；缺记录时等待用户手动运行。
   const handleDateChange = (newDate: string) => {
+    followCurrentDay.current = newDate === currentTradeDate
     setAsOf(newDate)
     viewRef.current.asOf = newDate
     setPendingRun(null)
@@ -595,7 +618,7 @@ export function Screener() {
   }
 
   const minDate = dataStatus.data?.enriched?.earliest_date ?? ''
-  const maxDate = dataStatus.data?.enriched?.latest_date ?? ''
+  const maxDate = currentTradeDate ?? ''
 
   const batchAdd = useWatchlistBatchAdd()
 
@@ -659,7 +682,7 @@ export function Screener() {
   const toggleStrategyMonitor = async (strategyId: string, strategyName: string) => {
     if (monitorPendingRef.current.has(strategyId)) return
     const existingRuleId = strategyMonitorMap.get(`${assetType}:${strategyId}`)
-    const latestDate = dataStatus.data?.enriched?.latest_date
+    const latestDate = currentTradeDate
     const strategy = strategyMap.get(strategyId)
     if (!existingRuleId && (!latestDate || !strategy)) {
       toast('交易日数据尚未就绪，请稍后重试', 'error')
@@ -671,7 +694,7 @@ export function Screener() {
       if (existingRuleId) {
         await api.monitorRuleDelete(existingRuleId)
       } else {
-        // 使用共享画像中的最近可用交易日；历史查看日期不用于新监控的首次运行。
+        // New monitoring uses the current trading day, even before daily data is ready.
         handleDateChange(latestDate!)
         handleSelect(strategy!)
         await api.monitorRuleSave({
@@ -764,6 +787,7 @@ export function Screener() {
             </button>
             {asOf && (
               <DatePicker
+                aria-label="策略日期"
                 value={asOf}
                 onChange={handleDateChange}
                 min={minDate}
@@ -957,13 +981,17 @@ export function Screener() {
                       {result.source === 'realtime' ? '实时结果' : '保存结果'} · {new Date(result.computed_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
                     </span>
                   )}
-                  {showAll ? '全部' : ''}命中 <span className="text-accent num">{displayRows.length}</span> 只
-                  {filterActive(filter) && displayRows.length !== (showAll ? allRows.length : result!.total) && (
+                  {!showAll && result?.section_mode === 'signals' ? <>
+                    {activeResultTab === 'select' ? '选股' : activeResultTab === 'buy' ? '买入信号' : '前日买入信号'}
+                    {result.section_errors?.[activeResultTab] ? '暂不可确认'
+                      : <> <span className="text-accent num">{bulkRows.length}</span> 只</>}
+                  </> : <>{showAll ? '全部' : ''}命中 <span className="text-accent num">{displayRows.length}</span> 只</>}
+                  {result?.section_mode !== 'signals' && filterActive(filter) && displayRows.length !== (showAll ? allRows.length : result!.total) && (
                     <span className="text-muted text-xs">/ {showAll ? allRows.length : result!.total}</span>
                   )}
                   <span className="text-[11px] text-muted font-normal">
                     · {displayPool.length} 策略
-                    {!showAll && displayPool.length > 0 && (
+                    {!showAll && result?.section_mode !== 'signals' && displayPool.length > 0 && (
                       <> · 共 {displayPool.reduce((sum, id) => sum + (hitCounts[id] ?? 0), 0)} 只</>
                     )}
                   </span>

@@ -1,0 +1,20 @@
+{
+  "strategy_id": "custom_mvxxcp88",
+  "as_of": "2026-10-30",
+  "pool_total": 1552,
+  "select_total": 165,
+  "buy_total": 0,
+  "sell_total": 0,
+  "section_errors": {
+    "sell": "缺少2026-10-29买入信号归档。无法确认本交易日卖出关注名单"
+  },
+  "read_paths": {
+    "single_cache": true,
+    "dated_cache": true,
+    "history": true
+  },
+  "record_id": "a1a5e37345bb3f0f:2026-10-30:5da5c45ebb5a5d465518373c02f2fa71999ef3456cb506dd4a04a9f32147958b",
+  "data": "real online market data",
+  "profit_backtest": false,
+  "orders": false
+}

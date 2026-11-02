@@ -52,6 +52,48 @@ def snapshot():
             "indices": encode_frame(pl.DataFrame()), "settlement_days": ["2026-10-14"]}
 
 
+@pytest.mark.parametrize("state", ["inactive", "suspended"])
+def test_unavailable_owner_releases_schedule_slot_for_next_active_tenant(env, state):
+    user, disabled = own(env)
+    _, active = own(env)
+    env["control"].execute(
+        "UPDATE control.users SET active=%s,account_state=%s WHERE id=%s",
+        (state != "inactive", "suspended" if state == "suspended" else "active", user["id"]),
+    )
+    env["data"].execute("UPDATE scheduler.work SET due_at=NULL WHERE kind='scheduled'")
+    env["data"].execute(
+        """INSERT INTO scheduler.work(tenant_id,kind,due_at)
+           VALUES(%s,'scheduled',now()-interval '1 day')
+           ON CONFLICT(tenant_id,kind) DO UPDATE SET due_at=EXCLUDED.due_at""",
+        (disabled.context.tenant_id,),
+    )
+    env["data"].execute(
+        """INSERT INTO scheduler.work(tenant_id,kind,due_at) VALUES(%s,'scheduled',now())
+           ON CONFLICT(tenant_id,kind) DO UPDATE SET due_at=EXCLUDED.due_at""",
+        (active.context.tenant_id,),
+    )
+    scheduler = Scheduler(env["db"])
+    first = scheduler.claim("scheduled", 1)[0]
+    assert first["tenant_id"] == disabled.context.tenant_id
+    service = TenantSchedules(env["db"], None)
+    try:
+        with pytest.raises(AccessError, match="后台任务租户账户不可用"):
+            asyncio.run(service.process(first, {}, None))
+        row = env["data"].execute(
+            """SELECT lease_until,owner,due_at>now() AS deferred FROM scheduler.work
+               WHERE kind='scheduled' AND tenant_id=%s""", (disabled.context.tenant_id,),
+        ).fetchone()
+        assert row["lease_until"] is None and row["owner"] is None
+        assert row["deferred"] is True
+        next_claims = scheduler.claim("scheduled", 1)
+        assert len(next_claims) == 1
+        assert next_claims[0]["tenant_id"] == active.context.tenant_id
+        assert scheduler.finish(next_claims[0], None) is True
+        assert disabled.records("scheduled_jobs") == []
+    finally:
+        service.runtime.close()
+
+
 def test_review_restarts_do_not_duplicate_report_or_notification_and_events_are_private(env, tmp_path, monkeypatch):
     _, documents = configure(env)
     _, other = own(env)

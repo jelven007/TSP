@@ -11,7 +11,9 @@ vi.mock('@/lib/api', () => ({ api: {
   watchlistGroups: vi.fn(async () => ({ groups: [] })),
 } }))
 vi.mock('@/components/ScoringEditor', () => ({ ScoringEditor: () => null }))
-vi.mock('./OverlayFilterEditor', () => ({ OverlayFilterEditor: () => null }))
+vi.mock('./OverlayFilterEditor', () => ({
+  OverlayFilterEditor: ({ value }: { value: unknown }) => <div data-testid="overlay-editor">{JSON.stringify(value)}</div>,
+}))
 vi.mock('./SignalPicker', () => ({ SignalPicker: () => null }))
 vi.mock('@/components/signals/SignalTriggerActions', () => ({ SignalTriggerActions: () => null }))
 
@@ -69,6 +71,22 @@ it('displays percentages once and saves every effective exit control unchanged',
   expect(save).toHaveBeenCalledWith('a', expect.objectContaining({
     stop_loss: -.06, take_profit: .12, trailing_stop: -.03,
     trailing_take_profit_activate: .08, trailing_take_profit_drawdown: .02,
+  }))
+})
+
+it('shows completed daily entry overlays for a generic minute strategy and preserves its ranking', async () => {
+  const overlay = [{ left: 'amount_mean_20d', op: '>=', right: '1.0', leftDays: 0, rightDays: 0 }]
+  get.mockResolvedValue({
+    ...detail, source: 'custom', execution_backend: 'minute_filter', timeframes: ['1m'],
+    overlay_filter: overlay, scoring: { change_pct: 1 }, scoring_directions: { change_pct: 'high' },
+  })
+  save.mockResolvedValue({ ok: true })
+  await render()
+  expect(document.body.textContent).toContain('数值过滤')
+  expect(document.querySelector('[data-testid="overlay-editor"]')).not.toBeNull()
+  await click('保存设置')
+  expect(save).toHaveBeenCalledWith('a', expect.objectContaining({
+    overlay_filter: overlay, scoring: { change_pct: 1 }, scoring_directions: { change_pct: 'high' },
   }))
 })
 

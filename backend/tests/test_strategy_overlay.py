@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import numpy as np
 import polars as pl
@@ -167,3 +167,135 @@ def test_missing_matrix_overlay_field_still_delivers_exit():
     assert result.rows == [] and result.entry_signal_hits == []
     assert [hit["symbol"] for hit in result.exit_signal_hits] == ["A"]
     assert "amount" in result.entry_filter_error
+
+
+@pytest.fixture
+def minute_overlay_engine(tmp_path):
+    (tmp_path / "minute.py").write_text(
+        'META = {"id": "minute", "name": "Minute", "scoring": {},'
+        '"execution_backend": "minute_filter", "timeframes": ["1m"]}\n'
+        'BASIC_FILTER = {"enabled": False}\n'
+        'EXIT_SIGNALS = ["sell"]\n'
+        'def filter_minute_history(df, params):\n'
+        ' return df.rename({"datetime": "last_datetime"})\n',
+    )
+    return StrategyEngine([tmp_path])
+
+
+def minute_overlay_context(*, bars=20, missing_amount=False):
+    from app.strategy.basic_filter import previous_session
+
+    day = date(2026, 9, 4)
+    dates, before = [], day
+    for _ in range(bars):
+        before = previous_session(before)
+        dates.append(before)
+    daily = pl.DataFrame([
+        {"symbol": symbol, "date": at, "close": 10., "amount": amount}
+        for symbol, amount in [("600000.SH", 1e8), ("600036.SH", .9999e8)] for at in dates
+    ])
+    if missing_amount:
+        daily = daily.drop("amount")
+    current = pl.DataFrame({
+        "symbol": ["600000.SH", "600036.SH"], "date": [day, day], "close": [10., 10.],
+        "amount": [1e15, 1e15], "signal_sell": [False, False],
+    })
+    return StrategyDataContext(
+        "stock", "1m", day, current=current, daily_history=daily,
+        history=pl.DataFrame({"symbol": ["600000.SH", "600036.SH"], "datetime": [datetime(2026, 9, 4, 14, 30)]*2,
+                              "close": [10., 10.], "amount": [1e4, 1e4]}),
+    )
+
+
+AMOUNT_OVERLAY = [{"left": "amount_mean_20d", "op": ">=", "right": "1.0",
+                   "leftDays": 0, "rightDays": 0}]
+
+
+def test_minute_overlay_plans_completed_daily_warmup(minute_overlay_engine):
+    required = minute_overlay_engine.minute_daily_history_bars(
+        ["minute"], overrides_map={"minute": {"overlay_filter": AMOUNT_OVERLAY}},
+    )
+    assert required >= 21
+
+
+def test_generic_minute_overlay_config_is_accepted(minute_overlay_engine):
+    from app.api.strategy import _validate_overlay_config
+
+    overrides = {"overlay_filter": AMOUNT_OVERLAY}
+    _validate_overlay_config(overrides, minute_overlay_engine.get("minute"))
+    assert overrides["overlay_filter"] == AMOUNT_OVERLAY
+
+
+@pytest.mark.parametrize("future_daily", [False, True])
+def test_minute_amount_overlay_uses_twenty_completed_days_and_preserves_pool(
+    minute_overlay_engine, future_daily,
+):
+    context = minute_overlay_context()
+    if future_daily:
+        context.daily_history = pl.concat([
+            context.daily_history, context.current.select("symbol", "date", "close", "amount"),
+        ])
+    result = minute_overlay_engine.run("minute", context, overrides={"overlay_filter": AMOUNT_OVERLAY})
+    assert [row["symbol"] for row in result.rows] == ["600000.SH"]
+    assert result.daily_stock_pool["total"] == 2
+
+
+def test_minute_amount_overlay_does_not_average_nineteen_days(minute_overlay_engine):
+    result = minute_overlay_engine.run(
+        "minute", minute_overlay_context(bars=19), overrides={"overlay_filter": AMOUNT_OVERLAY},
+    )
+    assert not result.rows and not result.entry_signal_hits
+
+
+def test_minute_missing_daily_overlay_keeps_explicit_exit(minute_overlay_engine):
+    context = minute_overlay_context(missing_amount=True)
+    context.current = context.current.with_columns((pl.col("symbol") == "600000.SH").alias("signal_sell"))
+    result = minute_overlay_engine.run("minute", context, overrides={"overlay_filter": AMOUNT_OVERLAY})
+    assert not result.rows and "amount_mean_20d" in result.entry_filter_error
+    assert [row["symbol"] for row in result.exit_signal_hits] == ["600000.SH"]
+
+
+def test_specialized_minute_execution_still_rejects_daily_overlay(minute_overlay_engine):
+    from dataclasses import replace
+
+    from fastapi import HTTPException
+
+    from app.api.strategy import _validate_overlay_config
+
+    strategy = minute_overlay_engine.get("minute")
+    minute_overlay_engine._strategies["minute"] = replace(
+        strategy, meta={**strategy.meta, "minute_execution": "unsupported_specialized"},
+    )
+    with pytest.raises(ValueError, match="专用分钟"):
+        minute_overlay_engine.run("minute", minute_overlay_context(),
+                                  overrides={"overlay_filter": AMOUNT_OVERLAY})
+    with pytest.raises(HTTPException, match="专用分钟"):
+        _validate_overlay_config({"overlay_filter": AMOUNT_OVERLAY}, minute_overlay_engine.get("minute"))
+
+
+def test_minute_change_scoring_uses_signal_close_and_exact_raw_previous_close(minute_overlay_engine):
+    context = minute_overlay_context()
+    context.history = context.history.with_columns(pl.Series("close", [10.1, 10.2]))
+    context.current = context.current.with_columns(
+        pl.Series("close", [50., 1.]), pl.Series("change_pct", [.9, -.9]),
+    )
+    context.daily_history = context.daily_history.with_columns(
+        pl.lit(99.).alias("close"), pl.lit(10.).alias("raw_close"),
+    )
+    overrides = {"scoring": {"change_pct": 1}, "scoring_replace": True,
+                 "scoring_directions": {"change_pct": "high"}}
+    assert minute_overlay_engine.minute_daily_history_bars(["minute"], overrides_map={"minute": overrides}) >= 2
+    result = minute_overlay_engine.run("minute", context, overrides=overrides)
+    assert [row["symbol"] for row in result.rows] == ["600036.SH", "600000.SH"]
+    assert [row["change_pct"] for row in result.rows] == pytest.approx([.02, .01])
+
+
+def test_minute_scoring_cannot_substitute_stale_previous_close(minute_overlay_engine):
+    from app.strategy.basic_filter import previous_session
+
+    context = minute_overlay_context()
+    context.daily_history = context.daily_history.filter(
+        pl.col("date") != previous_session(context.as_of),
+    )
+    result = minute_overlay_engine.run("minute", context, overrides={"scoring": {"change_pct": 1}})
+    assert not result.rows

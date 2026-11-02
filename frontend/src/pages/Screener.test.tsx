@@ -6,13 +6,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Screener } from './Screener'
 
 const { summary, detail, run, runAll, reload, batchMutate, oldPreferences,
-  monitorList, monitorSave, monitorDelete, rules, poolState, dataState, reorderPool, addToPool } = vi.hoisted(() => ({
+  monitorList, monitorSave, monitorDelete, rules, poolState, dataState, clockState, reorderPool, addToPool } = vi.hoisted(() => ({
   summary: vi.fn(), detail: vi.fn(), run: vi.fn(), runAll: vi.fn(),
   reload: vi.fn(), batchMutate: vi.fn(),
   oldPreferences: { screener_auto_run: false as boolean | undefined },
   monitorList: vi.fn(), monitorSave: vi.fn(), monitorDelete: vi.fn(),
   rules: [] as any[], poolState: { ids: ['sample', 'minute'] },
   dataState: { latest: '2026-10-23' as string | null },
+  clockState: { data: {} as { market_date?: string; market_time?: string; is_trading_day?: boolean | null } },
   reorderPool: vi.fn(), addToPool: vi.fn(),
 }))
 vi.mock('@/lib/api', () => ({
@@ -44,7 +45,7 @@ vi.mock('@/lib/useSharedQueries', () => ({
   usePreferences: () => ({ data: oldPreferences }),
   useDataStatus: () => ({ data: { enriched: { latest_date: dataState.latest, earliest_date: '2026-09-01' } } }),
   useCapabilities: () => ({ data: {} }),
-  useQuoteStatus: () => ({ data: {} }),
+  useQuoteStatus: () => ({ data: clockState.data }),
 }))
 vi.mock('@/lib/useSharedMutations', () => ({ useWatchlistBatchAdd: () => ({ mutate: batchMutate }) }))
 vi.mock('@/components/screener/StrategyLotBatchDialog', () => ({
@@ -58,7 +59,7 @@ vi.mock('@/lib/screener-columns', () => ({
   buildExtColumnsParam: () => '', loadScreenerColumnConfig: async () => [], saveScreenerColumnConfig: vi.fn(),
 }))
 vi.mock('@/components/DatePicker', () => ({
-  DatePicker: ({ value, onChange }: any) => <input aria-label="测试日期" value={value} onChange={e => onChange(e.target.value)} />,
+  DatePicker: ({ value, onChange, min, max }: any) => <input aria-label="测试日期" min={min} max={max} value={value} onChange={e => onChange(e.target.value)} />,
 }))
 vi.mock('@/components/screener/ScreenerTable', () => ({
   ScreenerTable: ({ rows }: any) => <div data-testid="rows">{JSON.stringify(rows)}</div>,
@@ -87,6 +88,7 @@ beforeEach(() => {
   rules.length = 0
   poolState.ids = ['sample', 'minute']
   dataState.latest = '2026-10-23'
+  clockState.data = {}
   monitorList.mockReset().mockImplementation(async () => ({ rules: [...rules] }))
   monitorSave.mockReset().mockImplementation(async rule => {
     rules.push(rule)
@@ -140,6 +142,75 @@ async function waitForRows(day: string) {
   }
   expect(host.querySelector('[data-testid="rows"]')?.textContent).toContain(day)
 }
+
+it.each(['00:00:00', '09:23:00'])('uses the current trading day at %s before today daily data exists', async time => {
+  dataState.latest = '2026-10-30'
+  clockState.data = { market_date: '2026-11-02', market_time: `2026-11-02T${time}+08:00`, is_trading_day: true }
+  await render()
+  const date = host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')!
+  expect(date.value).toBe('2026-11-02')
+  expect(date.max).toBe('2026-11-02')
+  expect(run).not.toHaveBeenCalled()
+  expect(runAll).not.toHaveBeenCalled()
+})
+
+it('uses the trading clock even when no enriched date is available', async () => {
+  dataState.latest = null
+  clockState.data = { market_date: '2026-11-02', market_time: '2026-11-02T00:00:00+08:00', is_trading_day: true }
+  await render()
+  expect(host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')?.value).toBe('2026-11-02')
+})
+
+it('rolls the default view into the new trading day without executing', async () => {
+  dataState.latest = '2026-10-30'
+  clockState.data = { market_date: '2026-11-01', market_time: '2026-11-01T23:59:59+08:00', is_trading_day: false }
+  await render()
+  expect(host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')?.value).toBe('2026-10-30')
+  clockState.data = { market_date: '2026-11-02', market_time: '2026-11-02T00:00:00+08:00', is_trading_day: true }
+  await act(async () => root.render(<QueryClientProvider client={client}><Screener /></QueryClientProvider>))
+  await flush()
+  expect(host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')?.value).toBe('2026-11-02')
+  expect(run).not.toHaveBeenCalled()
+  expect(runAll).not.toHaveBeenCalled()
+})
+
+it('keeps an explicitly chosen historical date when the trading clock refreshes', async () => {
+  dataState.latest = '2026-10-30'
+  clockState.data = { market_date: '2026-11-02', market_time: '2026-11-02T09:23:00+08:00', is_trading_day: true }
+  await render()
+  await setDate('2026-10-22')
+  clockState.data = { market_date: '2026-11-03', market_time: '2026-11-03T00:00:00+08:00', is_trading_day: true }
+  await act(async () => root.render(<QueryClientProvider client={client}><Screener /></QueryClientProvider>))
+  await flush()
+  const date = host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')!
+  expect(date.value).toBe('2026-10-22')
+  expect(date.max).toBe('2026-11-03')
+})
+
+it('starts monitoring on the current trading day rather than the latest completed daily date', async () => {
+  dataState.latest = '2026-10-30'
+  clockState.data = { market_date: '2026-11-02', market_time: '2026-11-02T09:23:00+08:00', is_trading_day: true }
+  run.mockResolvedValue({ as_of: '2026-11-02', strategy: 'minute', rows: [], total: 0 })
+  await render()
+  await setDate('2026-09-01')
+  await act(async () => monitor('分钟样例').click())
+  await flush()
+  expect(run).toHaveBeenCalledWith('minute', undefined, '2026-11-02', undefined, 'stock', '1m')
+  expect(host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')?.value).toBe('2026-11-02')
+})
+
+it('rechecks the server calendar at Beijing midnight even without a quote update', async () => {
+  dataState.latest = '2026-10-30'
+  clockState.data = { market_date: '2026-11-01', market_time: '2026-11-01T23:59:59+08:00', is_trading_day: false }
+  const schedule = vi.spyOn(window, 'setTimeout')
+  await render()
+  const invalidate = vi.spyOn(client, 'invalidateQueries')
+  const midnight = schedule.mock.calls.find(([, delay]) => delay === 1001)
+  expect(midnight).toBeDefined()
+  await act(async () => { (midnight![0] as () => void)() })
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['quote-status'] })
+  schedule.mockRestore()
+})
 
 it('restores A after B from date-specific saved records without recalculating', async () => {
   summary.mockImplementation(async (day: string) => ({
@@ -433,4 +504,22 @@ it('shows no bulk actions on an empty active tab even if another tab has buys', 
   await flush()
   expect(host.querySelector('[aria-label="批量加入自选"]')).toBeNull()
   expect(host.querySelector('[aria-label="批量加持仓"]')).toBeNull()
+})
+
+it('shows independent signal-tab counts and unknown sell archives in the result heading', async () => {
+  detail.mockResolvedValue({ result: {
+    as_of: '2026-10-23', strategy: 'sample', rows: [], total: 0, section_mode: 'signals',
+    sections: { sell: [], select: [{ symbol: 'SELECT1' }, { symbol: 'SELECT2' }], buy: [] },
+    section_errors: { sell: '缺少前交易日买入信号归档' },
+  }, today_ever_rows: {} })
+  await render()
+  await act(async () => button('样例').click())
+  await flush()
+  const heading = () => [...host.querySelectorAll('h2')].map(node => node.textContent).join('')
+  expect(heading()).toContain('前日买入信号暂不可确认')
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
+  expect(heading()).toContain('选股 2 只')
+  expect(heading()).not.toContain('命中 0')
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2].click())
+  expect(heading()).toContain('买入信号 0 只')
 })

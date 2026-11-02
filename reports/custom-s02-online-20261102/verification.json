@@ -1,0 +1,354 @@
+{
+  "date": "2026-11-02",
+  "url": "https://shanao.asia/screener",
+  "deployment": {
+    "version": "0.4.42",
+    "snapshot": "s02sync-1102-on-7b60562dd7fa",
+    "base_commit": "7b60562dd7fa5054f383319bbf0d706227dfabc1",
+    "runtime": "sha256:3c78f0c7fc1c64f1a2b23ac9c2ee87893a660b2c34c6e83e0f83dc14e3967669",
+    "compute": "sha256:eba57de048001d2c215fd5117dbcb9974b10efb7466ebba3b4729b04d3a8311e",
+    "seven_roles_healthy": true,
+    "manifests_matched": true,
+    "source_and_static_matched": true,
+    "private_configuration_preserved": true,
+    "schema": {
+      "before": 7,
+      "after": 7,
+      "changed": false
+    },
+    "migration": {
+      "control": {
+        "kind": "control",
+        "database": "tsp_control",
+        "before_version": 7,
+        "after_version": 7,
+        "existing_tables_verified": 19,
+        "all_existing_rows_preserved": true,
+        "checksums_verified": true,
+        "passed": true
+      },
+      "data": {
+        "kind": "data",
+        "database": "tsp_data",
+        "before_version": 7,
+        "after_version": 7,
+        "existing_tables_verified": 28,
+        "all_existing_rows_preserved": true,
+        "checksums_verified": true,
+        "passed": true
+      }
+    },
+    "backup": "/opt/tsp-full/backups/pre-v0.4.42-s02sync-1102",
+    "rollback_source": "/opt/tsp-full/source.pre-s02sync-1102"
+  },
+  "scope": "Current local custom s02 source/config and required matching runtime/frontend support",
+  "tests": {
+    "backend": {
+      "passed": 267,
+      "groups": [
+        122,
+        145
+      ],
+      "commands": [
+        "backend/.venv/bin/python -m pytest -q backend/tests/test_minute_signal_sections.py backend/tests/test_strategy_overlay.py backend/tests/test_custom_minute_config.py backend/tests/test_strategy_detail_signals.py backend/tests/test_minute_strategy.py backend/tests/test_intraday_signals.py backend/tests/test_intraday_monitor_signals.py",
+        "backend/.venv/bin/python -m pytest -q backend/tests/test_strategy_result_history.py backend/tests/test_screener_history_api.py backend/tests/test_strategy_scoring.py backend/tests/test_late_session_strength.py backend/tests/test_morning_liquidation.py backend/tests/test_full_compute.py backend/tests/test_daily_pool_schedule.py backend/tests/test_daily_pool_retention.py"
+      ]
+    },
+    "frontend": {
+      "passed": 39,
+      "files": 6
+    },
+    "real_compute": {
+      "passed": true,
+      "output": "7 candidate/real task checks passed: full pool, exact pulse, future rows, pre-time exclusion, deadline, T+1 and empty quotes\n3 restored condition checks passed: completed 20-day yuan units/full pool, future exclusion and signal-price ranking\n8 independent signal-section checks passed in real Compute",
+      "data": "synthetic signal fixtures"
+    },
+    "exact_online_signal_definitions": {
+      "passed": true,
+      "image": "sha256:eba57de048001d2c215fd5117dbcb9974b10efb7466ebba3b4729b04d3a8311e",
+      "checks": 18,
+      "signal_definitions": "exact enabled online definitions and parameter values",
+      "output": "7 candidate/real task checks passed: full pool, exact pulse, future rows, pre-time exclusion, deadline, T+1 and empty quotes\n3 restored condition checks passed: completed 20-day yuan units/full pool, future exclusion and signal-price ranking\n8 independent signal-section checks passed in real Compute",
+      "data": "synthetic market and holding fixtures"
+    },
+    "frontend_build": true,
+    "changed_frontend_eslint": true
+  },
+  "real_scan": {
+    "strategy_id": "custom_mvxxcp88",
+    "as_of": "2026-10-30",
+    "pool_total": 1552,
+    "select_total": 165,
+    "buy_total": 0,
+    "sell_total": 0,
+    "section_errors": {
+      "sell": "缺少2026-10-29买入信号归档。无法确认本交易日卖出关注名单"
+    },
+    "read_paths": {
+      "single_cache": true,
+      "dated_cache": true,
+      "history": true
+    },
+    "record_id": "a1a5e37345bb3f0f:2026-10-30:5da5c45ebb5a5d465518373c02f2fa71999ef3456cb506dd4a04a9f32147958b",
+    "data": "real online market data",
+    "profit_backtest": false,
+    "orders": false
+  },
+  "browser": {
+    "url": "https://shanao.asia/screener",
+    "title": "Tick Stock Platform · Quant Terminal",
+    "administrator_login": true,
+    "strategy_id": "custom_mvxxcp88",
+    "checks": [
+      {
+        "viewport": [
+          1440,
+          1000
+        ],
+        "signal": "尾盘走强",
+        "enabled": true,
+        "selected": true
+      },
+      {
+        "viewport": [
+          1440,
+          1000
+        ],
+        "signal": "早盘清仓",
+        "enabled": true,
+        "selected": true
+      },
+      {
+        "viewport": [
+          1440,
+          1000
+        ],
+        "tab": "卖",
+        "bounds": {
+          "width": 1440,
+          "scroll": 1440
+        }
+      },
+      {
+        "viewport": [
+          1440,
+          1000
+        ],
+        "tab": "选",
+        "bounds": {
+          "width": 1440,
+          "scroll": 1440
+        }
+      },
+      {
+        "viewport": [
+          1440,
+          1000
+        ],
+        "tab": "买",
+        "bounds": {
+          "width": 1440,
+          "scroll": 1440
+        }
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "signal": "尾盘走强",
+        "enabled": true,
+        "selected": true
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "signal": "早盘清仓",
+        "enabled": true,
+        "selected": true
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "tab": "卖",
+        "bounds": {
+          "width": 390,
+          "scroll": 390
+        }
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "tab": "选",
+        "bounds": {
+          "width": 390,
+          "scroll": 390
+        }
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "tab": "买",
+        "bounds": {
+          "width": 390,
+          "scroll": 390
+        }
+      }
+    ],
+    "amount_condition": "amount_mean_20d >= 1.0",
+    "scoring": "change_pct 100% high",
+    "reload_preserved": true,
+    "added_to_existing_minute_pool": true,
+    "page_errors": [],
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'https://shanao.asia' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      "Failed to load resource: net::ERR_FAILED",
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'https://shanao.asia' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+      "Failed to load resource: net::ERR_FAILED"
+    ],
+    "failed_requests": [
+      {
+        "url": "https://shanao.asia/api/business/version",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/assets/rotate-ccw-6XhdIII9.js",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/api/account/tenants",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/api/analysis-menus",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/assets/play-Cdc_qMhJ.js",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/api/alerts",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/api/pipeline/jobs",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/api/intraday/status",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/api/events/ticket",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/assets/grip-vertical-BqViEPnr.js",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/api/business/preferences",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://shanao.asia/api/custom-signals",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+        "status": 404
+      },
+      {
+        "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+        "error": "net::ERR_FAILED"
+      },
+      {
+        "url": "https://shanao.asia/api/events",
+        "error": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+        "status": 404
+      },
+      {
+        "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+        "error": "net::ERR_FAILED"
+      }
+    ],
+    "unexpected_calculations": [],
+    "browser": "Browser plugin public page checked; authenticated desktop/mobile Playwright",
+    "fallback_reason": "Browser tool interface cannot inject controlled credentials without serializing their values in tool calls; private Playwright reads credentials in memory and performs normal login."
+  },
+  "preservation": {
+    "signals": true,
+    "other_sources": true,
+    "other_overrides": true,
+    "monitor_rules": true,
+    "monitor_rules_sql": true,
+    "builtin_s02": true,
+    "paper_accounts": true,
+    "paper_orders": true,
+    "paper_fills": true,
+    "auto_rules": true
+  },
+  "api_processes": [
+    {
+      "pid": 19,
+      "current": true
+    },
+    {
+      "pid": 20,
+      "current": true
+    },
+    {
+      "pid": 21,
+      "current": true
+    },
+    {
+      "pid": 22,
+      "current": true
+    }
+  ],
+  "backup_restore_verified": true,
+  "backup_restore_table_counts": {
+    "control": 20,
+    "business": 29
+  },
+  "changed_runtime_files": [
+    "backend/app/strategy/engine.py",
+    "backend/app/strategy/signal_sections.py",
+    "backend/app/strategy/overlay.py",
+    "backend/app/strategy/monitor.py",
+    "backend/app/api/strategy.py",
+    "backend/app/api/contracts.py",
+    "backend/app/api/screener.py",
+    "backend/app/services/screener.py",
+    "backend/app/services/strategy_results.py",
+    "frontend/src/lib/api.ts",
+    "frontend/src/pages/Screener.tsx",
+    "frontend/src/components/screener/StrategyDailyResults.tsx",
+    "frontend/src/components/screener/OverlayFilterEditor.tsx",
+    "frontend/src/components/screener/StrategySettingsDialog.tsx"
+  ],
+  "application_version_bumped": false,
+  "git_committed": false,
+  "git_pushed": false,
+  "profit_backtest": false,
+  "auto_trading_started": false,
+  "limitations": [
+    "2026-10-29 entry archive absent; sell watchlist remains unconfirmed",
+    "Positive entry/exit checks use synthetic signal fixtures, not historical fills",
+    "Existing external GitHub update 404/CORS remains"
+  ]
+}

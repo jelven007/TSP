@@ -435,11 +435,28 @@ class ScreenerService:
             elapsed_ms=elapsed,
         )
 
-    def build_daily_pool_context(self, as_of: date, *, current=None):
+    def build_daily_pool_context(self, as_of: date, *, current=None, premarket=False):
         """Load only scope/reference inputs, never minute formulas or positions."""
+        from app.instrument_suspension import pool_evidence
         from app.market_time import cn_today
         from app.strategy.eligibility import attach_listing_age
         from app.strategy.engine import StrategyDataContext
+        if premarket:
+            from app.strategy.basic_filter import previous_session
+            prior = previous_session(as_of)
+            history = self._load_enriched_history(prior, 1)
+            if not history.is_empty():
+                history = history.filter(pl.col("date") == prior)
+            instruments = self.repo.get_instruments_asset("stock")
+            # Directory state is current; it supplies scope, never today's prices
+            # or a suspension assertion copied from the previous session.
+            current = instruments if instruments is not None else pl.DataFrame()
+            if not current.is_empty():
+                current = current.select(c for c in current.columns
+                    if c not in {"close", "raw_close", "volume", "is_suspended", "date"})
+                current = current.with_columns(pl.lit(as_of).alias("date"))
+            return StrategyDataContext("stock", "1d", as_of, current=current, pool_history=history,
+                                       pool_universe=pool_evidence(self.repo, as_of))
         history = self._load_enriched_history(as_of, 2)
         if current is None:
             current = self._load_enriched_for_date(as_of)
@@ -449,7 +466,7 @@ class ScreenerService:
             current = attach_listing_age(current, instruments)
         return StrategyDataContext(
             "stock", "1d", as_of, current=current, pool_history=history,
-            pool_universe=instruments if as_of == cn_today() else None)
+            pool_universe=pool_evidence(self.repo, as_of, instruments if as_of == cn_today() else None))
 
     def build_strategy_context(
         self,
@@ -489,7 +506,18 @@ class ScreenerService:
         if timeframe == "1m":
             # 分钟策略数据源是本地当日分钟K分区 (单分区文件直读), 与日线
             # enriched 历史窗口无关, 不走 required_history_bars 日线路径。
-            history = self._load_minute_history(as_of, current)
+            try:
+                history = self._load_minute_history(as_of, current)
+            except ValueError:
+                # A daily selection snapshot remains useful when its minute entry
+                # data is unavailable. Never borrow a different day's minutes.
+                if not strategy_ids or engine is None or not all(
+                    engine.get(sid).meta.get("result_sections") == "signals"
+                    and engine.get(sid).execution_backend == "minute_filter"
+                    and not engine.get(sid).meta.get("minute_execution") for sid in strategy_ids
+                ):
+                    raise
+                history = None
             # 策略声明 META["daily_history_bars"] 时额外装配日线 enriched 窗口,
             # 供分钟策略叠加日线维度条件 (如 N 日内涨停过)。
             daily_history = None
@@ -501,7 +529,8 @@ class ScreenerService:
             completed_through = None
             if as_of == cn_today():
                 completed_through = cn_now().replace(tzinfo=None, second=0, microsecond=0)
-                history = history.filter(pl.col("datetime") <= completed_through)
+                if history is not None:
+                    history = history.filter(pl.col("datetime") <= completed_through)
             if daily_history is not None and instruments is not None:
                 daily_history = attach_listing_age(daily_history, instruments)
             if callable(getattr(engine, "get", None)) and any(

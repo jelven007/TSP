@@ -1,0 +1,100 @@
+{
+  "strategy_id": "custom_mvxxcp88",
+  "checks": [
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "configured_exit_visible": true,
+      "enabled": true,
+      "supported_mode_hint_visible": true,
+      "bounds": {
+        "width": 720,
+        "scroll": 718,
+        "client": 718
+      }
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "configured_exit_visible": true,
+      "enabled": true,
+      "supported_mode_hint_visible": true,
+      "bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      }
+    }
+  ],
+  "reload_reselection_verified": true,
+  "strategy_and_signals_unchanged": true,
+  "page_errors": [],
+  "unexpected_configuration_or_backtest_requests": [],
+  "entry_signals": [
+    "csgi_late_session_strength"
+  ],
+  "exit_signals": [
+    "csgi_morning_liquidation"
+  ],
+  "morning_parameters": {
+    "time": "10:30:00",
+    "amplitude_pct": 6
+  },
+  "late_parameters": {
+    "time": "14:30:00",
+    "ma5_1m_count": 7,
+    "ma5_5m_count": 4,
+    "change_max_pct": 4,
+    "change_min_pct": 0.4,
+    "pool_up_min_pct": 60
+  },
+  "basic_filter": {
+    "boards": [
+      "沪主板",
+      "深主板"
+    ],
+    "enabled": true,
+    "price_max": null,
+    "price_min": null,
+    "amount_max": null,
+    "amount_min": null,
+    "exclude_st": true,
+    "target_mode": "selected",
+    "turnover_max": null,
+    "turnover_min": null,
+    "float_cap_max": 50000000000,
+    "float_cap_min": 5000000000,
+    "change_pct_max": 6,
+    "change_pct_min": 0.5,
+    "data_reference": "previous_trade_day",
+    "include_custom": false,
+    "market_cap_max": null,
+    "market_cap_min": null,
+    "exclude_new_days": null,
+    "exclude_suspended": true,
+    "watchlist_group_ids": []
+  },
+  "overlay_filter": [
+    {
+      "left": "amount_mean_20d",
+      "op": ">=",
+      "right": "1.0",
+      "leftDays": 0,
+      "rightDays": 0
+    }
+  ],
+  "scoring": {
+    "change_pct": 1.0
+  },
+  "fixed_exits": {
+    "stop_loss": null,
+    "take_profit": null,
+    "max_hold_days": null
+  },
+  "browser_method": "Playwright; Browser plugin discovery returned no browser tools",
+  "historical_market_backtest": false
+}

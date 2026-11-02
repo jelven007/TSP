@@ -1,0 +1,13 @@
+{
+  "phase": "before",
+  "checks": [
+    {
+      "scenario": "deleted_saved_selection",
+      "missing_detail_requests": 1,
+      "error_toast_reproduced": true
+    }
+  ],
+  "page_errors": [],
+  "calculation_requests": 0,
+  "browser_fallback_reason": "Tool discovery exposed no browser automation tools; used installed Playwright."
+}

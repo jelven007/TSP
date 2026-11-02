@@ -1,0 +1,32 @@
+{
+  "manifest": {
+    "changed": [],
+    "missing": [],
+    "added": []
+  },
+  "probe": {
+    "checks": [
+      "real service routing",
+      "T+1 calendar",
+      "minute exit price",
+      "daily overlay",
+      "cash and fees",
+      "partial sells",
+      "aggregated minimum commission",
+      "deadline failure preserves remaining",
+      "slippage once"
+    ],
+    "synthetic": {
+      "initial": 10000,
+      "final": 10067.92,
+      "pnl": 67.92000000000098,
+      "complete_trades": 1,
+      "buy_fee": 4.999999999999545,
+      "sell_fee": 7.079999999999927
+    },
+    "historical_market_backtest": false
+  },
+  "image": "sha256:7b242f7780e5f8be5d9f1000e3e0a784f937a9a44f4d8d875e7706b12b277e8c",
+  "network": "none",
+  "market_volume_mounted": false
+}

@@ -1,0 +1,87 @@
+{
+  "identity": {
+    "version": "0.4.42",
+    "base_revision": "7b60562dd7fa5054f383319bbf0d706227dfabc1",
+    "snapshot": "fix-cf9c511b22d5-on-7b60562dd7fa",
+    "patch_sha256": "cf9c511b22d5485d1b6e2ff22c78fa8f2b72b6ae071fe9393b3d8c49515a23b4",
+    "source_archive_sha256": "0413f8098b9c74d5c9f2299df490d09404f8f3d7a170b3573604b526e5702183",
+    "changed_files": {
+      "frontend/src/pages/backtest/StrategyBacktest.test.tsx": "8bc68d87cbcc3ac94ee6421cc646e36b70b78d4801c6295689ebbf75f3f6ce0e",
+      "frontend/src/pages/backtest/StrategyBacktest.tsx": "3f35ff3417b73c4b7123268dea097a2bc4ff2fd3099fa003ad622e230f43c68d"
+    },
+    "runtime_before": "sha256:d2aaf30ef08d8f8294d8f5da0bdab6782ab8017d7c085db84365738648684fe1",
+    "compute_before": "sha256:154c7e410f5875a8410f48fd425535bdc04d8599ef9970a5cd8f1ff10fae192d",
+    "first_attempt": "Older baseline changed; identity guard stopped before building or switching."
+  },
+  "audit": {
+    "passed": true,
+    "deployment_snapshot": "fix-cf9c511b22d5-on-7b60562dd7fa",
+    "version": "0.4.42",
+    "runtime": "sha256:d8078f225a56846d4a76ce4eb7c3d1825a630e267875096a465995863f6fd98c",
+    "compute": "sha256:9e23893eef39949cf92d30177a201215136c31978b7e51673ac284a47a9a0a53",
+    "matching_manifest_sha256": "61ee91099e1ee5bb77e66c02e65e8836c39a973bf385c6304805ee3a9e09335d",
+    "seven_roles_healthy": true,
+    "api_bindings": {
+      "processes": 4,
+      "all_current": true
+    },
+    "api": {
+      "login": true,
+      "ready": true,
+      "version": "0.4.42",
+      "functions": {
+        "market": true,
+        "research": true,
+        "monitoring": true,
+        "paper_trading": true,
+        "notifications": true,
+        "scheduled": true
+      },
+      "public_binding_current": true,
+      "deleted_strategy_remains_deleted": true,
+      "catalog_load_errors": 0,
+      "strategy_count": 24
+    },
+    "worker_health": [
+      {
+        "kind": "research",
+        "healthy": true,
+        "age_seconds": 4.175812
+      },
+      {
+        "kind": "notifications",
+        "healthy": true,
+        "age_seconds": 3.66336
+      },
+      {
+        "kind": "realtime",
+        "healthy": true,
+        "age_seconds": 3.2609
+      },
+      {
+        "kind": "scheduled",
+        "healthy": true,
+        "age_seconds": 1.704559
+      }
+    ],
+    "private_configuration_preserved": true,
+    "preserved_resource_counts": {
+      "business.full_paper_accounts": 0,
+      "business.paper_accounts": 0,
+      "business.strategies": 0
+    },
+    "two_database_restore_verified": true,
+    "market_snapshot_verified": true,
+    "schema_changed": false,
+    "checked_at_unix": 1793570399.5044465
+  },
+  "recovery": {
+    "two_database_restore_verified": true,
+    "previous_images_saved": true,
+    "market_snapshot_verified": true
+  },
+  "schema_versions": {
+    "tsp_control": 7,
+    "tsp_data": 7
+  }
+}
