@@ -1,5 +1,10 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+停复牌Loader保留可选`announced_at`并验证北京时间公告日；`pool_evidence`
+按显式`observed_at`过滤，Screener／回放共用尾盘信号截止，盘前批次传递08:00或09:00。
+文件缓存和研究指纹沿原路径，不增加SQL迁移；[真实收益执行](../reports/custom-s02-full-range-online-20261102.md)
+仍在强制清仓不可成交时保留账本并拒绝完整净值。
+
 2026-11-02整合沿原单机七角色／双库及隔离Compute拓扑发布，完整候选映射见
 [整合清单](../reports/release-consolidation-20261102-followup.md)。
 历史停复牌事件沿`instrument_status`公共目录、Repository有界文件缓存、

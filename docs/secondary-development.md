@@ -1,5 +1,10 @@
 # 代码二次开发与 AI 扩展指南
 
+停复牌内部文件兼容可选北京时间`announced_at`，不增加Provider或SQL接口；
+Screener／分钟回放／盘前批次传递`observed_at`，同日仅消费已公开事件。
+旧缺时间列保持保守语义，尾盘信号分母不能用日终公告改变；升级边界见
+[线上全区间执行](../reports/custom-s02-full-range-online-20261102.md)。
+
 本轮整合见[发布清单](../reports/release-consolidation-20261102-followup.md)。
 独立历史停复牌文件属于L3内部数据契约，复用既有公共目录发布、Repository及
 `pool_universe`证据传递，不新增Provider数据集、插件API或SQL迁移。

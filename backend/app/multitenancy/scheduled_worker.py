@@ -212,6 +212,7 @@ class TenantSchedules:
             pending = [sid for sid in ids if sid not in completed]
             task = engine.task("daily_stock_pools", strategy_ids=pending, as_of=day,
                                overrides_map=overrides, premarket=True,
+                               observed_at=f"{day}T{slot}:00",
                                **({"public_release_id": release} if release else {}))
             unit.put("daily_stock_pool_jobs", key, {
                 "signature": marker, "completed": sorted(completed), "state": "running",

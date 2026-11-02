@@ -1,5 +1,9 @@
 # TSP v0.4.43 需求基线（Tick Stock Platform）
 
+已公开且生效的同日停复牌事件须有精确公告时点，并按盘前批次或分钟信号观察时间消费。
+旧缺时间证据保守延后，真实停牌持仓不能满足强制次日早盘清仓时不生成完整收益；
+本次[线上同步及全区间执行](../reports/custom-s02-full-range-online-20261102.md)不改变FR-STRATEGY／FR-BACKTEST既有交易约束。
+
 2026-11-02补丁统一进入正式发布候选，范围及验收边界见
 [整合清单](../reports/release-consolidation-20261102-followup.md)。
 历史停复牌只消费此前已公开且已生效的独立事件证据；没有当日行情仍保持未知，

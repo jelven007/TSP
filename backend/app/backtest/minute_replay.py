@@ -17,7 +17,8 @@ import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from datetime import time as clock_time
 
 import polars as pl
 
@@ -263,6 +264,11 @@ class MinuteSignalReplayer:
                     )
 
             from app.instrument_suspension import pool_evidence
+            from app.strategy.late_session_strength import pool_cutoff
+
+            observed_at = pool_cutoff(self.strategy_engine, [strategy.meta["id"]],
+                                      {strategy.meta["id"]: overrides}, day,
+                                      datetime.combine(day, clock_time(15) if full_pool else clock_time.min))
 
             context = StrategyDataContext(
                 asset_type="stock",
@@ -272,7 +278,7 @@ class MinuteSignalReplayer:
                 history=history,
                 daily_history=daily_history if not daily_history.is_empty() else None,
                 pool_history=current if not current.is_empty() else None,
-                pool_universe=pool_evidence(repo, day),
+                pool_universe=pool_evidence(repo, day, observed_at=observed_at),
             )
             try:
                 run_result = self.strategy_engine.run(
