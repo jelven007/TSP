@@ -33,14 +33,14 @@
 其他377个后端源码文件保持；七角色健康、两库v7、策略/信号/监控/账本及受控配置保持。
 独立基底前端102文件558项、后端56项通过，公网桌面/手机今天可选、历史返回、
 实际请求日期和刷新后两项勾选签收通过。未追加回测、实际策略运行、提交、推送或手动改号；
-详情见[日期修复签收](../deliverables/strategy-trading-day-20261102/verification.md)。
+详情见[日期修复签收](../.claude/artifacts/fixes/strategy-trading-day.md)。
 
 2026-11-02线上账户偏好修复已在v0.4.42生效，快照
 `account-preferences-df23a962299e-on-7b60562dd7fa`继承当时实际`s02sync-1102`及全部后端补丁。
 仅替换前端static/manifest，379个后端源码文件保持；七角色健康、两库v7，
 策略/信号/监控/持仓/账本及受控配置保持。102文件551项前端测试和5文件26项认证回归通过，
 公网桌面/手机的退出重登、真实401、刷新及旧键迁移通过，详见
-[偏好修复签收](../deliverables/account-preference-retention-20261102/verification.md)。
+[偏好修复签收](../.claude/artifacts/fixes/account-preference-retention.md)。
 本次不手动改号、提交、推送或回测；旧客户端已删除的原选择无法自动恢复。
 
 2026-11-02此前回测设置已配置早盘清仓的回显修复在本地v0.4.42生效：

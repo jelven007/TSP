@@ -24,4 +24,6 @@
 原实现反转回归仍失败，修复解决的是数据未追上时的盘前/午夜封锁。
 当日完整股票池只读签收：s02为3193、自定义custom_mvydn2a8为1542；
 当日归档摘要有1项，不能等同于两个策略都完成当日运行。
-详情及实际验证边界见[线上签收](../../../deliverables/strategy-trading-day-20261102/verification.md)。
+本机详细签收保存在`deliverables/strategy-trading-day-20261102/verification.md`；
+该目录不随源码发布。仓库内当前整合及发布边界见
+[正式整合记录](../../../reports/release-consolidation-20261102-followup.md)。

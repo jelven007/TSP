@@ -12,7 +12,9 @@
   TypeScript/Vite构建、修改三文件ESLint及make check通过。
   七角色健康、runtime/Compute清单无差异；配置和交易账本保持，实际公网退出/登录、
   401、刷新、旧键迁移及桌面/手机验收通过。
-  详情见[签收记录](../../../deliverables/account-preference-retention-20261102/verification.md)。
+  本机详细签收保存在`deliverables/account-preference-retention-20261102/verification.md`，
+  该目录不随源码发布；仓库内当前状态见
+  [正式整合记录](../../../reports/release-consolidation-20261102-followup.md)。
 - 部署范围：以切换前线上实际快照派生，保留现存股票池、s02和回测选择补丁；
   源快照仅增加三修复文件及对应说明，镜像只改static及manifest；版本0.4.42保持。
 - 风险：已被旧代码删除的选择无服务器副本，不能自动恢复；其他浏览器/设备不共享本地偏好。
