@@ -236,10 +236,17 @@ def test_legacy_monitor_reads_saved_exit_override_without_engine_loader(tmp_path
     assert context.positions == [position()]
 
 
-def test_backtest_explicitly_rejects_unsupported_holding_exit(tmp_path):
+@pytest.mark.parametrize("execution", ["daily", "special"])
+def test_backtest_explicitly_rejects_unsupported_holding_exit(tmp_path, execution):
     from app.backtest.strategy import StrategyBacktestConfig, StrategyBacktestService
 
     engine = sample_engine(tmp_path)
+    strategy = engine.get("sample")
+    if execution == "daily":
+        strategy.execution_backend = "polars_expr"
+        strategy.meta["timeframes"] = ["1d"]
+    else:
+        strategy.meta["minute_execution"] = "overnight_capacity_v1"
     service = StrategyBacktestService(SimpleNamespace(repo=object()), engine)
     result = service.run(StrategyBacktestConfig(
         strategy_id="sample", start=DAY, end=DAY, symbols=["a"],

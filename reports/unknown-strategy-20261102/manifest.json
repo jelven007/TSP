@@ -1,0 +1,18 @@
+{
+  "browser-after.json": "ed31072ec3166db58fb0e4ecf0d7b0e9adce4d2b6eabbdd700b98dd0c1d10ba9",
+  "browser-before.json": "f6f1cbe68d5e5bbff048e6b447aec0734f1e6d82c0d24098ed60816a254e386b",
+  "candidate-final-green.log": "62ce77405e8698ce7de7784c63de699cad7454e940ba65fcd8fd3eb3b834faac",
+  "candidate-reverse-red.log": "5cf5a9e249aad6087b83aada5d03e32d0bd2616aa76bf7492e46831677bafe70",
+  "deployment.json": "08584b962c02eb0b2f4aba31b937fdfc6ffdbf6b8d041cfed98402fd51c4f7d2",
+  "frontend-build.log": "bd8af79214c7b79e32126b6929c97ab5e9fb961a40a33405917300a09ff69380",
+  "frontend-lint.log": "6f27360217b85e8800e9cf805fca30d655819e2262ecdeec7b92ccd01fa1746d",
+  "frontend-tests.log": "2a06e146f0fb2da395eea7c9ec1f62959dd391f4cd0da05157e90761ae482ce9",
+  "online-before.png": "708c35982a29b5de0b46aca358c24ba8a8d5a16ddf962159a5398fcadf5b6c62",
+  "online-deleted-selection-390.png": "9ba4b68befaadd0a5efcd130273f1937bf74a29a640a66453a9537a9451a8a89",
+  "online-deleted-selection.png": "0936c03683f56d83ac755f8120bcd6e5a75e3309061748867e81fb4c6a247bfb",
+  "public-static-verification.json": "0f9f23b5a7877772999a06cd6150a7abc823d21433088fcc912c1aab688fe3c3",
+  "redaction.md": "04edcebac2f8c70a1c3d545de1fa47b8a6d412bfd3bfc7a0adf9c3f2fc842a83",
+  "workspace-build.log": "908091dfc9584aba306f1bd30bff536992d35b32aae8f3434eaad0c300e6f3cf",
+  "workspace-regression.log": "172c72754e5e6683744994e8f126a609cecb9110662ed93b25b5cc36851c6006",
+  "workspace-types.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

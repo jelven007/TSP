@@ -22,6 +22,7 @@ import { boardTag as boardBadge } from '@/components/stock-table/primitives'
 import { BUILTIN_COLUMNS } from '@/lib/watchlist-columns'
 import { toNavItems } from '@/lib/listNav'
 import { cnSignal } from '@/lib/signals'
+import { customSignalColumn } from '@/lib/customSignals'
 import { useCustomSignalNames } from '@/lib/useCustomSignalNames'
 import { SignalPicker } from '@/components/screener/SignalPicker'
 import { attachBacktestJob, startBacktest, stopBacktest, tryReconnect, useBacktestTask } from '@/lib/backtestTask'
@@ -1093,33 +1094,54 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const strategies = useQuery({
     queryKey: QK.screenerStrategies(assetType, 'all'),
     queryFn: () => api.screenerStrategies(assetType, 'all'),
+    refetchOnMount: 'always',
   })
   const strategyList = useMemo(() => strategies.data?.presets ?? [], [strategies.data])
+  const selectedStrategyAvailable = strategies.isSuccess && !strategies.isFetching
+    && strategyList.some(st => st.id === selectedStrategy)
   const filteredStrategyList = useMemo(() => (
     strategyGroup === 'all' ? strategyList : strategyList.filter(st => st.source === strategyGroup)
   ), [strategyGroup, strategyList])
-  // 校验 localStorage 里保存的上次选中策略是否仍存在(本地开发残留的自定义策略
-  // 拉新代码后会失效,导致 strategyGet 一直 404/加载中)。列表就绪后若失效,
-  // 连带清除其专属的 params/overrides/result(这些是该策略的运行配置/产物,
-  // 策略失效后留着会造成"孤儿"状态:界面显示旧回测结果却无对应策略)。
+  // 最新目录成功返回后再校验旧选择；空目录也有效，请求失败不能当成删除。
+  // 同步清理持久化的策略配置，避免刷新后继续请求已删除的策略。
   useEffect(() => {
-    if (strategies.isLoading || strategyList.length === 0) return
+    if (!strategies.isSuccess || strategies.isFetching) return
     if (selectedStrategy && !strategyList.some(st => st.id === selectedStrategy)) {
       setSelectedStrategy(null)
       setStrategyParams({})
       setOverrides({})
       setResult(null)
+      const previous = storage.strategyBacktestLast.get(null)
+      if (previous?.selectedStrategy === selectedStrategy) {
+        storage.strategyBacktestLast.set({
+          ...previous, selectedStrategy: null, params: {}, overrides: {},
+          strategyConfigSignature: undefined, result: null,
+        })
+      }
     }
-  }, [strategies.isLoading, strategyList, selectedStrategy])
+  }, [strategies.isSuccess, strategies.isFetching, strategyList, selectedStrategy])
 
   const strategyDetail = useQuery({
     queryKey: QK.strategyDetail(selectedStrategy ?? ''),
     queryFn: () => api.strategyGet(selectedStrategy!),
-    enabled: !!selectedStrategy,
+    enabled: selectedStrategyAvailable,
   })
   // 分钟策略: 入场在盘中触发分钟成交, 日线专属的成交口径选项不适用
   const isMinuteStrategy = strategyDetail.data?.execution_backend === 'minute_filter'
   const isOvernightExecution = ['overnight_capacity_v1', 'momentum_capacity_v1'].includes(strategyDetail.data?.minute_execution ?? '')
+  const supportsMorningExit = isMinuteStrategy && !strategyDetail.data?.minute_execution
+  const customSignals = useQuery({
+    queryKey: QK.customSignals, queryFn: api.customSignalsList, enabled: supportsMorningExit,
+  })
+  const hasMorningExit = supportsMorningExit && (customSignals.data?.signals ?? []).some(signal =>
+    signal.template === 'morning_liquidation'
+    && ((overrides.exit_signals ?? strategyDetail.data?.exit_signals ?? []) as string[]).includes(customSignalColumn(signal)))
+  useEffect(() => {
+    if (hasMorningExit) {
+      setSimMode('position')
+      if (exitFill === 'signal_next_minute') setExitFill('close_t')
+    }
+  }, [hasMorningExit, exitFill])
 
   const backtestTask = useBacktestTask()
   const isPending = backtestTask?.isPending ?? false
@@ -1264,7 +1286,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   ])
 
   const handleRun = () => {
-    if (!selectedStrategy || backtestDataUnavailable) return
+    if (!selectedStrategy || !selectedStrategyAvailable || !detail || backtestDataUnavailable) return
     const requestOverrides = detail
       ? normalizeStrategyOverrides(detail, overrides)
       : overrides
@@ -1969,7 +1991,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-secondary">清仓口径</label>
-            <select
+            {hasMorningExit ? (
+              <div className={`${INPUT_CLS} text-secondary`}>次交易日触发分钟收盘</div>
+            ) : <select
               value={exitFill}
               onChange={e => setExitFill(e.target.value as 'close_t' | 'open_t+1' | 'signal_next_minute')}
               className={INPUT_CLS}
@@ -1979,8 +2003,14 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               {highGranularity && minuteExitTriggerSupported && !isMinuteStrategy && (
                 <option value="signal_next_minute">信号触发卖出 BETA</option>
               )}
-            </select>
+            </select>}
           </div>
+          {hasMorningExit && (
+            <div className="col-span-2 text-[10px] leading-4 text-muted">
+              按实际买入日期，在下一交易日早盘达到振幅阈值或截止时间时清仓；不足成交量保留余股并报告失败。
+              使用仓位模拟和回测费用设置，日线叠加只读取已完成日K。
+            </div>
+          )}
           {!isMinuteStrategy && (entryFill === 'close_t' || exitFill === 'close_t') && (
             <div className="col-span-2 flex items-start gap-1 text-[10px] leading-4 text-warning">
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
@@ -2093,7 +2123,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
         ) : (
           <button
             onClick={handleRun}
-            disabled={!selectedStrategy || strategyDetail.isLoading || backtestDataUnavailable}
+            disabled={!selectedStrategyAvailable || !detail || strategyDetail.isLoading || backtestDataUnavailable}
             className="group w-full inline-flex items-center justify-center gap-2.5 rounded-btn border border-accent/40
               bg-gradient-to-r from-accent to-blue-500 px-3 py-2.5 text-white shadow-[0_10px_24px_rgba(59,130,246,0.22)]
               transition-all duration-150 ease-smooth hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(59,130,246,0.28)]
@@ -2116,7 +2146,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               <button
                 key={val}
                 onClick={() => setSimMode(val)}
-                disabled={isOvernightExecution && val === 'full'}
+                disabled={(isOvernightExecution || hasMorningExit) && val === 'full'}
                 className={`inline-flex items-center gap-1.5 rounded-[5px] px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                   simMode === val
                     ? 'bg-accent text-white shadow-sm'
@@ -2230,7 +2260,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             )}
           </div>
         )}
-        {result && ['overnight_capacity_v1', 'momentum_capacity_v1'].includes(String(result.stats.minute_execution)) && <>
+        {result && ['overnight_capacity_v1', 'momentum_capacity_v1', 'generic_morning_liquidation_v1'].includes(String(result.stats.minute_execution)) && <>
           <div className="text-xs text-muted">{result.stats.warnings?.join('；')}</div>
           <MinuteExecutionLedger result={result} />
         </>}
@@ -2936,8 +2966,13 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               </div> : <div className="mb-4 rounded-btn border border-accent/25 bg-accent/5 px-3 py-2.5 text-[11px] leading-5 text-secondary">
                 <div className="font-medium text-foreground">触发 / 成交 / 仓位关系</div>
                 <div className="mt-1">触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。</div>
-                <div>成交口径可分别设置建仓/清仓：默认建仓次日开盘（避免未来函数）、清仓当日收盘（持仓中可盘中/收盘卖）。</div>
-                <div>退出优先级：止损/移动止损 &gt; 卖点信号 &gt; 到期平仓；到期只作兜底，不抢占卖点或风控。</div>
+                {hasMorningExit ? <>
+                  <div>分钟建仓按策略声明的信号分钟收盘或紧邻下一分钟开盘；清仓使用下一交易日触发分钟收盘。</div>
+                  <div>早盘振幅达到阈值提前清仓，否则到截止时间清仓；需关闭其他出场触发器、固定/移动风控及最长持有。</div>
+                </> : <>
+                  <div>成交口径可分别设置建仓/清仓：默认建仓次日开盘（避免未来函数）、清仓当日收盘（持仓中可盘中/收盘卖）。</div>
+                  <div>退出优先级：止损/移动止损 &gt; 卖点信号 &gt; 到期平仓；到期只作兜底，不抢占卖点或风控。</div>
+                </>}
                 <div>最大持仓数控制同时持股数量，最大总仓位控制资金投入比例；剩余现金不等于可新增持仓名额。</div>
                 {matrixStrategy && <div className="text-accent">当前为 Matrix 策略，进出场信号由策略公式生成，不能用列信号覆盖。</div>}
               </div>}
@@ -3063,14 +3098,17 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                 <ConfigSection
                   title="出场触发器"
                   hint="任一出场点满足即触发出场"
-                  actions={<SignalTriggerActions kind="exit" signals={exitSignals} onChange={next => updateOverride('exit_signals', next)} />}
+                  actions={<SignalTriggerActions kind="exit" signals={exitSignals} onChange={next => updateOverride('exit_signals', next)} allowIntraday={supportsMorningExit} />}
                 >
                   <SignalPicker
                     signals={exitSignals}
                     onChange={next => updateOverride('exit_signals', next)}
                     kind="exit"
-                    options={{ allowIntraday: isMinuteStrategy && !detail.minute_execution, allowHoldingExit: false }}
+                    options={{ allowIntraday: supportsMorningExit, allowHoldingExit: supportsMorningExit }}
                   />
+                  {hasMorningExit && <div className="mt-2 text-[11px] leading-5 text-muted">
+                    收益回测支持当前早盘清仓规则；使用A股仓位模拟，需关闭其他出场触发器、固定/移动风控及最长持有。
+                  </div>}
                 </ConfigSection>
               )}
 

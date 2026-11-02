@@ -30,6 +30,39 @@ async function render(result: ScreenerResult) {
 }
 
 describe('StrategyDailyResults', () => {
+  it('renders custom signal tabs without portfolio columns and keeps saved selection order', async () => {
+    await render({
+      as_of: '2026-11-02', strategy: 'custom_test', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals',
+      sections: {
+        sell: [{ symbol: '600001.SH', entry_date: '2026-10-30', close: 10.2,
+          last_datetime: '2026-10-30T14:30:00', change_pct: .02 }],
+        select: [{ symbol: '600003.SH', score: 100 }, { symbol: '600002.SH', score: 50 }],
+        buy: [],
+      },
+    })
+    expect(host.textContent).toContain('前一交易日')
+    expect(host.textContent).toContain('触发时间')
+    expect(host.textContent).toContain('2.00%')
+    expect(host.textContent).not.toContain('需卖股数')
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    await act(async () => tabs[1].click())
+    expect([...host.querySelectorAll('tbody tr')].map(row => row.textContent?.slice(0, 9)))
+      .toEqual(['600003.SH', '600002.SH'])
+    await act(async () => tabs[2].click())
+    expect(host.textContent).toContain('该交易日没有触发入场触发器的股票')
+    expect(host.textContent).not.toContain('成交结果')
+  })
+  it('shows missing prior signal archive explicitly instead of a successful empty sell list', async () => {
+    await render({
+      as_of: '2026-11-02', strategy: 'custom_test', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', section_errors: { sell: '缺少2026-10-30买入信号归档' },
+      sections: { sell: [], select: [], buy: [] },
+    })
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('缺少2026-10-30')
+    expect(host.querySelector('[role="tab"]')?.textContent).toBe('卖 · 待确认')
+    expect(host.textContent).not.toContain('该交易日没有需要卖出的股票')
+  })
   it('shows sell select buy in order and keeps full selected rows separate', async () => {
     await render({
       as_of: '2026-10-30', strategy: 's02', rows: [], total: 0, elapsed_ms: 0,

@@ -1,0 +1,8 @@
+{
+  "local-deployment.json": "db32ca76a2510367750c7a7aa23f20e6a9c50eb78ece51ca1f9fc82c4d15267f",
+  "local-live-check.json": "597ef8a6d5e55411bfc967f9560a7e0f9cc52693f7897832378d1dde83ffa92a",
+  "online-deployment.json": "b8691580e56f3028e61cabe0216ff0313dd71888959dc53419f2d02ce94676de",
+  "online-live-check.json": "7b43da681312bf731f65abbe497628d39a51c36ac616322828081af3860eccc9",
+  "redaction.md": "3fff7e424c93248530be3235c98fb43e0c0a53d0e6ed4a111cdb3eb3ef00c427",
+  "verification.json": "3ba1b1e80c37b670759759ebca44d96e6c86ad751ecb4b3363b53ebe964d1569"
+}

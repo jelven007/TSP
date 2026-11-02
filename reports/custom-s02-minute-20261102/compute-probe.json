@@ -1,0 +1,10 @@
+{
+  "manifest": {
+    "changed": [],
+    "missing": [],
+    "added": []
+  },
+  "probe": "7 candidate/real task checks passed: full pool, exact pulse, future rows, pre-time exclusion, deadline, T+1 and empty quotes",
+  "image": "sha256:b50263ac71904cdfe885b71f2f47dcdbe3f3520562f4795408a7ecfc714d022d",
+  "data": "synthetic signal fixtures; no profit backtest"
+}

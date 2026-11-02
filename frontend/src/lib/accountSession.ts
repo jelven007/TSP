@@ -107,20 +107,87 @@ export async function accountEventStreamUrl(lastEventId = ''): Promise<string> {
 
 export function scopedStorageKey(key: string): string {
   if (!confirmed) throw new Error('请先确认登录身份')
-  return status?.auth_required ? `${accountScope()}:${key}` : key
+  if (!status?.auth_required) return key
+  return PERSISTENT_PREFERENCES.has(key)
+    ? preferenceKey(accountScope(), key)
+    : `${accountScope()}:${key}`
+}
+
+// Only durable UI configuration is retained. Drafts, task IDs, query caches and
+// private result snapshots keep the auth-version scope and are cleared.
+const PERSISTENT_PREFERENCES = new Set([
+  'strategy-pool', 'strategy-pool-1m', 'tf-stocks-query-config',
+  'watchlist_columns', 'stock_info_bar_fields', 'stock_volume_compare',
+  'stock_preview_intraday_days', 'stock_external_template', 'screener_result_columns',
+  'watchlist_view', 'watchlist_showCandle', 'watchlist_showIntraday',
+  'screener_showCandle', 'screener_showIntraday', 'screener_strategyTagsExpanded',
+  'watchlist_boardFilter', 'watchlist_excludeST', 'watchlist_groupStats',
+  'abnormal_enabled', 'screener-card-size', 'tf-page-zoom',
+  'limit-ladder-board-filter', 'limit-ladder-ext-fields', 'limit-ladder-show-ext',
+  'limit-ladder-direction', 'limit-ladder-seal-mode', 'default-strategy-basic-filter',
+  'strategy-backtest-quick-ranges', 'concept-analysis-config', 'industry-analysis-config',
+  'data-card-visible', 'data-card-order', 'tf-nav-state', 'tf-nav-collapsed',
+  'tf-settings-nav-collapsed', 'monitor_badge_enabled', 'alert_toast_enabled',
+  'alert_toast_max', 'alert_sound_enabled', 'alert_sound', 'voice_broadcast_enabled',
+  'voice_broadcast_voice', 'voice_broadcast_rate', 'tsp_adj_factor_no_remind',
+  'ai_bubble_pos', 'sa_bubble_pos', 'assistant.width.v1', 'assistant.fab.pos.v1',
+  'paper.newAccountDefaults',
+])
+
+function preferenceKey(scope: string, key: string): string {
+  return `${scope.replace(/:\d+$/, ':preferences')}:${key}`
+}
+
+function legacyPreferenceKeys(scope: string, key: string): string[] {
+  const prefix = `${scope.replace(/:\d+$/, '')}:`
+  const suffix = `:${key}`
+  const version = (candidate: string) => candidate.slice(prefix.length, -suffix.length)
+  return Object.keys(window.localStorage)
+    .filter(candidate => candidate.startsWith(prefix) && candidate.endsWith(suffix)
+      && /^\d+$/.test(version(candidate)))
+    .sort((left, right) => Number(version(right)) - Number(version(left)))
 }
 
 export const accountStorage = {
-  getItem: (key: string) => window.localStorage.getItem(scopedStorageKey(key)),
+  getItem: (key: string) => {
+    const target = scopedStorageKey(key)
+    const current = window.localStorage.getItem(target)
+    if (current !== null || !status?.auth_required || !PERSISTENT_PREFERENCES.has(key)) return current
+    const legacy = legacyPreferenceKeys(accountScope(), key)[0]
+    if (!legacy) return null
+    const value = window.localStorage.getItem(legacy)
+    if (value !== null) {
+      try {
+        window.localStorage.setItem(target, value)
+        window.localStorage.removeItem(legacy)
+      } catch { /* Keep readable legacy preferences if storage is full. */ }
+    }
+    return value
+  },
   setItem: (key: string, value: string) => window.localStorage.setItem(scopedStorageKey(key), value),
-  removeItem: (key: string) => window.localStorage.removeItem(scopedStorageKey(key)),
+  removeItem: (key: string) => {
+    window.localStorage.removeItem(scopedStorageKey(key))
+    if (status?.auth_required && PERSISTENT_PREFERENCES.has(key)) {
+      for (const legacy of legacyPreferenceKeys(accountScope(), key)) window.localStorage.removeItem(legacy)
+    }
+  },
 }
 
 export function clearAccountCache(scope = accountScope()): void {
   const prefix = `${scope}:`
   try {
     for (const key of Object.keys(window.localStorage)) {
-      if (key.startsWith(prefix)) window.localStorage.removeItem(key)
+      if (!key.startsWith(prefix)) continue
+      const name = key.slice(prefix.length)
+      if (PERSISTENT_PREFERENCES.has(name)) {
+        const target = preferenceKey(scope, name)
+        if (window.localStorage.getItem(target) === null) {
+          try {
+            window.localStorage.setItem(target, window.localStorage.getItem(key)!)
+          } catch { continue /* Retain the legacy preference; still clear private caches. */ }
+        }
+      }
+      window.localStorage.removeItem(key)
     }
     window.localStorage.removeItem('tf-query-cache')
   } catch { /* Browser storage may be unavailable. */ }

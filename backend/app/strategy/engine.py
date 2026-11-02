@@ -240,6 +240,8 @@ class StrategyResult:
     execution_error: str | None = None
     daily_stock_pool: dict | None = None
     daily_stock_pool_error: str | None = None
+    section_mode: str | None = None
+    section_errors: dict[str, str] | None = None
 
 
 @dataclass
@@ -744,6 +746,14 @@ class StrategyEngine:
             strategy = self.get(strategy_id)
             if strategy.execution_backend == "minute_filter":
                 required = max(required, strategy.minute_daily_bars)
+                override = (overrides_map or {}).get(strategy_id)
+                if effective_scoring(strategy.meta.get("scoring"), override).get("change_pct"):
+                    required = max(required, 2)
+                conditions = overlay.effective_conditions(override)
+                if conditions and not strategy.meta.get("minute_execution"):
+                    # Leave room for today's row while evaluating the previous
+                    # completed session and its rolling daily window.
+                    required = max(required, overlay.warmup_bars(conditions) + 1)
             from app.strategy.basic_filter import uses_previous
             bf = {**(strategy.basic_filter or {}), **((overrides_map or {}).get(strategy_id, {}).get("basic_filter") or {})}
             if uses_previous(bf):
@@ -941,8 +951,34 @@ class StrategyEngine:
                 daily_pool = build_pool(self, strategy_id, context, overrides=overrides)
             except ValueError as exc:
                 pool_error = str(exc)
-        result = self._run_strategy(strategy_id, context, pool=pool, params=params, overrides=overrides,
+        strategy = self.get(strategy_id)
+        signal_sections = (strategy.execution_backend == "minute_filter"
+                           and not strategy.meta.get("minute_execution")
+                           and strategy.meta.get("result_sections") == "signals")
+        execution_overrides = {**(overrides or {}), "display_limit": None} if signal_sections else overrides
+        execution_context = context
+        if signal_sections and context.history is None:
+            execution_context = replace(context, history=pl.DataFrame(schema={
+                "symbol": pl.Utf8, "datetime": pl.Datetime,
+                **{name: pl.Float64 for name in ("open", "high", "low", "close", "volume", "amount")},
+            }))
+        result = self._run_strategy(strategy_id, execution_context, pool=pool, params=params, overrides=execution_overrides,
                                     daily_pool=daily_pool)
+        if signal_sections:
+            from app.strategy.signal_sections import select_rows
+
+            result.section_mode = "signals"
+            result.section_errors = {}
+            try:
+                selected = _sanitize(select_rows(self, strategy, context, overrides=overrides or {}, pool=pool))
+            except ValueError as exc:
+                selected = []
+                result.section_errors["select"] = str(exc)
+            if result.entry_filter_error:
+                result.section_errors["buy"] = result.entry_filter_error
+            if context.history is None:
+                result.section_errors["buy"] = "缺少指定交易日分钟行情。买入信号暂不可确认"
+            result.sections = {"sell": [], "select": selected, "buy": result.rows}
         result.daily_stock_pool = daily_pool
         result.daily_stock_pool_error = pool_error
         return result
@@ -972,8 +1008,8 @@ class StrategyEngine:
         as_of = context.as_of
         overrides = overrides or {}
         conditions = overlay.effective_conditions(overrides)
-        if conditions and s.execution_backend == "minute_filter":
-            raise ValueError("日线入场叠加条件暂不支持分钟策略, 请使用分钟策略自身的条件")
+        if conditions and s.execution_backend == "minute_filter" and s.meta.get("minute_execution"):
+            raise ValueError("专用分钟执行暂不支持入场叠加条件, 请使用策略自身的参数")
         params = self.resolve_params(s, params, overrides)
         from app.strategy.morning_liquidation import selected_definitions
 
@@ -1135,6 +1171,25 @@ class StrategyEngine:
             # 在命中结果上事后联表, 避免把 enriched 列铺到全市场分钟行上。
             if current is not None and not current.is_empty():
                 df = self._join_basic_columns(df, current)
+            if scoring.get("change_pct") and "close" in df.columns:
+                from app.strategy.basic_filter import previous_session
+
+                reference = context.daily_history
+                if reference is None or reference.is_empty():
+                    reference = context.pool_history
+                if reference is None or reference.is_empty() or "date" not in reference.columns:
+                    df = df.with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
+                else:
+                    previous = reference.filter(pl.col("date") == previous_session(as_of)).select(
+                        "symbol", pl.col("raw_close" if "raw_close" in reference.columns else "close")
+                        .alias("_minute_previous_close"),
+                    ).unique("symbol", keep="last")
+                    df = df.join(previous, on="symbol", how="left").with_columns(
+                        pl.when(pl.col("_minute_previous_close").is_finite()
+                                & (pl.col("_minute_previous_close") > 0))
+                        .then(pl.col("close") / pl.col("_minute_previous_close") - 1)
+                        .otherwise(None).alias("change_pct"),
+                    ).drop("_minute_previous_close")
         elif s.filter_history_fn:
             if history is None:
                 raise ValueError(f"strategy {strategy_id} requires history data")
@@ -1207,11 +1262,12 @@ class StrategyEngine:
             df = df.filter(expr)
 
         try:
-            df = overlay.filter_candidates(
-                df, conditions,
-                history=context.daily_history if s.execution_backend == "minute_filter" else history,
-                current=current,
-            )
+            if s.execution_backend == "minute_filter":
+                df = overlay.filter_minute_candidates(
+                    df, conditions, history=context.daily_history, as_of=as_of,
+                )
+            else:
+                df = overlay.filter_candidates(df, conditions, history=history, current=current)
         except overlay.OverlayDataError as error:
             return StrategyResult(
                 as_of=as_of, strategy_id=strategy_id, exit_signal_hits=exit_signal_hits,
@@ -1943,6 +1999,8 @@ class StrategyEngine:
     @staticmethod
     def _join_basic_columns(df: pl.DataFrame, current: pl.DataFrame) -> pl.DataFrame:
         """把 enriched 快照列按 symbol 联到分钟策略输出上, 只补 df 缺失的列。"""
+        if df.is_empty():
+            return df
         cols = [
             c for c in StrategyEngine.MINUTE_JOIN_COLUMNS
             if c in current.columns and c not in df.columns

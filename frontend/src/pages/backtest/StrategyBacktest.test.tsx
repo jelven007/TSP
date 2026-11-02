@@ -4,7 +4,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { StrategyBacktestResult } from '@/lib/api'
+import { api, type StrategyBacktestResult, type StrategyDetail } from '@/lib/api'
+import { QK } from '@/lib/queryKeys'
 import type { BacktestTask } from '@/lib/backtestTask'
 import { storage } from '@/lib/storage'
 import { confirmAccount } from '@/lib/accountSession'
@@ -40,6 +41,7 @@ vi.mock('@/lib/api', async importOriginal => {
       ...(id === 's01' ? { execution_backend: 'minute_filter', minute_execution: 'overnight_capacity_v1' } : {}),
     }),
     factorColumns: async () => ({ columns: [] }),
+    customSignalsList: async () => ({ signals: [] }),
     factorLibrary: async () => ({ factors: [] }),
     watchlistList: async () => ({ symbols: [] }),
     dataStatus: async () => ({ enriched: { earliest_date: '2026-01-01' } }),
@@ -80,10 +82,104 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   await act(async () => root.unmount())
+  vi.restoreAllMocks()
   client.clear()
   host.remove()
   localStorage.clear()
 })
+async function remountWithStrategy(id: string, cachedCatalog?: Awaited<ReturnType<typeof api.screenerStrategies>>) {
+  await act(async () => root.unmount())
+  client.clear()
+  if (cachedCatalog) client.setQueryData(QK.screenerStrategies('stock', 'all'), cachedCatalog)
+  storage.strategyBacktestLast.set({
+    ...storage.strategyBacktestLast.get(null)!,
+    selectedStrategy: id, params: { old: 1 }, overrides: { old: true },
+    strategyConfigSignature: 'deleted-definition', result: { run_id: 'old-run' },
+  })
+  root = createRoot(host)
+  await render()
+}
+function strategyFixture(id = 'example', source: StrategyDetail['source'] = 'builtin'): StrategyDetail {
+  return {
+    id, name: '示例策略', description: '', tags: [], source, execution_backend: 'polars_expr',
+    asset_types: ['stock'], timeframes: ['1d'], version: '1', basic_filter: {}, params: [],
+    params_defaults: {}, scoring: {}, scoring_directions: {}, entry_signals: [], exit_signals: [],
+    minute_exit_trigger_supported_signals: [], stop_loss: null, take_profit: null, trailing_stop: null,
+    trailing_take_profit_activate: null, trailing_take_profit_drawdown: null, max_hold_days: null,
+    order_by: '', descending: false, limit: 0,
+  }
+}
+
+it('enables a saved custom minute holding exit with minute liquidation and position mode', async () => {
+  const custom: StrategyDetail = {
+    ...strategyFixture('custom_s02', 'custom'), name: 's02', execution_backend: 'minute_filter',
+    timeframes: ['1m'], exit_signals: ['csgi_morning_liquidation'],
+  }
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+  vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+  vi.spyOn(api, 'customSignalsList').mockResolvedValue({ signals: [{
+    id: 'morning_liquidation', name: '早盘清仓', kind: 'exit', enabled: true,
+    timeframe: 'intraday', template: 'morning_liquidation', conditions: [],
+  }] })
+  const save = vi.spyOn(api, 'strategySaveConfig')
+  await remountWithStrategy('custom_s02')
+  await act(async () => [...host.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.textContent?.includes('策略设置') && button.textContent?.includes('编辑'))!.click())
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+    .find(button => button.textContent?.trim() === '出场触发器')!.click())
+  await settle()
+  const signal = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+    .find(button => button.textContent?.includes('早盘清仓'))
+  expect(signal).toBeDefined()
+  expect(signal?.textContent).not.toContain('回测暂不支持')
+  expect(signal?.disabled).toBe(false)
+  expect(host.textContent).toContain('次交易日触发分钟收盘')
+  expect([...host.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.textContent?.trim() === '全量模拟')?.disabled).toBe(true)
+  expect(save).not.toHaveBeenCalled()
+})
+
+it.each([false, true])('validates a saved deleted strategy before requesting detail (empty catalog: %s)', async empty => {
+  let resolveCatalog!: (data: Awaited<ReturnType<typeof api.screenerStrategies>>) => void
+  vi.spyOn(api, 'screenerStrategies').mockImplementation(() => new Promise(resolve => { resolveCatalog = resolve }))
+  const detail = vi.spyOn(api, 'strategyGet')
+  await remountWithStrategy('custom_mvxznhd9', { presets: [strategyFixture('custom_mvxznhd9', 'custom')], load_errors: [] })
+  expect(detail).not.toHaveBeenCalled()
+  expect(storage.strategyBacktestLast.get(null)?.selectedStrategy).toBe('custom_mvxznhd9')
+  expect(Array.from(host.querySelectorAll('button')).find(el => el.textContent?.trim() === '运行回测')?.disabled).toBe(true)
+  await act(async () => resolveCatalog({ presets: empty ? [] : [strategyFixture()], load_errors: [] }))
+  await settle()
+  expect(detail).not.toHaveBeenCalled()
+  expect(storage.strategyBacktestLast.get(null)).toMatchObject({
+    selectedStrategy: null, params: {}, overrides: {}, result: null,
+    fees: '2', start: '2026-10-01', end: '2026-10-20',
+  })
+  expect(storage.strategyBacktestLast.get(null)?.strategyConfigSignature).toBeUndefined()
+})
+
+it('retains the saved strategy when the catalog request fails without requesting its detail', async () => {
+  vi.spyOn(api, 'screenerStrategies').mockRejectedValue(new Error('catalog unavailable'))
+  const detail = vi.spyOn(api, 'strategyGet')
+  await remountWithStrategy('custom_mvxznhd9')
+  expect(client.getQueryState(QK.screenerStrategies('stock', 'all'))?.status).toBe('error')
+  expect(detail).not.toHaveBeenCalled()
+  expect(storage.strategyBacktestLast.get(null)).toMatchObject({
+    selectedStrategy: 'custom_mvxznhd9', params: { old: 1 }, overrides: { old: true },
+  })
+})
+
+it('loads a valid saved strategy only after the catalog confirms it', async () => {
+  let resolveCatalog!: (data: Awaited<ReturnType<typeof api.screenerStrategies>>) => void
+  vi.spyOn(api, 'screenerStrategies').mockImplementation(() => new Promise(resolve => { resolveCatalog = resolve }))
+  const detail = vi.spyOn(api, 'strategyGet')
+  await remountWithStrategy('example')
+  expect(detail).not.toHaveBeenCalled()
+  await act(async () => resolveCatalog({ presets: [strategyFixture()], load_errors: [] }))
+  await settle()
+  expect(detail).toHaveBeenCalledExactlyOnceWith('example')
+  expect(host.textContent).toContain('示例策略')
+})
+
 async function click(text: string) {
   const button = Array.from(host.querySelectorAll('button')).find(el => el.textContent?.trim() === text)!
   expect(button).toBeDefined()
@@ -156,10 +252,10 @@ it('shows the overnight capital and fee contract and disables independent full m
   expect(host.textContent).toContain('需前两个交易日日线')
 })
 
-it('retains and exports actual minute fills when the sell deadline fails', async () => {
+it.each(['overnight_capacity_v1', 'generic_morning_liquidation_v1'])('retains and exports actual minute fills when the sell deadline fails (%s)', async execution => {
   const task = completed(3)
   task.result!.error = '11:29到期剩余100股'
-  task.result!.stats = { minute_execution: 'overnight_capacity_v1', execution: { cash: 80000, deadline_violations: 1 } }
+  task.result!.stats = { minute_execution: execution, execution: { cash: 80000, deadline_violations: 1 } }
   task.result!.fills = [{
     date: '2026-10-01', symbol: '600000.SH', side: 'buy', bar: 887, datetime: '2026-10-01 14:47:00',
     shares: 100, price: 10, notional: 1000, fee: 5.01, minute_volume_shares: 2000, participation: .05,

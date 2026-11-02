@@ -1,0 +1,46 @@
+{
+  "version": "v0.4.42",
+  "runtime_base_commit": "7b60562dd7fa5054f383319bbf0d706227dfabc1",
+  "local_uncommitted_patch": true,
+  "image": "sha256:b50263ac71904cdfe885b71f2f47dcdbe3f3520562f4795408a7ecfc714d022d",
+  "runtime_files": {
+    "backend/app/multitenancy/strategies.py": "1981bdee85dbf1c2502f3405a8b63497f4ade9f3337aa8222423bec51a79e4ca",
+    "backend/app/multitenancy/compute_worker.py": "c371b913b417ad4ad868b198c99fc08a9c4c7856443c191df873e3b189b91ef1"
+  },
+  "backend_tests": 108,
+  "candidate_tests": 5,
+  "compute_signal_checks": 7,
+  "lint": "passed",
+  "frontend_build": "passed",
+  "compute_manifest": "passed",
+  "desktop_mobile_picker_checks": 4,
+  "services": 8,
+  "actual_scan": {
+    "status": 200,
+    "as_of": "2026-10-30",
+    "pool_total": 1552,
+    "selected_total": 0,
+    "entry_hits": 0,
+    "exit_hits": 0
+  },
+  "audit": {
+    "as_of": "2026-10-30",
+    "pool_total": 1552,
+    "target_minute": "2026-10-30 14:30:00",
+    "symbols_at_target": 1552,
+    "previous_closes": 1552,
+    "pool_up_pct": 30.283505154639176,
+    "required_pool_up_pct": 60,
+    "template_hits": 0,
+    "diagnostics": [],
+    "owned_remaining_lots": 0,
+    "matching_monitor_rules": [],
+    "data": "read-only current local public market; no profit backtest"
+  },
+  "source_id": "custom_mvxxcp88",
+  "schema_migration": false,
+  "version_bump": false,
+  "new_profit_backtest": false,
+  "remote_deployment": false,
+  "commit_or_push": false
+}

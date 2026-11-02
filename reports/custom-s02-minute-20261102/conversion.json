@@ -1,0 +1,18 @@
+{
+  "updated_in_place": true,
+  "source_sha256": "3991c54c613c640a44303ee7f829f06999761619064c8d2c4f0538d1034fbc34",
+  "execution_backend": "minute_filter",
+  "timeframes": [
+    "1m"
+  ],
+  "positions_transport": true,
+  "entry_signals": [
+    "csgi_late_session_strength"
+  ],
+  "exit_signals": [
+    "csgi_morning_liquidation"
+  ],
+  "old_daily_signal_removed": true,
+  "basic_filter_preserved": true,
+  "signals_preserved": true
+}

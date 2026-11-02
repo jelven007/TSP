@@ -75,7 +75,11 @@ class TenantStrategyEngine(StrategyEngine):
 
     def task(self, kind: str, **values) -> dict:
         if getattr(self, "_task_snapshot", None) is not None:
-            return {**copy.deepcopy(self._task_snapshot), "kind": kind, **values}
+            task = {**copy.deepcopy(self._task_snapshot), "kind": kind, **values}
+            if kind == "strategy" and values.get("as_of") and values.get("strategy_ids"):
+                with self.documents.transaction(write=False) as session:
+                    task["positions"] = self._holding_positions(session, task)
+            return task
         from app.multitenancy.watchlist import Watchlist
         from app.strategy.config import list_overrides
         from app.strategy.targets import resolve
@@ -101,6 +105,11 @@ class TenantStrategyEngine(StrategyEngine):
                 if lifecycle.get("deleted"):
                     raise AccessError(409, "策略已删除，请刷新策略列表")
                 values["strategy_generation"] = int(lifecycle.get("generation", 0))
+            signals = session.values("custom_signals")
+            if kind == "strategy" and values.get("as_of") and values.get("strategy_ids"):
+                values = {**values, "positions": self._holding_positions(
+                    session, {"overrides": overrides, "signals": signals, **values},
+                )}
             return {
                 "kind": kind, "tenant_id": self.documents.context.tenant_id,
                 "administrator": self.administrator,
@@ -108,10 +117,30 @@ class TenantStrategyEngine(StrategyEngine):
                 "overrides": overrides,
                 "watchlist": Watchlist._rows(session.connection),
                 "factors": session.values("custom_factors"),
-                "signals": session.values("custom_signals"),
+                "signals": signals,
                 **({"public_release_id": self.public_release_id} if getattr(self, "public_release_id", None) else {}),
                 **values,
             }
+
+    def _holding_positions(self, session, task: dict) -> dict[str, list[dict]]:
+        from app.multitenancy.paper_storage import PaperSession
+        from app.strategy.morning_liquidation import holding_snapshot
+
+        morning_columns = {
+            "csgi_" + sig["id"] for sig in task["signals"]
+            if sig.get("template") == "morning_liquidation"
+        }
+        positions = {}
+        for sid in task["strategy_ids"]:
+            effective = {**task["overrides"].get(sid, {}),
+                         **(task.get("overrides_map") or {}).get(sid, {})}
+            exits = self._effective_signals(effective, "exit_signals", self.get(sid).exit_signals)
+            if morning_columns.intersection(exits):
+                positions[sid] = holding_snapshot(
+                    PaperSession(session, session.connection, False), sid,
+                    date.fromisoformat(task["as_of"]),
+                )
+        return positions
 
     def save_source(
         self, sid: str, code: str, source: str, *, mode: str = "create", cancel=None, verify_access=None,

@@ -1,0 +1,10 @@
+{
+  "recorded_at": "2026-11-02T08:24:30.310906+08:00",
+  "review_sha256": "c34c17cbc7639c42f84dce6a984a2c4c7ee9b929399c07f3d4ac44429100d727",
+  "authorization": "user requested deployment to running services",
+  "version": "0.4.42",
+  "tests_passed": 59,
+  "checks": "Ruff and git diff --check passed",
+  "scope": "one runtime file plus regression test",
+  "review_shown": true
+}

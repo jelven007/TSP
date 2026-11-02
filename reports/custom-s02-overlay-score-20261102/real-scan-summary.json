@@ -1,0 +1,10 @@
+{
+  "status": 200,
+  "as_of": "2026-10-30",
+  "pool_total": 1552,
+  "selected_total": 0,
+  "entry_hits": 0,
+  "exit_hits": 0,
+  "profit_backtest": false,
+  "trading": false
+}

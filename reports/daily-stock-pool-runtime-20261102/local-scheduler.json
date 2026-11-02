@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-11-02T08:32:57.152670+08:00",
+  "active_tenants": 1,
+  "unavailable_tenants": 6,
+  "unavailable_live_leases": 0,
+  "active_max_overdue_seconds": 0.0,
+  "active_next_due": [
+    "2026-11-02T08:33:03.557008+08:00"
+  ],
+  "passed": true,
+  "inspection_only": true
+}

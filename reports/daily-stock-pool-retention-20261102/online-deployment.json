@@ -1,0 +1,51 @@
+{
+  "version": "0.4.42",
+  "snapshot": "pool-latest-20261102-on-7b60562dd7fa",
+  "base_revision": "7b60562dd7fa5054f383319bbf0d706227dfabc1",
+  "patch_sha256": "04d0c1166b04ee762585e4df70928025a75a92e3307065fb1ba1380139ff36de",
+  "runtime": "sha256:2f352494dc3919f69a576010f1aa87ac89aa50bc6315a1ee4ad53f206ab1fe73",
+  "compute": "sha256:4bec7825b7e2269fa1a6be1dc9fbdbac9fded013e68331d96a52e1661c0e1675",
+  "configuration_preserved": true,
+  "schema_changed": true,
+  "two_database_restore": true,
+  "previous_images_saved": true,
+  "non_task_artifact_files_unchanged": true,
+  "market_files_unchanged": true,
+  "roles": {
+    "tsp-full-api-1": {
+      "image": "sha256:2f352494dc3919f69a576010f1aa87ac89aa50bc6315a1ee4ad53f206ab1fe73",
+      "health": "healthy"
+    },
+    "tsp-full-platform-1": {
+      "image": "sha256:2f352494dc3919f69a576010f1aa87ac89aa50bc6315a1ee4ad53f206ab1fe73",
+      "health": "healthy"
+    },
+    "tsp-full-gateway-1": {
+      "image": "sha256:2f352494dc3919f69a576010f1aa87ac89aa50bc6315a1ee4ad53f206ab1fe73",
+      "health": "healthy"
+    },
+    "tsp-full-research-1": {
+      "image": "sha256:2f352494dc3919f69a576010f1aa87ac89aa50bc6315a1ee4ad53f206ab1fe73",
+      "health": "healthy"
+    },
+    "tsp-full-scheduled-1": {
+      "image": "sha256:2f352494dc3919f69a576010f1aa87ac89aa50bc6315a1ee4ad53f206ab1fe73",
+      "health": "healthy"
+    },
+    "tsp-full-realtime-1": {
+      "image": "sha256:2f352494dc3919f69a576010f1aa87ac89aa50bc6315a1ee4ad53f206ab1fe73",
+      "health": "healthy"
+    },
+    "tsp-full-notifications-1": {
+      "image": "sha256:2f352494dc3919f69a576010f1aa87ac89aa50bc6315a1ee4ad53f206ab1fe73",
+      "health": "healthy"
+    }
+  },
+  "changed_files": {
+    "backend/app/services/daily_stock_pools.py": "57750d154ddca7abebfed23d6a4b2553068d4323cc19cc4a316012e69f898b11"
+  },
+  "scheduler": {
+    "awake_tenants": 2,
+    "earliest_due": "2026-11-01T23:54:50.790935+00:00"
+  }
+}

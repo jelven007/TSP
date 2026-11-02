@@ -199,3 +199,71 @@ def test_read_only_repository_does_not_create_missing_market_generation(tmp_path
         assert list(tmp_path.iterdir()) == []
     finally:
         store.db.close()
+
+
+@pytest.mark.parametrize("ids", [["first"], ["first", "second"]])
+@pytest.mark.parametrize("live", [False, True])
+@pytest.mark.parametrize("empty_current", [False, True])
+def test_compute_scan_keeps_holding_context_scoped_and_clock_explicit(
+    tmp_path, monkeypatch, ids, live, empty_current,
+):
+    from datetime import date, datetime
+
+    import polars as pl
+
+    from app.multitenancy.compute_worker import execute
+    from app.strategy.engine import StrategyDataContext, StrategyResult
+
+    day = date(2026, 9, 7)
+    now = datetime(2026, 9, 7, 10, 30, 7)
+    shared = StrategyDataContext("stock", "1m", day, history=pl.DataFrame(),
+                                 current=pl.DataFrame() if empty_current else None)
+    captured = {}
+
+    class Engine:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def load_errors(self):
+            return []
+
+        def get(self, _sid):
+            return SimpleNamespace(meta={})
+
+        def run(self, sid, context, **_kwargs):
+            captured[sid] = context
+            return StrategyResult(strategy_id=sid, as_of=day)
+
+        def run_all(self, *_args, **_kwargs):
+            pytest.fail("holding snapshots require separate strategy contexts")
+
+    # Load the backtest module before replacing the engine for this transport
+    # test, so its module-level import cannot retain the temporary substitute.
+    monkeypatch.setattr("app.backtest.strategy.StrategyEngine", StrategyEngine)
+    monkeypatch.setattr("app.strategy.engine.StrategyEngine", Engine)
+    monkeypatch.setattr("app.backtest.engine.BacktestEngine", lambda _repo: None)
+    monkeypatch.setattr("app.tickflow.repository.DataStore", lambda *_args, **_kw:
+                        SimpleNamespace(db=SimpleNamespace(close=lambda: None)))
+    monkeypatch.setattr("app.tickflow.repository.KlineRepository", lambda _store: None)
+    monkeypatch.setattr("app.services.screener.ScreenerService", lambda *_args, **_kw:
+                        SimpleNamespace(build_strategy_context=lambda *_args, **_kw: shared))
+    original = Path.iterdir
+    monkeypatch.setattr(Path, "iterdir", lambda path:
+                        iter(()) if str(path) == "/market" else original(path))
+    monkeypatch.setattr("app.market_time.cn_today", lambda: day if live else date(2026, 11, 2))
+    monkeypatch.setattr("app.market_time.cn_now", lambda: now)
+    positions = [{"symbol": "600000.SH", "entry_date": "2026-09-04",
+                  "qty": 100, "available_qty": 100}]
+    response = execute({
+        "kind": "strategy", "as_of": str(day), "timeframe": "1m", "strategy_ids": ids,
+        "positions": {"first": positions}, "previous_states": {"first": {"previous": True}},
+    }, tmp_path)
+    assert set(response["results"]) == set(ids)
+    first = captured["first"]
+    assert first.positions == positions
+    assert first.observed_at == (now if live else datetime(2026, 9, 7, 15))
+    assert first.previous_states == {"first": {"previous": True}}
+    if len(ids) > 1:
+        assert captured["second"].positions is None
+        assert captured["second"] is not first
+        assert shared.positions is None and shared.observed_at is None

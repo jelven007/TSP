@@ -1,0 +1,87 @@
+{
+  "version": "v0.4.42",
+  "runtime_base": "7b60562dd7fa5054f383319bbf0d706227dfabc1",
+  "local_uncommitted_patch": true,
+  "image": "sha256:a42fa5a50cfc9acd9b205c0e2fad5c032426fc2fa0dd8fd30cca72b5b53e193a",
+  "files": {
+    "backend/app/strategy/overlay.py": "491f0a0ce609c0295816e1fb79f9672efc87aa5b0ef3738c038773ad7dddfd43",
+    "backend/app/strategy/engine.py": "ce8223aea9cc06ed538c2e6feb0386358536876a801e30d4a9341c10cdcf0ba1",
+    "backend/app/api/strategy.py": "02f8e4b98bb81a6ac676255467c517743d984e875ce50a847126c9b4c93009a1",
+    "frontend/src/components/screener/StrategySettingsDialog.tsx": "73ba9ab5e69c6c1831ca1bb79e1d9da8a1fdb22235f50cb9ee5992992fbd9a01",
+    "frontend/src/components/screener/OverlayFilterEditor.tsx": "cceed90fbe633c90014c7fba97d43d8e4c0987ab7f9631d647671ba7e8cf39c4"
+  },
+  "backend_tests_passed": 174,
+  "source_ranking_test_passed": 1,
+  "frontend_tests_passed": 5,
+  "compute_signal_checks_passed": 10,
+  "backend_lint": {
+    "backend/app/strategy/engine.py": {
+      "existing_diagnostics": 23,
+      "new_diagnostics": 0
+    },
+    "backend/app/api/strategy.py": {
+      "existing_diagnostics": 21,
+      "new_diagnostics": 0
+    }
+  },
+  "frontend_lint": "passed",
+  "frontend_build": "passed",
+  "actual_scan": {
+    "status": 200,
+    "as_of": "2026-10-30",
+    "pool_total": 1552,
+    "selected_total": 0,
+    "entry_hits": 0,
+    "exit_hits": 0,
+    "profit_backtest": false,
+    "trading": false
+  },
+  "actual_daily_filter": {
+    "as_of": "2026-10-30",
+    "reference_date": "2026-10-29",
+    "pool_total": 1552,
+    "requested_daily_bars": 22,
+    "observed_daily_rows": 34122,
+    "mean_20d_pass_total": 1156,
+    "mean_20d_pass_is_trade_count": false,
+    "threshold_yuan": 100000000,
+    "factor_unit": "亿元",
+    "completed_daily_only": true,
+    "actual_signal_entries": 0,
+    "profit_backtest": false
+  },
+  "browser_checks": [
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "amount_mean_20d": 1,
+      "scoring_weight_pct": 100,
+      "direction": "high",
+      "bounds": {
+        "width": 1200,
+        "scroll": 1198,
+        "client": 1198
+      }
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "amount_mean_20d": 1,
+      "scoring_weight_pct": 100,
+      "direction": "high",
+      "bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      }
+    }
+  ],
+  "new_profit_backtest": false,
+  "remote_deployment": false,
+  "commit_or_push": false,
+  "version_bump": false
+}

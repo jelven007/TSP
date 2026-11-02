@@ -1205,7 +1205,9 @@ class MonitorRuleEngine:
         from app.strategy.version import runtime_identity
 
         return {"runtime_identity": runtime_identity(strategy, overrides),
-                "asset_type": asset_type, "timeframe": "1m" if strategy.meta.get("minute_execution") else "1d",
+                "asset_type": asset_type,
+                "timeframe": "1m" if (strategy.meta.get("minute_execution")
+                                     or strategy.meta.get("result_sections") == "signals") else "1d",
                 "computed_at": time.time_ns() // 1_000_000, "source": "realtime"}
 
     @staticmethod
@@ -1226,6 +1228,8 @@ class MonitorRuleEngine:
         if getattr(result, "sections", None) is not None:
             payload.update(sections=result.sections, state=result.state,
                            portfolio_scope=result.portfolio_scope, execution_error=result.execution_error)
+            if getattr(result, "section_mode", None):
+                payload.update(section_mode=result.section_mode, section_errors=result.section_errors)
         if getattr(result, "daily_stock_pool", None) is not None:
             payload["daily_stock_pool"] = result.daily_stock_pool
         if getattr(result, "daily_stock_pool_error", None):

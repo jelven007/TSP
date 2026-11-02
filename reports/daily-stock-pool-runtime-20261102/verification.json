@@ -1,0 +1,40 @@
+{
+  "pytest": {
+    "passed": 59,
+    "failed": 0,
+    "skipped": 0,
+    "scope": [
+      "test_full_schedules.py",
+      "test_daily_pool_schedule.py",
+      "test_daily_pool_retention.py",
+      "test_daily_stock_pools.py",
+      "test_full_daily_stock_pools.py"
+    ],
+    "database": "isolated disposable PostgreSQL"
+  },
+  "regression": {
+    "cases": 2,
+    "reproductions_failed": 3,
+    "green": true,
+    "removed_fix_failed_again": true
+  },
+  "ruff": {
+    "checked": [
+      "backend/app/multitenancy/scheduled_worker.py",
+      "backend/tests/test_full_schedules.py"
+    ],
+    "passed": true
+  },
+  "diff_check": true,
+  "version_incremented": false,
+  "git_commit_or_push": false,
+  "new_backtest": false,
+  "documentation": {
+    "passed": true,
+    "maintained_markdown_files": 37,
+    "requirement_modules": 8,
+    "deliverable_links_passed": true
+  },
+  "version_check": true,
+  "two_end_definition_fingerprints_match": true
+}

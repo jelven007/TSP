@@ -49,3 +49,29 @@ it('offers holding exits to minute strategy settings and hides them in backtests
   expect(host.textContent).toContain('早盘清仓')
   await act(async () => root.unmount())
 })
+
+it('keeps a configured holding exit visible with its backtest limitation', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  const qc = new QueryClient()
+  qc.setQueryData(QK.customSignals, { signals: [{
+    id: 'morning_liquidation', name: '早盘清仓', kind: 'exit', enabled: true,
+    timeframe: 'intraday', template: 'morning_liquidation', conditions: [],
+  }] })
+  const host = document.createElement('div')
+  const root = createRoot(host)
+  let changed = false
+  await act(async () => root.render(<QueryClientProvider client={qc}>
+    <SignalPicker signals={['csgi_morning_liquidation']} kind="exit" onChange={() => { changed = true }}
+      options={{ builtinSignals: [], allowIntraday: true, allowHoldingExit: false }} />
+  </QueryClientProvider>))
+  try {
+    const button = host.querySelector<HTMLButtonElement>('button')
+    expect(host.textContent).toContain('早盘清仓')
+    expect(button?.textContent).toContain('回测暂不支持')
+    expect(button?.disabled).toBe(true)
+    expect(changed).toBe(false)
+  } finally {
+    await act(async () => root.unmount())
+    qc.clear()
+  }
+})

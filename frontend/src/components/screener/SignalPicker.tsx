@@ -20,6 +20,7 @@ interface SignalPickerOptions {
    */
   filterCustomByKind?: boolean
   allowIntraday?: boolean
+  /** 不支持持仓出场的入口隐藏未选项，已配置项保留只读能力提示。 */
   allowHoldingExit?: boolean
 }
 
@@ -47,12 +48,13 @@ export function SignalPicker({ signals, onChange, kind, options }: Props) {
   const customOptions = useMemo(() => {
     const list = (customSignalsQuery.data?.signals ?? [])
       .filter(s => s.enabled && (s.timeframe !== 'intraday' || allowIntraday)
-        && (s.template !== 'morning_liquidation' || (allowHoldingExit && filterCustomByKind))
+        && (s.template !== 'morning_liquidation'
+          || (filterCustomByKind && (allowHoldingExit || signals.includes(customSignalColumn(s)))))
         && (!filterCustomByKind || s.kind === kind || s.kind === 'both'))
     const names: Record<string, string> = {}
     for (const cs of list) names[customSignalColumn(cs)] = cs.name
     return { list, names }
-  }, [customSignalsQuery.data, kind, filterCustomByKind, allowIntraday, allowHoldingExit])
+  }, [customSignalsQuery.data, kind, filterCustomByKind, allowIntraday, allowHoldingExit, signals])
 
   const toggle = (sig: string) => {
     const next = signals.includes(sig) ? signals.filter(x => x !== sig) : [...signals, sig]
@@ -92,15 +94,19 @@ export function SignalPicker({ signals, onChange, kind, options }: Props) {
       })}
       {customOptions.list.map(cs => {
         const id = customSignalColumn(cs)
+        const unsupportedHolding = cs.template === 'morning_liquidation' && !allowHoldingExit
         return (
           <button
             key={id}
             type="button"
+            disabled={unsupportedHolding}
+            aria-pressed={signals.includes(id)}
             onClick={() => toggle(id)}
-            title="自定义信号"
-            className={`${btnCls} relative ${signals.includes(id) ? active : idle}`}
+            title={unsupportedHolding ? '当前策略已配置早盘清仓，暂不支持收益回测；请在选股页策略设置中修改。' : '自定义信号'}
+            className={`${btnCls} relative ${signals.includes(id) ? active : idle} disabled:cursor-not-allowed`}
           >
             {customOptions.names[id]}
+            {unsupportedHolding && <span className="ml-1">· 回测暂不支持</span>}
             <span className="pointer-events-none absolute -top-1 -right-1 rounded-full border border-border bg-base p-px">
               <PenLine className="h-2 w-2 text-muted" />
             </span>

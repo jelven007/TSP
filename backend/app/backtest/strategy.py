@@ -1253,8 +1253,22 @@ class StrategyBacktestService:
         overrides = config.overrides or {}
         from app.strategy.morning_liquidation import selected_definitions
 
-        if selected_definitions(self.strategy_engine, self._effective_signals(overrides, "exit_signals", s.exit_signals)):
-            return _err("早盘清仓暂不支持收益回测, 请使用带买入日期的盘中信号回放")
+        morning = selected_definitions(
+            self.strategy_engine, self._effective_signals(overrides, "exit_signals", s.exit_signals),
+        )
+        if morning:
+            if s.execution_backend != "minute_filter" or s.meta.get("minute_execution"):
+                return _err("早盘清仓收益回测仅支持通用分钟策略, 请使用带买入日期的盘中信号回放")
+            from app.backtest.morning_backtest import run_morning
+
+            try:
+                return run_morning(
+                    self, config, s, params, overrides, morning,
+                    progress_cb=progress_cb, cancel_event=cancel_event,
+                    result_policy=result_policy, run_id=run_id, t0=t0, provenance=provenance,
+                )
+            except (ValueError, TypeError) as exc:
+                return _err(str(exc))
         if s.meta.get("minute_execution") and any(
             str(name).startswith("csgi_")
             for name in self._effective_signals(overrides, "entry_signals", s.entry_signals)

@@ -1,0 +1,50 @@
+{
+  "name": "s02",
+  "params": {},
+  "scoring": {},
+  "stop_loss": null,
+  "entry_risk": {},
+  "description": "尾盘走强入场，下一交易日振幅达标或截止时间清仓",
+  "take_profit": null,
+  "basic_filter": {
+    "boards": [
+      "沪主板",
+      "深主板"
+    ],
+    "enabled": true,
+    "price_max": null,
+    "price_min": null,
+    "amount_max": null,
+    "amount_min": null,
+    "exclude_st": true,
+    "target_mode": "selected",
+    "turnover_max": null,
+    "turnover_min": null,
+    "float_cap_max": 50000000000,
+    "float_cap_min": 5000000000,
+    "change_pct_max": 6,
+    "change_pct_min": 0.5,
+    "data_reference": "previous_trade_day",
+    "include_custom": false,
+    "market_cap_max": null,
+    "market_cap_min": null,
+    "exclude_new_days": null,
+    "watchlist_group_ids": [],
+    "exclude_suspended": true
+  },
+  "exit_signals": [
+    "csgi_morning_liquidation"
+  ],
+  "display_limit": null,
+  "entry_signals": [
+    "csgi_late_session_strength"
+  ],
+  "max_hold_days": null,
+  "trailing_stop": null,
+  "overlay_filter": [],
+  "scoring_replace": true,
+  "scoring_directions": {},
+  "trailing_take_profit_activate": null,
+  "trailing_take_profit_drawdown": null,
+  "params_defaults": {}
+}

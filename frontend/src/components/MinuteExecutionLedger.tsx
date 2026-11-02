@@ -15,7 +15,7 @@ export function MinuteExecutionLedger({ result }: { result: StrategyBacktestResu
   }
   return (
     <details className="rounded-xl border border-border bg-surface px-3 py-2 text-xs">
-      <summary className="cursor-pointer font-medium text-foreground">分钟成交分片（{result.fills.length}行）· 卖出信号（{result.signals?.length ?? 0}笔）</summary>
+      <summary className="cursor-pointer font-medium text-foreground">分钟成交分片（{result.fills.length}行）· 卖出信号（{result.signals?.filter(signal => signal.side !== 'buy').length ?? 0}笔）</summary>
       <button type="button" onClick={download} className="my-2 rounded-btn border border-border px-2 py-1 text-secondary">下载完整成交与信号</button>
       <div className="overflow-x-auto">
         <table className="w-full whitespace-nowrap text-left">

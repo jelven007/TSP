@@ -1,0 +1,59 @@
+{
+  "strategy_id": "custom_mvxxcp88",
+  "administrator_login": true,
+  "metadata_verified": true,
+  "source_sha256": "3991c54c613c640a44303ee7f829f06999761619064c8d2c4f0538d1034fbc34",
+  "checks": [
+    {
+      "signal": "尾盘走强",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "selected": true,
+      "enabled": true
+    },
+    {
+      "signal": "早盘清仓",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "selected": true,
+      "enabled": true
+    },
+    {
+      "signal": "尾盘走强",
+      "viewport": [
+        390,
+        844
+      ],
+      "selected": true,
+      "enabled": true
+    },
+    {
+      "signal": "早盘清仓",
+      "viewport": [
+        390,
+        844
+      ],
+      "selected": true,
+      "enabled": true
+    }
+  ],
+  "refresh_preserves_selection": true,
+  "old_daily_signal_removed": true,
+  "page_errors": [],
+  "ui_calculation_requests": [],
+  "real_signal_scan": {
+    "status": 200,
+    "as_of": "2026-10-30",
+    "pool_total": 1552,
+    "selected_total": 0,
+    "entry_hits": 0,
+    "exit_hits": 0
+  },
+  "profit_backtest": false,
+  "auto_trading_enabled": false,
+  "browser_fallback_reason": "Browser tool discovery exposed no browser tools; used installed Playwright."
+}

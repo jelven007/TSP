@@ -5,10 +5,30 @@ import pytest
 from test_full_identity import env as env
 from test_full_identity import full_cluster as full_cluster
 from test_full_identity import register
+from test_minute_signal_sections import signal_result
 
 from app.cell.context import AccessError
 from app.multitenancy.documents import TenantDocuments
 from app.services.strategy_results import ResultIdentity, StrategyResults, clear_memory
+
+
+def test_sql_previous_buy_is_tenant_scoped_and_transactional(env):
+    _, account = register(env)
+    _, foreign = register(env)
+    own = TenantDocuments(env["db"], env["identity"].context(account, None, "signals"))
+    other = TenantDocuments(env["db"], env["identity"].context(foreign, None, "signals-other"))
+    key = ResultIdentity("custom_test", "s02", "v1", "{}", "{}", "null", "stock", "1m")
+    store = StrategyResults(own)
+    store.save(key, signal_result("2026-10-30", [{"symbol": "OWN"}]), started_at=10)
+    StrategyResults(other).save(key, signal_result("2026-10-30", [{"symbol": "FOREIGN"}]), started_at=100)
+    today = replace(key, strategy_version="v2")
+    with pytest.raises(RuntimeError, match="undo"), own.transaction() as unit:
+        saved = StrategyResults(unit).save(today, signal_result("2026-11-02"), started_at=20)
+        assert [row["symbol"] for row in saved["result"]["sections"]["sell"]] == ["OWN"]
+        raise RuntimeError("undo")
+    assert store.read(today, "2026-11-02") is None
+    saved = store.save(today, signal_result("2026-11-02"), started_at=30)
+    assert [row["symbol"] for row in saved["result"]["sections"]["sell"]] == ["OWN"]
 
 
 def test_sql_history_is_tenant_scoped_and_ignores_configuration_collection_cap(env, monkeypatch):

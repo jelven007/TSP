@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from datetime import date
 
 import polars as pl
 
@@ -137,3 +138,22 @@ def filter_candidates(
     if "symbol" not in keys:
         raise ValueError("入场叠加条件缺少证券标识")
     return candidates.join(allowed.select(keys).unique(), on=keys, how="semi")
+
+
+def filter_minute_candidates(
+    candidates: pl.DataFrame, conditions: list[dict], *,
+    history: pl.DataFrame | None, as_of: date,
+) -> pl.DataFrame:
+    """Daily entry overlays use only completed sessions, never minute amounts."""
+    if not conditions or candidates.is_empty():
+        return candidates
+    from app.strategy.basic_filter import previous_session
+
+    if history is None or history.is_empty() or not {"symbol", "date"} <= set(history.columns):
+        raise OverlayDataError("分钟入场叠加条件需要已完成日K历史窗口")
+    source = history.filter(pl.col("date") < as_of).sort("symbol", "date")
+    reference = previous_session(as_of)
+    if source.is_empty() or not source.filter(pl.col("date") == reference).height:
+        raise OverlayDataError("分钟入场叠加条件缺少精确前交易日日K")
+    allowed = source.filter(frame_mask(source, conditions)).filter(pl.col("date") == reference)
+    return candidates.join(allowed.select("symbol").unique(), on="symbol", how="semi")

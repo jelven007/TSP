@@ -1,0 +1,11 @@
+{
+  "signals": true,
+  "other_sources": true,
+  "other_overrides": true,
+  "monitor_rules": true,
+  "builtin_s02": true,
+  "paper_accounts": true,
+  "paper_orders": true,
+  "paper_fills": true,
+  "auto_rules": true
+}

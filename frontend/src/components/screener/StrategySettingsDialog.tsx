@@ -587,10 +587,16 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
 
                   {/* 列2：策略参数 */}
                   <div className="space-y-3">
-                    {detail.execution_backend !== 'minute_filter' && (
+                    {(detail.execution_backend !== 'minute_filter' || !detail.minute_execution) && (
                       <Section icon={Filter} title="入场叠加条件" accent="text-accent">
+                        {detail.execution_backend === 'minute_filter' && (
+                          <p className="text-[10px] leading-4 text-muted">
+                            日线条件按前交易日的已完成日K计算；偏移0表示前交易日，不参与当日股票池，退出不受影响。
+                          </p>
+                        )}
                         <OverlayFilterEditor value={overlayFilter} onChange={setOverlayFilter}
-                          numericOnly={['matrix_native', 'composite'].includes(detail.execution_backend)} />
+                          minuteDaily={detail.execution_backend === 'minute_filter'}
+                          numericOnly={['matrix_native', 'composite', 'minute_filter'].includes(detail.execution_backend)} />
                       </Section>
                     )}
                     {detail.params.length > 0 ? (

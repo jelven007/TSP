@@ -1,0 +1,32 @@
+{
+  "source": "/Users/bytedance/.local/share/tsp-dev/TSPP/data",
+  "previous_public_release": "8edf6c00084b4e93b591406467298975",
+  "failed_job_public_release": "144a166f24474f6bb5339c13395f4cab",
+  "public_release": "b831094bb2a34144bb9565722818c65c",
+  "data_release": "ada96a0f272a4f7aa32dca7b510ef29d",
+  "events": [
+    {
+      "symbol": "601369.SH",
+      "effective_date": "2026-06-29",
+      "announced_on": "2026-06-27",
+      "is_suspended": true,
+      "source_url": "https://www.sse.com.cn/disclosure/listedinfo/announcement/c/new/2026-06-27/601369_20260627_GAG5.pdf"
+    },
+    {
+      "symbol": "601369.SH",
+      "effective_date": "2026-07-13",
+      "announced_on": "2026-07-11",
+      "is_suspended": false,
+      "source_url": "https://paper.cnstock.com/html/2026-07/11/content_2242688.htm"
+    }
+  ],
+  "event_sha256": "79b0c8e9505cba5ffb11e92b3a7540e43cd68f5d0e9b70ea061cf0746fde6279",
+  "event_fingerprint": {
+    "sha256": "79b0c8e9505cba5ffb11e92b3a7540e43cd68f5d0e9b70ea061cf0746fde6279",
+    "bytes": 2405
+  },
+  "other_compact_inputs_preserved": true,
+  "old_snapshots_immutable": true,
+  "local_only": true,
+  "profit_backtest_run": false
+}

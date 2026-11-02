@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）文档中心
 
+2026-11-02后续补丁统一发布的需求／方案／开发／测试／运营／运维映射见
+[本轮整合](../reports/release-consolidation-20261102-followup.md)，
+当前版本和两端状态仍由[版本基线](version-baseline.md)维护。
+
 s02参数、每日三Tab与回测历史查询见
 [策略参考](reference/s02.md)。
 

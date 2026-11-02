@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
-from test_daily_stock_pools import DAY, key, payload
+from test_daily_stock_pools import DAY, PRIOR, key, payload
 from test_full_identity import env, full_cluster, register
 
 from app.cell.admin import migrate
@@ -70,11 +70,11 @@ def test_group_membership_change_wakes_daily_pools_without_document_fields(env):
 def test_sql_old_and_new_pool_definitions_remain_separate_and_legacy_readable(env):
     _, documents = owned(env)
     store = DailyStockPools(documents)
-    old = store.save(key(), payload(["600000.SH"]), started_at=10)
+    old = store.save(key(), payload(["600000.SH"], as_of=str(PRIOR)), started_at=10)
     new = store.save(key(), payload(["600000.SH"], definition_version="scope_float_cap_v2"),
                      started_at=20)
     assert old["id"] != new["id"]
-    assert "definition_version" not in store.read("sample", DAY, record_id=old["id"])
+    assert "definition_version" not in store.read("sample", PRIOR, record_id=old["id"])
     assert store.read("sample", DAY)["id"] == new["id"]
 
 
@@ -112,12 +112,69 @@ def test_old_definition_completed_marker_regenerates_once_under_new_definition(e
         service.daily_pools(documents, snapshot, None, now, None)
         assert len(calls) == 1
         assert set(calls[0]["strategy_ids"]) == set(ids)
-        marker = documents.get("daily_stock_pool_jobs", str(DAY))
+        marker = documents.get("daily_stock_pool_jobs", f"{DAY}:09:00")
         assert marker["signature"] != old_marker
         assert set(marker["completed"]) == set(ids)
         service.daily_pools(documents, snapshot, None, now, None)
         assert len(calls) == 1
         assert DailyStockPools(documents).read(ids[0], DAY)["definition_version"] == "scope_float_cap_v2"
+    finally:
+        service.runtime.close()
+
+
+def test_two_premarket_sql_batches_need_no_today_quote_and_read_latest_config(env):
+    from test_daily_pool_schedule import wall
+    _, documents = owned(env)
+    calls = []
+    def execute(task):
+        calls.append(task)
+        return {"pools": {sid: payload(["600000.SH"], strategy_id=sid)
+                          for sid in task["strategy_ids"]}, "errors": {}}
+    service = TenantSchedules(env["db"], None, executor=SimpleNamespace(execute=execute))
+    snapshot = {"days": {"stock": "2026-10-23"}, "frames": {}}
+    try:
+        service.daily_pools(documents, snapshot, None, wall(7, 59), None)
+        assert not calls
+        service.daily_pools(documents, snapshot, None, wall(8), None)
+        assert len(calls) == 1
+        assert calls[0]["premarket"] is True
+        sid = calls[0]["strategy_ids"][0]
+        pool8 = DailyStockPools(documents).read(sid, DAY)
+        documents.put("strategy_overrides", sid, {"basic_filter": {"float_cap_max": 11e9}})
+        service.daily_pools(documents, snapshot, None, wall(8, 1), None)
+        assert len(calls) == 1
+        service.daily_pools(documents, snapshot, None, wall(9), None)
+        assert len(calls) == 2
+        assert calls[1]["overrides_map"][sid]["basic_filter"]["float_cap_max"] == 11e9
+        pool9 = DailyStockPools(documents).read(sid, DAY)
+        assert pool9["id"] != pool8["id"]
+        assert pool9["generation_slot"] == "09:00"
+        assert DailyStockPools(documents).read(sid, DAY, record_id=pool8["id"]) is None
+        service.daily_pools(documents, snapshot, None, wall(9, 1), None)
+        assert len(calls) == 2
+    finally:
+        service.runtime.close()
+
+
+def test_sql_partial_failure_retries_only_missing_strategies(env):
+    from test_daily_pool_schedule import wall
+    _, documents = owned(env)
+    calls = []
+    def execute(task):
+        calls.append(task)
+        ids = task["strategy_ids"]
+        failed = ids[-1] if len(calls) == 1 else None
+        return {"pools": {sid: payload(["600000.SH"], strategy_id=sid) for sid in ids if sid != failed},
+                "errors": {failed: "missing reference"} if failed else {}}
+    service = TenantSchedules(env["db"], None, executor=SimpleNamespace(execute=execute))
+    try:
+        service.daily_pools(documents, {"frames": {}}, None, wall(8), None)
+        marker = documents.get("daily_stock_pool_jobs", f"{DAY}:08:00")
+        failed = next(iter(marker["errors"]))
+        assert marker["state"] == "failed"
+        service.daily_pools(documents, {"frames": {}}, None, wall(8, 1), None)
+        assert calls[1]["strategy_ids"] == [failed]
+        assert documents.get("daily_stock_pool_jobs", f"{DAY}:08:00")["state"] == "succeeded"
     finally:
         service.runtime.close()
 
@@ -144,5 +201,70 @@ def test_daily_pool_runs_before_settlement_without_trading_or_s02_state(env, tmp
             "SELECT due_at FROM scheduler.work WHERE tenant_id=%s AND kind='scheduled'",
             (documents.context.tenant_id,),
         ).fetchone()["due_at"] is not None
+    finally:
+        service.runtime.close()
+
+
+def test_sql_latest_only_is_atomic_and_tenant_isolated(env):
+    from dataclasses import replace
+    _, documents = owned(env)
+    _, other = owned(env)
+    store = DailyStockPools(documents)
+    other_pool = DailyStockPools(other).save(key(), payload(["600008.SH"]), started_at=10)
+    sibling = store.save(replace(key(), strategy_id="other"),
+                         payload(["600009.SH"], strategy_id="other"), started_at=11)
+    eight = store.save(key(), payload(["600000.SH"], generation_slot="08:00"), started_at=10)
+    with pytest.raises(ValueError), documents.transaction() as unit:
+        DailyStockPools(unit).save(key(), payload([], generation_slot="09:00"), started_at=20)
+        raise ValueError("rollback")
+    assert store.read("sample", DAY)["id"] == eight["id"]
+    nine = store.save(key(), payload([], generation_slot="09:00"), started_at=20)
+    assert store.read("sample", DAY, record_id=eight["id"]) is None
+    assert store.read("sample", DAY)["id"] == nine["id"]
+    assert store.save(key(), payload(["600000.SH"], generation_slot="08:00"), started_at=15)["id"] == nine["id"]
+    assert store.read("other", DAY)["id"] == sibling["id"]
+    assert DailyStockPools(other).read("sample", DAY)["id"] == other_pool["id"]
+
+
+def test_sql_concurrent_successful_writes_keep_only_latest(env):
+    from concurrent.futures import ThreadPoolExecutor
+    _, documents = owned(env)
+    store = DailyStockPools(documents)
+    with ThreadPoolExecutor(max_workers=4) as workers:
+        list(workers.map(lambda sequence: store.save(
+            key(), payload([f"60000{sequence}.SH"]), started_at=sequence), range(1, 9)))
+    with documents.transaction(write=False) as unit:
+        count = unit.connection.execute(
+            "SELECT count(*) AS n FROM business.daily_stock_pools WHERE strategy_id='sample' AND day=%s",
+            (DAY,)).fetchone()["n"]
+    assert count == 1
+    assert store.read("sample", DAY)["symbols"] == ["600008.SH"]
+
+
+def test_sql_nine_partial_failure_retains_eight_until_successful_retry(env):
+    from test_daily_pool_schedule import wall
+    _, documents = owned(env)
+    calls = []
+    failed_id = []
+    def execute(task):
+        calls.append(task)
+        ids = task["strategy_ids"]
+        if len(calls) == 1:
+            failed_id.append(ids[-1])
+        failed = failed_id[0] if len(calls) == 2 else None
+        return {"pools": {sid: payload(["600000.SH"], strategy_id=sid) for sid in ids if sid != failed},
+                "errors": {failed: "missing reference"} if failed else {}}
+    service = TenantSchedules(env["db"], None, executor=SimpleNamespace(execute=execute))
+    try:
+        service.daily_pools(documents, {"frames": {}}, None, wall(8), None)
+        sid = failed_id[0]
+        eight = DailyStockPools(documents).read(sid, DAY)
+        service.daily_pools(documents, {"frames": {}}, None, wall(9), None)
+        assert DailyStockPools(documents).read(sid, DAY)["id"] == eight["id"]
+        assert DailyStockPools(documents).read(calls[0]["strategy_ids"][0], DAY)["generation_slot"] == "09:00"
+        service.daily_pools(documents, {"frames": {}}, None, wall(9, 1), None)
+        assert calls[2]["strategy_ids"] == [sid]
+        assert DailyStockPools(documents).read(sid, DAY, record_id=eight["id"]) is None
+        assert DailyStockPools(documents).read(sid, DAY)["generation_slot"] == "09:00"
     finally:
         service.runtime.close()

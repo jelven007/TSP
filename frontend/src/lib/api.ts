@@ -379,6 +379,8 @@ export interface ScreenerResult {
   record_id?: string
   source?: 'saved' | 'realtime'
   sections?: { sell: any[]; select: any[]; buy: any[] } | null
+  section_mode?: 'signals' | null
+  section_errors?: Partial<Record<'sell' | 'select' | 'buy', string>> | null
   state?: { as_of: string; cash: number; positions: any[]; nav: number; complete: boolean } | null
   portfolio_scope?: string | null
   execution_error?: string | null
@@ -1997,7 +1999,7 @@ export interface StrategyBacktestTrade {
 export interface StrategyBacktestResult {
   run_id: string
   fills?: Array<{ datetime: string; date: string; symbol: string; side: 'buy' | 'sell'; shares: number; price: number; fee: number; participation: number; bar: number; notional: number; minute_volume_shares: number }>
-  signals?: Array<{ date: string; symbol: string; signal_bar: number; reason: string }>
+  signals?: Array<{ date: string; symbol: string; signal_bar: number; reason: string; side?: 'buy' | 'sell'; signal_time?: string; price?: number; score?: number }>
   research?: {
     provenance?: { job_id: string; input_snapshot: string; public_release_id: string | null }
     runtime?: { app_sources_sha256: string }
@@ -2935,6 +2937,9 @@ export const api = {
       index_symbol_count?: number
       quote_age_ms: number | null
       is_trading_hours: boolean
+      market_date?: string | null
+      market_time?: string | null
+      is_trading_day?: boolean | null
       is_polling_window?: boolean
       market_phase?: string
       final_sync_done?: boolean

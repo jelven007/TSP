@@ -1,0 +1,196 @@
+{
+  "url": "https://shanao.asia/screener",
+  "title": "Tick Stock Platform · Quant Terminal",
+  "administrator_login": true,
+  "strategy_id": "custom_mvxxcp88",
+  "checks": [
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "signal": "尾盘走强",
+      "enabled": true,
+      "selected": true
+    },
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "signal": "早盘清仓",
+      "enabled": true,
+      "selected": true
+    },
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "tab": "卖",
+      "bounds": {
+        "width": 1440,
+        "scroll": 1440
+      }
+    },
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "tab": "选",
+      "bounds": {
+        "width": 1440,
+        "scroll": 1440
+      }
+    },
+    {
+      "viewport": [
+        1440,
+        1000
+      ],
+      "tab": "买",
+      "bounds": {
+        "width": 1440,
+        "scroll": 1440
+      }
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "signal": "尾盘走强",
+      "enabled": true,
+      "selected": true
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "signal": "早盘清仓",
+      "enabled": true,
+      "selected": true
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "tab": "卖",
+      "bounds": {
+        "width": 390,
+        "scroll": 390
+      }
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "tab": "选",
+      "bounds": {
+        "width": 390,
+        "scroll": 390
+      }
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "tab": "买",
+      "bounds": {
+        "width": 390,
+        "scroll": 390
+      }
+    }
+  ],
+  "amount_condition": "amount_mean_20d >= 1.0",
+  "scoring": "change_pct 100% high",
+  "reload_preserved": true,
+  "added_to_existing_minute_pool": true,
+  "page_errors": [],
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'https://shanao.asia' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Access to fetch at 'https://github.com/jelven007/TSP/releases/latest/download/latest.json' from origin 'https://shanao.asia' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "failed_requests": [
+    {
+      "url": "https://shanao.asia/api/business/version",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/assets/rotate-ccw-6XhdIII9.js",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/api/account/tenants",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/api/analysis-menus",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/assets/play-Cdc_qMhJ.js",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/api/alerts",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/api/pipeline/jobs",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/api/intraday/status",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/api/events/ticket",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/assets/grip-vertical-BqViEPnr.js",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/api/business/preferences",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://shanao.asia/api/custom-signals",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+      "status": 404
+    },
+    {
+      "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+      "error": "net::ERR_FAILED"
+    },
+    {
+      "url": "https://shanao.asia/api/events",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+      "status": 404
+    },
+    {
+      "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+      "error": "net::ERR_FAILED"
+    }
+  ],
+  "unexpected_calculations": [],
+  "browser": "Browser plugin public page checked; authenticated desktop/mobile Playwright",
+  "fallback_reason": "Browser tool interface cannot inject controlled credentials without serializing their values in tool calls; private Playwright reads credentials in memory and performs normal login."
+}

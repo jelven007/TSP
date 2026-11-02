@@ -1,5 +1,53 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+2026-11-02整合沿原单机七角色／双库及隔离Compute拓扑发布，完整候选映射见
+[整合清单](../reports/release-consolidation-20261102-followup.md)。
+历史停复牌事件沿`instrument_status`公共目录、Repository有界文件缓存、
+Screener／分钟回放上下文与纯停牌判定接入；研究指纹包含文件，不变更SQL schema。
+
+行情状态API在请求边界按`cn_now/published_trading_day`补充market_date、market_time和
+is_trading_day，覆盖Full旧缓存与无行情服务。策略页复用共享行情状态作为当前交易日，
+北京时间午夜主动失效日历查询；跟随今天时切换日期/清旧结果，明确手选历史时保持，不自动运行。
+
+`SignalPicker`在`allowHoldingExit=false`时仍保留signals中的已配置早盘清仓，
+按周期和kind限制显示，只读并提示回测能力；未选项继续过滤。
+回测页与通用策略设置共享组件，通用分钟回测启用持仓出场选择，其他消费者保持限制。
+`StrategyBacktestService.run`将通用分钟＋单一早盘清仓路由到`backtest/morning_backtest.py`，
+复用同源入场回放和纯早盘评估，维护本次研究现金/实际批次，不读取模拟账户。
+完整日历精确T+1、原始价分钟成交、事件开盘/收盘顺序、累计分片费用和日终估值分别核验；
+失败保留fills/signals/trades/remaining及诊断，完整净值清空，局部曲线仅留诊断。
+分钟量100%仅作为容量上界，不计未经核验分红送转；结果为研究账本，`certified=false`。
+
+`accountSession.accountStorage`将明确的界面偏好白名单放入user/tenant稳定作用域，
+其余键仍使用auth_version。读取缺失偏好时迁移同账户/租户最高旧版本；清理旧会话先保留未读取偏好，
+删除偏好同时清旧别名，防止复活；配额失败保留可读旧偏好并继续清私有缓存。
+账户请求校验、内存查询取消及`AccountScopeBoundary`重挂载保持原契约，无新增后端API或schema。
+
+自定义通用分钟策略通过内部META `result_sections="signals"`启用独立结果页签。
+`strategy/signal_sections.py`从当日范围/数值快照与已完成日K计算完整select，
+不依赖分钟触发；引擎的原分钟路径保留真实buy信号价格/时间，取消结果展示截断。
+`StrategyResults.save`在同一受控事务读取同ID、精确前交易日、相同资产/周期的最新
+成功买入归档，补齐sell及来源；按旧任务栅栏保存，配置变化不重算前日信号。
+API单次/批量/缓存和实时发布透传sections、section_mode、section_errors；
+前端信号模式使用独立字段和空态，原预置组合模式保持自己的持仓/成交口径。
+
+通用分钟入场叠加使用日线历史而非分钟帧：动态加载因子预热，
+`overlay.filter_minute_candidates`先截掉当日/未来日，再在精确前交易日判定。
+分钟涨跌幅评分以结果行close相对前交易日raw_close重算，保留原权重和高/低方向。
+叠加仅筛候选，完整池及先收集的持仓出场保持；专用执行仍拒绝该叠加。
+同源回放动态规划叠加依赖及预热，新增原始入场价并保留原复权字段；
+通用分钟早盘现金账本消费数据诊断，未知全池广度不能当成功零买点。
+
+`TenantStrategyEngine.task`为通用分钟出场补齐实际持仓：
+直接任务及`execution_snapshot`均按冻结信号选择读取租户所属策略的剩余批次。
+`compute_worker`为各策略复制上下文；历史观察时间为所选日15:00，
+实时保留秒精度，空报价仍可评估截止出场，不执行交易。
+
+`StrategyBacktest`挂载时强制刷新现有策略目录，在成功且不再获取时按成员资格
+启用详情查询和运行入口；失效选择同时重置React状态及账户作用域
+`strategyBacktestLast`中的策略参数、覆盖、结果和配置签名。
+成功空目录与请求失败分别处理；无新增API、schema或执行规则。
+
 2026-11-02本地最新组合正在统一发布。股票范围、当日股票池v7、
 手动监控启动、S02全天默认、尾盘／早盘信号及已有信号选择已进入本次候选。
 默认值与账户显式覆盖分别核验，历史结果及已授权清理的研究任务不改写。
@@ -41,10 +89,17 @@ S01/S02专用执行规则暂不接受追加此触发器，保留其原有选股�
 
 当日股票池沿`strategy/daily_pool.py`共享构建，名单只经过股票范围及流通市值约束；
 合并策略默认值和覆盖后，仅保留流通市值作为数值依赖，其余数值条件继续用于策略选股。
-当前行情与精确参考日行情分离，停牌始终读取当日证据。`StrategyResult`可携带完整池或
-明确缺输入原因，策略最终结果独立。SQLite与schema v7
+当前行情与精确参考日行情分离，停牌始终读取当日证据。
+`instrument_suspension`读取独立停复牌事件文件，Repository按文件身份缓存，
+Screener与分钟回放沿既有`pool_universe`传递当日状态；仅状态的行不扩充股票范围，
+状态可附加到精确前日价格行，不生成当日虚构OHLC。公告日严格早于信号日且生效日不晚于信号日，
+最新可用事件决定状态；未知继续保留完整性检查。事件文件参与研究指纹和公共目录发布。
+`StrategyResult`可携带完整池或明确缺输入原因，策略最终结果独立。SQLite与schema v7
 `business.daily_stock_pools`按策略/日期/快照保存，共享结果事务及删除generation栅栏。
-Full scheduled与单机调度每交易日09:35后生成，Full提交同时检查账户授权、租约和输入
+Full scheduled与单机调度每交易日北京时间08:00、09:00按独立批次生成；
+池数据按策略/日期只保留最新成功的一份，新增与删除沿既有写事务原子提交，
+以started_at拒绝迟到旧池；SQLite即时写事务与Full租户写锁串行化竞争写入。
+Full提交同时检查账户授权、租约和输入
 指纹；配置/分组变化唤醒任务，同日成功任务复用，缺输入重试。新快照携带
 `definition_version=scope_float_cap_v2`，每日任务签名纳入口径版本，旧完成标记不会阻止
 新口径生成；旧快照缺字段仍按原记录读取，无新schema迁移。API按日期有界查询。

@@ -35,7 +35,9 @@ MINUTE_DAILY_PANEL_COLUMNS = frozenset({
 MINUTE_INSTRUMENT_COLUMNS = frozenset({"name", "total_shares", "float_shares"})
 
 
-def minute_replay_feature_plan(daily_bars: int, basic_filter: dict | None = None):
+def minute_replay_feature_plan(
+    daily_bars: int, basic_filter: dict | None = None, overrides: dict | None = None,
+):
     """分钟回测的日线面板加载计划。
 
     execution_backend 用 polars_expr 走"按需计算信号"路径: enriched 分区只落
@@ -44,13 +46,17 @@ def minute_replay_feature_plan(daily_bars: int, basic_filter: dict | None = None
     """
     # 函数级导入规避与 strategy.py 的循环依赖 (strategy 顶层导入本模块)。
     from app.backtest.strategy import ResolvedFeaturePlan
+    from app.strategy import overlay
+
+    dependencies = overlay.dependencies(overlay.effective_conditions(overrides))
+    from app.indicators.pipeline import INDICATOR_COLUMNS
 
     return ResolvedFeaturePlan(
-        base_columns=MINUTE_DAILY_PANEL_COLUMNS,
+        base_columns=MINUTE_DAILY_PANEL_COLUMNS | (dependencies - set(INDICATOR_COLUMNS)),
         intermediate_columns=frozenset(),
         indicator_columns=frozenset({"change_pct"} if any(
             (basic_filter or {}).get(f"change_pct_{side}") is not None for side in ("min", "max")
-        ) else ()),
+        ) else ()) | (dependencies & set(INDICATOR_COLUMNS)),
         signal_columns=frozenset({
             "signal_limit_up", "signal_limit_down", "signal_broken_limit_up",
         }),
@@ -107,6 +113,7 @@ class MinuteReplayHit:
     trigger_time: str  # "HH:MM" 成交分钟; 兼容旧触发分钟收盘成交
     score: float = 0.0
     signal_time: str | None = None
+    raw_entry_price: float | None = None
 
 
 @dataclass
@@ -118,6 +125,7 @@ class MinuteReplayResult:
     buy_limit_up: int = 0
     buy_no_next_minute: int = 0
     elapsed_ms: float = 0.0
+    errors: list[str] = field(default_factory=list)
 
 
 def requires_full_pool(strategy_engine, strategy, overrides) -> bool:
@@ -166,7 +174,9 @@ class MinuteSignalReplayer:
         full_pool = requires_full_pool(self.strategy_engine, strategy, overrides)
         universe = (panel.get_column("symbol").unique().to_list()
                     if full_pool or not symbols else symbols)
-        daily_bars = int(strategy.minute_daily_bars or 0)
+        daily_bars = self.strategy_engine.minute_daily_history_bars(
+            [strategy.meta["id"]], overrides_map={strategy.meta["id"]: overrides},
+        )
         from app.strategy.basic_filter import uses_previous
         bf = {**(strategy.basic_filter or {}), **(overrides.get("basic_filter") or {})}
         if uses_previous(bf):
@@ -252,6 +262,8 @@ class MinuteSignalReplayer:
                         on="symbol", how="left",
                     )
 
+            from app.instrument_suspension import pool_evidence
+
             context = StrategyDataContext(
                 asset_type="stock",
                 timeframe="1m",
@@ -260,6 +272,7 @@ class MinuteSignalReplayer:
                 history=history,
                 daily_history=daily_history if not daily_history.is_empty() else None,
                 pool_history=current if not current.is_empty() else None,
+                pool_universe=pool_evidence(repo, day),
             )
             try:
                 run_result = self.strategy_engine.run(
@@ -269,11 +282,30 @@ class MinuteSignalReplayer:
                     params,
                     overrides,
                 )
-            except ValueError:
+            except ValueError as exc:
                 # 单日执行失败 (如窗口缺列) 记为跳过, 不中断整个回放。
                 result.skipped_days.append(day)
+                result.errors.append(f"{day}: {exc}")
                 continue
 
+            if run_result.entry_filter_error:
+                result.errors.append(f"{day}: {run_result.entry_filter_error}")
+            if full_pool:
+                # 入场回放保持旧兼容; 新现金账本消费诊断, 不把未知广度当成成功零信号。
+                from app.strategy import custom_signals
+                from app.strategy.late_session_strength import TEMPLATE, evaluate, previous_closes
+
+                if run_result.daily_stock_pool_error:
+                    result.errors.append(f"{day}: {run_result.daily_stock_pool_error}")
+                requested = set(overrides.get("entry_signals", strategy.entry_signals) or []) | set(strategy.required_features)
+                for sig in custom_signals.load_intraday_all(self.strategy_engine._user_data_dir()):
+                    if sig.get("template") == TEMPLATE and custom_signals.intraday_column_name(sig["id"]) in requested:
+                        evaluated = evaluate(
+                            history, sig, day=day,
+                            pool_symbols=(run_result.daily_stock_pool or {}).get("symbols"),
+                            prev_close=previous_closes(context),
+                        )
+                        result.errors.extend(f"{day}: {msg}" for msg in evaluated.diagnostics)
             result.replayed_days += 1
             result.strategy_matches += len(run_result.rows)
             entries = overrides.get("entry_signals", strategy.entry_signals) or []
@@ -344,6 +376,7 @@ class MinuteSignalReplayer:
                     trigger_time=trigger_time,
                     score=float(run_result.scores.get(str(symbol), 0.0) or 0.0),
                     signal_time=signal_time if next_minute_open else None,
+                    raw_entry_price=raw_close,
                 ))
 
         result.elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)

@@ -43,6 +43,142 @@ it('separates private drafts, caches and task IDs by account, tenant and auth ve
   expect(session.accountStorage.getItem('strategy-draft')).toBe('second strategy')
 })
 
+it.each([
+  ['strategy-pool', ['s02', 'custom_existing']],
+  ['strategy-pool-1m', ['custom_minute']],
+  ['tf-page-zoom', 1.2],
+  ['watchlist_columns', [{ key: 'symbol' }]],
+  ['default-strategy-basic-filter', { float_cap_min: 5000000000 }],
+])('retains the %s preference when authentication cache is cleared', async (key, value) => {
+  const session = await import('./accountSession')
+  session.confirmAccount(authenticated('first'))
+  const encoded = JSON.stringify(value)
+  session.accountStorage.setItem(key as string, encoded)
+  for (const transient of ['tf-query-cache', 'strategy-draft', 'strategy-backtest-last', 'abnormal-last-result', 'private-task-id']) {
+    session.accountStorage.setItem(transient, 'private result')
+  }
+
+  session.clearAccountCache()
+
+  expect(session.accountStorage.getItem(key as string)).toBe(encoded)
+  for (const transient of ['tf-query-cache', 'strategy-draft', 'strategy-backtest-last', 'abnormal-last-result', 'private-task-id']) {
+    expect(session.accountStorage.getItem(transient)).toBeNull()
+  }
+})
+
+it('restores the same account selection after logout and a new auth version', async () => {
+  const session = await import('./accountSession')
+  session.confirmAccount(authenticated('first'))
+  const previousScope = session.accountScope()
+  session.accountStorage.setItem('strategy-pool', '["s02","custom_existing"]')
+  session.accountStorage.setItem('private-task-id', 'old task')
+  session.clearAccountCache()
+  session.confirmAccount({ ...authenticated('first'), authenticated: false, user: null })
+  expect(session.accountStorage.getItem('strategy-pool')).toBeNull()
+
+  session.confirmAccount(authenticated('first', 'personal', 2))
+
+  expect(session.accountStorage.getItem('strategy-pool')).toBe('["s02","custom_existing"]')
+  expect(session.accountStorage.getItem('private-task-id')).toBeNull()
+  expect(session.verifyResponseScope(previousScope)).toBe(false)
+})
+
+it.each([
+  ['second', 'personal'],
+  ['first', 'another'],
+])('keeps persistent selection isolated when switching to %s/%s', async (id, tenant) => {
+  const session = await import('./accountSession')
+  session.confirmAccount(authenticated('first'))
+  const previousScope = session.accountScope()
+  session.accountStorage.setItem('strategy-pool', '["s02","custom_existing"]')
+  session.accountStorage.setItem('tf-query-cache', 'first private cache')
+  session.confirmAccount(authenticated(id, tenant))
+  expect(session.accountStorage.getItem('strategy-pool')).toBeNull()
+  session.accountStorage.setItem('strategy-pool', '["s01"]')
+  session.accountStorage.setItem('tf-query-cache', 'current private cache')
+
+  session.clearAccountCache(previousScope)
+
+  expect(session.accountStorage.getItem('strategy-pool')).toBe('["s01"]')
+  expect(session.accountStorage.getItem('tf-query-cache')).toBe('current private cache')
+  session.confirmAccount(authenticated('first'))
+  expect(session.accountStorage.getItem('strategy-pool')).toBe('["s02","custom_existing"]')
+  expect(session.accountStorage.getItem('tf-query-cache')).toBeNull()
+})
+
+it('migrates legacy preferences from the latest version of only the current account and tenant', async () => {
+  const session = await import('./accountSession')
+  localStorage.setItem('tsp-v1:first:personal:1:strategy-pool', '["s01"]')
+  localStorage.setItem('tsp-v1:first:personal:2:strategy-pool', '["s02","custom_existing"]')
+  localStorage.setItem('tsp-v1:second:personal:3:strategy-pool', '["foreign"]')
+  localStorage.setItem('tsp-v1:first:another:4:strategy-pool', '["other_tenant"]')
+  localStorage.setItem('tsp-v1:first:personal:2:tf-query-cache', 'private cached rows')
+  session.confirmAccount(authenticated('first', 'personal', 3))
+
+  expect(session.accountStorage.getItem('strategy-pool')).toBe('["s02","custom_existing"]')
+  expect(session.accountStorage.getItem('tf-query-cache')).toBeNull()
+  session.clearAccountCache('tsp-v1:first:personal:2')
+  expect(session.accountStorage.getItem('strategy-pool')).toBe('["s02","custom_existing"]')
+  expect(localStorage.getItem('tsp-v1:second:personal:3:strategy-pool')).toBe('["foreign"]')
+})
+
+it('preserves unread legacy preferences while clearing a previous account scope', async () => {
+  const session = await import('./accountSession')
+  localStorage.setItem('tsp-v1:first:personal:1:strategy-pool', '["s02","custom_existing"]')
+  localStorage.setItem('tsp-v1:first:personal:1:private-task-id', 'first task')
+  session.confirmAccount(authenticated('second'))
+
+  session.clearAccountCache('tsp-v1:first:personal:1')
+
+  expect(session.accountStorage.getItem('strategy-pool')).toBeNull()
+  expect(localStorage.getItem('tsp-v1:first:personal:1:private-task-id')).toBeNull()
+  session.confirmAccount(authenticated('first', 'personal', 2))
+  expect(session.accountStorage.getItem('strategy-pool')).toBe('["s02","custom_existing"]')
+})
+
+it('does not replace a newer preference when retiring a legacy scope', async () => {
+  const session = await import('./accountSession')
+  session.confirmAccount(authenticated('first', 'personal', 2))
+  session.accountStorage.setItem('strategy-pool', '["s02","custom_existing"]')
+  localStorage.setItem('tsp-v1:first:personal:1:strategy-pool', '["s01"]')
+
+  session.clearAccountCache('tsp-v1:first:personal:1')
+
+  expect(session.accountStorage.getItem('strategy-pool')).toBe('["s02","custom_existing"]')
+})
+
+it('does not resurrect a removed preference from any legacy auth version', async () => {
+  const session = await import('./accountSession')
+  localStorage.setItem('tsp-v1:first:personal:1:strategy-pool-1m', '["old_minute"]')
+  localStorage.setItem('tsp-v1:first:personal:2:strategy-pool-1m', '["new_minute"]')
+  session.confirmAccount(authenticated('first', 'personal', 3))
+  expect(session.accountStorage.getItem('strategy-pool-1m')).toBe('["new_minute"]')
+
+  session.accountStorage.removeItem('strategy-pool-1m')
+
+  expect(session.accountStorage.getItem('strategy-pool-1m')).toBeNull()
+  session.confirmAccount(authenticated('first', 'personal', 4))
+  expect(session.accountStorage.getItem('strategy-pool-1m')).toBeNull()
+})
+
+it('keeps an unread legacy preference if migration cannot write, while still clearing private caches', async () => {
+  const session = await import('./accountSession')
+  localStorage.setItem('tsp-v1:first:personal:1:strategy-pool', '["s02","custom_existing"]')
+  localStorage.setItem('tsp-v1:first:personal:1:tf-query-cache', 'private data')
+  session.confirmAccount(authenticated('first'))
+  const blocked = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new DOMException('full', 'QuotaExceededError')
+  })
+  try {
+    expect(session.accountStorage.getItem('strategy-pool')).toBe('["s02","custom_existing"]')
+    session.clearAccountCache()
+    expect(localStorage.getItem('tsp-v1:first:personal:1:strategy-pool')).toBe('["s02","custom_existing"]')
+    expect(localStorage.getItem('tsp-v1:first:personal:1:tf-query-cache')).toBeNull()
+  } finally {
+    blocked.mockRestore()
+  }
+})
+
 it('rejects private late responses after an account change', async () => {
   const session = await import('./accountSession')
   const { request } = await import('./api/client')

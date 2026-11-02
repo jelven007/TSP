@@ -1,0 +1,14 @@
+{
+  "as_of": "2026-10-30",
+  "pool_total": 1552,
+  "target_minute": "2026-10-30 14:30:00",
+  "symbols_at_target": 1552,
+  "previous_closes": 1552,
+  "pool_up_pct": 30.283505154639176,
+  "required_pool_up_pct": 60,
+  "template_hits": 0,
+  "diagnostics": [],
+  "owned_remaining_lots": 0,
+  "matching_monitor_rules": [],
+  "data": "read-only current local public market; no profit backtest"
+}

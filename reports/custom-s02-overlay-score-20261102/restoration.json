@@ -1,0 +1,22 @@
+{
+  "strategy_id": "custom_mvxxcp88",
+  "overlay_filter": [
+    {
+      "op": ">=",
+      "left": "amount_mean_20d",
+      "right": "1.0",
+      "leftDays": 0,
+      "rightDays": 0
+    }
+  ],
+  "scoring": {
+    "change_pct": 1
+  },
+  "scoring_directions": {
+    "change_pct": "high"
+  },
+  "minute_daily_history_bars": 21,
+  "basic_filter_preserved": true,
+  "minute_signals_preserved": true,
+  "fixed_exits_disabled": true
+}

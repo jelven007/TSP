@@ -461,9 +461,9 @@ def run_strategy(req: RunRequest, request: Request):
         raise HTTPException(status_code=404, detail=str(e)) from e
 
     payload = _safe(asdict(result))
-    strategy_results.persist_result(data_dir, identity, payload, started_at=started_at,
-                                    input_generation=generation)
-    return payload
+    saved = strategy_results.persist_result(data_dir, identity, payload, started_at=started_at,
+                                           input_generation=generation)
+    return saved["result"]
 
 
 @router.post("/run-all")
@@ -639,10 +639,10 @@ def _validate_overlay_config(overrides: dict, strategy: StrategyDef) -> None:
 
     try:
         conditions = effective_conditions(overrides)
-        if conditions and strategy.execution_backend == "minute_filter":
-            raise ValueError("日线入场叠加条件暂不支持分钟策略, 请使用分钟策略自身的条件")
-        if strategy.execution_backend in ("matrix_native", "composite") and fields(conditions) & _string_ext_fields():
-            raise ValueError("矩阵策略的入场叠加条件暂不支持字符串字段")
+        if conditions and strategy.execution_backend == "minute_filter" and strategy.meta.get("minute_execution"):
+            raise ValueError("专用分钟执行暂不支持入场叠加条件, 请使用策略自身的参数")
+        if strategy.execution_backend in ("matrix_native", "composite", "minute_filter") and fields(conditions) & _string_ext_fields():
+            raise ValueError("当前执行后端的入场叠加条件暂不支持字符串字段")
         if "overlay_filter" in overrides:
             overrides["overlay_filter"] = conditions
     except ValueError as e:

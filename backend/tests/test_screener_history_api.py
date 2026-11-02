@@ -60,6 +60,26 @@ def test_first_single_run_persists_and_date_switch_reads_without_calculation(run
     assert "rows" not in summary["results"]["sample"]
 
 
+def test_signal_sections_survive_single_batch_and_cached_result(runtime, monkeypatch):
+    _, engine, request, _ = runtime
+    day = date(2026, 11, 2)
+    sections = {"sell": [], "select": [{"symbol": "SELECT"}], "buy": [{"symbol": "BUY"}]}
+    def result():
+        return StrategyResult(day, "sample", sections["buy"], 1, sections=sections,
+                              section_mode="signals")
+    monkeypatch.setattr(engine, "run", lambda *a, **kw: result())
+    monkeypatch.setattr(engine, "run_all", lambda *a, **kw: {"sample": result()})
+    monkeypatch.setattr(screener, "_coverage_warnings", lambda *a, **kw: [])
+    single = screener.run_preset(screener.PresetRequest(strategy_id="sample", as_of=day), request)
+    batch = screener.run_all(request, {"as_of": str(day), "strategy_ids": ["sample"]})["results"]["sample"]
+    cached = screener.get_cached_result("sample", request, as_of=day)["result"]
+    for item in (single, batch, cached):
+        assert item["sections"]["select"] == [{"symbol": "SELECT"}]
+        assert item["sections"]["buy"] == [{"symbol": "BUY"}]
+        assert item["section_mode"] == "signals"
+        assert "2026-10-30" in item["section_errors"]["sell"]
+
+
 def test_repeated_single_and_batch_runs_share_unchanged_daily_archive(runtime, monkeypatch):
     import app.services.screener as service
     from app.api import strategy

@@ -9,8 +9,8 @@ import math
 import re
 import sys
 import tempfile
-from dataclasses import asdict
-from datetime import date
+from dataclasses import asdict, replace
+from datetime import date, datetime, time
 from pathlib import Path
 
 from app.multitenancy.executor import MAX_MESSAGE_BYTES
@@ -103,14 +103,15 @@ def execute(payload: dict, private_root: Path) -> dict:
 
             as_of = date.fromisoformat(payload["as_of"])
             current = decode_frame(payload["current"]) if payload.get("current") else None
-            context = ScreenerService(repo).build_daily_pool_context(as_of, current=current)
+            premarket = payload.get("premarket", False)
+            context = ScreenerService(repo).build_daily_pool_context(as_of, current=current, premarket=premarket)
             results, errors = {}, {}
             for sid in payload["strategy_ids"]:
                 try:
                     if engine.get(sid).meta.get("research_only"):
                         continue
                     results[sid] = build_pool(engine, sid, context,
-                        overrides=payload.get("overrides_map", {}).get(sid))
+                        overrides=payload.get("overrides_map", {}).get(sid), premarket=premarket)
                 except Exception as exc:
                     errors[sid] = str(exc)
             return {"pools": results, "errors": errors}
@@ -151,8 +152,24 @@ def execute(payload: dict, private_root: Path) -> dict:
                 params_map=payload.get("params_map"), overrides_map=payload.get("overrides_map"),
             )
             context.previous_states = payload.get("previous_states")
-            if context.current is not None and context.current.is_empty():
+            positions = payload.get("positions", {})
+            if context.current is not None and context.current.is_empty() and not positions:
                 raise ValueError("无可用行情数据，请稍后重试")
+            if positions:
+                from app.market_time import cn_now, cn_today
+
+                # Historical scans observe the selected day's close; live scans
+                # retain seconds for the holding deadline and fresh quote check.
+                observed_at = cn_now() if as_of == cn_today() else datetime.combine(as_of, time(15))
+                results = {}
+                for sid in ids:
+                    scoped = replace(context, positions=positions.get(sid), observed_at=observed_at)
+                    results[sid] = asdict(engine.run(
+                        sid, scoped, pool=payload.get("pool") if len(ids) == 1 else None,
+                        params=payload.get("params_map", {}).get(sid),
+                        overrides=payload.get("overrides_map", {}).get(sid),
+                    ))
+                return {"results": results}
             if len(ids) == 1:
                 sid = ids[0]
                 result = engine.run(sid, context, pool=payload.get("pool"),

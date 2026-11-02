@@ -1,0 +1,12 @@
+{
+  "backend/app/services/screener.py": {
+    "before": 11,
+    "after": 10,
+    "new": 0
+  },
+  "backend/app/tickflow/repository.py": {
+    "before": 51,
+    "after": 50,
+    "new": 0
+  }
+}

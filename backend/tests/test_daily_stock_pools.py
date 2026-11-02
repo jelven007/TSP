@@ -227,7 +227,7 @@ def payload(symbols, **changes):
             "total": len(symbols), "basic_filter": BF, "reference_date": str(PRIOR), **changes}
 
 
-def test_pool_persistence_reuses_snapshot_and_retains_variants_and_empty_success(tmp_path):
+def test_pool_persistence_reuses_snapshot_and_keeps_latest_empty_success(tmp_path):
     from app.services.daily_stock_pools import DailyStockPools
 
     store = DailyStockPools(tmp_path)
@@ -239,18 +239,18 @@ def test_pool_persistence_reuses_snapshot_and_retains_variants_and_empty_success
     assert store.read("sample", str(DAY))["symbols"] == []
     assert store.read("sample", str(PRIOR)) is None
     with StrategyResults(tmp_path)._local() as conn:
-        assert conn.execute("SELECT count(*) FROM daily_stock_pools").fetchone()[0] == 3
+        assert conn.execute("SELECT count(*) FROM daily_stock_pools").fetchone()[0] == 1
 
 
 def test_old_and_new_definition_snapshots_coexist_without_relabelling_history(tmp_path):
     from app.services.daily_stock_pools import DailyStockPools
 
     store = DailyStockPools(tmp_path)
-    legacy = store.save(key(), payload(["600000.SH"]), started_at=10)
+    legacy = store.save(key(), payload(["600000.SH"], as_of=str(PRIOR)), started_at=10)
     latest = store.save(key(), payload(["600000.SH"], definition_version="scope_float_cap_v2"),
                         started_at=20)
     assert legacy["id"] != latest["id"]
-    assert "definition_version" not in store.read("sample", DAY, record_id=legacy["id"])
+    assert "definition_version" not in store.read("sample", PRIOR, record_id=legacy["id"])
     assert store.read("sample", DAY)["definition_version"] == "scope_float_cap_v2"
     assert store.save(key(), payload(["600000.SH"], definition_version="scope_float_cap_v2"),
                       started_at=30)["id"] == latest["id"]

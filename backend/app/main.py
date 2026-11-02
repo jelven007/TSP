@@ -305,16 +305,16 @@ async def _application_lifespan(app: FastAPI):
     logger.info("strategy engine loaded: %d strategies", len(strategy_engine.list_strategies()))
     if app.state.scheduler is not None:
         def _daily_stock_pools():
-            from app.market_time import cn_now, published_trading_day
-            from app.services.daily_stock_pools import generate_local
-            now = cn_now()
-            if (now.hour, now.minute) >= (9, 35) and published_trading_day(now.date()) is True:
-                try:
-                    status = generate_local(strategy_engine, _screener_svc, store.data_dir, now.date())
-                    if status["errors"]:
-                        logger.warning("daily stock pools deferred: %d strategies", len(status["errors"]))
-                except Exception:
-                    logger.warning("daily stock pools awaiting market inputs")
+            from app.services.daily_stock_pools import generate_scheduled_local
+            try:
+                status = generate_scheduled_local(strategy_engine, _screener_svc, store.data_dir)
+                if status["errors"]:
+                    logger.warning("daily stock pools deferred: %d strategies", len(status["errors"]))
+            except Exception:
+                logger.warning("daily stock pools awaiting market inputs")
+        app.state.scheduler.add_job(_daily_stock_pools, "cron", hour="8,9", minute=0,
+                                    timezone="Asia/Shanghai", id="daily_stock_pools_slots",
+                                    max_instances=1, coalesce=True)
         app.state.scheduler.add_job(_daily_stock_pools, "interval", seconds=60,
                                     id="daily_stock_pools", max_instances=1, coalesce=True)
 

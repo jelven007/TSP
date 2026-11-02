@@ -4,10 +4,11 @@ import { api, type CustomSignalCondition } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { DaysInput, FieldPicker, RightValueInput } from '@/components/signals/CustomSignalDialog'
 
-export function OverlayFilterEditor({ value, onChange, numericOnly = false }: {
+export function OverlayFilterEditor({ value, onChange, numericOnly = false, minuteDaily = false }: {
   value: CustomSignalCondition[]
   onChange: (value: CustomSignalCondition[]) => void
   numericOnly?: boolean
+  minuteDaily?: boolean
 }) {
   const options = useQuery({ queryKey: QK.customSignalsOptions, queryFn: api.customSignalsOptions })
   const stringFields = options.data?.stringFields ?? []
@@ -25,7 +26,9 @@ export function OverlayFilterEditor({ value, onChange, numericOnly = false }: {
   return (
     <div className="space-y-2">
       <p className="text-[10px] leading-4 text-muted">
-        所有条件同时满足才允许入场，对选股、监控和回测生效。退出不受影响；偏移按证券交易日计算，缺值不放行。
+        {minuteDaily
+          ? '所有条件同时满足才允许入场，用于分钟选股和监控。退出不受影响；偏移按已完成日K计算，缺值不放行。通用分钟单一早盘清仓的连续资金收益回测支持日线叠加，其他路径按能力限制执行。'
+          : '所有条件同时满足才允许入场，对选股、监控和回测生效。退出不受影响；偏移按证券交易日计算，缺值不放行。'}
       </p>
       {options.isError && <p role="alert" className="text-xs text-danger">条件字段加载失败，请稍后重试。</p>}
       {value.map((c, i) => {

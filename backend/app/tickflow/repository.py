@@ -373,6 +373,8 @@ class KlineRepository:
         self._historical_shares_mtime_ns: int | None = None
         self._instrument_history_cache: pl.DataFrame | None = None
         self._instrument_history_mtime_ns: int | None = None
+        self._suspension_history_cache: pl.DataFrame | None = None
+        self._suspension_history_fingerprint: tuple | None = None
         # 完整 enriched 历史 (含所有指标, 供 filter_history 策略使用)
         self._enriched_history_cache: pl.DataFrame | None = None  # ~100万行
         self._enriched_history_start: date | None = None
@@ -1380,6 +1382,18 @@ class KlineRepository:
             self._instrument_history_cache = load_instrument_history(self.store.data_dir)
             self._instrument_history_mtime_ns = mtime_ns
         return self._instrument_history_cache
+
+    def get_suspension_history(self) -> pl.DataFrame:
+        """Cache the compact dated halt file; atomic replacements invalidate it."""
+        from app.instrument_suspension import RELATIVE_PATH, load_suspension_history
+
+        path = self.store.data_dir / RELATIVE_PATH
+        stat = path.stat() if path.exists() else None
+        fingerprint = (stat.st_ino, stat.st_mtime_ns, stat.st_size) if stat else None
+        if self._suspension_history_cache is None or fingerprint != self._suspension_history_fingerprint:
+            self._suspension_history_cache = load_suspension_history(self.store.data_dir)
+            self._suspension_history_fingerprint = fingerprint
+        return self._suspension_history_cache
 
     def get_index_instruments(self) -> pl.DataFrame:
         """返回缓存的指数 instruments DataFrame。如无缓存则懒加载。"""

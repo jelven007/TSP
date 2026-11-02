@@ -346,3 +346,82 @@ def test_tenant_settings_reads_only_one_and_cannot_write_admin_limit(env):
     assert result.status_code == 200
     assert result.json()["editable"] is False and result.json()["effective_concurrency"] == 1
     assert client.post("/api/settings/strategy-concurrency", json={"strategy_concurrency": 5}).status_code == 403
+
+
+@pytest.mark.parametrize("selection", ["source", "saved", "preview", "cleared"])
+@pytest.mark.parametrize("frozen", [False, True])
+def test_strategy_scan_freezes_only_owned_remaining_holding_lots(env, selection, frozen):
+    from datetime import date
+
+    from app.multitenancy.paper_storage import PaperSession
+    from app.multitenancy.strategies import TenantStrategyEngine, definition_payload
+    from app.strategy import paper
+    from app.strategy.engine import StrategyEngine
+
+    own, _ = stores(env)
+    other, _ = stores(env)
+    builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "app" / "strategy" / "builtin"])
+    signal = "csgi_morning_liquidation"
+    definition = definition_payload(replace(
+        builtins.get("factor_rank_research"), source="custom",
+        meta={"id": "owned_minute", "name": "minute", "timeframes": ["1m"]},
+        exit_signals=[signal] if selection in {"source", "cleared"} else [],
+    ))
+    own.put("strategy_sources", "owned_minute",
+            {"source": "custom", "code": "", "definition": definition})
+    own.put("custom_signals", "morning_liquidation", {
+        "id": "morning_liquidation", "template": "morning_liquidation", "enabled": True,
+    })
+    if selection == "saved":
+        config.save_override(own, "owned_minute", {"exit_signals": [signal]})
+    for storage, symbol in [(own, "600000.SH"), (other, "000001.SZ")]:
+        with storage.transaction() as unit:
+            ledger = PaperSession(unit, unit.connection, True)
+            paper.create_account(ledger, 100000, account_id="one", name="test")
+            for index, (entry, sid) in enumerate([
+                ("2026-09-03", "owned_minute"), ("2026-09-04", "owned_minute"),
+                ("2026-09-07", "owned_minute"), ("2026-09-04", "unselected"),
+            ]):
+                paper._append_fill(ledger, {
+                    "symbol": symbol if sid == "owned_minute" else "600036.SH", "side": "buy",
+                    "qty": 100, "price": 10., "fee": 0., "date": entry, "order_id": str(index),
+                    "entry_policy": {"strategy_id": sid},
+                }, "one")
+    engine = TenantStrategyEngine(own, builtins, None)
+    if frozen:
+        from app.services.strategy_results import execution_snapshot
+
+        engine = execution_snapshot(engine, own)
+        # Settings can change after capture; the in-flight task must still use
+        # its original signal selection while reading owned lots for its day.
+        config.save_override(own, "owned_minute", {"exit_signals": []})
+        own.delete("custom_signals", "morning_liquidation")
+    preview = {"owned_minute": {"exit_signals": [signal]}} if selection == "preview" else {}
+    if selection == "cleared":
+        preview = {"owned_minute": {"exit_signals": []}}
+    task = engine.task("strategy", strategy_ids=["owned_minute"], as_of="2026-09-07",
+                       timeframe="1m", overrides_map=preview)
+    if selection == "cleared":
+        assert task.get("positions", {}) == {}
+        return
+    assert set(task["positions"]) == {"owned_minute"}
+    lots = task["positions"]["owned_minute"]
+    assert {row["symbol"] for row in lots} == {"600000.SH"}
+    assert [row["entry_date"] for row in lots] == ["2026-09-03", "2026-09-04", "2026-09-07"]
+    assert [row["available_qty"] for row in lots] == [100, 100, 0]
+    assert all(set(row) == {
+        "symbol", "entry_date", "account_id", "cycle_id", "qty", "available_qty",
+    } for row in lots)
+    # A later ledger change cannot alter the already-dispatched task.
+    with own.transaction() as unit:
+        paper._append_fill(PaperSession(unit, unit.connection, True), {
+            "symbol": "600000.SH", "side": "sell", "qty": 100, "price": 11., "fee": 0.,
+            "date": "2026-09-07", "order_id": "sell",
+        }, "one")
+    assert len(task["positions"]["owned_minute"]) == 3
+    fresh = engine.task("strategy", strategy_ids=["owned_minute"], as_of="2026-09-07",
+                        timeframe="1m", overrides_map=preview)
+    assert [row["entry_date"] for row in fresh["positions"]["owned_minute"]] == [
+        "2026-09-04", "2026-09-07",
+    ]
+    assert date.fromisoformat(fresh["as_of"]) == date(2026, 9, 7)

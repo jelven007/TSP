@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "public_index_matches_candidate": true,
+  "entry_assets_sha256": {
+    "/assets/index-CsnbQE6a.js": "64970f3cc34f9a5c8cde4dc6445ad11f31883375ba73bbb65f359d9c348b79b4",
+    "/assets/index-DK0ojxPH.css": "be3e4aaabc4d217dd8297884e0a491e0345417f09563cac1d7269a21c018127a"
+  },
+  "index_cache_control": "no-store, must-revalidate"
+}

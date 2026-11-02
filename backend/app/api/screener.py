@@ -406,7 +406,7 @@ def run_preset(req: PresetRequest, request: Request):
     saved = strategy_results.persist_result(
         data_dir, identity, safe_data, started_at=started_at, input_generation=generation,
     )
-    safe_data["computed_at"] = saved["summary"]["computed_at"]
+    safe_data = saved["result"]
     safe_data["record_id"] = saved["record_id"]
     if timeframe == "1d":
         _update_cache_strategy(data_dir, str(as_of), req.strategy_id, safe_data,
@@ -671,6 +671,8 @@ def get_cached_result(
         "record_id": raw_result.get("record_id"),
         "source": raw_result.get("source"),
         "sections": raw_result.get("sections"),
+        "section_mode": raw_result.get("section_mode"),
+        "section_errors": raw_result.get("section_errors"),
         "state": raw_result.get("state"),
         "portfolio_scope": raw_result.get("portfolio_scope"),
         "execution_error": raw_result.get("execution_error"),
@@ -825,15 +827,8 @@ def _run_all_progressive(
                 logger.warning("run_all: 策略 %s 执行失败, 跳过: %s", sid, e, exc_info=True)
                 handle.fail_one(sid, str(e))
                 continue
-            payload = {
-                "total": result.total,
-                "as_of": str(result.as_of),
-                "rows": _safe(asdict(result)).get("rows", []),
-                "computed_at": int(time.time() * 1000),
-                **({"daily_stock_pool": result.daily_stock_pool} if getattr(result, "daily_stock_pool", None) is not None else {}),
-                **({"daily_stock_pool_error": result.daily_stock_pool_error}
-                   if getattr(result, "daily_stock_pool_error", None) else {}),
-            }
+            payload = _safe(asdict(result))
+            payload["as_of"] = str(result.as_of)
             if timeframe == "1d":
                 w = _coverage_warnings(
                     svc, as_of, engine=engine, strategy_ids=[sid],
@@ -844,13 +839,14 @@ def _run_all_progressive(
                 if w:
                     payload["warnings"] = w
             try:
-                strategy_results.persist_result(
+                saved = strategy_results.persist_result(
                     data_dir, identities[sid], payload, started_at=started_at,
                     input_generation=generation,
                 )
             except HTTPException as exc:
                 handle.fail_one(sid, exc.detail)
                 continue
+            payload = saved["result"]
             all_results[sid] = payload
             elapsed_map[sid] = (time.perf_counter() - t0) * 1000
             # 逐策略增量落盘 (write_cache 同日按 sid 合并), 前端轮询即可逐个看到
@@ -859,7 +855,7 @@ def _run_all_progressive(
                                            generations={sid: identities[sid].storage_generation})
             except Exception:
                 logger.warning("run_all 渐进写入缓存失败: %s", sid, exc_info=True)
-            handle.complete(sid, {k: v for k, v in payload.items() if k != "rows"})
+            handle.complete(sid, {k: v for k, v in payload.items() if k not in {"rows", "sections", "state"}})
         # 收尾: 与旧版口径一致的整体重写 + 耗时落盘供下次排序
         if all_results:
             with contextlib.suppress(Exception):
@@ -1013,15 +1009,8 @@ def run_all(request: Request, body: Optional[dict] = None):
 
     results: dict[str, dict] = {}
     for sid, result in engine_results.items():
-        safe_rows = _safe(asdict(result)).get("rows", [])
-        results[sid] = {
-            "total": result.total,
-            "as_of": str(result.as_of),
-            "rows": safe_rows,
-            **({"daily_stock_pool": result.daily_stock_pool} if getattr(result, "daily_stock_pool", None) is not None else {}),
-            **({"daily_stock_pool_error": result.daily_stock_pool_error}
-               if getattr(result, "daily_stock_pool_error", None) else {}),
-        }
+        results[sid] = _safe(asdict(result))
+        results[sid]["as_of"] = str(result.as_of)
         if timeframe == "1d":
             w = _coverage_warnings(
                 svc, as_of, engine=engine, strategy_ids=[sid],
@@ -1035,7 +1024,7 @@ def run_all(request: Request, body: Optional[dict] = None):
             data_dir, identities[sid], results[sid], started_at=started_at,
             input_generation=generation,
         )
-        results[sid]["computed_at"] = saved["summary"]["computed_at"]
+        results[sid] = saved["result"]
 
     elapsed = (time.perf_counter() - t_total) * 1000
     logger.info("run_all: total took %.1fms (%d strategies)", elapsed, len(all_ids))

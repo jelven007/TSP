@@ -114,6 +114,9 @@ class QuoteStatusResponse(ContractModel):
     quote_age_ms: int | float | None
     is_trading_hours: bool
     last_fetch_ms: int | float | None
+    market_date: str | None = None
+    market_time: str | None = None
+    is_trading_day: bool | None = None
 
 
 class IndexQuote(ContractModel):
@@ -363,6 +366,8 @@ class ScreenerResultResponse(ContractModel):
     total: int
     elapsed_ms: float
     sections: dict[str, list[JsonRecord]] | None = None
+    section_mode: str | None = None
+    section_errors: dict[str, str] | None = None
     state: JsonRecord | None = None
     portfolio_scope: str | None = None
     execution_error: str | None = None
