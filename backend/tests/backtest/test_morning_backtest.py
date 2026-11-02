@@ -474,3 +474,191 @@ def test_unknown_volume_after_partial_sale_is_explicit_data_failure(tmp_path):
     assert result.error and "成交数据" in result.error
     assert len(result.fills) == 2 and not result.trades
     assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 300
+
+
+RESUME = date(2026, 9, 9)
+SECOND = "000002.SZ"
+
+
+def suspension_service(tmp_path, *, resumed=None, events=None, extra_days=0):
+    days = _trading_days(48 + extra_days, start=date(2026, 7, 6))
+    panel = _daily_panel(days, [SYMBOL, SECOND]).with_columns(
+        pl.lit(10.).alias("close"), pl.lit(10.).alias("raw_close"), pl.lit(2e8).alias("amount"),
+    ).filter(~((pl.col("symbol") == SYMBOL) & pl.col("date").is_between(SELL, RESUME - timedelta(days=1))))
+    frames = {BUY: _minute_frame(BUY, [(SYMBOL, "14:30", 10.2)])}
+    for day in days:
+        if SELL <= day < RESUME:
+            frames[day] = _minute_frame(day, [(SECOND, "14:30", 9.9)])
+        elif day >= RESUME:
+            frames[day] = pl.concat([morning_frame(day), _minute_frame(day, [(SECOND, "14:30", 9.9)])])
+    if resumed is not None:
+        frames[RESUME] = resumed
+    service, _, _ = service_fixture(tmp_path, panel=panel, frames=frames)
+    if events is None:
+        events = pl.DataFrame({
+            "symbol": [SYMBOL, SYMBOL], "effective_date": [SELL, RESUME],
+            "announced_on": [BUY, RESUME],
+            "announced_at": [datetime(2026, 9, 4, 19, 54), datetime(2026, 9, 9, 8, 21)],
+            "is_suspended": [True, False],
+            "source_url": ["https://example.test/halt", "https://example.test/resume"],
+        })
+    service.engine.repo.get_suspension_history = lambda: events
+    return service
+
+
+def test_confirmed_halt_carries_cash_slot_and_raw_mark_until_resume(tmp_path):
+    service = suspension_service(tmp_path)
+    result = service.run(configuration(end=RESUME, symbols=[SYMBOL, SECOND]))
+    assert not result.error, result.error
+    trade, = result.trades
+    assert trade["exit_date"] == f"{RESUME} 09:31"
+    assert trade["duration"] == 3
+    assert trade["pnl_amount"] == pytest.approx(67.92)
+    assert trade["exit_signal_date"] == f"{RESUME}T09:30:00"
+    assert [fill["date"] for fill in result.fills] == [str(BUY), str(RESUME)]
+    for row in result.equity_curve[:3]:
+        assert row["cash"] == pytest.approx(5915)
+        assert row["positions"] == 1 and row["value"] == pytest.approx(9915)
+    assert result.stats["execution"]["suspended_position_days"] == 2
+    assert result.stats["execution"]["resume_exit_trades"] == 1
+    assert result.stats["final_equity"] == pytest.approx(10067.92)
+
+
+def test_still_suspended_at_end_is_open_marked_position_not_completed_trade(tmp_path):
+    result = suspension_service(tmp_path).run(configuration(
+        end=RESUME - timedelta(days=1), symbols=[SYMBOL, SECOND],
+    ))
+    assert not result.error, result.error
+    assert not result.trades and len(result.fills) == 1
+    assert result.stats["unclosed_positions"] == 1
+    assert result.stats["final_equity"] == pytest.approx(9915)
+    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 400
+
+
+def full_session(day=RESUME, *, price=10.4, volume=1000.):
+    times = [datetime.combine(day, datetime.min.time()).replace(hour=9, minute=31) + timedelta(minutes=i)
+             for i in range(120)]
+    times += [datetime.combine(day, datetime.min.time()).replace(hour=13, minute=1) + timedelta(minutes=i)
+              for i in range(120)]
+    return _minute_frame(day, [(SYMBOL, at.strftime("%H:%M"), price) for at in times]).with_columns(
+        pl.lit(volume).alias("volume"),
+    )
+
+
+@pytest.mark.parametrize("blocked", ["zero_volume", "limit_down"])
+def test_resume_waits_for_first_real_capacity_without_waiting_for_deadline(tmp_path, blocked):
+    frame = full_session()
+    before = pl.col("datetime") < datetime(2026, 9, 9, 9, 34)
+    if blocked == "zero_volume":
+        frame = frame.with_columns(pl.when(before).then(0.).otherwise(pl.col("volume")).alias("volume"))
+    else:
+        frame = frame.with_columns(pl.when(before).then(9.).otherwise(pl.col("close")).alias("close"))
+    result = suspension_service(tmp_path, resumed=frame).run(configuration(
+        end=RESUME, symbols=[SYMBOL, SECOND],
+    ))
+    assert not result.error, result.error
+    assert result.trades[0]["exit_date"] == f"{RESUME} 09:34"
+    assert result.stats["execution"]["sell_no_volume_or_price" if blocked == "zero_volume"
+                                     else "sell_limit_down"] == 3
+
+
+def test_resume_remainder_crosses_lunch_and_days_with_daily_minimum_fees(tmp_path):
+    frame = full_session(volume=0.).with_columns(
+        pl.when(pl.col("datetime") == datetime(2026, 9, 9, 11, 30))
+        .then(1.).otherwise(pl.col("volume")).alias("volume"),
+    )
+    service = suspension_service(tmp_path, resumed=frame, extra_days=1)
+    following = RESUME + timedelta(days=1)
+    service.engine.repo.minute_frames[following] = morning_frame(following).with_columns(
+        pl.lit(1.).alias("volume"),
+    )
+    result = service.run(configuration(end=following, symbols=[SYMBOL, SECOND]))
+    assert not result.error, result.error
+    sells = [f for f in result.fills if f["side"] == "sell"]
+    assert [f["shares"] for f in sells] == [100] * 4
+    assert [f["date"] for f in sells] == [str(RESUME)] + [str(following)] * 3
+    assert sum(f["fee"] for f in sells) == pytest.approx(12.08)
+    assert result.trades[0]["duration"] == 4
+    assert result.trades[0]["pnl_amount"] == pytest.approx(62.92)
+    assert result.stats["execution"]["resume_pending_position_days"] == 1
+    assert result.trades[0]["exit_date"] == f"{following} 09:33"
+    assert result.stats["execution"]["cash"] == pytest.approx(10062.92)
+
+
+def test_partial_resume_at_end_separates_realized_fragment_and_open_cost(tmp_path):
+    frame = full_session(volume=0.).with_columns(
+        pl.when(pl.col("datetime") == datetime(2026, 9, 9, 9, 31))
+        .then(1.).otherwise(pl.col("volume")).alias("volume"),
+    )
+    result = suspension_service(tmp_path, resumed=frame).run(configuration(end=RESUME, symbols=[SYMBOL, SECOND]))
+    assert not result.error, result.error
+    assert not result.trades and result.stats["n_trades"] == 0
+    assert result.stats["unclosed_positions"] == 1
+    assert result.stats["unrealized_pnl_amount"] == pytest.approx(-63.75)
+    assert result.stats["unclosed_realized_pnl_amount"] == pytest.approx(13.23)
+    assert result.stats["final_equity"] - 10000 == pytest.approx(-50.52)
+
+
+@pytest.mark.parametrize("missing", ["09:31", "09:32", "15:00"])
+def test_resume_missing_minutes_remain_data_failure_with_actual_fills(tmp_path, missing):
+    at = datetime.combine(RESUME, datetime.min.time()).replace(hour=int(missing[:2]), minute=int(missing[3:]))
+    frame = full_session(volume=0.).filter(pl.col("datetime") != at).with_columns(
+        pl.when(pl.col("datetime") == datetime(2026, 9, 9, 9, 31))
+        .then(1.).otherwise(pl.col("volume")).alias("volume"),
+    )
+    result = suspension_service(tmp_path, resumed=frame).run(configuration(end=RESUME, symbols=[SYMBOL, SECOND]))
+    assert result.error and not result.equity_curve
+    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == (400 if missing == "09:31" else 300)
+
+
+def test_suspended_position_keeps_slot_unavailable_to_new_entry(tmp_path):
+    service = suspension_service(tmp_path)
+    service.engine.repo.minute_frames[SELL] = _minute_frame(SELL, [(SECOND, "14:30", 10.2)])
+    result = service.run(configuration(end=RESUME, symbols=[SYMBOL, SECOND], max_positions=1))
+    assert not result.error, result.error
+    assert not [f for f in result.fills if f["symbol"] == SECOND]
+    assert result.stats["execution"]["buy_no_slot"] == 1
+    assert result.equity_curve[1]["cash"] == pytest.approx(result.equity_curve[0]["cash"])
+    assert result.equity_curve[1]["positions"] == 1
+
+
+@pytest.mark.parametrize("late", [False, True])
+def test_missing_or_late_halt_evidence_does_not_allow_stale_valuation(tmp_path, late):
+    events = pl.DataFrame()
+    if late:
+        events = pl.DataFrame({
+            "symbol": [SYMBOL], "effective_date": [SELL], "announced_on": [SELL],
+            "announced_at": [datetime(2026, 9, 7, 19)], "is_suspended": [True],
+            "source_url": ["https://example.test/late"],
+        })
+    result = suspension_service(tmp_path, events=events).run(configuration(end=RESUME))
+    assert result.error
+    assert not result.equity_curve and len(result.fills) == 1
+    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 400
+
+
+@pytest.mark.parametrize("publication,first_minute", [
+    ("11:10:00", "11:11"),
+    ("11:10:45", "11:11"),
+    ("12:30:00", "13:01"),
+])
+def test_intraday_resume_publication_uses_first_completed_minute(tmp_path, publication, first_minute):
+    published = datetime.fromisoformat(f"{RESUME}T{publication}")
+    first = datetime.fromisoformat(f"{RESUME}T{first_minute}:00")
+    events = pl.DataFrame({
+        "symbol": [SYMBOL, SYMBOL], "effective_date": [SELL, RESUME],
+        "announced_on": [BUY, RESUME],
+        "announced_at": [datetime(2026, 9, 4, 19, 54), published],
+        "is_suspended": [True, False],
+        "source_url": ["https://example.test/halt", "https://example.test/resume"],
+    })
+    frame = full_session().filter(pl.col("datetime") >= first)
+    result = suspension_service(tmp_path, events=events, resumed=frame).run(configuration(
+        end=RESUME, symbols=[SYMBOL, SECOND],
+    ))
+    assert not result.error, result.error
+    trade, = result.trades
+    assert trade["exit_signal_date"] == published.isoformat()
+    assert trade["exit_date"] == f"{RESUME} {first_minute}"
+    assert not [fill for fill in result.fills if fill["side"] == "sell"
+                and datetime.fromisoformat(fill["datetime"]) <= published]

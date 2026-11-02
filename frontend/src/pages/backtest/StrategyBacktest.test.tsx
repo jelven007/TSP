@@ -252,7 +252,7 @@ it('shows the overnight capital and fee contract and disables independent full m
   expect(host.textContent).toContain('需前两个交易日日线')
 })
 
-it.each(['overnight_capacity_v1', 'generic_morning_liquidation_v1'])('retains and exports actual minute fills when the sell deadline fails (%s)', async execution => {
+it.each(['overnight_capacity_v1', 'generic_morning_liquidation_v1', 'generic_morning_liquidation_resume_v2'])('retains and exports actual minute fills when the sell deadline fails (%s)', async execution => {
   const task = completed(3)
   task.result!.error = '11:29到期剩余100股'
   task.result!.stats = { minute_execution: execution, execution: { cash: 80000, deadline_violations: 1 } }

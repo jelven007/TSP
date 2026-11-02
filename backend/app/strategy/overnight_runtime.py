@@ -90,6 +90,8 @@ def monitor_context(loader, engine, strategy_id, as_of, current, data_dir):
         context.positions = (loader(strategy_id, as_of) if callable(loader)
                              else holding_snapshot(data_dir, strategy_id, as_of) if data_dir is not None else None)
         context.observed_at = cn_now()
+        repo = getattr(service, "repo", None)
+        context.suspension_history = getattr(repo, "get_suspension_history", lambda: None)()
     if engine.get(strategy_id).meta.get("minute_execution") == "momentum_capacity_v1":
         from app.services.strategy_results import previous_daily_state
 

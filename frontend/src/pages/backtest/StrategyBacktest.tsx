@@ -2260,7 +2260,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             )}
           </div>
         )}
-        {result && ['overnight_capacity_v1', 'momentum_capacity_v1', 'generic_morning_liquidation_v1'].includes(String(result.stats.minute_execution)) && <>
+        {result && ['overnight_capacity_v1', 'momentum_capacity_v1', 'generic_morning_liquidation_v1', 'generic_morning_liquidation_resume_v2'].includes(String(result.stats.minute_execution)) && <>
           <div className="text-xs text-muted">{result.stats.warnings?.join('；')}</div>
           <MinuteExecutionLedger result={result} />
         </>}

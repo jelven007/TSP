@@ -1,4 +1,4 @@
-"""通用分钟入场和精确次交易日早盘清仓的纯研究现金账本。"""
+"""通用分钟入场、次日早盘清仓及确认停牌后复牌卖出的研究现金账本。"""
 from __future__ import annotations
 
 import math
@@ -20,13 +20,14 @@ from app.backtest.minute_replay import (
     minute_replay_feature_plan,
     requires_full_pool,
 )
+from app.instrument_suspension import STATUS_COLUMN, dated_status, holding_exit_status
 from app.market_time import published_trading_day
 from app.price_limits import is_risk_warning_name, price_limit_pct
 from app.strategy.morning_liquidation import evaluate, parameters
 from app.strategy.overnight_runtime import next_market_day
 from app.strategy.risk_policy import strategy_policy, valid_price
 
-EXECUTION = "generic_morning_liquidation_v1"
+EXECUTION = "generic_morning_liquidation_resume_v2"
 
 
 def run_morning(service, config, strategy, params, overrides, definitions, *,
@@ -115,6 +116,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     )
     feature_plan = _with_status_fields(minute_replay_feature_plan(daily_bars, bf, overrides), "stock")
     repo = service.engine.repo
+    suspension_history = getattr(repo, "get_suspension_history", lambda: pl.DataFrame())()
     try:
         panel = service.engine.load_panel_for_backtest(
             None if requires_full_pool(service.strategy_engine, strategy, overrides) else config.symbols,
@@ -227,30 +229,59 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     pl.col("datetime").dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None),
                 )
             groups = history.partition_by("symbol", as_dict=True) if not history.is_empty() else {}
-            triggers, last_sale = {}, {}
+            triggers, last_sale, suspended = {}, {}, set()
+            for pos in positions.values():
+                pos["day_sell_notional"] = 0.
             for symbol, pos in positions.items():
-                if next_market_day(pos["entry_date"]) != day:
+                due = next_market_day(pos["entry_date"])
+                # 离线预先定位当天已公开的复牌触发点, 成交事件仍受该时点约束。
+                status = holding_exit_status(
+                    suspension_history, symbol, due, day, observed_at=datetime.combine(day, clock(15)),
+                )
+                if status == "suspended":
+                    suspended.add(symbol)
+                    pos["suspension_deferred"] = True
+                    counters["suspended_position_days"] += 1
+                    continue
+                if due != day and status != "resume":
                     return finish(f"{day} {symbol} 已错过精确次交易日清仓")
                 frame = groups.get((symbol,), pl.DataFrame())
                 prev = prev_rows.get(symbol, {}).get("raw_close")
+                if not valid_price(prev) and status == "resume":
+                    prior_status = dated_status(
+                        suspension_history.filter(pl.col("symbol") == symbol), prior,
+                        observed_at=datetime.combine(prior, clock(15)),
+                    )
+                    if not prior_status.is_empty() and prior_status[STATUS_COLUMN][0] is True:
+                        prev = marks.get(symbol)
                 if not valid_price(prev):
                     return finish(f"{day} {symbol} 缺原始昨收")
+                pos["sell_reference"] = prev
                 evaluated = evaluate(
-                    frame, sig, day=day, now=datetime.combine(day, deadline_clock),
+                    frame, sig, day=day, now=datetime.combine(day, clock(15) if status == "resume" else deadline_clock),
                     positions=[{**pos, "entry_date": str(pos["entry_date"]),
                                 "qty": pos["remaining"], "available_qty": pos["remaining"]}],
-                    prev_close={symbol: prev},
+                    prev_close={symbol: prev}, suspension_history=suspension_history,
                 )
                 if not evaluated.hits:
                     return finish(f"{day} {symbol} 无法确定早盘清仓触发")
                 hit = evaluated.hits[0]
                 at = datetime.fromisoformat(hit["trigger_time"])
-                prefix = frame.filter(
-                    pl.col("datetime").is_between(datetime.combine(day, clock(9, 31)), at),
-                ) if not frame.is_empty() else frame
-                expected = int((at - datetime.combine(day, clock(9, 30))).total_seconds() // 60)
-                expected_times = [datetime.combine(day, clock(9, 31)) + timedelta(minutes=i)
-                                  for i in range(expected)]
+                if status == "resume":
+                    at = at.replace(second=0, microsecond=0) + timedelta(minutes=1)
+                    if clock(11, 31) <= at.time() < clock(13, 1):
+                        at = datetime.combine(day, clock(13, 1))
+                    if at.time() > clock(15):
+                        return finish(f"{day} {symbol} 复牌公告后本交易日无已完成成交分钟")
+                    prefix = frame.filter(pl.col("datetime") == at) if not frame.is_empty() else frame
+                    expected_times = [at]
+                else:
+                    prefix = frame.filter(
+                        pl.col("datetime").is_between(datetime.combine(day, clock(9, 31)), at),
+                    ) if not frame.is_empty() else frame
+                    expected = int((at - datetime.combine(day, clock(9, 30))).total_seconds() // 60)
+                    expected_times = [datetime.combine(day, clock(9, 31)) + timedelta(minutes=i)
+                                      for i in range(expected)]
                 if prefix.is_empty() or sorted(prefix["datetime"].to_list()) != expected_times or (
                     prefix.height and any(
                         prefix.filter(
@@ -276,16 +307,28 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 rows_at = defaultdict(list)
                 for row in events[at]:
                     rows_at[row["symbol"]].append(row)
+                    trigger = triggers.get(row["symbol"])
+                    before_resume = (trigger and trigger["reason"] == "resume"
+                                     and at < datetime.fromisoformat(trigger["trigger_time"]))
+                    if row["symbol"] in suspended or before_resume:
+                        return finish(f"{day} {row['symbol']} 停牌证据与分钟行情冲突")
                     price_field = "open" if phase == 0 else "close"
                     if valid_price(row.get(price_field)):
                         marks[row["symbol"]] = row[price_field]
                 for symbol in list(positions):
                     trigger = triggers.get(symbol)
-                    if phase == 0 or not trigger or not datetime.fromisoformat(trigger["trigger_time"]) <= at <= datetime.combine(day, deadline_clock):
+                    deadline = clock(15) if trigger and trigger["reason"] == "resume" else deadline_clock
+                    if (phase == 0 or not trigger
+                            or not datetime.fromisoformat(trigger["trigger_time"]) <= at <= datetime.combine(day, deadline)
+                            or not (clock(9, 31) <= at.time() <= clock(11, 30)
+                                    or clock(13, 1) <= at.time() <= clock(15))):
                         continue
                     pos = positions[symbol]
                     rows = rows_at.get(symbol, [])
-                    if len(rows) != 1 or at != last_sale[symbol] + timedelta(minutes=1):
+                    expected_at = last_sale[symbol] + timedelta(minutes=1)
+                    if expected_at.time() == clock(11, 31):
+                        expected_at = datetime.combine(day, clock(13, 1))
+                    if len(rows) != 1 or at != expected_at:
                         return finish(f"{day} {symbol} 清仓成交窗口缺失或重复分钟")
                     last_sale[symbol] = at
                     row = rows[0]
@@ -300,7 +343,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     pct = price_limit_pct(symbol, day, is_risk_warning=bool(
                         current_rows.get(symbol, {}).get("is_risk_warning", is_risk_warning_name(name)),
                     ))
-                    down = _scalar_limit_up_price(prev_rows[symbol]["raw_close"], -pct)
+                    down = _scalar_limit_up_price(pos["sell_reference"], -pct)
                     price = row["close"] * (1 - slip)
                     if price <= down + 1e-9:
                         counters["sell_limit_down"] += 1
@@ -308,10 +351,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     quantity = min(pos["remaining"], math.floor(row["volume"] * 100))
                     if quantity <= 0:
                         continue
-                    before = pos["sell_notional"]
+                    before = pos["day_sell_notional"]
                     notional = quantity * price
                     cost = fee(before + notional, "sell", day) - fee(before, "sell", day)
                     pos["sell_notional"] += notional
+                    pos["day_sell_notional"] += notional
                     pos["sell_fees"] += cost
                     pos["remaining"] -= quantity
                     cash += notional - cost
@@ -327,7 +371,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         record = TradeRecord(
                             symbol=symbol, name=pos["name"], entry_date=pos["entry_date"], exit_date=day,
                             entry_price=pos["price"], exit_price=pos["sell_notional"] / pos["shares"],
-                            pnl_pct=proceeds / pos["entry_value"] - 1, duration=1,
+                            pnl_pct=proceeds / pos["entry_value"] - 1,
+                            duration=sum(published_trading_day(pos["entry_date"] + timedelta(days=i)) is True
+                                         for i in range(1, (day - pos["entry_date"]).days + 1)),
                             exit_reason="signal", shares=pos["shares"], lots=pos["shares"] / 100,
                             position_pct=pos["position_pct"], entry_value=pos["entry_value"],
                             exit_value=proceeds, pnl_amount=proceeds - pos["entry_value"],
@@ -340,6 +386,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         trade.update(entry_date=pos["fill_time"], exit_date=at.strftime("%Y-%m-%d %H:%M"),
                                      entry_fee=pos["entry_fee"], exit_fee=pos["sell_fees"])
                         output.trades.append(trade)
+                        if pos.get("suspension_deferred"):
+                            counters["resume_exit_trades"] += 1
                         del positions[symbol]
                 candidates = []
                 if entry_error:
@@ -420,23 +468,38 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         "participation": quantity / (row["volume"] * 100),
                         "bar": at.hour * 60 + at.minute, "minute_volume_shares": row["volume"] * 100,
                     })
-            overdue = [p for p in positions.values() if p["entry_date"] < day]
+            for symbol, trigger in triggers.items():
+                if symbol in positions and trigger["reason"] == "resume":
+                    if last_sale[symbol] != datetime.combine(day, clock(15)):
+                        return finish(f"{day} {symbol} 复牌卖出成交窗口未完整覆盖至收盘")
+                    counters["resume_pending_position_days"] += 1
+            overdue = [p for p in positions.values() if p["entry_date"] < day
+                       and not p.get("suspension_deferred")]
             if overdue:
                 counters["deadline_violations"] += len(overdue)
                 return finish(f"{day} {sig_params['time']}清仓截止后仍有余股, 保留实际成交和持仓")
             if entry_error:
                 return finish(entry_error)
             for symbol in positions:
+                if symbol in suspended:
+                    continue
                 mark = current_rows.get(symbol, {}).get("raw_close")
                 if not valid_price(mark):
                     return finish(f"{day} {symbol} 缺日终原始收盘估值")
                 marks[symbol] = mark
+                positions[symbol]["last_mark_date"] = str(day)
             value = market_value()
             nav = cash + value
             peak = max(peak, nav)
             exposure = value / nav if nav > 0 else 0.
             equities.append({"date": str(day), "value": nav, "cash": cash,
-                             "positions": len(positions), "exposure": exposure})
+                             "positions": len(positions), "exposure": exposure,
+                             "suspended_marks": [
+                                 {"symbol": symbol, "price": marks[symbol],
+                                  "shares": positions[symbol]["remaining"],
+                                  "last_price_date": positions[symbol]["last_mark_date"]}
+                                 for symbol in sorted(suspended) if symbol in positions
+                             ]})
             exposures.append(exposure)
             output.drawdown_curve.append({"date": str(day), "value": nav / peak - 1})
     except (ValueError, OSError, KeyError, pl.exceptions.PolarsError) as exc:
@@ -449,7 +512,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         total_return=equities[-1]["value"] / config.initial_capital - 1,
         max_drawdown=min(d["value"] for d in output.drawdown_curve),
         unclosed_positions=len(positions),
-        unrealized_pnl_amount=market_value() - sum(p["entry_value"] for p in positions.values()),
+        unrealized_pnl_amount=market_value() - sum(
+            p["entry_value"] * p["remaining"] / p["shares"] for p in positions.values()),
+        unclosed_realized_pnl_amount=sum(
+            p["sell_notional"] - p["sell_fees"] - p["entry_value"] * (1 - p["remaining"] / p["shares"])
+            for p in positions.values()),
     )
     output.equity_curve = equities if result_policy.include_curves else []
     if not result_policy.include_curves:

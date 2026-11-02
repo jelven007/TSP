@@ -566,6 +566,7 @@ class ScreenerService:
                 completed_through=completed_through,
                 pool_history=pool_context.pool_history,
                 pool_universe=pool_context.pool_universe,
+                suspension_history=getattr(self.repo, "get_suspension_history", lambda: None)(),
             )
         history_bars = engine.required_history_bars(
             strategy_ids,
