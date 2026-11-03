@@ -1,5 +1,9 @@
 # TSP v0.4.46 需求基线（Tick Stock Platform）
 
+FR-DATA-08的目录同步完成后，Full须自动后台恢复股票派生缓存，即使实时行情关闭。
+完成时通知公共消费者，成功空数据也不得保留旧快照；快照请求只读缓存、不等待历史重算。
+源码回归与正式部署分别签收，见[缓存修复](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
+
 早盘止损和兜底统一使用公共时间控件，24小时制显示`HH:mm:ss`并可选择秒；
 确认才应用，取消/清空/禁用及原时分控件兼容。候选与发布验收见
 [最新整合](../reports/release-consolidation-dual-20261102.md)。

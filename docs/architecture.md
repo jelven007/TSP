@@ -1,5 +1,11 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+Full lifespan在启动预热前注册Repository刷新/预热完成回调：目录失效后沿已有
+有界单飞后台任务回暖，完成时由QuoteService失效公共快照并发送轻量更新标记。
+成功空缓存也通知；API snapshot仍`refresh=False`，无私有矩阵/策略任务，
+通知失效沿已有快照锁与在途缓存填充串行，防止旧冷请求晚写回。
+见[调用链及回归](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
+
 公共`TimePicker`的`showSeconds`只扩展显示和确认格式，默认`HH:mm`保持；
 早盘止损与兜底启用`HH:mm:ss`，草稿确认后仍沿原`time/fallback_time`保存。
 本轮六类文档与候选验证见[最新整合](../reports/release-consolidation-dual-20261102.md)。

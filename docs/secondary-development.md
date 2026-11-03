@@ -1,5 +1,9 @@
 # 代码二次开发与 AI 扩展指南
 
+Full目录回暖为L3生命周期接线，复用Repository现有回调、单飞后台预热和
+QuoteService公共通知，不新增插件API/Provider/schema。升级保持只读snapshot热路径、
+成功空通知和关闭回调移除；见[缓存修复](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
+
 公共`TimePicker`可选`showSeconds`，默认时分调用不变；早盘两时间启用秒模式，
 沿既有弹层容器、确认和Escape契约，保存字段不变。不得把界面秒精度误用为
 连续资金回测支持秒撮合，见[最新整合](../reports/release-consolidation-dual-20261102.md)。

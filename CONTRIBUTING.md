@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）开发、贡献与复审指南
 
+Full目录刷新须核验“失效→有界后台回暖→公共快照失效→消费者通知”，包含实时关闭、
+成功空与关闭清理。不得把历史重算放到snapshot请求，或引入私有策略预热；
+实际回归见[缓存修复](.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
+
 早盘清仓新定义使用`time/fallback_time/rise_pct/fall_pct`，现价相对精确原始昨收；
 止损后真实分钟续卖，兜底余股保留失败账本并拒绝完整净值。旧振幅冻结兼容，
 公共时间控件默认时分不变，秒模式仅由使用方启用；S02参数布局只修改前端展示副本。
