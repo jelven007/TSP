@@ -122,7 +122,9 @@ def test_builtin_preset_subsequent_run_requires_confirmed_trading_day(
         (11, 45, "不在拉取时间窗口内"),
         (12, 59, "不在拉取时间窗口内"),
         (13, 0, None),
-        (15, 59, None),
+        (15, 29, None),
+        (15, 30, "不在拉取时间窗口内"),
+        (15, 59, "不在拉取时间窗口内"),
         (16, 0, "不在拉取时间窗口内"),
     ],
 )

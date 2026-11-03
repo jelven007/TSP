@@ -846,7 +846,7 @@ function RulesList({ rulesQuery, onEdit }: {
                     {TYPE_LABEL[r.type]}
                   </span>
                   {r.lot_id && (
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-400/10 text-emerald-500" title="由「持仓提醒」页托管, 请在持仓提醒页修改或删除">批次</span>
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-400/10 text-emerald-500" title="由「持仓」页托管, 请在持仓页修改或删除">批次</span>
                   )}
                   {r.asset_type === 'index' && (
                     <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-sky-500/10 text-sky-400">指数</span>
@@ -889,7 +889,7 @@ function RulesList({ rulesQuery, onEdit }: {
                   {r.lot_id ? (
                     <span
                       className="inline-flex items-center rounded-md border border-border/60 bg-elevated/60 px-1.5 py-0.5 text-[9px] text-secondary"
-                      title="由「持仓提醒」页生成的规则, 该页托管; 启停/修改/删除请到持仓提醒页"
+                      title="由「持仓」页生成的规则, 该页托管; 启停/修改/删除请到持仓页"
                     >
                       批次托管
                     </span>

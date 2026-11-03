@@ -1,13 +1,32 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+最新统一候选继承主线公共缓存修复，整合行情调度、菜单、模拟账户schema8、
+尾盘精确启动秒及目录迁移；调用链、来源和兼容边界见
+[统一升级](../reports/releases/unified-upgrade-20261103/verification.md)。
+
+TimePicker打开时仅滚动内部选项列表，避免窄屏滚动模态祖先触发弹层关闭；
+保持秒选择/确认、Escape仅取消弹层及公共时分调用兼容。
+
 Full lifespan在启动预热前注册Repository刷新/预热完成回调：目录失效后沿已有
 有界单飞后台任务回暖，完成时由QuoteService失效公共快照并发送轻量更新标记。
 成功空缓存也通知；API snapshot仍`refresh=False`，无私有矩阵/策略任务，
 通知失效沿已有快照锁与在途缓存填充串行，防止旧冷请求晚写回。
 见[调用链及回归](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
 
+自定义早盘清仓和尾盘建仓共用`TimePicker`及模态弹层契约。早盘双时间保持秒模式；
+尾盘也使用秒模式并保存`HH:mm:ss`。精确启动时间加90秒得到确认时点，分钟数据标签
+向下取整；例如14:30:20读取14:30:00分钟K并于14:31:50确认。
+
+模拟账号修改/删除为L3生命周期候选：沿 `paper.update_account/delete_account`、
+`PaperSession` 租户事务及文件撮合锁；字段整体校验，无业务记录才允许本金/现金同步调整，
+历史成交不重算。schema 8 增加订单/成交/净值删除级联和账号导入原件清理触发器，
+不扩大成交行或原件的直接删除权限；专属文档、提醒/通知及事件回放在同一事务清理。
+`paper_changed` 经SSE共享分发器刷新账号、对比和提醒；前端取消旧查询并移除目标账号缓存。
+文件模式删除失败用临时恢复副本补偿，读取不创建目录，迟到提醒按账号存在性过滤。
+当前为未部署源码，契约见[模拟账号](reference/trading-ai.md#paper)。
+
 公共`TimePicker`的`showSeconds`只扩展显示和确认格式，默认`HH:mm`保持；
-早盘止损与兜底启用`HH:mm:ss`，草稿确认后仍沿原`time/fallback_time`保存。
+三个自定义信号时间启用`HH:mm:ss`，草稿确认后仍沿原字段保存。
 本轮六类文档与候选验证见[最新整合](../reports/release-consolidation-dual-20261102.md)。
 
 停牌延期与复牌退出复用`instrument_suspension.holding_exit_status/resume_exit_time`，
@@ -42,6 +61,10 @@ is_trading_day，覆盖Full旧缓存与无行情服务。策略页复用共享�
 完整日历精确T+1、原始价分钟成交、事件开盘/收盘顺序、累计分片费用和日终估值分别核验；
 失败保留fills/signals/trades/remaining及诊断，完整净值清空，局部曲线仅留诊断。
 分钟量100%仅作为容量上界，不计未经核验分红送转；结果为研究账本，`certified=false`。
+
+通用分钟入场与定时退出按信号时点判定冲突，不按证券代码屏蔽全天。
+早盘现金账本仅在同一成交事件内拒绝反向入场；卖清后移除旧批次的退出状态，
+后续独立买点可重新入选，新批次使用自己的买入日期和T+1期限。
 
 `accountSession.accountStorage`将明确的界面偏好白名单放入user/tenant稳定作用域，
 其余键仍使用auth_version。读取缺失偏好时迁移同账户/租户最高旧版本；清理旧会话先保留未读取偏好，
@@ -113,7 +136,20 @@ S02全天卖出候选继续共享`momentum_day.run_day`：
 列名为`csgi_<id>`；普通日线和盘中表达式编译均跳过此模板。
 `strategy/late_session_strength.py`共享纯计算，分钟引擎传入策略完整基础池、
 严格前交易日未复权昨收及完成截止时间；1分MA5直接取连续收盘，5分复用本地完成桶聚合。
-模板只在指定收盘标签产生脉冲。独立回放读取保存的策略当日股票池完整快照，
+新保存定义内部携带`evaluation_delay_minutes=1.5`，共用`evaluation_time(sig, day)`
+计算启动后90秒的实际确认时点；缺标记/旧值1的冻结定义保持0/60秒口径。
+`bar_time(sig, day)`将精确启动时点向下取整后返回启动分钟数据标签；
+`evaluation_time(sig, day)`保留精确秒并加90秒。14:30:20因此使用14:30:00数据，
+于14:31:50确认；报价/广度/双MA5统一截至14:30，
+1分七值14:30至14:24，5分四值14:30>14:25>14:20>14:15；N值为N−1次严格比较，
+相邻MA差值须大于`1e-10`，小于或等于该阈值按持平淘汰。
+实时观察未到精确确认时点不得确认；脉冲附着向下取整的真实数据行，
+携带精确`entry_evaluated_at`。新定义范围13:00:00～14:58:00；
+冻结旧0/60秒定义只接受整分钟，保持原行为。
+独立回放返回计算时间及`bar_time`；分钟回放保持旧signal_close参考价口径但事件不得
+早于确认时间，秒级确认向上对齐到可执行整分钟，next_minute_open用14:32真实开盘价；
+缺14:32行情拒买。两种回放均保留`signal_time=14:31:30`，旧整分钟定义保持原行为。
+独立回放读取保存的策略当日股票池完整快照，
 先读取全池行情再过滤请求证券；缺快照/价格/参考值通过诊断明确列出。
 分钟策略回测引用模板时加载完整范围日线及分钟输入，触发器按实际信号标签筛选入场；
 请求证券仅限结果，不缩小广度分母，结果同时保留实际入场触发器配置。
@@ -250,7 +286,9 @@ rustdx由`TaskRuntime`组合realtime/minute/history三组，每组8业务/1探�
 页面顺序迁移插入15分K之后，保存显隐/排序仍优先。
 `ScheduleOverview`沿`updateDataSyncAuto`写偏好并失效preferences/dataStatus，
 加载失败或保存中禁用，写失败保留旧值。分类`details/summary`默认收起，
-稳定category保留刷新时展开状态；日K开关与盘后时间共享，默认交易日16:00。
+稳定category保留刷新时展开状态；日K开关与盘后时间共享，默认交易日15:30。
+K线分组末尾展示固定交易日15:35的当日K线修正，沿用自动同步总开关。
+扩展数据分组的任务label直接使用config.label，分类标识和任务ID保持原契约。
 实时轮询1～10秒整数滑块沿原preferences/API保存，源限速和已有配置优先。
 
 财务`storage`保留整目录字段与缓存，新增current/revision文件数和大小：
@@ -260,7 +298,7 @@ rustdx由`TaskRuntime`组合realtime/minute/history三组，每组8业务/1探�
 真实两端财务历史并集保留原Parquet/观察事件字节，同内容用真实最早观察时间，
 latest指向最新真实事件；冲突元数据和来源保存到`merge-provenance.json`。
 观察时间不等于已认证公告时间，补齐不建立跨环境自动同步契约，
-旧不可变公共版本保留。实测见[财务历史验收](../reports/financial-history-unify-20261030/verification.md)。
+旧不可变公共版本保留。实测见[财务历史验收](../reports/market-data/financial-history-unify-20261030/verification.md)。
 
 自选清单`refetchOnMount: 'always'`保留首屏缓存并在每次挂载核对服务端关系/顺序，
 避免持久缓存写入节流叠加staleTime显示旧关系。桌面有界清理、单实例锁释放和日志关闭后，
@@ -326,7 +364,7 @@ TSP 保留模块化单体的完整业务引擎，提供完整单机多租户与�
 分别负责研究、实时监控/模拟交易、通知和调度。
 身份与租户业务持久化到 PostgreSQL v6，公共行情按不可变版本只读共享。
 部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
-已完成的一期发布与 100 用户验收见[实施记录](../reports/document-consolidation-20261024/historical-evidence.md#phase1)。
+已完成的一期发布与 100 用户验收见[实施记录](../reports/engineering/document-consolidation-20261024/historical-evidence.md#phase1)。
 
 以下单进程拓扑描述 `MULTITENANCY_ENABLED=false` 的独立运行模式：
 
@@ -353,6 +391,9 @@ Standalone 与 Platform 记录待同步状态并通过 `start_initial_sync` 创�
 能力、权限、交易日/时段和任务单飞继续控制真正取数；首次全量初始化不要求当前在交易时段。
 手动管道仍执行已配置的数据阶段并保留原发布与缓存刷新链路，已有显式配置优先。
 菜单默认顺序由 `DEFAULT_NAV_ORDER` 提供，前端侧栏、菜单设置及租户显示默认一致；
+当前顺序将信号放在因子之后，回测之后为持仓、模拟，再接复盘。
+“信号指标/持仓提醒/模拟交易”的一级菜单及页面标题分别简化为“信号/持仓/模拟”，
+路由和业务身份保持，缺偏好时使用默认值，读取不会写入或覆盖已有配置。
 已有排序和隐藏配置不被重置。参数与操作见[初始化默认值](operations.md#config-数据页初始化默认值)。
 主题首屏脚本与 `getTheme()` 均默认亮色；浏览器保存 `tf-theme=dark` 时恢复暗色，
 无有效偏好或存储不可用时使用白天模式，不改写已有主题选择。
@@ -502,7 +543,7 @@ PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快�
 
 当前环境身份统一见[版本基线](version-baseline.md)，公共容量保护与周期回收保留。
 自选业务连接池获取超时的底层原因仍未确认；源码整合不替代生产验收，
-见[本次生命周期基线](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
+见[本次生命周期基线](../reports/engineering/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 
 <a id="current-32-独立模式-docker"></a>
 #### 3.2 独立模式 Docker
@@ -713,7 +754,7 @@ enriched 分区持久化 `is_risk_warning`、`is_listed` 和
 原22个公开策略ID和默认参数保持不变，当前源码增加s01为第23项；
 19项策略的31个可选入场主题及入场风险
 政策属于显式研究配置，不因历史批次相对改善而自动晋级。详细契约见
-[策略指南](reference/research.md#strategy)和[策略质量研究结论（过程材料已清理）](../reports/strategy-results-cleanup-20261030/清理记录.md#removed-research)。
+[策略指南](reference/research.md#strategy)和[策略质量研究结论（过程材料已清理）](../reports/operations/strategy-results-cleanup-20261030/清理记录.md#removed-research)。
 
 信号、因子和策略回测结果统一携带 `provenance`：数据 release ID、读取时的
 enriched generation、Provider 路由、配置哈希，以及策略回测的源码哈希。回测
@@ -747,8 +788,8 @@ enriched generation、Provider 路由、配置哈希，以及策略回测的源�
 当前已接入独立 `QuoteService` 的策略监控和模拟交易调用链。策略组配置/状态 API、
 前端编组、多租户计算任务以及物理并发 2 的容量基准仍属于后续阶段，不能根据内部
 协调器类推断已经可用。方案与实际阶段见
-[五策略方案](../reports/five-strategy-parallel-20261019/plan.md)和
-[实施记录](../reports/five-strategy-parallel-20261019/implementation.md)。
+[五策略方案](../reports/strategies/five-strategy-parallel-20261019/plan.md)和
+[实施记录](../reports/strategies/five-strategy-parallel-20261019/implementation.md)。
 
 <a id="current-65-实时与事件"></a>
 #### 6.5 实时与事件
@@ -883,8 +924,14 @@ TanStack Query。写操作必须同时考虑：
 Platform 执行，租户研究/监控/通知/定时工作由对应 Worker 执行。当前主要任务包括：
 
 - 交易日 09:25 后的竞价终态快照采集和窗口内重试。
-- 默认交易日 16:00（北京时间）的盘后数据流水线；自定义时间精确保存并更新运行中的
-  调度器，重启后保留。继续保持 15:35 下限和交易日证据门控，非法时间不覆盖原配置。
+- 默认交易日 15:30（北京时间）的盘后数据流水线；自定义时间精确保存并更新运行中的
+  调度器，重启后保留。日K保持15:30下限和交易日证据门控，非法时间不覆盖原配置。
+- 实时行情及分钟K共享09:15–11:45、13:00–15:30半开采集窗口；周K默认周六09:00。
+- 交易日15:35的`kline_correction`登记当日请求，30秒重试任务仅续跑等待请求。
+  `services/kline_correction.py`顺序复用五周期区间修正，目标日期冻结，沿JobStore、
+  执行槽、容量限制、缓存/SSE及data release契约执行。日期状态保存于
+  `kline_correction/current.json`及当日记录；成功跨重启去重，失败/取消不重跑，
+  跨日等待或重启后的运行任务标记中断。Platform公共publisher沿既有文件发布链消费。
 - 可选的 15:40 盘后复盘。
 - 可配置的扩展数据拉取。
 - 可选的每周因子挖掘。
@@ -1046,8 +1093,8 @@ URL、查询参数、请求体或认证头，避免高基数和敏感信息泄�
 | 因子 | `/factors` | `inspect/library/editor/composite/mining` 五个 tab；[因子平台](reference/factor-system.md#factor-current) |
 | 复盘 | `/review` | AI 流式报告、历史、下载与定时推送 |
 | 回测 | `/backtest` | 策略与验证两视图，候选保存、复测和导出；[研究配置](reference/research.md#research) |
-| 信号指标 | `/signals` | 日线/盘中条件、因子信号与触发器 |
-| 持仓提醒 | `/lots` | 观察持仓及提醒；与模拟交易账本分开；到期快捷日由 `strategy.lots.expiry_options` 复用公布交易日历，经 `/api/lots/expiry-options` 返回，下个/第5个交易日不含基准当天，未知日历返回空选项 |
+| 信号 | `/signals` | 日线/盘中条件、因子信号与触发器 |
+| 持仓 | `/lots` | 观察持仓及提醒；与模拟交易账本分开；到期快捷日由 `strategy.lots.expiry_options` 复用公布交易日历，经 `/api/lots/expiry-options` 返回，下个/第5个交易日不含基准当天，未知日历返回空选项 |
 | 异动 | `/abnormal` | 竞价、盘中、偏移三种口径 |
 | 连板梯队 | `/limit-ladder` | 涨停候选与真实五档证据；[盘口契约](reference/market-data.md#depth) |
 | 个股分析 | `/stock-analysis` | 日 K、关键价位与 AI 四维分析 |
@@ -1056,7 +1103,7 @@ URL、查询参数、请求体或认证头，避免高基数和敏感信息泄�
 | 财务分析 | `/financials` | 本地财务报表、历史股本与 AI |
 | 监控中心 | `/monitor` | 策略、信号、价格、异动规则与触发记录 |
 | 环境 | `/regime` | 五档环境、六阶段情绪周期、主线；[口径](reference/market-data.md#phase) |
-| 模拟交易 | `/paper` | 多账户、订单/成交/持仓/应收、自动跟单与对比；[账务](reference/trading-ai.md#paper) |
+| 模拟 | `/paper` | 多账户、订单/成交/持仓/应收、自动跟单与对比；[账务](reference/trading-ai.md#paper) |
 | 指数（隐藏入口） | `/indices` | 固定上证、深成、创业板、科创综指，日 K/分时联动 |
 | 数据总览 | `/data` | 同步、修正、扩历史、数据画像与扩展源管理；需 `data:manage` |
 
@@ -1728,9 +1775,9 @@ A–I、3.1–3.6和恢复目标见[联合验收](testing.md#acceptance)。
 
 系统目标规范正文与自包含 HTML/Markdown、三张 Mermaid/SVG、用户原图、容量计算器、来源索引和验证记录一起交付。应用新增能力验收在第14章定义，本次仅验证方案覆盖、链接、编号、数字、文档一致和报告浏览。
 
-原图的仓库冻结依据副本：[用户架构参考图](../reports/design-inputs-20261023/fused/assets/reference-TSP.png)。
+原图的仓库冻结依据副本：[用户架构参考图](../reports/engineering/design-inputs-20261023/fused/assets/reference-TSP.png)。
 
-![用户提供的架构参考图](../reports/design-inputs-20261023/fused/assets/reference-TSP.png)
+![用户提供的架构参考图](../reports/engineering/design-inputs-20261023/fused/assets/reference-TSP.png)
 
 图 4：用户参考原图。此次目标增加完整业务平面、DFX、跨节点任务、单写迁移和恢复边界。
 
@@ -1739,15 +1786,15 @@ A–I、3.1–3.6和恢复目标见[联合验收](testing.md#acceptance)。
 
 以下本地资料为已读取的工程/设计依据；官方链接沿用前版技术语义依据，不表示本次重新实测产品或已集成。
 
-1. <a id="cite-1"></a> TSP，2026-10-23 融合技术方案及用户 TSP.png。[原方案](../reports/design-inputs-20261023/fused/融合技术方案.md)
+1. <a id="cite-1"></a> TSP，2026-10-23 融合技术方案及用户 TSP.png。[原方案](../reports/engineering/design-inputs-20261023/fused/融合技术方案.md)
 2. <a id="cite-2"></a> TSP，二期三步实施计划，第三步 3.1–3.6 和容量/DFX 门槛。[实施计划](planning/phase2-implementation-plan.md)
-3. <a id="cite-3"></a> TSP，两期路线与二期架构分析，授权、Cell、fencing、任务与恢复；历史瓶颈不作为当前事实。[两期路线](#target)、[二期分析](../reports/phase2-architecture-20261016/architecture-analysis.md)
+3. <a id="cite-3"></a> TSP，两期路线与二期架构分析，授权、Cell、fencing、任务与恢复；历史瓶颈不作为当前事实。[两期路线](#target)、[二期分析](../reports/engineering/phase2-architecture-20261016/architecture-analysis.md)
 4. <a id="cite-4"></a> TSP，当前架构、能力与版本边界。[当前架构](#current)、[实现索引](#capabilities)、[版本基线](version-baseline.md)
 5. <a id="cite-5"></a> TSP，需求基线，实时/历史/研究与阶段要求。[需求基线](requirements.md)
 6. <a id="cite-6"></a> TSP，开发、金融数据、租户和版本规范。[贡献指南](../CONTRIBUTING.md)
 7. <a id="cite-7"></a> TSP，已存在和按需新增的扩展边界。[二次开发](secondary-development.md)
 8. <a id="cite-8"></a> TSP，秒级可信度、五档与收盘保护。[秒级研究](reference/market-data.md#second)、[五档](reference/market-data.md#depth)、[收盘](reference/market-data.md#closing)
-9. <a id="cite-9"></a> TSP，ClickHouse 十年历史八表与发布设计。[设计说明](../reports/design-inputs-20261023/clickhouse/设计说明.md)
+9. <a id="cite-9"></a> TSP，ClickHouse 十年历史八表与发布设计。[设计说明](../reports/engineering/design-inputs-20261023/clickhouse/设计说明.md)
 10. <a id="cite-10"></a> Apache Kafka，分区、offset 与消息语义。[官方文档](https://kafka.apache.org/41/documentation/#semantics)
 11. <a id="cite-11"></a> Apache Flink，Time and Order in Streams。[官方文档](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/time/)
 12. <a id="cite-12"></a> Apache Flink，Broadcast State。[官方文档](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/broadcast_state/)

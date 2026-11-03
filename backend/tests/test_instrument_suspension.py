@@ -234,20 +234,24 @@ def test_optional_timestamp_loader_preserves_old_schema_and_rejects_wrong_date(t
         load_suspension_history(tmp_path)
 
 
-@pytest.mark.parametrize("published,error", [(9, False), (15, True)])
-def test_replay_uses_signal_time_not_end_of_day_for_suspension(engine, tmp_path, published, error):
-    from test_late_session_strength import bars, definition
+@pytest.mark.parametrize("published,error,delay", [
+    ("09:00:00", False, 0), ("15:00:00", True, 0),
+    ("14:30:30", True, 0), ("14:30:30", False, 1), ("14:31:01", True, 1),
+    ("14:31:01", False, 1.5), ("14:31:30", False, 1.5), ("14:31:31", True, 1.5),
+])
+def test_replay_uses_signal_time_not_end_of_day_for_suspension(engine, tmp_path, published, error, delay):
+    from test_late_session_strength import TARGET, bars, definition
 
     from app.backtest.minute_replay import MinuteSignalReplayer
     from app.strategy import custom_signals
 
-    minute = bars().filter(pl.col("symbol") == "a").with_columns(
+    minute = bars(TARGET).filter(pl.col("symbol") == "a").with_columns(
         pl.lit(ACTIVE).alias("symbol"), pl.col("datetime").dt.offset_by("-67d"))
-    custom_signals.save_one(tmp_path, definition())
+    custom_signals.save_one(tmp_path, definition(**({"evaluation_delay_minutes": delay} if delay else {})))
     engine._user_data_dir = lambda: tmp_path
     event = events().head(1).with_columns(
         pl.lit(DAY).alias("announced_on"),
-        pl.lit(datetime(2026, 6, 29, published)).alias("announced_at"))
+        pl.lit(datetime.fromisoformat(f"{DAY} {published}")).alias("announced_at"))
     repo = SimpleNamespace(get_suspension_history=lambda: event,
                            list_minute_dates=lambda *_: [DAY],
                            get_minute_by_dates=lambda *_: minute)

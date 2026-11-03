@@ -141,6 +141,8 @@ export const QK = {
   paperCorporateActions: (acc: string) => ['paper', 'corporate-actions', acc] as const,
   paperCompare:         ['paper', 'compare'] as const,
   paperAutoRules:       (acc: string) => ['paper', 'auto-rules', acc] as const,
+  alertsAll:            ['alerts'] as const,
+  alertsTotal:          ['alerts-total'] as const,
   alerts:               (source?: string) => ['alerts', source ?? ''] as const,
 
   // AI 大盘复盘
@@ -199,6 +201,7 @@ export const KLINE_QUERY_PREFIXES = [
 // 私有事件积压溢出时只重取可能漏掉推送的权威 REST 数据。
 // 行情由独立公共事件驱动，设置、能力矩阵等静态查询不应被连带刷新。
 export const SSE_EVENT_RESET_ROOTS = new Set([
+  'paper',
   'alerts',
   'alerts-total',
   'screener-cached',

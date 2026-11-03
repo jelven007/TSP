@@ -11,7 +11,7 @@ export type QuoteStreamConnection = {
 
 const EVENT_TYPES = [
   'quotes_updated', 'strategy_results_updated', 'depth_updated', 'strategy_alert',
-  'review_progress', 'events_reset', 'access_revoked',
+  'review_progress', 'paper_changed', 'events_reset', 'access_revoked',
 ] as const
 
 type StreamMessage =

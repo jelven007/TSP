@@ -58,6 +58,48 @@ class PaperSession:
             "SELECT id FROM business.full_paper_accounts ORDER BY value->>'created_at',id",
         ).fetchall()]
 
+    def initial_cash_editable(self, account_id):
+        return self.conn.execute(
+            """SELECT NOT EXISTS(SELECT 1 FROM business.full_paper_orders WHERE account_id=%s)
+                  AND NOT EXISTS(SELECT 1 FROM business.full_paper_fills WHERE account_id=%s)
+                  AND NOT EXISTS(SELECT 1 FROM business.full_paper_nav WHERE account_id=%s)
+                  AND NOT EXISTS(SELECT 1 FROM business.full_paper_accounts
+                                 WHERE id=%s AND positions IS NOT NULL AND positions<>'{}'::jsonb) AS editable""",
+            (account_id,) * 4,
+        ).fetchone()["editable"]
+
+    def delete_account(self, account_id):
+        if self.account(account_id) is None:
+            return False
+        if self.documents.db.settings.schema_version < 8:
+            raise AccessError(409, "删除模拟账户需要先升级数据库至 schema 8")
+        self.conn.execute(
+            "DELETE FROM business.documents WHERE namespace=ANY(%s)",
+            ([f"paper_{kind}:{account_id}" for kind in
+              ("auto", "event", "exit", "exit_archive", "risk", "auto_skips")],),
+        )
+        # Alerts cascade to their delivery outbox. Mixed replay batches keep
+        # unrelated events and their original sequence.
+        self.conn.execute(
+            "DELETE FROM business.alerts WHERE event->>'source'='paper' AND event->>'account_id'=%s",
+            (account_id,),
+        )
+        self.conn.execute(
+            """UPDATE business.full_events SET payload=jsonb_set(payload,'{alerts}',
+                    coalesce((SELECT jsonb_agg(item ORDER BY ordinal)
+                              FROM jsonb_array_elements(payload->'alerts') WITH ORDINALITY AS e(item,ordinal)
+                              WHERE NOT (coalesce(item->>'source','')='paper'
+                                         AND coalesce(item->>'account_id','')=%s)), '[]'::jsonb))
+               WHERE kind='strategy_alert' AND jsonb_typeof(payload->'alerts')='array'
+                 AND EXISTS(SELECT 1 FROM jsonb_array_elements(payload->'alerts') item
+                            WHERE item->>'source'='paper' AND item->>'account_id'=%s)""",
+            (account_id, account_id),
+        )
+        self.conn.execute("DELETE FROM business.full_events WHERE kind='strategy_alert' AND payload->'alerts'='[]'::jsonb")
+        return self.conn.execute(
+            "DELETE FROM business.full_paper_accounts WHERE id=%s", (account_id,),
+        ).rowcount > 0
+
     def order(self, account_id, order_id):
         row = self.conn.execute(
             "SELECT value FROM business.full_paper_orders WHERE account_id=%s AND id=%s",
@@ -260,6 +302,11 @@ def paper_operation(*, write=False):
                     raise RuntimeError("paper mutation attempted in a read transaction")
                 return function(data_dir, *args, **kwargs)
             if not isinstance(data_dir, TenantDocuments):
+                if write:
+                    from app.strategy.paper import PAPER_LOCK
+
+                    with PAPER_LOCK:
+                        return function(data_dir, *args, **kwargs)
                 return function(data_dir, *args, **kwargs)
             with data_dir.db.business_transaction(
                 data_dir.context, write=write, permission="paper:write" if write else "paper:read",

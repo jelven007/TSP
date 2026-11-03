@@ -1,3 +1,6 @@
 backend/uv.lock text eol=lf
 frontend/vite.config.d.ts text eol=lf
 backend/native/rustdx_native/vendor/** text eol=lf whitespace=-blank-at-eol
+# Unified-diff archives require a leading context space on blank lines.
+reports/**/source.patch whitespace=-blank-at-eol
+reports/engineering/repository-layout-20261103/migration-map.csv text eol=lf

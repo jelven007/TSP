@@ -14,7 +14,7 @@ x-common: &common
   environment: &environment
     SERVICE_ROLE: api
     MULTITENANCY_ENABLED: "true"
-    TSP_CELL_SCHEMA_VERSION: "7"
+    TSP_CELL_SCHEMA_VERSION: "8"
     TSP_CELL_DEPLOYMENT_EXPOSURE: "${TSP_DEPLOYMENT_EXPOSURE:-public}"
     DATA_DIR: /public/current
     PLATFORM_CONFIG_DIR: /platform-config

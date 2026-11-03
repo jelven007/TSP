@@ -52,6 +52,8 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "GET /api/overview/market",
     "GET /api/paper/account",
     "POST /api/paper/account",
+    "PUT /api/paper/account",
+    "DELETE /api/paper/account",
     "GET /api/paper/accounts",
     "POST /api/paper/arena/batch_create",
     "POST /api/paper/auto_rules",
@@ -98,7 +100,9 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
 # cached新增可选日期/资产/周期, 无日期保持旧快照语义, 开放端点集合不变。
 # daily/minute新增可选freq, 省略时保持1d/1m; 响应组件及开放端点集合不变。
 # index/minute新增可选with_prev_close=false, 旧请求/响应组件和69端点集合不变。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "e7b6dad7c1976366a1b287b4bb2e5f02b4b344cb9b5f220b0f25c0e92cf6d789"
+# 账号PUT/DELETE沿既有paper:trade权限; 新增可选initial_cash_editable,
+# 旧创建/设置/冻结保持, 历史成交不改写, SQL删除需schema8。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "e8cc2b111e43cb230ccae1fba3516b020257aad7923c8be25dcf9932416ad4dd"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

@@ -40,7 +40,11 @@ def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
             assert "auction_snapshot_catchup" in jobs
             assert jobs["reprobe_capabilities"].next_run_time is not None
             data_ids = set(jobs) - {"reprobe_capabilities", "pre_market_instruments"}
-            assert {"daily_pipeline", "depth_finalize"} <= data_ids
+            assert {"daily_pipeline", "depth_finalize", "kline_correction", "kline_correction_retry"} <= data_ids
+            next_correction = jobs["kline_correction"].trigger.get_next_fire_time(
+                None, datetime(2026, 10, 23, 15, 34, tzinfo=ZoneInfo("Asia/Shanghai")),
+            )
+            assert (next_correction.hour, next_correction.minute) == (15, 35)
             assert jobs["pre_market_instruments"].next_run_time is not None
             trigger = jobs["pre_market_instruments"].trigger
             for day in (datetime(2026, 10, 24, 8), datetime(2026, 10, 1, 8)):

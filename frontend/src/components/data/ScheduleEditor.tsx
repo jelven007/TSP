@@ -11,7 +11,7 @@ export function ScheduleEditor({ value, onSave, loading, hint }: {
 
   useEffect(() => { setH(value.hour); setM(value.minute) }, [value.hour, value.minute])
   const invalid = !Number.isInteger(h) || !Number.isInteger(m)
-    || h < 0 || h > 23 || m < 0 || m > 59 || h * 60 + m < 15 * 60 + 35
+    || h < 0 || h > 23 || m < 0 || m > 59 || h * 60 + m < 15 * 60 + 30
 
   const handleSave = () => {
     if (loading || invalid || (h === value.hour && m === value.minute)) return
@@ -28,7 +28,7 @@ export function ScheduleEditor({ value, onSave, loading, hint }: {
       />
       <span className="text-xs text-muted">:</span>
       <input
-        type="number" min={h === 15 ? 35 : 0} max={59} value={m} aria-label="管道同步分钟"
+        type="number" min={h === 15 ? 30 : 0} max={59} value={m} aria-label="管道同步分钟"
         onChange={e => setM(Math.max(0, Math.min(59, Number(e.target.value))))}
         className="w-12 px-1.5 py-1 rounded-btn bg-base border border-border text-xs font-mono text-foreground text-center"
       />
@@ -39,7 +39,7 @@ export function ScheduleEditor({ value, onSave, loading, hint }: {
       >
         {loading ? '保存中…' : '保存'}
       </button>
-      <span className="text-[10px] text-muted">北京时间 · 休市日跳过 · {hint ?? '不早于 15:35'}</span>
+      <span className="text-[10px] text-muted">北京时间 · 休市日跳过 · {hint ?? '不早于 15:30'}</span>
     </div>
   )
 }

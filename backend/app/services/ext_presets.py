@@ -55,7 +55,7 @@ def _concept_preset() -> ExtConfig:
             ExtField("股票简称", "string", "股票简称"),
             ExtField("所属概念", "string", "所属概念"),
         ],
-        description="同花顺概念分类 (默认自动拉取; 交易日 09:15-11:45 / 13:00-16:00 每分钟更新)",
+        description="同花顺概念分类 (默认自动拉取; 交易日 09:15-11:45 / 13:00-15:30 每分钟更新)",
         symbol_map={"type": "mapped", "col": "股票代码"},
         code_map={"type": "computed", "from": "symbol", "method": "strip_exchange"},
         pull=PullConfig(
@@ -64,7 +64,7 @@ def _concept_preset() -> ExtConfig:
             schedule_minutes=1,
             enabled=True,
             time_window_start="09:15",
-            time_window_end="16:00",
+            time_window_end="15:30",
         ),
     )
 
@@ -87,7 +87,7 @@ def _industry_preset() -> ExtConfig:
             ExtField("股票简称", "string", "股票简称"),
             ExtField("所属同花顺行业", "string", "所属同花顺行业"),
         ],
-        description="同花顺行业分类 (默认自动拉取; 交易日 09:15-11:45 / 13:00-16:00 每分钟更新)",
+        description="同花顺行业分类 (默认自动拉取; 交易日 09:15-11:45 / 13:00-15:30 每分钟更新)",
         symbol_map={"type": "mapped", "col": "股票代码"},
         code_map={"type": "computed", "from": "symbol", "method": "strip_exchange"},
         pull=PullConfig(
@@ -96,7 +96,7 @@ def _industry_preset() -> ExtConfig:
             schedule_minutes=1,
             enabled=True,
             time_window_start="09:15",
-            time_window_end="16:00",
+            time_window_end="15:30",
         ),
     )
 
@@ -201,13 +201,14 @@ def _is_unused_empty_preset(existing: ExtConfig, preset: ExtConfig, data_dir: Pa
     if existing.description not in {
         preset.description, auto_description, legacy_description, manual_description,
         legacy_auto_description, legacy_configured_description, legacy_manual_description,
+        preset.description.replace("15:30", "16:00"),
     }:
         return False
     for value in (original, expected):
         for key in ("created_at", "updated_at", "description"):
             value.pop(key, None)
-    if original["pull"].get("time_window_end") == "15:15":
-        original["pull"]["time_window_end"] = "16:00"
+    if original["pull"].get("time_window_end") in {"15:15", "16:00"}:
+        original["pull"]["time_window_end"] = "15:30"
     expected["pull"]["url"] = ""
     expected["pull"]["enabled"] = False
     return original == expected
@@ -253,7 +254,7 @@ def _is_legacy_manual_preset(existing: ExtConfig, preset: ExtConfig) -> bool:
         and pull.field_map == {}
         and pull.schedule_minutes == default.schedule_minutes
         and pull.time_window_start == default.time_window_start
-        and pull.time_window_end in {default.time_window_end, "15:15"}
+        and pull.time_window_end in {default.time_window_end, "15:15", "16:00"}
         and pull.date_param is None
         and pull.time_field is None
         and no_auth
@@ -303,13 +304,15 @@ async def ensure_builtin_presets(data_dir: Path) -> None:
                 import json as _debug_json, os as _debug_os, urllib.request as _debug_request; _debug_url = _debug_os.getenv("DEBUG_SERVER_URL"); _debug_session = _debug_os.getenv("DEBUG_SESSION_ID"); _debug_payload = {"sessionId": _debug_session, "runId": _debug_os.getenv("DEBUG_RUN_ID", "pre-fix"), "hypothesisId": "A", "location": "app.services.ext_presets.ensure_builtin_presets", "msg": "[DEBUG] evaluated existing builtin preset", "data": {"config_id": config.id, "has_snapshot": any((data_dir / "ext_data" / existing.id).rglob("*.parquet")), "description": existing.description, "pull_present": existing.pull is not None, "pull_enabled": bool(existing.pull and existing.pull.enabled), "pull_url_configured": bool(existing.pull and existing.pull.url), "eligible_empty_repair": empty_repair, "eligible_legacy_migration": legacy_migration}}; _debug_request.urlopen(_debug_request.Request(_debug_url, data=_debug_json.dumps(_debug_payload).encode(), headers={"Content-Type": "application/json"}), timeout=1).read() if _debug_url and _debug_session else None  # noqa
                 # #endregion
                 if not (empty_repair or legacy_migration):
-                    if existing.pull and (
-                        existing.pull.time_window_start,
-                        existing.pull.time_window_end,
-                    ) == ("09:15", "15:15"):
-                        existing.pull.time_window_end = "16:00"
+                    if (
+                        existing.pull and existing.pull.time_window_start == "09:15"
+                        and existing.pull.time_window_end in {"15:15", "16:00"}
+                    ):
+                        existing.pull.time_window_end = "15:30"
                         existing.description = existing.description.replace(
-                            "09:15-11:30 / 13:00-15:15", "09:15-11:45 / 13:00-16:00"
+                            "09:15-11:30 / 13:00-15:15", "09:15-11:45 / 13:00-15:30"
+                        ).replace(
+                            "09:15-11:45 / 13:00-16:00", "09:15-11:45 / 13:00-15:30"
                         )
                         store.upsert(existing)
                     continue
@@ -320,7 +323,7 @@ async def ensure_builtin_presets(data_dir: Path) -> None:
             store.upsert(config)
             logger.info(
                 "内置扩展表 %s 配置已就绪 "
-                "(自动拉取=%s, 交易日 09:15-11:45 / 13:00-16:00 每分钟更新)",
+                "(自动拉取=%s, 交易日 09:15-11:45 / 13:00-15:30 每分钟更新)",
                 config.id,
                 bool(config.pull and config.pull.enabled),
             )

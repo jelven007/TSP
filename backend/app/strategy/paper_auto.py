@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 
 def _dir(data_dir: Path, account_id: str) -> Path:
     d = paper._root(data_dir, account_id) / "auto_rules"
-    d.mkdir(parents=True, exist_ok=True)
     return d
 
 
@@ -129,6 +128,8 @@ def load_auto_rules(data_dir: Path, account_id: str = paper.DEFAULT_ACCOUNT_ID, 
 def save_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT_ACCOUNT_ID) -> dict:
     validate_rule(rule)
     with paper_lock(data_dir, paper.PAPER_LOCK):
+        if paper.get_account(data_dir, account_id) is None:
+            raise ValueError("尚未创建模拟账户")
         old = next((r for r in load_auto_rules(data_dir, account_id) if r["id"] == rule["id"]), None)
         if not rule.get("enabled", True) or (old and _exit_rule_signature(old) != _exit_rule_signature(rule)):
             _cancel_rule_exits(data_dir, rule["id"], account_id, "自动规则停用或执行配置已变更")
@@ -144,6 +145,7 @@ def save_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT_A
                 raise ValueError("自动跟单规则数量已达上限")
             data_dir.put_document(namespace, rule["id"], rule)
         else:
+            _dir(data_dir, account_id).mkdir(parents=True, exist_ok=True)
             atomic_write_text(_dir(data_dir, account_id) / f"{rule['id']}.json",
                               json.dumps(rule, ensure_ascii=False, indent=2))
         return rule
@@ -282,7 +284,6 @@ _ACTIVE_EXITS = {"pending", "submitted"}
 
 def _record_dir(data_dir: Path, kind: str, account_id: str) -> Path:
     path = paper._root(data_dir, account_id) / kind
-    path.mkdir(parents=True, exist_ok=True)
     return path
 
 
@@ -294,6 +295,8 @@ def _record(data_dir, kind, key, account_id):
 
 
 def _put_record(data_dir, kind, key, value, account_id):
+    if paper.get_account(data_dir, account_id) is None:
+        raise ValueError("尚未创建模拟账户")
     if isinstance(data_dir, PaperSession):
         if kind == "exit" and value["status"] not in _ACTIVE_EXITS:
             data_dir.put_document(f"paper_exit_archive:{account_id}", key, value)
@@ -301,10 +304,12 @@ def _put_record(data_dir, kind, key, value, account_id):
         else:
             data_dir.put_document(f"paper_{kind}:{account_id}", key, value)
     else:
+        _record_dir(data_dir, kind, account_id).mkdir(parents=True, exist_ok=True)
         atomic_write_text(_record_dir(data_dir, kind, account_id) / f"{key}.json",
                           json.dumps(value, ensure_ascii=False, indent=2))
         if kind == "exit" and value["status"] not in _ACTIVE_EXITS:
             # Atomic rename keeps terminal history out of the polling path.
+            _record_dir(data_dir, "exit_archive", account_id).mkdir(parents=True, exist_ok=True)
             (_record_dir(data_dir, kind, account_id) / f"{key}.json").replace(
                 _record_dir(data_dir, "exit_archive", account_id) / f"{key}.json",
             )
@@ -405,6 +410,8 @@ def _skip_namespace(account_id: str) -> str:
 
 def _record_skip(data_dir, account_id, rule, ev, reason, detail=None):
     """追加一条未执行原因 (有界, 新的在前)。文件与 SQL 两种存储都写单条列表文档。"""
+    if paper.get_account(data_dir, account_id) is None:
+        raise ValueError("尚未创建模拟账户")
     entry = {
         "ts": _now_iso(),
         "rule_id": rule.get("id"),
@@ -420,6 +427,7 @@ def _record_skip(data_dir, account_id, rule, ev, reason, detail=None):
     if isinstance(data_dir, PaperSession):
         data_dir.put_document(_skip_namespace(account_id), "default", {"items": updated})
     else:
+        _record_dir(data_dir, "auto_skips", account_id).mkdir(parents=True, exist_ok=True)
         atomic_write_text(
             _record_dir(data_dir, "auto_skips", account_id) / "default.json",
             json.dumps({"items": updated}, ensure_ascii=False, indent=2),

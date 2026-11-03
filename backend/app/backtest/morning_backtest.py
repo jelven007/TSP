@@ -322,11 +322,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
             for row in history.iter_rows(named=True):
                 if row["datetime"].date() == day:
                     events[row["datetime"]].append(row)
-            sold_today = set()
             # 一个分钟标签内, 开盘入场早于收盘清仓, 不可预支稍后的卖款。
             for at, phase in sorted({(at, 1) for at in events} | set(hits_at)):
                 if cancel_event is not None and cancel_event.is_set():
                     return finish("cancelled")
+                sold_this_event = set()
                 rows_at = defaultdict(list)
                 for row in events[at]:
                     rows_at[row["symbol"]].append(row)
@@ -394,7 +394,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     pos["sell_fees"] += cost
                     pos["remaining"] -= quantity
                     cash += notional - cost
-                    sold_today.add(symbol)
+                    sold_this_event.add(symbol)
                     output.fills.append({
                         "date": str(day), "datetime": str(at), "symbol": symbol, "side": "sell",
                         "shares": quantity, "price": price, "notional": notional, "fee": cost,
@@ -424,6 +424,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         if pos.get("suspension_deferred"):
                             counters["resume_exit_trades"] += 1
                         del positions[symbol]
+                        del triggers[symbol]
+                        del last_sale[symbol]
                 if phase == 1 and at.time() >= fallback_clock:
                     rejected = reject_overdue(day)
                     if rejected is not None:
@@ -434,8 +436,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 for hit in sorted(hits_at[(at, phase)], key=lambda h: (-h.score, h.symbol)):
                     if hit.symbol in positions:
                         continue
-                    if hit.symbol in sold_today:
-                        counters["buy_same_day_reentry"] += 1
+                    if hit.symbol in sold_this_event:
+                        counters["buy_exit_conflict"] += 1
                         continue
                     if ((score_min is not None and hit.score < score_min)
                             or (score_max is not None and hit.score > score_max)):

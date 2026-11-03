@@ -1,0 +1,547 @@
+diff --git a/frontend/src/components/TimePicker.tsx b/frontend/src/components/TimePicker.tsx
+--- a/frontend/src/components/TimePicker.tsx
++++ b/frontend/src/components/TimePicker.tsx
+@@ -5,8 +5,9 @@
+ import { PICKER_BUTTON_CLASS, PICKER_POPOVER_CLASS, usePickerPopover, type PickerButtonProps } from './usePickerPopover'
+ 
+ interface TimePickerProps extends PickerButtonProps {
+-  value: string // HH:mm，24 小时制
++  value: string // HH:mm 或 HH:mm:ss，24 小时制
+   onChange: (value: string) => void
++  showSeconds?: boolean
+   placeholder?: string
+   clearable?: boolean
+   className?: string
+@@ -15,29 +16,35 @@
+ }
+ 
+ const pad = (value: number) => String(value).padStart(2, '0')
++const timeParts = (value: string, showSeconds: boolean) =>
++  (value || '00:00').split(':').concat('00').slice(0, showSeconds ? 3 : 2)
+ 
+ export function TimePicker({
+-  value, onChange, placeholder = '选择时间', clearable = false,
++  value, onChange, showSeconds = false, placeholder = '选择时间', clearable = false,
+   className = '', buttonClassName = '', align = 'right', disabled = false, ...buttonProps
+ }: TimePickerProps) {
+   const { btnRef, popRef, pos, open, toggle, close, portalContainer } = usePickerPopover({ align, disabled })
+-  const [draft, setDraft] = useState((value || '00:00').split(':'))
++  const [draft, setDraft] = useState(() => timeParts(value, showSeconds))
+   const hourRef = useRef<HTMLButtonElement>(null)
+   const minuteRef = useRef<HTMLButtonElement>(null)
++  const secondRef = useRef<HTMLButtonElement>(null)
+   useEffect(() => {
+     if (open) {
+       hourRef.current?.scrollIntoView?.({ block: 'nearest' })
+       minuteRef.current?.scrollIntoView?.({ block: 'nearest' })
++      secondRef.current?.scrollIntoView?.({ block: 'nearest' })
+     }
+   }, [open])
+   const select = (next: string) => { onChange(next); close(); btnRef.current?.focus() }
+   return (
+     <div className={`relative inline-flex ${className}`}>
+       <button {...buttonProps} ref={btnRef} type="button" disabled={disabled} aria-expanded={open}
+-        onClick={() => { if (!open) setDraft((value || '00:00').split(':')); toggle() }}
++        onClick={() => { if (!open) setDraft(timeParts(value, showSeconds)); toggle() }}
+         className={`${PICKER_BUTTON_CLASS} ${buttonClassName}`}>
+         <Clock3 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-accent" />
+-        <span className={value ? undefined : 'text-muted'}>{value || placeholder}</span>
++        <span className={value ? undefined : 'text-muted'}>
++          {value ? showSeconds ? timeParts(value, true).join(':') : value : placeholder}
++        </span>
+       </button>
+       {createPortal(
+         <AnimatePresence>
+@@ -48,8 +55,8 @@
+               transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+               style={{ position: 'fixed', top: pos.top, left: pos.left }}
+               className={`w-[260px] ${PICKER_POPOVER_CLASS}`}>
+-              <div className="grid grid-cols-2 gap-2">
+-                {(['时', '分'] as const).map((label, index) => (
++              <div className={`grid ${showSeconds ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
++                {(showSeconds ? ['时', '分', '秒'] : ['时', '分']).map((label, index) => (
+                   <div key={label}>
+                     <div className="mb-1 text-center text-xs text-muted">{label}</div>
+                     <div className="max-h-48 overflow-y-auto space-y-0.5">
+@@ -57,7 +64,7 @@
+                         const option = pad(number)
+                         const selected = draft[index] === option
+                         return <button key={option} type="button" aria-label={`${option} ${label}`} aria-pressed={selected}
+-                          ref={selected ? index === 0 ? hourRef : minuteRef : undefined}
++                          ref={selected ? [hourRef, minuteRef, secondRef][index] : undefined}
+                           onClick={() => setDraft(current => current.map((part, i) => i === index ? option : part))}
+                           className={`h-7 w-full rounded-btn text-xs num transition-colors ${selected ? 'bg-accent text-white font-bold' : 'text-foreground hover:bg-elevated'}`}>
+                           {option}
+diff --git a/frontend/src/components/signals/CustomSignalDialog.tsx b/frontend/src/components/signals/CustomSignalDialog.tsx
+--- a/frontend/src/components/signals/CustomSignalDialog.tsx
++++ b/frontend/src/components/signals/CustomSignalDialog.tsx
+@@ -1,4 +1,5 @@
+ import { Modal } from '@/components/Modal'
++import { TimePicker } from '@/components/TimePicker'
+ import { useEffect, useMemo, useRef, useState } from 'react'
+ import { createPortal } from 'react-dom'
+ import { AnimatePresence } from 'framer-motion'
+@@ -218,17 +219,17 @@
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                     <label className="space-y-1.5">
+                       <span className="text-[11px] text-muted">止损时间（北京时间）</span>
+-                      <input aria-label="止损时间" type="time" step="1" min="09:30:00" max="11:30:00"
+-                        value={morningParams.time} onChange={e => setDraft(d => ({ ...d,
+-                          params: { ...morningParams, time: e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value } }))}
+-                        className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
++                      <TimePicker aria-label="止损时间" showSeconds align="left"
++                        value={morningParams.time} onChange={time => setDraft(d => ({ ...d,
++                          params: { ...morningParams, time } }))}
++                        className="w-full" buttonClassName="h-9 w-full justify-start" />
+                     </label>
+                     <label className="space-y-1.5">
+                       <span className="text-[11px] text-muted">兜底时间（北京时间）</span>
+-                      <input aria-label="兜底时间" type="time" step="1" min="09:30:00" max="11:30:00"
+-                        value={morningParams.fallback_time} onChange={e => setDraft(d => ({ ...d,
+-                          params: { ...morningParams, fallback_time: e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value } }))}
+-                        className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
++                      <TimePicker aria-label="兜底时间" showSeconds align="left"
++                        value={morningParams.fallback_time} onChange={fallback_time => setDraft(d => ({ ...d,
++                          params: { ...morningParams, fallback_time } }))}
++                        className="w-full" buttonClassName="h-9 w-full justify-start" />
+                     </label>
+                     {([['rise_pct', '涨幅阈值（%）'], ['fall_pct', '跌幅阈值（%）']] as const).map(([key, label]) => (
+                     <label key={key} className="space-y-1.5">
+diff --git a/frontend/src/components/signals/CustomSignalDialog.test.tsx b/frontend/src/components/signals/CustomSignalDialog.test.tsx
+--- a/frontend/src/components/signals/CustomSignalDialog.test.tsx
++++ b/frontend/src/components/signals/CustomSignalDialog.test.tsx
+@@ -7,7 +7,10 @@
+ import { CustomSignalDialog } from './CustomSignalDialog'
+ import { api } from '@/lib/api'
+ 
+-vi.mock('@/components/Modal', () => ({ Modal: ({ children }: any) => <div>{children}</div> }))
++vi.mock('@/components/Modal', () => ({
++  Modal: ({ children }: any) => <div>{children}</div>,
++  useModalPortalContainer: () => document.body,
++}))
+ 
+ it('creates and edits the late-session entry preset with all configurable defaults', async () => {
+   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+@@ -63,7 +66,7 @@
+     template.value = 'morning_liquidation'
+     template.dispatchEvent(new Event('change', { bubbles: true }))
+   })
+-  expect(host.querySelector<HTMLInputElement>('input[aria-label="止损时间"]')?.value).toBe('10:30:00')
++  expect(host.querySelector('button[aria-label="止损时间"]')?.textContent).toBe('10:30:00')
+   expect(host.querySelector<HTMLInputElement>('input[aria-label="涨幅阈值（%）"]')?.value).toBe('6')
+   expect(host.textContent).toContain('下一个交易日')
+   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
+@@ -73,7 +76,7 @@
+   }))
+   const stored = save.mock.calls[0][0]
+   await act(async () => render({ ...stored, params: { time: '10:15:32', fallback_time: '10:50:00', rise_pct: 5, fall_pct: 2 } }))
+-  expect(host.querySelector<HTMLInputElement>('input[aria-label="止损时间"]')?.value).toBe('10:15:32')
++  expect(host.querySelector('button[aria-label="止损时间"]')?.textContent).toBe('10:15:32')
+   expect(host.querySelector<HTMLInputElement>('input[aria-label="涨幅阈值（%）"]')?.value).toBe('5')
+   await act(async () => root.unmount())
+   vi.restoreAllMocks()
+diff --git a/frontend/src/components/signals/CustomSignalDialog.returns.test.tsx b/frontend/src/components/signals/CustomSignalDialog.returns.test.tsx
+--- a/frontend/src/components/signals/CustomSignalDialog.returns.test.tsx
++++ b/frontend/src/components/signals/CustomSignalDialog.returns.test.tsx
+@@ -7,7 +7,10 @@
+ import { CustomSignalDialog } from './CustomSignalDialog'
+ import { api } from '@/lib/api'
+ 
+-vi.mock('@/components/Modal', () => ({ Modal: ({ children }: any) => <div>{children}</div> }))
++vi.mock('@/components/Modal', () => ({
++  Modal: ({ children }: any) => <div>{children}</div>,
++  useModalPortalContainer: () => document.body,
++}))
+ 
+ async function fixture(signal?: any) {
+   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+@@ -31,7 +34,19 @@
+     })
+   }
+   const input = (name: string) => host.querySelector<HTMLInputElement>(`input[aria-label="${name}"]`)
++  const time = (name: string) => host.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)
+   const fill = async (name: string, value: string) => {
++    if (time(name)) {
++      await act(async () => time(name)!.click())
++      const popup = document.querySelector(`[role="group"][aria-label="${name}选择"]`)!
++      for (const [index, part] of value.split(':').entries()) {
++        const option = popup.querySelector<HTMLButtonElement>(`[aria-label="${part} ${['时', '分', '秒'][index]}"]`)!
++        expect(option).not.toBeNull()
++        await act(async () => option.click())
++      }
++      await act(async () => [...popup.querySelectorAll('button')].find(button => button.textContent === '确定')!.click())
++      return
++    }
+     const element = input(name)!
+     expect(element).not.toBeNull()
+     await act(async () => {
+@@ -43,14 +58,14 @@
+     await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
+   }
+   const close = async () => { await act(async () => root.unmount()); vi.restoreAllMocks() }
+-  return { host, save, input, fill, submit, render, close }
++  return { host, save, input, time, fill, submit, render, close }
+ }
+ 
+ it('saves and reloads two independent return thresholds and both times', async () => {
+   const f = await fixture()
+   try {
+-    expect(f.input('止损时间')?.value).toBe('10:30:00')
+-    expect(f.input('兜底时间')?.value).toBe('10:45:00')
++    expect(f.time('止损时间')?.textContent).toBe('10:30:00')
++    expect(f.time('兜底时间')?.textContent).toBe('10:45:00')
+     expect(f.input('涨幅阈值（%）')?.value).toBe('6')
+     expect(f.input('跌幅阈值（%）')?.value).toBe('6')
+     await f.fill('涨幅阈值（%）', '8')
+@@ -63,7 +78,7 @@
+     }))
+     await f.render(f.save.mock.calls[0][0])
+     expect(f.input('跌幅阈值（%）')?.value).toBe('2')
+-    expect(f.input('兜底时间')?.value).toBe('10:50:15')
++    expect(f.time('兜底时间')?.textContent).toBe('10:50:15')
+   } finally { await f.close() }
+ })
+ 
+@@ -89,7 +104,7 @@
+     params: { time: '10:15:32', amplitude_pct: 5 },
+   })
+   try {
+-    expect(f.input('止损时间')?.value).toBe('10:15:32')
++    expect(f.time('止损时间')?.textContent).toBe('10:15:32')
+     expect(f.host.textContent).toContain('保存后')
+     await f.submit()
+     expect(f.save.mock.calls[0][0].params).toEqual({
+diff --git a/frontend/src/components/TimePicker.test.tsx b/frontend/src/components/TimePicker.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/frontend/src/components/TimePicker.test.tsx
+@@ -0,0 +1,127 @@
++// @vitest-environment jsdom
++import { act, useState } from 'react'
++import { createRoot, type Root } from 'react-dom/client'
++import { afterEach, expect, it, vi } from 'vitest'
++import { TimePicker } from './TimePicker'
++import { Modal } from './Modal'
++
++Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
++let root: Root
++let host: HTMLDivElement
++
++afterEach(async () => {
++  await act(async () => root?.unmount())
++  host?.remove()
++  vi.restoreAllMocks()
++  vi.unstubAllGlobals()
++})
++
++async function render(content: React.ReactNode) {
++  vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
++    return this.hidden ? null : document.body
++  })
++  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
++    queueMicrotask(() => callback(0)); return 1
++  })
++  vi.stubGlobal('cancelAnimationFrame', () => {})
++  host = document.createElement('div')
++  document.body.append(host)
++  root = createRoot(host)
++  await act(async () => root.render(content))
++}
++
++async function click(label: string) {
++  const button = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
++  expect(button).not.toBeNull()
++  await act(async () => button.click())
++}
++
++async function confirm() {
++  const popup = document.querySelector('[role="group"]')!
++  await act(async () => [...popup.querySelectorAll('button')].find(button => button.textContent === '确定')!.click())
++}
++
++it('keeps existing minute mode and its HH:mm callback', async () => {
++  const change = vi.fn()
++  function Field() {
++    const [value, setValue] = useState('13:05')
++    return <TimePicker aria-label="同步时间" value={value} onChange={next => { setValue(next); change(next) }} />
++  }
++  await render(<Field />)
++  await click('同步时间')
++  expect(document.querySelector('[aria-label="00 秒"]')).toBeNull()
++  await click('14 时')
++  await click('30 分')
++  expect(change).not.toHaveBeenCalled()
++  await confirm()
++  expect(change).toHaveBeenCalledExactlyOnceWith('14:30')
++  expect(document.querySelector('[aria-label="同步时间"]')?.textContent).toBe('14:30')
++})
++
++it('selects hours minutes and seconds and saves only after confirmation', async () => {
++  const change = vi.fn()
++  function Field() {
++    const [value, setValue] = useState('10:30:32')
++    return <TimePicker showSeconds aria-label="止损时间" value={value}
++      onChange={next => { setValue(next); change(next) }} />
++  }
++  await render(<Field />)
++  expect(document.querySelector('[aria-label="止损时间"]')?.textContent).toBe('10:30:32')
++  await click('止损时间')
++  expect(document.querySelector('[aria-label="32 秒"]')?.getAttribute('aria-pressed')).toBe('true')
++  await click('35 分')
++  await click('45 秒')
++  expect(change).not.toHaveBeenCalled()
++  await confirm()
++  expect(change).toHaveBeenCalledExactlyOnceWith('10:35:45')
++  expect(document.querySelector('[aria-label="止损时间"]')?.textContent).toBe('10:35:45')
++  expect(document.activeElement).toBe(document.querySelector('[aria-label="止损时间"]'))
++})
++
++it('pads a minute-only value with zero seconds in second mode', async () => {
++  const change = vi.fn()
++  await render(<TimePicker showSeconds aria-label="兜底时间" value="10:45" onChange={change} />)
++  expect(document.querySelector('[aria-label="兜底时间"]')?.textContent).toBe('10:45:00')
++  await click('兜底时间')
++  await confirm()
++  expect(change).toHaveBeenCalledExactlyOnceWith('10:45:00')
++})
++
++it('reopens the current saved seconds after its parent updates the value', async () => {
++  const change = vi.fn()
++  await render(<TimePicker showSeconds aria-label="兜底时间" value="10:30:00" onChange={change} />)
++  await act(async () => root.render(<TimePicker showSeconds aria-label="兜底时间" value="10:50:15" onChange={change} />))
++  await click('兜底时间')
++  expect(document.querySelector('[aria-label="15 秒"]')?.getAttribute('aria-pressed')).toBe('true')
++  expect(document.querySelector('[aria-label="50 分"]')?.getAttribute('aria-pressed')).toBe('true')
++  await confirm()
++  expect(change).toHaveBeenCalledExactlyOnceWith('10:50:15')
++})
++
++it('discards an unconfirmed second selection with Escape while keeping its modal open', async () => {
++  const close = vi.fn()
++  const change = vi.fn()
++  await render(<Modal ariaLabel="时间设置" onClose={close}>
++    <TimePicker showSeconds aria-label="止损时间" value="10:15:32" onChange={change} />
++  </Modal>)
++  await click('止损时间')
++  await click('45 秒')
++  const option = document.querySelector<HTMLButtonElement>('[aria-label="45 秒"]')!
++  option.focus()
++  await act(async () => option.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
++  expect(close).not.toHaveBeenCalled()
++  expect(change).not.toHaveBeenCalled()
++  expect(document.querySelector('[aria-label="止损时间"]')?.textContent).toBe('10:15:32')
++  expect(document.activeElement).toBe(document.querySelector('[aria-label="止损时间"]'))
++})
++
++it('preserves clearable and disabled controls in second mode', async () => {
++  const change = vi.fn()
++  await render(<TimePicker showSeconds clearable aria-label="可选时间" value="10:15:32" onChange={change} />)
++  await click('可选时间')
++  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '清空时间')!.click())
++  expect(change).toHaveBeenCalledExactlyOnceWith('')
++  await act(async () => root.render(<TimePicker showSeconds disabled aria-label="不可选时间" value="10:15:32" onChange={change} />))
++  await click('不可选时间')
++  expect(document.querySelector('[aria-label="不可选时间"]')?.getAttribute('aria-expanded')).toBe('false')
++})
+diff --git a/frontend/src/components/signals/CustomSignalDialog.time.test.tsx b/frontend/src/components/signals/CustomSignalDialog.time.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/frontend/src/components/signals/CustomSignalDialog.time.test.tsx
+@@ -0,0 +1,81 @@
++// @vitest-environment jsdom
++import { act } from 'react'
++import { createRoot, type Root } from 'react-dom/client'
++import { MemoryRouter } from 'react-router-dom'
++import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
++import { afterEach, expect, it, vi } from 'vitest'
++import { CustomSignalDialog } from './CustomSignalDialog'
++import { api } from '@/lib/api'
++
++Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
++let root: Root
++let host: HTMLDivElement
++afterEach(async () => {
++  await act(async () => root?.unmount())
++  host?.remove()
++  vi.restoreAllMocks()
++})
++
++const definition = {
++  id: 'morning_liquidation', name: '早盘清仓', kind: 'exit' as const, timeframe: 'intraday' as const,
++  template: 'morning_liquidation' as const, conditions: [], enabled: true,
++  params: { time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6 },
++}
++
++async function fixture() {
++  vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
++    return this.hidden ? null : document.body
++  })
++  vi.spyOn(api, 'customSignalsOptions').mockResolvedValue({ fields: [], operators: [], kinds: [] })
++  vi.spyOn(api, 'strategyAiStatus').mockResolvedValue({ configured: false } as any)
++  const save = vi.spyOn(api, 'customSignalSave').mockImplementation(async signal => ({ ok: true, signal }))
++  const close = vi.fn()
++  host = document.createElement('div')
++  document.body.append(host)
++  root = createRoot(host)
++  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
++  const render = async (signal = definition) => {
++    await act(async () => root.render(<QueryClientProvider client={qc}><MemoryRouter>
++      <CustomSignalDialog open signal={signal} onClose={close} />
++    </MemoryRouter></QueryClientProvider>))
++  }
++  await render()
++  const time = (name: string) => document.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!
++  const select = async (name: string, value: string) => {
++    expect(time(name)).not.toBeNull()
++    await act(async () => time(name).click())
++    const popup = document.querySelector(`[role="group"][aria-label="${name}选择"]`)!
++    for (const [index, part] of value.split(':').entries()) {
++      const option = popup.querySelector<HTMLButtonElement>(`[aria-label="${part} ${['时', '分', '秒'][index]}"]`)!
++      expect(option).not.toBeNull()
++      await act(async () => option.click())
++    }
++    await act(async () => [...popup.querySelectorAll('button')].find(button => button.textContent === '确定')!.click())
++  }
++  return { save, close, render, time, select }
++}
++
++it('uses the shared second picker for both clocks and reloads their saved exact seconds', async () => {
++  const f = await fixture()
++  expect(f.time('止损时间')?.textContent).toBe('10:30:00')
++  expect(f.time('兜底时间')?.textContent).toBe('10:45:00')
++  expect(document.querySelector('input[type="time"]')).toBeNull()
++  await f.select('止损时间', '10:15:32')
++  await f.select('兜底时间', '10:50:15')
++  expect(f.save).not.toHaveBeenCalled()
++  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
++  expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
++    params: { time: '10:15:32', fallback_time: '10:50:15', rise_pct: 6, fall_pct: 6 },
++  }))
++  await f.render(f.save.mock.calls[0][0] as typeof definition)
++  expect(f.time('止损时间')?.textContent).toBe('10:15:32')
++  expect(f.time('兜底时间')?.textContent).toBe('10:50:15')
++})
++
++it('rejects a fallback at the same second as stop after using the shared picker', async () => {
++  const f = await fixture()
++  await f.select('兜底时间', '10:30:00')
++  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
++  expect(f.save).not.toHaveBeenCalled()
++  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('晚于止损时间')
++})
+diff --git a/docs/requirements.md b/docs/requirements.md
+--- a/docs/requirements.md
++++ b/docs/requirements.md
+@@ -1,4 +1,10 @@
+ # TSP v0.4.45 需求基线（Tick Stock Platform）
++
++早盘清仓的止损／兜底统一使用公共时间控件，24小时制显示和保存 `HH:mm:ss`，
++提供时／分／秒三列；确认才修改草稿，Escape取消不保存，重开保留已保存秒值。
++原周期同步和扩展拉取仍采用 `HH:mm`，时间范围及先后关系保持原校验。
++本次只调整控件，参数、策略和收益口径保持，见
++[秒级控件验收](../reports/timepicker-seconds-20261102.md)。
+ 
+ 2026-11-02早盘清仓新定义默认止损10:30、兜底10:45、涨幅6%和跌幅6%，四项均可设置。
+ 现价相对精确前交易日原始昨收达到涨幅或跌幅阈值时提前清仓，止损时间到无条件清仓；
+diff --git a/docs/architecture.md b/docs/architecture.md
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -1,4 +1,10 @@
+ # Tick Stock Platform（TSP）系统技术方案
++
++早盘清仓表单的两时间字段沿 `CustomSignalDialog → TimePicker(showSeconds)` 接入；
++复用 `usePickerPopover` 的弹层定位、Modal portal和Escape焦点行为。
++秒级模式补齐旧时分值的 `:00`，重开读取当前值，默认时分消费者保持原接口。
++仍保存既有 `time/fallback_time`，无后端、缓存、Provider或schema变化，见
++[控件验收](../reports/timepicker-seconds-20261102.md)。
+ 
+ 通用早盘失败账本沿资金引擎→ResearchWorker→持久任务→SSE错误终态→前端账本传递。
+ 新定义最终余股检查置于兜底分钟卖出阶段末，旧振幅定义仍在原截止；
+diff --git a/docs/secondary-development.md b/docs/secondary-development.md
+--- a/docs/secondary-development.md
++++ b/docs/secondary-development.md
+@@ -1,4 +1,10 @@
+ # 代码二次开发与 AI 扩展指南
++
++公共 `TimePicker` 已实现可选 `showSeconds?: boolean`，缺省为false。
++开启后显示和确认输出 `HH:mm:ss`、提供秒列，并兼容传入 `HH:mm` 时补零；
++默认 `HH:mm` 和既有清空／禁用／Modal弹层行为保持。业务范围校验仍由调用方负责，
++这属于前端共享组件能力，不增加后端扩展API，见
++[本地验收](../reports/timepicker-seconds-20261102.md)。
+ 
+ 清仓截止和失败账本是L3内部修复：原result.execution复用持久任务，
+ 失败error事件可携带原result，通用早盘v1/复牌v2均保留真实成交/持仓。
+diff --git a/docs/testing.md b/docs/testing.md
+--- a/docs/testing.md
++++ b/docs/testing.md
+@@ -1,4 +1,11 @@
+ # 测试与验收指南
++
++公共时间控件秒级模式先验证8个新用例中的6项失败、2项既有能力通过，
++实现后相关前端回归19项及策略设置／周期同步／扩展拉取23项通过，合计42项。
++覆盖秒级确认、旧值补零、更新重开、Escape、清空／禁用及时间先后关系；
++受影响ESLint和TypeScript／Vite构建通过。实际桌面、手机及本地运行证据见
++[秒级控件验收](../reports/timepicker-seconds-20261102.md)；此前后端／SQL测试为上一轮，
++本次以后端源码和Compute非静态清单不变作为兼容证据，不将旧计数计入本次测试。
+ 
+ 清仓截止修复验证同分钟多证券先完成卖出、余股拒绝后无下午买入，
+ 以及通用早盘v1/复牌v2失败账本持久化、SSE/页面恢复和跨租户隔离。
+diff --git a/docs/release-operations.md b/docs/release-operations.md
+--- a/docs/release-operations.md
++++ b/docs/release-operations.md
+@@ -1,4 +1,10 @@
+ # Tick Stock Platform（TSP）发布与服务运营手册
++
++公共时间控件秒级显示在现有v0.4.45本地基底上派生独立候选；
++只更新共享控件、早盘表单及前端资源，Compute同步静态清单，八角色统一切换。
++本地迭代不递增版本，未提交、推送或部署ECS。正式发布仍执行既有主线门禁，
++不能以本地控件验证代替收益回测或生产验收，见
++[本地控件签收](../reports/timepicker-seconds-20261102.md)。
+ 
+ 2026-11-02清仓截止候选保持正式基底v0.4.45，不人工加号；
+ 仅本地统一Runtime/Worker/Compute/前端，未提交、推送或部署ECS。
+diff --git a/docs/operations.md b/docs/operations.md
+--- a/docs/operations.md
++++ b/docs/operations.md
+@@ -1,4 +1,10 @@
+ # Tick Stock Platform（TSP）部署与运维手册
++
++公共时间控件本地候选仅更新两处前端源码及静态资源，后端文件与上一运行源一致。
++切换前检查任务空闲并备份两库、配置和指针，两库均在临时库实际恢复；
++切换后核验八角色、11组用户状态及受控配置。早盘时间按 `HH:mm:ss` 查看，
++分钟回测仍要求整分钟；本次运行身份、重开及恢复证据见
++[控件运行验收](../reports/timepicker-seconds-20261102.md)。
+ 
+ 本次清仓截止补丁只切换本地八角色、匹配Compute和前端，基底v0.4.45，
+ 明确记录未提交补丁hash；受控环境及11组用户数据保持，两库/运行指针有本地备份。
+diff --git a/docs/version-baseline.md b/docs/version-baseline.md
+--- a/docs/version-baseline.md
++++ b/docs/version-baseline.md
+@@ -1,4 +1,13 @@
+ # Tick Stock Platform（TSP）版本基线
++
++2026-11-02当前本地在下述双阈值／双时间候选上追加公共秒级时间控件；
++正式基底仍为v0.4.45及提交`4c3ad9b694da`，本次补丁SHA256为
++`135bf3f4228beff1ade6eb85a544134b0d12d045abc7d235949745e3226866de`，
++Compute为`sha256:851a485d26383b21f97f66fd6b1e13450ffe6ac9caec862c8807b689ad305cdf`。
++662条Compute清单自检、661条本地映射匹配，1865个后端文件保持，相关前端42项、
++lint及构建通过。部署／页面／重启的实际签收见
++[当前控件记录](../reports/timepicker-seconds-20261102.md)；未推送或部署ECS，
++无新增金融回测。下述计数与运行身份保留为上一轮历史证据。
+ 
+ 2026-11-02当前本地早盘清仓在v0.4.45正式提交`4c3ad9b694da`上叠加独立未提交补丁：
+ 止损10:30、兜底10:45、涨6%／跌6%，按现价相对原始昨收计算。
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -355,6 +355,10 @@
+ 
+ ## 7. 前端改动要求
+ 
++- 公共时间控件复用 `TimePicker`：默认 `HH:mm`，需要秒级配置时启用
++  `showSeconds` 并显示、确认保存 `HH:mm:ss`。早盘止损／兜底使用该模式，
++  秒值重开保持，Escape仅取消当前弹层；具体本地验收见
++  [公共时间控件记录](reports/timepicker-seconds-20261102.md)。
+ - 复用 `frontend/src/lib/api.ts` 中的请求封装和类型，禁止组件直接散落请求地址。
+ - TanStack Query 查询键使用集中定义；资产类型、日期、周期等影响结果的参数必须进入查询键。
+ - 切换资产、日期或策略后，不得把上一上下文的缓存结果当作当前结果。

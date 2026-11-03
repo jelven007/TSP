@@ -54,7 +54,7 @@ L3局部变更，复用原设置、查询键、原子偏好存储和Compute资�
   settings/preferences的57项历史告警与HEAD基线相同，没有新增告警。
 - 本机Chrome/Playwright真实组件、API拦截：999/Enter保存及刷新保留、
   1000拒绝、恢复推荐、503失败保留生效值、手动分钟运行与监控POST/DELETE通过。
-  1440×1000与390×844浅深色无水平溢出，pageerror为0；截图见[记录](../../../reports/system-settings-20261027/verification.md)。
+  1440×1000与390×844浅深色无水平溢出，pageerror为0；截图见[记录](../../../reports/ui/system-settings-20261027/verification.md)。
 - 六类生命周期文档与操作说明已同步；根`make check`和`git diff --check`通过。
 
 ## Limits

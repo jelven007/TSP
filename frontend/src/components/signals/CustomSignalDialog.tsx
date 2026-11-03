@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Loader2, Plus, Save, Search, Sparkles, X } from 'lucide-react'
 import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup, type LateSessionStrengthParams, type MorningLiquidationParams } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS } from '@/lib/customSignals'
+import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, lateSessionBarTime, lateSessionCheckTime } from '@/lib/customSignals'
 
 interface Props {
   open: boolean
@@ -53,7 +53,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
   const lateSession = draft.template === 'late_session_strength'
   const morning = draft.template === 'morning_liquidation'
   const specialized = lateSession || morning
-  const lateParams = { ...LATE_SESSION_DEFAULTS, ...draft.params as Partial<LateSessionStrengthParams> }
+  const lateParams = { ...LATE_SESSION_DEFAULTS, ...draft.params as Partial<LateSessionStrengthParams>,
+    evaluation_delay_minutes: 1.5 as const }
   const storedMorning = draft.params as Partial<MorningLiquidationParams> | undefined
   const morningParams = {
     time: storedMorning?.time ?? MORNING_LIQUIDATION_DEFAULTS.time,
@@ -115,7 +116,9 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
       }
       if (lateSession) {
         const p = lateParams
-        if (!/^1[34]:[0-5]\d:00$|^15:00:00$/.test(p.time) || p.time < '13:01:00') throw new Error('判断时间须为午后整分钟')
+        if (!/^1[34]:[0-5]\d:[0-5]\d$/.test(p.time)
+          || p.time < '13:00:00' || p.time > '14:58:00')
+          throw new Error('启动时间须为 13:00:00～14:58:00')
         if (![p.change_min_pct, p.change_max_pct, p.pool_up_min_pct].every(Number.isFinite)
           || p.change_min_pct < 0 || p.change_min_pct > p.change_max_pct || p.change_max_pct > 100
           || p.pool_up_min_pct < 0 || p.pool_up_min_pct > 100) throw new Error('请检查涨幅区间和上涨占比')
@@ -258,18 +261,18 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className="space-y-1.5">
-                      <span className="text-[11px] text-muted">判断时间（北京时间）</span>
-                      <input aria-label="判断时间" type="time" step="60" min="13:01:00" max="15:00:00"
-                        value={lateParams.time} onChange={e => setDraft(d => ({ ...d,
-                          params: { ...lateParams, time: e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value } }))}
-                        className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                      <span className="text-[11px] text-muted">启动时间（北京时间）</span>
+                      <TimePicker aria-label="启动时间" showSeconds align="left"
+                        value={lateParams.time} onChange={time => setDraft(d => ({ ...d,
+                          params: { ...lateParams, time } }))}
+                        className="w-full" buttonClassName="h-9 w-full justify-start" />
                     </label>
                     {([
-                      ['change_min_pct', '涨幅下限（%）', 0, 100, 0.1],
+                      ['pool_up_min_pct', '启动后90秒的当日股票池上涨占比下限（%）', 0, 100, 0.1],
                       ['change_max_pct', '涨幅上限（%）', 0, 100, 0.1],
-                      ['pool_up_min_pct', '股票池上涨占比下限（%）', 0, 100, 0.1],
-                      ['ma5_1m_count', '1分钟 MA5 连增数量', 2, 120, 1],
-                      ['ma5_5m_count', '5分钟 MA5 连增数量', 2, 24, 1],
+                      ['change_min_pct', '涨幅下限（%）', 0, 100, 0.1],
+                      ['ma5_1m_count', '启动后90秒的1分钟 MA5 连增数量', 2, 120, 1],
+                      ['ma5_5m_count', '启动后90秒的5分钟 MA5 连增数量', 2, 24, 1],
                     ] as const).map(([key, label, min, max, step]) => (
                       <label key={key} className="space-y-1.5">
                         <span className="text-[11px] text-muted">{label}</span>
@@ -280,10 +283,18 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                       </label>
                     ))}
                   </div>
+                  {signal?.template === 'late_session_strength'
+                    && (signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes !== 1.5 && (
+                    <p className="text-[11px] leading-5 text-amber-400">此信号使用旧确认时间，保存后改为启动后90秒确认。</p>
+                  )}
                   <p className="text-[11px] leading-5 text-muted">
-                    以上条件为「且」关系。涨幅相对昨收，区间包含上下限；上涨定义为涨幅大于 0。
+                    启动后90秒确认，当前确认时间为 {lateSessionCheckTime(lateParams)}，K线截止 {lateSessionBarTime(lateParams.time)}（北京时间）。
+                    确认的是90秒前的启动分钟数据，等待启动分钟K线完成并到达后计算，不使用确认分钟尚未完成的K线。
+                    以上条件为「且」关系。涨幅按启动分钟已完成收盘价相对原始昨收计算，区间包含上下限；上涨定义为涨幅大于 0。
                     上涨占比使用策略完整的当日股票池。MA5 使用已完成 K 线的收盘价，值相等不算递增，不跨午休或交易日。
-                    判断时间支持整分钟；非 5 分钟边界取该时刻前最新完成的 5 分钟 K 线。
+                    连增数量指 MA5 值的数量：7 个值为 6 次严格递增；默认1分钟比较14:30至14:24。
+                    1分钟和5分钟MA5都截止启动时间。5分钟取截至启动时间最新完成的 K 线；
+                    默认4个值比较14:30 &gt; 14:25 &gt; 14:20 &gt; 14:15，共3次严格递增。
                     缺少股票池、价格、昨收或连续 K 线时不触发。用于通用分钟策略，S01/S02 专用执行规则暂不支持追加本触发器；历史回放需指定策略股票池。
                   </p>
                 </div>

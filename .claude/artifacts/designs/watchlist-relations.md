@@ -57,6 +57,6 @@ add_batch、单股新增和旧新组CSV兼容路径均保留已有关联。
 初次源码验收时，本地3021前端/3028后端来自v0.4.31发布目录。
 随后用户授权本地更新，已切换到继承v0.4.31的`local-watchlist-20261027`并真实验证；
 快速刷新会重读清单，兼容旧持久缓存。运行证据见
-[本地更新](../../../reports/local-watchlist-update-20261027/verification.md)，ECS本轮未改。
+[本地更新](../../../reports/ui/local-watchlist-update-20261027/verification.md)，ECS本轮未改。
 工作区3022旧Vite缓存曾出现重复React hook错误，浏览器优先用fresh build的临时preview。
 应用版本只由远程main CI递增；本次本地更新已获授权，提交及线上部署仍未执行。

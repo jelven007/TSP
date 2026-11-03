@@ -37,4 +37,4 @@ backend/tests/test_public_query_cache_concurrency.py：
 
 代码已合入工作区，未commit/push/部署。活动采集未取消，两端运行尚未加载修复。
 采集结束后的新产物发布与运行验收仍待完成。
-证据见[完整记录](../../../reports/data-status-timeout-20261028/verification.md)。
+证据见[完整记录](../../../reports/market-data/data-status-timeout-20261028/verification.md)。

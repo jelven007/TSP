@@ -16,8 +16,17 @@ MAX_RECORDS = 5000
 
 def append_in_transaction(conn, tenant_id: str, events: list[dict], *, channels=None) -> list[dict]:
     inserted = []
+    paper_accounts = {}
     for event in events:
         value = json_value(event)
+        account_id = value.get("account_id")
+        if value.get("source") == "paper" and account_id:
+            if account_id not in paper_accounts:
+                paper_accounts[account_id] = conn.execute(
+                    "SELECT id FROM business.full_paper_accounts WHERE id=%s", (account_id,),
+                ).fetchone() is not None
+            if not paper_accounts[account_id]:
+                continue
         event_id = str(value.get("id") or uuid.uuid4().hex)
         value["id"] = event_id
         dedupe = hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()

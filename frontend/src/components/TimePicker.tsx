@@ -30,9 +30,15 @@ export function TimePicker({
   const secondRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (open) {
-      hourRef.current?.scrollIntoView?.({ block: 'nearest' })
-      minuteRef.current?.scrollIntoView?.({ block: 'nearest' })
-      secondRef.current?.scrollIntoView?.({ block: 'nearest' })
+      // Scroll only the option list; scrolling modal ancestors closes the popover.
+      for (const ref of [hourRef, minuteRef, secondRef]) {
+        const option = ref.current
+        const list = option?.parentElement
+        if (option && list) {
+          list.scrollTop = Math.max(0, option.offsetTop - list.offsetTop
+            - (list.clientHeight - option.offsetHeight) / 2)
+        }
+      }
     }
   }, [open])
   const select = (next: string) => { onChange(next); close(); btnRef.current?.focus() }

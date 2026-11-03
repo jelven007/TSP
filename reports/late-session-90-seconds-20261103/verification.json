@@ -1,0 +1,157 @@
+{
+  "date": "2026-11-03",
+  "version": "v0.4.46",
+  "runtime": "controlled-runtime:v0.4.46-4453ecc48d66-late-session-completed-local-90-seconds-local",
+  "compute_image": "sha256:98e1c9a51dc9a5dc93b5aab92900efea3a7040c189f0ca6c9c19c0cb1eebca7d",
+  "confirmation_time": "14:31:30",
+  "data_cutoff": "14:30:00",
+  "active_entry": {
+    "id": "late_session_strength",
+    "kind": "entry",
+    "name": "尾盘建仓",
+    "params": {
+      "time": "14:30:00",
+      "ma5_1m_count": 7,
+      "ma5_5m_count": 4,
+      "change_max_pct": 4,
+      "change_min_pct": 0.4,
+      "pool_up_min_pct": 60,
+      "evaluation_delay_minutes": 1.5
+    },
+    "enabled": true,
+    "min_bars": 0,
+    "template": "late_session_strength",
+    "timeframe": "intraday",
+    "conditions": []
+  },
+  "active_exit": [
+    {
+      "id": "morning_liquidation",
+      "kind": "exit",
+      "name": "早盘清仓",
+      "params": {
+        "time": "10:30:00",
+        "fall_pct": 6,
+        "rise_pct": 6,
+        "fallback_time": "10:45:00"
+      },
+      "enabled": true,
+      "min_bars": 0,
+      "template": "morning_liquidation",
+      "timeframe": "intraday",
+      "conditions": []
+    }
+  ],
+  "source_fence_passed": true,
+  "controlled_configuration_preserved": true,
+  "strategy_and_monitor_rules_preserved": true,
+  "accounts_positions_orders_fills_preserved": true,
+  "restart_persistence_verified": true,
+  "services": {
+    "platform": true,
+    "compute": true,
+    "api": true,
+    "frontend": true,
+    "research": true,
+    "realtime": true,
+    "notifications": true,
+    "scheduled": true
+  },
+  "complete_app_files_verified": 381,
+  "complete_static_files_verified": 275,
+  "candidate_fixture_passed": true,
+  "broker_request_passed": true,
+  "backend_regression_passed": 322,
+  "frontend_regression_passed": 11,
+  "applied_workspace_tests_passed": 111,
+  "frontend_build_passed": true,
+  "changed_frontend_lint_passed": true,
+  "ruff_added_findings": 0,
+  "documentation_check_passed": true,
+  "browser": {
+    "flow": "/signals -> new template defaults -> cancel -> edit active entry -> save -> refresh -> mobile reopen",
+    "origin": "http://127.0.0.1:3021",
+    "page": "/signals",
+    "title": "Tick Stock Platform · Quant Terminal",
+    "browser_availability": "absent",
+    "browser_fallback_reason": "Browser plugin not available; tool discovery exposed no browser automation tool.",
+    "checks": [
+      {
+        "viewport": [
+          1440,
+          1000
+        ],
+        "defaults": true,
+        "help": true,
+        "dialog_bounds": {
+          "width": 720,
+          "scroll": 718,
+          "client": 718
+        },
+        "target_controls_accessible": true
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "defaults": true,
+        "help": true,
+        "dialog_bounds": {
+          "width": 358,
+          "scroll": 356,
+          "client": 356
+        },
+        "target_controls_accessible": true
+      }
+    ],
+    "page_identity": true,
+    "not_blank": true,
+    "no_framework_overlay": true,
+    "page_errors": [],
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 404 ()",
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "save_and_refresh": true,
+    "failed_requests": [
+      {
+        "url": "http://127.0.0.1:3021/api/settings",
+        "status": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+        "status": 404
+      },
+      {
+        "url": "http://127.0.0.1:3021/api/events",
+        "status": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://github.com/jelven007/TSP/releases/latest/download/latest.json",
+        "status": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://api.github.com/repos/jelven007/TSP/releases/latest",
+        "status": 404
+      }
+    ],
+    "target_signal_request_failures": [],
+    "six_values_preserved": true,
+    "screenshots": [
+      "signal-form-1440.png",
+      "signal-form-390.png",
+      "signal-form-390-scrolled.png"
+    ]
+  },
+  "new_return_backtest_run": false,
+  "online_deployed": false,
+  "committed": false,
+  "pushed": false,
+  "verification_environment_corrections": [
+    "Ran isolated pytest from backend so imports select the isolated app.",
+    "Preserved cloned previous build manifest before generating candidate manifest.",
+    "Used writable temporary NUMBA_CACHE_DIR for a read-only Compute fixture.",
+    "Read active settings after platform startup completed."
+  ]
+}

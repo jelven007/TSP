@@ -1,8 +1,57 @@
 # 代码二次开发与 AI 扩展指南
 
+本轮统一升级为各领域L3既有实现三方整合，无新增通用插件接口；
+公共缓存、调度、模拟账户SQL权限、秒精度及前端查询须按同SHA完整复验，
+见[统一升级](../reports/releases/unified-upgrade-20261103/verification.md)。
+
+时分/秒弹层仅滚动内部选项列表，不能因选中项自动定位滚动其模态祖先；
+升级保持已选值、窄屏可操作及Escape焦点/取消契约。
+
 Full目录回暖为L3生命周期接线，复用Repository现有回调、单飞后台预热和
 QuoteService公共通知，不新增插件API/Provider/schema。升级保持只读snapshot热路径、
 成功空通知和关闭回调移除；见[缓存修复](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
+
+自定义早盘清仓与尾盘建仓的时间输入均复用公共`TimePicker`，属于L3局部前端接线。
+三项时间均启用`showSeconds`并保存`HH:mm:ss`。尾盘范围13:00:00～14:58:00，
+精确启动秒只用于确认时钟，分钟 K 标签向下取整；不得复制时间弹层或放宽秒级撮合能力。
+
+尾盘建仓启动后90秒为L3内部时间契约：六项参数ID保留，内部可选
+`evaluation_delay_minutes`（新保存1.5，冻结缺省0或旧值1）。不得在历史加载时补1.5，
+不得增加第七个用户控件。`evaluation_time`为启动后90秒确认时间，
+`bar_time`为向下取整的启动分钟数据标签，不得混用；实时完成门闸用前者，
+价格/广度/双MA5窗口用后者。14:30:20附着14:30行并携带确认时间14:31:50；
+回放分别返回两个时点。冻结旧0/60秒定义仍要求秒数为00。
+分钟成交事件向上对齐14:32，保留秒级信号时间；next_minute_open必须有14:32真实开盘。
+MA5数量是值的数量，沿用现有N值算法；1分七值14:30至14:24，
+5分四值14:30>14:25>14:20>14:15；相邻MA差值严格大于`1e-10`才算上升，
+小于或等于该阈值按持平淘汰。没有新增公共API、
+Provider、schema或专用S01/S02执行能力。
+
+行情调度为L3内部扩展：采集共享`market_time.TRADING_DAY_COLLECTION_WINDOWS`，
+日K默认15:30、周K默认周六09:00；当日修正固定交易日15:35，复用
+`repair_daily.run_repair_daily`依次执行1d/1m/5m/10m/15m闭区间修正。
+5/10/15分K只读取本地1分K，不新增Provider、插件接口或SQL迁移。
+修正请求在占槽时持久等待，成功同日去重，失败/取消不自动重跑，跨日等待标记中断。
+全量修正保持merge-upsert，不承诺删除旧异常时间键或补造停牌成交。
+新默认只填缺失偏好，已有用户自定义时间保留；运行配置更新与源码部署须分别核验。
+ScheduleOverview扩展任务名直接使用配置label，新增扩展源沿用相同展示规则。
+
+一级菜单默认表为L3内部配置：信号、持仓、模拟分别保留`/signals`、`/lots`、
+`/paper`路由。前端Layout、MenuSettings与后端`DEFAULT_NAV_ORDER`保持同一默认顺序，
+新增扩展菜单仍按既有注册和排序规则处理；不得因名称简化迁移业务ID或覆盖已保存的
+排序/显隐。新用户/空间采用当前默认，普通租户权限及Platform偏好覆盖链保持。
+
+模拟账号生命周期为L3核心修改，沿原paper领域和查询键，不新增插件或通用扩展接口。
+新增 `PUT/DELETE /api/paper/account` 与可选 `initial_cash_editable`，旧创建/费用/冻结兼容；
+ID保持，费用前向生效，本金仅无委托/成交/持仓/净值时可改。删除限定账号专属业务和原件，
+共享策略/监控保留；不可识别归属的旧提醒保留。升级复核文件写锁/失败恢复、
+SQL schema 8及权限不变、SSE共享事件注册、取消旧请求和清理缓存、最后账号空态。
+SQL旧版本明确拒绝删除并要求迁移，API不自动迁移；当前未部署。
+
+通用分钟策略的已定时卖出只与同一信号时点的入场冲突，不得扩展为全天禁止再入场。
+早盘现金账本卖清后结束旧批次的清仓状态，后续买点按原评分及仓位规则参与；
+重新买入按新买入日期执行T+1，同一成交事件冲突仍退出优先。
+这是L3内部规则修复，无新配置/API；研究身份沿源码哈希更新，历史冻结结果保持。
 
 公共`TimePicker`可选`showSeconds`，默认时分调用不变；早盘两时间启用秒模式，
 沿既有弹层容器、确认和Escape契约，保存字段不变。不得把界面秒精度误用为
@@ -174,7 +223,7 @@ S02的`momentum_capacity_v1`连续回测须保留25日日线预热及原始价�
 单页连接，不宣称该降级路径消除了HTTP/1.1多页连接上限。没有新增后端API或扩展插槽。
 
 死代码清理保留已注册路由、插槽、Provider、旧配置及API兼容；
-`overview.invalidate_overview_cache`重导出与测试注入入口保留，见[清理依据](../reports/project-cleanup-20261028/verification.md)。
+`overview.invalidate_overview_cache`重导出与测试注入入口保留，见[清理依据](../reports/operations/project-cleanup-20261028/verification.md)。
 
 Full公共版本绑定同步保留旧无`public_release`的股票快照注入；
 带发布身份的真实快照仍须包含股票／指数两部分，缺项不能提交新绑定。
@@ -208,7 +257,7 @@ Full公共版本绑定同步保留旧无`public_release`的股票快照注入；
 自选查询挂载重读是关系兼容契约：持久缓存仅用于先显示内容，
 不能因缓存尚在staleTime内而跳过服务端校验。升级保留`refetchOnMount: 'always'`
 及新鲜旧缓存回归，避免快速刷新或旧客户端缓存掩盖已保存的策略关系。
-本地补丁范围和实际运行验收见[记录](../reports/local-watchlist-update-20261027/verification.md)。
+本地补丁范围和实际运行验收见[记录](../reports/ui/local-watchlist-update-20261027/verification.md)。
 
 ### 周期查询与区间任务
 
@@ -276,7 +325,7 @@ K线区间获取为L3局部接线，数据总览复用`KlineSyncConfig`、`DateP
 兼容入口；5/10/15分钟查询优先聚合本地1m，基础无结果时保留已有周期分区读取。
 升级须保留raw/legacy_1m继承、完整桶遗漏补齐、只读日历缓存、无远程回退、
 本地能力门控豁免及离线零输出反馈，实际验证见
-[本地聚合记录](../reports/local-derived-minutes-20261026/verification.md)。未新增插槽或通用插件API。
+[本地聚合记录](../reports/market-data/local-derived-minutes-20261026/verification.md)。未新增插槽或通用插件API。
 
 专项目录/脚本路径采用[工程布局](reference/engineering.md#layout)；
 按[生产工程](reference/engineering.md#engineering)形成开发闭环，并在
@@ -354,7 +403,7 @@ M:N关系、only_new、revision与共享查询失效。管理分组`onCreate`仅
 流程；页面复用PageHeader，弹层需避开工具栏滚动裁剪。升级复核对应历史证券状态、
 租户权限/重试、共享缓存失效和前端交互测试。新增源码恢复工具只用于离线归档，
 不提供在线替换或重启能力。调用链与实际证据见
-[本次整合](../reports/production-baseline-20261025/verification.md)。
+[本次整合](../reports/engineering/production-baseline-20261025/verification.md)。
 
 本文面向需要在当前仓库中二次开发的维护者、团队和 AI 编码代理。目标不是禁止修改源码，而是让新增页面、业务规则和定制逻辑尽量通过稳定边界接入，使后续合并上游版本时冲突更少、风险可验证。
 
@@ -367,7 +416,7 @@ Windows 启动预算属于 L1 配置，核心身份、
 复用 `PublicPublisher`、`PublicQuoteBridge`、`DepthService`、
 `KlineRepository.update_provisional_enriched_asset` 和现有账户/查询接口；
 不假设存在通用封板策略插槽、沙箱资源硬限制或新的租户迁移 API。
-调用链、兼容与验证映射见[本次整合](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
+调用链、兼容与验证映射见[本次整合](../reports/engineering/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 原生 Windows 修改采用完整应用单机管理员空间，二开升级应备份本地身份文件
 及整个业务目录；公共回收必须保留研究 input 与 metadata 中的版本引用。
 

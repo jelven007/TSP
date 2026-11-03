@@ -1,10 +1,38 @@
 # 测试与验收指南
 
+2026-11-03统一候选执行完整后端/真实隔离PostgreSQL、工具、前端全量、
+静态/构建、文档及桌面/窄屏验证；本轮新结果见
+[统一升级记录](../reports/releases/unified-upgrade-20261103/verification.md)，旧计数不代替本轮质量门。
+
+TimePicker窄屏祖先滚动回归先失败；打开弹层须保留当前秒值并可操作，
+Escape只取消未确认弹层，模态保持。单元与真实390窄屏浏览器分别验收。
+
 2026-11-03 Full目录回暖回归在原代码连续三次失败，修复后及反向验证符合预期。
 受影响9个模块使用真实隔离PostgreSQL：146项通过、无跳过、20条既有Polars弃用warning；
 Ruff无诊断。覆盖实时关闭、冷/非空/成功空、完成通知、重复刷新单飞、关闭清理及
 snapshot不重算；正式CI/产物/双端现场另签收，见[记录](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
 补充在途冷快照晚写回：未加锁接线连续三次失败，通知失效与快照锁串行后通过。
+
+自定义信号时间控件统一回归覆盖早盘双秒时间、尾盘秒选择、Escape放弃草稿、
+确认后应用、精确秒保存和保存重开。尾盘验证14:30:20使用14:30:00分钟K、
+14:31:50确认，14:58:00可用而14:58:01拒绝。测试位于
+`CustomSignalDialog.time.test.tsx`，同时执行共享TimePicker及信号参数/保存回归。
+
+尾盘建仓90秒线上部署候选新验收：后端90项、前端5项、生产构建及变更文件ESLint通过；
+Runtime和Compute因果夹具、七角色现场清单、真实Broker及1440/390页面保存刷新通过。
+双库恢复逐表比较20张控制表/29张业务表，完整重启后信号、用户配置和账本保持；
+本次没有新增收益回测，已有当日完整池读取与信号命中分别记录。
+证据及浏览器既有版本检查404/CORS边界见
+[历史运行快照](../reports/releases/unified-upgrade-20261103/verification.md#历史运行快照)。
+
+模拟账号生命周期验收对应 `test_paper_account_lifecycle.py`、`test_paper_api.py`、
+`test_full_paper_lifecycle.py`、`Paper.test.tsx` 和 `useQuoteStream.test.tsx`。
+覆盖整体修改、无记录本金/现金同步、历史账本不改、删除范围、文件失败恢复、
+路径/符号链接、迟到提醒、撮合并发、其他账号/租户、通知队列、混合事件回放及导入原件；
+前端覆盖确认/取消/失败、资本禁用、重开表单、最后一户空态和缓存隔离。
+Full必须提供一次性 `TSP_TEST_POSTGRES_DSN`，验证schema 8幂等、迁移校验和及实际非owner运行权限，
+不可将跳过当数据库验收通过。浏览器使用独立样例账号，验证桌面与窄屏弹窗和交互，
+不操作用户真实账号。当前为未部署源码候选。
 
 公共时间秒模式回归见`TimePicker.test.tsx`及`CustomSignalDialog.time.test.tsx`：
 秒选择/确认、补零、外部值更新、Escape保留Modal、清空/禁用、旧`HH:mm`与保存重开。
@@ -46,6 +74,11 @@ snapshot不重算；正式CI/产物/双端现场另签收，见[记录](../.clau
 不构成实际历史收益研究。桌面1440/手机390、刷新重选、无配置/回测写请求及保留签名分别验收。
 详情见[收益回测验收](../.claude/artifacts/fixes/custom-s02-morning-backtest.md)，
 此前只读修复的历史记录见[回显根因](../.claude/artifacts/fixes/backtest-morning-signal-visibility.md)。
+
+分钟再入场回归覆盖上午卖出后下午重新入选、信号分钟收盘/下一分钟开盘买入、
+新批次T+1、旧清仓状态结束、资金守恒及同一事件退出优先。
+本地定向回归8项、受影响模块562项通过（4项跳过），旧源码反向6项失败；
+这是隔离测试，不是新增历史收益回测，见[修复记录](../.claude/artifacts/fixes/minute-same-day-reentry.md)。
 
 账户偏好回归覆盖退出/新auth_version保留勾选、跨账户/租户隔离、旧偏好迁移、
 较新值保护、删除不复活、存储配额失败及私有缓存清理。
@@ -126,8 +159,18 @@ S02全天卖出增加`test_momentum_full_day.py`及真实Parquet回归：
 
 尾盘走强使用`backend/tests/test_late_session_strength.py`验证参数/保存、
 60%全池分母与缺数据拒绝、涨幅闭区间、双周期严格连增、相等/下降/缺口/重复/NaN、
+滚动MA理论持平但产生`0 < diff <= 1e-10`浮点噪声时淘汰、
 午休预热、未来数据、截止时间、引擎脉冲及回放全池读取。
-`CustomSignalDialog.test.tsx`验证模板选择、五项默认条件、保存与参数重开；
+`test_late_session_start_delay.py`保留旧60秒定义兼容测试；
+`test_late_session_ninety_seconds.py`验证14:31:05/14:31:29不可确认、14:31:30可确认、
+报价/广度/双MA5截至14:30，
+7个1分值取14:30至14:24，4个5分值取14:30/25/20/15；14:31未来行不能改变结果，
+14:30缺报价拒绝、启动边界及HTTP新保存/冻结读取。
+引擎/API回放分别保留数据及秒级确认时点；next_minute_open取14:32真实开盘，
+缺14:32拒买；signal_close仅为参考价，事件对齐14:32且保留14:31:30信号时间。
+旧0/60秒定义仍保持原行为。停复牌测试覆盖不同延迟下公告可用时间，不借晚于确认的公告。
+`CustomSignalDialog.test.tsx`验证六项默认值及顺序、保存与参数重开、旧定义升级、
+检查时间显示与最晚启动；`customSignals.test.ts`核对新旧摘要时点。
 运行现有盘中信号、因子条件、分钟策略、分钟回测和当日池回归及前端构建，
 浏览器再核对桌面/窄屏编辑保存。合成条件测试不构成新的历史收益回测。
 
@@ -203,7 +246,7 @@ S02连续回测补充`backend/tests/backtest/test_momentum_backtest.py`：
 | 指数周期 | test_index_kline_periods：CORE四只/PAGE七只、跨年周月、未知量额、独立表/指标/只读、截止柱、遗漏保护、并发重读、权限/任务/发布；省略start与显式日期分别验收 |
 | 前端指数/轮询 | 实际根数封顶、默认60、日历同行、5秒终态与旧定时器清理，1～10秒整数/保存失败/已存值保留；桌面/390px及浅深色 |
 | 财务存储 | test_data_status_storage：只计当前五表part.parquet、revision目录、缺目录/缓存/旧字段；原快照与观察时间不得改变 |
-| 财务并集 | 原快照/观察字节、并集时间线、A→B→A回放、损坏/并发变化拒绝、幂等和公共副本；见[历史补齐证据](../reports/financial-history-unify-20261030/verification.md) |
+| 财务并集 | 原快照/观察字节、并集时间线、A→B→A回放、损坏/并发变化拒绝、幂等和公共副本；见[历史补齐证据](../reports/market-data/financial-history-unify-20261030/verification.md) |
 | s01隔夜执行 | test_s01_strategy、test_minute_strategy、test_paper_auto及监控/回测回归：参数API保存/回显、225/105根完整前缀、持续信号、独立持仓/T+1、7.5%容量、汇总最低佣金、现金/余股/缺交易日拒绝；StrategyBacktest.test.tsx与浏览器验证摘要、全量模式禁用、错误成交台账导出及参数重开 |
 | 持仓到期日期 | test_lot_expiry_dates：国庆/周末/跨年、北京时间今天、未知日历/极限日期、非法日期、批次多股保存与派生规则、单股手选/清空；Lots.test.tsx与DatePicker.test.tsx：新快捷项、买入日/今天基准、批量保存、手选清空、失败/未知禁用且保留日期；浏览器核验桌面与390px显示及交互 |
 | 策略结果批量操作 | Screener、strategyLotDraft、WatchlistAddMenu、StrategyLotBatchDialog测试：卖／选／买及空页／切日范围、成交预填／缺值／零值、快照覆盖及比例单位、新组创建／失败、国庆下一交易日、迟到默认不覆盖手选、保存失败幂等重试；Lots与历史结果测试保护原入口兼容。全量前端、lint、build及桌面／390px浏览器独立验证；测试写入只用隔离数据 |
@@ -222,7 +265,7 @@ S02连续回测补充`backend/tests/backtest/test_momentum_backtest.py`：
 保存中禁用、成功刷新偏好/画像、失败保留及加载失败禁用。
 隔离Chrome验证1440/390px浅深色、3:1左对齐、滑动开关、显隐/排序重开与行情轮询；
 模拟API交互只认证前端，不认证线上调度执行或真实行情数据；
-历史结果见[布局记录](../reports/data-overview-layout-20261027/verification.md)。
+历史结果见[布局记录](../reports/ui/data-overview-layout-20261027/verification.md)。
 
 折叠补充：`ScheduleOverview.disclosure.test.tsx`覆盖各组默认收起与独立展开、
 实时调度刷新后基础与扩展分组展开状态保留，以及无可见标签的开关名称、
@@ -230,7 +273,7 @@ S02连续回测补充`backend/tests/backtest/test_momentum_backtest.py`：
 标题与数量可读、桌面与390px无溢出；折叠操作不能保存或重置任务配置。
 
 `Watchlist.test.tsx`播种新鲜旧缓存，验证挂载仍请求清单并显示服务端已保存关系。
-真实浏览器对账和原记录保留的历史结果见[本地验收](../reports/local-watchlist-update-20261027/verification.md)。
+真实浏览器对账和原记录保留的历史结果见[本地验收](../reports/ui/local-watchlist-update-20261027/verification.md)。
 
 <a id="watchlist-relations"></a>
 ### 自选关系
@@ -302,9 +345,14 @@ Windows原生回归另加载阻塞`DLL_PROCESS_DETACH`的测试DLL，在真实�
 `test_kline_periods_api.py`、`test_rustdx_provider.py`、`test_minute_refresh.py`及
 `test_instrument_catalog_admin.py`；前端为 `KlineSyncConfig.test.tsx`、
 `PageSettingsModal.test.tsx`、`StockCatalogDialog.test.tsx`及`Monitoring.test.tsx`。
-验收包含09:15/11:45/13:00/16:00半开边界、非交易日及未知日历拒跑、四间隔与开关持久化、
+验收包含09:15/11:45/13:00/15:30半开边界、非交易日及未知日历拒跑、四间隔与开关持久化、
 月末/闰年历史范围、Provider入口的1分钟/日K参数与单位、5/10/15分钟午休/空值/缺日、
-周K本地日K聚合和周六调度、周内覆盖同一周K、四表隔离/视图/schema/缓存、管理员筛选全量CSV及后台任务真实完成。
+周K本地日K聚合和周六09:00调度、周内覆盖同一周K、四表隔离/视图/schema/缓存、管理员筛选全量CSV及后台任务真实完成。
+`test_kline_correction.py`覆盖15:35触发、当日五周期顺序和固定日期、忙槽/活跃任务等待、
+重启去重、自动关闭、休市与未知日历、跨日中断、错误/剩余缺口/取消不发布。
+前端`ScheduleOverview.test.tsx`覆盖修正行位置、暂停状态及初始化新时间；
+`ScheduleEditor.test.tsx`覆盖15:30可保存、15:29拒绝。
+`ScheduleOverview.disclosure.test.tsx`核验扩展任务直接显示配置名称及分组展开保留。
 页面联调还须检查空库入口、表单保存/失败、任务取消、窄屏弹窗及删除的监控控制。
 在相同统计输入下比较日K与周K画像卡片，同步说明和记录统计文案一致，名称及各自数据保持独立。
 测试通过不证明上游拥有多年历史，实际数据覆盖按日期和标的另行验收。
@@ -354,7 +402,7 @@ K线区间获取回归入口为`test_repair_kline.py`、`test_kline_periods_api.
 查询优先用当前1分钟覆盖旧派生值，live也不请求上游；价格基准继承raw/legacy_1m；
 遗漏日历只读缓存、已有值不覆盖、缺基础桶计入remaining；离线零输出任务失败并提示1分K。
 每完整交易日分别生成48/24/16根，跨证券、午休、跨日及未知值保持隔离。
-本次实际结果见[本地聚合记录](../reports/local-derived-minutes-20261026/verification.md)，
+本次实际结果见[本地聚合记录](../reports/market-data/local-derived-minutes-20261026/verification.md)，
 不沿用历史测试数量作为本次证据。
 描述验收覆盖5/15分K的本地1分K来源及周K的本地日K来源，卡片、页面设置、
 周期设置、修正说明和任务阶段一致显示本地计算；全量修正说明使用本地重算。
@@ -560,7 +608,7 @@ pnpm build
 不证明当前源码上线、业务连接池超时已修复或完整交易日已通过。
 Windows CI、Win10 22H2 真机与安装包验收分别记录；
 真实数据同步、全部研究任务、取消/重启和进程树内存仍须真机覆盖。
-阶段与验收门槛见[本次整合](../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
+阶段与验收门槛见[本次整合](../reports/engineering/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 
 原生 Windows 10 22H2 x64 / 16 GB 的资源检查、同规模缓存基准和全功能阻断项见
 [原生资源优化验收](operations.md#windows)。
@@ -614,6 +662,9 @@ pnpm install --frozen-lockfile
 首次或部分失败后启动不创建任务，仍可手动完成全量同步；竞价窗口内启动也无立即任务；
 修改调度时间保持暂停，显式启停后下一次运行时间正确；五档缓存恢复不触发取数；
 菜单默认顺序、返回值副本和已有配置保留。
+菜单调整回归核对18项默认顺序与当前保存顺序一致，前后端默认表一致；
+“信号/持仓/模拟”在侧栏、菜单设置、页面标题及跳转说明中一致，
+`/signals`、`/lots`、`/paper`路径保持。缺偏好读取不落盘，已有排序和隐藏项不改写。
 主题回归覆盖无偏好、无效值和存储不可用时默认白天模式，首屏脚本与运行时一致，
 已有亮色/暗色选择恢复，以及主题切换后的持久化。
 
@@ -675,7 +726,7 @@ Gateway/SSE 与 Compute 元数据烟测；Apple ARM 仿真缺少 AVX/AVX2，不�
 目录对真实历史数据执行 Provider→标准化→落盘→指标→平台 marker/Arrow 快照→
 页面 API 的有界分段量测；结果必须保留 `source_freshness_certified` 和
 `trading_day_soak_certified`，历史或周末样本不得把这两个字段标为真。
-历史结果与未签收范围汇总见[主线整合记录](../reports/main-consolidation-20261018/verification.md)。
+历史结果与未签收范围汇总见[主线整合记录](../reports/engineering/main-consolidation-20261018/verification.md)。
 默认 Docker 镜像必须直接执行主应用启动烟测；仅运行 Compute 或桥接自检不足以发现
 API 导入依赖缺失。PostgreSQL 适配器现为默认依赖，空 `BACKEND_EXTRAS` 构建也须
 通过 `/health/live`，旧 `--extra cell` 只作为兼容命令保留。
@@ -727,7 +778,7 @@ rustdx/fuyao 顺序、未就绪源先选路由、共享缓存不被展示排序�
 前端补 `DataSourceEditor.test.tsx` 与 `Monitoring.test.tsx`，
 确认独立全量入口移除、盘中控制保留并按实际服务可用性门控。
 本次命令、结果、原基线失败与未验证范围见
-[分钟选源合并验证](../reports/unified-minute-source-20261025/verification.md)。
+[分钟选源合并验证](../reports/market-data/unified-minute-source-20261025/verification.md)。
 
 <a id="41-后端"></a>
 ### 4.1 后端
@@ -793,7 +844,7 @@ pnpm build
 重读/持久化、严格输入、HTTP权限和平台转发、IPC只读、降并发旧任务收尾、
 旧新任务共同记账、跨线程等待释放、CPU向下取整及无资源拒绝。
 2026-10-28半硬件资源调整的后端93项、前端16项和真实控件证据见
-[本轮验证](../reports/strategy-half-resource-20261028/verification.md)；本轮未更新运行环境。
+[本轮验证](../reports/strategies/strategy-half-resource-20261028/verification.md)；本轮未更新运行环境。
 页面验证控件位于“并发策略”、首次直接显示推荐数字、手工1/999边界与空/小数/越界拒绝、
 编辑不被后台查询覆盖、保存失败保留生效值、部署未应用提示、资源缩小时回显
 保存值及租户只读1不暴露主机配置；预算百分比随后端`budget_ratio`回显，
@@ -804,7 +855,7 @@ pnpm build
 这些测试采用隔离偏好与模拟计算；不能替代真实 Docker 内存硬限制、
 全市场策略压测、跨主机容量或生产部署验收。推荐值仍是资源限额估算。
 2026-10-27本轮实测后端93项、前端65项及浅深色/窄屏结果见
-[验证记录](../reports/system-settings-20261027/verification.md)；源码候选未更新运行副本或线上。
+[验证记录](../reports/ui/system-settings-20261027/verification.md)；源码候选未更新运行副本或线上。
 
 本地目标范围候选追加：
 
@@ -868,13 +919,13 @@ T+1、待卖占用、账户隔离和事件重放。分钟样本覆盖除权前�
 新股无涨跌幅限制、未知规则、异常缺口、全异常和 API 空值序列化；
 前端同时检查质量提示、覆盖率和不可计算状态。
 最终合并回归及源码范围见
-[主线整合记录](../reports/main-consolidation-20261018/verification.md)。
+[主线整合记录](../reports/engineering/main-consolidation-20261018/verification.md)。
 
 P2 参数交互补充验证 `test_strategy_param_normalize.py` 的 API 保存/读取，
 前端 `strategyParams.test.ts` 和 `paramSweep.test.tsx` 的分组、递归显隐、
 预设填值、隐藏值保留和扫描排除。页面联调需验证设置保存后在回测回显同一值，
 控制条件切换后组合数变化，以及浅/深色窄屏可操作性。
-合并结果见[主线整合记录](../reports/main-consolidation-20261018/verification.md)。
+合并结果见[主线整合记录](../reports/engineering/main-consolidation-20261018/verification.md)。
 
 策略质量、成交正确性和入场风险回归：
 
@@ -896,7 +947,7 @@ uv run --frozen pytest -q \
 研究脚本的现金核算、账户勾稽、输入/源码身份和候选判定属于额外证据，不能替代
 领域回归。该分支最终合并两批逐用例 ID 后为 `704 passed, 6 skipped`；前端
 TypeScript/Vite 构建通过。完整实现与全市场研究限制见
-[策略升级实施记录](../reports/strategy-optimization-20261019/implementation.md)。
+[策略升级实施记录](../reports/strategies/strategy-optimization-20261019/implementation.md)。
 
 策略组协调器、共享计算与组合裁决回归：
 
@@ -916,7 +967,7 @@ uv run --frozen pytest -q \
 `partial/stale`周期禁止入场。当前相关监控、模拟交易和行情调用链扩大回归为
 `271 passed, 41 skipped`；跳过项主要依赖未提供的一次性 PostgreSQL 环境，
 不能据此宣称多租户真实数据库验收完成。阶段证据见
-[五策略实施记录](../reports/five-strategy-parallel-20261019/implementation.md)。
+[五策略实施记录](../reports/strategies/five-strategy-parallel-20261019/implementation.md)。
 
 本次主线集成前最终门禁为：后端全量 `3853 passed, 120 skipped, 89 warnings`
 （232.54 秒）；前端 40 个 Vitest 文件共 `191 passed`；ESLint 0 错误、75 条
@@ -929,7 +980,7 @@ uv run --frozen pytest -q \
 完整单机多租户验收使用 `backend/tests/test_full_*.py` 和独立 PostgreSQL：
 通过 `TSP_TEST_POSTGRES_DSN` 指向可创建/删除临时数据库与角色的测试服务。
 未配置 DSN 时跳过的数据库用例不算通过。需覆盖身份/RBAC、RLS、任务/事件、
-模拟交易事务、迁移与平台边界；发布验收见[一期记录](../reports/document-consolidation-20261024/historical-evidence.md#phase1)。
+模拟交易事务、迁移与平台边界；发布验收见[一期记录](../reports/engineering/document-consolidation-20261024/historical-evidence.md#phase1)。
 
 单机容器化可靠性回归：
 
@@ -1213,9 +1264,9 @@ runner 会实际运行 PyInstaller 便携版，并对 Inno Setup 产物执行静
 
 - 使用北京时间，不受测试机时区影响。
 - 午休、收盘、周末、节假日和跨日重启有覆盖。
-- 09:25 竞价窗口、默认 16:00 盘后任务使用业务日期。
+- 09:25竞价窗口、默认15:30盘后任务和固定15:35当日修正使用业务日期。
 - 全量管道覆盖默认时间、自定义精确保存、运行时更新、重启保留和关闭自动同步；
-  15:35 前的非法输入拒绝且原配置不变，休市或交易日未知不执行。
+  15:30前的日K非法输入拒绝且原配置不变，休市或交易日未知不执行；周K允许09:00。
 - 分钟数据时间戳归一为北京时间墙钟并正确归属资产类型。
 
 <a id="8-provider-真实烟测"></a>
@@ -1494,11 +1545,11 @@ API 及测试事实源，再检查：
 
 `make check`覆盖目录、文档本地链接/锚点/围栏、八模块/需求编号、版本和whitespace；不访问外部网站或替代行为验收。
 本轮链接及源码引用检查结果保存在
-[文档同步记录](../reports/documentation-sync-20261023/verification.md)；
+[文档同步记录](../reports/engineering/documentation-sync-20261023/verification.md)；
 历史报告保留当时命令和目录，当前 Runbook 使用新路径。
 
 2026-10-24按当前主线/目标清理后，保留证据以[报告索引](../reports/README.md)导航，
-适用门禁结果见[清理验证](../reports/repository-cleanup-20261024/verification.md)。
+适用门禁结果见[清理验证](../reports/operations/repository-cleanup-20261024/verification.md)。
 可额外执行`python scripts/check_docs.py --include-reports`检查历史报告的导航。
 已缺失的历史临时日志保留原路径并注明不可用，不保留失效下载链接；
 缺少版本/环境元数据的旧截图不作为当前验收证据。

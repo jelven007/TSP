@@ -1,5 +1,14 @@
 # Tick Stock Platform（TSP）版本基线
 
+2026-11-03本轮统一候选基于正式v0.4.47
+`3097c23711d22862770343090863c49d3621427e`，保留公共缓存修复，
+整合最新目录、行情调度、菜单、模拟账户schema8、尾盘秒精度与通用分钟同日再入场。
+冻结前本地/线上均为v0.4.46派生快照、双库schema7；
+本轮尚未切换运行环境或迁移数据库，正式新版本由主线CI分配。
+当前来源、完整验证和后续部署门禁见
+[统一升级记录](../reports/releases/unified-upgrade-20261103/verification.md)。
+下方旧阶段正文仅描述对应历史时点，当前表格和本轮签收优先。
+
 2026-11-03缓存修复候选从正式v0.4.46提交`4453ecc48d66`建立。
 两端该版重启恢复不代表09:00目录刷新问题已修复；候选补齐Full回暖与通知，
 本地不加版本，主线CI/正式产物/双端升级分别记录，见[修复](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
@@ -152,19 +161,19 @@
 | --- | --- | --- |
 | 集成分支 | `main` | 唯一集成线，功能经 PR 归并 |
 | 应用语义版本 | `0.4.47` | 候选继承最新main；正式整合由CI自动分配新版本 |
-| 上次主线固定提交 | `7b60562dd7fa5054f383319bbf0d706227dfabc1` | PR38后的自动版本提交；本轮固定提交随CI和发布回执记录 |
-| 上次自动源码标签 | `v0.4.42` | 对应main质量门通过；该次Docker提升失败曾单独恢复，不冒充整个workflow成功 |
-| 服务端发布 | 整合前已发布`v0.4.42`；本轮结果按固定Release回执核对 | [正式Release及签收](https://github.com/jelven007/TSP/releases/latest)，区分源码、产物与实际运行 |
-| 最后已知 ECS | `v0.4.42`、schema v7/v7、完整池/盘前调度/最新保留/不可用账户租约补丁 | 最新并行策略同步产物保留本次修复；七角色、真实池/API及身份见[运行签收](../reports/daily-stock-pool-runtime-20261102.md) |
-| 最后已知本地运行 | `v0.4.42`及完整池/调度租约、自定义s02分钟持仓/日线叠加/信号价评分/独立卖选买/早盘分钟收益回测补丁，schema v7/v7 | 最新匹配Compute、8个服务、状态保留及页面见[收益撮合验收](../.claude/artifacts/fixes/custom-s02-morning-backtest.md)；既有信号结果口径见[复核](../reports/custom-s02-overlay-score-20261102.md#独立卖选买的最终复核)，股票池/调度见[运行签收](../reports/daily-stock-pool-runtime-20261102.md) |
+| 上次主线固定提交 | `3097c23711d22862770343090863c49d3621427e` | PR43后的自动版本提交；本轮固定提交随CI和发布回执记录 |
+| 上次自动源码标签 | `v0.4.47` | 主线CI41570144303与Docker41574181396通过；不能据此认证本轮运行部署 |
+| 服务端发布 | 本轮前远程正式Release清单为空；v0.4.47产物已准备、未提升运行环境 | [正式Release及签收](https://github.com/jelven007/TSP/releases/latest)，本轮另按实际固定身份发布 |
+| 最后已知 ECS | `v0.4.46`派生尾盘90秒运行快照，schema v7/v7 | 当前信号及用户状态已保护；[本轮历史与升级门禁](../reports/releases/unified-upgrade-20261103/verification.md) |
+| 最后已知本地运行 | `v0.4.46`派生尾盘90秒及精确启动秒快照，schema v7/v7 | 当前API/Platform/Worker/前端/Compute与用户状态已保护；本轮运行切换另签收 |
 | 本地运行服务 | API3028、前端3021、平台3029及四类Worker | 实际进程、配置与新产物切换由整合记录复核 |
 | 原生组件 | rustdx core `2.0.4`、桥接 `0.3.0` / API `4` | 与应用版本独立；源码安装须匹配构建 |
 | 桌面安装包 | 按目标平台 Release 资产和验收记录 | 服务端升级不认证当前平台桌面安装、退出或卸载 |
-| 当前整合范围 | 日期／偏好、盘前完整池与最新保留、调度租约、分钟持仓／叠加／评分／卖选买、晨盘收益与停复牌证据 | 候选源码不等同于已部署；[本轮整合](../reports/release-consolidation-20261102-followup.md)分阶段验收 |
+| 当前整合范围 | 主线公共缓存、报告目录、行情调度、菜单、模拟账户schema8、尾盘90秒及精确秒 | 候选源码不等同于已部署；[本轮整合](../reports/releases/unified-upgrade-20261103/verification.md)分阶段验收 |
 | 活跃支持与源码恢复 | 最新及最多一个最近历史版本，合计最多两版 | 动态清单由[源码恢复工具](../scripts/release/source_recovery.py)生成 |
 
 本地与线上财务历史并集补齐的保存记录见
-[财务历史验收](../reports/financial-history-unify-20261030/verification.md)；
+[财务历史验收](../reports/market-data/financial-history-unify-20261030/verification.md)；
 它证明对应数据操作，不表示未提交统计代码已进入 `v0.4.39` 的正式源码。
 文件数、字节数和行情覆盖均随后续运行变化，不在现行手册中作为固定目标值。
 

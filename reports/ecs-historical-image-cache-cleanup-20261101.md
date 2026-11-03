@@ -4,7 +4,7 @@
 镜像传输包、重复分片及构建缓存。机器结果见
 [脱敏清单](ecs-historical-image-cache-cleanup-20261101.json)。
 前一阶段的镜像仓库、Actions和本地清理见
-[历史镜像与缓存记录](historical-image-cache-cleanup-20261031.md)。
+[历史镜像与缓存记录](operations/historical-image-cache-cleanup-20261031.md)。
 
 ## 身份核验及前次结论更正
 
@@ -78,7 +78,7 @@ Gateway和Platform就绪检查返回200。
 历史源码工作目录及源码归档、未完成调查和验收证据。
 没有提交、推送、重写Git历史或轮换凭据。
 本次清理不代表公开源码历史、冻结发布附件及当前保留镜像中的安全事件已处置完毕；
-完整边界见[文档安全处置记录](document-security-20261031.md)。
+完整边界见[文档安全处置记录](operations/document-security-20261031.md)。
 
 ## 文档验证
 

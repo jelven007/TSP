@@ -32,6 +32,26 @@ def test_overview_before_init(client: TestClient):
     assert r.json() == {"initialized": False, "account_id": "default"}
 
 
+def test_account_edit_delete_refresh_related_api_views(client):
+    client.post("/api/paper/account", json={"initial_cash": 200000, "name": "原名"})
+    edit = client.put("/api/paper/account", json={"name": "新名", "initial_cash": 500000})
+    assert edit.status_code == 200 and edit.json()["account"]["cash"] == 500000
+    assert client.get("/api/paper/compare").json()["accounts"][0]["name"] == "新名"
+    assert client.get("/api/paper/overview").json()["initial_cash_editable"] is True
+    client.post("/api/paper/orders", json={"symbol": "600519.SH", "side": "buy", "qty": 100, "ref_price": 10})
+    assert client.get("/api/paper/overview").json()["initial_cash_editable"] is False
+    assert client.put("/api/paper/account", json={"name": "拒绝", "initial_cash": 1000000}).status_code == 400
+    assert client.put("/api/paper/account", json={"id": "evil"}).status_code == 422
+    assert client.delete("/api/paper/account").status_code == 200
+    assert client.get("/api/paper/accounts").json()["accounts"] == []
+    assert client.get("/api/paper/compare").json()["accounts"] == []
+    assert client.get("/api/paper/orders").json()["orders"] == []
+    assert client.get("/api/paper/overview").json()["initialized"] is False
+    assert client.delete("/api/paper/account").status_code == 404
+    assert client.put("/api/paper/account", json={"name": "missing"}).status_code == 404
+    assert client.delete("/api/paper/account?account=../escape").status_code == 400
+
+
 def test_multi_account_isolation_and_settings(client: TestClient):
     """双账户隔离: 订单/概览互不可见; settings 端点切换涨跌停排队。"""
     client.post("/api/paper/account", json={"initial_cash": 1000000})  # default

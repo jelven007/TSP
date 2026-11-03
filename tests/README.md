@@ -17,8 +17,22 @@
 `tests/tooling/conftest.py` 为仓库 CLI 辅助模块设置本地导入路径，保留
 `backend/scripts` 的 Python 包归属，避免两个脚本目录同名造成误导入。
 
-回归截图与测试证据共同保存在 `reports/<专题-日期>/`，
+## 按领域定位现有测试
+
+| 行为 | 权威实现入口 | 现有测试入口 |
+| --- | --- | --- |
+| K线仓库和缓存依赖 | `backend/app/tickflow/repository.py` | `backend/tests/test_repository_cache_dependencies.py`、`test_repository_index.py` |
+| 完整当日池和盘前调度 | `backend/app/strategy/daily_pool.py`、`services/daily_pool_schedule.py` | `backend/tests/test_daily_stock_pools.py`、`test_daily_pool_schedule.py` |
+| 尾盘信号与时间窗口 | `backend/app/strategy/late_session_strength.py` | `backend/tests/test_late_session_strength.py` |
+| 公共发布绑定与回收 | `backend/app/multitenancy/publication.py` | `backend/tests/test_public_binding_sync.py` |
+| 策略信号选择 | `frontend/src/components/screener/SignalPicker.tsx` | 同目录`SignalPicker.test.tsx` |
+| 文档链接和需求基准 | `scripts/check_docs.py` | `tests/tooling/test_documentation_contract.py` |
+
+先按源码符号定位对应测试，既有后端测试保持原路径，前端测试继续就近维护。
+新增后端专题测试沿已有领域目录组织，不按文件名猜测后批量搬迁。
+
+回归截图与测试证据共同保存在 `reports/<分类>/<专题-日期>/`，
 记录版本、环境、时间和操作；保留的证据见[报告索引](../reports/README.md)。
-旧无元数据截图已按[清理记录](../reports/repository-cleanup-20261024/verification.md)移出。
+旧无元数据截图已按[清理记录](../reports/operations/repository-cleanup-20261024/verification.md)移出。
 夹具使用小型、合成或已脱敏数据，不提交用户行情、策略、账号、密钥和生产数据库。
 性能与持续运行证据必须记录规模、版本、环境和时间窗口，不能用单元测试通过代替。

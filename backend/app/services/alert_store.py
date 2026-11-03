@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from contextlib import nullcontext
 from pathlib import Path
 
 from app.multitenancy.alerts import Alerts
@@ -40,20 +41,7 @@ def _path(data_dir: Path) -> Path:
 
 def append(data_dir: Path, event: dict) -> None:
     """追加一条触发记录。event 应含 ts(毫秒)、rule_id、source 等字段。"""
-    if isinstance(data_dir, TenantDocuments):
-        Alerts(data_dir).append_many([event])
-        return
-    line = json.dumps(event, ensure_ascii=False)
-    with _lock:
-        p = _path(data_dir)
-        with p.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
-        global _write_count
-        _write_count += 1
-        if _write_count >= PRUNE_EVERY:
-            _write_count = 0
-            _prune_locked(p)
-    _publish_events([event])
+    append_many(data_dir, [event])
 
 
 def append_many(data_dir: Path, events: list[dict]) -> None:
@@ -63,17 +51,31 @@ def append_many(data_dir: Path, events: list[dict]) -> None:
     if isinstance(data_dir, TenantDocuments):
         Alerts(data_dir).append_many(events)
         return
-    with _lock:
-        p = _path(data_dir)
-        with p.open("a", encoding="utf-8") as f:
-            for ev in events:
-                f.write(json.dumps(ev, ensure_ascii=False) + "\n")
-        global _write_count
-        _write_count += len(events)
-        if _write_count >= PRUNE_EVERY:
-            _write_count = 0
-            _prune_locked(p)
-    _publish_events(events)
+    has_paper = any(ev.get("source") == "paper" and ev.get("account_id") for ev in events)
+    lock = nullcontext()
+    if has_paper:
+        from app.strategy import paper
+
+        lock = paper.PAPER_LOCK
+    with lock:
+        if has_paper:
+            events = [ev for ev in events if not (
+                ev.get("source") == "paper" and ev.get("account_id")
+                and paper.get_account(data_dir, ev["account_id"]) is None
+            )]
+        if not events:
+            return
+        with _lock:
+            p = _path(data_dir)
+            with p.open("a", encoding="utf-8") as f:
+                for ev in events:
+                    f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+            global _write_count
+            _write_count += len(events)
+            if _write_count >= PRUNE_EVERY:
+                _write_count = 0
+                _prune_locked(p)
+        _publish_events(events)
 
 
 def _publish_events(events: list[dict]) -> None:

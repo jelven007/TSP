@@ -3,8 +3,8 @@
 调度:
   09:10 盘前 — 同步个股维表 instruments (全量覆盖)
   09:25 盘前 — 全市场集合竞价终态快照
-  15:35 盘后 — 日K同步 + 增量除权因子 + enriched 计算 + 刷新视图
-  (默认 15:35: 盘后固定价 15:30 终止 + 供应商日线定稿缓冲, 见 preferences)
+  15:30 盘后 — 日K同步 + 增量除权因子 + enriched 计算 + 刷新视图
+  15:35 盘后 — 当日日K/1分K重取及5/10/15分K加工修正
 
 盘后同步策略:
   日 K: QuoteService 交易时段已实时落盘 → 有数据时跳过 batch,首次拉 1 年区间
@@ -1388,7 +1388,10 @@ def apply_data_sync_mode(scheduler) -> None:
     from app.services.kline_periods import get_configs
     enabled = _prefs.get_data_sync_auto_enabled()
     for job in scheduler.get_jobs():
-        if job.id in {"daily_pipeline", "depth_finalize", "kline_periods"} or (
+        if job.id in {
+            "daily_pipeline", "depth_finalize", "kline_periods",
+            "kline_correction", "kline_correction_retry",
+        } or (
             job.id.startswith("auction_snapshot_") or job.id == "auction_publication_retry"
         ):
             if enabled and (job.id != "daily_pipeline" or get_configs()["1d"]["enabled"]):
@@ -1467,6 +1470,27 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
         id="daily_pipeline",
         misfire_grace_time=3600,
         replace_existing=True,
+    )
+
+    # 修正请求与执行分开: 15:30任务仍占槽时, 保留日期并由短周期任务续跑。
+    from app.services import kline_correction
+
+    def _correct_kline(*, retry=False):
+        app_state = _get_app_state()
+        live_capset = getattr(app_state, "capabilities", None) or capset
+        qs = getattr(app_state, "quote_service", None)
+        fn = kline_correction.retry_pending if retry else kline_correction.request_correction
+        return fn(repo, live_capset, qs)
+
+    scheduler.add_job(
+        _correct_kline,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=35, timezone="Asia/Shanghai"),
+        id="kline_correction", misfire_grace_time=3600, max_instances=1,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _correct_kline, kwargs={"retry": True}, trigger=IntervalTrigger(seconds=30),
+        id="kline_correction_retry", max_instances=1, coalesce=True, replace_existing=True,
     )
 
     # 盘后: 五档盘口 sealed 定版(时间由偏好决定, 默认15:02, 范围15:01~18:00)

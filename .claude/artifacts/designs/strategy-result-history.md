@@ -2,7 +2,7 @@
 
 状态：本地实现与隔离验证完成；已纳入2026-10-25授权整合发布。
 本地不手动递增版本，远程main合并后的CI分配应用版本。
-本批全量与部署证据见[整合记录](../../../reports/current-state-release-20261025/verification.md)。
+本批全量与部署证据见[整合记录](../../../reports/releases/current-state-release-20261025/verification.md)。
 
 ## 结论与架构
 

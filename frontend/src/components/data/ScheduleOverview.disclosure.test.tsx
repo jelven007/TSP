@@ -41,7 +41,7 @@ it('keeps category disclosures independent and preserves expansion when live sch
     expect.stringContaining('扩展数据'),
   ])
   expect(groups.every(group => !group.open)).toBe(true)
-  expect(groups[4].textContent).toContain('扩展数据 · 扩展概念')
+  expect(groups[4].querySelector('.text-xs.font-medium')?.textContent).toBe('扩展概念')
 
   await act(async () => groups[0].querySelector('summary')?.click())
   expect(groups[0].open).toBe(true)

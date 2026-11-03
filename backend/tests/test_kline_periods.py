@@ -12,10 +12,11 @@ def test_defaults_and_calendar_windows(tmp_path, monkeypatch):
     monkeypatch.setattr("app.services.preferences._path", lambda: tmp_path / "preferences.json")
     configs = periods.get_configs(tmp_path)
     assert [configs[p]["interval_seconds"] for p in ("1m", "5m", "10m", "15m")] == [60, 300, 600, 900]
-    assert configs["1w"]["time"] == configs["1d"]["time"] == "16:00"
+    assert configs["1w"]["time"] == "09:00"
+    assert configs["1d"]["time"] == "15:30"
     cfg = configs["5m"]
-    assert cfg["windows"] == [["09:15", "11:45"], ["13:00", "16:00"]]
-    for hour, minute, expected in [(9, 15, True), (11, 44, True), (11, 45, False), (12, 0, False), (13, 0, True), (15, 59, True), (16, 0, False)]:
+    assert cfg["windows"] == [["09:15", "11:45"], ["13:00", "15:30"]]
+    for hour, minute, expected in [(9, 15, True), (11, 44, True), (11, 45, False), (12, 0, False), (13, 0, True), (15, 29, True), (15, 30, False), (16, 0, False)]:
         assert periods.in_sync_window(cfg, datetime(2026, 10, 26, hour, minute), trading_day=True) is expected
     assert not periods.in_sync_window(cfg, datetime(2026, 10, 26, 10), trading_day=False)
     periods.save_config("5m", {
@@ -26,9 +27,17 @@ def test_defaults_and_calendar_windows(tmp_path, monkeypatch):
     }, tmp_path)
     saved = periods.get_configs(tmp_path)["5m"]
     assert saved["interval_seconds"] == 420
-    assert saved["windows"] == [["09:15", "11:45"], ["13:00", "16:00"]]
+    assert saved["windows"] == [["09:15", "11:45"], ["13:00", "15:30"]]
     with pytest.raises(ValueError):
         periods.save_config("5m", {**cfg, "windows": [["11:35", "09:15"]]}, tmp_path)
+
+
+def test_daily_cutoff_and_weekly_morning_are_independent(tmp_path, monkeypatch):
+    monkeypatch.setattr(periods.preferences, "_path", lambda: tmp_path / "preferences.json")
+    assert periods.save_config("1d", {"time": "15:30"}, tmp_path)["time"] == "15:30"
+    with pytest.raises(ValueError, match="15:30"):
+        periods.save_config("1d", {"time": "15:29"}, tmp_path)
+    assert periods.save_config("1w", {"time": "09:00"}, tmp_path)["time"] == "09:00"
 
 
 def minute_sample():
@@ -343,7 +352,7 @@ def test_scheduled_weekly_runs_once_on_saturday_without_trading_day(monkeypatch)
     monkeypatch.setattr("app.services.trading_day.is_trading_day", lambda now: False)
     monkeypatch.setattr(periods.preferences, "get_data_sync_auto_enabled", lambda: True)
     monkeypatch.setattr(periods, "get_configs", lambda: {
-        p: {"enabled": p == "1w", "interval_seconds": 60, "windows": periods.DEFAULT_WINDOWS, "time": "16:00"}
+        p: {"enabled": p == "1w", "interval_seconds": 60, "windows": periods.DEFAULT_WINDOWS, "time": "09:00"}
         for p in ("5m", "10m", "15m", "1w")
     })
     monkeypatch.setattr("app.jobs.daily_pipeline._run_tracked", lambda fn, label: calls.append(label) or True)
@@ -351,7 +360,10 @@ def test_scheduled_weekly_runs_once_on_saturday_without_trading_day(monkeypatch)
 
     periods.scheduled_periods(None)
     assert calls == []
-    clock[0] = datetime(2026, 10, 31, 16)
+    clock[0] = datetime(2026, 10, 31, 8, 59)
+    periods.scheduled_periods(None)
+    assert calls == []
+    clock[0] = datetime(2026, 10, 31, 9)
     periods.scheduled_periods(None)
     periods.scheduled_periods(None)
 

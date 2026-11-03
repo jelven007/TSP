@@ -3,7 +3,7 @@
 日期：2026-10-27。契约：[设计记录](../designs/watchlist-relations.md)。
 工作区基线`4da5f30c` / 0.4.32；保留已有CSV顺序、K线及研究修改，
 初次源码验收未提交、推送、部署或加版本。随后用户授权的本地更新及快速刷新修复见
-[真实运行记录](../../../reports/local-watchlist-update-20261027/verification.md)；
+[真实运行记录](../../../reports/ui/local-watchlist-update-20261027/verification.md)；
 运行与源码类别以[版本基线](../../../docs/version-baseline.md)为准。
 
 ## 需求与实现

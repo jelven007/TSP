@@ -125,20 +125,20 @@ def _root(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> Path:
     if not _MIGRATION_DONE:
         _migrate_legacy(data_dir)
         _MIGRATION_DONE = True
-    d = accounts_base(data_dir) / validate_account_id(account_id)
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    base = accounts_base(data_dir)
+    path = base / validate_account_id(account_id)
+    if path.is_symlink() or base.is_symlink() or base.parent.is_symlink():
+        raise ValueError("模拟账户路径不安全")
+    return path
 
 
 def _orders_dir(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> Path:
     d = _root(data_dir, account_id) / "orders"
-    d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def _nav_dir(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> Path:
     d = _root(data_dir, account_id) / "nav"
-    d.mkdir(parents=True, exist_ok=True)
     return d
 
 
@@ -214,20 +214,119 @@ def create_account(
             "status": "active",  # active / frozen
             "created_at": _now_iso(),
         }
-        save_account(data_dir, acc, account_id)
+        save_account(data_dir, acc, account_id, creating=True)
         return acc
 
 
 @paper_operation(write=True)
-def save_account(data_dir: Path, acc: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
+def save_account(data_dir: Path, acc: dict, account_id: str = DEFAULT_ACCOUNT_ID, *, creating=False) -> None:
     validate_account_id(account_id)
+    if not creating and get_account(data_dir, account_id) is None:
+        raise ValueError("尚未创建模拟账户")
     if isinstance(data_dir, PaperSession):
         data_dir.save_account(account_id, acc)
         return
+    if creating:
+        _root(data_dir, account_id).mkdir(parents=True, exist_ok=True)
     atomic_write_text(
         _root(data_dir, account_id) / "account.json",
         json.dumps(acc, ensure_ascii=False, indent=2),
     )
+
+
+@paper_operation()
+def initial_cash_editable(data_dir, account_id=DEFAULT_ACCOUNT_ID) -> bool:
+    """本金只在没有业务记录时可改, 避免改写历史账本重放起点。"""
+    if get_account(data_dir, account_id) is None:
+        return False
+    if isinstance(data_dir, PaperSession):
+        return data_dir.initial_cash_editable(account_id)
+    root = _root(data_dir, account_id)
+    for path in (root / "fills.jsonl", root / "nav" / "daily.jsonl"):
+        if path.exists() and path.stat().st_size:
+            return False
+    if any((root / "orders").glob("*.json")):
+        return False
+    position_path = root / "positions.json"
+    if position_path.exists():
+        try:
+            value = json.loads(position_path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict) or not isinstance(value.get("positions"), dict):
+                return False
+            return not value["positions"]
+        except (ValueError, OSError):
+            return False
+    return not load_positions(data_dir, account_id)
+
+
+@paper_operation(write=True)
+def update_account(data_dir, account_id=DEFAULT_ACCOUNT_ID, **fields) -> dict:
+    """整体校验后一次保存; 费用仅影响后续成交, ID和历史账本不变。"""
+    allowed = {"name", "initial_cash", "commission_pct", "stamp_tax_pct", "slippage_bps", "queue_limit_orders"}
+    if fields.keys() - allowed:
+        raise ValueError("不支持的账户修改字段")
+    with paper_lock(data_dir, PAPER_LOCK):
+        acc = get_account(data_dir, account_id)
+        if acc is None:
+            raise ValueError("尚未创建模拟账户")
+        updated = dict(acc)
+        if "name" in fields:
+            name = fields["name"]
+            if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
+                raise ValueError("账户名称须为 1~80 个字符")
+            updated["name"] = name.strip()
+        for key, maximum in (
+            ("initial_cash", math.inf), ("commission_pct", .01),
+            ("stamp_tax_pct", .05), ("slippage_bps", 200),
+        ):
+            if key not in fields:
+                continue
+            value = fields[key]
+            if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value) or not 0 <= value <= maximum:
+                raise ValueError(f"{key} 超出合理范围")
+            if key == "initial_cash":
+                if value <= 0:
+                    raise ValueError("初始资金必须是正数")
+                if value != acc["initial_cash"] and not initial_cash_editable(data_dir, account_id):
+                    raise ValueError("账户已有委托、成交、持仓或净值记录, 不能修改初始资金")
+                if value != acc["initial_cash"]:
+                    updated["cash"] = float(value)
+            updated[key] = float(value)
+        if "queue_limit_orders" in fields:
+            if not isinstance(fields["queue_limit_orders"], bool):
+                raise ValueError("涨跌停排队须为布尔值")
+            updated["queue_limit_orders"] = fields["queue_limit_orders"]
+        save_account(data_dir, updated, account_id)
+        _account_changed(data_dir, account_id, "updated")
+        return updated
+
+
+def _account_changed(data_dir, account_id, action):
+    payload = {"account_id": account_id, "action": action}
+    if isinstance(data_dir, PaperSession):
+        from app.multitenancy.events import append_event
+
+        append_event(data_dir.conn, data_dir.tenant_id, "paper_changed", payload)
+    else:
+        from app.services.events import bus
+
+        bus.publish("paper_changed", payload, scope="paper:trade")
+
+
+@paper_operation(write=True)
+def delete_account(data_dir, account_id=DEFAULT_ACCOUNT_ID) -> bool:
+    """在撮合锁/租户事务内清理整个账户及关联内容。"""
+    validate_account_id(account_id)
+    with paper_lock(data_dir, PAPER_LOCK):
+        if isinstance(data_dir, PaperSession):
+            deleted = data_dir.delete_account(account_id)
+        else:
+            from app.strategy.paper_lifecycle import delete_files
+
+            deleted = delete_files(data_dir, account_id)
+        if deleted:
+            _account_changed(data_dir, account_id, "deleted")
+        return deleted
 
 
 @paper_operation()
@@ -478,10 +577,13 @@ def load_orders_page(
 @paper_operation(write=True)
 def save_order(data_dir: Path, order: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
     validate_account_id(account_id)
+    if get_account(data_dir, account_id) is None:
+        raise ValueError("尚未创建模拟账户")
     if isinstance(data_dir, PaperSession):
         data_dir.save_order(account_id, order)
         return
     p = _orders_dir(data_dir, account_id) / f"{order['id']}.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(p, json.dumps(order, ensure_ascii=False, indent=2))
 
 
@@ -833,6 +935,8 @@ def _available_of(pos: dict, today: str | None = None) -> int:
 
 @paper_operation(write=True)
 def _append_fill(data_dir: Path, fill: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
+    if get_account(data_dir, account_id) is None:
+        raise ValueError("尚未创建模拟账户")
     if isinstance(data_dir, PaperSession):
         data_dir.append_fill(account_id, fill)
         return
@@ -844,6 +948,8 @@ def _append_fill(data_dir: Path, fill: dict, account_id: str = DEFAULT_ACCOUNT_I
 @paper_operation(write=True)
 def _materialize(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
     """由台账重建 positions.json (每次成交后调用, 保持物化缓存与台账一致)。"""
+    if get_account(data_dir, account_id) is None:
+        return
     positions, _cash = replay_positions(data_dir, account_id=account_id)
     acc = get_account(data_dir, account_id)
     if acc is not None:
@@ -863,6 +969,8 @@ def _materialize(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
 def rebuild_positions(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict[str, dict]:
     """修复兜底: 强制由台账重建物化持仓。"""
     with paper_lock(data_dir, PAPER_LOCK):
+        if get_account(data_dir, account_id) is None:
+            return {}
         positions, cash = replay_positions(data_dir, account_id=account_id)
         acc = get_account(data_dir, account_id)
         if acc is not None:
@@ -1073,6 +1181,8 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
         alert_store.append_many(data_dir, [{
             "ts": int(datetime.now().timestamp() * 1000),
             "source": "paper",
+            "account_id": account_id,
+            "order_id": order["id"],
             "type": "paper_fill",
             "rule_id": None,
             "rule_name": "",
@@ -1569,10 +1679,13 @@ def daily_nav(
 
 @paper_operation(write=True)
 def _write_nav_line(data_dir: Path, day: str, nav: dict, account_id: str = DEFAULT_ACCOUNT_ID) -> None:
+    if get_account(data_dir, account_id) is None:
+        raise ValueError("尚未创建模拟账户")
     if isinstance(data_dir, PaperSession):
         data_dir.save_nav(account_id, day, nav)
         return
     p = _nav_dir(data_dir, account_id) / "daily.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
     lines: list[str] = []
     if p.exists():
         for line in p.read_text(encoding="utf-8").splitlines():
@@ -1700,6 +1813,7 @@ def overview(
         "total": round(float(acc["cash"]) + mv + pending, 2),
         "total_pnl": round(float(acc["cash"]) + mv + pending - float(acc["initial_cash"]), 2),
         "initial_cash": float(acc["initial_cash"]),
+        "initial_cash_editable": initial_cash_editable(data_dir, account_id),
         "estimating": price_map is not None,
         "valuation": {
             "basis": overall_basis,

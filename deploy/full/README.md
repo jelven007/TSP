@@ -7,10 +7,10 @@
 
 本目录是完整产品单机多租户部署入口，沿用原 `app.main`、完整前端和原业务引擎。
 一期于 2026-10-14 完成生产切流与 100 用户验收，见
-[一期实施记录](../../reports/document-consolidation-20261024/historical-evidence.md#phase1)。
+[一期实施记录](../../reports/engineering/document-consolidation-20261024/historical-evidence.md#phase1)。
 当前固定源码、镜像与最后已知运行身份见[版本基线](../../docs/version-baseline.md)，
 保存的v0.4.39本地/ECS恢复、切换和重启验收见
-[发布记录](../../reports/current-release-20261030/deployment.md)。
+[发布记录](../../reports/releases/current-release-20261030/deployment.md)。
 旧实例inode修复和双库恢复见[历史结果](../../reports/online-timeout-20261021/result.md)。
 候选升级继续按下述流程执行，不能与旧实例同时
 写一个行情目录；候选数据、数据库及监听端口必须与生产分离。
@@ -108,7 +108,7 @@ API/Gateway/Worker 文件中设 `TSP_CELL_MARKET_URL=http://platform:3018`、`TS
 多租户初始化依赖下面的双库、schema 与内部服务准备，默认开关不替代这些资源。
 
 1. 备份两个 PostgreSQL 库、原 `data/user_data`、策略/研究/模拟交易目录、平台配置、镜像及 Nginx 配置，记录可恢复路径。
-2. 对独立候选库执行原 `app.cell.admin migrate --target-version 7`，分别指定 control/business runtime 角色并登记 Cell。API 首次启动使用已有运行权限，按初始化配置自动创建缺失的管理员和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
+2. 对独立候选库执行原 `app.cell.admin migrate --target-version 8`，分别指定 control/business runtime 角色并登记 Cell。v8提供模拟账号删除级联和账号导入原件清理；迁移前备份双库，不改v1-v7校验和。API 首次启动使用已有运行权限，按初始化配置自动创建缺失的管理员和注册口令，开放注册与密码找回，不重置已改密码/口令；`bootstrap-full-identity` 仍可用于提前初始化。API 不执行建库或 schema 迁移。
 3. 对明确暂停的 legacy 租户执行 `import-full-product --directory <原data的一致备份> --tenant-id <id> --owner-id <原owner> --report <摘要路径>`，随后执行 `verify-full-import --directory <同一备份> --tenant-id <id> --report <对账路径>`。该命令覆盖账号与完整业务；仅 `import-full-accounts` 或旧 v4 导入不够。旧通知名称须通过 `--channel-map '{"email":"legacy-email"}'` 明确绑定至该租户的已有渠道，实际值以对账结果为准。
 4. 将平台偏好、密钥和 `data_sources/` 从旧目录复制到独立平台配置目录，完成数量/内容对账。保留管理员维护的全局菜单配置；个人布局/列配置和租户定时/通知配置分别导入其 SQL 归属。保留旧文件用于恢复。
 5. 启动独立 `platform` 并等待首个完整公共版本。版本发布逐项复制新文件、复用上一不可变版本的相同文件，并在数据世代或文件清单变化时放弃本次发布。

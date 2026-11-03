@@ -73,3 +73,18 @@ it('shows detected and remaining gaps for missing acquisition', async () => {
   expect(host.textContent).toContain('检测缺口')
   expect(host.textContent).toContain('剩余缺口')
 })
+
+it('shows the daily correction date and each period result', async () => {
+  const result: PipelineJob['result'] = {
+    universe_size: 1, day: '2026-11-03',
+    periods: { '1d': { daily_days: 1 }, '1m': { rows: 240 }, '5m': { rows: 48 }, '10m': { rows: 24 }, '15m': { rows: 16 } },
+  }
+  await act(async () => root.render(<ActiveJobCard job={job({ kind: 'kline_correction', status: 'succeeded', result })} />))
+  expect(host.textContent).toContain('当日K线修正')
+  expect(host.textContent).toContain('2026-11-03')
+  for (const label of ['1分K', '5分K', '10分K', '15分K']) expect(host.textContent).toContain(label)
+  expect(host.textContent).not.toContain('0 天')
+  await act(async () => root.render(<HistoryRow job={job({ kind: 'kline_correction', status: 'succeeded', result })} onClick={() => {}} />))
+  expect(host.textContent).toContain('当日K线修正')
+  expect(host.textContent).toContain('2026-11-03')
+})

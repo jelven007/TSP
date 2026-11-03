@@ -3,6 +3,7 @@ import type { CustomSignal, LateSessionStrengthParams, MorningLiquidationParams 
 export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
   time: '14:30:00', change_min_pct: 0.4, change_max_pct: 4,
   pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4,
+  evaluation_delay_minutes: 1.5,
 }
 
 export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParams, 'amplitude_pct'>> = {
@@ -12,14 +13,27 @@ export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParam
 export const customSignalColumn = (signal: CustomSignal) =>
   `${signal.timeframe === 'intraday' ? 'csgi_' : 'csg_'}${signal.id}`
 
+export function lateSessionCheckTime(p: LateSessionStrengthParams): string {
+  const [hour, minute, second = 0] = p.time.split(':').map(Number)
+  const total = hour * 3600 + minute * 60 + second + (p.evaluation_delay_minutes ?? 0) * 60
+  return [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60]
+    .map(value => String(value).padStart(2, '0')).join(':')
+}
+
+export const lateSessionBarTime = (time: string): string => `${time.slice(0, 5)}:00`
+
 export function lateSessionSummary(signal: CustomSignal): string[] {
-  const p = { ...LATE_SESSION_DEFAULTS, ...signal.params as Partial<LateSessionStrengthParams> }
+  const stored = signal.params as Partial<LateSessionStrengthParams> | undefined
+  const p = { ...LATE_SESSION_DEFAULTS, ...stored, evaluation_delay_minutes: stored?.evaluation_delay_minutes ?? 0 }
+  const barTime = lateSessionBarTime(p.time)
   return [
-    `判断时间 ${p.time}（北京时间）`,
-    `该时刻涨幅 ${p.change_min_pct}%～${p.change_max_pct}%`,
-    `当日股票池上涨数 / 总数 ≥ ${p.pool_up_min_pct}%`,
-    `最近 ${p.ma5_1m_count} 个 1分钟 MA5 严格递增`,
-    `最近 ${p.ma5_5m_count} 个 5分钟 MA5 严格递增`,
+    p.evaluation_delay_minutes
+      ? `启动时间 ${p.time}，确认时间 ${lateSessionCheckTime(p)}，K线截止 ${barTime}（北京时间）${p.evaluation_delay_minutes === 1 ? '；编辑保存后改为启动后90秒确认' : ''}`
+      : `旧判断时间 ${p.time}（北京时间）；编辑保存后改为启动后90秒确认`,
+    `截至 ${barTime} 的当日股票池上涨数 / 总数 ≥ ${p.pool_up_min_pct}%`,
+    `截至 ${barTime} 的涨幅 ${p.change_min_pct}%～${p.change_max_pct}%`,
+    `最近 ${p.ma5_1m_count} 个 1分钟 MA5 严格递增（${p.ma5_1m_count - 1} 次比较）`,
+    `最新完成的 ${p.ma5_5m_count} 个 5分钟 MA5 严格递增（${p.ma5_5m_count - 1} 次比较）`,
   ]
 }
 

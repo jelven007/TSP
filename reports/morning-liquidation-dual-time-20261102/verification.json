@@ -1,0 +1,155 @@
+{
+  "passed": true,
+  "version": "0.4.45",
+  "released": false,
+  "environment": "local",
+  "base_commit": "4c3ad9b694da0ec2b5ac6f3118e8b86d7cd2ebeb",
+  "source": "controlled-runtime:v0.4.45-4c3ad9b694da-morning-dual-verified-local",
+  "worktree": "controlled-worktree:tsp-morning-exit-dual-time-20261102",
+  "patch_sha256": "4fef39a5c02a83d70f185b5c11f99a988029834e9492d111bd9c47beec803955",
+  "compute": "sha256:ebfd106643bfc6385f79f5877cb4fc52d0a229b45ee80d27b3373ba7e16bdf69",
+  "manifest_files": 660,
+  "matched_manifest_files": 659,
+  "backend_tests": 229,
+  "sql_tests": 51,
+  "frontend_tests": 25,
+  "compute_tests": 127,
+  "backend_lint_new_findings": 0,
+  "monitor_existing_lint": 16,
+  "engine_existing_lint": 23,
+  "frontend_build_passed": true,
+  "frontend_lint_passed": true,
+  "params": {
+    "time": "10:30:00",
+    "fallback_time": "10:45:00",
+    "rise_pct": 6,
+    "fall_pct": 6
+  },
+  "controlled_environment_preserved": true,
+  "user_groups_preserved": [
+    "sources",
+    "overrides",
+    "positions",
+    "preferences",
+    "monitor_rules",
+    "accounts",
+    "orders",
+    "fills",
+    "paper_ledger",
+    "research_jobs"
+  ],
+  "strategy_preserved": true,
+  "database_restore_verified": true,
+  "roles": {
+    "platform": {
+      "alive": true,
+      "source_directory_verified": true
+    },
+    "compute": {
+      "alive": true,
+      "source_directory_verified": true
+    },
+    "api": {
+      "alive": true,
+      "source_directory_verified": true
+    },
+    "frontend": {
+      "alive": true,
+      "source_directory_verified": true
+    },
+    "research": {
+      "alive": true,
+      "source_directory_verified": true
+    },
+    "realtime": {
+      "alive": true,
+      "source_directory_verified": true
+    },
+    "notifications": {
+      "alive": true,
+      "source_directory_verified": true
+    },
+    "scheduled": {
+      "alive": true,
+      "source_directory_verified": true
+    }
+  },
+  "live": {
+    "passed": true,
+    "administrator_login": true,
+    "restart_parameters_persisted": true,
+    "params": {
+      "time": "10:30:00",
+      "fallback_time": "10:45:00",
+      "rise_pct": 6,
+      "fall_pct": 6
+    },
+    "other_user_groups_preserved": [
+      "sources",
+      "overrides",
+      "positions",
+      "preferences",
+      "monitor_rules",
+      "accounts",
+      "orders",
+      "fills",
+      "paper_ledger",
+      "research_jobs"
+    ],
+    "controlled_environment_preserved": true,
+    "strategy_preserved": true,
+    "real_api_save_read": true,
+    "invalid_api_rejected": true,
+    "api_ready": true,
+    "compute_ready": "ok",
+    "platform_ready": true,
+    "platform_status": "degraded",
+    "platform_existing_last_pipeline_warning": "warning",
+    "version": "0.4.45",
+    "released": false
+  },
+  "browser": {
+    "passed": true,
+    "origin": "http://127.0.0.1:3021",
+    "title": "Tick Stock Platform · Quant Terminal",
+    "checks": [
+      {
+        "viewport": [
+          1440,
+          1000
+        ],
+        "four_parameters_visible": true,
+        "bounds": {
+          "width": 720,
+          "scroll": 718,
+          "client": 718
+        }
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "four_parameters_visible": true,
+        "bounds": {
+          "width": 358,
+          "scroll": 356,
+          "client": 356
+        }
+      }
+    ],
+    "independent_threshold_roundtrip": true,
+    "invalid_time_rejected": true,
+    "original_parameters_restored": true,
+    "reload_persisted": true,
+    "existing_picker_summary_verified": true,
+    "page_errors": [],
+    "browser_method": "Playwright with controlled local login",
+    "browser_reason": "Browser navigation verified; local helper keeps credentials out of tool arguments",
+    "research_job_submitted": false
+  },
+  "historical_market_backtest": false,
+  "ecs_deployed": false,
+  "committed": false,
+  "pushed": false
+}

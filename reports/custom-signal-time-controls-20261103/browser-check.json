@@ -1,0 +1,202 @@
+{
+  "browser_method": "Playwright; Browser plugin not available",
+  "flow": "真实CustomSignalDialog -> 打开TimePicker -> 取消/确认 -> 保存 -> 重新打开",
+  "url": "http://127.0.0.1:3012/.qa-time-controls/index.html",
+  "checks": [
+    {
+      "signal": "late",
+      "theme": "light",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "shared_picker": true,
+      "popover_bounds": {
+        "x": 381,
+        "y": 418.5,
+        "width": 260,
+        "height": 279
+      },
+      "dialog_bounds": {
+        "width": 720,
+        "scroll": 718,
+        "client": 718
+      },
+      "escape_discards_draft": true,
+      "confirm_only_updates_draft": true,
+      "save_and_reopen": true,
+      "saved_time": "14:58:00"
+    },
+    {
+      "signal": "late",
+      "theme": "light",
+      "viewport": [
+        390,
+        844
+      ],
+      "shared_picker": true,
+      "popover_bounds": {
+        "x": 33,
+        "y": 515,
+        "width": 260,
+        "height": 279
+      },
+      "dialog_bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      },
+      "escape_discards_draft": true,
+      "confirm_only_updates_draft": true,
+      "save_and_reopen": true,
+      "saved_time": "14:58:00"
+    },
+    {
+      "signal": "late",
+      "theme": "dark",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "shared_picker": true,
+      "popover_bounds": {
+        "x": 381,
+        "y": 418.5,
+        "width": 260,
+        "height": 279
+      },
+      "dialog_bounds": {
+        "width": 720,
+        "scroll": 718,
+        "client": 718
+      },
+      "escape_discards_draft": true,
+      "confirm_only_updates_draft": true,
+      "save_and_reopen": true,
+      "saved_time": "14:58:00"
+    },
+    {
+      "signal": "late",
+      "theme": "dark",
+      "viewport": [
+        390,
+        844
+      ],
+      "shared_picker": true,
+      "popover_bounds": {
+        "x": 33,
+        "y": 515,
+        "width": 260,
+        "height": 279
+      },
+      "dialog_bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      },
+      "escape_discards_draft": true,
+      "confirm_only_updates_draft": true,
+      "save_and_reopen": true,
+      "saved_time": "14:58:00"
+    },
+    {
+      "signal": "morning",
+      "theme": "light",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "shared_picker": true,
+      "popover_bounds": {
+        "x": 381,
+        "y": 418.5,
+        "width": 260,
+        "height": 279
+      },
+      "dialog_bounds": {
+        "width": 720,
+        "scroll": 718,
+        "client": 718
+      },
+      "escape_discards_draft": true,
+      "confirm_only_updates_draft": true,
+      "save_and_reopen": true,
+      "saved_time": "10:15:32"
+    },
+    {
+      "signal": "morning",
+      "theme": "light",
+      "viewport": [
+        390,
+        844
+      ],
+      "shared_picker": true,
+      "popover_bounds": {
+        "x": 33,
+        "y": 515,
+        "width": 260,
+        "height": 279
+      },
+      "dialog_bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      },
+      "escape_discards_draft": true,
+      "confirm_only_updates_draft": true,
+      "save_and_reopen": true,
+      "saved_time": "10:15:32"
+    },
+    {
+      "signal": "morning",
+      "theme": "dark",
+      "viewport": [
+        1440,
+        1000
+      ],
+      "shared_picker": true,
+      "popover_bounds": {
+        "x": 381,
+        "y": 418.5,
+        "width": 260,
+        "height": 279
+      },
+      "dialog_bounds": {
+        "width": 720,
+        "scroll": 718,
+        "client": 718
+      },
+      "escape_discards_draft": true,
+      "confirm_only_updates_draft": true,
+      "save_and_reopen": true,
+      "saved_time": "10:15:32"
+    },
+    {
+      "signal": "morning",
+      "theme": "dark",
+      "viewport": [
+        390,
+        844
+      ],
+      "shared_picker": true,
+      "popover_bounds": {
+        "x": 33,
+        "y": 515,
+        "width": 260,
+        "height": 279
+      },
+      "dialog_bounds": {
+        "width": 358,
+        "scroll": 356,
+        "client": 356
+      },
+      "escape_discards_draft": true,
+      "confirm_only_updates_draft": true,
+      "save_and_reopen": true,
+      "saved_time": "10:15:32"
+    }
+  ],
+  "page_errors": [],
+  "console_errors": [],
+  "runtime_configuration_written": false
+}

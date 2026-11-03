@@ -1,0 +1,1258 @@
+diff --git a/backend/app/backtest/morning_backtest.py b/backend/app/backtest/morning_backtest.py
+index d65185aa..89cdd667 100644
+--- a/backend/app/backtest/morning_backtest.py
++++ b/backend/app/backtest/morning_backtest.py
+@@ -83,8 +83,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
+         return finish("早盘清仓信号已禁用, 无法执行清仓收益回测")
+     sig_params = parameters(sig)
+     deadline_clock = clock.fromisoformat(sig_params["time"])
+-    if deadline_clock <= clock(9, 30) or deadline_clock.second:
+-        return finish("早盘清仓收益回测需要09:31至11:30的整分钟截止时间")
++    fallback_clock = clock.fromisoformat(sig_params.get("fallback_time", sig_params["time"]))
++    if any(at <= clock(9, 30) or at.second for at in (deadline_clock, fallback_clock)):
++        return finish("早盘清仓收益回测需要09:31至11:30的整分钟止损及兜底时间")
+     risk = strategy_policy(strategy, overrides)
+     if config.regime_filter or any(v is not None for v in asdict(risk).values()):
+         return finish("早盘清仓收益回测暂不支持环境过滤、固定/移动风控或最长持有")
+@@ -178,6 +179,18 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
+         return (matcher.buy_value(notional) - notional if side == "buy"
+                 else notional - matcher.sell_value(notional, day))
+ 
++    def reject_overdue(day):
++        overdue = [p for p in positions.values() if p["entry_date"] < day
++                   and not p.get("suspension_deferred")]
++        if overdue:
++            counters["deadline_violations"] += len(overdue)
++            detail = "; ".join(
++                f"{p['symbol']} 剩余{p['remaining']}股, 已卖{p['shares'] - p['remaining']}/{p['shares']}股"
++                for p in overdue
++            )
++            return finish(f"{day} {sig_params.get('fallback_time', sig_params['time'])}清仓截止后仍有余股, {detail}; 保留实际成交和持仓")
++        return None
++
+     try:
+         for index, day in enumerate(days):
+             if cancel_event is not None and cancel_event.is_set():
+@@ -257,12 +270,22 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
+                 if not valid_price(prev):
+                     return finish(f"{day} {symbol} 缺原始昨收")
+                 pos["sell_reference"] = prev
++                observation = datetime.combine(day, clock(15) if status == "resume" else deadline_clock)
++                if "fallback_time" in sig_params and status != "resume":
++                    observation -= timedelta(microseconds=1)
+                 evaluated = evaluate(
+-                    frame, sig, day=day, now=datetime.combine(day, clock(15) if status == "resume" else deadline_clock),
++                    frame, sig, day=day, now=observation,
+                     positions=[{**pos, "entry_date": str(pos["entry_date"]),
+                                 "qty": pos["remaining"], "available_qty": pos["remaining"]}],
+                     prev_close={symbol: prev}, suspension_history=suspension_history,
+                 )
++                if not evaluated.hits and "fallback_time" in sig_params and status != "resume":
++                    evaluated = evaluate(
++                        frame, sig, day=day, now=datetime.combine(day, deadline_clock),
++                        positions=[{**pos, "entry_date": str(pos["entry_date"]),
++                                    "qty": pos["remaining"], "available_qty": pos["remaining"]}],
++                        prev_close={symbol: prev}, suspension_history=suspension_history,
++                    )
+                 if not evaluated.hits:
+                     return finish(f"{day} {symbol} 无法确定早盘清仓触发")
+                 hit = evaluated.hits[0]
+@@ -317,13 +340,25 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
+                         marks[row["symbol"]] = row[price_field]
+                 for symbol in list(positions):
+                     trigger = triggers.get(symbol)
+-                    deadline = clock(15) if trigger and trigger["reason"] == "resume" else deadline_clock
++                    deadline = clock(15) if trigger and trigger["reason"] == "resume" else fallback_clock
+                     if (phase == 0 or not trigger
+                             or not datetime.fromisoformat(trigger["trigger_time"]) <= at <= datetime.combine(day, deadline)
+                             or not (clock(9, 31) <= at.time() <= clock(11, 30)
+                                     or clock(13, 1) <= at.time() <= clock(15))):
+                         continue
+                     pos = positions[symbol]
++                    if ("fallback_time" in sig_params and trigger["reason"] != "resume"
++                            and (at == datetime.combine(day, fallback_clock)
++                                 or (at == datetime.combine(day, deadline_clock)
++                                     and trigger["reason"] != "stop_time"))):
++                        stage_hit = evaluate(
++                            pl.DataFrame(), sig, day=day, now=at,
++                            positions=[{**pos, "entry_date": str(pos["entry_date"]),
++                                        "qty": pos["remaining"], "available_qty": pos["remaining"]}],
++                            prev_close={symbol: pos["sell_reference"]}, suspension_history=suspension_history,
++                        ).hits[0]
++                        output.signals.append({"date": str(day), "side": "sell", **stage_hit,
++                                               "signal_id": exits[0], "signal_bar": at.hour * 60 + at.minute})
+                     rows = rows_at.get(symbol, [])
+                     expected_at = last_sale[symbol] + timedelta(minutes=1)
+                     if expected_at.time() == clock(11, 31):
+@@ -389,6 +424,10 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
+                         if pos.get("suspension_deferred"):
+                             counters["resume_exit_trades"] += 1
+                         del positions[symbol]
++                if phase == 1 and at.time() >= fallback_clock:
++                    rejected = reject_overdue(day)
++                    if rejected is not None:
++                        return rejected
+                 candidates = []
+                 if entry_error:
+                     continue
+@@ -473,11 +512,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
+                     if last_sale[symbol] != datetime.combine(day, clock(15)):
+                         return finish(f"{day} {symbol} 复牌卖出成交窗口未完整覆盖至收盘")
+                     counters["resume_pending_position_days"] += 1
+-            overdue = [p for p in positions.values() if p["entry_date"] < day
+-                       and not p.get("suspension_deferred")]
+-            if overdue:
+-                counters["deadline_violations"] += len(overdue)
+-                return finish(f"{day} {sig_params['time']}清仓截止后仍有余股, 保留实际成交和持仓")
++            rejected = reject_overdue(day)
++            if rejected is not None:
++                return rejected
+             if entry_error:
+                 return finish(entry_error)
+             for symbol in positions:
+diff --git a/backend/app/multitenancy/research.py b/backend/app/multitenancy/research.py
+index d9bb004e..865da5e8 100644
+--- a/backend/app/multitenancy/research.py
++++ b/backend/app/multitenancy/research.py
+@@ -552,7 +552,8 @@ class ResearchWorker:
+                 status == "failed" and isinstance(result, dict) and result.get("error")
+                 and current["kind"] == "backtest"
+                 and result.get("stats", {}).get("minute_execution")
+-                in {"overnight_capacity_v1", "momentum_capacity_v1"}
++                in {"overnight_capacity_v1", "momentum_capacity_v1",
++                    "generic_morning_liquidation_v1", "generic_morning_liquidation_resume_v2"}
+                 and isinstance(result.get("stats", {}).get("execution"), dict)
+             ):
+                 # A rejected NAV still has real simulated fills and remaining shares.
+@@ -621,7 +622,10 @@ def stream(request: Request, jobs: ResearchJobs, row: dict, key: str):
+                     yield f"event: done\ndata: {json.dumps(current['result'], ensure_ascii=False, default=str)}\n\n"
+                 else:
+                     message = current["error"] or ("任务已取消" if current["state"] == "cancelled" else "任务已中断，请重新提交")
+-                    yield f"event: error\ndata: {json.dumps({'message': message}, ensure_ascii=False)}\n\n"
++                    failure = {"message": message}
++                    if current["state"] == "failed" and current["result"] is not None:
++                        failure["result"] = current["result"]
++                    yield f"event: error\ndata: {json.dumps(failure, ensure_ascii=False, default=str)}\n\n"
+                 return
+             if time.monotonic() - heartbeat > 15:
+                 yield ": heartbeat\n\n"
+diff --git a/backend/app/services/morning_liquidation_replay.py b/backend/app/services/morning_liquidation_replay.py
+index 85984015..14460cbe 100644
+--- a/backend/app/services/morning_liquidation_replay.py
++++ b/backend/app/services/morning_liquidation_replay.py
+@@ -3,13 +3,16 @@ from __future__ import annotations
+ 
+ from datetime import datetime, time, timedelta
+ 
+-from app.strategy.morning_liquidation import evaluate
++from app.market_time import published_trading_day
++from app.strategy.morning_liquidation import evaluate, parameters
+ 
+ 
+ def replay(repo, sig, *, start, end, symbols, positions):
+     suspension_history = getattr(repo, "get_suspension_history", lambda: None)()
+     daily = repo.get_daily_batch(symbols, start-timedelta(days=15), end, columns=["symbol", "date", "close", "raw_close"])
+     triggers, diagnostics = [], []
++    params = parameters(sig)
++    legacy = "amplitude_pct" in params
+     bars_scanned = days_scanned = 0
+     day = start
+     while day <= end:
+@@ -18,12 +21,31 @@ def replay(repo, sig, *, start, end, symbols, positions):
+             bars_scanned += minutes.height
+             days_scanned += 1
+         prior = daily.filter(daily["date"] < day).sort("date").unique("symbol", keep="last") if not daily.is_empty() else daily
++        if not legacy:
++            previous = day - timedelta(days=1)
++            while published_trading_day(previous) is False:
++                previous -= timedelta(days=1)
++            prior = prior.filter(prior["date"] == previous) if not prior.is_empty() else prior
++            if published_trading_day(previous) is not True:
++                prior = prior.clear()
+         references = {row["symbol"]: row.get("raw_close", row["close"]) for row in prior.iter_rows(named=True)}
+-        result = evaluate(minutes, sig, day=day, now=datetime.combine(day, time(15)),
+-                          positions=positions, prev_close=references, suspension_history=suspension_history)
+-        for hit in result.hits:
+-            triggers.append({"date": str(day), "time": hit["trigger_time"].split("T")[1], **hit})
+-        diagnostics.extend({"date": str(day), "message": message} for message in result.diagnostics)
++        observations = [datetime.combine(day, time(15))]
++        if not legacy:
++            stop = datetime.combine(day, time.fromisoformat(params["time"]))
++            observations = [stop - timedelta(microseconds=1), stop,
++                            datetime.combine(day, time.fromisoformat(params["fallback_time"])),
++                            datetime.combine(day, time(15))]
++        seen = set()
++        for at in observations:
++            result = evaluate(minutes, sig, day=day, now=at,
++                              positions=positions, prev_close=references, suspension_history=suspension_history)
++            for hit in result.hits:
++                key = (hit["symbol"], hit.get("account_id"), hit.get("cycle_id"), hit["entry_date"],
++                       hit["reason"], hit["trigger_time"])
++                if key not in seen:
++                    triggers.append({"date": str(day), "time": hit["trigger_time"].split("T")[1], **hit})
++                    seen.add(key)
++            diagnostics.extend({"date": str(day), "message": message} for message in result.diagnostics)
+         day += timedelta(days=1)
+     return {"signal_id": sig["id"], "start_date": str(start), "end_date": str(end), "symbols": symbols,
+             "days_scanned": days_scanned, "bars_scanned": bars_scanned, "triggers": triggers,
+diff --git a/backend/app/strategy/engine.py b/backend/app/strategy/engine.py
+index 75068265..abe7f0da 100644
+--- a/backend/app/strategy/engine.py
++++ b/backend/app/strategy/engine.py
+@@ -1115,7 +1115,9 @@ class StrategyEngine:
+             for sig in morning_signals:
+                 result = evaluate(
+                     history, sig, day=as_of, now=now, positions=context.positions,
+-                    prev_close=previous_closes(context), quotes=current,
++                    prev_close=previous_closes(
++                        context, exact_session="amplitude_pct" not in (sig.get("params") or {}),
++                    ), quotes=current,
+                     suspension_history=context.suspension_history,
+                 )
+                 if result.diagnostics:
+diff --git a/backend/app/strategy/late_session_strength.py b/backend/app/strategy/late_session_strength.py
+index d96d1bed..3fd88f2a 100644
+--- a/backend/app/strategy/late_session_strength.py
++++ b/backend/app/strategy/late_session_strength.py
+@@ -160,7 +160,7 @@ def evaluate(
+     return result
+ 
+ 
+-def previous_closes(context) -> dict[str, float]:
++def previous_closes(context, *, exact_session: bool = False) -> dict[str, float]:
+     """昨收使用严格早于信号日的未复权价格, 不读取当日收盘。"""
+     source = context.pool_history
+     if source is None or source.is_empty():
+@@ -170,6 +170,15 @@ def previous_closes(context) -> dict[str, float]:
+     if source is None or source.is_empty() or "date" not in source.columns:
+         return {}
+     prior = source.filter(pl.col("date") < context.as_of).sort("date")
++    if exact_session:
++        from app.market_time import published_trading_day
++
++        previous = context.as_of - timedelta(days=1)
++        while published_trading_day(previous) is False:
++            previous -= timedelta(days=1)
++        if published_trading_day(previous) is not True:
++            return {}
++        prior = prior.filter(pl.col("date") == previous)
+     column = "raw_close" if "raw_close" in prior.columns else "close"
+     if column not in prior.columns:
+         return {}
+diff --git a/backend/app/strategy/monitor.py b/backend/app/strategy/monitor.py
+index e24af922..ff208a1d 100644
+--- a/backend/app/strategy/monitor.py
++++ b/backend/app/strategy/monitor.py
+@@ -2173,7 +2173,14 @@ class MonitorRuleEngine:
+         rule_id, strategy_id, asset_type = pool_key
+         state_key = (rule_id, strategy_id, asset_type, event_type)
+         date_key = str(as_of)
+-        current = {str(hit["symbol"]) for hit in hits}
++        def identity(hit):
++            symbol = str(hit["symbol"])
++            if hit.get("holding_exit") and hit.get("reason") in ("rise", "fall", "stop_time", "fallback"):
++                return (symbol, hit.get("account_id"), hit.get("cycle_id"), hit.get("entry_date"),
++                        hit["reason"], hit.get("trigger_time"))
++            return symbol
++
++        current = {identity(hit) for hit in hits}
+         previous = self._strategy_signal_state.get(state_key)
+         self._strategy_signal_state[state_key] = (date_key, current)
+ 
+@@ -2191,7 +2198,7 @@ class MonitorRuleEngine:
+         }
+         for symbol in fresh:
+             self._strategy_signal_seen[(*state_key, symbol)] = date_key
+-        return fresh
++        return {key[0] if isinstance(key, tuple) else key for key in fresh}
+ 
+     @staticmethod
+     def _match_conditions(
+diff --git a/backend/app/strategy/morning_liquidation.py b/backend/app/strategy/morning_liquidation.py
+index 711708d3..7222380b 100644
+--- a/backend/app/strategy/morning_liquidation.py
++++ b/backend/app/strategy/morning_liquidation.py
+@@ -11,23 +11,31 @@ from app.market_time import CN_TZ, published_trading_day
+ from app.strategy.overnight_runtime import next_market_day
+ 
+ TEMPLATE = "morning_liquidation"
+-DEFAULT_PARAMS = {"time": "10:30:00", "amplitude_pct": 6.0}
++DEFAULT_PARAMS = {"time": "10:30:00", "fallback_time": "10:45:00", "rise_pct": 6.0, "fall_pct": 6.0}
+ 
+ 
+ def parameters(sig: dict) -> dict:
+     raw = sig.get("params") or {}
+-    if not isinstance(raw, dict) or set(raw) - set(DEFAULT_PARAMS):
++    if not isinstance(raw, dict) or set(raw) - (set(DEFAULT_PARAMS) | {"amplitude_pct"}):
+         raise ValueError("早盘清仓参数格式错误或包含未知参数")
+-    params = {**DEFAULT_PARAMS, **raw}
+-    try:
+-        at = time.fromisoformat(params["time"])
+-        if at.strftime("%H:%M:%S") != params["time"] or at.tzinfo or not time(9, 30) <= at <= time(11, 30):
+-            raise ValueError
+-    except (TypeError, ValueError):
+-        raise ValueError("早盘清仓时间须为 09:30:00~11:30:00 (北京时间)") from None
+-    value = params["amplitude_pct"]
+-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 100:
+-        raise ValueError("振幅阈值须为 0~100% 的有限数值")
++    legacy = "amplitude_pct" in raw
++    if legacy and set(raw) & {"fallback_time", "rise_pct", "fall_pct"}:
++        raise ValueError("旧振幅与新涨跌幅参数不能混用")
++    params = {**({"time": "10:30:00", "amplitude_pct": 6.0} if legacy else DEFAULT_PARAMS), **raw}
++    for key in ("time",) if legacy else ("time", "fallback_time"):
++        try:
++            at = time.fromisoformat(params[key])
++            if at.strftime("%H:%M:%S") != params[key] or at.tzinfo or not time(9, 30) <= at <= time(11, 30):
++                raise ValueError
++        except (TypeError, ValueError):
++            raise ValueError("早盘清仓时间须为 09:30:00~11:30:00 (北京时间)") from None
++    if not legacy and params["fallback_time"] <= params["time"]:
++        raise ValueError("兜底时间须晚于止损时间")
++    for key in ("amplitude_pct",) if legacy else ("rise_pct", "fall_pct"):
++        value = params[key]
++        if (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
++                or not (0 <= value <= 100 if legacy else 0 < value <= 100)):
++            raise ValueError("振幅阈值须为 0~100% 的有限数值" if legacy else "涨跌幅阈值须为大于0且不超过100%的有限数值")
+     return params
+ 
+ 
+@@ -58,17 +66,22 @@ def evaluate(
+         result.diagnostics.append("早盘清仓需要包含买入日期的实际持仓快照")
+         return result
+     deadline = datetime.combine(day, time.fromisoformat(params["time"]))
++    legacy = "amplitude_pct" in params
++    fallback = datetime.combine(day, time.fromisoformat(params.get("fallback_time", params["time"])))
+     # 已完成分钟仅提供触发时间上界; 缺口期间的真实首次触发不可伪造。
+     frame = pl.DataFrame()
+-    if minute_df is not None and {"symbol", "datetime", "high", "low"}.issubset(minute_df.columns):
++    price_field = "raw_close" if minute_df is not None and "raw_close" in minute_df.columns else "close"
++    required = {"symbol", "datetime", "high", "low"} if legacy else {"symbol", "datetime", price_field}
++    if minute_df is not None and required.issubset(minute_df.columns):
+         dt = pl.col("datetime")
+         if minute_df.schema["datetime"].time_zone:
+             dt = dt.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
++        valid = (pl.col("high").is_finite() & pl.col("low").is_finite()
++                 & (pl.col("low") > 0) & (pl.col("high") >= pl.col("low"))) if legacy else (
++            pl.col(price_field).is_finite() & (pl.col(price_field) > 0))
+         frame = minute_df.with_columns(dt.alias("datetime")).filter(
+             (pl.col("datetime").dt.date() == day) & (pl.col("datetime").dt.time() > time(9, 30))
+-            & (pl.col("datetime") <= min(now, deadline))
+-            & pl.col("high").is_finite() & pl.col("low").is_finite()
+-            & (pl.col("low") > 0) & (pl.col("high") >= pl.col("low")),
++            & (pl.col("datetime") <= min(now, deadline)) & valid,
+         ).sort("datetime")
+     minute_groups = frame.partition_by("symbol", as_dict=True) if not frame.is_empty() else {}
+     live = {}
+@@ -106,7 +119,7 @@ def evaluate(
+         pending = None
+         previous = prev_close.get(symbol)
+         history = minute_groups.get((symbol,))
+-        if _positive(previous) and history is not None:
++        if legacy and _positive(previous) and history is not None:
+             ranges = history.with_columns(
+                 ((pl.col("high").cum_max()-pl.col("low").cum_min()) / previous * 100).alias("_amplitude"),
+             ).filter(pl.col("_amplitude") + 1e-10 >= params["amplitude_pct"])
+@@ -114,10 +127,19 @@ def evaluate(
+                 row = ranges.row(0, named=True)
+                 pending = {"reason": "amplitude", "amplitude_pct": row["_amplitude"],
+                            "trigger_time": row["datetime"].isoformat(), "source": "completed_minute"}
++        elif _positive(previous) and history is not None:
++            changes = history.with_columns((pl.col(price_field) / previous - 1).alias("_change")).filter(
++                (pl.col("_change") + 1e-12 >= params["rise_pct"] / 100)
++                | (pl.col("_change") - 1e-12 <= -params["fall_pct"] / 100))
++            if not changes.is_empty():
++                row = changes.row(0, named=True)
++                pending = {"reason": "rise" if row["_change"] > 0 else "fall",
++                           "change_pct": row["_change"],
++                           "trigger_time": row["datetime"].isoformat(), "source": "completed_minute"}
+         quote = live.get(symbol, {})
+         reference = quote.get("prev_close") if _positive(quote.get("prev_close")) else previous
+         stamp = quote.get("quote_ts", quote.get("timestamp"))
+-        if (_positive(stamp) and _positive(reference) and _positive(quote.get("high"))
++        if (legacy and _positive(stamp) and _positive(reference) and _positive(quote.get("high"))
+                 and _positive(quote.get("low")) and quote["high"] >= quote["low"]
+                 and now < deadline and pending is None):
+             seconds = stamp / 1000 if stamp > 1e12 else stamp
+@@ -127,18 +149,35 @@ def evaluate(
+                 if amplitude + 1e-10 >= params["amplitude_pct"]:
+                     pending = {"reason": "amplitude", "amplitude_pct": amplitude,
+                                "trigger_time": at.isoformat(), "source": "live_quote"}
++        price = quote.get("price", quote.get("close"))
++        if (not legacy and pending is None and now < deadline and _positive(stamp)
++                and _positive(previous) and _positive(price)):
++            seconds = stamp / 1000 if stamp > 1e12 else stamp
++            at = datetime.fromtimestamp(seconds, CN_TZ).replace(tzinfo=None)
++            if at.date() == day and at.time() >= time(9, 30) and -2 <= (now-at).total_seconds() <= 15:
++                change = price / previous - 1
++                if change + 1e-12 >= params["rise_pct"] / 100 or change - 1e-12 <= -params["fall_pct"] / 100:
++                    pending = {"reason": "rise" if change > 0 else "fall", "change_pct": change,
++                               "trigger_time": at.isoformat(), "source": "live_quote"}
++        if not legacy and now >= fallback:
++            pending = {"reason": "fallback", "change_pct": None,
++                       "trigger_time": fallback.isoformat(), "source": "clock"}
++        elif not legacy and now >= deadline:
++            pending = {"reason": "stop_time", "change_pct": None,
++                       "trigger_time": deadline.isoformat(), "source": "clock"}
+         if pending is None and now >= deadline:
+-            pending = {"reason": "deadline", "amplitude_pct": None,
++            pending = {"reason": "deadline" if legacy else "stop_time",
++                       "amplitude_pct" if legacy else "change_pct": None,
+                        "trigger_time": deadline.isoformat(), "source": "clock"}
+         if pending:
+             result.hits.append({
+                 "symbol": symbol, "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id"),
+                 "entry_date": str(entry), "available_qty": position["available_qty"],
+                 "holding_exit": True,
+-                "deadline_elapsed": now > deadline, **pending,
++                "deadline_elapsed": now > fallback, **pending,
+             })
+         elif not _positive(previous) or history is None:
+-            result.diagnostics.append(f"早盘清仓: {symbol} 缺少可用振幅行情或昨收, 截止时钟仍有效")
++            result.diagnostics.append(f"早盘清仓: {symbol} 缺少可用{'振幅' if legacy else '现价'}行情或昨收, 清仓时钟仍有效")
+     return result
+ 
+ 
+diff --git a/backend/tests/backtest/test_morning_backtest.py b/backend/tests/backtest/test_morning_backtest.py
+index 8fd491ae..8bccf52c 100644
+--- a/backend/tests/backtest/test_morning_backtest.py
++++ b/backend/tests/backtest/test_morning_backtest.py
+@@ -187,6 +187,33 @@ def test_deadline_failure_preserves_actual_fills_and_remaining(tmp_path, kind):
+     assert result.stats["execution"]["cash"] == pytest.approx(6949.48 if kind == "too_small" else 5915)
+ 
+ 
++def test_deadline_failure_stops_before_later_entry_and_preserves_same_minute_sales(tmp_path):
++    other = "000002.SZ"
++    later = "600000.SH"
++    symbols = [SYMBOL, other, later]
++    panel = _daily_panel(_trading_days(47, start=date(2026, 7, 6)), symbols).with_columns(
++        pl.lit(10.).alias("close"), pl.lit(10.).alias("raw_close"), pl.lit(2e8).alias("amount"),
++    )
++    sells = pl.concat([
++        morning_frame().with_columns(pl.lit(1.).alias("volume")),
++        morning_frame().with_columns(pl.lit(other).alias("symbol")),
++        _minute_frame(SELL, [(later, "14:30", 10.3)]),
++    ])
++    service, _, _ = service_fixture(tmp_path, panel=panel, frames={
++        BUY: _minute_frame(BUY, [(symbol, "14:30", 10.2) for symbol in symbols[:2]]),
++        SELL: sells,
++    })
++    result = service.run(configuration(symbols=symbols))
++    assert result.error and "余股" in result.error
++    assert not [f for f in result.fills if f["datetime"] > f"{SELL} 10:30:00"]
++    assert [f["shares"] for f in result.fills if f["side"] == "sell"] == [100, 400]
++    assert len(result.trades) == 1 and result.trades[0]["symbol"] == other
++    pos, = result.stats["execution"]["remaining_positions"]
++    assert pos["symbol"] == SYMBOL and pos["remaining"] == 300
++    assert result.stats["execution"]["cash"] == pytest.approx(7017.4)
++    assert not result.equity_curve
++
++
+ def test_slippage_applied_once_on_each_leg(tmp_path):
+     result = run_frames(tmp_path, morning_frame(), slippage_bps=10)
+     assert not result.error, result.error
+diff --git a/backend/tests/test_full_research.py b/backend/tests/test_full_research.py
+index d6ef08df..996b49fb 100644
+--- a/backend/tests/test_full_research.py
++++ b/backend/tests/test_full_research.py
+@@ -3,6 +3,7 @@ from __future__ import annotations
+ 
+ import base64
+ import io
++import json
+ import time
+ from concurrent.futures import ThreadPoolExecutor
+ from dataclasses import replace
+@@ -237,11 +238,16 @@ def test_cancel_and_role_revocation_discard_late_results(env):
+             worker.close()
+ 
+ 
+-@pytest.mark.parametrize("execution", ["overnight_capacity_v1", "momentum_capacity_v1"])
++@pytest.mark.parametrize("execution", [
++    "overnight_capacity_v1", "momentum_capacity_v1",
++    "generic_morning_liquidation_v1", "generic_morning_liquidation_resume_v2",
++])
+ def test_failed_minute_backtest_retains_actual_ledger_without_archiving_success(env, execution):
++    from app.api.backtest import router
+     from app.services.strategy_results import StrategyResults
+ 
+-    _, _, jobs = tenant(env)
++    env["client"].app.include_router(router)
++    token, _, jobs = tenant(env)
+     _, _, other = tenant(env)
+     row = jobs.submit(payload(jobs, config={"strategy_id": "s02"}))
+     partial = {
+@@ -266,6 +272,12 @@ def test_failed_minute_backtest_retains_actual_ledger_without_archiving_success(
+     assert recovered["result"]["fills"] == partial["fills"]
+     assert "artifact_data" not in recovered["result"]
+     assert StrategyResults(jobs.documents).list_history("s02")["records"] == []
++    env["client"].cookies.set("tf_session", token)
++    response = env["client"].get("/api/backtest/jobs/" + row["id"] + "/stream")
++    assert response.status_code == 200 and "event: error" in response.text
++    message = json.loads(response.text.split("event: error\ndata: ", 1)[1].split("\n\n", 1)[0])
++    assert message["result"]["fills"] == partial["fills"]
++    assert message["result"]["stats"]["execution"]["remaining_positions"] == partial["stats"]["execution"]["remaining_positions"]
+     assert other.get(row["id"]) is None
+     with pytest.raises(AccessError):
+         jobs.artifact(row["id"], "candidates")
+diff --git a/frontend/src/components/MinuteExecutionLedger.tsx b/frontend/src/components/MinuteExecutionLedger.tsx
+index 1673efca..a3a26262 100644
+--- a/frontend/src/components/MinuteExecutionLedger.tsx
++++ b/frontend/src/components/MinuteExecutionLedger.tsx
+@@ -2,6 +2,8 @@ import type { StrategyBacktestResult } from '@/lib/api'
+ 
+ export function MinuteExecutionLedger({ result }: { result: StrategyBacktestResult }) {
+   if (!result.fills?.length) return null
++  const execution = result.stats.execution
++  const remaining = Array.isArray(execution?.remaining_positions) ? execution.remaining_positions : []
+   const download = () => {
+     const url = URL.createObjectURL(new Blob(
+       [JSON.stringify({ config: result.config, fills: result.fills, signals: result.signals, execution: result.stats.execution }, null, 2)],
+@@ -16,6 +18,12 @@ export function MinuteExecutionLedger({ result }: { result: StrategyBacktestResu
+   return (
+     <details className="rounded-xl border border-border bg-surface px-3 py-2 text-xs">
+       <summary className="cursor-pointer font-medium text-foreground">分钟成交分片（{result.fills.length}行）· 卖出信号（{result.signals?.filter(signal => signal.side !== 'buy').length ?? 0}笔）</summary>
++      {result.error && (
++        <p className="mt-2 text-warning">
++          本次实际成交与持仓已保留，未生成完整净值。
++          {remaining.map((position: { symbol: string; remaining: number }) => `${position.symbol} 剩余${position.remaining}股`).join('；')}
++        </p>
++      )}
+       <button type="button" onClick={download} className="my-2 rounded-btn border border-border px-2 py-1 text-secondary">下载完整成交与信号</button>
+       <div className="overflow-x-auto">
+         <table className="w-full whitespace-nowrap text-left">
+diff --git a/frontend/src/components/signals/CustomSignalDialog.test.tsx b/frontend/src/components/signals/CustomSignalDialog.test.tsx
+index 03698ddf..5a2c0f79 100644
+--- a/frontend/src/components/signals/CustomSignalDialog.test.tsx
++++ b/frontend/src/components/signals/CustomSignalDialog.test.tsx
+@@ -45,7 +45,7 @@ it('creates and edits the late-session entry preset with all configurable defaul
+   vi.restoreAllMocks()
+ })
+ 
+-it('saves the morning exit preset and reloads configurable deadline and amplitude', async () => {
++it('saves the morning exit preset and reloads configurable times and returns', async () => {
+   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+   vi.spyOn(api, 'customSignalsOptions').mockResolvedValue({ fields: [], operators: [], kinds: [] })
+   vi.spyOn(api, 'strategyAiStatus').mockResolvedValue({ configured: false } as any)
+@@ -63,18 +63,18 @@ it('saves the morning exit preset and reloads configurable deadline and amplitud
+     template.value = 'morning_liquidation'
+     template.dispatchEvent(new Event('change', { bubbles: true }))
+   })
+-  expect(host.querySelector<HTMLInputElement>('input[aria-label="清仓截止时间"]')?.value).toBe('10:30:00')
+-  expect(host.querySelector<HTMLInputElement>('input[aria-label="振幅阈值（%）"]')?.value).toBe('6')
++  expect(host.querySelector<HTMLInputElement>('input[aria-label="止损时间"]')?.value).toBe('10:30:00')
++  expect(host.querySelector<HTMLInputElement>('input[aria-label="涨幅阈值（%）"]')?.value).toBe('6')
+   expect(host.textContent).toContain('下一个交易日')
+   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
+   expect(save).toHaveBeenCalledWith(expect.objectContaining({
+     name: '早盘清仓', kind: 'exit', timeframe: 'intraday', template: 'morning_liquidation',
+-    conditions: [], params: { time: '10:30:00', amplitude_pct: 6 },
++    conditions: [], params: { time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6 },
+   }))
+   const stored = save.mock.calls[0][0]
+-  await act(async () => render({ ...stored, params: { time: '10:15:32', amplitude_pct: 5 } }))
+-  expect(host.querySelector<HTMLInputElement>('input[aria-label="清仓截止时间"]')?.value).toBe('10:15:32')
+-  expect(host.querySelector<HTMLInputElement>('input[aria-label="振幅阈值（%）"]')?.value).toBe('5')
++  await act(async () => render({ ...stored, params: { time: '10:15:32', fallback_time: '10:50:00', rise_pct: 5, fall_pct: 2 } }))
++  expect(host.querySelector<HTMLInputElement>('input[aria-label="止损时间"]')?.value).toBe('10:15:32')
++  expect(host.querySelector<HTMLInputElement>('input[aria-label="涨幅阈值（%）"]')?.value).toBe('5')
+   await act(async () => root.unmount())
+   vi.restoreAllMocks()
+ })
+diff --git a/frontend/src/components/signals/CustomSignalDialog.tsx b/frontend/src/components/signals/CustomSignalDialog.tsx
+index 25b3d597..8bb6ab64 100644
+--- a/frontend/src/components/signals/CustomSignalDialog.tsx
++++ b/frontend/src/components/signals/CustomSignalDialog.tsx
+@@ -53,7 +53,13 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
+   const morning = draft.template === 'morning_liquidation'
+   const specialized = lateSession || morning
+   const lateParams = { ...LATE_SESSION_DEFAULTS, ...draft.params as Partial<LateSessionStrengthParams> }
+-  const morningParams = { ...MORNING_LIQUIDATION_DEFAULTS, ...draft.params as Partial<MorningLiquidationParams> }
++  const storedMorning = draft.params as Partial<MorningLiquidationParams> | undefined
++  const morningParams = {
++    time: storedMorning?.time ?? MORNING_LIQUIDATION_DEFAULTS.time,
++    fallback_time: storedMorning?.fallback_time ?? MORNING_LIQUIDATION_DEFAULTS.fallback_time,
++    rise_pct: storedMorning?.rise_pct ?? MORNING_LIQUIDATION_DEFAULTS.rise_pct,
++    fall_pct: storedMorning?.fall_pct ?? MORNING_LIQUIDATION_DEFAULTS.fall_pct,
++  }
+ 
+   useEffect(() => {
+     if (!open) return
+@@ -99,10 +105,12 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
+       if (!d.name.trim()) throw new Error('请输入信号名称')
+       if (!specialized && d.conditions.length === 0) throw new Error('至少需要一个条件')
+       if (morning) {
+-        if (!/^(09|10|11):[0-5]\d:[0-5]\d$/.test(morningParams.time)
+-          || morningParams.time < '09:30:00' || morningParams.time > '11:30:00') throw new Error('清仓截止时间须为 09:30:00～11:30:00')
+-        if (!Number.isFinite(morningParams.amplitude_pct) || morningParams.amplitude_pct < 0
+-          || morningParams.amplitude_pct > 100) throw new Error('振幅阈值须为 0～100%')
++        if (![morningParams.time, morningParams.fallback_time].every(at =>
++          /^(09|10|11):[0-5]\d:[0-5]\d$/.test(at) && at >= '09:30:00' && at <= '11:30:00'))
++          throw new Error('止损时间和兜底时间须为 09:30:00～11:30:00')
++        if (morningParams.fallback_time <= morningParams.time) throw new Error('兜底时间须晚于止损时间')
++        if (![morningParams.rise_pct, morningParams.fall_pct].every(value =>
++          Number.isFinite(value) && value > 0 && value <= 100)) throw new Error('涨跌幅阈值须大于0且不超过100%')
+       }
+       if (lateSession) {
+         const p = lateParams
+@@ -209,26 +217,39 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
+                 <div className="space-y-4">
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                     <label className="space-y-1.5">
+-                      <span className="text-[11px] text-muted">清仓截止时间（北京时间）</span>
+-                      <input aria-label="清仓截止时间" type="time" step="1" min="09:30:00" max="11:30:00"
++                      <span className="text-[11px] text-muted">止损时间（北京时间）</span>
++                      <input aria-label="止损时间" type="time" step="1" min="09:30:00" max="11:30:00"
+                         value={morningParams.time} onChange={e => setDraft(d => ({ ...d,
+                           params: { ...morningParams, time: e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value } }))}
+                         className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                     </label>
+                     <label className="space-y-1.5">
+-                      <span className="text-[11px] text-muted">振幅阈值（%）</span>
+-                      <input aria-label="振幅阈值（%）" type="number" min="0" max="100" step="0.1" value={morningParams.amplitude_pct}
++                      <span className="text-[11px] text-muted">兜底时间（北京时间）</span>
++                      <input aria-label="兜底时间" type="time" step="1" min="09:30:00" max="11:30:00"
++                        value={morningParams.fallback_time} onChange={e => setDraft(d => ({ ...d,
++                          params: { ...morningParams, fallback_time: e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value } }))}
++                        className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
++                    </label>
++                    {([['rise_pct', '涨幅阈值（%）'], ['fall_pct', '跌幅阈值（%）']] as const).map(([key, label]) => (
++                    <label key={key} className="space-y-1.5">
++                      <span className="text-[11px] text-muted">{label}</span>
++                      <input aria-label={label} type="number" min="0.1" max="100" step="0.1" value={morningParams[key]}
+                         onChange={e => setDraft(d => ({ ...d, params: { ...morningParams,
+-                          amplitude_pct: e.target.value === '' ? NaN : Number(e.target.value) } }))}
++                          [key]: e.target.value === '' ? NaN : Number(e.target.value) } }))}
+                         className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                     </label>
++                    ))}
+                   </div>
++                  {signal?.template === 'morning_liquidation' && (signal.params as MorningLiquidationParams)?.amplitude_pct != null && (
++                    <p className="text-[11px] leading-5 text-amber-400">此信号原为旧振幅规则，保存后转换为以上涨跌幅及双时间规则。</p>
++                  )}
+                   <p className="text-[11px] leading-5 text-muted">
+                     以每笔持仓买入后的下一个交易日为准，跳过周末和休市日。
+-                    截止时间前振幅达到或超过阈值即触发清仓；仍未达到时，截止时间一到立即触发。
+-                    振幅 =（当日至当前最高价 − 最低价）/ 昨收 × 100%。
+-                    使用新鲜实时行情，已完成分钟 K 线可用于补判；行情缺失时截止清仓仍有效。
+-                    用于有买入日期的通用分钟策略持仓监控；S01/S02 专用规则与收益回测暂不支持。
++                    现价相对原始昨收的涨幅或跌幅达到对应阈值时提前清仓。
++                    涨跌幅 =（现价 / 原始昨收 − 1）× 100%，跌幅参数填写正数。
++                    止损时间到无条件清仓；未卖完继续处理，兜底时间再次对余股触发。
++                    使用新鲜实时行情，已完成分钟 K 线可用于补判；行情缺失时清仓时钟仍有效。
++                    用于有买入日期的通用分钟策略持仓监控及连续资金收益回测；回测时间须为整分钟。S01/S02 专用执行规则暂不支持追加本触发器。
+                     信号触发后由交易模块处理成交，停牌、跌停或不可卖持仓可能无法成交。
+                   </p>
+                 </div>
+diff --git a/frontend/src/lib/api.ts b/frontend/src/lib/api.ts
+index 4192e1f8..929c6692 100644
+--- a/frontend/src/lib/api.ts
++++ b/frontend/src/lib/api.ts
+@@ -949,7 +949,10 @@ export interface LateSessionStrengthParams {
+ 
+ export interface MorningLiquidationParams {
+   time: string
+-  amplitude_pct: number
++  fallback_time?: string
++  rise_pct?: number
++  fall_pct?: number
++  amplitude_pct?: number // 冻结旧振幅定义，仅用于兼容读取
+ }
+ 
+ export interface CustomSignalFieldGroup {
+diff --git a/frontend/src/lib/backtestTask.ts b/frontend/src/lib/backtestTask.ts
+index 6f5e8667..ee809920 100644
+--- a/frontend/src/lib/backtestTask.ts
++++ b/frontend/src/lib/backtestTask.ts
+@@ -145,8 +145,9 @@ async function connectSSE(url: string): Promise<void> {
+     // SSE error 事件: 有 data 说明是后端主动推送的错误/取消; 无 data 说明是连接断开
+     if (e.data) {
+       try {
+-        const msg = JSON.parse(e.data)?.message ?? '回测出错'
+-        current = { ...current, isPending: false, error: msg, reconnecting: false }
++        const payload = JSON.parse(e.data)
++        const msg = payload?.message ?? '回测出错'
++        current = { ...current, isPending: false, result: payload?.result ?? current.result, error: msg, reconnecting: false }
+         emit()
+       } catch {
+         current = { ...current, isPending: false, error: '回测出错', reconnecting: false }
+diff --git a/frontend/src/lib/customSignals.ts b/frontend/src/lib/customSignals.ts
+index e64187a0..b632ce9a 100644
+--- a/frontend/src/lib/customSignals.ts
++++ b/frontend/src/lib/customSignals.ts
+@@ -5,8 +5,8 @@ export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
+   pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4,
+ }
+ 
+-export const MORNING_LIQUIDATION_DEFAULTS: MorningLiquidationParams = {
+-  time: '10:30:00', amplitude_pct: 6,
++export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParams, 'amplitude_pct'>> = {
++  time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
+ }
+ 
+ export const customSignalColumn = (signal: CustomSignal) =>
+@@ -24,10 +24,16 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
+ }
+ 
+ export function morningLiquidationSummary(signal: CustomSignal): string[] {
+-  const p = { ...MORNING_LIQUIDATION_DEFAULTS, ...signal.params as Partial<MorningLiquidationParams> }
++  const stored = signal.params as Partial<MorningLiquidationParams> | undefined
++  if (stored?.amplitude_pct != null) return [
++    `旧振幅 ≥ ${stored.amplitude_pct}%，次交易日 ${stored.time ?? '10:30:00'} 前提前清仓`,
++    `未达到阈值，在 ${stored.time ?? '10:30:00'} 触发清仓（北京时间）`,
++    '旧振幅 =（当日至当前最高价 − 最低价）/ 昨收 × 100%；编辑保存后转换为涨跌幅规则',
++  ]
++  const p = { ...MORNING_LIQUIDATION_DEFAULTS, ...stored }
+   return [
+-    `买入后下一个交易日 ${p.time} 前，振幅 ≥ ${p.amplitude_pct}% 提前清仓`,
+-    `未达到阈值，在 ${p.time} 触发清仓（北京时间）`,
+-    '振幅 =（当日至当前最高价 − 最低价）/ 昨收 × 100%',
++    `止损时间 ${p.time}，兜底时间 ${p.fallback_time}（北京时间，买入后下一个交易日）`,
++    `现价相对原始昨收：涨幅 ≥ ${p.rise_pct}% 或跌幅 ≥ ${p.fall_pct}% 提前清仓`,
++    '止损时间到无条件清仓；兜底时间再次处理余股，成交受停牌、跌停及容量限制',
+   ]
+ }
+diff --git a/frontend/src/pages/backtest/StrategyBacktest.test.tsx b/frontend/src/pages/backtest/StrategyBacktest.test.tsx
+index 826ea7d0..7878feda 100644
+--- a/frontend/src/pages/backtest/StrategyBacktest.test.tsx
++++ b/frontend/src/pages/backtest/StrategyBacktest.test.tsx
+@@ -261,10 +261,14 @@ it.each(['overnight_capacity_v1', 'generic_morning_liquidation_v1', 'generic_mor
+     shares: 100, price: 10, notional: 1000, fee: 5.01, minute_volume_shares: 2000, participation: .05,
+   }]
+   task.result!.signals = [{ date: '2026-10-02', symbol: '600000.SH', reason: 'time_guard', signal_bar: 682 }]
++  task.error = task.result!.error
++  task.result!.stats.execution.remaining_positions = [{ symbol: '600000.SH', remaining: 100 }]
+   state.task = task
+   await render()
+   expect(host.textContent).toContain('11:29到期剩余100股')
+   expect(host.textContent).toContain('分钟成交分片（1行）')
++  expect(host.textContent).toContain('600000.SH 剩余100股')
++  expect(host.textContent).not.toContain('下方仍展示上一次成功结果')
+   const create = vi.fn((_blob: Blob) => 'blob:minute-ledger')
+   const revoke = vi.fn()
+   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: create })
+diff --git a/frontend/src/pages/backtest/StrategyBacktest.tsx b/frontend/src/pages/backtest/StrategyBacktest.tsx
+index 313bd7e5..0d8f4c2f 100644
+--- a/frontend/src/pages/backtest/StrategyBacktest.tsx
++++ b/frontend/src/pages/backtest/StrategyBacktest.tsx
+@@ -2007,7 +2007,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
+           </div>
+           {hasMorningExit && (
+             <div className="col-span-2 text-[10px] leading-4 text-muted">
+-              按实际买入日期，在下一交易日早盘达到振幅阈值或截止时间时清仓；不足成交量保留余股并报告失败。
++              按实际买入日期，在下一交易日早盘达到所配阈值或止损时间时清仓；余股继续撮合至兜底时间，仍未卖完保留余股并报告失败。旧振幅定义沿用冻结规则。
+               使用仓位模拟和回测费用设置，日线叠加只读取已完成日K。
+             </div>
+           )}
+@@ -2265,7 +2265,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
+           <MinuteExecutionLedger result={result} />
+         </>}
+ 
+-        {backtestTask?.error && (
++        {backtestTask?.error && !backtestTask.result && (
+           <div className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-btn px-3 py-2">
+             <div>{backtestTask.error}</div>
+             {result && (
+@@ -2968,7 +2968,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
+                 <div className="mt-1">触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。</div>
+                 {hasMorningExit ? <>
+                   <div>分钟建仓按策略声明的信号分钟收盘或紧邻下一分钟开盘；清仓使用下一交易日触发分钟收盘。</div>
+-                  <div>早盘振幅达到阈值提前清仓，否则到截止时间清仓；需关闭其他出场触发器、固定/移动风控及最长持有。</div>
++                  <div>现价相对原始昨收达到涨幅或跌幅阈值提前清仓，否则到止损时间清仓，兜底时间再次处理余股；旧振幅定义沿用冻结规则。需关闭其他出场触发器、固定/移动风控及最长持有。</div>
+                 </> : <>
+                   <div>成交口径可分别设置建仓/清仓：默认建仓次日开盘（避免未来函数）、清仓当日收盘（持仓中可盘中/收盘卖）。</div>
+                   <div>退出优先级：止损/移动止损 &gt; 卖点信号 &gt; 到期平仓；到期只作兜底，不抢占卖点或风控。</div>
+diff --git a/backend/tests/test_morning_liquidation_returns.py b/backend/tests/test_morning_liquidation_returns.py
+new file mode 100644
+--- /dev/null
++++ b/backend/tests/test_morning_liquidation_returns.py
+@@ -0,0 +1,200 @@
++"""Independent raw-close return exits and a real two-stage liquidation clock."""
++from datetime import date, datetime, timedelta
++
++import polars as pl
++import pytest
++
++from app.market_time import CN_TZ
++from app.strategy import custom_signals
++from app.strategy.morning_liquidation import evaluate, parameters
++
++DAY = date(2026, 9, 7)
++AT = datetime(2026, 9, 7, 10)
++
++
++def signal(**patch):
++    return {"id": "morning_liquidation", "name": "早盘清仓", "kind": "exit",
++            "timeframe": "intraday", "template": "morning_liquidation",
++            "conditions": [], "enabled": True,
++            "params": {"time": "10:30:00", "fallback_time": "10:45:00",
++                       "rise_pct": 6, "fall_pct": 2, **patch}}
++
++
++def position(**patch):
++    return {"symbol": "a", "entry_date": "2026-09-04", "qty": 100,
++            "available_qty": 100, "account_id": "own", "cycle_id": "batch",
++            "entry_price": 18, **patch}
++
++
++def frame(price=10, *, at=AT, high=12, low=8):
++    return pl.DataFrame({"symbol": ["a"], "datetime": [at], "close": [float(price)],
++                         "high": [high], "low": [low]})
++
++
++def run(data=None, *, sig=None, now=AT, positions=None, prev_close=None, quotes=None):
++    return evaluate(frame() if data is None else data, sig or signal(), day=DAY, now=now,
++                    positions=positions if positions is not None else [position()],
++                    prev_close={"a": 10} if prev_close is None else prev_close, quotes=quotes)
++
++
++def test_new_template_defaults_and_roundtrip(tmp_path):
++    fresh = {**signal(), "params": {}}
++    assert parameters(fresh) == {"time": "10:30:00", "fallback_time": "10:45:00",
++                                  "rise_pct": 6, "fall_pct": 6}
++    custom_signals.save_one(tmp_path, signal(rise_pct=8, fall_pct=3))
++    assert custom_signals.load_all(tmp_path) == [signal(rise_pct=8, fall_pct=3)]
++
++
++@pytest.mark.parametrize("patch", [
++    {"fallback_time": "10:30:00"}, {"fallback_time": "10:29:59"},
++    {"fallback_time": "11:30:01"}, {"fallback_time": "10:4:00"},
++    {"rise_pct": 0}, {"rise_pct": -1}, {"rise_pct": 101},
++    {"fall_pct": 0}, {"fall_pct": -2}, {"fall_pct": True},
++    {"fall_pct": float("nan")}, {"amplitude_pct": 6},
++])
++def test_invalid_new_parameters_are_rejected(patch):
++    with pytest.raises(ValueError):
++        parameters(signal(**patch))
++
++
++@pytest.mark.parametrize("price,reason,change", [
++    (10.6, "rise", .06), (9.8, "fall", -.02),
++])
++def test_each_inclusive_return_threshold_uses_raw_previous_close(price, reason, change):
++    hit, = run(frame(price)).hits
++    assert hit["reason"] == reason
++    assert hit["change_pct"] == pytest.approx(change)
++    assert hit["source"] == "completed_minute"
++    assert hit["trigger_time"] == AT.isoformat()
++    assert hit["available_qty"] == 100 and hit["cycle_id"] == "batch"
++
++
++@pytest.mark.parametrize("price", [10, 10.599, 9.801])
++def test_range_and_purchase_pnl_do_not_replace_current_return(price):
++    assert not run(frame(price)).hits
++
++
++def test_raw_minute_price_takes_priority_over_adjusted_close():
++    data = frame(5.3).with_columns(pl.lit(10.6).alias("raw_close"))
++    assert run(data).hits[0]["reason"] == "rise"
++
++
++def test_no_future_price_and_restart_retains_first_completed_trigger():
++    future = frame(11, at=AT + timedelta(minutes=1))
++    assert not run(future).hits
++    data = pl.concat([frame(10.6), frame(10, at=AT + timedelta(minutes=1))])
++    hit, = run(data, now=AT + timedelta(minutes=2)).hits
++    assert hit["reason"] == "rise" and hit["trigger_time"] == AT.isoformat()
++
++
++def test_live_quote_uses_fresh_price_and_authoritative_raw_previous_close():
++    quote = pl.DataFrame({"symbol": ["a"], "price": [9.8], "prev_close": [99.],
++                          "quote_ts": [AT.replace(tzinfo=CN_TZ).timestamp()]})
++    hit, = run(quotes=quote, now=AT + timedelta(seconds=4)).hits
++    assert hit["reason"] == "fall" and hit["source"] == "live_quote"
++    assert hit["change_pct"] == pytest.approx(-.02)
++    assert not run(quotes=quote, now=AT + timedelta(seconds=16)).hits
++    assert not run(quotes=quote, now=AT - timedelta(seconds=3)).hits
++    assert not run(quotes=quote, prev_close={}).hits
++
++
++def test_stop_and_fallback_work_without_quotes_and_only_for_remaining_qty():
++    empty = pl.DataFrame()
++    assert not run(empty, prev_close={}, now=AT.replace(minute=29, second=59)).hits
++    stop, = run(empty, prev_close={}, now=AT.replace(minute=30)).hits
++    assert stop["reason"] == "stop_time" and stop["trigger_time"].endswith("10:30:00")
++    fallback, = run(empty, prev_close={}, now=AT.replace(minute=45),
++                    positions=[position(qty=40, available_qty=40)]).hits
++    assert fallback["reason"] == "fallback"
++    assert fallback["trigger_time"].endswith("10:45:00") and fallback["available_qty"] == 40
++    assert not run(empty, now=AT.replace(minute=45),
++                   positions=[position(qty=0, available_qty=0)]).hits
++    assert not run(empty, now=AT.replace(minute=45),
++                   positions=[position(entry_date=str(DAY), available_qty=0)]).hits
++
++
++def test_fallback_is_distinct_even_when_an_earlier_return_trigger_is_replayed():
++    hit, = run(frame(10.6), now=AT.replace(minute=45)).hits
++    assert hit["reason"] == "fallback" and hit["source"] == "clock"
++    assert hit["trigger_time"].endswith("10:45:00")
++
++
++def test_stop_retriggers_remaining_holdings_after_an_earlier_return_hit():
++    hit, = run(frame(10.6), now=AT.replace(minute=30),
++               positions=[position(qty=40, available_qty=40)]).hits
++    assert hit["reason"] == "stop_time" and hit["source"] == "clock"
++    assert hit["trigger_time"].endswith("10:30:00") and hit["available_qty"] == 40
++
++
++def test_legacy_amplitude_definition_keeps_its_frozen_semantics():
++    legacy = {**signal(), "params": {"time": "10:30:00", "amplitude_pct": 6}}
++    assert run(frame(10, high=10.6, low=10), sig=legacy).hits[0]["reason"] == "amplitude"
++    hit, = run(pl.DataFrame(), sig=legacy, now=AT.replace(minute=45)).hits
++    assert hit["reason"] == "deadline" and hit["trigger_time"].endswith("10:30:00")
++
++
++def test_monitor_dedup_keeps_separate_holding_exit_stages():
++    from app.strategy.engine import StrategyEngine
++    from app.strategy.monitor import MonitorRuleEngine
++
++    monitor = MonitorRuleEngine(StrategyEngine([]))
++    key = ("rule", "custom", "stock")
++    assert monitor._new_strategy_signals(key, "sell_signal", DAY, []) == set()
++    stop = {"symbol": "a", "signals": ["csgi_morning_liquidation"], "holding_exit": True,
++            "account_id": "own", "cycle_id": "batch", "entry_date": "2026-09-04",
++            "reason": "stop_time", "trigger_time": "2026-09-07T10:30:00"}
++    assert monitor._new_strategy_signals(key, "sell_signal", DAY, [stop]) == {"a"}
++    assert monitor._new_strategy_signals(key, "sell_signal", DAY, [stop]) == set()
++    fallback = {**stop, "reason": "fallback", "trigger_time": "2026-09-07T10:45:00"}
++    assert monitor._new_strategy_signals(key, "sell_signal", DAY, [fallback]) == {"a"}
++    assert monitor._new_strategy_signals(key, "sell_signal", DAY, [fallback]) == set()
++
++
++def test_signal_replay_preserves_early_return_and_later_fallback():
++    from app.services.morning_liquidation_replay import replay
++
++    class Repo:
++        def get_daily_batch(self, *args, **kwargs):
++            return pl.DataFrame({"symbol": ["a"], "date": [date(2026, 9, 4)],
++                                 "close": [5.], "raw_close": [10.]})
++
++        def get_minute_batch(self, *args, **kwargs):
++            return frame(10.6)
++
++    result = replay(Repo(), signal(), start=DAY, end=DAY, symbols=["a"], positions=[position()])
++    assert [(hit["reason"], hit["time"]) for hit in result["triggers"]] == [
++        ("rise", "10:00:00"), ("stop_time", "10:30:00"), ("fallback", "10:45:00"),
++    ]
++
++
++def test_signal_replay_does_not_substitute_an_older_previous_close():
++    from app.services.morning_liquidation_replay import replay
++
++    class Repo:
++        def get_daily_batch(self, *args, **kwargs):
++            return pl.DataFrame({"symbol": ["a"], "date": [date(2026, 9, 3)],
++                                 "close": [10.], "raw_close": [10.]})
++
++        def get_minute_batch(self, *args, **kwargs):
++            return frame(10.6)
++
++    result = replay(Repo(), signal(), start=DAY, end=DAY, symbols=["a"], positions=[position()])
++    assert all(hit["reason"] in ("stop_time", "fallback") for hit in result["triggers"])
++
++
++def test_live_engine_requires_exact_prior_session_for_new_return_definition(tmp_path):
++    from test_morning_liquidation import sample_engine
++
++    from app.strategy.engine import StrategyDataContext
++
++    engine = sample_engine(tmp_path)
++    custom_signals.save_one(tmp_path, signal())
++    prior = pl.DataFrame({"symbol": ["a"], "date": [date(2026, 9, 3)],
++                          "close": [5.], "raw_close": [10.]})
++    context = StrategyDataContext("stock", "1m", DAY, history=frame(10.6),
++                                  positions=[position()], observed_at=AT, pool_history=prior)
++    overrides = {"exit_signals": ["csgi_morning_liquidation"]}
++    assert not engine.run("sample", context, overrides=overrides).exit_signal_hits
++    context.pool_history = prior.with_columns(pl.lit(date(2026, 9, 4)).alias("date"))
++    hit, = engine.run("sample", context, overrides=overrides).exit_signal_hits
++    assert hit["reason"] == "rise" and hit["change_pct"] == pytest.approx(.06)
+diff --git a/backend/tests/backtest/test_morning_returns_backtest.py b/backend/tests/backtest/test_morning_returns_backtest.py
+new file mode 100644
+--- /dev/null
++++ b/backend/tests/backtest/test_morning_returns_backtest.py
+@@ -0,0 +1,104 @@
++"""A real liquidation window after stop time, retaining partial-fill economics."""
++from datetime import datetime, timedelta
++
++import polars as pl
++import pytest
++from test_minute_backtest import _minute_frame
++from test_morning_backtest import BUY, SELL, SYMBOL, configuration, service_fixture
++
++from app.strategy import custom_signals
++
++
++def frame():
++    start = datetime.combine(SELL, datetime.min.time()).replace(hour=9, minute=31)
++    return _minute_frame(SELL, [
++        (SYMBOL, (start + timedelta(minutes=i)).strftime("%H:%M"), 10.4)
++        for i in range(75)
++    ])
++
++
++def run(tmp_path, data, **patch):
++    service, _, _ = service_fixture(tmp_path, frames={
++        BUY: _minute_frame(BUY, [(SYMBOL, "14:30", 10.2)]), SELL: data,
++    })
++    custom_signals.save_one(tmp_path, {
++        "id": "morning_liquidation", "name": "早盘清仓", "kind": "exit",
++        "timeframe": "intraday", "template": "morning_liquidation", "conditions": [],
++        "enabled": True, "params": {"time": "10:30:00", "fallback_time": "10:45:00",
++                                   "rise_pct": 6, "fall_pct": 2},
++    })
++    return service.run(configuration(**patch))
++
++
++def volume(data, amounts):
++    return data.with_columns(pl.col("datetime").dt.strftime("%H:%M").replace_strict(
++        amounts, default=0., return_dtype=pl.Float64,
++    ).alias("volume"))
++
++
++def test_partial_stop_liquidation_finishes_in_following_real_minutes(tmp_path):
++    result = run(tmp_path, volume(frame(), {"10:30": 1., "10:31": 1., "10:32": 2.}))
++    assert not result.error, result.error
++    sells = [fill for fill in result.fills if fill["side"] == "sell"]
++    assert [fill["shares"] for fill in sells] == [100, 100, 200]
++    assert [fill["datetime"][-8:] for fill in sells] == ["10:30:00", "10:31:00", "10:32:00"]
++    assert sum(fill["fee"] for fill in sells) == pytest.approx(7.08)
++    assert result.trades[0]["exit_date"] == f"{SELL} 10:32"
++    assert result.stats["execution"]["remaining_positions"] == []
++
++
++def test_fallback_can_use_its_own_real_minute_capacity(tmp_path):
++    result = run(tmp_path, volume(frame(), {"10:45": 4.}))
++    assert not result.error, result.error
++    assert result.trades[0]["exit_date"] == f"{SELL} 10:45"
++    assert result.fills[-1]["shares"] == 400
++    assert any(hit["reason"] == "fallback" for hit in result.signals if hit["side"] == "sell")
++
++
++def test_remaining_at_fallback_keeps_actual_cash_and_blocks_later_entries(tmp_path):
++    data = pl.concat([frame(), _minute_frame(SELL, [(SYMBOL, "14:30", 10.4)])])
++    result = run(tmp_path, volume(data, {"10:30": 1., "10:45": 1., "14:30": 10000.}))
++    assert result.error and "10:45" in result.error and "余股" in result.error
++    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 200
++    assert not result.trades and not result.equity_curve
++    assert len(result.fills) == 3
++    assert sum(fill["notional"] - fill["fee"] if fill["side"] == "sell"
++               else -fill["notional"] - fill["fee"] for fill in result.fills) + 10000 == pytest.approx(
++                   result.stats["execution"]["cash"])
++
++
++def test_missing_intermediate_minute_cannot_be_replaced_by_later_capacity(tmp_path):
++    data = volume(frame(), {"10:30": 1., "10:32": 10000.}).filter(
++        pl.col("datetime").dt.strftime("%H:%M") != "10:31")
++    result = run(tmp_path, data)
++    assert result.error and "窗口" in result.error
++    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 300
++    assert len(result.fills) == 2
++
++
++def test_stop_signal_retriggers_only_actual_remainder_of_early_partial_exit(tmp_path):
++    data = frame().with_columns(*[
++        pl.when(pl.col("datetime").dt.strftime("%H:%M") == "10:00")
++        .then(10.6).otherwise(pl.col(column)).alias(column)
++        for column in ("open", "high", "low", "close")])
++    result = run(tmp_path, volume(data, {"10:00": 1., "10:30": 1., "10:45": 2.}))
++    assert not result.error, result.error
++    sells = [hit for hit in result.signals if hit["side"] == "sell"]
++    assert [(hit["reason"], hit["available_qty"]) for hit in sells] == [
++        ("rise", 400), ("stop_time", 300), ("fallback", 200)]
++    assert [f["shares"] for f in result.fills if f["side"] == "sell"] == [100, 100, 200]
++    assert sum(f["fee"] for f in result.fills if f["side"] == "sell") == pytest.approx(7.09)
++
++
++@pytest.mark.parametrize("price,reason", [(10.6, "rise"), (9.8, "fall")])
++def test_early_exit_follows_current_raw_return_not_high_low_range(tmp_path, price, reason):
++    data = frame().with_columns(*[
++        pl.when(pl.col("datetime").dt.strftime("%H:%M") == "10:00")
++        .then(price).otherwise(pl.col(column)).alias(column)
++        for column in ("open", "high", "low", "close")
++    ])
++    result = run(tmp_path, data)
++    assert not result.error, result.error
++    assert result.trades[0]["exit_date"] == f"{SELL} 10:00"
++    assert result.trades[0]["exit_price"] == pytest.approx(price)
++    assert result.signals[1]["reason"] == reason
+diff --git a/frontend/src/components/signals/CustomSignalDialog.returns.test.tsx b/frontend/src/components/signals/CustomSignalDialog.returns.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/frontend/src/components/signals/CustomSignalDialog.returns.test.tsx
+@@ -0,0 +1,99 @@
++// @vitest-environment jsdom
++import { act } from 'react'
++import { createRoot } from 'react-dom/client'
++import { MemoryRouter } from 'react-router-dom'
++import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
++import { expect, it, vi } from 'vitest'
++import { CustomSignalDialog } from './CustomSignalDialog'
++import { api } from '@/lib/api'
++
++vi.mock('@/components/Modal', () => ({ Modal: ({ children }: any) => <div>{children}</div> }))
++
++async function fixture(signal?: any) {
++  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
++  vi.spyOn(api, 'customSignalsOptions').mockResolvedValue({ fields: [], operators: [], kinds: [] })
++  vi.spyOn(api, 'strategyAiStatus').mockResolvedValue({ configured: false } as any)
++  const save = vi.spyOn(api, 'customSignalSave').mockImplementation(async value => ({ ok: true, signal: value }))
++  const host = document.createElement('div')
++  const root = createRoot(host)
++  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
++  const render = async (value?: any) => {
++    await act(async () => root.render(<QueryClientProvider client={qc}><MemoryRouter>
++      <CustomSignalDialog open signal={value} onClose={() => {}} />
++    </MemoryRouter></QueryClientProvider>))
++  }
++  await render(signal)
++  if (!signal) {
++    const template = host.querySelector<HTMLSelectElement>('select[aria-label="信号模板"]')!
++    await act(async () => {
++      template.value = 'morning_liquidation'
++      template.dispatchEvent(new Event('change', { bubbles: true }))
++    })
++  }
++  const input = (name: string) => host.querySelector<HTMLInputElement>(`input[aria-label="${name}"]`)
++  const fill = async (name: string, value: string) => {
++    const element = input(name)!
++    expect(element).not.toBeNull()
++    await act(async () => {
++      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value)
++      element.dispatchEvent(new Event('input', { bubbles: true }))
++    })
++  }
++  const submit = async () => {
++    await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
++  }
++  const close = async () => { await act(async () => root.unmount()); vi.restoreAllMocks() }
++  return { host, save, input, fill, submit, render, close }
++}
++
++it('saves and reloads two independent return thresholds and both times', async () => {
++  const f = await fixture()
++  try {
++    expect(f.input('止损时间')?.value).toBe('10:30:00')
++    expect(f.input('兜底时间')?.value).toBe('10:45:00')
++    expect(f.input('涨幅阈值（%）')?.value).toBe('6')
++    expect(f.input('跌幅阈值（%）')?.value).toBe('6')
++    await f.fill('涨幅阈值（%）', '8')
++    await f.fill('跌幅阈值（%）', '2')
++    await f.fill('止损时间', '10:15:32')
++    await f.fill('兜底时间', '10:50:15')
++    await f.submit()
++    expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
++      params: { time: '10:15:32', fallback_time: '10:50:15', rise_pct: 8, fall_pct: 2 },
++    }))
++    await f.render(f.save.mock.calls[0][0])
++    expect(f.input('跌幅阈值（%）')?.value).toBe('2')
++    expect(f.input('兜底时间')?.value).toBe('10:50:15')
++  } finally { await f.close() }
++})
++
++it('rejects fallback no later than stop and nonpositive fall thresholds', async () => {
++  const f = await fixture()
++  try {
++    await f.fill('兜底时间', '10:30:00')
++    await f.submit()
++    expect(f.save).not.toHaveBeenCalled()
++    expect(f.host.textContent).toContain('晚于止损时间')
++    await f.fill('兜底时间', '10:45:00')
++    await f.fill('跌幅阈值（%）', '0')
++    await f.submit()
++    expect(f.save).not.toHaveBeenCalled()
++    expect(f.host.textContent).toContain('涨跌幅阈值')
++  } finally { await f.close() }
++})
++
++it('converts legacy amplitude editing explicitly while preserving its chosen stop time', async () => {
++  const f = await fixture({
++    id: 'morning', name: '早盘清仓', kind: 'exit', timeframe: 'intraday',
++    template: 'morning_liquidation', enabled: true, conditions: [],
++    params: { time: '10:15:32', amplitude_pct: 5 },
++  })
++  try {
++    expect(f.input('止损时间')?.value).toBe('10:15:32')
++    expect(f.host.textContent).toContain('保存后')
++    await f.submit()
++    expect(f.save.mock.calls[0][0].params).toEqual({
++      time: '10:15:32', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
++    })
++  } finally { await f.close() }
++})
+diff --git a/frontend/src/lib/customSignals.test.ts b/frontend/src/lib/customSignals.test.ts
+new file mode 100644
+--- /dev/null
++++ b/frontend/src/lib/customSignals.test.ts
+@@ -0,0 +1,30 @@
++import { expect, it } from 'vitest'
++import { MORNING_LIQUIDATION_DEFAULTS, morningLiquidationSummary } from './customSignals'
++
++it('offers independent return thresholds and both default clocks', () => {
++  expect(MORNING_LIQUIDATION_DEFAULTS).toEqual({
++    time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
++  })
++  const lines = morningLiquidationSummary({
++    id: 'morning', name: '早盘清仓', kind: 'exit', timeframe: 'intraday',
++    template: 'morning_liquidation', enabled: true, conditions: [],
++    params: { time: '10:30:00', fallback_time: '10:45:00', rise_pct: 8, fall_pct: 2 } as any,
++  }).join(' ')
++  expect(lines).toContain('止损时间')
++  expect(lines).toContain('兜底时间')
++  expect(lines).toContain('8%')
++  expect(lines).toContain('2%')
++  expect(lines).toContain('原始昨收')
++})
++
++it('labels stored legacy amplitude semantics until the signal is edited and saved', () => {
++  const lines = morningLiquidationSummary({
++    id: 'morning', name: '早盘清仓', kind: 'exit', timeframe: 'intraday',
++    template: 'morning_liquidation', enabled: true, conditions: [],
++    params: { time: '10:15:00', amplitude_pct: 5 },
++  }).join(' ')
++  expect(lines).toContain('旧振幅')
++  expect(lines).toContain('5%')
++  expect(lines).toContain('10:15:00')
++  expect(lines).not.toContain('10:45:00')
++})
+diff --git a/frontend/src/lib/backtestTask.test.tsx b/frontend/src/lib/backtestTask.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/frontend/src/lib/backtestTask.test.tsx
+@@ -0,0 +1,37 @@
++// @vitest-environment jsdom
++import { act } from 'react'
++import { createRoot } from 'react-dom/client'
++import { expect, it, vi } from 'vitest'
++import { attachBacktestJob, useBacktestTask, type BacktestTask } from './backtestTask'
++
++vi.mock('./accountSession', () => ({
++  accountFetch: vi.fn(async () => ({ ok: true, body: { cancel: async () => {} } })),
++  accountStorage: { setItem: vi.fn(), removeItem: vi.fn(), getItem: vi.fn() },
++  accountStreamUrl: (url: string) => url,
++}))
++
++it('restores a rejected cash ledger from the terminal error event', async () => {
++  const handlers = new Map<string, (event: { data: string }) => void>()
++  class Stream {
++    onopen = null
++    addEventListener(type: string, handler: (event: { data: string }) => void) { handlers.set(type, handler) }
++    close() {}
++  }
++  vi.stubGlobal('EventSource', Stream)
++  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
++  let snapshot: BacktestTask | null = null
++  function Observer() { snapshot = useBacktestTask(); return null }
++  const host = document.createElement('div')
++  const root = createRoot(host)
++  try {
++    await act(async () => { root.render(<Observer />); attachBacktestJob('failed-job') })
++    const result = { error: '截止余股', fills: [{ shares: 4600 }],
++      stats: { minute_execution: 'generic_morning_liquidation_resume_v2',
++        execution: { remaining_positions: [{ symbol: '600373.SH', remaining: 700 }] } } }
++    await act(async () => handlers.get('error')!({ data: JSON.stringify({ message: result.error, result }) }))
++    expect(snapshot).toMatchObject({ isPending: false, error: '截止余股', result })
++  } finally {
++    await act(async () => root.unmount())
++    vi.unstubAllGlobals()
++  }
++})

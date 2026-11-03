@@ -1,5 +1,31 @@
 import { expect, it } from 'vitest'
-import { MORNING_LIQUIDATION_DEFAULTS, morningLiquidationSummary } from './customSignals'
+import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, lateSessionSummary, morningLiquidationSummary } from './customSignals'
+
+it('summarizes new check time and preserves frozen legacy scheduled time', () => {
+  const signal = { id: 'late', name: '尾盘建仓', kind: 'entry' as const, enabled: true, conditions: [] }
+  expect(LATE_SESSION_DEFAULTS.evaluation_delay_minutes).toBe(1.5)
+  const current = lateSessionSummary({ ...signal, params: LATE_SESSION_DEFAULTS }).join(' ')
+  expect(current).toContain('启动时间 14:30:00')
+  expect(current).toContain('确认时间 14:31:30')
+  expect(current).toContain('K线截止 14:30:00')
+  expect(current).toContain('7 个')
+  expect(current).toContain('6 次')
+  const exact = lateSessionSummary({
+    ...signal, params: { ...LATE_SESSION_DEFAULTS, time: '14:30:20' },
+  }).join(' ')
+  expect(exact).toContain('启动时间 14:30:20')
+  expect(exact).toContain('确认时间 14:31:50')
+  expect(exact).toContain('K线截止 14:30:00')
+  const { evaluation_delay_minutes: _delay, ...legacyParams } = LATE_SESSION_DEFAULTS
+  expect(lateSessionSummary({ ...signal, params: legacyParams }).join(' ')).toContain('旧判断时间 14:30:00')
+  expect(lateSessionSummary({ ...signal, params: { ...LATE_SESSION_DEFAULTS, time: '14:58:00' } })
+    .join(' ')).toContain('确认时间 14:59:30')
+  const previous = lateSessionSummary({ ...signal, params: {
+    ...LATE_SESSION_DEFAULTS, evaluation_delay_minutes: 1,
+  } }).join(' ')
+  expect(previous).toContain('确认时间 14:31:00')
+  expect(previous).toContain('编辑保存后改为启动后90秒')
+})
 
 it('offers independent return thresholds and both default clocks', () => {
   expect(MORNING_LIQUIDATION_DEFAULTS).toEqual({

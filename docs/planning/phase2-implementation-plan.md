@@ -16,13 +16,13 @@
 2026-10-22完整交易日观察及两轮压测按原固定镜像执行，
 未取得终态前不签收第二步持续稳定性，
 不以 SSE 客户端数量推断活跃业务用户容量。生命周期边界见
-[本地变更整合](../../reports/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
+[本地变更整合](../../reports/engineering/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
 
-依据：[二期架构分析](../../reports/phase2-architecture-20261016/architecture-analysis.md)、[多租户两期方案](../architecture.md#target)及用户最新的三步安排。本文是二期实施顺序与阶段规模的当前基线；产品角色、权限、金融数据口径和租户隔离继续沿用一期。
+依据：[二期架构分析](../../reports/engineering/phase2-architecture-20261016/architecture-analysis.md)、[多租户两期方案](../architecture.md#target)及用户最新的三步安排。本文是二期实施顺序与阶段规模的当前基线；产品角色、权限、金融数据口径和租户隔离继续沿用一期。
 
-第一步当前证据见[实施记录](../../reports/phase2-step1-20261016/implementation.md)与[单机实时网关契约](../reference/integrations.md#gateway)。本地代码、定向回归、热路径基准及一次性 PostgreSQL 百人功能验收已完成；真实 Nginx/容器网络下的换票、公共/私有事件和断线恢复已通过，本机隔离边界的 100 客户端突发扇出也已通过。生产切流与 v5→v6 迁移已经完成，持续百用户容量和完整交易时段仍待当前观察终态。
+第一步当前证据见[实施记录](../../reports/engineering/phase2-step1-20261016/implementation.md)与[单机实时网关契约](../reference/integrations.md#gateway)。本地代码、定向回归、热路径基准及一次性 PostgreSQL 百人功能验收已完成；真实 Nginx/容器网络下的换票、公共/私有事件和断线恢复已通过，本机隔离边界的 100 客户端突发扇出也已通过。生产切流与 v5→v6 迁移已经完成，持续百用户容量和完整交易时段仍待当前观察终态。
 
-第二步证据见[实施记录](../../reports/phase2-step2-20261016/implementation.md)与[原始验收结果](../../reports/phase2-step2-20261016/local-100-user-mixed-acceptance.json)。本地长台账、研究 due 调度、100 人同步突发及约 20 RPS 错峰稳态已通过；另已取得周末全股票池快照和四板样本的 Provider→落盘→指标→平台 marker/快照→页面链路、Linux AMD64 全 Compute 功能仿真及双库/目录联合恢复和损坏备份阻断证据。2026-10-18 的 24 小时与 10-19 交易日窗口属于历史记录；当前窗口及失败证据见[延长验证](../../reports/online-timeout-20261021/extended-validation.md)，不能拼接为新的持续通过结论，24 小时结果不声明 72 小时认证。
+第二步证据见[实施记录](../../reports/engineering/phase2-step2-20261016/implementation.md)与[原始验收结果](../../reports/engineering/phase2-step2-20261016/local-100-user-mixed-acceptance.json)。本地长台账、研究 due 调度、100 人同步突发及约 20 RPS 错峰稳态已通过；另已取得周末全股票池快照和四板样本的 Provider→落盘→指标→平台 marker/快照→页面链路、Linux AMD64 全 Compute 功能仿真及双库/目录联合恢复和损坏备份阻断证据。2026-10-18 的 24 小时与 10-19 交易日窗口属于历史记录；当前窗口及失败证据见[延长验证](../../reports/online-timeout-20261021/extended-validation.md)，不能拼接为新的持续通过结论，24 小时结果不声明 72 小时认证。
 
 ## 1. 三步目标与规模口径
 

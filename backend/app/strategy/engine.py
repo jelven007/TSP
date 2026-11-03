@@ -1167,6 +1167,8 @@ class StrategyEngine:
             time_column = "last_datetime" if "last_datetime" in df.columns else "datetime"
             missing_signals = [name for name in entry_signals + exit_signals
                                if name.startswith("csgi_") and name in history.columns and name not in df.columns]
+            if "entry_evaluated_at" in history.columns and "entry_evaluated_at" not in df.columns:
+                missing_signals.append("entry_evaluated_at")
             if missing_signals and time_column in df.columns:
                 signal_rows = history.select("symbol", "datetime", *sorted(set(missing_signals)))
                 if time_column != "datetime":
@@ -1279,11 +1281,17 @@ class StrategyEngine:
                 entry_filter_error=str(error), elapsed_ms=(time.perf_counter() - t0) * 1000,
             )
 
-        # Exit wins on the signal date, before ranking or publishing entry hits.
+        # Timed minute exits only conflict with entries at that signal time.
         if exit_signal_hits:
-            df = df.filter(~pl.col("symbol").is_in([
-                hit["symbol"] for hit in exit_signal_hits
-            ]))
+            time_columns = [name for name in ("entry_evaluated_at", "last_datetime", "datetime")
+                            if name in df.columns]
+            conflicts = []
+            for hit in exit_signal_hits:
+                conflict = pl.col("symbol") == hit["symbol"]
+                if s.execution_backend == "minute_filter" and time_columns and hit.get("trigger_time"):
+                    conflict &= pl.coalesce(time_columns) == datetime.fromisoformat(hit["trigger_time"])
+                conflicts.append(conflict)
+            df = df.filter(~pl.any_horizontal(conflicts).fill_null(False))
 
         # Stage 3: 评分
         df = self._apply_scoring(df, scoring, scoring_directions)
@@ -1359,6 +1367,8 @@ class StrategyEngine:
             {
                 "symbol": str(row["symbol"]),
                 "signals": [signal for signal, column in available if row.get(column)],
+                **({"evaluated_at": row["entry_evaluated_at"]}
+                   if row.get("entry_evaluated_at") is not None else {}),
             }
             for row in hit_df.iter_rows(named=True)
         ]
@@ -1972,8 +1982,9 @@ class StrategyEngine:
             )
             from app.strategy.late_session_strength import (
                 TEMPLATE,
+                bar_time,
                 evaluate,
-                parameters,
+                evaluation_time,
                 previous_closes,
             )
 
@@ -1986,15 +1997,21 @@ class StrategyEngine:
                     continue
                 result = evaluate(
                     minute_df, sig, day=context.as_of, pool_symbols=pool_symbols,
-                    prev_close=previous_closes(context), completed_through=context.completed_through,
+                    prev_close=previous_closes(context),
+                    completed_through=context.observed_at or context.completed_through,
                 )
                 if result.diagnostics:
                     logger.warning("%s", "; ".join(result.diagnostics))
-                target = datetime.combine(context.as_of, datetime.strptime(
-                    parameters(sig)["time"], "%H:%M:%S").time())
+                target = bar_time(sig, context.as_of)
                 output = output.with_columns(
                     ((pl.col("datetime") == target) & pl.col("symbol").is_in(result.symbols))
                     .alias(column))
+                available_at = evaluation_time(sig, context.as_of)
+                if available_at > target:
+                    output = output.with_columns(
+                        pl.when(pl.col(column)).then(pl.lit(available_at))
+                        .otherwise(pl.col("entry_evaluated_at") if "entry_evaluated_at" in output.columns else None)
+                        .alias("entry_evaluated_at"))
             return output
         except Exception as e:
             # 注入失败不阻断策略执行: 未注入列会由 required_features 校验兜底报错

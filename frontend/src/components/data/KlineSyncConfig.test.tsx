@@ -64,7 +64,7 @@ it('shows the unified intraday collection window and submits explicit sync setti
   await render('5m')
   const times = [...host.querySelectorAll('button[aria-label$="同步时间"]')]
   expect(times).toHaveLength(0)
-  expect(host.textContent).toContain('09:15–11:45 / 13:00–16:00')
+  expect(host.textContent).toContain('09:15–11:45 / 13:00–15:30')
   expect(host.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe('300')
   expect(mocks.save).not.toHaveBeenCalled()
   const button = [...host.querySelectorAll('button')].find(node => node.textContent === '保存周期设置')!

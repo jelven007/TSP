@@ -29,14 +29,15 @@ def get_configs(data_dir=None) -> dict:
         default = {
             "enabled": True,
             "interval_seconds": {"1m": 60, "5m": 300, "10m": 600, "15m": 900}.get(period, 60),
-            "windows": [w[:] for w in DEFAULT_WINDOWS], "time": "16:00",
+            "windows": [w[:] for w in DEFAULT_WINDOWS],
+            "time": "09:00" if period == "1w" else "15:30",
         }
         if period == "1m":
             default["enabled"] = prefs.get("minute_refresh_enabled", True)
             default["interval_seconds"] = prefs.get("minute_refresh_interval", 60)
         if period == "1d":
-            sched = prefs.get("pipeline_schedule", {"hour": 16, "minute": 0})
-            default["time"] = f'{sched.get("hour", 16):02d}:{sched.get("minute", 0):02d}'
+            sched = prefs.get("pipeline_schedule", {"hour": 15, "minute": 30})
+            default["time"] = f'{sched.get("hour", 15):02d}:{sched.get("minute", 30):02d}'
         saved = prefs.get(f"kline_sync_{period}", {})
         result[period] = {**default, **(saved if isinstance(saved, dict) else {})}
         result[period]["windows"] = [window[:] for window in DEFAULT_WINDOWS]
@@ -77,8 +78,8 @@ def save_config(period: str, config: dict, data_dir=None) -> dict:
         previous = end
     merged["windows"] = [window[:] for window in DEFAULT_WINDOWS]
     at = _parse_time(merged["time"])
-    if period in ("1d", "1w") and at < time(15, 35):
-        raise ValueError("盘后同步时间不得早于15:35")
+    if period == "1d" and at < time(15, 30):
+        raise ValueError("盘后同步时间不得早于15:30")
     updates = {f"kline_sync_{period}": merged}
     if period == "1m":
         updates.update(minute_refresh_enabled=merged["enabled"], minute_refresh_interval=interval)

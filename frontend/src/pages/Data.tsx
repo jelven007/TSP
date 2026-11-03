@@ -438,7 +438,7 @@ export function Data() {
         return (
           <StatCard
             title="日 K"
-            hint="交易日16:00同步"
+            hint="交易日15:30同步"
             stats={s?.daily}
             loading={isLoading}
             active={activeCard === 'daily'}
