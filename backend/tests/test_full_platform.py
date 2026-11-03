@@ -503,6 +503,111 @@ def test_platform_snapshot_never_rebuilds_enriched_for_sector_views(tmp_path, mo
         repo.db.close()
 
 
+@pytest.mark.parametrize("empty", [False, True])
+def test_platform_lifecycle_rewarms_catalog_with_quotes_disabled(tmp_path, monkeypatch, empty):
+    import asyncio
+    from threading import Event
+
+    from app.config import settings
+    from app.multitenancy.platform import lifespan
+    from app.services.quote_service import QuoteService
+    from app.tickflow.repository import DataStore, KlineRepository
+
+    monkeypatch.setattr(settings, "service_role", "platform")
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setenv("TSP_PUBLIC_MARKET_DIR", str(tmp_path / "public"))
+    repo = KlineRepository(DataStore(tmp_path))
+    monkeypatch.setattr("app.tickflow.repository.DataStore", lambda: repo.store)
+    monkeypatch.setattr("app.tickflow.repository.KlineRepository", lambda _: repo)
+    monkeypatch.setattr("app.tickflow.policy.detect_capabilities", lambda: {})
+    monkeypatch.setattr("app.data_providers.custom.load_all", lambda: None)
+    monkeypatch.setattr("app.data_providers.custom.close_all", lambda: None)
+    inert = SimpleNamespace(
+        start=lambda *a, **k: None, stop=lambda *a: None, close=lambda: None,
+        refresh=lambda *a: None, set_repo=lambda _: None, set_app_state=lambda _: None,
+        start_polling=lambda: None, stop_polling=lambda: None, boot_check=lambda: None,
+        pause=lambda: None, shutdown=lambda **k: None,
+    )
+    for path in (
+        "app.services.depth_service.DepthService", "app.services.minute_refresh.MinuteRefreshService",
+        "app.services.health.ReadinessMonitor", "app.multitenancy.publication.PublicPublisher",
+        "app.services.sector_monitor.SectorMonitorService",
+    ):
+        monkeypatch.setattr(path, lambda *a, **k: inert)
+    monkeypatch.setattr("app.jobs.daily_pipeline.start_scheduler", lambda *a: inert)
+    monkeypatch.setattr("app.jobs.daily_pipeline.set_app_state", lambda _: None)
+    monkeypatch.setattr("app.services.ext_pull.pull_scheduler", inert)
+    monkeypatch.setattr("app.services.financial_sync.financial_scheduler", inert)
+
+    async def noop(*a):
+        pass
+
+    for path in (
+        "app.services.initial_sync.start_initial_sync", "app.services.ext_presets.ensure_builtin_presets",
+        "app.jobs.daily_pipeline.stop_catalog_jobs", "app.services.pipeline_runner.stop_initial_sync_job",
+    ):
+        monkeypatch.setattr(path, noop)
+    monkeypatch.setattr("app.services.initial_sync.prepare_initial_sync", lambda _: None)
+    monkeypatch.setattr(QuoteService, "boot_check", lambda _: None)
+    monkeypatch.setattr(QuoteService, "stop", lambda _: None)
+    monkeypatch.setattr(repo, "_refresh_instruments", lambda: None)
+    monkeypatch.setattr(repo, "_refresh_index_instruments", lambda: None)
+    monkeypatch.setattr(repo, "rebuild_views", lambda: None)
+    initial = pl.DataFrame({"symbol": ["600000.SH"], "close": [10.0]})
+    refreshed = pl.DataFrame() if empty else pl.DataFrame({"symbol": ["000001.SZ"], "close": [12.0]})
+    calls, entered, release = [], Event(), Event()
+
+    def warm():
+        calls.append(1)
+        frame = initial if len(calls) == 1 else refreshed
+        if len(calls) > 1:
+            entered.set()
+            assert release.wait(timeout=5)
+        if frame.is_empty():
+            repo.clear_cache()
+        else:
+            repo._enriched_cache = frame
+            repo._enriched_cache_date = date(2026, 11, 2)
+            repo._live_agg_cache = frame
+        return "empty" if frame.is_empty() else "ready"
+
+    monkeypatch.setattr(repo, "_warmup_enriched", warm)
+    request = SimpleNamespace(state=SimpleNamespace())
+
+    async def check():
+        async with lifespan(request):
+            repo._warmup_thread.join(timeout=5)
+            assert repo.enriched_ready
+            subscriber = request.state.quote_service.subscribe()
+            request.state.full_public_snapshot = ("cached", {"frames": "old"})
+            directory = tmp_path / "instruments" / "instruments.parquet"
+            pl.DataFrame({"symbol": ["000001.SZ"]}).write_parquet(directory)
+            repo.refresh_current_instruments()
+            try:
+                assert entered.wait(timeout=1), "catalog invalidation did not schedule background warmup"
+                assert request.state.full_public_snapshot is None
+                first = repo._warmup_thread
+                repo.refresh_current_instruments()
+                assert repo._warmup_thread is first
+                assert repo.get_enriched_latest(refresh=False)[0].is_empty()
+                assert subscriber.pop()["quote_updated"]
+                # A consumer may cache the cold snapshot before warmup finishes.
+                request.state.full_public_snapshot = ("cached", {"frames": "cold"})
+            finally:
+                release.set()
+                repo._warmup_thread.join(timeout=5)
+            assert not repo._warmup_thread.is_alive()
+            assert calls == [1, 1]
+            assert repo.get_enriched_latest(refresh=False)[0].equals(refreshed)
+            assert request.state.full_public_snapshot is None
+            assert request.state.indicators_ready is not empty
+            assert subscriber.pop()["quote_updated"]
+        assert repo._on_refresh_done is None
+        assert repo._on_warmup_done is None
+
+    asyncio.run(check())
+
+
 def test_platform_full_snapshot_serializes_cache_fill():
     from concurrent.futures import ThreadPoolExecutor
 

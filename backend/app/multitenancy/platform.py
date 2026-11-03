@@ -151,13 +151,29 @@ async def lifespan(app):
 
         app.state.data_release = ensure_current_release(store.data_dir)
         app.state.indicators_ready = False
-        repo._on_warmup_done = lambda: setattr(app.state, "indicators_ready", True)
-        repo.refresh_cache(background=True)
         quotes = QuoteService()
         quotes.set_repo(repo)
         quotes.set_app_state(app.state)
         app.state.quote_service = quotes
         resources.callback(quotes.stop)
+
+        def repository_refreshed():
+            # Catalog refresh invalidates stock caches even with polling disabled.
+            repo.ensure_enriched_warmup()
+            quotes._broadcast_quote_updated()
+
+        def warmup_done():
+            app.state.indicators_ready = (
+                repo.enriched_ready and not repo.get_enriched_latest(refresh=False)[0].is_empty()
+            )
+            # Successful empty data must also invalidate a cached cold snapshot.
+            quotes._broadcast_quote_updated()
+
+        repo._on_refresh_done = repository_refreshed
+        repo._on_warmup_done = warmup_done
+        for callback in ("_on_refresh_done", "_on_warmup_done"):
+            resources.callback(setattr, repo, callback, None)
+        repo.refresh_cache(background=True)
         depth = DepthService()
         depth.set_repo(repo)
         depth.set_app_state(app.state)
@@ -207,6 +223,8 @@ async def lifespan(app):
         finally:
             from app.services.pipeline_runner import stop_initial_sync_job
 
+            repo._on_refresh_done = None
+            repo._on_warmup_done = None
             app.state.scheduler.pause()
             await stop_initial_sync_job(getattr(app.state, "initial_sync_job_id", None))
             await daily_pipeline.stop_catalog_jobs()

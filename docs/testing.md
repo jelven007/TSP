@@ -1,5 +1,10 @@
 # 测试与验收指南
 
+2026-11-03 Full目录回暖回归在原代码连续三次失败，修复后及反向验证符合预期。
+受影响9个模块使用真实隔离PostgreSQL：146项通过、无跳过、20条既有Polars弃用warning；
+Ruff无诊断。覆盖实时关闭、冷/非空/成功空、完成通知、重复刷新单飞、关闭清理及
+snapshot不重算；正式CI/产物/双端现场另签收，见[记录](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
+
 公共时间秒模式回归见`TimePicker.test.tsx`及`CustomSignalDialog.time.test.tsx`：
 秒选择/确认、补零、外部值更新、Escape保留Modal、清空/禁用、旧`HH:mm`与保存重开。
 最新整合前端107文件581项、ESLint和生产构建通过；工具165项、
