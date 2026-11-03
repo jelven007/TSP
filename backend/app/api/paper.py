@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api import contracts
 from app.multitenancy.documents import private_storage
@@ -81,6 +81,16 @@ class OrderModel(BaseModel):
     order_type: str = "market"      # market / next_open / close
     ref_price: float | None = None  # amount 模式折算 & 买入资金预检
     request_id: str | None = None
+
+
+class AccountUpdateModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    name: str | None = None
+    initial_cash: float | None = None
+    commission_pct: float | None = None
+    stamp_tax_pct: float | None = None
+    slippage_bps: float | None = None
+    queue_limit_orders: bool | None = None
 
 
 class SettingsModel(BaseModel):
@@ -218,6 +228,29 @@ def overview(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
         except Exception as e:
             logger.warning("paper overview 实时估算失败, 降级日线口径: %s", e)
     return ov
+
+
+@router.put("/account", response_model=contracts.PaperAccountResponse)
+def update_account(request: Request, body: AccountUpdateModel, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
+    try:
+        acc = paper.update_account(_data_dir(request), _acc(request, account), **body.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if str(exc) == "尚未创建模拟账户" else 400, detail=str(exc)) from exc
+    return {"account": acc}
+
+
+@router.delete("/account", response_model=contracts.OkResponse)
+def delete_account(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
+    try:
+        deleted = paper.delete_account(_data_dir(request), _acc(request, account))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        logger.warning("paper account deletion failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=409, detail="账户删除失败, 数据已保留, 请重试") from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="模拟账户不存在")
+    return {"ok": True}
 
 
 @router.post("/orders", response_model=contracts.PaperOrderResponse)

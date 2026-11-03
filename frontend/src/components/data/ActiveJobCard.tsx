@@ -95,6 +95,7 @@ export function ActiveJobCard({ job }: { job: PipelineJob }) {
           <Icon className={`h-5 w-5 ${meta.color} ${meta.spinning ? 'animate-spin' : ''}`} />
           <div>
             <div className="text-sm font-medium text-foreground">
+              {job.kind === 'kline_correction' && '当日K线修正 · '}
               {meta.label}{!isDone && ` · ${stageLabel}`}
             </div>
             <div className="text-xs text-secondary font-mono mt-0.5">
@@ -128,6 +129,15 @@ export function ActiveJobCard({ job }: { job: PipelineJob }) {
       <LogViewer log={job.log} />
 
       {job.status === 'succeeded' && job.result && (() => {
+        if (job.kind === 'kline_correction') return (
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+            <Pill label="修正日期" value={job.result.day ?? '—'} />
+            <Pill label="日K" value={`${job.result.periods?.['1d']?.daily_days ?? '—'} 天`} />
+            {(['1m', '5m', '10m', '15m'] as const).map(p => (
+              <Pill key={p} label={KLINE_PERIOD_LABELS[p]} value={`${job.result?.periods?.[p]?.rows ?? '—'} 行`} />
+            ))}
+          </div>
+        )
         if (period) return (
           <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
             <Pill label="同步周期" value={KLINE_PERIOD_LABELS[period]} />

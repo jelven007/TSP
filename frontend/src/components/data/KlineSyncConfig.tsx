@@ -80,7 +80,7 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
           onChange={e => setDraft({ ...draft, enabled: e.target.checked })} />开启周期同步
       </label>
       {intraday ? <>
-        <p className="text-xs text-secondary">统一采集窗口：09:15–11:45 / 13:00–16:00</p>
+        <p className="text-xs text-secondary">统一采集窗口：09:15–11:45 / 13:00–15:30</p>
         <label className="block text-xs text-secondary space-y-1"><span>周期间隔（秒）</span>
           <input type="number" min={1} max={86400} className={inputClass} value={draft.interval_seconds}
             onChange={e => setDraft({ ...draft, interval_seconds: Number(e.target.value) })} />

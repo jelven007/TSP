@@ -20,14 +20,14 @@
 单日仍保留连续区间和午休；锁内only_missing保护已有值，重读持久数据确认remaining。
 休市仅以公布日历为证，必需坏页不作为部分历史发布，空/短历史不伪造OHLC。
 同月内容摘要、源覆盖与常驻生效边界见
-[本轮核验](../../reports/minute-collection-reliability-20261029/verification.md)。
+[本轮核验](../../reports/market-data/minute-collection-reliability-20261029/verification.md)。
 
 个别证券缺数跳过，成功响应中的未补齐记录生成任务警告，
 返回remaining、skipped_symbols与gap_report。报告在运行目录kline_gap_reports，
 逐证券/交易日记录缺口；取消和真正批次/持久化异常仍失败。
 历史分时点只有价格/成交量，逐笔聚合也可能遗漏极值和真实成交额，
 未认证的候选不作为完整分钟K落盘。实测见
-[专项核验](../../reports/minute-301110-20261029/skip-and-backfill.md)。
+[专项核验](../../reports/market-data/minute-301110-20261029/skip-and-backfill.md)。
 
 数据总览的1分K、日K卡片使用明确的起始日期和结束日期，范围包含首尾两天。
 「获取全量数据」按该范围重新获取并覆盖同键记录；「获取遗漏数据」先按本地
@@ -40,7 +40,7 @@ rustdx v2.0.4通过页时间探测和边界定位读取目标窗口。Provider�
 分页来源身份变化时，Provider丢弃该证券全部旧页后从头重采一次；
 再次变化仍失败，不能混合不同来源。重采不能突破上游实际历史保留范围，
 旧窗口空页须与真实剩余缺口核对。源码和源深度实测见
-[301110.SZ记录](../../reports/minute-301110-20261029/verification.md)；常驻服务部署另验。
+[301110.SZ记录](../../reports/market-data/minute-301110-20261029/verification.md)；常驻服务部署另验。
 5/10/15分K只从本地1分K生成，周K只从本地日K生成，不请求上游。
 旧`/api/kline/repair_daily`及`value/unit`只作兼容，数据总览不再显示独立修正入口。
 

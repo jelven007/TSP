@@ -32,7 +32,9 @@ export function HistoryRow({ job, onClick }: { job: any; onClick: () => void }) 
       <div className="flex items-center gap-3 min-w-0">
         <Icon className={`h-4 w-4 shrink-0 ${statusIcon.color} ${(statusIcon as any).spinning ? 'animate-spin' : ''}`} />
         <div className="min-w-0">
-          <div className="font-mono text-xs text-foreground">{job.id}</div>
+          <div className="font-mono text-xs text-foreground">
+            {job.kind === 'kline_correction' && '当日K线修正 · '}{job.id}
+          </div>
           <div className="text-[11px] text-muted">
             {job.started_at ? new Date(job.started_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
             {' · '}
@@ -45,6 +47,7 @@ export function HistoryRow({ job, onClick }: { job: any; onClick: () => void }) 
           const r = job.result as Record<string, any>
           const parts: string[] = []
           const period = klineJobPeriod(job)
+          if (job.kind === 'kline_correction' && r.day) parts.push(`修正 ${r.day}`)
           if (period) {
             parts.push(`${KLINE_PERIOD_LABELS[period]} ${r.rows ?? r.minute_rows ?? 0}行`)
             if (r.start && r.end) parts.push(`${String(r.start).slice(0, 10)}~${String(r.end).slice(0, 10)}`)

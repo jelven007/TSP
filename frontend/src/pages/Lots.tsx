@@ -163,7 +163,7 @@ export function Lots() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="持仓提醒"
+        title="持仓"
         subtitle="按批次管理股票，自动生成止盈止损与到期提醒"
         titleExtra={
           <span className="inline-flex items-baseline gap-0.5 rounded-md bg-elevated/70 px-2 py-0.5 text-[11px]" title="当前批次记录 / 全部股票记录">

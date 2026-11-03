@@ -115,6 +115,38 @@ it('discards an unconfirmed second selection with Escape while keeping its modal
   expect(document.activeElement).toBe(document.querySelector('[aria-label="止损时间"]'))
 })
 
+it('opens selected seconds without scrolling its enclosing modal', async () => {
+  const close = vi.fn()
+  const change = vi.fn()
+  const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+  // Browser scrollIntoView also moves scrollable ancestors on narrow panels.
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value() {
+      document.querySelector('[data-modal-scroll]')?.dispatchEvent(new Event('scroll'))
+    },
+  })
+  try {
+    await render(<Modal ariaLabel="时间设置" onClose={close}>
+      <div data-modal-scroll>
+        <TimePicker showSeconds aria-label="启动时间" value="14:30:20" onChange={change} />
+      </div>
+    </Modal>)
+    await click('启动时间')
+    expect(document.querySelector('[aria-label="启动时间"]')?.getAttribute('aria-expanded')).toBe('true')
+    const selected = document.querySelector<HTMLButtonElement>('[aria-label="20 秒"]')!
+    expect(selected.getAttribute('aria-pressed')).toBe('true')
+    selected.focus()
+    await act(async () => selected.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    expect(close).not.toHaveBeenCalled()
+    expect(change).not.toHaveBeenCalled()
+    expect(document.querySelector('[aria-label="启动时间"]')?.textContent).toBe('14:30:20')
+  } finally {
+    if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
+    else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+  }
+})
+
 it('preserves clearable and disabled controls in second mode', async () => {
   const change = vi.fn()
   await render(<TimePicker showSeconds clearable aria-label="可选时间" value="10:15:32" onChange={change} />)

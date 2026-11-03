@@ -40,7 +40,7 @@
 ## 4. 部署状态
 
 火山引擎生产已于 2026-10-18 部署 `9b4bc2c5`、v0.4.8、schema v6，详见
-[线上升级结果](../online-upgrade-20261018/deployment-result.md)。`47b1738d`
+[线上升级结果](../releases/online-upgrade-20261018/deployment-result.md)。`47b1738d`
 当前在隔离候选中运行，不能据此宣称生产已经包含后续加固。
 
 当前 24 小时窗口和启动证据见

@@ -92,10 +92,10 @@ def test_saved_background_sync_choices_are_preserved_after_reload(_isolated, ena
 
 def test_nav_initial_defaults_and_saved_overrides(_isolated):
     expected = [
-        "/", "/regime", "/watchlist", "/screener", "/factors", "/backtest",
-        "/review", "/abnormal", "/lots", "/monitor", "/limit-ladder",
+        "/", "/regime", "/watchlist", "/screener", "/factors", "/signals",
+        "/backtest", "/lots", "/paper", "/review", "/abnormal", "/monitor", "/limit-ladder",
         "/stock-analysis", "/concept-analysis", "/industry-analysis",
-        "/financials", "/signals", "/paper", "/data",
+        "/financials", "/data",
     ]
     assert preferences.get_nav_order() == expected
     assert preferences.get_nav_hidden() == []
@@ -196,7 +196,7 @@ def test_data_initial_defaults_match_configured_baseline(_isolated, existing):
     assert preferences.get_pipeline_pull_a_share() is True
     assert preferences.get_pipeline_pull_index() is True
     assert preferences.get_instruments_schedule() == {"hour": 9, "minute": 0}
-    assert preferences.get_pipeline_schedule() == {"hour": 16, "minute": 0}
+    assert preferences.get_pipeline_schedule() == {"hour": 15, "minute": 30}
     assert preferences.get_pipeline_regime_enabled() is True
     assert preferences.get_regime_batch_days() == 120
     assert preferences.get_regime_warmup_days() == 40

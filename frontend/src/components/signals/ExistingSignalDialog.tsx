@@ -30,7 +30,7 @@ export function ExistingSignalDialog({ kind, signals, allowIntraday, onChange, o
       <div className="modal-header flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">选择已有{label}信号</h3>
-          <p className="mt-1 text-[11px] text-muted">来自信号指标，可多选；应用后点击“保存设置”生效。</p>
+          <p className="mt-1 text-[11px] text-muted">来自信号页，可多选；应用后点击“保存设置”生效。</p>
         </div>
         <button type="button" onClick={onClose} aria-label="关闭信号选择" className="modal-close"><X className="h-4 w-4" /></button>
       </div>
@@ -47,7 +47,7 @@ export function ExistingSignalDialog({ kind, signals, allowIntraday, onChange, o
         {list.map(signal => {
           const id = customSignalColumn(signal)
           const selected = draft.includes(id)
-          const reason = !signal.enabled ? '信号已停用，请先在信号指标中启用'
+          const reason = !signal.enabled ? '信号已停用，请先在信号页中启用'
             : signal.timeframe === 'intraday' && !allowIntraday ? '仅支持通用分钟策略，当前策略不支持' : ''
           const summary = signal.template === 'late_session_strength' ? lateSessionSummary(signal).slice(0, 2)
             : signal.template === 'morning_liquidation' ? morningLiquidationSummary(signal).slice(0, 2)
@@ -68,7 +68,7 @@ export function ExistingSignalDialog({ kind, signals, allowIntraday, onChange, o
           </label>
         })}
         {!query.isPending && !query.isError && list.length === 0 && <p className="py-5 text-center text-xs text-muted">
-          {keyword ? '没有匹配的信号' : `暂无已有${label}信号，可先在信号指标中创建`}
+          {keyword ? '没有匹配的信号' : `暂无已有${label}信号，可先在信号页中创建`}
         </p>}
       </div>
       <div className="modal-footer flex items-center justify-between gap-3">

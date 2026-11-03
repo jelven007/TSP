@@ -26,12 +26,13 @@ def isolated_preferences(tmp_path, monkeypatch):
     preferences._invalidate_cache()
 
 
-def test_pipeline_defaults_to_1600_without_writing_preferences(isolated_preferences):
-    assert preferences.get_pipeline_schedule() == {"hour": 16, "minute": 0}
+def test_pipeline_defaults_to_1530_without_writing_preferences(isolated_preferences):
+    assert preferences.get_pipeline_schedule() == {"hour": 15, "minute": 30}
     assert not isolated_preferences.exists()
 
 
 @pytest.mark.parametrize("schedule", [
+    {"hour": 15, "minute": 30},
     {"hour": 15, "minute": 35},
     {"hour": 16, "minute": 0},
     {"hour": 17, "minute": 42},
@@ -44,7 +45,7 @@ def test_saved_schedule_is_exact_and_survives_restart(schedule):
 
 
 @pytest.mark.parametrize("schedule", [
-    {"hour": 15, "minute": 34},
+    {"hour": 15, "minute": 29},
     {"hour": 9, "minute": 0},
     {"hour": -1, "minute": 0},
     {"hour": 24, "minute": 0},

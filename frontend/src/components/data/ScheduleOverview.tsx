@@ -109,7 +109,7 @@ export function buildDataScheduleItems({
 }): DataScheduleItem[] {
   const auto = preferences?.data_sync_auto_enabled ?? true
   const quoteEnabled = preferences?.realtime_quotes_enabled ?? true
-  const pipelineAt = preferences?.pipeline_schedule ?? { hour: 16, minute: 0 }
+  const pipelineAt = preferences?.pipeline_schedule ?? { hour: 15, minute: 30 }
   const depthAt = preferences?.depth_finalize_time ?? { hour: 15, minute: 2 }
   const minuteInterval = minuteRefresh?.effective_interval_seconds
     ?? preferences?.minute_refresh_interval
@@ -125,7 +125,7 @@ export function buildDataScheduleItems({
   const interval = (seconds: number) =>
     seconds >= 60 && seconds % 60 === 0 ? `每 ${seconds / 60} 分钟` : `每 ${seconds} 秒`
   const intradayWindow = (config?: KlineConfig) =>
-    config?.windows.map(([start, end]) => `${start}–${end}`).join(' / ') ?? '配置的交易时段'
+    config?.windows.map(([start, end]) => `${start}–${end}`).join(' / ') ?? '09:15–11:45 / 13:00–15:30'
   const minuteAvailable = Boolean(minuteRefresh?.available ?? true) && Boolean(minuteRefresh?.capability_ok ?? true)
   const minuteEnabled = Boolean(klineConfigs?.['1m']?.enabled ?? preferences?.minute_refresh_enabled ?? true)
   const minuteState: ScheduleState = !minuteAvailable
@@ -167,8 +167,8 @@ export function buildDataScheduleItems({
       label: '实时行情',
       detail: `${quoteStatus?.running
         ? (quoteStatus.is_trading_hours ? '行情轮询运行中；' : '服务已启动，等待交易时段；')
-        : '按行情开关运行；'}交易日 09:15–11:45、13:00–16:00 轮询，午间暂停，15:00 后继续确认收盘定版。`,
-      schedule: `交易日 09:15–11:45 / 13:00–16:00 · ${interval(quoteStatus?.interval_s ?? 3)}`,
+        : '按行情开关运行；'}交易日 09:15–11:45、13:00–15:30 轮询，午间暂停，15:00 后继续确认收盘定版。`,
+      schedule: `交易日 09:15–11:45 / 13:00–15:30 · ${interval(quoteStatus?.interval_s ?? 3)}`,
       state: realtimeAvailable === false
         ? 'unavailable'
         : !quoteEnabled
@@ -227,7 +227,7 @@ export function buildDataScheduleItems({
       category: 'kline',
       label: '周K周期同步',
       detail: '每周六由本地日K聚合，不向上游重复请求。',
-      schedule: `每周六 ${klineConfigs?.['1w']?.time ?? '16:00'} 后`,
+      schedule: `每周六 ${klineConfigs?.['1w']?.time ?? '09:00'} 后`,
       state: stateForAuto(klineConfigs?.['1w']?.enabled ?? true),
     },
     {
@@ -244,6 +244,14 @@ export function buildDataScheduleItems({
       ].filter(Boolean).join(' · '),
       schedule: `交易日 ${dailyTime}`,
       state: stateForAuto(klineConfigs?.['1d']?.enabled ?? true),
+    },
+    {
+      id: 'kline-correction',
+      category: 'kline',
+      label: '当日K线修正',
+      detail: '重取当日日K与1分K，再加工5/10/15分K；前序同步未结束时等待后执行。',
+      schedule: '交易日 15:35（固定）',
+      state: stateForAuto(),
     },
     {
       id: 'depth',
@@ -289,9 +297,9 @@ export function buildDataScheduleItems({
     items.push({
       id,
       category: 'extension',
-      label: `扩展数据 · ${config.label}`,
+      label: config.label,
       detail: usesUnifiedTradingWindow
-        ? '仅在交易日 09:15–11:45 / 13:00–16:00 拉取。'
+        ? '仅在交易日 09:15–11:45 / 13:00–15:30 拉取。'
         : pull.time_window_start || pull.time_window_end
         ? `仅在 ${pull.time_window_start ?? '00:00'}–${pull.time_window_end ?? '24:00'} 拉取。`
         : '按该扩展数据源的拉取配置执行。',

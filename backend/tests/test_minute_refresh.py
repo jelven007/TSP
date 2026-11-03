@@ -72,7 +72,9 @@ def test_refresh_window_boundaries():
     assert _in_refresh_window(datetime(2026, 8, 25, 13, 0))            # 午后恢复
     assert _in_refresh_window(datetime(2026, 8, 25, 15, 14))
     assert _in_refresh_window(datetime(2026, 8, 25, 15, 20))
-    assert _in_refresh_window(datetime(2026, 8, 25, 15, 59))
+    assert _in_refresh_window(datetime(2026, 8, 25, 15, 29, 59))
+    assert not _in_refresh_window(datetime(2026, 8, 25, 15, 30))
+    assert not _in_refresh_window(datetime(2026, 8, 25, 15, 59))
     assert not _in_refresh_window(datetime(2026, 8, 25, 16, 0))
     assert not _in_refresh_window(datetime(2026, 8, 22, 10, 0))        # 周六
 

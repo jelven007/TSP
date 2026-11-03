@@ -54,7 +54,7 @@ def test_builtin_presets_have_auto_defaults_with_empty_environment(
         assert preset.pull.enabled is True
         assert preset.pull.schedule_minutes == 1
         assert preset.pull.time_window_start == "09:15"
-        assert preset.pull.time_window_end == "16:00"
+        assert preset.pull.time_window_end == "15:30"
 
 
 def test_ensure_builtin_presets_writes_auto_configs(
@@ -76,7 +76,7 @@ def test_ensure_builtin_presets_writes_auto_configs(
         assert config.pull.enabled is True
         assert config.pull.schedule_minutes == 1
         assert config.pull.time_window_start == "09:15"
-        assert config.pull.time_window_end == "16:00"
+        assert config.pull.time_window_end == "15:30"
 
 
 def test_fresh_builtin_presets_create_both_scheduled_pull_tasks(tmp_path, monkeypatch):
@@ -177,7 +177,7 @@ def test_legacy_manual_preset_with_custom_pull_is_preserved(tmp_path):
     assert preserved.pull.url == "https://data.example/concepts"
     assert preserved.pull.enabled is False
     assert preserved.pull.time_window_start == "09:15"
-    assert preserved.pull.time_window_end == "16:00"
+    assert preserved.pull.time_window_end == "15:30"
     assert preserved.description == legacy.description
 
 

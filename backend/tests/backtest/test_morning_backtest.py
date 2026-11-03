@@ -453,12 +453,90 @@ def test_entry_data_failure_does_not_drop_existing_sale(tmp_path):
     assert not result.equity_curve
 
 
-def test_same_day_reentry_remains_blocked(tmp_path):
-    frame = pl.concat([morning_frame(), _minute_frame(SELL, [(SYMBOL, "14:30", 10.2)])])
-    result = run_frames(tmp_path, frame)
+@pytest.mark.parametrize("next_open", [False, True])
+def test_morning_sale_allows_afternoon_reentry_with_fresh_t1_position(tmp_path, next_open):
+    entry_bars = [(SYMBOL, "14:30", 10.2), (SYMBOL, "14:31", 10.2)]
+    service, _, _ = service_fixture(tmp_path, frames={
+        BUY: _minute_frame(BUY, entry_bars),
+        SELL: pl.concat([morning_frame(), _minute_frame(SELL, entry_bars)]),
+    })
+    if next_open:
+        service.strategy_engine.get("test_minute_ping").meta["minute_entry_fill"] = "next_minute_open"
+    result = service.run(configuration())
     assert not result.error, result.error
     assert result.stats["n_trades"] == 1
-    assert result.stats["execution"]["buy_same_day_reentry"] == 1
+    assert [fill["side"] for fill in result.fills] == ["buy", "sell", "buy"]
+    assert result.fills[1]["datetime"] == f"{SELL} 10:30:00"
+    assert result.fills[2]["datetime"] == f"{SELL} {'14:31:00' if next_open else '14:30:00'}"
+    position, = result.stats["execution"]["remaining_positions"]
+    assert position["entry_date"] == SELL
+    assert position["remaining"] == position["shares"]
+    assert position["sell_notional"] == position["sell_fees"] == 0
+    assert sum(fill["notional"] - fill["fee"] if fill["side"] == "sell"
+               else -fill["notional"] - fill["fee"] for fill in result.fills) + 10000 == pytest.approx(
+                   result.stats["execution"]["cash"])
+
+
+def test_reentry_is_liquidated_on_its_own_next_trading_day(tmp_path):
+    following = date(2026, 9, 8)
+    panel = _daily_panel(_trading_days(48, start=date(2026, 7, 6)), [SYMBOL]).with_columns(
+        pl.lit(10.).alias("close"), pl.lit(10.).alias("raw_close"), pl.lit(2e8).alias("amount"),
+    )
+    service, _, _ = service_fixture(tmp_path, panel=panel, frames={
+        BUY: _minute_frame(BUY, [(SYMBOL, "14:30", 10.2)]),
+        SELL: pl.concat([morning_frame(), _minute_frame(SELL, [(SYMBOL, "14:30", 10.3)])]),
+        following: morning_frame(following),
+    })
+    result = service.run(configuration(end=following))
+    assert not result.error, result.error
+    assert [(trade["entry_date"], trade["exit_date"]) for trade in result.trades] == [
+        (f"{BUY} 14:30", f"{SELL} 10:30"),
+        (f"{SELL} 14:30", f"{following} 10:30"),
+    ]
+    assert result.stats["execution"]["remaining_positions"] == []
+
+
+def test_reentry_does_not_inherit_the_previous_lots_pending_exit(tmp_path):
+    frame = pl.concat([morning_frame(), _minute_frame(
+        SELL, [(SYMBOL, "10:31", 10.2), (SYMBOL, "10:32", 10.2)],
+    )])
+    service, _, _ = service_fixture(tmp_path, frames={
+        BUY: _minute_frame(BUY, [(SYMBOL, "14:30", 10.2)]), SELL: frame,
+    })
+    path = tmp_path / "strategies/test_minute_ping.py"
+    path.write_text(path.read_text().replace(
+        'pl.col("datetime").dt.hour() >= 14',
+        'pl.col("datetime").dt.strftime("%H:%M") > "10:30"',
+    ))
+    service.strategy_engine.reload()
+    custom_signals.save_one(tmp_path, {
+        "id": "morning_liquidation", "name": "早盘清仓", "kind": "exit",
+        "timeframe": "intraday", "template": "morning_liquidation", "conditions": [],
+        "enabled": True, "params": {"time": "10:30:00", "fallback_time": "10:45:00",
+                                   "rise_pct": 6, "fall_pct": 6},
+    })
+    result = service.run(configuration())
+    assert not result.error, result.error
+    assert [(fill["side"], fill["datetime"]) for fill in result.fills] == [
+        ("buy", f"{BUY} 14:30:00"), ("sell", f"{SELL} 10:30:00"),
+        ("buy", f"{SELL} 10:31:00"),
+    ]
+    position, = result.stats["execution"]["remaining_positions"]
+    assert position["entry_date"] == SELL
+    assert position["remaining"] == position["shares"]
+
+
+def test_morning_same_event_exit_still_prevents_immediate_reentry(tmp_path):
+    service, _, _ = service_fixture(tmp_path)
+    path = tmp_path / "strategies/test_minute_ping.py"
+    path.write_text(path.read_text().replace(
+        'pl.col("datetime").dt.hour() >= 14',
+        'pl.col("datetime").dt.strftime("%H:%M") >= "10:30"',
+    ))
+    service.strategy_engine.reload()
+    result = service.run(configuration())
+    assert not result.error, result.error
+    assert [fill["side"] for fill in result.fills] == ["buy", "sell"]
     assert result.stats["execution"]["remaining_positions"] == []
 
 

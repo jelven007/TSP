@@ -14,6 +14,7 @@ TEMPLATE = "late_session_strength"
 DEFAULT_PARAMS = {
     "time": "14:30:00", "change_min_pct": 0.4, "change_max_pct": 4.0,
     "pool_up_min_pct": 60.0, "ma5_1m_count": 7, "ma5_5m_count": 4,
+    "evaluation_delay_minutes": 1.5,
 }
 
 
@@ -22,14 +23,26 @@ def parameters(sig: dict) -> dict:
     if not isinstance(raw, dict) or set(raw) - set(DEFAULT_PARAMS):
         raise ValueError("尾盘走强参数格式错误或包含未知参数")
     params = {**DEFAULT_PARAMS, **raw}
+    # Frozen six-field definitions keep their original scheduled minute.
+    delay = raw.get("evaluation_delay_minutes", 0)
+    if isinstance(delay, bool) or not isinstance(delay, (int, float)) or delay not in (0, 1, 1.5):
+        raise ValueError("尾盘走强检查延迟须为 0、60 或 90 秒")
+    params["evaluation_delay_minutes"] = delay
+    earliest, latest = (time(13), time(14, 59)) if delay else (time(13, 1), time(15))
+    if delay == 1.5:
+        latest = time(14, 58)
     try:
         at = time.fromisoformat(params["time"])
-        if at.strftime("%H:%M:%S") != params["time"] or at.second or at.tzinfo:
+        if (at.strftime("%H:%M:%S") != params["time"] or at.tzinfo
+                or (delay != 1.5 and at.second)):
             raise ValueError
-        if not time(13, 1) <= at <= time(15):
+        if not earliest <= at <= latest:
             raise ValueError
     except (TypeError, ValueError):
-        raise ValueError("尾盘走强时间须为午后 13:01:00~15:00:00, 秒数为 00") from None
+        raise ValueError(
+            f"尾盘走强启动时间须为午后 {earliest}~{latest}; "
+            "90秒定义支持秒, 旧定义秒数须为 00"
+        ) from None
     for key in ("change_min_pct", "change_max_pct", "pool_up_min_pct"):
         value = params[key]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -42,6 +55,19 @@ def parameters(sig: dict) -> dict:
         if type(params[key]) is not int or not 2 <= params[key] <= maximum:
             raise ValueError(f"{key} 须为 2~{maximum} 的整数")
     return params
+
+
+def evaluation_time(sig: dict, day: date) -> datetime:
+    """实际检查时点, 评估、池公告观察、脉冲与回放共用。"""
+    params = parameters(sig)
+    return datetime.combine(day, time.fromisoformat(params["time"])) + timedelta(
+        minutes=params["evaluation_delay_minutes"])
+
+
+def bar_time(sig: dict, day: date) -> datetime:
+    """信号的启动分钟数据标签, 确认延迟不改变此截止。"""
+    at = time.fromisoformat(parameters(sig)["time"]).replace(second=0, microsecond=0)
+    return datetime.combine(day, at)
 
 
 def pool_cutoff(engine, strategy_ids, overrides_map, day: date, fallback: datetime) -> datetime:
@@ -58,7 +84,7 @@ def pool_cutoff(engine, strategy_ids, overrides_map, day: date, fallback: dateti
         override = (overrides_map or {}).get(sid) or {}
         requested.update(override.get("entry_signals", strategy.entry_signals) or [])
         requested.update(strategy.required_features)
-    times = [datetime.combine(day, time.fromisoformat(parameters(sig)["time"]))
+    times = [evaluation_time(sig, day)
              for sig in custom_signals.load_intraday_all(storage)
              if sig.get("template") == TEMPLATE and sig.get("enabled") is not False
              and custom_signals.intraday_column_name(sig["id"]) in requested]
@@ -89,7 +115,7 @@ def _rising_symbols(frame: pl.DataFrame, end: datetime, count: int, step: int) -
          & (pl.col("datetime").diff().drop_nulls().max() == timedelta(minutes=step))
          & (pl.col("close").is_finite() & (pl.col("close") > 0)).fill_null(False).all()
          & (pl.col("_ma").count() == count)
-         & (pl.col("_ma").diff().drop_nulls() > 0).all()).alias("_rising"))
+         & (pl.col("_ma").diff().drop_nulls() > 1e-10).all()).alias("_rising"))
     return set(stats.filter(pl.col("_rising"))["symbol"].to_list())
 
 
@@ -100,12 +126,12 @@ def evaluate(
 ) -> Evaluation:
     params = parameters(sig)
     result = Evaluation()
-    at = datetime.combine(day, time.fromisoformat(params["time"]))
+    at = bar_time(sig, day)
     if completed_through is not None:
         cutoff = completed_through
         if cutoff.tzinfo:
             cutoff = cutoff.astimezone(CN_TZ).replace(tzinfo=None)
-        if cutoff < at:
+        if cutoff < evaluation_time(sig, day):
             return result
     if sig.get("enabled") is False:
         return result

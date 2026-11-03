@@ -34,7 +34,7 @@
 
 生产开发闭环见[生产工程](#engineering)，全部本地变更见[生命周期追踪](#trace)。
 
-更新日期：2026-10-30。本文定义中型生产系统的实际仓库布局、文件归属和目录迁移规则。
+更新日期：2026-11-03。本文定义中型生产系统的实际仓库布局、文件归属和目录迁移规则。
 当前系统采用模块化单体与独立运行角色，源码目录不等同部署进程。
 实现架构见[当前架构](../architecture.md#current)，开发规则见[贡献指南](../../CONTRIBUTING.md)。
 
@@ -52,6 +52,7 @@ TSP/
 ├── .github/
 │   ├── workflows/                  # CI、容器、桌面与 Windows 检查
 │   └── rulesets/                   # 主线、集成与版本标签保护
+├── .claude/artifacts/              # designs/plans/fixes：设计、实施计划与缺陷记录
 ├── .env.example / tiers.yaml        # 配置模板与套餐配置事实源
 ├── Dockerfile / docker-compose.yml  # 独立运行镜像与 Compose 入口
 ├── dev.sh / dev.ps1 / update.ps1    # 本地启动与 Windows 更新入口
@@ -71,7 +72,7 @@ TSP/
 │   │   ├── backtest/               # 回测、优化、回放与计算 worker
 │   │   ├── multitenancy/           # 租户业务、网关、平台与 worker
 │   │   ├── cell/
-│   │   │   └── sql/               # control/data v1–v6 有序迁移
+│   │   │   └── sql/               # control/data 有序迁移，随应用打包
 │   │   ├── extensions/            # 已实现的受控扩展契约
 │   │   └── custom/                # 自定义模块、AI 助手与模板
 │   ├── native/rustdx_native/        # Rust/PyO3 原生桥接与 Cargo 锁
@@ -124,7 +125,7 @@ TSP/
 ├── tests/tooling/                   # 仓库工具、版本与工作流测试
 ├── docs/
 │   ├── README.md                   # 六类主手册与专题导航
-│   ├── requirements.md             # 163条FR（八业务章节）与42条NFR
+│   ├── requirements.md             # 八业务章节、需求编号与NFR
 │   ├── architecture.md             # 当前实现、代码事实源与统一系统目标
 │   ├── testing.md                  # 测试命令、联合验收与基准方法
 │   ├── operations.md               # 部署、配置、账户、巡检与恢复
@@ -142,11 +143,15 @@ TSP/
 ├── screenshots/                    # 面向用户的功能截图
 ├── reports/
 │   ├── README.md                   # 保留证据及其与当前主线/目标的关系
-│   ├── design-inputs-20261023/       # 原融合/CH设计与参考图的冻结依据
-│   ├── page-data-analysis-20261024/  # 页面、菜单、数据血缘和来源分析
-│   ├── production-integration-20261024/ # 完整变更、验证与历史版本恢复点
-│   └── <专题-日期>/                # 版本与环境明确的验证证据
-├── deliverables/                   # 当前目标离线阅读包；不进入 Git/镜像
+│   ├── releases/                   # 发布、升级与恢复签收
+│   ├── market-data/                # 行情、接入、数据修复与性能
+│   ├── strategies/                 # 策略、回测与研究
+│   ├── ui/                         # 页面、控件与交互
+│   ├── engineering/                # 架构、设计输入、文档与目录
+│   ├── operations/                 # 存储、安全、清理与保留政策
+│   ├── production-system-consolidation-20261023/ # 固定需求检查基准
+│   └── <原有固定或活跃条目>/        # 本批保留，原因见报告索引
+├── deliverables/                   # 本地用户成果；不进入 Git/镜像
 ├── 操作说明书.md                    # 中文操作入口
 └── data/                           # 用户运行数据；运行时生成，不进入 Git/镜像
 ```
@@ -156,7 +161,7 @@ TSP/
 
 | 分类 | 维护角色 | 唯一归属与放置原则 |
 | --- | --- | --- |
-| 产品与需求 | 产品负责人 | 205条需求在 `docs/requirements.md`；FR按八章组织，历史依据在 `reports/` |
+| 产品与需求 | 产品负责人 | 需求在 `docs/requirements.md`；FR按八章组织，历史依据在 `reports/` |
 | 业务源码 | 后端／前端负责人 | 就近维护领域模块；API 和页面不承担仓库、Provider 的职责 |
 | 原生依赖 | 数据接入负责人 | `backend/native/`；保持 Python 接入与锁定 revision 一致 |
 | 数据库迁移 | 后端／数据负责人 | `backend/app/cell/sql/` 随应用打包；不复制到另一个顶层 SQL 目录 |
@@ -164,7 +169,7 @@ TSP/
 | 配置 | 应用与运维负责人 | 根 `.env.example`、`tiers.yaml` 和 `deploy/full/*.env`；真实密钥只存本地受控文件 |
 | 自动化与脚本 | 对应模块负责人 | 不依赖后端的仓库工具在 `scripts/`；依赖 `app` 的命令在 `backend/scripts/` |
 | 测试 | 开发与测试负责人 | 后端测试在 `backend/tests/`，前端测试与组件就近，仓库工具测试在 `tests/tooling/` |
-| 验证与交付 | 测试／发布负责人 | 可复核历史证据在 `reports/`；本地 Word、ZIP、生成方案在 `deliverables/` |
+| 验证与交付 | 测试／发布负责人 | 证据归 `reports/<分类>/<专题-日期>/`；用户离线成果归 `deliverables/<分类>/<专题-日期>/` |
 | 运行数据 | 部署者／数据管理员 | `DATA_DIR` 由应用管理，日志、策略、研究快照与行情不写入源码或测试目录 |
 
 依赖沿“API／页面 → 业务服务 → 领域计算与仓库 → Provider／存储”向下；
@@ -173,6 +178,14 @@ TSP/
 
 后端现有平铺测试与前端就近测试保持可发现。新增后端专题测试可以按现有
 `backtest/` 模式建领域子目录，但不能按文件名猜测后批量移动已有测试。
+按源码符号搜索对应测试，具体领域定位见[测试目录](../../tests/README.md#按领域定位现有测试)。
+两个`scripts`目录的执行目录与导入方式分别在各自README定义，不合并Python包。
+
+新增报告按六类归属，正文和附件在同组保存；分类索引见[报告入口](../../reports/README.md#按用途查找)。
+历史条目保留原名称，冻结清单中的旧路径与哈希仍描述原采集时点；
+迁移记录另列新位置及当前哈希。当前任务、固定检查基准和带未跟踪附件的报告整组保留。
+新增离线交付按`research/releases/operations/designs`分类，仅在产生实际交付时创建目录；
+既有Excel、用户交付路径与统计不追溯改写。临时脚本、调试输出和缓存放在工作区外。
 
 2026-10-25 将 `docs/examples/custom-data-source/` 的三个文件迁至
 `examples/custom-data-source/`，规范与可运行示例各归其位。新增恢复工具归
@@ -235,12 +248,12 @@ ClickHouse、对象存储、Ray 及消息流方案尚未接入当前应用，不
 - 保留当前生产、schema兼容、未解决调查、阶段签收和目标设计引用的原始证据，
   详见[报告索引](../../reports/README.md)；不按日期直接删除。
 - 已被上述规范替代、无当前入口引用的旧过程回执，及重复全文/源码快照移出工作区。
-  原图/SQL等目标依据已经在`reports/design-inputs-20261023/`留唯一仓库副本。
-- 离线交付只保留当前统一系统目标阅读包，新增交付不再嵌套复制整个仓库。
+  原图/SQL等目标依据保存在`reports/engineering/design-inputs-20261023/`。
+- 离线交付保留用户指定的成果及系统目标阅读包，新增交付不再嵌套复制整个仓库。
 - 缓存、调试临时产物和分享副本不进入源码。删除前核对引用和归属，记录路径、
   哈希、原因与可恢复位置；用户运行数据、凭据、Git历史及未归并业务修改独立保护。
 
-本次移出内容及验证见[清理记录](../../reports/repository-cleanup-20261024/verification.md)。
+本次移出内容及验证见[清理记录](../../reports/operations/repository-cleanup-20261024/verification.md)。
 2026-10-23的100文件迁移清单继续作为当时事实保留；其中后续清理项按新记录解释，
 不得把旧清单当作当前目录的存在性保证。
 
@@ -584,7 +597,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 历史验证报告保留原版本、计数、PID与窗口。历史hyperlink可维护；旧离线HTML/ZIP
 交付不改写为新结论，已被替代的交付按当前[保留规则](#layout-7-当前内容保留规则)移出。
 目录迁移清单映射当时来源与目标，读取旧报告复跑时使用当前脚本README。
-2026-10-23的34份专项文档清单是历史快照；当前正文合并、消重和迁移以[本轮记录](../../reports/document-consolidation-20261024/verification.md)为准。
+2026-10-23的34份专项文档清单是历史快照；当前正文合并、消重和迁移以[本轮记录](../../reports/engineering/document-consolidation-20261024/verification.md)为准。
 
 <a id="trace-3-本次完成与未完成"></a>
 ### 3. 本次完成与未完成
@@ -596,7 +609,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 二期第二步持续/完整交易日终态仍待，第三步未开始。
 CH应用接入、Kafka/Flink/Redis/TOS、多节点HA/强Compute、Cell及万人能力仍为目标。
 Win10真机、安装包、真实数据覆盖/许可/时钟和区域恢复另行签收。
-实际已执行检查与未执行范围仅以本次[验证报告](../../reports/production-baseline-20261025/verification.md)为准。
+实际已执行检查与未执行范围仅以本次[验证报告](../../reports/engineering/production-baseline-20261025/verification.md)为准。
 
 <a id="trace-4-后续维护规则"></a>
 ### 4. 后续维护规则

@@ -57,10 +57,10 @@ SOURCE_LABELS = {
 }
 
 # final 定版边界与重试窗口终点 (北京时间)。自动轮询在交易日采集窗口内重试:
-# 收盘后继续轮询至 16:00; morning_final 保留给午间定版确认。
-# 未确认的收盘定版由 15:35 盘后管道按官方日线值级校正。
+# 收盘后继续轮询至 15:30; morning_final 保留给午间定版确认。
+# 未确认的收盘定版由 15:35 K线修正按官方日线值级校正。
 _FINAL_BOUNDARY = {"morning_final": dt_time(11, 30), "close_final": dt_time(15, 0)}
-_FINAL_DEADLINE = {"morning_final": dt_time(12, 10), "close_final": dt_time(16, 0)}
+_FINAL_DEADLINE = {"morning_final": dt_time(12, 10), "close_final": dt_time(15, 30)}
 
 
 def _body_with_quote(body: str, ev: dict) -> str:
@@ -296,7 +296,7 @@ class QuoteService:
         self._enriched_hist_cache: dict[str, tuple[date, int, pl.DataFrame]] = {}
         self._intraday_signal_evaluator = IntradaySignalEvaluator()
         self._intraday_signal_bucket: dict[str, str] = {}
-        # 收盘最终同步状态: 15:00 后的轮询会确认边界快照, 16:00 到点停止。
+        # 收盘最终同步状态: 15:00 后的轮询会确认边界快照, 15:30 到点停止。
         self._final_sync_done: set[tuple[date, str]] = set()
         self._final_sync_failed: dict[tuple[date, str], str] = {}
         # 最近一次 final 定版拉取是否取得边界后快照 (None=非 final 拉取)
@@ -680,7 +680,7 @@ class QuoteService:
         if not self._holiday_gate():
             return self.status()
         phase = self._market_phase()
-        # 16:00 后手动刷新同样必须确认收盘, 避免覆盖盘后权威日线。
+        # 15:30 后手动刷新同样必须确认收盘, 避免覆盖盘后权威日线。
         if cn_now().time() >= _FINAL_BOUNDARY["close_final"]:
             phase = "close_final"
         is_final = phase in {"morning_final", "close_final"}
@@ -718,7 +718,7 @@ class QuoteService:
                                 if first_confirmation:
                                     if phase == "close_final":
                                         logger.info(
-                                            "%s 最终行情同步已确认, 继续轮询至 16:00",
+                                            "%s 最终行情同步已确认, 继续轮询至 15:30",
                                             label,
                                         )
                                     else:
@@ -729,7 +729,7 @@ class QuoteService:
                             elif key and self._past_final_deadline(phase):
                                 # 重试窗口结束仍未取得边界后快照: 接受现状停止轮询。
                                 # 实测有实时源收盘后长期返回竞价前旧价 (快照时间戳可信但价格不更新),
-                                # 此时盲目落盘只会固化旧价 —— 交由 15:35 盘后管道按官方日线校正。
+                                # 此时盲目落盘只会固化旧价 —— 交由 15:35 K线修正按官方日线校正。
                                 self._final_sync_done.add(key)
                                 self._final_sync_failed[key] = (
                                     "fetch_failed" if not ok else "unconfirmed_snapshot"
@@ -1268,7 +1268,7 @@ class QuoteService:
     def _market_phase() -> str:
         """A股行情轮询阶段(北京时间)。
 
-        只在 09:15-11:45 / 13:00-16:00 双时段内返回可轮询阶段。
+        只在 09:15-11:45 / 13:00-15:30 双时段内返回可轮询阶段。
         close_final 用于 15:00 后确认收盘边界快照。
         """
         now = cn_now()
@@ -1283,7 +1283,7 @@ class QuoteService:
             return "morning_final"
         if dt_time(13, 0) <= t < dt_time(15, 0):
             return "afternoon"
-        if dt_time(15, 0) <= t < dt_time(16, 0):
+        if dt_time(15, 0) <= t < dt_time(15, 30):
             return "close_final"
         return "closed"
 

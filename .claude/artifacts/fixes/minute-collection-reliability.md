@@ -45,4 +45,4 @@
 - [ ] 正式产物与常驻两端恢复验收；需先取得提交、推送授权。
 
 证据与剩余项：
-[核验记录](../../../reports/minute-collection-reliability-20261029/verification.md)。
+[核验记录](../../../reports/market-data/minute-collection-reliability-20261029/verification.md)。

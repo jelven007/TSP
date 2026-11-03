@@ -233,9 +233,9 @@ factor_value_exprs(available_cols) -> dict[str, pl.Expr | None]
 | `ts_max(x,n)` / `ts_min(x,n)` | 滚动极值 | `rolling_max(n)` / `rolling_min(n)` |
 | `ts_delta(x,n)` | x − ts_delay(x,n) | `x - x.shift(n)` |
 | `ts_delay(x,n)` | n 期前的值（n ∈ [1, 512]，**禁止负数**——负数即未来函数，编译期报错） | `x.shift(n)` |
-| `ts_rank(x,n)` | 当期值在滚动窗口内的分位 | `rolling_rank(n)`【已验证：polars 1.40.1 存在且行为正确，[§17](../../reports/document-consolidation-20261024/historical-evidence.md#factor-history-17-验证附录本设计的验证记录)】 |
+| `ts_rank(x,n)` | 当期值在滚动窗口内的分位 | `rolling_rank(n)`【已验证：polars 1.40.1 存在且行为正确，[§17](../../reports/engineering/document-consolidation-20261024/historical-evidence.md#factor-history-17-验证附录本设计的验证记录)】 |
 | `ts_zscore(x,n)` | (x − ts_mean)/ts_std | 组合表达式 |
-| `ts_corr(x,y,n)` / `ts_cov(x,y,n)` | 滚动相关/协方差 | 顶层函数 `pl.rolling_corr(x,y,window_size=n)` / `pl.rolling_cov`【已验证：Expr 上无此方法，必须走顶层函数，[§17](../../reports/document-consolidation-20261024/historical-evidence.md#factor-history-17-验证附录本设计的验证记录)】 |
+| `ts_corr(x,y,n)` / `ts_cov(x,y,n)` | 滚动相关/协方差 | 顶层函数 `pl.rolling_corr(x,y,window_size=n)` / `pl.rolling_cov`【已验证：Expr 上无此方法，必须走顶层函数，[§17](../../reports/engineering/document-consolidation-20261024/historical-evidence.md#factor-history-17-验证附录本设计的验证记录)】 |
 | `ts_quantile(x,n,q)` | 滚动分位（q ∈ (0,1) 常量） | `rolling_quantile` |
 | `decay_linear(x,n)` | 线性衰减加权均值（近端权重大） | 手写权重组合表达式 |
 
@@ -406,7 +406,7 @@ IC 报告同时输出三列：`原始 / 超额 / 超额+中性化`，默认排�
 <a id="factor-spec-6-统计检验l-inf"></a>
 ### 6. 统计检验（L-INF）
 
-**依赖原则**：后端当前无 scipy/statsmodels（已验证，[§17](../../reports/document-consolidation-20261024/historical-evidence.md#factor-history-17-验证附录本设计的验证记录)），运行时保持零新增第三方依赖——NW/BH-FDR/DSR 全部以 numpy 手写实现（各约 20-40 行）；statsmodels 仅允许加入 uv dev 依赖组用于测试对拍，不进运行时 import。
+**依赖原则**：后端当前无 scipy/statsmodels（已验证，[§17](../../reports/engineering/document-consolidation-20261024/historical-evidence.md#factor-history-17-验证附录本设计的验证记录)），运行时保持零新增第三方依赖——NW/BH-FDR/DSR 全部以 numpy 手写实现（各约 20-40 行）；statsmodels 仅允许加入 uv dev 依赖组用于测试对拍，不进运行时 import。
 
 <a id="factor-spec-61-统计量精确定义设计"></a>
 #### 6.1 统计量精确定义【设计】
@@ -774,5 +774,5 @@ datasets:
 
 测试矩阵见上面的技术设计测试节；统一运行命令与放行标准见[测试手册](../testing.md)。
 2026-09-04的61因子/Polars验证及2026-09-05扩充记录保留在
-[历史依据](../../reports/document-consolidation-20261024/historical-evidence.md#factor-history)，
+[历史依据](../../reports/engineering/document-consolidation-20261024/historical-evidence.md#factor-history)，
 不代表本次重跑。

@@ -165,6 +165,38 @@ def test_engine_exits_holdings_independently_of_candidate_pool_and_empty_minutes
         engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]})
 
 
+@pytest.mark.parametrize("entry_at,evaluated_at,allowed", [
+    (NOW, None, False),
+    (NOW.replace(hour=14, minute=30), None, True),
+    (NOW, NOW + timedelta(seconds=90), True),
+])
+def test_engine_morning_exit_only_excludes_buy_at_the_same_signal_time(
+    tmp_path, entry_at, evaluated_at, allowed,
+):
+    from app.strategy.engine import StrategyDataContext
+
+    engine = sample_engine(tmp_path)
+    path = tmp_path / "strategies" / "custom" / "sample.py"
+    path.write_text(path.read_text().replace('pl.col("symbol") == "b"', 'pl.col("symbol") == "a"'))
+    engine.reload()
+    history = bars() if entry_at == NOW else pl.concat([
+        bars(), bars().with_columns(pl.lit(entry_at).alias("datetime")),
+    ])
+    if evaluated_at is not None:
+        history = history.with_columns(pl.lit(evaluated_at).alias("entry_evaluated_at"))
+    context = StrategyDataContext(
+        "stock", "1m", DAY, history=history, positions=[position()],
+        observed_at=NOW.replace(hour=15),
+        pool_history=pl.DataFrame({
+            "symbol": ["a"], "date": [date(2026, 9, 4)], "close": [10.],
+        }),
+    )
+    result = engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]})
+    assert [hit["symbol"] for hit in result.exit_signal_hits] == ["a"]
+    assert [row["symbol"] for row in result.rows] == (["a"] if allowed else [])
+    assert [hit["symbol"] for hit in result.entry_signal_hits] == (["a"] if allowed else [])
+
+
 def test_replay_requires_explicit_entry_date_and_returns_trigger_reason(tmp_path):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

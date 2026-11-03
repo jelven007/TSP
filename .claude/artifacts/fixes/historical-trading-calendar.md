@@ -56,7 +56,7 @@
   依赖一次性PostgreSQL的相关用例跳过，不据此声称生产验证通过。
 - V-4：新增旧日历快照兼容回归后，数据发布/研究快照模块33 passed。
 - V-5：修改的Python文件Ruff通过；文档、目录、版本和diff检查见
-  [最终验收记录](../../../reports/historical-calendar-20261026/verification.md)。
+  [最终验收记录](../../../reports/market-data/historical-calendar-20261026/verification.md)。
 
 ## Regression test
 

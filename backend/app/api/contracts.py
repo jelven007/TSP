@@ -636,6 +636,7 @@ class PaperOverviewResponse(ContractModel):
     total: float | None = None
     total_pnl: float | None = None
     initial_cash: float | None = None
+    initial_cash_editable: bool = False
     estimating: bool | None = None
     valuation: PaperValuation | None = None
     holdings: list[PaperHolding] = Field(default_factory=list)

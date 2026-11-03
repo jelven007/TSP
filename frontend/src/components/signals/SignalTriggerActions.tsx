@@ -39,7 +39,7 @@ export function SignalTriggerActions({ kind, signals, onChange, buttonClassName,
   return (
     <>
       {selectExisting && <button type="button" onClick={() => setExistingOpen(true)}
-        aria-label={`选择已有${kind === 'entry' ? '入场' : '出场'}信号`} title="从信号指标选择已有自定义信号"
+        aria-label={`选择已有${kind === 'entry' ? '入场' : '出场'}信号`} title="从信号页选择已有自定义信号"
         className={`${btnCls} inline-flex items-center gap-1.5 whitespace-nowrap ${accent}`}>
         <ListChecks className={iconCls} /><span className="text-[10px]">选择已有信号</span>
       </button>}
@@ -62,7 +62,7 @@ export function SignalTriggerActions({ kind, signals, onChange, buttonClassName,
       <button
         type="button"
         onClick={() => navigate('/signals?highlight=signals')}
-        title="去信号指标"
+        title="去信号页"
         className={`${btnCls} hover:border-amber-400/40 hover:text-amber-400`}
       >
         <Settings2 className={iconCls} />

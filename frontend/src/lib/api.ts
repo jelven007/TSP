@@ -940,6 +940,7 @@ export interface CustomSignal {
 
 export interface LateSessionStrengthParams {
   time: string
+  evaluation_delay_minutes?: 0 | 1 | 1.5 // 冻结旧定义缺省0/旧值1；编辑保存为启动后90秒确认
   change_min_pct: number
   change_max_pct: number
   pool_up_min_pct: number
@@ -1259,6 +1260,7 @@ export interface PaperOverview {
   total?: number
   total_pnl?: number
   initial_cash?: number
+  initial_cash_editable?: boolean
   estimating?: boolean
   valuation?: PaperValuation
   holdings?: PaperHolding[]
@@ -4479,6 +4481,14 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  paperUpdateAccount: (body: { name?: string; initial_cash?: number; queue_limit_orders?: boolean; commission_pct?: number; stamp_tax_pct?: number; slippage_bps?: number }, account: string) =>
+    request<{ account: PaperAccount }>(accUrl('/api/paper/account', account), {
+      method: 'PUT', body: JSON.stringify(body),
+    }),
+
+  paperDeleteAccount: (account: string) =>
+    request<{ ok: boolean }>(accUrl('/api/paper/account', account), { method: 'DELETE' }),
+
   paperOrderCreate: (body: { symbol: string; side: 'buy' | 'sell'; qty?: number; amount?: number; order_type: 'market' | 'next_open' | 'close'; ref_price?: number; request_id?: string }, account?: string) =>
     request<{ order: PaperOrder }>(accUrl('/api/paper/orders', account), {
       method: 'POST',
@@ -4775,6 +4785,8 @@ export interface PipelineJob {
   cancellation_reason?: string | null
   duration_s: number | null
   result: {
+    day?: string
+    periods?: Partial<Record<KlinePeriod, { rows?: number; daily_days?: number }>>
     period?: KlinePeriod | IndexKlinePeriod
     mode?: 'full' | 'missing'
     missing_before?: number

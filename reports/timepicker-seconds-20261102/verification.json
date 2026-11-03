@@ -1,0 +1,239 @@
+{
+  "source-verification": {
+    "passed": true,
+    "mapped_files": 661,
+    "unmapped": [
+      "native-wheels/tsp_rustdx_native-0.3.0-cp311-cp311-manylinux_2_34_aarch64.whl"
+    ],
+    "backend_files_unchanged": 1865,
+    "controlled_environment_preserved": true,
+    "frontend_source_matches": true
+  },
+  "compute-verification": {
+    "passed": true,
+    "manifest_files": 662,
+    "scope": "shared seconds picker frontend only",
+    "image": "sha256:851a485d26383b21f97f66fd6b1e13450ffe6ac9caec862c8807b689ad305cdf",
+    "backend_manifest_unchanged": true
+  },
+  "deployment-verified": {
+    "passed": true,
+    "version": "0.4.45",
+    "revision": "4c3ad9b694da0ec2b5ac6f3118e8b86d7cd2ebeb",
+    "stable_user_groups": 11,
+    "user_state_preserved": true,
+    "controlled_environment_preserved": true,
+    "database_restore_verified": true,
+    "roles": {
+      "platform": {
+        "alive": true,
+        "source_directory_verified": true
+      },
+      "compute": {
+        "alive": true,
+        "source_directory_verified": true
+      },
+      "api": {
+        "alive": true,
+        "source_directory_verified": true
+      },
+      "frontend": {
+        "alive": true,
+        "source_directory_verified": true
+      },
+      "research": {
+        "alive": true,
+        "source_directory_verified": true
+      },
+      "realtime": {
+        "alive": true,
+        "source_directory_verified": true
+      },
+      "notifications": {
+        "alive": true,
+        "source_directory_verified": true
+      },
+      "scheduled": {
+        "alive": true,
+        "source_directory_verified": true
+      }
+    },
+    "compute": "sha256:851a485d26383b21f97f66fd6b1e13450ffe6ac9caec862c8807b689ad305cdf",
+    "matched_manifest_files": 661,
+    "local_patch_sha256": "135bf3f4228beff1ade6eb85a544134b0d12d045abc7d235949745e3226866de"
+  },
+  "browser-verification": {
+    "passed": true,
+    "origin": "http://127.0.0.1:3021",
+    "checks": [
+      {
+        "viewport": [
+          1440,
+          1000
+        ],
+        "bounds": {
+          "width": 720,
+          "scroll": 718,
+          "client": 718
+        },
+        "popups": [
+          {
+            "label": "止损时间",
+            "three_columns": true,
+            "bounds": {
+              "left": 382.79248046875,
+              "right": 639.20751953125,
+              "top": 418.58502197265625,
+              "bottom": 693.738037109375,
+              "width": 256.4150390625,
+              "scroll": 258,
+              "client": 258
+            },
+            "escape_discarded": true
+          },
+          {
+            "label": "兜底时间",
+            "three_columns": true,
+            "bounds": {
+              "left": 729.1412353515625,
+              "right": 982.8587646484375,
+              "top": 418.6490173339844,
+              "bottom": 690.9074096679688,
+              "width": 253.717529296875,
+              "scroll": 258,
+              "client": 258
+            },
+            "escape_discarded": true
+          }
+        ]
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "bounds": {
+          "width": 358,
+          "scroll": 356,
+          "client": 356
+        },
+        "popups": [
+          {
+            "label": "止损时间",
+            "three_columns": true,
+            "bounds": {
+              "left": 35.06745147705078,
+              "right": 290.9325637817383,
+              "top": 515.0980834960938,
+              "bottom": 789.6610107421875,
+              "width": 255.8651123046875,
+              "scroll": 258,
+              "client": 258
+            },
+            "escape_discarded": true
+          },
+          {
+            "label": "兜底时间",
+            "three_columns": true,
+            "bounds": {
+              "left": 35.170143127441406,
+              "right": 290.82987213134766,
+              "top": 225.1029510498047,
+              "bottom": 499.4454803466797,
+              "width": 255.65972900390625,
+              "scroll": 258,
+              "client": 258
+            },
+            "escape_discarded": true
+          }
+        ]
+      }
+    ],
+    "params": {
+      "time": "10:30:00",
+      "fall_pct": 6,
+      "rise_pct": 6,
+      "fallback_time": "10:45:00"
+    },
+    "exact_seconds_save_reopen_reload": true,
+    "invalid_time_rejected": true,
+    "original_parameters_restored": true,
+    "existing_minute_mode_verified": true,
+    "existing_minute_value": "16:00",
+    "existing_sync_config_saved": false,
+    "page_errors": [],
+    "research_job_submitted": false,
+    "browser_method": "Playwright with controlled local login",
+    "browser_reason": "Browser navigation verified; local helper keeps credentials out of tool arguments"
+  },
+  "live-verification": {
+    "passed": true,
+    "administrator_login": true,
+    "restart_parameters_persisted": true,
+    "params": {
+      "time": "10:30:00",
+      "fall_pct": 6,
+      "rise_pct": 6,
+      "fallback_time": "10:45:00"
+    },
+    "restart_user_groups_preserved": 11,
+    "other_user_groups_preserved": [
+      "sources",
+      "overrides",
+      "positions",
+      "preferences",
+      "monitor_rules",
+      "accounts",
+      "orders",
+      "fills",
+      "paper_ledger"
+    ],
+    "original_research_rows_preserved": true,
+    "separate_research_records_added": 1,
+    "controlled_environment_preserved": true,
+    "strategy_preserved": true,
+    "kline_config_preserved": true,
+    "api_ready": true,
+    "compute_ready": "ok",
+    "platform_ready": true,
+    "platform_status": "degraded",
+    "platform_existing_last_pipeline_warning": "warning",
+    "version": "0.4.45",
+    "released": false
+  },
+  "passed": true,
+  "version": "0.4.45",
+  "environment": "local",
+  "released": false,
+  "frontend_tests": 42,
+  "frontend_lint": true,
+  "frontend_build": true,
+  "backend_tests_rerun": false,
+  "financial_backtest_run": false,
+  "ecs_deployed": false,
+  "committed": false,
+  "pushed": false,
+  "patch_sha256": "135bf3f4228beff1ade6eb85a544134b0d12d045abc7d235949745e3226866de",
+  "base_commit": "4c3ad9b694da0ec2b5ac6f3118e8b86d7cd2ebeb",
+  "source_files": 14,
+  "incremental_patch_matches_source": true,
+  "red_tests": {
+    "failed": 6,
+    "passed": 2
+  },
+  "new_tests": 8,
+  "repository_check": true,
+  "documentation_check": true,
+  "diff_whitespace_check": true,
+  "text_artifacts_controlled_values_absent": true,
+  "artifact_sha256": {
+    "fallback_time-popup-1440.png": "d89f9bdeb1478e009fda44be0f41e6f21ca4344391890e7f418a96f6a21f798a",
+    "source.patch": "7b851923a6e121e84875e12e7a7082ae147652aeccacdc1d6a9a7d6e7a0d68d2",
+    "time-popup-390.png": "fd973efbee2c0d791b6333708bd535c16525ba56b7b7e61308699c134739e46c",
+    "time-popup-1440.png": "67ed1867b53ec23617b41062b403239dd2b39f92ea0c20d6f66e33118198f20b",
+    "signal-form-390.png": "c98f4fd87c71277824649adcba9b6b51b51ba397e3cbb2dbb196916abcc856f5",
+    "signal-form-1440.png": "a8a7072100d399d6ed8b678a47a1b65e1efd666c36b21fc873ffbab5ef0c22e2",
+    "existing-minute-control.png": "6a4badba5da076b34c690da58a156d65e1816de0daf1adb3beb85fe05b6ab448",
+    "fallback_time-popup-390.png": "7788babd113121fc6c8cfa3b9af489e6a7b6ab9edc37b6e2833a14fef5a527ce"
+  }
+}

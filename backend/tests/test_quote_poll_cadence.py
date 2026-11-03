@@ -26,3 +26,17 @@ def test_cadence_absorbs_fetch_cost_instead_of_adding_it() -> None:
     now_after_fetch = 0.4
     next_cycle = cycle_started + interval
     assert _poll_sleep_slice(next_cycle, now_after_fetch) == min(_POLL_SLEEP_SLICE_S, 0.6)
+
+
+def test_close_final_stops_at_1530(monkeypatch):
+    from datetime import datetime, time
+
+    from app.market_time import CN_TZ
+    from app.services import quote_service
+
+    clock = [datetime(2026, 11, 3, 15, 29, 59, tzinfo=CN_TZ)]
+    monkeypatch.setattr(quote_service, "cn_now", lambda: clock[0])
+    assert quote_service.QuoteService._market_phase() == "close_final"
+    assert quote_service._FINAL_DEADLINE["close_final"] == time(15, 30)
+    clock[0] = clock[0].replace(minute=30, second=0)
+    assert quote_service.QuoteService._market_phase() == "closed"

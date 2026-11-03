@@ -60,6 +60,6 @@
 `test_rustdx_window_consistency.py`及原有rustdx测试。须同时保留本地真实TCP、
 两进程共享目录、操作系统探测连接数、取消、分页覆盖、金融单位与构建身份检查。
 三组连接已纳入v0.4.39正式发布，保存的运行验收见
-[发布证据](../reports/current-release-20261030/deployment.md)；
+[发布证据](../reports/releases/current-release-20261030/deployment.md)；
 该证据不认证全市场历史、生产容量或正式P95。
-初始测试与公开节点范围见[实施验收](../reports/rustdx-task-affinity-20261029/verification.md)。
+初始测试与公开节点范围见[实施验收](../reports/market-data/rustdx-task-affinity-20261029/verification.md)。

@@ -12,9 +12,19 @@ from app.market_time import CN_TZ, in_intraday_polling_window
     (11, 45, False),
     (12, 59, False),
     (13, 0, True),
-    (15, 59, True),
+    (15, 29, True),
+    (15, 30, False),
+    (15, 59, False),
     (16, 0, False),
 ])
 def test_intraday_collection_window_uses_the_unified_trading_day_period(hour, minute, expected):
     now = datetime(2026, 10, 26, hour, minute, tzinfo=CN_TZ)
     assert in_intraday_polling_window(now) is expected
+
+
+def test_polling_cutoff_is_the_same_in_utc():
+    from datetime import UTC
+
+    for second, expected in [(29, True), (30, False)]:
+        now = datetime(2026, 10, 26, 15, second, 59 if expected else 0, tzinfo=CN_TZ)
+        assert in_intraday_polling_window(now.astimezone(UTC)) is expected

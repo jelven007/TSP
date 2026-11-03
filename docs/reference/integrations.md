@@ -1059,8 +1059,8 @@ RUSTDX_TIMEOUT=8
 2019劳动节修订、2020春节延长和2024除夕按交易所公告处理。
 研究追溯记录版本、覆盖年份和SHA-256；旧快照保留，使用旧构建回放，
 新研究捕获新日历身份，不能混用。来源和回归见
-[日历证据](../../reports/historical-calendar-20261026/verification.md)与
-[本批集成](../../reports/latest-release-20261027/verification.md)。
+[日历证据](../../reports/market-data/historical-calendar-20261026/verification.md)与
+[本批集成](../../reports/releases/latest-release-20261027/verification.md)。
 未公布年份不能按工作日冒充权威日历；历史日历缓存按日线数据源隔离，
 仅在覆盖范围内作休市推断。未来年度需在交易所公布安排后维护。
 
@@ -1228,7 +1228,7 @@ Golden symbols: `000403.SZ`, `600489.SH`, `300059.SZ`.
 
 **非目标**
 
-- 独立模式以多个 Token 和 scope 管理调用权限；完整多租户模式将 Token 绑定目标租户、账户权限版本、策略/路由版本与有效期。Token 管理仅管理员可用，具体实现见[一期记录](../../reports/document-consolidation-20261024/historical-evidence.md#phase1)。
+- 独立模式以多个 Token 和 scope 管理调用权限；完整多租户模式将 Token 绑定目标租户、账户权限版本、策略/路由版本与有效期。Token 管理仅管理员可用，具体实现见[一期记录](../../reports/engineering/document-consolidation-20261024/historical-evidence.md#phase1)。
 - 不做前端运行时插件（remote module/微前端）与第三方代码沙箱——等真实第三方插件作者出现再立项。
 - 不做热更新; 桌面版更新走「下载安装包 + 静默覆盖安装 + 重启」路径。
 
@@ -1376,7 +1376,7 @@ Golden symbols: `000403.SZ`, `600489.SH`, `300059.SZ`.
 不自动重算。历史归档的分页/record明细及cached-summary/cached-result属于登录态
 页面接口，不因此新增API Token权限。指纹与兼容验证在
 `test_openapi_contract.py`和`test_screener_history_api.py`，本次证据见
-[最新整合](../../reports/current-state-release-20261025/verification.md)。
+[最新整合](../../reports/releases/current-state-release-20261025/verification.md)。
 
 <a id="open-54-监控与事件readanalysis"></a>
 #### 5.4 监控与事件（read:analysis）

@@ -569,17 +569,16 @@ def set_pipeline_index_symbols(symbols: str) -> str:
 
 
 def get_pipeline_schedule() -> dict:
-    """默认交易日北京时间 16:00; 已保存的自定义时间优先。"""
-    d = load().get("pipeline_schedule", {"hour": 16, "minute": 0})
-    return {"hour": d.get("hour", 16), "minute": d.get("minute", 0)}
+    """默认交易日北京时间 15:30; 已保存的自定义时间优先。"""
+    d = load().get("pipeline_schedule", {"hour": 15, "minute": 30})
+    return {"hour": d.get("hour", 15), "minute": d.get("minute", 30)}
 
 
 def set_pipeline_schedule(hour: int, minute: int) -> dict:
     if type(hour) is not int or type(minute) is not int or not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise ValueError("调度时间必须为有效的小时和分钟")
-    # Keep the existing post-close buffer, but never silently replace the input.
-    if hour * 60 + minute < 15 * 60 + 35:
-        raise ValueError("盘后管道时间不能早于 15:35")
+    if hour * 60 + minute < 15 * 60 + 30:
+        raise ValueError("盘后管道时间不能早于 15:30")
     schedule = {"hour": hour, "minute": minute}
     save({"pipeline_schedule": schedule})
     return schedule
@@ -666,7 +665,7 @@ PUSH_CHANNELS = {"feishu", "wecom", "custom", "email"}
 def get_review_schedule() -> dict:
     """定时复盘调度 {"enabled": False, "hour": 15, "minute": 40}。默认关闭。
 
-    默认 15:40: 盘后管道默认 15:35 启动, 留 5 分钟缓冲, 复盘使用管道
+    默认 15:40: 盘后管道默认 15:30 启动, 15:35 触发当日K线修正, 复盘使用管道
     产出的最终口径数据 (含盘后量校正的日K/enriched)。强制下限 15:00 —
     偏好收盘后即时复盘 (走实时快照缓存, 不等管道) 的用户可自行调早。
     """
@@ -1123,10 +1122,10 @@ def get_realtime_monitor_config() -> dict:
 
 
 DEFAULT_NAV_ORDER = (
-    "/", "/regime", "/watchlist", "/screener", "/factors", "/backtest",
-    "/review", "/abnormal", "/lots", "/monitor", "/limit-ladder",
+    "/", "/regime", "/watchlist", "/screener", "/factors", "/signals",
+    "/backtest", "/lots", "/paper", "/review", "/abnormal", "/monitor", "/limit-ladder",
     "/stock-analysis", "/concept-analysis", "/industry-analysis",
-    "/financials", "/signals", "/paper", "/data",
+    "/financials", "/data",
 )
 
 

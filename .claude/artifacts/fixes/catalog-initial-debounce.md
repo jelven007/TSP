@@ -14,4 +14,4 @@
 
 `StockCatalogDialog.test.tsx`新增假时钟用例：先到第2页，再推进300毫秒，
 断言页码和请求数保持。原实现明确失败；修复后及反转复核的实际结果记录在
-[整合验证记录](../../../reports/current-release-20261030/verification.md)。
+[整合验证记录](../../../reports/releases/current-release-20261030/verification.md)。

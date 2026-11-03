@@ -51,11 +51,15 @@ it('explains the supported lower limit and prevents a silently changed save', as
   await fill(0, '15')
   await fill(1, '10')
   expect(host.querySelector('button')?.disabled).toBe(true)
-  expect(host.textContent).toContain('15:35')
+  expect(host.textContent).toContain('15:30')
   await act(async () => host.querySelector('button')!.click())
   expect(onSave).not.toHaveBeenCalled()
-  await fill(1, '35')
+  await fill(1, '29')
+  expect(host.querySelector('button')?.disabled).toBe(true)
+  await fill(1, '30')
   expect(host.querySelector('button')?.disabled).toBe(false)
+  await act(async () => host.querySelector('button')!.click())
+  expect(onSave).toHaveBeenCalledWith(15, 30)
 })
 
 it('keeps the draft and disables duplicate submission while saving', async () => {

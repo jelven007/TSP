@@ -103,6 +103,23 @@ def _scalar_limit_up_price(prev_close: float, limit_pct: float) -> float:
     return ((cents * numerator + 50) // 100) / 100
 
 
+def _signal_clock(value) -> str:
+    """确认时间保留非零秒; 旧整分钟显示不变。"""
+    from app.market_time import CN_TZ
+
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(CN_TZ)
+        return value.strftime("%H:%M:%S" if value.second or value.microsecond else "%H:%M")
+    return _trigger_hhmm(value)
+
+
+def _executable_minute(value: datetime) -> datetime:
+    """分钟成交事件向上对齐, 禁止14:31:30取14:31开盘。"""
+    minute = value.replace(second=0, microsecond=0)
+    return minute + timedelta(minutes=1) if value > minute else minute
+
+
 @dataclass
 class MinuteReplayHit:
     """盘中成交与对应信号的时间, 价格已折算至日线复权口径。"""
@@ -336,12 +353,16 @@ class MinuteSignalReplayer:
                     continue
                 raw_close = float(close)
                 trigger = row.get("last_datetime")
-                signal_time = _trigger_hhmm(trigger)
+                available_at = row.get("entry_evaluated_at") or trigger
+                signal_time = _signal_clock(available_at)
                 if next_minute_open:
                     if not hasattr(trigger, "date"):
                         result.buy_no_next_minute += 1
                         continue
                     fill_stamp = trigger + timedelta(minutes=1)
+                    if available_at is not None:
+                        fill_stamp = max(fill_stamp, available_at)
+                    fill_stamp = _executable_minute(fill_stamp)
                     fill = fill_lookup.get((symbol, fill_stamp))
                     if (
                         fill is None or fill_stamp.date() != day
@@ -352,6 +373,9 @@ class MinuteSignalReplayer:
                         continue
                     raw_close = float(fill[0])
                     trigger = fill_stamp
+                elif available_at is not None:
+                    # signal_close keeps its reference price, but cannot predate availability.
+                    trigger = _executable_minute(available_at)
                 name = prev_name.get(str(symbol), "")
                 prev = prev_raw_close.get(str(symbol))
                 if next_minute_open and (prev is None or not math.isfinite(prev) or prev <= 0):
@@ -381,7 +405,7 @@ class MinuteSignalReplayer:
                     entry_price=raw_close * adj_factor.get(str(symbol), 1.0),
                     trigger_time=trigger_time,
                     score=float(run_result.scores.get(str(symbol), 0.0) or 0.0),
-                    signal_time=signal_time if next_minute_open else None,
+                    signal_time=signal_time if next_minute_open or signal_time.count(":") == 2 else None,
                     raw_entry_price=raw_close,
                 ))
 

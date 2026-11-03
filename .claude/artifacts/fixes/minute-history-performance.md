@@ -85,4 +85,4 @@ TDX按相对最新数据的偏移量分页，服务每5天重新从0回扫；历
   初次活跃线上任务最后复核已转为cancelled；本次没有取消、重启、清库、
   修改配置或执行全市场重拉。ECS最终版本仍为0.4.34。
 - 完整证据、命令和生命周期文档映射：
-  [性能验证记录](../../../reports/minute-history-performance-20261028/verification.md)。
+  [性能验证记录](../../../reports/market-data/minute-history-performance-20261028/verification.md)。

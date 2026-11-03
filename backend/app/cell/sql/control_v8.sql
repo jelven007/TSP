@@ -1,0 +1,1 @@
+-- Paired schema version: paper account lifecycle changes only the data database.

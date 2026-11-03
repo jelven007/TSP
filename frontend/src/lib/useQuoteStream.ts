@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SSE_EVENT_RESET_ROOTS, SSE_INVALIDATE_PREFIXES, QK } from './queryKeys'
+import { paperAccountChanged } from './paperAccountQueries'
 import { klineDailyLatestQueryOptions, mergeLatestKlineRow } from './kline'
 import { getQueryConfig } from './useQueryConfig'
 import { toast } from '@/components/Toast'
@@ -233,6 +234,18 @@ export function useQuoteStream(
             }
         } catch {
           // 忽略解析错误
+        }
+      })
+
+      es.addEventListener('paper_changed', (event: MessageEvent) => {
+        try {
+          if (!acceptEvent(event)) return
+          const data = JSON.parse(event.data)
+          if (typeof data.account_id === 'string' && (data.action === 'updated' || data.action === 'deleted')) {
+            void paperAccountChanged(qc, data.account_id, data.action)
+          }
+        } catch {
+          // Ignore malformed events; authoritative state remains in REST.
         }
       })
 

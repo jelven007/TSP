@@ -31,4 +31,4 @@ PR #34已归并对应修复；本次未重复实现。
 后续部署完成及真实任务复验不在此次诊断的已完成声明内。
 
 完整根因、源码引用、复现入口、位模式金额差异、实际覆盖及证据：
-[诊断报告](../../../reports/rustdx-minute-diagnosis-20261029/verification.md)。
+[诊断报告](../../../reports/market-data/rustdx-minute-diagnosis-20261029/verification.md)。

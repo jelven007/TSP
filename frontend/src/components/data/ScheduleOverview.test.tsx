@@ -62,6 +62,7 @@ describe('buildDataScheduleItems', () => {
       'period-1d',
       'period-1w',
       'daily-pipeline',
+      'kline-correction',
       'depth',
       'financial-metrics',
       'capability-reprobe',
@@ -82,6 +83,7 @@ describe('buildDataScheduleItems', () => {
       'kline',
       'kline',
       'kline',
+      'kline',
       'market',
       'maintenance',
       'maintenance',
@@ -94,8 +96,8 @@ describe('buildDataScheduleItems', () => {
       detail: expect.stringContaining('多次采集与发布重试'),
     })
     expect(items.find(item => item.id === 'quotes')).toMatchObject({
-      detail: '行情轮询运行中；交易日 09:15–11:45、13:00–16:00 轮询，午间暂停，15:00 后继续确认收盘定版。',
-      schedule: '交易日 09:15–11:45 / 13:00–16:00 · 每 3 秒',
+      detail: '行情轮询运行中；交易日 09:15–11:45、13:00–15:30 轮询，午间暂停，15:00 后继续确认收盘定版。',
+      schedule: '交易日 09:15–11:45 / 13:00–15:30 · 每 3 秒',
     })
     expect(items.find(item => item.id === 'second-quote-archive')).toMatchObject({
       label: '秒级行情',
@@ -120,6 +122,9 @@ describe('buildDataScheduleItems', () => {
       label: '日K周期同步', schedule: '交易日 16:00', state: 'enabled',
     })
     expect(items.find(item => item.id === 'daily-pipeline')?.schedule).toBe('交易日 16:00')
+    expect(items.filter(item => item.category === 'kline').at(-1)).toMatchObject({
+      id: 'kline-correction', label: '当日K线修正', schedule: '交易日 15:35（固定）', state: 'enabled',
+    })
     expect(items.find(item => item.id === 'financial-metrics')?.label).toBe('财务指标')
     expect(items.find(item => item.id === 'capability-reprobe')?.label).toBe('数据源能力')
   })
@@ -143,6 +148,7 @@ describe('buildDataScheduleItems', () => {
     expect(items.find(item => item.id === 'period-1d')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'minute-refresh')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'financial-metrics')?.state).toBe('disabled')
+    expect(items.find(item => item.id === 'kline-correction')?.state).toBe('disabled')
   })
 
   it('keeps the daily entry aligned with the saved pipeline schedule and daily switch', () => {
@@ -200,7 +206,14 @@ describe('buildDataScheduleItems', () => {
     })
 
     expect(items.find(item => item.id === 'ext:ext_gn_ths')?.detail).toBe(
-      '仅在交易日 09:15–11:45 / 13:00–16:00 拉取。',
+      '仅在交易日 09:15–11:45 / 13:00–15:30 拉取。',
     )
+  })
+
+  it('uses the initialization defaults before configurations load', () => {
+    const items = buildDataScheduleItems({ financialAvailable: true, depthAvailable: true, extConfigs: [] })
+    expect(items.find(item => item.id === 'period-1d')?.schedule).toBe('交易日 15:30')
+    expect(items.find(item => item.id === 'period-1w')?.schedule).toBe('每周六 09:00 后')
+    expect(items.find(item => item.id === 'minute-refresh')?.schedule).toContain('13:00–15:30')
   })
 })

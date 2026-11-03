@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { accountEventStreamUrl } from './accountSession'
 import { useQuoteStream } from './useQuoteStream'
+import { QK } from './queryKeys'
 
 vi.mock('./accountSession', () => ({
   accountScope: () => 'tsp-v1:admin:market:1',
@@ -85,6 +86,19 @@ afterEach(async () => {
 })
 
 describe('global event stream refresh scope', () => {
+  it('removes deleted paper account caches and updates the shared comparison', async () => {
+    client.setQueryData(QK.paperOverview('deleted'), { initialized: true })
+    client.setQueryData(QK.paperOverview('kept'), { initialized: true })
+    client.setQueryData(QK.paperCompare, { accounts: [{ account: 'deleted' }, { account: 'kept' }] })
+    await act(async () => {
+      MockEventSource.instances[0].emit('paper_changed', '{"account_id":"deleted","action":"deleted"}')
+      await Promise.resolve()
+    })
+    expect(client.getQueryData(QK.paperOverview('deleted'))).toBeUndefined()
+    expect(client.getQueryData(QK.paperOverview('kept'))).toEqual({ initialized: true })
+    expect(client.getQueryData(QK.paperCompare)).toEqual({ accounts: [{ account: 'kept' }] })
+  })
+
   it('reconnects an expired stream ticket without refreshing page queries', async () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     const first = MockEventSource.instances[0]
@@ -113,6 +127,7 @@ describe('global event stream refresh scope', () => {
     const predicate = options?.predicate as (query: { queryKey: readonly unknown[] }) => boolean
     expect(predicate({ queryKey: ['alerts'] })).toBe(true)
     expect(predicate({ queryKey: ['alerts-total'] })).toBe(true)
+    expect(predicate({ queryKey: QK.paperCompare })).toBe(true)
     expect(predicate({ queryKey: ['screener-cached', 'summary'] })).toBe(true)
     expect(predicate({ queryKey: ['review-reports'] })).toBe(true)
     expect(predicate({ queryKey: ['settings'] })).toBe(false)

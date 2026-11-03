@@ -114,6 +114,26 @@ def test_strict_ma_trends_and_data_gaps(mutation):
     assert "a" not in evaluate(frame=frame).symbols
 
 
+def test_ma_increase_rejects_floating_point_noise_at_flat_boundary():
+    from app.strategy.late_session_strength import _rising_symbols
+
+    prices = [
+        12.263980126393623, 10.946392838841708, 13.218318503389682,
+        10.895937096795265, 11.604380624550405, 13.015686392193086,
+        11.296230832921728, 14.105503812360546, 11.1486236853235,
+        11.731737141192832, 13.015686392193086,
+    ]
+    frame = pl.DataFrame({
+        "symbol": ["a"] * len(prices),
+        "datetime": [TARGET - timedelta(minutes=10 - i) for i in range(len(prices))],
+        "close": prices,
+    })
+    ma_diffs = frame.select(pl.col("close").rolling_mean(5).diff().drop_nulls()).to_series()
+
+    assert 0 < ma_diffs[-1] <= 1e-10
+    assert _rising_symbols(frame, TARGET, count=7, step=1) == set()
+
+
 def test_future_rows_cannot_change_signal_and_warmup_never_crosses_lunch():
     frame = bars()
     future = frame.with_columns((pl.col("datetime") + pl.duration(hours=1)).alias("datetime"),
@@ -124,7 +144,7 @@ def test_future_rows_cannot_change_signal_and_warmup_never_crosses_lunch():
 
 
 @pytest.mark.parametrize("patch", [
-    {"time": "09:30:00"}, {"time": "14:30:01"}, {"change_min_pct": 5},
+    {"time": "09:30:00"}, {"change_min_pct": 5},
     {"pool_up_min_pct": 101}, {"ma5_1m_count": 1}, {"ma5_5m_count": 2.5},
     {"change_max_pct": float("nan")},
 ])
@@ -133,29 +153,61 @@ def test_invalid_parameters_rejected(patch):
         custom_signals.validate(definition(**patch))
 
 
-def test_engine_injects_scheduled_pulse_and_preserves_full_pool_scope(tmp_path):
+def test_second_start_uses_minute_bar_and_exact_ninety_second_gate():
+    from app.strategy.late_session_strength import bar_time, evaluation_time
+
+    sig = definition(time="14:30:20", evaluation_delay_minutes=1.5)
+    custom_signals.validate(sig)
+    assert bar_time(sig, DAY) == TARGET
+    assert evaluation_time(sig, DAY) == TARGET + timedelta(minutes=1, seconds=50)
+    assert evaluate(
+        sig=sig, completed_through=TARGET + timedelta(minutes=1, seconds=49),
+    ).symbols == []
+    assert evaluate(
+        sig=sig, completed_through=TARGET + timedelta(minutes=1, seconds=50),
+    ).symbols == POOL[:3]
+    custom_signals.validate(definition(time="14:58:00", evaluation_delay_minutes=1.5))
+
+
+@pytest.mark.parametrize("patch", [
+    {"time": "14:58:01", "evaluation_delay_minutes": 1.5},
+    {"time": "14:30:20"},
+    {"time": "14:30:20", "evaluation_delay_minutes": 1},
+])
+def test_second_start_rejects_close_overrun_and_legacy_delays(patch):
+    with pytest.raises(ValueError):
+        custom_signals.validate(definition(**patch))
+
+
+@pytest.mark.parametrize("delay", [0, 1])
+def test_engine_injects_scheduled_pulse_and_preserves_full_pool_scope(tmp_path, delay):
     from app.strategy.engine import StrategyDataContext, StrategyEngine
 
     engine = StrategyEngine([])
     engine._user_data_dir = lambda: tmp_path
-    custom_signals.save_one(tmp_path, definition())
+    custom_signals.save_one(tmp_path, definition(**({"evaluation_delay_minutes": 1} if delay else {})))
+    target = TARGET + timedelta(minutes=delay)
+    minute = bars()
     previous = pl.DataFrame({"symbol": POOL, "date": [DAY-timedelta(days=1)]*5,
                              "close": [99.0]*5, "raw_close": [10.0]*5})
-    context = StrategyDataContext("stock", "1m", DAY, history=bars(), pool_history=previous)
+    context = StrategyDataContext("stock", "1m", DAY, history=minute, pool_history=previous)
     injected = engine._inject_intraday_signal_columns(
-        bars(), context=context, pool_symbols=POOL)
+        minute, context=context, pool_symbols=POOL)
     col = "csgi_late_session_strength"
     hits = injected.filter(pl.col(col))
     assert hits["symbol"].to_list() == POOL[:3]
     assert hits["datetime"].to_list() == [TARGET]*3
+    if delay:
+        assert hits["entry_evaluated_at"].to_list() == [target]*3
     assert engine._collect_signal_hits(hits, [col])[0]["signals"] == [col]
     incomplete = StrategyDataContext("stock", "1m", DAY,
-                                    completed_through=TARGET-timedelta(seconds=1), pool_history=previous)
+                                    completed_through=target-timedelta(seconds=1), pool_history=previous)
     assert not engine._inject_intraday_signal_columns(
-        bars(), context=incomplete, pool_symbols=POOL)[col].any()
+        minute, context=incomplete, pool_symbols=POOL)[col].any()
 
 
-def test_replay_reads_full_saved_pool_before_filtering_requested_outputs(tmp_path):
+@pytest.mark.parametrize("delay", [0, 1, 1.5])
+def test_replay_reads_full_saved_pool_before_filtering_requested_outputs(tmp_path, delay):
     from types import SimpleNamespace
 
     from fastapi import FastAPI
@@ -170,7 +222,8 @@ def test_replay_reads_full_saved_pool_before_filtering_requested_outputs(tmp_pat
     DailyStockPools(tmp_path).save(identity, {
         "strategy_id": "s", "as_of": str(DAY), "symbols": POOL, "total": 5,
     }, started_at=1)
-    custom_signals.save_one(tmp_path, definition())
+    custom_signals.save_one(tmp_path, definition(**({"evaluation_delay_minutes": delay} if delay else {})))
+    target = TARGET + timedelta(minutes=delay)
     calls = []
 
     class Repo:
@@ -193,7 +246,8 @@ def test_replay_reads_full_saved_pool_before_filtering_requested_outputs(tmp_pat
                "end_date": str(DAY), "symbols": ["a"], "strategy_id": "s"}
     response = client.post("/api/custom-signals/intraday/replay", json=payload)
     assert response.status_code == 200, response.text
-    assert response.json()["triggers"] == [{"date": str(DAY), "time": "14:30:00", "symbol": "a"}]
+    assert response.json()["triggers"] == [{"date": str(DAY), "time": str(target.time()), "symbol": "a",
+                                           **({"bar_time": "14:30:00"} if delay else {})}]
     assert all(call == set(POOL) for call in calls)
     assert client.post("/api/custom-signals/intraday/replay",
                        json={**payload, "strategy_id": None}).status_code == 400
@@ -229,7 +283,8 @@ def test_beijing_time_is_preserved_for_timezone_aware_minute_rows():
     assert evaluate(frame=aware).symbols == POOL[:3]
 
 
-def test_minute_replay_gates_entry_and_retains_full_pool_for_requested_subset(tmp_path):
+@pytest.mark.parametrize("delay", [0, 1])
+def test_minute_replay_gates_entry_and_retains_full_pool_for_requested_subset(tmp_path, delay):
     from types import SimpleNamespace
 
     from app.backtest.minute_replay import MinuteSignalReplayer
@@ -245,7 +300,8 @@ def filter_minute_history(df, params):
     return df.sort("datetime").group_by("symbol").last().rename({"datetime": "last_datetime"})
 ''')
     strategy_engine = StrategyEngine([custom])
-    custom_signals.save_one(tmp_path, definition())
+    custom_signals.save_one(tmp_path, definition(**({"evaluation_delay_minutes": 1} if delay else {})))
+    target = TARGET + timedelta(minutes=delay)
     panel = pl.DataFrame({"symbol": POOL*2, "date": [DAY-timedelta(days=1)]*5 + [DAY]*5,
                           "close": [10.0]*10, "raw_close": [10.0]*10, "name": ["示例"]*10})
     calls = []
@@ -262,6 +318,10 @@ def filter_minute_history(df, params):
     result = replayer.replay(strategy_engine.get("sample"), panel=panel, start=DAY, end=DAY,
                              params={}, overrides={"entry_signals": ["csgi_late_session_strength"]})
     assert {hit.symbol for hit in result.hits} == set(POOL[:3])
+    assert all(hit.trigger_time == target.strftime("%H:%M") for hit in result.hits)
+    assert all(hit.raw_entry_price == pytest.approx(bars().filter(
+        (pl.col("symbol") == hit.symbol) & (pl.col("datetime") == TARGET))["close"].item())
+        for hit in result.hits)
     subset = replayer.replay(strategy_engine.get("sample"), panel=panel, start=DAY, end=DAY,
                              params={}, symbols=["a"],
                              overrides={"entry_signals": ["csgi_late_session_strength"]})

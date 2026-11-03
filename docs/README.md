@@ -21,7 +21,8 @@ s02参数、每日三Tab与回测历史查询见
 | 修改或审查代码 | [AGENTS](../AGENTS.md) → [CONTRIBUTING](../CONTRIBUTING.md) → [系统方案](architecture.md#current) → [测试指南](testing.md) |
 | 二次开发或接入外部系统 | [二次开发](secondary-development.md) → [API 导航](api.md) → [接入协议](reference/integrations.md) |
 | 准备发布、升级与恢复 | [发布运营](release-operations.md) → [运维手册](operations.md) → [版本基线](version-baseline.md) |
-| 维护文档或清理资料 | [文档维护与清理规则](maintenance.md) |
+| 定位代码、脚本或测试 | [工程目录](reference/engineering.md#layout) → [测试定位](../tests/README.md#按领域定位现有测试) |
+| 维护文档或查找历史证据 | [文档维护与清理规则](maintenance.md) → [报告分类](../reports/README.md#按用途查找) |
 
 ## 项目文档地图
 
@@ -84,6 +85,8 @@ docs/
 
 运行模板见[部署目录](../deploy/README.md)，仓库命令见[脚本入口](../scripts/README.md)
 和[后端操作模块](../backend/scripts/README.md)，可运行样例见[examples](../examples/README.md)。
+设计、实施计划和缺陷记录沿`.claude/artifacts/`归属；现行手册保留稳定入口。
+历史报告按六类导航，新增用户交付按用途和专题存放，具体规则见[文档维护](maintenance.md#4-证据目录)。
 
 <a id="maintenance"></a>
 ## 事实源与维护

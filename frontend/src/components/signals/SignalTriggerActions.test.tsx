@@ -61,7 +61,7 @@ const checkbox = (name: string) => document.querySelector<HTMLInputElement>(`inp
 it('selects existing entry and common signals without losing builtins and keeps changes staged', async () => {
   await render('entry')
   await click('选择已有入场信号')
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('信号指标')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('来自信号页')
   expect(checkbox('已有买点')).toBeTruthy()
   expect(checkbox('通用条件')).toBeTruthy()
   expect(checkbox('已有卖点')).toBeNull()

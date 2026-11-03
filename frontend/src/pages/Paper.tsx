@@ -13,15 +13,17 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as echarts from '@/lib/echarts'
-import { Banknote, ChevronDown, ChevronUp, CircleDollarSign, Clock, Download, GitCompare, Info, PieChart, Plus, RefreshCw, Settings, TrendingUp, Wallet, X } from 'lucide-react'
+import { Banknote, ChevronDown, ChevronUp, CircleDollarSign, Clock, Download, GitCompare, Info, PieChart, Plus, RefreshCw, Settings, Trash2, TrendingUp, Wallet, X } from 'lucide-react'
 import { api, type PaperAutoSkip, type PaperCompareRow, type PaperFill, type PaperOrder, type PaperValuation } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
+import { paperAccountChanged } from '@/lib/paperAccountQueries'
 import { useQuoteStatus } from '@/lib/useSharedQueries'
 import { cn } from '@/lib/cn'
 import { fmtPct, priceColorClass } from '@/lib/format'
 import { boardTag } from '@/components/stock-table/primitives'
 import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/Modal'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toast } from '@/components/Toast'
 import { PaperCorporateActions } from '@/components/PaperCorporateActions'
 
@@ -667,13 +669,18 @@ function CandidateCompareCard({ paper }: { paper: PaperCompareStats }) {
 // 费用与撮合设置 (当前账户弹窗): 佣金/印花税/滑点 + 涨跌停排队。
 // 只影响之后的新成交, 不重算历史台账 (口径与回测费用模型一致)。
 // ================================================================
-function FeeSettingsModal({ accId, fees, queue, onSaved, onClose }: {
+function AccountEditModal({ accId, name, initialCash, capitalEditable, fees, queue, onSaved, onClose }: {
   accId: string
+  name: string
+  initialCash: number
+  capitalEditable: boolean
   fees: { commission_pct: number; stamp_tax_pct: number; slippage_bps: number }
   queue: boolean
   onSaved: () => void
   onClose: () => void
 }) {
+  const [accountName, setAccountName] = useState(name)
+  const [cash, setCash] = useState(String(initialCash))
   const [commissionWan, setCommissionWan] = useState((fees.commission_pct * 10000).toFixed(2))
   const [stampQian, setStampQian] = useState((fees.stamp_tax_pct * 1000).toFixed(2))
   const [slippageBps, setSlippageBps] = useState(String(fees.slippage_bps))
@@ -681,37 +688,53 @@ function FeeSettingsModal({ accId, fees, queue, onSaved, onClose }: {
   const [err, setErr] = useState<string | null>(null)
   const qc = useQueryClient()
   const m = useMutation({
-    mutationFn: () => api.paperSettings({
+    mutationFn: () => api.paperUpdateAccount({
+      name: accountName.trim(),
+      ...(capitalEditable ? { initial_cash: Number(cash) } : {}),
       commission_pct: Number(commissionWan) / 10000,   // 万 X → pct
       stamp_tax_pct: Number(stampQian) / 1000,         // 千 X → pct
       slippage_bps: Number(slippageBps),
       queue_limit_orders: queueOn,
     }, accId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QK.paperAll })
+    onSuccess: async () => {
+      await paperAccountChanged(qc, accId, 'updated')
       onSaved()
     },
     onError: e => setErr(String((e as Error).message)),
   })
   // 与后端 update_settings 的范围校验一致 (前端先行提示)
-  const valid = Number(commissionWan) >= 0 && Number(commissionWan) <= 100
+  const valid = accountName.trim().length > 0 && accountName.trim().length <= 80
+    && (!capitalEditable || (cash.trim() !== '' && Number.isFinite(Number(cash)) && Number(cash) > 0))
+    && [commissionWan, stampQian, slippageBps].every(value => value.trim() !== '' && Number.isFinite(Number(value)))
+    && Number(commissionWan) >= 0 && Number(commissionWan) <= 100
     && Number(stampQian) >= 0 && Number(stampQian) <= 50
     && Number(slippageBps) >= 0 && Number(slippageBps) <= 200
   const inputCls = 'mt-1 w-full rounded-btn border border-border bg-base px-2 py-1.5 font-mono text-sm outline-none focus:border-accent/50'
   return (
-    <Modal onClose={onClose} labelledBy="fee-settings-title" size="sm">
+    <Modal onClose={onClose} labelledBy="fee-settings-title" size="sm" closeDisabled={m.isPending}>
         <div className="modal-header flex items-center gap-2">
           <Settings className="h-4 w-4 text-accent" />
           <h3 id="fee-settings-title" className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-            费用与撮合设置
+            修改模拟账户
             <span className="ml-1.5 font-mono text-[10px] text-muted">{accId}</span>
           </h3>
-          <button onClick={onClose} aria-label="关闭费用设置" className="modal-close"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} disabled={m.isPending} aria-label="关闭账户修改" className="modal-close"><X className="h-4 w-4" /></button>
         </div>
       <div className="modal-body">
         <p className="mt-2 text-[11px] leading-relaxed text-muted">
-          仅影响之后的新成交, 已有台账与统计不重算。口径与回测费用模型一致。
+          名称同步更新账户展示；费用与排队设置影响后续成交，历史成交及费用保留。
         </p>
+        <div className="mt-4">
+          <label htmlFor="paper-edit-name" className="block text-[11px] text-muted">账户名称</label>
+          <input id="paper-edit-name" maxLength={80} value={accountName} onChange={e => setAccountName(e.target.value)} disabled={m.isPending} className={inputCls} />
+        </div>
+        <div className="mt-3">
+          <label htmlFor="paper-edit-cash" className="block text-[11px] text-muted">初始资金 (元)</label>
+          <input id="paper-edit-cash" type="number" min="0" value={cash} onChange={e => setCash(e.target.value)} disabled={!capitalEditable || m.isPending} className={cn(inputCls, 'disabled:opacity-50')} />
+          <p className="mt-1 text-[10px] text-muted">
+            {capitalEditable ? '未产生业务记录，可同时调整初始资金和现金。' : '已有委托、成交、持仓或净值记录，初始资金不可修改。'}
+          </p>
+        </div>
         <div className="mt-4 grid grid-cols-3 gap-2">
           <div>
             <label className="block text-[11px] text-muted">佣金 (万)</label>
@@ -743,7 +766,7 @@ function FeeSettingsModal({ accId, fees, queue, onSaved, onClose }: {
           >
             {m.isPending ? '保存中…' : '保存'}
           </button>
-          <button onClick={onClose} className="rounded-btn border border-border px-4 text-sm text-secondary transition-colors hover:bg-elevated hover:text-foreground">
+          <button onClick={onClose} disabled={m.isPending} className="rounded-btn border border-border px-4 text-sm text-secondary transition-colors hover:bg-elevated hover:text-foreground disabled:opacity-50">
             取消
           </button>
         </div>
@@ -1235,6 +1258,9 @@ function CompareView({ onCreateSingle }: { onCreateSingle: () => void }) {
   })
 
   const rows = useMemo(() => cmpQ.data?.accounts ?? [], [cmpQ.data?.accounts])
+  useEffect(() => {
+    if (cmpQ.data && expanded && !rows.some(row => row.account === expanded)) setExpanded(null)
+  }, [cmpQ.data, expanded, rows])
   // 收益口径固定排序: 统计卡「收益最高」与净值叠加「收益前 8 名」不受表头排序影响
   const byPnl = useMemo(() => [...rows].sort((a, b) => (b.pnl_pct ?? -1e9) - (a.pnl_pct ?? -1e9)), [rows])
   const sorted = useMemo(() => {
@@ -1262,7 +1288,7 @@ function CompareView({ onCreateSingle }: { onCreateSingle: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
-        title="模拟交易"
+        title="模拟"
         subtitle="多账户并行对比 — 同本金 · 同费率 · 点表头排序, 点行展开完整账户操作"
         right={
           <div className="flex items-center gap-2">
@@ -1430,7 +1456,7 @@ function CompareView({ onCreateSingle }: { onCreateSingle: () => void }) {
                           {open && (
                             <tr className="border-t border-border/50 bg-base/40">
                               <td colSpan={12} className="px-4 py-4">
-                                <AccountPanel acc={r.account} name={r.name} />
+                                <AccountPanel acc={r.account} name={r.name} onDeleted={() => setExpanded(null)} />
                               </td>
                             </tr>
                           )}
@@ -1784,10 +1810,11 @@ function SetupView({ draftId, setDraftId, onBack }: {
 
 /** 账户操作面板 (原单账户视图主体): 在对比榜单行展开内渲染, 免跳转。
  *  含总览卡/净值曲线/持仓/订单与成交/下单/跟单规则/费用设置/冻结。 */
-function AccountPanel({ acc, name }: { acc: string; name?: string }) {
+function AccountPanel({ acc, name, onDeleted }: { acc: string; name?: string; onDeleted: () => void }) {
   const qc = useQueryClient()
   const [tab, setTab] = useState<'orders' | 'trades'>('orders')
   const [feeOpen, setFeeOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const overviewQ = useQuery({ queryKey: QK.paperOverview(acc), queryFn: () => api.paperOverview(acc) })
   const ordersQ = useQuery({ queryKey: QK.paperOrders(acc), queryFn: () => api.paperOrders(undefined, acc) })
@@ -1813,6 +1840,14 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
       if (fills.length > 0) downloadTradesCsv(acc, fills)
     },
     onError: error => toast(`成交台账导出失败 · ${String((error as Error).message || error)}`, 'error'),
+  })
+  const deleteM = useMutation({
+    mutationFn: () => api.paperDeleteAccount(acc),
+    onSuccess: async () => {
+      onDeleted()
+      await paperAccountChanged(qc, acc, 'deleted')
+      toast('模拟账户及关联记录已删除', 'success')
+    },
   })
 
   if (overviewQ.isLoading) {
@@ -1851,8 +1886,8 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
   return (
     <div>
       {/* 面板头: 账户标识 + 状态徽章 + 费用 + 冻结 */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium">{name || acc}</span>
+      <div className="sticky left-0 mb-3 flex max-w-[calc(100vw-6rem)] flex-wrap items-center gap-2">
+        <span className="min-w-0 max-w-full truncate text-sm font-medium" title={ov.account_name || name || acc}>{ov.account_name || name || acc}</span>
         <span className="font-mono text-[10px] text-muted">{acc}</span>
         {ov.status === 'frozen' && <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] text-warning">已冻结</span>}
         {ov.queue_limit_orders && (
@@ -1862,11 +1897,17 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
         )}
         <button
           onClick={() => setFeeOpen(true)}
-          className="ml-auto flex items-center gap-1 rounded-btn border border-border px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-accent"
+          className="flex items-center gap-1 rounded-btn border border-border px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-accent/40 hover:text-accent"
           title={`佣金 ${((ov.fees?.commission_pct ?? 0) * 10000).toFixed(1)}‱ (最低5元) · 印花税 ${((ov.fees?.stamp_tax_pct ?? 0) * 1000).toFixed(1)}‰ 仅卖出 · 滑点 ${ov.fees?.slippage_bps ?? 0}bps — 点击调整`}
         >
           <Settings className="h-3 w-3" />
-          佣金 {((ov.fees?.commission_pct ?? 0) * 10000).toFixed(1)}‱ · 印花税 {((ov.fees?.stamp_tax_pct ?? 0) * 1000).toFixed(1)}‰ · 滑点 {ov.fees?.slippage_bps ?? 0}bps
+          修改账户
+        </button>
+        <button
+          onClick={() => { deleteM.reset(); setDeleteOpen(true) }}
+          className="flex items-center gap-1 rounded-btn border border-danger/30 px-2 py-0.5 text-[11px] text-danger transition-colors hover:bg-danger/10"
+        >
+          <Trash2 className="h-3 w-3" />删除账户
         </button>
         <button
           onClick={() => api.paperFreeze(ov.status !== 'frozen', acc).then(invalidateAll)}
@@ -2085,13 +2126,30 @@ function AccountPanel({ acc, name }: { acc: string; name?: string }) {
         </div>
       </div>
       {feeOpen && ov.fees && (
-        <FeeSettingsModal
+        <AccountEditModal
           accId={acc}
+          name={ov.account_name || name || acc}
+          initialCash={ov.initial_cash ?? 0}
+          capitalEditable={ov.initial_cash_editable === true}
           fees={ov.fees}
           queue={!!ov.queue_limit_orders}
           onSaved={() => setFeeOpen(false)}
           onClose={() => setFeeOpen(false)}
         />
+      )}
+      {deleteOpen && (
+        <ConfirmDialog
+          title="删除模拟账户"
+          confirmText="确认删除"
+          danger
+          pending={deleteM.isPending}
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={() => deleteM.mutate()}
+        >
+          <p>确认删除“{ov.account_name || name || acc}”？删除后无法恢复。</p>
+          <p className="mt-2">该账户的委托、成交与权益台账、持仓、净值、自动跟单规则、退出待办、风控记录和关联提醒将同步删除。共享策略、监控规则及其他账户保留。</p>
+          {deleteM.isError && <p role="alert" className="mt-2 text-danger">{(deleteM.error as Error).message}</p>}
+        </ConfirmDialog>
       )}
     </div>
   )

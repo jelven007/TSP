@@ -13,7 +13,7 @@ Last updated: 2026-10-30
 原冲突元数据及来源保留，旧公共版本不改写。
 
 实际一致性断言修复前连续3次失败、补齐后通过，回到只读原输入再次失败；
-回归测试保存在[实际文件一致性断言](../../../reports/financial-history-unify-20261030/evidence/test_environment_parity.py)。
+回归测试保存在[实际文件一致性断言](../../../reports/market-data/financial-history-unify-20261030/evidence/test_environment_parity.py)。
 合并/应用6项测试、财务相关模块38项测试通过。
 每端52个实际事件调用已部署回放服务核验；首次观察之前为空。
 两端源/公共副本的完整文件清单SHA256一致。
@@ -23,4 +23,4 @@ Chrome在1440×1000和390×844验证两端148文件/70.7 MB，reload保持，
 原始观察事件的差异是独立采集模式；本次补齐只统一已存在的财务历史，
 不新增永久跨环境自动同步，不对其他行情的历史完整性作背书。
 备份、命令、失败后修正过程及全部验收见
-[财务历史补齐记录](../../../reports/financial-history-unify-20261030/verification.md)。
+[财务历史补齐记录](../../../reports/market-data/financial-history-unify-20261030/verification.md)。

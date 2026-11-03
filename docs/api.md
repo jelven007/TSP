@@ -1,5 +1,12 @@
 # API、事件与 MCP 导航
 
+模拟账户新增 `PUT/DELETE /api/paper/account?account=<id>`（本地源码候选，未部署）。
+修改字段为 `name/initial_cash/commission_pct/stamp_tax_pct/slippage_bps/queue_limit_orders`，
+账号ID固定；已有业务记录禁止改本金，未知字段422、非法值400、不存在404。
+删除清理账号专属业务及提醒/通知，文件失败409并保留数据；SQL需要schema 8。
+旧创建、费用和冻结入口继续兼容，详细口径见[账号生命周期](reference/trading-ai.md#paper-6-api-设计apipaper-薄胶水--域模块)。
+新增 `paper_changed` 事件只刷新相关账号、对比与提醒，不重载页面。
+
 `POST /api/custom-signals`早盘清仓定义使用`template=morning_liquidation`、
 `timeframe=intraday`、`kind=exit`、空`conditions`，`params`为
 `{"time":"10:30:00","fallback_time":"10:45:00","rise_pct":6,"fall_pct":6}`。

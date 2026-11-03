@@ -461,6 +461,7 @@ def _auto_rule(**overrides) -> dict:
 
 
 def test_auto_rule_crud_and_validation(tmp_path):
+    _cap_account(tmp_path)
     from app.strategy import paper_auto
     with pytest.raises(ValueError, match="不能为空"):
         paper_auto.create_auto_rule(tmp_path, _auto_rule(name=""))

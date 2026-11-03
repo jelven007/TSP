@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 _FULL_SWEEP_SECONDS = 30.0
 _API_PRIVATE_EVENT_SCOPES = {
     "strategy_alert": "read:analysis",
+    "paper_changed": "paper:trade",
     "strategy_results_updated": "read:analysis",
     "review_progress": "read:analysis",
 }

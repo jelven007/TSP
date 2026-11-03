@@ -2,7 +2,7 @@
 from datetime import timedelta
 
 from app.services.daily_stock_pools import DailyStockPools
-from app.strategy.late_session_strength import evaluate, parameters
+from app.strategy.late_session_strength import bar_time, evaluate, evaluation_time
 
 
 def replay(repo, storage, sig, *, strategy_id, start, end, symbols):
@@ -29,7 +29,10 @@ def replay(repo, storage, sig, *, strategy_id, start, end, symbols):
             bars_scanned += minute.height
         result = evaluate(minute, sig, day=day, pool_symbols=universe, prev_close=previous)
         diagnostics.extend({"date": str(day), "message": message} for message in result.diagnostics)
-        triggers.extend({"date": str(day), "time": parameters(sig)["time"], "symbol": symbol}
+        available_at = evaluation_time(sig, day)
+        label = bar_time(sig, day)
+        triggers.extend({"date": str(day), "time": str(available_at.time()), "symbol": symbol,
+                         **({"bar_time": str(label.time())} if available_at > label else {})}
                         for symbol in result.symbols if symbol in symbols)
         day += timedelta(days=1)
     return {
