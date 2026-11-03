@@ -508,6 +508,7 @@ def test_platform_lifecycle_rewarms_catalog_with_quotes_disabled(tmp_path, monke
     import asyncio
     from threading import Event
 
+    from app.cell.platform_market import _FULL_SNAPSHOT_LOCK
     from app.config import settings
     from app.multitenancy.platform import lifespan
     from app.services.quote_service import QuoteService
@@ -593,6 +594,11 @@ def test_platform_lifecycle_rewarms_catalog_with_quotes_disabled(tmp_path, monke
                 assert subscriber.pop()["quote_updated"]
                 # A consumer may cache the cold snapshot before warmup finishes.
                 request.state.full_public_snapshot = ("cached", {"frames": "cold"})
+                with _FULL_SNAPSHOT_LOCK:
+                    release.set()
+                    repo._warmup_thread.join(timeout=.2)
+                    assert repo._warmup_thread.is_alive(), "notification raced an in-flight snapshot fill"
+                    request.state.full_public_snapshot = ("cached", {"frames": "late cold fill"})
             finally:
                 release.set()
                 repo._warmup_thread.join(timeout=5)

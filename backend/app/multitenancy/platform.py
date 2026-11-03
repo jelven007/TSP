@@ -121,6 +121,7 @@ class PlatformAdmin:
 @asynccontextmanager
 async def lifespan(app):
     """No legacy account, private factor, strategy, monitor, paper or AI jobs."""
+    from app.cell.platform_market import _FULL_SNAPSHOT_LOCK
     from app.data_providers import custom
     from app.jobs import daily_pipeline
     from app.multitenancy.publication import PublicPublisher
@@ -160,14 +161,16 @@ async def lifespan(app):
         def repository_refreshed():
             # Catalog refresh invalidates stock caches even with polling disabled.
             repo.ensure_enriched_warmup()
-            quotes._broadcast_quote_updated()
+            with _FULL_SNAPSHOT_LOCK:
+                quotes._broadcast_quote_updated()
 
         def warmup_done():
             app.state.indicators_ready = (
                 repo.enriched_ready and not repo.get_enriched_latest(refresh=False)[0].is_empty()
             )
             # Successful empty data must also invalidate a cached cold snapshot.
-            quotes._broadcast_quote_updated()
+            with _FULL_SNAPSHOT_LOCK:
+                quotes._broadcast_quote_updated()
 
         repo._on_refresh_done = repository_refreshed
         repo._on_warmup_done = warmup_done
