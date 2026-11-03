@@ -283,6 +283,7 @@ class StrategyEngine:
         candidate_paths: dict[str, Path] = {}
         errors: list[dict] = []
         duplicate_ids: set[str] = set()
+        retired_builtins = set(settings.retired_builtin_strategies)
         for d in self._strategy_dirs:
             if not d.exists():
                 continue
@@ -292,6 +293,8 @@ class StrategyEngine:
                 try:
                     s = self._load_file(f)
                     strategy_id = str(s.meta["id"])
+                    if s.source == "builtin" and strategy_id in retired_builtins:
+                        continue
                     if strategy_id in duplicate_ids:
                         errors.append({
                             "file": str(f),

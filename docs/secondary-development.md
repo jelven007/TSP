@@ -1,5 +1,10 @@
 # 代码二次开发与 AI 扩展指南
 
+最新升级为 L3 有界内部修改：`Settings.retired_builtin_strategies` 控制内置发现，
+默认空，按来源和 ID 跳过，私有源不受影响；不提供数据清理或新的公开插件接口。
+隔夜费用可选 `transfer_fee_fixed` 使用元，预留含费预算并按汇总委托累计增量计费，
+旧缺字段不补入固定金额。真实入口及双端边界见[最新升级](../reports/releases/current-upgrade-20261103/verification.md)。
+
 本轮统一升级为各领域L3既有实现三方整合，无新增通用插件接口；
 公共缓存、调度、模拟账户SQL权限、秒精度及前端查询须按同SHA完整复验，
 见[统一升级](../reports/releases/unified-upgrade-20261103/verification.md)。

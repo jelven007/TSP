@@ -1,5 +1,8 @@
 # Tick Stock Platform（TSP）
 
+最新升级候选保留固定过户费支持与线上内置策略退役，历史结果及用户配置保持；
+当前候选与实际发布状态见[最新升级记录](reports/releases/current-upgrade-20261103/verification.md)。
+
 面向沪深股票与指数的数据治理、看盘、策略筛选、因子研究和回测验证工作台，
 支持单机运行与完整单机多租户部署。
 

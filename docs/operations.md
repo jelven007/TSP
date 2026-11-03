@@ -1,5 +1,11 @@
 # Tick Stock Platform（TSP）部署与运维手册
 
+最新升级使用同一正式SHA的源码、Runtime和Compute。
+受控环境`RETIRED_BUILTIN_STRATEGIES`为JSON数组，默认`[]`；
+线上Runtime及Compute持久配置`["s01","s02"]`以保留既有退役状态，本地保持默认。
+该配置只控制内置发现，不执行数据清理；切换前两库备份/实际恢复、11组业务摘要、
+schema8演练及完整重启门禁见[最新升级](../reports/releases/current-upgrade-20261103/verification.md)。
+
 本轮统一升级需要先备份并实际恢复双库，再迁移schema8；
 正式SHA、两端完整切换、用户状态保留及最后镜像/缓存清理分别签收，
 见[最新统一升级](../reports/releases/unified-upgrade-20261103/verification.md)。

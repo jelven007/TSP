@@ -18,6 +18,7 @@ import uuid
 from contextlib import suppress
 from pathlib import Path
 
+from app.config import settings
 from app.multitenancy.executor import KINDS, MAX_MESSAGE_BYTES
 from app.services.strategy_resources import (
     BudgetPermits,
@@ -121,6 +122,7 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
             "PATH=/app/.venv/bin:/usr/local/bin:/usr/bin:/bin", "PYTHONPATH=/app",
             "PYTHONDONTWRITEBYTECODE=1", "HOME=/tmp", "XDG_CACHE_HOME=/tmp/xdg",
             "DATA_DIR=/market", "TICKFLOW_ENV_FILE=/dev/null",
+            "RETIRED_BUILTIN_STRATEGIES=" + json.dumps(settings.retired_builtin_strategies),
             "TIERS_YAML=/app/tiers.yaml", "TZ=Asia/Shanghai",
             f"POLARS_MAX_THREADS={max(1, math.floor(cpus))}",
             f"NUMBA_NUM_THREADS={max(1, math.floor(cpus))}",

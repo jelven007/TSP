@@ -81,6 +81,22 @@ def test_broker_small_host_budget_keeps_swap_and_memory_equal(socket_dir):
     assert "--network" in command and "--read-only" in command
 
 
+@pytest.mark.parametrize("retired", [[], ["s01"], ["s01", "s02"]])
+def test_broker_forwards_only_builtin_retirement_into_clean_sandbox(socket_dir, monkeypatch, retired):
+    import app.multitenancy.compute_broker as module
+
+    monkeypatch.setattr(module, "settings", SimpleNamespace(retired_builtin_strategies=retired), raising=False)
+    monkeypatch.setenv("AUTH_PASSWORD", "must-remain-on-host")
+    monkeypatch.setenv("TSP_CELL_DATA_DSN", "must-remain-on-host")
+    with ComputeBroker(socket_dir / "retired.sock", "pinned-image:digest", socket_dir, 1) as broker:
+        command = broker.command("retirement-job")
+    environment = command[command.index("pinned-image:digest") + 2:]
+    assert "RETIRED_BUILTIN_STRATEGIES=" + json.dumps(retired) in environment
+    assert "TICKFLOW_ENV_FILE=/dev/null" in environment
+    assert not any("must-remain-on-host" in value or "AUTH_PASSWORD=" in value
+                   or "TSP_CELL_DATA_DSN=" in value for value in command)
+
+
 def test_broker_health_runs_one_real_sandbox_probe_and_caches_it(socket_dir, monkeypatch):
     calls = []
 
