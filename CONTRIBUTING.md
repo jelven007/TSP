@@ -1,5 +1,10 @@
 # Tick Stock Platform（TSP）开发、贡献与复审指南
 
+本轮最新现场升级兼容固定过户费与部署内置退役：
+`transfer_fee_fixed` 是可选金额，分片累计只收一次；缺字段仍按历史比例费。
+`RETIRED_BUILTIN_STRATEGIES` 默认为空，只影响内置发现，不能删除用户数据或隐藏私有同 ID 源。
+同 SHA 双端配置、失败复现和发布门禁见[最新升级](reports/releases/current-upgrade-20261103/verification.md)。
+
 2026-11-03统一候选的来源、六类文档、兼容边界及完整质量门见
 [最新升级记录](reports/releases/unified-upgrade-20261103/verification.md)。
 本地不改号；双库schema8只在实备份/恢复验证后执行，旧迁移校验和保持。

@@ -69,6 +69,11 @@ def suspended_on(symbol, day, params):
 
 def parameters(values):
     params = {**DEFAULTS, **(values or {})}
+    if "transfer_fee_fixed" in params:
+        value = float(params["transfer_fee_fixed"])
+        if isinstance(params["transfer_fee_fixed"], bool) or not np.isfinite(value) or value < 0:
+            raise ValueError("固定费用须为有效非负数")
+        params["transfer_fee_fixed"] = value
     for definition in PARAMS:
         key = definition["id"]
         if definition["type"] == "string":

@@ -1,5 +1,8 @@
 # Tick Stock Platform（TSP）文档中心
 
+本轮[最新现场兼容升级](../reports/releases/current-upgrade-20261103/verification.md)汇总
+固定过户费、部署内置退役、六类文档及独立发布门禁；撤回候选与历史研究分别保留。
+
 2026-11-02后续补丁统一发布的需求／方案／开发／测试／运营／运维映射见
 [本轮整合](../reports/release-consolidation-20261102-followup.md)，
 当前版本和两端状态仍由[版本基线](version-baseline.md)维护。

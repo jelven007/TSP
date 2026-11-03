@@ -1,5 +1,10 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+最新升级在配置到策略发现边界增加默认空的内置退役列表，Runtime/Compute 共享同 SHA，
+部署差异通过受控环境表达；私有策略源、缓存/归档与业务库不由该列表改写。
+隔夜共享费用内核支持可选固定金额，预算预留且分片仅累计增量；
+调用链及兼容见[最新升级](../reports/releases/current-upgrade-20261103/verification.md)。
+
 最新统一候选继承主线公共缓存修复，整合行情调度、菜单、模拟账户schema8、
 尾盘精确启动秒及目录迁移；调用链、来源和兼容边界见
 [统一升级](../reports/releases/unified-upgrade-20261103/verification.md)。

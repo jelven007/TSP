@@ -151,6 +151,8 @@ class Settings(BaseSettings):
     # polars eager 操作内部已多线程并行, 外层再并发 4 worker 属超订, 41 策略
     # 299.6s 慢于串行 — 默认 1 (串行)。保留开关供配合 POLARS_MAX_THREADS 调优实验。
     strategy_run_all_workers: int = 1
+    # 部署发现边界; 仅退役内置定义, 不改写用户策略或持久业务数据。
+    retired_builtin_strategies: list[str] = Field(default_factory=list)
 
     # run_all 渐进式返回: HTTP 同步等待时限 (秒)。策略按历史耗时升序执行,
     # 到点后已算完的随响应返回, 未算完的转后台继续算并逐个写入策略缓存,

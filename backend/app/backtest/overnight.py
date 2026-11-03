@@ -28,14 +28,19 @@ from app.strategy.overnight_runtime import annotate_daily, next_market_day
 def order_fee(notional: float, side: str, params: dict) -> float:
     if notional <= 0:
         return 0.
-    return max(params["minimum_commission"], notional * params["commission"]) + notional * (
-        params["transfer_fee"] + (params["stamp_tax"] if side == "sell" else 0.))
+    return (
+        params.get("transfer_fee_fixed", 0.)
+        + max(params["minimum_commission"], notional * params["commission"])
+        + notional * (params["transfer_fee"] + (params["stamp_tax"] if side == "sell" else 0.))
+    )
 
 
 def fill_order(frame, side, symbol, prior_close, first_bar, last_bar, values, *,
                budget=None, quantity=None, price_field=None, prior_notional=0.):
     """一只股票、一天、一个方向的汇总委托; 分片费用为汇总费用的增量。"""
     params = parameters(values)
+    # 整笔买入预算预留固定费; 各分片仍只记累计费用的增量。
+    buying_budget = max(0., (budget or 0.) - params.get("transfer_fee_fixed", 0.))
     minimum, step, maximum = buy_quantity_rules(symbol)
     notional, shares, fills = 0., 0, []
     target = quantity
@@ -71,16 +76,16 @@ def fill_order(frame, side, symbol, prior_close, first_bar, last_bar, values, *,
             capacity = math.floor(row["volume"] * 100 * params["participation"] / step + 1e-9) * step
             if target is None:
                 cap_notional = min(
-                    budget / (1 + params["commission"] + params["transfer_fee"]),
-                    (budget - params["minimum_commission"]) / (1 + params["transfer_fee"]),
+                    buying_budget / (1 + params["commission"] + params["transfer_fee"]),
+                    (buying_budget - params["minimum_commission"]) / (1 + params["transfer_fee"]),
                 )
                 target = min(maximum, math.floor(max(cap_notional, 0) / price / step + 1e-9) * step)
             qty = min(max(target - shares, 0), capacity)
             if side == "buy":
                 # 价格改变时重新限制含费成本; 不增加最初目标数量。
                 cap = min(
-                    budget / (1 + params["commission"] + params["transfer_fee"]),
-                    (budget - params["minimum_commission"]) / (1 + params["transfer_fee"]),
+                    buying_budget / (1 + params["commission"] + params["transfer_fee"]),
+                    (buying_budget - params["minimum_commission"]) / (1 + params["transfer_fee"]),
                 ) - notional
                 qty = min(qty, math.floor(max(cap, 0) / price / step + 1e-9) * step)
             if qty < minimum and not (side == "sell" and qty == target - shares and qty > 0):
@@ -117,6 +122,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
         "initial_capital": params["initial_cash"], "max_positions": params["position_limit"],
         "commission_pct": params["commission"], "minimum_commission": params["minimum_commission"],
         "transfer_fee_pct": params["transfer_fee"], "stamp_tax_pct": params["stamp_tax"],
+        "transfer_fee_fixed": params.get("transfer_fee_fixed", 0.),
         "slippage_bps": params["slippage"] * 10000, "minute_execution": execution,
         "entry_fill": "close_t", "exit_fill": "close_t",
         "execution_entry_fill": "single_minute_high_capacity" if high_entry else "capacity_window",
