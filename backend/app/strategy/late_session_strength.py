@@ -14,7 +14,7 @@ TEMPLATE = "late_session_strength"
 DEFAULT_PARAMS = {
     "time": "14:30:00", "change_min_pct": 0.4, "change_max_pct": 4.0,
     "pool_up_min_pct": 60.0, "ma5_1m_count": 7, "ma5_5m_count": 4,
-    "evaluation_delay_minutes": 1.5,
+    "evaluation_delay_minutes": 1,
 }
 
 
@@ -34,14 +34,14 @@ def parameters(sig: dict) -> dict:
     try:
         at = time.fromisoformat(params["time"])
         if (at.strftime("%H:%M:%S") != params["time"] or at.tzinfo
-                or (delay != 1.5 and at.second)):
+                or (delay == 0 and at.second)):
             raise ValueError
         if not earliest <= at <= latest:
             raise ValueError
     except (TypeError, ValueError):
         raise ValueError(
             f"尾盘走强启动时间须为午后 {earliest}~{latest}; "
-            "90秒定义支持秒, 旧定义秒数须为 00"
+            "延迟确认定义支持秒, 无延迟旧定义秒数须为 00"
         ) from None
     for key in ("change_min_pct", "change_max_pct", "pool_up_min_pct"):
         value = params[key]
@@ -89,6 +89,29 @@ def pool_cutoff(engine, strategy_ids, overrides_map, day: date, fallback: dateti
              if sig.get("template") == TEMPLATE and sig.get("enabled") is not False
              and custom_signals.intraday_column_name(sig["id"]) in requested]
     return min([fallback, *times])
+
+
+def pending_evaluation_time(engine, strategy, overrides, context) -> datetime | None:
+    """Return the latest selected delayed entry evaluation that is still pending."""
+    observed = context.observed_at or context.completed_through
+    storage = engine._user_data_dir()
+    if observed is None or storage is None:
+        return None
+    if observed.tzinfo:
+        observed = observed.astimezone(CN_TZ).replace(tzinfo=None)
+    from app.strategy import custom_signals
+
+    selected = set(engine._effective_signals(
+        overrides or {}, "entry_signals", strategy.entry_signals,
+    ))
+    pending = [
+        evaluation_time(sig, context.as_of)
+        for sig in custom_signals.load_intraday_all(storage)
+        if sig.get("template") == TEMPLATE and sig.get("enabled") is not False
+        and custom_signals.intraday_column_name(sig["id"]) in selected
+        and observed < evaluation_time(sig, context.as_of)
+    ]
+    return max(pending, default=None)
 
 
 @dataclass
@@ -188,14 +211,7 @@ def evaluate(
 
 def previous_closes(context, *, exact_session: bool = False) -> dict[str, float]:
     """昨收使用严格早于信号日的未复权价格, 不读取当日收盘。"""
-    source = context.pool_history
-    if source is None or source.is_empty():
-        source = context.daily_history
-    if source is None or source.is_empty():
-        source = context.current
-    if source is None or source.is_empty() or "date" not in source.columns:
-        return {}
-    prior = source.filter(pl.col("date") < context.as_of).sort("date")
+    previous = None
     if exact_session:
         from app.market_time import published_trading_day
 
@@ -204,9 +220,24 @@ def previous_closes(context, *, exact_session: bool = False) -> dict[str, float]
             previous -= timedelta(days=1)
         if published_trading_day(previous) is not True:
             return {}
-        prior = prior.filter(pl.col("date") == previous)
-    column = "raw_close" if "raw_close" in prior.columns else "close"
-    if column not in prior.columns:
+    parts = []
+    for source in (context.current, context.daily_history, context.pool_history):
+        if source is None or source.is_empty() or not {"symbol", "date"}.issubset(source.columns):
+            continue
+        column = "raw_close" if "raw_close" in source.columns else "close"
+        if column not in source.columns:
+            continue
+        prior = source.filter(pl.col("date") < context.as_of)
+        if exact_session:
+            prior = prior.filter(pl.col("date") == previous)
+        elif {"volume", "amount"}.issubset(prior.columns):
+            prior = prior.filter(
+                (pl.col("volume") > 0) | (pl.col("amount") > 0)
+                | (pl.col("volume").is_null() & pl.col("amount").is_null()))
+        parts.append(prior.select("symbol", "date", pl.col(column).alias("raw_close")))
+    if not parts:
         return {}
-    return {str(row["symbol"]): row[column]
+    prior = pl.concat(parts, how="vertical_relaxed").filter(
+        pl.col("raw_close").is_finite() & (pl.col("raw_close") > 0)).sort("date", maintain_order=True)
+    return {str(row["symbol"]): row["raw_close"]
             for row in prior.unique("symbol", keep="last").iter_rows(named=True)}

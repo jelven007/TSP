@@ -1,5 +1,16 @@
 # 工程与交付参考
 
+2026-11-04实际部署候选保留三处运行热修复，并完成Broker CLI日志初始化回归：
+无外部日志配置时原INFO记录缺失，补齐后实际合并候选217项通过、Ruff通过。
+双端增量镜像、逐文件哈希及重启验收见
+[部署回执](../../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+
+尾盘延迟优化的需求、方案、开发、测试、运营和运维逐文件映射见
+[专项报告](../../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+实现使用既有分钟完成通知、不可变发布、BudgetPermits、池参考加载及有界observability，
+不新增调度框架、SQL迁移或策略规则。旧/新池参考的全部共同字段及完整股票池先验证一致；
+本地216项受影响测试通过，源码候选与线上14:32验收分别记录。
+
 核对日期：2026-11-02。本文维护工程目录、开发闭环、构建身份、多人协作和生命周期追踪；
 版本身份见[版本基线](../version-baseline.md)，历史交付结果见[证据索引](../../reports/README.md)。
 

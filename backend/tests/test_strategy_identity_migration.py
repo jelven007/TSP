@@ -136,10 +136,17 @@ def test_sql_migration_preserves_document_dates_and_rejects_record_key_collision
     assert after == before
 
 
-def test_builtin_catalog_and_daily_archive_use_new_strategy():
+def test_builtin_catalog_preserves_shared_id_and_configured_retirement(monkeypatch):
     from pathlib import Path
+
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "retired_builtin_strategies", [])
     engine = StrategyEngine([Path(__file__).parents[1] / "app/strategy/builtin"])
     assert engine.has("s02")
     assert not engine.has("s021") and not engine.has("s022")
-    assert engine.get("s02").meta["timeframes"] == ["1m"]
-    assert engine.resolve_params(engine.get("s02"))["take_profit_pct"] == .06
+    assert engine.get("s01").meta["timeframes"] == ["1m"]
+    monkeypatch.setattr(settings, "retired_builtin_strategies", ["s02"])
+    engine.reload()
+    assert not engine.has("s02")
+    assert engine.has("s01")

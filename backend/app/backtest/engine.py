@@ -6,12 +6,15 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
+import re
 import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import date
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from datetime import time as datetime_time
 from typing import Literal
 
 import numpy as np
@@ -19,6 +22,7 @@ import polars as pl
 import pyarrow as pa
 
 from app.backtest.costs import buy_quantity_rules, historical_stamp_tax_pct
+from app.backtest.entry_execution import EntryExecution, execute_entry_window
 from app.backtest.matrix import (
     MarketDataMatrix,
     MarketMatrix,
@@ -36,7 +40,8 @@ from app.strategy.risk_policy import price_exit
 from app.tickflow.repository import KlineRepository
 
 logger = logging.getLogger(__name__)
-EXECUTION_MODEL_VERSION = "raw_price_frozen_entry_risk_v6"
+EXECUTION_MODEL_VERSION = "entry_capacity_window_v7"
+_A_SHARE_SYMBOL = re.compile(r"^\d{6}\.(?:SH|SZ)$")
 
 
 def _matrix_entry_score(matrix: MarketMatrix, time_id: int, asset_id: int) -> float:
@@ -87,6 +92,144 @@ def _limit_blocks(
     return bool(price >= limit if up else price <= limit)
 
 
+def _uses_entry_capacity_window(
+    matrix: MarketMatrix,
+    config: MatcherConfig,
+    time_id: int,
+    asset_id: int,
+) -> bool:
+    key = (matrix.symbols[asset_id], matrix.timestamp_labels[time_id][:10])
+    configured_window = (
+        config.entry_window_starts is not None
+        and key in config.entry_window_starts
+    )
+    minute_entry = (
+        matrix.entry_price is not None
+        and np.isfinite(matrix.entry_price[time_id, asset_id])
+    )
+    return (
+        config.asset_type == "stock"
+        and bool(_A_SHARE_SYMBOL.fullmatch(matrix.symbols[asset_id]))
+        and (
+            configured_window
+            or (
+                config.entry_capacity_window
+                and config.entry_fill == "open_t+1"
+                and not minute_entry
+            )
+        )
+    )
+
+
+def _entry_window_start(
+    matrix: MarketMatrix,
+    config: MatcherConfig,
+    time_id: int,
+    asset_id: int,
+) -> datetime:
+    key = (matrix.symbols[asset_id], matrix.timestamp_labels[time_id][:10])
+    if config.entry_window_starts is not None and key in config.entry_window_starts:
+        return config.entry_window_starts[key]
+    return datetime.combine(date.fromisoformat(key[1]), datetime_time(9, 31))
+
+
+def _entry_signal_time(
+    matrix: MarketMatrix,
+    config: MatcherConfig,
+    time_id: int,
+    asset_id: int,
+) -> str:
+    key = (matrix.symbols[asset_id], matrix.timestamp_labels[time_id][:10])
+    if config.entry_signal_times is not None and key in config.entry_signal_times:
+        return config.entry_signal_times[key]
+    source = int(matrix.entry_signal_time[time_id, asset_id])
+    return matrix.timestamp_labels[source] if source >= 0 else key[1]
+
+
+def _previous_raw_close(
+    config: MatcherConfig,
+    matrix: MarketMatrix,
+    time_id: int,
+    asset_id: int,
+) -> float | None:
+    key = (matrix.symbols[asset_id], matrix.timestamp_labels[time_id][:10])
+    if config.entry_prior_closes is not None and key in config.entry_prior_closes:
+        value = float(config.entry_prior_closes[key])
+        return value if np.isfinite(value) and value > 0 else None
+    source = matrix.raw_close if matrix.raw_close is not None else matrix.close
+    current_session = int(matrix.session_ids[time_id])
+    for previous in range(time_id - 1, -1, -1):
+        if int(matrix.session_ids[previous]) >= current_session:
+            continue
+        value = float(source[previous, asset_id])
+        if np.isfinite(value) and value > 0:
+            return value
+    return None
+
+
+def _raw_execution_limit_up(
+    matrix: MarketMatrix,
+    config: MatcherConfig,
+    time_id: int,
+    asset_id: int,
+    scale: float,
+) -> float | None:
+    if matrix.execution_limit_up is None or config.asset_type != "stock":
+        return None
+    boundary = float(matrix.execution_limit_up[time_id, asset_id])
+    if np.isposinf(boundary):
+        return float("inf")
+    if not np.isfinite(boundary) or boundary <= 0 or not np.isfinite(scale) or scale <= 0:
+        return None
+    raw_boundary = boundary / scale
+    return math.floor((raw_boundary + 0.005) * 100 + 0.5) / 100
+
+
+def _entry_fill_dict(symbol: str, fill) -> dict:
+    return {
+        "date": str(fill.datetime.date()),
+        "symbol": symbol,
+        "side": "buy",
+        "bar": fill.bar,
+        "datetime": fill.datetime.isoformat(sep=" "),
+        "shares": fill.shares,
+        "price": fill.price,
+        "notional": fill.notional,
+        "fee": fill.fee,
+        "minute_volume_shares": fill.minute_volume_shares,
+        "participation": fill.participation,
+    }
+
+
+def _record_entry_execution(
+    execution_stats: dict,
+    fills: list[dict],
+    entry_orders: list[dict],
+    symbol: str,
+    signal_time: str,
+    window_start: datetime,
+    execution: EntryExecution,
+) -> None:
+    execution_stats["entry_target_shares"] += execution.target_shares
+    execution_stats["entry_filled_shares"] += execution.filled_shares
+    execution_stats["entry_cancelled_shares"] += execution.cancelled_shares
+    if execution.status == "partial":
+        execution_stats["entry_partial_orders"] += 1
+    elif execution.status == "unfilled":
+        execution_stats["entry_unfilled_orders"] += 1
+    fills.extend(_entry_fill_dict(symbol, item) for item in execution.fills)
+    entry_orders.append({
+        "symbol": symbol,
+        "signal_time": signal_time,
+        "window_start": window_start.isoformat(sep=" "),
+        "target_shares": execution.target_shares,
+        "filled_shares": execution.filled_shares,
+        "cancelled_shares": execution.cancelled_shares,
+        "average_price": execution.average_price,
+        "status": execution.status,
+    })
+
+
 # ================================================================
 # 数据结构
 # ================================================================
@@ -127,6 +270,11 @@ class MatcherConfig:
     # Low-level matcher keeps legacy fixed costs; strategy service opts into history.
     stamp_tax_mode: Literal["fixed", "historical"] = "fixed"
     entry_risk: EntryRiskPolicy | dict | None = None
+    # Internal minute-strategy sidecar. User-facing request serialization does not expose it.
+    entry_window_starts: dict[tuple[str, str], datetime] | None = None
+    entry_prior_closes: dict[tuple[str, str], float] | None = None
+    entry_signal_times: dict[tuple[str, str], str] | None = None
+    entry_capacity_window: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.entry_risk, EntryRiskPolicy):
@@ -224,6 +372,8 @@ class SimResult:
     trades: list[TradeRecord]
     per_symbol_stats: list[dict]
     stats: dict
+    fills: list[dict] = field(default_factory=list)
+    entry_orders: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -1007,6 +1157,8 @@ class BacktestEngine:
         entry_prices = self._resolve_entry_prices(matrix, config)
         exit_prices = matrix.open if config.exit_fill == "open_t+1" else matrix.close
         trades: list[TradeRecord] = []
+        fills: list[dict] = []
+        entry_orders: list[dict] = []
         execution_stats = {
             "buy_invalid_price": 0,
             "buy_suspended": 0,
@@ -1019,6 +1171,32 @@ class BacktestEngine:
             "sell_no_future": 0,
             "pending_exit": 0,
         }
+        if config.entry_capacity_window or config.entry_window_starts:
+            execution_stats.update({
+                "entry_target_shares": 0,
+                "entry_filled_shares": 0,
+                "entry_cancelled_shares": 0,
+                "entry_partial_orders": 0,
+                "entry_unfilled_orders": 0,
+            })
+
+        entry_requirements = {
+            (matrix.symbols[int(asset)], matrix.timestamp_labels[int(moment)][:10])
+            for moment, asset in zip(*np.nonzero(matrix.entry), strict=True)
+            if _uses_entry_capacity_window(matrix, config, int(moment), int(asset))
+        }
+        entry_window_cache, missing_partitions = self._load_entry_window_frames(
+            self.repo, entry_requirements, config.asset_type,
+        )
+        if missing_partitions:
+            day = missing_partitions[0]
+            return SimResult(
+                equity_curve=[],
+                drawdown_curve=[],
+                trades=[],
+                per_symbol_stats=[],
+                stats={"error": f"{day} 缺分钟K分区, 无法执行五分钟建仓容量撮合"},
+            )
 
         minute_cache: dict = {}
         if config.minute_fill:
@@ -1100,7 +1278,7 @@ class BacktestEngine:
                 if matrix.execution_limit_up is not None and config.asset_type == "stock" else None
             )
             # Minute replay has already checked its actual execution timestamp.
-            if not minute_entry and _limit_blocks(
+            if not minute_entry and not _uses_entry_capacity_window(matrix, config, time_id, asset_id) and _limit_blocks(
                 entry_prices[time_id, asset_id], limit, up=True,
                 fallback=(config.entry_fill == "close_t" and bool(matrix.limit_up_locked[time_id, asset_id]))
                 or _one_price_limit(time_id, asset_id, "up"),
@@ -1254,11 +1432,6 @@ class BacktestEngine:
             if config.score_max is not None and score > config.score_max:
                 _count("buy_score_filter")
                 continue
-            entry_price = _refill(time_id, asset_id, "buy", float(entry_prices[time_id, asset_id]))
-            frozen_stop, blocked = _freeze_matrix_risk(matrix, config, time_id, asset_id, entry_price)
-            if blocked:
-                _count(blocked)
-                continue
             scale = _price_scale(
                 float(matrix.close[time_id, asset_id]),
                 float(matrix.raw_close[time_id, asset_id]) if matrix.raw_close is not None else None,
@@ -1266,8 +1439,71 @@ class BacktestEngine:
             if not _valid_price(scale):
                 _count("buy_invalid_price")
                 continue
-            raw_shares = buy_quantity_rules(matrix.symbols[asset_id], config.asset_type)[0]
             entry_date = matrix.timestamp_labels[time_id][:10]
+            symbol = matrix.symbols[asset_id]
+            capacity_execution: EntryExecution | None = None
+            if _uses_entry_capacity_window(matrix, config, time_id, asset_id):
+                prior_close = _previous_raw_close(config, matrix, time_id, asset_id)
+                if prior_close is None:
+                    _count("buy_invalid_price")
+                    continue
+                minimum = buy_quantity_rules(symbol, config.asset_type)[0]
+                capacity_execution = execute_entry_window(
+                    entry_window_cache.get(
+                        (symbol, entry_date), self._empty_entry_window_frame(),
+                    ),
+                    symbol=symbol,
+                    start_at=_entry_window_start(matrix, config, time_id, asset_id),
+                    prior_close=prior_close,
+                    budget=np.finfo(np.float64).max,
+                    size_order=lambda _price, target=minimum: target,
+                    buy_value=config.buy_value,
+                    limit_up_price=_raw_execution_limit_up(
+                        matrix, config, time_id, asset_id, scale,
+                    ),
+                    asset_type=config.asset_type,
+                )
+                if (
+                    capacity_execution.filled_shares <= 0
+                    or capacity_execution.average_price is None
+                ):
+                    _record_entry_execution(
+                        execution_stats,
+                        fills,
+                        entry_orders,
+                        symbol,
+                        _entry_signal_time(matrix, config, time_id, asset_id),
+                        _entry_window_start(matrix, config, time_id, asset_id),
+                        capacity_execution,
+                    )
+                    continue
+                raw_shares = capacity_execution.filled_shares
+                raw_entry_price = capacity_execution.average_price
+                entry_price = raw_entry_price * scale
+                entry_value = capacity_execution.value
+            else:
+                entry_price = _refill(
+                    time_id, asset_id, "buy", float(entry_prices[time_id, asset_id])
+                )
+                raw_shares = buy_quantity_rules(symbol, config.asset_type)[0]
+                raw_entry_price = entry_price / scale
+                entry_value = config.buy_value(raw_shares / scale * entry_price)
+            frozen_stop, blocked = _freeze_matrix_risk(
+                matrix, config, time_id, asset_id, entry_price,
+            )
+            if blocked:
+                _count(blocked)
+                continue
+            if capacity_execution is not None:
+                _record_entry_execution(
+                    execution_stats,
+                    fills,
+                    entry_orders,
+                    symbol,
+                    _entry_signal_time(matrix, config, time_id, asset_id),
+                    _entry_window_start(matrix, config, time_id, asset_id),
+                    capacity_execution,
+                )
             pos = {
                 "entry_time": time_id,
                 "entry_date": entry_date,
@@ -1281,8 +1517,8 @@ class BacktestEngine:
                 "frozen_stop": frozen_stop,
                 "shares": raw_shares / scale,
                 "raw_entry_shares": raw_shares,
-                "raw_entry_price": entry_price / scale,
-                "entry_value": config.buy_value(raw_shares / scale * entry_price),
+                "raw_entry_price": raw_entry_price,
+                "entry_value": entry_value,
                 "entry_score": score,
                 "hold_days": 0,
                 "max_high": entry_price,
@@ -1354,6 +1590,8 @@ class BacktestEngine:
         )
         result.stats["market_matrix_shape"] = list(matrix.shape)
         result.stats["market_matrix_bytes"] = matrix.nbytes
+        result.fills = fills
+        result.entry_orders = entry_orders
         return result
 
     def simulate_independent_market_matrix(
@@ -1891,6 +2129,85 @@ class BacktestEngine:
     _MINUTE_NUMERIC_COLS = ["open", "high", "low", "close", "volume", "amount"]
 
     @staticmethod
+    def _load_entry_window_frames(
+        repo,
+        requirements: set[tuple[str, str]],
+        asset_type: str,
+    ) -> tuple[dict[tuple[str, str], pl.DataFrame], list[str]]:
+        """Load complete minute rows for capacity windows and identify absent partitions."""
+        if not requirements:
+            return {}, []
+        required_dates = sorted({day for _, day in requirements})
+        symbols = sorted({symbol for symbol, _ in requirements})
+        date_objects = [date.fromisoformat(day) for day in required_dates]
+        if repo is None:
+            return {}, required_dates
+
+        known_partitions: set[str] | None = None
+        if hasattr(repo, "list_minute_dates"):
+            try:
+                known_partitions = {
+                    str(value)[:10]
+                    for value in repo.list_minute_dates(
+                        date_objects[0], date_objects[-1], asset_type,
+                    )
+                }
+            except Exception as exc:
+                logger.warning("minute partition listing failed: %s", exc)
+                return {}, required_dates
+            missing = sorted(set(required_dates) - known_partitions)
+            if missing:
+                return {}, missing
+
+        frames: list[pl.DataFrame] = []
+        for offset in range(0, len(date_objects), 50):
+            batch = date_objects[offset:offset + 50]
+            try:
+                frame = repo.get_minute_by_dates(symbols, batch, asset_type=asset_type)
+            except Exception as exc:
+                logger.warning("entry window minute load failed: %s", exc)
+                return {}, [str(batch[0])]
+            if not frame.is_empty():
+                frames.append(frame)
+        loaded = pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
+        if known_partitions is None:
+            if loaded.is_empty() or "datetime" not in loaded.columns:
+                return {}, required_dates
+            loaded_dates = {
+                str(value.date())
+                for value in loaded["datetime"].to_list()
+                if isinstance(value, datetime)
+            }
+            missing = sorted(set(required_dates) - loaded_dates)
+            if missing:
+                return {}, missing
+
+        cache: dict[tuple[str, str], pl.DataFrame] = {}
+        if not loaded.is_empty():
+            loaded = loaded.sort(["symbol", "datetime"]).with_columns(
+                pl.col("datetime").dt.strftime("%Y-%m-%d").alias("_entry_date")
+            )
+            for group in loaded.partition_by(["symbol", "_entry_date"], as_dict=False):
+                if group.is_empty():
+                    continue
+                cache[(str(group["symbol"][0]), str(group["_entry_date"][0]))] = group.drop(
+                    "_entry_date"
+                )
+        return cache, []
+
+    @staticmethod
+    def _empty_entry_window_frame() -> pl.DataFrame:
+        return pl.DataFrame(schema={
+            "symbol": pl.String,
+            "datetime": pl.Datetime,
+            "open": pl.Float64,
+            "high": pl.Float64,
+            "low": pl.Float64,
+            "close": pl.Float64,
+            "volume": pl.Float64,
+        })
+
+    @staticmethod
     def _load_minute_for_fills(
         repo,
         symbols: list[str],
@@ -2007,6 +2324,8 @@ class BacktestEngine:
         drawdown_curve: list[dict] = []
         equity_values: list[float] = []
         exposure_values: list[float] = []
+        fills: list[dict] = []
+        entry_orders: list[dict] = []
         execution_stats = {
             "buy_invalid_price": 0,
             "buy_suspended": 0,
@@ -2022,6 +2341,32 @@ class BacktestEngine:
             "sell_limit_down": 0,
             "pending_exit": 0,
         }
+        if config.entry_capacity_window or config.entry_window_starts:
+            execution_stats.update({
+                "entry_target_shares": 0,
+                "entry_filled_shares": 0,
+                "entry_cancelled_shares": 0,
+                "entry_partial_orders": 0,
+                "entry_unfilled_orders": 0,
+            })
+
+        entry_requirements = {
+            (matrix.symbols[int(asset)], matrix.timestamp_labels[int(moment)][:10])
+            for moment, asset in zip(*np.nonzero(matrix.entry), strict=True)
+            if _uses_entry_capacity_window(matrix, config, int(moment), int(asset))
+        }
+        entry_window_cache, missing_partitions = self._load_entry_window_frames(
+            self.repo, entry_requirements, config.asset_type,
+        )
+        if missing_partitions:
+            day = missing_partitions[0]
+            return SimResult(
+                equity_curve=[],
+                drawdown_curve=[],
+                trades=[],
+                per_symbol_stats=[],
+                stats={"error": f"{day} 缺分钟K分区, 无法执行五分钟建仓容量撮合"},
+            )
 
         minute_cache: dict = {}
         if config.minute_fill:
@@ -2113,7 +2458,7 @@ class BacktestEngine:
                 matrix.execution_limit_up[time_id, asset_id]
                 if matrix.execution_limit_up is not None and config.asset_type == "stock" else None
             )
-            if not minute_entry and _limit_blocks(
+            if not minute_entry and not _uses_entry_capacity_window(matrix, config, time_id, asset_id) and _limit_blocks(
                 entry_prices[time_id, asset_id], limit, up=True,
                 fallback=(config.entry_fill == "close_t" and bool(matrix.limit_up_locked[time_id, asset_id]))
                 or _one_price_limit(time_id, asset_id, "up"),
@@ -2302,7 +2647,12 @@ class BacktestEngine:
                 for asset_id in np.flatnonzero(matrix.entry[time_id]):
                     asset = int(asset_id)
                     minute_entry = matrix.entry_price is not None and np.isfinite(matrix.entry_price[time_id, asset])
-                    entry_at_close = config.entry_fill == "close_t" and not config.minute_fill and not minute_entry
+                    entry_at_close = (
+                        not _uses_entry_capacity_window(matrix, config, time_id, asset)
+                        and config.entry_fill == "close_t"
+                        and not config.minute_fill
+                        and not minute_entry
+                    )
                     if bool(entry_at_close) != closing:
                         continue
                     if asset in positions:
@@ -2321,9 +2671,13 @@ class BacktestEngine:
                     if config.score_max is not None and score > config.score_max:
                         _count("buy_score_filter")
                         continue
+                    risk_probe = float(entry_prices[time_id, asset])
+                    if not _uses_entry_capacity_window(matrix, config, time_id, asset):
+                        risk_probe = _refill_price(
+                            time_id, asset, "buy", risk_probe,
+                        )
                     _, blocked = _freeze_matrix_risk(
-                        matrix, config, time_id, asset,
-                        _refill_price(time_id, asset, "buy", float(entry_prices[time_id, asset])),
+                        matrix, config, time_id, asset, risk_probe,
                     )
                     if blocked:
                         _count(blocked)
@@ -2359,9 +2713,76 @@ class BacktestEngine:
                             if allocation <= 0:
                                 _count("buy_exposure")
                                 continue
-                            entry_price = _refill_price(
-                                time_id, asset_id, "buy", float(entry_prices[time_id, asset_id])
+                            scale = _price_scale(
+                                float(matrix.close[time_id, asset_id]),
+                                float(matrix.raw_close[time_id, asset_id]) if matrix.raw_close is not None else None,
                             )
+                            if not _valid_price(scale):
+                                _count("buy_invalid_price")
+                                continue
+                            symbol = matrix.symbols[asset_id]
+                            capacity_execution: EntryExecution | None = None
+                            if _uses_entry_capacity_window(matrix, config, time_id, asset_id):
+                                prior_close = _previous_raw_close(config, matrix, time_id, asset_id)
+                                if prior_close is None:
+                                    _count("buy_invalid_price")
+                                    continue
+
+                                def _execute(
+                                    budget: float,
+                                    *,
+                                    current_symbol: str = symbol,
+                                    current_date: str = date_text,
+                                    current_asset: int = asset_id,
+                                    current_prior_close: float = prior_close,
+                                    current_scale: float = scale,
+                                ) -> EntryExecution:
+                                    return execute_entry_window(
+                                        entry_window_cache.get(
+                                            (current_symbol, current_date),
+                                            self._empty_entry_window_frame(),
+                                        ),
+                                        symbol=current_symbol,
+                                        start_at=_entry_window_start(
+                                            matrix, config, time_id, current_asset,
+                                        ),
+                                        prior_close=current_prior_close,
+                                        budget=budget,
+                                        size_order=lambda price: config.buy_quantity(
+                                            budget, price, current_symbol,
+                                        ),
+                                        buy_value=config.buy_value,
+                                        limit_up_price=_raw_execution_limit_up(
+                                            matrix, config, time_id, current_asset, current_scale,
+                                        ),
+                                        asset_type=config.asset_type,
+                                    )
+
+                                capacity_execution = _execute(allocation)
+                                if (
+                                    capacity_execution.filled_shares <= 0
+                                    or capacity_execution.average_price is None
+                                ):
+                                    _record_entry_execution(
+                                        execution_stats,
+                                        fills,
+                                        entry_orders,
+                                        symbol,
+                                        _entry_signal_time(matrix, config, time_id, asset_id),
+                                        _entry_window_start(matrix, config, time_id, asset_id),
+                                        capacity_execution,
+                                    )
+                                    _count("buy_lot_size")
+                                    continue
+                                raw_price = capacity_execution.average_price
+                                entry_price = raw_price * scale
+                            else:
+                                entry_price = _refill_price(
+                                    time_id, asset_id, "buy",
+                                    float(entry_prices[time_id, asset_id]),
+                                )
+                                raw_price = entry_price / scale
+
                             frozen_stop, blocked = _freeze_matrix_risk(
                                 matrix, config, time_id, asset_id, entry_price,
                             )
@@ -2372,18 +2793,42 @@ class BacktestEngine:
                                 equity_before, entry_price, frozen_stop, config.stop_loss_pct,
                             )
                             if np.isfinite(risk_notional):
-                                allocation = min(allocation, config.buy_value(risk_notional))
-                            scale = _price_scale(
-                                float(matrix.close[time_id, asset_id]),
-                                float(matrix.raw_close[time_id, asset_id]) if matrix.raw_close is not None else None,
-                            )
-                            if not _valid_price(scale):
-                                _count("buy_invalid_price")
-                                continue
-                            raw_price = entry_price / scale
-                            raw_shares = config.buy_quantity(allocation, raw_price, matrix.symbols[asset_id])
-                            shares = raw_shares / scale
-                            entry_value = config.buy_value(shares * entry_price)
+                                risk_budget = min(allocation, config.buy_value(risk_notional))
+                                if capacity_execution is not None and risk_budget < allocation - 1e-6:
+                                    capacity_execution = _execute(risk_budget)
+                                    if (
+                                        capacity_execution.filled_shares <= 0
+                                        or capacity_execution.average_price is None
+                                    ):
+                                        _record_entry_execution(
+                                            execution_stats,
+                                            fills,
+                                            entry_orders,
+                                            symbol,
+                                            _entry_signal_time(matrix, config, time_id, asset_id),
+                                            _entry_window_start(matrix, config, time_id, asset_id),
+                                            capacity_execution,
+                                        )
+                                        _count("buy_lot_size")
+                                        continue
+                                    raw_price = capacity_execution.average_price
+                                    entry_price = raw_price * scale
+                                    frozen_stop, blocked = _freeze_matrix_risk(
+                                        matrix, config, time_id, asset_id, entry_price,
+                                    )
+                                    if blocked:
+                                        _count(blocked)
+                                        continue
+                                allocation = risk_budget
+
+                            if capacity_execution is not None:
+                                raw_shares = capacity_execution.filled_shares
+                                shares = raw_shares / scale
+                                entry_value = capacity_execution.value
+                            else:
+                                raw_shares = config.buy_quantity(allocation, raw_price, symbol)
+                                shares = raw_shares / scale
+                                entry_value = config.buy_value(shares * entry_price)
                             if shares <= 0:
                                 _count("buy_lot_size")
                                 continue
@@ -2393,6 +2838,16 @@ class BacktestEngine:
                             if entry_value > capacity + 1e-6:
                                 _count("buy_exposure")
                                 continue
+                            if capacity_execution is not None:
+                                _record_entry_execution(
+                                    execution_stats,
+                                    fills,
+                                    entry_orders,
+                                    symbol,
+                                    _entry_signal_time(matrix, config, time_id, asset_id),
+                                    _entry_window_start(matrix, config, time_id, asset_id),
+                                    capacity_execution,
+                                )
                             cash -= entry_value
                             positions[asset_id] = {
                                 "entry_date": date_text,
@@ -2509,6 +2964,8 @@ class BacktestEngine:
                 else []
             ),
             stats=stats,
+            fills=fills,
+            entry_orders=entry_orders,
         )
 
     def simulate_portfolio_legacy(

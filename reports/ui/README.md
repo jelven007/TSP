@@ -1,6 +1,11 @@
 # 界面与交互证据
 
+2026-11-06：[个股分时价格生产验收](../releases/unified-upgrade-20261106/verification.md#historical-hotfixes)，
+真实分钟响应、1/5/10/20日、悬停/移出、切股/刷新/重开及亿元单位核对通过。
+
 本目录保存页面、控件、查询和交互验收。报告保持原日期、版本、环境和限制；目录迁移不重新认证历史结果。
+
+2026-11-05：[S02下一交易日日期查询](../releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
 
 [返回证据总索引](../README.md#按用途查找) · [工程归属](../../docs/reference/engineering.md#layout) · [维护规则](../../docs/maintenance.md#4-证据目录)
 

@@ -61,6 +61,8 @@ export const QK = {
   screenerHistoryDetail: (strategyId: string, recordId: string) => ['screener-history-detail', strategyId, recordId] as const,
   screenerKlineBatch:   (symbols: string) => ['screener-kline-batch', symbols] as const,
   marketSnapshot:       ['market-snapshot'] as const,
+  strategyResultLive: (strategy: string, date: string, tab: string, symbols: string[]) =>
+    ['market-snapshot', 'strategy-result-live', strategy, date, tab, symbols] as const,
   limitLadder:          (asOf?: string) => ['limit-ladder', asOf] as const,
 
   // Backtest

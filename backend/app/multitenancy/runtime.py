@@ -27,6 +27,7 @@ from app.multitenancy.market import PublicMarket, decode_frame
 from app.multitenancy.monitor_compute import evaluate_snapshot, fresh_frame, needs_sandbox
 from app.multitenancy.paper_storage import PaperSession, TenantPaper
 from app.multitenancy.research import authorize
+from app.services.observability import measure_runtime_stage
 from app.strategy import paper, paper_auto
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,11 @@ class FullWorker:
             from app.services.strategy_results import capture_identity, previous_daily_state
             payload["previous_states"] = {}
             payload["daily_identities"] = {}
+            from app.services.daily_selections import DailySelections
+            payload["selection_snapshots"] = {
+                sid: selected for sid in {r.get("strategy_id") for r in rules} if sid
+                and (selected := DailySelections(unit).read(sid, cn_today())) is not None
+            }
             if self.db.settings.schema_version >= 7:
                 from pathlib import Path
 
@@ -168,7 +174,10 @@ class FullWorker:
         return account, context, payload, observed
 
     def evaluate(self, tenant_id, snapshot, claim=None):
-        account, context, payload, observed = self.prepare(tenant_id, snapshot)
+        started, started_at = time.perf_counter(), time.time()
+        with measure_runtime_stage("monitor.prepare"):
+            account, context, payload, observed = self.prepare(tenant_id, snapshot)
+        prepared = time.perf_counter()
         sequence = int(snapshot.get("sequence", 0))
         now = time.time()
         fresh = (
@@ -184,20 +193,32 @@ class FullWorker:
         previous_sequence = payload["state"].get("sequence", -1)
         result = None
         if fresh and sequence > previous_sequence and payload["rules"]:
-            if needs_sandbox(payload["rules"]):
-                cancelled = threading.Event()
-                timer = threading.Timer(self.db.settings.worker_timeout, cancelled.set)
-                timer.start()
-                try:
-                    result = self.executor.execute(payload, cancel=cancelled)
-                finally:
-                    timer.cancel()
-            else:
-                # Built-in rule expressions contain no Python execution. The
-                # original engine accepts an explicit group snapshot.
-                result = evaluate_snapshot({**payload, "signals": []}, self.repo)
+            with measure_runtime_stage("monitor.compute"):
+                if needs_sandbox(payload["rules"]):
+                    cancelled = threading.Event()
+                    timer = threading.Timer(self.db.settings.worker_timeout, cancelled.set)
+                    timer.start()
+                    try:
+                        result = self.executor.execute(payload, cancel=cancelled)
+                    finally:
+                        timer.cancel()
+                else:
+                    # Built-in expressions use the explicit group snapshot.
+                    result = evaluate_snapshot({**payload, "signals": []}, self.repo)
+        computed, computed_at = time.perf_counter(), time.time()
+        release = snapshot.get("public_release") or {}
+        latency = {
+            "sequence": sequence, "release_id": release.get("id"),
+            "minute_completed_at": release.get("minute_completed_at"),
+            "release_published_at": release.get("published_at"),
+            "worker_started_at": started_at, "compute_finished_at": computed_at,
+            "prepare_ms": round((prepared - started) * 1000, 3),
+            "compute_ms": round((computed - prepared) * 1000, 3),
+            "compute": result.get("_compute_timing", {}) if result else {},
+        }
         documents = TenantDocuments(self.db, context)
         with ExitStack() as locks:
+            locks.enter_context(measure_runtime_stage("monitor.commit"))
             locks.enter_context(authorize(self.identity, context, account["auth_version"]))
             for user_id, version in {
                 (rule["_execution"]["user_id"], rule["_execution"]["auth_version"]) for rule in payload["rules"]
@@ -235,6 +256,9 @@ class FullWorker:
                                     from app.services.daily_stock_pools import DailyStockPools
                                     DailyStockPools(unit).save(record, daily["daily_stock_pool"],
                                         started_at=sequence * 1000000)
+                            # Volatile timings belong only to the live response,
+                            # after archival comparison, never to daily history.
+                            daily["latency"] = latency
                         unit.put("monitor_results", "default", {
                             "sequence": sequence, "results": result["results"],
                             "fingerprint": fingerprint(conn, include_state=False),
@@ -287,6 +311,14 @@ class FullWorker:
                 for account_id in session.account_ids():
                     paper_auto.retry_exit_intents(session, account_id)
                 valid_claim(conn, claim)
+        if result is not None and result["results"]:
+            logger.info(
+                "monitor result committed sequence=%s release=%s committed_at=%.6f "
+                "prepare_ms=%.3f compute_ms=%.3f commit_ms=%.3f total_ms=%.3f",
+                sequence, release.get("id"), time.time(), latency["prepare_ms"],
+                latency["compute_ms"], (time.perf_counter() - computed) * 1000,
+                (time.perf_counter() - started) * 1000,
+            )
         return len(events)
 
     @staticmethod
@@ -328,7 +360,7 @@ class FullWorker:
                     due = datetime.now(UTC) + timedelta(seconds=30)
             except AccessError as exc:
                 logger.info("full worker deferred: %s", exc.code)
-                due = datetime.now(UTC) + timedelta(seconds=5)
+                due = datetime.now(UTC) + timedelta(seconds=1 if exc.status in {409, 429} else 5)
             except Exception:
                 logger.exception("full monitor/trading worker failed")
                 due = datetime.now(UTC) + timedelta(seconds=5)

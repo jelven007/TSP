@@ -84,6 +84,8 @@ export const storage = {
 
   /** 策略结果列表列配置 */
   screenerResultColumns: kv<unknown[]>('screener_result_columns'),
+  /** 分钟信号卖/选/买各自的列显隐与顺序（账户偏好）。 */
+  strategySignalColumns: kv<Partial<Record<'sell' | 'select' | 'buy', { id: string; visible: boolean }[]>>>('strategy_signal_columns'),
 
   /** 自选列表视图模式 table | card (分组卡片为临时模式, 不持久化) */
   watchlistView:        kv<string>('watchlist_view'),
@@ -159,6 +161,7 @@ export const storage = {
 
   /** 策略回测最后一次成功结果和参数 */
   strategyBacktestLast: kv<{
+    defaultsVersion?: number
     selectedStrategy: string | null
     symbols: string
     assetType?: 'stock'

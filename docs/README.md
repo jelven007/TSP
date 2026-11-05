@@ -1,5 +1,15 @@
 # Tick Stock Platform（TSP）文档中心
 
+最新统一候选与六类文档映射见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
+以下历次热补丁部署和计数保留原身份；正式版本及双端状态分别验收。
+
+2026-11-05盘后预选的本地/线上0.4.49安装、配置保留及首批定时观察状态见
+[双端部署回执](../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)；
+源码版本保持0.4.46。
+
+同日随后授权补生成11月5日的选名单，两端各574只；当前运行身份、来源、
+页面及买入引用验证见[补生成回执](../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+
 本轮[最新现场兼容升级](../reports/releases/current-upgrade-20261103/verification.md)汇总
 固定过户费、部署内置退役、六类文档及独立发布门禁；撤回候选与历史研究分别保留。
 

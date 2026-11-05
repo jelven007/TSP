@@ -199,6 +199,54 @@ def test_private_monitor_uses_sandbox_and_discards_edited_input(owned):
     assert Alerts(owned.documents).count() == 0
 
 
+def test_monitor_latency_is_live_only_and_logged_after_commit(owned, monkeypatch, caplog):
+    import logging
+    from dataclasses import asdict
+    from pathlib import Path
+
+    from app.services.strategy_results import NAMESPACE, capture_identity
+    from app.strategy.engine import StrategyEngine
+
+    Rules(owned.documents).save_one(price_rule(conditions=[{"field": "csg_private", "op": "truth"}]))
+    engine = StrategyEngine([Path(runtime.__file__).resolve().parents[1] / "strategy/builtin"])
+    identity = capture_identity(engine, owned.documents, "ma_golden_cross")
+    original = owned.worker.prepare
+
+    def prepare(*args):
+        account, context, payload, observed = original(*args)
+        payload["daily_identities"]["private"] = asdict(identity)
+        return account, context, payload, observed
+
+    monkeypatch.setattr(owned.worker, "prepare", prepare)
+    owned.worker.executor = SimpleNamespace(execute=lambda *_args, **_kwargs: {
+        "events": [], "state": {}, "results": {"private": {
+            "as_of": cn_today().isoformat(), "total": 0, "rows": [], "sections": {},
+            "entry_evaluated_at": "14:31:30",
+        }}, "_compute_timing": {"queue_ms": 2., "sandbox_ms": 3.},
+    })
+    release = {"id": "a" * 32, "published_at": owned.clock["now"] - 1,
+               "minute_completed_at": owned.clock["now"] - 2}
+    with caplog.at_level(logging.INFO, logger=runtime.__name__):
+        owned.worker.evaluate(owned.documents.context.tenant_id, owned.snapshot(public_release=release))
+    result = owned.documents.get("monitor_results", "default")["results"]["private"]
+    assert result["entry_evaluated_at"] == "14:31:30"
+    assert result["latency"]["release_id"] == release["id"]
+    assert result["latency"]["compute"]["queue_ms"] == 2.
+    assert result["latency"]["worker_started_at"] <= result["latency"]["compute_finished_at"]
+    assert "monitor result committed" in caplog.text
+    archived = owned.documents.records(NAMESPACE)
+    assert len(archived) == 1 and "latency" not in archived[0]["value"]["result"]
+    caplog.clear()
+    owned.clock["now"] += 1
+    previous = owned.documents.get("monitor_results", "default")
+    monkeypatch.setattr(runtime, "valid_claim",
+                        lambda *_: (_ for _ in ()).throw(AccessError(409, "expired")))
+    with caplog.at_level(logging.INFO, logger=runtime.__name__), pytest.raises(AccessError):
+        owned.worker.evaluate(owned.documents.context.tenant_id, owned.snapshot(public_release=release))
+    assert "monitor result committed" not in caplog.text
+    assert owned.documents.get("monitor_results", "default") == previous
+
+
 def test_full_worker_atomic_auto_order_and_fresh_quote_match(owned, monkeypatch):
     storage = TenantPaper(owned.env["db"], owned.documents.context, owned.repo.store.data_dir)
     paper.create_account(storage, 100000)
@@ -525,7 +573,8 @@ def test_original_cached_api_uses_only_fresh_current_tenant_monitor_results(owne
         unit.put("monitor_results", "default", {
             "sequence": int(owned.clock["now"] * 1000),
             "fingerprint": runtime.fingerprint(unit.connection, include_state=False),
-            "results": {"private": {"total": 1, "rows": [{"symbol": "600519.SH"}], "as_of": cn_today().isoformat()}},
+            "results": {"private": {"total": 1, "rows": [{"symbol": "600519.SH"}],
+                                   "as_of": cn_today().isoformat(), "latency": {"compute_ms": 3}}},
         })
     request = SimpleNamespace(
         app=SimpleNamespace(state=SimpleNamespace(account_identity=owned.env["identity"], repo=owned.repo,
@@ -534,6 +583,7 @@ def test_original_cached_api_uses_only_fresh_current_tenant_monitor_results(owne
     )
     response = _cached_with_realtime(request)
     assert response["results"]["private"]["total"] == 1 and response["as_of"] == cn_today().isoformat()
+    assert response["results"]["private"]["latency"] == {"compute_ms": 3}
     request.state.tenant_context = owned.other.context
     assert _cached_with_realtime(request)["results"] == {}
     request.state.tenant_context = owned.documents.context

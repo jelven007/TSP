@@ -569,16 +569,15 @@ def set_pipeline_index_symbols(symbols: str) -> str:
 
 
 def get_pipeline_schedule() -> dict:
-    """默认交易日北京时间 15:30; 已保存的自定义时间优先。"""
-    d = load().get("pipeline_schedule", {"hour": 15, "minute": 30})
-    return {"hour": d.get("hour", 15), "minute": d.get("minute", 30)}
+    """盘后补缺固定交易日北京时间15:35, 旧时间配置不再改变调度。"""
+    return {"hour": 15, "minute": 35}
 
 
 def set_pipeline_schedule(hour: int, minute: int) -> dict:
     if type(hour) is not int or type(minute) is not int or not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise ValueError("调度时间必须为有效的小时和分钟")
-    if hour * 60 + minute < 15 * 60 + 30:
-        raise ValueError("盘后管道时间不能早于 15:30")
+    if (hour, minute) != (15, 35):
+        raise ValueError("盘后数据管理固定为交易日15:35")
     schedule = {"hour": hour, "minute": minute}
     save({"pipeline_schedule": schedule})
     return schedule
@@ -665,8 +664,8 @@ PUSH_CHANNELS = {"feishu", "wecom", "custom", "email"}
 def get_review_schedule() -> dict:
     """定时复盘调度 {"enabled": False, "hour": 15, "minute": 40}。默认关闭。
 
-    默认 15:40: 盘后管道默认 15:30 启动, 15:35 触发当日K线修正, 复盘使用管道
-    产出的最终口径数据 (含盘后量校正的日K/enriched)。强制下限 15:00 —
+    默认15:40: 15:35触发当日五周期补缺; 复盘读取当时已有数据,
+    不承诺补缺已完成或已有记录已重取校正。强制下限15:00 —
     偏好收盘后即时复盘 (走实时快照缓存, 不等管道) 的用户可自行调早。
     """
     d = load().get("review_schedule", {"enabled": False, "hour": 15, "minute": 40})

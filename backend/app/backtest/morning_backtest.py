@@ -10,8 +10,8 @@ from datetime import time as clock
 
 import polars as pl
 
-from app.backtest.costs import buy_quantity_rules
 from app.backtest.engine import BacktestEngine, MatcherConfig, TradeRecord
+from app.backtest.entry_execution import execute_entry_window
 from app.backtest.governance import research_preflight, status_quality
 from app.backtest.minute_replay import (
     MinuteSignalReplayer,
@@ -108,9 +108,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         fees_pct=config.fees_pct, commission_pct=config.commission_pct,
         stamp_tax_pct=config.stamp_tax_pct, minimum_commission=config.minimum_commission,
         transfer_fee_pct=config.transfer_fee_pct, stamp_tax_mode="historical",
-        slippage_bps=0, asset_type="stock",
+        slippage_bps=config.slippage_bps, asset_type="stock",
     )
-    slip = config.slippage_bps / 10000
     bf = service._effective_basic_filter(strategy, overrides)
     daily_bars = service.strategy_engine.minute_daily_history_bars(
         [config.strategy_id], overrides_map={config.strategy_id: overrides},
@@ -170,7 +169,6 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         return finish("区间内无已确认交易日")
     minute_days = set(repo.list_minute_dates(config.start, config.end, "stock"))
     replayer = MinuteSignalReplayer(service.engine, service.strategy_engine)
-    next_open = strategy.meta.get("minute_entry_fill") == "next_minute_open"
 
     def market_value():
         return sum(p["remaining"] * marks[symbol] for symbol, p in positions.items())
@@ -228,7 +226,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
             hits_at = defaultdict(list)
             for hit in replay.hits:
                 at = datetime.combine(day, clock.fromisoformat(hit.trigger_time))
-                hits_at[(at, 0 if next_open else 1)].append(hit)
+                hits_at[(at, 0)].append(hit)
                 output.signals.append({
                     "date": str(day), "symbol": hit.symbol, "side": "buy",
                     "signal_time": f"{day} {hit.signal_time or hit.trigger_time}",
@@ -379,7 +377,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         current_rows.get(symbol, {}).get("is_risk_warning", is_risk_warning_name(name)),
                     ))
                     down = _scalar_limit_up_price(pos["sell_reference"], -pct)
-                    price = row["close"] * (1 - slip)
+                    price = row["close"]
                     if price <= down + 1e-9:
                         counters["sell_limit_down"] += 1
                         continue
@@ -457,58 +455,85 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 weights = [v / sum(weights) for v in weights] if sum(weights) > 0 else [1 / len(candidates)] * len(candidates)
                 for hit, weight in zip(candidates, weights, strict=True):
                     symbol = hit.symbol
-                    rows = rows_at.get(symbol, [])
-                    if len(rows) != 1:
-                        return finish(f"{day} {symbol} 买入成交分钟缺失或重复")
-                    row = rows[0]
                     previous_close = prev_rows.get(symbol, {}).get("raw_close")
-                    if not valid_price(previous_close) or not valid_price(hit.raw_entry_price):
-                        return finish(f"{day} {symbol} 缺买入原始价或精确昨收")
-                    volume = row.get("volume")
-                    if volume is None or not math.isfinite(volume) or volume < 0:
-                        return finish(f"{day} {symbol} 买入成交数据缺失或无效")
-                    if volume == 0:
-                        counters["buy_no_volume"] += 1
-                        continue
-                    price = hit.raw_entry_price * (1 + slip)
+                    if not valid_price(previous_close):
+                        return finish(f"{day} {symbol} 缺精确昨收")
                     name = current_rows.get(symbol, {}).get("name", "")
-                    up = _scalar_limit_up_price(previous_close, price_limit_pct(
-                        symbol, day, is_risk_warning=bool(current_rows.get(symbol, {}).get(
-                            "is_risk_warning", is_risk_warning_name(name),
-                        )),
-                    ))
-                    if price >= up - 1e-9:
-                        counters["buy_limit_up"] += 1
-                        continue
                     value = market_value()
                     capacity = (cash + value) * config.max_exposure_pct - value
                     allocation = min(budget * weight, target, cash, capacity)
-                    minimum, step, _ = buy_quantity_rules(symbol)
-                    quantity = min(matcher.buy_quantity(max(allocation, 0), price, symbol),
-                                   math.floor(row["volume"] * 100 / step) * step)
-                    if quantity < minimum:
+                    execution = execute_entry_window(
+                        history,
+                        symbol=symbol,
+                        start_at=hit.entry_window_start,
+                        prior_close=float(previous_close),
+                        budget=max(allocation, 0),
+                        size_order=lambda price, order_budget=allocation, order_symbol=symbol: matcher.buy_quantity(
+                            max(order_budget, 0), price, order_symbol,
+                        ),
+                        buy_value=matcher.buy_value,
+                        limit_up_price=_scalar_limit_up_price(
+                            float(previous_close),
+                            price_limit_pct(
+                                symbol,
+                                day,
+                                is_risk_warning=bool(current_rows.get(symbol, {}).get(
+                                    "is_risk_warning", is_risk_warning_name(name),
+                                )),
+                            ),
+                        ),
+                        asset_type="stock",
+                    )
+                    counters["entry_target_shares"] += execution.target_shares
+                    counters["entry_filled_shares"] += execution.filled_shares
+                    counters["entry_cancelled_shares"] += execution.cancelled_shares
+                    if execution.status == "partial":
+                        counters["entry_partial_orders"] += 1
+                    elif execution.status == "unfilled":
+                        counters["entry_unfilled_orders"] += 1
+                    output.entry_orders.append({
+                        "symbol": symbol,
+                        "signal_time": f"{day} {hit.signal_time or hit.trigger_time}",
+                        "window_start": hit.entry_window_start.isoformat(sep=" "),
+                        "target_shares": execution.target_shares,
+                        "filled_shares": execution.filled_shares,
+                        "cancelled_shares": execution.cancelled_shares,
+                        "average_price": execution.average_price,
+                        "status": execution.status,
+                    })
+                    if execution.filled_shares <= 0 or execution.average_price is None:
                         counters["buy_lot_size"] += 1
                         continue
-                    notional = quantity * price
-                    cost = fee(notional, "buy", day)
-                    entry_value = notional + cost
+                    quantity = execution.filled_shares
+                    price = execution.average_price
+                    entry_value = execution.value
                     if entry_value > cash + 1e-8 or entry_value > capacity + 1e-8:
                         return finish("买入资金守恒校验失败")
                     cash -= entry_value
+                    first_fill = execution.fills[0]
                     positions[symbol] = {
                         "symbol": symbol, "name": name, "entry_date": day, "remaining": quantity,
                         "shares": quantity, "price": price, "entry_value": entry_value,
-                        "entry_fee": cost, "position_pct": entry_value / equity, "score": hit.score,
+                        "entry_fee": execution.fee,
+                        "position_pct": entry_value / equity, "score": hit.score,
                         "signal_time": f"{day} {hit.signal_time or hit.trigger_time}",
-                        "fill_time": at.strftime("%Y-%m-%d %H:%M"), "sell_notional": 0., "sell_fees": 0.,
+                        "fill_time": first_fill.datetime.strftime("%Y-%m-%d %H:%M"),
+                        "sell_notional": 0., "sell_fees": 0.,
                     }
-                    marks[symbol] = row["open" if phase == 0 else "close"]
-                    output.fills.append({
-                        "date": str(day), "datetime": str(at), "symbol": symbol, "side": "buy",
-                        "shares": quantity, "price": price, "notional": notional, "fee": cost,
-                        "participation": quantity / (row["volume"] * 100),
-                        "bar": at.hour * 60 + at.minute, "minute_volume_shares": row["volume"] * 100,
-                    })
+                    marks[symbol] = price
+                    output.fills.extend({
+                        "date": str(fill.datetime.date()),
+                        "datetime": fill.datetime.isoformat(sep=" "),
+                        "symbol": symbol,
+                        "side": "buy",
+                        "shares": fill.shares,
+                        "price": fill.price,
+                        "notional": fill.notional,
+                        "fee": fill.fee,
+                        "participation": fill.participation,
+                        "bar": fill.bar,
+                        "minute_volume_shares": fill.minute_volume_shares,
+                    } for fill in execution.fills)
             for symbol, trigger in triggers.items():
                 if symbol in positions and trigger["reason"] == "resume":
                     if last_sale[symbol] != datetime.combine(day, clock(15)):

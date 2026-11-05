@@ -16,13 +16,14 @@ def replay(repo, storage, sig, *, strategy_id, start, end, symbols):
             day += timedelta(days=1)
             continue
         universe = pool["symbols"]
-        daily = repo.get_daily_batch(
+        load_prior = getattr(repo, "get_last_traded_closes", None)
+        daily = (load_prior(universe, day) if callable(load_prior) else repo.get_daily_batch(
             universe, day-timedelta(days=15), day-timedelta(days=1),
-            columns=["symbol", "date", "close", "raw_close"])
+            columns=["symbol", "date", "close", "raw_close"]))
         previous = {}
         if not daily.is_empty():
             for row in daily.sort("date").iter_rows(named=True):
-                previous[str(row["symbol"])] = row.get("raw_close", row["close"])
+                previous[str(row["symbol"])] = row["raw_close"] if "raw_close" in row else row["close"]
         minute = repo.get_minute_batch(universe, day, asset_type="stock")
         if minute is not None and not minute.is_empty():
             days_scanned += 1

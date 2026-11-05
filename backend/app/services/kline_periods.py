@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timedelta
 
 import polars as pl
 
-from app.market_time import CN_TZ, TRADING_DAY_COLLECTION_WINDOWS, cn_now
+from app.market_time import CN_TZ, cn_now
 from app.parquet import scan_daily_parquet, scan_parquet_compat
 from app.services import preferences
 
@@ -18,7 +18,13 @@ LABELS = {"1m": "1分K", "5m": "5分K", "10m": "10分K", "15m": "15分K", "1d": 
 LOCAL_MINUTE_PERIODS = ("5m", "10m", "15m")
 LOCAL_DAILY_PERIODS = ("1w",)
 LOCAL_DERIVED_PERIODS = (*LOCAL_MINUTE_PERIODS, *LOCAL_DAILY_PERIODS)
-DEFAULT_WINDOWS = [list(window) for window in TRADING_DAY_COLLECTION_WINDOWS]
+PERIOD_WINDOWS = {
+    "1m": [["09:30", "11:30"], ["13:00", "15:00"]],
+    "5m": [["09:36", "11:31"], ["13:06", "15:01"]],
+    "10m": [["09:42", "11:32"], ["13:12", "15:02"]],
+    "15m": [["09:48", "11:33"], ["13:18", "15:03"]],
+}
+DEFAULT_WINDOWS = PERIOD_WINDOWS["1m"]
 _VALUES = ("open", "high", "low", "close", "volume", "amount")
 
 
@@ -29,19 +35,16 @@ def get_configs(data_dir=None) -> dict:
         default = {
             "enabled": True,
             "interval_seconds": {"1m": 60, "5m": 300, "10m": 600, "15m": 900}.get(period, 60),
-            "windows": [w[:] for w in DEFAULT_WINDOWS],
-            "time": "09:00" if period == "1w" else "15:30",
+            "windows": [w[:] for w in PERIOD_WINDOWS.get(period, DEFAULT_WINDOWS)],
+            "time": "09:00" if period == "1w" else "15:35",
         }
         if period == "1m":
             default["enabled"] = prefs.get("minute_refresh_enabled", True)
             default["interval_seconds"] = prefs.get("minute_refresh_interval", 60)
-        if period == "1d":
-            sched = prefs.get("pipeline_schedule", {"hour": 15, "minute": 30})
-            default["time"] = f'{sched.get("hour", 15):02d}:{sched.get("minute", 30):02d}'
         saved = prefs.get(f"kline_sync_{period}", {})
         result[period] = {**default, **(saved if isinstance(saved, dict) else {})}
-        result[period]["windows"] = [window[:] for window in DEFAULT_WINDOWS]
-        if period == "1d":
+        result[period]["windows"] = [window[:] for window in PERIOD_WINDOWS.get(period, DEFAULT_WINDOWS)]
+        if period in ("1d", "1w"):
             result[period]["time"] = default["time"]
     return result
 
@@ -76,10 +79,12 @@ def save_config(period: str, config: dict, data_dir=None) -> dict:
         if start >= end or (previous is not None and start <= previous):
             raise ValueError("同步时段须按时间排序且不能重叠")
         previous = end
-    merged["windows"] = [window[:] for window in DEFAULT_WINDOWS]
+    merged["windows"] = [window[:] for window in PERIOD_WINDOWS.get(period, DEFAULT_WINDOWS)]
     at = _parse_time(merged["time"])
-    if period == "1d" and at < time(15, 30):
-        raise ValueError("盘后同步时间不得早于15:30")
+    if period == "1d" and at != time(15, 35):
+        raise ValueError("盘后数据管理固定为交易日15:35")
+    if period == "1w" and at != time(9):
+        raise ValueError("周K周期同步固定为每周六09:00")
     updates = {f"kline_sync_{period}": merged}
     if period == "1m":
         updates.update(minute_refresh_enabled=merged["enabled"], minute_refresh_interval=interval)
@@ -97,7 +102,8 @@ def in_sync_window(config: dict, now: datetime | None = None, *, trading_day: bo
         from app.services.trading_day import is_trading_day
         trading_day = is_trading_day(now)
     return config["enabled"] and trading_day is True and any(
-        _parse_time(start) <= now.time().replace(tzinfo=None) < _parse_time(end)
+        # 结束分钟包含一次收尾刷新, 使11:30/15:00标签有机会落盘。
+        _parse_time(start) <= now.time().replace(tzinfo=None, second=0, microsecond=0) <= _parse_time(end)
         for start, end in config["windows"]
     )
 
@@ -578,7 +584,11 @@ def scheduled_periods(repo) -> None:
         if not cfg["enabled"]:
             continue
         last = _last_success.get(period)
-        if not in_sync_window(cfg, now, trading_day=True) or (last and (now - last).total_seconds() < cfg["interval_seconds"]):
+        terminal = any(now.strftime("%H:%M") == end for _, end in cfg["windows"])
+        terminal_due = terminal and (last is None or last.replace(second=0, microsecond=0) < now.replace(second=0, microsecond=0))
+        if not in_sync_window(cfg, now, trading_day=True) or (
+            last and (now - last).total_seconds() < cfg["interval_seconds"] and not terminal_due
+        ):
             continue
         start = datetime.combine(now.date(), time.min)
         if _run_tracked(lambda on_progress=None, p=period, lo=start: sync_period(repo, p, lo, now, on_progress=on_progress), f"kline_{period}"):

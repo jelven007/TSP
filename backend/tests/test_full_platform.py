@@ -146,16 +146,25 @@ def test_publication_loop_limits_file_versions_but_retries_failed_copy(tmp_path,
     waits, attempts = [], []
 
     class StopAfterThree:
+        def clear(self):
+            pass
+
         def wait(self, seconds):
             waits.append(seconds)
-            return len(waits) > 3
+            if len(waits) > 3:
+                publisher.stopped.set()
+            return False
 
     def publish():
         attempts.append(True)
         if len(attempts) == 1:
             raise OSError("temporary copy failure")
 
-    publisher.stopped = StopAfterThree()
+    publisher.changed = StopAfterThree()
+    from itertools import count
+
+    clock = count(100, 6)
+    monkeypatch.setattr("app.multitenancy.publication.time.monotonic", lambda: next(clock))
     monkeypatch.setattr(publisher, "publish", publish)
     publisher._loop()
     assert waits == [300, 30, 300, 300]

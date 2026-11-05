@@ -17,7 +17,7 @@ def test_seconds_gate_and_cutoff_ignore_later_prices():
     from app.strategy.late_session_strength import DEFAULT_PARAMS, bar_time, evaluation_time
 
     sig = delayed()
-    assert DEFAULT_PARAMS["evaluation_delay_minutes"] == 1.5
+    assert DEFAULT_PARAMS["evaluation_delay_minutes"] == 1
     assert evaluation_time(sig, DAY) == CHECK
     assert bar_time(sig, DAY) == TARGET
     for stamp in [TARGET, TARGET+timedelta(seconds=65), CHECK-timedelta(seconds=1)]:
@@ -116,13 +116,13 @@ def filter_minute_history(df, params):
         overrides={"entry_signals": ["csgi_late_session_strength"]})
     assert calls == [set(POOL)]
     assert not result.errors
-    if missing:
-        assert not result.hits and result.buy_no_next_minute == 1
-    else:
-        assert len(result.hits) == 1
-        hit = result.hits[0]
-        assert hit.trigger_time == "14:32" and hit.signal_time == "14:31:30"
-        assert hit.raw_entry_price == pytest.approx(10.22 if mode == "next_minute_open" else 10.159)
+    assert len(result.hits) == 1
+    hit = result.hits[0]
+    assert hit.trigger_time == "14:32" and hit.signal_time == "14:31:30"
+    assert hit.entry_window_start == TARGET + timedelta(minutes=2)
+    assert hit.prior_close == 10.
+    assert hit.raw_entry_price == pytest.approx(10.159)
+    assert result.buy_no_next_minute == 0
 
 
 @pytest.mark.parametrize("start,valid", [("14:58:00", True), ("14:59:00", False), ("15:00:00", False)])

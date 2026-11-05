@@ -1533,6 +1533,31 @@ class KlineRepository:
 
         return df
 
+    def get_last_traded_closes(self, symbols: list[str], before: date) -> pl.DataFrame:
+        """指定日期之前的最后真实成交日原始收盘; 不受指标回看窗口限制。"""
+        schema = {"symbol": pl.String, "date": pl.Date, "raw_close": pl.Float64}
+        if not symbols:
+            return pl.DataFrame(schema=schema)
+        missing, parts = set(symbols), []
+        root = self.store.data_dir / "kline_daily"
+        for folder in sorted(root.glob("date=*"), reverse=True):
+            if folder.name[5:] >= before.isoformat():
+                continue
+            paths = list(folder.glob("*.parquet"))
+            if not paths:
+                continue
+            prior = guarded_collect(scan_daily_parquet(paths).filter(
+                pl.col("symbol").is_in(sorted(missing)) & (pl.col("date") < before)
+                & pl.col("close").is_finite() & (pl.col("close") > 0)
+                & ((pl.col("volume") > 0) | (pl.col("amount") > 0))
+            ).sort("date").unique("symbol", keep="last").select(
+                "symbol", "date", pl.col("close").alias("raw_close")))
+            parts.append(prior)
+            missing -= set(prior["symbol"])
+            if not missing:
+                break
+        return pl.concat(parts).sort("symbol") if parts else pl.DataFrame(schema=schema)
+
     def get_daily_batch(
         self,
         symbols: list[str],

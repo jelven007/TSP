@@ -10,6 +10,7 @@ import shutil
 import threading
 import time
 import uuid
+from datetime import time as clock_time
 from pathlib import Path
 
 from app.services.observability import measure_runtime_lock
@@ -62,9 +63,22 @@ class PublicPublisher:
         if self.source == self.root or self.root.is_relative_to(self.source):
             raise ValueError("public releases must be outside the source data directory")
         self.stopped = threading.Event()
+        self.changed = threading.Event()
+        self.metadata_lock = threading.Lock()
+        self.minute_completed_at = None
         self.thread = threading.Thread(target=self._loop, daemon=True, name="public-file-publisher")
         self.error = None
         self.write_lock = write_lock or threading.Lock()
+
+    def request_minute_publish(self, completed_at):
+        from app.market_time import CN_TZ
+
+        wall = (completed_at.astimezone(CN_TZ).replace(tzinfo=None)
+                if completed_at.tzinfo else completed_at)
+        with self.metadata_lock:
+            self.minute_completed_at = wall.replace(tzinfo=CN_TZ).timestamp()
+        if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() < clock_time(14, 40):
+            self.changed.set()
 
     def generations(self):
         from app.enriched_generation import get_enriched_generation
@@ -152,6 +166,8 @@ class PublicPublisher:
                 )
 
     def _publish(self):
+        with self.metadata_lock:
+            minute_completed_at = self.minute_completed_at
         self.validate_daily_coverage()
         generations, files = self.generations(), self.inventory()
         digest = hashlib.sha256(json.dumps([generations, files], sort_keys=True).encode()).hexdigest()
@@ -216,11 +232,15 @@ class PublicPublisher:
                 raise ValueError("public files changed during publication; retry")
             manifest = {"id": release_id, "digest": digest, "generations": generations,
                         "files": files, "checksums": checksums, "published_at": time.time()}
+            if minute_completed_at is not None:
+                manifest["minute_completed_at"] = minute_completed_at
             (stage / ".public_release.json").write_text(json.dumps(manifest, sort_keys=True))
             os.rename(stage, releases / release_id)
             link = self.root / ("." + release_id)
             link.symlink_to(Path("releases") / release_id, target_is_directory=True)
             self._swap_current(link)
+            logger.info("public release available release=%s minute_completed_at=%s available_at=%.6f",
+                        release_id, minute_completed_at, time.time())
             self.error = None
             return manifest
         finally:
@@ -258,6 +278,7 @@ class PublicPublisher:
 
     def close(self):
         self.stopped.set()
+        self.changed.set()
         self.thread.join(timeout=20)
 
     def _loop(self):
@@ -265,11 +286,28 @@ class PublicPublisher:
         # independent market bridge. Frequent copies duplicate every directory
         # inode even when unchanged files are hard-linked to the prior release.
         delay = 300
-        while not self.stopped.wait(delay):
+        last_attempt = 0.0
+        capacity_deferred = False
+        while not self.stopped.is_set():
+            if capacity_deferred:
+                if self.stopped.wait(delay):
+                    break
+            else:
+                self.changed.wait(delay)
+            if self.stopped.is_set():
+                break
+            # Merge bursts; a notification during publication remains pending.
+            remaining = max(0.0, 5 - (time.monotonic() - last_attempt))
+            if self.stopped.wait(remaining):
+                break
+            self.changed.clear()
+            last_attempt = time.monotonic()
             try:
                 self.publish()
                 delay = 300
+                capacity_deferred = False
             except Exception as exc:
                 self.error = type(exc).__name__
                 logger.warning("public file publication deferred: %s", self.error)
-                delay = 300 if isinstance(exc, OSError) and exc.errno == errno.ENOSPC else 30
+                capacity_deferred = isinstance(exc, OSError) and exc.errno == errno.ENOSPC
+                delay = 300 if capacity_deferred else 30

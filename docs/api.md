@@ -1,5 +1,12 @@
 # API、事件与 MCP 导航
 
+`GET /api/screener/market-snapshot?realtime=true&symbols=600001.SH`仅返回当前日共享缓存
+中的指定股票（每批1～1000只），返回`raw_close/change_pct/turnover_rate/vol_ratio_5d`
+及既有技术信号、报价时间字段。缺当前日缓存返回当日日期和空rows；非法范围422。
+不带参数继续返回原全市场快照，单位及验证见[本次记录](../reports/engineering/s02-live-results-20261106.md)。
+两个新增查询参数均为可选，缺省为`realtime=false`、`symbols=null`；
+Tier A端点集合及响应组件保持，契约快照与默认请求回归同步验证。
+
 模拟账户新增 `PUT/DELETE /api/paper/account?account=<id>`（本地源码候选，未部署）。
 修改字段为 `name/initial_cash/commission_pct/stamp_tax_pct/slippage_bps/queue_limit_orders`，
 账号ID固定；已有业务记录禁止改本金，未知字段422、非法值400、不存在404。

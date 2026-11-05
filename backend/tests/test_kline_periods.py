@@ -13,10 +13,10 @@ def test_defaults_and_calendar_windows(tmp_path, monkeypatch):
     configs = periods.get_configs(tmp_path)
     assert [configs[p]["interval_seconds"] for p in ("1m", "5m", "10m", "15m")] == [60, 300, 600, 900]
     assert configs["1w"]["time"] == "09:00"
-    assert configs["1d"]["time"] == "15:30"
+    assert configs["1d"]["time"] == "15:35"
     cfg = configs["5m"]
-    assert cfg["windows"] == [["09:15", "11:45"], ["13:00", "15:30"]]
-    for hour, minute, expected in [(9, 15, True), (11, 44, True), (11, 45, False), (12, 0, False), (13, 0, True), (15, 29, True), (15, 30, False), (16, 0, False)]:
+    assert cfg["windows"] == [["09:36", "11:31"], ["13:06", "15:01"]]
+    for hour, minute, expected in [(9, 35, False), (9, 36, True), (11, 31, True), (11, 32, False), (12, 0, False), (13, 5, False), (13, 6, True), (15, 1, True), (15, 2, False), (16, 0, False)]:
         assert periods.in_sync_window(cfg, datetime(2026, 10, 26, hour, minute), trading_day=True) is expected
     assert not periods.in_sync_window(cfg, datetime(2026, 10, 26, 10), trading_day=False)
     periods.save_config("5m", {
@@ -27,15 +27,15 @@ def test_defaults_and_calendar_windows(tmp_path, monkeypatch):
     }, tmp_path)
     saved = periods.get_configs(tmp_path)["5m"]
     assert saved["interval_seconds"] == 420
-    assert saved["windows"] == [["09:15", "11:45"], ["13:00", "15:30"]]
+    assert saved["windows"] == [["09:36", "11:31"], ["13:06", "15:01"]]
     with pytest.raises(ValueError):
         periods.save_config("5m", {**cfg, "windows": [["11:35", "09:15"]]}, tmp_path)
 
 
 def test_daily_cutoff_and_weekly_morning_are_independent(tmp_path, monkeypatch):
     monkeypatch.setattr(periods.preferences, "_path", lambda: tmp_path / "preferences.json")
-    assert periods.save_config("1d", {"time": "15:30"}, tmp_path)["time"] == "15:30"
-    with pytest.raises(ValueError, match="15:30"):
+    assert periods.save_config("1d", {"time": "15:35"}, tmp_path)["time"] == "15:35"
+    with pytest.raises(ValueError, match="15:35"):
         periods.save_config("1d", {"time": "15:29"}, tmp_path)
     assert periods.save_config("1w", {"time": "09:00"}, tmp_path)["time"] == "09:00"
 

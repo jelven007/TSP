@@ -203,6 +203,8 @@ def full_snapshot(request: Request, authorization: Annotated[str | None, Header(
         public = release_path(publisher.root)
         manifest = json.loads((public / ".public_release.json").read_text())
         value["public_release"] = {key: manifest[key] for key in ("id", "generations", "published_at")}
+        if "minute_completed_at" in manifest:
+            value["public_release"]["minute_completed_at"] = manifest["minute_completed_at"]
         value["platform_ready"] = readiness_snapshot(state, repo.store.data_dir)["ready"]
     depth = getattr(state, "depth_service", None)
     if depth:

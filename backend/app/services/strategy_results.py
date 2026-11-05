@@ -9,8 +9,8 @@ import threading
 import time
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from dataclasses import asdict, dataclass, replace
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -106,6 +106,8 @@ def execution_snapshot(engine, storage=None):
     snapshot = copy.copy(engine)
     if storage is not None:
         snapshot._daily_state_loader = lambda sid, day: previous_daily_state(storage, sid, day)
+        from app.services.daily_selections import DailySelections
+        snapshot._selection_loader = lambda sid, day: DailySelections(storage).read(sid, day)
     if lifecycle is not None:
         snapshot._result_lifecycle = lifecycle
     if hasattr(engine, "_strategies"):
@@ -498,9 +500,27 @@ class StrategyResults:
                                    if key not in {"computed_at", "elapsed_ms"}}}
 
         def merged(old, conn):
+            if old and result.get("selection_only") and old["result"].get("selection_snapshot"):
+                return old, "unchanged"
             if old and old["summary"]["started_at"] > started_at:
                 return old, "unchanged"
-            current = json_value(self._with_previous_buy(conn, identity, result, as_of))
+            payload = copy.deepcopy(result)
+            if payload.get("section_mode") == "signals" and not payload.get("selection_only"):
+                frozen_id = replace(identity, daily_record=True).record_id(as_of)
+                if self.tenant:
+                    row = conn.execute(
+                        "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
+                        (NAMESPACE, frozen_id),
+                    ).fetchone()
+                    frozen = row["value"] if row else None
+                else:
+                    row = conn.execute("SELECT value FROM strategy_results WHERE id=?", (frozen_id,)).fetchone()
+                    frozen = json.loads(row["value"]) if row else None
+                selected = (frozen or {}).get("result", {}).get("selection_snapshot")
+                if selected is not None:
+                    payload["selection_snapshot"] = selected
+                    payload["sections"]["select"] = selected["rows"]
+            current = json_value(self._with_previous_buy(conn, identity, payload, as_of))
             if old and comparable(old["result"]) == comparable(current):
                 # Advance the run order even when the output is unchanged, so a
                 # late older run cannot replace the latest successful result.
@@ -518,6 +538,8 @@ class StrategyResults:
                 "total": int(current.get("total") or 0), "ever_count": len(ever),
                 "started_at": started_at, "computed_at": current["computed_at"],
                 "input_generation": input_generation,
+                "selection_only": bool(current.get("selection_only")),
+                "selection_count": len((current.get("sections") or {}).get("select", [])),
             }
             return json_value({"record_id": record_id, "summary": summary,
                                "result": current, "ever_rows": ever,
@@ -579,8 +601,26 @@ class StrategyResults:
                     identity.asset_type, identity.timeframe, as_of)
         return copy.deepcopy(value)
 
-    def read(self, identity: ResultIdentity, as_of: str) -> dict | None:
-        return self.detail(identity.strategy_id, identity.record_id(as_of))
+    def read(self, identity: ResultIdentity, as_of: str, *, record_id=None) -> dict | None:
+        saved = self.detail(identity.strategy_id, record_id or identity.record_id(as_of))
+        if saved is None and identity.timeframe == "1m":
+            fallback = self.detail(identity.strategy_id, replace(identity, daily_record=True).record_id(as_of))
+            if (fallback or {}).get("result", {}).get("selection_only"):
+                saved = fallback
+        if (saved and identity.timeframe == "1m"
+                and saved["result"].get("section_mode") == "signals"
+                and not saved["result"].get("selection_snapshot")):
+            frozen = self.detail(identity.strategy_id, replace(identity, daily_record=True).record_id(as_of))
+            selected = (frozen or {}).get("result", {}).get("selection_snapshot")
+            if selected is not None:
+                # A historical backfill can arrive after a missing-selection scan.
+                # Merge only the read copy; keep its original buy/sell archive intact.
+                saved["result"]["selection_snapshot"] = selected
+                saved["result"]["sections"]["select"] = selected["rows"]
+                saved["result"]["section_errors"] = {
+                    key: value for key, value in (saved["result"].get("section_errors") or {}).items()
+                    if key != "select"}
+        return saved
 
     def detail(self, strategy_id: str, record_id: str) -> dict | None:
         prefix = digest(strategy_id)[:16] + ":"
@@ -668,15 +708,40 @@ class StrategyResults:
                 return json.loads(entry[0])
         return None
 
-    def summaries(self, identities: list[ResultIdentity], as_of: str) -> dict:
-        ids = [identity.record_id(as_of) for identity in identities]
+    def summaries(self, identities: list[ResultIdentity], as_of: str, *,
+                  signal_strategy_ids=()) -> dict:
+        ids = list(dict.fromkeys(
+            [identity.record_id(as_of) for identity in identities]
+            + [replace(identity, daily_record=True).record_id(as_of)
+               for identity in identities if identity.timeframe == "1m"]))
         if not ids:
             return {}
+        signal_ids = set(signal_strategy_ids)
+        conditions, params = [], []
+        placeholder = "%s" if self.tenant else "?"
+        tomorrow = str(date.fromisoformat(str(as_of)) + timedelta(days=1))
+        for identity in identities:
+            if identity.strategy_id not in signal_ids or identity.timeframe != "1m":
+                continue
+            prefix = digest(identity.strategy_id)[:16] + ":"
+            field = (lambda name: f"value->'summary'->>'{name}'") if self.tenant else (
+                lambda name: f"json_extract(summary,'$.{name}')")
+            conditions.append(
+                f"(id>={placeholder} AND id<{placeholder}"
+                f" AND {field('strategy_id')}={placeholder}"
+                f" AND {field('asset_type')}={placeholder}"
+                f" AND {field('timeframe')}={placeholder})")
+            params.extend([prefix + str(as_of) + ":", prefix + tomorrow + ":",
+                           identity.strategy_id, identity.asset_type, identity.timeframe])
+        mode = "value->'result'->>'section_mode'" if self.tenant else (
+            "json_extract(value,'$.result.section_mode')")
+        historical = f" OR (({' OR '.join(conditions)}) AND {mode}='signals')" if conditions else ""
         if self.tenant:
             with self.storage._transaction() as conn:
                 rows = conn.execute(
-                    "SELECT value->'summary' AS summary FROM business.documents WHERE namespace=%s AND id=ANY(%s)",
-                    (NAMESPACE, ids),
+                    f"""SELECT value->'summary' AS summary FROM business.documents
+                        WHERE namespace=%s AND (id=ANY(%s){historical})""",
+                    (NAMESPACE, ids, *params),
                 ).fetchall()
             values = [row["summary"] for row in rows]
         else:
@@ -684,9 +749,19 @@ class StrategyResults:
                 if conn is None:
                     return {}
                 rows = conn.execute(
-                    f"SELECT summary FROM strategy_results WHERE id IN ({','.join('?' for _ in ids)})", ids,
+                    f"""SELECT summary FROM strategy_results
+                        WHERE (id IN ({','.join('?' for _ in ids)}){historical})""",
+                    [*ids, *params],
                 ).fetchall()
             values = [json.loads(row["summary"]) for row in rows]
+        preferred = {identity.strategy_id: identity.record_id(as_of) for identity in identities}
+        # Signal history belongs to the saved day, including its old configuration.
+        # Eligibility-only records must not hide an actual (possibly empty) scan.
+        values.sort(key=lambda value: (
+            not value.get("selection_only") if value["strategy_id"] in signal_ids
+            else value["record_id"] == preferred.get(value["strategy_id"]),
+            value.get("started_at") or 0, value.get("computed_at") or 0, value["record_id"],
+        ))
         return {value["strategy_id"]: value for value in values}
 
     def list_history(self, strategy_id: str, *, limit=30, cursor=None, q=None,

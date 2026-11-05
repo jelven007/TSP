@@ -231,6 +231,7 @@ def _strategy_detail(
         "research_only": s.meta.get("research_only", False),
         "execution_backend": s.execution_backend,
         "minute_execution": s.meta.get("minute_execution"),
+        **({"result_sections": s.meta["result_sections"]} if "result_sections" in s.meta else {}),
         "asset_types": s.meta.get("asset_types", ["stock"]),
         "timeframes": s.meta.get("timeframes", ["1d"]),
         "version": s.meta.get("version", "1.0.0"),

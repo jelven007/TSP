@@ -85,7 +85,7 @@ def test_engine_ignores_unfinished_row_and_preserves_data_and_available_times(tm
     assert hits["close"].to_list() == pytest.approx([10.159]*3)
 
 
-def test_next_open_fill_is_available_minute_not_an_extra_minute(tmp_path):
+def test_entry_window_starts_at_available_minute_without_consuming_future_open(tmp_path):
     from app.backtest.minute_replay import MinuteSignalReplayer
     from app.strategy import custom_signals
     from app.strategy.engine import StrategyEngine
@@ -114,7 +114,8 @@ def filter_minute_history(df, params):
         overrides={"entry_signals": ["csgi_late_session_strength"]})
     assert len(result.hits) == 3
     assert all(hit.trigger_time == "14:31" and hit.signal_time == "14:31" for hit in result.hits)
-    assert all(hit.raw_entry_price == 10.18 for hit in result.hits)
+    assert all(hit.entry_window_start == CHECK and hit.prior_close == 10. for hit in result.hits)
+    assert all(hit.raw_entry_price == pytest.approx(10.159) for hit in result.hits)
 
 
 @pytest.mark.parametrize("start,end", [("14:32:00", datetime(2026, 9, 4, 14, 32)),
@@ -125,7 +126,7 @@ def test_custom_launch_checks_next_minute(start, end):
 
 
 @pytest.mark.parametrize("patch", [{"evaluation_delay_minutes": True}, {"evaluation_delay_minutes": 2},
-                                   {"time": "15:00:00"}, {"time": "14:30:01"}])
+                                   {"time": "15:00:00"}])
 def test_new_contract_rejects_invalid_launch_or_delay(patch):
     from app.strategy import custom_signals
 
@@ -161,6 +162,6 @@ def test_http_save_upgrades_new_definition_but_loading_does_not(tmp_path):
     assert "evaluation_delay_minutes" not in client.get("/api/custom-signals").json()["signals"][0]["params"]
     response = client.post("/api/custom-signals", json=definition())
     assert response.status_code == 200, response.text
-    assert response.json()["signal"]["params"]["evaluation_delay_minutes"] == 1.5
-    assert client.get("/api/custom-signals").json()["signals"][0]["params"]["evaluation_delay_minutes"] == 1.5
+    assert response.json()["signal"]["params"]["evaluation_delay_minutes"] == 1
+    assert client.get("/api/custom-signals").json()["signals"][0]["params"]["evaluation_delay_minutes"] == 1
     assert client.post("/api/custom-signals", json=definition(time="15:00:00")).status_code == 400

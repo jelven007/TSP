@@ -174,6 +174,8 @@ class StrategyDataContext:
     observed_at: datetime | None = None
     # 独立公共证据覆盖实际持仓, 不随候选股票范围裁剪。
     suspension_history: pl.DataFrame | None = None
+    # Persisted eligibility for this exact trading session, injected by storage owners.
+    selection_snapshots: dict[str, dict] | None = None
 
 
 @dataclass(frozen=True)
@@ -244,6 +246,8 @@ class StrategyResult:
     daily_stock_pool_error: str | None = None
     section_mode: str | None = None
     section_errors: dict[str, str] | None = None
+    selection_snapshot: dict | None = None
+    selection_only: bool = False
 
 
 @dataclass
@@ -960,28 +964,52 @@ class StrategyEngine:
         signal_sections = (strategy.execution_backend == "minute_filter"
                            and not strategy.meta.get("minute_execution")
                            and strategy.meta.get("result_sections") == "signals")
+        selection, selection_error = None, None
+        if signal_sections:
+            from app.market_time import cn_today
+            from app.strategy.basic_filter import previous_session
+            if context.as_of > cn_today():
+                raise ValueError("未来交易日只可读取已保存的选名单, 不能运行买入信号")
+            selection = (context.selection_snapshots or {}).get(strategy_id)
+            loader = getattr(self, "_selection_loader", None)
+            if selection is None and callable(loader):
+                selection = loader(strategy_id, context.as_of)
+            if (selection is None or selection.get("as_of") != str(context.as_of)
+                    or selection.get("source_date") != str(previous_session(context.as_of))):
+                selection = None
+                selection_error = f"缺少{context.as_of}已保存的盘后选名单, 买入信号暂不可确认"
         execution_overrides = {**(overrides or {}), "display_limit": None} if signal_sections else overrides
         execution_context = context
+        if signal_sections:
+            execution_context = replace(context, selection_snapshots={
+                **(context.selection_snapshots or {}), strategy_id: selection or {"rows": []},
+            })
         if signal_sections and context.history is None:
-            execution_context = replace(context, history=pl.DataFrame(schema={
+            execution_context = replace(execution_context, history=pl.DataFrame(schema={
                 "symbol": pl.Utf8, "datetime": pl.Datetime,
                 **{name: pl.Float64 for name in ("open", "high", "low", "close", "volume", "amount")},
             }))
         result = self._run_strategy(strategy_id, execution_context, pool=pool, params=params, overrides=execution_overrides,
                                     daily_pool=daily_pool)
         if signal_sections:
-            from app.strategy.signal_sections import select_rows
+            from app.strategy.late_session_strength import pending_evaluation_time
 
             result.section_mode = "signals"
             result.section_errors = {}
-            try:
-                selected = _sanitize(select_rows(self, strategy, context, overrides=overrides or {}, pool=pool))
-            except ValueError as exc:
-                selected = []
-                result.section_errors["select"] = str(exc)
+            selected = _sanitize(selection["rows"]) if selection is not None else []
+            result.selection_snapshot = selection
+            pending = pending_evaluation_time(self, strategy, overrides, context)
+            if selection_error:
+                result.section_errors.update(select=selection_error, buy=selection_error)
+            elif pending is not None:
+                result.rows = []
+                result.total = 0
+                result.scores = {}
+                result.entry_signal_hits = []
+                result.section_errors["buy"] = f"等待{pending.time().isoformat()}确认入场触发器"
             if result.entry_filter_error:
                 result.section_errors["buy"] = result.entry_filter_error
-            if context.history is None:
+            elif context.history is None:
                 result.section_errors["buy"] = "缺少指定交易日分钟行情。买入信号暂不可确认"
             result.sections = {"sell": [], "select": selected, "buy": result.rows}
         result.daily_stock_pool = daily_pool
@@ -1151,6 +1179,11 @@ class StrategyEngine:
                 history, context=context,
                 pool_symbols=daily_pool["symbols"] if daily_pool is not None else None,
             )
+            # Build market-wide signal features first; eligibility only limits entries.
+            frozen = (context.selection_snapshots or {}).get(strategy_id)
+            if frozen is not None:
+                history = history.filter(pl.col("symbol").is_in(
+                    [row["symbol"] for row in frozen["rows"]]))
             missing_csgi = [
                 name for name in s.required_features
                 if name.startswith("csgi_") and name not in history.columns
@@ -1257,7 +1290,8 @@ class StrategyEngine:
         bf = self._resolve_filter_scope(bf)
 
         # Stage 1: 基础过滤（enabled 默认开启; 显式 enabled=false 才跳过）
-        if bf:
+        frozen_selection = (context.selection_snapshots or {}).get(strategy_id) is not None
+        if bf and not frozen_selection:
             df = self._apply_basic_filter(df, bf,
                 history=context.daily_history if context.timeframe == "1m" else context.history,
                 as_of=as_of)
@@ -1273,9 +1307,10 @@ class StrategyEngine:
 
         try:
             if s.execution_backend == "minute_filter":
-                df = overlay.filter_minute_candidates(
-                    df, conditions, history=context.daily_history, as_of=as_of,
-                )
+                if not frozen_selection:
+                    df = overlay.filter_minute_candidates(
+                        df, conditions, history=context.daily_history, as_of=as_of,
+                    )
             else:
                 df = overlay.filter_candidates(df, conditions, history=history, current=current)
         except overlay.OverlayDataError as error:

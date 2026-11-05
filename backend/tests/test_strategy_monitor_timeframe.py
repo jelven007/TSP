@@ -29,7 +29,7 @@ def local(tmp_path, monkeypatch):
     return tmp_path, request, engine, contexts
 
 
-@pytest.mark.parametrize("sid", ["s02", "ma_golden_cross"])
+@pytest.mark.parametrize("sid", ["s01", "ma_golden_cross"])
 def test_create_edit_disable_and_reenable_use_the_declared_cycle(local, sid):
     storage, request, engine, contexts = local
     rule = api.RuleModel(id=f"{sid}_monitor", name="monitor", type="strategy",
@@ -48,7 +48,7 @@ def test_create_edit_disable_and_reenable_use_the_declared_cycle(local, sid):
 def test_monitor_asset_validation_is_not_bypassed(local):
     storage, request, _engine, _contexts = local
     rule = api.RuleModel(id="wrong_asset", name="monitor", type="strategy",
-                         strategy_id="s02", asset_type="index", scope="all")
+                         strategy_id="s01", asset_type="index", scope="all")
     with pytest.raises(HTTPException) as error:
         api.save_rule(rule, request)
     assert error.value.status_code == 400

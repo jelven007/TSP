@@ -51,7 +51,6 @@ describe('buildDataScheduleItems', () => {
 
     expect(items.map(item => item.id)).toEqual([
       'catalog',
-      'startup-integrity',
       'auction',
       'quotes',
       'second-quote-archive',
@@ -62,7 +61,6 @@ describe('buildDataScheduleItems', () => {
       'period-1d',
       'period-1w',
       'daily-pipeline',
-      'kline-correction',
       'depth',
       'financial-metrics',
       'capability-reprobe',
@@ -72,11 +70,9 @@ describe('buildDataScheduleItems', () => {
     expect(new Set(items.map(item => item.id)).size).toBe(items.length)
     expect(items.map(item => item.category)).toEqual([
       'foundation',
-      'foundation',
       'market',
       'market',
       'market',
-      'kline',
       'kline',
       'kline',
       'kline',
@@ -92,12 +88,12 @@ describe('buildDataScheduleItems', () => {
     ])
     expect(items.find(item => item.id === 'auction')).toMatchObject({
       label: '集合竞价',
-      schedule: '交易日 09:25:08 / 25 / 45，09:29:15 定版',
+      schedule: '交易日 09:25:15 / 30 / 45，09:29:15 兜底',
       detail: expect.stringContaining('多次采集与发布重试'),
     })
     expect(items.find(item => item.id === 'quotes')).toMatchObject({
-      detail: '行情轮询运行中；交易日 09:15–11:45、13:00–15:30 轮询，午间暂停，15:00 后继续确认收盘定版。',
-      schedule: '交易日 09:15–11:45 / 13:00–15:30 · 每 3 秒',
+      detail: '行情轮询运行中；交易日 09:15–11:35、13:00–15:15 轮询，午间暂停，15:00 后继续确认收盘定版。',
+      schedule: '交易日 09:15–11:35 / 13:00–15:15 · 每 3 秒',
     })
     expect(items.find(item => item.id === 'second-quote-archive')).toMatchObject({
       label: '秒级行情',
@@ -108,22 +104,19 @@ describe('buildDataScheduleItems', () => {
       state: 'disabled',
       schedule: '启用后立即拉取，后每 5 分钟',
     })
-    expect(items.find(item => item.id === 'daily-pipeline')?.detail).toContain('首次启动按需补齐')
+    expect(items.find(item => item.id === 'daily-pipeline')?.detail).toContain('启动后默认补齐当日')
     expect(items.find(item => item.id === 'period-1w')).toMatchObject({
       detail: '每周六由本地日K聚合，不向上游重复请求。',
-      schedule: '每周六 16:10 后',
+      schedule: '每周六 09:00',
     })
-    expect(items.find(item => item.id === 'startup-integrity')).toMatchObject({
-      label: '数据完整性',
-      schedule: '应用启动后 30 秒',
-      state: 'enabled',
-    })
+    expect(items.find(item => item.id === 'startup-integrity')).toBeUndefined()
+    expect(items.find(item => item.id === 'kline-correction')).toBeUndefined()
     expect(items.find(item => item.id === 'period-1d')).toMatchObject({
-      label: '日K周期同步', schedule: '交易日 16:00', state: 'enabled',
+      label: '日K周期同步', schedule: '交易日 15:35', state: 'enabled',
     })
-    expect(items.find(item => item.id === 'daily-pipeline')?.schedule).toBe('交易日 16:00')
+    expect(items.find(item => item.id === 'daily-pipeline')?.schedule).toBe('启动后 · 交易日 15:35')
     expect(items.filter(item => item.category === 'kline').at(-1)).toMatchObject({
-      id: 'kline-correction', label: '当日K线修正', schedule: '交易日 15:35（固定）', state: 'enabled',
+      id: 'daily-pipeline', label: '盘后数据管理', schedule: '启动后 · 交易日 15:35', state: 'enabled',
     })
     expect(items.find(item => item.id === 'financial-metrics')?.label).toBe('财务指标')
     expect(items.find(item => item.id === 'capability-reprobe')?.label).toBe('数据源能力')
@@ -143,15 +136,13 @@ describe('buildDataScheduleItems', () => {
 
     expect(items.find(item => item.id === 'catalog')?.state).toBe('enabled')
     expect(items.find(item => item.id === 'capability-reprobe')?.state).toBe('enabled')
-    expect(items.find(item => item.id === 'startup-integrity')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'daily-pipeline')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'period-1d')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'minute-refresh')?.state).toBe('disabled')
     expect(items.find(item => item.id === 'financial-metrics')?.state).toBe('disabled')
-    expect(items.find(item => item.id === 'kline-correction')?.state).toBe('disabled')
   })
 
-  it('keeps the daily entry aligned with the saved pipeline schedule and daily switch', () => {
+  it('keeps daily missing-only management fixed even when legacy period settings differ', () => {
     const items = buildDataScheduleItems({
       preferences: { ...preferences, pipeline_schedule: { hour: 17, minute: 10 } },
       klineConfigs: { ...klineConfigs, '1d': { ...klineConfigs['1d'], enabled: false, time: '17:10' } },
@@ -159,11 +150,12 @@ describe('buildDataScheduleItems', () => {
       depthAvailable: true,
       extConfigs: [],
     })
-    for (const id of ['period-1d', 'daily-pipeline']) {
-      expect(items.find(item => item.id === id)).toMatchObject({
-        schedule: '交易日 17:10', state: 'disabled',
-      })
-    }
+    expect(items.find(item => item.id === 'period-1d')).toMatchObject({
+      schedule: '交易日 15:35', state: 'enabled',
+    })
+    expect(items.find(item => item.id === 'daily-pipeline')).toMatchObject({
+      schedule: '启动后 · 交易日 15:35', state: 'enabled',
+    })
   })
 
   it('marks capability-gated data tasks unavailable instead of implying that they will run', () => {
@@ -206,14 +198,30 @@ describe('buildDataScheduleItems', () => {
     })
 
     expect(items.find(item => item.id === 'ext:ext_gn_ths')?.detail).toBe(
-      '仅在交易日 09:15–11:45 / 13:00–15:30 拉取。',
+      '仅在交易日 09:15–11:35 / 13:00–15:15 拉取。',
     )
   })
 
   it('uses the initialization defaults before configurations load', () => {
     const items = buildDataScheduleItems({ financialAvailable: true, depthAvailable: true, extConfigs: [] })
-    expect(items.find(item => item.id === 'period-1d')?.schedule).toBe('交易日 15:30')
-    expect(items.find(item => item.id === 'period-1w')?.schedule).toBe('每周六 09:00 后')
-    expect(items.find(item => item.id === 'minute-refresh')?.schedule).toContain('13:00–15:30')
+    expect(items.find(item => item.id === 'period-1d')?.schedule).toBe('交易日 15:35')
+    expect(items.find(item => item.id === 'period-1w')?.schedule).toBe('每周六 09:00')
+    expect(items.find(item => item.id === 'minute-refresh')?.schedule).toContain('交易日 09:30–11:30 / 13:00–15:00')
+  })
+
+  it('shows separate generation windows and the one-minute dependency despite legacy settings', () => {
+    const items = buildDataScheduleItems({ klineConfigs, financialAvailable: true, depthAvailable: true, extConfigs: [] })
+    for (const [period, window] of [
+      ['5m', '09:36–11:31 / 13:06–15:01'],
+      ['10m', '09:42–11:32 / 13:12–15:02'],
+      ['15m', '09:48–11:33 / 13:18–15:03'],
+    ]) {
+      expect(items.find(item => item.id === `period-${period}`)).toMatchObject({
+        label: `${period.slice(0, -1)}分K盘中刷新`,
+        detail: expect.stringContaining('依赖1分K'),
+        schedule: expect.stringContaining(`交易日 ${window}`),
+        scheduleLabel: '自动生成周期',
+      })
+    }
   })
 })

@@ -31,6 +31,32 @@ def morning_frame(day=SELL, *, price=10.4):
     ])
 
 
+def _with_post_signal_window(frame: pl.DataFrame) -> pl.DataFrame:
+    additions: list[tuple[str, str, float]] = []
+    volumes: list[float] = []
+    for symbol in frame["symbol"].unique().to_list():
+        rows = frame.filter(pl.col("symbol") == symbol).sort("datetime")
+        if rows.is_empty():
+            continue
+        latest = rows["datetime"][-1]
+        if latest.hour < 14 or latest >= datetime.combine(latest.date(), datetime.min.time()).replace(hour=14, minute=55):
+            continue
+        price = float(rows["close"][-1])
+        additions.extend(
+            (symbol, (latest + timedelta(minutes=offset)).strftime("%H:%M"), price)
+            for offset in range(1, 6)
+        )
+        volumes.extend([float(rows["volume"][-1])] * 5)
+    if not additions:
+        return frame
+    added = _minute_frame(frame["datetime"][0].date(), additions).with_columns(
+        pl.Series("volume", volumes),
+    )
+    return pl.concat([frame, added]).sort(
+        ["symbol", "datetime"]
+    )
+
+
 def service_fixture(tmp_path, *, panel=None, frames=None):
     if panel is None:
         days = _trading_days(47, start=date(2026, 7, 6))
@@ -41,6 +67,11 @@ def service_fixture(tmp_path, *, panel=None, frames=None):
     if frames is None:
         frames = {BUY: _minute_frame(BUY, [(SYMBOL, "14:30", 10.2)]),
                   SELL: morning_frame()}
+    frames = dict(frames)
+    frames = {
+        day: _with_post_signal_window(frame)
+        for day, frame in frames.items()
+    }
     service = _make_service(tmp_path, panel, frames)
     source = TEST_STRATEGY_SOURCE.replace("* 1.05", "* 1.01").replace(
         'hits = joined.filter(', 'hits = joined.filter(pl.col("datetime").dt.hour() >= 14).filter(',
@@ -77,16 +108,16 @@ def test_friday_buy_monday_deadline_sell_with_daily_overlay(tmp_path):
     assert not result.error, result.error
     assert result.stats["n_trades"] == 1
     trade, = result.trades
-    assert trade["entry_date"] == f"{BUY} 14:30"
+    assert trade["entry_date"] == f"{BUY} 14:31"
     assert trade["exit_date"] == f"{SELL} 10:30"
-    assert trade["entry_price"] == pytest.approx(10.2)
+    assert trade["entry_price"] == pytest.approx(10.21)
     assert trade["exit_price"] == pytest.approx(10.4)
     assert trade["shares"] == 400
-    assert trade["entry_value"] == pytest.approx(4085)
+    assert trade["entry_value"] == pytest.approx(4089)
     assert trade["exit_value"] == pytest.approx(4152.92)
-    assert trade["pnl_amount"] == pytest.approx(67.92)
+    assert trade["pnl_amount"] == pytest.approx(63.92)
     assert result.stats["win_rate"] == 1
-    assert result.stats["final_equity"] == pytest.approx(10067.92)
+    assert result.stats["final_equity"] == pytest.approx(10063.92)
     assert [fill["fee"] for fill in result.fills] == pytest.approx([5, 7.08])
     assert [fill["participation"] for fill in result.fills] == pytest.approx([.004, .004])
     assert result.stats["execution"]["remaining_positions"] == []
@@ -101,6 +132,32 @@ def test_no_signal_is_valid_zero_trade_result(tmp_path):
     assert result.stats["n_trades"] == 0
     assert result.stats["final_equity"] == 10000
     assert not result.fills
+
+
+def test_morning_cash_ledger_uses_five_minute_entry_capacity_window(tmp_path):
+    buy = _minute_frame(BUY, [
+        (SYMBOL, "14:30", 10.2),
+        (SYMBOL, "14:31", 10.21),
+        (SYMBOL, "14:32", 10.22),
+        (SYMBOL, "14:33", 10.23),
+        (SYMBOL, "14:34", 10.24),
+        (SYMBOL, "14:35", 10.25),
+    ]).with_columns(pl.lit(1.0).alias("volume"))
+    service, _, _ = service_fixture(
+        tmp_path,
+        frames={BUY: buy, SELL: morning_frame()},
+    )
+
+    result = service.run(configuration(initial_capital=100_000, max_positions=1))
+
+    assert not result.error, result.error
+    buys = [fill for fill in result.fills if fill["side"] == "buy"]
+    assert [fill["datetime"] for fill in buys] == [
+        f"{BUY} 14:{minute:02d}:00" for minute in range(31, 36)
+    ]
+    assert [fill["shares"] for fill in buys] == [100] * 5
+    assert result.trades[0]["raw_entry_shares"] == 500
+    assert result.stats["execution"]["entry_partial_orders"] == 1
 
 
 def run_frames(tmp_path, frame, **config):
@@ -139,7 +196,7 @@ def test_partial_sells_use_one_minimum_commission_for_order(tmp_path):
     assert len(sells) == 4 and [f["shares"] for f in sells] == [100] * 4
     assert sum(f["fee"] for f in sells) == pytest.approx(7.08)
     assert result.trades[0]["exit_date"] == f"{SELL} 09:43"
-    assert result.trades[0]["pnl_amount"] == pytest.approx(67.92)
+    assert result.trades[0]["pnl_amount"] == pytest.approx(63.92)
     assert sum(f["notional"] - f["fee"] if f["side"] == "sell"
                else -f["notional"] - f["fee"] for f in result.fills) + 10000 == pytest.approx(
                    result.stats["execution"]["cash"])
@@ -184,7 +241,7 @@ def test_deadline_failure_preserves_actual_fills_and_remaining(tmp_path, kind):
     pos, = result.stats["execution"]["remaining_positions"]
     assert pos["remaining"] == (300 if kind == "too_small" else 400)
     assert len(result.fills) == (2 if kind == "too_small" else 1)
-    assert result.stats["execution"]["cash"] == pytest.approx(6949.48 if kind == "too_small" else 5915)
+    assert result.stats["execution"]["cash"] == pytest.approx(6945.48 if kind == "too_small" else 5911)
 
 
 def test_deadline_failure_stops_before_later_entry_and_preserves_same_minute_sales(tmp_path):
@@ -210,7 +267,7 @@ def test_deadline_failure_stops_before_later_entry_and_preserves_same_minute_sal
     assert len(result.trades) == 1 and result.trades[0]["symbol"] == other
     pos, = result.stats["execution"]["remaining_positions"]
     assert pos["symbol"] == SYMBOL and pos["remaining"] == 300
-    assert result.stats["execution"]["cash"] == pytest.approx(7017.4)
+    assert result.stats["execution"]["cash"] == pytest.approx(7009.4)
     assert not result.equity_curve
 
 
@@ -218,10 +275,10 @@ def test_slippage_applied_once_on_each_leg(tmp_path):
     result = run_frames(tmp_path, morning_frame(), slippage_bps=10)
     assert not result.error, result.error
     trade = result.trades[0]
-    assert trade["entry_price"] == pytest.approx(10.2102)
-    assert trade["exit_price"] == pytest.approx(10.3896)
-    assert trade["entry_value"] == pytest.approx(400 * 10.2102 + 5)
-    assert trade["exit_value"] == pytest.approx(400 * 10.3896 * (1 - .0005) - 5)
+    assert trade["entry_price"] == pytest.approx(10.21)
+    assert trade["exit_price"] == pytest.approx(10.4)
+    assert trade["entry_value"] == pytest.approx(400 * 10.21 + 5 + 400 * 10.21 * .001)
+    assert trade["exit_value"] == pytest.approx(400 * 10.4 * (1 - .0005 - .001) - 5)
 
 
 def test_raw_cash_prices_independent_of_adjusted_daily_factor(tmp_path):
@@ -231,9 +288,9 @@ def test_raw_cash_prices_independent_of_adjusted_daily_factor(tmp_path):
     service, _, _ = service_fixture(tmp_path, panel=adjusted, frames=frames)
     result = service.run(configuration())
     assert not result.error, result.error
-    assert result.trades[0]["entry_price"] == pytest.approx(10.2)
+    assert result.trades[0]["entry_price"] == pytest.approx(10.21)
     assert result.trades[0]["exit_price"] == pytest.approx(10.4)
-    assert result.stats["final_equity"] == pytest.approx(10067.92)
+    assert result.stats["final_equity"] == pytest.approx(10063.92)
 
 
 def test_partial_buy_and_last_day_open_position_valuation(tmp_path):
@@ -243,11 +300,11 @@ def test_partial_buy_and_last_day_open_position_valuation(tmp_path):
     result = service.run(configuration(end=BUY))
     assert not result.error, result.error
     assert not result.trades and result.stats["n_trades"] == 0
-    assert result.fills[0]["shares"] == 200
+    assert [fill["shares"] for fill in result.fills] == [200, 200]
     assert result.stats["unclosed_positions"] == 1
-    assert result.stats["final_equity"] == pytest.approx(9955)
-    assert result.stats["unrealized_pnl_amount"] == pytest.approx(-45)
-    assert result.stats["max_drawdown"] == pytest.approx(-.0045)
+    assert result.stats["final_equity"] == pytest.approx(9911)
+    assert result.stats["unrealized_pnl_amount"] == pytest.approx(-89)
+    assert result.stats["max_drawdown"] == pytest.approx(-.0089)
 
 
 def test_missing_sell_day_partition_does_not_roll_to_another_day(tmp_path):
@@ -271,7 +328,7 @@ def test_cancel_after_buy_retains_cash_and_position(tmp_path):
     result = service.run(configuration(), progress_cb=progress, cancel_event=event)
     assert result.error == "cancelled"
     assert len(result.fills) == 1 and not result.trades
-    assert result.stats["execution"]["cash"] == pytest.approx(5915)
+    assert result.stats["execution"]["cash"] == pytest.approx(5911)
 
 
 @pytest.mark.parametrize("patch, text", [
@@ -369,7 +426,7 @@ def test_real_late_session_signal_uses_full_pool_before_output_and_overlay(tmp_p
     source = '''
 import polars as pl
 META = {"id": "test_minute_ping", "name": "s02", "asset_types": ["stock"],
-        "timeframes": ["1m"], "result_sections": "signals", "scoring": {"change_pct": 1}}
+        "timeframes": ["1m"], "scoring": {"change_pct": 1}}
 EXECUTION_BACKEND = "minute_filter"
 BASIC_FILTER = {"enabled": False, "target_mode": "all"}
 ENTRY_SIGNALS = ["csgi_late_session_strength"]
@@ -389,8 +446,8 @@ def filter_minute_history(df, params):
     assert not result.error, result.error
     assert result.stats["n_trades"] == trades
     if trades:
-        assert result.trades[0]["entry_price"] == pytest.approx(10.159)
-        assert result.trades[0]["entry_date"] == f"{BUY} 14:30"
+        assert result.trades[0]["entry_price"] == pytest.approx(10.169)
+        assert result.trades[0]["entry_date"] == f"{BUY} 14:31"
         assert result.trades[0]["entry_score"] == 50
 
 
@@ -449,7 +506,7 @@ def test_entry_data_failure_does_not_drop_existing_sale(tmp_path):
     assert result.error and "入场日线数据缺失" in result.error
     assert len(result.trades) == 1 and len(result.fills) == 2
     assert result.stats["execution"]["remaining_positions"] == []
-    assert result.stats["execution"]["cash"] == pytest.approx(10067.92)
+    assert result.stats["execution"]["cash"] == pytest.approx(10063.92)
     assert not result.equity_curve
 
 
@@ -467,7 +524,7 @@ def test_morning_sale_allows_afternoon_reentry_with_fresh_t1_position(tmp_path, 
     assert result.stats["n_trades"] == 1
     assert [fill["side"] for fill in result.fills] == ["buy", "sell", "buy"]
     assert result.fills[1]["datetime"] == f"{SELL} 10:30:00"
-    assert result.fills[2]["datetime"] == f"{SELL} {'14:31:00' if next_open else '14:30:00'}"
+    assert result.fills[2]["datetime"] == f"{SELL} 14:31:00"
     position, = result.stats["execution"]["remaining_positions"]
     assert position["entry_date"] == SELL
     assert position["remaining"] == position["shares"]
@@ -490,8 +547,8 @@ def test_reentry_is_liquidated_on_its_own_next_trading_day(tmp_path):
     result = service.run(configuration(end=following))
     assert not result.error, result.error
     assert [(trade["entry_date"], trade["exit_date"]) for trade in result.trades] == [
-        (f"{BUY} 14:30", f"{SELL} 10:30"),
-        (f"{SELL} 14:30", f"{following} 10:30"),
+        (f"{BUY} 14:31", f"{SELL} 10:30"),
+        (f"{SELL} 14:31", f"{following} 10:30"),
     ]
     assert result.stats["execution"]["remaining_positions"] == []
 
@@ -518,8 +575,8 @@ def test_reentry_does_not_inherit_the_previous_lots_pending_exit(tmp_path):
     result = service.run(configuration())
     assert not result.error, result.error
     assert [(fill["side"], fill["datetime"]) for fill in result.fills] == [
-        ("buy", f"{BUY} 14:30:00"), ("sell", f"{SELL} 10:30:00"),
-        ("buy", f"{SELL} 10:31:00"),
+        ("buy", f"{BUY} 14:31:00"), ("sell", f"{SELL} 10:30:00"),
+        ("buy", f"{SELL} 10:32:00"),
     ]
     position, = result.stats["execution"]["remaining_positions"]
     assert position["entry_date"] == SELL
@@ -618,15 +675,15 @@ def test_confirmed_halt_carries_cash_slot_and_raw_mark_until_resume(tmp_path):
     trade, = result.trades
     assert trade["exit_date"] == f"{RESUME} 09:31"
     assert trade["duration"] == 3
-    assert trade["pnl_amount"] == pytest.approx(67.92)
+    assert trade["pnl_amount"] == pytest.approx(63.92)
     assert trade["exit_signal_date"] == f"{RESUME}T09:30:00"
     assert [fill["date"] for fill in result.fills] == [str(BUY), str(RESUME)]
     for row in result.equity_curve[:3]:
-        assert row["cash"] == pytest.approx(5915)
-        assert row["positions"] == 1 and row["value"] == pytest.approx(9915)
+        assert row["cash"] == pytest.approx(5911)
+        assert row["positions"] == 1 and row["value"] == pytest.approx(9911)
     assert result.stats["execution"]["suspended_position_days"] == 2
     assert result.stats["execution"]["resume_exit_trades"] == 1
-    assert result.stats["final_equity"] == pytest.approx(10067.92)
+    assert result.stats["final_equity"] == pytest.approx(10063.92)
 
 
 def test_still_suspended_at_end_is_open_marked_position_not_completed_trade(tmp_path):
@@ -636,7 +693,7 @@ def test_still_suspended_at_end_is_open_marked_position_not_completed_trade(tmp_
     assert not result.error, result.error
     assert not result.trades and len(result.fills) == 1
     assert result.stats["unclosed_positions"] == 1
-    assert result.stats["final_equity"] == pytest.approx(9915)
+    assert result.stats["final_equity"] == pytest.approx(9911)
     assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 400
 
 
@@ -684,10 +741,10 @@ def test_resume_remainder_crosses_lunch_and_days_with_daily_minimum_fees(tmp_pat
     assert [f["date"] for f in sells] == [str(RESUME)] + [str(following)] * 3
     assert sum(f["fee"] for f in sells) == pytest.approx(12.08)
     assert result.trades[0]["duration"] == 4
-    assert result.trades[0]["pnl_amount"] == pytest.approx(62.92)
+    assert result.trades[0]["pnl_amount"] == pytest.approx(58.92)
     assert result.stats["execution"]["resume_pending_position_days"] == 1
     assert result.trades[0]["exit_date"] == f"{following} 09:33"
-    assert result.stats["execution"]["cash"] == pytest.approx(10062.92)
+    assert result.stats["execution"]["cash"] == pytest.approx(10058.92)
 
 
 def test_partial_resume_at_end_separates_realized_fragment_and_open_cost(tmp_path):
@@ -699,9 +756,9 @@ def test_partial_resume_at_end_separates_realized_fragment_and_open_cost(tmp_pat
     assert not result.error, result.error
     assert not result.trades and result.stats["n_trades"] == 0
     assert result.stats["unclosed_positions"] == 1
-    assert result.stats["unrealized_pnl_amount"] == pytest.approx(-63.75)
-    assert result.stats["unclosed_realized_pnl_amount"] == pytest.approx(13.23)
-    assert result.stats["final_equity"] - 10000 == pytest.approx(-50.52)
+    assert result.stats["unrealized_pnl_amount"] == pytest.approx(-66.75)
+    assert result.stats["unclosed_realized_pnl_amount"] == pytest.approx(12.23)
+    assert result.stats["final_equity"] - 10000 == pytest.approx(-54.52)
 
 
 @pytest.mark.parametrize("missing", ["09:31", "09:32", "15:00"])

@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type KlinePeriod, type KlineSyncConfig as Config } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { isLocalDerivedPeriod } from '@/lib/klinePeriods'
-import { TimePicker } from '@/components/TimePicker'
 import { DatePicker } from '@/components/DatePicker'
 
 const inputClass = 'rounded-btn border border-border bg-base px-2 py-1.5 text-xs text-foreground w-full'
@@ -44,7 +43,12 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
       : endDate > today
         ? '结束日期不能晚于今天'
         : null
-  useEffect(() => { if (query.data) setDraft(query.data[period]) }, [query.data, period])
+  useEffect(() => {
+    if (query.data) setDraft({
+      ...query.data[period],
+      ...(period === '1w' ? { time: '09:00' } : period === '1d' ? { time: '15:35' } : {}),
+    })
+  }, [query.data, period])
   const save = useMutation({
     mutationFn: () => api.saveKlineSyncConfig(period, draft!),
     onSuccess: () => {
@@ -73,24 +77,28 @@ export function KlineSyncConfig({ period, hasCap, isRunning, earliestDate, onJob
   return <div className="space-y-5">
     <section className="rounded-card border border-border p-4 space-y-3">
       <h3 className="text-sm font-medium">周期同步</h3>
-      <p className="text-xs text-muted">{period === '1w' ? '每周六按北京时间运行，自动同步总开关开启后生效。' : '按北京时间交易日运行，自动同步总开关开启后生效。'}</p>
+      <p className="text-xs text-muted">{period === '1w' ? '每周六09:00按北京时间运行，自动同步总开关开启后生效。' : period === '1d' ? '启动后默认补齐当日已形成的日K缺口；交易日15:35再次检查，受自动同步总开关控制。' : '按北京时间交易日运行，自动同步总开关开启后生效。'}</p>
       {local && <p className="text-xs text-muted">由{localBase}计算并入库，不向上游获取该周期数据。</p>}
-      <label className="flex items-center gap-2 text-xs">
+      {period !== '1d' && <label className="flex items-center gap-2 text-xs">
         <input type="checkbox" role="switch" aria-label="开启周期同步" checked={draft.enabled}
           onChange={e => setDraft({ ...draft, enabled: e.target.checked })} />开启周期同步
-      </label>
+      </label>}
       {intraday ? <>
-        <p className="text-xs text-secondary">统一采集窗口：09:15–11:45 / 13:00–15:30</p>
+        <p className="text-xs text-secondary">交易日{local ? '生成' : '采集'}窗口：{({
+          '1m': '09:30–11:30 / 13:00–15:00',
+          '5m': '09:36–11:31 / 13:06–15:01',
+          '10m': '09:42–11:32 / 13:12–15:02',
+          '15m': '09:48–11:33 / 13:18–15:03',
+        } as Partial<Record<KlinePeriod, string>>)[period]}</p>
         <label className="block text-xs text-secondary space-y-1"><span>周期间隔（秒）</span>
           <input type="number" min={1} max={86400} className={inputClass} value={draft.interval_seconds}
             onChange={e => setDraft({ ...draft, interval_seconds: Number(e.target.value) })} />
         </label>
-      </> : <label className="block text-xs text-secondary space-y-1"><span>{period === '1w' ? '周六同步时间' : '交易日同步时间'}</span>
-        <TimePicker aria-label={period === '1w' ? '周六同步时间' : '交易日同步时间'}
-          value={draft.time} onChange={time => setDraft({ ...draft, time })}
-          className="w-full" buttonClassName="w-full justify-start" align="left" />
-      </label>}
-      <button className={buttonClass} disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? '保存中…' : '保存周期设置'}</button>
+      </> : <div className="text-xs text-secondary">
+        <span>{period === '1w' ? '周六同步时间' : '交易日同步时间'}</span>
+        <span aria-label={period === '1w' ? '周六同步时间' : '交易日同步时间'} className="ml-2 font-mono">{draft.time}（固定）</span>
+      </div>}
+      {period !== '1d' && <button className={buttonClass} disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? '保存中…' : '保存周期设置'}</button>}
       {save.isSuccess && <p role="status" className="text-xs text-accent">周期设置已保存</p>}
       {save.isError && <p role="alert" className="text-xs text-danger">{save.error.message}</p>}
     </section>

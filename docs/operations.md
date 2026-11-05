@@ -1,5 +1,18 @@
 # Tick Stock Platform（TSP）部署与运维手册
 
+本轮完整Runtime/Compute/前端发布单元与双端备份恢复、配置保持、重启及限定清理
+见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
+以下旧现场签收不替代本轮独立恢复和升级验收。
+
+S02当前页每秒读取缓存不等于行情源每秒产生数据；缺当日行情显示“—”，不恢复旧价。
+列表配置错误应局部反馈而保留结果页；运行源须继承现场最新60秒及历史读取修复。
+当前三页候选、哈希范围与安装状态见[验收记录](../reports/engineering/s02-live-results-20261106.md)。
+
+2026-11-06策略历史“全空/买待确认”先对比日期摘要与原始归档record_id，
+不得以重算或恢复旧库处理版本失配。生产S02已修复：4日选281/买4、5日卖4/选574/买40。
+部署父镜像须现场再核对，发生并行更新则保留并重新固定；双库恢复、重启及保留签收见
+[回执](../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)，无凭据或费表变更。
+
 最新升级使用同一正式SHA的源码、Runtime和Compute。
 受控环境`RETIRED_BUILTIN_STRATEGIES`为JSON数组，默认`[]`；
 线上Runtime及Compute持久配置`["s01","s02"]`以保留既有退役状态，本地保持默认。

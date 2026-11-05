@@ -13,7 +13,8 @@ import tempfile
 import threading
 import time
 from contextlib import ExitStack
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from datetime import time as clock_time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -58,6 +59,19 @@ def seed(root: Path) -> None:
             target.mkdir(parents=True)
             values = enriched if name.endswith("enriched") else frame
             values.filter(pl.col("date") == day).write_parquet(target / "part.parquet")
+        minute_rows = []
+        for daily in frame.filter(pl.col("date") == day).iter_rows(named=True):
+            for offset in range(5):
+                price = daily["raw_open"]
+                minute_rows.append({
+                    "symbol": daily["symbol"],
+                    "datetime": datetime.combine(day, clock_time(9, 31)) + timedelta(minutes=offset),
+                    "open": price, "high": price + .01, "low": price - .01,
+                    "close": price, "volume": 10000., "amount": price * 1000000.,
+                })
+        target = root / "kline_minute" / f"date={day}"
+        target.mkdir(parents=True)
+        pl.DataFrame(minute_rows).write_parquet(target / "part.parquet")
     target = root / "instruments"
     target.mkdir()
     pl.DataFrame([

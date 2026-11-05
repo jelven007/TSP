@@ -33,13 +33,14 @@ def test_period_config_validation_persistence_and_empty_schema(app):
     with TestClient(app) as client:
         configs = client.get("/api/settings/kline-sync").json()
         assert configs["15m"]["interval_seconds"] == 900
-        config = {**configs["1w"], "enabled": False, "time": "16:30"}
+        config = {**configs["1w"], "enabled": False, "time": "09:00"}
         assert client.post("/api/settings/kline-sync/1w", json=config).status_code == 200
         assert client.get("/api/settings/kline-sync").json()["1w"] == config
         assert client.post("/api/settings/kline-sync/unknown", json=config).status_code == 422
-        assert client.post("/api/settings/kline-sync/1w", json={**config, "time": "09:00"}).status_code == 200
+        assert client.post("/api/settings/kline-sync/1w", json={**config, "time": "16:30"}).status_code == 422
         assert client.post("/api/settings/kline-sync/1w", json={**config, "time": "24:00"}).status_code == 422
-        assert client.post("/api/settings/kline-sync/1d", json={**config, "time": "15:30"}).status_code == 200
+        assert client.post("/api/settings/kline-sync/1d", json={**config, "time": "15:35"}).status_code == 200
+        assert client.post("/api/settings/kline-sync/1d", json={**config, "time": "15:30"}).status_code == 422
         assert client.post("/api/settings/kline-sync/1d", json={**config, "time": "15:29"}).status_code == 422
         for table in ("5m", "10m", "15m", "weekly"):
             fields = client.get(f"/api/data/schema/{table}").json()

@@ -80,6 +80,24 @@ def test_signal_sections_survive_single_batch_and_cached_result(runtime, monkeyp
         assert "2026-10-30" in item["section_errors"]["sell"]
 
 
+def test_future_preselection_is_readable_with_metadata_without_running_strategy(runtime):
+    from app.services.daily_selections import DailySelections
+    storage, engine, request, calls = runtime
+    engine.get("sample").meta["timeframes"] = ["1m"]
+    target = date(2026, 11, 6)
+    identity = strategy_results.capture_identity(engine, storage, "sample", timeframe="1m")
+    selected = {"as_of": str(target), "source_date": "2026-11-05", "rows": [],
+                "scheduled_for": "2026-11-05T16:00:00+08:00",
+                "generated_at": "2026-11-05T16:01:00+08:00"}
+    DailySelections(storage).save(identity, selected, started_at=1)
+    payload = screener.get_cached_result("sample", request, as_of=target, timeframe="1m")["result"]
+    assert payload["selection_only"] is True
+    assert payload["selection_snapshot"]["source_date"] == "2026-11-05"
+    assert payload["sections"]["select"] == []
+    assert payload["section_errors"]["buy"]
+    assert calls == []
+
+
 def test_repeated_single_and_batch_runs_share_unchanged_daily_archive(runtime, monkeypatch):
     import app.services.screener as service
     from app.api import strategy

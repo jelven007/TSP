@@ -16,7 +16,8 @@ from app.cell.context import AccessError
 
 MAX_MESSAGE_BYTES = 128 * 1024 * 1024
 KINDS = frozenset({"describe", "plan", "strategy", "backtest", "optimize", "walkforward", "mining",
-                   "signal_backtest", "factor_backtest", "factor_batch", "auto_screen", "monitor", "daily_stock_pools"})
+                   "signal_backtest", "factor_backtest", "factor_batch", "auto_screen", "monitor",
+                   "daily_stock_pools", "daily_selections"})
 
 
 class ComputeExecutor:
@@ -48,7 +49,8 @@ class ComputeExecutor:
                 client.settimeout(1)
                 pending = bytearray()
                 deadline = time.monotonic() + (
-                    25 if payload["kind"] == "health" else 10 if payload["kind"] == "resources" else 7500
+                    25 if payload["kind"] == "health" else 10 if payload["kind"] == "resources"
+                    else 300 if payload["kind"] == "daily_selections" else 7500
                 )
                 while True:
                     if time.monotonic() > deadline:

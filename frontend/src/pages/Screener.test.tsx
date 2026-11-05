@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Screener } from './Screener'
 
 const { summary, detail, run, runAll, reload, batchMutate, oldPreferences,
-  monitorList, monitorSave, monitorDelete, rules, poolState, dataState, clockState, reorderPool, addToPool } = vi.hoisted(() => ({
+  monitorList, monitorSave, monitorDelete, rules, poolState, dataState, clockState, reorderPool, addToPool, calendar } = vi.hoisted(() => ({
   summary: vi.fn(), detail: vi.fn(), run: vi.fn(), runAll: vi.fn(),
   reload: vi.fn(), batchMutate: vi.fn(),
   oldPreferences: { screener_auto_run: false as boolean | undefined },
@@ -14,7 +14,7 @@ const { summary, detail, run, runAll, reload, batchMutate, oldPreferences,
   rules: [] as any[], poolState: { ids: ['sample', 'minute'] },
   dataState: { latest: '2026-10-23' as string | null },
   clockState: { data: {} as { market_date?: string; market_time?: string; is_trading_day?: boolean | null } },
-  reorderPool: vi.fn(), addToPool: vi.fn(),
+  reorderPool: vi.fn(), addToPool: vi.fn(), calendar: vi.fn(),
 }))
 vi.mock('@/lib/api', () => ({
   genRuleId: () => 'monitor-rule',
@@ -23,6 +23,8 @@ vi.mock('@/lib/api', () => ({
       { id: 'sample', name: '样例', asset_types: ['stock'], timeframes: ['1d'] },
       { id: 'minute', name: '分钟样例', asset_types: ['stock'], timeframes: ['1m'] },
       { id: 's02', name: 'S02', asset_types: ['stock'], timeframes: ['1m'] },
+      { id: 'custom_mvxxcp88', name: '自定义S02', asset_types: ['stock'], timeframes: ['1m'],
+        result_sections: 'signals' },
       { id: 'added', name: '新增样例', asset_types: ['stock'], timeframes: ['1d'] },
       { id: 'composite', name: '叠加样例', asset_types: ['stock'], timeframes: ['1d'] },
     ] }),
@@ -39,6 +41,8 @@ vi.mock('@/lib/api', () => ({
     watchlistGroups: async () => ({ groups: [] }),
     strategyGet: async () => ({ params_defaults: { position_limit: 5, take_profit_pct: .06, stop_loss_pct: .05 } }),
     lotBatches: async () => ({ batches: [], next_number: '2026110101' }),
+    lotExpiryOptions: calendar,
+    marketSnapshot: async () => ({ as_of: null, rows: [] }),
   },
 }))
 vi.mock('@/lib/useSharedQueries', () => ({
@@ -78,6 +82,10 @@ vi.mock('@/components/screener/CompositeStrategyDialog', () => ({
   CompositeStrategyDialog: ({ open, onSavedId }: any) => open
     ? <button onClick={() => onSavedId('composite')}>保存叠加策略</button> : null,
 }))
+vi.mock('@/components/screener/StrategySettingsDialog', () => ({
+  StrategySettingsDialog: ({ strategyId, onSaved }: any) => strategyId
+    ? <button onClick={() => onSaved(5)}>保存测试参数</button> : null,
+}))
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root
@@ -89,6 +97,9 @@ beforeEach(() => {
   poolState.ids = ['sample', 'minute']
   dataState.latest = '2026-10-23'
   clockState.data = {}
+  calendar.mockReset().mockImplementation(async base => ({
+    base_date: base, next_trading_day: null, five_trading_days: null,
+  }))
   monitorList.mockReset().mockImplementation(async () => ({ rules: [...rules] }))
   monitorSave.mockReset().mockImplementation(async rule => {
     rules.push(rule)
@@ -522,4 +533,138 @@ it('shows independent signal-tab counts and unknown sell archives in the result 
   expect(heading()).not.toContain('命中 0')
   await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[2].click())
   expect(heading()).toContain('买入信号 0 只')
+})
+
+it.each([
+  ['2026-11-04', '2026-11-05'],
+  ['2026-11-06', '2026-11-09'],
+  ['2026-09-30', '2026-10-08'],
+])('allows the confirmed next trading day %s → %s without changing the default', async (today, next) => {
+  dataState.latest = today
+  calendar.mockImplementation(async base => ({ base_date: base, next_trading_day: next }))
+  await render()
+  const date = host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')!
+  expect(calendar).toHaveBeenCalledWith(today)
+  expect(date.value).toBe(today)
+  expect(date.max).toBe(next)
+  await act(async () => button('下个交易日').click())
+  await flush()
+  expect(date.value).toBe(next)
+  expect(run).not.toHaveBeenCalled()
+  expect(runAll).not.toHaveBeenCalled()
+})
+
+it.each(['unknown', 'failed', 'mismatched'])('keeps the date limit at today when the calendar is %s', async mode => {
+  dataState.latest = '2026-11-04'
+  if (mode === 'failed') calendar.mockRejectedValue(new Error('calendar unavailable'))
+  if (mode === 'mismatched') calendar.mockResolvedValue({
+    base_date: '2026-11-03', next_trading_day: '2026-11-05',
+  })
+  await render()
+  expect(host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')?.max).toBe('2026-11-04')
+  expect(button('下个交易日')).toBeUndefined()
+  await setDate('2026-11-05')
+  expect(host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')?.value).toBe('2026-11-04')
+})
+
+function installNextSessionS02() {
+  dataState.latest = '2026-11-04'
+  poolState.ids.push('custom_mvxxcp88')
+  calendar.mockImplementation(async base => ({ base_date: base, next_trading_day: '2026-11-05' }))
+  summary.mockImplementation(async (day: string) => ({
+    as_of: day, results: { custom_mvxxcp88: { as_of: day, total: 1 } }, today_ever_counts: {},
+  }))
+  detail.mockImplementation(async (id: string, _ext: string, day: string) => ({
+    result: { as_of: day, strategy: id, rows: [], total: 0, section_mode: 'signals',
+      selection_only: day === '2026-11-05',
+      sections: { sell: [{ symbol: `${day}-SELL`, entry_date: day === '2026-11-05' ? '2026-11-04' : '2026-11-03' }],
+        select: [{ symbol: `${day}-SELECT` }], buy: [] } }, today_ever_rows: {},
+  }))
+}
+
+it('queries S02 next-session sell and select archives separately and restores current-day results', async () => {
+  installNextSessionS02()
+  await render()
+  await act(async () => button('自定义S02').click())
+  await flush()
+  expect(host.querySelector('[role="tabpanel"]')?.textContent).toContain('2026-11-04-SELL')
+  await act(async () => button('下个交易日').click())
+  await flush()
+  await flush()
+  expect(detail).toHaveBeenCalledWith('custom_mvxxcp88', undefined, '2026-11-05', 'stock', '1m')
+  expect(host.querySelector('[role="tabpanel"]')?.textContent).toContain('2026-11-05-SELL')
+  expect(host.querySelector('[role="tabpanel"]')?.textContent).not.toContain('2026-11-04-SELL')
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
+  expect(host.querySelector('[role="tabpanel"]')?.textContent).toContain('2026-11-05-SELECT')
+  await setDate('2026-11-04')
+  await flush()
+  expect(host.querySelector('[role="tabpanel"]')?.textContent).toContain('2026-11-04-SELL')
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
+  expect(host.querySelector('[role="tabpanel"]')?.textContent).toContain('2026-11-04-SELECT')
+  expect(run).not.toHaveBeenCalled()
+  expect(runAll).not.toHaveBeenCalled()
+  expect(reload).not.toHaveBeenCalled()
+})
+
+it('ignores a late current-day archive after switching S02 to the next session', async () => {
+  installNextSessionS02()
+  let finish!: (value: any) => void
+  detail.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  await render()
+  await act(async () => button('自定义S02').click())
+  await flush()
+  await setDate('2026-11-05')
+  await flush()
+  await act(async () => finish({ result: { as_of: '2026-11-04', strategy: 'custom_mvxxcp88',
+    rows: [{ symbol: 'LATE-CURRENT' }], total: 1 }, today_ever_rows: {} }))
+  await flush()
+  expect(host.querySelector('[role="tabpanel"]')?.textContent).toContain('2026-11-05-SELL')
+  expect(host.textContent).not.toContain('LATE-CURRENT')
+})
+
+it('does not reload or execute when saving settings in a next-session query', async () => {
+  installNextSessionS02()
+  await render()
+  await setDate('2026-11-05')
+  const refresh = button('重载')
+  expect(refresh.disabled).toBe(true)
+  await act(async () => refresh.click())
+  await act(async () => button('自定义S02').parentElement!.querySelector<HTMLButtonElement>('button[title="策略设置"]')!.click())
+  await act(async () => button('保存测试参数').click())
+  await flush()
+  expect(run).not.toHaveBeenCalled()
+  expect(runAll).not.toHaveBeenCalled()
+  expect(reload).not.toHaveBeenCalled()
+})
+
+it('explains an absent next-session archive without offering current-day computation', async () => {
+  installNextSessionS02()
+  summary.mockImplementation(async (day: string) => ({ as_of: day, results: {}, today_ever_counts: {} }))
+  await render()
+  await setDate('2026-11-05')
+  await act(async () => button('自定义S02').click())
+  await flush()
+  expect(host.textContent).toContain('该交易日归档尚未生成')
+  expect(host.textContent).toContain('卖／选／买')
+  expect(host.textContent).not.toContain('请先运行盘后管道')
+  expect(run).not.toHaveBeenCalled()
+})
+
+it.each([1, 2])('keeps selected signal tab %s when a newer archive record arrives', async index => {
+  installNextSessionS02()
+  await render()
+  await act(async () => button('自定义S02').click())
+  await flush()
+  await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index].click())
+  detail.mockImplementation(async (id: string, _ext: string, day: string) => ({
+    result: { as_of: day, strategy: id, record_id: 'new-record', rows: [], total: 0,
+      section_mode: 'signals', sections: { sell: [{ symbol: '600001.SH' }],
+        select: [{ symbol: '600002.SH' }], buy: [{ symbol: '600003.SH' }] } },
+    today_ever_rows: {},
+  }))
+  await act(async () => { await client.invalidateQueries({ queryKey: ['screener-cached', 'strategy'] }) })
+  await flush()
+  expect(host.querySelector('[aria-selected="true"]')?.textContent).toContain(index === 1 ? '选' : '买')
+  expect(run).not.toHaveBeenCalled()
+  expect(runAll).not.toHaveBeenCalled()
 })

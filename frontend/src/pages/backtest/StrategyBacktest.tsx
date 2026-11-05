@@ -45,6 +45,7 @@ import { OvernightExecutionSummary } from '@/components/OvernightExecutionSummar
 import { MinuteExecutionLedger } from '@/components/MinuteExecutionLedger'
 import { strategyResultCandidate } from './researchCandidates'
 import { buildDailyNavItems, buildTradeKeyMap, buildTradesNavItems, type TradeNavItem } from './tradeNav'
+import { BACKTEST_DEFAULTS_VERSION, loadBacktestDefaults } from './defaults'
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10)
 const monthsAgo = (months: number) => {
@@ -156,7 +157,8 @@ function FillRuleHint() {
               <div className="font-medium text-foreground mb-1.5">成交时序说明</div>
               <div className="space-y-1">
                 <div><b className="text-foreground">建仓口径</b>和<b className="text-foreground">清仓口径</b>分别控制买卖信号出现后的成交时点。</div>
-                <div><b className="text-foreground">信号日收盘</b>仅适用于收盘前可确认的信号；收盘后确认的信号应选择<b className="text-foreground">次日开盘</b>。</div>
+                <div><b className="text-foreground">日线建仓</b>从次交易日首根分钟 K 开始；<b className="text-foreground">分钟建仓</b>从信号实际确认后的下一根完整分钟 K 开始。</div>
+                <div>最多使用 5 根分钟 K，每根按最高价和 100% 分钟成交量容量分片；建仓价取加权均价，剩余数量到期撤单。</div>
                 <div><b className="text-foreground">信号触发卖出</b>仅在分钟成交开启且卖出信号支持分钟回放时可用；分钟收盘确认后按下一分钟开盘成交。</div>
                 <div>买卖信号由<b className="text-foreground">策略触发器</b>决定，这里只控制信号出现后的成交时点。</div>
               </div>
@@ -974,7 +976,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
 }) {
   const queryClient = useQueryClient()
   const signalNames = useSignalNames()
-  const [saved] = useState(() => storage.strategyBacktestLast.get(null))
+  const [saved] = useState(() => loadBacktestDefaults(storage.strategyBacktestLast.get(null)))
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(saved?.selectedStrategy ?? null)
   const [strategyGroup, setStrategyGroup] = useState<StrategyGroup>('all')
   const [symbols, setSymbols] = useState(saved?.symbols ?? '')
@@ -988,12 +990,12 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     saved ? (saved.exitFill ?? saved.matching ?? 'close_t') : 'open_t+1',
   )
   const [fees, setFees] = useState(saved?.fees ?? '2')
-  const [stampTax, setStampTax] = useState(saved?.stampTax ?? '')
-  const [minimumCommission, setMinimumCommission] = useState(saved?.minimumCommission ?? '0')
-  const [transferFee, setTransferFee] = useState(saved?.transferFee ?? '0')
+  const [stampTax, setStampTax] = useState<string>(saved?.stampTax ?? '')
+  const [minimumCommission, setMinimumCommission] = useState<string>(saved?.minimumCommission ?? '0')
+  const [transferFee, setTransferFee] = useState<string>(saved?.transferFee ?? '0')
   const [strictResearch, setStrictResearch] = useState(false)
-  const [slippage, setSlippage] = useState(saved?.slippage ?? '5')
-  const [maxPositions, setMaxPositions] = useState(saved?.maxPositions ?? '10')
+  const [slippage, setSlippage] = useState<string>(saved?.slippage ?? '5')
+  const [maxPositions, setMaxPositions] = useState<string>(saved?.maxPositions ?? '10')
   const [maxExposure, setMaxExposure] = useState(saved?.maxExposure ?? '100')
   const [initialCapital, setInitialCapital] = useState(saved?.initialCapital ?? '1000000')
   const [positionSizing, setPositionSizing] = useState<'equal' | 'score_weight'>(saved?.positionSizing ?? 'equal')
@@ -1248,6 +1250,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
       setDailyPage(0)
       setTradePage(0)
       storage.strategyBacktestLast.set({
+        defaultsVersion: BACKTEST_DEFAULTS_VERSION,
         selectedStrategy,
         symbols,
         assetType,
@@ -1762,7 +1765,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                 <span className="font-medium">分钟策略回测</span>
                 {isOvernightExecution
                   ? '：逐日回放已完成分钟，按下方价格与容量规则执行；缺分钟或截止余股明确失败。'
-                  : '：逐日回放分钟K，信号分钟收盘价买入；日线条件按 T-1 完成态评估。'}
+                  : '：逐日回放分钟K，信号确认后下一分钟起5分钟容量撮合；日线条件按 T-1 完成态评估。'}
                 {minuteDataStatus?.minute?.earliest_date
                   ? ` 本地分钟K ${minuteDataStatus.minute.earliest_date} ~ ${minuteDataStatus.minute.latest_date}（${minuteDataStatus.minute.trading_days} 个交易日）${isOvernightExecution ? '；运行时核验完整覆盖。' : '，缺分区的日子自动跳过。'}`
                   : ' 分钟数据范围尚未确认，请核对所选区间覆盖。'}
@@ -1977,14 +1980,14 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               <FillRuleHint />
             </div>
             {isMinuteStrategy ? (
-              <div className={`${INPUT_CLS} flex items-center gap-1.5`} title="信号在盘中触发分钟成交，无次日开盘口径">
+              <div className={`${INPUT_CLS} flex items-center gap-1.5`} title="从信号实际确认后的下一根完整分钟 K 开始撮合">
                 <Clock className="h-3 w-3 text-sky-400 shrink-0" />
-                <span className="text-secondary">信号分钟收盘</span>
+                <span className="text-secondary">信号确认后下一分钟起5分钟容量撮合</span>
                 <span className="text-[8px] px-1 py-px rounded border border-sky-500/30 bg-sky-500/10 text-sky-400">分钟</span>
               </div>
             ) : (
               <select value={entryFill} onChange={e => setEntryFill(e.target.value as 'close_t' | 'open_t+1')} className={INPUT_CLS}>
-                <option value="open_t+1">次日开盘（推荐）</option>
+                <option value="open_t+1">次日开盘起5分钟容量撮合（推荐）</option>
                 <option value="close_t">信号日收盘</option>
               </select>
             )}
@@ -2967,10 +2970,10 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                 <div className="font-medium text-foreground">触发 / 成交 / 仓位关系</div>
                 <div className="mt-1">触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。</div>
                 {hasMorningExit ? <>
-                  <div>分钟建仓按策略声明的信号分钟收盘或紧邻下一分钟开盘；清仓使用下一交易日触发分钟收盘。</div>
+                  <div>分钟建仓从信号实际确认后的下一根完整分钟 K 开始，最多按 5 根分钟最高价和成交量容量分片；清仓使用下一交易日触发分钟收盘。</div>
                   <div>现价相对原始昨收达到涨幅或跌幅阈值提前清仓，否则到止损时间清仓，兜底时间再次处理余股；旧振幅定义沿用冻结规则。需关闭其他出场触发器、固定/移动风控及最长持有。</div>
                 </> : <>
-                  <div>成交口径可分别设置建仓/清仓：默认建仓次日开盘（避免未来函数）、清仓当日收盘（持仓中可盘中/收盘卖）。</div>
+                  <div>成交口径可分别设置建仓/清仓：默认建仓从次日首根分钟 K 起做 5 分钟容量撮合，清仓按所选日线口径执行。</div>
                   <div>退出优先级：止损/移动止损 &gt; 卖点信号 &gt; 到期平仓；到期只作兜底，不抢占卖点或风控。</div>
                 </>}
                 <div>最大持仓数控制同时持股数量，最大总仓位控制资金投入比例；剩余现金不等于可新增持仓名额。</div>

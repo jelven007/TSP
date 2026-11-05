@@ -36,13 +36,6 @@ def emit(kind: str, **values):
 
 
 def execute(payload: dict, private_root: Path) -> dict:
-    from app.backtest.engine import BacktestEngine
-    from app.backtest.strategy import StrategyBacktestService
-    from app.backtest.worker import (
-        _decode_backtest_config,
-        _decode_optimize_config,
-        _decode_walkforward_config,
-    )
     from app.config import settings
     from app.multitenancy.strategies import definition_payload
     from app.strategy.engine import StrategyEngine
@@ -92,6 +85,14 @@ def execute(payload: dict, private_root: Path) -> dict:
     store = DataStore(Path("/market"), read_only=True)
     try:
         repo = KlineRepository(store)
+        if kind == "daily_selections":
+            from app.services.daily_selections import compute_selections
+            from app.services.screener import ScreenerService
+            return compute_selections(
+                engine, ScreenerService(repo), date.fromisoformat(payload["source_date"]),
+                date.fromisoformat(payload["as_of"]), payload["strategy_ids"],
+                payload.get("overrides_map", {}),
+            )
         if kind == "monitor":
             from app.multitenancy.monitor_compute import evaluate_snapshot
 
@@ -117,6 +118,8 @@ def execute(payload: dict, private_root: Path) -> dict:
                 except Exception as exc:
                     errors[sid] = str(exc)
             return {"pools": results, "errors": errors}
+        from app.backtest.engine import BacktestEngine
+
         backtest_engine = BacktestEngine(repo)
         if kind in {"signal_backtest", "factor_backtest", "factor_batch", "auto_screen"}:
             values = dict(payload["config"])
@@ -154,6 +157,7 @@ def execute(payload: dict, private_root: Path) -> dict:
                 params_map=payload.get("params_map"), overrides_map=payload.get("overrides_map"),
             )
             context.previous_states = payload.get("previous_states")
+            context.selection_snapshots = payload.get("selection_snapshots", {})
             positions = payload.get("positions", {})
             if context.current is not None and context.current.is_empty() and not positions:
                 raise ValueError("无可用行情数据，请稍后重试")
@@ -182,6 +186,13 @@ def execute(payload: dict, private_root: Path) -> dict:
                 context, params_map=payload.get("params_map"), overrides_map=payload.get("overrides_map"),
                 strategy_ids=ids, parallel=False,
             ).items()}}
+
+        from app.backtest.strategy import StrategyBacktestService
+        from app.backtest.worker import (
+            _decode_backtest_config,
+            _decode_optimize_config,
+            _decode_walkforward_config,
+        )
 
         service = StrategyBacktestService(backtest_engine, engine)
         def progress(message):

@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）
 
+2026-11-06统一候选整合S02历史读取、60秒确认、实时列、分时OHLC及数据调度，
+并保留既有配置和归档；六类文档、当前质量门及发布状态见
+[本轮升级记录](reports/releases/unified-upgrade-20261106/verification.md)。
+
 最新升级候选保留固定过户费支持与线上内置策略退役，历史结果及用户配置保持；
 当前候选与实际发布状态见[最新升级记录](reports/releases/current-upgrade-20261103/verification.md)。
 

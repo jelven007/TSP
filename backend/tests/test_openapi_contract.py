@@ -102,7 +102,9 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
 # index/minute新增可选with_prev_close=false, 旧请求/响应组件和69端点集合不变。
 # 账号PUT/DELETE沿既有paper:trade权限; 新增可选initial_cash_editable,
 # 旧创建/设置/冻结保持, 历史成交不改写, SQL删除需schema8。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "e8cc2b111e43cb230ccae1fba3516b020257aad7923c8be25dcf9932416ad4dd"
+# market-snapshot新增可选realtime=false与symbols=null; 默认全市场行为、
+# 响应组件及开放端点集合保持, 实时模式仅读取当日共享缓存。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "6d609b1ec16513e288e2161ab907483449cda7044ad32a9d5ee453a7674d1710"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

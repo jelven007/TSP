@@ -362,6 +362,8 @@ export interface ScreenerStrategy {
   source?: string
   /** 支持的周期, 如 ['1d'] / ['1m'] (分钟策略) */
   timeframes?: string[]
+  result_sections?: 'signals'
+  minute_execution?: string | null
 }
 
 export interface StrategyLoadError {
@@ -381,6 +383,11 @@ export interface ScreenerResult {
   sections?: { sell: any[]; select: any[]; buy: any[] } | null
   section_mode?: 'signals' | null
   section_errors?: Partial<Record<'sell' | 'select' | 'buy', string>> | null
+  selection_only?: boolean
+  selection_snapshot?: {
+    as_of: string; source_date: string; generated_at: string; scheduled_for?: string
+    rows: any[]; identity?: string; definition_version?: string
+  } | null
   state?: { as_of: string; cash: number; positions: any[]; nav: number; complete: boolean } | null
   portfolio_scope?: string | null
   execution_error?: string | null
@@ -396,6 +403,8 @@ export interface StrategyResultHistoryFilters {
 
 export interface StrategyResultHistorySummary {
   record_id: string
+  selection_only?: boolean
+  selection_count?: number
   strategy_id: string
   strategy_name: string
   strategy_version: string
@@ -457,6 +466,8 @@ export interface MarketSnapshotRow {
   symbol: string
   name?: string | null
   close?: number | null
+  raw_close?: number | null
+  quote_ts?: number | null
   change_pct?: number | null
   amount?: number | null
   volume?: number | null
@@ -842,6 +853,7 @@ export interface StrategyDetail {
   research_only?: boolean
   execution_backend: 'polars_expr' | 'matrix_native' | 'python_history_legacy' | 'composite' | 'minute_filter'
   minute_execution?: 'overnight_capacity_v1' | 'momentum_capacity_v1' | null
+  result_sections?: 'signals'
   asset_types: string[]
   timeframes: string[]
   version: string
@@ -2001,9 +2013,21 @@ export interface StrategyBacktestTrade {
   raw_frozen_stop_price?: number | null
 }
 
+export interface EntryOrderSummary {
+  symbol: string
+  signal_time: string
+  window_start: string
+  target_shares: number
+  filled_shares: number
+  cancelled_shares: number
+  average_price: number | null
+  status: 'filled' | 'partial' | 'unfilled'
+}
+
 export interface StrategyBacktestResult {
   run_id: string
   fills?: Array<{ datetime: string; date: string; symbol: string; side: 'buy' | 'sell'; shares: number; price: number; fee: number; participation: number; bar: number; notional: number; minute_volume_shares: number }>
+  entry_orders?: EntryOrderSummary[]
   signals?: Array<{ date: string; symbol: string; signal_bar: number; reason: string; side?: 'buy' | 'sell'; signal_time?: string; price?: number; score?: number }>
   research?: {
     provenance?: { job_id: string; input_snapshot: string; public_release_id: string | null }
@@ -3458,8 +3482,10 @@ export const api = {
       `/api/screener/result-history/${encodeURIComponent(strategyId)}/${encodeURIComponent(recordId)}`,
       { method: 'DELETE' },
     ),
-  marketSnapshot: () =>
-    request<{ as_of: string | null; rows: MarketSnapshotRow[] }>('/api/screener/market-snapshot'),
+  marketSnapshot: (options?: { realtime: boolean; symbols: string[] }) =>
+    request<{ as_of: string | null; rows: MarketSnapshotRow[] }>(`/api/screener/market-snapshot${
+      options ? `?${new URLSearchParams({ realtime: String(options.realtime), symbols: options.symbols.join(',') })}` : ''
+    }`),
   overviewMarket: (asOf?: string) => request<OverviewMarket>(`/api/overview/market${asOf ? `?as_of=${asOf}` : ''}`),
 
   // 概念涨幅轮动矩阵: 每列(日期)各自把所有概念按当天涨幅从高到低排序

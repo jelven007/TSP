@@ -101,26 +101,45 @@ class BudgetPermits:
         self.active = 0
         self.memory_mb = 0
         self.cpus = 0.0
+        self.priorities: dict[int, list[bool]] = {}
+        self.background_active = 0
+        self.priority_waiters = 0
 
-    def acquire(self, blocking: bool = True, timeout: float | None = None) -> bool:
+    def acquire(self, blocking: bool = True, timeout: float | None = None, *,
+                priority: bool = False) -> bool:
         deadline = None if timeout is None else time.monotonic() + timeout
-        while True:
-            # Filesystem/configuration reads stay outside the admission lock.
-            status = self.status()
-            memory, cpus = status["task_memory_mb"], status["task_cpus"]
+        with self.condition:
+            self.priority_waiters += int(priority)
+        try:
+            while True:
+                # Filesystem/configuration reads stay outside the admission lock.
+                status = self.status()
+                memory, cpus = status["task_memory_mb"], status["task_cpus"]
+                reserve = status.get("realtime_reserved_slots", 0)
+                with self.condition:
+                    eligible = priority or (
+                        not self.priority_waiters
+                        and self.background_active < status["effective_concurrency"] - reserve
+                    )
+                    if (eligible and self.active < status["effective_concurrency"]
+                            and self.memory_mb + memory <= status["memory_budget_mb"]
+                            and self.cpus + cpus <= status["cpu_budget"] + 1e-9):
+                        ident = threading.get_ident()
+                        self.allocations.setdefault(ident, []).append((memory, cpus))
+                        self.priorities.setdefault(ident, []).append(priority)
+                        self.background_active += int(not priority)
+                        self.active += 1
+                        self.memory_mb += memory
+                        self.cpus += cpus
+                        return True
+                    remaining = None if deadline is None else deadline - time.monotonic()
+                    if not blocking or (remaining is not None and remaining <= 0):
+                        return False
+                    self.condition.wait(.25 if remaining is None else min(.25, remaining))
+        finally:
             with self.condition:
-                if (self.active < status["effective_concurrency"]
-                        and self.memory_mb + memory <= status["memory_budget_mb"]
-                        and self.cpus + cpus <= status["cpu_budget"] + 1e-9):
-                    self.allocations.setdefault(threading.get_ident(), []).append((memory, cpus))
-                    self.active += 1
-                    self.memory_mb += memory
-                    self.cpus += cpus
-                    return True
-                remaining = None if deadline is None else deadline - time.monotonic()
-                if not blocking or (remaining is not None and remaining <= 0):
-                    return False
-                self.condition.wait(.25 if remaining is None else min(.25, remaining))
+                self.priority_waiters -= int(priority)
+                self.condition.notify_all()
 
     def allocation(self) -> tuple[int, float] | None:
         with self.condition:
@@ -133,8 +152,11 @@ class BudgetPermits:
             if not values:
                 raise ValueError("no compute permit held by this thread")
             memory, cpus = values.pop()
+            priority = self.priorities[threading.get_ident()].pop()
+            self.background_active -= int(not priority)
             if not values:
                 self.allocations.pop(threading.get_ident(), None)
+                self.priorities.pop(threading.get_ident(), None)
             self.active -= 1
             self.memory_mb -= memory
             self.cpus = max(0.0, self.cpus - cpus)

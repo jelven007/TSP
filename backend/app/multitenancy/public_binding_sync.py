@@ -17,7 +17,7 @@ ERROR_KINDS = frozenset({
 
 
 class PublicBindingSynchronizer:
-    def __init__(self, bridge, *, interval=5, max_age=30, clock=time.monotonic):
+    def __init__(self, bridge, *, interval=1, max_age=30, clock=time.monotonic):
         self.bridge, self.interval, self.max_age, self.clock = bridge, interval, max_age, clock
         self.stopped = threading.Event()
         self._lock = threading.Lock()

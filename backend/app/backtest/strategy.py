@@ -12,7 +12,7 @@ import time
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -668,6 +668,7 @@ class StrategyBacktestResult:
     error: str | None = None
     provenance: dict = field(default_factory=dict)
     fills: list[dict] = field(default_factory=list)
+    entry_orders: list[dict] = field(default_factory=list)
     signals: list[dict] = field(default_factory=list)
     daily_results: list[dict] = field(default_factory=list)
 
@@ -1537,6 +1538,7 @@ class StrategyBacktestService:
             initial_capital=config.initial_capital,
             position_sizing=config.position_sizing,
             minute_fill=config.minute_fill,
+            entry_capacity_window=True,
             asset_type=config.asset_type,
         )
         t_signal = time.perf_counter()
@@ -1993,6 +1995,8 @@ class StrategyBacktestService:
             factor_attribution=factor_attribution,
             elapsed_ms=round(elapsed, 1),
             provenance=provenance,
+            fills=result.fills,
+            entry_orders=result.entry_orders,
         )
 
     # ── 分钟策略回测: 逐日回放入场 + 日K矩阵离场 ──
@@ -2129,6 +2133,9 @@ class StrategyBacktestService:
         entry_price_override = np.full(shape, np.nan, dtype=np.float32)
         trigger_times: dict[tuple[str, date], str] = {}
         signal_times: dict[tuple[str, date], str] = {}
+        entry_window_starts: dict[tuple[str, str], datetime] = {}
+        entry_prior_closes: dict[tuple[str, str], float] = {}
+        entry_signal_times: dict[tuple[str, str], str] = {}
         dropped_axis_hits = 0
         for hit in replay.hits:
             time_id = time_index.get(hit.trade_date)
@@ -2140,6 +2147,11 @@ class StrategyBacktestService:
             score[time_id, asset_id] = hit.score
             entry_price_override[time_id, asset_id] = hit.entry_price
             trigger_times[(hit.symbol, hit.trade_date)] = hit.trigger_time
+            entry_window_starts[(hit.symbol, str(hit.trade_date))] = hit.entry_window_start
+            entry_prior_closes[(hit.symbol, str(hit.trade_date))] = hit.prior_close
+            entry_signal_times[(hit.symbol, str(hit.trade_date))] = (
+                f"{hit.trade_date} {hit.signal_time or hit.trigger_time}"
+            )
             if hit.signal_time:
                 signal_times[(hit.symbol, hit.trade_date)] = hit.signal_time
         raw_candidates = int(entry.sum())
@@ -2184,9 +2196,12 @@ class StrategyBacktestService:
             score_max=score_max,
             initial_capital=config.initial_capital,
             position_sizing=config.position_sizing,
-            # 分钟策略的成交价由回放器按 minute_entry_fill 生成并覆盖,
-            # 不再叠加日线口径的分钟成交细化。
+            # 回放器仅提供信号参考价, 成交由下列五分钟容量窗口生成,
+            # 不再叠加旧日线分钟成交细化。
             minute_fill=False,
+            entry_window_starts=entry_window_starts,
+            entry_prior_closes=entry_prior_closes,
+            entry_signal_times=entry_signal_times,
         )
 
         t_matrix = time.perf_counter()
@@ -2258,7 +2273,7 @@ class StrategyBacktestService:
             "skipped_days": [str(day) for day in replay.skipped_days[:50]],
             "skipped_day_count": len(replay.skipped_days),
             "dropped_axis_hits": dropped_axis_hits,
-            "entry_fill": s.meta.get("minute_entry_fill", "signal_close"),
+            "entry_fill": "signal_available_next_complete_minute_5m_high_capacity",
         }
 
         benchmark_curve = (
@@ -2291,6 +2306,14 @@ class StrategyBacktestService:
             if result_policy.include_trades
             else []
         )
+        first_buy_fill: dict[tuple[str, str], str] = {}
+        for fill in result.fills:
+            if fill.get("side") != "buy":
+                continue
+            key = (str(fill.get("symbol")), str(fill.get("date"))[:10])
+            stamp = str(fill.get("datetime") or "")
+            if stamp and (key not in first_buy_fill or stamp < first_buy_fill[key]):
+                first_buy_fill[key] = stamp
         # 入场时间戳补分钟: 交易记录携带触发分钟 (HH:MM), 与日线回测的纯日期区分。
         for trade in trades:
             entry_text = str(trade.get("entry_date") or "")
@@ -2298,9 +2321,13 @@ class StrategyBacktestService:
                 key = (str(trade.get("symbol")), date.fromisoformat(entry_text[:10]))
             except ValueError:
                 continue
-            trigger = trigger_times.get(key)
-            if trigger:
-                trade["entry_date"] = f"{entry_text[:10]} {trigger}"
+            fill_stamp = first_buy_fill.get((key[0], entry_text[:10]))
+            if fill_stamp:
+                trade["entry_date"] = fill_stamp[:16]
+            else:
+                trigger = trigger_times.get(key)
+                if trigger:
+                    trade["entry_date"] = f"{entry_text[:10]} {trigger}"
             signal_time = signal_times.get(key)
             if signal_time:
                 trade["entry_signal_date"] = f"{entry_text[:10]} {signal_time}"
@@ -2323,6 +2350,8 @@ class StrategyBacktestService:
             strategy_info=strategy_info,
             elapsed_ms=round(elapsed, 1),
             provenance=provenance,
+            fills=result.fills,
+            entry_orders=result.entry_orders,
         )
 
     # ── 全量模拟 (选股能力统计, 不建组合不算净值) ──

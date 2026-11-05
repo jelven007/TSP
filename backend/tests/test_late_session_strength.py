@@ -172,9 +172,8 @@ def test_second_start_uses_minute_bar_and_exact_ninety_second_gate():
 @pytest.mark.parametrize("patch", [
     {"time": "14:58:01", "evaluation_delay_minutes": 1.5},
     {"time": "14:30:20"},
-    {"time": "14:30:20", "evaluation_delay_minutes": 1},
 ])
-def test_second_start_rejects_close_overrun_and_legacy_delays(patch):
+def test_second_start_rejects_close_overrun_and_undelayed_legacy(patch):
     with pytest.raises(ValueError):
         custom_signals.validate(definition(**patch))
 
@@ -301,7 +300,8 @@ def filter_minute_history(df, params):
 ''')
     strategy_engine = StrategyEngine([custom])
     custom_signals.save_one(tmp_path, definition(**({"evaluation_delay_minutes": 1} if delay else {})))
-    target = TARGET + timedelta(minutes=delay)
+    available_at = TARGET + timedelta(minutes=delay)
+    target = max(TARGET + timedelta(minutes=1), available_at)
     panel = pl.DataFrame({"symbol": POOL*2, "date": [DAY-timedelta(days=1)]*5 + [DAY]*5,
                           "close": [10.0]*10, "raw_close": [10.0]*10, "name": ["示例"]*10})
     calls = []
@@ -319,6 +319,8 @@ def filter_minute_history(df, params):
                              params={}, overrides={"entry_signals": ["csgi_late_session_strength"]})
     assert {hit.symbol for hit in result.hits} == set(POOL[:3])
     assert all(hit.trigger_time == target.strftime("%H:%M") for hit in result.hits)
+    assert all(hit.entry_window_start == target for hit in result.hits)
+    assert all(hit.signal_time == available_at.strftime("%H:%M") for hit in result.hits)
     assert all(hit.raw_entry_price == pytest.approx(bars().filter(
         (pl.col("symbol") == hit.symbol) & (pl.col("datetime") == TARGET))["close"].item())
         for hit in result.hits)

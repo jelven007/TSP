@@ -4,8 +4,11 @@ import { api, type ScreenerResult } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { StockPreviewDialog } from '@/components/StockPreviewDialog'
 import { toNavItems, type NavItem } from '@/lib/listNav'
+import { getSignals, signalCls } from '@/lib/stock-table'
+import { defaultStrategyResultColumns, STRATEGY_RESULT_WIDTHS, type StrategyResultTab } from '@/lib/strategy-result-columns'
+import type { ColumnConfig } from '@/lib/list-columns'
 
-export type StrategyResultTab = 'sell' | 'select' | 'buy'
+export type { StrategyResultTab } from '@/lib/strategy-result-columns'
 type Tab = StrategyResultTab
 const tabs: { id: Tab; label: string; empty: string }[] = [
   { id: 'sell', label: '卖', empty: '该交易日没有需要卖出的股票' },
@@ -25,16 +28,6 @@ const columns: Record<Tab, readonly (readonly [string, string])[]> = {
     ['entry_budget', '含费预算'], ['filled_shares', '买入股数'], ['buy_price', '买入均价'],
     ['buy_fee', '买入费'], ['buy_time', '成交时间'], ['participation', '分钟容量上限']],
 }
-const signalColumns: Record<Tab, readonly (readonly [string, string])[]> = {
-  sell: [...common, ['entry_date', '买入信号日期'], ['last_datetime', '触发时间'],
-    ['close', '触发价'], ['change_pct', '触发时涨幅'], ['score', '信号评分']],
-  select: [...common, ['selection_rank', '排序'], ['reference_date', '数值参考日'],
-    ['reference_close', '参考价'], ['reference_change_pct', '参考日涨幅'],
-    ['reference_float_cap', '流通市值(亿)'], ['amount_mean_20d', '20日均额(亿)'],
-    ['change_pct', '当日涨幅'], ['score', '选股评分']],
-  buy: [...common, ['last_datetime', '触发时间'], ['close', '触发价'],
-    ['change_pct', '触发时涨幅'], ['score', '信号评分'], ['volume', '分钟成交量'], ['amount', '分钟成交额']],
-}
 const signalEmpty: Record<Tab, string> = {
   sell: '前一交易日没有触发入场触发器的股票',
   select: '该交易日没有满足股票范围、数值过滤和入场叠加条件的股票',
@@ -49,7 +42,10 @@ function format(key: string, value: unknown) {
   if (typeof value === 'boolean') return value ? '满足' : '未满足'
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return '—'
-    if (['previous_return', 'return_1430', 'market_breadth', 'participation', 'change_pct', 'reference_change_pct'].includes(key)) return `${(value * 100).toFixed(2)}%`
+    if (['previous_return', 'return_1430', 'market_breadth', 'participation', 'change_pct', 'reference_change_pct', 'live_change_pct'].includes(key)) return `${(value * 100).toFixed(2)}%`
+    if (key === 'live_turnover') return `${value.toFixed(2)}%`
+    if (key === 'volume') return value.toFixed(0)
+    if (key === 'amount' || key === 'suggested_lots_100k') return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
     if (['float_cap_1430', 'prev_d_amount20'].includes(key)) return (value / 1e8).toFixed(2)
     if (['shares', 'sold_shares', 'remaining', 'filled_shares', 'rank', 'selection_rank', 'breadth_denominator'].includes(key)) return value.toLocaleString('zh-CN')
     return value.toFixed(2)
@@ -57,14 +53,15 @@ function format(key: string, value: unknown) {
   return labels[String(value)] ?? String(value)
 }
 
-export function StrategyDailyResults({ result, positionLimit, onPreview, activeTab, onTabChange }: {
+export function StrategyDailyResults({ result, positionLimit, onPreview, activeTab, onTabChange, signalColumns }: {
   result: ScreenerResult
   positionLimit?: number
   onPreview?: (symbol: string, name: string | undefined, navList: NavItem[]) => void
   activeTab?: Tab
   onTabChange?: (tab: Tab) => void
+  signalColumns?: ColumnConfig[]
 }) {
-  const [localActive, setLocalActive] = useState<Tab>('sell')
+  const [localActive, setLocalActive] = useState<Tab>(result.selection_only ? 'select' : 'sell')
   const active = activeTab ?? localActive
   const [preview, setPreview] = useState<{ symbol: string; name?: string; navList: NavItem[] } | null>(null)
   const section = result.sections ?? { sell: [], select: [], buy: [] }
@@ -93,15 +90,49 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
     }).map((row, i) => ({ ...row, selection_rank: i + 1 }))
   }, [section.select, limit, signals])
   const rows = active === 'select' ? selected : section[active] ?? []
+  const symbols = useMemo(() => [...new Set(rows.map(row => row.symbol)
+    .filter((symbol): symbol is string => typeof symbol === 'string' && /^[0-9]{6}\.(SH|SZ|BJ)$/.test(symbol)))].sort(), [rows])
+  const live = useQuery({
+    queryKey: QK.strategyResultLive(result.strategy ?? '', result.as_of, active, symbols),
+    queryFn: async () => {
+      const batches = []
+      for (let i = 0; i < symbols.length; i += 1000) batches.push(symbols.slice(i, i + 1000))
+      const snapshots = await Promise.all(batches.map(batch => api.marketSnapshot({ realtime: true, symbols: batch })))
+      return snapshots
+    },
+    enabled: signals && symbols.length > 0,
+    refetchInterval: 1000,
+    staleTime: 0,
+  })
+  const liveRows = useMemo(() => {
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+    return new Map(live.data?.filter(snapshot => snapshot.as_of === today)
+      .flatMap(snapshot => snapshot.rows).map(row => [row.symbol, row]) ?? [])
+  }, [live.data])
+  const liveValue = (key: string, symbol: string) => {
+    const quote = liveRows.get(symbol)
+    const price = quote?.raw_close
+    const validPrice = typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null
+    if (key === 'live_price') return validPrice
+    if (key === 'suggested_lots_100k') return validPrice == null ? null : Math.floor(100000 / (validPrice * 100))
+    if (key === 'live_change_pct') return quote?.change_pct
+    if (key === 'live_turnover') return quote?.turnover_rate
+    if (key === 'live_vol_ratio') return quote?.vol_ratio_5d
+    return null
+  }
   const openStock = (row: any) => {
     const navList = toNavItems(rows.filter(item => typeof item.symbol === 'string' && item.symbol))
     if (onPreview) onPreview(row.symbol, row.name ?? undefined, navList)
     else setPreview({ symbol: row.symbol, name: row.name ?? undefined, navList })
   }
   const config = tabs.find(tab => tab.id === active)!
-  const displayedColumns = signals ? signalColumns[active] : columns[active]
+  const displayedColumns = signals
+    ? (signalColumns ?? defaultStrategyResultColumns(active)).filter(col => col.visible && col.source.type === 'builtin')
+      .map(col => [col.source.type === 'builtin' ? col.source.key : '', col.label] as const)
+    : columns[active]
+  const width = (key: string) => STRATEGY_RESULT_WIDTHS[key] ?? 110
   const sectionError = result.section_errors?.[active]
-  return <><section className="space-y-3 min-w-0">
+  return <><section className="space-y-2 min-w-0">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div role="tablist" aria-label="每日策略结果" className="inline-flex rounded-btn border border-border p-1 gap-1">
         {tabs.map(tab => <button key={tab.id} role="tab" aria-selected={active === tab.id}
@@ -111,14 +142,21 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
           {tab.label} · {signals && result.section_errors?.[tab.id] ? '待确认' : section[tab.id]?.length ?? 0}
         </button>)}
       </div>
-      <span className="text-xs text-muted">{result.as_of} · 每交易日一份结果</span>
+      <span className="text-xs text-muted">{result.as_of} · 每交易日一份结果{signals && ' · 当前页每秒刷新'}</span>
     </div>
     <p className="text-xs text-muted">
       {signals
-        ? '卖：前一交易日的买入信号。选：当日股票范围＋数值过滤＋入场叠加条件通过的全部股票。买：当日入场触发器触发的股票。'
+        ? '卖：前一交易日的买入信号。选：前一交易日16:00开始生成并保存的名单。买：从该日已保存的选名单内触发入场信号。'
         : <>持仓来自连续策略研究组合。选为全部达标股票，买为容量、资金与持仓上限筛选后的成交结果。
           {active === 'select' && ` 选按买入优先级排列：${section.select.length > limit ? '14:30涨幅' : '20日均成交额'}降序，同值按代码排序。`}</>}
     </p>
+    {signals && result.selection_snapshot && <p className="text-xs text-muted">
+      数值参考日：{result.selection_snapshot.source_date} · 生成于
+      {' '}{new Date(result.selection_snapshot.generated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
+      {result.selection_only && ' · 仅预选，买入信号尚未计算'}
+    </p>}
+    {signals && <p className="text-xs text-muted">现价等行情列取当日最新数据，缺失时显示“—”。
+      {active === 'buy' && ' 建议购买量单位为手（100股），按现价估算10万元可买手数，不含费用与滑点。'}</p>}
     {result.execution_error && <p role="alert" className="text-sm text-danger rounded-btn bg-danger/10 p-3">
       {result.execution_error}
     </p>}
@@ -127,13 +165,21 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       aria-labelledby={`daily-tab-${result.strategy}-${active}`} className="overflow-x-auto rounded-btn border border-border">
       {rows.length === 0 ? <p className="p-8 text-sm text-muted text-center">
         {sectionError ? '该页签结果暂不可确认' : signals ? signalEmpty[active] : config.empty}</p>
-        : <table className="w-full text-xs whitespace-nowrap text-left">
-          <thead className="bg-elevated text-secondary"><tr>
-            {displayedColumns.map(([key, label]) => <th key={key} className="p-3 font-medium">{label}</th>)}
+        : <table className="text-xs whitespace-nowrap text-left table-fixed"
+            style={{ width: displayedColumns.reduce((sum, [key]) => sum + width(key), 0) }}>
+          <colgroup>{displayedColumns.map(([key]) => <col key={key} style={{ width: width(key) }} />)}</colgroup>
+          <thead className="bg-elevated text-secondary sticky top-0"><tr>
+            {displayedColumns.map(([key, label]) => <th key={key} data-column={key}
+              className="px-2 py-1.5 font-medium" style={{ width: width(key) }}>{label}</th>)}
           </tr></thead>
           <tbody>{rows.map((row, i) => <tr key={`${row.symbol}-${i}`} className="border-t border-border">
-            {displayedColumns.map(([key]) => <td key={key} className="p-3 num">
-              {(key === 'symbol' || key === 'name') && typeof row.symbol === 'string' && row.symbol && row[key]
+            {displayedColumns.map(([key]) => <td key={key} data-column={key} className="px-2 py-1.5 num overflow-hidden text-ellipsis">
+              {key === 'live_signals' ? <span className="inline-flex gap-1" title={getSignals(liveRows.get(row.symbol) ?? {}).map(signal => signal.label).join('、')}>
+                {getSignals(liveRows.get(row.symbol) ?? {}).map(signal => <span key={signal.label}
+                  className={`rounded px-1 py-0.5 ${signalCls(signal.type)}`}>{signal.label}</span>)}
+                {!getSignals(liveRows.get(row.symbol) ?? {}).length && '—'}
+              </span> : key.startsWith('live_') || key === 'suggested_lots_100k' ? format(key, liveValue(key, row.symbol))
+              : (key === 'symbol' || key === 'name') && typeof row.symbol === 'string' && row.symbol && row[key]
                 ? <button type="button" title="查看个股详情"
                     className="text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                     onClick={() => openStock(row)}>{format(key, row[key])}</button>

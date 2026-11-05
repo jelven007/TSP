@@ -3,7 +3,7 @@ import type { CustomSignal, LateSessionStrengthParams, MorningLiquidationParams 
 export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
   time: '14:30:00', change_min_pct: 0.4, change_max_pct: 4,
   pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4,
-  evaluation_delay_minutes: 1.5,
+  evaluation_delay_minutes: 1,
 }
 
 export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParams, 'amplitude_pct'>> = {
@@ -28,8 +28,8 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
   const barTime = lateSessionBarTime(p.time)
   return [
     p.evaluation_delay_minutes
-      ? `启动时间 ${p.time}，确认时间 ${lateSessionCheckTime(p)}，K线截止 ${barTime}（北京时间）${p.evaluation_delay_minutes === 1 ? '；编辑保存后改为启动后90秒确认' : ''}`
-      : `旧判断时间 ${p.time}（北京时间）；编辑保存后改为启动后90秒确认`,
+      ? `启动时间 ${p.time}，确认时间 ${lateSessionCheckTime(p)}，K线截止 ${barTime}（北京时间）${p.evaluation_delay_minutes !== 1 ? '；编辑保存后改为启动后60秒确认' : ''}`
+      : `旧判断时间 ${p.time}（北京时间）；编辑保存后改为启动后60秒确认`,
     `截至 ${barTime} 的当日股票池上涨数 / 总数 ≥ ${p.pool_up_min_pct}%`,
     `截至 ${barTime} 的涨幅 ${p.change_min_pct}%～${p.change_max_pct}%`,
     `最近 ${p.ma5_1m_count} 个 1分钟 MA5 严格递增（${p.ma5_1m_count - 1} 次比较）`,

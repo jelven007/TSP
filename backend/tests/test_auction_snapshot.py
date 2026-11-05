@@ -471,8 +471,8 @@ def test_scheduler_registers_retries_and_in_window_catchup(monkeypatch):
     daily_pipeline._register_auction_jobs(Scheduler(), repo)
 
     assert [call["id"] for call in calls] == [
-        "auction_snapshot_8",
-        "auction_snapshot_25",
+        "auction_snapshot_15",
+        "auction_snapshot_30",
         "auction_snapshot_45",
         "auction_snapshot_final",
         "auction_snapshot_catchup",

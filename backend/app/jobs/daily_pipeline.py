@@ -3,10 +3,9 @@
 调度:
   09:10 盘前 — 同步个股维表 instruments (全量覆盖)
   09:25 盘前 — 全市场集合竞价终态快照
-  15:30 盘后 — 日K同步 + 增量除权因子 + enriched 计算 + 刷新视图
-  15:35 盘后 — 当日日K/1分K重取及5/10/15分K加工修正
+  15:35 盘后 — 仅补当日1/5/10/15分K与日K缺口
 
-盘后同步策略:
+手动完整管道策略:
   日 K: QuoteService 交易时段已实时落盘 → 有数据时跳过 batch,首次拉 1 年区间
   除权因子: 从已有数据最新日期的下一天开始增量获取,避免重复拉取和计算
 """
@@ -812,22 +811,24 @@ def run_now(
         write_lock=getattr(repo, "_write_lock", None),
     )
     result["data_release_id"] = release["release_id"]
-    if settings.service_role == "platform":
-        import json
-        from datetime import time as clock_time
-
-        from app.services.fs_utils import atomic_write_text
-
-        current = cn_now()
-        if current.date() == today and current.time().replace(tzinfo=None) >= clock_time(15, 1):
-            # Published only after the complete pipeline succeeds. Tenant
-            # settlement must never infer final OHLC from an intraday file.
-            atomic_write_text(repo.store.data_dir / "settlement_ready.json", json.dumps({
-                "day": today.isoformat(), "release_id": release["release_id"],
-            }))
+    mark_settlement_ready(repo.store.data_dir, today, release["release_id"])
     if initial_sync:
         emit("done", 100, "首次全量同步完成")
     return result
+
+
+def mark_settlement_ready(data_dir, day, release_id):
+    """Called only after complete pipeline publication, in either data-writing mode."""
+    import json
+    from datetime import time as clock_time
+
+    from app.services.fs_utils import atomic_write_text
+    current = cn_now()
+    if (settings.service_role in {"platform", "standalone"} and current.date() == day
+            and current.time().replace(tzinfo=None) >= clock_time(15, 1)):
+        atomic_write_text(data_dir / "settlement_ready.json", json.dumps({
+            "day": day.isoformat(), "release_id": release_id,
+        }))
 
 
 def warn_if_enriched_too_thin(data_dir: Path) -> int:
@@ -1318,7 +1319,7 @@ def _retry_auction_publication(repo: KlineRepository) -> dict:
 
 def _register_auction_jobs(scheduler, repo: KlineRepository) -> None:
     """Bound capture to the auction window; resume saved publications at any time."""
-    for second in (8, 25, 45):
+    for second in (15, 30, 45):
         scheduler.add_job(
             _run_auction_snapshot,
             args=[repo],
@@ -1385,16 +1386,15 @@ def _register_auction_jobs(scheduler, repo: KlineRepository) -> None:
 
 def apply_data_sync_mode(scheduler) -> None:
     """暂停/恢复数据任务, 不影响能力检测及用户开启的复盘任务。"""
-    from app.services.kline_periods import get_configs
     enabled = _prefs.get_data_sync_auto_enabled()
     for job in scheduler.get_jobs():
         if job.id in {
             "daily_pipeline", "depth_finalize", "kline_periods",
-            "kline_correction", "kline_correction_retry",
+            "post_close_sync_retry",
         } or (
             job.id.startswith("auction_snapshot_") or job.id == "auction_publication_retry"
         ):
-            if enabled and (job.id != "daily_pipeline" or get_configs()["1d"]["enabled"]):
+            if enabled:
                 scheduler.resume_job(job.id)
             else:
                 scheduler.pause_job(job.id)
@@ -1402,10 +1402,7 @@ def apply_data_sync_mode(scheduler) -> None:
 
 def reschedule_data_job(scheduler, job_id: str, trigger: CronTrigger) -> None:
     """修改时间不能把手动模式下已暂停的任务重新激活。"""
-    from app.services.kline_periods import get_configs
     enabled = _prefs.get_data_sync_auto_enabled()
-    if job_id == "daily_pipeline":
-        enabled = enabled and get_configs()["1d"]["enabled"]
     if enabled:
         scheduler.reschedule_job(job_id, trigger=trigger)
     else:
@@ -1438,59 +1435,25 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     # 首个成功发布后, 后续重试只读 ready marker 并立即返回。
     _register_auction_jobs(scheduler, repo)
 
-    # 盘后: 日 K + enriched（时间由偏好决定）
-    def _pipeline_then_refresh(on_progress=None):
-        # 与手动触发 (/api/pipeline/run) 对齐: 管道落盘后重建 Polars 内存缓存,
-        # 否则 live_agg 的昨日连板数等基准列会停留在旧交易日, 次日开盘连板梯队
-        # 整体少算一档 (仅手动触发或重启才会刷缓存, cron 调度路径此前漏了这步)。
-        # 用 app.state 上的**实时** capset(周期重探会热更新它), 而非启动时捕获的
-        # 旧 capset —— 否则 Key 中途过期/续费后, 调度管道仍按旧档位打端点。
-        app_state = _get_app_state()
-        capset_live = getattr(app_state, "capabilities", None) or capset
-        # 管道运行期间暂停实时行情取数, 防止覆写同一批 parquet 竞态
-        qs = getattr(app_state, "quote_service", None)
-        try:
-            if qs:
-                with qs.paused():
-                    result = run_now(repo, capset_live, on_progress=on_progress)
-            else:
-                result = run_now(repo, capset_live, on_progress=on_progress)
-        finally:
-            # 即便有阶段软失败(run_now 末尾抛 PipelineStageError), 已落盘的日K/enriched
-            # 仍需刷进内存缓存, 否则 live_agg 基准列停留在旧交易日。放 finally 保证部分
-            # 成功也生效; 随后异常继续上抛, 由 _run_tracked 标记任务 failed。
-            repo.refresh_cache()
-        return result
+    # 盘后仅补当日五周期缺口; 启动补缺由独立后台任务登记, 占槽时等待。
+    from app.services import post_close_sync
 
-    scheduler.add_job(
-        lambda: _scheduled_pipeline_task(_pipeline_then_refresh),
-        trigger=CronTrigger(day_of_week="mon-fri",
-                            hour=sched["hour"], minute=sched["minute"],
-                            timezone="Asia/Shanghai"),
-        id="daily_pipeline",
-        misfire_grace_time=3600,
-        replace_existing=True,
-    )
-
-    # 修正请求与执行分开: 15:30任务仍占槽时, 保留日期并由短周期任务续跑。
-    from app.services import kline_correction
-
-    def _correct_kline(*, retry=False):
+    def _post_close_sync(*, retry=False):
         app_state = _get_app_state()
         live_capset = getattr(app_state, "capabilities", None) or capset
         qs = getattr(app_state, "quote_service", None)
-        fn = kline_correction.retry_pending if retry else kline_correction.request_correction
+        fn = post_close_sync.retry_pending if retry else post_close_sync.request_sync
         return fn(repo, live_capset, qs)
 
     scheduler.add_job(
-        _correct_kline,
+        _post_close_sync,
         trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=35, timezone="Asia/Shanghai"),
-        id="kline_correction", misfire_grace_time=3600, max_instances=1,
+        id="daily_pipeline", misfire_grace_time=3600, max_instances=1,
         replace_existing=True,
     )
     scheduler.add_job(
-        _correct_kline, kwargs={"retry": True}, trigger=IntervalTrigger(seconds=30),
-        id="kline_correction_retry", max_instances=1, coalesce=True, replace_existing=True,
+        _post_close_sync, kwargs={"retry": True}, trigger=IntervalTrigger(seconds=30),
+        id="post_close_sync_retry", max_instances=1, coalesce=True, replace_existing=True,
     )
 
     # 盘后: 五档盘口 sealed 定版(时间由偏好决定, 默认15:02, 范围15:01~18:00)
@@ -1512,7 +1475,7 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     )
 
     # 周期性能力重探: 付费 Key 中途过期/续费无需重启即可被发现。
-    # 只热更新 app.state.capabilities(API 端点、盘后管道 _pipeline_then_refresh 均读它);
+    # 只热更新 app.state.capabilities(API端点、盘后补缺均读它);
     # 档位变化记 WARNING, 让「Key 失效」在日志/前端可见, 不再静默按旧档位打 403 端点。
     def _reprobe_capabilities():
         from app.tickflow.policy import detect_capabilities, tier_label

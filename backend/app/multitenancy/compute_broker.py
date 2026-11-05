@@ -19,7 +19,9 @@ from contextlib import suppress
 from pathlib import Path
 
 from app.config import settings
+from app.market_time import cn_now
 from app.multitenancy.executor import KINDS, MAX_MESSAGE_BYTES
+from app.services.observability import measure_runtime_stage, observe_runtime_duration
 from app.services.strategy_resources import (
     BudgetPermits,
     ConcurrencyConfig,
@@ -63,6 +65,7 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
         self.health_cache_seconds = health_cache_seconds
         self.permits = BudgetPermits(self._resource_policy)
         self.waiters = threading.BoundedSemaphore(16)
+        self.realtime_waiters = threading.BoundedSemaphore(16)
         self.tenant_lock = threading.Lock()
         self.active_tenants: set[str] = set()
         self._tenant_counts: dict[str, int] = {}
@@ -73,11 +76,17 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
 
     def _resource_policy(self) -> dict:
         configured = self.config.read() if self.config is not None else self.capacity
-        return budget_status(
+        policy = budget_status(
             self.host_memory_mb, self.host_cpus, configured,
             task_memory_mb=self.task_memory_mb, task_cpus=self.task_cpus,
             ceiling=self.capacity,
         )
+        now = cn_now()
+        minute = now.hour * 60 + now.minute
+        policy["realtime_reserved_slots"] = int(
+            now.weekday() < 5 and 865 <= minute < 880 and policy["effective_concurrency"] >= 2
+        )
+        return policy
 
     def resource_status(self) -> dict:
         return {**self._resource_policy(), **self.permits.usage(),
@@ -209,6 +218,8 @@ class Handler(socketserver.StreamRequestHandler):
         acquired = False
         terminal_message = None
         stderr_tail = bytearray()
+        timing = {}
+        sandbox_started = None
         try:
             self.connection.settimeout(30)
             line = self.rfile.readline(MAX_MESSAGE_BYTES + 1)
@@ -228,13 +239,18 @@ class Handler(socketserver.StreamRequestHandler):
             if (payload.get("kind") not in KINDS or not isinstance(tenant, str)
                     or not 1 <= len(tenant) <= 128):
                 raise ValueError("计算任务格式错误")
-            if not broker.waiters.acquire(blocking=False):
+            priority = payload["kind"] == "monitor"
+            waiters = broker.realtime_waiters if priority else broker.waiters
+            if not waiters.acquire(blocking=False):
                 self.send({"type": "error", "status": 429, "message": "计算任务繁忙，请稍后重试"})
                 return
             try:
-                acquired = broker.permits.acquire(timeout=broker.queue_seconds)
+                queued, queued_at = time.perf_counter(), time.time()
+                with measure_runtime_stage("compute.queue"):
+                    acquired = broker.permits.acquire(timeout=broker.queue_seconds, priority=priority)
+                timing = {"queued_at": queued_at, "queue_ms": round((time.perf_counter() - queued) * 1000, 3)}
             finally:
-                broker.waiters.release()
+                waiters.release()
             if not acquired:
                 self.send({"type": "error", "status": 429, "message": "计算任务繁忙，请稍后重试"})
                 return
@@ -245,13 +261,17 @@ class Handler(socketserver.StreamRequestHandler):
             with tempfile.TemporaryFile() as task, selectors.DefaultSelector() as events:
                 task.write(line)
                 task.seek(0)
+                sandbox_started = time.perf_counter()
+                timing["started_at"] = time.time()
                 process = subprocess.Popen(
                     broker.command(name, market_path), stdin=task, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 )
                 events.register(process.stdout, selectors.EVENT_READ, "stdout")
                 events.register(process.stderr, selectors.EVENT_READ, "stderr")
                 events.register(self.connection, selectors.EVENT_READ, "client")
-                deadline = time.monotonic() + (60 if payload["kind"] in {"describe", "plan"} else 7200)
+                deadline = time.monotonic() + (
+                    60 if payload["kind"] in {"describe", "plan"}
+                    else 300 if payload["kind"] == "daily_selections" else 7200)
                 buffer = bytearray()
                 output_bytes = 0
                 terminal = False
@@ -313,6 +333,20 @@ class Handler(socketserver.StreamRequestHandler):
             # The next task may start as soon as the client receives a terminal
             # event. Release both permits after cleanup, before sending it.
             if terminal_message is not None:
+                if sandbox_started is not None:
+                    timing.update({
+                        "finished_at": time.time(),
+                        "sandbox_ms": round((time.perf_counter() - sandbox_started) * 1000, 3),
+                    })
+                    observe_runtime_duration(
+                        "compute.sandbox", timing["sandbox_ms"],
+                        failed=terminal_message.get("type") != "result",
+                    )
+                    logger.info("compute job finished kind=%s release=%s queue_ms=%.3f sandbox_ms=%.3f",
+                                payload["kind"], payload.get("public_release_id"),
+                                timing["queue_ms"], timing["sandbox_ms"])
+                    if terminal_message.get("type") == "result" and payload["kind"] == "monitor":
+                        terminal_message["payload"]["_compute_timing"] = timing
                 if terminal_message.get("type") == "error" and stderr_tail:
                     logger.warning(
                         "compute job %s stderr tail: %s",
@@ -323,6 +357,7 @@ class Handler(socketserver.StreamRequestHandler):
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser()
     parser.add_argument("--socket", type=Path, required=True)
     parser.add_argument("--image", required=True)

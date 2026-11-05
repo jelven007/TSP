@@ -79,6 +79,7 @@ class TenantStrategyEngine(StrategyEngine):
             if kind == "strategy" and values.get("as_of") and values.get("strategy_ids"):
                 with self.documents.transaction(write=False) as session:
                     task["positions"] = self._holding_positions(session, task)
+                    task["selection_snapshots"] = self._saved_selections(session, task)
             return task
         from app.multitenancy.watchlist import Watchlist
         from app.strategy.config import list_overrides
@@ -109,7 +110,7 @@ class TenantStrategyEngine(StrategyEngine):
             if kind == "strategy" and values.get("as_of") and values.get("strategy_ids"):
                 values = {**values, "positions": self._holding_positions(
                     session, {"overrides": overrides, "signals": signals, **values},
-                )}
+                ), "selection_snapshots": self._saved_selections(session, values)}
             return {
                 "kind": kind, "tenant_id": self.documents.context.tenant_id,
                 "administrator": self.administrator,
@@ -121,6 +122,12 @@ class TenantStrategyEngine(StrategyEngine):
                 **({"public_release_id": self.public_release_id} if getattr(self, "public_release_id", None) else {}),
                 **values,
             }
+
+    def _saved_selections(self, session, task):
+        from app.services.daily_selections import DailySelections, signal_strategy
+        store = DailySelections(session)
+        return {sid: saved for sid in task["strategy_ids"] if signal_strategy(self.get(sid))
+                and (saved := store.read(sid, task["as_of"])) is not None}
 
     def _holding_positions(self, session, task: dict) -> dict[str, list[dict]]:
         from app.multitenancy.paper_storage import PaperSession
