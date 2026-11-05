@@ -252,6 +252,7 @@ _RUNTIME_STAGES = frozenset({
     "identity.authenticate", "tenant.context", "tenant.factor_definitions",
     "public.refresh_wait", "public.refresh", "public.publish_wait", "public.publish",
     "public.binding_check", "public.binding_prepare", "public.binding_commit",
+    "monitor.prepare", "monitor.compute", "monitor.commit", "compute.queue", "compute.sandbox",
 })
 
 
@@ -268,10 +269,15 @@ def measure_runtime_stage(stage: str):
         failed = True
         raise
     finally:
-        _runtime_metrics.observe(
-            method="STAGE", route=stage, status_code=500 if failed else 200,
-            duration_ms=(time.perf_counter() - started) * 1000,
-        )
+        observe_runtime_duration(stage, (time.perf_counter() - started) * 1000, failed=failed)
+
+
+def observe_runtime_duration(stage: str, duration_ms: float, *, failed: bool = False):
+    if stage not in _RUNTIME_STAGES:
+        raise ValueError("unknown runtime observation stage")
+    _runtime_metrics.observe(
+        method="STAGE", route=stage, status_code=500 if failed else 200, duration_ms=duration_ms,
+    )
 
 
 def runtime_metrics_snapshot() -> dict[str, Any]:

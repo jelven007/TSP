@@ -237,13 +237,13 @@ def test_past_final_deadline(monkeypatch) -> None:
     def _at(h: int, m: int):
         return datetime.combine(cn_today(), dt_time(h, m), tzinfo=CN_TZ)
 
-    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(15, 29))
+    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(15, 14))
     assert QuoteService._past_final_deadline("close_final") is False
-    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(15, 30))
+    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(15, 15))
     assert QuoteService._past_final_deadline("close_final") is True
-    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(12, 9))
+    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(11, 34))
     assert QuoteService._past_final_deadline("morning_final") is False
-    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(12, 11))
+    monkeypatch.setattr(qs_module, "cn_now", lambda: _at(11, 35))
     assert QuoteService._past_final_deadline("morning_final") is True
 
 
@@ -252,12 +252,12 @@ def test_past_final_deadline(monkeypatch) -> None:
     [
         (9, 14, False),
         (9, 15, True),
-        (11, 44, True),
-        (11, 45, False),
+        (11, 34, True),
+        (11, 35, False),
         (12, 59, False),
         (13, 0, True),
-        (15, 29, True),
-        (15, 30, False),
+        (15, 14, True),
+        (15, 15, False),
         (15, 59, False),
         (16, 0, False),
     ],

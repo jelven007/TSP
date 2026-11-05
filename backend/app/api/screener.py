@@ -439,7 +439,13 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
         request, asset_type=asset_type, timeframe=timeframe, strategy_id=strategy_id,
     )
     day = str(as_of)
-    summaries = store.summaries(identities, day)
+    engine = _strategy_engine(request)
+    signal_ids = {
+        identity.strategy_id for identity in identities
+        if engine.get(identity.strategy_id).meta.get("result_sections") == "signals"
+        and not engine.get(identity.strategy_id).meta.get("minute_execution")
+    }
+    summaries = store.summaries(identities, day, signal_strategy_ids=signal_ids)
     from app.market_time import cn_today
     realtime = {}
     if day == str(cn_today()):
@@ -473,7 +479,7 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
         for identity in identities:
             if identity.strategy_id not in summaries:
                 continue
-            saved = store.read(identity, day)
+            saved = store.read(identity, day, record_id=summaries[identity.strategy_id]["record_id"])
             if saved:
                 results[identity.strategy_id] = {
                     **saved["result"], "record_id": saved["record_id"],
@@ -673,6 +679,8 @@ def get_cached_result(
         "sections": raw_result.get("sections"),
         "section_mode": raw_result.get("section_mode"),
         "section_errors": raw_result.get("section_errors"),
+        "selection_only": raw_result.get("selection_only", False),
+        "selection_snapshot": raw_result.get("selection_snapshot"),
         "state": raw_result.get("state"),
         "portfolio_scope": raw_result.get("portfolio_scope"),
         "execution_error": raw_result.get("execution_error"),
@@ -718,11 +726,40 @@ def get_cached_result(
 
 
 @router.get("/market-snapshot", response_model=contracts.MarketSnapshotResponse)
-def market_snapshot(request: Request):
-    """最新全市场轻量行情快照，供板块/概念聚合分析使用。"""
+def market_snapshot(request: Request, realtime: bool = False, symbols: str | None = None):
+    """全市场聚合快照; 实时模式只读当前日共享缓存中的指定证券。"""
     import polars as pl
 
     repo = request.app.state.repo
+    if realtime:
+        import re
+
+        from app.market_time import cn_today
+
+        requested = list(dict.fromkeys((symbols or "").split(",")))
+        if not symbols or len(requested) > 1000 or any(
+            re.fullmatch(r"[0-9]{6}\.(SH|SZ|BJ)", symbol) is None for symbol in requested
+        ):
+            raise HTTPException(422, "实时行情须指定1至1000个有效股票代码")
+        today = cn_today()
+        df, cached_date = repo.get_enriched_latest(refresh=False)
+        if cached_date != today or df.is_empty() or "symbol" not in df.columns:
+            if cached_date is None:
+                repo.ensure_enriched_warmup()
+            return {"as_of": str(today), "rows": []}
+        df = df.filter(pl.col("symbol").is_in(requested))
+        if "date" in df.columns:
+            df = df.filter(pl.col("date").cast(pl.String) == str(today))
+        cols = [
+            "symbol", "name", "raw_close", "change_pct", "turnover_rate", "vol_ratio_5d",
+            "quote_ts", "signal_limit_up", "signal_broken_board_recovery", "signal_volume_surge",
+            "signal_ma_golden_5_20", "signal_ma_dead_5_20", "signal_ma_golden_20_60",
+            "signal_macd_golden", "signal_macd_dead", "signal_ma20_breakout",
+            "signal_ma20_breakdown", "signal_n_day_high", "signal_n_day_low",
+            "signal_boll_breakout_upper", "signal_boll_breakdown_lower",
+        ]
+        return {"as_of": str(today), "rows": _safe({"rows": df.select(
+            [c for c in cols if c in df.columns]).to_dicts()})["rows"]}
     svc = ScreenerService(repo)
     as_of = svc.latest_date()
     if not as_of:

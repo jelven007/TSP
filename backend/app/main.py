@@ -235,20 +235,7 @@ async def _application_lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("minute_refresh init failed: %s", e)
 
-    # 停机缺口自检: 延迟后台扫描, 发现最近交易日的盘中快照/缺口时自动创建
-    # 修复任务 (盘中停机→次日开实时场景, 不修则坏数据被"只刷今天"分支永久留存)
-    try:
-        import threading
-
-        from app.services.data_integrity import boot_integrity_check
-        from app.services.preferences import get_data_sync_auto_enabled
-
-        if get_data_sync_auto_enabled():
-            timer = threading.Timer(30.0, boot_integrity_check, args=(app.state,))
-            timer.daemon = True  # 不阻塞进程退出
-            timer.start()
-    except Exception as e:  # noqa: BLE001
-        logger.warning("integrity boot check scheduling failed: %s", e)
+    # 启动不回补历史数据; 当日缺口由15:35盘后管理处理, 历史修正由用户显式发起。
 
     # 企业微信智能机器人长连接(可选通道, 失败不阻断启动)
     try:
@@ -302,6 +289,8 @@ async def _application_lifespan(app: FastAPI):
         override_loader=lambda sid: strategy_config.load_override(store.data_dir, sid),
     )
     app.state.strategy_engine = strategy_engine
+    from app.services.daily_selections import DailySelections
+    strategy_engine._selection_loader = lambda sid, day: DailySelections(store.data_dir).read(sid, day)
     logger.info("strategy engine loaded: %d strategies", len(strategy_engine.list_strategies()))
     if app.state.scheduler is not None:
         def _daily_stock_pools():
@@ -317,6 +306,19 @@ async def _application_lifespan(app: FastAPI):
                                     max_instances=1, coalesce=True)
         app.state.scheduler.add_job(_daily_stock_pools, "interval", seconds=60,
                                     id="daily_stock_pools", max_instances=1, coalesce=True)
+        def _daily_selections():
+            from app.services.daily_selections import generate_scheduled_local
+            try:
+                status = generate_scheduled_local(strategy_engine, _screener_svc, store.data_dir)
+                if status["errors"]:
+                    logger.warning("postclose selection deferred: %d strategies", len(status["errors"]))
+            except Exception:
+                logger.warning("postclose selection awaiting market inputs")
+        app.state.scheduler.add_job(_daily_selections, "cron", hour=16, minute=0,
+                                    timezone="Asia/Shanghai", id="daily_selections_slot",
+                                    max_instances=1, coalesce=True, misfire_grace_time=3600)
+        app.state.scheduler.add_job(_daily_selections, "interval", seconds=60,
+                                    id="daily_selections", max_instances=1, coalesce=True)
 
     matrix_prewarm_owner = MatrixCachePrewarmOwner()
 
@@ -423,6 +425,8 @@ async def _application_lifespan(app: FastAPI):
 
         if app.state.scheduler:
             app.state.scheduler.pause()
+        from app.services.initial_sync import stop_startup_sync
+        await stop_startup_sync(app.state)
         await stop_initial_sync_job(getattr(app.state, "initial_sync_job_id", None))
         await daily_pipeline.stop_catalog_jobs()
         repo._on_refresh_done = None  # noqa: SLF001

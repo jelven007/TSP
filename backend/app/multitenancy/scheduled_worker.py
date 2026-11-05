@@ -246,6 +246,87 @@ class TenantSchedules:
                 "errors": errors, "finished_at": time.time_ns(),
             })
 
+    def daily_selections(self, documents, snapshot, repo, now, claim):
+        """Archive next-session eligibility under the tenant schedule lease."""
+        from app.multitenancy.runtime import fingerprint
+        from app.services.daily_selections import (
+            DEFINITION_VERSION,
+            DailySelections,
+            due_window,
+            signal_strategy,
+        )
+        from app.services.strategy_results import capture_identities
+        from app.strategy.config import list_overrides
+        from app.strategy.engine import StrategyEngine
+        window = due_window(now)
+        if window is None:
+            return
+        source, target = window
+        account, context = self.runtime.account(documents.context.tenant_id)
+        with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+            valid_claim(unit.connection, claim)
+            builtins = StrategyEngine([Path(__file__).resolve().parents[1] / "strategy" / "builtin"])
+            engine = TenantStrategyEngine(unit, builtins, self.executor,
+                administrator="settings:manage" in account["permissions"])
+            store = DailySelections(unit)
+            ids = [sid for sid, strategy in engine._strategies.items()
+                   if signal_strategy(strategy) and not strategy.meta.get("research_only")]
+            pending = [sid for sid in ids if store.read(sid, target) is None]
+            if not pending:
+                return
+            key = str(target)
+            previous = store.job(key)
+            job = {**previous, "source_date": str(source), "as_of": str(target),
+                   "attempts": previous.get("attempts", 0) + 1, "started_at": time.time_ns()}
+            if str(source) not in snapshot.get("settlement_days", []):
+                store.job(key, {**job, "state": "waiting_data",
+                    "errors": {sid: f"等待{source}盘后完整数据" for sid in pending}})
+                return
+            observed = fingerprint(unit.connection, include_state=False)
+            overrides = list_overrides(unit)
+            identities = capture_identities(engine, unit, pending, overrides_map=overrides, timeframe="1m")
+            release = snapshot.get("public_release", {}).get("id")
+            marker = signature({"input": observed, "source_date": str(source), "target": key,
+                                "release": release, "definition_version": DEFINITION_VERSION})
+            job = {**job, "signature": marker, "state": "running"}
+            store.job(key, job)
+            task = engine.task("daily_selections", strategy_ids=pending, source_date=str(source),
+                               as_of=key, overrides_map=overrides,
+                               **({"public_release_id": release} if release else {}))
+        try:
+            response = self.executor.execute(task)
+        except Exception:
+            with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+                valid_claim(unit.connection, claim)
+                DailySelections(unit).job(key, {**job, "state": "failed", "finished_at": time.time_ns(),
+                    "errors": {sid: "盘后预选计算暂不可用，将自动重试" for sid in pending}})
+            raise
+        rejected = None
+        with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
+            valid_claim(unit.connection, claim)
+            store = DailySelections(unit)
+            if fingerprint(unit.connection, include_state=False) != observed:
+                rejected = AccessError(409, "预选配置已更新，旧计算已丢弃，将自动重试")
+                store.job(key, {**job, "state": "failed", "finished_at": time.time_ns(),
+                               "errors": {sid: str(rejected) for sid in pending}})
+            else:
+                completed = set(ids) - set(pending)
+                for sid, selected in response.get("selections", {}).items():
+                    if sid not in pending or selected.get("as_of") != key or selected.get("source_date") != str(source):
+                        raise ValueError("盘后预选结果日期或策略不匹配")
+                    store.save(identities[sid], selected, started_at=job["started_at"],
+                               input_generation={"public_release_id": release, "signature": marker})
+                    completed.add(sid)
+                errors = {**response.get("errors", {}),
+                          **{sid: "盘后预选结果缺失，将自动重试" for sid in set(pending) - completed
+                             - set(response.get("errors", {}))}}
+                store.job(key, {**job, "state": "failed" if errors else "succeeded",
+                               "completed": sorted(completed), "errors": errors, "finished_at": time.time_ns()})
+                append_event(unit.connection, documents.context.tenant_id, "strategy_results_updated",
+                             {"as_of": key, "section": "select", "strategy_ids": sorted(completed)})
+        if rejected:
+            raise rejected
+
     async def process(self, claim, snapshot, repo, *, now=None):
         now = beijing_now(now)
         from app.services.daily_pool_schedule import next_check
@@ -271,6 +352,7 @@ class TenantSchedules:
                 await asyncio.to_thread(self.health.record, progress=False)
 
         async def work():
+            await asyncio.to_thread(self.daily_selections, documents, snapshot, repo, now, claim)
             if self.db.settings.schema_version >= 7:
                 await asyncio.to_thread(self.daily_pools, documents, snapshot, repo, now, claim)
             if now.date().isoformat() not in snapshot.get("settlement_days", []):

@@ -9,7 +9,7 @@
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -55,13 +55,36 @@ def _synthetic_panel() -> pl.DataFrame:
 
 
 class _RepoStub:
+    def __init__(self, panel: pl.DataFrame):
+        rows = []
+        for daily in panel.iter_rows(named=True):
+            for offset in range(5):
+                price = daily["raw_open"]
+                rows.append({
+                    "symbol": daily["symbol"],
+                    "datetime": datetime.combine(daily["date"], time(9, 31)) + timedelta(minutes=offset),
+                    "open": price, "high": price + .01, "low": price - .01,
+                    "close": price, "volume": 10000.,
+                })
+        self.minute = pl.DataFrame(rows)
+
     def get_index_daily(self, *args, **kwargs) -> pl.DataFrame:
         return pl.DataFrame()
+
+    def list_minute_dates(self, start, end, *args):
+        return self.minute.filter(
+            pl.col("datetime").dt.date().is_between(start, end)
+        )["datetime"].dt.date().unique().sort().to_list()
+
+    def get_minute_by_dates(self, symbols, dates, **kwargs):
+        return self.minute.filter(
+            pl.col("symbol").is_in(symbols) & pl.col("datetime").dt.date().is_in(dates)
+        )
 
 
 def _make_service(panel: pl.DataFrame, builtin: Path, comp_dir: Path):
     """构造 StrategyBacktestService, 用 monkeypatch 的数据加载。"""
-    bt_engine = BacktestEngine(_RepoStub())
+    bt_engine = BacktestEngine(_RepoStub(panel))
 
     def _load_mdm(self, symbols, start, end, feature_plan, asset_type="stock", **kw):
         df = panel.filter((pl.col("date") >= start) & (pl.col("date") <= end))

@@ -428,8 +428,137 @@ class _MinuteRepo:
     def __init__(self, rows: pl.DataFrame) -> None:
         self.rows = rows
 
+    def list_minute_dates(self, start, end, asset_type="stock"):
+        if self.rows.is_empty() or "datetime" not in self.rows.columns:
+            return []
+        return sorted({
+            value.date() for value in self.rows["datetime"].to_list()
+            if start <= value.date() <= end
+        })
+
     def get_minute_by_dates(self, symbols, dates, asset_type="stock"):
-        return self.rows.filter(pl.col("symbol").is_in(symbols))
+        if self.rows.is_empty():
+            return self.rows
+        return self.rows.filter(
+            pl.col("symbol").is_in(symbols)
+            & pl.col("datetime").dt.date().is_in(dates)
+        )
+
+
+def _entry_window_minutes(
+    symbol: str,
+    day: date,
+    *,
+    highs: list[float],
+    volumes: list[float],
+) -> pl.DataFrame:
+    start = datetime.combine(day, datetime.min.time()).replace(hour=9, minute=31)
+    return pl.DataFrame({
+        "symbol": [symbol] * len(highs),
+        "datetime": [start + timedelta(minutes=index) for index in range(len(highs))],
+        "open": [price - 0.1 for price in highs],
+        "high": highs,
+        "low": [price - 0.1 for price in highs],
+        "close": highs,
+        "volume": volumes,
+        "amount": [price * volume * 100 for price, volume in zip(highs, volumes, strict=True)],
+    })
+
+
+def test_daily_position_entry_uses_five_minute_high_capacity_window():
+    symbol = "600001.SH"
+    panel = _panel([symbol], days=4)
+    minute = _entry_window_minutes(
+        symbol,
+        date(2024, 1, 2),
+        highs=[10.0, 10.2, 10.1, 10.3, 10.4],
+        volumes=[1.0] * 5,
+    )
+
+    result = BacktestEngine(repo=_MinuteRepo(minute)).simulate_portfolio(
+        panel,
+        _mask(panel, {(symbol, 0)}),
+        _mask(panel, set()),
+        MatcherConfig(
+            entry_fill="open_t+1",
+            exit_fill="close_t",
+            fees_pct=0,
+            slippage_bps=0,
+            entry_capacity_window=True,
+            max_positions=1,
+            max_hold_days=1,
+            initial_capital=100_000,
+        ),
+    )
+
+    assert len(result.trades) == 1
+    trade = result.trades[0]
+    assert trade.entry_date == "2024-01-02"
+    assert trade.entry_price == pytest.approx(10.2)
+    assert trade.raw_entry_shares == 500
+    assert [fill["shares"] for fill in result.fills] == [100] * 5
+    assert result.stats["execution"]["entry_target_shares"] == 10_000
+    assert result.stats["execution"]["entry_cancelled_shares"] == 9_500
+    assert result.stats["execution"]["entry_partial_orders"] == 1
+
+
+def test_daily_full_entry_uses_the_same_partial_fill_contract():
+    symbol = "688001.SH"
+    panel = _panel([symbol], days=4)
+    minute = _entry_window_minutes(
+        symbol,
+        date(2024, 1, 2),
+        highs=[10.0, 10.2, 10.1, 10.3, 10.4],
+        volumes=[0.01] * 5,
+    )
+
+    result = BacktestEngine(repo=_MinuteRepo(minute)).simulate_independent_candidates(
+        panel,
+        _mask(panel, {(symbol, 0)}),
+        _mask(panel, set()),
+        MatcherConfig(
+            entry_fill="open_t+1",
+            exit_fill="close_t",
+            fees_pct=0,
+            slippage_bps=0,
+            entry_capacity_window=True,
+            max_hold_days=1,
+        ),
+    )
+
+    assert len(result.trades) == 1
+    trade = result.trades[0]
+    assert trade.entry_date == "2024-01-02"
+    assert trade.entry_price == pytest.approx(10.2)
+    assert trade.raw_entry_shares == 5
+    assert [fill["shares"] for fill in result.fills] == [1] * 5
+    assert result.stats["execution"]["entry_target_shares"] == 200
+    assert result.stats["execution"]["entry_cancelled_shares"] == 195
+
+
+@pytest.mark.parametrize("independent", [False, True])
+def test_daily_entry_fails_when_the_minute_partition_is_missing(independent):
+    symbol = "600001.SH"
+    panel = _panel([symbol], days=3)
+    engine = BacktestEngine(repo=_MinuteRepo(pl.DataFrame()))
+    simulate = engine.simulate_independent_candidates if independent else engine.simulate_portfolio
+
+    result = simulate(
+        panel,
+        _mask(panel, {(symbol, 0)}),
+        _mask(panel, set()),
+        MatcherConfig(
+            entry_fill="open_t+1",
+            exit_fill="close_t",
+            fees_pct=0,
+            slippage_bps=0,
+            entry_capacity_window=True,
+            max_positions=1,
+            initial_capital=100_000,
+        ),
+    )
+
+    assert result.stats["error"] == "2024-01-02 缺分钟K分区, 无法执行五分钟建仓容量撮合"
 
 
 def _minute_trigger_panel() -> tuple[pl.DataFrame, pl.Series, pl.Series]:

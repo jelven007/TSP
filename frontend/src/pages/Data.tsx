@@ -438,7 +438,7 @@ export function Data() {
         return (
           <StatCard
             title="日 K"
-            hint="交易日15:30同步"
+            hint="交易日15:35仅补当日缺口"
             stats={s?.daily}
             loading={isLoading}
             active={activeCard === 'daily'}
@@ -610,8 +610,8 @@ export function Data() {
         title="数据总览"
         subtitle={!hasData && !isLoading
           ? (isRunning ? '首次全量同步正在进行' : (autoSyncEnabled
-            ? '初始化后自动同步已开启，可查看同步进度或点击立即同步重试'
-            : '自动同步已关闭，请点击立即同步获取数据'))
+            ? '启动后默认补齐当日已形成的缺口；交易日15:35再次检查，历史数据按需手动同步'
+            : '自动同步已关闭，历史数据按需点击立即同步获取'))
           : '本地数据画像 · 同步状态 · 历史记录'}
         right={
           <div className="flex flex-wrap items-center gap-3 [&_button]:whitespace-nowrap">
@@ -930,7 +930,7 @@ export function Data() {
 
       <AnimatePresence>
         {openSettings === 'pipeline-scope' && (
-          <SettingsModal title="盘后管道 · 拉取内容" onClose={() => setOpenSettings(null)}>
+          <SettingsModal title="手动全量管道 · 拉取内容" onClose={() => setOpenSettings(null)}>
             <PipelineScopeConfig />
           </SettingsModal>
         )}

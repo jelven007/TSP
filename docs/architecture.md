@@ -1,5 +1,17 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+当前统一调用链与兼容边界见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
+本轮60秒确认、冻结资格、历史归档/实时缓存与建仓窗口分别保留身份；旧90秒说明属于历史契约。
+
+2026-11-06 S02结果将历史字段和当前日行情分开。实时快照沿既有接口有界读取共享缓存，
+不重算历史、不调用Provider；稳定页签键与record_id持仓草稿分别管理。
+三页共享列模型及账户偏好见[本次方案与验收](../reports/engineering/s02-live-results-20261106.md)。
+
+2026-11-06信号策略的日期摘要从同日策略主键范围读取原始扫描，
+按started_at选最新实际扫描，成功空扫描也优先于资格名单；明细复用选定record_id。
+计算身份和默认仓库read不变，无新API/schema。当前生产两文件修复见
+[历史读取回执](../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+
 最新升级在配置到策略发现边界增加默认空的内置退役列表，Runtime/Compute 共享同 SHA，
 部署差异通过受控环境表达；私有策略源、缓存/归档与业务库不由该列表改写。
 隔夜共享费用内核支持可选固定金额，预算预留且分片仅累计增量；

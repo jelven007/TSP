@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { api, type StrategyBacktestResult, type StrategyDetail } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import type { BacktestTask } from '@/lib/backtestTask'
+import { startBacktest, type BacktestTask } from '@/lib/backtestTask'
 import { storage } from '@/lib/storage'
 import { confirmAccount } from '@/lib/accountSession'
 import { StrategyBacktest } from './StrategyBacktest'
@@ -211,6 +211,36 @@ function completed(id: number): BacktestTask {
   return { id, isPending: false, result, progress: null, error: null, reconnecting: false }
 }
 
+it('uses the requested migrated defaults and request units', async () => {
+  await click('运行回测')
+
+  expect(startBacktest).toHaveBeenCalledWith(expect.objectContaining({
+    max_positions: 5,
+    stamp_tax_pct: 0.001,
+    slippage_bps: 10,
+    minimum_commission: 5,
+    transfer_fee_pct: 0.0005,
+  }))
+})
+
+it('describes the daily five-minute entry capacity window', () => {
+  expect(host.textContent).toContain('次日开盘起5分钟容量撮合')
+})
+
+it('describes the minute strategy post-confirmation entry capacity window', async () => {
+  const minute = {
+    ...strategyFixture('minute-example', 'custom'),
+    execution_backend: 'minute_filter' as const,
+    timeframes: ['1m'],
+  }
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [minute], load_errors: [] })
+  vi.spyOn(api, 'strategyGet').mockResolvedValue(minute)
+
+  await remountWithStrategy('minute-example')
+
+  expect(host.textContent).toContain('信号确认后下一分钟起5分钟容量撮合')
+})
+
 it('keeps the selected result page when editing the next run, and applies a new completed task', async () => {
   state.task = completed(1)
   await render()
@@ -260,6 +290,16 @@ it.each(['overnight_capacity_v1', 'generic_morning_liquidation_v1', 'generic_mor
     date: '2026-10-01', symbol: '600000.SH', side: 'buy', bar: 887, datetime: '2026-10-01 14:47:00',
     shares: 100, price: 10, notional: 1000, fee: 5.01, minute_volume_shares: 2000, participation: .05,
   }]
+  task.result!.entry_orders = [{
+    symbol: '600000.SH',
+    signal_time: '2026-10-01 14:30:00',
+    window_start: '2026-10-01 14:31:00',
+    target_shares: 1000,
+    filled_shares: 500,
+    cancelled_shares: 500,
+    average_price: 10,
+    status: 'partial',
+  }]
   task.result!.signals = [{ date: '2026-10-02', symbol: '600000.SH', reason: 'time_guard', signal_bar: 682 }]
   task.error = task.result!.error
   task.result!.stats.execution.remaining_positions = [{ symbol: '600000.SH', remaining: 100 }]
@@ -267,6 +307,9 @@ it.each(['overnight_capacity_v1', 'generic_morning_liquidation_v1', 'generic_mor
   await render()
   expect(host.textContent).toContain('11:29到期剩余100股')
   expect(host.textContent).toContain('分钟成交分片（1行）')
+  expect(host.textContent).toContain('目标 1,000 股')
+  expect(host.textContent).toContain('成交 500 股')
+  expect(host.textContent).toContain('撤单 500 股')
   expect(host.textContent).toContain('600000.SH 剩余100股')
   expect(host.textContent).not.toContain('下方仍展示上一次成功结果')
   const create = vi.fn((_blob: Blob) => 'blob:minute-ledger')

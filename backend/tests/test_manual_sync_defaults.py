@@ -40,8 +40,9 @@ def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
             assert "auction_snapshot_catchup" in jobs
             assert jobs["reprobe_capabilities"].next_run_time is not None
             data_ids = set(jobs) - {"reprobe_capabilities", "pre_market_instruments"}
-            assert {"daily_pipeline", "depth_finalize", "kline_correction", "kline_correction_retry"} <= data_ids
-            next_correction = jobs["kline_correction"].trigger.get_next_fire_time(
+            assert {"daily_pipeline", "depth_finalize", "post_close_sync_retry"} <= data_ids
+            assert not {"kline_correction", "kline_correction_retry"} & data_ids
+            next_correction = jobs["daily_pipeline"].trigger.get_next_fire_time(
                 None, datetime(2026, 10, 23, 15, 34, tzinfo=ZoneInfo("Asia/Shanghai")),
             )
             assert (next_correction.hour, next_correction.minute) == (15, 35)
@@ -63,7 +64,7 @@ def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
             )
             assert settings_api.get_preferences(request)["data_sync_auto_enabled"] is not stored_off
             settings_api.update_pipeline_schedule(
-                settings_api.PipelineScheduleIn(hour=16, minute=10), request,
+                settings_api.PipelineScheduleIn(hour=15, minute=35), request,
             )
             settings_api.update_instruments_schedule(
                 settings_api.PipelineScheduleIn(hour=9, minute=0), request,

@@ -1230,6 +1230,7 @@ class MonitorRuleEngine:
                            portfolio_scope=result.portfolio_scope, execution_error=result.execution_error)
             if getattr(result, "section_mode", None):
                 payload.update(section_mode=result.section_mode, section_errors=result.section_errors)
+                payload["selection_snapshot"] = getattr(result, "selection_snapshot", None)
         if getattr(result, "daily_stock_pool", None) is not None:
             payload["daily_stock_pool"] = result.daily_stock_pool
         if getattr(result, "daily_stock_pool_error", None):

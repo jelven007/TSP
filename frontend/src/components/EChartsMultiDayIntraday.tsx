@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as echarts from '@/lib/echarts'
 import type { ECharts, EChartsOption } from '@/lib/echarts'
-import type { MinuteKlineRow, MinuteKlineSession } from '@/lib/api'
-import { computeIntradayAverage, formatMinuteTime, FULL_DAY_TIMES } from '@/lib/intraday-chart'
+import type { MinuteKlineRow, MinuteKlineSession, NullableMinuteKlineRow } from '@/lib/api'
+import { computeIntradayAverage, formatMinuteTime, FULL_DAY_TIMES, summarizeMinutes } from '@/lib/intraday-chart'
 import { useChartTheme } from '@/lib/theme'
 
 const COLORS = {
@@ -24,20 +24,25 @@ interface Props {
 
 interface InfoPoint {
   date: string
-  row: MinuteKlineRow
+  row: NullableMinuteKlineRow
   average: number | null
   prevClose: number | null
+  summary?: boolean
+}
+
+function formatNumber(value: number | null | undefined, digits: number): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—'
 }
 
 function formatAmount(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—'
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}亿`
+  if (value >= 100_000_000) return `${(value / 100_000_000).toFixed(2)}亿`
   if (value >= 10_000) return `${(value / 10_000).toFixed(0)}万`
   return value.toFixed(0)
 }
 
-function priceColor(close: number, prevClose: number | null): string {
-  if (prevClose == null || close === prevClose) return COLORS.flat
+function priceColor(close: number | null, prevClose: number | null): string {
+  if (close == null || !Number.isFinite(close) || prevClose == null || close === prevClose) return COLORS.flat
   return close > prevClose ? COLORS.up : COLORS.down
 }
 
@@ -54,6 +59,7 @@ function buildModel(sessions: MinuteKlineSession[]) {
     averages: (number | null)[]
   }[] = []
   const priceValues: number[] = []
+  let summary: InfoPoint | null = null
 
   const labelStep = Math.max(1, Math.ceil(sessions.length / 10))
   for (let sessionIndex = 0; sessionIndex < sessions.length; sessionIndex++) {
@@ -121,6 +127,12 @@ function buildModel(sessions: MinuteKlineSession[]) {
       values: dayValues,
       averages: dayAverages,
     })
+    // 默认展示最新有数据交易日的汇总；悬停仍读取真实分钟点。
+    const row = summarizeMinutes(session.rows)
+    if (row) summary = {
+      date: session.date, row, average: averagePrices.at(-1) ?? null,
+      prevClose: session.prev_close, summary: true,
+    }
 
     if (sessionIndex < sessions.length - 1) {
       categories.push(`${session.date} gap`)
@@ -136,6 +148,7 @@ function buildModel(sessions: MinuteKlineSession[]) {
     pointByIndex,
     dayRanges,
     priceValues,
+    summary,
     latest: pointByIndex.size > 0
       ? Array.from(pointByIndex.values())[pointByIndex.size - 1]
       : null,
@@ -157,11 +170,11 @@ export function EChartsMultiDayIntraday({
   const model = useMemo(() => buildModel(sessions), [sessions])
   const modelRef = useRef(model)
   modelRef.current = model
-  const [info, setInfo] = useState<InfoPoint | null>(model.latest)
+  const [info, setInfo] = useState<InfoPoint | null>(model.summary)
   const theme = useChartTheme()
 
   useEffect(() => {
-    setInfo(model.latest)
+    setInfo(model.summary)
   }, [model])
 
   useEffect(() => {
@@ -186,7 +199,7 @@ export function EChartsMultiDayIntraday({
         const point = current.pointByIndex.get(index)
         if (point) setInfo(point)
       })
-      chart.on('globalout', () => setInfo(modelRef.current.latest))
+      chart.on('globalout', () => setInfo(modelRef.current.summary))
 
       const handlePriceDoubleClick = (event: { offsetX: number; offsetY: number }) => {
         const pixel: [number, number] = [event.offsetX, event.offsetY]
@@ -403,7 +416,7 @@ export function EChartsMultiDayIntraday({
     chartRef.current = null
   }, [])
 
-  const changePct = info?.prevClose
+  const changePct = info?.prevClose && info.row.close != null && Number.isFinite(info.row.close)
     ? (info.row.close - info.prevClose) / info.prevClose * 100
     : null
   const infoColor = info ? priceColor(info.row.close, info.prevClose) : COLORS.flat
@@ -415,17 +428,17 @@ export function EChartsMultiDayIntraday({
         <div className="flex min-w-0 flex-wrap items-center gap-x-2">
           {info ? (
             <>
-              <span className="text-muted">{info.date} {formatMinuteTime(info.row.datetime)}</span>
-              <span className="text-muted">开</span><span style={{ color: infoColor }}>{info.row.open != null ? info.row.open.toFixed(2) : '—'}</span>
-              <span className="text-muted">高</span><span style={{ color: infoColor }}>{info.row.high.toFixed(2)}</span>
-              <span className="text-muted">低</span><span style={{ color: infoColor }}>{info.row.low.toFixed(2)}</span>
-              <span className="text-muted">收</span><span className="font-semibold" style={{ color: infoColor }}>{info.row.close.toFixed(2)}</span>
+              <span className="text-muted">{info.date} {info.summary ? '分时汇总' : `${formatMinuteTime(info.row.datetime)} 分钟`}</span>
+              <span className="text-muted">开</span><span style={{ color: infoColor }}>{formatNumber(info.row.open, 2)}</span>
+              <span className="text-muted">高</span><span style={{ color: infoColor }}>{formatNumber(info.row.high, 2)}</span>
+              <span className="text-muted">低</span><span style={{ color: infoColor }}>{formatNumber(info.row.low, 2)}</span>
+              <span className="text-muted">收</span><span className="font-semibold" style={{ color: infoColor }}>{formatNumber(info.row.close, 2)}</span>
               {changePct != null && (
                 <span style={{ color: infoColor }}>{changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%</span>
               )}
-              <span className="text-muted">均价</span><span style={{ color: COLORS.average }}>{info.average != null ? info.average.toFixed(2) : '—'}</span>
-              <span className="text-muted">量</span><span className="text-secondary">{info.row.volume.toFixed(0)}</span>
-              <span className="text-muted">额</span><span className="text-secondary">{formatAmount(info.row.amount)}</span>
+              <span className="text-muted">均价</span><span style={{ color: COLORS.average }}>{formatNumber(info.average, 2)}</span>
+              <span className="text-muted">{info.summary ? '累计量' : '量'}</span><span className="text-secondary">{formatNumber(info.row.volume, 0)}</span>
+              <span className="text-muted">{info.summary ? '累计额' : '额'}</span><span className="text-secondary">{formatAmount(info.row.amount)}</span>
             </>
           ) : <span className="text-muted">—</span>}
         </div>

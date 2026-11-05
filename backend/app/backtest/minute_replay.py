@@ -6,8 +6,7 @@
 - 分钟侧: 传入当日全量分钟分区, 策略函数自身因果 (第 m 根只用 <=m 的K线);
 - 日线侧: T 日的日线条件窗口只含 T-1 及更早的完成态日K — 与实盘盘中行为一致
   (当日成形K不进窗口), 杜绝未来函数;
-- 成交侧: META.minute_entry_fill="next_minute_open" 使用信号后紧邻分钟的开盘价,
-  缺该分钟、无成交量或涨停价均拒买; 未设置时兼容旧版 signal_close;
+- 成交侧: 信号实际可用后的第一根完整分钟开始五分钟容量撮合;
 - 按交易日精确对日: 缺分钟分区的日子显式跳过, 不做"回退最近分区" (那是实盘语义)。
 """
 
@@ -22,7 +21,6 @@ from datetime import time as clock_time
 
 import polars as pl
 
-from app.price_limits import is_risk_warning_name, price_limit_pct
 from app.strategy.engine import StrategyDataContext, StrategyDef, StrategyEngine
 
 # 日线面板列: 基础行情 + 涨停/炸板信号 (策略日线窗口契约) + 基础过滤/展示列。
@@ -122,10 +120,12 @@ def _executable_minute(value: datetime) -> datetime:
 
 @dataclass
 class MinuteReplayHit:
-    """盘中成交与对应信号的时间, 价格已折算至日线复权口径。"""
+    """盘中信号及其首个可执行分钟, 价格只作矩阵侧风险探针。"""
 
     trade_date: date
     symbol: str
+    entry_window_start: datetime
+    prior_close: float
     # 已按当日 复权close/原始close 比例折算到复权价系的入场价, 与日线出场价同尺度。
     entry_price: float
     trigger_time: str  # "HH:MM" 成交分钟; 兼容旧触发分钟收盘成交
@@ -199,8 +199,6 @@ class MinuteSignalReplayer:
         bf = {**(strategy.basic_filter or {}), **(overrides.get("basic_filter") or {})}
         if uses_previous(bf):
             daily_bars = max(daily_bars, 2)
-        next_minute_open = strategy.meta.get("minute_entry_fill") == "next_minute_open"
-
         # 面板交易日序列 (升序) — 日线窗口切片与缺分区日判定的基准。
         panel_dates = panel.get_column("date").unique().sort().to_list()
         date_to_window: dict[date, tuple[date, date]] = {}
@@ -215,19 +213,9 @@ class MinuteSignalReplayer:
         result.skipped_days = [day for day in replay_days if day not in minute_day_set]
         total = len(minute_days)
 
-        # 逐标的的 T-1 原始收盘/复权收盘查表 (涨停价与复权折算用)。
+        # T-1 原始收盘与 T 日复权因子查表。
         prev_raw_close: dict[str, float] = {}
-        prev_name: dict[str, str] = {}
         adj_factor: dict[str, float] = {}
-        risk_warning_by_day: dict[tuple[date, str], bool] = {}
-        if "is_risk_warning" in panel.columns:
-            risk_warning_by_day = {
-                (row[0], str(row[1])): bool(row[2])
-                for row in panel.select(
-                    "date", "symbol", "is_risk_warning"
-                ).drop_nulls("is_risk_warning").iter_rows()
-            }
-
         for i, day in enumerate(minute_days):
             if cancel_event is not None and cancel_event.is_set():
                 break
@@ -257,8 +245,21 @@ class MinuteSignalReplayer:
                 ) if daily_bars > 0 else pl.DataFrame()
                 current = panel.filter(pl.col("date") == last_prior)
 
-                # T-1 收盘/名称 + T 日复权因子查表。
-                _refresh_day_lookups(prev_raw_close, prev_name, current, prior)
+                prior_prices = current
+                if "raw_close" not in prior_prices.columns:
+                    prior_prices = prior_prices.with_columns(
+                        pl.col("close").alias("raw_close")
+                    )
+                prev_raw_close.clear()
+                prev_raw_close.update({
+                    str(symbol): float(raw_close)
+                    for symbol, raw_close in prior_prices.select(
+                        "symbol", "raw_close"
+                    ).iter_rows()
+                    if raw_close is not None
+                })
+
+                # T 日复权因子查表。
                 day_rows = panel.filter(pl.col("date") == day).select(
                     "symbol", "close", "raw_close",
                 )
@@ -286,13 +287,18 @@ class MinuteSignalReplayer:
             observed_at = pool_cutoff(self.strategy_engine, [strategy.meta["id"]],
                                       {strategy.meta["id"]: overrides}, day,
                                       datetime.combine(day, clock_time(15) if full_pool else clock_time.min))
+            strategy_history = (
+                history.filter(pl.col("datetime") <= observed_at)
+                if full_pool
+                else history
+            )
 
             context = StrategyDataContext(
                 asset_type="stock",
                 timeframe="1m",
                 as_of=day,
                 current=current if not current.is_empty() else None,
-                history=history,
+                history=strategy_history,
                 daily_history=daily_history if not daily_history.is_empty() else None,
                 pool_history=current if not current.is_empty() else None,
                 pool_universe=pool_evidence(repo, day, observed_at=observed_at),
@@ -337,15 +343,6 @@ class MinuteSignalReplayer:
                 run_result.rows = [row for row in run_result.rows if row.get("symbol") in triggered]
             if symbols:
                 run_result.rows = [row for row in run_result.rows if row.get("symbol") in symbols]
-            fill_lookup = {}
-            if next_minute_open and run_result.rows:
-                hit_symbols = [row["symbol"] for row in run_result.rows]
-                fill_lookup = {
-                    (symbol, stamp): (open_price, volume)
-                    for symbol, stamp, open_price, volume in history.filter(
-                        pl.col("symbol").is_in(hit_symbols)
-                    ).select("symbol", "datetime", "open", "volume").iter_rows()
-                }
             for row in run_result.rows:
                 symbol = row.get("symbol")
                 close = row.get("close")
@@ -355,84 +352,35 @@ class MinuteSignalReplayer:
                 trigger = row.get("last_datetime")
                 available_at = row.get("entry_evaluated_at") or trigger
                 signal_time = _signal_clock(available_at)
-                if next_minute_open:
-                    if not hasattr(trigger, "date"):
-                        result.buy_no_next_minute += 1
-                        continue
-                    fill_stamp = trigger + timedelta(minutes=1)
-                    if available_at is not None:
-                        fill_stamp = max(fill_stamp, available_at)
-                    fill_stamp = _executable_minute(fill_stamp)
-                    fill = fill_lookup.get((symbol, fill_stamp))
-                    if (
-                        fill is None or fill_stamp.date() != day
-                        or fill[0] is None or not math.isfinite(float(fill[0])) or fill[0] <= 0
-                        or fill[1] is None or not math.isfinite(float(fill[1])) or fill[1] <= 0
-                    ):
-                        result.buy_no_next_minute += 1
-                        continue
-                    raw_close = float(fill[0])
-                    trigger = fill_stamp
-                elif available_at is not None:
-                    # signal_close keeps its reference price, but cannot predate availability.
-                    trigger = _executable_minute(available_at)
-                name = prev_name.get(str(symbol), "")
-                prev = prev_raw_close.get(str(symbol))
-                if next_minute_open and (prev is None or not math.isfinite(prev) or prev <= 0):
+                if not isinstance(trigger, datetime):
                     result.buy_no_next_minute += 1
                     continue
-                is_risk_warning = risk_warning_by_day.get(
-                    (day, str(symbol)),
-                    is_risk_warning_name(name),
+                available = available_at if isinstance(available_at, datetime) else trigger
+                entry_window_start = _executable_minute(
+                    max(trigger + timedelta(minutes=1), available)
                 )
-                # 涨停拒买: 实际成交价已达当日涨停价 (T-1 原始收盘 + 板块规则)。
-                if prev is not None and prev > 0:
-                    limit_up = _scalar_limit_up_price(
-                        prev,
-                        price_limit_pct(
-                            str(symbol),
-                            day,
-                            is_risk_warning=is_risk_warning,
-                        ),
-                    )
-                    if raw_close >= limit_up - 1e-9:
-                        result.buy_limit_up += 1
-                        continue
-                trigger_time = _trigger_hhmm(trigger)
+                if entry_window_start.date() != day:
+                    result.buy_no_next_minute += 1
+                    continue
+                prior_close = prev_raw_close.get(str(symbol))
+                if prior_close is None or not math.isfinite(prior_close) or prior_close <= 0:
+                    result.buy_no_next_minute += 1
+                    continue
+                trigger_time = _trigger_hhmm(entry_window_start)
                 result.hits.append(MinuteReplayHit(
                     trade_date=day,
                     symbol=str(symbol),
+                    entry_window_start=entry_window_start,
+                    prior_close=prior_close,
                     entry_price=raw_close * adj_factor.get(str(symbol), 1.0),
                     trigger_time=trigger_time,
                     score=float(run_result.scores.get(str(symbol), 0.0) or 0.0),
-                    signal_time=signal_time if next_minute_open or signal_time.count(":") == 2 else None,
+                    signal_time=signal_time,
                     raw_entry_price=raw_close,
                 ))
 
         result.elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
         return result
-
-
-def _refresh_day_lookups(
-    prev_raw_close: dict[str, float],
-    prev_name: dict[str, str],
-    prior_snapshot: pl.DataFrame,
-    prior: list[date],
-) -> None:
-    """从 T-1 快照刷新逐标的原始收盘与名称查表 (涨停价/ST 判定用)。"""
-    if prior_snapshot.is_empty():
-        return
-    frame = prior_snapshot
-    if "raw_close" not in frame.columns:
-        frame = frame.with_columns(pl.col("close").alias("raw_close"))
-    if "name" not in frame.columns:
-        frame = frame.with_columns(pl.lit("").alias("name"))
-    prev_raw_close.clear()
-    prev_name.clear()
-    for symbol, raw_close, name in frame.select("symbol", "raw_close", "name").iter_rows():
-        prev_raw_close[str(symbol)] = float(raw_close) if raw_close is not None else 0.0
-        prev_name[str(symbol)] = str(name or "")
-
 
 def _adj_factors(day_rows: pl.DataFrame) -> dict[str, float]:
     """T 日 复权close/原始close 比例: 把分钟原始价折算到复权价系。"""

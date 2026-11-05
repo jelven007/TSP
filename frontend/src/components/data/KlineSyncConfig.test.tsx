@@ -60,11 +60,11 @@ async function render(period: '5m' | '10m' | '15m' | '1m' | '1w' | '1d', onStart
   return onStart
 }
 
-it('shows the unified intraday collection window and submits explicit sync settings', async () => {
+it('shows the five-minute generation window and submits explicit sync settings', async () => {
   await render('5m')
   const times = [...host.querySelectorAll('button[aria-label$="同步时间"]')]
   expect(times).toHaveLength(0)
-  expect(host.textContent).toContain('09:15–11:45 / 13:00–15:30')
+  expect(host.textContent).toContain('09:36–11:31 / 13:06–15:01')
   expect(host.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe('300')
   expect(mocks.save).not.toHaveBeenCalled()
   const button = [...host.querySelectorAll('button')].find(node => node.textContent === '保存周期设置')!
@@ -127,21 +127,21 @@ it.each(['5m', '1w'] as const)('disables %s generation while another data task r
 
 it('uses a Saturday completion time and local daily history for weekly synchronization', async () => {
   await render('1w', vi.fn(), false)
-  expect(host.querySelector('[aria-label="周六同步时间"]')?.textContent).toContain('16:00')
+  expect(host.querySelector('[aria-label="周六同步时间"]')?.textContent).toContain('09:00')
+  expect(host.querySelector('button[aria-label="周六同步时间"]')).toBeNull()
   expect(host.textContent).not.toContain('周期间隔（秒）')
   expect(host.textContent).toContain('每周六')
   expect(host.textContent).toContain('本地日K')
   expect([...host.querySelectorAll('button')].find(node => node.textContent === '生成数据')!.disabled).toBe(false)
 })
 
-it('saves a selected daily synchronization time in 24-hour format', async () => {
+it('shows the fixed daily missing-only schedule without editable time or period switch', async () => {
   await render('1d')
-  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="交易日同步时间"]')!.click())
-  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="18 时"]')!.click())
-  await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="45 分"]')!.click())
-  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === '确定')!.click())
-  await act(async () => [...host.querySelectorAll('button')].find(button => button.textContent === '保存周期设置')!.click())
-  expect(mocks.save).toHaveBeenCalledWith('1d', expect.objectContaining({ time: '18:45' }))
+  expect(host.querySelector('[aria-label="交易日同步时间"]')?.textContent).toContain('15:35')
+  expect(host.querySelector('button[aria-label="交易日同步时间"]')).toBeNull()
+  expect(host.querySelector('[aria-label="开启周期同步"]')).toBeNull()
+  expect(host.textContent).toContain('启动后默认补齐当日')
+  expect(mocks.save).not.toHaveBeenCalled()
 })
 
 it('restores daily provider acquisition and subsequent adjustment and indicators', async () => {

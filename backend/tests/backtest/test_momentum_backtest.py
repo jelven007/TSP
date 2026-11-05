@@ -1,4 +1,5 @@
-"""S02 must use the real Parquet projection and dependency checks before replay."""
+"""Shared momentum replay must use real Parquet projection and dependency checks."""
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,8 +15,9 @@ from app.backtest.strategy import (
     StrategyBacktestService,
 )
 from app.market_time import published_trading_days
-from app.strategy.builtin import s02
+from app.strategy.builtin._momentum_members import MEMBERS
 from app.strategy.engine import StrategyEngine
+from app.strategy.momentum_selection import PARAMS, select_entries
 
 START = date(2026, 8, 25)
 END = date(2026, 8, 26)
@@ -69,10 +71,31 @@ def replay(tmp_path):
         get_minute_by_dates=lambda symbols, dates, _: minutes[dates[0]].filter(
             pl.col("symbol").is_in(symbols)),
     )
-    registry = StrategyEngine([Path(s02.__file__).parent], override_loader=lambda _: {})
+    registry = StrategyEngine(
+        [Path(__file__).resolve().parents[2] / "app/strategy/builtin"],
+        override_loader=lambda _: {},
+    )
+    # Exercise the shared kernel without restoring the retired production entry.
+    base = registry.get("s01")
+    params = [{**p, "default": "15:00" if p["id"] in {"guard_time", "sell_deadline"}
+               else p["default"]} for p in PARAMS]
+    registry._strategies["momentum_fixture"] = replace(
+        base,
+        meta={**base.meta, "id": "momentum_fixture", "name": "Momentum replay fixture",
+              "daily_history_bars": 25, "params": params,
+              "minute_execution": "momentum_capacity_v1",
+              "order_by": "return_1430"},
+        basic_filter={"data_reference": "previous_trade_day",
+                      "price_min": 5., "price_max": 100.,
+                      "market_cap_min": None, "amount_min": None,
+                      "exclude_st": True, "exclude_new_days": 60},
+        minute_daily_bars=25,
+        filter_minute_history_fn=lambda df, params, *, daily=None: select_entries(
+            df, params, daily=daily, members=MEMBERS),
+    )
     # Use the real StrategyBacktestService, load_panel_for_backtest and Parquet scan.
     service = StrategyBacktestService(BacktestEngine(repo), registry)
-    config = StrategyBacktestConfig(strategy_id="s02", symbols=None, start=START, end=END)
+    config = StrategyBacktestConfig(strategy_id="momentum_fixture", symbols=None, start=START, end=END)
     return SimpleNamespace(service=service, config=config, path=path, minutes=minutes,
                            instruments=instruments)
 
@@ -88,7 +111,7 @@ def test_s02_replays_from_raw_daily_parquet_without_derived_limit_signals(replay
     assert not LIMIT_SIGNALS & set(pl.read_parquet(replay.path).columns)
     result = _run(replay)
     assert result.error is None, result.error
-    assert result.strategy_info["id"] == "s02"
+    assert result.strategy_info["id"] == "momentum_fixture"
     assert result.stats["minute_execution"] == "momentum_capacity_v1"
     assert len(result.daily_results) == len(result.equity_curve) == 2
     assert len(result.trades) == 1

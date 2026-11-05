@@ -54,6 +54,7 @@ def evaluate_snapshot(payload, repo, strategy_engine=None, private_root=None):
         from app.services.screener import ScreenerService
         strategy_engine._daily_state_loader = lambda sid, day: payload.get("previous_states", {}).get(sid)
         strategy_engine._position_loader = lambda sid, day: payload.get("positions", {}).get(sid)
+        strategy_engine._selection_loader = lambda sid, day: payload.get("selection_snapshots", {}).get(sid)
 
         engine.set_strategy_engine(strategy_engine)
         engine.set_data_dir(private_root)

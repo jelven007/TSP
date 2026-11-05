@@ -204,7 +204,7 @@ it('opens daily profile acquisition and submits its selected closed date range',
     expect(dialog.querySelector('[aria-label="历史扩展数量"]')).toBeNull()
     expect(dialog.querySelector('[aria-label="起始日期"]')).not.toBeNull()
     expect(dialog.querySelector('[aria-label="结束日期"]')).not.toBeNull()
-    expect(dialog.querySelector('[aria-label="交易日同步时间"]')?.textContent).toContain('16:30')
+    expect(dialog.querySelector('[aria-label="交易日同步时间"]')?.textContent).toContain('15:35（固定）')
     expect(dialog.textContent).toContain('2025-10-27')
     const acquire = [...dialog.querySelectorAll('button')].find(button => button.textContent === '获取全量数据')!
     await act(async () => acquire.click())

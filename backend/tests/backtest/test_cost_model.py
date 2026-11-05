@@ -8,12 +8,13 @@
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import polars as pl
 import pytest
 
 from app.backtest.engine import BacktestEngine, MatcherConfig
+from app.backtest.entry_execution import execute_entry_window
 
 # ---------------------------------------------------------------
 # 复用 portfolio 测试的最小面板/掩码构造
@@ -186,7 +187,33 @@ def test_raw_share_sizing_honors_board_rules_and_minimum_fee(method, symbol, cap
         pl.lit(10.0).alias("raw_close"),
         *[(pl.col(c) * scale).alias(c) for c in ("open", "high", "low", "close")],
     )
-    result = getattr(BacktestEngine(None), method)(
+    repo = None
+    if method == "simulate_portfolio":
+        minute_day = date(2024, 1, 2)
+        minute = pl.DataFrame({
+            "symbol": [symbol],
+            "datetime": [datetime(2024, 1, 2, 9, 31)],
+            "open": [10.0],
+            "high": [10.0],
+            "low": [9.9],
+            "close": [10.0],
+            "volume": [1000.0],
+            "amount": [1_000_000.0],
+        })
+
+        class MinuteRepo:
+            def list_minute_dates(self, start, end, asset_type="stock"):
+                return [minute_day] if start <= minute_day <= end else []
+
+            def get_minute_by_dates(self, symbols, dates, asset_type="stock"):
+                return minute.filter(
+                    pl.col("symbol").is_in(symbols)
+                    & pl.col("datetime").dt.date().is_in(dates)
+                )
+
+        repo = MinuteRepo()
+
+    result = getattr(BacktestEngine(repo), method)(
         df, _mask(df, {(symbol, 0)}), _mask(df, set()),
         MatcherConfig(
             matching="open_t+1", max_positions=1, initial_capital=capital,
@@ -218,6 +245,39 @@ def test_minimum_commission_is_per_leg_and_extra_fee_is_separate():
     assert cfg.sell_value(1000, "2024-01-01") == pytest.approx(993.99)
     assert cfg.buy_value(100_000) == pytest.approx(100_021)
     assert cfg.buy_value(0) == 0
+
+
+def test_entry_fragments_share_one_minimum_commission_and_aggregate_extra_costs():
+    cfg = MatcherConfig(
+        commission_pct=0.0002,
+        minimum_commission=5,
+        transfer_fee_pct=0.0005,
+        slippage_bps=10,
+    )
+    start = datetime(2026, 1, 5, 9, 31)
+    frame = pl.DataFrame({
+        "symbol": ["600001.SH"] * 5,
+        "datetime": [start + timedelta(minutes=index) for index in range(5)],
+        "open": [9.9] * 5,
+        "high": [10.0] * 5,
+        "low": [9.9] * 5,
+        "close": [10.0] * 5,
+        "volume": [1.0] * 5,
+    })
+
+    execution = execute_entry_window(
+        frame,
+        symbol="600001.SH",
+        start_at=start,
+        prior_close=9.5,
+        budget=100_000,
+        size_order=lambda _: 500,
+        buy_value=cfg.buy_value,
+    )
+
+    expected = max(5, execution.notional * 0.0002) + execution.notional * (0.0005 + 0.001)
+    assert execution.fee == pytest.approx(expected)
+    assert sum(fill.fee for fill in execution.fills) == pytest.approx(expected)
 
 
 @pytest.mark.parametrize("kwargs", [

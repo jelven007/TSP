@@ -1,5 +1,32 @@
 # 项目验证与历史证据索引
 
+2026-11-06：[S02三页实时列与稳定刷新](engineering/s02-live-results-20261106.md)。
+共享源码及现场线上基线候选前端60/后端26项、构建和1440/390组件检查通过，
+安装与数据保留状态以本次记录为准。
+
+2026-11-06：[S02历史日期生产修复](releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+4日卖0/选281/买4，5日卖4/选574/买40；18份原始明细完全保持，
+真实桌面/窄屏、双库恢复/重启及配置/账本保留通过，无新回测。
+
+2026-11-06：[个股分时价格生产验收](releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+生产0.4.49已安装；最终候选7文件26项、真实1440/390页面、
+双库恢复/完整重启及配置/账本保留通过。本地运行环境未安装，没有新回测。
+
+2026-11-05 [每日16:00预选改造](releases/unified-upgrade-20261106/verification.md#historical-hotfixes)
+已随后按授权安装到本地和线上既有0.4.49环境；
+固定运行身份、配置/账本保留、真实入口及自然16:00批次边界见
+[双端部署回执](releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+
+同日后续按授权补生成11月5日选名单，两端各574只，并部署迟到名单展示修复；
+当前来源、身份、页面和买入引用见
+[补生成回执](releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+
+2026-11-04 [自定义S02实时结果延迟优化](releases/unified-upgrade-20261106/verification.md#historical-hotfixes)：
+完整分钟完成触发发布、监控优先、池参考复用、实际阶段计时；受影响216项通过，
+完整市场旧/新池一致。后续实际合并候选及日志补齐217项通过，已部署到本地和线上0.4.49，
+见[双端部署验收](releases/unified-upgrade-20261106/verification.md#historical-hotfixes)；
+14:32页面可见目标仍待交易时段实测，源码阶段报告保留原阶段结论。
+
 - [2026-11-03最新现场兼容升级](releases/current-upgrade-20261103/verification.md)：
   固定过户费、线上内置S01/S02退役与本地默认目录；独立新候选及双端发布验收。
 

@@ -52,6 +52,11 @@ def scan(tmp_path, monkeypatch):
                                   daily_history=prior, completed_through=datetime(2026, 11, 2, 14, 30))
     overrides = {"overlay_filter": [{"left": "close", "op": ">=", "right": "9"}],
                  "display_limit": 1}
+    from app.strategy.signal_sections import select_rows
+    engine._selection_loader = lambda *_: {
+        "as_of": str(day), "source_date": "2026-10-30",
+        "rows": select_rows(engine, engine.get("custom_test"), context, overrides=overrides),
+    }
     return engine, context, overrides
 
 
@@ -72,6 +77,9 @@ def test_select_uses_all_conditions_but_not_trigger_or_display_cap(scan):
 def test_select_survives_missing_minute_data_and_keeps_missing_score_members(scan):
     engine, context, overrides = scan
     current = context.current.with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
+    frozen = engine._selection_loader("custom_test", context.as_of)
+    frozen["rows"] = [{**row, "score": None} for row in frozen["rows"]]
+    engine._selection_loader = lambda *_: frozen
     result = engine.run("custom_test", replace(context, current=current,
                                              history=None), overrides=overrides)
     assert result.sections["buy"] == []
@@ -111,10 +119,53 @@ def test_buy_retains_trigger_snapshot_instead_of_using_final_selection(scan):
     overrides = {**overrides, "basic_filter": {"data_reference": "signal_day", "price_min": 9.,
                                               "change_pct_min": None, "change_pct_max": None}}
     result = engine.run("custom_test", replace(context, current=current), overrides=overrides)
-    assert "600001.SH" not in {row["symbol"] for row in result.sections["select"]}
+    assert "600001.SH" in {row["symbol"] for row in result.sections["select"]}
     buy = next(row for row in result.sections["buy"] if row["symbol"] == "600001.SH")
     assert buy["close"] == 10.2
     assert buy["last_datetime"] == datetime(2026, 11, 2, 14, 30)
+
+
+def test_buy_only_evaluates_saved_members_without_shrinking_breadth_pool(scan, monkeypatch):
+    engine, context, overrides = scan
+    frozen = engine._selection_loader("custom_test", context.as_of)
+    frozen["rows"] = [row for row in frozen["rows"] if row["symbol"] == "600001.SH"]
+    engine._selection_loader = lambda *_: frozen
+    injected = []
+    def inject(frame, **kwargs):
+        injected.append((set(frame["symbol"]), kwargs["pool_symbols"]))
+        return frame
+    monkeypatch.setattr(engine, "_inject_intraday_signal_columns", inject)
+    called = []
+    original = engine.get("custom_test").filter_minute_history_fn
+    def trigger(frame, params):
+        called.append(set(frame["symbol"]))
+        return original(frame, params)
+    engine.get("custom_test").filter_minute_history_fn = trigger
+    result = engine.run("custom_test", context, overrides=overrides)
+    assert {row["symbol"] for row in result.sections["buy"]} == {"600001.SH"}
+    assert called == [{"600001.SH"}]
+    assert len(injected[0][1]) == 5
+    assert set(result.daily_stock_pool["symbols"]) == set(injected[0][1])
+
+
+@pytest.mark.parametrize("saved", [None, {"as_of": "2026-11-02", "source_date": "2026-10-30", "rows": []}])
+def test_empty_or_missing_selection_blocks_buy_and_retains_exit_hits(scan, monkeypatch, saved):
+    engine, context, overrides = scan
+    engine._selection_loader = lambda *_: saved
+    engine.get("custom_test").exit_signals = ["signal_exit"]
+    context.current = context.current.with_columns(pl.lit(True).alias("signal_exit"))
+    result = engine.run("custom_test", context, overrides=overrides)
+    assert result.sections["buy"] == []
+    assert result.exit_signal_hits
+    assert bool(result.section_errors.get("buy")) is (saved is None)
+    assert bool(result.section_errors.get("select")) is (saved is None)
+
+
+def test_future_strategy_run_cannot_generate_buy(scan, monkeypatch):
+    engine, context, overrides = scan
+    monkeypatch.setattr("app.market_time.cn_today", lambda: date(2026, 10, 30))
+    with pytest.raises(ValueError, match="未来交易日"):
+        engine.run("custom_test", context, overrides=overrides)
 
 
 def test_live_signal_result_keeps_minute_identity_and_sections(scan):

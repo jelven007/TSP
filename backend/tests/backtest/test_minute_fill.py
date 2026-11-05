@@ -228,7 +228,7 @@ def _ma5_panel(fill_close: float) -> pl.DataFrame:
         window = closes[max(0, i - 4): i + 1]
         ma5 = float("nan") if i < 4 else sum(window) / 5.0
         rows.append({
-            "symbol": "A", "name": "A",
+            "symbol": "600001.SH", "name": "A",
             "date": date(2024, 1, 1) + timedelta(days=i),
             "open": 9.5 if i == 4 else close,
             "high": 10.6 if i == 4 else close,
@@ -261,15 +261,15 @@ def test_polars_panel_minute_reference_strips_current_close():
         assert ref != pytest.approx((40.0 + c5) / 5.0)
 
 
-def test_polars_panel_minute_fill_independent_of_current_close():
-    """性质回归: 同一盘中路径只改当日收盘, polars 面板路径成交价必须相同。
+def test_polars_panel_minute_high_entry_independent_of_current_close():
+    """性质回归: 同一盘中路径只改当日收盘, 五分钟最高价成交必须相同。
 
-    建仓口径次日开盘 + 分钟成交。成交日盘中 open=9.5 / high=10.6,
-    参考线若含收盘则会随 c5 漂移, 成交价跟着变。
+    建仓口径次日开盘。成交日第一分钟 high=10.6, 因此统一容量撮合价为
+    10.6, 不再使用旧版参考线穿越价 10.0。
     """
     fills = {}
     minute = pl.DataFrame({
-        "symbol": ["A", "A"],
+        "symbol": ["600001.SH", "600001.SH"],
         "datetime": [
             datetime(2024, 1, 5, 9, 31),
             datetime(2024, 1, 5, 10, 0),
@@ -293,6 +293,7 @@ def test_polars_panel_minute_fill_independent_of_current_close():
                 entry_fill="open_t+1",
                 exit_fill="close_t",
                 minute_fill=True,
+                entry_capacity_window=True,
                 fees_pct=0,
                 slippage_bps=0,
                 max_positions=1,
@@ -303,4 +304,4 @@ def test_polars_panel_minute_fill_independent_of_current_close():
         assert len(result.trades) == 1
         fills[c5] = result.trades[0].entry_price
     assert fills[10.6] == pytest.approx(fills[9.6])
-    assert fills[10.6] == pytest.approx(10.0)
+    assert fills[10.6] == pytest.approx(10.6)

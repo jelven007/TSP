@@ -200,15 +200,15 @@ async def lifespan(app):
         resources.callback(financial_scheduler.stop)
 
         from app.services.minute_refresh import MinuteRefreshService
+        publisher = PublicPublisher(store.data_dir, os.environ["TSP_PUBLIC_MARKET_DIR"], repo._write_lock)
+        app.state.public_publisher = publisher
+        publisher.start()
+        resources.callback(publisher.close)
         minutes = MinuteRefreshService(repo)
         minutes.set_app_state(app.state)
         app.state.minute_refresh = minutes
         minutes.start()
         resources.callback(minutes.stop)
-        publisher = PublicPublisher(store.data_dir, os.environ["TSP_PUBLIC_MARKET_DIR"], repo._write_lock)
-        app.state.public_publisher = publisher
-        publisher.start()
-        resources.callback(publisher.close)
         quotes.boot_check()
         depth.boot_check()
         depth.start_polling()
@@ -229,5 +229,7 @@ async def lifespan(app):
             repo._on_refresh_done = None
             repo._on_warmup_done = None
             app.state.scheduler.pause()
+            from app.services.initial_sync import stop_startup_sync
+            await stop_startup_sync(app.state)
             await stop_initial_sync_job(getattr(app.state, "initial_sync_job_id", None))
             await daily_pipeline.stop_catalog_jobs()

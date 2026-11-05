@@ -222,43 +222,57 @@ def scenario(tmp_path: Path):
             (pl.col("symbol") == sym) & (pl.col("date") < before)
         ).sort("date").get_column("close")[-1]
 
+    t1_signal = round(_prev_close("000001.SZ", t1) * 1.07, 3)
+    t2_limit = round(_prev_close("600000.SH", t2) * 1.10, 3)
+    t3_signal = round(_prev_close("600000.SH", t3) * 1.06, 3)
+    t2_frame = _minute_frame(t2, [
+        ("000001.SZ", "09:31", round(_prev_close("000001.SZ", t2) * 1.004, 3)),
+        ("000002.SZ", "09:31", round(_prev_close("000002.SZ", t2) * 1.01, 3)),
+        ("600000.SH", "09:40", t2_limit),
+        *[("600000.SH", f"09:{minute:02d}", t2_limit) for minute in range(41, 46)],
+    ]).with_columns(*[
+        pl.when(
+            (pl.col("symbol") == "600000.SH")
+            & pl.col("datetime").dt.minute().is_between(41, 45)
+        ).then(t2_limit).otherwise(pl.col(column)).alias(column)
+        for column in ("open", "high", "low", "close")
+    ])
     minute_frames = {
         t1: _minute_frame(t1, [
             ("000001.SZ", "09:31", round(_prev_close("000001.SZ", t1) * 1.005, 3)),
-            ("000001.SZ", "09:35", round(_prev_close("000001.SZ", t1) * 1.07, 3)),  # 触发
+            ("000001.SZ", "09:35", t1_signal),
+            *[("000001.SZ", f"09:{minute:02d}", t1_signal + (minute - 35) * 0.01)
+              for minute in range(36, 41)],
             ("000002.SZ", "09:31", round(_prev_close("000002.SZ", t1) * 1.01, 3)),
             ("600000.SH", "09:31", round(_prev_close("600000.SH", t1) * 1.01, 3)),
         ]),
-        t2: _minute_frame(t2, [
-            ("000001.SZ", "09:31", round(_prev_close("000001.SZ", t2) * 1.004, 3)),
-            ("000002.SZ", "09:31", round(_prev_close("000002.SZ", t2) * 1.01, 3)),
-            # 涨停拒买: 触发分钟收盘 = T-1收盘 * 1.10 (主板涨停价, 半进位后相等)
-            ("600000.SH", "09:40", round(_prev_close("600000.SH", t2) * 1.10, 3)),
-        ]),
+        t2: t2_frame,
         t3: _minute_frame(t3, [
             ("000001.SZ", "09:31", round(_prev_close("000001.SZ", t3) * 1.004, 3)),
             ("000002.SZ", "09:31", round(_prev_close("000002.SZ", t3) * 1.01, 3)),
-            ("600000.SH", "09:50", round(_prev_close("600000.SH", t3) * 1.06, 3)),  # 触发
+            ("600000.SH", "09:50", t3_signal),
+            *[("600000.SH", f"09:{minute:02d}", t3_signal + (minute - 50) * 0.01)
+              for minute in range(51, 56)],
         ]),
     }
     service = _make_service(tmp_path, panel, minute_frames)
     return service, panel, {"t1": t1, "t2": t2, "t3": t3, "t4": days[-1]}, minute_frames
 
 
-def test_entry_at_trigger_minute_price(scenario):
+def test_entry_at_first_post_signal_minute_high(scenario):
     service, panel, days, _ = scenario
     result = service.run(_config(days["t1"], days["t3"]))
     assert not result.error, result.error
     entries = [t for t in result.trades if t["symbol"] == "000001.SZ"]
     assert len(entries) == 1
     trade = entries[0]
-    # 入场价 = 触发分钟 (09:35) 收盘价, 入场时间戳精确到分钟
+    # 入场价 = 信号后第一分钟 (09:36) 最高价, 入场时间戳精确到分钟
     prev_close = panel.filter(
         (pl.col("symbol") == "000001.SZ") & (pl.col("date") < days["t1"])
     ).sort("date").get_column("close")[-1]
-    expected_price = round(prev_close * 1.07, 3)
+    expected_price = round(prev_close * 1.07, 3) + 0.02
     assert trade["entry_price"] == pytest.approx(expected_price, abs=1e-6)
-    assert trade["entry_date"].startswith(f"{days['t1']} 09:35")
+    assert trade["entry_date"].startswith(f"{days['t1']} 09:36")
 
 
 def test_daily_window_strictly_before_trigger_day(scenario):
@@ -295,7 +309,7 @@ def test_limit_up_entry_rejected(scenario):
     entries_600000 = [t for t in result.trades if t["symbol"] == "600000.SH"]
     assert all(t["entry_date"][:10] == str(days["t3"]) for t in entries_600000)
     execution = result.stats.get("execution", {})
-    assert execution.get("buy_limit_up", 0) >= 1
+    assert execution.get("entry_unfilled_orders", 0) >= 1
     replay_stats = result.stats.get("minute_replay", {})
     assert replay_stats.get("replayed_days") == 3
 
@@ -361,7 +375,10 @@ def test_later_daily_limit_up_does_not_reject_earlier_minute_buy(tmp_path, mode)
     prev_close = original.filter(pl.col("date") == days[-3])["close"][0]
     limit = round(prev_close * 1.1, 2)
     trigger_price = round(prev_close * 1.06, 3)
-    frames = {entry_day: _minute_frame(entry_day, [(symbol, "09:35", trigger_price)])}
+    frames = {entry_day: _minute_frame(entry_day, [
+        (symbol, "09:35", trigger_price),
+        (symbol, "09:36", trigger_price + 0.01),
+    ])}
     results = []
     for sealed in (False, True):
         panel = original.with_columns(
@@ -378,8 +395,8 @@ def test_later_daily_limit_up_does_not_reject_earlier_minute_buy(tmp_path, mode)
         assert not result.error, result.error
         assert len(result.trades) == 1
         trade = result.trades[0]
-        assert trade["entry_price"] == pytest.approx(trigger_price)
-        assert trade["entry_date"] == f"{entry_day} 09:35"
+        assert trade["entry_price"] == pytest.approx(trigger_price + 0.02)
+        assert trade["entry_date"] == f"{entry_day} 09:36"
         assert trade["exit_date"][:10] > str(entry_day)  # T+1
         results.append(trade["entry_price"])
     assert results[0] == results[1]
@@ -387,7 +404,7 @@ def test_later_daily_limit_up_does_not_reject_earlier_minute_buy(tmp_path, mode)
 
 @pytest.mark.parametrize("mode", ["position", "full"])
 @pytest.mark.parametrize("fill_state", ["normal", "missing", "limit", "suspended", "nan", "delayed"])
-def test_next_minute_entry_uses_actual_open_and_fails_closed(tmp_path, fill_state, mode):
+def test_capacity_window_uses_high_and_allows_later_slot_after_missing_bar(tmp_path, fill_state, mode):
     days = _trading_days(30)
     entry_day, exit_day = days[-2:]
     symbol = "000001.SZ"
@@ -404,15 +421,100 @@ def test_next_minute_entry_uses_actual_open_and_fails_closed(tmp_path, fill_stat
         .otherwise(pl.col("open")).alias("open"),
         pl.when((pl.col("datetime").dt.minute() == 36) & pl.lit(fill_state == "suspended"))
         .then(0.0).otherwise(pl.col("volume")).alias("volume"),
+        *[
+            pl.when(
+                (pl.col("datetime").dt.minute() == 36)
+                & pl.lit(fill_state == "limit")
+            ).then(fill_price).otherwise(pl.col(column)).alias(column)
+            for column in ("high", "low", "close")
+        ],
     )
     service = _make_service(tmp_path, panel, {entry_day: minute})
     service.strategy_engine.get("test_minute_ping").meta["minute_entry_fill"] = "next_minute_open"
     result = service.run(_config(entry_day, exit_day, mode=mode))
-    if fill_state == "normal":
+    if fill_state in {"normal", "delayed"}:
         assert not result.error, result.error
         assert len(result.trades) == 1
-        assert result.trades[0]["entry_price"] == pytest.approx(fill_price)
-        assert result.trades[0]["entry_date"] == f"{entry_day} 09:36"
+        assert result.trades[0]["entry_price"] == pytest.approx(fill_price + 0.01)
+        expected_minute = "09:37" if fill_state == "delayed" else "09:36"
+        assert result.trades[0]["entry_date"] == f"{entry_day} {expected_minute}"
         assert result.trades[0]["entry_signal_date"] == f"{entry_day} 09:35"
     else:
         assert not result.trades
+
+
+def test_signal_availability_starts_capacity_window_at_next_complete_minute(tmp_path):
+    days = _trading_days(30)
+    entry_day, exit_day = days[-2:]
+    symbol = "000001.SZ"
+    panel = _daily_panel(days, [symbol])
+    previous = panel.filter(pl.col("date") == days[-3])["close"][0]
+    signal_price = round(previous * 1.06, 3)
+    times = ["14:30", "14:31", "14:32", "14:33", "14:34", "14:35", "14:36"]
+    minute = _minute_frame(
+        entry_day,
+        [(symbol, hm, signal_price + index * 0.01) for index, hm in enumerate(times)],
+    ).with_columns(pl.lit(1.0).alias("volume"))
+    service = _make_service(tmp_path, panel, {entry_day: minute})
+    original_run = service.strategy_engine.run
+
+    def delayed_run(*args, **kwargs):
+        run_result = original_run(*args, **kwargs)
+        for row in run_result.rows:
+            row["entry_evaluated_at"] = row["last_datetime"] + timedelta(seconds=90)
+        return run_result
+
+    service.strategy_engine.run = delayed_run
+    result = service.run(_config(
+        entry_day,
+        exit_day,
+        max_positions=1,
+        initial_capital=100_000,
+    ))
+
+    assert not result.error, result.error
+    buys = [fill for fill in result.fills if fill["side"] == "buy"]
+    assert buys[0]["datetime"] == f"{entry_day} 14:32:00"
+    assert [fill["datetime"] for fill in buys] == [
+        f"{entry_day} 14:{minute:02d}:00" for minute in range(32, 37)
+    ]
+    source_high = {
+        value.strftime("%Y-%m-%d %H:%M:%S"): high
+        for value, high in minute.select("datetime", "high").iter_rows()
+    }
+    assert all(fill["price"] == source_high[fill["datetime"]] for fill in buys)
+    assert result.trades[0]["raw_entry_shares"] == 500
+    assert result.trades[0]["entry_date"] == f"{entry_day} 14:32"
+
+
+def test_signal_near_close_uses_only_remaining_minutes_and_cancels_residual(tmp_path):
+    days = _trading_days(30)
+    entry_day, exit_day = days[-2:]
+    symbol = "000001.SZ"
+    panel = _daily_panel(days, [symbol])
+    previous = panel.filter(pl.col("date") == days[-3])["close"][0]
+    signal_price = round(previous * 1.06, 3)
+    minute = _minute_frame(entry_day, [
+        (symbol, "14:58", signal_price),
+        (symbol, "14:59", signal_price + 0.01),
+        (symbol, "15:00", signal_price + 0.02),
+    ]).with_columns(pl.lit(1.0).alias("volume"))
+    service = _make_service(tmp_path, panel, {entry_day: minute})
+
+    result = service.run(_config(
+        entry_day,
+        exit_day,
+        max_positions=1,
+        initial_capital=100_000,
+    ))
+
+    assert not result.error, result.error
+    buys = [fill for fill in result.fills if fill["side"] == "buy"]
+    assert [fill["datetime"] for fill in buys] == [
+        f"{entry_day} 14:59:00",
+        f"{entry_day} 15:00:00",
+    ]
+    assert result.trades[0]["raw_entry_shares"] == 200
+    execution = result.stats["execution"]
+    assert execution["entry_cancelled_shares"] > 0
+    assert execution["entry_partial_orders"] == 1

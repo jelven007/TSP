@@ -24,7 +24,7 @@ afterEach(async () => {
   vi.useRealTimers()
   permission.mockReturnValue(true)
 })
-async function render() {
+async function render(nextSelectionAfter?: string) {
   vi.setSystemTime(new Date(2026, 9, 27, 12))
   host = document.createElement('div')
   document.body.append(host)
@@ -32,11 +32,30 @@ async function render() {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   await act(async () => root.render(
     <QueryClientProvider client={client}>
-      <StrategyResultHistoryDialog strategyId="sample" onClose={() => {}} />
+      <StrategyResultHistoryDialog strategyId="sample" nextSelectionAfter={nextSelectionAfter} onClose={() => {}} />
     </QueryClientProvider>,
   ))
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
 }
+it('reads next-session saved selection without running a strategy or exposing deletion', async () => {
+  list.mockResolvedValue({ records: [{
+    record_id: 'next', strategy_name: 's02', strategy_version: 'saved',
+    as_of: '2026-11-02', params: {}, overrides: {}, total: 0, selection_count: 1,
+    selection_only: true, computed_at: 1000, asset_type: 'stock', timeframe: '1m',
+  }], next_cursor: null })
+  detail.mockResolvedValue({
+    summary: { strategy_name: 's02', as_of: '2026-11-02', params: {}, overrides: {} },
+    result: { as_of: '2026-11-02', rows: [], selection_only: true, section_mode: 'signals',
+      sections: { sell: [], select: [{ symbol: '600001.SH' }], buy: [] } },
+  })
+  await render('2026-10-30')
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
+  expect(list).toHaveBeenCalledWith('sample', undefined, { start_date: '2026-10-30', timeframe: '1m' })
+  expect(detail).toHaveBeenCalledWith('sample', 'next')
+  expect(document.body.textContent).toContain('次日选股')
+  expect(document.body.textContent).toContain('600001.SH')
+  expect([...document.querySelectorAll('button')].some(button => button.textContent === '删除')).toBe(false)
+})
 it('shows saved version and parameters and reads only the chosen record', async () => {
   list.mockResolvedValue({ records: [
     { record_id: 'record', strategy_name: '旧名称', strategy_version: 'old-version',
@@ -56,6 +75,33 @@ it('shows saved version and parameters and reads only the chosen record', async 
   expect(detail).toHaveBeenCalledWith('sample', 'record')
   expect(document.body.textContent).toContain('历史命中')
   expect(document.body.textContent).toContain('threshold')
+})
+it('distinguishes a missing next-session archive from a successful empty selection', async () => {
+  list.mockResolvedValue({ records: [], next_cursor: null })
+  await render('2026-10-30')
+  expect(document.body.textContent).toContain('尚未生成下一交易日的选名单')
+  expect(detail).not.toHaveBeenCalled()
+  list.mockResolvedValue({ records: [{
+    record_id: 'empty', strategy_name: 's02', strategy_version: 'saved',
+    as_of: '2026-11-02', params: {}, overrides: {}, total: 0, selection_count: 0,
+    selection_only: true, computed_at: 1000, asset_type: 'stock', timeframe: '1m',
+  }], next_cursor: null })
+  detail.mockResolvedValue({
+    summary: { strategy_name: 's02', as_of: '2026-11-02', params: {}, overrides: {} },
+    result: { as_of: '2026-11-02', rows: [], selection_only: true, section_mode: 'signals',
+      sections: { sell: [], select: [], buy: [] } },
+  })
+  await act(async () => client.invalidateQueries())
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)) })
+  expect(document.body.textContent).toContain('选 0')
+  expect(document.body.textContent).not.toContain('尚未生成下一交易日')
+  expect(detail).toHaveBeenCalledWith('sample', 'empty')
+})
+it('shows next-session read failure and never treats it as not generated', async () => {
+  list.mockRejectedValue(new Error('offline'))
+  await render('2026-10-30')
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain('读取失败')
+  expect(document.body.textContent).not.toContain('尚未生成')
 })
 it('shows load failure without treating it as an empty history', async () => {
   list.mockRejectedValue(new Error('offline'))

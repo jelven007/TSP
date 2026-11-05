@@ -119,6 +119,7 @@ const PERSISTENT_PREFERENCES = new Set([
   'strategy-pool', 'strategy-pool-1m', 'tf-stocks-query-config',
   'watchlist_columns', 'stock_info_bar_fields', 'stock_volume_compare',
   'stock_preview_intraday_days', 'stock_external_template', 'screener_result_columns',
+  'strategy_signal_columns',
   'watchlist_view', 'watchlist_showCandle', 'watchlist_showIntraday',
   'screener_showCandle', 'screener_showIntraday', 'screener_strategyTagsExpanded',
   'watchlist_boardFilter', 'watchlist_excludeST', 'watchlist_groupStats',

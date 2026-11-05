@@ -1,5 +1,19 @@
 # 代码二次开发与 AI 扩展指南
 
+本轮属于既有L3内部契约整合，无新公开插件API、Provider数据集或SQL迁移；
+真实入口和升级复核项见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
+当前保存默认60秒；下列90秒说明保留其历史来源，冻结定义不自动迁移。
+
+S02实时列属L3内部展示接线：复用ColumnConfig、账户storage和技术信号字段。
+`market-snapshot`的可选实时模式须按证券及当日缓存过滤，旧调用兼容；
+扩展不得将raw_close/实时评分覆盖历史归档字段。契约见
+[实现与验证](../reports/engineering/s02-live-results-20261106.md)。
+
+2026-11-06普通分钟信号历史查询为L3内部读取修复：现有`summaries`可按明确的
+信号策略范围读取同日扫描，API通过选定record_id读取明细；没有公开新API或schema。
+扩展须保留默认计算身份、成功空扫描、资格与实际扫描优先级和租户隔离，
+不能通过改写旧记录“恢复”历史，见[回执](../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+
 最新升级为 L3 有界内部修改：`Settings.retired_builtin_strategies` 控制内置发现，
 默认空，按来源和 ID 跳过，私有源不受影响；不提供数据清理或新的公开插件接口。
 隔夜费用可选 `transfer_fee_fixed` 使用元，预留含费预算并按汇总委托累计增量计费，

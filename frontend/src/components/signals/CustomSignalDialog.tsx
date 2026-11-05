@@ -54,7 +54,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
   const morning = draft.template === 'morning_liquidation'
   const specialized = lateSession || morning
   const lateParams = { ...LATE_SESSION_DEFAULTS, ...draft.params as Partial<LateSessionStrengthParams>,
-    evaluation_delay_minutes: 1.5 as const }
+    evaluation_delay_minutes: 1 as const }
   const storedMorning = draft.params as Partial<MorningLiquidationParams> | undefined
   const morningParams = {
     time: storedMorning?.time ?? MORNING_LIQUIDATION_DEFAULTS.time,
@@ -268,11 +268,11 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                         className="w-full" buttonClassName="h-9 w-full justify-start" />
                     </label>
                     {([
-                      ['pool_up_min_pct', '启动后90秒的当日股票池上涨占比下限（%）', 0, 100, 0.1],
+                      ['pool_up_min_pct', '启动后60秒的当日股票池上涨占比下限（%）', 0, 100, 0.1],
                       ['change_max_pct', '涨幅上限（%）', 0, 100, 0.1],
                       ['change_min_pct', '涨幅下限（%）', 0, 100, 0.1],
-                      ['ma5_1m_count', '启动后90秒的1分钟 MA5 连增数量', 2, 120, 1],
-                      ['ma5_5m_count', '启动后90秒的5分钟 MA5 连增数量', 2, 24, 1],
+                      ['ma5_1m_count', '启动后60秒的1分钟 MA5 连增数量', 2, 120, 1],
+                      ['ma5_5m_count', '启动后60秒的5分钟 MA5 连增数量', 2, 24, 1],
                     ] as const).map(([key, label, min, max, step]) => (
                       <label key={key} className="space-y-1.5">
                         <span className="text-[11px] text-muted">{label}</span>
@@ -284,12 +284,12 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     ))}
                   </div>
                   {signal?.template === 'late_session_strength'
-                    && (signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes !== 1.5 && (
-                    <p className="text-[11px] leading-5 text-amber-400">此信号使用旧确认时间，保存后改为启动后90秒确认。</p>
+                    && (signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes !== 1 && (
+                    <p className="text-[11px] leading-5 text-amber-400">此信号使用旧确认时间，保存后改为启动后60秒确认。</p>
                   )}
                   <p className="text-[11px] leading-5 text-muted">
-                    启动后90秒确认，当前确认时间为 {lateSessionCheckTime(lateParams)}，K线截止 {lateSessionBarTime(lateParams.time)}（北京时间）。
-                    确认的是90秒前的启动分钟数据，等待启动分钟K线完成并到达后计算，不使用确认分钟尚未完成的K线。
+                    启动后60秒确认，当前确认时间为 {lateSessionCheckTime(lateParams)}，K线截止 {lateSessionBarTime(lateParams.time)}（北京时间）。
+                    确认的是60秒前的启动分钟数据，等待启动分钟K线完成并到达后计算，不使用确认分钟尚未完成的K线。
                     以上条件为「且」关系。涨幅按启动分钟已完成收盘价相对原始昨收计算，区间包含上下限；上涨定义为涨幅大于 0。
                     上涨占比使用策略完整的当日股票池。MA5 使用已完成 K 线的收盘价，值相等不算递增，不跨午休或交易日。
                     连增数量指 MA5 值的数量：7 个值为 6 次严格递增；默认1分钟比较14:30至14:24。

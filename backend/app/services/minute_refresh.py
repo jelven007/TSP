@@ -26,7 +26,7 @@
   服务端响应 ~5s 时自动退化为响应节奏, 不会重叠请求。
 - 固定节奏: 默认 60s 一轮, 由1分K周期配置控制, 不补跑 (missed 轮次直接跳过);
   仅修复轮的自定义源下限抬到 60s (全天批量打不住 1s 节奏)。
-- 默认仅在交易日 09:15-11:45 / 13:00-15:30 运行, 午休/收盘后自动暂停与恢复;
+- 默认仅在交易日 09:30-11:30 / 13:00-15:00 运行, 结束分钟收尾刷新;
   午休后恢复因覆盖滞后会多跑一次修复轮, 幂等无害。
 - 不与其他分钟能力冲突: 与 盘后分钟同步 (kline.minute.batch) / 分时监控路径
   分属不同限流池; 落盘走 _write_minute_partition 的 unique(symbol,datetime)
@@ -82,6 +82,8 @@ class _RefreshState:
     rounds: int = 0
     last_round_at: float | None = None      # epoch 秒
     last_round_ms: float | None = None      # 单轮耗时
+    last_fetch_ms: float | None = None
+    last_write_ms: float | None = None
     last_rows: int = 0                      # 上轮写入行数 (合并后)
     last_symbols: int = 0                   # 上轮覆盖标的数
     last_requests: int = 0                  # 上轮请求数, provider 可包含协议重试
@@ -216,6 +218,14 @@ class MinuteRefreshService:
     # 主循环
     # ------------------------------------------------------------------
 
+    def _terminal_refresh_due(self, now=None) -> bool:
+        """结束分钟至少刷新一次, 避免常规间隔跳过最后已形成的1分K。"""
+        from app.services.kline_periods import get_configs
+        now = now or cn_now()
+        if not any(now.strftime("%H:%M") == end for _, end in get_configs()["1m"]["windows"]):
+            return False
+        return self._state.last_round_at is None or self._state.last_round_at < now.replace(second=0, microsecond=0).timestamp()
+
     def _loop(self) -> None:
         while not self._stop.is_set():
             try:
@@ -235,6 +245,8 @@ class MinuteRefreshService:
                         if gate is not None:
                             self._state.next_round_at = None
                             break  # 门控关闭 → 回外层等待重评估
+                        if self._terminal_refresh_due():
+                            break
                         remaining = next_mono - time.monotonic()
                         if remaining <= 0:
                             break
@@ -358,14 +370,22 @@ class MinuteRefreshService:
         self._state.rounds += 1
         self._state.last_round_at = time.time()
         self._state.last_round_ms = (time.perf_counter() - t0) * 1000
+        self._state.last_fetch_ms = fetch_ms
+        self._state.last_write_ms = write_ms
         self._state.last_rows = written
         self._state.last_mode = mode
         self._state.last_error = None
+        # Notify only after the entire provider round is committed. Publication
+        # runs on its own thread and still validates an immutable full release.
+        publisher = getattr(self._app_state, "public_publisher", None)
+        if publisher is not None:
+            publisher.request_minute_publish(cn_now())
         logger.info(
             "全量分钟[%s] 第 %d 轮: 取数 %.0fms (%d 请求, %d 标的), "
-            "落盘 %.0fms (%d 行), 总计 %.0fms",
+            "落盘 %.0fms (%d 行), 总计 %.0fms, completed_at=%.6f",
             mode_label, self._state.rounds, fetch_ms, self._state.last_requests,
             self._state.last_symbols, write_ms, written, self._state.last_round_ms,
+            self._state.last_round_at,
         )
 
     def _universe(self) -> list[str]:
@@ -424,6 +444,8 @@ class MinuteRefreshService:
             "rounds": self._state.rounds,
             "last_round_at": self._state.last_round_at,
             "last_round_ms": self._state.last_round_ms,
+            "last_fetch_ms": self._state.last_fetch_ms,
+            "last_write_ms": self._state.last_write_ms,
             "last_rows": self._state.last_rows,
             "last_symbols": self._state.last_symbols,
             "last_requests": self._state.last_requests,

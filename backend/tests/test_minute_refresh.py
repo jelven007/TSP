@@ -64,16 +64,14 @@ def test_refresh_window_boundaries():
     wk = datetime(2026, 8, 25, 10, 0)  # 周二
     assert _in_refresh_window(wk)
     assert not _in_refresh_window(datetime(2026, 8, 25, 9, 14))
-    assert _in_refresh_window(datetime(2026, 8, 25, 9, 15))
-    assert _in_refresh_window(datetime(2026, 8, 25, 11, 35))
-    assert _in_refresh_window(datetime(2026, 8, 25, 11, 44))
-    assert not _in_refresh_window(datetime(2026, 8, 25, 11, 45))
+    assert not _in_refresh_window(datetime(2026, 8, 25, 9, 29))
+    assert _in_refresh_window(datetime(2026, 8, 25, 9, 30))
+    assert _in_refresh_window(datetime(2026, 8, 25, 11, 30, 59))
+    assert not _in_refresh_window(datetime(2026, 8, 25, 11, 31))
     assert not _in_refresh_window(datetime(2026, 8, 25, 12, 59))
     assert _in_refresh_window(datetime(2026, 8, 25, 13, 0))            # 午后恢复
-    assert _in_refresh_window(datetime(2026, 8, 25, 15, 14))
-    assert _in_refresh_window(datetime(2026, 8, 25, 15, 20))
-    assert _in_refresh_window(datetime(2026, 8, 25, 15, 29, 59))
-    assert not _in_refresh_window(datetime(2026, 8, 25, 15, 30))
+    assert _in_refresh_window(datetime(2026, 8, 25, 15, 0, 59))
+    assert not _in_refresh_window(datetime(2026, 8, 25, 15, 1))
     assert not _in_refresh_window(datetime(2026, 8, 25, 15, 59))
     assert not _in_refresh_window(datetime(2026, 8, 25, 16, 0))
     assert not _in_refresh_window(datetime(2026, 8, 22, 10, 0))        # 周六

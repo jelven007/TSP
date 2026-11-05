@@ -12,18 +12,20 @@ import { StrategyDailyResults } from './StrategyDailyResults'
 type Props = {
   strategyId: string
   onClose: () => void
+  nextSelectionAfter?: string
 }
 
 export function StrategyResultHistoryDialog(props: Props) {
-  return <HistoryContent key={props.strategyId} {...props} />
+  return <HistoryContent key={`${props.strategyId}-${props.nextSelectionAfter ?? ''}`} {...props} />
 }
 
-function HistoryContent({ strategyId, onClose }: Props) {
+function HistoryContent({ strategyId, onClose, nextSelectionAfter }: Props) {
   const client = useQueryClient()
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
   const [recordId, setRecordId] = useState('')
   const [draft, setDraft] = useState<StrategyResultHistoryFilters>({})
-  const [filters, setFilters] = useState<StrategyResultHistoryFilters>({})
+  const [filters, setFilters] = useState<StrategyResultHistoryFilters>(
+    nextSelectionAfter ? { start_date: nextSelectionAfter, timeframe: '1m' } : {})
   const [filterError, setFilterError] = useState('')
   const [deleting, setDeleting] = useState<StrategyResultHistorySummary | null>(null)
   const [message, setMessage] = useState('')
@@ -32,11 +34,16 @@ function HistoryContent({ strategyId, onClose }: Props) {
   const history = useQuery({
     queryKey: QK.screenerHistory(strategyId, cursor, filters),
     queryFn: () => api.screenerResultHistory(strategyId, cursor, filters),
+    refetchInterval: nextSelectionAfter ? 30_000 : false,
   })
+  const records = nextSelectionAfter
+    ? history.data?.records.filter(record => record.as_of > nextSelectionAfter && record.selection_only) ?? []
+    : history.data?.records ?? []
+  const selectedRecord = recordId || (nextSelectionAfter ? records[0]?.record_id ?? '' : '')
   const detail = useQuery({
-    queryKey: QK.screenerHistoryDetail(strategyId, recordId),
-    queryFn: () => api.screenerResultHistoryDetail(strategyId, recordId),
-    enabled: !!recordId,
+    queryKey: QK.screenerHistoryDetail(strategyId, selectedRecord),
+    queryFn: () => api.screenerResultHistoryDetail(strategyId, selectedRecord),
+    enabled: !!selectedRecord,
   })
   const deletion = useMutation({
     mutationFn: (record: StrategyResultHistorySummary) => api.screenerResultHistoryDelete(strategyId, record.record_id),
@@ -79,14 +86,14 @@ function HistoryContent({ strategyId, onClose }: Props) {
   }
   const inputClass = 'min-w-0 h-8 rounded-btn border border-border bg-elevated px-2 text-xs text-foreground'
   return (
-    <Modal size="lg" onClose={onClose} closeDisabled={deletion.isPending} ariaLabel="策略历史结果">
+    <Modal size="lg" onClose={onClose} closeDisabled={deletion.isPending} ariaLabel={nextSelectionAfter ? '次日选股' : '策略历史结果'}>
       <div className="modal-header flex items-center justify-between gap-3">
-        <h2 className="text-base font-medium text-foreground">策略历史结果</h2>
+        <h2 className="text-base font-medium text-foreground">{nextSelectionAfter ? '次日选股' : '策略历史结果'}</h2>
         <button className="modal-close" onClick={onClose} disabled={deletion.isPending} aria-label="关闭"><X className="h-4 w-4" /></button>
       </div>
       <div className="modal-body space-y-4">
         <p className="text-xs text-muted">按计算时的名称、版本、参数和日期查看保存结果。</p>
-        <form className="flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap pb-1" onSubmit={event => {
+        {!nextSelectionAfter && <form className="flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap pb-1" onSubmit={event => {
           event.preventDefault()
           applyFilters(Object.fromEntries(Object.entries(draft).filter(([, value]) => value?.trim())
             .map(([key, value]) => [key, value!.trim()])))
@@ -121,7 +128,7 @@ function HistoryContent({ strategyId, onClose }: Props) {
             <button type="button" className="h-8 rounded-btn border border-border px-3 text-xs"
               onClick={() => { setDraft({}); applyFilters({}) }}>重置</button>
           </div>
-        </form>
+        </form>}
         {filterError && <p role="alert" className="text-xs text-danger">{filterError}</p>}
         {message && <p role="status" className="text-xs text-accent">{message}</p>}
         {history.isLoading && <p role="status">读取中…</p>}
@@ -131,28 +138,29 @@ function HistoryContent({ strategyId, onClose }: Props) {
             <button className="ml-2 underline" onClick={() => history.refetch()}>重试</button>
           </div>
         )}
-        {history.isSuccess && history.data.records.length === 0 && <p className="text-sm text-muted">
-          {Object.keys(filters).length ? '没有符合筛选条件的结果' : '暂无保存结果'}
+        {history.isSuccess && records.length === 0 && <p className="text-sm text-muted">
+          {nextSelectionAfter ? '尚未生成下一交易日的选名单。16:00启动，盘后数据未完成时自动重试。'
+            : Object.keys(filters).length ? '没有符合筛选条件的结果' : '暂无保存结果'}
         </p>}
-        {history.data?.records.map(record => (
+        {records.map(record => (
           <div key={record.record_id} className="rounded-btn border border-border p-3 space-y-1">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm min-w-0 break-words">{record.strategy_name} · {record.as_of}</span>
               <div className="flex shrink-0 gap-3">
                 <button className="text-xs text-accent" onClick={() => setRecordId(record.record_id)}>查看</button>
-                <button className="text-xs text-danger disabled:opacity-40" disabled={!canDelete || deletion.isPending}
+                {!nextSelectionAfter && <button className="text-xs text-danger disabled:opacity-40" disabled={!canDelete || deletion.isPending}
                   title={!canDelete ? '没有删除历史结果的权限' : '删除这条历史结果'}
-                  onClick={() => { deletion.reset(); setDeleting(record) }}>删除</button>
+                  onClick={() => { deletion.reset(); setDeleting(record) }}>删除</button>}
               </div>
             </div>
             <p className="text-xs text-muted break-all">
               股票 · {record.timeframe === '1m' ? '分钟' : '日线'}
-              {' · '}{record.total} 只 · 版本 {record.strategy_version.slice(0, 12)}
+              {' · '}{record.selection_only ? `选 ${record.selection_count ?? 0}` : record.total} 只 · 版本 {record.strategy_version.slice(0, 12)}
             </p>
             <p className="text-xs text-muted">计算于 {new Date(record.computed_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}</p>
           </div>
         ))}
-        {recordId && (
+        {selectedRecord && (
           <section className="border-t border-border pt-3 space-y-2">
             {detail.isLoading && <p role="status">读取明细中…</p>}
             {detail.isError && <p role="alert" className="text-danger">明细读取失败：{detail.error.message}</p>}
@@ -163,7 +171,7 @@ function HistoryContent({ strategyId, onClose }: Props) {
                   {JSON.stringify({ 参数: detail.data.summary.params, 配置: detail.data.summary.overrides }, null, 2)}
                 </pre>
                 {detail.data.result.sections ? <StrategyDailyResults
-                  key={recordId} result={{ ...detail.data.result, strategy: strategyId }}
+                  key={selectedRecord} result={{ ...detail.data.result, strategy: strategyId }}
                   positionLimit={Number(detail.data.summary.overrides.position_limit ?? detail.data.summary.params.position_limit ?? 5)} /> : <>
                 {detail.data.result.rows.length === 0 && <p className="text-xs text-muted">该次计算无命中</p>}
                 <div className="max-h-64 overflow-auto">

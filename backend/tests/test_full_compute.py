@@ -175,6 +175,66 @@ def test_executor_streams_progress_result_and_rejects_unknown_operations(socket_
         executor.execute({"kind": "shell", "command": "anything"})
 
 
+def test_monitor_broker_returns_host_timings_after_cleanup(socket_dir, monkeypatch):
+    import sys
+
+    from app.services.observability import reset_runtime_metrics, runtime_metrics_snapshot
+
+    cleanup = []
+    monkeypatch.setattr(subprocess, "run",
+                        lambda *_args, **_kwargs: cleanup.append(True) or SimpleNamespace(returncode=0))
+    reset_runtime_metrics()
+    with ComputeBroker(socket_dir / "timing.sock", "pinned", socket_dir, 1) as broker:
+        monkeypatch.setattr(broker, "command", lambda *_: [
+            sys.executable, "-c",
+            'import sys; sys.stdin.readline(); print(\'{"type":"result","payload":{"events":[]}}\')',
+        ])
+        thread = threading.Thread(target=broker.serve_forever, daemon=True)
+        thread.start()
+        try:
+            result = ComputeExecutor(str(socket_dir / "timing.sock")).execute({
+                "kind": "monitor", "tenant_id": "tenant-a",
+            })
+            timing = result["_compute_timing"]
+            assert timing["queued_at"] <= timing["started_at"] <= timing["finished_at"]
+            assert timing["queue_ms"] >= 0 and timing["sandbox_ms"] >= 0
+            assert cleanup == [True] and broker.permits.usage()["active"] == 0
+            assert broker.active_tenants == set() and broker._tenant_counts == {}
+            metrics = runtime_metrics_snapshot()
+            assert metrics["compute.queue"]["calls"] == metrics["compute.sandbox"]["calls"] == 1
+        finally:
+            broker.shutdown()
+            thread.join(2)
+
+
+def test_broker_cli_emits_stage_info_without_external_logging_config(socket_dir):
+    import os
+    import sys
+
+    code = """
+import sys
+from app.multitenancy import compute_broker as broker
+class Server:
+    def __init__(self, *args, **kwargs): pass
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+    def serve_forever(self, **kwargs):
+        broker.logger.info('compute job finished kind=monitor release=fixture queue_ms=1 sandbox_ms=2')
+broker.ComputeBroker = Server
+broker.os.chmod = lambda *_: None
+sys.argv = ['broker', '--socket', sys.argv[1] + '/probe.sock',
+            '--market-root', sys.argv[1], '--image', 'fixture']
+broker.main()
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(socket_dir)],
+        env={**os.environ, "TICKFLOW_ENV_FILE": "/dev/null"},
+        capture_output=True, text=True, timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "compute job finished kind=monitor release=fixture" in result.stderr
+
+
 def test_executor_cancellation_closes_transport_and_service_unavailability_is_503(socket_dir):
     tmp_path = socket_dir
     path = tmp_path / "compute.sock"

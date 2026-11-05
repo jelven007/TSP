@@ -60,7 +60,7 @@ def test_manual_startup_does_not_enqueue_sync(tmp_path, monkeypatch, partial):
 
 
 @pytest.mark.parametrize("partial", [False, True])
-def test_startup_defaults_to_scheduling_once_without_blocking_requests(tmp_path, monkeypatch, partial):
+def test_auto_startup_never_enqueues_initial_backfill(tmp_path, monkeypatch, partial):
     monkeypatch.setattr(initial_sync.preferences, "_path", lambda: tmp_path / "preferences.json")
     initial_sync.preferences._invalidate_cache()
     initial_sync.prepare_initial_sync(tmp_path)
@@ -81,12 +81,12 @@ def test_startup_defaults_to_scheduling_once_without_blocking_requests(tmp_path,
     )
 
     async def exercise():
-        assert await initial_sync.start_initial_sync(state) == "initial-job"
+        assert await initial_sync.start_initial_sync(state) is None
         assert await initial_sync.start_initial_sync(state) is None
 
     import asyncio
     asyncio.run(exercise())
-    assert calls == [{"source": "startup"}]
+    assert calls == []
 
 
 def test_failed_job_does_not_mark_initial_sync_complete(tmp_path, monkeypatch):

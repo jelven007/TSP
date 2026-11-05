@@ -1,7 +1,10 @@
 """First-install stock data initialization through the tracked pipeline."""
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+import threading
 from contextlib import nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
@@ -35,25 +38,50 @@ def prepare_initial_sync(data_dir: Path) -> None:
 
 
 async def start_initial_sync(state) -> str | None:
-    """Enqueue once per process; failures remain retryable through /pipeline/run."""
-    if not preferences.get_data_sync_auto_enabled():
-        return None
-    if getattr(state, "initial_sync_job_id", None):
-        return None
-    if not needs_initial_sync(state.repo.store.data_dir):
-        return None
-    from app.services.pipeline_runner import trigger_pipeline_job
+    """后台仅补当天已形成的五周期缺口, 不阻塞启动或执行首次历史全量同步。"""
+    from app.config import settings
+    from app.jobs.daily_pipeline import wait_for_catalog_jobs
+    from app.market_time import cn_today
+    from app.services import post_close_sync
 
-    response = await trigger_pipeline_job(
-        state.repo,
-        state.capabilities,
-        getattr(state, "quote_service", None),
-        source="startup",
-    )
-    if response["reused"]:
+    if (
+        settings.service_role not in {"standalone", "platform"}
+        or not preferences.get_data_sync_auto_enabled()
+        or getattr(state, "startup_sync_task", None) is not None
+    ):
         return None
-    state.initial_sync_job_id = response["job_id"]
-    return response["job_id"]
+    target_day = cn_today()
+    stop = threading.Event()
+    state.startup_sync_stop = stop
+
+    async def task():
+        try:
+            await wait_for_catalog_jobs()
+            first = True
+            while not stop.is_set() and cn_today() == target_day:
+                result = await asyncio.to_thread(
+                    post_close_sync.request_startup, state.repo,
+                    getattr(state, "capabilities", None), getattr(state, "quote_service", None),
+                    restart=first, stop=stop,
+                )
+                first = False
+                if result is None or result["status"] not in {"pending", "running"}:
+                    return
+                # 等待执行槽; 关闭事件可立即唤醒, 后台线程始终由本任务排空。
+                await asyncio.to_thread(stop.wait, 30)
+        except Exception:
+            logging.getLogger(__name__).exception("启动当日补缺失败")
+
+    state.startup_sync_task = asyncio.create_task(task(), name="startup-current-day-sync")
+    return None
+
+
+async def stop_startup_sync(state) -> None:
+    """协作取消并排空补缺线程后, 生命周期才可关闭仓库。"""
+    task = getattr(state, "startup_sync_task", None)
+    if task is not None:
+        state.startup_sync_stop.set()
+        await asyncio.shield(task)
 
 
 def check_provider_routes() -> None:

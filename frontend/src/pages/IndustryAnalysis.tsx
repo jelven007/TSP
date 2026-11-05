@@ -305,7 +305,7 @@ export function IndustryAnalysis() {
 
   const marketQuery = useQuery({
     queryKey: QK.marketSnapshot,
-    queryFn: api.marketSnapshot,
+    queryFn: () => api.marketSnapshot(),
     staleTime: 60_000,
   })
 

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -70,6 +71,8 @@ class ScreenerService:
         self.asset_type = asset_type
         from app.tickflow.repository import enriched_dirname
         self._enriched_dirname = enriched_dirname(asset_type)
+        self._pool_history_cache = {}
+        self._pool_history_lock = threading.Lock()
 
     @staticmethod
     def clear_history_cache() -> None:
@@ -436,6 +439,63 @@ class ScreenerService:
             elapsed_ms=elapsed,
         )
 
+    def _load_pool_history(self, target_date: date, lookback_days: int) -> pl.DataFrame:
+        """Pool scope needs published reference prices, not technical indicators."""
+        store = getattr(self.repo, "store", None)
+        if not getattr(store, "read_only", False):
+            return self._load_enriched_history(target_date, lookback_days)
+        cached = getattr(self.repo, "get_enriched_history", lambda *_: None)(target_date, lookback_days)
+        if cached is not None and not cached.is_empty():
+            return self._load_enriched_history(target_date, lookback_days)
+        root = store.data_dir.resolve()
+        if not (root / ".public_release.json").is_file():
+            return self._load_enriched_history(target_date, lookback_days)
+        key = (root, self.asset_type, target_date, lookback_days)
+        with self._pool_history_lock:
+            if key in self._pool_history_cache:
+                return self._pool_history_cache[key].clone()
+        partitions = sorted(
+            part for part in (root / self._enriched_dirname).glob("date=????-??-??")
+            if part.is_dir() and part.name[5:] <= target_date.isoformat()
+            and any(part.glob("*.parquet"))
+        )[-(lookback_days + 1):]
+        files = [str(path) for part in partitions for path in sorted(part.glob("*.parquet"))]
+        if files:
+            lazy = scan_enriched_parquet(files)
+            frame = (lazy.filter(pl.col("date") <= target_date)
+                     .sort(["symbol", "date"]).collect())
+        else:
+            frame = pl.DataFrame()
+        instruments = getattr(self.repo, "get_instruments_asset", lambda _: pl.DataFrame())("stock")
+        if not frame.is_empty() and not instruments.is_empty():
+            from app.indicators.pipeline import compute_limit_signals
+
+            # The existing limit kernel also owns the scope/status metadata.
+            # Use its smallest price branch to preserve that contract, without
+            # running indicators, edges, turnover or recursive streaks.
+            frame = compute_limit_signals(frame, instruments, needed={"signal_limit_up"})
+        if not frame.is_empty():
+            # Positive volume distinguishes observed trading from unknown halt
+            # status. Other numeric fields must not enter pool membership.
+            columns = [c for c in ("symbol", "date", "raw_close", "close", "volume",
+                                   "is_risk_warning", "instrument_status_known", "is_listed")
+                       if c in frame.columns]
+            frame = frame.select(columns)
+        if not frame.is_empty() and not instruments.is_empty() and "name" not in frame.columns:
+            columns = [c for c in ("symbol", "name", "total_shares", "float_shares")
+                       if c in instruments.columns]
+            frame = frame.join(instruments.select(columns), on="symbol", how="left")
+        with self._pool_history_lock:
+            if frame.estimated_size() <= 32 * 1024**2:
+                while self._pool_history_cache and (
+                    len(self._pool_history_cache) >= 4
+                    or sum(value.estimated_size() for value in self._pool_history_cache.values())
+                    + frame.estimated_size() > 32 * 1024**2
+                ):
+                    self._pool_history_cache.pop(next(iter(self._pool_history_cache)))
+                self._pool_history_cache[key] = frame.clone()
+        return frame
+
     def build_daily_pool_context(self, as_of: date, *, current=None, premarket=False, observed_at=None):
         """Load only scope/reference inputs, never minute formulas or positions."""
         from app.instrument_suspension import pool_evidence
@@ -445,7 +505,7 @@ class ScreenerService:
         if premarket:
             from app.strategy.basic_filter import previous_session
             prior = previous_session(as_of)
-            history = self._load_enriched_history(prior, 1)
+            history = self._load_pool_history(prior, 1)
             if not history.is_empty():
                 history = history.filter(pl.col("date") == prior)
             instruments = self.repo.get_instruments_asset("stock")
@@ -458,7 +518,7 @@ class ScreenerService:
                 current = current.with_columns(pl.lit(as_of).alias("date"))
             return StrategyDataContext("stock", "1d", as_of, current=current, pool_history=history,
                                        pool_universe=pool_evidence(self.repo, as_of, observed_at=observed_at))
-        history = self._load_enriched_history(as_of, 2)
+        history = self._load_pool_history(as_of, 2)
         if current is None:
             current = self._load_enriched_for_date(as_of)
         instruments = self.repo.get_instruments_asset("stock")
@@ -469,6 +529,33 @@ class ScreenerService:
             "stock", "1d", as_of, current=current, pool_history=history,
             pool_universe=pool_evidence(self.repo, as_of, instruments if as_of == cn_today() else None,
                                         observed_at=observed_at))
+
+    def build_selection_context(self, engine, source, target, strategy_ids, *, overrides_map=None):
+        """Only completed source-session daily inputs; no target-session quote or minute load."""
+        from app.strategy.basic_filter import previous_session
+        from app.strategy.engine import StrategyDataContext
+        if previous_session(target) != source:
+            raise ValueError("盘后预选日期不连续")
+        bars = max(1, engine.minute_daily_history_bars(strategy_ids, overrides_map=overrides_map))
+        history = self._load_enriched_history(source, bars)
+        if history is None or history.is_empty() or "date" not in history.columns:
+            raise ValueError("盘后预选缺少已完成日线数据")
+        history = history.filter(pl.col("date") <= source)
+        current = history.filter(pl.col("date") == source)
+        if current.is_empty():
+            raise ValueError(f"盘后预选缺少{source}完整行情")
+        from app.strategy.eligibility import attach_listing_age
+        instruments = self.repo.get_instruments_asset(self.asset_type)
+        history = attach_listing_age(history, instruments)
+        current = attach_listing_age(current, instruments)
+        from app.instrument_suspension import pool_evidence
+        from app.strategy.suspension import annotate
+        current = annotate(current, as_of=source, evidence=pool_evidence(
+            self.repo, source, observed_at=datetime.combine(source, clock_time(16))))
+        # A target-session return is unknown after the preceding close.
+        if "change_pct" in current.columns:
+            current = current.with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
+        return StrategyDataContext(self.asset_type, "1m", target, current=current, daily_history=history)
 
     def build_strategy_context(
         self,
@@ -555,7 +642,7 @@ class ScreenerService:
                 from app.backtest.momentum_run import prepare_daily
 
                 daily_history = prepare_daily(daily_history, self.repo, as_of=as_of)
-            return StrategyDataContext(
+            context = StrategyDataContext(
                 asset_type=self.asset_type,
                 timeframe=timeframe,
                 as_of=as_of,
@@ -568,6 +655,26 @@ class ScreenerService:
                 pool_universe=pool_context.pool_universe,
                 suspension_history=getattr(self.repo, "get_suspension_history", lambda: None)(),
             )
+            # 复牌股票的最后成交日可能早于两日池与指标窗口; 只补缺失的原始参考,
+            # 保留日期, 不能伪造前一交易日行情或改变流通市值参考。
+            load_prior = getattr(self.repo, "get_last_traded_closes", None)
+            if callable(load_prior) and instruments is not None and not instruments.is_empty():
+                from app.strategy.late_session_strength import previous_closes
+
+                missing = sorted(set(instruments["symbol"]) - set(previous_closes(context)))
+                if history is not None and "symbol" in history.columns:
+                    trading = set(history["symbol"])
+                    missing = [symbol for symbol in missing if symbol in trading]
+                if "listing_date" in instruments.columns:
+                    listed = set(instruments.filter(
+                        pl.col("listing_date").cast(pl.Date, strict=False) < as_of)["symbol"])
+                    missing = [symbol for symbol in missing if symbol in listed]
+                if missing:
+                    prior = load_prior(missing, as_of)
+                    if not prior.is_empty():
+                        parts = [frame for frame in (context.pool_history, prior) if frame is not None]
+                        context.pool_history = pl.concat(parts, how="diagonal_relaxed")
+            return context
         history_bars = engine.required_history_bars(
             strategy_ids,
             params_map=params_map,

@@ -30,6 +30,21 @@ async function render(result: ScreenerResult) {
 }
 
 describe('StrategyDailyResults', () => {
+  it('opens saved preselection on select and shows source time without a target-day return', async () => {
+    await render({
+      as_of: '2026-11-02', strategy: 'custom_test', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', selection_only: true,
+      selection_snapshot: { as_of: '2026-11-02', source_date: '2026-10-30',
+        generated_at: '2026-10-30T16:01:00+08:00', rows: [{ symbol: '600001.SH' }] },
+      sections: { sell: [], select: [{ symbol: '600001.SH', reference_date: '2026-10-30' }], buy: [] },
+      section_errors: { buy: '目标交易日买入信号尚未计算' },
+    })
+    expect(host.querySelector('[aria-selected="true"]')?.textContent).toContain('选')
+    expect(host.textContent).toContain('2026-10-30')
+    expect(host.textContent).toContain('16:01')
+    expect(host.textContent).toContain('600001.SH')
+    expect(host.textContent).not.toContain('当日涨幅')
+  })
   it('renders custom signal tabs without portfolio columns and keeps saved selection order', async () => {
     await render({
       as_of: '2026-11-02', strategy: 'custom_test', rows: [], total: 0, elapsed_ms: 0,
