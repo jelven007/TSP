@@ -2099,6 +2099,8 @@ class StrategyBacktestService:
             cancel_event=cancel_event,
         )
         timing_ms["minute_replay"] = replay.elapsed_ms
+        if replay.errors:
+            return _err("分钟入场回放校验失败: " + "; ".join(dict.fromkeys(replay.errors)))
         if cancel_event is not None and cancel_event.is_set():
             return StrategyBacktestResult(
                 run_id=run_id,

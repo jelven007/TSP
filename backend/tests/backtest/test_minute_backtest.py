@@ -172,6 +172,12 @@ def _make_service(
     strategy_engine = StrategyEngine(strategy_dirs=[strat_dir])
 
     repo = _FakeMinuteRepo(minute_frames)
+    def closing_inputs(day):
+        raw = panel.filter(pl.col("date") == day).select(
+            "symbol", "date", pl.col("raw_close").alias("close"),
+        )
+        return raw, raw.select("symbol", "close")
+    repo.get_daily_close_inputs = closing_inputs
     bt_engine = BacktestEngine(repo)
 
     def _load_panel(self, symbols, start, end, feature_plan, asset_type="stock", **kw):
@@ -257,6 +263,23 @@ def scenario(tmp_path: Path):
     }
     service = _make_service(tmp_path, panel, minute_frames)
     return service, panel, {"t1": t1, "t2": t2, "t3": t3, "t4": days[-1]}, minute_frames
+
+
+def test_invalid_prior_close_cannot_produce_a_successful_partial_nav(scenario):
+    service, _panel, days, _ = scenario
+    original = service.engine.repo.get_daily_close_inputs
+    bad_day = days["t1"] - timedelta(days=1)
+    while bad_day.weekday() >= 5:
+        bad_day -= timedelta(days=1)
+    def inputs(day):
+        raw, closing = original(day)
+        if day == bad_day:
+            raw = raw.with_columns(pl.lit("received").alias("quote_time_basis"))
+        return raw, closing
+    service.engine.repo.get_daily_close_inputs = inputs
+    result = service.run(_config(days["t1"], days["t3"]))
+    assert result.error and str(bad_day) in result.error
+    assert not result.equity_curve
 
 
 def test_entry_at_first_post_signal_minute_high(scenario):

@@ -67,6 +67,13 @@ def _validate_symbol(symbol: Any) -> bool:
 
 
 # ── 公开只读 API ───────────────────────────────────────
+def previous_session(day: date) -> date:
+    """返回已发布日历的精确前交易日; 日历未知时抛错, 不按行情缺根回退。"""
+    from app.strategy.basic_filter import previous_session as resolve
+
+    return resolve(day)
+
+
 def get_index_daily(symbol, start=None, end=None, columns=None):
     """读取指数日K(含技术指标)。未知 symbol / 无数据返回空 DataFrame。"""
     if not _validate_symbol(symbol):

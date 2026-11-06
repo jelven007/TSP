@@ -1,5 +1,20 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+本轮`daily_pipeline → get_daily_close_inputs → validate_daily_close`在派生前核对已完成交易日，
+分钟选股和回放复用该校验，冻结预选/昨收严格使用精确T-1。
+首次初始化将原配置分钟窗口提前至派生前采集和收盘核验；窗口外历史仅核验官方批量定版，
+不自动扩展全年分钟，也不据此免除后续消费者的精确T-1竞价校验。
+`MinuteSignalReplayer → selection_snapshots → StrategyEngine`重建研究资格并传播分区错误；
+建议归档/排序与历史实盘记录分离。完整调用链、来源及兼容见[统一候选](upgrade-20261107.md)。
+
+2026-11-07发布工程候选将版本输出SHA同时传给前后端质量门和容器构建。
+Runtime双架构→由其索引digest派生Compute双架构→完整身份矩阵；
+联合成功后创建Git标签并正式提升，候选标签不作生产指针。
+编排复用既有环境命令，按私有输入/输出摘要和环境锁保存阶段回执；
+两版恢复与容量前置、OCI按digest增量下载、精确业务哈希差分见
+[发布流水线](release-pipeline.md)。没有应用API/schema变更；生产事务审计接线仍待完成，
+本地暂停及真实备份恢复、重启和业务验收保留。
+
 当前统一调用链与兼容边界见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
 本轮60秒确认、冻结资格、历史归档/实时缓存与建仓窗口分别保留身份；旧90秒说明属于历史契约。
 

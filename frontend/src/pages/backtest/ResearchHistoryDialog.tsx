@@ -21,6 +21,11 @@ const STATES: Record<string, string> = {
   interrupted: '中断', skipped_prerequisite: '数据条件不足',
 }
 
+function slippageBps(job: ResearchJob) {
+  const legacy = (job.config?.params as Record<string, unknown> | undefined)?.slippage
+  return legacy != null ? Number(legacy) * 10000 : Number(job.config?.slippage_bps ?? 0)
+}
+
 export function ResearchHistoryDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -78,7 +83,7 @@ export function ResearchHistoryDialog({ onClose }: { onClose: () => void }) {
         {!visible.length && <p className="py-10 text-center text-sm text-muted">{jobs.isLoading ? '正在加载…' : '暂无研究任务'}</p>}
         {!!visible.length && <table className="w-full min-w-[650px] text-left text-xs"><thead className="border-b border-border text-muted"><tr><th className="py-2">任务</th><th>状态</th><th>创建时间</th><th>来源</th><th className="text-right">操作</th></tr></thead>
           <tbody>{visible.map(job => <tr key={job.id} className="border-b border-border/50">
-            <td className="max-w-80 py-3 pr-4"><span className="block font-medium">{KINDS[job.kind] || job.kind}{job.config?.strategy_id ? ` · ${job.config.strategy_id}` : ''}</span>{job.config?.strategy_id && <span className="mt-1 block text-muted">{String(job.config.start || '')}～{String(job.config.end || '')} · {Number((job.config.params as Record<string, unknown> | undefined)?.initial_cash || job.config.initial_capital || 0).toLocaleString('zh-CN')} 元 · {Number((job.config.params as Record<string, unknown> | undefined)?.slippage || 0) * 10000} 基点</span>}<span className="mt-1 block font-mono text-[10px] text-muted">{job.id.slice(0, 12)}</span>{job.error && <span className="mt-1 block text-danger">{job.error}</span>}</td>
+            <td className="max-w-80 py-3 pr-4"><span className="block font-medium">{KINDS[job.kind] || job.kind}{job.config?.strategy_id ? ` · ${job.config.strategy_id}` : ''}</span>{job.config?.strategy_id && <span className="mt-1 block text-muted">{String(job.config.start || '')}～{String(job.config.end || '')} · {Number((job.config.params as Record<string, unknown> | undefined)?.initial_cash || job.config.initial_capital || 0).toLocaleString('zh-CN')} 元 · {slippageBps(job)} 基点</span>}<span className="mt-1 block font-mono text-[10px] text-muted">{job.id.slice(0, 12)}</span>{job.error && <span className="mt-1 block text-danger">{job.error}</span>}</td>
             <td className={ACTIVE.has(job.status) ? 'text-accent' : 'text-secondary'}>{STATES[job.status] || job.status}</td>
             <td className="text-muted">{new Date(job.created_at).toLocaleString('zh-CN', { hour12: false })}</td>
             <td className="text-muted">{job.metadata.source === 'scheduled' ? '定时' : job.metadata.source === 'legacy' ? '历史导入' : job.metadata.source === 'restored_research' ? '本次研究回测' : '手动'}</td>

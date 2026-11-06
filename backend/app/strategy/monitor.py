@@ -1235,6 +1235,8 @@ class MonitorRuleEngine:
             payload["daily_stock_pool"] = result.daily_stock_pool
         if getattr(result, "daily_stock_pool_error", None):
             payload["daily_stock_pool_error"] = result.daily_stock_pool_error
+        if getattr(result, "price_suggestion_reference", None) is not None:
+            payload["price_suggestion_reference"] = result.price_suggestion_reference
         return payload
 
     def publish_strategy_group(

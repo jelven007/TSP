@@ -1,6 +1,6 @@
 """Two independent premarket batches, with exact session inputs and durable retries."""
 # ruff: noqa: F401,F811 -- reuse the strategy fixture.
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -55,7 +55,11 @@ def test_premarket_context_ignores_same_day_prices_and_loads_previous_session(mo
     from app.services.screener import ScreenerService
 
     instruments = pl.DataFrame({"symbol": ["600000.SH"], "name": ["当前名称"], "float_shares": [1e9]})
-    service = ScreenerService(SimpleNamespace(get_instruments_asset=lambda _: instruments))
+    reference = frames().filter(pl.col("date") == PRIOR)
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda _: instruments,
+        get_daily_close_inputs=lambda _: (reference, reference.select("symbol", "close")),
+    ))
     calls = []
     monkeypatch.setattr(service, "_load_enriched_history",
                         lambda day, count: calls.append((day, count)) or frames())
@@ -81,6 +85,16 @@ def test_real_parquet_premarket_reference_excludes_future_day(engine, tmp_path, 
         pl.col("close").alias("high"), pl.col("close").alias("low"),
         pl.lit(1e7).alias("amount"), pl.lit(1.0).alias("turnover_rate"))
     data.write_parquet(directory / "sample.parquet")
+    reference = data.filter(pl.col("date") == PRIOR)
+    for table, frame in (
+        ("kline_daily", reference),
+        ("kline_minute", reference.select("symbol", "close").with_columns(
+            pl.lit(datetime.combine(PRIOR, time(15))).alias("datetime"),
+        )),
+    ):
+        part = tmp_path / table / f"date={PRIOR}"
+        part.mkdir(parents=True, exist_ok=True)
+        frame.write_parquet(part / "part.parquet")
     instruments = pl.DataFrame({"symbol": ["600000.SH", "600001.SH", "600002.SH"],
                                 "name": ["A", "B", "C"], "float_shares": [1e9] * 3})
     monkeypatch.setattr(repo, "get_instruments_asset", lambda _: instruments)

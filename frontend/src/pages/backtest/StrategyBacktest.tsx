@@ -313,6 +313,7 @@ const mergeStrategyParams = (detail: StrategyDetail, values?: Record<string, any
 })
 const normalizeStrategyOverrides = (detail: StrategyDetail, values?: Record<string, any> | null) => {
   const next = { ...(values ?? {}) }
+  next.overlay_filter = next.overlay_filter ?? detail.overlay_filter ?? []
   const savedScoring = next.scoring && typeof next.scoring === 'object' ? next.scoring : {}
   next.scoring = next.scoring_replace === true
     ? { ...savedScoring }
@@ -332,6 +333,7 @@ const normalizeStrategyOverrides = (detail: StrategyDetail, values?: Record<stri
 }
 const buildDefaultOverrides = (detail: StrategyDetail) => normalizeStrategyOverrides(detail, {
   basic_filter: { ...detail.basic_filter },
+  overlay_filter: detail.overlay_filter ?? [],
   entry_signals: detail.entry_signals.map(toSignalId),
   exit_signals: detail.exit_signals.map(toSignalId),
   scoring: { ...detail.scoring },
@@ -358,6 +360,7 @@ const strategyBacktestConfigSignature = (detail: StrategyDetail) => JSON.stringi
   scoring_directions: detail.scoring_directions,
   entry_signals: detail.entry_signals,
   exit_signals: detail.exit_signals,
+  overlay_filter: detail.overlay_filter,
   stop_loss: detail.stop_loss,
   entry_risk: detail.entry_risk,
   take_profit: detail.take_profit,

@@ -383,6 +383,34 @@ def run_now(
         raise PipelineStageError(["首次股票日K同步返回 0 行,请检查日线数据源"])
     _invalidate("daily")
 
+    # First installs have no auction evidence yet. Collect the configured minute
+    # window before validating or deriving daily data, without expanding it to a year.
+    written_minute = 0
+    initial_minute_start = None
+    if initial_sync:
+        if not capset.has(Cap.KLINE_MINUTE_BATCH):
+            raise PipelineStageError(["首次同步缺少分钟K能力"])
+        minute_days = _prefs.get_minute_sync_days()
+        emit("sync_minute", 45, "首次同步收盘校验所需分钟K…")
+        written_minute = kline_sync.sync_and_persist_minute(
+            _resolve_minute_symbols(capset, repo), repo, capset, days=minute_days,
+            force_full_days=True, strict=True,
+        )
+        if written_minute == 0:
+            raise PipelineStageError(["首次分钟K同步返回 0 行,请检查分钟数据源"])
+        initial_minute_start = today - _td(days=int(minute_days * 7 / 5) + 5)
+        _invalidate("minute")
+
+    # Source synchronization is not proof of auction finality. Stop before any
+    # derived publication or next-session selection if completed inputs disagree.
+    if pull_a_share or override_start_date is not None:
+        from app.services.daily_close_validation import validate_completed_pipeline
+
+        validate_completed_pipeline(
+            repo, daily_range_start or range_end, range_end, now=cn_now(),
+            **({"minute_start": initial_minute_start} if initial_sync else {}),
+        )
+
     # 完整性修复时删除股票 enriched 的坏分区: 增量重算只算 enriched 里不存在
     # 的日期, 盘中快照日分区已存在(虽是错的), 不删永远不会被重算。删除后
     # Step 2 把这些日期当"新日期"重算 (剩余分区最近 60 天做历史前缀, 窗口 ≤5 天回看充足)。
@@ -614,8 +642,10 @@ def run_now(
     from app.services import preferences
     minute_on = override_end_date is None and (initial_sync or preferences.get_minute_sync_enabled())
     minute_days = preferences.get_minute_sync_days()
-    written_minute = 0
-    if minute_on and capset.has(Cap.KLINE_MINUTE_BATCH):
+    if initial_sync:
+        # Already collected and checked before daily derivation.
+        emit("sync_minute", 93, f"首次分钟K完成,{written_minute} 行")
+    elif minute_on and capset.has(Cap.KLINE_MINUTE_BATCH):
         minute_start = today - _td(days=minute_days)
         emit("sync_minute", 90, f"获取分钟K [{minute_start} ~ {today}]…")
         logger.info("sync_minute: [%s ~ %s] start", minute_start, today)

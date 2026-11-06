@@ -248,6 +248,7 @@ class StrategyResult:
     section_errors: dict[str, str] | None = None
     selection_snapshot: dict | None = None
     selection_only: bool = False
+    price_suggestion_reference: dict | None = None
 
 
 @dataclass
@@ -993,8 +994,12 @@ class StrategyEngine:
                                     daily_pool=daily_pool)
         if signal_sections:
             from app.strategy.late_session_strength import pending_evaluation_time
+            from app.strategy.signal_price_suggestions import price_reference, suggested_lots
 
             result.section_mode = "signals"
+            result.price_suggestion_reference = price_reference(context)
+            result.rows = [{**row, "suggested_lots_100k": suggested_lots(row.get("close"))}
+                           for row in result.rows]
             result.section_errors = {}
             selected = _sanitize(selection["rows"]) if selection is not None else []
             result.selection_snapshot = selection

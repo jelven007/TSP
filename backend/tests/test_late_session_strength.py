@@ -12,6 +12,15 @@ TARGET = datetime(2026, 9, 4, 14, 30)
 POOL = ["a", "b", "c", "d", "e"]
 
 
+def close_inputs(day):
+    assert day == DAY - timedelta(days=1)
+    raw = pl.DataFrame({"symbol": POOL, "date": [day] * len(POOL), "close": [10.] * len(POOL)})
+    closing = raw.select("symbol", "close").with_columns(
+        pl.lit(datetime.combine(day, datetime.min.time()).replace(hour=15)).alias("datetime"),
+    )
+    return raw, closing
+
+
 def definition(**params):
     return {
         "id": "late_session_strength", "name": "尾盘走强", "kind": "entry",
@@ -310,6 +319,8 @@ def filter_minute_history(df, params):
         def list_minute_dates(self, *args):
             return [DAY]
 
+        get_daily_close_inputs = staticmethod(close_inputs)
+
         def get_minute_by_dates(self, symbols, *args):
             calls.append(set(symbols))
             return bars().filter(pl.col("symbol").is_in(symbols))
@@ -317,6 +328,7 @@ def filter_minute_history(df, params):
     replayer = MinuteSignalReplayer(SimpleNamespace(repo=Repo()), strategy_engine)
     result = replayer.replay(strategy_engine.get("sample"), panel=panel, start=DAY, end=DAY,
                              params={}, overrides={"entry_signals": ["csgi_late_session_strength"]})
+    assert not result.errors
     assert {hit.symbol for hit in result.hits} == set(POOL[:3])
     assert all(hit.trigger_time == target.strftime("%H:%M") for hit in result.hits)
     assert all(hit.entry_window_start == target for hit in result.hits)

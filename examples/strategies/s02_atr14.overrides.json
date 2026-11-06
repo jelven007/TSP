@@ -1,0 +1,43 @@
+{
+  "basic_filter": {
+    "boards": ["沪主板", "深主板"],
+    "enabled": true,
+    "price_min": 4,
+    "price_max": 150,
+    "amount_min": null,
+    "amount_max": null,
+    "exclude_st": true,
+    "target_mode": "selected",
+    "turnover_min": 1,
+    "turnover_max": 11,
+    "float_cap_min": 5000000000,
+    "float_cap_max": 50000000000,
+    "change_pct_min": 0.5,
+    "change_pct_max": 6,
+    "data_reference": "previous_trade_day",
+    "include_custom": false,
+    "market_cap_min": null,
+    "market_cap_max": null,
+    "exclude_new_days": null,
+    "exclude_suspended": true,
+    "watchlist_group_ids": []
+  },
+  "overlay_filter": [
+    {"left": "amount_mean_20d", "op": ">=", "right": "1.0", "leftDays": 0, "rightDays": 0}
+  ],
+  "entry_signals": ["csgi_late_session_strength"],
+  "exit_signals": ["csgi_morning_liquidation"],
+  "scoring": {},
+  "scoring_directions": {},
+  "scoring_replace": true,
+  "stop_loss": null,
+  "entry_risk": {},
+  "take_profit": null,
+  "trailing_stop": null,
+  "trailing_take_profit_activate": null,
+  "trailing_take_profit_drawdown": null,
+  "score_min": null,
+  "score_max": null,
+  "max_hold_days": null,
+  "display_limit": null
+}

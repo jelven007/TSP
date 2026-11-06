@@ -1,5 +1,20 @@
 # 测试与验收指南
 
+2026-11-07完整候选的回归范围、命令和签收边界见[统一候选](upgrade-20261107.md#开发测试及发布门禁)。
+新增收盘测试覆盖接收时钟/竞价差价/重复与缺分钟/有日期停牌/文件替换/精确T-1；
+分钟集成覆盖混合有效和错误日期拒绝成功部分NAV，SQL覆盖建议保存/回滚/租户与冻结字段。
+测试合成数据必须提供真实契约的原始日线和15:00证据，不在生产校验中为假Repository加后门。
+首次初始化回归核对先采集分钟、再校验及派生的顺序，竞价不一致不得生成加工或发布数据；
+配置分钟窗口外历史只认证官方批量口径，接收时钟仍拒绝，消费时精确T-1校验保持。
+新计数与lint/build状态以本轮实际日志为准；本地暂停，PostgreSQL在CI隔离服务验证。
+
+本轮PR端点额度测试增加Event延迟服务器EOF清理，真实客户端唯一TCP对峰值必须
+为9且不超9，业务额度8、第二任务组拒绝/释放后重获分别断言。
+原服务器处理线程计数断言连续三次失败，真实TCP保持8＋1；修正后原生池与全部
+任务额度26通过、50.00秒，恢复旧断言再次失败，Ruff通过。
+根因、五处同模式待专项核验和远程CI边界见
+[端点计数回归](../.claude/artifacts/fixes/endpoint-quota-server-counter.md)。
+
 本轮完整质量门和双端验收见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
 下列计数保留各次原始验证身份；不能将旧定向测试或合成回测外推为本轮部署通过。
 
@@ -1184,7 +1199,7 @@ uv run --frozen --no-sync pytest ../tests/tooling tests/test_version_source.py -
 测试覆盖格式范围、进位和上限、全部当前版本文件同步、历史报告及依赖版本保留、
 非法输入不写文件，并使用临时 bare Git 仓库验证远程合并后递增、重跑去重、并发
 冲突重试、权限拒绝和未推送提交的保护。workflow 测试还验证质量门与镜像构建使用
-同一 SHA，以及版本 artifact 缺失或非法时停止构建。
+同一 SHA，以及非法revision、必要任务失败和不完整角色矩阵阻断正式提升。
 自动标签测试使用临时 bare Git 仓库验证精确提交、主线归属、版本一致性、
 重跑和并发幂等、已有 annotated tag 复用、同名冲突不覆盖及权限拒绝。
 
@@ -1198,12 +1213,14 @@ uv run --frozen --no-sync pytest ../tests/tooling tests/test_version_source.py -
 | Version | Ubuntu、Python 3 | PR 校验分支未人工改号；merge_group 只读检查；远程 `main` push 自动递增并输出实际待测 SHA |
 | Backend | Ubuntu、Python 3.12 | `uv sync --extra dev --extra cell --frozen`；`uv run pytest tests -q` |
 | Frontend | Ubuntu、Node 20、pnpm 9 | `pnpm test`；`pnpm lint`；`pnpm build` |
-| Tag | Ubuntu、Python 3 | 仅主线 push，Version/Backend/Frontend 全部成功后运行 `tag_version.py`，创建同一 SHA 的版本标签 |
+| Containers | 可复用Docker workflow | main定版后与Backend/Frontend并行；Runtime双架构→Compute双架构→身份矩阵 |
+| Tag | Ubuntu、Python 3 | 仅主线 push，Version/Backend/Frontend/Containers 全部成功后运行 `tag_version.py` |
+| Promote | 可复用提升workflow | 上述任务及Tag全部成功，复核四镜像身份后提升正式镜像标签；latest另有串行/当前main检查 |
 
 Backend 和 Frontend 均依赖 Version，检出其输出的 SHA。每个主线 push 保留独立
 运行，PR 可取消旧检查。自动版本提交使用 `GITHUB_TOKEN`，不触发递归 CI；
 版本写回失败会阻止后续质量门，质量门失败不会撤销已分配的版本。
-Tag 失败会使 CI 失败并阻止后续 Docker 构建。重跑复用同一提交的现有标签；
+质量或构建失败阻断Tag；Tag失败会使CI失败并阻止正式镜像提升。重跑复用同一提交的现有标签；
 冲突标签保持原样，流程不使用强制推送。自动标签不表示桌面包或生产验收完成。
 
 后端全量测试包含 Tier A OpenAPI 契约门禁，检查：
@@ -1221,13 +1238,21 @@ JSON 注入处理函数未返回的缺省字段。快照失败时必须确认兼
 省略参数保留旧响应，69端点和响应组件不变。目录回归同时验证所选Provider返回的
 固定七只指数均保存，不能继续用旧单指数夹具数量判断失败。
 
-`.github/workflows/docker.yml` 的 `main` 构建只接受主线 push 的成功 CI
-`workflow_run`，从该次运行的 `ci-revision` artifact 读取实际通过测试的 SHA，
-不使用触发 CI 时尚未加号的 `head_sha`。tag 和手动构建会在 workflow 内重新运行
-同等的后端与前端质量门。镜像依赖安装使用 frozen lockfile，锁文件漂移直接失败。
+`.github/workflows/docker.yml` 改为由main CI直接复用，从Version输出接收SHA；
+不使用触发CI时尚未加号的 `head_sha`。tag和手动构建仍有独立后端/前端质量门。
+Runtime与Compute两角色、两架构全部核验；镜像依赖安装使用frozen lockfile。
 Actions 使用 `GITHUB_TOKEN` 创建 Git 标签不会触发 tag push 构建；
-主线成功 CI 的现有构建链路写入提交 SHA 和 `v<应用版本>` 镜像标签。
+构建先写临时标签，`docker-promote.yml`只在联合通过后写完整SHA及应用版本镜像标签。
 `latest` 独立串行提升，只有提升时仍为当前 main 的构建 SHA 可更新。
+
+发布工具的定向门为 `make check-release PYTHON=<冻结Python> RUFF=<冻结Ruff>`，
+按目录/文档/版本/diff→定向Ruff→发布工具回归执行，不启动产品服务。
+新增回归覆盖环境锁、输入变更、回执失效、write中断不重放、暂停保护、两版实际文件、
+容量合并预算、四镜像源码/角色身份、缓存冷/热/离线/续传/污染及精确业务哈希链。
+tar成员校验覆盖缺失/额外/重复/危险路径和旧清单兼容；工作流另用actionlint验证。
+完整tools测试仍需执行。CLI模拟不代替真实四镜像构建/导入、数据库恢复、重启登录、
+S02历史/完整池/OHLC/桌面窄屏验收及三次真实发布计时。
+业务快照/哈希审计的生产采集仍未接线，具体限制见[发布流水线](release-pipeline.md)。
 
 `.github/workflows/release.yml` 的手动桌面发版也有独立质量门：后端执行 frozen
 依赖安装和全量 pytest，前端执行 frozen 安装、Vitest、ESLint 与生产构建。只有

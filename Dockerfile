@@ -1,6 +1,10 @@
 # 两阶段构建:前端 dist 拷进后端镜像,单容器运行
 # 可选:构建网络无法直连官方源时,传入 --build-arg USE_CN_MIRROR=1 启用国内镜像
 ARG BASE_IMAGE_REGISTRY=docker.io
+ARG NODE_ALPINE_IMAGE=${BASE_IMAGE_REGISTRY}/library/node:20-alpine
+ARG NODE_IMAGE=${BASE_IMAGE_REGISTRY}/library/node:20-bookworm-slim
+ARG RUST_IMAGE=${BASE_IMAGE_REGISTRY}/library/rust:1.99-slim-bookworm
+ARG PYTHON_IMAGE=${BASE_IMAGE_REGISTRY}/library/python:3.11-slim-bookworm
 ARG USE_CN_MIRROR=1
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG PYPI_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -11,7 +15,7 @@ ARG CODEX_CLI_VERSION=0.144.3
 ARG UV_VERSION=0.12.17
 
 # === Stage 1: 前端构建 ===
-FROM ${BASE_IMAGE_REGISTRY}/library/node:20-alpine AS frontend-builder
+FROM ${NODE_ALPINE_IMAGE} AS frontend-builder
 ARG USE_CN_MIRROR=1
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 WORKDIR /build
@@ -29,7 +33,7 @@ RUN pnpm build
 
 # === Stage 1b: Codex CLI ===
 # 固定版本保证镜像可复现；只复制安装产物到运行镜像，不保留 npm。
-FROM ${BASE_IMAGE_REGISTRY}/library/node:20-bookworm-slim AS codex-builder
+FROM ${NODE_IMAGE} AS codex-builder
 ARG USE_CN_MIRROR=1
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 # 版本由顶层 ARG CODEX_CLI_VERSION 提供, 这里仅声明以继承, 不再重复默认值。
@@ -45,7 +49,7 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then npm config set registry "$NPM_REGISTRY";
 # === Stage 1c: rustdx native bridge ===
 # Build once outside the runtime image. The resulting CPython 3.11 wheel is
 # architecture-specific, so Buildx produces it independently for amd64/arm64.
-FROM ${BASE_IMAGE_REGISTRY}/library/rust:1.99-slim-bookworm AS rustdx-builder
+FROM ${RUST_IMAGE} AS rustdx-builder
 ARG USE_CN_MIRROR=1
 ARG PYPI_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
@@ -71,13 +75,34 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
        fi
 WORKDIR /build
 COPY backend/native/rustdx_native ./
-RUN --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/usr/local/cargo/registry \
+ARG TARGETARCH
+ARG NATIVE_CACHE_KEY=cp311-rust199-local
+RUN --mount=type=cache,id=tsp-cargo-git-${TARGETARCH}-${NATIVE_CACHE_KEY},target=/usr/local/cargo/git \
+    --mount=type=cache,id=tsp-cargo-registry-${TARGETARCH}-${NATIVE_CACHE_KEY},target=/usr/local/cargo/registry \
+    --mount=type=cache,id=tsp-cargo-target-${TARGETARCH}-${NATIVE_CACHE_KEY},target=/build/target \
     CARGO_NET_GIT_FETCH_WITH_CLI=true \
     /maturin/bin/maturin build --locked --release --interpreter python3 --out /wheels
 
+# Third-party requirements are independent of README and application version.
+# Version allocation only reruns this cheap export; unchanged requirements reuse
+# the runtime dependency layer. The exact metadata is copied after dependency installation.
+FROM ${PYTHON_IMAGE} AS dependency-exporter
+ARG UV_VERSION
+ARG USE_CN_MIRROR=1
+ARG PYPI_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG BACKEND_EXTRAS=
+WORKDIR /export
+RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
+      pip install --no-cache-dir "uv==$UV_VERSION" -i "$PYPI_INDEX"; \
+    else pip install --no-cache-dir "uv==$UV_VERSION"; fi
+COPY backend/pyproject.toml backend/uv.lock ./
+COPY backend/native ./native
+RUN set -- --no-dev --no-header --no-emit-package tsp-rustdx-native --no-emit-project; \
+    for extra in $BACKEND_EXTRAS; do set -- "$@" --extra "$extra"; done; \
+    uv export --quiet --frozen "$@" --output-file /runtime-locked.txt
+
 # === Stage 2: Python 运行时 ===
-FROM ${BASE_IMAGE_REGISTRY}/library/python:3.11-slim-bookworm AS runtime
+FROM ${PYTHON_IMAGE} AS runtime
 ARG USE_CN_MIRROR=1
 ARG PYPI_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG PYPI_FALLBACK=https://mirrors.aliyun.com/pypi/simple
@@ -107,36 +132,20 @@ RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
       pip install --no-cache-dir "uv==$UV_VERSION"; \
     fi
 
-# Backend deps
-COPY README.md /README.md
-COPY backend/pyproject.toml backend/uv.lock* ./
-# uv.lock contains the default local rustdx path source. Keep the source path
-# present during frozen resolution even though the runtime wheel is installed
-# separately below.
-COPY backend/native ./native
-# Frozen sync follows the artifact URLs in uv.lock, even with an index override.
-# Preinstall the same hash-pinned closure through a mirror, then let frozen sync
-# verify the environment and install the local project without changing the lock.
+# Both official and mirrored installs use the same hash-pinned closure.
+COPY --from=dependency-exporter /runtime-locked.txt /tmp/runtime-locked.txt
 ARG PYPI_LOCK_MIRROR=https://repo.huaweicloud.com/repository/pypi/simple
-RUN if [ "$USE_CN_MIRROR" = "1" ]; then \
-      export UV_DEFAULT_INDEX="$PYPI_INDEX" UV_EXTRA_INDEX_URL="$PYPI_FALLBACK"; \
-      set -- --no-dev --no-emit-package tsp-rustdx-native --no-emit-project; \
-      for extra in $BACKEND_EXTRAS; do \
-        set -- "$@" --extra "$extra"; \
-      done; \
-      uv export --quiet --frozen "$@" --output-file /tmp/runtime-locked.txt \
-      && uv venv \
-      && UV_EXTRA_INDEX_URL= UV_INDEX= UV_DEFAULT_INDEX="$PYPI_LOCK_MIRROR" \
-         UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=2 \
-         uv pip sync --python /app/.venv/bin/python --require-hashes /tmp/runtime-locked.txt \
-      && rm /tmp/runtime-locked.txt \
-      || exit 1; \
-    fi; \
-    set -- --no-dev --no-install-package tsp-rustdx-native; \
-    for extra in $BACKEND_EXTRAS; do \
-      set -- "$@" --extra "$extra"; \
-    done; \
-    uv sync --frozen "$@"
+RUN uv venv && \
+    if [ "$USE_CN_MIRROR" = "1" ]; then \
+      export UV_DEFAULT_INDEX="$PYPI_LOCK_MIRROR"; \
+    else export UV_DEFAULT_INDEX=https://pypi.org/simple; fi; \
+    UV_EXTRA_INDEX_URL= UV_INDEX= UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=2 \
+      uv pip sync --python /app/.venv/bin/python --require-hashes /tmp/runtime-locked.txt \
+    && rm /tmp/runtime-locked.txt
+
+COPY README.md /README.md
+COPY backend/pyproject.toml backend/uv.lock ./
+COPY backend/native ./native
 
 # Install the default rustdx route's wheel built for this target architecture.
 COPY --from=rustdx-builder /wheels /app/native-wheels

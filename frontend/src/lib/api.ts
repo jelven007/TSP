@@ -26,7 +26,7 @@ export interface ResearchJob {
   created_at: string
   updated_at: string
   metadata: { source?: string; finished_at?: string | null }
-  config: { strategy_id?: string; start?: string; end?: string; initial_capital?: number; params?: Record<string, unknown>; request?: { start?: string; end?: string } }
+  config: { strategy_id?: string; start?: string; end?: string; initial_capital?: number; slippage_bps?: number; params?: Record<string, unknown>; request?: { start?: string; end?: string } }
 }
 
 /**

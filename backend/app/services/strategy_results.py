@@ -505,6 +505,7 @@ class StrategyResults:
             if old and old["summary"]["started_at"] > started_at:
                 return old, "unchanged"
             payload = copy.deepcopy(result)
+            reference = payload.pop("price_suggestion_reference", None)
             if payload.get("section_mode") == "signals" and not payload.get("selection_only"):
                 frozen_id = replace(identity, daily_record=True).record_id(as_of)
                 if self.tenant:
@@ -520,7 +521,11 @@ class StrategyResults:
                 if selected is not None:
                     payload["selection_snapshot"] = selected
                     payload["sections"]["select"] = selected["rows"]
-            current = json_value(self._with_previous_buy(conn, identity, payload, as_of))
+            current = self._with_previous_buy(conn, identity, payload, as_of)
+            if reference is not None:
+                from app.strategy.signal_price_suggestions import with_price_suggestions
+                current = with_price_suggestions(current, reference)
+            current = json_value(current)
             if old and comparable(old["result"]) == comparable(current):
                 # Advance the run order even when the output is unchanged, so a
                 # late older run cannot replace the latest successful result.

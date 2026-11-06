@@ -209,17 +209,13 @@ def evaluate(
     return result
 
 
-def previous_closes(context, *, exact_session: bool = False) -> dict[str, float]:
+def previous_closes(context, *, exact_session: bool = True) -> dict[str, float]:
     """昨收使用严格早于信号日的未复权价格, 不读取当日收盘。"""
     previous = None
     if exact_session:
-        from app.market_time import published_trading_day
+        from app.strategy.basic_filter import previous_session
 
-        previous = context.as_of - timedelta(days=1)
-        while published_trading_day(previous) is False:
-            previous -= timedelta(days=1)
-        if published_trading_day(previous) is not True:
-            return {}
+        previous = previous_session(context.as_of)
     parts = []
     for source in (context.current, context.daily_history, context.pool_history):
         if source is None or source.is_empty() or not {"symbol", "date"}.issubset(source.columns):
@@ -230,14 +226,26 @@ def previous_closes(context, *, exact_session: bool = False) -> dict[str, float]
         prior = source.filter(pl.col("date") < context.as_of)
         if exact_session:
             prior = prior.filter(pl.col("date") == previous)
+            if not prior.is_empty():
+                from app.services.daily_close_validation import require_final_daily_rows
+
+                require_final_daily_rows(prior, previous)
         elif {"volume", "amount"}.issubset(prior.columns):
             prior = prior.filter(
                 (pl.col("volume") > 0) | (pl.col("amount") > 0)
                 | (pl.col("volume").is_null() & pl.col("amount").is_null()))
         parts.append(prior.select("symbol", "date", pl.col(column).alias("raw_close")))
     if not parts:
+        if exact_session:
+            raise ValueError(f"{previous}缺少准确前交易日定版昨收")
         return {}
     prior = pl.concat(parts, how="vertical_relaxed").filter(
         pl.col("raw_close").is_finite() & (pl.col("raw_close") > 0)).sort("date", maintain_order=True)
+    if exact_session and prior.is_empty():
+        raise ValueError(f"{previous}缺少准确前交易日定版昨收")
+    if exact_session:
+        conflicting = prior.group_by("symbol").agg(pl.col("raw_close").n_unique().alias("_prices")).filter(pl.col("_prices") > 1)
+        if not conflicting.is_empty():
+            raise ValueError(f"{previous} {conflicting['symbol'][0]}昨收来源不一致")
     return {str(row["symbol"]): row["raw_close"]
             for row in prior.unique("symbol", keep="last").iter_rows(named=True)}

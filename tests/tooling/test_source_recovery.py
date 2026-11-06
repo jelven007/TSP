@@ -1,7 +1,10 @@
 """Recovery bundles must identify tagged ancestors and fail closed on corruption."""
+import hashlib
 import importlib.util
+import io
 import json
 import subprocess
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -42,6 +45,48 @@ def test_archives_keep_current_and_one_prior_version_without_changing_refs(repo)
     assert manifest["policy"] == "latest_source_plus_one_prior_version"
     assert git(repo, "show-ref") == before
     assert not list(repo.parent.glob(".source-recovery-*"))
+    assert manifest["versions"][0]["members"]["VERSION"]["sha256"]
+
+
+@pytest.mark.parametrize("name", ["../escape", "/absolute", "nested/../../escape"])
+def test_stream_verification_checks_all_members_even_for_legacy_manifest(repo, name):
+    output = repo.parent / "recovery"
+    manifest = recovery.create(repo, "main", output)
+    record = manifest["versions"][0]
+    record.pop("members", None)
+    archive = output / record["archive"]
+    with tarfile.open(archive, "w:gz") as target:
+        for path, data in [(f"TSP-v{record['version']}/VERSION", b"0.4.7\n"), (name, b"bad")]:
+            member = tarfile.TarInfo(path)
+            member.size = len(data)
+            target.addfile(member, io.BytesIO(data))
+    record["sha256"] = hashlib.sha256(archive.read_bytes()).hexdigest()
+    (output / "index.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="member"):
+        recovery.verify(output)
+
+
+def test_verification_uses_stream_and_rejects_changed_member_manifest(repo, monkeypatch):
+    output = repo.parent / "recovery"
+    manifest = recovery.create(repo, "main", output)
+    monkeypatch.setattr(tarfile.TarFile, "getmember", lambda *args: pytest.fail("random tar lookup"))
+    assert recovery.verify(output) == manifest
+    manifest["versions"][0]["members"]["VERSION"]["sha256"] = "0" * 64
+    (output / "index.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="member"):
+        recovery.verify(output)
+
+
+@pytest.mark.parametrize("alias", ["./app.py", "nested//app.py", "nested\\app.py"])
+def test_stream_rejects_noncanonical_member_paths(tmp_path, alias):
+    archive = tmp_path / "source.tar.gz"
+    with tarfile.open(archive, "w:gz") as target:
+        for name, data in [("VERSION", b"0.4.50"), (alias, b"source")]:
+            member = tarfile.TarInfo("TSP-v0.4.50/" + name)
+            member.size = len(data)
+            target.addfile(member, io.BytesIO(data))
+    with pytest.raises(ValueError, match="member"):
+        recovery.archive_members(archive, "0.4.50")
 
 
 def test_rejects_untagged_head_without_creating_output(repo):

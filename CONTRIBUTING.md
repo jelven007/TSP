@@ -1,5 +1,10 @@
 # Tick Stock Platform（TSP）开发、贡献与复审指南
 
+2026-11-07当前整合与实际调用链见[统一候选](docs/upgrade-20261107.md)：
+盘后日线/15:00/加工昨收核对、默认精确T-1、冻结预选及回放错误传递，
+保留main建仓窗口和现场等待确认分支。新回测只用100万元及运行前冻结的页面实际参数；
+本地暂停优先于通用升级命令。历史验证不代替本轮完整质量门和生产签收。
+
 本轮当前候选、六类文档及独立发布门禁见
 [2026-11-06升级](reports/releases/unified-upgrade-20261106/verification.md)。
 下列已安装补丁与旧定向验证属于各次历史快照，不替代本轮全量及双端签收。
@@ -569,21 +574,32 @@ squash/rebase 合并和快进推送；同次推送的多个提交只递增一次
 工作流。仓库须允许 Actions 写入且 `main` 规则须允许该自动提交，否则版本 Job
 明确失败，修正权限后可重跑；不能通过跳过版本 Job 继续发布。
 
-前后端质量门均检出自动版本提交，Docker 从该次成功 CI 的 `ci-revision` artifact
-读取相同 SHA。版本递增发生在质量门之前，测试失败仍保留已分配的版本号；
+前后端质量门和容器构建均检出 Version Job 输出的自动版本提交，`ci-revision`
+artifact 保留为核对证据。主线通过可复用 `docker.yml` 并行执行质量门与构建；
+Runtime 双架构完成后，Compute 双架构从其索引 digest 派生，完整身份矩阵必须通过。
+版本递增发生在质量门之前，测试失败仍保留已分配的版本号；
 这不表示发布或生产升级，发布仍须完成质量门和产物验收。
 
-前后端质量门全部通过后，主线 CI 调用 [`scripts/tag_version.py`](scripts/tag_version.py)
+前后端质量门和完整容器构建全部通过后，主线 CI 调用 [`scripts/tag_version.py`](scripts/tag_version.py)
 为该次实际通过检查的版本提交自动创建 `v<应用版本>` 标签。PR、功能分支和失败的
 质量门不创建标签。同名标签已指向该提交时重跑复用；指向不同提交时明确失败，
 不得强制移动或删除标签。标签 Job 仅有 `contents: write` 权限，标签规则必须
 允许 Actions 创建新标签。
 
-自动标签由 `GITHUB_TOKEN` 推送，不触发另一次 tag push 工作流。现有 Docker
-`workflow_run` 链路在 CI 全部成功后构建同一 SHA，并同步版本镜像标签。
-镜像 `latest` 单独串行提升，旧构建不覆盖当前主线。桌面发布必须选择已有 tag，
+自动标签由 `GITHUB_TOKEN` 推送，不触发另一次 tag push 工作流。构建只写入本轮
+`ci-<run>-<attempt>-<role>` 临时镜像标签；CI 联合门通过且 Git 标签指向该 SHA 后，
+`docker-promote.yml` 再核对四个镜像并提升应用版本及完整 SHA 标签。任一必要任务失败
+均不能进入正式标签或 `latest`；已有正式标签指向不同 digest 时拒绝覆盖。
+tag/手动构建保留独立质量门，不更新 `latest`。
+镜像 `latest` 单独串行提升，只接受提升时仍为当前主线的 SHA。桌面发布必须选择已有 tag，
 所有 Job 固定到同一 SHA，所选平台全部成功后发布并冻结，不能追加已冻结资产。
 自动 Git 标签表示源码质量门通过，桌面 Release、产物验收和生产部署仍分别确认。
+
+发布编排入口、冻结输入、私有回执、恢复单元和缓存规则见
+[`docs/release-pipeline.md`](docs/release-pipeline.md)。静态检查在昂贵验证前执行；
+`make check-release` 只验证发布工具，不替代完整发布矩阵。每环境使用同一受控锁目录，
+写入阶段中断后只检查实际后置状态，禁止自动重放。自2026-11-06起本地暂停优先于
+旧升级授权；未经用户明确恢复不得启动服务、Worker、PostgreSQL或Compute，也不得删除暂停标记。
 
 ## 11. PR 复审流程
 

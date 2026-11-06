@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from types import SimpleNamespace
 
 import polars as pl
+import pytest
 
 from app.services.screener import ScreenerService
 from app.strategy.engine import StrategyDataContext
@@ -24,8 +25,9 @@ def test_previous_closes_merges_symbols_without_current_day_or_zero_trade_rows()
         "volume": [1.0, 0.0], "amount": [12.0, 0.0],
     })
     context = StrategyDataContext("stock", "1m", DAY, pool_history=pool, daily_history=daily)
-    assert previous_closes(context) == {"a": 10.0, "b": 12.0}
-    assert previous_closes(context, exact_session=True) == {"a": 10.0}
+    assert previous_closes(context, exact_session=False) == {"a": 10.0, "b": 12.0}
+    with pytest.raises(ValueError, match="原始收盘价无效"):
+        previous_closes(context)
 
 
 def test_repository_last_traded_close_is_raw_strictly_prior_and_has_no_fixed_lookback(tmp_path):
@@ -71,12 +73,17 @@ def test_screener_loads_missing_long_halt_reference_without_changing_pool_dates(
             return old
 
     service = ScreenerService(Repo())
+    service._load_enriched_history = lambda *args: prior
+    service.repo.get_daily_close_inputs = lambda *args: (
+        prior.rename({"raw_close": "close"}), prior.rename({"raw_close": "close"}).select("symbol", "close"),
+    )
     service._load_minute_history = lambda *args: pl.DataFrame({"symbol": ["a", "b"]})
     service.build_daily_pool_context = lambda *args, **kwargs: StrategyDataContext(
         "stock", "1d", DAY, current=current, pool_history=prior)
     engine = SimpleNamespace(minute_daily_history_bars=lambda *args, **kwargs: 0)
     context = service.build_strategy_context(engine, DAY, [], timeframe="1m", current=current)
-    assert previous_closes(context) == {"a": 10.0, "b": 12.0}
+    assert previous_closes(context) == {"a": 10.0}
+    assert previous_closes(context, exact_session=False) == {"a": 10.0, "b": 12.0}
     assert calls == [(["b"], DAY)]
     assert context.pool_history.filter(pl.col("date") == DAY - timedelta(days=1)).height == 1
     assert context.daily_history is None

@@ -20,6 +20,36 @@ NOW = datetime(2026, 10, 30, 16, tzinfo=ZoneInfo("Asia/Shanghai"))
 TARGET = date(2026, 11, 2)
 
 
+def test_saved_suggestions_are_tenant_private_transactional_and_frozen(env):
+    from test_minute_signal_sections import signal_result
+
+    from app.services.daily_selections import DailySelections
+    _, documents = own(env)
+    _, other = own(env)
+    identity = ResultIdentity("custom_test", "s02", "v1", "{}", "{}", "null", "stock", "1m")
+    store = StrategyResults(documents)
+    prior = store.save(identity, {
+        **signal_result("2026-10-30", [{"symbol": "600001.SH", "close": 9.}]),
+        "price_suggestion_reference": {"reference_date": "2026-10-29", "closes": {}},
+    }, started_at=1)
+    assert prior["result"]["sections"]["buy"][0]["suggested_lots_100k"] == 111
+    snapshot = {**selected(), "price_suggestion_reference": {
+        "reference_date": "2026-10-30", "closes": {"600001.SH": 10.25},
+    }}
+    with pytest.raises(ValueError), documents.transaction() as unit:
+        DailySelections(unit).save(identity, snapshot, started_at=2)
+        raise ValueError("rollback")
+    assert DailySelections(documents).read("custom_test", TARGET) is None
+    saved = DailySelections(documents).save(identity, snapshot, started_at=2)
+    assert saved["result"]["sections"]["sell"][0]["suggested_sell_price"] == {
+        "lower": 9.64, "upper": 10.87, "reference_date": "2026-10-30", "reference_close": 10.25,
+    }
+    assert "price_suggestion_reference" not in saved["result"]
+    assert "price_suggestion_reference" not in saved["result"]["selection_snapshot"]
+    assert DailySelections(other).read("custom_test", TARGET) is None
+    assert store.detail("custom_test", prior["record_id"]) == prior
+
+
 def source(documents, tmp_path):
     (tmp_path / "custom.py").write_text(CODE)
     definition = definition_payload(StrategyEngine([tmp_path]).get("custom_test"))

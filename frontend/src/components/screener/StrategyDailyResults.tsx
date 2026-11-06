@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { api, type ScreenerResult } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { StockPreviewDialog } from '@/components/StockPreviewDialog'
@@ -7,6 +8,7 @@ import { toNavItems, type NavItem } from '@/lib/listNav'
 import { getSignals, signalCls } from '@/lib/stock-table'
 import { defaultStrategyResultColumns, STRATEGY_RESULT_WIDTHS, type StrategyResultTab } from '@/lib/strategy-result-columns'
 import type { ColumnConfig } from '@/lib/list-columns'
+import { useTableSort } from '@/components/stock-table/useTableSort'
 
 export type { StrategyResultTab } from '@/lib/strategy-result-columns'
 type Tab = StrategyResultTab
@@ -39,13 +41,19 @@ const labels: Record<string, string> = {
 }
 function format(key: string, value: unknown) {
   if (value == null) return '—'
+  if (key === 'suggested_sell_price') {
+    if (typeof value !== 'object') return '—'
+    const { lower, upper } = value as { lower?: unknown; upper?: unknown }
+    return typeof lower === 'number' && Number.isFinite(lower) && lower > 0
+      && typeof upper === 'number' && Number.isFinite(upper) && upper >= lower
+      ? `${lower.toFixed(2)}～${upper.toFixed(2)}` : '—'
+  }
   if (typeof value === 'boolean') return value ? '满足' : '未满足'
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return '—'
     if (['previous_return', 'return_1430', 'market_breadth', 'participation', 'change_pct', 'reference_change_pct', 'live_change_pct'].includes(key)) return `${(value * 100).toFixed(2)}%`
     if (key === 'live_turnover') return `${value.toFixed(2)}%`
-    if (key === 'volume') return value.toFixed(0)
-    if (key === 'amount' || key === 'suggested_lots_100k') return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+    if (['volume', 'amount', 'suggested_lots_100k'].includes(key)) return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
     if (['float_cap_1430', 'prev_d_amount20'].includes(key)) return (value / 1e8).toFixed(2)
     if (['shares', 'sold_shares', 'remaining', 'filled_shares', 'rank', 'selection_rank', 'breadth_denominator'].includes(key)) return value.toLocaleString('zh-CN')
     return value.toFixed(2)
@@ -114,20 +122,30 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
     const price = quote?.raw_close
     const validPrice = typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null
     if (key === 'live_price') return validPrice
-    if (key === 'suggested_lots_100k') return validPrice == null ? null : Math.floor(100000 / (validPrice * 100))
     if (key === 'live_change_pct') return quote?.change_pct
     if (key === 'live_turnover') return quote?.turnover_rate
     if (key === 'live_vol_ratio') return quote?.vol_ratio_5d
     return null
   }
+  const sortColumns = signals
+    ? (signalColumns ?? defaultStrategyResultColumns(active)).filter(col => col.visible && col.source.type === 'builtin')
+    : []
+  const { sort, toggle, sortRows } = useTableSort<(typeof rows)[number]>((row, col) => {
+    if (col.source.type !== 'builtin') return null
+    const key = col.source.key
+    const value = key.startsWith('live_') ? liveValue(key, row.symbol) : row[key]
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    return typeof value === 'string' || typeof value === 'boolean' ? value : null
+  })
+  const displayedRows = sortRows(rows, sortColumns)
   const openStock = (row: any) => {
-    const navList = toNavItems(rows.filter(item => typeof item.symbol === 'string' && item.symbol))
+    const navList = toNavItems(displayedRows.filter(item => typeof item.symbol === 'string' && item.symbol))
     if (onPreview) onPreview(row.symbol, row.name ?? undefined, navList)
     else setPreview({ symbol: row.symbol, name: row.name ?? undefined, navList })
   }
   const config = tabs.find(tab => tab.id === active)!
   const displayedColumns = signals
-    ? (signalColumns ?? defaultStrategyResultColumns(active)).filter(col => col.visible && col.source.type === 'builtin')
+    ? sortColumns
       .map(col => [col.source.type === 'builtin' ? col.source.key : '', col.label] as const)
     : columns[active]
   const width = (key: string) => STRATEGY_RESULT_WIDTHS[key] ?? 110
@@ -156,7 +174,8 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       {result.selection_only && ' · 仅预选，买入信号尚未计算'}
     </p>}
     {signals && <p className="text-xs text-muted">现价等行情列取当日最新数据，缺失时显示“—”。
-      {active === 'buy' && ' 建议购买量单位为手（100股），按现价估算10万元可买手数，不含费用与滑点。'}</p>}
+      {active === 'sell' && ' 分钟成交量、成交额来自保存信号的触发分钟；建议卖出价为上一个交易日原始收盘价的94%～106%，缺少参考价时显示“—”。'}
+      {active === 'buy' && ' 建议购买量单位为手（100股），按保存的触发价计算10万元最大整手数，不含费用与滑点。'}</p>}
     {result.execution_error && <p role="alert" className="text-sm text-danger rounded-btn bg-danger/10 p-3">
       {result.execution_error}
     </p>}
@@ -169,16 +188,29 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
             style={{ width: displayedColumns.reduce((sum, [key]) => sum + width(key), 0) }}>
           <colgroup>{displayedColumns.map(([key]) => <col key={key} style={{ width: width(key) }} />)}</colgroup>
           <thead className="bg-elevated text-secondary sticky top-0"><tr>
-            {displayedColumns.map(([key, label]) => <th key={key} data-column={key}
-              className="px-2 py-1.5 font-medium" style={{ width: width(key) }}>{label}</th>)}
+            {displayedColumns.map(([key, label]) => {
+              const sortable = signals && !['live_signals', 'suggested_sell_price'].includes(key)
+              const colId = sortColumns.find(col => col.source.type === 'builtin' && col.source.key === key)?.id
+              const direction = sort?.key === colId ? sort?.dir : null
+              const Icon = direction === 'asc' ? ArrowUp : direction === 'desc' ? ArrowDown : ArrowUpDown
+              return <th key={key} data-column={key}
+                aria-sort={sortable ? direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none' : undefined}
+                className="px-2 py-1.5 font-medium" style={{ width: width(key) }}>
+                {sortable && colId ? <button type="button" aria-label={`${label}排序`}
+                  className="inline-flex items-center gap-1 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  onClick={() => toggle(colId)}>
+                  {label}<Icon aria-hidden="true" className={`h-3 w-3 shrink-0 ${direction ? 'text-accent' : 'text-muted'}`} />
+                </button> : label}
+              </th>
+            })}
           </tr></thead>
-          <tbody>{rows.map((row, i) => <tr key={`${row.symbol}-${i}`} className="border-t border-border">
+          <tbody>{displayedRows.map((row, i) => <tr key={`${row.symbol}-${i}`} className="border-t border-border">
             {displayedColumns.map(([key]) => <td key={key} data-column={key} className="px-2 py-1.5 num overflow-hidden text-ellipsis">
               {key === 'live_signals' ? <span className="inline-flex gap-1" title={getSignals(liveRows.get(row.symbol) ?? {}).map(signal => signal.label).join('、')}>
                 {getSignals(liveRows.get(row.symbol) ?? {}).map(signal => <span key={signal.label}
                   className={`rounded px-1 py-0.5 ${signalCls(signal.type)}`}>{signal.label}</span>)}
                 {!getSignals(liveRows.get(row.symbol) ?? {}).length && '—'}
-              </span> : key.startsWith('live_') || key === 'suggested_lots_100k' ? format(key, liveValue(key, row.symbol))
+              </span> : key.startsWith('live_') ? format(key, liveValue(key, row.symbol))
               : (key === 'symbol' || key === 'name') && typeof row.symbol === 'string' && row.symbol && row[key]
                 ? <button type="button" title="查看个股详情"
                     className="text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"

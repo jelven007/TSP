@@ -91,6 +91,8 @@ def test_select_survives_missing_minute_data_and_keeps_missing_score_members(sca
 def test_missing_minute_partition_does_not_block_daily_selection_context(scan, monkeypatch):
     engine, context, overrides = scan
     service = ScreenerService(SimpleNamespace(get_instruments_asset=lambda *_: pl.DataFrame()))
+    service.repo.get_daily_close_inputs = lambda day: (
+        context.daily_history, context.daily_history.select("symbol", "close"))
     monkeypatch.setattr(service, "_load_enriched_for_date", lambda *_: context.current)
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: context.daily_history)
     monkeypatch.setattr(service, "_load_minute_history",

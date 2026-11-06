@@ -18,7 +18,8 @@ const result: ScreenerResult = {
   section_mode: 'signals', sections: {
     sell: [{ symbol: '600001.SH', name: '卖股', entry_date: '2026-11-04', close: 9, change_pct: .01, score: 80 }],
     select: [{ symbol: '600002.SH', name: '选股', reference_date: '2026-11-04', score: 99 }],
-    buy: [{ symbol: '600003.SH', name: '买股', close: 9, score: 80, volume: 1234.6, amount: 1234567.6 }],
+    buy: [{ symbol: '600003.SH', name: '买股', close: 9, score: 80, volume: 1234.6, amount: 1234567.6,
+      suggested_lots_100k: 111 }],
   },
 }
 const liveLabels = ['现价', '涨跌幅', '换手率', '量比', '信号']
@@ -55,7 +56,7 @@ function cell(label: string) { return host.querySelectorAll('tbody tr:first-chil
 it('keeps trigger prices separate and appends five live columns with correct units', async () => {
   await render()
   expect(headers()).not.toContain('买入信号日期')
-  expect(headers().slice(-6)).toEqual(['信号评分', ...liveLabels])
+  expect(headers().slice(-6)).toEqual(['建议卖出价', ...liveLabels])
   expect(cell('触发价')?.textContent).toBe('9.00')
   expect(cell('现价')?.textContent).toBe('12.50')
   expect(cell('涨跌幅')?.textContent).toBe('2.00%')
@@ -66,12 +67,12 @@ it('keeps trigger prices separate and appends five live columns with correct uni
   expect(headers().slice(-6)).toEqual(['选股评分', ...liveLabels])
 })
 
-it('formats minute volume and amount as integers and estimates maximum lots from raw price', async () => {
+it('formats minute volume and amount as integers and preserves frozen trigger-price lots', async () => {
   await render(); await tab(2)
   expect(headers().slice(-8)).toEqual(['分钟成交量', '分钟成交额', '建议购买量/10万', ...liveLabels])
-  expect(cell('分钟成交量')?.textContent).toBe('1235')
+  expect(cell('分钟成交量')?.textContent).toBe('1,235')
   expect(cell('分钟成交额')?.textContent).toBe('1,234,568')
-  expect(cell('建议购买量/10万')?.textContent).toBe('80')
+  expect(cell('建议购买量/10万')?.textContent).toBe('111')
 })
 
 it('polls only the active symbol set every second and preserves tab and scroll on result updates', async () => {
@@ -92,11 +93,11 @@ it('polls only the active symbol set every second and preserves tab and scroll o
   expect(panel.scrollLeft).toBe(120)
 })
 
-it.each([null, 0, -1, NaN, Infinity])('shows no suggested lots without a finite positive raw price (%s)', async price => {
+it.each([null, 0, -1, NaN, Infinity])('preserves frozen lots without a finite positive live price (%s)', async price => {
   snapshot.mockResolvedValue({ as_of: '2026-11-06', rows: [{ symbol: '600003.SH', raw_close: price, close: 10 }] })
   await render(); await tab(2)
   expect(cell('现价')?.textContent).toBe('—')
-  expect(cell('建议购买量/10万')?.textContent).toBe('—')
+  expect(cell('建议购买量/10万')?.textContent).toBe('111')
 })
 
 it('rejects stale days and late responses from an inactive tab', async () => {
