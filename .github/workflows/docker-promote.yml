@@ -1,0 +1,115 @@
+name: Promote Verified Release Images
+on:
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
+      runtime_digest:
+        type: string
+        required: true
+      compute_digest:
+        type: string
+        required: true
+      promote_latest:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docker-promote-${{ inputs.revision }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify identities then publish immutable version and SHA tags
+        env:
+          OCI_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OCI_REGISTRY_USER: ${{ github.actor }}
+          BUILD_REVISION: ${{ inputs.revision }}
+          RUNTIME_DIGEST: ${{ inputs.runtime_digest }}
+          COMPUTE_DIGEST: ${{ inputs.compute_digest }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          python3 scripts/check_version.py --current VERSION
+          version="$(cat VERSION)"
+          version="${version#v}"
+          test "$(git rev-parse "refs/tags/v${version}^{commit}")" = "$BUILD_REVISION"
+          python3 scripts/release/image_manifest.py --version "$version" \
+            --revision "$BUILD_REVISION" --runtime-image "$image" \
+            --runtime-digest "$RUNTIME_DIGEST" --compute-image "$image-compute" \
+            --compute-digest "$COMPUTE_DIGEST" --output "$RUNNER_TEMP/promoted-images.json"
+          python3 scripts/release/promote.py --manifest "$RUNNER_TEMP/promoted-images.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: promoted-images
+          path: ${{ runner.temp }}/promoted-images.json
+          if-no-files-found: error
+          overwrite: true
+
+  promote-latest:
+    needs: promote
+    if: ${{ inputs.promote_latest }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docker-latest-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Only promote current main to latest
+        env:
+          BUILD_REVISION: ${{ inputs.revision }}
+          RUNTIME_DIGEST: ${{ inputs.runtime_digest }}
+          COMPUTE_DIGEST: ${{ inputs.compute_digest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          sys.path.insert(0, "scripts")
+          from prepare_release import is_current_main
+          os.environ.update(
+              GIT_CONFIG_COUNT="1",
+              GIT_CONFIG_KEY_0="http.https://github.com/.extraheader",
+              GIT_CONFIG_VALUE_0="AUTHORIZATION: basic " + base64.b64encode(
+                  ("x-access-token:" + os.environ["GH_TOKEN"]).encode()
+              ).decode(),
+          )
+          revision = os.environ["BUILD_REVISION"]
+          if is_current_main(Path.cwd(), revision):
+              image = "ghcr.io/" + os.environ["GITHUB_REPOSITORY"].lower()
+              for suffix, key in (("", "RUNTIME_DIGEST"), ("-compute", "COMPUTE_DIGEST")):
+                  subprocess.run([
+                      "docker", "buildx", "imagetools", "create",
+                      "--tag", image + suffix + ":latest", image + suffix + "@" + os.environ[key],
+                  ], check=True)
+          else:
+              print("main has advanced; keep the version images without replacing latest")
+          PY

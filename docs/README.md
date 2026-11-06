@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）文档中心
 
+2026-11-07当前需求、方案、开发、测试、运营及运维变化集中见
+[统一升级候选](upgrade-20261107.md)，固定工具见[发布流水线](release-pipeline.md)。
+本地暂停、当前100万元/页面实际参数规则和历史研究边界分别记录。
+
 最新统一候选与六类文档映射见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
 以下历次热补丁部署和计数保留原身份；正式版本及双端状态分别验收。
 
@@ -33,7 +37,7 @@ s02参数、每日三Tab与回测历史查询见
 | 管理数据、账号与服务 | [部署与运维](operations.md) → [部署目录](../deploy/README.md) |
 | 修改或审查代码 | [AGENTS](../AGENTS.md) → [CONTRIBUTING](../CONTRIBUTING.md) → [系统方案](architecture.md#current) → [测试指南](testing.md) |
 | 二次开发或接入外部系统 | [二次开发](secondary-development.md) → [API 导航](api.md) → [接入协议](reference/integrations.md) |
-| 准备发布、升级与恢复 | [发布运营](release-operations.md) → [运维手册](operations.md) → [版本基线](version-baseline.md) |
+| 准备发布、升级与恢复 | [发布运营](release-operations.md) → [发布流水线](release-pipeline.md) → [运维手册](operations.md) → [版本基线](version-baseline.md) |
 | 定位代码、脚本或测试 | [工程目录](reference/engineering.md#layout) → [测试定位](../tests/README.md#按领域定位现有测试) |
 | 维护文档或查找历史证据 | [文档维护与清理规则](maintenance.md) → [报告分类](../reports/README.md#按用途查找) |
 
@@ -53,6 +57,7 @@ docs/
   secondary-development.md        实际扩展点及升级兼容
   testing.md                      验证矩阵、命令与签收边界
   release-operations.md           产物、发布、支持与运营
+  release-pipeline.md             固定执行入口、并行构建、回执与缓存
   operations.md                   配置、调度、备份、恢复与故障处理
   version-baseline.md             源码、发布和运行版本分类
   maintenance.md                  文档归属、清理范围与检查方法

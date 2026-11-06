@@ -19,7 +19,7 @@ BUILTIN_FAMILIES = {
         "high_turnover_surge", "strong_open", "near_limit_up",
     )),
     "limit": ("涨停生态", ("active_limit_gene", "consecutive_limit_ups")),
-    "overnight": ("隔夜交易", ("s01", "s02")),
+    "overnight": ("隔夜交易", ("s01",)),
 }
 
 

@@ -440,6 +440,16 @@ class _FakeMinuteRepo:
     def get_instruments_asset(self, asset_type):
         return pl.DataFrame()
 
+    def get_enriched_history(self, target_date, lookback_days):
+        return pl.DataFrame({
+            "symbol": ["600001.SH"], "date": [target_date], "raw_close": [10.0],
+        })
+
+    def get_daily_close_inputs(self, day):
+        raw = self.get_enriched_history(day, 1).filter(pl.col("date") == day)
+        raw = raw.select("symbol", "date", pl.col("raw_close").alias("close"))
+        return raw, raw.select("symbol", "close")
+
     def get_minute_by_dates(self, symbols, dates, asset_type="stock"):
         frames = [self.partitions[d] for d in dates if d in self.partitions]
         if not frames:
@@ -498,7 +508,7 @@ def test_minute_context_loads_daily_history_for_declared_strategies():
         def minute_daily_history_bars(self, strategy_ids, *, overrides_map=None):
             return 5
 
-    daily = _daily("600001.SH", 6, {1})
+    daily = _daily("600001.SH", 6, {1}).with_columns(pl.lit(10.0).alias("raw_close"))
     repo = _FakeMinuteRepo({date(2026, 8, 25): _bars("600001.SH", [(10.0, 10.2, 10.3)] * 3)})
     repo.get_enriched_history = lambda target_date, lookback_days: daily  # type: ignore[method-assign]
     repo.get_instruments_asset = lambda asset_type: None  # type: ignore[method-assign]

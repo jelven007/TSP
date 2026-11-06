@@ -508,6 +508,9 @@ class ScreenerService:
             history = self._load_pool_history(prior, 1)
             if not history.is_empty():
                 history = history.filter(pl.col("date") == prior)
+            from app.services.daily_close_validation import validate_daily_close
+
+            validate_daily_close(self.repo, prior, rows=history)
             instruments = self.repo.get_instruments_asset("stock")
             # Directory state is current; it supplies scope, never today's prices
             # or a suspension assertion copied from the previous session.
@@ -544,6 +547,9 @@ class ScreenerService:
         current = history.filter(pl.col("date") == source)
         if current.is_empty():
             raise ValueError(f"盘后预选缺少{source}完整行情")
+        from app.services.daily_close_validation import validate_daily_close
+
+        validate_daily_close(self.repo, source, rows=current)
         from app.strategy.eligibility import attach_listing_age
         instruments = self.repo.get_instruments_asset(self.asset_type)
         history = attach_listing_age(history, instruments)
@@ -599,6 +605,15 @@ class ScreenerService:
             instruments = self.repo.get_instruments_asset(self.asset_type)
             current = attach_listing_age(current, instruments)
         if timeframe == "1m":
+            if self.asset_type == "stock":
+                from app.services.daily_close_validation import validate_daily_close
+                from app.strategy.basic_filter import previous_session
+
+                prior_day = previous_session(as_of)
+                reference = self._load_enriched_history(prior_day, 1)
+                validate_daily_close(
+                    self.repo, prior_day, rows=reference.filter(pl.col("date") == prior_day),
+                )
             # 分钟策略数据源是本地当日分钟K分区 (单分区文件直读), 与日线
             # enriched 历史窗口无关, 不走 required_history_bars 日线路径。
             try:

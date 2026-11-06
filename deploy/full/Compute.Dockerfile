@@ -7,10 +7,14 @@ RUN python /app/build_manifest.py verify --root /app --manifest /app/build-manif
 # Keep packages already selected by the runtime image (for example legacy-cpu)
 # while adding the frozen vectorbt closure required by signal_backtest.
 ARG PYPI_LOCK_MIRROR=https://repo.huaweicloud.com/repository/pypi/simple
-RUN uv export --quiet --frozen --no-dev --extra backtest \
+ARG USE_CN_MIRROR=1
+RUN uv export --quiet --frozen --no-dev --no-header --extra backtest \
     --no-emit-package tsp-rustdx-native --no-emit-project \
     --output-file /tmp/compute-locked.txt \
-    && UV_EXTRA_INDEX_URL= UV_INDEX= UV_DEFAULT_INDEX="$PYPI_LOCK_MIRROR" \
+    && if [ "$USE_CN_MIRROR" = "1" ]; then \
+         export UV_DEFAULT_INDEX="$PYPI_LOCK_MIRROR"; \
+       else export UV_DEFAULT_INDEX=https://pypi.org/simple; fi \
+    && UV_EXTRA_INDEX_URL= UV_INDEX= \
        UV_HTTP_TIMEOUT=60 UV_HTTP_RETRIES=2 \
        uv pip install --python /app/.venv/bin/python --require-hashes \
        --requirements /tmp/compute-locked.txt \

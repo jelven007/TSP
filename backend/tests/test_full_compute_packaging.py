@@ -12,7 +12,7 @@ def test_compute_image_installs_frozen_signal_backtest_runtime() -> None:
         ROOT / "deploy" / "full" / "Compute.Dockerfile"
     ).read_text(encoding="utf-8")
 
-    assert "uv export --quiet --frozen --no-dev --extra backtest" in dockerfile
+    assert "uv export --quiet --frozen --no-dev --no-header --extra backtest" in dockerfile
     assert "--no-emit-package tsp-rustdx-native --no-emit-project" in dockerfile
     assert "uv pip install --python /app/.venv/bin/python --require-hashes" in dockerfile
     assert 'UV_DEFAULT_INDEX="$PYPI_LOCK_MIRROR"' in dockerfile

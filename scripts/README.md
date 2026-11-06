@@ -14,7 +14,7 @@
 | `check_repository.py` | 检查源码目录和关键入口 | `python3 scripts/check_repository.py` |
 | `vendor_rustdx.py` | 离线核验固定rustdx源码、补丁与桥接身份；升级时显式刷新 | `python3 scripts/vendor_rustdx.py` |
 | `acceptance/` | 候选镜像构建、计算验收、持续验收启动 | `python3 scripts/acceptance/build_full_candidate.py --help` |
-| `release/` | 最新及最多一个历史源码归档、清单和离线核验 | `python3 scripts/release/source_recovery.py --help` |
+| `release/` | 发布编排/回执、两版预检、源码恢复、OCI缓存、身份/正式提升、业务差分 | `python3 scripts/release/pipeline.py --help`；[契约](../docs/release-pipeline.md) |
 | `performance/` | 两个工作区的内存预算对比 | `python3 scripts/performance/benchmark_memory_budget.py --help` |
 | `research/` | 策略试验、质量研究与结果汇总 | `PYTHONPATH=backend python3 scripts/research/research_quality_strategies.py --help` |
 
@@ -28,3 +28,6 @@
 `release/source_recovery.py` 使用标准库和 Git；`create` 要求输出为新目录，
 `verify` 检查保留政策、清单及一至两份归档。它不更新版本、不删标签、不覆盖旧备份；
 操作步骤见[版本保留](../docs/release-operations.md#31-版本保留)。
+
+新发布工具需Python3.11+，只消费受控输入；静态检查前置的定向门为 `make check-release`。
+本地暂停时不得执行启动/写入步骤，write中断只能先核实实际后置条件，不能盲目重放。

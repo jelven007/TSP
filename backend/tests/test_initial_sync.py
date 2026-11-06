@@ -126,7 +126,7 @@ def four_board_pipeline(tmp_path, monkeypatch):
     def minute(selected, **kwargs):
         calls.append(("minute", selected, kwargs))
         return daily(selected).rename({"date": "datetime"}).with_columns(
-            pl.lit(datetime(2026, 10, 15, 9, 31)).alias("datetime"),
+            pl.lit(datetime(2026, 10, 15, 15)).alias("datetime"),
         )
 
     def financial(table, selected, **kwargs):
@@ -166,6 +166,8 @@ def four_board_pipeline(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", tmp_path)
     monkeypatch.setattr(settings, "service_role", "platform")
     monkeypatch.setattr("app.jobs.daily_pipeline.cn_today", lambda: day)
+    monkeypatch.setattr("app.jobs.daily_pipeline.cn_now", lambda: datetime(2026, 10, 15, 16))
+    monkeypatch.setattr("app.services.kline_sync.cn_now", lambda: datetime(2026, 10, 15, 16))
     repo = KlineRepository(DataStore(tmp_path))
     from app.services import instrument_sync
 
@@ -224,6 +226,25 @@ def test_partial_daily_does_not_complete_initialization(four_board_pipeline):
     provider.get_daily = lambda selected, **kwargs: original(selected[:1], **kwargs)
     with pytest.raises(RuntimeError, match="首次日K同步不完整"):
         initial_sync.run_initial_sync(repo, caps)
+    assert initial_sync.needs_initial_sync(repo.store.data_dir)
+
+
+def test_initial_sync_rejects_auction_mismatch_before_enriched_or_publication(
+    four_board_pipeline, monkeypatch,
+):
+    repo, caps, provider, _, calls = four_board_pipeline
+    original = provider.get_minute
+    provider.get_minute = lambda selected, **kwargs: original(selected, **kwargs).with_columns(
+        pl.lit(11.0).alias("close"),
+    )
+    monkeypatch.setattr(
+        "app.jobs.daily_pipeline.run_pipeline",
+        lambda **kwargs: pytest.fail("invalid auction must stop before enriched"),
+    )
+    with pytest.raises(ValueError, match="15:00收盘分钟不一致"):
+        initial_sync.run_initial_sync(repo, caps)
+    assert any(stage == "minute" for stage, _, _ in calls)
+    assert not any((repo.store.data_dir / "kline_daily_enriched").rglob("*.parquet"))
     assert initial_sync.needs_initial_sync(repo.store.data_dir)
 
 

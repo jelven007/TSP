@@ -194,7 +194,8 @@ def test_live_engine_requires_exact_prior_session_for_new_return_definition(tmp_
     context = StrategyDataContext("stock", "1m", DAY, history=frame(10.6),
                                   positions=[position()], observed_at=AT, pool_history=prior)
     overrides = {"exit_signals": ["csgi_morning_liquidation"]}
-    assert not engine.run("sample", context, overrides=overrides).exit_signal_hits
+    with pytest.raises(ValueError, match="2026-09-04"):
+        engine.run("sample", context, overrides=overrides)
     context.pool_history = prior.with_columns(pl.lit(date(2026, 9, 4)).alias("date"))
     hit, = engine.run("sample", context, overrides=overrides).exit_signal_hits
     assert hit["reason"] == "rise" and hit["change_pct"] == pytest.approx(.06)

@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from datetime import time as clock_time
 
@@ -28,6 +28,7 @@ from app.strategy.engine import StrategyDataContext, StrategyDef, StrategyEngine
 MINUTE_DAILY_PANEL_COLUMNS = frozenset({
     "open", "high", "low", "close", "volume", "amount",
     "raw_close", "raw_high", "raw_low",
+    "quote_ts", "quote_time_basis",
     "turnover_rate",
     "signal_limit_up", "signal_limit_down", "signal_broken_limit_up",
 })
@@ -195,6 +196,13 @@ class MinuteSignalReplayer:
         daily_bars = self.strategy_engine.minute_daily_history_bars(
             [strategy.meta["id"]], overrides_map={strategy.meta["id"]: overrides},
         )
+        signal_sections = (
+            strategy.execution_backend == "minute_filter"
+            and strategy.meta.get("result_sections") == "signals"
+            and not strategy.meta.get("minute_execution")
+        )
+        if signal_sections:
+            daily_bars = max(daily_bars, 1)
         from app.strategy.basic_filter import uses_previous
         bf = {**(strategy.basic_filter or {}), **(overrides.get("basic_filter") or {})}
         if uses_previous(bf):
@@ -304,6 +312,38 @@ class MinuteSignalReplayer:
                 pool_universe=pool_evidence(repo, day, observed_at=observed_at),
             )
             try:
+                from app.services.daily_close_validation import validate_daily_close
+                from app.strategy.basic_filter import previous_session
+
+                source_day = previous_session(day)
+                validate_daily_close(
+                    repo, source_day, rows=panel.filter(pl.col("date") == source_day),
+                )
+                if signal_sections:
+                    from app.strategy.signal_sections import select_rows
+                    from app.strategy.suspension import annotate
+
+                    selection_current = daily_history.filter(pl.col("date") == source_day)
+                    if selection_current.is_empty():
+                        raise ValueError(f"盘后预选缺少{source_day}完整行情")
+                    selection_current = annotate(
+                        selection_current, as_of=source_day, evidence=pool_evidence(
+                            repo, source_day, observed_at=datetime.combine(source_day, clock_time(16))),
+                    ).with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
+                    selection_context = replace(
+                        context, current=selection_current, history=None,
+                        pool_history=None, pool_universe=None,
+                    )
+                    selected = select_rows(
+                        self.strategy_engine, strategy, selection_context,
+                        overrides={**overrides, "basic_filter": {
+                            **overrides.get("basic_filter", {}),
+                            "data_reference": "previous_trade_day",
+                        }}, pool=pool,
+                    )
+                    context = replace(context, selection_snapshots={strategy.meta["id"]: {
+                        "as_of": str(day), "source_date": str(source_day), "rows": selected,
+                    }})
                 run_result = self.strategy_engine.run(
                     strategy.meta.get("id", ""),
                     context,
@@ -319,6 +359,11 @@ class MinuteSignalReplayer:
 
             if run_result.entry_filter_error:
                 result.errors.append(f"{day}: {run_result.entry_filter_error}")
+            section_errors = run_result.section_errors or {}
+            result.errors.extend(
+                f"{day}: {message}" for message in dict.fromkeys(
+                    section_errors[key] for key in ("select", "buy") if section_errors.get(key))
+            )
             if full_pool:
                 # 入场回放保持旧兼容; 新现金账本消费诊断, 不把未知广度当成成功零信号。
                 from app.strategy import custom_signals

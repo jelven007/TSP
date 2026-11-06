@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import polars as pl
 import pytest
-from test_late_session_strength import DAY, POOL, TARGET, bars, definition, evaluate
+from test_late_session_strength import DAY, POOL, TARGET, bars, close_inputs, definition, evaluate
 
 CHECK = TARGET + timedelta(seconds=90)
 
@@ -108,7 +108,8 @@ def filter_minute_history(df, params):
         calls.append(set(symbols))
         return frame.filter(pl.col("symbol").is_in(symbols))
 
-    repo = SimpleNamespace(list_minute_dates=lambda *_: [DAY], get_minute_by_dates=minute)
+    repo = SimpleNamespace(list_minute_dates=lambda *_: [DAY], get_minute_by_dates=minute,
+                           get_daily_close_inputs=close_inputs)
     panel = pl.DataFrame({"symbol": POOL*2, "date": [DAY-timedelta(days=1)]*5+[DAY]*5,
                           "close": [10.]*10, "raw_close": [10.]*10, "name": ["sample"]*10})
     result = MinuteSignalReplayer(SimpleNamespace(repo=repo), engine).replay(

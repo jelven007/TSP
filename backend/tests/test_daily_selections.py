@@ -103,7 +103,13 @@ def test_read_merges_later_selection_without_rewriting_earlier_minute_archive(tm
 def test_postclose_context_never_reads_target_minutes_or_future_daily(scan, monkeypatch):
     from app.services.screener import ScreenerService
     engine, context, overrides = scan
-    service = ScreenerService(SimpleNamespace(get_instruments_asset=lambda *_: pl.DataFrame()))
+    daily = context.daily_history
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda *_: pl.DataFrame(),
+        get_daily_close_inputs=lambda day: (
+            daily.filter(pl.col("date") == day), daily.select("symbol", "close"),
+        ),
+    ))
     future = context.daily_history.with_columns(pl.lit(TARGET).alias("date"))
     history = pl.concat([context.daily_history, future])
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: history)
@@ -122,7 +128,11 @@ def test_local_schedule_waits_for_completed_source_then_saves_and_survives_resta
     from app.services.screener import ScreenerService
     engine, context, _ = scan
     repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path),
-                           get_instruments_asset=lambda *_: pl.DataFrame())
+                           get_instruments_asset=lambda *_: pl.DataFrame(),
+                           get_daily_close_inputs=lambda day: (
+                               context.daily_history.filter(pl.col("date") == day),
+                               context.daily_history.select("symbol", "close"),
+                           ))
     service = ScreenerService(repo)
     service._load_enriched_history = lambda *_: context.daily_history
     now = datetime(2026, 10, 30, 16, tzinfo=CN)
@@ -166,8 +176,13 @@ def test_preselection_excludes_source_dated_known_suspension(scan, monkeypatch):
     from app.services.daily_selections import compute_selections
     from app.services.screener import ScreenerService
     engine, context, _overrides = scan
-    service = ScreenerService(SimpleNamespace(get_instruments_asset=lambda *_: pl.DataFrame()))
     daily = context.daily_history.with_columns(pl.lit(True).alias("is_suspended"))
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda *_: pl.DataFrame(),
+        get_daily_close_inputs=lambda day: (
+            daily.filter(pl.col("date") == day), daily.select("symbol", "close"),
+        ),
+    ))
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: daily)
     result = compute_selections(engine, service, SOURCE, TARGET, ["custom_test"],
                                 {"custom_test": {"basic_filter": {"exclude_suspended": True}}})
@@ -193,6 +208,9 @@ def test_compute_dispatch_generates_archives_then_buys_only_saved_members(tmp_pa
     repo = SimpleNamespace(
         get_instruments_asset=lambda *_: pl.DataFrame(),
         get_enriched_history=lambda *_: daily,
+        get_daily_close_inputs=lambda day: (
+            daily.filter(pl.col("date") == day), daily.select("symbol", "close"),
+        ),
     )
     monkeypatch.setattr("app.tickflow.repository.DataStore", lambda *_args, **_kwargs:
                         SimpleNamespace(db=SimpleNamespace(close=lambda: None)))

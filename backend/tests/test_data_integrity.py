@@ -653,6 +653,16 @@ def test_pipeline_self_heals_snapshot_day(tmp_path, monkeypatch):
             "start": start_date.date() if hasattr(start_date, "date") else start_date,
             "end": end_date.date() if hasattr(end_date, "date") else end_date,
         })
+        # A successful batch replaces provisional clocks with official rows.
+        for day in (yesterday, today):
+            _write_full_partition(tmp_path, "kline_daily", day, None)
+            folder = tmp_path / "kline_minute" / f"date={day}"
+            folder.mkdir(parents=True, exist_ok=True)
+            pl.DataFrame({
+                "symbol": ["600001.SH", "600002.SH"],
+                "datetime": [datetime.combine(day, time(15))] * 2,
+                "close": [10., 20.],
+            }).write_parquet(folder / "part.parquet")
         return 0
 
     monkeypatch.setattr(kline_sync, "sync_and_persist_daily_batch", _fake_batch)

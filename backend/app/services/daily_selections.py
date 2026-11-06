@@ -58,10 +58,12 @@ class DailySelections:
             raise ValueError("预选源日期必须是目标日的精确前交易日")
         frozen = {**snapshot, "identity": identity.fingerprint,
                   "definition_version": DEFINITION_VERSION}
+        reference = frozen.pop("price_suggestion_reference", None)
         return self.results.save(replace(identity, daily_record=True), {
             "as_of": str(target), "strategy_id": identity.strategy_id,
             "rows": [], "total": 0, "elapsed_ms": 0, "section_mode": "signals",
             "selection_only": True, "selection_snapshot": frozen,
+            "price_suggestion_reference": reference,
             "sections": {"sell": [], "select": snapshot["rows"], "buy": []},
             "section_errors": {"buy": "仅已生成盘后选名单, 目标交易日买入信号尚未计算"},
         }, started_at=started_at, input_generation=input_generation)
@@ -88,8 +90,10 @@ class DailySelections:
 def compute_selections(engine, service, source, target, ids, overrides, *, now=None):
     from app.services.daily_pool_schedule import scheduled_for
     from app.strategy.engine import _sanitize
+    from app.strategy.signal_price_suggestions import price_reference
     from app.strategy.signal_sections import select_rows
     context = service.build_selection_context(engine, source, target, ids, overrides_map=overrides)
+    reference = price_reference(context)
     results, errors = {}, {}
     for sid in ids:
         try:
@@ -99,6 +103,7 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
             }}
             rows = _sanitize(select_rows(engine, engine.get(sid), context, overrides=effective))
             results[sid] = {"as_of": str(target), "source_date": str(source), "rows": rows,
+                            "price_suggestion_reference": reference,
                             "generated_at": as_cn_datetime(now or cn_now()).isoformat(),
                             "scheduled_for": scheduled_for(source, "16:00")}
         except ValueError as exc:

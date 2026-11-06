@@ -1,5 +1,12 @@
 # Tick Stock Platform（TSP）发布与服务运营手册
 
+2026-11-07当前升级见[统一候选](upgrade-20261107.md)：收盘证据与精确T-1、
+回测遗漏资格/错误传递、保存建议、三态排序和发布流水线统一签收。
+用户策略仍14:30启动/60秒确认/全池上涨60%及既有买卖仓位参数；此次不发起新回测。
+本地继续暂停，正式主线版本、四镜像、生产重启、两版恢复与Release冻结分别验证。
+首次安装校验顺序兼容既有分钟范围，不自动采集全年分钟；历史批量定版和分钟消费的
+准确T-1竞价校验分别认证。本轮没有运行新的初始化。
+
 本轮用户可见变化、正式身份及双端切换状态见
 [2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
 源码候选、CI自动升版、镜像构建、发布和实际安装分别签收；以下是各次历史记录。
@@ -254,20 +261,21 @@ Windows产物独立验收安装、GUI、真实退出码及卸载数据保留。
 | 产物 | 自动化 | 触发 | 说明 |
 | --- | --- | --- | --- |
 | CI 结果 | `.github/workflows/ci.yml` | push/PR 到 `main` | 后端全量测试；前端 test、lint、build |
-| Git 版本标签 | CI 的 Tag Job | 主线版本和前后端质量门成功 | 自动创建 `v<应用版本>`，固定到实际通过测试的 SHA |
-| 容器镜像 | `.github/workflows/docker.yml` | `main` CI 成功、`v*` tag、手动 | 发布到当前仓库配置的 GHCR；使用前必须核验可见性与 digest |
+| Git 版本标签 | CI 的 Tag Job | 主线版本、前后端质量门、完整镜像构建成功 | 自动创建 `v<应用版本>`，固定同一 SHA |
+| 容器镜像 | `docker.yml`、`docker-promote.yml` | main定版后并行构建；`v*` tag、手动有独立质量门 | Runtime/Compute × 两架构候选全部核验后提升GHCR正式标签 |
 | 桌面安装包 | `.github/workflows/release.yml` | 手动且质量门通过 | Windows x64、macOS ARM64、Linux x64 |
 | GitHub Release | 桌面发布 workflow | 手动 | 所选平台全部成功后发布并冻结；草稿可补齐 |
 | 更新清单 | `latest.json` | 桌面产物后 | 仅列实际存在资产及 SHA-256 |
 | 构建与运行文件清单 | `build-manifest.json` / 安装包 `.manifest.json` | 构建及安装包封装 | 源码 SHA、工作区状态、文件哈希及安装包哈希，见[离线升级备份](reference/engineering.md#build) |
 | MCP 包 | `mcp-server/` | 独立维护 | 版本不必与主应用完全同步 |
 
-`main` 的 CI 先写回自动版本提交，前后端质量门均检查该提交；Docker 读取该次
-成功 CI 的 `ci-revision` artifact，构建相同提交并写入提交 SHA 和应用版本镜像标签。
+`main` 的 CI 先写回自动版本提交，前后端质量门与Docker同时检查/构建该SHA；
+`ci-revision` artifact保留为身份核对证据。Runtime双架构完成后Compute从Runtime索引digest
+构建双架构，核对完整角色矩阵；临时标签通过联合门后才提升完整SHA和应用版本镜像标签。
 `latest` 单独串行提升，只接受提升时仍为当前 main 的构建 SHA；手动和旧 tag
 构建不更新它。CI 事件的原始 `head_sha` 不能代替实际通过质量门的 SHA。
-`v*` tag 和手动触发会在 Docker workflow 内重新执行后端、前端质量门，通过后
-才构建镜像。Dockerfile 的 pnpm 与 uv 安装使用锁文件冻结模式，不允许锁文件
+`v*` tag 和手动触发在 Docker workflow 内独立执行后端、前端质量门，可与候选构建并行，
+质量门和完整矩阵全部通过且Git标签匹配后才正式提升。Dockerfile 的 pnpm 与 uv 安装使用锁文件冻结模式，不允许锁文件
 不一致时退回非冻结解析；Codex CLI 使用固定版本构建参数。
 
 桌面 workflow 同样先执行后端全量测试和前端 test、lint、build，再启动所选平台
@@ -279,6 +287,11 @@ Docker 清单包括 app/static、锁文件和原生 wheel；Compute 先验证基
 Windows Git 自动换行与 TypeScript 声明输出须保持一致：受跟踪的
 `frontend/vite.config.d.ts` 由 `.gitattributes` 固定 LF，构建后仍须通过真实源码
 清洁检查；不得把生成文件的换行差异作为跳过 dirty 校验的理由。
+
+受控发布入口与阶段回执见[发布流水线](release-pipeline.md)。容量、旧版恢复和预下载
+前置，正常业务增量逐条核实，未知差异阻断；完整备份/实际恢复及业务验收保留。
+2026-11-07仅工具/工作流候选，未提交、上线或执行真实四镜像构建；本地暂停优先于旧升级授权。
+60～90分钟目标待三次可比发布计时，不作为当前交付承诺。
 
 <a id="3-版本规则"></a>
 ## 3. 版本与渠道

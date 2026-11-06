@@ -1,0 +1,37 @@
+[
+  {
+    "id": "late_session_strength",
+    "kind": "entry",
+    "name": "尾盘建仓",
+    "params": {
+      "time": "14:30:00",
+      "ma5_1m_count": 7,
+      "ma5_5m_count": 4,
+      "change_max_pct": 4,
+      "change_min_pct": 0.4,
+      "pool_up_min_pct": 60,
+      "evaluation_delay_minutes": 1
+    },
+    "enabled": true,
+    "min_bars": 0,
+    "template": "late_session_strength",
+    "timeframe": "intraday",
+    "conditions": []
+  },
+  {
+    "id": "morning_liquidation",
+    "kind": "exit",
+    "name": "早盘清仓",
+    "params": {
+      "time": "10:30:00",
+      "fall_pct": 6,
+      "rise_pct": 6,
+      "fallback_time": "10:45:00"
+    },
+    "enabled": true,
+    "min_bars": 0,
+    "template": "morning_liquidation",
+    "timeframe": "intraday",
+    "conditions": []
+  }
+]

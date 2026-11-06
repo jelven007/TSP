@@ -16,6 +16,16 @@ def select_rows(engine, strategy, context, *, overrides, pool=None):
     history = context.daily_history
     if current is None or current.is_empty():
         raise ValueError("选股结果缺少股票范围和数值过滤快照")
+    if bf.get("data_reference") == "previous_trade_day":
+        from app.services.daily_close_validation import require_final_daily_rows
+
+        source_day = previous_session(context.as_of)
+        reference = history if history is not None and not history.is_empty() else current
+        require_final_daily_rows(reference.filter(pl.col("date") == source_day), source_day)
+        if "date" in current.columns:
+            completed_current = current.filter(pl.col("date") < context.as_of)
+            if not completed_current.is_empty():
+                require_final_daily_rows(completed_current, source_day)
     rows = current.unique("symbol", keep="last")
     rows = engine._apply_basic_filter(rows, bf, history=history, as_of=context.as_of)
     if pool is not None:

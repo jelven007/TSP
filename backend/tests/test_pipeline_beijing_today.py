@@ -101,6 +101,21 @@ def test_explicit_daily_repair_bounds_stock_index_factors_and_cleanup(monkeypatc
     def batch(key):
         def sync(*a, **kw):
             captured[key] = kw
+            if key == "stock":
+                # Simulate successful official batch replacement of the stale
+                # snapshots, with physical auction evidence already available.
+                for day in (start, end):
+                    raw = pl.DataFrame({
+                        "symbol": ["600000.SH"], "date": [day],
+                        "open": [10.], "high": [11.], "close": [10.],
+                        "volume": [100.], "amount": [1000.],
+                    })
+                    raw.write_parquet(tmp_path / "kline_daily" / f"date={day}" / "part.parquet")
+                    part = tmp_path / "kline_minute" / f"date={day}"
+                    part.mkdir(parents=True)
+                    raw.select("symbol", "close").with_columns(
+                        pl.lit(datetime.combine(day, datetime.min.time()).replace(hour=15)).alias("datetime"),
+                    ).write_parquet(part / "part.parquet")
             return 1
         return sync
 
@@ -118,6 +133,9 @@ def test_explicit_daily_repair_bounds_stock_index_factors_and_cleanup(monkeypatc
         store=SimpleNamespace(data_dir=tmp_path), latest_daily_date=lambda: later,
         symbols_lagging=lambda *a, **kw: [], refresh_index_views=lambda: None,
     )
+    from app.tickflow.repository import KlineRepository
+
+    repo.get_daily_close_inputs = lambda day: KlineRepository.get_daily_close_inputs(repo, day)
     with pytest.raises(_RangeObserved):
         daily_pipeline.run_now(repo, SimpleNamespace(has=lambda _: True),
                                override_start_date=start, override_end_date=end)

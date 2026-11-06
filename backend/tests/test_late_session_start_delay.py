@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import polars as pl
 import pytest
-from test_late_session_strength import DAY, POOL, TARGET, bars, definition, evaluate
+from test_late_session_strength import DAY, POOL, TARGET, bars, close_inputs, definition, evaluate
 
 CHECK = TARGET + timedelta(minutes=1)
 
@@ -108,10 +108,12 @@ def filter_minute_history(df, params):
     frame = pl.concat([bars(), future])
     panel = pl.DataFrame({"symbol": POOL*2, "date": [DAY-timedelta(days=1)]*5+[DAY]*5,
                           "close": [10.]*10, "raw_close": [10.]*10, "name": ["sample"]*10})
-    repo = SimpleNamespace(list_minute_dates=lambda *_: [DAY], get_minute_by_dates=lambda *_: frame)
+    repo = SimpleNamespace(list_minute_dates=lambda *_: [DAY], get_minute_by_dates=lambda *_: frame,
+                           get_daily_close_inputs=close_inputs)
     result = MinuteSignalReplayer(SimpleNamespace(repo=repo), engine).replay(
         engine.get("sample"), panel=panel, start=DAY, end=DAY, params={},
         overrides={"entry_signals": ["csgi_late_session_strength"]})
+    assert not result.errors
     assert len(result.hits) == 3
     assert all(hit.trigger_time == "14:31" and hit.signal_time == "14:31" for hit in result.hits)
     assert all(hit.entry_window_start == CHECK and hit.prior_close == 10. for hit in result.hits)

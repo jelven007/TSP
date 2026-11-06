@@ -7,7 +7,8 @@ const live = [['live_price', '现价'], ['live_change_pct', '涨跌幅'], ['live
   ['live_vol_ratio', '量比'], ['live_signals', '信号']] as const
 const definitions = {
   sell: [...common, ['entry_date', '买入信号日期'], ['last_datetime', '触发时间'],
-    ['close', '触发价'], ['change_pct', '触发时涨幅'], ['score', '信号评分'], ...live],
+    ['close', '触发价'], ['change_pct', '触发时涨幅'], ['score', '信号评分'],
+    ['volume', '分钟成交量'], ['amount', '分钟成交额'], ['suggested_sell_price', '建议卖出价'], ...live],
   select: [...common, ['selection_rank', '排序'], ['reference_date', '数值参考日'],
     ['reference_close', '参考价'], ['reference_change_pct', '参考日涨幅'],
     ['reference_float_cap', '流通市值(亿)'], ['amount_mean_20d', '20日均额(亿)'],
@@ -23,7 +24,7 @@ export const STRATEGY_RESULT_WIDTHS: Record<string, number> = {
   close: 80, reference_close: 80, live_price: 80, change_pct: 100, reference_change_pct: 100,
   live_change_pct: 88, live_turnover: 88, live_vol_ratio: 72, score: 80, selection_rank: 56,
   reference_float_cap: 110, amount_mean_20d: 110, volume: 100, amount: 116,
-  suggested_lots_100k: 148, live_signals: 280,
+  suggested_lots_100k: 148, suggested_sell_price: 148, live_signals: 280,
 }
 export function defaultStrategyResultColumns(tab: StrategyResultTab): ColumnConfig[] {
   return definitions[tab].map(([key, label]) => ({
@@ -55,7 +56,13 @@ export function loadStrategyResultColumns(): StrategyResultColumnConfig {
       seen.add(column.id)
       columns.push({ ...column, visible: column.pinned || typeof item.visible !== 'boolean' ? column.visible : item.visible })
     }
-    columns.push(...defaults.filter(col => !seen.has(col.id)))
+    // 旧偏好中新增加的列跟随默认前置列插入，保留已有列的相对顺序与显隐。
+    defaults.forEach((column, i) => {
+      if (seen.has(column.id)) return
+      const previous = defaults.slice(0, i).reverse().find(col => columns.some(item => item.id === col.id))
+      const index = previous ? columns.findIndex(col => col.id === previous.id) + 1 : 0
+      columns.splice(index, 0, column)
+    })
     return [tab, columns]
   })) as StrategyResultColumnConfig
 }

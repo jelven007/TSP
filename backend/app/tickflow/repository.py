@@ -1651,6 +1651,31 @@ class KlineRepository:
             raise ValueError("unsupported minute asset type")
         return self._minute_glob
 
+    def get_daily_close_inputs(self, day: date) -> tuple[pl.DataFrame, pl.DataFrame]:
+        """Bounded disk-only finality evidence; replacements are visible immediately."""
+        raw_parts = sorted((self.store.data_dir / "kline_daily" / f"date={day}").glob("*.parquet"))
+        minute_parts = sorted((self.store.data_dir / "kline_minute" / f"date={day}").glob("*.parquet"))
+        raw_frames = []
+        for path in raw_parts:
+            schema = pl.read_parquet_schema(path)
+            columns = [c for c in ("symbol", "date", "close", "quote_ts", "quote_time_basis") if c in schema]
+            raw_frames.append(pl.read_parquet(path, columns=columns))
+        raw = pl.concat(raw_frames, how="diagonal_relaxed") if raw_frames else pl.DataFrame()
+        minute_frames = []
+        for path in minute_parts:
+            schema = pl.read_parquet_schema(path)
+            if not {"symbol", "datetime", "close"} <= set(schema):
+                raise ValueError(f"{day}收盘分钟缺少 symbol/datetime/close")
+            stamp = pl.col("datetime")
+            if isinstance(schema["datetime"], pl.Datetime) and schema["datetime"].time_zone:
+                stamp = stamp.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
+            minute_frames.append(guarded_collect(
+                pl.scan_parquet(path).filter(stamp == datetime.combine(day, clock_time(15)))
+                .select("symbol", "close")
+            ))
+        closing = pl.concat(minute_frames, how="vertical_relaxed") if minute_frames else pl.DataFrame()
+        return raw, closing
+
     def _maybe_adjust_minute(self, df: pl.DataFrame, asset_type: str) -> pl.DataFrame:
         """原始基准标记开启时应用读取时复权投影 (services/minute_adjust 三层架构)。
 

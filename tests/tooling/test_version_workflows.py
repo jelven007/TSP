@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import os
+import glob
+import hashlib
 import json
-from pathlib import Path
+import os
+import re
 import subprocess
+from pathlib import Path
 
 import pytest
 import yaml
@@ -21,6 +24,47 @@ def workflow(name):
 
 def step_using(job, action):
     return next(step for step in job["steps"] if step.get("uses") == action)
+
+
+@pytest.mark.parametrize("stored", ["v0.4.50", "0.4.50"])
+@pytest.mark.parametrize("role", ["runtime", "compute", "identity", "promote"])
+def test_release_workflow_uses_canonical_version_with_repository_prefix(tmp_path, stored, role):
+    name = "docker-promote.yml" if role == "promote" else "docker.yml"
+    steps = workflow(name)["jobs"][role]["steps"]
+    if role in ("runtime", "compute"):
+        command = next(step["run"] for step in steps if step.get("id") in ("inputs", "version"))
+    else:
+        command = next(step["run"] for step in steps if "image_manifest.py" in step.get("run", ""))
+    (tmp_path / "VERSION").write_text(stored + "\n")
+    output = tmp_path / "output"
+    assignments = [line.strip() for line in command.splitlines()
+                   if line.strip().startswith(("version=", 'echo "version='))]
+    if role in ("identity", "promote"):
+        argument = re.search(r'--version ("[^"]+")', command)[1]
+        assignments.append(f'printf "version=%s\\n" {argument} >> "$GITHUB_OUTPUT"')
+    result = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", "\n".join(assignments)],
+        cwd=tmp_path, env={**os.environ, "GITHUB_OUTPUT": str(output)},
+        text=True, capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert output.read_text() == "version=0.4.50\n"
+
+
+def test_promotion_uses_single_prefix_version_tag():
+    command = next(step["run"] for step in workflow("docker-promote.yml")["jobs"]["promote"]["steps"]
+                   if "image_manifest.py" in step.get("run", ""))
+    assignments = [line.strip() for line in command.splitlines()
+                   if line.strip().startswith("version=")]
+    target = re.search(r'git rev-parse ("[^"]+")', command)[1]
+    result = subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c",
+         "\n".join([*assignments, f"printf '%s\\n' {target}"])],
+        cwd=ROOT, text=True, capture_output=True,
+    )
+    expected = "refs/tags/v" + (ROOT / "VERSION").read_text().strip().removeprefix("v") + "^{commit}\n"
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == expected
 
 
 def test_main_events_are_not_cancelled_and_prs_only_check_versions():
@@ -71,57 +115,39 @@ def test_quality_jobs_and_docker_use_same_recorded_commit():
     assert documentation["working-directory"] == "."
     assert documentation["run"] == "python3 scripts/check_docs.py"
 
-    docker = workflow("docker.yml")["jobs"]["build-and-push"]
-    assert "github.event.workflow_run.event == 'push'" in docker["if"]
-    assert "github.event.workflow_run.head_branch == 'main'" in docker["if"]
-    assert "github.event.workflow_run.conclusion == 'success'" in docker["if"]
-    download = step_using(docker, "actions/download-artifact@v4")
-    assert download["if"] == "github.event_name == 'workflow_run'"
-    assert download["with"]["run-id"] == "${{ github.event.workflow_run.id }}"
-    assert download["with"]["name"] == artifact["name"]
-    checkout = step_using(docker, "actions/checkout@v4")["with"]
-    assert checkout["ref"] == "${{ steps.revision.outputs.revision }}"
-    metadata = step_using(docker, "docker/metadata-action@v5")["with"]
-    assert "${{ steps.revision.outputs.revision }}" in metadata["tags"]
-    assert metadata["labels"].strip() == (
-        "org.opencontainers.image.revision=${{ steps.revision.outputs.revision }}"
-    )
-    assert (
-        "type=raw,value=${{ steps.application-version.outputs.version }},"
-        "enable=${{ github.event_name == 'workflow_run' }}"
-    ) in metadata["tags"]
-    application_version = next(
-        step for step in docker["steps"] if step.get("id") == "application-version"
-    )
-    assert "python3 scripts/check_version.py --current VERSION" in application_version["run"]
-    assert "workflow_run.head_sha" not in str(docker)
+    containers = ci["jobs"]["containers"]
+    assert containers["needs"] == "version"
+    assert containers["uses"] == "./.github/workflows/docker.yml"
+    assert containers["with"]["revision"] == "${{ needs.version.outputs.revision }}"
+    docker = workflow("docker.yml")
+    assert "workflow_run" not in docker["on"]
+    assert "workflow_call" in docker["on"]
+    for name in ("runtime", "compute", "backend-quality", "frontend-quality"):
+        checkout = step_using(docker["jobs"][name], "actions/checkout@v4")["with"]
+        assert checkout["ref"] == "${{ needs.resolve.outputs.revision }}"
+    assert "runtime" in docker["jobs"]["compute"]["needs"]
+    build = step_using(docker["jobs"]["compute"], "docker/build-push-action@v6")["with"]
+    assert "RUNTIME_IMAGE=${{ needs.runtime.outputs.image }}" in build["build-args"]
+    assert "@${{ needs.runtime.outputs.digest }}" in build["build-args"]
+    assert build["platforms"] == "linux/amd64,linux/arm64"
 
 
 @pytest.mark.parametrize(
-    ("event", "artifact", "expected"),
+    ("candidate", "expected"),
     [
-        ("workflow_run", "a" * 40 + "\n", "a" * 40),
-        ("workflow_run", None, None),
-        ("workflow_run", "invalid\n", None),
-        ("workflow_run", "a" * 40 + "\nextra\n", None),
-        ("workflow_dispatch", None, "b" * 40),
-        ("push", None, "b" * 40),
+        ("a" * 40, "a" * 40), ("", None), ("invalid", None),
+        ("a" * 40 + "\nextra", None), ("b" * 40, "b" * 40),
     ],
 )
-def test_docker_revision_selection_fails_closed(tmp_path, event, artifact, expected):
-    docker = workflow("docker.yml")["jobs"]["build-and-push"]
+def test_docker_revision_selection_fails_closed(tmp_path, candidate, expected):
+    docker = workflow("docker.yml")["jobs"]["resolve"]
     select = next(step for step in docker["steps"] if step.get("id") == "revision")
-    artifact_dir = tmp_path / "ci-revision"
-    artifact_dir.mkdir()
-    if artifact is not None:
-        (artifact_dir / "revision.txt").write_text(artifact)
     output = tmp_path / "output"
     result = subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", select["run"]],
         env={
             **os.environ,
-            "GITHUB_EVENT_NAME": event,
-            "GITHUB_SHA": "b" * 40,
+            "BUILD_REVISION": candidate,
             "RUNNER_TEMP": str(tmp_path),
             "GITHUB_OUTPUT": str(output),
         },
@@ -145,7 +171,7 @@ def test_desktop_release_requires_explicit_version_without_stale_default():
 def test_version_tag_requires_successful_main_quality_gates():
     ci = workflow("ci.yml")
     tag = ci["jobs"]["tag"]
-    assert set(tag["needs"]) == {"version", "backend", "frontend"}
+    assert set(tag["needs"]) == {"version", "backend", "frontend", "containers"}
     assert tag["if"] == (
         "github.event_name == 'push' && github.ref == 'refs/heads/main'"
     )
@@ -204,25 +230,27 @@ def test_desktop_standalone_smoke_isolates_runtime_configuration():
 
 
 def test_docker_latest_only_promoted_for_current_main_after_build():
+    ci = workflow("ci.yml")
+    assert set(ci["jobs"]["promote"]["needs"]) == {
+        "version", "backend", "frontend", "containers", "tag",
+    }
     docker = workflow("docker.yml")
-    build = docker["jobs"]["build-and-push"]
-    tags = step_using(build, "docker/metadata-action@v5")["with"]["tags"]
-    assert "value=latest" not in tags
-    assert "type=raw,value=${{ steps.revision.outputs.revision }}\n" in tags
-    promotion = docker["jobs"]["promote-latest"]
-    assert promotion["needs"] == "build-and-push"
-    assert promotion["if"].strip() == (
-        "always() && github.event_name == 'workflow_run' && "
-        "needs.build-and-push.result == 'success'"
-    )
+    for name in ("runtime", "compute"):
+        build = step_using(docker["jobs"][name], "docker/build-push-action@v6")["with"]
+        assert "ci-${{ github.run_id }}-${{ github.run_attempt }}" in build["tags"]
+        assert "latest" not in build["tags"]
+    promotion = workflow("docker-promote.yml")["jobs"]["promote-latest"]
+    assert promotion["needs"] == "promote"
+    assert promotion["if"] == "${{ inputs.promote_latest }}"
     assert promotion["concurrency"]["cancel-in-progress"] == "false"
+    assert promotion["concurrency"]["group"] == "docker-latest-main"
     publish = promotion["steps"][-1]
     assert "is_current_main(Path.cwd(), revision)" in publish["run"]
-    assert publish["env"]["BUILD_REVISION"] == "${{ needs.build-and-push.outputs.revision }}"
+    assert publish["env"]["BUILD_REVISION"] == "${{ inputs.revision }}"
 
 
 def test_private_repository_main_check_receives_ephemeral_authentication(tmp_path):
-    promotion = workflow("docker.yml")["jobs"]["promote-latest"]
+    promotion = workflow("docker-promote.yml")["jobs"]["promote-latest"]
     publish = promotion["steps"][-1]
     assert publish["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
     fake_git = tmp_path / "git"
@@ -246,6 +274,62 @@ def test_private_repository_main_check_receives_ephemeral_authentication(tmp_pat
     assert result.returncode == 0, result.stderr
     assert "main has advanced" in result.stdout
     assert "test-only-token" not in result.stdout + result.stderr
+
+
+def test_manual_builds_cannot_promote_without_full_quality_and_image_matrix():
+    docker = workflow("docker.yml")
+    promote = docker["jobs"]["promote"]
+    assert set(promote["needs"]) == {
+        "resolve", "backend-quality", "frontend-quality", "runtime", "compute", "identity",
+    }
+    assert "inputs.revision == ''" in promote["if"]
+    for name in ("backend-quality", "frontend-quality"):
+        assert "inputs.revision == ''" in docker["jobs"][name]["if"]
+    assert "pytest ../tests/tooling -q" in str(docker["jobs"]["backend-quality"])
+    identity_job = docker["jobs"]["identity"]
+    assert set(identity_job["needs"]) == {"resolve", "runtime", "compute"}
+    assert "scripts/release/image_manifest.py" in str(identity_job)
+    assert "runtime_digest" in docker["on"]["workflow_call"]["outputs"]
+    assert "compute_digest" in docker["on"]["workflow_call"]["outputs"]
+
+
+def test_dependency_layers_do_not_depend_on_readme_or_project_version():
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    runtime = dockerfile.split(" AS runtime\n", 1)[1]
+    assert runtime.index("runtime-locked.txt") < runtime.index("COPY README.md")
+    assert runtime.index("uv pip sync") < runtime.index("COPY backend/pyproject.toml")
+    assert "--require-hashes" in runtime
+    assert "AS dependency-exporter" in dockerfile
+    for arg in ("PYTHON_IMAGE", "RUST_IMAGE", "NODE_ALPINE_IMAGE", "NODE_IMAGE"):
+        assert f"FROM ${{{arg}}}" in dockerfile
+        assert arg in str(workflow("docker.yml")["jobs"]["runtime"])
+    assert "USE_CN_MIRROR" in (ROOT / "deploy/full/Compute.Dockerfile").read_text()
+
+
+def test_native_cache_survives_application_version_allocation_but_not_cargo_change(tmp_path):
+    build = step_using(workflow("docker.yml")["jobs"]["runtime"], "docker/build-push-action@v6")
+    expression = re.search(r"NATIVE_CACHE_KEY=.*?hashFiles\(([^)]+)\)", build["with"]["build-args"])
+    assert expression is not None
+    patterns = re.findall(r"'([^']+)'", expression[1])
+    native = tmp_path / "backend/native/rustdx_native"
+    native.mkdir(parents=True)
+    cargo = native / "Cargo.lock"
+    cargo.write_text("native dependency 1\n")
+    application = tmp_path / "backend/uv.lock"
+    application.write_text("application version 0.4.50\n")
+
+    def fingerprint():
+        paths = {Path(path) for pattern in patterns
+                 for path in glob.glob(str(tmp_path / pattern), recursive=True) if Path(path).is_file()}
+        assert cargo in paths
+        return hashlib.sha256(b"".join(hashlib.sha256(path.read_bytes()).digest()
+                                      for path in sorted(paths))).hexdigest()
+
+    before = fingerprint()
+    application.write_text("application version 0.4.51\n")
+    assert fingerprint() == before
+    cargo.write_text("native dependency 2\n")
+    assert fingerprint() != before
 
 
 def test_history_and_tags_are_protected_even_when_automation_bypasses_integration():

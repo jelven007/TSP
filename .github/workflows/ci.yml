@@ -1,7 +1,8 @@
 name: CI
 
 # 持续集成: 后端全量测试 + 前端全量测试与构建。
-# 与 release.yml 的分工: 这里不打包, 只守质量门 —
+# main 定版后并行执行质量门与 Runtime/Compute 构建；联合过关才创建正式标签。
+# release.yml 仍单独打包桌面安装包。
 # 后端含 Tier A 开放契约快照测试 (test_openapi_contract.py),
 # 开放面的任何变化都会在这里被拦下, 须有意识地更新快照。
 on:
@@ -199,8 +200,19 @@ jobs:
       - name: 构建 (tsc + vite)
         run: pnpm build
 
+  containers:
+    needs: version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/docker.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      revision: ${{ needs.version.outputs.revision }}
+    secrets: inherit
+
   tag:
-    needs: [version, backend, frontend]
+    needs: [version, backend, frontend, containers]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -224,3 +236,17 @@ jobs:
           TESTED_REVISION: ${{ steps.tag.outputs.revision }}
         run: |
           printf 'Version tag: `%s` → `%s`\n' "$VERSION_TAG" "$TESTED_REVISION" >> "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    needs: [version, backend, frontend, containers, tag]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/docker-promote.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      revision: ${{ needs.version.outputs.revision }}
+      runtime_digest: ${{ needs.containers.outputs.runtime_digest }}
+      compute_digest: ${{ needs.containers.outputs.compute_digest }}
+      promote_latest: true
+    secrets: inherit

@@ -265,9 +265,9 @@ def test_backup_size_limit_and_output_symlink(tmp_path, monkeypatch):
 
 def test_build_workflows_bind_manifests_to_tested_revision_and_upload_sidecar():
     docker = yaml.safe_load((ROOT / ".github/workflows/docker.yml").read_text())
-    steps = docker["jobs"]["build-and-push"]["steps"]
+    steps = docker["jobs"]["runtime"]["steps"]
     build = next(step for step in steps if step.get("uses", "").startswith("docker/build-push-action"))
-    assert "SOURCE_COMMIT=${{ steps.revision.outputs.revision }}" in build["with"]["build-args"]
+    assert "SOURCE_COMMIT=${{ needs.resolve.outputs.revision }}" in build["with"]["build-args"]
     release = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
     steps = release["jobs"]["build"]["steps"]
     seal_index = next(i for i, step in enumerate(steps) if "build_manifest.py seal" in step.get("run", ""))

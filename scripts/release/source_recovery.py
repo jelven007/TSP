@@ -10,14 +10,51 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from release.common import file_hash
+
 versioning = importlib.import_module("versioning")
 
 VERSION = r"[0-9]\.[0-9]\.(?:0|[1-9][0-9]?)"
 MAX_COUNT = 2
 POLICY = "latest_source_plus_one_prior_version"
+
+
+def archive_members(archive: Path, version: str) -> dict:
+    """One decompression pass, no extraction or repeated gzip member seeks."""
+    members = {}
+    seen = set()
+    prefix = f"TSP-v{version}"
+    with tarfile.open(archive, "r|gz") as source:
+        for member in source:
+            path = PurePosixPath(member.name)
+            if (path.is_absolute() or ".." in path.parts or not path.parts
+                    or path.parts[0] != prefix or member.name in seen
+                    or member.name.rstrip("/") != path.as_posix() or "\\" in member.name):
+                raise ValueError("unsafe or duplicate archive member")
+            seen.add(member.name)
+            if member.isdir():
+                continue
+            if not member.isfile():
+                raise ValueError("archive member must be a regular file or directory")
+            name = path.relative_to(prefix).as_posix()
+            stream = source.extractfile(member)
+            if stream is None:
+                raise ValueError("unreadable archive member")
+            with stream:
+                if name == "VERSION":
+                    data = stream.read(65)
+                    if member.size > 64 or file_version(data.decode()) != version:
+                        raise ValueError("archive member VERSION mismatch")
+                    members[name] = {"size": member.size, "sha256": hashlib.sha256(data).hexdigest()}
+                else:
+                    members[name] = {"size": member.size,
+                                     "sha256": hashlib.file_digest(stream, "sha256").hexdigest()}
+    if "VERSION" not in members:
+        raise ValueError("archive member VERSION missing")
+    return members
 
 
 def git(root: Path, *args: str) -> str:
@@ -77,16 +114,11 @@ def verify(output: Path) -> dict:
                 or not re.fullmatch(r"[0-9a-f]{40}", record["commit"])):
             raise ValueError("invalid source identity or archive path")
         archive = output / expected
-        if archive.is_symlink() or hashlib.sha256(archive.read_bytes()).hexdigest() != record["sha256"]:
+        if file_hash(archive) != record["sha256"]:
             raise ValueError(f"archive checksum mismatch: {expected}")
-        with tarfile.open(archive, "r:gz") as source:
-            # Read without extracting any archive paths onto the filesystem.
-            member = source.getmember(f"TSP-v{version}/VERSION")
-            if not member.isfile():
-                raise ValueError("archive VERSION must be a regular file")
-            version_file = source.extractfile(member)
-            if version_file is None or file_version(version_file.read().decode()) != version:
-                raise ValueError(f"archive VERSION mismatch: {expected}")
+        members = archive_members(archive, version)
+        if "members" in record and members != record["members"]:
+            raise ValueError("archive member manifest mismatch")
     ordered = sorted(seen, key=lambda value: tuple(map(int, value.split("."))), reverse=True)
     if [r["version"] for r in records] != ordered or manifest["latest"] != ordered[0]:
         raise ValueError("invalid version order")
@@ -113,7 +145,8 @@ def create(root: Path, revision: str, output: Path) -> dict:
                 ["git", "archive", "--format=tar.gz", f"--prefix=TSP-v{version}/",
                  f"--output={archive}", record["commit"]], cwd=root, check=True,
             )
-            record.update(archive=archive.name, sha256=hashlib.sha256(archive.read_bytes()).hexdigest())
+            record.update(archive=archive.name, sha256=file_hash(archive),
+                          members=archive_members(archive, version))
         manifest = {
             "format": 1, "policy": POLICY,
             "latest": records[0]["version"], "versions": records,

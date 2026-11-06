@@ -1,24 +1,47 @@
-name: Build and Push Docker Image
+name: Build Release Images
 
-# 触发:
-#   - main 的 CI 成功: 固定版本与 SHA，仍为当前 main 时再提升 latest
-#   - 打 v* tag / 手动: 先在本 workflow 重跑质量门, 再构建镜像
+# Main calls this after version allocation, concurrently with quality jobs.
+# Tag/manual builds run the same frozen revision's quality gates before promotion.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
+    outputs:
+      runtime_digest:
+        value: ${{ jobs.runtime.outputs.digest }}
+      compute_digest:
+        value: ${{ jobs.compute.outputs.digest }}
   push:
     tags: ['v*']
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+permissions:
+  contents: read
+  packages: write
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.revision.outputs.revision }}
+    steps:
+      - name: Select build revision
+        id: revision
+        env:
+          BUILD_REVISION: ${{ inputs.revision || github.sha }}
+        run: |
+          revision="$BUILD_REVISION"
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Missing or invalid tested revision"
+            exit 1
+          fi
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
   backend-quality:
-    if: github.event_name != 'workflow_run'
+    needs: resolve
+    if: ${{ inputs.revision == '' }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -45,7 +68,14 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
-      - name: 设置隔离测试数据目录
+        with:
+          ref: ${{ needs.resolve.outputs.revision }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Fast repository checks
+        working-directory: .
+        run: make check
+      - name: Set isolated test directory
         run: echo "DATA_DIR=$RUNNER_TEMP/tsp-tests" >> "$GITHUB_ENV"
       - uses: astral-sh/setup-uv@v3
         with:
@@ -56,189 +86,207 @@ jobs:
           toolchain: 1.99.0
       - run: uv sync --extra dev --extra cell --frozen
       - run: uv run --frozen --no-sync python -m app.plugins.rustdx.client
+      - run: uv run --frozen --no-sync pytest ../tests/tooling -q
       - run: PYO3_PYTHON="$PWD/.venv/bin/python" cargo test --locked --manifest-path native/rustdx_native/Cargo.toml
       - run: uv run --frozen --no-sync python ../scripts/vendor_rustdx.py
       - run: RUSTDX_SKIP_INTEGRATION_TESTS=1 cargo test --locked --manifest-path native/rustdx_native/vendor/rustdx-core/Cargo.toml
       - run: uv run --frozen --no-sync pytest tests -q
+      - run: uv run --frozen --no-sync python -m scripts.acceptance.accept_local_web --output "$RUNNER_TEMP/local-web.json"
 
   frontend-quality:
-    if: github.event_name != 'workflow_run'
+    needs: resolve
+    if: ${{ inputs.revision == '' }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.revision }}
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
           version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+          cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
       - run: pnpm lint
+      - run: pnpm test
       - run: pnpm build
 
-  build-and-push:
-    needs: [backend-quality, frontend-quality]
-    if: >-
-      always() &&
-      (
-        (
-          github.event_name == 'workflow_run' &&
-          github.event.workflow_run.event == 'push' &&
-          github.event.workflow_run.head_branch == 'main' &&
-          github.event.workflow_run.conclusion == 'success'
-        ) ||
-        (
-          needs.backend-quality.result == 'success' &&
-          needs.frontend-quality.result == 'success'
-        )
-      )
+  runtime:
+    needs: resolve
     runs-on: ubuntu-latest
     outputs:
-      revision: ${{ steps.revision.outputs.revision }}
-
-    permissions:
-      actions: read
-      contents: read
-      packages: write
-
+      digest: ${{ steps.build.outputs.digest }}
+      image: ${{ steps.inputs.outputs.image }}
     steps:
-      - name: Download tested CI revision
-        if: github.event_name == 'workflow_run'
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: ci-revision
-          path: ${{ runner.temp }}/ci-revision
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
-
-      - name: Select build revision
-        id: revision
-        shell: bash
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
-            revision="$(cat "$RUNNER_TEMP/ci-revision/revision.txt")"
-          else
-            revision="$GITHUB_SHA"
-          fi
-          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Missing or invalid tested CI revision"
-            exit 1
-          fi
-          echo "revision=$revision" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.revision.outputs.revision }}
+          ref: ${{ needs.resolve.outputs.revision }}
           persist-credentials: false
-
-      - name: Read application version
-        id: application-version
-        run: |
-          python3 scripts/check_version.py --current VERSION
-          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.revision.outputs.revision }}
-            type=raw,value=${{ steps.application-version.outputs.version }},enable=${{ github.event_name == 'workflow_run' }}
-            type=sha,prefix=,enable=${{ github.event_name != 'workflow_run' }}
-            type=ref,event=tag
-          labels: |
-            org.opencontainers.image.revision=${{ steps.revision.outputs.revision }}
-
-      - name: Build and push Docker image
+      - name: Freeze base digests and source identity
+        id: inputs
+        env:
+          BUILD_REVISION: ${{ needs.resolve.outputs.revision }}
+        run: |
+          python3 scripts/check_version.py --current VERSION
+          version="$(cat VERSION)"
+          version="${version#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          from release.common import file_hash, object_hash
+          bases = {}
+          for name, image in {
+              "NODE_ALPINE_IMAGE": "docker.io/library/node:20-alpine",
+              "NODE_IMAGE": "docker.io/library/node:20-bookworm-slim",
+              "RUST_IMAGE": "docker.io/library/rust:1.99-slim-bookworm",
+              "PYTHON_IMAGE": "docker.io/library/python:3.11-slim-bookworm",
+          }.items():
+              digest = subprocess.check_output([
+                  "docker", "buildx", "imagetools", "inspect", image,
+                  "--format", "{{.Manifest.Digest}}",
+              ], text=True).strip()
+              if len(digest) != 71 or not digest.startswith("sha256:"):
+                  raise SystemExit("invalid base digest")
+              bases[name] = image + "@" + digest
+          names = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")
+          files = {name: file_hash(Path(name)) for name in names if name}
+          tree = object_hash(files)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as target:
+              for name, value in {**bases, "source_tree": tree}.items():
+                  target.write(name + "=" + value + "\n")
+          Path(os.environ["RUNNER_TEMP"], "build-inputs.json").write_text(json.dumps({
+              "revision": os.environ["BUILD_REVISION"], "source_tree_sha256": tree,
+              "bases": bases, "lock_sha256": files["backend/uv.lock"],
+              "python_abi": "cp311", "rust_toolchain": "1.99.0",
+          }, indent=2) + "\n")
+          PY
+      - name: Build candidate Runtime
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          # GitHub runner 在海外, 关掉国内镜像源(USE_CN_MIRROR=0)
-          # 让构建直连官方 npm/PyPI, 反而更快更稳;
-          # 本地/国内手动 docker build 仍走 Dockerfile 默认的 CN 镜像。
+          tags: ${{ steps.inputs.outputs.image }}:ci-${{ github.run_id }}-${{ github.run_attempt }}-runtime
           build-args: |
             USE_CN_MIRROR=0
-            SOURCE_COMMIT=${{ steps.revision.outputs.revision }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            SOURCE_COMMIT=${{ needs.resolve.outputs.revision }}
+            SOURCE_TREE_SHA=${{ steps.inputs.outputs.source_tree }}
+            NODE_ALPINE_IMAGE=${{ steps.inputs.outputs.NODE_ALPINE_IMAGE }}
+            NODE_IMAGE=${{ steps.inputs.outputs.NODE_IMAGE }}
+            RUST_IMAGE=${{ steps.inputs.outputs.RUST_IMAGE }}
+            PYTHON_IMAGE=${{ steps.inputs.outputs.PYTHON_IMAGE }}
+            NATIVE_CACHE_KEY=cp311-rust199-${{ hashFiles('backend/native/**') }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.revision }}
+            org.opencontainers.image.version=${{ steps.inputs.outputs.version }}
+            io.tsp.role=runtime
+            io.tsp.source-tree=${{ steps.inputs.outputs.source_tree }}
+          cache-from: type=gha,scope=tsp-runtime
+          cache-to: type=gha,scope=tsp-runtime,mode=max
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-build-inputs
+          path: ${{ runner.temp }}/build-inputs.json
+          if-no-files-found: error
+          overwrite: true
 
-  promote-latest:
-    needs: build-and-push
-    # workflow_run intentionally skips the repeated quality jobs. Evaluate the
-    # promotion after its successful build despite those skipped ancestors.
-    if: always() && github.event_name == 'workflow_run' && needs.build-and-push.result == 'success'
+  compute:
+    needs: [resolve, runtime]
     runs-on: ubuntu-latest
-    # 仅可变指针串行化；版本镜像构建仍独立运行，不取消其他版本构建。
-    concurrency:
-      group: docker-latest-main
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.resolve.outputs.revision }}
           persist-credentials: false
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 仅将当前主线的镜像提升为 latest
-        env:
-          BUILD_REVISION: ${{ needs.build-and-push.outputs.revision }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - id: version
         run: |
-          python3 - <<'PY'
-          import base64
-          import os
-          from pathlib import Path
-          import subprocess
-          import sys
-          sys.path.insert(0, "scripts")
-          from prepare_release import is_current_main
-          # Checkout does not persist credentials. Authenticate the private
-          # remote lookup only for this step without writing Git configuration.
-          os.environ.update(
-              GIT_CONFIG_COUNT="1",
-              GIT_CONFIG_KEY_0="http.https://github.com/.extraheader",
-              GIT_CONFIG_VALUE_0="AUTHORIZATION: basic " + base64.b64encode(
-                  ("x-access-token:" + os.environ["GH_TOKEN"]).encode()
-              ).decode(),
-          )
-          revision = os.environ["BUILD_REVISION"]
-          if is_current_main(Path.cwd(), revision):
-              image = "ghcr.io/" + os.environ["GITHUB_REPOSITORY"].lower()
-              subprocess.run([
-                  "docker", "buildx", "imagetools", "create",
-                  "--tag", image + ":latest", image + ":" + revision,
-              ], check=True)
-          else:
-              print("main has advanced; keep the version image without replacing latest")
-          PY
+          version="$(cat VERSION)"
+          version="${version#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build candidate Compute from Runtime digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/full/Compute.Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ needs.runtime.outputs.image }}-compute:ci-${{ github.run_id }}-${{ github.run_attempt }}-compute
+          build-args: |
+            RUNTIME_IMAGE=${{ needs.runtime.outputs.image }}@${{ needs.runtime.outputs.digest }}
+            USE_CN_MIRROR=0
+            SOURCE_COMMIT=${{ needs.resolve.outputs.revision }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.revision }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            io.tsp.role=compute
+          cache-from: type=gha,scope=tsp-compute
+          cache-to: type=gha,scope=tsp-compute,mode=max
+
+  identity:
+    needs: [resolve, runtime, compute]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.revision }}
+          persist-credentials: false
+      - name: Verify complete image identity matrix
+        env:
+          OCI_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OCI_REGISTRY_USER: ${{ github.actor }}
+          BUILD_REVISION: ${{ needs.resolve.outputs.revision }}
+          RUNTIME_IMAGE: ${{ needs.runtime.outputs.image }}
+          RUNTIME_DIGEST: ${{ needs.runtime.outputs.digest }}
+          COMPUTE_DIGEST: ${{ needs.compute.outputs.digest }}
+        run: |
+          version="$(cat VERSION)"
+          version="${version#v}"
+          python3 scripts/release/image_manifest.py --version "$version" \
+            --revision "$BUILD_REVISION" --runtime-image "$RUNTIME_IMAGE" \
+            --runtime-digest "$RUNTIME_DIGEST" --compute-image "$RUNTIME_IMAGE-compute" \
+            --compute-digest "$COMPUTE_DIGEST" --output "$RUNNER_TEMP/release-images.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-images
+          path: ${{ runner.temp }}/release-images.json
+          if-no-files-found: error
+          overwrite: true
+
+  promote:
+    needs: [resolve, backend-quality, frontend-quality, runtime, compute, identity]
+    if: ${{ inputs.revision == '' }}
+    uses: ./.github/workflows/docker-promote.yml
+    with:
+      revision: ${{ needs.resolve.outputs.revision }}
+      runtime_digest: ${{ needs.runtime.outputs.digest }}
+      compute_digest: ${{ needs.compute.outputs.digest }}
+      promote_latest: false
+    secrets: inherit

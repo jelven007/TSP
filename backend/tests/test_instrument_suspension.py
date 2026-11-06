@@ -37,6 +37,11 @@ def prices():
     ])
 
 
+def close_inputs(day):
+    raw = prices().filter(pl.col("date") == day)
+    return raw, raw.select("symbol", "close")
+
+
 @pytest.fixture
 def engine(tmp_path):
     custom = tmp_path / "strategies/custom"
@@ -148,7 +153,7 @@ def test_screener_attaches_dated_halt_without_replacing_listing_metadata(engine,
     rows = prices()
     instruments = pl.DataFrame({"symbol": [ACTIVE, HALTED], "name": ["示例", "陕鼓动力"]})
     repo = SimpleNamespace(get_instruments_asset=lambda _: instruments,
-                           get_suspension_history=events)
+                           get_suspension_history=events, get_daily_close_inputs=close_inputs)
     service = ScreenerService(repo)
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: rows)
     monkeypatch.setattr(service, "_load_enriched_for_date",
@@ -175,6 +180,7 @@ def test_minute_replay_halt_exclusion_and_unknown_quote_diagnostic(engine, tmp_p
     engine._user_data_dir = lambda: tmp_path
     repo = SimpleNamespace(
         get_suspension_history=events,
+        get_daily_close_inputs=close_inputs,
         list_minute_dates=lambda *_: [DAY],
         get_minute_by_dates=lambda *_: minute,
     )
@@ -253,6 +259,7 @@ def test_replay_uses_signal_time_not_end_of_day_for_suspension(engine, tmp_path,
         pl.lit(DAY).alias("announced_on"),
         pl.lit(datetime.fromisoformat(f"{DAY} {published}")).alias("announced_at"))
     repo = SimpleNamespace(get_suspension_history=lambda: event,
+                           get_daily_close_inputs=close_inputs,
                            list_minute_dates=lambda *_: [DAY],
                            get_minute_by_dates=lambda *_: minute)
     result = MinuteSignalReplayer(SimpleNamespace(repo=repo), engine).replay(
@@ -267,7 +274,8 @@ def test_premarket_pool_honors_each_batch_clock(engine, monkeypatch, clock, excl
         pl.lit(DAY).alias("announced_on"),
         pl.lit(datetime(2026, 6, 29, 8, 23)).alias("announced_at"))
     repo = SimpleNamespace(get_instruments_asset=lambda _: pl.DataFrame({
-        "symbol": [ACTIVE, HALTED]}), get_suspension_history=lambda: event)
+        "symbol": [ACTIVE, HALTED]}), get_suspension_history=lambda: event,
+        get_daily_close_inputs=close_inputs)
     service = ScreenerService(repo)
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: prices())
     context = service.build_daily_pool_context(

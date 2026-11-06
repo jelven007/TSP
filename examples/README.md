@@ -7,6 +7,7 @@
 | --- | --- | --- |
 | [custom-data-source](custom-data-source/README.md) | 本地 HTTP 数据源的日K、复权与实时接口 | 按后端冻结锁安装 FastAPI、Uvicorn；端口3021空闲 |
 | [open-api](open-api/README.md) | 外部行情查询、扩展数据、回测和事件流 | 已运行的 TSP、对应 scope 的 Token；按样例说明设置环境 |
+| [strategies](strategies/README.md) | 独立ID的S02 ATR14/昨收分钟策略示例 | 后端冻结环境与已发布日历；不自动安装到用户目录 |
 
 从仓库根运行 HTTP 样例：
 
