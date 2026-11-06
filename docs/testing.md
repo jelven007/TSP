@@ -1206,6 +1206,10 @@ uv run --frozen --no-sync pytest ../tests/tooling tests/test_version_source.py -
 <a id="5-当前-ci-门禁"></a>
 ## 5. 当前 CI 门禁
 
+正式镜像提升回归覆盖 Buildx 模糊缺失响应、Registry 明确 `MANIFEST_UNKNOWN`、
+权限/网络/非法 JSON 阻断和现存 manifest 字节摘要；原回归失败及15项通过见
+[本次验证](../reports/releases/promote-registry-20261107/verification.md)。
+
 `.github/workflows/ci.yml` 在推送到 `main`、面向 `main` 的 PR 和 merge_group 检查运行：
 
 | Job | 环境 | 命令 |

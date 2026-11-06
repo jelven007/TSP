@@ -1,5 +1,9 @@
 # TSP v0.4.51 需求基线（Tick Stock Platform）
 
+NFR-04/08/10/16 的正式镜像首次提升只以 Registry HTTP 404 和明确
+`MANIFEST_UNKNOWN` 确认缺失；其他错误及冲突仍阻断。实现与发布边界见
+[本次验证](../reports/releases/promote-registry-20261107/verification.md)。
+
 2026-11-07在FR-DATA-08、FR-BACKTEST-01、FR-STRATEGY-05和NFR-06的既有条目追加
 盘后定版/精确T-1、研究资格/失败结果、保存建议/排序和完整发布门禁，
 验收条件与六类文档映射见[统一候选](upgrade-20261107.md)，实际运行以最终回执签收。

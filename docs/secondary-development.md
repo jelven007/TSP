@@ -1,5 +1,9 @@
 # 代码二次开发与 AI 扩展指南
 
+正式镜像缺失判定为发布工具内部修复，复用现有 `Registry`，无新增扩展 API。
+二开保持权限/网络错误阻断、全目标预检、冲突拒绝及写后 digest 校验，见
+[本次验证](../reports/releases/promote-registry-20261107/verification.md)。
+
 2026-11-07定版校验、研究资格、建议和排序是L3内部整合，入口见[统一候选](upgrade-20261107.md)。
 不存在新Provider/HTTP API或SQL迁移；策略示例的公开只读Python辅助函数
 `market_data.previous_session`只复用已发布日历，未知时抛错。

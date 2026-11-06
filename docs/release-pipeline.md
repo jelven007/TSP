@@ -7,6 +7,11 @@
 
 ## 构建与正式提升
 
+首次标签缺失仅以 Registry HTTP 404 且明确 `MANIFEST_UNKNOWN` 确认；
+Buildx 的模糊 `not found` 不作缺失事实源。已存在标签读取实际 manifest 字节
+核对 SHA-256 及响应 digest；权限/网络失败、非法或混合错误与标签冲突仍阻断。
+[本次验证](../reports/releases/promote-registry-20261107/verification.md)保留首轮失败身份。
+
 主线 `ci.yml` 的 Version Job 分配一次版本并输出完整40位SHA；
 Backend、Frontend和可复用 `docker.yml` 均检出该SHA并行执行。
 Runtime 构建 `linux/amd64`、`linux/arm64`，Compute从该Runtime的索引digest构建同两架构。

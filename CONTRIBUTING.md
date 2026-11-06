@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）开发、贡献与复审指南
 
+发布工具不得从 Buildx 的模糊“not found”推断标签缺失；仅 Registry 404 的明确
+`MANIFEST_UNKNOWN` 允许首次提升，现存标签须核对实际字节。失败主线不用于部署，
+本次回归与后继发布边界见[验证](reports/releases/promote-registry-20261107/verification.md)。
+
 2026-11-07当前整合与实际调用链见[统一候选](docs/upgrade-20261107.md)：
 盘后日线/15:00/加工昨收核对、默认精确T-1、冻结预选及回放错误传递，
 保留main建仓窗口和现场等待确认分支。新回测只用100万元及运行前冻结的页面实际参数；

@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+正式镜像提升的缺失判定复用 `Registry` HTTPS/认证读取；现存标签按实际 manifest
+字节核对 digest，所有目标预检和冲突保护保持。调用链与首次提升失败见
+[本次验证](../reports/releases/promote-registry-20261107/verification.md)。
+
 本轮`daily_pipeline → get_daily_close_inputs → validate_daily_close`在派生前核对已完成交易日，
 分钟选股和回放复用该校验，冻结预选/昨收严格使用精确T-1。
 首次初始化将原配置分钟窗口提前至派生前采集和收盘核验；窗口外历史仅核验官方批量定版，
