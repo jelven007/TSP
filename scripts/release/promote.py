@@ -2,27 +2,50 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import subprocess
 import sys
+import urllib.error
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from release.image_manifest import validate
-from release.oci import hex_digest
+from release.oci import MAX_JSON, Registry, hex_digest
 
 
 def inspect(tag: str) -> str | None:
-    result = subprocess.run(
-        ["docker", "buildx", "imagetools", "inspect", tag, "--format", "{{.Manifest.Digest}}"],
-        capture_output=True, text=True, check=False,
-    )
-    if result.returncode:
-        # Authentication/network failures must not be mistaken for a missing tag.
-        if "manifest unknown" in result.stderr.lower():
+    image, reference = tag.rsplit(":", 1)
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}", reference):
+        raise ValueError("invalid image tag")
+    registry = Registry(image)
+    try:
+        with registry.request("/manifests/" + reference) as response:
+            data = response.read(MAX_JSON + 1)
+            declared = response.headers.get("Docker-Content-Digest")
+    except urllib.error.HTTPError as exc:
+        with exc:
+            data = exc.read(MAX_JSON + 1)
+        try:
+            errors = json.loads(data).get("errors", []) if len(data) <= MAX_JSON else []
+            missing = errors and all(row.get("code") == "MANIFEST_UNKNOWN" for row in errors)
+        except (ValueError, AttributeError, TypeError):
+            missing = False
+        # Only the Registry's explicit missing-manifest response permits a write.
+        if exc.code == 404 and missing:
             return None
-        raise ValueError("registry lookup failed")
-    digest = result.stdout.strip()
+        raise ValueError("registry lookup failed") from None
+    except (OSError, urllib.error.URLError):
+        raise ValueError("registry lookup failed") from None
+    if len(data) > MAX_JSON:
+        raise ValueError("registry manifest too large")
+    value = json.loads(data)
+    if not isinstance(value, dict) or value.get("schemaVersion") != 2:
+        raise ValueError("invalid registry manifest")
+    digest = "sha256:" + hashlib.sha256(data).hexdigest()
+    if declared is not None and declared != digest:
+        raise ValueError("registry manifest digest mismatch")
     hex_digest(digest)
     return digest
 
