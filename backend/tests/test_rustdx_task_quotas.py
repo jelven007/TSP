@@ -1,6 +1,7 @@
 """Real sockets must obey task, endpoint and process quotas."""
 
 import json
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -97,21 +98,67 @@ def test_same_task_group_cannot_multiply_its_budget_with_another_pool():
         server.close()
 
 
-def test_distinct_groups_share_the_physical_endpoint_budget():
+def test_distinct_groups_share_the_physical_endpoint_budget(monkeypatch):
+    import psutil
+    import test_rustdx_native_pool as server_module
     import tsp_rustdx_native as native
 
-    server = _Server()
+    server = _Server(idle_timeout=30, probe_delay=0.05)
     first = native.RustdxClient(8, server.address, 2, task_group="realtime")
     second = native.RustdxClient(1, server.address, 2, task_group="history")
+    release_cleanup = threading.Event()
+    exact = server_module._exact
+    endpoint = tuple(server.listener.getsockname())
+    endpoint_key = f"endpoint-{server.address.encode().hex()}"
+    process = psutil.Process()
+
+    def sockets():
+        # Reader/heartbeat clones share a TCP, but macOS reports every FD.
+        return {(tuple(connection.laddr), tuple(connection.raddr))
+                for connection in process.net_connections()
+                if connection.raddr and tuple(connection.raddr) == endpoint
+                and connection.status == psutil.CONN_ESTABLISHED}
+
+    def delayed_eof(connection, count):
+        try:
+            return exact(connection, count)
+        except EOFError:
+            # Server cleanup may lag client close; it is not a client TCP count.
+            assert release_cleanup.wait(timeout=15)
+            raise
+
     try:
         first.quotes_json([(0, f"{index:06d}") for index in range(1_200)])
         _wait(lambda: server.live == 8)
-        with pytest.raises(RuntimeError, match=r"quota|TimedOut"):
-            second.xdxr_json(0, "000001")
-        assert server.peak <= 9
+        monkeypatch.setattr(server_module, "_exact", delayed_eof)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            request = executor.submit(second.xdxr_json, 0, "000001")
+            _wait(lambda: len(sockets()) == 9)
+            observed = [9]
+            while not request.done():
+                current = len(sockets())
+                observed.append(current)
+                assert current <= 9
+                stats = json.loads(second.stats_json())
+                assert stats["task_quota"]["endpoints"][endpoint_key] == 8
+                assert stats["task_quota"]["active"] == 0
+                assert stats["network"]["active"] == 8
+                assert stats["probes"]["active"] <= 1
+                time.sleep(0.005)
+            with pytest.raises(RuntimeError, match=r"quota|TimedOut"):
+                request.result()
+        assert max(observed) == 9
+        assert len(sockets()) == 8
+        assert json.loads(second.stats_json())["task_quota"]["endpoints"][endpoint_key] == 8
+        release_cleanup.set()
+        _wait(lambda: server.live == 8)
         first.close()
         assert json.loads(second.xdxr_json(0, "000001")) == []
+        assert json.loads(second.stats_json())["task_quota"]["endpoints"][endpoint_key] == 1
+        second.close()
+        _wait(lambda: server.live == 0)
     finally:
+        release_cleanup.set()
         first.close()
         second.close()
         server.close()
