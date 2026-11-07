@@ -1,5 +1,104 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+2026-11-08当前调用链、账户费用入口整合及主线保护见[统一候选](upgrade-20261108.md)。
+候选阶段与实际部署分别签收，下列日期记录保留原执行边界。
+
+2026-11-08并行失败核验确认当前入场/退出错误独立：缺分钟返回entry_filter_error，
+保留已评估exit_signal_hits；缺持仓通过exit_filter_error可见，失败策略保留failed结果。
+本次只强化两项测试，不新增接口或修改架构；4项与扩大356项通过，见
+[后续核验](../reports/engineering/paper-parallel-test-fix-20261108/report.md)。
+
+2026-11-08自动跟单参数融合沿原表单、监控事件、账户事务和撮合内核接线。
+`candidate_order.py`在完整快照上投影顺位，组合监控代理在范围/展示截断前保留
+`candidate_pool_metadata`，事件携带rank/source/rule；只影响同批已触发候选的分配次序。
+`paper_auto`保留退出优先、策略优先级及归属仲裁；新池序缺完整身份即跳过。
+双侧订单类型回退旧共同字段，费用预算与扣费共用`account_fee`并复用历史税率。
+前端回测适配只生成规则与账户费用的独立草稿，不反向写策略或启动任务。
+这是未部署源码候选，无新插件接口或SQL表迁移；见
+[实现与验证](../reports/engineering/paper-auto-rule-parameters-20261108/report.md)。
+
+模拟自动规则修改沿 `Paper.AutoRuleForm → paperAutoRuleUpdate → PUT auto_rules/{rule_id}
+→ paper_auto.update_auto_rule/save_auto_rule`，属于L3核心局部接线。
+当前租户/账户写事务或原文件锁内查旧规则并合并，保留id、created_at、enabled；
+原退出取消逻辑继续复用。成功失效规则、对比、订单与账户概览查询，无SQL迁移。
+2026-11-08本地/线上0.4.52均安装该链路，保留运行版账户修改/删除和其他已安装修复。
+源码验收见[开发记录](../reports/engineering/paper-rule-edit-20261107/report.md)，
+运行身份及复验见[双端安装](../reports/operations/paper-rule-edit-20261108/report.md)。
+
+尾盘建仓广度沿共享evaluate剔除无有效指定分钟价格/昨收的成员，
+完整池与有效分母分别保存；`entry_data_quality`沿引擎、归档和已有API透传，
+UI按`available_members_v1`显示新比例/数量，旧上下界归档兼容。
+缺失比例仅为证据，不参与门控；MA5/ATR和提交守卫保持，见
+[链路及异常范围](../reports/operations/s02-breadth-tolerance-20261107/report.md)。
+
+S02信号选页在既有selected memo内对克隆行按有限ATR比率降序、代码升序排列，
+保留原selection_rank；共享useTableSort仅覆盖手动排序，无有效手动列时表头显示默认降序。
+行情刷新不重新计算ATR，历史存储、API及后台计算契约保持。见
+[本次证据](../reports/engineering/s02-default-atr-sort-20261107/report.md)。
+
+S02参考换手率名称仍由`resolveStrategyResultColumns`统一拥有，
+对传入旧列对象规范label但保留visible，参考列宽112px；数据键和数值口径不变。
+日K案例沿公告/独立停复牌证据/两层Parquet/收盘分钟核验，真实停牌不补造数据，
+无新API、Provider或后台接口。[本次证据](../reports/engineering/s02-reference-daily-20261107/report.md)
+
+S02当前三页共用列解析器隐藏ATR排名；预选指标仍走源码可选回调和共享ATR内核。
+坏股票窗口只产生该成员空指标，完整资格保留，有效N及原因独立保存。
+实时快照沿热缓存只读路径，明确休市才允许精确前交易日数据，并透传真实数据日、
+请求日及来源；UI据此接收收盘数据，不把它标成当天实时值。
+本次定向增补25份历史记录的选股指标与镜像快照，SQL revision及结果更新事件
+使缓存重新读取；冻结身份/时钟、买卖与账本保持，见
+[安装证据](../reports/engineering/s02-market-atr-20261107/report.md)。
+
+S02参考换手率沿`signal_sections.select_rows`精确参考日日线→冻结预选→信号结果→
+`StrategyDailyResults`展示。enriched百分数值直接显示，旧归档只在原行日期等于
+reference_date且不是目标日时兼容读取；不回写归档，不用实时行情代填。
+`resolveStrategyResultColumns`统一默认列、旧偏好、结果表及列设置的S02选页迁移，
+只改展示字段，原筛选与排名保留；[安装证据](../reports/engineering/s02-select-turnover-20261107/report.md)。
+
+2026-11-07 S02分钟优先链为：租户Worker读取完整范围池与冻结预选，
+认证内部桥发送私有短期计划，Platform优先采集并写入，公共文件发布完成，
+Compute绑定不可变版本，普通分钟组随后继续。同原生minute组8连接，
+不将租户选名单写入公共行情。完整池不含数值门槛，`scope_only_v3`分母保持完整。
+16:00预选使用共享资格路径加源码指标回调，ATR三列和原选股评分独立落库。
+14:30:15开始上涨比例和涨幅预筛，14:30:30按当前0.5分钟保存设置确认
+14:30启动分钟的MA5数据；确认前清空买入结果，缺完整池/MA窗口明确等待。
+历史冻结记录与既有账户配置保留，见
+[双端交付](../reports/engineering/s02-minute-priority-20261107/report.md)。
+
+尾盘建仓可设置确认延迟：页面使用秒，保存沿用`evaluation_delay_minutes`，
+按秒值÷60转换；服务校验0.5～15分钟且为0.5步长，新API缺字段默认0.5。
+读取旧缺字段/0秒定义仍按原时钟，既有1/1.5分钟保留。最晚启动时间为15:00减延迟，
+启动分钟K线截止与既有购买窗口算法不变。随后按用户授权安装双端0.4.52，
+两端API/Worker/Compute共用30秒配置；保留现场较新的等待确认逻辑与其他业务文件，
+14:30:29无命中、14:30:30命中，回放购买窗口14:31～14:35。
+现场身份和验证见[双端回执](../reports/operations/late-delay-30s-20261107/report.md)。
+
+2026-11-07共享SMA ATR由`app/factors/atr.py`统一计算，注册表追加
+`atr14_sma_pct`；Polars评分/因子物化、NumPy矩阵及`market_data`分钟参考调用同一内核。
+分钟源码只通过现有受信任模块调用，沙箱权限不扩大；精确15根窗口及未复权价校验保留。
+无需新增SQL schema或前端硬编码。数值、目录兼容与现场增量范围见
+[本次验收](../reports/engineering/atr14-shared-factor-20261107/report.md)。
+
+2026-11-06分钟回放在引擎调用前使用冻结日线T-1和盘后停牌证据构造资格，
+由已有上下文`selection_snapshots`传入原执行器；完整池和候选资格分开。
+缺源日及select/buy分区错误进入回放失败，前端保留叠加并修正滑点读取。
+无新API/schema或实盘缓存写入，见[部署与验证](../reports/engineering/backtest-c88c133a-20261106/report.md)。
+
+S02结果排序在已有实时Map补齐后调用共享`useTableSort`，列标识沿`ColumnConfig`，
+只重排显示副本；详情导航使用显示行，归档与实时查询证券集合保持。
+已沿现场源码/配对镜像仅叠加排序组件及static，安装线上0.4.50；
+范围与验证见[上线回执](../reports/operations/s02-sort-deploy-20261106/report.md)。
+后续指定回测任务的根因与修复见[诊断记录](../reports/engineering/backtest-c88c133a-20261106/report.md)。
+
+S02建议字段在共享引擎/盘后预选生成参考，再由结果仓库补齐前日买入关注名单后保存。
+临时原价映射从历史正文与预选快照移除；区间与整手数沿已存结果显示，实时五列独立。
+精确交易日与未复权来源、SQL revision/cache token及旧字段兼容见
+[七文件接线](../reports/engineering/s02-saved-suggestions-20261106/report.md)。
+
+S02新增卖页分钟量/额/建议卖出价复用保存结果字段和共享列模型，不新建行情接口。
+旧列偏好按缺省前置列插入新列，保持已有顺序和显隐；缺建议价格不回填历史价或
+实时价，见[分钟列补充方案](../reports/engineering/s02-minute-columns-20261106/report.md)。
+
 正式镜像提升的缺失判定复用 `Registry` HTTPS/认证读取；现存标签按实际 manifest
 字节核对 digest，所有目标预检和冲突保护保持。调用链与首次提升失败见
 [本次验证](../reports/releases/promote-registry-20261107/verification.md)。
@@ -192,9 +291,9 @@ S02全天卖出候选继续共享`momentum_day.run_day`：
 无股票池的普通监控不展示或接受模板，日线策略不能选择分钟信号。
 S01/S02专用执行规则暂不接受追加此触发器，保留其原有选股和执行内核。
 
-当日股票池沿`strategy/daily_pool.py`共享构建，名单只经过股票范围及流通市值约束；
-合并策略默认值和覆盖后，仅保留流通市值作为数值依赖，其余数值条件继续用于策略选股。
-当前行情与精确参考日行情分离，停牌始终读取当日证据。
+当日股票池沿`strategy/daily_pool.py`共享构建，名单只经过股票范围与状态条件；
+合并策略默认值和覆盖后，在入池配置副本去掉全部数值条件，实际策略配置保持。
+盘前只读取当前证券目录与当日状态证据，无昨收及股本依赖；选股参考行情要求保持。
 `instrument_suspension`读取独立停复牌事件文件，Repository按文件身份缓存，
 Screener与分钟回放沿既有`pool_universe`传递当日状态；仅状态的行不扩充股票范围，
 状态可附加到精确前日价格行，不生成当日虚构OHLC。公告日严格早于信号日且生效日不晚于信号日，
@@ -206,8 +305,9 @@ Full scheduled与单机调度每交易日北京时间08:00、09:00按独立批�
 以started_at拒绝迟到旧池；SQLite即时写事务与Full租户写锁串行化竞争写入。
 Full提交同时检查账户授权、租约和输入
 指纹；配置/分组变化唤醒任务，同日成功任务复用，缺输入重试。新快照携带
-`definition_version=scope_float_cap_v2`，每日任务签名纳入口径版本，旧完成标记不会阻止
-新口径生成；旧快照缺字段仍按原记录读取，无新schema迁移。API按日期有界查询。
+`definition_version=scope_only_v3`，每日任务签名与成功标记纳入口径版本，
+旧口径成功标记不会阻止新口径生成，当前口径成功不重复；旧v2及无版本快照
+仍按原记录读取，无新schema迁移。API按日期有界查询。
 
 s02复用纯选股与单日组合内核；每日保存三部分及期末状态，
 只读前交易日状态，稳定日期键和生命周期generation阻止重复与迟到写入。
@@ -1188,7 +1288,7 @@ TickFlow 暂无公司行为适配。接口和单位见[插件](reference/integra
 | 能力 | 当前确认 | 明确限制 |
 | --- | --- | --- |
 | 内置策略 | 23个公开策略，新增s01源码候选；19项另有31个可选入场主题 | 研究模板不进入选股清单；默认主题不自动替换；s01自动委托未支持 |
-| 因子 | 77 项内置目录；25 个 DSL 算子；动态追加自定义/复合/合格扩展因子 | 目录数量随注册变化；无巡检 tab 或自动衰减任务 |
+| 因子 | 78 项内置目录；25 个 DSL 算子；动态追加自定义/复合/合格扩展因子 | 目录数量随注册变化；无巡检 tab 或自动衰减任务 |
 | AI 策略迭代 | 创建窗口可开启自动生成→回测→诊断→修改，UI 最多四轮 | 草稿必须显式保存；无三栏迭代工作台；Codex CLI 不支持该工具迭代 |
 | 固定输入 | 单机版本副本；多租户公共 release + SQL 私有输入 | 当前网页无历史输入选择器；输入一致不等于历史可信 |
 | 秒级研究 | 可选归档、质量/样本/回放/执行验证 API | 无独立主页面；31 天/200 证券/10 万样本行，执行限单日单连续竞价窗口 |

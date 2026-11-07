@@ -232,7 +232,7 @@ Expected: all commands pass. React Router future warnings may remain; no test, l
 
 **Files:**
 - Create outside repository: private Playwright acceptance script and installation receipts
-- Create: `deliverables/operations/late-session-second-precision-local-20261103/本地安装验收.md`
+- Create: `reports/operations/late-session-second-precision-local-20261103/本地安装验收.md`
 
 - [ ] **Step 1: Verify rendered behavior before installation**
 

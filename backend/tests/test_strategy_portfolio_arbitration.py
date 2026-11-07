@@ -66,6 +66,17 @@ def _event(
     }
 
 
+@pytest.mark.parametrize("mode,expected", [
+    ("event", SYMBOL), ("symbol", OTHER), ("score", SYMBOL),
+])
+def test_grouped_cycle_honors_rule_candidate_priority(account, mode, expected):
+    _rule(account, "s1", max_positions=1, candidate_priority=mode)
+    first = {**_event("s1", "buy_signal", symbol=SYMBOL, priority=0), "score": 10}
+    second = {**_event("s1", "buy_signal", symbol=OTHER, priority=0), "score": 2}
+    orders = paper_auto.on_rule_events(account, [first, second])
+    assert [order["symbol"] for order in orders] == [expected]
+
+
 def test_same_symbol_multi_strategy_buy_creates_one_attributed_order(account) -> None:
     first = _rule(account, "s1")
     _rule(account, "s2")

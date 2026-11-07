@@ -1,4 +1,4 @@
-"""Two independent premarket batches, with exact session inputs and durable retries."""
+"""Two independent premarket batches, with scope/status inputs and durable retries."""
 # ruff: noqa: F401,F811 -- reuse the strategy fixture.
 from datetime import UTC, datetime, time
 from types import SimpleNamespace
@@ -30,7 +30,7 @@ def test_slots_calendar_timezone_and_next_due():
     assert next_check(wall(8, 59).replace(second=50)) == wall(9)
 
 
-def test_premarket_uses_exact_prior_raw_price_but_current_scope(engine):
+def test_premarket_uses_current_scope_without_reference_price_dependency(engine):
     from app.strategy.daily_pool import build_pool
 
     history = frames().filter(pl.col("date") == PRIOR).with_columns(
@@ -43,32 +43,35 @@ def test_premarket_uses_exact_prior_raw_price_but_current_scope(engine):
     config = {**BF, "data_reference": "signal_day", "exclude_st": True, "exclude_suspended": True}
     context = StrategyDataContext("stock", "1d", DAY, current=current, pool_history=history)
     pool = build_pool(engine, "sample", context, overrides={"basic_filter": config}, premarket=True)
-    assert pool["symbols"] == ["600000.SH"]
+    assert pool["symbols"] == ["600000.SH", "600002.SH"]
     assert pool["reference_date"] == str(PRIOR)
-    assert pool["unknown_suspension_count"] == 1
+    assert pool["unknown_suspension_count"] == 2
     assert config["data_reference"] == "signal_day"
-    with pytest.raises(ValueError, match="参考"):
-        build_pool(engine, "sample", context, overrides={"basic_filter": config})
+    assert build_pool(engine, "sample", context, overrides={"basic_filter": config})["symbols"] == pool["symbols"]
 
 
-def test_premarket_context_ignores_same_day_prices_and_loads_previous_session(monkeypatch):
+def test_premarket_context_needs_no_daily_prices_or_close_validation(monkeypatch):
     from app.services.screener import ScreenerService
 
     instruments = pl.DataFrame({"symbol": ["600000.SH"], "name": ["当前名称"], "float_shares": [1e9]})
-    reference = frames().filter(pl.col("date") == PRIOR)
-    service = ScreenerService(SimpleNamespace(
-        get_instruments_asset=lambda _: instruments,
-        get_daily_close_inputs=lambda _: (reference, reference.select("symbol", "close")),
-    ))
-    calls = []
+    service = ScreenerService(SimpleNamespace(get_instruments_asset=lambda _: instruments))
     monkeypatch.setattr(service, "_load_enriched_history",
-                        lambda day, count: calls.append((day, count)) or frames())
+                        lambda *_: pytest.fail("previous quote dependency"))
     monkeypatch.setattr(service, "_load_enriched_for_date", lambda *_: pytest.fail("today quote dependency"))
+    monkeypatch.setattr("app.services.daily_close_validation.validate_daily_close",
+                        lambda *a, **k: pytest.fail("close validation dependency"))
     context = service.build_daily_pool_context(DAY, current=frames(), premarket=True)
-    assert calls == [(PRIOR, 1)]
-    assert context.pool_history["date"].unique().to_list() == [PRIOR]
+    assert context.pool_history is None
     assert context.current["date"].to_list() == [DAY]
     assert "close" not in context.current.columns
+
+
+def test_premarket_context_requires_current_instrument_directory():
+    from app.services.screener import ScreenerService
+
+    service = ScreenerService(SimpleNamespace(get_instruments_asset=lambda _: pl.DataFrame()))
+    with pytest.raises(ValueError, match="证券目录"):
+        service.build_daily_pool_context(DAY, premarket=True)
 
 
 def test_real_parquet_premarket_reference_excludes_future_day(engine, tmp_path, monkeypatch):
@@ -100,9 +103,9 @@ def test_real_parquet_premarket_reference_excludes_future_day(engine, tmp_path, 
     monkeypatch.setattr(repo, "get_instruments_asset", lambda _: instruments)
     try:
         context = ScreenerService(repo).build_daily_pool_context(DAY, premarket=True)
-        assert context.pool_history["date"].unique().to_list() == [PRIOR]
+        assert context.pool_history is None
         pool = build_pool(engine, "sample", context, overrides={"basic_filter": BF}, premarket=True)
-        assert pool["symbols"] == ["600000.SH", "600001.SH"]
+        assert pool["symbols"] == ["600000.SH", "600001.SH", "600002.SH"]
     finally:
         store.db.close()
 
@@ -124,7 +127,7 @@ def test_local_slots_retry_failed_only_and_survive_restart(engine, tmp_path):
     assert second["saved"] == ["sample"]
     record9 = DailyStockPools(tmp_path).read("sample", DAY)
     assert record9["id"] != record8["id"]
-    assert record9["symbols"] == ["600000.SH"]
+    assert record9["symbols"] == ["600000.SH", "600001.SH", "600002.SH"]
     assert record9["generation_slot"] == "09:00"
     assert DailyStockPools(tmp_path).read("sample", DAY, record_id=record8["id"]) is None
     assert len(calls) == 2
@@ -135,7 +138,7 @@ def test_local_failed_batch_retries_and_late_start_marks_missed_slot(engine, tmp
     from app.services.daily_stock_pools import generate_scheduled_local
 
     engine.get("sample").basic_filter = BF
-    broken = StrategyDataContext("stock", "1d", DAY, current=pl.DataFrame({"symbol": ["600000.SH"]}))
+    broken = StrategyDataContext("stock", "1d", DAY, current=pl.DataFrame())
     service = SimpleNamespace(build_daily_pool_context=lambda *a, **k: broken)
     assert set(generate_scheduled_local(engine, service, tmp_path, now=wall(9))["errors"]) == {"sample"}
     assert DailyStockPools(tmp_path).job(f"{DAY}:08:00")["state"] == "interrupted"
@@ -143,3 +146,20 @@ def test_local_failed_batch_retries_and_late_start_marks_missed_slot(engine, tmp
     service.build_daily_pool_context = lambda *a, **k: good
     assert generate_scheduled_local(engine, service, tmp_path, now=wall(9, 1))["saved"] == ["sample"]
     assert DailyStockPools(tmp_path).job(f"{DAY}:09:00")["state"] == "succeeded"
+
+
+@pytest.mark.parametrize("hour", [8, 9])
+def test_local_old_success_marker_rebuilds_new_definition_once(engine, tmp_path, hour):
+    from app.services.daily_stock_pools import generate_scheduled_local
+
+    slot = f"{hour:02}:00"
+    store = DailyStockPools(tmp_path)
+    store.job(f"{DAY}:{slot}", {"state": "succeeded", "definition_version": "scope_float_cap_v2",
+                              "completed": ["sample"]})
+    context = StrategyDataContext("stock", "1d", DAY, current=frames())
+    calls = []
+    service = SimpleNamespace(build_daily_pool_context=lambda *a, **k: calls.append(k) or context)
+    assert generate_scheduled_local(engine, service, tmp_path, now=wall(hour))["saved"] == ["sample"]
+    assert store.job(f"{DAY}:{slot}")["definition_version"] == "scope_only_v3"
+    assert generate_scheduled_local(engine, service, tmp_path, now=wall(hour, 1))["saved"] == []
+    assert len(calls) == 1

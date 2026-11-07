@@ -4268,7 +4268,7 @@ _MATRIX_COMPUTED_FEATURES = frozenset({
     "high_60d", "low_60d", "annual_vol_20d",
     "macd_dif", "macd_dea", "macd_hist",
     "macd_dif_pct", "macd_dea_pct", "macd_hist_pct",
-    "kdj_k", "kdj_d", "kdj_j", "atr_14", "atr_pct",
+    "kdj_k", "kdj_d", "kdj_j", "atr_14", "atr_pct", "atr14_sma_pct",
     "vol_ma5", "vol_ma10", "vol_ratio_5d", "vol_ratio_10d", "vol_trend_5_10",
     "turnover_ratio_5d", "log_amount", "amount_ratio_5d",
     "gap_return", "intraday_return", "close_position",
@@ -4322,6 +4322,15 @@ def _atr_from_ohlc(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> np.n
 
 def _compute_matrix_feature(market: MarketDataMatrix, name: str) -> np.ndarray:
     close_valid = np.isfinite(market.close)
+    if name == "atr14_sma_pct":
+        from app.factors.atr import atr14_sma_arrays, daily_links
+
+        try:
+            days = [date.fromisoformat(label) for label in market.timestamp_labels]
+        except ValueError:
+            return np.full(market.shape, np.nan, dtype=np.float32)
+        _, ratio = atr14_sma_arrays(market.high, market.low, market.close, daily_links(days))
+        return ratio.astype(np.float32)
     if name == "prev_close":
         return valid_shift(market.close, 1, close_valid)
     if name == "change_pct":

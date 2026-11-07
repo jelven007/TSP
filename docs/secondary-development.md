@@ -1,5 +1,145 @@
 # 代码二次开发与 AI 扩展指南
 
+2026-11-08统一候选沿现有账户修改/费用、候选投影、状态与分钟接线整合，
+真实协议与兼容门禁见[本轮整合](upgrade-20261108.md)，没有新增插件接口。
+
+S02及尾盘建仓异常容错为现有核心L3接线：`validate_daily_close`和
+`previous_closes`的可选`isolate_symbols=True`仅供明确按股隔离的策略路径，
+默认仍严格失败。`StrategyDataContext.reference_errors`保留隔离原因；
+`StrategyResult.section_statuses`、`execution_status`、`entry_deadline_at`及API/前端
+对应字段均为兼容的可选加法字段。Worker通过既有租户文档
+`strategy_execution_status`保存受指纹、身份及租约保护的尝试状态，
+最后成功股票列表和时间单独保留；未创建SQL列或通用重试插件。
+实时尾盘最晚入场沿原五分钟窗口末端，默认14:35，并在提交前筛掉过期入场事件；
+明确历史查询不受当前墙钟限制。两端0.4.52安装及完整标准见
+[运行回执](../reports/operations/s02-anomaly-policy-20261108/report.md)。
+
+自动跟单参数融合为L3现有核心接线：只复用真实存在的策略结果、监控逐股事件、
+账户事务、预算与撮合入口，不声明新的候选过滤/仓位分配插件。
+`StrategyResult.candidate_pool_metadata`为组合代理过滤前的内部执行投影；
+外部执行事件新增可选rank/source/rule，旧事件/规则仍兼容。若扩展结果源，
+必须提供完整快照及同次身份，不能从展示截断或实时补充行情重建池序。
+前端`paperRuleDraft.ts`只做可兼容字段的草稿适配，费用仍属于整个账户。
+双侧类型和新费表均为可选加法字段，目前未部署；实现与回归证据见
+[本次回执](../reports/engineering/paper-auto-rule-parameters-20261108/report.md)。
+
+S02买入可选协议现已实现：`filter_minute_history(df, params, *, daily=None, selection=None)`。
+引擎加载时识别`selection`，仅信号分区分钟策略可用；注入当日已保存预选快照。
+入场日线规划用`minute_entry_daily_history_bars`跳过该协议自身的ATR暖机，
+保留其他信号及精确昨收需求；盘后预选的日线窗口规划不变。
+S02复用预选ATR并允许缺失指标的信号保留空score、排序末尾、从scores映射省略；
+未声明该协议的策略仍须有效score。尾盘MA5坏窗口按股跳过，新增可选
+`ma_skipped_symbols`及warnings，监控透传既有`entry_data_quality`。
+无新路由或SQL schema；覆盖下方旧买入严格ATR窗口规则，见
+[本次验证](../reports/operations/s02-continue-compute-20261108/report.md)。
+
+模拟自动跟单编辑为L3内部接口扩展：`PUT /api/paper/auto_rules/{rule_id}`按account作用域
+修改已有规则，省略可选字段保留原值，id/created_at/enabled由服务端保护。
+复用原领域写事务、文件锁、save_auto_rule退出待办取消与共享Modal，
+不新增插件插槽、策略算法或SQL列。升级同步前端/API/自动执行源码；
+旧客户端的创建/启停/删除接口保持。2026-11-08本地与线上0.4.52均安装，
+保留运行版账户修改/删除接口，组合契约与运行身份以
+[双端安装证据](../reports/operations/paper-rule-edit-20261108/report.md)为准；
+历史源码验收见[开发记录](../reports/engineering/paper-rule-edit-20261107/report.md)。
+
+用户2026-11-07随后指定广度按有效成员计算，取消缺失1%限制。
+L3沿`late_session_strength.evaluate`及现有`entry_data_quality`扩展
+`pool_usable/missing_pct/breadth_policy=available_members_v1`，
+完整池不变，无有效成员待确认；前端新口径与旧上下界归档分别读取。
+无新配置、路由或schema，其他异常只梳理待判定；本条覆盖下方旧上下界决策。
+见[买入链路与异常清单](../reports/operations/s02-breadth-tolerance-20261107/report.md)。
+
+S02广度缺项修复沿现有信号计算、引擎结果及历史API扩展可选`entry_data_quality`：
+按信号保存完整分母、已知上涨数、未知成员、百分数上下界及阶段，旧归档可无此字段。
+下界达标继续确认，上界不足确认拒绝，跨阈值保留待确认；无新路由或SQL schema。
+两端11-04买与11-05卖依赖定向刷新，见
+[核验记录](../reports/operations/s02-breadth-fix-20261107/report.md)。
+
+策略结果实时报价分批400只为L3前端局部修正：沿用既有快照接口并覆盖全部成员，
+无新扩展API、SQL schema或策略规则。历史重算保留精确前交易日依赖及真实缺失，
+不借旧买入记录填次日卖出。双端同版本安装与核验见
+[一周刷新记录](../reports/operations/s02-week-refresh-20261107/report.md)。
+
+S02默认ATR排序为L3前端局部行为：仅对信号选页的展示副本排序，
+原selection_rank、指标、存储名单及其他策略保持；共享三态hook保持，
+无有效手动列时显示默认ATR降序。无新扩展API或后台契约。见
+[双端验证](../reports/engineering/s02-default-atr-sort-20261107/report.md)。
+
+参考日换手率命名为L3前端局部修正：既有列解析器规范旧对象label，
+保持visible和字段键，列宽112px，表头/列设置共用；无新API或后台契约。
+历史缺日K由公告及独立停牌证据解释，不补造OHLCV或改变共享ATR连续窗口。
+[双端核查与安装](../reports/engineering/s02-reference-daily-20261107/report.md)。
+
+S02三页ATR排名隐藏沿现有L3列解析器实现，默认、持久偏好、展示与列设置保持一致。
+`enrich_selection`仍只追加指标：坏窗口隔离到股票，保留资格与原score；
+有效成员保存`atr_rank_population`，无效成员保存空ATR/分数及`atr_metric_error`。
+实时快照新增可选`requested_as_of/source`，只接受明确休市的精确前交易日缓存，
+UI显示其真实行情日期；无新路由或SQL schema，买入严格窗口保持。见
+[两端验证](../reports/engineering/s02-market-atr-20261107/report.md)。
+
+S02选页列调整属于L3内部展示契约：`resolveStrategyResultColumns`由结果表与列设置共用，
+仅`custom_mvxxcp88`的select移除排序/20日均额/选股评分并插入参考换手率。
+`select_rows`从精确参考日追加`reference_turnover_rate`，百分数值直接格式化；
+旧冻结行只有源日期匹配时读取原字段，缺值保持未知。无新API或SQL schema，
+资格、评分、买卖及其他策略保持；[两端验证](../reports/engineering/s02-select-turnover-20261107/report.md)。
+
+S02盘后预选现已支持源码可选回调`enrich_selection(rows, params, *, daily, as_of)`。
+引擎加载时校验签名，`signal_sections.select_rows`在共享资格和评分完成后调用；
+必须返回DataFrame及原有完整、唯一symbol集合，只接入新增列，不允许覆盖原值。
+S02追加`atr14_previous_close`、`atr_rank`、`atr_rank_score`及参考日；
+前者为ratio，排名1起始，分数0～100（单只50），与原`score`独立保存。
+日线窗口为目标交易日精确T-1及之前连续15个已完成交易日，仍复用共享ATR内核。
+`services.minute_priority.build_plan`为私有调度提示，完整池来源为`build_pool`，
+预选只改变池内次序，不能改变上涨比例分母。Full Worker经认证内部桥传计划，
+计划120秒过期且不进入公共行情文件；`priority`状态只展示数量与完成时钟。
+分段尾盘评估、历史保护和已安装边界见
+[本次交付](../reports/engineering/s02-minute-priority-20261107/report.md)。
+
+尾盘建仓确认延迟继续沿`evaluation_delay_minutes`保存，UI秒参数÷60；
+新建默认0.5，支持0.5～15、0.5步长，旧缺省/0时钟与已保存1/1.5保持。
+表单和服务按15:00减延迟校验最晚启动；说明跟随所选值，
+不得在编辑或升级时强制覆盖旧值。随后按用户明确授权将当前两端信号保存为0.5并安装；
+旧冻结定义保持。现场较新的`pending_evaluation_time`仍保留，不修改策略调用和撮合规则。
+本地和线上0.4.52的真实Runtime/Compute及页面验证见
+[双端回执](../reports/operations/late-delay-30s-20261107/report.md)。
+
+共享`atr14_sma_pct`为内置虚拟因子，调用`scoring_value_expr`或
+`materialize_scoring_columns`即可复用；单位ratio、预热15根、必须提供symbol/date/high/low/close。
+分钟源码先逐日调用`previous_session`生成精确已完成15日窗口，再调用
+`app.strategy.market_data.get_atr14_sma_reference(daily, symbols, expected_dates)`；
+返回symbol、atr14、atr14_previous_close、atr_reference_date和atr_raw_previous_close。
+最后一项仅供触发涨幅计算，S02消费后不写入结果；坏窗口抛ValueError。
+不直接开放`app.factors`源码导入，不覆盖旧ATR定义或历史快照。
+该次接入保留本地90秒/线上60秒，随后用户已要求双端30秒；升级以顶部最新约定为准，
+历史见[接入记录](../reports/engineering/atr14-shared-factor-20261107/report.md)。
+
+源码排名属于L3内部可选契约：`META.scoring_mode="strategy"`通过共享
+`effective_strategy_scoring`忽略旧通用权重，执行须返回有效`score`；
+旧无字段策略仍按原合并/替换规则评分。详情同名可选字段只读，表单清理旧权重；
+不新增评分插件或SQL schema。S02输出`atr14_previous_close`小数、1起始`atr_rank`、
+按顺位线性生成0～100分（单只50），精确T-1一致复权TR简单14均值。
+卖页继承关联买入的排名及原触发信息，实时价格不重算归档分数。
+历史修正须保留原成员/身份/参数并备份；缺本地扫描另存实际运行，不能复制线上买单。
+升级同时复核API/Worker/Compute/前端与旧字段兼容，见
+[双端验收](../reports/engineering/s02-atr-ranking-results-20261107/report.md)。
+
+普通分钟信号的研究资格注入是L3内部接线：回放从冻结T-1上下文复用`select_rows`，
+再经已有`selection_snapshots`传入引擎；不提供实盘归档写入或新的公开API。
+select/buy错误沿已有回放错误传播，叠加与滑点沿现有字段兼容。
+生产0.4.50及保留历史的验证见[本次记录](../reports/engineering/backtest-c88c133a-20261106/report.md)。
+
+普通分钟信号建议字段为L3内部可选结果契约：建议卖价对象含lower/upper与精确
+前交易日reference_date/reference_close；购买量为10万元最大整手数。
+共享生成路径传递临时原价参考，存储构造sell后消费并移除，不冻结全市场映射。
+旧字段缺失兼容未知，历史补齐必须获得授权并保留原名单/身份/时间；
+后续升级复核引擎、监控、预选和SQL/缓存，见
+[本次接线](../reports/engineering/s02-saved-suggestions-20261106/report.md)。
+
+S02卖页分钟量/额及建议卖出价为L3内部列展示，沿保存结果读取，不新增公开API。
+旧列偏好补入字段须保持已有相对顺序与显隐，不能统一重置账户配置。
+缺少建议价格计算依据时保留未知，不把历史触发价或实时价当作目标价，
+见[本次列扩展](../reports/engineering/s02-minute-columns-20261106/report.md)。
+
 正式镜像缺失判定为发布工具内部修复，复用现有 `Registry`，无新增扩展 API。
 二开保持权限/网络错误阻断、全目标预检、冲突拒绝及写后 digest 校验，见
 [本次验证](../reports/releases/promote-registry-20261107/verification.md)。
@@ -50,16 +190,18 @@ QuoteService公共通知，不新增插件API/Provider/schema。升级保持只�
 成功空通知和关闭回调移除；见[缓存修复](../.claude/artifacts/fixes/full-catalog-cache-20261103.md)。
 
 自定义早盘清仓与尾盘建仓的时间输入均复用公共`TimePicker`，属于L3局部前端接线。
-三项时间均启用`showSeconds`并保存`HH:mm:ss`。尾盘范围13:00:00～14:58:00，
+三项时间均启用`showSeconds`并保存`HH:mm:ss`。尾盘范围13:00:00～15:00减所选延迟，
 精确启动秒只用于确认时钟，分钟 K 标签向下取整；不得复制时间弹层或放宽秒级撮合能力。
 
-尾盘建仓启动后90秒为L3内部时间契约：六项参数ID保留，内部可选
-`evaluation_delay_minutes`（新保存1.5，冻结缺省0或旧值1）。不得在历史加载时补1.5，
-不得增加第七个用户控件。`evaluation_time`为启动后90秒确认时间，
+尾盘建仓可设置确认延迟为L3内部时间契约：既有参数ID保留，
+`evaluation_delay_minutes`通过页面秒控件÷60保存，新建默认0.5，
+支持0.5～15、0.5步长；历史缺省0和旧值1/1.5读取保持。不得在历史加载时补默认值。
+`evaluation_time`为启动后所选延迟的确认时间，
 `bar_time`为向下取整的启动分钟数据标签，不得混用；实时完成门闸用前者，
-价格/广度/双MA5窗口用后者。14:30:20附着14:30行并携带确认时间14:31:50；
-回放分别返回两个时点。冻结旧0/60秒定义仍要求秒数为00。
-分钟成交事件向上对齐14:32，保留秒级信号时间；next_minute_open必须有14:32真实开盘。
+价格/广度/双MA5窗口用后者。14:30:20按30秒延迟附着14:30行并携带确认时间14:30:50；
+回放分别返回两个时点。冻结旧0秒定义仍要求启动秒数为00。
+分钟成交事件取不早于确认且晚于启动分钟的首个整分钟；当前14:30:00加30秒为14:31，
+保留秒级信号时间，必须有真实分钟数据，最多连续5根购买分钟。
 MA5数量是值的数量，沿用现有N值算法；1分七值14:30至14:24，
 5分四值14:30>14:25>14:20>14:15；相邻MA差值严格大于`1e-10`才算上升，
 小于或等于该阈值按持平淘汰。没有新增公共API、
@@ -133,7 +275,7 @@ META `result_sections="signals"`由引擎启用，`select_rows`复用现有基�
 
 当日股票池盘前调度复用现有Screener/Compute及池归档，内部
 `services/daily_pool_schedule.py`统一北京时间08:00/09:00批次。
-盘前`premarket`上下文只读取精确前交易日价格/股本与当前目录；策略选股入口
+盘前`premarket`上下文只读取当前目录与当日状态证据；无昨收或股本依赖，策略选股入口
 仍沿保存的参考日配置。这是L3内部改动，无新增公开插件API；成功批次不随
 中途配置修改重跑，09:00批次读取最新配置。每策略同日只保留最新成功池：
 成功保存及旧池删除沿同一事务，失败不删旧池，迟到旧任务不写回；其他日期和任务记录保留。
@@ -186,10 +328,11 @@ S02全天卖出为L3共享内核局部修改，不新增扩展接口。
 
 内部L3新增`basic_filter.exclude_suspended`（历史缺省false），独立于数值开关，
 只排除所选当日有证据的停牌。`strategy/daily_pool.py`在公式/评分/显示限制前构建
-全局定义的当日股票池：股票范围与流通市值约束的完整集合，其余数值条件只用于策略选股。
-流通市值无边界或数值禁用时为范围池；禁用不取消旧配置中的板块/ST范围。
-新快照的`definition_version=scope_float_cap_v2`参与内容身份和每日任务签名，
-旧快照缺字段仍可读，不能重新标注或覆盖历史。新增可选结果`daily_stock_pool/daily_stock_pool_error`，
+全局定义的当日股票池：股票范围与状态条件的完整集合，流通市值及其他数值条件只用于策略选股。
+入池配置副本剔除全部数值条件，禁用数值仍不取消旧配置中的板块/ST范围。
+新快照的`definition_version=scope_only_v3`参与内容身份、每日任务签名及成功标记，
+旧口径成功允许重建当前批次，当前口径成功保持幂等；旧v2及无字段快照仍可读，
+不能重新标注或覆盖历史。新增可选结果`daily_stock_pool/daily_stock_pool_error`，
 保留旧结果缺字段兼容。持久化通过结果事务与专用池服务，Full需schema v7；
 不据此宣称新增通用插件接口或跨策略交易状态API。
 历史停复牌为L3内部数据输入，独立`instrument_status/suspensions.parquet`不改上市/ST历史。

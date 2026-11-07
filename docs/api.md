@@ -1,5 +1,22 @@
 # API、事件与 MCP 导航
 
+2026-11-08统一候选同时保留账户生命周期及market-snapshot契约，
+`PUT /api/paper/account`新增可选`min_commission/transfer_fee_pct/stamp_tax_mode`，
+与独立费用设置采用相同单位和范围，一次校验后保存，不追改历史成交。
+旧请求及端点集合保持；当前Tier A Schema指纹为
+`7117dde25be64938edde68476dd8318c9353f8700a881b4a540162ff931b62c0`。
+实际候选、兼容和发布门禁见[本轮整合](upgrade-20261108.md)，下方记录保留原执行身份。
+
+2026-11-08自动跟单参数融合为未部署的可选加法扩展。原规则创建/PUT增加
+`buy_order_type`、`sell_order_type`（market/next_open/close，缺字段回退order_type）；
+`candidate_priority`增加pool，仅strategy来源可选。旧默认event及原端点集合保持。
+原账户创建/批量创建/设置增加`min_commission`（元，0～10000，旧默认5）、
+`transfer_fee_pct`（小数费率，0～0.01，旧默认0）、
+`stamp_tax_mode`（fixed/historical，旧默认fixed）；响应费表透传，设置只影响未来成交。
+费率pct直接传小数，佣金/过户费页面万分比÷10000，固定印花税千分比÷1000，
+滑点万分比直接传bps。接口身份、隔离、回读及开放Schema指纹验证见
+[本次回执](../reports/engineering/paper-auto-rule-parameters-20261108/report.md)。
+
 `GET /api/screener/market-snapshot?realtime=true&symbols=600001.SH`仅返回当前日共享缓存
 中的指定股票（每批1～1000只），返回`raw_close/change_pct/turnover_rate/vol_ratio_5d`
 及既有技术信号、报价时间字段。缺当前日缓存返回当日日期和空rows；非法范围422。
@@ -41,9 +58,10 @@ Tier A端点集合及响应组件保持，契约快照与默认请求回归同�
 查询当日基础池，返回`pool`（尚未生成时null），可选`record_id`选择快照；
 `limit`为1～1000、`offset`非负，完整数量在`total`，`symbols`为当前页。
 名单与策略最终结果独立；此接口遵循现有租户会话权限，不新增Tier A开放端点。
-新生成名单只满足股票范围和流通市值约束，`basic_filter`保存入池所用配置，
-`definition_version`为`scope_float_cap_v2`；历史快照缺版本字段时保留原口径，
-不因读取新接口而重算或重新标注。
+新生成名单只满足股票范围与状态条件，`basic_filter`保存入池所用配置，
+不含流通市值及其他数值条件；`definition_version`为`scope_only_v3`。
+`reference_date`及盘前参考策略字段作为兼容元数据保留，不表示入池依赖参考价。
+历史v2或无版本字段快照保留原口径，不因读取新接口而重算或重新标注。
 
 核对日期：2026-11-01。接口行为以运行实例生成的 OpenAPI 和对应源码为准。
 本文提供调用入口和授权边界；完整字段、单位、Provider 和事件协议见

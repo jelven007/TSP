@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Loader2, Plus, Save, Search, Sparkles, X } from 'lucide-react'
 import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup, type LateSessionStrengthParams, type MorningLiquidationParams } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, lateSessionBarTime, lateSessionCheckTime } from '@/lib/customSignals'
+import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, lateSessionBarTime, lateSessionCheckTime, lateSessionLatestStartTime } from '@/lib/customSignals'
 
 interface Props {
   open: boolean
@@ -53,8 +53,10 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
   const lateSession = draft.template === 'late_session_strength'
   const morning = draft.template === 'morning_liquidation'
   const specialized = lateSession || morning
-  const lateParams = { ...LATE_SESSION_DEFAULTS, ...draft.params as Partial<LateSessionStrengthParams>,
-    evaluation_delay_minutes: 1 as const }
+  const storedLate = draft.params as Partial<LateSessionStrengthParams> | undefined
+  const lateParams = { ...LATE_SESSION_DEFAULTS, ...storedLate,
+    evaluation_delay_minutes: storedLate?.evaluation_delay_minutes ?? LATE_SESSION_DEFAULTS.evaluation_delay_minutes }
+  const lateDelaySeconds = (lateParams.evaluation_delay_minutes ?? 0.5) * 60
   const storedMorning = draft.params as Partial<MorningLiquidationParams> | undefined
   const morningParams = {
     time: storedMorning?.time ?? MORNING_LIQUIDATION_DEFAULTS.time,
@@ -65,8 +67,13 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
 
   useEffect(() => {
     if (!open) return
-    setDraft(signal ? { ...signal, params: signal.params ? { ...signal.params } : undefined,
-      conditions: signal.conditions.map(c => ({ ...c })) } : emptySignal(defaultKind))
+    const next = signal ? { ...signal, params: signal.params ? { ...signal.params } : undefined,
+      conditions: signal.conditions.map(c => ({ ...c })) } : emptySignal(defaultKind)
+    const delay = (next.params as Partial<LateSessionStrengthParams> | undefined)?.evaluation_delay_minutes
+    if (next.template === 'late_session_strength' && (delay == null || delay === 0))
+      next.params = { ...LATE_SESSION_DEFAULTS, ...next.params,
+        evaluation_delay_minutes: LATE_SESSION_DEFAULTS.evaluation_delay_minutes }
+    setDraft(next)
     setError('')
     setAiOpen(false); setAiDesc(''); setAiError(''); setAiLoading(false)
   }, [open, signal, defaultKind])
@@ -116,9 +123,13 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
       }
       if (lateSession) {
         const p = lateParams
+        if (!Number.isInteger(lateDelaySeconds) || lateDelaySeconds < 30 || lateDelaySeconds > 900
+          || lateDelaySeconds % 30 !== 0)
+          throw new Error('确认延迟须为30～900秒且为30秒的整数倍')
+        const latest = lateSessionLatestStartTime(lateDelaySeconds)
         if (!/^1[34]:[0-5]\d:[0-5]\d$/.test(p.time)
-          || p.time < '13:00:00' || p.time > '14:58:00')
-          throw new Error('启动时间须为 13:00:00～14:58:00')
+          || p.time < '13:00:00' || p.time > latest)
+          throw new Error(`启动时间须为 13:00:00～${latest}，确认时间不得晚于15:00:00`)
         if (![p.change_min_pct, p.change_max_pct, p.pool_up_min_pct].every(Number.isFinite)
           || p.change_min_pct < 0 || p.change_min_pct > p.change_max_pct || p.change_max_pct > 100
           || p.pool_up_min_pct < 0 || p.pool_up_min_pct > 100) throw new Error('请检查涨幅区间和上涨占比')
@@ -267,12 +278,20 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                           params: { ...lateParams, time } }))}
                         className="w-full" buttonClassName="h-9 w-full justify-start" />
                     </label>
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] text-muted">确认延迟（秒）</span>
+                      <input type="number" aria-label="确认延迟（秒）" min={30} max={900} step={30}
+                        value={Number.isFinite(lateDelaySeconds) ? lateDelaySeconds : ''}
+                        onChange={e => setDraft(d => ({ ...d, params: { ...lateParams,
+                          evaluation_delay_minutes: e.target.value === '' ? NaN : Number(e.target.value) / 60 } }))}
+                        className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                    </label>
                     {([
-                      ['pool_up_min_pct', '启动后60秒的当日股票池上涨占比下限（%）', 0, 100, 0.1],
+                      ['pool_up_min_pct', '当日股票池上涨占比下限（%）', 0, 100, 0.1],
                       ['change_max_pct', '涨幅上限（%）', 0, 100, 0.1],
                       ['change_min_pct', '涨幅下限（%）', 0, 100, 0.1],
-                      ['ma5_1m_count', '启动后60秒的1分钟 MA5 连增数量', 2, 120, 1],
-                      ['ma5_5m_count', '启动后60秒的5分钟 MA5 连增数量', 2, 24, 1],
+                      ['ma5_1m_count', '1分钟 MA5 连增数量', 2, 120, 1],
+                      ['ma5_5m_count', '5分钟 MA5 连增数量', 2, 24, 1],
                     ] as const).map(([key, label, min, max, step]) => (
                       <label key={key} className="space-y-1.5">
                         <span className="text-[11px] text-muted">{label}</span>
@@ -284,14 +303,20 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     ))}
                   </div>
                   {signal?.template === 'late_session_strength'
-                    && (signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes !== 1 && (
-                    <p className="text-[11px] leading-5 text-amber-400">此信号使用旧确认时间，保存后改为启动后60秒确认。</p>
+                    && !(signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes && (
+                    <p className="text-[11px] leading-5 text-amber-400">此信号原为无延迟旧定义，保存时采用上方所选确认延迟。</p>
                   )}
                   <p className="text-[11px] leading-5 text-muted">
-                    启动后60秒确认，当前确认时间为 {lateSessionCheckTime(lateParams)}，K线截止 {lateSessionBarTime(lateParams.time)}（北京时间）。
-                    确认的是60秒前的启动分钟数据，等待启动分钟K线完成并到达后计算，不使用确认分钟尚未完成的K线。
+                    确认延迟可设为30～900秒，须为30秒的整数倍，新建默认30秒。
+                    {Number.isFinite(lateDelaySeconds)
+                      ? `启动后${lateDelaySeconds}秒确认，当前确认时间为 ${lateSessionCheckTime(lateParams)}，`
+                      : '请填写有效的确认延迟，'}
+                    K线截止 {lateSessionBarTime(lateParams.time)}（北京时间）。
+                    始终确认启动分钟的数据，等待该分钟K线完成并到达后计算，不使用确认分钟尚未完成的K线；确认时间不得晚于15:00:00。
+                    分钟回测的购买窗口从启动分钟之后、且不早于确认时点的第一个整分钟开始，最多连续5根分钟K；买足即结束，窗口结束撤销余量。
                     以上条件为「且」关系。涨幅按启动分钟已完成收盘价相对原始昨收计算，区间包含上下限；上涨定义为涨幅大于 0。
-                    上涨占比使用策略完整的当日股票池。MA5 使用已完成 K 线的收盘价，值相等不算递增，不跨午休或交易日。
+                    上涨占比从策略完整的当日股票池中剔除缺有效指定分钟价格或精确昨收的股票后计算；完整池保留，无有效成员时等待数据。
+                    MA5 使用已完成 K 线的收盘价，值相等不算递增，不跨午休或交易日；缺完整窗口只跳过该股。
                     连增数量指 MA5 值的数量：7 个值为 6 次严格递增；默认1分钟比较14:30至14:24。
                     1分钟和5分钟MA5都截止启动时间。5分钟取截至启动时间最新完成的 K 线；
                     默认4个值比较14:30 &gt; 14:25 &gt; 14:20 &gt; 14:15，共3次严格递增。

@@ -1,4 +1,4 @@
-"""当前60秒确认只改时钟, 启动分钟行情与冻结90秒定义保持。"""
+"""当前30秒默认只改时钟, 已保存60/90秒定义及启动分钟行情保持。"""
 from datetime import timedelta
 from types import SimpleNamespace
 
@@ -7,21 +7,21 @@ import pytest
 from test_late_session_strength import DAY, POOL, TARGET, bars, definition, evaluate
 
 
-def test_current_default_waits_sixty_seconds_with_same_complete_input_results():
+def test_current_default_waits_thirty_seconds_with_same_complete_input_results():
     from app.strategy.late_session_strength import DEFAULT_PARAMS, bar_time, evaluation_time
 
     current = definition(**DEFAULT_PARAMS)
     frozen = definition(**{**DEFAULT_PARAMS, "evaluation_delay_minutes": 1.5})
-    assert evaluation_time(current, DAY) == TARGET + timedelta(seconds=60)
+    assert evaluation_time(current, DAY) == TARGET + timedelta(seconds=30)
     assert bar_time(current, DAY) == bar_time(frozen, DAY) == TARGET
     later = bars().filter(pl.col("datetime") == TARGET).with_columns(
         (pl.col("datetime") + pl.duration(minutes=1)).alias("datetime"),
         pl.lit(5.).alias("close"))
     frame = pl.concat([bars(), later])
     assert not evaluate(frame=frame, sig=current,
-                        completed_through=TARGET + timedelta(seconds=59)).symbols
+                        completed_through=TARGET + timedelta(seconds=29)).symbols
     result = evaluate(frame=frame, sig=current,
-                      completed_through=TARGET + timedelta(seconds=60))
+                      completed_through=TARGET + timedelta(seconds=30))
     assert result == evaluate(frame=frame, sig=frozen,
                               completed_through=TARGET + timedelta(seconds=90))
     assert result.symbols == POOL[:3]

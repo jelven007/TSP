@@ -315,10 +315,10 @@ const normalizeStrategyOverrides = (detail: StrategyDetail, values?: Record<stri
   const next = { ...(values ?? {}) }
   next.overlay_filter = next.overlay_filter ?? detail.overlay_filter ?? []
   const savedScoring = next.scoring && typeof next.scoring === 'object' ? next.scoring : {}
-  next.scoring = next.scoring_replace === true
+  next.scoring = detail.scoring_mode === 'strategy' ? {} : next.scoring_replace === true
     ? { ...savedScoring }
     : { ...detail.scoring, ...savedScoring }
-  next.scoring_directions = {
+  next.scoring_directions = detail.scoring_mode === 'strategy' ? {} : {
     ...(detail.scoring_directions ?? {}),
     ...(next.scoring_directions ?? {}),
   }
@@ -357,6 +357,7 @@ const strategyBacktestConfigSignature = (detail: StrategyDetail) => JSON.stringi
   params: detail.params,
   params_defaults: detail.params_defaults,
   scoring: detail.scoring,
+  scoring_mode: detail.scoring_mode,
   scoring_directions: detail.scoring_directions,
   entry_signals: detail.entry_signals,
   exit_signals: detail.exit_signals,
@@ -3120,7 +3121,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
 
               {settingsTab === 'scoring' && (
                 <ConfigSection title="评分方案" hint="选择因子、方向与权重，保存时自动归一化">
-                  <ScoringEditor
+                  {detail.scoring_mode === 'strategy' ? <p className="text-xs text-muted">
+                    排名由策略生成。s02按ATR14÷昨收降序，排名分数为0～100分，同值按触发涨幅、股票代码排序。
+                  </p> : <ScoringEditor
                     key={detail.id}
                     value={scoring}
                     directions={scoringDirections}
@@ -3131,7 +3134,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                       scoring_directions: nextDirections,
                       scoring_replace: true,
                     }))}
-                  />
+                  />}
                   <div className="border-t border-border/40 pt-3">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-[11px] font-medium text-secondary">评分过滤</span>

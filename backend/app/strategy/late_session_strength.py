@@ -14,7 +14,7 @@ TEMPLATE = "late_session_strength"
 DEFAULT_PARAMS = {
     "time": "14:30:00", "change_min_pct": 0.4, "change_max_pct": 4.0,
     "pool_up_min_pct": 60.0, "ma5_1m_count": 7, "ma5_5m_count": 4,
-    "evaluation_delay_minutes": 1,
+    "evaluation_delay_minutes": 0.5,
 }
 
 
@@ -25,12 +25,13 @@ def parameters(sig: dict) -> dict:
     params = {**DEFAULT_PARAMS, **raw}
     # Frozen six-field definitions keep their original scheduled minute.
     delay = raw.get("evaluation_delay_minutes", 0)
-    if isinstance(delay, bool) or not isinstance(delay, (int, float)) or delay not in (0, 1, 1.5):
-        raise ValueError("尾盘走强检查延迟须为 0、60 或 90 秒")
+    if (isinstance(delay, bool) or not isinstance(delay, (int, float))
+            or not math.isfinite(delay)
+            or (delay != 0 and not (0.5 <= delay <= 15 and delay * 60 % 30 == 0))):
+        raise ValueError("尾盘走强确认延迟须为30~900秒且为30秒的整数倍; 0秒仅兼容旧定义")
     params["evaluation_delay_minutes"] = delay
-    earliest, latest = (time(13), time(14, 59)) if delay else (time(13, 1), time(15))
-    if delay == 1.5:
-        latest = time(14, 58)
+    earliest = time(13) if delay else time(13, 1)
+    latest = (datetime.combine(date.min, time(15)) - timedelta(minutes=delay)).time()
     try:
         at = time.fromisoformat(params["time"])
         if (at.strftime("%H:%M:%S") != params["time"] or at.tzinfo
@@ -114,11 +115,48 @@ def pending_evaluation_time(engine, strategy, overrides, context) -> datetime | 
     return max(pending, default=None)
 
 
+def entry_deadline(engine, strategy, overrides, context, *, expired_only=True) -> datetime | None:
+    """Latest live confirmation is the final bar of the existing five-minute window."""
+    storage = engine._user_data_dir()
+    observed = context.observed_at or context.completed_through
+    if storage is None or observed is None:
+        return None
+    if observed.tzinfo:
+        observed = observed.astimezone(CN_TZ).replace(tzinfo=None)
+    from app.strategy import custom_signals
+
+    selected = set(engine._effective_signals(overrides or {}, "entry_signals", strategy.entry_signals))
+    deadlines = []
+    for sig in custom_signals.load_intraday_all(storage):
+        if (sig.get("template") != TEMPLATE or sig.get("enabled") is False
+                or custom_signals.intraday_column_name(sig["id"]) not in selected):
+            continue
+        available = max(bar_time(sig, context.as_of) + timedelta(minutes=1),
+                        evaluation_time(sig, context.as_of))
+        start = available.replace(second=0, microsecond=0)
+        if available != start:
+            start += timedelta(minutes=1)
+        end = min(start + timedelta(minutes=4), datetime.combine(context.as_of, time(15)))
+        if not expired_only or observed > end:
+            deadlines.append(end)
+    return min(deadlines, default=None)
 @dataclass
 class Evaluation:
     symbols: list[str] = field(default_factory=list)
     pool_up_pct: float | None = None
     diagnostics: list[str] = field(default_factory=list)
+    candidates: list[str] = field(default_factory=list)
+    stage: str = "waiting_start"
+    pool_total: int = 0
+    pool_usable: int = 0
+    missing_pct: float = 0.0
+    breadth_policy: str = "available_members_v1"
+    ma_skipped_symbols: list[str] = field(default_factory=list)
+    known_positive: int = 0
+    missing_symbols: list[str] = field(default_factory=list)
+    pool_up_pct_lower: float | None = None
+    pool_up_pct_upper: float | None = None
+    warnings: list[str] = field(default_factory=list)
 
 
 def _rising_symbols(frame: pl.DataFrame, end: datetime, count: int, step: int) -> set[str]:
@@ -150,15 +188,20 @@ def evaluate(
     params = parameters(sig)
     result = Evaluation()
     at = bar_time(sig, day)
+    cutoff = None
     if completed_through is not None:
         cutoff = completed_through
         if cutoff.tzinfo:
             cutoff = cutoff.astimezone(CN_TZ).replace(tzinfo=None)
-        if cutoff < evaluation_time(sig, day):
+        start = datetime.combine(day, time.fromisoformat(params["time"]))
+        prefilter_at = start + timedelta(seconds=15) if params["evaluation_delay_minutes"] else start
+        if cutoff < prefilter_at:
             return result
     if sig.get("enabled") is False:
         return result
+    result.stage = "waiting_data"
     pool = sorted(set(pool_symbols or []))
+    result.pool_total = len(pool)
     if not pool:
         result.diagnostics.append("尾盘走强缺少完整的当日股票池")
         return result
@@ -184,18 +227,52 @@ def evaluate(
             unknown.append(symbol)
         else:
             returns[symbol] = (quote["close"][0] / previous - 1) * 100
+    result.known_positive = sum(value > 0 for value in returns.values())
+    result.missing_symbols = unknown
+    result.pool_usable = len(returns)
+    result.missing_pct = 100 * len(unknown) / len(pool)
+    result.pool_up_pct_lower = 100 * result.known_positive / len(pool)
+    result.pool_up_pct_upper = 100 * (result.known_positive + len(unknown)) / len(pool)
     if unknown:
-        result.diagnostics.append(f"尾盘走强: 股票池中 {len(unknown)}/{len(pool)} 只缺少指定分钟价格或昨收")
+        result.warnings.append(
+            f"尾盘走强: 剔除 {len(unknown)}/{len(pool)} 只缺少有效指定分钟价格或昨收的股票, "
+            f"按剩余 {len(returns)} 只计算上涨占比")
+    if not returns:
+        result.diagnostics.append("尾盘走强: 当日股票池剔除缺失数据后无有效股票, 无法计算上涨占比")
         return result
-    result.pool_up_pct = 100 * sum(value > 0 for value in returns.values()) / len(pool)
+    # Stored universe remains complete; unavailable members leave only the breadth denominator.
+    result.pool_up_pct = 100 * result.known_positive / len(returns)
     if result.pool_up_pct + 1e-10 < params["pool_up_min_pct"]:
+        result.stage = "breadth_rejected"
         return result
+    candidates = {symbol for symbol, value in returns.items()
+                  if params["change_min_pct"] - 1e-10 <= value <= params["change_max_pct"] + 1e-10}
+    result.candidates = sorted(candidates)
+    if cutoff is not None and cutoff < evaluation_time(sig, day):
+        result.stage = "waiting_confirmation"
+        return result
+    result.stage = "confirmed"
     # Keep only the necessary afternoon window; reject duplicates before aggregation.
     minutes = max(params["ma5_1m_count"] + 4, (params["ma5_5m_count"] + 4)*5 + 4)
     frame = frame.filter(pl.col("datetime") > at - timedelta(minutes=minutes))
     end5 = at.replace(minute=(at.minute//5)*5)
-    candidates = {symbol for symbol, value in returns.items()
-                  if params["change_min_pct"] - 1e-10 <= value <= params["change_max_pct"] + 1e-10}
+    for end, count in ((at, params["ma5_1m_count"] + 4),
+                       (end5, (params["ma5_5m_count"] + 4) * 5)):
+        start = end - timedelta(minutes=count - 1)
+        window = frame.filter(pl.col("symbol").is_in(sorted(candidates))
+                              & pl.col("datetime").is_between(start, end))
+        ready = window.group_by("symbol").agg(
+            ((pl.len() == count) & (pl.col("datetime").n_unique() == count)
+             & (pl.col("datetime").min() == start) & (pl.col("datetime").max() == end)
+             & (pl.col("close").is_finite() & (pl.col("close") > 0)).fill_null(False).all()
+             ).alias("_ready"))
+        missing = candidates - set(ready.filter(pl.col("_ready"))["symbol"].to_list())
+        if missing:
+            result.ma_skipped_symbols = sorted(set(result.ma_skipped_symbols) | missing)
+            candidates -= missing
+    if result.ma_skipped_symbols:
+        result.warnings.append(
+            f"尾盘走强: 跳过 {len(result.ma_skipped_symbols)} 只缺少完整MA5分钟窗口的股票, 其余继续计算")
     unique = frame.group_by("symbol").agg((pl.len() == pl.col("datetime").n_unique()).alias("_unique"))
     candidates &= set(unique.filter(pl.col("_unique"))["symbol"].to_list())
     frame = frame.filter(pl.col("symbol").is_in(sorted(candidates)))
@@ -209,7 +286,9 @@ def evaluate(
     return result
 
 
-def previous_closes(context, *, exact_session: bool = True) -> dict[str, float]:
+def previous_closes(
+    context, *, exact_session: bool = True, isolate_symbols: bool = False,
+) -> dict[str, float]:
     """昨收使用严格早于信号日的未复权价格, 不读取当日收盘。"""
     previous = None
     if exact_session:
@@ -229,12 +308,14 @@ def previous_closes(context, *, exact_session: bool = True) -> dict[str, float]:
             if not prior.is_empty():
                 from app.services.daily_close_validation import require_final_daily_rows
 
-                require_final_daily_rows(prior, previous)
+                rejected = require_final_daily_rows(prior, previous, isolate_symbols=isolate_symbols)
+                if rejected:
+                    context.reference_errors.update(rejected)
         elif {"volume", "amount"}.issubset(prior.columns):
             prior = prior.filter(
                 (pl.col("volume") > 0) | (pl.col("amount") > 0)
                 | (pl.col("volume").is_null() & pl.col("amount").is_null()))
-        parts.append(prior.select("symbol", "date", pl.col(column).alias("raw_close")))
+        parts.append(prior.select("symbol", "date", pl.col(column).cast(pl.Float64, strict=False).alias("raw_close")))
     if not parts:
         if exact_session:
             raise ValueError(f"{previous}缺少准确前交易日定版昨收")
@@ -246,6 +327,12 @@ def previous_closes(context, *, exact_session: bool = True) -> dict[str, float]:
     if exact_session:
         conflicting = prior.group_by("symbol").agg(pl.col("raw_close").n_unique().alias("_prices")).filter(pl.col("_prices") > 1)
         if not conflicting.is_empty():
-            raise ValueError(f"{previous} {conflicting['symbol'][0]}昨收来源不一致")
+            if not isolate_symbols:
+                raise ValueError(f"{previous} {conflicting['symbol'][0]}昨收来源不一致")
+            context.reference_errors.update({
+                symbol: f"{previous} {symbol}昨收来源不一致" for symbol in conflicting["symbol"]
+            })
+    if isolate_symbols:
+        prior = prior.filter(~pl.col("symbol").is_in(list(context.reference_errors)))
     return {str(row["symbol"]): row["raw_close"]
             for row in prior.unique("symbol", keep="last").iter_rows(named=True)}

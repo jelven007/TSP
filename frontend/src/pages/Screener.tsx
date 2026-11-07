@@ -111,15 +111,14 @@ export function Screener() {
   const resultViewKey = `${dailyViewKey}-${result?.record_id ?? ''}`
   const [dailyView, setDailyView] = useState<{ key: string; tab: StrategyResultTab } | null>(null)
   const activeResultTab = dailyView?.key === dailyViewKey ? dailyView.tab : 'sell'
-  const [signalColumns, setSignalColumns] = useState(loadStrategyResultColumns)
+  const [signalColumnRevision, setSignalColumnRevision] = useState(0)
+  const signalColumns = useMemo(() => loadStrategyResultColumns(activeStrategy),
+    [activeStrategy, signalColumnRevision])
   const signalsView = !showAll && result?.section_mode === 'signals'
   const handleSignalColumnsChange = useCallback((next: ColumnConfig[]) => {
-    setSignalColumns(previous => {
-      const updated = { ...previous, [activeResultTab]: next }
-      saveStrategyResultColumns(updated)
-      return updated
-    })
-  }, [activeResultTab])
+    saveStrategyResultColumns({ ...signalColumns, [activeResultTab]: next })
+    setSignalColumnRevision(previous => previous + 1)
+  }, [activeResultTab, signalColumns])
   const [holdingDraft, setHoldingDraft] = useState<{
     key: string; strategyId: string | null; recordId?: string; rows: Record<string, unknown>[]
   } | null>(null)
@@ -1247,7 +1246,7 @@ export function Screener() {
 
       <ListColumnCustomizer
         columns={signalsView ? signalColumns[activeResultTab] : columns}
-        groups={signalsView ? strategyResultGroups(activeResultTab) : SCREENER_COLUMN_GROUPS}
+        groups={signalsView ? strategyResultGroups(activeResultTab, activeStrategy) : SCREENER_COLUMN_GROUPS}
         onChange={signalsView ? handleSignalColumnsChange : handleColumnsChange}
         open={customizerOpen}
         onClose={() => setCustomizerOpen(false)}

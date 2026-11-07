@@ -1457,7 +1457,10 @@ class RustdxProvider:
                         method = getattr(client, "incremental_bars", client.bars)
                         raw = method(symbol, frequency=8, offset=max(1, min(int(count), 800)))
                         requests = 1
-                return self._minute_frame(raw, symbol, start, end), requests, None
+                # A bounded batch may cross the next completed minute. Use the
+                # response clock, not the whole-universe batch's start clock.
+                fetched_at = cn_now().replace(tzinfo=None)
+                return self._minute_frame(raw, symbol, start, fetched_at), requests, None
             except RustdxError as exc:
                 return pl.DataFrame(), max(requests, exc.requests), exc
 

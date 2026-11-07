@@ -12,6 +12,7 @@ from functools import wraps
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
+from pydantic import BaseModel, ConfigDict, Field
 from sse_starlette.sse import EventSourceResponse
 
 from app.cell.context import SYMBOL_PATTERN
@@ -33,6 +34,32 @@ def _authorize(authorization: str | None) -> None:
     expected = os.environ.get("TSP_PLATFORM_MARKET_TOKEN", "")
     if not expected or not authorization or not secrets.compare_digest(authorization, "Bearer " + expected):
         raise HTTPException(401, "platform_authentication_required")
+
+
+class MinutePriorityPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    owner: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
+    day: date
+    sequence: int = Field(ge=0)
+    symbols: list[str] = Field(max_length=10000)
+    selected: list[str] = Field(max_length=10000)
+
+
+@router.post("/minute-priority")
+def minute_priority(
+    request: Request, plan: MinutePriorityPlan,
+    authorization: Annotated[str | None, Header()] = None,
+):
+    _authorize(authorization)
+    from app.market_time import cn_today
+    if (plan.day != cn_today() or not set(plan.selected).issubset(plan.symbols)
+            or any(not re.fullmatch(SYMBOL_PATTERN, symbol) for symbol in plan.symbols)):
+        raise HTTPException(422, "invalid_minute_priority")
+    service = getattr(request.app.state, "minute_refresh", None)
+    if service is None:
+        raise HTTPException(503, "minute_refresh_unavailable")
+    service.set_priority(plan.owner, plan.model_dump(mode="json", exclude={"owner"}))
+    return {"ok": True}
 
 
 def _symbols(value: str) -> list[str]:

@@ -161,8 +161,9 @@ def test_engine_exits_holdings_independently_of_candidate_pool_and_empty_minutes
     context.observed_at = NOW.replace(minute=30)
     assert engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]}).exit_signal_hits
     context.positions = None
-    with pytest.raises(ValueError, match="持仓"):
-        engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]})
+    failed_exit = engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]})
+    assert "持仓" in failed_exit.exit_filter_error
+    assert not failed_exit.exit_signal_hits
 
 
 @pytest.mark.parametrize("entry_at,evaluated_at,allowed", [
@@ -246,7 +247,11 @@ def test_monitor_context_loads_owned_positions_and_keeps_seconds_without_minutes
     context = overnight_runtime.monitor_context(Service().load, engine, "sample", DAY, pl.DataFrame(), tmp_path)
     assert context.positions == [position()]
     assert context.observed_at.second == 7
-    assert engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]}).exit_signal_hits
+    assert context.input_errors == ["缺少分钟数据"]
+    result = engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]})
+    assert result.entry_filter_error == "缺少分钟数据"
+    assert result.rows == [] and result.entry_signal_hits == []
+    assert [hit["symbol"] for hit in result.exit_signal_hits] == ["a"]
 
 
 def test_legacy_monitor_reads_saved_exit_override_without_engine_loader(tmp_path, monkeypatch):
@@ -404,7 +409,11 @@ def test_monitor_missing_minutes_retains_repository_halt_evidence(tmp_path, monk
 
     monkeypatch.setattr(overnight_runtime, "cn_now", lambda: NOW.replace(minute=30, second=7))
     context = overnight_runtime.monitor_context(Service().load, engine, "sample", DAY, pl.DataFrame(), tmp_path)
-    assert not engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]}).exit_signal_hits
+    assert context.input_errors == ["缺少分钟数据"]
+    result = engine.run("sample", context, overrides={"exit_signals": ["csgi_morning_liquidation"]})
+    assert result.entry_filter_error == "缺少分钟数据"
+    assert result.rows == [] and result.entry_signal_hits == []
+    assert result.exit_signal_hits == []
 
 
 def test_signal_replay_uses_resume_evidence_without_simulating_fills():

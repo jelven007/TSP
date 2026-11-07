@@ -38,6 +38,16 @@ def effective_scoring(
     return scoring
 
 
+def effective_strategy_scoring(
+    meta: Mapping[str, Any],
+    overrides: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """A source-owned rank must survive older saved generic scoring settings."""
+    if meta.get("scoring_mode") == "strategy":
+        return {}
+    return effective_scoring(meta.get("scoring"), overrides)
+
+
 def effective_scoring_directions(overrides: Mapping[str, Any] | None) -> dict[str, str]:
     values = (overrides or {}).get("scoring_directions")
     if not isinstance(values, Mapping):
@@ -121,6 +131,12 @@ def scoring_value_expr(columns: Collection[str], name: str) -> pl.Expr | None:
         return _ratio(pl.col(source), pl.col("close"))
     if name == "atr_pct":
         return _ratio(pl.col("atr_14"), pl.col("close"))
+    if name == "atr14_sma_pct":
+        if "symbol" not in available:
+            return None
+        from app.factors.atr import atr14_sma_expr
+
+        return atr14_sma_expr()
     if name == "boll_position":
         return _ratio(
             pl.col("close") - pl.col("boll_lower"),

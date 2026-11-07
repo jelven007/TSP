@@ -66,6 +66,7 @@ class PublicPublisher:
         self.changed = threading.Event()
         self.metadata_lock = threading.Lock()
         self.minute_completed_at = None
+        self.minute_priority_completed_at = None
         self.thread = threading.Thread(target=self._loop, daemon=True, name="public-file-publisher")
         self.error = None
         self.write_lock = write_lock or threading.Lock()
@@ -79,6 +80,19 @@ class PublicPublisher:
             self.minute_completed_at = wall.replace(tzinfo=CN_TZ).timestamp()
         if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() < clock_time(14, 40):
             self.changed.set()
+
+    def publish_priority(self, completed_at):
+        """Finish the immutable priority release before the ordinary batch writes."""
+        from app.market_time import CN_TZ
+
+        wall = (completed_at.astimezone(CN_TZ).replace(tzinfo=None)
+                if completed_at.tzinfo else completed_at)
+        with self.metadata_lock:
+            self.minute_priority_completed_at = wall.replace(tzinfo=CN_TZ).timestamp()
+        if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() < clock_time(14, 40):
+            self.changed.set()
+            return self.publish()
+        return None
 
     def generations(self):
         from app.enriched_generation import get_enriched_generation
@@ -168,6 +182,7 @@ class PublicPublisher:
     def _publish(self):
         with self.metadata_lock:
             minute_completed_at = self.minute_completed_at
+            minute_priority_completed_at = self.minute_priority_completed_at
         self.validate_daily_coverage()
         generations, files = self.generations(), self.inventory()
         digest = hashlib.sha256(json.dumps([generations, files], sort_keys=True).encode()).hexdigest()
@@ -234,6 +249,8 @@ class PublicPublisher:
                         "files": files, "checksums": checksums, "published_at": time.time()}
             if minute_completed_at is not None:
                 manifest["minute_completed_at"] = minute_completed_at
+            if minute_priority_completed_at is not None:
+                manifest["minute_priority_completed_at"] = minute_priority_completed_at
             (stage / ".public_release.json").write_text(json.dumps(manifest, sort_keys=True))
             os.rename(stage, releases / release_id)
             link = self.root / ("." + release_id)

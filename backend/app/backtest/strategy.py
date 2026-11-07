@@ -66,8 +66,8 @@ from app.strategy.entry_risk import EntryRiskPolicy
 from app.strategy.risk_policy import normalize_pct, strategy_policy
 from app.strategy.scoring import (
     SCORING_DIRECTION_LOW,
-    effective_scoring,
     effective_scoring_directions,
+    effective_strategy_scoring,
     materialize_scoring_columns,
     scoring_dependencies,
     scoring_value_expr,
@@ -184,7 +184,7 @@ class StrategyDependencyResolver:
         }
         required_signals.update({"signal_limit_up", "signal_limit_down"})
 
-        scoring = effective_scoring(strategy.meta.get("scoring"), overrides)
+        scoring = effective_strategy_scoring(strategy.meta, overrides)
         required_features.update(scoring_dependencies(scoring))
         order_by = strategy.meta.get("order_by")
         if order_by and order_by != "score":
@@ -298,7 +298,7 @@ class StrategyDependencyResolver:
             }
             required_features.update(scoring_dependencies(parameter_scoring))
         required_features.update(_basic_filter_dependencies(basic_filter))
-        scoring = effective_scoring(strategy.meta.get("scoring"), overrides)
+        scoring = effective_strategy_scoring(strategy.meta, overrides)
         required_features.update(scoring_dependencies(scoring))
         order_by = strategy.meta.get("order_by")
         if order_by and order_by != "score":
@@ -941,7 +941,7 @@ class StrategyBacktestService:
             plans.append(child_plan)
             # pipeline 用 composite 统一的 basic_filter; scoring 用子策略自己的
             # (默认 + 用户 override), 因为子策略内部排序影响合并器的排名融合。
-            child_scoring = effective_scoring(child_def.meta.get("scoring"), child_override)
+            child_scoring = effective_strategy_scoring(child_def.meta, child_override)
             child_pipeline_cfg = MatrixPipelineConfig(
                 basic_filter=basic_filter,
                 scoring=child_scoring,
@@ -1711,7 +1711,7 @@ class StrategyBacktestService:
                     else None
                 )
 
-            scoring = effective_scoring(s.meta.get("scoring"), overrides)
+            scoring = effective_strategy_scoring(s.meta, overrides)
             try:
                 pipeline_config = MatrixPipelineConfig(
                     basic_filter=basic_filter,
@@ -2853,7 +2853,7 @@ class StrategyBacktestService:
         universe_mask: pl.Series | None = None,
         factor_snapshot: dict | None = None,
     ) -> pl.DataFrame:
-        scoring = effective_scoring(s.meta.get("scoring"), overrides)
+        scoring = effective_strategy_scoring(s.meta, overrides)
         directions = effective_scoring_directions(overrides)
 
         work = materialize_scoring_columns(panel, scoring.keys())

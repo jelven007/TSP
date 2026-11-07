@@ -64,7 +64,7 @@ it('keeps trigger prices separate and appends five live columns with correct uni
   expect(cell('信号')?.textContent).toContain('MA金叉')
   await tab(1)
   expect(headers()).not.toContain('数值参考日')
-  expect(headers().slice(-6)).toEqual(['选股评分', ...liveLabels])
+  expect(headers().slice(-9)).toEqual(['选股评分', 'ATR14÷昨收', 'ATR排名', '排名分数', ...liveLabels])
 })
 
 it('formats minute volume and amount as integers and preserves frozen trigger-price lots', async () => {

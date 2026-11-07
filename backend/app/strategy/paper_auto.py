@@ -70,14 +70,19 @@ def validate_rule(rule: dict) -> None:
         raise ValueError("pct_equity 的 size_value 不能超过 100 (%)")
     if rule.get("order_type") not in ("market", "next_open", "close"):
         raise ValueError(f"order_type 非法: {rule.get('order_type')!r}")
+    for key in ("buy_order_type", "sell_order_type"):
+        if rule.get(key) is not None and rule[key] not in ("market", "next_open", "close"):
+            raise ValueError(f"{key} 非法: {rule[key]!r}")
     cooldown = rule.get("cooldown_days", 0)
     if isinstance(cooldown, bool) or not isinstance(cooldown, int) or cooldown < 0:
         raise ValueError("cooldown_days 必须是非负整数")
     max_positions = rule.get("max_positions", 0)
     if isinstance(max_positions, bool) or not isinstance(max_positions, int) or max_positions < 0:
         raise ValueError("max_positions 必须是非负整数 (0 表示不限)")
-    if rule.get("candidate_priority", "event") not in ("event", "score", "symbol"):
-        raise ValueError("candidate_priority 应为 event / score / symbol")
+    if rule.get("candidate_priority", "event") not in ("event", "score", "symbol", "pool"):
+        raise ValueError("candidate_priority 应为 event / score / symbol / pool")
+    if rule.get("candidate_priority") == "pool" and rule.get("match_kind") != "strategy":
+        raise ValueError("候选股票池默认顺序仅支持跟策略")
     for key in ("max_symbol_exposure_pct", "max_total_exposure_pct"):
         value = rule.get(key, 0)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 100:
@@ -156,6 +161,22 @@ def create_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT
     rule = normalize_rule({**rule, "id": _new_id()})
     validate_rule(rule)
     return save_auto_rule(data_dir, rule, account_id)
+
+
+@paper_operation(write=True)
+def update_auto_rule(
+    data_dir: Path, rule_id: str, changes: dict, account_id: str = paper.DEFAULT_ACCOUNT_ID,
+) -> dict | None:
+    """更新当前账户已有规则, 保留身份、创建时间及独立管理的启停状态。"""
+    with paper_lock(data_dir, paper.PAPER_LOCK):
+        old = next((r for r in load_auto_rules(data_dir, account_id) if r["id"] == rule_id), None)
+        if old is None:
+            return None
+        rule = normalize_rule({
+            **old, **changes,
+            "id": old["id"], "created_at": old["created_at"], "enabled": old["enabled"],
+        })
+        return save_auto_rule(data_dir, rule, account_id)
 
 
 @paper_operation(write=True)
@@ -243,7 +264,7 @@ def _sizing_qty(data_dir: Path, rule: dict, ref_price: float, account_id: str, p
     qty = min(paper.qty_from_amount(amount, ref_price),
               paper.qty_from_amount(min(exposure_room, budget["available_cash"]), execution))
     while qty > 0:
-        fee = paper.buy_fee(qty, execution, acc["commission_pct"])
+        fee = paper.account_fee(acc, qty, execution, "buy")
         projected = {**budget, "equity": budget["equity"] - fee}
         if (qty * execution + fee <= budget["available_cash"] + 1e-6
                 and not paper.exposure_error(projected, rule.get("_symbol"), qty * execution, rule)):
@@ -333,9 +354,13 @@ def load_exit_intents(
     return [value for value in values.values() if not active_only or value["status"] in _ACTIVE_EXITS]
 
 
+def _order_type(rule: dict, side: str) -> str:
+    return rule.get(f"{side}_order_type") or rule["order_type"]
+
+
 def _exit_rule_signature(rule: dict) -> list:
     # 金额、买入冷却、持仓上限、显示文案不改变全平意图。
-    return [rule.get(key) for key in ("match_kind", "match_id", "side", "order_type")]
+    return [rule.get(key) for key in ("match_kind", "match_id", "side")] + [_order_type(rule, "sell")]
 
 
 def _update_intent(data_dir, intent, account_id, **changes):
@@ -385,6 +410,7 @@ def _created_order(data_dir, order, account_id):
 # 一个按账户的有界环形列表, 供诊断"为什么没下单", 与成交/退出待办分开, 不影响撮合。
 _MAX_SKIPS = 200
 _SKIP_LABELS = {
+    "missing_candidate_pool_rank": "缺同次完整候选池顺位或来源不一致, 池序模式不下单",
     "active_exit": "该标的有未完成的退出待办, 暂不自动买入",
     "cooldown": "买入冷却期内",
     "max_positions": "持仓数已达规则上限",
@@ -476,6 +502,31 @@ def _is_grouped_strategy_match(match: dict) -> bool:
         ev.get("source") == "strategy"
         and bool(ev.get("strategy_cycle_id"))
         and match["side"] in {"buy", "sell"}
+    )
+
+
+def _valid_pool_rank(rule: dict, ev: dict) -> bool:
+    source = ev.get("candidate_pool_source")
+    rank = ev.get("candidate_pool_rank")
+    if not isinstance(source, dict):
+        return False
+    size = source.get("size")
+    as_of = source.get("as_of")
+    if not isinstance(as_of, str):
+        return False
+    try:
+        _date.fromisoformat(as_of)
+    except ValueError:
+        return False
+    return (
+        rule.get("match_kind") == "strategy"
+        and source.get("strategy_id") == ev.get("strategy_id") == rule.get("match_id")
+        and isinstance(size, int) and not isinstance(size, bool) and size > 0
+        and isinstance(rank, int) and not isinstance(rank, bool) and 1 <= rank <= size
+        and ev.get("candidate_pool_rule") in {
+            "output_order_v1", "s02_atr14_previous_close_desc_v1",
+            "return_1430_desc_v1", "prev_d_amount20_desc_v1",
+        }
     )
 
 
@@ -699,7 +750,8 @@ def retry_exit_intents(
                 _update_intent(data_dir, intent, account_id, last_error="已有待成交卖单, 等待其完成或撤销")
                 continue
             price = (prices or {}).get(symbol)
-            is_market = execution_rule["order_type"] == "market" and pos.get("asset_type", "stock") == "stock"
+            sell_order_type = _order_type(execution_rule, "sell")
+            is_market = sell_order_type == "market" and pos.get("asset_type", "stock") == "stock"
             if is_market and (not allow_market or not _valid_price(price)):
                 _update_intent(data_dir, intent, account_id, last_error="等待新鲜行情")
                 continue
@@ -720,7 +772,7 @@ def retry_exit_intents(
                 continue
             order, error = paper.create_order(
                 data_dir, symbol, "sell", account_id=account_id, qty=qty,
-                order_type=execution_rule["order_type"], asset_type=pos.get("asset_type", "stock"),
+                order_type=sell_order_type, asset_type=pos.get("asset_type", "stock"),
                 ref_price=float(price) if _valid_price(price) else None,
                 source=f"auto:{rule['id']}", exit_intent_id=intent["id"],
                 idempotency_key=f"exit:{intent['id']}:{len(linked)}",
@@ -846,7 +898,7 @@ def on_rule_events(
         rules = load_auto_rules(data_dir, account_id, enabled_only=True)
         matches = []
         seen_receipts: set[str] = set()
-        for ev in events:
+        for event_index, ev in enumerate(events):
             if not (ev.get("symbol") or "").strip():
                 continue
             for rule in rules:
@@ -869,35 +921,29 @@ def on_rule_events(
                     "side": _resolve_side(rule, ev),
                     "receipt": receipt,
                     "durable_receipt": durable_receipt,
+                    "event_index": event_index,
                 })
         cycle_limits = _strategy_cycle_limits(matches)
         matches = _arbitrate_strategy_matches(data_dir, account_id, matches)
         # Persist exit instructions before any entry can add to the same position.
         def priority(item):
             rule, ev, side = item["rule"], item["event"], item["side"]
-            if _is_grouped_strategy_match(item):
-                score = ev.get("score")
-                score_rank = (
-                    -float(score)
-                    if (
-                        isinstance(score, (float, int))
-                        and not isinstance(score, bool)
-                        and math.isfinite(score)
-                    )
-                    else math.inf
-                )
-                return (
-                    side != "sell",
-                    *_strategy_rank(item),
-                    score_rank,
-                    ev["symbol"],
-                )
             mode = rule.get("candidate_priority", "event")
             score = ev.get("score")
             valid = not isinstance(score, bool) and isinstance(score, (float, int)) and math.isfinite(score)
             rank = -float(score) if mode == "score" and valid else (math.inf if mode == "score" else 0)
+            if mode == "pool":
+                rank = ev.get("candidate_pool_rank") if _valid_pool_rank(rule, ev) else math.inf
+            symbol = ev["symbol"] if mode in ("score", "symbol", "pool") else ""
+            if _is_grouped_strategy_match(item) or mode == "pool":
+                return (
+                    side != "sell",
+                    *_strategy_rank(item),
+                    str((ev.get("candidate_pool_source") or {}).get("as_of", "")) if mode == "pool" else "",
+                    rank, symbol, item["event_index"],
+                )
             return (not (rule["side"] == "auto" and side == "sell"), rank,
-                    ev["symbol"] if mode in ("score", "symbol") else "", rule["id"])
+                    symbol, rule["id"], "", 0, "", item["event_index"])
         matches.sort(key=priority)
         allocation_prices = dict(prices or {})
         for match in matches:
@@ -918,6 +964,10 @@ def on_rule_events(
                 **cycle_limits.get(str(ev.get("strategy_cycle_id")), {}),
             } if grouped_strategy else rule
             auto_exit = rule["side"] == "auto" and side == "sell"
+            if side == "buy" and rule.get("candidate_priority") == "pool" and not _valid_pool_rank(rule, ev):
+                _record_skip(data_dir, account_id, rule, ev, "missing_candidate_pool_rank")
+                _consume_match(data_dir, account_id, match)
+                continue
             if not allow_entries and not auto_exit:
                 continue
             if not auto_exit and prices is not None and symbol not in prices:
@@ -1028,7 +1078,7 @@ def on_rule_events(
                     })
             order, error = paper.create_order(
                 data_dir, symbol, side, account_id=account_id, qty=qty,
-                order_type=rule["order_type"], ref_price=float(price), source=f"auto:{rule['id']}",
+                order_type=_order_type(rule, side), ref_price=float(price), source=f"auto:{rule['id']}",
                 idempotency_key=(
                     f"portfolio:{ev['strategy_cycle_id']}:{symbol}:buy"
                     if grouped_strategy and side == "buy"

@@ -52,6 +52,22 @@ def test_account_edit_delete_refresh_related_api_views(client):
     assert client.delete("/api/paper/account?account=../escape").status_code == 400
 
 
+def test_account_edit_saves_extended_fees_atomically(client):
+    client.post("/api/paper/account", json={"initial_cash": 200000, "name": "原名"})
+    changes = {"name": "新名", "min_commission": 3.0, "transfer_fee_pct": .00001,
+               "stamp_tax_mode": "historical"}
+    response = client.put("/api/paper/account", json=changes)
+    assert response.status_code == 200, response.text
+    overview = client.get("/api/paper/overview").json()
+    assert overview["account_name"] == "新名" and overview["initial_cash"] == 200000
+    for key in ("min_commission", "transfer_fee_pct", "stamp_tax_mode"):
+        assert overview["fees"][key] == changes[key]
+    assert client.put("/api/paper/account", json={
+        "name": "不应保存", "min_commission": -1,
+    }).status_code == 422
+    assert client.get("/api/paper/overview").json() == overview
+
+
 def test_multi_account_isolation_and_settings(client: TestClient):
     """双账户隔离: 订单/概览互不可见; settings 端点切换涨跌停排队。"""
     client.post("/api/paper/account", json={"initial_cash": 1000000})  # default
@@ -87,6 +103,47 @@ def test_account_create_idempotent(client: TestClient):
     r2 = client.post("/api/paper/account", json={"initial_cash": 900000})
     assert r2.status_code == 200
     assert r2.json()["account"]["cash"] == 500000  # 幂等: 不覆盖
+
+
+def test_account_extended_fees_and_rule_execution_fields_round_trip(client):
+    fees = {"min_commission": 3, "transfer_fee_pct": .00001, "stamp_tax_mode": "historical"}
+    response = client.post("/api/paper/account", json={"initial_cash": 100000, **fees})
+    assert response.status_code == 200
+    assert {key: response.json()["account"].get(key) for key in fees} == fees
+    overview = client.get("/api/paper/overview").json()
+    assert {key: overview["fees"].get(key) for key in fees} == fees
+    assert overview["stamp_tax_mode"] == "historical"
+    rule = client.post("/api/paper/auto_rules", json={
+        "name": "pool", "match_kind": "strategy", "match_id": "s1", "side": "auto",
+        "size_value": 3000, "candidate_priority": "pool",
+        "buy_order_type": "close", "sell_order_type": "market",
+    })
+    assert rule.status_code == 200
+    saved = client.get("/api/paper/auto_rules").json()["rules"][0]
+    assert saved["candidate_priority"] == "pool"
+    assert saved.get("buy_order_type") == "close" and saved.get("sell_order_type") == "market"
+    update = client.put(f"/api/paper/auto_rules/{saved['id']}", json={
+        "name": "pool edited", "match_kind": "strategy", "match_id": "s1",
+        "side": "auto", "size_value": 4000, "buy_order_type": "market",
+        "sell_order_type": "close", "candidate_priority": "pool",
+    })
+    assert update.status_code == 200 and update.json()["rule"]["sell_order_type"] == "close"
+
+
+def test_account_extended_fee_settings_compatibility_and_isolation(client):
+    client.post("/api/paper/account", json={"initial_cash": 100000})
+    client.post("/api/paper/account", json={"initial_cash": 100000, "account_id": "second"})
+    response = client.post("/api/paper/settings", json={
+        "min_commission": 2, "transfer_fee_pct": .0001, "stamp_tax_mode": "historical",
+    })
+    assert response.status_code == 200 and response.json()["account"].get("min_commission") == 2
+    other = client.get("/api/paper/account?account=second").json()["account"]
+    assert other.get("min_commission") == 5 and other.get("transfer_fee_pct") == 0
+    assert other["stamp_tax_mode"] == "fixed"
+    before = client.get("/api/paper/account").json()
+    bad = client.post("/api/paper/settings", json={"min_commission": -1, "commission_pct": .0005})
+    assert bad.status_code in (400, 422)
+    assert client.get("/api/paper/account").json() == before
 
 
 def test_corporate_action_api_returns_mode_and_rejects_invalid_election(client):
@@ -219,3 +276,38 @@ def test_auto_rule_portfolio_fields_roundtrip_and_validation(client):
     assert client.post("/api/paper/auto_rules", json={**body, "max_total_exposure_pct": 101}).status_code == 422
     assert client.post("/api/paper/auto_rules", json={**body, "candidate_priority": "random"}).status_code == 400
     assert client.post("/api/paper/auto_rules", json={**body, "match_kind": "rule"}).status_code == 400
+
+
+def test_auto_rule_update_roundtrip_state_and_missing_account(client):
+    for account_id in ("default", "second"):
+        client.post("/api/paper/account", json={"initial_cash": 100000, "account_id": account_id})
+    body = {
+        "name": "原规则", "match_kind": "strategy", "match_id": "demo", "side": "auto",
+        "size_value": 10000, "enabled": False, "candidate_priority": "symbol", "risk_follow": True,
+    }
+    rule = client.post("/api/paper/auto_rules?account=second", json=body).json()["rule"]
+    url = f"/api/paper/auto_rules/{rule['id']}"
+    changes = {**body, "name": "新规则", "size_value": 20000, "max_positions": 3,
+               "max_symbol_exposure_pct": 25, "max_total_exposure_pct": 80, "enabled": True}
+    assert client.put(url, json=changes).status_code == 404
+    response = client.put(url + "?account=second", json=changes)
+    assert response.status_code == 200, response.text
+    updated = response.json()["rule"]
+    assert updated["id"] == rule["id"] and updated["created_at"] == rule["created_at"]
+    assert updated["enabled"] is False
+    for key in ("name", "size_value", "max_positions", "candidate_priority",
+                "max_symbol_exposure_pct", "max_total_exposure_pct", "risk_follow"):
+        assert updated[key] == changes[key]
+    assert client.get("/api/paper/auto_rules?account=second").json()["rules"] == [updated]
+    assert client.get("/api/paper/auto_rules").json()["rules"] == []
+    assert client.put("/api/paper/auto_rules/arule_missing?account=second", json=changes).status_code == 404
+    assert client.put(url + "?account=../other", json=changes).status_code == 400
+
+    # Omitted optional fields retain the saved values, including old-style clients.
+    minimal = {key: changes[key] for key in ("name", "match_kind", "match_id", "size_value")}
+    assert client.put(url + "?account=second", json=minimal).json()["rule"] == updated
+    assert client.put(url + "?account=second", json={**changes, "max_positions": 1.5}).status_code == 422
+    assert client.put(url + "?account=second", json={**changes, "max_total_exposure_pct": 101}).status_code == 422
+    assert client.put(url + "?account=second", json={**changes, "match_kind": "rule"}).status_code == 400
+    assert client.put(url + "?account=second", json={**changes, "name": ""}).status_code == 400
+    assert client.get("/api/paper/auto_rules?account=second").json()["rules"] == [updated]

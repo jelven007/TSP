@@ -392,6 +392,8 @@ class ScreenerRunAllResponse(ContractModel):
 class MarketSnapshotResponse(ContractModel):
     as_of: str | None
     rows: list[JsonRecord]
+    requested_as_of: str | None = None
+    source: str | None = None
 
 
 class LimitLadderResponse(ContractModel):
@@ -576,11 +578,13 @@ class PaperAccount(ContractModel):
     commission_pct: float
     stamp_tax_pct: float
     slippage_bps: float
+    min_commission: float = 5
+    transfer_fee_pct: float = 0
     queue_limit_orders: bool = False
     status: Literal["active", "frozen"]
     created_at: str
     corporate_action_mode: Literal["events", "legacy_factor"] = "legacy_factor"
-    stamp_tax_mode: Literal["fixed"] = "fixed"
+    stamp_tax_mode: Literal["fixed", "historical"] = "fixed"
 
 
 class PaperAccountSummary(ContractModel):
@@ -632,7 +636,7 @@ class PaperOverviewResponse(ContractModel):
     market_value: float | None = None
     receivables: float = 0
     corporate_action_mode: Literal["events", "legacy_factor"] = "legacy_factor"
-    stamp_tax_mode: Literal["fixed"] = "fixed"
+    stamp_tax_mode: Literal["fixed", "historical"] = "fixed"
     total: float | None = None
     total_pnl: float | None = None
     initial_cash: float | None = None
@@ -723,6 +727,8 @@ class PaperAutoRule(ContractModel):
     size_mode: str
     size_value: float
     order_type: str
+    buy_order_type: str | None = None
+    sell_order_type: str | None = None
     cooldown_days: int
     max_positions: int = Field(default=0, ge=0)
     candidate_priority: str = "event"

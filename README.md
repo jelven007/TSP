@@ -1,5 +1,7 @@
 # Tick Stock Platform（TSP）
 
+> 2026-11-07最新生效规则：当日股票池为满足股票范围与状态条件的所有股票，去除流通市值约束；流通市值及其他数值条件仅用于实际策略选股。当前口径`scope_only_v3`，盘前只依赖证券目录与当日状态证据，08:00/09:00旧口径成功标记不阻止新口径生成。两端0.4.52已安装并验证Runtime/Worker/Compute；保存的30秒确认和≥60%保持。历史池、冻结研究与账本保留原口径，以下历史记录按其日期理解。
+
 2026-11-07统一升级候选纳入严格收盘价/T-1校验、回测错误传递、保存建议、结果排序和
 同SHA质量门/镜像并行、容量/两版恢复前置、持久OCI缓存。
 行为与六类文档见[统一候选](docs/upgrade-20261107.md)，工具见[发布流水线](docs/release-pipeline.md)。
@@ -14,6 +16,21 @@
 
 面向沪深股票与指数的数据治理、看盘、策略筛选、因子研究和回测验证工作台，
 支持单机运行与完整单机多租户部署。
+
+2026-11-07 S02“选”页默认按ATR14÷昨收降序显示，同值代码升序，缺值在末尾。
+手动排序清除后恢复默认；名单、买卖及仓位参数保持。
+[本次验证与安装](reports/engineering/s02-default-atr-sort-20261107/report.md)。
+
+2026-11-07 S02“选”页表头及列设置统一为“参考日换手率”，仍使用前交易日数据。
+603517的10月19日及600621的10月26、27日均为真实停牌；
+两端当前完整范围3048只、21个交易日核查未发现未解释日K遗漏。
+历史停牌日保持无K，详细证据与本次安装见
+[核查记录](reports/engineering/s02-reference-daily-20261107/report.md)。
+
+2026-11-07 S02卖／选／买统一移除ATR排名列；选页补齐ATR14÷昨收与排名分数，
+休市时显示精确最近交易日的真实收盘行情和日期。两端0.4.52已安装，
+缺连续日K的股票保留名单并显示“—”。公式、补齐覆盖和验收见
+[本次记录](reports/engineering/s02-market-atr-20261107/report.md)。
 
 [![CI](https://github.com/jelven007/TSP/actions/workflows/ci.yml/badge.svg)](https://github.com/jelven007/TSP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)

@@ -105,6 +105,28 @@ class MinuteRefreshService:
         self._round_lock = threading.Lock()  # 同时只允许一轮 (手动触发与定时轮互斥)
         self._empty_rounds = 0               # 连续空轮计数 (escalate 到全天修复)
         self._provider_unavailable_log_key: tuple[str, str] | None = None
+        self._priority_lock = threading.Lock()
+        self._priority_plans: dict[str, tuple[float, dict]] = {}
+
+    def set_priority(self, owner: str, plan: dict) -> None:
+        """Trusted internal Worker plans stay in memory, outside public files."""
+        with self._priority_lock:
+            old = self._priority_plans.get(owner)
+            if old and old[1]["day"] == plan["day"] and old[1]["sequence"] > plan["sequence"]:
+                return
+            self._priority_plans[owner] = (time.monotonic(), plan)
+
+    def priority_symbols(self, now=None) -> list[str]:
+        day = str((now or cn_now()).date())
+        with self._priority_lock:
+            self._priority_plans = {
+                owner: value for owner, value in self._priority_plans.items()
+                if value[1]["day"] == day and time.monotonic() - value[0] <= 120
+            }
+            plans = [value[1] for value in self._priority_plans.values()]
+        selected = sorted({symbol for plan in plans for symbol in plan["selected"]})
+        scope = {symbol for plan in plans for symbol in plan["symbols"]}
+        return [*selected, *sorted(scope - set(selected))]
 
     # ------------------------------------------------------------------
     # 生命周期
@@ -310,40 +332,87 @@ class MinuteRefreshService:
         if not self._round_lock.acquire(blocking=False):
             return
         try:
+            priority_requests = 0
+            priority_written = 0
+            priority_error = None
+            priority = []
+            if custom is not None:
+                universe = self._universe()
+                universe_set = set(universe)
+                priority = [symbol for symbol in self.priority_symbols() if symbol in universe_set]
+                if priority:
+                    priority_started = time.perf_counter()
+                    try:
+                        if mode == "increment":
+                            fetched = kline_sync.fetch_intraday_custom_latest(
+                                custom, provider_name, symbols=priority)
+                            first, priority_requests = fetched if fetched is not None else (pl.DataFrame(), 0)
+                        else:
+                            first, priority_requests = kline_sync.fetch_intraday_custom_batch(
+                                custom, provider_name, priority)
+                    except kline_sync.MinuteFetchError as exc:
+                        first, priority_requests = pl.DataFrame(), exc.requests
+                        priority_error = str(exc)
+                    if not first.is_empty():
+                        priority_written = kline_sync._write_minute_partition(
+                            first, self._repo.store.data_dir / "kline_minute")
+                        publisher = getattr(self._app_state, "public_publisher", None)
+                        if publisher is not None:
+                            try:
+                                publish = getattr(publisher, "publish_priority", publisher.request_minute_publish)
+                                publish(cn_now())
+                            except (OSError, ValueError) as exc:
+                                priority_error = f"priority publication: {type(exc).__name__}"
+                                logger.warning("分钟优先发布等待重试: %s", priority_error)
+                        self._state.extra = {
+                            "priority_symbols": len(priority),
+                            "priority_completed_at": time.time(),
+                            "priority_ms": (time.perf_counter() - priority_started) * 1000,
+                        }
+                    # Empty priority data must not exclude these members from repair.
+                    elif priority_error is None:
+                        priority = []
             if mode == "increment":
                 # fetch 计时只覆盖网络取数; full 分支的 universe 维表读取不计入
                 fetch_started = time.perf_counter()
                 if custom is not None:
-                    symbols = self._universe()
+                    symbols = [symbol for symbol in self._universe() if symbol not in set(priority)]
                     if not symbols:
-                        self._state.last_error = "empty universe (instruments 未加载)"
-                        return
-                    latest = kline_sync.fetch_intraday_custom_latest(
-                        custom, provider_name, symbols=symbols,
-                    )
-                    df, requests = latest if latest is not None else (pl.DataFrame(), 0)
+                        if priority_written:
+                            df, requests = first, 0
+                        else:
+                            self._state.last_error = "empty universe (instruments 未加载)"
+                            return
+                    else:
+                        latest = kline_sync.fetch_intraday_custom_latest(
+                            custom, provider_name, symbols=symbols,
+                        )
+                        df, requests = latest if latest is not None else (pl.DataFrame(), 0)
                 else:
                     df, requests = kline_sync.fetch_intraday_universe_increment()
                 self._state.last_symbols = (
                     df["symbol"].n_unique() if not df.is_empty() else 0
                 )
             else:
-                symbols = self._universe()
+                symbols = [symbol for symbol in self._universe() if symbol not in set(priority)]
                 self._state.last_symbols = len(symbols)
                 if not symbols:
-                    self._state.last_error = "empty universe (instruments 未加载)"
-                    logger.warning("全量分钟[%s] 本轮中止: 标的池为空 (instruments 未加载)", mode_label)
-                    return
+                    if priority_written:
+                        df, requests = first, 0
+                    else:
+                        self._state.last_error = "empty universe (instruments 未加载)"
+                        return
                 fetch_started = time.perf_counter()
-                if custom is not None:
+                if custom is not None and symbols:
                     df, requests = kline_sync.fetch_intraday_custom_batch(
                         custom, provider_name, symbols,
                     )
-                else:
+                elif custom is None:
                     capset = getattr(self._app_state, "capabilities", None) if self._app_state else None
                     df, requests = kline_sync.fetch_intraday_full_market_burst(symbols, capset)
             fetch_ms = (time.perf_counter() - fetch_started) * 1000
-            self._state.last_requests = requests
+            self._state.last_requests = requests + priority_requests
+            self._state.last_symbols += len(priority)
             if df.is_empty():
                 self._empty_rounds += 1
                 self._state.last_error = f"intraday {mode} returned no data"
@@ -360,7 +429,7 @@ class MinuteRefreshService:
             write_ms = (time.perf_counter() - write_started) * 1000
         except kline_sync.MinuteFetchError as exc:
             self._empty_rounds += 1
-            self._state.last_requests = exc.requests
+            self._state.last_requests = exc.requests + priority_requests
             self._state.last_error = str(exc)
             logger.warning("全量分钟[%s] 取数失败, 不提交本轮: %s", mode_label, exc)
             return
@@ -374,7 +443,7 @@ class MinuteRefreshService:
         self._state.last_write_ms = write_ms
         self._state.last_rows = written
         self._state.last_mode = mode
-        self._state.last_error = None
+        self._state.last_error = priority_error
         # Notify only after the entire provider round is committed. Publication
         # runs on its own thread and still validates an immutable full release.
         publisher = getattr(self._app_state, "public_publisher", None)
@@ -452,6 +521,7 @@ class MinuteRefreshService:
             "last_mode": self._state.last_mode,
             "next_round_at": self._state.next_round_at,
             "last_error": self._state.last_error,
+            "priority": dict(self._state.extra),
         }
 
     def trigger_manual_round(self) -> dict[str, Any]:

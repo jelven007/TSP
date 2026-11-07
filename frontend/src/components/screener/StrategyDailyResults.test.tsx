@@ -30,6 +30,36 @@ async function render(result: ScreenerResult) {
 }
 
 describe('StrategyDailyResults', () => {
+  it('distinguishes a failed buy from zero hits and labels the previous success', async () => {
+    await render({
+      as_of: '2026-11-05', strategy: 'custom_test', rows: [], total: 1, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: [], buy: [{ symbol: '600001.SH' }] },
+      section_errors: { buy: '分钟文件不可读' }, section_statuses: { buy: 'failed' },
+      execution_status: { state: 'retrying', reason: '分钟文件不可读', updated_at: 1793840000000 },
+      last_success_at: 1793831400000, showing_last_success: true,
+    } as ScreenerResult)
+    expect(host.querySelectorAll('[role="tab"]')[2].textContent).toBe('买 · 失败')
+    expect(host.textContent).toContain('重试中')
+    expect(host.textContent).toContain('上次成功结果')
+  })
+  it.each(['sell', 'buy'] as const)('shows saved ATR ranks and scores in %s without live repricing', async section => {
+    const rows = [
+      { symbol: '600002.SH', score: 100, atr14_previous_close: .083, atr_rank: 1 },
+      { symbol: '600001.SH', score: 0, atr14_previous_close: .041, atr_rank: 2 },
+    ]
+    await render({
+      as_of: '2026-11-05', strategy: 'custom_test', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', sections: { sell: [], select: [], buy: [], [section]: rows },
+    })
+    await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[section === 'sell' ? 0 : 2].click())
+    expect(host.textContent).toContain('ATR14÷昨收')
+    expect(host.textContent).toContain('排名分数')
+    expect([...host.querySelectorAll('tbody [data-column="atr14_previous_close"]')].map(cell => cell.textContent))
+      .toEqual(['8.30%', '4.10%'])
+    expect([...host.querySelectorAll('tbody [data-column="atr_rank"]')].map(cell => cell.textContent)).toEqual(['1', '2'])
+    expect([...host.querySelectorAll('tbody [data-column="score"]')].map(cell => cell.textContent)).toEqual(['100.00', '0.00'])
+    if (section === 'sell') expect(host.textContent).toContain('继承前一交易日')
+  })
   it('opens saved preselection on select and shows source time without a target-day return', async () => {
     await render({
       as_of: '2026-11-02', strategy: 'custom_test', rows: [], total: 0, elapsed_ms: 0,

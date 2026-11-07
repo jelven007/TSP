@@ -14,6 +14,7 @@ import logging
 import uuid
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -71,6 +72,9 @@ class AccountModel(BaseModel):
     stamp_tax_pct: float = paper.DEFAULT_STAMP_TAX_PCT
     slippage_bps: float = paper.DEFAULT_SLIPPAGE_BPS
     queue_limit_orders: bool = False
+    min_commission: float = Field(default=5, ge=0, le=10000, allow_inf_nan=False)
+    transfer_fee_pct: float = Field(default=0, ge=0, le=.01, allow_inf_nan=False)
+    stamp_tax_mode: Literal["fixed", "historical"] = "fixed"
 
 
 class OrderModel(BaseModel):
@@ -91,6 +95,9 @@ class AccountUpdateModel(BaseModel):
     stamp_tax_pct: float | None = None
     slippage_bps: float | None = None
     queue_limit_orders: bool | None = None
+    min_commission: float | None = Field(default=None, ge=0, le=10000, allow_inf_nan=False)
+    transfer_fee_pct: float | None = Field(default=None, ge=0, le=.01, allow_inf_nan=False)
+    stamp_tax_mode: Literal["fixed", "historical"] | None = None
 
 
 class SettingsModel(BaseModel):
@@ -98,6 +105,9 @@ class SettingsModel(BaseModel):
     commission_pct: float | None = None   # 佣金率 (0.00025 = 万2.5)
     stamp_tax_pct: float | None = None    # 印花税 (0.001 = 千1, 仅卖出)
     slippage_bps: float | None = None     # 滑点 (5 = 5bps)
+    min_commission: float | None = Field(default=None, ge=0, le=10000, allow_inf_nan=False)
+    transfer_fee_pct: float | None = Field(default=None, ge=0, le=.01, allow_inf_nan=False)
+    stamp_tax_mode: Literal["fixed", "historical"] | None = None
 
 
 class RightsSubscriptionModel(BaseModel):
@@ -179,6 +189,9 @@ def create_account(request: Request, body: AccountModel):
             stamp_tax_pct=body.stamp_tax_pct,
             slippage_bps=body.slippage_bps,
             queue_limit_orders=body.queue_limit_orders,
+            min_commission=body.min_commission,
+            transfer_fee_pct=body.transfer_fee_pct,
+            stamp_tax_mode=body.stamp_tax_mode,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -206,7 +219,7 @@ def overview(request: Request, account: str = Query(paper.DEFAULT_ACCOUNT_ID)):
         if close is not None:
             daily_close[holding["symbol"]] = close
     ov = paper.overview(data_dir, daily_close or None, account_id=acc_id, basis="daily_close")
-    ov["fees"] = {k: acc[k] for k in ("commission_pct", "stamp_tax_pct", "slippage_bps")}
+    ov["fees"] = {k: acc[k] for k in paper.FEE_FIELDS}
 
     # 盘中实时估算: 从行情服务的当日 enriched 快照取 raw_close (软失败, 降级日线)
     qs = getattr(request.app.state, "quote_service", None)
@@ -413,7 +426,7 @@ def compare_accounts(request: Request):
             "name": acc.get("name") or acc_id,
             "status": acc.get("status"),
             "initial_cash": initial,
-            "fees": {k: acc.get(k) for k in ("commission_pct", "stamp_tax_pct", "slippage_bps")},
+            "fees": {k: acc.get(k) for k in paper.FEE_FIELDS},
             "total": ov.get("total"),
             "cash": ov.get("cash"),
             "market_value": ov.get("market_value"),
@@ -485,6 +498,8 @@ class AutoRuleModel(BaseModel):
     size_mode: str = "fixed_amount" # fixed_amount / pct_equity
     size_value: float
     order_type: str = "next_open"
+    buy_order_type: Literal["market", "next_open", "close"] | None = None
+    sell_order_type: Literal["market", "next_open", "close"] | None = None
     cooldown_days: int = 5
     max_positions: int = Field(default=0, ge=0, strict=True)
     candidate_priority: str = "event"
@@ -514,6 +529,23 @@ def create_auto_rule(request: Request, body: AutoRuleModel, account: str = Query
         rule = paper_auto.create_auto_rule(_data_dir(request), body.model_dump(), _acc(request, account))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    return {"rule": rule}
+
+
+@router.put("/auto_rules/{rule_id}", response_model=contracts.PaperAutoRuleResponse)
+def update_auto_rule(
+    request: Request, rule_id: str, body: AutoRuleModel, account: str = Query(paper.DEFAULT_ACCOUNT_ID),
+):
+    from app.strategy import paper_auto
+    try:
+        rule = paper_auto.update_auto_rule(
+            _data_dir(request), rule_id,
+            body.model_dump(exclude={"enabled"}, exclude_unset=True), _acc(request, account),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if rule is None:
+        raise HTTPException(status_code=404, detail=f"规则不存在: {rule_id}")
     return {"rule": rule}
 
 
@@ -558,6 +590,9 @@ class ArenaBatchModel(BaseModel):
     stamp_tax_pct: float = paper.DEFAULT_STAMP_TAX_PCT
     slippage_bps: float = paper.DEFAULT_SLIPPAGE_BPS
     queue_limit_orders: bool = False
+    min_commission: float = Field(default=5, ge=0, le=10000, allow_inf_nan=False)
+    transfer_fee_pct: float = Field(default=0, ge=0, le=.01, allow_inf_nan=False)
+    stamp_tax_mode: Literal["fixed", "historical"] = "fixed"
 
 
 @router.post("/arena/batch_create", response_model=contracts.PaperArenaResponse)
@@ -609,6 +644,9 @@ def arena_batch_create(request: Request, body: ArenaBatchModel):
                     stamp_tax_pct=body.stamp_tax_pct,
                     slippage_bps=body.slippage_bps,
                     queue_limit_orders=body.queue_limit_orders,
+                    min_commission=body.min_commission,
+                    transfer_fee_pct=body.transfer_fee_pct,
+                    stamp_tax_mode=body.stamp_tax_mode,
                 )
                 saved = paper_auto.create_auto_rule(storage, rule, account_id=account_id)
                 created.append({"account": account_id, "name": acc_name, "rule_id": saved["id"]})

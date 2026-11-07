@@ -513,6 +513,14 @@ def test_incremental_minutes_request_only_latest_real_bars(native, monkeypatch):
     assert frame["datetime"].to_list() == [datetime(2026, 10, 9, 15)] * 2
 
 
+def test_incremental_batch_crossing_minute_boundary_keeps_completed_new_bar(native, monkeypatch):
+    from app.plugins.rustdx import provider as provider_module
+    stamps = iter([datetime(2026, 10, 9, 14, 59, 59), datetime(2026, 10, 9, 15, 0, 15)])
+    monkeypatch.setattr(provider_module, "cn_now", lambda: next(stamps))
+    frame = RustdxProvider().get_intraday_latest(["600519.SH"], count=3)
+    assert frame["datetime"].to_list() == [datetime(2026, 10, 9, 15)]
+
+
 def test_incremental_minutes_defaults_to_stock_universe(native, monkeypatch):
     from app.plugins.rustdx import provider as provider_module
 

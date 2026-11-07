@@ -33,9 +33,9 @@ it('creates and edits the late-session entry preset with all configurable defaul
   })
   expect(host.querySelector('button[aria-label="启动时间"]')?.textContent).toBe('14:30:00')
   expect([...host.querySelectorAll<HTMLInputElement>('input[type="number"]')].map(input => input.value))
-    .toEqual(['60', '4', '0.4', '7', '4'])
-  expect(host.textContent).toContain('14:31:00')
-  expect(host.textContent).toContain('启动后60秒确认')
+    .toEqual(['30', '60', '4', '0.4', '7', '4'])
+  expect(host.textContent).toContain('14:30:30')
+  expect(host.textContent).toContain('启动后30秒确认')
   expect(host.textContent).not.toContain('启动后90秒')
   expect(host.textContent).toContain('K线截止 14:30:00')
   expect(host.textContent).toContain('默认1分钟比较14:30至14:24')
@@ -45,37 +45,37 @@ it('creates and edits the late-session entry preset with all configurable defaul
   expect(save).toHaveBeenCalledWith(expect.objectContaining({
     name: '尾盘走强', kind: 'entry', timeframe: 'intraday', template: 'late_session_strength',
     params: { time: '14:30:00', change_min_pct: 0.4, change_max_pct: 4,
-      pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4, evaluation_delay_minutes: 1 },
+      pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4, evaluation_delay_minutes: 0.5 },
   }))
   const stored = save.mock.calls[0][0]
   await act(async () => render({ ...stored, params: { ...stored.params, ma5_1m_count: 9 } }))
-  expect(host.querySelector<HTMLInputElement>('input[aria-label="启动后60秒的1分钟 MA5 连增数量"]')?.value).toBe('9')
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="1分钟 MA5 连增数量"]')?.value).toBe('9')
   await act(async () => render({ ...stored, params: { ...stored.params, evaluation_delay_minutes: 1.5 } }))
-  expect(host.textContent).toContain('保存后改为启动后60秒确认')
-  expect(host.textContent).toContain('14:31:00')
+  expect(host.textContent).not.toContain('保存后改为')
+  expect(host.textContent).toContain('14:31:30')
   await act(async () => render({ ...stored, params: {
     time: '14:35:00', pool_up_min_pct: 65, change_max_pct: 3.5, change_min_pct: 0.6,
     ma5_1m_count: 8, ma5_5m_count: 3,
   } }))
-  expect(host.textContent).toContain('保存后改为启动后60秒确认')
-  expect(host.textContent).toContain('14:36:00')
+  expect(host.textContent).toContain('原为无延迟旧定义')
+  expect(host.textContent).toContain('14:35:30')
   expect([...host.querySelectorAll<HTMLInputElement>('input[type="number"]')].map(input => input.value))
-    .toEqual(['65', '3.5', '0.6', '8', '3'])
+    .toEqual(['30', '65', '3.5', '0.6', '8', '3'])
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save.mock.calls.at(-1)?.[0].params).toEqual({
     time: '14:35:00', pool_up_min_pct: 65, change_max_pct: 3.5, change_min_pct: 0.6,
-    ma5_1m_count: 8, ma5_5m_count: 3, evaluation_delay_minutes: 1,
+    ma5_1m_count: 8, ma5_5m_count: 3, evaluation_delay_minutes: 0.5,
   })
   await act(async () => render({ ...stored, params: { ...stored.params, time: '15:00:00' } }))
   const savedCount = save.mock.calls.length
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save.mock.calls.length).toBe(savedCount)
-  expect(host.textContent).toContain('13:00:00～14:58:00')
-  await act(async () => render({ ...stored, params: { ...stored.params, time: '14:59:00' } }))
+  expect(host.textContent).toContain('13:00:00～14:59:30')
+  await act(async () => render({ ...stored, params: { ...stored.params, time: '14:59:31' } }))
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save.mock.calls.length).toBe(savedCount)
   await act(async () => render({ ...stored, params: { ...stored.params, time: '14:58:00' } }))
-  expect(host.textContent).toContain('14:59:00')
+  expect(host.textContent).toContain('14:58:30')
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save.mock.calls.at(-1)?.[0].params).toEqual({ ...stored.params, time: '14:58:00' })
   await act(async () => root.unmount())

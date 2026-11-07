@@ -495,11 +495,44 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
             results[sid] = {**live, "source": "realtime"}
         if sid not in summaries:
             summaries[sid] = {"ever_count": len(symbols), "computed_at": live.get("computed_at")}
+    if not summary:
+        results = _with_execution_status(request, results, day, identities=identities)
     return {
         "as_of": day, "results": results, "today_ever_rows": ever,
         "today_ever_counts": {sid: r["ever_count"] for sid, r in summaries.items()},
         "updated_at": max((r["computed_at"] for r in summaries.values() if r["computed_at"] is not None), default=None),
     }
+
+
+def _with_execution_status(request, results, day, *, identities=()):
+    """Retain guarded attempt metadata even after the live-result freshness window."""
+    from app.market_time import cn_today
+    from app.strategy.execution_status import merge_result
+
+    storage = _private_data_dir(request)
+    if not isinstance(storage, TenantDocuments) or day != str(cn_today()):
+        return results
+    from app.multitenancy.runtime import fingerprint
+
+    output = dict(results)
+    with storage.transaction(write=False) as unit:
+        current = fingerprint(unit.connection, include_state=False)
+        default = unit.get("strategy_execution_status", "default", {})
+        for sid in set(output) | {identity.strategy_id for identity in identities}:
+            attempt = unit.get("strategy_execution_status", sid)
+            if (default.get("state") != "success" and sid in default.get("strategy_ids", [])
+                    and default.get("fingerprint") == current):
+                attempt = default
+            if not attempt or attempt.get("fingerprint") != current or attempt.get("as_of") != day:
+                continue
+            previous = output.get(sid)
+            expected = next((item.runtime_identity for item in identities if item.strategy_id == sid), None)
+            if attempt.get("runtime_identity") and expected and attempt["runtime_identity"] != expected:
+                continue
+            if previous is None or previous.get("as_of") != day:
+                continue
+            output[sid] = merge_result(previous, {**previous, "execution_status": attempt})
+    return output
 
 
 @router.get("/result-history/{strategy_id}")
@@ -561,7 +594,7 @@ def _cached_with_realtime(request: Request) -> dict:
                               (value.get("as_of") for value in realtime["results"].values() if value.get("as_of")),
                               default=None,
                           )}
-        return cached
+        return {**cached, "results": _with_execution_status(request, cached["results"], cached["as_of"])}
 
     # 叠加监控引擎内存里的实时结果 (若有), 用新鲜数据覆盖同策略的盘后结果
     monitor_engine = getattr(request.app.state, "monitor_engine", None)
@@ -679,6 +712,12 @@ def get_cached_result(
         "sections": raw_result.get("sections"),
         "section_mode": raw_result.get("section_mode"),
         "section_errors": raw_result.get("section_errors"),
+        "section_statuses": raw_result.get("section_statuses"),
+        "execution_status": raw_result.get("execution_status"),
+        "last_success_at": raw_result.get("last_success_at"),
+        "showing_last_success": raw_result.get("showing_last_success", False),
+        "entry_filter_error": raw_result.get("entry_filter_error"),
+        "entry_data_quality": raw_result.get("entry_data_quality"),
         "selection_only": raw_result.get("selection_only", False),
         "selection_snapshot": raw_result.get("selection_snapshot"),
         "state": raw_result.get("state"),
@@ -727,14 +766,15 @@ def get_cached_result(
 
 @router.get("/market-snapshot", response_model=contracts.MarketSnapshotResponse)
 def market_snapshot(request: Request, realtime: bool = False, symbols: str | None = None):
-    """全市场聚合快照; 实时模式只读当前日共享缓存中的指定证券。"""
+    """全市场聚合快照; 实时模式只读共享缓存, 休市时标注精确前交易日。"""
     import polars as pl
 
     repo = request.app.state.repo
     if realtime:
         import re
 
-        from app.market_time import cn_today
+        from app.market_time import cn_today, published_trading_day
+        from app.strategy.basic_filter import previous_session
 
         requested = list(dict.fromkeys((symbols or "").split(",")))
         if not symbols or len(requested) > 1000 or any(
@@ -742,14 +782,21 @@ def market_snapshot(request: Request, realtime: bool = False, symbols: str | Non
         ):
             raise HTTPException(422, "实时行情须指定1至1000个有效股票代码")
         today = cn_today()
+        quote_day, source = today, "current"
+        if published_trading_day(today) is False:
+            try:
+                quote_day = previous_session(today)
+                source = "previous_close"
+            except ValueError:
+                return {"as_of": str(today), "requested_as_of": str(today), "rows": []}
         df, cached_date = repo.get_enriched_latest(refresh=False)
-        if cached_date != today or df.is_empty() or "symbol" not in df.columns:
+        if cached_date != quote_day or df.is_empty() or "symbol" not in df.columns:
             if cached_date is None:
                 repo.ensure_enriched_warmup()
-            return {"as_of": str(today), "rows": []}
+            return {"as_of": str(today), "requested_as_of": str(today), "rows": []}
         df = df.filter(pl.col("symbol").is_in(requested))
         if "date" in df.columns:
-            df = df.filter(pl.col("date").cast(pl.String) == str(today))
+            df = df.filter(pl.col("date").cast(pl.String) == str(quote_day))
         cols = [
             "symbol", "name", "raw_close", "change_pct", "turnover_rate", "vol_ratio_5d",
             "quote_ts", "signal_limit_up", "signal_broken_board_recovery", "signal_volume_surge",
@@ -758,7 +805,8 @@ def market_snapshot(request: Request, realtime: bool = False, symbols: str | Non
             "signal_ma20_breakdown", "signal_n_day_high", "signal_n_day_low",
             "signal_boll_breakout_upper", "signal_boll_breakdown_lower",
         ]
-        return {"as_of": str(today), "rows": _safe({"rows": df.select(
+        return {"as_of": str(quote_day), "requested_as_of": str(today), "source": source,
+                "rows": _safe({"rows": df.select(
             [c for c in cols if c in df.columns]).to_dicts()})["rows"]}
     svc = ScreenerService(repo)
     as_of = svc.latest_date()

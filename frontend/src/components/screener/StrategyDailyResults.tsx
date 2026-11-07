@@ -6,7 +6,7 @@ import { QK } from '@/lib/queryKeys'
 import { StockPreviewDialog } from '@/components/StockPreviewDialog'
 import { toNavItems, type NavItem } from '@/lib/listNav'
 import { getSignals, signalCls } from '@/lib/stock-table'
-import { defaultStrategyResultColumns, STRATEGY_RESULT_WIDTHS, type StrategyResultTab } from '@/lib/strategy-result-columns'
+import { defaultStrategyResultColumns, resolveStrategyResultColumns, STRATEGY_RESULT_WIDTHS, type StrategyResultTab } from '@/lib/strategy-result-columns'
 import type { ColumnConfig } from '@/lib/list-columns'
 import { useTableSort } from '@/components/stock-table/useTableSort'
 
@@ -52,10 +52,11 @@ function format(key: string, value: unknown) {
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return '—'
     if (['previous_return', 'return_1430', 'market_breadth', 'participation', 'change_pct', 'reference_change_pct', 'live_change_pct'].includes(key)) return `${(value * 100).toFixed(2)}%`
-    if (key === 'live_turnover') return `${value.toFixed(2)}%`
+    if (key === 'atr14_previous_close') return `${(value * 100).toFixed(2)}%`
+    if (['live_turnover', 'reference_turnover_rate'].includes(key)) return value >= 0 ? `${value.toFixed(2)}%` : '—'
     if (['volume', 'amount', 'suggested_lots_100k'].includes(key)) return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
     if (['float_cap_1430', 'prev_d_amount20'].includes(key)) return (value / 1e8).toFixed(2)
-    if (['shares', 'sold_shares', 'remaining', 'filled_shares', 'rank', 'selection_rank', 'breadth_denominator'].includes(key)) return value.toLocaleString('zh-CN')
+    if (['shares', 'sold_shares', 'remaining', 'filled_shares', 'rank', 'selection_rank', 'breadth_denominator', 'atr_rank'].includes(key)) return value.toLocaleString('zh-CN')
     return value.toFixed(2)
   }
   return labels[String(value)] ?? String(value)
@@ -89,22 +90,40 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
     ?? saved.data?.summary.params?.position_limit ?? current.data?.params_defaults?.position_limit ?? 5)
   const limit = Number.isFinite(configured) && configured > 0 ? configured : 5
   const selected = useMemo(() => {
-    if (signals) return section.select.map((row, i) => ({ ...row, selection_rank: i + 1 }))
+    if (signals) {
+      const selectedRows = section.select.map((row, i) => ({
+      ...row, selection_rank: i + 1,
+      ...(result.strategy === 'custom_mvxxcp88' ? {
+        reference_turnover_rate: 'reference_turnover_rate' in row ? row.reference_turnover_rate
+          : typeof row.date === 'string' && row.date.slice(0, 10) === row.reference_date
+            && row.reference_date !== result.as_of ? row.turnover_rate : null,
+      } : {}),
+      }))
+      if (result.strategy !== 'custom_mvxxcp88') return selectedRows
+      const metric = (row: (typeof selectedRows)[number]) => typeof row.atr14_previous_close === 'number'
+        && Number.isFinite(row.atr14_previous_close) ? row.atr14_previous_close : -Infinity
+      return selectedRows.sort((a, b) => {
+        const x = metric(a), y = metric(b)
+        return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
+      })
+    }
     const key = section.select.length > limit ? 'return_1430' : 'prev_d_amount20'
     const metric = (r: any) => typeof r[key] === 'number' && Number.isFinite(r[key]) ? r[key] : -Infinity
     return [...section.select].sort((a, b) => {
       const x = metric(a), y = metric(b)
       return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
     }).map((row, i) => ({ ...row, selection_rank: i + 1 }))
-  }, [section.select, limit, signals])
+  }, [section.select, limit, signals, result.strategy, result.as_of])
   const rows = active === 'select' ? selected : section[active] ?? []
+  const atrRanking = signals && (active === 'select' || rows.some(row => row.atr14_previous_close != null))
   const symbols = useMemo(() => [...new Set(rows.map(row => row.symbol)
     .filter((symbol): symbol is string => typeof symbol === 'string' && /^[0-9]{6}\.(SH|SZ|BJ)$/.test(symbol)))].sort(), [rows])
   const live = useQuery({
     queryKey: QK.strategyResultLive(result.strategy ?? '', result.as_of, active, symbols),
     queryFn: async () => {
       const batches = []
-      for (let i = 0; i < symbols.length; i += 1000) batches.push(symbols.slice(i, i + 1000))
+      // 编码后的完整股票列表可能超出网关 URL 上限，分批覆盖所有成员。
+      for (let i = 0; i < symbols.length; i += 400) batches.push(symbols.slice(i, i + 400))
       const snapshots = await Promise.all(batches.map(batch => api.marketSnapshot({ realtime: true, symbols: batch })))
       return snapshots
     },
@@ -112,11 +131,16 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
     refetchInterval: 1000,
     staleTime: 0,
   })
-  const liveRows = useMemo(() => {
+  const acceptedSnapshots = useMemo(() => {
     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
-    return new Map(live.data?.filter(snapshot => snapshot.as_of === today)
-      .flatMap(snapshot => snapshot.rows).map(row => [row.symbol, row]) ?? [])
+    return live.data?.filter(snapshot => snapshot.as_of === today
+      || snapshot.source === 'previous_close' && snapshot.requested_as_of === today
+        && snapshot.as_of != null && snapshot.as_of < today) ?? []
   }, [live.data])
+  const liveRows = useMemo(() => new Map(acceptedSnapshots
+    .flatMap(snapshot => snapshot.rows).map(row => [row.symbol, row])), [acceptedSnapshots])
+  const closedQuoteDates = [...new Set(acceptedSnapshots.filter(snapshot => snapshot.source === 'previous_close')
+    .map(snapshot => snapshot.as_of))].join('、')
   const liveValue = (key: string, symbol: string) => {
     const quote = liveRows.get(symbol)
     const price = quote?.raw_close
@@ -128,7 +152,9 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
     return null
   }
   const sortColumns = signals
-    ? (signalColumns ?? defaultStrategyResultColumns(active)).filter(col => col.visible && col.source.type === 'builtin')
+    ? resolveStrategyResultColumns(active, result.strategy,
+      signalColumns ?? defaultStrategyResultColumns(active, result.strategy)).filter(col => col.visible && col.source.type === 'builtin'
+      && (atrRanking || !['atr14_previous_close', 'atr_rank', 'atr_rank_score'].includes(col.source.key)))
     : []
   const { sort, toggle, sortRows } = useTableSort<(typeof rows)[number]>((row, col) => {
     if (col.source.type !== 'builtin') return null
@@ -137,6 +163,8 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
     if (typeof value === 'number') return Number.isFinite(value) ? value : null
     return typeof value === 'string' || typeof value === 'boolean' ? value : null
   })
+  const activeSort = sortColumns.some(col => col.id === sort?.key) ? sort : null
+  const defaultAtrSort = signals && active === 'select' && result.strategy === 'custom_mvxxcp88' && !activeSort
   const displayedRows = sortRows(rows, sortColumns)
   const openStock = (row: any) => {
     const navList = toNavItems(displayedRows.filter(item => typeof item.symbol === 'string' && item.symbol))
@@ -146,10 +174,14 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
   const config = tabs.find(tab => tab.id === active)!
   const displayedColumns = signals
     ? sortColumns
-      .map(col => [col.source.type === 'builtin' ? col.source.key : '', col.label] as const)
+      .map(col => [col.source.type === 'builtin' ? col.source.key : '',
+        atrRanking && active !== 'select' && col.source.type === 'builtin' && col.source.key === 'score' ? '排名分数' : col.label] as const)
     : columns[active]
   const width = (key: string) => STRATEGY_RESULT_WIDTHS[key] ?? 110
   const sectionError = result.section_errors?.[active]
+  const statusLabels = { success: '成功', waiting: '等待数据', failed: '失败',
+    retrying: '重试中', deferred: '延迟处理', disabled: '停用', expired: '已过入场时限' }
+  const executionStatus = result.execution_status
   return <><section className="space-y-2 min-w-0">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div role="tablist" aria-label="每日策略结果" className="inline-flex rounded-btn border border-border p-1 gap-1">
@@ -157,23 +189,59 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
           aria-controls={`daily-${result.strategy}-${tab.id}`} id={`daily-tab-${result.strategy}-${tab.id}`}
           onClick={() => { setLocalActive(tab.id); onTabChange?.(tab.id) }}
           className={`px-4 py-1.5 rounded-btn text-sm ${active === tab.id ? 'bg-accent text-white' : 'text-secondary hover:bg-elevated'}`}>
-          {tab.label} · {signals && result.section_errors?.[tab.id] ? '待确认' : section[tab.id]?.length ?? 0}
+          {tab.label} · {signals && result.section_statuses?.[tab.id] === 'failed' ? '失败'
+            : signals && result.section_statuses?.[tab.id] === 'expired' ? '已过期'
+            : signals && result.section_errors?.[tab.id] ? '待确认' : section[tab.id]?.length ?? 0}
         </button>)}
       </div>
       <span className="text-xs text-muted">{result.as_of} · 每交易日一份结果{signals && ' · 当前页每秒刷新'}</span>
     </div>
+    {executionStatus && executionStatus.state !== 'success' && <p role="status" className="text-sm text-secondary">
+      {statusLabels[executionStatus.state]}{executionStatus.reason && ` · ${executionStatus.reason}`}
+      {' · '}{new Date(executionStatus.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
+    </p>}
+    {result.showing_last_success && result.last_success_at != null && <p className="text-xs text-muted">
+      当前展示上次成功结果 · 成功时间
+      {' '}{new Date(result.last_success_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
+    </p>}
     <p className="text-xs text-muted">
       {signals
         ? '卖：前一交易日的买入信号。选：前一交易日16:00开始生成并保存的名单。买：从该日已保存的选名单内触发入场信号。'
         : <>持仓来自连续策略研究组合。选为全部达标股票，买为容量、资金与持仓上限筛选后的成交结果。
           {active === 'select' && ` 选按买入优先级排列：${section.select.length > limit ? '14:30涨幅' : '20日均成交额'}降序，同值按代码排序。`}</>}
     </p>
+    {atrRanking && <p className="text-xs text-muted">
+      {active === 'select'
+        ? '预选按ATR14÷昨收降序排名，同值按代码升序。排名分数=100×(N-r)/(N-1)，N为可计算股票数，r为顺位；第一名100、末名0、单只50。缺完整日K时显示“—”，与选股评分分别保存。'
+        : '实际命中按ATR14÷昨收降序排名，同值按触发涨幅降序、代码升序，排名分数为0～100分。'}
+      {active === 'sell' && ' 卖页继承前一交易日买入信号的排名与分数。'}
+    </p>}
     {signals && result.selection_snapshot && <p className="text-xs text-muted">
       数值参考日：{result.selection_snapshot.source_date} · 生成于
       {' '}{new Date(result.selection_snapshot.generated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
       {result.selection_only && ' · 仅预选，买入信号尚未计算'}
     </p>}
-    {signals && <p className="text-xs text-muted">现价等行情列取当日最新数据，缺失时显示“—”。
+    {signals && active === 'buy' && Object.entries(result.entry_data_quality ?? {})
+      .filter(([, quality]) => quality.missing_symbols.length > 0
+        && (quality.breadth_policy === 'available_members_v1'
+          || (quality.pool_up_pct_lower != null && quality.pool_up_pct_upper != null)))
+      .map(([signal, quality]) => <p key={signal} className="text-xs text-muted">
+        {quality.breadth_policy === 'available_members_v1' ? <>
+          {quality.pool_up_pct == null ? '无有效行情，等待数据' : `上涨比例 ${quality.pool_up_pct.toFixed(2)}%`}
+          {' · '}完整池 {quality.pool_total} 只 · 有效 {quality.pool_usable} 只 · 剔除 {quality.missing_symbols.length} 只
+          {' · '}缺少有效指定分钟价格或昨收的股票不参与上涨占比计算
+          {quality.stage === 'breadth_rejected' && ' · 上涨占比未达阈值，市场条件未满足'}
+        </> : <>上涨比例 {quality.pool_up_pct_lower!.toFixed(2)}%～{quality.pool_up_pct_upper!.toFixed(2)}%
+        {' · '}完整池 {quality.pool_total} 只 · {quality.missing_symbols.length} 只行情未知
+        {' · '}{quality.pool_up_pct_lower! + 1e-10 >= quality.pool_up_min_pct
+          ? '已按下界确认市场条件'
+          : quality.stage === 'breadth_rejected' ? '上界未达阈值，市场条件未满足' : '区间跨过阈值，等待完整行情'}
+        </>}
+      </p>)}
+    {signals && <p className="text-xs text-muted">
+      {closedQuoteDates ? `行情日期：${closedQuoteDates} · 休市，显示最近交易日收盘数据。`
+        : '现价等行情列取当日最新数据，缺失时显示“—”。'}
+      {active === 'select' && result.strategy === 'custom_mvxxcp88' && ' 参考日换手率取前一交易日，与右侧当日行情换手率分别显示。'}
       {active === 'sell' && ' 分钟成交量、成交额来自保存信号的触发分钟；建议卖出价为上一个交易日原始收盘价的94%～106%，缺少参考价时显示“—”。'}
       {active === 'buy' && ' 建议购买量单位为手（100股），按保存的触发价计算10万元最大整手数，不含费用与滑点。'}</p>}
     {result.execution_error && <p role="alert" className="text-sm text-danger rounded-btn bg-danger/10 p-3">
@@ -191,7 +259,8 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
             {displayedColumns.map(([key, label]) => {
               const sortable = signals && !['live_signals', 'suggested_sell_price'].includes(key)
               const colId = sortColumns.find(col => col.source.type === 'builtin' && col.source.key === key)?.id
-              const direction = sort?.key === colId ? sort?.dir : null
+              const direction = activeSort?.key === colId ? activeSort?.dir
+                : defaultAtrSort && key === 'atr14_previous_close' ? 'desc' : null
               const Icon = direction === 'asc' ? ArrowUp : direction === 'desc' ? ArrowDown : ArrowUpDown
               return <th key={key} data-column={key}
                 aria-sort={sortable ? direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none' : undefined}

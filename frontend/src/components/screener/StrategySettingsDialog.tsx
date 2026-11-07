@@ -617,7 +617,9 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                       <OvernightExecutionSummary params={params} momentum={detail.minute_execution === 'momentum_capacity_v1'} />
                     ) : <>
                     <Section icon={Star} title="评分权重" accent="text-amber-400">
-                      <ScoringEditor
+                      {detail.scoring_mode === 'strategy' ? <p className="text-[11px] text-muted">
+                        排名由策略生成。s02按ATR14÷昨收降序，排名分数为0～100分，同值按触发涨幅、股票代码排序。
+                      </p> : <ScoringEditor
                         key={detail.id}
                         value={scoring}
                         directions={scoringDirections}
@@ -626,7 +628,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                           setScoring(nextScoring)
                           setScoringDirections(nextDirections)
                         }}
-                      />
+                      />}
                     </Section>
                     <Section icon={TrendingUp} title="交易参数" accent="text-emerald-400">
                       <div className="space-y-2">

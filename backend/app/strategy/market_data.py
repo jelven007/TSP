@@ -74,6 +74,13 @@ def previous_session(day: date) -> date:
     return resolve(day)
 
 
+def get_atr14_sma_reference(daily, symbols, expected_dates):
+    """精确15个已完成交易日日K的共享ATR; 日期由previous_session逐日解析。"""
+    from app.factors.atr import exact_atr14_sma_reference
+
+    return exact_atr14_sma_reference(daily, symbols, expected_dates)
+
+
 def get_index_daily(symbol, start=None, end=None, columns=None):
     """读取指数日K(含技术指标)。未知 symbol / 无数据返回空 DataFrame。"""
     if not _validate_symbol(symbol):

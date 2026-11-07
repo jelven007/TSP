@@ -17,7 +17,7 @@ def test_seconds_gate_and_cutoff_ignore_later_prices():
     from app.strategy.late_session_strength import DEFAULT_PARAMS, bar_time, evaluation_time
 
     sig = delayed()
-    assert DEFAULT_PARAMS["evaluation_delay_minutes"] == 1
+    assert DEFAULT_PARAMS["evaluation_delay_minutes"] == 0.5
     assert evaluation_time(sig, DAY) == CHECK
     assert bar_time(sig, DAY) == TARGET
     for stamp in [TARGET, TARGET+timedelta(seconds=65), CHECK-timedelta(seconds=1)]:

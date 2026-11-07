@@ -43,6 +43,108 @@ def buy_and_fill(storage, symbol=SYM, qty=700):
     return order
 
 
+@pytest.mark.parametrize("grouped", [False, True])
+def test_pool_priority_allocates_only_triggered_candidate_in_snapshot_order(account, grouped):
+    make_rule(account, candidate_priority="pool")
+    metadata = {
+        "candidate_pool_source": {"strategy_id": "strategy-one", "as_of": str(DAY), "size": 3},
+        "candidate_pool_rule": "output_order_v1",
+    }
+    if grouped:
+        metadata.update(strategy_cycle_id="pool:1", strategy_priority=0, entry_policy={
+            "version": 1, "strategy_id": "strategy-one", "policy": {}, "entry_risk": {},
+        })
+    orders = paper_auto.on_rule_events(account, [
+        event("buy_signal", SYM, score=99, candidate_pool_rank=3, **metadata),
+        event("buy_signal", OTHER, score=1, candidate_pool_rank=2, **metadata),
+    ])
+    assert [order["symbol"] for order in orders] == [OTHER]
+
+
+@pytest.mark.parametrize("metadata", [
+    {}, {"candidate_pool_rank": 1}, {
+        "candidate_pool_rank": 1, "candidate_pool_rule": "output_order_v1",
+        "candidate_pool_source": {"strategy_id": "wrong", "as_of": str(DAY), "size": 1},
+    }, {
+        "candidate_pool_rank": True, "candidate_pool_rule": "output_order_v1",
+        "candidate_pool_source": {"strategy_id": "strategy-one", "as_of": str(DAY), "size": 1},
+    },
+])
+def test_pool_priority_missing_or_foreign_snapshot_is_skipped(account, metadata):
+    make_rule(account, candidate_priority="pool")
+    assert paper_auto.on_rule_events(account, [event("buy_signal", **metadata)]) == []
+    assert paper_auto.load_auto_skips(account)[0]["reason"] == "missing_candidate_pool_rank"
+
+
+def test_pool_priority_rejects_non_strategy_rules(account):
+    with pytest.raises(ValueError, match="候选股票池"):
+        make_rule(account, match_kind="rule", side="buy", candidate_priority="pool")
+
+
+def test_independent_order_types_drive_entry_and_full_exit(account, monkeypatch):
+    rule = make_rule(account, buy_order_type="close", sell_order_type="market")
+    order = paper_auto.on_rule_events(account, [event("buy_signal")])[0]
+    assert order["order_type"] == "close"
+    paper.cancel_order(account, order["id"])
+    buy_and_fill(account)
+    monkeypatch.setattr(paper, "cn_today", lambda: DAY + timedelta(days=1))
+    sells = paper_auto.on_rule_events(account, [event("sell_signal")])
+    assert sells[0]["order_type"] == "market"
+    assert sells[0]["qty"] == 700
+    # Changing entry type leaves the exit target intact.
+    updated = paper_auto.update_auto_rule(account, rule["id"], {"buy_order_type": "next_open"})
+    assert updated["sell_order_type"] == "market"
+    assert len(paper_auto.load_exit_intents(account, active_only=True)) == 1
+    paper_auto.update_auto_rule(account, rule["id"], {"sell_order_type": "next_open"})
+    assert paper_auto.load_exit_intents(account, active_only=True) == []
+
+
+def test_update_preserves_identity_state_history_and_account_scope(account):
+    rule = make_rule(account)
+    order = paper_auto.on_rule_events(account, [event("buy_signal")])[0]
+    paper_auto.set_enabled(account, rule["id"], False)
+    paper.create_account(account, 100000, account_id="second")
+    assert paper_auto.update_auto_rule(account, rule["id"], {"name": "越界"}, "second") is None
+    assert paper_auto.load_auto_rules(account, "second") == []
+    updated = paper_auto.update_auto_rule(account, rule["id"], {
+        "name": " 修改后的规则 ", "size_value": 6000, "max_positions": 3,
+        "id": "forged", "created_at": "forged", "enabled": True,
+    })
+    assert updated["id"] == rule["id"] and updated["created_at"] == rule["created_at"]
+    assert updated["name"] == "修改后的规则" and updated["size_value"] == 6000
+    assert updated["max_positions"] == 3 and updated["enabled"] is False
+    assert paper_auto.load_auto_rules(type(account)(str(account))) == [updated]
+    assert paper.get_order(account, order["id"]) == order
+    paper_auto.set_enabled(account, rule["id"], True)
+    assert paper_auto.on_rule_events(account, [event("buy_signal")]) == []  # Cooldown survives.
+
+
+@pytest.mark.parametrize("changes", [
+    {"name": ""}, {"size_mode": "pct_equity", "size_value": 101},
+    {"max_positions": -1}, {"match_kind": "rule"}, {"candidate_priority": "random"},
+])
+def test_invalid_update_leaves_original_rule_untouched(account, changes):
+    rule = make_rule(account)
+    with pytest.raises(ValueError):
+        paper_auto.update_auto_rule(account, rule["id"], changes)
+    assert paper_auto.load_auto_rules(account) == [rule]
+
+
+def test_update_reuses_exit_lifecycle_without_recreating_rule(account, monkeypatch):
+    rule = make_rule(account)
+    buy_and_fill(account)
+    next_day(monkeypatch)
+    sell = paper_auto.on_rule_events(account, [event("sell_signal", id="edit-exit")])[0]
+    paper_auto.update_auto_rule(account, rule["id"], {"name": "改名", "size_value": 5000})
+    assert paper.get_order(account, sell["id"])["status"] == "pending"
+    assert paper_auto.load_exit_intents(account)[0]["status"] == "submitted"
+    paper_auto.update_auto_rule(account, rule["id"], {"match_id": "strategy-two"})
+    assert paper.get_order(account, sell["id"])["status"] == "cancelled"
+    assert paper_auto.load_exit_intents(account)[0]["status"] == "cancelled"
+    assert len(paper_auto.load_auto_rules(account)) == 1
+    assert paper.load_positions(account)[SYM]["qty"] == 700
+
+
 def test_capacity_strategy_does_not_fall_back_to_snapshot_market_order(account):
     make_rule(account, cooldown_days=0)
     orders = paper_auto.on_rule_events(account, [event(

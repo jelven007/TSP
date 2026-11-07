@@ -479,7 +479,8 @@ class StrategyResults:
             current["sections"]["sell"] = [
                 {**item, "entry_date": previous, "entry_record_id": archived["record_id"]} for item in buys
             ]
-            errors.pop("sell", None)
+            if (current.get("section_statuses") or {}).get("sell") != "failed":
+                errors.pop("sell", None)
         current["section_errors"] = errors
         return current
 
@@ -504,6 +505,11 @@ class StrategyResults:
                 return old, "unchanged"
             if old and old["summary"]["started_at"] > started_at:
                 return old, "unchanged"
+            from app.strategy.execution_status import merge_result, result_status
+
+            if old and result_status(old["result"])["state"] == "success" \
+                    and result_status(result)["state"] != "success":
+                return {**copy.deepcopy(old), "result": merge_result(old["result"], result)}, "unchanged"
             payload = copy.deepcopy(result)
             reference = payload.pop("price_suggestion_reference", None)
             if payload.get("section_mode") == "signals" and not payload.get("selection_only"):

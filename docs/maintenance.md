@@ -60,11 +60,11 @@
 ## 4. 证据目录
 
 `reports/` 保存可追溯的源码、环境、窗口、命令、结果和限制；
-`deliverables/` 保存用户需要的离线交付或策略成果。
+`reports/` 保存用户需要的离线交付或策略成果。
 新报告按`releases/market-data/strategies/ui/engineering/operations`六类归入
 `reports/<分类>/<专题-日期>/`，正文、截图和机器结果在同组保存；
 各类及原有固定/活跃条目见[报告导航](../reports/README.md#按用途查找)。
-新增用户交付归`deliverables/{research,releases,operations,designs}/<专题-日期>/`，
+新增用户交付归`reports/{research,releases,operations,designs}/<专题-日期>/`，
 现有交付保持原路径，统一Excel仍在一个文件内保存主表和详细账本。
 设计、计划和缺陷记录沿现有`.claude/artifacts/{designs,plans,fixes}/`约定维护。
 

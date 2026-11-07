@@ -3,8 +3,9 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { Paper } from './Paper'
+import type { PaperAutoRule } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
+import { Paper } from './Paper'
 
 const calls = vi.hoisted(() => ({
   arena: vi.fn(async (_body: unknown) => ({ created: [{ account: 'new' }] })),
@@ -12,6 +13,9 @@ const calls = vi.hoisted(() => ({
   edit: vi.fn(),
   delete: vi.fn(),
   state: { exists: true, name: '测试账户', cash: 200000, editable: true },
+  update: vi.fn(async (_id: string, _body: unknown, _account: string) => ({ rule: {} })),
+  settings: vi.fn(async (_body: unknown, _account: string) => ({ account: {} })),
+  rules: [] as PaperAutoRule[],
 }))
 vi.mock('@/lib/api', () => ({
   api: {
@@ -19,14 +23,21 @@ vi.mock('@/lib/api', () => ({
       account: 'test', name: calls.state.name, status: 'active', initial_cash: calls.state.cash,
       total: calls.state.cash, cash: calls.state.cash, market_value: 0, total_pnl: 0, pnl_pct: 0,
       rounds: 0, win_rate: 0, profit_loss_ratio: null, nav: [],
-      auto_rules: calls.rule.mock.calls.map(([body]) => body),
+      auto_rules: [...calls.rules, ...calls.rule.mock.calls.map(([body]) => body)],
     }] : [] }),
     screenerStrategies: async () => ({ presets: [
       { id: 's-one', name: '策略一' }, { id: 's-two', name: '策略二' },
     ] }),
     monitorRulesList: async () => ({ rules: [{ id: 'r-one', name: '价格规则', enabled: true }] }),
+    strategyGet: async (id: string) => ({
+      id, name: id === 's-one' ? '策略一' : '策略二', execution_backend: 'polars_expr',
+      stop_loss: 0.05, take_profit: 0.1, max_hold_days: 10,
+      entry_risk: { max_entry_premium_pct: 0.02 }, basic_filter: {}, scoring: {},
+    }),
+    paperSettings: calls.settings,
     paperArenaCreate: calls.arena,
     paperAutoRuleCreate: calls.rule,
+    paperAutoRuleUpdate: calls.update,
     paperUpdateAccount: calls.edit,
     paperDeleteAccount: calls.delete,
     paperOverview: async () => ({
@@ -42,7 +53,7 @@ vi.mock('@/lib/api', () => ({
       rounds: 0, win_rate: 0, profit_loss_ratio: null, avg_holding_days: 0,
       realized_pnl: 0, max_drawdown: null,
     }),
-    paperAutoRules: async () => ({ rules: [] }),
+    paperAutoRules: async () => ({ rules: calls.rules }),
     paperAutoSkips: async () => ({ skips: [] }),
     paperCorporateActions: async () => ({ mode: 'events', events: [], blocked: [] }),
     backtestCandidates: async () => ({ candidates: [] }),
@@ -81,6 +92,9 @@ beforeEach(async () => {
     calls.state.exists = false
     return { ok: true }
   })
+  calls.update.mockReset()
+  calls.settings.mockClear()
+  calls.rules = []
   window.localStorage.clear()
   host = document.createElement('div')
   document.body.append(host)
@@ -138,7 +152,7 @@ it('edits the account and refreshes the comparison and expanded overview', async
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
   await input('账户名称', '修改后的账户', dialog)
   await input('初始资金 (元)', '500000', dialog)
-  await input('佣金 (万)', '3', dialog)
+  await input('佣金（万分比，双边）', '3', dialog)
   await click('保存', dialog)
   expect(calls.edit).toHaveBeenCalledWith(expect.objectContaining({
     name: '修改后的账户', initial_cash: 500000, commission_pct: .0003,
@@ -232,7 +246,7 @@ it('creates a single strategy rule with auto direction and rejects a fractional 
   expect(button('创建规则').disabled).toBe(true)
   await input('单股仓位上限 %（0 不限）', '25')
   await input('账户总仓位上限 %（0 不限）', '80')
-  const risk = host.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+  const risk = document.querySelector<HTMLElement>('[role="dialog"]')!.querySelector<HTMLInputElement>('input[type="checkbox"]')!
   expect(risk).not.toBeNull()
   await act(async () => risk.click())
   await settle()
@@ -245,4 +259,180 @@ it('creates a single strategy rule with auto direction and rejects a fractional 
   expect([...host.querySelectorAll<HTMLElement>('span[title]')].some(item =>
     item.title.includes('自动方向，退出全平') && item.title.includes('持仓上限 2只'),
   )).toBe(true)
+})
+
+const savedRule: PaperAutoRule = {
+  id: 'arule_saved', name: '已停用规则', match_kind: 'strategy', match_id: 's-two',
+  side: 'auto', size_mode: 'pct_equity', size_value: 15, order_type: 'close',
+  cooldown_days: 7, max_positions: 4, candidate_priority: 'symbol',
+  max_symbol_exposure_pct: 20, max_total_exposure_pct: 70, risk_follow: true,
+  enabled: false, created_at: '2026-11-01T10:00:00+08:00',
+}
+
+async function openRule(rule = savedRule) {
+  calls.rules = [{ ...rule }]
+  const row = [...host.querySelectorAll('tbody tr')].find(item => item.textContent?.includes('测试账户'))!
+  await act(async () => (row as HTMLElement).click())
+  await settle()
+  await click('修改')
+}
+
+function fieldValue(label: string) {
+  const found = [...document.querySelectorAll('label')].find(item => item.textContent === label)!
+  return found.parentElement!.querySelector('input, select') as HTMLInputElement | HTMLSelectElement
+}
+
+it('prefills saved rule fields and updates the same account rule without creating a new one', async () => {
+  const invalidated = vi.spyOn(client, 'invalidateQueries')
+  await openRule()
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('修改自动跟单规则')
+  for (const [label, value] of [
+    ['规则名称', '已停用规则'], ['策略 (输入中文名 / ID 联想, 留空聚焦看全部)', 's-two'],
+    ['买入占权益 %', '15'], ['买入冷却天数 (同标的)', '7'],
+    ['最大持仓标的数 (0 不限)', '4'], ['候选买入顺序', 'symbol'],
+    ['单股仓位上限 %（0 不限）', '20'], ['账户总仓位上限 %（0 不限）', '70'],
+  ]) expect(fieldValue(label).value, label).toBe(value)
+  expect(button('自动').getAttribute('aria-pressed')).toBe('true')
+  expect(document.querySelector<HTMLElement>('[role="dialog"]')!.querySelector<HTMLInputElement>('input[type="checkbox"]')!.checked).toBe(true)
+  await input('规则名称', '修改后的规则')
+  await input('买入占权益 %', '25')
+  calls.update.mockImplementationOnce(async (id, body) => {
+    calls.rules = [{ ...savedRule, ...body as Partial<PaperAutoRule>, id }]
+    return { rule: calls.rules[0] }
+  })
+  await click('保存修改')
+  expect(calls.update).toHaveBeenCalledWith('arule_saved', {
+    name: '修改后的规则', match_kind: 'strategy', match_id: 's-two', side: 'auto',
+    size_mode: 'pct_equity', size_value: 25, order_type: 'close', buy_order_type: 'close',
+    sell_order_type: 'close', cooldown_days: 7,
+    max_positions: 4, candidate_priority: 'symbol', max_symbol_exposure_pct: 20,
+    max_total_exposure_pct: 70, risk_follow: true,
+  }, 'test')
+  expect(calls.rule).not.toHaveBeenCalled()
+  expect(host.textContent).toContain('修改后的规则')
+  expect(button('启用')).toBeDefined() // Saving a disabled rule does not enable it.
+  expect(invalidated).toHaveBeenCalledWith(expect.objectContaining({ queryKey: QK.paperAutoRules('test') }))
+})
+
+it('cancels editing without saving and resets the draft when editing another rule', async () => {
+  await openRule()
+  await input('规则名称', '未保存的改名')
+  await click('取消')
+  expect(calls.update).not.toHaveBeenCalled()
+  expect(host.textContent).toContain(savedRule.name)
+  calls.rules = [{ ...savedRule, id: 'arule_other', name: '另一条规则', size_value: 9 }]
+  await act(async () => { await client.invalidateQueries({ queryKey: ['paper'] }) })
+  await settle()
+  await click('修改')
+  expect(fieldValue('规则名称').value).toBe('另一条规则')
+  expect(fieldValue('买入占权益 %').value).toBe('9')
+})
+
+it('retains the edit draft on save failure and permits retry', async () => {
+  await openRule()
+  await input('规则名称', '重试规则')
+  calls.update.mockRejectedValueOnce(new Error('保存失败，请重试'))
+  await click('保存修改')
+  expect(document.body.textContent).toContain('保存失败，请重试')
+  expect(fieldValue('规则名称').value).toBe('重试规则')
+  expect(button('保存修改').disabled).toBe(false)
+  calls.update.mockResolvedValueOnce({ rule: {} })
+  await click('保存修改')
+  expect(calls.update).toHaveBeenCalledTimes(2)
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+})
+
+it('keeps legacy defaults and validates changed source, direction and percentage', async () => {
+  const legacy = { ...savedRule }
+  delete legacy.candidate_priority
+  delete legacy.risk_follow
+  delete legacy.max_positions
+  delete legacy.max_symbol_exposure_pct
+  delete legacy.max_total_exposure_pct
+  await openRule(legacy)
+  expect(fieldValue('候选买入顺序').value).toBe('event')
+  expect(fieldValue('最大持仓标的数 (0 不限)').value).toBe('0')
+  await input('买入占权益 %', '101')
+  expect(button('保存修改').disabled).toBe(true)
+  await input('买入占权益 %', '20')
+  await click('跟监控规则')
+  expect(button('自动').disabled).toBe(true)
+  expect(button('买入', document.querySelector('fieldset')!).getAttribute('aria-pressed')).toBe('true')
+  expect(button('保存修改').disabled).toBe(true) // Source cleared until explicitly selected.
+  await input('监控规则 (输入名称 / ID 联想)', 'r-one')
+  calls.update.mockResolvedValueOnce({ rule: {} })
+  await click('保存修改')
+  expect(calls.update).toHaveBeenCalledWith('arule_saved', expect.objectContaining({
+    match_kind: 'rule', match_id: 'r-one', side: 'buy', risk_follow: false, candidate_priority: 'event',
+  }), 'test')
+})
+
+it('disables form controls and duplicate submits while the edit is being saved', async () => {
+  await openRule()
+  let finish!: (value: { rule: Record<string, unknown> }) => void
+  calls.update.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  await click('保存修改')
+  expect(button('保存中…').disabled).toBe(true)
+  expect(button('取消').disabled).toBe(true)
+  expect(fieldValue('规则名称').matches(':disabled')).toBe(true)
+  await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+  await act(async () => finish({ rule: {} }))
+  await settle()
+  expect(calls.update).toHaveBeenCalledTimes(1)
+})
+
+it('keeps amount and percentage drafts separate and limits pool order to strategy sources', async () => {
+  await openRule({ ...savedRule, size_mode: 'fixed_amount', size_value: 10000 })
+  for (const group of ['跟单对象', '买入与仓位', '成交方式', '策略风控', '账户费用']) {
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(group)
+  }
+  await click('权益 %')
+  expect(fieldValue('买入占权益 %').value).toBe('')
+  expect(button('保存修改').disabled).toBe(true)
+  await input('买入占权益 %', '16')
+  await click('固定金额')
+  expect(fieldValue('买入金额 (元)').value).toBe('10000')
+  await click('权益 %')
+  expect(fieldValue('买入占权益 %').value).toBe('16')
+  const priority = fieldValue('候选买入顺序') as HTMLSelectElement
+  const pool = [...priority.options].find(option => option.value === 'pool')!
+  expect(pool?.textContent).toBe('候选股票池默认顺序')
+  expect(pool.disabled).toBe(false)
+  await act(async () => { priority.value = 'pool'; priority.dispatchEvent(new Event('change', { bubbles: true })) })
+  await click('跟监控规则')
+  expect(pool.disabled).toBe(true)
+  expect(priority.value).toBe('event')
+})
+
+it('previews stored backtest differences, imports drafts and saves fees independently', async () => {
+  window.localStorage.setItem('strategy-backtest-last', JSON.stringify({
+    defaultsVersion: 1, selectedStrategy: 's-one', maxPositions: '5', maxExposure: '80',
+    positionSizing: 'equal', mode: 'position', entryFill: 'open_t+1', exitFill: 'close_t',
+    fees: '2.5', stampTax: '', minimumCommission: '3', transferFee: '0.1', slippage: '7',
+  }))
+  await openRule()
+  await click('参考回测参数')
+  expect(document.body.textContent).toContain('5分钟容量')
+  expect(document.body.textContent).toContain('策略一')
+  expect(calls.update).not.toHaveBeenCalled()
+  await click('填入草稿')
+  expect(fieldValue('买入占权益 %').value).toBe('16')
+  expect(fieldValue('最大持仓标的数 (0 不限)').value).toBe('5')
+  expect(calls.settings).not.toHaveBeenCalled()
+  expect(calls.update).not.toHaveBeenCalled()
+  await click('修改账户费用')
+  await click('保存账户费用')
+  expect(calls.settings).toHaveBeenCalledWith(expect.objectContaining({
+    commission_pct: 0.00025, min_commission: 3, transfer_fee_pct: 0.00001,
+    stamp_tax_mode: 'historical', slippage_bps: 7,
+  }), 'test')
+  expect(calls.update).not.toHaveBeenCalled()
+  const buy = fieldValue('建仓订单类型') as HTMLSelectElement
+  await act(async () => { buy.value = 'market'; buy.dispatchEvent(new Event('change', { bubbles: true })) })
+  calls.update.mockResolvedValueOnce({ rule: {} })
+  await click('保存修改')
+  expect(calls.update).toHaveBeenCalledWith(savedRule.id, expect.objectContaining({
+    buy_order_type: 'market', sell_order_type: 'close', max_positions: 5, size_value: 16,
+  }), 'test')
 })

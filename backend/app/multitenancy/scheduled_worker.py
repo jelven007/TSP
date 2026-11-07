@@ -187,7 +187,8 @@ class TenantSchedules:
         with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
             valid_claim(unit.connection, claim)
             previous = unit.get("daily_stock_pool_jobs", key, {})
-            if previous.get("state") == "succeeded":
+            if (previous.get("state") == "succeeded"
+                    and previous.get("definition_version") == DEFINITION_VERSION):
                 return
             if slot == "09:00":
                 earlier_key = f"{day}:08:00"
@@ -215,7 +216,8 @@ class TenantSchedules:
                                observed_at=f"{day}T{slot}:00",
                                **({"public_release_id": release} if release else {}))
             unit.put("daily_stock_pool_jobs", key, {
-                "signature": marker, "completed": sorted(completed), "state": "running",
+                "signature": marker, "definition_version": DEFINITION_VERSION,
+                "completed": sorted(completed), "state": "running",
                 "attempts": previous.get("attempts", 0) + 1, "started_at": time.time_ns(),
             })
         started_at = time.time_ns()

@@ -99,12 +99,12 @@ it('selects and reloads a functional second-precision late-session start', async
   expect(f.time('启动时间').textContent).toBe('14:30:00')
   await f.select('启动时间', '14:30:20')
   expect(f.save).not.toHaveBeenCalled()
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('14:31:20')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('14:31:50')
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain('K线截止 14:30:00')
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
   expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
     params: { time: '14:30:20', change_min_pct: 0.4, change_max_pct: 4,
-      pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4, evaluation_delay_minutes: 1 },
+      pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4, evaluation_delay_minutes: 1.5 },
   }))
   await f.render(f.save.mock.calls[0][0])
   expect(f.time('启动时间')?.textContent).toBe('14:30:20')
@@ -115,9 +115,9 @@ it('selects and reloads a functional second-precision late-session start', async
   }))
   await f.render(f.save.mock.calls[1][0])
   expect(f.time('启动时间')?.textContent).toBe('14:58:00')
-  await f.select('启动时间', '14:58:01')
+  await f.select('启动时间', '14:58:31')
   const savedCount = f.save.mock.calls.length
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
   expect(f.save.mock.calls.length).toBe(savedCount)
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('13:00:00～14:58:00')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('13:00:00～14:58:30')
 })

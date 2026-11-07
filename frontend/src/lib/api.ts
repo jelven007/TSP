@@ -383,6 +383,19 @@ export interface ScreenerResult {
   sections?: { sell: any[]; select: any[]; buy: any[] } | null
   section_mode?: 'signals' | null
   section_errors?: Partial<Record<'sell' | 'select' | 'buy', string>> | null
+  section_statuses?: Partial<Record<'sell' | 'select' | 'buy', 'success' | 'waiting' | 'failed' | 'expired'>> | null
+  execution_status?: {
+    state: 'success' | 'waiting' | 'failed' | 'retrying' | 'deferred' | 'disabled' | 'expired'
+    reason?: string | null; updated_at: number
+  } | null
+  last_success_at?: number | null
+  showing_last_success?: boolean
+  entry_data_quality?: Record<string, {
+    pool_total: number; known_positive: number; missing_symbols: string[]
+    pool_usable?: number; missing_pct?: number; breadth_policy?: 'available_members_v1'
+    pool_up_pct: number | null; pool_up_pct_lower: number | null; pool_up_pct_upper: number | null
+    pool_up_min_pct: number; stage: string; warnings: string[]
+  }> | null
   selection_only?: boolean
   selection_snapshot?: {
     as_of: string; source_date: string; generated_at: string; scheduled_for?: string
@@ -863,6 +876,7 @@ export interface StrategyDetail {
   /** 策略定义的原始可编辑配置，与当前生效配置分开，用于本地草稿恢复。 */
   definition_defaults?: Partial<StrategyDetail> | null
   scoring: Record<string, number>
+  scoring_mode?: 'generic' | 'strategy'
   scoring_directions: Record<string, ScoringDirection>
   overlay_filter?: CustomSignalCondition[]
   entry_signals: string[]
@@ -952,7 +966,7 @@ export interface CustomSignal {
 
 export interface LateSessionStrengthParams {
   time: string
-  evaluation_delay_minutes?: 0 | 1 | 1.5 // 冻结旧定义缺省0/旧值1；编辑保存为启动后90秒确认
+  evaluation_delay_minutes?: number // 后台分钟；页面30～900秒、30秒步长；0/缺字段兼容冻结旧定义
   change_min_pct: number
   change_max_pct: number
   pool_up_min_pct: number
@@ -1157,7 +1171,18 @@ function accUrl(base: string, account?: string): string {
   return `${base}${base.includes('?') ? '&' : '?'}account=${encodeURIComponent(account)}`
 }
 
-export interface PaperAccount {
+export interface PaperFees {
+  commission_pct: number
+  stamp_tax_pct: number
+  slippage_bps: number
+  min_commission?: number
+  transfer_fee_pct?: number
+  stamp_tax_mode?: 'fixed' | 'historical'
+}
+
+export type PaperFeeSettings = Partial<PaperFees> & { queue_limit_orders?: boolean }
+
+export interface PaperAccount extends PaperFees {
   id: string
   name?: string
   initial_cash: number
@@ -1169,7 +1194,6 @@ export interface PaperAccount {
   status: 'active' | 'frozen'
   created_at: string
   corporate_action_mode?: 'events' | 'legacy_factor'
-  stamp_tax_mode?: 'fixed'
 }
 
 export interface PaperAccountSummary {
@@ -1189,7 +1213,7 @@ export interface PaperCompareRow {
   name: string
   status: 'active' | 'frozen'
   initial_cash: number
-  fees: { commission_pct: number; stamp_tax_pct: number; slippage_bps: number }
+  fees: PaperFees
   total: number
   cash: number
   market_value: number
@@ -1221,6 +1245,8 @@ export interface PaperArenaSource {
   size_mode?: 'fixed_amount' | 'pct_equity'
   size_value?: number
   order_type?: 'market' | 'next_open' | 'close'
+  buy_order_type?: 'market' | 'next_open' | 'close'
+  sell_order_type?: 'market' | 'next_open' | 'close'
   cooldown_days?: number
   max_positions?: number
 }
@@ -1268,7 +1294,7 @@ export interface PaperOverview {
   market_value?: number
   receivables?: number
   corporate_action_mode?: 'events' | 'legacy_factor'
-  stamp_tax_mode?: 'fixed'
+  stamp_tax_mode?: 'fixed' | 'historical'
   total?: number
   total_pnl?: number
   initial_cash?: number
@@ -1276,7 +1302,7 @@ export interface PaperOverview {
   estimating?: boolean
   valuation?: PaperValuation
   holdings?: PaperHolding[]
-  fees?: { commission_pct: number; stamp_tax_pct: number; slippage_bps: number }
+  fees?: PaperFees
 }
 
 export interface PaperOrder {
@@ -1307,8 +1333,10 @@ export interface PaperAutoRule {
   size_value: number
   order_type: 'market' | 'next_open' | 'close'
   cooldown_days: number
+  buy_order_type?: 'market' | 'next_open' | 'close'
+  sell_order_type?: 'market' | 'next_open' | 'close'
   max_positions?: number
-  candidate_priority?: 'event' | 'score' | 'symbol'
+  candidate_priority?: 'event' | 'score' | 'symbol' | 'pool'
   max_symbol_exposure_pct?: number
   max_total_exposure_pct?: number
   risk_follow?: boolean
@@ -3483,7 +3511,7 @@ export const api = {
       { method: 'DELETE' },
     ),
   marketSnapshot: (options?: { realtime: boolean; symbols: string[] }) =>
-    request<{ as_of: string | null; rows: MarketSnapshotRow[] }>(`/api/screener/market-snapshot${
+    request<{ as_of: string | null; requested_as_of?: string | null; source?: string | null; rows: MarketSnapshotRow[] }>(`/api/screener/market-snapshot${
       options ? `?${new URLSearchParams({ realtime: String(options.realtime), symbols: options.symbols.join(',') })}` : ''
     }`),
   overviewMarket: (asOf?: string) => request<OverviewMarket>(`/api/overview/market${asOf ? `?as_of=${asOf}` : ''}`),
@@ -4495,19 +4523,19 @@ export const api = {
       method: 'POST', body: JSON.stringify({ action_id, qty }),
     }),
 
-  paperCreateAccount: (body: { initial_cash: number; account_id?: string; name?: string; commission_pct?: number; stamp_tax_pct?: number; slippage_bps?: number; queue_limit_orders?: boolean }) =>
+  paperCreateAccount: (body: { initial_cash: number; account_id?: string; name?: string } & PaperFeeSettings) =>
     request<{ account: PaperAccount }>('/api/paper/account', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
 
-  paperSettings: (body: { queue_limit_orders?: boolean; commission_pct?: number; stamp_tax_pct?: number; slippage_bps?: number }, account?: string) =>
+  paperSettings: (body: PaperFeeSettings, account?: string) =>
     request<{ account: PaperAccount }>(accUrl('/api/paper/settings', account), {
       method: 'POST',
       body: JSON.stringify(body),
     }),
 
-  paperUpdateAccount: (body: { name?: string; initial_cash?: number; queue_limit_orders?: boolean; commission_pct?: number; stamp_tax_pct?: number; slippage_bps?: number }, account: string) =>
+  paperUpdateAccount: (body: PaperFeeSettings & { name?: string; initial_cash?: number }, account: string) =>
     request<{ account: PaperAccount }>(accUrl('/api/paper/account', account), {
       method: 'PUT', body: JSON.stringify(body),
     }),
@@ -4612,6 +4640,12 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  paperAutoRuleUpdate: (id: string, body: Omit<PaperAutoRule, 'id' | 'created_at' | 'enabled'>, account?: string) =>
+    request<{ rule: PaperAutoRule }>(accUrl(`/api/paper/auto_rules/${encodeURIComponent(id)}`, account), {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
   paperAutoRuleSetEnabled: (id: string, enabled: boolean, account?: string) =>
     request<{ rule: PaperAutoRule }>(accUrl(`/api/paper/auto_rules/${encodeURIComponent(id)}/enabled?enabled=${enabled}`, account), { method: 'POST' }),
 
@@ -4619,7 +4653,7 @@ export const api = {
     request<{ ok: boolean }>(accUrl(`/api/paper/auto_rules/${encodeURIComponent(id)}`, account), { method: 'DELETE' }),
 
   /** 对比批量创建: 同本金/同费率一次开 N 个账户, 各绑一条自动跟单规则 */
-  paperArenaCreate: (body: { initial_cash: number; sources: PaperArenaSource[]; name_prefix?: string; commission_pct?: number; stamp_tax_pct?: number; slippage_bps?: number }) =>
+  paperArenaCreate: (body: { initial_cash: number; sources: PaperArenaSource[]; name_prefix?: string } & PaperFeeSettings) =>
     request<{ created: Array<{ account: string; name: string; rule_id: string }> }>('/api/paper/arena/batch_create', {
       method: 'POST',
       body: JSON.stringify(body),

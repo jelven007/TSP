@@ -188,7 +188,9 @@ def list_signals(request: Request):
 def save_signal(req: SignalModel, request: Request):
     sig = req.model_dump()
     if sig.get("template") == "late_session_strength":
-        sig["params"].setdefault("evaluation_delay_minutes", 1)
+        from app.strategy.late_session_strength import DEFAULT_PARAMS
+
+        sig["params"].setdefault("evaluation_delay_minutes", DEFAULT_PARAMS["evaluation_delay_minutes"])
     try:
         custom_signals.validate(sig)
     except ValueError as e:
