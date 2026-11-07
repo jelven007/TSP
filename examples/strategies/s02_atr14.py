@@ -1,20 +1,22 @@
-"""S02完整分钟示例：按前交易日ATR14简单均值/昨收排名。"""
-import numpy as np
+"""S02完整分钟示例：预选保存ATR，买入复用前交易日指标。"""
+from datetime import date
+
 import polars as pl
 
-from app.strategy.market_data import previous_session
+from app.strategy.market_data import get_atr14_sma_reference, previous_session
 
 META = {
     "id": "s02_atr14_example",
     "result_sections": "signals",
     "name": "s02 ATR14/昨收示例",
-    "description": "20日均成交额≥1亿元，尾盘走强，ATR14/昨收降序，次交易日早盘清仓",
+    "description": "尾盘走强，ATR14/昨收降序，次交易日早盘清仓",
     "tags": ["自定义", "分钟", "隔夜"],
     "asset_types": ["stock"],
     "timeframes": ["1m"],
     "daily_history_bars": 21,
     "params": [],
     "scoring": {},
+    "scoring_mode": "strategy",
     "order_by": "score",
     "descending": True,
     "tie_break": "symbol",
@@ -39,19 +41,22 @@ STOP_LOSS = None
 MAX_HOLD_DAYS = None
 
 RULES = """
-当日完整池按股票范围、ST/停牌及流通市值形成；其他数值与成交额条件只过滤候选。
+当日完整池仅按股票范围与ST/停牌状态形成；流通市值及其他数值只用于策略选股。
 入场沿尾盘走强信号，每只股票保留首次真实触发分钟，返回全部合格命中。
 TR=max(最高-最低, abs(最高-前收), abs(最低-前收))，使用一致复权日线。
 ATR14=截至精确T-1的14个TR简单均值；比率=ATR14/T-1复权收盘，按比率降序。
+共享因子atr14_sma_pct；分钟策略通过受信任入口复用同一数值内核。
 同值按触发涨幅降序、代码升序；触发涨幅使用分钟价/T-1未复权收盘-1。
-需要连续15个已完成交易日日K；缺根、重复、无效价或未知日历阻止本次扫描。
-score只编码上述排名；配套覆盖配置必须以scoring_replace清空旧涨幅权重。
+ATR在前交易日16:00预选时计算并保存；买入复用已保存指标，不再读取15根日K重算。
+缺失ATR仍保留买入信号，排在已知ATR之后，指标和排名分数保持未知。
+atr_rank为1起始顺位；score按排名线性映射到0～100分，第一名100、末名0，单只50。
+scoring_mode=strategy由源码固定排名，旧涨幅权重和评分方向不能覆盖。
 出场沿早盘清仓，与排名无关；资金、最多5仓、T+1和成交约束由交易模块执行。
 """
 
 
 def filter_minute_history(
-    df: pl.DataFrame, params: dict, *, daily: pl.DataFrame | None = None,
+    df: pl.DataFrame, params: dict, *, daily: pl.DataFrame | None = None, selection=None,
 ) -> pl.DataFrame:
     hits = (
         df.filter(pl.col("csgi_late_session_strength").fill_null(False))
@@ -59,51 +64,82 @@ def filter_minute_history(
         .unique("symbol", keep="first", maintain_order=True)
         .rename({"datetime": "last_datetime"})
     )
-    if hits.is_empty():
-        return hits
-    days = hits["last_datetime"].dt.date().unique().to_list()
-    if len(days) != 1:
-        raise ValueError("ATR14排名需要单一交易日的分钟窗口")
+    saved = {row["symbol"]: row for row in (selection or {}).get("rows", [])}
+    rows = []
+    for hit in hits.to_dicts():
+        reference = saved.get(hit["symbol"], {})
+        ratio = reference.get("atr14_previous_close")
+        valid = isinstance(ratio, (int, float)) and 0 <= ratio < float("inf")
+        previous = reference.get("reference_close")
+        change = (
+            hit["close"] / previous - 1
+            if isinstance(previous, (int, float)) and 0 < previous < float("inf") else None
+        )
+        reference_date = reference.get("atr_reference_date") or (selection or {}).get("source_date")
+        if isinstance(reference_date, str):
+            reference_date = date.fromisoformat(reference_date)
+        rows.append({
+            **hit, "atr14": reference.get("atr14") if valid else None,
+            "atr14_previous_close": ratio if valid else None,
+            "atr_reference_date": reference_date,
+            "change_pct": change,
+            "atr_metric_error": None if valid else
+            reference.get("atr_metric_error") or "前日预选ATR缺失, 保留信号并排在末尾",
+        })
+    ranked = (pl.DataFrame(rows) if rows else hits.with_columns(
+        pl.lit(None, dtype=pl.Float64).alias("atr14_previous_close"))).sort(
+        ["atr14_previous_close", "change_pct", "symbol"] if rows else ["symbol"],
+        descending=[True, True, False] if rows else [False], nulls_last=True)
+    count = sum(row["atr14_previous_close"] is not None for row in rows)
+    return ranked.with_columns(
+        pl.Series("atr_rank", [i + 1 if i < count else None for i in range(ranked.height)], dtype=pl.Int64),
+        pl.Series("score", [
+            (100. * (count - 1 - i) / (count - 1) if count > 1 else 50.) if i < count else None
+            for i in range(ranked.height)
+        ], dtype=pl.Float64),
+    )
+
+
+def enrich_selection(rows, params, *, daily, as_of):
+    """盘后预选全体的ATR顺位；不替换既有选股评分或次日命中顺位。"""
+    if rows.is_empty():
+        return rows
     expected = []
-    day = days[0]
+    day = as_of
     for _ in range(15):
         day = previous_session(day)
         expected.append(day)
     expected.reverse()
-    required = {"symbol", "date", "high", "low", "close", "raw_close"}
-    if daily is None or not required <= set(daily.columns):
-        raise ValueError("ATR14排名缺少完整日K或未复权昨收")
-    window = daily.filter(pl.col("date").is_in(expected)).sort("symbol", "date")
-    values = []
-    for hit in hits.to_dicts():
-        symbol = hit["symbol"]
-        rows = window.filter(pl.col("symbol") == symbol).to_dicts()
-        if [row["date"] for row in rows] != expected:
-            raise ValueError(f"ATR14 {symbol}缺少连续15根日K或存在重复")
-        for row in rows:
-            prices = [row[key] for key in ("high", "low", "close", "raw_close")]
-            if (any(value is None or not np.isfinite(value) or value <= 0 for value in prices)
-                    or not row["low"] <= row["close"] <= row["high"]):
-                raise ValueError(f"ATR14 {symbol}存在无效日K价格")
-        tr = [
-            max(row["high"] - row["low"], abs(row["high"] - before["close"]),
-                abs(row["low"] - before["close"]))
-            for before, row in zip(rows, rows[1:], strict=False)
-        ]
-        atr = sum(tr) / 14
-        price = hit["close"]
-        if price is None or not np.isfinite(price) or price <= 0:
-            raise ValueError(f"ATR14 {symbol}存在无效触发价")
-        values.append({
-            "symbol": symbol, "atr14": atr, "atr14_previous_close": atr / rows[-1]["close"],
-            "atr_reference_date": expected[-1],
-            "change_pct": price / rows[-1]["raw_close"] - 1,
+    symbols = rows["symbol"].to_list()
+    errors = {}
+    try:
+        metrics = get_atr14_sma_reference(daily, symbols, expected)
+    except ValueError:
+        # Optional display metrics must not discard qualified stocks with a bad window.
+        groups = (
+            daily.filter(pl.col("date").is_in(expected)).partition_by("symbol", as_dict=True)
+            if daily is not None and {"symbol", "date"} <= set(daily.columns) else {}
+        )
+        parts = []
+        for symbol in symbols:
+            try:
+                parts.append(get_atr14_sma_reference(groups.get((symbol,)), [symbol], expected))
+            except ValueError as exc:
+                errors[symbol] = str(exc)
+        metrics = pl.concat(parts) if parts else pl.DataFrame(schema={
+            "symbol": pl.String, "atr14": pl.Float64, "atr14_previous_close": pl.Float64,
+            "atr_reference_date": pl.Date, "atr_raw_previous_close": pl.Float64,
         })
-    metrics = pl.DataFrame(values)
-    hits = hits.drop([key for key in metrics.columns if key != "symbol" and key in hits.columns])
-    ranked = hits.join(metrics, on="symbol").sort(
-        ["atr14_previous_close", "change_pct", "symbol"], descending=[True, True, False],
+    ranked = metrics.drop("atr_raw_previous_close").sort(
+        ["atr14_previous_close", "symbol"], descending=[True, False])
+    ranked = ranked.with_columns(
+        pl.Series("atr_rank", list(range(1, ranked.height + 1)), dtype=pl.Int64),
+        pl.Series("atr_rank_score", [
+            100. * (ranked.height - 1 - i) / (ranked.height - 1) if ranked.height > 1 else 50.
+            for i in range(ranked.height)
+        ], dtype=pl.Float64),
     )
-    return ranked.with_columns(
-        pl.Series("score", [float(ranked.height - i) for i in range(ranked.height)]),
+    return rows.join(ranked, on="symbol", how="left", maintain_order="left").with_columns(
+        pl.lit(ranked.height).alias("atr_rank_population"),
+        pl.Series("atr_metric_error", [errors.get(symbol) for symbol in symbols], dtype=pl.String),
     )

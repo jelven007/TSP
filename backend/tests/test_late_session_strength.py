@@ -72,12 +72,15 @@ def test_exact_time_and_sixty_percent_full_pool():
     assert evaluate(completed_through=TARGET - timedelta(seconds=1)).symbols == []
 
 
-def test_unknown_quote_or_previous_close_cannot_shrink_denominator():
-    result = evaluate(frame=bars().filter(pl.col("symbol") != "e"))
-    assert result.symbols == []
-    assert result.diagnostics
-    result = evaluate(prev=dict.fromkeys(POOL[:4], 10.0))
-    assert not result.symbols and result.diagnostics
+def test_unknown_quote_or_previous_close_is_excluded_from_breadth_denominator():
+    result = evaluate(frame=bars().filter(pl.col("symbol") != "e"),
+                      sig=definition(pool_up_min_pct=60.01))
+    assert result.symbols == POOL[:3]
+    assert result.pool_up_pct == 75
+    assert not result.diagnostics
+    result = evaluate(prev=dict.fromkeys(POOL[:4], 10.0),
+                      sig=definition(pool_up_min_pct=60.01))
+    assert result.symbols == POOL[:3] and not result.diagnostics
     assert not evaluate(pool=[]).symbols
 
 
@@ -175,11 +178,11 @@ def test_second_start_uses_minute_bar_and_exact_ninety_second_gate():
     assert evaluate(
         sig=sig, completed_through=TARGET + timedelta(minutes=1, seconds=50),
     ).symbols == POOL[:3]
-    custom_signals.validate(definition(time="14:58:00", evaluation_delay_minutes=1.5))
+    custom_signals.validate(definition(time="14:58:30", evaluation_delay_minutes=1.5))
 
 
 @pytest.mark.parametrize("patch", [
-    {"time": "14:58:01", "evaluation_delay_minutes": 1.5},
+    {"time": "14:58:31", "evaluation_delay_minutes": 1.5},
     {"time": "14:30:20"},
 ])
 def test_second_start_rejects_close_overrun_and_undelayed_legacy(patch):
@@ -371,5 +374,5 @@ def filter_minute_history(df, params):
         current=prior.with_columns(pl.lit(DAY).alias("date")), pool_history=prior)
     result = engine.run("sample", context, overrides={"entry_signals": ["csgi_late_session_strength"]})
     assert result.daily_stock_pool["symbols"] == POOL
-    assert result.daily_stock_pool["definition_version"] == "scope_float_cap_v2"
+    assert result.daily_stock_pool["definition_version"] == "scope_only_v3"
     assert result.entry_signal_hits == []  # 3/5=60%, even though selected candidates are all up.

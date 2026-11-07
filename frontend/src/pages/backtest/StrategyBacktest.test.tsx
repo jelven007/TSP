@@ -110,6 +110,36 @@ function strategyFixture(id = 'example', source: StrategyDetail['source'] = 'bui
   }
 }
 
+it('clears stale generic weights when the strategy owns ranking', async () => {
+  const custom: StrategyDetail = {
+    ...strategyFixture('custom_s02', 'custom'), name: 's02', scoring_mode: 'strategy',
+    execution_backend: 'minute_filter', timeframes: ['1m'],
+  }
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+  vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+  const save = vi.spyOn(api, 'strategySaveConfig').mockResolvedValue({ ok: true })
+  await act(async () => root.unmount())
+  client.clear()
+  storage.strategyBacktestLast.set({
+    ...storage.strategyBacktestLast.get(null)!, selectedStrategy: custom.id,
+    overrides: { scoring: { change_pct: 1 }, scoring_directions: { change_pct: 'high' }, scoring_replace: true },
+  })
+  root = createRoot(host)
+  await render()
+  await act(async () => [...host.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.textContent?.includes('策略设置') && button.textContent?.includes('编辑'))!.click())
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+    .find(button => button.textContent?.trim() === '评分权重')!.click())
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('排名由策略生成')
+  expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain('添加评分因子')
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+    .find(button => button.textContent?.trim() === '应用到策略')!.click())
+  expect(save).toHaveBeenCalledWith(custom.id, expect.objectContaining({
+    scoring: {}, scoring_directions: {}, scoring_replace: true,
+  }))
+  expect(startBacktest).not.toHaveBeenCalled()
+})
+
 it('enables a saved custom minute holding exit with minute liquidation and position mode', async () => {
   const custom: StrategyDetail = {
     ...strategyFixture('custom_s02', 'custom'), name: 's02', execution_backend: 'minute_filter',

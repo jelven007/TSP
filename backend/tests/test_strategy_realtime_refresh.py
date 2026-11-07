@@ -89,13 +89,18 @@ def test_successful_zero_match_strategy_marks_result_refresh():
     assert engine.consume_strategy_result_updates() is False
 
 
-def test_failed_or_skipped_strategy_does_not_mark_result_refresh():
+def test_failed_attempt_notifies_status_without_emitting_signals_and_skipped_run_does_not():
     failed = MonitorRuleEngine()
     failed.set_strategy_engine(_FailingStrategyEngine())
     failed.set_rules([_strategy_rule()])
 
     assert failed.evaluate(_quote_df()) == []
-    assert failed.latest_strategy_results() == {}
+    attempted = failed.latest_strategy_results()["strategy_1"]
+    assert attempted["rows"] == []
+    assert attempted["execution_status"]["state"] == "failed"
+    assert attempted["execution_status"]["reason"] == "strategy failed"
+    assert "last_success_at" not in attempted
+    assert failed.consume_strategy_result_updates() is True
     assert failed.consume_strategy_result_updates() is False
 
     skipped = MonitorRuleEngine()

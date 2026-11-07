@@ -150,6 +150,33 @@ class FullWorker:
                 from app.strategy.engine import StrategyEngine
                 catalog = TenantStrategyEngine(unit, StrategyEngine(
                     [Path(__file__).resolve().parents[1] / "strategy/builtin"]), self.executor)
+                late_columns = {
+                    "csgi_" + sig["id"] for sig in payload["signals"]
+                    if sig.get("template") == "late_session_strength" and sig.get("enabled", True)
+                }
+                priority_ids = [
+                    sid for sid, strategy in catalog._strategies.items()
+                    if strategy.execution_backend == "minute_filter"
+                    and strategy.meta.get("result_sections") == "signals"
+                    and late_columns.intersection(catalog._effective_signals(
+                        payload["overrides"].get(sid, {}), "entry_signals", strategy.entry_signals))
+                ]
+                if callable(getattr(self.market, "minute_priority", None)):
+                    from app.services.minute_priority import build_plan
+                    from app.services.screener import ScreenerService
+                    try:
+                        plan = build_plan(catalog, ScreenerService(self.repo), unit,
+                                          priority_ids, cn_today(), overrides=payload["overrides"],
+                                          current=decode_frame(snapshot["frames"]["stock"]))
+                    except ValueError:
+                        # A missing scope input must never shrink the priority cohort.
+                        plan = {"day": str(cn_today()), "sequence": time.time_ns(),
+                                "symbols": self.repo.get_instruments_asset("stock")["symbol"].to_list(),
+                                "selected": []}
+                    try:
+                        self.market.minute_priority(tenant_id, plan)
+                    except AccessError:
+                        logger.warning("minute priority bridge unavailable; ordinary collection retained")
                 for sid in {r.get("strategy_id") for r in rules}:
                     if sid and catalog.has(sid):
                         payload["daily_identities"][sid] = asdict(capture_identity(
@@ -176,8 +203,38 @@ class FullWorker:
     def evaluate(self, tenant_id, snapshot, claim=None):
         started, started_at = time.perf_counter(), time.time()
         with measure_runtime_stage("monitor.prepare"):
-            account, context, payload, observed = self.prepare(tenant_id, snapshot)
-        prepared = time.perf_counter()
+            prepared = self.prepare(tenant_id, snapshot)
+        preparation_finished = time.perf_counter()
+        try:
+            return self._evaluate(tenant_id, snapshot, claim, prepared,
+                                  timings=(started, started_at, preparation_finished))
+        except Exception as exc:
+            from app.strategy.execution_status import status
+
+            account, context, payload, observed = prepared
+            state = "deferred" if isinstance(exc, AccessError) else (
+                "failed" if isinstance(exc, ValueError) else "retrying")
+            try:
+                with (
+                    authorize(self.identity, context, account["auth_version"]),
+                    TenantDocuments(self.db, context).transaction() as unit,
+                ):
+                    valid_claim(unit.connection, claim)
+                    if fingerprint(unit.connection) == observed:
+                        unit.put("strategy_execution_status", "default", {
+                            **status(state, str(exc), sequence=snapshot.get("sequence"),
+                                     fingerprint=fingerprint(unit.connection, include_state=False)),
+                            "as_of": str(cn_today()),
+                            "strategy_ids": sorted({r["strategy_id"] for r in payload["rules"]
+                                                    if r.get("strategy_id")}),
+                        })
+            except Exception:
+                logger.warning("worker failure status could not be saved with current guards")
+            raise
+
+    def _evaluate(self, tenant_id, snapshot, claim, prepared_context, *, timings):
+        account, context, payload, observed = prepared_context
+        started, started_at, prepared = timings
         sequence = int(snapshot.get("sequence", 0))
         now = time.time()
         fresh = (
@@ -246,8 +303,17 @@ class FullWorker:
                     unit.put("monitor_runtime", "default", {**result["state"], "sequence": sequence})
                     if result["results"]:
                         from app.services.strategy_results import ResultIdentity, StrategyResults
+                        from app.strategy.execution_status import merge_result, result_status
+                        previous_results = (unit.get("monitor_results", "default") or {}).get("results", {})
                         for sid, daily in result["results"].items():
-                            if sid in payload.get("daily_identities", {}):
+                            unit.put("strategy_execution_status", sid, {
+                                **result_status(daily), "as_of": daily.get("as_of"),
+                                "runtime_identity": daily.get("runtime_identity"),
+                                "fingerprint": fingerprint(conn, include_state=False),
+                            })
+                            if (sid in payload.get("daily_identities", {})
+                                    and result_status(daily)["state"] == "success"
+                                    and not daily.get("showing_last_success")):
                                 record = ResultIdentity(**payload["daily_identities"][sid])
                                 if daily.get("sections") is not None:
                                     saved = StrategyResults(unit).save(record, daily, started_at=sequence * 1000000)
@@ -256,19 +322,34 @@ class FullWorker:
                                     from app.services.daily_stock_pools import DailyStockPools
                                     DailyStockPools(unit).save(record, daily["daily_stock_pool"],
                                         started_at=sequence * 1000000)
-                            # Volatile timings belong only to the live response,
-                            # after archival comparison, never to daily history.
-                            daily["latency"] = latency
+                            result["results"][sid] = merge_result(previous_results.get(sid), daily)
+                            # Timings describe the current attempt and stay out of the archive.
+                            result["results"][sid]["latency"] = latency
                         unit.put("monitor_results", "default", {
                             "sequence": sequence, "results": result["results"],
                             "fingerprint": fingerprint(conn, include_state=False),
                         })
                         append_event(conn, tenant_id, "strategy_results_updated", {"ts": int(now * 1000)})
+                from app.strategy.execution_status import status
+
+                unit.put("strategy_execution_status", "default", {
+                    **status("success" if result is not None else "waiting" if payload["rules"] else "disabled",
+                             None if result is not None else
+                             "等待当日新鲜行情及更新序号" if payload["rules"] else "没有启用的有效监控规则",
+                             sequence=sequence, fingerprint=fingerprint(conn, include_state=False)),
+                    "as_of": str(cn_today()),
+                    "strategy_ids": sorted({r["strategy_id"] for r in payload["rules"] if r.get("strategy_id")}),
+                })
                 paper_documents = TenantPaper(self.db, context, self.repo.store.data_dir)
                 session = PaperSession(paper_documents, conn, True)
                 # Private computation can consume the quote's validity window.
                 # Recheck before placing or retrying market orders.
                 commit_now = time.time()
+                from app.strategy.execution_status import entry_events_before_deadline
+                execution_events = entry_events_before_deadline(
+                    execution_events, result["results"] if result else {},
+                    datetime.fromtimestamp(commit_now, UTC),
+                )
                 fresh = fresh and (
                     0 <= commit_now - float(snapshot.get("captured_at", 0)) < 15
                     and -2 <= commit_now - sequence / 1000 <= 15

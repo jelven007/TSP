@@ -503,18 +503,24 @@ def test_minute_context_empty_store_raises_with_guidance():
         assert "分钟K" in str(e)
 
 
-def test_minute_context_loads_daily_history_for_declared_strategies():
-    class _FakeEngine:
-        def minute_daily_history_bars(self, strategy_ids, *, overrides_map=None):
-            return 5
-
+def test_minute_context_loads_daily_history_for_declared_strategies(tmp_path):
+    (tmp_path / "m_x.py").write_text('''
+import polars as pl
+META = {"id": "m_x", "name": "m_x", "asset_types": ["stock"], "timeframes": ["1m"],
+        "daily_history_bars": 5}
+EXECUTION_BACKEND = "minute_filter"
+def filter_minute_history(df, params, *, daily=None):
+    return df
+''')
+    engine = StrategyEngine([tmp_path])
+    assert engine.minute_daily_history_bars(["m_x"]) == 5
     daily = _daily("600001.SH", 6, {1}).with_columns(pl.lit(10.0).alias("raw_close"))
     repo = _FakeMinuteRepo({date(2026, 8, 25): _bars("600001.SH", [(10.0, 10.2, 10.3)] * 3)})
     repo.get_enriched_history = lambda target_date, lookback_days: daily  # type: ignore[method-assign]
     repo.get_instruments_asset = lambda asset_type: None  # type: ignore[method-assign]
     svc = ScreenerService(repo, asset_type="stock")  # type: ignore[arg-type]
     ctx = svc.build_strategy_context(
-        _FakeEngine(), date(2026, 8, 25), ["m_x"], timeframe="1m",
+        engine, date(2026, 8, 25), ["m_x"], timeframe="1m",
         current=pl.DataFrame({"symbol": ["600001.SH"], "name": ["x"]}),
     )
     assert ctx.daily_history is not None

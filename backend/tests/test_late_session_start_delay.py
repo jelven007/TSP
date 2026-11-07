@@ -34,7 +34,10 @@ def test_breadth_and_price_bounds_use_completed_launch_slice_full_pool():
     assert result.symbols == POOL[:3]
     assert evaluate(frame=frame, sig=delayed(pool_up_min_pct=60.01)).symbols == []
     missing = frame.filter(~((pl.col("symbol") == "e") & (pl.col("datetime") == TARGET)))
-    assert evaluate(frame=missing, sig=delayed()).diagnostics
+    available = evaluate(frame=missing, sig=delayed(pool_up_min_pct=60.01))
+    assert available.pool_up_pct == 75
+    assert available.symbols == POOL[:3]
+    assert not available.diagnostics
     over = frame.with_columns(pl.when((pl.col("symbol") == "a") & (pl.col("datetime") == TARGET))
                              .then(10.401).otherwise(pl.col("close")).alias("close"))
     assert "a" not in evaluate(frame=over, sig=delayed()).symbols
@@ -127,7 +130,7 @@ def test_custom_launch_checks_next_minute(start, end):
                     completed_through=end+timedelta(minutes=1)).symbols == POOL[:3]
 
 
-@pytest.mark.parametrize("patch", [{"evaluation_delay_minutes": True}, {"evaluation_delay_minutes": 2},
+@pytest.mark.parametrize("patch", [{"evaluation_delay_minutes": True}, {"evaluation_delay_minutes": 2.25},
                                    {"time": "15:00:00"}])
 def test_new_contract_rejects_invalid_launch_or_delay(patch):
     from app.strategy import custom_signals
@@ -164,6 +167,6 @@ def test_http_save_upgrades_new_definition_but_loading_does_not(tmp_path):
     assert "evaluation_delay_minutes" not in client.get("/api/custom-signals").json()["signals"][0]["params"]
     response = client.post("/api/custom-signals", json=definition())
     assert response.status_code == 200, response.text
-    assert response.json()["signal"]["params"]["evaluation_delay_minutes"] == 1
-    assert client.get("/api/custom-signals").json()["signals"][0]["params"]["evaluation_delay_minutes"] == 1
+    assert response.json()["signal"]["params"]["evaluation_delay_minutes"] == 0.5
+    assert client.get("/api/custom-signals").json()["signals"][0]["params"]["evaluation_delay_minutes"] == 0.5
     assert client.post("/api/custom-signals", json=definition(time="15:00:00")).status_code == 400

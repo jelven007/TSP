@@ -57,6 +57,7 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
     "GET /api/paper/accounts",
     "POST /api/paper/arena/batch_create",
     "POST /api/paper/auto_rules",
+    "PUT /api/paper/auto_rules/{rule_id}",
     "DELETE /api/paper/auto_rules/{rule_id}",
     "GET /api/paper/auto_rules",
     "POST /api/paper/auto_rules/{rule_id}/enabled",
@@ -104,7 +105,11 @@ EXPECTED_OPEN_ENDPOINTS: set[str] = {
 # 旧创建/设置/冻结保持, 历史成交不改写, SQL删除需schema8。
 # market-snapshot新增可选realtime=false与symbols=null; 默认全市场行为、
 # 响应组件及开放端点集合保持, 实时模式仅读取当日共享缓存。
-EXPECTED_TIER_A_SCHEMA_SHA256 = "6d609b1ec16513e288e2161ab907483449cda7044ad32a9d5ee453a7674d1710"
+# 新增自动跟单规则PUT修改; 复用输入/响应模型, 身份和启停由服务端保留。
+# 跟单新增可选买/卖订单类型及pool模式; 账户最低佣金/额外过户费/日期税率
+# 加法扩展, 旧请求默认与端点集合不变; 费用作用全账户, 历史成交不重算。
+# 统一候选同时保留账户生命周期和market-snapshot契约, 账户PUT新增可选费率三字段。
+EXPECTED_TIER_A_SCHEMA_SHA256 = "7117dde25be64938edde68476dd8318c9353f8700a881b4a540162ff931b62c0"
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch"}
 
 

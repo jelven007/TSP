@@ -70,12 +70,28 @@ def test_archive_uses_prior_daily_close_not_prior_trigger_and_survives_restart(t
     assert store.detail("custom_test", prior["record_id"]) == prior
 
 
-def test_engine_never_borrows_older_or_current_daily_close(scan):
+@pytest.mark.parametrize("reference_day", [date(2026, 10, 29), date(2026, 11, 2)])
+def test_engine_never_borrows_older_or_current_daily_close(scan, reference_day):
     engine, context, overrides = scan
     context = replace(context, daily_history=context.daily_history.with_columns(
+        pl.lit(reference_day).alias("date")))
+    result = engine.run("custom_test", context, overrides=overrides)
+    assert result.rows == []
+    assert result.entry_signal_hits == []
+    assert result.price_suggestion_reference["closes"] == {}
+
+
+def test_unknown_display_reference_does_not_invalidate_entries_without_price_scoring(scan):
+    engine, context, overrides = scan
+    overrides = {**overrides, "scoring": {}, "scoring_replace": True}
+    original = engine.run("custom_test", context, overrides=overrides)
+    context = replace(context, daily_history=context.daily_history.with_columns(
         pl.lit(date(2026, 10, 29)).alias("date")))
-    with pytest.raises(ValueError, match="2026-10-30"):
-        engine.run("custom_test", context, overrides=overrides)
+    result = engine.run("custom_test", context, overrides=overrides)
+    assert result.rows == original.rows
+    assert len(result.entry_signal_hits) == 2
+    assert result.price_suggestion_reference["closes"] == {}
+    assert result.section_statuses["buy"] == "success"
 
 
 def test_preselection_generates_sell_interval_and_does_not_archive_market_map(tmp_path):

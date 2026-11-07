@@ -28,6 +28,25 @@ def test_edit_unused_account_updates_equity_and_preserves_identity(tmp_path):
     assert paper.list_accounts(tmp_path)[0]["name"] == "新名"
 
 
+def test_account_edit_fee_extension_preserves_existing_records(tmp_path, monkeypatch):
+    monkeypatch.setattr(paper, "cn_today", lambda: DAY)
+    before = paper.create_account(tmp_path, 200_000)
+    paper.create_order(tmp_path, SYM, "buy", qty=100, ref_price=10)
+    paper.evaluate_intraday(tmp_path, {SYM: 10})
+    fills = paper.load_fills(tmp_path)
+    cash = paper.get_account(tmp_path)["cash"]
+    updated = paper.update_account(tmp_path, name="新名", min_commission=3,
+                                   transfer_fee_pct=.00001, stamp_tax_mode="historical")
+    assert updated["name"] == "新名" and updated["cash"] == cash
+    assert updated["initial_cash"] == before["initial_cash"]
+    assert updated["min_commission"] == 3 and updated["transfer_fee_pct"] == .00001
+    assert updated["stamp_tax_mode"] == "historical"
+    assert paper.load_fills(tmp_path) == fills
+    with pytest.raises(ValueError):
+        paper.update_account(tmp_path, name="不应保存", min_commission=-1)
+    assert paper.get_account(tmp_path) == updated
+
+
 @pytest.mark.parametrize("fields", [
     {"name": " "}, {"name": "x" * 81}, {"initial_cash": 0},
     {"initial_cash": True}, {"slippage_bps": float("nan")},

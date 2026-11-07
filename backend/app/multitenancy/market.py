@@ -84,3 +84,11 @@ class PublicMarket:
 
     def close(self):
         self.client.close()
+
+    def minute_priority(self, owner, plan):
+        try:
+            response = self.client.post("/internal/cell-market/minute-priority",
+                                        json={"owner": owner, **plan})
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise AccessError(503, "分钟优先计划暂不可用") from exc

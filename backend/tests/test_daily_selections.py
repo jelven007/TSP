@@ -176,6 +176,10 @@ def test_preselection_excludes_source_dated_known_suspension(scan, monkeypatch):
     from app.services.daily_selections import compute_selections
     from app.services.screener import ScreenerService
     engine, context, _overrides = scan
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda *_: pl.DataFrame(),
+        get_daily_close_inputs=lambda day: (
+            context.daily_history, context.daily_history.select("symbol", "close"))))
     daily = context.daily_history.with_columns(pl.lit(True).alias("is_suspended"))
     service = ScreenerService(SimpleNamespace(
         get_instruments_asset=lambda *_: pl.DataFrame(),

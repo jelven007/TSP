@@ -9,7 +9,7 @@ P1 收口范围: 目录元数据 (id/label/group/公式)、虚拟因子依赖声
 P1 边界 (诚实声明):
   - scoring_value_expr 的表达式分发仍留在 scoring.py, 注册表不含计算逻辑;
     复合/自定义因子 (composite/custom) 与 DSL 在 P2/P3 接入后再收口。
-  - unit 字段 P1 统一 "none": 单位口径涉及金融数据契约 (CONTRIBUTING §3),
+  - 历史P1 unit保留 "none"; 新增已核实因子可显式声明单位。单位涉及金融数据契约 (CONTRIBUTING §3),
     未经逐因子核对禁止猜测填充; 前端 P1 也不按 unit 格式化。
 """
 from __future__ import annotations
@@ -299,6 +299,12 @@ _CATALOG: tuple[FactorSpec, ...] = (
         "kdj_kd_diff", "KDJ K-D差", "趋势",
         "KDJ K值 - D值, 正值代表快线在慢线上方",
         deps=frozenset({"kdj_k", "kdj_d"}),
+    ),
+    _virtual(
+        "atr14_sma_pct", "ATR14简单均值相对波动", "波动率",
+        "日K: 14个TR简单均值 / 同日收盘价; 需要连续15根有效日K, 0.02表示2%; 分钟策略取精确T-1",
+        deps=frozenset({"date", "high", "low", "close"}), warmup_bars=15,
+        unit="ratio", tags=("daily", "sma", "atr"),
     ),
 )
 

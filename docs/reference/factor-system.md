@@ -1,5 +1,14 @@
 # 因子平台：实现、技术契约与后续设计
 
+2026-11-07新增独立共享因子`atr14_sma_pct`（ATR14简单均值相对波动）。
+每日D使用D及前14交易日共15根一致复权日K，14个TR简单均值除以D收盘；
+单位ratio，0.02表示2%。原`atr_14`递归平滑和`atr_pct`保持原语义。
+窗口缺根、重复、无效价格或未知日历返回缺值，不能将分钟K解释为日K；
+分钟S02经受信任入口读取精确T-1窗口，异常阻止扫描。
+因子库、信号条件、评分、公式试算和因子检验共享同一数值内核；
+目录末尾追加为78项，原前77项及挖掘前48项不重排。
+实现、测试和安装边界见[本次验收](../../reports/engineering/atr14-shared-factor-20261107/report.md)。
+
 内容核对日期：2026-10-30。注册、DSL、组合与服务端统计已有实现；
 完整历史宇宙、中性化、自动衰减和自动权重仍是目标。
 当前请求响应以[factors API](../../backend/app/api/factors.py)与[契约测试](../../backend/tests/test_factor_api.py)为准，
@@ -17,7 +26,7 @@
 
 | 层 | 已有实现与事实源 | 尚未实现/与原提案的区别 |
 | --- | --- | --- |
-| L-REG | [registry.py](../../backend/app/factors/registry.py)：77 项内置目录，元数据/依赖/预热兼容视图与私有注册上下文 | 原 `expr_factory` 完整 schema 未原样实现；单位默认 `none`，不按猜测认证单位 |
+| L-REG | [registry.py](../../backend/app/factors/registry.py)：78 项内置目录，元数据/依赖/预热兼容视图与私有注册上下文 | 原 `expr_factory` 完整 schema 未原样实现；历史单位保留 `none`，SMA ATR已核实为ratio |
 | L-DSL | [dsl.py](../../backend/app/factors/dsl.py)：25 个算子、编译校验及两阶段求值 | 当前为单文件；不能导入提案中的 `dsl/` 子包 |
 | L-CMP | [store.py](../../backend/app/factors/store.py) 与评分物化：自定义/复合定义、版本、生命周期、组合权重 | 没有独立 `composite.py` 模块；自动 ICIR 权重模式未交付 |
 | L-INF | [stats_v2.py](../../backend/app/backtest/stats_v2.py)：Newey-West、BH-FDR、DSR，已接批量检验 | 没有提案中的 `factors/stats.py`；统计显著性不认证可交易收益 |

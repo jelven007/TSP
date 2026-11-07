@@ -37,11 +37,11 @@ afterEach(async () => {
   client?.clear(); host?.remove(); vi.useRealTimers()
 })
 async function flush() { await act(async () => { await vi.advanceTimersByTimeAsync(10) }) }
-async function render(columns?: ReturnType<typeof defaultStrategyResultColumns>) {
+async function render(columns?: ReturnType<typeof defaultStrategyResultColumns>, data = result) {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   await act(async () => root.render(<QueryClientProvider client={client}>
-    <StrategyDailyResults result={result} positionLimit={5} onPreview={onPreview} signalColumns={columns} />
+    <StrategyDailyResults result={data} positionLimit={5} onPreview={onPreview} signalColumns={columns} />
   </QueryClientProvider>))
   await flush()
 }
@@ -97,10 +97,83 @@ it('sorts saved scalar columns and preserves custom column order', async () => {
   const columns = defaultStrategyResultColumns('sell').reverse()
   await render(columns)
   const headers = [...host.querySelectorAll('th')].map(el => el.getAttribute('data-column'))
-  expect(headers).toEqual(columns.filter(col => col.visible && col.source.type === 'builtin')
+  expect(headers).toEqual(columns.filter(col => col.visible && col.source.type === 'builtin'
+    && !['atr14_previous_close', 'atr_rank'].includes(col.source.key))
     .map(col => col.source.type === 'builtin' ? col.source.key : ''))
   await sort('close')
   expect(order()).toEqual([...symbols].reverse())
   expect(host.querySelector('th[data-column="live_signals"] button')).toBeNull()
   expect(host.querySelector('th[data-column="suggested_sell_price"] button')).toBeNull()
+})
+
+it('shows distinct selection and ATR rank scores in the selection tab', async () => {
+  rows[0] = { ...rows[0], atr14_previous_close: .12, atr_rank: 1, atr_rank_score: 100 } as typeof rows[number]
+  try {
+    await render()
+    await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1].click())
+    await flush()
+    expect(host.querySelector('th[data-column="score"]')?.textContent).toContain('选股评分')
+    expect(host.querySelector('th[data-column="atr_rank_score"]')?.textContent).toContain('排名分数')
+    expect(host.querySelector('td[data-column="atr14_previous_close"]')?.textContent).toBe('12.00%')
+    expect(host.querySelector('td[data-column="atr_rank_score"]')?.textContent).toBe('100.00')
+  } finally {
+    rows[0] = { symbol: symbols[0], name: '股票0', close: 100, score: 0 }
+  }
+})
+
+const s02Rows = [
+  { symbol: symbols[4], atr14_previous_close: null },
+  { symbol: symbols[2], atr14_previous_close: .12 },
+  { symbol: symbols[1], atr14_previous_close: 0 },
+  { symbol: symbols[3], atr14_previous_close: Infinity },
+  { symbol: symbols[0], atr14_previous_close: .12 },
+]
+const s02Result: ScreenerResult = {
+  ...result, strategy: 'custom_mvxxcp88', selection_only: true,
+  sections: { sell: s02Rows, select: s02Rows, buy: s02Rows },
+}
+const atrOrder = [symbols[0], symbols[2], symbols[1], symbols[3], symbols[4]]
+
+it('defaults S02 selection to descending ATR, code ties and unknown values last without changing archives', async () => {
+  const original = s02Rows.map(row => ({ ...row }))
+  await render(undefined, s02Result)
+  expect(order()).toEqual(atrOrder)
+  expect(host.querySelector('th[data-column="atr14_previous_close"]')?.getAttribute('aria-sort')).toBe('descending')
+  expect([...host.querySelectorAll('td[data-column="atr14_previous_close"]')].map(cell => cell.textContent))
+    .toEqual(['12.00%', '12.00%', '0.00%', '—', '—'])
+  await act(async () => host.querySelector<HTMLButtonElement>('tbody td[data-column="symbol"] button')!.click())
+  expect(onPreview.mock.calls[0][2].map((item: { symbol: string }) => item.symbol)).toEqual(atrOrder)
+  expect(s02Result.sections?.select).toBe(s02Rows)
+  expect(s02Rows).toEqual(original)
+})
+
+it('lets S02 manual sorting override the default and restores ATR descending when cleared', async () => {
+  await render(undefined, s02Result)
+  await sort('live_price')
+  expect(order()).toEqual([symbols[1], symbols[0], symbols[2], symbols[3], symbols[4]])
+  expect(host.querySelector('th[data-column="atr14_previous_close"]')?.getAttribute('aria-sort')).toBe('none')
+  await sort('live_price')
+  expect(order()).toEqual(symbols)
+  await sort('live_price')
+  expect(order()).toEqual(atrOrder)
+  expect(host.querySelector('th[data-column="atr14_previous_close"]')?.getAttribute('aria-sort')).toBe('descending')
+  await sort('atr14_previous_close')
+  expect(order()).toEqual([symbols[1], symbols[0], symbols[2], symbols[3], symbols[4]])
+  await sort('atr14_previous_close')
+  expect(order()).toEqual(atrOrder)
+  await sort('atr14_previous_close')
+  expect(order()).toEqual(atrOrder)
+  expect(host.querySelector('th[data-column="atr14_previous_close"]')?.getAttribute('aria-sort')).toBe('descending')
+})
+
+it('keeps S02 default ATR ordering with the column hidden and leaves buy and sell in saved order', async () => {
+  const columns = defaultStrategyResultColumns('select', s02Result.strategy)
+    .map(col => col.source.type === 'builtin' && col.source.key === 'atr14_previous_close' ? { ...col, visible: false } : col)
+  await render(columns, s02Result)
+  expect(order()).toEqual(atrOrder)
+  expect(host.querySelector('th[data-column="atr14_previous_close"]')).toBeNull()
+  for (const index of [0, 2]) {
+    await act(async () => host.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index].click())
+    expect(order()).toEqual(s02Rows.map(row => row.symbol))
+  }
 })

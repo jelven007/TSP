@@ -59,6 +59,9 @@ def _isolate_runtime_ext_factors(tmp_path, monkeypatch):
 
 
 def test_custom_factor_definition_roundtrip(tmp_path, cleanup_registry) -> None:
+    builtin_ids = [item["id"] for item in factor_columns_view()]
+    assert len(builtin_ids) == 78
+    assert "atr14_sma_pct" in builtin_ids
     definition = {
         "id": "uf_test_rev", "kind": "custom", "version": 1, "label": "测试反转",
         "group": "自定义", "formula": "rank(-ts_sum(close / ts_delay(close, 1) - 1, 5))",
@@ -76,13 +79,12 @@ def test_custom_factor_definition_roundtrip(tmp_path, cleanup_registry) -> None:
 
     # 目录视图与 all_factors 追加动态因子
     ids = [item["id"] for item in factor_columns_view()]
-    assert ids[:77] == [item["id"] for item in factor_columns_view()[:77]]
-    assert "uf_test_rev" in ids and ids.index("uf_test_rev") >= 77
+    assert ids == [*builtin_ids, "uf_test_rev"]
     assert any(s.id == "uf_test_rev" for s in all_factors())
 
-    # 快照约束不受影响: 未注册动态因子时目录 = 77 内置
+    # 删除动态因子后, 完整内置目录及原有顺序保持。
     unregister_factor("uf_test_rev")
-    assert len(factor_columns_view()) == 77
+    assert [item["id"] for item in factor_columns_view()] == builtin_ids
 
 
 def test_custom_factor_invalid_rejected(cleanup_registry) -> None:

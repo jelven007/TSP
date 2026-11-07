@@ -199,6 +199,11 @@ class _PrecomputedMonitorStrategyEngine:
         ]
         strategy = self.get(strategy_id)
         overrides = self._overrides.get((asset_type, strategy_id), {})
+        from app.strategy.candidate_order import candidate_pool_order
+        candidate_metadata = candidate_pool_order(result, strategy_id, {
+            **{p["id"]: p.get("default") for p in strategy.meta.get("params", [])},
+            **overrides,
+        })
         limit_resolver = getattr(self._source, "_result_limit", None)
         if callable(limit_resolver):
             limit = limit_resolver(strategy, overrides)
@@ -224,6 +229,7 @@ class _PrecomputedMonitorStrategyEngine:
             result,
             rows=rows,
             total=len(rows),
+            candidate_pool_metadata=candidate_metadata,
             scores=scores,
             entry_signal_hits=filter_hits(result.entry_signal_hits),
             exit_signal_hits=filter_hits(result.exit_signal_hits, holdings=True),
@@ -1177,6 +1183,16 @@ class MonitorRuleEngine:
                 except Exception as exc:
                     logger.warning("策略 %s 选股执行失败: %s", strategy_id, exc)
                     failed.add((asset_type, strategy_id))
+                    from app.strategy.engine import StrategyResult
+                    from app.strategy.execution_status import status
+
+                    result = StrategyResult(
+                        as_of=today, strategy_id=strategy_id, entry_filter_error=str(exc),
+                        section_statuses={"buy": "failed"},
+                    )
+                    result.execution_status = status(
+                        "retrying" if isinstance(exc, (TimeoutError, OSError)) else "failed", str(exc))
+                    outcomes[(asset_type, strategy_id)] = result
                     continue
                 outcomes[(asset_type, strategy_id)] = result
 
@@ -1225,11 +1241,22 @@ class MonitorRuleEngine:
         }
         if getattr(result, "entry_filter_error", None):
             payload["warnings"] = [result.entry_filter_error]
+            payload["entry_filter_error"] = result.entry_filter_error
+        if getattr(result, "exit_filter_error", None):
+            payload["exit_filter_error"] = result.exit_filter_error
+            payload.setdefault("warnings", []).append(result.exit_filter_error)
+        if getattr(result, "execution_status", None):
+            payload["execution_status"] = result.execution_status
+        if getattr(result, "entry_deadline_at", None):
+            payload["entry_deadline_at"] = result.entry_deadline_at
+        if getattr(result, "entry_data_quality", None):
+            payload["entry_data_quality"] = result.entry_data_quality
         if getattr(result, "sections", None) is not None:
             payload.update(sections=result.sections, state=result.state,
                            portfolio_scope=result.portfolio_scope, execution_error=result.execution_error)
             if getattr(result, "section_mode", None):
-                payload.update(section_mode=result.section_mode, section_errors=result.section_errors)
+                payload.update(section_mode=result.section_mode, section_errors=result.section_errors,
+                               section_statuses=getattr(result, "section_statuses", None))
                 payload["selection_snapshot"] = getattr(result, "selection_snapshot", None)
         if getattr(result, "daily_stock_pool", None) is not None:
             payload["daily_stock_pool"] = result.daily_stock_pool
@@ -1238,6 +1265,18 @@ class MonitorRuleEngine:
         if getattr(result, "price_suggestion_reference", None) is not None:
             payload["price_suggestion_reference"] = result.price_suggestion_reference
         return payload
+
+    def _record_strategy_failure(self, sid, strategy, overrides, asset_type, exc):
+        from app.strategy.execution_status import merge_result, status
+
+        previous = self._latest_strategy_results.get(sid)
+        current = {
+            **self._live_result_identity(strategy, overrides, asset_type),
+            "as_of": str(cn_today()), "rows": [], "total": 0,
+            "execution_status": status("retrying" if isinstance(exc, (TimeoutError, OSError)) else "failed", str(exc)),
+        }
+        self._building_strategy_results[sid] = merge_result(previous, current)
+        self._latest_strategy_result_ids.add(sid)
 
     def publish_strategy_group(
         self,
@@ -1266,7 +1305,11 @@ class MonitorRuleEngine:
         with self._strategy_runtime_lock:
             if not self._strategy_group_is_current_locked(evaluation):
                 return False
-            self._latest_strategy_results = evaluation.results
+            from app.strategy.execution_status import merge_result
+            self._latest_strategy_results = {
+                sid: merge_result(self._latest_strategy_results.get(sid), current)
+                for sid, current in evaluation.results.items()
+            }
             self._latest_strategy_result_ids = set(evaluation.results)
             return True
 
@@ -2005,6 +2048,7 @@ class MonitorRuleEngine:
             )
         except Exception as e:
             logger.warning("策略 %s 选股执行失败: %s", sid, e)
+            self._record_strategy_failure(sid, s, overrides, at, e)
             return []
 
         entry_filter_error = getattr(result, "entry_filter_error", None)
@@ -2017,10 +2061,11 @@ class MonitorRuleEngine:
         # 避免并发读到半填充状态。
         if at == "stock":
             try:
-                self._building_strategy_results[sid] = {
+                from app.strategy.execution_status import merge_result
+                self._building_strategy_results[sid] = merge_result(self._latest_strategy_results.get(sid), {
                     **self._live_result_identity(s, overrides, at),
                     **self._strategy_result_payload(result),
-                }
+                })
                 if entry_filter_error:
                     self._building_strategy_results[sid]["warnings"] = [entry_filter_error]
                 self._latest_strategy_result_ids.add(sid)
@@ -2058,6 +2103,13 @@ class MonitorRuleEngine:
         notify_events = set(rule.get("notify_events") or ("pool_entry", "pool_exit"))
         sname = s.meta.get("name", "") or s.meta.get("id", sid)
         row_map: dict[str, dict] = {r["symbol"]: r for r in result.rows}
+        from app.strategy.candidate_order import candidate_pool_order
+
+        candidate_ranks = candidate_pool_order(result, sid, {
+            **{item["id"]: item.get("default") for item in s.meta.get("params", [])
+               if isinstance(item, dict) and item.get("id")},
+            **(overrides.get("params") or {}),
+        })
         try:
             for row in df.iter_rows(named=True):
                 symbol = str(row.get("symbol", ""))
@@ -2142,7 +2194,7 @@ class MonitorRuleEngine:
                     # Notifications retain their display price; executions use raw money.
                     execution_rows.append((
                         *hit[:3], row.get("raw_close", hit[3]), *hit[4:],
-                        {"score": score, "entry_policy": {
+                        {**candidate_ranks.get(hit[1], {}), "score": score, "entry_policy": {
                             **entry_policy, "signal_reference": reference_from_row(row),
                         } if entry_policy is not None else None},
                     ))

@@ -140,7 +140,7 @@ def generate_local(engine, service, storage, as_of, *, slot=None):
     from app.services.daily_pool_schedule import batch_pool
     from app.services.strategy_results import capture_identities, execution_snapshot
     from app.strategy.config import list_overrides
-    from app.strategy.daily_pool import build_pool
+    from app.strategy.daily_pool import DEFINITION_VERSION, build_pool
 
     engine = execution_snapshot(engine, storage)
     overrides = list_overrides(storage)
@@ -148,15 +148,18 @@ def generate_local(engine, service, storage, as_of, *, slot=None):
            if not strategy.meta.get("research_only") and "stock" in strategy.meta.get("asset_types", ["stock"])]
     identities = capture_identities(engine, storage, ids, overrides_map=overrides, timeframe="all")
     store = DailyStockPools(storage)
-    marker = digest({sid: identity.fingerprint for sid, identity in identities.items()})
+    marker = digest({"definition_version": DEFINITION_VERSION,
+                     "identities": {sid: identity.fingerprint for sid, identity in identities.items()}})
     job_key = f"{as_of}:{slot}"
     previous = store.job(job_key) if slot else {}
     completed = set(previous.get("completed", [])) if previous.get("signature") == marker else set()
-    if slot and previous.get("state") == "succeeded":
+    if (slot and previous.get("state") == "succeeded"
+            and previous.get("definition_version") == DEFINITION_VERSION):
         return {"saved": [], "errors": {}}
     pending = [sid for sid in ids if sid not in completed]
     if slot:
-        store.job(job_key, {"signature": marker, "state": "running", "completed": sorted(completed),
+        store.job(job_key, {"signature": marker, "definition_version": DEFINITION_VERSION,
+                           "state": "running", "completed": sorted(completed),
                            "started_at": int(time.time() * 1000),
                            "attempts": previous.get("attempts", 0) + 1})
     saved, errors = [], {}

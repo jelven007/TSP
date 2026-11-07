@@ -171,6 +171,7 @@ def test_minute_replay_halt_exclusion_and_unknown_quote_diagnostic(engine, tmp_p
 
     from app.backtest.minute_replay import MinuteSignalReplayer
     from app.strategy import custom_signals
+    from app.strategy.late_session_strength import evaluate
 
     minute = bars().filter(pl.col("symbol") == "a").with_columns(
         pl.lit(ACTIVE).alias("symbol"),
@@ -193,11 +194,19 @@ def test_minute_replay_halt_exclusion_and_unknown_quote_diagnostic(engine, tmp_p
     assert [hit.symbol for hit in fixed.hits] == [ACTIVE]
     unchecked = replayer.replay(engine.get("sample"), panel=panel, start=DAY, end=DAY,
         params={}, overrides={**overrides, "basic_filter": {**BF, "exclude_suspended": False}})
-    assert any("1/2" in message for message in unchecked.errors)
+    assert unchecked.errors == []
+    assert [hit.symbol for hit in unchecked.hits] == [ACTIVE]
+    quality = evaluate(minute, definition(), day=DAY, pool_symbols=[ACTIVE, HALTED],
+                       prev_close={ACTIVE: 10., HALTED: 10.})
+    assert quality.pool_total == 2 and quality.pool_usable == 1
+    assert quality.missing_symbols == [HALTED]
+    assert quality.pool_up_pct == 100.
+    assert quality.breadth_policy == "available_members_v1"
     repo.get_suspension_history = lambda: events().clear()
     unknown = replayer.replay(engine.get("sample"), panel=panel, start=DAY, end=DAY,
                               params={}, overrides=overrides)
-    assert any("1/2" in message for message in unknown.errors)
+    assert unknown.errors == []
+    assert [hit.symbol for hit in unknown.hits] == [ACTIVE]
 
 
 def test_research_fingerprint_includes_suspension_events(tmp_path):
@@ -240,15 +249,16 @@ def test_optional_timestamp_loader_preserves_old_schema_and_rejects_wrong_date(t
         load_suspension_history(tmp_path)
 
 
-@pytest.mark.parametrize("published,error,delay", [
-    ("09:00:00", False, 0), ("15:00:00", True, 0),
-    ("14:30:30", True, 0), ("14:30:30", False, 1), ("14:31:01", True, 1),
-    ("14:31:01", False, 1.5), ("14:31:30", False, 1.5), ("14:31:31", True, 1.5),
+@pytest.mark.parametrize("published,known,delay", [
+    ("09:00:00", True, 0), ("15:00:00", False, 0),
+    ("14:30:30", False, 0), ("14:30:30", True, 1), ("14:31:01", False, 1),
+    ("14:31:01", True, 1.5), ("14:31:30", True, 1.5), ("14:31:31", False, 1.5),
 ])
-def test_replay_uses_signal_time_not_end_of_day_for_suspension(engine, tmp_path, published, error, delay):
+def test_replay_uses_signal_time_not_end_of_day_for_suspension(engine, tmp_path, published, known, delay):
     from test_late_session_strength import TARGET, bars, definition
 
     from app.backtest.minute_replay import MinuteSignalReplayer
+    from app.instrument_suspension import pool_evidence
     from app.strategy import custom_signals
 
     minute = bars(TARGET).filter(pl.col("symbol") == "a").with_columns(
@@ -265,7 +275,15 @@ def test_replay_uses_signal_time_not_end_of_day_for_suspension(engine, tmp_path,
     result = MinuteSignalReplayer(SimpleNamespace(repo=repo), engine).replay(
         engine.get("sample"), panel=prices(), start=DAY, end=DAY, params={},
         overrides={"basic_filter": BF, "entry_signals": ["csgi_late_session_strength"]})
-    assert bool(result.errors) is error
+    assert result.errors == []
+    assert [hit.symbol for hit in result.hits] == [ACTIVE]
+    observed = datetime(2026, 6, 29, 14, 30) + timedelta(minutes=delay)
+    context = StrategyDataContext(
+        "stock", "1m", DAY, current=prices().filter(pl.col("date") == PRIOR),
+        pool_history=prices(), pool_universe=pool_evidence(repo, DAY, observed_at=observed))
+    pool = build_pool(engine, "sample", context, overrides={"basic_filter": BF})
+    assert pool["symbols"] == ([ACTIVE] if known else [ACTIVE, HALTED])
+    assert pool["suspended_count"] == int(known)
 
 
 @pytest.mark.parametrize("clock,excluded", [("08:00", False), ("09:00", True)])

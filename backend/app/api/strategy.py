@@ -32,8 +32,8 @@ from app.strategy.engine import StrategyDef, StrategyEngine
 from app.strategy.prompt_builder import build_step1, build_step2
 from app.strategy.scoring import (
     SCORING_DIRECTIONS,
-    effective_scoring,
     effective_scoring_directions,
+    effective_strategy_scoring,
 )
 
 router = APIRouter(prefix="/api/strategies", tags=["strategies"])
@@ -203,7 +203,7 @@ def _strategy_detail(
 ) -> dict:
     """策略详情（含用户覆盖）"""
     bf = {**s.basic_filter}
-    scoring = effective_scoring(s.meta.get("scoring"), overrides)
+    scoring = effective_strategy_scoring(s.meta, overrides)
     scoring_directions = effective_scoring_directions(overrides)
     params_defaults = {p["id"]: p["default"] for p in s.meta.get("params", [])}
     from app.strategy.families import builtin_family
@@ -249,6 +249,7 @@ def _strategy_detail(
             }
         }} if include_defaults else {}),
         "scoring": scoring,
+        "scoring_mode": s.meta.get("scoring_mode", "generic"),
         "overlay_filter": effective_conditions(overrides),
         "scoring_directions": {
             name: direction

@@ -55,6 +55,39 @@ def assert_ledger(storage):
     assert cash >= 0
 
 
+def test_full_extended_costs_rule_pool_and_transaction_isolation(owned, monkeypatch):
+    own, other = owned
+    for storage in (own, other):
+        paper.create_account(storage, 100000, slippage_bps=0)
+    paper.update_settings(own, min_commission=3, transfer_fee_pct=.00001, stamp_tax_mode="historical")
+    assert paper.get_account(other).get("min_commission") == 5
+    rule = paper_auto.create_auto_rule(own, {
+        "name": "pool", "match_kind": "strategy", "match_id": "s1", "side": "auto",
+        "size_mode": "fixed_amount", "size_value": 10000, "order_type": "next_open",
+        "buy_order_type": "market", "sell_order_type": "market", "candidate_priority": "pool",
+    })
+    metadata = {
+        "source": "strategy", "strategy_id": "s1", "type": "buy_signal", "symbol": SYM,
+        "price": 10, "candidate_pool_rank": 1, "candidate_pool_rule": "output_order_v1",
+        "candidate_pool_source": {"strategy_id": "s1", "as_of": str(DAY), "size": 1},
+    }
+    order = paper_auto.on_rule_events(own, [metadata])[0]
+    assert order["order_type"] == "market"
+    paper.evaluate_intraday(own, {SYM: 10})
+    assert paper.get_order(own, order["id"])["fees"] == 3.1
+    monkeypatch.setattr(paper, "cn_today", lambda: NEXT)
+    sell = paper_auto.on_rule_events(own, [{**metadata, "type": "sell_signal"}])[0]
+    paper.evaluate_intraday(own, {SYM: 10})
+    assert paper.get_order(own, sell["id"])["fees"] == 8.1
+    assert paper_auto.load_auto_rules(own)[0]["id"] == rule["id"]
+    assert paper_auto.load_auto_rules(other) == [] and paper.load_fills(other) == []
+    before = paper.get_account(own)
+    with pytest.raises(ValueError):
+        paper.update_settings(own, min_commission=-1, commission_pct=.0005)
+    assert paper.get_account(own) == before
+    assert_ledger(own)
+
+
 def test_event_cash_rights_concurrency_isolation_and_transaction_recovery(owned, monkeypatch):
     from app.data_providers.corporate_actions import CorporateAction
     from app.services.corporate_actions import save_actions
@@ -292,6 +325,35 @@ def test_auto_trigger_atomic_zero_cooldown_and_restart_isolation(owned):
     assert not paper_auto.delete_auto_rule(other, rule["id"])
     paper_auto.set_enabled(own, rule["id"], False)
     assert paper_auto.on_rule_events(own, [{**ev, "id": "event-two"}]) == []
+
+
+def test_auto_rule_update_is_tenant_account_scoped_and_rolls_back(owned, monkeypatch):
+    own, other = owned
+    for storage in (own, other):
+        paper.create_account(storage, 100000)
+    paper.create_account(own, 100000, account_id="second")
+    rule = paper_auto.create_auto_rule(own, {
+        "name": "待修改", "match_kind": "strategy", "match_id": "demo",
+        "side": "auto", "size_value": 10000, "enabled": False,
+    })
+    assert paper_auto.update_auto_rule(other, rule["id"], {"name": "越界"}) is None
+    assert paper_auto.update_auto_rule(own, rule["id"], {"name": "越界"}, "second") is None
+    restart = TenantPaper(own.db, own.context, own.public_data_dir)
+    updated = paper_auto.update_auto_rule(restart, rule["id"], {"name": "已修改", "size_value": 20000})
+    assert updated == {**rule, "name": "已修改", "size_value": 20000}
+    assert paper_auto.load_auto_rules(own) == [updated]
+    assert paper_auto.load_auto_rules(other) == paper_auto.load_auto_rules(own, "second") == []
+
+    original = PaperSession.put_document
+
+    def fail_after_save(self, *args, **kwargs):
+        original(self, *args, **kwargs)
+        raise OSError("update transaction failed")
+
+    monkeypatch.setattr(PaperSession, "put_document", fail_after_save)
+    with pytest.raises(OSError, match="update transaction failed"):
+        paper_auto.update_auto_rule(own, rule["id"], {"name": "不应写入"})
+    assert paper_auto.load_auto_rules(restart) == [updated]
 
 
 def test_auto_position_slots_are_atomic_across_workers_rules_and_tenants(owned):
@@ -544,11 +606,20 @@ def test_original_http_paper_contract_alerts_and_no_shared_file_leak(env, owned)
         assert client.get("/api/paper/positions").json()["holdings"][0]["qty"] == 100
         assert client.get("/api/paper/compare").json()["accounts"][0]["account"] == "default"
         assert len(Alerts(TenantDocuments(own.db, own.context)).list_recent()) == 1
+        rule_body = {"name": "HTTP跟单", "match_kind": "strategy", "match_id": "demo",
+                     "size_value": 10000, "enabled": False}
+        rule = client.post("/api/paper/auto_rules", json=rule_body).json()["rule"]
+        rule_url = "/api/paper/auto_rules/" + rule["id"]
+        updated = client.put(rule_url, json={**rule_body, "name": "HTTP已修改", "enabled": True})
+        assert updated.status_code == 200 and updated.json()["rule"]["enabled"] is False
+        assert updated.json()["rule"]["id"] == rule["id"]
         client.cookies.set("tf_session", other_token)
         assert client.get("/api/paper/accounts").json() == {"accounts": []}
         assert client.get("/api/paper/trades").json() == {
             "fills": [], "total": 0, "execution_total": 0, "next_cursor": None,
         }
         assert client.delete("/api/paper/orders/" + order_id).status_code == 400
+        assert client.put(rule_url, json=rule_body).status_code == 404
+        assert paper_auto.load_auto_rules(own)[0]["name"] == "HTTP已修改"
         assert Alerts(other).list_recent() == []
     assert not (own.public_data_dir / "paper").exists()

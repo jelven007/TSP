@@ -162,7 +162,7 @@ TSP/
 │   ├── operations/                 # 存储、安全、清理与保留政策
 │   ├── production-system-consolidation-20261023/ # 固定需求检查基准
 │   └── <原有固定或活跃条目>/        # 本批保留，原因见报告索引
-├── deliverables/                   # 本地用户成果；不进入 Git/镜像
+├── reports/                   # 本地用户成果；不进入 Git/镜像
 ├── 操作说明书.md                    # 中文操作入口
 └── data/                           # 用户运行数据；运行时生成，不进入 Git/镜像
 ```
@@ -180,7 +180,7 @@ TSP/
 | 配置 | 应用与运维负责人 | 根 `.env.example`、`tiers.yaml` 和 `deploy/full/*.env`；真实密钥只存本地受控文件 |
 | 自动化与脚本 | 对应模块负责人 | 不依赖后端的仓库工具在 `scripts/`；依赖 `app` 的命令在 `backend/scripts/` |
 | 测试 | 开发与测试负责人 | 后端测试在 `backend/tests/`，前端测试与组件就近，仓库工具测试在 `tests/tooling/` |
-| 验证与交付 | 测试／发布负责人 | 证据归 `reports/<分类>/<专题-日期>/`；用户离线成果归 `deliverables/<分类>/<专题-日期>/` |
+| 验证与交付 | 测试／发布负责人 | 证据归 `reports/<分类>/<专题-日期>/`；用户离线成果归 `reports/<分类>/<专题-日期>/` |
 | 运行数据 | 部署者／数据管理员 | `DATA_DIR` 由应用管理，日志、策略、研究快照与行情不写入源码或测试目录 |
 
 依赖沿“API／页面 → 业务服务 → 领域计算与仓库 → Provider／存储”向下；
@@ -244,7 +244,7 @@ ClickHouse、对象存储、Ray 及消息流方案尚未接入当前应用，不
 - 根启动器、Dockerfile、配置事实源、前后端包路径、SQL 迁移装载路径继续有效。
 - 应用版本由远程 main CI 管理；本地目录整理不手工递增。
 - 当前需求、架构、配置与操作文档保留稳定入口；历史分析逐步归档，更新所有当前引用。
-- `deliverables/`、`data/`、`.tools/`、缓存和构建输出不进入运行镜像。
+- `reports/`、`data/`、`.tools/`、缓存和构建输出不进入运行镜像。
 - 目录调整只更新路径和包接线，不改变 API、数据单位、缓存键、证券规则或部署角色。
 - 回退本次目录变更时，需将调用方与文件位置一起回退；用户数据和数据库无需迁移。
 
@@ -577,6 +577,10 @@ git ls-remote --tags origin 'refs/tags/v*'
 
 | 变更组 / 责任 | 需求 | 方案 / 开发 | 测试 | 运营 / 运维影响 |
 | --- | --- | --- | --- | --- |
+| 模拟自动规则修改 / 应用与运维负责人 | FR-PAPER-07 | 共用表单/Modal、账户PUT、原领域锁/SQL事务及退出生命周期；L3 | 181后端含真实PG、13前端、构建/lint、1440浅深色及390真实保存 | 无SQL迁移，保留身份/启停/历史；本任务未安装运行环境；[证据](../../reports/engineering/paper-rule-edit-20261107/report.md) |
+| S02选页默认ATR降序 / 应用和运维负责人 | FR-STRATEGY-05、NFR-06 | 展示副本ATR降序、代码升序，默认表头及三态覆盖；L3 | 两端各51前端、构建、旧实现3项反证、1440/390现场、双库恢复 | 名单/归档/参数保持，两端运行0.4.52已安装；[证据](../../reports/engineering/s02-default-atr-sort-20261107/report.md) |
+| S02三页行情与ATR补齐 / 应用和运维负责人 | FR-STRATEGY-05、NFR-06 | 共用列解析、精确休市行情缓存、预选可选指标逐股隔离；L3 | 两端各69后端/48前端、构建、1440/390、双库恢复、25份指标回滚/提交/缓存 | 两端0.4.52，30秒与完整池保持，历史缺日K保留未知；[当前证据](../../reports/engineering/s02-market-atr-20261107/report.md) |
+| S02参考换手率与选页列 / 应用和运维负责人 | FR-STRATEGY-05、NFR-06 | select_rows精确参考日→冻结结果→共用S02列迁移；L3 | 两端各54后端/84前端、构建/lint、1440/390页面与双库恢复 | 两端0.4.52，原配置/成员/归档/账本保持；[当前证据](../../reports/engineering/s02-select-turnover-20261107/report.md) |
 | 工程目录 / 开发负责人 | NFR-01/04/06/10 | [布局](#layout)、[生产工程](#engineering)、ADR0001/0002 | tooling、脚本import/CLI、CI、文档门禁 | 外部作业同步新路径，模式/端口/数据目录不随源码迁移 |
 | 需求基线与八模块 / 产品负责人 | 全164FR、42NFR | [需求总纲](../requirements.md)、[当前索引](../architecture.md#capabilities) | 保留203个原编号；唯一性、八模块、状态与链接 | 用户说明只写当前能力，阶段/生产/目标独立 |
 | 融合系统目标 / 架构负责人 | FR-REALTIME/STATS/HISTORY/SCREEN/BACKTEST、NFR-23–42 | [系统目标](../architecture.md#target)、[二期计划](../planning/phase2-implementation-plan.md) | A–I、3.1–3.6联合矩阵，未实现项未执行 | 容量/成本/可靠性目标未签收，轻量不强装新组件 |
@@ -590,7 +594,7 @@ git ls-remote --tags origin 'refs/tags/v*'
 | 验收/性能/维护脚本归档 / 对应开发与测试 | NFR-14–17/22/28、相关FR | backend/scripts六分类、scripts三分类及各README | 所有受影响脚本测试、沙箱/打包/拷贝路径 | 从backend用新模块名；主机已安装maintenance脚本不自动改名 |
 | 工具测试/工作流 / 发布负责人 | NFR-04/06/10 | Makefile、pyproject测试发现、CI/Windows工作流、版本工具 | tooling版本/工作流、路径/包配置回归 | 质量门SHA与产物一致；本地不加号，远程规则仍需实际核验 |
 | 运行配置模板 / 应用与运维 | FR-ADMIN-04–06、NFR-03/15/20/21 | .env.example、配置/部署/Windows规范 | 字段读入口、角色/预算及默认兼容 | 仅模板/说明变更，不覆盖已存值、不修改真实配置 |
-| 归档/构建范围 / 发布负责人 | NFR-01/04/06/10 | .gitignore/.dockerignore、历史报告与截图归reports | 生成物排除、引用/素材路径、目录门禁 | data/备份/deliverables/缓存不进入Git或镜像 |
+| 归档/构建范围 / 发布负责人 | NFR-01/04/06/10 | .gitignore/.dockerignore、历史报告与截图归reports | 生成物排除、引用/素材路径、目录门禁 | data/备份/reports/缓存不进入Git或镜像 |
 | 恢复与服务运营 / 运维和运营负责人 | NFR-08/16/28/31–42 | 运维/发布、[服务运营](../release-operations.md#service-2-开通与用户生命周期) | 现有恢复脚本回归；新HA/灾备是目标 | 保护新写，SLO/RTO/RPO分档，不把观察已启动写成终态通过 |
 | 首次同步与调度 / 数据负责人 | FR-ENTRY/ADMIN/DATA、NFR-03/15 | preferences → initial_sync/integrity/depth → scheduler；financial run_now/发布；settings API/数据总览 | 缺省开启、已保存关闭、改时间保持暂停、初始化重试/单飞、财务线程/互斥/写锁发布、完整/独立模式 | 新安装自动创建首次同步；实时/分钟/扩展/秒级分别控制，遵守能力与执行窗口；财务周期检查总开关，默认启用不承诺立即有完整数据 |
 | 管理员/认证启动 / 应用负责人 | FR-ENTRY/AUTH-LOCAL/ADMIN、NFR-09/20 | bootstrap_defaults、auth、Cell admin、full lifespan、loopback cookie | 哈希/幂等、旧账户/改密保留、失败关闭、跨平台默认、真实SQL权限 | 非Windows默认api/full需双库/平台/Worker；远程HTTPS与本地HTTP会话分别处理 |

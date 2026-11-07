@@ -59,6 +59,71 @@ def test_fees_min_commission_and_stamp_tax_sell_only():
     assert paper.buy_fee(10000, 10.0, 0.001) == 100.0
 
 
+def test_configurable_fee_minimum_and_transfer_are_separate():
+    assert paper.buy_fee(1000, 10, .00025, min_commission=3, transfer_fee_pct=.00001) == 3.1
+    assert paper.sell_fee(1000, 10, .00025, .0005,
+                          min_commission=3, transfer_fee_pct=.00001) == 8.1
+    assert paper.buy_fee(100, 10, 0, min_commission=0, transfer_fee_pct=0) == 0
+
+
+@pytest.mark.parametrize("sell_day,expected_tax", [
+    (date(2023, 8, 27), 10), (date(2023, 8, 28), 5),
+])
+def test_account_historical_tax_uses_actual_sell_date(tmp_path, monkeypatch, sell_day, expected_tax):
+    today = sell_day - timedelta(days=1)
+    monkeypatch.setattr(paper, "cn_today", lambda: today)
+    paper.create_account(tmp_path, 100000, slippage_bps=0)
+    paper.update_settings(tmp_path, min_commission=3, transfer_fee_pct=.00001,
+                          stamp_tax_mode="historical")
+    buy, error = paper.create_order(tmp_path, SYM, "buy", qty=1000, ref_price=10)
+    assert error is None
+    paper.evaluate_intraday(tmp_path, {SYM: 10})
+    assert paper.get_order(tmp_path, buy["id"])["fees"] == 3.1
+    monkeypatch.setattr(paper, "cn_today", lambda: sell_day)
+    sell, error = paper.create_order(tmp_path, SYM, "sell", qty=1000, ref_price=10)
+    assert error is None
+    paper.evaluate_intraday(tmp_path, {SYM: 10})
+    assert paper.get_order(tmp_path, sell["id"])["fees"] == 3.1 + expected_tax
+    assert paper.get_account(tmp_path)["cash"] == pytest.approx(100000 - 6.2 - expected_tax)
+    # Settings changes never recalculate posted fees.
+    before = paper.load_fills(tmp_path)
+    paper.update_settings(tmp_path, min_commission=50, stamp_tax_mode="fixed")
+    assert paper.load_fills(tmp_path) == before
+
+
+def test_extended_costs_reserve_cash_and_auto_reduce_lots(tmp_path, monkeypatch):
+    from app.strategy import paper_auto
+
+    paper.create_account(tmp_path, 10005, commission_pct=0, slippage_bps=0)
+    paper.update_settings(tmp_path, min_commission=10, transfer_fee_pct=.001)
+    _, error = paper.create_order(tmp_path, SYM, "buy", qty=1000, ref_price=10)
+    assert "资金不足" in error
+    rule = paper_auto.create_auto_rule(tmp_path, {
+        "name": "cost", "match_kind": "strategy", "match_id": "s1", "side": "buy",
+        "size_mode": "fixed_amount", "size_value": 10000, "order_type": "market",
+        "cooldown_days": 0,
+    })
+    orders = paper_auto.on_rule_events(tmp_path, [
+        {"source": "strategy", "strategy_id": "s1", "type": "buy_signal",
+         "symbol": SYM, "price": 10},
+    ])
+    assert orders[0]["qty"] == 900 and orders[0]["source"] == f"auto:{rule['id']}"
+    assert paper.portfolio_budget(tmp_path)["available_cash"] == pytest.approx(986)
+    paper.evaluate_intraday(tmp_path, {SYM: 10})
+    assert paper.get_account(tmp_path)["cash"] == pytest.approx(986)
+
+
+@pytest.mark.parametrize("fields", [
+    {"min_commission": -1}, {"min_commission": float("nan")},
+    {"transfer_fee_pct": .1}, {"stamp_tax_mode": "invalid"},
+])
+def test_extended_settings_invalid_input_never_persists(tmp_path, fields):
+    account = paper.create_account(tmp_path, 100000)
+    with pytest.raises(ValueError):
+        paper.update_settings(tmp_path, commission_pct=.0003, **fields)
+    assert paper.get_account(tmp_path) == account
+
+
 def test_slippage_direction_adverse():
     assert paper.apply_slippage(10.0, "buy", 5) > 10.0
     assert paper.apply_slippage(10.0, "sell", 5) < 10.0

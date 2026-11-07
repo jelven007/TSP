@@ -51,7 +51,9 @@ from app.price_limits import (
 )
 from app.services.fs_utils import atomic_write_text
 from app.strategy.entry_risk import EntryRiskPolicy
-from app.strategy.paper_math import apply_slippage, buy_fee, sell_fee
+from app.strategy.paper_math import account_fee, apply_slippage
+from app.strategy.paper_math import buy_fee as buy_fee
+from app.strategy.paper_math import sell_fee as sell_fee
 from app.strategy.risk_policy import RiskPolicy, valid_price
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,10 @@ DEFAULT_COMMISSION_PCT = 0.00025   # 双边佣金 万2.5
 MIN_COMMISSION = 5.0               # 佣金最低 5 元
 DEFAULT_STAMP_TAX_PCT = 0.001      # 印花税, 仅卖出
 DEFAULT_SLIPPAGE_BPS = 5.0         # 滑点 (bps, 万分之5)
+_COST_DEFAULTS = {"min_commission": MIN_COMMISSION, "transfer_fee_pct": 0.0,
+                  "stamp_tax_mode": "fixed"}
+FEE_FIELDS = ("commission_pct", "stamp_tax_pct", "slippage_bps",
+              "min_commission", "transfer_fee_pct", "stamp_tax_mode")
 
 MAX_POSTPONE_DAYS = 3             # 顺延上限: 连续 N 个交易日无法成交自动过期
 # 结算价格的打印时刻 (北京墙钟): 开盘价 09:30 / 收盘价 15:00。下单晚于该时刻的单
@@ -160,12 +166,13 @@ def _order_sort_key(order: dict) -> tuple:
 def get_account(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID) -> dict | None:
     validate_account_id(account_id)
     if isinstance(data_dir, PaperSession):
-        return data_dir.account(account_id)
+        value = data_dir.account(account_id)
+        return {**_COST_DEFAULTS, **value} if value is not None else None
     p = _root(data_dir, account_id) / "account.json"
     if not p.exists():
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        return {**_COST_DEFAULTS, **json.loads(p.read_text(encoding="utf-8"))}
     except Exception as e:
         logger.warning("paper account load failed: %s", e)
         return None
@@ -183,6 +190,9 @@ def create_account(
     slippage_bps: float = DEFAULT_SLIPPAGE_BPS,
     queue_limit_orders: bool = False,
     corporate_action_mode: str = "events",
+    min_commission: float = 5,
+    transfer_fee_pct: float = 0,
+    stamp_tax_mode: str = "fixed",
 ) -> dict:
     """创建账户 (同 id 已存在则原样返回, 不覆盖 — 幂等)。"""
     validate_account_id(account_id)
@@ -192,11 +202,14 @@ def create_account(
             return existing
         if corporate_action_mode not in {"events", "legacy_factor"}:
             raise ValueError("公司行为账务模式无效")
+        if stamp_tax_mode not in {"fixed", "historical"}:
+            raise ValueError("印花税模式应为 fixed / historical")
         if isinstance(initial_cash, bool) or not isinstance(initial_cash, (int, float)) or not math.isfinite(initial_cash) or initial_cash <= 0:
             raise ValueError("初始资金必须是正数")
         for key, value, maximum in (
             ("commission_pct", commission_pct, 0.01),
             ("stamp_tax_pct", stamp_tax_pct, 0.05), ("slippage_bps", slippage_bps, 200),
+            ("min_commission", min_commission, 10000), ("transfer_fee_pct", transfer_fee_pct, 0.01),
         ):
             if isinstance(value, bool) or not math.isfinite(value) or not 0 <= value <= maximum:
                 raise ValueError(f"{key} 超出合理范围 (0~{maximum})")
@@ -210,7 +223,9 @@ def create_account(
             "slippage_bps": float(slippage_bps),
             "queue_limit_orders": bool(queue_limit_orders),
             "corporate_action_mode": corporate_action_mode,
-            "stamp_tax_mode": "fixed",
+            "stamp_tax_mode": stamp_tax_mode,
+            "min_commission": float(min_commission),
+            "transfer_fee_pct": float(transfer_fee_pct),
             "status": "active",  # active / frozen
             "created_at": _now_iso(),
         }
@@ -262,7 +277,8 @@ def initial_cash_editable(data_dir, account_id=DEFAULT_ACCOUNT_ID) -> bool:
 @paper_operation(write=True)
 def update_account(data_dir, account_id=DEFAULT_ACCOUNT_ID, **fields) -> dict:
     """整体校验后一次保存; 费用仅影响后续成交, ID和历史账本不变。"""
-    allowed = {"name", "initial_cash", "commission_pct", "stamp_tax_pct", "slippage_bps", "queue_limit_orders"}
+    allowed = {"name", "initial_cash", "commission_pct", "stamp_tax_pct", "slippage_bps",
+               "queue_limit_orders", "min_commission", "transfer_fee_pct", "stamp_tax_mode"}
     if fields.keys() - allowed:
         raise ValueError("不支持的账户修改字段")
     with paper_lock(data_dir, PAPER_LOCK):
@@ -278,6 +294,7 @@ def update_account(data_dir, account_id=DEFAULT_ACCOUNT_ID, **fields) -> dict:
         for key, maximum in (
             ("initial_cash", math.inf), ("commission_pct", .01),
             ("stamp_tax_pct", .05), ("slippage_bps", 200),
+            ("min_commission", 10000), ("transfer_fee_pct", .01),
         ):
             if key not in fields:
                 continue
@@ -296,6 +313,10 @@ def update_account(data_dir, account_id=DEFAULT_ACCOUNT_ID, **fields) -> dict:
             if not isinstance(fields["queue_limit_orders"], bool):
                 raise ValueError("涨跌停排队须为布尔值")
             updated["queue_limit_orders"] = fields["queue_limit_orders"]
+        if "stamp_tax_mode" in fields:
+            if fields["stamp_tax_mode"] not in {"fixed", "historical"}:
+                raise ValueError("印花税模式应为 fixed / historical")
+            updated["stamp_tax_mode"] = fields["stamp_tax_mode"]
         save_account(data_dir, updated, account_id)
         _account_changed(data_dir, account_id, "updated")
         return updated
@@ -378,18 +399,27 @@ def update_settings(data_dir: Path, account_id: str = DEFAULT_ACCOUNT_ID, **fiel
         acc = get_account(data_dir, account_id)
         if acc is None:
             raise ValueError("尚未创建模拟账户")
+        mode = fields.get("stamp_tax_mode")
+        if mode is not None:
+            if mode not in {"fixed", "historical"}:
+                raise ValueError("印花税模式应为 fixed / historical")
+            acc["stamp_tax_mode"] = mode
         if "queue_limit_orders" in fields and fields["queue_limit_orders"] is not None:
             acc["queue_limit_orders"] = bool(fields["queue_limit_orders"])
         for key, lo, hi in (
             ("commission_pct", 0.0, 0.01),    # 佣金率 ≤1% (100‱)
             ("stamp_tax_pct", 0.0, 0.05),     # 印花税 ≤5% (仅卖出)
             ("slippage_bps", 0.0, 200.0),     # 滑点 ≤200bps
+            ("min_commission", 0.0, 10000.0),
+            ("transfer_fee_pct", 0.0, 0.01),
         ):
             v = fields.get(key)
             if v is None:
                 continue
+            if isinstance(v, bool):
+                raise ValueError(f"{key} 必须是有限数值")
             v = float(v)
-            if not (lo <= v <= hi):
+            if not math.isfinite(v) or not (lo <= v <= hi):
                 raise ValueError(f"{key} 超出合理范围 ({lo}~{hi})")
             acc[key] = v
         save_account(data_dir, acc, account_id)
@@ -510,7 +540,7 @@ def portfolio_budget(data_dir, account_id=DEFAULT_ACCOUNT_ID, *, prices=None, ex
         execution = apply_slippage(float(price), "buy", acc["slippage_bps"])
         value = order["qty"] * execution
         pending[order["symbol"]] = pending.get(order["symbol"], 0.0) + value
-        reserved += value + buy_fee(order["qty"], execution, acc["commission_pct"])
+        reserved += value + account_fee(acc, order["qty"], execution, "buy")
     equity = float(acc["cash"]) + sum(holdings.values()) + cash_receivable
     return {"equity": equity, "holdings": holdings, "pending": pending,
             "exposure": sum(holdings.values()) + sum(pending.values()),
@@ -673,10 +703,10 @@ def create_order(
             est_price = float(ref_price) if ref_price else 0.0
             budget = portfolio_budget(data_dir, account_id, prices={**(valuation_prices or {}), symbol: est_price})
             execution = apply_slippage(est_price, "buy", acc["slippage_bps"])
-            if est_price > 0 and qty * execution + buy_fee(qty, execution, acc["commission_pct"]) > budget["available_cash"]:
+            if est_price > 0 and qty * execution + account_fee(acc, qty, execution, "buy") > budget["available_cash"]:
                 return None, f"可用资金不足 (需约 {qty * est_price:.0f}, 扣待成交买单后可用 {budget['available_cash']:.0f})"
             if risk_limits:
-                projected = {**budget, "equity": budget["equity"] - buy_fee(qty, execution, acc["commission_pct"])}
+                projected = {**budget, "equity": budget["equity"] - account_fee(acc, qty, execution, "buy")}
                 error = exposure_error(projected, symbol, qty * execution, risk_limits)
                 if error:
                     return None, error
@@ -1093,7 +1123,7 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
                 if qty != order["qty"]:
                     order["requested_qty"] = order["qty"]
                     order["qty"] = qty
-    fee = buy_fee(qty, price, acc["commission_pct"]) if side == "buy" else sell_fee(qty, price, acc["commission_pct"], acc["stamp_tax_pct"])
+    fee = account_fee(acc, qty, price, side, day=day, asset_type=asset_type)
     gross = qty * price
     if side == "buy":
         if order.get("risk_limits"):
@@ -1112,7 +1142,7 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
         # 成交时逐张扣现金而穿透。
         earlier_cash = sum(
             int(o["qty"]) * apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"])
-            + buy_fee(int(o["qty"]), apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"]), acc["commission_pct"])
+            + account_fee(acc, int(o["qty"]), apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"]), "buy")
             for o in load_orders(data_dir, account_id)
             if o["status"] == "pending" and o["side"] == "buy"
             and o["id"] != order["id"]
@@ -1809,7 +1839,7 @@ def overview(
         "market_value": round(mv, 2),
         "receivables": pending,
         "corporate_action_mode": acc.get("corporate_action_mode", "legacy_factor"),
-        "stamp_tax_mode": "fixed",
+        "stamp_tax_mode": acc.get("stamp_tax_mode", "fixed"),
         "total": round(float(acc["cash"]) + mv + pending, 2),
         "total_pnl": round(float(acc["cash"]) + mv + pending - float(acc["initial_cash"]), 2),
         "initial_cash": float(acc["initial_cash"]),

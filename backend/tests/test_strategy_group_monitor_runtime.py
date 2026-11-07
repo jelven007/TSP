@@ -281,7 +281,8 @@ def test_partial_strategy_cycle_blocks_entries_but_keeps_exits_for_execution() -
     evaluation = engine.publish_strategy_group(engine.compute_strategy_group(snapshot))
     assert evaluation.partial is True
     assert evaluation.failed_strategy_ids == ("second",)
-    assert set(evaluation.results) == {"first"}
+    assert set(evaluation.results) == {"first", "second"}
+    assert evaluation.results["second"]["execution_status"]["state"] == "failed"
 
     buy = {
         "source": "strategy",

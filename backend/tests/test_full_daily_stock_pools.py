@@ -78,7 +78,8 @@ def test_sql_old_and_new_pool_definitions_remain_separate_and_legacy_readable(en
     assert store.read("sample", DAY)["id"] == new["id"]
 
 
-def test_old_definition_completed_marker_regenerates_once_under_new_definition(env):
+@pytest.mark.parametrize("hour", [8, 9])
+def test_old_definition_completed_marker_regenerates_once_under_new_definition(env, hour):
     from pathlib import Path
 
     from test_daily_stock_pools import frames
@@ -96,28 +97,31 @@ def test_old_definition_completed_marker_regenerates_once_under_new_definition(e
     with documents.transaction() as unit:
         observed = fingerprint(unit.connection, include_state=False)
         old_marker = signature({"input": observed, "release": None, "day": str(DAY)})
-        unit.put("daily_stock_pool_jobs", str(DAY), {"signature": old_marker, "completed": ids})
+        unit.put("daily_stock_pool_jobs", f"{DAY}:{hour:02}:00", {
+            "signature": old_marker, "completed": ids, "state": "succeeded",
+            "definition_version": "scope_float_cap_v2"})
     calls = []
 
     def execute(task):
         calls.append(task)
         return {"pools": {sid: payload(["600000.SH"], strategy_id=sid,
-                                      definition_version="scope_float_cap_v2")
+                                      definition_version="scope_only_v3")
                           for sid in task["strategy_ids"]}, "errors": {}}
 
     service = TenantSchedules(env["db"], None, executor=SimpleNamespace(execute=execute))
     snapshot = {"days": {"stock": str(DAY)}, "frames": {"stock": encode_frame(frames())}}
-    now = datetime(2026, 10, 26, 9, 40, tzinfo=ZoneInfo("Asia/Shanghai"))
+    now = datetime(2026, 10, 26, hour, 0, tzinfo=ZoneInfo("Asia/Shanghai"))
     try:
         service.daily_pools(documents, snapshot, None, now, None)
         assert len(calls) == 1
         assert set(calls[0]["strategy_ids"]) == set(ids)
-        marker = documents.get("daily_stock_pool_jobs", f"{DAY}:09:00")
+        marker = documents.get("daily_stock_pool_jobs", f"{DAY}:{hour:02}:00")
         assert marker["signature"] != old_marker
         assert set(marker["completed"]) == set(ids)
+        assert marker["definition_version"] == "scope_only_v3"
         service.daily_pools(documents, snapshot, None, now, None)
         assert len(calls) == 1
-        assert DailyStockPools(documents).read(ids[0], DAY)["definition_version"] == "scope_float_cap_v2"
+        assert DailyStockPools(documents).read(ids[0], DAY)["definition_version"] == "scope_only_v3"
     finally:
         service.runtime.close()
 

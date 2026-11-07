@@ -73,14 +73,14 @@ def monitor_context(loader, engine, strategy_id, as_of, current, data_dir):
     try:
         context = service.build_strategy_context(
             engine, as_of, [strategy_id], timeframe="1m", current=current)
-    except ValueError:
+    except ValueError as exc:
         if not capacity and not morning:
             raise
         # 缺分钟数据仍允许时钟清仓, 指标分支保持关闭。
         from app.strategy.engine import StrategyDataContext
 
         context = StrategyDataContext("stock", "1m", as_of, current=current, history=pl.DataFrame(),
-                                      completed_through=cn_now())
+                                      completed_through=cn_now(), input_errors=[str(exc)])
     if capacity:
         context.positions = position_snapshot(data_dir, strategy_id, as_of) if data_dir is not None else []
     if morning:
@@ -103,6 +103,7 @@ def monitor_context(loader, engine, strategy_id, as_of, current, data_dir):
         else:
             raise ValueError("连续策略组合缺少持久化状态目录")
         context.previous_states = {strategy_id: previous}
+    context.realtime = True
     return context
 
 

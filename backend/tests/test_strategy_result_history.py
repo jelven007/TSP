@@ -172,7 +172,6 @@ def test_single_and_batch_empty_optional_fields_are_equivalent(tmp_path, engine,
     {"scores": {"A": 9}},
     {"entry_signal_hits": ["A"]},
     {"exit_signal_hits": ["B"]},
-    {"entry_filter_error": "入场失败"},
 ])
 def test_meaningful_result_changes_replace_daily_snapshot(tmp_path, engine, changed):
     module = history()
@@ -186,6 +185,22 @@ def test_meaningful_result_changes_replace_daily_snapshot(tmp_path, engine, chan
     for field, value in changed.items():
         assert store.read(key, result["as_of"])["result"][field] == value
     assert len(store.list_history("sample")["records"]) == 1
+
+
+def test_entry_failure_returns_attempt_status_without_replacing_success(tmp_path, engine):
+    module = history()
+    key = identity(module, engine, tmp_path)
+    store = module.StrategyResults(tmp_path)
+    result = {"as_of": "2026-10-22", "total": 1, "rows": [{"symbol": "A", "score": 8}]}
+    first = store.save(key, result, started_at=10)
+    attempted = store.save(key, {**result, "rows": [], "total": 0,
+                                 "entry_filter_error": "入场失败"}, started_at=20)
+    assert attempted["result"]["execution_status"]["reason"] == "入场失败"
+    assert attempted["result"]["execution_status"]["state"] == "waiting"
+    assert attempted["result"]["showing_last_success"] is True
+    assert attempted["result"]["rows"] == first["result"]["rows"]
+    assert attempted["_cache_token"] == first["_cache_token"]
+    assert store.read(key, result["as_of"]) == first
 
 
 def test_identical_rows_on_other_dates_or_configurations_remain_separate(tmp_path, engine):

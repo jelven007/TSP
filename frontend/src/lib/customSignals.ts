@@ -3,7 +3,7 @@ import type { CustomSignal, LateSessionStrengthParams, MorningLiquidationParams 
 export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
   time: '14:30:00', change_min_pct: 0.4, change_max_pct: 4,
   pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4,
-  evaluation_delay_minutes: 1,
+  evaluation_delay_minutes: 0.5,
 }
 
 export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParams, 'amplitude_pct'>> = {
@@ -13,12 +13,17 @@ export const MORNING_LIQUIDATION_DEFAULTS: Required<Omit<MorningLiquidationParam
 export const customSignalColumn = (signal: CustomSignal) =>
   `${signal.timeframe === 'intraday' ? 'csgi_' : 'csg_'}${signal.id}`
 
-export function lateSessionCheckTime(p: LateSessionStrengthParams): string {
-  const [hour, minute, second = 0] = p.time.split(':').map(Number)
-  const total = hour * 3600 + minute * 60 + second + (p.evaluation_delay_minutes ?? 0) * 60
+function clockTime(total: number): string {
   return [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60]
     .map(value => String(value).padStart(2, '0')).join(':')
 }
+
+export function lateSessionCheckTime(p: LateSessionStrengthParams): string {
+  const [hour, minute, second = 0] = p.time.split(':').map(Number)
+  return clockTime(hour * 3600 + minute * 60 + second + (p.evaluation_delay_minutes ?? 0) * 60)
+}
+
+export const lateSessionLatestStartTime = (delaySeconds: number): string => clockTime(15 * 3600 - delaySeconds)
 
 export const lateSessionBarTime = (time: string): string => `${time.slice(0, 5)}:00`
 
@@ -28,9 +33,9 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
   const barTime = lateSessionBarTime(p.time)
   return [
     p.evaluation_delay_minutes
-      ? `启动时间 ${p.time}，确认时间 ${lateSessionCheckTime(p)}，K线截止 ${barTime}（北京时间）${p.evaluation_delay_minutes !== 1 ? '；编辑保存后改为启动后60秒确认' : ''}`
-      : `旧判断时间 ${p.time}（北京时间）；编辑保存后改为启动后60秒确认`,
-    `截至 ${barTime} 的当日股票池上涨数 / 总数 ≥ ${p.pool_up_min_pct}%`,
+      ? `启动时间 ${p.time}，确认延迟 ${p.evaluation_delay_minutes * 60}秒，确认时间 ${lateSessionCheckTime(p)}，K线截止 ${barTime}（北京时间）`
+      : `旧判断时间 ${p.time}（北京时间），未设置确认延迟；编辑时可选择30～900秒`,
+    `截至 ${barTime} 的当日股票池有效上涨数 / 有效成员数 ≥ ${p.pool_up_min_pct}%`,
     `截至 ${barTime} 的涨幅 ${p.change_min_pct}%～${p.change_max_pct}%`,
     `最近 ${p.ma5_1m_count} 个 1分钟 MA5 严格递增（${p.ma5_1m_count - 1} 次比较）`,
     `最新完成的 ${p.ma5_5m_count} 个 5分钟 MA5 严格递增（${p.ma5_5m_count - 1} 次比较）`,

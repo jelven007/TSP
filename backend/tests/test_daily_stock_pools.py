@@ -73,9 +73,9 @@ def test_pool_precedes_strategy_filter_display_limit_and_caller_pool(engine):
     assert result.total == 1
     pool = getattr(result, "daily_stock_pool", None)
     assert pool is not None, "execution did not capture the complete base pool"
-    assert pool["symbols"] == ["600000.SH", "600001.SH"]
+    assert pool["symbols"] == ["600000.SH", "600001.SH", "600002.SH"]
     assert pool["reference_date"] == str(PRIOR)
-    assert pool["total"] == 2
+    assert pool["total"] == 3
 
 
 def test_pool_builder_needs_no_minute_algorithm_or_previous_portfolio(engine):
@@ -86,7 +86,7 @@ def test_pool_builder_needs_no_minute_algorithm_or_previous_portfolio(engine):
     context = StrategyDataContext("stock", "1m", DAY,
         current=history.filter(pl.col("date") == DAY), daily_history=history)
     pool = build_pool(engine, "sample", context, overrides={"basic_filter": {**BF, "exclude_suspended": True}})
-    assert pool["symbols"] == ["600000.SH"]
+    assert pool["symbols"] == ["600000.SH", "600002.SH"]
     assert pool["suspended_count"] == 1
 
 
@@ -97,7 +97,7 @@ def test_halted_stock_missing_current_row_remains_in_unchecked_previous_day_pool
     current = history.filter((pl.col("date") == DAY) & (pl.col("symbol") != "600001.SH"))
     pool = build_pool(engine, "sample", StrategyDataContext(
         "stock", "1d", DAY, current=current, history=history), overrides={"basic_filter": BF})
-    assert pool["symbols"] == ["600000.SH", "600001.SH"]
+    assert pool["symbols"] == ["600000.SH", "600001.SH", "600002.SH"]
     assert pool["unknown_suspension_count"] == 1
 
 
@@ -112,7 +112,7 @@ def test_disabled_numeric_filters_do_not_remove_a_stock_without_today_quote(engi
 
 
 @pytest.mark.parametrize("extra", [
-    {"price_max": 1}, {"market_cap_max": 1}, {"amount_min": 1e12},
+    {"float_cap_max": 1}, {"float_cap_min": 1e15}, {"price_max": 1}, {"market_cap_max": 1}, {"amount_min": 1e12},
     {"turnover_min": 99}, {"change_pct_min": 99}, {"exclude_new_days": 999},
 ])
 def test_pool_ignores_other_numeric_filters_and_their_missing_dependencies(engine, extra):
@@ -122,9 +122,9 @@ def test_pool_ignores_other_numeric_filters_and_their_missing_dependencies(engin
     pool = build_pool(engine, "sample", StrategyDataContext(
         "stock", "1d", DAY, current=history.filter(pl.col("date") == DAY), history=history),
         overrides={"basic_filter": {**BF, **extra}})
-    assert pool["symbols"] == ["600000.SH", "600001.SH"]
+    assert pool["symbols"] == ["600000.SH", "600001.SH", "600002.SH"]
     assert not set(extra).intersection(pool["basic_filter"])
-    assert pool["definition_version"] == "scope_float_cap_v2"
+    assert pool["definition_version"] == "scope_only_v3"
 
 
 def test_remaining_numeric_filters_still_restrict_strategy_selection(engine):
@@ -135,31 +135,34 @@ def test_remaining_numeric_filters_still_restrict_strategy_selection(engine):
     config = {**BF, "price_max": 12}
     context = StrategyDataContext("stock", "1d", DAY, current=current, history=history)
     assert build_pool(engine, "sample", context, overrides={"basic_filter": config})["symbols"] == [
-        "600000.SH", "600001.SH"]
+        "600000.SH", "600001.SH", "600002.SH"]
     assert engine._apply_basic_filter(current, config, history=history, as_of=DAY)["symbol"].to_list() == [
         "600000.SH"]
     assert config["price_max"] == 12
 
 
-@pytest.mark.parametrize("reference,expected", [
-    ("previous_trade_day", ["600000.SH", "600001.SH"]),
-    ("signal_day", ["600001.SH", "600002.SH"]),
-])
-def test_pool_float_cap_uses_raw_reference_close_and_inclusive_bounds(engine, reference, expected):
+@pytest.mark.parametrize("reference", ["previous_trade_day", "signal_day"])
+def test_pool_ignores_float_cap_reference_but_keeps_selection_bounds(engine, reference):
     from app.strategy.daily_pool import build_pool
 
     history = frames().with_columns(
         pl.col("close").alias("raw_close"), pl.lit(1.0).alias("close"))
+    current = history.filter(pl.col("date") == DAY)
+    config = {**BF, "data_reference": reference, "float_cap_min": 5e9, "float_cap_max": 15e9}
     pool = build_pool(engine, "sample", StrategyDataContext(
-        "stock", "1d", DAY, current=history.filter(pl.col("date") == DAY), history=history),
-        overrides={"basic_filter": {**BF, "data_reference": reference,
-                                   "float_cap_min": 5e9, "float_cap_max": 15e9}})
-    assert pool["symbols"] == expected
+        "stock", "1d", DAY, current=current, history=history),
+        overrides={"basic_filter": config})
+    assert pool["symbols"] == ["600000.SH", "600001.SH", "600002.SH"]
+    expected = ["600000.SH", "600001.SH"] if reference == "previous_trade_day" else [
+        "600001.SH", "600002.SH"]
+    assert engine._apply_basic_filter(current, config, history=history, as_of=DAY)["symbol"].to_list() == expected
+    assert config["float_cap_min"] == 5e9 and config["float_cap_max"] == 15e9
+    assert not {"float_cap_min", "float_cap_max"}.intersection(pool["basic_filter"])
     assert pool["reference_date"] == str(PRIOR if reference == "previous_trade_day" else DAY)
 
 
 @pytest.mark.parametrize("missing", ["session", "float_shares", "raw_close"])
-def test_float_cap_pool_requires_exact_reference_data(engine, missing):
+def test_pool_needs_no_float_cap_reference_data(engine, missing):
     from app.strategy.daily_pool import build_pool
 
     history = frames().with_columns(pl.col("close").alias("raw_close"))
@@ -170,10 +173,10 @@ def test_float_cap_pool_requires_exact_reference_data(engine, missing):
     else:
         history = history.with_columns(
             pl.when(pl.col("date") == PRIOR).then(None).otherwise(pl.col(missing)).alias(missing))
-    with pytest.raises(ValueError, match=r"参考交易日|缺少"):
-        build_pool(engine, "sample", StrategyDataContext(
-            "stock", "1d", DAY, current=history.filter(pl.col("date") == DAY), pool_history=history),
-            overrides={"basic_filter": BF})
+    pool = build_pool(engine, "sample", StrategyDataContext(
+        "stock", "1d", DAY, current=history.filter(pl.col("date") == DAY), pool_history=history),
+        overrides={"basic_filter": BF})
+    assert pool["symbols"] == ["600000.SH", "600001.SH", "600002.SH"]
 
 
 @pytest.mark.parametrize("enabled", [False, True])
@@ -185,7 +188,7 @@ def test_scope_only_pool_needs_no_history_or_other_numeric_data(engine, enabled)
         overrides={"basic_filter": {
             "target_mode": "selected", "boards": ["沪主板"], "enabled": enabled,
             "data_reference": "previous_trade_day", "price_min": 999, "exclude_new_days": 999,
-            **({"float_cap_max": 1} if not enabled else {}),
+            "float_cap_max": 1,
         }})
     assert pool["symbols"] == ["600000.SH"]
     assert pool["basic_filter"]["enabled"] is enabled
@@ -203,7 +206,7 @@ def test_disabled_numeric_pool_retains_legacy_board_and_st_scope(engine):
     assert pool["symbols"] == ["600000.SH"]
 
 
-def test_custom_group_union_and_float_cap_both_determine_membership(engine):
+def test_custom_group_union_is_independent_of_float_cap(engine):
     from app.strategy.daily_pool import build_pool
 
     history = frames().with_columns(
@@ -214,7 +217,7 @@ def test_custom_group_union_and_float_cap_both_determine_membership(engine):
         "stock", "1d", DAY, current=history.filter(pl.col("date") == DAY), history=history),
         overrides={"basic_filter": {"include_custom": True, "target_symbols": ["000001.SZ"],
                                    "float_cap_max": 20e9}})
-    assert pool["symbols"] == ["000001.SZ", "600000.SH"]
+    assert pool["symbols"] == ["000001.SZ", "600000.SH", "600002.SH"]
     assert engine.get("sample").basic_filter["float_cap_max"] == 10e9
 
 
@@ -258,7 +261,7 @@ def test_old_and_new_definition_snapshots_coexist_without_relabelling_history(tm
     assert store.read("sample", DAY)["id"] == latest["id"]
 
 
-def test_compute_scope_only_succeeds_while_missing_float_reference_is_per_strategy_error(
+def test_compute_scope_only_and_float_filtered_strategies_need_no_price_reference(
     tmp_path, monkeypatch,
 ):
     from types import SimpleNamespace
@@ -291,8 +294,9 @@ def filter(df, params):
         "overrides_map": {"float_sample": {"basic_filter": BF}},
     }, tmp_path)
     assert result["pools"]["sample"]["symbols"] == ["600000.SH"]
-    assert set(result["errors"]) == {"float_sample"}
-    assert "参考数据" in result["errors"]["float_sample"]
+    assert result["pools"]["float_sample"]["symbols"] == ["600000.SH"]
+    assert result["errors"] == {}
+    assert result["pools"]["float_sample"]["definition_version"] == "scope_only_v3"
 
 
 def test_result_and_pool_share_transaction_and_delete_fence(tmp_path):

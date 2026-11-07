@@ -4,8 +4,8 @@ import polars as pl
 from app.strategy import overlay
 from app.strategy.basic_filter import previous_session
 from app.strategy.scoring import (
-    effective_scoring,
     effective_scoring_directions,
+    effective_strategy_scoring,
     materialize_scoring_columns,
 )
 
@@ -43,6 +43,8 @@ def select_rows(engine, strategy, context, *, overrides, pool=None):
         columns = [pl.col(price).alias("reference_close")]
         if "change_pct" in reference.columns:
             columns.append(pl.col("change_pct").alias("reference_change_pct"))
+        if "turnover_rate" in reference.columns:
+            columns.append(pl.col("turnover_rate").alias("reference_turnover_rate"))
         if "float_shares" in reference.columns:
             columns.append((pl.col(price) * pl.col("float_shares") / 1e8).alias("reference_float_cap"))
         rows = rows.join(reference.select("symbol", *columns).unique("symbol", keep="last"),
@@ -56,7 +58,7 @@ def select_rows(engine, strategy, context, *, overrides, pool=None):
         rows = rows.join(completed.select("symbol", "amount_mean_20d").unique("symbol", keep="last"),
                          on="symbol", how="left")
 
-    scoring = effective_scoring(strategy.meta.get("scoring"), overrides)
+    scoring = effective_strategy_scoring(strategy.meta, overrides)
     scored = engine._apply_scoring(rows, scoring, effective_scoring_directions(overrides))
     if "score" in scored.columns:
         # Missing scoring inputs may prevent ranking, never remove a qualified stock.
@@ -66,4 +68,16 @@ def select_rows(engine, strategy, context, *, overrides, pool=None):
         )
     else:
         rows = rows.sort("symbol")
+    enrich = getattr(strategy, "enrich_selection_fn", None)
+    if enrich is not None:
+        enriched = enrich(rows.clone(), engine.resolve_params(strategy, None, overrides),
+                          daily=history, as_of=context.as_of)
+        if (not isinstance(enriched, pl.DataFrame) or "symbol" not in enriched.columns
+                or enriched.height != rows.height
+                or enriched["symbol"].n_unique() != rows.height
+                or set(enriched["symbol"]) != set(rows["symbol"])):
+            raise ValueError("策略预选补充指标不得增删或重复选股成员")
+        # Existing eligibility/reference/score values belong to the shared path.
+        extra = [name for name in enriched.columns if name not in rows.columns]
+        rows = rows.join(enriched.select("symbol", *extra), on="symbol", how="left")
     return rows.to_dicts()

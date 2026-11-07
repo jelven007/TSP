@@ -7,6 +7,12 @@ vi.mock('./storage', () => ({ storage: { strategySignalColumns: { get, set } } }
 const inserted = ['builtin:volume', 'builtin:amount', 'builtin:suggested_sell_price']
 beforeEach(() => { get.mockReset().mockReturnValue({}); set.mockReset() })
 
+it('places all three preselection ATR columns immediately after the existing selection score', () => {
+  const ids = loadStrategyResultColumns().select.filter(col => col.visible).map(col => col.id)
+  expect(ids.slice(ids.indexOf('builtin:score'), ids.indexOf('builtin:score') + 4))
+    .toEqual(['builtin:score', 'builtin:atr14_previous_close', 'builtin:atr_rank', 'builtin:atr_rank_score'])
+})
+
 it('places the three sell columns immediately after the signal score for new users', () => {
   const columns = loadStrategyResultColumns().sell.filter(col => col.visible)
   const ids = columns.map(col => col.id)
