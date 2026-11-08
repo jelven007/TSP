@@ -22,9 +22,7 @@
     "exclude_suspended": true,
     "watchlist_group_ids": []
   },
-  "overlay_filter": [
-    {"left": "amount_mean_20d", "op": ">=", "right": "1.0", "leftDays": 0, "rightDays": 0}
-  ],
+  "overlay_filter": [],
   "entry_signals": ["csgi_late_session_strength"],
   "exit_signals": ["csgi_morning_liquidation"],
   "scoring": {},

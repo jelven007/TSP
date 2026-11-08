@@ -8,9 +8,9 @@
       "ma5_1m_count": 7,
       "ma5_5m_count": 4,
       "change_max_pct": 4,
-      "change_min_pct": 0.4,
+      "change_min_pct": 0.8,
       "pool_up_min_pct": 60,
-      "evaluation_delay_minutes": 1
+      "evaluation_delay_minutes": 0.5
     },
     "enabled": true,
     "min_bars": 0,
