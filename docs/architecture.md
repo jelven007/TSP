@@ -1,5 +1,10 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+S02当前`select_rows`沿实际保存的`overlay_filter=[]`保留基础过滤后成员；
+可选生成的`amount_mean_20d`仅为通用展示字段，不自行增加资格门槛。
+本次修正模板及说明，不改变公共算法、缓存、插件或持久化接口。
+契约与回归见[修正记录](../.claude/artifacts/fixes/s02-retired-amount-filter.md)。
+
 2026-11-08最新实时截止沿`late_session_strength.entry_deadline`固定策略交易日
 14:55:00，整点允许；复用引擎和Worker的提交守卫，仅过滤过期新买入/入池事件。
 确认时钟、卖出及明确历史查询保持原路径，无新增配置、API或SQL迁移。
