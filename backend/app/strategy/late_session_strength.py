@@ -116,7 +116,7 @@ def pending_evaluation_time(engine, strategy, overrides, context) -> datetime | 
 
 
 def entry_deadline(engine, strategy, overrides, context, *, expired_only=True) -> datetime | None:
-    """Latest live confirmation is the final bar of the existing five-minute window."""
+    """User-specified live entry cutoff is 14:55 on the strategy session."""
     storage = engine._user_data_dir()
     observed = context.observed_at or context.completed_through
     if storage is None or observed is None:
@@ -131,12 +131,7 @@ def entry_deadline(engine, strategy, overrides, context, *, expired_only=True) -
         if (sig.get("template") != TEMPLATE or sig.get("enabled") is False
                 or custom_signals.intraday_column_name(sig["id"]) not in selected):
             continue
-        available = max(bar_time(sig, context.as_of) + timedelta(minutes=1),
-                        evaluation_time(sig, context.as_of))
-        start = available.replace(second=0, microsecond=0)
-        if available != start:
-            start += timedelta(minutes=1)
-        end = min(start + timedelta(minutes=4), datetime.combine(context.as_of, time(15)))
+        end = datetime.combine(context.as_of, time(14, 55))
         if not expired_only or observed > end:
             deadlines.append(end)
     return min(deadlines, default=None)

@@ -110,9 +110,10 @@ def test_monitor_failure_preserves_previous_success(scan, monkeypatch):
 
 
 @pytest.mark.parametrize("seconds,delay,expired", [
-    (0, .5, False), (1, .5, True), (60, 1.5, False), (61, 1.5, True),
+    (-1200, .5, False), (-1, .5, False), (0, .5, False), (.001, .5, True),
+    (0, 1.5, False), (1, 1.5, True), (0, 15, False), (1, 15, True),
 ])
-def test_realtime_confirmation_deadline_uses_saved_delay(scan, tmp_path, monkeypatch, seconds, delay, expired):
+def test_realtime_confirmation_deadline_is_user_fixed_1455(scan, tmp_path, monkeypatch, seconds, delay, expired):
     from datetime import timedelta
 
     from app.strategy import custom_signals
@@ -122,9 +123,10 @@ def test_realtime_confirmation_deadline_uses_saved_delay(scan, tmp_path, monkeyp
         "id": "trigger", "template": "late_session_strength", "enabled": True,
         "params": {"time": "14:30:00", "evaluation_delay_minutes": delay},
     }])
-    context.observed_at = datetime(2026, 11, 2, 14, 35) + timedelta(seconds=seconds)
+    context.observed_at = datetime(2026, 11, 2, 14, 55) + timedelta(seconds=seconds)
     context.realtime = True
     result = engine.run("custom_test", context, overrides=overrides)
+    assert result.entry_deadline_at == "2026-11-02T14:55:00"
     assert bool(result.entry_signal_hits) is not expired
     assert (result.section_statuses["buy"] == "expired") is expired
     # Explicit history scans remain useful after the live deadline.
@@ -165,9 +167,9 @@ def test_commit_crossing_deadline_keeps_sells_but_drops_new_entries():
         {"strategy_id": "s02", "type": "pool_entry"},
         {"strategy_id": "s02", "type": "sell_signal"},
     ]
-    results = {"s02": {"entry_deadline_at": "2026-11-02T14:35:00"}}
-    assert entry_events_before_deadline(events, results, datetime(2026, 11, 2, 14, 35)) == events
-    assert entry_events_before_deadline(events, results, datetime(2026, 11, 2, 14, 35, 1)) == events[2:]
+    results = {"s02": {"entry_deadline_at": "2026-11-02T14:55:00"}}
+    assert entry_events_before_deadline(events, results, datetime(2026, 11, 2, 14, 55)) == events
+    assert entry_events_before_deadline(events, results, datetime(2026, 11, 2, 14, 55, 0, 1)) == events[2:]
 
 
 def test_next_preselection_isolates_one_bad_close(scan, monkeypatch):
