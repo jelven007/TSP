@@ -100,9 +100,13 @@ async def test_assistant_private_watchlist_signals_and_platform_permission(env, 
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_confirmation_is_session_owned_durable_and_expires(env):
+async def test_confirmation_is_session_owned_durable_and_expires(env, monkeypatch):
+    from app.multitenancy import ai
     from app.multitenancy.ai import SQLPendingRegistry
 
+    # Real SQL latency must not advance this test's deliberately short TTL.
+    clock = [1_000.0]
+    monkeypatch.setattr(ai, "time", SimpleNamespace(time=lambda: clock[0]))
     token, first = register(env)
     own = documents(env, first)
     owner = SQLPendingRegistry(own, first, token, timeout_s=.03)
@@ -116,7 +120,7 @@ async def test_confirmation_is_session_owned_durable_and_expires(env):
     assert await owner.await_decision(action) == "approved"
     assert await restarted.resolve(action.call_id, True) is None
     expired = await owner.register(actions.new_call_id(), "add_to_watchlist", {})
-    await asyncio.sleep(.04)
+    clock[0] += .04
     assert await restarted.resolve(expired.call_id, True) is None
     assert await owner.await_decision(expired) == "expired"
 
