@@ -28,3 +28,7 @@ python -m pytest tests/test_s02_current_selection_contract.py tests/test_s02_sav
 `git grep -n -A22 'def select_rows' -- backend/app/strategy/signal_sections.py`：
 覆盖由`effective_conditions`读取并传入`filter_minute_candidates`；新测试由pytest收集。
 上述结果是本次本地验证，不替代PR或主线CI，也不表示两端已经部署。
+
+首次PR CI中S02用例通过，既有Rustdx同组配额测试因服务端清理计数滞后失败。
+本PR追加仅测试修正，保留真实连接及配额上限；复现和验证见
+[配额测试修正](rustdx-same-group-socket-count.md)，远程全量CI须重新通过后合并。

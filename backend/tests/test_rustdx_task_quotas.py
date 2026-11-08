@@ -76,36 +76,21 @@ def test_three_task_groups_hold_twenty_four_business_connections():
             server.close()
 
 
-def test_same_task_group_cannot_multiply_its_budget_with_another_pool():
-    import tsp_rustdx_native as native
-
-    server = _Server()
-    first = native.RustdxClient(8, server.address, 2, task_group="minute")
-    second = native.RustdxClient(1, server.address, 2, task_group="minute")
-    securities = [(0, f"{index:06d}") for index in range(1_200)]
-    try:
-        first.quotes_json(securities)
-        _wait(lambda: server.live == 8)
-        with pytest.raises(RuntimeError, match=r"quota|TimedOut"):
-            second.xdxr_json(0, "000001")
-        assert json.loads(second.stats_json())["task_quota"]["active"] == 8
-        assert server.peak <= 9
-        first.close()
-        assert json.loads(second.xdxr_json(0, "000001")) == []
-    finally:
-        first.close()
-        second.close()
-        server.close()
-
-
-def test_distinct_groups_share_the_physical_endpoint_budget(monkeypatch):
+@pytest.mark.parametrize(
+    ("first_group", "second_group", "expected_group_active"),
+    [("minute", "minute", 8), ("realtime", "history", 0)],
+    ids=["same-task-group", "distinct-task-groups"],
+)
+def test_pools_share_task_and_physical_endpoint_budgets(
+    monkeypatch, first_group, second_group, expected_group_active,
+):
     import psutil
     import test_rustdx_native_pool as server_module
     import tsp_rustdx_native as native
 
     server = _Server(idle_timeout=30, probe_delay=0.05)
-    first = native.RustdxClient(8, server.address, 2, task_group="realtime")
-    second = native.RustdxClient(1, server.address, 2, task_group="history")
+    first = native.RustdxClient(8, server.address, 2, task_group=first_group)
+    second = native.RustdxClient(1, server.address, 2, task_group=second_group)
     release_cleanup = threading.Event()
     exact = server_module._exact
     endpoint = tuple(server.listener.getsockname())
@@ -141,7 +126,8 @@ def test_distinct_groups_share_the_physical_endpoint_budget(monkeypatch):
                 assert current <= 9
                 stats = json.loads(second.stats_json())
                 assert stats["task_quota"]["endpoints"][endpoint_key] == 8
-                assert stats["task_quota"]["active"] == 0
+                assert stats["task_quota"]["active"] == expected_group_active
+                assert stats["task_quota"]["peak"] <= 8
                 assert stats["network"]["active"] == 8
                 assert stats["probes"]["active"] <= 1
                 time.sleep(0.005)
@@ -149,7 +135,9 @@ def test_distinct_groups_share_the_physical_endpoint_budget(monkeypatch):
                 request.result()
         assert max(observed) == 9
         assert len(sockets()) == 8
-        assert json.loads(second.stats_json())["task_quota"]["endpoints"][endpoint_key] == 8
+        stats = json.loads(second.stats_json())
+        assert stats["task_quota"]["endpoints"][endpoint_key] == 8
+        assert stats["task_quota"]["active"] == expected_group_active
         release_cleanup.set()
         _wait(lambda: server.live == 8)
         first.close()

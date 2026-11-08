@@ -6,6 +6,11 @@ S02当前模板契约由`backend/tests/test_s02_current_selection_contract.py`�
 不依赖运行库，不构成真实交易日扫描或收益回测。最新执行结果见
 [修正记录](../.claude/artifacts/fixes/s02-retired-amount-filter.md)。
 
+Rustdx同组与不同组的池配额统一使用客户端真实TCP连接断言，
+主动延迟服务端EOF清理以覆盖计数滞后，同时检查8条业务及1条探测上限。
+首次PR失败、受控复现及本地31项结果见
+[配额测试修正](../.claude/artifacts/fixes/rustdx-same-group-socket-count.md)。
+
 2026-11-08最新截止回归覆盖14:35、14:54:59、14:55整和超过截止，
 并交叉30/90/900秒确认延迟；原主线8项边界失败，修正后通过。
 提交跨过截止保留卖出、删除新买入/入池，明确历史扫描仍可读取。
