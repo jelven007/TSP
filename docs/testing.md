@@ -1,5 +1,9 @@
 # 测试与验收指南
 
+2026-11-09追加复现见`test_full_postclose_review.py`与`StrategyDailyResults.review.test.tsx`：
+未修复API1失败/4通过、前端原因及完整行情门槛依次失败；修复与正式矩阵另签收，
+原attempt/归档保持断言不可省略，见[本轮验证边界](upgrade-20261109.md)。
+
 2026-11-09本轮按[统一候选矩阵](upgrade-20261109.md)执行快速检查、完整后端与真实隔离
 PostgreSQL、tools、前端测试/lint/构建，再分别验收两端恢复、配置/业务差分、真实Compute、
 桌面/窄屏及完整重启。实际计数与失败写固定发布回执；不预写通过或复用旧SHA计数。

@@ -537,6 +537,13 @@ def _with_execution_status(request, results, day, *, identities=()):
                 continue
             if previous is None or previous.get("as_of") != day:
                 continue
+            # The dated review is independent of the original expired live attempt.
+            if (attempt.get("state") == "expired"
+                    and (previous.get("repair_provenance") or {}).get("kind") == "post_close_signal_review_v1"
+                    and previous.get("runtime_identity") == expected
+                    and (previous.get("section_statuses") or {}).get("buy") == "success"
+                    and (previous.get("execution_status") or {}).get("state") == "success"):
+                continue
             current_result = {**previous, "execution_status": attempt}
             if attempt.get("state") == "expired" and (previous.get("section_statuses") or {}).get("buy") != "success":
                 current_result["section_statuses"] = {**(previous.get("section_statuses") or {}), "buy": "expired"}

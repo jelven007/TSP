@@ -258,7 +258,7 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
   return <><section ref={sectionRef} className="space-y-2 min-w-0">
     {!hideToolbar && <StrategyDailyResultToolbar result={result} activeTab={active} currentDate={today}
       onTabChange={tab => { setLocalActive(tab); onTabChange?.(tab) }} />}
-    {executionStatus && executionStatus.state !== 'success' && <p role="status" className="text-sm text-secondary">
+    {executionStatus && (executionStatus.state !== 'success' || executionStatus.reason) && <p role="status" className="text-sm text-secondary">
       {statusLabels[executionStatus.state]}{executionStatus.reason && ` · ${executionStatus.reason}`}
       {' · '}{new Date(executionStatus.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
     </p>}
@@ -296,12 +296,13 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       </div>
     </details>
     {signals && active === 'buy' && Object.entries(result.entry_data_quality ?? {})
-      .filter(([, quality]) => quality.missing_symbols.length > 0
+      .filter(([, quality]) => (quality.missing_symbols.length > 0 || quality.stage === 'breadth_rejected')
         && (quality.breadth_policy === 'available_members_v1'
           || (quality.pool_up_pct_lower != null && quality.pool_up_pct_upper != null)))
       .map(([signal, quality]) => <p key={signal} className="text-xs text-muted">
         {quality.breadth_policy === 'available_members_v1' ? <>
           {quality.pool_up_pct == null ? '无有效行情，等待数据' : `上涨比例 ${quality.pool_up_pct.toFixed(2)}%`}
+          {' · '}阈值 {quality.pool_up_min_pct.toFixed(2)}%
           {' · '}完整池 {quality.pool_total} 只 · 有效 {quality.pool_usable} 只 · 剔除 {quality.missing_symbols.length} 只
           {' · '}缺少有效指定分钟价格或昨收的股票不参与上涨占比计算
           {quality.stage === 'breadth_rejected' && ' · 上涨占比未达阈值，市场条件未满足'}
