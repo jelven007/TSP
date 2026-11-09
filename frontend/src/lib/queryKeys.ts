@@ -53,6 +53,7 @@ export const QK = {
   screenerStrategies:   (assetType: string = 'stock', timeframe: '1d' | '1m' | 'all' = '1d') => ['screener-strategies', assetType, timeframe] as const,
   screenerCachedSummary: (asOf?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'summary', asOf ?? '', asset, timeframe] as const,
   screenerCachedResult: (strategyId: string, asOf?: string, ext?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'strategy', strategyId, asOf ?? '', ext ?? '', asset, timeframe] as const,
+  screenerDayView: (strategyId: string, asOf: string, asset = 'stock', timeframe = '1m') => ['screener-cached', 'day-view', strategyId, asOf, asset, timeframe] as const,
   screenerCached:       (asOf?: string, ext?: string, asset = 'stock', timeframe = '1d') => ['screener-cached', 'all', asOf ?? '', ext ?? '', asset, timeframe] as const,
   screenerHistory:      (strategyId: string, cursor?: string, filters: StrategyResultHistoryFilters = {}) =>
     Object.keys(filters).length

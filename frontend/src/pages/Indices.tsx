@@ -207,7 +207,7 @@ export function Indices() {
         }
       />
 
-      {job.data && <div className="px-4 pt-4 space-y-2">
+      {job.data && <div className="px-5 pt-3 space-y-2">
         <ActiveJobCard job={job.data} />
         {!TERMINAL_STATES.has(job.data.status) && <button disabled={stop.isPending || job.data.status === 'cancelling'}
           onClick={() => stop.mutate()} className="rounded-btn border border-danger/30 px-3 py-1.5 text-xs text-danger disabled:opacity-40">
@@ -215,8 +215,8 @@ export function Indices() {
         </button>}
         {stop.isError && <div role="alert" className="text-xs text-danger">{stop.error.message}</div>}
       </div>}
-      {job.isError && <div role="alert" className="px-4 pt-3 text-xs text-danger">修正进度加载失败，请重试</div>}
-      <div className="grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] gap-4 p-4">
+      {job.isError && <div role="alert" className="px-5 pt-3 text-xs text-danger">修正进度加载失败，请重试</div>}
+      <div className="page-content grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] gap-4">
         <aside className="self-start rounded-card border border-border bg-surface p-3">
           <div className="mb-2 px-1 text-[11px] uppercase tracking-wider text-muted">指数列表</div>
           {catalog.isLoading && <div className="text-xs text-muted">指数加载中…</div>}

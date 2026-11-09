@@ -264,7 +264,7 @@ function SetupCard({ accId, onDone, onCancel }: { accId: string; onDone: (create
   const valid = Number(cash) > 0
     && Number(commissionWan) >= 0 && Number(stampQian) >= 0 && Number(slippageBps) >= 0
   return (
-    <div className="mx-auto mt-16 max-w-md rounded-card border border-border bg-surface p-6">
+    <div className="page-card w-full p-4">
       <div className="flex items-center gap-2">
         <CircleDollarSign className="h-5 w-5 text-accent" />
         <h2 className="text-[16px] leading-6 font-semibold">创建虚拟账户</h2>
@@ -965,7 +965,9 @@ function AutoRulesPanel({ acc }: { acc: string }) {
                 {(r.max_total_exposure_pct ?? 0) > 0 && ` · 总仓≤${r.max_total_exposure_pct}%`}
                 {r.risk_follow && ' · 策略风控'}
               </span>
-              <span className="shrink-0 text-[11px] text-muted">建仓 {ORDER_TYPE_LABEL[r.buy_order_type ?? r.order_type]} · 清仓 {ORDER_TYPE_LABEL[r.sell_order_type ?? r.order_type]} · {r.side === 'auto' ? '买入' : ''}冷却{r.cooldown_days}自然日</span>
+              <span className="shrink-0 text-[11px] text-muted">{r.execution_mode === 's02_minute'
+                ? 'S02：五分钟容量买入 · 次交易日早盘清仓'
+                : `建仓 ${ORDER_TYPE_LABEL[r.buy_order_type ?? r.order_type]} · 清仓 ${ORDER_TYPE_LABEL[r.sell_order_type ?? r.order_type]} · ${r.side === 'auto' ? '买入' : ''}冷却${r.cooldown_days}自然日`}</span>
               <button
                 onClick={() => toggleM.mutate({ id: r.id, enabled: !r.enabled })}
                 className={cn('ml-auto shrink-0 rounded-btn px-2 py-0.5 text-[10px] transition-colors',
@@ -1005,7 +1007,9 @@ function StrategyRiskSummary({ strategy }: { strategy: StrategyDetail }) {
       信号低点保护 {risk?.stop_signal_low ? '开启' : '关闭'}；单笔计划风险 {pct(risk?.risk_per_trade_pct)}（不保证最大实际损失）。</p>
     <p>选股范围、基础过滤、日线叠加和评分沿所选策略维护。缺必要风险参考时不放行。</p>
     {(strategy.minute_execution || strategy.execution_backend === 'minute_filter') && <p className="text-warning">
-      分钟容量建仓不能等价为普通即时单；专用S01/S02分钟执行自动委托仍未适配，保留未执行原因。
+      {strategy.id === 'custom_mvxxcp88'
+        ? 'S02请选择“跟随S02分钟买卖规则”：五分钟容量建仓，次交易日按冻结的早盘清仓参数卖出。'
+        : '此策略的专用分钟容量执行尚未接入自动跟单，保留未执行原因。'}
     </p>}
   </div>
 }
@@ -1034,6 +1038,9 @@ function AutoRuleForm({ acc, initialRule, onDone, onCancel }: {
   const orderType = initialRule?.order_type ?? 'next_open'
   const [buyOrderType, setBuyOrderType] = useState(initialRule?.buy_order_type ?? orderType)
   const [sellOrderType, setSellOrderType] = useState(initialRule?.sell_order_type ?? orderType)
+  const [executionMode, setExecutionMode] = useState<'orders' | 's02_minute'>(initialRule?.execution_mode ?? 'orders')
+  const s02Eligible = matchKind === 'strategy' && matchId === 'custom_mvxxcp88' && side === 'auto'
+  const s02Execution = s02Eligible && executionMode === 's02_minute'
   const [cooldown, setCooldown] = useState(String(initialRule?.cooldown_days ?? 5))
   const [maxPositions, setMaxPositions] = useState(String(initialRule?.max_positions ?? 0))
   const [candidatePriority, setCandidatePriority] = useState<NonNullable<PaperAutoRule['candidate_priority']>>(initialRule ? initialRule.candidate_priority ?? 'event' : 'score')
@@ -1085,9 +1092,12 @@ function AutoRuleForm({ acc, initialRule, onDone, onCancel }: {
         order_type: orderType,
         buy_order_type: buyOrderType,
         sell_order_type: sellOrderType,
-        cooldown_days: Number(cooldown),
+        ...(s02Eligible || initialRule?.execution_mode ? {
+          execution_mode: s02Execution ? 's02_minute' as const : 'orders' as const,
+        } : {}),
+        cooldown_days: s02Execution ? 0 : Number(cooldown),
         max_positions: Number(maxPositions),
-        candidate_priority: candidatePriority,
+        candidate_priority: s02Execution ? 'score' as const : candidatePriority,
         max_symbol_exposure_pct: Number(symbolExposure),
         max_total_exposure_pct: Number(totalExposure),
         risk_follow: riskFollow && matchKind === 'strategy' && side !== 'sell',
@@ -1214,7 +1224,8 @@ function AutoRuleForm({ acc, initialRule, onDone, onCancel }: {
             ))}
           </div>
           <div className="mt-1 text-[10px] text-muted">
-            {matchKind === 'rule' ? '监控规则需指定固定买卖方向，固定方向覆盖事件方向。' : '自动：买入信号/入池买入，卖出信号/出池全平。固定买卖覆盖信号方向。'}
+            {s02Execution ? '跟随S02买入信号与冻结的早盘清仓定义；股票池变化不直接下单。'
+              : matchKind === 'rule' ? '监控规则需指定固定买卖方向，固定方向覆盖事件方向。' : '自动：买入信号/入池买入，卖出信号/出池全平。固定买卖覆盖信号方向。'}
           </div>
         </div>
         </section>
@@ -1237,7 +1248,7 @@ function AutoRuleForm({ acc, initialRule, onDone, onCancel }: {
         </div>
         <div>
           <label htmlFor="auto-rule-cooldown" className="text-[11px] text-muted">{side === 'auto' ? '买入冷却天数 (同标的)' : '冷却天数 (同标的)'}</label>
-          <input id="auto-rule-cooldown" type="number" min="0" step="1" value={cooldown} onChange={e => setCooldown(e.target.value)}
+          <input id="auto-rule-cooldown" disabled={s02Execution} type="number" min="0" step="1" value={s02Execution ? '0' : cooldown} onChange={e => setCooldown(e.target.value)}
             className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 font-mono text-sm outline-none focus:border-accent/50" />
           <div className="mt-1 text-[10px] text-muted">自然日，以最近自动下单为起点，撤单仍计入；0不冷却。自动退出不受买入冷却限制。</div>
         </div>
@@ -1249,7 +1260,7 @@ function AutoRuleForm({ acc, initialRule, onDone, onCancel }: {
         </div>
         <div>
           <label htmlFor="auto-rule-priority" className="text-[11px] text-muted">候选买入顺序</label>
-          <select id="auto-rule-priority" value={candidatePriority} onChange={e => setCandidatePriority(e.target.value as typeof candidatePriority)}
+          <select id="auto-rule-priority" disabled={s02Execution} value={s02Execution ? 'score' : candidatePriority} onChange={e => setCandidatePriority(e.target.value as typeof candidatePriority)}
             className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 text-sm">
             <option value="score">评分从高到低（同分按代码，缺分最后）</option>
             <option value="symbol">按证券代码</option>
@@ -1281,14 +1292,26 @@ function AutoRuleForm({ acc, initialRule, onDone, onCancel }: {
         </section>
         <section className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <h4 className="text-sm font-medium md:col-span-2">3. 成交方式</h4>
-          {([['buy', buyOrderType, setBuyOrderType], ['sell', sellOrderType, setSellOrderType]] as const).map(([direction, value, setter]) => <div key={direction}>
+          {s02Eligible && <div className="md:col-span-2">
+            <label htmlFor="auto-rule-execution" className="text-[11px] text-muted">策略成交方式</label>
+            <select id="auto-rule-execution" value={executionMode} onChange={e => setExecutionMode(e.target.value as typeof executionMode)}
+              className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 text-sm">
+              <option value="s02_minute">跟随S02分钟买卖规则</option>
+              <option value="orders">普通订单</option>
+            </select>
+          </div>}
+          {s02Execution ? <p className="text-[11px] leading-relaxed text-muted md:col-span-2">
+            买入沿S02确认后的五个交易分钟，以分钟最高价及成交量容量分片，买足提前结束，窗口结束撤余量。
+            卖出遵守T+1，按买入时保存的S02早盘清仓参数逐分钟卖出，截止后仍有余股会明确记录失败。
+            同一委托累计最低佣金只收一次，滑点计入现金成本；按S02评分顺序买入，无额外自然日冷却。
+          </p> : <>{([['buy', buyOrderType, setBuyOrderType], ['sell', sellOrderType, setSellOrderType]] as const).map(([direction, value, setter]) => <div key={direction}>
             <label htmlFor={`auto-rule-${direction}-type`} className="text-[11px] text-muted">{direction === 'buy' ? '建仓' : '清仓'}订单类型</label>
             <select id={`auto-rule-${direction}-type`} value={value} onChange={e => setter(e.target.value as typeof value)}
               className="mt-1 w-full rounded-btn border border-border bg-base px-3 py-1.5 text-sm">
               {(['next_open', 'close', 'market'] as const).map(t => <option key={t} value={t}>{ORDER_TYPE_LABEL[t]}</option>)}
             </select>
           </div>)}
-          <p className="text-[11px] leading-relaxed text-muted md:col-span-2">即时在下单后的下一次有效实时快照撮合，次日开盘为单一开盘价；收盘仅在合法实际时点撮合，不回填已打印价格。两侧独立，旧共同类型作回退。卖出仍遵守T+1和待卖占用。</p>
+          <p className="text-[11px] leading-relaxed text-muted md:col-span-2">即时在下单后的下一次有效实时快照撮合，次日开盘为单一开盘价；收盘仅在合法实际时点撮合，不回填已打印价格。两侧独立，旧共同类型作回退。卖出仍遵守T+1和待卖占用。</p></>}
         </section>
         <section>
         <h4 className="mb-3 text-sm font-medium">4. 策略风控</h4>
@@ -1506,16 +1529,16 @@ function CompareView({ onCreateSingle }: { onCreateSingle: () => void }) {
           </div>
         }
       />
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+      <div className="page-content min-h-0 flex-1 overflow-y-auto">
         {cmpQ.isLoading ? (
-          <div className="py-16 text-center text-sm text-muted">加载中…</div>
+          <div className="page-card p-4 text-center text-sm text-muted" role="status">加载中…</div>
         ) : cmpQ.isError ? (
-          <div className="py-16 text-center text-sm text-danger">
+          <div className="page-card p-4 text-center text-sm text-danger">
             对比数据加载失败
             <button onClick={() => cmpQ.refetch()} className="ml-2 rounded-btn border border-border px-2 py-0.5 text-xs text-secondary hover:text-foreground">重试</button>
           </div>
         ) : rows.length === 0 ? (
-          <div className="mx-auto mt-16 max-w-md rounded-card border border-dashed border-border bg-surface/50 px-6 py-14 text-center">
+          <div className="page-card w-full p-4 text-center">
             <GitCompare className="mx-auto h-8 w-8 text-muted/50" />
             <div className="mt-3 text-sm font-medium">还没有对比账户</div>
             <div className="mt-1.5 text-xs leading-relaxed text-muted">
@@ -2214,7 +2237,9 @@ function AccountPanel({ acc, name, onDeleted }: { acc: string; name?: string; on
                         {o.side === 'buy' ? '买入' : '卖出'}
                       </span>
                       <span className="w-24 shrink-0 font-mono">{o.symbol}</span>
-                      <span className="w-16 shrink-0 font-mono text-right">{o.qty}</span>
+                      <span className="w-24 shrink-0 font-mono text-right" title={o.filled_qty != null ? `委托${o.qty}股，实际成交${o.filled_qty}股` : undefined}>
+                        {o.filled_qty != null ? `${o.filled_qty}/${o.qty}` : o.qty}
+                      </span>
                       <span className="w-16 shrink-0 text-muted">{ORDER_TYPE_LABEL[o.order_type]}</span>
                       <span className={cn(
                         'w-16 shrink-0 rounded-full px-1.5 py-px text-center text-[10px] leading-4',

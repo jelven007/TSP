@@ -263,3 +263,82 @@ def test_history_delete_failure_is_explicit_and_preserves_previous_result(runtim
     assert error.value.status_code == 503
     assert "private disk path" not in error.value.detail
     assert strategy_results.StrategyResults(storage).read(key, "2026-10-22") is not None
+
+
+def test_day_view_http_returns_saved_sections_without_engine_or_market_reads(runtime, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    storage, engine, request, _ = runtime
+    key = strategy_results.capture_identity(engine, storage, "sample", timeframe="1m")
+    sections = {"sell": [], "select": [{"symbol": "SELECT", "score": 88}], "buy": []}
+    strategy_results.StrategyResults(storage).save(
+        key, {"as_of": "2026-10-22", "rows": [], "total": 0,
+              "section_mode": "signals", "sections": sections}, started_at=1,
+    )
+    def forbidden(*args, **kwargs):
+        raise AssertionError("historical GET attempted strategy/market access")
+    monkeypatch.setattr(screener, "_strategy_engine", forbidden)
+    monkeypatch.setattr(screener, "_load_ext_value_maps", forbidden)
+    app = FastAPI()
+    app.state.repo = request.app.state.repo
+    app.include_router(screener.router)
+    with TestClient(app) as client:
+        url = "/api/screener/day-view/sample"
+        response = client.get(url, params={"as_of": "2026-10-22"})
+        assert response.status_code == 200
+        assert response.headers["content-encoding"] == "gzip"
+        assert response.json()["result"]["sections"] == sections
+        assert response.json()["summary"]["strategy_version"] == key.strategy_version
+        assert client.get(url, params={"as_of": "2026-10-23"}).json()["result"] is None
+        plain = client.get(url, params={"as_of": "2026-10-22"}, headers={"Accept-Encoding": "identity"})
+        assert "content-encoding" not in plain.headers
+        assert plain.json() == response.json()
+        for encoding in ("gzip;q=invalid", "gzip;q=0", "gzip;q=0.0"):
+            denied = client.get(url, params={"as_of": "2026-10-22"},
+                                headers={"Accept-Encoding": encoding})
+            assert denied.status_code == 200
+            assert "content-encoding" not in denied.headers
+            assert denied.json() == response.json()
+        assert client.get(url, params={"as_of": "bad"}).status_code == 422
+        assert client.get(url, params={"as_of": "2026-10-22", "timeframe": "1d"}).status_code == 422
+
+
+def test_day_view_keeps_authentication_but_skips_market_and_factor_middleware(runtime, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.cell.context import AccessError
+    from app.multitenancy import access
+    from app.multitenancy.documents import TenantDocuments
+    storage, _, _, _ = runtime
+    calls = []
+    account = {"id": "owner", "default_tenant_id": "tenant", "auth_version": 1,
+               "permissions": ["business:read"]}
+    def current_user(cookie):
+        calls.append("authenticate")
+        if not cookie:
+            raise AccessError(401, "unauthorized")
+        return account
+    def context(*args):
+        calls.append("tenant")
+        return object()
+    def forbidden(*args):
+        raise AssertionError("historical GET loaded market/factor dependencies")
+    service = SimpleNamespace(db=object(), current_user=current_user, context=context)
+    app = FastAPI()
+    app.state.account_identity = service
+    app.state.quote_service = SimpleNamespace(ensure_fresh=forbidden)
+    app.middleware("http")(access.middleware)
+    app.include_router(screener.router)
+    monkeypatch.setattr(TenantDocuments, "values", forbidden)
+    monkeypatch.setattr(screener, "_private_data_dir", lambda request: storage)
+    with TestClient(app) as client:
+        from app.api.auth import COOKIE_NAME
+        url = "/api/screener/day-view/sample?as_of=2026-06-22"
+        assert client.get(url).status_code == 401
+        client.cookies.set(COOKIE_NAME, "fixture-session")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.headers["x-tsp-account-scope"] == "tsp-v1:owner:tenant:1"
+        assert response.json()["availability"] == "not_materialized"
+    assert calls == ["authenticate", "authenticate", "tenant"]

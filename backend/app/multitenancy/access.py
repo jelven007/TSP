@@ -165,7 +165,8 @@ async def middleware(request: Request, call_next):
                 f"tsp-v1:{account['id']}:{account['default_tenant_id'] or 'market'}:{account['auth_version']}"
             )
             return response
-        if service_role == "api" and not any(
+        saved_day_read = request.method == "GET" and path.startswith("/api/screener/day-view/")
+        if service_role == "api" and not saved_day_read and not any(
             path == prefix or path.startswith(prefix + "/")
             for prefix in MARKET_REFRESH_EXEMPT_PREFIXES
         ):
@@ -183,8 +184,9 @@ async def middleware(request: Request, call_next):
         if context:
             documents = TenantDocuments(service.db, context)
             request.state.private_documents = documents
-            with measure_runtime_stage("tenant.factor_definitions"):
-                definitions = await run_in_threadpool(documents.values, "custom_factors")
+            if not saved_day_read:
+                with measure_runtime_stage("tenant.factor_definitions"):
+                    definitions = await run_in_threadpool(documents.values, "custom_factors")
         with private_factor_registry(definitions), ai_usage_scope(documents):
             response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"

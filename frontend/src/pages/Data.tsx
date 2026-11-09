@@ -689,7 +689,7 @@ export function Data() {
         }
       />
 
-      <div className="mx-auto px-8 py-6 space-y-6 max-w-6xl">
+      <div className="page-content space-y-4">
         <DataReadiness quality={s?.quality} initialization={s?.initialization} />
         {/* 无 Key 提示 —— 非阻断: 历史日K走免费通道, 实时等能力取决于所选数据源 */}
         {isNoKey && (

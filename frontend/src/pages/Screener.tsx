@@ -27,7 +27,7 @@ import { StrategyBuilderDialog } from '@/components/screener/StrategyBuilderDial
 import { StrategyStoreDialog } from '@/components/screener/StrategyStoreDialog'
 import { CompositeStrategyDialog } from '@/components/screener/CompositeStrategyDialog'
 import { StrategyResultHistoryDialog } from '@/components/screener/StrategyResultHistoryDialog'
-import { StrategyDailyResults, type StrategyResultTab } from '@/components/screener/StrategyDailyResults'
+import { StrategyDailyResults, StrategyDailyResultToolbar, type StrategyResultTab } from '@/components/screener/StrategyDailyResults'
 import { StrategyLotBatchDialog } from '@/components/screener/StrategyLotBatchDialog'
 import { strategyLotStocks } from '@/lib/strategyLotDraft'
 import { ListColumnCustomizer } from '@/components/ListColumnCustomizer'
@@ -179,6 +179,11 @@ export function Screener() {
   )
 
   const { data: prefs } = usePreferences()
+  const dataStatus = useDataStatus({ staleTime: 0 })
+  const quoteStatus = useQuoteStatus()
+  const calendarToday = quoteStatus.data?.market_time?.slice(0, 10)
+    ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+  const isHistoricalDate = !!asOf && asOf < calendarToday
 
   // 统一列表: 不按周期过滤, 日线+分钟策略合并返回, 分钟策略带 timeframes 标识
   const strategies = useQuery({
@@ -194,6 +199,8 @@ export function Screener() {
     const meta = (strategies.data?.presets ?? []).find(s => s.id === activeStrategy)
     return meta?.timeframes?.includes('1m') ? ('1m' as const) : ('1d' as const)
   }, [strategies.data, activeStrategy])
+  const historicalSignals = isHistoricalDate && activeStrategyTimeframe === '1m'
+    && strategies.data?.presets.find(strategy => strategy.id === activeStrategy)?.result_sections === 'signals'
 
   // 卡片首屏只读取轻量摘要；明细在点击策略或“全部”时按需加载。
   // 摘要读取当前日期的股票日线/分钟保存记录。
@@ -201,7 +208,7 @@ export function Screener() {
   const summaryQuery = useQuery({
     queryKey: QK.screenerCachedSummary(asOf, assetType, 'all'),
     queryFn: () => api.screenerCachedSummary(asOf, assetType, 'all'),
-    enabled: !!asOf,
+    enabled: !!asOf && (!historicalSignals || showAll || !!pendingRun),
     refetchInterval: pendingRun ? 2000 : false,
   })
 
@@ -212,16 +219,19 @@ export function Screener() {
   })
 
   const singleCachedQuery = useQuery({
-    queryKey: QK.screenerCachedResult(activeStrategy ?? '', asOf, extColumnsParam, assetType, activeStrategyTimeframe),
-    queryFn: () => api.screenerCachedResult(activeStrategy!, extColumnsParam || undefined, asOf, assetType, activeStrategyTimeframe),
+    queryKey: historicalSignals
+      ? QK.screenerDayView(activeStrategy ?? '', asOf, assetType, activeStrategyTimeframe)
+      : QK.screenerCachedResult(activeStrategy ?? '', asOf, extColumnsParam, assetType, activeStrategyTimeframe),
+    queryFn: () => historicalSignals
+      ? api.screenerDayView(activeStrategy!, asOf, assetType, activeStrategyTimeframe)
+      : api.screenerCachedResult(activeStrategy!, extColumnsParam || undefined, asOf, assetType, activeStrategyTimeframe),
     enabled: !!asOf && !showAll
       && !!activeStrategy
-      && summaryQuery.data?.results[activeStrategy]?.as_of === asOf,
-    refetchInterval: signalsView ? 1000 : false,
+      && (historicalSignals || summaryQuery.data?.results[activeStrategy]?.as_of === asOf),
+    staleTime: historicalSignals ? 60_000 : 0,
+    refetchInterval: signalsView && !isHistoricalDate ? 1000 : false,
   })
 
-  const dataStatus = useDataStatus({ staleTime: 0 })
-  const quoteStatus = useQuoteStatus()
   const realtimeRunning = quoteStatus.data?.running ?? false
   const currentTradeDate = quoteStatus.data?.is_trading_day === true
     ? quoteStatus.data.market_date || dataStatus.data?.enriched?.latest_date
@@ -437,12 +447,17 @@ export function Screener() {
   // 当前单策略缓存更新后同步明细；参数保存的强制重算结果仍由 run 直接覆盖。
   useEffect(() => {
     const cached = singleCachedQuery.data?.result
+    if (historicalSignals && !showAll && singleCachedQuery.data && cached === null) {
+      setResult(null)
+      if (activeStrategy) setHitCounts(previous => ({ ...previous, [activeStrategy]: 0 }))
+      return
+    }
     if (!cached || showAll || cached.strategy !== activeStrategy || cached.as_of !== asOf) return
     setResult(cached)
     if (activeStrategy) {
       setHitCounts(prev => ({ ...prev, [activeStrategy]: cached.total }))
     }
-  }, [singleCachedQuery.data, showAll, activeStrategy, asOf])
+  }, [singleCachedQuery.data, showAll, activeStrategy, asOf, historicalSignals])
 
   const effectiveResults = useMemo(() => {
     if (fullCachedQuery.data?.as_of !== asOf) return null
@@ -646,7 +661,13 @@ export function Screener() {
     setResult(null)
   }
 
-  const minDate = dataStatus.data?.enriched?.earliest_date ?? ''
+  const minDate = useMemo(() => {
+    const day = new Date(`${calendarToday}T00:00:00Z`)
+    const month = day.getUTCMonth()
+    day.setUTCFullYear(day.getUTCFullYear() - 5)
+    if (day.getUTCMonth() !== month) day.setUTCDate(0)
+    return day.toISOString().slice(0, 10)
+  }, [calendarToday])
 
   const batchAdd = useWatchlistBatchAdd()
 
@@ -773,6 +794,8 @@ export function Screener() {
     })
   }
 
+
+  const inlineDailyToolbar = !showAll && result?.strategy === 'custom_mvxxcp88' && !!result.sections
 
   return (
     <>
@@ -939,7 +962,7 @@ export function Screener() {
         }
       />
 
-      <div className="px-8 py-4 space-y-3">
+      <div className="page-content space-y-3">
         {/* 策略卡片 */}
         <section>
           {(summaryQuery.isError || singleCachedQuery.isError || fullCachedQuery.isError) && (
@@ -964,7 +987,7 @@ export function Screener() {
             </div>
           )}
           {!strategies.isLoading && !strategies.isError && displayPool.length === 0 && (
-            <div className="text-sm text-muted py-4 text-center border border-dashed border-border rounded-btn">
+            <div className="page-card p-4 text-sm text-muted text-center">
               {pool.length === 0
                 ? '策略池为空，点击右上角「策略池」按钮添加策略'
                 : '当前周期筛选下无策略，切换周期筛选或编辑策略池'}
@@ -1026,7 +1049,12 @@ export function Screener() {
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               className="space-y-3"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
+              <div role={inlineDailyToolbar ? 'group' : undefined}
+                aria-label={inlineDailyToolbar ? '每日策略工具栏' : undefined}
+                className={inlineDailyToolbar
+                  ? 'flex min-w-0 items-center gap-2 overflow-x-auto [&>div]:shrink-0'
+                  : 'flex flex-wrap items-center justify-between gap-2 min-w-0'}>
+                {(showAll || activeStrategy !== 'custom_mvxxcp88') && (
                 <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
                   {!showAll && activeStrategy && (
                     <span className="text-secondary">{strategyIdToName[activeStrategy] ?? ''}</span>
@@ -1055,7 +1083,11 @@ export function Screener() {
                     <span className="text-[11px] text-muted animate-pulse">扫描中…</span>
                   )}
                 </h2>
-                <div className="flex max-w-full items-center gap-3 overflow-x-auto [&>*]:shrink-0">
+                )}
+                {inlineDailyToolbar && <StrategyDailyResultToolbar result={result!}
+                  activeTab={activeResultTab} currentDate={calendarToday} inline
+                  onTabChange={tab => setDailyView({ key: dailyViewKey, tab })} />}
+                <div className={`flex max-w-full items-center gap-3 overflow-x-auto [&>*]:shrink-0${inlineDailyToolbar ? ' ml-auto' : ''}`}>
                   {(showAll ? allRows.length > 0 : !!result?.rows.length) && (
                     <div className="inline-flex items-stretch h-7 rounded-btn border border-border bg-surface overflow-hidden">
                       <button
@@ -1173,6 +1205,8 @@ export function Screener() {
 
               {!showAll && result?.sections ? (
                 <StrategyDailyResults key={`${result.strategy}-${result.as_of}`} result={result}
+                  hideToolbar={inlineDailyToolbar}
+                  currentDate={calendarToday}
                   activeTab={activeResultTab}
                   onTabChange={tab => setDailyView({ key: dailyViewKey, tab })}
                   signalColumns={signalColumns[activeResultTab]}
@@ -1229,8 +1263,8 @@ export function Screener() {
               <div className="flex flex-col items-center gap-1.5">
                 <span className="text-sm text-secondary">
                   {isFutureQuery && activeStrategy
-                    ? summaryQuery.isError || singleCachedQuery.isError ? '该交易日归档读取失败'
-                      : summaryQuery.isFetching || singleCachedQuery.isFetching ? '正在读取该交易日归档'
+                    ? (historicalSignals ? singleCachedQuery.isError : summaryQuery.isError || singleCachedQuery.isError) ? '该交易日归档读取失败'
+                      : (historicalSignals ? singleCachedQuery.isFetching : summaryQuery.isFetching || singleCachedQuery.isFetching) ? '正在读取该交易日归档'
                         : '该交易日归档尚未生成'
                     : '点击策略卡片查看选股结果'}
                 </span>

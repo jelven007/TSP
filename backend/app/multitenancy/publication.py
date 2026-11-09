@@ -106,6 +106,9 @@ class PublicPublisher:
             for path in (self.source / directory).rglob("*"):
                 if path.is_symlink() or not path.is_file() or path.suffix not in {".parquet", ".json"}:
                     continue
+                # Session JSON is mutable writer diagnostics, not replay evidence.
+                if directory == "quote_second" and path.suffix == ".json":
+                    continue
                 files[path.relative_to(self.source).as_posix()] = self._signature(path)
         for name in PUBLIC_FILES:
             path = self.source / name
@@ -243,7 +246,15 @@ class PublicPublisher:
                 else:
                     with target.open("rb") as stream:
                         checksums[name] = hashlib.file_digest(stream, "sha256").hexdigest()
-            if self.generations() != generations or self.inventory() != files:
+            current_files = {
+                name: signature for name, signature in self.inventory().items()
+                if name in files or not (
+                    name.startswith("quote_second/") and name.endswith(".parquet")
+                )
+            }
+            # Atomically appended second shards belong to the next release.
+            # All captured files must still exist unchanged, including seconds.
+            if self.generations() != generations or current_files != files:
                 raise ValueError("public files changed during publication; retry")
             manifest = {"id": release_id, "digest": digest, "generations": generations,
                         "files": files, "checksums": checksums, "published_at": time.time()}

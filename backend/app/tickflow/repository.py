@@ -1651,16 +1651,20 @@ class KlineRepository:
             raise ValueError("unsupported minute asset type")
         return self._minute_glob
 
-    def get_daily_close_inputs(self, day: date) -> tuple[pl.DataFrame, pl.DataFrame]:
+    def get_daily_close_inputs(
+        self, day: date, *, include_closing_minute: bool = True,
+    ) -> tuple[pl.DataFrame, pl.DataFrame]:
         """Bounded disk-only finality evidence; replacements are visible immediately."""
         raw_parts = sorted((self.store.data_dir / "kline_daily" / f"date={day}").glob("*.parquet"))
-        minute_parts = sorted((self.store.data_dir / "kline_minute" / f"date={day}").glob("*.parquet"))
         raw_frames = []
         for path in raw_parts:
             schema = pl.read_parquet_schema(path)
             columns = [c for c in ("symbol", "date", "close", "quote_ts", "quote_time_basis") if c in schema]
             raw_frames.append(pl.read_parquet(path, columns=columns))
         raw = pl.concat(raw_frames, how="diagonal_relaxed") if raw_frames else pl.DataFrame()
+        if not include_closing_minute:
+            return raw, pl.DataFrame()
+        minute_parts = sorted((self.store.data_dir / "kline_minute" / f"date={day}").glob("*.parquet"))
         minute_frames = []
         for path in minute_parts:
             schema = pl.read_parquet_schema(path)

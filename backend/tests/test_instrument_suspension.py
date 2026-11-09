@@ -37,9 +37,9 @@ def prices():
     ])
 
 
-def close_inputs(day):
+def close_inputs(day, *, include_closing_minute=True):
     raw = prices().filter(pl.col("date") == day)
-    return raw, raw.select("symbol", "close")
+    return raw, raw.select("symbol", "close") if include_closing_minute else pl.DataFrame()
 
 
 @pytest.fixture

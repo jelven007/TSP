@@ -13,13 +13,13 @@ export function PageHeader({ title, subtitle, titleExtra, right, className }: Pr
   return (
     <header
       className={cn(
-        'page-header min-h-16 shrink-0 border-b border-border bg-base px-5 pb-2 pt-3 max-lg:pl-16',
-        'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 lg:flex-nowrap',
+        'page-header h-[104px] shrink-0 border-b border-border bg-base px-5 pb-[9px] pt-3 lg:h-16 lg:pb-[11px]',
+        'grid min-w-0 grid-rows-[42px_32px] items-center gap-x-4 gap-y-2 lg:grid-cols-[auto_minmax(0,1fr)] lg:grid-rows-[40px] lg:gap-y-0',
         className,
       )}
     >
-      <div className="flex min-h-[42px] min-w-0 flex-col justify-start gap-0.5 lg:max-w-sm lg:shrink-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <div className="flex min-w-0 self-start flex-col justify-start gap-0.5 max-lg:pl-11 lg:max-w-sm">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
           <h1 className="self-start shrink-0 whitespace-nowrap bg-gradient-to-b from-foreground via-foreground to-accent/80 bg-clip-text text-xl font-semibold tracking-normal text-transparent">
             {title}
           </h1>
@@ -30,7 +30,7 @@ export function PageHeader({ title, subtitle, titleExtra, right, className }: Pr
         )}
       </div>
       {right && (
-        <div className="page-header-actions flex min-w-0 w-full items-center gap-2 overflow-x-auto lg:w-auto">
+        <div className="page-header-actions flex min-w-0 w-full items-center gap-2 overflow-x-auto lg:justify-self-end lg:w-auto lg:max-w-full">
           {right}
         </div>
       )}

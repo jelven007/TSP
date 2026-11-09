@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* 所有一级页面的实际工具栏、卡片和状态共用这一个内容入口。 */
+  .page-content {
+    @apply w-full min-w-0 max-w-none px-5 pb-4 pt-3;
+  }
+  .page-card {
+    @apply rounded-card border border-border bg-surface;
+  }
+}
+
+.page-content[class*="space-y-"] > :not([hidden]) ~ :not([hidden]),
+.page-content :where(.space-y-4) > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+.page-content[class*="gap-"] { gap: 12px; }
+.page-content :where(.gap-4) { gap: 12px; }
+.page-content :where(.rounded-card, .rounded-2xl).border {
+  border-radius: 12px;
+  background-color: hsl(var(--surface));
+}
+.page-content .page-card { border-radius: 12px; }
+
 /* 一级页面复用策略页的紧凑顶栏。长工具栏只在操作区横向滚动。 */
 .page-header-actions > :where(div) {
   display: flex;

@@ -9,9 +9,9 @@ import os
 import time
 from dataclasses import asdict, replace
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
 from app.api import contracts
@@ -520,18 +520,29 @@ def _with_execution_status(request, results, day, *, identities=()):
         default = unit.get("strategy_execution_status", "default", {})
         for sid in set(output) | {identity.strategy_id for identity in identities}:
             attempt = unit.get("strategy_execution_status", sid)
+            expected = next((item.runtime_identity for item in identities if item.strategy_id == sid), None)
+            terminal = (
+                attempt and attempt.get("fingerprint") == current and attempt.get("as_of") == day
+                and (not attempt.get("runtime_identity") or not expected or attempt["runtime_identity"] == expected)
+                and (attempt.get("state") == "expired"
+                     or (attempt.get("state") == "success" and attempt.get("entry_deadline_at")))
+            )
             if (default.get("state") != "success" and sid in default.get("strategy_ids", [])
-                    and default.get("fingerprint") == current):
+                    and default.get("fingerprint") == current and not terminal):
                 attempt = default
             if not attempt or attempt.get("fingerprint") != current or attempt.get("as_of") != day:
                 continue
             previous = output.get(sid)
-            expected = next((item.runtime_identity for item in identities if item.strategy_id == sid), None)
             if attempt.get("runtime_identity") and expected and attempt["runtime_identity"] != expected:
                 continue
             if previous is None or previous.get("as_of") != day:
                 continue
-            output[sid] = merge_result(previous, {**previous, "execution_status": attempt})
+            current_result = {**previous, "execution_status": attempt}
+            if attempt.get("state") == "expired" and (previous.get("section_statuses") or {}).get("buy") != "success":
+                current_result["section_statuses"] = {**(previous.get("section_statuses") or {}), "buy": "expired"}
+                current_result["section_errors"] = {**(previous.get("section_errors") or {}), "buy": attempt["reason"]}
+                current_result["entry_deadline_at"] = attempt.get("entry_deadline_at")
+            output[sid] = merge_result(previous, current_result)
     return output
 
 
@@ -548,6 +559,45 @@ def get_result_history(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/day-view/{strategy_id}")
+def get_day_view(strategy_id: str, request: Request, as_of: date,
+                 asset_type: Literal["stock"] = "stock", timeframe: Literal["1m"] = "1m"):
+    """Read a complete saved signal day with trusted tenant context, without engine/market IO."""
+    from app.cell.context import AccessError
+    try:
+        value = strategy_results.StrategyResults(_private_data_dir(request)).day_view(
+            strategy_id, str(as_of), asset_type, timeframe,
+        )
+    except AccessError:
+        raise
+    except Exception:
+        logger.error("strategy day view read failed")
+        raise HTTPException(status_code=503, detail="历史视图读取失败, 请重试") from None
+    if value is None:
+        return {"result": None, "today_ever_rows": None, "strategy_ids_by_symbol": {},
+                "updated_at": None, "availability": "not_materialized"}
+    token, body = value
+    headers = {"Cache-Control": "private, no-cache", "Vary": "Accept-Encoding", "ETag": f'"{token}"'}
+    encodings = [item.strip().lower().split(";") for item in request.headers.get("accept-encoding", "").split(",")]
+    accepts_gzip = False
+    for parts in encodings:
+        if parts[0] != "gzip":
+            continue
+        try:
+            quality = next((float(part.strip()[2:]) for part in parts[1:]
+                            if part.strip().startswith("q=")), 1)
+        except ValueError:
+            quality = 0
+        accepts_gzip = 0 < quality <= 1
+        break
+    if accepts_gzip:
+        headers["Content-Encoding"] = "gzip"
+    else:
+        import gzip
+        body = gzip.decompress(body)
+    return Response(body, media_type="application/json", headers=headers)
 
 
 @router.get("/result-history/{strategy_id}/{record_id}")

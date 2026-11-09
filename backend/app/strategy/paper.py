@@ -485,6 +485,10 @@ def qty_from_amount(amount: float, ref_price: float) -> int:
     return normalize_qty(int(amount / ref_price))
 
 
+def remaining_qty(order: dict) -> int:
+    return max(0, int(order["qty"]) - int(order.get("filled_qty", 0)))
+
+
 @paper_operation()
 def portfolio_budget(data_dir, account_id=DEFAULT_ACCOUNT_ID, *, prices=None, exclude_order=None):
     """Mark held shares and reserve pending buys, including slip and fees.
@@ -529,6 +533,12 @@ def portfolio_budget(data_dir, account_id=DEFAULT_ACCOUNT_ID, *, prices=None, ex
     unknown = False
     for order in load_orders(data_dir, account_id):
         if order["status"] != "pending" or order["side"] != "buy" or order["id"] == exclude_order:
+            continue
+        if order.get("strategy_execution"):
+            value = max(0., float(order["strategy_execution"].get("budget", 0))
+                        - float(order.get("filled_value", 0)))
+            pending[order["symbol"]] = pending.get(order["symbol"], 0.) + value
+            reserved += value
             continue
         price = order.get("ref_price")
         if not valid_price(price):
@@ -724,7 +734,7 @@ def create_order(
             # 超卖防护: pending 卖出单占用可卖额度 — 同 symbol 的 pending 卖出合计
             # 不得超过可卖数量, 否则多张单各自通过校验、成交时逐张扣减会超额
             pending_sell = sum(
-                int(o["qty"]) for o in load_orders(data_dir, account_id)
+                remaining_qty(o) for o in load_orders(data_dir, account_id)
                 if o["status"] == "pending" and o["side"] == "sell" and o["symbol"] == symbol
             )
             if pending_sell + qty > available:
@@ -1057,6 +1067,8 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
     调用方持锁。涨跌停按账户 queue_limit_orders 开关: 关 → expired 留痕;
     开 → 转 next_open 排队次日重试 (计顺延, 超限过期)。资金/可卖不足直接过期。
     """
+    if order.get("strategy_execution"):
+        return None
     if isinstance(data_dir, PaperSession):
         current = get_order(data_dir, order["id"], account_id)
         if current is None or current["status"] != "pending":
@@ -1141,8 +1153,10 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
         # 早单优先成交, 晚单不占早单的额度) — 防止多张 pending 买入各自通过预检、
         # 成交时逐张扣现金而穿透。
         earlier_cash = sum(
-            int(o["qty"]) * apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"])
-            + account_fee(acc, int(o["qty"]), apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"]), "buy")
+            (max(0., o["strategy_execution"]["budget"] - o.get("filled_value", 0.))
+             if o.get("strategy_execution") else
+             remaining_qty(o) * apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"])
+             + account_fee(acc, remaining_qty(o), apply_slippage(float(o["ref_price"] or 0), "buy", acc["slippage_bps"]), "buy"))
             for o in load_orders(data_dir, account_id)
             if o["status"] == "pending" and o["side"] == "buy"
             and o["id"] != order["id"]
@@ -1160,7 +1174,7 @@ def _fill_order(data_dir: Path, order: dict, raw_price: float, day: str, account
         # 超卖防护 (撮合侧兜底): 只计入 created_at 早于本单的其他 pending 卖出 —
         # 先到先得, 早单优先成交; 剩余额度不足则本单拒 (而非成交出负持仓)。
         pending_sell = sum(
-            int(o["qty"]) for o in load_orders(data_dir, account_id)
+            remaining_qty(o) for o in load_orders(data_dir, account_id)
             if o["status"] == "pending" and o["side"] == "sell" and o["symbol"] == symbol
             and o["id"] != order["id"]
             and _order_sort_key(o) < _order_sort_key(order)
@@ -1575,6 +1589,8 @@ def settle_day(data_dir: Path, day: str, account_id: str = DEFAULT_ACCOUNT_ID) -
             key=_order_sort_key,
         )
         for order in pending_orders:
+            if order.get("strategy_execution"):
+                continue
             if isinstance(data_dir, PaperSession):
                 if order.get("last_settled_day", "") >= day:
                     continue

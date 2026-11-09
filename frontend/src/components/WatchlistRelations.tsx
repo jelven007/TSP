@@ -6,6 +6,7 @@ import { api, type WatchlistEntry, type WatchlistGroup } from '@/lib/api'
 import { accountScope } from '@/lib/accountSession'
 import { QK } from '@/lib/queryKeys'
 import { resolveWatchlistGroupColor } from '@/lib/watchlist-group-colors'
+import { cn } from '@/lib/cn'
 
 export type WatchlistStrategyOption = { id: string; name: string }
 
@@ -15,26 +16,31 @@ export const watchlistStrategyQuery = () => ({
   staleTime: 30_000,
 })
 
-export function WatchlistRelations({ entry, groups, strategies, onEdit }: {
+export function WatchlistRelations({ entry, groups, strategies, onEdit, compact = false }: {
   entry: WatchlistEntry
   groups: WatchlistGroup[]
   strategies: WatchlistStrategyOption[]
   onEdit?: () => void
+  compact?: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1 mt-1 text-[10px] leading-normal">
+    <div className={cn('flex flex-wrap items-center gap-1 mt-1 text-[10px] leading-normal',
+      compact && 'gap-0.5 mt-0.5 leading-tight')}>
       {(entry.group_ids ?? []).map(id => {
         const group = groups.find(item => item.id === id)
         const color = resolveWatchlistGroupColor(group?.color)
-        return <span key={id} className={`max-w-full break-words px-1.5 py-0.5 rounded ${color.background} ${color.text}`}>{group?.name ?? '分组不可用'}</span>
+        return <span key={id} className={cn(`max-w-full break-words px-1.5 py-0.5 rounded ${color.background} ${color.text}`,
+          compact && 'px-1 py-px')}>{group?.name ?? '分组不可用'}</span>
       })}
       {(entry.strategy_ids ?? []).map(id => (
-        <span key={id} className="max-w-full break-words px-1.5 py-0.5 rounded bg-accent/10 text-accent">
+        <span key={id} className={cn('max-w-full break-words px-1.5 py-0.5 rounded bg-accent/10 text-accent',
+          compact && 'px-1 py-px')}>
           {strategies.find(item => item.id === id)?.name ?? `策略不可用（${id}）`}
         </span>
       ))}
       {onEdit && <button type="button" onClick={event => { event.stopPropagation(); onEdit() }}
-        className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-muted hover:text-accent hover:bg-accent/10"
+        className={cn('inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-muted hover:text-accent hover:bg-accent/10',
+          compact && 'py-px')}
         aria-label={`关联策略 ${entry.symbol}`} title="设置这只股票关联的策略">
         <Link2 className="h-3 w-3" />关联策略
       </button>}

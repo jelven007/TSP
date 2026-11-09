@@ -1311,6 +1311,7 @@ export interface PaperOrder {
   asset_type: string
   side: 'buy' | 'sell'
   qty: number
+  filled_qty?: number
   order_type: 'market' | 'next_open' | 'close'
   status: 'pending' | 'filled' | 'cancelled' | 'expired'
   ref_price?: number | null
@@ -1332,6 +1333,7 @@ export interface PaperAutoRule {
   size_mode: 'fixed_amount' | 'pct_equity'
   size_value: number
   order_type: 'market' | 'next_open' | 'close'
+  execution_mode?: 'orders' | 's02_minute'
   cooldown_days: number
   buy_order_type?: 'market' | 'next_open' | 'close'
   sell_order_type?: 'market' | 'next_open' | 'close'
@@ -3486,6 +3488,12 @@ export const api = {
       `/api/screener/cached-result/${encodeURIComponent(strategyId)}?${new URLSearchParams({
         ...(asOf ? { as_of: asOf } : {}), ...(extColumns ? { ext_columns: extColumns } : {}),
         asset_type: assetType, timeframe,
+      })}`,
+    ),
+  screenerDayView: (strategyId: string, asOf: string, assetType = 'stock', timeframe = '1m') =>
+    request<ScreenerCachedResult>(
+      `/api/screener/day-view/${encodeURIComponent(strategyId)}?${new URLSearchParams({
+        as_of: asOf, asset_type: assetType, timeframe,
       })}`,
     ),
   screenerCached: (extColumns?: string, asOf?: string, assetType = 'stock', timeframe = '1d') =>

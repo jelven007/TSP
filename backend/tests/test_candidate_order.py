@@ -6,17 +6,19 @@ import pytest
 
 from app.market_time import cn_today
 from app.strategy.candidate_order import candidate_pool_order
-from app.strategy.engine import StrategyResult
+from app.strategy.engine import StrategyEngine, StrategyResult
 from app.strategy.monitor import MonitorRuleEngine
 
 
 class SnapshotEngine:
+    _effective_signals = staticmethod(StrategyEngine._effective_signals)
+
     def __init__(self, result):
         self.result = result
 
     def get(self, sid):
         return SimpleNamespace(meta={"id": sid, "params": []}, filter_history_fn=None,
-                               execution_backend="polars_expr")
+                               execution_backend="polars_expr", exit_signals=[])
 
     def run(self, sid, context, **kwargs):
         return self.result
@@ -49,7 +51,7 @@ def test_monitor_projects_full_default_pool_order(sid, mode, limit, expected):
     # Runtime params are the evaluated snapshot's defaults, not later config.
     engine._strategy_engine.get = lambda _: SimpleNamespace(
         meta={"id": sid, "params": [{"id": "position_limit", "default": limit}]},
-        filter_history_fn=None, execution_backend="polars_expr")
+        filter_history_fn=None, execution_backend="polars_expr", exit_signals=[])
     df = pl.DataFrame([{**row, "atr14_previous_close": 999} for row in rows])
     result.entry_signal_hits = []
     engine.evaluate(df)

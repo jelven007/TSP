@@ -12,13 +12,13 @@ TARGET = datetime(2026, 9, 4, 14, 30)
 POOL = ["a", "b", "c", "d", "e"]
 
 
-def close_inputs(day):
+def close_inputs(day, *, include_closing_minute=True):
     assert day == DAY - timedelta(days=1)
     raw = pl.DataFrame({"symbol": POOL, "date": [day] * len(POOL), "close": [10.] * len(POOL)})
     closing = raw.select("symbol", "close").with_columns(
         pl.lit(datetime.combine(day, datetime.min.time()).replace(hour=15)).alias("datetime"),
     )
-    return raw, closing
+    return raw, closing if include_closing_minute else pl.DataFrame()
 
 
 def definition(**params):

@@ -727,6 +727,7 @@ class PaperAutoRule(ContractModel):
     size_mode: str
     size_value: float
     order_type: str
+    execution_mode: str = "orders"
     buy_order_type: str | None = None
     sell_order_type: str | None = None
     cooldown_days: int

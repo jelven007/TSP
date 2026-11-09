@@ -437,7 +437,7 @@ def remove_from_group(symbol: str, group_id: str) -> list[dict]:
 
 
 def _strip_group(df: pl.DataFrame, group_id: str) -> pl.DataFrame:
-    """从所有条目的 group_ids 中摘掉指定分组(删除分组/清空分组共用)。"""
+    """删除分组定义时只摘标签,保留自选股票。"""
     rows = df.to_dicts()
     for row in rows:
         gids = row.get("group_ids") or []
@@ -447,14 +447,22 @@ def _strip_group(df: pl.DataFrame, group_id: str) -> pl.DataFrame:
 
 
 def clear_group(group_id: str) -> list[dict]:
-    """清空分组成员:把该分组标签从所有条目摘掉(变未分组),保留分组定义。"""
+    """删除本组独占股票,共享股票只摘本组标签,保留分组定义。"""
     from app.strategy.targets import ensure_clearable, file_references
     with _LOCK:
         groups = _read_groups()
         if not any(group["id"] == group_id for group in groups):
             raise KeyError(group_id)
         ensure_clearable(group_id, file_references(settings.data_dir))
-        df = _strip_group(_read_entries(), group_id)
+        rows = []
+        for row in _read_entries().to_dicts():
+            group_ids = row["group_ids"] or []
+            if group_id in group_ids:
+                row["group_ids"] = [gid for gid in group_ids if gid != group_id]
+                if not row["group_ids"]:
+                    continue
+            rows.append(row)
+        df = pl.DataFrame(rows, schema=_ENTRY_SCHEMA) if rows else _empty_entries()
         _write_entries(df)
         return df.to_dicts()
 

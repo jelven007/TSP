@@ -172,11 +172,11 @@ def _make_service(
     strategy_engine = StrategyEngine(strategy_dirs=[strat_dir])
 
     repo = _FakeMinuteRepo(minute_frames)
-    def closing_inputs(day):
+    def closing_inputs(day, *, include_closing_minute=True):
         raw = panel.filter(pl.col("date") == day).select(
             "symbol", "date", pl.col("raw_close").alias("close"),
         )
-        return raw, raw.select("symbol", "close")
+        return raw, raw.select("symbol", "close") if include_closing_minute else pl.DataFrame()
     repo.get_daily_close_inputs = closing_inputs
     bt_engine = BacktestEngine(repo)
 
@@ -271,8 +271,8 @@ def test_invalid_prior_close_cannot_produce_a_successful_partial_nav(scenario):
     bad_day = days["t1"] - timedelta(days=1)
     while bad_day.weekday() >= 5:
         bad_day -= timedelta(days=1)
-    def inputs(day):
-        raw, closing = original(day)
+    def inputs(day, *, include_closing_minute=True):
+        raw, closing = original(day, include_closing_minute=include_closing_minute)
         if day == bad_day:
             raw = raw.with_columns(pl.lit("received").alias("quote_time_basis"))
         return raw, closing

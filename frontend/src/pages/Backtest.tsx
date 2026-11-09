@@ -114,7 +114,7 @@ export function Backtest() {
         )}
       />
 
-      <main className="min-h-0 flex-1 px-3 pb-3 pt-3 lg:px-4 lg:pb-4">
+      <main className="page-content min-h-0 flex-1">
         {activeTab === 'strategy' && (
           <StrategyBacktest
             loadCandidate={pendingLoad}

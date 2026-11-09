@@ -8,7 +8,7 @@ import type { ScreenerResult } from '@/lib/api'
 import { defaultStrategyResultColumns } from '@/lib/strategy-result-columns'
 
 vi.mock('@/lib/api', () => ({ api: { marketSnapshot: async () => ({
-  as_of: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }),
+  as_of: '2026-11-05',
   rows: [{ symbol: '600001.SH', turnover_rate: 9.87 }],
 }) } }))
 vi.mock('@/components/StockPreviewDialog', () => ({ StockPreviewDialog: () => null }))
@@ -35,7 +35,7 @@ async function render(row: Record<string, unknown>) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   await act(async () => {
     root.render(<QueryClientProvider client={client}>
-      <StrategyDailyResults result={result} activeTab="select"
+      <StrategyDailyResults result={result} currentDate={result.as_of} activeTab="select"
         signalColumns={defaultStrategyResultColumns('select')} />
     </QueryClientProvider>)
   })

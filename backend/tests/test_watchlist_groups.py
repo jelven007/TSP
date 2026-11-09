@@ -157,8 +157,8 @@ def test_historical_groups_default_to_sky(monkeypatch, tmp_path):
     ]
 
 
-def test_clear_group_moves_members_to_ungrouped(monkeypatch, tmp_path):
-    """清空分组:成员变未分组,分组定义保留。"""
+def test_clear_group_removes_exclusive_members(monkeypatch, tmp_path):
+    """清空分组删除独占成员,原未分组股票和分组定义保留。"""
     monkeypatch.setattr(settings, "data_dir", tmp_path)
     _, group = watchlist.create_group("芯片")
     watchlist.add("600000.SH", group_id=group["id"])
@@ -166,11 +166,12 @@ def test_clear_group_moves_members_to_ungrouped(monkeypatch, tmp_path):
     watchlist.add("300750.SZ")  # 不在任何分组
 
     rows = watchlist.clear_group(group["id"])
-    # 3 只都还在,group_id 全部为 None
-    assert len(rows) == 3
-    assert all(r["group_ids"] == [] for r in rows)
+    assert [row["symbol"] for row in rows] == ["300750.SZ"]
+    assert rows[0]["group_ids"] == []
+    assert watchlist.list_symbols() == rows
     # 分组定义仍在
     assert any(g["id"] == group["id"] for g in watchlist.list_groups())
+    assert watchlist.clear_group(group["id"]) == rows
 
     # 清空不存在的分组 → KeyError
     with pytest.raises(KeyError):
@@ -188,7 +189,7 @@ def test_clear_group_api(monkeypatch, tmp_path):
     watchlist.add("000001.SZ", group_id=group_id)
 
     result = watchlist_api.clear_group(group_id, request)
-    assert all(s["group_ids"] == [] for s in result["symbols"])
+    assert result["symbols"] == []
 
     # 不存在的分组 → 404
     with pytest.raises(HTTPException) as exc:
@@ -279,20 +280,30 @@ def test_set_group_exclusive_keeps_only_one(monkeypatch, tmp_path):
     assert rows[0]["group_ids"] == [ga["id"]]
 
 
-def test_clear_group_strips_only_that_group(monkeypatch, tmp_path):
-    """清空分组只摘该组标签, 其他组成员关系保留。"""
+def test_clear_group_preserves_shared_members_and_metadata(monkeypatch, tmp_path):
+    """独占股票删除,共享股票的其他组、备注、策略和顺序保留。"""
     monkeypatch.setattr(settings, "data_dir", tmp_path)
     _, ga = watchlist.create_group("一")
     _, gb = watchlist.create_group("二")
-    watchlist.add("600000.SH", group_id=ga["id"])
+    _, gc = watchlist.create_group("三")
+    watchlist.add("600000.SH", "共享备注", group_id=ga["id"])
     watchlist.add_to_group("600000.SH", gb["id"])
+    watchlist.add_to_group("600000.SH", gc["id"])
+    watchlist.set_strategies("600000.SH", ["daily"])
     watchlist.add("000001.SZ", group_id=ga["id"])
+    watchlist.set_strategies("000001.SZ", ["minute"])
+    watchlist.add("600036.SH", "其他组", group_id=gb["id"])
+    before = watchlist.list_symbols()
+    rev = watchlist.revision()
 
     rows = watchlist.clear_group(ga["id"])
     a = next(r for r in rows if r["symbol"] == "600000.SH")
-    b = next(r for r in rows if r["symbol"] == "000001.SZ")
-    assert a["group_ids"] == [gb["id"]]   # 二组保留
-    assert b["group_ids"] == []
+    assert a == {**before[-1], "group_ids": [gb["id"], gc["id"]]}
+    assert rows == [before[0], a]
+    assert watchlist.revision() == rev + 1
+    assert watchlist.list_symbols() == rows
+    watchlist.add("000001.SZ")
+    assert watchlist.list_symbols()[0]["strategy_ids"] == []
 
 
 def test_legacy_single_group_id_migration(monkeypatch, tmp_path):

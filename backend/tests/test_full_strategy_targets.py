@@ -144,6 +144,75 @@ def test_sql_targets_resolve_only_owned_groups_and_block_deletion(env):
     assert watchlist.delete_group(group["id"])[0] == []
 
 
+def test_sql_clear_group_removes_exclusive_members_and_preserves_other_groups(env):
+    own, watchlist = stores(env)
+    other, foreign = stores(env)
+    _, first = watchlist.create_group("清空组")
+    _, second = watchlist.create_group("其他组")
+    _, third = watchlist.create_group("第三组")
+    watchlist.add("600000.SH", "独占", first["id"])
+    watchlist.set_strategies("600000.SH", ["daily"])
+    watchlist.add("000001.SZ", "共享", first["id"])
+    watchlist.add_to_group("000001.SZ", second["id"])
+    watchlist.add_to_group("000001.SZ", third["id"])
+    watchlist.set_strategies("000001.SZ", ["minute"])
+    watchlist.add("600036.SH", "其他组", second["id"])
+    watchlist.add("300750.SZ", "未分组")
+    foreign.add("600000.SH", "另一租户")
+    foreign.set_strategies("600000.SH", ["foreign"])
+    before, groups, rev = watchlist.list_symbols(), watchlist.list_groups(), watchlist.revision()
+    foreign_before = foreign.list_symbols()
+    rows = watchlist.clear_group(first["id"])
+    shared = {**before[2], "group_ids": sorted([second["id"], third["id"]])}
+    assert rows == [before[0], before[1], shared]
+    assert watchlist.list_symbols() == rows
+    assert watchlist.list_groups() == groups
+    assert watchlist.revision() == rev + 1
+    assert own.get("watchlist_strategies", "600000.SH") is None
+    assert own.get("watchlist_strategies", "000001.SZ") == {"strategy_ids": ["minute"]}
+    assert foreign.list_symbols() == foreign_before
+    assert other.get("watchlist_strategies", "600000.SH") == {"strategy_ids": ["foreign"]}
+    assert watchlist.clear_group(first["id"]) == rows
+    with pytest.raises(KeyError):
+        watchlist.clear_group("missing")
+    watchlist.add("600000.SH")
+    assert watchlist.list_symbols()[0]["strategy_ids"] == []
+
+
+def test_sql_clear_group_failure_rolls_back_members_relations_and_revision(env, monkeypatch):
+    own, watchlist = stores(env)
+    _, group = watchlist.create_group("清空组", symbols=["600000.SH"])
+    watchlist.set_strategies("600000.SH", ["daily"])
+    before, rev = watchlist.list_symbols(), watchlist.revision()
+    with monkeypatch.context() as patch:
+        def fail(_conn):
+            raise RuntimeError("read after delete failed")
+        patch.setattr(watchlist, "_rows", fail)
+        with pytest.raises(RuntimeError, match="read after delete failed"):
+            watchlist.clear_group(group["id"])
+    assert watchlist.list_symbols() == before
+    assert watchlist.revision() == rev
+    assert own.get("watchlist_strategies", "600000.SH") == {"strategy_ids": ["daily"]}
+
+
+def test_sql_clear_group_http_returns_remaining_shared_members(env):
+    from app.api.watchlist import router
+
+    token, account = register(env)
+    context = env["identity"].context(account, None, "clear-http-success")
+    watchlist = Watchlist(env["db"], context)
+    _, first = watchlist.create_group("清空组", symbols=["600000.SH", "000001.SZ"])
+    _, second = watchlist.create_group("保留组", symbols=["000001.SZ"])
+    client = env["client"]
+    client.app.include_router(router)
+    client.app.state.repo = SimpleNamespace(get_name_map=lambda _: {})
+    client.cookies.set("tf_session", token)
+    response = client.post(f"/api/watchlist/groups/{first['id']}/clear")
+    assert response.status_code == 200
+    assert [row["symbol"] for row in response.json()["symbols"]] == ["000001.SZ"]
+    assert response.json()["symbols"][0]["group_ids"] == [second["id"]]
+
+
 def test_new_source_defaults_validate_owned_groups_and_keep_durable_references(env):
     from app.multitenancy.strategies import TenantStrategyEngine, definition_payload
     from app.strategy.engine import StrategyEngine

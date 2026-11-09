@@ -14,7 +14,7 @@ let root: Root
 let host: HTMLDivElement
 let client: QueryClient
 const result: ScreenerResult = {
-  strategy: 'custom_s02', as_of: '2026-11-05', record_id: 'old', rows: [], total: 0, elapsed_ms: 0,
+  strategy: 'custom_s02', as_of: '2026-11-06', record_id: 'old', rows: [], total: 0, elapsed_ms: 0,
   section_mode: 'signals', sections: {
     sell: [{ symbol: '600001.SH', name: '卖股', entry_date: '2026-11-04', close: 9, change_pct: .01, score: 80 }],
     select: [{ symbol: '600002.SH', name: '选股', reference_date: '2026-11-04', score: 99 }],
@@ -42,7 +42,7 @@ async function render() {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   await act(async () => root.render(<QueryClientProvider client={client}>
-    <StrategyDailyResults result={result} positionLimit={5} />
+    <StrategyDailyResults result={result} positionLimit={5} currentDate={result.as_of} />
   </QueryClientProvider>))
   await flush()
 }
@@ -86,7 +86,7 @@ it('polls only the active symbol set every second and preserves tab and scroll o
   expect(snapshot.mock.calls.length).toBe(3)
   expect(snapshot.mock.calls.every(([options]) => options.symbols.join() === '600003.SH')).toBe(true)
   await act(async () => root.render(<QueryClientProvider client={client}>
-    <StrategyDailyResults result={{ ...result, record_id: 'new' }} positionLimit={5} />
+    <StrategyDailyResults result={{ ...result, record_id: 'new' }} positionLimit={5} currentDate={result.as_of} />
   </QueryClientProvider>))
   expect(host.querySelector('[aria-selected="true"]')?.textContent).toContain('买')
   expect(host.querySelector('[role="tabpanel"]')).toBe(panel)

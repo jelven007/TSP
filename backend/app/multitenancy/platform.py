@@ -48,6 +48,8 @@ def management_path(method: str, path: str) -> bool:
         return True
     if path == "/api/capabilities/redetect" or path.startswith("/api/financials/sync/"):
         return True
+    if method == "POST" and path == "/api/intraday/refresh":
+        return True
     if path.startswith("/api/ext-data/") and path.endswith("/api-key"):
         return True
     if method in READ_METHODS:

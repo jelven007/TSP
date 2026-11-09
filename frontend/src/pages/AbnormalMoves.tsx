@@ -108,9 +108,10 @@ export function AbnormalMoves() {
         />
       </div>
 
+      <div className="page-content flex min-h-0 flex-1 flex-col gap-3">
       {/* tab 条: 交易时间线 竞价(盘前) → 盘中 → 偏移(多日) — 单行, 描述超宽截断 */}
-      <div className="flex shrink-0 flex-nowrap items-center gap-3 px-5 pt-3">
-        <div className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-border/50 bg-base/70 p-0.5">
+      <div className="page-card flex min-w-0 shrink-0 flex-nowrap items-center gap-2 overflow-x-auto">
+        <div className="flex shrink-0 items-center rounded-btn border border-border bg-base/60 p-0.5">
           {TAB_META.map(t => {
             const Icon = t.icon
             const active = tab === t.key
@@ -120,9 +121,9 @@ export function AbnormalMoves() {
                 type="button"
                 aria-pressed={active}
                 onClick={() => setTab(t.key)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs transition-all ${
+                className={`inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-xs font-medium transition-colors ${
                   active
-                    ? 'bg-accent/15 font-medium text-accent shadow-sm'
+                    ? 'bg-accent text-white shadow-sm'
                     : 'text-secondary hover:text-foreground'
                 }`}
               >
@@ -135,7 +136,7 @@ export function AbnormalMoves() {
         <span className="min-w-0 truncate text-[10px] text-muted">{TAB_META.find(t => t.key === tab)?.desc}</span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col px-5 pb-4 pt-3">
+      <div className="flex min-h-0 flex-1 flex-col">
         {tab === 'auction' && <AuctionView onOpenStock={openStock} />}
         {tab === 'intraday' && (
           <IntradayView onPreview={(r, navList) => openStock(r.symbol, r.name ?? undefined, navList)} />
@@ -143,6 +144,7 @@ export function AbnormalMoves() {
         {tab === 'deviation' && (
           <DeviationView onPreview={(r, navList) => openStock(r.symbol, r.name ?? undefined, navList)} />
         )}
+      </div>
       </div>
 
       {preview && (
@@ -176,7 +178,7 @@ function AuctionView({ onOpenStock }: {
   })
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 overflow-y-auto">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-3 overflow-y-auto">
       <AuctionSnapshotCard onOpenStock={onOpenStock} />
       <BenchmarkCard q={q} onOpenStock={onOpenStock} />
     </div>

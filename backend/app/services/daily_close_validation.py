@@ -54,42 +54,48 @@ def require_final_daily_rows(
 
 def validate_daily_close(
     repo, day: date, rows: pl.DataFrame | None = None, *, isolate_symbols: bool = False,
+    check_closing_minute: bool = True,
 ) -> dict | None:
-    """Read one raw partition and its unique 15:00 bar, never the live cache."""
+    """Validate original daily prices; replay does not require 15:00 minute evidence."""
     try:
-        raw, closing = repo.get_daily_close_inputs(day)
+        raw, closing = (
+            repo.get_daily_close_inputs(day)
+            if check_closing_minute
+            else repo.get_daily_close_inputs(day, include_closing_minute=False)
+        )
     except (OSError, pl.exceptions.PolarsError, AttributeError) as exc:
         raise ValueError(f"{day}收盘定版证据不可读: {exc}") from exc
     rejected = require_final_daily_rows(raw, day, isolate_symbols=isolate_symbols)
     if rejected:
         raw = raw.filter(~pl.col("symbol").is_in(list(rejected)))
-    from app.instrument_suspension import STATUS_COLUMN, dated_status
-
-    getter = getattr(repo, "get_suspension_history", None)
-    status = dated_status(getter(), day, observed_at=datetime.combine(day, time(15))) if callable(getter) else pl.DataFrame()
-    suspended = (
-        status.filter(pl.col(STATUS_COLUMN)).get_column("symbol").to_list()
-        if not status.is_empty() else []
-    )
-    if closing.is_empty():
-        closing = pl.DataFrame(schema={"symbol": pl.String, "close": pl.Float64})
     raw = raw.with_columns(pl.col("close").cast(pl.Float64, strict=False))
-    closing = closing.with_columns(pl.col("close").cast(pl.Float64, strict=False))
-    counts = closing.group_by("symbol").agg(
-        pl.len().alias("_count"), pl.col("close").first().alias("_auction_close"),
-    )
-    checked = raw.join(counts, on="symbol", how="left")
-    bad = checked.filter(
-        (pl.col("_count") > 1).fill_null(False)
-        | (~pl.col("symbol").is_in(suspended) & (
-            (pl.col("_count") != 1).fill_null(True)
-            | ~pl.col("_auction_close").is_finite().fill_null(False)
-            | (pl.col("_auction_close") <= 0).fill_null(True)
-        ))
-        | ((pl.col("close") - pl.col("_auction_close")).abs() > PRICE_TOLERANCE).fill_null(False)
-    )
-    if not bad.is_empty():
-        _reject(day, bad, "原始日线与唯一有效15:00收盘分钟不一致或分钟缺失", rejected)
+    if check_closing_minute:
+        from app.instrument_suspension import STATUS_COLUMN, dated_status
+
+        getter = getattr(repo, "get_suspension_history", None)
+        status = dated_status(getter(), day, observed_at=datetime.combine(day, time(15))) if callable(getter) else pl.DataFrame()
+        suspended = (
+            status.filter(pl.col(STATUS_COLUMN)).get_column("symbol").to_list()
+            if not status.is_empty() else []
+        )
+        if closing.is_empty():
+            closing = pl.DataFrame(schema={"symbol": pl.String, "close": pl.Float64})
+        closing = closing.with_columns(pl.col("close").cast(pl.Float64, strict=False))
+        counts = closing.group_by("symbol").agg(
+            pl.len().alias("_count"), pl.col("close").first().alias("_auction_close"),
+        )
+        checked = raw.join(counts, on="symbol", how="left")
+        bad = checked.filter(
+            (pl.col("_count") > 1).fill_null(False)
+            | (~pl.col("symbol").is_in(suspended) & (
+                (pl.col("_count") != 1).fill_null(True)
+                | ~pl.col("_auction_close").is_finite().fill_null(False)
+                | (pl.col("_auction_close") <= 0).fill_null(True)
+            ))
+            | ((pl.col("close") - pl.col("_auction_close")).abs() > PRICE_TOLERANCE).fill_null(False)
+        )
+        if not bad.is_empty():
+            _reject(day, bad, "原始日线与唯一有效15:00收盘分钟不一致或分钟缺失", rejected)
     if rows is not None:
         invalid = require_final_daily_rows(rows, day, isolate_symbols=isolate_symbols)
         if rejected is not None:

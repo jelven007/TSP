@@ -258,6 +258,22 @@ def test_platform_only_accepts_explicit_management_paths(monkeypatch):
         assert not management_path(method, path)
 
 
+def test_explicit_quote_refresh_requires_platform_admin_and_is_not_a_market_read(monkeypatch):
+    monkeypatch.setenv("TSP_PLATFORM_ADMIN_TOKEN", "private-internal-token")
+    monkeypatch.setenv("TSP_PLATFORM_MARKET_TOKEN", "market-read-token")
+    path = "/api/intraday/refresh"
+    assert management_path("POST", path)
+    assert not management_path("GET", path)
+    assert not market_read_path("POST", path)
+    request = SimpleNamespace(method="POST", url=SimpleNamespace(path=path),
+                              headers={"authorization": "Bearer private-internal-token"})
+    assert platform_access(request)
+    for token in ("market-read-token", "invalid", ""):
+        request.headers["authorization"] = "Bearer " + token
+        assert not platform_access(request)
+        assert not market_read_access(request)
+
+
 def test_public_market_read_model_has_an_explicit_pure_read_allowlist(monkeypatch):
     monkeypatch.setenv("TSP_PLATFORM_MARKET_TOKEN", "market-read-token")
     for path in (

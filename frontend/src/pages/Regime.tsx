@@ -135,8 +135,8 @@ function SectionTitle({ icon: Icon, title, hint }: { icon: typeof Activity; titl
   )
 }
 
-// ── 卡片容器样式 (Dashboard 同款) ─────────────────────────
-const cardCls = 'rounded-card border border-border bg-surface/80 shadow-[0_1px_2px_hsl(var(--border)/0.4)] backdrop-blur-sm transition-shadow hover:shadow-[0_2px_8px_hsl(var(--border)/0.5)]'
+// ── 统一一级页面卡片容器 ─────────────────────────────────
+const cardCls = 'page-card'
 
 // ── 主组件 ────────────────────────────────────────────────
 export function Regime() {
@@ -701,10 +701,10 @@ export function Regime() {
           </div>
         }
       />
-      <div className="mx-auto max-w-[1440px] space-y-4 px-4 py-5">
+      <div className="page-content space-y-4">
 
       {/* ── 视图切换: 环境 / 情绪周期 (两组内容 tab 隔离, 减少单页高度) ── */}
-      <div className="flex items-center gap-2">
+      <div className="page-card flex min-w-0 items-center gap-2 overflow-x-auto">
         <div className="flex items-center rounded-btn border border-border bg-base/60 p-0.5">
           {([['regime', '环境', Activity], ['phase', '情绪周期', Flame]] as const).map(([k, label, Icon]) => (
             <button key={k} onClick={() => setView(k)}

@@ -631,34 +631,8 @@ export function FactorDiscovery({ focusFactor }: { focusFactor?: string } = {}) 
   }
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      {!introCollapsed && (
-        <div className="flex shrink-0 items-start gap-2 rounded-card border border-border bg-surface/60 px-3 py-2 text-[11px] leading-relaxed text-secondary">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
-          <div className="min-w-0 flex-1">
-            <span className="font-medium text-foreground">三步看懂本页：</span>
-            ① 因子 = 给股票打分排序的特征（如 20日涨幅、换手率变化）；② 本页检验过去哪些特征真的能预测次日涨跌；③ IC = 预测准确度（绝对值越大越准，负值反向用），IR = 稳定度（越大越稳）。
-          </div>
-          <button
-            type="button"
-            onClick={collapseIntro}
-            className="shrink-0 rounded-btn px-2 py-0.5 text-[10px] text-muted transition-colors hover:bg-elevated hover:text-foreground"
-          >
-            知道了
-          </button>
-        </div>
-      )}
-      <div className="flex shrink-0 items-center border-b border-border/70 px-1 pb-2">
-        {view === 'single' && (
-          <button
-            type="button"
-            onClick={() => setView('batch')}
-            className="mr-2 inline-flex items-center gap-1 rounded-btn px-2 py-1 text-[11px] text-muted transition-colors hover:bg-elevated hover:text-foreground"
-            title="返回批量结果（筛选配置与结果保留）"
-          >
-            ← 返回批量
-          </button>
-        )}
-        <div className="inline-flex rounded-btn border border-border bg-surface/80 p-0.5">
+      <div className="page-card flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto">
+        <div className="flex shrink-0 items-center rounded-btn border border-border bg-base/60 p-0.5">
           {([
             ['batch', '批量筛选', ListFilter],
             ['single', '单因子检验', Layers3],
@@ -666,10 +640,11 @@ export function FactorDiscovery({ focusFactor }: { focusFactor?: string } = {}) 
             <button
               key={value}
               type="button"
+              aria-pressed={view === value}
               onClick={() => setView(value)}
-              className={`inline-flex items-center gap-1.5 rounded-[5px] px-3 py-1.5 text-xs font-medium transition-colors ${view === value
+              className={`inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-xs font-medium transition-colors ${view === value
                 ? 'bg-accent text-white shadow-sm'
-                : 'text-secondary hover:bg-elevated hover:text-foreground'
+                : 'text-secondary hover:text-foreground'
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -687,6 +662,22 @@ export function FactorDiscovery({ focusFactor }: { focusFactor?: string } = {}) 
           自动挖掘
         </button>
       </div>
+      {!introCollapsed && (
+        <div className="flex shrink-0 items-start gap-2 rounded-card border border-border bg-surface/60 px-3 py-2 text-[11px] leading-relaxed text-secondary">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+          <div className="min-w-0 flex-1">
+            <span className="font-medium text-foreground">三步看懂本页：</span>
+            ① 因子 = 给股票打分排序的特征（如 20日涨幅、换手率变化）；② 本页检验过去哪些特征真的能预测次日涨跌；③ IC = 预测准确度（绝对值越大越准，负值反向用），IR = 稳定度（越大越稳）。
+          </div>
+          <button
+            type="button"
+            onClick={collapseIntro}
+            className="shrink-0 rounded-btn px-2 py-0.5 text-[10px] text-muted transition-colors hover:bg-elevated hover:text-foreground"
+          >
+            知道了
+          </button>
+        </div>
+      )}
       <div className="min-h-0 flex-1">
         {/* 批量视图保持挂载: 切到单因子检验再返回时, 选择集与结果不丢 */}
         <div className={view === 'batch' ? 'h-full' : 'hidden'}>

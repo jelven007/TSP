@@ -171,12 +171,14 @@ export function useQuoteStream(
             }
             return pages[p] !== false
           })
+          // Let in-flight reads finish: the API client owns the HTTP abort signal,
+          // so restarting on every tick would leave older requests queued.
           qc.invalidateQueries({
             predicate: (query) =>
               activePrefixes.some(
                 (prefix) => String(query.queryKey[0]).startsWith(prefix),
               ),
-          })
+          }, { cancelRefetch: false })
         } else {
           // 无配置时全部刷新 (向后兼容)
           qc.invalidateQueries({
@@ -184,7 +186,7 @@ export function useQuoteStream(
               SSE_INVALIDATE_PREFIXES.some(
                 (prefix) => String(query.queryKey[0]).startsWith(prefix),
               ),
-          })
+          }, { cancelRefetch: false })
         }
         // 焦点股票日K增量刷新: 只取内存中的当日行并合并缓存尾部。
         if (_focusSymbol) {

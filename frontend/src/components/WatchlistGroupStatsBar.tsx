@@ -89,7 +89,7 @@ export function WatchlistGroupStatsBar({
   }, [0.0001]))
 
   return (
-    <div className="border-b border-border bg-surface/40 px-5 py-2">
+    <div className="page-card min-w-0 shrink-0 p-4">
       <div className="mb-1 flex items-center justify-between">
         <div className="text-[10px] uppercase tracking-wider text-muted">分组涨跌 · {metricLabel}</div>
         <GroupStatsSettings config={config} onChange={onConfigChange} />

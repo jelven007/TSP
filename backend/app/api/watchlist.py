@@ -267,7 +267,7 @@ def delete_group(group_id: str, request: Request):
 
 @router.post("/groups/{group_id}/clear")
 def clear_group(group_id: str, request: Request):
-    """清空分组成员:把该分组内所有股票转为未分组,保留分组定义。"""
+    """清空本组并删除独占股票,其他组的共享股票及分组定义保留。"""
     try:
         rows = _service(request).clear_group(group_id)
     except KeyError as e:
