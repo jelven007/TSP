@@ -314,6 +314,24 @@ it('prefills saved rule fields and updates the same account rule without creatin
   expect(invalidated).toHaveBeenCalledWith(expect.objectContaining({ queryKey: QK.paperAutoRules('test') }))
 })
 
+it('keeps S02 minute execution and submits score ordering without extra cooldown', async () => {
+  await openRule({
+    ...savedRule, match_id: 'custom_mvxxcp88', execution_mode: 's02_minute',
+    candidate_priority: 'score', cooldown_days: 0,
+  })
+  expect(fieldValue('策略成交方式').value).toBe('s02_minute')
+  expect(fieldValue('买入冷却天数 (同标的)').disabled).toBe(true)
+  expect(fieldValue('候选买入顺序').disabled).toBe(true)
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('五个交易分钟')
+  expect(document.querySelector('#auto-rule-buy-type')).toBeNull()
+  calls.update.mockResolvedValueOnce({ rule: {} })
+  await click('保存修改')
+  expect(calls.update).toHaveBeenCalledWith('arule_saved', expect.objectContaining({
+    execution_mode: 's02_minute', cooldown_days: 0, candidate_priority: 'score',
+    match_id: 'custom_mvxxcp88', side: 'auto',
+  }), 'test')
+})
+
 it('cancels editing without saving and resets the draft when editing another rule', async () => {
   await openRule()
   await input('规则名称', '未保存的改名')

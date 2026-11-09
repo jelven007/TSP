@@ -34,6 +34,8 @@ def clear_memory() -> None:
     with _memory_lock:
         _memory.clear()
         _memory_size = 0
+    from app.services.strategy_day_views import clear_memory as clear_day_views
+    clear_day_views()
 
 
 def _remember(key, value):
@@ -306,6 +308,8 @@ class StrategyResults:
                         started_at INTEGER NOT NULL, value TEXT NOT NULL)""")
                     conn.execute("""CREATE INDEX IF NOT EXISTS daily_stock_pools_day_idx
                         ON daily_stock_pools(strategy_id,day,started_at DESC,id DESC)""")
+                    from app.services.strategy_day_views import initialize
+                    initialize(conn)
                 conn.execute("BEGIN IMMEDIATE")
             else:
                 conn.execute("BEGIN")
@@ -406,6 +410,8 @@ class StrategyResults:
         with transaction(write=True) as conn:
             state = self._state(conn, strategy_id)
             self._set_state(conn, strategy_id, int(state.get("generation", 0)) + 1, True)
+            from app.services.strategy_day_views import remove
+            remove(self, conn, strategy_id)
             if self.tenant:
                 if self.storage.db.settings.schema_version >= 7:
                     conn.execute("DELETE FROM business.daily_stock_pools WHERE strategy_id=%s", (strategy_id,))
@@ -583,6 +589,10 @@ class StrategyResults:
                            value=excluded.value,revision=business.documents.revision+1,updated_at=now()""",
                         (self.storage.context.tenant_id, NAMESPACE, record_id, Jsonb(value)),
                     )
+                if (identity.asset_type == "stock" and identity.timeframe == "1m"
+                        and value["result"].get("section_mode") == "signals"):
+                    from app.services.strategy_day_views import publish
+                    publish(self, conn, identity.strategy_id, as_of, identity.asset_type, identity.timeframe)
         else:
             with self._local(write=True) as conn:
                 self._check_generation(conn, identity.strategy_id, identity.storage_generation)
@@ -607,10 +617,18 @@ class StrategyResults:
                            revision=strategy_results.revision+1""",
                         (record_id, _encode(value["summary"]), _encode(value)),
                     )
+                if (identity.asset_type == "stock" and identity.timeframe == "1m"
+                        and value["result"].get("section_mode") == "signals"):
+                    from app.services.strategy_day_views import publish
+                    publish(self, conn, identity.strategy_id, as_of, identity.asset_type, identity.timeframe)
         logger.info("strategy result %s: asset=%s timeframe=%s date=%s",
                     "saved" if update == "result" else "reused",
                     identity.asset_type, identity.timeframe, as_of)
         return copy.deepcopy(value)
+
+    def day_view(self, strategy_id, as_of, asset_type="stock", timeframe="1m"):
+        from app.services.strategy_day_views import read
+        return read(self, strategy_id, as_of, asset_type, timeframe)
 
     def read(self, identity: ResultIdentity, as_of: str, *, record_id=None) -> dict | None:
         saved = self.detail(identity.strategy_id, record_id or identity.record_id(as_of))
@@ -693,6 +711,9 @@ class StrategyResults:
                        AND value->'summary'->>'strategy_id'=%s""",
                     (NAMESPACE, record_id, strategy_id),
                 ).rowcount > 0
+                if deleted:
+                    from app.services.strategy_day_views import publish
+                    publish(self, conn, strategy_id, record_id[17:27])
         else:
             if not self.path.exists():
                 return False
@@ -702,6 +723,9 @@ class StrategyResults:
                        AND json_extract(summary,'$.strategy_id')=?""",
                     (record_id, strategy_id),
                 ).rowcount > 0
+                if deleted:
+                    from app.services.strategy_day_views import publish
+                    publish(self, conn, strategy_id, record_id[17:27])
         if deleted and self.cacheable:
             global _memory_size
             with _memory_lock:

@@ -196,8 +196,10 @@ export function Dashboard() {
     return (
       <div className="flex h-full flex-col bg-base">
         <PageHeader title="行情" subtitle="指数行情 · 市场情绪 · 板块表现" />
-        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted">
-          <Loader2 className="h-4 w-4 animate-spin" />加载行情…
+        <div className="page-content">
+          <div className="page-card flex items-center justify-center gap-2 p-4 text-sm text-muted" role="status">
+            <Loader2 className="h-4 w-4 animate-spin" />加载行情…
+          </div>
         </div>
       </div>
     )
@@ -207,9 +209,11 @@ export function Dashboard() {
     return (
       <div className="flex h-full flex-col bg-base">
         <PageHeader title="行情" subtitle="指数行情 · 市场情绪 · 板块表现" />
-        <div className="m-auto rounded-card border border-border bg-surface p-6 text-center">
+        <div className="page-content">
+        <div className="page-card p-4 text-center">
           <div className="text-sm text-danger">行情加载失败</div>
           <button onClick={() => overview.refetch()} className="mt-3 rounded-btn bg-accent px-3 py-1.5 text-xs font-medium text-white">重试</button>
+        </div>
         </div>
       </div>
     )
@@ -306,7 +310,7 @@ export function Dashboard() {
           </div>
         }
       />
-      <div className="p-1.5">
+      <div className="page-content">
       {/* 无本地数据常驻引导卡片 —— 一键触发盘后管道获取数据(无 Key 也可) */}
       {hasNoData && !canManageData && (
         <p role="status" className="mb-3 rounded-card border border-border bg-surface p-4 text-sm text-muted">

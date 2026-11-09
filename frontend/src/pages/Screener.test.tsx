@@ -569,6 +569,7 @@ it.each(['unknown', 'failed', 'mismatched'])('keeps the date limit at today when
 
 function installNextSessionS02() {
   dataState.latest = '2026-11-04'
+  clockState.data = { market_date: '2026-11-04', market_time: '2026-11-04T15:30:00+08:00', is_trading_day: true }
   poolState.ids.push('custom_mvxxcp88')
   calendar.mockImplementation(async base => ({ base_date: base, next_trading_day: '2026-11-05' }))
   summary.mockImplementation(async (day: string) => ({

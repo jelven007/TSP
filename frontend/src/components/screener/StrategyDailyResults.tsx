@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { api, type ScreenerResult } from '@/lib/api'
@@ -62,19 +63,51 @@ function format(key: string, value: unknown) {
   return labels[String(value)] ?? String(value)
 }
 
-export function StrategyDailyResults({ result, positionLimit, onPreview, activeTab, onTabChange, signalColumns }: {
+export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, currentDate, inline = false }: {
+  result: ScreenerResult
+  activeTab: Tab
+  onTabChange: (tab: Tab) => void
+  currentDate?: string
+  inline?: boolean
+}) {
+  const section = result.sections ?? { sell: [], select: [], buy: [] }
+  const signals = result.section_mode === 'signals'
+  const today = currentDate ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+  const historical = result.as_of < today
+  return <div className={inline ? 'flex shrink-0 items-center gap-2'
+    : 'flex flex-wrap items-center justify-between gap-2'}>
+    <div role="tablist" aria-label="每日策略结果" className="inline-flex shrink-0 rounded-btn border border-border p-0.5">
+      {tabs.map(tab => <button key={tab.id} role="tab" aria-selected={activeTab === tab.id}
+        aria-controls={`daily-${result.strategy}-${tab.id}`} id={`daily-tab-${result.strategy}-${tab.id}`}
+        onClick={() => onTabChange(tab.id)}
+        className={`h-7 px-3 rounded-btn text-xs ${activeTab === tab.id ? 'bg-accent text-white' : 'text-secondary hover:bg-elevated'}`}>
+        {tab.label} · {signals && result.section_statuses?.[tab.id] === 'failed' ? '失败'
+          : signals && result.section_statuses?.[tab.id] === 'expired' ? '已过期'
+          : signals && result.section_errors?.[tab.id] ? '待确认' : section[tab.id]?.length ?? 0}
+      </button>)}
+    </div>
+    <span className={`text-xs text-muted ${inline ? 'shrink-0 whitespace-nowrap' : ''}`}>{result.as_of} · 每交易日一份结果
+      {signals && (historical ? ' · 历史保存结果' : result.as_of === today ? ' · 当前页每秒刷新' : ' · 已保存预选')}</span>
+  </div>
+}
+
+export function StrategyDailyResults({ result, positionLimit, onPreview, activeTab, onTabChange, signalColumns, currentDate, hideToolbar = false }: {
   result: ScreenerResult
   positionLimit?: number
   onPreview?: (symbol: string, name: string | undefined, navList: NavItem[]) => void
   activeTab?: Tab
   onTabChange?: (tab: Tab) => void
   signalColumns?: ColumnConfig[]
+  currentDate?: string
+  hideToolbar?: boolean
 }) {
   const [localActive, setLocalActive] = useState<Tab>(result.selection_only ? 'select' : 'sell')
   const active = activeTab ?? localActive
   const [preview, setPreview] = useState<{ symbol: string; name?: string; navList: NavItem[] } | null>(null)
   const section = result.sections ?? { sell: [], select: [], buy: [] }
   const signals = result.section_mode === 'signals'
+  const today = currentDate ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+  const historical = result.as_of < today
   // 已保存结果按当时参数排序, 不用后来修改的策略设置覆盖历史口径。
   const saved = useQuery({
     queryKey: QK.screenerHistoryDetail(result.strategy ?? '', result.record_id ?? ''),
@@ -127,16 +160,15 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       const snapshots = await Promise.all(batches.map(batch => api.marketSnapshot({ realtime: true, symbols: batch })))
       return snapshots
     },
-    enabled: signals && symbols.length > 0,
-    refetchInterval: 1000,
+    enabled: signals && !historical && result.as_of === today && symbols.length > 0,
+    refetchInterval: !historical ? 1000 : false,
     staleTime: 0,
   })
   const acceptedSnapshots = useMemo(() => {
-    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
-    return live.data?.filter(snapshot => snapshot.as_of === today
+    return !historical ? live.data?.filter(snapshot => snapshot.as_of === today
       || snapshot.source === 'previous_close' && snapshot.requested_as_of === today
-        && snapshot.as_of != null && snapshot.as_of < today) ?? []
-  }, [live.data])
+        && snapshot.as_of != null && snapshot.as_of < today) ?? [] : []
+  }, [live.data, historical, today])
   const liveRows = useMemo(() => new Map(acceptedSnapshots
     .flatMap(snapshot => snapshot.rows).map(row => [row.symbol, row])), [acceptedSnapshots])
   const closedQuoteDates = [...new Set(acceptedSnapshots.filter(snapshot => snapshot.source === 'previous_close')
@@ -166,6 +198,47 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
   const activeSort = sortColumns.some(col => col.id === sort?.key) ? sort : null
   const defaultAtrSort = signals && active === 'select' && result.strategy === 'custom_mvxxcp88' && !activeSort
   const displayedRows = sortRows(rows, sortColumns)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  const [panelHeight, setPanelHeight] = useState<number>()
+  const virtualized = displayedRows.length > 100
+  const fillViewport = result.strategy === 'custom_mvxxcp88' && virtualized
+  useLayoutEffect(() => {
+    if (!fillViewport || !panelRef.current || !sectionRef.current) return
+    const updateHeight = () => {
+      const panel = panelRef.current
+      if (!panel) return
+      // 占满工具栏／说明下方的可用页面高度，保留原滚动与虚拟渲染。
+      const top = panel.getBoundingClientRect().top + (panel.closest('main')?.scrollTop ?? 0)
+      const next = Math.max(32, window.innerHeight - top - 12)
+      setPanelHeight(current => current === next ? current : next)
+    }
+    updateHeight()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateHeight)
+    observer?.observe(sectionRef.current)
+    window.addEventListener('resize', updateHeight)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateHeight)
+    }
+  }, [fillViewport, active])
+  const virtualizer = useVirtualizer({
+    count: virtualized ? displayedRows.length : 0,
+    getScrollElement: () => panelRef.current,
+    estimateSize: () => 32,
+    overscan: 8,
+    scrollMargin: 32,
+  })
+  const virtualRows = virtualized ? virtualizer.getVirtualItems() : []
+  const visibleRows = virtualized ? virtualRows.map(item => ({
+    row: displayedRows[item.index], index: item.index,
+  })) : displayedRows.map((row, index) => ({ row, index }))
+  const topPadding = virtualRows.length ? Math.max(0, virtualRows[0].start - 32) : 0
+  const bottomPadding = virtualized
+    ? virtualizer.getTotalSize() - ((virtualRows.at(-1)?.end ?? 32) - 32) : 0
+  useEffect(() => {
+    if (panelRef.current) panelRef.current.scrollTop = 0
+  }, [result.as_of, result.strategy, active])
   const openStock = (row: any) => {
     const navList = toNavItems(displayedRows.filter(item => typeof item.symbol === 'string' && item.symbol))
     if (onPreview) onPreview(row.symbol, row.name ?? undefined, navList)
@@ -182,20 +255,9 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
   const statusLabels = { success: '成功', waiting: '等待数据', failed: '失败',
     retrying: '重试中', deferred: '延迟处理', disabled: '停用', expired: '已过入场时限' }
   const executionStatus = result.execution_status
-  return <><section className="space-y-2 min-w-0">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div role="tablist" aria-label="每日策略结果" className="inline-flex rounded-btn border border-border p-1 gap-1">
-        {tabs.map(tab => <button key={tab.id} role="tab" aria-selected={active === tab.id}
-          aria-controls={`daily-${result.strategy}-${tab.id}`} id={`daily-tab-${result.strategy}-${tab.id}`}
-          onClick={() => { setLocalActive(tab.id); onTabChange?.(tab.id) }}
-          className={`px-4 py-1.5 rounded-btn text-sm ${active === tab.id ? 'bg-accent text-white' : 'text-secondary hover:bg-elevated'}`}>
-          {tab.label} · {signals && result.section_statuses?.[tab.id] === 'failed' ? '失败'
-            : signals && result.section_statuses?.[tab.id] === 'expired' ? '已过期'
-            : signals && result.section_errors?.[tab.id] ? '待确认' : section[tab.id]?.length ?? 0}
-        </button>)}
-      </div>
-      <span className="text-xs text-muted">{result.as_of} · 每交易日一份结果{signals && ' · 当前页每秒刷新'}</span>
-    </div>
+  return <><section ref={sectionRef} className="space-y-2 min-w-0">
+    {!hideToolbar && <StrategyDailyResultToolbar result={result} activeTab={active} currentDate={today}
+      onTabChange={tab => { setLocalActive(tab); onTabChange?.(tab) }} />}
     {executionStatus && executionStatus.state !== 'success' && <p role="status" className="text-sm text-secondary">
       {statusLabels[executionStatus.state]}{executionStatus.reason && ` · ${executionStatus.reason}`}
       {' · '}{new Date(executionStatus.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
@@ -204,7 +266,10 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       当前展示上次成功结果 · 成功时间
       {' '}{new Date(result.last_success_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
     </p>}
-    <p className="text-xs text-muted">
+    <details className="text-xs text-muted">
+      <summary className="w-fit cursor-pointer rounded-btn py-1 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">策略说明</summary>
+      <div className="space-y-2 pt-1">
+    <p>
       {signals
         ? '卖：前一交易日的买入信号。选：前一交易日16:00开始生成并保存的名单。买：从该日已保存的选名单内触发入场信号。'
         : <>持仓来自连续策略研究组合。选为全部达标股票，买为容量、资金与持仓上限筛选后的成交结果。
@@ -221,6 +286,15 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       {' '}{new Date(result.selection_snapshot.generated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
       {result.selection_only && ' · 仅预选，买入信号尚未计算'}
     </p>}
+    {signals && <p>
+      {historical ? '历史结果按保存字段展示；现价等当前行情列不参与历史读取。'
+        : closedQuoteDates ? `行情日期：${closedQuoteDates} · 休市，显示最近交易日收盘数据。`
+        : '现价等行情列取当日最新数据，缺失时显示“—”。'}
+      {active === 'select' && result.strategy === 'custom_mvxxcp88' && ' 参考日换手率取前一交易日，与右侧当日行情换手率分别显示。'}
+      {active === 'sell' && ' 分钟成交量、成交额来自保存信号的触发分钟；建议卖出价为上一个交易日原始收盘价的94%～106%，缺少参考价时显示“—”。'}
+      {active === 'buy' && ' 建议购买量单位为手（100股），按保存的触发价计算10万元最大整手数，不含费用与滑点。'}</p>}
+      </div>
+    </details>
     {signals && active === 'buy' && Object.entries(result.entry_data_quality ?? {})
       .filter(([, quality]) => quality.missing_symbols.length > 0
         && (quality.breadth_policy === 'available_members_v1'
@@ -238,18 +312,14 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
           : quality.stage === 'breadth_rejected' ? '上界未达阈值，市场条件未满足' : '区间跨过阈值，等待完整行情'}
         </>}
       </p>)}
-    {signals && <p className="text-xs text-muted">
-      {closedQuoteDates ? `行情日期：${closedQuoteDates} · 休市，显示最近交易日收盘数据。`
-        : '现价等行情列取当日最新数据，缺失时显示“—”。'}
-      {active === 'select' && result.strategy === 'custom_mvxxcp88' && ' 参考日换手率取前一交易日，与右侧当日行情换手率分别显示。'}
-      {active === 'sell' && ' 分钟成交量、成交额来自保存信号的触发分钟；建议卖出价为上一个交易日原始收盘价的94%～106%，缺少参考价时显示“—”。'}
-      {active === 'buy' && ' 建议购买量单位为手（100股），按保存的触发价计算10万元最大整手数，不含费用与滑点。'}</p>}
     {result.execution_error && <p role="alert" className="text-sm text-danger rounded-btn bg-danger/10 p-3">
       {result.execution_error}
     </p>}
     {sectionError && <p role="alert" className="text-sm text-danger rounded-btn bg-danger/10 p-3">{sectionError}</p>}
-    <div role="tabpanel" id={`daily-${result.strategy}-${active}`}
-      aria-labelledby={`daily-tab-${result.strategy}-${active}`} className="overflow-x-auto rounded-btn border border-border">
+    <div ref={panelRef} role="tabpanel" id={`daily-${result.strategy}-${active}`}
+      aria-labelledby={`daily-tab-${result.strategy}-${active}`}
+      className="overflow-auto rounded-btn border border-border"
+      style={virtualized ? { maxHeight: fillViewport ? panelHeight : 480 } : undefined}>
       {rows.length === 0 ? <p className="p-8 text-sm text-muted text-center">
         {sectionError ? '该页签结果暂不可确认' : signals ? signalEmpty[active] : config.empty}</p>
         : <table className="text-xs whitespace-nowrap text-left table-fixed"
@@ -273,7 +343,11 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
               </th>
             })}
           </tr></thead>
-          <tbody>{displayedRows.map((row, i) => <tr key={`${row.symbol}-${i}`} className="border-t border-border">
+          <tbody>
+            {topPadding > 0 && <tr aria-hidden="true"><td colSpan={displayedColumns.length}
+              style={{ height: topPadding, padding: 0, border: 0 }} /></tr>}
+            {visibleRows.map(({ row, index: i }) => <tr key={`${row.symbol}-${i}`} data-row-index={i}
+              className="border-t border-border" style={virtualized ? { height: 32 } : undefined}>
             {displayedColumns.map(([key]) => <td key={key} data-column={key} className="px-2 py-1.5 num overflow-hidden text-ellipsis">
               {key === 'live_signals' ? <span className="inline-flex gap-1" title={getSignals(liveRows.get(row.symbol) ?? {}).map(signal => signal.label).join('、')}>
                 {getSignals(liveRows.get(row.symbol) ?? {}).map(signal => <span key={signal.label}
@@ -286,7 +360,10 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
                     onClick={() => openStock(row)}>{format(key, row[key])}</button>
                 : format(key, row[key])}
             </td>)}
-          </tr>)}</tbody>
+          </tr>)}
+            {bottomPadding > 0 && <tr aria-hidden="true"><td colSpan={displayedColumns.length}
+              style={{ height: bottomPadding, padding: 0, border: 0 }} /></tr>}
+          </tbody>
         </table>}
     </div>
   </section>

@@ -84,7 +84,7 @@ export function Factors() {
         )}
       />
 
-      <main className="min-h-0 flex-1 px-3 pb-3 pt-3 lg:px-4 lg:pb-4 xl:overflow-hidden">
+      <main className="page-content min-h-0 flex-1 xl:overflow-hidden">
         {activeTab === 'inspect' && <FactorDiscovery focusFactor={focusFactor} />}
         {activeTab === 'editor' && <FactorEditor key={searchParams.get('edit') ?? ''} editId={searchParams.get('edit') ?? ''} />}
         {activeTab === 'composite' && <FactorComposite />}

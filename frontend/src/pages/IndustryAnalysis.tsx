@@ -369,7 +369,10 @@ export function IndustryAnalysis() {
   }
 
   if (configsQuery.isLoading) {
-    return <div className="flex h-full items-center justify-center"><RefreshCw className="h-5 w-5 animate-spin text-muted" /></div>
+    return <div className="flex h-full flex-col">
+      <PageHeader title="行业分析" />
+      <div className="page-content flex-1"><div className="page-card flex items-center justify-center gap-2 p-4" role="status"><RefreshCw className="h-5 w-5 animate-spin text-muted" />加载行业数据…</div></div>
+    </div>
   }
 
   if (!activeConfig) {
@@ -385,13 +388,15 @@ export function IndustryAnalysis() {
               </button>
             }
           />
-          <PresetFetchState
-            title="暂无行业数据"
-            hint="从同花顺获取行业分类数据后即可使用行业分析"
-            isLoading={fetchMutation.isPending}
-            error={fetchMutation.error}
-            onFetch={() => fetchMutation.mutate()}
-          />
+          <div className="page-content flex-1">
+            <PresetFetchState
+              title="暂无行业数据"
+              hint="从同花顺获取行业分类数据后即可使用行业分析"
+              isLoading={fetchMutation.isPending}
+              error={fetchMutation.error}
+              onFetch={() => fetchMutation.mutate()}
+            />
+          </div>
         </div>
         <AnimatePresence>
           {showConfig && <AnalysisConfigDialog currentConfig={fieldConfig} onSave={handleSaveConfig} onClose={() => setShowConfig(false)} showHierarchyLevel />}
@@ -432,8 +437,8 @@ export function IndustryAnalysis() {
         }
       />
 
-      <div className="min-h-full bg-[radial-gradient(circle_at_12%_0%,rgba(245,158,11,0.12),transparent_28%),radial-gradient(circle_at_85%_8%,rgba(244,63,94,0.08),transparent_28%)] px-6 py-5">
-        <div className="mx-auto max-w-[1440px] space-y-5">
+      <div className="page-content">
+        <div className="min-w-0 space-y-4">
           <SectorRotationCard kind="industry" />
 
           <HeroPanel leading={leading[0]} falling={falling[0]} activeIndustry={activeIndustry} industryBreadth={industryBreadth} />
@@ -472,7 +477,7 @@ export function IndustryAnalysis() {
               <IndustryFocus stat={selected} activeSymbol={previewSymbol} onStockClick={handleStockClick} />
             </div>
           ) : rowsQuery.isLoading ? (
-            <div className="rounded-2xl border border-border bg-surface px-6 py-16 text-center text-sm text-muted">正在计算行业强度...</div>
+            <div className="page-card px-6 py-16 text-center text-sm text-muted">正在计算行业强度...</div>
           ) : needsIndustryFetch ? (
             <PresetFetchState
               title="未获取行业数据"
@@ -705,7 +710,7 @@ function IndustryRail({
   onSelect: (v: string) => void
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface p-2.5">
+    <section className="page-card min-w-0 p-2.5">
       <div className="px-1 pb-2.5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">行业矩阵</h3>
@@ -754,7 +759,7 @@ function IndustryFocus({ stat, onStockClick, activeSymbol }: { stat: IndustrySta
   const topLeaders = stocks.slice(0, 3)
   const focusNav: NavItem[] = toNavItems(stocks)
   return (
-    <section className="flex max-h-[720px] flex-col overflow-hidden rounded-2xl border border-border bg-surface">
+    <section className="page-card flex min-w-0 max-h-[720px] flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border px-5 py-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">

@@ -138,6 +138,7 @@ class FullWorker:
             from app.services.strategy_results import capture_identity, previous_daily_state
             payload["previous_states"] = {}
             payload["daily_identities"] = {}
+            payload["entry_deadlines"] = {}
             from app.services.daily_selections import DailySelections
             payload["selection_snapshots"] = {
                 sid: selected for sid in {r.get("strategy_id") for r in rules} if sid
@@ -150,6 +151,13 @@ class FullWorker:
                 from app.strategy.engine import StrategyEngine
                 catalog = TenantStrategyEngine(unit, StrategyEngine(
                     [Path(__file__).resolve().parents[1] / "strategy/builtin"]), self.executor)
+                # The deadline helper reads the same tenant signal definitions as computation.
+                catalog._user_data_dir = lambda: unit
+                from app.strategy.engine import StrategyDataContext
+                from app.strategy.late_session_strength import entry_deadline
+
+                deadline_context = StrategyDataContext(
+                    "stock", "1m", cn_today(), observed_at=datetime.fromtimestamp(time.time(), UTC))
                 late_columns = {
                     "csgi_" + sig["id"] for sig in payload["signals"]
                     if sig.get("template") == "late_session_strength" and sig.get("enabled", True)
@@ -177,11 +185,19 @@ class FullWorker:
                         self.market.minute_priority(tenant_id, plan)
                     except AccessError:
                         logger.warning("minute priority bridge unavailable; ordinary collection retained")
-                for sid in {r.get("strategy_id") for r in rules}:
+                for sid in {r.get("strategy_id") for r in rules} | set(priority_ids):
                     if sid and catalog.has(sid):
                         payload["daily_identities"][sid] = asdict(capture_identity(
                             catalog, unit, sid, overrides=payload["overrides"].get(sid),
                             timeframe=(catalog.get(sid).meta.get("timeframes") or ["1d"])[0]))
+                        strategy = catalog.get(sid)
+                        if (strategy.execution_backend == "minute_filter"
+                                and strategy.meta.get("result_sections") == "signals"):
+                            end = entry_deadline(catalog, catalog.get(sid),
+                                                 payload["overrides"].get(sid), deadline_context,
+                                                 expired_only=False)
+                            if end is not None:
+                                payload["entry_deadlines"][sid] = end.isoformat()
             for sid in {r.get("strategy_id") for r in rules} & {"s02"}:
                 try:
                     payload["previous_states"][sid] = previous_daily_state(unit, sid, cn_today())
@@ -330,7 +346,39 @@ class FullWorker:
                             "fingerprint": fingerprint(conn, include_state=False),
                         })
                         append_event(conn, tenant_id, "strategy_results_updated", {"ts": int(now * 1000)})
+                from app.market_time import CN_TZ
+                from app.services.strategy_results import ResultIdentity, StrategyResults
                 from app.strategy.execution_status import status
+
+                commit_observed = datetime.fromtimestamp(time.time(), CN_TZ).replace(tzinfo=None)
+                for sid, deadline in payload.get("entry_deadlines", {}).items():
+                    if commit_observed <= datetime.fromisoformat(deadline):
+                        continue
+                    identity = ResultIdentity(**payload["daily_identities"][sid])
+                    saved = StrategyResults(unit).read(identity, str(cn_today()))
+                    monitored = unit.get("monitor_results", "default") or {}
+                    live = (monitored.get("results", {}).get(sid)
+                            if monitored.get("fingerprint") == fingerprint(conn, include_state=False) else None)
+                    candidates = [live, (saved or {}).get("result")]
+                    confirmed = any(
+                        daily and daily.get("as_of") == str(cn_today())
+                        and daily.get("runtime_identity") in (None, identity.runtime_identity)
+                        and (daily.get("section_statuses") or {}).get("buy") == "success"
+                        and not daily.get("selection_only")
+                        for daily in candidates
+                    )
+                    previous_attempt = unit.get("strategy_execution_status", sid) or {}
+                    attempt = {
+                        **status("success" if confirmed else "expired",
+                                 None if confirmed else "当日未完成买入确认; 实时新入场已于14:55:00截止",
+                                 sequence=sequence, fingerprint=fingerprint(conn, include_state=False)),
+                        "as_of": str(cn_today()), "runtime_identity": identity.runtime_identity,
+                        "entry_deadline_at": deadline,
+                    }
+                    if any(previous_attempt.get(key) != attempt[key]
+                           for key in ("state", "fingerprint", "as_of", "runtime_identity", "entry_deadline_at")):
+                        unit.put("strategy_execution_status", sid, attempt)
+                        append_event(conn, tenant_id, "strategy_results_updated", {"ts": int(now * 1000)})
 
                 unit.put("strategy_execution_status", "default", {
                     **status("success" if result is not None else "waiting" if payload["rules"] else "disabled",

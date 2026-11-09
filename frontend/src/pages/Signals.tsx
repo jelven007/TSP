@@ -28,8 +28,8 @@ export function Signals() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader title="信号" subtitle="内置预计算信号与自定义条件信号, 供策略 / 回测 / 监控统一使用" />
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        <div className="mx-auto max-w-6xl">
+      <div className="page-content min-h-0 flex-1 overflow-y-auto">
+        <div className="min-w-0">
           <SignalsBody highlight={highlight} />
         </div>
       </div>
@@ -108,10 +108,10 @@ function SignalsBody({ highlight }: { highlight: string }) {
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* 紧凑工具条: 分段切换 + 新建 */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-btn border border-border bg-surface/80 p-0.5">
+      <div className="page-card flex min-w-0 items-center gap-2 overflow-x-auto">
+        <div className="flex shrink-0 items-center rounded-btn border border-border bg-base/60 p-0.5">
           {tabs.map(tab => {
             const active = activeSection === tab.key
             return (
@@ -120,9 +120,10 @@ function SignalsBody({ highlight }: { highlight: string }) {
                 type="button"
                 onClick={() => setActiveSection(tab.key)}
                 aria-current={active ? 'page' : undefined}
-                className={`inline-flex h-7 items-center gap-1.5 rounded-[5px] px-2.5 text-[11px] font-medium transition-colors sm:text-xs ${active
-                  ? 'bg-amber-500/90 text-white shadow-sm'
-                  : 'text-secondary hover:bg-elevated hover:text-foreground'}`}
+                aria-pressed={active}
+                className={`inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-xs font-medium transition-colors ${active
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-secondary hover:text-foreground'}`}
               >
                 {tab.label}
                 <span className={`rounded px-1 py-px text-[10px] font-mono ${active ? 'bg-black/15 text-white' : 'bg-elevated text-muted'}`}>
@@ -132,11 +133,11 @@ function SignalsBody({ highlight }: { highlight: string }) {
             )
           })}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[11px] text-muted">支持普通条件组合与「尾盘走强」分钟入场模板</span>
+        <div className="ml-auto mr-1 flex min-w-0 items-center gap-3">
+          <span className="hidden truncate text-[11px] text-muted lg:block">支持普通条件组合与「尾盘走强」分钟入场模板</span>
           <button
             onClick={openNew}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-btn border border-amber-400/30 bg-amber-400/5 px-3 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-400/10"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-btn border border-accent/40 bg-accent/5 px-2.5 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/10"
           >
             <Plus className="h-3.5 w-3.5" />
             新建信号

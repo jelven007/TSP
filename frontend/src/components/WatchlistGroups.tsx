@@ -53,8 +53,12 @@ export function WatchlistGroupBar({
   onReorder,
 }: GroupBarProps) {
   const [managerOpen, setManagerOpen] = useState(false)
-  const [confirmClear, setConfirmClear] = useState(false)
+  const [confirmClear, setConfirmClear] = useState<string | null>(null)
+  const [clearing, setClearing] = useState(false)
+  const [clearError, setClearError] = useState('')
+  const clearBusy = useRef(false)
   const selectedGroup = groups.find(group => group.id === selected)
+  const clearingGroup = groups.find(group => group.id === confirmClear)
   const clearBlocked = !selectedGroup || !!selectedGroup.referenced_by?.length
   const tabs = [
     { id: 'all', name: '全部', count: total, color: null },
@@ -68,6 +72,25 @@ export function WatchlistGroupBar({
   const tablistRef = useRef<HTMLDivElement>(null)
 
   const clearDrag = () => { setDragIndex(null); setDropIndex(null) }
+
+  const closeClear = () => {
+    if (!clearBusy.current) setConfirmClear(null)
+  }
+  const handleClear = async () => {
+    if (!confirmClear || !onClearGroup || clearBusy.current) return
+    clearBusy.current = true
+    setClearing(true)
+    setClearError('')
+    try {
+      await onClearGroup(confirmClear)
+      setConfirmClear(null)
+    } catch (error) {
+      setClearError(error instanceof Error ? error.message : '清空分组失败，请重试')
+    } finally {
+      clearBusy.current = false
+      setClearing(false)
+    }
+  }
 
   // 分组很多时标签栏横向滚动, 拖到边缘附近自动滚动, 保证能拖到视野外的位置
   const autoScroll = (clientX: number) => {
@@ -94,7 +117,7 @@ export function WatchlistGroupBar({
 
   return (
     <>
-      <div className="flex h-10 items-stretch border-b border-border bg-surface/40 px-5">
+      <div className="page-card flex h-10 min-w-0 shrink-0 items-stretch">
         <div
           ref={tablistRef}
           role="tablist"
@@ -186,7 +209,7 @@ export function WatchlistGroupBar({
         {onClearGroup && selected !== 'all' && selected !== 'ungrouped' && (
           <button
             type="button"
-            onClick={() => setConfirmClear(true)}
+            onClick={() => { setClearError(''); setConfirmClear(selected) }}
             disabled={clearBlocked}
             className="inline-flex w-8 shrink-0 items-center justify-center text-muted hover:text-warning disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted"
             title={selectedGroup?.referenced_by?.length
@@ -200,24 +223,27 @@ export function WatchlistGroupBar({
       </div>
 
       {/* 清空分组确认弹窗 */}
-      {confirmClear && !clearBlocked && selected !== 'all' && selected !== 'ungrouped' && (
-        <Modal onClose={() => setConfirmClear(false)} ariaLabel="清空分组" size="sm" panelClassName="p-5">
+      {confirmClear && clearingGroup && !clearingGroup.referenced_by?.length && (
+        <Modal onClose={closeClear} ariaLabel="清空分组" size="sm" panelClassName="p-5">
             <h3 className="text-sm font-medium text-foreground mb-2">清空分组</h3>
             <p className="text-xs text-secondary mb-5">
-              确认清空「{selectedGroup?.name}」分组? 仅移出当前分组，股票仍保留在自选及其他分组中。
+              确认清空「{clearingGroup.name}」分组？仅属于本组的股票将从自选删除；同时属于其他分组的股票只移出本组，其他分组中的股票保持不变。分组本身保留。
             </p>
+            {clearError && <p role="alert" className="mb-3 text-xs text-danger">{clearError}</p>}
             <div className="flex items-center justify-end gap-2">
               <button
-                onClick={() => setConfirmClear(false)}
-                className="px-3 py-1.5 rounded-btn bg-elevated text-secondary hover:bg-elevated/80 text-sm transition-colors"
+                onClick={closeClear}
+                disabled={clearing}
+                className="px-3 py-1.5 rounded-btn bg-elevated text-secondary hover:bg-elevated/80 text-sm transition-colors disabled:opacity-50"
               >
                 取消
               </button>
               <button
-                onClick={() => { setConfirmClear(false); void onClearGroup?.(selected) }}
-                className="px-3 py-1.5 rounded-btn bg-warning/15 text-warning hover:bg-warning/25 text-sm font-medium transition-colors"
+                onClick={() => { void handleClear() }}
+                disabled={clearing}
+                className="px-3 py-1.5 rounded-btn bg-warning/15 text-warning hover:bg-warning/25 text-sm font-medium transition-colors disabled:opacity-50"
               >
-                确认清空
+                {clearing ? '清空中…' : '确认清空'}
               </button>
             </div>
         </Modal>

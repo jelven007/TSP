@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, QueryObserver } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { accountEventStreamUrl } from './accountSession'
 import { useQuoteStream } from './useQuoteStream'
@@ -49,8 +49,8 @@ class MockEventSource {
   }
 }
 
-function Harness() {
-  useQuoteStream(true, undefined)
+function Harness({ pages }: { pages?: Record<string, boolean> }) {
+  useQuoteStream(true, pages)
   return null
 }
 
@@ -86,6 +86,53 @@ afterEach(async () => {
 })
 
 describe('global event stream refresh scope', () => {
+  it.each([undefined, { 'watchlist-enriched': true }])(
+    'finishes a slow watchlist refresh before starting another for pages %s',
+    async (pages) => {
+      await act(async () => {
+        root?.render(
+          <QueryClientProvider client={client}>
+            <Harness pages={pages} />
+          </QueryClientProvider>,
+        )
+      })
+      const resolvers: Array<(value: { rows: string[] }) => void> = []
+      // The API client owns its AbortController; cancelling a query cannot
+      // cancel this pending HTTP transport. Match that contract here.
+      const fetchRows = vi.fn(() => new Promise<{ rows: string[] }>(resolve => {
+        resolvers.push(resolve)
+      }))
+      const observer = new QueryObserver(client, {
+        queryKey: ['watchlist-enriched', ''],
+        queryFn: fetchRows,
+        initialData: { rows: ['saved'] },
+        staleTime: Infinity,
+      })
+      const unsubscribe = observer.subscribe(() => {})
+      try {
+        const stream = MockEventSource.instances[0]
+        await act(async () => { stream.emit('quotes_updated') })
+        expect(fetchRows).toHaveBeenCalledTimes(1)
+        await act(async () => {
+          stream.emit('quotes_updated')
+          stream.emit('quotes_updated')
+        })
+        expect(fetchRows).toHaveBeenCalledTimes(1)
+        expect(observer.getCurrentResult().data?.rows).toEqual(['saved'])
+        await act(async () => { resolvers[0]({ rows: ['fresh'] }) })
+        expect(observer.getCurrentResult().data?.rows).toEqual(['fresh'])
+        expect(observer.getCurrentResult().fetchStatus).toBe('idle')
+        await act(async () => { stream.emit('quotes_updated') })
+        expect(fetchRows).toHaveBeenCalledTimes(2)
+        await act(async () => { resolvers[1]({ rows: ['latest'] }) })
+        expect(observer.getCurrentResult().data?.rows).toEqual(['latest'])
+      } finally {
+        unsubscribe()
+        for (const resolve of resolvers) resolve({ rows: ['cleanup'] })
+      }
+    },
+  )
+
   it('removes deleted paper account caches and updates the shared comparison', async () => {
     client.setQueryData(QK.paperOverview('deleted'), { initialized: true })
     client.setQueryData(QK.paperOverview('kept'), { initialized: true })

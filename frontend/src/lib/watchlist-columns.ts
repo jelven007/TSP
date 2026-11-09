@@ -20,7 +20,7 @@ import {
 
 export type { ColumnConfig, ColumnGroup, ColumnSource, ExtColumnDisplayConfig, CandleColumnConfig }
 
-// ===== 内置列注册表（与当前硬编码一一对应） =====
+// ===== 内置列注册表（初始化默认沿用 2026-11-09 当前自选列顺序和显隐） =====
 
 export const BUILTIN_COLUMNS: ColumnConfig[] = [
   // 固定列
@@ -67,13 +67,13 @@ export const BUILTIN_COLUMNS: ColumnConfig[] = [
   { id: 'builtin:vol_ma5', source: { type: 'builtin', key: 'vol_ma5' }, label: '量MA5', visible: false, align: 'center' },
   { id: 'builtin:vol_ma10', source: { type: 'builtin', key: 'vol_ma10' }, label: '量MA10', visible: false, align: 'center' },
   // 动量
-  { id: 'builtin:momentum_5d', source: { type: 'builtin', key: 'momentum_5d' }, label: '5D 动量', visible: false, align: 'center' },
+  { id: 'builtin:momentum_5d', source: { type: 'builtin', key: 'momentum_5d' }, label: '5D 动量', visible: true, align: 'center' },
   { id: 'builtin:momentum_10d', source: { type: 'builtin', key: 'momentum_10d' }, label: '10D 动量', visible: false, align: 'center' },
   { id: 'builtin:momentum_20d', source: { type: 'builtin', key: 'momentum_20d' }, label: '20D 动量', visible: false, align: 'center' },
   { id: 'builtin:momentum_30d', source: { type: 'builtin', key: 'momentum_30d' }, label: '30D 动量', visible: false, align: 'center' },
-  { id: 'builtin:momentum_60d', source: { type: 'builtin', key: 'momentum' }, label: '60D 动量', visible: true, align: 'center' },
+  { id: 'builtin:momentum_60d', source: { type: 'builtin', key: 'momentum' }, label: '60D 动量', visible: false, align: 'center' },
   // 连板
-  { id: 'builtin:limit_ups', source: { type: 'builtin', key: 'limit_ups' }, label: '连板', visible: true, align: 'center' },
+  { id: 'builtin:limit_ups', source: { type: 'builtin', key: 'limit_ups' }, label: '连板', visible: false, align: 'center' },
   { id: 'builtin:limit_downs', source: { type: 'builtin', key: 'limit_downs' }, label: '连跌', visible: false, align: 'center' },
   // 信号 & 图表
   { id: 'builtin:signals', source: { type: 'builtin', key: 'signals' }, label: '信号', visible: true, align: 'center' },
@@ -110,6 +110,30 @@ export const COLUMN_GROUPS: ColumnGroup[] = [
 
 // 操作列（始终显示，不参与自定义）
 export const ACTION_COLUMN_ID = 'builtin:action'
+
+/** 列宽只由列配置和图表尺寸决定，不能随虚拟列表的可见内容变化。 */
+export function watchlistColumnWidths(
+  columns: ColumnConfig[],
+  chartWidths: { candle: number; intraday: number },
+): Record<string, number> {
+  const widths: Record<string, number> = {}
+  for (const col of columns.filter(column => column.visible)) {
+    if (col.source.type === 'ext') {
+      const maxWidth = col.extDisplay?.maxWidth
+      widths[col.id] = typeof maxWidth === 'number' && Number.isFinite(maxWidth) && maxWidth > 0
+        ? maxWidth : 176
+    } else {
+      const key = col.source.key
+      widths[col.id] = key === 'symbol' ? 250
+        : key === 'groups' ? 400
+        : key === 'candle' ? chartWidths.candle
+        : key === 'intraday' ? chartWidths.intraday
+        : key === 'signals' ? 250
+        : 100
+    }
+  }
+  return widths
+}
 
 // ===== localStorage 持久化 =====
 

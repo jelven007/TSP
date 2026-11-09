@@ -61,6 +61,18 @@ def validate_rule(rule: dict) -> None:
         raise ValueError(f"side 非法: {rule.get('side')!r}")
     if rule.get("side") == "auto" and rule.get("match_kind") != "strategy":
         raise ValueError("自动方向仅支持跟策略, 监控规则请指定买入或卖出")
+    mode = rule.get("execution_mode", "orders")
+    if mode not in ("orders", "s02_minute"):
+        raise ValueError("execution_mode 应为 orders / s02_minute")
+    if mode == "s02_minute" and (
+        rule.get("match_kind") != "strategy" or rule.get("match_id") != "custom_mvxxcp88"
+        or rule.get("side") != "auto"
+    ):
+        raise ValueError("S02分钟执行仅支持跟策略s02的自动方向")
+    if mode == "s02_minute" and (
+        rule.get("candidate_priority", "event") != "score" or rule.get("cooldown_days", 5) != 0
+    ):
+        raise ValueError("S02分钟执行须使用评分顺序和0天额外冷却")
     if rule.get("size_mode") not in ("fixed_amount", "pct_equity"):
         raise ValueError(f"size_mode 非法: {rule.get('size_mode')!r}")
     value = rule.get("size_value")
@@ -100,6 +112,7 @@ def normalize_rule(rule: dict) -> dict:
     d.setdefault("side", "buy")
     d.setdefault("size_mode", "fixed_amount")
     d.setdefault("order_type", "next_open")
+    d.setdefault("execution_mode", "orders")
     d.setdefault("cooldown_days", 5)
     d.setdefault("max_positions", 0)
     d.setdefault("candidate_priority", "event")
@@ -138,6 +151,10 @@ def save_auto_rule(data_dir: Path, rule: dict, account_id: str = paper.DEFAULT_A
         old = next((r for r in load_auto_rules(data_dir, account_id) if r["id"] == rule["id"]), None)
         if not rule.get("enabled", True) or (old and _exit_rule_signature(old) != _exit_rule_signature(rule)):
             _cancel_rule_exits(data_dir, rule["id"], account_id, "自动规则停用或执行配置已变更")
+            for order in paper.load_orders(data_dir, account_id):
+                if (order.get("strategy_execution") and order["source"] == f"auto:{rule['id']}"
+                        and order["status"] == "pending"):
+                    paper.cancel_order(data_dir, order["id"], account_id)
         elif old and old.get("risk_follow") and not rule.get("risk_follow"):
             for intent in load_exit_intents(data_dir, account_id, active_only=True):
                 if intent["rule_id"] == rule["id"] and intent.get("kind") == "risk":
@@ -184,6 +201,10 @@ def delete_auto_rule(data_dir: Path, rule_id: str, account_id: str = paper.DEFAU
     paper.validate_account_id(account_id)
     with paper_lock(data_dir, paper.PAPER_LOCK):
         _cancel_rule_exits(data_dir, rule_id, account_id, "自动规则已删除")
+        for order in paper.load_orders(data_dir, account_id):
+            if (order.get("strategy_execution") and order["source"] == f"auto:{rule_id}"
+                    and order["status"] == "pending"):
+                paper.cancel_order(data_dir, order["id"], account_id)
         if isinstance(data_dir, PaperSession):
             return data_dir.delete_document(f"paper_auto:{account_id}", rule_id)
         p = _dir(data_dir, account_id) / f"{rule_id}.json"
@@ -245,7 +266,7 @@ def _sizing_qty(data_dir: Path, rule: dict, ref_price: float, account_id: str, p
             return 0
         available = paper._available_of(position, cn_now().date().isoformat())
         pending = sum(
-            int(order["qty"]) for order in paper.load_orders(data_dir, account_id)
+            paper.remaining_qty(order) for order in paper.load_orders(data_dir, account_id)
             if order["status"] == "pending" and order["side"] == "sell"
             and order["symbol"] == symbol
         )
@@ -360,7 +381,9 @@ def _order_type(rule: dict, side: str) -> str:
 
 def _exit_rule_signature(rule: dict) -> list:
     # 金额、买入冷却、持仓上限、显示文案不改变全平意图。
-    return [rule.get(key) for key in ("match_kind", "match_id", "side")] + [_order_type(rule, "sell")]
+    return [rule.get(key) for key in ("match_kind", "match_id", "side")] + [
+        _order_type(rule, "sell"), rule.get("execution_mode", "orders"),
+    ]
 
 
 def _update_intent(data_dir, intent, account_id, **changes):
@@ -710,6 +733,8 @@ def retry_exit_intents(
             if intent["status"] not in _ACTIVE_EXITS:
                 continue
             rule = rules.get(intent["rule_id"])
+            if rule and rule.get("execution_mode") == "s02_minute":
+                continue
             is_risk = intent.get("kind") == "risk"
             if (not rule or not rule.get("enabled")
                     or (is_risk and not rule.get("risk_follow"))
@@ -954,7 +979,8 @@ def on_rule_events(
         bought = set()
         for match in matches:
             rule, ev, side = match["rule"], match["event"], match["side"]
-            if (ev.get("entry_policy") or {}).get("minute_execution") in {"overnight_capacity_v1", "momentum_capacity_v1"}:
+            if (rule.get("execution_mode") != "s02_minute" and
+                    (ev.get("entry_policy") or {}).get("minute_execution") in {"overnight_capacity_v1", "momentum_capacity_v1"}):
                 _record_skip(data_dir, account_id, rule, ev, "minute_capacity_unsupported")
                 continue
             symbol = ev["symbol"].strip()
@@ -969,6 +995,31 @@ def on_rule_events(
                 _consume_match(data_dir, account_id, match)
                 continue
             if not allow_entries and not auto_exit:
+                continue
+            if rule.get("execution_mode") == "s02_minute":
+                from app.strategy import paper_minute
+
+                if side != "buy" or ev.get("type") != "buy_signal":
+                    continue
+                if symbol in _position_slots_used(data_dir, account_id):
+                    _record_skip(data_dir, account_id, rule, ev, "portfolio_existing_symbol")
+                    _consume_match(data_dir, account_id, match)
+                    continue
+                if rule.get("max_positions") and len(_position_slots_used(data_dir, account_id)) >= rule["max_positions"]:
+                    _record_skip(data_dir, account_id, rule, ev, "max_positions")
+                    _consume_match(data_dir, account_id, match)
+                    continue
+                order, error = paper_minute.create_entry(
+                    data_dir, effective_rule, ev, minute_repo, completed_through or cn_now(),
+                    account_id, prices=allocation_prices,
+                )
+                _consume_match(data_dir, account_id, match)
+                if order:
+                    created.append(order)
+                    _created_order(data_dir, order, account_id)
+                else:
+                    _record_skip(data_dir, account_id, rule, ev, "s02_execution_unavailable",
+                                 detail={"error": error})
                 continue
             if not auto_exit and prices is not None and symbol not in prices:
                 continue
@@ -1106,6 +1157,12 @@ def on_rule_events(
             data_dir, account_id, prices=event_prices if prices is None else prices,
             allow_market=True,
         ))
+        if minute_repo is not None:
+            from app.strategy import paper_minute
+
+            created.extend(paper_minute.advance(
+                data_dir, minute_repo, completed_through or cn_now(), account_id,
+            ))
     return created
 
 

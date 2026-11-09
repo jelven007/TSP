@@ -10,7 +10,7 @@
 export const GRID_COLS = 12
 /** 单行高度(px); 实际步进 = rowHeight + margin(6) */
 export const GRID_ROW_HEIGHT = 32
-export const GRID_MARGIN = 6
+export const GRID_MARGIN = 12
 export const MAX_ITEMS = 40
 /** 单个组件高度上限(网格行), 防误操作拉出超长条 */
 export const MAX_H = 30

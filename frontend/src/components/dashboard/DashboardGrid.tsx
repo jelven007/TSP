@@ -84,7 +84,7 @@ export function DashboardGrid({ ctx, items, onItemsChange, editing }: DashboardG
         <div className="h-32" />
       ) : isMobile ? (
         /* 移动端: 不挂网格, 纵排 */
-        <div className="space-y-1.5">
+        <div className="space-y-3">
           {items.map(it => (
             <div key={it.i} className="min-h-16">{renderWidget(it)}</div>
           ))}
@@ -93,7 +93,7 @@ export function DashboardGrid({ ctx, items, onItemsChange, editing }: DashboardG
         <GridLayout
           width={width}
           layout={rglLayout}
-          gridConfig={{ cols: GRID_COLS, rowHeight: GRID_ROW_HEIGHT, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: null, maxRows: Infinity }}
+          gridConfig={{ cols: GRID_COLS, rowHeight: GRID_ROW_HEIGHT, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: [0, 0], maxRows: Infinity }}
           dragConfig={{
             enabled: editing,
             // 整卡可拖(不限把手); ✕ 移除钮不触发拖拽 — RGL 自动并入 .react-resizable-handle

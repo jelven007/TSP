@@ -498,6 +498,7 @@ class AutoRuleModel(BaseModel):
     size_mode: str = "fixed_amount" # fixed_amount / pct_equity
     size_value: float
     order_type: str = "next_open"
+    execution_mode: Literal["orders", "s02_minute"] = "orders"
     buy_order_type: Literal["market", "next_open", "close"] | None = None
     sell_order_type: Literal["market", "next_open", "close"] | None = None
     cooldown_days: int = 5

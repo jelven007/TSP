@@ -318,6 +318,7 @@ class MinuteSignalReplayer:
                 source_day = previous_session(day)
                 validate_daily_close(
                     repo, source_day, rows=panel.filter(pl.col("date") == source_day),
+                    check_closing_minute=False,
                 )
                 if signal_sections:
                     from app.strategy.signal_sections import select_rows

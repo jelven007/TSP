@@ -244,6 +244,28 @@ class Watchlist:
             if not conn.execute("SELECT 1 FROM business.watchlist_groups WHERE id=%s", (group_id,)).fetchone():
                 raise KeyError(group_id)
             ensure_clearable(group_id, sql_references(conn))
+            # Identify exclusive members before removing this group's links.
+            # Deleting a stock cascades its memberships; strategy tags share
+            # the same transaction so a later failure rolls everything back.
+            conn.execute(
+                """WITH exclusive AS (
+                     SELECT member.tenant_id,member.symbol
+                     FROM business.watchlist_group_items member
+                     WHERE member.group_id=%s AND NOT EXISTS (
+                       SELECT 1 FROM business.watchlist_group_items other
+                       WHERE other.tenant_id=member.tenant_id
+                         AND other.symbol=member.symbol AND other.group_id<>member.group_id
+                     )
+                   ), removed AS (
+                     DELETE FROM business.watchlist_items item USING exclusive
+                     WHERE item.tenant_id=exclusive.tenant_id AND item.symbol=exclusive.symbol
+                     RETURNING item.tenant_id,item.symbol
+                   )
+                   DELETE FROM business.documents document USING removed
+                   WHERE document.tenant_id=removed.tenant_id
+                     AND document.namespace='watchlist_strategies' AND document.id=removed.symbol""",
+                (group_id,),
+            )
             conn.execute("DELETE FROM business.watchlist_group_items WHERE group_id=%s", (group_id,))
             return self._rows(conn)
         return self._mutate("watchlist.group.clear", group_id, apply)

@@ -7,6 +7,7 @@
  */
 import { cloneElement, isValidElement, useRef, type ReactElement, type ReactNode } from 'react'
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
+import { cn } from '@/lib/cn'
 import type { ColumnConfig } from '@/lib/list-columns'
 import { UNSORTABLE_KEYS } from '@/lib/stock-table'
 import { VIRTUAL_LIST_THRESHOLD, useParentScroll } from '@/components/virtual-list/useParentScroll'
@@ -27,6 +28,13 @@ export interface StockDataTableProps {
   headerSticky?: boolean
   /** 最小表格宽度，默认按列数计算 */
   minWidth?: number
+  /** 显式列宽使虚拟滚动时的布局不受可见行内容影响。 */
+  columnWidths?: Readonly<Record<string, number>>
+  /** 此列在其配置的最小宽度之外独占剩余宽度。 */
+  stretchColumnId?: string
+  extraColumnWidth?: number
+  /** 与策略每日结果一致的紧凑密度。 */
+  compact?: boolean
   /** 排序：外部受控时传入（含当前 sort 与 toggle）；不传则表头不可排序 */
   sort?: SortState | null
   onSortToggle?: (colId: string) => void
@@ -42,11 +50,10 @@ export interface StockDataTableProps {
   className?: string
 }
 
-function alignThClass(align: ColumnConfig['align']): string {
+function alignThClass(align: ColumnConfig['align'], compact: boolean): string {
   // 表头一律不换行: 窄列(如收起的图表列)中标签/排序箭头折行会把整行表头顶高
-  if (align === 'right') return 'px-3 py-2.5 font-medium text-right whitespace-nowrap'
-  if (align === 'center') return 'px-3 py-2.5 font-medium text-center whitespace-nowrap'
-  return 'px-3 py-2.5 font-medium whitespace-nowrap'
+  return cn(compact ? 'px-2 py-1.5' : 'px-3 py-2.5', 'font-medium whitespace-nowrap',
+    align === 'right' && 'text-right', align === 'center' && 'text-center')
 }
 
 export function StockDataTable({
@@ -55,6 +62,10 @@ export function StockDataTable({
   rowClassName = () => 'border-t border-border hover:bg-elevated/50',
   headerSticky = false,
   minWidth,
+  columnWidths,
+  stretchColumnId,
+  extraColumnWidth = 88,
+  compact = false,
   sort,
   onSortToggle,
   extraSortableKeys,
@@ -65,13 +76,18 @@ export function StockDataTable({
 }: StockDataTableProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const visibleColumns = columns.filter(c => c.visible)
-  const computedMinWidth = minWidth ?? Math.max(900, visibleColumns.length * 110)
+  const width = (id: string) => columnWidths?.[id] ?? 110
+  const hasExtraColumn = !!(renderExtraCol || extraHeader)
+  const computedMinWidth = columnWidths
+    ? Math.max(minWidth ?? 0, visibleColumns.reduce((sum, col) => sum + width(col.id), 0)
+      + (hasExtraColumn ? extraColumnWidth : 0))
+    : minWidth ?? Math.max(900, visibleColumns.length * 110)
   const virtualized = rows.length > VIRTUAL_LIST_THRESHOLD
   const { getScrollElement, scrollMargin } = useParentScroll(containerRef, virtualized)
   const rowVirtualizer = useVirtualizer({
     count: virtualized ? rows.length : 0,
     getScrollElement,
-    estimateSize: () => 56,
+    estimateSize: () => compact ? 32 : 56,
     getItemKey: index => rowKey(rows[index]),
     overscan: 10,
     scrollMargin,
@@ -94,30 +110,47 @@ export function StockDataTable({
   }
 
   const theadClass = headerSticky
-    ? 'sticky top-0 z-10 bg-surface after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border'
+    ? cn('sticky top-0 z-10 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border',
+      compact ? 'bg-elevated' : 'bg-surface')
     : 'bg-elevated'
+
+  const prepareCell = (cell: ReactNode, id: string) => {
+    if (!isValidElement(cell)) return cell
+    const element = cell as ReactElement<{ className?: string; 'data-column'?: string }>
+    return cloneElement(element, {
+      key: id,
+      'data-column': id,
+      className: cn(element.props.className, compact && 'px-2 py-1.5 align-middle',
+        columnWidths && 'overflow-hidden'),
+    })
+  }
 
   const renderRow = (r: any, virtualRow?: VirtualItem) => (
     <tr
       key={rowKey(r)}
       ref={virtualRow ? rowVirtualizer.measureElement : undefined}
       data-index={virtualRow?.index}
-      className={`transition-colors duration-150 ease-smooth group ${rowClassName(r)}`}
+      className={cn('transition-colors duration-150 ease-smooth group', compact && 'h-8', rowClassName(r))}
     >
       {visibleColumns.map(col => {
         // renderCell 返回的 <td> 无 key, 这里补上避免 React key 警告
         const cell = renderCell(r, col)
-        return isValidElement(cell)
-          ? cloneElement(cell as ReactElement, { key: col.id })
-          : cell
+        return prepareCell(cell, col.id)
       })}
-      {renderExtraCol && renderExtraCol(r)}
+      {renderExtraCol && prepareCell(renderExtraCol(r), 'extra')}
     </tr>
   )
 
   return (
     <div ref={containerRef} className={className}>
-      <table className="w-full text-sm" style={{ minWidth: computedMinWidth }}>
+      <table className={cn('w-full', compact ? 'text-xs' : 'text-sm', columnWidths && 'table-fixed')}
+        style={{ minWidth: computedMinWidth,
+          ...(columnWidths && !stretchColumnId ? { width: computedMinWidth } : {}) }}>
+        {columnWidths && <colgroup>
+          {visibleColumns.map(col => <col key={col.id}
+            style={col.id === stretchColumnId ? undefined : { width: width(col.id) }} />)}
+          {hasExtraColumn && <col style={{ width: extraColumnWidth }} />}
+        </colgroup>}
         <thead className={theadClass}>
           <tr className="text-left text-secondary">
             {visibleColumns.map(col => {
@@ -128,7 +161,8 @@ export function StockDataTable({
               return (
                 <th
                   key={col.id}
-                  className={`${alignThClass(col.align)} ${sortable ? 'cursor-pointer select-none group' : ''}`}
+                  data-column={col.id}
+                  className={`${alignThClass(col.align, compact)} ${sortable ? 'cursor-pointer select-none group' : ''}`}
                   onClick={sortable ? () => onSortToggle!(col.id) : undefined}
                 >
                   {contentOverride !== undefined ? contentOverride : col.label}
@@ -141,7 +175,7 @@ export function StockDataTable({
               )
             })}
             {extraHeader && (
-              <th className="px-3 py-2.5 font-medium text-right">{extraHeader}</th>
+              <th data-column="extra" className={alignThClass('right', compact)}>{extraHeader}</th>
             )}
           </tr>
         </thead>

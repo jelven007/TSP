@@ -16,7 +16,7 @@ let host: HTMLDivElement
 let client: QueryClient
 const row = { symbol: '600001.SH', atr14_previous_close: .05, atr_rank: 1, atr_rank_score: 100, score: 100 }
 const result: ScreenerResult = {
-  strategy: 'custom_mvxxcp88', as_of: '2026-11-06', rows: [], total: 0, elapsed_ms: 0,
+  strategy: 'custom_mvxxcp88', as_of: '2026-11-07', rows: [], total: 0, elapsed_ms: 0,
   section_mode: 'signals', sections: { sell: [row], select: [row], buy: [row] },
 }
 const quotes = { as_of: '2026-11-06', requested_as_of: '2026-11-07', source: 'previous_close',
@@ -33,7 +33,7 @@ async function render(tab: 'sell' | 'select' | 'buy', data: unknown = quotes) {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   await act(async () => root.render(<QueryClientProvider client={client}>
-    <StrategyDailyResults result={result} activeTab={tab} signalColumns={defaultStrategyResultColumns(tab)} />
+    <StrategyDailyResults result={result} currentDate={result.as_of} activeTab={tab} signalColumns={defaultStrategyResultColumns(tab)} />
   </QueryClientProvider>))
   await act(async () => { await vi.advanceTimersByTimeAsync(20) })
 }

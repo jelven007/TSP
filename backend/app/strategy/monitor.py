@@ -2153,6 +2153,12 @@ class MonitorRuleEngine:
         }
         try:
             from app.strategy.entry_risk import EntryRiskPolicy, reference_from_row
+            from app.strategy.morning_liquidation import selected_definitions
+
+            exit_definitions = selected_definitions(
+                self._strategy_engine,
+                self._strategy_engine._effective_signals(overrides, "exit_signals", s.exit_signals),
+            ) if sid == "custom_mvxxcp88" else []
 
             entry_policy = {
                 "version": 1, "strategy_id": sid,
@@ -2168,6 +2174,7 @@ class MonitorRuleEngine:
                     **(overrides.get("params") or {}),
                 },
                 "as_of": str(result.as_of),
+                **({"exit_definition": exit_definitions[0]} if len(exit_definitions) == 1 else {}),
             }
         except ValueError as exc:
             logger.warning("策略 %s 风控配置无效, 不生成入场执行事件: %s", sid, exc)
@@ -2196,6 +2203,10 @@ class MonitorRuleEngine:
                         *hit[:3], row.get("raw_close", hit[3]), *hit[4:],
                         {**candidate_ranks.get(hit[1], {}), "score": score, "entry_policy": {
                             **entry_policy, "signal_reference": reference_from_row(row),
+                            **({
+                                "signal_datetime": row["last_datetime"].isoformat(),
+                                "entry_evaluated_at": (row.get("entry_evaluated_at") or row["last_datetime"]).isoformat(),
+                            } if isinstance(row.get("last_datetime"), _dt.datetime) else {}),
                         } if entry_policy is not None else None},
                     ))
             if len(symbol_list) > 5:

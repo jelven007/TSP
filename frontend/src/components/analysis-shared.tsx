@@ -466,7 +466,7 @@ export function PresetFetchState({
 }) {
   const errMsg = error instanceof Error ? error.message : error ? String(error) : ''
   return (
-    <div className="h-full grid place-items-center px-8 py-16">
+    <div className="page-card grid w-full place-items-center p-4">
       <div className="text-center max-w-md">
         <DownloadCloud className="mx-auto h-10 w-10 text-muted" strokeWidth={1.5} />
         <h2 className="mt-4 text-[16px] leading-6 font-medium text-foreground">{title}</h2>

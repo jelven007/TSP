@@ -90,10 +90,10 @@ export function StockAnalysis() {
         }
       />
 
-      <div className="w-full px-8 py-6 space-y-6">
+      <div className="page-content space-y-4">
         {/* 搜索栏 */}
-        <div className="flex items-center gap-3">
-          <div className="w-72">
+        <div className="page-card flex flex-wrap items-center gap-3 p-4">
+          <div className="w-full sm:w-72">
             <StockFinancialSearch onSelect={onSelect} assetTypes="stock,index" />
           </div>
           {symbol && (
@@ -128,7 +128,7 @@ export function StockAnalysis() {
         </div>
 
         {/* 主体:左侧当前个股行情 + 右侧常驻历史报告 */}
-        <div className="grid grid-cols-[1fr_288px] gap-6 items-start">
+        <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-[minmax(0,1fr)_288px]">
           <div className="min-w-0">
             {!symbol ? (
               <EmptyState

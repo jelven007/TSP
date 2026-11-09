@@ -78,6 +78,22 @@ it('revalidates a recently persisted list on mount so saved strategies survive a
   })
 })
 
+it('shows group and strategy relationships in a dedicated second column without replacing market prices', async () => {
+  await render()
+  await vi.waitFor(() => {
+    const headers = host.querySelectorAll('table thead th')
+    expect(headers[1]?.textContent).toBe('分组')
+    const cells = host.querySelectorAll('table tbody tr:not([aria-hidden]) td')
+    expect(cells[0]?.textContent).toContain('600000.SH')
+    expect(cells[0]?.textContent).not.toContain('核心')
+    expect(cells[1]?.textContent).toContain('核心')
+    expect(cells[1]?.textContent).toContain('观察')
+    expect(cells[1]?.textContent).toContain('日K策略')
+    expect(cells[1]?.textContent).toContain('分钟策略')
+    expect(host.querySelector('td[data-column="builtin:price"]')?.textContent).toBe('10.00')
+  })
+})
+
 it('blocks clearing all watchlist entries while any group is referenced, across tabs', async () => {
   const clearApi = await render()
   const clear = () => host.querySelector<HTMLButtonElement>('button[aria-label="清空自选"], button[title="清空自选"]')!
@@ -142,4 +158,44 @@ it('uses the group selected by the page URL for the first export', async () => {
   expect(button).not.toBeNull()
   await act(async () => button!.click())
   expect(download).toHaveBeenCalledWith([exportEntries[0], exportEntries[2]], '观察_股票列表.csv')
+})
+
+it('clears the selected group and refreshes enriched data while preserving shared members', async () => {
+  const clear = vi.spyOn(api, 'watchlistGroupClear')
+  await render(false, '/watchlist?group=other', exportEntries)
+  const remaining = { symbols: [
+    { ...exportEntries[0], group_ids: ['core'] }, exportEntries[1], exportEntries[3],
+  ] }
+  clear.mockResolvedValue(remaining)
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="清空当前分组"]')!.click())
+  const dialog = document.querySelector('[role="dialog"]')!
+  expect(dialog.textContent).toContain('仅属于本组的股票将从自选删除')
+  expect(dialog.textContent).toContain('其他分组中的股票保持不变')
+  const enrichedCalls = vi.mocked(api.watchlistEnriched).mock.calls.length
+  const confirm = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
+    .find(button => button.textContent === '确认清空')!
+  await act(async () => confirm.click())
+  expect(clear).toHaveBeenCalledExactlyOnceWith('other')
+  expect(client.getQueryData(QK.watchlist)).toEqual(remaining)
+  await vi.waitFor(() => expect(vi.mocked(api.watchlistEnriched).mock.calls.length).toBeGreaterThan(enrichedCalls))
+  expect(document.querySelector('[role="dialog"]')).toBeNull()
+  expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toContain('观察')
+})
+
+it('keeps the clear dialog and records intact on failure, and blocks duplicate submission', async () => {
+  const clear = vi.spyOn(api, 'watchlistGroupClear')
+  let reject!: (reason: Error) => void
+  clear.mockReturnValue(new Promise((_resolve, fail) => { reject = fail }))
+  await render(false, '/watchlist?group=other', exportEntries)
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="清空当前分组"]')!.click())
+  const confirm = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')]
+    .find(button => button.textContent === '确认清空')!
+  await act(async () => confirm.click())
+  expect(confirm.disabled).toBe(true)
+  await act(async () => confirm.click())
+  expect(clear).toHaveBeenCalledOnce()
+  await act(async () => reject(new Error('清空失败，请重试')))
+  expect(document.querySelector('[role="dialog"] [role="alert"]')?.textContent).toBe('清空失败，请重试')
+  expect(client.getQueryData(QK.watchlist)).toEqual({ symbols: exportEntries })
+  expect(confirm.disabled).toBe(false)
 })

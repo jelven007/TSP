@@ -212,7 +212,7 @@ export function Monitor() {
       {notificationsOpen && <NotificationsPanel />}
       {realtimeUnavailable && (
         <div className="px-5 pb-1">
-          <div className="mx-auto flex max-w-7xl items-center gap-2.5 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-2.5">
+          <div className="flex items-center gap-2.5 rounded-card border border-warning/30 bg-warning/[0.06] px-4 py-2.5">
             <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
             <span className="text-xs leading-relaxed text-secondary">
               实时行情当前不可用，监控与预警收不到最新价。{hasPermission('data:manage') ? '可接入提供实时行情的数据源。' : '请联系管理员检查行情服务。'}
@@ -226,10 +226,10 @@ export function Monitor() {
           </div>
         </div>
       )}
-      <div className="flex-1 min-h-0 px-5 py-4">
-        <div className="mx-auto flex h-full max-w-7xl flex-col gap-4 lg:flex-row">
+      <div className="page-content flex-1 min-h-0">
+        <div className="flex h-full min-w-0 flex-col gap-4 lg:flex-row">
           {/* 左栏: 触发记录 */}
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface/40 shadow-lg shadow-black/5">
+          <section className="page-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex items-center gap-3 border-b border-border/60 bg-surface/60 px-4 py-2.5">
               <SectionHeader icon={BellRing} title="触发记录" />
               {/* 过滤标签 — 单行横向滚动, 不折行 (缩放/窄窗口下保持一行) */}
@@ -276,7 +276,7 @@ export function Monitor() {
           </section>
 
           {/* 右栏: 监控规则 */}
-          <section className="flex min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-surface/40 shadow-lg shadow-black/5 lg:w-[400px] lg:shrink-0">
+          <section className="page-card flex min-h-0 w-full flex-col overflow-hidden lg:w-[400px] lg:shrink-0">
             <div className="flex items-center gap-3 border-b border-border/60 bg-surface/60 px-4 py-2.5">
               <SectionHeader icon={ListChecks} title="监控规则" />
               <span className="rounded-md bg-elevated/50 px-1.5 py-0.5 text-[10px] font-medium text-muted">{rulesCount}</span>

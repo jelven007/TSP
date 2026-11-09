@@ -35,6 +35,11 @@ const LOT_COLUMNS = ([
   ...column, visible: true, source: { type: 'computed', key: column.id },
 }))
 
+const LOT_COLUMN_WIDTHS = {
+  symbol: 204, qty: 100, cost: 80, price: 80, pnl: 80, target: 80, stop: 80,
+  buy_date: 112, remaining: 108, remind_date: 200,
+}
+
 /** 剩余天数单元格: 到期日 − 今天, 可为负 = 已超期; 无到期日 → — */
 function RemainingDays({ remind }: { remind?: string | null }) {
   if (!remind) return <span className="text-muted/60">—</span>
@@ -203,8 +208,9 @@ export function Lots() {
           </div>
         }
       />
+      <div className="page-content flex min-h-0 flex-1 flex-col gap-3">
       {batches.length > 0 && (
-        <div className="flex h-10 shrink-0 items-stretch border-b border-border bg-surface/40 px-3 sm:px-5">
+        <div className="page-card flex h-10 min-w-0 shrink-0 items-stretch">
           <div role="tablist" aria-label="持仓批次" className="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto">
             {batches.map(batch => {
               const active = selectedBatch === batch.id
@@ -226,11 +232,11 @@ export function Lots() {
         </div>
       )}
       <div id="holding-batch-panel" role="tabpanel" aria-labelledby={selectedBatch ? `holding-batch-${selectedBatch}` : undefined}
-        className="flex min-h-0 flex-1 flex-col gap-3 px-3 py-3 sm:px-5">
+        className="flex min-h-0 flex-1 flex-col gap-3">
           {lotsQuery.isLoading || batchesQuery.isLoading ? (
-            <div role="status" className="flex flex-1 items-center justify-center text-sm text-muted">加载中…</div>
+            <div role="status" className="page-card p-4 text-center text-sm text-muted">加载中…</div>
           ) : lotsQuery.isError || batchesQuery.isError ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3">
+            <div className="page-card flex flex-col items-center justify-center gap-3 p-4">
               <div role="alert" className="text-sm text-danger">批次加载失败</div>
               <button type="button"
                 onClick={() => { lotsQuery.refetch(); batchesQuery.refetch() }}
@@ -248,7 +254,7 @@ export function Lots() {
           ) : (
             <div className="min-h-0 flex-1 overflow-auto rounded-card border border-border bg-surface">
             <StockDataTable columns={LOT_COLUMNS} rows={sortedLots} rowKey={(lot: Lot) => lot.id}
-              minWidth={1100} headerSticky extraHeader="操作"
+              columnWidths={LOT_COLUMN_WIDTHS} compact headerSticky extraHeader="操作" extraColumnWidth={104}
               className="min-w-full"
               rowClassName={(lot: Lot) => cn('border-t border-border hover:bg-elevated/50', lot.symbol === previewSymbol && 'bg-accent/10 hover:bg-accent/15')}
               renderCell={(lot: Lot, column) => {
@@ -261,10 +267,10 @@ export function Lots() {
                           <button type="button"
                             onClick={() => setPreviewSymbol(lot.symbol)}
                             title={`查看 ${lot.symbol} 日K`}
-                            className="inline-flex items-center gap-1.5 whitespace-nowrap text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                            className="flex min-w-0 w-full items-center gap-1.5 whitespace-nowrap text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                           >
-                            <span className="font-mono text-xs text-foreground transition-colors group-hover:text-accent">{lot.symbol}</span>
-                            {symbolNames[lot.symbol] && <span className="max-w-28 truncate text-xs text-secondary transition-colors group-hover:text-foreground">{symbolNames[lot.symbol]}</span>}
+                            <span className="shrink-0 font-mono text-xs text-accent group-hover:underline">{lot.symbol}</span>
+                            {symbolNames[lot.symbol] && <span title={symbolNames[lot.symbol]} className="min-w-0 truncate text-xs text-accent group-hover:underline">{symbolNames[lot.symbol]}</span>}
                             {board && <span className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border text-[9px] font-bold leading-none ${board.color}`}>{board.label}</span>}
                           </button>
                         </td>
@@ -299,7 +305,7 @@ export function Lots() {
                               onClick={() => setEditing(lot)}
                               title="编辑股票"
                               aria-label={`编辑股票 ${lot.symbol}`}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-btn text-secondary transition-colors hover:bg-accent/10 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-btn text-secondary transition-colors hover:bg-accent/10 hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                             >
                               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
@@ -307,7 +313,7 @@ export function Lots() {
                               <button type="button"
                                 onClick={() => handleClickDelete(lot.id)}
                                 title="确认删除股票"
-                                className="inline-flex h-7 items-center gap-1 rounded-btn bg-danger/10 px-2 text-[11px] font-medium text-danger transition-colors hover:bg-danger/20"
+                                className="inline-flex h-5 items-center gap-1 rounded-btn bg-danger/10 px-1.5 text-[10px] font-medium text-danger transition-colors hover:bg-danger/20"
                               >
                                 <Trash2 className="h-3 w-3" aria-hidden="true" />确认
                               </button>
@@ -316,7 +322,7 @@ export function Lots() {
                                 onClick={() => handleClickDelete(lot.id)}
                                 title="删除股票 (同步删除生成的监控规则)"
                                 aria-label={`删除股票 ${lot.symbol}`}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-btn text-secondary transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-danger"
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-btn text-secondary transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline focus-visible:outline-2 focus-visible:outline-danger"
                               >
                                 <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                               </button>
@@ -330,6 +336,7 @@ export function Lots() {
         <p className="shrink-0 text-[11px] leading-relaxed text-muted">
           提醒规则同步至监控中心；现价取最近日K收盘价，盈亏为价格涨跌参考，不计费用。此页用于提醒，不作为持仓账本。
         </p>
+      </div>
       </div>
 
       {editing && <LotDialog lot={editing} onClose={() => setEditing(null)} />}

@@ -798,7 +798,7 @@ function OverviewBar({ tiers, dateValue, onDateChange, filterKeys, bf, direction
   const failedLabel = direction === 'down' ? '止跌' : '断板'
 
   return (
-    <div className="flex items-center gap-4 px-5 py-2">
+    <div className="page-card flex min-w-0 shrink-0 items-center gap-3 p-4">
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-secondary">
         {tiers.map((t, idx) => {
           const luCount = limitUpCounts[idx]
@@ -869,7 +869,7 @@ function TagStats({ title, tiers, extFields, fieldKey, color, selectedTag, onSel
   const needsExpand = stats.length > 10
 
   return (
-    <div className="px-4">
+    <div className="page-card shrink-0 p-4">
       <button
         onClick={() => needsExpand && setExpanded(v => !v)}
         className={`flex items-center gap-1.5 mb-1.5 w-full group ${needsExpand ? 'cursor-pointer' : 'cursor-default'}`}
@@ -1582,8 +1582,13 @@ export function LimitUpLadder() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <RefreshCw className="h-5 w-5 animate-spin text-muted" />
+      <div className="flex flex-col h-full">
+        <PageHeader title={direction === 'down' ? '连跌梯队' : '连板梯队'} />
+        <div className="page-content min-h-0 flex-1">
+          <div className="page-card flex items-center justify-center gap-2 p-4" role="status" aria-label="加载梯队数据">
+            <RefreshCw className="h-5 w-5 animate-spin text-muted" />加载梯队数据…
+          </div>
+        </div>
       </div>
     )
   }
@@ -1595,12 +1600,14 @@ export function LimitUpLadder() {
     return (
       <div className="flex flex-col h-full">
         <PageHeader title={direction === 'down' ? '连跌梯队' : '连板梯队'} />
-        <ErrorState
-          title={direction === 'down' ? '连跌数据加载失败' : '连板数据加载失败'}
-          hint="行情接口暂时不可用，请重试；多次失败可检查数据源配置与网络"
-          retrying={isFetching}
-          onRetry={() => refetch()}
-        />
+        <div className="page-content min-h-0 flex-1">
+          <ErrorState
+            title={direction === 'down' ? '连跌数据加载失败' : '连板数据加载失败'}
+            hint="行情接口暂时不可用，请重试；多次失败可检查数据源配置与网络"
+            retrying={isFetching}
+            onRetry={() => refetch()}
+          />
+        </div>
       </div>
     )
   }
@@ -1609,7 +1616,9 @@ export function LimitUpLadder() {
     return (
       <div className="flex flex-col h-full">
         <PageHeader title={direction === 'down' ? '连跌梯队' : '连板梯队'} />
-        <EmptyState icon={Flame} title={direction === 'down' ? '暂无连跌数据' : '暂无连板数据'} hint={direction === 'down' ? '该日期无跌停股或 enriched 数据未就绪' : '该日期无涨停股或 enriched 数据未就绪'} />
+        <div className="page-content min-h-0 flex-1">
+          <EmptyState icon={Flame} title={direction === 'down' ? '暂无连跌数据' : '暂无连板数据'} hint={direction === 'down' ? '该日期无跌停股或 enriched 数据未就绪' : '该日期无涨停股或 enriched 数据未就绪'} />
+        </div>
       </div>
     )
   }
@@ -1759,6 +1768,7 @@ export function LimitUpLadder() {
         }
       />
 
+      <div className="page-content flex min-h-0 flex-1 flex-col gap-3">
       {/* 总览条 + 日期 */}
       <OverviewBar tiers={tiers} dateValue={dateValue} onDateChange={setAsOf} filterKeys={filterKeys} bf={extFields.bf} direction={direction} />
 
@@ -1792,7 +1802,7 @@ export function LimitUpLadder() {
       )}
 
       {/* 梯队列表 */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+      <div className="min-h-0 flex-1 overflow-y-auto space-y-3">
         {sortedTiers.map(t => (
           <TierGroup
             key={t.boards}
@@ -1814,6 +1824,7 @@ export function LimitUpLadder() {
             activeSymbol={previewSymbol}
           />
         ))}
+      </div>
       </div>
 
       <DimensionMembersDialog

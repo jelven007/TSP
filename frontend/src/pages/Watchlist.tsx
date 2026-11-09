@@ -57,7 +57,13 @@ import {
   loadColumnConfig,
   saveColumnConfig,
   buildExtColumnsParam,
+  watchlistColumnWidths,
 } from '@/lib/watchlist-columns'
+
+const WATCHLIST_GROUP_COLUMN: ColumnConfig = {
+  id: 'builtin:groups', source: { type: 'builtin', key: 'groups' },
+  label: '分组', visible: true, pinned: true, align: 'left',
+}
 
 // ===== 板块标识（筛选/卡片用） =====
 // 注: boardTag（创/科 标签）已移至共享 @/components/stock-table/primitives
@@ -763,10 +769,15 @@ export function Watchlist() {
   const hasMinuteBatch = !!caps.data?.capabilities?.['kline.minute.batch']
   const intradayVisible = !!intradayColumn && hasMinuteBatch && intradayChartVisible
 
-  // 计算可见列（列是否出现只由自定义列配置决定）
+  // 分组关系固定显示在代码/名称后，不写入用户可自定义的列配置。
   const visibleColumns = useMemo(() => {
-    return columns.filter(c => c.visible)
+    return columns.filter(c => c.visible).flatMap(col =>
+      col.id === 'builtin:symbol' ? [col, WATCHLIST_GROUP_COLUMN] : [col])
   }, [columns])
+  const tableColumnWidths = useMemo(() => watchlistColumnWidths(visibleColumns, {
+    candle: candleSize.width + 16,
+    intraday: Math.max(104, (intradayChartVisible ? intradayResolved.width : 40) + 16),
+  }), [visibleColumns, candleSize.width, intradayChartVisible, intradayResolved.width])
 
   // 计算 ext 列参数
   const extColumnsParam = useMemo(() => buildExtColumnsParam(columns), [columns])
@@ -1086,7 +1097,11 @@ export function Watchlist() {
 
   const clearGroup = useMutation({
     mutationFn: (groupId: string) => api.watchlistGroupClear(groupId),
-    onSuccess: data => qc.setQueryData(QK.watchlist, data),
+    onSuccess: data => {
+      qc.setQueryData(QK.watchlist, data)
+      qc.invalidateQueries({ queryKey: ['watchlist-enriched'] })
+      qc.invalidateQueries({ queryKey: ['kline-batch'] })
+    },
   })
 
   // 多组并存: 勾选加入 / 取消移出 (仅影响该分组, 标的保留在自选中)
@@ -1589,6 +1604,7 @@ export function Watchlist() {
         }
       />
 
+      <div className="page-content flex min-h-0 flex-1 flex-col gap-3">
       {groupStatsOpen && (
         <WatchlistGroupStatsBar
           groups={groups}
@@ -1617,7 +1633,7 @@ export function Watchlist() {
 
       {/* 筛选栏 */}
       {filterOpen && (
-        <div className="px-5 py-2 border-b border-border bg-surface/50 max-h-[184px] overflow-y-auto">
+        <div className="page-card shrink-0 p-4 max-h-[184px] overflow-y-auto">
           {/* 板块筛选 */}
           <div className="mb-2">
             <div className="text-[10px] text-muted uppercase tracking-wider mb-0.5">板块</div>
@@ -1706,7 +1722,7 @@ export function Watchlist() {
 
       {/* 可滚动列表区 — 占满剩余高度，内部独立滚动，表头 sticky 固定 */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="px-5 py-3">
+        <div>
           {/* 列表 */}
           {watchlistContentLoading ? (
             <div className="text-sm text-muted">加载中…</div>
@@ -1743,6 +1759,8 @@ export function Watchlist() {
               columns={visibleColumns}
               rows={sortedRows}
               headerSticky
+              compact
+              columnWidths={tableColumnWidths}
               sort={sort}
               onSortToggle={handleSortToggle}
               extraSortableKeys={INTRADAY_SORTABLE_KEYS}
@@ -1828,13 +1846,13 @@ export function Watchlist() {
                         <button
                           type="button"
                           onClick={() => { setPreviewSymbol(r.symbol); setPreviewName(name ?? '') }}
-                          className="flex items-center gap-1 text-left min-w-0"
+                          className="flex flex-1 items-center gap-1 text-left min-w-0"
                         >
-                          <span className="font-mono text-foreground text-xs group-hover:text-accent transition-colors duration-150">
+                          <span className="shrink-0 font-mono text-accent text-xs group-hover:underline transition-colors duration-150">
                             {r.symbol}
                           </span>
                           {name && (
-                            <span className="text-xs text-secondary truncate group-hover:text-foreground transition-colors duration-150">
+                            <span title={name} className="min-w-0 text-xs text-accent truncate group-hover:underline transition-colors duration-150">
                               {name}
                             </span>
                           )}
@@ -1903,10 +1921,14 @@ export function Watchlist() {
                           )}
                         </div>
                       </div>
-                      <WatchlistRelations entry={r} groups={groups} strategies={strategyOptions}
-                        onEdit={() => setStrategySymbol(r.symbol)} />
                     </td>
                   )
+                }
+                if (key === 'groups') {
+                  return <td className="px-2 py-1.5">
+                    <WatchlistRelations compact entry={r} groups={groups} strategies={strategyOptions}
+                      onEdit={() => setStrategySymbol(r.symbol)} />
+                  </td>
                 }
                 // 实时行情列：price/pct/amount 使用 rt_ 回退（自选页有实时推送）
                 const numCls = 'px-2 py-1.5 text-right num tabular-nums'
@@ -1927,18 +1949,15 @@ export function Watchlist() {
                   const signals = getSignals(r)
                   return (
                     <td className="px-2 py-1.5">
-                      {signals.length > 0 && (
-                        <div className="flex flex-wrap gap-0.5">
-                          {signals.slice(0, 3).map((s) => (
+                      {signals.length > 0 ? (
+                        <div className="flex flex-wrap gap-1" title={signals.map(s => s.label).join('、')}>
+                          {signals.map((s) => (
                             <span key={s.label} className={`inline-block px-1.5 py-px rounded text-[10px] font-medium leading-tight ${signalCls(s.type)}`}>
                               {s.label}
                             </span>
                           ))}
-                          {signals.length > 3 && (
-                            <span className="text-[10px] text-muted">+{signals.length - 3}</span>
-                          )}
                         </div>
-                      )}
+                      ) : <span className="text-muted">—</span>}
                     </td>
                   )
                 }
@@ -2014,6 +2033,7 @@ export function Watchlist() {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {strategySymbol && listEntries.some(entry => entry.symbol === strategySymbol) && (
