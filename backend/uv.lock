@@ -2620,7 +2620,7 @@ wheels = [
 
 [[package]]
 name = "tsp-backend"
-version = "0.4.57"
+version = "0.4.58"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
