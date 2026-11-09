@@ -4,15 +4,16 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pytest
-from app.api import screener
-from app.market_time import cn_today
-from app.services.strategy_results import StrategyResults
 from test_full_entry_expiry import SID, request_for, saved_result
 from test_full_entry_expiry import late as late
 from test_full_entry_expiry import upgrade as upgrade
 from test_full_identity import env as env
 from test_full_identity import full_cluster as full_cluster
 from test_full_runtime import owned as owned
+
+from app.api import screener
+from app.market_time import cn_today
+from app.services.strategy_results import StrategyResults
 
 
 @pytest.mark.parametrize("invalid", [None, "marker", "buy", "status", "identity"])
