@@ -6,7 +6,8 @@ import { api, type StrategyDetail } from '@/lib/api'
 
 interface Props {
   pool: string[]
-  onConfirm: (newPool: string[]) => void
+  revision?: number
+  onConfirm: (newPool: string[], revision?: number) => void | Promise<void>
   onClose: () => void
 }
 
@@ -47,9 +48,25 @@ function fileStem(name: string): string {
   return name.replace(/\.py$/i, '').replace(/[^A-Za-z0-9_-]/g, '_').replace(/^_+|_+$/g, '')
 }
 
-export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
+export function StrategyPoolDialog({ pool, revision, onConfirm, onClose }: Props) {
   // 草稿状态: 打开时从 pool 复制, 操作只改草稿, 点确定才提交
   const [draftPool, setDraftPool] = useState<string[]>(() => [...pool])
+  const [baseRevision] = useState(revision)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const confirm = async () => {
+    if (saving) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      await (baseRevision === undefined ? onConfirm(draftPool) : onConfirm(draftPool, baseRevision))
+      onClose()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '策略池保存失败，请重试')
+    } finally {
+      setSaving(false)
+    }
+  }
   const [allStrategies, setAllStrategies] = useState<StrategyDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -207,7 +224,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
 
   return (
     <AnimatePresence>
-      <Modal onClose={onClose} ariaLabel="策略股票池" size="md">
+      <Modal onClose={onClose} closeDisabled={saving} ariaLabel="策略股票池" size="md">
           {/* 标题 */}
           <div className="modal-header flex items-center justify-between">
             <span className="text-sm font-medium text-foreground">
@@ -227,13 +244,13 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
+                disabled={importing || saving}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-btn border border-accent/30 bg-accent/10 text-accent text-xs font-medium hover:bg-accent/15 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                 导入策略
               </button>
-              <button onClick={onClose} className="modal-close" aria-label="关闭弹窗">
+              <button onClick={onClose} disabled={saving} className="modal-close" aria-label="关闭弹窗">
                 <X className="h-4 w-4 text-muted" />
               </button>
             </div>
@@ -255,7 +272,7 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
               <button onClick={() => void loadStrategies()} className="ml-3 underline">重试</button>
             </div>
           ) : (
-            <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1 gap-0">
+            <fieldset disabled={saving} className={`flex-1 min-h-0 min-w-0 grid grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1 gap-0 ${saving ? 'pointer-events-none' : ''}`}>
               {/* 左侧: 待选 (Tab 分组) */}
               <div className="flex flex-col min-h-0 border-r border-border">
                 <div className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-border/60 shrink-0">
@@ -440,25 +457,27 @@ export function StrategyPoolDialog({ pool, onConfirm, onClose }: Props) {
                   )}
                 </div>
               </div>
-            </div>
+            </fieldset>
           )}
 
           {/* 底部 */}
+          {saveError && <p role="alert" className="px-5 py-2 text-xs text-danger">{saveError}</p>}
           <div className="modal-footer flex items-center justify-between">
             <span className="text-[10px] text-muted">仅策略池中的策略会在扫描时运行</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={onClose}
+                disabled={saving}
                 className="px-3 py-1 text-xs rounded-btn border border-border text-muted hover:text-foreground hover:border-border/80 transition-colors cursor-pointer"
               >
                 取消
               </button>
               <button
-                onClick={() => { onConfirm(draftPool); onClose() }}
-                disabled={loading || !!loadError}
+                onClick={confirm}
+                disabled={loading || !!loadError || saving}
                 className="px-3 py-1 text-xs rounded-btn bg-accent text-white hover:bg-accent/90 disabled:opacity-40 transition-colors cursor-pointer"
               >
-                确定
+                {saving ? '保存中…' : '确定'}
               </button>
             </div>
           </div>

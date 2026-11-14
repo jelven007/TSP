@@ -131,6 +131,7 @@ async def lifespan(app):
     from app.services.ext_pull import pull_scheduler
     from app.services.financial_sync import financial_scheduler
     from app.services.quote_service import QuoteService
+    from app.services.related_market_data import related_market_data_scheduler
     from app.services.sector_monitor import SectorMonitorService
     from app.tickflow.policy import detect_capabilities
     from app.tickflow.repository import DataStore, KlineRepository
@@ -200,6 +201,8 @@ async def lifespan(app):
         )
         app.state.financial_scheduler = financial_scheduler
         resources.callback(financial_scheduler.stop)
+        related_market_data_scheduler.start(store.data_dir)
+        resources.callback(related_market_data_scheduler.stop)
 
         from app.services.minute_refresh import MinuteRefreshService
         publisher = PublicPublisher(store.data_dir, os.environ["TSP_PUBLIC_MARKET_DIR"], repo._write_lock)

@@ -16,7 +16,7 @@ from app.multitenancy.strategies import TenantStrategyEngine, definition_payload
 from app.services.strategy_results import ResultIdentity, StrategyResults
 from app.strategy.engine import StrategyEngine
 
-NOW = datetime(2026, 10, 30, 16, tzinfo=ZoneInfo("Asia/Shanghai"))
+NOW = datetime(2026, 10, 30, 20, tzinfo=ZoneInfo("Asia/Shanghai"))
 TARGET = date(2026, 11, 2)
 
 

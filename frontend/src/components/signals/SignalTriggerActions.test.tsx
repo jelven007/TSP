@@ -25,6 +25,10 @@ const signals: CustomSignal[] = [
     timeframe: 'intraday', template: 'late_session_strength' },
   { id: 'morning_liquidation', name: '早盘清仓', kind: 'exit', enabled: true, conditions: [],
     timeframe: 'intraday', template: 'morning_liquidation' },
+  { id: 'late_s01', name: '尾盘建仓_s01', kind: 'entry', enabled: true, conditions: [],
+    timeframe: 'intraday', template: 's01_late_entry',
+    params: { current_amount_min: 1e8, current_return_min: .02, current_return_max: .03,
+      current_range_max: .0525, market_min_valid: 1000, market_positive_min: .65 } },
 ]
 afterEach(async () => {
   await act(async () => root?.unmount())
@@ -34,7 +38,7 @@ afterEach(async () => {
   changed.mockClear()
 })
 
-async function render(kind: 'entry' | 'exit', allowIntraday = false, initial = ['signal_ma_golden_cross']) {
+async function render(kind: 'entry' | 'exit', allowIntraday = false, initial = ['signal_ma_golden_cross'], s01Template?: string) {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -43,7 +47,7 @@ async function render(kind: 'entry' | 'exit', allowIntraday = false, initial = [
   await client.fetchQuery({ queryKey: QK.customSignals, queryFn: api.customSignalsList })
   function Harness() {
     const [value, setValue] = useState(initial)
-    return <SignalTriggerActions selectExisting kind={kind} signals={value} allowIntraday={allowIntraday}
+    return <SignalTriggerActions selectExisting kind={kind} signals={value} allowIntraday={allowIntraday} {...({ s01Template } as any)}
       onChange={next => { changed(next); setValue(next) }} />
   }
   await act(async () => root.render(<QueryClientProvider client={client}>
@@ -61,7 +65,7 @@ const checkbox = (name: string) => document.querySelector<HTMLInputElement>(`inp
 it('selects existing entry and common signals without losing builtins and keeps changes staged', async () => {
   await render('entry')
   await click('选择已有入场信号')
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('来自信号页')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('信号页')
   expect(checkbox('已有买点')).toBeTruthy()
   expect(checkbox('通用条件')).toBeTruthy()
   expect(checkbox('已有卖点')).toBeNull()
@@ -106,4 +110,28 @@ it('allows removing a previously selected disabled signal without re-enabling it
   expect(checkbox('已停用信号').disabled).toBe(true)
   await click('应用选择')
   expect(changed).toHaveBeenLastCalledWith([])
+})
+
+it('selects the S01 template through the existing dialog and keeps apply/cancel staged', async () => {
+  await render('entry', true, ['csgi_late_s01'], 's01_late_entry')
+  await click('选择已有入场信号')
+  expect(checkbox('尾盘建仓_s01').checked).toBe(true)
+  expect(checkbox('尾盘建仓_s01').disabled).toBe(false)
+  expect(checkbox('尾盘走强').disabled).toBe(false)
+  expect(checkbox('已有买点').disabled).toBe(false)
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('可多选')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('14:45')
+  await act(async () => checkbox('尾盘建仓_s01').click())
+  await click('取消')
+  expect(changed).not.toHaveBeenCalled()
+  await click('选择已有入场信号')
+  expect(checkbox('尾盘建仓_s01').checked).toBe(true)
+  await click('应用选择')
+  expect(changed).toHaveBeenLastCalledWith(['csgi_late_s01'])
+  await click('选择已有入场信号')
+  await act(async () => checkbox('已有买点').click())
+  await click('应用选择')
+  expect(changed).toHaveBeenLastCalledWith(['csgi_late_s01', 'csg_entry_a'])
+  expect(host.querySelector('button[title="新增自定义信号"]')).toBeTruthy()
+  expect(host.querySelector('button[title="从因子快速创建条件（阈值给建议值）"]')).toBeTruthy()
 })

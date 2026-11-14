@@ -735,6 +735,8 @@ export function Data() {
               financialAvailable={usableOr('financial', !!tfCaps?.financial)}
               depthAvailable={usableOr('depth5', !!tfCaps?.['depth5.batch'])}
               extConfigs={extConfigs.data?.items ?? []}
+              postCloseIntegrity={history.data?.post_close_integrity}
+              postCloseIntegrityUnavailable={history.isError}
             />
           </div>
 

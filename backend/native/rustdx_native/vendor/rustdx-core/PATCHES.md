@@ -27,6 +27,10 @@ runtime data or additional business engine is imported.
 - `src/tcp/heartbeat.rs`: derive Deserialize for the actual recorded ack.
 - `src/tcp/mod.rs`: narrowly allow fetch_update's deprecation on Rust 1.99
   while preserving the upstream minimum Rust 1.89 API.
+- `src/tcp/stock/kline_request.rs`: decode stock K-line quantity through the
+  checked nonnegative binary32 decoder already used for its turnover field.
+  Raw-byte regressions preserve zero and small quantities and reject negative,
+  NaN and infinite encodings. Other protocol fields retain their own decoders.
 
 Validation: core unit and doc tests with external integration tests disabled;
 local fragmented-frame server tests; bridge mixed quote/report traffic with

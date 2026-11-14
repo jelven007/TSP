@@ -50,19 +50,34 @@ def minute_replay_feature_plan(
 
     dependencies = overlay.dependencies(overlay.effective_conditions(overrides))
     from app.indicators.pipeline import INDICATOR_COLUMNS
+    from app.strategy.basic_filter import fields
+    from app.strategy.scoring import scoring_dependencies, scoring_warmup_bars
+
+    dependencies |= fields(basic_filter or {})
+    scoring = (overrides or {}).get("scoring") or {}
+    dependencies |= scoring_dependencies(scoring)
+    # Optional overnight triggers reuse the ordinary daily signal dependency graph.
+    from app.indicators.pipeline import LIMIT_SIGNAL_OUTPUTS, get_signal_dependencies
+    names = {n for key in ("entry_signals", "exit_signals")
+             for n in (overrides or {}).get(key, []) if isinstance(n, str) and not n.startswith("csgi_")}
+    graph = get_signal_dependencies()
+    unknown = names - set(graph) - set(LIMIT_SIGNAL_OUTPUTS)
+    if unknown:
+        raise ValueError("策略引用了不存在的信号: " + ", ".join(sorted(unknown)))
+    for name in names:
+        dependencies |= set(graph.get(name, ()))
 
     return ResolvedFeaturePlan(
         base_columns=MINUTE_DAILY_PANEL_COLUMNS | (dependencies - set(INDICATOR_COLUMNS)),
         intermediate_columns=frozenset(),
-        indicator_columns=frozenset({"change_pct"} if any(
-            (basic_filter or {}).get(f"change_pct_{side}") is not None for side in ("min", "max")
-        ) else ()) | (dependencies & set(INDICATOR_COLUMNS)),
+        indicator_columns=frozenset(dependencies & set(INDICATOR_COLUMNS)),
         signal_columns=frozenset({
             "signal_limit_up", "signal_limit_down", "signal_broken_limit_up",
-        }),
+        } | names),
         matrix_columns=frozenset(),
         instrument_columns=MINUTE_INSTRUMENT_COLUMNS,
-        warmup_bars=max(daily_bars, 1),
+        warmup_bars=max(daily_bars, 60 if names else 1, scoring_warmup_bars(scoring),
+                        overlay.warmup_bars(overlay.effective_conditions(overrides))),
         full_feature_fallback=False,
         execution_backend="polars_expr",
     )

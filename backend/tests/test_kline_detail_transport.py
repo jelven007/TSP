@@ -27,7 +27,7 @@ def _isolated_settings_and_clock(monkeypatch):
 
 
 def _minute_rows(count: int = 240) -> pl.DataFrame:
-    start = datetime(2026, 1, 15, 9, 30)
+    start = datetime(2026, 1, 15, 9, 31)
     return pl.DataFrame(
         {
             "symbol": [_SYMBOL] * count,

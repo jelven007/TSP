@@ -79,9 +79,13 @@ def _expected(symbols, listing_dates, period, day, last_day, now):
         stamps = pl.DataFrame({column: [day]}, schema={column: pl.Date})
     else:
         step = int(period[:-1])
+        from app.minute_clock import closed_minute_stamps
+        clock = closed_minute_stamps(day) if period == "1m" else [
+            datetime.combine(day, time.min) + timedelta(minutes=base + i)
+            for base in (570, 780) for i in range(step, 121, step)
+        ]
         stamps = pl.DataFrame({
-            column: [stamp for base in (570, 780) for i in range(step, 121, step)
-                     if (stamp := datetime.combine(day, time.min) + timedelta(minutes=base + i)) <= now],
+            column: [stamp for stamp in clock if stamp <= now],
         }, schema={column: pl.Datetime("us")})
     return pl.DataFrame({"symbol": eligible}, schema={"symbol": pl.String}).join(stamps, how="cross")
 
@@ -159,6 +163,20 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
         "source": "1d" if period in kline_periods.LOCAL_DAILY_PERIODS else ("1m" if local else None),
         "price_basis": ("raw" if raw_minute else "legacy_1m") if period == "1m" or period in kline_periods.LOCAL_MINUTE_PERIODS else "raw",
     }
+    # Only official dated full-session events remove expected daily keys.
+    # Minute and derived periods retain their existing contracts.
+    halts = {}
+    if period == "1d":
+        from app.services.selection_clock import SELECTION_TIME
+        from app.services.selection_suspension_repair import suspended_symbols
+        halts = {day: suspended_symbols(repo, day, observed_at=min(
+            now, datetime.combine(day, SELECTION_TIME))) for day in days}
+        result["suspended_skipped"] = sum(len(set(symbols) & values) for values in halts.values())
+
+    def expected_for(selected, label, final_day):
+        eligible = [symbol for symbol in selected if symbol not in halts.get(final_day, set())]
+        return _expected(eligible, listing_dates, period, label, final_day, now)
+
     provider = None
     affected = set()
     failures = 0
@@ -183,7 +201,7 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
             emit(f"{day}~{last_day}: 检查标的 {offset}/{len(symbols)}, 已补{result['rows']}行", fraction)
             selected = symbols[offset:offset + 100]
             expected = pl.concat([
-                _expected(selected, listing_dates, period, label, final_day, now)
+                expected_for(selected, label, final_day)
                 for label, final_day in window
             ])
             batch_existing = (
@@ -243,7 +261,7 @@ def sync_missing(repo, period: str, start: date, end: date, *, on_progress=None,
         if period != "1m":
             current = _keys(repo, period, day)
             for offset in range(0, len(symbols), 100):
-                expected = _expected(symbols[offset:offset + 100], listing_dates, period, day, last_day, now)
+                expected = expected_for(symbols[offset:offset + 100], day, last_day)
                 unfilled = expected.join(current, on=keys, how="anti")
                 result["remaining"] += unfilled.height
                 record_unfilled(repo, result, unfilled, reason="local_base_incomplete" if local else "source_missing_or_fetch_failed")

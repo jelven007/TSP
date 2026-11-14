@@ -177,12 +177,13 @@ export function Monitor() {
   // 规则个数
   const rulesQuery = useQuery({ queryKey: QK.monitorRules, queryFn: api.monitorRulesList })
   const rulesCount = rulesQuery.data?.rules.length ?? 0
+  const removableRulesCount = rulesQuery.data?.rules.filter(r => !r._system_task && !r.lot_id).length ?? 0
 
   // 清除全部规则 (逐条删除)
   const clearRulesMut = useMutation({
     mutationFn: async () => {
       const rules = rulesQuery.data?.rules ?? []
-      await Promise.all(rules.map(r => api.monitorRuleDelete(r.id)))
+      await Promise.all(rules.filter(r => !r._system_task && !r.lot_id).map(r => api.monitorRuleDelete(r.id)))
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QK.monitorRules })
@@ -317,8 +318,8 @@ export function Monitor() {
 
       <ConfirmDialog
         open={confirmClearRules}
-        title="清除全部监控规则?"
-        message={`将删除全部 ${rulesCount} 条规则,此操作不可撤销。`}
+        title="清除普通监控规则?"
+        message={`将删除 ${removableRulesCount} 条普通规则；系统关键任务及托管任务保留。此操作不可撤销。`}
         confirmText="清除"
         danger
         onCancel={() => setConfirmClearRules(false)}
@@ -848,6 +849,9 @@ function RulesList({ rulesQuery, onEdit }: {
                   {r.lot_id && (
                     <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-400/10 text-emerald-500" title="由「持仓」页托管, 请在持仓页修改或删除">批次</span>
                   )}
+                  {r._system_task && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-amber-400/10 text-amber-500" title="系统关键任务持续启用，普通监控操作无法取消">系统关键任务</span>
+                  )}
                   {r.asset_type === 'index' && (
                     <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-sky-500/10 text-sky-400">指数</span>
                   )}
@@ -886,7 +890,9 @@ function RulesList({ rulesQuery, onEdit }: {
                   {!r.enabled && <span className="shrink-0 text-[9px] text-secondary">· 停用</span>}
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
-                  {r.lot_id ? (
+                  {r._system_task ? (
+                    <span className="inline-flex items-center rounded-md border border-border/60 bg-elevated/60 px-1.5 py-0.5 text-[9px] text-secondary" title="关键策略调度持续启用">持续启用</span>
+                  ) : r.lot_id ? (
                     <span
                       className="inline-flex items-center rounded-md border border-border/60 bg-elevated/60 px-1.5 py-0.5 text-[9px] text-secondary"
                       title="由「持仓」页生成的规则, 该页托管; 启停/修改/删除请到持仓页"

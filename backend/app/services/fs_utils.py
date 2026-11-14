@@ -15,12 +15,13 @@ if TYPE_CHECKING:  # 只做类型标注; JSON 原子写的调用方 (preferences
     import polars as pl
 
 
-def atomic_write_text(path: Path, text: str, *, mode: int | None = None) -> None:
+def atomic_write_text(path: Path, text: str, *, mode: int | None = None, overwrite: bool = True) -> None:
     """临时文件 + os.replace 原子替换, 避免读侧读到半截 JSON。
 
     `mode` 在替换*之前*打到临时文件上。凭证类文件如果先落盘再 chmod, 中间有一段
     以默认权限存在的窗口; 先改临时文件就没有这个窗口。Windows 上 chmod 只影响
     只读位, 失败不该让写入失败, 所以吞掉 OSError, 与原调用处的处理一致。
+    `overwrite=False` 用同目录硬链接原子发布; 目标已存在则失败, 不暴露半写文件。
     """
     # 同目录的独立临时文件避免并发 replace 抢走另一写入者的文件。
     # mkstemp 从创建起即为 0600, 凭据内容不会先以默认权限落盘。
@@ -32,7 +33,10 @@ def atomic_write_text(path: Path, text: str, *, mode: int | None = None) -> None
             with suppress(OSError):
                 os.chmod(tmp, mode)
         tmp.write_text(text, encoding="utf-8")
-        os.replace(tmp, path)
+        if overwrite:
+            os.replace(tmp, path)
+        else:
+            os.link(tmp, path)
     finally:
         with suppress(OSError):
             tmp.unlink(missing_ok=True)

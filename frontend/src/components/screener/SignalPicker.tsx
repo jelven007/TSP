@@ -4,7 +4,7 @@ import { PenLine } from 'lucide-react'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { SIGNAL_OPTIONS, cnSignal } from '@/lib/signals'
-import { customSignalColumn } from '@/lib/customSignals'
+import { customSignalColumn, isS01Signal } from '@/lib/customSignals'
 
 /** 展示与过滤可选项 (全部可选, 有默认值) */
 interface SignalPickerOptions {
@@ -22,6 +22,7 @@ interface SignalPickerOptions {
   allowIntraday?: boolean
   /** 不支持持仓出场的入口隐藏未选项，已配置项保留只读能力提示。 */
   allowHoldingExit?: boolean
+  s01Template?: 's01_late_entry' | 's01_morning_exit'
 }
 
 interface Props {
@@ -42,19 +43,20 @@ interface Props {
  * - entry 蓝色主题, exit 橙色主题; 自定义信号边框配色与内置一致, 右上角 PenLine 角标区分
  */
 export function SignalPicker({ signals, onChange, kind, options }: Props) {
-  const { variant = 'panel', builtinSignals, disabledSignals = [], disabledSignalHint, filterCustomByKind = true, allowIntraday = false, allowHoldingExit = true } = options ?? {}
+  const { variant = 'panel', builtinSignals, disabledSignals = [], disabledSignalHint, filterCustomByKind = true, allowIntraday = false, allowHoldingExit = true, s01Template } = options ?? {}
   const customSignalsQuery = useQuery({ queryKey: QK.customSignals, queryFn: api.customSignalsList })
 
   const customOptions = useMemo(() => {
     const list = (customSignalsQuery.data?.signals ?? [])
-      .filter(s => s.enabled && (s.timeframe !== 'intraday' || allowIntraday)
+      .filter(s => (!isS01Signal(s) || s.template === s01Template)
+        && s.enabled && (s.timeframe !== 'intraday' || allowIntraday)
         && (s.template !== 'morning_liquidation'
           || (filterCustomByKind && (allowHoldingExit || signals.includes(customSignalColumn(s)))))
         && (!filterCustomByKind || s.kind === kind || s.kind === 'both'))
     const names: Record<string, string> = {}
     for (const cs of list) names[customSignalColumn(cs)] = cs.name
     return { list, names }
-  }, [customSignalsQuery.data, kind, filterCustomByKind, allowIntraday, allowHoldingExit, signals])
+  }, [customSignalsQuery.data, kind, filterCustomByKind, allowIntraday, allowHoldingExit, signals, s01Template])
 
   const toggle = (sig: string) => {
     const next = signals.includes(sig) ? signals.filter(x => x !== sig) : [...signals, sig]
@@ -83,6 +85,7 @@ export function SignalPicker({ signals, onChange, kind, options }: Props) {
           <button
             key={option.key}
             type="button"
+            aria-pressed={signals.includes(option.key)}
             disabled={disabled}
             title={disabled ? disabledSignalHint : undefined}
             onClick={() => toggle(option.key)}

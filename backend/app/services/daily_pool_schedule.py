@@ -19,12 +19,13 @@ def scheduled_for(day, slot):
 
 
 def next_check(now=None):
-    """Keep existing minute retries but never sleep past either batch boundary."""
+    """Keep minute retries without sleeping past a pool or post-close boundary."""
     now = as_cn_datetime(now or cn_now())
     candidates = [now + timedelta(minutes=1)]
     if published_trading_day(now.date()) is True:
         candidates.extend(datetime.fromisoformat(scheduled_for(now.date(), slot))
-                          for slot in SLOTS if datetime.fromisoformat(scheduled_for(now.date(), slot)) > now)
+                          for slot in (*SLOTS, "16:00")
+                          if datetime.fromisoformat(scheduled_for(now.date(), slot)) > now)
     return min(candidates)
 
 

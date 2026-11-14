@@ -31,6 +31,7 @@ def env(tmp_path, monkeypatch):
         return {"rows": 10}
 
     monkeypatch.setattr(correction, "run_repair_daily", repair)
+    monkeypatch.setattr(correction, "finalize_daily_settlement", lambda *a: None)
     monkeypatch.setattr(correction, "publish_data_release", lambda *a, **kw: {"release_id": "release"})
     yield SimpleNamespace(repo=repo, clock=clock, store=store, calls=calls)
     pipeline_jobs.release_run_slot()
@@ -90,13 +91,17 @@ def test_busy_writer_keeps_date_and_retries_without_reusing_its_job(env):
 
 
 def test_pending_from_previous_date_is_interrupted_without_repairing_history(env):
+    import json
+
     assert pipeline_jobs.try_acquire_run_slot("other")
     correction.request_sync(env.repo, None)
     pipeline_jobs.release_run_slot("other")
     env.clock[0] += timedelta(days=1)
     state = correction.retry_pending(env.repo, None)
-    assert state["status"] == "interrupted" and state["day"] == "2026-11-03"
-    assert env.calls == []
+    assert state["status"] == "succeeded" and state["day"] == "2026-11-04"
+    previous = json.loads((env.repo.store.data_dir / "post_close_sync/2026-11-03.json").read_text())
+    assert previous["status"] == "interrupted"
+    assert all(start.isoformat() == "2026-11-04" for _, start, _, _ in env.calls)
 
 
 def test_pending_request_survives_restart_and_running_request_does_not_restart(env, monkeypatch):
@@ -165,6 +170,7 @@ def test_cancelled_job_is_terminal_and_is_not_published(env, monkeypatch):
 
 
 def test_fresh_start_retry_never_registers_or_fetches_a_day(env):
+    env.clock[0] = env.clock[0].replace(hour=14)
     assert correction.retry_pending(env.repo, None) is None
     assert env.calls == []
     assert not (env.repo.store.data_dir / "post_close_sync").exists()

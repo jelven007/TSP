@@ -82,8 +82,11 @@ def monitor_context(loader, engine, strategy_id, as_of, current, data_dir):
         context = StrategyDataContext("stock", "1m", as_of, current=current, history=pl.DataFrame(),
                                       completed_through=cn_now(), input_errors=[str(exc)])
     if capacity:
-        context.positions = position_snapshot(data_dir, strategy_id, as_of) if data_dir is not None else []
-    if morning:
+        loader = getattr(engine, "_position_loader", None)
+        context.positions = (loader(strategy_id, as_of) if callable(loader)
+                             else position_snapshot(data_dir, strategy_id, as_of) if data_dir is not None else [])
+        context.holding_history_loader = getattr(getattr(service, "repo", None), "get_minute_by_dates", None)
+    if morning and not capacity:
         from app.strategy.morning_liquidation import holding_snapshot
 
         loader = getattr(engine, "_position_loader", None)
@@ -120,11 +123,14 @@ def position_snapshot(data_dir, strategy_id: str, as_of: date | None = None) -> 
             if pos.get("qty", 0) <= 0 or policy.get("strategy_id") != strategy_id:
                 continue
             entry = date.fromisoformat(pos["entry_date"][:10])
+            clocks = [f["ts"] for f in fills if f.get("side") == "buy"
+                      and f.get("order_id") == pos.get("cycle_id") and isinstance(f.get("ts"), str)]
             positions.append({
                 **pos,
                 "symbol": symbol, "account_id": account, "cycle_id": pos.get("cycle_id"),
                 "qty": pos["qty"], "available_qty": paper._available_of(pos, str(as_of)),
                 "entry_unit_cost": pos["avg_cost"], "entry_date": str(entry),
+                "entry_time": max(clocks) if clocks else None,
                 "sell_date": str(next_market_day(entry)),
                 "day_sell_notional": pos.get("sell_days", {}).get(str(as_of), {}).get("notional", 0.),
             })

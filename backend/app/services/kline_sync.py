@@ -825,7 +825,7 @@ def _enforce_minute_beijing_wallclock(df: pl.DataFrame, *, source: str) -> pl.Da
     return df
 
 
-def _normalize_minute(df_in, default_symbol: str | None = None) -> pl.DataFrame:
+def _normalize_minute(df_in, default_symbol: str | None = None, *, freq: str = "1m") -> pl.DataFrame:
     """把 SDK 返回的分钟 K 数据规范成 canonical 列 (datetime 收口为北京墙钟)。"""
     if df_in is None or len(df_in) == 0:
         return pl.DataFrame()
@@ -885,7 +885,11 @@ def _normalize_minute(df_in, default_symbol: str | None = None) -> pl.DataFrame:
 
     keep = [c for c in CANONICAL_MINUTE_COLS if c in df.columns]
     from app.market_scope import filter_market_frame
-    return filter_market_frame(df.select(keep))
+    df = filter_market_frame(df.select(keep))
+    if freq == "1m":
+        from app.minute_clock import normalize_minute_clock
+        df = normalize_minute_clock(df)
+    return df
 
 
 def _compact_klines_to_df(raw, default_symbol: str | None = None) -> pl.DataFrame:
@@ -949,7 +953,27 @@ def _write_minute_partition(df: pl.DataFrame, minute_dir, *, only_missing: bool 
     df = filter_market_frame(df)
     if df.is_empty():
         return 0
+    from app.minute_clock import normalize_minute_clock
+    df = normalize_minute_clock(df)
     df = df.with_columns(pl.col("datetime").dt.date().alias("_trade_date"))
+    from datetime import time as opening_time
+
+    from app.instrument_suspension import _dated_events, load_suspension_history
+    history = load_suspension_history(minute_dir.parent).filter(
+        pl.col("symbol").is_in(df["symbol"].unique().implode())
+    )
+    if not history.is_empty():
+        halted = pl.concat([
+            _dated_events(history, day, observed_at=datetime.combine(day, opening_time(9, 30)))
+            .filter(pl.col("is_suspended"))
+            .select("symbol", pl.lit(day).alias("_trade_date"))
+            for day in df["_trade_date"].unique()
+        ])
+        placeholders = df.join(halted, on=["symbol", "_trade_date"], how="semi")
+        activity = [pl.col(name) > 0 for name in ("volume", "amount") if name in df.columns]
+        if activity and placeholders.filter(pl.any_horizontal(activity)).height:
+            raise ValueError("分钟K与开市前已知停牌证据存在成交冲突, 拒绝写入")
+        df = df.join(halted, on=["symbol", "_trade_date"], how="anti")
     written = 0
     for day_df in df.partition_by("_trade_date"):
         trade_date = day_df["_trade_date"][0]
@@ -1068,6 +1092,9 @@ def _try_custom_minute(
         # 时区契约守卫: 插件/自定义源帧同样收口为北京墙钟 (CONTRIBUTING §3.3)
         from app.market_scope import filter_market_frame
         df = filter_market_frame(_enforce_minute_beijing_wallclock(df, source=provider_name))
+        if freq == "1m" and asset_type == "stock":
+            from app.minute_clock import normalize_minute_clock
+            df = normalize_minute_clock(df)
     except Exception as e:
         if strict:
             raise
@@ -1490,7 +1517,10 @@ def fetch_intraday_custom_batch(
         logger.warning("custom full_minute batch via %s failed: %s", provider_name, e)
         return (pl.DataFrame(), 0)
     try:
-        df = _enforce_minute_beijing_wallclock(df, source=provider_name)
+        from app.minute_clock import normalize_minute_clock
+        df = normalize_minute_clock(filter_market_frame(
+            _enforce_minute_beijing_wallclock(df, source=provider_name),
+        ))
     except Exception as e:  # noqa: BLE001
         if callable(counted_method):
             raise MinuteFetchError(
@@ -1544,7 +1574,10 @@ def fetch_intraday_custom_latest(
         logger.warning("custom full_minute latest via %s failed: %s", provider_name, e)
         return (pl.DataFrame(), 0)
     try:
-        df = _enforce_minute_beijing_wallclock(df, source=provider_name)
+        from app.minute_clock import normalize_minute_clock
+        df = normalize_minute_clock(filter_market_frame(
+            _enforce_minute_beijing_wallclock(df, source=provider_name),
+        ))
         if symbols is not None and not df.is_empty():
             df = df.filter(pl.col("symbol").is_in(symbols))
     except Exception as e:  # noqa: BLE001

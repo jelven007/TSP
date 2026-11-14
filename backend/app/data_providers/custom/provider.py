@@ -170,10 +170,11 @@ class GenericHTTPProvider:
         if cfg.asset_type_param:
             override[cfg.asset_type_param] = asset_type
         frames = []
+        source_start, source_end = self._minute_request_bounds(cfg, freq, start_time, end_time)
         for i, chunk in enumerate(chunked(symbols, cfg.batch)):
             sleep_between_batches(i, cfg.rpm)
             rows = self._request_rows(
-                cfg, symbols=chunk, start_time=start_time, end_time=end_time,
+                cfg, symbols=chunk, start_time=source_start, end_time=source_end,
                 override_params=override, override_body=override,
             )
             frame = self._mapped_frame(cfg, rows)
@@ -182,7 +183,7 @@ class GenericHTTPProvider:
                     from app.data_providers.normalizer import normalize_daily
                     frame = normalize_daily(frame, source=self.name)
                 else:
-                    frame = self._normalize_minute(frame)
+                    frame = self._minute_response(cfg, frame, freq, start_time, end_time)
                 frames.append(frame)
         return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
 
@@ -357,15 +358,16 @@ class GenericHTTPProvider:
         if cfg.freq_param:
             override[cfg.freq_param] = freq
         frames: list[pl.DataFrame] = []
+        source_start, source_end = self._minute_request_bounds(cfg, freq, start_time, end_time)
         chunks = chunked(symbols, cfg.batch)
         for i, chunk in enumerate(chunks):
             sleep_between_batches(i, cfg.rpm)
             rows = self._request_rows(
-                cfg, symbols=chunk, start_time=start_time, end_time=end_time,
+                cfg, symbols=chunk, start_time=source_start, end_time=source_end,
                 override_params=override or None, override_body=override or None,
             )
             df = self._mapped_frame(cfg, rows)
-            df = self._normalize_minute(df)
+            df = self._minute_response(cfg, df, freq, start_time, end_time)
             if not df.is_empty():
                 frames.append(df)
             if on_chunk_done:
@@ -405,6 +407,36 @@ class GenericHTTPProvider:
             return pl.DataFrame()
         return pl.concat(frames, how="diagonal_relaxed")
 
+    @staticmethod
+    def _minute_request_bounds(cfg, freq, start, end):
+        if freq == "1m" and cfg.minute_timestamp_label == "start":
+            return (
+                start - timedelta(minutes=1) if start else None,
+                end - timedelta(minutes=1) if end else None,
+            )
+        return start, end
+
+    @classmethod
+    def _minute_response(cls, cfg, frame, freq, start, end):
+        frame = cls._normalize_minute(frame)
+        if frame.is_empty() or freq != "1m":
+            return frame
+        from app.minute_clock import normalize_minute_clock
+        from app.services.kline_sync import _enforce_minute_beijing_wallclock
+        frame = normalize_minute_clock(
+            _enforce_minute_beijing_wallclock(frame, source="custom_http"),
+            timestamp_label=cfg.minute_timestamp_label,
+        )
+        for bound, is_start in ((start, True), (end, False)):
+            if bound:
+                from zoneinfo import ZoneInfo
+                if bound.tzinfo is not None:
+                    bound = bound.astimezone(ZoneInfo("Asia/Shanghai")).replace(tzinfo=None)
+                frame = frame.filter(
+                    pl.col("datetime") >= bound if is_start else pl.col("datetime") <= bound,
+                )
+        return frame
+
     @classmethod
     def _normalize_minute(cls, df: pl.DataFrame) -> pl.DataFrame:
         """把映射后的 df 规范成 minute canonical 列。"""
@@ -417,6 +449,8 @@ class GenericHTTPProvider:
                 # kline_sync._enforce_minute_beijing_wallclock 的处理)。
                 # Series 级立即解析: 表达式错误要到 collect 才抛, 无法按格式回退
                 df = df.with_columns(cls._parse_datetime_series(df["datetime"]))
+            if isinstance(df.schema["datetime"], pl.Datetime) and df.schema["datetime"].time_zone:
+                df = df.with_columns(pl.col("datetime").dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None))
             df = df.with_columns(pl.col("datetime").cast(pl.Datetime("us"), strict=False))
         for col in ("open", "high", "low", "close", "volume", "amount"):
             if col in df.columns:

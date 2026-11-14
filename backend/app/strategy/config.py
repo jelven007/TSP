@@ -115,7 +115,7 @@ def validate_basic_filter(bf: dict | None) -> None:
         raise ValueError("停牌过滤开关必须为布尔值")
     if "data_reference" in bf and bf["data_reference"] not in ("previous_trade_day", "signal_day"):
         raise ValueError("数值过滤数据日期无效")
-    for stem in ("price", "market_cap", "float_cap", "amount", "turnover", "change_pct"):
+    for stem in ("price", "market_cap", "float_cap", "amount", "turnover", "change_pct", "amplitude"):
         for suffix in ("min", "max"):
             key = f"{stem}_{suffix}"
             value = bf.get(key)

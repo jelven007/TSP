@@ -253,6 +253,11 @@ def test_missing_exit_minute_fails_without_inventing_a_fill(setup):
     repo.frame = pl.concat([repo.frame, bars(datetime.combine(nxt, time(9, 33)), n=1, close=10.6)])
     advance(setup, datetime.combine(nxt, time(9, 33)))
     sell = next(o for o in paper.load_orders(storage) if o["side"] == "sell")
+    assert sell["status"] == "pending"
+    assert sell["strategy_execution"]["waiting_for_minute"] == datetime.combine(nxt, time(9, 32)).isoformat()
+    assert paper.load_positions(storage)[SYM]["qty"] == 400
+    advance(setup, datetime.combine(nxt, time(10, 45)))
+    sell = paper.get_order(storage, sell["id"])
     assert sell["status"] == "expired" and "缺失分钟" in sell["reason"]
     assert paper.load_positions(storage)[SYM]["qty"] == 400
 

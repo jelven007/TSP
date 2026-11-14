@@ -99,7 +99,7 @@ def test_actual_s02_scheduled_selection_persists_atr_through_restart(tmp_path, m
     service = ScreenerService(repo)
     service._load_enriched_history = lambda *_: daily
     (tmp_path / "settlement_ready.json").write_text('{"day":"2026-10-30"}')
-    now = datetime(2026, 10, 30, 16, tzinfo=ZoneInfo("Asia/Shanghai"))
+    now = datetime(2026, 10, 30, 20, tzinfo=ZoneInfo("Asia/Shanghai"))
     result = generate_scheduled_local(engine, service, tmp_path, now=now)
     assert result == {"saved": [STRATEGY_ID], "errors": {}}
     rows = DailySelections(tmp_path).read(STRATEGY_ID, DAY)["rows"]

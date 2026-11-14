@@ -10,6 +10,9 @@ import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFi
 import { QK } from '@/lib/queryKeys'
 import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, lateSessionBarTime, lateSessionCheckTime, lateSessionLatestStartTime } from '@/lib/customSignals'
 
+import { isS01Signal, S01_ENTRY_TIMING_DEFAULTS, S01_ENTRY_MARKET_VALIDITY } from '@/lib/customSignals'
+import { S01SignalParamsEditor } from './S01SignalParamsEditor'
+
 interface Props {
   open: boolean
   signal?: CustomSignal | null
@@ -22,6 +25,9 @@ interface Props {
 
 // 字符串运算符的中文标签 (数值运算符直接显示符号)
 const OP_LABELS: Record<string, string> = { contains: '包含' }
+
+const newTemplateId = (template: NonNullable<CustomSignal['template']>) =>
+  `${template}_${Array.from(crypto.getRandomValues(new Uint32Array(2)), value => value.toString(16).padStart(8, '0')).join('')}`
 
 const emptySignal = (kind: CustomSignal['kind'] = 'exit'): CustomSignal => ({
   id: '', name: '', kind, enabled: true,
@@ -52,7 +58,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
   const editing = !!signal
   const lateSession = draft.template === 'late_session_strength'
   const morning = draft.template === 'morning_liquidation'
-  const specialized = lateSession || morning
+  const s01 = isS01Signal(draft)
+  const specialized = lateSession || morning || s01
   const storedLate = draft.params as Partial<LateSessionStrengthParams> | undefined
   const lateParams = { ...LATE_SESSION_DEFAULTS, ...storedLate,
     evaluation_delay_minutes: storedLate?.evaluation_delay_minutes ?? LATE_SESSION_DEFAULTS.evaluation_delay_minutes }
@@ -73,6 +80,8 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
     if (next.template === 'late_session_strength' && (delay == null || delay === 0))
       next.params = { ...LATE_SESSION_DEFAULTS, ...next.params,
         evaluation_delay_minutes: LATE_SESSION_DEFAULTS.evaluation_delay_minutes }
+    if (next.template === 's01_late_entry')
+      next.params = { ...S01_ENTRY_TIMING_DEFAULTS, ...next.params, market_validity: S01_ENTRY_MARKET_VALIDITY }
     setDraft(next)
     setError('')
     setAiOpen(false); setAiDesc(''); setAiError(''); setAiLoading(false)
@@ -136,10 +145,20 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
         if (!Number.isInteger(p.ma5_1m_count) || p.ma5_1m_count < 2 || p.ma5_1m_count > 120
           || !Number.isInteger(p.ma5_5m_count) || p.ma5_5m_count < 2 || p.ma5_5m_count > 24) throw new Error('MA5 数量须在允许范围内且为整数')
       }
+      if (d.template === 's01_late_entry') {
+        const p = d.params as { time: string; evaluation_delay_minutes: number }
+        const seconds = p.evaluation_delay_minutes * 60
+        if (!Number.isInteger(seconds) || seconds < 30 || seconds > 900 || seconds % 30)
+          throw new Error('确认延时须为30～900秒且为30秒的整数倍')
+        if (!/^1[34]:[0-5]\d:[0-5]\d$/.test(p.time) || p.time < '13:01:00'
+          || p.time > lateSessionLatestStartTime(seconds))
+          throw new Error('启动时间须在13:01之后，确认时间不得晚于15:00:00')
+      }
       for (const c of d.conditions) {
         if (!c.left || !c.op || c.right === '') throw new Error('条件填写不完整')
       }
-      return api.customSignalSave(lateSession ? { ...d, params: lateParams } : morning ? { ...d, params: morningParams } : d)
+      return api.customSignalSave(lateSession ? { ...d, params: lateParams } : morning ? { ...d, params: morningParams } : d,
+        { createOnly: !editing })
     },
     onSuccess: res => {
       qc.invalidateQueries({ queryKey: QK.customSignals })
@@ -188,11 +207,11 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                   <span className="text-[11px] text-muted">信号模板</span>
                   <select aria-label="信号模板" value={draft.template ?? 'conditions'} disabled={editing}
                     onChange={e => setDraft(e.target.value === 'late_session_strength'
-                      ? { id: draft.id || 'late_session_strength', name: '尾盘走强', kind: 'entry',
+                      ? { id: draft.id || newTemplateId('late_session_strength'), name: '尾盘走强', kind: 'entry',
                         timeframe: 'intraday', template: 'late_session_strength', enabled: true,
                         conditions: [], params: { ...LATE_SESSION_DEFAULTS } }
                       : e.target.value === 'morning_liquidation'
-                        ? { id: draft.id || 'morning_liquidation', name: '早盘清仓', kind: 'exit',
+                        ? { id: draft.id || newTemplateId('morning_liquidation'), name: '早盘清仓', kind: 'exit',
                           timeframe: 'intraday', template: 'morning_liquidation', enabled: true,
                           conditions: [], params: { ...MORNING_LIQUIDATION_DEFAULTS } }
                         : emptySignal(defaultKind))}
@@ -200,6 +219,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     <option value="conditions">普通条件组合</option>
                     {(allowLateSession || lateSession) && <option value="late_session_strength">尾盘走强 · 分钟入场</option>}
                     {(allowMorningLiquidation || morning) && <option value="morning_liquidation">早盘清仓 · 持仓出场</option>}
+                    {s01 && <option value={draft.template!}>{draft.template === 's01_late_entry' ? '尾盘走强_S01' : '早盘清仓_S01'}</option>}
                   </select>
                 </label>
               )}
@@ -228,7 +248,7 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                 </label>
               </div>
 
-              {morning ? (
+              {s01 ? <S01SignalParamsEditor signal={draft} onChange={params => setDraft(d => ({ ...d, params }))} /> : morning ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className="space-y-1.5">

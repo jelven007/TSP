@@ -111,7 +111,7 @@ def test_snapshot_filter_uses_full_history_before_base_filter_and_keeps_exit(tmp
     (tmp_path / "overlay.py").write_text(
         'import polars as pl\n'
         'META = {"id": "s", "name": "S", "scoring": {}, "limit": 30}\n'
-        'BASIC_FILTER = {"enabled": False}\n'
+        'BASIC_FILTER = {"enabled": False, "boards": []}\n'
         'EXIT_SIGNALS = ["sell"]\n'
         'def filter(df, params): return pl.lit(True)\n',
     )
@@ -131,7 +131,7 @@ def test_missing_overlay_data_blocks_entries_and_keeps_explicit_exit(tmp_path):
     (tmp_path / "overlay.py").write_text(
         'import polars as pl\n'
         'META = {"id": "s", "name": "S", "scoring": {}}\n'
-        'BASIC_FILTER = {"enabled": False}\n'
+        'BASIC_FILTER = {"enabled": False, "boards": []}\n'
         'EXIT_SIGNALS = ["sell"]\n'
         'def filter(df, params): return pl.lit(True)\n',
     )

@@ -66,7 +66,7 @@ it('uses the shared second picker for both clocks and reloads their saved exact 
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
   expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
     params: { time: '10:15:32', fallback_time: '10:50:15', rise_pct: 6, fall_pct: 6 },
-  }))
+  }), { createOnly: false })
   await f.render(f.save.mock.calls[0][0] as typeof definition)
   expect(f.time('止损时间')?.textContent).toBe('10:15:32')
   expect(f.time('兜底时间')?.textContent).toBe('10:50:15')
@@ -105,7 +105,7 @@ it('selects and reloads a functional second-precision late-session start', async
   expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
     params: { time: '14:30:20', change_min_pct: 0.4, change_max_pct: 4,
       pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4, evaluation_delay_minutes: 1.5 },
-  }))
+  }), { createOnly: false })
   await f.render(f.save.mock.calls[0][0])
   expect(f.time('启动时间')?.textContent).toBe('14:30:20')
   await f.select('启动时间', '14:58:00')

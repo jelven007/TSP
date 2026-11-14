@@ -10,6 +10,13 @@
   .page-card {
     @apply rounded-card border border-border bg-surface;
   }
+  .strategy-result-note {
+    @apply min-w-0 text-xs font-normal leading-5 text-secondary;
+    overflow-wrap: anywhere;
+  }
+  .strategy-result-disclosure {
+    @apply w-fit max-w-full cursor-pointer rounded-btn py-1 transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent;
+  }
 }
 
 .page-content[class*="space-y-"] > :not([hidden]) ~ :not([hidden]),

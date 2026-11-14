@@ -31,7 +31,8 @@ def test_engine_and_monitor_generate_frozen_lots_and_exact_raw_reference(scan):
     assert result.rows[0].get("suggested_lots_100k") == 97
     assert result.rows == result.sections["buy"]
     refs = asdict(result).get("price_suggestion_reference")
-    assert refs == reference({symbol: 20. for symbol in context.daily_history["symbol"]})
+    assert refs == reference({
+        symbol: 20. for symbol in context.daily_history["symbol"] if symbol.startswith("60")})
     assert MonitorRuleEngine._strategy_result_payload(result).get("price_suggestion_reference") == refs
 
 
@@ -112,7 +113,9 @@ def test_preselection_generates_sell_interval_and_does_not_archive_market_map(tm
 
 def test_compute_preselection_passes_exact_reference_for_next_session(scan):
     engine, context, overrides = scan
-    service = SimpleNamespace(build_selection_context=lambda *_args, **_kwargs: context)
+    service = SimpleNamespace(build_selection_context=lambda *_args, **_kwargs: context,
+                              asset_type="stock",
+                              repo=SimpleNamespace(get_instruments_asset=lambda *_: pl.DataFrame()))
     generated = compute_selections(engine, service, date(2026, 10, 30), context.as_of,
                                    ["custom_test"], {"custom_test": overrides})
     assert generated["errors"] == {}

@@ -13,6 +13,7 @@ PREFIX = "_bf_previous_"
 RANGES = {
     "price": "raw_close", "market_cap": "total_shares", "float_cap": "float_shares",
     "amount": "amount", "turnover": "turnover_rate", "change_pct": "change_pct",
+    "amplitude": "amplitude",
 }
 
 
@@ -98,8 +99,9 @@ def numeric_expression(rows: pl.DataFrame, config: dict) -> pl.Expr | None:
         if stem in {"market_cap", "float_cap"}:
             result.append(price.is_finite() & (price > 0))
             values = price * values
-        elif stem == "change_pct":
-            values = values * 100
+        elif stem in {"change_pct", "amplitude"}:
+            # Remove Float64 ratio-conversion noise at inclusive percent bounds.
+            values = (values * 100).round(10)
         if low is not None:
             result.append(values >= low)
         if high is not None:

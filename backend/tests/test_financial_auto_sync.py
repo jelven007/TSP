@@ -76,27 +76,47 @@ def test_financial_auto_sync_uses_worker_and_publishes_with_write_lock(
         else:
             scheduler._running = False
 
-    def sync(data_dir, caps):
+    def sync(table, symbols, data_dir, caps):
         worker_threads.append(threading.get_ident())
         assert data_dir == tmp_path and caps is scheduler._capset
         assert scheduler.is_syncing
         return 3
 
     monkeypatch.setattr(financial_sync.asyncio, "sleep", tick)
-    monkeypatch.setattr(financial_sync, "sync_metrics", sync)
+    monkeypatch.setattr(financial_sync, "_sync_history_table_for_symbols", sync)
     monkeypatch.setattr(
         "app.services.data_release.publish_data_release",
         lambda *args, **kwargs: publications.append((args, kwargs)),
     )
     asyncio.run(scheduler._run_loop())
 
-    assert len(worker_threads) == int(enabled)
+    assert len(worker_threads) == len(financial_sync.FINANCIAL_TABLES) * int(enabled)
     assert all(thread_id != main_thread for thread_id in worker_threads)
     assert publications == (
         [((tmp_path,), {
-            "reason": "financial_sync:metrics",
+            "reason": "financial_sync:all",
             "write_lock": scheduler._write_lock,
         })] if enabled else []
     )
-    assert ("metrics" in preferences.get_financial_sync_times()) is enabled
+    assert set(preferences.get_financial_sync_times()) == (
+        set(financial_sync.FINANCIAL_TABLES) if enabled else set()
+    )
     assert scheduler.is_syncing is False
+
+
+def test_empty_fresh_fetch_does_not_rewrite_history_or_record_success(tmp_path, monkeypatch):
+    import polars as pl
+
+    directory = tmp_path / "financials/metrics"
+    directory.mkdir(parents=True)
+    path = directory / "part.parquet"
+    pl.DataFrame({
+        "symbol": ["600519.SH"], "period_end": ["2026-09-30"], "eps_basic": [10.0],
+    }).write_parquet(path)
+    before = path.read_bytes(), path.stat().st_mtime_ns
+    monkeypatch.setattr(financial_sync, "_fetch_table", lambda *args, **kwargs: pl.DataFrame())
+    with pytest.raises(RuntimeError, match="最新"):
+        financial_sync._sync_history_table_for_symbols(
+            "metrics", ["600519.SH"], tmp_path, CapabilitySet({}),
+        )
+    assert (path.read_bytes(), path.stat().st_mtime_ns) == before

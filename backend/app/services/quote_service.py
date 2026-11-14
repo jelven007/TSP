@@ -1134,7 +1134,7 @@ class QuoteService:
                 ),
             }
             for record in records
-        ])
+        ], infer_schema_length=None)
         cols_map = {
             "symbol": "symbol",
             "last_price": "close",
@@ -1193,7 +1193,7 @@ class QuoteService:
         """
         if not records:
             return pl.DataFrame()
-        df = pl.DataFrame(records)
+        df = pl.DataFrame(records, infer_schema_length=None)
         keep = [c for c in [
             "symbol", "prev_close", "change_pct", "change_amount",
             "amplitude", "turnover_rate",
@@ -1221,7 +1221,7 @@ class QuoteService:
         """
         if not records:
             return pl.DataFrame()
-        df = pl.DataFrame(records)
+        df = pl.DataFrame(records, infer_schema_length=None)
         keep = [c for c in [
             "symbol", "name", "last_price", "prev_close", "open", "high", "low",
             "volume", "amount", "change_pct", "change_amount", "amplitude", "timestamp", "session",

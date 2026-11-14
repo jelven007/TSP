@@ -3,9 +3,9 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { BasicFilterEditor } from './BasicFilterEditor'
-import { validateBasicFilter } from '@/lib/strategyBasicFilter'
+import { numericBasicFilter, validateBasicFilter } from '@/lib/strategyBasicFilter'
 
-it('shows seven previous-day fields in order and constrains signed percentage points', async () => {
+it('shows eight previous-day fields in order and constrains signed percentage points', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const host = document.createElement('div')
   const root = createRoot(host)
@@ -13,12 +13,24 @@ it('shows seven previous-day fields in order and constrains signed percentage po
   expect([...host.querySelectorAll('input[type="number"]')].map(input => input.getAttribute('aria-label'))).toEqual([
     '总市值最小值', '总市值最大值', '流通市值最小值', '流通市值最大值',
     '成交额最小值', '成交额最大值', '换手率最小值', '换手率最大值',
-    '涨跌幅最小值', '涨跌幅最大值', '价格范围最小值', '价格范围最大值', '上市天数',
+    '涨跌幅最小值', '涨跌幅最大值', '上下振幅最小值', '上下振幅最大值',
+    '价格范围最小值', '价格范围最大值', '上市天数',
   ])
   const input = host.querySelector<HTMLInputElement>('input[aria-label="涨跌幅最小值"]')!
   expect([input.min, input.max, input.step]).toEqual(['-50', '50', '0.1'])
+  const amplitude = host.querySelector<HTMLInputElement>('input[aria-label="上下振幅最小值"]')!
+  expect([amplitude.min, amplitude.max, amplitude.step]).toEqual(['0', '', '0.1'])
   expect(host.textContent).toContain('上一个交易日')
   await act(async () => root.unmount())
+})
+
+it('preserves amplitude percentage points and explicitly clears bounds', () => {
+  const saved = numericBasicFilter({ amplitude_min: 0, amplitude_max: 12 })
+  expect(saved).toMatchObject({ data_reference: 'previous_trade_day', amplitude_min: 0, amplitude_max: 12 })
+  expect(numericBasicFilter({ ...saved, amplitude_max: null }).amplitude_max).toBeNull()
+  expect(validateBasicFilter({ amplitude_min: 0, amplitude_max: 12.25 })).toBeNull()
+  for (const value of [-0.1, NaN, Infinity]) expect(validateBasicFilter({ amplitude_max: value })).not.toBeNull()
+  expect(validateBasicFilter({ amplitude_min: 13, amplitude_max: 12 })).not.toBeNull()
 })
 
 it('edits always-enabled filters without a switch and still disables fields during saving', async () => {

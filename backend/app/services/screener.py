@@ -512,14 +512,10 @@ class ScreenerService:
             raise ValueError(f"盘后预选缺少{source}完整行情")
         from app.services.daily_close_validation import validate_daily_close
 
-        isolated = bool(strategy_ids and all(
-            engine.get(sid).meta.get("result_sections") == "signals"
-            and not engine.get(sid).meta.get("minute_execution") for sid in strategy_ids
-        ))
-        rejected = validate_daily_close(self.repo, source, rows=current, isolate_symbols=isolated) or {}
-        if rejected:
-            current = current.filter(~pl.col("symbol").is_in(list(rejected)))
-            history = history.filter(~pl.col("symbol").is_in(list(rejected)))
+        # A post-close snapshot becomes the next session's frozen eligibility.
+        # Bad rows must trigger the platform repair/retry path, not silently
+        # disappear from a successful selection as intraday isolated rows do.
+        validate_daily_close(self.repo, source, rows=current)
         if current.is_empty():
             raise ValueError(f"盘后预选缺少{source}有效定版昨收")
         from app.strategy.eligibility import attach_listing_age
@@ -527,14 +523,15 @@ class ScreenerService:
         history = attach_listing_age(history, instruments)
         current = attach_listing_age(current, instruments)
         from app.instrument_suspension import pool_evidence
+        from app.services.selection_clock import SELECTION_TIME
         from app.strategy.suspension import annotate
         current = annotate(current, as_of=source, evidence=pool_evidence(
-            self.repo, source, observed_at=datetime.combine(source, clock_time(16))))
+            self.repo, source, observed_at=datetime.combine(source, SELECTION_TIME)))
         # A target-session return is unknown after the preceding close.
         if "change_pct" in current.columns:
             current = current.with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
         return StrategyDataContext(self.asset_type, "1m", target, current=current, daily_history=history,
-                                   reference_errors=rejected)
+                                   reference_errors={})
 
     def build_daily_pool_context(self, as_of: date, *, current=None, premarket=False, observed_at=None):
         """Load only scope/reference inputs, never minute formulas or positions."""
@@ -685,6 +682,7 @@ class ScreenerService:
                 pool_history=pool_context.pool_history,
                 pool_universe=pool_context.pool_universe,
                 suspension_history=getattr(self.repo, "get_suspension_history", lambda: None)(),
+                holding_history_loader=getattr(self.repo, "get_minute_by_dates", None),
                 input_errors=input_errors,
                 reference_errors=reference_errors,
             )

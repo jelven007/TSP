@@ -107,6 +107,10 @@ def _sync_lots(request: Request, data_dir, lots: list[dict]) -> None:
         if isinstance(data_dir, TenantDocuments) else preferences.get_webhook_default_channels()
     )
     writes, deletes = [], []
+    reminders_enabled = (
+        data_dir.get("lot_monitor_settings", "default", {}).get("enabled", True)
+        if isinstance(data_dir, TenantDocuments) else True
+    )
     existing_lots = {item["id"]: item for item in lots_domain.load_all(data_dir)}
     for lot in lots:
         old = existing_lots.get(lot["id"])
@@ -118,7 +122,7 @@ def _sync_lots(request: Request, data_dir, lots: list[dict]) -> None:
             raise HTTPException(400, "所属批次不存在")
         # 指数资产类型解析 (止盈止损价格规则须走对应资产监控轮才会触发)
         asset_type = _resolve_asset_type(request, lot["symbol"])
-        price_rule, date_rule = lots_domain.lot_to_rules(lot)
+        price_rule, date_rule = lots_domain.lot_to_rules(lot) if reminders_enabled else (None, None)
         rules_to_write: list[dict] = []
         rules_to_delete: list[str] = []
         for rid, rule in ((f"{lot['id']}_p", price_rule), (f"{lot['id']}_d", date_rule)):

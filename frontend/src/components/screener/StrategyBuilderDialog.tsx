@@ -111,6 +111,7 @@ export function renderBasicFilterPy(bf: DefaultStrategyBasicFilter): string {
     `        "amount_min": ${py(bf.amount_min)}, "amount_max": ${py(bf.amount_max)},`,
     `        "turnover_min": ${py(bf.turnover_min)}, "turnover_max": ${py(bf.turnover_max)},`,
     `        "change_pct_min": ${py(bf.change_pct_min ?? null)}, "change_pct_max": ${py(bf.change_pct_max ?? null)},`,
+    `        "amplitude_min": ${py(bf.amplitude_min ?? null)}, "amplitude_max": ${py(bf.amplitude_max ?? null)},`,
     `        "exclude_st": ${py(bf.exclude_st)}, "exclude_new_days": ${py(bf.exclude_new_days === undefined ? 30 : bf.exclude_new_days)},`,
     `        "exclude_suspended": ${py(!!bf.exclude_suspended)},`,
     `        "boards": [${boards.map(b => `"${b}"`).join(', ')}],`,

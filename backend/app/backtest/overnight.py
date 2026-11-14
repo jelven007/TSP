@@ -4,12 +4,13 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import polars as pl
 
 from app.backtest.costs import buy_quantity_rules
 from app.backtest.engine import BacktestEngine, TradeRecord
+from app.backtest.entry_execution import execute_entry_window, expected_trading_minutes
 from app.backtest.governance import research_preflight, status_quality
 from app.backtest.minute_replay import minute_panel_start, minute_replay_feature_plan
 from app.strategy.builtin._overnight import (
@@ -115,24 +116,61 @@ def run_overnight(service, config, strategy, params, overrides, *,
 
     high_entry = strategy.meta.get("entry_price_field") == "high"
     execution = strategy.meta["minute_execution"]
+    from app.strategy.s01_signals import (
+        bound_definitions,
+        optional_exit_hits,
+        optional_triggers,
+        resolve_parameters,
+        trigger_definitions,
+    )
+
+    selectable = optional_triggers(strategy)
+    selected = trigger_definitions(service.strategy_engine, strategy, overrides) if selectable else None
+    references = {key: service.strategy_engine._effective_signals(
+        overrides, key, getattr(strategy, key)) for key in ("entry_signals", "exit_signals")}
+    parameter_signals = bound_definitions(service.strategy_engine, strategy, overrides=overrides)
+    params = resolve_parameters(service.strategy_engine, strategy, params, definitions=parameter_signals)
+    equal_selected = strategy.meta.get("entry_allocation") == "equal_selected_v1"
+    if equal_selected:
+        params = {**params, "entry_nav_fraction": 1.}
     params = parameters(params)
-    signal_bar, first_buy, last_buy = 885, 887, 889
+    reported_params = {k: v for k, v in params.items()
+                       if not equal_selected or k != "entry_nav_fraction"}
+    allocation = {"entry_allocation": "equal_selected_v1"} if equal_selected else {}
+    signal_bar = 885
+    first_buy, last_buy = (887, 889) if high_entry else (887, 891)
+    entry_signal = parameter_signals.get("entry")
+    entry_confirmation = None
+    if entry_signal and "time" in entry_signal.get("params", {}):
+        from app.strategy.s01_signals import entry_clock
+
+        _, cutoff, entry_confirmation = entry_clock(entry_signal, config.start)
+        signal_bar = cutoff.hour * 60 + cutoff.minute
+        first_buy = entry_confirmation.hour * 60 + entry_confirmation.minute + 1
+        window = expected_trading_minutes(datetime.combine(
+            config.start, datetime.min.time()) + timedelta(minutes=first_buy))
+        last_buy = window[-1].hour * 60 + window[-1].minute if window else 900
     effective_config = {
-        **service._config_to_dict(config), "params": params,
+        **service._config_to_dict(config), "params": reported_params, **allocation,
         "initial_capital": params["initial_cash"], "max_positions": params["position_limit"],
         "commission_pct": params["commission"], "minimum_commission": params["minimum_commission"],
         "transfer_fee_pct": params["transfer_fee"], "stamp_tax_pct": params["stamp_tax"],
         "transfer_fee_fixed": params.get("transfer_fee_fixed", 0.),
         "slippage_bps": params["slippage"] * 10000, "minute_execution": execution,
         "entry_fill": "close_t", "exit_fill": "close_t",
-        "execution_entry_fill": "single_minute_high_capacity" if high_entry else "capacity_window",
+        "execution_entry_fill": "single_minute_high_capacity" if high_entry else "system_five_minute_high_capacity_v1",
         "execution_exit_fill": "persistent_signal_capacity_window",
+        **({"parameter_signals": parameter_signals, **references,
+            "trigger_definitions": selected} if selectable else
+           {"parameter_signals": parameter_signals,
+            "entry_signals": ["csgi_" + parameter_signals["entry"]["id"]],
+            "exit_signals": ["csgi_" + parameter_signals["exit"]["id"]]} if parameter_signals else {}),
     }
     output = StrategyBacktestResult(run_id=run_id, config=effective_config, provenance=provenance)
     output.strategy_info = {
         "id": strategy.meta["id"], "name": overrides.get("name") or strategy.meta["name"],
         "description": strategy.meta["description"], "execution_backend": "minute_filter",
-        "minute_execution": strategy.meta["minute_execution"], "params": params,
+        "minute_execution": strategy.meta["minute_execution"], "params": reported_params, **allocation,
     }
     fills, signals, trades, equities, failures = [], [], [], [], []
     suspensions, resumptions = [], []
@@ -166,15 +204,25 @@ def run_overnight(service, config, strategy, params, overrides, *,
         return finish("隔夜容量执行需要连续资金组合模式, 不能使用独立全量模拟")
     if config.asset_type != "stock":
         return finish("隔夜分钟执行仅支持沪深A股")
-    if config.regime_filter or any(overrides.get(k) for k in (
-        "overlay_filter", "scoring", "entry_signals", "exit_signals", "entry_risk",
+    if equal_selected and params["position_limit"] > 4:
+        return finish("按入选数量等分资金的S01持仓上限不能超过4只")
+    if config.regime_filter or (not selectable and not parameter_signals and any(
+        overrides.get(k) for k in ("entry_signals", "exit_signals")
+    )) or overrides.get("entry_risk") or (not selectable and any(overrides.get(k) for k in (
+        "overlay_filter", "scoring",
         "stop_loss", "take_profit", "trailing_stop", "trailing_take_profit_activate",
         "trailing_take_profit_drawdown",
-    )):
+    ))):
         return finish("隔夜分钟执行请在策略参数中设置选股、卖出、资金和费用规则")
     try:
+        from app.strategy.scoring import effective_strategy_scoring
+
         history_days = 2
-        plan = _with_status_fields(minute_replay_feature_plan(history_days), "stock")
+        basic_filter = {**(strategy.basic_filter or {}), **(overrides.get("basic_filter") or {})}
+        plan = _with_status_fields(minute_replay_feature_plan(
+            history_days, basic_filter, {**references, **overrides,
+                "scoring": effective_strategy_scoring(strategy.meta, overrides)} if selectable else None), "stock")
+        history_days = max(history_days, plan.warmup_bars)
         panel = service.engine.load_panel_for_backtest(
             None, minute_panel_start(config.start, history_days), config.end, plan, asset_type="stock")
         if panel.is_empty():
@@ -221,27 +269,55 @@ def run_overnight(service, config, strategy, params, overrides, *,
             if len(prior_dates) < 2:
                 return finish(f"{day}缺少两个前交易日原始行情")
             prior = panel.filter(pl.col("date") == prior_dates[-1])
-            daily = panel.filter(pl.col("date").is_in(prior_dates[-2:]))
+            daily = panel.filter(pl.col("date").is_in(prior_dates[-history_days:]))
             lookup = {r["symbol"]: r["raw_close"] for r in prior.to_dicts()}
+            late_sale_cash, late_sale_positions = 0., {}
             # 卖出先于当天尾盘买入, 预算只使用已经到账的卖出净额。
             for symbol, pos in list(positions.items()):
                 if day < pos["sell_date"]:
                     continue
                 history = frame.filter(pl.col("symbol") == symbol)
-                if morning_features(history, pos["entry_value"] / pos["shares"]) is None:
+                if not selectable and morning_features(history, pos["entry_value"] / pos["shares"]) is None:
                     return finish(f"{day} {symbol}缺少完整105根有效早盘, 拒绝认证收益")
                 pending = pos.get("pending")
-                for bar in range(675, minute_number(params["guard_time"]) + 1):
-                    pending = exit_signal(history, bar, pos["entry_value"] / pos["shares"], params, pending)
-                    if pending:
-                        break
+                if selectable:
+                    exit_context = StrategyDataContext(
+                        "stock", "1m", day, history=history, current=prior, daily_history=daily,
+                        completed_through=datetime.combine(day, datetime.min.time()).replace(hour=15),
+                        positions=[{**pos, "qty": pos["remaining"], "available_qty": pos["remaining"],
+                                    "entry_unit_cost": pos["entry_value"] / pos["shares"],
+                                    "entry_date": str(pos["entry_date"]), "sell_date": str(pos["sell_date"])}],
+                        holding_history_loader=repo.get_minute_by_dates)
+                    hits = optional_exit_hits(service.strategy_engine, strategy, exit_context,
+                        params, selected["exit"], overrides=overrides)
+                    if exit_context.exit_errors:
+                        return finish("; ".join(exit_context.exit_errors))
+                    pending = pending or next(iter(hits), None)
+                    if pending is None:
+                        continue
+                    if (any(s.get("template") == "s01_morning_exit"
+                            and s["column"] in pending["signals"] for s in selected["exit"])
+                            and morning_features(history, pos["entry_value"] / pos["shares"]) is None):
+                        return finish(f"{day} {symbol}缺少完整105根有效早盘, 拒绝认证收益")
+                else:
+                    for bar in range(675, minute_number(params["guard_time"]) + 1):
+                        pending = exit_signal(history, bar, pos["entry_value"] / pos["shares"], params, pending)
+                        if pending:
+                            break
                 pos["pending"] = pending
                 signals.append({"date": str(day), "symbol": symbol, **pending})
                 sale = fill_order(history, "sell", symbol, lookup.get(symbol),
                                   pending["first_eligible_bar"], pending["last_eligible_bar"],
                                   params, quantity=pos["remaining"])
                 fills.extend(sale["fills"])
-                cash += sale["value"]
+                late_fills = [f for f in sale["fills"] if f["bar"] >= first_buy] if selectable else []
+                late_value = sum(f["notional"] - f["fee"] for f in late_fills)
+                if late_fills:
+                    # A later exit cannot fund or free a slot for the 14:47 entry batch.
+                    late_sale_positions[symbol] = {
+                        **pos, "remaining": sum(f["shares"] for f in late_fills)}
+                    late_sale_cash += late_value
+                cash += sale["value"] - late_value
                 pos["remaining"] -= sale["shares"]
                 if pos["remaining"]:
                     failures.append({"date": str(day), "symbol": symbol, "remaining": pos["remaining"]})
@@ -276,24 +352,77 @@ def run_overnight(service, config, strategy, params, overrides, *,
                     return finish(f"{sell_date}缺少次交易日日线")
                 result = service.strategy_engine.run(
                     strategy.meta["id"], StrategyDataContext(
-                        "stock", "1m", day, current=prior, history=frame, daily_history=daily),
+                        "stock", "1m", day, current=prior, history=frame, daily_history=daily,
+                        observed_at=entry_confirmation.replace(
+                            year=day.year, month=day.month, day=day.day) if entry_confirmation else None),
                     pool=config.symbols, params=params, overrides=overrides)
                 buy_start = first_buy
-                for row in result.rows:
+                entry_symbols = {h["symbol"] for h in result.entry_signal_hits}
+                buy_rows = result.rows
+                entry_positions = {**positions, **late_sale_positions}
+                batch_budget = None
+                if equal_selected:
+                    slots = max(0, params["position_limit"] - len(entry_positions))
+                    seen = set(entry_positions)
+                    buy_rows = []
+                    for row in result.rows:
+                        symbol = row["symbol"]
+                        if symbol in seen or (selectable and references["entry_signals"]
+                                              and symbol not in entry_symbols):
+                            continue
+                        seen.add(symbol)
+                        if len(buy_rows) < slots:
+                            buy_rows.append(row)
+                    if buy_rows:
+                        batch_budget = cash / len(buy_rows)
+                        if params["entry_budget"]:
+                            batch_budget = min(batch_budget, params["entry_budget"])
+                for row in buy_rows:
                     symbol = row["symbol"]
-                    if symbol in positions or len(positions) >= params["position_limit"]:
+                    if selectable and references["entry_signals"] and symbol not in entry_symbols:
+                        continue
+                    if symbol in entry_positions or len(entry_positions) >= params["position_limit"]:
                         continue
                     # 后续委托不回到先前成交分钟之前; 只用已观测价格估值。
                     nav = cash
-                    for held_symbol, p in positions.items():
+                    for held_symbol, p in entry_positions.items():
                         known = frame.filter(
                             (pl.col("symbol") == held_symbol) & (pl.col("bar") <= buy_start))
                         mark = known["close"][-1] if not known.is_empty() else p["entry_mark"]
                         nav += p["remaining"] * mark
-                    budget = entry_budget(nav, cash, params)
-                    buy = fill_order(frame, "buy", symbol, lookup.get(symbol),
-                                     buy_start, last_buy, params, budget=budget,
-                                     price_field="high" if high_entry else None)
+                    budget = (min(cash, batch_budget) if equal_selected
+                              else entry_budget(nav, cash, params))
+                    if high_entry:
+                        buy = fill_order(frame, "buy", symbol, lookup.get(symbol),
+                                         buy_start, last_buy, params, budget=budget,
+                                         price_field="high")
+                    else:
+                        minimum, step, maximum = buy_quantity_rules(symbol)
+
+                        def size_order(price, budget=budget, minimum=minimum, step=step, maximum=maximum):
+                            cap = min(
+                                (budget - params.get("transfer_fee_fixed", 0.)) /
+                                (1 + params["commission"] + params["transfer_fee"]),
+                                (budget - params.get("transfer_fee_fixed", 0.) -
+                                 params["minimum_commission"]) / (1 + params["transfer_fee"]))
+                            target = min(maximum, math.floor(max(cap, 0) / price / step) * step)
+                            return target if target >= minimum else 0
+
+                        start_at = datetime.combine(day, datetime.min.time()) + timedelta(minutes=buy_start)
+                        order = execute_entry_window(
+                            frame, symbol=symbol, start_at=start_at,
+                            prior_close=lookup.get(symbol), budget=budget,
+                            size_order=size_order,
+                            buy_value=lambda n: n + order_fee(n, "buy", params),
+                            window_minutes=sum(moment.hour * 60 + moment.minute <= last_buy
+                                               for moment in expected_trading_minutes(start_at)))
+                        buy = {"shares": order.filled_shares, "notional": order.notional,
+                               "value": order.value, "fills": [
+                                   {"date": str(f.datetime.date()), "symbol": symbol, "side": "buy",
+                                    "bar": f.bar, "datetime": f.datetime.isoformat(sep=" "),
+                                    "shares": f.shares, "price": f.price, "notional": f.notional,
+                                    "fee": f.fee, "minute_volume_shares": f.minute_volume_shares,
+                                    "participation": f.participation} for f in order.fills]}
                     if buy["shares"] <= 0:
                         continue
                     cash -= buy["value"]
@@ -307,9 +436,13 @@ def run_overnight(service, config, strategy, params, overrides, *,
                             (pl.col("symbol") == symbol)
                             & (pl.col("bar") == buy["fills"][-1]["bar"]))["close"].item(),
                         "last_buy_time": buy["fills"][-1]["datetime"][11:16], "score": row.get("score", 0.),
+                        "entry_time": buy["fills"][-1]["datetime"],
                         "last_mark": buy["fills"][-1]["price"],
                     }
-                    buy_start = buy["fills"][-1]["bar"]
+                    entry_positions[symbol] = positions[symbol]
+                    if high_entry:
+                        buy_start = buy["fills"][-1]["bar"]
+            cash += late_sale_cash
             marks = {r["symbol"]: r["raw_close"] for r in panel.filter(pl.col("date") == day).to_dicts()}
             market_value = 0.
             for symbol, pos in positions.items():

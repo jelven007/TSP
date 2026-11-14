@@ -1,5 +1,26 @@
 # API、事件与 MCP 导航
 
+2026-11-14统一候选：账户策略池偏好`GET/PUT /api/strategies/pool`仅供登录会话，
+不开放给API Token；`read:analysis`的策略读取前缀不包含这一管理资源。
+既有Tier A端点集合及schema指纹保持，验证见[升级记录](upgrade-20261114.md)。
+
+2026-11-14当前本地回测执行：自定义S01（`custom_mvxxcs01`）保持14:45环境启动、14:46个股确认，指标仍截止14:45已完成分钟；删除额外等待及专用三分钟买入，14:47～14:51按系统五个交易分钟买入窗口执行，以分钟最高价、系统成交量容量及含费预算撮合，买足提前结束，到期撤销余量。系统通用清仓`signal_next_minute`在卖出信号下一分钟起执行五个交易分钟，到期撤委托，余股保留估值；缺分钟消耗原时槽，同日跨午休、收盘截断，不自动次日续卖该委托。S01原出场信号及专用卖出执行保持；当前保存源码、信号门槛和参数未改。本地0.4.58配套安装，无线上部署或新收益回测，历史冻结结果保留。验收见[本次执行回执](../deliverables/operations/backtest-five-minute-execution-20261114/report.md)。
+
+当前`s01_late_entry`完整参数新增内部
+`market_validity="price_amount_prev_close_v2"`：已有分钟OHLC有限且正、amount有限且非负
+可0，精确上一交易日raw_close有限且正。须与原六项门槛及两个时间字段一起保存，
+不新增页面控件；旧六/八字段冻结请求仍有效且保留旧口径。早盘模板ID
+`s01_morning_exit`不变，显示“早盘清仓_S01”；实际本地验证见
+[本次回执](../deliverables/operations/s01-security-validity-20261114/report.md)。
+
+`POST /api/custom-signals`的`s01_late_entry`模板接受旧六项完整数值参数，
+或同时增加`time="14:45:00"`与`evaluation_delay_minutes=1`的新八字段定义。
+启动HH:MM:SS且在午后13:01起、确认不晚于15:00；延时30～900秒且为30秒整数倍，
+API存分钟，页面显示“确认延时（秒）”。只存在一个时间字段、未知字段或非法值拒绝保存。
+GET不自动升级旧冻结定义，编辑保存才添加新时间；普通单信号回放仍要求通过S01策略
+提供完整环境。内部模板ID、引用及端点不变，验证见
+[本轮回执](../deliverables/operations/s01-signal-timing-20261114/report.md)。
+
 2026-11-08统一候选同时保留账户生命周期及market-snapshot契约，
 `PUT /api/paper/account`新增可选`min_commission/transfer_fee_pct/stamp_tax_mode`，
 与独立费用设置采用相同单位和范围，一次校验后保存，不追改历史成交。

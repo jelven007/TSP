@@ -25,6 +25,7 @@ import { cnSignal } from '@/lib/signals'
 import { customSignalColumn } from '@/lib/customSignals'
 import { useCustomSignalNames } from '@/lib/useCustomSignalNames'
 import { SignalPicker } from '@/components/screener/SignalPicker'
+import { BasicFilterEditor } from '@/components/screener/BasicFilterEditor'
 import { attachBacktestJob, startBacktest, stopBacktest, tryReconnect, useBacktestTask } from '@/lib/backtestTask'
 import { useDataStatus, useCapabilities } from '@/lib/useSharedQueries'
 import { EmptyState } from '@/components/EmptyState'
@@ -42,10 +43,11 @@ import { ScoringEditor } from '@/components/ScoringEditor'
 import { StrategyParamGroups } from '@/components/StrategyParamGroups'
 import { applyParamValue } from '@/lib/strategyParams'
 import { OvernightExecutionSummary } from '@/components/OvernightExecutionSummary'
+import { parameterSignalValues } from '@/lib/customSignals'
 import { MinuteExecutionLedger } from '@/components/MinuteExecutionLedger'
 import { strategyResultCandidate } from './researchCandidates'
 import { buildDailyNavItems, buildTradeKeyMap, buildTradesNavItems, type TradeNavItem } from './tradeNav'
-import { BACKTEST_DEFAULTS_VERSION, loadBacktestDefaults } from './defaults'
+import { BACKTEST_DEFAULTS_VERSION, REQUESTED_BACKTEST_DEFAULTS, loadBacktestDefaults } from './defaults'
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10)
 const monthsAgo = (months: number) => {
@@ -159,7 +161,7 @@ function FillRuleHint() {
                 <div><b className="text-foreground">建仓口径</b>和<b className="text-foreground">清仓口径</b>分别控制买卖信号出现后的成交时点。</div>
                 <div><b className="text-foreground">日线建仓</b>从次交易日首根分钟 K 开始；<b className="text-foreground">分钟建仓</b>从信号实际确认后的下一根完整分钟 K 开始。</div>
                 <div>最多使用 5 根分钟 K，每根按最高价和 100% 分钟成交量容量分片；建仓价取加权均价，剩余数量到期撤单。</div>
-                <div><b className="text-foreground">信号触发卖出</b>仅在分钟成交开启且卖出信号支持分钟回放时可用；分钟收盘确认后按下一分钟开盘成交。</div>
+                <div><b className="text-foreground">信号触发卖出</b>仅在分钟成交开启且卖出信号支持分钟回放时可用；下1分钟开始，最多执行5个交易分钟；卖足提前结束，到期撤销余量，余股保留持仓。</div>
                 <div>买卖信号由<b className="text-foreground">策略触发器</b>决定，这里只控制信号出现后的成交时点。</div>
               </div>
             </motion.div>
@@ -192,15 +194,6 @@ Object.assign(FIELD_LABEL, {
   ma20_bias: 'MA20乖离率',
 })
 const BOARD_OPTIONS = ['沪主板', '深主板', '创业板', '科创板']
-// 与策略编辑器「基础参数」对齐 (engine._basic_filter_expr 支持的全部数值界),
-// 每项 min~max 成对, 面板可见即可改, 避免策略里已生效的界在回测侧不可见。
-const BASIC_FILTER_RANGES = [
-  { minKey: 'price_min', maxKey: 'price_max', label: '价格', unit: '元', step: '1' },
-  { minKey: 'float_cap_min', maxKey: 'float_cap_max', label: '流通市值', unit: '亿', scale: 1e8, step: '5' },
-  { minKey: 'market_cap_min', maxKey: 'market_cap_max', label: '总市值', unit: '亿', scale: 1e8, step: '5' },
-  { minKey: 'amount_min', maxKey: 'amount_max', label: '成交额', unit: '亿', scale: 1e8, step: '0.5' },
-  { minKey: 'turnover_min', maxKey: 'turnover_max', label: '换手率', unit: '%', step: '0.5' },
-]
 type AdvancedSettingsTab = 'params' | 'filter' | 'entry' | 'exit' | 'scoring' | 'risk' | 'range'
 type StrategyGroup = 'all' | 'custom' | 'ai' | 'builtin' | 'composite'
 const STRATEGY_GROUPS: { id: StrategyGroup; label: string }[] = [
@@ -999,7 +992,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const [transferFee, setTransferFee] = useState<string>(saved?.transferFee ?? '0')
   const [strictResearch, setStrictResearch] = useState(false)
   const [slippage, setSlippage] = useState<string>(saved?.slippage ?? '5')
-  const [maxPositions, setMaxPositions] = useState<string>(saved?.maxPositions ?? '10')
+  const [maxPositions, setMaxPositions] = useState<string>(saved?.maxPositions ?? REQUESTED_BACKTEST_DEFAULTS.maxPositions)
   const [maxExposure, setMaxExposure] = useState(saved?.maxExposure ?? '100')
   const [initialCapital, setInitialCapital] = useState(saved?.initialCapital ?? '1000000')
   const [positionSizing, setPositionSizing] = useState<'equal' | 'score_weight'>(saved?.positionSizing ?? 'equal')
@@ -1589,14 +1582,15 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const compositeStrategy = detail?.source === 'composite'
   const visibleAdvancedTabs = useMemo(
     () => isOvernightExecution
-      ? ADVANCED_TABS.filter(tab => tab.id === 'params' || tab.id === 'filter' || tab.id === 'range')
+      ? ADVANCED_TABS.filter(tab => tab.id === 'params' || tab.id === 'filter' || tab.id === 'range'
+        || ((!!detail?.parameter_signals || detail?.optional_triggers) && (tab.id === 'entry' || tab.id === 'exit')))
       : matrixStrategy
       ? ADVANCED_TABS.filter(tab => tab.id !== 'entry' && tab.id !== 'exit')
       : compositeStrategy
         // composite 的 entry/exit/scoring 由子策略决定, composite 层只调合并参数(params Tab)
         ? ADVANCED_TABS.filter(tab => tab.id !== 'entry' && tab.id !== 'exit' && tab.id !== 'scoring')
         : ADVANCED_TABS,
-    [matrixStrategy, compositeStrategy, isOvernightExecution],
+    [matrixStrategy, compositeStrategy, isOvernightExecution, detail?.parameter_signals, detail?.optional_triggers],
   )
   const basicFilter = (overrides.basic_filter ?? {}) as Record<string, any>
   const entrySignals = (overrides.entry_signals ?? []) as string[]
@@ -1976,7 +1970,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           )}
         </div>
 
-        {isOvernightExecution ? <OvernightExecutionSummary params={strategyParams} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} /> : <>
+        {isOvernightExecution ? <OvernightExecutionSummary params={{ ...strategyParams, ...parameterSignalValues(strategyDetail.data?.parameter_signals) }}
+          entryAllocation={strategyDetail.data?.entry_allocation}
+          parameterSignals={!!strategyDetail.data?.parameter_signals} optionalTriggers={strategyDetail.data?.optional_triggers} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} /> : <>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className="mb-1.5 flex items-center gap-1">
@@ -2008,7 +2004,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               <option value="close_t">信号日收盘（推荐）</option>
               <option value="open_t+1">次日开盘</option>
               {highGranularity && minuteExitTriggerSupported && !isMinuteStrategy && (
-                <option value="signal_next_minute">信号触发卖出 BETA</option>
+                <option value="signal_next_minute">信号后下1分钟起，5分钟卖出</option>
               )}
             </select>}
           </div>
@@ -2026,7 +2022,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           )}
           {exitFill === 'signal_next_minute' && (
             <div className="col-span-2 text-[10px] leading-4 text-accent">
-              分钟收盘确认卖出信号后，按下一分钟开盘成交；尾盘或分钟数据缺失时顺延到下一交易日开盘
+              分钟收盘确认卖出信号后，下1分钟开始，最多按分钟开盘价和成交量容量执行5个交易分钟；卖足提前结束，到期取消未成交委托，余股保留持仓。缺分钟不延长窗口，收盘即撤余量
             </div>
           )}
           {highGranularity && effectiveExitSignals.length > 0 && !minuteExitTriggerSupported && (
@@ -2969,7 +2965,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
 
             <div className="modal-body min-h-0 flex-1 overflow-y-auto px-4 py-4">
               {isOvernightExecution ? <div className="mb-4">
-                <OvernightExecutionSummary params={strategyParams} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} />
+                <OvernightExecutionSummary params={{ ...strategyParams, ...parameterSignalValues(detail.parameter_signals) }}
+                  entryAllocation={detail.entry_allocation}
+                  parameterSignals={!!detail.parameter_signals} optionalTriggers={detail.optional_triggers} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} />
               </div> : <div className="mb-4 rounded-btn border border-accent/25 bg-accent/5 px-3 py-2.5 text-[11px] leading-5 text-secondary">
                 <div className="font-medium text-foreground">触发 / 成交 / 仓位关系</div>
                 <div className="mt-1">触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。</div>
@@ -3012,50 +3010,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               )}
 
               {settingsTab === 'filter' && (
-                <ConfigSection title="基础过滤" hint="用于候选池">
-                  <label className="flex items-center gap-2 text-xs text-secondary">
-                    <input
-                      type="checkbox"
-                      checked={basicFilter.enabled !== false}
-                      onChange={e => updateBasicFilter('enabled', e.target.checked)}
-                    />
-                    启用基础过滤
-                  </label>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {BASIC_FILTER_RANGES.map(field => {
-                      const scale = field.scale ?? 1
-                      const bound = (key: string) => {
-                        const raw = basicFilter[key]
-                        return raw == null ? null : Number(raw) / scale
-                      }
-                      const setBound = (key: string) => (n: number | null) =>
-                        updateBasicFilter(key, n == null ? null : n * scale)
-                      return (
-                        <label key={field.minKey} className="block">
-                          <span className="mb-1 block text-[11px] text-secondary">{field.label}({field.unit})</span>
-                          <div className="flex items-center gap-1.5">
-                            <NumberField
-                              value={bound(field.minKey)}
-                              min={0}
-                              step={Number(field.step)}
-                              placeholder="不限"
-                              onChange={setBound(field.minKey)}
-                              className={INPUT_CLS}
-                            />
-                            <span className="text-[11px] text-muted">~</span>
-                            <NumberField
-                              value={bound(field.maxKey)}
-                              min={0}
-                              step={Number(field.step)}
-                              placeholder="不限"
-                              onChange={setBound(field.maxKey)}
-                              className={INPUT_CLS}
-                            />
-                          </div>
-                        </label>
-                      )
-                    })}
-                  </div>
+                <ConfigSection title="基础过滤" hint="股票范围与前日数值过滤">
+                  <BasicFilterEditor value={basicFilter}
+                    onChange={next => updateOverride('basic_filter', { ...basicFilter, ...next, data_reference: 'previous_trade_day' })} />
                   <label className="flex items-center gap-2 text-xs text-secondary">
                     <input
                       type="checkbox"
@@ -3089,14 +3046,14 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               {settingsTab === 'entry' && (
                 <ConfigSection
                   title="入场触发器"
-                  hint="任一入场点满足即可进入候选"
-                  actions={<SignalTriggerActions kind="entry" signals={entrySignals} onChange={next => updateOverride('entry_signals', next)} allowIntraday={isMinuteStrategy && !detail.minute_execution} />}
+                  hint={detail.optional_triggers ? '可多选或取消；任一所选信号命中，不选时按基础选股结果入场' : '任一入场点满足即可进入候选'}
+                  actions={<SignalTriggerActions selectExisting kind="entry" signals={entrySignals} onChange={next => updateOverride('entry_signals', next)} s01Template={detail.parameter_signals || detail.optional_triggers ? 's01_late_entry' : undefined} allowIntraday={isMinuteStrategy} />}
                 >
                   <SignalPicker
                     signals={entrySignals}
                     onChange={next => updateOverride('entry_signals', next)}
                     kind="entry"
-                    options={{ allowIntraday: isMinuteStrategy && !detail.minute_execution, allowHoldingExit: false }}
+                    options={{ allowIntraday: isMinuteStrategy, allowHoldingExit: false, s01Template: detail.parameter_signals || detail.optional_triggers ? 's01_late_entry' : undefined }}
                   />
                 </ConfigSection>
               )}
@@ -3104,16 +3061,16 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               {settingsTab === 'exit' && (
                 <ConfigSection
                   title="出场触发器"
-                  hint="任一出场点满足即触发出场"
-                  actions={<SignalTriggerActions kind="exit" signals={exitSignals} onChange={next => updateOverride('exit_signals', next)} allowIntraday={supportsMorningExit} />}
+                  hint={detail.optional_triggers ? '可多选或取消；任一所选信号命中，不选时不触发信号卖出' : '任一出场点满足即触发出场'}
+                  actions={<SignalTriggerActions selectExisting kind="exit" signals={exitSignals} onChange={next => updateOverride('exit_signals', next)} s01Template={detail.parameter_signals || detail.optional_triggers ? 's01_morning_exit' : undefined} allowIntraday={supportsMorningExit || !!detail.parameter_signals || detail.optional_triggers} />}
                 >
                   <SignalPicker
                     signals={exitSignals}
                     onChange={next => updateOverride('exit_signals', next)}
                     kind="exit"
-                    options={{ allowIntraday: supportsMorningExit, allowHoldingExit: supportsMorningExit }}
+                    options={{ allowIntraday: supportsMorningExit || !!detail.parameter_signals || detail.optional_triggers, allowHoldingExit: supportsMorningExit || detail.optional_triggers, s01Template: detail.parameter_signals || detail.optional_triggers ? 's01_morning_exit' : undefined }}
                   />
-                  {hasMorningExit && <div className="mt-2 text-[11px] leading-5 text-muted">
+                  {hasMorningExit && !detail.optional_triggers && <div className="mt-2 text-[11px] leading-5 text-muted">
                     收益回测支持当前早盘清仓规则；使用A股仓位模拟，需关闭其他出场触发器、固定/移动风控及最长持有。
                   </div>}
                 </ConfigSection>

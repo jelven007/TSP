@@ -5,7 +5,7 @@ import json
 import logging
 import threading
 import uuid
-from datetime import date, time
+from datetime import date, datetime, time, timedelta
 
 from app.config import settings
 from app.market_time import cn_now
@@ -18,6 +18,56 @@ logger = logging.getLogger(__name__)
 PERIODS = ("1m", "5m", "10m", "15m", "1d")
 SYNC_TIME = time(15, 35)
 _dispatch_lock = threading.Lock()
+
+
+def finalize_daily_settlement(repo, capset, day, check_cancelled=lambda: None):
+    """Publish daily readiness only after source clocks, auction and enriched agree."""
+    import polars as pl
+
+    from app.indicators.pipeline import run_pipeline
+    from app.jobs.daily_pipeline import mark_settlement_ready
+    from app.services import data_integrity, kline_sync
+    from app.services.daily_close_validation import require_final_daily_rows, validate_daily_close
+
+    raw, _ = repo.get_daily_close_inputs(day)
+    provisional = require_final_daily_rows(raw, day, isolate_symbols=True)
+    if provisional:
+        # Missing-only collection preserves completed rows. Provisional quote rows
+        # still need the existing official daily source before they can be finalized.
+        kline_sync.sync_and_persist_daily_batch(
+            sorted(provisional), repo, capset,
+            start_date=datetime.combine(day, time.min),
+            end_date=datetime.combine(day, time.max),
+        )
+    check_cancelled()
+    validate_daily_close(repo, day)
+    raw, _ = repo.get_daily_close_inputs(day)
+    path = repo.store.data_dir / "kline_daily_enriched" / f"date={day}"
+
+    def check_enriched():
+        files = sorted(path.glob("*.parquet"))
+        if not files:
+            raise ValueError(f"{day}加工日线尚未生成")
+        rows = pl.read_parquet(files)
+        if set(raw["symbol"]) - set(rows["symbol"]):
+            raise ValueError(f"{day}加工日线覆盖不完整")
+        validate_daily_close(repo, day, rows=rows)
+
+    try:
+        check_enriched()
+    except (OSError, ValueError):
+        data_integrity.prune_enriched_partitions(repo.store.data_dir, day, "kline_daily_enriched", end=day)
+        run_pipeline(data_dir=repo.store.data_dir, new_dates_only=True)
+        check_enriched()
+        repo.refresh_cache()
+    check_cancelled()
+    release = publish_data_release(
+        repo.store.data_dir, reason="post_close_daily_settlement",
+        write_lock=getattr(repo, "_write_lock", None),
+    )
+    check_cancelled()
+    mark_settlement_ready(repo.store.data_dir, day, release["release_id"])
+    return release
 
 
 def _load(repo, *, trigger="scheduled") -> dict | None:
@@ -73,11 +123,22 @@ def request_sync(repo, capset, quote_service=None) -> dict | None:
 
 
 def retry_pending(repo, capset, quote_service=None) -> dict | None:
-    """只重试执行槽占用造成的等待, 失败/取消/中断均不自动重跑。"""
+    """Recover a missed close trigger or a failed daily finalization, never cancellation."""
     if not _dispatch_lock.acquire(blocking=False):
         return None
     try:
         state = _load(repo)
+        now = cn_now()
+        if ((state is None or state["day"] != str(now.date()))
+                and _allowed(now) and now.time().replace(tzinfo=None) >= SYNC_TIME):
+            if state and state["status"] in {"pending", "running"}:
+                _save(repo, {**state, "status": "interrupted", "error": "等待请求已跨日, 未补齐原交易日"})
+            state = _save(repo, {"day": now.date().isoformat(), "status": "pending"})
+        if (state is not None and state["status"] == "failed"
+                and state.get("daily_settlement_status") == "failed"
+                and state["day"] == str(now.date()) and _allowed(now)
+                and now >= datetime.fromisoformat(state["daily_settlement_retry_at"])):
+            state = _save(repo, {**state, "status": "pending"})
         if state is None or state["status"] not in {"pending", "running"}:
             return state
         return _dispatch(repo, capset, quote_service, state)
@@ -177,10 +238,33 @@ def _dispatch(repo, capset, quote_service, state: dict, *, stop=None) -> dict:
                     or result.get("gap_check_warning") or result.get("warning")
                 ):
                     incomplete.append(f"{period}: {result}")
+            check_cancelled()
+            release = None
+            settled_at = cn_now()
+            if settled_at.date() == target and settled_at.time().replace(tzinfo=None) >= SYNC_TIME:
+                attempts = state.get("daily_settlement_attempts", 0) + 1
+                state.update(daily_settlement_status="running", daily_settlement_attempts=attempts)
+                _save(repo, state)
+                try:
+                    release = finalize_daily_settlement(repo, capset, target, check_cancelled)
+                except pipeline_jobs.JobCancelledError:
+                    raise
+                except Exception:
+                    state.update(
+                        daily_settlement_status="failed",
+                        daily_settlement_retry_at=(cn_now() + timedelta(
+                            seconds=min(300, 30 * 2 ** min(attempts, 4)),
+                        )).isoformat(),
+                    )
+                    _save(repo, state)
+                    raise
+                state["daily_settlement_status"] = "succeeded"
+                state["daily_settlement_release_id"] = release["release_id"] if release else None
+                _save(repo, state)
             if incomplete:
                 raise RuntimeError("盘后补缺未完成: " + "; ".join(incomplete))
             check_cancelled()
-            release = publish_data_release(
+            release = release or publish_data_release(
                 repo.store.data_dir, reason="post_close_sync",
                 write_lock=getattr(repo, "_write_lock", None),
             )

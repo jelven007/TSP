@@ -75,7 +75,7 @@ it('saves and reloads two independent return thresholds and both times', async (
     await f.submit()
     expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
       params: { time: '10:15:32', fallback_time: '10:50:15', rise_pct: 8, fall_pct: 2 },
-    }))
+    }), { createOnly: true })
     await f.render(f.save.mock.calls[0][0])
     expect(f.input('跌幅阈值（%）')?.value).toBe('2')
     expect(f.time('兜底时间')?.textContent).toBe('10:50:15')

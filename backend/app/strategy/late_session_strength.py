@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import time as clock
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 
@@ -152,6 +153,64 @@ class Evaluation:
     pool_up_pct_lower: float | None = None
     pool_up_pct_upper: float | None = None
     warnings: list[str] = field(default_factory=list)
+    progress: dict = field(default_factory=dict)
+
+
+def progress_plan(sig: dict, day: date, observed: datetime | None = None,
+                  *, diagnostic_symbols: list[str] | None = None) -> dict:
+    """Saved plan and receipts are separate; no wall-clock inference of execution."""
+    params = parameters(sig)
+    start = datetime.combine(day, time.fromisoformat(params["time"]))
+    prefilter = start + timedelta(seconds=15) if params["evaluation_delay_minutes"] else start
+    if observed is not None and observed.tzinfo:
+        observed = observed.astimezone(CN_TZ).replace(tzinfo=None)
+    return {
+        "schema": "late_session_progress_v1", "as_of": str(day),
+        "cohort": "pool" if diagnostic_symbols is None else "frozen_selection",
+        "observed_at": observed.isoformat() if observed is not None else None,
+        "bar_at": bar_time(sig, day).isoformat(), "params": params,
+        "steps": {key: {
+            "state": "waiting", "scheduled_at": planned.isoformat(),
+            "started_at": None, "finished_at": None, "elapsed_ms": None,
+            "processed": None, "total": None, "passed": None, "missing": None,
+            "reason": "等待计算回执",
+        } for key, planned in (
+            ("breadth", prefilter), ("change", prefilter),
+            ("ma1", evaluation_time(sig, day)), ("ma5", evaluation_time(sig, day)),
+        )},
+    }
+
+
+def _started() -> tuple[str, float]:
+    return datetime.now(CN_TZ).replace(tzinfo=None).isoformat(), clock.perf_counter()
+
+
+def _receipt(step: dict, started: tuple[str, float], **values) -> None:
+    step.update(
+        state="success", reason=None, started_at=started[0],
+        finished_at=datetime.now(CN_TZ).replace(tzinfo=None).isoformat(),
+        elapsed_ms=round((clock.perf_counter() - started[1]) * 1000, 3),
+    )
+    step.update(values)
+
+
+def failed_progress(progress: dict, reason: str) -> dict:
+    for key, step in progress["steps"].items():
+        step.update(state="failed" if key in ("breadth", "change") else "skipped",
+                    reason=reason)
+    return progress
+
+
+def _ready_symbols(frame: pl.DataFrame, symbols: set[str], end: datetime, count: int) -> set[str]:
+    start = end - timedelta(minutes=count - 1)
+    window = frame.filter(pl.col("symbol").is_in(sorted(symbols))
+                          & pl.col("datetime").is_between(start, end))
+    ready = window.group_by("symbol").agg(
+        ((pl.len() == count) & (pl.col("datetime").n_unique() == count)
+         & (pl.col("datetime").min() == start) & (pl.col("datetime").max() == end)
+         & (pl.col("close").is_finite() & (pl.col("close") > 0)).fill_null(False).all()
+         ).alias("_ready"))
+    return set(ready.filter(pl.col("_ready"))["symbol"].to_list())
 
 
 def _rising_symbols(frame: pl.DataFrame, end: datetime, count: int, step: int) -> set[str]:
@@ -179,9 +238,13 @@ def evaluate(
     minute_df: pl.DataFrame, sig: dict, *, day: date,
     pool_symbols: list[str] | None, prev_close: dict[str, float],
     completed_through: datetime | None = None,
+    diagnostic_symbols: list[str] | None = None,
 ) -> Evaluation:
     params = parameters(sig)
     result = Evaluation()
+    result.progress = progress_plan(sig, day, completed_through,
+                                    diagnostic_symbols=diagnostic_symbols)
+    steps = result.progress["steps"]
     at = bar_time(sig, day)
     cutoff = None
     if completed_through is not None:
@@ -193,16 +256,21 @@ def evaluate(
         if cutoff < prefilter_at:
             return result
     if sig.get("enabled") is False:
+        for step in steps.values():
+            step.update(state="skipped", reason="信号已停用")
         return result
     result.stage = "waiting_data"
     pool = sorted(set(pool_symbols or []))
     result.pool_total = len(pool)
     if not pool:
         result.diagnostics.append("尾盘走强缺少完整的当日股票池")
+        failed_progress(result.progress, result.diagnostics[-1])
         return result
     if minute_df is None or not {"symbol", "datetime", "close"}.issubset(minute_df.columns):
         result.diagnostics.append("尾盘走强缺少分钟行情")
+        failed_progress(result.progress, result.diagnostics[-1])
         return result
+    breadth_started = _started()
     dt = pl.col("datetime")
     if minute_df.schema["datetime"].time_zone:
         dt = dt.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
@@ -234,14 +302,29 @@ def evaluate(
             f"按剩余 {len(returns)} 只计算上涨占比")
     if not returns:
         result.diagnostics.append("尾盘走强: 当日股票池剔除缺失数据后无有效股票, 无法计算上涨占比")
+        failed_progress(result.progress, result.diagnostics[-1])
+        _receipt(steps["breadth"], breadth_started, state="failed",
+                 reason=result.diagnostics[-1], total=len(pool), processed=len(pool),
+                 passed=0, missing=len(unknown), up_pct=None)
         return result
     # Stored universe remains complete; unavailable members leave only the breadth denominator.
     result.pool_up_pct = 100 * result.known_positive / len(returns)
-    if result.pool_up_pct + 1e-10 < params["pool_up_min_pct"]:
-        result.stage = "breadth_rejected"
-        return result
+    _receipt(steps["breadth"], breadth_started, total=len(pool), processed=len(pool),
+             passed=result.known_positive, missing=len(unknown), usable=len(returns),
+             up_pct=result.pool_up_pct, lower_pct=result.pool_up_pct_lower)
+    change_started = _started()
     candidates = {symbol for symbol, value in returns.items()
                   if params["change_min_pct"] - 1e-10 <= value <= params["change_max_pct"] + 1e-10}
+    cohort = set(pool) if diagnostic_symbols is None else set(diagnostic_symbols) & set(pool)
+    _receipt(steps["change"], change_started, total=len(cohort), processed=len(cohort),
+             passed=len(candidates & cohort), missing=len(cohort - returns.keys()),
+             pool_passed=len(candidates))
+    if result.pool_up_pct + 1e-10 < params["pool_up_min_pct"]:
+        result.stage = "breadth_rejected"
+        steps["breadth"].update(state="rejected", reason="上涨占比未达下限")
+        for key in ("ma1", "ma5"):
+            steps[key].update(state="skipped", reason="上涨占比未达下限")
+        return result
     result.candidates = sorted(candidates)
     if cutoff is not None and cutoff < evaluation_time(sig, day):
         result.stage = "waiting_confirmation"
@@ -251,33 +334,37 @@ def evaluate(
     minutes = max(params["ma5_1m_count"] + 4, (params["ma5_5m_count"] + 4)*5 + 4)
     frame = frame.filter(pl.col("datetime") > at - timedelta(minutes=minutes))
     end5 = at.replace(minute=(at.minute//5)*5)
-    for end, count in ((at, params["ma5_1m_count"] + 4),
-                       (end5, (params["ma5_5m_count"] + 4) * 5)):
-        start = end - timedelta(minutes=count - 1)
-        window = frame.filter(pl.col("symbol").is_in(sorted(candidates))
-                              & pl.col("datetime").is_between(start, end))
-        ready = window.group_by("symbol").agg(
-            ((pl.len() == count) & (pl.col("datetime").n_unique() == count)
-             & (pl.col("datetime").min() == start) & (pl.col("datetime").max() == end)
-             & (pl.col("close").is_finite() & (pl.col("close") > 0)).fill_null(False).all()
-             ).alias("_ready"))
-        missing = candidates - set(ready.filter(pl.col("_ready"))["symbol"].to_list())
-        if missing:
-            result.ma_skipped_symbols = sorted(set(result.ma_skipped_symbols) | missing)
-            candidates -= missing
+    ma1_started = _started()
+    ready1 = _ready_symbols(frame, candidates, at, params["ma5_1m_count"] + 4)
+    unique = frame.group_by("symbol").agg((pl.len() == pl.col("datetime").n_unique()).alias("_unique"))
+    unique_symbols = set(unique.filter(pl.col("_unique"))["symbol"].to_list())
+    one_all = _rising_symbols(frame.filter(pl.col("symbol").is_in(sorted(ready1 & unique_symbols))),
+                              at, params["ma5_1m_count"], 1)
+    _receipt(steps["ma1"], ma1_started, total=len(candidates & cohort),
+             processed=len(candidates & cohort), passed=len(one_all & cohort),
+             missing=len((candidates - ready1) & cohort))
+    ma5_started = _started()
+    ready5 = _ready_symbols(frame, ready1, end5, (params["ma5_5m_count"] + 4) * 5)
+    result.ma_skipped_symbols = sorted((candidates - ready1) | (ready1 - ready5))
     if result.ma_skipped_symbols:
         result.warnings.append(
             f"尾盘走强: 跳过 {len(result.ma_skipped_symbols)} 只缺少完整MA5分钟窗口的股票, 其余继续计算")
-    unique = frame.group_by("symbol").agg((pl.len() == pl.col("datetime").n_unique()).alias("_unique"))
-    candidates &= set(unique.filter(pl.col("_unique"))["symbol"].to_list())
-    frame = frame.filter(pl.col("symbol").is_in(sorted(candidates)))
-    one = _rising_symbols(frame, at, params["ma5_1m_count"], 1)
+    # Per-symbol rolling operations commute with eligibility. Preserve the original
+    # complete-window intersection while exposing each elimination separately.
+    one = one_all & ready5
+    frame = frame.filter(pl.col("symbol").is_in(sorted(ready1 & ready5 & unique_symbols)))
     if one:
         # All five constituent closes must be usable, not only the last close.
         valid = frame.filter(pl.col("symbol").is_in(sorted(one))
                              & pl.col("close").is_finite() & (pl.col("close") > 0))
         five = aggregate_minute_period(valid, "5m", complete_only=True)
         result.symbols = sorted(one & _rising_symbols(five, end5, params["ma5_5m_count"], 5))
+    if one_all:
+        _receipt(steps["ma5"], ma5_started, total=len(one_all & cohort),
+                 processed=len(one_all & cohort), passed=len(set(result.symbols) & cohort),
+                 missing=len((one_all - ready5) & cohort))
+    else:
+        steps["ma5"].update(state="skipped", reason="1分钟MA5无通过股票")
     return result
 
 

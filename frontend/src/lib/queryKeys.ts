@@ -18,6 +18,7 @@ export const QK = {
   openSourceRelease: (scope: string) => ['open-source-release', scope] as const,
   preferences:    ['preferences'] as const,
   strategyConcurrency: ['strategy-concurrency'] as const,
+  strategyPool: (scope: string) => ['strategy-pool', scope] as const,
   dataSources:    ['data-sources'] as const,
   capabilityMatrix: ['capability-matrix'] as const,
   quoteStatus:    ['quote-status'] as const,
@@ -204,6 +205,7 @@ export const KLINE_QUERY_PREFIXES = [
 // 私有事件积压溢出时只重取可能漏掉推送的权威 REST 数据。
 // 行情由独立公共事件驱动，设置、能力矩阵等静态查询不应被连带刷新。
 export const SSE_EVENT_RESET_ROOTS = new Set([
+  'strategy-pool',
   'paper',
   'alerts',
   'alerts-total',

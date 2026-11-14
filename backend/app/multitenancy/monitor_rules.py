@@ -1,4 +1,6 @@
 """Original monitor definitions with tenant SQL versions and atomic related writes."""
+import uuid
+
 from psycopg.types.json import Jsonb
 
 from app.cell.context import AccessError
@@ -24,7 +26,7 @@ class Rules:
             ).fetchone()
             return row["definition"] if row else None
 
-    def save_one(self, rule):
+    def save_one(self, rule, *, system=False):
         with self.documents.db.control.connection() as control:
             user = control.execute(
                 "SELECT auth_version,active,account_state FROM control.users WHERE id=%s",
@@ -49,6 +51,10 @@ class Rules:
             ).fetchone()
             if existing:
                 previous = existing["definition"]
+                if previous.get("_system_task"):
+                    if not system:
+                        raise AccessError(409, "系统关键任务不能通过普通监控停用或替换")
+                    rule = {**rule, "_system_task": previous["_system_task"]}
                 if previous.get("lot_id") and previous["lot_id"] != rule.get("lot_id"):
                     raise AccessError(409, "lot_rule_managed")
                 rule = {**rule, "created_at": previous.get("created_at", rule["created_at"])}
@@ -56,7 +62,10 @@ class Rules:
                 "SELECT 1 FROM business.watchlist_groups WHERE id=%s", (rule.get("group_id"),),
             ).fetchone():
                 raise AccessError(400, "watchlist_group_missing")
-            if not existing and conn.execute("SELECT count(*) AS n FROM business.monitor_rules").fetchone()["n"] >= MAX_RULES:
+            if not existing and not system and conn.execute(
+                """SELECT count(*) AS n FROM business.monitor_rules
+                   WHERE coalesce(definition->>'_system_task', '') = ''""",
+            ).fetchone()["n"] >= MAX_RULES:
                 raise AccessError(429, "monitor_rule_limit")
             conn.execute(
                 """INSERT INTO business.monitor_rules(tenant_id,id,definition,enabled) VALUES(%s,%s,%s,%s)
@@ -64,10 +73,24 @@ class Rules:
                    enabled=excluded.enabled,version=business.monitor_rules.version+1""",
                 (self.documents.context.tenant_id, rule["id"], Jsonb(json_value(rule)), rule.get("enabled", True)),
             )
+            self._audit(conn, "monitor.save", rule["id"])
 
     def delete_one(self, rule_id, *, managed=False):
         with self.documents._transaction(write=True) as conn:
             row = conn.execute("SELECT definition FROM business.monitor_rules WHERE id=%s", (rule_id,)).fetchone()
+            if row and row["definition"].get("_system_task") and not managed:
+                raise AccessError(409, "系统关键任务不能通过普通监控删除或清空")
             if row and row["definition"].get("lot_id") and not managed:
                 raise AccessError(409, "lot_rule_managed")
-            return conn.execute("DELETE FROM business.monitor_rules WHERE id=%s", (rule_id,)).rowcount > 0
+            deleted = conn.execute("DELETE FROM business.monitor_rules WHERE id=%s", (rule_id,)).rowcount > 0
+            if deleted:
+                self._audit(conn, "monitor.delete", rule_id)
+            return deleted
+
+    def _audit(self, conn, action, rule_id):
+        context = self.documents.context
+        conn.execute(
+            """INSERT INTO business.audit(tenant_id,id,actor_id,action,target_id,request_id)
+               VALUES(%s,%s,%s,%s,%s,%s)""",
+            (context.tenant_id, uuid.uuid4().hex, context.user_id, action, rule_id, context.request_id),
+        )

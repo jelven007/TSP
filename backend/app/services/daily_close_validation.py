@@ -4,9 +4,9 @@ from datetime import date, datetime, time
 import polars as pl
 
 from app.market_time import CN_TZ
+from app.monetary import money_result_equal_expr
 
 CLOCK_COLUMNS = ("quote_ts", "quote_time_basis")
-PRICE_TOLERANCE = 0.005
 
 
 def _reject(day: date, frame: pl.DataFrame, reason: str, rejected: dict | None = None) -> None:
@@ -92,7 +92,10 @@ def validate_daily_close(
                 | ~pl.col("_auction_close").is_finite().fill_null(False)
                 | (pl.col("_auction_close") <= 0).fill_null(True)
             ))
-            | ((pl.col("close") - pl.col("_auction_close")).abs() > PRICE_TOLERANCE).fill_null(False)
+            | (
+                pl.col("_auction_close").is_not_null()
+                & ~money_result_equal_expr(pl.col("close"), pl.col("_auction_close"))
+            )
         )
         if not bad.is_empty():
             _reject(day, bad, "原始日线与唯一有效15:00收盘分钟不一致或分钟缺失", rejected)
@@ -108,7 +111,7 @@ def validate_daily_close(
         )
         bad = reference.filter(
             pl.col("_official_close").is_null()
-            | ((pl.col("raw_close") - pl.col("_official_close")).abs() > PRICE_TOLERANCE)
+            | ~money_result_equal_expr(pl.col("raw_close"), pl.col("_official_close"))
         )
         if not bad.is_empty():
             _reject(day, bad, "加工/策略昨收与原始日线不一致", rejected)

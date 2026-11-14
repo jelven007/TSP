@@ -7,7 +7,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use rustdx_complete::operation::{self, OperationContext};
 use rustdx_complete::tcp::ip::{IpPool, ProbeGroup, ProbeMode, ProbePolicy, configure_probes};
-use rustdx_complete::tcp::stock::{Client, PrecisionSnapshot, QuoteMetadataStore};
+use rustdx_complete::tcp::stock::{
+    Client, CompanyInfoReadOptions, CompanyInfoTextRequest, PrecisionSnapshot, QuoteMetadataStore,
+};
 use rustdx_complete::tcp::{NetworkPolicy, TcpConfig, configure_network};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -961,11 +963,49 @@ impl RustdxClient {
             .map_err(runtime_error)?;
             let _scope = task.enter();
             self.with_client(slot, true, |client| {
-                let rows = client.f10(market, &code).map_err(io_error)?;
-                Ok(rows
-                    .into_iter()
-                    .find(|(name, _)| name.trim() == category_name.trim())
-                    .map(|(_, content)| content))
+                let directory = client
+                    .company_info_directory(market, &code)
+                    .map_err(io_error)?;
+                let Some(entry) = directory
+                    .entries
+                    .iter()
+                    .find(|entry| entry.name.trim() == category_name.trim())
+                else {
+                    return Ok(None);
+                };
+                if entry.length == 0 {
+                    return Ok(Some(String::new()));
+                }
+                let request = CompanyInfoTextRequest::new(
+                    market,
+                    &code,
+                    &entry.filename,
+                    entry.start,
+                    entry.length,
+                )
+                .map_err(io_error)?;
+                // Upstream assembles bounded chunks before decoding GBK.
+                let content = client
+                    .company_info_text(request, CompanyInfoReadOptions::default())
+                    .map_err(io_error)?;
+                let zone = chrono::FixedOffset::east_opt(8 * 3600)
+                    .ok_or_else(|| "[InvalidInput] invalid market timezone".to_string())?;
+                let source = &directory.source;
+                for chunk in &content.chunks {
+                    if source.endpoint != chunk.source.endpoint
+                        || source.connection_id != chunk.source.connection_id
+                        || source
+                            .fetched_at
+                            .map(|time| time.with_timezone(&zone).date_naive())
+                            != chunk
+                                .source
+                                .fetched_at
+                                .map(|time| time.with_timezone(&zone).date_naive())
+                    {
+                        return Err("[SourceChanged] F10 directory/content source changed".into());
+                    }
+                }
+                Ok(Some(content.text))
             })
             .map_err(runtime_error)
         })

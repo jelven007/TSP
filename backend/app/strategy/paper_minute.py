@@ -217,7 +217,20 @@ def _buy(data, order, frame, now, account_id):
         return
     start, not_before = _clock(meta["start_at"]), _clock(meta["not_before"])
     matcher = matcher_for_account(meta["costs"])
-    eligible = frame.filter(pl.col("datetime") >= not_before)
+    eligible = frame.filter((pl.col("symbol") == order["symbol"]) & (pl.col("datetime") >= not_before))
+    available = set(eligible["datetime"])
+    through = None
+    # A wall-clock poll proves no bar was received. Only an observed contiguous
+    # prefix can advance the checkpoint without treating normal latency as a revision.
+    for moment in expected_trading_minutes(start):
+        if moment < not_before:
+            continue
+        if moment > now or moment not in available:
+            meta["waiting_for_minute"] = moment.isoformat()
+            break
+        meta.pop("waiting_for_minute", None)
+        through = moment
+    eligible = eligible.head(0) if through is None else eligible.filter(pl.col("datetime") <= through)
     plan = execute_entry_window(
         eligible, symbol=order["symbol"], start_at=start, prior_close=meta["prior_close"],
         budget=meta["budget"],
@@ -246,9 +259,10 @@ def _buy(data, order, frame, now, account_id):
         if not _commit(data, order, fragment.datetime, fragment.shares, fragment.price, fragment.fee, account_id):
             paper._expire(data, order, "S02买入资金或仓位校验失败, 保留实际成交", account_id)
             return
-    meta["processed_through"] = min(now, _clock(meta["end_at"])).isoformat()
+    if through is not None:
+        meta["processed_through"] = through.isoformat()
     paper.save_order(data, order, account_id)
-    if now >= _clock(meta["end_at"]) and order["status"] == "pending":
+    if through == _clock(meta["end_at"]) and order["status"] == "pending":
         order.update(status="cancelled", reason=f"S02五分钟窗口结束, 撤销余量{paper.remaining_qty(order)}股")
         paper.save_order(data, order, account_id)
 
@@ -256,7 +270,8 @@ def _buy(data, order, frame, now, account_id):
 def _sell(data, order, frame, now, account_id):
     meta = order["strategy_execution"]
     if now.replace(second=0, microsecond=0) > _clock(meta["end_at"]):
-        paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股, 保留实际成交和持仓", account_id)
+        missing = f", 缺失分钟{meta['waiting_for_minute']}" if meta.get("waiting_for_minute") else ""
+        paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股{missing}, 保留实际成交和持仓", account_id)
         return
     existing = _sync(data, order, account_id)
     rows = frame.filter(
@@ -277,7 +292,9 @@ def _sell(data, order, frame, now, account_id):
         if next_at.time() == time(11, 31):
             next_at = datetime.combine(now.date(), time(13, 1))
         if moment != next_at:
-            raise ValueError("S02清仓成交窗口缺失分钟")
+            meta["waiting_for_minute"] = next_at.isoformat()
+            break
+        meta.pop("waiting_for_minute", None)
         meta["processed_through"] = moment.isoformat()
         next_at = moment + timedelta(minutes=1)
         price, volume = row["close"], row["volume"]
@@ -295,8 +312,9 @@ def _sell(data, order, frame, now, account_id):
         else:
             raise ValueError("S02清仓可卖量或公司行为校验失败")
     paper.save_order(data, order, account_id)
-    if now >= _clock(meta["end_at"]) and order["status"] == "pending":
-        paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股, 保留实际成交和持仓", account_id)
+    if now.replace(second=0, microsecond=0) >= _clock(meta["end_at"]) and order["status"] == "pending":
+        missing = f", 缺失分钟{meta['waiting_for_minute']}" if meta.get("waiting_for_minute") else ""
+        paper._expire(data, order, f"S02清仓截止后仍有余股{paper.remaining_qty(order)}股{missing}, 保留实际成交和持仓", account_id)
 
 
 @paper_operation(write=True)

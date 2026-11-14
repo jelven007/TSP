@@ -185,7 +185,7 @@ def list_signals(request: Request):
 
 
 @router.post("")
-def save_signal(req: SignalModel, request: Request):
+def save_signal(req: SignalModel, request: Request, create_only: bool = False):
     sig = req.model_dump()
     if sig.get("template") == "late_session_strength":
         from app.strategy.late_session_strength import DEFAULT_PARAMS
@@ -195,7 +195,10 @@ def save_signal(req: SignalModel, request: Request):
         custom_signals.validate(sig)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    custom_signals.save_one(_data_dir(request), sig)
+    try:
+        custom_signals.save_one(_data_dir(request), sig, create_only=create_only)
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail="信号标识已存在。请使用其他标识") from e
     _invalidate(request)
     return {"ok": True, "signal": sig}
 
@@ -289,6 +292,8 @@ def intraday_replay(req: IntradayReplayRequest, request: Request):
         raise HTTPException(status_code=404, detail="信号不存在")
     if sig.get("timeframe") != custom_signals.TIMEFRAME_INTRADAY:
         raise HTTPException(status_code=400, detail="该信号不是盘中(timeframe=intraday)信号")
+    if sig.get("template") in ("s01_late_entry", "s01_morning_exit"):
+        raise HTTPException(status_code=400, detail="S01专用信号须通过绑定策略验证完整市场和持仓上下文")
     if sig.get("template") == "morning_liquidation":
         if req.asset_type != "stock" or not req.positions or len(req.positions) > 200:
             raise HTTPException(status_code=400, detail="早盘清仓回放须提供 1~200 笔带买入日期的股票持仓 positions")

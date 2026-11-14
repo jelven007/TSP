@@ -80,6 +80,7 @@ class TenantStrategyEngine(StrategyEngine):
                 with self.documents.transaction(write=False) as session:
                     task["positions"] = self._holding_positions(session, task)
                     task["selection_snapshots"] = self._saved_selections(session, task)
+                    task["daily_pool_snapshots"] = self._saved_pools(session, task)
             return task
         from app.multitenancy.watchlist import Watchlist
         from app.strategy.config import list_overrides
@@ -110,7 +111,8 @@ class TenantStrategyEngine(StrategyEngine):
             if kind == "strategy" and values.get("as_of") and values.get("strategy_ids"):
                 values = {**values, "positions": self._holding_positions(
                     session, {"overrides": overrides, "signals": signals, **values},
-                ), "selection_snapshots": self._saved_selections(session, values)}
+                ), "selection_snapshots": self._saved_selections(session, values),
+                    "daily_pool_snapshots": self._saved_pools(session, values)}
             return {
                 "kind": kind, "tenant_id": self.documents.context.tenant_id,
                 "administrator": self.administrator,
@@ -129,9 +131,21 @@ class TenantStrategyEngine(StrategyEngine):
         return {sid: saved for sid in task["strategy_ids"] if signal_strategy(self.get(sid))
                 and (saved := store.read(sid, task["as_of"])) is not None}
 
+    def _saved_pools(self, session, task):
+        from app.services.daily_stock_pools import DailyStockPools
+
+        ids = set(task["strategy_ids"])
+        for sid in task["strategy_ids"]:
+            strategy = self.get(sid)
+            if strategy.composite:
+                ids.update(child.strategy_id for child in strategy.composite.children)
+        return DailyStockPools(session).snapshots(ids, task["as_of"])
+
     def _holding_positions(self, session, task: dict) -> dict[str, list[dict]]:
         from app.multitenancy.paper_storage import PaperSession
         from app.strategy.morning_liquidation import holding_snapshot
+        from app.strategy.overnight_runtime import position_snapshot
+        from app.strategy.s01_signals import optional_triggers
 
         morning_columns = {
             "csgi_" + sig["id"] for sig in task["signals"]
@@ -142,7 +156,12 @@ class TenantStrategyEngine(StrategyEngine):
             effective = {**task["overrides"].get(sid, {}),
                          **(task.get("overrides_map") or {}).get(sid, {})}
             exits = self._effective_signals(effective, "exit_signals", self.get(sid).exit_signals)
-            if morning_columns.intersection(exits):
+            if optional_triggers(self.get(sid)):
+                positions[sid] = position_snapshot(
+                    PaperSession(session, session.connection, False), sid,
+                    date.fromisoformat(task["as_of"]),
+                )
+            elif morning_columns.intersection(exits):
                 positions[sid] = holding_snapshot(
                     PaperSession(session, session.connection, False), sid,
                     date.fromisoformat(task["as_of"]),

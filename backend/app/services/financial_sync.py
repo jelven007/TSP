@@ -338,6 +338,8 @@ def _sync_history_table_for_symbols(
     )
     current_symbols = [symbol for symbol in symbols if symbol in existing_symbols]
     latest = _fetch_table(table, current_symbols, capset, latest_only=True)
+    if current_symbols and latest.is_empty():
+        raise RuntimeError(f"{table} 财务源未返回最新数据, 保留已有历史与同步时间")
     merged = _merge_report_history(existing, missing_history, latest)
     return _write_table(table, merged, data_dir)
 
@@ -446,7 +448,7 @@ def get_financial_df(data_dir: Path, table: str) -> pl.DataFrame:
 # ================================================================
 
 class FinancialScheduler:
-    """独立调度器: 每周同步 metrics, 财务表支持手动同步。"""
+    """独立调度器: 每日累积同步五张财务表, 同时支持手动同步。"""
 
     def __init__(self) -> None:
         self._task: asyncio.Task | None = None
@@ -467,7 +469,7 @@ class FinancialScheduler:
 
         auto_schedule=False: 仅初始化 (设置数据目录/能力 + 恢复 last_sync),
             供 /api/financials/sync/* 手动同步使用, 不启动自动调度。
-        auto_schedule=True (默认): 启动每周一次的 metrics 自动同步
+        auto_schedule=True (默认): 启动每日五表自动同步
             (启动后 60s 首跑), 执行前检查自动同步总开关。
         """
         # 先记录 data_dir/capset, 即使当前无 FINANCIAL 也保留引用:
@@ -549,10 +551,10 @@ class FinancialScheduler:
         logger.info("FinancialScheduler stopped")
 
     async def _run_loop(self) -> None:
-        """每周执行一次 metrics 同步。"""
+        """每日执行五表同步, 沿用历史合并和统一发布链路。"""
         try:
             while self._running:
-                # 首次启动等 60s, 之后每 7 天执行一次
+                # 首次启动等 60s, 之后每日执行一次
                 await asyncio.sleep(60)
                 if not self._running:
                     break
@@ -561,13 +563,13 @@ class FinancialScheduler:
                 try:
                     from app.services import preferences
                     if preferences.get_data_sync_auto_enabled():
-                        result = await asyncio.to_thread(self.run_now, "metrics")
-                        logger.info("FinancialScheduler: metrics sync result: %s", result)
+                        result = await asyncio.to_thread(self.run_now)
+                        logger.info("FinancialScheduler: all tables sync result: %s", result)
                 except Exception as e:
-                    logger.warning("FinancialScheduler: metrics sync failed: %s", e)
+                    logger.warning("FinancialScheduler: all tables sync failed: %s", e)
 
-                # 等待下一次 (7天)
-                for _ in range(7 * 24 * 60):  # 每分钟检查一次 _running
+                # 等待下一次 (每天)
+                for _ in range(24 * 60):  # 每分钟检查一次 _running
                     if not self._running:
                         break
                     await asyncio.sleep(60)

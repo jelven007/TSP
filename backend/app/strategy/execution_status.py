@@ -69,3 +69,28 @@ def entry_events_before_deadline(events: list[dict], results: dict, now: datetim
                 continue
         output.append(event)
     return output
+
+
+def expire_late_entries(result: dict, deadlines: dict, now: datetime) -> None:
+    """Fence all new entry outputs before any archive, alert or order is written."""
+    from app.market_time import as_cn_datetime
+
+    observed = as_cn_datetime(now)
+    guards = {sid: {"entry_deadline_at": end} for sid, end in deadlines.items()}
+    for sid, end in deadlines.items():
+        daily = result["results"].get(sid)
+        if daily is None:
+            continue
+        daily["entry_deadline_at"] = end
+        if observed <= as_cn_datetime(datetime.fromisoformat(end)):
+            continue
+        reason = "计算结果提交时已超过当日14:55:00新入场截止"
+        daily.update(rows=[], total=0, execution_status=status("expired", reason))
+        daily["section_statuses"] = {**(daily.get("section_statuses") or {}), "buy": "expired"}
+        daily["section_errors"] = {**(daily.get("section_errors") or {}), "buy": reason}
+        if daily.get("sections") is not None:
+            daily["sections"]["buy"] = []
+    for key in ("events", "execution_events"):
+        result[key] = entry_events_before_deadline(
+            result.get(key, []), {**result["results"], **guards}, now,
+        )

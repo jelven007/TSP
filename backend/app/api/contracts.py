@@ -326,12 +326,14 @@ class StrategyDetailResponse(ContractModel):
     research_only: bool = False
     execution_backend: str
     minute_execution: str | None = None
+    entry_allocation: Literal["equal_selected_v1"] | None = None
     asset_types: list[str]
     timeframes: list[str]
     version: str
     basic_filter: JsonRecord
     params: list[StrategyParam]
     params_defaults: JsonRecord
+    parameter_signals: dict[str, JsonRecord] | None = None
     definition_defaults: JsonRecord | None = None
     scoring: dict[str, float]
     scoring_directions: dict[str, str]

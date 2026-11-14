@@ -15,9 +15,10 @@ interface Props {
   iconClassName?: string
   allowIntraday?: boolean
   selectExisting?: boolean
+  s01Template?: 's01_late_entry' | 's01_morning_exit'
 }
 
-export function SignalTriggerActions({ kind, signals, onChange, buttonClassName, iconClassName, allowIntraday = false, selectExisting = false }: Props) {
+export function SignalTriggerActions({ kind, signals, onChange, buttonClassName, iconClassName, allowIntraday = false, selectExisting = false, s01Template }: Props) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [factorOpen, setFactorOpen] = useState(false)
@@ -77,7 +78,7 @@ export function SignalTriggerActions({ kind, signals, onChange, buttonClassName,
         onSaved={handleSaved}
       />
       {existingOpen && <ExistingSignalDialog kind={kind} signals={signals} allowIntraday={allowIntraday}
-        onChange={onChange} onClose={() => setExistingOpen(false)} />}
+        s01Template={s01Template} onChange={onChange} onClose={() => setExistingOpen(false)} />}
       {factorOpen && (
         <AddFactorSignalDialog
           defaultKind={kind}

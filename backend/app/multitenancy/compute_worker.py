@@ -158,6 +158,7 @@ def execute(payload: dict, private_root: Path) -> dict:
             )
             context.previous_states = payload.get("previous_states")
             context.selection_snapshots = payload.get("selection_snapshots", {})
+            context.daily_pool_snapshots = payload.get("daily_pool_snapshots", {})
             positions = payload.get("positions", {})
             if context.current is not None and context.current.is_empty() and not positions:
                 raise ValueError("无可用行情数据，请稍后重试")

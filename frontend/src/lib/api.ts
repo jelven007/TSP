@@ -371,6 +371,25 @@ export interface StrategyLoadError {
   error: string
 }
 
+export interface StrategyEntryProgressStep {
+  state: 'waiting' | 'success' | 'rejected' | 'skipped' | 'failed'
+  scheduled_at: string
+  started_at?: string | null; finished_at?: string | null; elapsed_ms?: number | null
+  processed: number | null; total: number | null; passed: number | null; missing: number | null
+  reason?: string | null
+  usable?: number; up_pct?: number | null; lower_pct?: number | null; pool_passed?: number
+  first_receipt?: Omit<StrategyEntryProgressStep, 'first_receipt'> | null
+}
+
+export interface StrategyEntryProgress {
+  schema: 'late_session_progress_v1'
+  as_of: string; observed_at: string | null; bar_at: string
+  cohort: 'pool' | 'frozen_selection'
+  params: { pool_up_min_pct: number; change_min_pct: number; change_max_pct: number
+    ma5_1m_count: number; ma5_5m_count: number }
+  steps: Record<'breadth' | 'change' | 'ma1' | 'ma5', StrategyEntryProgressStep>
+}
+
 export interface ScreenerResult {
   as_of: string
   strategy: string | null
@@ -395,11 +414,17 @@ export interface ScreenerResult {
     pool_usable?: number; missing_pct?: number; breadth_policy?: 'available_members_v1'
     pool_up_pct: number | null; pool_up_pct_lower: number | null; pool_up_pct_upper: number | null
     pool_up_min_pct: number; stage: string; warnings: string[]
+    progress?: StrategyEntryProgress | null
   }> | null
   selection_only?: boolean
   selection_snapshot?: {
     as_of: string; source_date: string; generated_at: string; scheduled_for?: string
     rows: any[]; identity?: string; definition_version?: string
+    coverage?: {
+      schema: 'daily_selection_coverage_v1'; source_date: string; scope_total: number
+      available_daily: number; missing_symbols: string[]; complete: boolean
+    } | null
+    warnings?: string[]
   } | null
   state?: { as_of: string; cash: number; positions: any[]; nav: number; complete: boolean } | null
   portfolio_scope?: string | null
@@ -866,6 +891,7 @@ export interface StrategyDetail {
   research_only?: boolean
   execution_backend: 'polars_expr' | 'matrix_native' | 'python_history_legacy' | 'composite' | 'minute_filter'
   minute_execution?: 'overnight_capacity_v1' | 'momentum_capacity_v1' | null
+  entry_allocation?: 'equal_selected_v1' | null
   result_sections?: 'signals'
   asset_types: string[]
   timeframes: string[]
@@ -873,6 +899,8 @@ export interface StrategyDetail {
   basic_filter: Record<string, any>
   params: StrategyParamDef[]
   params_defaults: Record<string, any>
+  parameter_signals?: Partial<Record<'entry' | 'exit', CustomSignal>>
+  optional_triggers?: boolean
   /** 策略定义的原始可编辑配置，与当前生效配置分开，用于本地草稿恢复。 */
   definition_defaults?: Partial<StrategyDetail> | null
   scoring: Record<string, number>
@@ -959,8 +987,9 @@ export interface CustomSignal {
   conditions: CustomSignalCondition[]
   enabled: boolean
   timeframe?: 'daily' | 'intraday'
-  template?: 'late_session_strength' | 'morning_liquidation' | null
-  params?: LateSessionStrengthParams | MorningLiquidationParams
+  template?: 'late_session_strength' | 'morning_liquidation' | 's01_late_entry' | 's01_morning_exit' | null
+  params?: LateSessionStrengthParams | MorningLiquidationParams | S01EntryParams | S01ExitParams
+  error?: string
   min_bars?: number
 }
 
@@ -972,6 +1001,29 @@ export interface LateSessionStrengthParams {
   pool_up_min_pct: number
   ma5_1m_count: number
   ma5_5m_count: number
+}
+
+export interface S01EntryParams {
+  market_validity?: 'price_amount_prev_close_v2' // 新有效证券口径；旧冻结定义不补写
+  time?: string // 旧冻结定义缺字段；编辑时使用14:45:00
+  evaluation_delay_minutes?: number // 页面秒；默认60秒，30～900秒且为30的整数倍
+  current_amount_min: number
+  current_return_min: number
+  current_return_max: number
+  current_range_max: number
+  market_min_valid: number
+  market_positive_min: number
+}
+
+export interface S01ExitParams {
+  vwap_buffer: number
+  peak_profit_min: number
+  peak_retrace_min: number
+  return_15m_max: number
+  decline_3m: number
+  volume_ratio_min: number
+  guard_time: string
+  sell_deadline: string
 }
 
 export interface MorningLiquidationParams {
@@ -1092,6 +1144,7 @@ export interface AbnormalIntradayPayload {
 
 export interface MonitorRule {
   id: string
+  _system_task?: string
   name: string
   enabled: boolean
   type: 'strategy' | 'signal' | 'price' | 'market' | 'ladder' | 'sector' | 'abnormal' | 'volume_delta' | 'date'
@@ -2302,6 +2355,7 @@ export interface DatasetConfig {
   end_param?: string
   asset_type_param?: string | null
   freq_param?: string | null
+  minute_timestamp_label?: 'close' | 'start'
   timeout?: number | null
 }
 
@@ -2777,6 +2831,11 @@ export const api = {
   preferences: () => request<Preferences>(
     multitenancyEnabled() ? '/api/business/preferences' : '/api/settings/preferences',
   ),
+  strategyPool: () => request<{ ids: string[]; revision: number }>('/api/strategies/pool'),
+  strategyPoolSave: (value: { ids: string[]; revision: number; migrate?: boolean }) =>
+    request<{ ids: string[]; revision: number }>('/api/strategies/pool', {
+      method: 'PUT', body: JSON.stringify(value),
+    }),
   strategyConcurrency: () =>
     request<StrategyConcurrencySettings>('/api/settings/strategy-concurrency'),
   updateStrategyConcurrency: (strategy_concurrency: number | null) =>
@@ -3853,7 +3912,7 @@ export const api = {
   pipelineJobCancel: (id: string) =>
     request<{ cancelled: string }>(`/api/pipeline/jobs/${id}/cancel`, { method: 'POST' }),
   pipelineJobs: (limit = 20) =>
-    request<{ active_id: string | null; jobs: PipelineJobSummary[] }>(
+    request<{ active_id: string | null; jobs: PipelineJobSummary[]; post_close_integrity?: PostCloseIntegrityStatus }>(
       `/api/pipeline/jobs?limit=${limit}`,
     ),
 
@@ -4438,8 +4497,8 @@ export const api = {
   customSignalsOptions: () =>
     request<CustomSignalOptions>('/api/custom-signals/options'),
 
-  customSignalSave: (signal: CustomSignal) =>
-    request<{ ok: boolean; signal: CustomSignal }>('/api/custom-signals', {
+  customSignalSave: (signal: CustomSignal, options?: { createOnly?: boolean }) =>
+    request<{ ok: boolean; signal: CustomSignal }>(`/api/custom-signals${options?.createOnly ? '?create_only=true' : ''}`, {
       method: 'POST',
       body: JSON.stringify(signal),
     }),
@@ -4835,6 +4894,30 @@ export const api = {
 }
 
 // ===== Pipeline =====
+export interface PostCloseIntegrityStatus {
+  available: boolean
+  schedule_registered?: boolean
+  next_run_at?: string | null
+  enabled?: boolean
+  scheduled_time: string
+  timezone: string
+  today: string
+  is_trading_day?: boolean | null
+  day?: string
+  status: string
+  job_id?: string
+  attempts?: number
+  updated_at?: string
+  error?: string | null
+  next_retry_at?: string | null
+  result?: {
+    day?: string
+    repaired_symbols?: string[]
+    data_release_id?: string
+    gap_check?: { rows?: number; remaining?: number; warning?: string; gap_check_warning?: string }
+  }
+}
+
 export interface PipelineJob {
   id: string
   schema_version?: number

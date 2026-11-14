@@ -40,6 +40,7 @@ class DatasetConfig:
     # realtime 比例字段(change_pct/amplitude/turnover_rate)的单位声明:
     # "percent"(返回 3.66 表示 3.66%)或 "decimal"(返回 0.0366 表示 3.66%)。
     pct_unit: str | None = None
+    minute_timestamp_label: str = "close"
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,9 @@ def _dataset_from_dict(raw: dict[str, Any]) -> DatasetConfig:
     pct_unit = str(raw.get("pct_unit") or "").strip().lower() or None
     if pct_unit not in (None, "percent", "decimal"):
         raise ValueError(f"pct_unit must be 'percent' or 'decimal', got {pct_unit!r}")
+    minute_timestamp_label = str(raw.get("minute_timestamp_label") or "close").strip().lower()
+    if minute_timestamp_label not in ("close", "start"):
+        raise ValueError("minute_timestamp_label must be 'close' or 'start'")
 
     return DatasetConfig(
         url=str(raw.get("url", "") or ""),
@@ -99,6 +103,7 @@ def _dataset_from_dict(raw: dict[str, Any]) -> DatasetConfig:
         asset_type_param=(str(raw.get("asset_type_param") or "").strip() or None),
         freq_param=(str(raw.get("freq_param") or "").strip() or None),
         pct_unit=pct_unit,
+        minute_timestamp_label=minute_timestamp_label,
     )
 
 

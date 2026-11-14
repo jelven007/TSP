@@ -425,7 +425,7 @@ it('keeps amount and percentage drafts separate and limits pool order to strateg
 
 it('previews stored backtest differences, imports drafts and saves fees independently', async () => {
   window.localStorage.setItem('strategy-backtest-last', JSON.stringify({
-    defaultsVersion: 1, selectedStrategy: 's-one', maxPositions: '5', maxExposure: '80',
+    defaultsVersion: 2, selectedStrategy: 's-one', maxPositions: '5', maxExposure: '80',
     positionSizing: 'equal', mode: 'position', entryFill: 'open_t+1', exitFill: 'close_t',
     fees: '2.5', stampTax: '', minimumCommission: '3', transferFee: '0.1', slippage: '7',
   }))

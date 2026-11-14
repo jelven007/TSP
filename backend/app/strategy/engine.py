@@ -7,10 +7,12 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import logging
 import sys
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
@@ -176,6 +178,7 @@ class StrategyDataContext:
     suspension_history: pl.DataFrame | None = None
     # Persisted eligibility for this exact trading session, injected by storage owners.
     selection_snapshots: dict[str, dict] | None = None
+    daily_pool_snapshots: dict[str, dict] | None = None
     intraday_errors: list[str] = field(default_factory=list)
     intraday_data_quality: dict[str, dict] = field(default_factory=dict)
     input_errors: list[str] = field(default_factory=list)
@@ -183,6 +186,8 @@ class StrategyDataContext:
     exit_errors: list[str] = field(default_factory=list)
     evaluated_exit_hits: list[dict] = field(default_factory=list)
     realtime: bool = False
+    # Local repository callback, never serialized into a task or result.
+    holding_history_loader: Callable | None = None
 
 
 @dataclass(frozen=True)
@@ -289,6 +294,8 @@ class StrategyEngine:
         self._strategy_dirs = strategy_dirs or []
         self._realtime_matrices: dict[str, _RealtimeMatrixEntry] = {}
         self._realtime_matrix_lock = threading.RLock()
+        self._progress_log_lock = threading.Lock()
+        self._progress_log_states: OrderedDict[tuple, tuple] = OrderedDict()
         # 可选的 override 加载器: 叠加策略执行时用它查子策略的用户覆盖配置,
         # 保证 composite 内跑子策略与单独跑子策略使用同一口径(CONTRIBUTING §5.1)。
         # None 时(测试/无 data_dir) 子策略用默认参数, 不报错。
@@ -798,7 +805,15 @@ class StrategyEngine:
                 if effective_strategy_scoring(strategy.meta, override).get("change_pct"):
                     required = max(required, 2)
                 conditions = overlay.effective_conditions(override)
-                if conditions and not strategy.meta.get("minute_execution"):
+                from app.strategy.s01_signals import optional_triggers
+                if optional_triggers(strategy):
+                    from app.backtest.minute_replay import minute_replay_feature_plan
+                    required = max(required, minute_replay_feature_plan(
+                        strategy.minute_daily_bars, overrides={
+                            "entry_signals": strategy.entry_signals,
+                            "exit_signals": strategy.exit_signals, **(override or {}),
+                        }).warmup_bars + 1)
+                if conditions and (not strategy.meta.get("minute_execution") or optional_triggers(strategy)):
                     # Leave room for today's row while evaluating the previous
                     # completed session and its rolling daily window.
                     required = max(required, overlay.warmup_bars(conditions) + 1)
@@ -993,12 +1008,23 @@ class StrategyEngine:
         self, strategy_id: str, context: StrategyDataContext,
         pool: list[str] | None = None, params: dict | None = None, overrides: dict | None = None,
     ) -> StrategyResult:
-        from app.strategy.daily_pool import build_pool
+        from app.strategy.daily_pool import build_pool, scope_context
         self.validate_context(self.get(strategy_id), context)
         has_rows = any(frame is not None and not frame.is_empty()
                        for frame in (context.current, context.pool_history, context.daily_history, context.history))
-        daily_pool, pool_error = None, None
-        if has_rows:
+        daily_pool = (context.daily_pool_snapshots or {}).get(strategy_id)
+        loader = getattr(self, "_daily_pool_loader", None)
+        if daily_pool is None and callable(loader):
+            daily_pool = loader(strategy_id, context.as_of)
+        pool_error = None
+        if daily_pool is not None:
+            symbols = daily_pool.get("symbols")
+            if (daily_pool.get("strategy_id") != strategy_id
+                    or daily_pool.get("as_of") != str(context.as_of)
+                    or not isinstance(symbols, list)
+                    or daily_pool.get("total") != len(set(symbols))):
+                raise ValueError("当日股票池身份、日期或完整成员数量不匹配")
+        elif has_rows and context.asset_type == "stock":
             try:
                 daily_pool = build_pool(self, strategy_id, context, overrides=overrides)
             except ValueError as exc:
@@ -1025,6 +1051,9 @@ class StrategyEngine:
         execution_context = replace(context, intraday_errors=[], intraday_data_quality={},
                                     reference_errors=dict(context.reference_errors),
                                     exit_errors=[], evaluated_exit_hits=[])
+        holding_context = execution_context
+        if daily_pool is not None and strategy.execution_backend != "composite":
+            execution_context = scope_context(execution_context, daily_pool["symbols"])
         if signal_sections:
             execution_context = replace(execution_context, selection_snapshots={
                 **(context.selection_snapshots or {}), strategy_id: selection or {"rows": []},
@@ -1038,7 +1067,7 @@ class StrategyEngine:
         try:
             result = self._run_strategy(
                 strategy_id, execution_context, pool=pool, params=params,
-                overrides=execution_overrides, daily_pool=daily_pool,
+                overrides=execution_overrides, daily_pool=daily_pool, holding_context=holding_context,
             )
         except Exception as exc:
             if not signal_sections:
@@ -1051,6 +1080,30 @@ class StrategyEngine:
             )
         if execution_context.intraday_errors:
             result.entry_filter_error = "; ".join(execution_context.intraday_errors)
+        if pool_error:
+            result.entry_filter_error = pool_error
+        if signal_sections and not execution_context.intraday_data_quality:
+            from app.strategy import custom_signals
+            from app.strategy.late_session_strength import TEMPLATE, failed_progress, progress_plan
+
+            storage = self._user_data_dir()
+            requested = set(self._effective_signals(overrides or {}, "entry_signals", strategy.entry_signals))
+            for sig in custom_signals.load_intraday_all(storage) if storage is not None else []:
+                column = custom_signals.intraday_column_name(sig["id"])
+                if sig.get("template") != TEMPLATE or column not in requested:
+                    continue
+                progress = progress_plan(
+                    sig, context.as_of, context.observed_at or context.completed_through,
+                    diagnostic_symbols=[row["symbol"] for row in (selection or {"rows": []})["rows"]],
+                )
+                reason = result.entry_filter_error or selection_error or "缺少分钟行情, 等待有效输入"
+                if (progress["observed_at"] is None
+                        or progress["observed_at"] >= progress["steps"]["breadth"]["scheduled_at"]):
+                    failed_progress(progress, reason)
+                execution_context.intraday_data_quality[column] = self._missing_entry_quality(
+                    progress, daily_pool["symbols"] if daily_pool else None,
+                )
+                self._log_entry_progress(column, progress)
         result.entry_data_quality = execution_context.intraday_data_quality or None
         if execution_context.exit_errors:
             result.exit_filter_error = "; ".join(execution_context.exit_errors)
@@ -1121,6 +1174,7 @@ class StrategyEngine:
         params: dict | None = None,
         overrides: dict | None = None,
         daily_pool: dict | None = None,
+        holding_context: StrategyDataContext | None = None,
     ) -> StrategyResult:
         """执行策略: 基础过滤 → 策略过滤 → 评分排序
 
@@ -1132,23 +1186,37 @@ class StrategyEngine:
             overrides:          用户覆盖配置 (params/basic_filter/scoring/stop_loss 等)
         """
         t0 = time.perf_counter()
+        holding_context = holding_context or context
 
         s = self.get(strategy_id)
         self.validate_context(s, context)
         as_of = context.as_of
         overrides = overrides or {}
         conditions = overlay.effective_conditions(overrides)
-        if conditions and s.execution_backend == "minute_filter" and s.meta.get("minute_execution"):
+        from app.strategy.s01_signals import optional_triggers
+        if (conditions and s.execution_backend == "minute_filter"
+                and s.meta.get("minute_execution") and not optional_triggers(s)):
             raise ValueError("专用分钟执行暂不支持入场叠加条件, 请使用策略自身的参数")
         params = self.resolve_params(s, params, overrides)
+        from app.strategy.s01_signals import (
+            bound_definitions,
+            optional_triggers,
+            resolve_parameters,
+            trigger_definitions,
+        )
+
+        selectable = optional_triggers(s)
+        selected_triggers = trigger_definitions(self, s, overrides) if selectable else None
+        parameter_signals = bound_definitions(self, s, overrides=overrides)
+        params = resolve_parameters(self, s, params, definitions=parameter_signals)
         from app.strategy.morning_liquidation import selected_definitions
 
         morning_signals = selected_definitions(
             self, self._effective_signals(overrides, "exit_signals", s.exit_signals),
         )
-        if morning_signals and (s.execution_backend != "minute_filter" or s.meta.get("minute_execution")):
+        if morning_signals and not selectable and (s.execution_backend != "minute_filter" or s.meta.get("minute_execution")):
             raise ValueError("早盘清仓仅支持通用分钟策略, 专用分钟执行规则暂不支持")
-        if s.meta.get("minute_execution") and any(
+        if s.meta.get("minute_execution") and not selectable and not parameter_signals and any(
             str(name).startswith("csgi_")
             for name in self._effective_signals(overrides, "entry_signals", s.entry_signals)
         ):
@@ -1172,7 +1240,7 @@ class StrategyEngine:
                 selected = self._apply_basic_filter(selected, bf, history=context.daily_history, as_of=as_of)
             if pool is not None and not selected.is_empty():
                 selected = selected.filter(pl.col("symbol").is_in(pool))
-            computed = run_day(context, params, selected,
+            computed = run_day(holding_context, params, selected,
                                previous_state=previous)
             return StrategyResult(
                 as_of=as_of, strategy_id=strategy_id, rows=computed["rows"], total=computed["total"],
@@ -1184,6 +1252,9 @@ class StrategyEngine:
             )
         entry_signals = self._effective_signals(overrides, "entry_signals", s.entry_signals)
         exit_signals = self._effective_signals(overrides, "exit_signals", s.exit_signals)
+        if parameter_signals and not selectable:
+            # S01 owns market/holding evaluation; these references supply its parameters.
+            entry_signals, exit_signals = [], []
         if s.execution_backend != "minute_filter" and any(
             str(name).startswith("csgi_") for name in entry_signals + exit_signals
         ):
@@ -1202,6 +1273,8 @@ class StrategyEngine:
             )
 
         if s.execution_backend == "composite":
+            if daily_pool is not None:
+                pool = [symbol for symbol in daily_pool["symbols"] if pool is None or symbol in pool]
             return self._run_composite_strategy(
                 strategy_id,
                 s,
@@ -1214,11 +1287,8 @@ class StrategyEngine:
 
         scoring = effective_strategy_scoring(s.meta, overrides)
         scoring_directions = effective_scoring_directions(overrides)
-        current, history = self._materialize_scoring_frames(
-            context.current,
-            context.history,
-            scoring,
-        )
+        current, history = ((context.current, context.history) if selectable else
+                            self._materialize_scoring_frames(context.current, context.history, scoring))
 
         signal_df = current if current is not None else history
         if signal_df is None:
@@ -1229,7 +1299,7 @@ class StrategyEngine:
             signal_df = signal_df.filter(pl.col("symbol").is_in(pool))
         exit_signal_hits = self._collect_signal_hits(signal_df, exit_signals)
         context.evaluated_exit_hits = exit_signal_hits
-        if morning_signals:
+        if morning_signals and not selectable:
             from app.market_time import cn_now, cn_today
             from app.strategy.late_session_strength import previous_closes
             from app.strategy.morning_liquidation import evaluate
@@ -1244,10 +1314,10 @@ class StrategyEngine:
                             raise ValueError("早盘清仓历史执行需要明确评估时间")
                         now = cn_now()
                     result = evaluate(
-                        history, sig, day=as_of, now=now, positions=context.positions,
+                        holding_context.history, sig, day=as_of, now=now, positions=context.positions,
                         prev_close=previous_closes(
-                            context, exact_session="amplitude_pct" not in (sig.get("params") or {}),
-                        ), quotes=current,
+                            holding_context, exact_session="amplitude_pct" not in (sig.get("params") or {}),
+                        ), quotes=holding_context.current,
                         suspension_history=context.suspension_history,
                     )
                     if result.diagnostics:
@@ -1258,10 +1328,17 @@ class StrategyEngine:
                     )
                 except Exception as exc:
                     context.exit_errors.append(str(exc))
-        if s.meta.get("minute_execution") == "overnight_capacity_v1":
+        if selectable:
+            from app.strategy.s01_signals import optional_exit_hits
+            exit_signal_hits = optional_exit_hits(
+                self, s, holding_context, params, selected_triggers["exit"], overrides=overrides)
+        elif s.meta.get("minute_execution") == "overnight_capacity_v1":
             from app.strategy.overnight_runtime import exit_hits
 
-            exit_signal_hits = exit_hits(context, params)
+            exit_signal_hits = exit_hits(holding_context, params)
+            if parameter_signals:
+                for hit in exit_signal_hits:
+                    hit["signals"] = ["csgi_" + parameter_signals["exit"]["id"]]
 
         # 普通策略只读目标日期；历史策略读取调用方注入的历史窗口。
         if s.execution_backend == "minute_filter":
@@ -1286,6 +1363,10 @@ class StrategyEngine:
                 history, context=context,
                 pool_symbols=daily_pool["symbols"] if daily_pool is not None else None,
                 requested_signals=set(entry_signals) | set(s.required_features),
+                diagnostic_symbols=(
+                    [row["symbol"] for row in context.selection_snapshots[strategy_id]["rows"]]
+                    if strategy_id in (context.selection_snapshots or {}) else None
+                ),
             )
             # Build market-wide signal features first; eligibility only limits entries.
             frozen = (context.selection_snapshots or {}).get(strategy_id)
@@ -1305,7 +1386,30 @@ class StrategyEngine:
             arguments = {"daily": context.daily_history} if s.minute_daily_bars > 0 else {}
             if s.minute_selection_snapshot:
                 arguments["selection"] = frozen
-            df = s.filter_minute_history_fn(history, params, **arguments)
+            from app.strategy.s01_signals import timed_entry
+
+            timed = parameter_signals.get("entry")
+            if timed and "time" in timed.get("params", {}):
+                entries = selected_triggers["entry"] if selectable else []
+                if selectable and len(entries) > 1:
+                    frames = [timed_entry(sig, history, context, params, candidates_only=True)
+                              for sig in entries if sig.get("template") == "s01_late_entry"
+                              and "time" in sig.get("params", {})]
+                    if any(sig.get("template") != "s01_late_entry"
+                           or "time" not in sig.get("params", {}) for sig in entries):
+                        frames.append(s.filter_minute_history_fn(
+                            history, {**params, "_s01_skip_entry": True}, **arguments))
+                    df = pl.concat(frames, how="diagonal_relaxed").unique(
+                        "symbol", keep="last", maintain_order=True)
+                else:
+                    df = timed_entry(timed, history, context, params).with_columns(
+                        pl.lit(True).alias("csgi_" + timed["id"]))
+            else:
+                df = s.filter_minute_history_fn(
+                    history, {**params, "_s01_skip_entry": True} if selectable else params, **arguments)
+            if selectable:
+                from app.strategy.s01_signals import entry_frame
+                df = entry_frame(self, s, df, history, context, params, selected_triggers["entry"])
             # Minute strategies commonly project only their display columns.
             # Restore trigger columns at the row's actual signal close label.
             time_column = "last_datetime" if "last_datetime" in df.columns else "datetime"
@@ -1322,6 +1426,19 @@ class StrategyEngine:
             # 在命中结果上事后联表, 避免把 enriched 列铺到全市场分钟行上。
             if current is not None and not current.is_empty():
                 df = self._join_basic_columns(df, current)
+            if selectable and scoring:
+                from app.strategy.basic_filter import previous_session
+                names = [name for name, weight in scoring.items()
+                         if weight and name != "change_pct"]
+                reference = context.daily_history
+                if names and reference is not None and not reference.is_empty():
+                    reference = reference.filter(pl.col("date") < as_of).sort("symbol", "date")
+                    reference = materialize_scoring_columns(reference, names)
+                    columns = [name for name in names if name in reference.columns]
+                    if columns:
+                        values = reference.filter(pl.col("date") == previous_session(as_of)).select(
+                            "symbol", *columns).unique("symbol", keep="last")
+                        df = df.drop(columns, strict=False).join(values, on="symbol", how="left")
             if scoring.get("change_pct") and "close" in df.columns:
                 from app.strategy.basic_filter import previous_session
 
@@ -1452,7 +1569,8 @@ class StrategyEngine:
             s.filter_history_fn or s.filter_fn or s.execution_backend == "minute_filter"
         ):
             entry_signal_hits = [
-                {"symbol": str(symbol), "signals": []}
+                {"symbol": str(symbol), "signals": (
+                    ["csgi_" + parameter_signals["entry"]["id"]] if parameter_signals and not selectable else [])}
                 for symbol in df["symbol"].cast(pl.Utf8).unique().to_list()
             ]
 
@@ -1704,6 +1822,7 @@ class StrategyEngine:
             ("amount", "amount"),
             ("turnover", "turnover_rate"),
             ("change_pct", "change_pct"),
+            ("amplitude", "amplitude"),
         ):
             if (
                 basic_filter.get(f"{prefix}_min") is not None
@@ -1936,6 +2055,8 @@ class StrategyEngine:
             as_of=context.as_of,
             strategy_id=strategy_id,
         )
+        if pool is not None:
+            merged.scores = {symbol: score for symbol, score in merged.scores.items() if symbol in pool}
         conditions = overlay.effective_conditions(overrides)
         if conditions and merged.scores:
             source = context.current if context.current is not None else context.history
@@ -2104,6 +2225,7 @@ class StrategyEngine:
         self, minute_df: pl.DataFrame, *, context: StrategyDataContext | None = None,
         pool_symbols: list[str] | None = None,
         requested_signals: set[str] | None = None,
+        diagnostic_symbols: list[str] | None = None,
     ) -> pl.DataFrame:
         """向当日分钟K帧注入自定义盘中信号列(csgi_, 当日条件上升沿)。
 
@@ -2114,8 +2236,9 @@ class StrategyEngine:
             context.intraday_errors.clear()
         if minute_df is None or minute_df.is_empty() or "datetime" not in minute_df.columns:
             return minute_df
-        data_dir = self._user_data_dir()
-        if data_dir is None:
+        data_dir = getattr(self, "documents", None) or self._user_data_dir()
+        from app.strategy import custom_signals
+        if data_dir is None and custom_signals.scoped_definitions() is None:
             return minute_df
         try:
             from app.strategy import custom_signals
@@ -2129,7 +2252,18 @@ class StrategyEngine:
             if minute_df.schema["datetime"].time_zone:
                 normalized = minute_df.with_columns(
                     pl.col("datetime").dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None))
-            frame = build_feature_frame(normalized)
+            previous = None
+            if context is not None and any(
+                condition.get("left") == "pct_vs_prev_close"
+                or condition.get("right") == "pct_vs_prev_close"
+                for sig in definitions
+                if requested_signals is None
+                or custom_signals.intraday_column_name(sig["id"]) in requested_signals
+                for condition in sig.get("conditions", [])
+            ):
+                from app.strategy.late_session_strength import previous_closes
+                previous = previous_closes(context, isolate_symbols=True)
+            frame = build_feature_frame(normalized, prev_close=previous)
             if frame.is_empty():
                 return minute_df
             evaluated = custom_signals.apply_intraday_edges(frame, exprs).select(
@@ -2143,8 +2277,10 @@ class StrategyEngine:
                 bar_time,
                 evaluate,
                 evaluation_time,
+                failed_progress,
                 parameters,
                 previous_closes,
+                progress_plan,
             )
 
             for sig in definitions:
@@ -2156,11 +2292,20 @@ class StrategyEngine:
                 if context is None:
                     output = output.with_columns(pl.lit(False).alias(column))
                     continue
-                result = evaluate(
-                    minute_df, sig, day=context.as_of, pool_symbols=pool_symbols,
-                    prev_close=previous_closes(context, isolate_symbols=True),
-                    completed_through=context.observed_at or context.completed_through,
-                )
+                observed = context.observed_at or context.completed_through
+                try:
+                    result = evaluate(
+                        minute_df, sig, day=context.as_of, pool_symbols=pool_symbols,
+                        prev_close=previous_closes(context, isolate_symbols=True),
+                        completed_through=observed, diagnostic_symbols=diagnostic_symbols,
+                    )
+                except Exception as exc:
+                    progress = failed_progress(progress_plan(
+                        sig, context.as_of, observed, diagnostic_symbols=diagnostic_symbols,
+                    ), str(exc))
+                    context.intraday_data_quality[column] = self._missing_entry_quality(progress, pool_symbols)
+                    self._log_entry_progress(column, progress)
+                    raise
                 context.intraday_data_quality[column] = {
                     "pool_total": result.pool_total,
                     "pool_usable": result.pool_usable,
@@ -2176,7 +2321,9 @@ class StrategyEngine:
                     "stage": result.stage,
                     "warnings": result.warnings,
                     "reference_errors": context.reference_errors,
+                    "progress": result.progress,
                 }
+                self._log_entry_progress(column, result.progress)
                 if result.diagnostics:
                     logger.warning("%s", "; ".join(result.diagnostics))
                     context.intraday_errors.extend(result.diagnostics)
@@ -2194,6 +2341,36 @@ class StrategyEngine:
         except Exception as e:
             logger.warning("intraday signal inject failed: %s", e)
             raise ValueError(f"盘中信号计算失败: {e}") from e
+
+    @staticmethod
+    def _missing_entry_quality(progress: dict, pool_symbols: list[str] | None) -> dict:
+        return {
+            "progress": progress, "pool_total": len(set(pool_symbols or [])),
+            "known_positive": 0, "missing_symbols": [], "pool_up_pct": None,
+            "pool_up_pct_lower": None, "pool_up_pct_upper": None,
+            "pool_up_min_pct": progress["params"]["pool_up_min_pct"],
+            "stage": "waiting_data", "warnings": [],
+        }
+
+    def _log_entry_progress(self, signal: str, progress: dict) -> None:
+        """Bounded state deduplication, not a cache of market or strategy results."""
+        for key, step in progress["steps"].items():
+            identity = (signal, progress["as_of"], progress["cohort"], key)
+            signature = (tuple(sorted(progress["params"].items())), *(step.get(name) for name in (
+                "state", "scheduled_at", "processed", "total", "passed", "missing",
+                "up_pct", "pool_passed", "reason",
+            )))
+            with self._progress_log_lock:
+                if self._progress_log_states.get(identity) == signature:
+                    continue
+                self._progress_log_states[identity] = signature
+                self._progress_log_states.move_to_end(identity)
+                while len(self._progress_log_states) > 256:
+                    self._progress_log_states.popitem(last=False)
+            logger.info("late_session_progress %s", json.dumps({
+                "signal": signal, "as_of": progress["as_of"], "cohort": progress["cohort"],
+                "step": key, "params": progress["params"], **step,
+            }, ensure_ascii=False, separators=(",", ":")))
 
     @staticmethod
     def _join_basic_columns(df: pl.DataFrame, current: pl.DataFrame) -> pl.DataFrame:

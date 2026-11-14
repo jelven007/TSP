@@ -14,6 +14,7 @@ import { OverlayFilterEditor } from './OverlayFilterEditor'
 import { StrategyParamGroups } from '@/components/StrategyParamGroups'
 import { applyParamValue } from '@/lib/strategyParams'
 import { OvernightExecutionSummary } from '@/components/OvernightExecutionSummary'
+import { parameterSignalValues } from '@/lib/customSignals'
 import { BasicFilterEditor, ALL_BOARDS } from './BasicFilterEditor'
 import { validateBasicFilter } from '@/lib/strategyBasicFilter'
 import { StockScopeEditor } from './StockScopeEditor'
@@ -587,7 +588,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
 
                   {/* 列2：策略参数 */}
                   <div className="space-y-3">
-                    {(detail.execution_backend !== 'minute_filter' || !detail.minute_execution) && (
+                    {(detail.execution_backend !== 'minute_filter' || !detail.minute_execution || detail.optional_triggers) && (
                       <Section icon={Filter} title="入场叠加条件" accent="text-accent">
                         {detail.execution_backend === 'minute_filter' && (
                           <p className="text-[10px] leading-4 text-muted">
@@ -613,8 +614,10 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
 
                   {/* 列3：评分 + 交易 */}
                   <div className="space-y-3">
-                    {['overnight_capacity_v1', 'momentum_capacity_v1'].includes(detail.minute_execution ?? '') ? (
-                      <OvernightExecutionSummary params={params} momentum={detail.minute_execution === 'momentum_capacity_v1'} />
+                    {!detail.optional_triggers && ['overnight_capacity_v1', 'momentum_capacity_v1'].includes(detail.minute_execution ?? '') ? (
+                      <OvernightExecutionSummary params={{ ...params, ...parameterSignalValues(detail.parameter_signals) }}
+                        entryAllocation={detail.entry_allocation}
+                        parameterSignals={!!detail.parameter_signals} optionalTriggers={detail.optional_triggers} momentum={detail.minute_execution === 'momentum_capacity_v1'} />
                     ) : <>
                     <Section icon={Star} title="评分权重" accent="text-amber-400">
                       {detail.scoring_mode === 'strategy' ? <p className="text-[11px] text-muted">
@@ -632,7 +635,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                     </Section>
                     <Section icon={TrendingUp} title="交易参数" accent="text-emerald-400">
                       <div className="space-y-2">
-                        <p className="text-[11px] text-muted leading-4">统一输入百分数，例如 6 表示 6%；留空关闭。分钟专用策略的退出规则由策略参数管理。</p>
+                        <p className="text-[11px] text-muted leading-4">统一输入百分数，例如 6 表示 6%；留空关闭。风控与所选出场触发器独立判断，最早触发者生效。</p>
                         <PercentField label="固定止损" value={stopLoss} onChange={v => setStopLoss(v == null ? null : -v)} />
                         <PercentField label="固定止盈" value={takeProfit} onChange={setTakeProfit} min={1} max={500} />
                         <PercentField label="移动止损" value={trailingStop} onChange={v => setTrailingStop(v == null ? null : -v)} min={0.5} />
@@ -643,7 +646,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                           <span className="text-[11px] text-secondary w-12 shrink-0">持有</span>
                           <input type="number" aria-label="最长持有" placeholder="关闭" value={maxHoldDays ?? ''} onChange={e => setMaxHoldDays(e.target.value === '' ? null : Number(e.target.value))} step={1} min={1}
                             className="w-16 h-6 px-1.5 rounded bg-base border border-border text-[11px] font-mono text-foreground text-center focus:outline-none focus:border-accent/50" />
-                          <span className="text-[10px] text-muted">天</span>
+                          <span className="text-[10px] text-muted">交易日</span>
                         </div>
                         <div className="text-[11px] text-muted pt-1 border-t border-border/10">
                           <span className="text-secondary">入场 </span><span className="text-foreground/70">{entrySignals.length > 0 ? `${entrySignals.length} 个触发器` : '无'}</span>
@@ -679,31 +682,33 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                       </div>
                     </Section>
 
+                    </>}
+                    {(!detail.minute_execution || detail.parameter_signals || detail.optional_triggers) && <>
                     <Section
                       icon={TrendingUp}
                       title="入场触发器"
                       accent="text-accent"
-                      defaultOpen={false}
-                      extra={<SignalTriggerActions selectExisting kind="entry" signals={entrySignals} onChange={setEntrySignals} allowIntraday={detail.execution_backend === 'minute_filter' && !detail.minute_execution} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
+                      defaultOpen={!!detail.parameter_signals || detail.optional_triggers}
+                      extra={<SignalTriggerActions selectExisting kind="entry" signals={entrySignals} onChange={setEntrySignals} s01Template={detail.parameter_signals || detail.optional_triggers ? 's01_late_entry' : undefined} allowIntraday={detail.execution_backend === 'minute_filter'} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
                     >
-                      <SignalPicker signals={entrySignals} onChange={setEntrySignals} kind="entry" options={{ variant: 'dialog', allowIntraday: detail.execution_backend === 'minute_filter' && !detail.minute_execution }} />
-                      <div className="text-[10px] leading-4 text-muted/70">任一入场点满足即进入候选。</div>
+                      <SignalPicker signals={entrySignals} onChange={setEntrySignals} kind="entry" options={{ variant: 'dialog', allowIntraday: detail.execution_backend === 'minute_filter', s01Template: detail.parameter_signals || detail.optional_triggers ? 's01_late_entry' : undefined }} />
+                      <div className="text-[10px] leading-4 text-muted/70">任一入场点满足即进入候选。{detail.optional_triggers && '可多选；不选时按基础选股结果入场，所选S01信号独立读取其参数。'}</div>
                     </Section>
 
                     <Section
                       icon={TrendingUp}
                       title="出场触发器"
                       accent="text-warning"
-                      defaultOpen={false}
-                      extra={<SignalTriggerActions selectExisting kind="exit" signals={exitSignals} onChange={setExitSignals} allowIntraday={detail.execution_backend === 'minute_filter' && !detail.minute_execution} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
+                      defaultOpen={!!detail.parameter_signals || detail.optional_triggers}
+                      extra={<SignalTriggerActions selectExisting kind="exit" signals={exitSignals} onChange={setExitSignals} s01Template={detail.parameter_signals || detail.optional_triggers ? 's01_morning_exit' : undefined} allowIntraday={detail.execution_backend === 'minute_filter'} buttonClassName="rounded-md border border-border bg-base p-1 text-muted transition-colors cursor-pointer" iconClassName="h-3 w-3" />}
                     >
-                      <SignalPicker signals={exitSignals} onChange={setExitSignals} kind="exit" options={{ variant: 'dialog', allowIntraday: detail.execution_backend === 'minute_filter' && !detail.minute_execution }} />
-                      <div className="text-[10px] leading-4 text-muted/70">任一出场点满足即触发出场。</div>
+                      <SignalPicker signals={exitSignals} onChange={setExitSignals} kind="exit" options={{ variant: 'dialog', allowIntraday: detail.execution_backend === 'minute_filter', s01Template: detail.parameter_signals || detail.optional_triggers ? 's01_morning_exit' : undefined }} />
+                      <div className="text-[10px] leading-4 text-muted/70">任一出场点满足即触发出场。{detail.optional_triggers && '可多选；不选时不触发信号卖出，所选S01信号独立读取其参数。'}</div>
                     </Section>
 
-                    <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2 text-[10px] leading-4 text-muted">
+                    {!detail.parameter_signals && <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] px-3 py-2 text-[10px] leading-4 text-muted">
                       入场叠加条件对选股、回测和监控统一生效。出场触发器及风控退出独立执行。
-                    </div>
+                    </div>}
                     </>}
                   </div>
                 </div>

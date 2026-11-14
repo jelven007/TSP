@@ -4,7 +4,7 @@ import { Check, Loader2, Search, X } from 'lucide-react'
 import { Modal } from '@/components/Modal'
 import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { customSignalColumn, lateSessionSummary, morningLiquidationSummary } from '@/lib/customSignals'
+import { customSignalColumn, isS01Signal, lateSessionSummary, morningLiquidationSummary, s01SignalSummary } from '@/lib/customSignals'
 
 interface Props {
   kind: 'entry' | 'exit'
@@ -12,16 +12,18 @@ interface Props {
   allowIntraday: boolean
   onChange: (signals: string[]) => void
   onClose: () => void
+  s01Template?: 's01_late_entry' | 's01_morning_exit'
 }
 
-export function ExistingSignalDialog({ kind, signals, allowIntraday, onChange, onClose }: Props) {
+export function ExistingSignalDialog({ kind, signals, allowIntraday, onChange, onClose, s01Template }: Props) {
   const [draft, setDraft] = useState(() => [...signals])
   const [search, setSearch] = useState('')
   const query = useQuery({ queryKey: QK.customSignals, queryFn: api.customSignalsList })
   const label = kind === 'entry' ? '入场' : '出场'
   const keyword = search.trim().toLowerCase()
   const list = (query.data?.signals ?? []).filter(signal =>
-    (signal.kind === kind || signal.kind === 'both')
+    (!isS01Signal(signal) || signal.template === s01Template)
+    && (signal.kind === kind || signal.kind === 'both')
     && (!keyword || `${signal.name} ${signal.id}`.toLowerCase().includes(keyword)))
   const toggle = (id: string) => setDraft(previous =>
     previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id])
@@ -30,7 +32,7 @@ export function ExistingSignalDialog({ kind, signals, allowIntraday, onChange, o
       <div className="modal-header flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">选择已有{label}信号</h3>
-          <p className="mt-1 text-[11px] text-muted">来自信号页，可多选；应用后点击“保存设置”生效。</p>
+          <p className="mt-1 text-[11px] text-muted">来自信号页，可多选或取消选择；应用后点击“保存设置”生效。</p>
         </div>
         <button type="button" onClick={onClose} aria-label="关闭信号选择" className="modal-close"><X className="h-4 w-4" /></button>
       </div>
@@ -49,7 +51,8 @@ export function ExistingSignalDialog({ kind, signals, allowIntraday, onChange, o
           const selected = draft.includes(id)
           const reason = !signal.enabled ? '信号已停用，请先在信号页中启用'
             : signal.timeframe === 'intraday' && !allowIntraday ? '仅支持通用分钟策略，当前策略不支持' : ''
-          const summary = signal.template === 'late_session_strength' ? lateSessionSummary(signal).slice(0, 2)
+          const summary = isS01Signal(signal) ? s01SignalSummary(signal)
+            : signal.template === 'late_session_strength' ? lateSessionSummary(signal).slice(0, 2)
             : signal.template === 'morning_liquidation' ? morningLiquidationSummary(signal).slice(0, 2)
               : [`${signal.conditions.length} 个条件同时满足`]
           return <label key={id} className={`flex items-start gap-3 rounded-btn border px-3 py-3 ${selected

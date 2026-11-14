@@ -10,6 +10,7 @@ export type QuoteStreamConnection = {
 }
 
 const EVENT_TYPES = [
+  'strategy_pool_updated',
   'quotes_updated', 'strategy_results_updated', 'depth_updated', 'strategy_alert',
   'review_progress', 'paper_changed', 'events_reset', 'access_revoked',
 ] as const

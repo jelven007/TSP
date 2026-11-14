@@ -187,9 +187,6 @@ class TenantSchedules:
         with authorize(self.identity, context, account["auth_version"]), documents.transaction() as unit:
             valid_claim(unit.connection, claim)
             previous = unit.get("daily_stock_pool_jobs", key, {})
-            if (previous.get("state") == "succeeded"
-                    and previous.get("definition_version") == DEFINITION_VERSION):
-                return
             if slot == "09:00":
                 earlier_key = f"{day}:08:00"
                 earlier = unit.get("daily_stock_pool_jobs", earlier_key, {})
@@ -209,8 +206,13 @@ class TenantSchedules:
             marker = signature({"input": observed, "release": release, "day": day,
                                 "slot": slot,
                                 "definition_version": DEFINITION_VERSION})
-            completed = set(previous.get("completed", [])) if previous.get("signature") == marker else set()
+            successful = (previous.get("state") == "succeeded"
+                          and previous.get("definition_version") == DEFINITION_VERSION)
+            completed = (set(previous.get("completed", []))
+                         if successful or previous.get("signature") == marker else set())
             pending = [sid for sid in ids if sid not in completed]
+            if not pending:
+                return
             task = engine.task("daily_stock_pools", strategy_ids=pending, as_of=day,
                                overrides_map=overrides, premarket=True,
                                observed_at=f"{day}T{slot}:00",
@@ -354,6 +356,10 @@ class TenantSchedules:
                 await asyncio.to_thread(self.health.record, progress=False)
 
         async def work():
+            from app.multitenancy.critical_schedule import check_completion, reconcile
+
+            await asyncio.to_thread(reconcile, self.runtime, documents, claim)
+            await asyncio.to_thread(check_completion, self.runtime, documents, claim, now=now)
             await asyncio.to_thread(self.daily_selections, documents, snapshot, repo, now, claim)
             if self.db.settings.schema_version >= 7:
                 await asyncio.to_thread(self.daily_pools, documents, snapshot, repo, now, claim)

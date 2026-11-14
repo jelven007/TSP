@@ -1,0 +1,585 @@
+{
+  "format_version": 2,
+  "columns": [
+    {
+      "id": "builtin:open",
+      "align": "center",
+      "label": "今开",
+      "source": {
+        "key": "open",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:price",
+      "align": "center",
+      "label": "现价",
+      "source": {
+        "key": "price",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:pct",
+      "align": "center",
+      "label": "涨跌幅",
+      "source": {
+        "key": "pct",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:change_amount",
+      "align": "center",
+      "label": "涨跌额",
+      "source": {
+        "key": "change_amount",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:amplitude",
+      "align": "center",
+      "label": "振幅",
+      "source": {
+        "key": "amplitude",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:high",
+      "align": "center",
+      "label": "最高",
+      "source": {
+        "key": "high",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:low",
+      "align": "center",
+      "label": "最低",
+      "source": {
+        "key": "low",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:prev_close",
+      "align": "center",
+      "label": "昨收",
+      "source": {
+        "key": "prev_close",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:limit_up_price",
+      "align": "center",
+      "label": "涨停价",
+      "source": {
+        "key": "limit_up_price",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:limit_down_price",
+      "align": "center",
+      "label": "跌停价",
+      "source": {
+        "key": "limit_down_price",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:turnover",
+      "align": "center",
+      "label": "换手率",
+      "source": {
+        "key": "turnover",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:volume",
+      "align": "center",
+      "label": "成交量",
+      "source": {
+        "key": "volume",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:amount",
+      "align": "center",
+      "label": "成交额",
+      "source": {
+        "key": "amount",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:float_val",
+      "align": "center",
+      "label": "流通值",
+      "source": {
+        "key": "float_val",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:vol_ratio",
+      "align": "center",
+      "label": "量比",
+      "source": {
+        "key": "vol_ratio",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:annual_vol",
+      "align": "center",
+      "label": "年化波动",
+      "source": {
+        "key": "annual_vol",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:ma5",
+      "align": "center",
+      "label": "MA5",
+      "source": {
+        "key": "ma5",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:ma10",
+      "align": "center",
+      "label": "MA10",
+      "source": {
+        "key": "ma10",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:ma20",
+      "align": "center",
+      "label": "MA20",
+      "source": {
+        "key": "ma20",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:ma60",
+      "align": "center",
+      "label": "MA60",
+      "source": {
+        "key": "ma60",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:high_60d",
+      "align": "center",
+      "label": "60日高",
+      "source": {
+        "key": "high_60d",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:low_60d",
+      "align": "center",
+      "label": "60日低",
+      "source": {
+        "key": "low_60d",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:rsi6",
+      "align": "center",
+      "label": "RSI6",
+      "source": {
+        "key": "rsi6",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:rsi14",
+      "align": "center",
+      "label": "RSI14",
+      "source": {
+        "key": "rsi14",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:rsi24",
+      "align": "center",
+      "label": "RSI24",
+      "source": {
+        "key": "rsi24",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:macd_dif",
+      "align": "center",
+      "label": "MACD-DIF",
+      "source": {
+        "key": "macd_dif",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:macd_dea",
+      "align": "center",
+      "label": "MACD-DEA",
+      "source": {
+        "key": "macd_dea",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:macd_hist",
+      "align": "center",
+      "label": "MACD柱",
+      "source": {
+        "key": "macd_hist",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:kdj_k",
+      "align": "center",
+      "label": "KDJ-K",
+      "source": {
+        "key": "kdj_k",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:kdj_d",
+      "align": "center",
+      "label": "KDJ-D",
+      "source": {
+        "key": "kdj_d",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:kdj_j",
+      "align": "center",
+      "label": "KDJ-J",
+      "source": {
+        "key": "kdj_j",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:boll_upper",
+      "align": "center",
+      "label": "布林上轨",
+      "source": {
+        "key": "boll_upper",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:boll_lower",
+      "align": "center",
+      "label": "布林下轨",
+      "source": {
+        "key": "boll_lower",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:atr14",
+      "align": "center",
+      "label": "ATR14",
+      "source": {
+        "key": "atr14",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:vol_ma5",
+      "align": "center",
+      "label": "量MA5",
+      "source": {
+        "key": "vol_ma5",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:vol_ma10",
+      "align": "center",
+      "label": "量MA10",
+      "source": {
+        "key": "vol_ma10",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:momentum_5d",
+      "align": "center",
+      "label": "5D 动量",
+      "source": {
+        "key": "momentum_5d",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:momentum_10d",
+      "align": "center",
+      "label": "10D 动量",
+      "source": {
+        "key": "momentum_10d",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:momentum_20d",
+      "align": "center",
+      "label": "20D 动量",
+      "source": {
+        "key": "momentum_20d",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:momentum_30d",
+      "align": "center",
+      "label": "30D 动量",
+      "source": {
+        "key": "momentum_30d",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:momentum_60d",
+      "align": "center",
+      "label": "60D 动量",
+      "source": {
+        "key": "momentum",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:limit_ups",
+      "align": "center",
+      "label": "连板",
+      "source": {
+        "key": "limit_ups",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:limit_downs",
+      "align": "center",
+      "label": "连跌",
+      "source": {
+        "key": "limit_downs",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:signals",
+      "align": "center",
+      "label": "信号",
+      "source": {
+        "key": "signals",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:candle",
+      "align": "center",
+      "label": "日k",
+      "source": {
+        "key": "candle",
+        "type": "builtin"
+      },
+      "visible": true
+    },
+    {
+      "id": "builtin:intraday",
+      "align": "center",
+      "label": "分时",
+      "source": {
+        "key": "intraday",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:eps",
+      "align": "center",
+      "label": "EPS",
+      "source": {
+        "key": "eps",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:bps",
+      "align": "center",
+      "label": "BPS",
+      "source": {
+        "key": "bps",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:roe",
+      "align": "center",
+      "label": "ROE",
+      "source": {
+        "key": "roe",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:pe_ttm",
+      "align": "center",
+      "label": "PE(TTM)",
+      "source": {
+        "key": "pe_ttm",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:pb",
+      "align": "center",
+      "label": "PB",
+      "source": {
+        "key": "pb",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:gross_margin",
+      "align": "center",
+      "label": "毛利率",
+      "source": {
+        "key": "gross_margin",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:net_margin",
+      "align": "center",
+      "label": "净利率",
+      "source": {
+        "key": "net_margin",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:revenue_yoy",
+      "align": "center",
+      "label": "营收增速",
+      "source": {
+        "key": "revenue_yoy",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:net_income_yoy",
+      "align": "center",
+      "label": "净利增速",
+      "source": {
+        "key": "net_income_yoy",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:debt_ratio",
+      "align": "center",
+      "label": "负债率",
+      "source": {
+        "key": "debt_ratio",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:added_at",
+      "align": "center",
+      "label": "加入日期",
+      "source": {
+        "key": "added_at",
+        "type": "builtin"
+      },
+      "visible": false
+    },
+    {
+      "id": "builtin:pct_since_added",
+      "align": "center",
+      "label": "加入以来",
+      "source": {
+        "key": "pct_since_added",
+        "type": "builtin"
+      },
+      "visible": false
+    }
+  ]
+}

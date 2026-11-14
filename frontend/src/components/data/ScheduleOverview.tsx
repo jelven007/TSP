@@ -7,6 +7,8 @@ import {
   RefreshCw,
   TimerReset,
 } from 'lucide-react'
+import type { PostCloseIntegrityStatus } from '@/lib/api'
+import { PostCloseIntegritySummary } from './PostCloseIntegritySummary'
 
 type ScheduleState = 'running' | 'enabled' | 'partial' | 'disabled' | 'unavailable'
 export type ScheduleCategory = 'foundation' | 'market' | 'kline' | 'maintenance' | 'extension'
@@ -315,6 +317,8 @@ function ScheduleIcon({ id }: { id: string }) {
 export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems>[0] & {
   onAutoSyncChange: (enabled: boolean) => void
   autoSyncDisabled: boolean
+  postCloseIntegrity?: PostCloseIntegrityStatus
+  postCloseIntegrityUnavailable?: boolean
 }) {
   const items = buildDataScheduleItems(props)
   const autoSyncEnabled = props.preferences?.data_sync_auto_enabled ?? true
@@ -382,6 +386,11 @@ export function ScheduleOverview(props: Parameters<typeof buildDataScheduleItems
                         <span className="text-muted">{item.scheduleLabel ?? '自动采集周期'}</span>
                         <span>{item.schedule}</span>
                       </div>
+                      {item.id === 'daily-pipeline' ? <PostCloseIntegritySummary
+                        enabled={autoSyncEnabled}
+                        status={props.postCloseIntegrity}
+                        unavailable={props.postCloseIntegrityUnavailable}
+                      /> : null}
                     </div>
                     <span className={`mt-0.5 h-fit whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] ${state.className}`}>
                       {state.label}

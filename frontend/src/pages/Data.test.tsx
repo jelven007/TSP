@@ -94,7 +94,9 @@ it.each(['success', 'failure', 'preferences-error'] as const)('places quotes in 
       expect(statusReads).toBeGreaterThan(oldReads.statusReads)
       expect(portrait.textContent).toContain('实时行情')
     } else {
-      expect(host.querySelector('[role="status"]')?.textContent).toContain('保存失败')
+      expect([...host.querySelectorAll('[role="status"]')].some(node =>
+        node.textContent?.includes('保存失败'),
+      )).toBe(true)
     }
   } finally {
     await act(async () => root.unmount())

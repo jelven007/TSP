@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { backtestRuleDraft, equalEquityPct } from './paperRuleDraft'
+import { BACKTEST_DEFAULTS_VERSION } from '@/pages/backtest/defaults'
 
 const saved = {
-  defaultsVersion: 1, selectedStrategy: 's-one', maxPositions: '5', maxExposure: '80',
+  defaultsVersion: BACKTEST_DEFAULTS_VERSION, selectedStrategy: 's-one', maxPositions: '5', maxExposure: '80',
   positionSizing: 'equal', mode: 'position', entryFill: 'open_t+1', exitFill: 'close_t',
   fees: '2.5', stampTax: '', minimumCommission: '3', transferFee: '0.1', slippage: '7',
 }

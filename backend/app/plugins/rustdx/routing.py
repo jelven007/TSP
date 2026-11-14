@@ -71,7 +71,8 @@ class TaskRuntime:
         self._snapshot = None
         self._qualifications = {}
         self._validation = {"windows": 0, "cache_hits": 0, "conflicts": 0,
-                            "reference_requests": 0, "reference_seconds": 0.0}
+                            "reference_requests": 0, "reference_seconds": 0.0,
+                            "canonical_replacements": 0, "within_cent": 0}
         self._bindings = {"minute": self._overrides["minute"] or reference}
         self._bindings.update({group: value for group, value in self._overrides.items() if value})
 
@@ -116,6 +117,10 @@ class TaskRuntime:
                     candidates = [candidates[0], *backups] if candidates else []
             else:
                 candidates = [explicit, *backups]
+            # A qualified saved reference can serve a separately bounded history
+            # pool when a small discovery set leaves that group empty.
+            if not candidates and group == "history" and self.reference in (self._nodes or []):
+                candidates = [self.reference]
             if not candidates:
                 raise RuntimeError(f"rustdx {group} group has no qualified candidates")
             if self.closed:
@@ -161,20 +166,34 @@ class TaskRuntime:
 
         if not source or not source.get("endpoint"):
             raise RustdxSourceChangedError("rustdx 完整窗口来源身份缺失")
-        if source["endpoint"] == self.reference:
-            return rows
         _, frequency, start, end = scope
         start, end = _as_beijing_datetime(start), _as_beijing_datetime(end)
         if frequency in {9, 5} and end is not None:
             end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
 
         def content(records):
-            fingerprints = sorted(_bar_fingerprint(row) for row in records)
-            return [item for item in fingerprints if item[0] is not None
-                    and (start is None or item[0] >= start)
-                    and (end is None or item[0] <= end)]
+            from .client import RustdxError
+
+            found = {}
+            canonical = {_as_beijing_datetime(row.get("datetime")) for row in records}
+            for row in records:
+                item = _bar_fingerprint(row)
+                stamp = item[0]
+                if frequency == 8 and stamp is not None and stamp.hour == 13 and stamp.minute == 0:
+                    stamp = stamp.replace(hour=11, minute=30)
+                    if stamp in canonical:
+                        continue
+                    item = (stamp, *item[1:])
+                if stamp is None or (start is not None and stamp < start) or (end is not None and stamp > end):
+                    continue
+                if stamp in found and found[stamp] != item:
+                    raise RustdxError("rustdx 窗口同一时间键原值冲突")
+                found[stamp] = item
+            return [found[stamp] for stamp in sorted(found)]
 
         candidate = content(rows)
+        if source["endpoint"] == self.reference:
+            return rows
         digest = hashlib.sha256(json.dumps(candidate, default=str).encode()).hexdigest()
         key = (tuple(scope), json.dumps(source, sort_keys=True), self.reference, digest)
         now = time.monotonic()
@@ -196,9 +215,25 @@ class TaskRuntime:
                 self._validation["windows"] += 1
                 self._validation["reference_seconds"] += time.monotonic() - started
                 self._validation["reference_requests"] += requests
-        if candidate != content(reference):
+        reference_content = content(reference)
+        if frequency == 8 and {row[0] for row in candidate} - {row[0] for row in reference_content}:
+            from .client import RustdxError
+
+            raise RustdxError("rustdx 参考分钟窗口缺少已取得的时间键, 拒绝替换")
+        if candidate != reference_content:
+            from app.data_providers.instrument_status import current_a_share_identity
+            from app.monetary import money_result_equal
+
+            within_cent = current_a_share_identity(scope[0]) is not None and len(candidate) == len(reference_content) and all(
+                left[0] == right[0] and left[5] == right[5]
+                and all(money_result_equal(left[i], right[i]) for i in (1, 2, 3, 4, 6))
+                for left, right in zip(candidate, reference_content, strict=True)
+            )
+            if not within_cent and frequency == 8:
+                self._save_minute_conflict(rows, reference, scope, source)
             with self._lock:
-                self._validation["conflicts"] += 1
+                self._validation["canonical_replacements"] += 1
+                self._validation["within_cent" if within_cent else "conflicts"] += 1
             return reference
         with self._lock:
             # Exact input and endpoint generation only; no security-wide certification.
@@ -208,6 +243,30 @@ class TaskRuntime:
                 self._qualifications.pop(next(iter(self._qualifications)))
             self._qualifications[key] = time.monotonic() + 30
         return rows
+
+    def _save_minute_conflict(self, rows, reference, scope, source):
+        """Preserve new conflicts outside public data before choosing reference."""
+        from pathlib import Path
+        from uuid import uuid4
+
+        from app.config import settings
+
+        from .client import RustdxError
+
+        observed = datetime.now(ZoneInfo("Asia/Shanghai"))
+        folder = Path(settings.data_dir) / "cache/rustdx/minute_conflicts" / str(observed.date())
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / (uuid4().hex + ".json")
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "w") as stream:
+                json.dump({"schema": "minute_source_conflict_v1", "observed_at": observed.isoformat(),
+                           "scope": scope, "source": source, "reference_endpoint": self.reference,
+                           "candidate": rows, "reference": reference}, stream, default=str)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except OSError as error:
+            raise RustdxError("rustdx 分钟来源冲突证据无法保存, 拒绝替换") from error
 
     def stocks_json(self, *args):
         return self._get("history").stocks_json(*args)

@@ -48,7 +48,9 @@ class DailyStockPools:
         symbols = sorted(set(pool["symbols"]))
         if pool["total"] != len(symbols):
             raise ValueError("股票池数量不匹配")
-        snapshot = {**pool, "symbols": symbols}
+        snapshot = {**{key: value for key, value in pool.items()
+                       if key not in {"id", "started_at", "computed_at", "input_generation", "offset", "limit"}},
+                    "symbols": symbols}
         record_id = digest(snapshot)
         value = json_value({**snapshot, "id": record_id, "started_at": started_at,
                             "computed_at": int(time.time() * 1000), "input_generation": input_generation})
@@ -135,6 +137,32 @@ class DailyStockPools:
             return None
         return {**value, "symbols": value["symbols"][offset:offset + limit], "offset": offset, "limit": limit}
 
+    def snapshots(self, strategy_ids, day):
+        """Freeze full members in one tenant read; API pagination is display-only."""
+        from datetime import date
+
+        day = date.fromisoformat(str(day)).isoformat()
+        ids = sorted(set(strategy_ids))
+        if not ids or (self.results.tenant and self.results.storage.db.settings.schema_version < 7):
+            return {}
+        transaction = self.results.storage._transaction if self.results.tenant else self.results._local
+        with transaction() as conn:
+            if conn is None:
+                return {}
+            if self.results.tenant:
+                rows = conn.execute(
+                    "SELECT strategy_id,value FROM business.daily_stock_pools "
+                    "WHERE strategy_id=ANY(%s) AND day=%s", (ids, day),
+                ).fetchall()
+                return {row["strategy_id"]: row["value"] for row in rows}
+            if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='daily_stock_pools'").fetchone():
+                return {}
+            rows = conn.execute(
+                f"SELECT strategy_id,value FROM daily_stock_pools "
+                f"WHERE strategy_id IN ({','.join('?' for _ in ids)}) AND day=?", (*ids, day),
+            ).fetchall()
+            return {row["strategy_id"]: json.loads(row["value"]) for row in rows}
+
 
 def generate_local(engine, service, storage, as_of, *, slot=None):
     from app.services.daily_pool_schedule import batch_pool
@@ -152,11 +180,13 @@ def generate_local(engine, service, storage, as_of, *, slot=None):
                      "identities": {sid: identity.fingerprint for sid, identity in identities.items()}})
     job_key = f"{as_of}:{slot}"
     previous = store.job(job_key) if slot else {}
-    completed = set(previous.get("completed", [])) if previous.get("signature") == marker else set()
-    if (slot and previous.get("state") == "succeeded"
-            and previous.get("definition_version") == DEFINITION_VERSION):
-        return {"saved": [], "errors": {}}
+    successful = (previous.get("state") == "succeeded"
+                  and previous.get("definition_version") == DEFINITION_VERSION)
+    completed = (set(previous.get("completed", []))
+                 if successful or previous.get("signature") == marker else set())
     pending = [sid for sid in ids if sid not in completed]
+    if slot and not pending:
+        return {"saved": [], "errors": {}}
     if slot:
         store.job(job_key, {"signature": marker, "definition_version": DEFINITION_VERSION,
                            "state": "running", "completed": sorted(completed),

@@ -7,6 +7,31 @@ from app.strategy.suspension import COLUMN, annotate
 DEFINITION_VERSION = "scope_only_v3"
 
 
+def scope_context(context, symbols):
+    """Keep strategy signals inside their scope, with independent shared inputs."""
+    from dataclasses import replace
+
+    frames = {}
+    for name in ("current", "history", "daily_history", "pool_history", "pool_universe"):
+        frame = getattr(context, name)
+        if frame is not None and "symbol" in frame.columns:
+            frames[name] = frame.filter(pl.col("symbol").is_in(symbols))
+    market = context.market
+    members = set(symbols)
+    if market is not None and set(market.symbols) - members:
+        indices = [i for i, symbol in enumerate(market.symbols) if symbol in members]
+        arrays = {name: getattr(market, name)[:, indices] for name in (
+            "open", "high", "low", "close", "volume", "tradable", "limit_up_locked", "limit_down_locked",
+        )}
+        frames["market"] = replace(
+            market, symbols=tuple(market.symbols[i] for i in indices),
+            names=tuple(market.names[i] for i in indices), **arrays,
+            fields={name: values[:, indices] if values.ndim == 2 else values
+                    for name, values in market.fields.items()}, _valid_bars=None,
+        )
+    return replace(context, **frames)
+
+
 def build_pool(engine, strategy_id, context, *, overrides=None, premarket=False) -> dict:
     strategy = engine.get(strategy_id)
     bf = engine._resolve_filter_scope({**(strategy.basic_filter or {}),

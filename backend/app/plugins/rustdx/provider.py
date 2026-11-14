@@ -45,6 +45,7 @@ _DATASETS = (
     "minute",
     "depth5",
     "financial",
+    "instrument_status",
 )
 _DAILY_FREQUENCY = 9
 _MINUTE_FREQUENCIES = {"1m": 8, "5m": 0, "15m": 1, "30m": 2, "60m": 3, "1h": 3}
@@ -177,7 +178,7 @@ def _as_beijing_datetime(value) -> datetime | None:
             return None
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone(_BEIJING).replace(tzinfo=None)
-    return parsed.replace(microsecond=0)
+    return parsed
 
 def _bar_fingerprint(row):
     return (
@@ -733,21 +734,34 @@ class RustdxProvider:
         frequency: int = 8,
     ) -> pl.DataFrame:
         rows: list[dict] = []
+        canonical = {
+            _as_beijing_datetime(item.get("datetime"))
+            for item in raw
+        }
+        seen = {}
         for item in raw:
             timestamp = _as_beijing_datetime(item.get("datetime"))
             if timestamp is None:
                 continue
+            if frequency == 8 and timestamp.time() == datetime.min.replace(hour=13).time():
+                # TDX's live noon copy is the morning close, as independently
+                # checked against the same source's settled 11:30 OHLCV.
+                timestamp = timestamp.replace(hour=11, minute=30)
+                if timestamp in canonical:
+                    continue
             if start_time and timestamp < _as_beijing_datetime(start_time):
                 continue
             if end_time and timestamp > _as_beijing_datetime(end_time):
                 continue
+            fingerprint = _bar_fingerprint(item)[1:]
+            if timestamp in seen and seen[timestamp] != fingerprint:
+                raise RustdxError(f"分钟K同一时间键原值冲突: {symbol} {timestamp}")
+            seen[timestamp] = fingerprint
             volume = _to_float(item.get("volume", item.get("vol")))
             amount = _to_float(item.get("amount"))
             if frequency == 8:
                 minute = timestamp.hour * 60 + timestamp.minute
-                # Live TDX bars can carry opening labels (09:30/13:00), while
-                # history uses closing labels. Preserve both without shifting.
-                if not (570 <= minute <= 690 or 780 <= minute <= 900):
+                if not (571 <= minute <= 690 or 781 <= minute <= 900):
                     if volume == 0 and amount == 0:
                         continue  # Suspended-security placeholders have no trade to preserve.
                     raise RustdxError(f"分钟K时间不在交易时段: {symbol} {timestamp}")
@@ -775,6 +789,12 @@ class RustdxProvider:
                 for column in ("open", "high", "low", "close", "volume", "amount")
             ],
         )
+        if frequency == 8:
+            from app.minute_clock import normalize_minute_clock
+            try:
+                frame = normalize_minute_clock(frame)
+            except ValueError as exc:
+                raise RustdxError(str(exc)) from exc
         return (
             frame.select(_MINUTE_COLUMNS)
             .unique(subset=["symbol", "datetime"], keep="last")
@@ -793,12 +813,17 @@ class RustdxProvider:
             with self._client_factory() as client:
                 for symbol in symbols:
                     try:
+                        source_end = _as_beijing_datetime(end_time)
+                        if frequency == 8 and source_end and (11, 30) <= (
+                            source_end.hour, source_end.minute,
+                        ) < (13, 0):
+                            source_end = source_end.replace(hour=13, minute=0, second=0, microsecond=0)
                         raw = self._bar_records(
                             client,
                             symbol,
                             frequency,
                             start_time,
-                            end_time,
+                            source_end,
                         )
                         frame = self._minute_frame(raw, symbol, start_time, end_time, frequency)
                         if not frame.is_empty():
@@ -1333,6 +1358,32 @@ class RustdxProvider:
             )
         return frame
 
+    def get_special_treatment_history(self, symbols: list[str]) -> list[dict]:
+        """Return original F10 evidence; failed fetches never become normal status."""
+        from datetime import UTC
+
+        result = []
+        for symbol in symbols:
+            if _symbol(symbol) is None:
+                raise ValueError(f"非法股票标识: {symbol}")
+            client = self._client_factory()
+            try:
+                text = client.company_info(symbol, "最新提示")
+                if not text or "【特别处理】" not in text:
+                    raise ValueError("F10 原文缺少特别处理栏目")
+                result.append({
+                    "symbol": symbol, "text": text, "source": "rustdx_f10",
+                    "observed_at": datetime.now(UTC).isoformat(), "error": None,
+                })
+            except Exception as exc:
+                result.append({
+                    "symbol": symbol, "text": None, "source": "rustdx_f10",
+                    "observed_at": datetime.now(UTC).isoformat(), "error": str(exc),
+                })
+            finally:
+                client.close()
+        return result
+
     # ---- settings test pull ----
     def test_dataset(self, dataset: str, symbols: list[str] | None = None) -> dict:
         selected = [symbol for symbol in (symbols or ["600519.SH"]) if _symbol(symbol)]
@@ -1448,7 +1499,13 @@ class RustdxProvider:
             requests = 0
             try:
                 with self._client_factory() as client:
-                    if counted:
+                    sourced = getattr(client, "incremental_bars_with_source", None)
+                    source = None
+                    if callable(sourced):
+                        raw, requests, source = sourced(
+                            symbol, frequency=8, offset=max(1, min(int(count), 800)),
+                        )
+                    elif counted:
                         method = getattr(client, "incremental_bars_with_count", client.bars_with_count)
                         raw, requests = method(
                             symbol, frequency=8, offset=max(1, min(int(count), 800)),
@@ -1457,10 +1514,37 @@ class RustdxProvider:
                         method = getattr(client, "incremental_bars", client.bars)
                         raw = method(symbol, frequency=8, offset=max(1, min(int(count), 800)))
                         requests = 1
-                # A bounded batch may cross the next completed minute. Use the
-                # response clock, not the whole-universe batch's start clock.
-                fetched_at = cn_now().replace(tzinfo=None)
-                return self._minute_frame(raw, symbol, start, fetched_at), requests, None
+                    # Freeze the completed-window cutoff for both source reads.
+                    fetched_at = cn_now().replace(tzinfo=None)
+                    stamps = [
+                        stamp.replace(hour=11, minute=30) if stamp.hour == 13 and stamp.minute == 0 else stamp
+                        for row in raw
+                        if (stamp := _as_beijing_datetime(row.get("datetime"))) is not None
+                        and start <= stamp <= fetched_at
+                    ]
+                    window_start = min(stamps) if stamps else start
+                    validator = getattr(client, "validate_bar_window", None)
+                    if callable(sourced) and callable(validator):
+                        def reference_read():
+                            nonlocal requests
+                            reference = client.reference_view()
+                            try:
+                                result, calls, _ = reference.incremental_bars_with_source(
+                                    # Overlap protects the frozen cutoff when the
+                                    # second request crosses a minute boundary.
+                                    symbol, frequency=8, offset=max(1, min(int(count) + 4, 800)),
+                                )
+                            except RustdxError as error:
+                                requests += error.requests
+                                raise
+                            requests += calls
+                            return result, calls
+
+                        raw = validator(
+                            raw, scope=(symbol, 8, window_start, fetched_at), source=source,
+                            reference_read=reference_read,
+                        )
+                return self._minute_frame(raw, symbol, window_start, fetched_at), requests, None
             except RustdxError as exc:
                 return pl.DataFrame(), max(requests, exc.requests), exc
 
