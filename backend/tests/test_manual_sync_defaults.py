@@ -41,6 +41,12 @@ def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
             assert jobs["reprobe_capabilities"].next_run_time is not None
             data_ids = set(jobs) - {"reprobe_capabilities", "pre_market_instruments"}
             assert {"daily_pipeline", "depth_finalize", "post_close_sync_retry"} <= data_ids
+            assert {"selection_daily_repair", "selection_daily_repair_retry"} <= data_ids
+            next_selection = jobs["selection_daily_repair"].trigger.get_next_fire_time(
+                None, datetime(2026, 10, 23, 15, 59, tzinfo=ZoneInfo("Asia/Shanghai")),
+            )
+            assert (next_selection.hour, next_selection.minute) == (20, 0)
+            assert jobs["selection_daily_repair_retry"].trigger.interval.total_seconds() == 30
             assert not {"kline_correction", "kline_correction_retry"} & data_ids
             next_correction = jobs["daily_pipeline"].trigger.get_next_fire_time(
                 None, datetime(2026, 10, 23, 15, 34, tzinfo=ZoneInfo("Asia/Shanghai")),

@@ -10,6 +10,7 @@ import { getSignals, signalCls } from '@/lib/stock-table'
 import { defaultStrategyResultColumns, resolveStrategyResultColumns, STRATEGY_RESULT_WIDTHS, type StrategyResultTab } from '@/lib/strategy-result-columns'
 import type { ColumnConfig } from '@/lib/list-columns'
 import { useTableSort } from '@/components/stock-table/useTableSort'
+import { StrategyEntryProgress } from './StrategyEntryProgress'
 
 export type { StrategyResultTab } from '@/lib/strategy-result-columns'
 type Tab = StrategyResultTab
@@ -74,7 +75,7 @@ export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, cur
   const signals = result.section_mode === 'signals'
   const today = currentDate ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
   const historical = result.as_of < today
-  return <div className={inline ? 'flex shrink-0 items-center gap-2'
+  return <div className={inline ? 'flex min-w-0 flex-1 basis-[640px] flex-wrap items-center gap-2'
     : 'flex flex-wrap items-center justify-between gap-2'}>
     <div role="tablist" aria-label="每日策略结果" className="inline-flex shrink-0 rounded-btn border border-border p-0.5">
       {tabs.map(tab => <button key={tab.id} role="tab" aria-selected={activeTab === tab.id}
@@ -86,8 +87,10 @@ export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, cur
           : signals && result.section_errors?.[tab.id] ? '待确认' : section[tab.id]?.length ?? 0}
       </button>)}
     </div>
-    <span className={`text-xs text-muted ${inline ? 'shrink-0 whitespace-nowrap' : ''}`}>{result.as_of} · 每交易日一份结果
-      {signals && (historical ? ' · 历史保存结果' : result.as_of === today ? ' · 当前页每秒刷新' : ' · 已保存预选')}</span>
+    {signals && result.strategy === 'custom_mvxxcp88'
+      ? <StrategyEntryProgress result={result} today={today} />
+      : <span className={`strategy-result-note ${inline ? 'shrink-0 whitespace-nowrap' : ''}`}>{result.as_of} · 每交易日一份结果
+        {signals && (historical ? ' · 历史保存结果' : result.as_of === today ? ' · 当前页每秒刷新' : ' · 已保存预选')}</span>}
   </div>
 }
 
@@ -255,36 +258,46 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
   const statusLabels = { success: '成功', waiting: '等待数据', failed: '失败',
     retrying: '重试中', deferred: '延迟处理', disabled: '停用', expired: '已过入场时限' }
   const executionStatus = result.execution_status
+  const resultNotes = [
+    signals && result.as_of > today
+      ? `${result.as_of} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单于前一交易日20:00开始生成； 买入信号等待该交易日运行。`
+      : null,
+    executionStatus && (executionStatus.state !== 'success' || executionStatus.reason)
+      ? `${statusLabels[executionStatus.state]}${executionStatus.reason ? ` · ${executionStatus.reason}` : ''} · ${new Date(executionStatus.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`
+      : null,
+    result.showing_last_success && result.last_success_at != null
+      ? `当前展示上次成功结果 · 成功时间 ${new Date(result.last_success_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`
+      : null,
+  ].filter(Boolean)
   return <><section ref={sectionRef} className="space-y-2 min-w-0">
     {!hideToolbar && <StrategyDailyResultToolbar result={result} activeTab={active} currentDate={today}
       onTabChange={tab => { setLocalActive(tab); onTabChange?.(tab) }} />}
-    {executionStatus && (executionStatus.state !== 'success' || executionStatus.reason) && <p role="status" className="text-sm text-secondary">
-      {statusLabels[executionStatus.state]}{executionStatus.reason && ` · ${executionStatus.reason}`}
-      {' · '}{new Date(executionStatus.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
-    </p>}
-    {result.showing_last_success && result.last_success_at != null && <p className="text-xs text-muted">
-      当前展示上次成功结果 · 成功时间
-      {' '}{new Date(result.last_success_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
-    </p>}
-    <details className="text-xs text-muted">
-      <summary className="w-fit cursor-pointer rounded-btn py-1 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">策略说明</summary>
-      <div className="space-y-2 pt-1">
+    {resultNotes.length > 0 && <p role="status" className="strategy-result-note">{resultNotes.join(' · ')}</p>}
+    <details className="strategy-result-note">
+      <summary className="strategy-result-disclosure">策略说明</summary>
+      <div className="space-y-1 py-1">
     <p>
       {signals
-        ? '卖：前一交易日的买入信号。选：前一交易日16:00开始生成并保存的名单。买：从该日已保存的选名单内触发入场信号。'
+        ? '卖：前一交易日的买入信号。选：前一交易日20:00开始生成并保存的名单。买：从该日已保存的选名单内触发入场信号。'
         : <>持仓来自连续策略研究组合。选为全部达标股票，买为容量、资金与持仓上限筛选后的成交结果。
           {active === 'select' && ` 选按买入优先级排列：${section.select.length > limit ? '14:30涨幅' : '20日均成交额'}降序，同值按代码排序。`}</>}
     </p>
-    {atrRanking && <p className="text-xs text-muted">
+    {atrRanking && <p>
       {active === 'select'
         ? '预选按ATR14÷昨收降序排名，同值按代码升序。排名分数=100×(N-r)/(N-1)，N为可计算股票数，r为顺位；第一名100、末名0、单只50。缺完整日K时显示“—”，与选股评分分别保存。'
         : '实际命中按ATR14÷昨收降序排名，同值按触发涨幅降序、代码升序，排名分数为0～100分。'}
       {active === 'sell' && ' 卖页继承前一交易日买入信号的排名与分数。'}
     </p>}
-    {signals && result.selection_snapshot && <p className="text-xs text-muted">
+    {signals && result.selection_snapshot && <p>
       数值参考日：{result.selection_snapshot.source_date} · 生成于
       {' '}{new Date(result.selection_snapshot.generated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
       {result.selection_only && ' · 仅预选，买入信号尚未计算'}
+    </p>}
+    {signals && result.selection_snapshot?.coverage?.complete === false && <p role="status">
+      预选已生成，数据尚有缺口：完整范围 {result.selection_snapshot.coverage.scope_total} 只，
+      可计算 {result.selection_snapshot.coverage.available_daily} 只；
+      缺日线 {result.selection_snapshot.coverage.missing_symbols.length} 只
+      （{result.selection_snapshot.coverage.missing_symbols.join('、')}）。后台继续补数。
     </p>}
     {signals && <p>
       {historical ? '历史结果按保存字段展示；现价等当前行情列不参与历史读取。'
@@ -296,10 +309,10 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       </div>
     </details>
     {signals && active === 'buy' && Object.entries(result.entry_data_quality ?? {})
-      .filter(([, quality]) => (quality.missing_symbols.length > 0 || quality.stage === 'breadth_rejected')
+      .filter(([, quality]) => ((quality.missing_symbols?.length ?? 0) > 0 || quality.stage === 'breadth_rejected')
         && (quality.breadth_policy === 'available_members_v1'
           || (quality.pool_up_pct_lower != null && quality.pool_up_pct_upper != null)))
-      .map(([signal, quality]) => <p key={signal} className="text-xs text-muted">
+      .map(([signal, quality]) => <p key={signal} className="strategy-result-note">
         {quality.breadth_policy === 'available_members_v1' ? <>
           {quality.pool_up_pct == null ? '无有效行情，等待数据' : `上涨比例 ${quality.pool_up_pct.toFixed(2)}%`}
           {' · '}阈值 {quality.pool_up_min_pct.toFixed(2)}%
@@ -313,10 +326,10 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
           : quality.stage === 'breadth_rejected' ? '上界未达阈值，市场条件未满足' : '区间跨过阈值，等待完整行情'}
         </>}
       </p>)}
-    {result.execution_error && <p role="alert" className="text-sm text-danger rounded-btn bg-danger/10 p-3">
+    {result.execution_error && <p role="alert" className="strategy-result-note text-danger rounded-btn bg-danger/10 p-3">
       {result.execution_error}
     </p>}
-    {sectionError && <p role="alert" className="text-sm text-danger rounded-btn bg-danger/10 p-3">{sectionError}</p>}
+    {sectionError && <p role="alert" className="strategy-result-note text-danger rounded-btn bg-danger/10 p-3">{sectionError}</p>}
     <div ref={panelRef} role="tabpanel" id={`daily-${result.strategy}-${active}`}
       aria-labelledby={`daily-tab-${result.strategy}-${active}`}
       className="overflow-auto rounded-btn border border-border"

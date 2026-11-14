@@ -37,6 +37,7 @@ _DATASET_PATHS = {
     "instruments": "instruments",
     "instrument_status": "instrument_status",
     "financials": "financials",
+    "ext_data": "ext_data",
     "auction_snapshot": "auction_snapshot",
     "index_daily": "kline_index_daily",
     "index_enriched": "kline_index_enriched",
@@ -157,9 +158,11 @@ def research_input_fingerprints(data_dir: Path) -> dict[str, Any]:
     from app.market_time import trading_calendar_provenance
 
     paths = [
+        "kline_minute/clock_contract.json",
         "instruments/instruments.parquet",
         "instrument_status/history.parquet",
         "instrument_status/suspensions.parquet",
+        "financials/share_capital_events/part.parquet",
         *(f"financials/{table}/part.parquet"
           for table in ("metrics", "income", "balance_sheet", "cash_flow", "shares")),
     ]

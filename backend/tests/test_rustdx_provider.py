@@ -549,7 +549,7 @@ def test_counted_increment_uses_actual_attempts_and_deduplicates_symbols(native,
     bars = native.bars_json
 
     def counted(*args, **kwargs):
-        assert kwargs == {"with_request_count": True}
+        assert kwargs == {"with_request_count": True, "with_source": True, "expected_source": None}
         return json.dumps({"rows": json.loads(bars(*args)), "requests": 2, "error": None})
 
     native.bars_json = counted
@@ -571,7 +571,7 @@ def test_counted_full_minute_repair_reports_zero_requests_for_empty_universe(nat
 
 
 @pytest.mark.parametrize("fetcher", ["fetch_intraday_custom_latest", "fetch_intraday_custom_batch"])
-def test_counted_minutes_preserve_afternoon_opening_label(native, monkeypatch, fetcher):
+def test_counted_minutes_map_wire_noon_to_completed_session_label(native, monkeypatch, fetcher):
     from app.plugins.rustdx import provider as provider_module
     from app.services import kline_sync
 
@@ -579,7 +579,7 @@ def test_counted_minutes_preserve_afternoon_opening_label(native, monkeypatch, f
 
     def counted(market, code, category, start, count, index, **kwargs):
         native.bar_calls.append((market, code, category, start, count, index))
-        assert kwargs == {"with_request_count": True}
+        assert kwargs == {"with_request_count": True, "with_source": True, "expected_source": None}
         return json.dumps({
             "rows": [
                 {
@@ -599,7 +599,9 @@ def test_counted_minutes_preserve_afternoon_opening_label(native, monkeypatch, f
     assert requests == 4
     assert frame.height == 6
     assert frame["datetime"].to_list() == [
-        datetime(2026, 10, 14, 13, minute) for minute in (0, 1, 2)
+        datetime(2026, 10, 14, 11, 30),
+        datetime(2026, 10, 14, 13, 1),
+        datetime(2026, 10, 14, 13, 2),
     ] * 2
     assert frame["volume"].to_list() == [1.0] * 6
 
@@ -667,6 +669,7 @@ def test_plugin_covers_all_core_datasets_and_is_default_provider():
         "minute",
         "depth5",
         "financial",
+        "instrument_status",
     }
     assert preferences._DEFAULT_DATA_PROVIDER == "rustdx"
 

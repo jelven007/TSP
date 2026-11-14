@@ -2,11 +2,7 @@
 use std::io::{self, ErrorKind};
 
 use super::{IndexKlineData, Kline, KlineData};
-use crate::tcp::{
-    Tcp, Tdx,
-    helper::{DateTime, vol_amount},
-    reader::Reader,
-};
+use crate::tcp::{Tcp, Tdx, helper::DateTime, reader::Reader};
 
 /// Checked K-line parameters. Encoding always uses these private fields.
 ///
@@ -346,7 +342,7 @@ fn read_bar<'a>(
         close: (*base + close) as f64 / 1000.0,
         high: (*base + high) as f64 / 1000.0,
         low: (*base + low) as f64 / 1000.0,
-        vol: vol_amount(raw_volume_u32 as i32),
+        vol: super::reported_turnover::decode_nonnegative_binary32(raw_volume_u32)?,
         amount: super::reported_turnover::decode_nonnegative_binary32(raw_amount_u32)?,
     };
     crate::data::validate_bar_values(bar.open, bar.high, bar.low, bar.close, bar.vol, bar.amount)
@@ -359,4 +355,41 @@ fn read_bar<'a>(
         byte_range: start..reader.position(),
         wire_index: 0,
     })
+}
+
+#[cfg(test)]
+mod quantity_regression_tests {
+    use super::*;
+
+    fn daily_payload(volume_bits: u32) -> Vec<u8> {
+        let mut payload = 1u16.to_le_bytes().to_vec();
+        payload.extend(20261113u32.to_le_bytes());
+        // open=10000 (10 yuan), followed by unchanged close/high/low.
+        payload.extend([0x90, 0x9c, 0x01, 0, 0, 0]);
+        payload.extend(volume_bits.to_le_bytes());
+        payload.extend(40f32.to_bits().to_le_bytes());
+        payload
+    }
+
+    #[test]
+    fn stock_bar_quantity_preserves_small_binary32_values_and_zero() {
+        let request = KlineRequest::new(0, "000001", 9, 0, 1).unwrap();
+        for quantity in [
+            0f32, 0.5, 1.0, 4.0, 12.0, 18.0, 99.0, 100.0, 123.0, 1379837.0,
+        ] {
+            let payload = daily_payload(quantity.to_bits());
+            let decoded = decode_stock_bars(&request, &payload).unwrap();
+            assert_eq!(decoded[0].vol, f64::from(quantity), "quantity={quantity}");
+            assert_eq!(decoded[0].amount, 40.0);
+            assert_eq!(decoded[0].close, 10.0);
+        }
+    }
+
+    #[test]
+    fn stock_bar_quantity_rejects_negative_and_nonfinite_binary32() {
+        let request = KlineRequest::new(0, "000001", 9, 0, 1).unwrap();
+        for quantity in [-1f32, f32::INFINITY, f32::NAN] {
+            assert!(decode_stock_bars(&request, &daily_payload(quantity.to_bits())).is_err());
+        }
+    }
 }

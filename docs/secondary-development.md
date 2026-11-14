@@ -1,5 +1,93 @@
 # 代码二次开发与 AI 扩展指南
 
+2026-11-14运行源码整合及真实入口见[升级记录](upgrade-20261114.md)。
+接通已有内部能力，旧冻结定义、可选字段及迁移校验和保持兼容。
+
+2026-11-14当前本地回测执行：自定义S01（`custom_mvxxcs01`）保持14:45环境启动、14:46个股确认，指标仍截止14:45已完成分钟；删除额外等待及专用三分钟买入，14:47～14:51按系统五个交易分钟买入窗口执行，以分钟最高价、系统成交量容量及含费预算撮合，买足提前结束，到期撤销余量。系统通用清仓`signal_next_minute`在卖出信号下一分钟起执行五个交易分钟，到期撤委托，余股保留估值；缺分钟消耗原时槽，同日跨午休、收盘截断，不自动次日续卖该委托。S01原出场信号及专用卖出执行保持；当前保存源码、信号门槛和参数未改。本地0.4.58配套安装，无线上部署或新收益回测，历史冻结结果保留。验收见[本次执行回执](../deliverables/operations/backtest-five-minute-execution-20261114/report.md)。
+
+S01新有效证券口径是L3内部适配：所选信号`market_validity=price_amount_prev_close_v2`
+控制共享内核，适配层按已发布交易日历传精确昨收日。市场只检查已有当日已完成分钟
+OHLC有限且正、amount有限且非负可0、昨收有限且正；个股完整窗口与金额门槛独立。
+旧六/八字段定义不补标记、不追改冻结回放。早盘改显示名称，内部ID及出场逻辑保持；
+没有新的扩展API，实际验证见
+[本次回执](../deliverables/operations/s01-security-validity-20261114/report.md)。
+
+S01时间参数属于L3内部信号适配：保留`s01_late_entry`及所选信号稳定ID，
+`params.time`为HH:MM:SS，`evaluation_delay_minutes`存分钟、页面显示秒。
+两个字段须一起存在；旧六字段定义原时序保留。新定义启动时统计环境，确认后计算个股，
+行情截止启动分钟；监控脉冲和隔夜回放共用同一时钟，默认下一完成分钟14:47起进入
+当时三分钟容量窗口；当前统一候选使用本页最新执行记录的五个交易分钟。
+通过共享隔夜内核和引擎后置数值过滤适配当前保存源码，
+没有新插件、HTTP端点或数据库迁移；本轮范围和实际状态见
+[S01信号回执](../deliverables/operations/s01-signal-timing-20261114/report.md)。
+
+自选列初始化默认属于L3内部身份接线：`TSP_CELL_BOOTSTRAP_WATCHLIST_COLUMNS_PATH`
+读取`format_version=2`、仅含`columns`的受控JSON；只接受通用内置列目录，
+拒绝股票、分组、归属及其他额外字段。provision先校验配置，再初始化空空间；
+控制事务只合并尚未保存的个人列偏好，pending可重试，既有ready空间保持不变。
+不新增HTTP API或数据库迁移，不写入自选业务数据或业务冻结标记。
+配置和验证边界见[同步回执](../deliverables/operations/watchlist-defaults-sync-20261114/report.md)。
+
+2026-11-14S01通用模板为L3既有能力接线：仅`optional_v1`隔夜定义
+复用`overlay`、`scoring`及`risk_policy`，无新端点或公共插件。
+`StrategyDataContext.holding_history_loader`是本地仓库回调，不进入任务或结果；
+租户任务/监控传入所属策略的成本、成交时点及T+1可卖快照。
+旧专用定义、空配置和S02源码排名保持，具体合同见
+[当前S01模板](reference/s01.md#当前自定义s01通用参数模板)。
+
+2026-11-13 20:30缺日线容错最终规则（覆盖下文早期阶段的缺口处理说明）：
+
+2026-11-13预选现为20:00；缺单股日线继续使用有效数据并保存可选
+`selection_snapshot.coverage`（`schema=daily_selection_coverage_v1`、`source_date`、
+`scope_total`、`available_daily`、`missing_symbols`、`complete`）及`warnings`。
+`DailySelections.save`将告警透传到结果正文，前端显示缺口提示；这些字段不缩小完整股票池，
+旧快照可缺省。专用补数状态成功但有缺口时保存`retry_required=true`、
+`warning`、`next_retry_at`，继续有界补数；整日无日线返回
+`selection_ready=false`、`data_release_id=null`，不发布假的定版。
+其他校验错误仍失败并重试，已有冻结名单不自动覆盖。两端本次验证见
+[本轮回执](../deliverables/operations/selection-2000-self-repair-20261113/report.md)。
+
+
+2026-11-13阶段回执扩展为现有归档的可选字段：`first_receipt`是首次成功或拒绝的
+完整步骤快照，`null`表示首次证据未知，不递归嵌套。归档层按身份、交易日、分钟、
+对象、参数及计划隔离并保留；前端分别渲染首次和最近时间/计数。
+这是当前内部实现，不提供新的插件API或调度接口。验证见
+[本轮回执](../deliverables/operations/s02-progress-first-receipt-20261113/report.md)。
+
+2026-11-13随后自定义S01触发器开放为L3内部适配：当前定义通过
+`META.trigger_selection=optional_v1`显式启用，`trigger_parameter_defaults`冻结当时14项
+保存值；API详情加可选`optional_triggers`能力字段，清空选择仍保留编辑入口。
+选择仍通过原`entry_signals/exit_signals`覆盖保存，没有新端点或扩展注册API。
+内置及日线信号复用依赖图，普通盘中信号复用特征/上升沿，S01及通用早盘清仓由专用
+持仓适配器独立计算；多选OR、最早出场、T+1和完成数据截止在引擎与隔夜回测共用。
+非法、缺失、方向错误及停用引用拒绝保存/执行；旧冻结定义不启用新语义。
+原严格单一S01绑定仅供未启用新模式的冻结定义兼容读取，详见[当前S01说明](reference/s01.md)。
+
+2026-11-13自定义S01信号参数入口为L3内部接线：复用原入场／出场触发器与已有信号选择，
+`ENTRY_SIGNALS/EXIT_SIGNALS`分别引用一个对应的`csgi_`信号；覆盖配置优先，
+旧冻结`META.parameter_signals`保留读取。S01专用模板
+`s01_late_entry/s01_morning_exit`在原隔夜内核前解析，信号保存值覆盖遗留策略参数。
+API详情的可选`parameter_signals`反映本次有效选择，供参数说明使用；账户SQL文档与Compute冻结
+注册表沿原租户隔离路径读取，缺失/停用/非法引用拒绝执行。
+这不是通用布尔列编译器或新扩展插槽；独立回放不伪造完整市场及持仓上下文。
+历史冻结记录不变，本地配套安装与参数口径见[当前S01说明](reference/s01.md)。
+
+2026-11-11 S02结果说明布局：属于L3既有结果组件排版调整，不新增插槽、API或业务规则。合段与未来日说明去重沿现有props及按日读取；当前正式父源码两文件增量及兼容验收见[本次回执](../deliverables/operations/s02-status-note-20261111/report.md)。
+
+2026-11-11 S02四阶段进展为L3观测接线，复用`entry_data_quality`及按日读端。
+可选`late_session_progress_v1`包含阶段计划／实际计时与计数，旧记录缺字段仍可读。
+引擎仅传入冻结预选作交集诊断；广度完整池、信号算法及已有查询键保持。
+升级须配套前后端与计算镜像，并复核计时忽略仅限该schema；实际状态见
+[本次回执](../deliverables/operations/s02-task-progress-20261111/report.md)。
+
+2026-11-11交易日15:45遗留复核为L3既有修复链路接线：独立内部调度与按日状态复用 `repair_inputs`，不新增Provider、插件或SQL schema。`/api/pipeline/jobs`仅增加可选摘要，兼容旧客户端；两端0.4.58调度及真实页面已验证，首轮自然执行尚待观察，见[交付回执](../deliverables/operations/post-close-integrity-20261111/report.md)。
+
+2026-11-10次日预选自动修复是L3公共数据任务接线，入口
+`selection_daily_repair.request_repair`。仅复用标准Provider、仓库原子upsert、
+加工和发布器，无新增外部API、插件或SQL schema。
+盘后Compute严格拒绝坏日线并按已有纯范围算法检查覆盖；盘中逐股隔离保留。
+新状态不覆盖15:35原补缺记录，升级须成套安装Runtime/Compute。
+
 2026-11-09盘后复核为既有读端与前端说明的局部修改，不新增API或运行模式；
 来源标记不改变实时截止，旧结果继续兼容，见[补充契约](upgrade-20261109.md)。
 

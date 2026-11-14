@@ -188,6 +188,10 @@ def test_engine_morning_exit_only_excludes_buy_at_the_same_signal_time(
     context = StrategyDataContext(
         "stock", "1m", DAY, history=history, positions=[position()],
         observed_at=NOW.replace(hour=15),
+        # This test isolates signal timing; synthetic "a" has an explicit owned pool.
+        daily_pool_snapshots={"sample": {
+            "strategy_id": "sample", "as_of": str(DAY), "symbols": ["a"], "total": 1,
+        }},
         pool_history=pl.DataFrame({
             "symbol": ["a"], "date": [date(2026, 9, 4)], "close": [10.],
         }),

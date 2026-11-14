@@ -314,7 +314,8 @@ async def _application_lifespan(app: FastAPI):
                     logger.warning("postclose selection deferred: %d strategies", len(status["errors"]))
             except Exception:
                 logger.warning("postclose selection awaiting market inputs")
-        app.state.scheduler.add_job(_daily_selections, "cron", hour=16, minute=0,
+        from app.services.selection_clock import SELECTION_HOUR
+        app.state.scheduler.add_job(_daily_selections, "cron", hour=SELECTION_HOUR, minute=0,
                                     timezone="Asia/Shanghai", id="daily_selections_slot",
                                     max_instances=1, coalesce=True, misfire_grace_time=3600)
         app.state.scheduler.add_job(_daily_selections, "interval", seconds=60,

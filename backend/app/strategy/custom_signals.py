@@ -175,16 +175,22 @@ def load_all(data_dir: Path) -> list[dict]:
     return out
 
 
-def save_one(data_dir: Path, sig: dict) -> None:
+def save_one(data_dir: Path, sig: dict, *, create_only: bool = False) -> None:
+    from app.cell.context import AccessError
     from app.multitenancy.documents import TenantDocuments
 
     if isinstance(data_dir, TenantDocuments):
         validate(sig)
-        data_dir.put("custom_signals", sig["id"], sig)
+        try:
+            data_dir.put("custom_signals", sig["id"], sig, expected_revision=0 if create_only else None)
+        except AccessError as e:
+            if create_only and e.status == 409:
+                raise FileExistsError("信号标识已存在") from e
+            raise
         return
     p = _path(data_dir, sig["id"])
     p.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(p, json.dumps(sig, ensure_ascii=False, indent=2))
+    atomic_write_text(p, json.dumps(sig, ensure_ascii=False, indent=2), overwrite=not create_only)
 
 
 def delete_one(data_dir: Path, signal_id: str) -> bool:
@@ -271,6 +277,11 @@ def validate(sig: dict) -> None:
     if timeframe not in (TIMEFRAME_DAILY, TIMEFRAME_INTRADAY):
         raise ValueError(f"timeframe 必须是 {TIMEFRAME_DAILY} / {TIMEFRAME_INTRADAY}: {timeframe!r}")
     if sig.get("template"):
+        from app.strategy.s01_signals import TEMPLATES, signal_parameters
+
+        if sig["template"] in TEMPLATES.values():
+            signal_parameters(sig)
+            return
         from app.strategy.late_session_strength import TEMPLATE, parameters
 
         if sig["template"] == "morning_liquidation":

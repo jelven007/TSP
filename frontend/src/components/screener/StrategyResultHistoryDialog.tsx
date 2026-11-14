@@ -139,7 +139,7 @@ function HistoryContent({ strategyId, onClose, nextSelectionAfter }: Props) {
           </div>
         )}
         {history.isSuccess && records.length === 0 && <p className="text-sm text-muted">
-          {nextSelectionAfter ? '尚未生成下一交易日的选名单。16:00启动，盘后数据未完成时自动重试。'
+          {nextSelectionAfter ? '尚未生成下一交易日的选名单。20:00启动，缺日线时自动核验停复牌并补数，数据未完成时自动重试。'
             : Object.keys(filters).length ? '没有符合筛选条件的结果' : '暂无保存结果'}
         </p>}
         {records.map(record => (

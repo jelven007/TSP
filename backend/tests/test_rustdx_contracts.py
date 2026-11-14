@@ -397,6 +397,7 @@ def test_plugin_manifest_declares_all_routable_datasets():
         "depth5",
         "financial",
         "corporate_actions",
+        "instrument_status",
     }
     assert custom_sources.is_builtin("rustdx")
 
@@ -562,8 +563,8 @@ def test_symbol_failures_preserve_healthy_result_and_continue_batch(dataset, mon
     assert len(calls) == 20
 
 
-def test_one_minute_preserves_opening_labels_and_session_final_bars():
-    stamps = ["09:30", "09:31", "11:30", "13:00", "13:01", "15:00"]
+def test_one_minute_preserves_close_labels_and_session_final_bars():
+    stamps = ["09:31", "11:30", "13:01", "15:00"]
     rows = [
         {"datetime": f"2026-10-09 {stamp}", "close": 10.0, "vol": 100, "amount": 1000}
         for stamp in stamps
@@ -575,7 +576,7 @@ def test_one_minute_preserves_opening_labels_and_session_final_bars():
     assert frame["volume"].to_list() == [1.0] * len(stamps)
 
 
-@pytest.mark.parametrize("stamp", ["09:29", "11:31", "12:00", "12:59", "15:01"])
+@pytest.mark.parametrize("stamp", ["09:29", "09:30", "11:31", "12:00", "12:59", "15:01"])
 def test_one_minute_rejects_nonzero_trades_outside_sessions(stamp):
     with pytest.raises(RustdxError, match="时间"):
         RustdxProvider._minute_frame(
@@ -593,7 +594,7 @@ def test_one_minute_filters_only_out_of_session_zero_placeholders():
         [{"datetime": "2026-10-09 13:00", "close": 10.0, "vol": 0, "amount": 0}],
         "600519.SH", None, None,
     )
-    assert frame["datetime"].to_list() == [datetime(2026, 10, 9, 13)]
+    assert frame["datetime"].to_list() == [datetime(2026, 10, 9, 11, 30)]
 
 
 def test_minute_history_and_intraday_batch_keep_afternoon_after_opening_label(monkeypatch):
@@ -613,7 +614,6 @@ def test_minute_history_and_intraday_batch_keep_afternoon_after_opening_label(mo
     intraday = provider.get_intraday_batch(["000001.SZ"])
     assert history["datetime"].to_list() == [
         datetime(2026, 10, 14, 11, 30),
-        datetime(2026, 10, 14, 13),
         datetime(2026, 10, 14, 13, 1),
         datetime(2026, 10, 14, 15),
     ]

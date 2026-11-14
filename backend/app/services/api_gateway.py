@@ -87,6 +87,9 @@ def required_scope(method: str, path: str) -> str | None:
 
     返回 "*" 表示仅需有效 Token (不做特定 scope 校验)。
     """
+    # Account-owned UI preferences are not part of strategy analysis reads.
+    if path == "/api/strategies/pool":
+        return None
     for m, prefix, scope in _RULES:
         if (m == "*" or m == method) and (path == prefix or path.startswith(prefix.rstrip("/") + "/")):
             # read:ext 域内的拉取 Key 状态子路径属管理面 (脱敏也不外露)

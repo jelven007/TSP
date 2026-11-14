@@ -245,7 +245,7 @@ it('uses the requested migrated defaults and request units', async () => {
   await click('运行回测')
 
   expect(startBacktest).toHaveBeenCalledWith(expect.objectContaining({
-    max_positions: 5,
+    max_positions: 4,
     stamp_tax_pct: 0.001,
     slippage_bps: 10,
     minimum_commission: 5,
@@ -300,7 +300,7 @@ it('shows the overnight capital and fee contract and disables independent full m
   await act(async () => picker.click())
   await settle()
   const summary = host.querySelector('[data-testid="overnight-execution"]')!
-  expect(summary.textContent).toContain('14:47～14:49')
+  expect(summary.textContent).toContain('个股信号确认后下一分钟起，按系统回测5分钟买入窗口执行')
   expect(summary.textContent).toContain('现金100,000元')
   expect(summary.textContent).toContain('分钟参与率10%')
   expect(summary.textContent).toContain('最晚13:30；午休不成交')

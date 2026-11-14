@@ -1,0 +1,6 @@
+name: public_disclosures
+display_name: "公开披露与资金流"
+runtime: none
+entry: app.plugins.public_disclosures.provider:PublicDisclosuresProvider
+datasets: [money_flow, sina_money_flow, announcements]
+description: "东方财富公告与资金流、独立新浪历史资金流；保留来源、采集时间及覆盖缺口，不混合供应商分类。"

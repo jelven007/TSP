@@ -433,6 +433,8 @@ def _config_to_dict(config: CustomSourceConfig) -> dict:
             **({"asset_type_param": ds.asset_type_param} if ds_name == "minute" and ds.asset_type_param else {}),
             **({"freq_param": ds.freq_param} if ds_name == "minute" and ds.freq_param else {}),
             **({"pct_unit": ds.pct_unit} if ds_name == "realtime" and ds.pct_unit else {}),
+            **({"minute_timestamp_label": ds.minute_timestamp_label}
+               if ds_name in ("minute", "full_minute") and ds.minute_timestamp_label != "close" else {}),
         }
     return out
 
@@ -570,6 +572,13 @@ def _sanitize_dataset(ds_name: str, ds_cfg: dict) -> dict:
             out["asset_type_param"] = asset_type_param
         if freq_param:
             out["freq_param"] = freq_param
+    minute_label = str(ds_cfg.get("minute_timestamp_label") or "close").strip().lower()
+    if minute_label not in ("close", "start"):
+        raise ValueError("minute_timestamp_label must be 'close' or 'start'")
+    if minute_label != "close":
+        if ds_name not in ("minute", "full_minute"):
+            raise ValueError("minute_timestamp_label only applies to minute datasets")
+        out["minute_timestamp_label"] = minute_label
     request_params = [
         out.get("symbols_param", "symbols"),
         out.get("start_param", "start_time"),

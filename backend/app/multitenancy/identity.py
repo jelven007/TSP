@@ -603,6 +603,12 @@ class AccountIdentity:
         if job["status"] != "moving" or job["routing_epoch"] != 1:
             raise AccessError(409, "租户初始化状态已变更")
         try:
+            columns = None
+            if self.db.settings.bootstrap_watchlist_columns_path is not None:
+                from app.multitenancy.watchlist_defaults import load_snapshot
+
+                snapshot = load_snapshot(self.db.settings.bootstrap_watchlist_columns_path)
+                columns = [row.model_dump() for row in snapshot.columns]
             with self.db.data.connection() as conn, conn.transaction():
                 conn.execute(
                     "SELECT business.initialize_tenant(%s,%s)", (job["tenant_id"], job["routing_epoch"]),
@@ -611,6 +617,10 @@ class AccountIdentity:
                 conn.execute(
                     "SELECT id FROM control.provisioning_jobs WHERE id=%s FOR UPDATE", (job["id"],),
                 )
+                if columns is not None:
+                    from app.multitenancy.watchlist_defaults import seed_columns
+
+                    seed_columns(conn, user_id, columns)
                 conn.execute(
                     """UPDATE control.tenants SET status='active'
                        WHERE id=%s AND status='moving' AND routing_epoch=1""", (job["tenant_id"],),

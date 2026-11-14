@@ -10,10 +10,11 @@ MARKET_DEPENDENCIES = ("databases", "public_files", "platform")
 FUNCTION_DEPENDENCIES = {
     "market": MARKET_DEPENDENCIES,
     "research": (*MARKET_DEPENDENCIES, "indicator_cache", "research_worker", "compute_broker"),
-    "monitoring": (*MARKET_DEPENDENCIES, "indicator_cache", "realtime_worker"),
-    "paper_trading": (*MARKET_DEPENDENCIES, "indicator_cache", "realtime_worker", "scheduled_worker"),
+    "monitoring": (*MARKET_DEPENDENCIES, "indicator_cache", "realtime_worker", "compute_broker"),
+    "paper_trading": (*MARKET_DEPENDENCIES, "indicator_cache", "realtime_worker", "scheduled_worker",
+                      "compute_broker"),
     "notifications": ("databases", "notifications_worker"),
-    "scheduled": (*MARKET_DEPENDENCIES, "scheduled_worker"),
+    "scheduled": (*MARKET_DEPENDENCIES, "scheduled_worker", "compute_broker"),
 }
 
 

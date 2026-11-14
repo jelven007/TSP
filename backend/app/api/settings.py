@@ -549,6 +549,7 @@ class DatasetConfigIn(BaseModel):
     end_param: str = "end_time"
     asset_type_param: str | None = None
     freq_param: str | None = None
+    minute_timestamp_label: Literal["close", "start"] = "close"
     timeout: float | None = Field(
         default=None,
         gt=0,

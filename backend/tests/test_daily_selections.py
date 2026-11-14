@@ -21,13 +21,13 @@ def key():
 
 def snapshot(rows=()):
     return {"as_of": str(TARGET), "source_date": str(SOURCE), "rows": list(rows),
-            "scheduled_for": "2026-10-30T16:00:00+08:00",
-            "generated_at": "2026-10-30T16:01:00+08:00"}
+            "scheduled_for": "2026-10-30T20:00:00+08:00",
+            "generated_at": "2026-10-30T20:01:00+08:00"}
 
 
 @pytest.mark.parametrize("now, expected", [
-    (datetime(2026, 10, 30, 15, 59, 59, tzinfo=CN), None),
-    (datetime(2026, 10, 30, 16, tzinfo=CN), (SOURCE, TARGET)),
+    (datetime(2026, 10, 30, 19, 59, 59, tzinfo=CN), None),
+    (datetime(2026, 10, 30, 20, tzinfo=CN), (SOURCE, TARGET)),
     (datetime(2026, 10, 31, 12, tzinfo=CN), (SOURCE, TARGET)),
     (datetime(2026, 11, 2, 8, tzinfo=CN), (SOURCE, TARGET)),
     (datetime(2026, 11, 2, 9, 30, tzinfo=CN), None),
@@ -103,13 +103,11 @@ def test_read_merges_later_selection_without_rewriting_earlier_minute_archive(tm
 def test_postclose_context_never_reads_target_minutes_or_future_daily(scan, monkeypatch):
     from app.services.screener import ScreenerService
     engine, context, overrides = scan
-    daily = context.daily_history
     service = ScreenerService(SimpleNamespace(
         get_instruments_asset=lambda *_: pl.DataFrame(),
         get_daily_close_inputs=lambda day: (
-            daily.filter(pl.col("date") == day), daily.select("symbol", "close"),
-        ),
-    ))
+            context.daily_history.filter(pl.col("date") == day),
+            context.daily_history.select("symbol", "close"))))
     future = context.daily_history.with_columns(pl.lit(TARGET).alias("date"))
     history = pl.concat([context.daily_history, future])
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: history)
@@ -123,6 +121,74 @@ def test_postclose_context_never_reads_target_minutes_or_future_daily(scan, monk
     assert built.history is None
 
 
+def test_postclose_cannot_freeze_a_partial_selection_after_isolating_bad_daily(scan, monkeypatch):
+    from app.services.screener import ScreenerService
+    engine, context, _ = scan
+    daily = pl.concat([context.daily_history, context.daily_history.with_columns(
+        pl.lit("600002.SH").alias("symbol"))])
+    closing = daily.with_columns(pl.when(pl.col("symbol") == "600002.SH")
+                                .then(9.).otherwise(10.).alias("close")).select("symbol", "close")
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda *_: pl.DataFrame(),
+        get_daily_close_inputs=lambda day: (daily, closing),
+    ))
+    monkeypatch.setattr(service, "_load_enriched_history", lambda *_: daily)
+    with pytest.raises(ValueError, match="收盘"):
+        service.build_selection_context(engine, SOURCE, TARGET, ["custom_test"])
+
+
+@pytest.mark.parametrize("missing_symbol, missing", [("600002.SH", ["600002.SH"]), ("688001.SH", [])])
+def test_missing_daily_in_full_scope_is_never_hidden_by_numeric_selection(scan, monkeypatch,
+                                                                         missing_symbol, missing):
+    from app.services.daily_selections import compute_selections
+    from app.services.screener import ScreenerService
+    engine, context, _ = scan
+    daily = context.daily_history
+    instruments = pl.DataFrame({"symbol": ["600001.SH", missing_symbol], "name": ["one", "missing"]})
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda *_: instruments,
+        get_daily_close_inputs=lambda day: (daily, daily.select("symbol", "close")),
+    ))
+    monkeypatch.setattr(service, "_load_enriched_history", lambda *_: daily)
+    result = compute_selections(engine, service, SOURCE, TARGET, ["custom_test"],
+                                {"custom_test": {"basic_filter": {"boards": ["沪主板"], "price_min": 1}}})
+    assert result["errors"] == {}
+    selected = result["selections"]["custom_test"]
+    assert selected["coverage"]["missing_symbols"] == missing
+    assert selected["coverage"]["complete"] is (not missing)
+    assert selected["coverage"]["scope_total"] == 1 + len(missing)
+    assert selected["coverage"]["available_daily"] == 1
+    assert [row["symbol"] for row in selected["rows"]] == ["600001.SH"]
+    assert bool(selected["warnings"]) is bool(missing)
+
+
+@pytest.mark.parametrize("exclude, missing", [(True, []), (False, ["600002.SH"])])
+def test_2000_halt_evidence_does_not_override_strategy_suspension_setting(scan, monkeypatch,
+                                                                        exclude, missing):
+    from app.instrument_suspension import SCHEMA, TIMESTAMP_SCHEMA
+    from app.services.daily_selections import compute_selections
+    from app.services.screener import ScreenerService
+    engine, context, _ = scan
+    event = {"symbol": "600002.SH", "effective_date": SOURCE, "announced_on": SOURCE,
+             "announced_at": datetime(2026, 10, 30, 19), "is_suspended": True,
+             "source_url": "https://www.sse.com.cn/official.pdf"}
+    history = pl.DataFrame([event], schema={**SCHEMA, **TIMESTAMP_SCHEMA})
+    daily = context.daily_history
+    service = ScreenerService(SimpleNamespace(
+        get_suspension_history=lambda: history,
+        get_instruments_asset=lambda *_: pl.DataFrame({
+            "symbol": ["600001.SH", "600002.SH"], "name": ["one", "halt"]}),
+        get_daily_close_inputs=lambda day: (daily, daily.select("symbol", "close")),
+    ))
+    monkeypatch.setattr(service, "_load_enriched_history", lambda *_: daily)
+    result = compute_selections(engine, service, SOURCE, TARGET, ["custom_test"],
+                                {"custom_test": {"basic_filter": {"exclude_suspended": exclude}}})
+    assert result["errors"] == {}
+    selected = result["selections"]["custom_test"]
+    assert selected["coverage"]["missing_symbols"] == missing
+    assert selected["scheduled_for"] == "2026-10-30T20:00:00+08:00"
+
+
 def test_local_schedule_waits_for_completed_source_then_saves_and_survives_restart(scan, tmp_path):
     from app.services.daily_selections import DailySelections, generate_scheduled_local
     from app.services.screener import ScreenerService
@@ -131,11 +197,10 @@ def test_local_schedule_waits_for_completed_source_then_saves_and_survives_resta
                            get_instruments_asset=lambda *_: pl.DataFrame(),
                            get_daily_close_inputs=lambda day: (
                                context.daily_history.filter(pl.col("date") == day),
-                               context.daily_history.select("symbol", "close"),
-                           ))
+                               context.daily_history.select("symbol", "close")))
     service = ScreenerService(repo)
     service._load_enriched_history = lambda *_: context.daily_history
-    now = datetime(2026, 10, 30, 16, tzinfo=CN)
+    now = datetime(2026, 10, 30, 20, tzinfo=CN)
     waiting = generate_scheduled_local(engine, service, tmp_path, now=now)
     assert waiting["errors"]
     assert DailySelections(tmp_path).read("custom_test", TARGET) is None
@@ -166,7 +231,7 @@ def test_local_schedule_discards_changed_source_and_records_failure(scan, tmp_pa
         return {"selections": {"custom_test": snapshot()}, "errors": {}}
     monkeypatch.setattr(daily_selections, "compute_selections", compute)
     result = daily_selections.generate_scheduled_local(
-        engine, service, tmp_path, now=datetime(2026, 10, 30, 16, tzinfo=CN))
+        engine, service, tmp_path, now=datetime(2026, 10, 30, 20, tzinfo=CN))
     assert result["errors"]
     assert daily_selections.DailySelections(tmp_path).read("custom_test", TARGET) is None
     assert daily_selections.DailySelections(tmp_path).job(str(TARGET))["state"] == "failed"
@@ -184,8 +249,7 @@ def test_preselection_excludes_source_dated_known_suspension(scan, monkeypatch):
     service = ScreenerService(SimpleNamespace(
         get_instruments_asset=lambda *_: pl.DataFrame(),
         get_daily_close_inputs=lambda day: (
-            daily.filter(pl.col("date") == day), daily.select("symbol", "close"),
-        ),
+            daily.filter(pl.col("date") == day), daily.select("symbol", "close")),
     ))
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: daily)
     result = compute_selections(engine, service, SOURCE, TARGET, ["custom_test"],
@@ -213,8 +277,7 @@ def test_compute_dispatch_generates_archives_then_buys_only_saved_members(tmp_pa
         get_instruments_asset=lambda *_: pl.DataFrame(),
         get_enriched_history=lambda *_: daily,
         get_daily_close_inputs=lambda day: (
-            daily.filter(pl.col("date") == day), daily.select("symbol", "close"),
-        ),
+            daily.filter(pl.col("date") == day), daily.select("symbol", "close")),
     )
     monkeypatch.setattr("app.tickflow.repository.DataStore", lambda *_args, **_kwargs:
                         SimpleNamespace(db=SimpleNamespace(close=lambda: None)))

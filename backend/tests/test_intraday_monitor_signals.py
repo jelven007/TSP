@@ -171,7 +171,7 @@ def test_intraday_batch_provider_is_normalized_without_network(monkeypatch):
             assert show_progress is False
             assert batch_size == 20
             # as_dataframe=False: dict[symbol → CompactKlineData (字段→列数组)]
-            ts = int(datetime(2026, 7, 17, 9, 30, tzinfo=CN_TZ).timestamp() * 1000)
+            ts = int(datetime(2026, 7, 17, 9, 31, tzinfo=CN_TZ).timestamp() * 1000)
             return {
                 "600000.SH": {
                     "timestamp": [ts],

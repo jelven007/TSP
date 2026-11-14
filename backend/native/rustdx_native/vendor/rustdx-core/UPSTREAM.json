@@ -3,7 +3,7 @@
     "Cargo.lock": "90cd07f0ced7ef427a9aa001034ce81f0211db5826480aef037208ee8dbf3d0c",
     "Cargo.toml": "b99a31f4133e3d2f6c226bd0b468b673d1d51bfc2ba844cfc89867f7c33bac88",
     "LICENSE": "9b0dc07dd841fcc1f51f4f1c73a4460ed2dea57ef89442b30ae4429bab8395ee",
-    "PATCHES.md": "a14e73b43eab60039538ac19798f3b58d3e0859aaeb354b9f99a73341a9b3953",
+    "PATCHES.md": "5ad338ff11d111b6453afcd02786d6265fe8b6a29389b09b33e0174246f52a34",
     "README.md": "c420ef2fdc79c9a5fb8932bf8ec3be23a2e6151aa400c1487d63e336cd198756",
     "src/atomic_file.rs": "973150d4e9caedc8b0eedfce2537b852f2977572945cb62c12d4287baccff716",
     "src/builder.rs": "294d870d070b4236a20db269dafe80261ded590ae79458ffed32de2d451de943",
@@ -76,7 +76,7 @@
     "src/tcp/stock/industry_mapping.rs": "9137fa53d1ee8e32ab98fe3ec9566b47a47dc896ab4990eeeaeb0ec22a1019ea",
     "src/tcp/stock/intraday_aux.rs": "4f88fb8b962df0aaf9e851c6f1298df8fbff75792fe7063bce5dfab8a0af2efa",
     "src/tcp/stock/kline.rs": "1a8866b714302d3f73c4939af223133044e184de5f319e7ffada26d5ae79e0af",
-    "src/tcp/stock/kline_request.rs": "43d218b5668c1857b43b7d9b9134de3871d025ade68dcafbb41cce4d923a58a7",
+    "src/tcp/stock/kline_request.rs": "7cd8455bb5b4f796d6ad668d9b1cca646123a096b9f720285534f5623d5f4a16",
     "src/tcp/stock/minute_time.rs": "43b17246c23a36e0039aa306d40abd57cb45458a985d22a5d59c22b9f720e722",
     "src/tcp/stock/mod.rs": "f3d79bd5b6eda38ac6f8213919d02ea6324ea3fb2c99d3914d45ac45af568f34",
     "src/tcp/stock/money_flow.rs": "8fcead4b52314cc8419d59ef18d0b69ba8040fcfc56369df9b9c5bb5179e2fa0",
@@ -108,7 +108,7 @@
     "src/tcp/tests.rs": "b1130f896b2e846c172d92b4fc75a2c0ea4340c232d3ab878659931d1b69e168",
     "tests/fixtures/kline/stock-day.response.hex": "1f24fe9180ee741dcefc73962dff299f4d34f108e3808c07e72880ac98e56f95"
   },
-  "core_sha256": "f2b821dc5b4ce6ac7c495ebe3cbcfccec5d2daf5cfe726684719607a27a75fde",
+  "core_sha256": "501a4a977b09f05016dadf7d3b4fef30998a5102c99a581fc90c8b20fd8feb9d",
   "original_sha256": {
     "Cargo.toml": "442c7f029ac90ec339c58222bef95bc271adde700f90a55401d648d44b89d809",
     "LICENSE": "9b0dc07dd841fcc1f51f4f1c73a4460ed2dea57ef89442b30ae4429bab8395ee",
@@ -216,7 +216,7 @@
     "src/tcp/tests.rs": "b1130f896b2e846c172d92b4fc75a2c0ea4340c232d3ab878659931d1b69e168",
     "tests/fixtures/kline/stock-day.response.hex": "1f24fe9180ee741dcefc73962dff299f4d34f108e3808c07e72880ac98e56f95"
   },
-  "patch_sha256": "3907851f578f846774bb820d23f076d68a9123fe44c4e5d91674de43085585d5",
+  "patch_sha256": "3ebbb3c4f16e8d20d03f3df1f1fe42901b67576d9ae9624740b6da7789e8840b",
   "patches": {
     "Cargo.lock": {
       "adapted": "90cd07f0ced7ef427a9aa001034ce81f0211db5826480aef037208ee8dbf3d0c",
@@ -227,7 +227,7 @@
       "upstream": "442c7f029ac90ec339c58222bef95bc271adde700f90a55401d648d44b89d809"
     },
     "PATCHES.md": {
-      "adapted": "a14e73b43eab60039538ac19798f3b58d3e0859aaeb354b9f99a73341a9b3953",
+      "adapted": "5ad338ff11d111b6453afcd02786d6265fe8b6a29389b09b33e0174246f52a34",
       "upstream": null
     },
     "src/tcp/governance.rs": {
@@ -257,6 +257,10 @@
     "src/tcp/mod.rs": {
       "adapted": "a47df3a9e93f09f86b8ec44a3301942f90d08581aecb4d472548390b98e346f2",
       "upstream": "e0d79deaa94b15eba7d3f4527d55b99fffc1175e2489f23d29ab45545424585f"
+    },
+    "src/tcp/stock/kline_request.rs": {
+      "adapted": "7cd8455bb5b4f796d6ad668d9b1cca646123a096b9f720285534f5623d5f4a16",
+      "upstream": "43d218b5668c1857b43b7d9b9134de3871d025ade68dcafbb41cce4d923a58a7"
     }
   },
   "repository": "https://github.com/jelven007/rustdx",

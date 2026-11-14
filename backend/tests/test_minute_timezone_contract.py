@@ -45,10 +45,10 @@ def _beijing_day() -> list[datetime]:
 # ---------- TickFlow 路径: timestamp 毫秒 (UTC 基准) → 北京墙钟 ----------
 
 def test_tickflow_timestamp_normalizes_to_beijing_wallclock():
-    """09:30 北京 = 01:30 UTC; SDK 帧 timestamp 毫秒归一后必须回到 09:30。"""
+    """完成分钟09:31/13:01的UTC毫秒归一后保持收盘时标。"""
     ts_ms = [
-        int(datetime(2026, 1, 15, 1, 30, tzinfo=UTC).timestamp() * 1000),   # 09:30 北京
-        int(datetime(2026, 1, 15, 5, 0, tzinfo=UTC).timestamp() * 1000),    # 13:00 北京
+        int(datetime(2026, 1, 15, 1, 31, tzinfo=UTC).timestamp() * 1000),
+        int(datetime(2026, 1, 15, 5, 1, tzinfo=UTC).timestamp() * 1000),
         int(datetime(2026, 1, 15, 7, 0, tzinfo=UTC).timestamp() * 1000),    # 15:00 北京
     ]
     df = pl.DataFrame({
@@ -59,7 +59,9 @@ def test_tickflow_timestamp_normalizes_to_beijing_wallclock():
         "volume": [100.0] * 3, "amount": [1020.0] * 3,
     })
     out = kline_sync._normalize_minute(df)
-    assert out["datetime"].to_list() == _beijing_day()
+    assert out["datetime"].to_list() == [
+        datetime(2026, 1, 15, 9, 31), datetime(2026, 1, 15, 13, 1),
+        datetime(2026, 1, 15, 15, 0)]
 
 
 def test_tickflow_timestamp_partial_day_lunch_unaffected():
@@ -159,7 +161,7 @@ def test_custom_provider_utc_frame_selfhealed(monkeypatch):
     """插件返回 UTC 墙钟帧 → 路由层守卫 +8 后下发, 不回退。"""
     mock_provider = MagicMock()
     mock_provider.get_minute = MagicMock(return_value=_minute_frame(
-        [datetime(2026, 1, 15, 1, 30), datetime(2026, 1, 15, 5, 0)]))
+        [datetime(2026, 1, 15, 1, 31), datetime(2026, 1, 15, 5, 1)]))
     _setup_custom_provider(monkeypatch, mock_provider)
 
     df, fallback = kline_sync._try_custom_minute(
@@ -167,7 +169,7 @@ def test_custom_provider_utc_frame_selfhealed(monkeypatch):
         asset_type="stock",
     )
     assert fallback is False
-    assert df["datetime"].to_list() == [datetime(2026, 1, 15, 9, 30), datetime(2026, 1, 15, 13, 0)]
+    assert df["datetime"].to_list() == [datetime(2026, 1, 15, 9, 31), datetime(2026, 1, 15, 13, 1)]
 
 
 def test_custom_provider_garbage_datetime_preserves_source(monkeypatch):

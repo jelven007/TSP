@@ -42,6 +42,8 @@ export interface DefaultStrategyBasicFilter {
   watchlist_group_ids?: string[]
   change_pct_min?: number | null
   change_pct_max?: number | null
+  amplitude_min?: number | null
+  amplitude_max?: number | null
   price_min: number | null
   price_max: number | null
   market_cap_min?: number | null

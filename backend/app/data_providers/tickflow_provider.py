@@ -84,7 +84,7 @@ class TickFlowProvider:
         if freq in ("1d", "1w"):
             frame = frame.with_columns(_timestamp_to_beijing_datetime(pl.col("timestamp")).alias("datetime")).drop("timestamp")
             return _normalize_daily(frame)
-        return _normalize_minute(frame)
+        return _normalize_minute(frame, freq=freq)
 
     def get_daily(
         self,

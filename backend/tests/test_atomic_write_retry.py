@@ -34,7 +34,7 @@ except ImportError:  # pragma: no cover
 def _minute_frame() -> pl.DataFrame:
     return pl.DataFrame({
         "symbol": ["600519.SH"],
-        "datetime": [datetime(2026, 1, 15, 9, 30)],
+        "datetime": [datetime(2026, 1, 15, 9, 31)],
         "open": [10.0], "high": [10.5], "low": [9.5], "close": [10.2],
         "volume": [100.0], "amount": [1020.0],
     })

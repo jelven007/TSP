@@ -752,8 +752,8 @@ export function Watchlist() {
   const candleResolved = useMemo(() => resolveCandleConfig(candleColumn?.candleConfig), [candleColumn])
   const candleDays = candleResolved.days
   const candleSize = dailyKChartVisible
-    ? { width: candleResolved.enabledWidth, height: candleResolved.enabledHeight }
-    : { width: candleResolved.disabledWidth, height: candleResolved.disabledHeight }
+    ? { width: Math.min(candleResolved.enabledWidth, 160), height: candleResolved.enabledHeight }
+    : { width: Math.min(candleResolved.disabledWidth, 160), height: candleResolved.disabledHeight }
 
   const dailyKVisible = candleColumnEnabled && dailyKChartVisible
 
@@ -774,10 +774,7 @@ export function Watchlist() {
     return columns.filter(c => c.visible).flatMap(col =>
       col.id === 'builtin:symbol' ? [col, WATCHLIST_GROUP_COLUMN] : [col])
   }, [columns])
-  const tableColumnWidths = useMemo(() => watchlistColumnWidths(visibleColumns, {
-    candle: candleSize.width + 16,
-    intraday: Math.max(104, (intradayChartVisible ? intradayResolved.width : 40) + 16),
-  }), [visibleColumns, candleSize.width, intradayChartVisible, intradayResolved.width])
+  const tableColumnWidths = useMemo(() => watchlistColumnWidths(visibleColumns), [visibleColumns])
 
   // 计算 ext 列参数
   const extColumnsParam = useMemo(() => buildExtColumnsParam(columns), [columns])
@@ -1966,7 +1963,7 @@ export function Watchlist() {
                   return (
                     <td
                       className="pl-2 pr-3 py-1.5"
-                      style={{ width: candleSize.width + 4, minWidth: candleSize.width + 4, maxWidth: candleSize.width + 4, height: candleSize.height }}
+                      style={{ height: candleSize.height }}
                     >
                       <MiniCandlestick rows={klineData[r.symbol] ?? []} width={candleSize.width} height={candleSize.height} />
                     </td>
@@ -1976,10 +1973,9 @@ export function Watchlist() {
                 if (key === 'intraday') {
                   // 指数无本地分钟K数据, 分时列降级为占位符
                   if (r.asset_type === 'index') {
-                    const iw = intradayChartVisible ? intradayResolved.width : 40
                     const ih = intradayChartVisible ? intradayResolved.height : 40
                     return (
-                      <td className="pl-3 pr-2 py-1.5 border-l border-border/30" style={{ width: iw + 4, minWidth: iw + 4, maxWidth: iw + 4, height: ih }}>
+                      <td className="pl-3 pr-2 py-1.5 border-l border-border/30" style={{ height: ih }}>
                         <div className="flex items-center justify-center">
                           <span className="text-[10px] text-muted">—</span>
                         </div>
@@ -1987,11 +1983,11 @@ export function Watchlist() {
                     )
                   }
                   const rows: MinuteKlineRow[] = minuteData[r.symbol] ?? []
-                  // 眼睛关闭(收起)时用小尺寸 (和日k收起态一致 40x40); 开启时用配置值
-                  const iw = intradayChartVisible ? intradayResolved.width : 40
+                  // 分时图适配固定列宽，保存的图表参数保持原值。
+                  const iw = intradayChartVisible ? Math.min(intradayResolved.width, 40) : 40
                   const ih = intradayChartVisible ? intradayResolved.height : 40
                   return (
-                    <td className="pl-3 pr-2 py-1.5 border-l border-border/30" style={{ width: iw + 4, minWidth: iw + 4, maxWidth: iw + 4, height: ih }}>
+                    <td className="pl-3 pr-2 py-1.5 border-l border-border/30" style={{ height: ih }}>
                       <div className="flex items-center justify-center">
                         {intradayChartVisible
                           ? <MiniIntraday rows={rows} prevClose={r.prev_close} changePct={r.change_pct} width={iw - 4} height={ih} />

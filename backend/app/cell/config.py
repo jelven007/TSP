@@ -16,6 +16,7 @@ class CellSettings(BaseSettings):
     schema_version: int = Field(default=4, ge=4, le=8)
     deployment_exposure: str = Field(default="local", pattern=r"^(local|public)$")
     bootstrap_admin_password: SecretStr = SecretStr("")
+    bootstrap_watchlist_columns_path: Path | None = None
     session_ttl_seconds: int = Field(default=86400, ge=300, le=2592000)
     market_url: str = ""
     market_token: SecretStr = SecretStr("")

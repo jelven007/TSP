@@ -41,7 +41,7 @@ export function BasicFilterEditor({ value, onChange, disabled = false, alwaysEna
         onChange={e => onChange({ ...value, enabled: e.target.checked })} />
       启用数值过滤
     </label>}
-    <p className="text-[11px] leading-4 text-muted">以下7项均使用上一个交易日数据，价格范围对应收盘价。留空取消限制。{!alwaysEnabled && '关闭数值过滤仍保留股票范围和 ST 选择。'}</p>
+    <p className="text-[11px] leading-4 text-muted">以下{BASIC_FILTER_RANGES.length + 1}项均使用上一个交易日数据，价格范围对应收盘价。留空取消限制。{!alwaysEnabled && '关闭数值过滤仍保留股票范围和 ST 选择。'}</p>
     <div className="space-y-2">
       {BASIC_FILTER_RANGES.map(({ key, label, scale, unit, step }) => {
         const min = value[`${key}_min`], max = value[`${key}_max`]
@@ -53,6 +53,7 @@ export function BasicFilterEditor({ value, onChange, disabled = false, alwaysEna
           onMaxChange={v => onChange({ ...value, enabled, [`${key}_max`]: v == null ? null : v * scale })} />
       })}
       <p className="text-[10px] text-muted">涨跌幅：- 表示跌幅，+ 表示涨幅；范围 -50%～+50%，最多1位小数。</p>
+      <p className="text-[10px] text-muted">上下振幅＝（前日最高价－前日最低价）÷前两日收盘价 × 100%。填写 12 表示 12%。</p>
       <label className="flex items-center gap-1.5">
         <span className="text-xs text-secondary w-16 shrink-0 text-right">上市天数</span>
         <input type="number" aria-label="上市天数" value={value.exclude_new_days ?? ''}

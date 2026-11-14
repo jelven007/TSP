@@ -1,4 +1,5 @@
 """当前30秒默认只改时钟, 已保存60/90秒定义及启动分钟行情保持。"""
+from dataclasses import asdict
 from datetime import timedelta
 from types import SimpleNamespace
 
@@ -22,8 +23,12 @@ def test_current_default_waits_thirty_seconds_with_same_complete_input_results()
                         completed_through=TARGET + timedelta(seconds=29)).symbols
     result = evaluate(frame=frame, sig=current,
                       completed_through=TARGET + timedelta(seconds=30))
-    assert result == evaluate(frame=frame, sig=frozen,
-                              completed_through=TARGET + timedelta(seconds=90))
+    frozen_result = evaluate(frame=frame, sig=frozen,
+                             completed_through=TARGET + timedelta(seconds=90))
+    assert {k: v for k, v in asdict(result).items() if k != "progress"} == {
+        k: v for k, v in asdict(frozen_result).items() if k != "progress"}
+    assert result.progress["observed_at"] == "2026-09-04T14:30:30"
+    assert frozen_result.progress["observed_at"] == "2026-09-04T14:31:30"
     assert result.symbols == POOL[:3]
     assert result.pool_up_pct == 60
     assert frame.filter((pl.col("datetime") == bar_time(current, DAY))

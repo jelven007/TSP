@@ -276,7 +276,9 @@ def run_now(
                 repo.store.data_dir, today=today,
             )
             if integrity_issues:
-                stale_day = data_integrity.earliest_issue_day(integrity_issues, ("kline_daily",))
+                stale_day = data_integrity.earliest_issue_day(
+                    integrity_issues, ("kline_daily", "kline_daily_enriched"),
+                )
                 index_stale_day = data_integrity.earliest_issue_day(integrity_issues, ("kline_index_daily",))
                 logger.warning(
                     "integrity: 检测到 %d 个不完整分区(%s), 本次管道改走范围拉取修复",
@@ -1421,6 +1423,8 @@ def apply_data_sync_mode(scheduler) -> None:
         if job.id in {
             "daily_pipeline", "depth_finalize", "kline_periods",
             "post_close_sync_retry",
+            "selection_daily_repair", "selection_daily_repair_retry",
+            "post_close_integrity", "post_close_integrity_retry",
         } or (
             job.id.startswith("auction_snapshot_") or job.id == "auction_publication_retry"
         ):
@@ -1484,6 +1488,46 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     scheduler.add_job(
         _post_close_sync, kwargs={"retry": True}, trigger=IntervalTrigger(seconds=30),
         id="post_close_sync_retry", max_instances=1, coalesce=True, replace_existing=True,
+    )
+
+    # Next-session eligibility repairs only its daily inputs. A failed 15:35
+    # five-period job must not leave the 20:00 consumer passively waiting.
+    def _selection_daily_repair():
+        from app.services.selection_daily_repair import request_repair
+        app_state = _get_app_state()
+        live_capset = getattr(app_state, "capabilities", None) or capset
+        qs = getattr(app_state, "quote_service", None)
+        return request_repair(repo, live_capset, qs)
+
+    from app.services.selection_clock import SELECTION_HOUR
+    scheduler.add_job(
+        _selection_daily_repair,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=SELECTION_HOUR, minute=0, timezone="Asia/Shanghai"),
+        id="selection_daily_repair", misfire_grace_time=3600, max_instances=1,
+        coalesce=True, replace_existing=True,
+    )
+    scheduler.add_job(
+        _selection_daily_repair, trigger=IntervalTrigger(seconds=30),
+        id="selection_daily_repair_retry", max_instances=1, coalesce=True, replace_existing=True,
+    )
+
+        # 固定15:45复核当日遗留问题; 间隔检查负责同日占槽等待、退避及重启补跑。
+    def _post_close_integrity():
+        from app.services.post_close_integrity import request_repair
+        app_state = _get_app_state()
+        live_capset = getattr(app_state, "capabilities", None) or capset
+        qs = getattr(app_state, "quote_service", None)
+        return request_repair(repo, live_capset, qs)
+
+    scheduler.add_job(
+        _post_close_integrity,
+        trigger=CronTrigger(day_of_week="mon-fri", hour=15, minute=45, timezone="Asia/Shanghai"),
+        id="post_close_integrity", misfire_grace_time=3600, max_instances=1,
+        coalesce=True, replace_existing=True,
+    )
+    scheduler.add_job(
+        _post_close_integrity, trigger=IntervalTrigger(seconds=30),
+        id="post_close_integrity_retry", max_instances=1, coalesce=True, replace_existing=True,
     )
 
     # 盘后: 五档盘口 sealed 定版(时间由偏好决定, 默认15:02, 范围15:01~18:00)

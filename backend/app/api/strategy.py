@@ -216,6 +216,16 @@ def _strategy_detail(
         if overrides.get("params"):
             params_defaults.update(overrides["params"])
     bf.pop("target_symbols", None)
+    from app.strategy.s01_signals import PARAMETER_KEYS, bound_definitions, optional_triggers
+
+    parameter_signals = bound_definitions(engine, s, overrides=overrides, strict=False)
+    if parameter_signals or optional_triggers(s):
+        params_defaults = {k: v for k, v in params_defaults.items() if k not in PARAMETER_KEYS}
+    param_defs = s.meta.get("params", [])
+    equal_selected = s.meta.get("entry_allocation") == "equal_selected_v1"
+    if equal_selected:
+        params_defaults.pop("entry_nav_fraction", None)
+        param_defs = [p for p in param_defs if p["id"] != "entry_nav_fraction"]
 
     # 名称/描述可被用户覆盖
     name = overrides.get("name", s.meta.get("name", "")) if overrides else s.meta.get("name", "")
@@ -231,13 +241,16 @@ def _strategy_detail(
         "research_only": s.meta.get("research_only", False),
         "execution_backend": s.execution_backend,
         "minute_execution": s.meta.get("minute_execution"),
+        **({"entry_allocation": "equal_selected_v1"} if equal_selected else {}),
+        **({"optional_triggers": True} if optional_triggers(s) else {}),
         **({"result_sections": s.meta["result_sections"]} if "result_sections" in s.meta else {}),
         "asset_types": s.meta.get("asset_types", ["stock"]),
         "timeframes": s.meta.get("timeframes", ["1d"]),
         "version": s.meta.get("version", "1.0.0"),
         "basic_filter": bf,
-        "params": s.meta.get("params", []),
+        "params": param_defs,
         "params_defaults": params_defaults,
+        **({"parameter_signals": parameter_signals} if parameter_signals else {}),
         **({"definition_defaults": {
             key: value for key, value in _strategy_detail(s, engine=engine, include_defaults=False).items()
             if key in {
@@ -397,6 +410,28 @@ def list_strategies(
     return {"strategies": result, "load_errors": engine.load_errors()}
 
 
+class StrategyPoolRequest(BaseModel):
+    ids: list[str] = Field(max_length=1000)
+    revision: int = Field(ge=0, strict=True)
+    migrate: bool = False
+
+
+@router.get("/pool")
+def get_strategy_pool(request: Request):
+    from app.strategy import pool_preferences
+
+    valid_ids = {meta["id"] for meta in _get_engine(request).list_strategies()}
+    return pool_preferences.load(_data_dir(request), valid_ids)
+
+
+@router.put("/pool")
+def save_strategy_pool(body: StrategyPoolRequest, request: Request):
+    from app.strategy import pool_preferences
+
+    valid_ids = {meta["id"] for meta in _get_engine(request).list_strategies()}
+    return pool_preferences.save(_data_dir(request), valid_ids, **body.model_dump())
+
+
 @router.get("/{strategy_id}", response_model=contracts.StrategyDetailResponse)
 def get_strategy(strategy_id: str, request: Request):
     engine = _get_engine(request)
@@ -538,7 +573,7 @@ def save_config(req: SaveConfigRequest, request: Request):
 
     _validate_basic_filter(req.overrides, strategy)
     _validate_scoring_config(req.overrides)
-    _validate_overlay_config(req.overrides, strategy)
+    _validate_overlay_config(req.overrides, strategy, engine)
     _validate_entry_risk(req.overrides, strategy)
     # 剥离与策略默认值相同的字段，只保存用户真正修改过的值
     overrides = _strip_defaults(req.strategy_id, req.overrides, engine)
@@ -579,7 +614,7 @@ def patch_config(req: SaveConfigRequest, request: Request):
     overrides.update(req_overrides)
     _validate_basic_filter(overrides, strategy)
     _validate_scoring_config(overrides)
-    _validate_overlay_config(overrides, strategy)
+    _validate_overlay_config(overrides, strategy, engine)
     _validate_entry_risk(overrides, strategy)
     try:
         strategy_config.save_override(
@@ -617,7 +652,13 @@ def _validate_entry_risk(overrides: dict, strategy: StrategyDef) -> None:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def _validate_overlay_config(overrides: dict, strategy: StrategyDef) -> None:
+def _validate_overlay_config(overrides: dict, strategy: StrategyDef, engine=None) -> None:
+    from app.strategy.s01_signals import bound_definitions, optional_triggers, resolve_parameters
+
+    try:
+        parameter_signals = bound_definitions(engine, strategy, overrides=overrides)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     if strategy.meta.get("minute_execution") in {"overnight_capacity_v1", "momentum_capacity_v1"}:
         if strategy.meta["minute_execution"] == "momentum_capacity_v1":
             from app.strategy.momentum_rules import parameters
@@ -625,23 +666,26 @@ def _validate_overlay_config(overrides: dict, strategy: StrategyDef) -> None:
             from app.strategy.builtin._overnight import parameters
 
         try:
-            parameters({
+            parameters(resolve_parameters(engine, strategy, {
                 **{p["id"]: p["default"] for p in strategy.meta.get("params", [])},
                 **(overrides.get("params") or {}),
-            })
+            }, definitions=parameter_signals))
         except (ValueError, TypeError) as exc:
             raise HTTPException(400, detail=str(exc)) from exc
-        if any(overrides.get(key) for key in (
-            "scoring", "entry_signals", "exit_signals", "stop_loss", "take_profit",
+        if not optional_triggers(strategy) and (
+            (not parameter_signals and any(overrides.get(key) for key in ("entry_signals", "exit_signals")))
+            or any(overrides.get(key) for key in (
+            "scoring", "stop_loss", "take_profit",
             "trailing_stop", "trailing_take_profit_activate", "trailing_take_profit_drawdown",
-        )):
+        ))):
             raise HTTPException(400, detail="隔夜分钟执行请通过策略参数设置选股、卖出及成交规则")
     from app.strategy.custom_signals import _string_ext_fields
     from app.strategy.overlay import effective_conditions, fields
 
     try:
         conditions = effective_conditions(overrides)
-        if conditions and strategy.execution_backend == "minute_filter" and strategy.meta.get("minute_execution"):
+        if (conditions and strategy.execution_backend == "minute_filter"
+                and strategy.meta.get("minute_execution") and not optional_triggers(strategy)):
             raise ValueError("专用分钟执行暂不支持入场叠加条件, 请使用策略自身的参数")
         if strategy.execution_backend in ("matrix_native", "composite", "minute_filter") and fields(conditions) & _string_ext_fields():
             raise ValueError("当前执行后端的入场叠加条件暂不支持字符串字段")

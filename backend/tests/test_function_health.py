@@ -52,7 +52,7 @@ def healthy_state(tmp_path):
     ("realtime", {"monitoring", "paper_trading"}),
     ("notifications", {"notifications"}),
     ("scheduled", {"scheduled", "paper_trading"}),
-    ("compute", {"research"}),
+    ("compute", {"research", "monitoring", "scheduled", "paper_trading"}),
     ("indicators", {"research", "monitoring", "paper_trading"}),
 ])
 def test_background_failure_only_changes_dependent_functions(

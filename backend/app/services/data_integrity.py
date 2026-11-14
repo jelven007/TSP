@@ -332,7 +332,7 @@ def scan_recent_integrity(
     window_start = today - timedelta(days=lookback_days)
     issues: list[IntegrityIssue] = []
 
-    for table in _DAILY_TABLES:
+    for table in (*_DAILY_TABLES, "kline_daily_enriched"):
         base = data_dir / table
         existing: set[date] = set()
         if base.exists():
@@ -354,6 +354,21 @@ def scan_recent_integrity(
                     issues.append(IntegrityIssue(day=day, table=table, kind="missing"))
                 continue
             part_dir = base / f"date={day.isoformat()}"
+            if table == "kline_daily_enriched":
+                from app.services.daily_close_validation import require_final_daily_rows
+
+                try:
+                    frames = []
+                    for path in sorted(part_dir.glob("*.parquet")):
+                        schema = pl.read_parquet_schema(path)
+                        columns = [c for c in ("symbol", "date", "raw_close", "close", "quote_ts", "quote_time_basis") if c in schema]
+                        frames.append(pl.read_parquet(path, columns=columns))
+                    frame = pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
+                    require_final_daily_rows(frame, day)
+                except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
+                    logger.warning("enriched finality scan failed %s: %s", part_dir, exc)
+                    issues.append(IntegrityIssue(day=day, table=table, kind="snapshot"))
+                continue
             quote_ts = _quote_ts_max_ms(part_dir)
             if _partition_is_snapshot(day, part_dir, quote_ts):
                 issues.append(IntegrityIssue(day=day, table=table, kind="snapshot"))

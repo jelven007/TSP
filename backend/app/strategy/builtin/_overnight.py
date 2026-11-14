@@ -218,9 +218,51 @@ def select_entries(frame, values, daily=None):
         return empty
     frame = minute_frame(frame)
     day = frame["datetime"].max().date()
+    cutoff = params.get("_s01_entry_bar", 885)
+    environment_only = params.get("_s01_environment_only", False)
     frame = frame.filter((pl.col("datetime").dt.date() == day) & (
-        pl.col("bar").is_between(571, 690) | pl.col("bar").is_between(781, 885)))
-    required = list(range(571, 691)) + list(range(781, 886))
+        pl.col("bar").is_between(571, 690) | pl.col("bar").is_between(781, cutoff)))
+    required = list(range(571, 691)) + list(range(781, cutoff + 1))
+    if (params.get("_s01_external_basic")
+            and params.get("market_validity") == "price_amount_prev_close_v2"):
+        # Current signal market scope is independent of individual complete-window checks.
+        fields = ("open", "high", "low", "close", "amount")
+        if not set(fields).issubset(frame.columns) or not {"date", "raw_close"}.issubset(daily.columns):
+            return empty
+        market = frame.group_by("symbol").agg(
+            count=pl.len(), unique=pl.col("bar").n_unique(),
+            valid=pl.all_horizontal([
+                pl.col(f).is_finite() & (pl.col(f) >= 0 if f == "amount" else pl.col(f) > 0)
+                for f in fields
+            ]).fill_null(False).all(),
+            close=pl.col("close").last(), last_datetime=pl.col("datetime").last(),
+            high=pl.col("high").max(), low=pl.col("low").min(), amount=pl.col("amount").sum(),
+        ).filter(pl.col("valid") & (pl.col("count") == pl.col("unique")))
+        previous = daily.filter(pl.col("date") == params["_s01_previous_day"]).select(
+            "symbol", pl.col("raw_close").alias("prior_close"),
+            *[f for f in ("prior_ex_date",) if f in daily.columns],
+        ).unique("symbol", keep="last")
+        market = market.join(previous, on="symbol", how="inner").filter(
+            pl.col("prior_close").is_finite() & (pl.col("prior_close") > 0)
+            & (pl.col("symbol").str.ends_with(".SH") | pl.col("symbol").str.ends_with(".SZ"))
+        ).with_columns(
+            (pl.col("close") / pl.col("prior_close") - 1).alias("current_return"),
+            ((pl.col("high") - pl.col("low")) / pl.col("prior_close")).alias("current_range"),
+        )
+        if environment_only:
+            return market
+        # The adapter already checked the market using all valid securities.
+        condition = pl.col("count") == len(required)
+        if not params.get("_s01_skip_entry"):
+            condition &= (
+                pl.col("current_return").is_between(params["current_return_min"], params["current_return_max"])
+                & (pl.col("current_range") <= params["current_range_max"])
+                & (pl.col("amount") >= params["current_amount_min"]))
+        if "prior_ex_date" in market.columns:
+            condition &= ~pl.col("prior_ex_date").fill_null(False)
+        return market.filter(condition).with_columns(
+            (-pl.col("current_range") + .001 * pl.col("amount").log()).alias("score"),
+        ).sort(["score", "symbol"], descending=[True, False])
     # 完整、唯一、标准分钟窗口。未知价格/金额不参与市场分母。
     good = frame.group_by("symbol").agg(
         count=pl.len(), unique=pl.col("bar").n_unique(),
@@ -228,8 +270,9 @@ def select_entries(frame, values, daily=None):
             pl.col(f).is_finite() & (pl.col(f) >= 0 if f in ("amount", "volume") else pl.col(f) > 0)
             for f in ("open", "high", "low", "close", "amount", "volume")
         ]).fill_null(False).all(),
-        close=pl.col("close").last(), high=pl.col("high").max(), low=pl.col("low").min(),
-        amount=pl.col("amount").sum(), last_datetime=pl.col("datetime").last(),
+        close=pl.col("close").last(), last_datetime=pl.col("datetime").last(),
+        **({} if environment_only else {
+            "high": pl.col("high").max(), "low": pl.col("low").min(), "amount": pl.col("amount").sum()}),
     ).filter((pl.col("count") == len(required)) & (pl.col("unique") == len(required)) & pl.col("valid"))
     history = daily.filter(pl.col("date") < day).sort("symbol", "date")
     if not {"raw_close", "raw_high", "raw_low", "amount"}.issubset(history.columns):
@@ -250,31 +293,38 @@ def select_entries(frame, values, daily=None):
             (pl.col("listing_age_days") + pl.col("age_increment").dt.total_days()).alias("listing_age_days"))
     good = good.join(info, on="symbol", how="inner").with_columns(
         (pl.col("close") / pl.col("prior_close") - 1).alias("current_return"),
-        ((pl.col("high") - pl.col("low")) / pl.col("prior_close")).alias("current_range"),
         (pl.col("prior_close") / pl.col("previous_close") - 1).alias("prior_return"),
         ((pl.col("prior_high") - pl.col("prior_low")) / pl.col("previous_close")).alias("prior_range"),
     ).filter(pl.col("prior_close").is_finite() & (pl.col("prior_close") > 0))
     market = good.filter(pl.col("symbol").str.ends_with(".SH") | pl.col("symbol").str.ends_with(".SZ"))
-    if market.height < params["market_min_valid"] or (
+    if environment_only:
+        return market
+    market = market.with_columns(
+        ((pl.col("high") - pl.col("low")) / pl.col("prior_close")).alias("current_range"))
+    if not params.get("_s01_skip_entry") and (market.height < params["market_min_valid"] or (
         market.filter(pl.col("current_return") > 0).height / market.height < params["market_positive_min"]
-    ):
+    )):
         return empty
-    condition = (
+    condition = pl.lit(True) if params.get("_s01_external_basic") else (
         pl.col("prior_close").is_between(params["prior_price_min"], params["prior_price_max"])
         & pl.col("prior_return").is_between(params["prior_return_min"], params["prior_return_max"])
         & (pl.col("prior_range") <= params["prior_range_max"])
         & (pl.col("prior_amount") >= params["amount_min"])
-        & pl.col("current_return").is_between(params["current_return_min"], params["current_return_max"])
-        & (pl.col("current_range") <= params["current_range_max"])
-        & (pl.col("amount") >= params["amount_min"])
     )
-    if "listing_age_days" not in good.columns:
-        return empty
-    condition &= pl.col("listing_age_days") >= params["listing_days"]
-    if "name" in good.columns:
-        condition &= ~pl.col("name").fill_null("").str.to_uppercase().str.contains("ST")
-    if "is_risk_warning" in good.columns:
-        condition &= ~pl.col("is_risk_warning").fill_null(False)
+    if not params.get("_s01_skip_entry"):
+        condition &= (
+            pl.col("current_return").is_between(params["current_return_min"], params["current_return_max"])
+            & (pl.col("current_range") <= params["current_range_max"])
+            & (pl.col("amount") >= (params["current_amount_min"] if "_s01_entry_bar" in params
+                                   else params["amount_min"])))
+    if not params.get("_s01_external_basic"):
+        if "listing_age_days" not in good.columns:
+            return empty
+        condition &= pl.col("listing_age_days") >= params["listing_days"]
+        if "name" in good.columns:
+            condition &= ~pl.col("name").fill_null("").str.to_uppercase().str.contains("ST")
+        if "is_risk_warning" in good.columns:
+            condition &= ~pl.col("is_risk_warning").fill_null(False)
     if "prior_ex_date" in good.columns:
         condition &= ~pl.col("prior_ex_date").fill_null(False)
     return market.filter(condition).with_columns(

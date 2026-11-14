@@ -47,6 +47,8 @@ def test_verify_wrong_or_malformed_token(tmp_path: Path):
 
 def test_required_scope_mapping():
     f = api_gateway.required_scope
+    assert f("GET", "/api/strategies/pool") is None
+    assert f("PUT", "/api/strategies/pool") is None
     assert f("GET", "/api/kline/daily") == "read:market"
     assert f("GET", "/api/kline/daily/latest") == "read:market"
     assert f("GET", "/api/kline/minute-range") == "read:market"

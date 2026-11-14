@@ -615,7 +615,7 @@ def test_minute_signal_exit_fills_at_next_minute_open():
     assert result.trades[0].exit_signal_id == "signal_ma20_breakdown"
 
 
-def test_minute_signal_exit_without_next_bar_falls_back_to_next_open():
+def test_minute_signal_exit_without_next_bar_cancels_and_keeps_stock_until_end():
     panel, entries, exits = _minute_trigger_panel()
     minute = pl.DataFrame({
         "symbol": ["A"],
@@ -646,8 +646,10 @@ def test_minute_signal_exit_without_next_bar_falls_back_to_next_open():
 
     assert len(result.trades) == 1
     assert result.trades[0].exit_date == "2024-01-04"
-    assert result.trades[0].exit_price == 8.8
-    assert result.stats["execution"]["sell_minute_trigger_fallback"] == 1
+    assert result.trades[0].exit_price == 8.9
+    assert result.trades[0].exit_reason == "end"
+    assert result.stats["execution"]["exit_cancelled_shares"] == 10000
+    assert result.stats["pending_exit_positions"] == 0
 
 
 @pytest.mark.parametrize("independent", [False, True])

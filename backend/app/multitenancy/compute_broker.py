@@ -33,6 +33,10 @@ STDERR_TAIL_BYTES = 8 * 1024
 logger = logging.getLogger(__name__)
 
 
+class CriticalWindowDeferredError(ValueError):
+    """A background sandbox gives its slot back without committing a result."""
+
+
 def append_stderr_tail(tail: bytearray, block: bytes) -> None:
     tail.extend(block)
     if len(tail) > STDERR_TAIL_BYTES:
@@ -82,9 +86,10 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
             ceiling=self.capacity,
         )
         now = cn_now()
-        minute = now.hour * 60 + now.minute
+        clock = (now.hour, now.minute, now.second)
         policy["realtime_reserved_slots"] = int(
-            now.weekday() < 5 and 865 <= minute < 880 and policy["effective_concurrency"] >= 2
+            now.weekday() < 5 and (14, 25, 0) <= clock <= (14, 55, 0)
+            and policy["effective_concurrency"] >= 1
         )
         return policy
 
@@ -254,7 +259,7 @@ class Handler(socketserver.StreamRequestHandler):
             if not acquired:
                 self.send({"type": "error", "status": 429, "message": "计算任务繁忙，请稍后重试"})
                 return
-            if not broker.acquire_tenant(tenant, administrator=payload.get("administrator") is True):
+            if not broker.acquire_tenant(tenant, administrator=priority or payload.get("administrator") is True):
                 self.send({"type": "error", "status": 429, "message": "当前租户已有计算任务，请稍后重试"})
                 tenant = None
                 return
@@ -279,6 +284,14 @@ class Handler(socketserver.StreamRequestHandler):
                 while events.get_map():
                     if broker.stopped.is_set():
                         raise ValueError("计算服务正在重启")
+                    policy = broker._resource_policy()
+                    if not priority and policy["realtime_reserved_slots"]:
+                        with broker.permits.condition:
+                            must_yield = broker.permits.background_active > (
+                                policy["effective_concurrency"] - policy["realtime_reserved_slots"]
+                            )
+                        if must_yield:
+                            raise CriticalWindowDeferredError("后台计算让位于14:30关键任务，请在关键窗口后重试")
                     if time.monotonic() >= deadline:
                         raise ValueError("计算任务超时")
                     if time.monotonic() - last_heartbeat >= 10:
@@ -315,6 +328,8 @@ class Handler(socketserver.StreamRequestHandler):
                         break
                 if not terminal:
                     raise ValueError("计算进程退出时未返回结果")
+        except CriticalWindowDeferredError as exc:
+            terminal_message = {"type": "error", "status": 429, "message": str(exc)}
         except (ValueError, OSError, subprocess.SubprocessError) as exc:
             terminal_message = {"type": "error", "status": 503 if broker.stopped.is_set() else 400, "message": str(exc)}
         finally:

@@ -172,7 +172,7 @@ def test_commit_crossing_deadline_keeps_sells_but_drops_new_entries():
     assert entry_events_before_deadline(events, results, datetime(2026, 11, 2, 14, 55, 0, 1)) == events[2:]
 
 
-def test_next_preselection_isolates_one_bad_close(scan, monkeypatch):
+def test_next_preselection_rejects_bad_close_before_freezing(scan, monkeypatch):
     from app.services.screener import ScreenerService
     engine, context, overrides = scan
     reference = context.daily_history
@@ -183,8 +183,6 @@ def test_next_preselection_isolates_one_bad_close(scan, monkeypatch):
         get_daily_close_inputs=lambda *_: (raw, reference.select("symbol", "close")),
     ))
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: raw)
-    built = service.build_selection_context(engine, reference["date"][0], context.as_of, ["custom_test"],
-                                            overrides_map={"custom_test": overrides})
-    assert "600001.SH" not in built.current["symbol"]
-    assert "600002.SH" in built.current["symbol"]
-    assert "600001.SH" in built.reference_errors
+    with pytest.raises(ValueError, match=r"600001\.SH 收盘校验失败"):
+        service.build_selection_context(engine, reference["date"][0], context.as_of, ["custom_test"],
+                                        overrides_map={"custom_test": overrides})

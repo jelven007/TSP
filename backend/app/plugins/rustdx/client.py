@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import os
 import sys
 import threading
@@ -280,6 +281,12 @@ class RustdxClient:
         )
         return rows
 
+    def incremental_bars_with_source(self, code: str, *, frequency: int, offset: int):
+        return self._bars(
+            code, frequency=frequency, start=0, offset=offset, counted=True,
+            sourced=True, background=False,
+        )
+
     def bars_with_source(
         self, code: str, *, frequency: int, start: int, offset: int,
         expected_source: dict | None = None,
@@ -405,13 +412,37 @@ class RustdxClient:
         from app.plugins.rustdx.financial import financial_history
 
         class ReportTransport:
+            native_failed = False
+
             def report_file(self, filename, max_bytes):
                 server = os.getenv("RUSTDX_FINANCIAL_SERVER", "120.76.152.87:7709").strip()
-                return _native_client().report_file(
-                    filename,
-                    max_bytes,
-                    server or "120.76.152.87:7709",
-                )
+                if not self.native_failed:
+                    try:
+                        return _native_client().report_file(
+                            filename, max_bytes, server or "120.76.152.87:7709",
+                        )
+                    except Exception:
+                        self.native_failed = True
+                        logging.getLogger(__name__).warning(
+                            "rustdx report transport unavailable; using official TDX HTTP archive",
+                        )
+                import re
+
+                import httpx
+
+                if not re.fullmatch(r"tdxfin/(gpcw\.txt|gpcw\d{8}\.zip)", filename):
+                    raise ValueError("invalid TDX report filename")
+                with (
+                    httpx.Client(timeout=30, follow_redirects=False) as transport,
+                    transport.stream("GET", f"http://down.tdx.com.cn:8001/{filename}") as response,
+                ):
+                    response.raise_for_status()
+                    payload = bytearray()
+                    for chunk in response.iter_bytes():
+                        payload.extend(chunk)
+                        if len(payload) > max_bytes:
+                            raise ValueError("TDX report exceeds bounded download size")
+                    return bytes(payload)
 
         try:
             return financial_history(

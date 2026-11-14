@@ -75,7 +75,9 @@ export function Screener() {
   const [showStore, setShowStore] = useState(false)
   const [showDefaultParams, setShowDefaultParams] = useState(false)
   const [showComposite, setShowComposite] = useState(false)
-  const { pool, addToPool, removeFromPool, reorderPool, prune } = useStrategyPool()
+  const { pool, addToPool, removeFromPool, reorderPool,
+    revision: poolRevision, loading: poolLoading, saving: poolSaving,
+    error: poolError, retry: retryPool } = useStrategyPool()
   const [cardSize, setCardSize] = useState<CardSize>(loadCardSize)
   // 日k蜡烛图显示开关（仅当 candle 列可见时才有意义；持久化）
   const [dailyKChartVisible, setDailyKChartVisible] = useState<boolean>(() => storage.screenerCandle.get(true))
@@ -325,18 +327,7 @@ export function Screener() {
     [visiblePool, strategyMap],
   )
 
-  // 策略列表加载后,自动清除池中失效的自定义策略(如本地开发残留的、
-  // 当前后端已不存在的策略 ID),避免"策略池"对话框持续显示失效项。
-  // 关键: 仅当本次拉取成功且返回非空列表时才 prune。
-  // 拉取中/失败/返回空(如引擎 reload 瞬时把某策略跳过)时一律不碰池,
-  // 否则会把用户池里仍有效的 ID 永久清空并写入 localStorage,导致卡片全没。
-  // 日线/分钟池按周期隔离, 各自用自身周期的列表清理, 互不影响。
-  useEffect(() => {
-    if (strategies.isError) return        // 拉取失败: 不 prune
-    if (!strategies.isSuccess) return     // 加载中: 不 prune
-    if (allStrategyIds.size === 0) return  // 空列表: 不 prune
-    prune(allStrategyIds)
-  }, [allStrategyIds, prune, strategies.isError, strategies.isSuccess])
+  // 目录只过滤当前展示；部分或临时缺失的目录不能自动改写服务器策略池。
 
   // 策略文件加载失败时提示用户(避免"策略静默消失"被误判为正常)
   useEffect(() => {
@@ -732,6 +723,10 @@ export function Screener() {
   const toggleStrategyMonitor = async (strategyId: string, strategyName: string) => {
     if (monitorPendingRef.current.has(strategyId)) return
     const existingRuleId = strategyMonitorMap.get(`${assetType}:${strategyId}`)
+    if (monitorRules.data?.rules.some(r => r.id === existingRuleId && r._system_task)) {
+      toast('系统关键任务持续启用，普通监控操作无法取消')
+      return
+    }
     const latestDate = currentTradeDate
     const strategy = strategyMap.get(strategyId)
     if (!existingRuleId && (!latestDate || !strategy)) {
@@ -891,6 +886,7 @@ export function Screener() {
             {/* 策略池按钮 */}
             <button
               onClick={() => setShowPoolDialog(true)}
+              disabled={poolLoading || poolSaving || !!poolError}
               className="inline-flex items-center gap-1.5 h-7 px-3 rounded-btn
                 border border-border bg-surface text-xs font-medium text-secondary
                 hover:text-accent hover:border-accent/50 transition-colors cursor-pointer"
@@ -986,7 +982,12 @@ export function Screener() {
               </button>
             </div>
           )}
-          {!strategies.isLoading && !strategies.isError && displayPool.length === 0 && (
+          {poolLoading && <div className="page-card p-4 text-sm text-muted">正在同步策略池…</div>}
+          {poolError && <div role="alert" className="page-card p-4 text-sm text-danger">
+            策略池同步失败，已保留原选择。
+            <button onClick={() => void retryPool?.()} className="ml-2 text-accent">重试同步</button>
+          </div>}
+          {!poolLoading && !poolError && !strategies.isLoading && !strategies.isError && displayPool.length === 0 && (
             <div className="page-card p-4 text-sm text-muted text-center">
               {pool.length === 0
                 ? '策略池为空，点击右上角「策略池」按钮添加策略'
@@ -1025,9 +1026,9 @@ export function Screener() {
               )
             })}
           </div>
-          {isFutureQuery && (
+          {isFutureQuery && (showAll || !result || result.section_mode !== 'signals') && (
             <p role="status" className="text-xs text-muted">
-              {asOf} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单于前一交易日16:00开始生成；
+              {asOf} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单于前一交易日20:00开始生成；
               买入信号等待该交易日运行。
             </p>
           )}
@@ -1052,7 +1053,7 @@ export function Screener() {
               <div role={inlineDailyToolbar ? 'group' : undefined}
                 aria-label={inlineDailyToolbar ? '每日策略工具栏' : undefined}
                 className={inlineDailyToolbar
-                  ? 'flex min-w-0 items-center gap-2 overflow-x-auto [&>div]:shrink-0'
+                  ? 'flex min-w-0 flex-wrap items-center gap-2'
                   : 'flex flex-wrap items-center justify-between gap-2 min-w-0'}>
                 {(showAll || activeStrategy !== 'custom_mvxxcp88') && (
                 <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -1346,7 +1347,7 @@ export function Screener() {
         }}
         onDeleted={() => {
           if (settingsStrategyId) {
-            removeFromPool(settingsStrategyId)
+            void removeFromPool(settingsStrategyId).catch(error => toast(String(error), 'error'))
             const rules = storage.strategyRules.get({})
             delete rules[settingsStrategyId]; storage.strategyRules.set(rules)
             setStrategyLimits(prev => { const next = {...prev}; delete next[settingsStrategyId]; return next })
@@ -1363,6 +1364,7 @@ export function Screener() {
       {showPoolDialog && (
         <StrategyPoolDialog
           pool={pool}
+          revision={poolRevision}
           onConfirm={reorderPool}
           onClose={() => setShowPoolDialog(false)}
         />
@@ -1382,7 +1384,7 @@ export function Screener() {
           if (!data.presets.some(s => s.id === id)) {
             throw new Error(`策略 ${id} 已保存但未加载，请检查策略代码`)
           }
-          addToPool(id)
+          await addToPool(id)
         }}
       />
 
@@ -1391,7 +1393,7 @@ export function Screener() {
         onClose={() => setShowComposite(false)}
         onSavedId={async id => {
           await qc.fetchQuery({ queryKey: QK.screenerStrategies('all'), queryFn: () => api.screenerStrategies(), staleTime: 0 })
-          addToPool(id)
+          await addToPool(id)
         }}
       />
 

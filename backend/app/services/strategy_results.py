@@ -110,6 +110,15 @@ def execution_snapshot(engine, storage=None):
         snapshot._daily_state_loader = lambda sid, day: previous_daily_state(storage, sid, day)
         from app.services.daily_selections import DailySelections
         snapshot._selection_loader = lambda sid, day: DailySelections(storage).read(sid, day)
+        from functools import lru_cache
+
+        from app.services.daily_stock_pools import DailyStockPools
+
+        @lru_cache(maxsize=4)
+        def pools(day):
+            return DailyStockPools(storage).snapshots(engine._strategies, day)
+
+        snapshot._daily_pool_loader = lambda sid, day: pools(day).get(sid)
     if lifecycle is not None:
         snapshot._result_lifecycle = lifecycle
     if hasattr(engine, "_strategies"):
@@ -503,19 +512,45 @@ class StrategyResults:
                         "state": None, "portfolio_scope": None, "execution_error": None,
                         "daily_stock_pool": None, "daily_stock_pool_error": None,
                         "section_mode": None, "section_errors": None}
-            return {**defaults, **{key: item for key, item in value.items()
-                                   if key not in {"computed_at", "elapsed_ms"}}}
+            comparable = {**defaults, **{key: item for key, item in value.items()
+                                        if key not in {"computed_at", "elapsed_ms"}}}
+            if comparable.get("entry_data_quality"):
+                comparable["entry_data_quality"] = copy.deepcopy(comparable["entry_data_quality"])
+                late_session = False
+                for quality in comparable["entry_data_quality"].values():
+                    progress = quality.get("progress") or {}
+                    if (progress.get("schema") != "late_session_progress_v1"
+                            or progress.get("as_of") != value.get("as_of")):
+                        continue
+                    late_session = True
+                    # Observation clocks do not change the business snapshot.
+                    progress.pop("observed_at", None)
+                    for step in progress.get("steps", {}).values():
+                        for field in ("started_at", "finished_at", "elapsed_ms"):
+                            step.pop(field, None)
+                if late_session:
+                    comparable.pop("last_success_at", None)
+                    if comparable.get("execution_status"):
+                        comparable["execution_status"] = dict(comparable["execution_status"])
+                        comparable["execution_status"].pop("updated_at", None)
+            return comparable
 
         def merged(old, conn):
             if old and result.get("selection_only") and old["result"].get("selection_snapshot"):
                 return old, "unchanged"
             if old and old["summary"]["started_at"] > started_at:
                 return old, "unchanged"
+            from app.services.late_session_receipts import preserve_first_receipts
             from app.strategy.execution_status import merge_result, result_status
+
+            prior_result = (old["result"] if old and old["summary"].get("identity") == identity.fingerprint
+                            else None)
 
             if old and result_status(old["result"])["state"] == "success" \
                     and result_status(result)["state"] != "success":
-                return {**copy.deepcopy(old), "result": merge_result(old["result"], result)}, "unchanged"
+                shown = merge_result(old["result"], result)
+                preserve_first_receipts(shown, prior_result)
+                return {**copy.deepcopy(old), "result": shown}, "unchanged"
             payload = copy.deepcopy(result)
             reference = payload.pop("price_suggestion_reference", None)
             if payload.get("section_mode") == "signals" and not payload.get("selection_only"):
@@ -538,6 +573,7 @@ class StrategyResults:
                 from app.strategy.signal_price_suggestions import with_price_suggestions
                 current = with_price_suggestions(current, reference)
             current = json_value(current)
+            preserve_first_receipts(current, prior_result)
             if old and comparable(old["result"]) == comparable(current):
                 # Advance the run order even when the output is unchanged, so a
                 # late older run cannot replace the latest successful result.

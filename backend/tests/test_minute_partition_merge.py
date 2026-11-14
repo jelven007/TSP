@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import polars as pl
+import pytest
 
 from app.services.kline_sync import _write_minute_partition
 
@@ -162,3 +163,64 @@ _write_minute_partition(frame, Path(sys.argv[1]))
         assert process.wait(timeout=30) == 0
     result = _read(minute_dir / "date=2026-01-05" / "part.parquet")
     assert result["symbol"].to_list() == [f"{index:06d}.SZ" for index in range(1, 5)]
+
+
+def _halt_history(tmp_path, events):
+    from app.instrument_suspension import SCHEMA, TIMESTAMP_SCHEMA
+
+    out = tmp_path / "instrument_status" / "suspensions.parquet"
+    out.parent.mkdir(exist_ok=True)
+    pl.DataFrame(events, schema={**SCHEMA, **TIMESTAMP_SCHEMA}).write_parquet(out)
+
+
+def _halt_event(*, suspended=True, announced_at=datetime(2026, 1, 4, 18)):
+    return {
+        "symbol": "000001.SZ", "effective_date": datetime(2026, 1, 5).date(),
+        "announced_on": announced_at.date(), "announced_at": announced_at,
+        "is_suspended": suspended, "source_url": "https://www.szse.cn/notice.pdf",
+    }
+
+
+@pytest.mark.parametrize("only_missing", [False, True])
+def test_known_halt_placeholders_cannot_be_reintroduced(tmp_path, only_missing):
+    _halt_history(tmp_path, [_halt_event()])
+    frame = _bars({
+        "000001.SZ": [("2026-01-05 09:31:00", 10.)],
+        "600000.SH": [("2026-01-05 09:31:00", 8.)],
+    }).with_columns(pl.lit(0.).alias("volume"), pl.lit(0.).alias("amount"))
+    minute_dir = tmp_path / "kline_minute"
+    _write_minute_partition(frame, minute_dir, only_missing=only_missing)
+    stored = _read(minute_dir / "date=2026-01-05" / "part.parquet")
+    assert stored["symbol"].to_list() == ["600000.SH"]
+    _write_minute_partition(frame, minute_dir, only_missing=only_missing)
+    assert _read(minute_dir / "date=2026-01-05" / "part.parquet").equals(stored)
+
+
+def test_active_minutes_conflicting_with_known_halt_are_rejected(tmp_path):
+    _halt_history(tmp_path, [_halt_event()])
+    frame = _bars({"000001.SZ": [("2026-01-05 09:31:00", 10.)]}).with_columns(
+        pl.lit(1.).alias("volume"), pl.lit(1000.).alias("amount"),
+    )
+    with pytest.raises(ValueError, match=r"停牌.*成交"):
+        _write_minute_partition(frame, tmp_path / "kline_minute")
+    assert not (tmp_path / "kline_minute" / "date=2026-01-05" / "part.parquet").exists()
+
+
+@pytest.mark.parametrize("case", ["resume_before_open", "late_halt", "unknown_time"])
+def test_halt_filter_uses_only_evidence_available_at_target_open(tmp_path, case):
+    if case == "resume_before_open":
+        events = [_halt_event(), _halt_event(
+            suspended=False, announced_at=datetime(2026, 1, 5, 9, 15),
+        )]
+    else:
+        event = _halt_event(announced_at=datetime(2026, 1, 5, 10))
+        if case == "unknown_time":
+            event["announced_at"] = None
+        events = [event]
+    _halt_history(tmp_path, events)
+    frame = _bars({"000001.SZ": [("2026-01-05 09:31:00", 10.)]}).with_columns(
+        pl.lit(0.).alias("volume"), pl.lit(0.).alias("amount"),
+    )
+    minute_dir = tmp_path / "kline_minute"
+    _write_minute_partition(frame, minute_dir)
+    assert _read(minute_dir / "date=2026-01-05" / "part.parquet").height == 1

@@ -223,7 +223,7 @@ def test_tickflow_unified_period_parameter_timezone_and_pacing(monkeypatch, peri
     from app.tickflow.capabilities import Cap, CapabilityLimits, CapabilitySet
     calls, pace = [], []
     from zoneinfo import ZoneInfo
-    timestamp = int(datetime(2026, 10, 26, 9, 30, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp() * 1000)
+    timestamp = int(datetime(2026, 10, 26, 9, 31, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp() * 1000)
     def batch(symbols, **kwargs):
         calls.append(kwargs)
         return {"600000.SH": {"timestamp": [timestamp], **{c: [10.] for c in ("open", "high", "low", "close", "volume", "amount")}}}
@@ -236,7 +236,7 @@ def test_tickflow_unified_period_parameter_timezone_and_pacing(monkeypatch, peri
     if period in ("1d", "1w"):
         assert frame["date"].to_list() == [date(2026, 10, 26)]
     else:
-        assert frame["datetime"].to_list() == [datetime(2026, 10, 26, 9, 30)]
+        assert frame["datetime"].to_list() == [datetime(2026, 10, 26, 9, 31)]
 
 
 def test_remote_sync_passes_period_and_persists_only_requested_table(tmp_path, monkeypatch):

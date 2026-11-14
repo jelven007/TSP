@@ -48,7 +48,7 @@ EXECUTION_BACKEND = "composite"
 
 def _panel() -> pl.DataFrame:
     return pl.DataFrame({
-        "symbol": ["LOW.SZ", "HIGH.SH"],
+        "symbol": ["000001.SZ", "600000.SH"],
         "date": [date(2026, 1, 2)] * 2,
         "close": [10.0, 200.0],
     })
@@ -70,7 +70,7 @@ def test_composite_child_uses_default_params_without_loader(tmp_path):
     )
     result = engine.run("composite_blend", ctx, overrides={"basic_filter": {"enabled": False}})
     # 默认 min_close=0 → 两个标的都命中
-    assert {"LOW.SZ", "HIGH.SH"} == {r["symbol"] for r in result.rows}
+    assert {"000001.SZ", "600000.SH"} == {r["symbol"] for r in result.rows}
 
 
 def test_composite_child_uses_override_params_with_loader(tmp_path):
@@ -95,8 +95,8 @@ def test_composite_child_uses_override_params_with_loader(tmp_path):
     result = engine.run("composite_blend", ctx, overrides={"basic_filter": {"enabled": False}})
     # override 后 min_close=100 → 只有 HIGH.SH(close=200) 命中, LOW.SZ(close=10) 被过滤
     symbols = {r["symbol"] for r in result.rows}
-    assert "HIGH.SH" in symbols
-    assert "LOW.SZ" not in symbols, "子策略 override 的 min_close=100 应过滤掉 close=10 的标的"
+    assert "600000.SH" in symbols
+    assert "000001.SZ" not in symbols, "子策略 override 的 min_close=100 应过滤掉 close=10 的标的"
 
 
 def test_composite_child_override_loader_failure_is_safe(tmp_path):

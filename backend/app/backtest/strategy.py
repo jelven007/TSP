@@ -534,6 +534,8 @@ def _basic_filter_dependencies(config: dict) -> set[str]:
         dependencies.add("turnover_rate")
     if any(config.get(key) is not None for key in ("change_pct_min", "change_pct_max")):
         dependencies.add("change_pct")
+    if any(config.get(key) is not None for key in ("amplitude_min", "amplitude_max")):
+        dependencies.add("amplitude")
     if any(config.get(key) is not None for key in ("market_cap_min", "market_cap_max")):
         dependencies.add("total_shares")
     if any(config.get(key) is not None for key in ("float_cap_min", "float_cap_max")):
@@ -669,6 +671,7 @@ class StrategyBacktestResult:
     provenance: dict = field(default_factory=dict)
     fills: list[dict] = field(default_factory=list)
     entry_orders: list[dict] = field(default_factory=list)
+    exit_orders: list[dict] = field(default_factory=list)
     signals: list[dict] = field(default_factory=list)
     daily_results: list[dict] = field(default_factory=list)
 
@@ -1252,12 +1255,18 @@ class StrategyBacktestService:
 
         params = self._normalize_params(config.params or {}, s)
         overrides = config.overrides or {}
+        from app.strategy.s01_signals import bound_definitions, optional_triggers
+
+        try:
+            parameter_signals = bound_definitions(self.strategy_engine, s, overrides=overrides)
+        except ValueError as exc:
+            return _err(str(exc))
         from app.strategy.morning_liquidation import selected_definitions
 
         morning = selected_definitions(
             self.strategy_engine, self._effective_signals(overrides, "exit_signals", s.exit_signals),
         )
-        if morning:
+        if morning and not optional_triggers(s):
             if s.execution_backend != "minute_filter" or s.meta.get("minute_execution"):
                 return _err("早盘清仓收益回测仅支持通用分钟策略, 请使用带买入日期的盘中信号回放")
             from app.backtest.morning_backtest import run_morning
@@ -1270,7 +1279,7 @@ class StrategyBacktestService:
                 )
             except (ValueError, TypeError) as exc:
                 return _err(str(exc))
-        if s.meta.get("minute_execution") and any(
+        if s.meta.get("minute_execution") and not optional_triggers(s) and not parameter_signals and any(
             str(name).startswith("csgi_")
             for name in self._effective_signals(overrides, "entry_signals", s.entry_signals)
         ):
@@ -1981,6 +1990,7 @@ class StrategyBacktestService:
             equity_curve=result.equity_curve if result_policy.include_curves else [],
             drawdown_curve=result.drawdown_curve if result_policy.include_curves else [],
             benchmark_curve=benchmark_curve,
+            exit_orders=result.exit_orders if result_policy.include_trades else [],
             trades=(
                 [self._trade_to_dict(t) for t in result.trades]
                 if result_policy.include_trades
@@ -1995,7 +2005,7 @@ class StrategyBacktestService:
             factor_attribution=factor_attribution,
             elapsed_ms=round(elapsed, 1),
             provenance=provenance,
-            fills=result.fills,
+            fills=result.fills if result_policy.include_trades else [],
             entry_orders=result.entry_orders,
         )
 
@@ -2343,6 +2353,7 @@ class StrategyBacktestService:
             equity_curve=result.equity_curve if result_policy.include_curves else [],
             drawdown_curve=result.drawdown_curve if result_policy.include_curves else [],
             benchmark_curve=benchmark_curve,
+            exit_orders=result.exit_orders if result_policy.include_trades else [],
             trades=trades,
             per_symbol_stats=(
                 result.per_symbol_stats
@@ -2352,7 +2363,7 @@ class StrategyBacktestService:
             strategy_info=strategy_info,
             elapsed_ms=round(elapsed, 1),
             provenance=provenance,
-            fills=result.fills,
+            fills=result.fills if result_policy.include_trades else [],
             entry_orders=result.entry_orders,
         )
 

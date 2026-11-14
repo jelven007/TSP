@@ -1,6 +1,6 @@
 """历史股本解析。
 
-财务股本按公告日可用，历史缺失时回退 instruments 最新流通股本。
+财务股本按公告日可用, 独立股本事件同时等待生效日; 缺历史时回退最新股本。
 """
 from __future__ import annotations
 
@@ -11,17 +11,28 @@ import polars as pl
 
 
 def load_share_history(data_dir: Path) -> pl.DataFrame:
-    """读取本地财务股本表；未同步或损坏时返回空表。"""
+    """读取财务股本及有独立公告证据的生效事件; 原始记录分别存储。"""
     path = data_dir / "financials" / "shares" / "part.parquet"
-    if not path.exists():
-        return pl.DataFrame()
-    try:
-        shares = pl.read_parquet(path)
-        if not {"symbol", "period_end", "float_shares"} <= set(shares.columns):
-            return pl.DataFrame()
-        return shares
-    except Exception:
-        return pl.DataFrame()
+    frames = []
+    if path.exists():
+        try:
+            shares = pl.read_parquet(path)
+            if {"symbol", "period_end", "float_shares"} <= set(shares.columns):
+                frames.append(shares)
+        except Exception:
+            pass
+    path = data_dir / "financials/share_capital_events/part.parquet"
+    if path.exists():
+        try:
+            events = pl.read_parquet(path)
+            if {"symbol", "announce_date", "effective_date", "float_shares"} <= set(events.columns):
+                # This internal ordering key is not a financial report period.
+                frames.append(events.with_columns(
+                    pl.col("effective_date").alias("period_end"),
+                ))
+        except Exception:
+            pass
+    return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
 
 
 def apply_historical_float_shares(
@@ -32,7 +43,7 @@ def apply_historical_float_shares(
 ) -> pl.DataFrame:
     """为行情行解析有效流通股本。
 
-    当日保留 rows.float_shares；历史日期使用公告日不晚于交易日的最新股本，
+    当日保留 rows.float_shares; 历史日期使用已公告且已生效的最新股本,
     找不到历史记录时继续使用 rows.float_shares。
     """
     required = {"symbol", "date", "float_shares"}
@@ -54,6 +65,8 @@ def apply_historical_float_shares(
     available_date = as_date_expr("period_end")
     if "announce_date" in shares.columns:
         available_date = as_date_expr("announce_date").fill_null(available_date)
+    if "effective_date" in shares.columns:
+        available_date = pl.max_horizontal(available_date, as_date_expr("effective_date"))
 
     history = (
         shares

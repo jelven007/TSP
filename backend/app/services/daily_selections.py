@@ -5,11 +5,12 @@ import json
 import threading
 import time
 from dataclasses import replace
-from datetime import date
+from datetime import date, datetime
 from datetime import time as clock_time
 
 from app.cell.context import AccessError
 from app.market_time import as_cn_datetime, cn_now, published_trading_days
+from app.services.selection_clock import SELECTION_TIME, SELECTION_TIME_TEXT
 from app.services.strategy_results import ResultIdentity, StrategyResults, _encode
 
 DEFINITION_VERSION = "postclose_selection_v1"
@@ -28,7 +29,7 @@ def due_window(now=None):
     days = sorted(day for year in (now.year - 1, now.year, now.year + 1)
                   for day in (published_trading_days(year) or []))
     sources = [day for day in days if day < now.date()
-               or (day == now.date() and now.time().replace(tzinfo=None) >= clock_time(16))]
+               or (day == now.date() and now.time().replace(tzinfo=None) >= SELECTION_TIME)]
     if not sources:
         return None
     source = sources[-1]
@@ -63,6 +64,7 @@ class DailySelections:
             "as_of": str(target), "strategy_id": identity.strategy_id,
             "rows": [], "total": 0, "elapsed_ms": 0, "section_mode": "signals",
             "selection_only": True, "selection_snapshot": frozen,
+            "warnings": snapshot.get("warnings", []),
             "price_suggestion_reference": reference,
             "sections": {"sell": [], "select": snapshot["rows"], "buy": []},
             "section_errors": {"buy": "仅已生成盘后选名单, 目标交易日买入信号尚未计算"},
@@ -94,18 +96,52 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
     from app.strategy.signal_sections import select_rows
     context = service.build_selection_context(engine, source, target, ids, overrides_map=overrides)
     reference = price_reference(context)
+    from app.instrument_suspension import pool_evidence
+    from app.strategy.daily_pool import build_pool
+    instruments = service.repo.get_instruments_asset(service.asset_type)
+    scope_context = None
+    if instruments is not None and not instruments.is_empty():
+        import polars as pl
+
+        from app.price_limits import parse_listing_date
+        if "listing_date" in instruments.columns:
+            instruments = instruments.filter(pl.Series([
+                (listed := parse_listing_date(value)) is None or listed <= source
+                for value in instruments["listing_date"]
+            ]))
+        universe = pool_evidence(service.repo, source, instruments,
+                                 observed_at=datetime.combine(source, SELECTION_TIME))
+        scope_context = replace(context, as_of=source,
+                                current=instruments.with_columns(pl.lit(source).alias("date")),
+                                pool_universe=universe)
     results, errors = {}, {}
     for sid in ids:
         try:
+            coverage = None
+            warnings = []
             effective = {**overrides.get(sid, {}), "basic_filter": {
                 **overrides.get(sid, {}).get("basic_filter", {}),
                 "data_reference": "previous_trade_day",
             }}
+            if scope_context is not None:
+                scope = build_pool(engine, sid, scope_context, overrides={
+                    **effective, "basic_filter": {**effective["basic_filter"],
+                                                 "data_reference": "signal_day"},
+                })
+                missing = set(scope["symbols"]) - set(context.current["symbol"])
+                coverage = {"schema": "daily_selection_coverage_v1", "source_date": str(source),
+                            "scope_total": len(scope["symbols"]),
+                            "available_daily": len(set(scope["symbols"]) - missing),
+                            "missing_symbols": sorted(missing), "complete": not missing}
+                if missing:
+                    warnings.append(f"{source}范围内{len(missing)}只股票缺日线, "
+                                    "本次预选仅计算已有有效日线; 完整股票池保留, 后台继续补数")
             rows = _sanitize(select_rows(engine, engine.get(sid), context, overrides=effective))
             results[sid] = {"as_of": str(target), "source_date": str(source), "rows": rows,
+                            "coverage": coverage, "warnings": warnings,
                             "price_suggestion_reference": reference,
                             "generated_at": as_cn_datetime(now or cn_now()).isoformat(),
-                            "scheduled_for": scheduled_for(source, "16:00")}
+                            "scheduled_for": scheduled_for(source, SELECTION_TIME_TEXT)}
         except ValueError as exc:
             errors[sid] = str(exc)
     return {"selections": results, "errors": errors}

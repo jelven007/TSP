@@ -23,6 +23,7 @@ import pyarrow as pa
 
 from app.backtest.costs import buy_quantity_rules, historical_stamp_tax_pct
 from app.backtest.entry_execution import EntryExecution, execute_entry_window
+from app.backtest.exit_execution import ExitExecution, execute_exit_window
 from app.backtest.matrix import (
     MarketDataMatrix,
     MarketMatrix,
@@ -40,7 +41,7 @@ from app.strategy.risk_policy import price_exit
 from app.tickflow.repository import KlineRepository
 
 logger = logging.getLogger(__name__)
-EXECUTION_MODEL_VERSION = "entry_capacity_window_v7"
+EXECUTION_MODEL_VERSION = "entry_exit_capacity_window_v8"
 _A_SHARE_SYMBOL = re.compile(r"^\d{6}\.(?:SH|SZ)$")
 
 
@@ -230,6 +231,78 @@ def _record_entry_execution(
     })
 
 
+def _execute_matrix_exit(engine, matrix, config, frames, time_id, asset_id, pos):
+    symbol = matrix.symbols[asset_id]
+    day = matrix.timestamp_labels[time_id][:10]
+    scale = _price_scale(
+        float(matrix.close[time_id, asset_id]),
+        float(matrix.raw_close[time_id, asset_id]) if matrix.raw_close is not None else None)
+    if not np.isfinite(scale) or scale <= 0:
+        return None, 1.
+    reference = float(matrix.reference_price[time_id, asset_id]) / scale
+    down = None
+    if matrix.execution_limit_down is not None and config.asset_type == "stock":
+        boundary = float(matrix.execution_limit_down[time_id, asset_id]) / scale
+        if np.isfinite(boundary) and boundary > 0:
+            down = math.floor((boundary + .005) * 100 + .5) / 100
+    frame = frames.get((symbol, day), engine._empty_entry_window_frame())
+    if not matrix.tradable[time_id, asset_id]:
+        frame = engine._empty_entry_window_frame()
+    return execute_exit_window(
+        frame, symbol=symbol, reference_price=reference,
+        quantity=round(pos["shares"] * scale),
+        sell_value=lambda n: config.sell_value(n, day),
+        limit_down_price=down, asset_type=config.asset_type), scale
+
+
+def _record_exit_execution(stats, fills, orders, symbol, execution: ExitExecution):
+    for key, value in (
+        ("exit_target_shares", execution.target_shares),
+        ("exit_filled_shares", execution.filled_shares),
+        ("exit_cancelled_shares", execution.cancelled_shares),
+        ("exit_partial_orders", int(0 < execution.filled_shares < execution.target_shares)),
+        ("exit_unfilled_orders", int(execution.filled_shares == 0)),
+    ):
+        stats[key] = stats.get(key, 0) + value
+    for fill in execution.fills:
+        fills.append({**_entry_fill_dict(symbol, fill), "side": "sell"})
+    orders.append({
+        "symbol": symbol,
+        "signal_time": execution.signal_at.isoformat(sep=" ") if execution.signal_at else None,
+        "window_start": execution.window[0].isoformat(sep=" ") if execution.window else None,
+        "window_end": execution.window[-1].isoformat(sep=" ") if execution.window else None,
+        "target_shares": execution.target_shares, "filled_shares": execution.filled_shares,
+        "cancelled_shares": execution.cancelled_shares,
+        "status": "filled" if execution.cancelled_shares == 0 else
+                  "partial" if execution.filled_shares else "unfilled",
+    })
+
+
+def _apply_partial_exit(pos, execution: ExitExecution, scale):
+    """Keep original cycle totals for one round trip and pro-rate residual cost."""
+    pos.setdefault("cycle_entry_value", pos["entry_value"])
+    pos.setdefault("cycle_shares", pos["shares"])
+    pos.setdefault("cycle_lots", pos.get("lots", pos["shares"] / 100))
+    pos.setdefault("cycle_raw_entry_shares", pos["raw_entry_shares"])
+    sold = min(execution.filled_shares / scale, pos["shares"])
+    cost = pos["entry_value"] * sold / pos["shares"] if pos["shares"] else 0.
+    pos["sold_value"] = pos.get("sold_value", 0.) + execution.value
+    pos["sold_notional"] = pos.get("sold_notional", 0.) + execution.notional
+    pos["realized_partial_pnl"] = pos.get("realized_partial_pnl", 0.) + execution.value - cost
+    pos["shares"] -= sold
+    pos["entry_value"] -= cost
+    if "lots" in pos:
+        pos["lots"] = pos["shares"] / 100
+
+
+def _complete_exit_totals(pos, exit_value, exit_price):
+    remaining = pos["shares"]
+    value = exit_value + pos.get("sold_value", 0.)
+    shares = pos.get("cycle_shares", remaining)
+    price = (exit_price * remaining + pos.get("sold_notional", 0.)) / shares if shares else exit_price
+    return (value, shares, pos.get("cycle_entry_value", pos["entry_value"]), price)
+
+
 # ================================================================
 # 数据结构
 # ================================================================
@@ -374,6 +447,7 @@ class SimResult:
     stats: dict
     fills: list[dict] = field(default_factory=list)
     entry_orders: list[dict] = field(default_factory=list)
+    exit_orders: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -1159,6 +1233,7 @@ class BacktestEngine:
         trades: list[TradeRecord] = []
         fills: list[dict] = []
         entry_orders: list[dict] = []
+        exit_orders: list[dict] = []
         execution_stats = {
             "buy_invalid_price": 0,
             "buy_suspended": 0,
@@ -1197,6 +1272,14 @@ class BacktestEngine:
                 per_symbol_stats=[],
                 stats={"error": f"{day} 缺分钟K分区, 无法执行五分钟建仓容量撮合"},
             )
+
+        exit_window_cache, exit_missing = self._load_entry_window_frames(
+            self.repo, {
+                (matrix.symbols[int(asset)], matrix.timestamp_labels[int(moment)][:10])
+                for moment, asset in zip(*np.nonzero(matrix.exit), strict=True)
+            } if config.exit_fill == "signal_next_minute" else set(), config.asset_type)
+        if exit_missing:
+            execution_stats["sell_missing_minute_partitions"] = len(exit_missing)
 
         minute_cache: dict = {}
         if config.minute_fill:
@@ -1340,21 +1423,19 @@ class BacktestEngine:
             )
             minute_trigger = config.exit_fill == "signal_next_minute" and reason == "signal"
             if minute_trigger and override is None:
-                if pos.get("pending_exit_next_open"):
-                    open_price = float(matrix.open[time_id, asset_id])
-                    override = open_price if _valid_price(open_price) else None
-                else:
-                    override = _minute_trigger_price(time_id, asset_id)
-                    if override is None:
-                        if not pos.get("pending_exit_reason"):
-                            pos["pending_exit_reason"] = reason
-                            pos["pending_exit_signal_date"] = signal_date
-                            pos["pending_exit_signal_id"] = signal_id
-                            pos["pending_exit_next_open"] = True
-                            _count("pending_exit")
-                        _record_blocked_day(pos, matrix.timestamp_labels[time_id][:10])
-                        _count("sell_minute_trigger_fallback")
-                        return False
+                execution, scale = _execute_matrix_exit(
+                    self, matrix, config, exit_window_cache, time_id, asset_id, pos)
+                if execution is None:
+                    _count("sell_invalid_price")
+                    return False
+                _record_exit_execution(execution_stats, fills, exit_orders,
+                                       matrix.symbols[asset_id], execution)
+                if execution.filled_shares == 0:
+                    return False
+                _apply_partial_exit(pos, execution, scale)
+                if execution.cancelled_shares:
+                    return False
+                override = execution.average_price * scale
             ok, blocked = _can_sell(time_id, asset_id, override)
             if not ok:
                 if not pos.get("pending_exit_reason"):
@@ -1370,9 +1451,9 @@ class BacktestEngine:
             exit_price = float(override) if override is not None else _refill(
                 time_id, asset_id, "sell", float(exit_prices[time_id, asset_id])
             )
-            shares = pos["shares"]
-            entry_value = pos["entry_value"]
-            exit_value = config.sell_value(shares * exit_price, matrix.timestamp_labels[time_id][:10])
+            exit_value = config.sell_value(pos["shares"] * exit_price, matrix.timestamp_labels[time_id][:10])
+            exit_value, shares, entry_value, exit_price = _complete_exit_totals(
+                pos, exit_value, exit_price)
             pnl_amount = exit_value - entry_value
             trades.append(TradeRecord(
                 symbol=matrix.symbols[asset_id],
@@ -1395,7 +1476,7 @@ class BacktestEngine:
                 blocked_exit_days=int(pos["blocked_exit_days"]),
                 entry_signal_id=pos["entry_signal_id"],
                 exit_signal_id=(pos.get("pending_exit_signal_id") or signal_id) if reason == "signal" else None,
-                raw_entry_shares=pos["raw_entry_shares"],
+                raw_entry_shares=pos.get("cycle_raw_entry_shares", pos["raw_entry_shares"]),
                 raw_entry_price=round(float(pos["raw_entry_price"]), 4),
                 raw_frozen_stop_price=(pos["frozen_stop"] * pos["raw_entry_price"] / pos["entry_price"]
                                        if pos.get("frozen_stop") is not None else None),
@@ -1577,6 +1658,8 @@ class BacktestEngine:
                     "mark_date": matrix.timestamp_labels[last_time][:10],
                     "mark_price": mark,
                     "unrealized_pnl_amount": pos["shares"] * mark - pos["entry_value"],
+                    "realized_partial_pnl_amount": pos.get("realized_partial_pnl", 0.),
+                    "shares": pos["shares"],
                     "pending_exit_reason": pos.get("pending_exit_reason"),
                     "blocked_exit_days": pos["blocked_exit_days"],
                 })
@@ -1592,6 +1675,9 @@ class BacktestEngine:
         result.stats["market_matrix_bytes"] = matrix.nbytes
         result.fills = fills
         result.entry_orders = entry_orders
+        result.exit_orders = exit_orders
+        result.stats["realized_partial_pnl_amount"] = round(sum(
+            p.get("realized_partial_pnl_amount", 0.) for p in unclosed_positions), 2)
         return result
 
     def simulate_independent_market_matrix(
@@ -2326,6 +2412,7 @@ class BacktestEngine:
         exposure_values: list[float] = []
         fills: list[dict] = []
         entry_orders: list[dict] = []
+        exit_orders: list[dict] = []
         execution_stats = {
             "buy_invalid_price": 0,
             "buy_suspended": 0,
@@ -2367,6 +2454,14 @@ class BacktestEngine:
                 per_symbol_stats=[],
                 stats={"error": f"{day} 缺分钟K分区, 无法执行五分钟建仓容量撮合"},
             )
+
+        exit_window_cache, exit_missing = self._load_entry_window_frames(
+            self.repo, {
+                (matrix.symbols[int(asset)], matrix.timestamp_labels[int(moment)][:10])
+                for moment, asset in zip(*np.nonzero(matrix.exit), strict=True)
+            } if config.exit_fill == "signal_next_minute" else set(), config.asset_type)
+        if exit_missing:
+            execution_stats["sell_missing_minute_partitions"] = len(exit_missing)
 
         minute_cache: dict = {}
         if config.minute_fill:
@@ -2517,8 +2612,10 @@ class BacktestEngine:
             )
             exit_value = config.sell_value(pos["shares"] * exit_price, matrix.timestamp_labels[time_id][:10])
             cash += exit_value
-            pnl_amount = exit_value - pos["entry_value"]
-            pnl_pct = pnl_amount / pos["entry_value"] if pos["entry_value"] > 0 else 0.0
+            exit_value, shares, entry_value, exit_price = _complete_exit_totals(
+                pos, exit_value, exit_price)
+            pnl_amount = exit_value - entry_value
+            pnl_pct = pnl_amount / entry_value if entry_value > 0 else 0.0
             sold_today.add(asset_id)
             trades.append(TradeRecord(
                 symbol=matrix.symbols[asset_id],
@@ -2530,10 +2627,10 @@ class BacktestEngine:
                 pnl_pct=round(float(pnl_pct), 6),
                 duration=int(pos["hold_days"]),
                 exit_reason=reason,
-                shares=round(float(pos["shares"]), 4),
-                lots=round(float(pos["lots"]), 2),
+                shares=round(float(shares), 4),
+                lots=round(float(pos.get("cycle_lots", pos["lots"])), 2),
                 position_pct=round(float(pos["position_pct"]), 6),
-                entry_value=round(float(pos["entry_value"]), 2),
+                entry_value=round(float(entry_value), 2),
                 exit_value=round(float(exit_value), 2),
                 pnl_amount=round(float(pnl_amount), 2),
                 entry_score=round(float(pos["entry_score"]), 2),
@@ -2541,7 +2638,7 @@ class BacktestEngine:
                 exit_signal_date=signal_date,
                 blocked_exit_days=int(pos["blocked_exit_days"]),
                 entry_signal_id=pos["entry_signal_id"],
-                raw_entry_shares=pos["raw_entry_shares"],
+                raw_entry_shares=pos.get("cycle_raw_entry_shares", pos["raw_entry_shares"]),
                 raw_entry_price=round(float(pos["raw_entry_price"]), 4),
                 raw_frozen_stop_price=(pos["frozen_stop"] * pos["raw_entry_price"] / pos["entry_price"]
                                        if pos.get("frozen_stop") is not None else None),
@@ -2559,6 +2656,7 @@ class BacktestEngine:
             sold_today: set[int],
             override: float | None = None,
         ) -> bool:
+            nonlocal cash
             pos = positions[asset_id]
             if pos.get("last_exit_attempt") == time_id:
                 return False
@@ -2569,15 +2667,21 @@ class BacktestEngine:
             )
             minute_trigger = config.exit_fill == "signal_next_minute" and reason == "signal"
             if minute_trigger and override is None:
-                pos = positions[asset_id]
-                if pos.get("pending_exit_next_open"):
-                    override = float(matrix.open[time_id, asset_id])
-                else:
-                    override = _minute_trigger_price(time_id, asset_id)
-                    if override is None:
-                        _mark_pending(asset_id, reason, signal_date, signal_id, next_open=True)
-                        _count("sell_minute_trigger_fallback")
-                        return False
+                execution, scale = _execute_matrix_exit(
+                    self, matrix, config, exit_window_cache, time_id, asset_id, pos)
+                if execution is None:
+                    _count("sell_invalid_price")
+                    return False
+                _record_exit_execution(execution_stats, fills, exit_orders,
+                                       matrix.symbols[asset_id], execution)
+                if execution.filled_shares == 0:
+                    return False
+                cash += execution.value
+                _apply_partial_exit(pos, execution, scale)
+                sold_today.add(asset_id)
+                if execution.cancelled_shares:
+                    return False
+                override = execution.average_price * scale
             ok, blocked = _can_sell(time_id, asset_id, override)
             if not ok:
                 _mark_pending(
@@ -2952,6 +3056,8 @@ class BacktestEngine:
             _market_value() - sum(pos["entry_value"] for pos in positions.values()), 2,
         )
         stats["pending_exit_positions"] = sum(1 for pos in positions.values() if pos.get("pending_exit_reason"))
+        stats["realized_partial_pnl_amount"] = round(sum(
+            pos.get("realized_partial_pnl", 0.) for pos in positions.values()), 2)
         stats["market_matrix_shape"] = [time_count, asset_count]
         stats["market_matrix_bytes"] = matrix.nbytes
         return SimResult(
@@ -2966,6 +3072,7 @@ class BacktestEngine:
             stats=stats,
             fills=fills,
             entry_orders=entry_orders,
+            exit_orders=exit_orders,
         )
 
     def simulate_portfolio_legacy(

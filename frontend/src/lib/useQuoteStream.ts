@@ -216,6 +216,11 @@ export function useQuoteStream(
         qc.invalidateQueries({ queryKey: ['screener-cached'] })
       })
 
+      es.addEventListener('strategy_pool_updated', (event: MessageEvent) => {
+        if (!acceptEvent(event)) return
+        void qc.invalidateQueries({ queryKey: ['strategy-pool'] })
+      })
+
       es.addEventListener('depth_updated', () => {
         // 五档修正完成: 刷新连板梯队 + 行情封单数据。
         // 不受实时行情开关限制 — 修正轮询独立于行情轮询, 用户开了修正就想看实时封单。

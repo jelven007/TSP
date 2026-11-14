@@ -94,9 +94,14 @@ def test_unqualified_history_window_uses_complete_reference_on_conflict(differen
         calls.append(True)
         return reference
 
-    result = runtime.validate_bar_window(
-        candidate, scope=scope, source=source, reference_read=read_reference,
-    )
+    if difference == "missing_key":
+        with pytest.raises(RustdxError, match="缺"):
+            runtime.validate_bar_window(
+                candidate, scope=scope, source=source, reference_read=read_reference,
+            )
+        assert len(calls) == 1
+        return
+    result = runtime.validate_bar_window(candidate, scope=scope, source=source, reference_read=read_reference)
     assert result == reference
     assert len(calls) == 1
     if difference == "same":
@@ -150,3 +155,60 @@ def test_window_qualification_expires_and_does_not_cross_observation_day(monkeyp
                                 reference_read=reference)
     assert len(calls) == 3
     assert json.loads(runtime.stats_json())["window_validation"]["reference_requests"] == 6
+
+
+@pytest.mark.parametrize("counted", [False, True])
+@pytest.mark.parametrize("reference_fails", [False, True])
+def test_incremental_minutes_validate_saved_reference_and_count_all_calls(
+    monkeypatch, counted, reference_fails,
+):
+    from app.plugins.rustdx import provider as module
+    from app.plugins.rustdx.routing import TaskRuntime
+
+    now = datetime(2026, 11, 13, 14, 59)
+    monkeypatch.setattr(module, "cn_now", lambda: now)
+    raw = [{"datetime": datetime(2026, 11, 13, 14, 58),
+            "open": 10., "high": 11., "low": 9., "close": 10.,
+            "vol": 100., "amount": 1000.}]
+    reference = [{**raw[0], "close": 11.}]
+    runtime = TaskRuntime(None, connections=8, timeout=2, reference="127.0.0.2:7709")
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def bars(self, *args, **options):
+            return raw
+
+        def bars_with_count(self, *args, **options):
+            return raw, 2
+
+        def incremental_bars_with_source(self, *args, **options):
+            if getattr(self, "is_reference", False):
+                if reference_fails:
+                    raise RustdxError("参考窗口不可用", requests=3)
+                return reference, 3, {"endpoint": runtime.reference}
+            return raw, 2, {"endpoint": "127.0.0.3:7709"}
+
+        def reference_view(self):
+            client = Client()
+            client.is_reference = True
+            return client
+
+        def validate_bar_window(self, *args, **options):
+            return runtime.validate_bar_window(*args, **options)
+
+    source = RustdxProvider()
+    source._client_factory = Client
+    if reference_fails:
+        with pytest.raises(RustdxError, match="参考窗口") as error:
+            source._intraday_latest(["000001.SZ"], 3, "stock", counted=counted)
+        assert error.value.requests == 5
+    else:
+        frame, calls = source._intraday_latest(["000001.SZ"], 3, "stock", counted=counted)
+        assert frame["close"].to_list() == [11.]
+        assert calls == 5
+        assert json.loads(runtime.stats_json())["window_validation"]["reference_requests"] == 3

@@ -17,7 +17,7 @@ from app.cell.config import CellSettings
 from app.cell.context import AccessError
 from app.cell.database import Databases
 from app.cell.scheduler import Scheduler
-from app.market_time import cn_now, cn_today
+from app.market_time import as_cn_datetime, cn_now, cn_today
 from app.multitenancy.alerts import append_in_transaction
 from app.multitenancy.documents import TenantDocuments
 from app.multitenancy.events import append_event
@@ -82,9 +82,12 @@ class FullWorker:
             account = self.identity._public(control, row)
         return account, self.identity.context(account, tenant_id, uuid.uuid4().hex)
 
-    def prepare(self, tenant_id, snapshot):
+    def prepare(self, tenant_id, snapshot, claim=None):
         account, context = self.account(tenant_id)
         documents = TenantDocuments(self.db, context)
+        from app.multitenancy.critical_schedule import reconcile
+
+        reconcile(self, documents, claim)
         with authorize(self.identity, context, account["auth_version"]), documents.transaction(write=False) as unit:
             conn = unit.connection
             definitions = conn.execute(
@@ -119,6 +122,13 @@ class FullWorker:
                 **({"public_release_id": snapshot["public_release"]["id"]} if snapshot.get("public_release") else {}),
             }
             from app.strategy.morning_liquidation import holding_snapshot
+            from app.strategy.overnight_runtime import position_snapshot
+
+            capacity_ids = {
+                source["id"] for source in payload["sources"]
+                if source.get("definition", {}).get("meta", {}).get("minute_execution") == "overnight_capacity_v1"
+                and source.get("definition", {}).get("meta", {}).get("trigger_selection") == "optional_v1"
+            }
 
             morning_columns = {
                 "csgi_" + sig["id"] for sig in payload["signals"]
@@ -129,21 +139,24 @@ class FullWorker:
                 for source in payload["sources"]
             }
             payload["positions"] = {
-                sid: holding_snapshot(PaperSession(unit, conn, False), sid, cn_today())
+                sid: (position_snapshot if sid in capacity_ids else holding_snapshot)(
+                    PaperSession(unit, conn, False), sid, cn_today())
                 for sid in {r.get("strategy_id") for r in rules}
-                if sid and morning_columns.intersection(
+                if sid and (sid in capacity_ids or morning_columns.intersection(
                     payload["overrides"].get(sid, {}).get("exit_signals", source_exits.get(sid, [])) or [],
-                )
+                ))
             }
             from app.services.strategy_results import capture_identity, previous_daily_state
             payload["previous_states"] = {}
             payload["daily_identities"] = {}
             payload["entry_deadlines"] = {}
+            payload["next_evaluation_at"] = None
             from app.services.daily_selections import DailySelections
             payload["selection_snapshots"] = {
                 sid: selected for sid in {r.get("strategy_id") for r in rules} if sid
                 and (selected := DailySelections(unit).read(sid, cn_today())) is not None
             }
+            payload["daily_pool_snapshots"] = {}
             if self.db.settings.schema_version >= 7:
                 from pathlib import Path
 
@@ -151,10 +164,18 @@ class FullWorker:
                 from app.strategy.engine import StrategyEngine
                 catalog = TenantStrategyEngine(unit, StrategyEngine(
                     [Path(__file__).resolve().parents[1] / "strategy/builtin"]), self.executor)
+                payload["daily_pool_snapshots"] = catalog._saved_pools(unit, {
+                    "strategy_ids": [sid for sid in {r.get("strategy_id") for r in rules}
+                                     if sid and catalog.has(sid)],
+                    "as_of": str(cn_today()),
+                })
                 # The deadline helper reads the same tenant signal definitions as computation.
                 catalog._user_data_dir = lambda: unit
                 from app.strategy.engine import StrategyDataContext
-                from app.strategy.late_session_strength import entry_deadline
+                from app.strategy.late_session_strength import (
+                    entry_deadline,
+                    pending_evaluation_time,
+                )
 
                 deadline_context = StrategyDataContext(
                     "stock", "1m", cn_today(), observed_at=datetime.fromtimestamp(time.time(), UTC))
@@ -198,6 +219,23 @@ class FullWorker:
                                                  expired_only=False)
                             if end is not None:
                                 payload["entry_deadlines"][sid] = end.isoformat()
+                            pending = pending_evaluation_time(
+                                catalog, strategy, payload["overrides"].get(sid), deadline_context,
+                            )
+                            pending = as_cn_datetime(pending) if pending is not None else None
+                            if pending is not None and (
+                                payload["next_evaluation_at"] is None
+                                or pending.isoformat() < payload["next_evaluation_at"]
+                            ):
+                                payload["next_evaluation_at"] = pending.isoformat()
+                        from app.strategy.s01_signals import next_entry_evaluation_time
+
+                        s01_pending = next_entry_evaluation_time(
+                            catalog, strategy, payload["overrides"].get(sid), deadline_context)
+                        if s01_pending is not None:
+                            s01_pending = as_cn_datetime(s01_pending).isoformat()
+                            if payload["next_evaluation_at"] is None or s01_pending < payload["next_evaluation_at"]:
+                                payload["next_evaluation_at"] = s01_pending
             for sid in {r.get("strategy_id") for r in rules} & {"s02"}:
                 try:
                     payload["previous_states"][sid] = previous_daily_state(unit, sid, cn_today())
@@ -219,7 +257,7 @@ class FullWorker:
     def evaluate(self, tenant_id, snapshot, claim=None):
         started, started_at = time.perf_counter(), time.time()
         with measure_runtime_stage("monitor.prepare"):
-            prepared = self.prepare(tenant_id, snapshot)
+            prepared = self.prepare(tenant_id, snapshot, claim)
         preparation_finished = time.perf_counter()
         try:
             return self._evaluate(tenant_id, snapshot, claim, prepared,
@@ -264,8 +302,16 @@ class FullWorker:
             )
         )
         previous_sequence = payload["state"].get("sequence", -1)
+        release_id = (snapshot.get("public_release") or {}).get("id")
+        pending = payload["state"].get("next_evaluation_at")
+        due = (pending is not None
+               and payload["state"].get("evaluated_at", now)
+               < as_cn_datetime(datetime.fromisoformat(pending)).timestamp() <= now)
+        changed = (sequence > previous_sequence or (sequence == previous_sequence and (
+            release_id != payload["state"].get("public_release_id") or due
+        )))
         result = None
-        if fresh and sequence > previous_sequence and payload["rules"]:
+        if fresh and changed and payload["rules"]:
             with measure_runtime_stage("monitor.compute"):
                 if needs_sandbox(payload["rules"]):
                     cancelled = threading.Event()
@@ -305,6 +351,12 @@ class FullWorker:
                     raise AccessError(409, "监控配置已更新")
                 events, execution_events = [], []
                 if result is not None:
+                    from app.strategy.execution_status import expire_late_entries
+
+                    expire_late_entries(
+                        result, payload.get("entry_deadlines", {}),
+                        datetime.fromtimestamp(time.time(), UTC),
+                    )
                     for index, event in enumerate(result["events"]):
                         event["id"] = hashlib.sha256(
                             f"{tenant_id}:{sequence}:{observed}:{index}".encode(),
@@ -316,7 +368,10 @@ class FullWorker:
                                 f"execution:{tenant_id}:{sequence}:{observed}:{index}".encode(),
                             ).hexdigest(),
                         })
-                    unit.put("monitor_runtime", "default", {**result["state"], "sequence": sequence})
+                    unit.put("monitor_runtime", "default", {
+                        **result["state"], "sequence": sequence, "public_release_id": release_id,
+                        "evaluated_at": now, "next_evaluation_at": payload.get("next_evaluation_at"),
+                    })
                     if result["results"]:
                         from app.services.strategy_results import ResultIdentity, StrategyResults
                         from app.strategy.execution_status import merge_result, result_status
@@ -338,6 +393,12 @@ class FullWorker:
                                     from app.services.daily_stock_pools import DailyStockPools
                                     DailyStockPools(unit).save(record, daily["daily_stock_pool"],
                                         started_at=sequence * 1000000)
+                            from app.multitenancy.critical_schedule import record_completion
+
+                            record_completion(
+                                unit, sid, daily, now=datetime.fromtimestamp(time.time(), UTC),
+                                fingerprint=fingerprint(conn, include_state=False),
+                            )
                             result["results"][sid] = merge_result(previous_results.get(sid), daily)
                             # Timings describe the current attempt and stay out of the archive.
                             result["results"][sid]["latency"] = latency
@@ -395,7 +456,11 @@ class FullWorker:
                 commit_now = time.time()
                 from app.strategy.execution_status import entry_events_before_deadline
                 execution_events = entry_events_before_deadline(
-                    execution_events, result["results"] if result else {},
+                    execution_events, {
+                        **(result["results"] if result else {}),
+                        **{sid: {"entry_deadline_at": end}
+                           for sid, end in payload.get("entry_deadlines", {}).items()},
+                    },
                     datetime.fromtimestamp(commit_now, UTC),
                 )
                 fresh = fresh and (
@@ -452,6 +517,12 @@ class FullWorker:
 
     @staticmethod
     def settle(session, snapshot):
+        moment = cn_now()
+        if moment.weekday() < 5 and (14, 25, 0) <= (
+            moment.hour, moment.minute, moment.second
+        ) <= (14, 55, 0):
+            # Historical bookkeeping runs after the critical live signal window.
+            return
         days = sorted(day for day in snapshot.get("settlement_days", []) if day <= cn_today().isoformat())
         for account_id in session.account_ids():
             account = session.account(account_id)

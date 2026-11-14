@@ -4,6 +4,7 @@ export const BASIC_FILTER_RANGES = [
   { key: 'amount', label: '成交额', unit: '亿', scale: 1e8, step: '0.5' },
   { key: 'turnover', label: '换手率', unit: '%', scale: 1, step: '0.5' },
   { key: 'change_pct', label: '涨跌幅', unit: '%', scale: 1, step: '0.1' },
+  { key: 'amplitude', label: '上下振幅', unit: '%', scale: 1, step: '0.1' },
   { key: 'price', label: '价格范围', unit: '元', scale: 1, step: '0.1' },
 ] as const
 

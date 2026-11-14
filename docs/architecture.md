@@ -1,5 +1,52 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+2026-11-14调用链整合与六类文档映射见[升级记录](upgrade-20261114.md)。
+保留旧冻结策略及已保存配置，正式产物须同一完整SHA。
+
+2026-11-14当前本地回测执行：自定义S01（`custom_mvxxcs01`）保持14:45环境启动、14:46个股确认，指标仍截止14:45已完成分钟；删除额外等待及专用三分钟买入，14:47～14:51按系统五个交易分钟买入窗口执行，以分钟最高价、系统成交量容量及含费预算撮合，买足提前结束，到期撤销余量。系统通用清仓`signal_next_minute`在卖出信号下一分钟起执行五个交易分钟，到期撤委托，余股保留估值；缺分钟消耗原时槽，同日跨午休、收盘截断，不自动次日续卖该委托。S01原出场信号及专用卖出执行保持；当前保存源码、信号门槛和参数未改。本地0.4.58配套安装，无线上部署或新收益回测，历史冻结结果保留。验收见[本次执行回执](../deliverables/operations/backtest-five-minute-execution-20261114/report.md)。
+
+当前S01在启动时以已完成分钟的OHLC/amount及精确上一交易日raw_close统计市场：
+OHLC有限且正、amount有限且非负可0、昨收有限且正。新冻结标记仅从所选信号解析，
+市场分母与个股完整窗口/累计金额门槛分开，个股阶段不重用旧市场分母。
+沿原隔夜内核实现，不新增插件；本地执行证据见
+[本次回执](../deliverables/operations/s01-security-validity-20261114/report.md)。
+
+S01尾盘时间沿信号编辑→专用参数校验→当前所选信号适配→共享隔夜内核接线：
+启动先统计市场有效数及上涨比例，确认时计算个股累计成交额、振幅、涨幅并传递
+`entry_evaluated_at`。行情截止启动分钟；后台Worker先访问启动时点，再访问确认时点；
+该次安装的隔夜回放从确认后下一完成分钟进入当时三分钟容量窗口；
+当前统一候选已按本页最新执行记录改为五个交易分钟。旧无时间字段路径保持。
+前日数值条件仍在引擎后置过滤，详情见
+[S01信号回执](../deliverables/operations/s01-signal-timing-20261114/report.md)。
+
+2026-11-14S01通用设置沿原保存接口→运行快照→字段/预热规划→共享叠加与评分→
+持仓风险信号→隔夜分钟容量账本接线；`optional_v1`显式启用，旧定义兼容。
+入场/出场行情与完整股票池分离，后来的卖款不进入更早买入预算；
+实际合同及本地状态见[当前S01模板](reference/s01.md#当前自定义s01通用参数模板)。
+
+2026-11-13 阶段回执在`StrategyResults.save`事务边界调用
+`late_session_receipts.preserve_first_receipts`。`late_session_progress_v1`每步可选
+`first_receipt`保存完整首次快照，`null`表示旧历史首次未知；按身份/日期/分钟/
+对象/参数/计划隔离。比较业务结果时忽略该契约的观察时钟和执行更新时间，
+指标变化仍保存最近结果。调用链与验证见
+[本轮回执](../deliverables/operations/s02-progress-first-receipt-20261113/report.md)。
+
+2026-11-11 S02结果说明布局：由StrategyDailyResults在共享结果说明段组合日期、执行状态及上次成功信息；Screener仅在非信号／无结果情形保留原未来日说明。现有归档、API、缓存与每秒读取保持；两端验收见[本次回执](../deliverables/operations/s02-status-note-20261111/report.md)。
+
+2026-11-11四阶段观测沿`late_session_strength.Evaluation.progress`→引擎
+`entry_data_quality`→既有结果归档／API→共享`StrategyEntryProgress`工具栏。
+`late_session_progress_v1`为可选回执，诊断冻结预选交集不缩小完整池或改变信号。
+同状态、数量、参数及计划的重复计时不替换成功正文；有界日志仅在阶段变化时记录。
+无SQL迁移、新Provider或独立轮询；源码集成与运行证据见
+[本次回执](../deliverables/operations/s02-task-progress-20261111/report.md)。
+
+2026-11-10新增`selection_daily_repair.request_repair`，由Platform的16:00/30秒任务触发，
+共享pipeline执行槽。现有日线补缺→坏键官方日源→精确15:00分钟核验/upsert
+→`finalize_daily_settlement`加工重建/重验→公共发布→租户预选。
+原五周期任务独立，失败持续退避；未变化的已验证输入不重复发布。
+Compute按`scope_only_v3`检验参考日日线覆盖并严格拒绝坏行；盘中隔离不变。
+候选边界见[设计](../.claude/artifacts/designs/postclose-auto-repair-20261110.md)。
+
 2026-11-09盘后复核读端按来源、当前身份、买分区及执行成功状态保留复核说明；
 原盘中attempt仍独立过期，前端复用既有质量字段，见[补充方案](upgrade-20261109.md)。
 

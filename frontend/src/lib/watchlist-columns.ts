@@ -111,26 +111,15 @@ export const COLUMN_GROUPS: ColumnGroup[] = [
 // 操作列（始终显示，不参与自定义）
 export const ACTION_COLUMN_ID = 'builtin:action'
 
-/** 列宽只由列配置和图表尺寸决定，不能随虚拟列表的可见内容变化。 */
-export function watchlistColumnWidths(
-  columns: ColumnConfig[],
-  chartWidths: { candle: number; intraday: number },
-): Record<string, number> {
+/** 自选固定列宽，不随图表开关或虚拟列表的可见内容变化。 */
+export function watchlistColumnWidths(columns: ColumnConfig[]): Record<string, number> {
   const widths: Record<string, number> = {}
   for (const col of columns.filter(column => column.visible)) {
-    if (col.source.type === 'ext') {
-      const maxWidth = col.extDisplay?.maxWidth
-      widths[col.id] = typeof maxWidth === 'number' && Number.isFinite(maxWidth) && maxWidth > 0
-        ? maxWidth : 176
-    } else {
-      const key = col.source.key
-      widths[col.id] = key === 'symbol' ? 250
-        : key === 'groups' ? 400
-        : key === 'candle' ? chartWidths.candle
-        : key === 'intraday' ? chartWidths.intraday
-        : key === 'signals' ? 250
-        : 100
-    }
+    const key = col.source.type === 'builtin' ? col.source.key : ''
+    widths[col.id] = key === 'symbol' ? 240
+      : key === 'groups' ? 360
+      : key === 'candle' || key === 'signals' ? 180
+      : 60
   }
   return widths
 }

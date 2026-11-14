@@ -4095,11 +4095,13 @@ def _build_basic_filter_mask_uncached(market: MarketDataMatrix, config: dict) ->
             mask &= np.isfinite(shares) & (shares > 0)
             _apply_bound(mask, close * shares, config, prefix)
     for stem, field_name, scale in (("amount", "amount", 1), ("turnover", "turnover_rate", 1),
-                                    ("change_pct", "change_pct", 100)):
+                                    ("change_pct", "change_pct", 100), ("amplitude", "amplitude", 100)):
         if any(config.get(f"{stem}_{side}") is not None for side in ("min", "max")):
-            values = (matrix_feature(market, "change_pct")
-                      if stem == "change_pct" else _optional_field(market, field_name))
-            values = reference(values) * scale
+            values = (matrix_feature(market, field_name)
+                      if stem in {"change_pct", "amplitude"} else _optional_field(market, field_name))
+            # Convert units at native matrix precision before the date lookup;
+            # previous/current references must agree at inclusive boundaries.
+            values = reference(values * scale)
             mask &= np.isfinite(values)
             _apply_bound(mask, values, config, stem)
 

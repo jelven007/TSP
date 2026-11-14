@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/data/Skeleton'
 import { PageHeader } from '@/components/PageHeader'
 import { AnchorWrap } from '@/lib/useCardFlash'
 import { customSignalColumn, lateSessionSummary, morningLiquidationSummary } from '@/lib/customSignals'
+import { isS01Signal, s01SignalSummary } from '@/lib/customSignals'
 
 type SignalSection = 'builtin' | 'custom'
 
@@ -191,6 +192,8 @@ function SignalsBody({ highlight }: { highlight: string }) {
                   </div>
                 </div>
                 <div className="mt-3 space-y-1">
+                  {isS01Signal(sig) && s01SignalSummary(sig).map(text =>
+                    <p key={text} className="text-[11px] leading-5 text-secondary">{text}</p>)}
                   {sig.template === 'late_session_strength' && <>
                     {lateSessionSummary(sig).map(text => <p key={text} className="text-[11px] leading-5 text-secondary">{text}</p>)}
                     <p className="pt-1 text-[10px] text-muted">全部条件同时满足 · 已完成 K 线 · 用于分钟策略</p>

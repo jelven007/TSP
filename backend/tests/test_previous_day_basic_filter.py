@@ -83,7 +83,7 @@ def test_percentage_and_reference_persist_and_reject_reversed_range(tmp_path):
 def test_each_bound_rejects_missing_prior_data_in_matrix():
     history = panel().filter(pl.col("date") == date(2026, 10, 26))
     market = build_market_data_matrix(history, field_columns=set(history.columns))
-    for stem in ["price", "market_cap", "float_cap", "amount", "turnover", "change_pct"]:
+    for stem in ["price", "market_cap", "float_cap", "amount", "turnover", "change_pct", "amplitude"]:
         assert not build_basic_filter_mask(market, {
             "data_reference": "previous_trade_day", stem + "_max": 50,
         }).any()
@@ -138,3 +138,91 @@ def test_minute_candidates_use_daily_previous_close_not_last_minute():
     result = engine.run("saved_params", context, overrides={"basic_filter": BF})
     assert [row["symbol"] for row in result.rows] == ["600000.SH"]
     assert result.rows[0]["close"] == 100
+
+
+def test_amplitude_percentage_bounds_use_exact_prior_session_in_both_engines():
+    history = panel().with_columns(pl.Series("amplitude", [0.20, 0.12, 0.90, 0.12, 0.12]))
+    day = date(2026, 10, 26)
+    current = history.filter(pl.col("date") == day)
+    bf = {"data_reference": "previous_trade_day", "amplitude_min": 12, "amplitude_max": 12}
+    result = StrategyEngine._apply_basic_filter(current, bf, history=history, as_of=day)
+    assert result["symbol"].to_list() == ["600000.SH"]
+    assert result["amplitude"].to_list() == [0.90]
+    market = build_market_data_matrix(history, field_columns=set(history.columns))
+    assert build_basic_filter_mask(market, bf)[-1].tolist() == [False, True]
+    for value in [None, float("nan"), float("inf")]:
+        missing = history.with_columns(pl.lit(value, dtype=pl.Float64).alias("amplitude"))
+        assert StrategyEngine._apply_basic_filter(
+            current, bf, history=missing, as_of=day).is_empty()
+    assert StrategyEngine._apply_basic_filter(
+        current, bf, history=history.drop("amplitude"), as_of=day).is_empty()
+    assert StrategyEngine._apply_basic_filter(
+        current, {**bf, "amplitude_min": None, "amplitude_max": None},
+        history=history, as_of=day).height == 2
+
+
+def test_matrix_derives_amplitude_from_high_low_and_previous_close():
+    history = panel().filter(pl.col("symbol") == "600000.SH").with_columns(
+        pl.Series("low", [8., 8., 99.]))
+    market = build_market_data_matrix(history, field_columns=set(history.columns))
+    # Friday's (10 - 8) / Thursday's 8 = 25%, unrelated to Monday's range.
+    assert build_basic_filter_mask(market, {
+        "data_reference": "previous_trade_day", "amplitude_min": 24.9, "amplitude_max": 25.1,
+    })[-1, 0]
+    assert not build_basic_filter_mask(market, {
+        "data_reference": "previous_trade_day", "amplitude_max": 24.9,
+    })[-1, 0]
+
+
+@pytest.mark.parametrize("value", [True, -0.1, float("nan"), float("inf"), "12"])
+def test_amplitude_validation_rejects_invalid_values(value):
+    with pytest.raises(ValueError):
+        config.validate_basic_filter({"amplitude_max": value})
+
+
+def test_amplitude_save_load_and_dependency_plans(tmp_path):
+    from app.backtest.minute_replay import minute_replay_feature_plan
+    from app.backtest.strategy import _basic_filter_dependencies
+    from app.strategy.basic_filter import fields
+
+    bf = {"data_reference": "previous_trade_day", "amplitude_min": 0, "amplitude_max": 12.25}
+    config.save_override(tmp_path, "test", {"basic_filter": bf})
+    assert config.load_override(tmp_path, "test")["basic_filter"] == bf
+    with pytest.raises(ValueError):
+        config.validate_basic_filter({"amplitude_min": 13, "amplitude_max": 12})
+    assert fields(bf) == {"amplitude"}
+    assert "amplitude" in _basic_filter_dependencies(bf)
+    assert "amplitude" in minute_replay_feature_plan(2, bf).indicator_columns
+    assert "amplitude" not in minute_replay_feature_plan(2, {**bf, "enabled": False}).indicator_columns
+
+
+def test_percentage_inclusive_bound_ignores_float64_conversion_noise():
+    # Equivalent adjusted-price ratios can land a few ULPs below 4% / 12%.
+    rows = panel().tail(1).with_columns(
+        pl.lit(0.03999999999999981).alias("change_pct"),
+        pl.lit(0.1199999999999999).alias("amplitude"),
+    )
+    assert StrategyEngine._apply_basic_filter(rows, {
+        "change_pct_min": 4, "change_pct_max": 4, "amplitude_min": 12, "amplitude_max": 12,
+    }).height == 1
+    assert StrategyEngine._apply_basic_filter(rows.with_columns(
+        pl.lit(0.03999999).alias("change_pct"),
+    ), {"change_pct_min": 4}).is_empty()
+
+
+def test_amplitude_does_not_reduce_scope_only_pool():
+    from test_strategy_saved_params import _make_engine
+
+    from app.strategy.daily_pool import build_pool
+    from app.strategy.engine import StrategyDataContext
+
+    engine, _ = _make_engine()
+    history = panel()
+    day = date(2026, 10, 26)
+    context = StrategyDataContext("stock", "1d", day,
+        current=history.filter(pl.col("date") == day), history=history)
+    result = build_pool(engine, "saved_params", context, overrides={"basic_filter": {
+        "data_reference": "previous_trade_day", "amplitude_max": 0,
+    }})
+    assert result["symbols"] == ["000001.SZ", "600000.SH"]
+    assert "amplitude_max" not in result["basic_filter"]

@@ -149,7 +149,7 @@ def _service(tmp_path, sell_volume=1000., missing=False):
     later = previous.tail(1).with_columns(pl.lit(entry).alias("date"))
     final = later.with_columns(pl.lit(exit_day).alias("date"))
     panel = pl.concat([previous, later, final])
-    partitions = {entry: bars(entry, end=890),
+    partitions = {entry: bars(entry, end=891),
                   exit_day: bars(exit_day, end=890).with_columns(pl.lit(sell_volume).alias("volume"))}
     if missing:
         partitions[exit_day] = partitions[exit_day].filter(
@@ -301,7 +301,7 @@ def test_invalid_nav_fraction_rejected(fraction):
         parameters({"entry_nav_fraction": fraction})
 
 
-def test_later_orders_use_known_nav_and_do_not_backdate_fills(tmp_path):
+def test_batch_orders_use_known_nav_and_the_same_system_entry_window(tmp_path):
     from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
 
     service = _service(tmp_path)
@@ -329,7 +329,7 @@ def test_later_orders_use_known_nav_and_do_not_backdate_fills(tmp_path):
         result_policy=BacktestResultPolicy(include_benchmark=False, include_monte_carlo=False))
     assert result.error is None
     buys = [f for f in result.fills if f["side"] == "buy"]
-    assert [f["bar"] for f in buys] == [887, 888, 889, 889]
+    assert [f["bar"] for f in buys] == [887, 887]
     trades = {t["symbol"]: t for t in result.trades}
     first = trades["600001.SH"]
     expected_nav = 100000 - first["entry_value"] + first["shares"] * 10.1
