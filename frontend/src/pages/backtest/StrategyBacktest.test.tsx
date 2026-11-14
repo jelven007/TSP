@@ -245,12 +245,13 @@ it('uses the requested migrated defaults and request units', async () => {
   await click('运行回测')
 
   expect(startBacktest).toHaveBeenCalledWith(expect.objectContaining({
-    max_positions: 4,
+    max_positions: 5,
     stamp_tax_pct: 0.001,
     slippage_bps: 10,
     minimum_commission: 5,
     transfer_fee_pct: 0.0005,
   }))
+  expect(host.textContent).toContain('单票目标约 20.0%')
 })
 
 it('describes the daily five-minute entry capacity window', () => {
