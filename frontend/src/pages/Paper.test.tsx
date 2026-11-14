@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { PaperAutoRule } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
+import { BACKTEST_DEFAULTS_VERSION } from './backtest/defaults'
 import { Paper } from './Paper'
 
 const calls = vi.hoisted(() => ({
@@ -425,7 +426,7 @@ it('keeps amount and percentage drafts separate and limits pool order to strateg
 
 it('previews stored backtest differences, imports drafts and saves fees independently', async () => {
   window.localStorage.setItem('strategy-backtest-last', JSON.stringify({
-    defaultsVersion: 2, selectedStrategy: 's-one', maxPositions: '5', maxExposure: '80',
+    defaultsVersion: BACKTEST_DEFAULTS_VERSION, selectedStrategy: 's-one', maxPositions: '5', maxExposure: '80',
     positionSizing: 'equal', mode: 'position', entryFill: 'open_t+1', exitFill: 'close_t',
     fees: '2.5', stampTax: '', minimumCommission: '3', transferFee: '0.1', slippage: '7',
   }))
