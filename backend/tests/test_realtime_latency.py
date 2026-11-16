@@ -23,8 +23,13 @@ def test_completed_minute_round_notifies_publisher_after_write(tmp_path, monkeyp
     monkeypatch.setattr("app.services.kline_sync.fetch_intraday_universe_increment",
                         lambda: (frame, 1))
     monkeypatch.setattr("app.services.minute_refresh.cn_now", lambda: minute)
-    monkeypatch.setattr("app.services.kline_sync._write_minute_partition",
-                        lambda *_: calls.append(("write", None)) or 1)
+    def write(_frame, _directory, *, request_seq, isolate_suspension_conflicts):
+        assert request_seq > 0
+        assert isolate_suspension_conflicts is True
+        calls.append(("write", None))
+        return 1
+
+    monkeypatch.setattr("app.services.kline_sync._write_minute_partition", write)
     service._run_round()
     assert calls == [("write", None), ("publish", minute)]
     assert service._state.last_error is None and service._state.rounds == 1
@@ -249,8 +254,12 @@ def test_failed_minute_write_never_notifies_publisher(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "_select_mode", lambda: "increment")
     monkeypatch.setattr("app.services.kline_sync.fetch_intraday_universe_increment",
                         lambda: (pl.DataFrame({"symbol": ["600000.SH"]}), 1))
-    monkeypatch.setattr("app.services.kline_sync._write_minute_partition",
-                        lambda *_: (_ for _ in ()).throw(OSError("write failed")))
+    def fail_write(_frame, _directory, *, request_seq, isolate_suspension_conflicts):
+        assert request_seq > 0
+        assert isolate_suspension_conflicts is True
+        raise OSError("write failed")
+
+    monkeypatch.setattr("app.services.kline_sync._write_minute_partition", fail_write)
     with pytest.raises(OSError, match="write failed"):
         service._run_round()
     assert calls == [] and service._state.rounds == 0
