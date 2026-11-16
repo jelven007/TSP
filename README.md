@@ -76,7 +76,7 @@ S02阶段时间现在区分计划、首次计算及最近结果；旧历史首�
 [![CI](https://github.com/jelven007/TSP/actions/workflows/ci.yml/badge.svg)](https://github.com/jelven007/TSP/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-应用语义版本为 `0.4.64`。文档核对日期：2026-11-02。
+应用语义版本为 `0.4.65`。文档核对日期：2026-11-02。
 源码、正式发布和最后已知运行状态见[版本基线](docs/version-baseline.md)。
 本次本地功能、六类文档与清理范围见整合记录（历史报告已移出仓库）。
 
