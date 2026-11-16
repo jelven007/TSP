@@ -6,7 +6,7 @@
 本次临时资料清理保留正式Markdown报告、必要截图及统一Excel；
 一次性代码、重复原文／压缩日志、旧研究导出包和原始行情明细不进入发布源码。
 删除前核对引用、附件哈希和受控归档；历史证据链接缺失须修正为仍保存的报告，
-不能虚构原日志仍在。范围及结果见[整合记录](../reports/release-consolidation-20261101.md)。
+不能虚构原日志仍在。范围及结果见整合记录（历史报告已移出仓库）。
 
 ## 1. 唯一归属
 
@@ -63,7 +63,7 @@
 `reports/` 保存用户需要的离线交付或策略成果。
 新报告按`releases/market-data/strategies/ui/engineering/operations`六类归入
 `reports/<分类>/<专题-日期>/`，正文、截图和机器结果在同组保存；
-各类及原有固定/活跃条目见[报告导航](../reports/README.md#按用途查找)。
+各类及原有固定/活跃条目见[报告导航](evidence.md)。
 新增用户交付归`reports/{research,releases,operations,designs}/<专题-日期>/`，
 现有交付保持原路径，统一Excel仍在一个文件内保存主表和详细账本。
 设计、计划和缺陷记录沿现有`.claude/artifacts/{designs,plans,fixes}/`约定维护。

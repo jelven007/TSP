@@ -59,8 +59,9 @@ def market(monkeypatch: pytest.MonkeyPatch):
 # ---------- /minute_batch (自选列表分时小图) ----------
 
 
-def _batch_request() -> MagicMock:
+def _batch_request(data_dir) -> MagicMock:
     repo = MagicMock()
+    repo.store.data_dir = data_dir
     repo.get_etf_symbol_set.return_value = set()
     sessions = {LAST_SESSION: _session(LAST_SESSION)}
     repo.get_minute_batch.side_effect = (
@@ -78,10 +79,10 @@ def _batch_request() -> MagicMock:
     return request
 
 
-def test_minute_batch_on_weekday_holiday_falls_back_to_last_session(market) -> None:
+def test_minute_batch_on_weekday_holiday_falls_back_to_last_session(market, tmp_path) -> None:
     set_verdict, _, sync = market
     set_verdict(False)
-    request = _batch_request()
+    request = _batch_request(tmp_path)
 
     payload = kline_api.get_minute_batch(request, {"symbols": [SYMBOL]})
 
@@ -94,20 +95,20 @@ def test_minute_batch_on_weekday_holiday_falls_back_to_last_session(market) -> N
 
 
 @pytest.mark.parametrize("verdict", [True, None])
-def test_minute_batch_trading_or_unknown_day_keeps_today(market, verdict) -> None:
+def test_minute_batch_trading_or_unknown_day_keeps_today(market, verdict, tmp_path) -> None:
     set_verdict, _, _ = market
     set_verdict(verdict)
-    request = _batch_request()
+    request = _batch_request(tmp_path)
 
     kline_api.get_minute_batch(request, {"symbols": [SYMBOL]})
 
     assert request.app.state.repo.get_minute_batch.call_args.args[1] == HOLIDAY
 
 
-def test_minute_batch_explicit_date_is_not_replaced(market) -> None:
+def test_minute_batch_explicit_date_is_not_replaced(market, tmp_path) -> None:
     set_verdict, _, _ = market
     set_verdict(False)
-    request = _batch_request()
+    request = _batch_request(tmp_path)
 
     kline_api.get_minute_batch(request, {"symbols": [SYMBOL], "date": "2026-10-01"})
 

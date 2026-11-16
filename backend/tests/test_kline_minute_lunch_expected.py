@@ -136,8 +136,9 @@ def test_minute_lunch_break_still_pulls_when_morning_incomplete(clock) -> None:
 # ---------- /minute-batch (自选列表分时小图) ----------
 
 
-def _batch_request(bars: int = 120) -> MagicMock:
+def _batch_request(data_dir, bars: int = 120) -> MagicMock:
     repo = MagicMock()
+    repo.store.data_dir = data_dir
     repo.get_etf_symbol_set.return_value = set()
     repo.get_minute_batch.side_effect = (
         lambda syms, day, asset_type="stock": _morning(bars=bars) if day == TODAY else pl.DataFrame()
@@ -153,31 +154,31 @@ def _batch_request(bars: int = 120) -> MagicMock:
 
 
 @pytest.mark.parametrize(("hour", "minute"), LUNCH_TIMES)
-def test_minute_batch_lunch_break_serves_complete_morning_from_local(clock, hour, minute) -> None:
+def test_minute_batch_lunch_break_serves_complete_morning_from_local(clock, hour, minute, tmp_path) -> None:
     set_time, _, sync = clock
     set_time(hour, minute)
 
-    payload = kline_api.get_minute_batch(_batch_request(), {"symbols": [SYMBOL]})
+    payload = kline_api.get_minute_batch(_batch_request(tmp_path), {"symbols": [SYMBOL]})
 
     assert len(payload["data"].get(SYMBOL, [])) == 120
     sync.assert_not_called()
 
 
 @pytest.mark.parametrize(("hour", "minute", "bars"), [(10, 30, 60), (13, 30, 150)])
-def test_minute_batch_trading_session_expected_unchanged(clock, hour, minute, bars) -> None:
+def test_minute_batch_trading_session_expected_unchanged(clock, hour, minute, bars, tmp_path) -> None:
     set_time, _, sync = clock
     set_time(hour, minute)
 
-    payload = kline_api.get_minute_batch(_batch_request(bars), {"symbols": [SYMBOL]})
+    payload = kline_api.get_minute_batch(_batch_request(tmp_path, bars), {"symbols": [SYMBOL]})
 
     assert len(payload["data"].get(SYMBOL, [])) == bars
     sync.assert_not_called()
 
 
-def test_minute_batch_lunch_break_still_pulls_when_morning_incomplete(clock) -> None:
+def test_minute_batch_lunch_break_still_pulls_when_morning_incomplete(clock, tmp_path) -> None:
     set_time, _, sync = clock
     set_time(11, 45)
 
-    kline_api.get_minute_batch(_batch_request(60), {"symbols": [SYMBOL]})
+    kline_api.get_minute_batch(_batch_request(tmp_path, 60), {"symbols": [SYMBOL]})
 
     sync.assert_called_once()

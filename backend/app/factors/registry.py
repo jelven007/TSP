@@ -306,6 +306,13 @@ _CATALOG: tuple[FactorSpec, ...] = (
         deps=frozenset({"date", "high", "low", "close"}), warmup_bars=15,
         unit="ratio", tags=("daily", "sma", "atr"),
     ),
+    _virtual(
+        "intraday_range_amount_score", "当日低振幅成交额评分", "量价",
+        "−(当日最高价−当日最低价)/昨收 + 0.001×ln(当日累计成交额[元]); 振幅用比例, "  # noqa: RUF001
+        "盘中仅累计已完成分钟, 日K用当日完整值; 原始评分降序, 同分股票代码升序",
+        deps=frozenset({"high", "low", "prev_close", "amount"}),
+        unit="score", direction="high", scale_free=False, tags=("intraday", "daily", "raw_score"),
+    ),
 )
 
 _REGISTRY: dict[str, FactorSpec] = {}

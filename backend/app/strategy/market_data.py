@@ -81,6 +81,18 @@ def get_atr14_sma_reference(daily, symbols, expected_dates):
     return exact_atr14_sma_reference(daily, symbols, expected_dates)
 
 
+def get_intraday_range_amount_score(frame: pl.DataFrame, *, prev_close_column: str = "prev_close"):
+    """Materialize the system factor on a completed day/prefix snapshot; no IO."""
+    from app.factors.range_amount import FACTOR_ID, range_amount_expr
+
+    fields = ("high", "low", prev_close_column, "amount")
+    expression = (
+        range_amount_expr(*[pl.col(field) for field in fields])
+        if set(fields).issubset(frame.columns) else pl.lit(None, dtype=pl.Float64)
+    )
+    return frame.with_columns(expression.alias(FACTOR_ID))
+
+
 def get_index_daily(symbol, start=None, end=None, columns=None):
     """读取指数日K(含技术指标)。未知 symbol / 无数据返回空 DataFrame。"""
     if not _validate_symbol(symbol):

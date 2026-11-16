@@ -27,7 +27,7 @@ REQUIRED_PATHS = (
     "tests/tooling/conftest.py", "docs/README.md", "docs/requirements.md", "examples/open-api",
     "examples/README.md", "examples/custom-data-source/mock_server.py",
     "examples/custom-data-source/mock_source.yaml",
-    "brand", "reports/README.md",
+    "brand", "docs/evidence.md",
     "scripts/check_docs.py", "tests/tooling/test_documentation_contract.py",
     "docs/architecture.md", "docs/testing.md", "docs/operations.md", "docs/release-operations.md",
     "docs/secondary-development.md", "docs/version-baseline.md",
@@ -35,7 +35,7 @@ REQUIRED_PATHS = (
     "docs/reference/research.md", "docs/reference/factor-system.md",
     "docs/reference/trading-ai.md", "docs/reference/integrations.md",
     "docs/planning/phase2-implementation-plan.md", "操作说明书.md",
-    "reports/production-system-consolidation-20261023/requirement-ids.json",
+    "docs/requirement-ids.json",
 )
 
 

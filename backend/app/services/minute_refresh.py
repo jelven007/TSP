@@ -318,6 +318,7 @@ class MinuteRefreshService:
 
     def _run_round(self) -> None:
         from app.services import kline_sync
+        from app.services.minute_write_order import begin_minute_request
 
         t0 = time.perf_counter()
         custom, provider_name = self._resolve_custom()
@@ -332,6 +333,8 @@ class MinuteRefreshService:
         if not self._round_lock.acquire(blocking=False):
             return
         try:
+            minute_dir = self._repo.store.data_dir / "kline_minute"
+            request_seq = begin_minute_request(minute_dir)
             priority_requests = 0
             priority_written = 0
             priority_error = None
@@ -355,7 +358,8 @@ class MinuteRefreshService:
                         priority_error = str(exc)
                     if not first.is_empty():
                         priority_written = kline_sync._write_minute_partition(
-                            first, self._repo.store.data_dir / "kline_minute")
+                            first, minute_dir, request_seq=request_seq,
+                            isolate_suspension_conflicts=True)
                         publisher = getattr(self._app_state, "public_publisher", None)
                         if publisher is not None:
                             try:
@@ -424,7 +428,8 @@ class MinuteRefreshService:
             self._empty_rounds = 0
             write_started = time.perf_counter()
             written = kline_sync._write_minute_partition(
-                df, self._repo.store.data_dir / "kline_minute",
+                df, minute_dir, request_seq=request_seq,
+                isolate_suspension_conflicts=True,
             )
             write_ms = (time.perf_counter() - write_started) * 1000
         except kline_sync.MinuteFetchError as exc:
@@ -441,7 +446,7 @@ class MinuteRefreshService:
         self._state.last_round_ms = (time.perf_counter() - t0) * 1000
         self._state.last_fetch_ms = fetch_ms
         self._state.last_write_ms = write_ms
-        self._state.last_rows = written
+        self._state.last_rows = written + priority_written
         self._state.last_mode = mode
         self._state.last_error = priority_error
         # Notify only after the entire provider round is committed. Publication

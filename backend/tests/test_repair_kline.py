@@ -672,10 +672,13 @@ def test_full_minute_pauses_quotes_only_for_partition_writes(app, monkeypatch):
     monkeypatch.setattr("app.data_providers.registry.get_provider", lambda _: provider)
     write = kline_sync._atomic_write_parquet
 
-    def guarded_write(frame, out):
+    def guarded_write(frame, out, *, metadata=None):
         assert active
+        from app.services.minute_write_order import METADATA_KEY
+
+        assert metadata is not None and METADATA_KEY in metadata
         writes.append(out)
-        write(frame, out)
+        write(frame, out, metadata=metadata)
 
     monkeypatch.setattr(kline_sync, "_atomic_write_parquet", guarded_write)
     quote_service = SimpleNamespace(paused=paused, _broadcast_quote_updated=lambda: None)

@@ -16,7 +16,9 @@ def test_history_progress_advances_after_each_persisted_symbol_batch(tmp_path, m
     monkeypatch.setattr(kline_periods, "fetch_period", lambda *a, **kw: pl.DataFrame())
     progress = []
     writes = []
-    def persist(*args):
+    def persist(*args, **kwargs):
+        if period == "1m":
+            assert kwargs["request_seq"] > 0
         writes.append(len(writes) + 1)
         return 1
     monkeypatch.setattr(kline_periods, "persist_period", persist)

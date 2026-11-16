@@ -16,6 +16,7 @@ from datetime import datetime
 
 import polars as pl
 
+from app.factors.range_amount import FACTOR_ID, range_amount_expr
 from app.market_time import CN_TZ
 
 # ── 特征白名单(供 custom_signals 校验与 /options 展示) ──────────
@@ -32,6 +33,7 @@ INTRADAY_FEATURES: dict[str, str] = {
     "day_low_dist": "距当日最低价",
     "open_30m_high_dist": "距开盘30分钟最高价",
     "open_30m_low_dist": "距开盘30分钟最低价",
+    FACTOR_ID: "当日低振幅成交额评分",
 }
 
 # 滚动窗口特征的窗口长度(字段名后缀 → bar 数)
@@ -135,6 +137,20 @@ def build_feature_frame(
         cols["day_low_dist"] = pl.when(day_low > 0).then(pl.col("close") / day_low - 1.0)
     else:
         cols["day_low_dist"] = pl.lit(None, dtype=pl.Float64)
+
+    if prev_close and {"high", "low"}.issubset(df.columns):
+        # A missing/invalid bar must not be silently skipped by cumulative sums/extrema.
+        high, low, amount = [pl.col(field).cast(pl.Float64) for field in ("high", "low", "amount")]
+        valid_bar = (
+            pl.all_horizontal([value.is_finite() for value in (high, low, amount)])
+            & (high >= low) & (low > 0) & (amount >= 0)
+        ).fill_null(False)
+        bad_prefix = (~valid_bar).cast(pl.UInt32).cum_sum().over(_DAY_KEY) > 0
+        cols[FACTOR_ID] = pl.when(~bad_prefix).then(range_amount_expr(
+            day_high, day_low, pl.col("_prev_close"), cum_amt,
+        )).otherwise(None)
+    else:
+        cols[FACTOR_ID] = pl.lit(None, dtype=pl.Float64)
 
     # ── 滚动放量比(今日基准): 当前 N 根 bar 量和 / 此前 N 根 bar 量和 ──
     # 滚动窗口按(symbol, date, session)分组 → 不跨午休、不跨日; 窗口不满自然为 null。

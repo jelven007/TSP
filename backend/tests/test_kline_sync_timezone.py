@@ -164,8 +164,9 @@ def test_sync_minute_batch_naive_window_is_beijing_wall_clock(monkeypatch):
     )]
 
 
-def _minute_batch_request(local: pl.DataFrame) -> MagicMock:
+def _minute_batch_request(local: pl.DataFrame, tmp_path) -> MagicMock:
     repo = MagicMock()
+    repo.store.data_dir = tmp_path
     repo.get_etf_symbol_set.return_value = set()
     repo.get_minute_batch.return_value = local
     capset = MagicMock()
@@ -177,7 +178,7 @@ def _minute_batch_request(local: pl.DataFrame) -> MagicMock:
     return request
 
 
-def test_minute_batch_endpoint_pull_windows_are_beijing_wall_clock(monkeypatch):
+def test_minute_batch_endpoint_pull_windows_are_beijing_wall_clock(monkeypatch, tmp_path):
     """/api/kline/minute-batch 补拉: 全天窗口 09:25-15:05 与增量起点 (本地最后一根) 均为北京墙钟。
 
     端点用 naive 北京墙钟构造窗口; 若按服务器本地时区换算, UTC 主机上请求的是
@@ -195,7 +196,7 @@ def test_minute_batch_endpoint_pull_windows_are_beijing_wall_clock(monkeypatch):
     })
 
     kline_api.get_minute_batch(
-        _minute_batch_request(local),
+        _minute_batch_request(local, tmp_path),
         {"symbols": [empty_symbol, tail_symbol], "date": "2026-08-14"},
     )
 

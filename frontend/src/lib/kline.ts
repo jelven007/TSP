@@ -99,7 +99,7 @@ function rowMinute(r: { datetime?: string } | undefined): string {
  * 分时轮询停表 — 数据不可变时停止, 消除无效请求 (周末/盘后/翻看历史日期)。
  *
  * - 未传间隔 → 不轮询 (调用方默认关闭)
- * - 无数据 (source=none) → 停
+ * - 当日暂时无数据 → 继续刷新，允许数据源恢复后自动显示
  * - 响应日期 < 北京今天 → 停: 历史日的本地分钟K不可变 (周末"最新"会被
  *   后端回退到上一交易日, 同样命中此规则)
  * - 当日: 收盘根 (≥15:00 的K) 已出现 **且** 已过 15:30 → 停。
@@ -116,7 +116,6 @@ export function minuteRefetchInterval(ms?: number) {
     if (ms == null) return false
     const d = query.state.data
     if (!d) return ms
-    if (d.source === 'none') return false
     if (typeof d.date === 'string' && d.date < cnToday()) return false
     const closeBarArrived = (d.rows ?? []).some((r: { datetime?: string }) => rowMinute(r) >= CLOSE_MINUTE)
     if (closeBarArrived && cnNowHHMM() >= MARKET_ALL_OVER) return false

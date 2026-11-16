@@ -34,7 +34,7 @@ def test_priority_commit_and_notification_precede_ordinary_fetch(tmp_path, monke
 
     monkeypatch.setattr("app.services.kline_sync.fetch_intraday_custom_latest", fetch)
     monkeypatch.setattr("app.services.kline_sync._write_minute_partition",
-                        lambda df, root: (events.append("commit"), df.height)[1])
+                        lambda df, root, *, request_seq, isolate_suspension_conflicts: (events.append("commit"), df.height)[1])
     svc._run_round()
     assert events[:4] == [("600002.SH", "600001.SH"), "commit", "publish", ("600003.SH",)]
     assert svc.status()["last_requests"] == 3
@@ -100,7 +100,7 @@ def test_priority_provider_failure_does_not_starve_ordinary_group(tmp_path, monk
             raise MinuteFetchError("priority failed", requests=2)
         return pl.DataFrame({"symbol": symbols, "datetime": [datetime(2026, 11, 2, 14, 30)] * len(symbols)}), 1
     monkeypatch.setattr("app.services.kline_sync.fetch_intraday_custom_latest", fetch)
-    monkeypatch.setattr("app.services.kline_sync._write_minute_partition", lambda frame, root: frame.height)
+    monkeypatch.setattr("app.services.kline_sync._write_minute_partition", lambda frame, root, *, request_seq, isolate_suspension_conflicts: frame.height)
     svc._run_round()
     assert events == [["600001.SH"], ["600002.SH"]]
     assert svc.status()["last_requests"] == 3
@@ -123,7 +123,7 @@ def test_priority_publication_failure_keeps_ordinary_collection(tmp_path, monkey
         return pl.DataFrame({"symbol": symbols,
             "datetime": [datetime(2026, 11, 2, 14, 30)] * len(symbols)}), 1
     monkeypatch.setattr("app.services.kline_sync.fetch_intraday_custom_latest", fetch)
-    monkeypatch.setattr("app.services.kline_sync._write_minute_partition", lambda frame, root: frame.height)
+    monkeypatch.setattr("app.services.kline_sync._write_minute_partition", lambda frame, root, *, request_seq, isolate_suspension_conflicts: frame.height)
     svc._run_round()
     assert events == [["600001.SH"], ["600002.SH"], "retry"]
     assert "publication" in svc.status()["last_error"]

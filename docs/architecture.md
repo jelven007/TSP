@@ -1,5 +1,9 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+2026-11-17候选继续复用 `overnight.run`、共享评分与扩展依赖、Broker和分钟原子写入。
+取数前序号随Parquet提交，API拒绝旧响应后重读；本次依赖投影避免加载无关扩展表。
+调用链与兼容边界见[本轮记录](upgrade-20261117.md)，无新增服务或SQL迁移。
+
 2026-11-14回测默认最多5只，100%总仓位时单只含费预算约20%。
 浏览器默认版本3仅将版本2旧默认4只迁为5只；版本1已保存5只、其他自定持仓数、
 费用、日期及历史结果保持。S01已保存最多4只配置独立，不因通用默认值变化而改写。
@@ -74,7 +78,7 @@ S02当前`select_rows`沿实际保存的`overlay_filter=[]`保留基础过滤后
 2026-11-08并行失败核验确认当前入场/退出错误独立：缺分钟返回entry_filter_error，
 保留已评估exit_signal_hits；缺持仓通过exit_filter_error可见，失败策略保留failed结果。
 本次只强化两项测试，不新增接口或修改架构；4项与扩大356项通过，见
-[后续核验](../reports/engineering/paper-parallel-test-fix-20261108/report.md)。
+后续核验（历史报告已移出仓库）。
 
 2026-11-08自动跟单参数融合沿原表单、监控事件、账户事务和撮合内核接线。
 `candidate_order.py`在完整快照上投影顺位，组合监控代理在范围/展示截断前保留
@@ -83,31 +87,31 @@ S02当前`select_rows`沿实际保存的`overlay_filter=[]`保留基础过滤后
 双侧订单类型回退旧共同字段，费用预算与扣费共用`account_fee`并复用历史税率。
 前端回测适配只生成规则与账户费用的独立草稿，不反向写策略或启动任务。
 这是未部署源码候选，无新插件接口或SQL表迁移；见
-[实现与验证](../reports/engineering/paper-auto-rule-parameters-20261108/report.md)。
+实现与验证（历史报告已移出仓库）。
 
 模拟自动规则修改沿 `Paper.AutoRuleForm → paperAutoRuleUpdate → PUT auto_rules/{rule_id}
 → paper_auto.update_auto_rule/save_auto_rule`，属于L3核心局部接线。
 当前租户/账户写事务或原文件锁内查旧规则并合并，保留id、created_at、enabled；
 原退出取消逻辑继续复用。成功失效规则、对比、订单与账户概览查询，无SQL迁移。
 2026-11-08本地/线上0.4.52均安装该链路，保留运行版账户修改/删除和其他已安装修复。
-源码验收见[开发记录](../reports/engineering/paper-rule-edit-20261107/report.md)，
-运行身份及复验见[双端安装](../reports/operations/paper-rule-edit-20261108/report.md)。
+源码验收见开发记录（历史报告已移出仓库），
+运行身份及复验见双端安装（历史报告已移出仓库）。
 
 尾盘建仓广度沿共享evaluate剔除无有效指定分钟价格/昨收的成员，
 完整池与有效分母分别保存；`entry_data_quality`沿引擎、归档和已有API透传，
 UI按`available_members_v1`显示新比例/数量，旧上下界归档兼容。
 缺失比例仅为证据，不参与门控；MA5/ATR和提交守卫保持，见
-[链路及异常范围](../reports/operations/s02-breadth-tolerance-20261107/report.md)。
+链路及异常范围（历史报告已移出仓库）。
 
 S02信号选页在既有selected memo内对克隆行按有限ATR比率降序、代码升序排列，
 保留原selection_rank；共享useTableSort仅覆盖手动排序，无有效手动列时表头显示默认降序。
 行情刷新不重新计算ATR，历史存储、API及后台计算契约保持。见
-[本次证据](../reports/engineering/s02-default-atr-sort-20261107/report.md)。
+本次证据（历史报告已移出仓库）。
 
 S02参考换手率名称仍由`resolveStrategyResultColumns`统一拥有，
 对传入旧列对象规范label但保留visible，参考列宽112px；数据键和数值口径不变。
 日K案例沿公告/独立停复牌证据/两层Parquet/收盘分钟核验，真实停牌不补造数据，
-无新API、Provider或后台接口。[本次证据](../reports/engineering/s02-reference-daily-20261107/report.md)
+无新API、Provider或后台接口。本次证据（历史报告已移出仓库）
 
 S02当前三页共用列解析器隐藏ATR排名；预选指标仍走源码可选回调和共享ATR内核。
 坏股票窗口只产生该成员空指标，完整资格保留，有效N及原因独立保存。
@@ -115,13 +119,13 @@ S02当前三页共用列解析器隐藏ATR排名；预选指标仍走源码可�
 请求日及来源；UI据此接收收盘数据，不把它标成当天实时值。
 本次定向增补25份历史记录的选股指标与镜像快照，SQL revision及结果更新事件
 使缓存重新读取；冻结身份/时钟、买卖与账本保持，见
-[安装证据](../reports/engineering/s02-market-atr-20261107/report.md)。
+安装证据（历史报告已移出仓库）。
 
 S02参考换手率沿`signal_sections.select_rows`精确参考日日线→冻结预选→信号结果→
 `StrategyDailyResults`展示。enriched百分数值直接显示，旧归档只在原行日期等于
 reference_date且不是目标日时兼容读取；不回写归档，不用实时行情代填。
 `resolveStrategyResultColumns`统一默认列、旧偏好、结果表及列设置的S02选页迁移，
-只改展示字段，原筛选与排名保留；[安装证据](../reports/engineering/s02-select-turnover-20261107/report.md)。
+只改展示字段，原筛选与排名保留；安装证据（历史报告已移出仓库）。
 
 2026-11-07 S02分钟优先链为：租户Worker读取完整范围池与冻结预选，
 认证内部桥发送私有短期计划，Platform优先采集并写入，公共文件发布完成，
@@ -131,7 +135,7 @@ Compute绑定不可变版本，普通分钟组随后继续。同原生minute组8
 14:30:15开始上涨比例和涨幅预筛，14:30:30按当前0.5分钟保存设置确认
 14:30启动分钟的MA5数据；确认前清空买入结果，缺完整池/MA窗口明确等待。
 历史冻结记录与既有账户配置保留，见
-[双端交付](../reports/engineering/s02-minute-priority-20261107/report.md)。
+双端交付（历史报告已移出仓库）。
 
 尾盘建仓可设置确认延迟：页面使用秒，保存沿用`evaluation_delay_minutes`，
 按秒值÷60转换；服务校验0.5～15分钟且为0.5步长，新API缺字段默认0.5。
@@ -139,37 +143,37 @@ Compute绑定不可变版本，普通分钟组随后继续。同原生minute组8
 启动分钟K线截止与既有购买窗口算法不变。随后按用户授权安装双端0.4.52，
 两端API/Worker/Compute共用30秒配置；保留现场较新的等待确认逻辑与其他业务文件，
 14:30:29无命中、14:30:30命中，回放购买窗口14:31～14:35。
-现场身份和验证见[双端回执](../reports/operations/late-delay-30s-20261107/report.md)。
+现场身份和验证见双端回执（历史报告已移出仓库）。
 
 2026-11-07共享SMA ATR由`app/factors/atr.py`统一计算，注册表追加
 `atr14_sma_pct`；Polars评分/因子物化、NumPy矩阵及`market_data`分钟参考调用同一内核。
 分钟源码只通过现有受信任模块调用，沙箱权限不扩大；精确15根窗口及未复权价校验保留。
 无需新增SQL schema或前端硬编码。数值、目录兼容与现场增量范围见
-[本次验收](../reports/engineering/atr14-shared-factor-20261107/report.md)。
+本次验收（历史报告已移出仓库）。
 
 2026-11-06分钟回放在引擎调用前使用冻结日线T-1和盘后停牌证据构造资格，
 由已有上下文`selection_snapshots`传入原执行器；完整池和候选资格分开。
 缺源日及select/buy分区错误进入回放失败，前端保留叠加并修正滑点读取。
-无新API/schema或实盘缓存写入，见[部署与验证](../reports/engineering/backtest-c88c133a-20261106/report.md)。
+无新API/schema或实盘缓存写入，见部署与验证（历史报告已移出仓库）。
 
 S02结果排序在已有实时Map补齐后调用共享`useTableSort`，列标识沿`ColumnConfig`，
 只重排显示副本；详情导航使用显示行，归档与实时查询证券集合保持。
 已沿现场源码/配对镜像仅叠加排序组件及static，安装线上0.4.50；
-范围与验证见[上线回执](../reports/operations/s02-sort-deploy-20261106/report.md)。
-后续指定回测任务的根因与修复见[诊断记录](../reports/engineering/backtest-c88c133a-20261106/report.md)。
+范围与验证见上线回执（历史报告已移出仓库）。
+后续指定回测任务的根因与修复见诊断记录（历史报告已移出仓库）。
 
 S02建议字段在共享引擎/盘后预选生成参考，再由结果仓库补齐前日买入关注名单后保存。
 临时原价映射从历史正文与预选快照移除；区间与整手数沿已存结果显示，实时五列独立。
 精确交易日与未复权来源、SQL revision/cache token及旧字段兼容见
-[七文件接线](../reports/engineering/s02-saved-suggestions-20261106/report.md)。
+七文件接线（历史报告已移出仓库）。
 
 S02新增卖页分钟量/额/建议卖出价复用保存结果字段和共享列模型，不新建行情接口。
 旧列偏好按缺省前置列插入新列，保持已有顺序和显隐；缺建议价格不回填历史价或
-实时价，见[分钟列补充方案](../reports/engineering/s02-minute-columns-20261106/report.md)。
+实时价，见分钟列补充方案（历史报告已移出仓库）。
 
 正式镜像提升的缺失判定复用 `Registry` HTTPS/认证读取；现存标签按实际 manifest
 字节核对 digest，所有目标预检和冲突保护保持。调用链与首次提升失败见
-[本次验证](../reports/releases/promote-registry-20261107/verification.md)。
+本次验证（历史报告已移出仓库）。
 
 本轮`daily_pipeline → get_daily_close_inputs → validate_daily_close`在派生前核对已完成交易日，
 分钟选股和回放复用该校验，冻结预选/昨收严格使用精确T-1。
@@ -186,26 +190,26 @@ Runtime双架构→由其索引digest派生Compute双架构→完整身份矩阵
 [发布流水线](release-pipeline.md)。没有应用API/schema变更；生产事务审计接线仍待完成，
 本地暂停及真实备份恢复、重启和业务验收保留。
 
-当前统一调用链与兼容边界见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
+当前统一调用链与兼容边界见2026-11-06升级（历史报告已移出仓库）。
 本轮60秒确认、冻结资格、历史归档/实时缓存与建仓窗口分别保留身份；旧90秒说明属于历史契约。
 
 2026-11-06 S02结果将历史字段和当前日行情分开。实时快照沿既有接口有界读取共享缓存，
 不重算历史、不调用Provider；稳定页签键与record_id持仓草稿分别管理。
-三页共享列模型及账户偏好见[本次方案与验收](../reports/engineering/s02-live-results-20261106.md)。
+三页共享列模型及账户偏好见本次方案与验收（历史报告已移出仓库）。
 
 2026-11-06信号策略的日期摘要从同日策略主键范围读取原始扫描，
 按started_at选最新实际扫描，成功空扫描也优先于资格名单；明细复用选定record_id。
 计算身份和默认仓库read不变，无新API/schema。当前生产两文件修复见
-[历史读取回执](../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+历史读取回执（历史报告已移出仓库）。
 
 最新升级在配置到策略发现边界增加默认空的内置退役列表，Runtime/Compute 共享同 SHA，
 部署差异通过受控环境表达；私有策略源、缓存/归档与业务库不由该列表改写。
 隔夜共享费用内核支持可选固定金额，预算预留且分片仅累计增量；
-调用链及兼容见[最新升级](../reports/releases/current-upgrade-20261103/verification.md)。
+调用链及兼容见最新升级（历史报告已移出仓库）。
 
 最新统一候选继承主线公共缓存修复，整合行情调度、菜单、模拟账户schema8、
 尾盘精确启动秒及目录迁移；调用链、来源和兼容边界见
-[统一升级](../reports/releases/unified-upgrade-20261103/verification.md)。
+统一升级（历史报告已移出仓库）。
 
 TimePicker打开时仅滚动内部选项列表，避免窄屏滚动模态祖先触发弹层关闭；
 保持秒选择/确认、Escape仅取消弹层及公共时分调用兼容。
@@ -230,7 +234,7 @@ Full lifespan在启动预热前注册Repository刷新/预热完成回调：目�
 
 公共`TimePicker`的`showSeconds`只扩展显示和确认格式，默认`HH:mm`保持；
 三个自定义信号时间启用`HH:mm:ss`，草稿确认后仍沿原字段保存。
-本轮六类文档与候选验证见[最新整合](../reports/release-consolidation-dual-20261102.md)。
+本轮六类文档与候选验证见最新整合（历史报告已移出仓库）。
 
 停牌延期与复牌退出复用`instrument_suspension.holding_exit_status/resume_exit_time`，
 证据通过`StrategyDataContext.suspension_history`沿Screener、监控和独立回放传递，
@@ -239,16 +243,16 @@ Full lifespan在启动预热前注册Repository刷新/预热完成回调：目�
 复牌成交取公告之后首个已完成分钟，午休跳至13:01，收盘后无成交分钟明确失败。
 停牌余股按最后真实原始价估值并记录日期，现金/仓位不释放；复牌容量余股跨日保持，
 各日卖额与最低佣金独立累计，完整交易仅在最终卖清后生成。无新API或SQL迁移，
-新执行身份不改旧研究任务，见[追加整合](../reports/release-consolidation-resume-20261102.md)。
+新执行身份不改旧研究任务，见追加整合（历史报告已移出仓库）。
 
 停复牌Loader保留可选`announced_at`并验证北京时间公告日；`pool_evidence`
 按显式`observed_at`过滤，Screener／回放共用尾盘信号截止，盘前批次传递08:00或09:00。
-文件缓存和研究指纹沿原路径，不增加SQL迁移；[真实收益执行](../reports/custom-s02-full-range-online-20261102.md)
+文件缓存和研究指纹沿原路径，不增加SQL迁移；真实收益执行（历史报告已移出仓库）
 仍在未知停牌、缺数据或普通强制清仓不可成交时保留账本并拒绝完整净值；
 已确认停牌延期的最后价估值与完整成交收益分别表达。
 
 2026-11-02整合沿原单机七角色／双库及隔离Compute拓扑发布，完整候选映射见
-[整合清单](../reports/release-consolidation-20261102-followup.md)。
+整合清单（历史报告已移出仓库）。
 历史停复牌事件沿`instrument_status`公共目录、Repository有界文件缓存、
 Screener／分钟回放上下文与纯停牌判定接入；研究指纹包含文件，不变更SQL schema。
 
@@ -303,7 +307,7 @@ API单次/批量/缓存和实时发布透传sections、section_mode、section_er
 手动监控启动、S02全天默认、尾盘／早盘信号及已有信号选择已进入本次候选。
 默认值与账户显式覆盖分别核验，历史结果及已授权清理的研究任务不改写。
 当前正式版本和运行补丁见[版本基线](version-baseline.md)，
-本次阶段结果见[整合记录](../reports/release-consolidation-20261102.md)。
+本次阶段结果见整合记录（历史报告已移出仓库）。
 
 策略设置复用`SignalTriggerActions`打开`ExistingSignalDialog`，通过既有
 `customSignalsList`和账户作用域查询缓存读取定义；选择器维护临时草稿，
@@ -333,7 +337,7 @@ S02全天卖出候选继续共享`momentum_day.run_day`：
 设置、回测及参数扫描共享该布局；后端`PARAMS`顺序和内容不变，避免展示调整
 改变逻辑版本、运行身份或历史结果键。
 无新API、schema、Provider或公共插件契约；版本和部署边界见
-[S02](reference/s02.md)及[本次Excel](../reports/s02-full-day-20261102.md)。
+[S02](reference/s02.md)及本次Excel（历史报告已移出仓库）。
 
 尾盘走强沿自定义信号定义保存`template=late_session_strength`及专用`params`，
 列名为`csgi_<id>`；普通日线和盘中表达式编译均跳过此模板。
@@ -427,7 +431,7 @@ API通过`public_reader`的租约绑定读取公共版本，
 巡检不写公共数据、不触发行情发布，也不扫描整库或解除研究冻结版本引用。
 实时Worker仍沿原dispatch循环切换仓库，scheduled按本轮任务打开当前仓库；
 research由Broker挂载冻结版本，notifications不新增行情读端。
-本次整合及生产观察状态见[整合记录](../reports/release-consolidation-20261101.md)。
+本次整合及生产观察状态见整合记录（历史报告已移出仓库）。
 
 ### 行情采集与周期服务
 
@@ -502,7 +506,7 @@ K线分组末尾展示固定交易日15:35的当日K线修正，沿用自动同�
 真实两端财务历史并集保留原Parquet/观察事件字节，同内容用真实最早观察时间，
 latest指向最新真实事件；冲突元数据和来源保存到`merge-provenance.json`。
 观察时间不等于已认证公告时间，补齐不建立跨环境自动同步契约，
-旧不可变公共版本保留。实测见[财务历史验收](../reports/market-data/financial-history-unify-20261030/verification.md)。
+旧不可变公共版本保留。实测见财务历史验收（历史报告已移出仓库）。
 
 自选清单`refetchOnMount: 'always'`保留首屏缓存并在每次挂载核对服务端关系/顺序，
 避免持久缓存写入节流叠加staleTime显示旧关系。桌面有界清理、单实例锁释放和日志关闭后，
@@ -568,7 +572,7 @@ TSP 保留模块化单体的完整业务引擎，提供完整单机多租户与�
 分别负责研究、实时监控/模拟交易、通知和调度。
 身份与租户业务持久化到 PostgreSQL v6，公共行情按不可变版本只读共享。
 部署步骤见[完整单机多租户部署](../deploy/full/README.md)，
-已完成的一期发布与 100 用户验收见[实施记录](../reports/engineering/document-consolidation-20261024/historical-evidence.md#phase1)。
+已完成的一期发布与 100 用户验收见实施记录（历史报告已移出仓库）。
 
 以下单进程拓扑描述 `MULTITENANCY_ENABLED=false` 的独立运行模式：
 
@@ -747,7 +751,7 @@ PostgreSQL在同租户事务中批量读取成员，固定任务与子策略快�
 
 当前环境身份统一见[版本基线](version-baseline.md)，公共容量保护与周期回收保留。
 自选业务连接池获取超时的底层原因仍未确认；源码整合不替代生产验收，
-见[本次生命周期基线](../reports/engineering/local-consolidation-20261022/verification.md#local-contract-2026-10-22-本地变更整合与生命周期基线)。
+见本次生命周期基线（历史报告已移出仓库）。
 
 <a id="current-32-独立模式-docker"></a>
 #### 3.2 独立模式 Docker
@@ -958,7 +962,7 @@ enriched 分区持久化 `is_risk_warning`、`is_listed` 和
 原22个公开策略ID和默认参数保持不变，当前源码增加s01为第23项；
 19项策略的31个可选入场主题及入场风险
 政策属于显式研究配置，不因历史批次相对改善而自动晋级。详细契约见
-[策略指南](reference/research.md#strategy)和[策略质量研究结论（过程材料已清理）](../reports/operations/strategy-results-cleanup-20261030/清理记录.md#removed-research)。
+[策略指南](reference/research.md#strategy)和策略质量研究结论（过程材料已清理）（历史报告已移出仓库）。
 
 信号、因子和策略回测结果统一携带 `provenance`：数据 release ID、读取时的
 enriched generation、Provider 路由、配置哈希，以及策略回测的源码哈希。回测
@@ -992,8 +996,8 @@ enriched generation、Provider 路由、配置哈希，以及策略回测的源�
 当前已接入独立 `QuoteService` 的策略监控和模拟交易调用链。策略组配置/状态 API、
 前端编组、多租户计算任务以及物理并发 2 的容量基准仍属于后续阶段，不能根据内部
 协调器类推断已经可用。方案与实际阶段见
-[五策略方案](../reports/strategies/five-strategy-parallel-20261019/plan.md)和
-[实施记录](../reports/strategies/five-strategy-parallel-20261019/implementation.md)。
+五策略方案（历史报告已移出仓库）和
+实施记录（历史报告已移出仓库）。
 
 <a id="current-65-实时与事件"></a>
 #### 6.5 实时与事件
@@ -1979,9 +1983,9 @@ A–I、3.1–3.6和恢复目标见[联合验收](testing.md#acceptance)。
 
 系统目标规范正文与自包含 HTML/Markdown、三张 Mermaid/SVG、用户原图、容量计算器、来源索引和验证记录一起交付。应用新增能力验收在第14章定义，本次仅验证方案覆盖、链接、编号、数字、文档一致和报告浏览。
 
-原图的仓库冻结依据副本：[用户架构参考图](../reports/engineering/design-inputs-20261023/fused/assets/reference-TSP.png)。
+原图的仓库冻结依据副本：用户架构参考图（历史报告已移出仓库）。
 
-![用户提供的架构参考图](../reports/engineering/design-inputs-20261023/fused/assets/reference-TSP.png)
+用户提供的架构参考图（历史截图已移出仓库）
 
 图 4：用户参考原图。此次目标增加完整业务平面、DFX、跨节点任务、单写迁移和恢复边界。
 
@@ -1990,15 +1994,15 @@ A–I、3.1–3.6和恢复目标见[联合验收](testing.md#acceptance)。
 
 以下本地资料为已读取的工程/设计依据；官方链接沿用前版技术语义依据，不表示本次重新实测产品或已集成。
 
-1. <a id="cite-1"></a> TSP，2026-10-23 融合技术方案及用户 TSP.png。[原方案](../reports/engineering/design-inputs-20261023/fused/融合技术方案.md)
+1. <a id="cite-1"></a> TSP，2026-10-23 融合技术方案及用户 TSP.png。原方案（历史报告已移出仓库）
 2. <a id="cite-2"></a> TSP，二期三步实施计划，第三步 3.1–3.6 和容量/DFX 门槛。[实施计划](planning/phase2-implementation-plan.md)
-3. <a id="cite-3"></a> TSP，两期路线与二期架构分析，授权、Cell、fencing、任务与恢复；历史瓶颈不作为当前事实。[两期路线](#target)、[二期分析](../reports/engineering/phase2-architecture-20261016/architecture-analysis.md)
+3. <a id="cite-3"></a> TSP，两期路线与二期架构分析，授权、Cell、fencing、任务与恢复；历史瓶颈不作为当前事实。[两期路线](#target)、二期分析（历史报告已移出仓库）
 4. <a id="cite-4"></a> TSP，当前架构、能力与版本边界。[当前架构](#current)、[实现索引](#capabilities)、[版本基线](version-baseline.md)
 5. <a id="cite-5"></a> TSP，需求基线，实时/历史/研究与阶段要求。[需求基线](requirements.md)
 6. <a id="cite-6"></a> TSP，开发、金融数据、租户和版本规范。[贡献指南](../CONTRIBUTING.md)
 7. <a id="cite-7"></a> TSP，已存在和按需新增的扩展边界。[二次开发](secondary-development.md)
 8. <a id="cite-8"></a> TSP，秒级可信度、五档与收盘保护。[秒级研究](reference/market-data.md#second)、[五档](reference/market-data.md#depth)、[收盘](reference/market-data.md#closing)
-9. <a id="cite-9"></a> TSP，ClickHouse 十年历史八表与发布设计。[设计说明](../reports/engineering/design-inputs-20261023/clickhouse/设计说明.md)
+9. <a id="cite-9"></a> TSP，ClickHouse 十年历史八表与发布设计。设计说明（历史报告已移出仓库）
 10. <a id="cite-10"></a> Apache Kafka，分区、offset 与消息语义。[官方文档](https://kafka.apache.org/41/documentation/#semantics)
 11. <a id="cite-11"></a> Apache Flink，Time and Order in Streams。[官方文档](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/time/)
 12. <a id="cite-12"></a> Apache Flink，Broadcast State。[官方文档](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/fault-tolerance/broadcast_state/)

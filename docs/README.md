@@ -1,5 +1,8 @@
 # Tick Stock Platform（TSP）文档中心
 
+[2026-11-17统一候选](upgrade-20261117.md)记录两端补丁整合、六类文档及本轮门禁；
+需求编号和已移除历史报告的导航规则见[证据入口](evidence.md)。
+
 [2026-11-14统一候选](upgrade-20261114.md)记录来源、六类文档、验证和清理门禁。
 
 2026-11-11 S02结果说明布局：两端当前布局、实际版本与验证／清理证据见[本次回执](../deliverables/operations/s02-status-note-20261111/report.md)。
@@ -16,31 +19,31 @@
 
 2026-11-08自动跟单参数融合已实现并隔离验证，当前为未部署源码候选。
 五组表单、回测草稿、完整候选池序、双侧成交及账户费用扩展的六类文档映射见
-[实施回执](../reports/engineering/paper-auto-rule-parameters-20261108/report.md)。
+实施回执（历史报告已移出仓库）。
 
 2026-11-08自动跟单规则修改已安装本地与线上0.4.52，入口为模拟账户规则行的“修改”。
 需求、架构、二开、测试、运营与运维状态及双库恢复/重启证据见
-[双端安装验收](../reports/operations/paper-rule-edit-20261108/report.md)。
+双端安装验收（历史报告已移出仓库）。
 
 2026-11-07当前需求、方案、开发、测试、运营及运维变化集中见
 [统一升级候选](upgrade-20261107.md)，固定工具见[发布流水线](release-pipeline.md)。
 本地暂停、当前100万元/页面实际参数规则和历史研究边界分别记录。
 
-最新统一候选与六类文档映射见[2026-11-06升级](../reports/releases/unified-upgrade-20261106/verification.md)。
+最新统一候选与六类文档映射见2026-11-06升级（历史报告已移出仓库）。
 以下历次热补丁部署和计数保留原身份；正式版本及双端状态分别验收。
 
 2026-11-05盘后预选的本地/线上0.4.49安装、配置保留及首批定时观察状态见
-[双端部署回执](../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)；
+双端部署回执（历史报告已移出仓库）；
 源码版本保持0.4.46。
 
 同日随后授权补生成11月5日的选名单，两端各574只；当前运行身份、来源、
-页面及买入引用验证见[补生成回执](../reports/releases/unified-upgrade-20261106/verification.md#historical-hotfixes)。
+页面及买入引用验证见补生成回执（历史报告已移出仓库）。
 
-本轮[最新现场兼容升级](../reports/releases/current-upgrade-20261103/verification.md)汇总
+本轮最新现场兼容升级（历史报告已移出仓库）汇总
 固定过户费、部署内置退役、六类文档及独立发布门禁；撤回候选与历史研究分别保留。
 
 2026-11-02后续补丁统一发布的需求／方案／开发／测试／运营／运维映射见
-[本轮整合](../reports/release-consolidation-20261102-followup.md)，
+本轮整合（历史报告已移出仓库），
 当前版本和两端状态仍由[版本基线](version-baseline.md)维护。
 
 s02参数、每日三Tab与回测历史查询见
@@ -61,7 +64,7 @@ s02参数、每日三Tab与回测历史查询见
 | 二次开发或接入外部系统 | [二次开发](secondary-development.md) → [API 导航](api.md) → [接入协议](reference/integrations.md) |
 | 准备发布、升级与恢复 | [发布运营](release-operations.md) → [发布流水线](release-pipeline.md) → [运维手册](operations.md) → [版本基线](version-baseline.md) |
 | 定位代码、脚本或测试 | [工程目录](reference/engineering.md#layout) → [测试定位](../tests/README.md#按领域定位现有测试) |
-| 维护文档或查找历史证据 | [文档维护与清理规则](maintenance.md) → [报告分类](../reports/README.md#按用途查找) |
+| 维护文档或查找历史证据 | [文档维护与清理规则](maintenance.md) → [报告分类](evidence.md) |
 
 ## 项目文档地图
 
@@ -136,7 +139,7 @@ docs/
 历史任务成功不等于历史行情全部补齐，规划容量不等于已经通过负载验收。
 
 每次行为、接口、拓扑或配置变化同步相应主手册与专题参考，至少每月复核一次。
-正文保留现行规则，发布过程与原始证据归[报告目录](../reports/README.md)。
+正文保留现行规则，发布过程与原始证据归[报告目录](evidence.md)。
 完整维护责任与清理规则见[maintenance.md](maintenance.md)。
 
 从仓库根执行 `make check`。历史资料引用可另执行

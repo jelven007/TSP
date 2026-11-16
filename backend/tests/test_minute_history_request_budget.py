@@ -71,7 +71,12 @@ def test_long_history_keeps_bounded_windows_symbol_batches_and_exact_boundaries(
         get_instruments=lambda: pl.DataFrame(schema={"symbol": pl.String}),
     )
     monkeypatch.setattr(kline_periods, "_period_provider", lambda _: (object(), "test"))
-    monkeypatch.setattr(kline_periods, "persist_period", lambda *_: 0)
+
+    def persist(*_, request_seq):
+        assert request_seq > 0
+        return 0
+
+    monkeypatch.setattr(kline_periods, "persist_period", persist)
     windows = []
 
     def fetch(provider, period, symbols, start, end, **kwargs):

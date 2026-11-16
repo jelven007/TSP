@@ -699,10 +699,20 @@ def compute_signals(df: pl.DataFrame, needed: set[str] | None = None) -> pl.Data
     # 都按列存在性解析。历史多日帧仅注入时序模式 —— 快照代表"最新值",
     # 历史回看注入会引入未来数据 (CONTRIBUTING §5.3)。
     from app.factors import ext_factors
-    df = ext_factors.attach_ext_columns(df, include_snapshot=False)
-    # 条件引用的注册表因子列先复用评分物化管线补算 (虚拟/自定义/复合均可)。
     from app.strategy import custom_signals
     exprs = _get_custom_signal_exprs()
+    ext_columns = None
+    if needed is not None:
+        roots = set(needed)
+        for name, dependencies in custom_signals.expression_dependencies(exprs).items():
+            if name in needed:
+                roots.update(dependencies)
+        from app.strategy.scoring import scoring_dependencies
+
+        roots |= scoring_dependencies(dict.fromkeys(roots, 1.))
+        ext_columns = {name for name in roots if name.startswith(ext_factors.EXT_PREFIX)}
+    df = ext_factors.attach_ext_columns(df, include_snapshot=False, columns=ext_columns)
+    # 条件引用的注册表因子列先复用评分物化管线补算 (虚拟/自定义/复合均可)。
     df = custom_signals.materialize_factor_columns(df, exprs, needed=needed)
     df = custom_signals.inject(df, exprs, needed=needed)
 

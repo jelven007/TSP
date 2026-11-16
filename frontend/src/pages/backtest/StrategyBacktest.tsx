@@ -302,7 +302,7 @@ const strategyDefaultParams = (detail: StrategyDetail) => {
 }
 const mergeStrategyParams = (detail: StrategyDetail, values?: Record<string, any> | null) => ({
   ...strategyDefaultParams(detail),
-  ...(values ?? {}),
+  ...(detail.optional_triggers && detail.params.length === 0 ? {} : values ?? {}),
 })
 const normalizeStrategyOverrides = (detail: StrategyDetail, values?: Record<string, any> | null) => {
   const next = { ...(values ?? {}) }
@@ -1128,6 +1128,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   // 分钟策略: 入场在盘中触发分钟成交, 日线专属的成交口径选项不适用
   const isMinuteStrategy = strategyDetail.data?.execution_backend === 'minute_filter'
   const isOvernightExecution = ['overnight_capacity_v1', 'momentum_capacity_v1'].includes(strategyDetail.data?.minute_execution ?? '')
+  const commonExecution = isOvernightExecution && strategyDetail.data?.optional_triggers
+    && strategyDetail.data.params.length === 0
   const supportsMorningExit = isMinuteStrategy && !strategyDetail.data?.minute_execution
   const customSignals = useQuery({
     queryKey: QK.customSignals, queryFn: api.customSignalsList, enabled: supportsMorningExit,
@@ -1297,7 +1299,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
       start: start || null,
       end: end || undefined,
       matching,
-      entry_fill: entryFill,
+      entry_fill: commonExecution ? 'close_t' : entryFill,
       exit_fill: exitFill,
       commission_pct: Number(fees) / 10000,
       stamp_tax_pct: stampTax === '' ? undefined : Number(stampTax) / 1000,
@@ -1610,9 +1612,10 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const minuteStartMismatch = isMinuteStrategy && !!minuteEarliest && start < minuteEarliest
 
   useEffect(() => {
+    if (commonExecution) return
     if (highGranularity && minuteExitTriggerSupported && !isMinuteStrategy) return
     if (exitFill === 'signal_next_minute') setExitFill('close_t')
-  }, [exitFill, highGranularity, minuteExitTriggerSupported, isMinuteStrategy])
+  }, [exitFill, highGranularity, minuteExitTriggerSupported, isMinuteStrategy, commonExecution])
 
   const scoring = useMemo(() => (overrides.scoring ?? {}) as Record<string, number>, [overrides.scoring])
   const scoringDirections = useMemo(
@@ -1970,10 +1973,12 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           )}
         </div>
 
-        {isOvernightExecution ? <OvernightExecutionSummary params={{ ...strategyParams, ...parameterSignalValues(strategyDetail.data?.parameter_signals) }}
+        {isOvernightExecution && !commonExecution && <OvernightExecutionSummary params={{ ...strategyParams, ...parameterSignalValues(strategyDetail.data?.parameter_signals) }}
           entryAllocation={strategyDetail.data?.entry_allocation}
-          parameterSignals={!!strategyDetail.data?.parameter_signals} optionalTriggers={strategyDetail.data?.optional_triggers} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} /> : <>
-        <div className="grid grid-cols-2 gap-2">
+          parameterSignals={!!strategyDetail.data?.parameter_signals} optionalTriggers={strategyDetail.data?.optional_triggers} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} />}
+        {(!isOvernightExecution || commonExecution) && <>
+        <fieldset className="grid grid-cols-2 gap-2 border-t border-border pt-3">
+          <legend className="pr-2 text-[11px] font-medium text-muted">成交口径</legend>
           <div>
             <div className="mb-1.5 flex items-center gap-1">
               <label className="text-xs font-medium text-secondary">建仓口径</label>
@@ -2003,7 +2008,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             >
               <option value="close_t">信号日收盘（推荐）</option>
               <option value="open_t+1">次日开盘</option>
-              {highGranularity && minuteExitTriggerSupported && !isMinuteStrategy && (
+              {(commonExecution || (highGranularity && minuteExitTriggerSupported && !isMinuteStrategy)) && (
                 <option value="signal_next_minute">信号后下1分钟起，5分钟卖出</option>
               )}
             </select>}
@@ -2031,10 +2036,10 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               <span>当前卖出信号暂不支持分钟触发回放</span>
             </div>
           )}
-        </div>
-
+        </fieldset>
         {simMode === 'position' && (
-        <div className="grid grid-cols-2 gap-2">
+        <fieldset className="grid grid-cols-2 gap-2 border-t border-border pt-3">
+          <legend className="pr-2 text-[11px] font-medium text-muted">资金与仓位</legend>
           <div>
             <label className="text-xs font-medium text-secondary block mb-1.5">初始资金</label>
             <input type="number" value={initialCapital} onChange={e => setInitialCapital(e.target.value)}
@@ -2049,7 +2054,8 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           </div>
           <div>
             <label className="text-xs font-medium text-secondary block mb-1.5">最大持仓数</label>
-            <input type="number" value={maxPositions} onChange={e => setMaxPositions(e.target.value)}
+            <input type="number" min={1}
+              value={maxPositions} onChange={e => setMaxPositions(e.target.value)}
               className={INPUT_CLS} />
           </div>
           <div>
@@ -2057,9 +2063,10 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             <input type="number" min={0} max={100} value={maxExposure} onChange={e => setMaxExposure(e.target.value)}
               className={INPUT_CLS} />
           </div>
-        </div>
+        </fieldset>
         )}
-        <div className="grid grid-cols-3 gap-2">
+        <fieldset className="grid grid-cols-3 gap-2 border-t border-border pt-3">
+          <legend className="pr-2 text-[11px] font-medium text-muted">交易费用</legend>
           <div>
             <label className="text-[10px] font-medium text-secondary block mb-1">佣金 ‱</label>
             <input type="number" min={0} value={fees} onChange={e => setFees(e.target.value)} className={INPUT_CLS} />
@@ -2083,10 +2090,10 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             <input type="number" min={0} step={0.01} value={transferFee}
               onChange={e => setTransferFee(e.target.value)} className={INPUT_CLS} />
           </div>
-        </div>
+        </fieldset>
         </>}
         <div className="space-y-1.5 text-[11px] leading-4 text-secondary">
-          {!isOvernightExecution && <>
+          {(!isOvernightExecution || commonExecution) && <>
           <div>印花税留空时按卖出日期自动计算：2023-08-28 前 1‰，之后 0.5‰。</div>
           <div>最低佣金和额外费用请按券商费表填写；佣金已包含的费用不要重复填写。旧配置默认均为0。</div>
           </>}
@@ -2095,9 +2102,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             <span>严格研究校验：要求数据发布一致、历史 ST/上市状态完整，并计入股票卖出印花税。</span>
           </label>
         </div>
-        {simMode === 'position' && !isOvernightExecution && (
+        {simMode === 'position' && (!isOvernightExecution || commonExecution) && (
         <div className="text-[10px] leading-4 text-muted">
-          单票目标约 {Number.isFinite(targetPositionPct) ? targetPositionPct.toFixed(1) : '—'}%。最大总仓位控制资金投入；剩余现金不是新增持仓名额，只有实际卖出成功才释放持仓数。
+          单票目标约 {Number.isFinite(targetPositionPct) ? targetPositionPct.toFixed(1) : '—'}%。等权按最大持仓数分配，未用名额保留现金；评分加权仍受单票目标和总仓位限制。实际卖出成功才释放持仓数。
         </div>
         )}
         {simMode === 'full' && (
@@ -2964,14 +2971,19 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             </div>
 
             <div className="modal-body min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              {isOvernightExecution ? <div className="mb-4">
+              {isOvernightExecution && !commonExecution ? <div className="mb-4">
                 <OvernightExecutionSummary params={{ ...strategyParams, ...parameterSignalValues(detail.parameter_signals) }}
                   entryAllocation={detail.entry_allocation}
                   parameterSignals={!!detail.parameter_signals} optionalTriggers={detail.optional_triggers} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} />
               </div> : <div className="mb-4 rounded-btn border border-accent/25 bg-accent/5 px-3 py-2.5 text-[11px] leading-5 text-secondary">
                 <div className="font-medium text-foreground">触发 / 成交 / 仓位关系</div>
-                <div className="mt-1">触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。</div>
-                {hasMorningExit ? <>
+                <div className="mt-1">{commonExecution
+                  ? '触发器决定买卖信号；评分决定候选排序，选择评分加权时也参与买入分配。'
+                  : '触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。'}</div>
+                {commonExecution ? <>
+                  <div>建仓复用信号确认后五分钟容量撮合；清仓、资金、仓位及费用在公共回测设置中调整。</div>
+                  <div>信号参数在对应触发器中设置；前日条件在基础过滤中设置。</div>
+                </> : hasMorningExit ? <>
                   <div>分钟建仓从信号实际确认后的下一根完整分钟 K 开始，最多按 5 根分钟最高价和成交量容量分片；清仓使用下一交易日触发分钟收盘。</div>
                   <div>现价相对原始昨收达到涨幅或跌幅阈值提前清仓，否则到止损时间清仓，兜底时间再次处理余股；旧振幅定义沿用冻结规则。需关闭其他出场触发器、固定/移动风控及最长持有。</div>
                 </> : <>
@@ -3004,7 +3016,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                       )}
                     </StrategyParamGroups>
                   ) : (
-                    <div className="text-xs text-muted">当前策略没有可调参数。</div>
+                    <div className="text-xs text-muted">{commonExecution
+                      ? '资金、仓位和费用使用公共回测设置；选股与出场参数在对应信号中设置。'
+                      : '当前策略没有可调参数。'}</div>
                   )}
                 </ConfigSection>
               )}

@@ -611,7 +611,7 @@ def _resolve_base_columns(features: set[str]) -> frozenset[str]:
     if features & {"vol_ma5", "vol_ma10", "vol_ratio_5d"}:
         base.add("volume")
     base.update({"open", "high", "low", "close", "volume"})
-    return frozenset(base & storage)
+    return frozenset((base & storage) | {name for name in features if name.startswith("ext_")})
 
 
 @dataclass
