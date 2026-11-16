@@ -118,6 +118,10 @@ def scoring_value_expr(columns: Collection[str], name: str) -> pl.Expr | None:
     dependencies = VIRTUAL_SCORING_DEPENDENCIES.get(name)
     if dependencies is None or not dependencies.issubset(available):
         return None
+    if name == "intraday_range_amount_score":
+        from app.factors.range_amount import range_amount_expr
+
+        return range_amount_expr(*[pl.col(field) for field in ("high", "low", "prev_close", "amount")])
     if name.startswith("ma") and name.endswith("_bias"):
         period = name.removeprefix("ma").removesuffix("_bias")
         if period.isdigit():

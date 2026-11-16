@@ -36,12 +36,12 @@ GET不自动升级旧冻结定义，编辑保存才添加新时间；普通单�
 `stamp_tax_mode`（fixed/historical，旧默认fixed）；响应费表透传，设置只影响未来成交。
 费率pct直接传小数，佣金/过户费页面万分比÷10000，固定印花税千分比÷1000，
 滑点万分比直接传bps。接口身份、隔离、回读及开放Schema指纹验证见
-[本次回执](../reports/engineering/paper-auto-rule-parameters-20261108/report.md)。
+本次回执（历史报告已移出仓库）。
 
 `GET /api/screener/market-snapshot?realtime=true&symbols=600001.SH`仅返回当前日共享缓存
 中的指定股票（每批1～1000只），返回`raw_close/change_pct/turnover_rate/vol_ratio_5d`
 及既有技术信号、报价时间字段。缺当前日缓存返回当日日期和空rows；非法范围422。
-不带参数继续返回原全市场快照，单位及验证见[本次记录](../reports/engineering/s02-live-results-20261106.md)。
+不带参数继续返回原全市场快照，单位及验证见本次记录（历史报告已移出仓库）。
 两个新增查询参数均为可选，缺省为`realtime=false`、`symbols=null`；
 Tier A端点集合及响应组件保持，契约快照与默认请求回归同步验证。
 

@@ -100,6 +100,7 @@ GOLDEN_COLUMNS: list[dict] = [
     {"id": "distance_to_high_240d", "label": "距一年高点", "group": "价格位置", "desc": "收盘价 / 240日最高收盘价 - 1, 接近0代表贴近一年新高"},
     {"id": "kdj_kd_diff", "label": "KDJ K-D差", "group": "趋势", "desc": "KDJ K值 - D值, 正值代表快线在慢线上方"},
     {"id": "atr14_sma_pct", "label": "ATR14简单均值相对波动", "group": "波动率", "desc": "日K: 14个TR简单均值 / 同日收盘价; 需要连续15根有效日K, 0.02表示2%; 分钟策略取精确T-1"},
+    {"id": "intraday_range_amount_score", "label": "当日低振幅成交额评分", "group": "量价", "desc": "−(当日最高价−当日最低价)/昨收 + 0.001×ln(当日累计成交额[元]); 振幅用比例, 盘中仅累计已完成分钟, 日K用当日完整值; 原始评分降序, 同分股票代码升序"},  # noqa: RUF001
 ]
 
 GOLDEN_VIRTUAL_DEPS: dict[str, frozenset[str]] = {
@@ -155,6 +156,7 @@ GOLDEN_VIRTUAL_DEPS: dict[str, frozenset[str]] = {
     "distance_to_high_240d": frozenset({"close"}),
     "kdj_kd_diff": frozenset({"kdj_k", "kdj_d"}),
     "atr14_sma_pct": frozenset({"date", "high", "low", "close"}),
+    "intraday_range_amount_score": frozenset({"high", "low", "prev_close", "amount"}),
 }
 
 GOLDEN_WARMUP: dict[str, int] = {
@@ -233,10 +235,10 @@ def test_scoring_warmup_snapshot() -> None:
 
 def test_catalog_counts_and_kinds() -> None:
     specs = all_factors()
-    assert len(specs) == 78
-    assert len({spec.id for spec in specs}) == 78  # id 唯一
+    assert len(specs) == 79
+    assert len({spec.id for spec in specs}) == 79  # id 唯一
     virtual = [spec for spec in specs if spec.kind == "virtual"]
-    assert len(virtual) == 53  # 原52 + 独立SMA ATR
+    assert len(virtual) == 54  # 追加原始振幅成交额评分
     financial = [spec for spec in specs if spec.pit]
     assert len(financial) == 7
     assert all(spec.pit_source == "financial_announce" for spec in financial)
@@ -264,7 +266,7 @@ def test_get_factor_and_dependencies() -> None:
 
 def test_asset_type_filter() -> None:
     stock = all_factors(asset_type="stock")
-    assert len(stock) == 78
+    assert len(stock) == 79
 
 
 def test_register_factor_rejects_duplicate() -> None:
@@ -311,7 +313,7 @@ def test_factors_api_contract() -> None:
     assert response.status_code == 200
     payload = response.json()
     factors = payload["factors"]
-    assert len(factors) == 78
+    assert len(factors) == 79
     first = factors[0]
     assert first["id"] == "momentum_5d"
     assert first["kind"] == "base"
@@ -331,7 +333,7 @@ def test_factors_api_contract() -> None:
 def test_factors_api_asset_filter_and_validation() -> None:
     client = _client()
     stock = client.get("/api/factors", params={"asset_type": "stock"}).json()["factors"]
-    assert len(stock) == 78
+    assert len(stock) == 79
     assert all(item["asset_types"] == ["stock"] for item in stock)
     # 非法资产类型 → 422 (fail-closed, 不静默回退全量)
     assert client.get("/api/factors", params={"asset_type": "index"}).status_code == 422

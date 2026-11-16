@@ -54,7 +54,7 @@ def test_registration_is_additive_and_has_daily_ratio_contract():
     assert spec.kind == "virtual" and spec.unit == "ratio"
     assert spec.warmup_bars == 15
     assert spec.dependencies == frozenset({"date", "high", "low", "close"})
-    assert factor_columns_view()[-1]["id"] == FID
+    assert factor_columns_view()[-2]["id"] == FID
     assert get_factor("atr_pct").dependencies == frozenset({"close", "atr_14"})
 
 

@@ -152,6 +152,18 @@ def test_resolver_honors_full_scoring_replacement():
     assert "momentum_20d" not in plan.indicator_columns
 
 
+def test_resolver_preserves_external_score_and_filter_dependencies():
+    plan = StrategyDependencyResolver().resolve(
+        _strategy(
+            meta={"id": "deps", "scoring": {"ext_tags_hot": 1.0}},
+            filter_fn=lambda _df, _params: pl.col("ext_tags_cnt") > 1,
+        ),
+        params={}, basic_filter={"enabled": False},
+        entry_signals=[], exit_signals=[],
+    )
+    assert {"ext_tags_hot", "ext_tags_cnt"} <= plan.base_columns
+
+
 def test_history_strategy_without_required_features_falls_back_to_full(caplog):
     strategy = _strategy(
         filter_fn=None,

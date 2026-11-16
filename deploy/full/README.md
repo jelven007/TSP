@@ -18,11 +18,11 @@
 
 本目录是完整产品单机多租户部署入口，沿用原 `app.main`、完整前端和原业务引擎。
 一期于 2026-10-14 完成生产切流与 100 用户验收，见
-[一期实施记录](../../reports/engineering/document-consolidation-20261024/historical-evidence.md#phase1)。
+一期实施记录（历史报告已移出仓库）。
 当前固定源码、镜像与最后已知运行身份见[版本基线](../../docs/version-baseline.md)，
 保存的v0.4.39本地/ECS恢复、切换和重启验收见
-[发布记录](../../reports/releases/current-release-20261030/deployment.md)。
-旧实例inode修复和双库恢复见[历史结果](../../reports/online-timeout-20261021/result.md)。
+发布记录（历史报告已移出仓库）。
+旧实例inode修复和双库恢复见历史结果（历史报告已移出仓库）。
 候选升级继续按下述流程执行，不能与旧实例同时
 写一个行情目录；候选数据、数据库及监听端口必须与生产分离。
 
@@ -164,7 +164,7 @@ API使用只读打开的不可变`.public_release.json`持共享锁，旧仓库�
 释放后才关闭连接和锁。维护在同文件取得非阻塞排他锁，持锁复核current、近期版本
 及研究引用后删除；锁忙或锁能力不可用则跳过，并报告`release_skip_counts`。
 没有`flock`时保留读取能力但禁用该清理路径，跨主机共享存储另行核验。
-该修复尚未生产部署，源码及验证状态见[实施记录](../../reports/api-public-release-binding-implementation-20261101.md)。
+该修复尚未生产部署，源码及验证状态见实施记录（历史报告已移出仓库）。
 
 升级此候选前先保存回滚产物并核对空间，暂停公共回收timer；全部API子进程更新并
 确认共享锁及闲置收敛后，先dry-run再恢复维护。旧API不持锁，混跑不能保证读者安全。

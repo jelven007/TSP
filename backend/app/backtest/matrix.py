@@ -4285,6 +4285,7 @@ _MATRIX_COMPUTED_FEATURES = frozenset({
     "vol_regime_5_60", "amplitude_trend_20_60", "obv_trend_20d",
     "amount_mean_20d", "turnover_mean_20d", "turnover_std_20d",
     "position_240d", "distance_to_high_240d", "kdj_kd_diff",
+    "intraday_range_amount_score",
 })
 
 
@@ -4324,6 +4325,18 @@ def _atr_from_ohlc(high: np.ndarray, low: np.ndarray, close: np.ndarray) -> np.n
 
 def _compute_matrix_feature(market: MarketDataMatrix, name: str) -> np.ndarray:
     close_valid = np.isfinite(market.close)
+    if name == "intraday_range_amount_score":
+        from app.factors.range_amount import range_amount_arrays
+
+        # Generic minute matrices have no verified day-prefix/yesterday-close contract.
+        # Their causal feature path is build_feature_frame, never previous-minute close.
+        try:
+            [date.fromisoformat(label) for label in market.timestamp_labels]
+        except ValueError:
+            return np.full(market.shape, np.nan, dtype=np.float32)
+        return range_amount_arrays(
+            market.high, market.low, matrix_feature(market, "prev_close"), market.field("amount"),
+        ).astype(np.float32)
     if name == "atr14_sma_pct":
         from app.factors.atr import atr14_sma_arrays, daily_links
 

@@ -800,7 +800,9 @@ class BacktestEngine:
         matrix_native = feature_plan.execution_backend == "matrix_native"
         if not matrix_native:
             df = compute_indicators(df, needed=set(feature_plan.indicator_columns))
-            df = compute_signals(df, needed=set(feature_plan.signal_columns))
+            df = compute_signals(
+                df, needed=set(feature_plan.signal_columns) | set(feature_plan.base_columns),
+            )
         if not instruments.is_empty():
             df = compute_limit_signals(
                 df,

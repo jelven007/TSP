@@ -17,7 +17,7 @@ MODULES = (
     "04-strategy-signals", "05-factors-mining", "06-history-backtesting",
     "07-monitoring-paper", "08-ai-review",
 )
-BASELINE = "reports/production-system-consolidation-20261023/requirement-ids.json"
+BASELINE = "docs/requirement-ids.json"
 LINK = re.compile(r'!?\[[^\]\n]*\]\(\s*(<[^>\n]+>|[^\s)]+)(?:\s+["\'][^)\n]*["\'])?\s*\)')
 HTML_LINK = re.compile(r'<(?:a|img)\b[^>]*\b(?:href|src)=["\']([^"\']+)["\']', re.IGNORECASE)
 DEFINITION = re.compile(r'^\s{0,3}\[([^\]]+)\]:\s*(<[^>]+>|\S+)', re.MULTILINE)

@@ -78,7 +78,7 @@ class PublicPublisher:
                 if completed_at.tzinfo else completed_at)
         with self.metadata_lock:
             self.minute_completed_at = wall.replace(tzinfo=CN_TZ).timestamp()
-        if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() < clock_time(14, 40):
+        if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() <= clock_time(14, 55):
             self.changed.set()
 
     def publish_priority(self, completed_at):
@@ -89,7 +89,7 @@ class PublicPublisher:
                 if completed_at.tzinfo else completed_at)
         with self.metadata_lock:
             self.minute_priority_completed_at = wall.replace(tzinfo=CN_TZ).timestamp()
-        if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() < clock_time(14, 40):
+        if wall.weekday() < 5 and clock_time(14, 25) <= wall.time() <= clock_time(14, 55):
             self.changed.set()
             return self.publish()
         return None

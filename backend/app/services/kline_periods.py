@@ -240,7 +240,10 @@ def fetch_period(provider, period: str, symbols: list[str], start: datetime, end
     return frame.filter(pl.col("symbol").is_in(symbols) & pl.col(time_column).is_between(lo, hi))
 
 
-def persist_period(repo, period: str, frame: pl.DataFrame, *, only_missing: bool = False) -> int:
+def persist_period(
+    repo, period: str, frame: pl.DataFrame, *, only_missing: bool = False,
+    request_seq: int | None = None,
+) -> int:
     from app.services.kline_sync import (
         _atomic_write_parquet,
         _minute_partition_lock,
@@ -280,9 +283,12 @@ def persist_period(repo, period: str, frame: pl.DataFrame, *, only_missing: bool
     else:
         # 旧同步可先持仓库锁; 此处只复用分区锁, 避免反序获取全局锁。
         # 公共发布复核前后文件签名, 原子替换保证读者始终读取完整文件。
-        written = _write_minute_partition(frame, directory, only_missing=only_missing)
+        written = _write_minute_partition(
+            frame, directory, only_missing=only_missing,
+            **({"request_seq": request_seq} if period == "1m" else {}),
+        )
     refresh_period(repo, period)
-    return written if only_missing else frame.unique(keys).height
+    return written if only_missing or (period == "1m" and request_seq is not None) else frame.unique(keys).height
 
 
 def refresh_period(repo, period: str) -> None:
@@ -463,13 +469,17 @@ def sync_period(repo, period: str, start: datetime, end: datetime, *, symbols: l
         else:
             for offset in range(0, len(symbols), 100):
                 emit(f"{LABELS[period]}: {cursor}, 标的 {offset}/{len(symbols)}")
+                write_options = {}
+                if period == "1m":
+                    from app.services.minute_write_order import begin_minute_request
+                    write_options["request_seq"] = begin_minute_request(repo.store.data_dir / "kline_minute")
                 frame = fetch_period(provider, period, symbols[offset:offset + 100], lo, hi, minute_adjust="none" if raw_minute else "forward")
                 emit(f"{LABELS[period]}: 正在保存 {min(offset + 100, len(symbols))}/{len(symbols)}")
                 if frame.is_empty():
-                    rows += persist_period(repo, period, frame)
+                    rows += persist_period(repo, period, frame, **write_options)
                 else:
                     with pause_quotes_for_write():
-                        rows += persist_period(repo, period, frame)
+                        rows += persist_period(repo, period, frame, **write_options)
                 if period == "1m":
                     from app.services import kline_gaps
                     now = cn_now().replace(tzinfo=None, second=0, microsecond=0)

@@ -207,6 +207,53 @@ def test_monitor_broker_returns_host_timings_after_cleanup(socket_dir, monkeypat
             thread.join(2)
 
 
+@pytest.mark.parametrize(("state", "exit_code", "expected"), [
+    ({"OOMKilled": True, "ExitCode": 137}, 137, "内存不足"),
+    ({"OOMKilled": False, "ExitCode": 137}, 137, "退出码137"),
+    ({"OOMKilled": False, "ExitCode": 1}, 1, "退出码1"),
+    (None, 125, "退出码125"),
+    ({"OOMKilled": False, "ExitCode": 0}, 0, "退出码0"),
+])
+def test_broker_reports_confirmed_exit_cause_before_removing_container(
+    socket_dir, monkeypatch, state, exit_code, expected,
+):
+    import sys
+
+    commands = []
+
+    def run(command, **_kwargs):
+        commands.append(command)
+        if command[:2] == ["docker", "inspect"]:
+            return SimpleNamespace(
+                returncode=0 if state else 1,
+                stdout=json.dumps(state).encode() if state else b"",
+            )
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with ComputeBroker(socket_dir / "exit.sock", "pinned", socket_dir, 1) as broker:
+        monkeypatch.setattr(broker, "command", lambda *_: [
+            sys.executable, "-c", f"import sys; sys.stdin.readline(); sys.exit({exit_code})",
+        ])
+        thread = threading.Thread(target=broker.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with pytest.raises(AccessError, match=expected) as error:
+                ComputeExecutor(str(socket_dir / "exit.sock")).execute({
+                    "kind": "backtest", "tenant_id": "tenant-a",
+                })
+            if state and not state["OOMKilled"]:
+                assert "内存不足" not in str(error.value)
+            assert [command[:2] for command in commands] == [
+                ["docker", "inspect"], ["docker", "rm"],
+            ]
+            assert broker.permits.usage()["active"] == 0
+            assert not broker.active_tenants
+        finally:
+            broker.shutdown()
+            thread.join(2)
+
+
 def test_broker_cli_emits_stage_info_without_external_logging_config(socket_dir):
     import os
     import sys

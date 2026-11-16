@@ -6,7 +6,6 @@ import json
 import logging
 import math
 from datetime import date, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 from functools import lru_cache
 from typing import Optional
@@ -705,7 +704,7 @@ def get_minute_batch(request: Request, body: dict):
     """批量获取多只股票某天的分钟K (分时图用)。
 
     - 本地优先: 先从 kline_minute parquet 读, 完整的直接用
-    - 缺失补拉: 本地不完整的 symbol 用 sync_minute_batch 批量实时拉 (不落库)
+    - 缺失补拉: 批量实时拉并按采集前序号入库, 被拒的旧响应改读已提交数据
     - 需 Pro+ 权限 (kline.minute.batch)
     """
     from datetime import datetime
@@ -851,6 +850,10 @@ def get_minute_batch(request: Request, body: dict):
     def _pull(asset: str, sym_list: list[str], start: datetime) -> None:
         if not sym_list:
             return
+        from app.services.minute_write_order import begin_minute_request
+
+        minute_dir = minute_dirs[asset]
+        request_seq = begin_minute_request(minute_dir)
         raw_basis = minute_adjust.minute_basis_is_raw(repo.store.data_dir)
         df_live = kline_sync.sync_minute_batch(
             sym_list,
@@ -863,17 +866,22 @@ def get_minute_batch(request: Request, body: dict):
         )
         if df_live.is_empty():
             return
+        accepted = None
         try:
             # 读-改-写必须持仓库写锁 (与全量分钟服务/盘后同步同一纪律, Windows 临时文件占用)。
-            # 仅在拿到真实目录时落盘: data_dir 异常 (非 Path) 时跳过, 只返回本轮数据。
             # 落盘必须是原始口径 (raw_basis=True 时 sync 已按 adjust='none' 取回);
             # 对外响应再统一复权投影。
-            minute_dir = minute_dirs[asset]
-            if isinstance(minute_dir, Path):
-                with repo._write_lock:
-                    kline_sync._write_minute_partition(df_live, minute_dir)
+            with repo._write_lock:
+                accepted = kline_sync._write_minute_partition(
+                    df_live, minute_dir, request_seq=request_seq,
+                )
         except Exception as e:  # noqa: BLE001
             logger.warning("minute-batch 补拉落盘失败 (降级为仅返回): %s", e)
+        if accepted is not None and accepted < df_live.unique(["symbol", "datetime"]).height:
+            # Rejected rows must not reappear via the response's live_map.
+            # Repository reads already apply the public adjustment projection.
+            df_live = repo.get_minute_batch(sym_list, trade_date, asset_type=asset)
+            raw_basis = False
         if raw_basis:
             df_live = minute_adjust.apply_minute_adjustment(
                 df_live, repo.store.data_dir, asset,

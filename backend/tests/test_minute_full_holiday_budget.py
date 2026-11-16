@@ -21,7 +21,12 @@ def test_full_minute_closed_tail_does_not_fetch_entire_universe(tmp_path, monkey
         get_instruments=lambda: pl.DataFrame({"symbol": symbols}),
     )
     monkeypatch.setattr(kline_periods, "_period_provider", lambda _: (object(), "test"))
-    monkeypatch.setattr(kline_periods, "persist_period", lambda *_: 0)
+
+    def persist(*_, request_seq):
+        assert request_seq > 0
+        return 0
+
+    monkeypatch.setattr(kline_periods, "persist_period", persist)
     calls, progress = [], []
 
     def fetch(_, period, batch, lo, hi, **kwargs):

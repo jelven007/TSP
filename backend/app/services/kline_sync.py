@@ -114,7 +114,7 @@ def _sdk_call_with_deadline(fn: Callable[[], Any], *, timeout_s: float = _SDK_CA
     return outcome.get("result")
 
 
-def _atomic_write_parquet(df: pl.DataFrame, out) -> None:
+def _atomic_write_parquet(df: pl.DataFrame, out, *, metadata: dict[str, str] | None = None) -> None:
     """先写临时文件再原子替换, 避免进程中断留下损坏的 parquet。
 
     与 repository._atomic_write_parquet 同语义。adj_factor 的 all.parquet 是全市场
@@ -126,7 +126,7 @@ def _atomic_write_parquet(df: pl.DataFrame, out) -> None:
     """
     from app.market_scope import filter_market_frame
     tmp = out.with_name(out.name + ".tmp")
-    filter_market_frame(df).write_parquet(tmp)
+    filter_market_frame(df).write_parquet(tmp, **({"metadata": metadata} if metadata else {}))
     replace_with_retry(tmp, out)
 
 
@@ -944,12 +944,23 @@ def _datetime_to_ms(dt: datetime) -> int:
     return int(dt.timestamp() * 1000)
 
 
-def _write_minute_partition(df: pl.DataFrame, minute_dir, *, only_missing: bool = False) -> int:
-    """按 _trade_date 分区落盘分钟 K (读旧→concat→unique→原子写)。返回写入行数。
+def _write_minute_partition(
+    df: pl.DataFrame, minute_dir, *, only_missing: bool = False,
+    request_seq: int | None = None, isolate_suspension_conflicts: bool = False,
+) -> int:
+    """按日期原子合并; 1m携带采集前序号时仅接受更新请求或缺失键。
 
-    抽自原 sync_and_persist_minute 末尾的循环, 供流式落盘 (每段一次) 与一次性迁移共用。
+    带序号返回实际接受键数; 旧调用保留分区总行数/only_missing新增数约定。
     """
     from app.market_scope import filter_market_frame
+    from app.services.minute_write_order import (
+        VERSION_COLUMN,
+        accept_rows,
+        read_versions,
+        version_metadata,
+    )
+
+    ordered = minute_dir.name == "kline_minute"
     df = filter_market_frame(df)
     if df.is_empty():
         return 0
@@ -971,8 +982,15 @@ def _write_minute_partition(df: pl.DataFrame, minute_dir, *, only_missing: bool 
         ])
         placeholders = df.join(halted, on=["symbol", "_trade_date"], how="semi")
         activity = [pl.col(name) > 0 for name in ("volume", "amount") if name in df.columns]
-        if activity and placeholders.filter(pl.any_horizontal(activity)).height:
-            raise ValueError("分钟K与开市前已知停牌证据存在成交冲突, 拒绝写入")
+        conflicts = placeholders.filter(pl.any_horizontal(activity)) if activity else pl.DataFrame()
+        if not conflicts.is_empty():
+            if not isolate_suspension_conflicts:
+                raise ValueError("分钟K与开市前已知停牌证据存在成交冲突, 拒绝写入")
+            logger.warning(
+                "实时分钟隔离停牌成交冲突: %s; 正常股票继续写入",
+                conflicts.select("symbol", "_trade_date").unique().sort(
+                    "_trade_date", "symbol").rows(),
+            )
         df = df.join(halted, on=["symbol", "_trade_date"], how="anti")
     written = 0
     for day_df in df.partition_by("_trade_date"):
@@ -983,11 +1001,23 @@ def _write_minute_partition(df: pl.DataFrame, minute_dir, *, only_missing: bool 
             new_rows = day_df.drop("_trade_date").unique(
                 subset=["symbol", "datetime"], keep="last",
             )
-            if out.exists():
-                existing = pl.read_parquet(out)
+            existing = pl.read_parquet(out) if out.exists() else None
+            versions = read_versions(out, existing.height) if ordered and existing is not None else None
+            protected = ordered and (request_seq is not None or versions is not None)
+            if existing is not None:
+                if protected:
+                    existing = existing.with_columns(
+                        versions if versions is not None else pl.lit(0, dtype=pl.UInt64).alias(VERSION_COLUMN),
+                    )
                 if "datetime" in existing.columns:
                     existing = existing.filter(pl.col("datetime").is_not_null())
-                if only_missing:
+            if protected:
+                new_rows = accept_rows(new_rows, existing, request_seq, only_missing=only_missing)
+                if new_rows.is_empty():
+                    continue
+            accepted_count = new_rows.height
+            if existing is not None:
+                if only_missing and not protected:
                     new_rows = new_rows.join(existing.select("symbol", "datetime"), on=["symbol", "datetime"], how="anti")
                     if new_rows.is_empty():
                         continue
@@ -1004,8 +1034,14 @@ def _write_minute_partition(df: pl.DataFrame, minute_dir, *, only_missing: bool 
                 )
                 new_rows = pl.concat([other, merged], how="diagonal_relaxed")
             new_rows = new_rows.sort("symbol", "datetime")
-            _atomic_write_parquet(new_rows, out)
-            written += new_rows.height
+            if protected:
+                new_rows = filter_market_frame(new_rows)
+                _atomic_write_parquet(
+                    new_rows.drop(VERSION_COLUMN), out, metadata=version_metadata(new_rows),
+                )
+            else:
+                _atomic_write_parquet(new_rows, out)
+            written += accepted_count if (protected and (request_seq is not None or only_missing)) else new_rows.height
     return written
 
 
@@ -1862,17 +1898,16 @@ def sync_and_persist_minute(
     # 流式落盘: 每段拉完立即写盘, 内存峰值 = 单段 (而非全量)。
     # 全量攒内存曾导致 1 年全市场分钟 K OOM 卡死 (3 亿行 / 数十 GB)。
     minute_dir = repo.store.data_dir / "kline_minute"
+    from app.services.minute_write_order import begin_minute_request
+    request_seq = begin_minute_request(minute_dir)
     written_box = [0]  # list 闭包, 绕过 Python 闭包外层赋值
 
     def _persist(seg_df: pl.DataFrame) -> None:
-        upserted = seg_df.select("symbol", "datetime").unique().height
         # 单股自动补齐可能与另一个补齐请求同时写同一日期分区。Windows 不允许
         # 替换仍被另一写入占用的临时文件,因此读-改-写必须复用仓库写锁。
         with repo._write_lock:
-            _write_minute_partition(seg_df, minute_dir)
-        # _write_minute_partition returns final partition sizes. Summing that
-        # across whole-market chunks grows quadratically and grossly overstates
-        # the job result; report the unique rows this chunk actually upserted.
+            upserted = _write_minute_partition(seg_df, minute_dir, request_seq=request_seq)
+        # Count accepted keys only; stale responses and repeat segments count zero.
         written_box[0] += upserted
 
     segment_days = preferences.get_minute_sync_segment_days()

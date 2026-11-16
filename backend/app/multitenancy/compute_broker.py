@@ -209,6 +209,26 @@ class ComputeBroker(socketserver.ThreadingUnixStreamServer):
             self.health_cache = (time.monotonic(), ready)
             return {"ready": ready, "cached": False, "age_seconds": 0.0}
 
+    def exit_failure(self, name: str, returncode: int) -> str:
+        """Read the stopped sandbox before cleanup; exit 137 alone is not OOM proof."""
+        state = {}
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "--format", "{{json .State}}", name],
+                capture_output=True, timeout=5, check=False,
+            )
+            if result.returncode == 0:
+                value = json.loads(result.stdout)
+                if isinstance(value, dict):
+                    state = value
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+        logger.warning("compute sandbox exited without result: name=%s returncode=%s oom_killed=%s",
+                       name, returncode, state.get("OOMKilled"))
+        if state.get("OOMKilled") is True:
+            return f"计算任务内存不足，计算进程被系统终止（退出码{returncode}）"
+        return f"计算进程异常退出，未返回结果（退出码{returncode}）"
+
 
 class Handler(socketserver.StreamRequestHandler):
     def send(self, message):
@@ -268,8 +288,13 @@ class Handler(socketserver.StreamRequestHandler):
                 task.seek(0)
                 sandbox_started = time.perf_counter()
                 timing["started_at"] = time.time()
+                command = broker.command(name, market_path)
+                # Keep exit state until diagnosis; the finally block removes
+                # every job container before releasing its tenant and slot.
+                if command[:3] == ["docker", "run", "--rm"]:
+                    command.pop(2)
                 process = subprocess.Popen(
-                    broker.command(name, market_path), stdin=task, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    command, stdin=task, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 )
                 events.register(process.stdout, selectors.EVENT_READ, "stdout")
                 events.register(process.stderr, selectors.EVENT_READ, "stderr")
@@ -327,7 +352,7 @@ class Handler(socketserver.StreamRequestHandler):
                     if process.poll() is not None and len(events.get_map()) == 1:
                         break
                 if not terminal:
-                    raise ValueError("计算进程退出时未返回结果")
+                    raise ValueError(broker.exit_failure(name, process.returncode))
         except CriticalWindowDeferredError as exc:
             terminal_message = {"type": "error", "status": 429, "message": str(exc)}
         except (ValueError, OSError, subprocess.SubprocessError) as exc:

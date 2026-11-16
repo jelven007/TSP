@@ -346,6 +346,54 @@ def test_compute_signals_attaches_ext_columns(data_dir):
     assert out["csg_ext_hot"].to_list() == [True]
 
 
+@pytest.mark.parametrize("needed", [set(), {"signal_limit_up"}])
+def test_compute_signals_does_not_scan_unreferenced_extension_tables(data_dir, monkeypatch, needed):
+    from app.indicators import pipeline
+
+    _mk_config(data_dir, mode="timeseries")
+    _save_signal(data_dir)
+    frame = _frame([("600000.SH", "2026-01-05", 10.0)])
+
+    def unexpected_scan(*_args):
+        pytest.fail("Unreferenced extension table was scanned")
+
+    monkeypatch.setattr(ext_factors, "_timeseries_frame", unexpected_scan)
+    pipeline.invalidate_custom_signals()
+    try:
+        out = pipeline.compute_signals(frame, needed=needed)
+    finally:
+        pipeline.invalidate_custom_signals()
+    assert out.equals(frame)
+
+
+def test_compute_signals_projects_only_requested_extension_dependencies(data_dir):
+    from app.indicators import pipeline
+
+    cfg = _mk_config(data_dir, mode="timeseries")
+    _save_signal(data_dir)
+    write_ext_parquet(
+        pl.DataFrame({"symbol": ["600000.SH"], "hot": [0.9], "cnt": [99]}),
+        cfg, data_dir, snapshot_date=date(2026, 1, 5),
+    )
+    frame = _frame([("600000.SH", "2026-01-05", 10.0)])
+    pipeline.invalidate_custom_signals()
+    try:
+        out = pipeline.compute_signals(frame, needed={"csg_ext_hot"})
+        scoring = pipeline.compute_signals(frame, needed={"ext_tags_cnt"})
+        from app.indicators.pipeline import SIGNAL_DEPENDENCIES
+        required = set().union(*SIGNAL_DEPENDENCIES.values()) - set(frame.columns)
+        full = pipeline.compute_signals(frame.with_columns([
+            pl.lit(10.).alias(column) for column in sorted(required)
+        ]))
+    finally:
+        pipeline.invalidate_custom_signals()
+    assert out["csg_ext_hot"].to_list() == [True]
+    assert "ext_tags_cnt" not in out.columns
+    assert scoring["ext_tags_cnt"].to_list() == [99]
+    assert COL not in scoring.columns
+    assert {COL, "ext_tags_cnt", "csg_ext_hot"} <= set(full.columns)
+
+
 # ── string 扩展字段 (概念/行业归属) ───────────────────────
 
 STR_COL = "ext_tags_cat"  # config_id=tags, string 字段 cat

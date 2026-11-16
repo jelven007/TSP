@@ -270,13 +270,14 @@ def attach_ext_columns(
     *,
     include_snapshot: bool,
     data_dir: Path | None = None,
+    columns: set[str] | None = None,
 ) -> pl.DataFrame:
     """把扩展表信号列 (数值 + 字符串) join 到 enriched 帧上 (无配置/无匹配时原样返回)。
 
     include_snapshot 仅应由单日帧 (当日/盘中) 路径传 True; 多日历史帧
     传 False 以规避快照"最新值"造成的未来函数。单个配置失败只跳过该配置。
     """
-    if df.is_empty() or "symbol" not in df.columns:
+    if df.is_empty() or "symbol" not in df.columns or columns == set():
         return df
     root = _resolve_dir(data_dir)
     configs = _load_configs(root)
@@ -290,7 +291,10 @@ def attach_ext_columns(
     try:
         for cfg in configs:
             fields = _signal_fields(cfg)
-            if not fields:
+            requested = {ext_column_name(cfg.id, f.name) for f in fields}
+            if columns is not None:
+                requested &= columns - set(df.columns)
+            if not fields or not requested:
                 continue
             try:
                 if cfg.mode == "timeseries":
@@ -302,7 +306,7 @@ def attach_ext_columns(
                     if not tmp_date:
                         df = df.with_columns(pl.col("date").cast(pl.Utf8).alias("_ext_date"))
                         tmp_date = True
-                    new_cols = [c for c in ext.columns if c not in df.columns and c != "_ext_date"]
+                    new_cols = [c for c in ext.columns if c not in df.columns and c in requested]
                     if not new_cols:
                         continue
                     df = df.join(
@@ -314,7 +318,7 @@ def attach_ext_columns(
                     snap = _snapshot_frame(root, cfg, fields)
                     if snap.is_empty():
                         continue
-                    new_cols = [c for c in snap.columns if c not in df.columns]
+                    new_cols = [c for c in snap.columns if c not in df.columns and c in requested]
                     if not new_cols:
                         continue
                     df = df.join(snap.select(["symbol", *new_cols]), on="symbol", how="left")

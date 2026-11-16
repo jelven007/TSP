@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 
 import polars as pl
 
-from app.backtest.costs import buy_quantity_rules
+from app.backtest.costs import buy_quantity_rules, historical_stamp_tax_pct
 from app.backtest.engine import BacktestEngine, TradeRecord
 from app.backtest.entry_execution import execute_entry_window, expected_trading_minutes
 from app.backtest.governance import research_preflight, status_quality
@@ -125,18 +125,37 @@ def run_overnight(service, config, strategy, params, overrides, *,
     )
 
     selectable = optional_triggers(strategy)
+    common_execution = selectable and not strategy.meta.get("params") and not any(
+        key in params for key in ("initial_cash", "position_limit", "entry_nav_fraction",
+                                  "entry_budget", "commission", "minimum_commission",
+                                  "transfer_fee", "transfer_fee_fixed", "stamp_tax", "slippage"))
+    if common_execution:
+        # Parameter-free user definitions consume the common replay form.
+        # Explicit parameters in old frozen tasks keep their original precedence.
+        params = {
+            "initial_cash": config.initial_capital,
+            "position_limit": config.max_positions,
+            "commission": config.commission_pct if config.commission_pct is not None else config.fees_pct,
+            "minimum_commission": config.minimum_commission,
+            "transfer_fee": config.transfer_fee_pct,
+            "slippage": config.slippage_bps / 10000,
+            **({"stamp_tax": config.stamp_tax_pct} if config.stamp_tax_pct is not None else {}),
+            **params,
+        }
     selected = trigger_definitions(service.strategy_engine, strategy, overrides) if selectable else None
     references = {key: service.strategy_engine._effective_signals(
         overrides, key, getattr(strategy, key)) for key in ("entry_signals", "exit_signals")}
     parameter_signals = bound_definitions(service.strategy_engine, strategy, overrides=overrides)
     params = resolve_parameters(service.strategy_engine, strategy, params, definitions=parameter_signals)
-    equal_selected = strategy.meta.get("entry_allocation") == "equal_selected_v1"
+    equal_selected = not common_execution and strategy.meta.get("entry_allocation") == "equal_selected_v1"
     if equal_selected:
         params = {**params, "entry_nav_fraction": 1.}
     params = parameters(params)
     reported_params = {k: v for k, v in params.items()
                        if not equal_selected or k != "entry_nav_fraction"}
-    allocation = {"entry_allocation": "equal_selected_v1"} if equal_selected else {}
+    allocation = ({"entry_allocation": "common_backtest_v1"} if common_execution else
+                  {"entry_allocation": "equal_selected_v1"} if equal_selected else {})
+    exposure = min(max(float(config.max_exposure_pct), 0.), 1.)
     signal_bar = 885
     first_buy, last_buy = (887, 889) if high_entry else (887, 891)
     entry_signal = parameter_signals.get("entry")
@@ -154,12 +173,14 @@ def run_overnight(service, config, strategy, params, overrides, *,
         **service._config_to_dict(config), "params": reported_params, **allocation,
         "initial_capital": params["initial_cash"], "max_positions": params["position_limit"],
         "commission_pct": params["commission"], "minimum_commission": params["minimum_commission"],
-        "transfer_fee_pct": params["transfer_fee"], "stamp_tax_pct": params["stamp_tax"],
+        "transfer_fee_pct": params["transfer_fee"],
+        "stamp_tax_pct": config.stamp_tax_pct if common_execution else params["stamp_tax"],
+        **({"stamp_tax_mode": "historical" if config.stamp_tax_pct is None else "fixed"} if common_execution else {}),
         "transfer_fee_fixed": params.get("transfer_fee_fixed", 0.),
         "slippage_bps": params["slippage"] * 10000, "minute_execution": execution,
-        "entry_fill": "close_t", "exit_fill": "close_t",
+        "entry_fill": "close_t", "exit_fill": config.exit_fill if common_execution else "close_t",
         "execution_entry_fill": "single_minute_high_capacity" if high_entry else "system_five_minute_high_capacity_v1",
-        "execution_exit_fill": "persistent_signal_capacity_window",
+        "execution_exit_fill": config.exit_fill if common_execution else "persistent_signal_capacity_window",
         **({"parameter_signals": parameter_signals, **references,
             "trigger_definitions": selected} if selectable else
            {"parameter_signals": parameter_signals,
@@ -280,7 +301,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 if not selectable and morning_features(history, pos["entry_value"] / pos["shares"]) is None:
                     return finish(f"{day} {symbol}缺少完整105根有效早盘, 拒绝认证收益")
                 pending = pos.get("pending")
-                if selectable:
+                if selectable and not (common_execution and pending):
                     exit_context = StrategyDataContext(
                         "stock", "1m", day, history=history, current=prior, daily_history=daily,
                         completed_through=datetime.combine(day, datetime.min.time()).replace(hour=15),
@@ -299,16 +320,38 @@ def run_overnight(service, config, strategy, params, overrides, *,
                             and s["column"] in pending["signals"] for s in selected["exit"])
                             and morning_features(history, pos["entry_value"] / pos["shares"]) is None):
                         return finish(f"{day} {symbol}缺少完整105根有效早盘, 拒绝认证收益")
-                else:
+                elif not selectable:
                     for bar in range(675, minute_number(params["guard_time"]) + 1):
                         pending = exit_signal(history, bar, pos["entry_value"] / pos["shares"], params, pending)
                         if pending:
                             break
                 pos["pending"] = pending
-                signals.append({"date": str(day), "symbol": symbol, **pending})
+                if common_execution and "signal_date" not in pending:
+                    pending["signal_date"] = str(day)
+                    pending["execution_date"] = str(next_market_day(day) if config.exit_fill == "open_t+1" else day)
+                    if config.exit_fill == "close_t":
+                        pending.update(first_eligible_bar=900, last_eligible_bar=900)
+                    elif config.exit_fill == "open_t+1":
+                        pending.update(first_eligible_bar=571, last_eligible_bar=571)
+                    else:
+                        window = expected_trading_minutes(datetime.combine(day, datetime.min.time()) +
+                                                          timedelta(minutes=pending["first_eligible_bar"]))
+                        pending["last_eligible_bar"] = min(
+                            pending["last_eligible_bar"],
+                            window[-1].hour * 60 + window[-1].minute if window else 900)
+                    signals.append({"date": str(day), "symbol": symbol, **pending})
+                elif not common_execution:
+                    signals.append({"date": str(day), "symbol": symbol, **pending})
+                if common_execution and str(day) < pending["execution_date"]:
+                    continue
+                sale_params = {**params, "participation": 1.} if common_execution else params
+                if common_execution and config.stamp_tax_pct is None:
+                    sale_params["stamp_tax"] = historical_stamp_tax_pct(day, config.asset_type)
                 sale = fill_order(history, "sell", symbol, lookup.get(symbol),
                                   pending["first_eligible_bar"], pending["last_eligible_bar"],
-                                  params, quantity=pos["remaining"])
+                                  sale_params, quantity=pos["remaining"],
+                                  price_field=("close" if config.exit_fill == "close_t" else "open")
+                                  if common_execution else None)
                 fills.extend(sale["fills"])
                 late_fills = [f for f in sale["fills"] if f["bar"] >= first_buy] if selectable else []
                 late_value = sum(f["notional"] - f["fee"] for f in late_fills)
@@ -320,8 +363,12 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 cash += sale["value"] - late_value
                 pos["remaining"] -= sale["shares"]
                 if pos["remaining"]:
+                    if common_execution:
+                        cash += late_sale_cash
                     failures.append({"date": str(day), "symbol": symbol, "remaining": pos["remaining"]})
-                    return finish(f"{day} {symbol}{params['sell_deadline']}到期剩余{pos['remaining']}股, 保留实际持仓")
+                    deadline = (f"{pending['last_eligible_bar'] // 60:02}:{pending['last_eligible_bar'] % 60:02}"
+                                if common_execution else params["sell_deadline"])
+                    return finish(f"{day} {symbol}{deadline}到期剩余{pos['remaining']}股, 保留实际持仓")
                 cycle_notional = pos.get("sell_notional", sale["notional"])
                 cycle_value = pos.get("sell_value", sale["value"])
                 record = TradeRecord(
@@ -339,7 +386,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 trade["entry_date"] = f"{pos['entry_date']} {pos['last_buy_time']}"
                 trade["exit_date"] = f"{day} {sale['fills'][-1]['datetime'][11:16]}"
                 trade["entry_signal_date"] = f"{pos['entry_date']} {signal_bar // 60:02}:{signal_bar % 60:02}"
-                trade["exit_signal_date"] = f"{day} {pending['signal_bar'] // 60:02}:{pending['signal_bar'] % 60:02}"
+                trade["exit_signal_date"] = f"{pending.get('signal_date', str(day))} {pending['signal_bar'] // 60:02}:{pending['signal_bar'] % 60:02}"
                 trade["exit_signal_id"] = "overnight_" + pending["reason"]
                 trade["entry_nav"] = pos["entry_nav"]
                 trade["entry_budget"] = pos["entry_budget"]
@@ -361,7 +408,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 buy_rows = result.rows
                 entry_positions = {**positions, **late_sale_positions}
                 batch_budget = None
-                if equal_selected:
+                if equal_selected or common_execution:
                     slots = max(0, params["position_limit"] - len(entry_positions))
                     seen = set(entry_positions)
                     buy_rows = []
@@ -374,10 +421,24 @@ def run_overnight(service, config, strategy, params, overrides, *,
                         if len(buy_rows) < slots:
                             buy_rows.append(row)
                     if buy_rows:
+                        nav_before = cash
+                        for held_symbol, p in entry_positions.items():
+                            known = frame.filter(
+                                (pl.col("symbol") == held_symbol) & (pl.col("bar") <= buy_start))
+                            mark = known["close"][-1] if not known.is_empty() else p["entry_mark"]
+                            nav_before += p["remaining"] * mark
+                        target_value = nav_before * exposure / params["position_limit"]
+                        capacity = nav_before * exposure - (nav_before - cash)
+                        total_budget = min(cash, capacity, target_value * len(buy_rows))
+                        weights = [1 / len(buy_rows)] * len(buy_rows)
+                        if common_execution and config.position_sizing == "score_weight":
+                            raw = [max(float(row.get("score") or 0), 0.) for row in buy_rows]
+                            if sum(raw) > 0:
+                                weights = [score / sum(raw) for score in raw]
                         batch_budget = cash / len(buy_rows)
                         if params["entry_budget"]:
                             batch_budget = min(batch_budget, params["entry_budget"])
-                for row in buy_rows:
+                for row_index, row in enumerate(buy_rows):
                     symbol = row["symbol"]
                     if selectable and references["entry_signals"] and symbol not in entry_symbols:
                         continue
@@ -390,8 +451,14 @@ def run_overnight(service, config, strategy, params, overrides, *,
                             (pl.col("symbol") == held_symbol) & (pl.col("bar") <= buy_start))
                         mark = known["close"][-1] if not known.is_empty() else p["entry_mark"]
                         nav += p["remaining"] * mark
-                    budget = (min(cash, batch_budget) if equal_selected
-                              else entry_budget(nav, cash, params))
+                    if common_execution:
+                        budget = min(total_budget * weights[row_index], target_value, cash,
+                                     nav * exposure - (nav - cash))
+                    else:
+                        budget = (min(cash, batch_budget) if equal_selected
+                                  else entry_budget(nav, cash, params))
+                    if budget <= 0:
+                        continue
                     if high_entry:
                         buy = fill_order(frame, "buy", symbol, lookup.get(symbol),
                                          buy_start, last_buy, params, budget=budget,

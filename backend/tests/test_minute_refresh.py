@@ -109,6 +109,7 @@ def _svc(tmp_path, monkeypatch, *, enabled=True, capability=True, in_hours=True,
             lambda name: (custom, False, None),
         )
     svc = MinuteRefreshService(_FakeRepo(["600000.SH"]))
+    svc._repo.store.data_dir = tmp_path
     svc.set_app_state(_FakeAppState(capability))
     monkeypatch.setattr(minute_refresh, "_in_refresh_window", lambda now=None: in_hours)
     # 交易日探针默认未知 (None → 放行): 隔离真实网络探测, holiday 分支在
@@ -166,7 +167,9 @@ def test_run_round_writes_partition_and_updates_status(tmp_path, monkeypatch):
         calls["symbols"] = list(symbols)
         return (minute_df, 1)
 
-    def fake_write(df, minute_dir):
+    def fake_write(df, minute_dir, *, request_seq, isolate_suspension_conflicts):
+        assert request_seq > 0
+        assert isolate_suspension_conflicts is True
         calls["dir"] = minute_dir
         calls["rows"] = df.height
         return df.height
@@ -223,7 +226,7 @@ def _patch_round(monkeypatch, *, lag, inc_df, burst_df):
     )
     monkeypatch.setattr(
         "app.services.kline_sync._write_minute_partition",
-        lambda df, minute_dir: df.height,
+        lambda df, minute_dir, *, request_seq, isolate_suspension_conflicts: df.height,
     )
     return calls
 
@@ -331,7 +334,7 @@ def _patch_write(monkeypatch) -> dict:
     calls = {"rows": None}
     monkeypatch.setattr(
         "app.services.kline_sync._write_minute_partition",
-        lambda df, minute_dir: calls.update(rows=df.height) or df.height,
+        lambda df, minute_dir, *, request_seq, isolate_suspension_conflicts: calls.update(rows=df.height) or df.height,
     )
     return calls
 
@@ -405,7 +408,7 @@ def test_rustdx_protocol_failure_preserves_last_success_and_recovers(tmp_path, m
     monkeypatch.setattr(svc, "_select_mode", lambda: mode)
     written = []
 
-    def write(frame, minute_dir):
+    def write(frame, minute_dir, *, request_seq, isolate_suspension_conflicts):
         written.append(frame)
         return frame.height
 
