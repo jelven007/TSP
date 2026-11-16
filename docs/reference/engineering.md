@@ -151,7 +151,6 @@ TSP/
 │   ├── custom-data-source/         # 合成行情 HTTP 联调服务和 YAML
 │   └── open-api/                   # 外部调用示例
 ├── brand/                          # 品牌 SVG、PNG 与图标
-├── screenshots/                    # 面向用户的功能截图
 ├── reports/
 │   ├── README.md                   # 保留证据及其与当前主线/目标的关系
 │   ├── releases/                   # 发布、升级与恢复签收
