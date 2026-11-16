@@ -27,7 +27,7 @@ REQUIRED_PATHS = (
     "tests/tooling/conftest.py", "docs/README.md", "docs/requirements.md", "examples/open-api",
     "examples/README.md", "examples/custom-data-source/mock_server.py",
     "examples/custom-data-source/mock_source.yaml",
-    "brand", "screenshots", "reports/README.md",
+    "brand", "reports/README.md",
     "scripts/check_docs.py", "tests/tooling/test_documentation_contract.py",
     "docs/architecture.md", "docs/testing.md", "docs/operations.md", "docs/release-operations.md",
     "docs/secondary-development.md", "docs/version-baseline.md",
