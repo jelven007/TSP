@@ -216,6 +216,9 @@ def select_entries(frame, values, daily=None):
     params = parameters(values)
     if frame.is_empty() or daily is None or daily.is_empty():
         return empty
+    available = params.get("_s01_entry_window_policy") == "available_minutes_v1"
+    if available:
+        frame = frame.unique(["symbol", "datetime"], keep="last", maintain_order=True)
     frame = minute_frame(frame)
     day = frame["datetime"].max().date()
     cutoff = params.get("_s01_entry_bar", 885)
@@ -225,7 +228,7 @@ def select_entries(frame, values, daily=None):
     required = list(range(571, 691)) + list(range(781, cutoff + 1))
     if (params.get("_s01_external_basic")
             and params.get("market_validity") == "price_amount_prev_close_v2"):
-        # Current signal market scope is independent of individual complete-window checks.
+        # Frozen sources retain their individual complete-window check.
         fields = ("open", "high", "low", "close", "amount")
         if not set(fields).issubset(frame.columns) or not {"date", "raw_close"}.issubset(daily.columns):
             return empty
@@ -252,7 +255,7 @@ def select_entries(frame, values, daily=None):
         if environment_only:
             return market
         # The adapter already checked the market using all valid securities.
-        condition = pl.col("count") == len(required)
+        condition = pl.lit(True) if available else pl.col("count") == len(required)
         if not params.get("_s01_skip_entry"):
             condition &= (
                 pl.col("current_return").is_between(params["current_return_min"], params["current_return_max"])
@@ -263,17 +266,20 @@ def select_entries(frame, values, daily=None):
         return market.filter(condition).with_columns(
             (-pl.col("current_range") + .001 * pl.col("amount").log()).alias("score"),
         ).sort(["score", "symbol"], descending=[True, False])
-    # 完整、唯一、标准分钟窗口。未知价格/金额不参与市场分母。
+    fields = ("open", "high", "low", "close", "amount")
+    if not available:
+        fields += ("volume",)
     good = frame.group_by("symbol").agg(
         count=pl.len(), unique=pl.col("bar").n_unique(),
         valid=pl.all_horizontal([
             pl.col(f).is_finite() & (pl.col(f) >= 0 if f in ("amount", "volume") else pl.col(f) > 0)
-            for f in ("open", "high", "low", "close", "amount", "volume")
+            for f in fields
         ]).fill_null(False).all(),
         close=pl.col("close").last(), last_datetime=pl.col("datetime").last(),
         **({} if environment_only else {
             "high": pl.col("high").max(), "low": pl.col("low").min(), "amount": pl.col("amount").sum()}),
-    ).filter((pl.col("count") == len(required)) & (pl.col("unique") == len(required)) & pl.col("valid"))
+    ).filter(pl.col("valid") & (pl.lit(True) if available else
+             (pl.col("count") == len(required)) & (pl.col("unique") == len(required))))
     history = daily.filter(pl.col("date") < day).sort("symbol", "date")
     if not {"raw_close", "raw_high", "raw_low", "amount"}.issubset(history.columns):
         return empty

@@ -233,6 +233,11 @@ def bound_definitions(engine, strategy, *, overrides: dict | None = None, strict
 
 def resolve_parameters(engine, strategy, values: dict, *, definitions: dict | None = None,
                        overrides: dict | None = None) -> dict:
+    # The window belongs to the saved source, including immutable research snapshots.
+    values = {k: v for k, v in values.items() if k != "_s01_entry_window_policy"}
+    if (optional_triggers(strategy)
+            and strategy.meta.get("entry_window_policy") == "available_minutes_v1"):
+        values["_s01_entry_window_policy"] = "available_minutes_v1"
     definitions = bound_definitions(engine, strategy, overrides=overrides) if definitions is None else definitions
     if optional_triggers(strategy):
         baseline = strategy.meta.get("trigger_parameter_defaults")
