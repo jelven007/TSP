@@ -58,9 +58,14 @@ def _get_engine(request: Request) -> StrategyEngine:
                 documents, engine, request.app.state.compute_executor,
                 administrator="settings:manage" in account.get("permissions", []),
             )
-            manifest = request.app.state.repo.store.data_dir / ".public_release.json"
-            if manifest.exists():
-                scoped.public_release_id = json.loads(manifest.read_text())["id"]
+            store = request.app.state.repo.store
+            lease = getattr(store, "_public_release_lease", None)
+            if lease is not None:
+                scoped.public_release_id = lease.release_id()
+            else:
+                manifest = store.data_dir / ".public_release.json"
+                if manifest.exists():
+                    scoped.public_release_id = json.loads(manifest.read_text())["id"]
             request.state.strategy_engine = scoped
         return scoped
     return engine
@@ -393,20 +398,24 @@ def list_strategies(
     data_dir = _data_dir(request)
     all_overrides = strategy_config.list_overrides(data_dir)
 
+    from app.strategy import custom_signals
+
     result = []
-    # include_research=True 时返回 research_only 草稿(供前端「草稿」分区展示/发布)。
-    # 默认 False 保持既有行为: 草稿不进公开列表。
-    for meta in engine.list_strategies(include_research=include_research):
-        if meta.get("research_only") and not include_research:
-            continue
-        if asset_type and asset_type not in meta.get("asset_types", ["stock"]):
-            continue
-        if timeframe and timeframe not in meta.get("timeframes", ["1d"]):
-            continue
-        sid = meta["id"]
-        s = engine.get(sid)
-        overrides = all_overrides.get(sid)
-        result.append(_strategy_detail(s, overrides, engine))
+    # One request reads one tenant signal snapshot; later requests read fresh values.
+    with custom_signals.private_signal_registry(custom_signals.load_all(data_dir)):
+        # include_research=True 时返回 research_only 草稿(供前端「草稿」分区展示/发布)。
+        # 默认 False 保持既有行为: 草稿不进公开列表。
+        for meta in engine.list_strategies(include_research=include_research):
+            if meta.get("research_only") and not include_research:
+                continue
+            if asset_type and asset_type not in meta.get("asset_types", ["stock"]):
+                continue
+            if timeframe and timeframe not in meta.get("timeframes", ["1d"]):
+                continue
+            sid = meta["id"]
+            s = engine.get(sid)
+            overrides = all_overrides.get(sid)
+            result.append(_strategy_detail(s, overrides, engine))
     return {"strategies": result, "load_errors": engine.load_errors()}
 
 

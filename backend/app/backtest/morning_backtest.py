@@ -4,14 +4,15 @@ from __future__ import annotations
 import math
 import time
 from collections import defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timedelta
 from datetime import time as clock
 
 import polars as pl
 
+from app.backtest.costs import buy_quantity_rules
 from app.backtest.engine import BacktestEngine, MatcherConfig, TradeRecord
-from app.backtest.entry_execution import execute_entry_window
+from app.backtest.entry_execution import execute_entry_window, expected_trading_minutes
 from app.backtest.governance import research_preflight, status_quality
 from app.backtest.minute_replay import (
     MinuteSignalReplayer,
@@ -92,8 +93,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     from app.strategy.entry_risk import EntryRiskPolicy
     if EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).enabled:
         return finish("冻结日线入场风险暂不支持分钟策略")
-    if config.exit_fill == "signal_next_minute":
-        return finish("早盘清仓收益回测按触发分钟收盘撮合, 暂不支持下一分钟卖出")
+    next_minute_exit = config.exit_fill == "signal_next_minute"
+    minute_exit_fill = "signal_next_minute" if next_minute_exit else "trigger_minute_close"
+    final_clock = (expected_trading_minutes(
+        datetime.combine(config.start, fallback_clock) + timedelta(minutes=1),
+    )[-1].time() if next_minute_exit else fallback_clock)
     if (not valid_price(cash) or config.max_positions < 1
             or not math.isfinite(config.max_exposure_pct)
             or not 0 <= config.max_exposure_pct <= 1
@@ -110,6 +114,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         transfer_fee_pct=config.transfer_fee_pct, stamp_tax_mode="historical",
         slippage_bps=config.slippage_bps, asset_type="stock",
     )
+    sell_matcher = replace(matcher, slippage_bps=0) if next_minute_exit else matcher
     bf = service._effective_basic_filter(strategy, overrides)
     daily_bars = service.strategy_engine.minute_daily_history_bars(
         [config.strategy_id], overrides_map={config.strategy_id: overrides},
@@ -146,7 +151,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         *issues, "原始现金账本未计未经核验的分红送转; 分钟成交量100%仅为容量上界",
     ]
     output.config.update(
-        minute_execution=EXECUTION, minute_exit_fill="trigger_minute_close",
+        minute_execution=EXECUTION, minute_exit_fill=minute_exit_fill,
         volume_participation_upper_bound=1.0,
     )
     output.strategy_info = {
@@ -155,7 +160,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
         "entry_signals": service._effective_signals(overrides, "entry_signals", strategy.entry_signals),
         "exit_signals": exits, "exit_params": sig_params,
         "minute_entry_fill": strategy.meta.get("minute_entry_fill", "signal_close"),
-        "minute_exit_fill": "trigger_minute_close", "volume_participation_upper_bound": 1.0,
+        "minute_exit_fill": minute_exit_fill, "volume_participation_upper_bound": 1.0,
     } if result_policy.include_strategy_info else {}
     days, day = [], config.start
     while day <= config.end:
@@ -175,7 +180,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
 
     def fee(notional, side, day):
         return (matcher.buy_value(notional) - notional if side == "buy"
-                else notional - matcher.sell_value(notional, day))
+                else notional - sell_matcher.sell_value(notional, day))
 
     def reject_overdue(day):
         overdue = [p for p in positions.values() if p["entry_date"] < day
@@ -186,7 +191,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 f"{p['symbol']} 剩余{p['remaining']}股, 已卖{p['shares'] - p['remaining']}/{p['shares']}股"
                 for p in overdue
             )
-            return finish(f"{day} {sig_params.get('fallback_time', sig_params['time'])}清仓截止后仍有余股, {detail}; 保留实际成交和持仓")
+            return finish(f"{day} {final_clock.isoformat()}清仓截止后仍有余股, {detail}; 保留实际成交和持仓")
         return None
 
     try:
@@ -240,7 +245,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     pl.col("datetime").dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None),
                 )
             groups = history.partition_by("symbol", as_dict=True) if not history.is_empty() else {}
-            triggers, last_sale, suspended = {}, {}, set()
+            triggers, last_sale, suspended, sell_windows = {}, {}, set(), {}
             for pos in positions.values():
                 pos["day_sell_notional"] = 0.
             for symbol, pos in positions.items():
@@ -313,6 +318,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     return finish(f"{day} {symbol} 早盘清仓分钟前缀缺失、重复或无效")
                 triggers[symbol] = hit
                 last_sale[symbol] = at - timedelta(minutes=1)
+                if next_minute_exit:
+                    sell_windows[symbol] = expected_trading_minutes(
+                        datetime.fromisoformat(hit["trigger_time"]).replace(second=0, microsecond=0)
+                        + timedelta(minutes=1),
+                    )
                 output.signals.append({"date": str(day), "side": "sell", **hit, "signal_id": exits[0],
                                        "signal_bar": at.hour * 60 + at.minute})
             # 只用截至当前事件的分钟价估值与分配预算, 不借未来卖款或日终价格。
@@ -320,8 +330,17 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
             for row in history.iter_rows(named=True):
                 if row["datetime"].date() == day:
                     events[row["datetime"]].append(row)
-            # 一个分钟标签内, 开盘入场早于收盘清仓, 不可预支稍后的卖款。
-            for at, phase in sorted({(at, 1) for at in events} | set(hits_at)):
+            # 同一分钟先处理开盘成交, 再处理收盘信号; 不得预支未来卖款。
+            timeline = {(at, 1) for at in events} | set(hits_at)
+            if next_minute_exit:
+                timeline |= {(at, 0) for at in events}
+                timeline |= {(at, 0) for window in sell_windows.values() for at in window}
+                timeline |= {(datetime.combine(day, stage), 1) for stage in (
+                    deadline_clock, fallback_clock, final_clock)}
+                timeline |= {(at, 0) for stage in (deadline_clock, fallback_clock)
+                             for at in expected_trading_minutes(
+                                 datetime.combine(day, stage) + timedelta(minutes=1))}
+            for at, phase in sorted(timeline):
                 if cancel_event is not None and cancel_event.is_set():
                     return finish("cancelled")
                 sold_this_event = set()
@@ -339,13 +358,34 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                 for symbol in list(positions):
                     trigger = triggers.get(symbol)
                     deadline = clock(15) if trigger and trigger["reason"] == "resume" else fallback_clock
-                    if (phase == 0 or not trigger
+                    if next_minute_exit:
+                        if not trigger:
+                            continue
+                        if (phase == 1 and "fallback_time" in sig_params and trigger["reason"] != "resume"
+                                and at in (datetime.combine(day, deadline_clock),
+                                           datetime.combine(day, fallback_clock))
+                                and at > datetime.fromisoformat(trigger["trigger_time"])):
+                            pos = positions[symbol]
+                            stage_hit = evaluate(
+                                pl.DataFrame(), sig, day=day, now=at,
+                                positions=[{**pos, "entry_date": str(pos["entry_date"]),
+                                            "qty": pos["remaining"], "available_qty": pos["remaining"]}],
+                                prev_close={symbol: pos["sell_reference"]},
+                                suspension_history=suspension_history,
+                            ).hits[0]
+                            triggers[symbol] = stage_hit
+                            sell_windows[symbol] = expected_trading_minutes(at + timedelta(minutes=1))
+                            output.signals.append({"date": str(day), "side": "sell", **stage_hit,
+                                                   "signal_id": exits[0], "signal_bar": at.hour * 60 + at.minute})
+                        if phase != 0 or at not in sell_windows[symbol]:
+                            continue
+                    elif (phase == 0 or not trigger
                             or not datetime.fromisoformat(trigger["trigger_time"]) <= at <= datetime.combine(day, deadline)
                             or not (clock(9, 31) <= at.time() <= clock(11, 30)
                                     or clock(13, 1) <= at.time() <= clock(15))):
                         continue
                     pos = positions[symbol]
-                    if ("fallback_time" in sig_params and trigger["reason"] != "resume"
+                    if (not next_minute_exit and "fallback_time" in sig_params and trigger["reason"] != "resume"
                             and (at == datetime.combine(day, fallback_clock)
                                  or (at == datetime.combine(day, deadline_clock)
                                      and trigger["reason"] != "stop_time"))):
@@ -361,11 +401,20 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     expected_at = last_sale[symbol] + timedelta(minutes=1)
                     if expected_at.time() == clock(11, 31):
                         expected_at = datetime.combine(day, clock(13, 1))
-                    if len(rows) != 1 or at != expected_at:
+                    if next_minute_exit and len(rows) > 1:
+                        return finish(f"{day} {symbol} 清仓成交窗口重复分钟")
+                    if not next_minute_exit and (len(rows) != 1 or at != expected_at):
                         return finish(f"{day} {symbol} 清仓成交窗口缺失或重复分钟")
                     last_sale[symbol] = at
+                    if next_minute_exit and not rows:
+                        counters["sell_missing_minutes"] += 1
+                        continue
                     row = rows[0]
                     volume = row.get("volume")
+                    if next_minute_exit and (not all(valid_price(row.get(c)) for c in ("open", "high", "low", "close"))
+                                             or volume is None or not math.isfinite(volume) or volume < 0):
+                        counters["sell_no_volume_or_price"] += 1
+                        continue
                     if (not valid_price(row.get("close")) or volume is None
                             or not math.isfinite(volume) or volume < 0):
                         return finish(f"{day} {symbol} 清仓成交数据缺失或无效")
@@ -377,11 +426,12 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         current_rows.get(symbol, {}).get("is_risk_warning", is_risk_warning_name(name)),
                     ))
                     down = _scalar_limit_up_price(pos["sell_reference"], -pct)
-                    price = row["close"]
-                    if price <= down + 1e-9:
+                    price = max(down, row["open"] * (1 - config.slippage_bps / 10000)) if next_minute_exit else row["close"]
+                    if (row["high"] if next_minute_exit else price) <= down + 1e-9:
                         counters["sell_limit_down"] += 1
                         continue
-                    quantity = min(pos["remaining"], math.floor(row["volume"] * 100))
+                    step = buy_quantity_rules(symbol, "stock")[1] if next_minute_exit else 1
+                    quantity = min(pos["remaining"], math.floor(row["volume"] * 100 / step + 1e-9) * step)
                     if quantity <= 0:
                         continue
                     before = pos["day_sell_notional"]
@@ -424,7 +474,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         del positions[symbol]
                         del triggers[symbol]
                         del last_sale[symbol]
-                if phase == 1 and at.time() >= fallback_clock:
+                if phase == 1 and at.time() >= final_clock:
                     rejected = reject_overdue(day)
                     if rejected is not None:
                         return rejected
@@ -536,7 +586,8 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     } for fill in execution.fills)
             for symbol, trigger in triggers.items():
                 if symbol in positions and trigger["reason"] == "resume":
-                    if last_sale[symbol] != datetime.combine(day, clock(15)):
+                    expected_last = sell_windows[symbol][-1] if next_minute_exit else datetime.combine(day, clock(15))
+                    if last_sale[symbol] != expected_last:
                         return finish(f"{day} {symbol} 复牌卖出成交窗口未完整覆盖至收盘")
                     counters["resume_pending_position_days"] += 1
             rejected = reject_overdue(day)

@@ -6,6 +6,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { initializeFrontendExtensions } from './extensions/bootstrap'
 import { ApiError } from './lib/api/client'
 import { api } from './lib/api'
+import { QK } from './lib/queryKeys'
 import { accountScope, clearAccountCache } from './lib/accountSession'
 import { createAppPersister, shouldPersistQuery, PERSIST_BUSTER } from './lib/queryPersist'
 import { AccountScopeBoundary } from './components/AccountScopeBoundary'
@@ -71,6 +72,15 @@ async function bootstrap() {
   const auth = await api.authStatus()
   try { window.localStorage.removeItem('tf-query-cache') } catch { /* Storage unavailable. */ }
   queryClient.setQueryData(['auth-status'], auth)
+  // Start the guard's shared read while extension and route code load. Identity
+  // is already confirmed; unauthenticated visitors must not prefetch settings.
+  if (!auth.auth_required || auth.authenticated) {
+    void queryClient.prefetchQuery({
+      queryKey: QK.settings,
+      queryFn: api.settings,
+      staleTime: 30_000,
+    })
+  }
   await initializeFrontendExtensions()
   const { router } = await import('./router')
   navigateInApp = path => router.navigate(path, { replace: true })

@@ -27,6 +27,8 @@ export function PostCloseIntegritySummary({ status, enabled, unavailable = false
   const warning = label === '仍有异常' || label === '状态不可用' || label === '已中断'
   const result = status?.result
   const gaps = result?.gap_check
+  const review = status?.diagnostics?.close_review ?? result?.close_review
+  const checked = review?.after ?? review?.before
   return (
     <div aria-label="当日遗留复核与修复" className="mt-2 border-t border-border/60 pt-2 text-[10px] leading-relaxed">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -35,13 +37,24 @@ export function PostCloseIntegritySummary({ status, enabled, unavailable = false
         <span role="status" className={warning ? 'text-warning' : 'text-secondary'}>{label}</span>
       </div>
       <p className="mt-0.5 text-muted">
-        补齐当日日线缺口，复核收盘源端时间、15:00收盘分钟与加工表；异常重新取数并重验，同日失败自动重试。
+        补齐当日日线缺口，复核日线与15:00分钟收盘价、分钟缺失或重复、日线重复、源端定版时间及加工原价；异常重新取数并重验，同日失败自动重试。
       </p>
       {status?.day ? <p className="mt-1 font-mono text-muted">
         {current ? '交易日' : '最近记录'} {status.day}
+        {!current ? ` · ${STATUS_LABEL[status.status] ?? '状态不可用'}` : ''}
         {status.attempts != null ? ` · 已尝试 ${status.attempts} 次` : ''}
         {enabled && current && status.next_retry_at && status.status !== 'cancelled'
           ? ` · 下次重试 ${beijingClock(status.next_retry_at)}` : ''}
+      </p> : null}
+      {status?.last_started_at ? <p className="mt-0.5 font-mono text-muted">
+        最近实际开始 {beijingClock(status.last_started_at)}
+        {status.last_finished_at ? ` · 结束 ${beijingClock(status.last_finished_at)}` : ' · 尚未结束'}
+      </p> : null}
+      {checked ? <p className={checked.error || checked.invalid_count ? 'mt-0.5 text-warning' : 'mt-0.5 text-secondary'}>
+        {review?.after ? '修复后复核' : '修复前复核'} {checked.checked_count} 只
+        {checked.error ? ` · 尚未核实：${checked.error}` : ` · 有效 ${checked.valid_count} 只 · 异常 ${checked.invalid_count} 只`}
+        {review?.after && review.before && !review.before.error
+          ? ` · 修复前异常 ${review.before.invalid_count} 只` : ''}
       </p> : null}
       {result ? <p className="mt-0.5 text-secondary">
         已验证结果：修复日线/收盘证据 {result.repaired_symbols?.length ?? 0} 只

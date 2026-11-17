@@ -9,6 +9,14 @@ const saved = {
 }
 
 describe('backtest rule draft compatibility', () => {
+  it('keeps version four saved settings usable without applying new page defaults', () => {
+    const draft = backtestRuleDraft({ ...saved, defaultsVersion: 4 }, { id: 's-one', execution_backend: 'polars_expr' })
+    expect(draft.available).toBe(true)
+    expect(draft.rule.max_positions).toBe(5)
+    expect(draft.rule.sell_order_type).toBe('close')
+    expect(draft.fees.slippage_bps).toBe(7)
+  })
+
   it('derives equal equity size and converts fee units once without replacing opening capacity', () => {
     const draft = backtestRuleDraft(saved, { id: 's-one', execution_backend: 'polars_expr' })
     expect(draft.rule).toEqual({

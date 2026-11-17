@@ -621,7 +621,9 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                     ) : <>
                     <Section icon={Star} title="评分权重" accent="text-amber-400">
                       {detail.scoring_mode === 'strategy' ? <p className="text-[11px] text-muted">
-                        排名由策略生成。s02按ATR14÷昨收降序，排名分数为0～100分，同值按触发涨幅、股票代码排序。
+                        {detail.id === 'custom_mvxxcs01'
+                          ? '使用因子「当日低振幅成交额评分」（权重100%）：评分 = −当日振幅 + 0.001 × ln（当日累计成交额）。振幅为小数比例，成交额单位为元；原始评分降序，同分按股票代码升序。'
+                          : '排名由策略生成。s02按ATR14÷昨收降序，排名分数为0～100分，同值按触发涨幅、股票代码排序。'}
                       </p> : <ScoringEditor
                         key={detail.id}
                         value={scoring}

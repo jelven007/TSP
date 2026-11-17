@@ -9,6 +9,9 @@ import { defaultStrategyResultColumns } from '@/lib/strategy-result-columns'
 
 const { snapshot } = vi.hoisted(() => ({ snapshot: vi.fn() }))
 vi.mock('@/lib/api', () => ({ api: { marketSnapshot: snapshot } }))
+vi.mock('@/lib/useSharedQueries', () => ({
+  useQuoteStatus: () => ({ data: { is_trading_hours: true } }),
+}))
 vi.mock('@/components/StockPreviewDialog', () => ({ StockPreviewDialog: () => null }))
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root

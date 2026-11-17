@@ -1,5 +1,10 @@
 # Tick Stock Platform（TSP）系统技术方案
 
+2026-11-18候选复用`strategy_day_views/strategy_results/daily_selections`持久摘要与明细，
+S01沿`signal_sections/s01_signals/_overnight`共享入场与出场适配；历史指标有界分批、
+截面信号保留全市场上下文，日期结果缓存gzip/Brotli响应，指纹静态资源可复用。
+见[调用链](upgrade-20261118.md)。
+
 2026-11-17候选继续复用 `overnight.run`、共享评分与扩展依赖、Broker和分钟原子写入。
 取数前序号随Parquet提交，API拒绝旧响应后重读；本次依赖投影避免加载无关扩展表。
 调用链与兼容边界见[本轮记录](upgrade-20261117.md)，无新增服务或SQL迁移。

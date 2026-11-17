@@ -10,6 +10,8 @@ import threading
 from collections import OrderedDict
 from datetime import date, timedelta
 
+import brotli
+
 from app.strategy.version import digest
 
 POINTER_NAMESPACE = "strategy_day_pointer"
@@ -81,7 +83,7 @@ def remove(store, conn, strategy_id, day=None):
         conn.execute("DELETE FROM strategy_day_views WHERE id LIKE ?", (prefix + "%",))
 
 
-def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m"):
+def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *, cascade=True):
     """Called only in the authority's write transaction, including delete/backfill."""
     from app.services.strategy_results import NAMESPACE, ResultIdentity, _encode
 
@@ -105,6 +107,8 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m"):
               and v["summary"]["asset_type"] == asset_type and v["summary"]["timeframe"] == timeframe]
     if not values:
         remove(store, conn, strategy_id, day)
+        if cascade:
+            publish_next(store, conn, strategy_id, day, asset_type, timeframe)
         return
     chosen = max(values, key=lambda v: (
         not v["summary"].get("selection_only"), v["summary"].get("started_at") or 0,
@@ -120,6 +124,15 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m"):
         result["sections"]["select"] = selected["rows"]
         result["section_errors"] = {k: v for k, v in (result.get("section_errors") or {}).items()
                                     if k != "select"}
+    if store.tenant:
+        from app.strategy.execution_status import with_zero_completion
+
+        result = with_zero_completion(
+            {**result, "runtime_identity": chosen["summary"].get("runtime_identity")},
+            _get(store, conn, "critical_strategy_runs", f"{strategy_id}:{day}") or {}, strategy_id,
+        )
+    identity = ResultIdentity(strategy_id, "", "", "{}", "{}", "null", asset_type, timeframe)
+    result = store._with_previous_buy(conn, identity, result, str(day))
     payload = {
         "result": {**result, "strategy": strategy_id, "source": "saved",
                    "record_id": chosen["record_id"],
@@ -128,15 +141,45 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m"):
         "strategy_ids_by_symbol": {}, "updated_at": chosen["summary"]["computed_at"],
         "view_schema": 1,
     }
-    body = gzip.compress(_encode(payload).encode("utf-8"), mtime=0)
+    raw = _encode(payload).encode("utf-8")
+    body = gzip.compress(raw, mtime=0)
     token = hashlib.sha256(body).hexdigest()
-    if (_get(store, conn, POINTER_NAMESPACE, key) or {}).get("token") == token:
-        return
-    _put(store, conn, PAYLOAD_NAMESPACE, key, {"body": base64.b64encode(body).decode(), "token": token})
-    _put(store, conn, POINTER_NAMESPACE, key, {"payload_id": key, "token": token})
+    pointer = _get(store, conn, POINTER_NAMESPACE, key) or {}
+    if pointer.get("token") != token or not pointer.get("br_token"):
+        br_body = brotli.compress(raw, quality=6)
+        br_token = hashlib.sha256(br_body).hexdigest()
+        _put(store, conn, PAYLOAD_NAMESPACE, key, {
+            "body": base64.b64encode(body).decode(), "token": token,
+            "br_body": base64.b64encode(br_body).decode(), "br_token": br_token,
+        })
+        _put(store, conn, POINTER_NAMESPACE, key, {
+            "payload_id": key, "token": token, "br_token": br_token,
+        })
+    if cascade:
+        publish_next(store, conn, strategy_id, day, asset_type, timeframe)
+
+
+def publish_next(store, conn, strategy_id, day, asset_type="stock", timeframe="1m"):
+    from app.strategy.overnight_runtime import next_market_day
+
+    following = str(next_market_day(date.fromisoformat(str(day))))
+    # Refresh only an already saved successor. A receipt must not invent a future result.
+    if _get(store, conn, POINTER_NAMESPACE, _key(strategy_id, following, asset_type, timeframe)):
+        publish(store, conn, strategy_id, following, asset_type, timeframe, cascade=False)
+
+
+def receipt_updated(unit, strategy_id, day):
+    from app.services.strategy_results import StrategyResults
+
+    publish(StrategyResults(unit), unit.connection, strategy_id, day)
 
 
 def read(store, strategy_id, day, asset_type="stock", timeframe="1m"):
+    value = read_encoded(store, strategy_id, day, asset_type, timeframe, encoding="gzip")
+    return value[:2] if value else None
+
+
+def read_encoded(store, strategy_id, day, asset_type="stock", timeframe="1m", *, encoding="gzip"):
     global _memory_size
     key = _key(strategy_id, day, asset_type, timeframe)
     transaction = store.storage._transaction if store.tenant else store._local
@@ -150,17 +193,21 @@ def read(store, strategy_id, day, asset_type="stock", timeframe="1m"):
         pointer = _get(store, conn, POINTER_NAMESPACE, key)
         if pointer is None:
             return None
-        cache_key = (store.scope, key, pointer["token"])
+        actual_encoding = "br" if encoding == "br" and pointer.get("br_token") else "gzip"
+        token_field = "br_token" if actual_encoding == "br" else "token"
+        body_field = "br_body" if actual_encoding == "br" else "body"
+        token = pointer[token_field]
+        cache_key = (store.scope, key, token, actual_encoding)
         if store.cacheable:
             with _lock:
                 body = _memory.get(cache_key)
                 if body is not None:
                     _memory.move_to_end(cache_key)
-                    return pointer["token"], body
+                    return token, body, actual_encoding
         payload = _get(store, conn, PAYLOAD_NAMESPACE, pointer["payload_id"])
-        if payload is None or payload["token"] != pointer["token"]:
+        if payload is None or payload.get(token_field) != token:
             raise RuntimeError("历史视图正文与指针不一致")
-        body = base64.b64decode(payload["body"], validate=True)
+        body = base64.b64decode(payload[body_field], validate=True)
     if store.cacheable and len(body) <= MEMORY_BYTES:
         with _lock:
             prior = _memory.pop(cache_key, None)
@@ -171,4 +218,4 @@ def read(store, strategy_id, day, asset_type="stock", timeframe="1m"):
                 _memory_size -= len(prior)
             _memory[cache_key] = body
             _memory_size += len(body)
-    return pointer["token"], body
+    return token, body, actual_encoding

@@ -334,7 +334,6 @@ def test_cancel_after_buy_retains_cash_and_position(tmp_path):
 @pytest.mark.parametrize("patch, text", [
     ({"mode": "full"}, "连续资金"),
     ({"regime_filter": {"states": ["strong"]}}, "环境过滤"),
-    ({"exit_fill": "signal_next_minute", "minute_fill": True}, "下一分钟"),
     ({"overrides": {"exit_signals": [EXIT, "signal_ma_death_5_20"]}}, "混合"),
     ({"overrides": {"exit_signals": [EXIT], "stop_loss": .05}}, "风控"),
 ])

@@ -86,6 +86,7 @@ def _repair_inputs(repo, capset, day, *, progress, check_cancelled, quote_servic
                    previous, evidence, lookup, offset):
     from app.services import kline_periods, kline_sync
     from app.services.daily_close_validation import require_final_daily_rows, validate_daily_close
+    from app.services.minute_write_order import begin_minute_request
     from app.services.realtime_guard import paused_quotes
     from app.services.selection_suspension_repair import repair_suspensions
 
@@ -139,6 +140,7 @@ def _repair_inputs(repo, capset, day, *, progress, check_cancelled, quote_servic
                 check_cancelled()
                 batch = symbols[offset:offset + 100]
                 progress("sync_minute", 50, f"{source}: 主动修复15:00收盘分钟 {offset}/{len(symbols)}")
+                request_seq = begin_minute_request(repo.store.data_dir / "kline_minute")
                 candidate = kline_periods.fetch_period(
                     provider, "1m", batch, stamp, stamp, minute_adjust="none",
                 )
@@ -154,7 +156,7 @@ def _repair_inputs(repo, capset, day, *, progress, check_cancelled, quote_servic
                 # A returned price is not permission to invent agreement.
                 if not verified.is_empty():
                     with paused_quotes(quote_service):
-                        kline_periods.persist_period(repo, "1m", verified)
+                        kline_periods.persist_period(repo, "1m", verified, request_seq=request_seq)
             kline_periods.refresh_period(repo, "1m")
         check_cancelled()
         validate_daily_close(repo, day)

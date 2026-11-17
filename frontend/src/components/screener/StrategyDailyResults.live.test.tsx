@@ -6,8 +6,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { StrategyDailyResults } from './StrategyDailyResults'
 import type { ScreenerResult } from '@/lib/api'
 
-const { snapshot } = vi.hoisted(() => ({ snapshot: vi.fn() }))
+const { snapshot, clock } = vi.hoisted(() => ({
+  snapshot: vi.fn(), clock: { data: { is_trading_hours: true } },
+}))
 vi.mock('@/lib/api', () => ({ api: { marketSnapshot: snapshot } }))
+vi.mock('@/lib/useSharedQueries', () => ({ useQuoteStatus: () => clock }))
 vi.mock('@/components/StockPreviewDialog', () => ({ StockPreviewDialog: () => null }))
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root
@@ -26,6 +29,7 @@ const liveLabels = ['现价', '涨跌幅', '换手率', '量比', '信号']
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-11-06T10:00:00+08:00'))
+  clock.data.is_trading_hours = true
   snapshot.mockReset().mockResolvedValue({ as_of: '2026-11-06', rows: [
     { symbol: '600001.SH', raw_close: 12.5, close: 6.25, change_pct: .02, turnover_rate: 3.45,
       vol_ratio_5d: 1.8, signal_ma_golden_5_20: true },
@@ -91,6 +95,14 @@ it('polls only the active symbol set every second and preserves tab and scroll o
   expect(host.querySelector('[aria-selected="true"]')?.textContent).toContain('买')
   expect(host.querySelector('[role="tabpanel"]')).toBe(panel)
   expect(panel.scrollLeft).toBe(120)
+})
+
+it('reads the current-day quote once after close without repeating each second', async () => {
+  clock.data.is_trading_hours = false
+  await render()
+  expect(snapshot).toHaveBeenCalledTimes(1)
+  await act(async () => { await vi.advanceTimersByTimeAsync(3010) })
+  expect(snapshot).toHaveBeenCalledTimes(1)
 })
 
 it.each([null, 0, -1, NaN, Infinity])('preserves frozen lots without a finite positive live price (%s)', async price => {

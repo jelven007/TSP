@@ -297,6 +297,8 @@ class ScreenerService:
         logger.warning("_load_enriched_history cache miss, computing indicators (%s, %d)...",
                        target_date, lookback_days)
         from app.indicators.pipeline import (
+            _adaptive_sym_batch,
+            _get_custom_signal_exprs,
             compute_indicators,
             compute_limit_signals,
             compute_signals,
@@ -325,34 +327,53 @@ class ScreenerService:
         if df_hist.is_empty():
             return pl.DataFrame()
 
-        df_full = compute_indicators(df_hist)
-        df_full = compute_signals(df_full)
-
         instruments = self.repo.get_instruments_asset(self.asset_type)
+        limit_instruments = instruments
+        historical_shares = None
+        date_rows = df_hist
         if self.asset_type == "stock" and instruments is not None and not instruments.is_empty():
-            df_full = compute_limit_signals(
-                df_full,
-                instruments,
-                historical_shares=self.repo.get_historical_shares(),
-            )
+            from app.market_scope import filter_market_frame
 
-        if instruments is not None and not instruments.is_empty():
-            inst_cols = [c for c in ["symbol", "name", "total_shares", "float_shares"] if c in instruments.columns]
-            if "name" not in df_full.columns:
-                df_full = df_full.join(instruments.select(inst_cols), on="symbol", how="left")
+            date_rows = filter_market_frame(df_hist)
+            historical_shares = self.repo.get_historical_shares()
+            # Legacy instruments without as_of use the full market's latest
+            # date, not an earlier last row in an individual symbol batch.
+            if "as_of" not in instruments.columns:
+                limit_instruments = instruments.with_columns(
+                    pl.lit(date_rows["date"].max()).alias("as_of"),
+                )
+        if date_rows.is_empty():
+            return pl.DataFrame()
+        trading_dates = date_rows["date"].unique().sort()
+        lookback_start = (
+            trading_dates[-(lookback_days + 1)]
+            if len(trading_dates) > lookback_days else trading_dates[0]
+        )
 
-        # 裁剪掉 warmup 部分, 只保留 lookback 范围 (减少 group_by 开销)。
-        # 按交易日计数: 从数据里实际存在的交易日序列取最后 lookback_days 个交易日,
-        # 不能用 timedelta(days=N) (自然日), 否则周末/节假日会让窗口偏少, 与回测不一致。
-        if "date" in df_full.columns:
-            trading_dates = df_full["date"].unique().sort()
-            if len(trading_dates) > lookback_days:
-                lookback_start = trading_dates[-(lookback_days + 1)]
-            else:
-                lookback_start = trading_dates[0]
-            df_full = df_full.filter(pl.col("date") >= lookback_start)
-
-        df_full = df_full.sort(["symbol", "date"])
+        symbols = df_hist["symbol"].unique().sort().to_list()
+        # Custom daily signals can contain cross-sectional factors. Preserve
+        # their full-market context; otherwise all windows are symbol-local.
+        batch_size = len(symbols) if _get_custom_signal_exprs() else _adaptive_sym_batch(
+            2000, max(1, -(-df_hist.height // len(symbols))),
+        )
+        parts = []
+        for offset in range(0, len(symbols), batch_size):
+            batch = symbols[offset:offset + batch_size]
+            part = compute_indicators(df_hist.filter(pl.col("symbol").is_in(batch)))
+            part = compute_signals(part)
+            if self.asset_type == "stock" and instruments is not None and not instruments.is_empty():
+                part = compute_limit_signals(
+                    part, limit_instruments, historical_shares=historical_shares,
+                )
+            # Keep the entire warmup through every calculation, but accumulate
+            # only the shared trading-day output window, never the warmup wide table.
+            part = part.filter(pl.col("date") >= lookback_start)
+            if instruments is not None and not instruments.is_empty() and "name" not in part.columns:
+                inst_cols = [c for c in ["symbol", "name", "total_shares", "float_shares"]
+                             if c in instruments.columns]
+                part = part.join(instruments.select(inst_cols), on="symbol", how="left")
+            parts.append(part)
+        df_full = pl.concat(parts, how="diagonal_relaxed", rechunk=False).sort(["symbol", "date"])
 
         elapsed = (time.perf_counter() - t0) * 1000
         logger.info("_load_enriched_history(%s, %d): computed in %.1fms, %d rows",
@@ -512,12 +533,17 @@ class ScreenerService:
             raise ValueError(f"盘后预选缺少{source}完整行情")
         from app.services.daily_close_validation import validate_daily_close
 
-        # A post-close snapshot becomes the next session's frozen eligibility.
-        # Bad rows must trigger the platform repair/retry path, not silently
-        # disappear from a successful selection as intraday isolated rows do.
-        validate_daily_close(self.repo, source, rows=current)
+        # Isolate identifiable bad references before eligibility and ATR; keep
+        # the reasons in the frozen selection without changing the full pool.
+        reference_errors = validate_daily_close(
+            self.repo, source, rows=current, isolate_symbols=True,
+        ) or {}
+        if reference_errors:
+            usable = ~pl.col("symbol").is_in(list(reference_errors))
+            current = current.filter(usable)
+            history = history.filter(usable)
         if current.is_empty():
-            raise ValueError(f"盘后预选缺少{source}有效定版昨收")
+            raise ValueError(f"盘后预选{source}隔离异常股票后无有效定版昨收")
         from app.strategy.eligibility import attach_listing_age
         instruments = self.repo.get_instruments_asset(self.asset_type)
         history = attach_listing_age(history, instruments)
@@ -531,7 +557,7 @@ class ScreenerService:
         if "change_pct" in current.columns:
             current = current.with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
         return StrategyDataContext(self.asset_type, "1m", target, current=current, daily_history=history,
-                                   reference_errors={})
+                                   reference_errors=reference_errors)
 
     def build_daily_pool_context(self, as_of: date, *, current=None, premarket=False, observed_at=None):
         """Load only scope/reference inputs, never minute formulas or positions."""
@@ -609,10 +635,10 @@ class ScreenerService:
             instruments = self.repo.get_instruments_asset(self.asset_type)
             current = attach_listing_age(current, instruments)
         if timeframe == "1m":
+            from app.strategy.signal_sections import supports_signal_sections
+
             signal_sections = bool(strategy_ids and engine is not None and all(
-                engine.get(sid).meta.get("result_sections") == "signals"
-                and engine.get(sid).execution_backend == "minute_filter"
-                and not engine.get(sid).meta.get("minute_execution") for sid in strategy_ids
+                supports_signal_sections(engine.get(sid)) for sid in strategy_ids
             ))
             input_errors, reference_errors = [], {}
             if self.asset_type == "stock":

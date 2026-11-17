@@ -121,20 +121,108 @@ def test_postclose_context_never_reads_target_minutes_or_future_daily(scan, monk
     assert built.history is None
 
 
-def test_postclose_cannot_freeze_a_partial_selection_after_isolating_bad_daily(scan, monkeypatch):
+@pytest.mark.parametrize("fault", ["closing_price", "missing_minute", "daily_clock", "duplicate_daily"])
+def test_postclose_isolates_bad_daily_and_keeps_valid_members(scan, monkeypatch, tmp_path, fault):
+    from app.services.daily_selections import DailySelections, compute_selections
     from app.services.screener import ScreenerService
     engine, context, _ = scan
     daily = pl.concat([context.daily_history, context.daily_history.with_columns(
         pl.lit("600002.SH").alias("symbol"))])
-    closing = daily.with_columns(pl.when(pl.col("symbol") == "600002.SH")
-                                .then(9.).otherwise(10.).alias("close")).select("symbol", "close")
+    closing = daily.select("symbol", "close")
+    if fault == "closing_price":
+        closing = closing.with_columns(pl.when(pl.col("symbol") == "600002.SH")
+                                       .then(9.).otherwise(pl.col("close")).alias("close"))
+    elif fault == "missing_minute":
+        closing = closing.filter(pl.col("symbol") != "600002.SH")
+    elif fault == "daily_clock":
+        daily = daily.with_columns(
+            pl.when(pl.col("symbol") == "600002.SH").then(pl.lit("received"))
+            .otherwise(None).alias("quote_time_basis"),
+            pl.when(pl.col("symbol") == "600002.SH").then(0).otherwise(None).alias("quote_ts"),
+        )
+    else:
+        daily = pl.concat([daily, daily.filter(pl.col("symbol") == "600002.SH")])
+    original = daily.clone()
     service = ScreenerService(SimpleNamespace(
-        get_instruments_asset=lambda *_: pl.DataFrame(),
+        get_instruments_asset=lambda *_: pl.DataFrame({
+            "symbol": ["600001.SH", "600002.SH", "600003.SH"],
+            "name": ["good", "invalid", "missing"],
+        }),
         get_daily_close_inputs=lambda day: (daily, closing),
     ))
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: daily)
-    with pytest.raises(ValueError, match="收盘"):
+    result = compute_selections(engine, service, SOURCE, TARGET, ["custom_test"], {})
+    assert result["errors"] == {}
+    selected = result["selections"]["custom_test"]
+    assert [row["symbol"] for row in selected["rows"]] == ["600001.SH"]
+    assert selected["coverage"]["scope_total"] == 3
+    assert selected["coverage"]["available_daily"] == 1
+    assert selected["coverage"]["missing_symbols"] == ["600003.SH"]
+    assert set(selected["coverage"]["invalid_symbols"]) == {"600002.SH"}
+    assert "收盘校验失败" in selected["coverage"]["invalid_symbols"]["600002.SH"]
+    assert selected["coverage"]["complete"] is False
+    assert any("隔离" in message for message in selected["warnings"])
+    assert any("600002.SH" in message for message in selected["warnings"])
+    assert daily.equals(original)
+    store = DailySelections(tmp_path)
+    store.save(key(), selected, started_at=1)
+    saved = DailySelections(tmp_path).read("custom_test", TARGET)
+    assert saved["coverage"] == selected["coverage"]
+    assert saved["warnings"] == selected["warnings"]
+
+
+def test_postclose_all_invalid_is_not_successful_empty(scan, monkeypatch):
+    from app.services.screener import ScreenerService
+    engine, context, _ = scan
+    daily = context.daily_history
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda *_: pl.DataFrame(),
+        get_daily_close_inputs=lambda day: (
+            daily, daily.select("symbol", pl.lit(1.).alias("close"))),
+    ))
+    monkeypatch.setattr(service, "_load_enriched_history", lambda *_: daily)
+    with pytest.raises(ValueError, match="无有效"):
         service.build_selection_context(engine, SOURCE, TARGET, ["custom_test"])
+
+
+def test_postclose_unreadable_evidence_still_fails(scan, monkeypatch):
+    from app.services.screener import ScreenerService
+    engine, context, _ = scan
+    def unreadable(day):
+        raise OSError("unreadable source partition")
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda *_: pl.DataFrame(), get_daily_close_inputs=unreadable,
+    ))
+    monkeypatch.setattr(service, "_load_enriched_history", lambda *_: context.daily_history)
+    with pytest.raises(ValueError, match="证据不可读"):
+        service.build_selection_context(engine, SOURCE, TARGET, ["custom_test"])
+
+
+def test_postclose_invalid_only_scope_does_not_stop_another_strategy(scan, monkeypatch):
+    from app.services.daily_selections import compute_selections
+    from app.services.screener import ScreenerService
+    engine, context, _ = scan
+    strategy = engine.get("custom_test")
+    engine._strategies["other"] = replace(
+        strategy, meta={**strategy.meta, "id": "other"},
+        basic_filter={**strategy.basic_filter, "boards": ["深主板"]},
+    )
+    daily = pl.concat([context.daily_history, context.daily_history.with_columns(
+        pl.lit("000002.SZ").alias("symbol"))])
+    closing = daily.with_columns(pl.when(pl.col("symbol") == "000002.SZ")
+                                .then(9.).otherwise(pl.col("close")).alias("close")).select("symbol", "close")
+    service = ScreenerService(SimpleNamespace(
+        get_instruments_asset=lambda *_: pl.DataFrame({
+            "symbol": ["600001.SH", "000002.SZ"], "name": ["good", "invalid"]}),
+        get_daily_close_inputs=lambda day: (daily, closing),
+    ))
+    monkeypatch.setattr(service, "_load_enriched_history", lambda *_: daily)
+    result = compute_selections(engine, service, SOURCE, TARGET, ["other", "custom_test"], {})
+    assert [row["symbol"] for row in result["selections"]["custom_test"]["rows"]] == ["600001.SH"]
+    assert result["selections"]["custom_test"]["coverage"]["complete"] is True
+    assert result["selections"]["custom_test"]["warnings"] == []
+    assert "other" not in result["selections"]
+    assert "无有效" in result["errors"]["other"]
 
 
 @pytest.mark.parametrize("missing_symbol, missing", [("600002.SH", ["600002.SH"]), ("688001.SH", [])])

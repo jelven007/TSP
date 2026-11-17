@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { accountStorage as localStorage } from '@/lib/accountSession'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, BookmarkPlus, ChevronRight, ChevronsUpDown, Clock, Info, Layers3, ListFilter, ListPlus, Play, Search, Sparkles, Zap } from 'lucide-react'
@@ -9,10 +9,11 @@ import { WatchlistGroupMenu } from '@/components/WatchlistAddMenu'
 import { api, type FactorBatchItem, type FactorColumn } from '@/lib/api'
 import { fmtPct, priceColorClass } from '@/lib/format'
 import { QK } from '@/lib/queryKeys'
-import { FactorBacktest } from './FactorBacktest'
-import { AutoMiningDialog } from './AutoMiningDialog'
-import { AddFactorSignalDialog } from './AddFactorSignalDialog'
 import { factorBatchCandidate } from './researchCandidates'
+
+const FactorBacktest = lazy(() => import('./FactorBacktest').then(module => ({ default: module.FactorBacktest })))
+const AutoMiningDialog = lazy(() => import('./AutoMiningDialog').then(module => ({ default: module.AutoMiningDialog })))
+const AddFactorSignalDialog = lazy(() => import('./AddFactorSignalDialog').then(module => ({ default: module.AddFactorSignalDialog })))
 
 const formatDate = (value: Date) => value.toISOString().slice(0, 10)
 const monthsAgo = (months: number) => {
@@ -603,7 +604,11 @@ function BatchDiscovery({ onInspect, focusFactor }: { onInspect: (factorName: st
         )}
       </section>
 
-      {signalFrom && <AddFactorSignalDialog item={signalFrom} onClose={() => setSignalFrom(null)} />}
+      {signalFrom && (
+        <Suspense fallback={null}>
+          <AddFactorSignalDialog item={signalFrom} onClose={() => setSignalFrom(null)} />
+        </Suspense>
+      )}
     </div>
   )
 }
@@ -685,12 +690,18 @@ export function FactorDiscovery({ focusFactor }: { focusFactor?: string } = {}) 
         </div>
         {view === 'single' && (
           <div className="h-full">
-            <FactorBacktest key={detailFactor} initialFactorName={detailFactor} />
+            <Suspense fallback={<div role="status" className="py-8 text-center text-sm text-muted">加载中…</div>}>
+              <FactorBacktest key={detailFactor} initialFactorName={detailFactor} />
+            </Suspense>
           </div>
         )}
       </div>
 
-      {autoOpen && <AutoMiningDialog onClose={() => setAutoOpen(false)} />}
+      {autoOpen && (
+        <Suspense fallback={null}>
+          <AutoMiningDialog onClose={() => setAutoOpen(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }

@@ -18,9 +18,9 @@ _scheduled_lock = threading.Lock()
 
 
 def signal_strategy(strategy):
-    return (strategy.execution_backend == "minute_filter"
-            and strategy.meta.get("result_sections") == "signals"
-            and not strategy.meta.get("minute_execution"))
+    from app.strategy.signal_sections import supports_signal_sections
+
+    return supports_signal_sections(strategy)
 
 
 def due_window(now=None):
@@ -119,6 +119,7 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
         try:
             coverage = None
             warnings = []
+            invalid = dict(context.reference_errors or {})
             effective = {**overrides.get(sid, {}), "basic_filter": {
                 **overrides.get(sid, {}).get("basic_filter", {}),
                 "data_reference": "previous_trade_day",
@@ -128,14 +129,24 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
                     **effective, "basic_filter": {**effective["basic_filter"],
                                                  "data_reference": "signal_day"},
                 })
-                missing = set(scope["symbols"]) - set(context.current["symbol"])
+                scope_symbols = set(scope["symbols"])
+                invalid = {symbol: reason for symbol, reason in invalid.items() if symbol in scope_symbols}
+                unavailable = scope_symbols - set(context.current["symbol"])
+                missing = unavailable - invalid.keys()
                 coverage = {"schema": "daily_selection_coverage_v1", "source_date": str(source),
                             "scope_total": len(scope["symbols"]),
-                            "available_daily": len(set(scope["symbols"]) - missing),
-                            "missing_symbols": sorted(missing), "complete": not missing}
+                            "available_daily": len(scope_symbols - unavailable),
+                            "missing_symbols": sorted(missing), "complete": not (missing or invalid)}
+                if invalid:
+                    coverage["invalid_symbols"] = invalid
+                    if not coverage["available_daily"]:
+                        raise ValueError(f"{source}该策略范围内隔离异常股票后无有效日线")
                 if missing:
                     warnings.append(f"{source}范围内{len(missing)}只股票缺日线, "
                                     "本次预选仅计算已有有效日线; 完整股票池保留, 后台继续补数")
+            if invalid:
+                warnings.append(f"{source}隔离{len(invalid)}只收盘参考异常股票, 其余有效股票继续预选")
+                warnings.extend(invalid[symbol] for symbol in sorted(invalid))
             rows = _sanitize(select_rows(engine, engine.get(sid), context, overrides=effective))
             results[sid] = {"as_of": str(target), "source_date": str(source), "rows": rows,
                             "coverage": coverage, "warnings": warnings,

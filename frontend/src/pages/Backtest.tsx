@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { BookmarkCheck, FlaskConical, History, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
-import { ResearchCandidatesDialog } from './backtest/ResearchCandidatesDialog'
-import { RobustnessValidation } from './backtest/RobustnessValidation'
-import { StrategyBacktest } from './backtest/StrategyBacktest'
 import { type ResearchCandidate } from '@/lib/api'
 import { multitenancyEnabled } from '@/lib/accountSession'
-import { ResearchHistoryDialog } from './backtest/ResearchHistoryDialog'
+
+const ResearchCandidatesDialog = lazy(() => import('./backtest/ResearchCandidatesDialog').then(module => ({ default: module.ResearchCandidatesDialog })))
+const RobustnessValidation = lazy(() => import('./backtest/RobustnessValidation').then(module => ({ default: module.RobustnessValidation })))
+const StrategyBacktest = lazy(() => import('./backtest/StrategyBacktest').then(module => ({ default: module.StrategyBacktest })))
+const ResearchHistoryDialog = lazy(() => import('./backtest/ResearchHistoryDialog').then(module => ({ default: module.ResearchHistoryDialog })))
 
 type Tab = 'strategy' | 'robustness'
 
@@ -115,6 +116,7 @@ export function Backtest() {
       />
 
       <main className="page-content min-h-0 flex-1">
+        <Suspense fallback={<div role="status" className="py-8 text-center text-sm text-muted">加载中…</div>}>
         {activeTab === 'strategy' && (
           <StrategyBacktest
             loadCandidate={pendingLoad}
@@ -122,9 +124,11 @@ export function Backtest() {
           />
         )}
         {activeTab === 'robustness' && <RobustnessValidation />}
+        </Suspense>
       </main>
 
       {candidatesOpen && (
+        <Suspense fallback={<div role="status" className="text-center text-sm text-muted">加载候选方案…</div>}>
         <ResearchCandidatesDialog
           onClose={() => setCandidatesOpen(false)}
           onLoadStrategy={candidate => {
@@ -133,8 +137,13 @@ export function Backtest() {
             if (activeTab !== 'strategy') changeTab('strategy')
           }}
         />
+        </Suspense>
       )}
-      {historyOpen && <ResearchHistoryDialog onClose={() => setHistoryOpen(false)} />}
+      {historyOpen && (
+        <Suspense fallback={<div role="status" className="text-center text-sm text-muted">加载任务历史…</div>}>
+          <ResearchHistoryDialog onClose={() => setHistoryOpen(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }

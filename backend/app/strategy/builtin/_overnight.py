@@ -50,6 +50,35 @@ PARAMS = [
     ] for key, label, kind, value in entries
 ]
 DEFAULTS = {p["id"]: p["default"] for p in PARAMS}
+LEGACY_MORNING_KEYS = frozenset({"vwap_buffer", "peak_profit_min", "peak_retrace_min", "return_15m_max"})
+
+
+def exit_schedule(values):
+    """Three saved clocks opt into rearming; legacy clocks never enable this mode."""
+    keys = {"start_time", "stop_time", "fallback_time"}
+    if not keys.intersection(values):
+        return None
+    if not keys <= values.keys():
+        raise ValueError("S01启动、止损和兜底时间须完整设置")
+    clocks = []
+    for key in ("start_time", "stop_time", "fallback_time"):
+        text = values[key]
+        if not isinstance(text, str) or len(text) != 8 or not text.endswith(":00"):
+            raise ValueError("S01时间须为HH:MM:00整分钟")
+        bar = minute_number(text[:5])
+        if text != f"{bar // 60:02}:{bar % 60:02}:00":
+            raise ValueError("S01时间须为HH:MM:00整分钟")
+        clocks.append(bar)
+    start, stop, fallback = clocks
+    if not 675 <= start < stop <= 688 or not 781 <= fallback <= 895:
+        raise ValueError("S01启动须不早于11:15且早于止损; 止损不晚于11:28, 兜底在13:01~14:55")
+    return start, stop, fallback
+
+
+def exit_window_last(signal_bar):
+    # Five actual trading minutes, including the first afternoon minute across lunch.
+    bars = [*range(571, 691), *range(781, 901)]
+    return [bar for bar in bars if bar > signal_bar][:5][-1]
 
 
 def suspended_on(symbol, day, params):
@@ -69,6 +98,13 @@ def suspended_on(symbol, day, params):
 
 def parameters(values):
     params = {**DEFAULTS, **(values or {})}
+    schedule = exit_schedule(params)
+    if schedule:
+        if not LEGACY_MORNING_KEYS.intersection(values or {}):
+            for key in LEGACY_MORNING_KEYS:
+                params.pop(key, None)
+        params["guard_time"] = params["stop_time"][:5]
+        params["sell_deadline"] = f"{exit_window_last(schedule[2]) // 60:02}:{exit_window_last(schedule[2]) % 60:02}"
     if "transfer_fee_fixed" in params:
         value = float(params["transfer_fee_fixed"])
         if isinstance(params["transfer_fee_fixed"], bool) or not np.isfinite(value) or value < 0:
@@ -76,7 +112,7 @@ def parameters(values):
         params["transfer_fee_fixed"] = value
     for definition in PARAMS:
         key = definition["id"]
-        if definition["type"] == "string":
+        if key not in params or definition["type"] == "string":
             continue
         value = float(params[key])
         if not np.isfinite(value) or (value < 0 and key != "return_15m_max"):
@@ -146,17 +182,18 @@ def valid_rows(rows, required, fields):
         return False
 
 
-def morning_features(frame, entry_unit_cost):
+def morning_features(frame, entry_unit_cost, asof_bar=675):
     if frame.is_empty() or not {"datetime", "open", "high", "low", "close", "volume", "amount"}.issubset(frame.columns):
         return None
-    rows = {x["bar"]: x for x in minute_frame(frame).to_dicts() if 571 <= x["bar"] <= 675}
+    rows = {x["bar"]: x for x in minute_frame(frame).to_dicts() if 571 <= x["bar"] <= asof_bar}
     if len(rows) != frame.filter(
         pl.col("datetime").dt.time().is_between(
-            datetime.strptime("09:31", "%H:%M").time(), datetime.strptime("11:15", "%H:%M").time()
+            datetime.strptime("09:31", "%H:%M").time(),
+            datetime.min.replace(hour=asof_bar // 60, minute=asof_bar % 60).time()
         )
     ).height:
         return None
-    required = list(range(571, 676))
+    required = list(range(571, asof_bar + 1))
     if not valid_rows(rows, required, ("open", "high", "low", "close", "volume", "amount")):
         return None
     if entry_unit_cost is None or not np.isfinite(entry_unit_cost) or entry_unit_cost <= 0:
@@ -165,30 +202,46 @@ def morning_features(frame, entry_unit_cost):
     amount = sum(float(rows[t]["amount"]) for t in required)
     if shares <= 0 or amount <= 0:
         return None
-    close, high = float(rows[675]["close"]), max(float(rows[t]["high"]) for t in required)
+    close, high = float(rows[asof_bar]["close"]), max(float(rows[t]["high"]) for t in required)
     return {"close_1115": close, "vwap_0930_1115": amount / shares,
             "vwap_deviation": close / (amount / shares) - 1,
-            "return_15m": close / float(rows[660]["close"]) - 1,
+            "return_15m": close / float(rows[asof_bar - 15]["close"]) - 1,
             "morning_high": high, "entry_unit_cost": entry_unit_cost,
             "peak_profit": high / entry_unit_cost - 1, "retrace_from_peak": 1 - close / high}
 
 
 def exit_signal(frame, asof_bar, entry_unit_cost, values, pending=None):
-    if pending is not None:
+    schedule = exit_schedule(values)
+    if pending is not None and not schedule:
         return dict(pending)
     params = parameters(values)
     guard = minute_number(params["guard_time"])
     deadline = minute_number(params["sell_deadline"])
-    if not 675 <= asof_bar <= deadline:
+    start = schedule[0] if schedule else 675
+    if schedule:
+        _, stop, fallback = schedule
+        clock = fallback if asof_bar >= fallback else stop if asof_bar >= stop else None
+        if clock is not None and (pending is None or pending["signal_bar"] < clock):
+            stage = "fallback" if clock == fallback else "stop"
+            return {"signal_bar": clock, "first_eligible_bar": clock + 1,
+                    "last_eligible_bar": exit_window_last(clock),
+                    "reason": "time_" + stage, "exit_stage": stage,
+                    "ret_3m": None, "volume_ratio_3m": None}
+        if pending is not None:
+            return dict(pending)
+    if not start <= asof_bar <= deadline:
         return None
     signal = {"signal_bar": asof_bar, "first_eligible_bar": asof_bar + 1,
               "last_eligible_bar": deadline, "ret_3m": None, "volume_ratio_3m": None}
-    if asof_bar >= guard:
+    if schedule:
+        signal.update(exit_stage="conditional",
+                      last_eligible_bar=min(exit_window_last(asof_bar), schedule[1]))
+    if not schedule and asof_bar >= guard:
         return dict(signal, reason="time_guard")
     if frame.is_empty() or not {"datetime", "close", "volume"}.issubset(frame.columns):
         return None
-    if asof_bar == 675:
-        features = morning_features(frame, entry_unit_cost)
+    if asof_bar == start and (not schedule or LEGACY_MORNING_KEYS.intersection(params)):
+        features = morning_features(frame, entry_unit_cost, start)
         if features and features["return_15m"] <= params["return_15m_max"] and (
             features["vwap_deviation"] <= -params["vwap_buffer"]
             or (features["peak_profit"] >= params["peak_profit_min"]
@@ -228,7 +281,6 @@ def select_entries(frame, values, daily=None):
     required = list(range(571, 691)) + list(range(781, cutoff + 1))
     if (params.get("_s01_external_basic")
             and params.get("market_validity") == "price_amount_prev_close_v2"):
-        # Frozen sources retain their individual complete-window check.
         fields = ("open", "high", "low", "close", "amount")
         if not set(fields).issubset(frame.columns) or not {"date", "raw_close"}.issubset(daily.columns):
             return empty
@@ -254,7 +306,6 @@ def select_entries(frame, values, daily=None):
         )
         if environment_only:
             return market
-        # The adapter already checked the market using all valid securities.
         condition = pl.lit(True) if available else pl.col("count") == len(required)
         if not params.get("_s01_skip_entry"):
             condition &= (

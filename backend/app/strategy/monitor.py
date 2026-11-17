@@ -2241,6 +2241,9 @@ class MonitorRuleEngine:
         date_key = str(as_of)
         def identity(hit):
             symbol = str(hit["symbol"])
+            if hit.get("exit_stage") in ("conditional", "stop", "fallback"):
+                return (symbol, hit.get("account_id"), hit.get("cycle_id"),
+                        hit["exit_stage"], hit.get("signal_bar"))
             if hit.get("holding_exit") and hit.get("reason") in ("rise", "fall", "stop_time", "fallback"):
                 return (symbol, hit.get("account_id"), hit.get("cycle_id"), hit.get("entry_date"),
                         hit["reason"], hit.get("trigger_time"))

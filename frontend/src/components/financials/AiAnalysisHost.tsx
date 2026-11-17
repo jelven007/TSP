@@ -1,5 +1,7 @@
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useDialogTask, useDialogState } from '@/lib/aiReportStore'
-import { AiAnalysisDialog } from './AiAnalysisDialog'
+
+const AiAnalysisDialog = lazy(() => import('./AiAnalysisDialog').then(module => ({ default: module.AiAnalysisDialog })))
 
 /**
  * AI 分析对话框宿主 —— 单点挂载在 Layout。
@@ -10,5 +12,13 @@ import { AiAnalysisDialog } from './AiAnalysisDialog'
 export function AiAnalysisHost() {
   const { task, mode } = useDialogTask()
   const { minimized } = useDialogState()
-  return <AiAnalysisDialog task={task} mode={mode} minimized={minimized} />
+  const [opened, setOpened] = useState(false)
+  useEffect(() => { if (task && !minimized) setOpened(true) }, [task, minimized])
+  // Once opened, retain the view instance so minimizing keeps its input state.
+  if (!opened && (!task || minimized)) return null
+  return (
+    <Suspense fallback={null}>
+      <AiAnalysisDialog task={task} mode={mode} minimized={minimized} />
+    </Suspense>
+  )
 }

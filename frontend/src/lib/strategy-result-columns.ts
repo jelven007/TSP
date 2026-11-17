@@ -30,11 +30,30 @@ export const STRATEGY_RESULT_WIDTHS: Record<string, number> = {
   live_change_pct: 88, live_turnover: 88, live_vol_ratio: 72, score: 80, selection_rank: 56,
   atr14_previous_close: 112, atr_rank: 80, atr_rank_score: 80,
   reference_float_cap: 110, amount_mean_20d: 110, volume: 100, amount: 116,
+  current_return: 104, current_range: 104,
   suggested_lots_100k: 148, suggested_sell_price: 148, live_signals: 280,
 }
 export function resolveStrategyResultColumns(
   tab: StrategyResultTab, strategyId: string | null | undefined, columns: ColumnConfig[],
 ): ColumnConfig[] {
+  if (strategyId === 'custom_mvxxcs01') {
+    columns = columns.filter(col => ![
+      'builtin:atr14_previous_close', 'builtin:atr_rank', 'builtin:atr_rank_score',
+      'builtin:suggested_lots_100k', 'builtin:suggested_sell_price', 'builtin:volume',
+    ].includes(col.id)).map(col => {
+      if (col.id === 'builtin:change_pct') return { ...col, id: 'builtin:current_return',
+        source: { type: 'builtin' as const, key: 'current_return' }, label: '当日涨幅' }
+      if (col.id === 'builtin:amount') return { ...col, label: '累计成交额' }
+      return col
+    })
+    if (tab !== 'select' && !columns.some(col => col.id === 'builtin:current_range')) {
+      const index = columns.findIndex(col => col.id === 'builtin:current_return')
+      columns.splice(index + 1, 0, { id: 'builtin:current_range',
+        source: { type: 'builtin', key: 'current_range' }, label: '当日振幅',
+        visible: true, pinned: false, align: 'right' })
+    }
+    return columns
+  }
   if (strategyId !== 'custom_mvxxcp88') return columns
   columns = columns.filter(col => col.id !== 'builtin:atr_rank')
   if (tab !== 'select') return columns
