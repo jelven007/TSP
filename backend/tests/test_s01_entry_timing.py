@@ -110,7 +110,8 @@ def test_changed_second_clock_uses_its_completed_start_minute_and_saved_values()
     ("14:45:00", 1, [887, 888, 889, 890, 891]),
     ("14:44:20", .5, [885, 886, 887, 888, 889]),
 ])
-def test_replay_buy_window_follows_confirmation(tmp_path, start, delay, expected):
+@pytest.mark.parametrize("signal_sections", [False, True])
+def test_replay_buy_window_follows_confirmation(tmp_path, start, delay, expected, signal_sections):
     from datetime import date
 
     from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
@@ -124,7 +125,9 @@ def test_replay_buy_window_follows_confirmation(tmp_path, start, delay, expected
             .then(1.).otherwise(pl.col("volume")).alias("volume"))
 
     service.engine.repo.get_minute_by_dates = small_capacity
-    optional(service.strategy_engine)
+    strategy = optional(service.strategy_engine)
+    if signal_sections:
+        strategy.meta["result_sections"] = "signals"
     sig = timed(time=start, evaluation_delay_minutes=delay, current_return_min=0)
     with custom_signals.private_signal_registry([sig, EXIT]):
         result = service.run(StrategyBacktestConfig(
@@ -134,6 +137,33 @@ def test_replay_buy_window_follows_confirmation(tmp_path, start, delay, expected
     assert result.error is None
     assert sorted({f["bar"] for f in result.fills if f["side"] == "buy"}) == expected
     assert result.config["parameter_signals"]["entry"] == sig
+
+
+def test_replay_rejects_entry_error_instead_of_successful_zero_trades(tmp_path):
+    from datetime import date
+
+    from app.backtest.strategy import BacktestResultPolicy, StrategyBacktestConfig
+
+    service = _service(tmp_path)
+    optional(service.strategy_engine)
+    run = service.strategy_engine.run
+
+    def invalid_entry(*args, **kwargs):
+        result = run(*args, **kwargs)
+        result.rows = []
+        result.entry_signal_hits = []
+        result.entry_filter_error = "入场参考证据无效"
+        return result
+
+    service.strategy_engine.run = invalid_entry
+    with custom_signals.private_signal_registry([timed(current_return_min=0), EXIT]):
+        result = service.run(StrategyBacktestConfig(
+            "s01", None, date(2026, 8, 25), date(2026, 8, 26),
+            params={"initial_cash": 1000000}),
+            result_policy=BacktestResultPolicy(include_benchmark=False, include_monte_carlo=False))
+    assert result.error and "2026-08-25" in result.error and "入场参考证据无效" in result.error
+    assert result.stats["status"] == "rejected_before_NAV"
+    assert not result.equity_curve
 
 
 def test_api_persists_seconds_contract_and_invalid_updates_do_not_write(tmp_path):

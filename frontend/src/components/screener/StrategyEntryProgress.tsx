@@ -20,7 +20,10 @@ export function StrategyEntryProgress({ result, today }: { result: ScreenerResul
   const error = result.section_errors?.buy ?? result.execution_status?.reason
   if (!receipts.length) return <span className="strategy-result-note">
     {result.as_of} · {historical ? '历史保存结果 · 未保存阶段进展'
-      : result.as_of > today ? '已保存预选 · 等待该交易日执行' : '未执行 / 等待状态回执'}
+      : result.as_of > today ? '已保存预选 · 等待该交易日执行'
+      : result.section_statuses?.buy === 'success' && !result.selection_only
+        ? `买入确认完成 · ${result.sections?.buy.length ?? 0}只`
+        : result.section_statuses?.buy === 'expired' ? '今日买入未确认' : '未执行 / 等待状态回执'}
     {error && ` · ${error}`}
   </span>
   return <div aria-label="核心任务进展" className="strategy-result-note flex flex-1 basis-[560px] flex-wrap items-center gap-x-3 gap-y-1">
@@ -61,6 +64,6 @@ export function StrategyEntryProgress({ result, today }: { result: ScreenerResul
       </div>
     })}
     <span className="strategy-result-note">{result.as_of} · {historical ? '历史保存回执'
-      : result.showing_last_success ? '上次成功回执' : '当前页每秒刷新'}{error && ` · ${error}`}</span>
+      : result.showing_last_success ? '上次成功回执' : '当前保存回执'}{error && ` · ${error}`}</span>
   </div>
 }

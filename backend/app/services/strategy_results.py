@@ -460,6 +460,7 @@ class StrategyResults:
                    AND value->'result'->>'execution_error' IS NULL
                    AND value->'result'->>'entry_filter_error' IS NULL
                    AND value->'result'->'section_errors'->>'buy' IS NULL
+                   AND COALESCE(value->'result'->>'selection_only','false')!='true'
                    AND (value->'result'->>'sections' IS NULL
                         OR value->'result'->>'section_mode'='signals')
                    ORDER BY (value->'summary'->>'started_at')::bigint DESC,id DESC LIMIT 1""",
@@ -477,6 +478,7 @@ class StrategyResults:
                    AND json_extract(value,'$.result.execution_error') IS NULL
                    AND json_extract(value,'$.result.entry_filter_error') IS NULL
                    AND json_extract(value,'$.result.section_errors.buy') IS NULL
+                   AND COALESCE(json_extract(value,'$.result.selection_only'),0)!=1
                    AND (json_extract(value,'$.result.sections') IS NULL
                         OR json_extract(value,'$.result.section_mode')='signals')
                    ORDER BY json_extract(summary,'$.started_at') DESC,id DESC LIMIT 1""",
@@ -485,9 +487,31 @@ class StrategyResults:
             archived = json.loads(row["value"]) if row else None
         current = copy.deepcopy(result)
         errors = dict(current.get("section_errors") or {})
+        confirmed_zero = False
+        if archived is None and self.tenant:
+            from app.strategy.execution_status import successful_zero_receipt
+
+            frozen_id = replace(identity, daily_record=True).record_id(previous)
+            frozen = conn.execute(
+                "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
+                (NAMESPACE, frozen_id),
+            ).fetchone()
+            receipt = conn.execute(
+                "SELECT value FROM business.documents WHERE namespace=%s AND id=%s",
+                ("critical_strategy_runs", f"{identity.strategy_id}:{previous}"),
+            ).fetchone()
+            confirmed_zero = successful_zero_receipt(
+                receipt["value"] if receipt else {}, identity.strategy_id, previous,
+                frozen["value"]["summary"].get("runtime_identity") if frozen else None,
+            )
         if archived is None:
             current["sections"]["sell"] = []
-            errors["sell"] = f"缺少{previous}买入信号归档。无法确认本交易日卖出关注名单"
+            if confirmed_zero:
+                errors.pop("sell", None)
+                current["section_statuses"] = {**(current.get("section_statuses") or {}), "sell": "success"}
+            else:
+                errors["sell"] = f"缺少{previous}买入信号归档。无法确认本交易日卖出关注名单"
+                current["section_statuses"] = {**(current.get("section_statuses") or {}), "sell": "waiting"}
         else:
             prior = archived["result"]
             buys = (prior.get("sections") or {}).get("buy", prior.get("rows", []))
@@ -496,6 +520,8 @@ class StrategyResults:
             ]
             if (current.get("section_statuses") or {}).get("sell") != "failed":
                 errors.pop("sell", None)
+                if not buys:
+                    current["section_statuses"] = {**(current.get("section_statuses") or {}), "sell": "success"}
         current["section_errors"] = errors
         return current
 
@@ -779,6 +805,18 @@ class StrategyResults:
                 return json.loads(entry[0])
         return None
 
+    def monitor_snapshot(self, *, now_ms):
+        """Reject expired tenant monitoring metadata before fetching its large body."""
+        if not self.tenant:
+            return None
+        with self.storage._transaction() as conn:
+            row = conn.execute(
+                """SELECT value FROM business.documents WHERE namespace='monitor_results'
+                   AND id='default' AND (value->>'sequence')::numeric BETWEEN %s AND %s""",
+                (now_ms - 30000, now_ms),
+            ).fetchone()
+        return row["value"] if row else None
+
     def summaries(self, identities: list[ResultIdentity], as_of: str, *,
                   signal_strategy_ids=()) -> dict:
         ids = list(dict.fromkeys(
@@ -808,13 +846,23 @@ class StrategyResults:
             "json_extract(value,'$.result.section_mode')")
         historical = f" OR (({' OR '.join(conditions)}) AND {mode}='signals')" if conditions else ""
         if self.tenant:
+            queries = [
+                """SELECT id,value->'summary' AS summary FROM business.documents
+                   WHERE namespace=%s AND id=ANY(%s)"""
+            ]
+            query_params = [NAMESPACE, ids]
+            # Separate PK ranges keep a large JSON payload outside the OR scan.
+            # Exact records are already eligible, so do not read their JSON twice.
+            for index, condition in enumerate(conditions):
+                queries.append(
+                    f"""SELECT id,value->'summary' AS summary FROM business.documents
+                        WHERE namespace=%s AND {condition} AND NOT (id=ANY(%s))
+                        AND {mode}='signals'"""
+                )
+                query_params.extend([NAMESPACE, *params[index * 5:(index + 1) * 5], ids])
             with self.storage._transaction() as conn:
-                rows = conn.execute(
-                    f"""SELECT value->'summary' AS summary FROM business.documents
-                        WHERE namespace=%s AND (id=ANY(%s){historical})""",
-                    (NAMESPACE, ids, *params),
-                ).fetchall()
-            values = [row["summary"] for row in rows]
+                rows = conn.execute(" UNION ALL ".join(queries), query_params).fetchall()
+            values = list({row["id"]: row["summary"] for row in rows}.values())
         else:
             with self._local() as conn:
                 if conn is None:

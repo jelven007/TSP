@@ -176,6 +176,7 @@ export function Regime() {
     queryKey: QK.regimePhases(histRange.start, histRange.end),
     queryFn: () => api.regimePhases(histRange.start, histRange.end),
     staleTime: 5 * 60 * 1000,
+    enabled: view === 'phase',
   })
   const [mainlineKind, setMainlineKind] = useState<'concept' | 'industry'>('concept')
   const [filterOpen, setFilterOpen] = useState(false)
@@ -186,6 +187,7 @@ export function Regime() {
     queryKey: QK.regimeMainline(mainlineKind, histRange.start, histRange.end),
     queryFn: () => api.regimeMainline(histRange.start, histRange.end, 10, mainlineKind),
     staleTime: 5 * 60 * 1000,
+    enabled: view === 'phase',
   })
   const [recomputing, setRecomputing] = useState(false)
 

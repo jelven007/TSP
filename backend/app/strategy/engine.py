@@ -1030,9 +1030,9 @@ class StrategyEngine:
             except ValueError as exc:
                 pool_error = str(exc)
         strategy = self.get(strategy_id)
-        signal_sections = (strategy.execution_backend == "minute_filter"
-                           and not strategy.meta.get("minute_execution")
-                           and strategy.meta.get("result_sections") == "signals")
+        from app.strategy.signal_sections import supports_signal_sections
+
+        signal_sections = supports_signal_sections(strategy)
         selection, selection_error = None, None
         if signal_sections:
             from app.market_time import cn_today
@@ -1108,29 +1108,32 @@ class StrategyEngine:
         if execution_context.exit_errors:
             result.exit_filter_error = "; ".join(execution_context.exit_errors)
         if signal_sections:
-            from app.strategy.late_session_strength import pending_evaluation_time, previous_closes
+            from app.strategy.late_session_strength import previous_closes
+            from app.strategy.s01_signals import optional_triggers
             from app.strategy.signal_price_suggestions import suggested_lots
+            from app.strategy.signal_sections import pending_entry_time
 
             result.section_mode = "signals"
-            try:
-                result.price_suggestion_reference = {
-                    "reference_date": str(previous_session(context.as_of)),
-                    "closes": previous_closes(execution_context, isolate_symbols=True),
-                }
-            except ValueError:
-                # Display-only sell suggestions cannot invalidate evaluated signals.
-                result.price_suggestion_reference = {"reference_date": None, "closes": {}}
-            result.rows = [{**row, "suggested_lots_100k": suggested_lots(row.get("close"))}
-                           for row in result.rows]
+            if not optional_triggers(strategy):
+                try:
+                    result.price_suggestion_reference = {
+                        "reference_date": str(previous_session(context.as_of)),
+                        "closes": previous_closes(execution_context, isolate_symbols=True),
+                    }
+                except ValueError:
+                    # Display-only sell suggestions cannot invalidate evaluated signals.
+                    result.price_suggestion_reference = {"reference_date": None, "closes": {}}
+                result.rows = [{**row, "suggested_lots_100k": suggested_lots(row.get("close"))}
+                               for row in result.rows]
             result.section_errors = {}
             result.section_statuses = {"select": "success", "buy": "success", "sell": "success"}
             selected = _sanitize(selection["rows"]) if selection is not None else []
             result.selection_snapshot = selection
-            pending = pending_evaluation_time(self, strategy, overrides, context)
+            pending = pending_entry_time(self, strategy, overrides, context)
             if selection_error:
                 result.section_errors.update(select=selection_error, buy=selection_error)
                 result.section_statuses.update(select="waiting", buy="waiting")
-            elif pending is not None:
+            elif pending is not None and (not optional_triggers(strategy) or not result.rows):
                 result.rows = []
                 result.total = 0
                 result.scores = {}
@@ -1150,11 +1153,11 @@ class StrategyEngine:
                 result.section_errors["sell"] = "; ".join(execution_context.exit_errors)
                 result.section_statuses["sell"] = "failed"
             if context.realtime:
-                from app.strategy.late_session_strength import entry_deadline
+                from app.strategy.signal_sections import live_entry_deadline
 
-                end = entry_deadline(self, strategy, overrides, context, expired_only=False)
+                end = live_entry_deadline(self, strategy, overrides, context, expired_only=False)
                 result.entry_deadline_at = end.isoformat() if end else None
-                deadline = entry_deadline(self, strategy, overrides, context)
+                deadline = live_entry_deadline(self, strategy, overrides, context)
                 if deadline is not None:
                     result.section_errors["buy"] = f"超过{deadline.time().isoformat()}最晚实时入场确认时间"
                     result.section_statuses["buy"] = "expired"
@@ -1339,6 +1342,7 @@ class StrategyEngine:
             if parameter_signals:
                 for hit in exit_signal_hits:
                     hit["signals"] = ["csgi_" + parameter_signals["exit"]["id"]]
+        context.evaluated_exit_hits = exit_signal_hits
 
         # 普通策略只读目标日期；历史策略读取调用方注入的历史窗口。
         if s.execution_backend == "minute_filter":
@@ -1369,6 +1373,7 @@ class StrategyEngine:
                 ),
             )
             # Build market-wide signal features first; eligibility only limits entries.
+            trigger_history = history
             frozen = (context.selection_snapshots or {}).get(strategy_id)
             if frozen is not None:
                 history = history.filter(pl.col("symbol").is_in(
@@ -1402,14 +1407,14 @@ class StrategyEngine:
                     df = pl.concat(frames, how="diagonal_relaxed").unique(
                         "symbol", keep="last", maintain_order=True)
                 else:
-                    df = timed_entry(timed, history, context, params).with_columns(
+                    df = timed_entry(timed, history, context, params, candidates_only=selectable).with_columns(
                         pl.lit(True).alias("csgi_" + timed["id"]))
             else:
                 df = s.filter_minute_history_fn(
                     history, {**params, "_s01_skip_entry": True} if selectable else params, **arguments)
             if selectable:
                 from app.strategy.s01_signals import entry_frame
-                df = entry_frame(self, s, df, history, context, params, selected_triggers["entry"])
+                df = entry_frame(self, s, df, trigger_history, context, params, selected_triggers["entry"])
             # Minute strategies commonly project only their display columns.
             # Restore trigger columns at the row's actual signal close label.
             time_column = "last_datetime" if "last_datetime" in df.columns else "datetime"
@@ -1592,6 +1597,8 @@ class StrategyEngine:
             df = df.head(limit)
 
         # 输出
+        if selectable and s.meta.get("result_sections") == "signals":
+            df = df.drop("age_increment", strict=False)
         rows = _sanitize(df.to_dicts())
         elapsed = (time.perf_counter() - t0) * 1000
 

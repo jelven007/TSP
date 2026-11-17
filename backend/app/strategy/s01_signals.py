@@ -15,7 +15,10 @@ EXIT_KEYS = frozenset({
     "vwap_buffer", "peak_profit_min", "peak_retrace_min", "return_15m_max",
     "decline_3m", "volume_ratio_min", "guard_time", "sell_deadline",
 })
-PARAMETER_KEYS = ENTRY_KEYS | EXIT_KEYS
+EXIT_CLOCK_KEYS = frozenset({"start_time", "stop_time", "fallback_time"})
+SCHEDULE_EXIT_KEYS = (EXIT_KEYS - {"guard_time", "sell_deadline"}) | EXIT_CLOCK_KEYS
+VOLUME_EXIT_KEYS = frozenset({"decline_3m", "volume_ratio_min"}) | EXIT_CLOCK_KEYS
+PARAMETER_KEYS = ENTRY_KEYS | EXIT_KEYS | EXIT_CLOCK_KEYS
 TIMING_KEYS = frozenset({"time", "evaluation_delay_minutes"})
 MARKET_KEYS = frozenset({"market_validity"})
 MARKET_VALIDITY = "price_amount_prev_close_v2"
@@ -103,12 +106,12 @@ def signal_parameters(signal: dict) -> dict:
         raise ValueError("S01信号使用专用参数, 不能混入普通条件")
     keys = ENTRY_KEYS if kind == "entry" else EXIT_KEYS
     values = signal.get("params")
-    if (not isinstance(values, dict) or set(values) not in (
-            (keys, keys | TIMING_KEYS, keys | TIMING_KEYS | MARKET_KEYS)
-            if kind == "entry" else (keys,))):
+    if not isinstance(values, dict) or set(values) not in (
+            (keys, SCHEDULE_EXIT_KEYS, VOLUME_EXIT_KEYS) if kind == "exit" else (
+                keys, keys | TIMING_KEYS, keys | TIMING_KEYS | MARKET_KEYS)):
         raise ValueError("S01信号参数缺失或包含不支持的参数")
     result = dict(values)
-    for key in keys - {"guard_time", "sell_deadline"}:
+    for key in set(values) - EXIT_CLOCK_KEYS - TIMING_KEYS - MARKET_KEYS - {"guard_time", "sell_deadline"}:
         raw = values[key]
         if isinstance(raw, bool) or not isinstance(raw, Real) or not math.isfinite(raw):
             raise ValueError(f"S01参数{key}须为有效数值")
@@ -142,7 +145,11 @@ def signal_parameters(signal: dict) -> dict:
         if result["current_return_min"] > result["current_return_max"]:
             raise ValueError("S01当日涨幅下限不能超过上限")
     else:
-        from app.strategy.builtin._overnight import minute_number
+        from app.strategy.builtin._overnight import exit_schedule, minute_number
+
+        if values.keys() >= EXIT_CLOCK_KEYS:
+            exit_schedule(values)
+            return result
 
         for key in ("guard_time", "sell_deadline"):
             if not isinstance(values[key], str) or not re.fullmatch(r"\d{2}:\d{2}", values[key]):
@@ -233,22 +240,44 @@ def bound_definitions(engine, strategy, *, overrides: dict | None = None, strict
 
 def resolve_parameters(engine, strategy, values: dict, *, definitions: dict | None = None,
                        overrides: dict | None = None) -> dict:
+    # The window belongs to the saved source, including immutable research snapshots.
+    values = {k: v for k, v in values.items() if k != "_s01_entry_window_policy"}
+    if (optional_triggers(strategy)
+            and strategy.meta.get("entry_window_policy") == "available_minutes_v1"):
+        values["_s01_entry_window_policy"] = "available_minutes_v1"
     definitions = bound_definitions(engine, strategy, overrides=overrides) if definitions is None else definitions
     if optional_triggers(strategy):
         baseline = strategy.meta.get("trigger_parameter_defaults")
-        if not isinstance(baseline, dict) or set(baseline) != PARAMETER_KEYS:
+        if not isinstance(baseline, dict) or set(baseline) not in (
+                ENTRY_KEYS | EXIT_KEYS, ENTRY_KEYS | SCHEDULE_EXIT_KEYS, ENTRY_KEYS | VOLUME_EXIT_KEYS):
             raise ValueError("S01可选触发器缺少冻结参数基线")
         resolved = {**baseline, **{k: v for k, v in values.items()
                                   if k not in PARAMETER_KEYS | TIMING_KEYS | MARKET_KEYS}}
         for sig in definitions.values():
+            if sig.get("template") == TEMPLATES["exit"]:
+                for key in EXIT_KEYS | EXIT_CLOCK_KEYS:
+                    resolved.pop(key, None)
             resolved.update(signal_parameters(sig))
-        return resolved
+        return exit_clock_aliases(resolved)
     if not definitions:
         return values
     resolved = {k: v for k, v in values.items() if k not in PARAMETER_KEYS | TIMING_KEYS | MARKET_KEYS}
     for signal in definitions.values():
         resolved.update(signal_parameters(signal))
-    return resolved
+    return exit_clock_aliases(resolved)
+
+
+def exit_clock_aliases(values):
+    """Saved S01 source still validates the old names in its entry-only function."""
+    from app.strategy.builtin._overnight import exit_schedule, exit_window_last
+
+    schedule = exit_schedule(values)
+    if schedule is None:
+        return values
+    deadline = exit_window_last(schedule[2])
+    return {**values, "guard_time": values["stop_time"][:5],
+            "sell_deadline": f"{deadline // 60:02}:{deadline % 60:02}"}
+
 
 
 def next_entry_evaluation_time(engine, strategy, overrides, context):
@@ -306,6 +335,8 @@ def timed_entry(signal, history, context, params, *, candidates_only=False):
     quality.update(market_valid_count=count, market_positive_count=up,
                    market_positive_ratio=up / count if count else None, market_passed=passed,
                    stage="waiting_confirmation" if now < confirmation else "confirmed")
+    if not count and not candidates_only:
+        context.intraday_errors.append(f"S01触发器{signal['id']}缺少有效市场分钟及准确前交易日收盘价")
     if now < confirmation or (not candidates_only and not passed):
         return empty
     result = select_entries(source, {**values, "_s01_skip_entry": candidates_only},
@@ -351,21 +382,37 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
 
     from app.strategy.builtin._overnight import minute_frame
 
-    if candidates.is_empty() or not definitions:
+    if not definitions:
         return candidates
     output = candidates
+    timed_frames = []
     daily = daily_signal_frame(context, definitions)
     if not daily.is_empty():
         output = output.join(daily, on="symbol", how="left")
     for sig in definitions:
         column = sig["column"]
         if sig.get("template") == TEMPLATES["entry"]:
-            if len(definitions) == 1 and column in output.columns:
-                continue
             values = {k: v for k, v in params.items() if k != "_s01_skip_entry"}
             native = (timed_entry(sig, history, context, values) if "time" in sig["params"]
                       else strategy.filter_minute_history_fn(
                           history, {**values, **signal_parameters(sig)}, daily=context.daily_history))
+            if "time" not in sig["params"]:
+                from app.market_time import CN_TZ
+
+                observed = context.observed_at or context.completed_through
+                if observed is not None:
+                    if observed.tzinfo:
+                        observed = observed.astimezone(CN_TZ).replace(tzinfo=None)
+                    if observed < entry_clock(sig, context.as_of)[2]:
+                        native = native.head(0)
+            if "time" in sig["params"] and not native.is_empty():
+                from app.strategy.market_data import get_intraday_range_amount_score
+
+                native = native.filter(pl.col("symbol").is_in(output["symbol"].to_list()))
+                if strategy.meta.get("scoring", {}).get("intraday_range_amount_score"):
+                    native = get_intraday_range_amount_score(native, prev_close_column="prior_close").with_columns(
+                        pl.col("intraday_range_amount_score").alias("score"))
+                timed_frames.append(native)
             output = output.with_columns(pl.col("symbol").is_in(
                 native["symbol"].to_list()).alias(column))
         elif sig.get("timeframe") == "intraday":
@@ -379,8 +426,16 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
                                            context.as_of, time(14, 45))))
             hits = source.filter(pl.col(column).fill_null(False))["symbol"].unique().to_list()
             output = output.with_columns(pl.col("symbol").is_in(hits).alias(column))
-    return output.filter(pl.any_horizontal(
+    output = output.filter(pl.any_horizontal(
         pl.col(s["column"]).fill_null(False) for s in definitions))
+    if timed_frames:
+        names = [s["column"] for s in definitions]
+        timed = pl.concat(timed_frames, how="diagonal_relaxed").sort(
+            "entry_evaluated_at").unique("symbol", keep="first", maintain_order=True)
+        timed = timed.drop(names, strict=False).join(output.select("symbol", *names), on="symbol", how="inner")
+        rest = output.filter(~pl.col("symbol").is_in(timed["symbol"].to_list()))
+        output = pl.concat([timed, rest], how="diagonal_relaxed")
+    return output
 
 
 def risk_exit_hits(context, policy, positions, frame, now):
@@ -485,6 +540,7 @@ def optional_exit_hits(engine, strategy, context, params, definitions, *, overri
         return []
     positions = [p for p in context.positions or [] if p.get("qty", 0) > 0
                  and p.get("available_qty", 0) > 0
+                 and str(p.get("entry_date", "")) < str(context.as_of)
                  and str(p.get("sell_date", "")) <= str(context.as_of)]
     if not positions:
         return []
@@ -518,8 +574,9 @@ def optional_exit_hits(engine, strategy, context, params, definitions, *, overri
     for sig in definitions:
         column = sig["column"]
         if sig.get("template") == TEMPLATES["exit"]:
+            native_params = {k: v for k, v in params.items() if k not in EXIT_KEYS | EXIT_CLOCK_KEYS}
             hits.extend({**h, "signals": [column]} for h in exit_hits(
-                ctx, {**params, **signal_parameters(sig)}))
+                ctx, {**native_params, **signal_parameters(sig)}))
         elif sig.get("template") == "morning_liquidation":
             from app.strategy.late_session_strength import previous_closes
             from app.strategy.morning_liquidation import evaluate
@@ -549,12 +606,20 @@ def optional_exit_hits(engine, strategy, context, params, definitions, *, overri
                     hits.append({"symbol": position["symbol"], "signals": [column], "reason": "selected_signal",
                                  "signal_bar": bar, "first_eligible_bar": bar + 1, "last_eligible_bar": 900,
                                  "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id")})
-    earliest = {}
+    earliest, clocks = {}, {}
     for hit in sorted(hits, key=lambda h: (
             h["signal_bar"], 0 if any(s.startswith("risk_") for s in h["signals"]) else 1, h["symbol"])):
         key = (hit["symbol"], hit.get("account_id"), hit.get("cycle_id"))
+        if hit.get("exit_stage") in ("stop", "fallback"):
+            clock_key = (*key, hit["signal_bar"])
+            if clock_key not in clocks:
+                clocks[clock_key] = hit
+            else:
+                clocks[clock_key]["signals"].extend(
+                    s for s in hit["signals"] if s not in clocks[clock_key]["signals"])
+            continue
         if key not in earliest:
             earliest[key] = hit
         elif hit["signal_bar"] == earliest[key]["signal_bar"]:
             earliest[key]["signals"].extend(s for s in hit["signals"] if s not in earliest[key]["signals"])
-    return list(earliest.values())
+    return sorted([*earliest.values(), *clocks.values()], key=lambda h: (h["signal_bar"], h["symbol"]))

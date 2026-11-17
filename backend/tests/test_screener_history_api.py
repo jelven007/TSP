@@ -284,7 +284,7 @@ def test_day_view_http_returns_saved_sections_without_engine_or_market_reads(run
     app.include_router(screener.router)
     with TestClient(app) as client:
         url = "/api/screener/day-view/sample"
-        response = client.get(url, params={"as_of": "2026-10-22"})
+        response = client.get(url, params={"as_of": "2026-10-22"}, headers={"Accept-Encoding": "gzip"})
         assert response.status_code == 200
         assert response.headers["content-encoding"] == "gzip"
         assert response.json()["result"]["sections"] == sections
@@ -301,6 +301,35 @@ def test_day_view_http_returns_saved_sections_without_engine_or_market_reads(run
             assert denied.json() == response.json()
         assert client.get(url, params={"as_of": "bad"}).status_code == 422
         assert client.get(url, params={"as_of": "2026-10-22", "timeframe": "1d"}).status_code == 422
+
+
+def test_day_view_serves_precompressed_brotli_and_validates_representation_etag(runtime, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    storage, engine, request, _ = runtime
+    key = strategy_results.capture_identity(engine, storage, "sample", timeframe="1m")
+    strategy_results.StrategyResults(storage).save(key, {
+        "as_of": "2026-10-22", "rows": [], "total": 0, "section_mode": "signals",
+        "sections": {"sell": [], "select": [{"symbol": "SELECT", "score": 88}], "buy": []},
+    }, started_at=1)
+    app = FastAPI()
+    app.state.repo = request.app.state.repo
+    app.include_router(screener.router)
+    with TestClient(app) as client:
+        url = "/api/screener/day-view/sample?as_of=2026-10-22"
+        plain = client.get(url, headers={"Accept-Encoding": "identity"})
+        br = client.get(url, headers={"Accept-Encoding": "br, gzip"})
+        assert br.headers["content-encoding"] == "br"
+        assert br.json() == plain.json()
+        assert br.headers["vary"] == "Accept-Encoding"
+        assert client.get(url, headers={"Accept-Encoding": "br",
+                                       "If-None-Match": br.headers["etag"]}).status_code == 304
+        assert client.get(url, headers={"Accept-Encoding": "gzip",
+                                       "If-None-Match": br.headers["etag"]}).status_code == 200
+        denied = client.get(url, headers={"Accept-Encoding": "br;q=0, gzip"})
+        assert denied.headers["content-encoding"] == "gzip"
+        assert denied.json() == plain.json()
 
 
 def test_day_view_keeps_authentication_but_skips_market_and_factor_middleware(runtime, monkeypatch):

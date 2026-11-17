@@ -30,6 +30,28 @@ async function render(result: ScreenerResult) {
 }
 
 describe('StrategyDailyResults', () => {
+  it('keeps valid selection visible and distinguishes invalid references from missing daily rows', async () => {
+    await render({
+      as_of: '2026-11-17', strategy: 'custom_mvxxcp88', rows: [], total: 0, elapsed_ms: 0,
+      section_mode: 'signals', selection_only: true,
+      selection_snapshot: {
+        as_of: '2026-11-17', source_date: '2026-11-16', generated_at: '2026-11-16T20:01:00+08:00',
+        rows: [{ symbol: '600001.SH' }],
+        coverage: {
+          schema: 'daily_selection_coverage_v1', source_date: '2026-11-16', scope_total: 3,
+          available_daily: 1, missing_symbols: ['600003.SH'], complete: false,
+          invalid_symbols: { '600002.SH': '600002.SH 收盘校验失败: 原始日线与15:00分钟不一致' },
+        },
+      },
+      sections: { sell: [], select: [{ symbol: '600001.SH' }], buy: [] },
+    })
+    expect(host.querySelector('[role="tabpanel"]')?.textContent).toContain('600001.SH')
+    expect(host.querySelector('[role="tabpanel"]')?.textContent).not.toContain('600002.SH')
+    expect(host.textContent).toContain('缺日线 1 只')
+    expect(host.textContent).toContain('隔离异常 1 只')
+    expect(host.textContent).toContain('600002.SH 收盘校验失败')
+    expect(host.textContent).not.toContain('预选失败')
+  })
   it('distinguishes a failed buy from zero hits and labels the previous success', async () => {
     await render({
       as_of: '2026-11-05', strategy: 'custom_test', rows: [], total: 1, elapsed_ms: 0,

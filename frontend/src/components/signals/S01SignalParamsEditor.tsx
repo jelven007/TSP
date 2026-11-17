@@ -11,12 +11,15 @@ const ENTRY_FIELDS = [
   ['current_return_max', '涨幅上限（%）', 100, .01],
 ] as const
 const EXIT_FIELDS = [
-  ['vwap_buffer', '低于早盘均价幅度（%）', 100, .01],
-  ['peak_profit_min', '早盘最高浮盈门槛（%）', 100, .01],
-  ['peak_retrace_min', '早盘高点回落门槛（%）', 100, .01],
-  ['return_15m_max', '最后15分钟涨幅上限（%）', 100, .01],
   ['decline_3m', '3分钟跌幅门槛（%）', 100, .01],
   ['volume_ratio_min', '最近3根/之前10根量比', 1, .1],
+] as const
+const LEGACY_EXIT_FIELDS = [
+  ['vwap_buffer', 'VWAP缓冲（%）', 100, .01],
+  ['peak_profit_min', '最低峰值盈利（%）', 100, .01],
+  ['peak_retrace_min', '最低峰值回撤（%）', 100, .01],
+  ['return_15m_max', '15分钟涨幅上限（%）', 100, .01],
+  ...EXIT_FIELDS,
 ] as const
 
 export function S01SignalParamsEditor({ signal, onChange }: {
@@ -25,12 +28,14 @@ export function S01SignalParamsEditor({ signal, onChange }: {
 }) {
   const entry = signal.template === 's01_late_entry'
   const values = signal.params as unknown as Record<string, number | string>
+  const legacyExit = !entry && values?.guard_time != null && values?.start_time == null
   const update = (key: string, value: number | string) =>
     onChange({ ...values, [key]: value } as unknown as S01EntryParams | S01ExitParams)
   return <div className="space-y-3">
     <p className="text-[11px] leading-5 text-muted">{entry
       ? '启动时计算当日市场有效证券和上涨比例；确认延时结束后计算个股累计成交额、振幅及涨幅。前日条件在策略数值过滤中设置。'
-      : '次交易日11:15使用完整105根早盘K判断：最后15分钟涨幅达到上限，且满足均价偏离或浮盈回落条件；其后检查3分钟放量下跌，到兜底时间无条件触发。'}</p>
+      : legacyExit ? '此信号沿用已保存的旧参数与时点；编辑和保存保留该定义。'
+        : '次交易日从启动时间至止损前，只检查放量下跌：3分钟跌幅和量比须同时满足以下门槛。止损时间到无条件全部清仓，兜底时间再次处理未成交余股。'}</p>
     {entry && <p className="text-[11px] leading-5 text-muted">
       {S01_VALID_SECURITY_DESCRIPTION}
       市场上涨比例=上述有效证券中最新已完成收盘价高于昨收的数量 / 有效证券数量。
@@ -51,19 +56,23 @@ export function S01SignalParamsEditor({ signal, onChange }: {
             className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
         </label>
       </>}
-      {(entry ? ENTRY_FIELDS : EXIT_FIELDS).map(([key, label, scale, step]) => <label key={key} className="space-y-1.5">
+      {(entry ? ENTRY_FIELDS : legacyExit ? LEGACY_EXIT_FIELDS : EXIT_FIELDS).map(([key, label, scale, step]) => <label key={key} className="space-y-1.5">
         <span className="text-[11px] text-muted">{label}</span>
         <input type="number" aria-label={label} step={step}
-          min={key === 'return_15m_max' ? undefined : key === 'market_min_valid' ? 1 : 0}
+          min={key === 'market_min_valid' ? 1 : key === 'return_15m_max' ? undefined : 0}
           max={key === 'market_positive_min' ? 100 : undefined}
           value={Number.isFinite(Number(values?.[key])) ? Number((Number(values[key]) * scale).toFixed(6)) : ''}
           onChange={event => update(key, event.target.value === '' ? NaN : Number((Number(event.target.value) / scale).toFixed(10)))}
           className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
       </label>)}
-      {!entry && (['guard_time', 'sell_deadline'] as const).map(key => <label key={key} className="space-y-1.5">
-        <span className="text-[11px] text-muted">{key === 'guard_time' ? '兜底信号时间（北京时间）' : '卖出成交截止时间（北京时间）'}</span>
-        <TimePicker aria-label={key === 'guard_time' ? '兜底信号时间' : '卖出成交截止时间'}
-          value={String(values?.[key] ?? '')} onChange={time => update(key, time.slice(0, 5))}
+      {!entry && (legacyExit ? [
+        ['guard_time', '兜底信号时间'], ['sell_deadline', '成交截止时间'],
+      ] as const : [
+        ['start_time', '启动时间'], ['stop_time', '止损时间'], ['fallback_time', '兜底时间'],
+      ] as const).map(([key, label]) => <label key={key} className="space-y-1.5">
+        <span className="text-[11px] text-muted">{label}（北京时间）</span>
+        <TimePicker aria-label={label} showSeconds={!legacyExit}
+          value={String(values?.[key] ?? '')} onChange={time => update(key, legacyExit ? time.slice(0, 5) : time)}
           align="left" className="w-full" buttonClassName="h-9 w-full justify-start" />
       </label>)}
     </div>
@@ -72,8 +81,8 @@ export function S01SignalParamsEditor({ signal, onChange }: {
       当前确认时间 {lateSessionCheckTime({ time: String(values?.time ?? ''),
         evaluation_delay_minutes: Number(values?.evaluation_delay_minutes) })}；
       K线截止 {lateSessionBarTime(String(values?.time ?? ''))}，只使用已完成数据，不使用启动后的分钟数据。
-      个股指标仍要求完整、唯一的分钟窗口；默认截止14:45共225根。振幅=（最高价－最低价）/ 昨收。
+      个股累计使用已完成的可用分钟；重复时标不重复累计，不补造缺行情。振幅=（最高价－最低价）/ 昨收。
     </p>}
-    {!entry && <p className="text-[11px] leading-5 text-muted">兜底时间11:15～11:28；截止须晚于兜底，不得落在午休。信号后下一分钟按既有成交规则处理；停牌、跌停、T+1及容量限制仍适用。</p>}
+    {!entry && !legacyExit && <p className="text-[11px] leading-5 text-muted">时间须为整分钟，秒数为00；11:15≤启动＜止损≤11:28，兜底13:01～14:55。信号后下一分钟起最多五个交易分钟处理余股；13:30兜底对应13:31～13:35。停牌、跌停、T+1及容量限制仍适用。</p>}
   </div>
 }

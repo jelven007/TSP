@@ -95,6 +95,23 @@ class PublicReleaseLease:
     def held(self):
         return self._fd is not None and self._locked
 
+    def release_id(self):
+        """Use the ID verified on acquisition while checking the immutable inode."""
+        try:
+            if self._fd is None or release_directory(self.release_dir) != self.release_dir:
+                raise PublicReleaseError()
+            current = (self.release_dir / ".public_release.json").lstat()
+            original = self._identity
+            if (
+                not stat.S_ISREG(current.st_mode)
+                or (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns, current.st_ctime_ns)
+                != (original.st_dev, original.st_ino, original.st_size, original.st_mtime_ns, original.st_ctime_ns)
+            ):
+                raise PublicReleaseError()
+            return self.release_dir.name
+        except OSError:
+            raise PublicReleaseError() from None
+
     def validate(self):
         """A lock on an unlinked or replaced inode does not protect this path."""
         try:

@@ -409,7 +409,7 @@ class FullWorker:
                         append_event(conn, tenant_id, "strategy_results_updated", {"ts": int(now * 1000)})
                 from app.market_time import CN_TZ
                 from app.services.strategy_results import ResultIdentity, StrategyResults
-                from app.strategy.execution_status import status
+                from app.strategy.execution_status import status, successful_zero_receipt
 
                 commit_observed = datetime.fromtimestamp(time.time(), CN_TZ).replace(tzinfo=None)
                 for sid, deadline in payload.get("entry_deadlines", {}).items():
@@ -421,7 +421,10 @@ class FullWorker:
                     live = (monitored.get("results", {}).get(sid)
                             if monitored.get("fingerprint") == fingerprint(conn, include_state=False) else None)
                     candidates = [live, (saved or {}).get("result")]
-                    confirmed = any(
+                    confirmed = successful_zero_receipt(
+                        unit.get("critical_strategy_runs", f"{sid}:{cn_today()}", {}),
+                        sid, str(cn_today()), identity.runtime_identity,
+                    ) or any(
                         daily and daily.get("as_of") == str(cn_today())
                         and daily.get("runtime_identity") in (None, identity.runtime_identity)
                         and (daily.get("section_statuses") or {}).get("buy") == "success"

@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BookmarkCheck, Combine, LibrarySquare, PenLine, Pickaxe, Sigma } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
-import { FactorDiscovery } from './backtest/FactorDiscovery'
-import { FactorComposite } from './factors/FactorComposite'
-import { FactorEditor } from './factors/FactorEditor'
-import { FactorLibrary } from './factors/FactorLibrary'
-import { MiningWorkbench } from './backtest/MiningWorkbench'
-import { ResearchCandidatesDialog } from './backtest/ResearchCandidatesDialog'
+
+const FactorDiscovery = lazy(() => import('./backtest/FactorDiscovery').then(module => ({ default: module.FactorDiscovery })))
+const FactorComposite = lazy(() => import('./factors/FactorComposite').then(module => ({ default: module.FactorComposite })))
+const FactorEditor = lazy(() => import('./factors/FactorEditor').then(module => ({ default: module.FactorEditor })))
+const FactorLibrary = lazy(() => import('./factors/FactorLibrary').then(module => ({ default: module.FactorLibrary })))
+const MiningWorkbench = lazy(() => import('./backtest/MiningWorkbench').then(module => ({ default: module.MiningWorkbench })))
+const ResearchCandidatesDialog = lazy(() => import('./backtest/ResearchCandidatesDialog').then(module => ({ default: module.ResearchCandidatesDialog })))
 
 type Tab = 'inspect' | 'library' | 'editor' | 'composite' | 'mining'
 
@@ -85,6 +86,7 @@ export function Factors() {
       />
 
       <main className="page-content min-h-0 flex-1 xl:overflow-hidden">
+        <Suspense fallback={<div role="status" className="py-8 text-center text-sm text-muted">加载中…</div>}>
         {activeTab === 'inspect' && <FactorDiscovery focusFactor={focusFactor} />}
         {activeTab === 'editor' && <FactorEditor key={searchParams.get('edit') ?? ''} editId={searchParams.get('edit') ?? ''} />}
         {activeTab === 'composite' && <FactorComposite />}
@@ -109,9 +111,11 @@ export function Factors() {
             }}
           />
         )}
+        </Suspense>
       </main>
 
       {candidatesOpen && (
+        <Suspense fallback={<div role="status" className="text-center text-sm text-muted">加载候选方案…</div>}>
         <ResearchCandidatesDialog
           onClose={() => setCandidatesOpen(false)}
           onLoadStrategy={candidate => {
@@ -120,6 +124,7 @@ export function Factors() {
             navigate('/backtest?tab=strategy', { state: { loadCandidate: candidate } })
           }}
         />
+        </Suspense>
       )}
     </div>
   )

@@ -185,7 +185,6 @@ export function Screener() {
   const quoteStatus = useQuoteStatus()
   const calendarToday = quoteStatus.data?.market_time?.slice(0, 10)
     ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
-  const isHistoricalDate = !!asOf && asOf < calendarToday
 
   // 统一列表: 不按周期过滤, 日线+分钟策略合并返回, 分钟策略带 timeframes 标识
   const strategies = useQuery({
@@ -201,8 +200,10 @@ export function Screener() {
     const meta = (strategies.data?.presets ?? []).find(s => s.id === activeStrategy)
     return meta?.timeframes?.includes('1m') ? ('1m' as const) : ('1d' as const)
   }, [strategies.data, activeStrategy])
-  const historicalSignals = isHistoricalDate && activeStrategyTimeframe === '1m'
+  const savedSignals = activeStrategyTimeframe === '1m'
     && strategies.data?.presets.find(strategy => strategy.id === activeStrategy)?.result_sections === 'signals'
+  const liveSignals = savedSignals && asOf === calendarToday
+    && quoteStatus.data?.is_trading_hours === true
 
   // 卡片首屏只读取轻量摘要；明细在点击策略或“全部”时按需加载。
   // 摘要读取当前日期的股票日线/分钟保存记录。
@@ -210,7 +211,8 @@ export function Screener() {
   const summaryQuery = useQuery({
     queryKey: QK.screenerCachedSummary(asOf, assetType, 'all'),
     queryFn: () => api.screenerCachedSummary(asOf, assetType, 'all'),
-    enabled: !!asOf && (!historicalSignals || showAll || !!pendingRun),
+    enabled: !!asOf && (!savedSignals || showAll || !!pendingRun),
+    staleTime: pendingRun || quoteStatus.data?.is_trading_hours === true ? 0 : 60_000,
     refetchInterval: pendingRun ? 2000 : false,
   })
 
@@ -221,17 +223,16 @@ export function Screener() {
   })
 
   const singleCachedQuery = useQuery({
-    queryKey: historicalSignals
+    queryKey: savedSignals && !liveSignals
       ? QK.screenerDayView(activeStrategy ?? '', asOf, assetType, activeStrategyTimeframe)
       : QK.screenerCachedResult(activeStrategy ?? '', asOf, extColumnsParam, assetType, activeStrategyTimeframe),
-    queryFn: () => historicalSignals
+    queryFn: () => savedSignals && !liveSignals
       ? api.screenerDayView(activeStrategy!, asOf, assetType, activeStrategyTimeframe)
       : api.screenerCachedResult(activeStrategy!, extColumnsParam || undefined, asOf, assetType, activeStrategyTimeframe),
-    enabled: !!asOf && !showAll
-      && !!activeStrategy
-      && (historicalSignals || summaryQuery.data?.results[activeStrategy]?.as_of === asOf),
-    staleTime: historicalSignals ? 60_000 : 0,
-    refetchInterval: signalsView && !isHistoricalDate ? 1000 : false,
+    // Summary availability must not prevent reading an explicitly selected strategy.
+    enabled: !!asOf && !showAll && !!activeStrategy,
+    staleTime: savedSignals && !liveSignals ? 60_000 : 0,
+    refetchInterval: liveSignals ? 1000 : false,
   })
 
   const realtimeRunning = quoteStatus.data?.running ?? false
@@ -438,7 +439,7 @@ export function Screener() {
   // 当前单策略缓存更新后同步明细；参数保存的强制重算结果仍由 run 直接覆盖。
   useEffect(() => {
     const cached = singleCachedQuery.data?.result
-    if (historicalSignals && !showAll && singleCachedQuery.data && cached === null) {
+    if (savedSignals && !showAll && singleCachedQuery.data && cached === null) {
       setResult(null)
       if (activeStrategy) setHitCounts(previous => ({ ...previous, [activeStrategy]: 0 }))
       return
@@ -448,7 +449,7 @@ export function Screener() {
     if (activeStrategy) {
       setHitCounts(prev => ({ ...prev, [activeStrategy]: cached.total }))
     }
-  }, [singleCachedQuery.data, showAll, activeStrategy, asOf, historicalSignals])
+  }, [singleCachedQuery.data, showAll, activeStrategy, asOf, savedSignals])
 
   const effectiveResults = useMemo(() => {
     if (fullCachedQuery.data?.as_of !== asOf) return null
@@ -642,7 +643,7 @@ export function Screener() {
 
   // 日期变化仅查询对应归档；次日预选不触发计算或改写当日记录。
   const handleDateChange = (newDate: string) => {
-    if (!newDate || !maxDate || newDate > maxDate) return
+    if (!newDate || newDate === asOf || !maxDate || newDate > maxDate) return
     followCurrentDay.current = newDate === currentTradeDate
     setAsOf(newDate)
     viewRef.current.asOf = newDate
@@ -790,7 +791,7 @@ export function Screener() {
   }
 
 
-  const inlineDailyToolbar = !showAll && result?.strategy === 'custom_mvxxcp88' && !!result.sections
+  const inlineDailyToolbar = !showAll && ['custom_mvxxcp88', 'custom_mvxxcs01'].includes(result?.strategy ?? '') && !!result?.sections
 
   return (
     <>
@@ -937,8 +938,7 @@ export function Screener() {
             >
               <Clock className="h-3.5 w-3.5" />历史结果
             </button>
-            {activeStrategy && strategyMap.get(activeStrategy)?.result_sections === 'signals'
-              && !strategyMap.get(activeStrategy)?.minute_execution && <button
+            {activeStrategy && strategyMap.get(activeStrategy)?.result_sections === 'signals' && <button
                 onClick={() => setNextSelectionStrategyId(activeStrategy)}
                 disabled={!currentTradeDate}
                 className="inline-flex items-center gap-1.5 h-7 px-3 rounded-btn border border-border text-xs text-secondary disabled:opacity-40">
@@ -1055,7 +1055,7 @@ export function Screener() {
                 className={inlineDailyToolbar
                   ? 'flex min-w-0 flex-wrap items-center gap-2'
                   : 'flex flex-wrap items-center justify-between gap-2 min-w-0'}>
-                {(showAll || activeStrategy !== 'custom_mvxxcp88') && (
+                {!inlineDailyToolbar && (
                 <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
                   {!showAll && activeStrategy && (
                     <span className="text-secondary">{strategyIdToName[activeStrategy] ?? ''}</span>
@@ -1263,16 +1263,22 @@ export function Screener() {
               </div>
               <div className="flex flex-col items-center gap-1.5">
                 <span className="text-sm text-secondary">
-                  {isFutureQuery && activeStrategy
-                    ? (historicalSignals ? singleCachedQuery.isError : summaryQuery.isError || singleCachedQuery.isError) ? '该交易日归档读取失败'
-                      : (historicalSignals ? singleCachedQuery.isFetching : summaryQuery.isFetching || singleCachedQuery.isFetching) ? '正在读取该交易日归档'
+                  {activeStrategy
+                    ? singleCachedQuery.isError ? '该交易日归档读取失败，请重试'
+                      : singleCachedQuery.isFetching ? '正在读取该交易日归档'
                         : '该交易日归档尚未生成'
                     : '点击策略卡片查看选股结果'}
                 </span>
                 <span className="text-[11px] text-muted">
                   {isFutureQuery ? '下一交易日仅查询已保存的卖／选／买，请等待归档生成或稍后重试'
-                    : '若提示 enriched 表无数据，请先运行盘后管道'}
+                    : activeStrategy ? `${asOf} · 可切换日期查看历史结果，或重新读取当前归档`
+                      : '若提示 enriched 表无数据，请先运行盘后管道'}
                 </span>
+                {activeStrategy && <button className="text-xs text-accent"
+                  disabled={singleCachedQuery.isFetching}
+                  onClick={() => void singleCachedQuery.refetch({ cancelRefetch: false })}>
+                  重新读取
+                </button>}
               </div>
             </div>
           )}

@@ -11,7 +11,7 @@ import { storage } from '@/lib/storage'
 import { confirmAccount } from '@/lib/accountSession'
 import { StrategyBacktest } from './StrategyBacktest'
 
-const state = vi.hoisted(() => ({ task: null as BacktestTask | null }))
+const state = vi.hoisted(() => ({ task: null as BacktestTask | null, loadedViews: [] as string[] }))
 vi.mock('@/lib/backtestTask', () => ({
   useBacktestTask: () => state.task, tryReconnect: () => false,
   startBacktest: vi.fn(), stopBacktest: vi.fn(), attachBacktestJob: vi.fn(),
@@ -22,10 +22,10 @@ vi.mock('@/lib/useSharedQueries', () => ({
 }))
 vi.mock('@/lib/useCustomSignalNames', () => ({ useCustomSignalNames: () => ({}) }))
 vi.mock('@/components/Toast', () => ({ toast: vi.fn() }))
-vi.mock('./charts/StrategyNavChart', () => ({ StrategyNavChart: () => null }))
-vi.mock('./charts/ReturnDistributionChart', () => ({ ReturnDistributionChart: () => null }))
-vi.mock('./components/TradeKlineModal', () => ({ TradeKlineModal: () => null }))
-vi.mock('./components/PicksSymbolKlineModal', () => ({ PicksSymbolKlineModal: () => null }))
+vi.mock('./charts/StrategyNavChart', () => { state.loadedViews.push('nav'); return { StrategyNavChart: () => null } })
+vi.mock('./charts/ReturnDistributionChart', () => { state.loadedViews.push('distribution'); return { ReturnDistributionChart: () => null } })
+vi.mock('./components/TradeKlineModal', () => { state.loadedViews.push('trade'); return { TradeKlineModal: () => null } })
+vi.mock('./components/PicksSymbolKlineModal', () => { state.loadedViews.push('picks'); return { PicksSymbolKlineModal: () => null } })
 vi.mock('./components/ResearchInputSummary', () => ({ ResearchInputSummary: () => null }))
 vi.mock('@/lib/api', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/api')>()
@@ -109,6 +109,11 @@ function strategyFixture(id = 'example', source: StrategyDetail['source'] = 'bui
     order_by: '', descending: false, limit: 0,
   }
 }
+
+it('does not load result charts or replay dialogs on an empty backtest entry', () => {
+  expect(state.loadedViews).toEqual([])
+  expect(startBacktest).not.toHaveBeenCalled()
+})
 
 it('clears stale generic weights when the strategy owns ranking', async () => {
   const custom: StrategyDetail = {
@@ -241,17 +246,105 @@ function completed(id: number): BacktestTask {
   return { id, isPending: false, result, progress: null, error: null, reconnecting: false }
 }
 
+it('keeps fresh liquidation defaults while S01 detail loads and submits the five-minute exit', async () => {
+  const s01: StrategyDetail = {
+    ...strategyFixture('custom_mvxxcs01', 'custom'), name: 's01', timeframes: ['1m'],
+    execution_backend: 'minute_filter', minute_execution: 'overnight_capacity_v1', optional_triggers: true,
+  }
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [s01], load_errors: [] })
+  let resolveDetail!: (detail: StrategyDetail) => void
+  vi.spyOn(api, 'strategyGet').mockImplementation(() => new Promise(resolve => { resolveDetail = resolve }))
+  await act(async () => root.unmount())
+  client.clear()
+  localStorage.clear()
+  root = createRoot(host)
+  await render()
+  const exit = () => Array.from(host.querySelectorAll('label')).find(el => el.textContent === '清仓口径')!
+    .parentElement!.parentElement!.querySelector('select')!
+  expect(exit().value).toBe('signal_next_minute')
+  await act(async () => Array.from(host.querySelectorAll('button'))
+    .find(el => el.textContent?.startsWith('s01'))!.click())
+  await settle()
+  expect(exit().value).toBe('signal_next_minute')
+  expect(Array.from(host.querySelectorAll('button')).find(el => el.textContent === '运行回测')?.disabled).toBe(true)
+  await act(async () => resolveDetail(s01))
+  await settle()
+  expect(host.querySelector('[aria-label="清仓口径"]')?.textContent).toBe('信号后下1分钟起，5分钟卖出')
+  await click('运行回测')
+  expect(startBacktest).toHaveBeenCalledWith(expect.objectContaining({
+    strategy_id: s01.id, exit_fill: 'signal_next_minute', max_positions: 4, initial_capital: 1000000,
+  }))
+})
+
+it.each([
+  ['custom_mvxxcs01', 'close_t'],
+  ['custom_mvxxcs01', 'open_t+1'],
+  ['custom_mvxxcp88', 'close_t'],
+  ['custom_mvxxcp88', 'open_t+1'],
+  ['custom_mvxxcp88', 'signal_next_minute'],
+])('fixes S01/S02 matching controls and new requests despite legacy settings (%s, %s)', async (id, legacyExit) => {
+  const custom: StrategyDetail = {
+    ...strategyFixture(id, 'custom'), name: id === 'custom_mvxxcs01' ? 's01' : 's02',
+    execution_backend: 'minute_filter', timeframes: ['1m'],
+    ...(id === 'custom_mvxxcs01' ? { minute_execution: 'overnight_capacity_v1', optional_triggers: true } : {}),
+    exit_signals: ['csgi_morning_liquidation'],
+  }
+  vi.spyOn(api, 'screenerStrategies').mockResolvedValue({ presets: [custom], load_errors: [] })
+  vi.spyOn(api, 'strategyGet').mockResolvedValue(custom)
+  vi.spyOn(api, 'customSignalsList').mockResolvedValue({ signals: [{
+    id: 'morning_liquidation', name: '早盘清仓', kind: 'exit', enabled: true,
+    timeframe: 'intraday', template: 'morning_liquidation', conditions: [],
+  }] })
+  storage.strategyBacktestLast.set({
+    ...storage.strategyBacktestLast.get(null)!, entryFill: 'open_t+1',
+    exitFill: legacyExit as 'close_t' | 'open_t+1' | 'signal_next_minute',
+  })
+  await remountWithStrategy(id)
+  const entry = host.querySelector('[aria-label="建仓口径"]')!
+  const exit = host.querySelector('[aria-label="清仓口径"]')!
+  expect(entry).not.toBeNull()
+  expect(exit).not.toBeNull()
+  expect(entry.textContent).toBe('信号后下1分钟起，5分钟容量撮合')
+  expect(exit.textContent).toBe('信号后下1分钟起，5分钟卖出')
+  expect(entry.className).toBe(exit.className)
+  expect(entry.parentElement?.className).toBe(exit.parentElement?.className)
+  expect(entry.querySelector('select')).toBeNull()
+  expect(exit.querySelector('select')).toBeNull()
+  expect(host.textContent).not.toContain('次交易日触发分钟收盘')
+  await click('运行回测')
+  expect(startBacktest).toHaveBeenLastCalledWith(expect.objectContaining({
+    strategy_id: id, entry_fill: 'close_t', exit_fill: 'signal_next_minute', initial_capital: 1000000,
+    minute_fill: false, mode: 'position',
+  }))
+  state.task = completed(4)
+  await render()
+  expect(storage.strategyBacktestLast.get(null)).toMatchObject({
+    entryFill: 'close_t', exitFill: 'signal_next_minute',
+  })
+})
+
+it('falls back only after a strategy is confirmed to lack minute liquidation support', async () => {
+  await act(async () => root.unmount())
+  client.clear()
+  localStorage.clear()
+  root = createRoot(host)
+  await render()
+  await click('示例策略')
+  await click('运行回测')
+  expect(startBacktest).toHaveBeenCalledWith(expect.objectContaining({ exit_fill: 'close_t' }))
+})
+
 it('uses the requested migrated defaults and request units', async () => {
   await click('运行回测')
 
   expect(startBacktest).toHaveBeenCalledWith(expect.objectContaining({
-    max_positions: 5,
+    max_positions: 4,
     stamp_tax_pct: 0.001,
     slippage_bps: 10,
     minimum_commission: 5,
     transfer_fee_pct: 0.0005,
   }))
-  expect(host.textContent).toContain('单票目标约 20.0%')
+  expect(host.textContent).toContain('单票目标约 25.0%')
 })
 
 it('describes the daily five-minute entry capacity window', () => {
@@ -269,7 +362,7 @@ it('describes the minute strategy post-confirmation entry capacity window', asyn
 
   await remountWithStrategy('minute-example')
 
-  expect(host.textContent).toContain('信号确认后下一分钟起5分钟容量撮合')
+  expect(host.textContent).toContain('信号后下1分钟起，5分钟容量撮合')
 })
 
 it('keeps the selected result page when editing the next run, and applies a new completed task', async () => {

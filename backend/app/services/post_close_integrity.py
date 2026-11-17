@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import threading
 import uuid
 from datetime import date, datetime, time, timedelta
+
+import polars as pl
 
 from app.config import settings
 from app.market_time import cn_now
@@ -58,6 +61,48 @@ def _reconcile(state):
     return state
 
 
+def _close_review(repo, day):
+    """Read only this day's evidence; keep all symbol failures, including on retry."""
+    from app.services.daily_close_validation import validate_daily_close
+
+    report = {"checked_count": 0, "valid_count": 0, "invalid_count": 0, "errors": []}
+    try:
+        raw, closing = repo.get_daily_close_inputs(day)
+        files = sorted((repo.store.data_dir / "kline_daily_enriched" / f"date={day}").glob("*.parquet"))
+        rows = pl.read_parquet(files) if files else pl.DataFrame()
+        symbols = set(raw["symbol"].drop_nulls())
+        report["checked_count"] = len(symbols)
+        rejected = validate_daily_close(
+            repo, day, rows=rows if not rows.is_empty() else None, isolate_symbols=True,
+        ) or {}
+        covered = set(rows["symbol"].drop_nulls()) if "symbol" in rows.columns else set()
+        for symbol in symbols - covered:
+            rejected.setdefault(symbol, f"{day} {symbol} 加工日线缺失")
+
+        def values(frame, symbol, column):
+            if not {"symbol", column} <= set(frame.columns):
+                return []
+            return [
+                value if not isinstance(value, float) or math.isfinite(value) else None
+                for value in frame.filter(pl.col("symbol") == symbol)[column].to_list()
+            ]
+
+        report["errors"] = [
+            {"symbol": symbol, "reason": reason,
+             "daily_closes": values(raw, symbol, "close"),
+             "minute_closes": values(closing, symbol, "close"),
+             "enriched_closes": values(rows, symbol, "raw_close" if "raw_close" in rows.columns else "close"),
+             "quote_ts": values(raw, symbol, "quote_ts"),
+             "quote_time_basis": values(raw, symbol, "quote_time_basis")}
+            for symbol, reason in sorted(rejected.items())
+        ]
+        report["invalid_count"] = len(rejected)
+        report["valid_count"] = len(symbols - set(rejected))
+    except (OSError, ValueError, KeyError, pl.exceptions.PolarsError) as exc:
+        report["error"] = str(exc)
+    return report
+
+
 def summary(repo, *, scheduler=None):
     """Bounded pure read for the existing admin job list, without input scans."""
     now = cn_now()
@@ -75,7 +120,9 @@ def summary(repo, *, scheduler=None):
         if state is None:
             return {**base, "available": calendar is not None, "is_trading_day": calendar,
                     "day": str(now.date()), "status": "not_run" if calendar is not None else "unavailable"}
-        fields = ("day", "status", "job_id", "attempts", "updated_at", "error", "next_retry_at", "result")
+        fields = ("day", "status", "job_id", "attempts", "updated_at", "error", "next_retry_at", "result",
+                  "requested_at", "first_started_at", "last_started_at", "last_finished_at",
+                  "last_stage", "diagnostics")
         return {**base, "available": calendar is not None, "is_trading_day": calendar,
                 **{key: state[key] for key in fields if key in state}}
     except (OSError, ValueError, KeyError, TypeError):
@@ -100,7 +147,8 @@ def request_repair(repo, capset, quote_service=None, *, stop=None):
                              "error": "复核请求已跨日, 原交易日未完成, 不自动重放历史"})
             state = None
         if state is None:
-            state = _save(repo, {"day": str(day), "status": "pending", "attempts": 0})
+            state = _save(repo, {"day": str(day), "status": "pending", "attempts": 0,
+                                 "requested_at": now.isoformat()})
         reconciled = _reconcile(state)
         if reconciled != state:
             state = _save(repo, reconciled)
@@ -138,18 +186,40 @@ def request_repair(repo, capset, quote_service=None, *, stop=None):
 
             def progress(stage, pct, msg, stage_pct=None, skip_log=False):
                 check_cancelled()
+                state["last_stage"] = stage
                 store.progress(job_id, stage, min(99, pct), msg,
                                stage_pct=stage_pct, skip_log=skip_log)
 
-            try:
-                result = pipeline_jobs.run_with_capacity(job_id, lambda: repair_inputs(
-                    repo, capset, day, progress=progress, check_cancelled=check_cancelled,
-                    quote_service=quote_service, previous=state if state.get("result") else None,
-                ))
+            attempt_diagnostics = {}
+
+            def run():
+                nonlocal state
                 check_cancelled()
+                started = cn_now().isoformat()
+                state = _save(repo, {**state, "first_started_at": state.get("first_started_at") or started,
+                                     "last_started_at": started, "last_stage": "review_close"})
+                review = attempt_diagnostics["close_review"] = {"before": _close_review(repo, day)}
+                state = _save(repo, {**state, "diagnostics": attempt_diagnostics})
+                try:
+                    return repair_inputs(
+                        repo, capset, day, progress=progress, check_cancelled=check_cancelled,
+                        quote_service=quote_service, previous=state if state.get("result") else None,
+                        diagnostics=attempt_diagnostics,
+                    )
+                finally:
+                    review["after"] = _close_review(repo, day)
+                    state["last_finished_at"] = cn_now().isoformat()
+
+            try:
+                result = pipeline_jobs.run_with_capacity(job_id, run)
+                check_cancelled()
+                result = {**result, "close_review": attempt_diagnostics["close_review"]}
                 state = {**state, "result": result, "input_signature": input_signature(repo, day)}
                 gaps = result.get("gap_check") or {}
-                if any(gaps.get(key) for key in ("remaining", "error", "warning", "gap_check_warning")):
+                after = attempt_diagnostics["close_review"]["after"]
+                if after.get("error") or after["invalid_count"] or not after["valid_count"]:
+                    store.fail(job_id, "收盘证据仍有异常或未核实项, 将在当日自动重试")
+                elif any(gaps.get(key) for key in ("remaining", "error", "warning", "gap_check_warning")):
                     store.fail(job_id, "日线仍有缺口或未核实项, 将在当日自动重试; 已验证数据保持")
                 else:
                     store.succeed(job_id, result)
@@ -159,7 +229,8 @@ def request_repair(repo, capset, quote_service=None, *, stop=None):
                 logger.exception("当日盘后遗留复核失败: %s", day)
                 store.fail(job_id, str(exc))
             job = store.get(job_id)
-            state = {**state, "status": job["status"], "error": job.get("error")}
+            state = {**state, "status": job["status"], "error": job.get("error"),
+                     "diagnostics": attempt_diagnostics}
             if state["status"] in {"failed", "interrupted"}:
                 delay = min(300, 60 * 2 ** min(3, state["attempts"] - 1))
                 state["next_retry_at"] = (cn_now() + timedelta(seconds=delay)).isoformat()

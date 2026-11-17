@@ -15,6 +15,7 @@ from app.backtest.governance import research_preflight, status_quality
 from app.backtest.minute_replay import minute_panel_start, minute_replay_feature_plan
 from app.strategy.builtin._overnight import (
     entry_budget,
+    exit_schedule,
     exit_signal,
     minute_frame,
     minute_number,
@@ -23,24 +24,21 @@ from app.strategy.builtin._overnight import (
     suspended_on,
 )
 from app.strategy.engine import StrategyDataContext
-from app.strategy.overnight_runtime import annotate_daily, next_market_day
+from app.strategy.overnight_runtime import annotate_daily, exit_hits, next_market_day
 
 
 def order_fee(notional: float, side: str, params: dict) -> float:
     if notional <= 0:
         return 0.
-    return (
-        params.get("transfer_fee_fixed", 0.)
-        + max(params["minimum_commission"], notional * params["commission"])
-        + notional * (params["transfer_fee"] + (params["stamp_tax"] if side == "sell" else 0.))
-    )
+    return params.get("transfer_fee_fixed", 0.) + max(params["minimum_commission"], notional * params["commission"]) + notional * (
+        params["transfer_fee"] + (params["stamp_tax"] if side == "sell" else 0.))
 
 
 def fill_order(frame, side, symbol, prior_close, first_bar, last_bar, values, *,
                budget=None, quantity=None, price_field=None, prior_notional=0.):
     """一只股票、一天、一个方向的汇总委托; 分片费用为汇总费用的增量。"""
     params = parameters(values)
-    # 整笔买入预算预留固定费; 各分片仍只记累计费用的增量。
+    # 固定费从整笔买入预算预扣; 首分片记费, 后续只记累计费用增量。
     buying_budget = max(0., (budget or 0.) - params.get("transfer_fee_fixed", 0.))
     minimum, step, maximum = buy_quantity_rules(symbol)
     notional, shares, fills = 0., 0, []
@@ -151,6 +149,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
     if equal_selected:
         params = {**params, "entry_nav_fraction": 1.}
     params = parameters(params)
+    scheduled_exit = exit_schedule(params) is not None
     reported_params = {k: v for k, v in params.items()
                        if not equal_selected or k != "entry_nav_fraction"}
     allocation = ({"entry_allocation": "common_backtest_v1"} if common_execution else
@@ -298,10 +297,11 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 if day < pos["sell_date"]:
                     continue
                 history = frame.filter(pl.col("symbol") == symbol)
-                if not selectable and morning_features(history, pos["entry_value"] / pos["shares"]) is None:
+                if not selectable and not scheduled_exit and morning_features(history, pos["entry_value"] / pos["shares"]) is None:
                     return finish(f"{day} {symbol}缺少完整105根有效早盘, 拒绝认证收益")
                 pending = pos.get("pending")
-                if selectable and not (common_execution and pending):
+                hits = []
+                if (selectable or scheduled_exit) and not (common_execution and pending):
                     exit_context = StrategyDataContext(
                         "stock", "1m", day, history=history, current=prior, daily_history=daily,
                         completed_through=datetime.combine(day, datetime.min.time()).replace(hour=15),
@@ -309,15 +309,17 @@ def run_overnight(service, config, strategy, params, overrides, *,
                                     "entry_unit_cost": pos["entry_value"] / pos["shares"],
                                     "entry_date": str(pos["entry_date"]), "sell_date": str(pos["sell_date"])}],
                         holding_history_loader=repo.get_minute_by_dates)
-                    hits = optional_exit_hits(service.strategy_engine, strategy, exit_context,
-                        params, selected["exit"], overrides=overrides)
+                    hits = (optional_exit_hits(service.strategy_engine, strategy, exit_context,
+                        params, selected["exit"], overrides=overrides) if selectable
+                        else exit_hits(exit_context, params))
                     if exit_context.exit_errors:
                         return finish("; ".join(exit_context.exit_errors))
                     pending = pending or next(iter(hits), None)
                     if pending is None:
                         continue
-                    if (any(s.get("template") == "s01_morning_exit"
+                    if (selectable and any(s.get("template") == "s01_morning_exit"
                             and s["column"] in pending["signals"] for s in selected["exit"])
+                            and not pending.get("exit_stage")
                             and morning_features(history, pos["entry_value"] / pos["shares"]) is None):
                         return finish(f"{day} {symbol}缺少完整105根有效早盘, 拒绝认证收益")
                 elif not selectable:
@@ -352,6 +354,26 @@ def run_overnight(service, config, strategy, params, overrides, *,
                                   sale_params, quantity=pos["remaining"],
                                   price_field=("close" if config.exit_fill == "close_t" else "open")
                                   if common_execution else None)
+                if not common_execution or config.exit_fill == "signal_next_minute":
+                    # A clock phase rearms only the remainder; fee increments cover the same sale day.
+                    for retry in hits:
+                        if (not sale["remaining"] or retry.get("exit_stage") not in ("stop", "fallback")
+                                or retry["signal_bar"] <= pending["signal_bar"]):
+                            continue
+                        retry = {**retry, "signal_date": str(day), "execution_date": str(day)}
+                        signals.append({"date": str(day), "symbol": symbol, **retry})
+                        part = fill_order(
+                            history, "sell", symbol, lookup.get(symbol),
+                            max(retry["first_eligible_bar"], pending["last_eligible_bar"] + 1),
+                            retry["last_eligible_bar"], sale_params,
+                            quantity=sale["remaining"], price_field="open" if common_execution else None,
+                            prior_notional=sale["notional"])
+                        sale["fills"].extend(part["fills"])
+                        for key in ("shares", "notional", "fee", "value"):
+                            sale[key] += part[key]
+                        sale["remaining"] = part["remaining"]
+                        pending = retry
+                    pos["pending"] = pending
                 fills.extend(sale["fills"])
                 late_fills = [f for f in sale["fills"] if f["bar"] >= first_buy] if selectable else []
                 late_value = sum(f["notional"] - f["fee"] for f in late_fills)
@@ -397,12 +419,40 @@ def run_overnight(service, config, strategy, params, overrides, *,
             if sell_date <= config.end:
                 if sell_date not in dates:
                     return finish(f"{sell_date}缺少次交易日日线")
+                context = StrategyDataContext(
+                    "stock", "1m", day, current=prior, history=frame, daily_history=daily)
+                from app.strategy.signal_sections import select_rows, supports_signal_sections
+
+                if supports_signal_sections(strategy):
+                    from app.instrument_suspension import pool_evidence
+                    from app.strategy.basic_filter import previous_session
+                    from app.strategy.suspension import annotate
+
+                    source_day = previous_session(day)
+                    selection_current = annotate(
+                        daily.filter(pl.col("date") == source_day), as_of=source_day,
+                        evidence=pool_evidence(repo, source_day, observed_at=datetime.combine(
+                            source_day, datetime.min.time()).replace(hour=16)),
+                    ).with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
+                    selected_rows = select_rows(
+                        service.strategy_engine, strategy,
+                        replace(context, current=selection_current, history=None),
+                        overrides={**overrides, "basic_filter": {
+                            **overrides.get("basic_filter", {}),
+                            "data_reference": "previous_trade_day",
+                        }}, pool=config.symbols,
+                    )
+                    context = replace(context, selection_snapshots={strategy.meta["id"]: {
+                        "as_of": str(day), "source_date": str(source_day), "rows": selected_rows,
+                    }})
                 result = service.strategy_engine.run(
-                    strategy.meta["id"], StrategyDataContext(
-                        "stock", "1m", day, current=prior, history=frame, daily_history=daily,
-                        observed_at=entry_confirmation.replace(
-                            year=day.year, month=day.month, day=day.day) if entry_confirmation else None),
+                    strategy.meta["id"], context,
                     pool=config.symbols, params=params, overrides=overrides)
+                entry_errors = [result.entry_filter_error, *(
+                    (result.section_errors or {}).get(key) for key in ("select", "buy"))]
+                if any(entry_errors):
+                    return finish(f"{day}: " + "; ".join(dict.fromkeys(
+                        message for message in entry_errors if message)))
                 buy_start = first_buy
                 entry_symbols = {h["symbol"] for h in result.entry_signal_hits}
                 buy_rows = result.rows

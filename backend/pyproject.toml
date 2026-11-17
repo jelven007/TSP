@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.4",
     "python-multipart>=0.0.6",
     "sse-starlette>=2.0",
+    "brotli>=1.1,<2",
     # Data
     # 1.44 起含流式引擎 executor 线程调度修复; 上限锁定一个已验证的大版本,
     # 升级需重跑 scripts/performance/stress_polars_concurrency.py 压测 (并发死锁回归)。

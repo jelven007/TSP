@@ -172,7 +172,7 @@ def test_commit_crossing_deadline_keeps_sells_but_drops_new_entries():
     assert entry_events_before_deadline(events, results, datetime(2026, 11, 2, 14, 55, 0, 1)) == events[2:]
 
 
-def test_next_preselection_rejects_bad_close_before_freezing(scan, monkeypatch):
+def test_next_preselection_isolates_bad_close_before_freezing(scan, monkeypatch):
     from app.services.screener import ScreenerService
     engine, context, overrides = scan
     reference = context.daily_history
@@ -183,6 +183,11 @@ def test_next_preselection_rejects_bad_close_before_freezing(scan, monkeypatch):
         get_daily_close_inputs=lambda *_: (raw, reference.select("symbol", "close")),
     ))
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: raw)
-    with pytest.raises(ValueError, match=r"600001\.SH 收盘校验失败"):
-        service.build_selection_context(engine, reference["date"][0], context.as_of, ["custom_test"],
-                                        overrides_map={"custom_test": overrides})
+    built = service.build_selection_context(
+        engine, reference["date"][0], context.as_of, ["custom_test"],
+        overrides_map={"custom_test": overrides},
+    )
+    assert set(built.current["symbol"]) == set(reference["symbol"]) - {"600001.SH"}
+    assert set(built.daily_history["symbol"]) == set(built.current["symbol"])
+    assert set(built.reference_errors) == {"600001.SH"}
+    assert "收盘校验失败" in built.reference_errors["600001.SH"]

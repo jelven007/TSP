@@ -6,7 +6,13 @@ from datetime import date, datetime, timedelta
 import polars as pl
 
 from app.market_time import cn_now, cn_today, published_trading_day
-from app.strategy.builtin._overnight import exit_signal, minute_frame, minute_number, parameters
+from app.strategy.builtin._overnight import (
+    exit_schedule,
+    exit_signal,
+    minute_frame,
+    minute_number,
+    parameters,
+)
 
 
 def next_market_day(day: date) -> date:
@@ -139,6 +145,7 @@ def position_snapshot(data_dir, strategy_id: str, as_of: date | None = None) -> 
 
 def exit_hits(context, params: dict) -> list[dict]:
     deadline = minute_number(parameters(params)["sell_deadline"])
+    schedule = exit_schedule(params)
     frame = minute_frame(context.history if context.history is not None else pl.DataFrame())
     now = context.completed_through
     if now is None:
@@ -161,14 +168,19 @@ def exit_hits(context, params: dict) -> list[dict]:
         history = frame.filter(pl.col("symbol") == symbol) if not frame.is_empty() else frame
         pending = None
         # 回放已完成前缀的首次触发, 后续反弹不撤销; 指标不足仍有时钟兜底。
-        for bar in range(675, min(asof, deadline) + 1):
+        events = []
+        for bar in range(schedule[0] if schedule else 675, min(asof, deadline) + 1):
+            previous = pending
             pending = exit_signal(history, bar, position.get("entry_unit_cost"), params, pending)
-            if pending:
+            if pending and pending != previous:
+                events.append(pending)
+            if pending and not schedule:
                 break
-        if pending:
+        for event in events:
             hits.append({
-                "symbol": symbol, "signals": ["overnight_" + pending["reason"]],
+                "symbol": symbol, "signals": ["overnight_" + event["reason"]],
                 "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id"),
-                **pending, "deadline_elapsed": asof > deadline,
+                **({"holding_exit": True} if schedule else {}),
+                **event, "deadline_elapsed": asof > event["last_eligible_bar"],
             })
     return hits

@@ -423,6 +423,7 @@ export interface ScreenerResult {
     coverage?: {
       schema: 'daily_selection_coverage_v1'; source_date: string; scope_total: number
       available_daily: number; missing_symbols: string[]; complete: boolean
+      invalid_symbols?: Record<string, string>
     } | null
     warnings?: string[]
   } | null
@@ -1016,15 +1017,21 @@ export interface S01EntryParams {
 }
 
 export interface S01ExitParams {
-  vwap_buffer: number
-  peak_profit_min: number
-  peak_retrace_min: number
-  return_15m_max: number
+  vwap_buffer?: number // 旧冻结信号
+  peak_profit_min?: number // 旧冻结信号
+  peak_retrace_min?: number // 旧冻结信号
+  return_15m_max?: number // 旧冻结信号
   decline_3m: number
   volume_ratio_min: number
-  guard_time: string
-  sell_deadline: string
+  start_time?: string
+  stop_time?: string
+  fallback_time?: string
+  guard_time?: string // 旧冻结信号
+  sell_deadline?: string // 旧冻结信号
 }
+
+export type S01VolumeExitParams = Required<Pick<S01ExitParams,
+  'decline_3m' | 'volume_ratio_min' | 'start_time' | 'stop_time' | 'fallback_time'>>
 
 export interface MorningLiquidationParams {
   time: string
@@ -4894,6 +4901,11 @@ export const api = {
 }
 
 // ===== Pipeline =====
+export interface DailyCloseReview {
+  before?: { checked_count: number; valid_count: number; invalid_count: number; error?: string }
+  after?: { checked_count: number; valid_count: number; invalid_count: number; error?: string }
+}
+
 export interface PostCloseIntegrityStatus {
   available: boolean
   schedule_registered?: boolean
@@ -4908,6 +4920,12 @@ export interface PostCloseIntegrityStatus {
   job_id?: string
   attempts?: number
   updated_at?: string
+  requested_at?: string
+  first_started_at?: string
+  last_started_at?: string
+  last_finished_at?: string
+  last_stage?: string
+  diagnostics?: { close_review?: DailyCloseReview }
   error?: string | null
   next_retry_at?: string | null
   result?: {
@@ -4915,6 +4933,7 @@ export interface PostCloseIntegrityStatus {
     repaired_symbols?: string[]
     data_release_id?: string
     gap_check?: { rows?: number; remaining?: number; warning?: string; gap_check_warning?: string }
+    close_review?: DailyCloseReview
   }
 }
 

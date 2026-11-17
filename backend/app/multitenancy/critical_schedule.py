@@ -63,6 +63,9 @@ def record_completion(unit, sid, daily, *, now, fingerprint):
         "completed_at": daily["computed_at"], "runtime_identity": daily.get("runtime_identity"),
         "buy_count": len((daily.get("sections") or {}).get("buy") or []),
     })
+    from app.services.strategy_day_views import receipt_updated
+
+    receipt_updated(unit, sid, day)
 
 
 def reconcile(worker, documents, claim=None):
@@ -171,4 +174,7 @@ def check_completion(worker, documents, claim=None, *, now=None):
                     "message": f"{schedule['name']} · {day} · {message}",
                 }], channels=[])
             unit.put("critical_strategy_runs", key, receipt)
+            from app.services.strategy_day_views import receipt_updated
+
+            receipt_updated(unit, sid, day)
         valid_claim(unit.connection, claim)

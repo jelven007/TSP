@@ -20,7 +20,7 @@ export function backtestRuleDraft(
   const rule: Partial<PaperAutoRule> = {}
   const fees: Partial<PaperFees> = {}
   const notes: string[] = []
-  if (!saved || saved.defaultsVersion !== BACKTEST_DEFAULTS_VERSION) {
+  if (!saved || (saved.defaultsVersion !== 4 && saved.defaultsVersion !== BACKTEST_DEFAULTS_VERSION)) {
     return { available: false, rule, fees, notes: ['没有当前版本的已保存回测设置；不使用页面默认值代替。'] }
   }
   if (!strategy || strategy.id !== saved.selectedStrategy) {

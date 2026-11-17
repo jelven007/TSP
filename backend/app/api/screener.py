@@ -440,10 +440,15 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
     )
     day = str(as_of)
     engine = _strategy_engine(request)
+    from app.strategy.signal_sections import supports_signal_sections
+
     signal_ids = {
         identity.strategy_id for identity in identities
         if engine.get(identity.strategy_id).meta.get("result_sections") == "signals"
-        and not engine.get(identity.strategy_id).meta.get("minute_execution")
+        and (
+            not engine.get(identity.strategy_id).meta.get("minute_execution")
+            or supports_signal_sections(engine.get(identity.strategy_id))
+        )
     }
     summaries = store.summaries(identities, day, signal_strategy_ids=signal_ids)
     from app.market_time import cn_today
@@ -452,9 +457,8 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
         if store.tenant:
             from app.multitenancy.runtime import fingerprint
             with store.storage.transaction(write=False) as unit:
-                live = unit.get("monitor_results", "default")
-                if (live and 0 <= time.time() * 1000 - live["sequence"] <= 30000
-                        and live["fingerprint"] == fingerprint(unit.connection, include_state=False)):
+                live = strategy_results.StrategyResults(unit).monitor_snapshot(now_ms=time.time() * 1000)
+                if live and live["fingerprint"] == fingerprint(unit.connection, include_state=False):
                     realtime = live["results"]
         else:
             monitor = getattr(request.app.state, "monitor_engine", None)
@@ -481,9 +485,15 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
                 continue
             saved = store.read(identity, day, record_id=summaries[identity.strategy_id]["record_id"])
             if saved:
+                daily = saved["result"]
+                if daily.get("selection_only") and day > str(cn_today()):
+                    transaction = store.storage._transaction if store.tenant else store._local
+                    with transaction() as conn:
+                        daily = store._with_previous_buy(conn, identity, daily, day)
                 results[identity.strategy_id] = {
-                    **saved["result"], "record_id": saved["record_id"],
+                    **daily, "record_id": saved["record_id"],
                     "source": "saved", "strategy_version": saved["summary"]["strategy_version"],
+                    "runtime_identity": saved["summary"].get("runtime_identity"),
                 }
                 ever[identity.strategy_id] = saved["ever_rows"]
     for sid, live in realtime.items():
@@ -507,7 +517,7 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
 def _with_execution_status(request, results, day, *, identities=()):
     """Retain guarded attempt metadata even after the live-result freshness window."""
     from app.market_time import cn_today
-    from app.strategy.execution_status import merge_result
+    from app.strategy.execution_status import merge_result, with_zero_completion
 
     storage = _private_data_dir(request)
     if not isinstance(storage, TenantDocuments) or day != str(cn_today()):
@@ -519,8 +529,16 @@ def _with_execution_status(request, results, day, *, identities=()):
         current = fingerprint(unit.connection, include_state=False)
         default = unit.get("strategy_execution_status", "default", {})
         for sid in set(output) | {identity.strategy_id for identity in identities}:
-            attempt = unit.get("strategy_execution_status", sid)
             expected = next((item.runtime_identity for item in identities if item.strategy_id == sid), None)
+            previous = output.get(sid)
+            if previous and (not expected or previous.get("runtime_identity") == expected):
+                completed = with_zero_completion(
+                    previous, unit.get("critical_strategy_runs", f"{sid}:{day}", {}), sid,
+                )
+                if completed is not previous:
+                    output[sid] = completed
+                    continue
+            attempt = unit.get("strategy_execution_status", sid)
             terminal = (
                 attempt and attempt.get("fingerprint") == current and attempt.get("as_of") == day
                 and (not attempt.get("runtime_identity") or not expected or attempt["runtime_identity"] == expected)
@@ -573,9 +591,23 @@ def get_day_view(strategy_id: str, request: Request, as_of: date,
                  asset_type: Literal["stock"] = "stock", timeframe: Literal["1m"] = "1m"):
     """Read a complete saved signal day with trusted tenant context, without engine/market IO."""
     from app.cell.context import AccessError
+    from app.services.strategy_day_views import read_encoded
+
+    qualities = {}
+    for item in request.headers.get("accept-encoding", "").lower().split(","):
+        parts = [part.strip() for part in item.split(";")]
+        try:
+            quality = next((float(part[2:]) for part in parts[1:] if part.startswith("q=")), 1.0)
+        except ValueError:
+            quality = 0.0
+        qualities[parts[0]] = quality if 0 <= quality <= 1 else 0.0
+    def quality(encoding):
+        return qualities.get(encoding, qualities.get("*", 0.0))
+    encoding = "br" if quality("br") > 0 and quality("br") >= quality("gzip") else "gzip"
     try:
-        value = strategy_results.StrategyResults(_private_data_dir(request)).day_view(
-            strategy_id, str(as_of), asset_type, timeframe,
+        value = read_encoded(
+            strategy_results.StrategyResults(_private_data_dir(request)),
+            strategy_id, str(as_of), asset_type, timeframe, encoding=encoding,
         )
     except AccessError:
         raise
@@ -585,25 +617,18 @@ def get_day_view(strategy_id: str, request: Request, as_of: date,
     if value is None:
         return {"result": None, "today_ever_rows": None, "strategy_ids_by_symbol": {},
                 "updated_at": None, "availability": "not_materialized"}
-    token, body = value
-    headers = {"Cache-Control": "private, no-cache", "Vary": "Accept-Encoding", "ETag": f'"{token}"'}
-    encodings = [item.strip().lower().split(";") for item in request.headers.get("accept-encoding", "").split(",")]
-    accepts_gzip = False
-    for parts in encodings:
-        if parts[0] != "gzip":
-            continue
-        try:
-            quality = next((float(part.strip()[2:]) for part in parts[1:]
-                            if part.strip().startswith("q=")), 1)
-        except ValueError:
-            quality = 0
-        accepts_gzip = 0 < quality <= 1
-        break
-    if accepts_gzip:
-        headers["Content-Encoding"] = "gzip"
+    token, body, actual_encoding = value
+    if quality(actual_encoding) > 0:
+        headers = {"Content-Encoding": actual_encoding}
     else:
         import gzip
         body = gzip.decompress(body)
+        token = "identity-" + token
+        headers = {}
+    headers.update({"Cache-Control": "private, no-cache", "Vary": "Accept-Encoding", "ETag": f'"{token}"'})
+    matches = [tag.strip().removeprefix("W/") for tag in request.headers.get("if-none-match", "").split(",")]
+    if "*" in matches or headers["ETag"] in matches:
+        return Response(status_code=304, headers=headers)
     return Response(body, media_type="application/json", headers=headers)
 
 
@@ -642,9 +667,8 @@ def _cached_with_realtime(request: Request) -> dict:
         from app.multitenancy.runtime import fingerprint
 
         with data_dir.transaction(write=False) as unit:
-            realtime = unit.get("monitor_results", "default")
-            if (realtime and 0 <= time.time() * 1000 - realtime["sequence"] <= 30000
-                    and realtime["fingerprint"] == fingerprint(unit.connection, include_state=False)):
+            realtime = strategy_results.StrategyResults(unit).monitor_snapshot(now_ms=time.time() * 1000)
+            if realtime and realtime["fingerprint"] == fingerprint(unit.connection, include_state=False):
                 cached = {**cached, "results": {**cached["results"], **realtime["results"]},
                           "updated_at": realtime["sequence"],
                           "as_of": cached["as_of"] or max(
