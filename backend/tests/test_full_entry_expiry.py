@@ -74,10 +74,20 @@ def request_for(monkeypatch, documents):
 
 
 @pytest.mark.parametrize("trading,buy", [(False, "waiting"), (True, "waiting"), (False, "failed")])
-def test_unconfirmed_entry_expires_without_fresh_market_and_preserves_archive(late, monkeypatch, trading, buy):
+@pytest.mark.parametrize("previous_archive", [True, False])
+def test_unconfirmed_entry_expires_without_fresh_market_and_preserves_archive(
+    late, monkeypatch, trading, buy, previous_archive,
+):
     owned, identity = late
     store = StrategyResults(owned.documents)
+    from app.strategy.basic_filter import previous_session
+
+    if previous_archive:
+        store.save(identity, {"as_of": str(previous_session(cn_today())), "rows": [], "total": 0},
+                   started_at=0)
     previous = store.save(identity, saved_result(identity, buy=buy), started_at=1)["result"]
+    sell = "success" if previous_archive else "waiting"
+    assert previous["section_statuses"]["sell"] == sell
     records = owned.documents.records("strategy_result_history")
     tenant = owned.documents.context.tenant_id
     assert owned.worker.evaluate(tenant, owned.snapshot(status={"is_trading_hours": trading},
@@ -89,7 +99,8 @@ def test_unconfirmed_entry_expires_without_fresh_market_and_preserves_archive(la
     request = request_for(monkeypatch, owned.documents)
     view = screener._with_execution_status(request, {SID: previous}, str(cn_today()), identities=[identity])[SID]
     assert view["execution_status"]["state"] == "expired"
-    assert view["section_statuses"] == {"select": "success", "buy": "expired", "sell": "success"}
+    assert view["section_statuses"] == {"select": "success", "buy": "expired", "sell": sell}
+    assert view["section_errors"].get("sell") == previous["section_errors"].get("sell")
     assert "14:55:00" in view["section_errors"]["buy"]
     assert "等待14:30:30" not in view["section_errors"]["buy"]
     assert view["sections"] == previous["sections"]
