@@ -444,7 +444,11 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
 
     signal_ids = {
         identity.strategy_id for identity in identities
-        if supports_signal_sections(engine.get(identity.strategy_id))
+        if engine.get(identity.strategy_id).meta.get("result_sections") == "signals"
+        and (
+            not engine.get(identity.strategy_id).meta.get("minute_execution")
+            or supports_signal_sections(engine.get(identity.strategy_id))
+        )
     }
     summaries = store.summaries(identities, day, signal_strategy_ids=signal_ids)
     from app.market_time import cn_today
