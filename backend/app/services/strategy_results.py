@@ -448,8 +448,9 @@ class StrategyResults:
         if result.get("section_mode") != "signals":
             return result
         from app.services.strategy_day_views import _get, _key
-        roster = _get(self, conn, "strategy_sell_rosters",
-                      _key(identity.strategy_id, as_of, identity.asset_type, identity.timeframe))
+        roster = (_get(self, conn, "strategy_sell_rosters",
+                       _key(identity.strategy_id, as_of, identity.asset_type, identity.timeframe))
+                  if identity.asset_type == "stock" and identity.timeframe == "1m" else None)
         if roster is not None:
             current = copy.deepcopy(result)
             current["sections"]["sell"] = copy.deepcopy(roster["rows"])

@@ -161,9 +161,8 @@ def execute(payload: dict, private_root: Path) -> dict:
             context.daily_pool_snapshots = payload.get("daily_pool_snapshots", {})
             from app.market_time import cn_now, cn_today
             if as_of == cn_today():
-                context.observed_at = cn_now()
-                context.realtime = True
-                context.signal_task_states = payload.get("signal_task_states", {})
+                context = replace(context, observed_at=cn_now(), realtime=True,
+                                  signal_task_states=payload.get("signal_task_states", {}))
             positions = payload.get("positions", {})
             if context.current is not None and context.current.is_empty() and not positions:
                 raise ValueError("无可用行情数据，请稍后重试")

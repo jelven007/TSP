@@ -150,7 +150,11 @@ class FullWorker:
                     payload["overrides"].get(sid, {}).get("exit_signals", source_exits.get(sid, [])) or [],
                 ))
             }
-            from app.services.strategy_results import capture_identity, previous_daily_state
+            from app.services.strategy_results import (
+                StrategyResults,
+                capture_identity,
+                previous_daily_state,
+            )
             payload["previous_states"] = {}
             payload["daily_identities"] = {}
             payload["entry_deadlines"] = {}
@@ -288,6 +292,23 @@ class FullWorker:
                             s01_pending = as_cn_datetime(s01_pending).isoformat()
                             if payload["next_evaluation_at"] is None or s01_pending < payload["next_evaluation_at"]:
                                 payload["next_evaluation_at"] = s01_pending
+                # Removing an ordinary rule stops computation, but a saved
+                # unconfirmed day still needs its terminal deadline receipt.
+                for sid, strategy in catalog._strategies.items():
+                    if (sid in payload["daily_identities"] or strategy.execution_backend != "minute_filter"
+                            or unit.get("strategy_monitoring", sid, {}).get("enabled") is False
+                            or not late_columns.intersection(catalog._effective_signals(
+                                payload["overrides"].get(sid, {}), "entry_signals", strategy.entry_signals))):
+                        continue
+                    identity = capture_identity(catalog, unit, sid, overrides=payload["overrides"].get(sid),
+                                                timeframe="1m")
+                    if StrategyResults(unit).read(identity, str(cn_today())) is None:
+                        continue
+                    end = entry_deadline(catalog, strategy, payload["overrides"].get(sid),
+                                         deadline_context, expired_only=False)
+                    if end is not None:
+                        payload["daily_identities"][sid] = asdict(identity)
+                        payload["entry_deadlines"][sid] = end.isoformat()
             for sid in {r.get("strategy_id") for r in rules} & {"s02"}:
                 try:
                     payload["previous_states"][sid] = previous_daily_state(unit, sid, cn_today())
