@@ -160,6 +160,6 @@ def test_local_old_success_marker_rebuilds_new_definition_once(engine, tmp_path,
     calls = []
     service = SimpleNamespace(build_daily_pool_context=lambda *a, **k: calls.append(k) or context)
     assert generate_scheduled_local(engine, service, tmp_path, now=wall(hour))["saved"] == ["sample"]
-    assert store.job(f"{DAY}:{slot}")["definition_version"] == "scope_only_v3"
+    assert store.job(f"{DAY}:{slot}")["definition_version"] == "strategy_scope_v4"
     assert generate_scheduled_local(engine, service, tmp_path, now=wall(hour, 1))["saved"] == []
     assert len(calls) == 1

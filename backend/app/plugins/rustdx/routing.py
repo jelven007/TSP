@@ -117,10 +117,13 @@ class TaskRuntime:
                     candidates = [candidates[0], *backups] if candidates else []
             else:
                 candidates = [explicit, *backups]
-            # A qualified saved reference can serve a separately bounded history
-            # pool when a small discovery set leaves that group empty.
-            if not candidates and group == "history" and self.reference in (self._nodes or []):
-                candidates = [self.reference]
+            # Sparse partitions can leave a qualified node unused while the
+            # minute reference already holds the native endpoint quota.
+            if not candidates and group in {"realtime", "history"}:
+                candidates = [node for node in (self._nodes or [])
+                              if node not in self._bindings.values()]
+                if not candidates and self.reference in (self._nodes or []):
+                    candidates = [self.reference]
             if not candidates:
                 raise RuntimeError(f"rustdx {group} group has no qualified candidates")
             if self.closed:

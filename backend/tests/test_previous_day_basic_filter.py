@@ -118,6 +118,8 @@ def test_engine_loads_history_and_uses_prior_values_for_actual_daily_run():
 
 
 def test_minute_candidates_use_daily_previous_close_not_last_minute():
+    from datetime import datetime
+
     from test_strategy_saved_params import _make_engine
 
     from app.strategy.engine import StrategyDataContext
@@ -131,10 +133,11 @@ def test_minute_candidates_use_daily_previous_close_not_last_minute():
     history = panel()
     day = date(2026, 10, 26)
     current = history.filter(pl.col("date") == day)
+    minutes = current.with_columns(pl.lit(datetime(2026, 10, 26, 14, 30)).alias("datetime"))
     assert engine.minute_daily_history_bars(["saved_params"],
         overrides_map={"saved_params": {"basic_filter": BF}}) == 2
     context = StrategyDataContext("stock", "1m", day, current=current,
-        history=current, daily_history=history)
+        history=minutes, daily_history=history)
     result = engine.run("saved_params", context, overrides={"basic_filter": BF})
     assert [row["symbol"] for row in result.rows] == ["600000.SH"]
     assert result.rows[0]["close"] == 100

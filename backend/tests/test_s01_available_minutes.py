@@ -13,7 +13,7 @@ from app.strategy import custom_signals
 from app.strategy.engine import StrategyEngine
 
 POLICY = "available_minutes_v1"
-FIXTURE = Path(__file__).parent / "fixtures/s01_available_minutes.txt"
+FIXTURE = Path(__file__).parent / "fixtures/s01_available_minutes.py"
 
 
 def evaluate(frame, *, signal=None, completed=None, legacy=False):

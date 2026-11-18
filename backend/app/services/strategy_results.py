@@ -447,6 +447,19 @@ class StrategyResults:
     def _with_previous_buy(self, conn, identity, result, as_of):
         if result.get("section_mode") != "signals":
             return result
+        from app.services.strategy_day_views import _get, _key
+        roster = (_get(self, conn, "strategy_sell_rosters",
+                       _key(identity.strategy_id, as_of, identity.asset_type, identity.timeframe))
+                  if identity.asset_type == "stock" and identity.timeframe == "1m" else None)
+        if roster is not None:
+            current = copy.deepcopy(result)
+            current["sections"]["sell"] = copy.deepcopy(roster["rows"])
+            current["sell_roster"] = roster
+            errors = dict(current.get("section_errors") or {})
+            if (current.get("section_statuses") or {}).get("sell") != "failed":
+                errors.pop("sell", None)
+            current["section_errors"] = errors
+            return current
         from app.strategy.basic_filter import previous_session
         previous = str(previous_session(date.fromisoformat(as_of)))
         prefix = digest(identity.strategy_id)[:16] + ":" + previous + ":"
@@ -572,12 +585,27 @@ class StrategyResults:
             prior_result = (old["result"] if old and old["summary"].get("identity") == identity.fingerprint
                             else None)
 
+            independent_sell = (result.get("monitor_tasks") or {}).get("sell", {}).get("state") in (
+                "success", "failed")
             if old and result_status(old["result"])["state"] == "success" \
-                    and result_status(result)["state"] != "success":
+                    and result_status(result)["state"] != "success" and not independent_sell:
                 shown = merge_result(old["result"], result)
                 preserve_first_receipts(shown, prior_result)
                 return {**copy.deepcopy(old), "result": shown}, "unchanged"
             payload = copy.deepcopy(result)
+            if independent_sell and prior_result and (prior_result.get("section_statuses") or {}).get("buy") == "success":
+                payload["rows"] = copy.deepcopy(prior_result.get("rows") or [])
+                payload["total"] = prior_result.get("total", 0)
+                payload["sections"]["buy"] = copy.deepcopy(prior_result["sections"]["buy"])
+                payload["section_statuses"]["buy"] = "success"
+                payload["section_errors"].pop("buy", None)
+                payload.pop("entry_filter_error", None)
+                payload.pop("execution_status", None)
+            if (payload.get("monitor_tasks") and prior_result
+                    and (payload["monitor_tasks"].get("sell") or {}).get("state") not in ("success", "failed")):
+                payload["exit_signal_hits"] = copy.deepcopy(prior_result.get("exit_signal_hits") or [])
+                if prior_result.get("monitor_tasks", {}).get("sell", {}).get("state") == "success":
+                    payload["section_statuses"]["sell"] = prior_result.get("section_statuses", {}).get("sell", "success")
             reference = payload.pop("price_suggestion_reference", None)
             if payload.get("section_mode") == "signals" and not payload.get("selection_only"):
                 frozen_id = replace(identity, daily_record=True).record_id(as_of)
@@ -654,6 +682,8 @@ class StrategyResults:
                 if (identity.asset_type == "stock" and identity.timeframe == "1m"
                         and value["result"].get("section_mode") == "signals"):
                     from app.services.strategy_day_views import publish
+                    from app.services.strategy_monitor_tasks import forward_buy
+                    forward_buy(self, conn, identity, value)
                     publish(self, conn, identity.strategy_id, as_of, identity.asset_type, identity.timeframe)
         else:
             with self._local(write=True) as conn:
@@ -682,6 +712,8 @@ class StrategyResults:
                 if (identity.asset_type == "stock" and identity.timeframe == "1m"
                         and value["result"].get("section_mode") == "signals"):
                     from app.services.strategy_day_views import publish
+                    from app.services.strategy_monitor_tasks import forward_buy
+                    forward_buy(self, conn, identity, value)
                     publish(self, conn, identity.strategy_id, as_of, identity.asset_type, identity.timeframe)
         logger.info("strategy result %s: asset=%s timeframe=%s date=%s",
                     "saved" if update == "result" else "reused",

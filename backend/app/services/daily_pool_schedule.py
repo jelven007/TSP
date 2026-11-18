@@ -24,7 +24,7 @@ def next_check(now=None):
     candidates = [now + timedelta(minutes=1)]
     if published_trading_day(now.date()) is True:
         candidates.extend(datetime.fromisoformat(scheduled_for(now.date(), slot))
-                          for slot in (*SLOTS, "16:00")
+                          for slot in (*SLOTS, "16:00", "20:00", "22:00")
                           if datetime.fromisoformat(scheduled_for(now.date(), slot)) > now)
     return min(candidates)
 

@@ -112,7 +112,9 @@ class TenantStrategyEngine(StrategyEngine):
                 values = {**values, "positions": self._holding_positions(
                     session, {"overrides": overrides, "signals": signals, **values},
                 ), "selection_snapshots": self._saved_selections(session, values),
-                    "daily_pool_snapshots": self._saved_pools(session, values)}
+                    "daily_pool_snapshots": self._saved_pools(session, values),
+                    "signal_task_states": session.get("monitor_runtime", "default", {}).get(
+                        "engine", {}).get("late_session_tasks", {})}
             return {
                 "kind": kind, "tenant_id": self.documents.context.tenant_id,
                 "administrator": self.administrator,

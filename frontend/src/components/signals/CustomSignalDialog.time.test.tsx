@@ -65,11 +65,30 @@ it('uses the shared second picker for both clocks and reloads their saved exact 
   expect(f.save).not.toHaveBeenCalled()
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
   expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
-    params: { time: '10:15:32', fallback_time: '10:50:15', rise_pct: 6, fall_pct: 6 },
+    params: { start_time: null, decline_3m_pct: null, volume_ratio_min: null,
+      time: '10:15:32', fallback_time: '10:50:15', rise_pct: 6, fall_pct: 6 },
   }), { createOnly: false })
   await f.render(f.save.mock.calls[0][0] as typeof definition)
   expect(f.time('止损时间')?.textContent).toBe('10:15:32')
   expect(f.time('兜底时间')?.textContent).toBe('10:50:15')
+})
+
+it('clears all morning clocks and retains disabled clocks on reload', async () => {
+  const f = await fixture({ ...definition, params: { ...definition.params, start_time: '09:45:15' } })
+  for (const name of ['启动时间', '止损时间', '兜底时间']) {
+    await act(async () => f.time(name).click())
+    const popup = document.querySelector(`[role="group"][aria-label="${name}选择"]`)!
+    await act(async () => [...popup.querySelectorAll('button')].find(button =>
+      button.textContent === '清空时间')!.click())
+    expect(f.time(name).textContent).toBe('选择时间')
+  }
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
+  expect(f.save.mock.calls[0][0].params).toEqual({
+    start_time: null, time: null, fallback_time: null, rise_pct: 6, fall_pct: 6,
+    decline_3m_pct: null, volume_ratio_min: null,
+  })
+  await f.render(f.save.mock.calls[0][0])
+  expect(f.time('启动时间').textContent).toBe('选择时间')
 })
 
 it('rejects a fallback at the same second as stop after using the shared picker', async () => {
@@ -103,8 +122,8 @@ it('selects and reloads a functional second-precision late-session start', async
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain('K线截止 14:30:00')
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
   expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
-    params: { time: '14:30:20', change_min_pct: 0.4, change_max_pct: 4,
-      pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4, evaluation_delay_minutes: 1.5 },
+    params: expect.objectContaining({ time: '14:30:20', change_min_pct: 0.4, change_max_pct: 4,
+      pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4, evaluation_delay_minutes: 1.5 }),
   }), { createOnly: false })
   await f.render(f.save.mock.calls[0][0])
   expect(f.time('启动时间')?.textContent).toBe('14:30:20')
@@ -120,4 +139,28 @@ it('selects and reloads a functional second-precision late-session start', async
   await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
   expect(f.save.mock.calls.length).toBe(savedCount)
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain('13:00:00～14:58:30')
+})
+
+it('clears both late-session clocks through the picker and reopens them empty', async () => {
+  const f = await fixture({
+    id: 'optional_late', name: '尾盘走强', kind: 'entry', timeframe: 'intraday',
+    template: 'late_session_strength', conditions: [], enabled: true,
+    params: { time: '14:30:20', end_time: '14:50:10', evaluation_delay_minutes: null,
+      pool_up_min_pct: null, change_min_pct: null, change_max_pct: null,
+      ma5_1m_count: null, ma5_5m_count: null },
+  })
+  for (const name of ['启动时间', '结束时间']) {
+    await act(async () => f.time(name).click())
+    const popup = document.querySelector(`[role="group"][aria-label="${name}选择"]`)!
+    await act(async () => [...popup.querySelectorAll('button')].find(button =>
+      button.textContent === '清空时间')!.click())
+    expect(f.time(name).textContent).toBe('选择时间')
+  }
+  await act(async () => [...document.querySelectorAll('button')].find(button => button.textContent?.includes('保存'))!.click())
+  expect(f.save.mock.calls[0][0].params).toEqual(expect.objectContaining({
+    time: null, end_time: null, evaluation_delay_minutes: null, ma5_1m_count: null,
+  }))
+  await f.render(f.save.mock.calls[0][0])
+  expect(f.time('启动时间').textContent).toBe('选择时间')
+  expect(f.time('结束时间').textContent).toBe('选择时间')
 })

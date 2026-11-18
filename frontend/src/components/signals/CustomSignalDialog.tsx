@@ -6,9 +6,9 @@ import { AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Loader2, Plus, Save, Search, Sparkles, X } from 'lucide-react'
-import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup, type LateSessionStrengthParams, type MorningLiquidationParams } from '@/lib/api'
+import { api, type CustomSignal, type CustomSignalCondition, type CustomSignalFieldGroup, type LateSessionStrengthParams, type MorningLiquidationParams, type S01ExitParams } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, lateSessionBarTime, lateSessionCheckTime, lateSessionLatestStartTime } from '@/lib/customSignals'
+import { LATE_SESSION_DEFAULTS, MORNING_LIQUIDATION_DEFAULTS, morningLiquidationDraft, lateSessionBarTime, lateSessionCheckTime, lateSessionLatestStartTime } from '@/lib/customSignals'
 
 import { isS01Signal, S01_ENTRY_TIMING_DEFAULTS, S01_ENTRY_MARKET_VALIDITY } from '@/lib/customSignals'
 import { S01SignalParamsEditor } from './S01SignalParamsEditor'
@@ -61,27 +61,22 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
   const s01 = isS01Signal(draft)
   const specialized = lateSession || morning || s01
   const storedLate = draft.params as Partial<LateSessionStrengthParams> | undefined
-  const lateParams = { ...LATE_SESSION_DEFAULTS, ...storedLate,
-    evaluation_delay_minutes: storedLate?.evaluation_delay_minutes ?? LATE_SESSION_DEFAULTS.evaluation_delay_minutes }
-  const lateDelaySeconds = (lateParams.evaluation_delay_minutes ?? 0.5) * 60
-  const storedMorning = draft.params as Partial<MorningLiquidationParams> | undefined
-  const morningParams = {
-    time: storedMorning?.time ?? MORNING_LIQUIDATION_DEFAULTS.time,
-    fallback_time: storedMorning?.fallback_time ?? MORNING_LIQUIDATION_DEFAULTS.fallback_time,
-    rise_pct: storedMorning?.rise_pct ?? MORNING_LIQUIDATION_DEFAULTS.rise_pct,
-    fall_pct: storedMorning?.fall_pct ?? MORNING_LIQUIDATION_DEFAULTS.fall_pct,
-  }
+  const lateParams = { ...LATE_SESSION_DEFAULTS, ...storedLate }
+  const lateDelaySeconds = lateParams.evaluation_delay_minutes == null ? null : lateParams.evaluation_delay_minutes * 60
+  const morningParams = morningLiquidationDraft(draft)
 
   useEffect(() => {
     if (!open) return
     const next = signal ? { ...signal, params: signal.params ? { ...signal.params } : undefined,
       conditions: signal.conditions.map(c => ({ ...c })) } : emptySignal(defaultKind)
     const delay = (next.params as Partial<LateSessionStrengthParams> | undefined)?.evaluation_delay_minutes
-    if (next.template === 'late_session_strength' && (delay == null || delay === 0))
+    if (next.template === 'late_session_strength' && (delay === undefined || delay === 0))
       next.params = { ...LATE_SESSION_DEFAULTS, ...next.params,
         evaluation_delay_minutes: LATE_SESSION_DEFAULTS.evaluation_delay_minutes }
-    if (next.template === 's01_late_entry')
+    if (next.template === 's01_late_entry') {
       next.params = { ...S01_ENTRY_TIMING_DEFAULTS, ...next.params, market_validity: S01_ENTRY_MARKET_VALIDITY }
+      delete (next.params as unknown as Record<string, unknown>).market_min_valid
+    }
     setDraft(next)
     setError('')
     setAiOpen(false); setAiDesc(''); setAiError(''); setAiLoading(false)
@@ -123,27 +118,40 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
       if (!d.name.trim()) throw new Error('请输入信号名称')
       if (!specialized && d.conditions.length === 0) throw new Error('至少需要一个条件')
       if (morning) {
-        if (![morningParams.time, morningParams.fallback_time].every(at =>
-          /^(09|10|11):[0-5]\d:[0-5]\d$/.test(at) && at >= '09:30:00' && at <= '11:30:00'))
-          throw new Error('止损时间和兜底时间须为 09:30:00～11:30:00')
-        if (morningParams.fallback_time <= morningParams.time) throw new Error('兜底时间须晚于止损时间')
-        if (![morningParams.rise_pct, morningParams.fall_pct].every(value =>
-          Number.isFinite(value) && value > 0 && value <= 100)) throw new Error('涨跌幅阈值须大于0且不超过100%')
+        const p = morningParams
+        if (![p.start_time, p.time, p.fallback_time].every(at =>
+          at == null || (/^(09|10|11):[0-5]\d:[0-5]\d$/.test(at) && at >= '09:30:00' && at <= '11:30:00')))
+          throw new Error('早盘时间须为 09:30:00～11:30:00')
+        if (p.start_time != null && [p.time, p.fallback_time].some(at => at != null && at < p.start_time!))
+          throw new Error('启动时间不得晚于止损或兜底时间')
+        if (p.time != null && p.fallback_time != null && p.fallback_time <= p.time)
+          throw new Error('兜底时间须晚于止损时间')
+        if (![p.rise_pct, p.fall_pct, p.decline_3m_pct, p.volume_ratio_min].every(value =>
+          value == null || (Number.isFinite(value) && value >= .1 && value <= 100)))
+          throw new Error('数值参数须为0.1～100.0')
       }
       if (lateSession) {
         const p = lateParams
-        if (!Number.isInteger(lateDelaySeconds) || lateDelaySeconds < 30 || lateDelaySeconds > 900
-          || lateDelaySeconds % 30 !== 0)
+        if (lateDelaySeconds != null && (!Number.isInteger(lateDelaySeconds) || lateDelaySeconds < 30 || lateDelaySeconds > 900
+          || lateDelaySeconds % 30 !== 0))
           throw new Error('确认延迟须为30～900秒且为30秒的整数倍')
-        const latest = lateSessionLatestStartTime(lateDelaySeconds)
-        if (!/^1[34]:[0-5]\d:[0-5]\d$/.test(p.time)
-          || p.time < '13:00:00' || p.time > latest)
+        const latest = lateSessionLatestStartTime(lateDelaySeconds ?? 0)
+        const validTime = (at: string) => /^(?:1[34]:[0-5]\d:[0-5]\d|15:00:00)$/.test(at)
+        if (p.time != null && (!validTime(p.time) || p.time < '13:00:00' || p.time > latest))
           throw new Error(`启动时间须为 13:00:00～${latest}，确认时间不得晚于15:00:00`)
-        if (![p.change_min_pct, p.change_max_pct, p.pool_up_min_pct].every(Number.isFinite)
-          || p.change_min_pct < 0 || p.change_min_pct > p.change_max_pct || p.change_max_pct > 100
-          || p.pool_up_min_pct < 0 || p.pool_up_min_pct > 100) throw new Error('请检查涨幅区间和上涨占比')
-        if (!Number.isInteger(p.ma5_1m_count) || p.ma5_1m_count < 2 || p.ma5_1m_count > 120
-          || !Number.isInteger(p.ma5_5m_count) || p.ma5_5m_count < 2 || p.ma5_5m_count > 24) throw new Error('MA5 数量须在允许范围内且为整数')
+        if (p.end_time != null && (!validTime(p.end_time) || p.end_time < '13:00:00'))
+          throw new Error('结束时间须为 13:00:00～15:00:00')
+        if (p.time != null && p.end_time != null && p.end_time < lateSessionCheckTime(p))
+          throw new Error('结束时间不得早于确认时间')
+        if (![p.change_min_pct, p.change_max_pct, p.pool_up_min_pct, p.amount_min_100m,
+          p.turnover_min_pct, p.amplitude_max_pct, p.volume_ratio_min].every(value =>
+          value == null || (Number.isFinite(value) && value >= .1 && value <= 100)))
+          throw new Error('数值参数须为0.1～100.0')
+        if (p.change_min_pct != null && p.change_max_pct != null && p.change_min_pct > p.change_max_pct)
+          throw new Error('当日涨幅下限不得大于上限')
+        if (![p.ma5_1m_count, p.ma5_5m_count].every(value =>
+          value == null || (Number.isInteger(value) && value >= 1 && value <= 100)))
+          throw new Error('MA5 数量须为1～100的整数')
       }
       if (d.template === 's01_late_entry') {
         const p = d.params as { time: string; evaluation_delay_minutes: number }
@@ -219,7 +227,9 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
                     <option value="conditions">普通条件组合</option>
                     {(allowLateSession || lateSession) && <option value="late_session_strength">尾盘走强 · 分钟入场</option>}
                     {(allowMorningLiquidation || morning) && <option value="morning_liquidation">早盘清仓 · 持仓出场</option>}
-                    {s01 && <option value={draft.template!}>{draft.template === 's01_late_entry' ? '尾盘走强_S01' : '早盘清仓_S01'}</option>}
+                    {s01 && <option value={draft.template!}>{draft.template === 's01_late_entry' ? 'S01尾盘选股'
+                      : (draft.params as S01ExitParams)?.guard_time != null
+                        ? '早盘清仓_S01' : 'S01放量下跌卖出'}</option>}
                   </select>
                 </label>
               )}
@@ -250,98 +260,126 @@ export function CustomSignalDialog({ open, signal, defaultKind = 'exit', onClose
 
               {s01 ? <S01SignalParamsEditor signal={draft} onChange={params => setDraft(d => ({ ...d, params }))} /> : morning ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div aria-label="早盘清仓参数" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <label className="space-y-1.5">
-                      <span className="text-[11px] text-muted">止损时间（北京时间）</span>
-                      <TimePicker aria-label="止损时间" showSeconds align="left"
-                        value={morningParams.time} onChange={time => setDraft(d => ({ ...d,
-                          params: { ...morningParams, time } }))}
+                      <span className="text-[11px] text-muted">启动时间（北京时间）</span>
+                      <TimePicker aria-label="启动时间" showSeconds clearable align="left"
+                        value={morningParams.start_time ?? ''} onChange={start_time => setDraft(d => ({ ...d,
+                          params: { ...morningParams, start_time: start_time || null } }))}
                         className="w-full" buttonClassName="h-9 w-full justify-start" />
                     </label>
-                    <label className="space-y-1.5">
-                      <span className="text-[11px] text-muted">兜底时间（北京时间）</span>
-                      <TimePicker aria-label="兜底时间" showSeconds align="left"
-                        value={morningParams.fallback_time} onChange={fallback_time => setDraft(d => ({ ...d,
-                          params: { ...morningParams, fallback_time } }))}
-                        className="w-full" buttonClassName="h-9 w-full justify-start" />
-                    </label>
-                    {([['rise_pct', '涨幅阈值（%）'], ['fall_pct', '跌幅阈值（%）']] as const).map(([key, label]) => (
+                    {([['rise_pct', '涨幅阈值（%）'], ['fall_pct', '跌幅阈值（%）'],
+                      ['decline_3m_pct', '3分钟跌幅门槛（%）'],
+                      ['volume_ratio_min', '最近3根/之前10根量比下限']] as const).map(([key, label]) => (
                     <label key={key} className="space-y-1.5">
                       <span className="text-[11px] text-muted">{label}</span>
-                      <input aria-label={label} type="number" min="0.1" max="100" step="0.1" value={morningParams[key]}
+                      <input aria-label={label} type="number" min="0.1" max="100" step="0.1"
+                        placeholder="留空不生效" value={morningParams[key] ?? ''}
                         onChange={e => setDraft(d => ({ ...d, params: { ...morningParams,
-                          [key]: e.target.value === '' ? NaN : Number(e.target.value) } }))}
+                          [key]: e.target.value === '' ? null : Number(e.target.value) } }))}
                         className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
                     </label>
                     ))}
+                    {([['time', '止损时间'], ['fallback_time', '兜底时间']] as const).map(([key, label]) => (
+                      <label key={key} className="space-y-1.5">
+                        <span className="text-[11px] text-muted">{label}（北京时间）</span>
+                        <TimePicker aria-label={label} showSeconds clearable align="left"
+                          value={morningParams[key] ?? ''} onChange={value => setDraft(d => ({ ...d,
+                            params: { ...morningParams, [key]: value || null } }))}
+                          className="w-full" buttonClassName="h-9 w-full justify-start" />
+                      </label>
+                    ))}
                   </div>
                   {signal?.template === 'morning_liquidation' && (signal.params as MorningLiquidationParams)?.amplitude_pct != null && (
-                    <p className="text-[11px] leading-5 text-amber-400">此信号原为旧振幅规则，保存后转换为以上涨跌幅及双时间规则。</p>
+                    <p className="text-[11px] leading-5 text-amber-400">此信号原为旧振幅规则，保存后转换为以上可选参数规则。</p>
                   )}
                   <p className="text-[11px] leading-5 text-muted">
                     以每笔持仓买入后的下一个交易日为准，跳过周末和休市日。
                     现价相对原始昨收的涨幅或跌幅达到对应阈值时提前清仓。
-                    涨跌幅 =（现价 / 原始昨收 − 1）× 100%，跌幅参数填写正数。
-                    止损时间到无条件清仓；未卖完继续处理，兜底时间再次对余股触发。
-                    使用新鲜实时行情，已完成分钟 K 线可用于补判；行情缺失时清仓时钟仍有效。
-                    用于有买入日期的通用分钟策略持仓监控及连续资金收益回测；回测时间须为整分钟。S01/S02 专用执行规则暂不支持追加本触发器。
+                    或满足3分钟跌幅、最近3根/之前10根均量比的已启用项；两项均填写时须同时满足。
+                    跌幅填写正百分数，3分钟跌幅使用当前完成分钟与3分钟前收盘价，量比使用13根连续完成分钟。
+                    参数留空不生效；全部为空不触发本模板出场。启动时间为空取消启动门槛。
+                    已设置的止损时间到无条件清仓，已设置的兜底时间再次对余股触发，行情缺失时已启用时钟仍有效。
                     信号触发后由交易模块处理成交，停牌、跌停或不可卖持仓可能无法成交。
                   </p>
                 </div>
               ) : lateSession ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div aria-label="尾盘走强参数" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">启动时间（北京时间）</span>
-                      <TimePicker aria-label="启动时间" showSeconds align="left"
-                        value={lateParams.time} onChange={time => setDraft(d => ({ ...d,
-                          params: { ...lateParams, time } }))}
+                      <TimePicker aria-label="启动时间" showSeconds clearable align="left"
+                        value={lateParams.time ?? ''} onChange={time => setDraft(d => ({ ...d,
+                          params: { ...lateParams, time: time || null } }))}
                         className="w-full" buttonClassName="h-9 w-full justify-start" />
+                      <p className="text-[10px] leading-4 text-muted">
+                        有效时段起点；K线截止 {lateSessionBarTime(lateParams.time)}。留空按当前已完成分钟。
+                      </p>
                     </label>
                     <label className="space-y-1.5">
                       <span className="text-[11px] text-muted">确认延迟（秒）</span>
                       <input type="number" aria-label="确认延迟（秒）" min={30} max={900} step={30}
-                        value={Number.isFinite(lateDelaySeconds) ? lateDelaySeconds : ''}
+                        value={lateDelaySeconds ?? ''} placeholder="为空不生效"
                         onChange={e => setDraft(d => ({ ...d, params: { ...lateParams,
-                          evaluation_delay_minutes: e.target.value === '' ? NaN : Number(e.target.value) / 60 } }))}
+                          evaluation_delay_minutes: e.target.value === '' ? null : Number(e.target.value) / 60 } }))}
                         className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                      <p className="text-[10px] leading-4 text-muted">
+                        30～900秒，30秒步长；确认时计算个股条件，失败告警并重试至结束。
+                        {lateDelaySeconds != null && Number.isFinite(lateDelaySeconds)
+                          ? `启动后${lateDelaySeconds}秒确认：${lateSessionCheckTime(lateParams)}。`
+                          : '留空不等待。'}
+                      </p>
                     </label>
                     {([
-                      ['pool_up_min_pct', '当日股票池上涨占比下限（%）', 0, 100, 0.1],
-                      ['change_max_pct', '涨幅上限（%）', 0, 100, 0.1],
-                      ['change_min_pct', '涨幅下限（%）', 0, 100, 0.1],
-                      ['ma5_1m_count', '1分钟 MA5 连增数量', 2, 120, 1],
-                      ['ma5_5m_count', '5分钟 MA5 连增数量', 2, 24, 1],
-                    ] as const).map(([key, label, min, max, step]) => (
+                      ['pool_up_min_pct', '当日股票池上涨占比下限（%）', 0.1, 100, 0.1,
+                        '启动+15秒计算全池有效股上涨占比；失败告警，在确认前重试。'],
+                      ['amount_min_100m', '当日成交额下限（亿）', 0.1, 100, 0.1,
+                        '启动分钟的当日累计成交额，单位亿元。'],
+                      ['turnover_min_pct', '当日换手率下限（%）', 0.1, 100, 0.1,
+                        '启动分钟的当日累计换手率，不低于此值。'],
+                      ['amplitude_max_pct', '当日振幅上限（%）', 0.1, 100, 0.1,
+                        '启动分钟的当日振幅，不高于此值。'],
+                      ['change_min_pct', '当日涨幅下限（%）', 0.1, 100, 0.1,
+                        '启动分钟相对昨收的涨幅，不低于此值。'],
+                      ['change_max_pct', '当日涨幅上限（%）', 0.1, 100, 0.1,
+                        '启动分钟相对昨收的涨幅，不高于此值。'],
+                      ['volume_ratio_min', '当日量比下限', 0.1, 100, 0.1,
+                        '启动分钟累计量÷前5日均量，按已交易分钟折算。'],
+                      ['ma5_1m_count', '1分钟MA5连增数量', 1, 100, 1,
+                        '截止启动分钟；N个MA5值比较N−1次，相等不算递增。'],
+                      ['ma5_5m_count', '5分钟MA5连增数量', 1, 100, 1,
+                        '取启动时最新完成5分K；N个MA5值比较N−1次。'],
+                    ] as const).map(([key, label, min, max, step, help]) => (
                       <label key={key} className="space-y-1.5">
                         <span className="text-[11px] text-muted">{label}</span>
-                        <input type="number" aria-label={label} min={min} max={max} step={step} value={lateParams[key]}
+                        <input type="number" aria-label={label} min={min} max={max} step={step}
+                          value={lateParams[key] ?? ''} placeholder="为空不生效"
                           onChange={e => setDraft(d => ({ ...d, params: { ...lateParams,
-                            [key]: e.target.value === '' ? NaN : Number(e.target.value) } }))}
+                            [key]: e.target.value === '' ? null : Number(e.target.value) } }))}
                           className="h-9 w-full rounded-btn border border-border bg-base px-3 text-xs text-foreground" />
+                        <p className="text-[10px] leading-4 text-muted">{help}</p>
                       </label>
                     ))}
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] text-muted">结束时间（北京时间）</span>
+                      <TimePicker aria-label="结束时间" showSeconds clearable align="left"
+                        value={lateParams.end_time ?? ''} onChange={end_time => setDraft(d => ({ ...d,
+                          params: { ...lateParams, end_time: end_time || null } }))}
+                        className="w-full" buttonClassName="h-9 w-full justify-start" />
+                      <p className="text-[10px] leading-4 text-muted">
+                        有效时段终点及个股重试上限；留空不限，实时新入场最晚14:55。
+                      </p>
+                    </label>
                   </div>
                   {signal?.template === 'late_session_strength'
-                    && !(signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes && (
+                    && ((signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes === undefined
+                      || (signal.params as LateSessionStrengthParams)?.evaluation_delay_minutes === 0) && (
                     <p className="text-[11px] leading-5 text-amber-400">此信号原为无延迟旧定义，保存时采用上方所选确认延迟。</p>
                   )}
-                  <p className="text-[11px] leading-5 text-muted">
-                    确认延迟可设为30～900秒，须为30秒的整数倍，新建默认30秒。
-                    {Number.isFinite(lateDelaySeconds)
-                      ? `启动后${lateDelaySeconds}秒确认，当前确认时间为 ${lateSessionCheckTime(lateParams)}，`
-                      : '请填写有效的确认延迟，'}
-                    K线截止 {lateSessionBarTime(lateParams.time)}（北京时间）。
-                    始终确认启动分钟的数据，等待该分钟K线完成并到达后计算，不使用确认分钟尚未完成的K线；确认时间不得晚于15:00:00。
-                    分钟回测的购买窗口从启动分钟之后、且不早于确认时点的第一个整分钟开始，最多连续5根分钟K；买足即结束，窗口结束撤销余量。
-                    以上条件为「且」关系。涨幅按启动分钟已完成收盘价相对原始昨收计算，区间包含上下限；上涨定义为涨幅大于 0。
-                    上涨占比从策略完整的当日股票池中剔除缺有效指定分钟价格或精确昨收的股票后计算；完整池保留，无有效成员时等待数据。
-                    MA5 使用已完成 K 线的收盘价，值相等不算递增，不跨午休或交易日；缺完整窗口只跳过该股。
-                    连增数量指 MA5 值的数量：7 个值为 6 次严格递增；默认1分钟比较14:30至14:24。
-                    1分钟和5分钟MA5都截止启动时间。5分钟取截至启动时间最新完成的 K 线；
-                    默认4个值比较14:30 &gt; 14:25 &gt; 14:20 &gt; 14:15，共3次严格递增。
-                    缺少股票池、价格、昨收或连续 K 线时不触发。用于通用分钟策略，S01/S02 专用执行规则暂不支持追加本触发器；历史回放需指定策略股票池。
-                  </p>
+                  <div className="space-y-1 text-[10px] leading-4 text-muted">
+                    <p>参数留空不生效；启用条件全部达标才触发，未达标则结束当天任务。</p>
+                    <p>先解决阻塞再继续重试，同一原因告警去重；重试不改变启动数据。MA5不跨午休或交易日。</p>
+                  </div>
                 </div>
               ) : <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">

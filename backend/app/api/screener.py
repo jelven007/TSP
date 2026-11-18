@@ -440,15 +440,9 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
     )
     day = str(as_of)
     engine = _strategy_engine(request)
-    from app.strategy.signal_sections import supports_signal_sections
-
     signal_ids = {
         identity.strategy_id for identity in identities
         if engine.get(identity.strategy_id).meta.get("result_sections") == "signals"
-        and (
-            not engine.get(identity.strategy_id).meta.get("minute_execution")
-            or supports_signal_sections(engine.get(identity.strategy_id))
-        )
     }
     summaries = store.summaries(identities, day, signal_strategy_ids=signal_ids)
     from app.market_time import cn_today
@@ -502,6 +496,11 @@ def _history_payload(request, as_of, asset_type, timeframe, *, strategy_id=None,
             results[sid] = {**results.get(sid, {}), "total": live.get("total", 0),
                             "as_of": day, "computed_at": live.get("computed_at"), "source": "realtime"}
         else:
+            if sid in signal_ids:
+                identity = next(item for item in identities if item.strategy_id == sid)
+                transaction = store.storage._transaction if store.tenant else store._local
+                with transaction() as conn:
+                    live = store._with_previous_buy(conn, identity, live, day)
             results[sid] = {**live, "source": "realtime"}
         if sid not in summaries:
             summaries[sid] = {"ever_count": len(symbols), "computed_at": live.get("computed_at")}

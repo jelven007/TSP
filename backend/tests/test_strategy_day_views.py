@@ -74,7 +74,7 @@ def test_failed_view_publication_rolls_back_archive(store, identity, monkeypatch
     from app.services import strategy_day_views
     original = store.save(identity, signal(), started_at=1)
     before = store.day_view("sample", "2026-11-05")
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise OSError("view write failed")
     monkeypatch.setattr(strategy_day_views, "publish", fail)
     with pytest.raises(OSError, match="view write failed"):

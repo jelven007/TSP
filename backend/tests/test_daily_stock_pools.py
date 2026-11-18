@@ -124,7 +124,7 @@ def test_pool_ignores_other_numeric_filters_and_their_missing_dependencies(engin
         overrides={"basic_filter": {**BF, **extra}})
     assert pool["symbols"] == ["600000.SH", "600001.SH", "600002.SH"]
     assert not set(extra).intersection(pool["basic_filter"])
-    assert pool["definition_version"] == "scope_only_v3"
+    assert pool["definition_version"] == "strategy_scope_v4"
 
 
 def test_remaining_numeric_filters_still_restrict_strategy_selection(engine):
@@ -296,7 +296,7 @@ def filter(df, params):
     assert result["pools"]["sample"]["symbols"] == ["600000.SH"]
     assert result["pools"]["float_sample"]["symbols"] == ["600000.SH"]
     assert result["errors"] == {}
-    assert result["pools"]["float_sample"]["definition_version"] == "scope_only_v3"
+    assert result["pools"]["float_sample"]["definition_version"] == "strategy_scope_v4"
 
 
 def test_result_and_pool_share_transaction_and_delete_fence(tmp_path):

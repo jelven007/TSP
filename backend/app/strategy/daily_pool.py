@@ -1,10 +1,10 @@
-"""当日股票池: stock scope and status, before numeric strategy selection."""
+"""当日股票池: each strategy's complete configured stock scope."""
 import polars as pl
 
 from app.strategy.basic_filter import RANGES, previous_session
 from app.strategy.suspension import COLUMN, annotate
 
-DEFINITION_VERSION = "scope_only_v3"
+DEFINITION_VERSION = "strategy_scope_v4"
 
 
 def scope_context(context, symbols):
@@ -54,24 +54,47 @@ def build_pool(engine, strategy_id, context, *, overrides=None, premarket=False)
     # A status-only frame supplies evidence, never additional pool membership.
     from app.instrument_suspension import DATE_COLUMN, STATUS_COLUMN
     has_universe = (pool_universe is not None and not pool_universe.is_empty()
-                    and bool(set(pool_universe.columns) - {"symbol", DATE_COLUMN, STATUS_COLUMN}))
-    if not premarket and has_universe:
-        parts.append(pool_universe)
+                    and ("symbol" in pool_universe.columns)
+                    and (set(pool_universe.columns) == {"symbol"}
+                         or bool(set(pool_universe.columns) - {"symbol", DATE_COLUMN, STATUS_COLUMN})))
     if history is not None and not history.is_empty() and "date" in history.columns:
         # Missing current quotes do not remove scope members.
         parts.append(history.filter(pl.col("date") == previous_session(day)))
         if not premarket:
             parts.append(history.filter(pl.col("date") == day))
-    if premarket and has_universe:
-        parts.append(pool_universe)
     if current is not None and not current.is_empty():
         if "date" in current.columns:
             current = current.filter(pl.col("date") == day)
         parts.append(current)
+    directory = pool_universe if has_universe else current if premarket else None
+    if directory is not None and not directory.is_empty():
+        members = set(directory["symbol"].to_list())
+        # Quotes supply status evidence, never add members outside the directory.
+        parts = [part.filter(pl.col("symbol").is_in(members)) for part in parts]
+        directory = annotate(directory, as_of=day, evidence=pool_universe).with_columns(
+            pl.lit(day).alias("date"))
+        quoted = [part for part in parts if not part.is_empty()]
+        if quoted:
+            status = annotate(pl.concat(quoted, how="diagonal_relaxed").unique("symbol", keep="last"),
+                              as_of=day, evidence=pool_universe).select(
+                "symbol", pl.col(COLUMN).alias("_scope_quote_suspended"))
+            directory = directory.join(status, on="symbol", how="left").with_columns(
+                pl.col("_scope_quote_suspended").fill_null(pl.col(COLUMN)).alias(COLUMN),
+            ).drop("_scope_quote_suspended")
+        parts.append(directory)
+    if bf.get("target_mode") == "selected" and bf.get("include_custom"):
+        known = set().union(*(set(part["symbol"].to_list()) for part in parts))
+        missing = sorted(set(bf.get("target_symbols", [])) - known)
+        if missing:
+            parts.append(pl.DataFrame({"symbol": missing, "date": [day] * len(missing)}))
     parts = [part for part in parts if not part.is_empty()]
     if not parts:
         raise ValueError("当日股票池缺少所需证券范围数据")
     universe = pl.concat(parts, how="diagonal_relaxed").unique("symbol", keep="last", maintain_order=True)
+    if {"name", "is_risk_warning"} <= set(universe.columns):
+        pattern = r"(?i)\*?ST" if "target_mode" in bf else r"(?i)\*?ST|退"
+        universe = universe.with_columns(pl.col("is_risk_warning").fill_null(
+            pl.col("name").str.contains(pattern).fill_null(False)))
     universe = annotate(universe, as_of=day, evidence=pool_universe)
     scope_filter = {**bf, "enabled": True, "exclude_suspended": False}
     before_halt = engine._apply_basic_filter(universe, scope_filter, history=history, as_of=day)

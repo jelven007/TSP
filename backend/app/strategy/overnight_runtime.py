@@ -113,6 +113,7 @@ def monitor_context(loader, engine, strategy_id, as_of, current, data_dir):
             raise ValueError("连续策略组合缺少持久化状态目录")
         context.previous_states = {strategy_id: previous}
     context.realtime = True
+    context.observed_at = cn_now()
     return context
 
 
@@ -160,9 +161,10 @@ def exit_hits(context, params: dict) -> list[dict]:
         frame = frame.filter((pl.col("datetime").dt.date() == context.as_of)
                              & (pl.col("datetime") <= now))
     hits = []
-    for position in context.positions or []:
-        if (str(position.get("sell_date")) != str(context.as_of)
-            or position.get("qty", 0) <= 0 or position.get("available_qty", 0) <= 0):
+    roster_mode = context.signal_roster is not None
+    for position in (context.signal_roster if roster_mode else context.positions) or []:
+        if (str(position.get("sell_date", context.as_of)) != str(context.as_of)
+            or (not roster_mode and (position.get("qty", 0) <= 0 or position.get("available_qty", 0) <= 0))):
             continue
         symbol = position["symbol"]
         history = frame.filter(pl.col("symbol") == symbol) if not frame.is_empty() else frame
@@ -171,7 +173,9 @@ def exit_hits(context, params: dict) -> list[dict]:
         events = []
         for bar in range(schedule[0] if schedule else 675, min(asof, deadline) + 1):
             previous = pending
-            pending = exit_signal(history, bar, position.get("entry_unit_cost"), params, pending)
+            pending = exit_signal(history, bar,
+                                  position.get("close") if roster_mode else position.get("entry_unit_cost"),
+                                  params, pending)
             if pending and pending != previous:
                 events.append(pending)
             if pending and not schedule:
@@ -180,6 +184,7 @@ def exit_hits(context, params: dict) -> list[dict]:
             hits.append({
                 "symbol": symbol, "signals": ["overnight_" + event["reason"]],
                 "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id"),
+                **({"signal_roster": True} if roster_mode else {}),
                 **({"holding_exit": True} if schedule else {}),
                 **event, "deadline_elapsed": asof > event["last_eligible_bar"],
             })

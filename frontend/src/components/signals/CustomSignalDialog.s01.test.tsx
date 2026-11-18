@@ -36,11 +36,11 @@ it('edits S01 percentages in percent units and saves original parameter keys', a
     expect(input).not.toBeNull()
     expect(input!.value).toBe('3')
     expect(host.textContent).toContain('14:45')
-    expect(host.querySelector('option[value="s01_late_entry"]')!.textContent).toBe('尾盘走强_S01')
+    expect(host.querySelector('option[value="s01_late_entry"]')!.textContent).toBe('S01尾盘选股')
     const labels = [...host.querySelectorAll('label')].map(label => label.querySelector('span')?.textContent)
     const start = labels.indexOf('启动时间（北京时间）')
-    expect(labels.slice(start, start + 8)).toEqual([
-      '启动时间（北京时间）', '确认延时（秒）', '当日市场有效证券下限（只）',
+    expect(labels.slice(start, start + 7)).toEqual([
+      '启动时间（北京时间）', '确认延时（秒）',
       '当日市场上涨比例下限（%）', '累计成交额下限（亿元）', '振幅上限（%）',
       '涨幅下限（%）', '涨幅上限（%）',
     ])
@@ -57,7 +57,9 @@ it('edits S01 percentages in percent units and saves original parameter keys', a
       input!.dispatchEvent(new Event('input', { bubbles: true }))
     })
     await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
-    expect(save.mock.calls[0][0].params).toEqual({ ...signal.params, current_return_max: .028,
+    const { market_min_valid: removedCount, ...currentParams } = signal.params
+    expect(removedCount).toBe(1000)
+    expect(save.mock.calls[0][0].params).toEqual({ ...currentParams, current_return_max: .028,
       time: '14:45:00', evaluation_delay_minutes: 1, market_validity: 'price_amount_prev_close_v2' })
     expect(signal.params).not.toHaveProperty('time')
   } finally {
@@ -99,7 +101,9 @@ it('keeps changed seconds only in the draft until save and restores saved values
     expect(input().value).toBe('120')
     expect(save).not.toHaveBeenCalled()
     await act(async () => [...container.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
-    expect(save.mock.calls[0][0].params).toEqual({ ...signal.params, market_validity: 'price_amount_prev_close_v2' })
+    const { market_min_valid: removedCount, ...currentParams } = signal.params
+    expect(removedCount).toBe(1000)
+    expect(save.mock.calls[0][0].params).toEqual({ ...currentParams, market_validity: 'price_amount_prev_close_v2' })
   } finally { await act(async () => rendered.unmount()); qc.clear(); vi.restoreAllMocks() }
 })
 

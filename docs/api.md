@@ -1,5 +1,15 @@
 # API、事件与 MCP 导航
 
+2026-11-18本地0.4.65已安装S01数量门槛移除与`strategy_scope_v4`池。
+当日池接口分页完整读回S01的5026只和S02的3049只；返回数量不等于最终选股命中数。
+现有接口、授权及信号参数保持，线上未安装此次差量。
+
+2026-11-18新增登录租户私有接口：
+`POST /api/monitor-rules/strategies/{strategy_id}/monitoring`接收`{"enabled":true|false}`，
+仅适用于自定义／AI策略，原子启停同策略监控并返回generation；不计算策略。
+`GET /api/monitor-rules/strategies/monitoring`返回策略启停与当前日选／买／卖时段、状态，
+读取归档和回执，不依赖最新行情或发起重算。账户身份、业务权限及同源校验沿现有中间件。
+
 2026-11-14统一候选：账户策略池偏好`GET/PUT /api/strategies/pool`仅供登录会话，
 不开放给API Token；`read:analysis`的策略读取前缀不包含这一管理资源。
 既有Tier A端点集合及schema指纹保持，验证见[升级记录](upgrade-20261114.md)。

@@ -69,7 +69,7 @@ interface StrategyCardProps {
   expiredCount?: number
   loading: boolean
   cardSize: CardSize
-  /** 选择策略并读取保存结果；执行由监控按钮触发。 */
+  /** 选择策略并读取保存结果。 */
   onRun: () => void
   disabled: boolean
   onSettings: () => void
@@ -144,7 +144,7 @@ export function StrategyCard({
               <span className="mt-1.5 text-sm font-mono font-bold text-muted/50 animate-pulse">···</span>
             )}
             {count == null && !loading && !computing && awaitRun && (
-              <span className="mt-1.5 text-[10px] text-muted/60 transition-colors group-hover:text-accent/80" title="点击开启策略监控后计算">待计算</span>
+              <span className="mt-1.5 text-[10px] text-muted/60 transition-colors group-hover:text-accent/80" title="开启策略监控后按时段计算">待计算</span>
             )}
             {loading && <div className="mt-1 h-4 w-10 rounded bg-elevated animate-pulse" />}
           </button>
@@ -177,7 +177,7 @@ export function StrategyCard({
                 <span className="text-xs font-mono font-bold text-muted/50 animate-pulse shrink-0">···</span>
               )}
               {count == null && !loading && !computing && awaitRun && (
-                <span className="text-[10px] text-muted/60 transition-colors group-hover:text-accent/80 shrink-0" title="点击开启策略监控后计算">待计算</span>
+                <span className="text-[10px] text-muted/60 transition-colors group-hover:text-accent/80 shrink-0" title="开启策略监控后按时段计算">待计算</span>
               )}
               {loading && <span className="w-5 h-3 rounded bg-elevated animate-pulse shrink-0" />}
             </div>

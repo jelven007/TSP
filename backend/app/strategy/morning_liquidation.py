@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
+from itertools import pairwise
 
 import polars as pl
 
@@ -12,15 +13,40 @@ from app.strategy.overnight_runtime import next_market_day
 
 TEMPLATE = "morning_liquidation"
 DEFAULT_PARAMS = {"time": "10:30:00", "fallback_time": "10:45:00", "rise_pct": 6.0, "fall_pct": 6.0}
+OPTIONAL_DEFAULTS = {"start_time": None, **DEFAULT_PARAMS, "decline_3m_pct": None, "volume_ratio_min": None}
 
 
 def parameters(sig: dict) -> dict:
     raw = sig.get("params") or {}
-    if not isinstance(raw, dict) or set(raw) - (set(DEFAULT_PARAMS) | {"amplitude_pct"}):
+    if not isinstance(raw, dict) or set(raw) - (set(OPTIONAL_DEFAULTS) | {"amplitude_pct"}):
         raise ValueError("早盘清仓参数格式错误或包含未知参数")
     legacy = "amplitude_pct" in raw
-    if legacy and set(raw) & {"fallback_time", "rise_pct", "fall_pct"}:
+    if legacy and set(raw) & (set(OPTIONAL_DEFAULTS) - {"time"}):
         raise ValueError("旧振幅与新涨跌幅参数不能混用")
+    optional = not legacy and (bool(set(raw) - set(DEFAULT_PARAMS)) or any(v is None for v in raw.values()))
+    if optional:
+        params = {**OPTIONAL_DEFAULTS, **raw}
+        for key in ("start_time", "time", "fallback_time"):
+            value = params[key]
+            if value is None:
+                continue
+            try:
+                at = time.fromisoformat(value)
+                if at.strftime("%H:%M:%S") != value or at.tzinfo or not time(9, 30) <= at <= time(11, 30):
+                    raise ValueError
+            except (TypeError, ValueError):
+                raise ValueError("早盘清仓时间须为 09:30:00~11:30:00 (北京时间)") from None
+        start, stop, fallback = (params[k] for k in ("start_time", "time", "fallback_time"))
+        if start is not None and any(at is not None and at < start for at in (stop, fallback)):
+            raise ValueError("启动时间不得晚于止损或兜底时间")
+        if stop is not None and fallback is not None and fallback <= stop:
+            raise ValueError("兜底时间须晚于止损时间")
+        for key in ("rise_pct", "fall_pct", "decline_3m_pct", "volume_ratio_min"):
+            value = params[key]
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                      or not math.isfinite(value) or not .1 <= value <= 100):
+                raise ValueError("数值参数须为0.1~100.0的有限数值")
+        return params
     params = {**({"time": "10:30:00", "amplitude_pct": 6.0} if legacy else DEFAULT_PARAMS), **raw}
     for key in ("time",) if legacy else ("time", "fallback_time"):
         try:
@@ -49,40 +75,115 @@ def _positive(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
 
 
+def _return_hit(price, previous, params):
+    if not _positive(previous) or not _positive(price):
+        return None
+    change = price / previous - 1
+    for key, passed, reason in (
+        ("rise_pct", change, "rise"), ("fall_pct", -change, "fall"),
+    ):
+        if params[key] is not None and passed + 1e-12 >= params[key] / 100:
+            return {"reason": reason, "change_pct": change}
+    return None
+
+
+def _optional_minute_hit(history, price_field, previous, params, start):
+    if history is None:
+        return None
+    rows = history.to_dicts()
+    decline_enabled = params["decline_3m_pct"] is not None
+    volume_enabled = params["volume_ratio_min"] is not None
+    for index, row in enumerate(rows):
+        at = row["datetime"]
+        if at < start:
+            continue
+        pending = _return_hit(row.get(price_field), previous, params)
+        if pending:
+            return {**pending, "trigger_time": at.isoformat(), "source": "completed_minute"}
+        if not (decline_enabled or volume_enabled):
+            continue
+        size = 13 if volume_enabled else 4
+        if index + 1 < size:
+            continue
+        recent = rows[index + 1 - size:index + 1]
+        if any((b["datetime"] - a["datetime"]).total_seconds() != 60
+               for a, b in pairwise(recent)):
+            continue
+        metrics = {}
+        if decline_enabled:
+            prices = [r.get(price_field) for r in recent[-4:]]
+            if not all(_positive(p) for p in prices):
+                continue
+            decline = (1 - prices[-1] / prices[0]) * 100
+            if decline + 1e-10 < params["decline_3m_pct"]:
+                continue
+            metrics["decline_3m_pct"] = decline
+        if volume_enabled:
+            volumes = [r.get("volume") for r in recent]
+            if not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                       and math.isfinite(v) and v >= 0 for v in volumes):
+                continue
+            prior_mean = sum(volumes[:10]) / 10
+            if prior_mean <= 0:
+                continue
+            ratio = (sum(volumes[-3:]) / 3) / prior_mean
+            if ratio + 1e-12 < params["volume_ratio_min"]:
+                continue
+            metrics["volume_ratio"] = ratio
+        return {"reason": "volume_decline" if decline_enabled and volume_enabled else (
+            "decline_3m" if decline_enabled else "volume_ratio"),
+            **metrics, "trigger_time": at.isoformat(), "source": "completed_minute"}
+    return None
+
+
 def evaluate(
     minute_df: pl.DataFrame, sig: dict, *, day: date, now: datetime,
     positions: list[dict] | None, prev_close: dict[str, float],
     quotes: pl.DataFrame | None = None,
     suspension_history: pl.DataFrame | None = None,
+    roster: list[dict] | None = None,
 ) -> Evaluation:
     params = parameters(sig)
     result = Evaluation()
-    if sig.get("enabled") is False:
+    optional = "start_time" in params
+    if sig.get("enabled") is False or (optional and all(v is None for v in params.values())):
         return result
     now = now.astimezone(CN_TZ).replace(tzinfo=None) if now.tzinfo else now
     if now.date() != day or now.time() < time(9, 30):
         return result
+    if roster is not None:
+        positions = roster
     if positions is None:
         result.diagnostics.append("早盘清仓需要包含买入日期的实际持仓快照")
         return result
-    deadline = datetime.combine(day, time.fromisoformat(params["time"]))
     legacy = "amplitude_pct" in params
-    fallback = datetime.combine(day, time.fromisoformat(params.get("fallback_time", params["time"])))
+    deadline = datetime.combine(day, time.fromisoformat(params["time"])) if params["time"] is not None else None
+    fallback_value = params.get("fallback_time", params["time"])
+    fallback = datetime.combine(day, time.fromisoformat(fallback_value)) if fallback_value is not None else None
+    start = datetime.combine(day, time.fromisoformat(params.get("start_time") or "09:30:00"))
+    if optional and now < start:
+        return result
+    early_end = min([datetime.combine(day, time(11, 30)), *[at for at in (deadline, fallback) if at is not None]])
     # 已完成分钟仅提供触发时间上界; 缺口期间的真实首次触发不可伪造。
     frame = pl.DataFrame()
     price_field = "raw_close" if minute_df is not None and "raw_close" in minute_df.columns else "close"
-    required = {"symbol", "datetime", "high", "low"} if legacy else {"symbol", "datetime", price_field}
+    required = {"symbol", "datetime"} if optional else (
+        {"symbol", "datetime", "high", "low"} if legacy else {"symbol", "datetime", price_field})
     if minute_df is not None and required.issubset(minute_df.columns):
         dt = pl.col("datetime")
         if minute_df.schema["datetime"].time_zone:
             dt = dt.dt.convert_time_zone("Asia/Shanghai").dt.replace_time_zone(None)
-        valid = (pl.col("high").is_finite() & pl.col("low").is_finite()
+        valid = pl.lit(True) if optional else (pl.col("high").is_finite() & pl.col("low").is_finite()
                  & (pl.col("low") > 0) & (pl.col("high") >= pl.col("low"))) if legacy else (
             pl.col(price_field).is_finite() & (pl.col(price_field) > 0))
         frame = minute_df.with_columns(dt.alias("datetime")).filter(
             (pl.col("datetime").dt.date() == day) & (pl.col("datetime").dt.time() > time(9, 30))
-            & (pl.col("datetime") <= min(now, deadline)) & valid,
+            & (pl.col("datetime") <= min(now, early_end)) & valid,
         ).sort("datetime")
+        if optional:
+            frame = frame.filter(
+                (pl.col("datetime").dt.second() == 0) & (pl.col("datetime").dt.microsecond() == 0),
+            ).unique(["symbol", "datetime"], keep="last", maintain_order=True).sort("datetime")
     minute_groups = frame.partition_by("symbol", as_dict=True) if not frame.is_empty() else {}
     live = {}
     if quotes is not None and "symbol" in quotes.columns:
@@ -97,8 +198,10 @@ def evaluate(
         except (TypeError, ValueError):
             result.diagnostics.append(f"早盘清仓: {symbol} 缺少有效买入日期或交易日历")
             continue
-        if position.get("qty", 0) <= 0 or position.get("available_qty", 0) <= 0:
+        if roster is None and (position.get("qty", 0) <= 0 or position.get("available_qty", 0) <= 0):
             continue
+        holding_fields = ({"signal_roster": True} if roster is not None
+                          else {"available_qty": position["available_qty"]})
         from app.instrument_suspension import holding_exit_status, resume_exit_time
 
         status = holding_exit_status(suspension_history, symbol, sell_day, day, observed_at=now)
@@ -110,7 +213,7 @@ def evaluate(
         if status == "resume":
             result.hits.append({
                 "symbol": symbol, "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id"),
-                "entry_date": str(entry), "available_qty": position["available_qty"], "holding_exit": True,
+                "entry_date": str(entry), **holding_fields, "holding_exit": True,
                 "deadline_elapsed": False, "reason": "resume", "amplitude_pct": None,
                 "trigger_time": resume_exit_time(suspension_history, symbol, day, observed_at=now).isoformat(),
                 "source": "suspension_evidence",
@@ -119,7 +222,9 @@ def evaluate(
         pending = None
         previous = prev_close.get(symbol)
         history = minute_groups.get((symbol,))
-        if legacy and _positive(previous) and history is not None:
+        if optional:
+            pending = _optional_minute_hit(history, price_field, previous, params, start)
+        elif legacy and _positive(previous) and history is not None:
             ranges = history.with_columns(
                 ((pl.col("high").cum_max()-pl.col("low").cum_min()) / previous * 100).alias("_amplitude"),
             ).filter(pl.col("_amplitude") + 1e-10 >= params["amplitude_pct"])
@@ -150,32 +255,38 @@ def evaluate(
                     pending = {"reason": "amplitude", "amplitude_pct": amplitude,
                                "trigger_time": at.isoformat(), "source": "live_quote"}
         price = quote.get("price", quote.get("close"))
-        if (not legacy and pending is None and now < deadline and _positive(stamp)
+        if (not legacy and pending is None and now < early_end and _positive(stamp)
                 and _positive(previous) and _positive(price)):
             seconds = stamp / 1000 if stamp > 1e12 else stamp
             at = datetime.fromtimestamp(seconds, CN_TZ).replace(tzinfo=None)
-            if at.date() == day and at.time() >= time(9, 30) and -2 <= (now-at).total_seconds() <= 15:
+            if at.date() == day and start <= at < early_end and -2 <= (now-at).total_seconds() <= 15:
                 change = price / previous - 1
-                if change + 1e-12 >= params["rise_pct"] / 100 or change - 1e-12 <= -params["fall_pct"] / 100:
-                    pending = {"reason": "rise" if change > 0 else "fall", "change_pct": change,
+                hit = _return_hit(price, previous, params)
+                if hit:
+                    pending = {**hit, "change_pct": change,
                                "trigger_time": at.isoformat(), "source": "live_quote"}
-        if not legacy and now >= fallback:
+        if not legacy and fallback is not None and now >= fallback:
             pending = {"reason": "fallback", "change_pct": None,
                        "trigger_time": fallback.isoformat(), "source": "clock"}
-        elif not legacy and now >= deadline:
+        elif not legacy and deadline is not None and now >= deadline:
             pending = {"reason": "stop_time", "change_pct": None,
                        "trigger_time": deadline.isoformat(), "source": "clock"}
-        if pending is None and now >= deadline:
+        if pending is None and deadline is not None and now >= deadline:
             pending = {"reason": "deadline" if legacy else "stop_time",
                        "amplitude_pct" if legacy else "change_pct": None,
                        "trigger_time": deadline.isoformat(), "source": "clock"}
         if pending:
             result.hits.append({
                 "symbol": symbol, "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id"),
-                "entry_date": str(entry), "available_qty": position["available_qty"],
+                "entry_date": str(entry), **holding_fields,
                 "holding_exit": True,
-                "deadline_elapsed": now > fallback, **pending,
+                "deadline_elapsed": fallback is not None and now > fallback, **pending,
             })
+        elif optional:
+            if ((params["rise_pct"] is not None or params["fall_pct"] is not None) and not _positive(previous)):
+                result.diagnostics.append(f"早盘清仓: {symbol} 缺少原始昨收, 已启用涨跌幅条件不可确认")
+            if history is None and (params["decline_3m_pct"] is not None or params["volume_ratio_min"] is not None):
+                result.diagnostics.append(f"早盘清仓: {symbol} 缺少放量下跌条件所需的完成分钟")
         elif not _positive(previous) or history is None:
             result.diagnostics.append(f"早盘清仓: {symbol} 缺少可用{'振幅' if legacy else '现价'}行情或昨收, 清仓时钟仍有效")
     return result

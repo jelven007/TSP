@@ -86,6 +86,8 @@ def test_actual_s02_scheduled_selection_persists_atr_through_restart(tmp_path, m
 
     (tmp_path / "s02.py").write_bytes(SOURCE.read_bytes())
     engine = StrategyEngine([tmp_path])
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(tmp_path, STRATEGY_ID, "s02", True)
     _, daily = frames()
     daily = daily.with_columns(pl.lit(.02).alias("change_pct"),
                               pl.lit(.02).alias("turnover_rate"),

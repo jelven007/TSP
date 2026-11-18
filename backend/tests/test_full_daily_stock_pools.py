@@ -105,7 +105,7 @@ def test_old_definition_completed_marker_regenerates_once_under_new_definition(e
     def execute(task):
         calls.append(task)
         return {"pools": {sid: payload(["600000.SH"], strategy_id=sid,
-                                      definition_version="scope_only_v3")
+                                      definition_version="strategy_scope_v4")
                           for sid in task["strategy_ids"]}, "errors": {}}
 
     service = TenantSchedules(env["db"], None, executor=SimpleNamespace(execute=execute))
@@ -118,10 +118,10 @@ def test_old_definition_completed_marker_regenerates_once_under_new_definition(e
         marker = documents.get("daily_stock_pool_jobs", f"{DAY}:{hour:02}:00")
         assert marker["signature"] != old_marker
         assert set(marker["completed"]) == set(ids)
-        assert marker["definition_version"] == "scope_only_v3"
+        assert marker["definition_version"] == "strategy_scope_v4"
         service.daily_pools(documents, snapshot, None, now, None)
         assert len(calls) == 1
-        assert DailyStockPools(documents).read(ids[0], DAY)["definition_version"] == "scope_only_v3"
+        assert DailyStockPools(documents).read(ids[0], DAY)["definition_version"] == "strategy_scope_v4"
     finally:
         service.runtime.close()
 

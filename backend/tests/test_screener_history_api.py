@@ -289,7 +289,13 @@ def test_day_view_http_returns_saved_sections_without_engine_or_market_reads(run
         assert response.headers["content-encoding"] == "gzip"
         assert response.json()["result"]["sections"] == sections
         assert response.json()["summary"]["strategy_version"] == key.strategy_version
-        assert client.get(url, params={"as_of": "2026-10-23"}).json()["result"] is None
+        following = client.get(url, params={"as_of": "2026-10-23"}).json()["result"]
+        assert following["sell_roster_only"] is True
+        assert following["sections"] == {"sell": [], "select": [], "buy": []}
+        assert following["section_statuses"] == {
+            "sell": "success", "select": "waiting", "buy": "waiting",
+        }
+        assert client.get(url, params={"as_of": "2026-10-26"}).json()["result"] is None
         plain = client.get(url, params={"as_of": "2026-10-22"}, headers={"Accept-Encoding": "identity"})
         assert "content-encoding" not in plain.headers
         assert plain.json() == response.json()

@@ -212,6 +212,10 @@ def test_unconfirmed_day_expires_when_monitor_removed_or_disabled(late, monkeypa
     else:
         rules.save_one({**rules.load_one("late"), "enabled": False})
     before = rules.load_all()
+    owned.worker.executor = SimpleNamespace(
+        execute=lambda *args, **kwargs: pytest.fail("removed monitor must not compute"))
+    _, _, prepared, _ = owned.worker.prepare(owned.documents.context.tenant_id, owned.snapshot())
+    assert prepared["rules"] == [] and prepared["strategy_task_ids"] == []
     owned.worker.evaluate(owned.documents.context.tenant_id,
                           owned.snapshot(status={"is_trading_hours": False}))
     request = request_for(monkeypatch, owned.documents)

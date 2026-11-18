@@ -130,4 +130,7 @@ def select_rows(engine, strategy, context, *, overrides, pool=None):
         # Existing eligibility/reference/score values belong to the shared path.
         extra = [name for name in enriched.columns if name not in rows.columns]
         rows = rows.join(enriched.select("symbol", *extra), on="symbol", how="left")
+    if "score" in rows.columns:
+        rows = rows.sort(["score", "symbol"],
+                         descending=[strategy.meta.get("descending", True), False], nulls_last=True)
     return rows.to_dicts()

@@ -6,11 +6,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { Screener } from './Screener'
 
 const { summary, detail, dayView, run, runAll, reload, batchMutate, oldPreferences,
-  monitorList, monitorSave, monitorDelete, rules, poolState, dataState, clockState, reorderPool, addToPool, calendar } = vi.hoisted(() => ({
+  monitorList, monitorSave, monitorDelete, monitorToggle, monitorTasks, rules, poolState, dataState, clockState, reorderPool, addToPool, calendar } = vi.hoisted(() => ({
   summary: vi.fn(), detail: vi.fn(), dayView: vi.fn(), run: vi.fn(), runAll: vi.fn(),
   reload: vi.fn(), batchMutate: vi.fn(),
   oldPreferences: { screener_auto_run: false as boolean | undefined },
   monitorList: vi.fn(), monitorSave: vi.fn(), monitorDelete: vi.fn(),
+  monitorToggle: vi.fn(), monitorTasks: vi.fn(),
   rules: [] as any[], poolState: { ids: ['sample', 'minute'] },
   dataState: { latest: '2026-10-23' as string | null },
   clockState: { data: {} as { market_date?: string; market_time?: string; is_trading_day?: boolean | null; is_trading_hours?: boolean } },
@@ -24,7 +25,9 @@ vi.mock('@/lib/api', () => ({
       { id: 'minute', name: '分钟样例', asset_types: ['stock'], timeframes: ['1m'] },
       { id: 's02', name: 'S02', asset_types: ['stock'], timeframes: ['1m'] },
       { id: 'custom_mvxxcp88', name: '自定义S02', asset_types: ['stock'], timeframes: ['1m'],
-        result_sections: 'signals' },
+        source: 'custom', result_sections: 'signals' },
+      { id: 'custom_mvxxcs01', name: '自定义S01', asset_types: ['stock'], timeframes: ['1m'],
+        source: 'custom', result_sections: 'signals' },
       { id: 'added', name: '新增样例', asset_types: ['stock'], timeframes: ['1d'] },
       { id: 'composite', name: '叠加样例', asset_types: ['stock'], timeframes: ['1d'] },
     ] }),
@@ -38,6 +41,8 @@ vi.mock('@/lib/api', () => ({
     monitorRulesList: monitorList,
     monitorRuleSave: monitorSave,
     monitorRuleDelete: monitorDelete,
+    strategyMonitoringSet: monitorToggle,
+    strategyMonitoring: monitorTasks,
     minuteRefreshStatus: async () => ({}),
     watchlistGroups: async () => ({ groups: [] }),
     strategyGet: async () => ({ params_defaults: { position_limit: 5, take_profit_pct: .06, stop_loss_pct: .05 } }),
@@ -108,6 +113,8 @@ beforeEach(() => {
     return { rule }
   })
   monitorDelete.mockReset().mockResolvedValue({})
+  monitorTasks.mockReset().mockResolvedValue({ strategies: [] })
+  monitorToggle.mockReset().mockResolvedValue({ enabled: true })
   run.mockReset()
   runAll.mockReset()
 })
@@ -140,6 +147,43 @@ function monitor(text: string) {
   return button(text).parentElement!.querySelector<HTMLButtonElement>(
     'button[title="开启策略监控"], button[title="取消策略监控"]')!
 }
+
+it.each(['custom_mvxxcs01', 'custom_mvxxcp88'])('toggles %s without data, date changes or immediate execution', async sid => {
+  poolState.ids = [sid]
+  dataState.latest = null
+  monitorTasks.mockResolvedValue({ strategies: [{
+    strategy_id: sid, enabled: false, as_of: '2026-11-02', tasks: {
+      select: { state: 'disabled', windows: [{ start: '20:00:00', end: '22:00:00' }] },
+      buy: { state: 'disabled', windows: [{ start: '14:30:00', end: '14:55:00' }] },
+      sell: { state: 'disabled', windows: [{ start: '09:30:00', end: '11:30:00' }] },
+    },
+  }] })
+  await render()
+  const name = sid.endsWith('cs01') ? '自定义S01' : '自定义S02'
+  await act(async () => button(name).click())
+  await flush()
+  expect(host.textContent).toContain('20:00:00～22:00:00')
+  await act(async () => monitor(name).click())
+  await flush()
+  expect(monitorToggle).toHaveBeenCalledWith(sid, true)
+  expect(monitorSave).not.toHaveBeenCalled()
+  expect(run).not.toHaveBeenCalled()
+  expect(runAll).not.toHaveBeenCalled()
+})
+
+it('cancels custom S02 critical monitoring through the strategy lifecycle', async () => {
+  poolState.ids = ['custom_mvxxcp88']
+  rules.push({ id: 'critical', type: 'strategy', strategy_id: 'custom_mvxxcp88',
+    enabled: true, asset_type: 'stock', _system_task: true })
+  await render()
+  await setDate('2026-10-22')
+  await act(async () => monitor('自定义S02').click())
+  await flush()
+  expect(monitorToggle).toHaveBeenCalledWith('custom_mvxxcp88', false)
+  expect(monitorDelete).not.toHaveBeenCalled()
+  expect(run).not.toHaveBeenCalled()
+  expect(host.querySelector<HTMLInputElement>('[aria-label="测试日期"]')!.value).toBe('2026-10-22')
+})
 async function setDate(day: string) {
   await act(async () => {
     const input = host.querySelector<HTMLInputElement>('input[aria-label="测试日期"]')!

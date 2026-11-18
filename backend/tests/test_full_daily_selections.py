@@ -55,6 +55,8 @@ def source(documents, tmp_path):
     definition = definition_payload(StrategyEngine([tmp_path]).get("custom_test"))
     documents.put("strategy_sources", "custom_test",
                   {"id": "custom_test", "source": "custom", "code": CODE, "definition": definition})
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(documents, "custom_test", "Test", True)
 
 
 def selected():
@@ -96,7 +98,7 @@ def test_full_schedule_waits_retries_and_is_idempotent_and_tenant_private(env, t
         service.runtime.close()
 
 
-@pytest.mark.parametrize("change", ["configuration", "lease", "deletion"])
+@pytest.mark.parametrize("change", ["configuration", "lease", "deletion", "cancel", "window"])
 def test_full_schedule_discards_stale_compute_output(env, tmp_path, change):
     from app.services.daily_selections import DailySelections
     _, documents = own(env)
@@ -109,6 +111,11 @@ def test_full_schedule_discards_stale_compute_output(env, tmp_path, change):
             env["data"].execute(
                 "UPDATE scheduler.work SET lease_until=now()-interval '1 second' WHERE tenant_id=%s",
                 (documents.context.tenant_id,))
+        elif change == "cancel":
+            from app.services.strategy_monitor_tasks import set_monitoring
+            set_monitoring(documents, "custom_test", "Test", False)
+        elif change == "window":
+            service.selection_now = lambda: NOW.replace(hour=22, second=1)
         else:
             with documents.transaction() as unit, StrategyResults(unit).deleting_strategy("custom_test"):
                 unit.delete("strategy_sources", "custom_test")
@@ -120,6 +127,27 @@ def test_full_schedule_discards_stale_compute_output(env, tmp_path, change):
         assert DailySelections(documents).read("custom_test", TARGET) is None
         if change != "lease":
             assert DailySelections(documents).job(str(TARGET))["state"] == "failed"
+    finally:
+        from app.cell.scheduler import Scheduler
+        Scheduler(env["db"]).finish(lease, None)
+        service.runtime.close()
+
+
+@pytest.mark.parametrize("hour,enabled", [(19, True), (23, True), (20, False)])
+def test_nightly_automatic_work_requires_monitor_and_current_window(env, tmp_path, hour, enabled):
+    from app.services.daily_selections import DailySelections
+    from app.services.strategy_monitor_tasks import set_monitoring
+    _, documents = own(env)
+    source(documents, tmp_path)
+    if not enabled:
+        set_monitoring(documents, "custom_test", "Test", False)
+    service = TenantSchedules(env["db"], None, executor=SimpleNamespace(
+        execute=lambda _: pytest.fail("unmonitored or out-of-window computation")))
+    lease = claim(env, documents)
+    try:
+        service.daily_selections(documents, {"settlement_days": ["2026-10-30"]},
+                                 None, NOW.replace(hour=hour), lease)
+        assert DailySelections(documents).read("custom_test", TARGET) is None
     finally:
         from app.cell.scheduler import Scheduler
         Scheduler(env["db"]).finish(lease, None)

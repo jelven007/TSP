@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { CustomSignalDialog } from './CustomSignalDialog'
-import { api, type CustomSignal } from '@/lib/api'
+import { api, type CustomSignal, type LateSessionStrengthParams } from '@/lib/api'
 import { LATE_SESSION_DEFAULTS, lateSessionSummary } from '@/lib/customSignals'
 
 vi.mock('@/components/Modal', () => ({
@@ -85,12 +85,45 @@ it.each([60, 90])('preserves the saved %s-second delay when editing other fields
   expect(f.save.mock.calls[0][0].params).toEqual(original.params)
 })
 
-it.each(['', '0', '45', '930', '30.5'])('rejects invalid delay %s before submitting', async value => {
+it.each(['0', '45', '930', '30.5'])('rejects invalid delay %s before submitting', async value => {
   const f = await fixture(signal(1.5))
   await f.setSeconds(value)
   await f.submit()
   expect(f.save).not.toHaveBeenCalled()
   expect(host.textContent).toContain('30～900秒')
+})
+
+it('saves a cleared delay as null and preserves it on reopening', async () => {
+  const f = await fixture(signal(1.5))
+  await f.setSeconds('')
+  await f.submit()
+  expect((f.save.mock.calls[0][0].params as LateSessionStrengthParams).evaluation_delay_minutes).toBeNull()
+  await f.render(f.save.mock.calls[0][0])
+  expect(f.input()!.value).toBe('')
+})
+
+it('renders twelve fields in the specified order with three desktop columns', async () => {
+  await fixture(signal(.5))
+  const grid = host.querySelector('[aria-label="尾盘走强参数"]')!
+  expect(grid).not.toBeNull()
+  expect(grid.className).toContain('sm:grid-cols-3')
+  expect([...grid.querySelectorAll('label > span')].map(node => node.textContent)).toEqual([
+    '启动时间（北京时间）', '确认延迟（秒）', '当日股票池上涨占比下限（%）',
+    '当日成交额下限（亿）', '当日换手率下限（%）', '当日振幅上限（%）',
+    '当日涨幅下限（%）', '当日涨幅上限（%）', '当日量比下限',
+    '1分钟MA5连增数量', '5分钟MA5连增数量', '结束时间（北京时间）',
+  ])
+  const numbers = [...grid.querySelectorAll<HTMLInputElement>('input[type="number"]')]
+  expect(numbers.slice(1, 8).every(input => input.min === '0.1' && input.max === '100')).toBe(true)
+  expect(numbers.slice(8).every(input => input.min === '1' && input.max === '100')).toBe(true)
+  expect(grid.querySelectorAll('label > p')).toHaveLength(12)
+  expect(host.querySelector('[aria-label="尾盘走强分阶段计算说明"]')).toBeNull()
+  expect(grid.textContent).toContain('启动+15秒')
+  expect(grid.textContent).toContain('在确认前重试')
+  expect(grid.textContent).toContain('重试至结束')
+  expect(host.textContent).toContain('未达标则结束当天任务')
+  expect(grid.textContent).toContain('启动分钟的当日累计成交额')
+  expect(grid.textContent).toContain('N个MA5值比较N−1次')
 })
 
 it('rejects confirmation beyond close while accepting the exact close boundary', async () => {

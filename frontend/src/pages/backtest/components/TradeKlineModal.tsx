@@ -9,12 +9,14 @@ import type { StrategyBacktestTrade } from '@/lib/api'
 import { useListNav } from '@/lib/useListNav'
 import { tradeNavKey, type TradeNavItem } from '../tradeNav'
 import { fmtPct, fmtPrice, priceColorClass } from '@/lib/format'
+import { tradeName } from '../tradeNames'
 
 /** 单笔回放来自哪个入口: 决定切交易时同步翻哪张表的页 */
 export type TradeNavSource = 'daily' | 'trades'
 
 interface Props {
   trade: StrategyBacktestTrade | null
+  symbolNames?: Record<string, string>
   /** 交易回放链 (与当前表格同序): 提供后支持左右键/顶栏按钮切交易 */
   navItems?: TradeNavItem[]
   /** 当前交易在链中的 key (取自链中对应项的 key) */
@@ -45,7 +47,7 @@ function fmtSignedMoney(v: number | null | undefined): string {
   return `${prefix}${fmtMoney(v)}`
 }
 
-export function TradeKlineModal({ trade, navItems, currentKey, onNavigate, onClose }: Props) {
+export function TradeKlineModal({ trade, symbolNames, navItems, currentKey, onNavigate, onClose }: Props) {
   const [showIntraday, setShowIntraday] = useState(false)
 
   const nav = useListNav<TradeNavItem>({
@@ -112,7 +114,7 @@ export function TradeKlineModal({ trade, navItems, currentKey, onNavigate, onClo
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm font-semibold text-foreground">{trade.symbol}</span>
-                  <span className="truncate text-sm text-foreground">{trade.name || '交易回放'}</span>
+                  <span className="truncate text-sm text-foreground">{tradeName(trade, symbolNames)}</span>
                   <span className="rounded border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">交易回放</span>
 
                   {/* 切交易: 上一笔 / n·N / 下一笔 */}

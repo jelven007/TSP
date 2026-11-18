@@ -1,7 +1,20 @@
 # 代码二次开发与 AI 扩展指南
 
-2026-11-18统一候选复用现有摘要／明细、信号分区、历史缓存及静态资源入口，
-不新增公开扩展API或SQL迁移。实际调用链与旧冻结兼容见[本轮记录](upgrade-20261118.md)。
+2026-11-18新授权候选复用下述已实现池、信号及三任务入口，无新插件契约或SQL迁移。
+旧冻结源码／旧出场定义兼容保持；正式身份与本轮验证见[升级记录](upgrade-20261118-four-hour.md)。
+
+2026-11-18本地0.4.65已配套安装当前S01数量参数移除与`strategy_scope_v4`。
+池成员由各策略目录／分组范围决定，报价的空风险警示列不能覆盖目录ST名称；
+该兼容处理位于`daily_pool.build_pool`，没有新公开API或SQL迁移。
+23个实际池与冻结目录一致，历史池、已保存信号和系统评分保持；线上未安装此次差量。
+
+2026-11-18已实现的内部三任务编排在`services/strategy_monitor_tasks.py`，
+复用既有`enrich_selection`、入场与早盘出场内核和日期视图存储；
+不是新的插件扩展契约。`strategy_monitoring`关闭状态优先于旧普通规则和关键任务恢复；
+Compute消费冻结的任务时段与前日信号名单，普通／分组路径保持一致。
+前端策略级启停调用`POST /api/monitor-rules/strategies/{id}/monitoring`，
+状态读取`GET /api/monitor-rules/strategies/monitoring`，不绑定结果查询日期或发起立即run。
+二开须保留取消／配置／租约／时段守卫，以及买归档与下一卖名单的同事务写入。
 
 2026-11-17自定义S01当前源码的`META.entry_window_policy=available_minutes_v1`
 为内部兼容标记，经`s01_signals.resolve_parameters`从源码解析为
@@ -31,7 +44,7 @@ S01通用表单仅用于参数已移出的当前定义，显式旧冻结值仍�
 
 S01新有效证券口径是L3内部适配：所选信号`market_validity=price_amount_prev_close_v2`
 控制共享内核，适配层按已发布交易日历传精确昨收日。市场只检查已有当日已完成分钟
-OHLC有限且正、amount有限且非负可0、昨收有限且正；当前个股可用分钟累计与金额门槛独立。
+OHLC有限且正、amount有限且非负可0、昨收有限且正；个股完整窗口与金额门槛独立。
 旧六/八字段定义不补标记、不追改冻结回放。早盘改显示名称，内部ID及出场逻辑保持；
 没有新的扩展API，实际验证见
 [本次回执](../deliverables/operations/s01-security-validity-20261114/report.md)。

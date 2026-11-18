@@ -77,7 +77,7 @@ def remove(store, conn, strategy_id, day=None):
     if store.tenant:
         conn.execute(
             "DELETE FROM business.documents WHERE namespace=ANY(%s) AND id LIKE %s",
-            ([POINTER_NAMESPACE, PAYLOAD_NAMESPACE], prefix + "%"),
+            ([POINTER_NAMESPACE, PAYLOAD_NAMESPACE, "strategy_sell_rosters"], prefix + "%"),
         )
     else:
         conn.execute("DELETE FROM strategy_day_views WHERE id LIKE ?", (prefix + "%",))
@@ -105,6 +105,24 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
         values = [json.loads(row["value"]) for row in rows]
     values = [v for v in values if v["summary"]["strategy_id"] == strategy_id
               and v["summary"]["asset_type"] == asset_type and v["summary"]["timeframe"] == timeframe]
+    roster = _get(store, conn, "strategy_sell_rosters", key)
+    if not values and roster is not None:
+        # Only the sell roster is confirmed; future selection and entry remain pending.
+        values = [{
+            "record_id": None, "ever_rows": {},
+            "summary": {"strategy_id": strategy_id, "as_of": str(day),
+                        "asset_type": asset_type, "timeframe": timeframe,
+                        "strategy_version": roster["strategy_version"],
+                        "started_at": 0, "computed_at": 0, "selection_only": True},
+            "result": {
+                "strategy_id": strategy_id, "as_of": str(day), "section_mode": "signals",
+                "sell_roster_only": True, "rows": [], "total": 0,
+                "sections": {"sell": roster["rows"], "select": [], "buy": []},
+                "section_statuses": {"sell": "waiting" if roster["rows"] else "success",
+                                     "select": "waiting", "buy": "waiting"},
+                "section_errors": {"select": "盘后选股尚未生成", "buy": "买入信号尚未计算"},
+            },
+        }]
     if not values:
         remove(store, conn, strategy_id, day)
         if cascade:
@@ -160,11 +178,25 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
 
 
 def publish_next(store, conn, strategy_id, day, asset_type="stock", timeframe="1m"):
+    from app.services.strategy_results import NAMESPACE
     from app.strategy.overnight_runtime import next_market_day
 
     following = str(next_market_day(date.fromisoformat(str(day))))
-    # Refresh only an already saved successor. A receipt must not invent a future result.
-    if _get(store, conn, POINTER_NAMESPACE, _key(strategy_id, following, asset_type, timeframe)):
+    key = _key(strategy_id, following, asset_type, timeframe)
+    roster = _get(store, conn, "strategy_sell_rosters", key)
+    if roster and roster.get("source_date") == str(day):
+        source = (conn.execute("SELECT 1 FROM business.documents WHERE namespace=%s AND id=%s",
+                               (NAMESPACE, roster["source_record_id"])).fetchone()
+                  if store.tenant else conn.execute(
+                      "SELECT 1 FROM strategy_results WHERE id=?", (roster["source_record_id"],)).fetchone())
+        if source is None:
+            if store.tenant:
+                conn.execute("DELETE FROM business.documents WHERE namespace=%s AND id=%s",
+                             ("strategy_sell_rosters", key))
+            else:
+                conn.execute("DELETE FROM strategy_day_views WHERE namespace=? AND id=?",
+                             ("strategy_sell_rosters", key))
+    if _get(store, conn, POINTER_NAMESPACE, key):
         publish(store, conn, strategy_id, following, asset_type, timeframe, cascade=False)
 
 

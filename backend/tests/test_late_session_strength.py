@@ -374,5 +374,5 @@ def filter_minute_history(df, params):
         current=prior.with_columns(pl.lit(DAY).alias("date")), pool_history=prior)
     result = engine.run("sample", context, overrides={"entry_signals": ["csgi_late_session_strength"]})
     assert result.daily_stock_pool["symbols"] == POOL
-    assert result.daily_stock_pool["definition_version"] == "scope_only_v3"
+    assert result.daily_stock_pool["definition_version"] == "strategy_scope_v4"
     assert result.entry_signal_hits == []  # 3/5=60%, even though selected candidates are all up.
