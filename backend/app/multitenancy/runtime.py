@@ -31,7 +31,8 @@ from app.services.observability import measure_runtime_stage
 from app.strategy import paper, paper_auto
 
 logger = logging.getLogger(__name__)
-INPUT_NAMESPACES = ("strategy_sources", "strategy_overrides", "custom_factors", "custom_signals", "monitor_runtime")
+INPUT_NAMESPACES = ("strategy_sources", "strategy_overrides", "custom_factors", "custom_signals",
+                    "monitor_runtime", "strategy_monitoring", "critical_strategy_schedule")
 
 
 def fingerprint(conn, *, include_state=True):
@@ -95,6 +96,9 @@ class FullWorker:
             ).fetchall()
             rules = []
             for row in definitions:
+                sid = row["definition"].get("strategy_id")
+                if sid and unit.get("strategy_monitoring", sid, {}).get("enabled") is False:
+                    continue
                 execution = row["definition"].get("_execution", {})
                 if (execution.get("policy_version") != context.policy_version
                         or execution.get("routing_epoch") != context.routing_epoch):
@@ -151,6 +155,13 @@ class FullWorker:
             payload["daily_identities"] = {}
             payload["entry_deadlines"] = {}
             payload["next_evaluation_at"] = None
+            payload["late_task_at"] = None
+            payload["late_task_strategy_ids"] = []
+            payload["late_task_definitions"] = {}
+            payload["late_task_scopes"] = {}
+            payload["strategy_task_windows"] = {}
+            payload["strategy_task_ids"] = []
+            payload["sell_rosters"] = {}
             from app.services.daily_selections import DailySelections
             payload["selection_snapshots"] = {
                 sid: selected for sid in {r.get("strategy_id") for r in rules} if sid
@@ -174,8 +185,10 @@ class FullWorker:
                 from app.strategy.engine import StrategyDataContext
                 from app.strategy.late_session_strength import (
                     entry_deadline,
+                    next_task_time,
                     pending_evaluation_time,
                 )
+                from app.strategy.version import runtime_identity
 
                 deadline_context = StrategyDataContext(
                     "stock", "1m", cn_today(), observed_at=datetime.fromtimestamp(time.time(), UTC))
@@ -185,8 +198,8 @@ class FullWorker:
                 }
                 priority_ids = [
                     sid for sid, strategy in catalog._strategies.items()
-                    if strategy.execution_backend == "minute_filter"
-                    and strategy.meta.get("result_sections") == "signals"
+                    if sid in {r.get("strategy_id") for r in rules}
+                    and strategy.execution_backend == "minute_filter"
                     and late_columns.intersection(catalog._effective_signals(
                         payload["overrides"].get(sid, {}), "entry_signals", strategy.entry_signals))
                 ]
@@ -212,8 +225,30 @@ class FullWorker:
                             catalog, unit, sid, overrides=payload["overrides"].get(sid),
                             timeframe=(catalog.get(sid).meta.get("timeframes") or ["1d"])[0]))
                         strategy = catalog.get(sid)
-                        if (strategy.execution_backend == "minute_filter"
-                                and strategy.meta.get("result_sections") == "signals"):
+                        from app.services.strategy_monitor_tasks import (
+                            next_task_check,
+                            sell_roster,
+                            task_windows,
+                            window_state,
+                        )
+                        from app.strategy.signal_sections import supports_signal_sections
+                        if (sid in {r.get("strategy_id") for r in rules}
+                                and strategy.source in ("custom", "ai") and supports_signal_sections(strategy)):
+                            try:
+                                windows = task_windows(catalog, strategy, payload["overrides"].get(sid) or {})
+                            except ValueError:
+                                windows = {"buy": [], "sell": []}
+                            payload["strategy_task_windows"][sid] = windows
+                            next_at = next_task_check(
+                                windows, deadline_context.observed_at,
+                                interval=self.db.settings.realtime_interval).isoformat()
+                            if payload["next_evaluation_at"] is None or next_at < payload["next_evaluation_at"]:
+                                payload["next_evaluation_at"] = next_at
+                            payload["sell_rosters"][sid] = sell_roster(unit, sid, cn_today())
+                            if any(window_state(windows, kind, deadline_context.observed_at) == "running"
+                                   for kind in ("buy", "sell")):
+                                payload["strategy_task_ids"].append(sid)
+                        if strategy.execution_backend == "minute_filter":
                             end = entry_deadline(catalog, catalog.get(sid),
                                                  payload["overrides"].get(sid), deadline_context,
                                                  expired_only=False)
@@ -228,6 +263,23 @@ class FullWorker:
                                 or pending.isoformat() < payload["next_evaluation_at"]
                             ):
                                 payload["next_evaluation_at"] = pending.isoformat()
+                            scope = f"{sid}:{runtime_identity(strategy, payload['overrides'].get(sid) or {})}"
+                            payload["late_task_scopes"][sid] = scope
+                            selected = set(catalog._effective_signals(
+                                payload["overrides"].get(sid, {}), "entry_signals", strategy.entry_signals))
+                            for sig in payload["signals"]:
+                                if sig.get("template") != "late_session_strength" or "csgi_" + sig["id"] not in selected:
+                                    continue
+                                payload["late_task_definitions"].setdefault(sid, []).append(sig)
+                                saved = payload["state"].get("engine", {}).get("late_session_tasks", {}).get(
+                                    f"{scope}:csgi_{sig['id']}", {})
+                                next_at = next_task_time(sig, cn_today(), deadline_context.observed_at, saved)
+                                if next_at is not None:
+                                    next_at = as_cn_datetime(next_at).isoformat()
+                                    if payload["late_task_at"] is None or next_at < payload["late_task_at"]:
+                                        payload["late_task_at"] = next_at
+                                    if sid not in payload["late_task_strategy_ids"]:
+                                        payload["late_task_strategy_ids"].append(sid)
                         from app.strategy.s01_signals import next_entry_evaluation_time
 
                         s01_pending = next_entry_evaluation_time(
@@ -275,6 +327,19 @@ class FullWorker:
                 ):
                     valid_claim(unit.connection, claim)
                     if fingerprint(unit.connection) == observed:
+                        if not isinstance(exc, AccessError):
+                            from app.multitenancy.monitor_compute import (
+                                failed_task_results,
+                                failure_events,
+                            )
+                            now = datetime.fromtimestamp(time.time(), UTC)
+                            failures, failure_state = failure_events(
+                                failed_task_results(payload, str(exc), now), payload["rules"],
+                                payload["state"].get("signal_failures", {}), now)
+                            if failures or payload.get("late_task_definitions"):
+                                append_in_transaction(unit.connection, tenant_id, failures)
+                                unit.put("monitor_runtime", "default", {
+                                    **payload["state"], "signal_failures": failure_state})
                         unit.put("strategy_execution_status", "default", {
                             **status(state, str(exc), sequence=snapshot.get("sequence"),
                                      fingerprint=fingerprint(unit.connection, include_state=False)),
@@ -282,6 +347,7 @@ class FullWorker:
                             "strategy_ids": sorted({r["strategy_id"] for r in payload["rules"]
                                                     if r.get("strategy_id")}),
                         })
+                        valid_claim(unit.connection, claim)
             except Exception:
                 logger.warning("worker failure status could not be saved with current guards")
             raise
@@ -310,8 +376,13 @@ class FullWorker:
         changed = (sequence > previous_sequence or (sequence == previous_sequence and (
             release_id != payload["state"].get("public_release_id") or due
         )))
+        task_due = (payload.get("late_task_at") is not None
+                    and as_cn_datetime(datetime.fromisoformat(payload["late_task_at"])).timestamp() <= now)
+        task_due = task_due or bool(payload.get("strategy_task_ids"))
         result = None
-        if fresh and changed and payload["rules"]:
+        if ((fresh and changed) or task_due) and payload["rules"]:
+            payload["evaluation_started_at"] = now
+            payload["late_task_only"] = task_due and not fresh
             with measure_runtime_stage("monitor.compute"):
                 if needs_sandbox(payload["rules"]):
                     cancelled = threading.Event()
@@ -357,11 +428,28 @@ class FullWorker:
                         result, payload.get("entry_deadlines", {}),
                         datetime.fromtimestamp(time.time(), UTC),
                     )
+                    from app.services.strategy_monitor_tasks import fence_tasks
+                    for sid, daily in result["results"].items():
+                        rejected = fence_tasks(
+                            daily, payload.get("strategy_task_windows", {}).get(sid, {}),
+                            datetime.fromtimestamp(time.time(), UTC))
+                        if rejected:
+                            kinds = {"buy_signal" if kind == "buy" else "sell_signal" for kind in rejected}
+                            result["events"] = [e for e in result["events"]
+                                if not (e.get("strategy_id") == sid and e.get("type") in kinds)]
+                            result["execution_events"] = [e for e in result.get("execution_events", [])
+                                if not (e.get("strategy_id") == sid and e.get("type") in kinds)]
+                    from app.multitenancy.monitor_compute import failure_events
+                    failures, failure_state = failure_events(
+                        result["results"], payload["rules"], payload["state"].get("signal_failures", {}),
+                        datetime.fromtimestamp(now, UTC))
+                    result["state"]["signal_failures"] = failure_state
+                    failure_alerts = append_in_transaction(conn, tenant_id, failures)
                     for index, event in enumerate(result["events"]):
                         event["id"] = hashlib.sha256(
                             f"{tenant_id}:{sequence}:{observed}:{index}".encode(),
                         ).hexdigest()
-                    events = append_in_transaction(conn, tenant_id, result["events"])
+                    events = failure_alerts + append_in_transaction(conn, tenant_id, result["events"])
                     for index, event in enumerate(result.get("execution_events", [])):
                         execution_events.append({
                             **event, "id": hashlib.sha256(
@@ -383,8 +471,10 @@ class FullWorker:
                                 "fingerprint": fingerprint(conn, include_state=False),
                             })
                             if (sid in payload.get("daily_identities", {})
-                                    and result_status(daily)["state"] == "success"
-                                    and not daily.get("showing_last_success")):
+                                    and ((result_status(daily)["state"] == "success"
+                                          and not daily.get("showing_last_success"))
+                                         or (daily.get("monitor_tasks") or {}).get("sell", {}).get("state")
+                                         in ("success", "failed"))):
                                 record = ResultIdentity(**payload["daily_identities"][sid])
                                 if daily.get("sections") is not None:
                                     saved = StrategyResults(unit).save(record, daily, started_at=sequence * 1000000)
@@ -393,6 +483,11 @@ class FullWorker:
                                     from app.services.daily_stock_pools import DailyStockPools
                                     DailyStockPools(unit).save(record, daily["daily_stock_pool"],
                                         started_at=sequence * 1000000)
+                            if daily.get("monitor_tasks"):
+                                unit.put("strategy_monitor_task_runs", f"{sid}:{daily['as_of']}", {
+                                    "as_of": daily["as_of"], "strategy_id": sid,
+                                    "tasks": daily["monitor_tasks"], "updated_at": int(now * 1000),
+                                })
                             from app.multitenancy.critical_schedule import record_completion
 
                             record_completion(
@@ -557,10 +652,17 @@ class FullWorker:
                         """SELECT EXISTS(SELECT 1 FROM business.monitor_rules WHERE enabled)
                            OR EXISTS(SELECT 1 FROM business.full_paper_accounts) AS active""",
                     ).fetchone()["active"]
+                    receipt = conn.execute(
+                        "SELECT value FROM business.documents WHERE namespace='monitor_runtime' AND id='default'"
+                    ).fetchone()
                 if not active:
                     due = None
                 elif not snapshot["status"].get("is_trading_hours"):
                     due = datetime.now(UTC) + timedelta(seconds=30)
+                if active and receipt and (pending := receipt["value"].get("next_evaluation_at")):
+                    boundary = datetime.fromisoformat(pending)
+                    if boundary > datetime.now(UTC):
+                        due = min(due, boundary)
             except AccessError as exc:
                 logger.info("full worker deferred: %s", exc.code)
                 due = datetime.now(UTC) + timedelta(seconds=1 if exc.status in {409, 429} else 5)

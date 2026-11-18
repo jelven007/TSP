@@ -18,6 +18,7 @@ import { type NavItem } from '@/lib/listNav'
 import { WatchlistAddMenu } from '@/components/WatchlistAddMenu'
 import { useStrategyPool } from '@/lib/useStrategyPool'
 import { StrategyCard, CardSize, loadCardSize, cardWrapCls } from '@/components/screener/StrategyCard'
+import { StrategyMonitorTasks } from '@/components/screener/StrategyMonitorTasks'
 import { ScreenerTable } from '@/components/screener/ScreenerTable'
 import { ScreenerFilter as ScreenerFilterType, defaultFilter, filterActive, countActiveFilters, applyFilter, FilterPanel } from '@/components/screener/ScreenerFilter'
 import { StrategySettingsDialog } from '@/components/screener/StrategySettingsDialog'
@@ -710,6 +711,12 @@ export function Screener() {
 
   // 策略监控: 查询规则, 建立 assetType:strategyId → ruleId 映射 (只看 type=strategy 且 enabled)
   const monitorRules = useQuery({ queryKey: QK.monitorRules, queryFn: api.monitorRulesList })
+  const monitorTasks = useQuery({
+    queryKey: ['strategy-monitoring'],
+    queryFn: api.strategyMonitoring,
+    enabled: assetType === 'stock',
+    refetchInterval: 30_000,
+  })
   const strategyMonitorMap = useMemo(() => {
     const m = new Map<string, string>()
     for (const r of monitorRules.data?.rules ?? []) {
@@ -717,27 +724,34 @@ export function Screener() {
         m.set(`${r.asset_type ?? 'stock'}:${r.strategy_id}`, r.id)
       }
     }
+    for (const state of monitorTasks.data?.strategies ?? []) {
+      if (state.enabled) m.set(`stock:${state.strategy_id}`, state.strategy_id)
+      else m.delete(`stock:${state.strategy_id}`)
+    }
     return m
-  }, [monitorRules.data])
+  }, [monitorRules.data, monitorTasks.data])
   const monitorPendingRef = useRef(new Set<string>())
   const [monitorPendingIds, setMonitorPendingIds] = useState<string[]>([])
   const toggleStrategyMonitor = async (strategyId: string, strategyName: string) => {
     if (monitorPendingRef.current.has(strategyId)) return
     const existingRuleId = strategyMonitorMap.get(`${assetType}:${strategyId}`)
-    if (monitorRules.data?.rules.some(r => r.id === existingRuleId && r._system_task)) {
+    const strategy = strategyMap.get(strategyId)
+    const custom = strategy?.source === 'custom' || strategy?.source === 'ai'
+    if (!custom && monitorRules.data?.rules.some(r => r.id === existingRuleId && r._system_task)) {
       toast('系统关键任务持续启用，普通监控操作无法取消')
       return
     }
     const latestDate = currentTradeDate
-    const strategy = strategyMap.get(strategyId)
-    if (!existingRuleId && (!latestDate || !strategy)) {
+    if (!custom && !existingRuleId && (!latestDate || !strategy)) {
       toast('交易日数据尚未就绪，请稍后重试', 'error')
       return
     }
     monitorPendingRef.current.add(strategyId)
     setMonitorPendingIds(ids => [...ids, strategyId])
     try {
-      if (existingRuleId) {
+      if (custom) {
+        await api.strategyMonitoringSet(strategyId, !existingRuleId)
+      } else if (existingRuleId) {
         await api.monitorRuleDelete(existingRuleId)
       } else {
         // New monitoring uses the current trading day, even before daily data is ready.
@@ -768,6 +782,7 @@ export function Screener() {
         })
       }
       await qc.invalidateQueries({ queryKey: QK.monitorRules })
+      await qc.invalidateQueries({ queryKey: ['strategy-monitoring'] })
     } catch (error) {
       toast(`策略监控${existingRuleId ? '取消' : '开启'}失败：${String((error as Error).message ?? error)}`, 'error')
     } finally {
@@ -1026,6 +1041,11 @@ export function Screener() {
               )
             })}
           </div>
+          {monitorTasks.data?.strategies.filter(s => s.strategy_id === activeStrategy).map(value => (
+            <StrategyMonitorTasks key={value.strategy_id} value={value}
+              pending={monitorPendingIds.includes(value.strategy_id)}
+              onToggle={() => void toggleStrategyMonitor(value.strategy_id, strategyMap.get(value.strategy_id)?.name ?? value.strategy_id)} />
+          ))}
           {isFutureQuery && (showAll || !result || result.section_mode !== 'signals') && (
             <p role="status" className="text-xs text-muted">
               {asOf} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单于前一交易日20:00开始生成；

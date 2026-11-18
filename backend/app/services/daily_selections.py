@@ -5,7 +5,7 @@ import json
 import threading
 import time
 from dataclasses import replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from datetime import time as clock_time
 
 from app.cell.context import AccessError
@@ -23,9 +23,17 @@ def signal_strategy(strategy):
     return supports_signal_sections(strategy)
 
 
-def due_window(now=None):
+def due_window(now=None, *, monitored_only=False):
     """Recover only the latest post-close window, before its target session opens."""
     now = as_cn_datetime(now or cn_now())
+    if monitored_only:
+        from app.market_time import published_trading_day
+        from app.strategy.overnight_runtime import next_market_day
+
+        if (published_trading_day(now.date()) is not True
+                or not clock_time(20) <= now.time().replace(tzinfo=None) <= clock_time(22)):
+            return None
+        return now.date(), next_market_day(now.date())
     days = sorted(day for year in (now.year - 1, now.year, now.year + 1)
                   for day in (published_trading_days(year) or []))
     sources = [day for day in days if day < now.date()
@@ -153,7 +161,7 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
                             "price_suggestion_reference": reference,
                             "generated_at": as_cn_datetime(now or cn_now()).isoformat(),
                             "scheduled_for": scheduled_for(source, SELECTION_TIME_TEXT)}
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:
             errors[sid] = str(exc)
     return {"selections": results, "errors": errors}
 
@@ -163,7 +171,13 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
     from app.strategy.config import list_overrides
     from app.strategy.version import digest
     now = as_cn_datetime(now or cn_now())
-    window = due_window(now)
+    from app.services.strategy_monitor_tasks import monitored_ids, monitoring_state
+
+    attempt_start = time.monotonic()
+    from app.market_time import published_trading_day
+    from app.services.strategy_monitor_tasks import selection_receipts
+    expired = now.time().replace(tzinfo=None) > clock_time(22) and published_trading_day(now.date()) is True
+    window = due_window(now.replace(hour=20, minute=0, second=0) if expired else now, monitored_only=True)
     if window is None or not _scheduled_lock.acquire(blocking=False):
         return {"saved": [], "errors": {}}
     try:
@@ -172,9 +186,17 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
         live_engine = engine
         engine = execution_snapshot(engine, storage)
         overrides = list_overrides(storage)
-        ids = [sid for sid, strategy in engine._strategies.items() if signal_strategy(strategy)
+        active = monitored_ids(storage)
+        lifecycles = {sid: monitoring_state(storage, sid) for sid in active}
+        ids = [sid for sid, strategy in engine._strategies.items() if sid in active and signal_strategy(strategy)
                and not strategy.meta.get("research_only")]
         pending = [sid for sid in ids if store.read(sid, target) is None]
+        if expired and pending:
+            job = {"source_date": str(source), "as_of": str(target), "state": "expired",
+                   "errors": {sid: "盘后选股时段已结束, 尚无成功归档" for sid in pending}}
+            store.job(str(target), job)
+            selection_receipts(storage, job, now)
+            return {"saved": [], "errors": job["errors"]}
         if not pending:
             return {"saved": [], "errors": {}}
         identities = capture_identities(engine, storage, pending, overrides_map=overrides, timeframe="1m")
@@ -191,13 +213,16 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
                 raise ValueError(f"等待{source}盘后完整数据")
             response = compute_selections(engine, service, source, target, pending, overrides, now=now)
         except (OSError, ValueError) as exc:
-            store.job(job_key, {**job, "state": "waiting_data", "errors": {
-                sid: f"等待{source}盘后完整数据" for sid in pending}, "finished_at": time.time_ns()})
+            failed = {**job, "state": "waiting_data", "errors": {
+                sid: f"等待{source}盘后完整数据" for sid in pending}, "finished_at": time.time_ns()}
+            store.job(job_key, failed)
+            selection_receipts(storage, failed, now)
             return {"saved": [], "errors": {sid: str(exc) for sid in pending}}
         except Exception:
             errors = {sid: "盘后预选计算暂不可用, 将自动重试" for sid in pending}
-            store.job(job_key, {**job, "state": "failed", "errors": errors,
-                               "finished_at": time.time_ns()})
+            failed = {**job, "state": "failed", "errors": errors, "finished_at": time.time_ns()}
+            store.job(job_key, failed)
+            selection_receipts(storage, failed, now)
             return {"saved": [], "errors": errors}
         saved, errors = [], dict(response["errors"])
         for sid, selected in response["selections"].items():
@@ -205,15 +230,21 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
                 # Do not archive results computed against a changed user configuration.
                 latest = capture_identities(execution_snapshot(live_engine, storage), storage, [sid],
                     overrides_map=list_overrides(storage), timeframe="1m")[sid]
-                if latest.fingerprint != identities[sid].fingerprint:
-                    raise ValueError("预选配置已更新, 将自动重试")
+                if (latest.fingerprint != identities[sid].fingerprint
+                        or sid not in monitored_ids(storage)
+                        or monitoring_state(storage, sid) != lifecycles[sid]
+                        or due_window(now + timedelta(seconds=time.monotonic() - attempt_start),
+                                      monitored_only=True) != window):
+                    raise ValueError("预选配置或监控窗口已更新, 旧计算已丢弃")
                 store.save(identities[sid], selected, started_at=started_at)
                 saved.append(sid)
             except (AccessError, KeyError, ValueError, RuntimeError) as exc:
                 errors[sid] = str(exc)
-        store.job(job_key, {**job, "state": "failed" if errors else "succeeded",
+        completed = {**job, "state": "failed" if errors else "succeeded",
                            "completed": sorted(set(ids) - set(pending) | set(saved)),
-                           "errors": errors, "finished_at": time.time_ns()})
+                           "errors": errors, "finished_at": time.time_ns()}
+        store.job(job_key, completed)
+        selection_receipts(storage, completed, now)
         return {"saved": saved, "errors": errors}
     finally:
         _scheduled_lock.release()

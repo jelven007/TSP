@@ -31,10 +31,10 @@ def replay(repo, sig, *, start, end, symbols, positions):
         references = {row["symbol"]: row.get("raw_close", row["close"]) for row in prior.iter_rows(named=True)}
         observations = [datetime.combine(day, time(15))]
         if not legacy:
-            stop = datetime.combine(day, time.fromisoformat(params["time"]))
-            observations = [stop - timedelta(microseconds=1), stop,
-                            datetime.combine(day, time.fromisoformat(params["fallback_time"])),
-                            datetime.combine(day, time(15))]
+            clocks = [datetime.combine(day, time.fromisoformat(params[key]))
+                      for key in ("time", "fallback_time") if params.get(key) is not None]
+            observations = sorted({*[at - timedelta(microseconds=1) for at in clocks], *clocks,
+                                   datetime.combine(day, time(15))})
         seen = set()
         for at in observations:
             result = evaluate(minutes, sig, day=day, now=at,

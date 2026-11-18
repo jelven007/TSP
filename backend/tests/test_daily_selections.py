@@ -281,6 +281,8 @@ def test_local_schedule_waits_for_completed_source_then_saves_and_survives_resta
     from app.services.daily_selections import DailySelections, generate_scheduled_local
     from app.services.screener import ScreenerService
     engine, context, _ = scan
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(tmp_path, "custom_test", "Test", True)
     repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path),
                            get_instruments_asset=lambda *_: pl.DataFrame(),
                            get_daily_close_inputs=lambda day: (
@@ -306,6 +308,8 @@ def test_local_schedule_discards_changed_source_and_records_failure(scan, tmp_pa
     from app.services import daily_selections
     from app.services.screener import ScreenerService
     engine, _context, _ = scan
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(tmp_path, "custom_test", "Test", True)
     service = ScreenerService(SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path)))
     (tmp_path / "settlement_ready.json").write_text('{"day":"2026-10-30"}')
     def compute(*_args, **_kwargs):

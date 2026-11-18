@@ -222,7 +222,8 @@ class _PrecomputedMonitorStrategyEngine:
         def filter_hits(hits, *, holdings=False):
             return [
                 hit for hit in hits
-                if allowed is None or str(hit.get("symbol", "")) in allowed or (holdings and hit.get("holding_exit"))
+                if allowed is None or str(hit.get("symbol", "")) in allowed
+                or (holdings and (hit.get("holding_exit") or hit.get("signal_roster")))
             ]
 
         return replace(
@@ -487,6 +488,8 @@ class MonitorRuleEngine:
         # per-snapshot realtime rules. Only a fresh coordinator cycle may replace it.
         self._strategy_runtime_lock = threading.Lock()
         self._strategy_runtime_state: dict | None = None
+        self._late_session_tasks: dict = {}
+        self._strategy_task_errors: dict[str, str] = {}
         self._strategy_state_generation = 0
         # 数据目录 (用于加载策略 overrides)
         self._data_dir = None
@@ -531,6 +534,7 @@ class MonitorRuleEngine:
             "strategy_signal_seen": pairs(self._strategy_signal_seen),
             "sector_condition_state": pairs(self._sector_condition_state),
             "abnormal_condition_state": pairs(self._abnormal_condition_state),
+            "late_session_tasks": deepcopy(self._late_session_tasks),
         }
 
     def restore_state(self, state: dict | None) -> None:
@@ -549,6 +553,7 @@ class MonitorRuleEngine:
         self._strategy_signal_state = {
             tuple(key): (value[0], set(value[1])) for key, value in state.get("strategy_signal_state", [])
         }
+        self._late_session_tasks = deepcopy(state.get("late_session_tasks", {}))
 
     def set_strategy_engine(self, engine) -> None:
         """注入 StrategyEngine, type=strategy 规则据此跑选股。"""
@@ -910,6 +915,7 @@ class MonitorRuleEngine:
             strategy_engine = self._strategy_engine
             data_dir = self._data_dir
             history_loader = self._history_loader
+            task_states = deepcopy((previous_state or {}).get("late_session_tasks", {}))
 
         (
             outcomes,
@@ -923,6 +929,7 @@ class MonitorRuleEngine:
             strategy_engine,
             data_dir,
             {"stock": history_loader},
+            task_states,
         )
         proxy = _PrecomputedMonitorStrategyEngine(
             strategy_engine,
@@ -932,6 +939,7 @@ class MonitorRuleEngine:
         worker = MonitorRuleEngine(groups=snapshot.groups)
         if previous_state is not None:
             worker.restore_state(previous_state)
+        worker._late_session_tasks = task_states
         worker.set_strategy_engine(proxy)
         worker.set_data_dir(data_dir)
         worker.set_name_map(snapshot.name_map)
@@ -974,6 +982,7 @@ class MonitorRuleEngine:
         strategy_engine,
         data_dir,
         history_loaders: dict[str, Callable | None],
+        signal_task_states: dict | None = None,
     ) -> tuple[
         dict[tuple[str, str], Any],
         dict[tuple[str, str], dict],
@@ -1166,12 +1175,23 @@ class MonitorRuleEngine:
                     cache_key=f"monitor:{asset_type}",
                 )
                 try:
+                    from app.services.strategy_monitor_tasks import run_monitored, strategy_windows
+                    windows = (strategy_windows(strategy_engine, strategy, data_dir, calculation_overrides)
+                               if data_dir and any(r.get("strategy_id") == strategy_id and not r.get("lot_id")
+                                                  for r in asset_rules) else None)
+                    if windows is not None and backend == "minute_filter":
+                        strategy_run_count += 1
+                        outcomes[(asset_type, strategy_id)] = run_monitored(
+                            strategy_engine, strategy, loader, data_dir, today, current,
+                            calculation_overrides, windows, signal_task_states)
+                        continue
                     if backend == "minute_filter":
                         from app.strategy.overnight_runtime import monitor_context
 
                         context = monitor_context(
                             loader, strategy_engine, strategy_id, today, current, data_dir,
                         )
+                        context.signal_task_states = signal_task_states
                     strategy_run_count += 1
                     result = strategy_engine.run(
                         strategy_id,
@@ -1264,6 +1284,10 @@ class MonitorRuleEngine:
             payload["daily_stock_pool_error"] = result.daily_stock_pool_error
         if getattr(result, "price_suggestion_reference", None) is not None:
             payload["price_suggestion_reference"] = result.price_suggestion_reference
+        if getattr(result, "monitor_tasks", None) is not None:
+            payload["monitor_tasks"] = result.monitor_tasks
+            payload["exit_signal_hits"] = result.exit_signal_hits
+            payload["entry_signal_hits"] = result.entry_signal_hits
         return payload
 
     def _record_strategy_failure(self, sid, strategy, overrides, asset_type, exc):
@@ -1923,6 +1947,7 @@ class MonitorRuleEngine:
 
     def _match_strategy(
         self, df: pl.DataFrame, rule: dict, *, execution_rows: list[tuple] | None = None,
+        emit_events: bool = True,
     ) -> list[tuple[str, str, Any, Any, Any, list[str]]]:
         """策略类型评估: 一次执行同时产出交易信号和结果池变更事件。
 
@@ -1947,6 +1972,8 @@ class MonitorRuleEngine:
             return []
         if s is None:
             return []
+        task_loader = getattr(self._strategy_engine, "_monitor_task_loader", None)
+        windows = task_loader(sid) if callable(task_loader) and not rule.get("lot_id") else None
 
         # 运行策略选股: 复用当前 enriched DataFrame 跳过数据加载
         overrides = {}
@@ -1955,6 +1982,11 @@ class MonitorRuleEngine:
                 overrides = _strategy_config.load_override(self._data_dir, sid)
             except Exception:
                 pass
+        if self._data_dir and not rule.get("lot_id") and not callable(has_outcome):
+            from app.services.strategy_monitor_tasks import monitoring_state, strategy_windows
+            if monitoring_state(self._data_dir, sid).get("enabled") is False:
+                return []
+            windows = strategy_windows(self._strategy_engine, s, self._data_dir, overrides)
 
         # 声明 filter_history 的策略 (如反包) 需要多日历史窗口才能判定形态。
         # 旧实现因"实时监控不支持 history loader"直接跳过 → 反包等策略盘中永不触发。
@@ -1992,7 +2024,7 @@ class MonitorRuleEngine:
                 [sid],
                 overrides_map={sid: overrides},
             )
-        if getattr(s, "execution_backend", "polars_expr") not in {"composite", "matrix_native"} and (
+        if windows is None and getattr(s, "execution_backend", "polars_expr") not in {"composite", "matrix_native"} and (
             s.filter_history_fn or required_history_bars > 1
         ):
             history_loader = self._history_loader_for(rule)
@@ -2030,24 +2062,33 @@ class MonitorRuleEngine:
                 if s.filter_history_fn:
                     return []
         try:
-            if getattr(s, "execution_backend", "polars_expr") == "minute_filter":
+            roster, independent = None, None
+            if windows is not None and getattr(s, "execution_backend", "polars_expr") == "minute_filter":
+                from app.services.strategy_monitor_tasks import run_monitored
+                result = run_monitored(self._strategy_engine, s, self._history_loader_for(rule),
+                    self._data_dir, cn_today(), df, overrides, windows, self._late_session_tasks)
+            elif getattr(s, "execution_backend", "polars_expr") == "minute_filter":
                 from app.strategy.overnight_runtime import monitor_context
-
+                loader = self._history_loader_for(rule)
                 current_context = monitor_context(
-                    self._history_loader_for(rule), self._strategy_engine, sid,
-                    cn_today(), df, self._data_dir,
+                    loader, self._strategy_engine, sid, cn_today(), df, self._data_dir)
+                current_context.signal_task_states = self._late_session_tasks
+            if windows is not None and getattr(s, "execution_backend", "polars_expr") == "minute_filter":
+                pass
+            elif windows is not None:
+                from app.services.strategy_monitor_tasks import run_tasks
+                result = run_tasks(self._strategy_engine, s, current_context, overrides, windows, roster,
+                                   exit_context=independent)
+            else:
+                result = self._strategy_engine.run(
+                    sid, current_context,
+                    pool=(df["symbol"].cast(pl.Utf8).to_list()
+                          if getattr(s, "execution_backend", "polars_expr") == "matrix_native" else None),
+                    overrides=overrides, params=dict(overrides.get("params") or {}),
                 )
-            result = self._strategy_engine.run(
-                sid,
-                current_context,
-                pool=(df["symbol"].cast(pl.Utf8).to_list()
-                      if getattr(s, "execution_backend", "polars_expr") == "matrix_native"
-                      else None),
-                overrides=overrides,
-                params=dict(overrides.get("params") or {}),
-            )
         except Exception as e:
             logger.warning("策略 %s 选股执行失败: %s", sid, e)
+            self._strategy_task_errors[sid] = str(e)
             self._record_strategy_failure(sid, s, overrides, at, e)
             return []
 
@@ -2071,6 +2112,8 @@ class MonitorRuleEngine:
                 self._latest_strategy_result_ids.add(sid)
             except Exception:  # noqa: BLE001
                 pass
+        if not emit_events:
+            return []
 
         score_min = rule.get("score_min")
         score_max = rule.get("score_max")
@@ -2126,9 +2169,11 @@ class MonitorRuleEngine:
         changes: dict[str, set[str]] = {
             "buy_signal": self._new_strategy_signals(
                 pool_key, "buy_signal", result.as_of, entry_signal_hits,
+                emit_initial=bool(getattr(result, "monitor_tasks", None)),
             ),
             "sell_signal": self._new_strategy_signals(
                 pool_key, "sell_signal", result.as_of, result.exit_signal_hits,
+                emit_initial=bool(getattr(result, "monitor_tasks", None)),
             ),
             "pool_entry": set() if prev_pool is None else current_pool - prev_pool,
             "pool_exit": set() if prev_pool is None else prev_pool - current_pool,
@@ -2193,7 +2238,7 @@ class MonitorRuleEngine:
                 ))
             if execution_rows is not None and (
                 entry_policy is not None or event_type in ("sell_signal", "pool_exit")
-            ):
+            ) and not (getattr(result, "monitor_tasks", None) and event_type == "sell_signal"):
                 for hit in individual:
                     row = row_map.get(hit[1], {})
                     score = row.get("score", result.scores.get(hit[1]))
@@ -2235,12 +2280,16 @@ class MonitorRuleEngine:
         event_type: str,
         as_of: Any,
         hits: list[dict],
+        *,
+        emit_initial: bool = False,
     ) -> set[str]:
         rule_id, strategy_id, asset_type = pool_key
         state_key = (rule_id, strategy_id, asset_type, event_type)
         date_key = str(as_of)
         def identity(hit):
             symbol = str(hit["symbol"])
+            if hit.get("signal_roster"):
+                return symbol
             if hit.get("exit_stage") in ("conditional", "stop", "fallback"):
                 return (symbol, hit.get("account_id"), hit.get("cycle_id"),
                         hit["exit_stage"], hit.get("signal_bar"))
@@ -2253,12 +2302,12 @@ class MonitorRuleEngine:
         previous = self._strategy_signal_state.get(state_key)
         self._strategy_signal_state[state_key] = (date_key, current)
 
-        if previous is None:
+        if previous is None and not emit_initial:
             for symbol in current:
                 self._strategy_signal_seen[(*state_key, symbol)] = date_key
             return set()
 
-        previous_date, previous_symbols = previous
+        previous_date, previous_symbols = previous or ("", set())
         candidates = current if previous_date != date_key else current - previous_symbols
         fresh = {
             symbol

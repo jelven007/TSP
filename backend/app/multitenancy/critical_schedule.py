@@ -11,6 +11,8 @@ def active_signals(unit, schedule):
     if not schedule.get("enabled"):
         return []
     sid = schedule["strategy_id"]
+    if unit.get("strategy_monitoring", sid, {}).get("enabled") is False:
+        return []
     source = unit.get("strategy_sources", sid)
     if not source:
         return []
@@ -47,7 +49,10 @@ def record_completion(unit, sid, daily, *, now, fingerprint):
     signals = active_signals(unit, unit.get("critical_strategy_schedule", sid, {}))
     if not signals:
         return
-    confirmation = max(evaluation_time(signal, now.date()) for signal in signals).replace(tzinfo=CN_TZ)
+    confirmations = [at for signal in signals if (at := evaluation_time(signal, now.date())) is not None]
+    if not confirmations:
+        return
+    confirmation = max(confirmations).replace(tzinfo=CN_TZ)
     deadline = datetime.combine(now.date(), time(14, 55), CN_TZ)
     day = str(now.date())
     if now > deadline or not completed_buy(daily, day, confirmation, deadline):
@@ -135,7 +140,10 @@ def check_completion(worker, documents, claim=None, *, now=None):
             signals = active_signals(unit, schedule)
             if not signals:
                 continue
-            confirmation = max(evaluation_time(signal, now.date()) for signal in signals).replace(tzinfo=CN_TZ)
+            confirmations = [at for signal in signals if (at := evaluation_time(signal, now.date())) is not None]
+            if not confirmations:
+                continue
+            confirmation = max(confirmations).replace(tzinfo=CN_TZ)
             if now < confirmation + timedelta(seconds=60) and now <= deadline:
                 continue
             sid = schedule["strategy_id"]

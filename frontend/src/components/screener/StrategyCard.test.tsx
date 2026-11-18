@@ -40,7 +40,7 @@ it('shows 待计算 hint when awaitRun and count is missing', () => {
 
 it.each(['normal', 'large'])('directs the waiting hint to monitoring in %s cards', cardSize => {
   render({ awaitRun: true, cardSize })
-  expect(container.querySelector('[title="点击开启策略监控后计算"]')).not.toBeNull()
+  expect(container.querySelector('[title="开启策略监控后按时段计算"]')).not.toBeNull()
   expect(container.querySelector('[title="点击卡片运行策略"]')).toBeNull()
 })
 

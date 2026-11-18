@@ -74,7 +74,8 @@ it('saves and reloads two independent return thresholds and both times', async (
     await f.fill('兜底时间', '10:50:15')
     await f.submit()
     expect(f.save).toHaveBeenCalledWith(expect.objectContaining({
-      params: { time: '10:15:32', fallback_time: '10:50:15', rise_pct: 8, fall_pct: 2 },
+      params: { start_time: null, decline_3m_pct: null, volume_ratio_min: null,
+        time: '10:15:32', fallback_time: '10:50:15', rise_pct: 8, fall_pct: 2 },
     }), { createOnly: true })
     await f.render(f.save.mock.calls[0][0])
     expect(f.input('跌幅阈值（%）')?.value).toBe('2')
@@ -93,7 +94,7 @@ it('rejects fallback no later than stop and nonpositive fall thresholds', async 
     await f.fill('跌幅阈值（%）', '0')
     await f.submit()
     expect(f.save).not.toHaveBeenCalled()
-    expect(f.host.textContent).toContain('涨跌幅阈值')
+    expect(f.host.textContent).toContain('0.1～100.0')
   } finally { await f.close() }
 })
 
@@ -108,7 +109,41 @@ it('converts legacy amplitude editing explicitly while preserving its chosen sto
     expect(f.host.textContent).toContain('保存后')
     await f.submit()
     expect(f.save.mock.calls[0][0].params).toEqual({
+      start_time: null, decline_3m_pct: null, volume_ratio_min: null,
       time: '10:15:32', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6,
     })
+  } finally { await f.close() }
+})
+
+it('shows seven parameters in order and preserves all empty fields on save and reopen', async () => {
+  const empty = { start_time: null, rise_pct: null, fall_pct: null, decline_3m_pct: null,
+    volume_ratio_min: null, time: null, fallback_time: null }
+  const f = await fixture({ id: 'optional', name: '早盘清仓', kind: 'exit', timeframe: 'intraday',
+    template: 'morning_liquidation', enabled: true, conditions: [], params: empty })
+  try {
+    const grid = f.host.querySelector('[aria-label="早盘清仓参数"]')!
+    expect(grid).not.toBeNull()
+    expect(grid.classList.contains('sm:grid-cols-3')).toBe(true)
+    expect([...grid.querySelectorAll('label > span')].map(span => span.textContent)).toEqual([
+      '启动时间（北京时间）', '涨幅阈值（%）', '跌幅阈值（%）',
+      '3分钟跌幅门槛（%）', '最近3根/之前10根量比下限', '止损时间（北京时间）', '兜底时间（北京时间）',
+    ])
+    expect(f.time('启动时间')?.textContent).toBe('选择时间')
+    expect(f.input('3分钟跌幅门槛（%）')?.value).toBe('')
+    await f.fill('3分钟跌幅门槛（%）', '0.09')
+    await f.submit()
+    expect(f.save).not.toHaveBeenCalled()
+    await f.fill('3分钟跌幅门槛（%）', '100')
+    await f.fill('最近3根/之前10根量比下限', '.1')
+    await f.submit()
+    expect(f.save.mock.calls[0][0].params).toEqual({ ...empty, decline_3m_pct: 100, volume_ratio_min: .1 })
+    await f.fill('3分钟跌幅门槛（%）', '')
+    await f.fill('最近3根/之前10根量比下限', '')
+    await f.submit()
+    expect(f.save.mock.calls[1][0].params).toEqual(empty)
+    await f.render(f.save.mock.calls[1][0])
+    expect(f.time('止损时间')?.textContent).toBe('选择时间')
+    expect(f.time('兜底时间')?.textContent).toBe('选择时间')
+    expect(f.input('涨幅阈值（%）')?.value).toBe('')
   } finally { await f.close() }
 })

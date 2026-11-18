@@ -394,7 +394,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 cycle_notional = pos.get("sell_notional", sale["notional"])
                 cycle_value = pos.get("sell_value", sale["value"])
                 record = TradeRecord(
-                    symbol=symbol, entry_date=pos["entry_date"], exit_date=day,
+                    symbol=symbol, name=pos.get("name", ""), entry_date=pos["entry_date"], exit_date=day,
                     entry_price=pos["entry_notional"] / pos["shares"],
                     exit_price=cycle_notional / pos["shares"],
                     pnl_pct=cycle_value / pos["entry_value"] - 1,
@@ -545,7 +545,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                     cash -= buy["value"]
                     fills.extend(buy["fills"])
                     positions[symbol] = {
-                        "symbol": symbol, "entry_date": day, "sell_date": sell_date,
+                        "symbol": symbol, "name": row.get("name") or "", "entry_date": day, "sell_date": sell_date,
                         "shares": buy["shares"], "remaining": buy["shares"],
                         "entry_notional": buy["notional"], "entry_value": buy["value"],
                         "entry_nav": nav, "entry_budget": budget,

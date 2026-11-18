@@ -364,8 +364,10 @@ def advance(data, repo, now, account_id=paper.DEFAULT_ACCOUNT_ID):
                 hit = result.hits[0]
                 if linked and hit["reason"] != "resume":
                     continue
-                deadline = time(15) if hit["reason"] == "resume" else time.fromisoformat(
-                    morning_liquidation.parameters(policy["exit_definition"])["fallback_time"])
+                exit_params = morning_liquidation.parameters(policy["exit_definition"])
+                # 委托有效期独立于模板时钟; 不回填已停用的兜底参数。
+                execution_end = exit_params.get("fallback_time") or exit_params.get("time") or "11:30:00"
+                deadline = time(15) if hit["reason"] == "resume" else time.fromisoformat(execution_end)
                 order, error = paper.create_order(
                     data, symbol, "sell", account_id=account_id,
                     qty=paper._available_of(pos, str(now.date())), order_type="market",

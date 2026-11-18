@@ -3,7 +3,6 @@ import type { CustomSignal, S01EntryParams, S01ExitParams } from '@/lib/api'
 import { lateSessionBarTime, lateSessionCheckTime, S01_VALID_SECURITY_DESCRIPTION } from '@/lib/customSignals'
 
 const ENTRY_FIELDS = [
-  ['market_min_valid', '当日市场有效证券下限（只）', 1, 1],
   ['market_positive_min', '当日市场上涨比例下限（%）', 100, .1],
   ['current_amount_min', '累计成交额下限（亿元）', 1e-8, .01],
   ['current_range_max', '振幅上限（%）', 100, .01],
@@ -33,7 +32,7 @@ export function S01SignalParamsEditor({ signal, onChange }: {
     onChange({ ...values, [key]: value } as unknown as S01EntryParams | S01ExitParams)
   return <div className="space-y-3">
     <p className="text-[11px] leading-5 text-muted">{entry
-      ? '启动时计算当日市场有效证券和上涨比例；确认延时结束后计算个股累计成交额、振幅及涨幅。前日条件在策略数值过滤中设置。'
+      ? '启动时计算策略股票范围内的当日市场上涨比例；确认延时结束后计算个股累计成交额、振幅及涨幅。前日条件在策略数值过滤中设置。'
       : legacyExit ? '此信号沿用已保存的旧参数与时点；编辑和保存保留该定义。'
         : '次交易日从启动时间至止损前，只检查放量下跌：3分钟跌幅和量比须同时满足以下门槛。止损时间到无条件全部清仓，兜底时间再次处理未成交余股。'}</p>
     {entry && <p className="text-[11px] leading-5 text-muted">
@@ -59,7 +58,7 @@ export function S01SignalParamsEditor({ signal, onChange }: {
       {(entry ? ENTRY_FIELDS : legacyExit ? LEGACY_EXIT_FIELDS : EXIT_FIELDS).map(([key, label, scale, step]) => <label key={key} className="space-y-1.5">
         <span className="text-[11px] text-muted">{label}</span>
         <input type="number" aria-label={label} step={step}
-          min={key === 'market_min_valid' ? 1 : key === 'return_15m_max' ? undefined : 0}
+          min={key === 'return_15m_max' ? undefined : 0}
           max={key === 'market_positive_min' ? 100 : undefined}
           value={Number.isFinite(Number(values?.[key])) ? Number((Number(values[key]) * scale).toFixed(6)) : ''}
           onChange={event => update(key, event.target.value === '' ? NaN : Number((Number(event.target.value) / scale).toFixed(10)))}

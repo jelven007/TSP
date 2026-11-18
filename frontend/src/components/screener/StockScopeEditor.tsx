@@ -54,6 +54,6 @@ export function StockScopeEditor({ value, onChange, disabled = false }: {
           </label>)}
         </div>}
     </div>}
-    <p className="text-[11px] text-muted">所选板块与自选分组取并集；当日股票池为满足股票范围和状态条件的所有股票，流通市值及其他数值条件仅用于策略选股。停牌按当日状态判断，状态未知不视为停牌。</p>
+    <p className="text-[11px] text-muted">每个策略的当日股票池等于自身股票范围中的完整股票列表。所选板块与自选分组取并集，并按本区 ST、停牌勾选项处理；流通市值及其他数值条件仅用于策略选股，缺行情不缩小股票池。停牌按当日状态判断，状态未知不视为停牌。</p>
   </fieldset>
 }

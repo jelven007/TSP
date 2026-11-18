@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { CustomSignalDialog } from './CustomSignalDialog'
 import { api } from '@/lib/api'
+import { LATE_SESSION_DEFAULTS } from '@/lib/customSignals'
 
 vi.mock('@/components/Modal', () => ({
   Modal: ({ children }: any) => <div>{children}</div>,
@@ -41,23 +42,22 @@ it('creates and edits the late-session entry preset with all configurable defaul
   })
   expect(host.querySelector('button[aria-label="启动时间"]')?.textContent).toBe('14:30:00')
   expect([...host.querySelectorAll<HTMLInputElement>('input[type="number"]')].map(input => input.value))
-    .toEqual(['30', '60', '4', '0.4', '7', '4'])
+    .toEqual(['30', '60', '', '', '', '0.4', '4', '', '7', '4'])
   expect(host.textContent).toContain('14:30:30')
   expect(host.textContent).toContain('启动后30秒确认')
   expect(host.textContent).not.toContain('启动后90秒')
   expect(host.textContent).toContain('K线截止 14:30:00')
-  expect(host.textContent).toContain('默认1分钟比较14:30至14:24')
-  expect(host.textContent).toContain('14:30 > 14:25 > 14:20 > 14:15')
+  expect(host.textContent).toContain('N个MA5值比较N−1次')
+  expect(host.textContent).toContain('取启动时最新完成5分K')
   expect(host.textContent).toContain('当日股票池')
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save).toHaveBeenCalledWith(expect.objectContaining({
     name: '尾盘走强', kind: 'entry', timeframe: 'intraday', template: 'late_session_strength',
-    params: { time: '14:30:00', change_min_pct: 0.4, change_max_pct: 4,
-      pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4, evaluation_delay_minutes: 0.5 },
+    params: LATE_SESSION_DEFAULTS,
   }), { createOnly: true })
   const stored = save.mock.calls[0][0]
   await act(async () => render({ ...stored, params: { ...stored.params, ma5_1m_count: 9 } }))
-  expect(host.querySelector<HTMLInputElement>('input[aria-label="1分钟 MA5 连增数量"]')?.value).toBe('9')
+  expect(host.querySelector<HTMLInputElement>('input[aria-label="1分钟MA5连增数量"]')?.value).toBe('9')
   await act(async () => render({ ...stored, params: { ...stored.params, evaluation_delay_minutes: 1.5 } }))
   expect(host.textContent).not.toContain('保存后改为')
   expect(host.textContent).toContain('14:31:30')
@@ -68,9 +68,10 @@ it('creates and edits the late-session entry preset with all configurable defaul
   expect(host.textContent).toContain('原为无延迟旧定义')
   expect(host.textContent).toContain('14:35:30')
   expect([...host.querySelectorAll<HTMLInputElement>('input[type="number"]')].map(input => input.value))
-    .toEqual(['30', '65', '3.5', '0.6', '8', '3'])
+    .toEqual(['30', '65', '', '', '', '0.6', '3.5', '', '8', '3'])
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save.mock.calls.at(-1)?.[0].params).toEqual({
+    ...LATE_SESSION_DEFAULTS,
     time: '14:35:00', pool_up_min_pct: 65, change_max_pct: 3.5, change_min_pct: 0.6,
     ma5_1m_count: 8, ma5_5m_count: 3, evaluation_delay_minutes: 0.5,
   })
@@ -112,7 +113,8 @@ it('saves the morning exit preset and reloads configurable times and returns', a
   await act(async () => [...host.querySelectorAll('button')].find(b => b.textContent?.includes('保存'))!.click())
   expect(save).toHaveBeenCalledWith(expect.objectContaining({
     name: '早盘清仓', kind: 'exit', timeframe: 'intraday', template: 'morning_liquidation',
-    conditions: [], params: { time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6 },
+    conditions: [], params: { start_time: null, decline_3m_pct: null, volume_ratio_min: null,
+      time: '10:30:00', fallback_time: '10:45:00', rise_pct: 6, fall_pct: 6 },
   }), { createOnly: true })
   const stored = save.mock.calls[0][0]
   await act(async () => render({ ...stored, params: { time: '10:15:32', fallback_time: '10:50:00', rise_pct: 5, fall_pct: 2 } }))

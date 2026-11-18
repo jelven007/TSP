@@ -15,6 +15,7 @@ import {
   REGIME_STATE_COLORS,
 } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
+import { missingTradeNameSymbols, tradeName } from './tradeNames'
 import { storage } from '@/lib/storage'
 import { fmtPct, fmtPrice, priceColorClass } from '@/lib/format'
 import { boardTag } from '@/lib/board'
@@ -438,7 +439,7 @@ function fmtScore(v: number | null | undefined): string {
   return Number(v).toFixed(1)
 }
 
-function DailyTradeChip({ trade, side, strategyName, onClick, signalNames, active }: { trade: StrategyBacktestTrade; side: 'buy' | 'sell'; strategyName?: string; onClick?: () => void; signalNames?: Record<string, string>; active?: boolean }) {
+function DailyTradeChip({ trade, side, strategyName, onClick, signalNames, symbolNames, active }: { trade: StrategyBacktestTrade; side: 'buy' | 'sell'; strategyName?: string; onClick?: () => void; signalNames?: Record<string, string>; symbolNames?: Record<string, string>; active?: boolean }) {
   const isBuy = side === 'buy'
   const tag = boardTag(trade.symbol)
   const price = isBuy ? trade.entry_price : trade.exit_price
@@ -459,7 +460,7 @@ function DailyTradeChip({ trade, side, strategyName, onClick, signalNames, activ
         }`}>
           {isBuy ? '买' : '卖'}
         </span>
-        <span className="min-w-0 flex-1 truncate text-foreground">{trade.name || trade.symbol}</span>
+        <span className="min-w-0 flex-1 truncate text-foreground">{tradeName(trade, symbolNames)}</span>
         {tag && <span className={`shrink-0 rounded px-1 text-[9px] font-medium ${isBuy ? 'bg-accent/20 text-accent' : 'bg-elevated text-secondary'}`}>{tag}</span>}
       </span>
       <span className="flex items-center justify-between gap-2 text-muted">
@@ -1418,7 +1419,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     lines.push('', '# 交易明细',
       'symbol,name,entry_date,entry_price,exit_date,exit_price,pnl_pct,duration,exit_reason,shares,entry_value,exit_value,pnl_amount,raw_entry_shares,raw_entry_price,raw_frozen_stop_price')
     for (const t of result.trades ?? []) {
-      lines.push([t.symbol, t.name ?? '', t.entry_date, num(t.entry_price), t.exit_date,
+      lines.push([t.symbol, tradeName(t, symbolNames), t.entry_date, num(t.entry_price), t.exit_date,
         num(t.exit_price), num(t.pnl_pct), num(t.duration), t.exit_reason ?? '',
         num(t.shares), num(t.entry_value), num(t.exit_value), num(t.pnl_amount),
         num(t.raw_entry_shares), num(t.raw_entry_price), num(t.raw_frozen_stop_price)].map(csvEsc).join(','))
@@ -1548,13 +1549,21 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const tradeStart = safeTradePage * tradePageSize
   const visibleTrades = sortedTrades.slice(tradeStart, tradeStart + tradePageSize)
   const tradeEnd = Math.min(tradeStart + visibleTrades.length, sortedTrades.length)
+  const missingNameSymbols = useMemo(() => missingTradeNameSymbols(result?.trades ?? []), [result?.trades])
+  const tradeNamesQ = useQuery({
+    queryKey: QK.instrumentNames(missingNameSymbols),
+    queryFn: () => api.instrumentNames(missingNameSymbols),
+    enabled: missingNameSymbols.length > 0,
+    staleTime: 300_000,
+  })
   const symbolNames = useMemo(() => {
-    const names: Record<string, string> = {}
+    const names: Record<string, string> = { ...tradeNamesQ.data?.names }
     result?.trades.forEach(t => {
-      if (t.name) names[t.symbol] = t.name
+      const name = tradeName(t)
+      if (name !== t.symbol) names[t.symbol] = name
     })
     return names
-  }, [result?.trades])
+  }, [result?.trades, tradeNamesQ.data?.names])
 
   // 选股分析弹窗的切标的候选 (与表格同序, 保证计数与「上一只/下一只」一致)
   const picksNavItems = useMemo(
@@ -2687,7 +2696,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                               ) : (
                                 <div className="flex flex-wrap gap-1.5">
                                   {row.buys.map((t, i) => (
-                                    <DailyTradeChip key={`buy-${t.symbol}-${t.entry_date}-${t.exit_date}-${i}`} trade={t} side="buy" strategyName={result?.strategy_info?.name ?? selectedStrategyName} onClick={() => setChartOverlay({ kind: 'trade', trade: t, source: 'daily' })} signalNames={signalNames} active={t === selectedTrade} />
+                                    <DailyTradeChip key={`buy-${t.symbol}-${t.entry_date}-${t.exit_date}-${i}`} trade={t} side="buy" strategyName={result?.strategy_info?.name ?? selectedStrategyName} onClick={() => setChartOverlay({ kind: 'trade', trade: t, source: 'daily' })} signalNames={signalNames} symbolNames={symbolNames} active={t === selectedTrade} />
                                   ))}
                                 </div>
                               )}
@@ -2698,7 +2707,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                               ) : (
                                 <div className="flex flex-wrap gap-1.5">
                                   {row.sells.map((t, i) => (
-                                    <DailyTradeChip key={`sell-${t.symbol}-${t.entry_date}-${t.exit_date}-${i}`} trade={t} side="sell" onClick={() => setChartOverlay({ kind: 'trade', trade: t, source: 'daily' })} signalNames={signalNames} active={t === selectedTrade} />
+                                    <DailyTradeChip key={`sell-${t.symbol}-${t.entry_date}-${t.exit_date}-${i}`} trade={t} side="sell" onClick={() => setChartOverlay({ kind: 'trade', trade: t, source: 'daily' })} signalNames={signalNames} symbolNames={symbolNames} active={t === selectedTrade} />
                                   ))}
                                 </div>
                               )}
@@ -2779,7 +2788,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                           >
                             <td className="px-4 py-2.5">
                               <div className="font-medium text-foreground transition-colors group-hover:text-accent">
-                                {t.name || t.symbol}
+                                {tradeName(t, symbolNames)}
                               </div>
                               <div className="mt-0.5 font-mono text-[11px] text-muted">{t.symbol}</div>
                             </td>
@@ -3311,6 +3320,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
 
       {selectedTrade && <Suspense fallback={null}><TradeKlineModal
         trade={selectedTrade}
+        symbolNames={symbolNames}
         navItems={tradeNavItems}
         currentKey={activeTradeKey}
         onNavigate={handleTradeNav}

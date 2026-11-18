@@ -48,6 +48,7 @@ export const QK = {
   // 导致每次都拉 TickFlow 触限流。分时图用固定 refetchInterval 刷新即可。
   minuteBatch:          (symbols: string) => ['minute-batch', symbols] as const,
   instrumentSearch:     (q: string, assetTypes?: string) => ['instrument-search', q, assetTypes ?? 'stock'] as const,
+  instrumentNames:      (symbols: string[]) => ['instrument-names', symbols] as const,
 
   // Screener
   screener:             ['screener'] as const,

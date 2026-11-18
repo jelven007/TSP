@@ -373,7 +373,7 @@ export interface StrategyLoadError {
 
 export interface StrategyEntryProgressStep {
   state: 'waiting' | 'success' | 'rejected' | 'skipped' | 'failed'
-  scheduled_at: string
+  scheduled_at: string | null
   started_at?: string | null; finished_at?: string | null; elapsed_ms?: number | null
   processed: number | null; total: number | null; passed: number | null; missing: number | null
   reason?: string | null
@@ -383,10 +383,10 @@ export interface StrategyEntryProgressStep {
 
 export interface StrategyEntryProgress {
   schema: 'late_session_progress_v1'
-  as_of: string; observed_at: string | null; bar_at: string
+  as_of: string; observed_at: string | null; bar_at: string | null
   cohort: 'pool' | 'frozen_selection'
-  params: { pool_up_min_pct: number; change_min_pct: number; change_max_pct: number
-    ma5_1m_count: number; ma5_5m_count: number }
+  params: Pick<LateSessionStrengthParams, 'pool_up_min_pct' | 'change_min_pct' | 'change_max_pct'
+    | 'ma5_1m_count' | 'ma5_5m_count'>
   steps: Record<'breadth' | 'change' | 'ma1' | 'ma5', StrategyEntryProgressStep>
 }
 
@@ -995,13 +995,18 @@ export interface CustomSignal {
 }
 
 export interface LateSessionStrengthParams {
-  time: string
-  evaluation_delay_minutes?: number // 后台分钟；页面30～900秒、30秒步长；0/缺字段兼容冻结旧定义
-  change_min_pct: number
-  change_max_pct: number
-  pool_up_min_pct: number
-  ma5_1m_count: number
-  ma5_5m_count: number
+  time: string | null
+  evaluation_delay_minutes?: number | null // null停用；后台分钟，页面秒；0/缺字段兼容冻结旧定义
+  pool_up_min_pct: number | null
+  amount_min_100m?: number | null
+  turnover_min_pct?: number | null
+  amplitude_max_pct?: number | null
+  change_min_pct: number | null
+  change_max_pct: number | null
+  volume_ratio_min?: number | null
+  ma5_1m_count: number | null
+  ma5_5m_count: number | null
+  end_time?: string | null
 }
 
 export interface S01EntryParams {
@@ -1012,7 +1017,6 @@ export interface S01EntryParams {
   current_return_min: number
   current_return_max: number
   current_range_max: number
-  market_min_valid: number
   market_positive_min: number
 }
 
@@ -1034,10 +1038,13 @@ export type S01VolumeExitParams = Required<Pick<S01ExitParams,
   'decline_3m' | 'volume_ratio_min' | 'start_time' | 'stop_time' | 'fallback_time'>>
 
 export interface MorningLiquidationParams {
-  time: string
-  fallback_time?: string
-  rise_pct?: number
-  fall_pct?: number
+  start_time?: string | null
+  time: string | null
+  fallback_time?: string | null
+  rise_pct?: number | null
+  fall_pct?: number | null
+  decline_3m_pct?: number | null
+  volume_ratio_min?: number | null
   amplitude_pct?: number // 冻结旧振幅定义，仅用于兼容读取
 }
 
@@ -1064,6 +1071,22 @@ export interface CustomSignalAIGenerateResult {
 }
 
 // ===== Monitor (监控规则 + 触发记录) =====
+export interface StrategyMonitorTask {
+  state: string
+  windows: { start: string; end: string }[]
+  target_date?: string
+  count?: number
+  errors?: string[]
+}
+
+export interface StrategyMonitoring {
+  strategy_id: string
+  enabled: boolean
+  as_of: string
+  tasks: Record<'select' | 'buy' | 'sell', StrategyMonitorTask>
+  errors?: string[]
+}
+
 export interface MonitorCondition {
   field: string
   op: string              // truth | > >= < <= == !=
@@ -4542,6 +4565,15 @@ export const api = {
   // ===== Monitor Rules (监控规则) =====
   monitorRulesList: () =>
     request<{ rules: MonitorRule[] }>('/api/monitor-rules'),
+
+  strategyMonitoring: () =>
+    request<{ strategies: StrategyMonitoring[] }>('/api/monitor-rules/strategies/monitoring'),
+
+  strategyMonitoringSet: (id: string, enabled: boolean) =>
+    request<{ strategy_id: string; enabled: boolean; generation: number }>(
+      `/api/monitor-rules/strategies/${encodeURIComponent(id)}/monitoring`, {
+        method: 'POST', body: JSON.stringify({ enabled }),
+      }),
 
   monitorRuleOptions: () =>
     request<MonitorRuleOptions>('/api/monitor-rules/options'),

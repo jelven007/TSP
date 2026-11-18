@@ -9,8 +9,9 @@ from numbers import Real
 TEMPLATES = {"entry": "s01_late_entry", "exit": "s01_morning_exit"}
 ENTRY_KEYS = frozenset({
     "current_amount_min", "current_return_min", "current_return_max",
-    "current_range_max", "market_min_valid", "market_positive_min",
+    "current_range_max", "market_positive_min",
 })
+LEGACY_ENTRY_KEYS = ENTRY_KEYS | {"market_min_valid"}
 EXIT_KEYS = frozenset({
     "vwap_buffer", "peak_profit_min", "peak_retrace_min", "return_15m_max",
     "decline_3m", "volume_ratio_min", "guard_time", "sell_deadline",
@@ -18,7 +19,7 @@ EXIT_KEYS = frozenset({
 EXIT_CLOCK_KEYS = frozenset({"start_time", "stop_time", "fallback_time"})
 SCHEDULE_EXIT_KEYS = (EXIT_KEYS - {"guard_time", "sell_deadline"}) | EXIT_CLOCK_KEYS
 VOLUME_EXIT_KEYS = frozenset({"decline_3m", "volume_ratio_min"}) | EXIT_CLOCK_KEYS
-PARAMETER_KEYS = ENTRY_KEYS | EXIT_KEYS | EXIT_CLOCK_KEYS
+PARAMETER_KEYS = LEGACY_ENTRY_KEYS | EXIT_KEYS | EXIT_CLOCK_KEYS
 TIMING_KEYS = frozenset({"time", "evaluation_delay_minutes"})
 MARKET_KEYS = frozenset({"market_validity"})
 MARKET_VALIDITY = "price_amount_prev_close_v2"
@@ -106,9 +107,10 @@ def signal_parameters(signal: dict) -> dict:
         raise ValueError("S01信号使用专用参数, 不能混入普通条件")
     keys = ENTRY_KEYS if kind == "entry" else EXIT_KEYS
     values = signal.get("params")
-    if not isinstance(values, dict) or set(values) not in (
-            (keys, SCHEDULE_EXIT_KEYS, VOLUME_EXIT_KEYS) if kind == "exit" else (
-                keys, keys | TIMING_KEYS, keys | TIMING_KEYS | MARKET_KEYS)):
+    supported = ((keys, SCHEDULE_EXIT_KEYS, VOLUME_EXIT_KEYS) if kind == "exit" else
+                 [entry | extra for entry in (ENTRY_KEYS, LEGACY_ENTRY_KEYS)
+                  for extra in (frozenset(), TIMING_KEYS, TIMING_KEYS | MARKET_KEYS)])
+    if not isinstance(values, dict) or set(values) not in supported:
         raise ValueError("S01信号参数缺失或包含不支持的参数")
     result = dict(values)
     for key in set(values) - EXIT_CLOCK_KEYS - TIMING_KEYS - MARKET_KEYS - {"guard_time", "sell_deadline"}:
@@ -136,10 +138,11 @@ def signal_parameters(signal: dict) -> dict:
                     raise ValueError
             except (TypeError, ValueError):
                 raise ValueError("S01启动时间须为HH:MM:SS, 在13:01之后且确认不晚于15:00") from None
-        count = result["market_min_valid"]
-        if count < 1 or count != int(count):
-            raise ValueError("S01市场有效证券下限须为正整数")
-        result["market_min_valid"] = int(count)
+        if "market_min_valid" in result:
+            count = result["market_min_valid"]
+            if count < 1 or count != int(count):
+                raise ValueError("S01市场有效证券下限须为正整数")
+            result["market_min_valid"] = int(count)
         if result["market_positive_min"] > 1:
             raise ValueError("S01市场上涨比例须为0~1的小数")
         if result["current_return_min"] > result["current_return_max"]:
@@ -241,15 +244,17 @@ def bound_definitions(engine, strategy, *, overrides: dict | None = None, strict
 def resolve_parameters(engine, strategy, values: dict, *, definitions: dict | None = None,
                        overrides: dict | None = None) -> dict:
     # The window belongs to the saved source, including immutable research snapshots.
-    values = {k: v for k, v in values.items() if k != "_s01_entry_window_policy"}
+    values = {k: v for k, v in values.items()
+              if k not in {"_s01_entry_window_policy", "_s01_market_count_policy"}}
     if (optional_triggers(strategy)
             and strategy.meta.get("entry_window_policy") == "available_minutes_v1"):
         values["_s01_entry_window_policy"] = "available_minutes_v1"
     definitions = bound_definitions(engine, strategy, overrides=overrides) if definitions is None else definitions
     if optional_triggers(strategy):
         baseline = strategy.meta.get("trigger_parameter_defaults")
-        if not isinstance(baseline, dict) or set(baseline) not in (
-                ENTRY_KEYS | EXIT_KEYS, ENTRY_KEYS | SCHEDULE_EXIT_KEYS, ENTRY_KEYS | VOLUME_EXIT_KEYS):
+        if not isinstance(baseline, dict) or set(baseline) not in [
+                entry | exit_keys for entry in (ENTRY_KEYS, LEGACY_ENTRY_KEYS)
+                for exit_keys in (EXIT_KEYS, SCHEDULE_EXIT_KEYS, VOLUME_EXIT_KEYS)]:
             raise ValueError("S01可选触发器缺少冻结参数基线")
         resolved = {**baseline, **{k: v for k, v in values.items()
                                   if k not in PARAMETER_KEYS | TIMING_KEYS | MARKET_KEYS}}
@@ -258,12 +263,18 @@ def resolve_parameters(engine, strategy, values: dict, *, definitions: dict | No
                 for key in EXIT_KEYS | EXIT_CLOCK_KEYS:
                     resolved.pop(key, None)
             resolved.update(signal_parameters(sig))
+            if sig.get("template") == TEMPLATES["entry"] and "market_min_valid" not in sig["params"]:
+                resolved.pop("market_min_valid", None)
+        if "market_min_valid" not in resolved:
+            resolved["_s01_market_count_policy"] = "ratio_only_v1"
         return exit_clock_aliases(resolved)
     if not definitions:
         return values
     resolved = {k: v for k, v in values.items() if k not in PARAMETER_KEYS | TIMING_KEYS | MARKET_KEYS}
     for signal in definitions.values():
         resolved.update(signal_parameters(signal))
+    if "entry" in definitions and "market_min_valid" not in definitions["entry"]["params"]:
+        resolved["_s01_market_count_policy"] = "ratio_only_v1"
     return exit_clock_aliases(resolved)
 
 
@@ -323,6 +334,11 @@ def timed_entry(signal, history, context, params, *, candidates_only=False):
         & (pl.col("datetime") <= min(cutoff, now, completed))) if not history.is_empty() else history
     values = {**params, **signal_parameters(signal), "_s01_entry_bar": cutoff.hour * 60 + cutoff.minute,
               "_s01_external_basic": True}
+    if "market_min_valid" not in signal["params"]:
+        values.pop("market_min_valid", None)
+        values["_s01_market_count_policy"] = "ratio_only_v1"
+    else:
+        values.pop("_s01_market_count_policy", None)
     if values.get("market_validity") == MARKET_VALIDITY:
         from app.strategy.basic_filter import previous_session
 
@@ -331,7 +347,8 @@ def timed_entry(signal, history, context, params, *, candidates_only=False):
                             daily=context.daily_history)
     count = market.height
     up = market.filter(pl.col("current_return") > 0).height if count else 0
-    passed = count >= values["market_min_valid"] and up / count >= values["market_positive_min"]
+    passed = (count > 0 and count >= values.get("market_min_valid", 1)
+              and up / count >= values["market_positive_min"])
     quality.update(market_valid_count=count, market_positive_count=up,
                    market_positive_ratio=up / count if count else None, market_passed=passed,
                    stage="waiting_confirmation" if now < confirmation else "confirmed")
@@ -538,10 +555,11 @@ def optional_exit_hits(engine, strategy, context, params, definitions, *, overri
     risk_enabled = any(value is not None for value in policy.to_dict().values())
     if not definitions and not risk_enabled:
         return []
-    positions = [p for p in context.positions or [] if p.get("qty", 0) > 0
-                 and p.get("available_qty", 0) > 0
+    roster_mode = context.signal_roster is not None
+    positions = [p for p in (context.signal_roster if roster_mode else context.positions) or []
+                 if (roster_mode or (p.get("qty", 0) > 0 and p.get("available_qty", 0) > 0))
                  and str(p.get("entry_date", "")) < str(context.as_of)
-                 and str(p.get("sell_date", "")) <= str(context.as_of)]
+                 and str(p.get("sell_date", context.as_of)) <= str(context.as_of)]
     if not positions:
         return []
     now = context.observed_at or context.completed_through
@@ -563,7 +581,7 @@ def optional_exit_hits(engine, strategy, context, params, definitions, *, overri
                              & (pl.col("datetime") <= cutoff))
     ctx = replace(context, history=frame, completed_through=now, positions=[
         {**p, "sell_date": str(context.as_of)} for p in positions])
-    hits = risk_exit_hits(context, policy, positions, frame, now) if risk_enabled else []
+    hits = risk_exit_hits(context, policy, positions, frame, now) if risk_enabled and not roster_mode else []
     ordinary = [s for s in definitions if s.get("template") not in
                 (TEMPLATES["exit"], "morning_liquidation")]
     minute_names = [s["column"] for s in ordinary if s.get("timeframe") == "intraday"]
@@ -581,7 +599,8 @@ def optional_exit_hits(engine, strategy, context, params, definitions, *, overri
             from app.strategy.late_session_strength import previous_closes
             from app.strategy.morning_liquidation import evaluate
             evaluated = evaluate(
-                ctx.history, sig, day=ctx.as_of, now=now, positions=positions,
+                ctx.history, sig, day=ctx.as_of, now=now, positions=None if roster_mode else positions,
+                roster=positions if roster_mode else None,
                 prev_close=previous_closes(ctx), quotes=ctx.current,
                 suspension_history=ctx.suspension_history)
             context.exit_errors.extend(evaluated.diagnostics)

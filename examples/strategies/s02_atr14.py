@@ -87,7 +87,7 @@ def filter_minute_history(
             "atr_metric_error": None if valid else
             reference.get("atr_metric_error") or "前日预选ATR缺失, 保留信号并排在末尾",
         })
-    ranked = (pl.DataFrame(rows) if rows else hits.with_columns(
+    ranked = (pl.DataFrame(rows, infer_schema_length=None) if rows else hits.with_columns(
         pl.lit(None, dtype=pl.Float64).alias("atr14_previous_close"))).sort(
         ["atr14_previous_close", "change_pct", "symbol"] if rows else ["symbol"],
         descending=[True, True, False] if rows else [False], nulls_last=True)
@@ -140,7 +140,8 @@ def enrich_selection(rows, params, *, daily, as_of):
             for i in range(ranked.height)
         ], dtype=pl.Float64),
     )
-    return rows.join(ranked, on="symbol", how="left", maintain_order="left").with_columns(
+    result = rows.join(ranked, on="symbol", how="left", maintain_order="left").with_columns(
         pl.lit(ranked.height).alias("atr_rank_population"),
         pl.Series("atr_metric_error", [errors.get(symbol) for symbol in symbols], dtype=pl.String),
     )
+    return result if "score" in rows.columns else result.with_columns(pl.col("atr_rank_score").alias("score"))

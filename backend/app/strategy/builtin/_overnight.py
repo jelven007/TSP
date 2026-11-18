@@ -98,6 +98,8 @@ def suspended_on(symbol, day, params):
 
 def parameters(values):
     params = {**DEFAULTS, **(values or {})}
+    if params.get("_s01_market_count_policy") == "ratio_only_v1":
+        params.pop("market_min_valid", None)
     schedule = exit_schedule(params)
     if schedule:
         if not LEGACY_MORNING_KEYS.intersection(values or {}):
@@ -133,7 +135,7 @@ def parameters(values):
         raise ValueError("资金与持仓上限必须大于0")
     if not 0 < params["entry_nav_fraction"] <= 1:
         raise ValueError("单票净值比例必须大于0且不超过1")
-    if params["market_min_valid"] < 1 or params["market_positive_min"] > 1:
+    if params.get("market_min_valid", 1) < 1 or params["market_positive_min"] > 1:
         raise ValueError("市场有效证券数和上涨比例无效")
     if params["slippage"] >= 1 or any(params[x] > 1 for x in ("commission", "transfer_fee", "stamp_tax")):
         raise ValueError("费用及滑点必须使用小数比例")
@@ -358,7 +360,8 @@ def select_entries(frame, values, daily=None):
         return market
     market = market.with_columns(
         ((pl.col("high") - pl.col("low")) / pl.col("prior_close")).alias("current_range"))
-    if not params.get("_s01_skip_entry") and (market.height < params["market_min_valid"] or (
+    if not params.get("_s01_skip_entry") and (not market.height
+        or market.height < params.get("market_min_valid", 1) or (
         market.filter(pl.col("current_return") > 0).height / market.height < params["market_positive_min"]
     )):
         return empty

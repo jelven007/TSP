@@ -1,9 +1,20 @@
 # Tick Stock Platform（TSP）系统技术方案
 
-2026-11-18候选复用`strategy_day_views/strategy_results/daily_selections`持久摘要与明细，
-S01沿`signal_sections/s01_signals/_overnight`共享入场与出场适配；历史指标有界分批、
-截面信号保留全市场上下文，日期结果缓存gzip/Brotli响应，指纹静态资源可复用。
-见[调用链](upgrade-20261118.md)。
+2026-11-18新授权候选沿现有`daily_pool`、信号内核、Scheduler和日期视图整合两端增量。
+本轮固定同SHA的源码／前端／Runtime／Compute，调用链与验收见[升级记录](upgrade-20261118-four-hour.md)；
+下述取消与同版本安装说明为此前执行快照。
+
+2026-11-18本地0.4.65已配套安装S01数量参数移除与`strategy_scope_v4`。
+证券目录和分组决定完整池，报价只供状态证据；混合输入的空风险警示字段回退目录名称。
+真实Compute和SQL存储的23个池与对应冻结目录逐股一致，源码、Runtime／Compute清单一致。
+历史冻结记录、已保存信号及系统评分保持；统一升级仍取消，线上未安装此次差量。
+
+2026-11-18自定义策略三任务复用现有租户Scheduler、Compute与信号内核。
+`strategy_monitoring`的generation参与实时与盘后提交守卫，取消同策略普通规则和旧恢复源；
+夜间资格由`daily_selections`生成，买结果事务内写`strategy_sell_rosters`并发布次日日期视图。
+卖名单独立读取标准分钟、昨收和停牌证据，不依赖当日买任务或账户持仓；
+普通与分组计算均生成提示，不据此虚构交易数量或名单卖出执行事件。
+`strategy_monitor_task_runs`保存各任务回执；告警按策略、交易日与失败内容去重。
 
 2026-11-17候选继续复用 `overnight.run`、共享评分与扩展依赖、Broker和分钟原子写入。
 取数前序号随Parquet提交，API拒绝旧响应后重读；本次依赖投影避免加载无关扩展表。

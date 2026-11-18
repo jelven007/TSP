@@ -277,6 +277,40 @@ def list_rules(request: Request):
 
 
 # ── 新建 / 更新 ────────────────────────────────────────
+class StrategyMonitoringModel(BaseModel):
+    enabled: bool
+
+
+@router.get("/strategies/monitoring")
+def strategy_monitoring(request: Request):
+    from app.api.strategy import _get_engine
+    from app.services.strategy_monitor_tasks import monitoring_summary
+    engine = _get_engine(request)
+    if engine is None:
+        raise HTTPException(503, "策略引擎未初始化")
+    return monitoring_summary(engine, _data_dir(request))
+
+
+@router.post("/strategies/{strategy_id}/monitoring")
+def set_strategy_monitoring(strategy_id: str, req: StrategyMonitoringModel, request: Request):
+    from app.api.strategy import _get_engine
+    from app.services.strategy_monitor_tasks import set_monitoring
+
+    engine = _get_engine(request)
+    if engine is None:
+        raise HTTPException(503, "策略引擎未初始化")
+    try:
+        strategy = engine.get(strategy_id)
+        if strategy.source not in ("custom", "ai"):
+            raise ValueError("此开关仅用于自定义策略")
+        state = set_monitoring(_data_dir(request), strategy_id,
+                               strategy.meta.get("name", strategy_id), req.enabled)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    _sync_engine(request)
+    return state
+
+
 @router.post("")
 def save_rule(req: RuleModel, request: Request):
     rule = req.model_dump()
