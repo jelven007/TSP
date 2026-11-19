@@ -254,6 +254,11 @@ class Handler(socketserver.StreamRequestHandler):
             if payload.get("kind") == "resources":
                 self.send({"type": "result", "payload": broker.resource_status()})
                 return
+            if payload.get("kind") == "observability":
+                from app.services.observability import runtime_observability_snapshot
+
+                self.send({"type": "result", "payload": runtime_observability_snapshot()})
+                return
             from app.multitenancy.publication import release_path
 
             market_path = release_path(broker.market_root, payload.get("public_release_id"))
@@ -296,6 +301,7 @@ class Handler(socketserver.StreamRequestHandler):
                 process = subprocess.Popen(
                     command, stdin=task, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 )
+                timing["spawn_ms"] = round((time.perf_counter() - sandbox_started) * 1000, 3)
                 events.register(process.stdout, selectors.EVENT_READ, "stdout")
                 events.register(process.stderr, selectors.EVENT_READ, "stderr")
                 events.register(self.connection, selectors.EVENT_READ, "client")
@@ -337,6 +343,10 @@ class Handler(socketserver.StreamRequestHandler):
                         if key.data == "stderr":
                             append_stderr_tail(stderr_tail, block)
                             continue
+                        if "first_output_ms" not in timing:
+                            timing["first_output_ms"] = round(
+                                (time.perf_counter() - sandbox_started) * 1000, 3,
+                            )
                         buffer.extend(block)
                         while b"\n" in buffer:
                             message_line, _, remaining = buffer.partition(b"\n")
@@ -358,6 +368,9 @@ class Handler(socketserver.StreamRequestHandler):
         except (ValueError, OSError, subprocess.SubprocessError) as exc:
             terminal_message = {"type": "error", "status": 503 if broker.stopped.is_set() else 400, "message": str(exc)}
         finally:
+            cleanup_started = time.perf_counter()
+            if sandbox_started is not None:
+                timing["process_ms"] = round((cleanup_started - sandbox_started) * 1000, 3)
             if process is not None:
                 with suppress(subprocess.SubprocessError, OSError):
                     subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=15, check=False)
@@ -377,11 +390,18 @@ class Handler(socketserver.StreamRequestHandler):
                     timing.update({
                         "finished_at": time.time(),
                         "sandbox_ms": round((time.perf_counter() - sandbox_started) * 1000, 3),
+                        "cleanup_ms": round((time.perf_counter() - cleanup_started) * 1000, 3),
                     })
                     observe_runtime_duration(
                         "compute.sandbox", timing["sandbox_ms"],
                         failed=terminal_message.get("type") != "result",
                     )
+                    for phase in ("spawn", "first_output", "process", "cleanup"):
+                        if phase + "_ms" in timing:
+                            observe_runtime_duration(
+                                "compute." + phase, timing[phase + "_ms"],
+                                failed=terminal_message.get("type") != "result",
+                            )
                     logger.info("compute job finished kind=%s release=%s queue_ms=%.3f sandbox_ms=%.3f",
                                 payload["kind"], payload.get("public_release_id"),
                                 timing["queue_ms"], timing["sandbox_ms"])

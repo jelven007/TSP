@@ -1773,7 +1773,7 @@ class QuoteService:
     def _enrich_alerts_ext(self, alerts: list[dict]) -> None:
         """就地给告警事件按 symbol 追加行业/概念 ext 字段。
 
-        读 preferences.get_monitor_ext_fields() 取字段配置, 用 screener._load_ext_value_maps
+        读 preferences.get_monitor_ext_fields() 取字段配置, 用 ext_values.load_ext_value_maps
         (带 parquet mtime 缓存) 富化。富化失败静默降级 (告警照常推送, 只是没标签)。
         每条事件新增 {configId}__{fieldName} 键 (与 watchlist/screener 输出约定一致)。
         """
@@ -1793,8 +1793,8 @@ class QuoteService:
             if not parts:
                 return
             ext_columns = ",".join(parts)
-            from app.api.screener import _load_ext_value_maps
-            value_maps = _load_ext_value_maps(self._repo, ext_columns)
+            from app.services.ext_values import load_ext_value_maps
+            value_maps = load_ext_value_maps(self._repo, ext_columns)
             if not value_maps:
                 return
             for ev in alerts:

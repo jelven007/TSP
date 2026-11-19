@@ -1029,7 +1029,7 @@ async def run_catalog_job(repo, *, source: str) -> None:
             logger.exception("official instruments sync failed")
             job_store.fail(job_id, "沪深官方目录同步未完成, 请检查日志与当前快照")
         finally:
-            from app.api.data import invalidate_data_cache
+            from app.services.public_query_cache import invalidate_data_cache
             invalidate_data_cache("instruments")
 
     worker = asyncio.create_task(asyncio.to_thread(run))

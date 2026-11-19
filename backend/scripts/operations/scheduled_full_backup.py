@@ -9,9 +9,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 if __package__:
-    from .backup_full_host import create_backup
+    from .backup_full_host import NAME, create_backup, file_evidence, tree_evidence
 else:
-    from backup_full_host import create_backup
+    from backup_full_host import NAME, create_backup, file_evidence, tree_evidence
 
 SERVICES = ("api", "gateway", "research", "realtime", "notifications", "scheduled", "platform")
 
@@ -105,8 +105,23 @@ def backup_age(root: Path, *, max_hours: float = 24, now: datetime | None = None
                 dump = path.parent / f"{kind}.dump"
                 if evidence.get("restored") is not True or evidence.get("source_matched") is not True:
                     raise ValueError("unverified business restore")
-                if dump.stat().st_size != manifest["databases"][kind]["bytes"]:
-                    raise ValueError("missing or truncated dump")
+                expected = manifest["databases"][kind]
+                if file_evidence(dump) != {key: expected[key] for key in ("bytes", "sha256")}:
+                    raise ValueError("dump content changed")
+            for name, entry in manifest.get("includes", {}).items():
+                if not NAME.fullmatch(name):
+                    raise ValueError("invalid include name")
+                included = path.parent / "files" / name
+                if included.is_symlink():
+                    raise ValueError("include root must not be a symlink")
+                if entry["kind"] == "directory" and included.is_dir():
+                    actual = tree_evidence(included)
+                elif entry["kind"] == "file" and included.is_file():
+                    actual = file_evidence(included)
+                else:
+                    raise ValueError("missing or invalid include")
+                if actual != entry["evidence"]:
+                    raise ValueError("backup include content changed")
             latest = max(latest, stamp) if latest else stamp
         except (OSError, ValueError, KeyError, TypeError):
             invalid.append(path.parent.name)

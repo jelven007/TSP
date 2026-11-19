@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 MODULES = {
@@ -73,9 +74,13 @@ def record(kind: str, healthy: bool) -> None:
     directory = os.environ.get("TSP_WORKER_HEARTBEAT_DIR")
     instance = os.environ.get("TSP_WORKER_INSTANCE")
     if directory and instance:
+        from app.services.observability import runtime_observability_snapshot
+
         write_json(Path(directory) / "progress.json", {
             "kind": kind, "pid": os.getpid(), "instance": instance,
             "at": time.monotonic(), "healthy": healthy,
+            "captured_at": datetime.now(UTC).isoformat(),
+            "observability": runtime_observability_snapshot(),
         })
 
 

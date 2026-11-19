@@ -89,11 +89,23 @@ def main() -> None:
     for name in ("version", "revision", "runtime-image", "runtime-digest", "compute-image", "compute-digest"):
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--require-attestations", action="store_true")
     args = parser.parse_args()
     try:
         records = collect(args.runtime_image, args.runtime_digest, "runtime")
         records += collect(args.compute_image, args.compute_digest, "compute")
-        atomic_json(args.output, validate(args.version, args.revision, records))
+        result = validate(args.version, args.revision, records)
+        if args.require_attestations:
+            from release.attestations import collect as collect_attestations
+
+            result["attestations"] = {
+                role: collect_attestations(Registry(image), digest)
+                for role, image, digest in (
+                    ("runtime", args.runtime_image, args.runtime_digest),
+                    ("compute", args.compute_image, args.compute_digest),
+                )
+            }
+        atomic_json(args.output, result)
     except (ValueError, KeyError, TypeError, OSError):
         parser.exit(1, "image identity matrix verification failed\n")
     print("Verified Runtime/Compute for amd64/arm64 identities")

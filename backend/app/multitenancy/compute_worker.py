@@ -12,6 +12,7 @@ import tempfile
 from dataclasses import asdict, replace
 from datetime import date, datetime, time
 from pathlib import Path
+from time import perf_counter
 
 from app.multitenancy.executor import MAX_MESSAGE_BYTES
 
@@ -263,28 +264,43 @@ def execute_request(payload: dict, private_root: Path) -> dict:
 
 
 def main():
+    started = perf_counter()
+    timing = dict.fromkeys(("input_ms", "imports_ms", "registry_ms", "execute_ms"), 0.0)
     raw = sys.stdin.buffer.readline(MAX_MESSAGE_BYTES + 1)
     if len(raw) > MAX_MESSAGE_BYTES:
         raise ValueError("compute input exceeds limit")
     payload = json.loads(raw)
+    timing["input_ms"] = (perf_counter() - started) * 1000
     if payload.get("kind") == "health":
-        emit("result", payload=execute_request(payload, Path("/tmp")))
+        execution_started = perf_counter()
+        result = execute_request(payload, Path("/tmp"))
+        timing["execute_ms"] = (perf_counter() - execution_started) * 1000
+        timing["total_ms"] = (perf_counter() - started) * 1000
+        emit("result", payload=result, worker_timing=timing)
         return
     # No global private caches, disk writes, or unmanaged generation creation.
+    imports_started = perf_counter()
     from app.config import settings
     from app.factors.registry import private_factor_registry
     from app.strategy.custom_signals import private_signal_registry
 
+    timing["imports_ms"] = (perf_counter() - imports_started) * 1000
     settings.backtest_matrix_disk_cache_enabled = False
+    registry_started = perf_counter()
     with (tempfile.TemporaryDirectory(prefix="tsp-job-") as directory,
           private_factor_registry(payload.get("factors", []), strict=True),
           private_signal_registry(payload.get("signals", [])),
           contextlib.redirect_stdout(sys.stderr)):
+        timing["registry_ms"] = (perf_counter() - registry_started) * 1000
+        execution_started = perf_counter()
         try:
             result = execute_request(payload, Path(directory))
-            emit("result", payload=result)
+            message = {"type": "result", "payload": result}
         except Exception as exc:
-            emit("error", status=400, message=str(exc))
+            message = {"type": "error", "status": 400, "message": str(exc)}
+        timing["execute_ms"] = (perf_counter() - execution_started) * 1000
+        timing["total_ms"] = (perf_counter() - started) * 1000
+        emit(message.pop("type"), **message, worker_timing=timing)
 
 
 if __name__ == "__main__":

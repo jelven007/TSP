@@ -29,7 +29,7 @@ jobs:
     outputs:
       revision: ${{ steps.revision.outputs.revision }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: ${{ github.event_name == 'push' }}
@@ -60,7 +60,7 @@ jobs:
           printf '%s\n' "$TESTED_REVISION" > "$RUNNER_TEMP/ci-revision/revision.txt"
           printf 'Quality checks target commit: `%s`\n' "$TESTED_REVISION" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ci-revision
           path: ${{ runner.temp }}/ci-revision/revision.txt
@@ -95,7 +95,7 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.version.outputs.revision }}
           persist-credentials: false
@@ -113,7 +113,7 @@ jobs:
         run: python3 scripts/check_docs.py
 
       - name: 安装 uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
           enable-cache: true
 
@@ -121,7 +121,7 @@ jobs:
         run: uv python install 3.12
 
       - name: 设置 Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: 1.99.0
 
@@ -148,14 +148,21 @@ jobs:
           RUSTDX_SKIP_INTEGRATION_TESTS=1 cargo test --locked --manifest-path native/rustdx_native/vendor/rustdx-core/Cargo.toml
 
       - name: 后端全量测试
-        run: uv run --frozen --no-sync pytest tests -q
+        run: uv run --frozen --no-sync pytest tests -q --durations=30 --junitxml="$RUNNER_TEMP/backend-tests.xml"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: backend-test-timings
+          path: ${{ runner.temp }}/backend-tests.xml
+          if-no-files-found: warn
 
       - name: 隔离 Web HTTP 关键流程验收
         run: |
           uv run --frozen --no-sync python -m scripts.acceptance.accept_local_web --output "$RUNNER_TEMP/local-web-acceptance.json"
           python ../scripts/release/write_validation_record.py --output "$RUNNER_TEMP/validation-record.json" --evidence "local-web=$RUNNER_TEMP/local-web-acceptance.json"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: local-web-acceptance
@@ -171,18 +178,18 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.version.outputs.revision }}
           persist-credentials: false
 
       - name: 安装 pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
 
       - name: 设置 Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'pnpm'
@@ -192,13 +199,83 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: 前端全量测试
-        run: pnpm test
+        run: pnpm run test --reporter=default --reporter=junit --outputFile="$RUNNER_TEMP/frontend-tests.xml"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: frontend-test-timings
+          path: ${{ runner.temp }}/frontend-tests.xml
+          if-no-files-found: warn
 
       - name: 前端静态检查
         run: pnpm lint
 
       - name: 构建 (tsc + vite)
         run: pnpm build
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+
+  browser:
+    needs: [version, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.version.outputs.revision }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: scripts/acceptance/browser/package-lock.json
+
+      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        with:
+          enable-cache: true
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.0
+
+      - name: 安装隔离 Web 验收依赖
+        working-directory: backend
+        run: |
+          uv python install 3.12
+          uv sync --frozen
+
+      - name: 安装固定浏览器测试工具
+        working-directory: scripts/acceptance/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: 桌面与窄屏真实浏览器验收
+        working-directory: scripts/acceptance/browser
+        env:
+          TSP_BROWSER_OUTPUT: ${{ runner.temp }}/browser-acceptance
+        run: npm test
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: browser-acceptance
+          path: |
+            ${{ runner.temp }}/browser-acceptance/results
+            ${{ runner.temp }}/browser-acceptance/results.json
+            ${{ runner.temp }}/browser-acceptance/junit.xml
+          if-no-files-found: warn
 
   containers:
     needs: version
@@ -212,13 +289,13 @@ jobs:
     secrets: inherit
 
   tag:
-    needs: [version, backend, frontend, containers]
+    needs: [version, backend, frontend, browser, containers]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.version.outputs.revision }}
           fetch-depth: 0
@@ -238,7 +315,7 @@ jobs:
           printf 'Version tag: `%s` → `%s`\n' "$VERSION_TAG" "$TESTED_REVISION" >> "$GITHUB_STEP_SUMMARY"
 
   promote:
-    needs: [version, backend, frontend, containers, tag]
+    needs: [version, backend, frontend, browser, containers, tag]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/docker-promote.yml
     permissions:

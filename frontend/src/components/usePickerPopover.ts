@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
+import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes } from 'react'
 import { useModalPortalContainer } from './Modal'
 
 export type PickerButtonProps = Pick<ButtonHTMLAttributes<HTMLButtonElement>,
@@ -24,16 +24,20 @@ export function usePickerPopover({ width = 260, height = 320, align = 'right', d
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const close = () => setOpen(false)
-  const toggle = () => {
-    if (disabled) return
-    if (open) { close(); return }
+  const updatePosition = useCallback(() => {
     if (!btnRef.current) return
     const r = btnRef.current.getBoundingClientRect()
     const dropUp = window.innerHeight - r.bottom < height + 6 && r.top > height + 6
     const top = dropUp ? Math.max(8, r.top - height - 6) : r.bottom + 6
     const rawLeft = align === 'left' ? r.left : r.right - width
     const left = Math.max(8, Math.min(rawLeft, window.innerWidth - width - 8))
-    setPos({ top, left })
+    setPos(previous => previous?.top === top && previous.left === left ? previous : { top, left })
+  }, [align, height, width])
+  const toggle = () => {
+    if (disabled) return
+    if (open) { close(); return }
+    if (!btnRef.current) return
+    updatePosition()
     setOpen(true)
   }
 
@@ -45,10 +49,10 @@ export function usePickerPopover({ width = 260, height = 320, align = 'right', d
       if (!btnRef.current?.contains(target) && !popRef.current?.contains(target)) setOpen(false)
     }
     const scroll = (event: Event) => {
-      // 时分列表内部滚动不改变弹层相对触发器的位置。
-      if (!(event.target instanceof Node) || !popRef.current?.contains(event.target)) setOpen(false)
+      // Follow layout/ancestor scrolling, including focus-induced scrolling.
+      if (!(event.target instanceof Node) || !popRef.current?.contains(event.target)) updatePosition()
     }
-    const resize = () => setOpen(false)
+    const resize = () => updatePosition()
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       const activeModal = document.activeElement?.closest('[role="dialog"][aria-modal="true"]')
@@ -69,7 +73,7 @@ export function usePickerPopover({ width = 260, height = 320, align = 'right', d
       window.removeEventListener('resize', resize)
       window.removeEventListener('keydown', escape, true)
     }
-  }, [open])
+  }, [open, updatePosition])
 
   return { btnRef, popRef, pos, open: open && !disabled, toggle, close, portalContainer }
 }

@@ -67,7 +67,7 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           persist-credentials: false
@@ -77,11 +77,11 @@ jobs:
         run: make check
       - name: Set isolated test directory
         run: echo "DATA_DIR=$RUNNER_TEMP/tsp-tests" >> "$GITHUB_ENV"
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
           enable-cache: true
       - run: uv python install 3.12
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: 1.99.0
       - run: uv sync --extra dev --extra cell --frozen
@@ -101,14 +101,14 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: pnpm
@@ -125,13 +125,13 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
       image: ${{ steps.inputs.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           persist-credentials: false
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -174,15 +174,21 @@ jobs:
           Path(os.environ["RUNNER_TEMP"], "build-inputs.json").write_text(json.dumps({
               "revision": os.environ["BUILD_REVISION"], "source_tree_sha256": tree,
               "bases": bases, "lock_sha256": files["backend/uv.lock"],
+              "dependency_locks": {name: files[name] for name in (
+                  "backend/uv.lock", "frontend/pnpm-lock.yaml",
+                  "backend/native/rustdx_native/Cargo.lock",
+              )},
               "python_abi": "cp311", "rust_toolchain": "1.99.0",
           }, indent=2) + "\n")
           PY
       - name: Build candidate Runtime
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: true
+          sbom: true
+          provenance: mode=max
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.inputs.outputs.image }}:ci-${{ github.run_id }}-${{ github.run_attempt }}-runtime
           build-args: |
@@ -201,7 +207,7 @@ jobs:
             io.tsp.source-tree=${{ steps.inputs.outputs.source_tree }}
           cache-from: type=gha,scope=tsp-runtime
           cache-to: type=gha,scope=tsp-runtime,mode=max
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-build-inputs
           path: ${{ runner.temp }}/build-inputs.json
@@ -214,13 +220,13 @@ jobs:
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           persist-credentials: false
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -232,11 +238,13 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Build candidate Compute from Runtime digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: deploy/full/Compute.Dockerfile
           push: true
+          sbom: true
+          provenance: mode=max
           platforms: linux/amd64,linux/arm64
           tags: ${{ needs.runtime.outputs.image }}-compute:ci-${{ github.run_id }}-${{ github.run_attempt }}-compute
           build-args: |
@@ -254,7 +262,7 @@ jobs:
     needs: [resolve, runtime, compute]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.resolve.outputs.revision }}
           persist-credentials: false
@@ -272,8 +280,9 @@ jobs:
           python3 scripts/release/image_manifest.py --version "$version" \
             --revision "$BUILD_REVISION" --runtime-image "$RUNTIME_IMAGE" \
             --runtime-digest "$RUNTIME_DIGEST" --compute-image "$RUNTIME_IMAGE-compute" \
-            --compute-digest "$COMPUTE_DIGEST" --output "$RUNNER_TEMP/release-images.json"
-      - uses: actions/upload-artifact@v4
+            --compute-digest "$COMPUTE_DIGEST" --require-attestations \
+            --output "$RUNNER_TEMP/release-images.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-images
           path: ${{ runner.temp }}/release-images.json

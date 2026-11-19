@@ -40,6 +40,16 @@ def private_signal_registry(definitions: list[dict]):
         _SCOPED_SIGNALS.reset(token)
 
 
+def missing_custom_signals(data_dir: Path, required_features) -> list[str]:
+    """Return referenced custom columns without a definition in the active registry."""
+    defined = {signal.get("id") for signal in load_all(data_dir)}
+    return [
+        name for name in (required_features or ())
+        if isinstance(name, str) and name.startswith(PREFIX)
+        and name[len(PREFIX):] not in defined
+    ]
+
+
 def scoped_definitions() -> list[dict] | None:
     return _SCOPED_SIGNALS.get()
 

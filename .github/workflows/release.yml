@@ -44,7 +44,7 @@ jobs:
       revision: ${{ steps.filter.outputs.revision }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -98,7 +98,7 @@ jobs:
       TSP_TEST_POSTGRES_DSN: postgresql://postgres:test-only-password@127.0.0.1:5432/postgres
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.prepare.outputs.revision }}
           persist-credentials: false
@@ -107,7 +107,7 @@ jobs:
         run: echo "DATA_DIR=$RUNNER_TEMP/tsp-tests" >> "$GITHUB_ENV"
 
       - name: 安装 uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
           enable-cache: true
 
@@ -115,7 +115,7 @@ jobs:
         run: uv python install 3.12
 
       - name: 设置 Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: 1.99.0
 
@@ -132,12 +132,12 @@ jobs:
         run: uv run --frozen --no-sync pytest tests -q
 
       - name: 安装 pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
 
       - name: 设置 Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'pnpm'
@@ -170,18 +170,18 @@ jobs:
       matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.prepare.outputs.revision }}
           persist-credentials: false
 
       - name: 安装 pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
 
       - name: 设置 Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'pnpm'
@@ -194,7 +194,7 @@ jobs:
           pnpm build
 
       - name: 安装 uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
           enable-cache: true
 
@@ -202,7 +202,7 @@ jobs:
         run: uv python install 3.12
 
       - name: 设置 Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: 1.99.0
 
@@ -450,7 +450,7 @@ jobs:
 
       - name: 上传 Windows 安装烟测日志
         if: always() && matrix.platform == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-smoke-logs-${{ needs.prepare.outputs.ver }}
           path: artifacts/windows-smoke
@@ -498,7 +498,7 @@ jobs:
             --output "$ARTIFACT_NAME.manifest.json"
 
       - name: 上传产物为构建产物 (备查)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -506,7 +506,7 @@ jobs:
             ${{ matrix.artifact }}.manifest.json
 
       - name: 上传到 GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ github.event.inputs.version }}
           target_commitish: ${{ needs.prepare.outputs.revision }}

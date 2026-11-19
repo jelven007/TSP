@@ -7,6 +7,8 @@ import { toast } from '@/components/Toast'
 import { accountFetch as fetch, confirmAccount, hasPermission, multitenancyEnabled } from './accountSession'
 import { secondQuotesApi, type SecondQuoteArchiveStatus } from '@/lib/api/secondQuotes'
 import { openSourceReleaseApi } from '@/lib/api/openSourceRelease'
+import { financialsApi } from '@/lib/api/financials'
+import { parseTaskStatus, type TaskStatus } from '@/lib/api/taskState'
 import type { DataQuality, InitializationStatus } from '@/lib/api/dataQuality'
 import {
   COMPUTE_REQUEST_TIMEOUT_MS,
@@ -16,11 +18,13 @@ import {
 
 export { ApiError } from '@/lib/api/client'
 export type * from '@/lib/api/secondQuotes'
+export type * from '@/lib/api/financials'
+export type { TaskStatus } from '@/lib/api/taskState'
 
 export interface ResearchJob {
   id: string
   kind: string
-  status: string
+  status: TaskStatus
   key: string
   error: string | null
   created_at: string
@@ -52,97 +56,6 @@ export interface CapabilityLimits {
 export interface CapabilitiesResponse {
   label: string
   capabilities: Record<string, CapabilityLimits>
-}
-
-// ===== Financials =====
-export interface FinancialStatus {
-  available: boolean
-  tables: Record<string, { rows: number; symbols: number }>
-  last_sync: Record<string, string>
-  /** 服务端是否正在同步(手动触发)——驱动"同步中"UI 并防重复点击 */
-  syncing?: boolean
-}
-
-export interface FinancialMetricRecord {
-  symbol?: string
-  period_end: string
-  announce_date?: string | null
-  eps_basic?: number | null
-  eps_diluted?: number | null
-  bps?: number | null
-  ocfps?: number | null
-  roe?: number | null
-  roe_diluted?: number | null
-  roa?: number | null
-  gross_margin?: number | null
-  net_margin?: number | null
-  debt_to_asset_ratio?: number | null
-  revenue_yoy?: number | null
-  net_income_yoy?: number | null
-  operating_cash_to_revenue?: number | null
-  inventory_turnover?: number | null
-  [key: string]: any
-}
-
-export interface FinancialIncomeRecord {
-  symbol?: string
-  period_end: string
-  announce_date?: string | null
-  revenue?: number | null
-  operating_cost?: number | null
-  operating_profit?: number | null
-  total_profit?: number | null
-  net_income?: number | null
-  net_income_attributable?: number | null
-  basic_eps?: number | null
-  diluted_eps?: number | null
-  [key: string]: any
-}
-
-export interface FinancialBalanceSheetRecord {
-  symbol?: string
-  period_end: string
-  announce_date?: string | null
-  total_assets?: number | null
-  total_current_assets?: number | null
-  cash_and_equivalents?: number | null
-  total_liabilities?: number | null
-  total_equity?: number | null
-  equity_attributable?: number | null
-  [key: string]: any
-}
-
-export interface FinancialCashFlowRecord {
-  symbol?: string
-  period_end: string
-  announce_date?: string | null
-  net_operating_cash_flow?: number | null
-  net_investing_cash_flow?: number | null
-  net_financing_cash_flow?: number | null
-  capex?: number | null
-  net_cash_change?: number | null
-  [key: string]: any
-}
-
-export interface FinancialSharesRecord {
-  symbol?: string
-  period_end: string
-  announce_date?: string | null
-  total_shares?: number | null
-  float_shares?: number | null
-  [key: string]: any
-}
-
-/** AI 财务分析历史报告 */
-export interface AiFinancialReport {
-  id: string
-  symbol: string
-  name: string
-  focus: string
-  content: string
-  periods?: number
-  summary?: string
-  created_at: string
 }
 
 // ===== 个股分析 =====
@@ -1832,16 +1745,7 @@ export interface FactorBatchResult {
 
 // ===== Factor / strategy mining =====
 export type MiningBudgetProfile = 'exploratory' | 'balanced' | 'strict'
-export type MiningRunStatus =
-  | 'queued'
-  | 'running'
-  | 'cancelling'
-  | 'succeeded'
-  | 'succeeded_with_budget_exhausted'
-  | 'failed'
-  | 'cancelled'
-  | 'interrupted'
-  | 'skipped_prerequisite'
+export type MiningRunStatus = TaskStatus
 
 export interface MiningAvailability {
   asset_type: 'stock'
@@ -3872,7 +3776,10 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  researchJobs: () => request<{ items: ResearchJob[] }>('/api/backtest/jobs'),
+  researchJobs: async () => {
+    const response = await request<{ items: (Omit<ResearchJob, 'status'> & { status: unknown })[] }>('/api/backtest/jobs')
+    return { ...response, items: response.items.map(job => ({ ...job, status: parseTaskStatus(job.status) })) }
+  },
   researchJobCancel: (id: string) => request<{ ok: boolean }>(`/api/backtest/jobs/${id}/cancel`, { method: 'POST' }),
   researchJobDelete: (id: string) => request<{ ok: boolean }>(`/api/backtest/jobs/${id}`, { method: 'DELETE' }),
   researchJob: (id: string) => request<Record<string, unknown>>(`/api/backtest/jobs/${id}`),
@@ -4176,54 +4083,7 @@ export const api = {
     ),
 
   // ===== Financials =====
-  financialStatus: () =>
-    request<FinancialStatus>('/api/financials/status'),
-
-  financialMetrics: (symbol?: string) =>
-    request<{ data: FinancialMetricRecord[] }>(
-      `/api/financials/metrics${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
-    ),
-
-  financialIncome: (symbol?: string) =>
-    request<{ data: FinancialIncomeRecord[] }>(
-      `/api/financials/income${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
-    ),
-
-  financialBalanceSheet: (symbol?: string) =>
-    request<{ data: FinancialBalanceSheetRecord[] }>(
-      `/api/financials/balance-sheet${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
-    ),
-
-  financialCashFlow: (symbol?: string) =>
-    request<{ data: FinancialCashFlowRecord[] }>(
-      `/api/financials/cash-flow${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
-    ),
-
-  financialShares: (symbol?: string) =>
-    request<{ data: FinancialSharesRecord[] }>(
-      `/api/financials/shares${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
-    ),
-
-  /** 触发财务数据同步(后台异步执行,接口立即返回 started 状态) */
-  financialSync: (table: string) =>
-    request<{ status: string; synced: { started: boolean; reason?: string } }>(
-      `/api/financials/sync/${table}`, { method: 'POST' },
-    ),
-
-  /** AI 分析报告 CRUD */
-  financialReportsList: () =>
-    request<{ reports: AiFinancialReport[] }>('/api/financials/reports'),
-
-  financialReportSave: (r: {
-    symbol: string; name?: string; focus?: string; content: string
-    periods?: number; summary?: string
-  }) =>
-    request<{ ok: boolean; report: AiFinancialReport }>('/api/financials/reports', {
-      method: 'POST', body: JSON.stringify(r),
-    }),
-
-  financialReportDelete: (reportId: string) =>
-    request<{ ok: boolean }>(`/api/financials/reports/${encodeURIComponent(reportId)}`, { method: 'DELETE' }),
+  ...financialsApi,
 
   /**
    * AI 财务分析 — 流式调用。

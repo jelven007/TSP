@@ -163,3 +163,34 @@ def test_phase_order_and_shell_strings_are_rejected(plan):
     path.write_text(json.dumps(spec))
     with pytest.raises(ValueError, match="argv"):
         pipeline.run(path, receipts)
+
+
+def test_failed_probe_is_timed_without_executing_write(plan):
+    path, receipts, _, counter = plan
+    spec = json.loads(path.read_text())
+    spec["steps"][1]["probe"] = command("print('invalid-private-output')")
+    path.write_text(json.dumps(spec))
+    with pytest.raises(ValueError, match="JSON"):
+        pipeline.run(path, receipts)
+    record = json.loads((receipts / "receipt.json").read_text())
+    assert not counter.exists()
+    checks = record.get("evidence_checks", [])
+    assert any(row["kind"] == "probe" and row["step"] == "switch"
+               and row["status"] == "failed" and row["elapsed_seconds"] >= 0
+               for row in checks)
+    assert "invalid-private-output" not in json.dumps(record)
+
+
+def test_preparation_and_resume_checks_have_durable_intervals(plan):
+    path, receipts, _, counter = plan
+    first = pipeline.run(path, receipts)
+    second = pipeline.run(path, receipts)
+    assert counter.read_text() == "x"
+    assert first["steps"] == second["steps"]
+    checks = second.get("evidence_checks", [])
+    assert sum(row["kind"] == "preparation" for row in checks) == 2
+    assert sum(row["kind"] == "resume" for row in checks) == 2
+    for row in checks:
+        assert row["started_at"] <= row["ended_at"]
+        assert row["elapsed_seconds"] >= 0
+        assert row["status"] == "passed"

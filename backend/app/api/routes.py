@@ -14,6 +14,12 @@ from app.tickflow.policy import detect_capabilities, tier_label
 router = APIRouter()
 
 
+class DurationHistogram(BaseModel):
+    # Disjoint bucket counts; the final count is overflow above the last bound.
+    bounds_ms: list[float]
+    counts: list[int]
+
+
 class DurationMetrics(BaseModel):
     sum: float
     max: float
@@ -21,6 +27,7 @@ class DurationMetrics(BaseModel):
     p50: float | None = None
     p95: float | None = None
     p99: float | None = None
+    histogram: DurationHistogram
 
 
 class HttpMetricAggregate(BaseModel):
@@ -36,6 +43,7 @@ class HttpRouteMetric(HttpMetricAggregate):
 
 
 class ProcessMetrics(BaseModel):
+    instance_id: str
     started_at: str
     uptime_seconds: float
 
@@ -48,6 +56,8 @@ class RuntimeStageMetrics(BaseModel):
 
 class ObservabilitySnapshot(BaseModel):
     process: ProcessMetrics
+    runtime_process: ProcessMetrics
+    public_query_cache: dict[str, int | float] = Field(default_factory=dict)
     in_flight: int
     totals: HttpMetricAggregate
     routes: list[HttpRouteMetric]
@@ -114,10 +124,14 @@ async def api_health(request: Request) -> JSONResponse:
 @router.get("/api/observability", response_model=ObservabilitySnapshot)
 def observability(request: Request) -> dict:
     """Session-authenticated process metrics for local operators."""
-    from app.services.observability import http_metrics_snapshot, runtime_metrics_snapshot
+    from app.services.observability import http_metrics_snapshot, runtime_observability_snapshot
+    from app.services.public_query_cache import public_query_cache
 
     payload = http_metrics_snapshot()
-    payload["stages"] = runtime_metrics_snapshot()
+    runtime = runtime_observability_snapshot()
+    payload["stages"] = runtime["stages"]
+    payload["runtime_process"] = runtime["process"]
+    payload["public_query_cache"] = public_query_cache.snapshot()
     db = getattr(getattr(request.app.state, "account_identity", None), "db", None)
     payload["pools"] = db.pool_stats() if db is not None else {}
     return payload
