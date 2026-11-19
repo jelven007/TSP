@@ -43,10 +43,10 @@ def test_registered_hypotheses_cover_exactly_default_strategies():
     ids = {item["id"] for item in StrategyEngine([source]).list_strategies()
            if "1d" in item["timeframes"]}
     declared = [sid for family in RESEARCH_FAMILIES.values() for sid in family]
-    assert len(declared) == len(set(declared)) == 21
+    assert len(declared) == len(set(declared)) == 22
     assert set(declared) == ids
     trials = candidate_trials()
-    assert len(trials) == 42
+    assert len(trials) == 44
     assert all(sum(t["strategy_id"] == sid for t in trials) == 2 for sid in ids)
     for trial in trials:
         conditions = normalize_conditions(trial["overrides"]["overlay_filter"])
