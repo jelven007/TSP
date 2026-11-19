@@ -24,7 +24,7 @@ beforeEach(() => {
   mount = document.createElement('div')
   document.body.appendChild(mount)
   root = createRoot(mount)
-  confirm.mockClear()
+  confirm.mockReset()
   close.mockClear()
   list.mockReset().mockResolvedValue({ strategies })
 })
@@ -63,7 +63,7 @@ it('adds only the selected family and preserves original IDs until confirmation'
   expect(confirm).not.toHaveBeenCalled()
   expect(container.textContent).toContain('此分组无待选策略')
   expect(button('本组全加').disabled).toBe(true)
-  act(() => button('确定').click())
+  await act(async () => button('确定').click())
   expect(confirm).toHaveBeenCalledWith(['ma_golden_cross', 'oversold_bounce', 'oversold_reversal'])
   expect(list).toHaveBeenCalledTimes(1)
 })
@@ -90,7 +90,7 @@ it('blocks confirmation while loading and after failure, then allows retry', asy
   expect(button('确定').disabled).toBe(true)
   await act(async () => button('重试').click())
   expect(button('确定').disabled).toBe(false)
-  act(() => button('确定').click())
+  await act(async () => button('确定').click())
   expect(confirm).toHaveBeenCalledWith(['ma_golden_cross'])
 })
 
@@ -99,6 +99,16 @@ it('shows an empty catalog without calling it a fully selected pool', async () =
   await render()
   expect(container.textContent).toContain('暂无可用策略')
   expect(button('本组全加').disabled).toBe(true)
+})
+
+it('keeps the draft and dialog open when the server rejects a concurrent save', async () => {
+  confirm.mockRejectedValueOnce(new Error('策略池已在其他页面更新'))
+  await render(['ma_golden_cross'])
+  act(() => button('旧策略').click())
+  await act(async () => button('确定').click())
+  expect(close).not.toHaveBeenCalled()
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('其他页面更新')
+  expect(confirm).toHaveBeenCalledWith(['ma_golden_cross', 'custom_legacy'])
 })
 
 it('excludes research templates from the pool total and AI draft section', async () => {

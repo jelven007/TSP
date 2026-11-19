@@ -83,31 +83,28 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     if sig.get("enabled") is False:
         return finish("早盘清仓信号已禁用, 无法执行清仓收益回测")
     sig_params = parameters(sig)
+    staged = "amplitude_pct" not in sig_params
     if all(value is None for value in sig_params.values()):
         return finish("早盘清仓全部参数为空, 无法执行清仓收益回测")
     deadline_clock = clock.fromisoformat(sig_params["time"]) if sig_params["time"] is not None else None
     fallback_value = sig_params.get("fallback_time", sig_params["time"])
     fallback_clock = clock.fromisoformat(fallback_value) if fallback_value is not None else None
     stage_clocks = sorted({at for at in (deadline_clock, fallback_clock) if at is not None})
-    filled_clocks = [clock.fromisoformat(sig_params[key])
-                     for key in ("start_time", "time", "fallback_time") if sig_params.get(key) is not None]
-    if any(at.second or (at <= clock(9, 30) and at in stage_clocks) for at in filled_clocks):
-        return finish("早盘清仓收益回测需要整分钟时间, 已启用止损及兜底须为09:31至11:30")
     # 成交验收上界与信号时钟分开; 空兜底不会成为兜底信号。
-    execution_clock = fallback_clock or deadline_clock or clock(11, 30)
-    observation_clock = stage_clocks[0] if stage_clocks else clock(11, 30)
-    staged = "amplitude_pct" not in sig_params
+    execution_clock = (fallback_clock or clock(15)) if staged else deadline_clock
+    observation_clock = stage_clocks[0] if stage_clocks else execution_clock
     risk = strategy_policy(strategy, overrides)
     if config.regime_filter or any(v is not None for v in asdict(risk).values()):
         return finish("早盘清仓收益回测暂不支持环境过滤、固定/移动风控或最长持有")
     from app.strategy.entry_risk import EntryRiskPolicy
     if EntryRiskPolicy.from_mapping(overrides.get("entry_risk")).enabled:
         return finish("冻结日线入场风险暂不支持分钟策略")
-    next_minute_exit = config.exit_fill == "signal_next_minute"
+    next_minute_exit = staged or config.exit_fill == "signal_next_minute"
+    minute_low_exit = config.minute_price_rule == "high_low_v1"
     minute_exit_fill = "signal_next_minute" if next_minute_exit else "trigger_minute_close"
     final_clock = (expected_trading_minutes(
         datetime.combine(config.start, execution_clock) + timedelta(minutes=1),
-    )[-1].time() if next_minute_exit else execution_clock)
+    )[-1].time() if next_minute_exit and not staged else execution_clock)
     if (not valid_price(cash) or config.max_positions < 1
             or not math.isfinite(config.max_exposure_pct)
             or not 0 <= config.max_exposure_pct <= 1
@@ -145,7 +142,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
     from app.strategy.scoring import scoring_warmup_bars
     conditions = overlay.effective_conditions(overrides)
     required_history = max(
-        ((20 if name == "amount_mean_20d" else scoring_warmup_bars({name: 1}))
+        (scoring_warmup_bars({name: 1})
          + max(c["leftDays"], c["rightDays"])
          for c in conditions for name in overlay.fields([c])),
         default=1,
@@ -315,10 +312,11 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     prefix = frame.filter(
                         pl.col("datetime").is_between(datetime.combine(day, clock(9, 31)), at),
                     ) if not frame.is_empty() else frame
-                    expected = int((at - datetime.combine(day, clock(9, 30))).total_seconds() // 60)
-                    expected_times = [datetime.combine(day, clock(9, 31)) + timedelta(minutes=i)
-                                      for i in range(expected)]
-                if prefix.is_empty() or sorted(prefix["datetime"].to_list()) != expected_times or (
+                    expected_times = [moment for moment in expected_trading_minutes(
+                        datetime.combine(day, clock(9, 31)), count=240) if moment <= at]
+                if (expected_times and prefix.is_empty()) or (
+                    (sorted(prefix["datetime"].to_list()) if not prefix.is_empty() else []) != expected_times
+                ) or (
                     prefix.height and any(
                         prefix.filter(
                             ~pl.col(c).is_finite() | (pl.col(c) <= 0) | pl.col(c).is_null(),
@@ -332,7 +330,13 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     sell_windows[symbol] = expected_trading_minutes(
                         datetime.fromisoformat(hit["trigger_time"]).replace(second=0, microsecond=0)
                         + timedelta(minutes=1),
+                        count=240 if staged or status == "resume" else 5,
                     )
+                    if staged and status != "resume":
+                        end_at = datetime.combine(day, execution_clock)
+                        sell_windows[symbol] = tuple(moment for moment in sell_windows[symbol]
+                                                     if moment < end_at or (
+                                                         fallback_clock is None and moment == end_at))
                 output.signals.append({"date": str(day), "side": "sell", **hit, "signal_id": exits[0],
                                        "signal_bar": at.hour * 60 + at.minute})
             # 只用截至当前事件的分钟价估值与分配预算, 不借未来卖款或日终价格。
@@ -345,10 +349,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
             if next_minute_exit:
                 timeline |= {(at, 0) for at in events}
                 timeline |= {(at, 0) for window in sell_windows.values() for at in window}
-                timeline |= {(datetime.combine(day, stage), 1) for stage in (*stage_clocks, final_clock)}
-                timeline |= {(at, 0) for stage in stage_clocks
-                             for at in expected_trading_minutes(
-                                 datetime.combine(day, stage) + timedelta(minutes=1))}
+                timeline |= {(datetime.combine(day, final_clock), 1)}
+                if not staged:
+                    timeline |= {(datetime.combine(day, stage), 1) for stage in stage_clocks}
             for at, phase in sorted(timeline):
                 if cancel_event is not None and cancel_event.is_set():
                     return finish("cancelled")
@@ -370,22 +373,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                     if next_minute_exit:
                         if not trigger:
                             continue
-                        if (phase == 1 and staged and trigger["reason"] != "resume"
-                                and at in [datetime.combine(day, stage) for stage in stage_clocks]
-                                and at > datetime.fromisoformat(trigger["trigger_time"])):
-                            pos = positions[symbol]
-                            stage_hit = evaluate(
-                                pl.DataFrame(), sig, day=day, now=at,
-                                positions=[{**pos, "entry_date": str(pos["entry_date"]),
-                                            "qty": pos["remaining"], "available_qty": pos["remaining"]}],
-                                prev_close={symbol: pos["sell_reference"]},
-                                suspension_history=suspension_history,
-                            ).hits[0]
-                            triggers[symbol] = stage_hit
-                            sell_windows[symbol] = expected_trading_minutes(at + timedelta(minutes=1))
-                            output.signals.append({"date": str(day), "side": "sell", **stage_hit,
-                                                   "signal_id": exits[0], "signal_bar": at.hour * 60 + at.minute})
-                        if phase != 0 or at not in sell_windows[symbol]:
+                        if phase != (1 if minute_low_exit else 0) or at not in sell_windows[symbol]:
                             continue
                     elif (phase == 0 or not trigger
                             or not datetime.fromisoformat(trigger["trigger_time"]) <= at <= datetime.combine(day, deadline)
@@ -393,17 +381,6 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                                     or clock(13, 1) <= at.time() <= clock(15))):
                         continue
                     pos = positions[symbol]
-                    if (not next_minute_exit and staged and trigger["reason"] != "resume"
-                            and at in [datetime.combine(day, stage) for stage in stage_clocks]
-                            and at > datetime.fromisoformat(trigger["trigger_time"])):
-                        stage_hit = evaluate(
-                            pl.DataFrame(), sig, day=day, now=at,
-                            positions=[{**pos, "entry_date": str(pos["entry_date"]),
-                                        "qty": pos["remaining"], "available_qty": pos["remaining"]}],
-                            prev_close={symbol: pos["sell_reference"]}, suspension_history=suspension_history,
-                        ).hits[0]
-                        output.signals.append({"date": str(day), "side": "sell", **stage_hit,
-                                               "signal_id": exits[0], "signal_bar": at.hour * 60 + at.minute})
                     rows = rows_at.get(symbol, [])
                     expected_at = last_sale[symbol] + timedelta(minutes=1)
                     if expected_at.time() == clock(11, 31):
@@ -433,7 +410,9 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         current_rows.get(symbol, {}).get("is_risk_warning", is_risk_warning_name(name)),
                     ))
                     down = _scalar_limit_up_price(pos["sell_reference"], -pct)
-                    price = max(down, row["open"] * (1 - config.slippage_bps / 10000)) if next_minute_exit else row["close"]
+                    price = max(down, row["low"]) if minute_low_exit else (
+                        max(down, row["open"] * (1 - config.slippage_bps / 10000))
+                        if next_minute_exit else row["close"])
                     if (row["high"] if next_minute_exit else price) <= down + 1e-9:
                         counters["sell_limit_down"] += 1
                         continue
@@ -523,6 +502,7 @@ def run_morning(service, config, strategy, params, overrides, definitions, *,
                         history,
                         symbol=symbol,
                         start_at=hit.entry_window_start,
+                        end_at=hit.entry_window_end,
                         prior_close=float(previous_close),
                         budget=max(allocation, 0),
                         size_order=lambda price, order_budget=allocation, order_symbol=symbol: matcher.buy_quantity(

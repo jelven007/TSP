@@ -1,9 +1,8 @@
-"""复牌昨收必须来自真实成交日, 不能受两日池或指标窗口截断。"""
+"""复牌昨收必须来自真实成交日,不能受两日池或指标窗口截断。"""
 from datetime import date, timedelta
 from types import SimpleNamespace
 
 import polars as pl
-import pytest
 
 from app.services.screener import ScreenerService
 from app.strategy.engine import StrategyDataContext
@@ -26,8 +25,7 @@ def test_previous_closes_merges_symbols_without_current_day_or_zero_trade_rows()
     })
     context = StrategyDataContext("stock", "1m", DAY, pool_history=pool, daily_history=daily)
     assert previous_closes(context, exact_session=False) == {"a": 10.0, "b": 12.0}
-    with pytest.raises(ValueError, match="原始收盘价无效"):
-        previous_closes(context)
+    assert previous_closes(context, exact_session=True, isolate_symbols=True) == {"a": 10.0}
 
 
 def test_repository_last_traded_close_is_raw_strictly_prior_and_has_no_fixed_lookback(tmp_path):
@@ -65,6 +63,11 @@ def test_screener_loads_missing_long_halt_reference_without_changing_pool_dates(
         def get_enriched_history(self, *args):
             return None
 
+        def get_daily_close_inputs(self, day, **kwargs):
+            rows = prior.filter(pl.col("date") == day).with_columns(
+                pl.col("raw_close").alias("close"))
+            return rows, rows.select("symbol", "close")
+
         def get_instruments_asset(self, *args):
             return pl.DataFrame({"symbol": ["a", "b", "halted"], "listing_date": [date(2000, 1, 1)] * 3})
 
@@ -73,16 +76,12 @@ def test_screener_loads_missing_long_halt_reference_without_changing_pool_dates(
             return old
 
     service = ScreenerService(Repo())
-    service._load_enriched_history = lambda *args: prior
-    service.repo.get_daily_close_inputs = lambda *args: (
-        prior.rename({"raw_close": "close"}), prior.rename({"raw_close": "close"}).select("symbol", "close"),
-    )
+    service._load_enriched_history = lambda *_: prior
     service._load_minute_history = lambda *args: pl.DataFrame({"symbol": ["a", "b"]})
     service.build_daily_pool_context = lambda *args, **kwargs: StrategyDataContext(
         "stock", "1d", DAY, current=current, pool_history=prior)
     engine = SimpleNamespace(minute_daily_history_bars=lambda *args, **kwargs: 0)
     context = service.build_strategy_context(engine, DAY, [], timeframe="1m", current=current)
-    assert previous_closes(context) == {"a": 10.0}
     assert previous_closes(context, exact_session=False) == {"a": 10.0, "b": 12.0}
     assert calls == [(["b"], DAY)]
     assert context.pool_history.filter(pl.col("date") == DAY - timedelta(days=1)).height == 1

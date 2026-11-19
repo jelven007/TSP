@@ -1,4 +1,4 @@
-"""Five-minute, capacity-constrained entry-order execution."""
+"""Capacity-constrained entry orders with an optional signal deadline."""
 from __future__ import annotations
 
 import math
@@ -120,9 +120,10 @@ def execute_entry_window(
     buy_value: Callable[[float], float],
     limit_up_price: float | None = None,
     window_minutes: int = 5,
+    end_at: datetime | None = None,
     asset_type: str = "stock",
 ) -> EntryExecution:
-    """Execute one aggregate buy order across at most five trading-minute bars."""
+    """An explicit deadline replaces the legacy five-bar limit; missing slots never extend it."""
     if not _finite_positive(prior_close):
         raise ValueError("缺少有效上一交易日收盘价")
     if not math.isfinite(float(budget)) or budget < 0:
@@ -147,7 +148,11 @@ def execute_entry_window(
     if datetimes != sorted(datetimes):
         raise ValueError("成交窗口分钟时间顺序错误")
 
-    window = expected_trading_minutes(start_at, count=window_minutes, same_day=True)
+    if end_at is not None and end_at.date() != start_at.date():
+        raise ValueError("买入截止须属于信号交易日")
+    window = expected_trading_minutes(start_at, count=240 if end_at is not None else window_minutes)
+    if end_at is not None:
+        window = tuple(moment for moment in window if moment <= end_at)
     by_datetime = {row["datetime"]: row for row in rows}
     limit_up = (
         _limit_up_price(symbol, float(prior_close))

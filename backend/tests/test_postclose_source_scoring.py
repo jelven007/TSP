@@ -31,12 +31,12 @@ def test_s01_postclose_uses_raw_saved_range_amount_weight_and_keeps_unknown(tmp_
 
 
 def test_s02_postclose_applies_saved_atr_rank_as_score_when_generic_score_absent(monkeypatch):
-    from test_s02_atr14_strategy import DAY, SOURCE, STRATEGY_ID, frames, prior
+    from test_s02_atr14_strategy import DAY, SOURCE, frames, prior
 
     from app.strategy import market_data
     monkeypatch.setattr(market_data, "previous_session", prior)
     engine = StrategyEngine([SOURCE.parent])
-    strategy = engine.get(STRATEGY_ID)
+    strategy = engine.get("custom_mvxxcp88")
     _, daily = frames()
     current = daily.filter(pl.col("date") == prior(DAY)).with_columns(
         pl.lit(.02).alias("change_pct"), pl.lit(1e9).alias("float_shares"))

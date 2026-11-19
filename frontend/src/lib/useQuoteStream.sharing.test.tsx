@@ -135,7 +135,11 @@ it('delivers updates to every page and resumes from its cursor when the owner cl
     first.emit('strategy_results_updated', '{}', '42')
   })
   for (const invalidate of invalidations) {
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['screener-cached'] })
+    const predicate = invalidate.mock.calls[0][0]?.predicate
+    expect(predicate).toBeTypeOf('function')
+    expect(predicate!({ queryKey: ['screener-cached', 'day-view'] } as never)).toBe(true)
+    expect(predicate!({ queryKey: ['settings'] } as never)).toBe(false)
+    expect(invalidate.mock.calls[0][1]).toEqual({ cancelRefetch: false })
   }
   const owner = tabs.shift()!
   await act(async () => owner.root.unmount())

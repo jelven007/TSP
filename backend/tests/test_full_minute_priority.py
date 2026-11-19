@@ -11,14 +11,12 @@ def test_full_worker_prepares_complete_pool_before_saved_selection_subset(owned,
     import polars as pl
     from test_minute_signal_sections import CODE
 
-    from app.multitenancy.monitor_rules import Rules
     from app.multitenancy.strategies import definition_payload
     from app.services.daily_selections import DailySelections
     from app.services.screener import ScreenerService
     from app.services.strategy_results import ResultIdentity
     from app.strategy.basic_filter import previous_session
     from app.strategy.engine import StrategyDataContext, StrategyEngine
-    from app.strategy.monitor_rules import normalize
 
     code = CODE.replace("csgi_trigger", "csgi_late_session_strength")
     (tmp_path / "priority.py").write_text(code)
@@ -27,10 +25,6 @@ def test_full_worker_prepares_complete_pool_before_saved_selection_subset(owned,
         {"id": "custom_test", "source": "custom", "code": code, "definition": definition})
     owned.documents.put("custom_signals", "late_session_strength",
         {"id": "late_session_strength", "enabled": True, "template": "late_session_strength"})
-    Rules(owned.documents).save_one(normalize({
-        "id": "priority", "name": "s02", "type": "strategy",
-        "strategy_id": "custom_test", "scope": "all",
-    }))
     day = owned.frame["date"][0]
     source = previous_session(day)
     DailySelections(owned.documents).save(
@@ -39,6 +33,8 @@ def test_full_worker_prepares_complete_pool_before_saved_selection_subset(owned,
          "rows": [{"symbol": "600519.SH"}]}, started_at=1)
     daily = owned.frame.with_columns(pl.lit(source).alias("date"), pl.lit(.02).alias("change_pct"))
     context = StrategyDataContext("stock", "1m", day, current=owned.frame, daily_history=daily)
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(owned.documents, "custom_test", "s02", True)
     monkeypatch.setattr(ScreenerService, "build_daily_pool_context", lambda *args, **kwargs: context)
     plans = []
     owned.worker.market = SimpleNamespace(minute_priority=lambda owner, plan: plans.append((owner, plan)))

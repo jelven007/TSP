@@ -51,10 +51,6 @@ class Rules:
             ).fetchone()
             if existing:
                 previous = existing["definition"]
-                if previous.get("_system_task"):
-                    if not system:
-                        raise AccessError(409, "系统关键任务不能通过普通监控停用或替换")
-                    rule = {**rule, "_system_task": previous["_system_task"]}
                 if previous.get("lot_id") and previous["lot_id"] != rule.get("lot_id"):
                     raise AccessError(409, "lot_rule_managed")
                 rule = {**rule, "created_at": previous.get("created_at", rule["created_at"])}
@@ -62,9 +58,9 @@ class Rules:
                 "SELECT 1 FROM business.watchlist_groups WHERE id=%s", (rule.get("group_id"),),
             ).fetchone():
                 raise AccessError(400, "watchlist_group_missing")
+            rule.pop("_system_task", None)
             if not existing and not system and conn.execute(
-                """SELECT count(*) AS n FROM business.monitor_rules
-                   WHERE coalesce(definition->>'_system_task', '') = ''""",
+                "SELECT count(*) AS n FROM business.monitor_rules",
             ).fetchone()["n"] >= MAX_RULES:
                 raise AccessError(429, "monitor_rule_limit")
             conn.execute(
@@ -78,8 +74,6 @@ class Rules:
     def delete_one(self, rule_id, *, managed=False):
         with self.documents._transaction(write=True) as conn:
             row = conn.execute("SELECT definition FROM business.monitor_rules WHERE id=%s", (rule_id,)).fetchone()
-            if row and row["definition"].get("_system_task") and not managed:
-                raise AccessError(409, "系统关键任务不能通过普通监控删除或清空")
             if row and row["definition"].get("lot_id") and not managed:
                 raise AccessError(409, "lot_rule_managed")
             deleted = conn.execute("DELETE FROM business.monitor_rules WHERE id=%s", (rule_id,)).rowcount > 0

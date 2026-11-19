@@ -15,7 +15,6 @@ import {
   REGIME_STATE_COLORS,
 } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { missingTradeNameSymbols, tradeName } from './tradeNames'
 import { storage } from '@/lib/storage'
 import { fmtPct, fmtPrice, priceColorClass } from '@/lib/format'
 import { boardTag } from '@/lib/board'
@@ -46,6 +45,7 @@ import { MinuteExecutionLedger } from '@/components/MinuteExecutionLedger'
 import { strategyResultCandidate } from './researchCandidates'
 import { buildDailyNavItems, buildTradeKeyMap, buildTradesNavItems, type TradeNavItem } from './tradeNav'
 import { BACKTEST_DEFAULTS_VERSION, REQUESTED_BACKTEST_DEFAULTS, loadBacktestDefaults } from './defaults'
+import { CustomExecutionSummary, customExecutionDescription } from './executionDescription'
 
 const StrategyNavChart = lazy(() => import('./charts/StrategyNavChart').then(module => ({ default: module.StrategyNavChart })))
 const ReturnDistributionChart = lazy(() => import('./charts/ReturnDistributionChart').then(module => ({ default: module.ReturnDistributionChart })))
@@ -163,8 +163,8 @@ function FillRuleHint() {
               <div className="space-y-1">
                 <div><b className="text-foreground">建仓口径</b>和<b className="text-foreground">清仓口径</b>分别控制买卖信号出现后的成交时点。</div>
                 <div><b className="text-foreground">日线建仓</b>从次交易日首根分钟 K 开始；<b className="text-foreground">分钟建仓</b>从信号实际确认后的下一根完整分钟 K 开始。</div>
-                <div>最多使用 5 根分钟 K，每根按最高价和 100% 分钟成交量容量分片；建仓价取加权均价，剩余数量到期撤单。</div>
-                <div><b className="text-foreground">信号触发卖出</b>仅在分钟成交开启且卖出信号支持分钟回放时可用；下1分钟开始，最多执行5个交易分钟；卖足提前结束，到期撤销余量，余股保留持仓。</div>
+                <div>尾盘走强从信号确认后的可成交分钟持续买入到结束时间，超过停止买入并撤单；其他建仓方式沿其成交窗口。每根按最高价和分钟成交量容量分片，建仓价取加权均价。</div>
+                <div>早盘清仓从信号确认后的可成交分钟持续卖出，到兜底时间立即停止所有股票卖出；余单撤销，余股保留。午休不成交，缺失分钟不延长截止。</div>
                 <div>买卖信号由<b className="text-foreground">策略触发器</b>决定，这里只控制信号出现后的成交时点。</div>
               </div>
             </motion.div>
@@ -309,7 +309,6 @@ const mergeStrategyParams = (detail: StrategyDetail, values?: Record<string, any
 })
 const normalizeStrategyOverrides = (detail: StrategyDetail, values?: Record<string, any> | null) => {
   const next = { ...(values ?? {}) }
-  next.overlay_filter = next.overlay_filter ?? detail.overlay_filter ?? []
   const savedScoring = next.scoring && typeof next.scoring === 'object' ? next.scoring : {}
   next.scoring = detail.scoring_mode === 'strategy' ? {} : next.scoring_replace === true
     ? { ...savedScoring }
@@ -329,7 +328,6 @@ const normalizeStrategyOverrides = (detail: StrategyDetail, values?: Record<stri
 }
 const buildDefaultOverrides = (detail: StrategyDetail) => normalizeStrategyOverrides(detail, {
   basic_filter: { ...detail.basic_filter },
-  overlay_filter: detail.overlay_filter ?? [],
   entry_signals: detail.entry_signals.map(toSignalId),
   exit_signals: detail.exit_signals.map(toSignalId),
   scoring: { ...detail.scoring },
@@ -357,7 +355,6 @@ const strategyBacktestConfigSignature = (detail: StrategyDetail) => JSON.stringi
   scoring_directions: detail.scoring_directions,
   entry_signals: detail.entry_signals,
   exit_signals: detail.exit_signals,
-  overlay_filter: detail.overlay_filter,
   stop_loss: detail.stop_loss,
   entry_risk: detail.entry_risk,
   take_profit: detail.take_profit,
@@ -439,7 +436,7 @@ function fmtScore(v: number | null | undefined): string {
   return Number(v).toFixed(1)
 }
 
-function DailyTradeChip({ trade, side, strategyName, onClick, signalNames, symbolNames, active }: { trade: StrategyBacktestTrade; side: 'buy' | 'sell'; strategyName?: string; onClick?: () => void; signalNames?: Record<string, string>; symbolNames?: Record<string, string>; active?: boolean }) {
+function DailyTradeChip({ trade, side, strategyName, onClick, signalNames, active }: { trade: StrategyBacktestTrade; side: 'buy' | 'sell'; strategyName?: string; onClick?: () => void; signalNames?: Record<string, string>; active?: boolean }) {
   const isBuy = side === 'buy'
   const tag = boardTag(trade.symbol)
   const price = isBuy ? trade.entry_price : trade.exit_price
@@ -460,7 +457,7 @@ function DailyTradeChip({ trade, side, strategyName, onClick, signalNames, symbo
         }`}>
           {isBuy ? '买' : '卖'}
         </span>
-        <span className="min-w-0 flex-1 truncate text-foreground">{tradeName(trade, symbolNames)}</span>
+        <span className="min-w-0 flex-1 truncate text-foreground">{trade.name || trade.symbol}</span>
         {tag && <span className={`shrink-0 rounded px-1 text-[9px] font-medium ${isBuy ? 'bg-accent/20 text-accent' : 'bg-elevated text-secondary'}`}>{tag}</span>}
       </span>
       <span className="flex items-center justify-between gap-2 text-muted">
@@ -1130,24 +1127,27 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   })
   // 分钟策略: 入场在盘中触发分钟成交, 日线专属的成交口径选项不适用
   const isMinuteStrategy = strategyDetail.data?.execution_backend === 'minute_filter'
-  const fixedSignalMatching = strategyDetail.data?.source === 'custom'
-    && ['custom_mvxxcs01', 'custom_mvxxcp88'].includes(strategyDetail.data.id)
-  const effectiveEntryFill = fixedSignalMatching ? 'close_t' : entryFill
-  const effectiveExitFill = fixedSignalMatching ? 'signal_next_minute' : exitFill
+  const isCustomStrategy = strategyDetail.data?.source === 'custom'
   const isOvernightExecution = ['overnight_capacity_v1', 'momentum_capacity_v1'].includes(strategyDetail.data?.minute_execution ?? '')
   const commonExecution = isOvernightExecution && strategyDetail.data?.optional_triggers
     && strategyDetail.data.params.length === 0
   const supportsMorningExit = isMinuteStrategy && !strategyDetail.data?.minute_execution
   const customSignals = useQuery({
-    queryKey: QK.customSignals, queryFn: api.customSignalsList, enabled: supportsMorningExit,
+    queryKey: QK.customSignals, queryFn: api.customSignalsList, enabled: isMinuteStrategy || isCustomStrategy,
   })
-  const hasMorningExit = supportsMorningExit && (customSignals.data?.signals ?? []).some(signal =>
+  const hasMorningExit = isMinuteStrategy && (customSignals.data?.signals ?? []).some(signal =>
     signal.template === 'morning_liquidation'
     && ((overrides.exit_signals ?? strategyDetail.data?.exit_signals ?? []) as string[]).includes(customSignalColumn(signal)))
+  const hasLateEntry = isMinuteStrategy && (customSignals.data?.signals ?? []).some(signal =>
+    signal.template === 'late_session_strength'
+    && ((overrides.entry_signals ?? strategyDetail.data?.entry_signals ?? []) as string[]).includes(customSignalColumn(signal)))
+  const fixedSignalMatching = isCustomStrategy && isMinuteStrategy
+  const effectiveEntryFill = fixedSignalMatching ? 'close_t' : entryFill
+  const executionDescription = customExecutionDescription(strategyDetail.data, customSignals.data?.signals ?? [], overrides)
+  const effectiveExitFill = fixedSignalMatching || hasMorningExit ? 'signal_next_minute' : exitFill
   useEffect(() => {
     if (hasMorningExit) {
       setSimMode('position')
-      if (!fixedSignalMatching && exitFill === 'signal_next_minute') setExitFill('close_t')
     }
   }, [hasMorningExit, exitFill, fixedSignalMatching])
 
@@ -1308,6 +1308,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
       matching,
       entry_fill: commonExecution ? 'close_t' : effectiveEntryFill,
       exit_fill: effectiveExitFill,
+      minute_price_rule: fixedSignalMatching ? 'high_low_v1' : 'legacy',
       commission_pct: Number(fees) / 10000,
       stamp_tax_pct: stampTax === '' ? undefined : Number(stampTax) / 1000,
       minimum_commission: Number(minimumCommission),
@@ -1419,7 +1420,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     lines.push('', '# 交易明细',
       'symbol,name,entry_date,entry_price,exit_date,exit_price,pnl_pct,duration,exit_reason,shares,entry_value,exit_value,pnl_amount,raw_entry_shares,raw_entry_price,raw_frozen_stop_price')
     for (const t of result.trades ?? []) {
-      lines.push([t.symbol, tradeName(t, symbolNames), t.entry_date, num(t.entry_price), t.exit_date,
+      lines.push([t.symbol, t.name ?? '', t.entry_date, num(t.entry_price), t.exit_date,
         num(t.exit_price), num(t.pnl_pct), num(t.duration), t.exit_reason ?? '',
         num(t.shares), num(t.entry_value), num(t.exit_value), num(t.pnl_amount),
         num(t.raw_entry_shares), num(t.raw_entry_price), num(t.raw_frozen_stop_price)].map(csvEsc).join(','))
@@ -1549,21 +1550,13 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   const tradeStart = safeTradePage * tradePageSize
   const visibleTrades = sortedTrades.slice(tradeStart, tradeStart + tradePageSize)
   const tradeEnd = Math.min(tradeStart + visibleTrades.length, sortedTrades.length)
-  const missingNameSymbols = useMemo(() => missingTradeNameSymbols(result?.trades ?? []), [result?.trades])
-  const tradeNamesQ = useQuery({
-    queryKey: QK.instrumentNames(missingNameSymbols),
-    queryFn: () => api.instrumentNames(missingNameSymbols),
-    enabled: missingNameSymbols.length > 0,
-    staleTime: 300_000,
-  })
   const symbolNames = useMemo(() => {
-    const names: Record<string, string> = { ...tradeNamesQ.data?.names }
+    const names: Record<string, string> = {}
     result?.trades.forEach(t => {
-      const name = tradeName(t)
-      if (name !== t.symbol) names[t.symbol] = name
+      if (t.name) names[t.symbol] = t.name
     })
     return names
-  }, [result?.trades, tradeNamesQ.data?.names])
+  }, [result?.trades])
 
   // 选股分析弹窗的切标的候选 (与表格同序, 保证计数与「上一只/下一只」一致)
   const picksNavItems = useMemo(
@@ -1668,7 +1661,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
       : scoreMaxValue !== ''
         ? `评分 ≤${scoreMaxValue}`
         : '评分不过滤'
-  const advancedSummary = isOvernightExecution
+  const advancedSummary = isCustomStrategy
+    ? `${executionDescription.entries.length}个入场 · ${executionDescription.exits.length}个出场 · ${isMinuteStrategy ? '分钟信号成交' : '日线成交口径'}`
+    : isOvernightExecution
     ? '14:45选股 · 次日完整早盘退出 · 分钟容量分片'
     : detail
     ? [
@@ -1775,14 +1770,19 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             )}
           </div>
           {/* 分钟策略提示条: 数据窗口 + 成交语义 */}
-          {isMinuteStrategy && (
+          {isCustomStrategy ? (
+            <div className="mb-2 rounded-btn border border-sky-500/30 bg-sky-500/5 px-2 py-1.5">
+              <CustomExecutionSummary value={executionDescription} compact />
+              {minuteStartMismatch && <p className="text-[10px] text-warning">开始日期早于本地分钟数据起点 {minuteEarliest}，请调整区间或补齐数据。</p>}
+            </div>
+          ) : isMinuteStrategy && (
             <div className="mb-2 flex items-start gap-1.5 rounded-btn border border-sky-500/30 bg-sky-500/5 px-2 py-1.5">
               <Clock className="h-3 w-3 text-sky-400 shrink-0 mt-px" />
               <div className="text-[10px] leading-snug text-sky-400/90">
                 <span className="font-medium">分钟策略回测</span>
                 {isOvernightExecution
                   ? '：逐日回放已完成分钟，按下方价格与容量规则执行；缺分钟或截止余股明确失败。'
-                  : '：逐日回放分钟K，信号后下1分钟起，5分钟容量撮合；日线条件按 T-1 完成态评估。'}
+                  : '：逐日回放分钟K，从信号确认后的可成交分钟起，按成交窗口做容量撮合；日线条件按 T-1 完成态评估。'}
                 {minuteDataStatus?.minute?.earliest_date
                   ? ` 本地分钟K ${minuteDataStatus.minute.earliest_date} ~ ${minuteDataStatus.minute.latest_date}（${minuteDataStatus.minute.trading_days} 个交易日）${isOvernightExecution ? '；运行时核验完整覆盖。' : '，缺分区的日子自动跳过。'}`
                   : ' 分钟数据范围尚未确认，请核对所选区间覆盖。'}
@@ -1989,11 +1989,11 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
           )}
         </div>
 
-        {isOvernightExecution && !commonExecution && <OvernightExecutionSummary params={{ ...strategyParams, ...parameterSignalValues(strategyDetail.data?.parameter_signals) }}
+        {isOvernightExecution && !commonExecution && !isCustomStrategy && <OvernightExecutionSummary params={{ ...strategyParams, ...parameterSignalValues(strategyDetail.data?.parameter_signals) }}
           entryAllocation={strategyDetail.data?.entry_allocation}
           parameterSignals={!!strategyDetail.data?.parameter_signals} optionalTriggers={strategyDetail.data?.optional_triggers} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} />}
-        {(!isOvernightExecution || commonExecution) && <>
-        <fieldset className={`grid ${fixedSignalMatching ? 'grid-cols-1' : 'grid-cols-2'} gap-2 border-t border-border pt-3`}>
+        {(!isOvernightExecution || commonExecution || isCustomStrategy) && <>
+        <fieldset className="grid grid-cols-2 gap-2 border-t border-border pt-3">
           <legend className="pr-2 text-[11px] font-medium text-muted">成交口径</legend>
           <div>
             <div className="mb-1.5 flex items-center gap-1">
@@ -2003,12 +2003,13 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             {fixedSignalMatching ? (
               <div aria-label="建仓口径" className={`${INPUT_CLS} flex min-h-8 items-center gap-1.5 text-secondary`}>
                 <Clock className="h-3 w-3 shrink-0 text-sky-400" />
-                <span>信号后下1分钟起，5分钟容量撮合</span>
+                <span>{executionDescription.entryLabel}</span>
               </div>
             ) : isMinuteStrategy ? (
               <div className={`${INPUT_CLS} flex items-center gap-1.5`} title="从信号实际确认后的下一根完整分钟 K 开始撮合">
                 <Clock className="h-3 w-3 text-sky-400 shrink-0" />
-                <span className="text-secondary">信号后下1分钟起，5分钟容量撮合</span>
+                <span className="text-secondary">{hasLateEntry
+                  ? '尾盘走强信号触发时间 → 结束时间' : '信号后下1分钟起，5分钟容量撮合'}</span>
                 <span className="text-[8px] px-1 py-px rounded border border-sky-500/30 bg-sky-500/10 text-sky-400">分钟</span>
               </div>
             ) : (
@@ -2026,10 +2027,10 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             {fixedSignalMatching ? (
               <div aria-label="清仓口径" className={`${INPUT_CLS} flex min-h-8 items-center gap-1.5 text-secondary`}>
                 <Clock className="h-3 w-3 shrink-0 text-sky-400" />
-                <span>信号后下1分钟起，5分钟卖出</span>
+                <span>{executionDescription.exitLabel}</span>
               </div>
             ) : hasMorningExit ? (
-              <div className={`${INPUT_CLS} text-secondary`}>次交易日触发分钟收盘</div>
+              <div className={`${INPUT_CLS} text-secondary`}>早盘清仓信号触发时间 → 兜底时间</div>
             ) : <select
               value={exitFill}
               onChange={e => setExitFill(e.target.value as 'close_t' | 'open_t+1' | 'signal_next_minute')}
@@ -2038,13 +2039,19 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               <option value="close_t">信号日收盘</option>
               <option value="open_t+1">次日开盘</option>
               {(exitFill === 'signal_next_minute' || signalNextMinuteSupported) && (
-                <option value="signal_next_minute" disabled={!signalNextMinuteSupported}>信号后下1分钟起，5分钟卖出</option>
+                <option value="signal_next_minute" disabled={!signalNextMinuteSupported}>{hasMorningExit
+                  ? '早盘清仓信号触发时间 → 兜底时间' : '信号后下1分钟起，5分钟卖出'}</option>
               )}
             </select>}
           </div>
-          {hasMorningExit && !fixedSignalMatching && (
+          {isCustomStrategy && <div className="col-span-2 text-[10px] leading-4 text-muted">
+            <p>{executionDescription.entry}</p>
+            <p>{executionDescription.exit}</p>
+            <p>{executionDescription.missing}</p>
+          </div>}
+          {hasMorningExit && !fixedSignalMatching && !isCustomStrategy && (
             <div className="col-span-2 text-[10px] leading-4 text-muted">
-              按实际买入日期，在下一交易日早盘达到所配阈值或止损时间时清仓；余股继续撮合至兜底时间，仍未卖完保留余股并报告失败。旧振幅定义沿用冻结规则。
+              按实际买入日期，在下一交易日达到所配阈值或止损时间时触发；下一根可成交分钟开始持续卖出，到兜底时间立即停止所有股票卖出，余股保留并报告失败。旧振幅定义沿用冻结规则。
               使用仓位模拟和回测费用设置，日线叠加只读取已完成日K。
             </div>
           )}
@@ -2054,14 +2061,14 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
               <span>信号日收盘仅适合收盘前已确认的信号</span>
             </div>
           )}
-          {effectiveExitFill === 'signal_next_minute' && (
+          {effectiveExitFill === 'signal_next_minute' && !hasMorningExit && !fixedSignalMatching && !isCustomStrategy && (
             <div className={`${fixedSignalMatching ? '' : 'col-span-2'} text-[10px] leading-4 text-accent`}>
-              分钟收盘确认卖出信号后，下1分钟开始，最多按分钟开盘价和成交量容量执行5个交易分钟；卖足提前结束，到期取消未成交委托，余股保留持仓。缺分钟不延长窗口，收盘即撤余量
+              分钟收盘确认卖出信号后，按下一分钟开盘成交；尾盘或分钟数据缺失时顺延到下一交易日开盘
             </div>
           )}
-          {fixedSignalMatching && hasMorningExit && (
+          {fixedSignalMatching && hasMorningExit && !isCustomStrategy && (
             <div className="text-[10px] leading-4 text-muted">
-              次交易日按所配阈值或止损时间确认卖出信号；未卖完的余股只在后续止损、兜底信号后重新开始5分钟窗口，最终窗口到期仍有余股时保留持仓并报告失败。
+              买入从尾盘走强信号确认后的可成交分钟起，持续到结束时间；卖出从早盘清仓信号确认后的可成交分钟起，到兜底时间立即停止。买足或卖足提前结束，余单撤销、余股保留。
             </div>
           )}
           {highGranularity && effectiveExitSignals.length > 0 && !minuteExitTriggerSupported && (
@@ -2696,7 +2703,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                               ) : (
                                 <div className="flex flex-wrap gap-1.5">
                                   {row.buys.map((t, i) => (
-                                    <DailyTradeChip key={`buy-${t.symbol}-${t.entry_date}-${t.exit_date}-${i}`} trade={t} side="buy" strategyName={result?.strategy_info?.name ?? selectedStrategyName} onClick={() => setChartOverlay({ kind: 'trade', trade: t, source: 'daily' })} signalNames={signalNames} symbolNames={symbolNames} active={t === selectedTrade} />
+                                    <DailyTradeChip key={`buy-${t.symbol}-${t.entry_date}-${t.exit_date}-${i}`} trade={t} side="buy" strategyName={result?.strategy_info?.name ?? selectedStrategyName} onClick={() => setChartOverlay({ kind: 'trade', trade: t, source: 'daily' })} signalNames={signalNames} active={t === selectedTrade} />
                                   ))}
                                 </div>
                               )}
@@ -2707,7 +2714,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                               ) : (
                                 <div className="flex flex-wrap gap-1.5">
                                   {row.sells.map((t, i) => (
-                                    <DailyTradeChip key={`sell-${t.symbol}-${t.entry_date}-${t.exit_date}-${i}`} trade={t} side="sell" onClick={() => setChartOverlay({ kind: 'trade', trade: t, source: 'daily' })} signalNames={signalNames} symbolNames={symbolNames} active={t === selectedTrade} />
+                                    <DailyTradeChip key={`sell-${t.symbol}-${t.entry_date}-${t.exit_date}-${i}`} trade={t} side="sell" onClick={() => setChartOverlay({ kind: 'trade', trade: t, source: 'daily' })} signalNames={signalNames} active={t === selectedTrade} />
                                   ))}
                                 </div>
                               )}
@@ -2788,7 +2795,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                           >
                             <td className="px-4 py-2.5">
                               <div className="font-medium text-foreground transition-colors group-hover:text-accent">
-                                {tradeName(t, symbolNames)}
+                                {t.name || t.symbol}
                               </div>
                               <div className="mt-0.5 font-mono text-[11px] text-muted">{t.symbol}</div>
                             </td>
@@ -3013,7 +3020,10 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
             </div>
 
             <div className="modal-body min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              {isOvernightExecution && !commonExecution ? <div className="mb-4">
+              {isCustomStrategy ? <div className="mb-4 rounded-btn border border-accent/25 bg-accent/5 px-3 py-2.5">
+                <CustomExecutionSummary value={executionDescription} />
+                <p className="mt-2 text-[11px] leading-5 text-muted">触发器决定买卖信号；选股范围和数值条件在策略设置中调整，信号参数在对应触发器中调整。资金、仓位、费用和滑点读取本次回测设置。</p>
+              </div> : isOvernightExecution && !commonExecution ? <div className="mb-4">
                 <OvernightExecutionSummary params={{ ...strategyParams, ...parameterSignalValues(detail.parameter_signals) }}
                   entryAllocation={detail.entry_allocation}
                   parameterSignals={!!detail.parameter_signals} optionalTriggers={detail.optional_triggers} momentum={strategyDetail.data?.minute_execution === 'momentum_capacity_v1'} />
@@ -3023,11 +3033,11 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                   ? '触发器决定买卖信号；评分决定候选排序，选择评分加权时也参与买入分配。'
                   : '触发器决定什么时候产生买卖信号；评分只在多个买点同时出现时排序。'}</div>
                 {commonExecution ? <>
-                  <div>建仓复用信号确认后五分钟容量撮合；清仓、资金、仓位及费用在公共回测设置中调整。</div>
+                  <div>建仓从信号确认后的可成交分钟开始，尾盘走强持续到结束时间；清仓、资金、仓位及费用在公共回测设置中调整。</div>
                   <div>信号参数在对应触发器中设置；前日条件在基础过滤中设置。</div>
                 </> : hasMorningExit ? <>
-                  <div>分钟建仓从信号实际确认后的下一根完整分钟 K 开始，最多按 5 根分钟最高价和成交量容量分片；清仓使用下一交易日触发分钟收盘。</div>
-                  <div>现价相对原始昨收达到涨幅或跌幅阈值提前清仓，否则到止损时间清仓，兜底时间再次处理余股；旧振幅定义沿用冻结规则。需关闭其他出场触发器、固定/移动风控及最长持有。</div>
+                  <div>分钟建仓从信号确认后的可成交分钟开始，尾盘走强持续到结束时间，其他信号沿其成交窗口；清仓从下一交易日信号确认后的可成交分钟开始，持续至兜底时间前。</div>
+                  <div>现价相对原始昨收达到涨幅或跌幅阈值触发清仓，否则到止损时间触发；持续卖出至兜底时间前，到点停止并保留余股。时间支持全天配置，旧振幅定义沿用冻结规则。需关闭其他出场触发器、固定/移动风控及最长持有。</div>
                 </> : <>
                   <div>成交口径可分别设置建仓/清仓：默认建仓从次日首根分钟 K 起做 5 分钟容量撮合，清仓按所选日线口径执行。</div>
                   <div>退出优先级：止损/移动止损 &gt; 卖点信号 &gt; 到期平仓；到期只作兜底，不抢占卖点或风控。</div>
@@ -3137,7 +3147,9 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                   {detail.scoring_mode === 'strategy' ? <p className="text-xs text-muted">
                     {detail.id === 'custom_mvxxcs01'
                       ? '使用因子「当日低振幅成交额评分」（权重100%）：评分 = −当日振幅 + 0.001 × ln（当日累计成交额）。振幅为小数比例，成交额单位为元；原始评分降序，同分按股票代码升序。'
-                      : '排名由策略生成。s02按ATR14÷昨收降序，排名分数为0～100分，同值按触发涨幅、股票代码排序。'}
+                      : ['custom_mvxxcp88', 'custom_mvxxcs03'].includes(detail.id)
+                      ? '排名由策略生成。当前策略按ATR14÷昨收降序，排名分数为0～100分，同值按触发涨幅、股票代码排序。'
+                      : '排名由策略生成，读取当前源码，按保存的排序方向及同分规则执行。'}
                   </p> : <ScoringEditor
                     key={detail.id}
                     value={scoring}
@@ -3320,7 +3332,6 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
 
       {selectedTrade && <Suspense fallback={null}><TradeKlineModal
         trade={selectedTrade}
-        symbolNames={symbolNames}
         navItems={tradeNavItems}
         currentKey={activeTradeKey}
         onNavigate={handleTradeNav}

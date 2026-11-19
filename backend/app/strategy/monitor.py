@@ -786,6 +786,16 @@ class MonitorRuleEngine:
         return symbols
 
     # ── 评估 ───────────────────────────────────────────
+    def _scheduled_strategy(self, rule):
+        engine = self._strategy_engine
+        if (not getattr(engine, "_scheduled_monitor_owner", False) or rule.get("lot_id")
+                or rule.get("type") != "strategy"):
+            return False
+        try:
+            return engine.get(rule["strategy_id"]).source in ("custom", "ai")
+        except (KeyError, ValueError):
+            return False
+
     def has_asset_rules(self, asset_type: str) -> bool:
         """是否存在指定资产类型的已启用规则。"""
         if not self._rules:
@@ -850,6 +860,7 @@ class MonitorRuleEngine:
                     rule.get("enabled", True)
                     and rule.get("type") == "strategy"
                     and rule.get("asset_type", "stock") in available
+                    and not self._scheduled_strategy(rule)
                 )
             ]
             rules = tuple(
@@ -1286,8 +1297,18 @@ class MonitorRuleEngine:
             payload["price_suggestion_reference"] = result.price_suggestion_reference
         if getattr(result, "monitor_tasks", None) is not None:
             payload["monitor_tasks"] = result.monitor_tasks
+            payload["monitor_contract"] = result.monitor_contract
+            payload["monitor_executed_signals"] = result.monitor_executed_signals
             payload["exit_signal_hits"] = result.exit_signal_hits
             payload["entry_signal_hits"] = result.entry_signal_hits
+            payload.update(
+                section_statuses=result.section_statuses,
+                entry_filter_error=result.entry_filter_error,
+                exit_filter_error=result.exit_filter_error,
+                execution_status=result.execution_status,
+                selection_snapshot=result.selection_snapshot,
+                entry_data_quality=result.entry_data_quality,
+            )
         return payload
 
     def _record_strategy_failure(self, sid, strategy, overrides, asset_type, exc):
@@ -1972,6 +1993,8 @@ class MonitorRuleEngine:
             return []
         if s is None:
             return []
+        if self._scheduled_strategy(rule):
+            return []
         task_loader = getattr(self._strategy_engine, "_monitor_task_loader", None)
         windows = task_loader(sid) if callable(task_loader) and not rule.get("lot_id") else None
 
@@ -2200,10 +2223,20 @@ class MonitorRuleEngine:
             from app.strategy.entry_risk import EntryRiskPolicy, reference_from_row
             from app.strategy.morning_liquidation import selected_definitions
 
+            signal_engine = getattr(self._strategy_engine, "_source", self._strategy_engine)
+            resolve_signals = getattr(signal_engine, "_effective_signals", None)
+            if resolve_signals is None:
+                def resolve_signals(override, key, default):
+                    return override.get(key, default)
             exit_definitions = selected_definitions(
-                self._strategy_engine,
-                self._strategy_engine._effective_signals(overrides, "exit_signals", s.exit_signals),
+                signal_engine,
+                resolve_signals(overrides, "exit_signals", getattr(s, "exit_signals", [])),
             ) if sid == "custom_mvxxcp88" else []
+            from app.strategy.s01_signals import stored_definitions
+            entry_names = resolve_signals(overrides, "entry_signals", getattr(s, "entry_signals", []))
+            entry_definitions = [sig for sig in stored_definitions(signal_engine)
+                                 if sig.get("template") == "late_session_strength"
+                                 and "csgi_" + sig["id"] in entry_names]
 
             entry_policy = {
                 "version": 1, "strategy_id": sid,
@@ -2220,6 +2253,7 @@ class MonitorRuleEngine:
                 },
                 "as_of": str(result.as_of),
                 **({"exit_definition": exit_definitions[0]} if len(exit_definitions) == 1 else {}),
+                **({"entry_definition": entry_definitions[0]} if len(entry_definitions) == 1 else {}),
             }
         except ValueError as exc:
             logger.warning("策略 %s 风控配置无效, 不生成入场执行事件: %s", sid, exc)

@@ -87,6 +87,34 @@ it('shows old history as unsaved and current missing receipt as unexecuted', asy
   })
 })
 
+it('shows a completed rejection from the canonical task without legacy progress', async () => {
+  await check({ ...result, monitor_contract: 'strategy_monitor_v2',
+    monitor_tasks: { buy: { state: 'rejected', terminal: true, passed: false } },
+    section_statuses: { buy: 'rejected' } }, async host => {
+    expect(host.textContent).toContain('入场任务结束 · 条件未满足')
+    expect(host.textContent).not.toContain('未执行')
+    expect(host.textContent).not.toContain('每秒刷新')
+  })
+})
+
+it('labels saved progress without promising repeated per-second refresh', async () => {
+  await check(saved(receipt), async host => {
+    expect(host.textContent).toContain('完成结果固定')
+    expect(host.textContent).not.toContain('每秒刷新')
+  })
+})
+
+it('keeps the completed buy count when another signal expires', async () => {
+  await check({ ...result,
+    sections: { sell: [], select: [], buy: [{ symbol: '600001.SH' }] },
+    monitor_tasks: { buy: { published: true, state: 'expired', terminal: true } },
+    section_statuses: { buy: 'expired' } }, async host => {
+    expect(host.querySelector('[aria-selected="true"]')?.textContent).toBe('买 · 1')
+    expect(host.textContent).toContain('部分入场确认完成 · 1只')
+    expect(host.textContent).not.toContain('今日买入未确认')
+  })
+})
+
 it('uses rejection reason and unknown counts for stages not run', async () => {
   await check(saved({ ...receipt, steps: { ...receipt.steps,
     breadth: { ...receipt.steps.breadth, state: 'rejected' },

@@ -71,26 +71,27 @@ def test_next_minute_sell_uses_open_slippage_capacity_and_aggregate_fees(tmp_pat
     assert result.strategy_info["minute_exit_fill"] == "signal_next_minute"
 
 
-def test_next_minute_missing_bar_consumes_slot_without_extending_window(tmp_path):
+def test_next_minute_missing_bar_is_skipped_within_the_original_deadline(tmp_path):
     data = volume(extended_frame(), {"10:31": 1., "10:35": 1., "10:36": 10000., "10:46": 2.})
     data = data.filter(pl.col("datetime").dt.strftime("%H:%M") != "10:32")
     result = next_minute_run(tmp_path, data)
     assert not result.error, result.error
     assert [f["datetime"][-8:] for f in result.fills if f["side"] == "sell"] == [
-        "10:31:00", "10:35:00", "10:46:00"]
+        "10:31:00", "10:35:00", "10:36:00"]
     sells = [hit for hit in result.signals if hit["side"] == "sell"]
     assert [(hit["reason"], hit["available_qty"]) for hit in sells] == [
-        ("stop_time", 400), ("fallback", 200)]
+        ("stop_time", 400)]
 
 
-def test_next_minute_fallback_gets_its_own_five_minutes(tmp_path):
+def test_next_minute_fallback_never_gets_an_extra_capacity_window(tmp_path):
     result = next_minute_run(tmp_path, volume(extended_frame(), {"10:45": 10000., "10:50": 4.}))
-    assert not result.error, result.error
-    assert result.trades[0]["exit_date"] == f"{SELL} 10:50"
-    assert result.fills[-1]["shares"] == 400
+    assert result.error and "10:45" in result.error
+    assert not result.trades
+    assert not [fill for fill in result.fills if fill["side"] == "sell"]
+    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 400
 
 
-def test_next_minute_retriggers_only_remainder_after_early_window(tmp_path):
+def test_next_minute_continues_remainder_without_retriggering(tmp_path):
     data = extended_frame().with_columns(*[
         pl.when(pl.col("datetime").dt.strftime("%H:%M") == "10:00")
         .then(10.6).otherwise(pl.col(column)).alias(column)
@@ -100,18 +101,18 @@ def test_next_minute_retriggers_only_remainder_after_early_window(tmp_path):
     }))
     assert not result.error, result.error
     assert [f["datetime"][-8:] for f in result.fills if f["side"] == "sell"] == [
-        "10:01:00", "10:31:00", "10:46:00"]
+        "10:01:00", "10:06:00"]
     assert [(hit["reason"], hit["available_qty"]) for hit in result.signals if hit["side"] == "sell"] == [
-        ("rise", 400), ("stop_time", 300), ("fallback", 200)]
+        ("rise", 400)]
 
 
 def test_next_minute_expiry_retains_cash_fees_and_remaining_shares(tmp_path):
     data = volume(extended_frame(), {"10:31": 1., "10:50": 1., "10:51": 10000.})
     result = next_minute_run(tmp_path, data)
-    assert result.error and "10:50" in result.error and "余股" in result.error
-    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 200
+    assert result.error and "10:45" in result.error and "余股" in result.error
+    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 300
     assert not result.trades and not result.equity_curve
-    assert [f["datetime"][-8:] for f in result.fills if f["side"] == "sell"] == ["10:31:00", "10:50:00"]
+    assert [f["datetime"][-8:] for f in result.fills if f["side"] == "sell"] == ["10:31:00"]
     assert 1000000 + sum(f["notional"] - f["fee"] if f["side"] == "sell"
                         else -f["notional"] - f["fee"] for f in result.fills) == pytest.approx(
                             result.stats["execution"]["cash"])
@@ -121,7 +122,7 @@ def test_next_minute_deadline_is_enforced_even_without_final_bar(tmp_path):
     data = volume(extended_frame(), {"10:31": 1., "10:51": 10000.}).filter(
         pl.col("datetime").dt.strftime("%H:%M") != "10:50")
     result = next_minute_run(tmp_path, data)
-    assert result.error and "10:50" in result.error and "余股" in result.error
+    assert result.error and "10:45" in result.error and "余股" in result.error
     assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 300
 
 
@@ -169,57 +170,58 @@ def test_next_minute_resume_uses_original_publication_without_double_delay(tmp_p
 
 
 def test_partial_stop_liquidation_finishes_in_following_real_minutes(tmp_path):
-    result = run(tmp_path, volume(frame(), {"10:30": 1., "10:31": 1., "10:32": 2.}))
+    result = run(tmp_path, volume(frame(), {"10:30": 10000., "10:31": 1., "10:32": 1., "10:33": 2.}))
     assert not result.error, result.error
     sells = [fill for fill in result.fills if fill["side"] == "sell"]
     assert [fill["shares"] for fill in sells] == [100, 100, 200]
-    assert [fill["datetime"][-8:] for fill in sells] == ["10:30:00", "10:31:00", "10:32:00"]
-    assert sum(fill["fee"] for fill in sells) == pytest.approx(7.08)
-    assert result.trades[0]["exit_date"] == f"{SELL} 10:32"
+    assert [fill["datetime"][-8:] for fill in sells] == ["10:31:00", "10:32:00", "10:33:00"]
+    assert sum(fill["fee"] for fill in sells) == pytest.approx(5. + 400 * 10.39 * .0005)
+    assert result.trades[0]["exit_date"] == f"{SELL} 10:33"
     assert result.stats["execution"]["remaining_positions"] == []
 
 
-def test_fallback_can_use_its_own_real_minute_capacity(tmp_path):
+def test_fallback_minute_capacity_is_unavailable(tmp_path):
     result = run(tmp_path, volume(frame(), {"10:45": 4.}))
-    assert not result.error, result.error
-    assert result.trades[0]["exit_date"] == f"{SELL} 10:45"
-    assert result.fills[-1]["shares"] == 400
-    assert any(hit["reason"] == "fallback" for hit in result.signals if hit["side"] == "sell")
+    assert result.error and "10:45" in result.error
+    assert not result.trades
+    assert not [fill for fill in result.fills if fill["side"] == "sell"]
+    assert not any(hit["reason"] == "fallback" for hit in result.signals if hit["side"] == "sell")
 
 
 def test_remaining_at_fallback_keeps_actual_cash_and_blocks_later_entries(tmp_path):
     data = pl.concat([frame(), _minute_frame(SELL, [(SYMBOL, "14:30", 10.4)])])
-    result = run(tmp_path, volume(data, {"10:30": 1., "10:45": 1., "14:30": 10000.}))
+    result = run(tmp_path, volume(data, {"10:31": 1., "10:45": 1., "14:30": 10000.}))
     assert result.error and "10:45" in result.error and "余股" in result.error
-    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 200
+    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 300
     assert not result.trades and not result.equity_curve
-    assert len(result.fills) == 3
+    assert len(result.fills) == 2
     assert sum(fill["notional"] - fill["fee"] if fill["side"] == "sell"
                else -fill["notional"] - fill["fee"] for fill in result.fills) + 10000 == pytest.approx(
                    result.stats["execution"]["cash"])
 
 
-def test_missing_intermediate_minute_cannot_be_replaced_by_later_capacity(tmp_path):
+def test_missing_intermediate_minute_is_not_filled_but_later_real_capacity_is_usable(tmp_path):
     data = volume(frame(), {"10:30": 1., "10:32": 10000.}).filter(
         pl.col("datetime").dt.strftime("%H:%M") != "10:31")
     result = run(tmp_path, data)
-    assert result.error and "窗口" in result.error
-    assert result.stats["execution"]["remaining_positions"][0]["remaining"] == 300
+    assert not result.error, result.error
+    assert not result.stats["execution"]["remaining_positions"]
     assert len(result.fills) == 2
+    assert result.fills[-1]["datetime"] == f"{SELL} 10:32:00"
 
 
-def test_stop_signal_retriggers_only_actual_remainder_of_early_partial_exit(tmp_path):
+def test_early_partial_exit_keeps_one_signal_and_aggregate_fees(tmp_path):
     data = frame().with_columns(*[
         pl.when(pl.col("datetime").dt.strftime("%H:%M") == "10:00")
         .then(10.6).otherwise(pl.col(column)).alias(column)
         for column in ("open", "high", "low", "close")])
-    result = run(tmp_path, volume(data, {"10:00": 1., "10:30": 1., "10:45": 2.}))
+    result = run(tmp_path, volume(data, {"10:01": 1., "10:30": 1., "10:44": 2.}))
     assert not result.error, result.error
     sells = [hit for hit in result.signals if hit["side"] == "sell"]
     assert [(hit["reason"], hit["available_qty"]) for hit in sells] == [
-        ("rise", 400), ("stop_time", 300), ("fallback", 200)]
+        ("rise", 400)]
     assert [f["shares"] for f in result.fills if f["side"] == "sell"] == [100, 100, 200]
-    assert sum(f["fee"] for f in result.fills if f["side"] == "sell") == pytest.approx(7.09)
+    assert sum(f["fee"] for f in result.fills if f["side"] == "sell") == pytest.approx(5. + 400 * 10.39 * .0005)
 
 
 @pytest.mark.parametrize("price,reason", [(10.6, "rise"), (9.8, "fall")])
@@ -231,6 +233,7 @@ def test_early_exit_follows_current_raw_return_not_high_low_range(tmp_path, pric
     ])
     result = run(tmp_path, data)
     assert not result.error, result.error
-    assert result.trades[0]["exit_date"] == f"{SELL} 10:00"
-    assert result.trades[0]["exit_price"] == pytest.approx(price)
+    assert result.trades[0]["exit_signal_date"].endswith("10:00:00")
+    assert result.trades[0]["exit_date"] == f"{SELL} 10:01"
+    assert result.trades[0]["exit_price"] == pytest.approx(10.39)
     assert result.signals[1]["reason"] == reason

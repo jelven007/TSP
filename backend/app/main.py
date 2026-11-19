@@ -233,10 +233,12 @@ async def _application_lifespan(app: FastAPI):
         minute_refresh.set_app_state(app.state)
         app.state.minute_refresh = minute_refresh
         minute_refresh.start()
+        from app.services.monitor_input_repair import MonitorInputRepair
+        app.state.monitor_input_repair = MonitorInputRepair(app.state)
     except Exception as e:
         logger.warning("minute_refresh init failed: %s", e)
 
-    # 启动不回补历史数据; 当日缺口由15:35盘后管理处理, 历史修正由用户显式发起。
+    # 当日缺口由盘后管理处理; 历史修正由用户显式发起。
 
     # 企业微信智能机器人长连接(可选通道, 失败不阻断启动)
     try:
@@ -292,6 +294,13 @@ async def _application_lifespan(app: FastAPI):
     app.state.strategy_engine = strategy_engine
     from app.services.daily_selections import DailySelections
     strategy_engine._selection_loader = lambda sid, day: DailySelections(store.data_dir).read(sid, day)
+    from app.market_time import cn_now, cn_today
+    from app.services.strategy_monitor_tasks import task_receipt
+    strategy_engine._monitor_receipt_loader = lambda sid: task_receipt(store.data_dir, sid, cn_today())
+    repair_service = getattr(app.state, "monitor_input_repair", None)
+    if repair_service:
+        from types import SimpleNamespace
+        strategy_engine._monitor_repair = SimpleNamespace(monitor_repair=repair_service.request)
     logger.info("strategy engine loaded: %d strategies", len(strategy_engine.list_strategies()))
     if app.state.scheduler is not None:
         def _daily_stock_pools():
@@ -310,17 +319,30 @@ async def _application_lifespan(app: FastAPI):
         def _daily_selections():
             from app.services.daily_selections import generate_scheduled_local
             try:
-                status = generate_scheduled_local(strategy_engine, _screener_svc, store.data_dir)
+                status = generate_scheduled_local(strategy_engine, _screener_svc, store.data_dir,
+                    repair=getattr(strategy_engine, "_monitor_repair", None))
                 if status["errors"]:
                     logger.warning("postclose selection deferred: %d strategies", len(status["errors"]))
             except Exception:
                 logger.warning("postclose selection awaiting market inputs")
-        from app.services.selection_clock import SELECTION_HOUR
-        app.state.scheduler.add_job(_daily_selections, "cron", hour=SELECTION_HOUR, minute=0,
+        app.state.scheduler.add_job(_daily_selections, "cron", hour=20, minute=0,
                                     timezone="Asia/Shanghai", id="daily_selections_slot",
                                     max_instances=1, coalesce=True, misfire_grace_time=3600)
         app.state.scheduler.add_job(_daily_selections, "interval", seconds=60,
-                                    id="daily_selections", max_instances=1, coalesce=True)
+                                    id="daily_selections", max_instances=1, coalesce=True,
+                                    next_run_time=cn_now())
+        strategy_engine._scheduled_monitor_owner = True
+        def _strategy_monitor_phases():
+            from app.services.local_strategy_monitor import run
+            try:
+                changed = run(strategy_engine, _screener_svc, store.data_dir,
+                              repair=getattr(strategy_engine, "_monitor_repair", None))
+                if changed:
+                    app.state.quote_service.notify_strategy_results_updated()
+            except Exception:
+                logger.exception("strategy monitor phase execution failed")
+        app.state.scheduler.add_job(_strategy_monitor_phases, "interval", seconds=3,
+                                    id="strategy_monitor_phases", max_instances=1, coalesce=True)
 
     matrix_prewarm_owner = MatrixCachePrewarmOwner()
 
@@ -378,7 +400,6 @@ async def _application_lifespan(app: FastAPI):
     # 通用监控规则引擎: 启动时 reload 规则到内存态 (修复重启后告警失效)
     from app.strategy.monitor import MonitorRuleEngine
     from app.strategy import monitor_rules as mr_store
-    from app.services import preferences
     from app.services.sector_monitor import SectorMonitorService
     monitor_engine = MonitorRuleEngine()
     sector_monitor_service = SectorMonitorService(repo)
@@ -389,16 +410,8 @@ async def _application_lifespan(app: FastAPI):
     # 让声明 filter_history 的策略 (如反包) 也能在实时监控里跑选股 → 盘中触发通知。
     monitor_engine.set_history_loader(_screener_svc._load_enriched_history)
 
-    # 自动迁移: 把旧 strategy_monitor_ids 同步为 type=strategy 规则 (统一到监控页)
-    try:
-        if preferences.get_strategy_monitor_enabled():
-            ids = preferences.get_strategy_monitor_ids()
-            if ids:
-                names = {s["id"]: s["name"] for s in strategy_engine.list_strategies()}
-                mr_store.migrate_strategy_monitors(store.data_dir, ids, names)
-                logger.info("strategy monitor migrated: %d strategies", len(ids))
-    except Exception as e:  # noqa: BLE001
-        logger.warning("strategy monitor migration failed: %s", e)
+    from app.services.strategy_monitor_tasks import retire_legacy
+    retire_legacy(store.data_dir)
 
     try:
         rules = mr_store.load_all(store.data_dir)
@@ -458,6 +471,9 @@ async def _application_lifespan(app: FastAPI):
         if wbot:
             wbot.stop()
         mrs = getattr(app.state, "minute_refresh", None)
+        repair = getattr(app.state, "monitor_input_repair", None)
+        if repair:
+            repair.close()
         if mrs:
             mrs.stop()
         try:

@@ -12,7 +12,7 @@ const definitions = {
     ['volume', '分钟成交量'], ['amount', '分钟成交额'], ['suggested_sell_price', '建议卖出价'], ...live],
   select: [...common, ['selection_rank', '排序'], ['reference_date', '数值参考日'],
     ['reference_close', '参考价'], ['reference_change_pct', '参考日涨幅'],
-    ['reference_float_cap', '流通市值(亿)'], ['amount_mean_20d', '20日均额(亿)'],
+    ['reference_float_cap', '流通市值(亿)'],
     ['score', '选股评分'], ['atr14_previous_close', 'ATR14÷昨收'],
     ['atr_rank', 'ATR排名'], ['atr_rank_score', '排名分数'], ...live],
   buy: [...common, ['last_datetime', '触发时间'], ['close', '触发价'],
@@ -29,7 +29,7 @@ export const STRATEGY_RESULT_WIDTHS: Record<string, number> = {
   reference_turnover_rate: 112,
   live_change_pct: 88, live_turnover: 88, live_vol_ratio: 72, score: 80, selection_rank: 56,
   atr14_previous_close: 112, atr_rank: 80, atr_rank_score: 80,
-  reference_float_cap: 110, amount_mean_20d: 110, volume: 100, amount: 116,
+  reference_float_cap: 110, volume: 100, amount: 116,
   current_return: 104, current_range: 104,
   suggested_lots_100k: 148, suggested_sell_price: 148, live_signals: 280,
 }
@@ -62,7 +62,7 @@ export function resolveStrategyResultColumns(
     visible: true, pinned: false, align: 'right' as const,
   }), label: '参考日换手率' }
   const remaining = columns.filter(col => ![
-    'builtin:selection_rank', 'builtin:amount_mean_20d', 'builtin:score', turnover.id,
+    'builtin:selection_rank', 'builtin:score', turnover.id,
   ].includes(col.id))
   const reference = remaining.findIndex(col => col.id === 'builtin:reference_change_pct')
   remaining.splice(reference >= 0 ? reference + 1 : 2, 0, turnover)

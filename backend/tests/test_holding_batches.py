@@ -34,9 +34,9 @@ def create(request, key="request_1", **changes):
 
 def test_prioritized_selection_keeps_all_rows_and_matches_buy_head():
     rows = pl.DataFrame({"symbol": ["600003.SH", "600001.SH", "600002.SH"],
-                         "return_1430": [.02, .02, .03], "prev_d_amount20": [3e8, 5e8, 4e8]})
+                         "return_1430": [.02, .02, .03]})
     for limit, expected in ((2, ["600002.SH", "600001.SH", "600003.SH"]),
-                            (3, ["600001.SH", "600002.SH", "600003.SH"])):
+                            (3, ["600002.SH", "600001.SH", "600003.SH"])):
         ordered = momentum_selection.prioritized_selection(rows, {"position_limit": limit})
         assert ordered["symbol"].to_list() == expected
         assert momentum_selection.ranked_candidates(rows, {"position_limit": limit}).equals(ordered.head(limit))

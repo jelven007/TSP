@@ -49,7 +49,7 @@ def test_afternoon_cash_and_position_slots_cannot_fund_earlier_buy(limit):
         daily_history=pl.DataFrame({"symbol": ["600001.SH", "600002.SH"],
             "date": [date(2026, 8, 25)] * 2, "raw_close": [10.] * 2}))
     selected = pl.DataFrame({"symbol": ["600002.SH"], "close": [10.],
-                             "return_1430": [.01], "prev_d_amount20": [2e8]})
+                             "return_1430": [.01]})
     result = run_day(context, {**FULL, "position_limit": limit}, selected,
                      previous_state={"cash": 0., "positions": [position()]})
     assert result["error"] is None, result["error"]
@@ -99,7 +99,7 @@ def test_sale_before_buy_can_fund_replacement_without_t0_sale():
         daily_history=pl.DataFrame({"symbol": ["600001.SH", "600002.SH"],
             "date": [date(2026, 8, 25)] * 2, "raw_close": [10.] * 2}))
     selected = pl.DataFrame({"symbol": ["600002.SH"], "close": [10.],
-                             "return_1430": [.01], "prev_d_amount20": [2e8]})
+                             "return_1430": [.01]})
     result = run_day(context, {**FULL, "position_limit": 1}, selected,
                      previous_state={"cash": 0., "positions": [position()]})
     assert result["error"] is None

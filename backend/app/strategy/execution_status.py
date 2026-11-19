@@ -71,10 +71,14 @@ def merge_result(previous: dict | None, current: dict) -> dict:
     output = deepcopy(current)
     state = output.get("execution_status") or result_status(output)
     output["execution_status"] = state
+    from app.services.strategy_monitor_state import CONTRACT
+    if output.get("monitor_contract") == CONTRACT:
+        return output
     if state["state"] == "success":
         output["last_success_at"] = output.get("computed_at")
         return output
     if (previous and not previous.get("selection_only")
+            and (result_status(previous)["state"] == "success" or previous.get("showing_last_success"))
             and previous.get("as_of") == output.get("as_of")
             and previous.get("runtime_identity") == output.get("runtime_identity")
             and previous.get("last_success_at", previous.get("computed_at")) is not None):
@@ -111,7 +115,7 @@ def entry_events_before_deadline(events: list[dict], results: dict, now: datetim
 
 
 def expire_late_entries(result: dict, deadlines: dict, now: datetime) -> None:
-    """Fence all new entry outputs before any archive, alert or order is written."""
+    """Fence newly calculated entries before an archive, alert or order is written."""
     from app.market_time import as_cn_datetime
 
     observed = as_cn_datetime(now)
@@ -123,6 +127,8 @@ def expire_late_entries(result: dict, deadlines: dict, now: datetime) -> None:
         daily["entry_deadline_at"] = end
         if observed <= as_cn_datetime(datetime.fromisoformat(end)):
             continue
+        if (daily.get("monitor_tasks") or {}).get("buy", {}).get("executed") is False:
+            continue
         reason = "计算结果提交时已超过当日14:55:00新入场截止"
         daily.update(rows=[], total=0, execution_status=status("expired", reason))
         daily["section_statuses"] = {**(daily.get("section_statuses") or {}), "buy": "expired"}
@@ -131,5 +137,4 @@ def expire_late_entries(result: dict, deadlines: dict, now: datetime) -> None:
             daily["sections"]["buy"] = []
     for key in ("events", "execution_events"):
         result[key] = entry_events_before_deadline(
-            result.get(key, []), {**result["results"], **guards}, now,
-        )
+            result.get(key, []), {**result["results"], **guards}, now)

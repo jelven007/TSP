@@ -41,7 +41,7 @@ from app.strategy.risk_policy import price_exit
 from app.tickflow.repository import KlineRepository
 
 logger = logging.getLogger(__name__)
-EXECUTION_MODEL_VERSION = "entry_exit_capacity_window_v8"
+EXECUTION_MODEL_VERSION = "entry_exit_template_deadlines_v9"
 _A_SHARE_SYMBOL = re.compile(r"^\d{6}\.(?:SH|SZ)$")
 
 
@@ -345,6 +345,7 @@ class MatcherConfig:
     entry_risk: EntryRiskPolicy | dict | None = None
     # Internal minute-strategy sidecar. User-facing request serialization does not expose it.
     entry_window_starts: dict[tuple[str, str], datetime] | None = None
+    entry_window_ends: dict[tuple[str, str], datetime] | None = None
     entry_prior_closes: dict[tuple[str, str], float] | None = None
     entry_signal_times: dict[tuple[str, str], str] | None = None
     entry_capacity_window: bool = False
@@ -1537,6 +1538,7 @@ class BacktestEngine:
                     ),
                     symbol=symbol,
                     start_at=_entry_window_start(matrix, config, time_id, asset_id),
+                    end_at=(config.entry_window_ends or {}).get((symbol, entry_date)),
                     prior_close=prior_close,
                     budget=np.finfo(np.float64).max,
                     size_order=lambda _price, target=minimum: target,
@@ -2852,6 +2854,7 @@ class BacktestEngine:
                                         start_at=_entry_window_start(
                                             matrix, config, time_id, current_asset,
                                         ),
+                                        end_at=(config.entry_window_ends or {}).get((current_symbol, current_date)),
                                         prior_close=current_prior_close,
                                         budget=budget,
                                         size_order=lambda price: config.buy_quantity(

@@ -182,7 +182,7 @@ def minute_overlay_engine(tmp_path):
     return StrategyEngine([tmp_path])
 
 
-def minute_overlay_context(*, bars=20, missing_amount=False):
+def minute_overlay_context(*, bars=20, missing_turnover=False):
     from app.strategy.basic_filter import previous_session
 
     day = date(2026, 9, 4)
@@ -191,14 +191,14 @@ def minute_overlay_context(*, bars=20, missing_amount=False):
         before = previous_session(before)
         dates.append(before)
     daily = pl.DataFrame([
-        {"symbol": symbol, "date": at, "close": 10., "amount": amount}
-        for symbol, amount in [("600000.SH", 1e8), ("600036.SH", .9999e8)] for at in dates
+        {"symbol": symbol, "date": at, "close": 10., "amount": 1e8, "turnover_rate": turnover}
+        for symbol, turnover in [("600000.SH", 1.), ("600036.SH", .9999)] for at in dates
     ])
-    if missing_amount:
-        daily = daily.drop("amount")
+    if missing_turnover:
+        daily = daily.drop("turnover_rate")
     current = pl.DataFrame({
         "symbol": ["600000.SH", "600036.SH"], "date": [day, day], "close": [10., 10.],
-        "amount": [1e15, 1e15], "signal_sell": [False, False],
+        "amount": [1e15, 1e15], "turnover_rate": [99., 99.], "signal_sell": [False, False],
     })
     return StrategyDataContext(
         "stock", "1m", day, current=current, daily_history=daily,
@@ -207,13 +207,13 @@ def minute_overlay_context(*, bars=20, missing_amount=False):
     )
 
 
-AMOUNT_OVERLAY = [{"left": "amount_mean_20d", "op": ">=", "right": "1.0",
+TURNOVER_OVERLAY = [{"left": "turnover_mean_20d", "op": ">=", "right": "1.0",
                    "leftDays": 0, "rightDays": 0}]
 
 
 def test_minute_overlay_plans_completed_daily_warmup(minute_overlay_engine):
     required = minute_overlay_engine.minute_daily_history_bars(
-        ["minute"], overrides_map={"minute": {"overlay_filter": AMOUNT_OVERLAY}},
+        ["minute"], overrides_map={"minute": {"overlay_filter": TURNOVER_OVERLAY}},
     )
     assert required >= 21
 
@@ -221,37 +221,37 @@ def test_minute_overlay_plans_completed_daily_warmup(minute_overlay_engine):
 def test_generic_minute_overlay_config_is_accepted(minute_overlay_engine):
     from app.api.strategy import _validate_overlay_config
 
-    overrides = {"overlay_filter": AMOUNT_OVERLAY}
+    overrides = {"overlay_filter": TURNOVER_OVERLAY}
     _validate_overlay_config(overrides, minute_overlay_engine.get("minute"))
-    assert overrides["overlay_filter"] == AMOUNT_OVERLAY
+    assert overrides["overlay_filter"] == TURNOVER_OVERLAY
 
 
 @pytest.mark.parametrize("future_daily", [False, True])
-def test_minute_amount_overlay_uses_twenty_completed_days_and_preserves_pool(
+def test_minute_turnover_overlay_uses_completed_days_and_preserves_pool(
     minute_overlay_engine, future_daily,
 ):
     context = minute_overlay_context()
     if future_daily:
         context.daily_history = pl.concat([
-            context.daily_history, context.current.select("symbol", "date", "close", "amount"),
+            context.daily_history, context.current.select("symbol", "date", "close", "amount", "turnover_rate"),
         ])
-    result = minute_overlay_engine.run("minute", context, overrides={"overlay_filter": AMOUNT_OVERLAY})
+    result = minute_overlay_engine.run("minute", context, overrides={"overlay_filter": TURNOVER_OVERLAY})
     assert [row["symbol"] for row in result.rows] == ["600000.SH"]
     assert result.daily_stock_pool["total"] == 2
 
 
-def test_minute_amount_overlay_does_not_average_nineteen_days(minute_overlay_engine):
+def test_minute_turnover_overlay_does_not_average_nineteen_days(minute_overlay_engine):
     result = minute_overlay_engine.run(
-        "minute", minute_overlay_context(bars=19), overrides={"overlay_filter": AMOUNT_OVERLAY},
+        "minute", minute_overlay_context(bars=19), overrides={"overlay_filter": TURNOVER_OVERLAY},
     )
     assert not result.rows and not result.entry_signal_hits
 
 
 def test_minute_missing_daily_overlay_keeps_explicit_exit(minute_overlay_engine):
-    context = minute_overlay_context(missing_amount=True)
+    context = minute_overlay_context(missing_turnover=True)
     context.current = context.current.with_columns((pl.col("symbol") == "600000.SH").alias("signal_sell"))
-    result = minute_overlay_engine.run("minute", context, overrides={"overlay_filter": AMOUNT_OVERLAY})
-    assert not result.rows and "amount_mean_20d" in result.entry_filter_error
+    result = minute_overlay_engine.run("minute", context, overrides={"overlay_filter": TURNOVER_OVERLAY})
+    assert not result.rows and "turnover_mean_20d" in result.entry_filter_error
     assert [row["symbol"] for row in result.exit_signal_hits] == ["600000.SH"]
 
 
@@ -268,9 +268,9 @@ def test_specialized_minute_execution_still_rejects_daily_overlay(minute_overlay
     )
     with pytest.raises(ValueError, match="专用分钟"):
         minute_overlay_engine.run("minute", minute_overlay_context(),
-                                  overrides={"overlay_filter": AMOUNT_OVERLAY})
+                                   overrides={"overlay_filter": TURNOVER_OVERLAY})
     with pytest.raises(HTTPException, match="专用分钟"):
-        _validate_overlay_config({"overlay_filter": AMOUNT_OVERLAY}, minute_overlay_engine.get("minute"))
+        _validate_overlay_config({"overlay_filter": TURNOVER_OVERLAY}, minute_overlay_engine.get("minute"))
 
 
 def test_minute_change_scoring_uses_signal_close_and_exact_raw_previous_close(minute_overlay_engine):

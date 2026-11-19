@@ -27,13 +27,14 @@ ENTRY_TIMING_DEFAULTS = {"time": "14:45:00", "evaluation_delay_minutes": 1}
 
 
 def entry_clock(signal, day):
-    """Start, completed input cutoff, confirmation; missing clock is a frozen legacy signal."""
+    """Use the saved clock; six-field frozen signals retain zero delay."""
     from datetime import datetime, time, timedelta
 
     values = signal_parameters(signal)
     start = datetime.combine(day, time.fromisoformat(values.get("time", "14:45:00")))
-    return start, start.replace(second=0, microsecond=0), start + timedelta(
-        minutes=values.get("evaluation_delay_minutes", 0))
+    cutoff = start.replace(second=0, microsecond=0)
+    confirmation = start + timedelta(minutes=values.get("evaluation_delay_minutes", 0))
+    return start, cutoff, confirmation
 
 
 def optional_triggers(strategy) -> bool:
@@ -50,7 +51,7 @@ def stored_definitions(engine) -> list[dict]:
         return scoped
     storage = getattr(engine, "documents", None)
     if storage is None and engine is not None:
-        storage = engine._user_data_dir()
+        storage = getattr(engine, "_user_data_dir", lambda: None)()
     return custom_signals.load_all(storage) if storage is not None else []
 
 
@@ -290,77 +291,6 @@ def exit_clock_aliases(values):
             "sell_deadline": f"{deadline // 60:02}:{deadline % 60:02}"}
 
 
-
-def next_entry_evaluation_time(engine, strategy, overrides, context):
-    """Worker wakeup visits both saved S01 stages, without enabling a monitor."""
-    from app.market_time import CN_TZ
-
-    observed = context.observed_at or context.completed_through
-    if observed is None or not optional_triggers(strategy):
-        return None
-    if observed.tzinfo:
-        observed = observed.astimezone(CN_TZ).replace(tzinfo=None)
-    signals = trigger_definitions(engine, strategy, overrides)["entry"]
-    stages = [at for sig in signals if sig.get("template") == TEMPLATES["entry"]
-              and "time" in sig.get("params", {})
-              for at in entry_clock(sig, context.as_of)[::2] if at > observed]
-    return min(stages, default=None)
-
-
-def timed_entry(signal, history, context, params, *, candidates_only=False):
-    """Compute environment at start and stock thresholds only after confirmation."""
-    import polars as pl
-
-    from app.market_time import CN_TZ, cn_now, cn_today
-    from app.strategy.builtin._overnight import minute_frame, select_entries
-
-    start, cutoff, confirmation = entry_clock(signal, context.as_of)
-    now = context.observed_at or context.completed_through
-    if now is None:
-        now = cn_now() if context.as_of == cn_today() else confirmation
-    def normalize(t):
-        return t.astimezone(CN_TZ).replace(tzinfo=None) if t.tzinfo else t
-
-    now = normalize(now)
-    quality = {"start_at": start.isoformat(), "bar_cutoff": cutoff.isoformat(),
-               "confirmation_at": confirmation.isoformat(), "stage": "waiting_start"}
-    context.intraday_data_quality["csgi_" + signal["id"]] = quality
-    empty = pl.DataFrame(schema={"symbol": pl.String, "close": pl.Float64, "score": pl.Float64})
-    if now < start:
-        return empty
-    completed = normalize(context.completed_through) if context.completed_through else now
-    source = minute_frame(history).filter(
-        (pl.col("datetime").dt.date() == context.as_of)
-        & (pl.col("datetime") <= min(cutoff, now, completed))) if not history.is_empty() else history
-    values = {**params, **signal_parameters(signal), "_s01_entry_bar": cutoff.hour * 60 + cutoff.minute,
-              "_s01_external_basic": True}
-    if "market_min_valid" not in signal["params"]:
-        values.pop("market_min_valid", None)
-        values["_s01_market_count_policy"] = "ratio_only_v1"
-    else:
-        values.pop("_s01_market_count_policy", None)
-    if values.get("market_validity") == MARKET_VALIDITY:
-        from app.strategy.basic_filter import previous_session
-
-        values["_s01_previous_day"] = previous_session(context.as_of)
-    market = select_entries(source, {**values, "_s01_environment_only": True},
-                            daily=context.daily_history)
-    count = market.height
-    up = market.filter(pl.col("current_return") > 0).height if count else 0
-    passed = (count > 0 and count >= values.get("market_min_valid", 1)
-              and up / count >= values["market_positive_min"])
-    quality.update(market_valid_count=count, market_positive_count=up,
-                   market_positive_ratio=up / count if count else None, market_passed=passed,
-                   stage="waiting_confirmation" if now < confirmation else "confirmed")
-    if not count and not candidates_only:
-        context.intraday_errors.append(f"S01触发器{signal['id']}缺少有效市场分钟及准确前交易日收盘价")
-    if now < confirmation or (not candidates_only and not passed):
-        return empty
-    result = select_entries(source, {**values, "_s01_skip_entry": candidates_only},
-                            daily=context.daily_history)
-    return result.with_columns(pl.lit(confirmation).alias("entry_evaluated_at"))
-
-
 def daily_signal_frame(context, definitions):
     """Daily triggers use only the previous completed session, never today's final bar."""
     import polars as pl
@@ -389,6 +319,75 @@ def daily_signal_frame(context, definitions):
     from app.strategy.basic_filter import previous_session
 
     return source.filter(pl.col("date") == previous_session(context.as_of)).select("symbol", *names)
+
+
+def next_entry_evaluation_time(engine, strategy, overrides, context):
+    """Worker wakeup visits both saved S01 stages, without enabling a monitor."""
+    from app.market_time import CN_TZ
+
+    observed = context.observed_at or context.completed_through
+    if observed is None or not optional_triggers(strategy):
+        return None
+    if observed.tzinfo:
+        observed = observed.astimezone(CN_TZ).replace(tzinfo=None)
+    signals = trigger_definitions(engine, strategy, overrides)["entry"]
+    stages = [at for sig in signals if sig.get("template") == TEMPLATES["entry"]
+              and "time" in sig.get("params", {})
+              for at in entry_clock(sig, context.as_of)[::2] if at > observed]
+    return min(stages, default=None)
+
+
+def timed_entry(signal, history, context, params, *, candidates_only=False):
+    """Retain the saved S01 start-bar evidence and delayed confirmation."""
+    import polars as pl
+
+    from app.market_time import CN_TZ, cn_now, cn_today
+    from app.strategy.builtin._overnight import minute_frame, select_entries
+
+    start, cutoff, confirmation = entry_clock(signal, context.as_of)
+    now = context.observed_at or context.completed_through
+    if now is None:
+        now = cn_now() if context.as_of == cn_today() else confirmation
+    if now.tzinfo:
+        now = now.astimezone(CN_TZ).replace(tzinfo=None)
+    quality = {"start_at": start.isoformat(), "bar_cutoff": cutoff.isoformat(),
+               "confirmation_at": confirmation.isoformat(), "stage": "waiting_start"}
+    context.intraday_data_quality["csgi_" + signal["id"]] = quality
+    empty = pl.DataFrame(schema={"symbol": pl.String, "close": pl.Float64, "score": pl.Float64})
+    if now < start:
+        return empty
+    completed = context.completed_through or now
+    if completed.tzinfo:
+        completed = completed.astimezone(CN_TZ).replace(tzinfo=None)
+    source = minute_frame(history).filter(
+        (pl.col("datetime").dt.date() == context.as_of)
+        & (pl.col("datetime") <= min(cutoff, now, completed))) if not history.is_empty() else history
+    values = {**params, **signal_parameters(signal), "_s01_entry_bar": cutoff.hour * 60 + cutoff.minute,
+              "_s01_external_basic": True}
+    if "market_min_valid" not in signal["params"]:
+        values.pop("market_min_valid", None)
+        values["_s01_market_count_policy"] = "ratio_only_v1"
+    else:
+        values.pop("_s01_market_count_policy", None)
+    if values.get("market_validity") == MARKET_VALIDITY:
+        from app.strategy.basic_filter import previous_session
+
+        values["_s01_previous_day"] = previous_session(context.as_of)
+    market = select_entries(source, {**values, "_s01_environment_only": True}, daily=context.daily_history)
+    count = market.height
+    up = market.filter(pl.col("current_return") > 0).height if count else 0
+    passed = (count > 0 and count >= values.get("market_min_valid", 1)
+              and up / count >= values["market_positive_min"])
+    quality.update(market_valid_count=count, market_positive_count=up,
+                   market_positive_ratio=up / count if count else None, market_passed=passed,
+                   stage="waiting_confirmation" if now < confirmation else "confirmed")
+    if not count and not candidates_only:
+        context.intraday_errors.append(f"S01触发器{signal['id']}缺少有效市场分钟及准确前交易日收盘价")
+    if now < confirmation or (not candidates_only and not passed):
+        return empty
+    result = select_entries(source, {**values, "_s01_skip_entry": candidates_only},
+                            daily=context.daily_history)
+    return result.with_columns(pl.lit(confirmation).alias("entry_evaluated_at"))
 
 
 def entry_frame(engine, strategy, candidates, history, context, params, definitions):
@@ -436,13 +435,29 @@ def entry_frame(engine, strategy, candidates, history, context, params, definiti
             if column not in history.columns:
                 raise ValueError("S01触发器缺少信号数据: " + column)
             source = minute_frame(history).filter(
-                (pl.col("datetime").dt.date() == context.as_of) & (pl.col("bar") <= 885))
+                (pl.col("datetime").dt.date() == context.as_of)
+                & (pl.col("bar") <= (900 if sig.get("template") == "late_session_strength" else 885)))
             if "entry_evaluated_at" in source.columns:
+                from app.market_time import CN_TZ
+                from app.strategy.late_session_strength import evaluation_time
+
+                confirmed_through = context.observed_at or context.completed_through
+                if confirmed_through is None and sig.get("template") == "late_session_strength":
+                    confirmed_through = evaluation_time(sig, context.as_of)
+                confirmed_through = confirmed_through or datetime.combine(context.as_of, time(14, 45))
+                if confirmed_through.tzinfo:
+                    confirmed_through = confirmed_through.astimezone(CN_TZ).replace(tzinfo=None)
+                # Confirmation may follow the completed 14:45 input bar.
                 source = source.filter(pl.col("entry_evaluated_at").is_null()
-                                       | (pl.col("entry_evaluated_at") <= datetime.combine(
-                                           context.as_of, time(14, 45))))
+                                       | (pl.col("entry_evaluated_at") <= confirmed_through))
             hits = source.filter(pl.col(column).fill_null(False))["symbol"].unique().to_list()
             output = output.with_columns(pl.col("symbol").is_in(hits).alias(column))
+            if sig.get("template") == "late_session_strength" and "entry_evaluated_at" in source.columns:
+                timing = source.filter(pl.col(column).fill_null(False)).sort("datetime").unique(
+                    "symbol", keep="first", maintain_order=True).select(
+                        "symbol", pl.col("datetime").alias("last_datetime"), "entry_evaluated_at")
+                timed_frames.append(output.drop("last_datetime", "entry_evaluated_at", strict=False).join(
+                    timing, on="symbol", how="inner"))
     output = output.filter(pl.any_horizontal(
         pl.col(s["column"]).fill_null(False) for s in definitions))
     if timed_frames:
@@ -597,7 +612,9 @@ def optional_exit_hits(engine, strategy, context, params, definitions, *, overri
                 ctx, {**native_params, **signal_parameters(sig)}))
         elif sig.get("template") == "morning_liquidation":
             from app.strategy.late_session_strength import previous_closes
-            from app.strategy.morning_liquidation import evaluate
+            from app.strategy.morning_liquidation import evaluate, parameters
+            exit_values = parameters(sig)
+            end_clock = exit_values.get("fallback_time")
             evaluated = evaluate(
                 ctx.history, sig, day=ctx.as_of, now=now, positions=None if roster_mode else positions,
                 roster=positions if roster_mode else None,
@@ -607,8 +624,13 @@ def optional_exit_hits(engine, strategy, context, params, definitions, *, overri
             for hit in evaluated.hits:
                 stamp = datetime.fromisoformat(hit["trigger_time"])
                 bar = stamp.hour * 60 + stamp.minute
+                last_bar = 900
+                if end_clock is not None and hit["reason"] != "resume":
+                    end = datetime.fromisoformat(f"{ctx.as_of}T{end_clock}")
+                    last_bar = end.hour * 60 + end.minute - int(end.second == 0)
                 hits.append({**hit, "signals": [column], "signal_bar": bar,
-                             "first_eligible_bar": bar + 1, "last_eligible_bar": 900})
+                             "first_eligible_bar": bar + 1, "last_eligible_bar": last_bar,
+                             "template_deadline": "amplitude_pct" not in exit_values})
         else:
             if sig.get("timeframe") == "intraday":
                 if frame.is_empty():

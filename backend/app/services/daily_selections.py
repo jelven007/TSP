@@ -20,7 +20,8 @@ _scheduled_lock = threading.Lock()
 def signal_strategy(strategy):
     from app.strategy.signal_sections import supports_signal_sections
 
-    return supports_signal_sections(strategy)
+    return (getattr(strategy, "source", None) in ("custom", "ai")
+            or supports_signal_sections(strategy))
 
 
 def due_window(now=None, *, monitored_only=False):
@@ -31,7 +32,7 @@ def due_window(now=None, *, monitored_only=False):
         from app.strategy.overnight_runtime import next_market_day
 
         if (published_trading_day(now.date()) is not True
-                or not clock_time(20) <= now.time().replace(tzinfo=None) <= clock_time(22)):
+                or not SELECTION_TIME <= now.time().replace(tzinfo=None) <= clock_time(22)):
             return None
         return now.date(), next_market_day(now.date())
     days = sorted(day for year in (now.year - 1, now.year, now.year + 1)
@@ -52,19 +53,36 @@ def selection_identity(strategy_id):
     return ResultIdentity(strategy_id, "", "", "{}", "{}", "null", "stock", "1m", daily_record=True)
 
 
+def valid_selection(snapshot, day):
+    """A normal empty result is complete; missing or failed evidence is not."""
+    from app.strategy.basic_filter import previous_session
+    if (not isinstance(snapshot, dict) or snapshot.get("as_of") != str(day)
+            or not isinstance(snapshot.get("rows"), list) or snapshot.get("errors")):
+        return False
+    if snapshot.get("source_date") != str(previous_session(date.fromisoformat(str(day)))):
+        return False
+    coverage = snapshot.get("coverage") or {}
+    if not isinstance(coverage, dict):
+        return False
+    return not (coverage.get("scope_total") and coverage.get("available_daily") == 0)
+
+
 class DailySelections:
     def __init__(self, storage):
         self.results = StrategyResults(storage)
 
     def read(self, strategy_id, day):
         saved = self.results.detail(strategy_id, selection_identity(strategy_id).record_id(str(day)))
-        return (saved or {}).get("result", {}).get("selection_snapshot")
+        snapshot = (saved or {}).get("result", {}).get("selection_snapshot")
+        return snapshot if valid_selection(snapshot, day) else None
 
     def save(self, identity, snapshot, *, started_at, input_generation=None):
         from app.strategy.basic_filter import previous_session
         target = date.fromisoformat(str(snapshot["as_of"]))
         if str(previous_session(target)) != str(snapshot["source_date"]):
             raise ValueError("预选源日期必须是目标日的精确前交易日")
+        if not valid_selection(snapshot, target):
+            raise ValueError("盘后预选证据异常, 需要修复重试")
         frozen = {**snapshot, "identity": identity.fingerprint,
                   "definition_version": DEFINITION_VERSION}
         reference = frozen.pop("price_suggestion_reference", None)
@@ -72,7 +90,6 @@ class DailySelections:
             "as_of": str(target), "strategy_id": identity.strategy_id,
             "rows": [], "total": 0, "elapsed_ms": 0, "section_mode": "signals",
             "selection_only": True, "selection_snapshot": frozen,
-            "warnings": snapshot.get("warnings", []),
             "price_suggestion_reference": reference,
             "sections": {"sell": [], "select": snapshot["rows"], "buy": []},
             "section_errors": {"buy": "仅已生成盘后选名单, 目标交易日买入信号尚未计算"},
@@ -103,15 +120,18 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
     from app.strategy.signal_price_suggestions import price_reference
     from app.strategy.signal_sections import select_rows
     context = service.build_selection_context(engine, source, target, ids, overrides_map=overrides)
-    reference = price_reference(context)
+    reference = (price_reference(context) if any(
+        not engine.get(sid).meta.get("minute_execution") for sid in ids) else None)
     from app.instrument_suspension import pool_evidence
     from app.strategy.daily_pool import build_pool
+
     instruments = service.repo.get_instruments_asset(service.asset_type)
     scope_context = None
     if instruments is not None and not instruments.is_empty():
         import polars as pl
 
         from app.price_limits import parse_listing_date
+
         if "listing_date" in instruments.columns:
             instruments = instruments.filter(pl.Series([
                 (listed := parse_listing_date(value)) is None or listed <= source
@@ -145,6 +165,8 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
                             "scope_total": len(scope["symbols"]),
                             "available_daily": len(scope_symbols - unavailable),
                             "missing_symbols": sorted(missing), "complete": not (missing or invalid)}
+                if scope_symbols and not coverage["available_daily"]:
+                    raise ValueError(f"{source}该策略范围内无有效日线")
                 if invalid:
                     coverage["invalid_symbols"] = invalid
                     if not coverage["available_daily"]:
@@ -155,18 +177,19 @@ def compute_selections(engine, service, source, target, ids, overrides, *, now=N
             if invalid:
                 warnings.append(f"{source}隔离{len(invalid)}只收盘参考异常股票, 其余有效股票继续预选")
                 warnings.extend(invalid[symbol] for symbol in sorted(invalid))
-            rows = _sanitize(select_rows(engine, engine.get(sid), context, overrides=effective))
+            rows = _sanitize(select_rows(engine, engine.get(sid), context, overrides=effective, scope_only=True))
             results[sid] = {"as_of": str(target), "source_date": str(source), "rows": rows,
                             "coverage": coverage, "warnings": warnings,
-                            "price_suggestion_reference": reference,
                             "generated_at": as_cn_datetime(now or cn_now()).isoformat(),
                             "scheduled_for": scheduled_for(source, SELECTION_TIME_TEXT)}
+            if not engine.get(sid).meta.get("minute_execution"):
+                results[sid]["price_suggestion_reference"] = reference
         except (ValueError, OSError) as exc:
             errors[sid] = str(exc)
     return {"selections": results, "errors": errors}
 
 
-def generate_scheduled_local(engine, service, storage, *, now=None):
+def generate_scheduled_local(engine, service, storage, *, now=None, repair=None):
     from app.services.strategy_results import capture_identities, execution_snapshot
     from app.strategy.config import list_overrides
     from app.strategy.version import digest
@@ -175,7 +198,13 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
 
     attempt_start = time.monotonic()
     from app.market_time import published_trading_day
-    from app.services.strategy_monitor_tasks import selection_receipts
+    from app.services.strategy_monitor_state import finished
+    from app.services.strategy_monitor_tasks import (
+        pending_selection_repairs,
+        selection_receipts,
+        selection_repairs,
+        task_receipt,
+    )
     expired = now.time().replace(tzinfo=None) > clock_time(22) and published_trading_day(now.date()) is True
     window = due_window(now.replace(hour=20, minute=0, second=0) if expired else now, monitored_only=True)
     if window is None or not _scheduled_lock.acquire(blocking=False):
@@ -190,7 +219,10 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
         lifecycles = {sid: monitoring_state(storage, sid) for sid in active}
         ids = [sid for sid, strategy in engine._strategies.items() if sid in active and signal_strategy(strategy)
                and not strategy.meta.get("research_only")]
-        pending = [sid for sid in ids if store.read(sid, target) is None]
+        # Only the saved result proves completion during the execution window.
+        pending = [sid for sid in ids if store.read(sid, target) is None and
+                   (not expired or not finished(
+                       task_receipt(storage, sid, source).get("tasks", {}).get("select", {})))]
         if expired and pending:
             job = {"source_date": str(source), "as_of": str(target), "state": "expired",
                    "errors": {sid: "盘后选股时段已结束, 尚无成功归档" for sid in pending}}
@@ -199,28 +231,42 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
             return {"saved": [], "errors": job["errors"]}
         if not pending:
             return {"saved": [], "errors": {}}
-        identities = capture_identities(engine, storage, pending, overrides_map=overrides, timeframe="1m")
+        identities = capture_identities(engine, storage, pending, overrides_map=overrides, timeframe="all")
         marker = digest({sid: identity.fingerprint for sid, identity in identities.items()})
         job_key = str(target)
         old = store.job(job_key)
+        repairs = {sid: value for sid, value in (old.get("repairs") or {}).items() if sid in pending}
+        blocked = pending_selection_repairs(repair, repairs) if repair else set()
+        all_pending = set(pending)
+        pending = [sid for sid in pending if sid not in blocked]
+        if not pending:
+            store.job(job_key, {**old, "repairs": repairs})
+            return {"saved": [], "errors": old.get("errors", {})}
+        blocked_errors = {sid: old.get("errors", {}).get(sid, "等待输入修复完成") for sid in blocked}
         started_at = time.time_ns()
         job = {**old, "source_date": str(source), "as_of": str(target), "signature": marker,
                "state": "running", "started_at": started_at, "attempts": old.get("attempts", 0) + 1}
         store.job(job_key, job)
+        def repair_errors(errors):
+            return {**repairs, **selection_repairs(
+                repair, service.repo, "standalone", {sid: lifecycles[sid]["generation"] for sid in pending},
+                job, errors, engine=engine, storage=storage, overrides=overrides)} if repair else repairs
         try:
             ready = json.loads((service.repo.store.data_dir / "settlement_ready.json").read_text())
             if ready.get("day") != str(source):
                 raise ValueError(f"等待{source}盘后完整数据")
             response = compute_selections(engine, service, source, target, pending, overrides, now=now)
         except (OSError, ValueError) as exc:
-            failed = {**job, "state": "waiting_data", "errors": {
-                sid: f"等待{source}盘后完整数据" for sid in pending}, "finished_at": time.time_ns()}
+            errors = {sid: str(exc) for sid in pending}
+            failed = {**job, "state": "waiting_data", "errors": {**blocked_errors, **errors},
+                      "repairs": repair_errors(errors), "finished_at": time.time_ns()}
             store.job(job_key, failed)
             selection_receipts(storage, failed, now)
             return {"saved": [], "errors": {sid: str(exc) for sid in pending}}
-        except Exception:
-            errors = {sid: "盘后预选计算暂不可用, 将自动重试" for sid in pending}
-            failed = {**job, "state": "failed", "errors": errors, "finished_at": time.time_ns()}
+        except Exception as exc:
+            errors = {sid: f"盘后预选计算失败: {exc}" for sid in pending}
+            failed = {**job, "state": "failed", "errors": {**blocked_errors, **errors},
+                      "repairs": repair_errors(errors), "finished_at": time.time_ns()}
             store.job(job_key, failed)
             selection_receipts(storage, failed, now)
             return {"saved": [], "errors": errors}
@@ -229,7 +275,7 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
             try:
                 # Do not archive results computed against a changed user configuration.
                 latest = capture_identities(execution_snapshot(live_engine, storage), storage, [sid],
-                    overrides_map=list_overrides(storage), timeframe="1m")[sid]
+                    overrides_map=list_overrides(storage), timeframe="all")[sid]
                 if (latest.fingerprint != identities[sid].fingerprint
                         or sid not in monitored_ids(storage)
                         or monitoring_state(storage, sid) != lifecycles[sid]
@@ -241,8 +287,9 @@ def generate_scheduled_local(engine, service, storage, *, now=None):
             except (AccessError, KeyError, ValueError, RuntimeError) as exc:
                 errors[sid] = str(exc)
         completed = {**job, "state": "failed" if errors else "succeeded",
-                           "completed": sorted(set(ids) - set(pending) | set(saved)),
-                           "errors": errors, "finished_at": time.time_ns()}
+                           "completed": sorted(set(ids) - all_pending | set(saved)),
+                           "errors": {**blocked_errors, **errors}, "repairs": repair_errors(errors),
+                           "selections": response["selections"], "finished_at": time.time_ns()}
         store.job(job_key, completed)
         selection_receipts(storage, completed, now)
         return {"saved": saved, "errors": errors}

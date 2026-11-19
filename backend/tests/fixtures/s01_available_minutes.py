@@ -1,4 +1,4 @@
-"""自定义 S01, 内置低振幅隔夜规则的独立参数版本。"""
+"""自定义 S01，内置低振幅隔夜规则的独立参数版本。"""  # noqa: RUF002
 from datetime import datetime
 
 import numpy as np
@@ -8,7 +8,7 @@ from app.strategy.market_data import get_intraday_range_amount_score
 
 META = {'id': 'custom_mvxxcs01',
  'name': 's01',
- 'description': '参考内置S01: 使用截至14:45已完成的可用分钟累计值进行低振幅筛选, 不要求固定225根; 入场及出场按可选触发器执行, 默认次交易日完整早盘后退出, 11:26时间兜底。2026-03-30至2026-11-06样本内优化, 未获独立样本认证。',
+ 'description': '参考内置S01：使用截至14:45已完成的可用分钟累计值进行低振幅筛选，不要求固定225根；入场及出场按可选触发器执行，默认次交易日完整早盘后退出，11:26时间兜底。2026-03-30至2026-11-06样本内优化，未获独立样本认证。',  # noqa: RUF001
  'asset_types': ['stock'],
  'timeframes': ['1m'],
  'tags': ['隔夜', '低振幅', '分钟'],
@@ -114,7 +114,7 @@ def select_entries(frame, values, daily=None):
     day = frame["datetime"].max().date()
     frame = frame.filter((pl.col("datetime").dt.date() == day) & (
         pl.col("bar").is_between(571, 690) | pl.col("bar").is_between(781, 885)))
-    # 可用完成分钟累计; 重复时标保留最后一条, 不补造缺失分钟。
+    # 可用完成分钟累计;重复时标保留最后一条,不补造缺失分钟。
     good = frame.group_by("symbol").agg(
         count=pl.len(),
         valid=pl.all_horizontal([
@@ -152,7 +152,7 @@ def select_entries(frame, values, daily=None):
         market.filter(pl.col("current_return") > 0).height / market.height < params["market_positive_min"]
     )):
         return empty
-    # 前日数值条件由引擎 BASIC_FILTER 统一执行; 先用完整市场计算广度。
+    # 前日数值条件由引擎 BASIC_FILTER 统一执行;先用完整市场计算广度。
     condition = pl.lit(True)
     if not params.get("_s01_skip_entry"):
         condition &= (
@@ -178,7 +178,7 @@ def filter_minute_history(df, params, *, daily=None):
 
 
 def enrich_selection(rows, params, *, daily, as_of):
-    """盘后选股按保存源码的原始振幅/成交额分排序, 缺项保留未知。"""
+    """盘后选股按保存源码的原始振幅/成交额分排序,缺项保留未知。"""
     from app.strategy.market_data import previous_session
     reference = previous_session(previous_session(as_of))
     if "prev_close" not in rows.columns:

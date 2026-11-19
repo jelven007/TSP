@@ -28,7 +28,7 @@ const signals: CustomSignal[] = [
   { id: 'late_s01', name: '尾盘建仓_s01', kind: 'entry', enabled: true, conditions: [],
     timeframe: 'intraday', template: 's01_late_entry',
     params: { current_amount_min: 1e8, current_return_min: .02, current_return_max: .03,
-      current_range_max: .0525, market_positive_min: .65 } },
+      current_range_max: .0525, market_min_valid: 1000, market_positive_min: .65 } },
 ]
 afterEach(async () => {
   await act(async () => root?.unmount())
@@ -65,7 +65,7 @@ const checkbox = (name: string) => document.querySelector<HTMLInputElement>(`inp
 it('selects existing entry and common signals without losing builtins and keeps changes staged', async () => {
   await render('entry')
   await click('选择已有入场信号')
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('信号页')
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('信号指标')
   expect(checkbox('已有买点')).toBeTruthy()
   expect(checkbox('通用条件')).toBeTruthy()
   expect(checkbox('已有卖点')).toBeNull()

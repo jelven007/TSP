@@ -17,6 +17,7 @@ from typing import Any
 
 import polars as pl
 
+from app.market_time import as_cn_datetime, cn_now
 from app.services.fs_utils import atomic_write_parquet, atomic_write_text
 from app.tickflow.capabilities import Cap, CapabilitySet
 
@@ -469,8 +470,8 @@ class FinancialScheduler:
 
         auto_schedule=False: 仅初始化 (设置数据目录/能力 + 恢复 last_sync),
             供 /api/financials/sync/* 手动同步使用, 不启动自动调度。
-        auto_schedule=True (默认): 启动每日五表自动同步
-            (启动后 60s 首跑), 执行前检查自动同步总开关。
+        auto_schedule=True (默认): 北京时间每日21:00同步五表,
+            当日执行标记持久保存, 执行前检查自动同步总开关。
         """
         # 先记录 data_dir/capset, 即使当前无 FINANCIAL 也保留引用:
         # 用户稍后在「设置」页升级到 Expert Key 时, update_capabilities() 会把新 capset
@@ -551,31 +552,59 @@ class FinancialScheduler:
         logger.info("FinancialScheduler stopped")
 
     async def _run_loop(self) -> None:
-        """每日执行五表同步, 沿用历史合并和统一发布链路。"""
+        """北京时间21:00执行五表同步, 沿用互斥和统一发布链路。"""
         try:
             while self._running:
-                # 首次启动等 60s, 之后每日执行一次
-                await asyncio.sleep(60)
+                stamp = cn_now()
+                until_due = (stamp.replace(hour=21, minute=0, second=0, microsecond=0) - stamp).total_seconds()
+                await asyncio.sleep(min(60, until_due) if until_due > 0 else 60)
                 if not self._running:
                     break
-
-                # 复用手动同步的互斥、同步时间及数据发布路径, 不阻塞事件循环。
                 try:
-                    from app.services import preferences
-                    if preferences.get_data_sync_auto_enabled():
-                        result = await asyncio.to_thread(self.run_now)
-                        logger.info("FinancialScheduler: all tables sync result: %s", result)
+                    await asyncio.to_thread(self._run_scheduled, cn_now())
                 except Exception as e:
                     logger.warning("FinancialScheduler: all tables sync failed: %s", e)
-
-                # 等待下一次 (每天)
-                for _ in range(24 * 60):  # 每分钟检查一次 _running
-                    if not self._running:
-                        break
-                    await asyncio.sleep(60)
-
         except asyncio.CancelledError:
             pass
+
+    def _load_schedule(self) -> dict:
+        path = self._data_dir / "user_data" / "financial_daily_schedule.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def _save_schedule(self, state: dict) -> None:
+        path = self._data_dir / "user_data" / "financial_daily_schedule.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(path, json.dumps(state, ensure_ascii=False, indent=2))
+
+    def _run_scheduled(self, stamp: datetime) -> None:
+        from app.services import preferences
+
+        stamp = as_cn_datetime(stamp)
+        if (stamp.hour < 21 or self._data_dir is None
+                or not preferences.get_data_sync_auto_enabled()
+                or self.is_syncing
+                or not self._capset
+                or (not self._capset.has(Cap.FINANCIAL) and not _financial_is_custom())):
+            return
+        day = stamp.date().isoformat()
+        previous = self._load_schedule()
+        if previous.get("attempt_date", "") >= day:
+            return
+        state = {"attempt_date": day, "scheduled_time": "21:00",
+                 "started_at": stamp.isoformat(), "status": "running"}
+        self._save_schedule(state)
+        try:
+            result = self.run_now()
+            if not result or "_skipped" in result:
+                self._save_schedule(previous)
+                return
+            state["status"] = "success"
+            self._save_schedule(state)
+            logger.info("FinancialScheduler: daily 21:00 all tables sync result: %s", result)
+        except Exception as exc:
+            state.update(status="failed", error_type=type(exc).__name__)
+            self._save_schedule(state)
+            raise
 
     def _run_body(self, table: str | None) -> dict[str, int]:
         """同步逻辑本体(不加锁,假设调用方已持有 _is_syncing)。

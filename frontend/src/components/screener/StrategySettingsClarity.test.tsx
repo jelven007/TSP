@@ -75,7 +75,7 @@ it('displays percentages once and saves every effective exit control unchanged',
 })
 
 it('shows completed daily entry overlays for a generic minute strategy and preserves its ranking', async () => {
-  const overlay = [{ left: 'amount_mean_20d', op: '>=', right: '1.0', leftDays: 0, rightDays: 0 }]
+  const overlay = [{ left: 'turnover_mean_20d', op: '>=', right: '1.0', leftDays: 0, rightDays: 0 }]
   get.mockResolvedValue({
     ...detail, source: 'custom', execution_backend: 'minute_filter', timeframes: ['1m'],
     overlay_filter: overlay, scoring: { change_pct: 1 }, scoring_directions: { change_pct: 'high' },
@@ -87,6 +87,31 @@ it('shows completed daily entry overlays for a generic minute strategy and prese
   await click('保存设置')
   expect(save).toHaveBeenCalledWith('a', expect.objectContaining({
     overlay_filter: overlay, scoring: { change_pct: 1 }, scoring_directions: { change_pct: 'high' },
+  }))
+})
+
+it('uses the common template for optional S01 and round trips its saved controls', async () => {
+  const overlay = [{ left: 'close', op: '>=', right: '9', leftDays: 0, rightDays: 0 }]
+  get.mockResolvedValue({
+    ...detail, id: 'custom_mvxxcs01', source: 'custom', execution_backend: 'minute_filter',
+    minute_execution: 'overnight_capacity_v1', optional_triggers: true,
+    params: [], params_defaults: { initial_cash: 1000000, position_limit: 4 },
+    overlay_filter: overlay, scoring: { turnover_mean_20d: 1 },
+    scoring_directions: { turnover_mean_20d: 'low' },
+  })
+  save.mockResolvedValue({ ok: true })
+  await render('custom_mvxxcs01')
+  for (const title of ['数值过滤', '入场叠加条件', '评分权重', '交易参数', '入场触发器', '出场触发器']) {
+    expect(document.body.textContent).toContain(title)
+  }
+  expect(document.querySelector('[data-testid="overlay-editor"]')).not.toBeNull()
+  expect(input('固定止损').value).toBe('6')
+  expect(document.body.textContent).not.toContain('含初始资金')
+  await click('保存设置')
+  expect(save).toHaveBeenCalledWith('custom_mvxxcs01', expect.objectContaining({
+    overlay_filter: overlay, scoring: { turnover_mean_20d: 1 },
+    scoring_directions: { turnover_mean_20d: 'low' }, stop_loss: -.06,
+    params: { initial_cash: 1000000, position_limit: 4 },
   }))
 })
 

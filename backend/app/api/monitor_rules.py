@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.multitenancy.documents import private_storage
+from app.multitenancy.documents import TenantDocuments, private_storage
 from app.strategy import monitor_rules
 from app.strategy.intraday_signals import INTRADAY_SIGNAL_LABELS, uses_intraday_signals
 
@@ -301,13 +301,29 @@ def set_strategy_monitoring(strategy_id: str, req: StrategyMonitoringModel, requ
         raise HTTPException(503, "策略引擎未初始化")
     try:
         strategy = engine.get(strategy_id)
-        if strategy.source not in ("custom", "ai"):
-            raise ValueError("此开关仅用于自定义策略")
         state = set_monitoring(_data_dir(request), strategy_id,
                                strategy.meta.get("name", strategy_id), req.enabled)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     _sync_engine(request)
+    storage = _data_dir(request)
+    if req.enabled and not isinstance(storage, TenantDocuments):
+        from app.market_time import cn_now
+        scheduler = getattr(request.app.state, "scheduler", None)
+        if scheduler and scheduler.get_job("daily_selections"):
+            scheduler.modify_job("daily_selections", next_run_time=cn_now())
+    if not req.enabled:
+        quotes = getattr(request.app.state, "quote_service", None)
+        market = getattr(quotes, "market", None)
+        if isinstance(storage, TenantDocuments) and callable(getattr(market, "cancel_monitor_repair", None)):
+            try:
+                market.cancel_monitor_repair(storage.context.tenant_id, strategy_id, state["generation"])
+            except Exception as exc:
+                state = {**state, "repair_cancel_pending": True, "repair_cancel_error": str(exc)}
+                storage.put("strategy_monitoring", strategy_id, state)
+        local_repair = getattr(request.app.state, "monitor_input_repair", None)
+        if local_repair and not isinstance(storage, TenantDocuments):
+            local_repair.cancel("standalone", strategy_id, state["generation"])
     return state
 
 

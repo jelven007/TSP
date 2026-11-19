@@ -448,9 +448,8 @@ class StrategyResults:
         if result.get("section_mode") != "signals":
             return result
         from app.services.strategy_day_views import _get, _key
-        roster = (_get(self, conn, "strategy_sell_rosters",
-                       _key(identity.strategy_id, as_of, identity.asset_type, identity.timeframe))
-                  if identity.asset_type == "stock" and identity.timeframe == "1m" else None)
+        roster = _get(self, conn, "strategy_sell_rosters",
+                      _key(identity.strategy_id, as_of, identity.asset_type, identity.timeframe))
         if roster is not None:
             current = copy.deepcopy(result)
             current["sections"]["sell"] = copy.deepcopy(roster["rows"])
@@ -575,8 +574,10 @@ class StrategyResults:
             return comparable
 
         def merged(old, conn):
-            if old and result.get("selection_only") and old["result"].get("selection_snapshot"):
-                return old, "unchanged"
+            if old and result.get("selection_only"):
+                from app.services.daily_selections import valid_selection
+                if valid_selection(old["result"].get("selection_snapshot"), as_of):
+                    return old, "unchanged"
             if old and old["summary"]["started_at"] > started_at:
                 return old, "unchanged"
             from app.services.late_session_receipts import preserve_first_receipts
@@ -587,13 +588,16 @@ class StrategyResults:
 
             independent_sell = (result.get("monitor_tasks") or {}).get("sell", {}).get("state") in (
                 "success", "failed")
+            from app.services.strategy_monitor_state import CONTRACT
+            canonical_monitor = result.get("monitor_contract") == CONTRACT
             if old and result_status(old["result"])["state"] == "success" \
-                    and result_status(result)["state"] != "success" and not independent_sell:
+                    and result_status(result)["state"] != "success" and not independent_sell \
+                    and not canonical_monitor and not result.get("selection_only"):
                 shown = merge_result(old["result"], result)
                 preserve_first_receipts(shown, prior_result)
                 return {**copy.deepcopy(old), "result": shown}, "unchanged"
             payload = copy.deepcopy(result)
-            if independent_sell and prior_result and (prior_result.get("section_statuses") or {}).get("buy") == "success":
+            if not canonical_monitor and independent_sell and prior_result and (prior_result.get("section_statuses") or {}).get("buy") == "success":
                 payload["rows"] = copy.deepcopy(prior_result.get("rows") or [])
                 payload["total"] = prior_result.get("total", 0)
                 payload["sections"]["buy"] = copy.deepcopy(prior_result["sections"]["buy"])
@@ -679,7 +683,7 @@ class StrategyResults:
                            value=excluded.value,revision=business.documents.revision+1,updated_at=now()""",
                         (self.storage.context.tenant_id, NAMESPACE, record_id, Jsonb(value)),
                     )
-                if (identity.asset_type == "stock" and identity.timeframe == "1m"
+                if (identity.asset_type == "stock" and identity.timeframe in ("1d", "1m")
                         and value["result"].get("section_mode") == "signals"):
                     from app.services.strategy_day_views import publish
                     from app.services.strategy_monitor_tasks import forward_buy
@@ -709,7 +713,7 @@ class StrategyResults:
                            revision=strategy_results.revision+1""",
                         (record_id, _encode(value["summary"]), _encode(value)),
                     )
-                if (identity.asset_type == "stock" and identity.timeframe == "1m"
+                if (identity.asset_type == "stock" and identity.timeframe in ("1d", "1m")
                         and value["result"].get("section_mode") == "signals"):
                     from app.services.strategy_day_views import publish
                     from app.services.strategy_monitor_tasks import forward_buy
@@ -726,11 +730,13 @@ class StrategyResults:
 
     def read(self, identity: ResultIdentity, as_of: str, *, record_id=None) -> dict | None:
         saved = self.detail(identity.strategy_id, record_id or identity.record_id(as_of))
-        if saved is None and identity.timeframe == "1m":
+        if saved is None and identity.timeframe in ("1d", "1m"):
             fallback = self.detail(identity.strategy_id, replace(identity, daily_record=True).record_id(as_of))
-            if (fallback or {}).get("result", {}).get("selection_only"):
+            if ((fallback or {}).get("result", {}).get("selection_only")
+                    and fallback["summary"].get("timeframe") == identity.timeframe
+                    and fallback["summary"].get("asset_type") == identity.asset_type):
                 saved = fallback
-        if (saved and identity.timeframe == "1m"
+        if (saved and identity.timeframe in ("1d", "1m")
                 and saved["result"].get("section_mode") == "signals"
                 and not saved["result"].get("selection_snapshot")):
             frozen = self.detail(identity.strategy_id, replace(identity, daily_record=True).record_id(as_of))
@@ -807,7 +813,8 @@ class StrategyResults:
                 ).rowcount > 0
                 if deleted:
                     from app.services.strategy_day_views import publish
-                    publish(self, conn, strategy_id, record_id[17:27])
+                    for timeframe in ("1d", "1m"):
+                        publish(self, conn, strategy_id, record_id[17:27], timeframe=timeframe)
         else:
             if not self.path.exists():
                 return False
@@ -819,7 +826,8 @@ class StrategyResults:
                 ).rowcount > 0
                 if deleted:
                     from app.services.strategy_day_views import publish
-                    publish(self, conn, strategy_id, record_id[17:27])
+                    for timeframe in ("1d", "1m"):
+                        publish(self, conn, strategy_id, record_id[17:27], timeframe=timeframe)
         if deleted and self.cacheable:
             global _memory_size
             with _memory_lock:
@@ -854,7 +862,7 @@ class StrategyResults:
         ids = list(dict.fromkeys(
             [identity.record_id(as_of) for identity in identities]
             + [replace(identity, daily_record=True).record_id(as_of)
-               for identity in identities if identity.timeframe == "1m"]))
+               for identity in identities if identity.timeframe in ("1d", "1m")]))
         if not ids:
             return {}
         signal_ids = set(signal_strategy_ids)
@@ -862,7 +870,7 @@ class StrategyResults:
         placeholder = "%s" if self.tenant else "?"
         tomorrow = str(date.fromisoformat(str(as_of)) + timedelta(days=1))
         for identity in identities:
-            if identity.strategy_id not in signal_ids or identity.timeframe != "1m":
+            if identity.strategy_id not in signal_ids:
                 continue
             prefix = digest(identity.strategy_id)[:16] + ":"
             field = (lambda name: f"value->'summary'->>'{name}'") if self.tenant else (
@@ -883,8 +891,6 @@ class StrategyResults:
                    WHERE namespace=%s AND id=ANY(%s)"""
             ]
             query_params = [NAMESPACE, ids]
-            # Separate PK ranges keep a large JSON payload outside the OR scan.
-            # Exact records are already eligible, so do not read their JSON twice.
             for index, condition in enumerate(conditions):
                 queries.append(
                     f"""SELECT id,value->'summary' AS summary FROM business.documents
@@ -905,6 +911,9 @@ class StrategyResults:
                     [*ids, *params],
                 ).fetchall()
             values = [json.loads(row["summary"]) for row in rows]
+        allowed = {(identity.strategy_id, identity.asset_type, identity.timeframe) for identity in identities}
+        values = [value for value in values if (
+            value.get("strategy_id"), value.get("asset_type"), value.get("timeframe")) in allowed]
         preferred = {identity.strategy_id: identity.record_id(as_of) for identity in identities}
         # Signal history belongs to the saved day, including its old configuration.
         # Eligibility-only records must not hide an actual (possibly empty) scan.

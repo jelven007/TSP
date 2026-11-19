@@ -1,4 +1,4 @@
-"""14:30点时全量选股; 只使用已公告股本与前20个交易日成交额。"""
+"""14:30点时全量选股; 使用已公告股本与已完成交易日价格。"""
 import polars as pl
 
 from app.strategy.builtin._overnight import PARAMS as COST_PARAMS
@@ -10,7 +10,6 @@ _FIELDS = [
     ("current_return_min", "14:30涨幅下限", .004), ("current_return_max", "14:30涨幅上限", .04),
     ("float_cap_min", "14:30流通市值下限(元)", 5e9),
     ("float_cap_max", "14:30流通市值上限(元)", 50e9),
-    ("amount20_min", "前20交易日均额下限(元)", 1e8),
     ("market_positive_min", "指定市值池上涨比例下限", .6),
     ("stop_loss_pct", "扣费净止损比例", .06), ("take_profit_pct", "毛止盈比例", .06),
 ]
@@ -44,7 +43,6 @@ def daily_context(daily):
          * pl.col("adj_factor").shift(1).over("symbol") / pl.col("adj_factor")).alias("reference_close"),
         pl.col("date").shift(1).over("symbol").alias("previous_row_date"),
         pl.col("date").shift(2).over("symbol").alias("before_previous_row_date"),
-        pl.col("amount").rolling_mean(20).over("symbol").shift(1).over("symbol").alias("prev_d_amount20"),
     ).with_columns(
         (pl.col(raw) / pl.col("reference_close") - 1).alias("day_return"),
     ).with_columns(pl.col("day_return").shift(1).over("symbol").alias("previous_return"))
@@ -77,7 +75,7 @@ def select_entries(minute, values, *, daily=None, members=None):
         "symbol", pl.col("datetime").alias("last_datetime"),
         pl.col("close").alias("price"), pl.col("volume").alias("signal_volume"))
     panel = daily_context(daily)
-    # 当日行只提供除权参考和已公告股本; 价格和成交额条件均来自过去。
+    # 当日行只提供除权参考和已公告股本; 前日涨幅来自已完成交易日。
     today = panel.filter(pl.col("date") == day)
     if today.is_empty():
         prior = panel.filter(pl.col("date") < day).group_by("symbol", maintain_order=True).tail(1)
@@ -87,13 +85,10 @@ def select_entries(minute, values, *, daily=None, members=None):
             pl.col("date").alias("previous_row_date"),
             pl.col("previous_row_date").alias("before_previous_row_date"),
         )
-        amounts = panel.filter(pl.col("date") < day).group_by("symbol", maintain_order=True).tail(20).group_by("symbol").agg(
-            n=pl.len(), prev_d_amount20=pl.col("amount").mean())
-        today = today.drop("prev_d_amount20").join(amounts.filter(pl.col("n") == 20), on="symbol", how="inner")
     required = ["symbol", "reference_close", "previous_return", "previous_row_date",
-                "before_previous_row_date", "prev_d_amount20", "float_shares"]
+                "before_previous_row_date", "float_shares"]
     if not set(required).issubset(today.columns):
-        raise ValueError("选股缺少原始价、前20日成交额或公告股本")
+        raise ValueError("选股缺少原始价、前日涨幅或公告股本")
     if "name" in today.columns:
         required.append("name")
     x = snap.join(today.select(*required), on="symbol", how="inner").with_columns(
@@ -126,7 +121,6 @@ def select_entries(minute, values, *, daily=None, members=None):
         & pl.col("return_1430").is_between(p["current_return_min"] - 1e-12, p["current_return_max"] + 1e-12)
         & (pl.col("previous_row_date") == past_days[-1])
         & (pl.col("before_previous_row_date") == past_days[-2])
-        & (pl.col("prev_d_amount20") >= p.get("amount20_min", 1e8))
         & (pl.col("market_breadth") >= p["market_positive_min"])
         & (pl.col("signal_volume") > 0) & pl.col("m1_complete") & pl.col("m5_complete")
         & pl.col("m1_rising") & pl.col("m5_rising")
@@ -137,9 +131,7 @@ def prioritized_selection(rows, values):
     """完整选股列表沿用买入优先级, 不截断达标股票。"""
     if rows.is_empty():
         return rows
-    limit = int(parameters(values)["position_limit"])
-    key = "return_1430" if rows.height > limit else "prev_d_amount20"
-    return rows.sort([key, "symbol"], descending=[True, False], nulls_last=True)
+    return rows.sort(["return_1430", "symbol"], descending=[True, False], nulls_last=True)
 
 
 def ranked_candidates(rows, values):

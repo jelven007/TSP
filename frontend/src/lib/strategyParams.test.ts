@@ -85,7 +85,7 @@ describe('strategy parameter metadata', () => {
   it('presents builtin s02 parameters in trading workflow groups without changing definitions', () => {
     const ids = [
       'prior_return_min', 'prior_return_max', 'current_return_min', 'current_return_max',
-      'float_cap_min', 'float_cap_max', 'amount20_min', 'market_positive_min',
+      'float_cap_min', 'float_cap_max', 'market_positive_min',
       'stop_loss_pct', 'take_profit_pct', 'guard_time', 'sell_deadline',
       'initial_cash', 'entry_nav_fraction', 'entry_budget', 'position_limit',
       'participation', 'slippage', 'commission', 'minimum_commission', 'transfer_fee', 'stamp_tax',
@@ -100,10 +100,10 @@ describe('strategy parameter metadata', () => {
     const laidOut = layoutStrategyParams('s02', params)
     expect(groupParams(laidOut).map(group => [group.name, group.items.map(param => param.id)]))
       .toEqual([
-        ['尾盘选股', ids.slice(0, 8)],
-        ['买入与仓位', ids.slice(12, 16)],
-        ['次日卖出', ids.slice(8, 12)],
-        ['费用与容量', ids.slice(16)],
+        ['尾盘选股', ids.slice(0, 7)],
+        ['买入与仓位', ids.slice(11, 15)],
+        ['次日卖出', ids.slice(7, 11)],
+        ['费用与容量', ids.slice(15)],
       ])
     expect(Object.fromEntries(laidOut.map(param => [param.id, param.default])))
       .toEqual(Object.fromEntries(params.map(param => [param.id, param.default])))

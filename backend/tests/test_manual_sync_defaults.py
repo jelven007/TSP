@@ -40,18 +40,9 @@ def test_scheduler_defaults_on_and_preserves_saved_off(monkeypatch, stored_off):
             assert "auction_snapshot_catchup" in jobs
             assert jobs["reprobe_capabilities"].next_run_time is not None
             data_ids = set(jobs) - {"reprobe_capabilities", "pre_market_instruments"}
-            assert {"daily_pipeline", "depth_finalize", "post_close_sync_retry"} <= data_ids
-            assert {"selection_daily_repair", "selection_daily_repair_retry"} <= data_ids
-            next_selection = jobs["selection_daily_repair"].trigger.get_next_fire_time(
-                None, datetime(2026, 10, 23, 15, 59, tzinfo=ZoneInfo("Asia/Shanghai")),
-            )
-            assert (next_selection.hour, next_selection.minute) == (20, 0)
-            assert jobs["selection_daily_repair_retry"].trigger.interval.total_seconds() == 30
-            assert not {"kline_correction", "kline_correction_retry"} & data_ids
-            next_correction = jobs["daily_pipeline"].trigger.get_next_fire_time(
-                None, datetime(2026, 10, 23, 15, 34, tzinfo=ZoneInfo("Asia/Shanghai")),
-            )
-            assert (next_correction.hour, next_correction.minute) == (15, 35)
+            assert {"daily_pipeline", "depth_finalize"} <= data_ids
+            assert "suspension_sync" in data_ids
+            assert jobs["suspension_sync"].trigger.interval.total_seconds() == 30
             assert jobs["pre_market_instruments"].next_run_time is not None
             trigger = jobs["pre_market_instruments"].trigger
             for day in (datetime(2026, 10, 24, 8), datetime(2026, 10, 1, 8)):
@@ -168,3 +159,40 @@ def test_default_depth_boot_obeys_capability_and_time_gate(monkeypatch, capable,
     monkeypatch.setattr(service, "finalize", lambda: calls.append("finalized"))
     service.boot_check()
     assert calls == (["finalized"] if capable and after_close else [])
+
+
+def test_suspension_job_receives_publisher_and_shutdown_signal(monkeypatch):
+    import threading
+
+    from app.services import suspension_sync
+
+    repo, publisher = object(), object()
+    entered = threading.Event()
+    calls = []
+
+    async def catalog(*args, **kwargs):
+        pass
+
+    def run(actual_repo, actual_publisher, *, stop):
+        calls.append((actual_repo, actual_publisher))
+        entered.set()
+        assert stop.wait(2), "scheduler shutdown did not interrupt the suspension worker"
+
+    monkeypatch.setattr(daily_pipeline, "run_catalog_job", catalog)
+    monkeypatch.setattr(daily_pipeline, "_get_app_state", lambda:
+                        SimpleNamespace(public_publisher=publisher))
+    monkeypatch.setattr(suspension_sync, "request_sync", run)
+
+    async def exercise():
+        scheduler = daily_pipeline.start_scheduler(repo, CapabilitySet({}))
+        task = asyncio.create_task(scheduler.get_job("suspension_sync").func())
+        try:
+            assert await asyncio.to_thread(entered.wait, 1)
+        finally:
+            scheduler.shutdown(wait=False)
+            await daily_pipeline.stop_catalog_jobs()
+            await task
+        assert calls == [(repo, publisher)]
+        assert not daily_pipeline._catalog_jobs
+
+    asyncio.run(exercise())

@@ -62,6 +62,14 @@ def test_common_equal_weight_uses_requested_position_count(tmp_path, count):
     assert result.config["entry_allocation"] == "common_backtest_v1"
 
 
+def test_new_overnight_rule_selects_each_minute_low_in_the_cash_engine(tmp_path):
+    result = replay(tmp_path, count=1, exit_signal=True, minute_price_rule="high_low_v1")
+    assert not result.error, result.error
+    sales = [fill for fill in result.fills if fill["side"] == "sell"]
+    assert sales
+    assert all(fill["price"] == pytest.approx(10.09) for fill in sales)
+
+
 def test_common_equal_weight_reserves_unused_slots(tmp_path):
     result = replay(tmp_path, count=2, max_positions=4, max_exposure_pct=.8)
     assert result.error is None

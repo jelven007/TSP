@@ -30,8 +30,8 @@ def clear_memory():
 
 
 def _key(strategy_id, day, asset_type, timeframe):
-    if asset_type != "stock" or timeframe != "1m":
-        raise ValueError("历史信号视图只支持stock/1m")
+    if asset_type != "stock" or timeframe not in ("1d", "1m"):
+        raise ValueError("历史信号视图只支持stock的日线或分钟策略")
     return f"{digest(strategy_id)[:16]}:{date.fromisoformat(str(day))}:{asset_type}:{timeframe}"
 
 
@@ -72,8 +72,9 @@ def _put(store, conn, namespace, key, value):
         )
 
 
-def remove(store, conn, strategy_id, day=None):
-    prefix = digest(strategy_id)[:16] + ":" + (str(day) + ":" if day else "")
+def remove(store, conn, strategy_id, day=None, *, asset_type=None, timeframe=None):
+    prefix = (_key(strategy_id, day, asset_type, timeframe) if day and asset_type and timeframe else
+              digest(strategy_id)[:16] + ":" + (str(day) + ":" if day else ""))
     if store.tenant:
         conn.execute(
             "DELETE FROM business.documents WHERE namespace=ANY(%s) AND id LIKE %s",
@@ -124,7 +125,7 @@ def publish(store, conn, strategy_id, day, asset_type="stock", timeframe="1m", *
             },
         }]
     if not values:
-        remove(store, conn, strategy_id, day)
+        remove(store, conn, strategy_id, day, asset_type=asset_type, timeframe=timeframe)
         if cascade:
             publish_next(store, conn, strategy_id, day, asset_type, timeframe)
         return

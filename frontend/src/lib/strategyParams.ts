@@ -5,7 +5,7 @@ type Values = Record<string, any>
 const S02_PARAM_LAYOUT = [
   ['尾盘选股', [
     'prior_return_min', 'prior_return_max', 'current_return_min', 'current_return_max',
-    'float_cap_min', 'float_cap_max', 'amount20_min', 'market_positive_min',
+    'float_cap_min', 'float_cap_max', 'market_positive_min',
   ]],
   ['买入与仓位', [
     'initial_cash', 'entry_nav_fraction', 'entry_budget', 'position_limit',

@@ -401,7 +401,7 @@ class JobStore:
         with self._lock:
             self._flush_pending(strict=True)
             # 目录同步只写小型维表, 不占行情重任务单飞槽; 同类目录任务仍去重。
-            if kind == "instruments_sync":
+            if kind in {"instruments_sync", "suspension_sync"}:
                 for active in self._active_jobs.values():
                     if active.get("kind") == kind and active.get("status") in ACTIVE_TASK_STATUSES:
                         return active["id"], False
@@ -446,7 +446,7 @@ class JobStore:
                 self._remove_pending_files(job_id)
                 raise
             self._active_jobs[job_id] = job
-            if kind != "instruments_sync":
+            if kind not in {"instruments_sync", "suspension_sync"}:
                 self._active_id = job_id
             self._delete_oldest()
         _register_cancel_flag(job_id)

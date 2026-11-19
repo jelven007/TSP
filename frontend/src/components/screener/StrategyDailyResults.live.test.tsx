@@ -6,11 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { StrategyDailyResults } from './StrategyDailyResults'
 import type { ScreenerResult } from '@/lib/api'
 
-const { snapshot, clock } = vi.hoisted(() => ({
-  snapshot: vi.fn(), clock: { data: { is_trading_hours: true } },
-}))
+const { snapshot } = vi.hoisted(() => ({ snapshot: vi.fn() }))
 vi.mock('@/lib/api', () => ({ api: { marketSnapshot: snapshot } }))
-vi.mock('@/lib/useSharedQueries', () => ({ useQuoteStatus: () => clock }))
 vi.mock('@/components/StockPreviewDialog', () => ({ StockPreviewDialog: () => null }))
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 let root: Root
@@ -19,7 +16,9 @@ let client: QueryClient
 const result: ScreenerResult = {
   strategy: 'custom_s02', as_of: '2026-11-06', record_id: 'old', rows: [], total: 0, elapsed_ms: 0,
   section_mode: 'signals', sections: {
-    sell: [{ symbol: '600001.SH', name: '卖股', entry_date: '2026-11-04', close: 9, change_pct: .01, score: 80 }],
+    sell: [{ symbol: '600001.SH', name: '卖股', entry_date: '2026-11-04', close: 9, change_pct: .01, score: 80,
+      volume: 1234.6, amount: 1234567.6,
+      suggested_sell_price: { lower: 9.4, upper: 10.6, reference_date: '2026-11-04', reference_close: 10 } }],
     select: [{ symbol: '600002.SH', name: '选股', reference_date: '2026-11-04', score: 99 }],
     buy: [{ symbol: '600003.SH', name: '买股', close: 9, score: 80, volume: 1234.6, amount: 1234567.6,
       suggested_lots_100k: 111 }],
@@ -29,10 +28,9 @@ const liveLabels = ['现价', '涨跌幅', '换手率', '量比', '信号']
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-11-06T10:00:00+08:00'))
-  clock.data.is_trading_hours = true
   snapshot.mockReset().mockResolvedValue({ as_of: '2026-11-06', rows: [
     { symbol: '600001.SH', raw_close: 12.5, close: 6.25, change_pct: .02, turnover_rate: 3.45,
-      vol_ratio_5d: 1.8, signal_ma_golden_5_20: true },
+      vol_ratio_5d: 1.8, signal_ma_golden_5_20: true, volume: 999999, amount: 888888 },
     { symbol: '600002.SH', raw_close: 20 },
     { symbol: '600003.SH', raw_close: 12.5 },
   ] })
@@ -42,11 +40,11 @@ afterEach(async () => {
   client?.clear(); host?.remove(); vi.useRealTimers()
 })
 async function flush() { await act(async () => { await vi.advanceTimersByTimeAsync(10) }) }
-async function render() {
+async function render(value: ScreenerResult = result) {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   await act(async () => root.render(<QueryClientProvider client={client}>
-    <StrategyDailyResults result={result} positionLimit={5} currentDate={result.as_of} />
+    <StrategyDailyResults result={value} positionLimit={5} currentDate={value.as_of} />
   </QueryClientProvider>))
   await flush()
 }
@@ -60,7 +58,10 @@ function cell(label: string) { return host.querySelectorAll('tbody tr:first-chil
 it('keeps trigger prices separate and appends five live columns with correct units', async () => {
   await render()
   expect(headers()).not.toContain('买入信号日期')
-  expect(headers().slice(-6)).toEqual(['建议卖出价', ...liveLabels])
+  expect(headers().slice(-9)).toEqual(['信号评分', '分钟成交量', '分钟成交额', '建议卖出价', ...liveLabels])
+  expect(cell('分钟成交量')?.textContent).toBe('1,235')
+  expect(cell('分钟成交额')?.textContent).toBe('1,234,568')
+  expect(cell('建议卖出价')?.textContent).toBe('9.40～10.60')
   expect(cell('触发价')?.textContent).toBe('9.00')
   expect(cell('现价')?.textContent).toBe('12.50')
   expect(cell('涨跌幅')?.textContent).toBe('2.00%')
@@ -71,7 +72,7 @@ it('keeps trigger prices separate and appends five live columns with correct uni
   expect(headers().slice(-9)).toEqual(['选股评分', 'ATR14÷昨收', 'ATR排名', '排名分数', ...liveLabels])
 })
 
-it('formats minute volume and amount as integers and preserves frozen trigger-price lots', async () => {
+it('formats minute volume and amount as integers and uses saved trigger-price lots', async () => {
   await render(); await tab(2)
   expect(headers().slice(-8)).toEqual(['分钟成交量', '分钟成交额', '建议购买量/10万', ...liveLabels])
   expect(cell('分钟成交量')?.textContent).toBe('1,235')
@@ -79,7 +80,7 @@ it('formats minute volume and amount as integers and preserves frozen trigger-pr
   expect(cell('建议购买量/10万')?.textContent).toBe('111')
 })
 
-it('polls only the active symbol set every second and preserves tab and scroll on result updates', async () => {
+it('reads the active symbols without per-second polling and preserves tab and scroll on updates', async () => {
   await render()
   expect(snapshot).toHaveBeenLastCalledWith({ realtime: true, symbols: ['600001.SH'] })
   await tab(2)
@@ -87,8 +88,7 @@ it('polls only the active symbol set every second and preserves tab and scroll o
   panel.scrollLeft = 120
   snapshot.mockClear()
   await act(async () => { await vi.advanceTimersByTimeAsync(3010) })
-  expect(snapshot.mock.calls.length).toBe(3)
-  expect(snapshot.mock.calls.every(([options]) => options.symbols.join() === '600003.SH')).toBe(true)
+  expect(snapshot).not.toHaveBeenCalled()
   await act(async () => root.render(<QueryClientProvider client={client}>
     <StrategyDailyResults result={{ ...result, record_id: 'new' }} positionLimit={5} currentDate={result.as_of} />
   </QueryClientProvider>))
@@ -97,20 +97,26 @@ it('polls only the active symbol set every second and preserves tab and scroll o
   expect(panel.scrollLeft).toBe(120)
 })
 
-it('reads the current-day quote once after close without repeating each second', async () => {
-  clock.data.is_trading_hours = false
-  await render()
-  expect(snapshot).toHaveBeenCalledTimes(1)
-  await act(async () => { await vi.advanceTimersByTimeAsync(3010) })
-  expect(snapshot).toHaveBeenCalledTimes(1)
-})
-
-it.each([null, 0, -1, NaN, Infinity])('preserves frozen lots without a finite positive live price (%s)', async price => {
+it.each([null, 0, -1, NaN, Infinity])('keeps saved lots without a valid live price (%s)', async price => {
   snapshot.mockResolvedValue({ as_of: '2026-11-06', rows: [{ symbol: '600003.SH', raw_close: price, close: 10 }] })
   await render(); await tab(2)
   expect(cell('现价')?.textContent).toBe('—')
   expect(cell('建议购买量/10万')?.textContent).toBe('111')
 })
+
+it('does not substitute a live estimate for a missing saved quantity', async () => {
+  await render({ ...result, sections: { ...result.sections!, buy: [{ symbol: '600003.SH', close: 9 }] } })
+  await tab(2)
+  expect(cell('现价')?.textContent).toBe('12.50')
+  expect(cell('建议购买量/10万')?.textContent).toBe('—')
+})
+
+it.each([null, { lower: -1, upper: 10 }, { lower: 11, upper: 10 }, { lower: 9 }])(
+  'keeps missing or invalid saved sell intervals unknown (%j)', async interval => {
+    await render({ ...result, sections: { ...result.sections!,
+      sell: [{ symbol: '600001.SH', suggested_sell_price: interval }] } })
+    expect(cell('建议卖出价')?.textContent).toBe('—')
+  })
 
 it('rejects stale days and late responses from an inactive tab', async () => {
   let finish!: (value: unknown) => void

@@ -172,22 +172,26 @@ def test_commit_crossing_deadline_keeps_sells_but_drops_new_entries():
     assert entry_events_before_deadline(events, results, datetime(2026, 11, 2, 14, 55, 0, 1)) == events[2:]
 
 
-def test_next_preselection_isolates_bad_close_before_freezing(scan, monkeypatch):
+def test_next_preselection_isolates_bad_close_before_freezing_eligibility(scan, monkeypatch):
+    from app.services.daily_selections import compute_selections
     from app.services.screener import ScreenerService
     engine, context, overrides = scan
-    reference = context.daily_history
+    reference = context.daily_history.filter(pl.col("symbol").is_in(["600001.SH", "600002.SH"]))
     raw = reference.with_columns(
         pl.when(pl.col("symbol") == "600001.SH").then(10.1).otherwise(pl.col("close")).alias("close"))
     service = ScreenerService(SimpleNamespace(
-        get_instruments_asset=lambda *_: pl.DataFrame(),
+        get_instruments_asset=lambda *_: pl.DataFrame({"symbol": [
+            "600001.SH", "600002.SH", "600003.SH"]}),
         get_daily_close_inputs=lambda *_: (raw, reference.select("symbol", "close")),
     ))
     monkeypatch.setattr(service, "_load_enriched_history", lambda *_: raw)
-    built = service.build_selection_context(
-        engine, reference["date"][0], context.as_of, ["custom_test"],
-        overrides_map={"custom_test": overrides},
-    )
-    assert set(built.current["symbol"]) == set(reference["symbol"]) - {"600001.SH"}
-    assert set(built.daily_history["symbol"]) == set(built.current["symbol"])
-    assert set(built.reference_errors) == {"600001.SH"}
-    assert "收盘校验失败" in built.reference_errors["600001.SH"]
+    result = compute_selections(engine, service, reference["date"][0], context.as_of,
+                                ["custom_test"], {"custom_test": overrides})
+    assert result["errors"] == {}
+    saved = result["selections"]["custom_test"]
+    assert [row["symbol"] for row in saved["rows"]] == ["600002.SH"]
+    assert saved["coverage"]["scope_total"] == 3
+    assert saved["coverage"]["available_daily"] == 1
+    assert saved["coverage"]["missing_symbols"] == ["600003.SH"]
+    assert "600001.SH" in saved["coverage"]["invalid_symbols"]
+    assert any("收盘校验失败" in warning for warning in saved["warnings"])

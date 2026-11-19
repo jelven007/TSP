@@ -396,6 +396,7 @@ def test_compute_signals_projects_only_requested_extension_dependencies(data_dir
 
 # ── string 扩展字段 (概念/行业归属) ───────────────────────
 
+
 STR_COL = "ext_tags_cat"  # config_id=tags, string 字段 cat
 
 

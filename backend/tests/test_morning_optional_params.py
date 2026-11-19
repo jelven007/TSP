@@ -51,7 +51,7 @@ def test_inclusive_number_boundaries(key, value):
 
 
 @pytest.mark.parametrize("patch", [
-    {"start_time": "09:29:59"}, {"time": "11:30:01"},
+    {"start_time": "24:00:00"}, {"time": "23:60:00"},
     {"fallback_time": "10:0:00"}, {"start_time": "10:31:00", "time": "10:30:00"},
     {"start_time": "10:46:00", "fallback_time": "10:45:00"},
     {"time": "10:30:00", "fallback_time": "10:30:00"},
@@ -151,6 +151,10 @@ def test_nullable_clocks_remain_independent_without_market_dependencies(key, rea
     sig = optional(**{key: "10:30:15"})
     at = AT.replace(minute=30, second=15)
     assert not run(pl.DataFrame(), sig=sig, prev_close={}, now=at - timedelta(microseconds=1)).hits
+    if key == "fallback_time":
+        assert not run(pl.DataFrame(), sig=sig, prev_close={}, now=at).hits
+        assert not run(pl.DataFrame(), sig=sig, prev_close={}, now=AT.replace(hour=15)).hits
+        return
     hit, = run(pl.DataFrame(), sig=sig, prev_close={}, now=at).hits
     assert hit["reason"] == reason and hit["trigger_time"] == at.isoformat()
     assert run(pl.DataFrame(), sig=sig, prev_close={}, now=AT.replace(hour=15)).hits[0]["reason"] == reason

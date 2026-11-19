@@ -25,10 +25,12 @@ def test_current_default_waits_thirty_seconds_with_same_complete_input_results()
                       completed_through=TARGET + timedelta(seconds=30))
     frozen_result = evaluate(frame=frame, sig=frozen,
                              completed_through=TARGET + timedelta(seconds=90))
-    assert {k: v for k, v in asdict(result).items() if k != "progress"} == {
-        k: v for k, v in asdict(frozen_result).items() if k != "progress"}
-    assert result.progress["observed_at"] == "2026-09-04T14:30:30"
-    assert frozen_result.progress["observed_at"] == "2026-09-04T14:31:30"
+    # Results retain the actual confirmation clock in their receipt.
+    current_outcome, frozen_outcome = asdict(result), asdict(frozen_result)
+    current_progress, frozen_progress = current_outcome.pop("progress"), frozen_outcome.pop("progress")
+    assert current_outcome == frozen_outcome
+    assert current_progress["observed_at"] == (TARGET + timedelta(seconds=30)).isoformat()
+    assert frozen_progress["observed_at"] == (TARGET + timedelta(seconds=90)).isoformat()
     assert result.symbols == POOL[:3]
     assert result.pool_up_pct == 60
     assert frame.filter((pl.col("datetime") == bar_time(current, DAY))

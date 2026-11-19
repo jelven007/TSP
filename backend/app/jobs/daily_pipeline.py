@@ -385,8 +385,6 @@ def run_now(
         raise PipelineStageError(["首次股票日K同步返回 0 行,请检查日线数据源"])
     _invalidate("daily")
 
-    # First installs have no auction evidence yet. Collect the configured minute
-    # window before validating or deriving daily data, without expanding it to a year.
     written_minute = 0
     initial_minute_start = None
     if initial_sync:
@@ -645,7 +643,6 @@ def run_now(
     minute_on = override_end_date is None and (initial_sync or preferences.get_minute_sync_enabled())
     minute_days = preferences.get_minute_sync_days()
     if initial_sync:
-        # Already collected and checked before daily derivation.
         emit("sync_minute", 93, f"首次分钟K完成,{written_minute} 行")
     elif minute_on and capset.has(Cap.KLINE_MINUTE_BATCH):
         minute_start = today - _td(days=minute_days)
@@ -1423,8 +1420,8 @@ def apply_data_sync_mode(scheduler) -> None:
         if job.id in {
             "daily_pipeline", "depth_finalize", "kline_periods",
             "post_close_sync_retry",
-            "selection_daily_repair", "selection_daily_repair_retry",
             "post_close_integrity", "post_close_integrity_retry",
+            "suspension_sync",
         } or (
             job.id.startswith("auction_snapshot_") or job.id == "auction_publication_retry"
         ):
@@ -1450,7 +1447,6 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     个股维表始终在启动及每天 09:00 同步; 行情管道受自动模式控制。
     """
     from app.services import preferences
-    sched = preferences.get_pipeline_schedule()
 
     scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 
@@ -1469,7 +1465,6 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     # 首个成功发布后, 后续重试只读 ready marker 并立即返回。
     _register_auction_jobs(scheduler, repo)
 
-    # 盘后仅补当日五周期缺口; 启动补缺由独立后台任务登记, 占槽时等待。
     from app.services import post_close_sync
 
     def _post_close_sync(*, retry=False):
@@ -1490,28 +1485,28 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
         id="post_close_sync_retry", max_instances=1, coalesce=True, replace_existing=True,
     )
 
-    # Next-session eligibility repairs only its daily inputs. A failed 15:35
-    # five-period job must not leave the 20:00 consumer passively waiting.
-    def _selection_daily_repair():
-        from app.services.selection_daily_repair import request_repair
-        app_state = _get_app_state()
-        live_capset = getattr(app_state, "capabilities", None) or capset
-        qs = getattr(app_state, "quote_service", None)
-        return request_repair(repo, live_capset, qs)
+    import threading
 
-    from app.services.selection_clock import SELECTION_HOUR
+    from apscheduler.events import EVENT_SCHEDULER_SHUTDOWN
+
+    suspension_stop = threading.Event()
+    scheduler.add_listener(lambda event: suspension_stop.set(), EVENT_SCHEDULER_SHUTDOWN)
+
+    async def _suspension_sync():
+        from app.services.suspension_sync import request_sync
+
+        publisher = getattr(_get_app_state(), "public_publisher", None)
+        worker = asyncio.create_task(asyncio.to_thread(request_sync, repo, publisher, stop=suspension_stop))
+        _catalog_jobs.add(worker)
+        worker.add_done_callback(_catalog_jobs.discard)
+        return await asyncio.shield(worker)
+
     scheduler.add_job(
-        _selection_daily_repair,
-        trigger=CronTrigger(day_of_week="mon-fri", hour=SELECTION_HOUR, minute=0, timezone="Asia/Shanghai"),
-        id="selection_daily_repair", misfire_grace_time=3600, max_instances=1,
-        coalesce=True, replace_existing=True,
-    )
-    scheduler.add_job(
-        _selection_daily_repair, trigger=IntervalTrigger(seconds=30),
-        id="selection_daily_repair_retry", max_instances=1, coalesce=True, replace_existing=True,
+        _suspension_sync, trigger=IntervalTrigger(seconds=30),
+        id="suspension_sync", max_instances=1, coalesce=True, replace_existing=True,
     )
 
-        # 固定15:45复核当日遗留问题; 间隔检查负责同日占槽等待、退避及重启补跑。
+    # 固定15:45复核当日遗留问题;间隔检查负责同日占槽等待、退避及重启补跑。
     def _post_close_integrity():
         from app.services.post_close_integrity import request_repair
         app_state = _get_app_state()
@@ -1598,7 +1593,7 @@ def start_scheduler(repo: KlineRepository, capset: CapabilitySet) -> AsyncIOSche
     scheduler.start()
     logger.info("scheduler started (auto_sync=%s); instruments@%02d:%02d daily, auction@09:25 mon-fri, pipeline@%02d:%02d mon-fri, depth@%02d:%02d mon-fri",
                 preferences.get_data_sync_auto_enabled(),
-                9, 0, sched["hour"], sched["minute"],
+                9, 0, 15, 35,
                 depth_sched["hour"], depth_sched["minute"])
     return scheduler
 

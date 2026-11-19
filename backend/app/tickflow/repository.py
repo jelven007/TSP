@@ -1534,7 +1534,7 @@ class KlineRepository:
         return df
 
     def get_last_traded_closes(self, symbols: list[str], before: date) -> pl.DataFrame:
-        """指定日期之前的最后真实成交日原始收盘; 不受指标回看窗口限制。"""
+        """指定日期之前的最后真实成交日原始收盘;不受指标回看窗口限制。"""
         schema = {"symbol": pl.String, "date": pl.Date, "raw_close": pl.Float64}
         if not symbols:
             return pl.DataFrame(schema=schema)

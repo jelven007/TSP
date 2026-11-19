@@ -25,7 +25,7 @@ const CATEGORY_META: Record<ScheduleCategory, { label: string; detail: string }>
   foundation: { label: '基础与完整性', detail: '目录同步' },
   market: { label: '实时行情与快照', detail: '盘中行情、竞价和五档盘口' },
   kline: { label: 'K线采集与加工', detail: '盘中增量、周期K线和盘后补缺' },
-  maintenance: { label: '财务与能力保障', detail: '财务指标与数据源可用性' },
+  maintenance: { label: '晚间维护与能力保障', detail: '财务、相关市场数据与数据源可用性' },
   extension: { label: '扩展数据', detail: '按各扩展数据源的拉取配置执行' },
 }
 
@@ -256,10 +256,18 @@ export function buildDataScheduleItems({
     {
       id: 'financial-metrics',
       category: 'maintenance',
-      label: '财务指标',
-      detail: '只自动更新 metrics；其余财务表保持手动同步。',
-      schedule: '启动后 60 秒，之后每 7 天',
+      label: '财务数据',
+      detail: '同步财务指标、利润表、资产负债表、现金流量表和历史股本；当日自动执行一次，重启不重复，手动同步独立。',
+      schedule: '每天 21:00（北京时间）',
       state: stateForAuto(true, financialAvailable),
+    },
+    {
+      id: 'related-market-data',
+      category: 'maintenance',
+      label: '相关市场数据维护',
+      detail: '维护资金流、公告索引和历史ST状态；保留覆盖检查点，当日自动执行一次，失败可手动处理。',
+      schedule: '每天 21:00（北京时间）',
+      state: stateForAuto(),
     },
     {
       id: 'capability-reprobe',

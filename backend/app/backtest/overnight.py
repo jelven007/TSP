@@ -70,7 +70,7 @@ def fill_order(frame, side, symbol, prior_close, first_bar, last_bar, values, *,
             if base is None or not math.isfinite(base) or base <= 0:
                 continue
             price = min(up, max(down, base * (
-                1 if price_field == "execution_price" or (side == "buy" and price_field == "high")
+                1 if price_field == "execution_price" or (side, price_field) in (("buy", "high"), ("sell", "low"))
                 else 1 + (params["slippage"] if side == "buy" else -params["slippage"]))))
             capacity = math.floor(row["volume"] * 100 * params["participation"] / step + 1e-9) * step
             if target is None:
@@ -168,6 +168,22 @@ def run_overnight(service, config, strategy, params, overrides, *,
         window = expected_trading_minutes(datetime.combine(
             config.start, datetime.min.time()) + timedelta(minutes=first_buy))
         last_buy = window[-1].hour * 60 + window[-1].minute if window else 900
+    late_signals = [sig for sig in (selected or {}).get("entry", [])
+                    if sig.get("template") == "late_session_strength"]
+    if late_signals:
+        from app.strategy.late_session_strength import bar_time, evaluation_time, execution_end
+        starts = [max(bar_time(sig, config.start) + timedelta(minutes=1),
+                      evaluation_time(sig, config.start)) for sig in late_signals
+                  if bar_time(sig, config.start) is not None]
+        if starts and config.minute_price_rule == "high_low_v1":
+            first = min(starts)
+            signal_bar = min(bar_time(sig, config.start).hour * 60
+                             + bar_time(sig, config.start).minute for sig in late_signals
+                             if bar_time(sig, config.start) is not None)
+            first_buy = first.hour * 60 + first.minute + int(bool(first.second or first.microsecond))
+        if config.minute_price_rule == "high_low_v1":
+            last_buy = max(end.hour * 60 + end.minute for end in (
+                execution_end(sig, config.start) for sig in late_signals))
     effective_config = {
         **service._config_to_dict(config), "params": reported_params, **allocation,
         "initial_capital": params["initial_cash"], "max_positions": params["position_limit"],
@@ -330,8 +346,11 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 pos["pending"] = pending
                 if common_execution and "signal_date" not in pending:
                     pending["signal_date"] = str(day)
-                    pending["execution_date"] = str(next_market_day(day) if config.exit_fill == "open_t+1" else day)
-                    if config.exit_fill == "close_t":
+                    pending["execution_date"] = str(next_market_day(day) if (
+                        config.exit_fill == "open_t+1" and not pending.get("template_deadline")) else day)
+                    if pending.get("template_deadline"):
+                        pass
+                    elif config.exit_fill == "close_t":
                         pending.update(first_eligible_bar=900, last_eligible_bar=900)
                     elif config.exit_fill == "open_t+1":
                         pending.update(first_eligible_bar=571, last_eligible_bar=571)
@@ -352,8 +371,11 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 sale = fill_order(history, "sell", symbol, lookup.get(symbol),
                                   pending["first_eligible_bar"], pending["last_eligible_bar"],
                                   sale_params, quantity=pos["remaining"],
-                                  price_field=("close" if config.exit_fill == "close_t" else "open")
-                                  if common_execution else None)
+                                  price_field=(
+                                      "low" if config.minute_price_rule == "high_low_v1" else
+                                      ("close" if config.exit_fill == "close_t"
+                                       and not pending.get("template_deadline") else "open")
+                                      if common_execution else None))
                 if not common_execution or config.exit_fill == "signal_next_minute":
                     # A clock phase rearms only the remainder; fee increments cover the same sale day.
                     for retry in hits:
@@ -366,7 +388,9 @@ def run_overnight(service, config, strategy, params, overrides, *,
                             history, "sell", symbol, lookup.get(symbol),
                             max(retry["first_eligible_bar"], pending["last_eligible_bar"] + 1),
                             retry["last_eligible_bar"], sale_params,
-                            quantity=sale["remaining"], price_field="open" if common_execution else None,
+                            quantity=sale["remaining"], price_field=(
+                                "low" if config.minute_price_rule == "high_low_v1"
+                                else "open" if common_execution else None),
                             prior_notional=sale["notional"])
                         sale["fills"].extend(part["fills"])
                         for key in ("shares", "notional", "fee", "value"):
@@ -394,7 +418,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                 cycle_notional = pos.get("sell_notional", sale["notional"])
                 cycle_value = pos.get("sell_value", sale["value"])
                 record = TradeRecord(
-                    symbol=symbol, name=pos.get("name", ""), entry_date=pos["entry_date"], exit_date=day,
+                    symbol=symbol, entry_date=pos["entry_date"], exit_date=day,
                     entry_price=pos["entry_notional"] / pos["shares"],
                     exit_price=cycle_notional / pos["shares"],
                     pnl_pct=cycle_value / pos["entry_value"] - 1,
@@ -490,6 +514,19 @@ def run_overnight(service, config, strategy, params, overrides, *,
                             batch_budget = min(batch_budget, params["entry_budget"])
                 for row_index, row in enumerate(buy_rows):
                     symbol = row["symbol"]
+                    if not high_entry:
+                        buy_start = first_buy
+                    order_end = None
+                    active_late = [sig for sig in late_signals if any(
+                        hit["symbol"] == symbol and sig["column"] in hit.get("signals", [])
+                        for hit in result.entry_signal_hits)]
+                    if active_late and config.minute_price_rule == "high_low_v1":
+                        available = row.get("entry_evaluated_at") or row.get("last_datetime")
+                        signal_at = row.get("last_datetime")
+                        if isinstance(available, datetime) and isinstance(signal_at, datetime):
+                            first = max(available, signal_at + timedelta(minutes=1))
+                            buy_start = first.hour * 60 + first.minute + int(bool(first.second or first.microsecond))
+                        order_end = min(execution_end(sig, day) for sig in active_late)
                     if selectable and references["entry_signals"] and symbol not in entry_symbols:
                         continue
                     if symbol in entry_positions or len(entry_positions) >= params["position_limit"]:
@@ -531,6 +568,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                             prior_close=lookup.get(symbol), budget=budget,
                             size_order=size_order,
                             buy_value=lambda n: n + order_fee(n, "buy", params),
+                            end_at=order_end,
                             window_minutes=sum(moment.hour * 60 + moment.minute <= last_buy
                                                for moment in expected_trading_minutes(start_at)))
                         buy = {"shares": order.filled_shares, "notional": order.notional,
@@ -545,7 +583,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                     cash -= buy["value"]
                     fills.extend(buy["fills"])
                     positions[symbol] = {
-                        "symbol": symbol, "name": row.get("name") or "", "entry_date": day, "sell_date": sell_date,
+                        "symbol": symbol, "entry_date": day, "sell_date": sell_date,
                         "shares": buy["shares"], "remaining": buy["shares"],
                         "entry_notional": buy["notional"], "entry_value": buy["value"],
                         "entry_nav": nav, "entry_budget": budget,
@@ -557,8 +595,7 @@ def run_overnight(service, config, strategy, params, overrides, *,
                         "last_mark": buy["fills"][-1]["price"],
                     }
                     entry_positions[symbol] = positions[symbol]
-                    if high_entry:
-                        buy_start = buy["fills"][-1]["bar"]
+                    buy_start = buy["fills"][-1]["bar"]
             cash += late_sale_cash
             marks = {r["symbol"]: r["raw_close"] for r in panel.filter(pl.col("date") == day).to_dicts()}
             market_value = 0.

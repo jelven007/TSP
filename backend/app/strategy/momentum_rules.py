@@ -25,11 +25,11 @@ def parameters(values):
         lo, hi = params.get(lower), params.get(upper)
         if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in (lo, hi)) or lo > hi:
             raise ValueError("选股阈值必须为有限数值且下限不能超过上限")
-    for key in ("amount20_min", "market_positive_min"):
+    for key in ("market_positive_min",):
         if key in params and (not isinstance(params[key], (int, float))
                               or not math.isfinite(params[key]) or params[key] < 0
                               or (key == "market_positive_min" and params[key] > 1)):
-            raise ValueError("选股成交额或上涨比例阈值无效")
+            raise ValueError("选股上涨比例阈值无效")
     return params
 
 

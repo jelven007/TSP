@@ -48,9 +48,11 @@ def cancel_job(job_id: str) -> dict:
 @router.get("/jobs")
 def list_jobs(request: Request, limit: int = 20) -> dict:
     from app.services.post_close_integrity import summary
+    from app.services.suspension_sync import summary as suspension_summary
     return {
         "active_id": job_store.active_id(),
         "jobs": job_store.list_recent(limit=limit),
+        "suspension_sync": suspension_summary(request.app.state.repo),
         "post_close_integrity": summary(
             request.app.state.repo, scheduler=getattr(request.app.state, "scheduler", None),
         ),

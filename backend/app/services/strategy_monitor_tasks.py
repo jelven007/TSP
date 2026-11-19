@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import threading
+from copy import deepcopy
 from dataclasses import replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
@@ -10,12 +11,49 @@ from uuid import uuid4
 
 import polars as pl
 
-from app.multitenancy.documents import TenantDocuments
+from app.multitenancy.documents import TenantDocuments, json_value
 from app.services.fs_utils import atomic_write_text
+from app.services.strategy_monitor_state import CONTRACT, finished, plan, receipt
 from app.strategy import monitor_rules
 
 NAMESPACE = "strategy_monitoring"
 _local_lock = threading.RLock()
+
+def assert_generation(storage, sid, generation):
+    current = monitoring_state(storage, sid)
+    if not current.get("enabled") or current.get("generation") != generation:
+        raise ValueError("策略监控已取消或重新开启, 旧任务结果已丢弃")
+
+
+def retire_legacy(storage):
+    """Migrate old automatic monitors once, with no source or archive deletion."""
+    related = {rule["strategy_id"] for rule in monitor_rules.load_all(storage)
+               if rule.get("type") == "strategy" and rule.get("strategy_id")
+               and not rule.get("lot_id")}
+    if isinstance(storage, TenantDocuments):
+        related.update(row["id"] for row in storage.records("critical_strategy_schedule"))
+    for sid in sorted(related):
+        if monitoring_state(storage, sid).get("contract") != CONTRACT:
+            set_monitoring(storage, sid, sid, False)
+
+
+def _cancel_tasks(storage, sid):
+    records = (storage.records("strategy_monitor_task_runs") if isinstance(storage, TenantDocuments) else
+               [{"id": path.stem, "value": json.loads(path.read_text())} for path in
+                (Path(storage) / "user_data" / "strategy_monitor_task_runs").glob("*.json")])
+    for saved in records:
+        value = saved["value"]
+        if value.get("strategy_id") != sid:
+            continue
+        tasks = deepcopy(value.get("tasks", {}))
+        changed = False
+        for task in tasks.values():
+            if not finished(task):
+                task.update(state="cancelled", status="cancelled", terminal=True,
+                            reason="策略监控已取消", next_at=None)
+                changed = True
+        if changed:
+            task_receipt(storage, sid, value["as_of"], {**value, "tasks": tasks})
 
 
 def monitoring_state(storage, sid):
@@ -38,6 +76,132 @@ def task_receipt(storage, sid, day, value=None):
     return value
 
 
+def request_input_repair(market, *, owner, sid, generation, day, phase, attempt,
+                         symbols, deadline, minute_end=None, daily_dates=()):
+    """Request only task dependencies from the platform; the tenant never fetches."""
+    request = {"owner": owner, "strategy_id": sid, "generation": generation,
+               "day": str(day), "phase": phase, "attempt": attempt,
+               "symbols": sorted(set(symbols)), "daily_dates": [str(value) for value in daily_dates],
+               "minute_end": minute_end, "retry_until": deadline}
+    try:
+        if not request["symbols"]:
+            raise ValueError("修复缺少完整范围身份, 不能用命中名单代替")
+        value = market.monitor_repair(request)
+        return {**value, "request": request}
+    except Exception as exc:
+        return {"state": "failed", "error": str(exc), "request": request}
+
+
+def request_phase_repairs(payload, results, market, now):
+    from app.strategy.basic_filter import previous_session
+    for sid, daily in results.items():
+        for kind, task in (daily.get("monitor_tasks") or {}).items():
+            for signal_id, saved in (task.get("signals") or {}).items():
+                phases = {key: saved[key] for key in ("breadth", "stocks") if key in saved}
+                for phase, step in (phases or {"observe": saved}).items():
+                    if finished(step) or not step.get("errors"):
+                        continue
+                    window = next((w for w in payload["strategy_task_windows"][sid].get(kind, [])
+                                   if w["signal"]["id"] == signal_id), None)
+                    symbols = ((payload.get("sell_rosters", {}).get(sid) or {}).get("rows", [])
+                               if kind == "sell" else None)
+                    symbols = ([row["symbol"] for row in symbols] if symbols is not None else
+                               (payload.get("daily_pool_snapshots", {}).get(sid) or {}).get("symbols", []))
+                    if not window:
+                        continue
+                    step["repair"] = request_input_repair(
+                        market, owner=payload["tenant_id"], sid=sid,
+                        generation=payload["strategy_task_generations"][sid], day=now.date(),
+                        phase=phase, attempt=step["attempts"], symbols=symbols,
+                        deadline=step["retry_until"],
+                        minute_end=(window["start"] if kind == "buy" else
+                                    now.replace(second=0, microsecond=0).strftime("%H:%M:%S")),
+                        daily_dates=[previous_session(now.date())])
+                    if step.get("history"):
+                        step["history"][-1]["repair"] = deepcopy(step["repair"])
+
+
+def wait_for_repairs(planning, saved, market):
+    """Finish prerequisite repair before returning to the same calculation phase."""
+    waiting = []
+    for action in planning["actions"]:
+        if action["phase"] == "expire":
+            continue
+        signal = saved.get("tasks", {}).get(action["kind"], {}).get("signals", {}).get(action["signal_id"], {})
+        step = signal.get(action["phase"], {}) if action["phase"] in ("breadth", "stocks") else signal
+        repair = step.get("repair") or {}
+        if repair.get("state") not in ("queued", "running") or not repair.get("request"):
+            continue
+        try:
+            step["repair"] = market.monitor_repair(repair["request"])
+        except Exception as exc:
+            step["repair"] = {**repair, "state": "failed", "error": str(exc)}
+        if step["repair"].get("state") in ("queued", "running"):
+            waiting.append(action)
+    planning["actions"] = [action for action in planning["actions"] if action not in waiting]
+
+
+def trusted_scope(engine, repo, storage, sid, day, overrides=None):
+    """Use securities and status evidence; missing price rows cannot shrink scope."""
+    from app.instrument_suspension import pool_evidence
+    from app.strategy.daily_pool import build_pool
+    from app.strategy.engine import StrategyDataContext
+    from app.strategy.targets import resolve
+    instruments = repo.get_instruments_asset("stock")
+    if instruments is None or instruments.is_empty():
+        raise ValueError("完整股票范围证券目录不可用")
+    strategy = engine.get(sid)
+    effective = {**(overrides or {}), **resolve(storage, {"basic_filter": {
+        **(strategy.basic_filter or {}), **((overrides or {}).get("basic_filter") or {})}})}
+    context = StrategyDataContext("stock", "1d", day,
+        current=instruments.with_columns(pl.lit(day).alias("date")),
+        pool_universe=pool_evidence(repo, day))
+    return build_pool(engine, sid, context, overrides=effective, premarket=True)
+
+
+def pending_selection_repairs(market, repairs):
+    """Poll the platform prerequisite without running selection alongside it."""
+    pending = set()
+    for sid, repair in repairs.items():
+        if repair.get("state") not in ("queued", "running") or not repair.get("request"):
+            continue
+        try:
+            repairs[sid] = {**market.monitor_repair(repair["request"]), "request": repair["request"]}
+        except Exception as exc:
+            repairs[sid] = {**repair, "state": "failed", "error": str(exc)}
+        if repairs[sid].get("state") in ("queued", "running"):
+            pending.add(sid)
+    return pending
+
+
+def selection_repairs(market, repo, owner, generations, job, errors, *, engine=None,
+                      storage=None, overrides=None):
+    """The platform repairs the source date, then the selection job tries again."""
+    from app.strategy.basic_filter import previous_session
+    repairs = {}
+    source = date.fromisoformat(job["source_date"])
+    for sid in errors:
+        try:
+            if engine is None or storage is None:
+                raise ValueError("修复缺少策略范围定义")
+            symbols = trusted_scope(engine, repo, storage, sid, source,
+                                    (overrides or {}).get(sid))["symbols"]
+            bars = max(1, engine.minute_daily_history_bars(
+                [sid], overrides_map=overrides or {}))
+            dates = [source]
+            for _ in range(min(bars, 500) - 1):
+                dates.append(previous_session(dates[-1]))
+        except Exception as exc:
+            repairs[sid] = {"state": "failed", "error": str(exc)}
+            continue
+        repairs[sid] = request_input_repair(
+            market, owner=owner, sid=sid, generation=generations[sid],
+            day=source, phase="select", attempt=job["attempts"],
+            symbols=symbols, deadline=f"{source}T22:00:00+08:00",
+            daily_dates=sorted(dates))
+    return repairs
+
+
 def selection_receipts(storage, job, now):
     """Persist independent nightly state and deduplicated warnings."""
     from app.market_time import as_cn_datetime
@@ -48,35 +212,60 @@ def selection_receipts(storage, job, now):
     errors = job.get("errors") or {}
     for sid in set(job.get("completed") or []) | set(errors):
         old = task_receipt(storage, sid, job["source_date"])
-        task = {"state": ("expired" if job.get("state") == "expired" else "failed")
-                        if sid in errors else "success",
+        previous = old.get("tasks", {}).get("select", {})
+        if finished(previous):
+            if (not time(20) <= now.time().replace(tzinfo=None) <= time(22)
+                    or (sid not in (job.get("selections") or {}) and sid not in errors)):
+                continue
+            previous = {**previous, "state": "failed", "terminal": False}
+        source = str(job["source_date"])
+        action = {"phase": "expire" if job.get("state") == "expired" else "select",
+                  "expired_phase": "select", "scheduled_at": f"{source}T20:00:00+08:00",
+                  "retry_until": f"{source}T22:00:00+08:00"}
+        selected = (job.get("selections") or {}).get(sid) or {}
+        coverage = selected.get("coverage") or {}
+        from app.strategy.version import digest
+        job_signature = digest(json_value({
+            "job": {key: job.get(key) for key in ("started_at", "attempts", "state", "finished_at")},
+            "error": errors.get(sid), "selection": {
+                "as_of": selected.get("as_of"), "source_date": selected.get("source_date"),
+                "count": len(selected.get("rows", [])), "coverage": coverage},
+            "repair": (job.get("repairs") or {}).get(sid)}))
+        if previous.get("job_signature") == job_signature:
+            continue
+        task = receipt(previous, action, now, passed=sid not in errors,
+            errors=[errors[sid]] if sid in errors else [], details={
                 "windows": [{"start": "20:00:00", "end": "22:00:00"}],
-                "target_date": job["as_of"], "errors": [errors[sid]] if sid in errors else []}
+                "target_date": job["as_of"], "count": len(selected.get("rows", [])),
+                "pool_total": coverage.get("scope_total"), "pool_usable": coverage.get("available_daily"),
+                "missing_count": len(coverage.get("missing_symbols", [])),
+                "invalid_symbols": coverage.get("invalid_symbols", {}),
+                "warnings": selected.get("warnings", []),
+                "repair": (job.get("repairs") or {}).get(sid), "job_signature": job_signature})
         results[sid] = {"as_of": job["source_date"], "monitor_tasks": {"select": task}}
-        receipt = {**old, "as_of": job["source_date"], "strategy_id": sid,
+        saved_receipt = {**old, "as_of": job["source_date"], "strategy_id": sid,
                    "tasks": {**old.get("tasks", {}), "select": task},
+                   "contract": CONTRACT,
                    "updated_at": int(now.timestamp() * 1000)}
         alerts, alert_state = failure_events(
             {sid: results[sid]}, monitor_rules.load_all(storage), old.get("failures", {}), now)
-        receipt["failures"] = alert_state
+        saved_receipt["failures"] = alert_state
         if isinstance(storage, TenantDocuments):
             from app.multitenancy.alerts import append_in_transaction
             append_in_transaction(storage.connection, storage.context.tenant_id, alerts)
         else:
             append_many(storage, alerts)
-        task_receipt(storage, sid, job["source_date"], receipt)
+        task_receipt(storage, sid, job["source_date"], saved_receipt)
 
 
 def monitoring_summary(engine, storage, *, now=None):
     from app.market_time import as_cn_datetime, cn_now, published_trading_day
-    from app.services.daily_selections import DailySelections, due_window, signal_strategy
+    from app.services.daily_selections import DailySelections, due_window
     from app.strategy.config import list_overrides
     now = as_cn_datetime(now or cn_now())
     active, overrides = monitored_ids(storage), list_overrides(storage)
     rows = []
     for sid, strategy in engine._strategies.items():
-        if strategy.source not in ("custom", "ai") or not signal_strategy(strategy):
-            continue
         enabled = sid in active
         errors = []
         try:
@@ -89,7 +278,7 @@ def monitoring_summary(engine, storage, *, now=None):
         for kind in ("buy", "sell"):
             state = window_state(windows, kind, now)
             receipt = saved.get(kind, {})
-            if state == "running" and receipt.get("state") in ("success", "failed"):
+            if finished(receipt) or (state == "running" and receipt.get("state") == "failed"):
                 state = receipt["state"]
             elif state == "expired" and receipt.get("state") == "success":
                 state = "success"
@@ -106,7 +295,9 @@ def monitoring_summary(engine, storage, *, now=None):
                 elif now.time().replace(tzinfo=None) > time(22):
                     select["state"] = "expired"
                 elif now.time().replace(tzinfo=None) >= time(20):
-                    select["state"] = saved.get("select", {}).get("state", "running")
+                    previous = saved.get("select", {})
+                    select["state"] = "failed" if previous.get("errors") else "running"
+                    select["terminal"] = False
             except ValueError as exc:
                 select.update(state="failed", errors=[str(exc)])
         tasks["select"] = {**select, "state": select["state"] if enabled else "disabled"}
@@ -120,7 +311,7 @@ def monitored_ids(storage):
             if rule.get("type") == "strategy" and rule.get("enabled", True)
             and not rule.get("lot_id")
             and rule.get("strategy_id")
-            and monitoring_state(storage, rule["strategy_id"]).get("enabled", True)}
+            and monitoring_state(storage, rule["strategy_id"]).get("enabled") is True}
 
 
 def sell_roster(storage, sid, day):
@@ -173,14 +364,15 @@ def task_windows(engine, strategy, overrides):
             if sig.get("template") == "late_session_strength":
                 from app.strategy.late_session_strength import parameters
                 params = parameters(sig)
-                start, end = params["time"], params.get("end_time")
+                start, end = params["time"] or "13:00:00", params.get("end_time") or "14:55:00"
             elif sig.get("template") == "morning_liquidation":
                 from app.strategy.morning_liquidation import parameters
                 params = parameters(sig)
                 if all(value is None for value in params.values()):
                     continue
                 start = params.get("start_time") or "09:30:00"
-                end = params.get("fallback_time") or params.get("time") or "11:30:00"
+                end = params.get("fallback_time") or (
+                    params["time"] if "amplitude_pct" in params else "23:59:59")
             elif sig.get("template") == "s01_late_entry":
                 start, end = params.get("time"), "14:55:00"
             elif sig.get("template") == "s01_morning_exit":
@@ -188,16 +380,17 @@ def task_windows(engine, strategy, overrides):
             else:
                 start, end = params.get("start_time"), params.get("end_time") or params.get("fallback_time")
             if start and end:
+                if task == "buy":
+                    end = min(time.fromisoformat(end), time(14, 55)).isoformat()
                 windows[task].append({"start": time.fromisoformat(start).isoformat(),
                                       "end": time.fromisoformat(end).isoformat(), "signal": sig})
     return windows
 
 
 def strategy_windows(engine, strategy, storage, overrides):
-    from app.strategy.signal_sections import supports_signal_sections
-    if getattr(strategy, "source", None) not in ("custom", "ai") or not supports_signal_sections(strategy):
+    if getattr(strategy, "source", None) not in ("custom", "ai"):
         return None
-    if monitoring_state(storage, strategy.meta["id"]).get("enabled") is False:
+    if monitoring_state(storage, strategy.meta["id"]).get("enabled") is not True:
         return {"buy": [], "sell": []}
     loader = getattr(engine, "_monitor_task_loader", None)
     return loader(strategy.meta["id"]) if callable(loader) else task_windows(engine, strategy, overrides)
@@ -212,9 +405,12 @@ def window_state(windows, kind, now):
     if published_trading_day(now.date()) is not True:
         return "waiting"
     clock = now.time().replace(tzinfo=None)
-    if any(time.fromisoformat(w["start"]) <= clock <= time.fromisoformat(w["end"]) for w in spans):
+    if any(time.fromisoformat(w["start"]) <= clock
+           and (clock < time.fromisoformat(w["end"]) if kind == "sell"
+                else clock <= time.fromisoformat(w["end"])) for w in spans):
         return "running"
-    return "expired" if clock > max(time.fromisoformat(w["end"]) for w in spans) else "waiting"
+    end = max(time.fromisoformat(w["end"]) for w in spans)
+    return "expired" if clock > end or (kind == "sell" and clock == end) else "waiting"
 
 
 def next_task_check(windows, now, *, interval=30):
@@ -235,6 +431,59 @@ def fence_tasks(daily, windows, now):
     """Discard newly computed signal edges after their saved task window."""
     rejected = set()
     for kind, task in (daily.get("monitor_tasks") or {}).items():
+        if daily.get("monitor_contract") == CONTRACT and kind == "buy":
+            from app.market_time import as_cn_datetime
+            closed = {w["signal"]["id"] for w in windows.get("buy", [])
+                      if as_cn_datetime(now).time().replace(tzinfo=None) > time.fromisoformat(w["end"])}
+            executed = (daily.get("monitor_executed_signals") or {}).get(
+                kind, task.get("executed_signals", []))
+            late = set(executed) & closed
+            if not late:
+                continue
+            reason = "入场任务时段已结束, 迟到结果已丢弃"
+            for signal_id in late:
+                signal = task.get("signals", {}).get(signal_id, {})
+                step = signal.get("stocks") or {}
+                if step.get("state") not in ("success", "rejected"):
+                    continue
+                step.update(state="expired", status="failed", terminal=True, errors=[reason])
+                signal.update(state="expired", status="failed", terminal=True, errors=[reason])
+                rejected.add(kind)
+            if kind not in rejected:
+                continue
+            valid = [(signal.get("stocks") or {}) for signal in task.get("signals", {}).values()
+                     if (signal.get("stocks") or {}).get("state") in ("success", "rejected")]
+            rows = {row["symbol"]: row for step in valid for row in step.get("rows", [])}
+            hits = {hit["symbol"]: hit for step in valid for hit in step.get("hits", [])}
+            daily.update(rows=sorted(rows.values(), key=lambda row: (
+                -(row.get("score") if isinstance(row.get("score"), (int, float)) else float("-inf")),
+                row["symbol"])), total=len(rows), entry_signal_hits=list(hits.values()))
+            daily["sections"]["buy"] = daily["rows"]
+            task.update(state="expired", errors=[reason], published=bool(valid), count=len(rows))
+            daily.setdefault("section_statuses", {})["buy"] = "expired"
+            if not valid:
+                daily.update(entry_filter_error=reason)
+                daily.setdefault("section_errors", {})["buy"] = reason
+            continue
+        if daily.get("monitor_contract") == CONTRACT and kind == "sell":
+            from app.market_time import as_cn_datetime
+            closed = {w["signal"]["id"] for w in windows.get("sell", [])
+                      if as_cn_datetime(now).time().replace(tzinfo=None) > time.fromisoformat(w["end"])}
+            executed = set((daily.get("monitor_executed_signals") or {}).get(kind, []))
+            late = {symbol for symbol, hit in task.get("new_triggered", {}).items()
+                    if hit.get("monitor_signal_id") in closed & executed}
+            if late:
+                rejected.add(kind)
+                reason = "出场任务时段已结束, 迟到触发结果已丢弃"
+                task["triggered"] = {symbol: hit for symbol, hit in task.get("triggered", {}).items()
+                                     if symbol not in late}
+                daily["exit_signal_hits"] = list(task["triggered"].values())
+                task.update(state="expired", errors=[reason], count=len(task["triggered"]))
+                daily.setdefault("section_statuses", {})["sell"] = "expired"
+                daily.setdefault("section_errors", {})["sell"] = reason
+            continue
+        if task.get("executed") is False:
+            continue
         state = window_state(windows, kind, now)
         if task.get("state") != "success" or state == "running":
             continue
@@ -323,56 +572,183 @@ def sell_context(service, day, current, roster, now):
 
 
 def run_tasks(engine, strategy, context, overrides, windows, roster, *, exit_context=None):
+    """Execute only due phases; dated terminal receipts are the execution fence."""
+    from app.market_time import published_trading_day
     from app.strategy.engine import StrategyResult
     from app.strategy.execution_status import status
 
-    buy_state = window_state(windows, "buy", context.observed_at)
-    if buy_state == "running":
-        try:
-            if context.input_errors:
-                raise ValueError("; ".join(context.input_errors))
-            result = engine.run(strategy.meta["id"], context, overrides=overrides,
-                                params=dict(overrides.get("params") or {}))
-        except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
-            buy_state = "failed"
-            result = StrategyResult(context.as_of, strategy.meta["id"], [], 0,
-                                    entry_filter_error=str(exc))
-    else:
-        result = StrategyResult(context.as_of, strategy.meta["id"], [], 0)
-        result.entry_filter_error = (
-            "入场触发器未配置有效时段" if buy_state == "unconfigured" else
-            "入场信号时段已结束" if buy_state == "expired" else "等待入场触发器启动")
+    sid = strategy.meta["id"]
+    saved_loader = getattr(engine, "_monitor_receipt_loader", None)
+    saved = saved_loader(sid) if callable(saved_loader) else {}
+    tasks = deepcopy((saved or {}).get("tasks", {}))
+    prior_loader = getattr(engine, "_monitor_result_loader", None)
+    previous = prior_loader(sid) if callable(prior_loader) else {}
+    result = StrategyResult(context.as_of, sid, [], 0)
+    if previous and str(previous.get("as_of")) == str(context.as_of):
+        for key in ("rows", "total", "entry_signal_hits", "exit_signal_hits", "entry_data_quality",
+                    "sections", "section_mode", "section_statuses", "section_errors",
+                    "selection_snapshot", "entry_filter_error", "execution_status"):
+            if key in previous:
+                setattr(result, key, deepcopy(previous[key]))
+    actions = plan(windows, tasks, context.observed_at,
+                   trading=published_trading_day(context.as_of))["actions"]
+    stocks = [action for action in actions if action["kind"] == "buy" and action["phase"] == "stocks"]
+    if stocks:
+        columns = {window["signal"]["id"]: window["signal"].get("column") or "csgi_" + window["signal"]["id"]
+                   for window in windows["buy"]}
+        from app.strategy.version import runtime_identity
+        context = replace(context, signal_task_scope=f"{sid}:{runtime_identity(strategy, overrides)}")
+        buy = tasks.setdefault("buy", {"signals": {}})
+        for action in stocks:
+            effective = {**overrides, "entry_signals": [columns[action["signal_id"]]],
+                         "exit_signals": []}
+            try:
+                if context.input_errors:
+                    raise ValueError("; ".join(context.input_errors))
+                calculated = engine.run(sid, context, overrides=effective,
+                                        params=dict(overrides.get("params") or {}))
+            except (ValueError, OSError, pl.exceptions.PolarsError) as exc:
+                calculated = StrategyResult(context.as_of, sid, [], 0, entry_filter_error=str(exc))
+            quality = (calculated.entry_data_quality or {}).get(columns[action["signal_id"]], {})
+            errors = [calculated.entry_filter_error] if calculated.entry_filter_error else []
+            old = buy.setdefault("signals", {}).get(action["signal_id"], {})
+            step = receipt(old.get("stocks", {}), action, context.observed_at,
+                           errors=errors, passed=bool(calculated.rows), details={
+                               **quality, "rows": calculated.rows if not errors else [],
+                               "hits": calculated.entry_signal_hits if not errors else [],
+                               "count": len(calculated.rows) if not errors else 0})
+            buy["signals"][action["signal_id"]] = {**old, "stocks": step,
+                **{key: step[key] for key in ("state", "terminal", "passed", "status", "errors")}}
+            result.entry_data_quality = {**(result.entry_data_quality or {}),
+                                         **(calculated.entry_data_quality or {})}
+        # Each signal owns its immutable snapshot, including successful zero hits.
+        rows, hits = {}, {}
+        for value in buy["signals"].values():
+            completed = value.get("stocks") or {}
+            if completed.get("state") not in ("success", "rejected"):
+                continue
+            for row in completed.get("rows") or []:
+                rows.setdefault(row["symbol"], row)
+            for hit in completed.get("hits") or []:
+                symbol = hit["symbol"]
+                if symbol in hits:
+                    hits[symbol]["signals"] = sorted(set(hits[symbol].get("signals", []))
+                                                    | set(hit.get("signals", [])))
+                else:
+                    hits[symbol] = deepcopy(hit)
+        result.rows = sorted(rows.values(), key=lambda r: (
+            -(r.get("score") if isinstance(r.get("score"), (int, float)) else float("-inf")),
+            r["symbol"]))
+        result.total, result.entry_signal_hits = len(rows), list(hits.values())
+    for action in actions:
+        if action["phase"] != "expire":
+            continue
+        task = tasks.setdefault(action["kind"], {"signals": {}})
+        old = task.setdefault("signals", {}).get(action["signal_id"], {})
+        phase = action["expired_phase"]
+        prior_phase = old.get(phase, {}) if action["kind"] == "buy" else old
+        step = receipt(prior_phase, action, context.observed_at, errors=[
+            "上涨占比在确认时点前未计算成功" if action["expired_phase"] == "breadth"
+            else "任务有效时段已结束, 未完成计算"])
+        task["signals"][action["signal_id"]] = (
+            {**old, phase: step, **{k: step[k] for k in
+             ("state", "terminal", "passed", "status", "errors")}}
+            if action["kind"] == "buy" else step)
+
     if result.sections is None:
-        selected = getattr(engine, "_selection_loader", lambda *_: None)(strategy.meta["id"], context.as_of)
+        selected = getattr(engine, "_selection_loader", lambda *_: None)(sid, context.as_of)
         result.section_mode = "signals"
         result.selection_snapshot = selected
         result.sections = {"sell": [], "select": (selected or {}).get("rows", []), "buy": []}
-        result.section_errors = {"buy": result.entry_filter_error}
-        result.section_statuses = {"buy": buy_state, "select": "success" if selected is not None else "waiting"}
+        result.section_errors = {}
+        result.section_statuses = {"select": "success" if selected is not None else "waiting"}
         if selected is None:
             result.section_errors["select"] = "盘后选股尚未生成"
-    sell = evaluate_sell_task(engine, strategy, exit_context or context, overrides, windows, roster)
-    result.exit_signal_hits = sell["hits"]
+    result.section_errors = result.section_errors or {}
+    result.section_statuses = result.section_statuses or {}
+
+    sell_actions = [a for a in actions if a["kind"] == "sell" and a["phase"] == "observe"]
+    sell_task = tasks.setdefault("sell", {})
+    if sell_task.get("triggered"):
+        result.exit_signal_hits = list(deepcopy(sell_task["triggered"]).values())
+    if sell_actions:
+        sell_task["new_triggered"] = {}
+        triggered = deepcopy(sell_task.get("triggered", {}))
+        for action in sell_actions:
+            remaining = ({**roster, "rows": [r for r in roster["rows"] if r["symbol"] not in triggered]}
+                         if roster is not None else None)
+            active_windows = {**windows, "sell": [
+                w for w in windows["sell"] if w["signal"]["id"] == action["signal_id"]]}
+            evaluated = evaluate_sell_task(engine, strategy, exit_context or context, overrides,
+                                           active_windows, remaining)
+            for hit in evaluated["hits"]:
+                if hit["symbol"] not in triggered:
+                    triggered[hit["symbol"]] = {**hit, "monitor_signal_id": action["signal_id"]}
+                    sell_task["new_triggered"][hit["symbol"]] = triggered[hit["symbol"]]
+            done = roster is not None and len(triggered) == len(roster["rows"])
+            old = sell_task.setdefault("signals", {}).get(action["signal_id"], {})
+            sell_task["signals"][action["signal_id"]] = receipt(
+                old, action, context.observed_at, errors=evaluated["errors"],
+                passed=bool(triggered), complete=done, details={
+                    "count": len(triggered), "remaining_count": len((roster or {}).get("rows", [])) - len(triggered),
+                    "hits": evaluated["hits"]})
+        sell_task["triggered"] = triggered
+        result.exit_signal_hits = list(triggered.values())
+
+    for kind in ("buy", "sell"):
+        task = tasks.setdefault(kind, {})
+        if finished(task):
+            continue
+        task["executed"] = any(a["kind"] == kind for a in actions)
+        task["executed_signals"] = [a["signal_id"] for a in actions
+                                   if a["kind"] == kind and a["phase"] in ("stocks", "observe")]
+        task["windows"] = [{k: w[k] for k in ("start", "end")} for w in windows[kind]]
+        signals = list((task.get("signals") or {}).values())
+        configured = len(windows[kind])
+        terminal = bool(configured and len(signals) == configured and all(finished(s) for s in signals))
+        states = {s.get("state") for s in signals}
+        state = ("unconfigured" if not configured else
+                 "expired" if terminal and "expired" in states else
+                 "success" if terminal and "success" in states else
+                 "rejected" if terminal else "failed" if "failed" in states else
+                 "running" if any(a["kind"] == kind for a in actions) else "waiting")
+        task.update(state=state, terminal=terminal, status="succeeded" if terminal and state in
+                    ("success", "rejected") else "failed" if terminal else "queued",
+                    errors=list(dict.fromkeys(error for s in signals for error in s.get("errors", []))),
+                    count=len(result.exit_signal_hits) if kind == "sell" else len(result.rows))
+        if terminal:
+            task["completed_at"] = max(s.get("completed_at") or
+                (s.get("stocks") or {}).get("completed_at") or context.observed_at.isoformat() for s in signals)
+    buy_state = tasks["buy"]["state"]
+    result.section_statuses["buy"] = buy_state
+    result.section_statuses["sell"] = tasks["sell"]["state"]
+    completed_buy = any((s.get("stocks") or {}).get("state") in ("success", "rejected")
+                        for s in tasks["buy"].get("signals", {}).values())
+    tasks["buy"]["published"] = completed_buy or buy_state in ("success", "rejected")
+    if tasks["buy"]["published"]:
+        result.entry_filter_error = None
+        result.section_errors.pop("buy", None)
+        result.sections["buy"] = result.rows
+    elif tasks["buy"].get("errors"):
+        result.entry_filter_error = "; ".join(tasks["buy"]["errors"])
+        result.section_errors["buy"] = result.entry_filter_error
+    elif not result.entry_filter_error:
+        result.entry_filter_error = ("入场触发器未配置有效时段" if buy_state == "unconfigured" else
+            "入场信号时段已结束" if buy_state == "expired" else "等待入场阶段计算")
+        result.section_errors["buy"] = result.entry_filter_error
     result.sections["sell"] = (roster or {}).get("rows", [])
-    result.section_statuses["sell"] = sell["state"]
     result.section_errors.pop("sell", None)
-    if sell["errors"]:
-        result.section_errors["sell"] = "; ".join(sell["errors"])
+    if tasks["sell"].get("errors"):
+        result.section_errors["sell"] = "; ".join(tasks["sell"]["errors"])
     result.exit_filter_error = result.section_errors.get("sell")
-    result.monitor_tasks = {
-        "buy": {"state": result.section_statuses["buy"], "windows": [
-            {k: w[k] for k in ("start", "end")} for w in windows["buy"]],
-                "errors": [result.entry_filter_error] if result.section_statuses["buy"] == "failed"
-                          and result.entry_filter_error else []},
-        "sell": {"state": sell["state"], "windows": [
-            {k: w[k] for k in ("start", "end")} for w in windows["sell"]],
-                 "count": len(result.exit_signal_hits), "errors": sell["errors"]},
-    }
-    if result.section_statuses["buy"] != "success":
-        result.execution_status = status(
-            "failed" if result.section_statuses["buy"] == "failed" else
-            "expired" if result.section_statuses["buy"] == "expired" else "waiting",
-            result.entry_filter_error)
+    result.monitor_tasks = tasks
+    result.monitor_contract = CONTRACT
+    result.monitor_executed_signals = {kind: [a["signal_id"] for a in actions
+        if a["kind"] == kind and a["phase"] in ("stocks", "observe")] for kind in ("buy", "sell")}
+    result.execution_status = status("success" if buy_state in ("success", "rejected") else
+                                    "failed" if buy_state == "failed" else
+                                    "expired" if buy_state == "expired" else "waiting",
+                                    result.entry_filter_error)
     return result
 
 
@@ -381,12 +757,19 @@ def run_monitored(engine, strategy, loader, storage, day, current, overrides, wi
     from app.strategy.engine import StrategyDataContext
     from app.strategy.overnight_runtime import monitor_context
     now = cn_now()
+    saved_loader = getattr(engine, "_monitor_receipt_loader", None)
+    saved = saved_loader(strategy.meta["id"]) if callable(saved_loader) else {}
+    from app.market_time import published_trading_day
+    actions = plan(windows, (saved or {}).get("tasks", {}), now,
+                   trading=published_trading_day(day))["actions"]
     roster_loader = getattr(engine, "_sell_roster_loader", None)
     roster = (roster_loader(strategy.meta["id"], day) if callable(roster_loader)
               else sell_roster(storage, strategy.meta["id"], day))
-    independent = sell_context(loader.__self__, day, current, roster, now)
+    independent = (sell_context(loader.__self__, day, current, roster, now)
+                   if any(a["kind"] == "sell" and a["phase"] == "observe" for a in actions)
+                   else StrategyDataContext("stock", "1m", day, current=current, observed_at=now))
     context = independent
-    if window_state(windows, "buy", now) == "running":
+    if any(a["kind"] == "buy" and a["phase"] == "stocks" for a in actions):
         try:
             context = monitor_context(loader, engine, strategy.meta["id"], day, current, storage)
         except Exception as exc:
@@ -401,10 +784,13 @@ def forward_buy(store, conn, identity, saved):
     from app.services.strategy_day_views import _get, _key, _put, publish
     from app.strategy.overnight_runtime import next_market_day
     result = saved["result"]
+    published = (result.get("monitor_contract") == CONTRACT
+                 and (result.get("monitor_tasks") or {}).get("buy", {}).get("published"))
     if (result.get("selection_only") or result.get("sell_roster_only")
             or result.get("entry_filter_error") or result.get("execution_error")
             or (result.get("section_errors") or {}).get("buy")
-            or (result.get("section_statuses") or {}).get("buy", "success") != "success"):
+            or (not published and (result.get("section_statuses") or {}).get(
+                "buy", "waiting") not in ("success", "rejected"))):
         return
     day = str(next_market_day(date.fromisoformat(result["as_of"])))
     roster = {
@@ -414,10 +800,10 @@ def forward_buy(store, conn, identity, saved):
         "rows": [{**row, "entry_date": result["as_of"], "entry_record_id": saved["record_id"]}
                  for row in result["sections"]["buy"]],
     }
-    key = _key(identity.strategy_id, day, "stock", "1m")
+    key = _key(identity.strategy_id, day, identity.asset_type, identity.timeframe)
     if _get(store, conn, "strategy_sell_rosters", key) != roster:
         _put(store, conn, "strategy_sell_rosters", key, roster)
-    publish(store, conn, identity.strategy_id, day, cascade=False)
+    publish(store, conn, identity.strategy_id, day, identity.asset_type, identity.timeframe, cascade=False)
 
 
 def set_monitoring(storage, sid, name, enabled):
@@ -434,10 +820,8 @@ def set_monitoring(storage, sid, name, enabled):
             related = [rule for rule in rules.load_all()
                        if rule.get("type") == "strategy" and rule.get("strategy_id") == sid
                        and not rule.get("lot_id")]
-            chosen = next((rule for rule in related if rule.get("_system_task")),
-                          related[0] if related else None)
+            chosen = related[0] if related else None
             for rule in related:
-                # Only this strategy-level operation may stop its legacy critical rule.
                 rules.save_one({**rule, "enabled": False}, system=True)
             if enabled:
                 chosen = monitor_rules.normalize({
@@ -447,15 +831,20 @@ def set_monitoring(storage, sid, name, enabled):
                     "direction": "both", "notify_events": ["buy_signal", "sell_signal"],
                     "conditions": [], "cooldown_seconds": 0,
                 })
+                chosen.pop("_system_task", None)
                 monitor_rules.validate(chosen)
                 rules.save_one(chosen, system=True)
             critical = unit.get("critical_strategy_schedule", sid)
             if critical:
-                unit.put("critical_strategy_schedule", sid, {**critical, "enabled": enabled})
+                unit.put("critical_strategy_schedule", sid, {**critical, "enabled": False,
+                         "retired_by": CONTRACT})
             state = {"strategy_id": sid, "enabled": enabled,
+                     "contract": CONTRACT,
                      "generation": old.get("generation", 0) + 1,
                      "rule_id": chosen["id"] if chosen else None}
             unit.put(NAMESPACE, sid, state)
+            if not enabled:
+                _cancel_tasks(unit, sid)
             append_event(unit.connection, unit.context.tenant_id, "strategy_results_updated",
                          {"strategy_ids": [sid], "monitoring": enabled})
             return state
@@ -479,12 +868,16 @@ def set_monitoring(storage, sid, name, enabled):
                     "enabled": True, "scope": "all", "symbols": [], "direction": "both",
                     "notify_events": ["buy_signal", "sell_signal"], "cooldown_seconds": 0,
                 })
+                chosen.pop("_system_task", None)
                 monitor_rules.save_one(storage, chosen)
             state = {"strategy_id": sid, "enabled": enabled,
+                     "contract": CONTRACT,
                      "generation": old.get("generation", 0) + 1,
                      "rule_id": chosen["id"] if chosen else None}
             path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_text(path, json.dumps(state))
+            if not enabled:
+                _cancel_tasks(storage, sid)
             return state
         except Exception:
             if chosen and chosen["id"] not in {rule["id"] for rule in related}:

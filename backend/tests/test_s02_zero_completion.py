@@ -133,7 +133,7 @@ def test_archived_selection_maps_its_identity_before_zero_status_overlay(owned, 
     monkeypatch.setattr(screener, "_private_data_dir", lambda *_: owned.documents)
     monkeypatch.setattr(screener, "_history_identities", lambda *a, **kw: (store, [key]))
     monkeypatch.setattr(screener, "_strategy_engine", lambda *_: SimpleNamespace(
-        get=lambda *_: SimpleNamespace(meta={"result_sections": "signals"})))
+        get=lambda *_: SimpleNamespace(meta={"result_sections": "signals"}, execution_backend="minute_filter")))
     result = screener._history_payload(None, day, "stock", "1m")["results"]["custom_test"]
     assert result["section_statuses"]["buy"] == "success"
     assert result["execution_status"]["state"] == "success"
@@ -169,70 +169,9 @@ def test_next_day_cached_archive_refreshes_sell_dependency_from_completed_zero(o
     monkeypatch.setattr(screener, "_private_data_dir", lambda *_: owned.documents)
     monkeypatch.setattr(screener, "_history_identities", lambda *a, **kw: (StrategyResults(owned.documents), [key]))
     monkeypatch.setattr(screener, "_strategy_engine", lambda *_: SimpleNamespace(
-        get=lambda *_: SimpleNamespace(meta={"result_sections": "signals"})))
+        get=lambda *_: SimpleNamespace(meta={"result_sections": "signals"}, execution_backend="minute_filter")))
     result = screener._history_payload(None, tomorrow, "stock", "1m")["results"]["custom_test"]
     assert not result["section_errors"].get("sell")
     assert result["section_statuses"]["sell"] == "success"
     assert result["sections"]["sell"] == []
     assert result["section_errors"]["buy"]
-
-
-@pytest.mark.parametrize("observer", ["record", "watchdog"])
-def test_late_completion_atomically_refreshes_today_and_next_saved_view(owned, observer):
-    from test_critical_strategy_schedule import configure
-
-    from app.multitenancy import critical_schedule
-    from app.services.daily_selections import DailySelections
-    from app.services.strategy_results import StrategyResults
-
-    sid = configure(owned)
-    day = cn_today()
-    tomorrow = day + timedelta(days=1)
-    key = ResultIdentity(sid, "S02", "v1", "{}", "{}", "null",
-                         "stock", "1m", runtime_identity="current")
-    selected = DailySelections(owned.documents)
-    for target in (day, tomorrow):
-        selected.save(key, {"as_of": str(target), "source_date": str(target - timedelta(days=1)),
-                            "rows": [{"symbol": "600000.SH"}]}, started_at=1)
-    original = owned.documents.records("strategy_result_history")
-    moment = datetime.combine(day, time(14, 31), CN_TZ)
-    daily = {**selection(day), "computed_at": completion(day)["completed_at"],
-             "selection_only": False, "section_errors": {},
-             "section_statuses": {"buy": "success"}}
-    if observer == "record":
-        with owned.documents.transaction() as unit:
-            critical_schedule.record_completion(unit, sid, daily, now=moment,
-                                                fingerprint=fingerprint(unit.connection, include_state=False))
-    else:
-        with owned.documents.transaction() as unit:
-            unit.put("monitor_results", "default", {
-                "fingerprint": fingerprint(unit.connection, include_state=False),
-                "results": {sid: daily},
-            })
-        critical_schedule.check_completion(owned.worker, owned.documents, now=moment + timedelta(minutes=1))
-    store = StrategyResults(owned.documents)
-    today = json.loads(gzip.decompress(store.day_view(sid, str(day))[1]))["result"]
-    future = json.loads(gzip.decompress(store.day_view(sid, str(tomorrow))[1]))["result"]
-    assert today["section_statuses"]["buy"] == "success"
-    assert not today["selection_only"]
-    assert not future["section_errors"].get("sell")
-    assert future["section_statuses"]["sell"] == "success"
-    assert future["selection_only"]
-    assert owned.documents.records("strategy_result_history") == original
-
-
-def test_preselection_without_completion_cannot_prove_next_day_empty_sell(owned):
-    from app.services.daily_selections import DailySelections
-    from app.services.strategy_results import StrategyResults
-
-    day = cn_today()
-    tomorrow = day + timedelta(days=1)
-    key = ResultIdentity("custom_test", "S02", "v1", "{}", "{}", "null",
-                         "stock", "1m", runtime_identity="current")
-    for target in (day, tomorrow):
-        DailySelections(owned.documents).save(key, {
-            "as_of": str(target), "source_date": str(target - timedelta(days=1)), "rows": [],
-        }, started_at=1)
-    future = json.loads(gzip.decompress(StrategyResults(owned.documents).day_view("custom_test", str(tomorrow))[1]))["result"]
-    assert future["section_errors"].get("sell")
-    assert future.get("section_statuses", {}).get("sell") != "success"

@@ -92,3 +92,19 @@ class PublicMarket:
             response.raise_for_status()
         except httpx.HTTPError as exc:
             raise AccessError(503, "分钟优先计划暂不可用") from exc
+
+    def monitor_repair(self, request):
+        try:
+            response = self.client.post("/internal/cell-market/monitor-repair", json=request)
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise AccessError(503, "平台输入修复暂不可用") from exc
+
+    def cancel_monitor_repair(self, owner, sid, generation):
+        try:
+            response = self.client.post("/internal/cell-market/monitor-repair/cancel",
+                                        json={"owner": owner, "strategy_id": sid, "generation": generation})
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise AccessError(503, "平台输入修复取消待重试") from exc

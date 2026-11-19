@@ -53,7 +53,6 @@ PRIORITY = [
     "macd_below_zero_revival", "pullback_ma20_bounce", "platform_consolidation_breakout",
 ]
 PENDING_TOPICS = {
-    "low_volatility_leader": "匹配宽基60日相对收益：冻结输入缺少指数历史，未试验",
     "strong_open": "成交溢价上限已登记；9:35承接仍缺完整分钟覆盖",
     "consecutive_limit_ups": "保留接力观察定义；一进二缺少冻结首板池及分钟承接数据，未试验",
 }

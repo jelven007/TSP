@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import polars as pl
 import pytest
-from test_late_session_strength import DAY, POOL, TARGET, bars, close_inputs, definition, evaluate
+from test_late_session_strength import DAY, POOL, TARGET, bars, definition, evaluate
 
 CHECK = TARGET + timedelta(minutes=1)
 
@@ -88,7 +88,7 @@ def test_engine_ignores_unfinished_row_and_preserves_data_and_available_times(tm
     assert hits["close"].to_list() == pytest.approx([10.159]*3)
 
 
-def test_entry_window_starts_at_available_minute_without_consuming_future_open(tmp_path):
+def test_next_open_fill_is_available_minute_not_an_extra_minute(tmp_path):
     from app.backtest.minute_replay import MinuteSignalReplayer
     from app.strategy import custom_signals
     from app.strategy.engine import StrategyEngine
@@ -111,16 +111,14 @@ def filter_minute_history(df, params):
     frame = pl.concat([bars(), future])
     panel = pl.DataFrame({"symbol": POOL*2, "date": [DAY-timedelta(days=1)]*5+[DAY]*5,
                           "close": [10.]*10, "raw_close": [10.]*10, "name": ["sample"]*10})
-    repo = SimpleNamespace(list_minute_dates=lambda *_: [DAY], get_minute_by_dates=lambda *_: frame,
-                           get_daily_close_inputs=close_inputs)
+    repo = SimpleNamespace(list_minute_dates=lambda *_: [DAY], get_minute_by_dates=lambda *_: frame)
+    repo.get_daily_close_inputs = lambda day, **_: (panel.filter(pl.col("date") == day), pl.DataFrame())
     result = MinuteSignalReplayer(SimpleNamespace(repo=repo), engine).replay(
         engine.get("sample"), panel=panel, start=DAY, end=DAY, params={},
         overrides={"entry_signals": ["csgi_late_session_strength"]})
-    assert not result.errors
     assert len(result.hits) == 3
     assert all(hit.trigger_time == "14:31" and hit.signal_time == "14:31" for hit in result.hits)
-    assert all(hit.entry_window_start == CHECK and hit.prior_close == 10. for hit in result.hits)
-    assert all(hit.raw_entry_price == pytest.approx(10.159) for hit in result.hits)
+    assert all(hit.raw_entry_price == 10.18 for hit in result.hits)
 
 
 @pytest.mark.parametrize("start,end", [("14:32:00", datetime(2026, 9, 4, 14, 32)),

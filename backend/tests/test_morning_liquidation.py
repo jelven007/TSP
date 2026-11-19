@@ -47,13 +47,26 @@ def test_template_roundtrip_and_no_generic_compilation(tmp_path):
 
 
 @pytest.mark.parametrize("params", [
-    {"time": "09:29:59"}, {"time": "11:30:01"}, {"time": "10:3:00"},
+    {"time": "24:00:00"}, {"time": "10:3:00"},
     {"amplitude_pct": -1}, {"amplitude_pct": 101}, {"amplitude_pct": float("nan")},
     {"amplitude_pct": True}, {"unexpected": 1},
 ])
 def test_invalid_parameters(params):
     with pytest.raises(ValueError):
         custom_signals.validate(definition(**params))
+
+
+@pytest.mark.parametrize("clock", ["00:00:00", "08:15:32", "13:05:15", "23:59:59"])
+def test_amplitude_definition_accepts_whole_day_clocks(clock):
+    custom_signals.validate(definition(time=clock))
+
+
+def test_amplitude_definition_observes_afternoon_completed_minutes():
+    at = NOW.replace(hour=13, minute=5)
+    frame = bars().with_columns(pl.lit(at).alias("datetime"))
+    hit, = evaluate(frame=frame, sig=definition(time="13:20:00"), now=at).hits
+    assert hit["trigger_time"] == at.isoformat()
+    assert hit["reason"] == "amplitude"
 
 
 def test_inclusive_threshold_uses_range_not_profit_and_retains_holding_identity():

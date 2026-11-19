@@ -32,10 +32,10 @@ def parameters(sig: dict) -> dict:
                 continue
             try:
                 at = time.fromisoformat(value)
-                if at.strftime("%H:%M:%S") != value or at.tzinfo or not time(9, 30) <= at <= time(11, 30):
+                if at.strftime("%H:%M:%S") != value or at.tzinfo:
                     raise ValueError
             except (TypeError, ValueError):
-                raise ValueError("早盘清仓时间须为 09:30:00~11:30:00 (北京时间)") from None
+                raise ValueError("清仓时间须为 00:00:00~23:59:59 的 HH:MM:SS (北京时间)") from None
         start, stop, fallback = (params[k] for k in ("start_time", "time", "fallback_time"))
         if start is not None and any(at is not None and at < start for at in (stop, fallback)):
             raise ValueError("启动时间不得晚于止损或兜底时间")
@@ -51,10 +51,10 @@ def parameters(sig: dict) -> dict:
     for key in ("time",) if legacy else ("time", "fallback_time"):
         try:
             at = time.fromisoformat(params[key])
-            if at.strftime("%H:%M:%S") != params[key] or at.tzinfo or not time(9, 30) <= at <= time(11, 30):
+            if at.strftime("%H:%M:%S") != params[key] or at.tzinfo:
                 raise ValueError
         except (TypeError, ValueError):
-            raise ValueError("早盘清仓时间须为 09:30:00~11:30:00 (北京时间)") from None
+            raise ValueError("清仓时间须为 00:00:00~23:59:59 的 HH:MM:SS (北京时间)") from None
     if not legacy and params["fallback_time"] <= params["time"]:
         raise ValueError("兜底时间须晚于止损时间")
     for key in ("amplitude_pct",) if legacy else ("rise_pct", "fall_pct"):
@@ -149,21 +149,22 @@ def evaluate(
     if sig.get("enabled") is False or (optional and all(v is None for v in params.values())):
         return result
     now = now.astimezone(CN_TZ).replace(tzinfo=None) if now.tzinfo else now
-    if now.date() != day or now.time() < time(9, 30):
+    legacy = "amplitude_pct" in params
+    if now.date() != day:
         return result
     if roster is not None:
         positions = roster
     if positions is None:
         result.diagnostics.append("早盘清仓需要包含买入日期的实际持仓快照")
         return result
-    legacy = "amplitude_pct" in params
     deadline = datetime.combine(day, time.fromisoformat(params["time"])) if params["time"] is not None else None
     fallback_value = params.get("fallback_time", params["time"])
     fallback = datetime.combine(day, time.fromisoformat(fallback_value)) if fallback_value is not None else None
-    start = datetime.combine(day, time.fromisoformat(params.get("start_time") or "09:30:00"))
+    start = datetime.combine(day, time.fromisoformat(params.get("start_time") or "00:00:00"))
     if optional and now < start:
         return result
-    early_end = min([datetime.combine(day, time(11, 30)), *[at for at in (deadline, fallback) if at is not None]])
+    early_end = min([datetime.combine(day, time(23, 59, 59)),
+                     *[at for at in (deadline, fallback) if at is not None]])
     # 已完成分钟仅提供触发时间上界; 缺口期间的真实首次触发不可伪造。
     frame = pl.DataFrame()
     price_field = "raw_close" if minute_df is not None and "raw_close" in minute_df.columns else "close"
@@ -178,7 +179,8 @@ def evaluate(
             pl.col(price_field).is_finite() & (pl.col(price_field) > 0))
         frame = minute_df.with_columns(dt.alias("datetime")).filter(
             (pl.col("datetime").dt.date() == day) & (pl.col("datetime").dt.time() > time(9, 30))
-            & (pl.col("datetime") <= min(now, early_end)) & valid,
+            & (pl.col("datetime") <= min(now, early_end)) & valid
+            & (pl.lit(True) if legacy or fallback is None else pl.col("datetime") < fallback),
         ).sort("datetime")
         if optional:
             frame = frame.filter(
@@ -265,13 +267,11 @@ def evaluate(
                 if hit:
                     pending = {**hit, "change_pct": change,
                                "trigger_time": at.isoformat(), "source": "live_quote"}
-        if not legacy and fallback is not None and now >= fallback:
-            pending = {"reason": "fallback", "change_pct": None,
-                       "trigger_time": fallback.isoformat(), "source": "clock"}
-        elif not legacy and deadline is not None and now >= deadline:
+        if (not legacy and pending is None and deadline is not None and now >= deadline
+                and (fallback is None or deadline < fallback)):
             pending = {"reason": "stop_time", "change_pct": None,
                        "trigger_time": deadline.isoformat(), "source": "clock"}
-        if pending is None and deadline is not None and now >= deadline:
+        if legacy and pending is None and deadline is not None and now >= deadline:
             pending = {"reason": "deadline" if legacy else "stop_time",
                        "amplitude_pct" if legacy else "change_pct": None,
                        "trigger_time": deadline.isoformat(), "source": "clock"}
@@ -280,7 +280,8 @@ def evaluate(
                 "symbol": symbol, "account_id": position.get("account_id"), "cycle_id": position.get("cycle_id"),
                 "entry_date": str(entry), **holding_fields,
                 "holding_exit": True,
-                "deadline_elapsed": fallback is not None and now > fallback, **pending,
+                "deadline_elapsed": fallback is not None and (now > fallback if legacy else now >= fallback),
+                **pending,
             })
         elif optional:
             if ((params["rise_pct"] is not None or params["fall_pct"] is not None) and not _positive(previous)):

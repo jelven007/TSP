@@ -113,11 +113,20 @@ def test_partial_fill_does_not_reassign_unused_budget(tmp_path):
     result = run(service(tmp_path, 2, partial=True))
     assert result.error is None
     positions = {p["symbol"]: p for p in result.stats["execution"]["remaining_positions"]}
-    assert positions["600001.SH"]["shares"] == 4000
-    assert positions["600001.SH"]["entry_value"] == pytest.approx(4000 * 10.11 * 1.00026)
+    limited = [fill for fill in result.fills if fill["symbol"] == "600001.SH"]
+    assert [fill["datetime"] for fill in limited] == [
+        "2026-08-25 14:47:00", "2026-08-25 14:48:00",
+        "2026-08-25 14:49:00", "2026-08-25 14:50:00",
+    ]
+    assert all(fill["shares"] == fill["minute_volume_shares"] == 1000 for fill in limited)
+    assert positions["600001.SH"]["entry_value"] == pytest.approx(
+        sum(fill["notional"] + fill["fee"] for fill in limited))
+    assert positions["600001.SH"]["entry_budget"] == 500000
     assert positions["600002.SH"]["entry_budget"] == 500000
     assert 498900 < positions["600002.SH"]["entry_value"] <= 500000
-    assert result.stats["execution"]["cash"] > 459000
+    assert result.stats["execution"]["cash"] == pytest.approx(
+        1000000 - sum(position["entry_value"] for position in positions.values()))
+    assert result.stats["execution"]["cash"] > 450000
 
 
 def test_retained_positions_use_slots_and_new_batch_divides_remaining_cash(tmp_path):

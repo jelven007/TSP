@@ -61,13 +61,14 @@ def test_task_summary_is_read_only_and_new_pool_strategy_is_off(tmp_path):
     assert monitor_rules.load_all(tmp_path) == []
 
 
-def test_nightly_failure_receipts_keep_other_tasks_and_deduplicate_alerts(tmp_path):
+def test_nightly_failure_receipts_keep_other_tasks_and_deduplicate_alerts(tmp_path, monkeypatch):
     from app.services.strategy_monitor_tasks import selection_receipts, set_monitoring, task_receipt
     set_monitoring(tmp_path, "custom_test", "Test", True)
     task_receipt(tmp_path, "custom_test", "2026-10-30", {"tasks": {"sell": {"state": "success"}}})
     job = {"as_of": "2026-11-02", "source_date": "2026-10-30",
            "state": "failed", "errors": {"custom_test": "缺日线"}}
     now = datetime(2026, 10, 30, 20, tzinfo=CN_TZ)
+    monkeypatch.setattr("time.time", lambda: now.timestamp())
     selection_receipts(tmp_path, job, now)
     selection_receipts(tmp_path, job, now)
     saved = task_receipt(tmp_path, "custom_test", "2026-10-30")["tasks"]
@@ -106,3 +107,18 @@ def test_task_windows_read_tenant_signal_storage_when_engine_has_no_source_direc
     assert windows["buy"] == []
     assert windows["sell"][0]["start"] == "09:30:00"
     assert windows["sell"][0]["end"] == "11:30:00"
+
+
+def test_buy_task_window_and_status_match_real_time_cutoff_without_changing_saved_signal(monkeypatch):
+    from app.services.strategy_monitor_tasks import task_windows, window_state
+    signal = {"id": "late", "enabled": True, "template": "late_session_strength", "params": {
+        "time": "14:50:00", "end_time": "15:00:00", "evaluation_delay_minutes": .5}}
+    monkeypatch.setattr("app.strategy.s01_signals.optional_triggers", lambda _: True)
+    monkeypatch.setattr("app.strategy.s01_signals.trigger_definitions",
+                        lambda *_a, **_k: {"entry": [signal], "exit": []})
+    windows = task_windows(None, None, {})
+    assert windows["buy"][0]["end"] == "14:55:00"
+    assert signal["params"]["end_time"] == "15:00:00"
+    now = datetime(2026, 11, 20, 14, 55, tzinfo=CN_TZ)
+    assert window_state(windows, "buy", now) == "running"
+    assert window_state(windows, "buy", now.replace(second=1)) == "expired"

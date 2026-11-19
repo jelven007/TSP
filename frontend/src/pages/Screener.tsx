@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { ScanSearch, Clock, TrendingUp, Star, Filter, Layers, Network, Sparkles, RefreshCw, Settings2, Store, RotateCcw, X, SlidersHorizontal } from 'lucide-react'
-import { api, genRuleId, type ScreenerStrategy, type ScreenerResult } from '@/lib/api'
+import { api, type ScreenerStrategy, type ScreenerResult } from '@/lib/api'
 import { fetchMinuteBatchIncremental } from '@/lib/minuteBatchIncremental'
-import { DEFAULT_STRATEGY_NOTIFY_EVENTS } from '@/lib/strategyMonitorEvents'
 import { toast } from '@/components/Toast'
 import { useDataStatus, usePreferences, useCapabilities, useQuoteStatus } from '@/lib/useSharedQueries'
 import { useWatchlistBatchAdd } from '@/lib/useSharedMutations'
@@ -186,6 +185,7 @@ export function Screener() {
   const quoteStatus = useQuoteStatus()
   const calendarToday = quoteStatus.data?.market_time?.slice(0, 10)
     ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+  const isHistoricalDate = !!asOf && asOf < calendarToday
 
   // 统一列表: 不按周期过滤, 日线+分钟策略合并返回, 分钟策略带 timeframes 标识
   const strategies = useQuery({
@@ -201,10 +201,9 @@ export function Screener() {
     const meta = (strategies.data?.presets ?? []).find(s => s.id === activeStrategy)
     return meta?.timeframes?.includes('1m') ? ('1m' as const) : ('1d' as const)
   }, [strategies.data, activeStrategy])
-  const savedSignals = activeStrategyTimeframe === '1m'
+  const activeSignalStrategy = activeStrategyTimeframe === '1m'
     && strategies.data?.presets.find(strategy => strategy.id === activeStrategy)?.result_sections === 'signals'
-  const liveSignals = savedSignals && asOf === calendarToday
-    && quoteStatus.data?.is_trading_hours === true
+  const historicalSignals = isHistoricalDate && activeSignalStrategy
 
   // 卡片首屏只读取轻量摘要；明细在点击策略或“全部”时按需加载。
   // 摘要读取当前日期的股票日线/分钟保存记录。
@@ -212,8 +211,7 @@ export function Screener() {
   const summaryQuery = useQuery({
     queryKey: QK.screenerCachedSummary(asOf, assetType, 'all'),
     queryFn: () => api.screenerCachedSummary(asOf, assetType, 'all'),
-    enabled: !!asOf && (!savedSignals || showAll || !!pendingRun),
-    staleTime: pendingRun || quoteStatus.data?.is_trading_hours === true ? 0 : 60_000,
+    enabled: !!asOf && (!historicalSignals || showAll || !!pendingRun),
     refetchInterval: pendingRun ? 2000 : false,
   })
 
@@ -224,16 +222,18 @@ export function Screener() {
   })
 
   const singleCachedQuery = useQuery({
-    queryKey: savedSignals && !liveSignals
+    queryKey: historicalSignals
       ? QK.screenerDayView(activeStrategy ?? '', asOf, assetType, activeStrategyTimeframe)
       : QK.screenerCachedResult(activeStrategy ?? '', asOf, extColumnsParam, assetType, activeStrategyTimeframe),
-    queryFn: () => savedSignals && !liveSignals
+    queryFn: () => historicalSignals
       ? api.screenerDayView(activeStrategy!, asOf, assetType, activeStrategyTimeframe)
       : api.screenerCachedResult(activeStrategy!, extColumnsParam || undefined, asOf, assetType, activeStrategyTimeframe),
-    // Summary availability must not prevent reading an explicitly selected strategy.
-    enabled: !!asOf && !showAll && !!activeStrategy,
-    staleTime: savedSignals && !liveSignals ? 60_000 : 0,
-    refetchInterval: liveSignals ? 1000 : false,
+    enabled: !!asOf && !showAll
+      && !!activeStrategy
+      && (activeSignalStrategy || summaryQuery.data?.results[activeStrategy]?.as_of === asOf),
+    staleTime: historicalSignals ? 60_000 : 0,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   })
 
   const realtimeRunning = quoteStatus.data?.running ?? false
@@ -440,9 +440,13 @@ export function Screener() {
   // 当前单策略缓存更新后同步明细；参数保存的强制重算结果仍由 run 直接覆盖。
   useEffect(() => {
     const cached = singleCachedQuery.data?.result
-    if (savedSignals && !showAll && singleCachedQuery.data && cached === null) {
-      setResult(null)
-      if (activeStrategy) setHitCounts(previous => ({ ...previous, [activeStrategy]: 0 }))
+    if (activeSignalStrategy && !showAll && activeStrategy
+      && singleCachedQuery.data && cached === null) {
+      const reason = '该交易日归档尚未生成'
+      setResult({ as_of: asOf, strategy: activeStrategy, rows: [], total: 0, elapsed_ms: 0,
+        section_mode: 'signals', sections: { sell: [], select: [], buy: [] },
+        section_statuses: { sell: 'unavailable', select: 'unavailable', buy: 'unavailable' },
+        section_errors: { sell: reason, select: reason, buy: reason } })
       return
     }
     if (!cached || showAll || cached.strategy !== activeStrategy || cached.as_of !== asOf) return
@@ -450,7 +454,7 @@ export function Screener() {
     if (activeStrategy) {
       setHitCounts(prev => ({ ...prev, [activeStrategy]: cached.total }))
     }
-  }, [singleCachedQuery.data, showAll, activeStrategy, asOf, savedSignals])
+  }, [singleCachedQuery.data, showAll, activeStrategy, asOf, historicalSignals, activeSignalStrategy])
 
   const effectiveResults = useMemo(() => {
     if (fullCachedQuery.data?.as_of !== asOf) return null
@@ -715,7 +719,8 @@ export function Screener() {
     queryKey: ['strategy-monitoring'],
     queryFn: api.strategyMonitoring,
     enabled: assetType === 'stock',
-    refetchInterval: 30_000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   })
   const strategyMonitorMap = useMemo(() => {
     const m = new Map<string, string>()
@@ -732,55 +737,13 @@ export function Screener() {
   }, [monitorRules.data, monitorTasks.data])
   const monitorPendingRef = useRef(new Set<string>())
   const [monitorPendingIds, setMonitorPendingIds] = useState<string[]>([])
-  const toggleStrategyMonitor = async (strategyId: string, strategyName: string) => {
+  const toggleStrategyMonitor = async (strategyId: string) => {
     if (monitorPendingRef.current.has(strategyId)) return
     const existingRuleId = strategyMonitorMap.get(`${assetType}:${strategyId}`)
-    const strategy = strategyMap.get(strategyId)
-    const custom = strategy?.source === 'custom' || strategy?.source === 'ai'
-    if (!custom && monitorRules.data?.rules.some(r => r.id === existingRuleId && r._system_task)) {
-      toast('系统关键任务持续启用，普通监控操作无法取消')
-      return
-    }
-    const latestDate = currentTradeDate
-    if (!custom && !existingRuleId && (!latestDate || !strategy)) {
-      toast('交易日数据尚未就绪，请稍后重试', 'error')
-      return
-    }
     monitorPendingRef.current.add(strategyId)
     setMonitorPendingIds(ids => [...ids, strategyId])
     try {
-      if (custom) {
-        await api.strategyMonitoringSet(strategyId, !existingRuleId)
-      } else if (existingRuleId) {
-        await api.monitorRuleDelete(existingRuleId)
-      } else {
-        // New monitoring uses the current trading day, even before daily data is ready.
-        handleDateChange(latestDate!)
-        handleSelect(strategy!)
-        await api.monitorRuleSave({
-          id: genRuleId(),
-          name: `策略监控 · ${strategyName}`,
-          enabled: true,
-          type: 'strategy',
-          asset_type: assetType,
-          scope: 'all',
-          symbols: [],
-          sector: null,
-          strategy_id: strategyId,
-          direction: 'entry',
-          notify_events: [...DEFAULT_STRATEGY_NOTIFY_EVENTS],
-          conditions: [],
-          logic: 'or',
-          cooldown_seconds: 3600,
-          severity: 'info',
-          message: '',
-        })
-        run.mutate({
-          id: strategyId, date: latestDate!,
-          timeframe: strategy!.timeframes?.includes('1m') ? '1m' : '1d',
-          asset: assetType,
-        })
-      }
+      await api.strategyMonitoringSet(strategyId, !existingRuleId)
       await qc.invalidateQueries({ queryKey: QK.monitorRules })
       await qc.invalidateQueries({ queryKey: ['strategy-monitoring'] })
     } catch (error) {
@@ -1035,7 +998,7 @@ export function Screener() {
                   onSettings={() => setSettingsStrategyId(s.id)}
                   monitored={strategyMonitorMap.has(`${assetType}:${s.id}`)}
                   monitorPending={monitorPendingIds.includes(s.id)}
-                  onToggleMonitor={() => void toggleStrategyMonitor(s.id, s.name)}
+                  onToggleMonitor={() => void toggleStrategyMonitor(s.id)}
                   timeframeBadge={isMinute ? '分钟' : undefined}
                 />
               )
@@ -1044,7 +1007,7 @@ export function Screener() {
           {monitorTasks.data?.strategies.filter(s => s.strategy_id === activeStrategy).map(value => (
             <StrategyMonitorTasks key={value.strategy_id} value={value}
               pending={monitorPendingIds.includes(value.strategy_id)}
-              onToggle={() => void toggleStrategyMonitor(value.strategy_id, strategyMap.get(value.strategy_id)?.name ?? value.strategy_id)} />
+              onToggle={() => void toggleStrategyMonitor(value.strategy_id)} />
           ))}
           {isFutureQuery && (showAll || !result || result.section_mode !== 'signals') && (
             <p role="status" className="text-xs text-muted">
@@ -1283,22 +1246,17 @@ export function Screener() {
               </div>
               <div className="flex flex-col items-center gap-1.5">
                 <span className="text-sm text-secondary">
-                  {activeStrategy
-                    ? singleCachedQuery.isError ? '该交易日归档读取失败，请重试'
-                      : singleCachedQuery.isFetching ? '正在读取该交易日归档'
+                  {(isFutureQuery || historicalSignals) && activeStrategy
+                    ? (historicalSignals ? singleCachedQuery.isError : summaryQuery.isError || singleCachedQuery.isError) ? '该交易日归档读取失败'
+                      : (historicalSignals ? singleCachedQuery.isFetching : summaryQuery.isFetching || singleCachedQuery.isFetching) ? '正在读取该交易日归档'
                         : '该交易日归档尚未生成'
                     : '点击策略卡片查看选股结果'}
                 </span>
                 <span className="text-[11px] text-muted">
                   {isFutureQuery ? '下一交易日仅查询已保存的卖／选／买，请等待归档生成或稍后重试'
-                    : activeStrategy ? `${asOf} · 可切换日期查看历史结果，或重新读取当前归档`
+                    : historicalSignals ? '该历史日期仅查询已保存的卖／选／买'
                       : '若提示 enriched 表无数据，请先运行盘后管道'}
                 </span>
-                {activeStrategy && <button className="text-xs text-accent"
-                  disabled={singleCachedQuery.isFetching}
-                  onClick={() => void singleCachedQuery.refetch({ cancelRefetch: false })}>
-                  重新读取
-                </button>}
               </div>
             </div>
           )}

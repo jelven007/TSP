@@ -1,4 +1,4 @@
-"""扩充批次 (2026-09-05) 16 个新虚拟因子的数值正确性测试。
+"""扩充批次 (2026-09-05) 虚拟因子的数值正确性测试。
 
 合成单标的日频面板, 黄金值由 numpy 独立重算 (不复制实现),
 覆盖: 公式口径 / 无前视 (min_samples) / 除零 fail-closed / 列代数型因子。
@@ -164,11 +164,3 @@ def test_vol_regime_amplitude_trend_turnover_stats() -> None:
         t_window = TURNOVER[day - 19: day + 1]
         assert tm[day] == pytest.approx(t_window.mean(), rel=1e-12)
         assert ts[day] == pytest.approx(t_window.std(ddof=1) / t_window.mean(), rel=1e-9)
-
-
-def test_amount_mean_20d_unit_is_yi() -> None:
-    frame = _materialize(["amount_mean_20d"])
-    got = _col(frame, "amount_mean_20d")
-    day = N_DAYS - 1
-    golden = (VOLUME[day - 19: day + 1] * CLOSE[day - 19: day + 1] * 100.0).mean() / 1e8
-    assert got[day] == pytest.approx(golden, rel=1e-12)

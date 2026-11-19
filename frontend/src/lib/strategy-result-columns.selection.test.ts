@@ -4,7 +4,7 @@ import { defaultStrategyResultColumns, loadStrategyResultColumns, resolveStrateg
 
 const { get } = vi.hoisted(() => ({ get: vi.fn(() => ({})) }))
 vi.mock('./storage', () => ({ storage: { strategySignalColumns: { get, set: vi.fn() } } }))
-const removed = ['builtin:selection_rank', 'builtin:amount_mean_20d', 'builtin:score']
+const removed = ['builtin:selection_rank', 'builtin:score']
 const s02 = 'custom_mvxxcp88'
 
 it('migrates old S02 preferences without retaining the removed selection columns', () => {
@@ -31,5 +31,20 @@ it('preserves other strategy selection columns and S02 buy/sell columns', () => 
   for (const tab of ['buy', 'sell'] as const) {
     expect(defaultStrategyResultColumns(tab, s02)).toEqual(
       defaultStrategyResultColumns(tab).filter(col => col.id !== 'builtin:atr_rank'))
+  }
+})
+
+it('uses S01 trigger metrics without ATR or S02 price suggestions', () => {
+  for (const tab of ['sell', 'select', 'buy'] as const) {
+    const ids = defaultStrategyResultColumns(tab, 'custom_mvxxcs01').map(col => col.id)
+    expect(ids).not.toContain('builtin:atr14_previous_close')
+    expect(ids).not.toContain('builtin:atr_rank')
+    expect(ids).not.toContain('builtin:suggested_sell_price')
+    expect(ids).not.toContain('builtin:suggested_lots_100k')
+    expect(ids).toContain('builtin:score')
+    if (tab !== 'select') {
+      expect(ids).toContain('builtin:current_return')
+      expect(ids).toContain('builtin:current_range')
+    }
   }
 })

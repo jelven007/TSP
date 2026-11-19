@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { api, type ScreenerResult } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
-import { useQuoteStatus } from '@/lib/useSharedQueries'
 import { StockPreviewDialog } from '@/components/StockPreviewDialog'
 import { toNavItems, type NavItem } from '@/lib/listNav'
 import { getSignals, signalCls } from '@/lib/stock-table'
@@ -26,7 +25,7 @@ const columns: Record<Tab, readonly (readonly [string, string])[]> = {
     ['gross_target_quote', '毛止盈价'], ['guard_time', '兜底时间'], ['sell_deadline', '截止时间'],
     ['reason', '卖出指标'], ['sold_shares', '已卖股数'], ['remaining', '剩余股数'], ['status', '状态']],
   select: [...common, ['selection_rank', '买入优先级'], ['previous_return', '前日涨幅'], ['return_1430', '14:30涨幅'],
-    ['float_cap_1430', '流通市值(亿)'], ['prev_d_amount20', '20日均额(亿)'],
+    ['float_cap_1430', '流通市值(亿)'],
     ['market_breadth', '市场上涨比例'], ['breadth_denominator', '市场分母'],
     ['m1_rising', '1分钟MA5连续6升'], ['m5_rising', '5分钟MA5连续3升']],
   buy: [...common, ['rank', '顺位'], ['return_1430', '14:30涨幅'], ['entry_nav', '买入前净值'],
@@ -35,7 +34,7 @@ const columns: Record<Tab, readonly (readonly [string, string])[]> = {
 }
 const signalEmpty: Record<Tab, string> = {
   sell: '前一交易日没有触发入场触发器的股票',
-  select: '该交易日没有满足股票范围、数值过滤和入场叠加条件的股票',
+  select: '该交易日没有满足股票范围和数值过滤的股票',
   buy: '该交易日没有触发入场触发器的股票',
 }
 const labels: Record<string, string> = {
@@ -58,7 +57,7 @@ function format(key: string, value: unknown) {
     if (key === 'atr14_previous_close') return `${(value * 100).toFixed(2)}%`
     if (['live_turnover', 'reference_turnover_rate'].includes(key)) return value >= 0 ? `${value.toFixed(2)}%` : '—'
     if (['volume', 'amount', 'suggested_lots_100k'].includes(key)) return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
-    if (['float_cap_1430', 'prev_d_amount20'].includes(key)) return (value / 1e8).toFixed(2)
+    if (key === 'float_cap_1430') return (value / 1e8).toFixed(2)
     if (['shares', 'sold_shares', 'remaining', 'filled_shares', 'rank', 'selection_rank', 'breadth_denominator', 'atr_rank'].includes(key)) return value.toLocaleString('zh-CN')
     return value.toFixed(2)
   }
@@ -83,7 +82,10 @@ export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, cur
         aria-controls={`daily-${result.strategy}-${tab.id}`} id={`daily-tab-${result.strategy}-${tab.id}`}
         onClick={() => onTabChange(tab.id)}
         className={`h-7 px-3 rounded-btn text-xs ${activeTab === tab.id ? 'bg-accent text-white' : 'text-secondary hover:bg-elevated'}`}>
-        {tab.label} · {signals && result.section_statuses?.[tab.id] === 'failed' ? '失败'
+        {tab.label} · {signals && tab.id === 'buy' && result.monitor_tasks?.buy?.published === true
+          ? section.buy?.length ?? 0
+          : signals && result.section_statuses?.[tab.id] === 'unavailable' ? '未归档'
+          : signals && result.section_statuses?.[tab.id] === 'failed' ? '失败'
           : signals && result.section_statuses?.[tab.id] === 'expired' ? '未确认'
           : signals && result.section_errors?.[tab.id] ? '待确认' : section[tab.id]?.length ?? 0}
       </button>)}
@@ -91,11 +93,11 @@ export function StrategyDailyResultToolbar({ result, activeTab, onTabChange, cur
     {signals && result.strategy === 'custom_mvxxcp88'
       ? <StrategyEntryProgress result={result} today={today} />
       : <span className={`strategy-result-note ${inline ? 'shrink-0 whitespace-nowrap' : ''}`}>{result.as_of} · 每交易日一份结果
-        {signals && (historical ? ' · 历史保存结果' : result.as_of === today ? ' · 当前保存结果' : ' · 已保存预选')}</span>}
+        {signals && (historical ? ' · 历史保存结果' : result.as_of === today ? ' · 完成结果固定' : ' · 已保存预选')}</span>}
   </div>
 }
 
-export function StrategyDailyResults({ result, positionLimit, onPreview, activeTab, onTabChange, signalColumns, currentDate, hideToolbar = false }: {
+export function StrategyDailyResults({ result, onPreview, activeTab, onTabChange, signalColumns, currentDate, hideToolbar = false }: {
   result: ScreenerResult
   positionLimit?: number
   onPreview?: (symbol: string, name: string | undefined, navList: NavItem[]) => void
@@ -113,21 +115,6 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
   const s01 = result.strategy === 'custom_mvxxcs01'
   const today = currentDate ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
   const historical = result.as_of < today
-  const quoteStatus = useQuoteStatus({ enabled: signals && result.as_of === today })
-  // 已保存结果按当时参数排序, 不用后来修改的策略设置覆盖历史口径。
-  const saved = useQuery({
-    queryKey: QK.screenerHistoryDetail(result.strategy ?? '', result.record_id ?? ''),
-    queryFn: () => api.screenerResultHistoryDetail(result.strategy!, result.record_id!),
-    enabled: !signals && positionLimit == null && !!result.record_id && !!result.strategy,
-  })
-  const current = useQuery({
-    queryKey: QK.strategyDetail(result.strategy ?? ''),
-    queryFn: () => api.strategyGet(result.strategy!),
-    enabled: !signals && positionLimit == null && !result.record_id && !!result.strategy,
-  })
-  const configured = positionLimit ?? Number(saved.data?.summary.overrides?.position_limit
-    ?? saved.data?.summary.params?.position_limit ?? current.data?.params_defaults?.position_limit ?? 5)
-  const limit = Number.isFinite(configured) && configured > 0 ? configured : 5
   const selected = useMemo(() => {
     if (signals) {
       const selectedRows = section.select.map((row, i) => ({
@@ -146,13 +133,13 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
         return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
       })
     }
-    const key = section.select.length > limit ? 'return_1430' : 'prev_d_amount20'
+    const key = 'return_1430'
     const metric = (r: any) => typeof r[key] === 'number' && Number.isFinite(r[key]) ? r[key] : -Infinity
     return [...section.select].sort((a, b) => {
       const x = metric(a), y = metric(b)
       return (x === y ? 0 : x > y ? -1 : 1) || String(a.symbol).localeCompare(String(b.symbol))
     }).map((row, i) => ({ ...row, selection_rank: i + 1 }))
-  }, [section.select, limit, signals, result.strategy, result.as_of])
+  }, [section.select, signals, result.strategy, result.as_of])
   const rows = active === 'select' ? selected : section[active] ?? []
   const atrRanking = signals && !s01 && (active === 'select' || rows.some(row => row.atr14_previous_close != null))
   const symbols = useMemo(() => [...new Set(rows.map(row => row.symbol)
@@ -167,7 +154,8 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       return snapshots
     },
     enabled: signals && !historical && result.as_of === today && symbols.length > 0,
-    refetchInterval: quoteStatus.data?.is_trading_hours === true && result.as_of === today ? 1000 : false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
     staleTime: 0,
   })
   const acceptedSnapshots = useMemo(() => {
@@ -263,10 +251,11 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
   const executionStatus = result.execution_status
   const resultNotes = [
     signals && result.as_of > today
-      ? `${result.as_of} · 下一交易日归档查询：可查看已保存的卖／选／买，选名单于前一交易日20:00开始生成； 买入信号等待该交易日运行。`
+      ? `${result.as_of} · 下一交易日归档查询：可查看已保存的卖／选／买，开启监控后，选名单在前一交易日20:00～22:00生成；买入信号等待该交易日运行。`
       : null,
     executionStatus && (executionStatus.state !== 'success' || executionStatus.reason)
-      ? `${statusLabels[executionStatus.state]}${executionStatus.reason ? ` · ${executionStatus.reason}` : ''} · ${new Date(executionStatus.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`
+      ? `${statusLabels[executionStatus.state]}${executionStatus.reason ? ` · ${executionStatus.reason}` : ''}${Number.isFinite(executionStatus.updated_at)
+        ? ` · ${new Date(executionStatus.updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}` : ''}`
       : null,
     result.showing_last_success && result.last_success_at != null
       ? `当前展示上次成功结果 · 成功时间 ${new Date(result.last_success_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`
@@ -281,9 +270,9 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       <div className="space-y-1 py-1">
     <p>
       {signals
-        ? '卖：前一交易日的买入信号。选：前一交易日20:00开始生成并保存的名单。买：从该日已保存的选名单内触发入场信号。'
+        ? '卖：前一交易日成功计算的买入信号。选：开启监控后，在前一交易日20:00～22:00按股票范围和数值过滤生成，按策略评分降序保存。买：按入场触发器分阶段计算，完成后固定结果并同步下一交易日的卖名单。'
         : <>持仓来自连续策略研究组合。选为全部达标股票，买为容量、资金与持仓上限筛选后的成交结果。
-          {active === 'select' && ` 选按买入优先级排列：${section.select.length > limit ? '14:30涨幅' : '20日均成交额'}降序，同值按代码排序。`}</>}
+          {active === 'select' && ' 选按14:30涨幅降序，同值按代码排序。'}</>}
     </p>
     {atrRanking && <p>
       {active === 'select'
@@ -296,20 +285,6 @@ export function StrategyDailyResults({ result, positionLimit, onPreview, activeT
       {' '}{new Date(result.selection_snapshot.generated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
       {result.selection_only && ' · 仅预选，买入信号尚未计算'}
     </p>}
-    {signals && result.selection_snapshot?.coverage?.complete === false && <p role="status">
-      预选已生成，数据尚有缺口：完整范围 {result.selection_snapshot.coverage.scope_total} 只，
-      可计算 {result.selection_snapshot.coverage.available_daily} 只；
-      缺日线 {result.selection_snapshot.coverage.missing_symbols.length} 只
-      {result.selection_snapshot.coverage.missing_symbols.length > 0
-        && `（${result.selection_snapshot.coverage.missing_symbols.join('、')}）`}；
-      隔离异常 {Object.keys(result.selection_snapshot.coverage.invalid_symbols ?? {}).length} 只。后台继续补数。
-    </p>}
-    {signals && Object.keys(result.selection_snapshot?.coverage?.invalid_symbols ?? {}).length > 0
-      && <details>
-        <summary className="strategy-result-disclosure">异常股票详情</summary>
-        {Object.entries(result.selection_snapshot!.coverage!.invalid_symbols!)
-          .map(([symbol, reason]) => <p key={symbol}>{reason}</p>)}
-      </details>}
     {signals && <p>
       {historical ? '历史结果按保存字段展示；现价等当前行情列不参与历史读取。'
         : closedQuoteDates ? `行情日期：${closedQuoteDates} · 休市，显示最近交易日收盘数据。`

@@ -42,6 +42,32 @@ def test_custom_signal_reference_validation_uses_domain_registry(tmp_path):
         ) == ["csg_missing"]
 
 
+def test_http_and_background_extension_reads_reuse_the_same_projection(tmp_path, monkeypatch):
+    from app.api import screener
+    from app.services import ext_values
+
+    config = ExtConfig(id="sample", label="sample", mode="timeseries",
+                       fields=[ExtField("symbol", "string", "symbol"), ExtField("v", "float", "v")])
+    ExtConfigStore(tmp_path).upsert(config)
+    partition = tmp_path / "ext_data/sample/timeseries/date=2026-11-19"
+    partition.mkdir(parents=True)
+    pl.DataFrame({"symbol": ["000001.SZ"], "v": [2.0]}).write_parquet(partition / "part.parquet")
+    repo = SimpleNamespace(store=SimpleNamespace(data_dir=tmp_path, db=None))
+    ext_values._ext_value_map_cache.clear()
+    calls = []
+    original = ext_values.read_latest_ext_dataframe
+
+    def read(*args):
+        calls.append(1)
+        return original(*args)
+
+    monkeypatch.setattr(ext_values, "read_latest_ext_dataframe", read)
+    assert screener._load_ext_value_maps(repo, "sample.v") == {"sample__v": {"000001.SZ": 2.0}}
+    assert calls == [1]
+    assert ext_values.load_ext_value_maps(repo, "sample.v") == {"sample__v": {"000001.SZ": 2.0}}
+    assert calls == [1]
+
+
 @pytest.mark.parametrize("relative,forbidden", [
     ("services/quote_service.py", "app.api.screener"),
     ("jobs/daily_pipeline.py", "app.api.data"),

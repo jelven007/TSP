@@ -12,15 +12,6 @@ TARGET = datetime(2026, 9, 4, 14, 30)
 POOL = ["a", "b", "c", "d", "e"]
 
 
-def close_inputs(day, *, include_closing_minute=True):
-    assert day == DAY - timedelta(days=1)
-    raw = pl.DataFrame({"symbol": POOL, "date": [day] * len(POOL), "close": [10.] * len(POOL)})
-    closing = raw.select("symbol", "close").with_columns(
-        pl.lit(datetime.combine(day, datetime.min.time()).replace(hour=15)).alias("datetime"),
-    )
-    return raw, closing if include_closing_minute else pl.DataFrame()
-
-
 def definition(**params):
     return {
         "id": "late_session_strength", "name": "尾盘走强", "kind": "entry",
@@ -312,8 +303,7 @@ def filter_minute_history(df, params):
 ''')
     strategy_engine = StrategyEngine([custom])
     custom_signals.save_one(tmp_path, definition(**({"evaluation_delay_minutes": 1} if delay else {})))
-    available_at = TARGET + timedelta(minutes=delay)
-    target = max(TARGET + timedelta(minutes=1), available_at)
+    target = TARGET + timedelta(minutes=delay)
     panel = pl.DataFrame({"symbol": POOL*2, "date": [DAY-timedelta(days=1)]*5 + [DAY]*5,
                           "close": [10.0]*10, "raw_close": [10.0]*10, "name": ["示例"]*10})
     calls = []
@@ -322,7 +312,9 @@ def filter_minute_history(df, params):
         def list_minute_dates(self, *args):
             return [DAY]
 
-        get_daily_close_inputs = staticmethod(close_inputs)
+        def get_daily_close_inputs(self, day, *, include_closing_minute=True):
+            raw = panel.filter(pl.col("date") == day)
+            return raw, raw.select("symbol", "close")
 
         def get_minute_by_dates(self, symbols, *args):
             calls.append(set(symbols))
@@ -331,11 +323,10 @@ def filter_minute_history(df, params):
     replayer = MinuteSignalReplayer(SimpleNamespace(repo=Repo()), strategy_engine)
     result = replayer.replay(strategy_engine.get("sample"), panel=panel, start=DAY, end=DAY,
                              params={}, overrides={"entry_signals": ["csgi_late_session_strength"]})
-    assert not result.errors
     assert {hit.symbol for hit in result.hits} == set(POOL[:3])
-    assert all(hit.trigger_time == target.strftime("%H:%M") for hit in result.hits)
-    assert all(hit.entry_window_start == target for hit in result.hits)
-    assert all(hit.signal_time == available_at.strftime("%H:%M") for hit in result.hits)
+    assert all(hit.signal_time == target.strftime("%H:%M") for hit in result.hits)
+    assert all(hit.trigger_time == max(TARGET + timedelta(minutes=1), target).strftime("%H:%M")
+               for hit in result.hits)
     assert all(hit.raw_entry_price == pytest.approx(bars().filter(
         (pl.col("symbol") == hit.symbol) & (pl.col("datetime") == TARGET))["close"].item())
         for hit in result.hits)

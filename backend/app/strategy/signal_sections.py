@@ -50,15 +50,16 @@ def pending_entry_time(engine, strategy, overrides, context):
         return None
     if observed.tzinfo:
         observed = observed.astimezone(CN_TZ).replace(tzinfo=None)
-    confirmations = [
-        entry_clock(sig, context.as_of)[2]
+    clocks = [
+        entry_clock(sig, context.as_of)
         for sig in trigger_definitions(engine, strategy, overrides)["entry"]
         if sig.get("template") == "s01_late_entry"
     ]
-    return max((stamp for stamp in confirmations if observed < stamp), default=None)
+    return min((stamp for start, _, confirmation in clocks
+                for stamp in (start, confirmation) if observed < stamp), default=None)
 
 
-def select_rows(engine, strategy, context, *, overrides, pool=None):
+def select_rows(engine, strategy, context, *, overrides, pool=None, scope_only=False):
     bf = engine._resolve_filter_scope({**strategy.basic_filter, **overrides.get("basic_filter", {})})
     current = context.current
     history = context.daily_history
@@ -78,8 +79,9 @@ def select_rows(engine, strategy, context, *, overrides, pool=None):
     rows = engine._apply_basic_filter(rows, bf, history=history, as_of=context.as_of)
     if pool is not None:
         rows = rows.filter(pl.col("symbol").is_in(pool))
-    conditions = overlay.effective_conditions(overrides)
-    rows = overlay.filter_minute_candidates(rows, conditions, history=history, as_of=context.as_of)
+    if not scope_only:
+        conditions = overlay.effective_conditions(overrides)
+        rows = overlay.filter_minute_candidates(rows, conditions, history=history, as_of=context.as_of)
     if rows.is_empty():
         return []
 
@@ -132,5 +134,6 @@ def select_rows(engine, strategy, context, *, overrides, pool=None):
         rows = rows.join(enriched.select("symbol", *extra), on="symbol", how="left")
     if "score" in rows.columns:
         rows = rows.sort(["score", "symbol"],
-                         descending=[strategy.meta.get("descending", True), False], nulls_last=True)
+                         descending=[True if scope_only else strategy.meta.get("descending", True), False],
+                         nulls_last=True)
     return rows.to_dicts()

@@ -23,7 +23,9 @@ afterEach(async () => {
 })
 async function render(row: Record<string, unknown>) {
   const result: ScreenerResult = {
-    strategy: 'custom_mvxxcp88', as_of: '2026-11-05', rows: [], total: 0, elapsed_ms: 0,
+    strategy: 'custom_mvxxcp88',
+    as_of: '2026-11-05',
+    rows: [], total: 0, elapsed_ms: 0,
     section_mode: 'signals', sections: { sell: [], buy: [], select: [
       { symbol: '600001.SH', reference_date: '2026-11-04', reference_change_pct: .02,
         atr14_previous_close: .12, atr_rank: 1, atr_rank_score: 50, ...row },
@@ -42,11 +44,10 @@ async function render(row: Record<string, unknown>) {
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
 }
 
-it('replaces the three S02 selection columns even with old column preferences', async () => {
-  await render({ reference_turnover_rate: 2.1, turnover_rate: 90, score: 80, amount_mean_20d: 10 })
+it('resolves S02 selection columns even with old column preferences', async () => {
+  await render({ reference_turnover_rate: 2.1, turnover_rate: 90, score: 80 })
   const keys = [...host.querySelectorAll('th')].map(th => th.dataset.column)
   expect(keys).not.toContain('selection_rank')
-  expect(keys).not.toContain('amount_mean_20d')
   expect(keys).not.toContain('score')
   expect(keys[keys.indexOf('reference_change_pct') + 1]).toBe('reference_turnover_rate')
   expect(host.querySelector('th[data-column="reference_turnover_rate"]')?.textContent).toBe('参考日换手率')

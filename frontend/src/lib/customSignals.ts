@@ -1,49 +1,5 @@
 import type { CustomSignal, LateSessionStrengthParams, MorningLiquidationParams, S01EntryParams, S01ExitParams, S01VolumeExitParams } from './api'
 
-export const S01_EXIT_DEFAULTS: S01VolumeExitParams = {
-  decline_3m: .002, volume_ratio_min: 1.5,
-  start_time: '11:15:00', stop_time: '11:26:00', fallback_time: '13:30:00',
-}
-
-export const isS01Signal = (signal: CustomSignal) =>
-  signal.template === 's01_late_entry' || signal.template === 's01_morning_exit'
-
-export const parameterSignalValues = (signals?: Partial<Record<'entry' | 'exit', CustomSignal>>) =>
-  ({ ...(signals?.entry?.params ?? {}), ...(signals?.exit?.params ?? {}) })
-
-const pct = (value: number) => `${Number((value * 100).toFixed(4))}%`
-export const S01_ENTRY_TIMING_DEFAULTS = { time: '14:45:00', evaluation_delay_minutes: 1 }
-export const S01_ENTRY_MARKET_VALIDITY = 'price_amount_prev_close_v2' as const
-export const S01_VALID_SECURITY_DESCRIPTION = '有效证券：截止启动时间的当日每根1分钟K线的开、高、低、收价格均为有效正数，成交额有效且非负，允许为0；上一个交易日有收盘价且有效。'
-
-export function s01SignalSummary(signal: CustomSignal): string[] {
-  if (signal.error) return [signal.error]
-  if (signal.template === 's01_late_entry') {
-    const p = signal.params as S01EntryParams
-    return [
-      p.time ? `启动时间 ${p.time}，确认延时 ${p.evaluation_delay_minutes! * 60}秒，确认时间 ${lateSessionCheckTime({ time: p.time, evaluation_delay_minutes: p.evaluation_delay_minutes })}，K线截止 ${lateSessionBarTime(p.time)}（北京时间）`
-        : '14:45判断，累计使用已完成的可用分钟',
-      `策略股票范围内的当日市场上涨比例 ≥ ${pct(p.market_positive_min)}`,
-      ...(p.market_validity === S01_ENTRY_MARKET_VALIDITY ? [S01_VALID_SECURITY_DESCRIPTION,
-        '市场上涨比例：上述有效证券中，最新已完成收盘价高于上一个交易日收盘价的数量 / 有效证券数量'] : []),
-      `累计成交额 ≥ ${p.current_amount_min / 1e8}亿元，振幅 ≤ ${pct(p.current_range_max)}（最高价－最低价）/ 昨收`,
-      `涨幅 ${pct(p.current_return_min)}～${pct(p.current_return_max)}`,
-      '前日价格、涨跌幅、振幅、成交额及上市天数在策略的数值过滤中设置',
-    ]
-  }
-  const p = signal.params as S01ExitParams
-  return [
-    p.start_time
-      ? `启动时间 ${p.start_time}，止损时间 ${p.stop_time}，兜底时间 ${p.fallback_time}（北京时间，次交易日）`
-      : `旧冻结规则：11:15判断，${p.guard_time}无条件触发，${p.sell_deadline}成交截止`,
-    ...(p.vwap_buffer == null ? [] : [
-      `低于均价 ${p.vwap_buffer * 100}% 或最高浮盈 ≥ ${p.peak_profit_min! * 100}% 且回落 ≥ ${p.peak_retrace_min! * 100}%，同时最后15分钟涨幅 ≤ ${p.return_15m_max! * 100}%`,
-    ]),
-    `${p.vwap_buffer == null ? '放量下跌须同时满足：' : ''}3分钟跌幅 ≥ ${p.decline_3m * 100}%，最近3根/之前10根量比 ≥ ${p.volume_ratio_min}`,
-    ...(p.start_time ? ['止损时点无条件全部清仓；兜底再次处理余股，信号与实际成交分别记录'] : []),
-  ]
-}
-
 export const LATE_SESSION_DEFAULTS: LateSessionStrengthParams = {
   time: '14:30:00', change_min_pct: 0.4, change_max_pct: 4,
   pool_up_min_pct: 60, ma5_1m_count: 7, ma5_5m_count: 4,
@@ -66,6 +22,50 @@ export function morningLiquidationDraft(signal: CustomSignal) {
     time: p.time, fallback_time: p.fallback_time === undefined ? '10:45:00' : p.fallback_time }
 }
 
+export const S01_EXIT_DEFAULTS: S01VolumeExitParams = {
+  decline_3m: .002, volume_ratio_min: 1.5,
+  start_time: '11:15:00', stop_time: '11:26:00', fallback_time: '13:30:00',
+}
+
+export const isS01Signal = (signal: CustomSignal) =>
+  signal.template === 's01_late_entry' || signal.template === 's01_morning_exit'
+
+export const parameterSignalValues = (signals?: Partial<Record<'entry' | 'exit', CustomSignal>>) =>
+  ({ ...(signals?.entry?.params ?? {}), ...(signals?.exit?.params ?? {}) })
+
+export function s01ExitDraft(signal: CustomSignal): S01VolumeExitParams {
+  const stored = (signal.params ?? {}) as Partial<S01ExitParams>
+  return {
+    decline_3m: stored.decline_3m ?? S01_EXIT_DEFAULTS.decline_3m,
+    volume_ratio_min: stored.volume_ratio_min ?? S01_EXIT_DEFAULTS.volume_ratio_min,
+    start_time: stored.start_time ?? S01_EXIT_DEFAULTS.start_time,
+    stop_time: stored.stop_time ?? (stored.guard_time ? `${stored.guard_time}:00` : S01_EXIT_DEFAULTS.stop_time),
+    fallback_time: stored.fallback_time ?? (stored.sell_deadline ? `${stored.sell_deadline}:00` : S01_EXIT_DEFAULTS.fallback_time) }
+}
+
+export function s01SignalSummary(signal: CustomSignal): string[] {
+  if (!signal.params || signal.error) return [signal.error ?? 'S01参数尚不可用']
+  if (signal.template === 's01_late_entry') {
+    const p = signal.params as S01EntryParams & { time?: string }
+    return [
+      `截至${p.time ?? '14:45'}使用已完成的可用分钟累计值；前日条件在策略数值过滤中设置`,
+      `当日涨幅 ${p.current_return_min * 100}%～${p.current_return_max * 100}%，振幅 ≤ ${p.current_range_max * 100}%，成交额 ≥ ${p.current_amount_min / 1e8}亿元`,
+      `市场有效证券 ≥ ${p.market_min_valid}只，上涨比例 ≥ ${p.market_positive_min * 100}%`,
+    ]
+  }
+  const p = signal.params as S01ExitParams
+  return [
+    p.start_time
+      ? `启动时间 ${p.start_time}，止损时间 ${p.stop_time}，兜底时间 ${p.fallback_time}（北京时间，次交易日）`
+      : `旧冻结规则：11:15判断，${p.guard_time}无条件触发，${p.sell_deadline}成交截止`,
+    ...(p.vwap_buffer == null ? [] : [
+      `低于均价 ${p.vwap_buffer * 100}% 或最高浮盈 ≥ ${p.peak_profit_min! * 100}% 且回落 ≥ ${p.peak_retrace_min! * 100}%，同时最后15分钟涨幅 ≤ ${p.return_15m_max! * 100}%`,
+    ]),
+    `${p.vwap_buffer == null ? '放量下跌须同时满足：' : ''}3分钟跌幅 ≥ ${p.decline_3m * 100}%，最近3根/之前10根量比 ≥ ${p.volume_ratio_min}`,
+    ...(p.start_time ? ['止损时点无条件全部清仓；兜底再次处理余股，信号与实际成交分别记录'] : []),
+  ]
+}
+
 export const customSignalColumn = (signal: CustomSignal) =>
   `${signal.timeframe === 'intraday' ? 'csgi_' : 'csg_'}${signal.id}`
 
@@ -74,7 +74,7 @@ function clockTime(total: number): string {
     .map(value => String(value).padStart(2, '0')).join(':')
 }
 
-export function lateSessionCheckTime(p: Pick<LateSessionStrengthParams, 'time' | 'evaluation_delay_minutes'>): string {
+export function lateSessionCheckTime(p: LateSessionStrengthParams): string {
   if (p.time == null) return '按当前已完成分钟确认'
   const [hour, minute, second = 0] = p.time.split(':').map(Number)
   return clockTime(hour * 3600 + minute * 60 + second + (p.evaluation_delay_minutes ?? 0) * 60)
@@ -107,7 +107,7 @@ export function lateSessionSummary(signal: CustomSignal): string[] {
     ...(p.volume_ratio_min == null ? [] : [`当日量比 ≥ ${p.volume_ratio_min}`]),
     ...(p.ma5_1m_count == null ? [] : [`1分钟MA5 连增 ${p.ma5_1m_count} 个值（${p.ma5_1m_count - 1} 次比较）`]),
     ...(p.ma5_5m_count == null ? [] : [`5分钟MA5 连增 ${p.ma5_5m_count} 个值（${p.ma5_5m_count - 1} 次比较）`]),
-    ...(p.end_time == null ? [] : [`结束时间 ${p.end_time}（北京时间）`]),
+    ...(p.end_time == null ? [] : [`买入结束时间 ${p.end_time}（北京时间），超过停止买入并撤销余单`]),
   ]
 }
 
@@ -132,17 +132,6 @@ export function morningLiquidationSummary(signal: CustomSignal): string[] {
     `买入后下一个交易日${p.start_time == null ? '，启动时间未设置' : `，启动时间 ${p.start_time}`}（北京时间）`,
     ...(returns.length ? [`现价相对原始昨收：${returns.join(' 或 ')} 提前清仓`] : []),
     ...(group.length ? [`${returns.length ? '或' : ''}${group.join(' 且 ')}，使用已完成连续分钟`] : []),
-    `止损时间${p.time == null ? '未启用' : ` ${p.time}`}，兜底时间${p.fallback_time == null ? '未启用' : ` ${p.fallback_time}`}；分别对余股触发`,
+    `止损时间${p.time == null ? '未启用' : ` ${p.time}`}触发清仓；兜底时间${p.fallback_time == null ? '未启用' : ` ${p.fallback_time}`}，到点立即停止所有股票卖出`,
   ]
-}
-
-
-export function s01ExitDraft(signal: CustomSignal): S01VolumeExitParams {
-  const stored = (signal.params ?? {}) as Partial<S01ExitParams>
-  return {
-    decline_3m: stored.decline_3m ?? S01_EXIT_DEFAULTS.decline_3m,
-    volume_ratio_min: stored.volume_ratio_min ?? S01_EXIT_DEFAULTS.volume_ratio_min,
-    start_time: stored.start_time ?? S01_EXIT_DEFAULTS.start_time,
-    stop_time: stored.stop_time ?? (stored.guard_time ? `${stored.guard_time}:00` : S01_EXIT_DEFAULTS.stop_time),
-    fallback_time: stored.fallback_time ?? (stored.sell_deadline ? `${stored.sell_deadline}:00` : S01_EXIT_DEFAULTS.fallback_time) }
 }

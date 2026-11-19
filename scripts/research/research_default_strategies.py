@@ -43,7 +43,7 @@ WINDOWS = {
 }
 RESEARCH_FAMILIES = {
     "trend": [
-        "ma_golden_cross", "macd_golden", "bullish_alignment", "low_volatility_leader",
+        "ma_golden_cross", "macd_golden", "bullish_alignment",
     ],
     "breakout": [
         "volume_price_surge", "boll_breakout", "breakout_new_high_60d",

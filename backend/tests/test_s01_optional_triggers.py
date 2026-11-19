@@ -237,12 +237,15 @@ def test_generic_s02_templates_can_replace_s01_entry_and_exit():
     with custom_signals.private_signal_registry([ENTRY, EXIT, late, morning]):
         result = e.run("s01", ctx, overrides={
             "entry_signals": ["csgi_late_session_strength"], "exit_signals": []})
-        assert result.entry_signal_hits == [{"symbol": "600001.SH", "signals": ["csgi_late_session_strength"]}]
+        assert result.entry_signal_hits == [{
+            "symbol": "600001.SH", "signals": ["csgi_late_session_strength"],
+            "evaluated_at": datetime(2026, 8, 25, 14, 30, 30)}]
+        assert result.rows[0]["last_datetime"] == datetime(2026, 8, 25, 14, 30)
         ctx.positions = [{"symbol": "600001.SH", "qty": 100, "available_qty": 100,
                           "entry_unit_cost": 10., "entry_date": "2026-08-24", "sell_date": "2026-08-25"}]
         result = e.run("s01", ctx, overrides={"entry_signals": [], "exit_signals": ["csgi_morning_liquidation"]})
         assert result.exit_signal_hits[0]["signals"] == ["csgi_morning_liquidation"]
-        assert result.exit_signal_hits[0]["signal_bar"] == 645
+    assert result.exit_signal_hits[0]["signal_bar"] == 630
 
 
 def test_generic_minute_trigger_receives_raw_previous_close():

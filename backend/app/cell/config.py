@@ -13,7 +13,7 @@ class CellSettings(BaseSettings):
     data_dsn: SecretStr
     pool_size: int = Field(default=4, ge=1, le=32)
     pool_timeout: float = Field(default=5, gt=0, le=30)
-    schema_version: int = Field(default=4, ge=4, le=8)
+    schema_version: int = Field(default=4, ge=4, le=9)
     deployment_exposure: str = Field(default="local", pattern=r"^(local|public)$")
     bootstrap_admin_password: SecretStr = SecretStr("")
     bootstrap_watchlist_columns_path: Path | None = None

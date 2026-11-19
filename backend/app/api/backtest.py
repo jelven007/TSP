@@ -464,6 +464,7 @@ class StrategyBacktestRequest(BaseModel):
     matching: Literal["close_t", "open_t+1"] = "open_t+1"
     entry_fill: Literal["close_t", "open_t+1"] | None = None
     exit_fill: Literal["close_t", "open_t+1", "signal_next_minute"] | None = None
+    minute_price_rule: Literal["legacy", "high_low_v1"] = "high_low_v1"
     fees_pct: float = 0.0002
     commission_pct: float | None = None
     stamp_tax_pct: float | None = None
@@ -532,6 +533,7 @@ def strategy_run(req: StrategyBacktestRequest, request: Request):
         matching=req.matching,
         entry_fill=req.entry_fill,
         exit_fill=req.exit_fill,
+        minute_price_rule=req.minute_price_rule,
         fees_pct=req.fees_pct,
         commission_pct=req.commission_pct,
         stamp_tax_pct=req.stamp_tax_pct,
@@ -643,9 +645,11 @@ def _make_job_key(
     strict_research: bool = False,
     minimum_commission: float = 0.0,
     transfer_fee_pct: float = 0.0,
+    minute_price_rule: str = "high_low_v1",
 ) -> str:
     raw = f"{strategy_id}|{symbols}|{start}|{end}|{matching}|{entry_fill}|{exit_fill}|{fees_pct}|{slippage_bps}|{max_positions}|{max_exposure_pct}|{initial_capital}|{position_sizing}|{params}|{overrides}|{mode}|{holding_days}|{commission_pct}|{stamp_tax_pct}|{asset_type}|{minute_fill}|{regime_filter}|{strict_research}"
     raw += f"|minimum_commission={minimum_commission}|transfer_fee_pct={transfer_fee_pct}"
+    raw += f"|minute_price_rule={minute_price_rule}"
     return hashlib.md5(raw.encode()).hexdigest()[:12]
 
 
@@ -683,6 +687,7 @@ async def strategy_stream(
     strict_research: bool = False,
     minimum_commission: float = 0.0,
     transfer_fee_pct: float = 0.0,
+    minute_price_rule: Literal["legacy", "high_low_v1"] = "high_low_v1",
     input_snapshot_id: str | None = None,
     experiment_id: str | None = None,
 ):
@@ -738,6 +743,7 @@ async def strategy_stream(
         strict_research=strict_research,
         minimum_commission=minimum_commission,
         transfer_fee_pct=transfer_fee_pct,
+        minute_price_rule=minute_price_rule,
     )
     job_key = _experiment_job_key(job_key, input_snapshot_id, experiment_id)
 
@@ -825,6 +831,7 @@ async def strategy_stream(
                 matching=matching,
                 entry_fill=entry_fill,
                 exit_fill=exit_fill,
+                minute_price_rule=minute_price_rule,
                 fees_pct=fees_pct,
                 commission_pct=commission_pct,
                 stamp_tax_pct=stamp_tax_pct,
@@ -953,6 +960,7 @@ async def strategy_cancel(request: Request):
         strict_research=_get("strict_research", "false").lower() == "true",
         minimum_commission=float(_get("minimum_commission", "0")),
         transfer_fee_pct=float(_get("transfer_fee_pct", "0")),
+        minute_price_rule=_get("minute_price_rule", "high_low_v1"),
     )
     job_key = _experiment_job_key(
         job_key, _get("input_snapshot_id") or None, _get("experiment_id") or None,

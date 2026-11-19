@@ -626,6 +626,8 @@ class StrategyBacktestConfig:
     matching: Literal["close_t", "open_t+1"] = "open_t+1"
     entry_fill: Literal["close_t", "open_t+1"] | None = None
     exit_fill: Literal["close_t", "open_t+1", "signal_next_minute"] | None = None
+    # Missing in old frozen inputs: retain their original execution prices.
+    minute_price_rule: Literal["legacy", "high_low_v1"] = "legacy"
     fees_pct: float = 0.0002
     commission_pct: float | None = None
     stamp_tax_pct: float | None = None
@@ -648,6 +650,8 @@ class StrategyBacktestConfig:
     strict_research: bool = False
 
     def __post_init__(self) -> None:
+        if self.minute_price_rule not in ("legacy", "high_low_v1"):
+            raise ValueError("未知分钟成交价格口径")
         if self.entry_fill is None:
             self.entry_fill = self.matching
         if self.exit_fill is None:
@@ -1990,7 +1994,7 @@ class StrategyBacktestService:
             equity_curve=result.equity_curve if result_policy.include_curves else [],
             drawdown_curve=result.drawdown_curve if result_policy.include_curves else [],
             benchmark_curve=benchmark_curve,
-            exit_orders=result.exit_orders if result_policy.include_trades else [],
+            exit_orders=getattr(result, "exit_orders", []) if result_policy.include_trades else [],
             trades=(
                 [self._trade_to_dict(t) for t in result.trades]
                 if result_policy.include_trades
@@ -2146,6 +2150,7 @@ class StrategyBacktestService:
         trigger_times: dict[tuple[str, date], str] = {}
         signal_times: dict[tuple[str, date], str] = {}
         entry_window_starts: dict[tuple[str, str], datetime] = {}
+        entry_window_ends: dict[tuple[str, str], datetime] = {}
         entry_prior_closes: dict[tuple[str, str], float] = {}
         entry_signal_times: dict[tuple[str, str], str] = {}
         dropped_axis_hits = 0
@@ -2160,6 +2165,8 @@ class StrategyBacktestService:
             entry_price_override[time_id, asset_id] = hit.entry_price
             trigger_times[(hit.symbol, hit.trade_date)] = hit.trigger_time
             entry_window_starts[(hit.symbol, str(hit.trade_date))] = hit.entry_window_start
+            if hit.entry_window_end is not None:
+                entry_window_ends[(hit.symbol, str(hit.trade_date))] = hit.entry_window_end
             entry_prior_closes[(hit.symbol, str(hit.trade_date))] = hit.prior_close
             entry_signal_times[(hit.symbol, str(hit.trade_date))] = (
                 f"{hit.trade_date} {hit.signal_time or hit.trigger_time}"
@@ -2212,6 +2219,7 @@ class StrategyBacktestService:
             # 不再叠加旧日线分钟成交细化。
             minute_fill=False,
             entry_window_starts=entry_window_starts,
+            entry_window_ends=entry_window_ends,
             entry_prior_closes=entry_prior_closes,
             entry_signal_times=entry_signal_times,
         )
@@ -2353,7 +2361,7 @@ class StrategyBacktestService:
             equity_curve=result.equity_curve if result_policy.include_curves else [],
             drawdown_curve=result.drawdown_curve if result_policy.include_curves else [],
             benchmark_curve=benchmark_curve,
-            exit_orders=result.exit_orders if result_policy.include_trades else [],
+            exit_orders=getattr(result, "exit_orders", []) if result_policy.include_trades else [],
             trades=trades,
             per_symbol_stats=(
                 result.per_symbol_stats
@@ -2829,6 +2837,7 @@ class StrategyBacktestService:
             "matching": c.matching,
             "entry_fill": c.entry_fill,
             "exit_fill": c.exit_fill,
+            "minute_price_rule": c.minute_price_rule,
             "timing_mode": (
                 "strict"
                 if c.entry_fill == "open_t+1" and c.exit_fill == "open_t+1"

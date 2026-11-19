@@ -11,21 +11,18 @@ import { Paper } from './Paper'
 const calls = vi.hoisted(() => ({
   arena: vi.fn(async (_body: unknown) => ({ created: [{ account: 'new' }] })),
   rule: vi.fn(async (_body: unknown, _account: string) => ({ rule: {} })),
-  edit: vi.fn(),
-  delete: vi.fn(),
-  state: { exists: true, name: '测试账户', cash: 200000, editable: true },
   update: vi.fn(async (_id: string, _body: unknown, _account: string) => ({ rule: {} })),
   settings: vi.fn(async (_body: unknown, _account: string) => ({ account: {} })),
   rules: [] as PaperAutoRule[],
 }))
 vi.mock('@/lib/api', () => ({
   api: {
-    paperCompare: async () => ({ accounts: calls.state.exists ? [{
-      account: 'test', name: calls.state.name, status: 'active', initial_cash: calls.state.cash,
-      total: calls.state.cash, cash: calls.state.cash, market_value: 0, total_pnl: 0, pnl_pct: 0,
+    paperCompare: async () => ({ accounts: [{
+      account: 'test', name: '测试账户', status: 'active', initial_cash: 100000,
+      total: 100000, cash: 100000, market_value: 0, total_pnl: 0, pnl_pct: 0,
       rounds: 0, win_rate: 0, profit_loss_ratio: null, nav: [],
       auto_rules: [...calls.rules, ...calls.rule.mock.calls.map(([body]) => body)],
-    }] : [] }),
+    }] }),
     screenerStrategies: async () => ({ presets: [
       { id: 's-one', name: '策略一' }, { id: 's-two', name: '策略二' },
     ] }),
@@ -39,24 +36,20 @@ vi.mock('@/lib/api', () => ({
     paperArenaCreate: calls.arena,
     paperAutoRuleCreate: calls.rule,
     paperAutoRuleUpdate: calls.update,
-    paperUpdateAccount: calls.edit,
-    paperDeleteAccount: calls.delete,
     paperOverview: async () => ({
-      initialized: true, account_name: calls.state.name, status: 'active', initial_cash: calls.state.cash,
-      initial_cash_editable: calls.state.editable,
-      fees: { commission_pct: .00025, stamp_tax_pct: .001, slippage_bps: 5 },
-      cash: calls.state.cash, market_value: 0, total: calls.state.cash, total_pnl: 0, holdings: [],
+      initialized: true, status: 'active', initial_cash: 100000,
+      cash: 100000, market_value: 0, total: 100000, total_pnl: 0, holdings: [],
+      fees: { commission_pct: 0.00025, stamp_tax_pct: 0.001, slippage_bps: 5 },
     }),
     paperOrders: async () => ({ orders: [] }),
     paperTrades: async () => ({ fills: [] }),
     paperNav: async () => ({ nav: [] }),
+    paperCorporateActions: async () => ({ mode: 'events', events: [], blocked: [] }),
     paperStats: async () => ({
       rounds: 0, win_rate: 0, profit_loss_ratio: null, avg_holding_days: 0,
       realized_pnl: 0, max_drawdown: null,
     }),
     paperAutoRules: async () => ({ rules: calls.rules }),
-    paperAutoSkips: async () => ({ skips: [] }),
-    paperCorporateActions: async () => ({ mode: 'events', events: [], blocked: [] }),
     backtestCandidates: async () => ({ candidates: [] }),
     instrumentSearch: async () => ({ results: [] }),
   },
@@ -83,16 +76,6 @@ beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   calls.arena.mockClear()
   calls.rule.mockClear()
-  Object.assign(calls.state, { exists: true, name: '测试账户', cash: 200000, editable: true })
-  calls.edit.mockReset().mockImplementation(async (body: { name: string; initial_cash?: number }) => {
-    calls.state.name = body.name
-    if (body.initial_cash != null) calls.state.cash = body.initial_cash
-    return { account: { id: 'test', name: calls.state.name } }
-  })
-  calls.delete.mockReset().mockImplementation(async () => {
-    calls.state.exists = false
-    return { ok: true }
-  })
   calls.update.mockReset()
   calls.settings.mockClear()
   calls.rules = []
@@ -140,74 +123,6 @@ async function batch() {
   await click('全部策略一键加入 (2)')
   return document.querySelector<HTMLElement>('[role="dialog"]')!
 }
-
-async function expand() {
-  const row = [...host.querySelectorAll('tbody tr')].find(item => item.textContent?.includes(calls.state.name))!
-  await act(async () => (row as HTMLElement).click())
-  await settle()
-}
-
-it('edits the account and refreshes the comparison and expanded overview', async () => {
-  await expand()
-  await click('修改账户')
-  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
-  await input('账户名称', '修改后的账户', dialog)
-  await input('初始资金 (元)', '500000', dialog)
-  await input('佣金（万分比，双边）', '3', dialog)
-  await click('保存', dialog)
-  expect(calls.edit).toHaveBeenCalledWith(expect.objectContaining({
-    name: '修改后的账户', initial_cash: 500000, commission_pct: .0003,
-  }), 'test')
-  expect(host.textContent).toContain('修改后的账户')
-  expect(host.textContent).not.toContain('测试账户')
-  expect(document.querySelector('[role="dialog"]')).toBeNull()
-})
-
-it('locks initial capital after activity and keeps failed edits open for retry', async () => {
-  calls.state.editable = false
-  calls.edit.mockRejectedValueOnce(new Error('修改失败'))
-  await expand()
-  await click('修改账户')
-  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
-  const capital = [...dialog.querySelectorAll<HTMLInputElement>('input')].find(field => field.value === '200000')!
-  expect(capital.disabled).toBe(true)
-  await input('账户名称', '重试名称', dialog)
-  await click('保存', dialog)
-  expect(dialog.textContent).toContain('修改失败')
-  expect(calls.edit.mock.calls[0][0]).not.toHaveProperty('initial_cash')
-  await click('取消', dialog)
-  await click('修改账户')
-  expect([...document.querySelectorAll<HTMLInputElement>('[role="dialog"] input')].some(field => field.value === '测试账户')).toBe(true)
-})
-
-it('requires confirmation and removes the last account and only its cached details', async () => {
-  await expand()
-  client.setQueryData(QK.paperNav('other'), { nav: [{ date: 'fixture', nav: 123 }] })
-  await click('删除账户')
-  expect(calls.delete).not.toHaveBeenCalled()
-  const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!
-  expect(dialog.textContent).toContain('成交')
-  expect(dialog.textContent).toContain('自动跟单')
-  await click('取消', dialog)
-  expect(calls.delete).not.toHaveBeenCalled()
-  await click('删除账户')
-  await click('确认删除')
-  expect(calls.delete).toHaveBeenCalledWith('test')
-  expect(host.textContent).toContain('还没有对比账户')
-  expect(host.textContent).not.toContain('测试账户')
-  expect(client.getQueryData(QK.paperOverview('test'))).toBeUndefined()
-  expect(client.getQueryData(QK.paperNav('other'))).toEqual({ nav: [{ date: 'fixture', nav: 123 }] })
-})
-
-it('retains the account and confirmation when deletion fails', async () => {
-  calls.delete.mockRejectedValueOnce(new Error('删除失败，请重试'))
-  await expand()
-  await click('删除账户')
-  await click('确认删除')
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('删除失败，请重试')
-  expect(host.textContent).toContain('测试账户')
-  expect(client.getQueryData(QK.paperOverview('test'))).toBeDefined()
-})
 
 it('submits auto direction and a shared position limit for strategy accounts', async () => {
   const dialog = await batch()
@@ -454,4 +369,20 @@ it('previews stored backtest differences, imports drafts and saves fees independ
   expect(calls.update).toHaveBeenCalledWith(savedRule.id, expect.objectContaining({
     buy_order_type: 'market', sell_order_type: 'close', max_positions: 5, size_value: 16,
   }), 'test')
+})
+
+it.each([1, 2, 3])('keeps version %s backtest settings out of the rule and fee drafts', async defaultsVersion => {
+  window.localStorage.setItem('strategy-backtest-last', JSON.stringify({
+    defaultsVersion, selectedStrategy: 's-one', maxPositions: '5', maxExposure: '80',
+    positionSizing: 'equal', mode: 'position', entryFill: 'open_t+1', exitFill: 'close_t',
+    fees: '2.5', stampTax: '', minimumCommission: '3', transferFee: '0.1', slippage: '7',
+  }))
+  await openRule()
+  await click('参考回测参数')
+  expect(document.body.textContent).toContain('没有当前版本的已保存回测设置')
+  expect(button('填入草稿').disabled).toBe(true)
+  expect(fieldValue('买入占权益 %').value).toBe(String(savedRule.size_value))
+  expect(fieldValue('最大持仓标的数 (0 不限)').value).toBe(String(savedRule.max_positions))
+  expect(calls.update).not.toHaveBeenCalled()
+  expect(calls.settings).not.toHaveBeenCalled()
 })

@@ -49,14 +49,14 @@ def test_parallel_strategy_runs_do_not_share_pending_diagnostics(scan, monkeypat
 
 
 def test_s02_preselection_uses_exact_prior_atr_and_separate_rank_score(monkeypatch):
-    from test_s02_atr14_strategy import DAY, SOURCE, STRATEGY_ID, frames, prior
+    from test_s02_atr14_strategy import DAY, SOURCE, frames, prior
 
     from app.strategy import market_data
     from app.strategy.engine import StrategyDataContext, StrategyEngine
 
     monkeypatch.setattr(market_data, "previous_session", prior)
     engine = StrategyEngine([SOURCE.parent])
-    strategy = engine.get(STRATEGY_ID)
+    strategy = engine.get("custom_mvxxcp88")
     _, daily = frames()
     current = daily.filter(pl.col("date") == prior(DAY)).with_columns(
         pl.lit(DAY).alias("date"), pl.lit(.02).alias("change_pct"),
@@ -78,7 +78,7 @@ def test_actual_s02_scheduled_selection_persists_atr_through_restart(tmp_path, m
     from types import SimpleNamespace
     from zoneinfo import ZoneInfo
 
-    from test_s02_atr14_strategy import DAY, SOURCE, STRATEGY_ID, frames, prior
+    from test_s02_atr14_strategy import DAY, SOURCE, frames, prior
 
     from app.services.daily_selections import DailySelections, generate_scheduled_local
     from app.services.screener import ScreenerService
@@ -87,7 +87,7 @@ def test_actual_s02_scheduled_selection_persists_atr_through_restart(tmp_path, m
     (tmp_path / "s02.py").write_bytes(SOURCE.read_bytes())
     engine = StrategyEngine([tmp_path])
     from app.services.strategy_monitor_tasks import set_monitoring
-    set_monitoring(tmp_path, STRATEGY_ID, "s02", True)
+    set_monitoring(tmp_path, "custom_mvxxcp88", "s02", True)
     _, daily = frames()
     daily = daily.with_columns(pl.lit(.02).alias("change_pct"),
                               pl.lit(.02).alias("turnover_rate"),
@@ -103,8 +103,8 @@ def test_actual_s02_scheduled_selection_persists_atr_through_restart(tmp_path, m
     (tmp_path / "settlement_ready.json").write_text('{"day":"2026-10-30"}')
     now = datetime(2026, 10, 30, 20, tzinfo=ZoneInfo("Asia/Shanghai"))
     result = generate_scheduled_local(engine, service, tmp_path, now=now)
-    assert result == {"saved": [STRATEGY_ID], "errors": {}}
-    rows = DailySelections(tmp_path).read(STRATEGY_ID, DAY)["rows"]
+    assert result == {"saved": ["custom_mvxxcp88"], "errors": {}}
+    rows = DailySelections(tmp_path).read("custom_mvxxcp88", DAY)["rows"]
     assert len(rows) == 2
     assert sorted(row["atr14_previous_close"] for row in rows) == pytest.approx([.1, .2])
     assert sorted(row["atr_rank"] for row in rows) == [1, 2]

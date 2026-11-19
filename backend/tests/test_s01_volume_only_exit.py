@@ -108,7 +108,7 @@ def test_stop_and_fallback_rearm_new_volume_only_exit_without_market_evidence():
 
 
 def test_saved_custom_source_runs_new_volume_exit_and_keeps_frozen_signal_independent(tmp_path):
-    source = Path(__file__).parent / "fixtures" / "s01_available_minutes.py"
+    source = Path(__file__).resolve().parent / "fixtures/s01_available_minutes.py"
     (tmp_path / "s01.py").write_text(source.read_text())
     engine = StrategyEngine([tmp_path])
     assert engine.get("custom_mvxxcs01").meta["name"] == "s01"

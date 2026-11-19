@@ -38,6 +38,8 @@ def test_enabled_optional_s01_monitor_wakes_at_environment_and_confirmation(owne
         "conditions": [], "direction": "both", "notify_events": ["buy_signal"],
     })
     Rules(owned.documents).save_one(rule)
+    from app.services.strategy_monitor_tasks import set_monitoring
+    set_monitoring(owned.documents, sid, "S01时钟", True)
     for now, expected in [(time(14, 44, 59), time(14, 45)), (time(14, 45), time(14, 46))]:
         owned.clock["now"] = datetime.combine(cn_today(), now, CN_TZ).timestamp()
         _account, _context, payload, _fingerprint = owned.worker.prepare(

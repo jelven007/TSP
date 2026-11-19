@@ -336,8 +336,8 @@ class ScreenerService:
 
             date_rows = filter_market_frame(df_hist)
             historical_shares = self.repo.get_historical_shares()
-            # Legacy instruments without as_of use the full market's latest
-            # date, not an earlier last row in an individual symbol batch.
+            # The full-market date preserves the shared instruments reference
+            # when a symbol batch ends before other securities.
             if "as_of" not in instruments.columns:
                 limit_instruments = instruments.with_columns(
                     pl.lit(date_rows["date"].max()).alias("as_of"),
@@ -349,10 +349,8 @@ class ScreenerService:
             trading_dates[-(lookback_days + 1)]
             if len(trading_dates) > lookback_days else trading_dates[0]
         )
-
         symbols = df_hist["symbol"].unique().sort().to_list()
-        # Custom daily signals can contain cross-sectional factors. Preserve
-        # their full-market context; otherwise all windows are symbol-local.
+        # Cross-sectional custom factors require full-market context.
         batch_size = len(symbols) if _get_custom_signal_exprs() else _adaptive_sym_batch(
             2000, max(1, -(-df_hist.height // len(symbols))),
         )
@@ -365,8 +363,6 @@ class ScreenerService:
                 part = compute_limit_signals(
                     part, limit_instruments, historical_shares=historical_shares,
                 )
-            # Keep the entire warmup through every calculation, but accumulate
-            # only the shared trading-day output window, never the warmup wide table.
             part = part.filter(pl.col("date") >= lookback_start)
             if instruments is not None and not instruments.is_empty() and "name" not in part.columns:
                 inst_cols = [c for c in ["symbol", "name", "total_shares", "float_shares"]
@@ -491,13 +487,8 @@ class ScreenerService:
         if not frame.is_empty() and not instruments.is_empty():
             from app.indicators.pipeline import compute_limit_signals
 
-            # The existing limit kernel also owns the scope/status metadata.
-            # Use its smallest price branch to preserve that contract, without
-            # running indicators, edges, turnover or recursive streaks.
             frame = compute_limit_signals(frame, instruments, needed={"signal_limit_up"})
         if not frame.is_empty():
-            # Positive volume distinguishes observed trading from unknown halt
-            # status. Other numeric fields must not enter pool membership.
             columns = [c for c in ("symbol", "date", "raw_close", "close", "volume",
                                    "is_risk_warning", "instrument_status_known", "is_listed")
                        if c in frame.columns]
@@ -517,48 +508,6 @@ class ScreenerService:
                 self._pool_history_cache[key] = frame.clone()
         return frame
 
-    def build_selection_context(self, engine, source, target, strategy_ids, *, overrides_map=None):
-        """Only completed source-session daily inputs; no target-session quote or minute load."""
-        from app.strategy.basic_filter import previous_session
-        from app.strategy.engine import StrategyDataContext
-        if previous_session(target) != source:
-            raise ValueError("盘后预选日期不连续")
-        bars = max(1, engine.minute_daily_history_bars(strategy_ids, overrides_map=overrides_map))
-        history = self._load_enriched_history(source, bars)
-        if history is None or history.is_empty() or "date" not in history.columns:
-            raise ValueError("盘后预选缺少已完成日线数据")
-        history = history.filter(pl.col("date") <= source)
-        current = history.filter(pl.col("date") == source)
-        if current.is_empty():
-            raise ValueError(f"盘后预选缺少{source}完整行情")
-        from app.services.daily_close_validation import validate_daily_close
-
-        # Isolate identifiable bad references before eligibility and ATR; keep
-        # the reasons in the frozen selection without changing the full pool.
-        reference_errors = validate_daily_close(
-            self.repo, source, rows=current, isolate_symbols=True,
-        ) or {}
-        if reference_errors:
-            usable = ~pl.col("symbol").is_in(list(reference_errors))
-            current = current.filter(usable)
-            history = history.filter(usable)
-        if current.is_empty():
-            raise ValueError(f"盘后预选{source}隔离异常股票后无有效定版昨收")
-        from app.strategy.eligibility import attach_listing_age
-        instruments = self.repo.get_instruments_asset(self.asset_type)
-        history = attach_listing_age(history, instruments)
-        current = attach_listing_age(current, instruments)
-        from app.instrument_suspension import pool_evidence
-        from app.services.selection_clock import SELECTION_TIME
-        from app.strategy.suspension import annotate
-        current = annotate(current, as_of=source, evidence=pool_evidence(
-            self.repo, source, observed_at=datetime.combine(source, SELECTION_TIME)))
-        # A target-session return is unknown after the preceding close.
-        if "change_pct" in current.columns:
-            current = current.with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
-        return StrategyDataContext(self.asset_type, "1m", target, current=current, daily_history=history,
-                                   reference_errors=reference_errors)
-
     def build_daily_pool_context(self, as_of: date, *, current=None, premarket=False, observed_at=None):
         """Load only scope/reference inputs, never minute formulas or positions."""
         from app.instrument_suspension import pool_evidence
@@ -566,16 +515,16 @@ class ScreenerService:
         from app.strategy.eligibility import attach_listing_age
         from app.strategy.engine import StrategyDataContext
         if premarket:
-
             instruments = self.repo.get_instruments_asset("stock")
+            if instruments is None or instruments.is_empty():
+                raise ValueError("当日股票池证券目录不可用")
             # Directory state is current; it supplies scope, never today's prices
             # or a suspension assertion copied from the previous session.
             current = instruments if instruments is not None else pl.DataFrame()
-            if current.is_empty():
-                raise ValueError("当日股票池缺少当前证券目录")
-            current = current.select(c for c in current.columns
-                if c not in {"close", "raw_close", "volume", "is_suspended", "date"})
-            current = current.with_columns(pl.lit(as_of).alias("date"))
+            if not current.is_empty():
+                current = current.select(c for c in current.columns
+                    if c not in {"close", "raw_close", "volume", "is_suspended", "date"})
+                current = current.with_columns(pl.lit(as_of).alias("date"))
             return StrategyDataContext("stock", "1d", as_of, current=current,
                                        pool_universe=pool_evidence(self.repo, as_of, observed_at=observed_at))
         history = self._load_pool_history(as_of, 2)
@@ -589,6 +538,44 @@ class ScreenerService:
             "stock", "1d", as_of, current=current, pool_history=history,
             pool_universe=pool_evidence(self.repo, as_of, instruments if as_of == cn_today() else None,
                                         observed_at=observed_at))
+
+    def build_selection_context(self, engine, source, target, strategy_ids, *, overrides_map=None):
+        """Load completed source-session daily evidence without target minutes."""
+        from app.instrument_suspension import pool_evidence
+        from app.services.daily_close_validation import validate_daily_close
+        from app.services.selection_clock import SELECTION_TIME
+        from app.strategy.basic_filter import previous_session
+        from app.strategy.eligibility import attach_listing_age
+        from app.strategy.engine import StrategyDataContext
+        from app.strategy.suspension import annotate
+
+        if previous_session(target) != source:
+            raise ValueError("盘后预选日期不连续")
+        bars = max(1, engine.minute_daily_history_bars(strategy_ids, overrides_map=overrides_map))
+        history = self._load_enriched_history(source, bars)
+        if history is None or history.is_empty() or "date" not in history.columns:
+            raise ValueError("盘后预选缺少已完成日线数据")
+        history = history.filter(pl.col("date") <= source)
+        current = history.filter(pl.col("date") == source)
+        if current.is_empty():
+            raise ValueError(f"盘后预选缺少{source}完整行情")
+        reference_errors = validate_daily_close(
+            self.repo, source, rows=current, isolate_symbols=True,
+        ) or {}
+        if reference_errors:
+            usable = ~pl.col("symbol").is_in(list(reference_errors))
+            current, history = current.filter(usable), history.filter(usable)
+        if current.is_empty():
+            raise ValueError(f"盘后预选{source}隔离异常股票后无有效定版昨收")
+        instruments = self.repo.get_instruments_asset(self.asset_type)
+        history = attach_listing_age(history, instruments)
+        current = attach_listing_age(current, instruments)
+        current = annotate(current, as_of=source, evidence=pool_evidence(
+            self.repo, source, observed_at=datetime.combine(source, SELECTION_TIME)))
+        if "change_pct" in current.columns:
+            current = current.with_columns(pl.lit(None, dtype=pl.Float64).alias("change_pct"))
+        return StrategyDataContext(self.asset_type, "1m", target, current=current, daily_history=history,
+                                   reference_errors=reference_errors)
 
     def build_strategy_context(
         self,
@@ -703,17 +690,15 @@ class ScreenerService:
                 current=current,
                 history=history,
                 daily_history=daily_history,
+                input_errors=input_errors,
                 cache_key=cache_key,
                 completed_through=completed_through,
                 pool_history=pool_context.pool_history,
                 pool_universe=pool_context.pool_universe,
                 suspension_history=getattr(self.repo, "get_suspension_history", lambda: None)(),
                 holding_history_loader=getattr(self.repo, "get_minute_by_dates", None),
-                input_errors=input_errors,
                 reference_errors=reference_errors,
             )
-            # 复牌股票的最后成交日可能早于两日池与指标窗口; 只补缺失的原始参考,
-            # 保留日期, 不能伪造前一交易日行情或改变流通市值参考。
             load_prior = getattr(self.repo, "get_last_traded_closes", None)
             if callable(load_prior) and instruments is not None and not instruments.is_empty():
                 from app.strategy.late_session_strength import previous_closes

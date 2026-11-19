@@ -1,4 +1,4 @@
-"""当日股票池: each strategy's complete configured stock scope."""
+"""当日股票池: stock scope and status, before numeric strategy selection."""
 import polars as pl
 
 from app.strategy.basic_filter import RANGES, previous_session
@@ -69,7 +69,6 @@ def build_pool(engine, strategy_id, context, *, overrides=None, premarket=False)
     directory = pool_universe if has_universe else current if premarket else None
     if directory is not None and not directory.is_empty():
         members = set(directory["symbol"].to_list())
-        # Quotes supply status evidence, never add members outside the directory.
         parts = [part.filter(pl.col("symbol").is_in(members)) for part in parts]
         directory = annotate(directory, as_of=day, evidence=pool_universe).with_columns(
             pl.lit(day).alias("date"))

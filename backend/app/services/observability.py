@@ -302,7 +302,7 @@ def runtime_observability_snapshot() -> dict[str, Any]:
                 "duration_ms": item["duration_ms"],
             }
             for item in snapshot["routes"]
-        },
+        }
     }
 
 

@@ -7,7 +7,6 @@ import { toast } from '@/components/Toast'
 import { accountFetch as fetch, confirmAccount, hasPermission, multitenancyEnabled } from './accountSession'
 import { secondQuotesApi, type SecondQuoteArchiveStatus } from '@/lib/api/secondQuotes'
 import { openSourceReleaseApi } from '@/lib/api/openSourceRelease'
-import { financialsApi } from '@/lib/api/financials'
 import { parseTaskStatus, type TaskStatus } from '@/lib/api/taskState'
 import type { DataQuality, InitializationStatus } from '@/lib/api/dataQuality'
 import {
@@ -18,7 +17,6 @@ import {
 
 export { ApiError } from '@/lib/api/client'
 export type * from '@/lib/api/secondQuotes'
-export type * from '@/lib/api/financials'
 export type { TaskStatus } from '@/lib/api/taskState'
 
 export interface ResearchJob {
@@ -56,6 +54,97 @@ export interface CapabilityLimits {
 export interface CapabilitiesResponse {
   label: string
   capabilities: Record<string, CapabilityLimits>
+}
+
+// ===== Financials =====
+export interface FinancialStatus {
+  available: boolean
+  tables: Record<string, { rows: number; symbols: number }>
+  last_sync: Record<string, string>
+  /** 服务端是否正在同步(手动触发)——驱动"同步中"UI 并防重复点击 */
+  syncing?: boolean
+}
+
+export interface FinancialMetricRecord {
+  symbol?: string
+  period_end: string
+  announce_date?: string | null
+  eps_basic?: number | null
+  eps_diluted?: number | null
+  bps?: number | null
+  ocfps?: number | null
+  roe?: number | null
+  roe_diluted?: number | null
+  roa?: number | null
+  gross_margin?: number | null
+  net_margin?: number | null
+  debt_to_asset_ratio?: number | null
+  revenue_yoy?: number | null
+  net_income_yoy?: number | null
+  operating_cash_to_revenue?: number | null
+  inventory_turnover?: number | null
+  [key: string]: any
+}
+
+export interface FinancialIncomeRecord {
+  symbol?: string
+  period_end: string
+  announce_date?: string | null
+  revenue?: number | null
+  operating_cost?: number | null
+  operating_profit?: number | null
+  total_profit?: number | null
+  net_income?: number | null
+  net_income_attributable?: number | null
+  basic_eps?: number | null
+  diluted_eps?: number | null
+  [key: string]: any
+}
+
+export interface FinancialBalanceSheetRecord {
+  symbol?: string
+  period_end: string
+  announce_date?: string | null
+  total_assets?: number | null
+  total_current_assets?: number | null
+  cash_and_equivalents?: number | null
+  total_liabilities?: number | null
+  total_equity?: number | null
+  equity_attributable?: number | null
+  [key: string]: any
+}
+
+export interface FinancialCashFlowRecord {
+  symbol?: string
+  period_end: string
+  announce_date?: string | null
+  net_operating_cash_flow?: number | null
+  net_investing_cash_flow?: number | null
+  net_financing_cash_flow?: number | null
+  capex?: number | null
+  net_cash_change?: number | null
+  [key: string]: any
+}
+
+export interface FinancialSharesRecord {
+  symbol?: string
+  period_end: string
+  announce_date?: string | null
+  total_shares?: number | null
+  float_shares?: number | null
+  [key: string]: any
+}
+
+/** AI 财务分析历史报告 */
+export interface AiFinancialReport {
+  id: string
+  symbol: string
+  name: string
+  focus: string
+  content: string
+  periods?: number
+  summary?: string
+  created_at: string
 }
 
 // ===== 个股分析 =====
@@ -315,7 +404,10 @@ export interface ScreenerResult {
   sections?: { sell: any[]; select: any[]; buy: any[] } | null
   section_mode?: 'signals' | null
   section_errors?: Partial<Record<'sell' | 'select' | 'buy', string>> | null
-  section_statuses?: Partial<Record<'sell' | 'select' | 'buy', 'success' | 'waiting' | 'failed' | 'expired'>> | null
+  section_statuses?: Partial<Record<'sell' | 'select' | 'buy', 'success' | 'rejected' | 'waiting' | 'failed' | 'expired' | 'unavailable'>> | null
+  monitor_contract?: string | null
+  monitor_tasks?: Record<string, Record<string, unknown>> | null
+  monitor_executed_signals?: Record<string, string[]> | null
   execution_status?: {
     state: 'success' | 'waiting' | 'failed' | 'retrying' | 'deferred' | 'disabled' | 'expired'
     reason?: string | null; updated_at: number
@@ -333,12 +425,6 @@ export interface ScreenerResult {
   selection_snapshot?: {
     as_of: string; source_date: string; generated_at: string; scheduled_for?: string
     rows: any[]; identity?: string; definition_version?: string
-    coverage?: {
-      schema: 'daily_selection_coverage_v1'; source_date: string; scope_total: number
-      available_daily: number; missing_symbols: string[]; complete: boolean
-      invalid_symbols?: Record<string, string>
-    } | null
-    warnings?: string[]
   } | null
   state?: { as_of: string; cash: number; positions: any[]; nav: number; complete: boolean } | null
   portfolio_scope?: string | null
@@ -923,13 +1009,13 @@ export interface LateSessionStrengthParams {
 }
 
 export interface S01EntryParams {
-  market_validity?: 'price_amount_prev_close_v2' // 新有效证券口径；旧冻结定义不补写
-  time?: string // 旧冻结定义缺字段；编辑时使用14:45:00
-  evaluation_delay_minutes?: number // 页面秒；默认60秒，30～900秒且为30的整数倍
+  time?: string
+  evaluation_delay_minutes?: number
   current_amount_min: number
   current_return_min: number
   current_return_max: number
   current_range_max: number
+  market_min_valid: number
   market_positive_min: number
 }
 
@@ -990,6 +1076,11 @@ export interface StrategyMonitorTask {
   target_date?: string
   count?: number
   errors?: string[]
+  terminal?: boolean
+  passed?: boolean
+  attempts?: number
+  completed_at?: string
+  retry_until?: string
 }
 
 export interface StrategyMonitoring {
@@ -1086,8 +1177,8 @@ export interface AbnormalIntradayPayload {
 }
 
 export interface MonitorRule {
-  id: string
   _system_task?: string
+  id: string
   name: string
   enabled: boolean
   type: 'strategy' | 'signal' | 'price' | 'market' | 'ladder' | 'sector' | 'abnormal' | 'volume_delta' | 'date'
@@ -1294,7 +1385,6 @@ export interface PaperOverview {
   total?: number
   total_pnl?: number
   initial_cash?: number
-  initial_cash_editable?: boolean
   estimating?: boolean
   valuation?: PaperValuation
   holdings?: PaperHolding[]
@@ -1461,6 +1551,7 @@ export interface AlertEvent {
   symbol?: string
   name?: string | null
   message: string
+  details?: Record<string, unknown>
   price?: number | null
   change_pct?: number | null
   signals?: string[]
@@ -1745,7 +1836,16 @@ export interface FactorBatchResult {
 
 // ===== Factor / strategy mining =====
 export type MiningBudgetProfile = 'exploratory' | 'balanced' | 'strict'
-export type MiningRunStatus = TaskStatus
+export type MiningRunStatus =
+  | 'queued'
+  | 'running'
+  | 'cancelling'
+  | 'succeeded'
+  | 'succeeded_with_budget_exhausted'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted'
+  | 'skipped_prerequisite'
 
 export interface MiningAvailability {
   asset_type: 'stock'
@@ -2289,7 +2389,6 @@ export interface DatasetConfig {
   end_param?: string
   asset_type_param?: string | null
   freq_param?: string | null
-  minute_timestamp_label?: 'close' | 'start'
   timeout?: number | null
 }
 
@@ -3823,6 +3922,7 @@ export const api = {
     matching?: 'close_t' | 'open_t+1'
     entry_fill?: 'close_t' | 'open_t+1' | null
     exit_fill?: 'close_t' | 'open_t+1' | 'signal_next_minute' | null
+    minute_price_rule?: 'legacy' | 'high_low_v1'
     fees_pct?: number
     commission_pct?: number
     stamp_tax_pct?: number
@@ -4083,7 +4183,54 @@ export const api = {
     ),
 
   // ===== Financials =====
-  ...financialsApi,
+  financialStatus: () =>
+    request<FinancialStatus>('/api/financials/status'),
+
+  financialMetrics: (symbol?: string) =>
+    request<{ data: FinancialMetricRecord[] }>(
+      `/api/financials/metrics${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
+    ),
+
+  financialIncome: (symbol?: string) =>
+    request<{ data: FinancialIncomeRecord[] }>(
+      `/api/financials/income${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
+    ),
+
+  financialBalanceSheet: (symbol?: string) =>
+    request<{ data: FinancialBalanceSheetRecord[] }>(
+      `/api/financials/balance-sheet${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
+    ),
+
+  financialCashFlow: (symbol?: string) =>
+    request<{ data: FinancialCashFlowRecord[] }>(
+      `/api/financials/cash-flow${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
+    ),
+
+  financialShares: (symbol?: string) =>
+    request<{ data: FinancialSharesRecord[] }>(
+      `/api/financials/shares${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
+    ),
+
+  /** 触发财务数据同步(后台异步执行,接口立即返回 started 状态) */
+  financialSync: (table: string) =>
+    request<{ status: string; synced: { started: boolean; reason?: string } }>(
+      `/api/financials/sync/${table}`, { method: 'POST' },
+    ),
+
+  /** AI 分析报告 CRUD */
+  financialReportsList: () =>
+    request<{ reports: AiFinancialReport[] }>('/api/financials/reports'),
+
+  financialReportSave: (r: {
+    symbol: string; name?: string; focus?: string; content: string
+    periods?: number; summary?: string
+  }) =>
+    request<{ ok: boolean; report: AiFinancialReport }>('/api/financials/reports', {
+      method: 'POST', body: JSON.stringify(r),
+    }),
+
+  financialReportDelete: (reportId: string) =>
+    request<{ ok: boolean }>(`/api/financials/reports/${encodeURIComponent(reportId)}`, { method: 'DELETE' }),
 
   /**
    * AI 财务分析 — 流式调用。
@@ -4501,14 +4648,6 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  paperUpdateAccount: (body: PaperFeeSettings & { name?: string; initial_cash?: number }, account: string) =>
-    request<{ account: PaperAccount }>(accUrl('/api/paper/account', account), {
-      method: 'PUT', body: JSON.stringify(body),
-    }),
-
-  paperDeleteAccount: (account: string) =>
-    request<{ ok: boolean }>(accUrl('/api/paper/account', account), { method: 'DELETE' }),
-
   paperOrderCreate: (body: { symbol: string; side: 'buy' | 'sell'; qty?: number; amount?: number; order_type: 'market' | 'next_open' | 'close'; ref_price?: number; request_id?: string }, account?: string) =>
     request<{ order: PaperOrder }>(accUrl('/api/paper/orders', account), {
       method: 'POST',
@@ -4847,9 +4986,9 @@ export interface PipelineJob {
   cancellation_reason?: string | null
   duration_s: number | null
   result: {
+    period?: KlinePeriod | IndexKlinePeriod
     day?: string
     periods?: Partial<Record<KlinePeriod, { rows?: number; daily_days?: number }>>
-    period?: KlinePeriod | IndexKlinePeriod
     mode?: 'full' | 'missing'
     missing_before?: number
     remaining?: number

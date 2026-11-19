@@ -130,8 +130,6 @@ def validate_completed_pipeline(
     if minute_start is None:
         days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
     else:
-        # A source can return less history for recently listed instruments. Check
-        # every received partition; consumers still require exact T-1 auction proof.
         days = sorted(
             date.fromisoformat(part.name[5:])
             for part in (repo.store.data_dir / "kline_daily").glob("date=*")
