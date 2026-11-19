@@ -45,6 +45,13 @@ def test_external_workflow_actions_are_immutable_and_match_reviewed_pins():
     assert seen == set(pins.values()), "remove unused pins or missing workflow coverage"
 
 
+def test_browser_output_uses_step_scope_where_runner_context_is_available():
+    browser = workflow("ci.yml")["jobs"]["browser"]
+    assert "runner." not in str(browser.get("env", {}))
+    execution = next(step for step in browser["steps"] if step.get("run") == "npm test")
+    assert execution["env"]["TSP_BROWSER_OUTPUT"] == "${{ runner.temp }}/browser-acceptance"
+
+
 @pytest.mark.parametrize("stored", ["v0.4.50", "0.4.50"])
 @pytest.mark.parametrize("role", ["runtime", "compute", "identity", "promote"])
 def test_release_workflow_uses_canonical_version_with_repository_prefix(tmp_path, stored, role):

@@ -224,8 +224,6 @@ jobs:
     needs: [version, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      TSP_BROWSER_OUTPUT: ${{ runner.temp }}/browser-acceptance
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -265,6 +263,8 @@ jobs:
 
       - name: 桌面与窄屏真实浏览器验收
         working-directory: scripts/acceptance/browser
+        env:
+          TSP_BROWSER_OUTPUT: ${{ runner.temp }}/browser-acceptance
         run: npm test
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
